@@ -18,13 +18,6 @@ citation) are updated.
 
 ## Modules to port
 
-### Phase 2 — Geometry & speeds
-> **Build order (revised for data-flow):** `WINGGEOM` (done) → `WTENV` → `STRSPEED` → `MACHLIM`.
-> Multi-engine is modelled **first-class in this phase** (layouts: 1 nose / 2 or 4
-> wing, symmetric); full one-engine-out *loads* still land at `ONENGOUT`.
-- [ ] `STRSPEED` — structural design speeds (airplane `W` and total power summed across `engines`).
-- [ ] `MACHLIM` — Mach limit.
-
 ### Phase 3 — Aero coefficients & flight envelope
 - [ ] `TAU` — helper (off-menu).
 - [ ] `AIRLOADS` / `AIRLOAD4` — aero coefficients.

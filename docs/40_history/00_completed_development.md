@@ -181,6 +181,74 @@ regardless ballast *stations* also match: 80.27 / 70.97).
 
 ---
 
+## Phase 2 — Structural design speeds: STRSPEED (complete)
+
+**Objective.** Port the design-airspeed and limit-maneuver-load-factor module
+(`STRSPEED`), which seeds the flight-envelope and control-surface load modules
+(FLTLOADS, AILERON, FLAPLOAD) and shares its standard-atmosphere/Mach machinery
+with `MACHLIM`.
+
+**Deliverables.**
+- `farloads/models.py` — `StructuralSpeedsInput` and the `Project.speeds` slice
+  (category, design weight, stall speeds, VH, shoulder altitude, chosen speeds and
+  load factors).
+- `farloads/modules/structural_speeds.py` (`STRSPEED.BAS`), self-registered as
+  `structural_speeds`: FAR 23.337 maneuver load factors, FAR 23.335 design speeds
+  (VA/VC/VD/VF) with their minimums, and cruise/dive Mach at the shoulder altitude.
+- `farloads/constants.py` — shared `standard_atmosphere(altitude)` (a, sigma, with
+  the tropopause branch) plus `cruise_speed_coefficient`/`dive_ratio_coefficient`,
+  reused by MACHLIM next.
+- `farloads/io.py` — speeds (de)serialization; `app/pages/05_Structural_Speeds.py`;
+  speeds slice in the example; `tests/test_structural_speeds.py`.
+
+**Test / Acceptance.** Green build — `ruff check farloads/ cli.py` clean, full
+`pytest` suite passing, coverage floor held (≥80%). Reproduces the Appendix A V-n
+table within ±0.1%: VA 121.3, VC 170, VD 212.5, VF 105.5 kt (EAS); n = +3.8 /
+−1.52; MC 0.323 / MD 0.403 at the 12000 ft shoulder altitude; VC(min) 141.8 kt;
+wing area 184.1 ft².
+
+**Key decisions.**
+1. **Wing area from geometry.** S is read from the WINGGEOM wing surface
+   (total area in² → ft²), not re-entered — "read shared, write own".
+2. **VD floor is 1.25·VC.** The worked example's governing dive-speed bound is the
+   absolute FAR 23.335(b) floor 1.25·VC (212.5 kt); the gust-based K_d·VC (238 kt)
+   is reported as the recommended value but not enforced, matching the manual.
+3. **Shared atmosphere helper.** `standard_atmosphere` lives once in
+   `constants.py` so STRSPEED and MACHLIM cannot drift; the shoulder altitude
+   (12000 ft for the example) is an input.
+
+---
+
+## Phase 2 — Mach-limit lines: MACHLIM (complete)
+
+**Objective.** Port the Mach-limit-line module (`MACHLIM`) — the V-vs-altitude
+limit lines for the flight-limits diagram — completing Phase 2.
+
+**Deliverables.**
+- `farloads/models.py` — `MachLimitInput` on `Project.speeds.mach_limit` (MC, MD,
+  shoulder/max altitudes, increment).
+- `farloads/modules/mach_limit.py` (`MACHLIM.BAS`), self-registered as
+  `mach_limit`: `MNE = 0.9·MD`, `MFC = 1.2·MD`, and the per-altitude
+  Mach-limited equivalent airspeeds `V(M) = M·a·√σ` (reusing
+  `constants.standard_atmosphere`, including its tropopause branch).
+- `farloads/io.py` — nested `mach_limit` (de)serialization on the speeds slice;
+  `app/pages/06_Mach_Limit.py` (with a V-vs-altitude line chart);
+  mach_limit inputs in the example; `tests/test_mach_limit.py`.
+
+**Test / Acceptance.** Green build — `ruff check farloads/ cli.py` clean, full
+`pytest` suite passing, coverage floor held (≥80%). Reproduces Appendix A p160
+within ±0.1%: MNE 0.3627, MFC 0.4836, and the EAS table from V(MC) 170.16 /
+V(MD) 212.31 at 12000 ft down to V(MC) 150.77 / V(MD) 188.11 at 18000 ft.
+
+**Key decisions.**
+1. **Reuses the shared atmosphere.** No second copy of the atmosphere law; the
+   program's `a = 29.02` vs the helper's `29.02436` is a ~0.01% difference
+   absorbed by the ±0.1% tolerance (Decision 3).
+2. **Per-altitude condition rows.** Each altitude is its own `ConditionResult`, so
+   the CSV/text/GUI render the limit-line table directly and the GUI can chart it.
+
+---
+
 ## Tooling & documentation standard (complete)
 
 **Objective.** Bring the project's tooling and documentation standard in line

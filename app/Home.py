@@ -55,7 +55,8 @@ st.session_state["project"] = project
 # Summary of what the project carries
 # --------------------------------------------------------------------------- #
 st.header("Summary")
-slices = {"engine": project.engine, "weight": project.weight, "geometry": project.geometry}
+slices = {"engine": project.engine, "weight": project.weight,
+          "geometry": project.geometry, "speeds": project.speeds}
 present = [name for name, slice_ in slices.items() if slice_ is not None]
 st.write(
     f"Schema version **{project.schema_version}**. "

@@ -11,6 +11,26 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **MACHLIM Mach-limit lines** — `mach_limit` (MACHLIM) ported against Appendix A
+  p160: never-exceed and flutter-clearance Mach (`MNE = 0.9·MD`, `MFC = 1.2·MD`)
+  and the per-altitude Mach-limited equivalent airspeeds `V(M) = M·a·√σ` from the
+  shoulder altitude to the max operating altitude. Reproduces MNE 0.3627, MFC
+  0.4836 and V(MC) 170.16→150.77 (12000→18000 ft). New `MachLimitInput` on
+  `Project.speeds.mach_limit`, reusing `constants.standard_atmosphere`;
+  `app/pages/06_Mach_Limit.py` (with a V-vs-altitude chart), inputs in the example,
+  and `tests/test_mach_limit.py`. **Completes Phase 2.**
+- **STRSPEED structural design speeds** — `structural_speeds` (STRSPEED) ported
+  against the Appendix A V-n table: limit maneuver load factors (FAR 23.337,
+  `n = 2.1 + 24000/(W+10000)` capped by category, negative −0.4n/−0.5n) and design
+  airspeeds VA/VC/VD/VF (FAR 23.335) with their minimums, plus cruise/dive Mach at
+  the shoulder altitude. Reproduces VA 121.3, VC 170, VD 212.5, VF 105.5, n
+  +3.8/−1.52, MC 0.323/MD 0.403 @ 12000 ft. New `StructuralSpeedsInput` /
+  `Project.speeds` slice, a shared `constants.standard_atmosphere` helper (also for
+  MACHLIM) plus `cruise_speed_coefficient`/`dive_ratio_coefficient`, wing area read
+  from the WINGGEOM geometry slice (2·13257/144 = 184.1 ft²),
+  `app/pages/05_Structural_Speeds.py`, speeds slice in the example, and
+  `tests/test_structural_speeds.py`. VD uses the 1.25·VC floor (the worked
+  example's governing bound); K_d·VC is reported as the recommended gust value.
 - **WTENV weight/CG envelope** — `weight_envelope` (WTENV) ported against the
   Chapter 3 worked example: structural CG-limit stations (`X = XLEMAC + pct·MAC`,
   reading wing XLEMAC/MAC from the geometry slice via WINGGEOM), minimum/maximum

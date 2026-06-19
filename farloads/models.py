@@ -242,6 +242,53 @@ class GeometryInput:
         return None
 
 
+# --------------------------------------------------------------------------- #
+# Structural design speeds & maneuver load factors (STRSPEED) -- Project.speeds
+# --------------------------------------------------------------------------- #
+@dataclass
+class MachLimitInput:
+    """Inputs for MACHLIM (the Mach-limit lines on the flight-limits diagram).
+
+    ``mc``/``md`` are the cruise/dive Mach limits (from STRSPEED at the shoulder
+    altitude); MACHLIM tabulates the Mach-limited equivalent airspeeds from the
+    shoulder altitude up to the max operating altitude in ``increment_ft`` steps
+    (Reference 1 Ch 6).
+    """
+    mc: float = 0.0
+    md: float = 0.0
+    shoulder_altitude_ft: float = 0.0
+    max_operating_altitude_ft: float = 0.0
+    increment_ft: float = 1000.0
+
+
+@dataclass
+class StructuralSpeedsInput:
+    """Inputs for STRSPEED (design speeds & limit maneuver load factors).
+
+    Speeds are knots equivalent airspeed (KEAS). ``category`` is "N" (normal/
+    commuter), "U" (utility) or "A" (acrobatic). ``weight_lb`` and the wing area
+    drive the load factor and minimum cruise speed; the wing area is read from the
+    ``Project.geometry`` wing surface when present (else ``wing_area_sqft``). Each
+    ``chosen_*`` speed is verified against (and raised to) its FAR minimum; leave
+    one ``None`` to take the computed minimum directly.
+    """
+    category: str = "N"
+    weight_lb: float = 0.0
+    wing_area_sqft: Optional[float] = None     # else read from geometry wing
+    vh_kt: float = 0.0                          # max speed at sea level (KEAS)
+    stall_clean_kt: float = 0.0                 # VS, flaps retracted at design weight
+    stall_flap_kt: float = 0.0                  # VSF, flaps fully extended
+    shoulder_altitude_ft: float = 0.0           # for the MC/MD Mach numbers
+    wing_surface: str = "wing"
+    chosen_vc: Optional[float] = None
+    chosen_vd: Optional[float] = None
+    chosen_va: Optional[float] = None
+    chosen_vf: Optional[float] = None
+    chosen_n: Optional[float] = None            # chosen positive maneuver load factor
+    chosen_nneg: Optional[float] = None         # chosen negative maneuver load factor
+    mach_limit: Optional[MachLimitInput] = None  # MACHLIM inputs (Project.speeds.mach_limit)
+
+
 @dataclass
 class LoadValue:
     """A single labelled output quantity with units (for clean rendering).
@@ -303,6 +350,7 @@ class Project:
     engine_layout: Optional[EngineLayout] = None
     weight: Optional[WeightInput] = None
     geometry: Optional[GeometryInput] = None
+    speeds: Optional[StructuralSpeedsInput] = None
 
     def __post_init__(self) -> None:
         if self.engine_layout is not None and self.engines:

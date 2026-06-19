@@ -84,5 +84,23 @@
         "trailing_edge": [[116.38, 109], [129.522, 110.401], [117.642, 190]]
       }
     ]
+  },
+  "speeds": {
+    "category": "N",
+    "weight_lb": 3400,
+    "vh_kt": 190,
+    "stall_clean_kt": 62.226,
+    "stall_flap_kt": 58.611,
+    "shoulder_altitude_ft": 12000,
+    "wing_surface": "wing",
+    "chosen_vc": 170,
+    "chosen_vd": 212.5,
+    "mach_limit": {
+      "mc": 0.323,
+      "md": 0.403,
+      "shoulder_altitude_ft": 12000,
+      "max_operating_altitude_ft": 18000,
+      "increment_ft": 1000
+    }
   }
 }

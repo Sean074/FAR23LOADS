@@ -138,6 +138,61 @@ def installed_engine_weight(engine_type: str, hp: float, engines: int) -> float:
     raise ValueError(f"Unknown engine weight type {engine_type!r} (expected RF/RT/TC/TP/LC)")
 
 
+# --------------------------------------------------------------------------- #
+# Standard atmosphere & design speeds (STRSPEED / MACHLIM)
+# --------------------------------------------------------------------------- #
+# Tropopause altitude used by the suite (STRSPEED/MACHLIM.BAS): above it the
+# speed of sound is constant and the density-ratio law changes.
+TROPOPAUSE_FT = 35332.0
+
+
+def standard_atmosphere(altitude_ft: float):
+    """Speed of sound (knots) and density ratio sigma at an altitude.
+
+    Mirrors the STRSPEED/MACHLIM atmosphere (Reference 1 Ch 6):
+        T     = 59 - 0.003566*H              (deg F)
+        a     = 29.02436*(T+459.4)**0.5      (knots)
+        sigma = (1 - 0.000006879*H)**4.258
+    Above the tropopause (``H > 35332 ft``) the speed of sound is constant and
+    sigma follows the isothermal exponential law.
+    """
+    h = altitude_ft
+    if h <= TROPOPAUSE_FT:
+        t = 59.0 - 0.003566 * h
+        a = 29.02436 * (t + 459.4) ** 0.5
+        sigma = (1.0 - 0.000006879 * h) ** 4.258
+    else:
+        t = 59.0 - 0.003566 * TROPOPAUSE_FT
+        a = 29.02436 * (t + 459.4) ** 0.5  # constant above the tropopause
+        sigma = (0.00072725 * math.exp(-0.00004778 * (h - TROPOPAUSE_FT))) / 0.002378
+    return a, sigma
+
+
+def cruise_speed_coefficient(category: str, wing_loading: float) -> float:
+    """K in VC(min) = K*(W/S)**0.5, by category (Reference 1 Ch 6).
+
+    K is constant up to W/S = 20 and tapers linearly to 28.6 at W/S = 100.
+    Normal and utility share K0 = 33; acrobatic uses K0 = 36.
+    """
+    k0 = 36.0 if category == "A" else 33.0
+    if wing_loading <= 20.0:
+        return k0
+    return k0 - (k0 - 28.6) / (100.0 - 20.0) * (wing_loading - 20.0)
+
+
+def dive_ratio_coefficient(category: str, wing_loading: float) -> float:
+    """K in VD(min) = K*VC, by category (Reference 1 Ch 6).
+
+    K0 (at W/S <= 20) is 1.40 normal, 1.50 utility, 1.55 acrobatic, tapering to
+    1.35 at W/S = 100. (The absolute FAR floor VD >= 1.25*VC also applies and, for
+    the worked example, governs.)
+    """
+    k0 = {"U": 1.50, "A": 1.55}.get(category, 1.40)
+    if wing_loading <= 20.0:
+        return k0
+    return k0 - (k0 - 1.35) / (100.0 - 20.0) * (wing_loading - 20.0)
+
+
 def reciprocating_torque_factor(cylinders: int) -> float:
     """Torque factor for a reciprocating engine, by cylinder count.
 

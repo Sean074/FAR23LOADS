@@ -27,6 +27,7 @@ from .models import (
     EngineType,
     EngineWeightType,
     GeometryInput,
+    MachLimitInput,
     MassItem,
     MassItemKind,
     ModuleResult,
@@ -34,6 +35,7 @@ from .models import (
     Rotor,
     RotorDirection,
     RotorType,
+    StructuralSpeedsInput,
     SurfaceInput,
     WeightEnvelopeInput,
     WeightEstimationInput,
@@ -175,6 +177,22 @@ def geometry_to_dict(inp: GeometryInput) -> Dict[str, Any]:
 
 
 # --------------------------------------------------------------------------- #
+# Speeds slice <-> dict
+# --------------------------------------------------------------------------- #
+def speeds_from_dict(d: Dict[str, Any]) -> StructuralSpeedsInput:
+    """Build a :class:`StructuralSpeedsInput` from a plain dict (nested MACHLIM)."""
+    d = dict(d)
+    ml = d.pop("mach_limit", None)
+    mach_limit = MachLimitInput(**dict(ml)) if ml else None
+    return StructuralSpeedsInput(mach_limit=mach_limit, **d)
+
+
+def speeds_to_dict(inp: StructuralSpeedsInput) -> Dict[str, Any]:
+    """Serialize a :class:`StructuralSpeedsInput` to JSON-friendly primitives."""
+    return asdict(inp)
+
+
+# --------------------------------------------------------------------------- #
 # Project <-> JSON
 # --------------------------------------------------------------------------- #
 def project_from_dict(d: Dict[str, Any]) -> Project:
@@ -185,11 +203,12 @@ def project_from_dict(d: Dict[str, Any]) -> Project:
     list with a SINGLE_NOSE layout).
     """
     if (
-        "engines" in d or "engine" in d or "weight" in d
-        or "geometry" in d or "schema_version" in d or "name" in d
+        "engines" in d or "engine" in d or "weight" in d or "geometry" in d
+        or "speeds" in d or "schema_version" in d or "name" in d
     ):
         weight = d.get("weight")
         geometry = d.get("geometry")
+        speeds = d.get("speeds")
         engines, layout = _engines_from_dict(d)
         return Project(
             schema_version=d.get("schema_version", SCHEMA_VERSION),
@@ -198,6 +217,7 @@ def project_from_dict(d: Dict[str, Any]) -> Project:
             engine_layout=layout,
             weight=weight_from_dict(weight) if weight else None,
             geometry=geometry_from_dict(geometry) if geometry else None,
+            speeds=speeds_from_dict(speeds) if speeds else None,
         )
     # Legacy: the whole file is just the engine slice.
     return Project(name="", engines=[engine_from_dict(d)], engine_layout=EngineLayout.SINGLE_NOSE)
@@ -230,6 +250,8 @@ def project_to_dict(project: Project) -> Dict[str, Any]:
         out["weight"] = weight_to_dict(project.weight)
     if project.geometry is not None:
         out["geometry"] = geometry_to_dict(project.geometry)
+    if project.speeds is not None:
+        out["speeds"] = speeds_to_dict(project.speeds)
     return out
 
 
