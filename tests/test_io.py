@@ -69,7 +69,9 @@ def test_run_all_modules_skips_missing_slices():
     # A project with only the engine slice runs the engine module alone.
     from test_engine import io520bb
 
-    project = Project(name="engine only", engine=io520bb())
+    from farloads import EngineLayout
+
+    project = Project(name="engine only", engines=[io520bb()], engine_layout=EngineLayout.SINGLE_NOSE)
     results = registry.run_all_modules(project)
     assert [r.module for r in results] == ["engine"]
 

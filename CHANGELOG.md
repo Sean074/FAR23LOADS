@@ -11,6 +11,17 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **First-class multi-engine layout** — the `Project` engine slice is now a list
+  (`engines: List[EngineInput]`) plus an `EngineLayout` enum constrained to the
+  modelled layouts (`SINGLE_NOSE` = 1 nose, `TWIN_WING` = 2 wing, `QUAD_WING` =
+  4 wing, symmetric). `Project.__post_init__` validates the engine count against
+  the layout; a read-only `Project.engine` property returns the first engine so
+  single-engine call sites are unchanged. `io.py` reads either the new
+  `"engines"`/`"engine_layout"` JSON or the legacy single `"engine"` key, and the
+  engine module's `run(project)` loops over every engine (single-engine output is
+  byte-identical; multi-engine prefixes each condition with the engine
+  designation). Resolves PROJECT_GUIDE open decision #2 ("model the field now").
+  Full one-engine-out *loads* still land at `ONENGOUT`.
 - **Phase 1 mass properties** — two modules ported against Appendix A:
   `weight_estimate` (WTESTIMA, statistical weight estimate; reproduces the p133
   figures exactly) and `weight_onecg` (WTONECG, one-loading weight/CG/inertia;

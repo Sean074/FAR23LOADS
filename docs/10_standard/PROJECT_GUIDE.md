@@ -312,7 +312,7 @@ default plan is phase-by-phase.)
 ## 8. Open user decisions (for later phases, not blocking Phase 0)
 
 1. **Graphics.** The original has a separate graphics program (weight envelope, V-n diagram, spanwise plots). Replicate these as Streamlit charts (Altair/Matplotlib)? Default: yes, per module, deferred to that module's phase.
-2. **Multi-engine / twin layout.** Appendix B is a twin. Does the `Project` model need first-class multi-engine support (list of engine installations) from Phase 0, or added at `ONENGOUT`? Default: model the field now, exercise it at `ONENGOUT`.
+2. **Multi-engine / twin layout.** ✅ **RESOLVED (Phase 2): first-class now.** `Project.engines: List[EngineInput]` + `EngineLayout` (`SINGLE_NOSE`/`TWIN_WING`/`QUAD_WING`, symmetric). The engine module loops over every engine; full one-engine-out *loads* are still built at `ONENGOUT`.
 3. **Project JSON versioning.** Add a `schema_version` to `project.json` from day one so old saves migrate cleanly as the schema grows? Default: yes.
 4. **Standalone vs project-only inputs.** Hybrid allows a module to run from a partial JSON (just its own slice). Confirm we want to maintain per-module example JSONs in addition to the two full-airplane projects. Default: full projects are canonical; per-module slices are derived for tests.
 5. **CSV vs combined workbook.** "Per-module CSV out" is set. Optionally also offer a single multi-sheet export (zip of CSVs or xlsx) for hand-off? Default: zip of per-module CSVs from the Home page.

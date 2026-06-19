@@ -140,6 +140,45 @@ def test_turboprop_runs_six_conditions():
     assert len(run_all(turboprop())) == 6
 
 
+# --------------------------------------------------------------------------- #
+# Multi-engine layout (first-class; loads loop over every engine)
+# --------------------------------------------------------------------------- #
+def test_single_engine_run_matches_run_all():
+    from farloads import EngineLayout, Project
+
+    project = Project(name="single", engines=[io520bb()], engine_layout=EngineLayout.SINGLE_NOSE)
+    mr = calc.run(project)
+    ref = run_all(io520bb())
+    # One engine: run(project) is byte-identical to run_all (no title prefixes).
+    assert [c.title for c in mr.conditions] == [c.title for c in ref]
+    assert len(mr.conditions) == 3
+
+
+def test_twin_wing_loops_over_each_engine():
+    from dataclasses import replace
+    from farloads import EngineLayout, Project
+
+    left = replace(io520bb(), engine_designation="LEFT", engine_cg=(22.0, -60.0, -10.0))
+    right = replace(io520bb(), engine_designation="RIGHT", engine_cg=(22.0, 60.0, -10.0))
+    project = Project(name="twin", engines=[left, right], engine_layout=EngineLayout.TWIN_WING)
+    mr = calc.run(project)
+    # Two reciprocating engines -> 2 x 3 conditions, each tagged by designation.
+    assert len(mr.conditions) == 6
+    assert mr.conditions[0].title.startswith("[LEFT]")
+    assert mr.conditions[3].title.startswith("[RIGHT]")
+
+
+def test_engine_layout_count_is_validated():
+    from farloads import EngineLayout, Project
+
+    raised = False
+    try:
+        Project(name="bad", engines=[io520bb()], engine_layout=EngineLayout.TWIN_WING)
+    except ValueError:
+        raised = True
+    assert raised  # TWIN_WING needs 2 engines, got 1
+
+
 if __name__ == "__main__":
     import traceback
     tests = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]

@@ -1,23 +1,26 @@
 {
   "schema_version": 1,
   "name": "GA 6-place single (Appendix A) — Continental IO-520-BB",
-  "engine": {
-    "engine_designation": "CONTINENTAL IO-520-BB",
-    "prop_designation": "HARTZELL",
-    "engine_type": "R",
-    "limit_load_factor": 3.8,
-    "engine_weight_lb": 505,
-    "engine_cg": [22.0, 0.0, -10.0],
-    "prop_weight_lb": 74,
-    "prop_diameter_in": 84,
-    "prop_blades": 3,
-    "takeoff_rpm": 2700,
-    "max_cont_rpm": 2500,
-    "prop_cg": [-10.0, 0.0, 93.022],
-    "takeoff_hp": 285,
-    "max_cont_hp": 265,
-    "cylinders": 6
-  },
+  "engine_layout": "1N",
+  "engines": [
+    {
+      "engine_designation": "CONTINENTAL IO-520-BB",
+      "prop_designation": "HARTZELL",
+      "engine_type": "R",
+      "limit_load_factor": 3.8,
+      "engine_weight_lb": 505,
+      "engine_cg": [22.0, 0.0, -10.0],
+      "prop_weight_lb": 74,
+      "prop_diameter_in": 84,
+      "prop_blades": 3,
+      "takeoff_rpm": 2700,
+      "max_cont_rpm": 2500,
+      "prop_cg": [-10.0, 0.0, 93.022],
+      "takeoff_hp": 285,
+      "max_cont_hp": 265,
+      "cylinders": 6
+    }
+  ],
   "weight": {
     "estimation": {
       "airplane": "6 PLACE SINGLE ENGINE GENERAL AVIATION",

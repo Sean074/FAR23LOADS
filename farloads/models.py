@@ -19,6 +19,27 @@ class EngineType(str, Enum):
     TURBOPROP = "T"
 
 
+class EngineLayout(str, Enum):
+    """Where the engines sit, constrained to the layouts the suite models.
+
+    The value's leading digit is the engine count, so ``expected_count`` reads it
+    directly: one engine on the fuselage nose, or a symmetric pair / two pairs of
+    wing-mounted engines. Wing layouts place engines at mirror-symmetric butt
+    lines (``+y``/``-y``); the nose engine sits on the centreline (``y = 0``).
+    """
+    SINGLE_NOSE = "1N"
+    TWIN_WING = "2W"
+    QUAD_WING = "4W"
+
+    @property
+    def expected_count(self) -> int:
+        return int(self.value[0])
+
+    @property
+    def is_wing_mounted(self) -> bool:
+        return self.value.endswith("W")
+
+
 class RotorType(str, Enum):
     COMPRESSOR = "C"
     TURBINE = "T"
@@ -202,13 +223,31 @@ class Project:
     """The single, reloadable project that carries every module's inputs.
 
     One ``project.json`` holds the whole airplane; each module reads the slice it
-    needs and appends its results. Phase 0 added the ``engine`` slice and Phase 1
-    the ``weight`` (mass-properties) slice; geometry, speeds and loads slices are
+    needs and appends its results. Phase 0 added the engine slice and Phase 1 the
+    ``weight`` (mass-properties) slice; geometry, speeds and loads slices are
     added in later phases.
-    A list-valued multi-engine layout (Appendix B is a twin) is deferred to the
-    ONENGOUT phase per the project guide.
+
+    Multi-engine is first-class: ``engines`` is the ordered list of engine-mount
+    inputs and ``engine_layout`` constrains it to a modelled layout (1 nose / 2 or
+    4 wing). The ``engine`` property returns the first engine so single-engine
+    call sites and the legacy ``"engine"`` JSON key keep working unchanged.
     """
     schema_version: int = SCHEMA_VERSION
     name: str = ""
-    engine: Optional[EngineInput] = None
+    engines: List["EngineInput"] = field(default_factory=list)
+    engine_layout: Optional[EngineLayout] = None
     weight: Optional[WeightInput] = None
+
+    def __post_init__(self) -> None:
+        if self.engine_layout is not None and self.engines:
+            expected = self.engine_layout.expected_count
+            if len(self.engines) != expected:
+                raise ValueError(
+                    f"engine_layout {self.engine_layout.value} expects {expected} "
+                    f"engine(s), got {len(self.engines)}"
+                )
+
+    @property
+    def engine(self) -> Optional["EngineInput"]:
+        """The first/primary engine (compat shim for single-engine call sites)."""
+        return self.engines[0] if self.engines else None

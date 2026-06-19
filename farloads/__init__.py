@@ -8,6 +8,7 @@ themselves with :mod:`farloads.registry`.
 from .models import (
     ConditionResult,
     EngineInput,
+    EngineLayout,
     EngineType,
     EngineWeightType,
     LoadValue,
@@ -40,6 +41,7 @@ from .modules.engine import run_all
 __all__ = [
     "ConditionResult",
     "EngineInput",
+    "EngineLayout",
     "EngineType",
     "EngineWeightType",
     "LoadValue",

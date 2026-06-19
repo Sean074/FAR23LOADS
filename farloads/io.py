@@ -23,6 +23,7 @@ from .models import (
     SCHEMA_VERSION,
     ConditionResult,
     EngineInput,
+    EngineLayout,
     EngineType,
     EngineWeightType,
     MassItem,
@@ -131,18 +132,38 @@ def weight_to_dict(inp: WeightInput) -> Dict[str, Any]:
 # Project <-> JSON
 # --------------------------------------------------------------------------- #
 def project_from_dict(d: Dict[str, Any]) -> Project:
-    """Build a :class:`Project` from a dict, accepting the legacy flat shape."""
-    if "engine" in d or "weight" in d or "schema_version" in d or "name" in d:
-        engine = d.get("engine")
+    """Build a :class:`Project` from a dict, accepting the legacy flat shape.
+
+    Accepts either the multi-engine ``"engines": [...]`` + ``"engine_layout"``
+    form or the legacy single ``"engine": {...}`` key (wrapped into a one-element
+    list with a SINGLE_NOSE layout).
+    """
+    if "engines" in d or "engine" in d or "weight" in d or "schema_version" in d or "name" in d:
         weight = d.get("weight")
+        engines, layout = _engines_from_dict(d)
         return Project(
             schema_version=d.get("schema_version", SCHEMA_VERSION),
             name=d.get("name", ""),
-            engine=engine_from_dict(engine) if engine else None,
+            engines=engines,
+            engine_layout=layout,
             weight=weight_from_dict(weight) if weight else None,
         )
     # Legacy: the whole file is just the engine slice.
-    return Project(name="", engine=engine_from_dict(d))
+    return Project(name="", engines=[engine_from_dict(d)], engine_layout=EngineLayout.SINGLE_NOSE)
+
+
+def _engines_from_dict(d: Dict[str, Any]):
+    """Read the engine list + layout, accepting the legacy single-engine key."""
+    if "engines" in d:
+        engines = [engine_from_dict(e) for e in d.get("engines") or []]
+        layout = d.get("engine_layout")
+        layout = EngineLayout(layout) if layout else None
+    elif d.get("engine"):
+        engines = [engine_from_dict(d["engine"])]
+        layout = EngineLayout.SINGLE_NOSE
+    else:
+        engines, layout = [], None
+    return engines, layout
 
 
 def project_to_dict(project: Project) -> Dict[str, Any]:
@@ -150,8 +171,10 @@ def project_to_dict(project: Project) -> Dict[str, Any]:
         "schema_version": project.schema_version,
         "name": project.name,
     }
-    if project.engine is not None:
-        out["engine"] = engine_to_dict(project.engine)
+    if project.engines:
+        out["engines"] = [engine_to_dict(e) for e in project.engines]
+        if project.engine_layout is not None:
+            out["engine_layout"] = project.engine_layout.value
     if project.weight is not None:
         out["weight"] = weight_to_dict(project.weight)
     return out

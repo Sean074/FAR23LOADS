@@ -323,14 +323,30 @@ MODULE_NAME = "engine"
 def run(project: Project) -> ModuleResult:
     """Run the engine-mount module against a :class:`Project`.
 
-    Reads the ``engine`` slice of the project (an :class:`EngineInput`) and
-    returns its FAR 23 conditions wrapped as a :class:`ModuleResult`. This is the
-    uniform entry point the registry, CLI and GUI call; ``run_all`` remains the
+    Evaluates the FAR 23 conditions for **every** engine in ``project.engines``
+    and concatenates them into one :class:`ModuleResult`. With a single engine the
+    output is identical to evaluating that engine alone; with two or four
+    (wing-mounted) engines each condition's title is prefixed with the engine's
+    designation so the per-engine groups stay distinct. ``run_all`` remains the
     direct ``EngineInput`` -> conditions function used by the calc tests.
     """
-    if project.engine is None:
-        raise ValueError("Project has no 'engine' slice for the engine module")
-    return ModuleResult(module=MODULE_NAME, conditions=run_all(project.engine))
+    if not project.engines:
+        raise ValueError("Project has no engines for the engine module")
+
+    single = len(project.engines) == 1
+    conditions: List[ConditionResult] = []
+    for i, eng in enumerate(project.engines, start=1):
+        for cond in run_all(eng):
+            if not single:
+                tag = eng.engine_designation or f"engine {i}"
+                cond = ConditionResult(
+                    title=f"[{tag}] {cond.title}",
+                    far_reference=cond.far_reference,
+                    values=cond.values,
+                    note=cond.note,
+                )
+            conditions.append(cond)
+    return ModuleResult(module=MODULE_NAME, conditions=conditions)
 
 
 register(MODULE_NAME, run)
