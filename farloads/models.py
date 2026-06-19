@@ -177,6 +177,46 @@ class WeightInput:
     items: List[MassItem] = field(default_factory=list)
 
 
+# --------------------------------------------------------------------------- #
+# Aerodynamic surface geometry (WINGGEOM) -- the Project.geometry slice
+# --------------------------------------------------------------------------- #
+XYPoint = Tuple[float, float]  # (fuselage station X, wing/butt station Y), inches
+
+
+@dataclass
+class SurfaceInput:
+    """One aerodynamic surface for WINGGEOM, defined by its edge polylines.
+
+    ``leading_edge``/``trailing_edge`` are lists of ``(X, Y)`` points ordered
+    inboard -> outboard (fuselage station X, butt line Y, both inches), exactly as
+    the original program prompts for them. ``elements`` is the strip count the
+    chord is integrated over (``H`` in WINGGEOM.BAS; the Appendix A wing uses 20).
+    ``symmetric`` marks a surface symmetric about the airplane centre plane (wing,
+    horizontal/vertical tail) versus one defined on a single side (aileron, flap).
+    """
+    name: str
+    leading_edge: List[XYPoint]
+    trailing_edge: List[XYPoint]
+    symmetric: bool = True
+    elements: int = 20
+
+
+@dataclass
+class GeometryInput:
+    """The aerodynamic-surface geometry database read by WINGGEOM and downstream.
+
+    ``surfaces`` is the ordered list of surfaces to evaluate (wing first by
+    convention, since wing ``XLEMAC``/``MAC`` seed WTENV and STRSPEED).
+    """
+    surfaces: List[SurfaceInput] = field(default_factory=list)
+
+    def by_name(self, name: str) -> Optional[SurfaceInput]:
+        for s in self.surfaces:
+            if s.name == name:
+                return s
+        return None
+
+
 @dataclass
 class LoadValue:
     """A single labelled output quantity with units (for clean rendering).
@@ -237,6 +277,7 @@ class Project:
     engines: List["EngineInput"] = field(default_factory=list)
     engine_layout: Optional[EngineLayout] = None
     weight: Optional[WeightInput] = None
+    geometry: Optional[GeometryInput] = None
 
     def __post_init__(self) -> None:
         if self.engine_layout is not None and self.engines:

@@ -26,6 +26,7 @@ from .models import (
     EngineLayout,
     EngineType,
     EngineWeightType,
+    GeometryInput,
     MassItem,
     MassItemKind,
     ModuleResult,
@@ -33,6 +34,7 @@ from .models import (
     Rotor,
     RotorDirection,
     RotorType,
+    SurfaceInput,
     WeightEstimationInput,
     WeightInput,
 )
@@ -129,6 +131,45 @@ def weight_to_dict(inp: WeightInput) -> Dict[str, Any]:
 
 
 # --------------------------------------------------------------------------- #
+# Geometry slice <-> dict
+# --------------------------------------------------------------------------- #
+def _points(raw) -> List:
+    """Coerce a list of JSON [x, y] arrays to (x, y) tuples."""
+    return [tuple(p) for p in raw or []]
+
+
+def _surface_from_dict(d: Dict[str, Any]) -> SurfaceInput:
+    return SurfaceInput(
+        name=d["name"],
+        leading_edge=_points(d.get("leading_edge")),
+        trailing_edge=_points(d.get("trailing_edge")),
+        symmetric=d.get("symmetric", True),
+        elements=d.get("elements", 20),
+    )
+
+
+def geometry_from_dict(d: Dict[str, Any]) -> GeometryInput:
+    """Build a :class:`GeometryInput` from a plain dict (tuple coercion)."""
+    return GeometryInput(surfaces=[_surface_from_dict(s) for s in d.get("surfaces", []) or []])
+
+
+def geometry_to_dict(inp: GeometryInput) -> Dict[str, Any]:
+    """Serialize a :class:`GeometryInput` to JSON-friendly primitives."""
+    return {
+        "surfaces": [
+            {
+                "name": s.name,
+                "leading_edge": [list(p) for p in s.leading_edge],
+                "trailing_edge": [list(p) for p in s.trailing_edge],
+                "symmetric": s.symmetric,
+                "elements": s.elements,
+            }
+            for s in inp.surfaces
+        ]
+    }
+
+
+# --------------------------------------------------------------------------- #
 # Project <-> JSON
 # --------------------------------------------------------------------------- #
 def project_from_dict(d: Dict[str, Any]) -> Project:
@@ -138,8 +179,12 @@ def project_from_dict(d: Dict[str, Any]) -> Project:
     form or the legacy single ``"engine": {...}`` key (wrapped into a one-element
     list with a SINGLE_NOSE layout).
     """
-    if "engines" in d or "engine" in d or "weight" in d or "schema_version" in d or "name" in d:
+    if (
+        "engines" in d or "engine" in d or "weight" in d
+        or "geometry" in d or "schema_version" in d or "name" in d
+    ):
         weight = d.get("weight")
+        geometry = d.get("geometry")
         engines, layout = _engines_from_dict(d)
         return Project(
             schema_version=d.get("schema_version", SCHEMA_VERSION),
@@ -147,6 +192,7 @@ def project_from_dict(d: Dict[str, Any]) -> Project:
             engines=engines,
             engine_layout=layout,
             weight=weight_from_dict(weight) if weight else None,
+            geometry=geometry_from_dict(geometry) if geometry else None,
         )
     # Legacy: the whole file is just the engine slice.
     return Project(name="", engines=[engine_from_dict(d)], engine_layout=EngineLayout.SINGLE_NOSE)
@@ -177,6 +223,8 @@ def project_to_dict(project: Project) -> Dict[str, Any]:
             out["engine_layout"] = project.engine_layout.value
     if project.weight is not None:
         out["weight"] = weight_to_dict(project.weight)
+    if project.geometry is not None:
+        out["geometry"] = geometry_to_dict(project.geometry)
     return out
 
 

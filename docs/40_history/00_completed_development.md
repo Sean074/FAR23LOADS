@@ -94,6 +94,52 @@ p136 within ±0.1% (weight and lb-in² accumulators are g-independent and exact)
 
 ---
 
+## Phase 2 — Geometry: WINGGEOM + first-class multi-engine (complete)
+
+**Objective.** Port aerodynamic-surface geometry (`WINGGEOM`) — the wing's
+`MAC`/`XLEMAC` seed `WTENV` and `STRSPEED` — and, alongside it, promote the engine
+slice to first-class multi-engine support (resolving PROJECT_GUIDE open decision
+#2) so geometry/weight/speeds can reference the engine layout now and `ONENGOUT`
+can exercise it fully later.
+
+**Deliverables.**
+- **Multi-engine schema** — `EngineLayout` enum (`SINGLE_NOSE`/`TWIN_WING`/
+  `QUAD_WING`, symmetric); `Project.engines: List[EngineInput]` + `engine_layout`
+  with `__post_init__` count validation and a read-only `Project.engine` compat
+  property. `io.py` reads the new `engines`/`engine_layout` JSON or the legacy
+  single `engine` key; `modules/engine.py` `run()` loops over every engine
+  (single-engine output byte-identical, multi-engine prefixed by designation).
+- `farloads/models.py` — `Project.geometry` slice (`GeometryInput` →
+  `SurfaceInput` per surface: LE/TE point polylines, `symmetric`, `elements`).
+- `farloads/modules/wing_geometry.py` (`WINGGEOM.BAS`), self-registered as
+  `wing_geometry`: strip-sum area/MAC/YBAR/XLEMAC/AR/span per surface, plus
+  wing-mounted engine spanwise stations driven by `engine_layout`.
+- `farloads/io.py` — `geometry_from_dict`/`geometry_to_dict`; `units.py` gained
+  area (`in²`→m²) and airspeed (`knot`→m/s) SI output conversions.
+- `app/pages/03_Wing_Geometry.py` (per-surface point editors, SI output toggle);
+  `examples/ga6_normal.project.json` extended with wing + aileron surfaces and the
+  multi-engine layout form; `tests/test_wing_geometry.py` and new multi-engine
+  assertions in `tests/test_engine.py`.
+
+**Test / Acceptance.** Green build — `ruff check farloads/ cli.py` clean, full
+`pytest` suite passing, coverage floor held (≥80%). The **wing** reproduces
+Appendix A p141 within ±0.1% (AREA/SIDE 13257, MAC 69.246, YLE(MAC) 87.854,
+XLE(MAC) 63.641, AR 6.095) at the manual's 20-element strip count; the aileron
+exercises the unsymmetric path (checked loosely, since Appendix A does not
+tabulate its element count).
+
+**Key decisions.**
+1. **Strip count is an input, oracle is H-specific.** The manual's printed figures
+   *are* the `H`-element midpoint strip sum, so `elements` must match the manual's
+   value (20 for the wing) to reproduce them — kept as a per-surface field.
+2. **Multi-engine first-class now.** Engine list + layout modelled this phase;
+   the engine module loops over engines, but one-engine-out *loads* remain at
+   `ONENGOUT`. Backward-compatible: legacy single-`engine` JSON still loads.
+3. **Wing is the authoritative oracle.** `XLEMAC`/`MAC` (the figures the whole
+   pipeline cites) are matched tightly; secondary surfaces use the same calc.
+
+---
+
 ## Tooling & documentation standard (complete)
 
 **Objective.** Bring the project's tooling and documentation standard in line

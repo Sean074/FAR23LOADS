@@ -53,6 +53,8 @@ UNIT_LABELS = {
 _RESULT_TO_SI = {
     "lb": (4.4482216152605, "N"),          # lbf -> N (force/load)
     "in": (25.4, "mm"),                    # in -> mm (position)
+    "in^2": (6.4516e-04, "m²"),            # in^2 -> m^2 (surface area)
+    "knot": (0.514444, "m/s"),             # knot -> m/s (airspeed)
     "ft-lb": (1.3558179483314, "N·m"),     # ft-lb -> N·m (moment/torque)
     "slug-ft^2": (1.3558179483314, "kg·m²"),  # slug-ft^2 -> kg·m^2 (inertia)
     "lb-in^2": (2.926396534292e-04, "kg·m²"),  # lb-in^2 -> kg·m^2 (inertia, mass basis)

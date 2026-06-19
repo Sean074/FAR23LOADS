@@ -8,3 +8,4 @@ the mass-properties modules (weight estimation and one-condition CG/inertia).
 from . import engine  # noqa: F401  (import for side effect: self-registration)
 from . import weight_estimate  # noqa: F401
 from . import weight_onecg  # noqa: F401
+from . import wing_geometry  # noqa: F401

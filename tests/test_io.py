@@ -57,12 +57,14 @@ def test_engine_is_registered():
 
 
 def test_run_all_modules_runs_present_slices():
-    # The GA6 example carries the engine and weight slices, so "run all" runs the
-    # engine and both mass-properties modules (skipping any module whose slice is
-    # absent via the ValueError path).
+    # The GA6 example carries the engine, weight and geometry slices, so "run all"
+    # runs the engine, both mass-properties and the wing-geometry modules (skipping
+    # any module whose slice is absent via the ValueError path).
     project = io.load_project(GA6)
     results = registry.run_all_modules(project)
-    assert {r.module for r in results} == {"engine", "weight_estimate", "weight_onecg"}
+    assert {r.module for r in results} == {
+        "engine", "weight_estimate", "weight_onecg", "wing_geometry",
+    }
 
 
 def test_run_all_modules_skips_missing_slices():

@@ -11,6 +11,15 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **Phase 2 geometry** — `wing_geometry` (WINGGEOM) ported against Appendix A
+  p141: spanwise strip-sum of area, MAC, YLE(MAC), XLEMAC, aspect ratio and span
+  per aerodynamic surface (the wing reproduces MAC 69.246 / XLEMAC 63.641 / AR
+  6.095 within ±0.1% at the manual's 20-element count). New `Project.geometry`
+  slice (`GeometryInput` → `SurfaceInput` with LE/TE point polylines, `symmetric`,
+  `elements`), `geometry_from_dict`/`geometry_to_dict`, wing+aileron surfaces in
+  the example, `app/pages/03_Wing_Geometry.py`, and `tests/test_wing_geometry.py`.
+  `units.py` gained area (in²→m²) and airspeed (knot→m/s) SI output. Wing-mounted
+  engine spanwise stations are derived from `engine_layout`.
 - **First-class multi-engine layout** — the `Project` engine slice is now a list
   (`engines: List[EngineInput]`) plus an `EngineLayout` enum constrained to the
   modelled layouts (`SINGLE_NOSE` = 1 nose, `TWIN_WING` = 2 wing, `QUAD_WING` =

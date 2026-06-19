@@ -58,5 +58,23 @@
       {"name": "Fuel to gross wt", "weight_lb": 409.0, "x": 70.0, "z": 87.0, "ixx": 501025, "izz": 501025, "kind": "discretionary"},
       {"name": "Ballast", "weight_lb": 78.0, "x": 103.7, "z": 90.0, "kind": "discretionary"}
     ]
+  },
+  "geometry": {
+    "surfaces": [
+      {
+        "name": "wing",
+        "symmetric": true,
+        "elements": 20,
+        "leading_edge": [[45, 0], [64.31301, 46.5], [72, 201]],
+        "trailing_edge": [[146, 0], [116, 201]]
+      },
+      {
+        "name": "aileron",
+        "symmetric": false,
+        "elements": 20,
+        "leading_edge": [[116.38, 109], [107.744, 190]],
+        "trailing_edge": [[116.38, 109], [129.522, 110.401], [117.642, 190]]
+      }
+    ]
   }
 }
