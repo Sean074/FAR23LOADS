@@ -132,46 +132,48 @@ def estimate(inp: WeightEstimationInput) -> List[ConditionResult]:
 
     empty = wto - useful
 
-    def lb(value: float) -> int:
-        return int(value)
+    def mass(label: str, value: float) -> LoadValue:
+        # Weights are pounds-*mass* (quantity="mass" -> kg in SI, not N), and are
+        # truncated with int(...) to match the original program's printout.
+        return LoadValue(label, int(value), "lb", quantity="mass")
 
     summary = ConditionResult(
         title="Estimated weight summary",
         far_reference=_FAR,
         values=[
-            LoadValue("Max take-off weight", lb(wto), "lb"),
-            LoadValue("Useful load", lb(useful), "lb"),
-            LoadValue("Empty weight", lb(empty), "lb"),
+            mass("Max take-off weight", wto),
+            mass("Useful load", useful),
+            mass("Empty weight", empty),
             LoadValue("Empty/take-off ratio", int(100 * empty / wto) / 100),
-            LoadValue("Options & miscellaneous", lb(options_misc), "lb"),
+            mass("Options & miscellaneous", options_misc),
         ],
     )
 
     structure_result = ConditionResult(
         title="Structure group",
         far_reference=_FAR,
-        values=[LoadValue(name, lb(structure[name]), "lb") for name in WT_STRUCTURE_FRACTIONS]
-        + [LoadValue("Total structure", lb(total_structure), "lb")],
+        values=[mass(name, structure[name]) for name in WT_STRUCTURE_FRACTIONS]
+        + [mass("Total structure", total_structure)],
     )
 
     powerplant_result = ConditionResult(
         title="Powerplant group",
         far_reference=_FAR,
         values=[
-            LoadValue("Engine installed (incl. propeller)", lb(installed), "lb"),
-            LoadValue("Propeller (included above)", lb(prop), "lb"),
-            LoadValue("Fuel system", lb(fuel_system), "lb"),
-            LoadValue("Exhaust", lb(exhaust), "lb"),
-            LoadValue("Other engine details", lb(engine_other), "lb"),
-            LoadValue("Total powerplant", lb(powerplant), "lb"),
+            mass("Engine installed (incl. propeller)", installed),
+            mass("Propeller (included above)", prop),
+            mass("Fuel system", fuel_system),
+            mass("Exhaust", exhaust),
+            mass("Other engine details", engine_other),
+            mass("Total powerplant", powerplant),
         ],
     )
 
     systems_result = ConditionResult(
         title="Systems group",
         far_reference=_FAR,
-        values=[LoadValue(name, lb(frac * wto), "lb") for name, frac in systems_fracs.items()]
-        + [LoadValue("Total systems weight", lb(total_systems), "lb")],
+        values=[mass(name, frac * wto) for name, frac in systems_fracs.items()]
+        + [mass("Total systems weight", total_systems)],
     )
 
     return [summary, structure_result, powerplant_result, systems_result]

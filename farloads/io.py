@@ -35,7 +35,7 @@ from .models import (
     WeightEstimationInput,
     WeightInput,
 )
-from .report import load_cases_to_rows, results_to_rows
+from .report import has_load_case_data, load_cases_to_rows, results_to_rows
 
 
 # --------------------------------------------------------------------------- #
@@ -192,7 +192,10 @@ def load_cases_csv(results) -> str:
     quantity-per-row table so they still export a useful CSV.
     """
     conditions = _as_conditions(results)
-    rows = load_cases_to_rows(conditions) or results_to_rows(conditions)
+    if has_load_case_data(conditions):
+        rows = load_cases_to_rows(conditions)
+    else:
+        rows = results_to_rows(conditions)
     if not rows:
         return ""
     import io as _io

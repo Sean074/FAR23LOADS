@@ -278,13 +278,15 @@ against Appendix A/B, a GUI page, and the project JSON schema extended.
 `io.py`/`registry.py`. Relax engine tests to tolerance, switch to `math.pi`. Green
 build is the gate.
 
-**Phase 1 — Mass properties**
-`WTESTIMA` → then `WTONECG` and `WTENV` (parallel siblings, shared weight
-database). Establishes the weight/CG/inertia fields the whole downstream pipeline
-reads.
+**Phase 1 — Mass properties** ✅ (`WTESTIMA` + `WTONECG`)
+`WTESTIMA` → `WTONECG` (shared weight database, `Project.weight`). Establishes the
+weight/CG/inertia fields the downstream pipeline reads. `WTENV` was **re-scoped to
+Phase 2**: its structural-CG limits need `XLEMAC`/`MAC` from `WINGGEOM`, so it is
+built there reading `Project.geometry` rather than via an interim direct input.
 
 **Phase 2 — Geometry & speeds**
-`WINGGEOM` (largest single module — all surfaces), then `STRSPEED` + `MACHLIM`.
+`WINGGEOM` (largest single module — all surfaces), then `WTENV` (weight/CG
+envelope, now that `XLEMAC`/`MAC` are available), then `STRSPEED` + `MACHLIM`.
 These plus Phase 1 unlock most component-load modules.
 
 **Phase 3 — Aero coefficients & flight envelope**

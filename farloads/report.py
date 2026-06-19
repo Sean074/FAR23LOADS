@@ -50,6 +50,25 @@ _GYRO_FAR = "23.371(b)"
 _GYRO_CASE_RE = re.compile(r"Case (\d+) \(([^)]*)\):\s*(Myy|Mzz)")
 
 
+_LOAD_CASE_LABELS = set(_LOC_LABELS) | set(_VERTICAL_LABELS) | {_SIDE_LABEL, _THRUST_LABEL, _TORQUE_LABEL}
+
+
+def has_load_case_data(results: List[ConditionResult]) -> bool:
+    """True if these results carry structural load-case data (forces/moments at a
+    point), i.e. the ``load_cases_to_rows`` schema applies.
+
+    Mass-properties and other property-table modules emit none of those labels, so
+    this returns False for them and callers fall back to the generic table.
+    """
+    for r in results:
+        if r.far_reference == _GYRO_FAR:
+            return True
+        for v in r.values:
+            if v.label in _LOAD_CASE_LABELS:
+                return True
+    return False
+
+
 def _find(values: List[LoadValue], label: str) -> Optional[LoadValue]:
     for v in values:
         if v.label == label:

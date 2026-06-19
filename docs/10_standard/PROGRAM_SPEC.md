@@ -89,6 +89,10 @@ directly; a module never recomputes another module's owned quantity.
 - **Notes:** Empty/takeoff weight ratio `K = 0.62` with adjustments (UG Table 3.1: multiengine +0.01, liquid-cooled +0.01, super/turbocharged +0.01, turboprop −0.05, pressurized +0.02, one-seat −0.04); `W_TO = W_use/(1−K)`. Component weights as %-of-TO-weight (UG Table 3.2). 170 lb/seat. Engine types: 4-cycle recip, 2-cycle recip, turbocharged, turboprop, liquid-cooled. FAR 23.25(b) minimum-weight rule (crew @ 170 lb + ½ hr fuel at max-continuous; turbojets 5% fuel capacity). **Feeds WTONECG *and* WTENV — they are parallel siblings off WTESTIMA, sharing one weight database; neither feeds the other.**
 
 ### WTENV — Weight vs CG envelope
+> **Status: deferred to Phase 2.** WTENV's structural-CG limits need `XLEMAC`/`MAC`,
+> which `WINGGEOM` owns, so it is ported alongside `WINGGEOM` (reading them from
+> `Project.geometry`) rather than via an interim direct input. Its Streamlit page
+> renders the envelope as a chart + tables.
 - **FAR §:** 23.23 (load distribution), 23.25.
 - **Source:** Ch 3, `WTENV.BAS`.
 - **Reads:** `Project.weight` (component weights & stations), structural CG limits (fwd/aft gross, fwd-regardless), wing geometry (XLEMAC, MAC).
@@ -100,9 +104,10 @@ directly; a module never recomputes another module's owned quantity.
 - **FAR §:** 23.21/23.23; provides masses & inertias for dynamic/gyroscopic conditions.
 - **Source:** Ch 4, `WTONECG.BAS`.
 - **Reads:** `Project.weight` items (component weights + x,y,z locations). Computed at the **4 CG locations** of the structural-limits diagram (aft gross, fwd gross, most-fwd reduced, minimum weight) — ×2 (gear up/down) for retractable gear, so up to 8 loadings, not one.
-- **Writes:** total weight, CG (x,y,z), and mass moments of inertia (Ixx, Iyy, Izz, products), output in **both slug-ft² and lb-in²** → `Project.mass`.
+- **Writes:** total weight, CG (x,y,z), and mass moments of inertia (Ixx, Iyy, Izz, products), output in **both slug-ft² and lb-in²**. *(Conceptually `→ Project.mass`; see Phase 1 note.)*
 - **Validation:** Appendix A/B — CG and inertia for the example loadings.
 - **Notes:** Per UG Table 2.2 / §4.5 the outputs split: **weight & CG → FLTLOADS, LANDLOAD**; **inertia → SELECT, ONENGOUT** (maneuver/gust balancing and unbalanced landing). Component inertia = transfer (parallel-axis) of each item about the airplane CG. Conceptually the same machinery as the engine/rotor inertia in `engloads`, at airplane scale — but ENGLOADS does **not** read `Project.mass` (it is standalone, UG Table 2.2).
+- **Phase 1 implementation notes:** modules stay pure (`run → ModuleResult`); there is **no persisted `Project.mass` slice yet** — it is introduced when a consumer (FLTLOADS/LANDLOAD) lands. `WTESTIMA`/`WTONECG` results are a **property table**, so they render via `report.results_to_rows` / `module_text_report` (not the engine-specific `load_cases_to_rows`). The UI offers an SI **output** toggle: a weight is pounds-*mass* and converts to kg, distinguished from a pounds-*force* load (→ N) by `LoadValue.quantity="mass"`; inertia (slug-ft²/lb-in²) → kg·m², CG positions in→mm, angle (deg) unchanged. Inputs are entered in Imperial. See `units.py`.
 
 ---
 

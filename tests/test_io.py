@@ -29,6 +29,10 @@ def test_example_project_loads():
     assert project.engine.engine_type == EngineType.RECIPROCATING
     # Tuple coercion at the boundary (JSON arrays -> Vec3 tuples).
     assert project.engine.engine_cg == (22.0, 0.0, -10.0)
+    # Phase 1: the example also carries the mass-properties (weight) slice.
+    assert project.weight is not None
+    assert project.weight.estimation.seats == 6
+    assert len(project.weight.items) == 24
 
 
 def test_loaded_project_matches_in_code_example():
@@ -52,8 +56,20 @@ def test_engine_is_registered():
     assert "engine" in registry.available()
 
 
-def test_run_all_modules_runs_engine_only():
+def test_run_all_modules_runs_present_slices():
+    # The GA6 example carries the engine and weight slices, so "run all" runs the
+    # engine and both mass-properties modules (skipping any module whose slice is
+    # absent via the ValueError path).
     project = io.load_project(GA6)
+    results = registry.run_all_modules(project)
+    assert {r.module for r in results} == {"engine", "weight_estimate", "weight_onecg"}
+
+
+def test_run_all_modules_skips_missing_slices():
+    # A project with only the engine slice runs the engine module alone.
+    from test_engine import io520bb
+
+    project = Project(name="engine only", engine=io520bb())
     results = registry.run_all_modules(project)
     assert [r.module for r in results] == ["engine"]
 

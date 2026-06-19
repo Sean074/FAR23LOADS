@@ -43,6 +43,57 @@ checked against Appendix A (p131) and Appendix B (p251) figures within ±0.1%.
 
 ---
 
+## Phase 1 — Mass properties: WTESTIMA + WTONECG (complete)
+
+**Objective.** Port the head of the mass-properties pipeline: weight estimation
+(`WTESTIMA`) and one-loading weight/CG/inertia (`WTONECG`), establishing the
+shared `Project.weight` slice the downstream load modules will read. `WTENV` was
+**re-scoped to Phase 2** (its structural-CG-limit math needs `XLEMAC`/`MAC` from
+`WINGGEOM`); see the backlog.
+
+**Deliverables.**
+- `farloads/models.py` — `Project.weight` slice (`WeightInput`) carrying mission
+  `estimation` inputs (`WeightEstimationInput`) and the itemized `items` mass list
+  (`MassItem`), plus `EngineWeightType` and `MassItemKind` enums.
+- `farloads/modules/weight_estimate.py` (`WTESTIMA.BAS`) and
+  `farloads/modules/weight_onecg.py` (`WTONECG.BAS`), self-registered as
+  `weight_estimate` / `weight_onecg`. Mass-properties constants and the
+  installed-engine-weight correlation centralised in `constants.py`.
+- `farloads/io.py` — `weight_from_dict`/`weight_to_dict` wired into the project
+  JSON round-trip; `load_cases_csv` falls back to the generic property table for
+  modules that emit no structural load cases.
+- `report.module_text_report` and a generalised `cli.py` text path so non-engine
+  modules render to stdout.
+- `app/pages/01_Weight_Estimate.py`, `app/pages/02_Weight_CG_Inertia.py` (Imperial
+  units; the CG page edits the weight data base in a `st.data_editor`).
+- `examples/ga6_normal.project.json` extended with the Appendix A weight slice;
+  `tests/test_weight_estimate.py` and `tests/test_weight_onecg.py`.
+
+**Test / Acceptance.** Green build — `ruff check farloads/ cli.py` clean, full
+`pytest` suite passing with the coverage floor held (≥80%). `WTESTIMA` reproduces
+Appendix A p133 exactly (integer-truncated figures); `WTONECG` matches Appendix A
+p136 within ±0.1% (weight and lb-in² accumulators are g-independent and exact).
+
+**Key decisions.**
+1. **One input slice, pure-calc outputs.** `Project.weight` is the shared input
+   "weight database"; modules stay pure (`run → ModuleResult`). No persisted
+   `Project.mass` slice yet — it is added when a consumer (FLTLOADS/LANDLOAD)
+   exists.
+2. **Property table, not load cases.** Mass-properties results render via
+   `results_to_rows`/`module_text_report`, not the engine-specific
+   `load_cases_to_rows`.
+3. **Force vs mass units.** A weight is pounds-*mass* and must convert to kg, but
+   a load in `lb` is pounds-*force* and converts to N — the same `"lb"` label.
+   `LoadValue` gained an optional `quantity` hint; a weight sets `quantity="mass"`
+   so `units.py` routes it to kg, while loads (blank hint) convert by unit string
+   to N. Inertia (slug-ft²/lb-in²) → kg·m². The mass-properties pages expose an SI
+   output toggle on this basis; inputs stay Imperial.
+4. **Preserved BASIC quirks** — `INT(...)` truncation on `WTESTIMA` outputs, and
+   the single-engine "misc other system wt = 0" (the program prints an unset
+   variable there).
+
+---
+
 ## Tooling & documentation standard (complete)
 
 **Objective.** Bring the project's tooling and documentation standard in line

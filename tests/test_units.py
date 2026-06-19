@@ -74,6 +74,51 @@ def test_dimensionless_passes_through():
     assert v.units == "" and v.value == 2.85
 
 
+def test_weight_lb_converts_to_kilograms_not_newtons():
+    # A weight is pounds-mass: "lb" + quantity="mass" must go to kg, not N.
+    v = _convert_value(LoadValue("Weight", 3400.0, "lb", quantity="mass"))
+    assert v.units == "kg"
+    assert math.isclose(v.value, 3400.0 * 0.45359237, rel_tol=1e-12)
+    assert v.quantity == "mass"  # hint preserved through conversion
+
+
+def test_force_and_mass_share_lb_label_but_differ_in_si():
+    # Same Imperial label "lb"; the dimension hint splits force (N) from mass (kg).
+    force = _convert_value(LoadValue("Vertical down load", 100.0, "lb"))
+    weight = _convert_value(LoadValue("Weight", 100.0, "lb", quantity="mass"))
+    assert force.units == "N" and math.isclose(force.value, 444.82216152605, rel_tol=1e-12)
+    assert weight.units == "kg" and math.isclose(weight.value, 45.359237, rel_tol=1e-12)
+
+
+def test_inertia_slugft2_and_lbin2_agree_in_kgm2():
+    # The two Imperial inertia bases for one physical quantity (1201.527 slug-ft^2
+    # == 5566051 lb-in^2 in the WTONECG aft-gross example) land on the same kg·m^2.
+    a = _convert_value(LoadValue("IXX", 1201.527, "slug-ft^2"))
+    b = _convert_value(LoadValue("IXX (lb-in^2)", 5566051.0, "lb-in^2"))
+    assert a.units == "kg·m²" and b.units == "kg·m²"
+    # ±0.1%: the manual's two printed bases differ slightly (it used g=32.17 for
+    # the slug-ft^2 conversion, 32.174 here -- the same Decision-3 tolerance).
+    assert math.isclose(a.value, b.value, rel_tol=1e-3)
+
+
+def test_mass_properties_result_converts_end_to_end():
+    # A whole WTONECG result through convert_results: weight -> kg, CG -> mm,
+    # inertia -> kg·m^2, angle (deg) unchanged.
+    from farloads.modules.weight_onecg import weights_and_inertia
+    from farloads import MassItem
+
+    items = [
+        MassItem("a", 100.0, x=10.0, z=5.0),
+        MassItem("b", 100.0, x=30.0, z=5.0),
+    ]
+    r_imp = weights_and_inertia(items)
+    r_si = convert_results([r_imp], UnitSystem.SI)[0]
+    assert _value(r_si, "Weight").units == "kg"
+    assert _value(r_si, "XBAR (fus station)").units == "mm"
+    assert _value(r_si, "IZZ").units == "kg·m²"
+    assert _value(r_si, "Principal-axis angle theta").units == "deg"  # unchanged
+
+
 def test_to_display_inverts_to_imperial_scalar():
     for kind, val in [("weight", 505.0), ("length", 84.0), ("torque", 1970.0), ("power", 285.0)]:
         si = to_display(val, kind, UnitSystem.SI)

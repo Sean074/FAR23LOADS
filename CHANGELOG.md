@@ -11,6 +11,20 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **Phase 1 mass properties** — two modules ported against Appendix A:
+  `weight_estimate` (WTESTIMA, statistical weight estimate; reproduces the p133
+  figures exactly) and `weight_onecg` (WTONECG, one-loading weight/CG/inertia;
+  matches the p136 figures within ±0.1%). New `Project.weight` slice
+  (`WeightInput` = mission `estimation` + itemized `items` mass list), with
+  `EngineWeightType`/`MassItemKind` enums and the installed-engine-weight
+  correlation centralised in `constants.py`. New Streamlit pages
+  `01_Weight_Estimate.py` and `02_Weight_CG_Inertia.py`, example weight slice in
+  `examples/ga6_normal.project.json`, and `tests/test_weight_estimate.py` /
+  `tests/test_weight_onecg.py`. The pages offer an SI **output** toggle (weight →
+  kg, inertia → kg·m², CG → mm). `WTENV` re-scoped to Phase 2 (needs `WINGGEOM`'s
+  `XLEMAC`/`MAC`).
+- `report.module_text_report` — module-agnostic text output, used by the
+  generalised `cli.py` stdout path so non-engine modules render correctly.
 - **Packaging & tooling** — `pyproject.toml` (editable install via
   `pip install -e '.[dev]'`; `ruff` and `pytest`/coverage config), `cspell.json`
   domain wordlist, and a GitHub Actions CI workflow running `ruff` + `pytest` on
@@ -32,6 +46,14 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- **SI mass vs Imperial force units.** `LoadValue` gained an optional `quantity`
+  hint so the SI converter can tell a pounds-*mass* weight (→ kg) from a
+  pounds-*force* load (→ N) — both labelled `lb`. Added `lb-in² → kg·m²` to the
+  result converter; weights set `quantity="mass"`. Engine load output is
+  unchanged.
+- `cli.py` text output is now module-agnostic (was engine-specific), and
+  `io.load_cases_csv` falls back to the generic property table for modules that
+  emit no structural load cases, so the mass-properties modules export usable CSV.
 - `farloads` and `cli` are now an editable install, so they import from any cwd;
   removed the `sys.path` shims from `app/Home.py` and `app/pages/19_Engine_Mount.py`.
 - Renamed the ambiguous local helper `l` to `ln` in `farloads/units.py` (lint).

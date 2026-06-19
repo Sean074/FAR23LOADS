@@ -158,10 +158,18 @@ class WeightInput:
 
 @dataclass
 class LoadValue:
-    """A single labelled output quantity with units (for clean rendering)."""
+    """A single labelled output quantity with units (for clean rendering).
+
+    ``units`` is the Imperial display string. ``quantity`` is an optional
+    dimension hint used only to disambiguate SI conversion where the unit string
+    alone is ambiguous: a bare ``"lb"`` is pounds-*force* for a load (→ N) but
+    pounds-*mass* for a weight (→ kg). A weight sets ``quantity="mass"``; loads
+    leave it blank and convert by unit string. See :mod:`farloads.units`.
+    """
     label: str
     value: float
     units: str = ""
+    quantity: str = ""
 
 
 @dataclass

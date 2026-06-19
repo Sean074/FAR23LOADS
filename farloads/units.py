@@ -46,12 +46,24 @@ UNIT_LABELS = {
 
 # Conversion for result quantities, keyed by the Imperial ``units`` string a
 # LoadValue carries. Value: (Imperial->SI factor, SI unit label). Units not
-# listed (dimensionless "", "s", RPM) are system-independent and pass through.
+# listed (dimensionless "", "s", RPM, "deg") are system-independent and pass
+# through. Note: a bare "lb" here is pounds-*force* (a load -> N); a *weight* in
+# pounds-*mass* must instead set ``LoadValue.quantity = "mass"`` (see below), so
+# the same "lb" label maps to kg, not N.
 _RESULT_TO_SI = {
     "lb": (4.4482216152605, "N"),          # lbf -> N (force/load)
     "in": (25.4, "mm"),                    # in -> mm (position)
     "ft-lb": (1.3558179483314, "N·m"),     # ft-lb -> N·m (moment/torque)
     "slug-ft^2": (1.3558179483314, "kg·m²"),  # slug-ft^2 -> kg·m^2 (inertia)
+    "lb-in^2": (2.926396534292e-04, "kg·m²"),  # lb-in^2 -> kg·m^2 (inertia, mass basis)
+}
+
+# SI conversion keyed by an explicit dimension hint, used when the unit string is
+# ambiguous. Currently only "mass": a weight reported in "lb" is pounds-mass and
+# must convert to kg (a load in "lb" is pounds-force and converts to N via the
+# table above). Takes precedence over the unit-string table.
+_SI_BY_QUANTITY = {
+    "mass": (0.45359237, "kg"),            # lb (mass) -> kg
 }
 
 
@@ -133,11 +145,15 @@ def to_imperial(inp: EngineInput, system: UnitSystem) -> EngineInput:
 # Result conversion
 # --------------------------------------------------------------------------- #
 def _convert_value(v: LoadValue) -> LoadValue:
-    conv = _RESULT_TO_SI.get(v.units)
+    # A dimension hint (currently only "mass") disambiguates an otherwise
+    # ambiguous unit string and takes precedence over the unit-string table.
+    conv = _SI_BY_QUANTITY.get(v.quantity) if v.quantity else None
+    if conv is None:
+        conv = _RESULT_TO_SI.get(v.units)
     if conv is None:
         return v
     factor, label = conv
-    return LoadValue(v.label, v.value * factor, label)
+    return replace(v, value=v.value * factor, units=label)
 
 
 def convert_results(

@@ -65,6 +65,26 @@
     "specialised",
     "behaviour",
     "docstring",
-    "docstrings"
+    "docstrings",
+    "generalise",
+    "modernise",
+    "engtype",
+    "noengs",
+    "optmisc",
+    "wtfuel",
+    "wtseats",
+    "wtprop",
+    "xbar",
+    "zbar",
+    "ixx",
+    "iyy",
+    "izz",
+    "ixz",
+    "waterline",
+    "inertias",
+    "turbocharged",
+    "xlemac",
+    "onecg",
+    "selectbox"
   ]
 }

@@ -31,3 +31,5 @@ its equations come from and the Appendix A/B figures its test checks against.
 | Module | `.BAS` source | Reference 1 location | Oracle (appendix figures) |
 |--------|---------------|----------------------|---------------------------|
 | `engine` (ENGLOADS) | `ENGLOADS.BAS` | Engine-mount loads chapter | Appendix A p131 / Appendix B p251 |
+| `weight_estimate` (WTESTIMA) | `WTESTIMA.BAS` | Ch 2; Appendix C p374-376 (`K`, fuel/component/engine-weight correlations; UG Tables 3.1/3.2) | Appendix A p133 (MTOW 3468, empty 2150, component breakdown) |
+| `weight_onecg` (WTONECG) | `WTONECG.BAS` | Ch 4; Appendix C p377-381 (CG `S2/S1`; parallel-axis inertias ÷144·g; principal-axis rotation) | Appendix A p136 (aft gross: weight 3400, XBAR 84.999, ZBAR 92.579, IXX/IYY/IZZ 1201.5/2058.2/3022.8 slug-ft²) |

@@ -17,5 +17,43 @@
     "takeoff_hp": 285,
     "max_cont_hp": 265,
     "cylinders": 6
+  },
+  "weight": {
+    "estimation": {
+      "airplane": "6 PLACE SINGLE ENGINE GENERAL AVIATION",
+      "max_continuous_hp": 265,
+      "engines": 1,
+      "seats": 6,
+      "cruise_hours": 3,
+      "baggage_lb": 0,
+      "pressurized": false,
+      "engine_weight_type": "RF"
+    },
+    "items": [
+      {"name": "Wing, outboard", "weight_lb": 330.0, "x": 97.87, "z": 87.73, "ixx": 4444110, "iyy": 133485, "izz": 4444110, "kind": "empty"},
+      {"name": "Horiz tail", "weight_lb": 42.0, "x": 270.36, "z": 111.0, "kind": "empty"},
+      {"name": "Vert tail", "weight_lb": 23.0, "x": 276.93, "z": 137.76, "kind": "empty"},
+      {"name": "Main gear wheel", "weight_lb": 45.0, "x": 97.0, "z": 69.0, "kind": "empty"},
+      {"name": "Main gear structure", "weight_lb": 110.0, "x": 97.0, "z": 78.0, "kind": "empty"},
+      {"name": "Nose gear wheel", "weight_lb": 9.0, "x": 1.0, "z": 52.0, "kind": "empty"},
+      {"name": "Nose gear structure", "weight_lb": 40.0, "x": 1.0, "z": 65.0, "kind": "empty"},
+      {"name": "Flight control", "weight_lb": 57.0, "x": 123.0, "z": 105.0, "kind": "empty"},
+      {"name": "Nacelle", "weight_lb": 62.0, "x": 21.0, "z": 92.0, "kind": "empty"},
+      {"name": "Engine install", "weight_lb": 505.0, "x": 22.0, "z": 92.0, "ixx": 52604, "iyy": 81473, "izz": 81473, "kind": "empty"},
+      {"name": "Propeller", "weight_lb": 74.0, "x": -10.0, "z": 100.0, "kind": "empty"},
+      {"name": "Systems", "weight_lb": 88.0, "x": 60.0, "z": 100.0, "kind": "empty"},
+      {"name": "Furnishings", "weight_lb": 175.0, "x": 105.0, "z": 100.0, "kind": "empty"},
+      {"name": "Unusable fuel", "weight_lb": 12.0, "x": 73.0, "z": 80.0, "kind": "empty"},
+      {"name": "Fuselage structure", "weight_lb": 250.0, "x": 99.0, "z": 80.0, "iyy": 1131020, "izz": 1131020, "kind": "empty"},
+      {"name": "Pilot", "weight_lb": 170.0, "x": 75.0, "z": 100.0, "ixx": 28730, "iyy": 24480, "izz": 4250, "kind": "minimum"},
+      {"name": "30 min fuel", "weight_lb": 71.0, "x": 70.0, "z": 82.0, "ixx": 86975, "izz": 86975, "kind": "minimum"},
+      {"name": "Copilot", "weight_lb": 170.0, "x": 75.0, "z": 100.0, "ixx": 28730, "iyy": 24480, "izz": 4250, "kind": "discretionary"},
+      {"name": "3rd person", "weight_lb": 170.0, "x": 111.0, "z": 100.0, "ixx": 28730, "iyy": 24480, "izz": 4250, "kind": "discretionary"},
+      {"name": "4th person", "weight_lb": 170.0, "x": 111.0, "z": 100.0, "ixx": 28730, "iyy": 24480, "izz": 4250, "kind": "discretionary"},
+      {"name": "5th person", "weight_lb": 170.0, "x": 150.0, "z": 100.0, "ixx": 28730, "iyy": 24480, "izz": 4250, "kind": "discretionary"},
+      {"name": "6th person", "weight_lb": 170.0, "x": 150.0, "z": 100.0, "ixx": 28730, "iyy": 24480, "izz": 4250, "kind": "discretionary"},
+      {"name": "Fuel to gross wt", "weight_lb": 409.0, "x": 70.0, "z": 87.0, "ixx": 501025, "izz": 501025, "kind": "discretionary"},
+      {"name": "Ballast", "weight_lb": 78.0, "x": 103.7, "z": 90.0, "kind": "discretionary"}
+    ]
   }
 }

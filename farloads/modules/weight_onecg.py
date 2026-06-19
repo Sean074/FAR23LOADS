@@ -69,7 +69,7 @@ def weights_and_inertia(items: List[MassItem]) -> ConditionResult:
         title="Weight, centre of gravity and inertia for one loading",
         far_reference=_FAR,
         values=[
-            LoadValue("Weight", total, "lb"),
+            LoadValue("Weight", total, "lb", quantity="mass"),
             LoadValue("XBAR (fus station)", xbar, "in"),
             LoadValue("ZBAR (waterline)", zbar, "in"),
             LoadValue("IXX", ixx_s, _SLUGFT2),
