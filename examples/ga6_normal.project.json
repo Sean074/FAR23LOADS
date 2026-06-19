@@ -57,7 +57,15 @@
       {"name": "6th person", "weight_lb": 170.0, "x": 150.0, "z": 100.0, "ixx": 28730, "iyy": 24480, "izz": 4250, "kind": "discretionary"},
       {"name": "Fuel to gross wt", "weight_lb": 409.0, "x": 70.0, "z": 87.0, "ixx": 501025, "izz": 501025, "kind": "discretionary"},
       {"name": "Ballast", "weight_lb": 78.0, "x": 103.7, "z": 90.0, "kind": "discretionary"}
-    ]
+    ],
+    "envelope": {
+      "gross_weight": 3400,
+      "aft_gross_pct_mac": 31,
+      "fwd_gross_pct_mac": 20,
+      "fwd_regardless_pct_mac": 13,
+      "fwd_regardless_weight": 2800,
+      "wing_surface": "wing"
+    }
   },
   "geometry": {
     "surfaces": [

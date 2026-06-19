@@ -140,6 +140,47 @@ tabulate its element count).
 
 ---
 
+## Phase 1 (deferred item) — WTENV weight/CG envelope (complete)
+
+**Objective.** Complete the mass-properties phase by porting `WTENV` — the
+discretionary-loading envelope, structural CG limits and ballast — which was
+re-scoped to land after `WINGGEOM` because its limit stations need the wing
+`XLEMAC`/`MAC`.
+
+**Deliverables.**
+- `farloads/models.py` — `WeightEnvelopeInput` under `Project.weight.envelope`
+  (gross weight, the three %-MAC CG limits, the forward-regardless reduced weight,
+  and an optional XLEMAC/MAC override).
+- `farloads/modules/weight_envelope.py` (`WTENV.BAS`), self-registered as
+  `weight_envelope`: empty / minimum-flight / maximum loadings; structural-limit
+  stations `X = XLEMAC + pct·MAC` (reading the wing geometry through WINGGEOM's
+  `surface_properties`, not re-deriving it); the forward loading envelope; and the
+  ballast per limit by moment balance.
+- `farloads/io.py` — envelope (de)serialization on the weight slice;
+  `app/pages/04_Weight_Envelope.py`; envelope inputs in the example;
+  `tests/test_weight_envelope.py`.
+
+**Test / Acceptance.** Green build — `ruff check farloads/ cli.py` clean, full
+`pytest` suite passing, coverage floor held (≥80%). Reproduces Chapter 3 p21-22:
+stations 85.1 / 77.49 / 72.64, minimum flight weight 2063 @ 73.09, maximum loading
+3322 @ 84.56, and ballast weights 78 / 418 / 158 lb (forward-gross/forward-
+regardless ballast *stations* also match: 80.27 / 70.97).
+
+**Key decisions.**
+1. **Read geometry, don't re-derive.** WTENV obtains XLEMAC/MAC by calling
+   WINGGEOM's pure `surface_properties` on the wing surface — honouring "read
+   shared, write own".
+2. **Ballast is the exact moment balance.** Per Decision 3 the aft-gross ballast
+   station is reported as the precise balance (~108.5 in); the original manual's
+   hand calc rounded the limit station to 85.0 (giving the 103.7 its own WTONECG
+   data base then carried). The ballast *weights* match exactly.
+3. **Documented reference-point selection.** The ballast reference loadings are
+   chosen as in the worked example (full load for aft gross; the forward-boundary
+   knee for forward gross; the heaviest forward point ≤ reduced weight for forward
+   regardless), reproducing all three manual ballast weights.
+
+---
+
 ## Tooling & documentation standard (complete)
 
 **Objective.** Bring the project's tooling and documentation standard in line

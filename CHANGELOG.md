@@ -11,6 +11,17 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **WTENV weight/CG envelope** — `weight_envelope` (WTENV) ported against the
+  Chapter 3 worked example: structural CG-limit stations (`X = XLEMAC + pct·MAC`,
+  reading wing XLEMAC/MAC from the geometry slice via WINGGEOM), minimum/maximum
+  loadings, the forward discretionary-loading envelope, and the ballast to reach
+  each structural limit (`WB = WL−WA`, moment-balance station). Reproduces the
+  manual's stations (85.1/77.49/72.64), min flight 2063@73.09, max load 3322@84.56
+  and ballast weights 78/418/158. New `WeightEnvelopeInput` under `Project.weight`,
+  `app/pages/04_Weight_Envelope.py`, envelope inputs in the example, and
+  `tests/test_weight_envelope.py`. The aft-gross ballast station is the exact
+  moment balance (~108.5 in); the manual's hand calc rounded it to 103.7 (limit
+  station 85.0 vs the precise 85.107) — documented in the module.
 - **Phase 2 geometry** — `wing_geometry` (WINGGEOM) ported against Appendix A
   p141: spanwise strip-sum of area, MAC, YLE(MAC), XLEMAC, aspect ratio and span
   per aerodynamic surface (the wing reproduces MAC 69.246 / XLEMAC 63.641 / AR

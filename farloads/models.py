@@ -165,16 +165,41 @@ class WeightEstimationInput:
 
 
 @dataclass
+class WeightEnvelopeInput:
+    """Structural weight/CG limits for WTENV (the discretionary-loading envelope).
+
+    The three CG limits are percentages of MAC; WTENV turns them into fuselage
+    stations via ``X = XLEMAC + (pct/100)*MAC`` using the wing geometry
+    (Reference 1 Ch 3). ``gross_weight`` is the structural gross weight (the aft-
+    and forward-gross limits); ``fwd_regardless_weight`` is the reduced weight at
+    which the forward-regardless limit applies. ``xlemac``/``mac`` are an optional
+    direct override used only when no geometry slice is present (otherwise WTENV
+    reads them from the ``wing_surface`` of ``Project.geometry``).
+    """
+    gross_weight: float = 0.0
+    aft_gross_pct_mac: float = 0.0
+    fwd_gross_pct_mac: float = 0.0
+    fwd_regardless_pct_mac: float = 0.0
+    fwd_regardless_weight: float = 0.0
+    wing_surface: str = "wing"
+    xlemac: Optional[float] = None
+    mac: Optional[float] = None
+
+
+@dataclass
 class WeightInput:
     """The single shared weight database read by every mass-properties module.
 
     ``estimation`` drives WTESTIMA (the statistical first cut); ``items`` is the
-    explicit, itemized mass list WTONECG (and later WTENV) sum. The two are
-    loosely coupled: WTESTIMA estimates totals from the mission, the itemized
-    list carries the per-item stations that estimation cannot supply.
+    explicit, itemized mass list WTONECG and WTENV sum; ``envelope`` carries the
+    structural CG limits WTENV needs. The pieces are loosely coupled: WTESTIMA
+    estimates totals from the mission, the itemized list carries the per-item
+    stations that estimation cannot supply, and the envelope adds the limit
+    definitions.
     """
     estimation: Optional[WeightEstimationInput] = None
     items: List[MassItem] = field(default_factory=list)
+    envelope: Optional[WeightEnvelopeInput] = None
 
 
 # --------------------------------------------------------------------------- #

@@ -22,6 +22,7 @@ from .models import (
     RotorType,
     SCHEMA_VERSION,
     SurfaceInput,
+    WeightEnvelopeInput,
     WeightEstimationInput,
     WeightInput,
 )
@@ -57,6 +58,7 @@ __all__ = [
     "RotorType",
     "SCHEMA_VERSION",
     "SurfaceInput",
+    "WeightEnvelopeInput",
     "WeightEstimationInput",
     "WeightInput",
     "run_all",

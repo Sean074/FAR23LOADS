@@ -18,9 +18,6 @@ citation) are updated.
 
 ## Modules to port
 
-### Phase 1 — Mass properties
-- [ ] `WTENV` — weight/CG envelope. *(Build order: after `WINGGEOM` — it reads wing `XLEMAC`/`MAC`.)*
-
 ### Phase 2 — Geometry & speeds
 > **Build order (revised for data-flow):** `WINGGEOM` (done) → `WTENV` → `STRSPEED` → `MACHLIM`.
 > Multi-engine is modelled **first-class in this phase** (layouts: 1 nose / 2 or 4

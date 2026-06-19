@@ -35,6 +35,7 @@ from .models import (
     RotorDirection,
     RotorType,
     SurfaceInput,
+    WeightEnvelopeInput,
     WeightEstimationInput,
     WeightInput,
 )
@@ -116,7 +117,9 @@ def weight_from_dict(d: Dict[str, Any]) -> WeightInput:
             **est,
         )
     items = [_mass_item_from_dict(it) for it in d.get("items", []) or []]
-    return WeightInput(estimation=estimation, items=items)
+    env = d.get("envelope")
+    envelope = WeightEnvelopeInput(**dict(env)) if env else None
+    return WeightInput(estimation=estimation, items=items, envelope=envelope)
 
 
 def weight_to_dict(inp: WeightInput) -> Dict[str, Any]:
@@ -127,6 +130,8 @@ def weight_to_dict(inp: WeightInput) -> Dict[str, Any]:
         est["engine_weight_type"] = inp.estimation.engine_weight_type.value
         out["estimation"] = est
     out["items"] = [{**asdict(it), "kind": it.kind.value} for it in inp.items]
+    if inp.envelope is not None:
+        out["envelope"] = asdict(inp.envelope)
     return out
 
 
