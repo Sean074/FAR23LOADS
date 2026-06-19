@@ -1,0 +1,65 @@
+"""FAR 23 LOADS -- shared pure-calc package for the McMaster suite.
+
+Phase 0 ships the engine-mount module (a port of ENGLOADS.BAS); later phases add
+the other programs as ``farloads/modules/<name>.py`` files that register
+themselves with :mod:`farloads.registry`.
+"""
+
+from .models import (
+    ConditionResult,
+    EngineInput,
+    EngineType,
+    EngineWeightType,
+    LoadValue,
+    MassItem,
+    MassItemKind,
+    ModuleResult,
+    Project,
+    Rotor,
+    RotorDirection,
+    RotorType,
+    SCHEMA_VERSION,
+    WeightEstimationInput,
+    WeightInput,
+)
+from .units import (
+    UnitSystem,
+    convert_results,
+    labels_for,
+    to_display,
+    to_imperial,
+    to_imperial_scalar,
+)
+from . import io, registry
+
+# Importing the modules package registers every module (engine, ...) and exposes
+# the engine module's direct ``run_all(EngineInput)`` helper for back-compat.
+from . import modules  # noqa: F401  (side effect: module registration)
+from .modules.engine import run_all
+
+__all__ = [
+    "ConditionResult",
+    "EngineInput",
+    "EngineType",
+    "EngineWeightType",
+    "LoadValue",
+    "MassItem",
+    "MassItemKind",
+    "ModuleResult",
+    "Project",
+    "Rotor",
+    "RotorDirection",
+    "RotorType",
+    "SCHEMA_VERSION",
+    "WeightEstimationInput",
+    "WeightInput",
+    "run_all",
+    "UnitSystem",
+    "convert_results",
+    "labels_for",
+    "to_display",
+    "to_imperial",
+    "to_imperial_scalar",
+    "io",
+    "registry",
+]

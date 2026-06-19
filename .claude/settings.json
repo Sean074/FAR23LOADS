@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(.venv/bin/python cli.py --list)",
+      "Bash(.venv/bin/python cli.py engine examples/ga6_normal.project.json -o /tmp/engine_loads.csv)",
+      "Read(//tmp/**)",
+      "Bash(.venv/bin/python cli.py engine examples/ga6_normal.project.json)",
+      "Bash(.venv/bin/python -c \"import ast,sys; [ast.parse\\(open\\(f\\).read\\(\\), f\\) for f in ['app/Home.py','app/pages/19_Engine_Mount.py','cli.py']]; print\\('syntax OK'\\)\")",
+      "Bash(git add *)"
+    ]
+  }
+}

@@ -1,0 +1,49 @@
+# FAR 23 LOADS Documentation — Index
+
+This directory is organised into four numbered sections by **document type**.
+Lower numbers are the day-to-day references; higher numbers are planning and
+historical record.
+
+| Section | Type | Contents |
+|---------|------|----------|
+| `10_standard/` | **Code standard** | The authoritative description of how the suite works *today* — architecture, the per-module spec, and the process guides. Update these whenever code changes. |
+| `20_theory/` | **Theory & equation sources** | Where each module's equations and regression oracles come from (the `reference/` PDFs), plus per-module page citations as modules are ported. |
+| `30_future/` | **Future development** | The backlog: modules not yet ported (#2..#22), open design decisions, and the dependency-ordered roadmap. |
+| `40_history/` | **Historic record** | What has shipped — completed modules/phases, key decisions, and resolved defects. |
+
+---
+
+## 10_standard — Code standard
+
+| File | Scope |
+|------|-------|
+| [`00_program_overview.md`](10_standard/00_program_overview.md) | **Start here** — program code standard & developer guide: structure, coding standards, error-handling contract, units, entry points, testing/coverage |
+| [`PROJECT_GUIDE.md`](10_standard/PROJECT_GUIDE.md) | Architecture, package layout, porting conventions, validation strategy, dependency-ordered roadmap |
+| [`PROGRAM_SPEC.md`](10_standard/PROGRAM_SPEC.md) | Per-module specification for all 22 programs (inputs, outputs, FAR conditions, `.BAS` mapping) |
+| [`CODE_REVIEW_PROCESS.md`](10_standard/CODE_REVIEW_PROCESS.md) | Critical code-review process for module ports |
+| [`RELEASE_PROCESS.md`](10_standard/RELEASE_PROCESS.md) | Versioning and release process |
+
+## 20_theory — Theory & equation sources
+
+| File | Scope |
+|------|-------|
+| [`00_theory_sources.md`](20_theory/00_theory_sources.md) | The authoritative references (`reference/` PDFs) and how to cite them in code and tests |
+
+## 30_future — Future development
+
+| File | Scope |
+|------|-------|
+| [`00_backlog.md`](30_future/00_backlog.md) | **Authoritative backlog** — modules not yet ported, open decisions, the roadmap |
+
+## 40_history — Historic record
+
+| File | Scope |
+|------|-------|
+| [`00_completed_development.md`](40_history/00_completed_development.md) | Record of completed modules/phases, key decisions, and resolved defects |
+
+---
+
+> Root-level docs live outside `docs/`: [`../README.md`](../README.md) (user
+> front page), [`../CHANGELOG.md`](../CHANGELOG.md) (release notes), and
+> [`../CLAUDE.md`](../CLAUDE.md) (guidance for Claude Code). The authoritative
+> theory/oracle PDFs live in [`../reference/`](../reference/).
