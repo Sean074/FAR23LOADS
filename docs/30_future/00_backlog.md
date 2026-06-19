@@ -19,8 +19,6 @@ citation) are updated.
 ## Modules to port
 
 ### Phase 1 — Mass properties
-- [ ] `WTESTIMA` — weight estimation (establishes the weight/CG/inertia fields the whole pipeline reads).
-- [ ] `WTONECG` — one-condition CG (shares the weight database with `WTESTIMA`).
 - [ ] `WTENV` — weight/CG envelope.
 
 ### Phase 2 — Geometry & speeds

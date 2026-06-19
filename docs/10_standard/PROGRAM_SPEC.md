@@ -296,11 +296,11 @@ other modules consume).
 | Phase | Modules | Done | Remaining |
 |-------|---------|------|-----------|
 | 0 Restructure | engine → package | — | engloads → farloads, Project model, io/registry, app/ |
-| 1 Mass | WTESTIMA, WTONECG, WTENV | 0 | 3 |
+| 1 Mass | WTESTIMA, WTONECG, WTENV | 2 (WTESTIMA, WTONECG) | 1 (WTENV) |
 | 2 Geometry/Speeds | WINGGEOM, STRSPEED, MACHLIM | 0 | 3 |
 | 3 Aero/Envelope | TAU\*, AIRLOADS, AIRLOAD4, FLTLOADS, SELECT, BALLOADS† | 0 | 6 |
 | 4 Component loads | WINGINER, NETLOADS, AILERON, FLAPLOAD, TABLOADS, TAILDIST, ENGLOADS, ONENGOUT, LGFACTOR, LANDLOAD | 1 (ENGLOADS) | 9 |
-| **Total** | **22** | **1** | **21** |
+| **Total** | **22** | **3** | **19** |
 
 Counts reference 1's 22 Appendix-C programs. The FAA User's Guide exposes **20**
 of these as menu modules — the two it omits are:
