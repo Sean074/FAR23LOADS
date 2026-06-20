@@ -170,6 +170,9 @@ FAR23LOADS/
 │   ├── io.py                     # load/save project JSON; CSV writers
 │   ├── registry.py               # module registry: name -> run(project) -> results
 │   ├── report.py                 # shared text/CSV rendering (already exists)
+│   ├── export/                   # output bridges to external tools (renderers, NOT registered modules)
+│   │   ├── coordinates.py        # FAR23LOADS axes -> sbeam CID 0 map (single edit-point)
+│   │   └── sbeam_bridge.py       # net wing load -> span-load CSV + FORCE/MOMENT cards + CBAR stick model
 │   └── modules/
 │       ├── __init__.py
 │       ├── weight_estimate.py    # WTESTIMA

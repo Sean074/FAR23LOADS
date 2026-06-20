@@ -458,6 +458,61 @@ closure. Full suite green (123 tests), ruff clean.
 
 ---
 
+## Phase C — Step C4: sbeam export bridge (complete)
+
+**Objective.** Turn the NETLOADS net wing load into an sbeam-consumable
+structural load set, proving the sbeam integration on the wing vertical slice.
+
+**Deliverables.**
+- `farloads/export/` — new output-renderer subpackage (pure strings + thin
+  `write_*` wrappers; **not** a registered calc module).
+  - `coordinates.py` — FAR23LOADS station-X / butt-Y / waterline-Z inches → sbeam
+    global CID 0, identity map (single edit-point for any future sign/axis/unit
+    change).
+  - `sbeam_bridge.py` — consumes `Project.loads.wing_net` (accepts a `Project`, a
+    list of `WingLoadResult`, or one result) and emits: (1) `span_load_csv` (one
+    row per station per case: applied nodal `Fx/Fz/My` + cumulative
+    `Sx/Sz/Mxx/Myy/Mzz`); (2) `force_moment_cards` — comma free-field unit-scale
+    `FORCE, SID, GID, 0, 1.0, Fx, Fy, Fz` / `MOMENT …` (`%.6E`, ~zero components
+    skipped), one SID per case, mirroring `sbeam/results/load_export.py`; (3)
+    `stick_model_bdf` — a minimal SOL 101 CBAR cantilever (root clamp node + GRID
+    per station + CBAR chain + PBAR/MAT1 placeholder + SPC1 + one subcase/load set
+    per case).
+- The applied nodal load at each station is the **increment of the cumulative**
+  NETLOADS column (`dFz[i]=sz[i]−sz[i+1]`), so the FORCE set sums to the root
+  shear and the MOMENT(My) set to the root torsion exactly, and (under the
+  WINGINER quadrature `y[i]−y[0]=i·dy`) the FORCE moments reproduce the root
+  bending exactly.
+- `cli.py` — `--export-sbeam <prefix> <project.json> [--stick-model]` writes
+  `<prefix>.span_loads.csv`, `<prefix>.loads.bdf` (and `<prefix>.stick.bdf`).
+
+**Test / Acceptance.** `tests/test_sbeam_bridge.py` (10 tests) validates by
+closure (no printed oracle in concept mode): re-summed FORCE/MOMENT = NETLOADS
+root totals (exact); a **self-contained** free-field reader (no sbeam import)
+round-trips the cards; stick-deck structure (one root clamp, connected CBAR
+chain, one load set per case) and station-grid geometry checked; runs on both the
+GA and concept examples. Manually verified that the real sbeam
+(`/Users/seanomeara/Documents/99-Tests/sbeam`) parses the deck and **solves all
+SOL 101 subcases** (`run_sol101`) with the load sets summing to the NETLOADS root
+shear. Full suite green (133 tests), ruff clean.
+
+**Key decisions.**
+1. **Export bridge, not a calc module** — `farloads/export/` is a renderer
+   alongside `io.py`; physics stays in `modules/net_loads.py`.
+2. **Increment-of-cumulative nodal loads** — gives exact force/torsion/bending
+   closure even with concentrated wing masses, since the cumulative columns
+   telescope.
+3. **Card style copied from sbeam** — comma free-field, unit scale + `%.6E`
+   components, one SID per case, matching `sbeam/results/load_export.py`.
+4. **Self-contained test parser** (no sbeam dependency in CI); the
+   parses-and-solves-in-sbeam check is a documented manual step.
+5. **Stick model behind a flag** — both deliverables (load-cards-only for splicing
+   into a user's model, and the auto stick model) per the C4 working assumption;
+   nominal placeholder PBAR/MAT1 (reactions are stiffness-independent for the
+   determinate cantilever).
+
+---
+
 ## Tooling & documentation standard (complete)
 
 **Objective.** Bring the project's tooling and documentation standard in line

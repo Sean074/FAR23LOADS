@@ -122,6 +122,16 @@
     "Bonanza",
     "Beechcraft",
     "Piper",
-    "Havilland"
+    "Havilland",
+    "NASTRAN",
+    "CBAR",
+    "PBAR",
+    "MAT",
+    "SPC",
+    "ENDDATA",
+    "SUBCASE",
+    "SPCFORCE",
+    "CEND",
+    "encastre"
   ]
 }

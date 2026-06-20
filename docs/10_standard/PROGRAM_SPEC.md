@@ -270,6 +270,38 @@ directly; a module never recomputes another module's owned quantity.
 
 ---
 
+## Export bridges
+
+These are **output renderers**, not registered calc modules: they read a results
+slice and emit a file for an external tool. They live in `farloads/export/`,
+return strings (with thin `write_*` file wrappers), and do no physics.
+
+### sbeam export bridge — net wing load → sbeam (Step C4)
+- **Source:** `farloads/export/sbeam_bridge.py`; card style mirrors
+  `sbeam/results/load_export.py`.
+- **Reads:** `Project.loads.wing_net` (NETLOADS) — accepts a `Project`, a list of
+  `WingLoadResult`, or one result.
+- **Writes:** (1) a **span-load CSV** (one row per wing station per case: applied
+  nodal `Fx/Fz/My` + cumulative `Sx/Sz/Mxx/Myy/Mzz`); (2) **FORCE/MOMENT**
+  bulk-data cards, comma free-field unit-scale form (`FORCE, SID, GID, 0, 1.0,
+  Fx, Fy, Fz`, components `%.6E`), one load set (SID) per case; (3) an optional
+  minimal **CBAR stick-model BDF** (GRID + CBAR chain + PBAR/MAT1 placeholder +
+  root SPC1 + the load cards + a SOL 101 subcase per case).
+- **Nodal loads:** the applied nodal force/torsion at each station is the
+  *increment of the cumulative* NETLOADS column to the next station outboard, so
+  the FORCE set sums to the root shear and the MOMENT(My) set to the root torsion
+  **exactly**; under the WINGINER quadrature (`y[i]-y[0] = i·dy`) the FORCE
+  moments about the root reproduce the root bending exactly.
+- **Coordinates:** `farloads/export/coordinates.py` — FAR23LOADS station-X /
+  butt-Y / waterline-Z inches → sbeam global CID 0, **identity** (single
+  edit-point for any future sign/axis/unit change).
+- **Validation:** force/moment closure (cards re-summed = NETLOADS root totals);
+  a self-contained free-field reader round-trips the cards in tests; the stick
+  deck parses **and solves SOL 101** in the real sbeam (manual verification step).
+- **CLI:** `python cli.py --export-sbeam <prefix> <project.json> [--stick-model]`.
+
+---
+
 ## Cross-module field ownership (the shared schema at a glance)
 
 Derived from **User's Guide Table 2.2** (the authoritative input→output map):
@@ -287,6 +319,7 @@ Derived from **User's Guide Table 2.2** (the authoritative input→output map):
 | `loads.wing_inertia` | WINGINER | NETLOADS |
 | `landing.n` | LGFACTOR | LANDLOAD |
 | `engine[]` | direct input | ENGLOADS, ONENGOUT |
+| `loads.wing_net` (net wing load) | NETLOADS | report/CSV export; **sbeam export bridge** (FORCE/MOMENT + stick model) |
 | `loads.*` (per-module results) | each component module | report/CSV export only |
 | *(verification only)* | BALLOADS | reads FLTLOADS data; no pipeline output |
 

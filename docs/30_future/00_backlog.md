@@ -30,7 +30,6 @@ The Phase-C steps **re-sequence** the Phase 3/4 module ports below (vertical sli
 first) and add concept-specific work. The FAR23 path stays oracle-locked
 (Appendix A/B ±0.1%); concept mode reduces exactly to it on GA inputs.
 
-- [ ] **C4 — sbeam export bridge.** `farloads/export/sbeam_bridge.py` — FORCE/MOMENT cards + span-load CSV + optional CBAR stick model.
 - [ ] **C5 — Configuration & Layout page + fleet assessment.** Supersedes the "Configuration & Layout page" modern-addition item below.
 - [ ] **C6 — SELECT + fuselage/body distributed loads.**
 - [ ] **C7 — TAILDIST + AIRLOAD4.** Chordwise tail loads; swept/high-Mach spanwise airloads.

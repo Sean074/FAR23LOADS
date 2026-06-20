@@ -11,6 +11,22 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **sbeam export bridge (Step C4).** New `farloads/export/` subpackage turns the
+  NETLOADS net wing load (`Project.loads.wing_net`) into sbeam-consumable
+  artifacts: a **span-load CSV**, **FORCE/MOMENT** bulk-data cards (comma
+  free-field unit-scale form matching `sbeam/results/load_export.py`, one load set
+  per case), and an optional minimal **CBAR stick-model BDF** (GRID + CBAR chain +
+  PBAR/MAT1 placeholder + root SPC1 + a SOL 101 subcase per case). The applied
+  nodal load at each station is the *increment of the cumulative* NETLOADS column,
+  so the FORCE set sums to the root shear and the MOMENT(My) set to the root
+  torsion exactly (and the FORCE moments reproduce the root bending). Coordinate
+  map (`export/coordinates.py`) is FAR23LOADS station/butt/waterline inches →
+  sbeam global CID 0 (identity, single edit-point). New CLI flag
+  `--export-sbeam <prefix> [--stick-model]`. The bridge is a pure renderer, not a
+  registered calc module. Validated by force/moment closure + a self-contained
+  free-field round-trip; the stick deck parses **and solves SOL 101** in the real
+  sbeam (manual verification).
+
 - **Net wing loads — WINGINER + NETLOADS (Step C3).** New `wing_inertia` and
   `net_loads` modules compute the spanwise wing **shear, bending moment and
   torsion** along the 25% chord as the algebraic sum of the air loads and the
