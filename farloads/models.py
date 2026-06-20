@@ -487,6 +487,58 @@ class WingMassInput:
     cases: List[WingLoadCase] = field(default_factory=list)
 
 
+# --------------------------------------------------------------------------- #
+# General configuration & layout (modern addition) -- Project.configuration
+# --------------------------------------------------------------------------- #
+@dataclass
+class LayoutInput:
+    """General configuration & layout: the geometric source of truth.
+
+    A modern addition (no original ``.BAS``; **no manual regression oracle** --
+    Appendix A/B geometry is used only as a *sanity* fixture, asserting the derived
+    ``MAC``/``XLEMAC`` match what WINGGEOM reproduces). This slice owns the
+    high-level parametric geometry the configuration page edits, then *seeds*
+    downstream pages (WINGGEOM polylines, WTENV/STRSPEED ``XLEMAC``/``MAC``,
+    WTONECG component stations).
+
+    Coordinates are inches in the airplane axes used throughout the suite:
+    fuselage station ``X`` (aft positive from the datum), butt line ``Y`` and
+    waterline ``Z``. Engine positions are **not** stored here -- they stay owned by
+    ``EngineInput.engine_cg`` (the page reads them for drawing and writes back on a
+    move), per the ownership rule in ``PROGRAM_SPEC.md``.
+
+    The wing is parametric (area, aspect ratio, taper, sweep, dihedral); the
+    configuration module turns it into the WINGGEOM ``leading_edge``/
+    ``trailing_edge`` polylines and the trapezoidal-wing ``MAC``/``XLEMAC``/
+    ``Y_MAC`` (cross-checked against the WINGGEOM strip integrator). Tail surfaces
+    are given as area + arm (tail-volume static-margin estimate); gear as the
+    nose/main stations, track and height (tip-back / overturn / clearance).
+    """
+    # Fuselage
+    fuselage_length: float = 0.0     # overall length, in
+    fuselage_width: float = 0.0      # max width, in
+    fuselage_height: float = 0.0     # max height, in
+    datum_x: float = 0.0             # fuselage station of the nose datum reference, in
+    # Wing (parametric planform)
+    wing_area_sqft: float = 0.0      # reference (total) wing area S, ft^2
+    aspect_ratio: float = 0.0        # AR = b^2 / S
+    taper_ratio: float = 1.0         # tip chord / root (centreline) chord
+    dihedral_deg: float = 0.0        # geometric dihedral
+    le_sweep_deg: float = 0.0        # leading-edge sweep
+    le_root_x: float = 0.0           # fuselage station of the LE at the centreline, in
+    root_waterline_z: float = 0.0    # waterline of the root chord (25% MAC reference), in
+    # Tail (area + moment arm; arms measured from the wing 25% MAC)
+    h_tail_area: float = 0.0         # horizontal tail area, ft^2
+    h_tail_arm: float = 0.0          # h-tail arm (25% wing MAC -> 25% h-tail MAC), in
+    v_tail_area: float = 0.0         # vertical tail area, ft^2
+    v_tail_arm: float = 0.0          # v-tail arm, in
+    # Landing gear
+    nose_gear_x: float = 0.0         # nose-gear contact fuselage station, in
+    main_gear_x: float = 0.0         # main-gear contact fuselage station, in
+    track: float = 0.0               # main-gear track (wheel-to-wheel), in
+    gear_height: float = 0.0         # static ground-to-WRP height, in
+
+
 @dataclass
 class LoadValue:
     """A single labelled output quantity with units (for clean rendering).
@@ -631,8 +683,10 @@ class LoadsResult:
 # v5 adds the wing-mass input slice (WingMassInput, WINGINER), the wing
 # distributed-loads result slice (LoadsResult, WINGINER/NETLOADS) and the
 # section profile-drag / moment tables on AeroSurfaceInput -- all additive, so
-# older files load unchanged via the from_dict defaults.
-SCHEMA_VERSION = 5
+# older files load unchanged via the from_dict defaults; v6 adds the configuration
+# & layout input slice (LayoutInput, the modern Configuration & Layout page) --
+# additive, older files load unchanged.
+SCHEMA_VERSION = 6
 
 
 @dataclass
@@ -661,6 +715,7 @@ class Project:
     envelope: Optional[EnvelopeResult] = None
     wing_mass: Optional[WingMassInput] = None
     loads: Optional[LoadsResult] = None
+    configuration: Optional[LayoutInput] = None
 
     def __post_init__(self) -> None:
         if self.engine_layout is not None and self.engines:

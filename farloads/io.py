@@ -34,6 +34,7 @@ from .models import (
     EnvelopeResult,
     FlightLoadsInput,
     GeometryInput,
+    LayoutInput,
     LoadsResult,
     MachLimitInput,
     MassItem,
@@ -386,6 +387,24 @@ def loads_to_dict(inp: LoadsResult) -> Dict[str, Any]:
 
 
 # --------------------------------------------------------------------------- #
+# Configuration & layout slice <-> dict (LayoutInput)
+# --------------------------------------------------------------------------- #
+def configuration_from_dict(d: Dict[str, Any]) -> LayoutInput:
+    """Build a :class:`LayoutInput` from a plain dict.
+
+    Every field is an optional scalar with a default, so unknown keys are ignored
+    and missing keys fall back to the dataclass default (additive forward-compat).
+    """
+    fields = {f for f in LayoutInput.__dataclass_fields__}
+    return LayoutInput(**{k: v for k, v in d.items() if k in fields})
+
+
+def configuration_to_dict(inp: LayoutInput) -> Dict[str, Any]:
+    """Serialize a :class:`LayoutInput` to JSON-friendly primitives."""
+    return asdict(inp)
+
+
+# --------------------------------------------------------------------------- #
 # Project <-> JSON
 # --------------------------------------------------------------------------- #
 def project_from_dict(d: Dict[str, Any]) -> Project:
@@ -398,7 +417,8 @@ def project_from_dict(d: Dict[str, Any]) -> Project:
     if (
         "engines" in d or "engine" in d or "weight" in d or "geometry" in d
         or "speeds" in d or "aero" in d or "flight_loads" in d or "envelope" in d
-        or "wing_mass" in d or "loads" in d or "schema_version" in d or "name" in d
+        or "wing_mass" in d or "loads" in d or "configuration" in d
+        or "schema_version" in d or "name" in d
     ):
         weight = d.get("weight")
         geometry = d.get("geometry")
@@ -408,6 +428,7 @@ def project_from_dict(d: Dict[str, Any]) -> Project:
         envelope = d.get("envelope")
         wing_mass = d.get("wing_mass")
         loads = d.get("loads")
+        configuration = d.get("configuration")
         engines, layout = _engines_from_dict(d)
         return Project(
             schema_version=d.get("schema_version", SCHEMA_VERSION),
@@ -422,6 +443,7 @@ def project_from_dict(d: Dict[str, Any]) -> Project:
             envelope=envelope_from_dict(envelope) if envelope else None,
             wing_mass=wing_mass_from_dict(wing_mass) if wing_mass else None,
             loads=loads_from_dict(loads) if loads else None,
+            configuration=configuration_from_dict(configuration) if configuration else None,
         )
     # Legacy: the whole file is just the engine slice.
     return Project(name="", engines=[engine_from_dict(d)], engine_layout=EngineLayout.SINGLE_NOSE)
@@ -466,6 +488,8 @@ def project_to_dict(project: Project) -> Dict[str, Any]:
         out["wing_mass"] = wing_mass_to_dict(project.wing_mass)
     if project.loads is not None:
         out["loads"] = loads_to_dict(project.loads)
+    if project.configuration is not None:
+        out["configuration"] = configuration_to_dict(project.configuration)
     return out
 
 

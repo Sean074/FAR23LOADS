@@ -270,6 +270,32 @@ directly; a module never recomputes another module's owned quantity.
 
 ---
 
+## Modern additions (no `.BAS` oracle)
+
+These are registered calc modules with no original program and **no manual
+regression oracle**; Appendix A/B geometry is used only as a *sanity* fixture.
+
+### configuration — General configuration & layout (Step C5)
+- **FAR §:** none (modern addition; geometric source of truth, not a FAR condition).
+- **Source:** `farloads/modules/configuration.py`; method refs Reference 1 Ch 5
+  (trapezoidal MAC) and Ch 8 (tail-volume neutral point).
+- **Reads:** `Project.configuration` (`LayoutInput`: fuselage / parametric wing /
+  tail areas+arms / gear); `Project.weight.envelope` (aft-gross %MAC for the static
+  margin, optional); `Project.engine` (prop geometry for clearance, optional).
+- **Writes:** derived MAC / XLEMAC / Y_MAC / AR / span (obtained by running the
+  generated wing polylines through the WINGGEOM strip integrator — WINGGEOM stays
+  the owner), horizontal tail volume, neutral-point %MAC + station, static margin,
+  tip-back / overturn angles, prop ground clearance → `ConditionResult`s. The page
+  also *seeds* `Project.geometry` with the generated wing `SurfaceInput`.
+- **Validation:** **no oracle.** `tests/test_configuration.py` — analytic-vs-strip
+  MAC consistency ±0.1%; Appendix A trapezoid plausibility (MAC 69.246 / MAC butt
+  line 87.854, ±10%, since the real wing has an inboard strake).
+- **Notes:** all stability/gear figures are first-order estimates (CG at 25% MAC
+  when no mass slice is present; tail-volume NP with `h_acw=0.25`, `a_t/a_w=1`,
+  `1−dε/dα=0.6`). In concept mode the results are flagged unverified extrapolation.
+
+---
+
 ## Export bridges
 
 These are **output renderers**, not registered calc modules: they read a results
@@ -319,6 +345,7 @@ Derived from **User's Guide Table 2.2** (the authoritative input→output map):
 | `loads.wing_inertia` | WINGINER | NETLOADS |
 | `landing.n` | LGFACTOR | LANDLOAD |
 | `engine[]` | direct input | ENGLOADS, ONENGOUT |
+| `configuration` (`LayoutInput`: fuselage/wing/tail/gear) | configuration (modern; no `.BAS`) | seeds WINGGEOM (`geometry.wing`); reads `weight.envelope`, `engine` |
 | `loads.wing_net` (net wing load) | NETLOADS | report/CSV export; **sbeam export bridge** (FORCE/MOMENT + stick model) |
 | `loads.*` (per-module results) | each component module | report/CSV export only |
 | *(verification only)* | BALLOADS | reads FLTLOADS data; no pipeline output |
@@ -342,7 +369,9 @@ other modules consume).
 | 4 Component loads | WINGINER, NETLOADS, AILERON, FLAPLOAD, TABLOADS, TAILDIST, ENGLOADS, ONENGOUT, LGFACTOR, LANDLOAD | 1 (ENGLOADS) | 9 |
 | **Total** | **22** | **7** | **15** |
 
-Counts reference 1's 22 Appendix-C programs. The FAA User's Guide exposes **20**
+Counts reference 1's 22 Appendix-C programs only; the **configuration** module
+(Step C5) is a modern addition with no `.BAS` and is not counted above. The FAA
+User's Guide exposes **20**
 of these as menu modules — the two it omits are:
 \* **TAU** (`TAU.EXE`/`TAU.BAS`), the lift-curve-slope helper folded into
 `airloads.py`; and

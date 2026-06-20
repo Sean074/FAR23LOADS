@@ -42,8 +42,22 @@ def test_weights_positive_and_oew_below_mtow():
 
 def test_expected_aircraft_present():
     names = {row["aircraft"] for row in _rows()}
-    for expected in ("Cessna 150", "Van's RV-10", "ATR 42-500", "de Havilland Dash 8-100"):
+    for expected in (
+        "Cessna 150", "Van's RV-10", "ATR 42-500", "de Havilland Dash 8-100",
+        # heavier / concept tier (Phase C)
+        "Cessna 208 Caravan", "Beechcraft 1900D", "Saab 340B",
+    ):
         assert expected in names, f"missing reference aircraft: {expected}"
+
+
+def test_power_loading_data_plausible():
+    # max_hp may be 0 for jets (no shaft power -> excluded from W/P); every other
+    # row must carry positive power and wing area so W/S and W/P are computable.
+    for row in _rows():
+        hp = float(row["max_hp"])
+        area = float(row["wing_area_ft2"])
+        assert hp >= 0, f"{row['aircraft']}: max_hp must be non-negative"
+        assert area > 0, f"{row['aircraft']}: wing_area_ft2 must be positive"
 
 
 if __name__ == "__main__":

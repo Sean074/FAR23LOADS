@@ -175,6 +175,7 @@ FAR23LOADS/
 │   │   └── sbeam_bridge.py       # net wing load -> span-load CSV + FORCE/MOMENT cards + CBAR stick model
 │   └── modules/
 │       ├── __init__.py
+│       ├── configuration.py      # Configuration & Layout (modern; no .BAS) -> Project.configuration
 │       ├── weight_estimate.py    # WTESTIMA
 │       ├── weight_envelope.py    # WTENV
 │       ├── weight_onecg.py       # WTONECG
@@ -192,6 +193,7 @@ FAR23LOADS/
 ├── app/                          # multi-page Streamlit UI
 │   ├── Home.py                   # load/save project JSON, project summary, run-all
 │   └── pages/
+│       ├── 00_Configuration_Layout.py  # Configuration & Layout (three-view + fleet)
 │       ├── 01_Weight_Estimate.py
 │       ├── 02_Weight_Envelope.py
 │       ├── ...

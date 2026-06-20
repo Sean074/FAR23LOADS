@@ -11,6 +11,21 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **Configuration & Layout page + fleet assessment (Step C5).** New
+  `Project.configuration` slice (`LayoutInput`: fuselage, parametric wing, tail
+  areas/arms, landing gear) and a registered `configuration` calc module that
+  derives the wing planform (MAC/XLEMAC/Y_MAC/AR/span via the WINGGEOM strip
+  integrator on generated polylines), a tail-volume neutral point + static margin,
+  tip-back / overturn angles and prop ground clearance. New Streamlit page
+  `app/pages/00_Configuration_Layout.py` (Plotly three-view with CG/NP markers,
+  assessment panel, a WINGGEOM seed button, and W/S-vs-W/P + MTOW-vs-OEW fleet
+  plots). `app/data/reference_aircraft.csv` extended with a heavier/concept tier
+  (twin pistons, commuters, a bizjet, light transports). Modern addition — no
+  `.BAS` and **no regression oracle**; figures are first-order estimates flagged in
+  concept mode. `SCHEMA_VERSION` bumped 5 → 6 (additive). Validated by
+  analytic-vs-WINGGEOM-strip MAC consistency (±0.1%) and Appendix A trapezoid
+  plausibility (±10%).
+
 - **sbeam export bridge (Step C4).** New `farloads/export/` subpackage turns the
   NETLOADS net wing load (`Project.loads.wing_net`) into sbeam-consumable
   artifacts: a **span-load CSV**, **FORCE/MOMENT** bulk-data cards (comma

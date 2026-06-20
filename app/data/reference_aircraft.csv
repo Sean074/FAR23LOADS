@@ -2,6 +2,9 @@
 # Nominal published specifications for visual reference only -- NOT certification
 # data and NOT used in any FAR computation. Weights in lb, span/area in ft.
 # engine_type uses the WTESTIMA vocabulary (recip / turboprop) where it applies.
+# The lower block is a heavier / concept tier (twins, commuters, bizjets, light
+# transports) added for Phase-C concept designs that exceed the GA band; jets carry
+# max_hp = 0 (no shaft power) and are excluded from the W/P comparison.
 aircraft,mtow_lb,oew_lb,max_hp,engines,engine_type,seats,wingspan_ft,wing_area_ft2
 Cessna 150,1600,1111,100,1,recip,2,32.7,160
 Cessna 172,2450,1691,180,1,recip,4,36.1,174
@@ -17,3 +20,12 @@ Piper PA-46 Malibu,4340,2740,350,1,turbocharged,6,43.0,175
 Beechcraft King Air 200,12500,8060,1700,2,turboprop,9,54.5,303
 ATR 42-500,41005,24802,4102,2,turboprop,50,80.6,587
 de Havilland Dash 8-100,34500,22055,4000,2,turboprop,39,85.0,585
+Beechcraft Baron G58,5524,3815,600,2,recip,6,37.8,199
+Piper PA-31 Navajo,6500,3994,620,2,recip,8,40.7,229
+Cessna 208 Caravan,8807,5085,867,1,turboprop,14,52.1,279
+Pilatus PC-12,10450,6173,1200,1,turboprop,9,53.3,277
+DHC-6 Twin Otter,12500,7415,1240,2,turboprop,19,65.0,420
+Beechcraft 1900D,17120,10434,2550,2,turboprop,19,57.8,310
+Embraer EMB-120 Brasilia,26433,15793,3360,2,turboprop,30,64.9,424
+Saab 340B,28500,17715,3520,2,turboprop,37,70.4,450
+Cessna Citation CJ3,13870,8770,0,2,turbofan,9,53.3,294

@@ -132,6 +132,12 @@
     "SUBCASE",
     "SPCFORCE",
     "CEND",
-    "encastre"
+    "encastre",
+    "turbofan",
+    "downwash",
+    "Pilatus",
+    "Navajo",
+    "Embraer",
+    "Brasilia"
   ]
 }

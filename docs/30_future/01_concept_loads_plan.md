@@ -175,7 +175,7 @@ error; round-trip Fz matches within tolerance.
 into a user's existing sbeam model, *or* also auto-generate the stick model.
 Working assumption: do both, stick model behind a flag.
 
-### Step C5 — Configuration & Layout page + fleet assessment
+### Step C5 — Configuration & Layout page + fleet assessment *(shipped)*
 **Objective.** Satisfy "assess the configuration against similar airplanes" — the
 planned Configuration & Layout page plus an extended fleet set. (Supersedes the
 "Configuration & Layout page" modern-addition backlog item.)

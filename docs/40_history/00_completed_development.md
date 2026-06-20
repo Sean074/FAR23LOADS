@@ -513,6 +513,52 @@ shear. Full suite green (133 tests), ruff clean.
 
 ---
 
+## Phase C — Step C5: Configuration & Layout page + fleet assessment (complete)
+
+**Objective.** Satisfy "assess the configuration against similar airplanes": a
+modern Configuration & Layout page that owns the high-level parametric geometry,
+derives the wing/stability/gear assessment, seeds the geometry downstream, and
+places the design against an extended reference fleet. No original `.BAS`; **no
+manual regression oracle** (Appendix A/B geometry used only as a sanity fixture).
+
+**Deliverables.**
+- `models.py` — new `Project.configuration` slice (`LayoutInput`: fuselage L/W/H +
+  datum; parametric wing area/AR/taper/dihedral/LE-sweep/LE-root/root-waterline;
+  H/V tail areas + arms; gear nose/main stations, track, height). `SCHEMA_VERSION`
+  bumped 5 → 6 (additive); `io.py` round-trip extended (`configuration_*_dict`).
+- `modules/configuration.py` (pure, registered `"configuration"`) — trapezoidal
+  wing planform → WINGGEOM LE/TE polylines; MAC/XLEMAC/Y_MAC/AR/span obtained by
+  running the generated polylines through the WINGGEOM strip integrator (WINGGEOM
+  stays the owner); tail-volume neutral point + static margin; tip-back / overturn
+  angles; prop ground clearance.
+- `app/pages/00_Configuration_Layout.py` — fuselage/wing/tail/gear input groups,
+  Plotly three-view (top/side/front) with CG (25% MAC) and neutral-point markers,
+  assessment panel, a "Seed wing geometry (WINGGEOM)" button, and a fleet
+  comparison (W/S-vs-W/P and MTOW-vs-OEW).
+- `app/data/reference_aircraft.csv` — extended with a heavier/concept tier (twin
+  pistons, commuters, a bizjet, light transports); jets carry `max_hp = 0` and are
+  excluded from the W/P plot.
+
+**Test / Acceptance.** `tests/test_configuration.py` — analytic-vs-WINGGEOM-strip
+MAC/Y_MAC/XLEMAC consistency ±0.1%; area/AR round-trip; Appendix A trapezoid
+plausibility (MAC 69.246 / MAC butt line 87.854 within ±10%, the real wing having
+an inboard strake); stability + gear quantities present when data given.
+`tests/test_io.py` configuration round-trip; `tests/test_reference_aircraft.py`
+extended for the new tier. Full suite green; `ruff` clean.
+
+**Key decisions.**
+1. **WINGGEOM stays the MAC owner** — configuration generates polylines and reads
+   MAC/XLEMAC back from `wing_geometry.surface_properties` rather than integrating
+   independently (per the "don't recompute another module's quantity" rule).
+2. **First-order estimates, flagged** — tail-volume NP (`h_acw=0.25`, `a_t/a_w=1`,
+   `1−dε/dα=0.6`), CG at 25% MAC when no mass slice is present; concept-mode results
+   labelled unverified extrapolation. No oracle (documented).
+3. **Seeding scoped to WINGGEOM** — the wing surface seed is enough for WTENV /
+   STRSPEED (they read `XLEMAC`/`MAC`/area from `Project.geometry`); WTONECG station
+   seeding and engine write-back deferred (recorded in the backlog).
+
+---
+
 ## Tooling & documentation standard (complete)
 
 **Objective.** Bring the project's tooling and documentation standard in line

@@ -30,7 +30,6 @@ The Phase-C steps **re-sequence** the Phase 3/4 module ports below (vertical sli
 first) and add concept-specific work. The FAR23 path stays oracle-locked
 (Appendix A/B ±0.1%); concept mode reduces exactly to it on GA inputs.
 
-- [ ] **C5 — Configuration & Layout page + fleet assessment.** Supersedes the "Configuration & Layout page" modern-addition item below.
 - [ ] **C6 — SELECT + fuselage/body distributed loads.**
 - [ ] **C7 — TAILDIST + AIRLOAD4.** Chordwise tail loads; swept/high-Mach spanwise airloads.
 - [ ] **C8 — Control-surface simplified distributions.** AILERON / FLAPLOAD / TABLOADS.
@@ -59,46 +58,16 @@ first) and add concept-specific work. The FAR23 path stays oracle-locked
 
 ## Modern additions (no `.BAS` oracle)
 
-### Configuration & Layout page
-> **Now tracked as Phase-C Step C5** (see [`01_concept_loads_plan.md`](01_concept_loads_plan.md)
-> and the Phase C list above). The detailed deliverables below remain the spec for
-> that step, extended with a heavier/concept fleet tier for the configuration
-> assessment.
-
-- [ ] **`configuration` — general configuration & layout page.** A modern addition
-  (no original `.BAS`; **no manual regression oracle** — use Appendix A/B geometry
-  as *sanity* fixtures, asserting derived `MAC`/`XLEMAC` match what WINGGEOM/WTENV
-  already reproduce). Becomes the single geometric **source of truth** that seeds
-  the downstream mass-properties, geometry and speeds pages.
-  - **Model.** New `Project.configuration` slice (`LayoutInput`): fuselage L/W/H +
-    datum; parametric wing (area, AR, taper, dihedral, LE sweep, LE-root station,
-    root waterline); tail areas + arms (H & V); landing gear (nose/main station,
-    track, gear height); engine x mirrored from `EngineInput.engine_cg` (engine
-    module stays authoritative — page reads for drawing, writes back on move). Bump
-    `SCHEMA_VERSION`; extend `io.py` round-trip.
-  - **Calc.** New `modules/configuration.py` (pure, registered): derive `MAC`,
-    `XLEMAC`, `Y_MAC` from the planform; generate WINGGEOM LE/TE polylines; assign
-    component `MassItem.x/z` stations (fills the zeros `estimate_to_mass_items`
-    leaves); static margin (tail-volume neutral-point estimate − CG %MAC); tip-back
-    & overturn angles; prop/tail ground clearance.
-  - **Page** (`app/pages/00_Configuration_Layout.py`, numbered ahead of Weight
-    Estimate). Left: slider / number-input groups (Fuselage / Wing / Tail / Gear /
-    Engines) — **no new dependency**, live rerun. Center: three-view (Plotly, three
-    2-D subplots top/side/front) with CG and NP marked. Right/below: assessment
-    panel (MAC, XLEMAC, static margin, tip-back/overturn, clearances) + **W/S vs
-    W/P** fleet comparison plot (extend `app/data/reference_aircraft.csv`). Seed
-    buttons mirroring the Weight Estimate "Seed" pattern: push stations → Weight DB
-    (WTONECG), generate wing geometry (WINGGEOM), set `XLEMAC`/`MAC` (WTENV/STRSPEED).
-  - **Migrates inputs here** (other pages become refine-only): wing planform params,
-    fuselage dims (new — no current home), landing-gear geometry (new), engine/tail
-    positions.
-  - **Build order.** (1) `LayoutInput` + `io` round-trip + schema bump → (2)
-    derivation calc + Appendix-A sanity test → (3) three-view renderer → (4) page +
-    sliders → (5) seeding into WTONECG/WTENV/WINGGEOM → (6) comparison plot → (7)
-    docs (`PROGRAM_SPEC`, `PROJECT_GUIDE` layout/schema, `20_theory` citation,
-    backlog→completed, `CHANGELOG`).
-  - **Origin.** Realizes the `docs/30_future/Phase1_2_review.md` feedback (geometry
-    on the weight page, 3-view, in-service comparison plots) consolidated into one page.
+> The **Configuration & Layout page** (`configuration` module) shipped in Step C5 —
+> see [`../40_history/00_completed_development.md`](../40_history/00_completed_development.md).
+> Deferred follow-ups that the C5 build did **not** include:
+> - Seed buttons beyond WINGGEOM: push component stations → Weight DB (WTONECG) and
+>   set `XLEMAC`/`MAC` directly into WTENV/STRSPEED (C5 seeds only the wing geometry
+>   surface, which WTENV/STRSPEED already read from `Project.geometry`).
+> - `MassItem.x/z` station assignment (filling the zeros `estimate_to_mass_items`
+>   leaves) and engine write-back-on-move from the three-view.
+> - Tail/prop ground-clearance refinement and a true CG (rather than the 25%-MAC
+>   first cut) once a mass slice is present.
 
 ## Open design decisions (from PROJECT_GUIDE §8)
 

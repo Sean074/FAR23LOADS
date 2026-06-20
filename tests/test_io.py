@@ -96,6 +96,21 @@ def test_project_round_trip(tmp_path=None):
             os.remove(out)
 
 
+def test_configuration_round_trip():
+    # The configuration/layout slice survives a dict round-trip (v6 schema).
+    from farloads import LayoutInput
+
+    layout = LayoutInput(
+        fuselage_length=300.0, fuselage_width=48.0, wing_area_sqft=174.0,
+        aspect_ratio=6.0, taper_ratio=0.6, le_sweep_deg=2.0, le_root_x=45.0,
+        h_tail_area=21.0, h_tail_arm=180.0, nose_gear_x=20.0, main_gear_x=110.0,
+        track=90.0, gear_height=30.0,
+    )
+    project = Project(name="cfg", configuration=layout)
+    again = io.project_from_dict(io.project_to_dict(project))
+    assert again.configuration == layout
+
+
 def test_legacy_flat_file_still_loads(tmp_path=None):
     # A pre-Project file is just the engine fields at top level; it must wrap.
     flat = os.path.join(EXAMPLES, "_legacy_tmp.json")
