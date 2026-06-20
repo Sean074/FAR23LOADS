@@ -141,20 +141,21 @@ directly; a module never recomputes another module's owned quantity.
 
 ## Phase 3 — Aero coefficients & flight envelope
 
-### TAU — Lift-curve-slope correction
+### TAU — Lift-curve-slope correction (built, folded into `airloads.py`)
 - **FAR §:** supports 23.301 airload distribution.
-- **Source:** Ch 7, `TAU.BAS`.
-- **Reads:** `Project.geometry` (aspect ratio, sweep, taper).
-- **Writes:** τ correction factor for the wing lift-curve slope → `Project.aero.tau`.
-- **Notes:** A small helper feeding AIRLOADS; can live inside `airloads.py`.
+- **Source:** Ch 7, `TAU.BAS` (curve-fit p407).
+- **Reads:** wing aspect ratio (from the planform) + `AeroSurfaceInput.taper_ratio`/`tip_ratio`.
+- **Writes:** τ correction factor for the wing lift-curve slope (the `_tau` helper in `airloads.py`; the per-surface value is also overridable via `AeroSurfaceInput.tau`).
+- **Notes:** Not a separate module — implemented as the `_tau` quartic curve-fit (in taper ratio, interpolated by tip ratio per ANC(1) 1938) inside `airloads.py`, exactly as the original folds `TAU.EXE` into AIRLOADS.
 
-### AIRLOADS / AIRLOAD4 — Spanwise coefficients & airloads
+### AIRLOADS — Spanwise lift distribution (built; AIRLOAD4 swept deferred to C7)
 - **FAR §:** 23.301 (loads), 23.321+ (flight loads), 23.347+ asymmetric.
-- **Source:** Ch 7 & 12, `AIRLOADS.BAS` (low speed) / `AIRLOAD4.BAS` (sweepback, high Mach).
-- **Reads:** `Project.geometry` (wing planform & stations), `Project.aero.tau`, CL distribution basis.
-- **Writes:** spanwise additional & basic lift coefficients, spanwise airload distribution (airplane-less-tail) → `Project.aero.spanwise`.
-- **Validation:** Appendix A (AIRLOADS) and Appendix B (AIRLOAD4, swept) spanwise tables.
-- **Notes:** Choose AIRLOADS vs AIRLOAD4 by sweep/Mach. Schrenk-type additional-lift method. Per UG Table 2.2 it reads **WINGGEOM + SELECT** and writes **SELECT + NETLOADS** — i.e. AIRLOADS↔SELECT is **iterative** (SELECT names the critical conditions, AIRLOADS computes airloads at them). The shared model must allow a module to both read and write the critical-load set; this is not a pure DAG. TAU (`TAU.EXE`) folds in here.
+- **Source:** Ch 7, `AIRLOADS.BAS` (low speed). `AIRLOAD4.BAS` (sweepback, high Mach) is scheduled in Step C7.
+- **Module:** `modules/airloads.py` (registers `"airloads"`).
+- **Reads:** `Project.geometry` (wing planform polylines & strip count) + `Project.aero` (`AeroSurfaceInput`: section slope `mo`, taper/tip ratio for TAU, spanwise `twist` table, `target_cl`).
+- **Writes:** the spanwise additive + basic + combined `c·cl` distribution (the `SpanwiseTable`) returned as a `ModuleResult`. The persisted `Project.aero.spanwise` result field is added when a consumer (FLTLOADS, C2) needs it.
+- **Validation:** Appendix A spanwise tables (additive `CC(LA1)`/`C(LA1)`, basic `Awo`/`CC(lb)`/`Clb`, p161-162) within ±0.1%; concept closure (integrated `∫c·cl dy` recovers the target CL).
+- **Notes:** Schrenk additional-lift method (average of planform-chord and elliptic distributions). Per UG Table 2.2 AIRLOADS↔SELECT is **iterative** (SELECT names the critical conditions, AIRLOADS computes airloads at them); the shared model must allow a module to both read and write the critical-load set — wired when SELECT lands (C6). The basic-distribution cosine fairing across a flap/aileron discontinuity (p47) is deferred (deflected-flap case only).
 
 ### FLTLOADS — Flight envelope (V-n) **+ balancing tail loads**
 - **FAR §:** 23.333 (flight envelope), 23.337, 23.341 (gust), 23.345 (flaps), 23.421+ (balancing/horizontal tail loads), 23.423.

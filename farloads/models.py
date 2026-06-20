@@ -257,6 +257,48 @@ class GeometryInput:
 
 
 # --------------------------------------------------------------------------- #
+# Spanwise airloads (TAU + AIRLOADS, Schrenk) -- the Project.aero slice
+# --------------------------------------------------------------------------- #
+@dataclass
+class AeroSurfaceInput:
+    """Per-surface aerodynamic inputs AIRLOADS needs on top of the WINGGEOM planform.
+
+    AIRLOADS reads the planform (chord polylines, strip count) from the matching
+    ``Project.geometry`` surface of the same ``name``; this slice carries the
+    aero data that geometry does not: the section lift-curve slope ``mo``, the
+    spanwise zero-lift (twist) angles that drive the basic distribution, the
+    TAU lift-curve-slope correction (or the taper/tip ratios to compute it), and
+    the wing ``CL`` the combined distribution is evaluated at (Reference 1 Ch 7).
+
+    ``twist`` is a list of ``(butt line Y, zero-lift angle deg)`` points ordered
+    inboard -> outboard (the "selected wing stations and their angles" of the
+    original program); the section angle at each strip is linearly interpolated
+    from it. Leave ``twist`` empty for an untwisted wing (basic distribution 0).
+    ``tau`` overrides the computed value when given (else it is derived from
+    ``taper_ratio``/``tip_ratio`` per TAU.BAS).
+    """
+    name: str = "wing"
+    section_slope: float = 0.1075        # mo, section lift-curve slope, per degree
+    taper_ratio: float = 0.0             # tip chord / centreline chord (for TAU)
+    tip_ratio: float = 0.0               # rounded-tip width / semi-span (for TAU)
+    tau: Optional[float] = None          # override; else computed from taper/tip ratio
+    twist: List[XYPoint] = field(default_factory=list)  # (Y, zero-lift angle deg), inboard->outboard
+    target_cl: float = 1.0               # wing CL the combined distribution is evaluated at
+
+
+@dataclass
+class AeroInput:
+    """The aerodynamic-input database read by AIRLOADS (one entry per surface)."""
+    surfaces: List[AeroSurfaceInput] = field(default_factory=list)
+
+    def by_name(self, name: str) -> Optional[AeroSurfaceInput]:
+        for s in self.surfaces:
+            if s.name == name:
+                return s
+        return None
+
+
+# --------------------------------------------------------------------------- #
 # Structural design speeds & maneuver load factors (STRSPEED) -- Project.speeds
 # --------------------------------------------------------------------------- #
 @dataclass
@@ -345,9 +387,10 @@ class ModuleResult:
 
 # Current project-schema version. Bump when the on-disk JSON shape changes so old
 # saves can be migrated (see io.load_project). v2 adds the concept certification
-# category ("C") and the WeightInput direct-weight path -- both additive, so v1
-# files load unchanged via the from_dict defaults.
-SCHEMA_VERSION = 2
+# category ("C") and the WeightInput direct-weight path; v3 adds the aero slice
+# (AeroInput, TAU + AIRLOADS spanwise lift) -- all additive, so older files load
+# unchanged via the from_dict defaults.
+SCHEMA_VERSION = 3
 
 
 @dataclass
@@ -371,6 +414,7 @@ class Project:
     weight: Optional[WeightInput] = None
     geometry: Optional[GeometryInput] = None
     speeds: Optional[StructuralSpeedsInput] = None
+    aero: Optional[AeroInput] = None
 
     def __post_init__(self) -> None:
         if self.engine_layout is not None and self.engines:

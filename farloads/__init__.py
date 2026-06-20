@@ -6,6 +6,8 @@ themselves with :mod:`farloads.registry`.
 """
 
 from .models import (
+    AeroInput,
+    AeroSurfaceInput,
     ConditionResult,
     EngineInput,
     EngineLayout,
@@ -44,6 +46,8 @@ from . import modules  # noqa: F401  (side effect: module registration)
 from .modules.engine import run_all
 
 __all__ = [
+    "AeroInput",
+    "AeroSurfaceInput",
     "ConditionResult",
     "EngineInput",
     "EngineLayout",

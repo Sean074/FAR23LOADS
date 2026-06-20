@@ -1,5 +1,5 @@
 {
-  "schema_version": 1,
+  "schema_version": 3,
   "name": "GA 6-place single (Appendix A) — Continental IO-520-BB",
   "engine_layout": "1N",
   "engines": [
@@ -102,5 +102,17 @@
       "max_operating_altitude_ft": 18000,
       "increment_ft": 1000
     }
+  },
+  "aero": {
+    "surfaces": [
+      {
+        "name": "wing",
+        "section_slope": 0.1075,
+        "taper_ratio": 0.4356,
+        "tip_ratio": 0.0,
+        "twist": [[0, 5], [46.5, 4.577], [109.279, 4.028], [201, 1.9]],
+        "target_cl": 1.0
+      }
+    ]
   }
 }

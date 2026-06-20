@@ -11,6 +11,24 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **Spanwise wing airloads — AIRLOADS + TAU (Step C1).** New `airloads` module
+  (`farloads/modules/airloads.py`) computes the wing spanwise lift distribution by
+  **Schrenk's method** (Reference 1 Ch 7): the additive distribution (untwisted
+  wing at CL=1), the twist-driven basic distribution, and their combination at a
+  target CL — the `c·cl` span load every downstream wing-load module consumes. Folds
+  in the **TAU** lift-curve-slope planform correction (`TAU.BAS` curve-fit, p407).
+  Adds a `Project.aero` slice (`AeroInput`/`AeroSurfaceInput`: section lift-curve
+  slope, taper/tip ratio, twist table, target CL) with `io.py` round-trip; schema
+  bumped to v3 (additive — older files load unchanged). New Streamlit page
+  `app/pages/06_Airloads.py` with a span-load plot (additive / basic / total) and
+  the integrated-CL closure check. The GA and concept example fixtures gain an
+  `aero` wing slice. FAR23 oracle-locked: the additive (`CC(LA1)`/`C(LA1)`) and
+  basic (`Awo`/`CC(lb)`/`Clb`) distributions match Appendix A p161-162 within ±0.1%;
+  concept mode is validated by physics closure (integrated `∫c·cl dy` recovers the
+  target CL; basic distribution carries zero net wing lift). Known limitation: the
+  cosine fairing of the basic distribution across a flap/aileron discontinuity is
+  not yet modelled (arises only with deflected flaps).
+
 - **Concept mode (Step C0) — foundation for >12,500 lb configurations.** Adds a
   `"C"` (concept) certification category to `StructuralSpeedsInput`: STRSPEED
   bypasses the GA-only FAR 23.337 maneuver-load-factor formula and cap, instead

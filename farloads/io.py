@@ -21,6 +21,8 @@ from typing import Any, Dict, List
 
 from .models import (
     SCHEMA_VERSION,
+    AeroInput,
+    AeroSurfaceInput,
     ConditionResult,
     EngineInput,
     EngineLayout,
@@ -177,6 +179,44 @@ def geometry_to_dict(inp: GeometryInput) -> Dict[str, Any]:
 
 
 # --------------------------------------------------------------------------- #
+# Aero slice <-> dict
+# --------------------------------------------------------------------------- #
+def _aero_surface_from_dict(d: Dict[str, Any]) -> AeroSurfaceInput:
+    return AeroSurfaceInput(
+        name=d.get("name", "wing"),
+        section_slope=d.get("section_slope", 0.1075),
+        taper_ratio=d.get("taper_ratio", 0.0),
+        tip_ratio=d.get("tip_ratio", 0.0),
+        tau=d.get("tau"),
+        twist=_points(d.get("twist")),
+        target_cl=d.get("target_cl", 1.0),
+    )
+
+
+def aero_from_dict(d: Dict[str, Any]) -> AeroInput:
+    """Build an :class:`AeroInput` from a plain dict (tuple coercion for twist)."""
+    return AeroInput(surfaces=[_aero_surface_from_dict(s) for s in d.get("surfaces", []) or []])
+
+
+def aero_to_dict(inp: AeroInput) -> Dict[str, Any]:
+    """Serialize an :class:`AeroInput` to JSON-friendly primitives."""
+    return {
+        "surfaces": [
+            {
+                "name": s.name,
+                "section_slope": s.section_slope,
+                "taper_ratio": s.taper_ratio,
+                "tip_ratio": s.tip_ratio,
+                "tau": s.tau,
+                "twist": [list(p) for p in s.twist],
+                "target_cl": s.target_cl,
+            }
+            for s in inp.surfaces
+        ]
+    }
+
+
+# --------------------------------------------------------------------------- #
 # Speeds slice <-> dict
 # --------------------------------------------------------------------------- #
 def speeds_from_dict(d: Dict[str, Any]) -> StructuralSpeedsInput:
@@ -204,11 +244,12 @@ def project_from_dict(d: Dict[str, Any]) -> Project:
     """
     if (
         "engines" in d or "engine" in d or "weight" in d or "geometry" in d
-        or "speeds" in d or "schema_version" in d or "name" in d
+        or "speeds" in d or "aero" in d or "schema_version" in d or "name" in d
     ):
         weight = d.get("weight")
         geometry = d.get("geometry")
         speeds = d.get("speeds")
+        aero = d.get("aero")
         engines, layout = _engines_from_dict(d)
         return Project(
             schema_version=d.get("schema_version", SCHEMA_VERSION),
@@ -218,6 +259,7 @@ def project_from_dict(d: Dict[str, Any]) -> Project:
             weight=weight_from_dict(weight) if weight else None,
             geometry=geometry_from_dict(geometry) if geometry else None,
             speeds=speeds_from_dict(speeds) if speeds else None,
+            aero=aero_from_dict(aero) if aero else None,
         )
     # Legacy: the whole file is just the engine slice.
     return Project(name="", engines=[engine_from_dict(d)], engine_layout=EngineLayout.SINGLE_NOSE)
@@ -252,6 +294,8 @@ def project_to_dict(project: Project) -> Dict[str, Any]:
         out["geometry"] = geometry_to_dict(project.geometry)
     if project.speeds is not None:
         out["speeds"] = speeds_to_dict(project.speeds)
+    if project.aero is not None:
+        out["aero"] = aero_to_dict(project.aero)
     return out
 
 

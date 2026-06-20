@@ -294,6 +294,65 @@ none).
 
 ---
 
+## Phase C — Step C1: AIRLOADS (Schrenk spanwise lift) + TAU (complete)
+
+**Objective.** Compute the wing spanwise lift distribution (`c·cl` span load) —
+the first real distributed-load deliverable and the input every downstream
+wing-load module (FLTLOADS balancing, WINGINER, NETLOADS, the sbeam export)
+consumes. Method: **Schrenk's** (Reference 1 Ch 7, p46-47; CAA-accepted per CAM 04
+App V) — average the planform-chord and elliptic lift distributions. (Narrative in
+[`../30_future/01_concept_loads_plan.md`](../30_future/01_concept_loads_plan.md) §C1.)
+
+**Equations (Ref 1 Ch 7).** Per strip (mid-station `ye`, chord `c`, width `dy`),
+reusing the WINGGEOM strip integrator so stations align with the geometry table:
+- additive (CL=1): `c·cl = 0.5·( mo·c/Mo + 4S/(π·B)·√(1−(2ye/B)²) )`, with
+  `Mo = Σ(mo·c·dy)/(S/2)`, `S = 2·Σ(c·dy)`, `B = 2·ytip`;
+- basic (twist): `Awo = Σ(mo·c·ac·dy)/Σ(mo·c·dy)`, `aa = ac − Awo`,
+  `c·cl_basic = (mo/2)·aa·c`;
+- combine at target CL: `c·cl = c·cl_additive·CL + c·cl_basic` (basic integrates to
+  zero net wing lift);
+- TAU planform correction from the `TAU.BAS` quartic curve-fit in taper ratio,
+  interpolated by tip ratio (p407); wing slope `M = mo_rad/(1 + mo_rad/(π·AR)·(1+τ))`.
+
+**Deliverables.**
+- `models.py` — `AeroSurfaceInput` (section slope `mo`, taper/tip ratio, optional
+  `tau` override, spanwise `twist` table, `target_cl`) + `AeroInput`; `Project.aero`;
+  `SCHEMA_VERSION` 2 → 3 (additive — older files load unchanged).
+- `modules/airloads.py` — registers `"airloads"`; `_tau` curve-fit helper;
+  `schrenk_distribution()` returns the per-strip `SpanwiseTable` (additive/basic/
+  total `c·cl` and `cl`, plus `Mo`/`M`/`τ`/`Awo`/area/span and the integrated-CL
+  closure); `spanwise_distribution()` wraps it as a reportable `ConditionResult`;
+  `run(project)` flags concept mode as an unverified extrapolation. Reuses
+  `wing_geometry._interp_x` for chord and twist interpolation.
+- `io.py` — `aero_from_dict`/`aero_to_dict` round-trip; wired into the project
+  load/save. `modules/__init__.py` imports `airloads` for self-registration.
+- UI — `app/pages/06_Airloads.py`: aero inputs + editable twist table, a span-load
+  plot (additive / basic / total), and the recovered-CL closure metric.
+- Fixtures — the GA (`ga6_normal`) and concept (`concept_heavy`) projects gain an
+  `aero` wing slice (concept also gains a wing planform).
+
+**Test / Acceptance.** New `tests/test_airloads.py` (10 tests). FAR23 oracle
+(±0.1%, `math.isclose(rel_tol=1e-3)`) vs Appendix A p161-162: additive `CC(LA1)`
+elem 1/10/20 = 91.05576 / 69.44847 / 31.82978, `C(LA1)` elem 1 = 0.9275981, additive
+integral CL = 1.00061; basic `Awo` = 3.988146, `CC(lb)` elem 1 = +5.09762, `Clb`
+elem 1 = 0.05193; area/span/AR match WINGGEOM (26513.4 / 402 / 6.095). TAU curve-fit
+(square-tip `τ(λ=0)` = 0.206209; `τ = 0` at tip ratio 1). Concept closure: the
+`concept_heavy` integral recovers `target_cl` and the basic distribution carries
+zero net lift. IO round-trip + missing-slice `ValueError`. All pre-existing tests
+pass unchanged (FAR23 identity) — 93 passing.
+
+**Key decisions.**
+1. **Full Schrenk (additive + basic + combine)** — needed to reproduce the Appendix A
+   wing, which has washout (root 5° → tip 1.9°).
+2. **Aero slice carries inputs; the distribution flows out as a `ModuleResult`** —
+   no persisted result-in-project field until a consumer (C2) needs one (avoids
+   speculative state); matches the existing module pattern.
+3. **Basic-distribution fairing deferred** — the cosine fairing across a flap/aileron
+   lift discontinuity (Ref 1 p47) only arises with deflected flaps and is absent from
+   the Appendix A wing; left as a documented limitation for a later step.
+
+---
+
 ## Tooling & documentation standard (complete)
 
 **Objective.** Bring the project's tooling and documentation standard in line

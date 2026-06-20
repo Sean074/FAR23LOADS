@@ -24,7 +24,7 @@ GA6 = os.path.join(EXAMPLES, "ga6_normal.project.json")
 def test_example_project_loads():
     project = io.load_project(GA6)
     assert isinstance(project, Project)
-    assert project.schema_version == 1
+    assert project.schema_version == 3
     assert project.engine is not None
     assert project.engine.engine_type == EngineType.RECIPROCATING
     # Tuple coercion at the boundary (JSON arrays -> Vec3 tuples).
@@ -57,15 +57,15 @@ def test_engine_is_registered():
 
 
 def test_run_all_modules_runs_present_slices():
-    # The GA6 example carries the engine, weight (incl. envelope), geometry and
-    # speeds (incl. mach_limit) slices, so "run all" runs the engine, all three
-    # mass-properties modules, wing-geometry, structural-speeds and mach-limit
-    # (skipping any module whose slice is absent via the ValueError path).
+    # The GA6 example carries the engine, weight (incl. envelope), geometry, speeds
+    # (incl. mach_limit) and aero slices, so "run all" runs the engine, all three
+    # mass-properties modules, wing-geometry, structural-speeds, mach-limit and
+    # airloads (skipping any module whose slice is absent via the ValueError path).
     project = io.load_project(GA6)
     results = registry.run_all_modules(project)
     assert {r.module for r in results} == {
         "engine", "weight_estimate", "weight_onecg", "weight_envelope",
-        "wing_geometry", "structural_speeds", "mach_limit",
+        "wing_geometry", "structural_speeds", "mach_limit", "airloads",
     }
 
 

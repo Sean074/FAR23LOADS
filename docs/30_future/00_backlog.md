@@ -30,7 +30,6 @@ The Phase-C steps **re-sequence** the Phase 3/4 module ports below (vertical sli
 first) and add concept-specific work. The FAR23 path stays oracle-locked
 (Appendix A/B ±0.1%); concept mode reduces exactly to it on GA inputs.
 
-- [ ] **C1 — AIRLOADS (Schrenk) + TAU.** Spanwise `cl·c` distribution → `Project.aero.spanwise`.
 - [ ] **C2 — FLTLOADS.** V-n envelope + balancing tail loads → `Project.envelope.vn`/`tail_balance`.
 - [ ] **C3 — WINGINER + NETLOADS.** Wing net span shear/BM/torsion (adds a spanwise wing-mass-distribution input).
 - [ ] **C4 — sbeam export bridge.** `farloads/export/sbeam_bridge.py` — FORCE/MOMENT cards + span-load CSV + optional CBAR stick model.
@@ -42,8 +41,9 @@ first) and add concept-specific work. The FAR23 path stays oracle-locked
 ## Modules to port
 
 ### Phase 3 — Aero coefficients & flight envelope
-- [ ] `TAU` — helper (off-menu).
-- [ ] `AIRLOADS` / `AIRLOAD4` — aero coefficients.
+- [ ] `AIRLOAD4` — swept / high-Mach spanwise airloads (sweepback adjustment to
+  Schrenk). Low-speed `AIRLOADS` + the `TAU` helper landed in Step C1; `AIRLOAD4`
+  is scheduled in C7.
 - [ ] `FLTLOADS` — flight loads, incl. balancing tail loads.
 - [ ] `SELECT` — rational critical wing/tail/fuselage loads. **`AIRLOADS`⇄`SELECT` iterate — build them together.**
 - [ ] `BALLOADS` — balanced-tail-load verification utility (off-menu); may be deferred or built alongside `SELECT`.
