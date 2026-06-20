@@ -40,6 +40,7 @@ from .models import (
     FuselageMassInput,
     FuselageStation,
     GeometryInput,
+    SelectInput,
     LayoutInput,
     LoadsResult,
     LoadValue,
@@ -393,6 +394,20 @@ def fuselage_mass_to_dict(inp: FuselageMassInput) -> Dict[str, Any]:
 
 
 # --------------------------------------------------------------------------- #
+# SELECT search-input slice <-> dict
+# --------------------------------------------------------------------------- #
+def select_input_from_dict(d: Dict[str, Any]) -> SelectInput:
+    """Build a :class:`SelectInput` from a plain dict."""
+    fields = {f for f in SelectInput.__dataclass_fields__}
+    return SelectInput(**{k: v for k, v in d.items() if k in fields})
+
+
+def select_input_to_dict(inp: SelectInput) -> Dict[str, Any]:
+    """Serialize a :class:`SelectInput` to JSON-friendly primitives."""
+    return asdict(inp)
+
+
+# --------------------------------------------------------------------------- #
 # Wing-mass slice <-> dict (WINGINER input)
 # --------------------------------------------------------------------------- #
 def wing_mass_from_dict(d: Dict[str, Any]) -> WingMassInput:
@@ -486,7 +501,7 @@ def project_from_dict(d: Dict[str, Any]) -> Project:
         "engines" in d or "engine" in d or "weight" in d or "geometry" in d
         or "speeds" in d or "aero" in d or "flight_loads" in d or "envelope" in d
         or "mass" in d or "wing_mass" in d or "fuselage_mass" in d
-        or "loads" in d or "configuration" in d
+        or "select_input" in d or "loads" in d or "configuration" in d
         or "schema_version" in d or "name" in d
     ):
         weight = d.get("weight")
@@ -498,6 +513,7 @@ def project_from_dict(d: Dict[str, Any]) -> Project:
         mass = d.get("mass")
         wing_mass = d.get("wing_mass")
         fuselage_mass = d.get("fuselage_mass")
+        select_input = d.get("select_input")
         loads = d.get("loads")
         configuration = d.get("configuration")
         engines, layout = _engines_from_dict(d)
@@ -515,6 +531,7 @@ def project_from_dict(d: Dict[str, Any]) -> Project:
             mass=mass_from_dict(mass) if mass else None,
             wing_mass=wing_mass_from_dict(wing_mass) if wing_mass else None,
             fuselage_mass=fuselage_mass_from_dict(fuselage_mass) if fuselage_mass else None,
+            select_input=select_input_from_dict(select_input) if select_input else None,
             loads=loads_from_dict(loads) if loads else None,
             configuration=configuration_from_dict(configuration) if configuration else None,
         )
@@ -563,6 +580,8 @@ def project_to_dict(project: Project) -> Dict[str, Any]:
         out["wing_mass"] = wing_mass_to_dict(project.wing_mass)
     if project.fuselage_mass is not None:
         out["fuselage_mass"] = fuselage_mass_to_dict(project.fuselage_mass)
+    if project.select_input is not None:
+        out["select_input"] = select_input_to_dict(project.select_input)
     if project.loads is not None:
         out["loads"] = loads_to_dict(project.loads)
     if project.configuration is not None:

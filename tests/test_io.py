@@ -60,14 +60,15 @@ def test_run_all_modules_runs_present_slices():
     # The GA6 example carries the engine, weight (incl. envelope), geometry, speeds
     # (incl. mach_limit), aero, flight-loads and wing-mass slices, so "run all" runs
     # the engine, all three mass-properties modules, wing-geometry, structural-speeds,
-    # mach-limit, airloads, flight-envelope, wing-inertia and net-loads (skipping any
-    # module whose slice is absent via the ValueError path).
+    # mach-limit, airloads, flight-envelope, wing-inertia, net-loads and select (which
+    # builds the envelope from flight-loads) -- skipping any module whose slice is
+    # absent via the ValueError path.
     project = io.load_project(GA6)
     results = registry.run_all_modules(project)
     assert {r.module for r in results} == {
         "engine", "weight_estimate", "weight_onecg", "weight_envelope",
         "wing_geometry", "structural_speeds", "mach_limit", "airloads",
-        "flight_envelope", "wing_inertia", "net_loads",
+        "flight_envelope", "wing_inertia", "net_loads", "select",
     }
 
 

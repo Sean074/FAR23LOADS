@@ -11,6 +11,23 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **SELECT — critical wing loads (Step C6).** New registered `select` module
+  (`farloads/modules/select.py`) porting SELECT.BAS's wing critical-load search
+  (Ref 1 Ch 9, SELECT.BAS ~2990-3540): it scans the balanced FLTLOADS V-n matrix
+  for the governing wing condition of each design point — **PHAA**/**PLAA**
+  (largest resultant `√(LZW²+DX²)`), **PMAA** (largest LZW), **NMAA** (largest
+  negative resultant), **ACRL** (accelerated roll), and **TORS** (steady-roll
+  aileron torsion `(cm−0.01·δ)·G·V²`, deflection per CAM 3.222) — and writes them
+  as wing `CriticalCondition`s into `Project.envelope.critical`. New `SelectInput`
+  slice (`Project.select_input`: full-down aileron deflection + basic-airfoil cm
+  for the steady-roll search); `SCHEMA_VERSION` bumped 7 → 8 (additive) with the
+  `io.py` round-trip. Oracle-locked against Appendix A "Critical Wing Loads" (PHAA
+  STALL +N CL +1.519/V 117.40, PLAA MAN D +0.472/212.40, PMAA GUST +C +0.810/170,
+  NMAA GUST −C −0.433/170, ACRL AC ROLL +1.328/116, TORS ST ROL C +0.470/170);
+  `tests/test_select.py`. The rational horizontal/vertical-tail and fuselage
+  critical loads (rest of Ch 9) and the fuselage net distribution are a later C6
+  increment; `select` joins the `run_all_modules` set.
+
 - **C6 schema foundation (SELECT + fuselage/body loads).** First step of Step C6:
   the `Project` schema additions the SELECT module and fuselage net distribution
   build on, all additive (`SCHEMA_VERSION` bumped 6 → 7; older files load

@@ -520,6 +520,25 @@ class FuselageMassInput:
 
 
 # --------------------------------------------------------------------------- #
+# Critical-load selection inputs (SELECT) -- Project.select_input
+# --------------------------------------------------------------------------- #
+@dataclass
+class SelectInput:
+    """Inputs for SELECT's critical-load search (Ch 9) beyond the V-n matrix.
+
+    The wing steady-roll torsion condition (FAR 23.349(b)) scores the aileron-
+    induced wing torsion ``(cm - 0.01*aileron_deg)*G*V^2`` (SELECT.BAS 3440-3460),
+    so it needs ``full_down_aileron_deg`` (the full-down aileron deflection, DN)
+    and ``basic_airfoil_cm`` (the section pitching-moment coefficient with no
+    aileron deflection). The rational horizontal/vertical-tail and fuselage search
+    inputs (tail incidence, elevator/rudder geometry, effectiveness) are added with
+    those components in a later C6 increment.
+    """
+    full_down_aileron_deg: float = 0.0
+    basic_airfoil_cm: float = 0.0
+
+
+# --------------------------------------------------------------------------- #
 # General configuration & layout (modern addition) -- Project.configuration
 # --------------------------------------------------------------------------- #
 @dataclass
@@ -824,8 +843,10 @@ class LoadsResult:
 # (MassResult, WTONECG), the fuselage mass-distribution input (FuselageMassInput),
 # the SELECT critical-load set (CriticalLoadSet on EnvelopeResult.critical) and the
 # fuselage net distribution (BodyLoadResult on LoadsResult.body_net) -- all
-# additive, older files load unchanged via the from_dict defaults.
-SCHEMA_VERSION = 7
+# additive, older files load unchanged via the from_dict defaults; v8 adds the
+# SELECT search-input slice (SelectInput, the wing steady-roll aileron inputs) --
+# additive.
+SCHEMA_VERSION = 8
 
 
 @dataclass
@@ -855,6 +876,7 @@ class Project:
     mass: Optional[MassResult] = None
     wing_mass: Optional[WingMassInput] = None
     fuselage_mass: Optional[FuselageMassInput] = None
+    select_input: Optional[SelectInput] = None
     loads: Optional[LoadsResult] = None
     configuration: Optional[LayoutInput] = None
 
