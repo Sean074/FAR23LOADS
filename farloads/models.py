@@ -576,6 +576,50 @@ class TailLoadsInput:
 
 
 # --------------------------------------------------------------------------- #
+# Rational vertical-tail load inputs (SELECT) -- Project.vtail_loads
+# --------------------------------------------------------------------------- #
+@dataclass
+class VTailLoadsInput:
+    """Geometry/aero inputs for SELECT's rational vertical-tail loads (Ch 9).
+
+    The vertical-tail side loads (FAR 23.441 maneuver / 23.443 gust) are computed at
+    the V-n ``BAL A`` (VA) and ``BAL C`` (VC) points with the tail lift slope
+    ``AVT = 2*pi/(1 + 2/ARVT)`` and the rudder effectiveness ``EFFECTV`` (a cubic in
+    the rudder/tail area ratio ``SR/SV``; SELECT.BAS):
+
+      * sudden full rudder      ``LV = RD*EFV*EFFECTV*AVT/57.3 * V^2/295 * SV``
+      * yaw to sideslip 19.5deg ``LV + (-19.5*AVT/57.3 * V^2/295 * SV)``
+      * yaw 15deg rudder neutral ``-15*AVT/57.3 * V^2/295 * SV``
+      * side gust at VC          ``KGT*UDE*V*AVT*SV/498`` with the gust mass ratio
+                                 ``UGT = 2W/(rho*VMAC*g*AVT*SV*(K/LXVT)^2)``,
+                                 ``KGT = .88*UGT/(5.3+UGT)``, radius of gyration
+                                 ``K = sqrt(IZZ/(W/g))`` and tail arm
+                                 ``LXVT = (XV25 - XCG)/12``.
+
+    ``EFV`` is the large-deflection effectiveness factor (SELECT.BAS subr 10000, a
+    chart in the rudder area ratio); it is ~1.0 and not legible in the scanned
+    source, so it defaults to 1.0 and is overridable -- the rudder-deflection loads
+    then carry ~1% (the angle-of-attack and gust loads are independent of it and
+    match tightly). ``izz_slugft2`` overrides the default airplane yaw inertia
+    ``IZZ = (Wwing/g)*B^2/12 + ((0.62*GW - Wwing)/g)*LF^2/12`` (``Wwing = 0.09*GW``).
+    The per-CG IZZ override is a later refinement.
+    """
+    rudder_deflection_deg: float = 0.0         # RD (full rudder)
+    vtail_area_sqft: float = 0.0               # SV
+    rudder_area_sqft: float = 0.0              # SR
+    rudder_fwd_hinge_sqft: float = 0.0         # SRFWDHL
+    rudder_aft_hinge_sqft: float = 0.0         # SRAFTHL
+    aspect_ratio_vtail: float = 0.0            # ARVT
+    vtail_mac_ft: float = 0.0                  # VMAC
+    xv25: float = 0.0                          # fuselage station of 25% vtail MAC
+    airplane_length_ft: float = 0.0            # LF (IZZ default)
+    wing_span_ft: float = 0.0                  # B (IZZ default)
+    gross_weight_lb: float = 0.0               # GW (IZZ default; 0 -> use the heaviest CG case)
+    rudder_large_deflection_factor: float = 1.0  # EFV (subr 10000 chart; ~1.0)
+    izz_slugft2: float = 0.0                   # 0 -> compute the default IZZ
+
+
+# --------------------------------------------------------------------------- #
 # General configuration & layout (modern addition) -- Project.configuration
 # --------------------------------------------------------------------------- #
 @dataclass
@@ -883,8 +927,9 @@ class LoadsResult:
 # additive, older files load unchanged via the from_dict defaults; v8 adds the
 # SELECT search-input slice (SelectInput, the wing steady-roll aileron inputs) --
 # additive; v9 adds the rational horizontal-tail load inputs (TailLoadsInput) --
+# additive; v10 adds the rational vertical-tail load inputs (VTailLoadsInput) --
 # additive.
-SCHEMA_VERSION = 9
+SCHEMA_VERSION = 10
 
 
 @dataclass
@@ -916,6 +961,7 @@ class Project:
     fuselage_mass: Optional[FuselageMassInput] = None
     select_input: Optional[SelectInput] = None
     tail_loads: Optional[TailLoadsInput] = None
+    vtail_loads: Optional[VTailLoadsInput] = None
     loads: Optional[LoadsResult] = None
     configuration: Optional[LayoutInput] = None
 

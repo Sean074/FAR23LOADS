@@ -28,7 +28,7 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from farloads import Project, SelectInput, TailLoadsInput, io  # noqa: E402
+from farloads import Project, SelectInput, TailLoadsInput, VTailLoadsInput, io  # noqa: E402
 from farloads.modules import select  # noqa: E402
 from farloads.modules.flight_envelope import build_envelope  # noqa: E402
 
@@ -50,6 +50,15 @@ _TAIL = TailLoadsInput(
     tail_incidence_deg=2.0, wing_zero_lift_cruise_deg=3.988146,
     aspect_ratio_wing=6.095, aspect_ratio_htail=4.017, htail_area_sqft=36.944,
     elevator_effectiveness=0.614, xt25=261.027, xt50=270.357,
+)
+
+
+# Appendix A "Input for vertical tail" (6-place report).
+_VTAIL = VTailLoadsInput(
+    rudder_deflection_deg=30.0, vtail_area_sqft=14.84, rudder_area_sqft=5.236,
+    rudder_fwd_hinge_sqft=0.57, rudder_aft_hinge_sqft=4.63, aspect_ratio_vtail=1.52,
+    vtail_mac_ft=3.367, xv25=266.83, airplane_length_ft=26.522, wing_span_ft=33.5,
+    gross_weight_lb=3400.0,
 )
 
 
@@ -176,10 +185,54 @@ def test_critical_htail_balancing_match_appendix_a():
 
 
 def test_wing_only_when_no_tail_loads():
-    # Without Project.tail_loads, SELECT writes the wing set only (no htail).
+    # Without Project.tail_loads/vtail_loads, SELECT writes the wing set only.
     p = _ga6_three_altitudes()
     cls = select.build_critical(p)
     assert {c.component for c in cls.conditions} == {"wing"}
+
+
+def test_critical_vtail_loads_match_appendix_a():
+    # Appendix A "Critical Vertical Tail Loads": sudden full rudder +591 (rudder
+    # load 167), yaw-to-sideslip 19.5 deg total -92 (yaw -684, rudder 591), yaw 15
+    # neutral -526, side gust at VC +604 (IZZ 4169.2 slug-ft^2). The
+    # rudder-deflection loads carry the EFV~1.009 large-deflection chart factor
+    # (default 1.0, not legible in the source); the AoA/gust loads are exact.
+    p = _ga6_three_altitudes()
+    p.vtail_loads = _VTAIL
+    cls = select.build_critical(p)
+    vt = {c.label: c for c in cls.conditions if c.component == "vtail"}
+    assert set(vt) == {"SUDDEN RUDDER", "YAW TO SIDESLIP", "YAW 15 NEUTRAL", "SIDE GUST"}
+
+    v1 = _vals(vt["SUDDEN RUDDER"])
+    assert math.isclose(v1["Total tail load"], 591, rel_tol=1.5e-2)         # +EFV ~1%
+    assert math.isclose(v1["Load on rudder"], 167, rel_tol=1.5e-2)
+
+    v2 = _vals(vt["YAW TO SIDESLIP"])
+    assert math.isclose(v2["Load due to yaw 19.5deg (cp 25%)"], -684, rel_tol=3e-3)  # exact
+    assert math.isclose(v2["Load due to rudder (cp 50%)"], 591, rel_tol=1.5e-2)
+
+    v3 = _vals(vt["YAW 15 NEUTRAL"])
+    assert math.isclose(v3["Total tail load (cp 25%)"], -526, rel_tol=3e-3)  # exact
+
+    v4 = _vals(vt["SIDE GUST"])
+    assert math.isclose(v4["Total tail load (cp 25%)"], 604, rel_tol=3e-3)   # exact
+    assert math.isclose(v4["Yaw inertia IZZ"], 4169.164, rel_tol=1e-3)
+
+
+def test_vtail_far_references():
+    p = _ga6_three_altitudes()
+    p.vtail_loads = _VTAIL
+    vt = {c.label: c for c in select.build_critical(p).conditions if c.component == "vtail"}
+    assert vt["SUDDEN RUDDER"].far_reference == "23.441(a)(1)"
+    assert vt["SIDE GUST"].far_reference == "23.443(b)"
+
+
+def test_vtail_large_deflection_factor_recovers_oracle():
+    # Setting EFV to the chart value (~1.009) recovers the printed rudder load 591.
+    p = _ga6_three_altitudes()
+    p.vtail_loads = VTailLoadsInput(**{**_VTAIL.__dict__, "rudder_large_deflection_factor": 1.009})
+    vt = {c.label: c for c in select.build_critical(p).conditions if c.component == "vtail"}
+    assert math.isclose(_vals(vt["SUDDEN RUDDER"])["Total tail load"], 591, rel_tol=4e-3)
 
 
 def test_concept_flag_in_report():

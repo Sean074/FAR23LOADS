@@ -30,10 +30,18 @@ Tail Loads" / BALLOADS method) when ``Project.tail_loads`` is present: for every
 balanced V-n point it resolves the total balanced tail load into the angle-of-
 attack load at 25% tail MAC and the camber (elevator) load at 50%, then selects the
 largest up and largest down balancing load with flaps retracted (FAR 23.421). This
-refines FLTLOADS' approximate tail CP rationally. The remaining horizontal-tail
-conditions (unchecked/checked maneuver, gust, unsymmetrical), the flaps-extended
-balancing (which needs the flapped V-n envelope, not yet built), the vertical tail
-and the fuselage net loads are later C6 increments.
+refines FLTLOADS' approximate tail CP rationally.
+
+When ``Project.vtail_loads`` is present it also computes the four critical
+**vertical-tail** loads (Ch 9 / SELECT.BAS subroutine 8300), searched over the V-n
+``BAL A`` (VA) and ``BAL C`` (VC) points: sudden full rudder deflection
+(FAR 23.441(a)(1)), yaw to a 19.5 deg sideslip with the rudder held
+(FAR 23.441(a)(2)), a 15 deg yaw with the rudder neutral (FAR 23.441(a)(3)) and the
+lateral gust at VC (FAR 23.443(b)).
+
+The remaining horizontal-tail conditions (unchecked/checked maneuver, gust,
+unsymmetrical), the flaps-extended balancing (which needs the flapped V-n envelope,
+not yet built) and the fuselage net loads are later C6 increments.
 
 Validation: Appendix A "Critical Wing Loads" (loads report) -- PHAA case 22
 STALL +N (CL +1.519, V 117.40, CG2, 0 ft), PLAA MAN D (+0.472, 212.40, CG2,
@@ -58,12 +66,14 @@ from ..models import (
     Project,
     TailLoadsInput,
     VnPoint,
+    VTailLoadsInput,
 )
 from ..registry import register
-from .flight_envelope import build_envelope
+from .flight_envelope import _sigma, build_envelope
 
 MODULE_NAME = "select"
 _DEG = 57.3  # SELECT.BAS / BALLOADS use 57.3 deg/rad
+_G = 32.2
 
 # V-n condition labels grouped by the wing search they belong to (SELECT.BAS
 # 2990-3340). "GUST D" covers the program's positive-D gust label.
@@ -245,12 +255,118 @@ def select_htail_balancing(project: Project) -> List[CriticalCondition]:
     return out
 
 
+# --------------------------------------------------------------------------- #
+# Rational vertical-tail loads (Ch 9; SELECT.BAS subroutine 8300)
+# --------------------------------------------------------------------------- #
+def _effectv(vt: VTailLoadsInput) -> float:
+    """Rudder effectiveness EFFECTV, a cubic in the rudder/tail area ratio SR/SV
+    (SELECT.BAS) -- the same dalpha/ddelta chart fit the elevator uses."""
+    r = vt.rudder_area_sqft / vt.vtail_area_sqft
+    return 0.014844 + 2.7358 * r - 4.4679 * r ** 2 + 3.0306 * r ** 3
+
+
+def _avt(vt: VTailLoadsInput) -> float:
+    """Vertical-tail lift-curve slope AVT = 2*pi/(1 + 2/ARVT)."""
+    return 2.0 * math.pi / (1.0 + 2.0 / vt.aspect_ratio_vtail)
+
+
+def _default_izz(vt: VTailLoadsInput, gw: float) -> float:
+    """Default airplane yaw inertia IZZ (slug-ft^2): wing mass on the span and the
+    rest of the empty weight on the length (SELECT.BAS 8884)."""
+    w_wing = 0.09 * gw
+    return (w_wing / _G) * vt.wing_span_ft ** 2 / 12.0 \
+        + ((0.62 * gw - w_wing) / _G) * vt.airplane_length_ft ** 2 / 12.0
+
+
+def _vt_rudder_load(p: VnPoint, vt: VTailLoadsInput) -> float:
+    """Side load from full rudder deflection (camber, cp 50% chord)."""
+    return (vt.rudder_deflection_deg * vt.rudder_large_deflection_factor * _effectv(vt)
+            * _avt(vt) / _DEG * p.v_eas_kt ** 2 / 295.0 * vt.vtail_area_sqft)
+
+
+def _vt_aoa_load(yaw_deg: float, p: VnPoint, vt: VTailLoadsInput) -> float:
+    """Side load from a yaw (angle of attack, cp 25% chord)."""
+    return yaw_deg * _avt(vt) / _DEG * p.v_eas_kt ** 2 / 295.0 * vt.vtail_area_sqft
+
+
+def _vt_side_gust(p: VnPoint, cg: CgCase, vt: VTailLoadsInput, izz: float) -> float:
+    """Lateral gust side load at VC (FAR 23.443(b), SELECT.BAS 8840-8930)."""
+    av = _avt(vt)
+    k = math.sqrt(izz / (cg.weight_lb / _G))            # radius of gyration
+    rho = _sigma(p.altitude_ft) * 0.002378
+    lxvt = (vt.xv25 - cg.xcg) / 12.0                     # tail arm, ft
+    ude = 50.0 if p.altitude_ft <= 20000.0 else 50.0 - (25.0 / 30000.0) * (p.altitude_ft - 20000.0)
+    ugt = 2.0 * cg.weight_lb / (rho * vt.vtail_mac_ft * _G * av * vt.vtail_area_sqft * (k / lxvt) ** 2)
+    kgt = 0.88 * ugt / (5.3 + ugt)
+    return kgt * ude * p.v_eas_kt * av * vt.vtail_area_sqft / 498.0
+
+
+def select_vtail(project: Project) -> List[CriticalCondition]:
+    """The four critical vertical-tail loads (FAR 23.441 maneuver / 23.443 gust),
+    searched over the V-n ``BAL A`` (VA) and ``BAL C`` (VC) points."""
+    vt = project.vtail_loads
+    fl = project.flight_loads
+    if vt is None or fl is None:
+        return []
+    cg_map: Dict[str, CgCase] = {c.name: c for c in fl.cg_cases}
+    vn = _envelope(project).vn
+    bal_a = [p for p in vn if p.condition == "BAL A" and p.cg in cg_map]
+    bal_c = [p for p in vn if p.condition == "BAL C" and p.cg in cg_map]
+    if not bal_a or not bal_c:
+        return []
+
+    srf, sra, sv = vt.rudder_fwd_hinge_sqft, vt.rudder_aft_hinge_sqft, vt.vtail_area_sqft
+    gw = vt.gross_weight_lb or max(c.weight_lb for c in fl.cg_cases)
+    izz = vt.izz_slugft2 or _default_izz(vt, gw)
+    out: List[CriticalCondition] = []
+
+    # 1. Sudden full rudder deflection (FAR 23.441(a)(1)) -- largest rudder load.
+    p1 = max(bal_a, key=lambda p: _vt_rudder_load(p, vt))
+    lv = _vt_rudder_load(p1, vt)
+    on_rudder1 = (srf + 0.5 * sra) * lv / (sv - sra)
+    out.append(CriticalCondition(
+        component="vtail", label="SUDDEN RUDDER", far_reference="23.441(a)(1)", case=p1.case,
+        loads=[LoadValue("Total tail load", lv, "lb"),
+               LoadValue("Load on rudder", on_rudder1, "lb"),
+               LoadValue("V (EAS)", p1.v_eas_kt, "kt(EAS)")]))
+
+    # 2. Yaw to sideslip 19.5 deg, rudder held full (FAR 23.441(a)(2)) -- largest down.
+    def total2(p: VnPoint) -> float:
+        return _vt_rudder_load(p, vt) + _vt_aoa_load(-19.5, p, vt)
+    p2 = min(bal_a, key=total2)
+    lrud, lyaw = _vt_rudder_load(p2, vt), _vt_aoa_load(-19.5, p2, vt)
+    on_rudder2 = ((srf + 0.5 * sra) * lrud / (sv - sra)
+                  + 0.5 * (vt.rudder_area_sqft / (0.75 * sv)) * lyaw / sv * vt.rudder_area_sqft)
+    out.append(CriticalCondition(
+        component="vtail", label="YAW TO SIDESLIP", far_reference="23.441(a)(2)", case=p2.case,
+        loads=[LoadValue("Total tail load", lrud + lyaw, "lb"),
+               LoadValue("Load due to yaw 19.5deg (cp 25%)", lyaw, "lb"),
+               LoadValue("Load due to rudder (cp 50%)", lrud, "lb"),
+               LoadValue("Load on rudder", on_rudder2, "lb")]))
+
+    # 3. Yaw 15 deg, rudder neutral (FAR 23.441(a)(3)) -- largest down.
+    p3 = min(bal_a, key=lambda p: _vt_aoa_load(-15.0, p, vt))
+    out.append(CriticalCondition(
+        component="vtail", label="YAW 15 NEUTRAL", far_reference="23.441(a)(3)", case=p3.case,
+        loads=[LoadValue("Total tail load (cp 25%)", _vt_aoa_load(-15.0, p3, vt), "lb")]))
+
+    # 4. Lateral gust at VC (FAR 23.443(b)) -- largest.
+    p4 = max(bal_c, key=lambda p: _vt_side_gust(p, cg_map[p.cg], vt, izz))
+    out.append(CriticalCondition(
+        component="vtail", label="SIDE GUST", far_reference="23.443(b)", case=p4.case,
+        loads=[LoadValue("Total tail load (cp 25%)", _vt_side_gust(p4, cg_map[p4.cg], vt, izz), "lb"),
+               LoadValue("Yaw inertia IZZ", izz, "slug-ft^2")]))
+    return out
+
+
 def build_critical(project: Project) -> CriticalLoadSet:
     """Compute the critical-load set for ``Project.envelope.critical``: the wing
-    conditions always, plus the rational horizontal-tail balancing loads when
-    ``Project.tail_loads`` is present."""
+    conditions always, plus the rational horizontal-tail balancing loads (when
+    ``Project.tail_loads`` is present) and the vertical-tail loads (when
+    ``Project.vtail_loads`` is present)."""
     conditions = select_wing(project)
     conditions.extend(select_htail_balancing(project))
+    conditions.extend(select_vtail(project))
     return CriticalLoadSet(conditions=conditions)
 
 

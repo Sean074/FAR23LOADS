@@ -11,6 +11,23 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **SELECT — rational vertical-tail loads (Step C6).** Extends the `select` module
+  with the four critical vertical-tail loads (Ch 9 / SELECT.BAS subroutine 8300),
+  searched over the V-n `BAL A` (VA) and `BAL C` (VC) points: sudden full rudder
+  deflection (FAR 23.441(a)(1)), yaw to a 19.5° sideslip with the rudder held
+  (23.441(a)(2)), a 15° yaw with the rudder neutral (23.441(a)(3)), and the lateral
+  gust at VC (23.443(b)). Side loads use the tail lift slope `AVT=2π/(1+2/ARVT)`,
+  the rudder effectiveness `EFFECTV=cubic(SR/SV)`, and the gust mass-ratio /
+  alleviation `UGT`/`KGT` with a default yaw inertia `IZZ`. New `VTailLoadsInput`
+  slice (`Project.vtail_loads`); `SCHEMA_VERSION` 9 → 10 (additive) with the `io.py`
+  round-trip. Oracle-locked against Appendix A "Critical Vertical Tail Loads" —
+  yaw-15 −526, side gust +604 (IZZ 4169.2) and the angle-of-attack components are
+  exact; the rudder-deflection loads (sudden rudder +591, rudder load 167) carry an
+  `EFV≈1.009` large-deflection chart factor that is illegible in the scanned source
+  (a `VTailLoadsInput` field, default 1.0). `tests/test_select.py` extended.
+  Vertical-tail `CriticalCondition`s land alongside the wing and htail sets in
+  `Project.envelope.critical`.
+
 - **SELECT — rational horizontal-tail balancing loads (Step C6).** Extends the
   `select` module with the Ch 9 / BALLOADS rational balancing method: for every
   balanced V-n point it resolves the total balanced tail load into the
