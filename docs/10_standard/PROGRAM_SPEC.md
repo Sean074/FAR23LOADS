@@ -166,14 +166,19 @@ directly; a module never recomputes another module's owned quantity.
 - **Notes:** Graphics: the V-n diagram. Faithful port of FLTLOADS.BAS subroutine **3900** (iterate AoA to the required load factor, then dynamic pressure to the Mach-adjusted stall line; Glauert compressibility `G/Gmn`; CLmax-vs-Mach curve) and **4864** (gust load factor, FAR 23.341). Balancing tail load `LT = [M(W+F) + LZ·(Xcg−Xw) − DX·(Zcg−Zw)]/(XT−Xcg)` with *approximate* tail CP (`XTC`≈5% tail MAC flaps-up, `XTF`≈25% flaps-down; Ch 8 "Assumption"). **Scope (C2):** the **cruise** maneuver+gust corner set (20 conditions, lines 1000-1594); the flapped LANDING/ENROUTE envelopes share the balance engine and drop in later. SELECT (C6) refines the CP rationally; `BALLOADS.BAS` independently verifies it. Produces the candidate conditions SELECT then prunes; feeds SELECT and WINGINER (UG Table 2.2). FLTLOADS uses its own speed-of-sound constant (518.688 vs the shared `standard_atmosphere`'s 518.4), replicated locally for oracle fidelity.
 
 ### SELECT — Critical load selection
-> **Status (Step C6): wing critical loads built** (`modules/select.py`, registers
-> `"select"`). The wing search (PHAA/PLAA/PMAA/NMAA accelerated-roll + steady-roll
-> TORS) is ported and oracle-locked against Appendix A "Critical Wing Loads"; it
-> writes the wing `CriticalCondition`s into `Project.envelope.critical`. The
-> **rational horizontal-tail, vertical-tail and fuselage** critical loads (the rest
-> of Ch 9, needing tail/elevator/rudder geometry, downwash, effectiveness and
-> pitching inertia inputs) are a **later C6 increment**, as is the fuselage net
-> distribution and the `Project.mass` consumption for the tail/fuselage inertia.
+> **Status (Step C6): wing + horizontal-tail balancing built** (`modules/select.py`,
+> registers `"select"`). The wing search (PHAA/PLAA/PMAA/NMAA accelerated-roll +
+> steady-roll TORS) and the **rational horizontal-tail balancing loads** (up/down,
+> flaps retracted, FAR 23.421 — the BALLOADS method resolving the balanced load into
+> the 25%-MAC angle-of-attack load and the 50%-MAC camber/elevator load) are ported
+> and oracle-locked against Appendix A "Critical Wing Loads" and "Critical
+> Horizontal Tail Loads" (and the Ch 9 case-202 hand-calc, LT 519.845). They write
+> the wing + htail `CriticalCondition`s into `Project.envelope.critical`; the htail
+> geometry/aero comes from the new `Project.tail_loads` (`TailLoadsInput`). Still a
+> **later C6 increment:** the H-tail unchecked/checked-maneuver, gust and
+> unsymmetrical conditions; the **flaps-extended** balancing (needs the flapped V-n
+> envelope, not yet built); the **vertical-tail** (23.441/23.443) and **fuselage net**
+> loads; and the `Project.mass` consumption for the tail/fuselage inertia.
 - **FAR §:** 23.301 critical-load determination across the envelope.
 - **Source:** Ch 9, `SELECT.BAS`.
 - **Reads:** `Project.mass` (WTONECG inertia), `Project.geometry` (WINGGEOM), `Project.envelope.vn` (FLTLOADS); plus AIRLOADS/AIRLOAD4 spanwise airloads. Run once per component (wing, fuselage, htail, vtail).

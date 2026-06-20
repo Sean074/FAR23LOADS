@@ -25,8 +25,15 @@ re-evaluates for distributed airloads and WINGINER/NETLOADS combine with inertia
 ``LZW`` is the wing lift normal to the airplane reference (less tail) and ``DX``
 the airplane drag, both read from each :class:`VnPoint`.
 
-The rational horizontal/vertical-tail and fuselage critical loads (the remainder of
-Ch 9) are a later C6 increment; this module currently writes the wing set only.
+It also computes the **rational horizontal-tail balancing loads** (Ch 9 "Balancing
+Tail Loads" / BALLOADS method) when ``Project.tail_loads`` is present: for every
+balanced V-n point it resolves the total balanced tail load into the angle-of-
+attack load at 25% tail MAC and the camber (elevator) load at 50%, then selects the
+largest up and largest down balancing load with flaps retracted (FAR 23.421). This
+refines FLTLOADS' approximate tail CP rationally. The remaining horizontal-tail
+conditions (unchecked/checked maneuver, gust, unsymmetrical), the flaps-extended
+balancing (which needs the flapped V-n envelope, not yet built), the vertical tail
+and the fuselage net loads are later C6 increments.
 
 Validation: Appendix A "Critical Wing Loads" (loads report) -- PHAA case 22
 STALL +N (CL +1.519, V 117.40, CG2, 0 ft), PLAA MAN D (+0.472, 212.40, CG2,
@@ -41,6 +48,7 @@ import math
 from typing import Dict, List, Optional
 
 from ..models import (
+    CgCase,
     ConditionResult,
     CriticalCondition,
     CriticalLoadSet,
@@ -48,12 +56,14 @@ from ..models import (
     LoadValue,
     ModuleResult,
     Project,
+    TailLoadsInput,
     VnPoint,
 )
 from ..registry import register
 from .flight_envelope import build_envelope
 
 MODULE_NAME = "select"
+_DEG = 57.3  # SELECT.BAS / BALLOADS use 57.3 deg/rad
 
 # V-n condition labels grouped by the wing search they belong to (SELECT.BAS
 # 2990-3340). "GUST D" covers the program's positive-D gust label.
@@ -160,10 +170,88 @@ def select_wing(project: Project) -> List[CriticalCondition]:
     return [_condition("wing", label, far, p, weights) for label, far, p in picks if p is not None]
 
 
+# --------------------------------------------------------------------------- #
+# Rational horizontal-tail balancing loads (Ch 9 / BALLOADS method)
+# --------------------------------------------------------------------------- #
+def htail_balance(p: VnPoint, cg: CgCase, xw: float, zw: float,
+                  ti: TailLoadsInput) -> Dict[str, float]:
+    """Resolve the balanced tail load at one V-n point into the rational
+    angle-of-attack (25% MAC) and camber/elevator (50% MAC) components (Ch 9).
+
+    Tail angle of attack ``AT = alpha_wl + IT - E`` with downwash
+    ``E = 114.6*CL/(pi*ARW)`` (the wing zero-lift incidence IW cancels out of AT for
+    flaps-retracted; the flaps-extended balancing, a later increment, reintroduces
+    it). Tail lift slope ``AHT = 2*pi/(1 + 2/ARHT)``, ``LT25 = (AT*AHT/57.3)*Q*ST``
+    with ``Q = V^2/295``; the elevator deflection balances the pitching moment about
+    the CG and gives the camber load ``LT50``; ``LT = LT25 + LT50``. ``cp`` is the
+    load centre of pressure in percent tail MAC.
+    """
+    e_down = 114.6 * p.cl / (math.pi * ti.aspect_ratio_wing)
+    at = p.alpha_deg + ti.tail_incidence_deg - e_down
+    aht = 2.0 * math.pi / (1.0 + 2.0 / ti.aspect_ratio_htail)
+    q = p.v_eas_kt ** 2 / 295.0
+    st = ti.htail_area_sqft
+    lt25 = (at * aht / _DEG) * q * st
+    lt50_per_delta = (ti.elevator_effectiveness * aht / _DEG) * q * st
+    delta = ((p.m_wf - p.dx * (cg.zcg - zw) + p.lzw * (cg.xcg - xw)
+              - lt25 * (ti.xt25 - cg.xcg)) / (lt50_per_delta * (ti.xt50 - cg.xcg)))
+    lt50 = lt50_per_delta * delta
+    lt = lt25 + lt50
+    cp = (25.0 * lt25 + 50.0 * lt50) / lt if lt else 0.0
+    return {"LT25": lt25, "LT50": lt50, "AT": at, "DELTA": delta, "LT": lt, "CP": cp}
+
+
+def select_htail_balancing(project: Project) -> List[CriticalCondition]:
+    """Select the largest up and down rational balancing tail loads, flaps
+    retracted (FAR 23.421). Returns an empty list if there are no flaps-retracted
+    points (the flaps-extended balancing needs the not-yet-built flapped envelope).
+    """
+    ti = project.tail_loads
+    fl = project.flight_loads
+    if ti is None or fl is None:
+        return []
+    cg_map: Dict[str, CgCase] = {c.name: c for c in fl.cg_cases}
+    flaps: Dict[str, bool] = {c.name: c.flaps_down for c in fl.configurations}
+
+    vn = _envelope(project).vn
+    balanced = []
+    for p in vn:
+        cg = cg_map.get(p.cg)
+        if cg is None or flaps.get(p.config, False):  # flaps retracted only
+            continue
+        b = htail_balance(p, cg, fl.xw, fl.zw, ti)
+        balanced.append((p, b))
+    if not balanced:
+        return []
+
+    out: List[CriticalCondition] = []
+    for label, far, pick in (
+        ("BAL UP RETRACTED", "23.421", max(balanced, key=lambda pb: pb[1]["LT"])),
+        ("BAL DN RETRACTED", "23.421", min(balanced, key=lambda pb: pb[1]["LT"])),
+    ):
+        p, b = pick
+        out.append(CriticalCondition(
+            component="htail", label=label, far_reference=far, case=p.case,
+            loads=[
+                LoadValue("Total balanced tail load LT", b["LT"], "lb"),
+                LoadValue("AoA load LT25 (cp 25%)", b["LT25"], "lb"),
+                LoadValue("Camber/elevator load LT50 (cp 50%)", b["LT50"], "lb"),
+                LoadValue("Tail angle of attack AT", b["AT"], "deg"),
+                LoadValue("Elevator deflection (TE dn +)", b["DELTA"], "deg"),
+                LoadValue("CP of total load", b["CP"], "% tail MAC"),
+                LoadValue("V (EAS)", p.v_eas_kt, "kt(EAS)"),
+            ],
+        ))
+    return out
+
+
 def build_critical(project: Project) -> CriticalLoadSet:
-    """Compute the critical-load set (currently the wing conditions) for
-    ``Project.envelope.critical``."""
-    return CriticalLoadSet(conditions=select_wing(project))
+    """Compute the critical-load set for ``Project.envelope.critical``: the wing
+    conditions always, plus the rational horizontal-tail balancing loads when
+    ``Project.tail_loads`` is present."""
+    conditions = select_wing(project)
+    conditions.extend(select_htail_balancing(project))
+    return CriticalLoadSet(conditions=conditions)
 
 
 def _critical_conditions(cls: CriticalLoadSet, concept: bool) -> List[ConditionResult]:

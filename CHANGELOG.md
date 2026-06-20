@@ -11,6 +11,24 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **SELECT — rational horizontal-tail balancing loads (Step C6).** Extends the
+  `select` module with the Ch 9 / BALLOADS rational balancing method: for every
+  balanced V-n point it resolves the total balanced tail load into the
+  angle-of-attack load at 25% tail MAC (`LT25=(AT·AHT/57.3)·Q·ST`, tail AoA
+  `AT=αwl+IT−E`, downwash `E=114.6·CL/(π·ARW)`, slope `AHT=2π/(1+2/ARHT)`) and the
+  camber/elevator load at 50% MAC (`LT50` from balancing the pitching moment about
+  the CG for the elevator deflection), then selects the largest up and largest down
+  balancing load with flaps retracted (FAR 23.421) into `Project.envelope.critical`
+  as `htail` `CriticalCondition`s. New `TailLoadsInput` slice (`Project.tail_loads`:
+  tail incidence, wing/tail aspect ratios, tail area, elevator effectiveness, 25%/50%
+  tail-MAC stations, wing zero-lift angles); `SCHEMA_VERSION` 8 → 9 (additive) with
+  the `io.py` round-trip. Oracle-locked against the Ch 9 case-202 hand-calc
+  (LT25 +907.62, LT50 −387.78, δ −5.39°, **LT 519.845**, CP 6.35%) and Appendix A
+  "Critical Horizontal Tail Loads" (UP STALL +N CG1 18000 +519.85, DOWN MAN D CG3
+  12000 −613.92). The H-tail maneuver/gust/unsymmetrical, the flaps-extended
+  balancing (needs the flapped V-n envelope), the vertical tail and the fuselage net
+  are still later C6 increments. `tests/test_select.py` extended.
+
 - **SELECT — critical wing loads (Step C6).** New registered `select` module
   (`farloads/modules/select.py`) porting SELECT.BAS's wing critical-load search
   (Ref 1 Ch 9, SELECT.BAS ~2990-3540): it scans the balanced FLTLOADS V-n matrix

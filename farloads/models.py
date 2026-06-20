@@ -539,6 +539,43 @@ class SelectInput:
 
 
 # --------------------------------------------------------------------------- #
+# Rational horizontal-tail load inputs (SELECT) -- Project.tail_loads
+# --------------------------------------------------------------------------- #
+@dataclass
+class TailLoadsInput:
+    """Geometry/aero inputs for SELECT's rational horizontal-tail loads (Ch 9).
+
+    The rational balancing tail load resolves the total balanced load into the
+    angle-of-attack load at 25% tail MAC and the camber (elevator) load at 50%
+    (the BALLOADS method): tail angle of attack ``AT = alpha_wl + IT - E`` with
+    downwash ``E = 114.6*CL/(pi*ARW)`` (Perkins & Hage Eq 5-23), tail lift slope
+    ``AHT = 2*pi/(1 + 2/ARHT)``, ``LT25 = (AT*AHT/57.3)*Q*ST``, then the elevator
+    deflection and camber load ``LT50`` from balancing the pitching moment about
+    the CG; the total balanced tail load is ``LT = LT25 + LT50``.
+
+    Fields mirror the manual's "General input for calculation of horiz tail loads":
+    tail incidence ``IT`` (WL to chord), the wing zero-lift-line angle per
+    configuration (``IW``: cruise / enroute / landing), the wing & tail aspect
+    ratios, tail area ``ST``, the elevator effectiveness (the deflection lift as a
+    fraction of ``AHT``), and the fuselage stations of 25% / 50% tail MAC. ``XW``/
+    ``ZW`` (25% wing MAC) and the per-CG ``XCG``/``ZCG`` come from
+    ``Project.flight_loads``. The horizontal-tail maneuver/gust/unsymmetrical, the
+    flaps-extended balancing (which needs the flapped V-n envelope), the vertical
+    tail and the fuselage net loads are later C6 increments.
+    """
+    tail_incidence_deg: float = 0.0            # IT (WL to tail chord)
+    wing_zero_lift_cruise_deg: float = 0.0     # IW, cruise config
+    wing_zero_lift_enroute_deg: float = 0.0    # IW, enroute config
+    wing_zero_lift_landing_deg: float = 0.0    # IW, landing config
+    aspect_ratio_wing: float = 0.0             # ARW (downwash)
+    aspect_ratio_htail: float = 0.0            # ARHT (tail lift slope)
+    htail_area_sqft: float = 0.0               # ST
+    elevator_effectiveness: float = 0.0        # dalpha/ddelta_e as a fraction of AHT
+    xt25: float = 0.0                          # fuselage station of 25% tail MAC
+    xt50: float = 0.0                          # fuselage station of 50% tail MAC
+
+
+# --------------------------------------------------------------------------- #
 # General configuration & layout (modern addition) -- Project.configuration
 # --------------------------------------------------------------------------- #
 @dataclass
@@ -845,8 +882,9 @@ class LoadsResult:
 # fuselage net distribution (BodyLoadResult on LoadsResult.body_net) -- all
 # additive, older files load unchanged via the from_dict defaults; v8 adds the
 # SELECT search-input slice (SelectInput, the wing steady-roll aileron inputs) --
+# additive; v9 adds the rational horizontal-tail load inputs (TailLoadsInput) --
 # additive.
-SCHEMA_VERSION = 8
+SCHEMA_VERSION = 9
 
 
 @dataclass
@@ -877,6 +915,7 @@ class Project:
     wing_mass: Optional[WingMassInput] = None
     fuselage_mass: Optional[FuselageMassInput] = None
     select_input: Optional[SelectInput] = None
+    tail_loads: Optional[TailLoadsInput] = None
     loads: Optional[LoadsResult] = None
     configuration: Optional[LayoutInput] = None
 

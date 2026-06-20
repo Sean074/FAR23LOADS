@@ -28,7 +28,7 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from farloads import Project, SelectInput, io  # noqa: E402
+from farloads import Project, SelectInput, TailLoadsInput, io  # noqa: E402
 from farloads.modules import select  # noqa: E402
 from farloads.modules.flight_envelope import build_envelope  # noqa: E402
 
@@ -43,6 +43,14 @@ def _ga6_three_altitudes() -> Project:
     p.flight_loads.altitudes_ft = [0.0, 12000.0, 18000.0]
     p.select_input = SelectInput(full_down_aileron_deg=15.0, basic_airfoil_cm=-0.03)
     return p
+
+
+# Appendix A "General input for calculation of horiz tail loads" (6-place report).
+_TAIL = TailLoadsInput(
+    tail_incidence_deg=2.0, wing_zero_lift_cruise_deg=3.988146,
+    aspect_ratio_wing=6.095, aspect_ratio_htail=4.017, htail_area_sqft=36.944,
+    elevator_effectiveness=0.614, xt25=261.027, xt50=270.357,
+)
 
 
 def _by_label(project: Project):
@@ -125,6 +133,53 @@ def test_select_uses_persisted_envelope_when_present():
     p.flight_loads = None  # force the persisted-envelope path
     cls = select.build_critical(p)
     assert len(cls.conditions) == 6
+
+
+def test_rational_balancing_tail_load_hand_calc():
+    # Ch 9 "Hand Calculation of Rational Balanced Tail Load" (case 202): the
+    # STALL +N / CG1 / 18000 ft point resolves to LT25 +907.62, camber LT50
+    # -387.78, elevator deflection -5.39 deg, total LT 519.845, CP 6.35% tail MAC.
+    # Our envelope inherits FLTLOADS' +-0.005-NZ noise, so ~0.2% here.
+    p = _ga6_three_altitudes()
+    fl = p.flight_loads
+    cg1 = next(c for c in fl.cg_cases if c.name == "CG1")
+    pt = next(v for v in build_envelope(p).vn
+              if v.condition == "STALL +N" and v.cg == "CG1" and v.altitude_ft == 18000)
+    b = select.htail_balance(pt, cg1, fl.xw, fl.zw, _TAIL)
+    assert math.isclose(b["LT25"], 907.62, rel_tol=3e-3), b["LT25"]
+    assert math.isclose(b["LT50"], -387.78, rel_tol=5e-3), b["LT50"]
+    assert math.isclose(b["AT"], 7.747, abs_tol=0.05), b["AT"]   # alpha carries FLTLOADS noise
+    assert math.isclose(b["DELTA"], -5.39, abs_tol=0.03), b["DELTA"]
+    assert math.isclose(b["LT"], 519.845, rel_tol=3e-3), b["LT"]
+    assert math.isclose(b["CP"], 6.35, abs_tol=0.1), b["CP"]
+
+
+def test_critical_htail_balancing_match_appendix_a():
+    # Appendix A "Critical Horizontal Tail Loads": UP balancing flaps retracted is
+    # case 202 STALL +N CG1 18000 (LT +519.85); DOWN is case 165 MAN D CG3 12000
+    # (LT -613.92). (Flaps-extended balancing needs the flapped envelope, not built.)
+    p = _ga6_three_altitudes()
+    p.tail_loads = _TAIL
+    cls = select.build_critical(p)
+    htail = {c.label: c for c in cls.conditions if c.component == "htail"}
+    vn = {v.case: v for v in build_envelope(p).vn}
+    assert set(htail) == {"BAL UP RETRACTED", "BAL DN RETRACTED"}
+
+    up = htail["BAL UP RETRACTED"]
+    assert vn[up.case].condition == "STALL +N" and vn[up.case].cg == "CG1"
+    assert math.isclose(_vals(up)["Total balanced tail load LT"], 519.85, rel_tol=5e-3)
+
+    dn = htail["BAL DN RETRACTED"]
+    assert vn[dn.case].condition == "MAN D" and vn[dn.case].cg == "CG3"
+    assert math.isclose(_vals(dn)["Total balanced tail load LT"], -613.92, rel_tol=5e-3)
+    assert all(c.far_reference == "23.421" for c in htail.values())
+
+
+def test_wing_only_when_no_tail_loads():
+    # Without Project.tail_loads, SELECT writes the wing set only (no htail).
+    p = _ga6_three_altitudes()
+    cls = select.build_critical(p)
+    assert {c.component for c in cls.conditions} == {"wing"}
 
 
 def test_concept_flag_in_report():

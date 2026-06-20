@@ -41,6 +41,7 @@ from .models import (
     FuselageStation,
     GeometryInput,
     SelectInput,
+    TailLoadsInput,
     LayoutInput,
     LoadsResult,
     LoadValue,
@@ -408,6 +409,20 @@ def select_input_to_dict(inp: SelectInput) -> Dict[str, Any]:
 
 
 # --------------------------------------------------------------------------- #
+# Rational tail-loads input slice <-> dict (SELECT)
+# --------------------------------------------------------------------------- #
+def tail_loads_from_dict(d: Dict[str, Any]) -> TailLoadsInput:
+    """Build a :class:`TailLoadsInput` from a plain dict."""
+    fields = {f for f in TailLoadsInput.__dataclass_fields__}
+    return TailLoadsInput(**{k: v for k, v in d.items() if k in fields})
+
+
+def tail_loads_to_dict(inp: TailLoadsInput) -> Dict[str, Any]:
+    """Serialize a :class:`TailLoadsInput` to JSON-friendly primitives."""
+    return asdict(inp)
+
+
+# --------------------------------------------------------------------------- #
 # Wing-mass slice <-> dict (WINGINER input)
 # --------------------------------------------------------------------------- #
 def wing_mass_from_dict(d: Dict[str, Any]) -> WingMassInput:
@@ -501,7 +516,8 @@ def project_from_dict(d: Dict[str, Any]) -> Project:
         "engines" in d or "engine" in d or "weight" in d or "geometry" in d
         or "speeds" in d or "aero" in d or "flight_loads" in d or "envelope" in d
         or "mass" in d or "wing_mass" in d or "fuselage_mass" in d
-        or "select_input" in d or "loads" in d or "configuration" in d
+        or "select_input" in d or "tail_loads" in d or "loads" in d
+        or "configuration" in d
         or "schema_version" in d or "name" in d
     ):
         weight = d.get("weight")
@@ -514,6 +530,7 @@ def project_from_dict(d: Dict[str, Any]) -> Project:
         wing_mass = d.get("wing_mass")
         fuselage_mass = d.get("fuselage_mass")
         select_input = d.get("select_input")
+        tail_loads = d.get("tail_loads")
         loads = d.get("loads")
         configuration = d.get("configuration")
         engines, layout = _engines_from_dict(d)
@@ -532,6 +549,7 @@ def project_from_dict(d: Dict[str, Any]) -> Project:
             wing_mass=wing_mass_from_dict(wing_mass) if wing_mass else None,
             fuselage_mass=fuselage_mass_from_dict(fuselage_mass) if fuselage_mass else None,
             select_input=select_input_from_dict(select_input) if select_input else None,
+            tail_loads=tail_loads_from_dict(tail_loads) if tail_loads else None,
             loads=loads_from_dict(loads) if loads else None,
             configuration=configuration_from_dict(configuration) if configuration else None,
         )
@@ -582,6 +600,8 @@ def project_to_dict(project: Project) -> Dict[str, Any]:
         out["fuselage_mass"] = fuselage_mass_to_dict(project.fuselage_mass)
     if project.select_input is not None:
         out["select_input"] = select_input_to_dict(project.select_input)
+    if project.tail_loads is not None:
+        out["tail_loads"] = tail_loads_to_dict(project.tail_loads)
     if project.loads is not None:
         out["loads"] = loads_to_dict(project.loads)
     if project.configuration is not None:
