@@ -30,7 +30,7 @@ st.caption(
 project: Project = st.session_state.get("project", Project(name=""))
 existing = project.speeds
 
-_CATS = {"Normal / commuter": "N", "Utility": "U", "Acrobatic": "A"}
+_CATS = {"Normal / commuter": "N", "Utility": "U", "Acrobatic": "A", "Concept (C)": "C"}
 _CAT_LABELS = list(_CATS)
 
 has_wing = project.geometry is not None and project.geometry.by_name(
@@ -62,6 +62,23 @@ with st.sidebar:
     vd = st.number_input("Chosen dive VD (kt)", min_value=0.0,
                          value=float(existing.chosen_vd) if existing and existing.chosen_vd else 212.5)
 
+    is_concept = _CATS[cat_label] == "C"
+    chosen_n = chosen_nneg = None
+    if is_concept:
+        st.subheader("Concept load factors (required)")
+        st.caption("No FAR 23.337 cap is applied — you set the limit maneuver factors.")
+        chosen_n = st.number_input("Limit positive load factor n", min_value=0.1,
+                                   value=float(existing.chosen_n) if existing and existing.chosen_n else 3.8)
+        chosen_nneg = st.number_input("Limit negative load factor n_neg", max_value=0.0,
+                                      value=float(existing.chosen_nneg) if existing and existing.chosen_nneg else -1.52)
+
+if is_concept:
+    st.warning(
+        "Concept category (C): results are an **unverified extrapolation** beyond "
+        "the FAR 23 ≤12,500 lb calibration band. The statistical weight estimate is "
+        "a sanity figure only — use the itemized weight data base as the design weight."
+    )
+
 inp = StructuralSpeedsInput(
     category=_CATS[cat_label],
     weight_lb=weight,
@@ -72,6 +89,8 @@ inp = StructuralSpeedsInput(
     shoulder_altitude_ft=alt,
     chosen_vc=vc or None,
     chosen_vd=vd or None,
+    chosen_n=chosen_n,
+    chosen_nneg=chosen_nneg,
 )
 project.speeds = inp
 st.session_state["project"] = project

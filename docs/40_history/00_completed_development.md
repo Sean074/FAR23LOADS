@@ -249,6 +249,51 @@ V(MD) 212.31 at 12000 ft down to V(MC) 150.77 / V(MD) 188.11 at 18000 ft.
 
 ---
 
+## Phase C — Step C0: concept-mode foundation & mission reframe (complete)
+
+**Objective.** Remove the two GA-only assumptions that block >12,500 lb /
+greater-than-GA-seat configurations — the FAR 23.337 maneuver-load-factor
+formula/cap and WTESTIMA's statistical estimate — without disturbing the
+oracle-locked FAR23 path. (Prerequisite for the Phase-C concept loads tool;
+narrative in [`../30_future/01_concept_loads_plan.md`](../30_future/01_concept_loads_plan.md).)
+
+**Deliverables.**
+- `models.py` — `StructuralSpeedsInput.category` gains `"C"` (concept), documented
+  as requiring explicit `chosen_n`/`chosen_nneg`; `WeightInput.direct_totals()`
+  (the direct-weight path: MTOW/OEW/useful summed from the itemized `items` by
+  `MassItemKind`); `Project.is_concept` (single concept read-point); `SCHEMA_VERSION`
+  bumped 1 → 2 (additive — v1 files load unchanged via the `from_dict` defaults).
+- `modules/structural_speeds.py` — `_maneuver_load_factors` branches on concept,
+  using the user's load factors verbatim with no FAR floor/cap; the load-factor
+  result note flags the unverified extrapolation. The GA-calibrated VC(min)/VD(min)
+  coefficients remain as out-of-band advisories (concept supplies chosen speeds).
+- `modules/weight_estimate.py` — `run()` flags the WTESTIMA summary as a GA
+  sanity estimate in concept mode; `estimate()` is unchanged so the Appendix-A
+  oracle still holds.
+- UI — Structural Speeds page adds the Concept (C) category with `n`/`n_neg`
+  inputs and an unverified-extrapolation warning; the Weight Estimate page shows a
+  concept sanity banner.
+- `examples/concept_heavy.project.json` — an 18,000 lb concept commuter twin.
+
+**Test / Acceptance.** All pre-existing tests pass unchanged (FAR23 identity
+invariant). New `tests/test_concept.py` (`direct_totals` by kind; end-to-end
+fixture run; IO round-trip) and concept cases in `tests/test_structural_speeds.py`
+(cap bypassed; missing load factors raise). The fixture (MTOW > 12,500, user n)
+runs STRSPEED and WTESTIMA end-to-end with the chosen factors (4.0 / -2.0) honoured
+verbatim. **Confirmed** no hard ≤12,500 lb / seat-count assertion was load-bearing
+(STRSPEED only checks `w > 0`; WTESTIMA only `engines >= 1` / `seats >= 1`; WTENV
+none).
+
+**Key decisions.**
+1. **Concept is a strict superset** — `category == "C"` switches off the GA caps;
+   the physics is unchanged and reduces exactly to FAR23 on GA inputs.
+2. **Direct-weight = sum the itemized data base by kind** — one source of truth (no
+   parallel direct-MTOW field that could disagree with the items list).
+3. **Docs scope reframe landed with the plan** — CLAUDE.md / README.md /
+   PROJECT_GUIDE.md were reframed when the Phase-C plan was adopted; C0 is the code.
+
+---
+
 ## Tooling & documentation standard (complete)
 
 **Objective.** Bring the project's tooling and documentation standard in line

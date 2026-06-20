@@ -47,6 +47,8 @@ from ..constants import (
 from ..models import (
     ConditionResult,
     LoadValue,
+    MassItem,
+    MassItemKind,
     ModuleResult,
     Project,
     WeightEstimationInput,
@@ -180,16 +182,68 @@ def estimate(inp: WeightEstimationInput) -> List[ConditionResult]:
 
 
 # --------------------------------------------------------------------------- #
+# Seeding the WTONECG weight data base
+# --------------------------------------------------------------------------- #
+# Estimate rows that are roll-ups or duplicates rather than discrete components,
+# so they are skipped when seeding the itemized data base.
+_SEED_SKIP_LABELS = frozenset({
+    "Total structure",
+    "Total powerplant",
+    "Total systems weight",
+    "Propeller (included above)",  # already inside "Engine installed"
+})
+
+
+def estimate_to_mass_items(inp: WeightEstimationInput) -> List[MassItem]:
+    """Build seed :class:`MassItem` rows from the statistical weight estimate.
+
+    Expands the estimate's structure, powerplant and systems component weights
+    (plus the summary's options/miscellaneous) into the itemized weight data base
+    WTONECG sums. WTESTIMA supplies only the component *weights*; stations and
+    per-item inertias are left at zero for the user to fill in. Every seeded row
+    is part of the empty weight (``MassItemKind.EMPTY``).
+    """
+    summary, structure, powerplant, systems = estimate(inp)
+    items: List[MassItem] = []
+    options_misc = next((v for v in summary.values if v.label == "Options & miscellaneous"), None)
+    for group in (structure, powerplant, systems):
+        for v in group.values:
+            if v.label in _SEED_SKIP_LABELS:
+                continue
+            items.append(MassItem(name=v.label, weight_lb=float(v.value), kind=MassItemKind.EMPTY))
+    if options_misc is not None:
+        items.append(MassItem(
+            name=options_misc.label, weight_lb=float(options_misc.value), kind=MassItemKind.EMPTY,
+        ))
+    return items
+
+
+# --------------------------------------------------------------------------- #
 # Project entry point + registration
 # --------------------------------------------------------------------------- #
 MODULE_NAME = "weight_estimate"
 
 
+_CONCEPT_NOTE = (
+    "Concept mode: WTESTIMA is a GA sanity estimate only -- it is out of its "
+    "<=12,500 lb calibration band. Use the itemized/direct weight "
+    "(WeightInput.direct_totals) as the design weight."
+)
+
+
 def run(project: Project) -> ModuleResult:
-    """Run WTESTIMA against a :class:`Project`'s ``weight.estimation`` inputs."""
+    """Run WTESTIMA against a :class:`Project`'s ``weight.estimation`` inputs.
+
+    In concept mode the statistical estimate is flagged as a sanity-only figure (the
+    summary condition's note); the core :func:`estimate` is unchanged so the FAR23
+    Appendix-A oracle still holds.
+    """
     if project.weight is None or project.weight.estimation is None:
         raise ValueError("Project has no 'weight.estimation' inputs for the weight_estimate module")
-    return ModuleResult(module=MODULE_NAME, conditions=estimate(project.weight.estimation))
+    conditions = estimate(project.weight.estimation)
+    if project.is_concept and conditions:
+        conditions[0].note = _CONCEPT_NOTE
+    return ModuleResult(module=MODULE_NAME, conditions=conditions)
 
 
 register(MODULE_NAME, run)

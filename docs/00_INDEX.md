@@ -34,6 +34,7 @@ historical record.
 | File | Scope |
 |------|-------|
 | [`00_backlog.md`](30_future/00_backlog.md) | **Authoritative backlog** — modules not yet ported, open decisions, the roadmap |
+| [`01_concept_loads_plan.md`](30_future/01_concept_loads_plan.md) | **Phase C plan** — growing the suite into an initial-concept distributed-loads tool (concept mode, Schrenk airloads, per-component distributed loads, sbeam export bridge) |
 
 ## 40_history — Historic record
 

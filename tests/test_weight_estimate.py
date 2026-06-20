@@ -12,7 +12,13 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from farloads import EngineWeightType, Project, WeightEstimationInput, WeightInput  # noqa: E402
+from farloads import (  # noqa: E402
+    EngineWeightType,
+    MassItemKind,
+    Project,
+    WeightEstimationInput,
+    WeightInput,
+)
 from farloads.modules import weight_estimate as calc  # noqa: E402
 
 
@@ -92,6 +98,28 @@ def test_systems_group_matches_manual():
     assert _value(r, "Environmental & anti-ice") == 10
     assert _value(r, "Misc other system wt") == 0
     assert _value(r, "Total systems weight") == 268
+
+
+def test_seed_mass_items_from_estimate():
+    # The seeded data base carries every discrete component (not the group
+    # totals or the propeller line already inside "Engine installed"), all as
+    # empty-weight items with zero stations for the user to fill in.
+    items = calc.estimate_to_mass_items(ga6_estimation())
+    by_name = {it.name: it for it in items}
+
+    assert "Total structure" not in by_name
+    assert "Total powerplant" not in by_name
+    assert "Total systems weight" not in by_name
+    assert "Propeller (included above)" not in by_name
+
+    # A representative component from each group, plus options/misc, at its
+    # estimated weight and zero station.
+    assert by_name["Wing"].weight_lb == 359
+    assert by_name["Engine installed (incl. propeller)"].weight_lb == 490
+    assert by_name["Electrical"].weight_lb == 83
+    assert by_name["Options & miscellaneous"].weight_lb == 99
+    assert all(it.kind == MassItemKind.EMPTY for it in items)
+    assert all(it.x == 0 and it.y == 0 and it.z == 0 for it in items)
 
 
 def test_run_requires_weight_slice():

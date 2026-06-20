@@ -8,8 +8,18 @@ A modern Python + Streamlit **replication** of the **FAR 23 LOADS** suite (Hal C
 McMaster, Aero Science Software): 22 GW/QBasic programs that compute the
 structural design loads a small aircraft must sustain under FAR Part 23 Subpart C.
 The job is to port the original programs into one shared calc package + a
-multi-page UI, module by module. Currently only the engine-mount module
-(`ENGLOADS`) is ported; Phase 0 (the package restructure) is complete.
+multi-page UI, module by module.
+
+**Active direction (Phase C).** The suite is being grown into an **initial-concept
+distributed-loads tool**: it generalizes the FAR23 caps (a `concept` category that
+can exceed the 12,500 lb / GA-seat limits), assesses a configuration against
+similar airplanes, emits per-component distributed loads (wing / body / tail +
+*standard simplified* control-surface distributions), and exports them as
+`FORCE`/`MOMENT` bulk-data cards for **sbeam** structural sizing. The FAR23
+replication core stays oracle-locked (Appendix A/B ±0.1%); concept mode is a
+superset that reduces exactly to it on GA inputs. The plan, locked decisions and
+per-step detail are in
+[`docs/30_future/01_concept_loads_plan.md`](docs/30_future/01_concept_loads_plan.md).
 
 The two authoritative sources live in `reference/` as PDFs and matter when
 porting:

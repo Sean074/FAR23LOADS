@@ -49,7 +49,22 @@ _KT = "kt(EAS)"
 
 def _maneuver_load_factors(category: str, weight: float, chosen_n: Optional[float],
                            chosen_nneg: Optional[float]):
-    """Limit positive and negative maneuver load factors (FAR 23.337)."""
+    """Limit positive and negative maneuver load factors (FAR 23.337).
+
+    Concept mode (``category == "C"``) bypasses the GA-only 23.337 formula and cap
+    entirely: it uses the user's ``chosen_n``/``chosen_nneg`` verbatim (both are
+    required) so configurations above the 12,500 lb calibration band are not forced
+    to a meaningless GA limit. The reported "minimum required" figures echo the
+    chosen values, since there is no binding FAR floor in concept mode.
+    """
+    if category == "C":
+        if chosen_n is None or chosen_nneg is None:
+            raise ValueError(
+                "concept category 'C' requires explicit chosen_n and chosen_nneg "
+                "(no FAR 23.337 cap is applied)"
+            )
+        return chosen_n, chosen_n, chosen_nneg, chosen_nneg
+
     n_min = 2.1 + 24000.0 / (weight + 10000.0)
     if category == "U":
         n_min = 4.4
@@ -94,7 +109,9 @@ def design_speeds(project: Project, inp: StructuralSpeedsInput) -> List[Conditio
 
     n, n_min, nneg, nneg_min = _maneuver_load_factors(cat, w, inp.chosen_n, inp.chosen_nneg)
 
-    # Cruise speed VC.
+    # Cruise speed VC. In concept mode the K_c/K_d coefficients are GA-calibrated
+    # (taper to W/S = 100), so VC(min)/VD(min) are out-of-band *advisories* only --
+    # the concept supplies chosen_vc/chosen_vd, which govern.
     kc = cruise_speed_coefficient(cat, ws)
     vc_min = kc * ws ** 0.5
     if inp.vh_kt and vc_min > 0.9 * inp.vh_kt:
@@ -132,7 +149,11 @@ def design_speeds(project: Project, inp: StructuralSpeedsInput) -> List[Conditio
             LoadValue("Minimum required negative factor", nneg_min),
             LoadValue("Wing loading W/S", ws, "lb/ft^2"),
         ],
-        note=f"Category {cat}.",
+        note=(
+            "Category C (concept) -- user-defined load factors, no FAR 23.337 cap "
+            "applied; results are an unverified extrapolation."
+            if cat == "C" else f"Category {cat}."
+        ),
     )
 
     speeds = ConditionResult(

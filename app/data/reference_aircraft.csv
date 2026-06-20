@@ -1,0 +1,19 @@
+# Reference aircraft for the Weight Estimate MTOW-vs-OEW comparison plot.
+# Nominal published specifications for visual reference only -- NOT certification
+# data and NOT used in any FAR computation. Weights in lb, span/area in ft.
+# engine_type uses the WTESTIMA vocabulary (recip / turboprop) where it applies.
+aircraft,mtow_lb,oew_lb,max_hp,engines,engine_type,seats,wingspan_ft,wing_area_ft2
+Cessna 150,1600,1111,100,1,recip,2,32.7,160
+Cessna 172,2450,1691,180,1,recip,4,36.1,174
+Cessna 182,3100,1970,230,1,recip,4,36.0,174
+Cessna 206,3600,2210,310,1,recip,6,36.0,174
+Cessna 210,3800,2303,310,1,recip,6,36.7,175
+Van's RV-7,1800,1100,180,1,recip,2,25.0,121
+Van's RV-8,1800,1100,180,1,recip,2,24.0,116
+Van's RV-10,2700,1610,260,1,recip,4,31.7,148
+Van's RV-14,2050,1175,210,1,recip,2,27.0,127
+Beechcraft Bonanza A36,3650,2530,300,1,recip,6,33.5,181
+Piper PA-46 Malibu,4340,2740,350,1,turbocharged,6,43.0,175
+Beechcraft King Air 200,12500,8060,1700,2,turboprop,9,54.5,303
+ATR 42-500,41005,24802,4102,2,turboprop,50,80.6,587
+de Havilland Dash 8-100,34500,22055,4000,2,turboprop,39,85.0,585

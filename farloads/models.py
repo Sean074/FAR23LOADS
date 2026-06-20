@@ -201,6 +201,20 @@ class WeightInput:
     items: List[MassItem] = field(default_factory=list)
     envelope: Optional[WeightEnvelopeInput] = None
 
+    def direct_totals(self) -> Tuple[float, float, float]:
+        """Take-off, empty and useful weights summed directly from ``items``.
+
+        The concept-mode "direct-weight path": instead of WTESTIMA's GA-calibrated
+        statistical estimate, derive ``(MTOW, OEW, useful)`` straight from the
+        itemized data base -- MTOW is every item, OEW the empty-weight items, and
+        useful load the minimum + discretionary items. This is the source of truth
+        for weights above WTESTIMA's calibration band. Returns ``(0, 0, 0)`` for an
+        empty data base.
+        """
+        mtow = sum(it.weight_lb for it in self.items)
+        oew = sum(it.weight_lb for it in self.items if it.kind == MassItemKind.EMPTY)
+        return mtow, oew, mtow - oew
+
 
 # --------------------------------------------------------------------------- #
 # Aerodynamic surface geometry (WINGGEOM) -- the Project.geometry slice
@@ -266,11 +280,15 @@ class StructuralSpeedsInput:
     """Inputs for STRSPEED (design speeds & limit maneuver load factors).
 
     Speeds are knots equivalent airspeed (KEAS). ``category`` is "N" (normal/
-    commuter), "U" (utility) or "A" (acrobatic). ``weight_lb`` and the wing area
-    drive the load factor and minimum cruise speed; the wing area is read from the
-    ``Project.geometry`` wing surface when present (else ``wing_area_sqft``). Each
-    ``chosen_*`` speed is verified against (and raised to) its FAR minimum; leave
-    one ``None`` to take the computed minimum directly.
+    commuter), "U" (utility), "A" (acrobatic) or "C" (concept). The FAR23 categories
+    apply the 23.337 limit-maneuver-load-factor cap; **concept ("C")** bypasses that
+    GA-only cap for >12,500 lb configurations and so *requires* an explicit
+    ``chosen_n`` and ``chosen_nneg`` (used verbatim, with no FAR floor). ``weight_lb``
+    and the wing area drive the load factor and minimum cruise speed; the wing area
+    is read from the ``Project.geometry`` wing surface when present (else
+    ``wing_area_sqft``). Each ``chosen_*`` speed is verified against (and raised to)
+    its FAR minimum; leave one ``None`` to take the computed minimum directly (in
+    concept mode the speed minimums are out-of-band advisories).
     """
     category: str = "N"
     weight_lb: float = 0.0
@@ -326,8 +344,10 @@ class ModuleResult:
 
 
 # Current project-schema version. Bump when the on-disk JSON shape changes so old
-# saves can be migrated (see io.load_project).
-SCHEMA_VERSION = 1
+# saves can be migrated (see io.load_project). v2 adds the concept certification
+# category ("C") and the WeightInput direct-weight path -- both additive, so v1
+# files load unchanged via the from_dict defaults.
+SCHEMA_VERSION = 2
 
 
 @dataclass
@@ -365,3 +385,12 @@ class Project:
     def engine(self) -> Optional["EngineInput"]:
         """The first/primary engine (compat shim for single-engine call sites)."""
         return self.engines[0] if self.engines else None
+
+    @property
+    def is_concept(self) -> bool:
+        """True when the project is in concept mode (speeds ``category == "C"``).
+
+        The single read-point modules use to decide whether the GA-only caps and
+        statistical estimates apply (e.g. STRSPEED bypasses the 23.337 cap, WTESTIMA
+        flags itself as a sanity-only figure)."""
+        return self.speeds is not None and self.speeds.category.upper() == "C"

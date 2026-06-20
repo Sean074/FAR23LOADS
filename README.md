@@ -3,7 +3,13 @@
 A modern Python + Streamlit replication of the **FAR 23 LOADS** suite
 (Hal C. McMaster, Aero Science Software) — the 22-program package that computes
 the structural design loads a small aircraft must sustain under **FAR Part 23
-Subpart C — Structure**.
+Subpart C — Structure** — being grown into an **initial-concept distributed-loads
+tool**: a `concept` mode that can exceed the FAR23 weight/seat limits, assessment
+against similar airplanes, per-component distributed loads (wing / body / tail +
+simplified control-surface distributions), and export to **sbeam** for structural
+sizing. The FAR23 replication core stays validated against the manual; concept
+mode is a superset of it. See
+[`docs/30_future/01_concept_loads_plan.md`](docs/30_future/01_concept_loads_plan.md).
 
 The codebase is a shared pure-calc package (`farloads`) plus a multi-page
 Streamlit UI (`app/`) and a CLI (`cli.py`). A single reloadable `project.json`
@@ -12,9 +18,11 @@ carries every module's inputs; each module emits its own load-case CSV.
 **License:** MIT (see [LICENSE](LICENSE)) — free to use, modify, and
 redistribute, including commercially.
 
-> **Status:** Phase 0 (restructure) complete — the engine-mount module
-> (`ENGLOADS`) runs in the new package/Project/registry layout. The remaining
-> programs are added module-by-module per `docs/10_standard/PROJECT_GUIDE.md`.
+> **Status:** Phases 0–2 complete (7 of 22 modules: WTESTIMA, WTONECG, WTENV,
+> WINGGEOM, STRSPEED, MACHLIM, ENGLOADS). Next up is the Phase-C concept-loads
+> plan — a wing distributed-loads vertical slice (AIRLOADS → WINGINER → NETLOADS)
+> with an sbeam export bridge. Roadmap: `docs/10_standard/PROJECT_GUIDE.md`;
+> Phase-C plan: `docs/30_future/01_concept_loads_plan.md`.
 
 ## Layout
 

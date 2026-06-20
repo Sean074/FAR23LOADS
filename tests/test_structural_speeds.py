@@ -84,6 +84,32 @@ def test_utility_and_acrobatic_caps():
     assert math.isclose(_value(a, "Limit negative load factor"), -0.5 * 6.0, rel_tol=TOL)
 
 
+def test_concept_bypasses_cap():
+    # Category C (concept): the user's n / n_neg are used verbatim, with no
+    # FAR 23.337 formula or cap -- even above the 12,500 lb GA band.
+    inp = StructuralSpeedsInput(category="C", weight_lb=18000, wing_area_sqft=280,
+                                stall_clean_kt=95, stall_flap_kt=82,
+                                chosen_vc=250, chosen_vd=312.5,
+                                chosen_n=4.0, chosen_nneg=-2.0)
+    r = calc.design_speeds(Project(name="c"), inp)
+    assert _value(r, "Limit positive load factor") == 4.0
+    assert _value(r, "Limit negative load factor") == -2.0
+
+
+def test_concept_requires_explicit_load_factors():
+    # Concept mode without chosen_n/chosen_nneg is an error (there is no FAR floor
+    # to fall back on).
+    inp = StructuralSpeedsInput(category="C", weight_lb=18000, wing_area_sqft=280,
+                                stall_clean_kt=95, stall_flap_kt=82,
+                                chosen_vc=250, chosen_vd=312.5)
+    raised = False
+    try:
+        calc.design_speeds(Project(name="c"), inp)
+    except ValueError:
+        raised = True
+    assert raised
+
+
 def test_run_requires_speeds():
     raised = False
     try:
