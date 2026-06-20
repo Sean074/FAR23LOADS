@@ -9,8 +9,10 @@ from . import airloads  # noqa: F401  (import for side effect: self-registration
 from . import engine  # noqa: F401
 from . import flight_envelope  # noqa: F401
 from . import mach_limit  # noqa: F401
+from . import net_loads  # noqa: F401
 from . import structural_speeds  # noqa: F401
 from . import weight_envelope  # noqa: F401
 from . import weight_estimate  # noqa: F401
 from . import weight_onecg  # noqa: F401
 from . import wing_geometry  # noqa: F401
+from . import wing_inertia  # noqa: F401

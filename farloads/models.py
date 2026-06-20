@@ -284,6 +284,15 @@ class AeroSurfaceInput:
     tau: Optional[float] = None          # override; else computed from taper/tip ratio
     twist: List[XYPoint] = field(default_factory=list)  # (Y, zero-lift angle deg), inboard->outboard
     target_cl: float = 1.0               # wing CL the combined distribution is evaluated at
+    # Section coefficient tables for the air-load distribution (AIRLOADS load
+    # option, Step C3). ``profile_drag`` is the section profile-drag coefficient
+    # CDO at selected butt lines (AIRLOADS.BAS line 2770; the induced drag is
+    # computed from the lift distribution and added). ``section_cm`` is the
+    # section pitching-moment coefficient at selected butt lines (line 2960). Both
+    # are ``(Y, coeff)`` points inboard->outboard, linearly interpolated; leave
+    # empty for the C1 span-load-only path.
+    profile_drag: List[XYPoint] = field(default_factory=list)   # (Y, CDO)
+    section_cm: List[XYPoint] = field(default_factory=list)      # (Y, CM)
 
 
 @dataclass
@@ -416,6 +425,68 @@ class FlightLoadsInput:
     cg_cases: List[CgCase] = field(default_factory=list)
 
 
+# --------------------------------------------------------------------------- #
+# Wing inertia loads (WINGINER) -- the Project.wing_mass slice
+# --------------------------------------------------------------------------- #
+@dataclass
+class ConcentratedWeight:
+    """A concentrated wing mass item (gear, engine, fuel tank, store).
+
+    ``weight_lb`` at fuselage station ``x``, butt line ``y`` and waterline ``z``
+    (inches). WINGINER adds it as a spanwise step in shear/moment/torsion
+    (WINGINER.BAS lines 580-593, 1180-1610)."""
+    name: str
+    weight_lb: float
+    x: float = 0.0
+    y: float = 0.0
+    z: float = 0.0
+
+
+@dataclass
+class WingLoadCase:
+    """One critical wing condition WINGINER/NETLOADS evaluate (WINGINER.BAS 1660-1710).
+
+    ``case`` references a :class:`VnPoint` in ``Project.envelope.vn``; ``nz``/``nx``
+    (= ``-DX/W`` inertia drag factor) and the air-load ``cl``/``v_eas_kt`` default
+    from that point when not given explicitly. ``unbal_moment`` is the unbalanced
+    rolling moment (in-lb) for an accelerated-roll case (FAR 23.349; zero
+    otherwise). This is the C3-before-SELECT bridge: the critical conditions come
+    straight from the FLTLOADS V-n matrix (C2) since SELECT (C6) is not built yet.
+    """
+    name: str                              # "PHAA" / "ACRL" / "TORS" / ...
+    case: Optional[int] = None
+    nz: Optional[float] = None
+    nx: Optional[float] = None
+    unbal_moment: float = 0.0
+    cl: Optional[float] = None
+    v_eas_kt: Optional[float] = None
+
+
+@dataclass
+class WingMassInput:
+    """Inputs for WINGINER (the spanwise wing-mass distribution + load cases).
+
+    The outboard wing panel mass is modelled as an area density that tapers
+    linearly from root to tip: WINGINER iterates the root density until the
+    integrated panel mass equals ``panel_weight_lb`` (WINGINER.BAS lines 690-880).
+    ``tip_root_density_ratio`` (DR) is the tip/root area-density ratio;
+    ``inboard_rib_y`` (RSTA) the butt line where the panel begins; ``wrp_waterline``
+    the waterline of the wing reference plane (25% chord) at the centreline and
+    ``dihedral_deg`` its slope. ``concentrated`` carries discrete wing masses.
+    ``cases`` is the set of critical conditions to combine (vertical + drag +
+    rolling inertia). The planform is read from the matching ``Project.geometry``
+    surface (``surface``).
+    """
+    panel_weight_lb: float = 0.0
+    tip_root_density_ratio: float = 1.0
+    inboard_rib_y: float = 0.0
+    wrp_waterline: float = 0.0
+    dihedral_deg: float = 0.0
+    surface: str = "wing"
+    concentrated: List[ConcentratedWeight] = field(default_factory=list)
+    cases: List[WingLoadCase] = field(default_factory=list)
+
+
 @dataclass
 class LoadValue:
     """A single labelled output quantity with units (for clean rendering).
@@ -506,13 +577,62 @@ class EnvelopeResult:
     tail_balance: List[TailBalanceLoad] = field(default_factory=list)
 
 
+# --------------------------------------------------------------------------- #
+# Wing distributed loads (WINGINER / NETLOADS) -- the Project.loads slice
+# --------------------------------------------------------------------------- #
+@dataclass
+class WingStationLoad:
+    """Distributed load at one wing station along the 25% chord (airplane axes).
+
+    Coordinates ``x``/``y``/``z`` (in) of the quarter chord; per-strip forces
+    ``fx`` (drag) and ``fz`` (lift); cumulative shears ``sx``/``sz``; bending
+    ``mxx`` (about X, from lift) and ``mzz`` (about Z, from drag); ``myy`` total
+    torsion about Y (lift offset + drag offset + section pitching moment). Pounds
+    and inch-pounds (AIRLOADS.BAS 4700-5060 / WINGINER.BAS / NETLOADS.BAS)."""
+    x: float
+    y: float
+    z: float
+    fx: float
+    fz: float
+    sx: float
+    sz: float
+    mxx: float
+    myy: float
+    mzz: float
+
+
+@dataclass
+class WingLoadResult:
+    """One condition's spanwise wing load table (root-last, mirroring the manual)."""
+    case: str
+    nz: float = 0.0
+    nx: float = 0.0
+    stations: List[WingStationLoad] = field(default_factory=list)
+
+
+@dataclass
+class LoadsResult:
+    """The persisted wing distributed-loads slice (``Project.loads``).
+
+    ``wing_air`` is the AIRLOADS air-load distribution, ``wing_inertia`` the
+    WINGINER inertia distribution, and ``wing_net`` their algebraic sum (NETLOADS)
+    -- the headline structural deliverable (root shear/BM/torsion). One
+    :class:`WingLoadResult` per critical condition."""
+    wing_air: List[WingLoadResult] = field(default_factory=list)
+    wing_inertia: List[WingLoadResult] = field(default_factory=list)
+    wing_net: List[WingLoadResult] = field(default_factory=list)
+
+
 # Current project-schema version. Bump when the on-disk JSON shape changes so old
 # saves can be migrated (see io.load_project). v2 adds the concept certification
 # category ("C") and the WeightInput direct-weight path; v3 adds the aero slice
 # (AeroInput, TAU + AIRLOADS spanwise lift); v4 adds the flight-loads input slice
-# (FlightLoadsInput, FLTLOADS) and the envelope result slice (EnvelopeResult) --
-# all additive, so older files load unchanged via the from_dict defaults.
-SCHEMA_VERSION = 4
+# (FlightLoadsInput, FLTLOADS) and the envelope result slice (EnvelopeResult);
+# v5 adds the wing-mass input slice (WingMassInput, WINGINER), the wing
+# distributed-loads result slice (LoadsResult, WINGINER/NETLOADS) and the
+# section profile-drag / moment tables on AeroSurfaceInput -- all additive, so
+# older files load unchanged via the from_dict defaults.
+SCHEMA_VERSION = 5
 
 
 @dataclass
@@ -539,6 +659,8 @@ class Project:
     aero: Optional[AeroInput] = None
     flight_loads: Optional[FlightLoadsInput] = None
     envelope: Optional[EnvelopeResult] = None
+    wing_mass: Optional[WingMassInput] = None
+    loads: Optional[LoadsResult] = None
 
     def __post_init__(self) -> None:
         if self.engine_layout is not None and self.engines:

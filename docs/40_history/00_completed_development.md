@@ -405,6 +405,59 @@ factor with no GA cap; LZ+LT = NZ·W). Full suite green (106 tests), ruff clean.
 
 ---
 
+## Phase C — Step C3: WINGINER + NETLOADS (wing net span loads) (complete)
+
+**Objective.** The headline structural deliverable: net spanwise wing **shear,
+bending moment and torsion** (air load + inertia) along the 25% chord at the
+critical conditions.
+
+**Deliverables.**
+- `farloads/models.py` — new **`Project.wing_mass`** input slice (`WingMassInput`:
+  panel weight, tip/root area-density ratio, inboard rib, wing-reference-plane
+  waterline + dihedral, `ConcentratedWeight` list, `WingLoadCase` list) and the
+  **`Project.loads`** result slice (`LoadsResult` = `wing_air`/`wing_inertia`/
+  `wing_net`, each `WingLoadResult` of `WingStationLoad`). `AeroSurfaceInput`
+  gains the section `profile_drag` (CDO) and `section_cm` (CM) tables.
+  `SCHEMA_VERSION` 4→5 (additive); `io.py` round-trip extended.
+- `farloads/modules/airloads.py` — `air_load_distribution()` (AIRLOADS load option,
+  subr 4500/4600-5060): scales the C1 Schrenk section lift to the operating CL,
+  builds per-strip lift/drag/moment at `Q=V²/295`, rotates by `α=CL/M−Awo`, and
+  integrates tip→root to Sz/Mxx/Myy and Sx/Mzz; drag = induced `cl·ai/57.3` +
+  profile CDO.
+- `farloads/modules/wing_inertia.py` (`register("wing_inertia")`) — tapered
+  panel-mass distribution (root density iterated to panel weight), 1g-vertical /
+  1g-drag / unit-roll unit cases combined per `(Nz, Nx, UNB)`; concentrated
+  weights as spanwise steps.
+- `farloads/modules/net_loads.py` (`register("net_loads")`) — net = air + inertia
+  per station; per-station CSV (`wing_load_rows`). The C3-before-SELECT bridge:
+  `Nz=−NZ`, `Nx=−DX/W`, CL/V read from the FLTLOADS `envelope.vn` point.
+- New Streamlit page `app/pages/08_Net_Wing_Loads.py` (air/inertia/net shear, BM,
+  torsion plots + station table + CSV). Example fixtures gain a `wing_mass` slice
+  (and the GA wing aero gains `tau=0.05`, profile drag and section CM).
+
+**Test / Acceptance.** `tests/test_wing_inertia.py` + `tests/test_net_loads.py`
+oracle-lock the Appendix A worked example to ±0.1%: the air-load Case 22 PHAA
+table (p206 — root Sz +6470, Mxx +516955, Myy −79003, Mzz −91283), the WINGINER
+density (2.213/2.102 lb/ft²) and unit/combined inertia tables (p217-221), and the
+Net Loads Case 22 table (p222 — root Sz +5837, Mxx +455555, Myy −60940). Concept
+mode checked by the net = air + inertia identity and a trapezoidal-Schrenk root-BM
+closure. Full suite green (123 tests), ruff clean.
+
+**Key decisions.**
+1. **Air-load shear/BM/torsion lives in AIRLOADS** (its "load distribution" option),
+   not NETLOADS — faithful to the original; NETLOADS is the algebraic sum.
+2. **TAU = 0.05 override** on the GA wing aero reproduces the manual's printed wing
+   lift-curve slope exactly (C1's computed 0.0397 differs), making the full
+   distribution oracle-exact; C1's oracle is independent of TAU.
+3. **Full fidelity** — all of Fx/Fz/Sx/Sz/Mxx/Myy/Mzz (added the section profile-drag
+   and pitching-moment inputs the drag/torsion components need), per the locked C3
+   scope decision.
+4. **Explicit load cases / no `Project.mass`** — the critical conditions come from
+   the V-n matrix (C2) as `WingLoadCase`s (SELECT, C6, will pick them automatically);
+   `Nz`/`Nx` default from the V-n point. Concentrated wing masses are supported.
+
+---
+
 ## Tooling & documentation standard (complete)
 
 **Objective.** Bring the project's tooling and documentation standard in line

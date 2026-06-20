@@ -185,21 +185,27 @@ directly; a module never recomputes another module's owned quantity.
 
 ## Phase 4 — Component loads
 
+### AIRLOADS — air-load distribution (load option, Step C3 extension)
+- **Source:** Ch 12, `AIRLOADS.BAS` subroutine 4500 (lines 4600-5060).
+- **Reads:** the C1 Schrenk section-lift distribution (`schrenk_distribution`), the operating wing `CL` and speed for a condition, and the section **profile-drag** (`AeroSurfaceInput.profile_drag`, CDO) and **pitching-moment** (`section_cm`, CM) tables added in C3.
+- **Writes:** the air-load shear/bending/torsion station table along the 25% chord (a `WingLoadResult`), consumed by NETLOADS. Exposed as `airloads.air_load_distribution(geom, aero, cl, v, wrp, dihedral)`.
+- **Validation:** Appendix A "Airloads for Case 22 PHAA" p206 (CL 1.52, V 117.4: root SZ +6470, MXX +516955, MYY -79003, MZZ -91283) — matches to ±0.1% (the `tau=0.05` override reproduces the manual wing slope; drag is induced `cl·ai/57.3` + profile CDO).
+
 ### WINGINER — Wing inertia loads
-- **FAR §:** 23.301(d) inertia relief.
+- **FAR §:** 23.301(b)/(d) inertia relief.
 - **Source:** Ch 13, `WINGINER.BAS`.
-- **Reads:** `Project.envelope.vn` (FLTLOADS) and `Project.envelope.critical` (SELECT) — the critical wing load factors (UG Table 2.2). Plus `Project.geometry.wing`, `Project.mass`.
-- **Writes:** spanwise wing inertia load distribution → `Project.loads.wing_inertia`.
-- **Validation:** Appendix A/B `WINGINER.OUT`.
-- **Notes:** Subtracted from airload in NETLOADS.
+- **Reads:** a new **`Project.wing_mass`** input slice (`WingMassInput`): outboard panel weight, tip/root area-density ratio, inboard rib butt line, wing-reference-plane waterline + dihedral, concentrated wing masses, and the critical `WingLoadCase` list. The per-case `Nz`/`Nx` come straight from the FLTLOADS `envelope.vn` point (the C3-before-SELECT bridge — `Nz = −NZ`, `Nx = −DX/W`) when not given explicitly; plus `Project.geometry.<surface>`. (The original `envelope.critical`/`Project.mass` reads are deferred to SELECT, C6.)
+- **Writes:** the spanwise wing inertia distribution per case → **`Project.loads.wing_inertia`** (one `WingLoadResult` of `WingStationLoad` each). Pure entry `wing_inertia.build_wing_inertia(project)`.
+- **Validation:** Appendix A "Wing Inertia Loads" p217-221 — root/tip density 2.213/2.102 lb/ft²; unit vertical/drag/roll and the combined case 138 (Nz −2.54 Nx −0.1318: root Mxx −41041, Myy +11161).
+- **Notes:** The panel mass is a linearly-tapered area density iterated to the entered panel weight; strips inboard of the rib carry no panel mass; concentrated weights add spanwise steps to the shears/moments. Subtracted from the air load in NETLOADS.
 
 ### NETLOADS — Net wing loads
-- **FAR §:** 23.301 (net = air − inertia).
+- **FAR §:** 23.301(b) (net = air + inertia in equilibrium).
 - **Source:** Ch 14, `NETLOADS.BAS`.
-- **Reads:** `Project.aero.spanwise`, `Project.loads.wing_inertia`, `Project.envelope.critical`.
-- **Writes:** net spanwise shear, bending moment, torsion at wing stations → `Project.loads.wing_net` + CSV.
-- **Validation:** Appendix A/B `PHAABB36`/`TORBB36`/`ACCELROL` net-load tables.
-- **Notes:** A primary structural deliverable (root shear/BM/torsion). Reads AIRLOADS/AIRLOAD4 + WINGINER (UG Table 2.2). Multiple cases: symmetric (`PHAABB36`), rolling (`ACCELROL`), torsion (`TORBB36`).
+- **Reads:** `Project.wing_mass`, `Project.geometry.<surface>`, `Project.aero.<surface>` (and `Project.envelope.vn` for the per-case CL/V/Nz/Nx). Combines the AIRLOADS air-load distribution and the WINGINER inertia distribution.
+- **Writes:** the net spanwise shear, bending moment and torsion along the 25% chord → **`Project.loads.wing_net`** (+ the air/inertia distributions in `Project.loads`) + a one-row-per-station CSV (`net_loads.wing_load_rows`). Pure entry `net_loads.build_net_loads(project)`.
+- **Validation:** Appendix A "Net Loads, Case 22 PHAA" p222 (root Sz +5837, Mxx +455555, Myy -60940, Mzz -81483) — exact algebraic sum of the air (p206) and inertia distributions.
+- **Notes:** A primary structural deliverable (root shear/BM/torsion). **Scope (C3):** the wing; full fidelity (all of Fx/Fz/Sx/Sz/Mxx/Myy/Mzz). SELECT (C6) will select the governing cases automatically; here they are supplied as `WingLoadCase`s referencing the V-n matrix.
 
 ### AILERON — Aileron loads
 - **FAR §:** 23.349 (rolling), 23.455 (aileron).

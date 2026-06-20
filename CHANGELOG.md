@@ -11,6 +11,26 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **Net wing loads — WINGINER + NETLOADS (Step C3).** New `wing_inertia` and
+  `net_loads` modules compute the spanwise wing **shear, bending moment and
+  torsion** along the 25% chord as the algebraic sum of the air loads and the
+  inertia loads — the headline structural deliverable (root values size the wing).
+  `AIRLOADS` is extended with an air-load distribution (`air_load_distribution`):
+  it scales the C1 Schrenk lift to the operating CL, builds per-strip
+  lift/drag/pitching-moment forces, rotates them into the airplane reference and
+  integrates to the cumulative shears/moments/torsion (drag = computed induced +
+  input profile). `WINGINER` models the wing-panel mass as a linearly-tapered area
+  density (root density iterated to the panel weight) plus concentrated weights,
+  forming 1g-vertical / 1g-drag / unit-roll cases combined per condition.
+  `NETLOADS` sums air + inertia per station. Adds a `Project.wing_mass` input slice
+  (`WingMassInput`/`ConcentratedWeight`/`WingLoadCase`) and a `Project.loads`
+  result slice (`LoadsResult`/`WingLoadResult`/`WingStationLoad`), with section
+  `profile_drag`/`section_cm` added to `AeroSurfaceInput`; schema bumped to **v5**
+  (additive). New Streamlit page `app/pages/08_Net_Wing_Loads.py` (air/inertia/net
+  shear-BM-torsion plots + CSV). FAR23 oracle-locked against the Appendix A air-load
+  (p206), wing-inertia (p217-221) and net-load (p222) tables; the critical
+  conditions come from the FLTLOADS V-n matrix (the C3-before-SELECT bridge).
+
 - **Flight envelope + balancing tail loads — FLTLOADS (Step C2).** New
   `flight_envelope` module (`farloads/modules/flight_envelope.py`) builds the
   FAR 23.333 maneuver + gust **V-n diagram** and the **balancing horizontal-tail

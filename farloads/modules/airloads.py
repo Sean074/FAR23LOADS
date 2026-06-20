@@ -57,9 +57,13 @@ from ..models import (
     ModuleResult,
     Project,
     SurfaceInput,
+    WingLoadResult,
+    WingStationLoad,
 )
 from ..registry import register
 from .wing_geometry import _interp_x
+
+_DEG = 57.3  # AIRLOADS.BAS uses 57.3 for the rad<->deg factor; kept for fidelity
 
 _FAR = "23.301"  # airload distribution basis (Schrenk)
 
@@ -212,6 +216,95 @@ def schrenk_distribution(geom: SurfaceInput, aero: AeroSurfaceInput) -> Spanwise
     table.recovered_cl_additive = sum_ccl_add / area_side
     table.recovered_cl = sum_ccl_tot / area_side
     return table
+
+
+def _interp_yv(table, y: float, default: float = 0.0) -> float:
+    """Interpolate a ``(butt line Y, value)`` table at ``y`` (reuses _interp_x)."""
+    if not table:
+        return default
+    return _interp_x([(v, yb) for (yb, v) in table], y)
+
+
+def air_load_distribution(geom: SurfaceInput, aero: AeroSurfaceInput, cl: float,
+                          v_eas_kt: float, wrp_waterline: float,
+                          dihedral_deg: float) -> WingLoadResult:
+    """Air-load shear / bending / torsion along the 25% chord (AIRLOADS.BAS 4500-5060).
+
+    Scales the C1 Schrenk section-lift distribution to the operating wing ``cl``,
+    builds per-strip lift/drag/pitching-moment forces at dynamic pressure
+    ``q = V^2/295`` (V in KEAS), rotates them into the airplane reference by the
+    angle of attack ``ANRW2WL = CL/M - Awo`` (M the wing lift-curve slope), and
+    integrates tip->root to the cumulative shears, bending moments and torsion.
+    Drag per strip is the computed induced drag ``cl*ai/57.3`` plus the input
+    section profile drag ``CDO`` (``aero.profile_drag``); torsion sums the lift
+    offset about the 25% chord, the drag offset in Z and the section pitching
+    moment (``aero.section_cm``). Stations are ordered root->tip.
+
+    Reference: AIRLOADS.BAS subroutine 4500 (lines 4600-5060); worked example
+    Appendix A "Airloads for Case 22 PHAA" p206 (CL 1.52, V 117.4: root SZ +6470,
+    MXX +516955, MYY -79003, MZZ -91283).
+    """
+    t = schrenk_distribution(geom, aero)
+    h = len(t.ye)
+    dy = (t.ye[-1] - t.ye[0]) / (h - 1) if h > 1 else 0.0  # uniform strip width
+    mo = aero.section_slope
+    alpha = cl / t.m_wing                       # ALPHA = CL/(MM/57.3), deg
+    an = alpha - t.awo                           # ANRW2WL, deg
+    q = v_eas_kt ** 2 / 295.0
+    cos_an, sin_an = math.cos(an / _DEG), math.sin(an / _DEG)
+
+    # Per-strip forces (root->tip) and the 25% chord coordinates.
+    cx25: List[float] = []
+    zc: List[float] = []
+    lz: List[float] = []
+    dx: List[float] = []
+    ml: List[float] = []
+    for j in range(h):
+        ye = t.ye[j]
+        c = t.chord[j]
+        kcl = t.cl_basic[j] + cl * t.cl_additive[j]            # operating section cl
+        refang = _twist_angle(aero.twist, ye)                  # WL to section zero-lift
+        ai = (alpha - t.awo + refang) - kcl / mo              # induced angle of attack
+        cid = kcl * ai / _DEG                                  # induced drag coefficient
+        cd = _interp_yv(aero.profile_drag, ye) + cid           # + section profile drag
+        cm = _interp_yv(aero.section_cm, ye)
+        lift = kcl * c * dy * q / 144.0
+        drag = cd * c * dy * q / 144.0
+        moment = cm * c * c * dy * q / 144.0
+        lz.append(lift * cos_an + drag * sin_an)
+        dx.append(drag * cos_an - lift * sin_an)
+        ml.append(moment)
+        cx25.append(_interp_x(geom.leading_edge, ye) + 0.25 * c)
+        zc.append(wrp_waterline + math.tan(dihedral_deg / _DEG) * ye)
+
+    # Integrate tip->root: cumulative shears, bending moments and torsion.
+    sz = [0.0] * h
+    sx = [0.0] * h
+    mxx = [0.0] * h
+    mzz = [0.0] * h
+    tyy = [0.0] * h
+    tvyy = [0.0] * h
+    trq = [0.0] * h
+    sz[h - 1] = lz[h - 1]
+    sx[h - 1] = dx[h - 1]
+    trq[h - 1] = ml[h - 1]
+    for i in range(h - 2, -1, -1):
+        sz[i] = sz[i + 1] + lz[i]
+        sx[i] = sx[i + 1] + dx[i]
+        mxx[i] = mxx[i + 1] + sz[i + 1] * dy
+        mzz[i] = mzz[i + 1] + sx[i + 1] * (t.ye[i + 1] - t.ye[i])
+        tyy[i] = tyy[i + 1] - sz[i + 1] * (cx25[i + 1] - cx25[i])
+        tvyy[i] = tvyy[i + 1] + sx[i + 1] * (zc[i + 1] - zc[i])
+        trq[i] = trq[i + 1] + ml[i]
+
+    stations = [
+        WingStationLoad(
+            x=cx25[i], y=t.ye[i], z=zc[i], fx=dx[i], fz=lz[i], sx=sx[i], sz=sz[i],
+            mxx=mxx[i], myy=tyy[i] + tvyy[i] + trq[i], mzz=mzz[i],
+        )
+        for i in range(h)
+    ]
+    return WingLoadResult(case="", stations=stations)
 
 
 def spanwise_distribution(geom: SurfaceInput, aero: AeroSurfaceInput) -> ConditionResult:

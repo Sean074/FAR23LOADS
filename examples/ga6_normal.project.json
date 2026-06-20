@@ -354,7 +354,28 @@
             1.9
           ]
         ],
-        "target_cl": 1.0
+        "target_cl": 1.0,
+        "tau": 0.05,
+        "profile_drag": [
+          [
+            0,
+            0.01
+          ],
+          [
+            201,
+            0.01
+          ]
+        ],
+        "section_cm": [
+          [
+            0,
+            -0.03
+          ],
+          [
+            201,
+            -0.03
+          ]
+        ]
       }
     ]
   },
@@ -422,6 +443,41 @@
         "weight_lb": 2063,
         "xcg": 73.09,
         "zcg": 90.73001
+      }
+    ]
+  },
+  "wing_mass": {
+    "panel_weight_lb": 165,
+    "tip_root_density_ratio": 0.95,
+    "inboard_rib_y": 23,
+    "wrp_waterline": 78.5,
+    "dihedral_deg": 6.0,
+    "surface": "wing",
+    "concentrated": [],
+    "cases": [
+      {
+        "name": "PHAA",
+        "nz": -3.8,
+        "nx": 0.6065,
+        "unbal_moment": 0,
+        "cl": 1.52,
+        "v_eas_kt": 117.4
+      },
+      {
+        "name": "TORS",
+        "nz": -2.54,
+        "nx": -0.1318,
+        "unbal_moment": 0,
+        "cl": 0.47,
+        "v_eas_kt": 170
+      },
+      {
+        "name": "ACRL",
+        "nz": -3.25,
+        "nx": 0.4009,
+        "unbal_moment": -149043,
+        "cl": 1.55,
+        "v_eas_kt": 116
       }
     ]
   }

@@ -100,8 +100,8 @@ escape hatch.
 ### Component loads
 | Program | Purpose | Status |
 |---------|---------|--------|
-| `WINGINER` | Wing inertia loads | planned |
-| `NETLOADS` | Net wing loads (airload − inertia) | planned |
+| `WINGINER` | Wing inertia loads | **done** (C3) |
+| `NETLOADS` | Net wing loads (airload + inertia) | **done** (C3) |
 | `AILERON` | Aileron loads | planned |
 | `FLAPLOAD` | Flap loads | planned |
 | `TABLOADS` | Tab loads | planned |

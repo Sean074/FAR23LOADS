@@ -156,7 +156,27 @@
         "taper_ratio": 0.5,
         "tip_ratio": 0.0,
         "twist": [],
-        "target_cl": 1.2
+        "target_cl": 1.2,
+        "profile_drag": [
+          [
+            0,
+            0.012
+          ],
+          [
+            300,
+            0.012
+          ]
+        ],
+        "section_cm": [
+          [
+            0,
+            -0.04
+          ],
+          [
+            300,
+            -0.04
+          ]
+        ]
       }
     ]
   },
@@ -206,6 +226,30 @@
         "weight_lb": 18000,
         "xcg": 205.0,
         "zcg": 100.0
+      }
+    ]
+  },
+  "wing_mass": {
+    "panel_weight_lb": 900,
+    "tip_root_density_ratio": 0.9,
+    "inboard_rib_y": 30,
+    "wrp_waterline": 100.0,
+    "dihedral_deg": 4.0,
+    "surface": "wing",
+    "concentrated": [
+      {
+        "name": "fuel",
+        "weight_lb": 600,
+        "x": 210,
+        "y": 120,
+        "z": 100
+      }
+    ],
+    "cases": [
+      {
+        "name": "PHAA",
+        "case": 3,
+        "unbal_moment": 0
       }
     ]
   }

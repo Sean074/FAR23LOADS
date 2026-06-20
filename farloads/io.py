@@ -25,6 +25,7 @@ from .models import (
     AeroInput,
     AeroSurfaceInput,
     CgCase,
+    ConcentratedWeight,
     ConditionResult,
     EngineInput,
     EngineLayout,
@@ -33,6 +34,7 @@ from .models import (
     EnvelopeResult,
     FlightLoadsInput,
     GeometryInput,
+    LoadsResult,
     MachLimitInput,
     MassItem,
     MassItemKind,
@@ -48,6 +50,10 @@ from .models import (
     WeightEnvelopeInput,
     WeightEstimationInput,
     WeightInput,
+    WingLoadCase,
+    WingLoadResult,
+    WingMassInput,
+    WingStationLoad,
 )
 from .report import has_load_case_data, load_cases_to_rows, results_to_rows
 
@@ -196,6 +202,8 @@ def _aero_surface_from_dict(d: Dict[str, Any]) -> AeroSurfaceInput:
         tau=d.get("tau"),
         twist=_points(d.get("twist")),
         target_cl=d.get("target_cl", 1.0),
+        profile_drag=_points(d.get("profile_drag")),
+        section_cm=_points(d.get("section_cm")),
     )
 
 
@@ -216,6 +224,8 @@ def aero_to_dict(inp: AeroInput) -> Dict[str, Any]:
                 "tau": s.tau,
                 "twist": [list(p) for p in s.twist],
                 "target_cl": s.target_cl,
+                "profile_drag": [list(p) for p in s.profile_drag],
+                "section_cm": [list(p) for p in s.section_cm],
             }
             for s in inp.surfaces
         ]
@@ -323,6 +333,59 @@ def envelope_to_dict(inp: EnvelopeResult) -> Dict[str, Any]:
 
 
 # --------------------------------------------------------------------------- #
+# Wing-mass slice <-> dict (WINGINER input)
+# --------------------------------------------------------------------------- #
+def wing_mass_from_dict(d: Dict[str, Any]) -> WingMassInput:
+    """Build a :class:`WingMassInput` from a plain dict."""
+    return WingMassInput(
+        panel_weight_lb=d.get("panel_weight_lb", 0.0),
+        tip_root_density_ratio=d.get("tip_root_density_ratio", 1.0),
+        inboard_rib_y=d.get("inboard_rib_y", 0.0),
+        wrp_waterline=d.get("wrp_waterline", 0.0),
+        dihedral_deg=d.get("dihedral_deg", 0.0),
+        surface=d.get("surface", "wing"),
+        concentrated=[ConcentratedWeight(**dict(c)) for c in d.get("concentrated", []) or []],
+        cases=[WingLoadCase(**dict(c)) for c in d.get("cases", []) or []],
+    )
+
+
+def wing_mass_to_dict(inp: WingMassInput) -> Dict[str, Any]:
+    """Serialize a :class:`WingMassInput` to JSON-friendly primitives."""
+    out = asdict(inp)
+    return out
+
+
+# --------------------------------------------------------------------------- #
+# Loads slice <-> dict (WINGINER / NETLOADS result)
+# --------------------------------------------------------------------------- #
+def _wing_load_result_from_dict(d: Dict[str, Any]) -> WingLoadResult:
+    return WingLoadResult(
+        case=d.get("case", ""),
+        nz=d.get("nz", 0.0),
+        nx=d.get("nx", 0.0),
+        stations=[WingStationLoad(**dict(s)) for s in d.get("stations", []) or []],
+    )
+
+
+def loads_from_dict(d: Dict[str, Any]) -> LoadsResult:
+    """Build a :class:`LoadsResult` from a plain dict (the persisted wing loads)."""
+    return LoadsResult(
+        wing_air=[_wing_load_result_from_dict(r) for r in d.get("wing_air", []) or []],
+        wing_inertia=[_wing_load_result_from_dict(r) for r in d.get("wing_inertia", []) or []],
+        wing_net=[_wing_load_result_from_dict(r) for r in d.get("wing_net", []) or []],
+    )
+
+
+def loads_to_dict(inp: LoadsResult) -> Dict[str, Any]:
+    """Serialize a :class:`LoadsResult` to JSON-friendly primitives."""
+    return {
+        "wing_air": [asdict(r) for r in inp.wing_air],
+        "wing_inertia": [asdict(r) for r in inp.wing_inertia],
+        "wing_net": [asdict(r) for r in inp.wing_net],
+    }
+
+
+# --------------------------------------------------------------------------- #
 # Project <-> JSON
 # --------------------------------------------------------------------------- #
 def project_from_dict(d: Dict[str, Any]) -> Project:
@@ -335,7 +398,7 @@ def project_from_dict(d: Dict[str, Any]) -> Project:
     if (
         "engines" in d or "engine" in d or "weight" in d or "geometry" in d
         or "speeds" in d or "aero" in d or "flight_loads" in d or "envelope" in d
-        or "schema_version" in d or "name" in d
+        or "wing_mass" in d or "loads" in d or "schema_version" in d or "name" in d
     ):
         weight = d.get("weight")
         geometry = d.get("geometry")
@@ -343,6 +406,8 @@ def project_from_dict(d: Dict[str, Any]) -> Project:
         aero = d.get("aero")
         flight_loads = d.get("flight_loads")
         envelope = d.get("envelope")
+        wing_mass = d.get("wing_mass")
+        loads = d.get("loads")
         engines, layout = _engines_from_dict(d)
         return Project(
             schema_version=d.get("schema_version", SCHEMA_VERSION),
@@ -355,6 +420,8 @@ def project_from_dict(d: Dict[str, Any]) -> Project:
             aero=aero_from_dict(aero) if aero else None,
             flight_loads=flight_loads_from_dict(flight_loads) if flight_loads else None,
             envelope=envelope_from_dict(envelope) if envelope else None,
+            wing_mass=wing_mass_from_dict(wing_mass) if wing_mass else None,
+            loads=loads_from_dict(loads) if loads else None,
         )
     # Legacy: the whole file is just the engine slice.
     return Project(name="", engines=[engine_from_dict(d)], engine_layout=EngineLayout.SINGLE_NOSE)
@@ -395,6 +462,10 @@ def project_to_dict(project: Project) -> Dict[str, Any]:
         out["flight_loads"] = flight_loads_to_dict(project.flight_loads)
     if project.envelope is not None:
         out["envelope"] = envelope_to_dict(project.envelope)
+    if project.wing_mass is not None:
+        out["wing_mass"] = wing_mass_to_dict(project.wing_mass)
+    if project.loads is not None:
+        out["loads"] = loads_to_dict(project.loads)
     return out
 
 
