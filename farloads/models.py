@@ -349,6 +349,73 @@ class StructuralSpeedsInput:
     mach_limit: Optional[MachLimitInput] = None  # MACHLIM inputs (Project.speeds.mach_limit)
 
 
+# --------------------------------------------------------------------------- #
+# Flight envelope & balancing tail loads (FLTLOADS) -- Project.flight_loads
+# --------------------------------------------------------------------------- #
+@dataclass
+class AeroCoeffSet:
+    """One configuration's airplane-less-tail aerodynamic coefficients.
+
+    These are the polynomial fits FLTLOADS balances against (FLTLOADS.BAS lines
+    150-220): lift ``CL = C0 + C1*a + C2*a^2 + C3*a^3 + C4*a^4`` in angle of
+    attack ``a`` (deg); drag ``CD = D0 + D1*CL + ... + D4*CL^4`` in ``CL``;
+    pitching moment ``CM = M0 + M1*a + ... + M4*a^4`` in ``a``. They are produced
+    by the Ch 7 aerodynamic-coefficients program (airplane less tail) and entered
+    here as input (AIRLOADS, Step C1, does not yet emit them). ``stall_cl`` /
+    ``neg_stall_cl`` are the positive/negative section-stall limits at the
+    reference Mach. ``flaps_down`` selects the flaps-extended tail CP ``XTF`` over
+    the flaps-up ``XTC`` (cruise = up; landing = down).
+    """
+    name: str                                   # "CRUISE" | "LANDING" | "ENROUTE"
+    stall_cl: float
+    neg_stall_cl: float
+    lift: Tuple[float, float, float, float, float]    # C0..C4 (CL vs alpha deg)
+    drag: Tuple[float, float, float, float, float]    # D0..D4 (CD vs CL)
+    moment: Tuple[float, float, float, float, float]  # M0..M4 (CM vs alpha deg)
+    flaps_down: bool = False
+
+
+@dataclass
+class CgCase:
+    """One weight / centre-of-gravity case balanced over the flight envelope.
+
+    The four corners of the WTENV weight-cg envelope (FLTLOADS.BAS prompts for
+    four per configuration). ``xcg``/``zcg`` are the fuselage station and waterline
+    of the CG (inches). Entered explicitly for now; a later step seeds these from
+    ``Project.weight.envelope``.
+    """
+    name: str
+    weight_lb: float
+    xcg: float
+    zcg: float
+
+
+@dataclass
+class FlightLoadsInput:
+    """Inputs for FLTLOADS (the V-n flight envelope + balancing tail loads).
+
+    Geometry scalars mirror FLTLOADS.BAS line 90: ``mac`` wing MAC (in);
+    ``xtc``/``xtf`` the fuselage station of the horizontal-tail centre of pressure
+    flaps-up (~5% tail MAC) / flaps-down (~25% tail MAC); ``xw``/``zw`` the
+    fuselage station / waterline of 25% wing MAC; ``wing_area_sqft`` the wing area
+    S (ft^2). ``mn`` is the Mach at which the aero coefficients were obtained
+    (usually ~0.1; line 138). The design speeds (VA/VC/VD/VF), Mach limits
+    (MC/MD) and the limit load factor come from ``Project.speeds`` (STRSPEED), the
+    single owner. Each ``AeroCoeffSet`` in ``configurations`` is balanced over its
+    ``cg_cases`` at every altitude in ``altitudes_ft``.
+    """
+    mac: float = 0.0
+    wing_area_sqft: float = 0.0
+    xw: float = 0.0
+    zw: float = 0.0
+    xtc: float = 0.0
+    xtf: float = 0.0
+    mn: float = 0.1
+    altitudes_ft: List[float] = field(default_factory=lambda: [0.0])
+    configurations: List[AeroCoeffSet] = field(default_factory=list)
+    cg_cases: List[CgCase] = field(default_factory=list)
+
+
 @dataclass
 class LoadValue:
     """A single labelled output quantity with units (for clean rendering).
@@ -385,12 +452,67 @@ class ModuleResult:
     conditions: List[ConditionResult] = field(default_factory=list)
 
 
+# --------------------------------------------------------------------------- #
+# Flight-envelope results (FLTLOADS) -- the Project.envelope slice
+# --------------------------------------------------------------------------- #
+@dataclass
+class VnPoint:
+    """One balanced point on the flight envelope (one row of FLTLOADS V-n data).
+
+    The balanced-flight-load output of FLTLOADS.BAS subroutine 3900 for one
+    condition, configuration, CG case and altitude: equivalent airspeed, normal
+    load factor, balanced angle of attack, Glauert compressibility factor, wing
+    lift coefficient, the airplane-less-tail pitching moment ``M(W+F)``, the lift
+    airplane-less-tail normal to the reference ``LZW``, the balancing horizontal
+    tail load ``LT`` and the drag ``DX`` (lb / lb-in).
+    """
+    case: int
+    condition: str
+    config: str
+    cg: str
+    altitude_ft: float
+    v_eas_kt: float
+    nz: float
+    alpha_deg: float
+    g_corr: float
+    cl: float
+    m_wf: float
+    lzw: float
+    lt: float
+    dx: float
+
+
+@dataclass
+class TailBalanceLoad:
+    """The balancing horizontal-tail load at one V-n point (FLTLOADS, Ch 8).
+
+    ``tail_cp_station`` is the fuselage station of the tail CP used (``XTC`` flaps
+    up, ``XTF`` flaps down); ``tail_load_lb`` is the load that zeroes the pitching
+    moment about the CG. SELECT (C6) later refines the CP rationally.
+    """
+    case: int
+    condition: str
+    tail_load_lb: float
+    tail_cp_station: float
+    flaps_down: bool
+
+
+@dataclass
+class EnvelopeResult:
+    """The persisted flight-envelope slice written by FLTLOADS (read by SELECT,
+    WINGINER). ``vn`` is the full balanced-condition matrix; ``tail_balance`` is
+    the balancing tail load per point. ``critical`` is reserved for SELECT (C6)."""
+    vn: List[VnPoint] = field(default_factory=list)
+    tail_balance: List[TailBalanceLoad] = field(default_factory=list)
+
+
 # Current project-schema version. Bump when the on-disk JSON shape changes so old
 # saves can be migrated (see io.load_project). v2 adds the concept certification
 # category ("C") and the WeightInput direct-weight path; v3 adds the aero slice
-# (AeroInput, TAU + AIRLOADS spanwise lift) -- all additive, so older files load
-# unchanged via the from_dict defaults.
-SCHEMA_VERSION = 3
+# (AeroInput, TAU + AIRLOADS spanwise lift); v4 adds the flight-loads input slice
+# (FlightLoadsInput, FLTLOADS) and the envelope result slice (EnvelopeResult) --
+# all additive, so older files load unchanged via the from_dict defaults.
+SCHEMA_VERSION = 4
 
 
 @dataclass
@@ -415,6 +537,8 @@ class Project:
     geometry: Optional[GeometryInput] = None
     speeds: Optional[StructuralSpeedsInput] = None
     aero: Optional[AeroInput] = None
+    flight_loads: Optional[FlightLoadsInput] = None
+    envelope: Optional[EnvelopeResult] = None
 
     def __post_init__(self) -> None:
         if self.engine_layout is not None and self.engines:

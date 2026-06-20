@@ -6,13 +6,17 @@ themselves with :mod:`farloads.registry`.
 """
 
 from .models import (
+    AeroCoeffSet,
     AeroInput,
     AeroSurfaceInput,
+    CgCase,
     ConditionResult,
     EngineInput,
     EngineLayout,
     EngineType,
     EngineWeightType,
+    EnvelopeResult,
+    FlightLoadsInput,
     GeometryInput,
     LoadValue,
     MachLimitInput,
@@ -26,6 +30,8 @@ from .models import (
     SCHEMA_VERSION,
     StructuralSpeedsInput,
     SurfaceInput,
+    TailBalanceLoad,
+    VnPoint,
     WeightEnvelopeInput,
     WeightEstimationInput,
     WeightInput,
@@ -46,13 +52,17 @@ from . import modules  # noqa: F401  (side effect: module registration)
 from .modules.engine import run_all
 
 __all__ = [
+    "AeroCoeffSet",
     "AeroInput",
     "AeroSurfaceInput",
+    "CgCase",
     "ConditionResult",
     "EngineInput",
     "EngineLayout",
     "EngineType",
     "EngineWeightType",
+    "EnvelopeResult",
+    "FlightLoadsInput",
     "GeometryInput",
     "LoadValue",
     "MachLimitInput",
@@ -66,6 +76,8 @@ __all__ = [
     "SCHEMA_VERSION",
     "StructuralSpeedsInput",
     "SurfaceInput",
+    "TailBalanceLoad",
+    "VnPoint",
     "WeightEnvelopeInput",
     "WeightEstimationInput",
     "WeightInput",

@@ -7,6 +7,7 @@ the mass-properties modules (weight estimation and one-condition CG/inertia).
 
 from . import airloads  # noqa: F401  (import for side effect: self-registration)
 from . import engine  # noqa: F401
+from . import flight_envelope  # noqa: F401
 from . import mach_limit  # noqa: F401
 from . import structural_speeds  # noqa: F401
 from . import weight_envelope  # noqa: F401

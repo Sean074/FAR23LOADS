@@ -11,6 +11,23 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **Flight envelope + balancing tail loads — FLTLOADS (Step C2).** New
+  `flight_envelope` module (`farloads/modules/flight_envelope.py`) builds the
+  FAR 23.333 maneuver + gust **V-n diagram** and the **balancing horizontal-tail
+  load** at every cruise corner — a faithful port of FLTLOADS.BAS subroutine 3900
+  (iterate angle of attack to the required load factor, then dynamic pressure to
+  the Mach-adjusted stall line; Glauert compressibility; CLmax-vs-Mach curve) and
+  4864 (gust load factor, FAR 23.341). Reads the design speeds and limit load
+  factors from STRSPEED. Adds a `Project.flight_loads` input slice
+  (`FlightLoadsInput`/`AeroCoeffSet`/`CgCase`: geometry scalars, airplane-less-tail
+  aero-coefficient polynomials, weight-CG cases) and a `Project.envelope` result
+  slice (`EnvelopeResult`/`VnPoint`/`TailBalanceLoad`) with `io.py` round-trip;
+  schema bumped to **v4** (additive — older files load unchanged). New Streamlit
+  page `app/pages/07_Flight_Envelope.py` (V-n chart + balanced-condition table).
+  The GA and concept example fixtures gain a `flight_loads` slice. FAR23
+  oracle-locked against the Appendix A "V-n Data" cruise matrix (p179-180); concept
+  mode validated by physics closure (attains the user load factor; LZ+LT = NZ·W).
+
 - **Spanwise wing airloads — AIRLOADS + TAU (Step C1).** New `airloads` module
   (`farloads/modules/airloads.py`) computes the wing spanwise lift distribution by
   **Schrenk's method** (Reference 1 Ch 7): the additive distribution (untwisted

@@ -353,6 +353,58 @@ pass unchanged (FAR23 identity) — 93 passing.
 
 ---
 
+## Phase C — Step C2: FLTLOADS (V-n envelope + balancing tail loads) (complete)
+
+**Objective.** Port the FAR 23.333 maneuver + gust flight envelope and the
+balancing horizontal-tail load at every corner — the candidate-condition matrix
+SELECT later prunes and WINGINER/NETLOADS consume.
+
+**Deliverables.**
+- `farloads/models.py` — new **`Project.flight_loads`** input slice
+  (`FlightLoadsInput`: `mac`/`wing_area_sqft`/`xw`/`zw`/`xtc`/`xtf`, reference Mach
+  `mn`, altitude list, per-configuration `AeroCoeffSet` aero-coefficient polynomials
+  CL(α)/CD(CL)/CM(α) + stall CLs, weight-CG `CgCase` list) and the new
+  **`Project.envelope`** result slice (`EnvelopeResult.vn` / `.tail_balance`:
+  `VnPoint` + `TailBalanceLoad`). `SCHEMA_VERSION` bumped to **4** (additive — older
+  files load unchanged); `io.py` round-trip extended for both slices.
+- `farloads/modules/flight_envelope.py` — faithful port of FLTLOADS.BAS subroutine
+  **3900** (iterate AoA to the required load factor, then dynamic pressure to the
+  Mach-adjusted stall line; Glauert `G/Gmn`; CLmax-vs-Mach 5th-order fit) and **4864**
+  (gust load factor, FAR 23.341). Balancing
+  `LT = [M(W+F) + LZ·(Xcg−Xw) − DX·(Zcg−Zw)]/(XT−Xcg)` with approximate tail CP
+  (XTC≈5% / XTF≈25% tail MAC). Reads VA/VC/VD/VF, MC/MD and the limit load factors
+  from STRSPEED (`design_speeds` + `_maneuver_load_factors`, the single owner).
+  Registered `"flight_envelope"`; pure entry `build_envelope(project) → EnvelopeResult`.
+- New Streamlit page `app/pages/07_Flight_Envelope.py` (V-n diagram + balanced-
+  condition table + editable aero coeffs / CG cases). Example fixtures gain a
+  `flight_loads` slice.
+
+**Test / Acceptance.** `tests/test_flight_envelope.py` oracle-locks the Appendix A
+"V-n Data" cruise matrix (p179-180) for CG1/CG2: corner speeds, load factors, α, G,
+and the balancing tail load LT (e.g. STALL 1G LT 132, MAN A LT 493 / LZW 12419,
+GUST +C NZ +3.96, AC ROLL LT 412, CG2 MAN A LZW 12970 / LT −59). The AoA balance
+converges NZ to ±0.005 (FLTLOADS.BAS line 4130), so LT and corner speeds/factors
+use tight tolerances while low-load-factor quantities use the ~0.5% convergence
+floor. Concept mode checked by physics closure (the balance attains the user load
+factor with no GA cap; LZ+LT = NZ·W). Full suite green (106 tests), ruff clean.
+
+**Key decisions.**
+1. **Aero coefficients are inputs** — the airplane-less-tail CL/CD/CM polynomials
+   come from the Ch 7 aero-coefficients program and are entered via `AeroCoeffSet`
+   (AIRLOADS/C1 does not yet emit them), faithful to the BAS prompts.
+2. **Explicit CG cases, no `Project.mass`** — the balance uses the four weight-CG
+   envelope cases entered directly (matching the BAS), so the original data-flow's
+   `Project.mass`/WTONECG read is unnecessary for C2; seeding the CG cases from
+   WTENV is a later refinement. The planned WTONECG `MassProperties` refactor was
+   dropped from C2 as unneeded.
+3. **Cruise scope** — the cruise maneuver+gust corner set (20 conditions); the
+   flapped LANDING/ENROUTE envelopes share the balance engine and drop in later.
+4. **Local atmosphere constant** — FLTLOADS' own speed-of-sound constant (518.688
+   vs the shared `standard_atmosphere`'s 518.4) is replicated locally for oracle
+   fidelity near the Mach cap; documented in the module.
+
+---
+
 ## Tooling & documentation standard (complete)
 
 **Objective.** Bring the project's tooling and documentation standard in line

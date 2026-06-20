@@ -1,5 +1,5 @@
 {
-  "schema_version": 3,
+  "schema_version": 4,
   "name": "Concept commuter twin (>12,500 lb, category C)",
   "weight": {
     "estimation": {
@@ -13,19 +13,97 @@
       "engine_weight_type": "TP"
     },
     "items": [
-      {"name": "Wing", "weight_lb": 1800.0, "x": 250.0, "z": 70.0, "kind": "empty"},
-      {"name": "Fuselage structure", "weight_lb": 1700.0, "x": 280.0, "z": 70.0, "kind": "empty"},
-      {"name": "Tail", "weight_lb": 400.0, "x": 560.0, "z": 90.0, "kind": "empty"},
-      {"name": "Landing gear", "weight_lb": 900.0, "x": 260.0, "z": 30.0, "kind": "empty"},
-      {"name": "Engines (2)", "weight_lb": 2400.0, "x": 240.0, "z": 75.0, "kind": "empty"},
-      {"name": "Systems", "weight_lb": 1200.0, "x": 200.0, "z": 70.0, "kind": "empty"},
-      {"name": "Furnishings", "weight_lb": 600.0, "x": 300.0, "z": 70.0, "kind": "empty"},
-      {"name": "Pilot", "weight_lb": 200.0, "x": 120.0, "z": 80.0, "kind": "minimum"},
-      {"name": "Copilot", "weight_lb": 200.0, "x": 120.0, "z": 80.0, "kind": "minimum"},
-      {"name": "Reserve fuel", "weight_lb": 300.0, "x": 250.0, "z": 65.0, "kind": "minimum"},
-      {"name": "Passengers", "weight_lb": 2400.0, "x": 300.0, "z": 80.0, "kind": "discretionary"},
-      {"name": "Baggage", "weight_lb": 400.0, "x": 420.0, "z": 70.0, "kind": "discretionary"},
-      {"name": "Fuel to gross", "weight_lb": 5500.0, "x": 250.0, "z": 65.0, "kind": "discretionary"}
+      {
+        "name": "Wing",
+        "weight_lb": 1800.0,
+        "x": 250.0,
+        "z": 70.0,
+        "kind": "empty"
+      },
+      {
+        "name": "Fuselage structure",
+        "weight_lb": 1700.0,
+        "x": 280.0,
+        "z": 70.0,
+        "kind": "empty"
+      },
+      {
+        "name": "Tail",
+        "weight_lb": 400.0,
+        "x": 560.0,
+        "z": 90.0,
+        "kind": "empty"
+      },
+      {
+        "name": "Landing gear",
+        "weight_lb": 900.0,
+        "x": 260.0,
+        "z": 30.0,
+        "kind": "empty"
+      },
+      {
+        "name": "Engines (2)",
+        "weight_lb": 2400.0,
+        "x": 240.0,
+        "z": 75.0,
+        "kind": "empty"
+      },
+      {
+        "name": "Systems",
+        "weight_lb": 1200.0,
+        "x": 200.0,
+        "z": 70.0,
+        "kind": "empty"
+      },
+      {
+        "name": "Furnishings",
+        "weight_lb": 600.0,
+        "x": 300.0,
+        "z": 70.0,
+        "kind": "empty"
+      },
+      {
+        "name": "Pilot",
+        "weight_lb": 200.0,
+        "x": 120.0,
+        "z": 80.0,
+        "kind": "minimum"
+      },
+      {
+        "name": "Copilot",
+        "weight_lb": 200.0,
+        "x": 120.0,
+        "z": 80.0,
+        "kind": "minimum"
+      },
+      {
+        "name": "Reserve fuel",
+        "weight_lb": 300.0,
+        "x": 250.0,
+        "z": 65.0,
+        "kind": "minimum"
+      },
+      {
+        "name": "Passengers",
+        "weight_lb": 2400.0,
+        "x": 300.0,
+        "z": 80.0,
+        "kind": "discretionary"
+      },
+      {
+        "name": "Baggage",
+        "weight_lb": 400.0,
+        "x": 420.0,
+        "z": 70.0,
+        "kind": "discretionary"
+      },
+      {
+        "name": "Fuel to gross",
+        "weight_lb": 5500.0,
+        "x": 250.0,
+        "z": 65.0,
+        "kind": "discretionary"
+      }
     ]
   },
   "speeds": {
@@ -47,8 +125,26 @@
         "name": "wing",
         "symmetric": true,
         "elements": 20,
-        "leading_edge": [[200, 0], [240, 301]],
-        "trailing_edge": [[290, 0], [285, 301]]
+        "leading_edge": [
+          [
+            200,
+            0
+          ],
+          [
+            240,
+            301
+          ]
+        ],
+        "trailing_edge": [
+          [
+            290,
+            0
+          ],
+          [
+            285,
+            301
+          ]
+        ]
       }
     ]
   },
@@ -61,6 +157,55 @@
         "tip_ratio": 0.0,
         "twist": [],
         "target_cl": 1.2
+      }
+    ]
+  },
+  "flight_loads": {
+    "mac": 92.0,
+    "wing_area_sqft": 280.0,
+    "xw": 205.0,
+    "zw": 100.0,
+    "xtc": 610.0,
+    "xtf": 620.0,
+    "mn": 0.1,
+    "altitudes_ft": [
+      0.0
+    ],
+    "configurations": [
+      {
+        "name": "CRUISE",
+        "stall_cl": 1.6,
+        "neg_stall_cl": -0.8,
+        "lift": [
+          0.3,
+          0.08,
+          0,
+          0,
+          0
+        ],
+        "drag": [
+          0.025,
+          0,
+          0.05,
+          0,
+          0
+        ],
+        "moment": [
+          -0.02,
+          0.004,
+          0,
+          0,
+          0
+        ],
+        "flaps_down": false
+      }
+    ],
+    "cg_cases": [
+      {
+        "name": "CGfwd",
+        "weight_lb": 18000,
+        "xcg": 205.0,
+        "zcg": 100.0
       }
     ]
   }

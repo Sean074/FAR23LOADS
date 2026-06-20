@@ -1,6 +1,6 @@
 {
-  "schema_version": 3,
-  "name": "GA 6-place single (Appendix A) — Continental IO-520-BB",
+  "schema_version": 4,
+  "name": "GA 6-place single (Appendix A) \u2014 Continental IO-520-BB",
   "engine_layout": "1N",
   "engines": [
     {
@@ -9,13 +9,21 @@
       "engine_type": "R",
       "limit_load_factor": 3.8,
       "engine_weight_lb": 505,
-      "engine_cg": [22.0, 0.0, -10.0],
+      "engine_cg": [
+        22.0,
+        0.0,
+        -10.0
+      ],
       "prop_weight_lb": 74,
       "prop_diameter_in": 84,
       "prop_blades": 3,
       "takeoff_rpm": 2700,
       "max_cont_rpm": 2500,
-      "prop_cg": [-10.0, 0.0, 93.022],
+      "prop_cg": [
+        -10.0,
+        0.0,
+        93.022
+      ],
       "takeoff_hp": 285,
       "max_cont_hp": 265,
       "cylinders": 6
@@ -33,30 +41,204 @@
       "engine_weight_type": "RF"
     },
     "items": [
-      {"name": "Wing, outboard", "weight_lb": 330.0, "x": 97.87, "z": 87.73, "ixx": 4444110, "iyy": 133485, "izz": 4444110, "kind": "empty"},
-      {"name": "Horiz tail", "weight_lb": 42.0, "x": 270.36, "z": 111.0, "kind": "empty"},
-      {"name": "Vert tail", "weight_lb": 23.0, "x": 276.93, "z": 137.76, "kind": "empty"},
-      {"name": "Main gear wheel", "weight_lb": 45.0, "x": 97.0, "z": 69.0, "kind": "empty"},
-      {"name": "Main gear structure", "weight_lb": 110.0, "x": 97.0, "z": 78.0, "kind": "empty"},
-      {"name": "Nose gear wheel", "weight_lb": 9.0, "x": 1.0, "z": 52.0, "kind": "empty"},
-      {"name": "Nose gear structure", "weight_lb": 40.0, "x": 1.0, "z": 65.0, "kind": "empty"},
-      {"name": "Flight control", "weight_lb": 57.0, "x": 123.0, "z": 105.0, "kind": "empty"},
-      {"name": "Nacelle", "weight_lb": 62.0, "x": 21.0, "z": 92.0, "kind": "empty"},
-      {"name": "Engine install", "weight_lb": 505.0, "x": 22.0, "z": 92.0, "ixx": 52604, "iyy": 81473, "izz": 81473, "kind": "empty"},
-      {"name": "Propeller", "weight_lb": 74.0, "x": -10.0, "z": 100.0, "kind": "empty"},
-      {"name": "Systems", "weight_lb": 88.0, "x": 60.0, "z": 100.0, "kind": "empty"},
-      {"name": "Furnishings", "weight_lb": 175.0, "x": 105.0, "z": 100.0, "kind": "empty"},
-      {"name": "Unusable fuel", "weight_lb": 12.0, "x": 73.0, "z": 80.0, "kind": "empty"},
-      {"name": "Fuselage structure", "weight_lb": 250.0, "x": 99.0, "z": 80.0, "iyy": 1131020, "izz": 1131020, "kind": "empty"},
-      {"name": "Pilot", "weight_lb": 170.0, "x": 75.0, "z": 100.0, "ixx": 28730, "iyy": 24480, "izz": 4250, "kind": "minimum"},
-      {"name": "30 min fuel", "weight_lb": 71.0, "x": 70.0, "z": 82.0, "ixx": 86975, "izz": 86975, "kind": "minimum"},
-      {"name": "Copilot", "weight_lb": 170.0, "x": 75.0, "z": 100.0, "ixx": 28730, "iyy": 24480, "izz": 4250, "kind": "discretionary"},
-      {"name": "3rd person", "weight_lb": 170.0, "x": 111.0, "z": 100.0, "ixx": 28730, "iyy": 24480, "izz": 4250, "kind": "discretionary"},
-      {"name": "4th person", "weight_lb": 170.0, "x": 111.0, "z": 100.0, "ixx": 28730, "iyy": 24480, "izz": 4250, "kind": "discretionary"},
-      {"name": "5th person", "weight_lb": 170.0, "x": 150.0, "z": 100.0, "ixx": 28730, "iyy": 24480, "izz": 4250, "kind": "discretionary"},
-      {"name": "6th person", "weight_lb": 170.0, "x": 150.0, "z": 100.0, "ixx": 28730, "iyy": 24480, "izz": 4250, "kind": "discretionary"},
-      {"name": "Fuel to gross wt", "weight_lb": 409.0, "x": 70.0, "z": 87.0, "ixx": 501025, "izz": 501025, "kind": "discretionary"},
-      {"name": "Ballast", "weight_lb": 78.0, "x": 103.7, "z": 90.0, "kind": "discretionary"}
+      {
+        "name": "Wing, outboard",
+        "weight_lb": 330.0,
+        "x": 97.87,
+        "z": 87.73,
+        "ixx": 4444110,
+        "iyy": 133485,
+        "izz": 4444110,
+        "kind": "empty"
+      },
+      {
+        "name": "Horiz tail",
+        "weight_lb": 42.0,
+        "x": 270.36,
+        "z": 111.0,
+        "kind": "empty"
+      },
+      {
+        "name": "Vert tail",
+        "weight_lb": 23.0,
+        "x": 276.93,
+        "z": 137.76,
+        "kind": "empty"
+      },
+      {
+        "name": "Main gear wheel",
+        "weight_lb": 45.0,
+        "x": 97.0,
+        "z": 69.0,
+        "kind": "empty"
+      },
+      {
+        "name": "Main gear structure",
+        "weight_lb": 110.0,
+        "x": 97.0,
+        "z": 78.0,
+        "kind": "empty"
+      },
+      {
+        "name": "Nose gear wheel",
+        "weight_lb": 9.0,
+        "x": 1.0,
+        "z": 52.0,
+        "kind": "empty"
+      },
+      {
+        "name": "Nose gear structure",
+        "weight_lb": 40.0,
+        "x": 1.0,
+        "z": 65.0,
+        "kind": "empty"
+      },
+      {
+        "name": "Flight control",
+        "weight_lb": 57.0,
+        "x": 123.0,
+        "z": 105.0,
+        "kind": "empty"
+      },
+      {
+        "name": "Nacelle",
+        "weight_lb": 62.0,
+        "x": 21.0,
+        "z": 92.0,
+        "kind": "empty"
+      },
+      {
+        "name": "Engine install",
+        "weight_lb": 505.0,
+        "x": 22.0,
+        "z": 92.0,
+        "ixx": 52604,
+        "iyy": 81473,
+        "izz": 81473,
+        "kind": "empty"
+      },
+      {
+        "name": "Propeller",
+        "weight_lb": 74.0,
+        "x": -10.0,
+        "z": 100.0,
+        "kind": "empty"
+      },
+      {
+        "name": "Systems",
+        "weight_lb": 88.0,
+        "x": 60.0,
+        "z": 100.0,
+        "kind": "empty"
+      },
+      {
+        "name": "Furnishings",
+        "weight_lb": 175.0,
+        "x": 105.0,
+        "z": 100.0,
+        "kind": "empty"
+      },
+      {
+        "name": "Unusable fuel",
+        "weight_lb": 12.0,
+        "x": 73.0,
+        "z": 80.0,
+        "kind": "empty"
+      },
+      {
+        "name": "Fuselage structure",
+        "weight_lb": 250.0,
+        "x": 99.0,
+        "z": 80.0,
+        "iyy": 1131020,
+        "izz": 1131020,
+        "kind": "empty"
+      },
+      {
+        "name": "Pilot",
+        "weight_lb": 170.0,
+        "x": 75.0,
+        "z": 100.0,
+        "ixx": 28730,
+        "iyy": 24480,
+        "izz": 4250,
+        "kind": "minimum"
+      },
+      {
+        "name": "30 min fuel",
+        "weight_lb": 71.0,
+        "x": 70.0,
+        "z": 82.0,
+        "ixx": 86975,
+        "izz": 86975,
+        "kind": "minimum"
+      },
+      {
+        "name": "Copilot",
+        "weight_lb": 170.0,
+        "x": 75.0,
+        "z": 100.0,
+        "ixx": 28730,
+        "iyy": 24480,
+        "izz": 4250,
+        "kind": "discretionary"
+      },
+      {
+        "name": "3rd person",
+        "weight_lb": 170.0,
+        "x": 111.0,
+        "z": 100.0,
+        "ixx": 28730,
+        "iyy": 24480,
+        "izz": 4250,
+        "kind": "discretionary"
+      },
+      {
+        "name": "4th person",
+        "weight_lb": 170.0,
+        "x": 111.0,
+        "z": 100.0,
+        "ixx": 28730,
+        "iyy": 24480,
+        "izz": 4250,
+        "kind": "discretionary"
+      },
+      {
+        "name": "5th person",
+        "weight_lb": 170.0,
+        "x": 150.0,
+        "z": 100.0,
+        "ixx": 28730,
+        "iyy": 24480,
+        "izz": 4250,
+        "kind": "discretionary"
+      },
+      {
+        "name": "6th person",
+        "weight_lb": 170.0,
+        "x": 150.0,
+        "z": 100.0,
+        "ixx": 28730,
+        "iyy": 24480,
+        "izz": 4250,
+        "kind": "discretionary"
+      },
+      {
+        "name": "Fuel to gross wt",
+        "weight_lb": 409.0,
+        "x": 70.0,
+        "z": 87.0,
+        "ixx": 501025,
+        "izz": 501025,
+        "kind": "discretionary"
+      },
+      {
+        "name": "Ballast",
+        "weight_lb": 78.0,
+        "x": 103.7,
+        "z": 90.0,
+        "kind": "discretionary"
+      }
     ],
     "envelope": {
       "gross_weight": 3400,
@@ -73,15 +255,59 @@
         "name": "wing",
         "symmetric": true,
         "elements": 20,
-        "leading_edge": [[45, 0], [64.31301, 46.5], [72, 201]],
-        "trailing_edge": [[146, 0], [116, 201]]
+        "leading_edge": [
+          [
+            45,
+            0
+          ],
+          [
+            64.31301,
+            46.5
+          ],
+          [
+            72,
+            201
+          ]
+        ],
+        "trailing_edge": [
+          [
+            146,
+            0
+          ],
+          [
+            116,
+            201
+          ]
+        ]
       },
       {
         "name": "aileron",
         "symmetric": false,
         "elements": 20,
-        "leading_edge": [[116.38, 109], [107.744, 190]],
-        "trailing_edge": [[116.38, 109], [129.522, 110.401], [117.642, 190]]
+        "leading_edge": [
+          [
+            116.38,
+            109
+          ],
+          [
+            107.744,
+            190
+          ]
+        ],
+        "trailing_edge": [
+          [
+            116.38,
+            109
+          ],
+          [
+            129.522,
+            110.401
+          ],
+          [
+            117.642,
+            190
+          ]
+        ]
       }
     ]
   },
@@ -110,8 +336,92 @@
         "section_slope": 0.1075,
         "taper_ratio": 0.4356,
         "tip_ratio": 0.0,
-        "twist": [[0, 5], [46.5, 4.577], [109.279, 4.028], [201, 1.9]],
+        "twist": [
+          [
+            0,
+            5
+          ],
+          [
+            46.5,
+            4.577
+          ],
+          [
+            109.279,
+            4.028
+          ],
+          [
+            201,
+            1.9
+          ]
+        ],
         "target_cl": 1.0
+      }
+    ]
+  },
+  "flight_loads": {
+    "mac": 69.246,
+    "wing_area_sqft": 184.125,
+    "xw": 80.953,
+    "zw": 87.725,
+    "xtc": 253.364,
+    "xtf": 261.027,
+    "mn": 0.1,
+    "altitudes_ft": [
+      0.0
+    ],
+    "configurations": [
+      {
+        "name": "CRUISE",
+        "stall_cl": 1.41,
+        "neg_stall_cl": -0.59,
+        "lift": [
+          0.320479,
+          0.080358,
+          0,
+          0,
+          0
+        ],
+        "drag": [
+          0.026917,
+          0,
+          0.053647,
+          0,
+          0
+        ],
+        "moment": [
+          -0.017328,
+          0.004128,
+          0,
+          0,
+          0
+        ],
+        "flaps_down": false
+      }
+    ],
+    "cg_cases": [
+      {
+        "name": "CG1",
+        "weight_lb": 3400,
+        "xcg": 85.1,
+        "zcg": 93
+      },
+      {
+        "name": "CG2",
+        "weight_lb": 3400,
+        "xcg": 77.49,
+        "zcg": 93
+      },
+      {
+        "name": "CG3",
+        "weight_lb": 2800,
+        "xcg": 72.64,
+        "zcg": 92
+      },
+      {
+        "name": "CG4",
+        "weight_lb": 2063,
+        "xcg": 73.09,
+        "zcg": 90.73001
       }
     ]
   }

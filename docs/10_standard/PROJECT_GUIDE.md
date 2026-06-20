@@ -93,7 +93,7 @@ escape hatch.
 ### Flight envelope & load selection
 | Program | Purpose | Status |
 |---------|---------|--------|
-| `FLTLOADS` | V-n (flight envelope) diagram data **+ balancing tail loads** (approx CP) | planned |
+| `FLTLOADS` | V-n (flight envelope) diagram data **+ balancing tail loads** (approx CP) | **done** (C2; cruise corner set) |
 | `SELECT` | Search/compute critical flight loads — wing, rational horizontal & vertical tail, fuselage | planned |
 | `BALLOADS` (utility) | Verify rational balanced-tail-load CP; `BALLOADS.BAS`, off-pipeline | planned |
 
