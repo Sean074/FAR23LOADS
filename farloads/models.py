@@ -488,6 +488,38 @@ class WingMassInput:
 
 
 # --------------------------------------------------------------------------- #
+# Fuselage mass distribution (SELECT / fuselage net loads) -- Project.fuselage_mass
+# --------------------------------------------------------------------------- #
+@dataclass
+class FuselageStation:
+    """One longitudinal fuselage reference station for the net-load integration.
+
+    ``x`` is the fuselage station (in); ``weight_lb`` the lumped mass carried at
+    that station (structure + fixed equipment + the payload apportioned to the
+    body). The body inertia distribution for the fuselage net loads is built from
+    these stations.
+    """
+    x: float
+    weight_lb: float = 0.0
+
+
+@dataclass
+class FuselageMassInput:
+    """Inputs for the fuselage net-load distribution (SELECT / Ref 1 Ch 15).
+
+    The fuselage longitudinal mass distribution (``stations``, nose-to-tail) carried
+    along the body axis at waterline ``ref_waterline``. The applied external loads
+    (balancing tail load, wing reaction, gear) are taken from ``Project.envelope``
+    and ``Project.configuration``/``geometry`` at integration time, not stored here.
+    A modern default (lumped per-station masses) with no manual precedent, fully
+    user-overridable -- mirrors the C3 ``WingMassInput`` modelling note (a documented
+    default that the user can override).
+    """
+    stations: List[FuselageStation] = field(default_factory=list)
+    ref_waterline: float = 0.0
+
+
+# --------------------------------------------------------------------------- #
 # General configuration & layout (modern addition) -- Project.configuration
 # --------------------------------------------------------------------------- #
 @dataclass
@@ -576,6 +608,45 @@ class ModuleResult:
 
 
 # --------------------------------------------------------------------------- #
+# Mass-properties results (WTONECG) -- the Project.mass slice
+# --------------------------------------------------------------------------- #
+@dataclass
+class MassCase:
+    """Weight, CG and inertia for one loading (one WTONECG result).
+
+    The persisted form of WTONECG's per-loading output: total ``weight_lb`` at the
+    CG (``cg_x``/``cg_y``/``cg_z``, in) with the moments and product of inertia
+    about that CG in **lb-in^2** (the weight-database unit; convert to slug-ft^2 by
+    dividing by ``constants.LBIN2_PER_SLUGFT2``). ``name`` labels the loading
+    (e.g. "aft gross", "fwd gross", "min weight"); ``gear_down`` distinguishes the
+    gear-up/down pair for retractable gear.
+    """
+    name: str
+    weight_lb: float = 0.0
+    cg_x: float = 0.0
+    cg_y: float = 0.0
+    cg_z: float = 0.0
+    ixx: float = 0.0
+    iyy: float = 0.0
+    izz: float = 0.0
+    ixz: float = 0.0
+    gear_down: bool = True
+
+
+@dataclass
+class MassResult:
+    """The persisted mass-properties slice (``Project.mass``), written by WTONECG.
+
+    Carries the weight/CG/inertia of each structural-limit loading (up to the four
+    CG cases x gear up/down). SELECT reads the inertia for the maneuver/gust
+    balancing and unbalanced-load conditions; FLTLOADS/LANDLOAD read weight & CG.
+    Introduced in Step C6 -- the point at which a consumer (SELECT) finally needs
+    the long-deferred persisted ``Project.mass`` (see the WTONECG note in
+    ``PROGRAM_SPEC.md``)."""
+    cases: List[MassCase] = field(default_factory=list)
+
+
+# --------------------------------------------------------------------------- #
 # Flight-envelope results (FLTLOADS) -- the Project.envelope slice
 # --------------------------------------------------------------------------- #
 @dataclass
@@ -621,12 +692,45 @@ class TailBalanceLoad:
 
 
 @dataclass
+class CriticalCondition:
+    """One governing (critical) load condition selected/computed by SELECT (Ch 9).
+
+    SELECT scans the FLTLOADS V-n matrix (plus inertia and geometry) and, per
+    component, computes the rational critical loads and names the governing point.
+    ``component`` is "wing" / "htail" / "vtail" / "fuselage"; ``label`` is the FAR
+    condition tag (wing PHAA/PMAA/PLAA/NMAA; h-tail balancing/maneuver/gust/
+    unsymmetrical; v-tail 23.441/23.443; fuselage 23.301/23.331/23.351/23.471).
+    ``case`` references the source :class:`VnPoint` in ``Project.envelope.vn`` (or
+    ``None`` for a derived condition); ``far_reference`` cites the regulation.
+    ``loads`` carries the governing scalar quantities (n, CL, V, tail load, shear,
+    bending, ...) as labelled :class:`LoadValue`s so report/units render unchanged.
+    """
+    component: str
+    label: str
+    far_reference: str = ""
+    case: Optional[int] = None
+    loads: List[LoadValue] = field(default_factory=list)
+
+
+@dataclass
+class CriticalLoadSet:
+    """The governing critical-load set per component (SELECT -> ``envelope.critical``).
+
+    One :class:`CriticalCondition` per (component, FAR condition). Read by AIRLOADS/
+    AIRLOAD4 (iterative -- SELECT names the conditions they evaluate), WINGINER and
+    TAILDIST (the ownership table in ``PROGRAM_SPEC.md``)."""
+    conditions: List[CriticalCondition] = field(default_factory=list)
+
+
+@dataclass
 class EnvelopeResult:
     """The persisted flight-envelope slice written by FLTLOADS (read by SELECT,
     WINGINER). ``vn`` is the full balanced-condition matrix; ``tail_balance`` is
-    the balancing tail load per point. ``critical`` is reserved for SELECT (C6)."""
+    the balancing tail load per point. ``critical`` is the per-component governing
+    load set SELECT (C6) computes from that matrix."""
     vn: List[VnPoint] = field(default_factory=list)
     tail_balance: List[TailBalanceLoad] = field(default_factory=list)
+    critical: Optional[CriticalLoadSet] = None
 
 
 # --------------------------------------------------------------------------- #
@@ -663,16 +767,47 @@ class WingLoadResult:
 
 
 @dataclass
+class BodyStationLoad:
+    """Net load at one longitudinal fuselage station (airplane body axes).
+
+    ``x`` fuselage station (in); per-segment applied forces ``fx`` (axial), ``fy``
+    (side), ``fz`` (vertical); cumulative shears ``sx``/``sy``/``sz``; bending
+    ``myy`` (about Y, from the vertical load), ``mzz`` (about Z, from the side
+    load) and torsion ``mxx`` (about the body X axis). Pounds and inch-pounds
+    (fuselage net distribution, Ref 1 Ch 15)."""
+    x: float
+    fx: float
+    fy: float
+    fz: float
+    sx: float
+    sy: float
+    sz: float
+    mxx: float
+    myy: float
+    mzz: float
+
+
+@dataclass
+class BodyLoadResult:
+    """One condition's longitudinal fuselage net-load table (nose-to-tail)."""
+    case: str
+    stations: List[BodyStationLoad] = field(default_factory=list)
+
+
+@dataclass
 class LoadsResult:
-    """The persisted wing distributed-loads slice (``Project.loads``).
+    """The persisted distributed-loads slice (``Project.loads``).
 
     ``wing_air`` is the AIRLOADS air-load distribution, ``wing_inertia`` the
     WINGINER inertia distribution, and ``wing_net`` their algebraic sum (NETLOADS)
-    -- the headline structural deliverable (root shear/BM/torsion). One
-    :class:`WingLoadResult` per critical condition."""
+    -- the headline wing structural deliverable (root shear/BM/torsion). One
+    :class:`WingLoadResult` per critical condition. ``body_net`` is the fuselage
+    longitudinal net-load distribution per critical condition (SELECT, C6) -- the
+    body analogue of ``wing_net``."""
     wing_air: List[WingLoadResult] = field(default_factory=list)
     wing_inertia: List[WingLoadResult] = field(default_factory=list)
     wing_net: List[WingLoadResult] = field(default_factory=list)
+    body_net: List[BodyLoadResult] = field(default_factory=list)
 
 
 # Current project-schema version. Bump when the on-disk JSON shape changes so old
@@ -685,8 +820,12 @@ class LoadsResult:
 # section profile-drag / moment tables on AeroSurfaceInput -- all additive, so
 # older files load unchanged via the from_dict defaults; v6 adds the configuration
 # & layout input slice (LayoutInput, the modern Configuration & Layout page) --
-# additive, older files load unchanged.
-SCHEMA_VERSION = 6
+# additive, older files load unchanged; v7 (Step C6) adds the persisted mass slice
+# (MassResult, WTONECG), the fuselage mass-distribution input (FuselageMassInput),
+# the SELECT critical-load set (CriticalLoadSet on EnvelopeResult.critical) and the
+# fuselage net distribution (BodyLoadResult on LoadsResult.body_net) -- all
+# additive, older files load unchanged via the from_dict defaults.
+SCHEMA_VERSION = 7
 
 
 @dataclass
@@ -713,7 +852,9 @@ class Project:
     aero: Optional[AeroInput] = None
     flight_loads: Optional[FlightLoadsInput] = None
     envelope: Optional[EnvelopeResult] = None
+    mass: Optional[MassResult] = None
     wing_mass: Optional[WingMassInput] = None
+    fuselage_mass: Optional[FuselageMassInput] = None
     loads: Optional[LoadsResult] = None
     configuration: Optional[LayoutInput] = None
 

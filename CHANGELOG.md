@@ -11,6 +11,20 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **C6 schema foundation (SELECT + fuselage/body loads).** First step of Step C6:
+  the `Project` schema additions the SELECT module and fuselage net distribution
+  build on, all additive (`SCHEMA_VERSION` bumped 6 → 7; older files load
+  unchanged). New `Project.mass` slice (`MassResult`/`MassCase`: persisted WTONECG
+  weight/CG/inertia per loading) — the long-deferred persisted mass slice, landed
+  now that SELECT needs the inertia. New `Project.fuselage_mass` input slice
+  (`FuselageMassInput`/`FuselageStation`: the fuselage longitudinal mass
+  distribution for the body net loads). New SELECT critical-load set
+  (`CriticalLoadSet`/`CriticalCondition`) on `EnvelopeResult.critical` (previously
+  reserved). New fuselage net distribution (`BodyLoadResult`/`BodyStationLoad`) on
+  `LoadsResult.body_net`, the body analogue of `wing_net`. Full `io.py` JSON
+  round-trip for every new slice; the new types are re-exported from `farloads`.
+  Validated by `tests/test_io.py::test_c6_slices_round_trip`.
+
 - **Configuration & Layout page + fleet assessment (Step C5).** New
   `Project.configuration` slice (`LayoutInput`: fuselage, parametric wing, tail
   areas/arms, landing gear) and a registered `configuration` calc module that

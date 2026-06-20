@@ -111,6 +111,54 @@ def test_configuration_round_trip():
     assert again.configuration == layout
 
 
+def test_c6_slices_round_trip():
+    # The v7 (Step C6) slices survive a dict round-trip: the persisted mass
+    # properties (WTONECG), the fuselage mass distribution, the SELECT critical
+    # set on envelope.critical, and the fuselage net distribution on loads.body_net.
+    from farloads.models import (
+        BodyLoadResult,
+        BodyStationLoad,
+        CriticalCondition,
+        CriticalLoadSet,
+        EnvelopeResult,
+        FuselageMassInput,
+        FuselageStation,
+        LoadsResult,
+        LoadValue,
+        MassCase,
+        MassResult,
+    )
+
+    mass = MassResult(cases=[
+        MassCase(name="aft gross", weight_lb=2576.0, cg_x=85.1, ixx=1.0e6, iyy=2.0e6,
+                 izz=3.0e6, ixz=1.2e4, gear_down=False),
+    ])
+    fuselage_mass = FuselageMassInput(
+        stations=[FuselageStation(x=20.0, weight_lb=140.0), FuselageStation(x=200.0)],
+        ref_waterline=12.0,
+    )
+    critical = CriticalLoadSet(conditions=[
+        CriticalCondition(component="wing", label="PHAA", far_reference="23.301",
+                          case=22, loads=[LoadValue("CL", 1.52), LoadValue("V", 117.4, "kt")]),
+        CriticalCondition(component="fuselage", label="net", far_reference="23.471"),
+    ])
+    envelope = EnvelopeResult(critical=critical)
+    loads = LoadsResult(body_net=[
+        BodyLoadResult(case="PHAA", stations=[
+            BodyStationLoad(x=20.0, fx=0.0, fy=0.0, fz=100.0, sx=0.0, sy=0.0,
+                            sz=100.0, mxx=0.0, myy=2000.0, mzz=0.0),
+        ]),
+    ])
+    project = Project(name="c6", mass=mass, fuselage_mass=fuselage_mass,
+                      envelope=envelope, loads=loads)
+    again = io.project_from_dict(io.project_to_dict(project))
+    assert again.mass == mass
+    assert again.fuselage_mass == fuselage_mass
+    assert again.envelope.critical == critical
+    assert again.loads.body_net == loads.body_net
+    assert again.schema_version == project.schema_version
+
+
 def test_legacy_flat_file_still_loads(tmp_path=None):
     # A pre-Project file is just the engine fields at top level; it must wrap.
     flat = os.path.join(EXAMPLES, "_legacy_tmp.json")

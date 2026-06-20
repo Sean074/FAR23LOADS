@@ -24,21 +24,30 @@ from .models import (
     AeroCoeffSet,
     AeroInput,
     AeroSurfaceInput,
+    BodyLoadResult,
+    BodyStationLoad,
     CgCase,
     ConcentratedWeight,
     ConditionResult,
+    CriticalCondition,
+    CriticalLoadSet,
     EngineInput,
     EngineLayout,
     EngineType,
     EngineWeightType,
     EnvelopeResult,
     FlightLoadsInput,
+    FuselageMassInput,
+    FuselageStation,
     GeometryInput,
     LayoutInput,
     LoadsResult,
+    LoadValue,
     MachLimitInput,
+    MassCase,
     MassItem,
     MassItemKind,
+    MassResult,
     ModuleResult,
     Project,
     Rotor,
@@ -317,20 +326,70 @@ def flight_loads_to_dict(inp: FlightLoadsInput) -> Dict[str, Any]:
 # --------------------------------------------------------------------------- #
 # Envelope slice <-> dict (FLTLOADS result)
 # --------------------------------------------------------------------------- #
+def _critical_condition_from_dict(d: Dict[str, Any]) -> CriticalCondition:
+    return CriticalCondition(
+        component=d.get("component", ""),
+        label=d.get("label", ""),
+        far_reference=d.get("far_reference", ""),
+        case=d.get("case"),
+        loads=[LoadValue(**dict(v)) for v in d.get("loads", []) or []],
+    )
+
+
+def _critical_from_dict(d: Dict[str, Any]) -> CriticalLoadSet:
+    return CriticalLoadSet(
+        conditions=[_critical_condition_from_dict(c) for c in d.get("conditions", []) or []],
+    )
+
+
 def envelope_from_dict(d: Dict[str, Any]) -> EnvelopeResult:
     """Build an :class:`EnvelopeResult` from a plain dict (the persisted V-n data)."""
+    critical = d.get("critical")
     return EnvelopeResult(
         vn=[VnPoint(**dict(p)) for p in d.get("vn", []) or []],
         tail_balance=[TailBalanceLoad(**dict(t)) for t in d.get("tail_balance", []) or []],
+        critical=_critical_from_dict(critical) if critical else None,
     )
 
 
 def envelope_to_dict(inp: EnvelopeResult) -> Dict[str, Any]:
     """Serialize an :class:`EnvelopeResult` to JSON-friendly primitives."""
-    return {
+    out: Dict[str, Any] = {
         "vn": [asdict(p) for p in inp.vn],
         "tail_balance": [asdict(t) for t in inp.tail_balance],
     }
+    if inp.critical is not None:
+        out["critical"] = asdict(inp.critical)
+    return out
+
+
+# --------------------------------------------------------------------------- #
+# Mass slice <-> dict (WTONECG result)
+# --------------------------------------------------------------------------- #
+def mass_from_dict(d: Dict[str, Any]) -> MassResult:
+    """Build a :class:`MassResult` from a plain dict (the persisted mass props)."""
+    return MassResult(cases=[MassCase(**dict(c)) for c in d.get("cases", []) or []])
+
+
+def mass_to_dict(inp: MassResult) -> Dict[str, Any]:
+    """Serialize a :class:`MassResult` to JSON-friendly primitives."""
+    return {"cases": [asdict(c) for c in inp.cases]}
+
+
+# --------------------------------------------------------------------------- #
+# Fuselage-mass slice <-> dict (fuselage net-load input)
+# --------------------------------------------------------------------------- #
+def fuselage_mass_from_dict(d: Dict[str, Any]) -> FuselageMassInput:
+    """Build a :class:`FuselageMassInput` from a plain dict."""
+    return FuselageMassInput(
+        stations=[FuselageStation(**dict(s)) for s in d.get("stations", []) or []],
+        ref_waterline=d.get("ref_waterline", 0.0),
+    )
+
+
+def fuselage_mass_to_dict(inp: FuselageMassInput) -> Dict[str, Any]:
+    """Serialize a :class:`FuselageMassInput` to JSON-friendly primitives."""
+    return asdict(inp)
 
 
 # --------------------------------------------------------------------------- #
@@ -368,12 +427,20 @@ def _wing_load_result_from_dict(d: Dict[str, Any]) -> WingLoadResult:
     )
 
 
+def _body_load_result_from_dict(d: Dict[str, Any]) -> BodyLoadResult:
+    return BodyLoadResult(
+        case=d.get("case", ""),
+        stations=[BodyStationLoad(**dict(s)) for s in d.get("stations", []) or []],
+    )
+
+
 def loads_from_dict(d: Dict[str, Any]) -> LoadsResult:
-    """Build a :class:`LoadsResult` from a plain dict (the persisted wing loads)."""
+    """Build a :class:`LoadsResult` from a plain dict (the persisted loads)."""
     return LoadsResult(
         wing_air=[_wing_load_result_from_dict(r) for r in d.get("wing_air", []) or []],
         wing_inertia=[_wing_load_result_from_dict(r) for r in d.get("wing_inertia", []) or []],
         wing_net=[_wing_load_result_from_dict(r) for r in d.get("wing_net", []) or []],
+        body_net=[_body_load_result_from_dict(r) for r in d.get("body_net", []) or []],
     )
 
 
@@ -383,6 +450,7 @@ def loads_to_dict(inp: LoadsResult) -> Dict[str, Any]:
         "wing_air": [asdict(r) for r in inp.wing_air],
         "wing_inertia": [asdict(r) for r in inp.wing_inertia],
         "wing_net": [asdict(r) for r in inp.wing_net],
+        "body_net": [asdict(r) for r in inp.body_net],
     }
 
 
@@ -417,7 +485,8 @@ def project_from_dict(d: Dict[str, Any]) -> Project:
     if (
         "engines" in d or "engine" in d or "weight" in d or "geometry" in d
         or "speeds" in d or "aero" in d or "flight_loads" in d or "envelope" in d
-        or "wing_mass" in d or "loads" in d or "configuration" in d
+        or "mass" in d or "wing_mass" in d or "fuselage_mass" in d
+        or "loads" in d or "configuration" in d
         or "schema_version" in d or "name" in d
     ):
         weight = d.get("weight")
@@ -426,7 +495,9 @@ def project_from_dict(d: Dict[str, Any]) -> Project:
         aero = d.get("aero")
         flight_loads = d.get("flight_loads")
         envelope = d.get("envelope")
+        mass = d.get("mass")
         wing_mass = d.get("wing_mass")
+        fuselage_mass = d.get("fuselage_mass")
         loads = d.get("loads")
         configuration = d.get("configuration")
         engines, layout = _engines_from_dict(d)
@@ -441,7 +512,9 @@ def project_from_dict(d: Dict[str, Any]) -> Project:
             aero=aero_from_dict(aero) if aero else None,
             flight_loads=flight_loads_from_dict(flight_loads) if flight_loads else None,
             envelope=envelope_from_dict(envelope) if envelope else None,
+            mass=mass_from_dict(mass) if mass else None,
             wing_mass=wing_mass_from_dict(wing_mass) if wing_mass else None,
+            fuselage_mass=fuselage_mass_from_dict(fuselage_mass) if fuselage_mass else None,
             loads=loads_from_dict(loads) if loads else None,
             configuration=configuration_from_dict(configuration) if configuration else None,
         )
@@ -484,8 +557,12 @@ def project_to_dict(project: Project) -> Dict[str, Any]:
         out["flight_loads"] = flight_loads_to_dict(project.flight_loads)
     if project.envelope is not None:
         out["envelope"] = envelope_to_dict(project.envelope)
+    if project.mass is not None:
+        out["mass"] = mass_to_dict(project.mass)
     if project.wing_mass is not None:
         out["wing_mass"] = wing_mass_to_dict(project.wing_mass)
+    if project.fuselage_mass is not None:
+        out["fuselage_mass"] = fuselage_mass_to_dict(project.fuselage_mass)
     if project.loads is not None:
         out["loads"] = loads_to_dict(project.loads)
     if project.configuration is not None:
