@@ -44,6 +44,8 @@ from .models import (
     FuselageMassInput,
     FuselageStation,
     GeometryInput,
+    LandingGearInput,
+    LandingInput,
     SelectInput,
     TabLoadsInput,
     TabSpec,
@@ -463,6 +465,38 @@ def one_engine_out_to_dict(inp: OneEngineOutInput) -> Dict[str, Any]:
 
 
 # --------------------------------------------------------------------------- #
+# Landing / ground-load input slice <-> dict (LGFACTOR + LANDLOAD)
+# --------------------------------------------------------------------------- #
+def _gear_from_dict(d: Dict[str, Any]) -> LandingGearInput:
+    fields = {f for f in LandingGearInput.__dataclass_fields__}
+    kw = {k: v for k, v in d.items() if k in fields}
+    for axle in ("axle_compressed", "axle_static", "axle_extended"):
+        if axle in kw and kw[axle] is not None:
+            kw[axle] = tuple(kw[axle])
+    return LandingGearInput(**kw)
+
+
+def landing_from_dict(d: Dict[str, Any]) -> LandingInput:
+    """Build a :class:`LandingInput` from a plain dict (nested gear + CG cases)."""
+    fields = {f for f in LandingInput.__dataclass_fields__}
+    kw = {k: v for k, v in d.items() if k in fields and k not in
+          ("main_gear", "nose_gear", "cg_cases")}
+    if d.get("main_gear"):
+        kw["main_gear"] = _gear_from_dict(d["main_gear"])
+    if d.get("nose_gear"):
+        kw["nose_gear"] = _gear_from_dict(d["nose_gear"])
+    cg_fields = {f for f in CgCase.__dataclass_fields__}
+    kw["cg_cases"] = [CgCase(**{k: v for k, v in c.items() if k in cg_fields})
+                      for c in d.get("cg_cases", []) or []]
+    return LandingInput(**kw)
+
+
+def landing_to_dict(inp: LandingInput) -> Dict[str, Any]:
+    """Serialize a :class:`LandingInput` to JSON-friendly primitives."""
+    return asdict(inp)
+
+
+# --------------------------------------------------------------------------- #
 # Control-surface load input slices <-> dict (AILERON / FLAPLOAD / TABLOADS)
 # --------------------------------------------------------------------------- #
 def aileron_loads_from_dict(d: Dict[str, Any]) -> AileronLoadsInput:
@@ -621,8 +655,8 @@ def project_from_dict(d: Dict[str, Any]) -> Project:
         or "mass" in d or "wing_mass" in d or "fuselage_mass" in d
         or "select_input" in d or "tail_loads" in d or "vtail_loads" in d
         or "aileron_loads" in d or "flap_loads" in d or "tab_loads" in d
-        or "one_engine_out" in d or "loads" in d or "configuration" in d
-        or "schema_version" in d or "name" in d
+        or "one_engine_out" in d or "landing" in d or "loads" in d
+        or "configuration" in d or "schema_version" in d or "name" in d
     ):
         weight = d.get("weight")
         geometry = d.get("geometry")
@@ -640,6 +674,7 @@ def project_from_dict(d: Dict[str, Any]) -> Project:
         flap_loads = d.get("flap_loads")
         tab_loads = d.get("tab_loads")
         one_engine_out = d.get("one_engine_out")
+        landing = d.get("landing")
         loads = d.get("loads")
         configuration = d.get("configuration")
         engines, layout = _engines_from_dict(d)
@@ -664,6 +699,7 @@ def project_from_dict(d: Dict[str, Any]) -> Project:
             flap_loads=flap_loads_from_dict(flap_loads) if flap_loads else None,
             tab_loads=tab_loads_from_dict(tab_loads) if tab_loads else None,
             one_engine_out=one_engine_out_from_dict(one_engine_out) if one_engine_out else None,
+            landing=landing_from_dict(landing) if landing else None,
             loads=loads_from_dict(loads) if loads else None,
             configuration=configuration_from_dict(configuration) if configuration else None,
         )
@@ -726,6 +762,8 @@ def project_to_dict(project: Project) -> Dict[str, Any]:
         out["tab_loads"] = tab_loads_to_dict(project.tab_loads)
     if project.one_engine_out is not None:
         out["one_engine_out"] = one_engine_out_to_dict(project.one_engine_out)
+    if project.landing is not None:
+        out["landing"] = landing_to_dict(project.landing)
     if project.loads is not None:
         out["loads"] = loads_to_dict(project.loads)
     if project.configuration is not None:

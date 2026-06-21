@@ -272,21 +272,21 @@ directly; a module never recomputes another module's owned quantity.
 - **Validation:** **sub-formula exactness** vs `ONENGOUT.BAS` (thrust, windmill drag, AVT, EFFECTV, EF, density ratio) + integration/physics closure (recovery, yaw-rate peak, time-step convergence) + refactor-parity with SELECT. The printed **Appendix B twin oracle is unavailable** — Appendix B is absent from the bundled `reference/FAR23 loads (1).pdf` (only the Appendix A GA single is present) and the FAA User's Guide Ch 22 gives partial inputs/no outputs; recorded as a deferred item.
 - **Notes:** First module to exercise the first-class multi-engine `Project`. The recovered EF chart (ONENGOUT.BAS subr 10000) is now in `_vtail.large_deflection_factor`; wiring it into SELECT's static v-tail loads (replacing `rudder_large_deflection_factor=1.0`) is a deferred mini-step.
 
-### LGFACTOR — Landing load factor
+### LGFACTOR — Landing load factor ✅ (Step C10)
 - **FAR §:** 23.473 (ground load conditions), 23.725 (drop test).
-- **Source:** `LGFACTOR.BAS`.
-- **Reads:** `Project.weight`, gear/tire/strut data, descent velocity.
-- **Writes:** estimated landing load factor n → `Project.landing.n`.
-- **Validation:** Appendix A/B `LGFACTOR.OUT`.
-- **Notes:** Feeds LANDLOAD.
+- **Source:** `LGFACTOR.BAS` (Appendix C p483). Module `modules/landing.py`.
+- **Reads:** `Project.landing` (wing area / landing weight / strut stroke / tyre OD & hub / lift factor / strut type); wing area falls back to the `Project.geometry` wing.
+- **Writes:** estimated landing load factor N → `Project.landing.n` (gear factor NLG = N − L).
+- **Validation:** Appendix A `LGFACTOR.OUT` p236 (V 9.0048 / N 3.0951 / NLG 2.4281) within ±0.1%.
+- **Notes:** Feeds LANDLOAD. `V = 4.4·(W/S)^0.25` clamped 7–10 fps; energy efficiencies 0.3 tyre / 0.5 spring / 0.75 oleo.
 
-### LANDLOAD — Landing loads
-- **FAR §:** 23.473–23.511 (ground loads: level, tail-down, one-wheel, side, braked).
-- **Source:** Ch 20, `LANDLOAD.BAS`.
-- **Reads:** `Project.landing.n` (LGFACTOR) and `Project.mass` (WTONECG weight/CG) — the two module inputs per UG Table 2.2; plus `Project.geometry` (gear geometry).
-- **Writes:** landing-gear reaction loads for each ground condition → CSV.
-- **Validation:** Appendix A/B `LANDLOAD.OUT`.
-- **Notes:** **Tricycle gear only** (UG Table 2.1: "Landing loads for tricycle gear").
+### LANDLOAD — Landing loads ✅ (Step C10)
+- **FAR §:** 23.473–23.499 (ground loads: level, tail-down, one-wheel, side, braked, supplementary nose wheel).
+- **Source:** Ch 20, `LANDLOAD.BAS` (Appendix C p468). Module `modules/landing.py`.
+- **Reads:** `Project.landing` — the **landing-gear strut geometry** (3 deflection states, rolling radii, tread, tail-down angle, gear load factor) and the LGFACTOR result; the per-CG weight & CG from `Project.landing.cg_cases` else derived from `Project.mass` (WTONECG). The gear geometry has **no home in `Project.geometry`** (that slice is aerodynamic surfaces), so it lives in the dedicated `Project.landing` slice.
+- **Writes:** the 24 main-wheel + 33 nose-wheel reaction loads for each ground condition (ground-line and airplane-datum) → `ModuleResult` / CSV.
+- **Validation:** Appendix A `LANDLOAD.OUT` p230 — the **gear-geometry intermediates oracle-locked** (K 0.324, GAMMA 17.978, ground angles, BETA, the AP/BP/DP/CP lever-arm table) ±0.1%; the printed p231–233 **wheel-load table is OCR-garbled** in the bundled PDF, so the full matrix is **closure + legible-cell spot-checked** (case 1 VMP 3144 / VNP 1787 / resultant 1879; side cases VMP 2261, SMP −1700/1122) — the ONENGOUT (C9) precedent.
+- **Notes:** **Tricycle gear only** (UG Table 2.1). LANDLOAD takes the gear load factor as a rounded design input (2.5 on p230), distinct from LGFACTOR's computed 2.428.
 
 ---
 
@@ -363,7 +363,7 @@ Derived from **User's Guide Table 2.2** (the authoritative input→output map):
 | `envelope.vn / tail_balance` | FLTLOADS | SELECT, WINGINER |
 | `envelope.critical` | SELECT | AIRLOADS, AIRLOAD4, WINGINER, TAILDIST |
 | `loads.wing_inertia` | WINGINER | NETLOADS |
-| `landing.n` | LGFACTOR | LANDLOAD |
+| `landing` (gear geometry + load factor) | LGFACTOR (writes `.n`), direct gear-geometry input | LANDLOAD; reads `mass` (weight/CG), `geometry.wing` (area) |
 | `engine[]` | direct input | ENGLOADS, ONENGOUT |
 | `configuration` (`LayoutInput`: fuselage/wing/tail/gear) | configuration (modern; no `.BAS`) | seeds WINGGEOM (`geometry.wing`); reads `weight.envelope`, `engine` |
 | `loads.wing_net` (net wing load) | NETLOADS | report/CSV export; **sbeam export bridge** (FORCE/MOMENT + stick model) |
@@ -386,7 +386,7 @@ other modules consume).
 | 1 Mass | WTESTIMA, WTONECG, WTENV | 3 (WTESTIMA, WTONECG, WTENV) | 0 |
 | 2 Geometry/Speeds | WINGGEOM, STRSPEED, MACHLIM | 3 (WINGGEOM, STRSPEED, MACHLIM) | 0 |
 | 3 Aero/Envelope | TAU\*, AIRLOADS, AIRLOAD4, FLTLOADS, SELECT, BALLOADS† | 5 (TAU, AIRLOADS, AIRLOAD4, FLTLOADS, SELECT) | 1 (BALLOADS†) |
-| 4 Component loads | WINGINER, NETLOADS, AILERON, FLAPLOAD, TABLOADS, TAILDIST, ENGLOADS, ONENGOUT, LGFACTOR, LANDLOAD | 7 (ENGLOADS, WINGINER, NETLOADS, TAILDIST, AILERON, FLAPLOAD, TABLOADS) | 3 (ONENGOUT, LGFACTOR, LANDLOAD) |
+| 4 Component loads | WINGINER, NETLOADS, AILERON, FLAPLOAD, TABLOADS, TAILDIST, ENGLOADS, ONENGOUT, LGFACTOR, LANDLOAD | 10 (all) | 0 |
 | **Total** | **22** | **18** | **4** |
 
 Counts reference 1's 22 Appendix-C programs only; the **configuration** module

@@ -11,6 +11,25 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **Landing / ground loads — LGFACTOR + LANDLOAD (Step C10).** New
+  `modules/landing.py` (registers `"landing"`): the FAR Part 23 Subpart C
+  ground-load conditions (Reference 1 Ch 20). **LGFACTOR** estimates the landing
+  load factor from the FAR 23.473 drop-test work-energy balance (descent velocity
+  `V = 4.4·(W/S)^0.25` clamped 7–10 fps, tyre/strut energy efficiencies → airplane
+  load factor `N`, gear factor `NLG = N − L`). **LANDLOAD** computes the tricycle-gear
+  reaction loads (24 main-wheel + 33 nose-wheel cases) for the level, tail-down,
+  one-wheel, braked-roll, side and supplementary-nose-wheel conditions
+  (FAR 23.473–23.499) — the drag factor `K`, ground angles, `BETA`, the `AP/BP/DP/CP`
+  lever arms, per-wheel ground-line and airplane-datum reactions and the unbalanced
+  moments. New `LandingInput`/`LandingGearInput` input slice (`Project.landing`,
+  carrying the gear strut geometry that has no home in the aerodynamic
+  `Project.geometry`) and `GearReactionCase` result record; `SCHEMA_VERSION` 14 → 15
+  (additive). New `app/pages/15_Landing_Loads.py`. LGFACTOR is oracle-locked against
+  Appendix A p236 (V 9.0048 / N 3.0951 / NLG 2.4281); LANDLOAD's gear-geometry
+  intermediates are oracle-locked against p230, with the OCR-garbled printed
+  wheel-load table closure- + legible-cell-validated (the ONENGOUT precedent). 9 new
+  tests; **all 22 Reference 1 Appendix-C suite programs except the optional BALLOADS
+  utility are now ported.**
 - **One-engine-out vertical-tail loads — ONENGOUT (Step C9).** New
   `modules/one_engine_out.py` (registers `"one_engine_out"`): a time-marching yaw
   simulation of the FAR 23.367 critical-engine failure (Reference 1 Ch 11). The

@@ -770,6 +770,65 @@ class OneEngineOutInput:
 
 
 # --------------------------------------------------------------------------- #
+# Landing / ground loads (LGFACTOR + LANDLOAD) -- the Project.landing slice
+# --------------------------------------------------------------------------- #
+@dataclass
+class LandingGearInput:
+    """One landing-gear leg's strut geometry for LANDLOAD (tricycle gear only).
+
+    The axle ``(X, Z)`` fuselage-station / waterline (inches) at the three strut
+    states LANDLOAD.BAS prompts for, ordered ``[compressed, static, extended]``:
+    the 25%-compressed position (oleo) or 100%-compressed (spring), the static
+    position, and the fully extended (reference) position. ``rolling_radius_in`` is
+    the tyre rolling radius; ``strut`` is the strut type ("O" oleo / "S" spring)."""
+    axle_compressed: XYPoint = (0.0, 0.0)   # (X, Z) at 25% (oleo) / 100% (spring) deflection
+    axle_static: XYPoint = (0.0, 0.0)       # (X, Z) static
+    axle_extended: XYPoint = (0.0, 0.0)     # (X, Z) fully extended (reference)
+    rolling_radius_in: float = 0.0          # RM / RN
+    strut: str = "O"                        # "O" oleo | "S" spring
+
+
+@dataclass
+class LandingInput:
+    """Inputs for the ground-load conditions (LGFACTOR + LANDLOAD), Ref 1 Ch 20.
+
+    LGFACTOR (FAR 23.473(d)-(g)) estimates the landing load factor from the
+    drop-test work-energy balance: the limit descent velocity ``V = 4.4*(W/S)^0.25``
+    (clamped 7-10 fps), the flat-tyre deflection ``(OD - hub)/6`` and the strut
+    stroke, with tyre/strut efficiencies (0.3 tyre; 0.5 spring / 0.75 oleo). The
+    airplane load factor ``N`` is the absorbed energy ratio and the gear factor is
+    ``NLG = N - L``; ``n`` persists ``N`` into ``Project.landing.n``.
+
+    LANDLOAD (FAR 23.473-23.499) then computes the tricycle-gear reaction loads for
+    the level, tail-down, one-wheel, braked-roll, side and supplementary-nose-wheel
+    ground conditions, reading the gross / max-landing weights and the per-CG
+    weight & CG from ``Project.mass`` (WTONECG) unless overridden by ``cg_cases``.
+
+    The reduced landing weight (FAR 23.473(b)/(c); typically 0.95*MTOW) applies to
+    the level / tail-down / one-wheel cases; the side, braked-roll and nose
+    supplementary cases use the max take-off (gross) weight via ``WR = GW/W``.
+    **Tricycle gear only** (UG Table 2.1)."""
+    # LGFACTOR (landing load factor)
+    wing_area_sqft: float = 0.0                # S (else read from geometry wing)
+    max_landing_weight_lb: float = 0.0         # W (LGFACTOR + LANDLOAD reduced weight)
+    gross_weight_lb: float = 0.0               # GW (0 -> from Project.mass heaviest case)
+    strut_stroke_in: float = 0.0               # SSTRUT (fully extended -> compressed)
+    tire_od_in: float = 0.0                    # OD (outer diameter of tyre)
+    hub_diameter_in: float = 0.0               # ID (hub diameter)
+    lift_factor: float = 0.667                 # L (wing lift factor, <= 0.667)
+    # LANDLOAD (gear geometry)
+    main_gear: LandingGearInput = field(default_factory=LandingGearInput)
+    nose_gear: LandingGearInput = field(default_factory=LandingGearInput)
+    tread_in: float = 0.0                      # TREAD (distance between main wheels)
+    tail_down_angle_deg: float = 0.0           # GRA(3) (ground line to WL, tail-down bump)
+    gear_load_factor: float = 0.0              # NLG override; 0 -> from LGFACTOR (N - L)
+    # Per-CG weight & CG (aft-max-landing / fwd-max-landing / fwd-light); empty ->
+    # derived from Project.mass (WTONECG). Each CgCase: name, weight_lb, xcg, zcg.
+    cg_cases: List["CgCase"] = field(default_factory=list)
+    n: Optional[float] = None                  # LGFACTOR airplane load factor (result)
+
+
+# --------------------------------------------------------------------------- #
 # General configuration & layout (modern addition) -- Project.configuration
 # --------------------------------------------------------------------------- #
 @dataclass
@@ -1105,6 +1164,47 @@ class ControlSurfaceLoadResult:
 
 
 @dataclass
+class GearReactionCase:
+    """One LANDLOAD ground-condition wheel-load case (LANDLOAD.BAS output tables).
+
+    The reaction loads for one of the 24 main-wheel / 33 nose-wheel ground cases,
+    carried both with respect to the **ground line** (the "prime" P loads) and with
+    respect to the **airplane datum**, plus the unbalanced moments and the inertia
+    factors. ``case`` is the 1-based case number; ``description`` the FAR condition
+    family; ``cg_name`` the loading. All loads in pounds; moments in inch-pounds;
+    angles in degrees (Ref 1 Ch 20)."""
+    case: int
+    description: str
+    far_reference: str
+    cg_name: str
+    # Ground-line ("prime") reactions
+    vmp: float = 0.0    # vertical main, per wheel
+    dmp: float = 0.0    # drag main
+    smp: float = 0.0    # side main
+    rmp: float = 0.0    # resultant main = sqrt(vmp^2 + dmp^2)
+    vnp: float = 0.0    # vertical nose
+    dnp: float = 0.0    # drag nose
+    snp: float = 0.0    # side nose
+    result: float = 0.0  # resultant nose = sqrt(vnp^2 + dnp^2)
+    # Airplane-datum reactions
+    vm: float = 0.0
+    dm: float = 0.0
+    vn: float = 0.0
+    dn: float = 0.0
+    # Inertia factors (ground line / airplane datum)
+    nvp: float = 0.0
+    ndp: float = 0.0
+    ns: float = 0.0
+    nv: float = 0.0
+    nd: float = 0.0
+    nns: float = 0.0
+    # Unbalanced moments about the airplane CG (ground line)
+    pitchp: float = 0.0
+    rollp: float = 0.0
+    yawp: float = 0.0
+
+
+@dataclass
 class LoadsResult:
     """The persisted distributed-loads slice (``Project.loads``).
 
@@ -1152,8 +1252,10 @@ class LoadsResult:
 # LoadsResult.control_surface) -- all additive, older files load unchanged via the
 # from_dict defaults; v14 (Step C9) adds the one-engine-out input slice
 # (OneEngineOutInput, ONENGOUT) and the 50%-MAC v-tail station (VTailLoadsInput.xv50)
-# -- additive, older files load unchanged via the from_dict defaults.
-SCHEMA_VERSION = 14
+# -- additive, older files load unchanged via the from_dict defaults; v15 (Step C10)
+# adds the landing / ground-load input slice (LandingInput, LGFACTOR + LANDLOAD) on
+# Project.landing -- additive, older files load unchanged via the from_dict defaults.
+SCHEMA_VERSION = 15
 
 
 @dataclass
@@ -1190,6 +1292,7 @@ class Project:
     flap_loads: Optional[FlapLoadsInput] = None
     tab_loads: Optional[TabLoadsInput] = None
     one_engine_out: Optional[OneEngineOutInput] = None
+    landing: Optional[LandingInput] = None
     loads: Optional[LoadsResult] = None
     configuration: Optional[LayoutInput] = None
 

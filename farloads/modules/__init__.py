@@ -12,6 +12,7 @@ from . import configuration  # noqa: F401
 from . import engine  # noqa: F401
 from . import flap  # noqa: F401
 from . import flight_envelope  # noqa: F401
+from . import landing  # noqa: F401
 from . import mach_limit  # noqa: F401
 from . import net_loads  # noqa: F401
 from . import one_engine_out  # noqa: F401

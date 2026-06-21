@@ -1,7 +1,6 @@
 {
   "schema_version": 12,
   "name": "GA 6-place single (Appendix A) \u2014 Continental IO-520-BB",
-  "engine_layout": "1N",
   "engines": [
     {
       "engine_designation": "CONTINENTAL IO-520-BB",
@@ -16,6 +15,7 @@
       ],
       "prop_weight_lb": 74,
       "prop_diameter_in": 84,
+      "prop_inertia": null,
       "prop_blades": 3,
       "takeoff_rpm": 2700,
       "max_cont_rpm": 2500,
@@ -26,9 +26,15 @@
       ],
       "takeoff_hp": 285,
       "max_cont_hp": 265,
-      "cylinders": 6
+      "cylinders": 6,
+      "max_engine_torque": null,
+      "cruise_torque": null,
+      "hub_weight_lb": null,
+      "stop_time_s": null,
+      "rotors": []
     }
   ],
+  "engine_layout": "1N",
   "weight": {
     "estimation": {
       "airplane": "6 PLACE SINGLE ENGINE GENERAL AVIATION",
@@ -45,6 +51,7 @@
         "name": "Wing, outboard",
         "weight_lb": 330.0,
         "x": 97.87,
+        "y": 0.0,
         "z": 87.73,
         "ixx": 4444110,
         "iyy": 133485,
@@ -55,62 +62,95 @@
         "name": "Horiz tail",
         "weight_lb": 42.0,
         "x": 270.36,
+        "y": 0.0,
         "z": 111.0,
+        "ixx": 0.0,
+        "iyy": 0.0,
+        "izz": 0.0,
         "kind": "empty"
       },
       {
         "name": "Vert tail",
         "weight_lb": 23.0,
         "x": 276.93,
+        "y": 0.0,
         "z": 137.76,
+        "ixx": 0.0,
+        "iyy": 0.0,
+        "izz": 0.0,
         "kind": "empty"
       },
       {
         "name": "Main gear wheel",
         "weight_lb": 45.0,
         "x": 97.0,
+        "y": 0.0,
         "z": 69.0,
+        "ixx": 0.0,
+        "iyy": 0.0,
+        "izz": 0.0,
         "kind": "empty"
       },
       {
         "name": "Main gear structure",
         "weight_lb": 110.0,
         "x": 97.0,
+        "y": 0.0,
         "z": 78.0,
+        "ixx": 0.0,
+        "iyy": 0.0,
+        "izz": 0.0,
         "kind": "empty"
       },
       {
         "name": "Nose gear wheel",
         "weight_lb": 9.0,
         "x": 1.0,
+        "y": 0.0,
         "z": 52.0,
+        "ixx": 0.0,
+        "iyy": 0.0,
+        "izz": 0.0,
         "kind": "empty"
       },
       {
         "name": "Nose gear structure",
         "weight_lb": 40.0,
         "x": 1.0,
+        "y": 0.0,
         "z": 65.0,
+        "ixx": 0.0,
+        "iyy": 0.0,
+        "izz": 0.0,
         "kind": "empty"
       },
       {
         "name": "Flight control",
         "weight_lb": 57.0,
         "x": 123.0,
+        "y": 0.0,
         "z": 105.0,
+        "ixx": 0.0,
+        "iyy": 0.0,
+        "izz": 0.0,
         "kind": "empty"
       },
       {
         "name": "Nacelle",
         "weight_lb": 62.0,
         "x": 21.0,
+        "y": 0.0,
         "z": 92.0,
+        "ixx": 0.0,
+        "iyy": 0.0,
+        "izz": 0.0,
         "kind": "empty"
       },
       {
         "name": "Engine install",
         "weight_lb": 505.0,
         "x": 22.0,
+        "y": 0.0,
         "z": 92.0,
         "ixx": 52604,
         "iyy": 81473,
@@ -121,35 +161,53 @@
         "name": "Propeller",
         "weight_lb": 74.0,
         "x": -10.0,
+        "y": 0.0,
         "z": 100.0,
+        "ixx": 0.0,
+        "iyy": 0.0,
+        "izz": 0.0,
         "kind": "empty"
       },
       {
         "name": "Systems",
         "weight_lb": 88.0,
         "x": 60.0,
+        "y": 0.0,
         "z": 100.0,
+        "ixx": 0.0,
+        "iyy": 0.0,
+        "izz": 0.0,
         "kind": "empty"
       },
       {
         "name": "Furnishings",
         "weight_lb": 175.0,
         "x": 105.0,
+        "y": 0.0,
         "z": 100.0,
+        "ixx": 0.0,
+        "iyy": 0.0,
+        "izz": 0.0,
         "kind": "empty"
       },
       {
         "name": "Unusable fuel",
         "weight_lb": 12.0,
         "x": 73.0,
+        "y": 0.0,
         "z": 80.0,
+        "ixx": 0.0,
+        "iyy": 0.0,
+        "izz": 0.0,
         "kind": "empty"
       },
       {
         "name": "Fuselage structure",
         "weight_lb": 250.0,
         "x": 99.0,
+        "y": 0.0,
         "z": 80.0,
+        "ixx": 0.0,
         "iyy": 1131020,
         "izz": 1131020,
         "kind": "empty"
@@ -158,6 +216,7 @@
         "name": "Pilot",
         "weight_lb": 170.0,
         "x": 75.0,
+        "y": 0.0,
         "z": 100.0,
         "ixx": 28730,
         "iyy": 24480,
@@ -168,8 +227,10 @@
         "name": "30 min fuel",
         "weight_lb": 71.0,
         "x": 70.0,
+        "y": 0.0,
         "z": 82.0,
         "ixx": 86975,
+        "iyy": 0.0,
         "izz": 86975,
         "kind": "minimum"
       },
@@ -177,6 +238,7 @@
         "name": "Copilot",
         "weight_lb": 170.0,
         "x": 75.0,
+        "y": 0.0,
         "z": 100.0,
         "ixx": 28730,
         "iyy": 24480,
@@ -187,6 +249,7 @@
         "name": "3rd person",
         "weight_lb": 170.0,
         "x": 111.0,
+        "y": 0.0,
         "z": 100.0,
         "ixx": 28730,
         "iyy": 24480,
@@ -197,6 +260,7 @@
         "name": "4th person",
         "weight_lb": 170.0,
         "x": 111.0,
+        "y": 0.0,
         "z": 100.0,
         "ixx": 28730,
         "iyy": 24480,
@@ -207,6 +271,7 @@
         "name": "5th person",
         "weight_lb": 170.0,
         "x": 150.0,
+        "y": 0.0,
         "z": 100.0,
         "ixx": 28730,
         "iyy": 24480,
@@ -217,6 +282,7 @@
         "name": "6th person",
         "weight_lb": 170.0,
         "x": 150.0,
+        "y": 0.0,
         "z": 100.0,
         "ixx": 28730,
         "iyy": 24480,
@@ -227,8 +293,10 @@
         "name": "Fuel to gross wt",
         "weight_lb": 409.0,
         "x": 70.0,
+        "y": 0.0,
         "z": 87.0,
         "ixx": 501025,
+        "iyy": 0.0,
         "izz": 501025,
         "kind": "discretionary"
       },
@@ -236,7 +304,11 @@
         "name": "Ballast",
         "weight_lb": 78.0,
         "x": 103.7,
+        "y": 0.0,
         "z": 90.0,
+        "ixx": 0.0,
+        "iyy": 0.0,
+        "izz": 0.0,
         "kind": "discretionary"
       }
     ],
@@ -246,15 +318,15 @@
       "fwd_gross_pct_mac": 20,
       "fwd_regardless_pct_mac": 13,
       "fwd_regardless_weight": 2800,
-      "wing_surface": "wing"
+      "wing_surface": "wing",
+      "xlemac": null,
+      "mac": null
     }
   },
   "geometry": {
     "surfaces": [
       {
         "name": "wing",
-        "symmetric": true,
-        "elements": 20,
         "leading_edge": [
           [
             45,
@@ -278,12 +350,12 @@
             116,
             201
           ]
-        ]
+        ],
+        "symmetric": true,
+        "elements": 20
       },
       {
         "name": "aileron",
-        "symmetric": false,
-        "elements": 20,
         "leading_edge": [
           [
             116.38,
@@ -307,13 +379,16 @@
             117.642,
             190
           ]
-        ]
+        ],
+        "symmetric": false,
+        "elements": 20
       }
     ]
   },
   "speeds": {
     "category": "N",
     "weight_lb": 3400,
+    "wing_area_sqft": null,
     "vh_kt": 190,
     "stall_clean_kt": 62.226,
     "stall_flap_kt": 58.611,
@@ -321,6 +396,10 @@
     "wing_surface": "wing",
     "chosen_vc": 170,
     "chosen_vd": 212.5,
+    "chosen_va": null,
+    "chosen_vf": null,
+    "chosen_n": null,
+    "chosen_nneg": null,
     "mach_limit": {
       "mc": 0.323,
       "md": 0.403,
@@ -336,6 +415,7 @@
         "section_slope": 0.1075,
         "taper_ratio": 0.4356,
         "tip_ratio": 0.0,
+        "tau": 0.05,
         "twist": [
           [
             0,
@@ -355,7 +435,6 @@
           ]
         ],
         "target_cl": 1.0,
-        "tau": 0.05,
         "profile_drag": [
           [
             0,
@@ -398,23 +477,23 @@
         "lift": [
           0.320479,
           0.080358,
-          0,
-          0,
-          0
+          0.0,
+          0.0,
+          0.0
         ],
         "drag": [
           0.026917,
-          0,
+          0.0,
           0.053647,
-          0,
-          0
+          0.0,
+          0.0
         ],
         "moment": [
           -0.017328,
           0.004128,
-          0,
-          0,
-          0
+          0.0,
+          0.0,
+          0.0
         ],
         "flaps_down": false
       }
@@ -457,6 +536,7 @@
     "cases": [
       {
         "name": "PHAA",
+        "case": null,
         "nz": -3.8,
         "nx": 0.6065,
         "unbal_moment": 0,
@@ -465,6 +545,7 @@
       },
       {
         "name": "TORS",
+        "case": null,
         "nz": -2.54,
         "nx": -0.1318,
         "unbal_moment": 0,
@@ -473,6 +554,7 @@
       },
       {
         "name": "ACRL",
+        "case": null,
         "nz": -3.25,
         "nx": 0.4009,
         "unbal_moment": -149043,
@@ -483,11 +565,14 @@
   },
   "select_input": {
     "full_down_aileron_deg": 15.0,
-    "basic_airfoil_cm": -0.03
+    "basic_airfoil_cm": -0.03,
+    "wing_weight_lb": 0.0
   },
   "tail_loads": {
     "tail_incidence_deg": 2.0,
     "wing_zero_lift_cruise_deg": 3.988146,
+    "wing_zero_lift_enroute_deg": 0.0,
+    "wing_zero_lift_landing_deg": 0.0,
     "aspect_ratio_wing": 6.095,
     "aspect_ratio_htail": 4.017,
     "htail_area_sqft": 36.944,
@@ -512,9 +597,12 @@
     "aspect_ratio_vtail": 1.52,
     "vtail_mac_ft": 3.367,
     "xv25": 266.83,
+    "xv50": 0.0,
     "airplane_length_ft": 26.522,
     "wing_span_ft": 33.5,
     "gross_weight_lb": 3400.0,
+    "rudder_large_deflection_factor": 1.0,
+    "izz_slugft2": 0.0,
     "vtail_span_in": 57.0
   },
   "aileron_loads": {
@@ -544,5 +632,70 @@
         "deflection_deg": 15.0
       }
     ]
+  },
+  "landing": {
+    "wing_area_sqft": 184.125,
+    "max_landing_weight_lb": 3230,
+    "gross_weight_lb": 3400,
+    "strut_stroke_in": 7,
+    "tire_od_in": 19,
+    "hub_diameter_in": 7,
+    "lift_factor": 0.667,
+    "main_gear": {
+      "axle_compressed": [
+        96.3,
+        55.9
+      ],
+      "axle_static": [
+        96.7,
+        59.6
+      ],
+      "axle_extended": [
+        96.2,
+        54.2
+      ],
+      "rolling_radius_in": 8.0,
+      "strut": "O"
+    },
+    "nose_gear": {
+      "axle_compressed": [
+        1.9,
+        46.9
+      ],
+      "axle_static": [
+        2.4,
+        49.5
+      ],
+      "axle_extended": [
+        1.6,
+        45.1
+      ],
+      "rolling_radius_in": 5.7,
+      "strut": "O"
+    },
+    "tread_in": 114.5,
+    "tail_down_angle_deg": 15.0,
+    "gear_load_factor": 2.5,
+    "cg_cases": [
+      {
+        "name": "aft max landing",
+        "weight_lb": 3230,
+        "xcg": 85.1,
+        "zcg": 93
+      },
+      {
+        "name": "fwd max landing",
+        "weight_lb": 3230,
+        "xcg": 76.12,
+        "zcg": 93
+      },
+      {
+        "name": "fwd light",
+        "weight_lb": 2803,
+        "xcg": 72.64,
+        "zcg": 92
+      }
+    ],
+    "n": null
   }
 }

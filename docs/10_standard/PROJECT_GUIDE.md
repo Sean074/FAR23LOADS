@@ -112,9 +112,9 @@ escape hatch.
 | `AILERON` | Aileron loads | planned (C8) |
 | `FLAPLOAD` | Flap loads | planned (C8) |
 | `TABLOADS` | Tab loads | planned (C8) |
-| `ONENGOUT` | One-engine-out loads (multi-engine turboprop) | planned (C9) |
-| `LGFACTOR` | Estimate landing load factor | planned (C10) |
-| `LANDLOAD` | Landing loads | planned (C10) |
+| `ONENGOUT` | One-engine-out loads (multi-engine turboprop) | ✅ done (C9) |
+| `LGFACTOR` | Estimate landing load factor | ✅ done (C10) |
+| `LANDLOAD` | Landing loads | ✅ done (C10) |
 
 > **Modern modules (no `.BAS`):** `body_loads` (Ref 1 Ch 15 net fuselage
 > distribution) **done** (C6); `configuration` (Configuration & Layout page)
@@ -155,8 +155,8 @@ verification side-tool):
    ENGLOADS ✅ (standalone)         TABLOADS (standalone)
 ```
 
-Component-load deliverables: WINGINER, NETLOADS, AILERON, FLAPLOAD, TABLOADS,
-TAILDIST, ENGLOADS ✅, ONENGOUT, LGFACTOR, LANDLOAD.
+Component-load deliverables: WINGINER ✅, NETLOADS ✅, AILERON ✅, FLAPLOAD ✅,
+TABLOADS ✅, TAILDIST ✅, ENGLOADS ✅, ONENGOUT ✅, LGFACTOR ✅, LANDLOAD ✅.
 
 Implication for the data model: upstream results (weights, CG, inertia, geometry,
 design speeds, critical V-n points) are **shared fields** that many downstream
@@ -205,7 +205,7 @@ FAR23LOADS/
 │       ├── aileron.py, flap.py, tab.py, taildist.py
 │       ├── engine.py             # ENGLOADS  ← current engloads/engloads/calc.py
 │       ├── one_engine_out.py     # ONENGOUT
-│       └── landing.py            # LANDLOAD (+ lgfactor.py)
+│       └── landing.py            # LGFACTOR + LANDLOAD ✅ (C10)
 ├── app/                          # multi-page Streamlit UI
 │   ├── Home.py                   # load/save project JSON, project summary, run-all
 │   └── pages/

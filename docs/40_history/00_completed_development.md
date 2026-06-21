@@ -661,6 +661,60 @@ round-trip (older files load) and the sbeam control-surface FORCE-closure test.
 - **Full FLAPLOAD scope** — slipstream and head-on-gust amplifications implemented
   now (not deferred), matching the full Appendix A flap table.
 
+## Phase C — Step C10: landing / ground loads (LGFACTOR + LANDLOAD) (complete)
+
+**Objective.** The FAR Part 23 Subpart C ground-load conditions: the landing load
+factor (LGFACTOR, FAR 23.473) and the tricycle-gear reaction loads for the level,
+tail-down, one-wheel, braked-roll, side and supplementary-nose-wheel conditions
+(LANDLOAD, FAR 23.473–23.499), Reference 1 Ch 20.
+
+**Deliverables.**
+- `modules/landing.py` (registers `"landing"`) — `landing_load_factor()` (LGFACTOR
+  drop-test work-energy: descent `V = 4.4·(W/S)^0.25` clamped 7–10 fps, tyre/strut
+  energy efficiencies, `N` and `NLG = N − L`); `landing_reactions()` (LANDLOAD: the
+  drag factor `K`, ground angles, `BETA`, the `AP/BP/DP/CP` lever arms, then the 24
+  main-wheel + 33 nose-wheel ground-line and airplane-datum reactions and the
+  unbalanced PITCHP/ROLLP/YAWP moments); `build_landing()` resolves inputs (wing
+  area from `geometry`, per-CG weight/CG from `mass` or `landing.cg_cases`) and
+  persists `N → Project.landing.n`; `run()` emits one summary `ConditionResult` per
+  FAR ground-load family (the critical wheel reaction).
+- `models.py` — `LandingInput` + `LandingGearInput` (the dedicated `Project.landing`
+  slice carrying the gear strut geometry, which has no home in the aerodynamic
+  `Project.geometry`); `GearReactionCase` result record; `Project.landing`;
+  `SCHEMA_VERSION` 14 → 15 (additive, older files load unchanged).
+- `io.py` round-trip for the nested slice (gear tuples + CG cases);
+  `farloads/__init__.py` exports `LandingInput`/`LandingGearInput`/`GearReactionCase`;
+  `modules/__init__.py` self-registration import.
+- `app/pages/15_Landing_Loads.py` — LGFACTOR inputs + sink-rate/factor metrics, the
+  gear geometry editor, the full ground-line reaction table and CSV download.
+- `examples/ga6_normal.project.json` — the Appendix A GA-6 landing slice (p230 gear
+  geometry, p236 LGFACTOR inputs); the file stays at `schema_version 12` to keep the
+  "old file loads under v15 code" regression coverage.
+
+**Test / Acceptance.** `tests/test_landing.py` (9 tests). **LGFACTOR fully
+oracle-locked** against Appendix A p236 (V 9.0048 / N 3.0951 / NLG 2.4281; N within
++0.07% — the Decision-3 `G=32.174` vs `32.2` drift) plus the velocity-clamp and
+spring-vs-oleo branches. **LANDLOAD's gear-geometry intermediates oracle-locked**
+against p230 (K 0.324, GAMMA 17.978, ground angles, BETA, the AP/BP/DP/CP table).
+The printed wheel-load table (p231–233) is **OCR-garbled** in the bundled PDF, so
+the 24-main/33-nose matrix is **formula-closure + legible-cell spot-checked** (case
+1 VMP 3144 / VNP 1787 / nose resultant 1879; level case 4 VMP 4038 / RMP 4245; side
+cases VMP 2261, SMP −1700/1122). 207 tests pass; coverage ~89%.
+
+**Key decisions.**
+- **Dedicated `Project.landing` slice** rather than overloading `geometry`
+  (aerodynamic surfaces) or `configuration` (which lacks the three strut-deflection
+  states, rolling radii and tail-down angle LANDLOAD needs).
+- **Gear load factor is a rounded design input** (2.5 on p230), kept distinct from
+  LGFACTOR's computed 2.428 (`gear_load_factor` override; 0 → use `N − L`) — the
+  oracle's `NAP = NLG + L = 3.167` confirms 2.5, not 2.428.
+- **OCR-garbled wheel-load table → closure + legible-cell validation** (the ONENGOUT
+  C9 precedent), recorded as a deferred item: add the printed ±0.1% wheel-load oracle
+  if a legible Appendix A/B or `LANDLOAD.OUT` surfaces. The light-landing CG weight
+  (2803 lb) was back-solved from the legible side-load cell (½·1.33·W = 1864).
+- **Terminal module** (no downstream consumer), so reactions render via `ModuleResult`
+  + a `build_landing()` table rather than a persisted result slice, mirroring ENGLOADS.
+
 ## Phase C — Step C9: ONENGOUT (one-engine-out vertical-tail loads) (complete)
 
 **Objective.** Asymmetric vertical-tail loads from a critical-engine failure

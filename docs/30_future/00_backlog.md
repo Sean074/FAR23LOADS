@@ -26,40 +26,29 @@ history, `CHANGELOG.md`).
 
 ## Current state (snapshot)
 
-**Shipped:** Phases 0–2 and Phase-C Steps **C0–C9**. Of Reference 1's 22
-Appendix-C programs, **19 are ported** (ENGLOADS, WTESTIMA, WTONECG, WTENV,
+**Shipped:** Phases 0–2 and Phase-C Steps **C0–C10**. Of Reference 1's 22
+Appendix-C programs, **21 are ported** (ENGLOADS, WTESTIMA, WTONECG, WTENV,
 WINGGEOM, STRSPEED, MACHLIM, TAU, AIRLOADS, AIRLOAD4, FLTLOADS, SELECT, WINGINER,
-NETLOADS, TAILDIST, AILERON, FLAPLOAD, TABLOADS, ONENGOUT), plus **2 modern modules**
-with no `.BAS` oracle (`configuration`, `body_loads`). Schema is at
-**`SCHEMA_VERSION = 14`**; 198 tests pass; coverage ~89%. The wing distributed-loads
-vertical slice (geometry → speeds → envelope → airloads → inertia → net → sbeam
-export), the critical-load selection (wing / h-tail / v-tail / fuselage), the
-chordwise tail distribution, the simplified control-surface distributions
-(aileron / flap / tab) and the one-engine-out vertical-tail transient are complete
-(the first three oracle-locked; ONENGOUT closure-locked — no Appendix-B oracle exists).
+NETLOADS, TAILDIST, AILERON, FLAPLOAD, TABLOADS, ONENGOUT, LGFACTOR, LANDLOAD),
+plus **2 modern modules** with no `.BAS` oracle (`configuration`, `body_loads`).
+Schema is at **`SCHEMA_VERSION = 15`**; 207 tests pass; coverage ~89%. The wing
+distributed-loads vertical slice (geometry → speeds → envelope → airloads → inertia
+→ net → sbeam export), the critical-load selection (wing / h-tail / v-tail /
+fuselage), the chordwise tail distribution, the simplified control-surface
+distributions (aileron / flap / tab), the one-engine-out vertical-tail transient
+and the tricycle-gear landing/ground loads are complete (FAR23 path oracle-locked;
+ONENGOUT and the LANDLOAD wheel-load table closure-locked — no legible printed
+oracle exists for those).
 
-**Remaining suite programs (3):** BALLOADS, LGFACTOR, LANDLOAD.
+**Remaining suite programs (1):** BALLOADS (optional verification utility, below).
 
-The plan below continues the Phase-C step numbering (C10 onward). The FAR23 path
+The plan below continues the Phase-C step numbering (C11 onward). The FAR23 path
 stays oracle-locked (Appendix A/B ±0.1%); concept mode is a superset that reduces
 exactly to it on GA inputs.
 
 ---
 
 ## Development plan (dependency-ordered)
-
-### Step C10 — Landing loads (LGFACTOR → LANDLOAD)
-**Objective.** Ground-load conditions: the landing load factor and the gear
-reaction loads for each ground case.
-**Deliverables.**
-- `modules/landing.py` with the `LGFACTOR` load-factor helper (`23.473`/`23.725`,
-  → `Project.landing.n`) and `LANDLOAD` (`23.473–23.511`: level, tail-down,
-  one-wheel, side, braked) reaction loads, reading `Project.landing.n`,
-  `Project.mass` (weight/CG) and `Project.geometry` (gear geometry).
-- Streamlit page; schema + `io.py` round-trip. **Tricycle gear only** (UG Table 2.1).
-**Test/Acceptance.** Appendix A/B `LGFACTOR` / `LANDLOAD` tables ±0.1%.
-**Dependencies.** WTONECG (`Project.mass`, done), Configuration/WINGGEOM gear
-geometry (done C5).
 
 ### Step C11 — BALLOADS (balanced-tail-load verification utility) — *optional*
 **Objective.** The off-pipeline cross-check that recomputes the rational
@@ -106,6 +95,14 @@ changelog entry) when done.
   (Appendix B is not in `reference/FAR23 loads (1).pdf`; FAA User's Guide Ch 22 gives
   partial inputs / no outputs). Add the printed ±0.1% oracle if a legible Appendix B (or an
   `ONENGOUT.OUT`) surfaces, alongside the `examples/twin_turboprop.project.json` fixture below.
+- **LANDLOAD printed wheel-load oracle (from C10).** LGFACTOR and the LANDLOAD
+  gear-geometry intermediates (K / GAMMA / ground angles / BETA / AP-BP-DP-CP) are
+  oracle-locked, but the printed Appendix A wheel-load table (p231–233) is
+  **OCR-garbled** in the bundled `reference/FAR23 loads (1).pdf`, so the 24-main /
+  33-nose reaction matrix is closure- + legible-cell-locked (the ONENGOUT precedent).
+  Add the printed ±0.1% oracle if a legible Appendix A/B or a `LANDLOAD.OUT`
+  surfaces. The airplane-datum loads and unbalanced moments (PITCHP/ROLLP/YAWP) are
+  computed but only closure-checked for the same reason.
 - **Configuration seeding follow-ups (from C5).** C5 seeds only the wing geometry
   surface. Still open: push component stations → Weight DB (WTONECG) and set
   `XLEMAC`/`MAC` directly into WTENV/STRSPEED; `MassItem.x/z` station assignment
