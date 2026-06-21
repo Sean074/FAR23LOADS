@@ -536,6 +536,9 @@ class SelectInput:
     """
     full_down_aileron_deg: float = 0.0
     basic_airfoil_cm: float = 0.0
+    # Critical fuselage-condition search (Ch 9): the wing weight WW reacted at the
+    # wing (the fuselage load on the wing is LZW - NZ*WW). 0 -> default 0.09*MTOW.
+    wing_weight_lb: float = 0.0
 
 
 # --------------------------------------------------------------------------- #
@@ -573,6 +576,16 @@ class TailLoadsInput:
     elevator_effectiveness: float = 0.0        # dalpha/ddelta_e as a fraction of AHT
     xt25: float = 0.0                          # fuselage station of 25% tail MAC
     xt50: float = 0.0                          # fuselage station of 50% tail MAC
+    # Maneuver / gust (FAR 23.423 / 23.425) -- elevator geometry, airplane length
+    # (for the approximate pitch inertia) and the wing lift slope (for the gust
+    # downwash relief). Used by the unchecked/checked-maneuver and gust searches.
+    elevator_te_up_deg: float = 0.0            # EUP (full trailing-edge-up)
+    elevator_te_down_deg: float = 0.0          # EDN (full trailing-edge-down)
+    elevator_area_sqft: float = 0.0            # SE (total elevator area)
+    elevator_fwd_hinge_sqft: float = 0.0       # SEFWDHL
+    elevator_aft_hinge_sqft: float = 0.0       # SEAFTHL
+    airplane_length_ft: float = 0.0            # LF (approximate Iyy = 0.44*W*LF^2/384)
+    wing_lift_slope_per_rad: float = 0.0       # AW (gust downwash relief 1 - 36*aw/ARW)
 
 
 # --------------------------------------------------------------------------- #
@@ -928,8 +941,9 @@ class LoadsResult:
 # SELECT search-input slice (SelectInput, the wing steady-roll aileron inputs) --
 # additive; v9 adds the rational horizontal-tail load inputs (TailLoadsInput) --
 # additive; v10 adds the rational vertical-tail load inputs (VTailLoadsInput) --
-# additive.
-SCHEMA_VERSION = 10
+# additive; v11 extends TailLoadsInput with the elevator/maneuver/gust fields
+# (FAR 23.423/23.425 horizontal-tail loads) -- additive (new fields default to 0).
+SCHEMA_VERSION = 11
 
 
 @dataclass

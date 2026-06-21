@@ -48,7 +48,7 @@ import io as _io
 from dataclasses import dataclass
 from typing import List, Sequence, Union
 
-from ..models import Project, WingLoadResult, WingStationLoad
+from ..models import BodyLoadResult, Project, WingLoadResult, WingStationLoad
 from .coordinates import SBEAM_CID, to_force, to_grid, to_moment
 
 # Loads below this magnitude are treated as zero and not emitted (matches
@@ -324,3 +324,68 @@ def stick_model_bdf(arg: ResultsArg, sid_base: int = 1) -> str:
 def write_stick_model_bdf(arg: ResultsArg, path: str, sid_base: int = 1) -> None:
     with open(path, "w", encoding="utf-8") as fh:
         fh.write(stick_model_bdf(arg, sid_base=sid_base))
+
+
+# --------------------------------------------------------------------------- #
+# Body (fuselage) net-load export (Step C6, R8)
+# --------------------------------------------------------------------------- #
+# The fuselage net distribution (Ch 15) is a longitudinal beam: each station
+# carries an applied vertical force (inertia + tail air load + wing reaction) that
+# sums to zero in equilibrium. The export emits a FORCE card (Fz) per station and a
+# span-load CSV; there is no applied torsion, so no MOMENT cards.
+_BODY_GID_BASE = 1001  # body station GIDs start here (disjoint from wing GIDs)
+
+
+def _body_results(arg: "Union[Project, BodyLoadResult, Sequence[BodyLoadResult]]") -> List[BodyLoadResult]:
+    if isinstance(arg, Project):
+        if arg.loads is None or not arg.loads.body_net:
+            raise ValueError(
+                "Project has no net body loads to export -- run the 'body_loads' "
+                "module (build_body_loads) first so Project.loads.body_net is set."
+            )
+        return list(arg.loads.body_net)
+    if isinstance(arg, BodyLoadResult):
+        return [arg]
+    results = list(arg)
+    if not results:
+        raise ValueError("no body-load results to export")
+    return results
+
+
+def body_span_load_csv(arg) -> str:
+    """Span-load CSV for the fuselage net distribution: one row per station per
+    case (X, applied Fz, cumulative Sz/Myy)."""
+    results = _body_results(arg)
+    buf = _io.StringIO()
+    writer = csv.DictWriter(buf, fieldnames=["Case", "GID", "X", "Fz", "Sz", "Myy"])
+    writer.writeheader()
+    for r in results:
+        for i, s in enumerate(r.stations):
+            writer.writerow({
+                "Case": r.case, "GID": _BODY_GID_BASE + i, "X": f"{s.x:.3f}",
+                "Fz": f"{s.fz:.1f}", "Sz": f"{s.sz:.1f}", "Myy": f"{s.myy:.0f}",
+            })
+    return buf.getvalue()
+
+
+def body_force_moment_cards(arg, sid_base: int = 1) -> str:
+    """FORCE bulk-data cards for the fuselage net distribution (one SID per case);
+    the per-station applied Fz set sums to ~0 (vertical equilibrium)."""
+    results = _body_results(arg)
+    blocks: List[str] = []
+    for idx, r in enumerate(results):
+        sid = sid_base + idx
+        total_fz = sum(s.fz for s in r.stations)
+        lines = [
+            f"$ FAR23LOADS net fuselage load -- case {r.case}, SID {sid}",
+            f"$ Applied Fz set sums to {total_fz:.2f} lb (vertical equilibrium).",
+        ]
+        for i, s in enumerate(r.stations):
+            fx, fy, fz = to_force(0.0, 0.0, s.fz)
+            if abs(fz) > _TOL:
+                lines.append(
+                    f"FORCE, {sid}, {_BODY_GID_BASE + i}, {SBEAM_CID}, 1.0, "
+                    f"{_fmt(fx)}, {_fmt(fy)}, {_fmt(fz)}"
+                )
+        blocks.append("\n".join(lines))
+    return "\n".join(blocks) + "\n"

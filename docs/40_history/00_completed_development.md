@@ -559,6 +559,67 @@ extended for the new tier. Full suite green; `ruff` clean.
 
 ---
 
+## Phase C — Step C6: SELECT + fuselage/body distributed loads (complete)
+
+**Objective.** Compute the critical flight load on each major component (wing,
+horizontal tail, vertical tail, fuselage) from the FLTLOADS V-n matrix (SELECT,
+Reference 1 Ch 9), and emit the fuselage longitudinal net distribution (Ch 15) +
+sbeam body export. The FAR23 path stays oracle-locked against the Appendix A loads
+report; concept mode reduces to it on GA inputs.
+
+**Deliverables (R1–R10).**
+- `models.py` — new slices: persisted `Project.mass` (`MassResult`/`MassCase`),
+  `Project.fuselage_mass` (`FuselageMassInput`/`FuselageStation`), SELECT
+  `EnvelopeResult.critical` (`CriticalLoadSet`/`CriticalCondition`), the fuselage
+  net result `LoadsResult.body_net` (`BodyLoadResult`/`BodyStationLoad`),
+  `Project.select_input` (`SelectInput`: aileron/airfoil-cm + wing weight),
+  `Project.tail_loads` (`TailLoadsInput`: h-tail geometry/aero + elevator/maneuver/
+  gust fields) and `Project.vtail_loads` (`VTailLoadsInput`). `SCHEMA_VERSION`
+  6 → 11 (all additive); `io.py` round-trip extended for every slice.
+- `modules/select.py` (registered `"select"`) — **wing** (PHAA/PLAA/PMAA/NMAA,
+  accelerated + steady-roll TORS); **horizontal tail** balancing (23.421),
+  unchecked/checked maneuver (23.423), gust (23.425(a)(1)/(2)) and unsymmetrical
+  (23.427(a)), flaps retracted and extended, with the exact SELECT.BAS subr-10000
+  large-deflection chart; **vertical tail** (23.441(a)(1)/(2)/(3), 23.443(b));
+  **fuselage** critical conditions (23.301/23.331).
+- `modules/flight_envelope.py` — the flaps-extended (LANDING) V-n corner set at VF
+  (FLTLOADS subr 3000), n-limited to 2 (FAR 23.345), sea level.
+- `modules/body_loads.py` (registered `"body_loads"`) — Ch 15 fuselage net shear/
+  bending per critical condition → `Project.loads.body_net` + CSV.
+- `modules/weight_onecg.py` — `build_mass` emits the persisted `Project.mass`.
+- `export/sbeam_bridge.py` — `body_span_load_csv` / `body_force_moment_cards`.
+- `app/pages/09_Critical_Loads.py`, `app/pages/10_Fuselage_Loads.py`.
+
+**Test / Acceptance.** Oracle-locked against Appendix A (±0.1%, plus FLTLOADS'
+~0.5% V-n noise): wing PHAA STALL +N (CL +1.519/V 117.40), PLAA/PMAA/NMAA/ACRL/
+TORS; h-tail balancing +519.85/−613.92 (Ch 9 case-202 hand-calc LT 519.845),
+unchecked −1397.8/+1227.2, checked −671.5/+787.8, gust +908.6/−1292.8,
+unsymmetrical −1111.8; v-tail rudder +591 / sideslip −92 / yaw-15 −526 / side gust
++604; fuselage 13347.6 / 12569.6 / −6390.3 / Nz 5.81. Modern/closure-validated:
+the fuselage net distribution (equilibrium `ΣFz=0`, shear→0 aft) and the
+flaps-extended tail loads (the flapped points achieve their target NZ; the rational
+balancing tail load zeroes the flapped pitching moment). Full suite green; `ruff`
+clean.
+
+**Key decisions / known limits.**
+1. **Modernized-math tolerances** — selected CL/V/LT inherit FLTLOADS' ±0.005-NZ
+   convergence noise (~0.5%); the renumbered envelope assigns different integer case
+   indices than the manual, so tests assert the selected *condition* + values, not
+   the case number.
+2. **Illegible effectiveness charts modelled exactly where possible** — the
+   elevator/rudder large-deflection factor `EF(δ, Se/St)` is reconstructed from
+   SELECT.BAS subr 10000; the v-tail rudder-deflection loads carry an `EFV≈1.0`
+   factor (a `VTailLoadsInput` input, default 1.0) since its chart is illegible in
+   the scan (the AoA/gust loads are exact).
+3. **Flaps-extended oracle deferred** — the real landing-config aero polynomials
+   (and CG5–7 loadings) are not in the repo fixtures, so R3/R4 are closure-validated
+   rather than matched to Appendix A cases 81/106/88/108. Recorded as a follow-up.
+4. **`Project.mass` persisted but not yet consumed by SELECT** — the checked-
+   maneuver `Iyy` and v-tail `IZZ` use the documented Ch 9 approximations (which
+   match the oracle); per-CG precise inertia from `Project.mass` is a follow-up.
+
+---
+
 ## Tooling & documentation standard (complete)
 
 **Objective.** Bring the project's tooling and documentation standard in line

@@ -50,6 +50,9 @@ _TAIL = TailLoadsInput(
     tail_incidence_deg=2.0, wing_zero_lift_cruise_deg=3.988146,
     aspect_ratio_wing=6.095, aspect_ratio_htail=4.017, htail_area_sqft=36.944,
     elevator_effectiveness=0.614, xt25=261.027, xt50=270.357,
+    elevator_te_up_deg=30.0, elevator_te_down_deg=20.0, elevator_area_sqft=16.403,
+    elevator_fwd_hinge_sqft=1.639, elevator_aft_hinge_sqft=14.792,
+    airplane_length_ft=26.522, wing_lift_slope_per_rad=4.605,
 )
 
 
@@ -63,8 +66,9 @@ _VTAIL = VTailLoadsInput(
 
 
 def _by_label(project: Project):
+    # The wing-condition view (used by the wing-focused tests).
     cls = select.build_critical(project)
-    by_label = {c.label: c for c in cls.conditions}
+    by_label = {c.label: c for c in cls.conditions if c.component == "wing"}
     vn = {v.case: v for v in build_envelope(project).vn}
     return by_label, vn
 
@@ -120,7 +124,7 @@ def test_run_returns_module_result():
     p = _ga6_three_altitudes()
     result = select.run(p)
     assert result.module == "select"
-    assert len(result.conditions) == 6
+    assert len(result.conditions) >= 6   # 6 wing + 4 fuselage (no tail_loads)
     assert result.conditions[0].far_reference  # FAR cite rendered
 
 
@@ -131,7 +135,7 @@ def test_critical_set_round_trips_through_io():
     rebuilt = io.project_from_dict(io.project_to_dict(p))
     assert rebuilt.envelope.critical is not None
     labels = {c.label for c in rebuilt.envelope.critical.conditions}
-    assert labels == {"PHAA", "PLAA", "PMAA", "NMAA", "ACRL", "TORS"}
+    assert {"PHAA", "PLAA", "PMAA", "NMAA", "ACRL", "TORS"} <= labels
 
 
 def test_select_uses_persisted_envelope_when_present():
@@ -172,23 +176,121 @@ def test_critical_htail_balancing_match_appendix_a():
     cls = select.build_critical(p)
     htail = {c.label: c for c in cls.conditions if c.component == "htail"}
     vn = {v.case: v for v in build_envelope(p).vn}
-    assert set(htail) == {"BAL UP RETRACTED", "BAL DN RETRACTED"}
+    assert {"BAL UP RETRACTED", "BAL DN RETRACTED"} <= set(htail)
 
     up = htail["BAL UP RETRACTED"]
     assert vn[up.case].condition == "STALL +N" and vn[up.case].cg == "CG1"
-    assert math.isclose(_vals(up)["Total balanced tail load LT"], 519.85, rel_tol=5e-3)
+    assert math.isclose(_vals(up)["Total tail load"], 519.85, rel_tol=5e-3)
 
     dn = htail["BAL DN RETRACTED"]
     assert vn[dn.case].condition == "MAN D" and vn[dn.case].cg == "CG3"
-    assert math.isclose(_vals(dn)["Total balanced tail load LT"], -613.92, rel_tol=5e-3)
-    assert all(c.far_reference == "23.421" for c in htail.values())
+    assert math.isclose(_vals(dn)["Total tail load"], -613.92, rel_tol=5e-3)
+    assert up.far_reference == "23.421" and dn.far_reference == "23.421"
 
 
-def test_wing_only_when_no_tail_loads():
-    # Without Project.tail_loads/vtail_loads, SELECT writes the wing set only.
+def test_htail_maneuver_loads_match_appendix_a():
+    # Appendix A "Critical Horizontal Tail Loads" (maneuver, flaps retracted):
+    # unchecked down -1397.8 (case 274), unchecked up +1227.2 (34), checked down
+    # -671.5 (56), checked up +787.8 (204). Values carry FLTLOADS ~0.3% V-n noise;
+    # the deflection increments and pitch inertia are exact.
+    p = _ga6_three_altitudes()
+    p.tail_loads = _TAIL
+    h = {c.label: c for c in select.build_critical(p).conditions if c.component == "htail"}
+    assert math.isclose(_vals(h["UNCHECKED MAN DN"])["Total tail load"], -1397.8, rel_tol=5e-3)
+    assert math.isclose(_vals(h["UNCHECKED MAN DN"])["Elevator-deflection increment (cp 50%)"],
+                        -1346.5, rel_tol=3e-3)
+    assert math.isclose(_vals(h["UNCHECKED MAN UP"])["Total tail load"], 1227.2, rel_tol=5e-3)
+    assert math.isclose(_vals(h["CHECKED MAN DN"])["Total tail load"], -671.5, rel_tol=5e-3)
+    assert math.isclose(_vals(h["CHECKED MAN DN"])["Pitch inertia Iyy"], 2242.8, rel_tol=2e-3)
+    assert math.isclose(_vals(h["CHECKED MAN UP"])["Total tail load"], 787.8, rel_tol=5e-3)
+
+
+def test_htail_gust_and_unsymmetrical_match_appendix_a():
+    # Up gust +908.6, down gust -1292.8 (flaps retracted, 23.425(a)(1));
+    # unsymmetrical total -1111.8 (RH -646.4, LH -465.4, 72% on the other side).
+    p = _ga6_three_altitudes()
+    p.tail_loads = _TAIL
+    h = {c.label: c for c in select.build_critical(p).conditions if c.component == "htail"}
+    assert math.isclose(_vals(h["GUST UP RETRACTED"])["Total tail load"], 908.6, rel_tol=5e-3)
+    assert math.isclose(_vals(h["GUST UP RETRACTED"])["Gust increment (cp 25%)"], 1017.0, rel_tol=3e-3)
+    assert math.isclose(_vals(h["GUST DN RETRACTED"])["Total tail load"], -1292.8, rel_tol=5e-3)
+
+    u = _vals(h["UNSYMMETRICAL"])
+    assert math.isclose(u["Total tail load"], -1111.8, rel_tol=5e-3)
+    assert math.isclose(u["RH side load"], -646.4, rel_tol=5e-3)
+    assert math.isclose(u["LH side load"], -465.4, rel_tol=5e-3)
+    assert math.isclose(u["Other-side percent"], 72.0, abs_tol=0.1)
+
+
+def test_ef_large_deflection_chart():
+    # SELECT.BAS subr 10000 reproduces the back-solved oracle factors.
+    assert math.isclose(select._ef(30.0, 16.403 / 36.944), 0.5419, abs_tol=2e-3)
+    assert math.isclose(select._ef(20.0, 16.403 / 36.944), 0.7011, abs_tol=2e-3)
+    assert select._ef(0.0, 0.0) == 1.0
+
+
+def _ga6_with_landing():
+    # GA6 + a synthetic LANDING config (flaps extended). The real landing aero
+    # polynomials are not in the repo, so the flaps-extended tail loads are
+    # validated by closure (balancing tail balances the flapped condition), not the
+    # printed flaps-extended oracle (Appendix A cases 81/106/88/108).
+    import copy
+
+    p = _ga6_three_altitudes()
+    p.flight_loads.altitudes_ft = [0.0, 12000.0, 18000.0]
+    cruise = p.flight_loads.configurations[0]
+    landing = copy.deepcopy(cruise)
+    landing.name, landing.flaps_down = "LANDING", True
+    landing.stall_cl, landing.neg_stall_cl = 1.9, -0.8
+    p.flight_loads.configurations = [cruise, landing]
+    p.tail_loads = _TAIL
+    return p
+
+
+def test_htail_flaps_extended_balancing_and_gust_present():
+    # Step C6 R4: with the flapped envelope, SELECT adds the flaps-extended
+    # balancing (23.421) and gust (23.425(a)(2)) tail loads.
+    p = _ga6_with_landing()
+    h = {c.label: c for c in select.build_critical(p).conditions if c.component == "htail"}
+    assert {"BAL UP EXTENDED", "BAL DN EXTENDED",
+            "GUST UP EXTENDED", "GUST DN EXTENDED"} <= set(h)
+    # The flaps-extended balancing references a LANDING-config V-n point.
+    vn = {v.case: v for v in build_envelope(p).vn}
+    assert vn[h["BAL UP EXTENDED"].case].config == "LANDING"
+
+
+def test_htail_extended_balancing_closure():
+    # Closure: the rational balancing tail load zeroes the pitching moment about the
+    # CG for the selected flaps-extended condition (LT = LT25 + LT50).
+    p = _ga6_with_landing()
+    h = {c.label: c for c in select.build_critical(p).conditions if c.component == "htail"}
+    for label in ("BAL UP EXTENDED", "BAL DN EXTENDED"):
+        v = _vals(h[label])
+        assert math.isclose(v["Total tail load"],
+                            v["AoA load LT25 (cp 25%)"] + v["Camber/elevator load LT50 (cp 50%)"],
+                            rel_tol=1e-6)
+
+
+def test_critical_fuselage_conditions_match_appendix_a():
+    # Appendix A "Critical Fuselage Loads": max fuselage down load on wing 13347.6
+    # (GUST +C), aft down bending load 12569.6, aft up bending -6390.3 (GUST -C),
+    # greatest vertical inertia factor NZ 5.81. ~0.15% FLTLOADS V-n noise.
+    p = _ga6_three_altitudes()
+    f = {c.label: c for c in select.build_critical(p).conditions if c.component == "fuselage"}
+    assert set(f) == {"MAX DOWN LOAD ON WING", "AFT DOWN BENDING", "AFT UP BENDING", "GREATEST NZ"}
+    assert math.isclose(_vals(f["MAX DOWN LOAD ON WING"])["Fuselage down load on wing"],
+                        13347.6, rel_tol=3e-3)
+    assert math.isclose(_vals(f["AFT DOWN BENDING"])["Fuselage down load on wing"], 12569.6, rel_tol=3e-3)
+    assert math.isclose(_vals(f["AFT UP BENDING"])["Fuselage load on wing"], -6390.3, rel_tol=3e-3)
+    assert math.isclose(_vals(f["GREATEST NZ"])["Load factor NZ"], 5.81, rel_tol=3e-3)
+
+
+def test_wing_and_fuselage_when_no_tail_loads():
+    # Without tail_loads/vtail_loads, SELECT still writes the wing + fuselage sets
+    # (the fuselage conditions need only the V-n matrix).
     p = _ga6_three_altitudes()
     cls = select.build_critical(p)
-    assert {c.component for c in cls.conditions} == {"wing"}
+    assert {c.component for c in cls.conditions} == {"wing", "fuselage"}
 
 
 def test_critical_vtail_loads_match_appendix_a():

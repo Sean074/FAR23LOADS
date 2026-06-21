@@ -166,23 +166,21 @@ directly; a module never recomputes another module's owned quantity.
 - **Notes:** Graphics: the V-n diagram. Faithful port of FLTLOADS.BAS subroutine **3900** (iterate AoA to the required load factor, then dynamic pressure to the Mach-adjusted stall line; Glauert compressibility `G/Gmn`; CLmax-vs-Mach curve) and **4864** (gust load factor, FAR 23.341). Balancing tail load `LT = [M(W+F) + LZ·(Xcg−Xw) − DX·(Zcg−Zw)]/(XT−Xcg)` with *approximate* tail CP (`XTC`≈5% tail MAC flaps-up, `XTF`≈25% flaps-down; Ch 8 "Assumption"). **Scope (C2):** the **cruise** maneuver+gust corner set (20 conditions, lines 1000-1594); the flapped LANDING/ENROUTE envelopes share the balance engine and drop in later. SELECT (C6) refines the CP rationally; `BALLOADS.BAS` independently verifies it. Produces the candidate conditions SELECT then prunes; feeds SELECT and WINGINER (UG Table 2.2). FLTLOADS uses its own speed-of-sound constant (518.688 vs the shared `standard_atmosphere`'s 518.4), replicated locally for oracle fidelity.
 
 ### SELECT — Critical load selection
-> **Status (Step C6): wing + horizontal-tail balancing + vertical tail built**
-> (`modules/select.py`, registers `"select"`). Ported and oracle-locked:
-> (1) the **wing** search (PHAA/PLAA/PMAA/NMAA accelerated-roll + steady-roll TORS),
-> (2) the **rational horizontal-tail balancing loads** (up/down, flaps retracted,
-> FAR 23.421 — the BALLOADS method resolving the balanced load into the 25%-MAC AoA
-> load and the 50%-MAC camber/elevator load), and (3) the **vertical-tail** loads
-> (FAR 23.441(a)(1)/(2)/(3) sudden rudder / yaw-to-sideslip / yaw-15-neutral and
-> 23.443(b) side gust, searched over the BAL A / BAL C points). They write the
-> wing + htail + vtail `CriticalCondition`s into `Project.envelope.critical`; the
-> htail geometry/aero comes from `Project.tail_loads` (`TailLoadsInput`) and the
-> vtail from `Project.vtail_loads` (`VTailLoadsInput`). The vtail rudder-deflection
-> loads carry an `EFV≈1.0` large-deflection chart factor (a `VTailLoadsInput` input,
-> default 1.0, illegible in the scan); the AoA/gust loads are exact. Still a
-> **later C6 increment:** the H-tail unchecked/checked-maneuver, gust and
-> unsymmetrical conditions; the **flaps-extended** balancing (needs the flapped V-n
-> envelope, not yet built); the **fuselage net** loads; and the `Project.mass`
-> consumption for the tail/fuselage inertia.
+> **Status: built (Step C6)** (`modules/select.py`, registers `"select"`).
+> Oracle-locked against the Appendix A loads report (±0.1% + FLTLOADS' ~0.5% V-n
+> noise): (1) the **wing** search (PHAA/PLAA/PMAA/NMAA + accelerated-roll + steady-
+> roll TORS), (2) the **horizontal-tail** loads — balancing (23.421), unchecked/
+> checked maneuver (23.423), gust (23.425(a)(1)/(2)) and unsymmetrical (23.427(a)),
+> flaps retracted **and extended** (the exact SELECT.BAS subr-10000 large-deflection
+> factor `EF(δ,Se/St)`), (3) the **vertical-tail** loads (23.441(a)(1)/(2)/(3),
+> 23.443(b)), and (4) the **fuselage** critical conditions (23.301/23.331). The
+> fuselage *net distribution* (Ch 15) lives in `modules/body_loads.py`. Inputs come
+> from `Project.tail_loads`/`vtail_loads`/`select_input`/`fuselage_mass`. **Known
+> limits** (recorded in the backlog): the flaps-extended path is closure-validated
+> (the landing-config aero + CG5–7 fixtures needed for the *printed* oracle are not
+> in the repo); the v-tail rudder `EFV≈1.0` is an input (illegible chart); SELECT's
+> checked-maneuver `Iyy` / v-tail `IZZ` use the Ch 9 approximations (which match the
+> oracle) rather than the now-persisted `Project.mass`.
 - **FAR §:** 23.301 critical-load determination across the envelope.
 - **Source:** Ch 9, `SELECT.BAS`.
 - **Reads:** `Project.mass` (WTONECG inertia), `Project.geometry` (WINGGEOM), `Project.envelope.vn` (FLTLOADS); plus AIRLOADS/AIRLOAD4 spanwise airloads. Run once per component (wing, fuselage, htail, vtail).
@@ -382,9 +380,9 @@ other modules consume).
 | 0 Restructure | engine → package | — | engloads → farloads, Project model, io/registry, app/ |
 | 1 Mass | WTESTIMA, WTONECG, WTENV | 3 (WTESTIMA, WTONECG, WTENV) | 0 |
 | 2 Geometry/Speeds | WINGGEOM, STRSPEED, MACHLIM | 3 (WINGGEOM, STRSPEED, MACHLIM) | 0 |
-| 3 Aero/Envelope | TAU\*, AIRLOADS, AIRLOAD4, FLTLOADS, SELECT, BALLOADS† | 0 | 6 |
-| 4 Component loads | WINGINER, NETLOADS, AILERON, FLAPLOAD, TABLOADS, TAILDIST, ENGLOADS, ONENGOUT, LGFACTOR, LANDLOAD | 1 (ENGLOADS) | 9 |
-| **Total** | **22** | **7** | **15** |
+| 3 Aero/Envelope | TAU\*, AIRLOADS, AIRLOAD4, FLTLOADS, SELECT, BALLOADS† | 4 (TAU, AIRLOADS, FLTLOADS, SELECT) | 2 (AIRLOAD4, BALLOADS†) |
+| 4 Component loads | WINGINER, NETLOADS, AILERON, FLAPLOAD, TABLOADS, TAILDIST, ENGLOADS, ONENGOUT, LGFACTOR, LANDLOAD | 3 (ENGLOADS, WINGINER, NETLOADS) | 7 |
+| **Total** | **22** | **13** | **9** |
 
 Counts reference 1's 22 Appendix-C programs only; the **configuration** module
 (Step C5) is a modern addition with no `.BAS` and is not counted above. The FAA

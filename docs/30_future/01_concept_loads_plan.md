@@ -188,15 +188,24 @@ light transports) so concept designs have meaningful peers.
 **Test/Acceptance.** Derived MAC/XLEMAC match WINGGEOM on Appendix A (sanity); the
 fleet plot places the concept aircraft against peers.
 
-### Step C6 — SELECT (critical loads) + body/fuselage distributed loads
+### Step C6 — SELECT (critical loads) + body/fuselage distributed loads *(shipped)*
 **Objective.** Critical-load selection per component and the **fuselage** net
 distribution.
-**Deliverables.** `modules/select.py` → `Project.envelope.critical` (wing
-PHAA/PMAA/PLAA/NMAA, H/V-tail, fuselage per Ref 1 Ch 9 / Ch 15); fuselage
-longitudinal net-load distribution + CSV/plot; extend the sbeam bridge to body
-loads. (Honor the AIRLOADS⇄SELECT iteration noted in `PROGRAM_SPEC.md`.)
-**Test/Acceptance.** Appendix A/B `SEL*LDS` critical points ±0.1%; fuselage net
-satisfies inertia/balancing closure.
+**Deliverables (shipped, R1–R10).** `modules/select.py` → `Project.envelope.critical`
+(wing PHAA/PMAA/PLAA/NMAA + accelerated/steady roll; H-tail balancing + unchecked/
+checked maneuver + gust + unsymmetrical, flaps retracted & extended; V-tail
+23.441/23.443; fuselage 23.301/23.331); `modules/body_loads.py` for the Ch 15
+fuselage longitudinal net distribution + CSV; `flight_envelope.py` flapped V-n
+corner set; `weight_onecg.build_mass` persisting `Project.mass`; the sbeam bridge
+body export; and the Critical Loads / Fuselage Loads Streamlit pages. Full schema
+in `models.py` (`SCHEMA_VERSION` 6 → 11).
+**Test/Acceptance (met).** Appendix A `SEL*LDS` / "Critical … Tail Loads" /
+"Critical Fuselage Loads" critical points within ±0.1% + FLTLOADS' ~0.5% V-n noise;
+fuselage net satisfies inertia/balancing closure. **Deferred (recorded in the
+backlog):** the *printed* flaps-extended oracle (needs landing-config aero + CG5–7
+fixtures; R3/R4 are closure-validated), per-CG precise inertia in SELECT, and the
+v-tail `EFV` chart. See
+[`../40_history/00_completed_development.md`](../40_history/00_completed_development.md).
 
 ### Step C7 — TAILDIST + AIRLOAD4 (tail distributed loads; swept-wing concepts)
 **Objective.** Chordwise H/V-tail load distribution; high-Mach/swept spanwise

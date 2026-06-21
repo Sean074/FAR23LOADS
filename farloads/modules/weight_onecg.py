@@ -20,7 +20,15 @@ import math
 from typing import List
 
 from ..constants import LBIN2_PER_SLUGFT2
-from ..models import ConditionResult, LoadValue, MassItem, ModuleResult, Project
+from ..models import (
+    ConditionResult,
+    LoadValue,
+    MassCase,
+    MassItem,
+    MassResult,
+    ModuleResult,
+    Project,
+)
 from ..registry import register
 
 _FAR = "23.21/23.23"
@@ -87,6 +95,23 @@ def weights_and_inertia(items: List[MassItem]) -> ConditionResult:
         ],
         note="Theta measured up from the waterline and aft from the CG.",
     )
+
+
+def build_mass(project: Project, name: str = "itemized loading", gear_down: bool = True) -> MassResult:
+    """The persisted mass-properties slice (``Project.mass``) for the itemized
+    loading: weight, CG and the airplane moments/product of inertia (lb-in^2) about
+    the CG. One :class:`MassCase`; the full per-CG-loading set (the four structural-
+    limit loadings x gear up/down) is a later refinement. SELECT reads this when a
+    precise inertia is wanted; its oracle searches use the documented Ch 9
+    approximations, so persisting the mass does not change them.
+    """
+    if project.weight is None or not project.weight.items:
+        raise ValueError("Project has no 'weight.items' data base for the mass slice")
+    v = {lv.label: lv.value for lv in weights_and_inertia(project.weight.items).values}
+    return MassResult(cases=[MassCase(
+        name=name, weight_lb=v["Weight"], cg_x=v["XBAR (fus station)"], cg_y=0.0,
+        cg_z=v["ZBAR (waterline)"], ixx=v["IXX (lb-in^2)"], iyy=v["IYY (lb-in^2)"],
+        izz=v["IZZ (lb-in^2)"], ixz=v["IXZ (lb-in^2)"], gear_down=gear_down)])
 
 
 # --------------------------------------------------------------------------- #

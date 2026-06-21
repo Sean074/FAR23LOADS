@@ -69,7 +69,7 @@ from ..models import (
     VTailLoadsInput,
 )
 from ..registry import register
-from .flight_envelope import _sigma, build_envelope
+from .flight_envelope import _design_inputs, _sigma, build_envelope
 
 MODULE_NAME = "select"
 _DEG = 57.3  # SELECT.BAS / BALLOADS use 57.3 deg/rad
@@ -212,10 +212,9 @@ def htail_balance(p: VnPoint, cg: CgCase, xw: float, zw: float,
 
 
 def select_htail_balancing(project: Project) -> List[CriticalCondition]:
-    """Select the largest up and down rational balancing tail loads, flaps
-    retracted (FAR 23.421). Returns an empty list if there are no flaps-retracted
-    points (the flaps-extended balancing needs the not-yet-built flapped envelope).
-    """
+    """Select the largest up and down rational balancing tail loads (FAR 23.421),
+    flaps retracted and -- when the flapped V-n envelope is present -- flaps
+    extended (excluding the off-pipeline LEV LAND point)."""
     ti = project.tail_loads
     fl = project.flight_loads
     if ti is None or fl is None:
@@ -223,35 +222,243 @@ def select_htail_balancing(project: Project) -> List[CriticalCondition]:
     cg_map: Dict[str, CgCase] = {c.name: c for c in fl.cg_cases}
     flaps: Dict[str, bool] = {c.name: c.flaps_down for c in fl.configurations}
 
-    vn = _envelope(project).vn
-    balanced = []
-    for p in vn:
+    retracted, extended = [], []
+    for p in _envelope(project).vn:
         cg = cg_map.get(p.cg)
-        if cg is None or flaps.get(p.config, False):  # flaps retracted only
+        if cg is None:
             continue
-        b = htail_balance(p, cg, fl.xw, fl.zw, ti)
-        balanced.append((p, b))
-    if not balanced:
-        return []
+        bucket = extended if flaps.get(p.config, False) else retracted
+        if bucket is extended and p.condition == "LEV LAND":
+            continue
+        bucket.append((p, htail_balance(p, cg, fl.xw, fl.zw, ti)))
+
+    def emit(label: str, pick) -> CriticalCondition:
+        p, b = pick
+        return _htail_condition(label, "23.421", p, b["LT"], [
+            LoadValue("AoA load LT25 (cp 25%)", b["LT25"], "lb"),
+            LoadValue("Camber/elevator load LT50 (cp 50%)", b["LT50"], "lb"),
+            LoadValue("Tail angle of attack AT", b["AT"], "deg"),
+            LoadValue("Elevator deflection (TE dn +)", b["DELTA"], "deg"),
+            LoadValue("CP of total load", b["CP"], "% tail MAC"),
+            LoadValue("V (EAS)", p.v_eas_kt, "kt(EAS)"),
+        ])
 
     out: List[CriticalCondition] = []
-    for label, far, pick in (
-        ("BAL UP RETRACTED", "23.421", max(balanced, key=lambda pb: pb[1]["LT"])),
-        ("BAL DN RETRACTED", "23.421", min(balanced, key=lambda pb: pb[1]["LT"])),
-    ):
-        p, b = pick
-        out.append(CriticalCondition(
-            component="htail", label=label, far_reference=far, case=p.case,
-            loads=[
-                LoadValue("Total balanced tail load LT", b["LT"], "lb"),
-                LoadValue("AoA load LT25 (cp 25%)", b["LT25"], "lb"),
-                LoadValue("Camber/elevator load LT50 (cp 50%)", b["LT50"], "lb"),
-                LoadValue("Tail angle of attack AT", b["AT"], "deg"),
-                LoadValue("Elevator deflection (TE dn +)", b["DELTA"], "deg"),
-                LoadValue("CP of total load", b["CP"], "% tail MAC"),
-                LoadValue("V (EAS)", p.v_eas_kt, "kt(EAS)"),
-            ],
-        ))
+    if retracted:
+        out.append(emit("BAL UP RETRACTED", max(retracted, key=lambda pb: pb[1]["LT"])))
+        out.append(emit("BAL DN RETRACTED", min(retracted, key=lambda pb: pb[1]["LT"])))
+    if extended:
+        out.append(emit("BAL UP EXTENDED", max(extended, key=lambda pb: pb[1]["LT"])))
+        out.append(emit("BAL DN EXTENDED", min(extended, key=lambda pb: pb[1]["LT"])))
+    return out
+
+
+def _htail_condition(label: str, far: str, p: VnPoint, total_lt: float,
+                     extra: List[LoadValue]) -> CriticalCondition:
+    """Build an htail :class:`CriticalCondition` whose first load is the total."""
+    return CriticalCondition(
+        component="htail", label=label, far_reference=far, case=p.case,
+        loads=[LoadValue("Total tail load", total_lt, "lb"), *extra])
+
+
+def _ef(defl: float, se2st: float) -> float:
+    """Large-deflection effectiveness factor EF(deflection, control/surface area
+    ratio) -- SELECT.BAS subroutine 10000 (Dommasch fig 12:3). The four polynomials
+    give EF at area ratios 0.15/0.2/0.3/0.4 (EF=1 at 0); interpolate by ``se2st``.
+    """
+    ef00 = 1.0
+    ef15 = 1.008576 - 5.770396e-3 * defl - 3.452382e-4 * defl ** 2 + 7.1777799e-6 * defl ** 3
+    ef20 = 1.003143 - 1.521429e-3 * defl - 2.757143e-4 * defl ** 2
+    ef30 = 0.991602 - 3.329421e-2 * defl + 0.001373 * defl ** 2 - 2.595556e-5 * defl ** 3
+    ef40 = 1.010976 - 2.866663e-3 * defl - 1.110476e-3 * defl ** 2 + 2.266667e-5 * defl ** 3
+    s = se2st
+    if s <= 0:
+        return ef00
+    if s < 0.15:
+        return ef00 + s / 0.15 * (ef15 - ef00)
+    if s < 0.2:
+        return ef15 + (s - 0.15) / 0.05 * (ef20 - ef15)
+    if s < 0.3:
+        return ef20 + (s - 0.2) / 0.1 * (ef30 - ef20)
+    if s <= 0.4:
+        return ef30 + (s - 0.3) / 0.1 * (ef40 - ef30)
+    return ef40 + (s - 0.4) / 0.1 * (ef40 - ef30)
+
+
+def _elevator_load(lt50: float, lt25: float, ti: TailLoadsInput) -> float:
+    """Load carried by the elevator: the camber-load share aft of the hinge plus the
+    angle-of-attack-load share (SELECT.BAS 5216-5218)."""
+    se, st = ti.elevator_area_sqft, ti.htail_area_sqft
+    cam = (ti.elevator_fwd_hinge_sqft + 0.5 * ti.elevator_aft_hinge_sqft) * lt50 / (st - ti.elevator_aft_hinge_sqft)
+    att = 0.5 * (se / (0.75 * st)) * lt25 / st * se
+    return cam + att
+
+
+def select_htail_maneuver(project: Project) -> List[CriticalCondition]:
+    """The unchecked (FAR 23.423(a)) and checked (23.423(b)) maneuver tail loads,
+    flaps retracted: full elevator deflection at the 1g VA points (unchecked) and a
+    pitch-acceleration increment at the VC/VD points (checked)."""
+    ti, fl = project.tail_loads, project.flight_loads
+    if ti is None or fl is None:
+        return []
+    cg_map: Dict[str, CgCase] = {c.name: c for c in fl.cg_cases}
+    np_ = _design_inputs(project).n_pos
+    aht = 2.0 * math.pi / (1.0 + 2.0 / ti.aspect_ratio_htail)
+    se2st = ti.elevator_area_sqft / ti.htail_area_sqft if ti.htail_area_sqft else 0.0
+    vn = _envelope(project).vn
+
+    def bal(p: VnPoint):
+        return htail_balance(p, cg_map[p.cg], fl.xw, fl.zw, ti)
+
+    def in_cg(p: VnPoint) -> bool:
+        return p.cg in cg_map and not p.config.upper().startswith("LAND")
+
+    out: List[CriticalCondition] = []
+    bal_a = [p for p in vn if p.condition == "BAL A" and in_cg(p)]
+    if bal_a:
+        # Unchecked: full TE-up (down load) / TE-down (up load) elevator at the 1g VA.
+        for label, far, edefl, sign, want_min in (
+            ("UNCHECKED MAN DN", "23.423(a)(1)", ti.elevator_te_up_deg, -1.0, True),
+            ("UNCHECKED MAN UP", "23.423(a)(2)", ti.elevator_te_down_deg, +1.0, False),
+        ):
+            def total(p: VnPoint, edefl=edefl, sign=sign):
+                b = bal(p)
+                lt50 = sign * edefl * ti.elevator_effectiveness * _ef(edefl, se2st) * aht / _DEG \
+                    * p.v_eas_kt ** 2 / 295.0 * ti.htail_area_sqft
+                return b["LT25"] + lt50, b, lt50
+            p = (min if want_min else max)(bal_a, key=lambda p: total(p)[0])
+            tot, b, lt50 = total(p)
+            out.append(_htail_condition(label, far, p, tot, [
+                LoadValue("Balanced tail load", b["LT"], "lb"),
+                LoadValue("AoA load (cp 25%)", b["LT25"], "lb"),
+                LoadValue("Elevator-deflection increment (cp 50%)", lt50, "lb"),
+                LoadValue("Elevator load", _elevator_load(lt50, b["LT25"], ti), "lb"),
+                LoadValue("Elevator deflection", sign * edefl, "deg"),
+            ]))
+
+    # Checked: pitch-acceleration increment T = Iyy*theta_ddot/(arm) at VC/VD.
+    def iyy(p: VnPoint) -> float:
+        return cg_map[p.cg].weight_lb * ti.airplane_length_ft ** 2 / _G / 12.0 * 0.44
+
+    def theta_ddot(p: VnPoint) -> float:
+        return 39.0 * np_ * (np_ - 1.5) / p.v_eas_kt
+
+    def increment(p: VnPoint) -> float:
+        return iyy(p) * theta_ddot(p) / ((ti.xt50 - cg_map[p.cg].xcg) / 12.0)
+
+    bal_cd = [p for p in vn if p.condition in ("BAL C", "BAL D") and in_cg(p)]
+    man_cd = [p for p in vn if p.condition in ("MAN C", "MAN D") and in_cg(p)]
+    if bal_cd:
+        p = min(bal_cd, key=lambda p: bal(p)["LT"] - increment(p))   # largest down
+        out.append(_htail_condition("CHECKED MAN DN", "23.423(b)", p, bal(p)["LT"] - increment(p), [
+            LoadValue("Balanced tail load", bal(p)["LT"], "lb"),
+            LoadValue("Maneuver load increment", -increment(p), "lb"),
+            LoadValue("Pitch inertia Iyy", iyy(p), "slug-ft^2")]))
+    if man_cd:
+        p = max(man_cd, key=lambda p: bal(p)["LT"] + increment(p))   # largest up
+        out.append(_htail_condition("CHECKED MAN UP", "23.423(b)", p, bal(p)["LT"] + increment(p), [
+            LoadValue("Balanced tail load", bal(p)["LT"], "lb"),
+            LoadValue("Maneuver load increment", increment(p), "lb"),
+            LoadValue("Pitch inertia Iyy", iyy(p), "slug-ft^2")]))
+    return out
+
+
+def select_htail_gust(project: Project) -> List[CriticalCondition]:
+    """Up and down gust tail loads, flaps retracted (FAR 23.425(a)(1)): the initial
+    balancing load plus the rational gust increment at the BAL C / BAL D points."""
+    ti, fl = project.tail_loads, project.flight_loads
+    if ti is None or fl is None:
+        return []
+    cg_map: Dict[str, CgCase] = {c.name: c for c in fl.cg_cases}
+    aht = 2.0 * math.pi / (1.0 + 2.0 / ti.aspect_ratio_htail)
+    aw, arw = ti.wing_lift_slope_per_rad, ti.aspect_ratio_wing
+    mac_ft = fl.mac / 12.0
+    vn = _envelope(project).vn
+
+    def gust_increment(p: VnPoint) -> float:
+        w = cg_map[p.cg].weight_lb
+        ude = 50.0 if p.condition == "BAL C" else 25.0
+        if p.altitude_ft > 20000.0:
+            ude *= 1.0 - 0.5 * (p.altitude_ft - 20000.0) / 30000.0
+        rho = _sigma(p.altitude_ft) * 0.002378
+        ug = 2.0 * (w / fl.wing_area_sqft) / (rho * mac_ft * aw * _G)
+        kg = 0.88 * ug / (5.3 + ug)
+        return kg * ude * p.v_eas_kt * ti.htail_area_sqft * aht * (1.0 - 36.0 * (aw / _DEG) / arw) / 498.0
+
+    bal_cd = [p for p in vn if p.condition in ("BAL C", "BAL D")
+              and p.cg in cg_map and not p.config.upper().startswith("LAND")]
+    if not bal_cd:
+        return []
+
+    def bal_lt(p: VnPoint) -> float:
+        return htail_balance(p, cg_map[p.cg], fl.xw, fl.zw, ti)["LT"]
+
+    out: List[CriticalCondition] = []
+    up = max(bal_cd, key=lambda p: bal_lt(p) + gust_increment(p))
+    out.append(_htail_condition("GUST UP RETRACTED", "23.425(a)(1)", up,
+                                bal_lt(up) + gust_increment(up), [
+        LoadValue("Balanced tail load", bal_lt(up), "lb"),
+        LoadValue("Gust increment (cp 25%)", gust_increment(up), "lb")]))
+    dn = min(bal_cd, key=lambda p: bal_lt(p) - gust_increment(p))
+    out.append(_htail_condition("GUST DN RETRACTED", "23.425(a)(1)", dn,
+                                bal_lt(dn) - gust_increment(dn), [
+        LoadValue("Balanced tail load", bal_lt(dn), "lb"),
+        LoadValue("Gust increment (cp 25%)", -gust_increment(dn), "lb")]))
+
+    # Flaps extended (FAR 23.425(a)(2)): the BAL VF points with a 25 fps gust at
+    # sea-level density (FLTLOADS.BAS 5700-5910).
+    def flap_gust_increment(p: VnPoint) -> float:
+        w = cg_map[p.cg].weight_lb
+        ug = 2.0 * (w / fl.wing_area_sqft) / (0.002378 * mac_ft * aw * _G)
+        kg = 0.88 * ug / (5.3 + ug)
+        return kg * 25.0 * p.v_eas_kt * ti.htail_area_sqft * aht * (1.0 - 36.0 * (aw / _DEG) / arw) / 498.0
+
+    bal_vf = [p for p in vn if p.condition == "BAL VF" and p.cg in cg_map]
+    if bal_vf:
+        up = max(bal_vf, key=lambda p: bal_lt(p) + flap_gust_increment(p))
+        out.append(_htail_condition("GUST UP EXTENDED", "23.425(a)(2)", up,
+                                    bal_lt(up) + flap_gust_increment(up), [
+            LoadValue("Balanced tail load", bal_lt(up), "lb"),
+            LoadValue("Gust increment (cp 25%)", flap_gust_increment(up), "lb")]))
+        dn = min(bal_vf, key=lambda p: bal_lt(p) - flap_gust_increment(p))
+        out.append(_htail_condition("GUST DN EXTENDED", "23.425(a)(2)", dn,
+                                    bal_lt(dn) - flap_gust_increment(dn), [
+            LoadValue("Balanced tail load", bal_lt(dn), "lb"),
+            LoadValue("Gust increment (cp 25%)", -flap_gust_increment(dn), "lb")]))
+    return out
+
+
+def select_htail_unsymmetrical(htail: List[CriticalCondition], np_: float) -> List[CriticalCondition]:
+    """The unsymmetrical horizontal-tail load (FAR 23.427(a)): the largest-magnitude
+    symmetric tail load, 100% on one side and 100 - 10*(n-1) percent on the other."""
+    # The unchecked-maneuver loads are carried locally to the attach points (FAA CAM
+    # 3.216 policy) and are not combined unsymmetrically, so they are excluded here.
+    candidates = [c for c in htail if "UNCHECKED" not in c.label]
+    if not candidates:
+        return []
+    pc = min(100.0 - 10.0 * (np_ - 1.0), 80.0)
+    worst = max(candidates, key=lambda c: abs(c.loads[0].value))
+    total = worst.loads[0].value
+    rh = 0.5 * total
+    lh = (pc / 100.0) * rh
+    return [CriticalCondition(
+        component="htail", label="UNSYMMETRICAL", far_reference="23.427(a)", case=worst.case,
+        loads=[LoadValue("Total tail load", rh + lh, "lb"),
+               LoadValue("RH side load", rh, "lb"),
+               LoadValue("LH side load", lh, "lb"),
+               LoadValue("Other-side percent", pc, "%")])]
+
+
+def select_htail(project: Project) -> List[CriticalCondition]:
+    """All horizontal-tail critical loads (flaps retracted): balancing (23.421),
+    unchecked/checked maneuver (23.423), gust (23.425(a)(1)) and the unsymmetrical
+    load (23.427(a))."""
+    if project.tail_loads is None or project.flight_loads is None:
+        return []
+    out = select_htail_balancing(project)
+    out.extend(select_htail_maneuver(project))
+    out.extend(select_htail_gust(project))
+    out.extend(select_htail_unsymmetrical(out, _design_inputs(project).n_pos))
     return out
 
 
@@ -359,14 +566,73 @@ def select_vtail(project: Project) -> List[CriticalCondition]:
     return out
 
 
+# --------------------------------------------------------------------------- #
+# Critical fuselage conditions (Ch 9; SELECT.BAS subroutine 4000)
+# --------------------------------------------------------------------------- #
+def select_fuselage(project: Project) -> List[CriticalCondition]:
+    """The critical fuselage *conditions* (Ch 9): the fuselage load reacted at the
+    wing ``LZW - NZ*WW``, the aft-fuselage down/up bending (largest signed product
+    of that load and the tail load), and the greatest vertical inertia factor for
+    concentrated-weight installations. ``WW`` is the wing weight."""
+    fl = project.flight_loads
+    if fl is None:
+        return []
+    vn = _envelope(project).vn
+    if not vn:
+        return []
+    si = project.select_input
+    mtow = max((c.weight_lb for c in fl.cg_cases), default=0.0)
+    ww = (si.wing_weight_lb if si and si.wing_weight_lb else 0.09 * mtow)
+
+    def fus_on_wing(p: VnPoint) -> float:      # fuselage load reacted at the wing
+        return p.lzw - p.nz * ww
+
+    def bending(p: VnPoint) -> float:          # aft-fuselage bending proxy
+        return -fus_on_wing(p) * p.lt
+
+    out: List[CriticalCondition] = []
+
+    vsmax = max(vn, key=fus_on_wing)
+    out.append(CriticalCondition(
+        component="fuselage", label="MAX DOWN LOAD ON WING", far_reference="23.301", case=vsmax.case,
+        loads=[LoadValue("Fuselage down load on wing", fus_on_wing(vsmax), "lb"),
+               LoadValue("Load factor NZ", vsmax.nz),
+               LoadValue("Tail load", vsmax.lt, "lb")]))
+
+    pos = [p for p in vn if p.nz > 0]
+    neg = [p for p in vn if p.nz < 0]
+    if pos:
+        bmmax = max(pos, key=bending)
+        out.append(CriticalCondition(
+            component="fuselage", label="AFT DOWN BENDING", far_reference="23.331", case=bmmax.case,
+            loads=[LoadValue("Fuselage down load on wing", fus_on_wing(bmmax), "lb"),
+                   LoadValue("Load factor NZ", bmmax.nz),
+                   LoadValue("Tail load", bmmax.lt, "lb")]))
+    if neg:
+        bmmin = min(neg, key=bending)
+        out.append(CriticalCondition(
+            component="fuselage", label="AFT UP BENDING", far_reference="23.331", case=bmmin.case,
+            loads=[LoadValue("Fuselage load on wing", fus_on_wing(bmmin), "lb"),
+                   LoadValue("Load factor NZ", bmmin.nz),
+                   LoadValue("Tail load", bmmin.lt, "lb")]))
+
+    nzmax = max(vn, key=lambda p: p.nz)
+    out.append(CriticalCondition(
+        component="fuselage", label="GREATEST NZ", far_reference="23.301", case=nzmax.case,
+        loads=[LoadValue("Load factor NZ", nzmax.nz),
+               LoadValue("Balancing tail load", nzmax.lt, "lb")]))
+    return out
+
+
 def build_critical(project: Project) -> CriticalLoadSet:
     """Compute the critical-load set for ``Project.envelope.critical``: the wing
-    conditions always, plus the rational horizontal-tail balancing loads (when
-    ``Project.tail_loads`` is present) and the vertical-tail loads (when
-    ``Project.vtail_loads`` is present)."""
+    conditions always, plus the rational horizontal-tail loads (when
+    ``Project.tail_loads`` is present), the vertical-tail loads (when
+    ``Project.vtail_loads`` is present) and the critical fuselage conditions."""
     conditions = select_wing(project)
-    conditions.extend(select_htail_balancing(project))
+    conditions.extend(select_htail(project))
     conditions.extend(select_vtail(project))
+    conditions.extend(select_fuselage(project))
     return CriticalLoadSet(conditions=conditions)
 
 

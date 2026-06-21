@@ -170,6 +170,39 @@ def test_flight_loads_slice_round_trips_through_io():
     assert fl.cg_cases[0].name == "CG1"
 
 
+def _with_landing():
+    # The GA6 project plus a synthetic LANDING configuration (flaps extended): the
+    # real landing aero polynomials are not in the repo, so the flapped envelope is
+    # validated by closure (NZ achieved, n<=2 maneuver limit), not the printed
+    # flaps-extended oracle.
+    import copy
+
+    p = io.load_project(_GA)
+    p.flight_loads.altitudes_ft = [0.0]
+    cruise = p.flight_loads.configurations[0]
+    landing = copy.deepcopy(cruise)
+    landing.name = "LANDING"
+    landing.flaps_down = True
+    landing.stall_cl = 1.9
+    landing.neg_stall_cl = -0.8
+    p.flight_loads.configurations = [cruise, landing]
+    return p
+
+
+def test_flapped_envelope_corner_set_and_closure():
+    # Step C6 R3: the flaps-extended corner set (FLTLOADS subr 3000) at VF, n<=2.
+    env = build_envelope(_with_landing())
+    flap = [v for v in env.vn if v.config == "LANDING"]
+    conds = {v.condition for v in flap}
+    assert {"STAL 2/3G", "STALL 2G", "MAN 2G VF", "GUST VF", "BAL VF", "BAL 1.4VSF"} <= conds
+    # The maneuver points achieve their target NZ (2/3, 1, 2) and sit at VF.
+    man2 = next(v for v in flap if v.condition == "MAN 2G VF")
+    assert math.isclose(man2.nz, 2.0, abs_tol=0.01)
+    assert math.isclose(man2.v_eas_kt, 105.5, rel_tol=5e-3)   # VF
+    stal = next(v for v in flap if v.condition == "STAL 2/3G")
+    assert math.isclose(stal.nz, 2.0 / 3.0, abs_tol=0.01)
+
+
 if __name__ == "__main__":
     import traceback
 

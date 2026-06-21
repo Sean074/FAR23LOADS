@@ -321,6 +321,47 @@ def _config_points(config: AeroCoeffSet, cg: CgCase, fl: FlightLoadsInput,
     return pts, case
 
 
+def _flap_config_points(config: AeroCoeffSet, cg: CgCase, fl: FlightLoadsInput,
+                        alt: float, di: _DesignInputs, case: int) -> "tuple[List[VnPoint], int]":
+    """The flaps-extended (LANDING) V-n corner set at the flap speed VF
+    (FLTLOADS.BAS subroutine 3000): the flap envelope is limited to n=2 (FAR 23.345)
+    and investigated at sea level only. Conditions: stall at 2/3 g / 1 g / 2 g, the
+    n=2 and n=0 maneuver points at VF, the +/- gusts at VF (Ude 25 fps), and the VF /
+    1.4 Vs balancing points."""
+    w, s = cg.weight_lb, fl.wing_area_sqft
+    scl = config.stall_cl
+    pts: List[VnPoint] = []
+
+    def stall_v(n: float) -> float:
+        return 0.9 * math.sqrt(n * w * 295.0 / (scl * s))
+
+    def add(cond: str, n: float, v: float, cap: float) -> _Balanced:
+        nonlocal case
+        b = _balance(n, v, cap, config, cg, fl, alt)
+        case += 1
+        pts.append(VnPoint(
+            case=case, condition=cond, config=config.name, cg=cg.name, altitude_ft=alt,
+            v_eas_kt=b.v_eas, nz=b.nz, alpha_deg=b.alpha, g_corr=b.g, cl=b.cl,
+            m_wf=b.mm, lzw=b.lz, lt=b.lt, dx=b.dx,
+        ))
+        return b
+
+    def add_gust(cond: str, ng: int, v: float, cap: float) -> _Balanced:
+        n = _gust_load_factor(ng, v, cap, "F", config, cg, fl, alt)
+        return add(cond, n, v, cap)
+
+    add("STAL 2/3G", 2.0 / 3.0, stall_v(2.0 / 3.0), di.mc)
+    add("STALL 1GL", 1.0, stall_v(1.0), di.mc)
+    v3 = add("STALL 2G", 2.0, stall_v(2.0), di.mc).v_eas
+    add("MAN 2G VF", 2.0, di.vf, di.mc)
+    add("MAN 0G VF", 0.0, di.vf, di.mc)
+    add_gust("GUST VF", 1, di.vf, di.mc)
+    add_gust("GUST -VF", -1, di.vf, di.mc)
+    add("BAL VF", 1.0, di.vf, di.mc)
+    add("BAL 1.4VSF", 1.0, 1.4 * v3, di.mc)
+    return pts, case
+
+
 # --------------------------------------------------------------------------- #
 # Envelope builder + Project entry point
 # --------------------------------------------------------------------------- #
@@ -348,8 +389,9 @@ def build_envelope(project: Project) -> EnvelopeResult:
             if config.flaps_down and alt > 0:
                 continue
             xt = fl.xtf if config.flaps_down else fl.xtc
+            corner = _flap_config_points if config.flaps_down else _config_points
             for cg in fl.cg_cases:
-                pts, case = _config_points(config, cg, fl, alt, di, case)
+                pts, case = corner(config, cg, fl, alt, di, case)
                 vn.extend(pts)
                 for p in pts:
                     tail.append(TailBalanceLoad(

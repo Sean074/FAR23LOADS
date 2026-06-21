@@ -30,7 +30,21 @@ The Phase-C steps **re-sequence** the Phase 3/4 module ports below (vertical sli
 first) and add concept-specific work. The FAR23 path stays oracle-locked
 (Appendix A/B ±0.1%); concept mode reduces exactly to it on GA inputs.
 
-- [ ] **C6 — SELECT + fuselage/body distributed loads.**
+> **C6 — SELECT + fuselage/body distributed loads** shipped — see
+> [`../40_history/00_completed_development.md`](../40_history/00_completed_development.md).
+> Deferred follow-ups the C6 build did **not** include:
+> - **Flaps-extended tail-load oracle.** R3/R4 (flapped V-n envelope + flaps-extended
+>   balancing/gust) are closure-validated; matching the Appendix A flaps-extended
+>   cases (81/106/88/108) needs the real landing-config aero polynomials and the
+>   CG5–7 loadings added to the fixtures.
+> - **Per-CG precise inertia in SELECT.** `Project.mass` is persisted (WTONECG) but
+>   SELECT's checked-maneuver `Iyy` and v-tail `IZZ` still use the Ch 9
+>   approximations (which match the oracle); wire the per-CG persisted inertia.
+> - **V-tail large-deflection factor `EFV`.** Modelled as an input (default 1.0)
+>   because its chart (SELECT.BAS subr 10000 at δ=0) is illegible in the scan.
+> - **`BALLOADS`** verification utility (off-menu) — the rational balancing method
+>   now lives in SELECT; the standalone cross-check tool is still unbuilt.
+
 - [ ] **C7 — TAILDIST + AIRLOAD4.** Chordwise tail loads; swept/high-Mach spanwise airloads.
 - [ ] **C8 — Control-surface simplified distributions.** AILERON / FLAPLOAD / TABLOADS.
 
@@ -40,8 +54,9 @@ first) and add concept-specific work. The FAR23 path stays oracle-locked
 - [ ] `AIRLOAD4` — swept / high-Mach spanwise airloads (sweepback adjustment to
   Schrenk). Low-speed `AIRLOADS` + the `TAU` helper landed in Step C1; `AIRLOAD4`
   is scheduled in C7.
-- [ ] `SELECT` — rational critical wing/tail/fuselage loads. **`AIRLOADS`⇄`SELECT` iterate — build them together.**
-- [ ] `BALLOADS` — balanced-tail-load verification utility (off-menu); may be deferred or built alongside `SELECT`.
+- [x] `SELECT` — rational critical wing/tail/fuselage loads (shipped in Step C6).
+- [ ] `BALLOADS` — balanced-tail-load verification utility (off-menu); the rational
+  balancing method now lives in SELECT, so this standalone cross-check is optional.
 
 ### Phase 4 — Component loads (largely independent; parallelizable after Phases 1–3)
 - [ ] `AILERON` — aileron loads.

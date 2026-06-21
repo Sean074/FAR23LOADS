@@ -11,6 +11,72 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **Critical Loads + Fuselage Loads UI pages (Step C6, R9).** New Streamlit pages
+  `app/pages/09_Critical_Loads.py` (the SELECT critical wing / h-tail / v-tail /
+  fuselage conditions, grouped per component with their loads and FAR cites; persists
+  `envelope.critical`) and `app/pages/10_Fuselage_Loads.py` (the Ch 15 fuselage net
+  shear/bending per critical condition, editable fuselage mass distribution, closure
+  metric, plots and CSV download). Both flag concept-mode results as unverified
+  extrapolation.
+
+- **Flaps-extended tail loads + flapped V-n envelope (Step C6, R3/R4).**
+  `flight_envelope` gains the flaps-extended (LANDING) V-n corner set at the flap
+  speed VF (FLTLOADS.BAS subroutine 3000: stall at 2/3 g / 1 g / 2 g, the n=2 / n=0
+  maneuver points at VF, ± gusts at VF, and the VF / 1.4 Vs balancing points,
+  n-limited to 2 per FAR 23.345 and investigated at sea level). SELECT extends the
+  balancing search to the flaps-extended points (FAR 23.421) and adds the
+  flaps-extended gust (FAR 23.425(a)(2), 25 fps at VF). The real landing-config aero
+  polynomials are not in the repo fixtures, so R3/R4 are validated by **closure**
+  (the flapped points achieve their target NZ; the rational balancing tail load
+  zeroes the flapped pitching moment) rather than the printed flaps-extended oracle
+  (Appendix A cases 81/106/88/108). `tests/test_flight_envelope.py` /
+  `tests/test_select.py` extended.
+
+- **Net fuselage loads + sbeam body export (Step C6, R6/R8).** New `body_loads`
+  module (Ref 1 Ch 15) computes the fuselage longitudinal net distribution for each
+  critical fuselage condition: each station's inertia (`-NZ·w`), the balancing tail
+  air load at the tail station, and the wing reaction at 25% wing MAC, integrated
+  nose→tail to running shear `Sz` and bending `Myy` → `Project.loads.body_net`
+  (`BodyLoadResult`/`BodyStationLoad`) + a per-station CSV (`body_load_rows`). Ch 15
+  ships no program/oracle, so it is validated by **equilibrium closure** (applied
+  `ΣFz=0`, shear returns to 0 aft of the wing). The sbeam bridge gains
+  `body_span_load_csv` / `body_force_moment_cards` (FORCE Fz per station, the set
+  summing to ~0). New `tests/test_body_loads.py`.
+
+- **WTONECG — persisted mass slice (Step C6, R7).** `weight_onecg.build_mass`
+  emits the long-deferred `Project.mass` slice (`MassResult`): weight, CG and the
+  airplane moments/product of inertia (lb-in²) about the CG for the itemized
+  loading. Validated against Appendix A p136 and the io round-trip. SELECT's oracle
+  searches keep their documented Ch 9 inertia approximations (so the slice is
+  available for reporting/future per-CG work without changing the locked results).
+
+- **SELECT — critical fuselage conditions (Step C6).** Adds the Ch 9 fuselage
+  condition search (SELECT.BAS subroutine 4000): the maximum fuselage load reacted
+  at the wing (`LZW − NZ·WW`, FAR 23.301), the aft-fuselage down/up bending (the
+  largest signed product of that load and the tail load, 23.331), and the greatest
+  vertical inertia factor for concentrated-weight installations (23.301). `WW`
+  (wing weight) is a new `SelectInput` field (default `0.09·MTOW`). These are
+  condition *selections* (scalar criticals) distinct from the Ch 15 fuselage net
+  *distribution* (R6). Oracle-locked against Appendix A "Critical Fuselage Loads":
+  max down load on wing 13347.6 (GUST +C), aft down bending 12569.6, aft up bending
+  −6390.3 (GUST −C), greatest NZ 5.81. `tests/test_select.py` extended.
+
+- **SELECT — horizontal-tail maneuver / gust / unsymmetrical loads (Step C6).**
+  Extends the `select` module with the remaining flaps-retracted h-tail conditions:
+  unchecked maneuver up/down (FAR 23.423(a) — full elevator deflection at the 1g VA
+  points), checked maneuver up/down (23.423(b) — a pitch-acceleration increment
+  `Iyy·θ̈/arm` with the approximate `Iyy=0.44·W·LF²/384` and `θ̈=39·n(n−1.5)/V` at
+  VC/VD), up/down gust (23.425(a)(1) — the balancing load plus the rational gust
+  increment `KG·Ude·V·ST·AHT·(1−36aw/ARW)/498`), and the unsymmetrical load
+  (23.427(a) — 100% one side / `100−10(n−1)`% the other, excluding the locally
+  carried unchecked-maneuver loads per FAA CAM 3.216). The large-deflection
+  effectiveness factor `EF(δ, Se/St)` is reconstructed exactly from SELECT.BAS
+  subroutine 10000. `TailLoadsInput` extended with the elevator geometry, airplane
+  length and wing lift slope (`SCHEMA_VERSION` 10 → 11, additive). Oracle-locked
+  against Appendix A "Critical Horizontal Tail Loads": unchecked −1397.8 / +1227.2,
+  checked −671.5 / +787.8, gust +908.6 / −1292.8, unsymmetrical −1111.8 (RH −646.4,
+  LH −465.4). `tests/test_select.py` extended.
+
 - **SELECT — rational vertical-tail loads (Step C6).** Extends the `select` module
   with the four critical vertical-tail loads (Ch 9 / SELECT.BAS subroutine 8300),
   searched over the V-n `BAL A` (VA) and `BAL C` (VC) points: sudden full rudder

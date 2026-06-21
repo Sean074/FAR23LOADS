@@ -87,6 +87,24 @@ def test_run_requires_items():
     assert raised
 
 
+def test_build_mass_persists_properties_and_round_trips():
+    # build_mass emits the persisted Project.mass slice (R7): weight/CG/inertia in
+    # lb-in^2, matching the WTONECG result and surviving the io round-trip.
+    project = io.load_project(_EXAMPLE)
+    mass = calc.build_mass(project)
+    assert len(mass.cases) == 1
+    c = mass.cases[0]
+    assert c.weight_lb == 3400
+    assert math.isclose(c.cg_x, 84.99936, rel_tol=TOL)
+    assert math.isclose(c.iyy, 9534613, rel_tol=TOL)
+    assert math.isclose(c.izz, 14002901, rel_tol=TOL)
+
+    project.mass = mass
+    rebuilt = io.project_from_dict(io.project_to_dict(project))
+    assert rebuilt.mass is not None
+    assert math.isclose(rebuilt.mass.cases[0].iyy, c.iyy, rel_tol=1e-9)
+
+
 if __name__ == "__main__":
     import traceback
 
