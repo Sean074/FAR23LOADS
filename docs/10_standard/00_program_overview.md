@@ -44,8 +44,12 @@ farloads/                 # shared, pure-calc package — no I/O in calc code
     ├── wing_inertia.py   # WINGINER                net_loads.py        # NETLOADS
     ├── body_loads.py     # net fuselage (Ch 15)    configuration.py    # Configuration & Layout (modern)
 app/
-├── Home.py               # load/save project, summary, run-all (primary entry point)
-└── pages/NN_*.py         # one Streamlit page per suite program
+├── Home.py               # st.navigation entry point: 4-phase sidebar (Define→Analyze→Review→Export)
+├── views/                # one view per step; named by workflow key (no numeric prefixes)
+│   ├── dashboard.py      #   Overview — load/save project + workflow completeness panel
+│   ├── results_review.py #   Review   — consolidated governing loads (recomputed live)
+│   └── export_report.py  #   Export   — project JSON + per-module CSVs + sbeam BDF cards
+└── data/reference_aircraft.csv
 cli.py                    # argparse front-end; `farloads` console script
 tests/                    # pytest; one manual-example test per module vs Appendix A/B
 examples/                 # ga6_normal (Appendix A) + concept_heavy (concept) project.json
@@ -55,6 +59,15 @@ Data flow for one run: `project.json` → `io.load_project` → `Project` →
 `registry.get(name)(project)` → `ModuleResult` → `report`/`io` renders text or the
 load-case CSV. The GUI builds the `Project` from widgets; everything downstream is
 identical.
+
+The GUI is organised as a four-phase workflow — **Define → Analyze → Review →
+Export** — built explicitly with `st.navigation` from `farloads/workflow.py`, the
+ordered, dependency-aware step graph (each step names the calc `module` it runs and
+the slices it `requires`/`produces`). That one source of truth drives both the
+sidebar grouping and the Home dashboard's completeness panel, so the navigation can
+never silently drift from the shipped modules. The two Review/Export consolidation
+pages recompute from the project inputs rather than reading persisted result slices,
+so they are never stale.
 
 ---
 
@@ -137,8 +150,10 @@ only. Saved `project.json` is always canonical Imperial.
 
 ## Entry points
 
-- **Streamlit UI (primary):** `streamlit run app/Home.py` — load/save the
-  project, see a summary, run all modules, and open per-program pages.
+- **Streamlit UI (primary):** `streamlit run app/Home.py` — the four-phase
+  workflow (Define → Analyze → Review → Export). The Overview dashboard loads/saves
+  the project and shows per-step completeness; each phase groups its pages in the
+  sidebar; the Review and Export pages consolidate governing loads and all exports.
 - **CLI (secondary, batch/automation):** the `farloads` console script (from the
   editable install) or `python cli.py <module> <project.json> [-o out.csv]`;
   `--list` shows registered modules. Text report to stdout, or `-o` writes the

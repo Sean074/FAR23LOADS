@@ -185,6 +185,7 @@ FAR23LOADS/
 │   ├── models.py                 # Project dataclass + per-domain sub-models
 │   ├── io.py                     # load/save project JSON; CSV writers
 │   ├── registry.py               # module registry: name -> run(project) -> results
+│   ├── workflow.py               # ordered Define→Analyze→Review→Export step graph (drives GUI nav + dashboard)
 │   ├── report.py                 # shared text/CSV rendering (already exists)
 │   ├── export/                   # output bridges to external tools (renderers, NOT registered modules)
 │   │   ├── coordinates.py        # FAR23LOADS axes -> sbeam CID 0 map (single edit-point)
@@ -207,14 +208,14 @@ FAR23LOADS/
 │       ├── engine.py             # ENGLOADS  ← current engloads/engloads/calc.py
 │       ├── one_engine_out.py     # ONENGOUT
 │       └── landing.py            # LGFACTOR + LANDLOAD ✅ (C10)
-├── app/                          # multi-page Streamlit UI
-│   ├── Home.py                   # load/save project JSON, project summary, run-all
-│   └── pages/
-│       ├── 00_Configuration_Layout.py  # Configuration & Layout (three-view + fleet)
-│       ├── 01_Weight_Estimate.py
-│       ├── 02_Weight_Envelope.py
-│       ├── ...
-│       └── 19_Engine_Mount.py    # current engloads/app.py content
+├── app/                          # multi-page Streamlit UI (st.navigation, 4 phases)
+│   ├── Home.py                   # entry point: builds the phase nav from farloads.workflow
+│   ├── views/                    # one view per workflow step (clean names, no prefixes)
+│   │   ├── dashboard.py          #   Overview — load/save + completeness panel
+│   │   ├── configuration_layout.py … one_engine_out.py   # one per suite program
+│   │   ├── results_review.py     #   Review   — consolidated governing loads
+│   │   └── export_report.py      #   Export   — project JSON + CSVs + sbeam BDF
+│   └── data/reference_aircraft.csv
 ├── cli.py                        # `python cli.py engine project.json -o out.csv`
 ├── tests/
 │   ├── test_engine.py            # current test_calc.py (renamed)
@@ -239,7 +240,7 @@ FAR23LOADS/
 
 ### Migration of `engloads` (mechanical, low-risk)
 1. `engloads/engloads/` → `farloads/`. Keep `calc.py` as `farloads/modules/engine.py` (or keep the name; update imports).
-2. `engloads/app.py` → `app/pages/19_Engine_Mount.py`; add a thin `app/Home.py`.
+2. `engloads/app.py` → `app/views/engine_mount.py`; add a thin `app/Home.py` (the `st.navigation` entry point).
 3. Tests move under top-level `tests/`; rename `test_calc.py` → `test_engine.py`.
 4. Introduce `models.Project` and make `EngineInput` a *view* over the engine slice of `Project` (or keep `EngineInput` and have `Project.engine: EngineInput`). The second is less churn — recommended.
 5. Add `farloads/io.py` and `registry.py`. ENGLOADS registers itself; "run all" iterates the registry.

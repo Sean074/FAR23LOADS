@@ -9,6 +9,40 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed
+
+- **GUI restructured into the four-phase workflow (Define → Analyze → Review →
+  Export).** `app/Home.py` is now an `st.navigation` entry point that builds the
+  phase-grouped sidebar from the new `farloads/workflow.py` — the ordered,
+  dependency-aware step graph (each step names its calc `module` and the slices it
+  `requires`/`produces`). The 20 page files moved `app/pages/NN_*.py` →
+  `app/views/<workflow-key>.py` (clean names, no numeric prefixes; the duplicate
+  `06_` index is gone), and each page's `set_page_config` was removed (called once,
+  in `Home.py`, as `st.navigation` requires). The old Phase-0 Home page (which only
+  inspected four of the ~20 project slices) is replaced by `views/dashboard.py`: an
+  Overview that loads/saves the project and shows per-step completeness.
+
+### Added (GUI)
+
+- **Results Review & Export pages.** `views/results_review.py` consolidates the
+  governing (critical) loads on every component plus all module results by phase;
+  `views/export_report.py` gathers every output in one place — project JSON,
+  per-module load CSVs + a combined text report, sbeam wing/fuselage/tail/
+  control-surface BDF cards, and a single **Download all `.zip`** bundle. Both
+  recompute from the project inputs, so exports are never stale. *(Closes the
+  "Combined workbook export" backlog item.)*
+- **GUI regression tests.** `tests/test_workflow.py` (step-graph well-formedness;
+  every registered module has a workflow step) and `tests/test_views_smoke.py`
+  (headless `AppTest` runs the entry point + all 20 views with the example project,
+  asserting no uncaught exception). +24 tests.
+
+### Fixed
+
+- **Engine-mount page crash.** `app/views/engine_mount.py` still built its
+  save-project payload with the removed single-engine `Project(engine=...)` keyword;
+  now uses `engines=[...]` + `EngineLayout.SINGLE_NOSE`. Caught by the new view
+  smoke test.
+
 ### Added
 
 - **Balanced-tail-load verification — BALLOADS (Step C11).** New

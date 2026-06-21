@@ -127,6 +127,11 @@ I/O; the GUI, CLI and tests are interchangeable front-ends over the same package
   - `registry.py` — name → `run(project)` lookup. `run_all_modules(project)` runs
     every registered module whose input slice is present (a module raises
     `ValueError` when its slice is missing, and that is skipped).
+  - `workflow.py` — the ordered Define→Analyze→Review→Export step graph (pure
+    metadata + predicates over a `Project`; no Streamlit). Each `WorkflowStep` names
+    its `module` and the slices it `requires`/`produces`; drives the GUI navigation
+    and the dashboard completeness panel, and is the seed of a dependency DAG. A test
+    asserts every registered module has a step (guarding against nav drift).
   - `io.py` — the **only** place that maps dataclasses ↔ JSON. Loads/saves
     `project.json` (also accepts a legacy flat engine-only file) and writes the
     load-case CSV.
@@ -135,10 +140,15 @@ I/O; the GUI, CLI and tests are interchangeable front-ends over the same package
   - `report.py` — shared rendering: `load_cases_to_rows` (one row per structural
     load case — the canonical CSV shape every module reuses) and `text_report`.
   - `constants.py` — the one home for `g`, `pi`, unit factors.
-- `app/Home.py` + `app/pages/NN_*.py` — Streamlit multi-page UI. The editable
-  install (`pip install -e '.[dev]'`) puts `farloads` on the path, so the pages
-  import it directly — there are no `sys.path` shims (they were removed with the
-  packaging move).
+- `app/Home.py` + `app/views/*.py` — Streamlit multi-page UI. `Home.py` is the
+  `st.navigation` entry point: it builds a four-phase sidebar (Define → Analyze →
+  Review → Export) from `farloads/workflow.py` (the ordered step graph), so page
+  order/titles come from workflow metadata, not filename prefixes. Each view is
+  `app/views/<workflow-key>.py`; `dashboard.py`, `results_review.py` and
+  `export_report.py` are the Overview / Review / Export consolidation pages. Only
+  `Home.py` may call `st.set_page_config` (once, before `st.navigation`). The
+  editable install (`pip install -e '.[dev]'`) puts `farloads` on the path, so the
+  views import it directly — there are no `sys.path` shims.
 - `cli.py` — argparse front-end: load project → `registry.get(module)` → CSV/text.
 - `tests/` — pytest; `conftest.py` puts the repo root and `tests/` on `sys.path`
   (so `from test_engine import io520bb` works). Each test file also has a

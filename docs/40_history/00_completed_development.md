@@ -10,6 +10,51 @@ Acceptance**, **Key decisions**.
 
 ---
 
+## GUI — workflow-phased restructure (complete)
+
+**Objective.** Reorganise the Streamlit UI to mirror the engineering workflow —
+**Define → Analyze → Review → Export** — replacing the flat, filename-numbered page
+list (which had drifted: a Phase-0 Home page, a duplicate `06_` index, no review or
+export surface) with a navigation driven by a single source of truth.
+
+**Deliverables.**
+- `farloads/workflow.py` — the ordered, dependency-aware step graph. Each
+  `WorkflowStep` names its calc `module` and the slices it `requires`/`produces`,
+  grouped into the four phases. Pure metadata + predicates over a `Project` (no
+  Streamlit), the seed of a future dependency DAG.
+- `app/Home.py` rewritten as the `st.navigation` entry point: a four-phase sidebar
+  built from `workflow.py`, so page order/titles come from workflow metadata, not
+  filename prefixes. `set_page_config` is called once, here only.
+- `app/pages/NN_*.py` → `app/views/<workflow-key>.py` (20 pages, clean names, no
+  numeric prefixes — the duplicate-`06` collision is gone); each view's own
+  `set_page_config` removed.
+- New `app/views/dashboard.py` (Overview: load/save project + per-step completeness
+  panel), `results_review.py` (Review: consolidated governing loads, recomputed live
+  from inputs), `export_report.py` (Export: project JSON, per-module load CSVs +
+  combined text report, sbeam wing/fuselage/tail/control-surface BDF cards, and a
+  single **Download all `.zip`** bundle).
+- Fixed a pre-existing crash in the engine-mount page (still used the removed
+  single-engine `Project(engine=...)` API → `engines=[...]` + `SINGLE_NOSE`).
+
+**Test / Acceptance.** `tests/test_workflow.py` (graph well-formedness; every
+registered module has a step) and `tests/test_views_smoke.py` (headless `AppTest`
+runs the entry point + all 20 views with the example project, asserting no uncaught
+exception — the guard that would have caught the engine-mount regression). Full
+suite green (242 tests).
+
+**Key decisions.**
+1. **`st.navigation`, not the implicit `pages/` directory** — explicit page list
+   decouples nav order/titles from filenames and removes numeric-prefix coupling.
+2. **One workflow source of truth** (`workflow.py`) drives both the nav and the
+   dashboard completeness, so the GUI can never silently omit a shipped module.
+3. **Consolidation pages recompute from inputs**, never from persisted result slices
+   (which were only half-wired and could go stale) — Review/Export are always current.
+4. **JSON stays the spine, CSV stays at the edges** — `project.json` remains the
+   single typed source of truth; CSV/BDF are export-only hand-offs (CSV *import* for
+   bulk tabular inputs deferred — see backlog).
+
+---
+
 ## Phase 0 — Package restructure (complete)
 
 **Objective.** Recast the standalone `engloads` program into the shared

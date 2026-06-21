@@ -103,12 +103,13 @@ changelog entry) when done.
   reports. *(From the GUI review; the rest of that review — auto-populating the
   Weight, CG & Inertia page, a three-view, and the MTOW-vs-OEW fleet plot — shipped
   in the seed-mass-items helper and Step C5.)*
-- **Combined workbook export.** Offer a single multi-sheet export (zip of
-  per-module CSVs, or `.xlsx`) from the Home page. *(Default: zip of per-module CSVs.)*
 - **Per-module graphics audit.** Confirm every module that the original rendered as
   a plot (weight envelope, V-n diagram, spanwise / shear-BM-torsion, Mach lines,
   three-view) has an equivalent Streamlit chart. *(Most exist; audit for gaps as
   C7–C10 land.)*
+- **`.xlsx` workbook export.** The Export page already bundles a `.zip` of project
+  JSON + per-module load CSVs + sbeam BDF cards; a single multi-sheet `.xlsx`
+  (one tab per module) would be a nicer single-file hand-off. *(Optional.)*
 
 ---
 

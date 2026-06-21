@@ -42,8 +42,8 @@ farloads/                 # shared, pure-calc package (no I/O in calc)
 └── modules/              # one file per program (engine, weight_*, wing_*, airloads,
                           #   flight_envelope, select, net_loads, body_loads, configuration, …)
 app/
-├── Home.py               # load/save project, summary, run-all
-└── pages/                # one Streamlit page per module (00_Configuration_Layout … 19_Engine_Mount)
+├── Home.py               # st.navigation entry point — 4-phase sidebar (Define→Analyze→Review→Export)
+└── views/                # one page per workflow step + dashboard / results_review / export_report
 cli.py                    # python cli.py engine project.json -o out.csv
 tests/                    # pytest; each module vs the manual's appendices
 examples/                 # ga6_normal (Appendix A) + concept_heavy (concept) project.json
