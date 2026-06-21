@@ -50,6 +50,7 @@ from typing import List, Sequence, Union
 
 from ..models import (
     BodyLoadResult,
+    ControlSurfaceLoadResult,
     Project,
     TailChordResult,
     WingLoadResult,
@@ -493,3 +494,101 @@ def write_tail_chordwise_csv(arg, path: str) -> None:
 def write_tail_force_moment_cards(arg, path: str, sid_base: int = 1) -> None:
     with open(path, "w", encoding="utf-8") as fh:
         fh.write(tail_force_moment_cards(arg, sid_base=sid_base))
+
+
+# --------------------------------------------------------------------------- #
+# Control-surface simplified loads (AILERON / FLAPLOAD / TABLOADS, Step C8)
+# --------------------------------------------------------------------------- #
+# Each control-surface condition carries a simplified chordwise pressure profile
+# (fractional chord 0..1) and a critical total load; the export builds a per-station
+# FORCE set scaled so its sum equals that critical load -- a determinate, checkable
+# load set for the control-surface beam in sbeam.
+_CS_GID_BASE = 3001  # control-surface chord-station GIDs (disjoint from wing/body/tail)
+
+
+def _control_results(
+    arg: "Union[Project, ControlSurfaceLoadResult, Sequence[ControlSurfaceLoadResult]]",
+) -> List[ControlSurfaceLoadResult]:
+    if isinstance(arg, Project):
+        if arg.loads is None or not arg.loads.control_surface:
+            raise ValueError(
+                "Project has no control-surface loads to export -- run the 'aileron' / "
+                "'flap' / 'tab' modules first so Project.loads.control_surface is set."
+            )
+        return list(arg.loads.control_surface)
+    if isinstance(arg, ControlSurfaceLoadResult):
+        return [arg]
+    results = list(arg)
+    if not results:
+        raise ValueError("no control-surface results to export")
+    return results
+
+
+def _control_nodal_forces(r: ControlSurfaceLoadResult) -> List[float]:
+    """Per-station forces (lb) from the simplified pressures, scaled so the set sums
+    to the critical surface load (trapezoidal chord tributaries)."""
+    stations = sorted(r.stations, key=lambda s: s.x)
+    n = len(stations)
+    widths = []
+    for i, s in enumerate(stations):
+        lo = stations[i - 1].x if i > 0 else s.x
+        hi = stations[i + 1].x if i + 1 < n else s.x
+        widths.append((hi - lo) / 2.0)
+    raw = [s.psi * w for s, w in zip(stations, widths)]
+    total_raw = sum(raw)
+    scale = (r.load_lb / total_raw) if abs(total_raw) > _TOL else 0.0
+    return [v * scale for v in raw]
+
+
+def control_surface_csv(arg) -> str:
+    """Control-surface load CSV: one row per chord station per critical condition
+    (surface, case, chord fraction X, pressure PSI, scaled nodal Fz, total load)."""
+    results = _control_results(arg)
+    buf = _io.StringIO()
+    writer = csv.DictWriter(
+        buf, fieldnames=["Surface", "Case", "GID", "X", "PSI", "Fz", "Load"])
+    writer.writeheader()
+    for r in results:
+        forces = _control_nodal_forces(r)
+        stations = sorted(r.stations, key=lambda s: s.x)
+        for i, (s, fz) in enumerate(zip(stations, forces)):
+            writer.writerow({
+                "Surface": r.surface, "Case": r.case, "GID": _CS_GID_BASE + i,
+                "X": f"{s.x:.3f}", "PSI": f"{s.psi:.4f}", "Fz": f"{fz:.1f}",
+                "Load": f"{r.load_lb:.2f}",
+            })
+    return buf.getvalue()
+
+
+def control_surface_force_moment_cards(arg, sid_base: int = 1) -> str:
+    """FORCE bulk-data cards for the control-surface loads (one SID per condition);
+    each set's applied Fz sums to the critical surface load."""
+    results = _control_results(arg)
+    blocks: List[str] = []
+    for idx, r in enumerate(results):
+        sid = sid_base + idx
+        forces = _control_nodal_forces(r)
+        total = sum(forces)
+        lines = [
+            f"$ FAR23LOADS control-surface load -- {r.surface} {r.case}, SID {sid}",
+            f"$ Applied Fz set sums to {total:.1f} lb (= critical load {r.load_lb:.1f} lb).",
+        ]
+        for i, fz in enumerate(forces):
+            fx2, fy2, fz2 = to_force(0.0, 0.0, fz)
+            if abs(fz2) > _TOL:
+                lines.append(
+                    f"FORCE, {sid}, {_CS_GID_BASE + i}, {SBEAM_CID}, 1.0, "
+                    f"{_fmt(fx2)}, {_fmt(fy2)}, {_fmt(fz2)}"
+                )
+        blocks.append("\n".join(lines))
+    return "\n".join(blocks) + "\n"
+
+
+def write_control_surface_csv(arg, path: str) -> None:
+    with open(path, "w", encoding="utf-8", newline="") as fh:
+        fh.write(control_surface_csv(arg))
+
+
+def write_control_surface_force_moment_cards(arg, path: str, sid_base: int = 1) -> None:
+    with open(path, "w", encoding="utf-8") as fh:
+        fh.write(control_surface_force_moment_cards(arg, sid_base=sid_base))

@@ -213,6 +213,43 @@ def test_writers(tmp_path=None):
         assert os.path.getsize(path) > 0
 
 
+# --------------------------------------------------------------------------- #
+# Control-surface export (Step C8): closure -- the FORCE set sums to the load.
+# --------------------------------------------------------------------------- #
+def _control_results():
+    from farloads.modules.aileron import build_aileron
+    from farloads.modules.flap import build_flap
+    from farloads.modules.tab import build_tabs
+
+    p = io.load_project(_GA)
+    return build_aileron(p) + build_flap(p) + build_tabs(p)
+
+
+def test_control_surface_force_closure():
+    """Each control-surface FORCE set's applied Fz sums to the critical load."""
+    results = _control_results()
+    assert results
+    for r in results:
+        forces = sb._control_nodal_forces(r)
+        assert math.isclose(sum(forces), r.load_lb, rel_tol=1e-6, abs_tol=1e-6), r.case
+    cards = sb.control_surface_force_moment_cards(results)
+    assert "FORCE" in cards
+    assert sb.control_surface_csv(results).startswith("Surface,Case,GID")
+
+
+def test_control_surface_writers(tmp_path=None):
+    import tempfile
+
+    results = _control_results()
+    d = tmp_path or tempfile.mkdtemp()
+    csv_p = os.path.join(str(d), "cs.csv")
+    bdf_p = os.path.join(str(d), "cs.bdf")
+    sb.write_control_surface_csv(results, csv_p)
+    sb.write_control_surface_force_moment_cards(results, bdf_p)
+    for path in (csv_p, bdf_p):
+        assert os.path.getsize(path) > 0
+
+
 if __name__ == "__main__":
     import traceback
 

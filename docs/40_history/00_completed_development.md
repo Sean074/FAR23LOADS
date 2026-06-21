@@ -607,6 +607,60 @@ closure; the schema-12 round-trip (older files still load). 174 tests pass.
   in), and the 4 flaps-extended chordwise rows (need the C6-deferred flapped V-n
   landing aero; `chordwise_pressures` covers all 13 rows directly).
 
+## Phase C — Step C8: control-surface simplified distributions (AILERON / FLAPLOAD / TABLOADS) (complete)
+
+**Objective.** The explicit concept-tool requirement that control surfaces use
+**standard simplified distributions** — port AILERON (Ch 16), FLAPLOAD (Ch 17) and
+TABLOADS (Ch 18) as FAR-style simplified pressure distributions with hinge
+loads + distributed loads + CSV + sbeam bridge. The FAR23 path is oracle-locked
+against the Appendix A control-surface tables; concept mode reduces to it on GA
+inputs.
+
+**Deliverables.**
+- `modules/aileron.py` (registers `"aileron"`) — `aileron_loads()` computes the
+  deflected up/down rolling loads (`LAIL=0.04·DEFL·SA·V²/295`, the VA/VC/VD
+  deflection schedule, FAR 23.455 / CAM 3.222) and the constant-LE→taper-to-TE
+  pressure; `build_aileron()` returns the two `ControlSurfaceLoadResult`s.
+- `modules/flap.py` (registers `"flap"`) — `flap_loads()` over the four-condition
+  flaps-extended envelope (Abbott & von Doenhoff Fig 98), the momentum-theory
+  slipstream (FAR 23.457(b), sub 500) and the head-on 25 fps gust (FAR
+  23.345(c)(1)); reads stall speeds/VF/weight from STRSPEED, wing area from
+  geometry and MAXHP/prop diameter from the engine.
+- `modules/tab.py` (registers `"tab"`) — `tab_load()` per `TabSpec` at full
+  deflection at VC (FAR 23.409 / CAM 3.224, trapezoid LE = 2× TE).
+- `models.py` — `AileronLoadsInput`, `FlapLoadsInput`, `TabLoadsInput`/`TabSpec`
+  input slices; `ControlSurfaceLoadResult`/`ControlSurfaceStation` on
+  `LoadsResult.control_surface`; `Project.aileron_loads`/`flap_loads`/`tab_loads`;
+  `SCHEMA_VERSION` 12 → 13 (additive, older files load unchanged). `constants.py` —
+  `KT_TO_FPS_SUITE`, `DYNAMIC_PRESSURE_DIVISOR`.
+- `modules/structural_speeds.py` — `design_speed_values()` exposes the scalar
+  VA/VC/VD/VF + load factors the control-surface modules read (extracted from
+  `design_speeds`).
+- `io.py` — round-trip for the three new slices + `control_surface`;
+  `export/sbeam_bridge.py` — `control_surface_csv` / `control_surface_force_moment_cards`
+  (FORCE set scaled to the critical surface load, closure-checked).
+- `app/pages/12_Aileron_Loads.py`, `13_Flap_Loads.py`, `14_Tab_Loads.py`.
+- `examples/ga6_normal.project.json` — the Appendix A aileron/flap/tab slices.
+
+**Test / Acceptance.** `tests/test_aileron.py`, `test_flap.py`, `test_tab.py` vs
+the Appendix A reports (p200/p201/p202): aileron down 271.44 / up −180.96 lb,
+psi +0.484 / −0.323; flap CLf 1.7046/1.7046/1.5593/1.5476, critical 629 lb, LE
+0.545 psi, slipstream ×1.407 (BL 22.828…113.172), gust ×1.301, combined 819 lb;
+tab E 0.17735, LTAB 84.62 lb, LE 0.4992 / TE 0.2496 — all within ±0.1%. Plus io
+round-trip (older files load) and the sbeam control-surface FORCE-closure test.
+187 tests pass.
+
+**Key decisions.**
+- **Separate per-surface input slices** (not folded into `Project.geometry`),
+  mirroring `TailLoadsInput`/`VTailLoadsInput` — geometry has no hinge split.
+- **Aileron oracle uses the manual's rounded VA=121**; the integrated pipeline's
+  computed VA≈121.3 shifts the load ~0.3% (tested at 0.4%) — an artifact of the
+  original separate-programs workflow, not an error.
+- **Suite knots→ft/s factor** (`1.15·88/60`) kept verbatim for the FLAPLOAD
+  slipstream so the BL band reproduces the oracle (22.828…113.172) exactly.
+- **Full FLAPLOAD scope** — slipstream and head-on-gust amplifications implemented
+  now (not deferred), matching the full Appendix A flap table.
+
 ## Phase C — Step C6: SELECT + fuselage/body distributed loads (complete)
 
 **Objective.** Compute the critical flight load on each major component (wing,

@@ -24,11 +24,14 @@ from .models import (
     AeroCoeffSet,
     AeroInput,
     AeroSurfaceInput,
+    AileronLoadsInput,
     BodyLoadResult,
     BodyStationLoad,
     CgCase,
     ConcentratedWeight,
     ConditionResult,
+    ControlSurfaceLoadResult,
+    ControlSurfaceStation,
     CriticalCondition,
     CriticalLoadSet,
     EngineInput,
@@ -36,11 +39,14 @@ from .models import (
     EngineType,
     EngineWeightType,
     EnvelopeResult,
+    FlapLoadsInput,
     FlightLoadsInput,
     FuselageMassInput,
     FuselageStation,
     GeometryInput,
     SelectInput,
+    TabLoadsInput,
+    TabSpec,
     TailLoadsInput,
     VTailLoadsInput,
     LayoutInput,
@@ -442,6 +448,44 @@ def vtail_loads_to_dict(inp: VTailLoadsInput) -> Dict[str, Any]:
 
 
 # --------------------------------------------------------------------------- #
+# Control-surface load input slices <-> dict (AILERON / FLAPLOAD / TABLOADS)
+# --------------------------------------------------------------------------- #
+def aileron_loads_from_dict(d: Dict[str, Any]) -> AileronLoadsInput:
+    """Build an :class:`AileronLoadsInput` from a plain dict."""
+    fields = {f for f in AileronLoadsInput.__dataclass_fields__}
+    return AileronLoadsInput(**{k: v for k, v in d.items() if k in fields})
+
+
+def aileron_loads_to_dict(inp: AileronLoadsInput) -> Dict[str, Any]:
+    """Serialize an :class:`AileronLoadsInput` to JSON-friendly primitives."""
+    return asdict(inp)
+
+
+def flap_loads_from_dict(d: Dict[str, Any]) -> FlapLoadsInput:
+    """Build a :class:`FlapLoadsInput` from a plain dict."""
+    fields = {f for f in FlapLoadsInput.__dataclass_fields__}
+    return FlapLoadsInput(**{k: v for k, v in d.items() if k in fields})
+
+
+def flap_loads_to_dict(inp: FlapLoadsInput) -> Dict[str, Any]:
+    """Serialize a :class:`FlapLoadsInput` to JSON-friendly primitives."""
+    return asdict(inp)
+
+
+def tab_loads_from_dict(d: Dict[str, Any]) -> TabLoadsInput:
+    """Build a :class:`TabLoadsInput` from a plain dict (nested ``tabs``)."""
+    spec_fields = {f for f in TabSpec.__dataclass_fields__}
+    tabs = [TabSpec(**{k: v for k, v in t.items() if k in spec_fields})
+            for t in d.get("tabs", []) or []]
+    return TabLoadsInput(tabs=tabs)
+
+
+def tab_loads_to_dict(inp: TabLoadsInput) -> Dict[str, Any]:
+    """Serialize a :class:`TabLoadsInput` to JSON-friendly primitives."""
+    return {"tabs": [asdict(t) for t in inp.tabs]}
+
+
+# --------------------------------------------------------------------------- #
 # Wing-mass slice <-> dict (WINGINER input)
 # --------------------------------------------------------------------------- #
 def wing_mass_from_dict(d: Dict[str, Any]) -> WingMassInput:
@@ -493,6 +537,16 @@ def _tail_chord_result_from_dict(d: Dict[str, Any]) -> TailChordResult:
     )
 
 
+def _control_surface_result_from_dict(d: Dict[str, Any]) -> ControlSurfaceLoadResult:
+    return ControlSurfaceLoadResult(
+        surface=d.get("surface", ""),
+        case=d.get("case", ""),
+        load_lb=d.get("load_lb", 0.0),
+        v_kt=d.get("v_kt", 0.0),
+        stations=[ControlSurfaceStation(**dict(s)) for s in d.get("stations", []) or []],
+    )
+
+
 def loads_from_dict(d: Dict[str, Any]) -> LoadsResult:
     """Build a :class:`LoadsResult` from a plain dict (the persisted loads)."""
     return LoadsResult(
@@ -501,6 +555,8 @@ def loads_from_dict(d: Dict[str, Any]) -> LoadsResult:
         wing_net=[_wing_load_result_from_dict(r) for r in d.get("wing_net", []) or []],
         body_net=[_body_load_result_from_dict(r) for r in d.get("body_net", []) or []],
         tail_chordwise=[_tail_chord_result_from_dict(r) for r in d.get("tail_chordwise", []) or []],
+        control_surface=[_control_surface_result_from_dict(r)
+                         for r in d.get("control_surface", []) or []],
     )
 
 
@@ -512,6 +568,7 @@ def loads_to_dict(inp: LoadsResult) -> Dict[str, Any]:
         "wing_net": [asdict(r) for r in inp.wing_net],
         "body_net": [asdict(r) for r in inp.body_net],
         "tail_chordwise": [asdict(r) for r in inp.tail_chordwise],
+        "control_surface": [asdict(r) for r in inp.control_surface],
     }
 
 
@@ -548,6 +605,7 @@ def project_from_dict(d: Dict[str, Any]) -> Project:
         or "speeds" in d or "aero" in d or "flight_loads" in d or "envelope" in d
         or "mass" in d or "wing_mass" in d or "fuselage_mass" in d
         or "select_input" in d or "tail_loads" in d or "vtail_loads" in d
+        or "aileron_loads" in d or "flap_loads" in d or "tab_loads" in d
         or "loads" in d or "configuration" in d
         or "schema_version" in d or "name" in d
     ):
@@ -563,6 +621,9 @@ def project_from_dict(d: Dict[str, Any]) -> Project:
         select_input = d.get("select_input")
         tail_loads = d.get("tail_loads")
         vtail_loads = d.get("vtail_loads")
+        aileron_loads = d.get("aileron_loads")
+        flap_loads = d.get("flap_loads")
+        tab_loads = d.get("tab_loads")
         loads = d.get("loads")
         configuration = d.get("configuration")
         engines, layout = _engines_from_dict(d)
@@ -583,6 +644,9 @@ def project_from_dict(d: Dict[str, Any]) -> Project:
             select_input=select_input_from_dict(select_input) if select_input else None,
             tail_loads=tail_loads_from_dict(tail_loads) if tail_loads else None,
             vtail_loads=vtail_loads_from_dict(vtail_loads) if vtail_loads else None,
+            aileron_loads=aileron_loads_from_dict(aileron_loads) if aileron_loads else None,
+            flap_loads=flap_loads_from_dict(flap_loads) if flap_loads else None,
+            tab_loads=tab_loads_from_dict(tab_loads) if tab_loads else None,
             loads=loads_from_dict(loads) if loads else None,
             configuration=configuration_from_dict(configuration) if configuration else None,
         )
@@ -637,6 +701,12 @@ def project_to_dict(project: Project) -> Dict[str, Any]:
         out["tail_loads"] = tail_loads_to_dict(project.tail_loads)
     if project.vtail_loads is not None:
         out["vtail_loads"] = vtail_loads_to_dict(project.vtail_loads)
+    if project.aileron_loads is not None:
+        out["aileron_loads"] = aileron_loads_to_dict(project.aileron_loads)
+    if project.flap_loads is not None:
+        out["flap_loads"] = flap_loads_to_dict(project.flap_loads)
+    if project.tab_loads is not None:
+        out["tab_loads"] = tab_loads_to_dict(project.tab_loads)
     if project.loads is not None:
         out["loads"] = loads_to_dict(project.loads)
     if project.configuration is not None:

@@ -9,10 +9,13 @@ report to stdout):
 
 Or export loads to sbeam (CSV + FORCE/MOMENT cards). The wing target (default)
 writes the net wing load (span-load CSV + FORCE/MOMENT cards + an optional CBAR
-stick model); ``--export-target tail`` writes the chordwise tail loads (TAILDIST):
+stick model); ``--export-target tail`` writes the chordwise tail loads (TAILDIST);
+``--export-target control`` writes the simplified control-surface loads
+(AILERON / FLAPLOAD / TABLOADS):
 
     python cli.py --export-sbeam out examples/ga6_normal.project.json
     python cli.py --export-sbeam out --export-target tail examples/ga6_normal.project.json
+    python cli.py --export-sbeam out --export-target control examples/ga6_normal.project.json
 """
 
 from __future__ import annotations
@@ -37,6 +40,24 @@ def _export_sbeam(project, prefix: str, target: str, stick_model: bool) -> int:
         sb.write_tail_chordwise_csv(results, csv_path)
         sb.write_tail_force_moment_cards(results, bdf_path)
         print(f"Wrote {len(results)} tail condition(s) to: {csv_path}, {bdf_path}")
+        return 0
+
+    if target == "control":
+        from farloads.modules.aileron import build_aileron
+        from farloads.modules.flap import build_flap
+        from farloads.modules.tab import build_tabs
+
+        results = []
+        for build in (build_aileron, build_flap, build_tabs):
+            try:
+                results.extend(build(project))
+            except ValueError:
+                pass  # skip a control surface whose input slice is absent
+        csv_path = f"{prefix}.control_surface.csv"
+        bdf_path = f"{prefix}.control_surface.bdf"
+        sb.write_control_surface_csv(results, csv_path)
+        sb.write_control_surface_force_moment_cards(results, bdf_path)
+        print(f"Wrote {len(results)} control-surface condition(s) to: {csv_path}, {bdf_path}")
         return 0
 
     from farloads.modules.net_loads import build_net_loads
@@ -67,7 +88,7 @@ def main(argv=None) -> int:
              "(PROJECT is then the second positional argument)",
     )
     parser.add_argument(
-        "--export-target", choices=("wing", "tail"), default="wing",
+        "--export-target", choices=("wing", "tail", "control"), default="wing",
         help="with --export-sbeam, which loads to export (default: wing)",
     )
     parser.add_argument(

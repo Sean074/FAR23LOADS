@@ -168,6 +168,15 @@ def standard_atmosphere(altitude_ft: float):
     return a, sigma
 
 
+# Knots -> ft/s as the suite computes it (via mph: kt * 1.15 * 88/60), used by
+# FLAPLOAD.BAS for the slipstream/gust velocities. Slightly different from the
+# exact 1.6878; kept to reproduce the slipstream geometry oracle.
+KT_TO_FPS_SUITE = 1.15 * 88.0 / 60.0
+
+# Dynamic pressure divisor: Q [lb/ft^2] = V_keas^2 / 295 (used throughout the suite).
+DYNAMIC_PRESSURE_DIVISOR = 295.0
+
+
 def cruise_speed_coefficient(category: str, wing_loading: float) -> float:
     """K in VC(min) = K*(W/S)**0.5, by category (Reference 1 Ch 6).
 

@@ -11,6 +11,28 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **Control-surface simplified distributions — AILERON / FLAPLOAD / TABLOADS (Step
+  C8).** New `modules/aileron.py`, `modules/flap.py`, `modules/tab.py` (register
+  `"aileron"` / `"flap"` / `"tab"`): the FAR-style simplified pressure
+  distributions. **Aileron** (Ch 16, FAR 23.455 / CAM 3.222) — deflected up/down
+  rolling loads over the VA/VC/VD schedule, constant LE→hinge then taper to 0 at
+  the TE. **Flap** (Ch 17, FAR 23.345 / 23.457) — the four-condition flaps-extended
+  envelope (Abbott & von Doenhoff Fig 98) with the momentum-theory propeller
+  slipstream and the head-on 25 fps gust amplifications, taper LE→half at TE.
+  **Tab** (Ch 18, FAR 23.409 / CAM 3.224) — full deflection at VC, trapezoidal
+  (LE = 2× TE). New input slices `AileronLoadsInput` / `FlapLoadsInput` /
+  `TabLoadsInput`(+`TabSpec`), the `ControlSurfaceLoadResult` slice on
+  `LoadsResult.control_surface`, the `sbeam_bridge` control-surface export
+  (`control_surface_csv` / `control_surface_force_moment_cards`, FORCE set scaled to
+  the critical load), and `app/pages/12_Aileron_Loads.py` /
+  `13_Flap_Loads.py` / `14_Tab_Loads.py`. `structural_speeds.design_speed_values()`
+  exposes the scalar design speeds the modules read. Oracle-locked against the
+  Appendix A reports (p200/p201/p202) within ±0.1%.
+
+- **Schema v13 (Step C8).** `Project.aileron_loads` / `flap_loads` / `tab_loads`
+  input slices and `LoadsResult.control_surface` — all additive; older files load
+  unchanged.
+
 - **Chordwise tail-load distribution — TAILDIST (Step C7).** New `modules/taildist.py`
   (registers `"taildist"`): the five-station chordwise net pressure profile on the
   average tail chord — the additive (angle-of-attack, 25% chord) plus camber (50%

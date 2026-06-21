@@ -516,5 +516,33 @@
     "wing_span_ft": 33.5,
     "gross_weight_lb": 3400.0,
     "vtail_span_in": 57.0
+  },
+  "aileron_loads": {
+    "down_deflection_deg": 15.0,
+    "up_deflection_deg": 10.0,
+    "area_fwd_hinge_sqft": 1.3,
+    "area_aft_hinge_sqft": 5.188,
+    "surface": "aileron"
+  },
+  "flap_loads": {
+    "gust_load_factor": 1.9,
+    "flap_area_one_side_sqft": 10.7,
+    "flap_deflection_deg": 40.0,
+    "flap_chord_ratio": 0.27,
+    "nacelle_frontal_area_sqft": 8.2,
+    "engine_butt_line_in": 0.0,
+    "surface": "flap"
+  },
+  "tab_loads": {
+    "tabs": [
+      {
+        "surface": "htail",
+        "mac_in": 7.478,
+        "area_sqin": 226.0,
+        "station_in": 17.828,
+        "airfoil_chord_in": 42.166,
+        "deflection_deg": 15.0
+      }
+    ]
   }
 }

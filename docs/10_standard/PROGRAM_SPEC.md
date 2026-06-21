@@ -222,26 +222,29 @@ directly; a module never recomputes another module's owned quantity.
 - **Validation:** Appendix A "Net Loads, Case 22 PHAA" p222 (root Sz +5837, Mxx +455555, Myy -60940, Mzz -81483) — exact algebraic sum of the air (p206) and inertia distributions.
 - **Notes:** A primary structural deliverable (root shear/BM/torsion). **Scope (C3):** the wing; full fidelity (all of Fx/Fz/Sx/Sz/Mxx/Myy/Mzz). SELECT (C6) will select the governing cases automatically; here they are supplied as `WingLoadCase`s referencing the V-n matrix.
 
-### AILERON — Aileron loads
-- **FAR §:** 23.349 (rolling), 23.455 (aileron).
+### AILERON — Aileron loads (built, Step C8)
+- **FAR §:** 23.349 (rolling), 23.455 (aileron), CAM 3.222.
 - **Source:** Ch 16, `AILERON.BAS`.
-- **Reads:** `Project.speeds` (STRSPEED — the design speeds/load factors, the only module input per UG Table 2.2), `Project.geometry.aileron`.
-- **Writes:** aileron hinge moments & loads → CSV.
-- **Validation:** Appendix A/B `AILERON.OUT`.
+- **Reads:** `Project.speeds` (STRSPEED VA/VC/VD via `design_speed_values`, the only upstream input per UG Table 2.2), `Project.aileron_loads` (`AileronLoadsInput`: up/down deflection, area fwd/aft of hinge).
+- **Writes:** critical up/down aileron loads + forward-of-hinge pressures → `ConditionResult`; `ControlSurfaceLoadResult` (simplified chordwise profile) for `Project.loads.control_surface` + the sbeam control-surface bridge.
+- **Validation:** Appendix A "Critical Aileron Loads" p200 (down 271.44 / up −180.96 lb @170 kt; psi +0.484 / −0.323) within ±0.1% — `tests/test_aileron.py`.
+- **Notes:** Deflected (unsymmetrical) conditions only; symmetrical undeflected is never critical (Ref 1 Ch 16). The pure-function oracle uses the manual's entered VA=121; the pipeline's computed VA≈121.3 shifts the load ~0.3% (tested at 0.4%).
 
-### FLAPLOAD — Flap loads
-- **FAR §:** 23.345 (flaps), 23.457 (flap hinge).
+### FLAPLOAD — Flap loads (built, Step C8)
+- **FAR §:** 23.345 (flaps), 23.457 (flap hinge / slipstream).
 - **Source:** Ch 17, `FLAPLOAD.BAS`.
-- **Reads:** `Project.speeds` (STRSPEED — V_F etc., the module input per UG Table 2.2), `Project.geometry.flap`, `Project.aero`.
-- **Writes:** flap loads & hinge moments → CSV.
-- **Validation:** Appendix A/B `FLAPLOAD.OUT`.
+- **Reads:** `Project.speeds` (STRSPEED VS/VSF/VF + design weight), `Project.geometry` wing area, `Project.engines[0]` (MAXHP/prop diameter for the slipstream), `Project.flap_loads` (`FlapLoadsInput`: gust factor, flap area, deflection, chord ratio, nacelle frontal area, engine butt line).
+- **Writes:** the four-condition flap-CL/load envelope, critical load, LE pressure, slipstream band/factor, head-on-gust combined load → `ConditionResult`; `ControlSurfaceLoadResult` (gust-combined envelope) for the loads slice + sbeam bridge.
+- **Validation:** Appendix A "Critical Flap Loads" p201 (CLf 1.7046/1.7046/1.5593/1.5476; critical 629 lb; LE 0.545 psi; slipstream ×1.407, BL 22.828…113.172; gust ×1.301; combined 819 lb) within ±0.1% — `tests/test_flap.py`.
+- **Notes:** Slipstream is the momentum-theory sub 500 (iterate `U1` to absorb 0.85·MAXHP); computed only when engine power is present. Knots→ft/s uses the suite's `1.15·88/60` factor (`constants.KT_TO_FPS_SUITE`) to reproduce the slipstream geometry.
 
-### TABLOADS — Tab loads
-- **FAR §:** 23.459 / control-tab loads.
+### TABLOADS — Tab loads (built, Step C8)
+- **FAR §:** 23.409 / CAM 3.224 (control-surface tabs).
 - **Source:** Ch 18, `TABLOADS.BAS`.
-- **Reads:** `Project.geometry.<tab>`, `Project.speeds`.
-- **Writes:** tab loads & hinge moments → CSV.
-- **Validation:** Appendix A/B tab-load tables.
+- **Reads:** `Project.speeds` (VC), `Project.tab_loads` (`TabLoadsInput.tabs`, each a `TabSpec`: host surface, tab MAC, area sq in, station, host-airfoil chord at the tab MAC, deflection).
+- **Writes:** per-tab chord ratio E, tab load, LE/TE pressures → one `ConditionResult` per tab; `ControlSurfaceLoadResult` (trapezoid LE = 2× TE) for the loads slice + sbeam bridge.
+- **Validation:** Appendix A "Tab Loads" p202 (h-tail tab: E 0.17735, LTAB 84.62 lb, LE 0.4992 / TE 0.2496) within ±0.1% — `tests/test_tab.py`.
+- **Notes:** Full deflection at VC (the shoulder point); host-surface CL lift on the tab neglected (chord ratio ~0.12). Tab areas are in **square inches** (the original program's unit).
 
 ### TAILDIST — Chordwise tail load distribution (built, Step C7)
 - **FAR §:** 23.421+ tail loads, chordwise distribution.
@@ -381,9 +384,9 @@ other modules consume).
 | 0 Restructure | engine → package | ✅ done (engloads → farloads, Project model, io/registry, app/) | 0 |
 | 1 Mass | WTESTIMA, WTONECG, WTENV | 3 (WTESTIMA, WTONECG, WTENV) | 0 |
 | 2 Geometry/Speeds | WINGGEOM, STRSPEED, MACHLIM | 3 (WINGGEOM, STRSPEED, MACHLIM) | 0 |
-| 3 Aero/Envelope | TAU\*, AIRLOADS, AIRLOAD4, FLTLOADS, SELECT, BALLOADS† | 4 (TAU, AIRLOADS, FLTLOADS, SELECT) | 2 (AIRLOAD4, BALLOADS†) |
-| 4 Component loads | WINGINER, NETLOADS, AILERON, FLAPLOAD, TABLOADS, TAILDIST, ENGLOADS, ONENGOUT, LGFACTOR, LANDLOAD | 3 (ENGLOADS, WINGINER, NETLOADS) | 7 |
-| **Total** | **22** | **13** | **9** |
+| 3 Aero/Envelope | TAU\*, AIRLOADS, AIRLOAD4, FLTLOADS, SELECT, BALLOADS† | 5 (TAU, AIRLOADS, AIRLOAD4, FLTLOADS, SELECT) | 1 (BALLOADS†) |
+| 4 Component loads | WINGINER, NETLOADS, AILERON, FLAPLOAD, TABLOADS, TAILDIST, ENGLOADS, ONENGOUT, LGFACTOR, LANDLOAD | 7 (ENGLOADS, WINGINER, NETLOADS, TAILDIST, AILERON, FLAPLOAD, TABLOADS) | 3 (ONENGOUT, LGFACTOR, LANDLOAD) |
+| **Total** | **22** | **18** | **4** |
 
 Counts reference 1's 22 Appendix-C programs only; the **configuration** module
 (Step C5) is a modern addition with no `.BAS` and is not counted above. The FAA

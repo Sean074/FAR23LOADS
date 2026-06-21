@@ -650,6 +650,84 @@ class VTailLoadsInput:
 
 
 # --------------------------------------------------------------------------- #
+# Control-surface simplified loads (AILERON / FLAPLOAD / TABLOADS) -- Step C8
+# --------------------------------------------------------------------------- #
+@dataclass
+class AileronLoadsInput:
+    """Inputs for AILERON (FAR 23.349 / 23.455 / CAM 3.222), Ref 1 Ch 16.
+
+    The deflected-aileron load ``LAIL = 0.04*DEFL*SA*V^2/295`` is evaluated at the
+    three rolling-condition speeds (full deflection at VA, then ``(VA/VC)*DEFL`` at
+    VC and ``0.5*(VA/VD)*DEFL`` at VD) and the largest up/down loads are selected.
+    VA/VC/VD come from ``Project.speeds`` (STRSPEED); this slice carries only the
+    aileron's own geometry: the up/down deflection limits and the area forward of
+    and aft of the hinge line (``SAFWD``/``SAAFT``, sq ft). The chordwise pressure
+    is constant from the leading edge to the hinge line (``W = LAIL/(SAFWD +
+    0.5*SAAFT)``) and tapers to zero at the trailing edge.
+    """
+    down_deflection_deg: float = 0.0           # ADEG (full trailing-edge-down, +)
+    up_deflection_deg: float = 0.0             # AUPDEG (full trailing-edge-up, magnitude)
+    area_fwd_hinge_sqft: float = 0.0           # SAFWD
+    area_aft_hinge_sqft: float = 0.0           # SAAFT
+    surface: str = "aileron"
+
+
+@dataclass
+class FlapLoadsInput:
+    """Inputs for FLAPLOAD (FAR 23.345 / 23.457), Ref 1 Ch 17.
+
+    The critical flap load is the largest of four flaps-extended conditions (1G and
+    2G stall, 2G at VF, and the flaps-extended gust at VF), with the flap section
+    lift built from the wing angle of attack plus the flap deflection (Abbott & von
+    Doenhoff Fig 98): ``CLf = (-2.6E+2.6)*delta_rad + (0.59E+0.08)*CLw``. The
+    chordwise distribution tapers from the leading edge to half that pressure at the
+    trailing edge.
+
+    Stall speeds VS/VSF and the flap design speed VF come from ``Project.speeds``;
+    the design weight from ``Project.speeds.weight_lb``; the wing area from the
+    ``Project.geometry`` wing surface; and the propeller power/diameter from
+    ``Project.engines[0]`` for the FAR 23.457(b) slipstream amplification. This
+    slice carries the flap-specific data: the flaps-extended gust load factor, the
+    flap area on one side, the flap deflection, the flap/wing chord ratio, and the
+    nacelle/fuselage frontal area + engine butt line for the slipstream geometry.
+    """
+    gust_load_factor: float = 0.0              # NG (flaps-extended gust limit factor)
+    flap_area_one_side_sqft: float = 0.0       # SF
+    flap_deflection_deg: float = 0.0           # DELTA
+    flap_chord_ratio: float = 0.0              # E = flap chord / wing chord
+    nacelle_frontal_area_sqft: float = 0.0     # AF (nacelle or fuselage frontal area)
+    engine_butt_line_in: float = 0.0           # BLPROP (0 -> fuselage-mounted)
+    surface: str = "flap"
+
+
+@dataclass
+class TabSpec:
+    """One control-surface tab for TABLOADS (FAR 23.409 / CAM 3.224), Ref 1 Ch 18.
+
+    Full tab deflection at VC: ``LTAB = 0.0446*(1-E)*delta*Q*STAB/144`` with the
+    chord ratio ``E = MACTAB/CAIRFOIL`` and a trapezoidal chordwise distribution
+    whose leading-edge pressure is twice the trailing-edge pressure. ``surface`` is
+    the host surface the tab sits on ("wing" / "htail" / "vtail"); ``station_in`` is
+    the butt line (wing/htail) or water line (vtail) of the tab MAC; ``area_sqin``
+    is in square inches (the original program's unit for tabs)."""
+    surface: str = "htail"                     # host surface (wing/htail/vtail)
+    mac_in: float = 0.0                        # MACTAB (tab MAC chord, in)
+    area_sqin: float = 0.0                     # STAB (tab area, sq in)
+    station_in: float = 0.0                    # BL (wing/htail) or WL (vtail) of tab MAC
+    airfoil_chord_in: float = 0.0             # CAIRFOIL (host-airfoil chord at the tab MAC, in)
+    deflection_deg: float = 0.0                # DELTATAB (max tab deflection, deg)
+
+
+@dataclass
+class TabLoadsInput:
+    """Inputs for TABLOADS: the set of control-surface tabs to size (Ref 1 Ch 18).
+
+    VC comes from ``Project.speeds`` (the shoulder-point cruise speed); each
+    :class:`TabSpec` carries its own geometry and deflection."""
+    tabs: List[TabSpec] = field(default_factory=list)
+
+
+# --------------------------------------------------------------------------- #
 # General configuration & layout (modern addition) -- Project.configuration
 # --------------------------------------------------------------------------- #
 @dataclass
@@ -957,6 +1035,34 @@ class TailChordResult:
 
 
 @dataclass
+class ControlSurfaceStation:
+    """One chordwise station of a control-surface simplified distribution (Step C8).
+
+    ``x`` is the fractional chord aft of the leading edge (0 = LE, 1 = TE); ``psi``
+    is the load intensity there (lb/in^2). The simplified FAR-style profiles use a
+    few stations: aileron (constant LE->hinge, taper to 0 at TE), flap (LE->half at
+    TE), tab (trapezoid, LE = 2x TE)."""
+    x: float
+    psi: float
+
+
+@dataclass
+class ControlSurfaceLoadResult:
+    """One critical control-surface load + its simplified chordwise distribution.
+
+    ``surface`` is the control surface ("aileron" / "flap" / "tab:htail" ...);
+    ``case`` the FAR condition tag ("down aileron" / "up aileron" / "flap 23.345(a)"
+    / "flap gust-combined" / "<surface> tab"); ``load_lb`` the critical load and
+    ``v_kt`` the speed it occurs at; ``stations`` the simplified chordwise pressure
+    profile (leading-edge first). Produced by AILERON / FLAPLOAD / TABLOADS (C8)."""
+    surface: str
+    case: str
+    load_lb: float
+    v_kt: float = 0.0
+    stations: List[ControlSurfaceStation] = field(default_factory=list)
+
+
+@dataclass
 class LoadsResult:
     """The persisted distributed-loads slice (``Project.loads``).
 
@@ -972,6 +1078,7 @@ class LoadsResult:
     wing_net: List[WingLoadResult] = field(default_factory=list)
     body_net: List[BodyLoadResult] = field(default_factory=list)
     tail_chordwise: List[TailChordResult] = field(default_factory=list)
+    control_surface: List[ControlSurfaceLoadResult] = field(default_factory=list)
 
 
 # Current project-schema version. Bump when the on-disk JSON shape changes so old
@@ -997,8 +1104,12 @@ class LoadsResult:
 # v12 (Step C7) adds the tail semi-span/span fields on TailLoadsInput/VTailLoadsInput
 # (TAILDIST chordwise average chord) and the chordwise tail-load result slice
 # (TailChordResult on LoadsResult.tail_chordwise) -- all additive, older files load
-# unchanged via the from_dict defaults.
-SCHEMA_VERSION = 12
+# unchanged via the from_dict defaults; v13 (Step C8) adds the control-surface
+# simplified-load input slices (AileronLoadsInput, FlapLoadsInput, TabLoadsInput)
+# and the control-surface result slice (ControlSurfaceLoadResult on
+# LoadsResult.control_surface) -- all additive, older files load unchanged via the
+# from_dict defaults.
+SCHEMA_VERSION = 13
 
 
 @dataclass
@@ -1031,6 +1142,9 @@ class Project:
     select_input: Optional[SelectInput] = None
     tail_loads: Optional[TailLoadsInput] = None
     vtail_loads: Optional[VTailLoadsInput] = None
+    aileron_loads: Optional[AileronLoadsInput] = None
+    flap_loads: Optional[FlapLoadsInput] = None
+    tab_loads: Optional[TabLoadsInput] = None
     loads: Optional[LoadsResult] = None
     configuration: Optional[LayoutInput] = None
 

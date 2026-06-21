@@ -26,38 +26,26 @@ history, `CHANGELOG.md`).
 
 ## Current state (snapshot)
 
-**Shipped:** Phases 0–2 and Phase-C Steps **C0–C7**. Of Reference 1's 22
-Appendix-C programs, **15 are ported** (ENGLOADS, WTESTIMA, WTONECG, WTENV,
+**Shipped:** Phases 0–2 and Phase-C Steps **C0–C8**. Of Reference 1's 22
+Appendix-C programs, **18 are ported** (ENGLOADS, WTESTIMA, WTONECG, WTENV,
 WINGGEOM, STRSPEED, MACHLIM, TAU, AIRLOADS, AIRLOAD4, FLTLOADS, SELECT, WINGINER,
-NETLOADS, TAILDIST), plus **2 modern modules** with no `.BAS` oracle
-(`configuration`, `body_loads`). Schema is at **`SCHEMA_VERSION = 12`**; 174 tests
-pass; coverage ~89%. The wing distributed-loads vertical slice (geometry → speeds →
-envelope → airloads → inertia → net → sbeam export), the critical-load selection
-(wing / h-tail / v-tail / fuselage) and the chordwise tail distribution are
-complete and oracle-locked.
+NETLOADS, TAILDIST, AILERON, FLAPLOAD, TABLOADS), plus **2 modern modules** with
+no `.BAS` oracle (`configuration`, `body_loads`). Schema is at
+**`SCHEMA_VERSION = 13`**; 187 tests pass; coverage ~89%. The wing distributed-loads
+vertical slice (geometry → speeds → envelope → airloads → inertia → net → sbeam
+export), the critical-load selection (wing / h-tail / v-tail / fuselage), the
+chordwise tail distribution and the simplified control-surface distributions
+(aileron / flap / tab) are complete and oracle-locked.
 
-**Remaining suite programs (7):** BALLOADS, AILERON, FLAPLOAD,
-TABLOADS, ONENGOUT, LGFACTOR, LANDLOAD.
+**Remaining suite programs (4):** BALLOADS, ONENGOUT, LGFACTOR, LANDLOAD.
 
-The plan below continues the Phase-C step numbering (C8 onward). The FAR23 path
+The plan below continues the Phase-C step numbering (C9 onward). The FAR23 path
 stays oracle-locked (Appendix A/B ±0.1%); concept mode is a superset that reduces
 exactly to it on GA inputs.
 
 ---
 
 ## Development plan (dependency-ordered)
-
-### Step C8 — Control-surface simplified distributions (AILERON / FLAPLOAD / TABLOADS)
-**Objective.** The explicit concept-tool requirement: control surfaces use
-**standard simplified distributions**.
-**Deliverables.** `modules/aileron.py`, `modules/flap.py`, `modules/tab.py` —
-FAR-style simplified pressure distributions (uniform / triangular per
-23.349 / 23.345 / 23.455 / 23.457 / 23.459), hinge moments + distributed loads +
-CSV + sbeam bridge. Read `Project.speeds` (STRSPEED design speeds/load factors)
-and `Project.geometry.<surface>`; `Project.aero` for FLAPLOAD. Streamlit pages;
-schema + `io.py` round-trip.
-**Test/Acceptance.** Appendix A/B `AILERON` / `FLAPLOAD` / tab tables ±0.1%.
-**Dependencies.** STRSPEED (done), WINGGEOM (done).
 
 ### Step C9 — ONENGOUT (one-engine-out vertical-tail loads)
 **Objective.** Asymmetric vertical-tail loads from an engine failure — the first

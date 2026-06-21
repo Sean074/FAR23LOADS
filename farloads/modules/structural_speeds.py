@@ -27,7 +27,7 @@ VD 212.5, VF 105.5; n = +3.8 / -1.52; MC 0.323, MD 0.403 at 12000 ft).
 from __future__ import annotations
 
 import math
-from typing import List, Optional
+from typing import List, NamedTuple, Optional
 
 from ..constants import (
     cruise_speed_coefficient,
@@ -98,8 +98,33 @@ def _wing_area_sqft(project: Project, inp: StructuralSpeedsInput) -> float:
     )
 
 
-def design_speeds(project: Project, inp: StructuralSpeedsInput) -> List[ConditionResult]:
-    """Compute the design speeds, maneuver load factors and cruise/dive Mach."""
+class DesignSpeeds(NamedTuple):
+    """The scalar STRSPEED outputs (knots / dimensionless) downstream modules read.
+
+    AILERON / FLAPLOAD / TABLOADS (Step C8) and the rest of the pipeline take the
+    design speeds and limit load factors from here rather than re-deriving them."""
+    va: float
+    vc: float
+    vd: float
+    vf: float
+    vc_min: float
+    va_min: float
+    vf_min: float
+    vd_recommended: float
+    n: float
+    n_min: float
+    nneg: float
+    nneg_min: float
+    ws: float
+    wing_area_sqft: float
+    speed_of_sound_kt: float
+    sigma: float
+    mc: float
+    md: float
+
+
+def design_speed_values(project: Project, inp: StructuralSpeedsInput) -> DesignSpeeds:
+    """Compute the scalar STRSPEED design speeds + maneuver load factors."""
     w = inp.weight_lb
     if w <= 0:
         raise ValueError("STRSPEED needs a positive design weight")
@@ -138,6 +163,22 @@ def design_speeds(project: Project, inp: StructuralSpeedsInput) -> List[Conditio
     root_sigma = math.sqrt(sigma)
     mc = vc / (root_sigma * a)
     md = vd / (root_sigma * a)
+    return DesignSpeeds(
+        va=va, vc=vc, vd=vd, vf=vf, vc_min=vc_min, va_min=va_min, vf_min=vf_min,
+        vd_recommended=vd_recommended, n=n, n_min=n_min, nneg=nneg, nneg_min=nneg_min,
+        ws=ws, wing_area_sqft=s, speed_of_sound_kt=a, sigma=sigma, mc=mc, md=md,
+    )
+
+
+def design_speeds(project: Project, inp: StructuralSpeedsInput) -> List[ConditionResult]:
+    """Compute the design speeds, maneuver load factors and cruise/dive Mach."""
+    sv = design_speed_values(project, inp)
+    cat = inp.category.upper()
+    va, vc, vd, vf = sv.va, sv.vc, sv.vd, sv.vf
+    vc_min, va_min, vf_min, vd_recommended = sv.vc_min, sv.va_min, sv.vf_min, sv.vd_recommended
+    n, n_min, nneg, nneg_min = sv.n, sv.n_min, sv.nneg, sv.nneg_min
+    ws, s = sv.ws, sv.wing_area_sqft
+    a, sigma, mc, md = sv.speed_of_sound_kt, sv.sigma, sv.mc, sv.md
 
     load_factors = ConditionResult(
         title="Limit maneuver load factors",

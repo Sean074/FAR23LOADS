@@ -5,15 +5,18 @@ Importing this package imports each module so it registers itself with
 the mass-properties modules (weight estimation and one-condition CG/inertia).
 """
 
-from . import airloads  # noqa: F401  (import for side effect: self-registration)
+from . import aileron  # noqa: F401  (import for side effect: self-registration)
+from . import airloads  # noqa: F401
 from . import body_loads  # noqa: F401
 from . import configuration  # noqa: F401
 from . import engine  # noqa: F401
+from . import flap  # noqa: F401
 from . import flight_envelope  # noqa: F401
 from . import mach_limit  # noqa: F401
 from . import net_loads  # noqa: F401
 from . import select  # noqa: F401
 from . import structural_speeds  # noqa: F401
+from . import tab  # noqa: F401
 from . import taildist  # noqa: F401
 from . import weight_envelope  # noqa: F401
 from . import weight_estimate  # noqa: F401
