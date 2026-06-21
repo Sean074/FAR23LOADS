@@ -17,7 +17,6 @@ from farloads import FlapLoadsInput, Project
 from farloads.export import sbeam_bridge as sb
 from farloads.modules.flap import build_flap, run
 
-st.set_page_config(page_title="FAR 23 Flap Loads", layout="wide")
 
 st.title("Flap Loads — FLAPLOAD")
 st.caption(

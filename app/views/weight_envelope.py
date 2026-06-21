@@ -20,7 +20,6 @@ from farloads import io as farloads_io
 from farloads.modules.weight_envelope import envelope as compute_envelope
 from farloads.report import module_text_report
 
-st.set_page_config(page_title="FAR 23 Weight Envelope", layout="wide")
 
 st.title("Weight / CG Envelope — FAR 23")
 st.caption(

@@ -16,7 +16,6 @@ import streamlit as st
 from farloads import Project
 from farloads.modules.balloads import verify_balancing
 
-st.set_page_config(page_title="FAR 23 Balanced Tail Verification", layout="wide")
 
 st.title("Balanced Tail Load Verification — BALLOADS")
 st.caption(

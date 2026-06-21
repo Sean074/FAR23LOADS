@@ -10,6 +10,7 @@ import streamlit as st
 
 from farloads import (
     EngineInput,
+    EngineLayout,
     EngineType,
     Project,
     Rotor,
@@ -25,7 +26,6 @@ from farloads import (
 from farloads import io as farloads_io
 from farloads.report import load_cases_to_rows, text_report
 
-st.set_page_config(page_title="FAR 23 Engine Mount Loads", layout="wide")
 
 st.title("Engine Mount Loads — FAR 23")
 st.caption(
@@ -266,7 +266,8 @@ with d3:
     # selection) so the files stay consistent with the examples/ set. The engine
     # slice is wrapped in a Project so the file is a valid project.json that the
     # Home page, CLI and other modules can reload.
-    project = Project(name=engine_designation or "engine", engine=inp)
+    project = Project(name=engine_designation or "engine", engines=[inp],
+                      engine_layout=EngineLayout.SINGLE_NOSE)
     input_json = farloads_io.project_to_json(project)
     st.download_button(
         "Save project (JSON)", input_json, file_name="engine.project.json",

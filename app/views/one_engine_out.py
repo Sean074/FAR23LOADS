@@ -16,7 +16,6 @@ import streamlit as st
 from farloads import OneEngineOutInput, Project
 from farloads.modules.one_engine_out import run, time_history
 
-st.set_page_config(page_title="FAR 23 One Engine Out", layout="wide")
 
 st.title("One Engine Out — Vertical Tail Loads (ONENGOUT)")
 st.caption(

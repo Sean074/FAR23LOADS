@@ -16,7 +16,6 @@ from farloads import AileronLoadsInput, Project
 from farloads.export import sbeam_bridge as sb
 from farloads.modules.aileron import build_aileron, run
 
-st.set_page_config(page_title="FAR 23 Aileron Loads", layout="wide")
 
 st.title("Aileron Loads — AILERON")
 st.caption(

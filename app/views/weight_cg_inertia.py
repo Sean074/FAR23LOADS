@@ -23,7 +23,6 @@ from farloads import io as farloads_io
 from farloads.modules.weight_onecg import weights_and_inertia
 from farloads.report import module_text_report
 
-st.set_page_config(page_title="FAR 23 Weight, CG & Inertia", layout="wide")
 
 st.title("Weight, CG & Inertia — FAR 23")
 st.caption(

@@ -16,7 +16,6 @@ import streamlit as st
 from farloads import Project
 from farloads.modules.select import build_critical
 
-st.set_page_config(page_title="FAR 23 Critical Loads", layout="wide")
 
 st.title("Critical Flight Loads — SELECT")
 st.caption(

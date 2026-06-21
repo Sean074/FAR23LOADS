@@ -26,7 +26,6 @@ from farloads import io as farloads_io
 from farloads.modules.weight_estimate import estimate, estimate_to_mass_items
 from farloads.report import module_text_report
 
-st.set_page_config(page_title="FAR 23 Weight Estimate", layout="wide")
 
 st.title("Weight Estimate — FAR 23")
 st.caption(

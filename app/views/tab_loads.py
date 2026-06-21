@@ -16,7 +16,6 @@ from farloads import Project, TabLoadsInput, TabSpec
 from farloads.export import sbeam_bridge as sb
 from farloads.modules.tab import build_tabs, run
 
-st.set_page_config(page_title="FAR 23 Tab Loads", layout="wide")
 
 st.title("Control-Surface Tab Loads — TABLOADS")
 st.caption(

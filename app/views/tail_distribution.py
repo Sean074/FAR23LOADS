@@ -21,7 +21,6 @@ import streamlit as st
 from farloads import Project
 from farloads.modules.taildist import build_tail_chordwise
 
-st.set_page_config(page_title="FAR 23 Tail Distribution", layout="wide")
 
 st.title("Chordwise Tail-Load Distribution — TAILDIST")
 st.caption(

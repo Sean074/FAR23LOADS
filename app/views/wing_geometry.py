@@ -19,7 +19,6 @@ from farloads import io as farloads_io
 from farloads.modules.wing_geometry import geometry_properties
 from farloads.report import module_text_report
 
-st.set_page_config(page_title="FAR 23 Wing Geometry", layout="wide")
 
 st.title("Aerodynamic Surface Geometry — FAR 23")
 st.caption(

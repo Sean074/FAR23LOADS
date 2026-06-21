@@ -21,7 +21,6 @@ from farloads.modules.airloads import schrenk_distribution
 from farloads.report import module_text_report
 from farloads.modules.airloads import run as airloads_run
 
-st.set_page_config(page_title="FAR 23 Wing Airloads", layout="wide")
 
 st.title("Spanwise Wing Airloads — Schrenk")
 st.caption(

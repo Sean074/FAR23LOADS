@@ -19,7 +19,6 @@ from farloads import io as farloads_io
 from farloads.modules.structural_speeds import design_speeds
 from farloads.report import module_text_report
 
-st.set_page_config(page_title="FAR 23 Structural Speeds", layout="wide")
 
 st.title("Structural Design Speeds — FAR 23")
 st.caption(

@@ -22,7 +22,6 @@ from farloads import Project
 from farloads.models import FuselageMassInput, FuselageStation
 from farloads.modules.body_loads import body_load_rows, build_body_loads
 
-st.set_page_config(page_title="FAR 23 Fuselage Loads", layout="wide")
 
 st.title("Net Fuselage Loads — shear / bending")
 st.caption(

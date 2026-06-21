@@ -30,7 +30,6 @@ from farloads.modules.configuration import (
     wing_surface,
 )
 
-st.set_page_config(page_title="FAR 23 Configuration & Layout", layout="wide")
 
 st.title("Configuration & Layout")
 st.caption(

@@ -17,7 +17,6 @@ import streamlit as st
 from farloads import LandingGearInput, LandingInput, Project, io
 from farloads.modules.landing import build_landing, run
 
-st.set_page_config(page_title="FAR 23 Landing Loads", layout="wide")
 
 st.title("Landing Loads — LGFACTOR + LANDLOAD")
 st.caption(

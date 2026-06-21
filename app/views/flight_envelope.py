@@ -19,7 +19,6 @@ from farloads import AeroCoeffSet, CgCase, FlightLoadsInput, Project
 from farloads.modules.flight_envelope import build_envelope, run as flt_run
 from farloads.report import module_text_report
 
-st.set_page_config(page_title="FAR 23 Flight Envelope", layout="wide")
 
 st.title("Flight Envelope (V-n) & Balancing Tail Loads")
 st.caption(

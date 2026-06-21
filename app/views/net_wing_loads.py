@@ -22,7 +22,6 @@ import streamlit as st
 from farloads import ConcentratedWeight, Project, WingLoadCase, WingMassInput
 from farloads.modules.net_loads import build_net_loads, wing_load_rows
 
-st.set_page_config(page_title="FAR 23 Net Wing Loads", layout="wide")
 
 st.title("Net Wing Loads — shear / bending / torsion")
 st.caption(
