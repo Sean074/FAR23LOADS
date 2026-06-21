@@ -188,13 +188,13 @@ directly; a module never recomputes another module's owned quantity.
 - **Validation:** Appendix A/B — the selected critical points (`SELWGLDS/SELHTLDS/SELVTLDS/SELFSLDS`).
 - **Notes:** Central junction. Reads V-n data from FLTLOADS + geometry (WINGGEOM) + inertia (WTONECG). Per UG Table 2.2 it feeds **AIRLOADS, AIRLOAD4 (iterative — see AIRLOADS), WINGINER, TAILDIST**. NETLOADS/component modules consume `critical` indirectly via those.
 
-### BALLOADS — Rational balanced-tail-load verification (utility)
+### BALLOADS — Rational balanced-tail-load verification (utility) — Step C11
 - **FAR §:** 23.421 (balancing loads); supports the 23.331 rational-balancing requirement.
-- **Source:** Ch 8–9 (method), `BALLOADS.BAS` (Appendix C p497). **Not a FAA menu module.**
-- **Reads:** the same V-n / geometry / mass inputs as FLTLOADS' balancing subroutine (run after FLTLOADS).
-- **Writes:** rational balanced horizontal-tail load per balanced condition — load due to angle-of-attack at 25% chord (`LT25`), load due to camber at 50% chord (`LT50`), elevator deflection & elevator load. Worked hand-calc: 6-place case 202 → `LT = 519.845 lb`.
-- **Validation:** Appendix A/B balanced-tail-load values (must match SELECT's rationally-recalculated `XTC`/`XTF`).
-- **Notes:** Optional verification/teaching tool, not in the main pipeline; demonstrates the elevator load is **not** always opposite the stabilizer load. Implement as a standalone calc that cross-checks FLTLOADS/SELECT, or defer.
+- **Source:** Ch 8–9 (method), `BALLOADS.BAS` (Appendix C p497). **Not a FAA menu module.** Module `farloads/modules/balloads.py`, registered `"balloads"`.
+- **Reads:** `Project.flight_loads` (FLTLOADS V-n / geometry, incl. the approximate `xtc`/`xtf`) and `Project.tail_loads` (h-tail geometry/aero); run after FLTLOADS/SELECT.
+- **Writes:** a verification **report only** (no schema/pipeline output). Per flaps-retracted V-n condition: rational `LT25` (cp 25%), `LT50` (cp 50%), elevator deflection & elevator load, total `LT`, rational CP (% tail MAC) and its fuselage station `XT`, compared to FLTLOADS' approximate `XTC`. Worked hand-calc: 6-place case 202 → `LT = 519.845 lb`.
+- **Validation:** Ch 9 case-202 hand-calc (`LT 519.845`, LT25 +907.62, LT50 −387.78, δ −5.39°, CP 6.35%); rational up/down loads equal SELECT's `BAL UP/DN RETRACTED` exactly (BALLOADS **reuses** `select.htail_balance`).
+- **Notes:** Optional verification/teaching tool, off the main pipeline; demonstrates the elevator load is **not** always opposite the stabilizer load. Reuses SELECT's oracle-locked balance routine (no re-derivation) and adds the rational-vs-approximate CP cross-check.
 
 ---
 
@@ -385,9 +385,9 @@ other modules consume).
 | 0 Restructure | engine → package | ✅ done (engloads → farloads, Project model, io/registry, app/) | 0 |
 | 1 Mass | WTESTIMA, WTONECG, WTENV | 3 (WTESTIMA, WTONECG, WTENV) | 0 |
 | 2 Geometry/Speeds | WINGGEOM, STRSPEED, MACHLIM | 3 (WINGGEOM, STRSPEED, MACHLIM) | 0 |
-| 3 Aero/Envelope | TAU\*, AIRLOADS, AIRLOAD4, FLTLOADS, SELECT, BALLOADS† | 5 (TAU, AIRLOADS, AIRLOAD4, FLTLOADS, SELECT) | 1 (BALLOADS†) |
+| 3 Aero/Envelope | TAU\*, AIRLOADS, AIRLOAD4, FLTLOADS, SELECT, BALLOADS† | 6 (all) | 0 |
 | 4 Component loads | WINGINER, NETLOADS, AILERON, FLAPLOAD, TABLOADS, TAILDIST, ENGLOADS, ONENGOUT, LGFACTOR, LANDLOAD | 10 (all) | 0 |
-| **Total** | **22** | **18** | **4** |
+| **Total** | **22** | **22** | **0** |
 
 Counts reference 1's 22 Appendix-C programs only; the **configuration** module
 (Step C5) is a modern addition with no `.BAS` and is not counted above. The FAA
@@ -396,5 +396,5 @@ of these as menu modules — the two it omits are:
 \* **TAU** (`TAU.EXE`/`TAU.BAS`), the lift-curve-slope helper folded into
 `airloads.py`; and
 † **BALLOADS** (`BALLOADS.BAS`), the post-FLTLOADS balanced-tail-load verification
-utility (off-pipeline; may be deferred). The pipeline balancing calc lives in
-FLTLOADS and is refined rationally in SELECT.
+utility (off-pipeline; ported in Step C11, reusing SELECT's balance routine). The
+pipeline balancing calc lives in FLTLOADS and is refined rationally in SELECT.

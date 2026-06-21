@@ -100,7 +100,7 @@ escape hatch.
 |---------|---------|--------|
 | `FLTLOADS` | V-n (flight envelope) diagram data **+ balancing tail loads** (approx CP) | **done** (C2 cruise; C6 flapped corner set) |
 | `SELECT` | Search/compute critical flight loads — wing, rational horizontal & vertical tail, fuselage | **done** (C6) |
-| `BALLOADS` (utility) | Verify rational balanced-tail-load CP; `BALLOADS.BAS`, off-pipeline | planned (C11, optional) |
+| `BALLOADS` (utility) | Verify rational balanced-tail-load CP; `BALLOADS.BAS`, off-pipeline | **done** (C11; reuses SELECT's balance routine) |
 
 ### Component loads
 | Program | Purpose | Status |
@@ -199,7 +199,8 @@ FAR23LOADS/
 │       ├── speeds.py             # STRSPEED (+ machlim.py)
 │       ├── airloads.py           # AIRLOADS / AIRLOAD4 / tau.py (TAU helper)
 │       ├── flight_envelope.py    # FLTLOADS (V-n + balancing tail loads)
-│       ├── select.py             # SELECT (+ balloads.py verification utility)
+│       ├── select.py             # SELECT
+│       ├── balloads.py           # BALLOADS (off-pipeline verification; reuses select)
 │       ├── wing_inertia.py       # WINGINER
 │       ├── net_loads.py          # NETLOADS
 │       ├── aileron.py, flap.py, tab.py, taildist.py
@@ -320,10 +321,11 @@ envelope, now that `XLEMAC`/`MAC` are available), then `STRSPEED` + `MACHLIM`.
 These plus Phase 1 unlock most component-load modules.
 
 **Phase 3 — Aero coefficients & flight envelope** (re-sequenced into Phase-C
-Steps C1/C2/C6; `AIRLOAD4` and the optional `BALLOADS` remain)
-`TAU` ✅ → `AIRLOADS` ✅ / `AIRLOAD4` (C7) → `FLTLOADS` ✅ (incl. balancing tail
-loads) → `SELECT` ✅ (rational critical wing/tail/fuselage loads). The analytical
-heart; produces the critical-load set everything downstream is sized to.
+Steps C1/C2/C6; complete)
+`TAU` ✅ → `AIRLOADS` ✅ / `AIRLOAD4` ✅ (C7) → `FLTLOADS` ✅ (incl. balancing tail
+loads) → `SELECT` ✅ (rational critical wing/tail/fuselage loads) → `BALLOADS` ✅
+(C11, off-pipeline verification). The analytical heart; produces the critical-load
+set everything downstream is sized to.
 
 **Phase 4 — Component loads** (re-sequenced into Phase-C Steps C3/C7–C10)
 `WINGINER` ✅, `NETLOADS` ✅, `ENGLOADS` ✅; `TAILDIST` (C7), `AILERON`/`FLAPLOAD`/

@@ -26,12 +26,13 @@ history, `CHANGELOG.md`).
 
 ## Current state (snapshot)
 
-**Shipped:** Phases 0–2 and Phase-C Steps **C0–C10**. Of Reference 1's 22
-Appendix-C programs, **21 are ported** (ENGLOADS, WTESTIMA, WTONECG, WTENV,
+**Shipped:** Phases 0–2 and Phase-C Steps **C0–C11**. **All 22** of Reference 1's
+Appendix-C programs are ported (ENGLOADS, WTESTIMA, WTONECG, WTENV,
 WINGGEOM, STRSPEED, MACHLIM, TAU, AIRLOADS, AIRLOAD4, FLTLOADS, SELECT, WINGINER,
-NETLOADS, TAILDIST, AILERON, FLAPLOAD, TABLOADS, ONENGOUT, LGFACTOR, LANDLOAD),
-plus **2 modern modules** with no `.BAS` oracle (`configuration`, `body_loads`).
-Schema is at **`SCHEMA_VERSION = 15`**; 207 tests pass; coverage ~89%. The wing
+NETLOADS, TAILDIST, AILERON, FLAPLOAD, TABLOADS, ONENGOUT, LGFACTOR, LANDLOAD,
+BALLOADS), plus **2 modern modules** with no `.BAS` oracle (`configuration`,
+`body_loads`).
+Schema is at **`SCHEMA_VERSION = 15`**; 211 tests pass; coverage ~89%. The wing
 distributed-loads vertical slice (geometry → speeds → envelope → airloads → inertia
 → net → sbeam export), the critical-load selection (wing / h-tail / v-tail /
 fuselage), the chordwise tail distribution, the simplified control-surface
@@ -40,26 +41,9 @@ and the tricycle-gear landing/ground loads are complete (FAR23 path oracle-locke
 ONENGOUT and the LANDLOAD wheel-load table closure-locked — no legible printed
 oracle exists for those).
 
-**Remaining suite programs (1):** BALLOADS (optional verification utility, below).
-
-The plan below continues the Phase-C step numbering (C11 onward). The FAR23 path
-stays oracle-locked (Appendix A/B ±0.1%); concept mode is a superset that reduces
-exactly to it on GA inputs.
-
----
-
-## Development plan (dependency-ordered)
-
-### Step C11 — BALLOADS (balanced-tail-load verification utility) — *optional*
-**Objective.** The off-pipeline cross-check that recomputes the rational
-balanced-tail-load centers of pressure (`LT25`/`LT50`/elevator load) to verify
-the approximate `XTC`/`XTF` that FLTLOADS uses and SELECT now refines.
-**Deliverables.** `modules/balloads.py` (or a verification helper) reading the
-FLTLOADS V-n / geometry / mass inputs; no pipeline output other than a report.
-**Test/Acceptance.** Matches SELECT's rational `XTC`/`XTF` and the Ch 9 case-202
-hand-calc (`LT = 519.845 lb`).
-**Note.** Low priority — the rational balancing method already lives in SELECT;
-this is a teaching/verification tool. Defer unless a cross-check is wanted.
+**Remaining suite programs (0):** all 22 Appendix-C programs are ported (BALLOADS
+shipped in Step C11). The FAR23 path stays oracle-locked (Appendix A/B ±0.1%);
+concept mode is a superset that reduces exactly to it on GA inputs.
 
 ---
 

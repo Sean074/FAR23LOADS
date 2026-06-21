@@ -64,14 +64,15 @@ def test_run_all_modules_runs_present_slices():
     # builds the envelope from flight-loads) and taildist (the tail_loads/vtail_loads
     # chordwise distribution) -- skipping any module whose slice is absent via the
     # ValueError path. The aileron/flap/tab slices (Step C8) and the landing slice
-    # (Step C10) run too.
+    # (Step C10) run too, as does balloads (the C11 balancing-tail verification,
+    # which needs the same tail_loads/flight_loads slices).
     project = io.load_project(GA6)
     results = registry.run_all_modules(project)
     assert {r.module for r in results} == {
         "engine", "weight_estimate", "weight_onecg", "weight_envelope",
         "wing_geometry", "structural_speeds", "mach_limit", "airloads",
         "flight_envelope", "wing_inertia", "net_loads", "select", "taildist",
-        "aileron", "flap", "tab", "landing",
+        "aileron", "flap", "tab", "landing", "balloads",
     }
 
 

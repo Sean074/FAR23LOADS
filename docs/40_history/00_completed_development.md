@@ -861,6 +861,52 @@ passing after the `sys.path` shims were removed.
 
 ---
 
+## Phase C — Step C11: BALLOADS (balanced-tail-load verification utility) (complete)
+
+**Objective.** Port the off-pipeline `BALLOADS.BAS` cross-check: recompute the
+horizontal-tail balancing load **rationally** (AoA load at 25% tail MAC + camber/
+elevator load at 50%) per flaps-retracted V-n condition and verify FLTLOADS'
+*approximate* tail centre of pressure (`XTC`~5% MAC flaps-up / `XTF`~25% flaps-down,
+Ch 8). This closes the **last** of Reference 1's 22 Appendix-C programs.
+
+**Deliverables.**
+- `modules/balloads.py` (registered `"balloads"`) — `verify_balancing(project)`
+  iterates every flaps-retracted V-n point (the search set of SELECT's
+  `select_htail_balancing`), **reuses** `select.htail_balance` for the rational
+  `LT25`/`LT50`/`DELTA`/`LT`/`CP` split and `select._elevator_load` for the elevator
+  load, converts the rational CP (% tail MAC) to a fuselage station `XT` and reports
+  it against FLTLOADS' assumed `XTC` (`DXT = XT − XTC`). `run(project)` emits a
+  `ConditionResult` per point (FAR 23.421); raises `ValueError` (skipped by
+  `run_all_modules`) when `tail_loads`/`flight_loads` are absent.
+- `farloads/modules/__init__.py` — `balloads` self-registration import.
+- `app/pages/16_Balanced_Tail_Verification.py` — read-only report: up/down headline
+  metrics + the per-condition rational-vs-approximate CP table.
+- `tests/test_balloads.py` — the Ch 9 case-202 oracle and SELECT-consistency check.
+- **No schema change, no new pipeline output** (a verification report only).
+
+**Test / Acceptance.** Oracle-locked against the Ch 9 case-202 hand-calc: the
+largest up balancing load is `LT = 519.845 lb` (LT25 +907.62, LT50 −387.78, δ
+−5.39°, CP 6.35% tail MAC), within the FLTLOADS ±0.5% V-n noise. The rational
+up/down loads equal SELECT's `BAL UP/DN RETRACTED` conditions exactly (same
+routine), and the rational CP station tracks FLTLOADS' assumed `XTC`. Full suite
+green (211 tests); `ruff` clean.
+
+**Key decisions.**
+1. **Reuse over re-derivation.** Per the project convention ("must not recompute a
+   quantity another module owns"), BALLOADS calls SELECT's oracle-locked
+   `htail_balance`/`_elevator_load` rather than transcribing `BALLOADS.BAS`'s own
+   balance equations — the verification can never silently drift from production.
+   The cross-check value is preserved by comparing the rational CP station to
+   FLTLOADS' *approximate* `XTC`/`XTF`.
+2. **Search set = all flaps-retracted points**, not only the trimmed `BAL`
+   conditions: the governing case-202 up load falls on `STALL +N` (CG1, 18000 ft),
+   mirroring `select_htail_balancing`.
+3. **Off-pipeline.** Runs under `run_all_modules` when its slices exist but writes
+   nothing to the `Project` schema — a teaching/verification report only,
+   demonstrating the elevator load is not always opposite the stabilizer load.
+
+---
+
 ## Resolved defects
 
 - _(none recorded)_

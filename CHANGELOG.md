@@ -11,6 +11,19 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **Balanced-tail-load verification — BALLOADS (Step C11).** New
+  `modules/balloads.py` (registers `"balloads"`): the off-pipeline cross-check of
+  `BALLOADS.BAS` (Reference 1 Ch 8–9). For every flaps-retracted V-n condition it
+  recomputes the rational balancing horizontal-tail load — AoA load at 25% tail MAC
+  (`LT25`) + camber/elevator load at 50% (`LT50`), elevator deflection and elevator
+  load — **reusing SELECT's oracle-locked `htail_balance`/`_elevator_load`** (no
+  re-derivation), converts the rational CP (% tail MAC) to a fuselage station and
+  reports it against FLTLOADS' *approximate* `XTC`/`XTF`. Verification report only —
+  no schema change, no pipeline output. New `app/pages/16_Balanced_Tail_Verification.py`.
+  Oracle-locked against the Ch 9 case-202 hand-calc (`LT = 519.845 lb`, LT25 +907.62,
+  LT50 −387.78, δ −5.39°, CP 6.35% tail MAC); the rational up/down loads equal
+  SELECT's `BAL UP/DN RETRACTED` exactly. 4 new tests (211 total). **This completes
+  all 22 of Reference 1's Appendix-C programs.**
 - **Landing / ground loads — LGFACTOR + LANDLOAD (Step C10).** New
   `modules/landing.py` (registers `"landing"`): the FAR Part 23 Subpart C
   ground-load conditions (Reference 1 Ch 20). **LGFACTOR** estimates the landing
