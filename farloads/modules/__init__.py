@@ -14,6 +14,7 @@ from . import mach_limit  # noqa: F401
 from . import net_loads  # noqa: F401
 from . import select  # noqa: F401
 from . import structural_speeds  # noqa: F401
+from . import taildist  # noqa: F401
 from . import weight_envelope  # noqa: F401
 from . import weight_estimate  # noqa: F401
 from . import weight_onecg  # noqa: F401

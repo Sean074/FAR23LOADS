@@ -26,42 +26,26 @@ history, `CHANGELOG.md`).
 
 ## Current state (snapshot)
 
-**Shipped:** Phases 0–2 and Phase-C Steps **C0–C6**. Of Reference 1's 22
-Appendix-C programs, **13 are ported** (ENGLOADS, WTESTIMA, WTONECG, WTENV,
-WINGGEOM, STRSPEED, MACHLIM, TAU, AIRLOADS, FLTLOADS, SELECT, WINGINER, NETLOADS),
-plus **2 modern modules** with no `.BAS` oracle (`configuration`, `body_loads`).
-Schema is at **`SCHEMA_VERSION = 11`**; 167 tests pass; coverage ~90%. The wing
-distributed-loads vertical slice (geometry → speeds → envelope → airloads →
-inertia → net → sbeam export) and the critical-load selection (wing / h-tail /
-v-tail / fuselage) are complete and oracle-locked.
+**Shipped:** Phases 0–2 and Phase-C Steps **C0–C7**. Of Reference 1's 22
+Appendix-C programs, **15 are ported** (ENGLOADS, WTESTIMA, WTONECG, WTENV,
+WINGGEOM, STRSPEED, MACHLIM, TAU, AIRLOADS, AIRLOAD4, FLTLOADS, SELECT, WINGINER,
+NETLOADS, TAILDIST), plus **2 modern modules** with no `.BAS` oracle
+(`configuration`, `body_loads`). Schema is at **`SCHEMA_VERSION = 12`**; 174 tests
+pass; coverage ~89%. The wing distributed-loads vertical slice (geometry → speeds →
+envelope → airloads → inertia → net → sbeam export), the critical-load selection
+(wing / h-tail / v-tail / fuselage) and the chordwise tail distribution are
+complete and oracle-locked.
 
-**Remaining suite programs (9):** AIRLOAD4, BALLOADS, AILERON, FLAPLOAD,
-TABLOADS, TAILDIST, ONENGOUT, LGFACTOR, LANDLOAD.
+**Remaining suite programs (7):** BALLOADS, AILERON, FLAPLOAD,
+TABLOADS, ONENGOUT, LGFACTOR, LANDLOAD.
 
-The plan below continues the Phase-C step numbering (C7 onward). The FAR23 path
+The plan below continues the Phase-C step numbering (C8 onward). The FAR23 path
 stays oracle-locked (Appendix A/B ±0.1%); concept mode is a superset that reduces
 exactly to it on GA inputs.
 
 ---
 
 ## Development plan (dependency-ordered)
-
-### Step C7 — TAILDIST + AIRLOAD4 (tail distributed loads; swept/high-Mach airloads)
-**Objective.** Chordwise horizontal/vertical-tail load distribution for SELECT's
-critical tail conditions, and the swept / high-Mach spanwise-airload branch for
-concept jets.
-**Deliverables.**
-- `modules/taildist.py` (registers `"taildist"`) → chordwise tail loads (additive
-  α-load at 25% chord + camber load at 50% chord, Ref 1 Ch 10) for the critical
-  horizontal and vertical tail cases, reading `Project.envelope.critical` (SELECT)
-  and `Project.geometry` (h-tail/v-tail); plus the sbeam tail export.
-- `AIRLOAD4` branch inside `modules/airloads.py` (sweepback / high-Mach adjustment
-  to Schrenk, `AIRLOAD4.BAS`), auto-selected by sweep / Mach.
-- Streamlit tail-distribution page; `Project` schema + `io.py` round-trip.
-**Test/Acceptance.** Appendix A/B tail-distribution tables and the Appendix B
-swept spanwise tables ±0.1%.
-**Dependencies.** SELECT (C6) for the critical conditions; AIRLOADS (C1) for the
-spanwise base.
 
 ### Step C8 — Control-surface simplified distributions (AILERON / FLAPLOAD / TABLOADS)
 **Objective.** The explicit concept-tool requirement: control surfaces use
@@ -116,6 +100,15 @@ this is a teaching/verification tool. Defer unless a cross-check is wanted.
 These do not block the plan above; close each under its own mini-step (history +
 changelog entry) when done.
 
+- **AIRLOAD4 swept spanwise printed oracle (from C7).** The swept branch is
+  validated by the reduction invariant (Λ=0 / low Mach ≡ AIRLOADS exactly) and
+  redistribution closure; matching a *printed* Appendix B swept spanwise table
+  needs a legible swept fixture (the missing `examples/twin_turboprop.project.json`
+  — see "Open design decisions"). Close as a mini-step when the fixture lands.
+- **Flaps-extended chordwise tail rows (from C7).** TAILDIST reproduces all 13
+  horizontal + 4 vertical Appendix A chordwise rows via `chordwise_pressures`, but
+  the SELECT→TAILDIST pipeline emits only the 9 flaps-retracted horizontal
+  conditions until the flapped V-n landing aero (the C6 deferral below) is added.
 - **Flaps-extended tail-load printed oracle (from C6).** R3/R4 (flapped V-n
   envelope + flaps-extended balancing / gust) are **closure-validated**. Matching
   the printed Appendix A flaps-extended cases (81 / 106 / 88 / 108) needs the real

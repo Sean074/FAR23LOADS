@@ -92,7 +92,7 @@ escape hatch.
 | Program | Purpose | Status |
 |---------|---------|--------|
 | `AIRLOADS` | Spanwise aero coefficients (airplane-less-tail) & spanwise airloads | **done** (C1 spanwise; C3 load distribution) |
-| `AIRLOAD4` | As AIRLOADS, for sweepback and high-Mach airloads | planned (C7) |
+| `AIRLOAD4` | As AIRLOADS, for sweepback and high-Mach airloads | **done** (C7, swept branch in `airloads.py`) |
 | `TAU` (helper) | Lift-curve-slope correction factor; `TAU.EXE`, folds into airloads | **done** (C1, in `airloads.py`) |
 
 ### Flight envelope & load selection
@@ -108,7 +108,7 @@ escape hatch.
 | `WINGINER` | Wing inertia loads | **done** (C3) |
 | `NETLOADS` | Net wing loads (airload + inertia) | **done** (C3) |
 | `ENGLOADS` | Engine mount loads | **done** ✅ (Phase 0) |
-| `TAILDIST` | Chordwise load distribution (tail) | planned (C7) |
+| `TAILDIST` | Chordwise load distribution (tail) | **done** (C7) |
 | `AILERON` | Aileron loads | planned (C8) |
 | `FLAPLOAD` | Flap loads | planned (C8) |
 | `TABLOADS` | Tab loads | planned (C8) |

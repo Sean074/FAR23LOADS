@@ -11,6 +11,29 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **Chordwise tail-load distribution — TAILDIST (Step C7).** New `modules/taildist.py`
+  (registers `"taildist"`): the five-station chordwise net pressure profile on the
+  average tail chord — the additive (angle-of-attack, 25% chord) plus camber (50%
+  chord) distributions (TAILDIST.BAS subroutine 3000, Reference 1 Ch 10) — for each
+  critical horizontal/vertical-tail condition from SELECT. SELECT now attaches the
+  rational `lt25`/`lt50` split to every tail `CriticalCondition`. New
+  `app/pages/11_Tail_Distribution.py`, the `sbeam_bridge` tail export
+  (`tail_chordwise_csv` / `tail_force_moment_cards`) and the `cli.py`
+  `--export-target tail` option. Oracle-locked against the Appendix A "Chordwise
+  Distribution of Tail Loads" tables (13 horizontal p237 + 4 vertical p245) within
+  ±0.1%.
+
+- **Swept / high-Mach airloads — AIRLOAD4 (Step C7).** `modules/airloads.py` gains
+  the AIRLOAD4 branch (Ref 1 Ch 12): the Pope & Haney sweepback redistribution of
+  the additive Schrenk span load, auto-selected (`use_airload4`) when the 25%-chord
+  sweep exceeds 15° or the design Mach exceeds 0.4, reducing exactly to AIRLOADS at
+  zero sweep / low Mach. New `AeroSurfaceInput.sweep_deg` / `design_mach` triggers.
+
+- **Schema v12 (Step C7).** `TailLoadsInput.htail_semispan_in`,
+  `VTailLoadsInput.vtail_span_in`, `CriticalCondition.lt25`/`lt50`, the
+  `TailChordResult` slice on `LoadsResult.tail_chordwise`, and the
+  `AeroSurfaceInput` sweep fields — all additive; older files load unchanged.
+
 - **Critical Loads + Fuselage Loads UI pages (Step C6, R9).** New Streamlit pages
   `app/pages/09_Critical_Loads.py` (the SELECT critical wing / h-tail / v-tail /
   fuselage conditions, grouped per component with their loads and FAR cites; persists

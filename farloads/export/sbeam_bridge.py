@@ -48,7 +48,13 @@ import io as _io
 from dataclasses import dataclass
 from typing import List, Sequence, Union
 
-from ..models import BodyLoadResult, Project, WingLoadResult, WingStationLoad
+from ..models import (
+    BodyLoadResult,
+    Project,
+    TailChordResult,
+    WingLoadResult,
+    WingStationLoad,
+)
 from .coordinates import SBEAM_CID, to_force, to_grid, to_moment
 
 # Loads below this magnitude are treated as zero and not emitted (matches
@@ -389,3 +395,101 @@ def body_force_moment_cards(arg, sid_base: int = 1) -> str:
                 )
         blocks.append("\n".join(lines))
     return "\n".join(blocks) + "\n"
+
+
+# --------------------------------------------------------------------------- #
+# Tail chordwise-load export (Step C7, TAILDIST)
+# --------------------------------------------------------------------------- #
+# The chordwise tail distribution (Ch 10) is a pressure profile (lb/in^2) on the
+# average tail chord at five chord stations. The export emits the profile as a CSV
+# and a per-station FORCE set scaled so its total equals the condition's tail load
+# (LT25 + LT50) -- a determinate, checkable load set for the tail beam in sbeam.
+_TAIL_GID_BASE = 2001  # tail chordwise-station GIDs (disjoint from wing/body GIDs)
+
+
+def _tail_results(arg: "Union[Project, TailChordResult, Sequence[TailChordResult]]") -> List[TailChordResult]:
+    if isinstance(arg, Project):
+        if arg.loads is None or not arg.loads.tail_chordwise:
+            raise ValueError(
+                "Project has no tail chordwise loads to export -- run the 'taildist' "
+                "module (build_tail_chordwise) first so Project.loads.tail_chordwise is set."
+            )
+        return list(arg.loads.tail_chordwise)
+    if isinstance(arg, TailChordResult):
+        return [arg]
+    results = list(arg)
+    if not results:
+        raise ValueError("no tail chordwise results to export")
+    return results
+
+
+def _tail_nodal_forces(r: TailChordResult) -> List[float]:
+    """Per-station vertical forces (lb) from the chordwise pressures, scaled so the
+    set sums to the total tail load ``LT25 + LT50`` (trapezoidal chord tributaries)."""
+    stations = sorted(r.stations, key=lambda s: s.x)
+    n = len(stations)
+    widths = []
+    for i, s in enumerate(stations):
+        lo = stations[i - 1].x if i > 0 else s.x
+        hi = stations[i + 1].x if i + 1 < n else s.x
+        widths.append((hi - lo) / 2.0)
+    raw = [s.psi * w for s, w in zip(stations, widths)]
+    total_raw = sum(raw)
+    total = r.lt25 + r.lt50
+    scale = (total / total_raw) if abs(total_raw) > _TOL else 0.0
+    return [v * scale for v in raw]
+
+
+def tail_chordwise_csv(arg) -> str:
+    """Chordwise tail-load CSV: one row per chord station per critical tail
+    condition (component, chord station X, net pressure PSI, scaled nodal Fz)."""
+    results = _tail_results(arg)
+    buf = _io.StringIO()
+    writer = csv.DictWriter(
+        buf, fieldnames=["Case", "Component", "GID", "X", "PSI", "Fz", "LT25", "LT50"])
+    writer.writeheader()
+    for r in results:
+        forces = _tail_nodal_forces(r)
+        stations = sorted(r.stations, key=lambda s: s.x)
+        for i, (s, fz) in enumerate(zip(stations, forces)):
+            writer.writerow({
+                "Case": r.case, "Component": r.component, "GID": _TAIL_GID_BASE + i,
+                "X": f"{s.x:.3f}", "PSI": f"{s.psi:.4f}", "Fz": f"{fz:.1f}",
+                "LT25": f"{r.lt25:.2f}", "LT50": f"{r.lt50:.2f}",
+            })
+    return buf.getvalue()
+
+
+def tail_force_moment_cards(arg, sid_base: int = 1) -> str:
+    """FORCE bulk-data cards for the chordwise tail loads (one SID per condition);
+    each set's applied Fz sums to the total tail load ``LT25 + LT50``."""
+    results = _tail_results(arg)
+    blocks: List[str] = []
+    for idx, r in enumerate(results):
+        sid = sid_base + idx
+        forces = _tail_nodal_forces(r)
+        total = sum(forces)
+        lines = [
+            f"$ FAR23LOADS chordwise {r.component} load -- case {r.case}, SID {sid}",
+            f"$ Applied Fz set sums to {total:.1f} lb (= LT25 + LT50 = "
+            f"{r.lt25 + r.lt50:.1f} lb).",
+        ]
+        for i, fz in enumerate(forces):
+            fx2, fy2, fz2 = to_force(0.0, 0.0, fz)
+            if abs(fz2) > _TOL:
+                lines.append(
+                    f"FORCE, {sid}, {_TAIL_GID_BASE + i}, {SBEAM_CID}, 1.0, "
+                    f"{_fmt(fx2)}, {_fmt(fy2)}, {_fmt(fz2)}"
+                )
+        blocks.append("\n".join(lines))
+    return "\n".join(blocks) + "\n"
+
+
+def write_tail_chordwise_csv(arg, path: str) -> None:
+    with open(path, "w", encoding="utf-8", newline="") as fh:
+        fh.write(tail_chordwise_csv(arg))
+
+
+def write_tail_force_moment_cards(arg, path: str, sid_base: int = 1) -> None:
+    with open(path, "w", encoding="utf-8") as fh:
+        fh.write(tail_force_moment_cards(arg, sid_base=sid_base))

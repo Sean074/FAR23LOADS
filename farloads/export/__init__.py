@@ -15,10 +15,14 @@ from .sbeam_bridge import (
     span_load_csv,
     station_gid,
     stick_model_bdf,
+    tail_chordwise_csv,
+    tail_force_moment_cards,
     wing_nodal_loads,
     write_force_moment_cards,
     write_span_load_csv,
     write_stick_model_bdf,
+    write_tail_chordwise_csv,
+    write_tail_force_moment_cards,
 )
 
 __all__ = [
@@ -35,4 +39,8 @@ __all__ = [
     "write_force_moment_cards",
     "stick_model_bdf",
     "write_stick_model_bdf",
+    "tail_chordwise_csv",
+    "write_tail_chordwise_csv",
+    "tail_force_moment_cards",
+    "write_tail_force_moment_cards",
 ]

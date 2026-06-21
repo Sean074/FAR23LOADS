@@ -241,7 +241,7 @@ def select_htail_balancing(project: Project) -> List[CriticalCondition]:
             LoadValue("Elevator deflection (TE dn +)", b["DELTA"], "deg"),
             LoadValue("CP of total load", b["CP"], "% tail MAC"),
             LoadValue("V (EAS)", p.v_eas_kt, "kt(EAS)"),
-        ])
+        ], lt25=b["LT25"], lt50=b["LT50"])
 
     out: List[CriticalCondition] = []
     if retracted:
@@ -254,11 +254,16 @@ def select_htail_balancing(project: Project) -> List[CriticalCondition]:
 
 
 def _htail_condition(label: str, far: str, p: VnPoint, total_lt: float,
-                     extra: List[LoadValue]) -> CriticalCondition:
-    """Build an htail :class:`CriticalCondition` whose first load is the total."""
+                     extra: List[LoadValue], lt25: Optional[float] = None,
+                     lt50: Optional[float] = None) -> CriticalCondition:
+    """Build an htail :class:`CriticalCondition` whose first load is the total.
+
+    ``lt25``/``lt50`` are the angle-of-attack (25% MAC) and camber (50% MAC) split
+    TAILDIST distributes chordwise; ``lt25 + lt50 == total_lt``."""
     return CriticalCondition(
         component="htail", label=label, far_reference=far, case=p.case,
-        loads=[LoadValue("Total tail load", total_lt, "lb"), *extra])
+        loads=[LoadValue("Total tail load", total_lt, "lb"), *extra],
+        lt25=lt25, lt50=lt50)
 
 
 def _ef(defl: float, se2st: float) -> float:
@@ -334,7 +339,7 @@ def select_htail_maneuver(project: Project) -> List[CriticalCondition]:
                 LoadValue("Elevator-deflection increment (cp 50%)", lt50, "lb"),
                 LoadValue("Elevator load", _elevator_load(lt50, b["LT25"], ti), "lb"),
                 LoadValue("Elevator deflection", sign * edefl, "deg"),
-            ]))
+            ], lt25=b["LT25"], lt50=lt50))
 
     # Checked: pitch-acceleration increment T = Iyy*theta_ddot/(arm) at VC/VD.
     def iyy(p: VnPoint) -> float:
@@ -350,16 +355,20 @@ def select_htail_maneuver(project: Project) -> List[CriticalCondition]:
     man_cd = [p for p in vn if p.condition in ("MAN C", "MAN D") and in_cg(p)]
     if bal_cd:
         p = min(bal_cd, key=lambda p: bal(p)["LT"] - increment(p))   # largest down
-        out.append(_htail_condition("CHECKED MAN DN", "23.423(b)", p, bal(p)["LT"] - increment(p), [
-            LoadValue("Balanced tail load", bal(p)["LT"], "lb"),
+        b = bal(p)
+        out.append(_htail_condition("CHECKED MAN DN", "23.423(b)", p, b["LT"] - increment(p), [
+            LoadValue("Balanced tail load", b["LT"], "lb"),
             LoadValue("Maneuver load increment", -increment(p), "lb"),
-            LoadValue("Pitch inertia Iyy", iyy(p), "slug-ft^2")]))
+            LoadValue("Pitch inertia Iyy", iyy(p), "slug-ft^2")],
+            lt25=b["LT25"] - increment(p), lt50=b["LT50"]))
     if man_cd:
         p = max(man_cd, key=lambda p: bal(p)["LT"] + increment(p))   # largest up
-        out.append(_htail_condition("CHECKED MAN UP", "23.423(b)", p, bal(p)["LT"] + increment(p), [
-            LoadValue("Balanced tail load", bal(p)["LT"], "lb"),
+        b = bal(p)
+        out.append(_htail_condition("CHECKED MAN UP", "23.423(b)", p, b["LT"] + increment(p), [
+            LoadValue("Balanced tail load", b["LT"], "lb"),
             LoadValue("Maneuver load increment", increment(p), "lb"),
-            LoadValue("Pitch inertia Iyy", iyy(p), "slug-ft^2")]))
+            LoadValue("Pitch inertia Iyy", iyy(p), "slug-ft^2")],
+            lt25=b["LT25"] + increment(p), lt50=b["LT50"]))
     return out
 
 
@@ -390,20 +399,27 @@ def select_htail_gust(project: Project) -> List[CriticalCondition]:
     if not bal_cd:
         return []
 
+    def bal_full(p: VnPoint) -> Dict[str, float]:
+        return htail_balance(p, cg_map[p.cg], fl.xw, fl.zw, ti)
+
     def bal_lt(p: VnPoint) -> float:
-        return htail_balance(p, cg_map[p.cg], fl.xw, fl.zw, ti)["LT"]
+        return bal_full(p)["LT"]
 
     out: List[CriticalCondition] = []
     up = max(bal_cd, key=lambda p: bal_lt(p) + gust_increment(p))
+    b = bal_full(up)
     out.append(_htail_condition("GUST UP RETRACTED", "23.425(a)(1)", up,
-                                bal_lt(up) + gust_increment(up), [
-        LoadValue("Balanced tail load", bal_lt(up), "lb"),
-        LoadValue("Gust increment (cp 25%)", gust_increment(up), "lb")]))
+                                b["LT"] + gust_increment(up), [
+        LoadValue("Balanced tail load", b["LT"], "lb"),
+        LoadValue("Gust increment (cp 25%)", gust_increment(up), "lb")],
+        lt25=b["LT25"] + gust_increment(up), lt50=b["LT50"]))
     dn = min(bal_cd, key=lambda p: bal_lt(p) - gust_increment(p))
+    b = bal_full(dn)
     out.append(_htail_condition("GUST DN RETRACTED", "23.425(a)(1)", dn,
-                                bal_lt(dn) - gust_increment(dn), [
-        LoadValue("Balanced tail load", bal_lt(dn), "lb"),
-        LoadValue("Gust increment (cp 25%)", -gust_increment(dn), "lb")]))
+                                b["LT"] - gust_increment(dn), [
+        LoadValue("Balanced tail load", b["LT"], "lb"),
+        LoadValue("Gust increment (cp 25%)", -gust_increment(dn), "lb")],
+        lt25=b["LT25"] - gust_increment(dn), lt50=b["LT50"]))
 
     # Flaps extended (FAR 23.425(a)(2)): the BAL VF points with a 25 fps gust at
     # sea-level density (FLTLOADS.BAS 5700-5910).
@@ -416,15 +432,19 @@ def select_htail_gust(project: Project) -> List[CriticalCondition]:
     bal_vf = [p for p in vn if p.condition == "BAL VF" and p.cg in cg_map]
     if bal_vf:
         up = max(bal_vf, key=lambda p: bal_lt(p) + flap_gust_increment(p))
+        b = bal_full(up)
         out.append(_htail_condition("GUST UP EXTENDED", "23.425(a)(2)", up,
-                                    bal_lt(up) + flap_gust_increment(up), [
-            LoadValue("Balanced tail load", bal_lt(up), "lb"),
-            LoadValue("Gust increment (cp 25%)", flap_gust_increment(up), "lb")]))
+                                    b["LT"] + flap_gust_increment(up), [
+            LoadValue("Balanced tail load", b["LT"], "lb"),
+            LoadValue("Gust increment (cp 25%)", flap_gust_increment(up), "lb")],
+            lt25=b["LT25"] + flap_gust_increment(up), lt50=b["LT50"]))
         dn = min(bal_vf, key=lambda p: bal_lt(p) - flap_gust_increment(p))
+        b = bal_full(dn)
         out.append(_htail_condition("GUST DN EXTENDED", "23.425(a)(2)", dn,
-                                    bal_lt(dn) - flap_gust_increment(dn), [
-            LoadValue("Balanced tail load", bal_lt(dn), "lb"),
-            LoadValue("Gust increment (cp 25%)", -flap_gust_increment(dn), "lb")]))
+                                    b["LT"] - flap_gust_increment(dn), [
+            LoadValue("Balanced tail load", b["LT"], "lb"),
+            LoadValue("Gust increment (cp 25%)", -flap_gust_increment(dn), "lb")],
+            lt25=b["LT25"] - flap_gust_increment(dn), lt50=b["LT50"]))
     return out
 
 
@@ -441,12 +461,15 @@ def select_htail_unsymmetrical(htail: List[CriticalCondition], np_: float) -> Li
     total = worst.loads[0].value
     rh = 0.5 * total
     lh = (pc / 100.0) * rh
+    # The chordwise distribution (cond 13) uses the worst symmetric condition's
+    # LT25/LT50 split (the unsymmetrical case is the same chordwise shape).
     return [CriticalCondition(
         component="htail", label="UNSYMMETRICAL", far_reference="23.427(a)", case=worst.case,
         loads=[LoadValue("Total tail load", rh + lh, "lb"),
                LoadValue("RH side load", rh, "lb"),
                LoadValue("LH side load", lh, "lb"),
-               LoadValue("Other-side percent", pc, "%")])]
+               LoadValue("Other-side percent", pc, "%")],
+        lt25=worst.lt25, lt50=worst.lt50)]
 
 
 def select_htail(project: Project) -> List[CriticalCondition]:
@@ -535,7 +558,8 @@ def select_vtail(project: Project) -> List[CriticalCondition]:
         component="vtail", label="SUDDEN RUDDER", far_reference="23.441(a)(1)", case=p1.case,
         loads=[LoadValue("Total tail load", lv, "lb"),
                LoadValue("Load on rudder", on_rudder1, "lb"),
-               LoadValue("V (EAS)", p1.v_eas_kt, "kt(EAS)")]))
+               LoadValue("V (EAS)", p1.v_eas_kt, "kt(EAS)")],
+        lt25=0.0, lt50=lv))
 
     # 2. Yaw to sideslip 19.5 deg, rudder held full (FAR 23.441(a)(2)) -- largest down.
     def total2(p: VnPoint) -> float:
@@ -549,20 +573,23 @@ def select_vtail(project: Project) -> List[CriticalCondition]:
         loads=[LoadValue("Total tail load", lrud + lyaw, "lb"),
                LoadValue("Load due to yaw 19.5deg (cp 25%)", lyaw, "lb"),
                LoadValue("Load due to rudder (cp 50%)", lrud, "lb"),
-               LoadValue("Load on rudder", on_rudder2, "lb")]))
+               LoadValue("Load on rudder", on_rudder2, "lb")],
+        lt25=lyaw, lt50=lrud))
 
     # 3. Yaw 15 deg, rudder neutral (FAR 23.441(a)(3)) -- largest down.
     p3 = min(bal_a, key=lambda p: _vt_aoa_load(-15.0, p, vt))
     out.append(CriticalCondition(
         component="vtail", label="YAW 15 NEUTRAL", far_reference="23.441(a)(3)", case=p3.case,
-        loads=[LoadValue("Total tail load (cp 25%)", _vt_aoa_load(-15.0, p3, vt), "lb")]))
+        loads=[LoadValue("Total tail load (cp 25%)", _vt_aoa_load(-15.0, p3, vt), "lb")],
+        lt25=_vt_aoa_load(-15.0, p3, vt), lt50=0.0))
 
     # 4. Lateral gust at VC (FAR 23.443(b)) -- largest.
     p4 = max(bal_c, key=lambda p: _vt_side_gust(p, cg_map[p.cg], vt, izz))
     out.append(CriticalCondition(
         component="vtail", label="SIDE GUST", far_reference="23.443(b)", case=p4.case,
         loads=[LoadValue("Total tail load (cp 25%)", _vt_side_gust(p4, cg_map[p4.cg], vt, izz), "lb"),
-               LoadValue("Yaw inertia IZZ", izz, "slug-ft^2")]))
+               LoadValue("Yaw inertia IZZ", izz, "slug-ft^2")],
+        lt25=_vt_side_gust(p4, cg_map[p4.cg], vt, izz), lt50=0.0))
     return out
 
 

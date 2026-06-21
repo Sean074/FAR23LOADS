@@ -59,6 +59,8 @@ from .models import (
     StructuralSpeedsInput,
     SurfaceInput,
     TailBalanceLoad,
+    TailChordResult,
+    TailChordStation,
     VnPoint,
     WeightEnvelopeInput,
     WeightEstimationInput,
@@ -336,6 +338,8 @@ def _critical_condition_from_dict(d: Dict[str, Any]) -> CriticalCondition:
         far_reference=d.get("far_reference", ""),
         case=d.get("case"),
         loads=[LoadValue(**dict(v)) for v in d.get("loads", []) or []],
+        lt25=d.get("lt25"),
+        lt50=d.get("lt50"),
     )
 
 
@@ -479,6 +483,16 @@ def _body_load_result_from_dict(d: Dict[str, Any]) -> BodyLoadResult:
     )
 
 
+def _tail_chord_result_from_dict(d: Dict[str, Any]) -> TailChordResult:
+    return TailChordResult(
+        case=d.get("case", ""),
+        component=d.get("component", ""),
+        lt25=d.get("lt25", 0.0),
+        lt50=d.get("lt50", 0.0),
+        stations=[TailChordStation(**dict(s)) for s in d.get("stations", []) or []],
+    )
+
+
 def loads_from_dict(d: Dict[str, Any]) -> LoadsResult:
     """Build a :class:`LoadsResult` from a plain dict (the persisted loads)."""
     return LoadsResult(
@@ -486,6 +500,7 @@ def loads_from_dict(d: Dict[str, Any]) -> LoadsResult:
         wing_inertia=[_wing_load_result_from_dict(r) for r in d.get("wing_inertia", []) or []],
         wing_net=[_wing_load_result_from_dict(r) for r in d.get("wing_net", []) or []],
         body_net=[_body_load_result_from_dict(r) for r in d.get("body_net", []) or []],
+        tail_chordwise=[_tail_chord_result_from_dict(r) for r in d.get("tail_chordwise", []) or []],
     )
 
 
@@ -496,6 +511,7 @@ def loads_to_dict(inp: LoadsResult) -> Dict[str, Any]:
         "wing_inertia": [asdict(r) for r in inp.wing_inertia],
         "wing_net": [asdict(r) for r in inp.wing_net],
         "body_net": [asdict(r) for r in inp.body_net],
+        "tail_chordwise": [asdict(r) for r in inp.tail_chordwise],
     }
 
 

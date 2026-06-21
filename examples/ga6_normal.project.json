@@ -1,5 +1,5 @@
 {
-  "schema_version": 4,
+  "schema_version": 12,
   "name": "GA 6-place single (Appendix A) \u2014 Continental IO-520-BB",
   "engine_layout": "1N",
   "engines": [
@@ -480,5 +480,41 @@
         "v_eas_kt": 116
       }
     ]
+  },
+  "select_input": {
+    "full_down_aileron_deg": 15.0,
+    "basic_airfoil_cm": -0.03
+  },
+  "tail_loads": {
+    "tail_incidence_deg": 2.0,
+    "wing_zero_lift_cruise_deg": 3.988146,
+    "aspect_ratio_wing": 6.095,
+    "aspect_ratio_htail": 4.017,
+    "htail_area_sqft": 36.944,
+    "elevator_effectiveness": 0.614,
+    "xt25": 261.027,
+    "xt50": 270.357,
+    "elevator_te_up_deg": 30.0,
+    "elevator_te_down_deg": 20.0,
+    "elevator_area_sqft": 16.403,
+    "elevator_fwd_hinge_sqft": 1.639,
+    "elevator_aft_hinge_sqft": 14.792,
+    "airplane_length_ft": 26.522,
+    "wing_lift_slope_per_rad": 4.605,
+    "htail_semispan_in": 73.1
+  },
+  "vtail_loads": {
+    "rudder_deflection_deg": 30.0,
+    "vtail_area_sqft": 14.84,
+    "rudder_area_sqft": 5.236,
+    "rudder_fwd_hinge_sqft": 0.57,
+    "rudder_aft_hinge_sqft": 4.63,
+    "aspect_ratio_vtail": 1.52,
+    "vtail_mac_ft": 3.367,
+    "xv25": 266.83,
+    "airplane_length_ft": 26.522,
+    "wing_span_ft": 33.5,
+    "gross_weight_lb": 3400.0,
+    "vtail_span_in": 57.0
   }
 }

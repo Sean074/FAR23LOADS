@@ -293,6 +293,14 @@ class AeroSurfaceInput:
     # empty for the C1 span-load-only path.
     profile_drag: List[XYPoint] = field(default_factory=list)   # (Y, CDO)
     section_cm: List[XYPoint] = field(default_factory=list)      # (Y, CM)
+    # Swept / high-Mach branch (AIRLOAD4.BAS, Step C7). ``sweep_deg`` is the 25%-
+    # chord sweepback (deg; negative = sweptforward) and ``design_mach`` the Mach
+    # at which airloads are wanted. AIRLOAD4's sweep redistribution of the additive
+    # Schrenk distribution is auto-selected when ``|sweep_deg| > 15`` or
+    # ``design_mach > 0.4`` (Ref 1 Ch 12); both default to 0 (the low-speed
+    # AIRLOADS path, unchanged).
+    sweep_deg: float = 0.0
+    design_mach: float = 0.0
 
 
 @dataclass
@@ -586,6 +594,11 @@ class TailLoadsInput:
     elevator_aft_hinge_sqft: float = 0.0       # SEAFTHL
     airplane_length_ft: float = 0.0            # LF (approximate Iyy = 0.44*W*LF^2/384)
     wing_lift_slope_per_rad: float = 0.0       # AW (gust downwash relief 1 - 36*aw/ARW)
+    # Chordwise distribution (TAILDIST, Ch 10) -- the horizontal-tail semi-span
+    # (BLHTAIL, inches) sets the average tail chord CAVE = S/B for the chordwise
+    # profile. The elevator areas above (full both-sides, sq ft) supply the hinge-
+    # line chord station; 0 disables the chordwise distribution for this surface.
+    htail_semispan_in: float = 0.0             # BLHTAIL (tail semi-span, inches)
 
 
 # --------------------------------------------------------------------------- #
@@ -630,6 +643,10 @@ class VTailLoadsInput:
     gross_weight_lb: float = 0.0               # GW (IZZ default; 0 -> use the heaviest CG case)
     rudder_large_deflection_factor: float = 1.0  # EFV (subr 10000 chart; ~1.0)
     izz_slugft2: float = 0.0                   # 0 -> compute the default IZZ
+    # Chordwise distribution (TAILDIST, Ch 10) -- the vertical-tail span (BLHTAIL,
+    # inches; the single surface, so its full span) sets the average chord
+    # CAVE = SV/B. 0 disables the chordwise distribution for the vertical tail.
+    vtail_span_in: float = 0.0                 # BLHTAIL (vertical-tail span, inches)
 
 
 # --------------------------------------------------------------------------- #
@@ -817,12 +834,18 @@ class CriticalCondition:
     ``None`` for a derived condition); ``far_reference`` cites the regulation.
     ``loads`` carries the governing scalar quantities (n, CL, V, tail load, shear,
     bending, ...) as labelled :class:`LoadValue`s so report/units render unchanged.
-    """
+
+    For horizontal/vertical-tail conditions, ``lt25``/``lt50`` carry the load
+    resolved at 25% MAC (angle-of-attack) and 50% MAC (camber) -- the rational
+    split TAILDIST (C7) distributes chordwise. They are ``None`` for wing/fuselage
+    conditions (and for tail conditions emitted before C7)."""
     component: str
     label: str
     far_reference: str = ""
     case: Optional[int] = None
     loads: List[LoadValue] = field(default_factory=list)
+    lt25: Optional[float] = None
+    lt50: Optional[float] = None
 
 
 @dataclass
@@ -908,6 +931,32 @@ class BodyLoadResult:
 
 
 @dataclass
+class TailChordStation:
+    """One chordwise station of a tail load distribution (TAILDIST, Ref 1 Ch 10).
+
+    ``x`` is the chord station aft of the leading edge (in); ``psi`` the net load
+    intensity there (lb/in^2), the algebraic sum of the angle-of-attack ("additive")
+    and camber distributions. Five stations define the piecewise-linear profile:
+    leading edge, quarter chord, trailing edge and the hinge-line chord stations."""
+    x: float
+    psi: float
+
+
+@dataclass
+class TailChordResult:
+    """One critical tail condition's chordwise load distribution (TAILDIST, Ch 10).
+
+    ``component`` is "htail" / "vtail"; ``case`` the SELECT condition label; ``lt25``
+    /``lt50`` the angle-of-attack (25% MAC) and camber (50% MAC) loads it resolves
+    (lb); ``stations`` the five chordwise pressure points (leading-edge first)."""
+    case: str
+    component: str
+    lt25: float
+    lt50: float
+    stations: List[TailChordStation] = field(default_factory=list)
+
+
+@dataclass
 class LoadsResult:
     """The persisted distributed-loads slice (``Project.loads``).
 
@@ -916,11 +965,13 @@ class LoadsResult:
     -- the headline wing structural deliverable (root shear/BM/torsion). One
     :class:`WingLoadResult` per critical condition. ``body_net`` is the fuselage
     longitudinal net-load distribution per critical condition (SELECT, C6) -- the
-    body analogue of ``wing_net``."""
+    body analogue of ``wing_net``. ``tail_chordwise`` is the chordwise tail-load
+    distribution per critical horizontal/vertical-tail condition (TAILDIST, C7)."""
     wing_air: List[WingLoadResult] = field(default_factory=list)
     wing_inertia: List[WingLoadResult] = field(default_factory=list)
     wing_net: List[WingLoadResult] = field(default_factory=list)
     body_net: List[BodyLoadResult] = field(default_factory=list)
+    tail_chordwise: List[TailChordResult] = field(default_factory=list)
 
 
 # Current project-schema version. Bump when the on-disk JSON shape changes so old
@@ -942,8 +993,12 @@ class LoadsResult:
 # additive; v9 adds the rational horizontal-tail load inputs (TailLoadsInput) --
 # additive; v10 adds the rational vertical-tail load inputs (VTailLoadsInput) --
 # additive; v11 extends TailLoadsInput with the elevator/maneuver/gust fields
-# (FAR 23.423/23.425 horizontal-tail loads) -- additive (new fields default to 0).
-SCHEMA_VERSION = 11
+# (FAR 23.423/23.425 horizontal-tail loads) -- additive (new fields default to 0);
+# v12 (Step C7) adds the tail semi-span/span fields on TailLoadsInput/VTailLoadsInput
+# (TAILDIST chordwise average chord) and the chordwise tail-load result slice
+# (TailChordResult on LoadsResult.tail_chordwise) -- all additive, older files load
+# unchanged via the from_dict defaults.
+SCHEMA_VERSION = 12
 
 
 @dataclass

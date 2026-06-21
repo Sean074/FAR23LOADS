@@ -287,8 +287,11 @@ def test_critical_fuselage_conditions_match_appendix_a():
 
 def test_wing_and_fuselage_when_no_tail_loads():
     # Without tail_loads/vtail_loads, SELECT still writes the wing + fuselage sets
-    # (the fuselage conditions need only the V-n matrix).
+    # (the fuselage conditions need only the V-n matrix). The GA6 example now ships
+    # the tail slices, so clear them to exercise the no-tail-loads path.
     p = _ga6_three_altitudes()
+    p.tail_loads = None
+    p.vtail_loads = None
     cls = select.build_critical(p)
     assert {c.component for c in cls.conditions} == {"wing", "fuselage"}
 

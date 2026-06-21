@@ -67,6 +67,16 @@ _DEG = 57.3  # AIRLOADS.BAS uses 57.3 for the rad<->deg factor; kept for fidelit
 
 _FAR = "23.301"  # airload distribution basis (Schrenk)
 
+# AIRLOAD4 auto-select thresholds (Ref 1 Ch 12): use the swept branch when the
+# 25%-chord sweep exceeds ~15 deg or the design Mach exceeds 0.4.
+_AIRLOAD4_SWEEP_DEG = 15.0
+_AIRLOAD4_MACH = 0.4
+
+
+def use_airload4(aero: AeroSurfaceInput) -> bool:
+    """True when the swept / high-Mach AIRLOAD4 branch applies (Ref 1 Ch 12)."""
+    return abs(aero.sweep_deg) > _AIRLOAD4_SWEEP_DEG or aero.design_mach > _AIRLOAD4_MACH
+
 
 # --------------------------------------------------------------------------- #
 # TAU -- lift-curve-slope planform correction (TAU.BAS, p407)
@@ -130,10 +140,13 @@ class SpanwiseTable:
     awo: float = 0.0           # chord-weighted mean zero-lift angle (deg)
     area_total: float = 0.0    # S, in^2
     span: float = 0.0          # B, in
+    mac: float = 0.0           # mean aerodynamic chord (in), for the AIRLOAD4 sweep term
     aspect_ratio: float = 0.0
     target_cl: float = 1.0
     recovered_cl: float = 0.0
     recovered_cl_additive: float = 0.0
+    sweep_deg: float = 0.0     # 25%-chord sweep applied (AIRLOAD4); 0 = unswept
+    airload4: bool = False     # True when the swept/high-Mach branch was used
 
 
 def _twist_angle(twist, ye: float) -> float:
@@ -166,6 +179,7 @@ def schrenk_distribution(geom: SurfaceInput, aero: AeroSurfaceInput) -> Spanwise
     chord: List[float] = []
     ac_list: List[float] = []
     area_side = 0.0           # SUM(c*dy) on one side
+    sum_c2dy = 0.0            # SUM(c^2*dy), for the mean aerodynamic chord
     sum_mocdy = 0.0           # SUM(mo*c*dy)
     sum_mocac = 0.0           # SUM(mo*c*ac*dy)
     for el in range(h):
@@ -176,6 +190,7 @@ def schrenk_distribution(geom: SurfaceInput, aero: AeroSurfaceInput) -> Spanwise
         chord.append(c)
         ac_list.append(ac)
         area_side += c * dy
+        sum_c2dy += c * c * dy
         sum_mocdy += mo * c * dy
         sum_mocac += mo * c * ac * dy
 
@@ -188,10 +203,13 @@ def schrenk_distribution(geom: SurfaceInput, aero: AeroSurfaceInput) -> Spanwise
     m_wing = mo / (1 + mo_rad / (PI * aspect_ratio) * (1 + aero.tau if aero.tau is not None
                                                        else 1 + _tau(aero.taper_ratio, aero.tip_ratio)))
 
+    mac = sum_c2dy / area_side if area_side else 0.0   # MAC = SUM(c^2*dy)/SUM(c*dy)
+    airload4 = use_airload4(aero)
     table = SpanwiseTable(
-        mo_wing=mo_wing, awo=awo, area_total=area_total, span=span,
+        mo_wing=mo_wing, awo=awo, area_total=area_total, span=span, mac=mac,
         aspect_ratio=aspect_ratio, m_wing=m_wing, target_cl=aero.target_cl,
         tau=aero.tau if aero.tau is not None else _tau(aero.taper_ratio, aero.tip_ratio),
+        sweep_deg=aero.sweep_deg if airload4 else 0.0, airload4=airload4,
     )
 
     # Second pass: additive (CL=1), basic (twist), and the combined span load.
@@ -213,9 +231,37 @@ def schrenk_distribution(geom: SurfaceInput, aero: AeroSurfaceInput) -> Spanwise
         sum_ccl_add += ccl_add * dy
         sum_ccl_tot += ccl_tot * dy
 
-    table.recovered_cl_additive = sum_ccl_add / area_side
-    table.recovered_cl = sum_ccl_tot / area_side
+    if airload4 and aero.sweep_deg:
+        _apply_sweep(table, aero.sweep_deg, dy, area_side)
+
+    table.recovered_cl_additive = sum(ca * dy for ca in table.ccl_additive) / area_side
+    table.recovered_cl = sum(ct * dy for ct in table.ccl_total) / area_side
     return table
+
+
+def _apply_sweep(table: SpanwiseTable, sweep_deg: float, dy: float, area_side: float) -> None:
+    """Redistribute the additive span load for sweepback (AIRLOAD4.BAS, Ref 1 Ch 12).
+
+    Pope & Haney (JAS Aug 1949; Pope, *Basic Wing and Airfoil Theory* 1951):
+    ``(c*cl/cmac)_Λ = (c*cl/cmac)_{Λ=0} - (1 - 2y/b)*2*(1 - cos Λ)`` -- sweepback
+    shifts the additive lift outboard (the term vanishes at the tip and at Λ=0, so
+    the unswept distribution is recovered exactly). The basic (twist) distribution
+    is unchanged; the combined span load and section ``cl`` are rebuilt from the
+    corrected additive part. ``cmac`` is the wing MAC. Compressibility (high Mach)
+    is already carried by the operating ``CL`` from FLTLOADS' Glauert factor, so the
+    high-Mach trigger adds no further shape change here."""
+    cos_lam = math.cos(sweep_deg / 180.0 * PI)
+    b = table.span
+    cmac = table.mac
+    for i, ye in enumerate(table.ye):
+        delta = (1.0 - 2.0 * ye / b) * 2.0 * (1.0 - cos_lam) * cmac
+        ccl_add = table.ccl_additive[i] - delta
+        c = table.chord[i]
+        table.ccl_additive[i] = ccl_add
+        table.cl_additive[i] = ccl_add / c
+        ccl_tot = ccl_add * table.target_cl + table.ccl_basic[i]
+        table.ccl_total[i] = ccl_tot
+        table.cl_total[i] = ccl_tot / c
 
 
 def _interp_yv(table, y: float, default: float = 0.0) -> float:
@@ -329,11 +375,13 @@ def spanwise_distribution(geom: SurfaceInput, aero: AeroSurfaceInput) -> Conditi
     for i, (ye, ccl, cl) in enumerate(zip(t.ye, t.ccl_total, t.cl_total), start=1):
         values.append(LoadValue(f"Elem {i} (Y={ye:.3f}) c*cl", ccl, "in"))
         values.append(LoadValue(f"Elem {i} (Y={ye:.3f}) cl", cl))
+    method = ("Schrenk + AIRLOAD4 sweep correction (Ref 1 Ch 12)"
+              if t.airload4 else "Schrenk method (Ref 1 Ch 7)")
     return ConditionResult(
         title=f"Spanwise airload distribution: {geom.name}",
         far_reference=_FAR,
         values=values,
-        note=f"Schrenk method (Ref 1 Ch 7); span load c*cl at CL={t.target_cl:g}.",
+        note=f"{method}; span load c*cl at CL={t.target_cl:g}.",
     )
 
 

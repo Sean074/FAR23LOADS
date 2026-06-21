@@ -148,13 +148,13 @@ directly; a module never recomputes another module's owned quantity.
 - **Writes:** τ correction factor for the wing lift-curve slope (the `_tau` helper in `airloads.py`; the per-surface value is also overridable via `AeroSurfaceInput.tau`).
 - **Notes:** Not a separate module — implemented as the `_tau` quartic curve-fit (in taper ratio, interpolated by tip ratio per ANC(1) 1938) inside `airloads.py`, exactly as the original folds `TAU.EXE` into AIRLOADS.
 
-### AIRLOADS — Spanwise lift distribution (built; AIRLOAD4 swept deferred to C7)
+### AIRLOADS — Spanwise lift distribution (built; AIRLOAD4 swept branch built in C7)
 - **FAR §:** 23.301 (loads), 23.321+ (flight loads), 23.347+ asymmetric.
-- **Source:** Ch 7, `AIRLOADS.BAS` (low speed). `AIRLOAD4.BAS` (sweepback, high Mach) is scheduled in Step C7.
+- **Source:** Ch 7, `AIRLOADS.BAS` (low speed); Ch 12, `AIRLOAD4.BAS` (sweepback, high Mach) — both in `modules/airloads.py`, the swept branch auto-selected by `use_airload4` when 25%-chord sweep > 15° or design Mach > 0.4.
 - **Module:** `modules/airloads.py` (registers `"airloads"`).
-- **Reads:** `Project.geometry` (wing planform polylines & strip count) + `Project.aero` (`AeroSurfaceInput`: section slope `mo`, taper/tip ratio for TAU, spanwise `twist` table, `target_cl`).
+- **Reads:** `Project.geometry` (wing planform polylines & strip count) + `Project.aero` (`AeroSurfaceInput`: section slope `mo`, taper/tip ratio for TAU, spanwise `twist` table, `target_cl`, and the C7 `sweep_deg` / `design_mach` AIRLOAD4 triggers).
 - **Writes:** the spanwise additive + basic + combined `c·cl` distribution (the `SpanwiseTable`) returned as a `ModuleResult`. The persisted `Project.aero.spanwise` result field is added when a consumer (FLTLOADS, C2) needs it.
-- **Validation:** Appendix A spanwise tables (additive `CC(LA1)`/`C(LA1)`, basic `Awo`/`CC(lb)`/`Clb`, p161-162) within ±0.1%; concept closure (integrated `∫c·cl dy` recovers the target CL).
+- **Validation:** Appendix A spanwise tables (additive `CC(LA1)`/`C(LA1)`, basic `Awo`/`CC(lb)`/`Clb`, p161-162) within ±0.1%; concept closure (integrated `∫c·cl dy` recovers the target CL). AIRLOAD4: reduction invariant (sweep 0 / low Mach ≡ AIRLOADS exactly) + swept-redistribution closure; the printed Appendix B swept spanwise oracle is deferred to a mini-step (no legible swept fixture).
 - **Notes:** Schrenk additional-lift method (average of planform-chord and elliptic distributions). Per UG Table 2.2 AIRLOADS↔SELECT is **iterative** (SELECT names the critical conditions, AIRLOADS computes airloads at them); the shared model must allow a module to both read and write the critical-load set — wired when SELECT lands (C6). The basic-distribution cosine fairing across a flap/aileron discontinuity (p47) is deferred (deflected-flap case only).
 
 ### FLTLOADS — Flight envelope (V-n) **+ balancing tail loads**
@@ -243,13 +243,14 @@ directly; a module never recomputes another module's owned quantity.
 - **Writes:** tab loads & hinge moments → CSV.
 - **Validation:** Appendix A/B tab-load tables.
 
-### TAILDIST — Chordwise tail load distribution
+### TAILDIST — Chordwise tail load distribution (built, Step C7)
 - **FAR §:** 23.421+ tail loads, chordwise distribution.
-- **Source:** Ch 10, `TAILDIST.BAS`.
-- **Reads:** `Project.envelope.critical` (SELECT — the only module input per UG Table 2.2), `Project.geometry` (h-tail, v-tail). Handles 13 critical horizontal + 4 critical vertical load cases (UG §20).
-- **Writes:** chordwise (rational) pressure/load distribution for htail & vtail (`TAILHLDS/TAILVLDS`, stalled `TLHSTALD/TLVSTALD`) → CSV; plots to `*.TLD`.
-- **Validation:** Appendix A/B tail distribution tables.
-- **Notes:** Produces the chordwise (rational) tail-load distribution (UG Table 2.1/2.3) for SELECT's critical horizontal & vertical tail loads. Net chordwise load = additive (angle-of-attack, 25% chord) + camber (50% chord) distributions (Ch 10). Replaces the arbitrary FAR Appendix B figures (pre-Amendment 42).
+- **Source:** Ch 10, `TAILDIST.BAS` (subroutine 3000).
+- **Module:** `modules/taildist.py` (registers `"taildist"`).
+- **Reads:** `Project.envelope.critical` (SELECT — each h-tail/v-tail `CriticalCondition` now carries the rational `lt25`/`lt50` split), plus the chordwise geometry on `Project.tail_loads` (`htail_semispan_in` + the elevator areas) and `Project.vtail_loads` (`vtail_span_in` + the rudder areas).
+- **Writes:** the five-station chordwise net pressure profile per critical h-tail / v-tail condition (`TailChordResult` on `Project.loads.tail_chordwise`) → text report + CSV + sbeam FORCE export (`sbeam_bridge.tail_*`).
+- **Validation:** Appendix A "Chordwise Distribution of Tail Loads" — 13 horizontal (p237) + 4 vertical (p245) conditions' `PSI(X1..X5)` within ±0.1%. The four flaps-extended horizontal rows depend on the deferred flapped V-n landing aero (the pure-`chordwise_pressures` oracle test covers all 13 directly).
+- **Notes:** Net chordwise load = additive (angle-of-attack, 4×avg at LE → avg at 25% chord → 0 at TE) + camber (trapezoid symmetric about 50% chord). Working in the suite's full both-sides areas folds the program's half-area / both-sides-load factors of two into the unified `LT/S` form. Replaces the arbitrary FAR Appendix B figures (pre-Amendment 42).
 
 ### ENGLOADS — Engine mount loads ✅ DONE
 - **FAR §:** 23.361(a)(1)/(a)(2)/(a)(3), 23.361(b)(1), 23.363, 23.371(b).

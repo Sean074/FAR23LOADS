@@ -559,6 +559,54 @@ extended for the new tier. Full suite green; `ruff` clean.
 
 ---
 
+## Phase C — Step C7: TAILDIST + AIRLOAD4 (complete)
+
+**Objective.** The chordwise horizontal/vertical-tail load distribution for
+SELECT's critical tail conditions (TAILDIST, Reference 1 Ch 10), and the
+sweepback / high-Mach spanwise-airload branch for concept jets (AIRLOAD4,
+Ch 12). The FAR23 path is oracle-locked against the Appendix A chordwise tables;
+concept mode reduces to it on GA inputs.
+
+**Deliverables.**
+- `modules/taildist.py` (registers `"taildist"`) — `chordwise_pressures()` builds
+  the five-station net pressure profile (additive angle-of-attack distribution at
+  25% chord + camber distribution at 50% chord, TAILDIST.BAS subroutine 3000) for
+  each critical h-tail / v-tail condition; `build_tail_chordwise()` reads
+  `Project.envelope.critical` (SELECT) + the chordwise geometry and persists
+  `Project.loads.tail_chordwise`.
+- `modules/select.py` — every h-tail / v-tail `CriticalCondition` now carries the
+  rational `lt25`/`lt50` split (balancing / unchecked / checked / gust /
+  unsymmetrical / rudder / yaw / side-gust), the uniform TAILDIST input.
+- `modules/airloads.py` — the AIRLOAD4 swept branch (`_apply_sweep`,
+  `use_airload4`): the Pope & Haney sweep redistribution of the additive Schrenk
+  span load, auto-selected when 25%-chord sweep > 15° or design Mach > 0.4, exactly
+  identity at zero sweep / low Mach.
+- `models.py` — `TailLoadsInput.htail_semispan_in`, `VTailLoadsInput.vtail_span_in`,
+  `AeroSurfaceInput.sweep_deg`/`design_mach`, the `TailChordResult`/`TailChordStation`
+  result types on `LoadsResult.tail_chordwise`, `CriticalCondition.lt25`/`lt50`;
+  `SCHEMA_VERSION` 11 → 12 (additive, older files load unchanged).
+- `io.py` — `tail_chordwise` + `CriticalCondition.lt25`/`lt50` round-trip;
+  `export/sbeam_bridge.py` — `tail_chordwise_csv` / `tail_force_moment_cards`
+  (FORCE set scaled to the total tail load); `cli.py` — `--export-target tail`.
+- `app/pages/11_Tail_Distribution.py` — the chordwise tail-distribution page.
+- `examples/ga6_normal.project.json` — the Appendix A tail slices + chordwise spans.
+
+**Test / Acceptance.** `tests/test_taildist.py`: the Appendix A "Chordwise
+Distribution of Tail Loads" oracle — all **13 horizontal** (p237) + **4 vertical**
+(p245) conditions' `PSI(X1..X5)` within ±0.1%; the SELECT→TAILDIST pipeline (9
+flaps-retracted h-tail + 4 v-tail); the AIRLOAD4 reduction invariant + swept
+closure; the schema-12 round-trip (older files still load). 174 tests pass.
+
+**Key decisions.**
+- **Full-area unified form.** TAILDIST.BAS halves the both-sides `LT25/LT50` over
+  the half (LH) tail area; the suite stores full both-sides areas, so the two
+  factors of two fold into the unified `WATT=LT25/S`, `WCAM=LT50/(S−Saft)` —
+  verified to reproduce the oracle exactly (PSI(X1)=4·907.62/5320=0.682).
+- **Deferred (recorded in the backlog):** the *printed* Appendix B swept spanwise
+  oracle (needs a legible swept fixture; the reduction invariant + closure stand
+  in), and the 4 flaps-extended chordwise rows (need the C6-deferred flapped V-n
+  landing aero; `chordwise_pressures` covers all 13 rows directly).
+
 ## Phase C — Step C6: SELECT + fuselage/body distributed loads (complete)
 
 **Objective.** Compute the critical flight load on each major component (wing,
