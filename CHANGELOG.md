@@ -11,6 +11,29 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **One-engine-out vertical-tail loads — ONENGOUT (Step C9).** New
+  `modules/one_engine_out.py` (registers `"one_engine_out"`): a time-marching yaw
+  simulation of the FAR 23.367 critical-engine failure (Reference 1 Ch 11). The
+  failed engine's thrust/windmill-drag asymmetry yaws the airplane about its
+  vertical axis (`IZZ`) until the pilot — at peak yaw rate but ≥2 s after failure
+  (23.367(b)) — applies full rudder and recovers; `run()` reports the maximum
+  vertical-tail load per speed (VC ultimate / VD limit / VS) with engine thrust,
+  windmill drag, max yaw rate, the 25%/50% MAC loads at peak and time to recovery,
+  and `time_history()` returns the full transient on demand (below VMC the run is
+  time-bounded and flagged non-recovered). New shared `modules/_vtail.py` (the v-tail
+  lift slope AVT, rudder effectiveness EFFECTV and the large-deflection EF chart),
+  with SELECT's private `_avt`/`_effectv`/`_ef` refactored to delegate to it. New
+  `app/pages/20_One_Engine_Out.py` (per-speed summary + on-demand time-history
+  charts/CSV). First module to exercise the first-class multi-engine `Project`.
+  **Validation:** the printed Appendix B twin oracle is unavailable (Appendix B is
+  absent from the bundled references), so C9 is locked by sub-formula exactness vs
+  `ONENGOUT.BAS` + integration/physics closure + refactor-parity with SELECT (11 new
+  tests; 198 pass).
+
+- **Schema v14 (Step C9).** `Project.one_engine_out` (`OneEngineOutInput`) input
+  slice and `VTailLoadsInput.xv50` (FS of 50% v-tail MAC) — additive; older files
+  load unchanged.
+
 - **Control-surface simplified distributions — AILERON / FLAPLOAD / TABLOADS (Step
   C8).** New `modules/aileron.py`, `modules/flap.py`, `modules/tab.py` (register
   `"aileron"` / `"flap"` / `"tab"`): the FAR-style simplified pressure

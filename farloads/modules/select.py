@@ -69,6 +69,7 @@ from ..models import (
     VTailLoadsInput,
 )
 from ..registry import register
+from ._vtail import large_deflection_factor, rudder_effectiveness, vtail_lift_slope
 from .flight_envelope import _design_inputs, _sigma, build_envelope
 
 MODULE_NAME = "select"
@@ -267,27 +268,9 @@ def _htail_condition(label: str, far: str, p: VnPoint, total_lt: float,
 
 
 def _ef(defl: float, se2st: float) -> float:
-    """Large-deflection effectiveness factor EF(deflection, control/surface area
-    ratio) -- SELECT.BAS subroutine 10000 (Dommasch fig 12:3). The four polynomials
-    give EF at area ratios 0.15/0.2/0.3/0.4 (EF=1 at 0); interpolate by ``se2st``.
-    """
-    ef00 = 1.0
-    ef15 = 1.008576 - 5.770396e-3 * defl - 3.452382e-4 * defl ** 2 + 7.1777799e-6 * defl ** 3
-    ef20 = 1.003143 - 1.521429e-3 * defl - 2.757143e-4 * defl ** 2
-    ef30 = 0.991602 - 3.329421e-2 * defl + 0.001373 * defl ** 2 - 2.595556e-5 * defl ** 3
-    ef40 = 1.010976 - 2.866663e-3 * defl - 1.110476e-3 * defl ** 2 + 2.266667e-5 * defl ** 3
-    s = se2st
-    if s <= 0:
-        return ef00
-    if s < 0.15:
-        return ef00 + s / 0.15 * (ef15 - ef00)
-    if s < 0.2:
-        return ef15 + (s - 0.15) / 0.05 * (ef20 - ef15)
-    if s < 0.3:
-        return ef20 + (s - 0.2) / 0.1 * (ef30 - ef20)
-    if s <= 0.4:
-        return ef30 + (s - 0.3) / 0.1 * (ef40 - ef30)
-    return ef40 + (s - 0.4) / 0.1 * (ef40 - ef30)
+    """Large-deflection effectiveness factor EF (SELECT.BAS subroutine 10000); see
+    :func:`farloads.modules._vtail.large_deflection_factor`."""
+    return large_deflection_factor(defl, se2st)
 
 
 def _elevator_load(lt50: float, lt25: float, ti: TailLoadsInput) -> float:
@@ -491,13 +474,12 @@ def select_htail(project: Project) -> List[CriticalCondition]:
 def _effectv(vt: VTailLoadsInput) -> float:
     """Rudder effectiveness EFFECTV, a cubic in the rudder/tail area ratio SR/SV
     (SELECT.BAS) -- the same dalpha/ddelta chart fit the elevator uses."""
-    r = vt.rudder_area_sqft / vt.vtail_area_sqft
-    return 0.014844 + 2.7358 * r - 4.4679 * r ** 2 + 3.0306 * r ** 3
+    return rudder_effectiveness(vt.rudder_area_sqft / vt.vtail_area_sqft)
 
 
 def _avt(vt: VTailLoadsInput) -> float:
     """Vertical-tail lift-curve slope AVT = 2*pi/(1 + 2/ARVT)."""
-    return 2.0 * math.pi / (1.0 + 2.0 / vt.aspect_ratio_vtail)
+    return vtail_lift_slope(vt.aspect_ratio_vtail)
 
 
 def _default_izz(vt: VTailLoadsInput, gw: float) -> float:

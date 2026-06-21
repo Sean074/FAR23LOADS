@@ -661,6 +661,61 @@ round-trip (older files load) and the sbeam control-surface FORCE-closure test.
 - **Full FLAPLOAD scope** — slipstream and head-on-gust amplifications implemented
   now (not deferred), matching the full Appendix A flap table.
 
+## Phase C — Step C9: ONENGOUT (one-engine-out vertical-tail loads) (complete)
+
+**Objective.** Asymmetric vertical-tail loads from a critical-engine failure
+(FAR 23.367, Reference 1 Ch 11) — the first module to exercise the first-class
+multi-engine `Project`. Unlike SELECT's static v-tail conditions, ONENGOUT is a
+**time-marching yaw simulation**: the failed engine's thrust/windmill-drag asymmetry
+yaws the airplane about its vertical axis (`IZZ`) until the pilot — at peak yaw rate
+but ≥2 s after failure (23.367(b)) — applies full rudder and recovers; the headline
+output is the maximum vertical-tail load.
+
+**Deliverables.**
+- `modules/one_engine_out.py` (registers `"one_engine_out"`) — `simulate()` Euler-marches
+  the yaw transient (thrust `MAXHP·550·.85/VTFPS`, Glauert windmill drag, tail loads
+  `LT25`/`LT50` at 25%/50% MAC, moment about the CG, integrate `THETA`/`THETADOT` to
+  recovery); `run()` emits one `ConditionResult` per speed (VC ultimate / VD limit / VS)
+  with engine thrust, windmill drag, max yaw rate, **max tail load**, 25%/50% MAC loads
+  at peak and time to recovery; `time_history()` returns the full table on demand. Below
+  VMC the run is bounded (60 s) and flagged non-recovered.
+- `modules/_vtail.py` — shared v-tail aero helpers (`vtail_lift_slope` AVT,
+  `rudder_effectiveness` EFFECTV, `large_deflection_factor` EF); `select.py`'s private
+  `_avt`/`_effectv`/`_ef` refactored to delegate (pure refactor, SELECT oracle unchanged).
+- `models.py` — `OneEngineOutInput` (failure-transient timing + failed-engine index);
+  `VTailLoadsInput.xv50` (FS of 50% v-tail MAC); `Project.one_engine_out`;
+  `SCHEMA_VERSION` 13 → 14 (additive, older files load unchanged).
+- `io.py` round-trip for the new slice + `xv50`; `farloads/__init__.py` exports
+  `OneEngineOutInput`; `modules/__init__.py` self-registration import.
+- `app/pages/20_One_Engine_Out.py` — per-speed summary table + an on-demand time-history
+  re-run (THETA/THETADOT and LT25/LT50/LT charts + CSV).
+
+**Test / Acceptance.** The printed Appendix B (10-place twin turboprop) oracle is
+**unavailable** — Appendix B is absent from the bundled `reference/FAR23 loads (1).pdf`
+(only the Appendix A GA single is present, physical pp. 128–247; Appendix C source from
+248) and the FAA User's Guide Ch 22 gives partial/illegible inputs and **no output
+numbers**. C9 is therefore locked at the **sub-formula level** (`tests/test_one_engine_out.py`:
+engine thrust, windmill drag, AVT, EFFECTV exact to `ONENGOUT.BAS`) plus
+**integration/physics closure** (recovery, yaw-rate peak, `DT`-halving convergence,
+below-VMC non-recovery) and **refactor-parity** with SELECT's v-tail helpers. 11 new
+tests; 198 pass; SELECT oracle unchanged.
+
+**Key decisions.**
+- **No printed oracle → closure + sub-formula validation** (user-confirmed), recorded as
+  a deviation from the usual ±0.1% Appendix oracle because the reference data is missing,
+  not optional. The printed twin oracle + an `examples/twin_turboprop.project.json`
+  fixture (also unblocks the C7 swept oracle) are deferred items.
+- **Reuse SELECT's validated EF chart** (`_vtail.large_deflection_factor`) rather than the
+  garbled `ONENGOUT.BAS` subr-10000 OCR; the same Dommasch fig 12:3 fits both. Wiring this
+  recovered curve into SELECT's static v-tail loads (replacing `rudder_large_deflection_factor=1.0`)
+  is left as a deferred mini-step.
+- **Output = per-speed summary, time history on demand** (user direction): the headline
+  max tail load is the primary result; the full transient is recomputed for a chosen case
+  in the UI and not persisted in the schema.
+- **Below-VMC handling**: the march is time-bounded (60 s) and the case flagged
+  "NOT recovered" rather than looped to a step cap, mirroring the manual's note that
+  recovery performance is an aero/flight-test responsibility.
+
 ## Phase C — Step C6: SELECT + fuselage/body distributed loads (complete)
 
 **Objective.** Compute the critical flight load on each major component (wing,

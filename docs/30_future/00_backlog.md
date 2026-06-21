@@ -26,36 +26,27 @@ history, `CHANGELOG.md`).
 
 ## Current state (snapshot)
 
-**Shipped:** Phases 0–2 and Phase-C Steps **C0–C8**. Of Reference 1's 22
-Appendix-C programs, **18 are ported** (ENGLOADS, WTESTIMA, WTONECG, WTENV,
+**Shipped:** Phases 0–2 and Phase-C Steps **C0–C9**. Of Reference 1's 22
+Appendix-C programs, **19 are ported** (ENGLOADS, WTESTIMA, WTONECG, WTENV,
 WINGGEOM, STRSPEED, MACHLIM, TAU, AIRLOADS, AIRLOAD4, FLTLOADS, SELECT, WINGINER,
-NETLOADS, TAILDIST, AILERON, FLAPLOAD, TABLOADS), plus **2 modern modules** with
-no `.BAS` oracle (`configuration`, `body_loads`). Schema is at
-**`SCHEMA_VERSION = 13`**; 187 tests pass; coverage ~89%. The wing distributed-loads
+NETLOADS, TAILDIST, AILERON, FLAPLOAD, TABLOADS, ONENGOUT), plus **2 modern modules**
+with no `.BAS` oracle (`configuration`, `body_loads`). Schema is at
+**`SCHEMA_VERSION = 14`**; 198 tests pass; coverage ~89%. The wing distributed-loads
 vertical slice (geometry → speeds → envelope → airloads → inertia → net → sbeam
 export), the critical-load selection (wing / h-tail / v-tail / fuselage), the
-chordwise tail distribution and the simplified control-surface distributions
-(aileron / flap / tab) are complete and oracle-locked.
+chordwise tail distribution, the simplified control-surface distributions
+(aileron / flap / tab) and the one-engine-out vertical-tail transient are complete
+(the first three oracle-locked; ONENGOUT closure-locked — no Appendix-B oracle exists).
 
-**Remaining suite programs (4):** BALLOADS, ONENGOUT, LGFACTOR, LANDLOAD.
+**Remaining suite programs (3):** BALLOADS, LGFACTOR, LANDLOAD.
 
-The plan below continues the Phase-C step numbering (C9 onward). The FAR23 path
+The plan below continues the Phase-C step numbering (C10 onward). The FAR23 path
 stays oracle-locked (Appendix A/B ±0.1%); concept mode is a superset that reduces
 exactly to it on GA inputs.
 
 ---
 
 ## Development plan (dependency-ordered)
-
-### Step C9 — ONENGOUT (one-engine-out vertical-tail loads)
-**Objective.** Asymmetric vertical-tail loads from an engine failure — the first
-module to exercise the first-class multi-engine `Project` (resolved Phase 2).
-**Deliverables.** `modules/one_engine_out.py` → asymmetric v-tail loads, reading
-`Project.geometry`, `Project.mass` (WTONECG inertia), `Project.engines[]` and
-`Project.speeds` (per UG Table 2.2). Streamlit page; schema + `io.py` round-trip.
-**Test/Acceptance.** Appendix B (twin turboprop) one-engine-out tables ±0.1%.
-**Dependencies.** WTONECG (`Project.mass`, done C6), multi-engine layout (done).
-**Note.** Needs an Appendix-B twin fixture (see "Test fixtures" below).
 
 ### Step C10 — Landing loads (LGFACTOR → LANDLOAD)
 **Objective.** Ground-load conditions: the landing load factor and the gear
@@ -104,9 +95,17 @@ changelog entry) when done.
 - **Per-CG precise inertia in SELECT (from C6).** `Project.mass` is now persisted
   (WTONECG), but SELECT's checked-maneuver `Iyy` and v-tail `IZZ` still use the
   Ch 9 approximations (which match the oracle). Wire the persisted per-CG inertia.
-- **V-tail large-deflection factor `EFV` (from C6).** Modelled as a
-  `VTailLoadsInput` input (default 1.0) because its chart (SELECT.BAS subr 10000 at
-  δ=0) is illegible in the scan. Recover the real curve if a legible source appears.
+- **V-tail large-deflection factor `EFV` → SELECT backfill (from C6/C9).** The legible
+  large-deflection chart (Dommasch fig 12:3) now lives in
+  `farloads/modules/_vtail.large_deflection_factor` (recovered for ONENGOUT, C9). SELECT's
+  static v-tail rudder load still uses the `VTailLoadsInput.rudder_large_deflection_factor`
+  input (default 1.0); wire the recovered curve into SELECT's `_vt_rudder_load` as a
+  mini-step (it shifts the rudder-deflection load ~1%; needs a re-baselined oracle check).
+- **ONENGOUT printed twin oracle (from C9).** C9 is closure- + sub-formula-locked because
+  the printed Appendix B one-engine-out tables are **absent** from the bundled references
+  (Appendix B is not in `reference/FAR23 loads (1).pdf`; FAA User's Guide Ch 22 gives
+  partial inputs / no outputs). Add the printed ±0.1% oracle if a legible Appendix B (or an
+  `ONENGOUT.OUT`) surfaces, alongside the `examples/twin_turboprop.project.json` fixture below.
 - **Configuration seeding follow-ups (from C5).** C5 seeds only the wing geometry
   surface. Still open: push component stations → Weight DB (WTONECG) and set
   `XLEMAC`/`MAC` directly into WTENV/STRSPEED; `MassItem.x/z` station assignment
@@ -134,12 +133,16 @@ changelog entry) when done.
 
 ## Open design decisions
 
-- [ ] **Test fixtures — Appendix B twin.** ONENGOUT (C9) and the swept tables
-  (C7) need the 10-place twin turboprop (Appendix B) as a fixture. Today only
-  `examples/ga6_normal.project.json` (Appendix A) and
-  `examples/concept_heavy.project.json` (concept) exist; the engine module's
-  Appendix-B turboprop case is encoded **inline** in `tests/test_engine.py`, not as
-  a project file. *Default: add `examples/twin_turboprop.project.json` when C9 lands.*
+- [ ] **Test fixtures — Appendix B twin.** The swept tables (C7) and the ONENGOUT
+  printed oracle (C9) want the 10-place twin turboprop (Appendix B) as a fixture. Today
+  only `examples/ga6_normal.project.json` (Appendix A) and
+  `examples/concept_heavy.project.json` (concept) exist; the engine module's Appendix-B
+  turboprop case is encoded **inline** in `tests/test_engine.py`, not as a project file.
+  **Blocked:** Appendix B is **not in the bundled `reference/FAR23 loads (1).pdf`** (it
+  holds only the Appendix A GA single, physical pp. 128–247; Appendix C source from 248),
+  so the twin geometry/loads can't be transcribed from the reference. *Needs a legible
+  Appendix B (or the original `.INP`/`.OUT` files) before `examples/twin_turboprop.project.json`
+  can be built.*
 - [ ] **Standalone vs project-only inputs.** Maintain per-module example JSONs in
   addition to the full-airplane projects? *Default: full projects are canonical;
   per-module slices are derived for tests.*

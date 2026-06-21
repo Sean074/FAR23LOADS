@@ -638,6 +638,7 @@ class VTailLoadsInput:
     aspect_ratio_vtail: float = 0.0            # ARVT
     vtail_mac_ft: float = 0.0                  # VMAC
     xv25: float = 0.0                          # fuselage station of 25% vtail MAC
+    xv50: float = 0.0                          # fuselage station of 50% vtail MAC (ONENGOUT camber load)
     airplane_length_ft: float = 0.0            # LF (IZZ default)
     wing_span_ft: float = 0.0                  # B (IZZ default)
     gross_weight_lb: float = 0.0               # GW (IZZ default; 0 -> use the heaviest CG case)
@@ -725,6 +726,47 @@ class TabLoadsInput:
     VC comes from ``Project.speeds`` (the shoulder-point cruise speed); each
     :class:`TabSpec` carries its own geometry and deflection."""
     tabs: List[TabSpec] = field(default_factory=list)
+
+
+# --------------------------------------------------------------------------- #
+# One-engine-out vertical-tail loads (ONENGOUT) -- the Project.one_engine_out slice
+# --------------------------------------------------------------------------- #
+@dataclass
+class OneEngineOutInput:
+    """Inputs for ONENGOUT (FAR 23.367, Reference 1 Ch 11; ONENGOUT.BAS).
+
+    ONENGOUT is a **time-marching yaw simulation**: the failed engine creates an
+    unbalanced yaw moment about the airplane vertical axis (``IZZ``); the airplane
+    yaws until the pilot -- assumed to act at peak yaw rate, but not earlier than 2 s
+    after the failure (23.367(b)) -- applies full rudder over ``rudder_travel_time_s``
+    and recovers. The headline output is the maximum vertical-tail load.
+
+    This slice carries only the failure-transient timing the simulation needs; the
+    rest is read from existing slices:
+
+      * engine thrust / windmill drag <- the failed ``Project.engines[i]``
+        (max-continuous HP, propeller diameter, engine butt line ``y``);
+      * vertical-tail geometry (ARVT, area, rudder area, full deflection, 25%/50% MAC
+        stations) <- ``Project.vtail_loads`` (the ``xv50`` station added with this step);
+      * yaw inertia ``IZZ`` and the CG station <- ``Project.mass`` (WTONECG), heaviest
+        loading, unless overridden here;
+      * the speeds and altitude <- ``Project.speeds`` (VC ultimate / VD limit / VS).
+
+    Time history (engine thrust schedule): thrust ramps to zero over
+    ``thrust_decay_time_s``, windmill drag ramps up over
+    ``[thrust_decay_time_s, windmill_drag_time_s]`` then holds (Glauert max).
+    ``time_step_s`` is the Euler step (the program suggests 0.05 s).
+    """
+    thrust_decay_time_s: float = 0.0           # TIME2DECAY (thrust -> 0)
+    windmill_drag_time_s: float = 0.0          # TIME2DRAG (windmill drag -> max)
+    rudder_travel_time_s: float = 0.0          # INCTIMERUD (time to full rudder)
+    time_step_s: float = 0.05                  # DT (Euler step; program suggests 0.05)
+    failed_engine_index: int = 0               # which Project.engines[] entry fails
+    use_takeoff_power: bool = False            # MAXHP = take-off HP (else max-continuous)
+    altitude_ft: Optional[float] = None        # default: Project.speeds.shoulder_altitude_ft
+    speeds_kt: List[float] = field(default_factory=list)  # default: [VC, VD, VS] from speeds
+    izz_slugft2: float = 0.0                   # 0 -> from Project.mass (heaviest case)
+    xcg_in: float = 0.0                        # 0 -> from Project.mass (heaviest case)
 
 
 # --------------------------------------------------------------------------- #
@@ -1108,8 +1150,10 @@ class LoadsResult:
 # simplified-load input slices (AileronLoadsInput, FlapLoadsInput, TabLoadsInput)
 # and the control-surface result slice (ControlSurfaceLoadResult on
 # LoadsResult.control_surface) -- all additive, older files load unchanged via the
-# from_dict defaults.
-SCHEMA_VERSION = 13
+# from_dict defaults; v14 (Step C9) adds the one-engine-out input slice
+# (OneEngineOutInput, ONENGOUT) and the 50%-MAC v-tail station (VTailLoadsInput.xv50)
+# -- additive, older files load unchanged via the from_dict defaults.
+SCHEMA_VERSION = 14
 
 
 @dataclass
@@ -1145,6 +1189,7 @@ class Project:
     aileron_loads: Optional[AileronLoadsInput] = None
     flap_loads: Optional[FlapLoadsInput] = None
     tab_loads: Optional[TabLoadsInput] = None
+    one_engine_out: Optional[OneEngineOutInput] = None
     loads: Optional[LoadsResult] = None
     configuration: Optional[LayoutInput] = None
 

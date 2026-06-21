@@ -14,6 +14,7 @@ from . import flap  # noqa: F401
 from . import flight_envelope  # noqa: F401
 from . import mach_limit  # noqa: F401
 from . import net_loads  # noqa: F401
+from . import one_engine_out  # noqa: F401
 from . import select  # noqa: F401
 from . import structural_speeds  # noqa: F401
 from . import tab  # noqa: F401

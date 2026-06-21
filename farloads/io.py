@@ -58,6 +58,7 @@ from .models import (
     MassItemKind,
     MassResult,
     ModuleResult,
+    OneEngineOutInput,
     Project,
     Rotor,
     RotorDirection,
@@ -448,6 +449,20 @@ def vtail_loads_to_dict(inp: VTailLoadsInput) -> Dict[str, Any]:
 
 
 # --------------------------------------------------------------------------- #
+# One-engine-out input slice <-> dict (ONENGOUT)
+# --------------------------------------------------------------------------- #
+def one_engine_out_from_dict(d: Dict[str, Any]) -> OneEngineOutInput:
+    """Build a :class:`OneEngineOutInput` from a plain dict."""
+    fields = {f for f in OneEngineOutInput.__dataclass_fields__}
+    return OneEngineOutInput(**{k: v for k, v in d.items() if k in fields})
+
+
+def one_engine_out_to_dict(inp: OneEngineOutInput) -> Dict[str, Any]:
+    """Serialize a :class:`OneEngineOutInput` to JSON-friendly primitives."""
+    return asdict(inp)
+
+
+# --------------------------------------------------------------------------- #
 # Control-surface load input slices <-> dict (AILERON / FLAPLOAD / TABLOADS)
 # --------------------------------------------------------------------------- #
 def aileron_loads_from_dict(d: Dict[str, Any]) -> AileronLoadsInput:
@@ -606,7 +621,7 @@ def project_from_dict(d: Dict[str, Any]) -> Project:
         or "mass" in d or "wing_mass" in d or "fuselage_mass" in d
         or "select_input" in d or "tail_loads" in d or "vtail_loads" in d
         or "aileron_loads" in d or "flap_loads" in d or "tab_loads" in d
-        or "loads" in d or "configuration" in d
+        or "one_engine_out" in d or "loads" in d or "configuration" in d
         or "schema_version" in d or "name" in d
     ):
         weight = d.get("weight")
@@ -624,6 +639,7 @@ def project_from_dict(d: Dict[str, Any]) -> Project:
         aileron_loads = d.get("aileron_loads")
         flap_loads = d.get("flap_loads")
         tab_loads = d.get("tab_loads")
+        one_engine_out = d.get("one_engine_out")
         loads = d.get("loads")
         configuration = d.get("configuration")
         engines, layout = _engines_from_dict(d)
@@ -647,6 +663,7 @@ def project_from_dict(d: Dict[str, Any]) -> Project:
             aileron_loads=aileron_loads_from_dict(aileron_loads) if aileron_loads else None,
             flap_loads=flap_loads_from_dict(flap_loads) if flap_loads else None,
             tab_loads=tab_loads_from_dict(tab_loads) if tab_loads else None,
+            one_engine_out=one_engine_out_from_dict(one_engine_out) if one_engine_out else None,
             loads=loads_from_dict(loads) if loads else None,
             configuration=configuration_from_dict(configuration) if configuration else None,
         )
@@ -707,6 +724,8 @@ def project_to_dict(project: Project) -> Dict[str, Any]:
         out["flap_loads"] = flap_loads_to_dict(project.flap_loads)
     if project.tab_loads is not None:
         out["tab_loads"] = tab_loads_to_dict(project.tab_loads)
+    if project.one_engine_out is not None:
+        out["one_engine_out"] = one_engine_out_to_dict(project.one_engine_out)
     if project.loads is not None:
         out["loads"] = loads_to_dict(project.loads)
     if project.configuration is not None:

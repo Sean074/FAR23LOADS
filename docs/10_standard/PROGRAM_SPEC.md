@@ -263,13 +263,14 @@ directly; a module never recomputes another module's owned quantity.
 - **Validation:** Appendix A (Continental IO-520-BB) and Appendix B (turboprop gyro). Currently exact; **relax to ±0.1% and switch to `math.pi` during Phase 0** per Decision 3.
 - **Notes:** **Standalone** — no module inputs/outputs (UG Table 2.2); all data is direct input. Already supports measured-vs-approximated rotating inertia and SI/Imperial. Serves as the reference template for every other module's calc/units/report/CSV pattern.
 
-### ONENGOUT — One-engine-out loads
+### ONENGOUT — One-engine-out loads ✅ DONE (C9)
 - **FAR §:** 23.367 (unsymmetrical loads due to engine failure), multi-engine.
-- **Source:** Ch 11, `ONENGOUT.BAS`.
-- **Reads:** `Project.geometry` (WINGGEOM) and `Project.mass` (WTONECG) — the two module inputs per UG Table 2.2; plus `Project.engine[]` (multi-engine), `Project.speeds`.
-- **Writes:** asymmetric **vertical-tail** loads from engine failure (UG Table 2.1: "One engine out vertical tail loads") → CSV.
-- **Validation:** Appendix B (twin turboprop) one-engine-out tables.
-- **Notes:** Needs the multi-engine project field (see Guide §8 open decision 2).
+- **Source:** Ch 11, `ONENGOUT.BAS`. Implemented in `farloads/modules/one_engine_out.py` (registers `"one_engine_out"`).
+- **Reads:** `Project.one_engine_out` (`OneEngineOutInput` — the failure-transient timing: thrust-decay / windmill-drag / rudder-travel times, Euler step, failed-engine index); the failed `Project.engines[i]` (HP, prop diameter, butt line); `Project.vtail_loads` (ARVT, areas, rudder deflection, `xv25`/`xv50`); `Project.mass` (WTONECG — `IZZ`, CG, heaviest case); `Project.speeds` (VC/VD/VS, shoulder altitude). The 25%/50% MAC v-tail stations are the `xv25`/`xv50` of `VTailLoadsInput` (`xv50` added in C9).
+- **Writes:** the maximum asymmetric **vertical-tail** load per speed (VC ultimate / VD limit / VS) — a `ModuleResult` with one `ConditionResult` each (engine thrust, windmill drag, max yaw rate, **max tail load**, 25%/50% MAC loads at peak, time to recovery). Non-recovery (below VMC) is flagged. The full time history is available on demand (`time_history`) for the Streamlit re-run; it is not persisted.
+- **Method:** a **time-marching yaw simulation** (Euler), reusing the shared v-tail aero helpers (`farloads/modules/_vtail.py`: AVT lift slope, EFFECTV, the EF large-deflection chart) that SELECT also uses.
+- **Validation:** **sub-formula exactness** vs `ONENGOUT.BAS` (thrust, windmill drag, AVT, EFFECTV, EF, density ratio) + integration/physics closure (recovery, yaw-rate peak, time-step convergence) + refactor-parity with SELECT. The printed **Appendix B twin oracle is unavailable** — Appendix B is absent from the bundled `reference/FAR23 loads (1).pdf` (only the Appendix A GA single is present) and the FAA User's Guide Ch 22 gives partial inputs/no outputs; recorded as a deferred item.
+- **Notes:** First module to exercise the first-class multi-engine `Project`. The recovered EF chart (ONENGOUT.BAS subr 10000) is now in `_vtail.large_deflection_factor`; wiring it into SELECT's static v-tail loads (replacing `rudder_large_deflection_factor=1.0`) is a deferred mini-step.
 
 ### LGFACTOR — Landing load factor
 - **FAR §:** 23.473 (ground load conditions), 23.725 (drop test).
