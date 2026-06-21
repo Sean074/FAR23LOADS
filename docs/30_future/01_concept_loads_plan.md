@@ -31,7 +31,7 @@ physics:
 | Distributed loads — **tail** | FLTLOADS (balancing) → **TAILDIST** (chordwise H/V-tail) |
 | **Control surfaces — standard simplified distributions** | AILERON / FLAPLOAD / TABLOADS (FAR-style simplified pressure distributions) |
 | **Assess vs similar airplanes** | existing fleet plot + the planned Configuration & Layout page |
-| Leverage FAR23 LOADS methods / core | the seven shipped modules are the foundation |
+| Leverage FAR23 LOADS methods / core | the ported FAR23 modules (13 of 22, through C6) are the foundation |
 | Leverage sbeam | code/doc style (already mirrored) **plus** a real FORCE/MOMENT BDF export bridge |
 
 ### The one genuine conflict: exceeding the FAR23 limits

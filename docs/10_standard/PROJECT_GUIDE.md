@@ -7,8 +7,13 @@ file** for input and **per-module CSV** load-case output.
 
 The suite is **22 GW/QBasic programs** (reference 1, Appendix C) that together
 compute the FAR Part 23 Subpart C structural loads for an airplane under 12,500
-lb. Today exactly one is ported: `ENGLOADS.BAS` → the existing `engloads/`
-project. This guide covers how to grow that single port into the whole suite.
+lb. **13 are ported today** (through Phase-C Step C6) plus two modern modules
+(`configuration`, `body_loads`); the remaining 9 and the step-by-step plan are in
+[`../30_future/00_backlog.md`](../30_future/00_backlog.md). This guide covers the
+architecture and the dependency order that grew the original `engloads/`
+engine-mount port into the present suite. The project is being grown beyond a
+faithful ≤12,500 lb replication into an **initial-concept distributed-loads tool**
+(Phase C) — see [`../30_future/01_concept_loads_plan.md`](../30_future/01_concept_loads_plan.md).
 
 ### Source documents (two — both in the repo, keep them distinct)
 
@@ -72,44 +77,48 @@ escape hatch.
 ### Mass properties
 | Program | Purpose | Status |
 |---------|---------|--------|
-| `WTESTIMA` | Estimate empty, max take-off and component weights | planned |
-| `WTENV` | Envelope of weight & CG over the full range of loadings | planned |
-| `WTONECG` | CG and inertia for one particular loading | planned |
+| `WTESTIMA` | Estimate empty, max take-off and component weights | **done** (Phase 1) |
+| `WTENV` | Envelope of weight & CG over the full range of loadings | **done** (Phase 2) |
+| `WTONECG` | CG and inertia for one particular loading | **done** (Phase 1; persisted `mass` slice C6) |
 
 ### Geometry & speeds
 | Program | Purpose | Status |
 |---------|---------|--------|
-| `WINGGEOM` | Aerodynamic & control-surface geometry (wing, tails, ailerons, flaps, tabs, rudder, elevator) | planned |
-| `STRSPEED` | FAR minimum design speeds + chosen design speeds & maneuver load factors | planned |
-| `MACHLIM` | Mach limit lines | planned |
+| `WINGGEOM` | Aerodynamic & control-surface geometry (wing, tails, ailerons, flaps, tabs, rudder, elevator) | **done** (Phase 2) |
+| `STRSPEED` | FAR minimum design speeds + chosen design speeds & maneuver load factors | **done** (Phase 2) |
+| `MACHLIM` | Mach limit lines | **done** (Phase 2) |
 
 ### Aerodynamic coefficients
 | Program | Purpose | Status |
 |---------|---------|--------|
-| `AIRLOADS` | Spanwise aero coefficients (airplane-less-tail) & spanwise airloads | planned |
-| `AIRLOAD4` | As AIRLOADS, for sweepback and high-Mach airloads | planned |
-| `TAU` (helper) | Lift-curve-slope correction factor; `TAU.EXE`, folds into airloads | planned |
+| `AIRLOADS` | Spanwise aero coefficients (airplane-less-tail) & spanwise airloads | **done** (C1 spanwise; C3 load distribution) |
+| `AIRLOAD4` | As AIRLOADS, for sweepback and high-Mach airloads | planned (C7) |
+| `TAU` (helper) | Lift-curve-slope correction factor; `TAU.EXE`, folds into airloads | **done** (C1, in `airloads.py`) |
 
 ### Flight envelope & load selection
 | Program | Purpose | Status |
 |---------|---------|--------|
-| `FLTLOADS` | V-n (flight envelope) diagram data **+ balancing tail loads** (approx CP) | **done** (C2; cruise corner set) |
-| `SELECT` | Search/compute critical flight loads — wing, rational horizontal & vertical tail, fuselage | planned |
-| `BALLOADS` (utility) | Verify rational balanced-tail-load CP; `BALLOADS.BAS`, off-pipeline | planned |
+| `FLTLOADS` | V-n (flight envelope) diagram data **+ balancing tail loads** (approx CP) | **done** (C2 cruise; C6 flapped corner set) |
+| `SELECT` | Search/compute critical flight loads — wing, rational horizontal & vertical tail, fuselage | **done** (C6) |
+| `BALLOADS` (utility) | Verify rational balanced-tail-load CP; `BALLOADS.BAS`, off-pipeline | planned (C11, optional) |
 
 ### Component loads
 | Program | Purpose | Status |
 |---------|---------|--------|
 | `WINGINER` | Wing inertia loads | **done** (C3) |
 | `NETLOADS` | Net wing loads (airload + inertia) | **done** (C3) |
-| `AILERON` | Aileron loads | planned |
-| `FLAPLOAD` | Flap loads | planned |
-| `TABLOADS` | Tab loads | planned |
-| `TAILDIST` | Chordwise load distribution (tail) | planned |
-| `ENGLOADS` | Engine mount loads | **done** ✅ |
-| `ONENGOUT` | One-engine-out loads (multi-engine turboprop) | planned |
-| `LGFACTOR` | Estimate landing load factor | planned |
-| `LANDLOAD` | Landing loads | planned |
+| `ENGLOADS` | Engine mount loads | **done** ✅ (Phase 0) |
+| `TAILDIST` | Chordwise load distribution (tail) | planned (C7) |
+| `AILERON` | Aileron loads | planned (C8) |
+| `FLAPLOAD` | Flap loads | planned (C8) |
+| `TABLOADS` | Tab loads | planned (C8) |
+| `ONENGOUT` | One-engine-out loads (multi-engine turboprop) | planned (C9) |
+| `LGFACTOR` | Estimate landing load factor | planned (C10) |
+| `LANDLOAD` | Landing loads | planned (C10) |
+
+> **Modern modules (no `.BAS`):** `body_loads` (Ref 1 Ch 15 net fuselage
+> distribution) **done** (C6); `configuration` (Configuration & Layout page)
+> **done** (C5). Neither counts against the 22-program total.
 
 Per-module FAR references, inputs, outputs, dependencies and validation examples
 are in [`PROGRAM_SPEC.md`](PROGRAM_SPEC.md).
@@ -158,6 +167,13 @@ times — not recomputed per module.
 
 ## 4. Target repository structure (the engloads restructure)
 
+> **As-built note.** This was the *proposed* layout at restructure time; some
+> module file names landed differently (`geometry.py` → `wing_geometry.py`,
+> `speeds.py` → `structural_speeds.py` with `mach_limit.py` separate). The
+> **authoritative as-built tree** is in
+> [`00_program_overview.md`](00_program_overview.md); the `.BAS` → module-name map
+> is in [`PROGRAM_SPEC.md`](PROGRAM_SPEC.md).
+
 `engloads` becomes one module in a shared package. Proposed layout:
 
 ```
@@ -205,7 +221,9 @@ FAR23LOADS/
 │   └── test_<module>.py          # one per module, vs manual Appendix A/B
 ├── examples/
 │   ├── ga6_normal.project.json   # Appendix A — 6-place GA single
-│   └── twin_turboprop.project.json  # Appendix B — 10-place twin turboprop
+│   └── concept_heavy.project.json  # 18,000 lb concept commuter twin (concept mode)
+│   # (an Appendix B twin_turboprop.project.json is a backlog item; the engine
+│   #  module's Appendix-B turboprop case is currently inline in tests/test_engine.py)
 ├── docs/                         # organised by type — see docs/00_INDEX.md
 │   ├── 00_INDEX.md
 │   ├── 10_standard/              # PROJECT_GUIDE.md (this file), PROGRAM_SPEC.md, process guides
@@ -233,7 +251,7 @@ program.
 
 ## 5. Conventions (the contract every module follows)
 
-So that module #2..#22 are copy-of-the-pattern, fix these once:
+So that every module is copy-of-the-pattern, these are fixed once:
 
 - **Pure calc, no I/O.** Each module exposes `run(project: Project) -> ModuleResult`. No Streamlit, no file access inside calc. (engloads already does this.)
 - **Read shared, write own.** A module reads upstream fields from `Project` and returns results; it must not silently recompute an upstream quantity that another module owns.
@@ -278,7 +296,14 @@ Strategy:
 Each phase ends with: the module(s) merged, a `tests/test_<module>.py` passing
 against Appendix A/B, a GUI page, and the project JSON schema extended.
 
-**Phase 0 — Restructure** (no new physics)
+> **Phases 0–2 are complete, and the original Phases 3–4 were re-sequenced by the
+> Phase-C plan** (vertical-slice-first; concept-mode generalization) — see
+> [`../30_future/01_concept_loads_plan.md`](../30_future/01_concept_loads_plan.md).
+> The live, dependency-ordered open plan (Steps C7–C11) is the backlog. The
+> phase descriptions below are the historical roadmap that produced the present
+> suite.
+
+**Phase 0 — Restructure** ✅ (no new physics)
 `engloads` → `farloads` package + `app/` multipage + `cli.py` + `Project` model +
 `io.py`/`registry.py`. Relax engine tests to tolerance, switch to `math.pi`. Green
 build is the gate.
@@ -289,28 +314,24 @@ weight/CG/inertia fields the downstream pipeline reads. `WTENV` was **re-scoped 
 Phase 2**: its structural-CG limits need `XLEMAC`/`MAC` from `WINGGEOM`, so it is
 built there reading `Project.geometry` rather than via an interim direct input.
 
-**Phase 2 — Geometry & speeds**
+**Phase 2 — Geometry & speeds** ✅
 `WINGGEOM` (largest single module — all surfaces), then `WTENV` (weight/CG
 envelope, now that `XLEMAC`/`MAC` are available), then `STRSPEED` + `MACHLIM`.
 These plus Phase 1 unlock most component-load modules.
 
-**Phase 3 — Aero coefficients & flight envelope**
-`TAU` → `AIRLOADS`/`AIRLOAD4` → `FLTLOADS` (incl. balancing tail loads) →
-`SELECT` (rational critical wing/tail/fuselage loads). The analytical heart;
-produces the critical-load set everything downstream is sized to. Note
-`AIRLOADS`⇄`SELECT` iterate, so build them together; `BALLOADS` (verification
-utility) can be deferred or built alongside SELECT.
+**Phase 3 — Aero coefficients & flight envelope** (re-sequenced into Phase-C
+Steps C1/C2/C6; `AIRLOAD4` and the optional `BALLOADS` remain)
+`TAU` ✅ → `AIRLOADS` ✅ / `AIRLOAD4` (C7) → `FLTLOADS` ✅ (incl. balancing tail
+loads) → `SELECT` ✅ (rational critical wing/tail/fuselage loads). The analytical
+heart; produces the critical-load set everything downstream is sized to.
 
-**Phase 4 — Component loads**
-`WINGINER`, `NETLOADS`, `AILERON`, `FLAPLOAD`, `TABLOADS`, `TAILDIST`,
-`ONENGOUT`, `LGFACTOR`, `LANDLOAD`. `ENGLOADS` is already done and serves as the
-template; these are largely independent of each other so can be parallelized once
-Phases 1–3 land.
+**Phase 4 — Component loads** (re-sequenced into Phase-C Steps C3/C7–C10)
+`WINGINER` ✅, `NETLOADS` ✅, `ENGLOADS` ✅; `TAILDIST` (C7), `AILERON`/`FLAPLOAD`/
+`TABLOADS` (C8), `ONENGOUT` (C9), `LGFACTOR`/`LANDLOAD` (C10).
 
-A faster value path, if breadth proves slow: after Phase 0, build the **vertical
-slice** `WTESTIMA → WINGGEOM → STRSPEED → FLTLOADS → SELECT → NETLOADS` end-to-end
-to prove the shared model before filling in the rest. (Recorded as a fallback;
-default plan is phase-by-phase.)
+The **vertical-slice** value path (`WTESTIMA → WINGGEOM → STRSPEED → FLTLOADS →
+SELECT → NETLOADS` end-to-end, plus the sbeam export) is the path the Phase-C plan
+actually took, and it is now complete.
 
 ---
 

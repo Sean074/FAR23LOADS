@@ -377,7 +377,7 @@ other modules consume).
 
 | Phase | Modules | Done | Remaining |
 |-------|---------|------|-----------|
-| 0 Restructure | engine → package | — | engloads → farloads, Project model, io/registry, app/ |
+| 0 Restructure | engine → package | ✅ done (engloads → farloads, Project model, io/registry, app/) | 0 |
 | 1 Mass | WTESTIMA, WTONECG, WTENV | 3 (WTESTIMA, WTONECG, WTENV) | 0 |
 | 2 Geometry/Speeds | WINGGEOM, STRSPEED, MACHLIM | 3 (WINGGEOM, STRSPEED, MACHLIM) | 0 |
 | 3 Aero/Envelope | TAU\*, AIRLOADS, AIRLOAD4, FLTLOADS, SELECT, BALLOADS† | 4 (TAU, AIRLOADS, FLTLOADS, SELECT) | 2 (AIRLOAD4, BALLOADS†) |

@@ -25,20 +25,30 @@ module by module.
 
 ```
 farloads/                 # shared, pure-calc package — no I/O in calc code
-├── constants.py          # g, pi (math.pi), unit factors — the one home for constants
-├── models.py             # Project, EngineInput/Rotor, ConditionResult/LoadValue, ModuleResult
+├── constants.py          # g, pi (math.pi), unit factors, atmosphere — the one home for constants
+├── models.py             # Project + per-domain input/result slices, ConditionResult/LoadValue, ModuleResult, SCHEMA_VERSION
 ├── units.py              # Imperial<->SI conversion at the I/O boundary only
 ├── io.py                 # the only dataclass<->JSON mapping; project.json + load-case CSV
 ├── registry.py           # name -> run(project) -> ModuleResult lookup; run_all_modules
 ├── report.py             # shared text/CSV rendering (load_cases_to_rows, text_report)
-└── modules/
+├── export/               # output renderers to external tools (NOT registered modules)
+│   ├── coordinates.py    # FAR23LOADS axes -> sbeam CID 0 map (single edit-point)
+│   └── sbeam_bridge.py   # net wing/body load -> span CSV + FORCE/MOMENT cards + CBAR stick model
+└── modules/              # one file per suite program; each self-registers on import
     ├── __init__.py       # imports every module so registration happens on import
-    └── engine.py         # ENGLOADS (port of ENGLOADS.BAS)
+    ├── engine.py         # ENGLOADS                weight_estimate.py  # WTESTIMA
+    ├── weight_onecg.py   # WTONECG                 weight_envelope.py  # WTENV
+    ├── wing_geometry.py  # WINGGEOM                structural_speeds.py# STRSPEED
+    ├── mach_limit.py     # MACHLIM                 airloads.py         # AIRLOADS (+ TAU helper)
+    ├── flight_envelope.py# FLTLOADS                select.py           # SELECT
+    ├── wing_inertia.py   # WINGINER                net_loads.py        # NETLOADS
+    ├── body_loads.py     # net fuselage (Ch 15)    configuration.py    # Configuration & Layout (modern)
 app/
 ├── Home.py               # load/save project, summary, run-all (primary entry point)
 └── pages/NN_*.py         # one Streamlit page per suite program
 cli.py                    # argparse front-end; `farloads` console script
 tests/                    # pytest; one manual-example test per module vs Appendix A/B
+examples/                 # ga6_normal (Appendix A) + concept_heavy (concept) project.json
 ```
 
 Data flow for one run: `project.json` → `io.load_project` → `Project` →
@@ -168,9 +178,13 @@ Runtime (`pyproject.toml` `[project.dependencies]`): `streamlit>=1.30`,
 ## Version & phase
 
 Semantic versioning in `pyproject.toml`; `project.json` carries its own
-`schema_version` (`models.py`), bumped when the on-disk shape changes. Phase 0
-(restructure + the engine-mount module) is complete; the dependency-ordered
-roadmap for modules #2..#22 is in [`PROJECT_GUIDE.md §7`](PROJECT_GUIDE.md) and the
-open list in [`../30_future/00_backlog.md`](../30_future/00_backlog.md). Releases
-follow [`RELEASE_PROCESS.md`](RELEASE_PROCESS.md); reviews follow
+`schema_version` (`models.py`, currently **11**), bumped when the on-disk shape
+changes. **Status:** Phases 0–2 and Phase-C Steps **C0–C6** are complete — 13 of
+Reference 1's 22 programs are ported, plus the modern `configuration` and
+`body_loads` modules. The remaining suite programs and the step-by-step plan
+(C7 onward) are in [`../30_future/00_backlog.md`](../30_future/00_backlog.md); the
+architectural roadmap is in [`PROJECT_GUIDE.md §7`](PROJECT_GUIDE.md) and the
+Phase-C narrative in
+[`../30_future/01_concept_loads_plan.md`](../30_future/01_concept_loads_plan.md).
+Releases follow [`RELEASE_PROCESS.md`](RELEASE_PROCESS.md); reviews follow
 [`CODE_REVIEW_PROCESS.md`](CODE_REVIEW_PROCESS.md).

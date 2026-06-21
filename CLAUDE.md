@@ -114,10 +114,12 @@ The system is a **shared pure-calc package + thin I/O shells**. Calc never does
 I/O; the GUI, CLI and tests are interchangeable front-ends over the same package.
 
 - `farloads/` — the pure-calc package. No Streamlit, no file access in calc code.
-  - `models.py` — `Project` (the single reloadable input bundle; holds per-domain
-    slices, currently just `engine`), `EngineInput`/`Rotor` (inputs),
-    `ConditionResult`/`LoadValue` (one FAR condition's labelled outputs),
-    `ModuleResult` (a module's name + its conditions), `SCHEMA_VERSION`.
+  - `models.py` — `Project` (the single reloadable input bundle; holds every
+    module's per-domain input/result slice — `engines`, `weight`, `geometry`,
+    `speeds`, `aero`, `flight_loads`, `wing_mass`, `fuselage_mass`, `configuration`,
+    and the result slices `mass`/`envelope`/`loads`), the per-module input/result
+    dataclasses, `ConditionResult`/`LoadValue` (one FAR condition's labelled
+    outputs), `ModuleResult` (a module's name + its conditions), `SCHEMA_VERSION`.
   - `modules/<name>.py` — one file per suite program. Each exposes
     `run(project: Project) -> ModuleResult` and calls `register(name, run)` at
     import time. `modules/__init__.py` imports every module so registration
@@ -133,8 +135,10 @@ I/O; the GUI, CLI and tests are interchangeable front-ends over the same package
   - `report.py` — shared rendering: `load_cases_to_rows` (one row per structural
     load case — the canonical CSV shape every module reuses) and `text_report`.
   - `constants.py` — the one home for `g`, `pi`, unit factors.
-- `app/Home.py` + `app/pages/NN_*.py` — Streamlit multi-page UI. Pages prepend the
-  repo root to `sys.path` so `farloads` imports regardless of Streamlit's cwd.
+- `app/Home.py` + `app/pages/NN_*.py` — Streamlit multi-page UI. The editable
+  install (`pip install -e '.[dev]'`) puts `farloads` on the path, so the pages
+  import it directly — there are no `sys.path` shims (they were removed with the
+  packaging move).
 - `cli.py` — argparse front-end: load project → `registry.get(module)` → CSV/text.
 - `tests/` — pytest; `conftest.py` puts the repo root and `tests/` on `sys.path`
   (so `from test_engine import io520bb` works). Each test file also has a
@@ -145,7 +149,7 @@ I/O; the GUI, CLI and tests are interchangeable front-ends over the same package
 `ModuleResult` → `report`/`io` renders text or the load-case CSV. The GUI builds
 the `Project` from widgets instead of a file; everything downstream is identical.
 
-## Conventions when porting the next module (#2..#22)
+## Conventions when porting the next module (9 suite programs remain)
 
 These are the contract that makes modules copy-of-the-pattern (see PROJECT_GUIDE §5):
 

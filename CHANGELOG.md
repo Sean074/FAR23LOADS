@@ -363,6 +363,19 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- **Documentation critical review & consistency pass.** Brought the docs in line
+  with the as-built code (Phases 0–2 + Phase-C C0–C6; 13 of 22 suite programs +
+  `configuration`/`body_loads`; `SCHEMA_VERSION` 11). Rewrote
+  `docs/30_future/00_backlog.md` as a dependency-ordered step-by-step plan
+  (Steps C7–C11 + deferred refinements + open decisions + a release/versioning
+  item). Corrected stale status in `docs/10_standard/00_program_overview.md`
+  (structure tree + "Phase 0 complete"), `README.md` ("7 of 22" → 13 of 22; layout
+  tree), `CLAUDE.md` (`Project` "currently just engine"; the contradictory
+  `sys.path`-shim line), `PROJECT_GUIDE.md` ("exactly one is ported", §2 inventory
+  status, §7 roadmap, examples list), `PROGRAM_SPEC.md` (status-summary Phase 0
+  row), and `docs/00_INDEX.md`. Removed the superseded `Phase1_2_review.md`
+  GUI-review notes (its one live item — Home Engineer/Date fields — moved to the
+  backlog). No analytical code changed.
 - **SI mass vs Imperial force units.** `LoadValue` gained an optional `quantity`
   hint so the SI converter can tell a pounds-*mass* weight (→ kg) from a
   pounds-*force* load (→ N) — both labelled `lb`. Added `lb-in² → kg·m²` to the

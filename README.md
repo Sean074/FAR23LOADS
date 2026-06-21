@@ -18,31 +18,35 @@ carries every module's inputs; each module emits its own load-case CSV.
 **License:** MIT (see [LICENSE](LICENSE)) — free to use, modify, and
 redistribute, including commercially.
 
-> **Status:** Phases 0–2 complete (7 of 22 modules: WTESTIMA, WTONECG, WTENV,
-> WINGGEOM, STRSPEED, MACHLIM, ENGLOADS). Next up is the Phase-C concept-loads
-> plan — a wing distributed-loads vertical slice (AIRLOADS → WINGINER → NETLOADS)
-> with an sbeam export bridge. Roadmap: `docs/10_standard/PROJECT_GUIDE.md`;
-> Phase-C plan: `docs/30_future/01_concept_loads_plan.md`.
+> **Status:** Phases 0–2 and Phase-C Steps **C0–C6** complete — **13 of 22**
+> suite programs ported (ENGLOADS, WTESTIMA, WTONECG, WTENV, WINGGEOM, STRSPEED,
+> MACHLIM, TAU, AIRLOADS, FLTLOADS, SELECT, WINGINER, NETLOADS) plus two modern
+> modules (`configuration`, `body_loads`). The wing distributed-loads vertical
+> slice (geometry → speeds → V-n envelope → airloads → inertia → net) exports to
+> sbeam, and the critical-load selection (wing / h-tail / v-tail / fuselage) is
+> oracle-locked. Next up: **Step C7** (TAILDIST + AIRLOAD4). Step-by-step plan:
+> `docs/30_future/00_backlog.md`; Phase-C narrative:
+> `docs/30_future/01_concept_loads_plan.md`; roadmap: `docs/10_standard/PROJECT_GUIDE.md`.
 
 ## Layout
 
 ```
 farloads/                 # shared, pure-calc package (no I/O in calc)
-├── constants.py          # g, pi (math.pi), unit factors — centralized
-├── models.py             # Project, EngineInput, ConditionResult, ModuleResult
+├── constants.py          # g, pi (math.pi), unit factors, atmosphere — centralized
+├── models.py             # Project + per-domain slices, ConditionResult, ModuleResult, SCHEMA_VERSION
 ├── units.py              # Imperial<->SI conversion at the I/O boundary
 ├── io.py                 # load/save project JSON; load-case CSV writer
 ├── registry.py           # name -> run(project) -> ModuleResult
 ├── report.py             # text/CSV rendering
-└── modules/
-    └── engine.py         # ENGLOADS (port of ENGLOADS.BAS)
+├── export/               # output renderers (sbeam bridge); not registered modules
+└── modules/              # one file per program (engine, weight_*, wing_*, airloads,
+                          #   flight_envelope, select, net_loads, body_loads, configuration, …)
 app/
 ├── Home.py               # load/save project, summary, run-all
-└── pages/
-    └── 19_Engine_Mount.py
+└── pages/                # one Streamlit page per module (00_Configuration_Layout … 19_Engine_Mount)
 cli.py                    # python cli.py engine project.json -o out.csv
 tests/                    # pytest; each module vs the manual's appendices
-examples/                 # *.project.json (Appendix A / B airplanes)
+examples/                 # ga6_normal (Appendix A) + concept_heavy (concept) project.json
 docs/                     # by type: 10_standard, 20_theory, 30_future, 40_history (see docs/00_INDEX.md)
 pyproject.toml            # build metadata, deps, ruff + pytest/coverage config
 cspell.json               # domain wordlist
