@@ -18,14 +18,18 @@ carries every module's inputs; each module emits its own load-case CSV.
 **License:** MIT (see [LICENSE](LICENSE)) — free to use, modify, and
 redistribute, including commercially.
 
-> **Status:** Phases 0–2 and Phase-C Steps **C0–C6** complete — **13 of 22**
-> suite programs ported (ENGLOADS, WTESTIMA, WTONECG, WTENV, WINGGEOM, STRSPEED,
-> MACHLIM, TAU, AIRLOADS, FLTLOADS, SELECT, WINGINER, NETLOADS) plus two modern
-> modules (`configuration`, `body_loads`). The wing distributed-loads vertical
-> slice (geometry → speeds → V-n envelope → airloads → inertia → net) exports to
-> sbeam, and the critical-load selection (wing / h-tail / v-tail / fuselage) is
-> oracle-locked. Next up: **Step C7** (TAILDIST + AIRLOAD4). Step-by-step plan:
-> `docs/30_future/00_backlog.md`; Phase-C narrative:
+> **Status:** Phases 0–2 and Phase-C Steps **C0–C11** complete — **all 22 of 22**
+> Reference 1 Appendix-C suite programs ported (ENGLOADS, WTESTIMA, WTONECG, WTENV,
+> WINGGEOM, STRSPEED, MACHLIM, TAU, AIRLOADS, AIRLOAD4, FLTLOADS, SELECT, WINGINER,
+> NETLOADS, TAILDIST, AILERON, FLAPLOAD, TABLOADS, ONENGOUT, LGFACTOR, LANDLOAD,
+> BALLOADS) plus two modern modules (`configuration`, `body_loads`). Schema is at
+> `SCHEMA_VERSION 15`; 242 tests pass (~92% coverage). The wing distributed-loads
+> vertical slice (geometry → speeds → V-n envelope → airloads → inertia → net)
+> exports to sbeam; the critical-load selection (wing / h-tail / v-tail / fuselage),
+> chordwise tail distribution, simplified control-surface distributions (aileron /
+> flap / tab), one-engine-out vertical-tail transient, and tricycle-gear
+> landing/ground loads are complete (FAR23 path oracle-locked). Step-by-step plan
+> for remaining refinements: `docs/30_future/00_backlog.md`; Phase-C narrative:
 > `docs/30_future/01_concept_loads_plan.md`; roadmap: `docs/10_standard/PROJECT_GUIDE.md`.
 
 ## Layout
@@ -46,7 +50,7 @@ app/
 └── views/                # one page per workflow step + dashboard / results_review / export_report
 cli.py                    # python cli.py engine project.json -o out.csv
 tests/                    # pytest; each module vs the manual's appendices
-examples/                 # ga6_normal (Appendix A) + concept_heavy (concept) project.json
+examples/                 # ga6_normal (Appendix A), cessna_210 (normal cat), concept_heavy + dhc8_dash8 (concept) project.json
 docs/                     # by type: 10_standard, 20_theory, 30_future, 40_history (see docs/00_INDEX.md)
 pyproject.toml            # build metadata, deps, ruff + pytest/coverage config
 cspell.json               # domain wordlist

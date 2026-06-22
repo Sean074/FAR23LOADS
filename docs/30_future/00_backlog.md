@@ -32,7 +32,7 @@ WINGGEOM, STRSPEED, MACHLIM, TAU, AIRLOADS, AIRLOAD4, FLTLOADS, SELECT, WINGINER
 NETLOADS, TAILDIST, AILERON, FLAPLOAD, TABLOADS, ONENGOUT, LGFACTOR, LANDLOAD,
 BALLOADS), plus **2 modern modules** with no `.BAS` oracle (`configuration`,
 `body_loads`).
-Schema is at **`SCHEMA_VERSION = 15`**; 211 tests pass; coverage ~89%. The wing
+Schema is at **`SCHEMA_VERSION = 15`**; 242 tests pass; coverage ~92%. The wing
 distributed-loads vertical slice (geometry → speeds → envelope → airloads → inertia
 → net → sbeam export), the critical-load selection (wing / h-tail / v-tail /
 fuselage), the chordwise tail distribution, the simplified control-surface
@@ -105,8 +105,8 @@ changelog entry) when done.
   in the seed-mass-items helper and Step C5.)*
 - **Per-module graphics audit.** Confirm every module that the original rendered as
   a plot (weight envelope, V-n diagram, spanwise / shear-BM-torsion, Mach lines,
-  three-view) has an equivalent Streamlit chart. *(Most exist; audit for gaps as
-  C7–C10 land.)*
+  three-view) has an equivalent Streamlit chart. *(Most exist; audit for any
+  remaining gaps.)*
 - **`.xlsx` workbook export.** The Export page already bundles a `.zip` of project
   JSON + per-module load CSVs + sbeam BDF cards; a single multi-sheet `.xlsx`
   (one tab per module) would be a nicer single-file hand-off. *(Optional.)*
@@ -138,7 +138,7 @@ changelog entry) when done.
 ## Release / versioning
 
 - [ ] **Cut the first post-0.1.0 release.** `pyproject.toml` is still at
-  `version = 0.1.0` (the Phase 0 baseline) while the entire Phase 1–2 + C0–C6 body
+  `version = 0.1.0` (the Phase 0 baseline) while the entire Phase 1–2 + C0–C11 body
   of work sits in `CHANGELOG.md [Unreleased]`. Per
   [`../10_standard/RELEASE_PROCESS.md`](../10_standard/RELEASE_PROCESS.md), a
   completed roadmap phase warrants a release: bump the version (MINOR per ported

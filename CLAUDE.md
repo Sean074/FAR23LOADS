@@ -159,7 +159,7 @@ I/O; the GUI, CLI and tests are interchangeable front-ends over the same package
 `ModuleResult` → `report`/`io` renders text or the load-case CSV. The GUI builds
 the `Project` from widgets instead of a file; everything downstream is identical.
 
-## Conventions when porting the next module (9 suite programs remain)
+## Conventions when adding a module (all 22 suite programs ported; conventions apply to new concept-mode modules)
 
 These are the contract that makes modules copy-of-the-pattern (see PROJECT_GUIDE §5):
 

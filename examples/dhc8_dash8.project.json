@@ -1,0 +1,513 @@
+{
+  "schema_version": 15,
+  "name": "de Havilland Canada DHC-8-100 Dash 8 — 2x PW121 (concept, category C)",
+  "engines": [
+    {
+      "engine_designation": "PRATT & WHITNEY CANADA PW121 (LH)",
+      "prop_designation": "HAMILTON STANDARD 14SF 4-BLADE",
+      "engine_type": "T",
+      "limit_load_factor": 2.5,
+      "engine_weight_lb": 1050,
+      "engine_cg": [
+        365.0,
+        -168.0,
+        170.0
+      ],
+      "prop_weight_lb": 350,
+      "prop_diameter_in": 156,
+      "prop_inertia": null,
+      "prop_blades": 4,
+      "takeoff_rpm": 1200,
+      "max_cont_rpm": 1200,
+      "prop_cg": [
+        300.0,
+        -168.0,
+        170.0
+      ],
+      "takeoff_hp": null,
+      "max_cont_hp": null,
+      "cylinders": null,
+      "max_engine_torque": 9400,
+      "cruise_torque": 6500,
+      "hub_weight_lb": 130,
+      "stop_time_s": 0.5,
+      "rotors": [
+        {
+          "diameter_in": 18.0,
+          "weight_lb": 70.0,
+          "max_rpm": 30000,
+          "rotor_type": "T",
+          "direction": "CW",
+          "inertia": null
+        }
+      ]
+    },
+    {
+      "engine_designation": "PRATT & WHITNEY CANADA PW121 (RH)",
+      "prop_designation": "HAMILTON STANDARD 14SF 4-BLADE",
+      "engine_type": "T",
+      "limit_load_factor": 2.5,
+      "engine_weight_lb": 1050,
+      "engine_cg": [
+        365.0,
+        168.0,
+        170.0
+      ],
+      "prop_weight_lb": 350,
+      "prop_diameter_in": 156,
+      "prop_inertia": null,
+      "prop_blades": 4,
+      "takeoff_rpm": 1200,
+      "max_cont_rpm": 1200,
+      "prop_cg": [
+        300.0,
+        168.0,
+        170.0
+      ],
+      "takeoff_hp": null,
+      "max_cont_hp": null,
+      "cylinders": null,
+      "max_engine_torque": 9400,
+      "cruise_torque": 6500,
+      "hub_weight_lb": 130,
+      "stop_time_s": 0.5,
+      "rotors": [
+        {
+          "diameter_in": 18.0,
+          "weight_lb": 70.0,
+          "max_rpm": 30000,
+          "rotor_type": "T",
+          "direction": "CW",
+          "inertia": null
+        }
+      ]
+    }
+  ],
+  "engine_layout": "2W",
+  "weight": {
+    "estimation": {
+      "airplane": "DHC-8-100 DASH 8 (37-PAX REGIONAL TURBOPROP TWIN)",
+      "max_continuous_hp": 4000,
+      "engines": 2,
+      "seats": 39,
+      "cruise_hours": 4,
+      "baggage_lb": 1500,
+      "pressurized": true,
+      "engine_weight_type": "TP"
+    },
+    "items": [
+      {
+        "name": "Wing",
+        "weight_lb": 3000.0,
+        "x": 390.0,
+        "y": 0.0,
+        "z": 180.0,
+        "kind": "empty"
+      },
+      {
+        "name": "Fuselage structure",
+        "weight_lb": 5500.0,
+        "x": 440.0,
+        "y": 0.0,
+        "z": 120.0,
+        "kind": "empty"
+      },
+      {
+        "name": "Horiz tail",
+        "weight_lb": 350.0,
+        "x": 815.0,
+        "y": 0.0,
+        "z": 240.0,
+        "kind": "empty"
+      },
+      {
+        "name": "Vert tail",
+        "weight_lb": 300.0,
+        "x": 800.0,
+        "y": 0.0,
+        "z": 230.0,
+        "kind": "empty"
+      },
+      {
+        "name": "Main gear",
+        "weight_lb": 1200.0,
+        "x": 420.0,
+        "y": 0.0,
+        "z": 60.0,
+        "kind": "empty"
+      },
+      {
+        "name": "Nose gear",
+        "weight_lb": 300.0,
+        "x": 120.0,
+        "y": 0.0,
+        "z": 60.0,
+        "kind": "empty"
+      },
+      {
+        "name": "Engines (2)",
+        "weight_lb": 2100.0,
+        "x": 365.0,
+        "y": 0.0,
+        "z": 170.0,
+        "kind": "empty"
+      },
+      {
+        "name": "Propellers (2)",
+        "weight_lb": 700.0,
+        "x": 300.0,
+        "y": 0.0,
+        "z": 170.0,
+        "kind": "empty"
+      },
+      {
+        "name": "Nacelles (2)",
+        "weight_lb": 700.0,
+        "x": 380.0,
+        "y": 0.0,
+        "z": 150.0,
+        "kind": "empty"
+      },
+      {
+        "name": "Systems",
+        "weight_lb": 2200.0,
+        "x": 350.0,
+        "y": 0.0,
+        "z": 120.0,
+        "kind": "empty"
+      },
+      {
+        "name": "Furnishings",
+        "weight_lb": 2750.0,
+        "x": 450.0,
+        "y": 0.0,
+        "z": 120.0,
+        "kind": "empty"
+      },
+      {
+        "name": "Avionics",
+        "weight_lb": 600.0,
+        "x": 150.0,
+        "y": 0.0,
+        "z": 140.0,
+        "kind": "empty"
+      },
+      {
+        "name": "APU",
+        "weight_lb": 350.0,
+        "x": 820.0,
+        "y": 0.0,
+        "z": 130.0,
+        "kind": "empty"
+      },
+      {
+        "name": "Air conditioning / pressurization",
+        "weight_lb": 650.0,
+        "x": 300.0,
+        "y": 0.0,
+        "z": 110.0,
+        "kind": "empty"
+      },
+      {
+        "name": "Unusable fuel",
+        "weight_lb": 150.0,
+        "x": 390.0,
+        "y": 0.0,
+        "z": 170.0,
+        "kind": "empty"
+      },
+      {
+        "name": "Captain + First officer",
+        "weight_lb": 400.0,
+        "x": 120.0,
+        "y": 0.0,
+        "z": 130.0,
+        "kind": "minimum"
+      },
+      {
+        "name": "Reserve fuel",
+        "weight_lb": 800.0,
+        "x": 390.0,
+        "y": 0.0,
+        "z": 165.0,
+        "kind": "minimum"
+      },
+      {
+        "name": "Passengers (37)",
+        "weight_lb": 6290.0,
+        "x": 450.0,
+        "y": 0.0,
+        "z": 130.0,
+        "kind": "discretionary"
+      },
+      {
+        "name": "Baggage / cargo",
+        "weight_lb": 1500.0,
+        "x": 640.0,
+        "y": 0.0,
+        "z": 110.0,
+        "kind": "discretionary"
+      },
+      {
+        "name": "Fuel to gross",
+        "weight_lb": 4660.0,
+        "x": 390.0,
+        "y": 0.0,
+        "z": 165.0,
+        "kind": "discretionary"
+      }
+    ],
+    "envelope": {
+      "gross_weight": 34500,
+      "aft_gross_pct_mac": 35,
+      "fwd_gross_pct_mac": 15,
+      "fwd_regardless_pct_mac": 10,
+      "fwd_regardless_weight": 28000,
+      "wing_surface": "wing",
+      "xlemac": null,
+      "mac": null
+    }
+  },
+  "geometry": {
+    "surfaces": [
+      {
+        "name": "wing",
+        "leading_edge": [
+          [
+            360,
+            0
+          ],
+          [
+            380,
+            510
+          ]
+        ],
+        "trailing_edge": [
+          [
+            470,
+            0
+          ],
+          [
+            435,
+            510
+          ]
+        ],
+        "symmetric": true,
+        "elements": 20
+      }
+    ]
+  },
+  "speeds": {
+    "category": "C",
+    "weight_lb": 34500,
+    "wing_area_sqft": 585.0,
+    "vh_kt": 270,
+    "stall_clean_kt": 92,
+    "stall_flap_kt": 78,
+    "shoulder_altitude_ft": 15000,
+    "wing_surface": "wing",
+    "chosen_vc": 245,
+    "chosen_vd": 306.0,
+    "chosen_va": null,
+    "chosen_vf": null,
+    "chosen_n": 2.5,
+    "chosen_nneg": -1.0,
+    "mach_limit": {
+      "mc": 0.50,
+      "md": 0.55,
+      "shoulder_altitude_ft": 15000,
+      "max_operating_altitude_ft": 25000,
+      "increment_ft": 1000
+    }
+  },
+  "aero": {
+    "surfaces": [
+      {
+        "name": "wing",
+        "section_slope": 0.1075,
+        "taper_ratio": 0.5,
+        "tip_ratio": 0.0,
+        "tau": 0.05,
+        "twist": [
+          [
+            0,
+            2.0
+          ],
+          [
+            510,
+            -1.0
+          ]
+        ],
+        "target_cl": 1.1,
+        "profile_drag": [
+          [
+            0,
+            0.011
+          ],
+          [
+            510,
+            0.011
+          ]
+        ],
+        "section_cm": [
+          [
+            0,
+            -0.035
+          ],
+          [
+            510,
+            -0.035
+          ]
+        ]
+      }
+    ]
+  },
+  "flight_loads": {
+    "mac": 85.6,
+    "wing_area_sqft": 585.0,
+    "xw": 390.3,
+    "zw": 180.0,
+    "xtc": 795.0,
+    "xtf": 810.0,
+    "mn": 0.1,
+    "altitudes_ft": [
+      0.0,
+      15000.0,
+      25000.0
+    ],
+    "configurations": [
+      {
+        "name": "CRUISE",
+        "stall_cl": 1.55,
+        "neg_stall_cl": -0.70,
+        "lift": [
+          0.30,
+          0.08,
+          0.0,
+          0.0,
+          0.0
+        ],
+        "drag": [
+          0.025,
+          0.0,
+          0.05,
+          0.0,
+          0.0
+        ],
+        "moment": [
+          -0.02,
+          0.004,
+          0.0,
+          0.0,
+          0.0
+        ],
+        "flaps_down": false
+      }
+    ],
+    "cg_cases": [
+      {
+        "name": "CGfwd",
+        "weight_lb": 34500,
+        "xcg": 378.0,
+        "zcg": 150.0
+      },
+      {
+        "name": "CGmid",
+        "weight_lb": 34500,
+        "xcg": 395.0,
+        "zcg": 150.0
+      },
+      {
+        "name": "CGaft",
+        "weight_lb": 30000,
+        "xcg": 410.0,
+        "zcg": 150.0
+      }
+    ]
+  },
+  "wing_mass": {
+    "panel_weight_lb": 1500,
+    "tip_root_density_ratio": 0.9,
+    "inboard_rib_y": 40,
+    "wrp_waterline": 180.0,
+    "dihedral_deg": 2.5,
+    "surface": "wing",
+    "concentrated": [
+      {
+        "name": "engine + nacelle",
+        "weight_lb": 1400,
+        "x": 365,
+        "y": 168,
+        "z": 170
+      },
+      {
+        "name": "wing fuel",
+        "weight_lb": 2000,
+        "x": 400,
+        "y": 180,
+        "z": 175
+      }
+    ],
+    "cases": [
+      {
+        "name": "PHAA",
+        "case": null,
+        "nz": -2.5,
+        "nx": 0.4,
+        "unbal_moment": 0,
+        "cl": 1.55,
+        "v_eas_kt": 175.0
+      }
+    ]
+  },
+  "select_input": {
+    "full_down_aileron_deg": 15.0,
+    "basic_airfoil_cm": -0.035,
+    "wing_weight_lb": 3000.0
+  },
+  "tail_loads": {
+    "tail_incidence_deg": 1.0,
+    "wing_zero_lift_cruise_deg": 3.0,
+    "wing_zero_lift_enroute_deg": 0.0,
+    "wing_zero_lift_landing_deg": 0.0,
+    "aspect_ratio_wing": 12.4,
+    "aspect_ratio_htail": 4.5,
+    "htail_area_sqft": 90.0,
+    "elevator_effectiveness": 0.62,
+    "xt25": 810.0,
+    "xt50": 828.0,
+    "elevator_te_up_deg": 25.0,
+    "elevator_te_down_deg": 15.0,
+    "elevator_area_sqft": 28.0,
+    "elevator_fwd_hinge_sqft": 3.0,
+    "elevator_aft_hinge_sqft": 25.0,
+    "airplane_length_ft": 73.0,
+    "wing_lift_slope_per_rad": 5.3,
+    "htail_semispan_in": 115.0
+  },
+  "vtail_loads": {
+    "rudder_deflection_deg": 25.0,
+    "vtail_area_sqft": 75.0,
+    "rudder_area_sqft": 24.0,
+    "rudder_fwd_hinge_sqft": 2.5,
+    "rudder_aft_hinge_sqft": 21.5,
+    "aspect_ratio_vtail": 1.6,
+    "vtail_mac_ft": 8.0,
+    "xv25": 805.0,
+    "xv50": 820.0,
+    "airplane_length_ft": 73.0,
+    "wing_span_ft": 85.0,
+    "gross_weight_lb": 34500.0,
+    "rudder_large_deflection_factor": 1.0,
+    "izz_slugft2": 0.0,
+    "vtail_span_in": 130.0
+  },
+  "one_engine_out": {
+    "thrust_decay_time_s": 0.5,
+    "windmill_drag_time_s": 2.0,
+    "rudder_travel_time_s": 0.3,
+    "time_step_s": 0.05,
+    "failed_engine_index": 0,
+    "use_takeoff_power": true
+  }
+}

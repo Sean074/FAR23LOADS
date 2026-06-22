@@ -31,7 +31,7 @@ physics:
 | Distributed loads — **tail** | FLTLOADS (balancing) → **TAILDIST** (chordwise H/V-tail) |
 | **Control surfaces — standard simplified distributions** | AILERON / FLAPLOAD / TABLOADS (FAR-style simplified pressure distributions) |
 | **Assess vs similar airplanes** | existing fleet plot + the planned Configuration & Layout page |
-| Leverage FAR23 LOADS methods / core | the ported FAR23 modules (13 of 22, through C6) are the foundation |
+| Leverage FAR23 LOADS methods / core | the ported FAR23 modules (22 of 22, through C11) are the foundation |
 | Leverage sbeam | code/doc style (already mirrored) **plus** a real FORCE/MOMENT BDF export bridge |
 
 ### The one genuine conflict: exceeding the FAR23 limits
@@ -207,7 +207,7 @@ fixtures; R3/R4 are closure-validated), per-CG precise inertia in SELECT, and th
 v-tail `EFV` chart. See
 [`../40_history/00_completed_development.md`](../40_history/00_completed_development.md).
 
-### Step C7 — TAILDIST + AIRLOAD4 (tail distributed loads; swept-wing concepts)
+### Step C7 — TAILDIST + AIRLOAD4 (tail distributed loads; swept-wing concepts) *(shipped)*
 **Objective.** Chordwise H/V-tail load distribution; high-Mach/swept spanwise
 airloads for concept jets.
 **Deliverables.** `modules/taildist.py` (chordwise = α-load @25% + camber @50%, Ref
@@ -216,7 +216,7 @@ airloads for concept jets.
 **Test/Acceptance.** Appendix A/B tail-distribution and Appendix B swept spanwise
 tables ±0.1%.
 
-### Step C8 — Control-surface simplified distributions
+### Step C8 — Control-surface simplified distributions *(shipped)*
 **Objective.** The explicit requirement: control surfaces use **standard simplified
 distributions**.
 **Deliverables.** `modules/aileron.py`, `flap.py`, `tab.py` — FAR-style simplified
@@ -224,8 +224,9 @@ pressure distributions (uniform/triangular per 23.349 / 23.345 / 23.459), hinge
 moments + distributed loads + CSV + sbeam bridge.
 **Test/Acceptance.** Appendix A/B `AILERON` / `FLAPLOAD` / tab tables ±0.1%.
 
-*(ONENGOUT, LGFACTOR, LANDLOAD remain backlog/optional — they are loads
-*conditions*, not the distributed-load deliverables central to this plan.)*
+*(ONENGOUT [C9], LGFACTOR + LANDLOAD [C10], and the off-pipeline BALLOADS
+verification utility [C11] have since shipped — all 22 Appendix-C programs are now
+ported. See [`../40_history/00_completed_development.md`](../40_history/00_completed_development.md).)*
 
 ---
 

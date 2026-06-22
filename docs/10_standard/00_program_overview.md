@@ -52,7 +52,7 @@ app/
 └── data/reference_aircraft.csv
 cli.py                    # argparse front-end; `farloads` console script
 tests/                    # pytest; one manual-example test per module vs Appendix A/B
-examples/                 # ga6_normal (Appendix A) + concept_heavy (concept) project.json
+examples/                 # ga6_normal (Appendix A), cessna_210 (normal cat), concept_heavy + dhc8_dash8 (concept) project.json
 ```
 
 Data flow for one run: `project.json` → `io.load_project` → `Project` →
@@ -193,11 +193,11 @@ Runtime (`pyproject.toml` `[project.dependencies]`): `streamlit>=1.30`,
 ## Version & phase
 
 Semantic versioning in `pyproject.toml`; `project.json` carries its own
-`schema_version` (`models.py`, currently **11**), bumped when the on-disk shape
-changes. **Status:** Phases 0–2 and Phase-C Steps **C0–C6** are complete — 13 of
-Reference 1's 22 programs are ported, plus the modern `configuration` and
-`body_loads` modules. The remaining suite programs and the step-by-step plan
-(C7 onward) are in [`../30_future/00_backlog.md`](../30_future/00_backlog.md); the
+`schema_version` (`models.py`, currently **15**), bumped when the on-disk shape
+changes. **Status:** Phases 0–2 and Phase-C Steps **C0–C11** are complete — all 22
+of Reference 1's programs are ported, plus the modern `configuration` and
+`body_loads` modules. The remaining deferred refinements and open decisions
+are in [`../30_future/00_backlog.md`](../30_future/00_backlog.md); the
 architectural roadmap is in [`PROJECT_GUIDE.md §7`](PROJECT_GUIDE.md) and the
 Phase-C narrative in
 [`../30_future/01_concept_loads_plan.md`](../30_future/01_concept_loads_plan.md).

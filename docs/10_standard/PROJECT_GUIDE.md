@@ -301,9 +301,9 @@ against Appendix A/B, a GUI page, and the project JSON schema extended.
 > **Phases 0–2 are complete, and the original Phases 3–4 were re-sequenced by the
 > Phase-C plan** (vertical-slice-first; concept-mode generalization) — see
 > [`../30_future/01_concept_loads_plan.md`](../30_future/01_concept_loads_plan.md).
-> The live, dependency-ordered open plan (Steps C7–C11) is the backlog. The
-> phase descriptions below are the historical roadmap that produced the present
-> suite.
+> All 22 suite programs (Steps C0–C11) are now ported; the live backlog is
+> deferred refinements and open decisions. The phase descriptions below are the
+> historical roadmap that produced the present suite.
 
 **Phase 0 — Restructure** ✅ (no new physics)
 `engloads` → `farloads` package + `app/` multipage + `cli.py` + `Project` model +
