@@ -296,11 +296,242 @@ def condition_371_b(inp: EngineInput) -> ConditionResult:
 
 
 # --------------------------------------------------------------------------- #
+# Optional FAR 25 conditions (turbopropeller installations)
+# --------------------------------------------------------------------------- #
+# An *additive* superset enabled by ``Project.include_far25``. The FAR 23 core
+# above is untouched and stays oracle-locked; these append on top. Ported from
+# 14 CFR 25.361 / 25.371 (see ``reference/14CFR_Part25_engine_torque.md``).
+#
+# Scope: turbopropeller engines only. 25.361(a)(2) defines a limit-torque factor
+# only for turbopropeller (1.25 x mean torque) and "other turbine engines"
+# (= max accelerating torque); it is silent on reciprocating engines, and this
+# tool's mass/gyro math is propeller-centric. No McMaster worked example exists
+# for Part 25, so these are formula-closure checked, not locked to a printed
+# figure (the LANDLOAD precedent).
+
+
+def _stoppage_torque(inp: EngineInput):
+    """Total sudden-stoppage reaction torque (ft-lb) + per-rotor inertia detail.
+
+    The prop + rotor angular momentum shed over ``stop_time_s``. Shared by the
+    FAR 25 sudden-deceleration case; FAR 23.361(b)(1) keeps its own inline copy so
+    its oracle output stays byte-identical.
+    """
+    iprop = _prop_inertia(inp)
+    dt = inp.stop_time_s
+    torq = iprop * (_omega(inp.takeoff_rpm) / dt)
+    detail = [LoadValue("Ixx propeller", iprop, "slug-ft^2")]
+    for i, rotor in enumerate(inp.rotors, start=1):
+        irotor = _rotor_inertia(rotor)
+        torq += irotor * (_omega(rotor.max_rpm) / dt)
+        detail.append(LoadValue(f"Ixx rotor({i})", irotor, "slug-ft^2"))
+    detail.append(LoadValue("Time to stop", dt, "s"))
+    return torq, detail
+
+
+def condition_25_361_a1i(inp: EngineInput) -> ConditionResult:
+    """FAR 25.361(a)(1)(i): 1.25 x mean takeoff torque + 75% limit vertical load.
+
+    Unlike FAR 23.361(a)(1) (no torque factor), 25.361(a)(2)(i) applies the 1.25
+    turbopropeller factor to the takeoff case too -- so this torque is 1.25x the
+    FAR 23 takeoff value.
+    """
+    ppwt = combined_weight(inp)
+    cg = combined_cg(inp)
+    n75 = 0.75 * inp.limit_load_factor
+    base_torque = inp.max_engine_torque
+    torque = TURBOPROP_TORQUE_FACTOR * base_torque
+    return ConditionResult(
+        title="Limit takeoff torque (1.25 x mean) with 75% limit maneuver vertical load factor",
+        far_reference="25.361(a)(1)(i)",
+        values=[
+            LoadValue("Vertical load factor", n75),
+            LoadValue("Vertical down load", n75 * ppwt, "lb"),
+            LoadValue("Applied at X", cg[0], "in"),
+            LoadValue("Applied at Y", cg[1], "in"),
+            LoadValue("Applied at Z", cg[2], "in"),
+            LoadValue("Torque factor", TURBOPROP_TORQUE_FACTOR),
+            LoadValue("Mean takeoff torque", base_torque, "ft-lb"),
+            LoadValue("Engine mount torque", -torque, "ft-lb"),
+        ],
+    )
+
+
+def condition_25_361_a1ii(inp: EngineInput) -> ConditionResult:
+    """FAR 25.361(a)(1)(ii): 1.25 x mean max-continuous torque + 100% limit load."""
+    ppwt = combined_weight(inp)
+    cg = combined_cg(inp)
+    n100 = inp.limit_load_factor
+    base_torque = inp.cruise_torque
+    torque = TURBOPROP_TORQUE_FACTOR * base_torque
+    return ConditionResult(
+        title="Max continuous torque (1.25 x mean) with 100% limit maneuver vertical load factor",
+        far_reference="25.361(a)(1)(ii)",
+        values=[
+            LoadValue("Vertical load factor", n100),
+            LoadValue("Vertical down load", n100 * ppwt, "lb"),
+            LoadValue("Applied at X", cg[0], "in"),
+            LoadValue("Applied at Y", cg[1], "in"),
+            LoadValue("Applied at Z", cg[2], "in"),
+            LoadValue("Torque factor", TURBOPROP_TORQUE_FACTOR),
+            LoadValue("Mean max continuous torque", base_torque, "ft-lb"),
+            LoadValue("Engine mount torque", -torque, "ft-lb"),
+        ],
+    )
+
+
+def condition_25_361_a1iii(inp: EngineInput) -> ConditionResult:
+    """FAR 25.361(a)(1)(iii): prop control malfunction (1.6 x takeoff torque) at 1g."""
+    ppwt = combined_weight(inp)
+    cg = combined_cg(inp)
+    torque = TURBOPROP_MALFUNCTION_FACTOR * inp.max_engine_torque
+    return ConditionResult(
+        title="Propeller control malfunction (quick feathering) with 1g level flight loads",
+        far_reference="25.361(a)(1)(iii)",
+        values=[
+            LoadValue("Vertical load factor", 1.0),
+            LoadValue("Vertical down load", 1.0 * ppwt, "lb"),
+            LoadValue("Applied at X", cg[0], "in"),
+            LoadValue("Applied at Y", cg[1], "in"),
+            LoadValue("Applied at Z", cg[2], "in"),
+            LoadValue("Engine mount torque", -torque, "ft-lb"),
+        ],
+    )
+
+
+def condition_25_361_a3i(inp: EngineInput) -> ConditionResult:
+    """FAR 25.361(a)(3)(i): sudden engine deceleration (stoppage) torque at 1g.
+
+    Same stoppage torque as 23.361(b)(1), but FAR 25 applies it simultaneously
+    with 1g level flight loads.
+    """
+    ppwt = combined_weight(inp)
+    cg = combined_cg(inp)
+    torq_total, detail = _stoppage_torque(inp)
+    values = list(detail)
+    values.extend([
+        LoadValue("Vertical load factor", 1.0),
+        LoadValue("Vertical down load", 1.0 * ppwt, "lb"),
+        LoadValue("Applied at X", cg[0], "in"),
+        LoadValue("Applied at Y", cg[1], "in"),
+        LoadValue("Applied at Z", cg[2], "in"),
+        LoadValue("Engine mount torque", int(-torq_total), "ft-lb"),
+    ])
+    return ConditionResult(
+        title="Sudden engine deceleration (stoppage) torque with 1g level flight loads",
+        far_reference="25.361(a)(3)(i)",
+        values=values,
+        note="Clockwise from pilot's view is positive.",
+    )
+
+
+def condition_25_361_a3ii(inp: EngineInput) -> ConditionResult:
+    """FAR 25.361(a)(3)(ii): maximum engine acceleration torque at 1g.
+
+    Uses the supplied ``max_accel_torque``; if none is given it falls back to the
+    max engine torque and the condition is flagged so the assumption is visible.
+    """
+    ppwt = combined_weight(inp)
+    cg = combined_cg(inp)
+    defaulted = inp.max_accel_torque is None
+    accel_torque = inp.max_engine_torque if defaulted else inp.max_accel_torque
+    note = None
+    if defaulted:
+        note = "Max accelerating torque defaulted to max engine torque (no separate value supplied)."
+    return ConditionResult(
+        title="Maximum engine acceleration torque with 1g level flight loads",
+        far_reference="25.361(a)(3)(ii)",
+        values=[
+            LoadValue("Vertical load factor", 1.0),
+            LoadValue("Vertical down load", 1.0 * ppwt, "lb"),
+            LoadValue("Applied at X", cg[0], "in"),
+            LoadValue("Applied at Y", cg[1], "in"),
+            LoadValue("Applied at Z", cg[2], "in"),
+            LoadValue("Max accelerating torque", accel_torque, "ft-lb"),
+            LoadValue("Engine mount torque", -accel_torque, "ft-lb"),
+        ],
+        note=note,
+    )
+
+
+def condition_25_371(inp: EngineInput) -> ConditionResult:
+    """FAR 25.371: gyroscopic loads at max continuous RPM (turbopropeller).
+
+    25.371 derives the body pitch/yaw rates from the maneuver/gust/ground
+    conditions of 25.331/341/349/351/473/479/481 -- which this tool does not
+    solve. As a conservative initial-concept stand-in the fixed FAR 23.371(b)
+    rates (2.5 rad/s yaw, 1 rad/s pitch) are used: anything heavier than a light
+    GA single maneuvers slower, so these bound the maneuver-derived rates and the
+    gyro moment (linear in body rate) is over-estimated. The simultaneous vertical
+    load uses the project's actual A2 limit load factor (25.333(b)) rather than the
+    fixed 2.5g, so it is not under-conservative when A2 > 2.5.
+    """
+    iprop = _prop_inertia(inp)
+    omega_prop = _omega(inp.max_cont_rpm)
+
+    tpitch = iprop * omega_prop
+    for rotor in inp.rotors:
+        tpitch += _rotor_inertia(rotor) * _omega(rotor.max_rpm)
+
+    m_yaw = YAW_RATE * tpitch
+    m_pitch = PITCH_RATE * tpitch
+    thrust = inp.max_engine_torque * omega_prop / VSF
+    vload = inp.limit_load_factor * combined_weight(inp)
+
+    values = [
+        LoadValue("Myy due to 2.5 rad/s yaw (+/-)", m_yaw, "ft-lb"),
+        LoadValue("Mzz due to 1 rad/s pitch (+/-)", m_pitch, "ft-lb"),
+        LoadValue("Vertical limit-load (A2) load", vload, "lb"),
+        LoadValue("Max continuous thrust", thrust, "lb"),
+    ]
+    for case, (syaw, spitch) in enumerate(
+        itertools.product((+1, -1), repeat=2), start=1
+    ):
+        ytag = "+" if syaw > 0 else "-"
+        ptag = "+" if spitch > 0 else "-"
+        prefix = f"Case {case} ({ytag}Myy, {ptag}Mzz)"
+        values.append(LoadValue(f"{prefix}: Myy", syaw * m_yaw, "ft-lb"))
+        values.append(LoadValue(f"{prefix}: Mzz", spitch * m_pitch, "ft-lb"))
+
+    return ConditionResult(
+        title="Gyroscopic loads on engine mount at max continuous RPM",
+        far_reference="25.371",
+        values=values,
+        note=(
+            "Conservative concept stand-in: fixed FAR 23.371(b) rates (2.5 rad/s "
+            "yaw, 1 rad/s pitch) used in lieu of the 25.371 maneuver-derived rates; "
+            "valid while the concept's actual rates stay at or below these. All four "
+            "sign combinations of Myy/Mzz are combined with the A2 vertical load and "
+            "max-continuous thrust acting simultaneously."
+        ),
+    )
+
+
+def run_far25(inp: EngineInput) -> List[ConditionResult]:
+    """Optional FAR 25 engine cases. Turbopropeller only; empty otherwise."""
+    if not inp.is_turboprop:
+        return []
+    return [
+        condition_25_361_a1i(inp),
+        condition_25_361_a1ii(inp),
+        condition_25_361_a1iii(inp),
+        condition_25_361_a3i(inp),
+        condition_25_361_a3ii(inp),
+        condition_25_371(inp),
+    ]
+
+
+# --------------------------------------------------------------------------- #
 # Orchestration
 # --------------------------------------------------------------------------- #
 
-def run_all(inp: EngineInput) -> List[ConditionResult]:
-    """Evaluate every applicable FAR 23 condition for the given input."""
+def run_all(inp: EngineInput, *, include_far25: bool = False) -> List[ConditionResult]:
+    """Evaluate every applicable FAR 23 condition for the given input.
+
+    When ``include_far25`` is set, the optional FAR 25 cases (turbopropeller only)
+    are appended after the FAR 23 set; the FAR 23 conditions themselves are
+    unchanged either way.
+    """
     results = [
         condition_361_a1(inp),
         condition_361_a2(inp),
@@ -310,6 +541,8 @@ def run_all(inp: EngineInput) -> List[ConditionResult]:
         results.append(condition_361_a3(inp))
         results.append(condition_361_b1(inp))
         results.append(condition_371_b(inp))
+    if include_far25:
+        results.extend(run_far25(inp))
     return results
 
 

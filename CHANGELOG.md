@@ -35,6 +35,16 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   every registered module has a workflow step) and `tests/test_views_smoke.py`
   (headless `AppTest` runs the entry point + all 20 views with the example project,
   asserting no uncaught exception). +24 tests.
+- **Multi-engine engine-mount page.** `app/views/engine_mount.py` now exposes the
+  first-class multi-engine `Project`: a sidebar **layout** selector (1 nose / 2 or
+  4 wing-mounted engines) drives the engine count, and an **engine selector** picks
+  which engine is being assessed. Each engine's inputs (type, CG, weights, rotors)
+  are held canonically in Imperial in `st.session_state["engine_inputs"]` — keyed
+  per engine and unit system — so switching engine or unit system preserves every
+  engine's data. Results default to the selected engine with a **"Show all engines"**
+  toggle for the full `engine.run(project)` (each condition prefixed with the engine
+  designation); the JSON/CSV/text exports cover every engine. A single engine
+  reduces exactly to the previous behaviour (no prefixes, identical to `run_all`).
 
 ### Fixed
 

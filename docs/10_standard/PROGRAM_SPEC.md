@@ -261,7 +261,7 @@ directly; a module never recomputes another module's owned quantity.
 - **Reads:** `Project.engine` (engine/prop weight, CG, diameter, RPM, HP/torque, rotor list, optional measured polar inertia), `Project.weight` load factor.
 - **Writes:** the 3 (recip) / 6 (turboprop) FAR conditions; load-case CSV (one row per case, gyro 23.371(b) expands to 4 sign-combination cases).
 - **Validation:** Appendix A (Continental IO-520-BB) and Appendix B (turboprop gyro). Currently exact; **relax to ±0.1% and switch to `math.pi` during Phase 0** per Decision 3.
-- **Notes:** **Standalone** — no module inputs/outputs (UG Table 2.2); all data is direct input. Already supports measured-vs-approximated rotating inertia and SI/Imperial. Serves as the reference template for every other module's calc/units/report/CSV pattern.
+- **Notes:** **Standalone** — no module inputs/outputs (UG Table 2.2); all data is direct input. Already supports measured-vs-approximated rotating inertia and SI/Imperial. Serves as the reference template for every other module's calc/units/report/CSV pattern. **GUI is multi-engine:** the engine-mount page (`app/views/engine_mount.py`) exposes the first-class multi-engine `Project` — a sidebar layout selector (`SINGLE_NOSE`/`TWIN_WING`/`QUAD_WING`) sets the engine count and an engine selector picks which engine is edited; per-engine inputs live in `st.session_state["engine_inputs"]` (canonical Imperial, keyed by engine + unit system). Results default to the selected engine with a "Show all engines" toggle over `engine.run(project)`; exports cover every engine. A single engine reduces exactly to `run_all`.
 
 ### ONENGOUT — One-engine-out loads ✅ DONE (C9)
 - **FAR §:** 23.367 (unsymmetrical loads due to engine failure), multi-engine.

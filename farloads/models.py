@@ -122,6 +122,9 @@ class EngineInput:
     hub_weight_lb: Optional[float] = None       # HUBWT
     stop_time_s: Optional[float] = None         # DT, sudden-stoppage time
     rotors: List[Rotor] = field(default_factory=list)
+    # FAR 25-only (optional concept-mode superset; see Project.include_far25)
+    max_accel_torque: Optional[float] = None    # FAR 25.361(a)(3)(ii) max accelerating torque, ft-lb
+                                                # (blank -> falls back to max_engine_torque)
 
     @property
     def is_turboprop(self) -> bool:
@@ -1295,6 +1298,10 @@ class Project:
     landing: Optional[LandingInput] = None
     loads: Optional[LoadsResult] = None
     configuration: Optional[LayoutInput] = None
+    # Opt-in FAR 25 superset: when True the engine module appends the optional
+    # 14 CFR 25.361/25.371 cases (turbopropeller only) on top of the oracle-locked
+    # FAR 23 conditions. Defaults off, so GA projects are byte-identical.
+    include_far25: bool = False
 
     def __post_init__(self) -> None:
         if self.engine_layout is not None and self.engines:
