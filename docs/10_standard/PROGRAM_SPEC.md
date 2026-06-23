@@ -76,6 +76,16 @@ Each module has a fixed template:
 `Project`" means those fields were produced by an upstream module or entered
 directly; a module never recomputes another module's owned quantity.
 
+**Limit vs. ultimate.** The calc emits **LIMIT** loads (the oracle figures the
+manual prints). The **rendered output and the sbeam export report ULTIMATE loads**
+= limit × the per-case factor of safety (`ConditionResult.safety_factor`, default
+1.5 per 14 CFR 25.303; see `reference/14CFR_factor_of_safety.md`). Scaling is applied
+only at the render/export boundary, to force/moment/pressure quantities — never to
+geometry, weights, inertias, or (dimensionless) load factors. The load-case CSV marks
+the force/moment columns `ULT` and carries the factor in an `SF` column. The factor is
+per-case so a future 14 CFR 25.302 / Appendix K refinement can give a failure case a
+probability-interpolated value (1.0–1.5); sudden engine stoppage is held at 1.5.
+
 ---
 
 ## Phase 1 — Mass properties

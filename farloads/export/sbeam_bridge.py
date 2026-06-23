@@ -18,6 +18,12 @@ The bridge is a pure renderer (like :mod:`farloads.io`): the building functions
 return strings, the ``write_*`` wrappers do the only file I/O. It is **not** a
 registered calc module -- the physics already lives in ``modules/net_loads.py``.
 
+All exported force / moment / pressure magnitudes are **ULTIMATE** loads (the calc's
+LIMIT values x ``_SF`` = 1.5, 14 CFR 25.303), since sbeam sizes structure to
+ultimate; coordinates and chord fractions are geometry and are not scaled. The
+uniform factor keeps the force/moment-closure guarantees intact (the exported set
+sums to ``_SF`` x the root/total).
+
 Nodal loads from the cumulative table
 -------------------------------------
 ``WingStationLoad`` stores per-strip forces *and* cumulative shears/moments
@@ -48,6 +54,7 @@ import io as _io
 from dataclasses import dataclass
 from typing import List, Sequence, Union
 
+from ..constants import ULTIMATE_FACTOR
 from ..models import (
     BodyLoadResult,
     ControlSurfaceLoadResult,
@@ -57,6 +64,13 @@ from ..models import (
     WingStationLoad,
 )
 from .coordinates import SBEAM_CID, to_force, to_grid, to_moment
+
+# sbeam sizes structure to ULTIMATE loads, so every exported force / moment /
+# pressure magnitude is the calc's LIMIT value x this factor (14 CFR 25.303 -> 1.5;
+# see farloads.constants.ULTIMATE_FACTOR). Geometry (coordinates, chord fractions)
+# is not scaled. The net/tail/control results carry no per-case factor of their own,
+# so the suite-wide default is applied here; revisiting it is a one-constant change.
+_SF = ULTIMATE_FACTOR
 
 # Loads below this magnitude are treated as zero and not emitted (matches
 # sbeam/results/load_export.py).
@@ -106,19 +120,23 @@ def wing_nodal_loads(result: WingLoadResult) -> List[NodalLoad]:
     The nodal force/torsion at each station is the increment of the cumulative
     shear/torsion to the next station outboard (the last/tip station keeps its
     full value), so the set sums back to the root totals exactly.
+
+    Forces/moments are returned as ULTIMATE loads (LIMIT x ``_SF``); the uniform
+    scale preserves the force/moment-closure guarantee (``sum(dFz) == _SF x root``).
     """
     s: List[WingStationLoad] = result.stations
     n = len(s)
     out: List[NodalLoad] = []
     for i in range(n):
         nxt = s[i + 1] if i + 1 < n else None
-        dfx = s[i].sx - (nxt.sx if nxt else 0.0)
-        dfz = s[i].sz - (nxt.sz if nxt else 0.0)
-        dmy = s[i].myy - (nxt.myy if nxt else 0.0)
+        dfx = (s[i].sx - (nxt.sx if nxt else 0.0)) * _SF
+        dfz = (s[i].sz - (nxt.sz if nxt else 0.0)) * _SF
+        dmy = (s[i].myy - (nxt.myy if nxt else 0.0)) * _SF
         out.append(NodalLoad(
             gid=station_gid(i), x=s[i].x, y=s[i].y, z=s[i].z,
             fx=dfx, fz=dfz, my=dmy,
-            sz=s[i].sz, sx=s[i].sx, mxx=s[i].mxx, myy=s[i].myy, mzz=s[i].mzz,
+            sz=s[i].sz * _SF, sx=s[i].sx * _SF,
+            mxx=s[i].mxx * _SF, myy=s[i].myy * _SF, mzz=s[i].mzz * _SF,
         ))
     return out
 
@@ -213,11 +231,13 @@ def _force_moment_lines(loads: List[NodalLoad], sid: int) -> List[str]:
 def _case_card_block(r: WingLoadResult, sid: int) -> List[str]:
     """One case's commented FORCE/MOMENT block (header + cards)."""
     loads = wing_nodal_loads(r)
-    root_sz = r.stations[0].sz if r.stations else 0.0
-    root_myy = r.stations[0].myy if r.stations else 0.0
+    # loads carry the ULTIMATE (x _SF) cumulative totals, so the comment matches the cards.
+    root_sz = loads[0].sz if loads else 0.0
+    root_myy = loads[0].myy if loads else 0.0
     lines = [
         f"$ FAR23LOADS net wing load -- case {r.case} (Nz={r.nz:g}, Nx={r.nx:g}), SID {sid}",
         "$ Axes: FAR23LOADS station/butt/waterline inches -> sbeam CID 0 (identity).",
+        "$ Loads are ULTIMATE (limit x 1.5).",
         f"$ FORCE set sums to root Sz = {root_sz:.1f} lb; "
         f"MOMENT(My) set sums to root torsion Myy = {root_myy:.1f} lb-in.",
     ]
@@ -370,7 +390,8 @@ def body_span_load_csv(arg) -> str:
         for i, s in enumerate(r.stations):
             writer.writerow({
                 "Case": r.case, "GID": _BODY_GID_BASE + i, "X": f"{s.x:.3f}",
-                "Fz": f"{s.fz:.1f}", "Sz": f"{s.sz:.1f}", "Myy": f"{s.myy:.0f}",
+                "Fz": f"{s.fz * _SF:.1f}", "Sz": f"{s.sz * _SF:.1f}",
+                "Myy": f"{s.myy * _SF:.0f}",
             })
     return buf.getvalue()
 
@@ -382,13 +403,14 @@ def body_force_moment_cards(arg, sid_base: int = 1) -> str:
     blocks: List[str] = []
     for idx, r in enumerate(results):
         sid = sid_base + idx
-        total_fz = sum(s.fz for s in r.stations)
+        total_fz = sum(s.fz for s in r.stations) * _SF
         lines = [
             f"$ FAR23LOADS net fuselage load -- case {r.case}, SID {sid}",
+            "$ Loads are ULTIMATE (limit x 1.5).",
             f"$ Applied Fz set sums to {total_fz:.2f} lb (vertical equilibrium).",
         ]
         for i, s in enumerate(r.stations):
-            fx, fy, fz = to_force(0.0, 0.0, s.fz)
+            fx, fy, fz = to_force(0.0, 0.0, s.fz * _SF)
             if abs(fz) > _TOL:
                 lines.append(
                     f"FORCE, {sid}, {_BODY_GID_BASE + i}, {SBEAM_CID}, 1.0, "
@@ -436,7 +458,7 @@ def _tail_nodal_forces(r: TailChordResult) -> List[float]:
         widths.append((hi - lo) / 2.0)
     raw = [s.psi * w for s, w in zip(stations, widths)]
     total_raw = sum(raw)
-    total = r.lt25 + r.lt50
+    total = (r.lt25 + r.lt50) * _SF  # ULTIMATE tail load
     scale = (total / total_raw) if abs(total_raw) > _TOL else 0.0
     return [v * scale for v in raw]
 
@@ -455,8 +477,8 @@ def tail_chordwise_csv(arg) -> str:
         for i, (s, fz) in enumerate(zip(stations, forces)):
             writer.writerow({
                 "Case": r.case, "Component": r.component, "GID": _TAIL_GID_BASE + i,
-                "X": f"{s.x:.3f}", "PSI": f"{s.psi:.4f}", "Fz": f"{fz:.1f}",
-                "LT25": f"{r.lt25:.2f}", "LT50": f"{r.lt50:.2f}",
+                "X": f"{s.x:.3f}", "PSI": f"{s.psi * _SF:.4f}", "Fz": f"{fz:.1f}",
+                "LT25": f"{r.lt25 * _SF:.2f}", "LT50": f"{r.lt50 * _SF:.2f}",
             })
     return buf.getvalue()
 
@@ -472,8 +494,9 @@ def tail_force_moment_cards(arg, sid_base: int = 1) -> str:
         total = sum(forces)
         lines = [
             f"$ FAR23LOADS chordwise {r.component} load -- case {r.case}, SID {sid}",
-            f"$ Applied Fz set sums to {total:.1f} lb (= LT25 + LT50 = "
-            f"{r.lt25 + r.lt50:.1f} lb).",
+            "$ Loads are ULTIMATE (limit x 1.5).",
+            f"$ Applied Fz set sums to {total:.1f} lb (= 1.5 x (LT25 + LT50) = "
+            f"{(r.lt25 + r.lt50) * _SF:.1f} lb).",
         ]
         for i, fz in enumerate(forces):
             fx2, fy2, fz2 = to_force(0.0, 0.0, fz)
@@ -536,7 +559,8 @@ def _control_nodal_forces(r: ControlSurfaceLoadResult) -> List[float]:
         widths.append((hi - lo) / 2.0)
     raw = [s.psi * w for s, w in zip(stations, widths)]
     total_raw = sum(raw)
-    scale = (r.load_lb / total_raw) if abs(total_raw) > _TOL else 0.0
+    total = r.load_lb * _SF  # ULTIMATE critical surface load
+    scale = (total / total_raw) if abs(total_raw) > _TOL else 0.0
     return [v * scale for v in raw]
 
 
@@ -554,8 +578,8 @@ def control_surface_csv(arg) -> str:
         for i, (s, fz) in enumerate(zip(stations, forces)):
             writer.writerow({
                 "Surface": r.surface, "Case": r.case, "GID": _CS_GID_BASE + i,
-                "X": f"{s.x:.3f}", "PSI": f"{s.psi:.4f}", "Fz": f"{fz:.1f}",
-                "Load": f"{r.load_lb:.2f}",
+                "X": f"{s.x:.3f}", "PSI": f"{s.psi * _SF:.4f}", "Fz": f"{fz:.1f}",
+                "Load": f"{r.load_lb * _SF:.2f}",
             })
     return buf.getvalue()
 
@@ -571,7 +595,9 @@ def control_surface_force_moment_cards(arg, sid_base: int = 1) -> str:
         total = sum(forces)
         lines = [
             f"$ FAR23LOADS control-surface load -- {r.surface} {r.case}, SID {sid}",
-            f"$ Applied Fz set sums to {total:.1f} lb (= critical load {r.load_lb:.1f} lb).",
+            "$ Loads are ULTIMATE (limit x 1.5).",
+            f"$ Applied Fz set sums to {total:.1f} lb (= 1.5 x critical load "
+            f"{r.load_lb * _SF:.1f} lb).",
         ]
         for i, fz in enumerate(forces):
             fx2, fy2, fz2 = to_force(0.0, 0.0, fz)

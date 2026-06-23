@@ -168,9 +168,13 @@ load set, proving the integration on the vertical slice.
   101 case) so the load runs directly in sbeam;
 - a documented coordinate/units map (FAR23LOADS station-X / butt-Y / waterline-Z,
   inches → sbeam global CID 0).
-**Test/Acceptance.** Exported cards sum to the same total Fz/My as NETLOADS
-(force/moment closure); the stick-model BDF parses and solves in sbeam without
-error; round-trip Fz matches within tolerance.
+- **Ultimate loads.** All exported force/moment/pressure magnitudes are ULTIMATE
+  (NETLOADS limit × `constants.ULTIMATE_FACTOR` = 1.5, 14 CFR 25.303), since sbeam
+  sizes structure to ultimate; coordinates are not scaled. The uniform factor keeps
+  the closure guarantees intact (the set sums to 1.5 × the root/total).
+**Test/Acceptance.** Exported cards sum to 1.5 × the NETLOADS total Fz/My
+(force/moment closure at ultimate); the stick-model BDF parses and solves in sbeam
+without error; round-trip Fz matches within tolerance.
 **Open sub-decision (resolve at build time).** Emit *only* load cards to splice
 into a user's existing sbeam model, *or* also auto-generate the stick model.
 Working assumption: do both, stick model behind a flag.

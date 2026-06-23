@@ -187,7 +187,9 @@ def test_csv_has_three_load_cases():
     csv_text = io.load_cases_csv(result)
     lines = [ln for ln in csv_text.splitlines() if ln.strip()]
     assert len(lines) == 1 + 3  # header + LC1..LC3
-    assert lines[0].startswith("ID,FAR,Case description")
+    assert lines[0].startswith("ID,FAR,Case description,SF,")
+    # Loads are reported ultimate: force/moment headers carry the ULT marker.
+    assert "ULT" in lines[0]
 
 
 if __name__ == "__main__":

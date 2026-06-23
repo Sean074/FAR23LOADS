@@ -12,6 +12,18 @@ whenever you port or change a calculation** (see `CLAUDE.md`).
 | **Reference 1** | `reference/FAR23 loads (1).pdf` (371 pp) | McMaster's theory manual — the source of truth for **equations** *and* the **regression oracle**. Appendix A (6-place GA single) p131; Appendix B (10-place twin turboprop) p251; Appendix C `.BAS` source p373. |
 | **FAA User's Guide** | `reference/ADA324952.pdf` (DOT/FAA/AR-96/46) | Module data-flow reference (Table 2.2) — which module consumes which upstream quantity. |
 | **Brochure** | `reference/FAR-23-Loads-Brochure-2023.pdf` | Product overview / context. |
+| **Factor of safety** | `reference/14CFR_factor_of_safety.md` | Limit vs. ultimate: 14 CFR 25.303 (FS = 1.5); 25.302 / Appendix K (case-dependent factor for failure conditions, future). Basis for the ULTIMATE rendered/exported output. |
+
+## Limit vs. ultimate loads
+
+The calc reproduces McMaster's **LIMIT** loads (the printed oracle figures). The
+**rendered output and the sbeam export are ULTIMATE** = limit × the per-case factor
+of safety (`ConditionResult.safety_factor`, default `constants.ULTIMATE_FACTOR = 1.5`,
+14 CFR 25.303). The factor is applied only at the render/export boundary and only to
+force/moment/pressure quantities, so the regression oracles below (asserted on the
+calc's limit results) are unaffected. The per-case field anticipates a 14 CFR 25.302 /
+Appendix K probability-based factor (1.0–1.5) for failure conditions; sudden engine
+stoppage is currently held at 1.5. See `reference/14CFR_factor_of_safety.md`.
 
 ## How to cite
 

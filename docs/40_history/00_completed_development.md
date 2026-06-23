@@ -10,6 +10,43 @@ Acceptance**, **Key decisions**.
 
 ---
 
+## ULTIMATE load output with a per-case factor of safety (complete)
+
+**Objective.** The suite emitted LIMIT loads everywhere, so downstream structural
+sizing (the sbeam FORCE/MOMENT export and the load-case CSV) consumed limit loads
+where it needed ULTIMATE, producing spurious sizing failures. Report ultimate =
+limit × factor of safety and state the factor, keeping the factor **per-case** (14
+CFR 25.302 / Appendix K make it failure-probability-dependent).
+
+**Deliverables.**
+- `constants.ULTIMATE_FACTOR = 1.5` (14 CFR 25.303) and a per-case
+  `ConditionResult.safety_factor` (default 1.5).
+- `report.py`: a unit-gated `_is_load_unit` classifier scales only force/moment/
+  pressure quantities; `load_cases_to_rows` (new `SF` column, `ULT`-marked headers),
+  `results_to_rows`, `text_report` and `module_text_report` now report ultimate.
+- `export/sbeam_bridge.py`: wing/body/tail/control-surface FORCE/MOMENT cards,
+  span-load CSVs and closure comments scaled to ultimate (`_SF`).
+- `reference/14CFR_factor_of_safety.md` documenting the FS basis.
+- Docs synced: `PROGRAM_SPEC.md`, `PROJECT_GUIDE.md §5`, `theory_sources.md`,
+  `01_concept_loads_plan.md` (C4), `CHANGELOG.md`.
+
+**Test / Acceptance.** Calc oracle tests unchanged (assert on the calc's LIMIT
+`run()` results). Render/export tests updated to ultimate: `test_report.py` adds
+ultimate-value + `SF`-column + locations-unscaled asserts; `test_io.py` checks the
+`SF`/`ULT` header; `test_sbeam_bridge.py` closure now sums to 1.5 × root/total. Full
+suite green (254 passing); `ruff` clean.
+
+**Key decisions.** (1) Apply the factor at the **render/export boundary only** — the
+calc stays oracle-locked, so Appendix A/B regressions are unaffected. (2) Factor is
+**per-case** (the hook for a future 25.302/Appendix K probability curve), but every
+case is **1.5** today, including **sudden engine stoppage** (held conservative; the
+1.0 relief floor is reserved for failures substantiated at ≤1e-9/flt-hr). (3) Scaling
+is **unit-gated** so weights/inertias/geometry/load-factors are never scaled, which
+makes "all rendered output → ultimate" safe for the mass-properties modules that share
+the renderers.
+
+---
+
 ## Reduced the FAR 25 supplement to the non-duplicative cases (complete)
 
 **Objective.** After the AC 23-19A correction factored the FAR 23 takeoff case, the

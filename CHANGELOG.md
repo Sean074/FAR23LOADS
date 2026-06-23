@@ -11,6 +11,22 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- **Rendered/exported loads are now ULTIMATE (= limit × factor of safety).** The
+  calc still emits LIMIT loads (oracle-locked to the manual), but `report.py` and
+  `export/sbeam_bridge.py` now multiply the load quantities (forces/moments/
+  pressures — never geometry, weights, inertias, or dimensionless load factors) by a
+  per-case factor of safety to report ultimate = limit × 1.5 (14 CFR 25.303). New
+  `constants.ULTIMATE_FACTOR = 1.5` and `ConditionResult.safety_factor` (default
+  1.5); the field is per-case so a future 14 CFR 25.302 / Appendix K probability-
+  based factor (1.0–1.5) can be assigned to a failure case — sudden engine stoppage
+  is held at the conservative 1.5 for now. The load-case CSV gains an `SF` column and
+  marks the force/moment headers `ULT`; the sbeam FORCE/MOMENT cards, span-load CSVs
+  and closure comments are ultimate (the set still sums to 1.5 × the root/total).
+  Reference: `reference/14CFR_factor_of_safety.md`. Calc oracle tests unchanged;
+  render/export tests (`test_report.py`, `test_io.py`, `test_sbeam_bridge.py`) updated
+  to ultimate.
+
+
 - **GUI restructured into the four-phase workflow (Define → Analyze → Review →
   Export).** `app/Home.py` is now an `st.navigation` entry point that builds the
   phase-grouped sidebar from the new `farloads/workflow.py` — the ordered,

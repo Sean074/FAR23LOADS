@@ -11,6 +11,15 @@ import math
 # Acceleration of gravity used throughout the original program (slug conversion).
 G = 32.174  # ft / s^2
 
+# Factor of safety used to turn the calc's LIMIT loads into the ULTIMATE loads the
+# rendered output / structural-sizing export reports (14 CFR 25.303: ultimate =
+# 1.5 x limit unless otherwise specified). This is the DEFAULT for the per-case
+# ConditionResult.safety_factor; it is applied only at the render/export boundary
+# so the calc stays oracle-locked to McMaster's printed LIMIT figures. A future
+# 14 CFR 25.302 / Appendix K refinement may give a failure case a probability-
+# interpolated factor (1.0-1.5); sudden engine stoppage is held at 1.5 for now.
+ULTIMATE_FACTOR = 1.5
+
 # Decision 3 ("modernize the math"): the original ENGLOADS.BAS used the literal
 # 3.1416 for pi; we use math.pi instead. This shifts the manual's worked-example
 # figures in roughly the 6th significant digit, so the regression tests compare

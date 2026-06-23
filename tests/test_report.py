@@ -64,6 +64,39 @@ def test_blank_cells_for_inapplicable_loads():
     assert s[side] != ""
 
 
+def _limit(results, far, label):
+    """The calc's LIMIT value for a labelled quantity of one condition."""
+    cond = next(c for c in results if c.far_reference == far)
+    return next(v.value for v in cond.values if v.label == label)
+
+
+def test_loads_are_ultimate_with_sf_column():
+    # The CSV reports ULTIMATE = limit x 1.5; the SF column states the factor and the
+    # force/moment headers carry the ULT marker (14 CFR 25.303).
+    results = run_all(io520bb())
+    rows = load_cases_to_rows(results)
+    vert = _col(rows, "Vertical load")
+    assert "ULT" in vert
+    a2 = next(r for r in rows if r["FAR"] == "23.361(a)(2)")
+    assert a2["SF"] == "1.5"
+    limit_vert = _limit(results, "23.361(a)(2)", "Vertical down load")
+    # rel_tol matches the 4-significant-figure display formatting of the CSV cell.
+    import math
+    assert math.isclose(float(a2[vert]), 1.5 * limit_vert, rel_tol=1e-3)
+    # Limit is recoverable from ultimate / SF.
+    assert math.isclose(float(a2[vert]) / float(a2["SF"]), limit_vert, rel_tol=1e-3)
+
+
+def test_locations_are_not_scaled():
+    # Geometry (the applied-at location) must stay limit/unscaled.
+    results = run_all(io520bb())
+    rows = load_cases_to_rows(results)
+    lx = _col(rows, "Loc X")
+    limit_x = _limit(results, "23.361(a)(2)", "Applied at X")
+    a2 = next(r for r in rows if r["FAR"] == "23.361(a)(2)")
+    assert abs(float(a2[lx]) - limit_x) < 1e-6
+
+
 if __name__ == "__main__":
     import traceback
 

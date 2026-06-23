@@ -72,17 +72,21 @@ def _parse_cards(text):
 # --------------------------------------------------------------------------- #
 # Nodal-load closure (the core guarantee)
 # --------------------------------------------------------------------------- #
+# The bridge exports ULTIMATE loads (limit x SF); closure holds against SF x root.
+_SF = sb._SF
+
+
 def test_nodal_loads_sum_to_root_totals():
     for r in _wing_net(_GA):
         nodes = sb.wing_nodal_loads(r)
         root = r.stations[0]
         y0 = nodes[0].y
-        assert math.isclose(sum(n.fz for n in nodes), root.sz, rel_tol=1e-9, abs_tol=1e-6)
-        assert math.isclose(sum(n.fx for n in nodes), root.sx, rel_tol=1e-9, abs_tol=1e-6)
-        assert math.isclose(sum(n.my for n in nodes), root.myy, rel_tol=1e-9, abs_tol=1e-3)
+        assert math.isclose(sum(n.fz for n in nodes), root.sz * _SF, rel_tol=1e-9, abs_tol=1e-6)
+        assert math.isclose(sum(n.fx for n in nodes), root.sx * _SF, rel_tol=1e-9, abs_tol=1e-6)
+        assert math.isclose(sum(n.my for n in nodes), root.myy * _SF, rel_tol=1e-9, abs_tol=1e-3)
         # Bending = FORCE moments about the root strip (exact under the WINGINER quadrature).
-        assert math.isclose(sum(n.fz * (n.y - y0) for n in nodes), root.mxx, rel_tol=1e-6, abs_tol=1.0)
-        assert math.isclose(sum(n.fx * (n.y - y0) for n in nodes), root.mzz, rel_tol=1e-6, abs_tol=1.0)
+        assert math.isclose(sum(n.fz * (n.y - y0) for n in nodes), root.mxx * _SF, rel_tol=1e-6, abs_tol=1.0)
+        assert math.isclose(sum(n.fx * (n.y - y0) for n in nodes), root.mzz * _SF, rel_tol=1e-6, abs_tol=1.0)
 
 
 def test_concept_closure():
@@ -90,8 +94,8 @@ def test_concept_closure():
     assert results
     for r in results:
         nodes = sb.wing_nodal_loads(r)
-        assert math.isclose(sum(n.fz for n in nodes), r.stations[0].sz, rel_tol=1e-9, abs_tol=1e-6)
-        assert math.isclose(sum(n.my for n in nodes), r.stations[0].myy, rel_tol=1e-9, abs_tol=1e-3)
+        assert math.isclose(sum(n.fz for n in nodes), r.stations[0].sz * _SF, rel_tol=1e-9, abs_tol=1e-6)
+        assert math.isclose(sum(n.my for n in nodes), r.stations[0].myy * _SF, rel_tol=1e-9, abs_tol=1e-3)
 
 
 # --------------------------------------------------------------------------- #
@@ -108,9 +112,9 @@ def test_force_moment_cards_round_trip():
         fz = sum(scale * v[2] for _, scale, v in forces[sid])
         fx = sum(scale * v[0] for _, scale, v in forces[sid])
         my = sum(scale * v[1] for _, scale, v in moments[sid])
-        assert math.isclose(fz, r.stations[0].sz, rel_tol=1e-4, abs_tol=1.0)
-        assert math.isclose(fx, r.stations[0].sx, rel_tol=1e-4, abs_tol=1.0)
-        assert math.isclose(my, r.stations[0].myy, rel_tol=1e-4, abs_tol=1.0)
+        assert math.isclose(fz, r.stations[0].sz * _SF, rel_tol=1e-4, abs_tol=1.0)
+        assert math.isclose(fx, r.stations[0].sx * _SF, rel_tol=1e-4, abs_tol=1.0)
+        assert math.isclose(my, r.stations[0].myy * _SF, rel_tol=1e-4, abs_tol=1.0)
 
 
 def test_force_moment_card_format():
@@ -231,7 +235,7 @@ def test_control_surface_force_closure():
     assert results
     for r in results:
         forces = sb._control_nodal_forces(r)
-        assert math.isclose(sum(forces), r.load_lb, rel_tol=1e-6, abs_tol=1e-6), r.case
+        assert math.isclose(sum(forces), r.load_lb * _SF, rel_tol=1e-6, abs_tol=1e-6), r.case
     cards = sb.control_surface_force_moment_cards(results)
     assert "FORCE" in cards
     assert sb.control_surface_csv(results).startswith("Surface,Case,GID")
