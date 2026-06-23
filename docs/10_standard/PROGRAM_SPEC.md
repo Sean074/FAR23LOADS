@@ -34,7 +34,7 @@ and in Appendix C, so the build targets all 22:
   (Ch 8 "Assumption", Ch 9). Run after FLTLOADS. The *pipeline* balancing loads
   live in FLTLOADS (approximate CP) and are refined rationally in **SELECT**.
 - **`TAU.BAS`** (Appendix C p407; `TAU.EXE` in UG Table 2.1) — lift-curve-slope
-  correction helper; folds into `airloads.py` as planned. Not a menu module.
+  correction helper; folded into `airloads.py` (the `_tau` helper). Not a menu module.
 
 ## Module → User's Guide section map
 
@@ -111,10 +111,9 @@ calc's LIMIT values when **explicitly marked `LIMIT`** (`flap_loads`, `tab_loads
 - **Notes:** Empty/takeoff weight ratio `K = 0.62` with adjustments (UG Table 3.1: multiengine +0.01, liquid-cooled +0.01, super/turbocharged +0.01, turboprop −0.05, pressurized +0.02, one-seat −0.04); `W_TO = W_use/(1−K)`. Component weights as %-of-TO-weight (UG Table 3.2). 170 lb/seat. Engine types: 4-cycle recip, 2-cycle recip, turbocharged, turboprop, liquid-cooled. FAR 23.25(b) minimum-weight rule (crew @ 170 lb + ½ hr fuel at max-continuous; turbojets 5% fuel capacity). **Feeds WTONECG *and* WTENV — they are parallel siblings off WTESTIMA, sharing one weight database; neither feeds the other.** As a UI convenience, `estimate_to_mass_items(inp)` expands the estimate's structure/powerplant/systems components (plus options/miscellaneous) into empty-weight `MassItem` rows — skipping the group totals and the propeller already inside "Engine installed" — to seed that shared database; the Weight Estimate page's "Seed Weight, CG & Inertia" button writes them to `Project.weight.items` with stations/inertias left at zero. The page also overlays the estimate's MTOW/OEW on a reference fleet (log-log Plotly scatter) loaded from `app/data/reference_aircraft.csv` — nominal published specs for visual sanity-checking only, never read by any calc. **Concept mode (Step C0):** the `K=0.62` regression is GA-calibrated and out of band above 12,500 lb, so in concept mode (`Project.is_concept`) WTESTIMA is flagged as a sanity-only estimate and the design weight comes from the **direct-weight path** `WeightInput.direct_totals()` — MTOW/OEW/useful summed straight from the itemized `MassItem` database by kind.
 
 ### WTENV — Weight vs CG envelope
-> **Status: deferred to Phase 2.** WTENV's structural-CG limits need `XLEMAC`/`MAC`,
-> which `WINGGEOM` owns, so it is ported alongside `WINGGEOM` (reading them from
-> `Project.geometry`) rather than via an interim direct input. Its Streamlit page
-> renders the envelope as a chart + tables.
+WTENV's structural-CG limits need `XLEMAC`/`MAC`, which `WINGGEOM` owns, so it
+reads them from `Project.geometry`. Its Streamlit page renders the envelope as a
+chart + tables.
 - **FAR §:** 23.23 (load distribution), 23.25.
 - **Source:** Ch 3, `WTENV.BAS`.
 - **Reads:** `Project.weight` (component weights & stations), structural CG limits (fwd/aft gross, fwd-regardless), wing geometry (XLEMAC, MAC).
@@ -126,10 +125,10 @@ calc's LIMIT values when **explicitly marked `LIMIT`** (`flap_loads`, `tab_loads
 - **FAR §:** 23.21/23.23; provides masses & inertias for dynamic/gyroscopic conditions.
 - **Source:** Ch 4, `WTONECG.BAS`.
 - **Reads:** `Project.weight` items (component weights + x,y,z locations). Computed at the **4 CG locations** of the structural-limits diagram (aft gross, fwd gross, most-fwd reduced, minimum weight) — ×2 (gear up/down) for retractable gear, so up to 8 loadings, not one.
-- **Writes:** total weight, CG (x,y,z), and mass moments of inertia (Ixx, Iyy, Izz, products), output in **both slug-ft² and lb-in²**. *(Conceptually `→ Project.mass`; see Phase 1 note.)*
+- **Writes:** total weight, CG (x,y,z), and mass moments of inertia (Ixx, Iyy, Izz, products), output in **both slug-ft² and lb-in²** → `Project.mass`.
 - **Validation:** Appendix A/B — CG and inertia for the example loadings.
 - **Notes:** Per UG Table 2.2 / §4.5 the outputs split: **weight & CG → FLTLOADS, LANDLOAD**; **inertia → SELECT, ONENGOUT** (maneuver/gust balancing and unbalanced landing). Component inertia = transfer (parallel-axis) of each item about the airplane CG. Conceptually the same machinery as the engine/rotor inertia in `engloads`, at airplane scale — but ENGLOADS does **not** read `Project.mass` (it is standalone, UG Table 2.2).
-- **Phase 1 implementation notes:** modules stay pure (`run → ModuleResult`); there is **no persisted `Project.mass` slice yet** — it is introduced when a consumer (FLTLOADS/LANDLOAD) lands. `WTESTIMA`/`WTONECG` results are a **property table**, so they render via `report.results_to_rows` / `module_text_report` (not the engine-specific `load_cases_to_rows`). The UI offers an SI **output** toggle: a weight is pounds-*mass* and converts to kg, distinguished from a pounds-*force* load (→ N) by `LoadValue.quantity="mass"`; inertia (slug-ft²/lb-in²) → kg·m², CG positions in→mm, angle (deg) unchanged. Inputs are entered in Imperial. See `units.py`.
+- **Implementation notes:** modules stay pure (`run → ModuleResult`); the persisted `Project.mass` slice (added at Step C6 with SELECT/LANDLOAD) holds the weight/CG/inertia results. `WTESTIMA`/`WTONECG` results are a **property table**, so they render via `report.results_to_rows` / `module_text_report` (not the engine-specific `load_cases_to_rows`). The UI offers an SI **output** toggle: a weight is pounds-*mass* and converts to kg, distinguished from a pounds-*force* load (→ N) by `LoadValue.quantity="mass"`; inertia (slug-ft²/lb-in²) → kg·m², CG positions in→mm, angle (deg) unchanged. Inputs are entered in Imperial. See `units.py`.
 
 ---
 
@@ -175,34 +174,34 @@ calc's LIMIT values when **explicitly marked `LIMIT`** (`flap_loads`, `tab_loads
 - **Source:** Ch 7, `AIRLOADS.BAS` (low speed); Ch 12, `AIRLOAD4.BAS` (sweepback, high Mach) — both in `modules/airloads.py`, the swept branch auto-selected by `use_airload4` when 25%-chord sweep > 15° or design Mach > 0.4.
 - **Module:** `modules/airloads.py` (registers `"airloads"`).
 - **Reads:** `Project.geometry` (wing planform polylines & strip count) + `Project.aero` (`AeroSurfaceInput`: section slope `mo`, taper/tip ratio for TAU, spanwise `twist` table, `target_cl`, and the C7 `sweep_deg` / `design_mach` AIRLOAD4 triggers).
-- **Writes:** the spanwise additive + basic + combined `c·cl` distribution (the `SpanwiseTable`) returned as a `ModuleResult`. The persisted `Project.aero.spanwise` result field is added when a consumer (FLTLOADS, C2) needs it.
+- **Writes:** the spanwise additive + basic + combined `c·cl` distribution (the `SpanwiseTable`) returned as a `ModuleResult`, carried on the persisted `Project.aero.spanwise` field.
 - **Validation:** Appendix A spanwise tables (additive `CC(LA1)`/`C(LA1)`, basic `Awo`/`CC(lb)`/`Clb`, p161-162) within ±0.1%; concept closure (integrated `∫c·cl dy` recovers the target CL). AIRLOAD4: reduction invariant (sweep 0 / low Mach ≡ AIRLOADS exactly) + swept-redistribution closure; the printed Appendix B swept spanwise oracle is deferred to a mini-step (no legible swept fixture).
-- **Notes:** Schrenk additional-lift method (average of planform-chord and elliptic distributions). Per UG Table 2.2 AIRLOADS↔SELECT is **iterative** (SELECT names the critical conditions, AIRLOADS computes airloads at them); the shared model must allow a module to both read and write the critical-load set — wired when SELECT lands (C6). The basic-distribution cosine fairing across a flap/aileron discontinuity (p47) is deferred (deflected-flap case only).
+- **Notes:** Schrenk additional-lift method (average of planform-chord and elliptic distributions). Per UG Table 2.2 AIRLOADS↔SELECT is **iterative** (SELECT names the critical conditions, AIRLOADS computes airloads at them); the shared model lets a module both read and write the critical-load set (wired with SELECT). The basic-distribution cosine fairing across a flap/aileron discontinuity (p47) is deferred (deflected-flap case only).
 
 ### FLTLOADS — Flight envelope (V-n) **+ balancing tail loads**
 - **FAR §:** 23.333 (flight envelope), 23.337, 23.341 (gust), 23.345 (flaps), 23.421+ (balancing/horizontal tail loads), 23.423.
 - **Source:** Ch 8, `FLTLOADS.BAS`. UG Table 2.1: *"Balancing calculations for flight envelope."*
 - **Reads:** `Project.speeds` (STRSPEED — VA/VC/VD/VF, MC/MD and the limit load factors via the shared `_maneuver_load_factors`) and a new **`Project.flight_loads`** input slice (`FlightLoadsInput`): the geometry scalars `mac`/`wing_area_sqft`/`xw`/`zw`/`xtc`/`xtf`, the reference Mach `mn`, the altitude list, the airplane-*less-tail* aero-coefficient polynomials per configuration (`AeroCoeffSet`: CL(α), CD(CL), CM(α) + stall CLs) and the four weight-CG cases (`CgCase`). **As built (C2):** the aero polynomials come from the Ch 7 aero-coefficients program and are entered as input (AIRLOADS/C1 does not yet emit them); the CG cases are entered explicitly (seeding them from `Project.weight.envelope`/WTENV is a later refinement), so the original data-flow's `Project.mass` read is not needed for the balance.
-- **Writes:** the full balanced V-n matrix (one `VnPoint` per condition × CG × altitude: V, NZ, α, G, CL, M(W+F), LZW, **LT**, DX) and the balancing tail load per point → **`Project.envelope`** (`EnvelopeResult.vn` + `.tail_balance`). The pure entry point is `flight_envelope.build_envelope(project) → EnvelopeResult`; `run(project)` returns the per-point `ModuleResult`. Persisting the result into `Project.envelope` is wired when a consumer lands (SELECT, C6 — mirrors the `aero.spanwise` precedent).
+- **Writes:** the full balanced V-n matrix (one `VnPoint` per condition × CG × altitude: V, NZ, α, G, CL, M(W+F), LZW, **LT**, DX) and the balancing tail load per point → **`Project.envelope`** (`EnvelopeResult.vn` + `.tail_balance`), consumed by SELECT. The pure entry point is `flight_envelope.build_envelope(project) → EnvelopeResult`; `run(project)` returns the per-point `ModuleResult`.
 - **Validation:** Appendix A "V-n Data" p179-180 — the cruise balanced matrix per CG case. The AoA balance converges NZ only to ±0.005 (FLTLOADS.BAS line 4130), so low-load-factor quantities carry ~0.5% noise; LT and the corner speeds/load factors match tightly.
-- **Notes:** Graphics: the V-n diagram. Faithful port of FLTLOADS.BAS subroutine **3900** (iterate AoA to the required load factor, then dynamic pressure to the Mach-adjusted stall line; Glauert compressibility `G/Gmn`; CLmax-vs-Mach curve) and **4864** (gust load factor, FAR 23.341). Balancing tail load `LT = [M(W+F) + LZ·(Xcg−Xw) − DX·(Zcg−Zw)]/(XT−Xcg)` with *approximate* tail CP (`XTC`≈5% tail MAC flaps-up, `XTF`≈25% flaps-down; Ch 8 "Assumption"). **Scope (C2):** the **cruise** maneuver+gust corner set (20 conditions, lines 1000-1594); the flapped LANDING/ENROUTE envelopes share the balance engine and drop in later. SELECT (C6) refines the CP rationally; `BALLOADS.BAS` independently verifies it. Produces the candidate conditions SELECT then prunes; feeds SELECT and WINGINER (UG Table 2.2). FLTLOADS uses its own speed-of-sound constant (518.688 vs the shared `standard_atmosphere`'s 518.4), replicated locally for oracle fidelity.
+- **Notes:** Graphics: the V-n diagram. Faithful port of FLTLOADS.BAS subroutine **3900** (iterate AoA to the required load factor, then dynamic pressure to the Mach-adjusted stall line; Glauert compressibility `G/Gmn`; CLmax-vs-Mach curve) and **4864** (gust load factor, FAR 23.341). Balancing tail load `LT = [M(W+F) + LZ·(Xcg−Xw) − DX·(Zcg−Zw)]/(XT−Xcg)` with *approximate* tail CP (`XTC`≈5% tail MAC flaps-up, `XTF`≈25% flaps-down; Ch 8 "Assumption"). Covers the **cruise** maneuver+gust corner set (20 conditions, lines 1000-1594) plus the flapped LANDING/ENROUTE corner set (added with SELECT, C6); both share the balance engine. SELECT refines the CP rationally; `BALLOADS.BAS` independently verifies it. Produces the candidate conditions SELECT then prunes; feeds SELECT and WINGINER (UG Table 2.2). FLTLOADS uses its own speed-of-sound constant (518.688 vs the shared `standard_atmosphere`'s 518.4), replicated locally for oracle fidelity.
 
 ### SELECT — Critical load selection
-> **Status: built (Step C6)** (`modules/select.py`, registers `"select"`).
-> Oracle-locked against the Appendix A loads report (±0.1% + FLTLOADS' ~0.5% V-n
-> noise): (1) the **wing** search (PHAA/PLAA/PMAA/NMAA + accelerated-roll + steady-
-> roll TORS), (2) the **horizontal-tail** loads — balancing (23.421), unchecked/
-> checked maneuver (23.423), gust (23.425(a)(1)/(2)) and unsymmetrical (23.427(a)),
-> flaps retracted **and extended** (the exact SELECT.BAS subr-10000 large-deflection
-> factor `EF(δ,Se/St)`), (3) the **vertical-tail** loads (23.441(a)(1)/(2)/(3),
-> 23.443(b)), and (4) the **fuselage** critical conditions (23.301/23.331). The
-> fuselage *net distribution* (Ch 15) lives in `modules/body_loads.py`. Inputs come
-> from `Project.tail_loads`/`vtail_loads`/`select_input`/`fuselage_mass`. **Known
-> limits** (recorded in the backlog): the flaps-extended path is closure-validated
-> (the landing-config aero + CG5–7 fixtures needed for the *printed* oracle are not
-> in the repo); the v-tail rudder `EFV≈1.0` is an input (illegible chart); SELECT's
-> checked-maneuver `Iyy` / v-tail `IZZ` use the Ch 9 approximations (which match the
-> oracle) rather than the now-persisted `Project.mass`.
+`modules/select.py` (registers `"select"`). Oracle-locked against the Appendix A
+loads report (±0.1% + FLTLOADS' ~0.5% V-n noise): (1) the **wing** search
+(PHAA/PLAA/PMAA/NMAA + accelerated-roll + steady-roll TORS), (2) the
+**horizontal-tail** loads — balancing (23.421), unchecked/checked maneuver
+(23.423), gust (23.425(a)(1)/(2)) and unsymmetrical (23.427(a)), flaps retracted
+**and extended** (the exact SELECT.BAS subr-10000 large-deflection factor
+`EF(δ,Se/St)`), (3) the **vertical-tail** loads (23.441(a)(1)/(2)/(3), 23.443(b)),
+and (4) the **fuselage** critical conditions (23.301/23.331). The fuselage *net
+distribution* (Ch 15) lives in `modules/body_loads.py`. Inputs come from
+`Project.tail_loads`/`vtail_loads`/`select_input`/`fuselage_mass`. **Known limits**
+(see backlog): the flaps-extended path is closure-validated (the landing-config
+aero + CG5–7 fixtures needed for the *printed* oracle are not in the repo); the
+v-tail rudder `EFV≈1.0` is an input (illegible chart); SELECT's checked-maneuver
+`Iyy` / v-tail `IZZ` use the Ch 9 approximations (which match the oracle) rather
+than the persisted `Project.mass`.
 - **FAR §:** 23.301 critical-load determination across the envelope.
 - **Source:** Ch 9, `SELECT.BAS`.
 - **Reads:** `Project.mass` (WTONECG inertia), `Project.geometry` (WINGGEOM), `Project.envelope.vn` (FLTLOADS); plus AIRLOADS/AIRLOAD4 spanwise airloads. Run once per component (wing, fuselage, htail, vtail).
@@ -231,7 +230,7 @@ calc's LIMIT values when **explicitly marked `LIMIT`** (`flap_loads`, `tab_loads
 ### WINGINER — Wing inertia loads
 - **FAR §:** 23.301(b)/(d) inertia relief.
 - **Source:** Ch 13, `WINGINER.BAS`.
-- **Reads:** a new **`Project.wing_mass`** input slice (`WingMassInput`): outboard panel weight, tip/root area-density ratio, inboard rib butt line, wing-reference-plane waterline + dihedral, concentrated wing masses, and the critical `WingLoadCase` list. The per-case `Nz`/`Nx` come straight from the FLTLOADS `envelope.vn` point (the C3-before-SELECT bridge — `Nz = −NZ`, `Nx = −DX/W`) when not given explicitly; plus `Project.geometry.<surface>`. (The original `envelope.critical`/`Project.mass` reads are deferred to SELECT, C6.)
+- **Reads:** the **`Project.wing_mass`** input slice (`WingMassInput`): outboard panel weight, tip/root area-density ratio, inboard rib butt line, wing-reference-plane waterline + dihedral, concentrated wing masses, and the critical `WingLoadCase` list. The per-case `Nz`/`Nx` come straight from the FLTLOADS `envelope.vn` point (`Nz = −NZ`, `Nx = −DX/W`) when not given explicitly; plus `Project.geometry.<surface>`.
 - **Writes:** the spanwise wing inertia distribution per case → **`Project.loads.wing_inertia`** (one `WingLoadResult` of `WingStationLoad` each). Pure entry `wing_inertia.build_wing_inertia(project)`.
 - **Validation:** Appendix A "Wing Inertia Loads" p217-221 — root/tip density 2.213/2.102 lb/ft²; unit vertical/drag/roll and the combined case 138 (Nz −2.54 Nx −0.1318: root Mxx −41041, Myy +11161).
 - **Notes:** The panel mass is a linearly-tapered area density iterated to the entered panel weight; strips inboard of the rib carry no panel mass; concentrated weights add spanwise steps to the shears/moments. Subtracted from the air load in NETLOADS.
@@ -242,7 +241,7 @@ calc's LIMIT values when **explicitly marked `LIMIT`** (`flap_loads`, `tab_loads
 - **Reads:** `Project.wing_mass`, `Project.geometry.<surface>`, `Project.aero.<surface>` (and `Project.envelope.vn` for the per-case CL/V/Nz/Nx). Combines the AIRLOADS air-load distribution and the WINGINER inertia distribution.
 - **Writes:** the net spanwise shear, bending moment and torsion along the 25% chord → **`Project.loads.wing_net`** (+ the air/inertia distributions in `Project.loads`) + a one-row-per-station CSV (`net_loads.wing_load_rows`). Pure entry `net_loads.build_net_loads(project)`.
 - **Validation:** Appendix A "Net Loads, Case 22 PHAA" p222 (root Sz +5837, Mxx +455555, Myy -60940, Mzz -81483) — exact algebraic sum of the air (p206) and inertia distributions.
-- **Notes:** A primary structural deliverable (root shear/BM/torsion). **Scope (C3):** the wing; full fidelity (all of Fx/Fz/Sx/Sz/Mxx/Myy/Mzz). SELECT (C6) will select the governing cases automatically; here they are supplied as `WingLoadCase`s referencing the V-n matrix.
+- **Notes:** A primary structural deliverable (root shear/BM/torsion), wing only, full fidelity (all of Fx/Fz/Sx/Sz/Mxx/Myy/Mzz). SELECT selects the governing cases; NETLOADS also accepts them supplied directly as `WingLoadCase`s referencing the V-n matrix.
 
 ### AILERON — Aileron loads (built, Step C8)
 - **FAR §:** 23.349 (rolling), 23.455 (aileron), CAM 3.222.
@@ -279,7 +278,7 @@ calc's LIMIT values when **explicitly marked `LIMIT`** (`flap_loads`, `tab_loads
 
 ### ENGLOADS — Engine mount loads ✅ DONE
 - **FAR §:** 23.361(a)(1)/(a)(2)/(a)(3), 23.361(b)(1), 23.363, 23.371(b).
-- **Source:** Ch 19, `ENGLOADS.BAS`. Implemented in `engloads/` (becomes `farloads/modules/engine.py`).
+- **Source:** Ch 19, `ENGLOADS.BAS`. Implemented in `farloads/modules/engine.py` (the original `engloads/` port).
 - **Reads:** `Project.engine` (engine/prop weight, CG, diameter, RPM, HP/torque, rotor list, optional measured polar inertia), `Project.weight` load factor.
 - **Writes:** the 3 (recip) / 6 (turboprop) FAR conditions; load-case CSV (one row per case, gyro 23.371(b) expands to 4 sign-combination cases).
 - **Validation:** Appendix A (Continental IO-520-BB) and Appendix B (turboprop gyro), ±0.1% per Decision 3 — **except** the (a)(1) takeoff torque, see the approved correction below.

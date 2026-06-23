@@ -7,13 +7,14 @@ file** for input and **per-module CSV** load-case output.
 
 The suite is **22 GW/QBasic programs** (reference 1, Appendix C) that together
 compute the FAR Part 23 Subpart C structural loads for an airplane under 12,500
-lb. **13 are ported today** (through Phase-C Step C6) plus two modern modules
-(`configuration`, `body_loads`); the remaining 9 and the step-by-step plan are in
-[`../30_future/00_backlog.md`](../30_future/00_backlog.md). This guide covers the
-architecture and the dependency order that grew the original `engloads/`
-engine-mount port into the present suite. The project is being grown beyond a
-faithful ≤12,500 lb replication into an **initial-concept distributed-loads tool**
-(Phase C) — see [`../30_future/01_concept_loads_plan.md`](../30_future/01_concept_loads_plan.md).
+lb. **All 22 are ported today** (through Phase-C Step C11) plus two modern modules
+(`configuration`, `body_loads`); the live backlog is deferred refinements and open
+decisions, in [`../30_future/00_backlog.md`](../30_future/00_backlog.md). This
+guide covers the architecture and the dependency order that grew the original
+`engloads/` engine-mount port into the present suite. The project is being grown
+beyond a faithful ≤12,500 lb replication into an **initial-concept
+distributed-loads tool** (Phase C) — see
+[`../30_future/01_concept_loads_plan.md`](../30_future/01_concept_loads_plan.md).
 
 ### Source documents (two — both in the repo, keep them distinct)
 
@@ -51,28 +52,21 @@ These were chosen up front; the rest of the document follows from them.
 | 3 | **Math fidelity** | **Modernize the math** (`math.pi`, accurate constants, clean equations). | The manual's printed figures become **tolerance-based** regression checks, *not* exact oracles. See §6 — this changes how `engloads` is validated today. |
 | 4 | **Scope** | **Full-suite roadmap** — spec all 22 programs now, build in dependency order. | This guide + `PROGRAM_SPEC.md` cover every program; implementation is phased (§7). |
 
-### ⚠️ Decision 3 has a cost worth re-confirming
+### Decision 3 — the escape hatch
 
-`engloads` currently reproduces the manual to the last decimal (it deliberately
-keeps `PI = 3.1416` and asserts e.g. takeoff torque `554.3884 ft-lb` exactly).
-"Modernize the math" means:
-
-- switching to `math.pi` shifts those figures in the 4th–5th significant digit;
-- the exact-match tests must be relaxed to engineering tolerances (recommended
-  **±0.1%**, or per-quantity absolute tolerances where the manual rounds);
-- the manual's Appendix A/B example reports remain the regression oracle, just
-  compared with tolerance instead of equality.
-
-This is recorded as accepted. If exact manual reproduction is later required for
-certification traceability, it is a one-line constant change per module plus
-tightening the tolerances — so keep constants centralized (§4) to preserve that
-escape hatch.
+The math is modernized (`math.pi`, clean equations), so the manual's Appendix A/B
+figures are tolerance-based regression oracles (±0.1%), not exact. If exact manual
+reproduction is ever required for certification traceability, it is a one-line
+constant change per module plus tightening the tolerances — so constants stay
+centralized in `constants.py` (§4) to preserve that escape hatch. (The Phase-0
+relaxation that switched `PI = 3.1416` → `math.pi` is recorded in
+[`../40_history/00_completed_development.md`](../40_history/00_completed_development.md).)
 
 ---
 
 ## 2. What the suite does (program inventory)
 
-22 programs (20 FAA menu modules + the `TAU` and `BALLOADS` utilities), grouped by role. "Status" marks the one already ported.
+22 programs (20 FAA menu modules + the `TAU` and `BALLOADS` utilities), grouped by role. "Status" marks the porting phase; all 22 are now done.
 
 ### Mass properties
 | Program | Purpose | Status |
@@ -109,9 +103,9 @@ escape hatch.
 | `NETLOADS` | Net wing loads (airload + inertia) | **done** (C3) |
 | `ENGLOADS` | Engine mount loads | **done** ✅ (Phase 0) |
 | `TAILDIST` | Chordwise load distribution (tail) | **done** (C7) |
-| `AILERON` | Aileron loads | planned (C8) |
-| `FLAPLOAD` | Flap loads | planned (C8) |
-| `TABLOADS` | Tab loads | planned (C8) |
+| `AILERON` | Aileron loads | **done** (C8) |
+| `FLAPLOAD` | Flap loads | **done** (C8) |
+| `TABLOADS` | Tab loads | **done** (C8) |
 | `ONENGOUT` | One-engine-out loads (multi-engine turboprop) | ✅ done (C9) |
 | `LGFACTOR` | Estimate landing load factor | ✅ done (C10) |
 | `LANDLOAD` | Landing loads | ✅ done (C10) |
@@ -222,10 +216,13 @@ FAR23LOADS/
 │   ├── test_units.py, test_report.py, test_io.py
 │   └── test_<module>.py          # one per module, vs manual Appendix A/B
 ├── examples/
-│   ├── ga6_normal.project.json   # Appendix A — 6-place GA single
-│   └── concept_heavy.project.json  # 18,000 lb concept commuter twin (concept mode)
-│   # (an Appendix B twin_turboprop.project.json is a backlog item; the engine
-│   #  module's Appendix-B turboprop case is currently inline in tests/test_engine.py)
+│   ├── ga6_normal.project.json   # Appendix A — 6-place GA single (category N)
+│   ├── cessna_210.project.json   # a second GA single (category N)
+│   ├── concept_heavy.project.json  # 18,000 lb concept commuter twin (concept mode, category C)
+│   └── dhc8_dash8.project.json   # Dash-8 twin turboprop (concept mode, category C)
+│   # (a dedicated Appendix B twin_turboprop.project.json is still a backlog item;
+│   #  the engine module's Appendix-B turboprop case is currently inline in
+│   #  tests/test_engine.py)
 ├── docs/                         # organised by type — see docs/00_INDEX.md
 │   ├── 00_INDEX.md
 │   ├── 10_standard/              # PROJECT_GUIDE.md (this file), PROGRAM_SPEC.md, process guides
@@ -238,16 +235,9 @@ FAR23LOADS/
 └── README.md
 ```
 
-### Migration of `engloads` (mechanical, low-risk)
-1. `engloads/engloads/` → `farloads/`. Keep `calc.py` as `farloads/modules/engine.py` (or keep the name; update imports).
-2. `engloads/app.py` → `app/views/engine_mount.py`; add a thin `app/Home.py` (the `st.navigation` entry point).
-3. Tests move under top-level `tests/`; rename `test_calc.py` → `test_engine.py`.
-4. Introduce `models.Project` and make `EngineInput` a *view* over the engine slice of `Project` (or keep `EngineInput` and have `Project.engine: EngineInput`). The second is less churn — recommended.
-5. Add `farloads/io.py` and `registry.py`. ENGLOADS registers itself; "run all" iterates the registry.
-
-Do the restructure as **step 0** of Phase 1, with the engine module as the proof
-that the new package + JSON + CSV + tests all still pass before adding any new
-program.
+> The `engloads` → `farloads` restructure (Phase 0) is complete; the migration
+> record is in
+> [`../40_history/00_completed_development.md`](../40_history/00_completed_development.md).
 
 ---
 
@@ -255,7 +245,7 @@ program.
 
 So that every module is copy-of-the-pattern, these are fixed once:
 
-- **Pure calc, no I/O.** Each module exposes `run(project: Project) -> ModuleResult`. No Streamlit, no file access inside calc. (engloads already does this.)
+- **Pure calc, no I/O.** Each module exposes `run(project: Project) -> ModuleResult`. No Streamlit, no file access inside calc.
 - **Read shared, write own.** A module reads upstream fields from `Project` and returns results; it must not silently recompute an upstream quantity that another module owns.
 - **Results are labelled values.** Reuse the existing `LoadValue(label, value, units)` / `ConditionResult` types so `report.py`, the units layer and the CSV writer work unchanged for every module. A `ConditionResult` also carries `safety_factor` (default `constants.ULTIMATE_FACTOR = 1.5`, 14 CFR 25.303) — see below.
 - **Calc is LIMIT; ALL output is ULTIMATE.** Modules return **limit** loads (the oracle figures), so the Appendix A/B regressions are unaffected — but nothing that leaves the calc may report a bare limit load. `report.py` and `export/sbeam_bridge.py` multiply the **load** quantities (forces/moments/pressures, never geometry/weights/inertias/load factors) by the case `safety_factor` to report **ultimate = limit × 1.5**. The `ULT` marker is part of the units string (force `lbs-ULT`/`N-ULT`, moment `ft-lb-ULT`/`lb-in-ULT`/`Nm-ULT`, pressure `lb/in^2-ULT`), and **every case states its SF** (default 1.5 per 14 CFR 23.303; Part 25 equivalent 25.303). The per-case field is the hook for a future 14 CFR 23.302/25.302 / Appendix K probability-based factor (1.0–1.5); for now every case is 1.5 (incl. sudden engine stoppage). A value already at ultimate is **`ULT SF=1.0`**. See `reference/14CFR_factor_of_safety.md`.
@@ -286,11 +276,6 @@ Strategy:
 2. For each module, assert its `run(project)` matches the corresponding Appendix figures **within tolerance** (recommended ±0.1%; widen only where the manual visibly rounds an intermediate).
 3. Keep the comparison values in the test as the manual's *printed* numbers, with a comment citing the page — so drift is loud and traceable.
 4. CI/locally: `pytest tests/` runs every module against both airplanes.
-
-> Action item from Decision 3: when migrating `engloads`, relax its current
-> exact-equality asserts to the ±0.1% tolerance and switch `constants.PI` to
-> `math.pi`. Do this in the same PR so the change in figures is reviewed in one
-> place.
 
 ---
 
@@ -354,7 +339,7 @@ actually took, and it is now complete.
 
 ```bash
 pip install -e '.[dev]'          # editable install + dev tools (pytest, ruff)
-streamlit run app/Home.py        # the multi-page UI (after Phase 0)
+streamlit run app/Home.py        # the multi-page UI
 python cli.py engine examples/ga6_normal.project.json -o engine_loads.csv
 pytest                           # the green-build gate
 ruff check farloads/ cli.py      # lint
