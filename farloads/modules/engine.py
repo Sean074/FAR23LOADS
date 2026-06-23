@@ -214,10 +214,28 @@ def condition_363(inp: EngineInput) -> ConditionResult:
 
 
 def condition_361_a3(inp: EngineInput) -> ConditionResult:
-    """FAR 23.361(a)(3): turboprop propeller control malfunction (turboprop only)."""
+    """FAR 23.361(a)(3): turboprop propeller control malfunction (turboprop only).
+
+    **Approved correction (AC 23-19A).** Paragraph (a)(3) is *"a limit engine
+    torque corresponding to takeoff power and propeller speed, multiplied by a
+    factor accounting for propeller control system malfunction"* (1.6 absent a
+    rational analysis). That base "limit engine torque corresponding to takeoff
+    power and propeller speed" is the same quantity as (a)(1), and 23.361(c)
+    directs the mean-torque factor (1.25 turbopropeller) onto *all* limit engine
+    torques considered under paragraph (a). The design torque is therefore
+    ``1.6 x 1.25 x mean takeoff torque`` (= 2.0 x mean). Amendment 23-26 omitted
+    the (c) factor here, a non-conservative drafting error (lower loads) that
+    Amendment 23-45 restored; AC 23-19A directs applying it regardless of
+    certification basis. McMaster's manual / ``ENGLOADS.BAS`` (``TTP=1.6*ENGTORQ``)
+    encode the pre-23-45 form (1.6 x mean only), so this is an approved, documented
+    deviation from the oracle -- the same correction already applied to
+    ``condition_361_a1`` (see CLAUDE.md "Approved corrections to the source").
+    """
     ppwt = combined_weight(inp)
     cg = combined_cg(inp)
-    torque = TURBOPROP_MALFUNCTION_FACTOR * inp.max_engine_torque
+    factor = torque_factor(inp)  # 1.25 turbopropeller (23.361(c))
+    base_torque = inp.max_engine_torque  # mean takeoff torque
+    torque = TURBOPROP_MALFUNCTION_FACTOR * factor * base_torque
     vload = 1.0 * ppwt
     return ConditionResult(
         title="Turboprop propeller control malfunction",
@@ -228,8 +246,17 @@ def condition_361_a3(inp: EngineInput) -> ConditionResult:
             LoadValue("Applied at X", cg[0], "in"),
             LoadValue("Applied at Y", cg[1], "in"),
             LoadValue("Applied at Z", cg[2], "in"),
+            LoadValue("Torque factor", factor),
+            LoadValue("Malfunction factor", TURBOPROP_MALFUNCTION_FACTOR),
+            LoadValue("Mean takeoff torque", base_torque, "ft-lb"),
             LoadValue("Engine mount torque", -torque, "ft-lb"),
         ],
+        note=(
+            "Mean-torque factor (1.25) applied to the malfunction case per "
+            "AC 23-19A (23.361(c); Amdt 23-45 correction of the Amdt 23-26 "
+            "omission): torque = 1.6 x 1.25 x mean takeoff torque. McMaster's "
+            "manual / ENGLOADS.BAS leave this 1.25 factor off (1.6 x mean only)."
+        ),
     )
 
 

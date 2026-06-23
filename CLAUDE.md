@@ -245,6 +245,16 @@ replicate the manual exactly (warts and all). Record each correction here:
   takeoff case included. `condition_361_a1` now applies `factor x mean takeoff torque`
   (IO-520-BB → 737.34 ft-lb; turbopropeller → 1.25× mean, identical to
   25.361(a)(1)(i)). Source: `reference/AC_23-19A_engine_torque.md`.
+- **23.361(a)(3) turboprop-malfunction mean-torque factor** *(approved 2026-06-23)* —
+  the manual / `ENGLOADS.BAS` (`TTP=1.6*ENGTORQ`) apply only the 1.6 propeller-
+  control-malfunction factor, encoding the same **Amdt 23-26** omission. The (a)(3)
+  base "limit engine torque corresponding to takeoff power and propeller speed" is the
+  same quantity as (a)(1), so by the same **AC 23-19A** / 23.361(c) / **Amdt 23-45**
+  authority the 1.25 turbopropeller mean-torque factor applies before the 1.6 factor.
+  `condition_361_a3` now reports `1.6 x 1.25 x mean takeoff torque` (= 2.0× mean). No
+  printed Appendix B engine-mount oracle exists in the bundled PDF, so it is
+  formula-checked (`test_361_a3_applies_mean_torque_factor`). Source:
+  `reference/AC_23-19A_engine_torque.md`.
 
 ### Preserved engineering conventions
 

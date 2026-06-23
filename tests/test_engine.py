@@ -137,6 +137,22 @@ def test_measured_rotor_inertia_overrides_geometry():
     assert not math.isclose(geom, 0.5)  # the disk approximation differs
 
 
+def test_361_a3_applies_mean_torque_factor():
+    # Approved correction (AC 23-19A): 23.361(c) applies the 1.25 turbopropeller
+    # mean-torque factor to *all* of paragraph (a), so the malfunction torque is
+    # 1.6 x 1.25 x mean takeoff torque, not 1.6 x mean alone. The manual /
+    # ENGLOADS.BAS (TTP=1.6*ENGTORQ) encode the pre-Amdt-45 unfactored form:
+    #   manual:    1.6 x 1970          = 3152 ft-lb
+    #   corrected: 1.6 x 1.25 x 1970   = 3940 ft-lb
+    # See CLAUDE.md "Approved corrections to the source".
+    r = calc.condition_361_a3(turboprop())
+    assert math.isclose(_value(r, "Torque factor"), 1.25, abs_tol=1e-9)
+    assert math.isclose(_value(r, "Malfunction factor"), 1.6, abs_tol=1e-9)
+    assert math.isclose(_value(r, "Mean takeoff torque"), 1970, abs_tol=1e-9)
+    assert math.isclose(_value(r, "Engine mount torque"), -3940, rel_tol=TOL)
+    assert math.isclose(_value(r, "Vertical down load"), 450, abs_tol=1e-9)  # 1g x PPWT
+
+
 def test_gyro_thrust_matches_manual():
     # Manual: THRUST = 1970 * 230.38 / 101.2 = 4484.7 lb
     r = calc.condition_371_b(turboprop())

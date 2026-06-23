@@ -109,6 +109,16 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   documented deviation from the Appendix A oracle** (CLAUDE.md "Approved corrections
   to the source"); `test_361_a1` asserts the corrected value and retains 554.39 as
   the mean-torque figure. Source text: `reference/AC_23-19A_engine_torque.md`.
+- **Corrected FAR 23.361(a)(3) turboprop-malfunction torque (AC 23-19A).** The
+  propeller-control-malfunction mount torque is now `1.6 × 1.25 × mean takeoff
+  torque` (= 2.0× mean), where the original program (`TTP=1.6*ENGTORQ`) and
+  McMaster's manual applied only the 1.6 factor. The (a)(3) base limit takeoff
+  torque is the same quantity as (a)(1), so 23.361(c)'s 1.25 turbopropeller
+  mean-torque factor applies before the 1.6 — the same **Amendment 23-26** omission
+  / **Amendment 23-45** restoration as the (a)(1) correction above. A **user-approved,
+  documented deviation** (CLAUDE.md "Approved corrections to the source"); no printed
+  Appendix B engine-mount oracle exists, so it is formula-checked in
+  `test_361_a3_applies_mean_torque_factor`. Source: `reference/AC_23-19A_engine_torque.md`.
 
 ### Added
 
