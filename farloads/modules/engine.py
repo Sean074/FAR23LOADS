@@ -125,14 +125,30 @@ def _rotor_inertia(rotor: Rotor) -> float:
 # --------------------------------------------------------------------------- #
 
 def condition_361_a1(inp: EngineInput) -> ConditionResult:
-    """FAR 23.361(a)(1): limit takeoff torque + 75% limit maneuver vertical load."""
+    """FAR 23.361(a)(1): limit takeoff torque + 75% limit maneuver vertical load.
+
+    **Approved correction (AC 23-19A).** 23.361(c) directs the mean-torque factor
+    to be applied to the limit engine torque considered under *all* of paragraph
+    (a) -- this takeoff case included -- so the design torque is
+    ``factor x mean takeoff torque`` (the same factor as (a)(2)). Amendment 23-26
+    omitted the factor here, a non-conservative drafting error that yields lower
+    loads; Amendment 23-45 restored it, and AC 23-19A directs applying it
+    regardless of certification basis. McMaster's manual encodes the pre-23-45
+    *unfactored* form (Appendix A prints 554.39 ft-lb for the IO-520-BB); this
+    suite applies the correction (737.34 ft-lb) -- an approved, documented
+    deviation from the oracle (see CLAUDE.md "Approved corrections to the source").
+    For a turbopropeller the result (1.25 x mean takeoff torque) is identical to
+    25.361(a)(1)(i).
+    """
     ppwt = combined_weight(inp)
     cg = combined_cg(inp)
     n75 = 0.75 * inp.limit_load_factor
     vload = n75 * ppwt
-    torque = inp.max_engine_torque if inp.is_turboprop else takeoff_torque(inp)
+    factor = torque_factor(inp)
+    base_torque = inp.max_engine_torque if inp.is_turboprop else takeoff_torque(inp)
+    torque = factor * base_torque
     return ConditionResult(
-        title="Limit takeoff torque with 75% limit maneuver vertical load factor",
+        title="Limit takeoff torque (factor x mean) with 75% limit maneuver vertical load factor",
         far_reference="23.361(a)(1)",
         values=[
             LoadValue("Vertical load factor", n75),
@@ -140,8 +156,15 @@ def condition_361_a1(inp: EngineInput) -> ConditionResult:
             LoadValue("Applied at X", cg[0], "in"),
             LoadValue("Applied at Y", cg[1], "in"),
             LoadValue("Applied at Z", cg[2], "in"),
+            LoadValue("Torque factor", factor),
+            LoadValue("Mean takeoff torque", base_torque, "ft-lb"),
             LoadValue("Engine mount torque", -torque, "ft-lb"),
         ],
+        note=(
+            "Mean-torque factor applied to the takeoff case per AC 23-19A "
+            "(23.361(c); Amdt 23-45 correction of the Amdt 23-26 omission). "
+            "McMaster's manual leaves this case unfactored (554.39 ft-lb)."
+        ),
     )
 
 
@@ -332,9 +355,10 @@ def _stoppage_torque(inp: EngineInput):
 def condition_25_361_a1i(inp: EngineInput) -> ConditionResult:
     """FAR 25.361(a)(1)(i): 1.25 x mean takeoff torque + 75% limit vertical load.
 
-    Unlike FAR 23.361(a)(1) (no torque factor), 25.361(a)(2)(i) applies the 1.25
-    turbopropeller factor to the takeoff case too -- so this torque is 1.25x the
-    FAR 23 takeoff value.
+    25.361(a)(2)(i) applies the 1.25 turbopropeller factor to the takeoff case.
+    With the AC 23-19A correction to 23.361(a)(1) (which also factors the takeoff
+    torque), this coincides with the corrected FAR 23 takeoff case for a
+    turbopropeller; it remains a distinct FAR 25 line for traceability.
     """
     ppwt = combined_weight(inp)
     cg = combined_cg(inp)
@@ -569,7 +593,7 @@ def run(project: Project) -> ModuleResult:
     single = len(project.engines) == 1
     conditions: List[ConditionResult] = []
     for i, eng in enumerate(project.engines, start=1):
-        for cond in run_all(eng):
+        for cond in run_all(eng, include_far25=project.include_far25):
             if not single:
                 tag = eng.engine_designation or f"engine {i}"
                 cond = ConditionResult(

@@ -185,6 +185,27 @@ printed numbers (keep the printed number + a page citation in the test so drift 
 traceable). Use exact equality only for integer/dimensionless quantities. Keep
 constants in `constants.py` so reverting this decision stays a one-file change.
 
+### Approved corrections to the source (oracle deviations)
+
+The FAR23 replication core is oracle-locked to McMaster's manual, **but the manual
+and its `.BAS` source may themselves contain errors** (e.g. encoding a regulation
+that was later found defective). A deliberate deviation from the oracle is allowed
+**only when it is (1) approved by the user and (2) documented** — in the calc
+docstring + a `note` on the affected `ConditionResult`, in the test (assert the
+corrected value, keep the manual's original figure in a comment for traceability),
+in `PROGRAM_SPEC.md` / `docs/20_theory/00_theory_sources.md`, in `CHANGELOG.md`, and
+cited to an authoritative reference in `reference/`. Until both conditions are met,
+replicate the manual exactly (warts and all). Record each correction here:
+
+- **23.361(a)(1) takeoff-torque factor** *(approved 2026-06-22)* — the manual leaves
+  the takeoff-case engine torque **unfactored** (Appendix A prints 554.39 ft-lb for
+  the IO-520-BB), encoding the **Amendment 23-26** drafting error. **AC 23-19A**
+  states that error was non-conservative (lower loads) and corrected by **Amendment
+  23-45**: 23.361(c) applies the mean-torque factor to *all* of paragraph (a),
+  takeoff case included. `condition_361_a1` now applies `factor x mean takeoff torque`
+  (IO-520-BB → 737.34 ft-lb; turbopropeller → 1.25× mean, identical to
+  25.361(a)(1)(i)). Source: `reference/AC_23-19A_engine_torque.md`.
+
 ### Preserved engineering conventions
 
 From the original ENGLOADS: engine-mount reaction torque is reported **negative**;

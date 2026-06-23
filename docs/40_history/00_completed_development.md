@@ -10,6 +10,79 @@ Acceptance**, **Key decisions**.
 
 ---
 
+## Correction — FAR 23.361(a)(1) takeoff-torque factor (AC 23-19A) (complete)
+
+**Objective.** Correct a non-conservative error inherited from the original
+ENGLOADS.BAS / McMaster manual: the 23.361(a)(1) takeoff-case engine torque was left
+**unfactored**, encoding the **Amendment 23-26** drafting error that **AC 23-19A**
+identifies (it "failed to require the multiplying factor," yielding lower loads) and
+that **Amendment 23-45** corrected — 23.361(c) applies the mean-torque factor to all
+of paragraph (a).
+
+**Deliverables.**
+- `condition_361_a1` now applies `factor × mean takeoff torque` (`torque_factor`,
+  i.e. 1.25 turboprop / 1.33·2·3·4 by cylinder), echoes the torque factor + mean
+  takeoff torque, and carries an explanatory `note`. IO-520-BB takeoff mount torque
+  554.39 → **737.34 ft-lb**; turbopropeller → 1.25× mean takeoff = identical to
+  25.361(a)(1)(i).
+- `reference/AC_23-19A_engine_torque.md` — verbatim AC 23-19A policy + corroborating
+  2013 CFR text (the citable basis).
+- CLAUDE.md gains an **"Approved corrections to the source"** policy (deviations from
+  the oracle allowed only when user-approved *and* documented) with this correction
+  recorded; PROGRAM_SPEC, theory sources, CHANGELOG updated.
+
+**Test / Acceptance.** `test_361_a1` asserts the corrected −737.34 ft-lb (and retains
+554.39 as the "mean takeoff torque" figure for traceability);
+`test_far23_corrected_takeoff_equals_far25_for_turboprop` asserts the turboprop
+takeoff case now coincides with 25.361(a)(1)(i). Full suite green (`ruff` clean,
+`pytest` 255 passing).
+
+**Key decisions.** Approved as a documented deviation from the Appendix A oracle (the
+manual reproduces a rule the FAA declared defective). The replication charter is
+preserved for everything else; the manual's original figure is retained in the test
+as the unfactored mean torque so the deviation stays traceable.
+
+---
+
+## Optional FAR 25 engine cases — concept superset (complete)
+
+**Objective.** Let the engine-mount module emit the **14 CFR 25.361 / 25.371**
+engine-torque cases as an *additive, opt-in* superset on top of the oracle-locked
+FAR 23 set, for the concept-loads direction — without altering FAR 23 output or its
+appendix regression.
+
+**Deliverables.**
+- `Project.include_far25` (default `False`) + optional `EngineInput.max_accel_torque`
+  (ft-lb; blank → `max_engine_torque`); both round-trip through `io.py`, and
+  `max_accel_torque` is unit-converted in `units.to_imperial`.
+- `farloads/modules/engine.py`: six new turbopropeller-only conditions —
+  `condition_25_361_a1i/_a1ii/_a1iii/_a3i/_a3ii` and `condition_25_371` — assembled
+  by `run_far25(inp)` and appended by `run_all(inp, include_far25=...)` /
+  `run(project)`. The FAR 23 functions are untouched (oracle lock preserved by
+  construction). 25.371 reuses the fixed FAR 23.371(b) rates (2.5/1.0 rad/s) as a
+  conservative concept stand-in for the maneuver-derived rates the rule references,
+  with the vertical load on the A2 limit load factor.
+- GUI: an **"Add FAR 25 cases"** sidebar checkbox + a FAR-25-only max-accel-torque
+  input on `app/views/engine_mount.py`.
+- `reference/14CFR_Part25_engine_torque.md` — verbatim 25.361 + 25.371 source text
+  (user-supplied from eCFR), the citable basis for the equations.
+
+**Test / Acceptance.** `tests/test_engine_far25.py` (+13) — formula-closure (no
+Part-25 oracle exists): FAR 23 unchanged when off; recip/jet emit nothing; the 1.25
+factor applied to takeoff (a)(1)(i) = 1.25× the FAR 23 takeoff torque; max-accel
+default + override; 25.371 on A2 load factor; `Project.include_far25` JSON round-trip.
+Full suite green (`ruff check farloads/ cli.py` clean, `pytest` 255 passing); GUI
+`AppTest` shows six FAR 25 expanders on a turboprop with no exception.
+
+**Key decisions.** Turbopropeller scope only — 25.361(a)(2) defines a factor only for
+turbopropeller (1.25) and "other turbine engines" (= max accelerating torque), is
+silent on recip, and the tool's mass/gyro math is propeller-centric. Conservative
+fixed-rate gyro stand-in accepted for initial-concept use (valid while the concept's
+real pitch/yaw rates stay ≤ 1 / 2.5 rad/s), flagged in the condition note and the
+reference file as an assumption to revisit with real maneuver analysis.
+
+---
+
 ## GUI — workflow-phased restructure (complete)
 
 **Objective.** Reorganise the Streamlit UI to mirror the engineering workflow —

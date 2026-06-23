@@ -53,8 +53,36 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   now uses `engines=[...]` + `EngineLayout.SINGLE_NOSE`. Caught by the new view
   smoke test.
 
+### Changed
+
+- **Corrected FAR 23.361(a)(1) takeoff torque (AC 23-19A).** The takeoff-case engine
+  mount torque is now `factor × mean takeoff torque` (the same cylinder/turboprop
+  factor as (a)(2)), where the original program and McMaster's manual left it
+  **unfactored**. Per **AC 23-19A**, the unfactored form is the **Amendment 23-26**
+  drafting error (non-conservative, lower loads), corrected by **Amendment 23-45**:
+  23.361(c) applies the factor to all of paragraph (a). For the IO-520-BB the
+  takeoff mount torque changes 554.39 → **737.34 ft-lb**; for a turbopropeller it
+  becomes 1.25× mean takeoff, identical to 25.361(a)(1)(i). This is a **user-approved,
+  documented deviation from the Appendix A oracle** (CLAUDE.md "Approved corrections
+  to the source"); `test_361_a1` asserts the corrected value and retains 554.39 as
+  the mean-torque figure. Source text: `reference/AC_23-19A_engine_torque.md`.
+
 ### Added
 
+- **Optional FAR 25 engine cases (concept superset).** `Project.include_far25`
+  (default off) appends the **14 CFR 25.361 / 25.371** engine-mount cases on top of
+  the oracle-locked FAR 23 set, for **turbopropeller** engines: 25.361(a)(1)(i)
+  `1.25×takeoff torque @ 0.75n`, (a)(1)(ii) `1.25×max-cont torque @ 1.0n`,
+  (a)(1)(iii) `1.6×takeoff @ 1g`, (a)(3)(i) stoppage `@ 1g`, (a)(3)(ii) max-accel
+  torque `@ 1g`, and 25.371 gyroscopic. The 1.25 factor now applies to the takeoff
+  case too (FAR 23 had none there). 25.371 reuses the fixed FAR 23.371(b) rates
+  (2.5/1.0 rad/s) as a conservative concept stand-in for the maneuver-derived rates,
+  with the vertical load on the A2 limit load factor. New optional input
+  `EngineInput.max_accel_torque` (blank → `max_engine_torque`); recip/jet engines get
+  no FAR 25 cases. The engine-mount GUI gains an **"Add FAR 25 cases"** checkbox.
+  FAR 23 output is byte-identical when off. Source text in
+  `reference/14CFR_Part25_engine_torque.md`; formula-closure tested
+  (`tests/test_engine_far25.py`, +13). No oracle exists for Part 25.
 - **Balanced-tail-load verification — BALLOADS (Step C11).** New
   `modules/balloads.py` (registers `"balloads"`): the off-pipeline cross-check of
   `BALLOADS.BAS` (Reference 1 Ch 8–9). For every flaps-retracted V-n condition it

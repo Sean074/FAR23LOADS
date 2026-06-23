@@ -59,10 +59,17 @@ def test_derived_quantities():
 
 
 def test_361_a1():
+    # Approved correction (AC 23-19A): 23.361(c) applies the mean-torque factor to
+    # the takeoff case too (1.33 for the 6-cyl IO-520-BB). The manual's printed p131
+    # figure is the pre-Amdt-45 UNFACTORED value (554.3884, asserted below as the
+    # mean torque); the corrected design torque is 1.33 x 554.3884 = 737.34 ft-lb.
+    # Vertical loads are unchanged. See CLAUDE.md "Approved corrections to the source".
     r = calc.condition_361_a1(io520bb())
     assert math.isclose(_value(r, "Vertical load factor"), 2.85, abs_tol=1e-9)
     assert math.isclose(_value(r, "Vertical down load"), 1650.15, rel_tol=TOL)
-    assert math.isclose(_value(r, "Engine mount torque"), -554.3884, rel_tol=TOL)
+    assert math.isclose(_value(r, "Torque factor"), 1.33, abs_tol=1e-9)
+    assert math.isclose(_value(r, "Mean takeoff torque"), 554.3884, rel_tol=TOL)
+    assert math.isclose(_value(r, "Engine mount torque"), -737.337, rel_tol=TOL)
 
 
 def test_361_a2():

@@ -157,6 +157,25 @@ with st.sidebar:
     )
     is_turbo = engine_type == EngineType.TURBOPROP
 
+    st.header("Certification basis")
+    include_far25 = st.checkbox(
+        "Add FAR 25 cases (optional)",
+        value=st.session_state.get("include_far25", False),
+        key="include_far25",
+        help=(
+            "Keeps every FAR 23 case and appends the optional 14 CFR 25.361 / "
+            "25.371 engine-torque cases on top (turbopropeller engines only). The "
+            "FAR 23 results are unchanged. Gyroscopic loads use the conservative "
+            "fixed FAR 23.371(b) rates as an initial-concept stand-in for the "
+            "25.371 maneuver-derived rates."
+        ),
+    )
+    if include_far25:
+        st.caption(
+            "FAR 25 cases apply to turbopropeller engines only; recip/jet "
+            "installations show the FAR 23 set unchanged."
+        )
+
 # --------------------------------------------------------------------------- #
 # Inputs (for the selected engine)
 # --------------------------------------------------------------------------- #
@@ -187,6 +206,7 @@ with c3:
 # Type-specific inputs
 takeoff_hp = max_cont_hp = cylinders = None
 max_engine_torque = cruise_torque = hub_weight_lb = stop_time_s = None
+max_accel_torque = None
 prop_inertia = None
 rotors: list[Rotor] = []
 
@@ -209,6 +229,19 @@ else:
     with t3:
         stop_time_s = st.number_input("Sudden-stoppage time, s", value=cur.stop_time_s or 0.3, step=0.05,
                                       help="FAA usually accepts 0.3 s", key=k("dt", False))
+
+    if include_far25:
+        st.markdown("**FAR 25 only**")
+        f1, _ = st.columns([1, 2])
+        with f1:
+            max_accel_torque = st.number_input(
+                f"Max accelerating torque, {U['torque']}",
+                value=dflt(cur.max_accel_torque if cur.max_accel_torque is not None
+                           else (cur.max_engine_torque or 1970.0), "torque"),
+                step=10.0, key=k("accel_torq"),
+                help=("FAR 25.361(a)(3)(ii). Leave at the max engine torque if no "
+                      "separate accelerating-torque value is available."),
+            )
 
     st.markdown("**Propeller polar inertia**")
     p1, p2 = st.columns([1, 1])
@@ -315,6 +348,7 @@ inp_display = EngineInput(
     hub_weight_lb=hub_weight_lb,
     stop_time_s=stop_time_s,
     rotors=rotors,
+    max_accel_torque=max_accel_torque,
 )
 inp = to_imperial(inp_display, system)
 engines[idx] = inp  # keep the canonical store current
@@ -326,7 +360,10 @@ st.divider()
 st.subheader("Results")
 
 # All engines are validated together as a Project (count must match the layout).
-project = Project(name=engine_designation or "engine", engines=engines, engine_layout=layout)
+project = Project(
+    name=engine_designation or "engine", engines=engines, engine_layout=layout,
+    include_far25=include_far25,
+)
 
 show_all = st.checkbox(
     "Show all engines", value=False, disabled=(n_engines == 1),
@@ -338,7 +375,7 @@ try:
     if show_all and n_engines > 1:
         conditions = calc.run(project).conditions
     else:
-        conditions = run_all(inp)
+        conditions = run_all(inp, include_far25=include_far25)
 except Exception as exc:  # surface, don't crash
     st.error(f"Could not compute loads: {exc}")
     st.stop()

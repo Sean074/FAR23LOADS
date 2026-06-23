@@ -137,6 +137,7 @@ def to_imperial(inp: EngineInput, system: UnitSystem) -> EngineInput:
         prop_inertia=j(inp.prop_inertia),
         max_engine_torque=tq(inp.max_engine_torque),
         cruise_torque=tq(inp.cruise_torque),
+        max_accel_torque=tq(inp.max_accel_torque),
         takeoff_hp=p(inp.takeoff_hp),
         max_cont_hp=p(inp.max_cont_hp),
         rotors=rotors,

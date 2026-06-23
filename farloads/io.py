@@ -702,6 +702,7 @@ def project_from_dict(d: Dict[str, Any]) -> Project:
             landing=landing_from_dict(landing) if landing else None,
             loads=loads_from_dict(loads) if loads else None,
             configuration=configuration_from_dict(configuration) if configuration else None,
+            include_far25=bool(d.get("include_far25", False)),
         )
     # Legacy: the whole file is just the engine slice.
     return Project(name="", engines=[engine_from_dict(d)], engine_layout=EngineLayout.SINGLE_NOSE)
@@ -768,6 +769,8 @@ def project_to_dict(project: Project) -> Dict[str, Any]:
         out["loads"] = loads_to_dict(project.loads)
     if project.configuration is not None:
         out["configuration"] = configuration_to_dict(project.configuration)
+    if project.include_far25:
+        out["include_far25"] = True
     return out
 
 
