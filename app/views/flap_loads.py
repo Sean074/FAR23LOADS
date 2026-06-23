@@ -64,17 +64,22 @@ except (ValueError, ZeroDivisionError) as exc:
     st.stop()
 
 vals = {v.label: v.value for v in mod.conditions[0].values}
+st.caption(
+    "On-screen loads are **LIMIT** (oracle values, traceable to the manual). The "
+    "CSV / FORCE-card downloads below and the **Review/Export** pages report "
+    "**ULTIMATE** = limit × 1.5 (14 CFR 23.303)."
+)
 m1, m2, m3 = st.columns(3)
-m1.metric("Critical flap load (lb)", f"{vals['Critical flap load (23.345(a))']:,.0f}")
-m2.metric("LE pressure (lb/in²)", f"{vals['LE pressure (TE = half)']:.3f}")
-m3.metric("Combined w/ gust (lb)", f"{vals['Flap load combined w/ gust']:,.0f}")
+m1.metric("Critical flap load (lb, LIMIT)", f"{vals['Critical flap load (23.345(a))']:,.0f}")
+m2.metric("LE pressure (lb/in², LIMIT)", f"{vals['LE pressure (TE = half)']:.3f}")
+m3.metric("Combined w/ gust (lb, LIMIT)", f"{vals['Flap load combined w/ gust']:,.0f}")
 
 st.subheader("Flaps-extended envelope")
 labels = ["1G stall", "2G stall", "2G at VF", "gust at VF"]
 st.write(pd.DataFrame([
     {"Condition": lab,
      "Flap CL": round(vals[f"Flap CL {lab}"], 4),
-     "Flap load (lb)": round(vals[f"Flap load {lab}"], 1)}
+     "Flap load (lb, LIMIT)": round(vals[f"Flap load {lab}"], 1)}
     for lab in labels
 ]))
 

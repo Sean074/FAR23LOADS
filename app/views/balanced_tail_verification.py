@@ -46,22 +46,27 @@ if not rows:
     st.info("No flaps-retracted balanced V-n points to verify.")
     st.stop()
 
+st.caption(
+    "Balance-check tool: the loads shown are **LIMIT** (oracle values, traceable "
+    "to the manual). The deliverable **ULTIMATE** loads (= limit × 1.5, 14 CFR "
+    "23.303) come from the **Review/Export** pages."
+)
 up = max(rows, key=lambda r: r["LT"])
 dn = min(rows, key=lambda r: r["LT"])
 c1, c2 = st.columns(2)
-c1.metric("Largest UP balancing load LT", f"{up['LT']:.1f} lb", f"CP {up['CP']:.2f}% MAC")
-c2.metric("Largest DOWN balancing load LT", f"{dn['LT']:.1f} lb", f"CP {dn['CP']:.2f}% MAC")
+c1.metric("Largest UP balancing load LT (LIMIT)", f"{up['LT']:.1f} lb", f"CP {up['CP']:.2f}% MAC")
+c2.metric("Largest DOWN balancing load LT (LIMIT)", f"{dn['LT']:.1f} lb", f"CP {dn['CP']:.2f}% MAC")
 
 table = pd.DataFrame([{
     "Condition": r["point"].condition,
     "CG": r["point"].cg,
     "Alt (ft)": round(r["point"].altitude_ft),
     "V (kt EAS)": round(r["point"].v_eas_kt, 1),
-    "LT25 (cp 25%)": round(r["LT25"], 1),
-    "LT50 (cp 50%)": round(r["LT50"], 1),
+    "LT25 (cp 25%, LIMIT)": round(r["LT25"], 1),
+    "LT50 (cp 50%, LIMIT)": round(r["LT50"], 1),
     "Elevator δ (deg)": round(r["DELTA"], 2),
-    "Elevator load (lb)": round(r["ELEV"], 1),
-    "Total LT (lb)": round(r["LT"], 1),
+    "Elevator load (lb, LIMIT)": round(r["ELEV"], 1),
+    "Total LT (lb, LIMIT)": round(r["LT"], 1),
     "Rational CP (% MAC)": round(r["CP"], 2),
     "Rational XT (in)": round(r["XT"], 2),
     "Approx XTC (in)": round(r["XTC"], 2),

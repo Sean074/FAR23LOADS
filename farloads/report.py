@@ -51,6 +51,32 @@ def _is_load_unit(units: str, quantity: str = "") -> bool:
     return units in _LOAD_UNITS
 
 
+# The ULTIMATE-marked units string for each load unit. All load output is ULTIMATE,
+# so the ``-ULT`` marker is part of the load's units string (lbs-ULT, Nm-ULT, ...) --
+# "limit vs. ultimate" is treated as a property of the unit, like lb vs. N. See
+# CLAUDE.md "Ultimate-load output". Non-load quantities keep their plain units.
+_ULT_UNITS = {
+    "lb": "lbs-ULT",       # force (lbf)
+    "ft-lb": "ft-lb-ULT",  # moment / torque
+    "lb-in": "lb-in-ULT",  # moment
+    "lb/in^2": "lb/in^2-ULT",  # design pressure (psi)
+    "N": "N-ULT",          # SI force
+    "N·m": "Nm-ULT",       # SI moment
+}
+
+
+def _ult_units(units: str, quantity: str = "") -> str:
+    """The ULTIMATE-marked units string for a load; plain units pass through.
+
+    A load unit takes its ``-ULT`` marker (``lb`` -> ``lbs-ULT``, ``N·m`` ->
+    ``Nm-ULT``); a non-load quantity (weight, length, inertia, area, speed, angle,
+    dimensionless load factor) is returned unchanged.
+    """
+    if not _is_load_unit(units, quantity):
+        return units
+    return _ULT_UNITS.get(units, f"{units}-ULT")
+
+
 def _ult(value, units: str, quantity: str, sf: float):
     """Scale a single value to ultimate if its units mark it as a load; else pass through."""
     if value == "" or value is None:
@@ -62,9 +88,9 @@ def results_to_rows(results: List[ConditionResult]) -> List[Dict[str, str]]:
     """Flatten results into rows suitable for a dataframe/table.
 
     Load quantities (forces/moments/pressures) are reported as ULTIMATE = limit x
-    the case ``safety_factor`` and carry that factor in the ``SF`` column; non-load
-    quantities (weights, positions, inertias, load factors) pass through unscaled
-    with a blank ``SF``.
+    the case ``safety_factor``, carry the ``-ULT`` marker in their units string and
+    that factor in the ``SF`` column; non-load quantities (weights, positions,
+    inertias, load factors) pass through unscaled with plain units and a blank ``SF``.
     """
     rows: List[Dict[str, str]] = []
     for r in results:
@@ -77,7 +103,7 @@ def results_to_rows(results: List[ConditionResult]) -> List[Dict[str, str]]:
                     "Condition": r.title,
                     "Quantity": v.label,
                     "Value": _fmt(value),
-                    "Units": v.units,
+                    "Units": _ult_units(v.units, v.quantity),
                     "SF": _fmt(r.safety_factor) if is_load else "",
                 }
             )
@@ -199,21 +225,24 @@ def load_cases_to_rows(results: List[ConditionResult]) -> List[Dict[str, object]
     (Imperial or SI), shown in the column headers.
 
     Forces and moments are reported as ULTIMATE loads (= limit x the case
-    ``safety_factor``); the headers carry the ``ULT`` marker and the per-case factor
-    is in the ``SF`` column. Locations are geometry and are not scaled.
+    ``safety_factor``); the ``-ULT`` marker is part of the load's units string
+    (``lbs-ULT``/``Nm-ULT``/...) and the per-case factor is in the ``SF`` column.
+    Locations are geometry and are not scaled (plain units).
     """
     force_u = _detect_unit(results, set(_VERTICAL_LABELS) | {_SIDE_LABEL, _THRUST_LABEL}) or "lb"
     len_u = _detect_unit(results, set(_LOC_LABELS)) or "in"
     mom_u = _detect_unit(results, {_TORQUE_LABEL}) or _detect_moment_unit(results)
+    force_ult = _ult_units(force_u)
+    mom_ult = _ult_units(mom_u)
     g_loc = _global_location(results)
 
     c_id = f"Loc X ({len_u})", f"Loc Y ({len_u})", f"Loc Z ({len_u})"
-    c_vert = f"Vertical load ({force_u}) ULT"
-    c_side = f"Side load ({force_u}) ULT"
-    c_thr = f"Thrust ({force_u}) ULT"
-    c_roll = f"Engine mount torque ({mom_u}) ULT"
-    c_pitch = f"Pitch moment Myy ({mom_u}) ULT"
-    c_yaw = f"Yaw moment Mzz ({mom_u}) ULT"
+    c_vert = f"Vertical load ({force_ult})"
+    c_side = f"Side load ({force_ult})"
+    c_thr = f"Thrust ({force_ult})"
+    c_roll = f"Engine mount torque ({mom_ult})"
+    c_pitch = f"Pitch moment Myy ({mom_ult})"
+    c_yaw = f"Yaw moment Mzz ({mom_ult})"
 
     def row(idx, far, desc, loc, sf, *, fz="", fy="", fx="", mx="", my="", mz=""):
         x, y, z = loc
@@ -286,7 +315,8 @@ def module_text_report(title: str, results: List[ConditionResult]) -> str:
         lines.append(f"{r.title}")
         lines.append(f"  FAR {r.far_reference}   [ULTIMATE, SF={_fmt(r.safety_factor)}]")
         for v in r.values:
-            unit = f" {v.units}" if v.units else ""
+            unit_str = _ult_units(v.units, v.quantity)
+            unit = f" {unit_str}" if unit_str else ""
             value = _ult(v.value, v.units, v.quantity, r.safety_factor)
             lines.append(f"    {v.label:<38}{_fmt(value)}{unit}")
         if r.note:
@@ -321,7 +351,8 @@ def text_report(
         lines.append(f"{r.title}")
         lines.append(f"  FAR {r.far_reference}   [ULTIMATE, SF={_fmt(r.safety_factor)}]")
         for v in r.values:
-            unit = f" {v.units}" if v.units else ""
+            unit_str = _ult_units(v.units, v.quantity)
+            unit = f" {unit_str}" if unit_str else ""
             value = _ult(v.value, v.units, v.quantity, r.safety_factor)
             lines.append(f"    {v.label:<38}{_fmt(value)}{unit}")
         if r.note:

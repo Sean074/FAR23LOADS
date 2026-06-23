@@ -44,13 +44,14 @@ def test_every_row_has_a_location():
 
 
 def test_units_appear_in_headers():
+    # All load output is ULTIMATE: the -ULT marker is part of the load's units string.
     imp = load_cases_to_rows(run_all(io520bb()))
-    assert "(lb)" in _col(imp, "Vertical load")
-    assert "(ft-lb)" in _col(imp, "Engine mount torque")
+    assert "(lbs-ULT)" in _col(imp, "Vertical load")
+    assert "(ft-lb-ULT)" in _col(imp, "Engine mount torque")
 
     si = load_cases_to_rows(convert_results(run_all(io520bb()), UnitSystem.SI))
-    assert "(N)" in _col(si, "Vertical load")
-    assert "(N·m)" in _col(si, "Engine mount torque")
+    assert "(N-ULT)" in _col(si, "Vertical load")
+    assert "(Nm-ULT)" in _col(si, "Engine mount torque")
 
 
 def test_blank_cells_for_inapplicable_loads():

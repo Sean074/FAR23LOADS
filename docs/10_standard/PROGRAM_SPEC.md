@@ -76,15 +76,27 @@ Each module has a fixed template:
 `Project`" means those fields were produced by an upstream module or entered
 directly; a module never recomputes another module's owned quantity.
 
-**Limit vs. ultimate.** The calc emits **LIMIT** loads (the oracle figures the
-manual prints). The **rendered output and the sbeam export report ULTIMATE loads**
-= limit × the per-case factor of safety (`ConditionResult.safety_factor`, default
-1.5 per 14 CFR 25.303; see `reference/14CFR_factor_of_safety.md`). Scaling is applied
+**Limit vs. ultimate (ALL output is ULTIMATE).** The calc emits **LIMIT** loads (the
+oracle figures the manual prints), but **every load that leaves the calc is
+ULTIMATE** — no rendered table, text report, load-case CSV, or sbeam card may show a
+bare limit load. Ultimate = limit × the per-case factor of safety
+(`ConditionResult.safety_factor`, default **1.5 per 14 CFR 23.303**; the Part 25
+equivalent is 25.303; see `reference/14CFR_factor_of_safety.md`). Scaling is applied
 only at the render/export boundary, to force/moment/pressure quantities — never to
-geometry, weights, inertias, or (dimensionless) load factors. The load-case CSV marks
-the force/moment columns `ULT` and carries the factor in an `SF` column. The factor is
-per-case so a future 14 CFR 25.302 / Appendix K refinement can give a failure case a
-probability-interpolated value (1.0–1.5); sudden engine stoppage is held at 1.5.
+geometry, weights, inertias, or (dimensionless) load factors.
+
+The `ULT` marker is **part of the load's units string** — force `lbs-ULT` (SI
+`N-ULT`), moment `ft-lb-ULT` / `lb-in-ULT` (SI `Nm-ULT`), pressure `lb/in^2-ULT`
+(`psi-ULT`) — and the load-case CSV carries the factor in an `SF` column. **Every
+load case states its SF.** The factor is per-case so a future 14 CFR 23.302/25.302 /
+Appendix K refinement can give a failure case a probability-interpolated value
+(1.0–1.5); sudden engine stoppage is held at 1.5. A value already at ultimate (or an
+inherently-limit value reported as-ultimate with no amplification) is **`ULT
+SF=1.0`** — still ultimate output, not a limit load. **Scope:** this applies to
+every *deliverable* (the `report.py` tables/text, the load-case CSV, the sbeam
+export, the Review/Export pages); a per-module *analysis* page may instead show the
+calc's LIMIT values when **explicitly marked `LIMIT`** (`flap_loads`, `tab_loads`,
+`one_engine_out`, `balanced_tail_verification`).
 
 ---
 

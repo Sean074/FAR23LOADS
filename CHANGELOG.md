@@ -11,6 +11,33 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- **Per-module analysis pages now mark their on-screen LIMIT loads.** The
+  `flap_loads`, `tab_loads`, `one_engine_out` and `balanced_tail_verification`
+  Streamlit pages display the calc's LIMIT values (the oracle-traceable numbers);
+  each now carries a caption stating the on-screen loads are LIMIT and that the
+  CSV/FORCE-card downloads and Review/Export pages are ULTIMATE (= limit × 1.5), and
+  a `LIMIT` marker on every load column/metric. The mandate was scoped accordingly
+  (`CLAUDE.md`, `docs/10_standard/00_program_overview.md`): **all deliverable load
+  output is ULTIMATE**; a per-module analysis page may show explicitly-marked LIMIT
+  oracle values as the sole exception.
+- **The `ULT` marker is now part of the load's units string.** All rendered load
+  output (the load-case CSV headers, the `results_to_rows` `Units` column, and the
+  text reports) carries the marker inline — force `lbs-ULT`/`N-ULT`, moment
+  `ft-lb-ULT`/`lb-in-ULT`/`Nm-ULT`, pressure `lb/in^2-ULT` — replacing the previous
+  separate `ULT` suffix on the column header. `report.py` gains `_ult_units()`
+  (keyed off the existing load-unit detection), so non-load quantities (weights,
+  locations, inertias, dimensionless load factors) keep their plain units. The `SF`
+  column is unchanged; a case held at ultimate is `SF=1.0`. Render tests
+  (`test_report.py`) updated to the `-ULT` unit forms.
+- **Documented the ULTIMATE-output convention as a mandatory standard.** Codified in
+  `CLAUDE.md`, `docs/10_standard/00_program_overview.md`,
+  `docs/10_standard/PROGRAM_SPEC.md`, `docs/10_standard/PROJECT_GUIDE.md §5`,
+  `docs/20_theory/00_theory_sources.md` and `docs/30_future/01_concept_loads_plan.md`:
+  **all load output SHALL be ultimate**, the `ULT` marker is **part of the load's
+  units string** (`lbs-ULT`/`N-ULT`, `ft-lb-ULT`/`lb-in-ULT`/`Nm-ULT`,
+  `lb/in^2-ULT`), **every load case states its safety factor** (default 1.5 per 14
+  CFR 23.303; Part 25 equivalent 25.303), and a value already at ultimate is
+  **`ULT SF=1.0`**.
 - **Rendered/exported loads are now ULTIMATE (= limit × factor of safety).** The
   calc still emits LIMIT loads (oracle-locked to the manual), but `report.py` and
   `export/sbeam_bridge.py` now multiply the load quantities (forces/moments/

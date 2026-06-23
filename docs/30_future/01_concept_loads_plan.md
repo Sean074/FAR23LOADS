@@ -169,9 +169,12 @@ load set, proving the integration on the vertical slice.
 - a documented coordinate/units map (FAR23LOADS station-X / butt-Y / waterline-Z,
   inches → sbeam global CID 0).
 - **Ultimate loads.** All exported force/moment/pressure magnitudes are ULTIMATE
-  (NETLOADS limit × `constants.ULTIMATE_FACTOR` = 1.5, 14 CFR 25.303), since sbeam
-  sizes structure to ultimate; coordinates are not scaled. The uniform factor keeps
-  the closure guarantees intact (the set sums to 1.5 × the root/total).
+  (NETLOADS limit × `constants.ULTIMATE_FACTOR` = 1.5, 14 CFR 23.303; Part 25
+  equivalent 25.303), since sbeam sizes structure to ultimate; coordinates are not
+  scaled. The `ULT` marker is part of the units string (`lbs-ULT`/`Nm-ULT`/…) and
+  each card's load case carries its SF (`SF=1.0` when already at ultimate). The
+  uniform factor keeps the closure guarantees intact (the set sums to 1.5 × the
+  root/total).
 **Test/Acceptance.** Exported cards sum to 1.5 × the NETLOADS total Fz/My
 (force/moment closure at ultimate); the stick-model BDF parses and solves in sbeam
 without error; round-trip Fz matches within tolerance.

@@ -169,11 +169,51 @@ These are the contract that makes modules copy-of-the-pattern (see PROJECT_GUIDE
 - **Reuse the result types.** Emit `LoadValue`/`ConditionResult` so `report.py`,
   `units.py` and the CSV writer work unchanged. The CSV is always "one row per
   load case" via `load_cases_to_rows` — generalize it, don't reinvent per module.
+  Set the `ConditionResult.safety_factor` for every case (see **Ultimate-load
+  output** below).
 - **Self-register** at import (`register("name", run)`), and add the import to
   `farloads/modules/__init__.py`.
 - **Constants centralized** in `constants.py`.
 - **One manual-example test** per module under `tests/`, asserting `run(project)`
   against the Appendix A and/or B figures.
+
+### Ultimate-load output (mandatory)
+
+**All deliverable load output SHALL be ULTIMATE.** Every *deliverable* — the
+load-case CSV, the sbeam `FORCE`/`MOMENT` cards and span CSV, the shared
+`report.py` tables/text, and the Review/Export consolidation pages — reports
+ULTIMATE loads; none may emit a bare limit load. The internal calc stays **LIMIT**
+so the Appendix A/B oracles are unaffected (math fidelity above); the
+limit→ultimate factor is applied once, at the render/export boundary (`report.py`,
+`export/sbeam_bridge.py`), to load quantities only (forces/moments/pressures —
+never geometry, weights, inertias, areas, speeds, angles, or the dimensionless
+load factors).
+
+**Scope — per-module analysis pages may show LIMIT.** A per-module *analysis*
+Streamlit page (e.g. `flap_loads`, `tab_loads`, `one_engine_out`, the
+`balanced_tail_verification` check tool) may display the calc's **LIMIT** values —
+they are the oracle-traceable numbers an engineer cross-checks against the manual —
+**provided they are explicitly marked LIMIT** (a caption plus a `LIMIT` marker on
+each load column/metric) and the page points to the ultimate deliverables. This is
+the *only* exception; everything that is exported or consolidated is ultimate.
+
+The rules that make this unambiguous:
+
+- **The `ULT` marker is part of the load's units string.** A reported load
+  carries it inline: force `lbs-ULT` (SI `N-ULT`), moment/torque `ft-lb-ULT` /
+  `lb-in-ULT` (SI `Nm-ULT`), design pressure `lb/in^2-ULT` (`psi-ULT`). Treat
+  "limit vs. ultimate" as a property of the unit, exactly like lb vs. N.
+  Non-load quantities keep plain units with no `-ULT` suffix.
+- **Every load case SHALL state its safety factor.** Carry it on
+  `ConditionResult.safety_factor` and surface it in output (the `SF` column / an
+  `SF=` marker). The default is **1.5 per 14 CFR 23.303** (the Part 25 equivalent
+  is 25.303; see `reference/14CFR_factor_of_safety.md`). The per-case field is the
+  hook for a future 14 CFR 23.302/25.302 / Appendix K probability-based factor
+  (1.0–1.5) on failure conditions.
+- **A load already at ultimate is `ULT SF=1.0`.** When a case's printed/derived
+  value is itself the ultimate (or an inherently-limit quantity is reported
+  as-ultimate with no amplification), set `safety_factor = 1.0` — it is still
+  ULTIMATE output, marked `ULT SF=1.0`, not a limit load.
 
 ### Math fidelity (important, non-obvious)
 

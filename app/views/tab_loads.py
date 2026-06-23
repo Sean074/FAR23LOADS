@@ -76,13 +76,18 @@ except (ValueError, ZeroDivisionError) as exc:
     st.stop()
 
 st.subheader("Tab loads")
+st.caption(
+    "On-screen loads are **LIMIT** (oracle values, traceable to the manual). The "
+    "CSV / FORCE-card downloads below and the **Review/Export** pages report "
+    "**ULTIMATE** = limit × 1.5 (14 CFR 23.303)."
+)
 rows = []
 for cond in mod.conditions:
     v = {x.label: x.value for x in cond.values}
     rows.append({"Tab": cond.title, "E": round(v["Tab chord ratio E"], 4),
-                 "Load (lb)": round(v["Tab load"], 2),
-                 "LE psi": round(v["Tab LE pressure"], 4),
-                 "TE psi": round(v["Tab TE pressure"], 4)})
+                 "Load (lb, LIMIT)": round(v["Tab load"], 2),
+                 "LE psi (LIMIT)": round(v["Tab LE pressure"], 4),
+                 "TE psi (LIMIT)": round(v["Tab TE pressure"], 4)})
 st.write(pd.DataFrame(rows))
 
 if project.loads is not None:

@@ -146,6 +146,32 @@ its inputs yet. A new module SHALL follow it rather than returning an empty resu
 Calc always runs in Imperial; a sidebar toggle and `units.py` convert for display
 only. Saved `project.json` is always canonical Imperial.
 
+### Loads are ULTIMATE (mandatory)
+
+**All deliverable load output is ULTIMATE** — every force/moment/pressure in a
+deliverable (the `report.py` tables/text, the load-case CSV, the sbeam export, the
+Review/Export pages) is `ultimate = limit × SF`, never a bare limit load. The calc
+layer itself stays LIMIT (oracle-lock); the factor is applied once at the
+render/export boundary. **Exception:** a per-module *analysis* page may show the
+calc's LIMIT values (the oracle-traceable numbers) **only when explicitly marked
+`LIMIT`** — a caption plus a `LIMIT` marker on each load column/metric — and it
+points to the ultimate deliverables. Today that covers `flap_loads`, `tab_loads`,
+`one_engine_out` and the `balanced_tail_verification` check tool.
+
+| Load quantity | Imperial (canonical) | SI (presentation) |
+|---------------|----------------------|-------------------|
+| Force | lbs-ULT | N-ULT |
+| Moment / torque | ft-lb-ULT, lb-in-ULT | Nm-ULT |
+| Design pressure | lb/in²-ULT (psi-ULT) | — |
+
+The `-ULT` marker is treated as **part of the units string** (like lb vs. N).
+Every load case carries its **safety factor** (the `SF` column / an `SF=` marker),
+default **1.5 per 14 CFR 23.303** (Part 25 equivalent: 25.303). A quantity already
+at ultimate — or an inherently-limit value reported as-ultimate with no
+amplification — is `ULT SF=1.0`. Non-load quantities (weights, lengths, inertias,
+areas, speeds, angles, dimensionless load factors) are **not** scaled and carry
+plain units with no `-ULT` suffix.
+
 ---
 
 ## Entry points
