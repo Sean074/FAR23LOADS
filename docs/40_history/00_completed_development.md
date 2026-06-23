@@ -10,6 +10,40 @@ Acceptance**, **Key decisions**.
 
 ---
 
+## Reduced the FAR 25 supplement to the non-duplicative cases (complete)
+
+**Objective.** After the AC 23-19A correction factored the FAR 23 takeoff case, the
+FAR 25 torque cases became near-identical to the FAR 23 set for a turbopropeller. Trim
+the opt-in superset to only what is genuinely additive, removing the duplication that
+was doubling the load-case CSV with equal numbers.
+
+**Deliverables.**
+- `farloads/modules/engine.py`: removed `condition_25_361_a1i/_a1ii/_a1iii` — for a
+  turbopropeller they are bit-for-bit equal to the corrected
+  23.361(a)(1)/(a)(2)/(a)(3). `run_far25` now returns only the three additive cases:
+  `condition_25_361_a3i` (stoppage + 1g vertical), `condition_25_361_a3ii` (max engine
+  acceleration torque — no FAR 23 analog), `condition_25_371` (gyro on the A2 vertical).
+- The additive cases stay **behind `Project.include_far25`** rather than being folded
+  into the FAR 23 path: making them unconditional would change the Appendix B turboprop
+  case count (6) and gyro vertical (2.5g), breaking oracle-lock. `Project.include_far25`,
+  `EngineInput.max_accel_torque`, and the JSON/units plumbing are unchanged.
+- GUI checkbox relabelled "Add **supplemental** FAR 25 cases" with help text explaining
+  the duplicates were dropped (`app/views/engine_mount.py`).
+- Docs synced: PROGRAM_SPEC § ENGLOADS, PROJECT_GUIDE §3.4.4, theory sources, CHANGELOG.
+
+**Test / Acceptance.** `tests/test_engine_far25.py` updated: the duplicate-case tests
+were removed and replaced by `test_far25_supplement_drops_duplicate_torque_cases`
+(asserts `run_far25` = `[25.361(a)(3)(i), 25.361(a)(3)(ii), 25.371]`); the turboprop
+opt-in count is now 6 + 3 = 9 (was 12). Full suite green (`ruff` clean, `pytest` 252
+passing).
+
+**Key decisions.** Chose *partial* removal over deleting the whole FAR 25 block — the
+max-engine-acceleration-torque case (25.361(a)(3)(ii)) has no FAR 23 equivalent and can
+govern, and the stoppage-with-1g / A2-gyro cases add marginal conservatism. Kept the
+opt-in gate (not unconditional) to preserve the oracle lock.
+
+---
+
 ## Correction — FAR 23.361(a)(1) takeoff-torque factor (AC 23-19A) (complete)
 
 **Objective.** Correct a non-conservative error inherited from the original
@@ -32,10 +66,8 @@ of paragraph (a).
   recorded; PROGRAM_SPEC, theory sources, CHANGELOG updated.
 
 **Test / Acceptance.** `test_361_a1` asserts the corrected −737.34 ft-lb (and retains
-554.39 as the "mean takeoff torque" figure for traceability);
-`test_far23_corrected_takeoff_equals_far25_for_turboprop` asserts the turboprop
-takeoff case now coincides with 25.361(a)(1)(i). Full suite green (`ruff` clean,
-`pytest` 255 passing).
+554.39 as the "mean takeoff torque" figure for traceability). Full suite green
+(`ruff` clean, `pytest` passing).
 
 **Key decisions.** Approved as a documented deviation from the Appendix A oracle (the
 manual reproduces a rule the FAA declared defective). The replication charter is
@@ -61,7 +93,9 @@ appendix regression.
   `run(project)`. The FAR 23 functions are untouched (oracle lock preserved by
   construction). 25.371 reuses the fixed FAR 23.371(b) rates (2.5/1.0 rad/s) as a
   conservative concept stand-in for the maneuver-derived rates the rule references,
-  with the vertical load on the A2 limit load factor.
+  with the vertical load on the A2 limit load factor. *(Superseded — see "Reduced the
+  FAR 25 supplement to the non-duplicative cases" above: `_a1i/_a1ii/_a1iii` were
+  later removed as duplicates of the corrected FAR 23 set, leaving three cases.)*
 - GUI: an **"Add FAR 25 cases"** sidebar checkbox + a FAR-25-only max-accel-torque
   input on `app/views/engine_mount.py`.
 - `reference/14CFR_Part25_engine_torque.md` — verbatim 25.361 + 25.371 source text

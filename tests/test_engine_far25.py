@@ -1,10 +1,15 @@
-"""Formula-closure tests for the optional FAR 25 engine cases.
+"""Formula-closure tests for the optional FAR 25 supplemental engine cases.
 
 These cover the additive 14 CFR 25.361 / 25.371 conditions enabled by
 ``Project.include_far25`` (turbopropeller only). No McMaster worked example exists
 for Part 25, so the checks are hand-calc closures traced to
 ``reference/14CFR_Part25_engine_torque.md`` -- not a printed oracle. The FAR 23
 path stays oracle-locked in ``test_engine.py`` and must be unchanged by this flag.
+
+The flag now appends only the three *non-duplicative* cases (sudden stoppage +
+1g vertical, max engine acceleration torque, and the A2-vertical gyro). After the
+AC 23-19A correction the FAR 25 torque cases 25.361(a)(1)(i)/(ii)/(iii) became
+exact duplicates of the corrected 23.361(a)(1)/(a)(2)/(a)(3) and were removed.
 """
 
 import math
@@ -27,9 +32,9 @@ TOL = 1e-3  # ±0.1% relative
 
 def test_far25_off_by_default_is_far23_only():
     # The opt-in flag defaults off; the FAR 23 output (6 turboprop conditions) is
-    # unchanged, and turning it on appends the six FAR 25 cases.
+    # unchanged, and turning it on appends the three supplemental FAR 25 cases.
     assert len(run_all(turboprop())) == 6
-    assert len(run_all(turboprop(), include_far25=True)) == 12
+    assert len(run_all(turboprop(), include_far25=True)) == 9
 
 
 def test_far25_recip_adds_nothing():
@@ -38,36 +43,12 @@ def test_far25_recip_adds_nothing():
     assert len(run_all(io520bb(), include_far25=True)) == 3
 
 
-def test_25_361_a1i_applies_125_to_takeoff():
-    # 25.361(a)(1)(i): 1.25 x mean takeoff torque, 0.75 Nz vertical (450 lb combined).
-    r = calc.condition_25_361_a1i(turboprop())
-    assert math.isclose(_value(r, "Vertical load factor"), 2.85, abs_tol=1e-9)
-    assert math.isclose(_value(r, "Vertical down load"), 1282.5, rel_tol=TOL)  # 2.85*450
-    assert math.isclose(_value(r, "Engine mount torque"), -2462.5, rel_tol=TOL)  # -1.25*1970
-
-
-def test_far23_corrected_takeoff_equals_far25_for_turboprop():
-    # After the AC 23-19A correction, FAR 23.361(a)(1) also factors the takeoff
-    # torque (1.25 for a turboprop), so it now coincides with 25.361(a)(1)(i):
-    # both are 1.25 x mean takeoff torque (= 1.25 x 1970 = 2462.5).
-    f23 = _value(calc.condition_361_a1(turboprop()), "Engine mount torque")
-    f25 = _value(calc.condition_25_361_a1i(turboprop()), "Engine mount torque")
-    assert math.isclose(f23, f25, rel_tol=TOL)
-    assert math.isclose(f23, -2462.5, rel_tol=TOL)
-
-
-def test_25_361_a1ii_max_continuous():
-    # 25.361(a)(1)(ii): 1.25 x mean max-cont torque, full Nz vertical.
-    r = calc.condition_25_361_a1ii(turboprop())
-    assert math.isclose(_value(r, "Vertical down load"), 1710.0, rel_tol=TOL)  # 3.8*450
-    assert math.isclose(_value(r, "Engine mount torque"), -2250.0, rel_tol=TOL)  # -1.25*1800
-
-
-def test_25_361_a1iii_feather_malfunction():
-    # 25.361(a)(1)(iii): 1.6 x takeoff torque at 1g.
-    r = calc.condition_25_361_a1iii(turboprop())
-    assert math.isclose(_value(r, "Vertical load factor"), 1.0, abs_tol=1e-9)
-    assert math.isclose(_value(r, "Engine mount torque"), -3152.0, rel_tol=TOL)  # -1.6*1970
+def test_far25_supplement_drops_duplicate_torque_cases():
+    # The reduced supplement no longer re-emits the corrected-FAR-23 torque cases:
+    # only the genuinely additive references remain.
+    refs = [c.far_reference for c in calc.run_far25(turboprop())]
+    assert refs == ["25.361(a)(3)(i)", "25.361(a)(3)(ii)", "25.371"]
+    assert "25.361(a)(1)(i)" not in refs
 
 
 def test_25_361_a3i_stoppage_plus_1g():
@@ -118,8 +99,8 @@ def test_project_flag_appends_far25():
     )
     mr = calc.run(project)
     refs = [c.far_reference for c in mr.conditions]
-    assert "25.361(a)(1)(i)" in refs and "25.371" in refs
-    assert len(mr.conditions) == 12
+    assert "25.361(a)(3)(ii)" in refs and "25.371" in refs
+    assert len(mr.conditions) == 9
 
 
 def test_far25_json_round_trips():
@@ -130,7 +111,7 @@ def test_far25_json_round_trips():
     back = fio.project_from_dict(fio.project_to_dict(project))
     assert back.include_far25 is True
     assert back.engines[0].max_accel_torque == 2500.0
-    assert len(calc.run(back).conditions) == 12
+    assert len(calc.run(back).conditions) == 9
 
 
 if __name__ == "__main__":

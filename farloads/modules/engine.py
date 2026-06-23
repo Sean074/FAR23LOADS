@@ -319,7 +319,7 @@ def condition_371_b(inp: EngineInput) -> ConditionResult:
 
 
 # --------------------------------------------------------------------------- #
-# Optional FAR 25 conditions (turbopropeller installations)
+# Optional FAR 25 supplemental conditions (turbopropeller installations)
 # --------------------------------------------------------------------------- #
 # An *additive* superset enabled by ``Project.include_far25``. The FAR 23 core
 # above is untouched and stays oracle-locked; these append on top. Ported from
@@ -331,6 +331,20 @@ def condition_371_b(inp: EngineInput) -> ConditionResult:
 # tool's mass/gyro math is propeller-centric. No McMaster worked example exists
 # for Part 25, so these are formula-closure checked, not locked to a printed
 # figure (the LANDLOAD precedent).
+#
+# *Reduced to the non-duplicative cases only.* After the AC 23-19A correction to
+# 23.361(a)(1) (which factors the takeoff torque), the FAR 25 torque cases
+# 25.361(a)(1)(i)/(ii)/(iii) became bit-for-bit duplicates of the corrected
+# 23.361(a)(1)/(a)(2)/(a)(3) for a turbopropeller, so they were removed. What
+# remains is genuinely additive over the FAR 23 set:
+#   - 25.361(a)(3)(ii) maximum engine acceleration torque -- no FAR 23 analog;
+#   - 25.361(a)(3)(i) sudden stoppage combined with a simultaneous 1g vertical
+#     load (23.361(b)(1) reports the torque alone);
+#   - 25.371 gyroscopic loads using the project's A2 limit load factor for the
+#     simultaneous vertical (23.371(b) uses the fixed 2.5g of the oracle).
+# These stay behind the opt-in flag (off for any GA/oracle run) so the FAR 23
+# Appendix A/B outputs are unchanged -- making them unconditional would alter the
+# Appendix B turboprop case count and gyro vertical, breaking oracle-lock.
 
 
 def _stoppage_torque(inp: EngineInput):
@@ -350,77 +364,6 @@ def _stoppage_torque(inp: EngineInput):
         detail.append(LoadValue(f"Ixx rotor({i})", irotor, "slug-ft^2"))
     detail.append(LoadValue("Time to stop", dt, "s"))
     return torq, detail
-
-
-def condition_25_361_a1i(inp: EngineInput) -> ConditionResult:
-    """FAR 25.361(a)(1)(i): 1.25 x mean takeoff torque + 75% limit vertical load.
-
-    25.361(a)(2)(i) applies the 1.25 turbopropeller factor to the takeoff case.
-    With the AC 23-19A correction to 23.361(a)(1) (which also factors the takeoff
-    torque), this coincides with the corrected FAR 23 takeoff case for a
-    turbopropeller; it remains a distinct FAR 25 line for traceability.
-    """
-    ppwt = combined_weight(inp)
-    cg = combined_cg(inp)
-    n75 = 0.75 * inp.limit_load_factor
-    base_torque = inp.max_engine_torque
-    torque = TURBOPROP_TORQUE_FACTOR * base_torque
-    return ConditionResult(
-        title="Limit takeoff torque (1.25 x mean) with 75% limit maneuver vertical load factor",
-        far_reference="25.361(a)(1)(i)",
-        values=[
-            LoadValue("Vertical load factor", n75),
-            LoadValue("Vertical down load", n75 * ppwt, "lb"),
-            LoadValue("Applied at X", cg[0], "in"),
-            LoadValue("Applied at Y", cg[1], "in"),
-            LoadValue("Applied at Z", cg[2], "in"),
-            LoadValue("Torque factor", TURBOPROP_TORQUE_FACTOR),
-            LoadValue("Mean takeoff torque", base_torque, "ft-lb"),
-            LoadValue("Engine mount torque", -torque, "ft-lb"),
-        ],
-    )
-
-
-def condition_25_361_a1ii(inp: EngineInput) -> ConditionResult:
-    """FAR 25.361(a)(1)(ii): 1.25 x mean max-continuous torque + 100% limit load."""
-    ppwt = combined_weight(inp)
-    cg = combined_cg(inp)
-    n100 = inp.limit_load_factor
-    base_torque = inp.cruise_torque
-    torque = TURBOPROP_TORQUE_FACTOR * base_torque
-    return ConditionResult(
-        title="Max continuous torque (1.25 x mean) with 100% limit maneuver vertical load factor",
-        far_reference="25.361(a)(1)(ii)",
-        values=[
-            LoadValue("Vertical load factor", n100),
-            LoadValue("Vertical down load", n100 * ppwt, "lb"),
-            LoadValue("Applied at X", cg[0], "in"),
-            LoadValue("Applied at Y", cg[1], "in"),
-            LoadValue("Applied at Z", cg[2], "in"),
-            LoadValue("Torque factor", TURBOPROP_TORQUE_FACTOR),
-            LoadValue("Mean max continuous torque", base_torque, "ft-lb"),
-            LoadValue("Engine mount torque", -torque, "ft-lb"),
-        ],
-    )
-
-
-def condition_25_361_a1iii(inp: EngineInput) -> ConditionResult:
-    """FAR 25.361(a)(1)(iii): prop control malfunction (1.6 x takeoff torque) at 1g."""
-    ppwt = combined_weight(inp)
-    cg = combined_cg(inp)
-    torque = TURBOPROP_MALFUNCTION_FACTOR * inp.max_engine_torque
-    return ConditionResult(
-        title="Propeller control malfunction (quick feathering) with 1g level flight loads",
-        far_reference="25.361(a)(1)(iii)",
-        values=[
-            LoadValue("Vertical load factor", 1.0),
-            LoadValue("Vertical down load", 1.0 * ppwt, "lb"),
-            LoadValue("Applied at X", cg[0], "in"),
-            LoadValue("Applied at Y", cg[1], "in"),
-            LoadValue("Applied at Z", cg[2], "in"),
-            LoadValue("Engine mount torque", -torque, "ft-lb"),
-        ],
-    )
 
 
 def condition_25_361_a3i(inp: EngineInput) -> ConditionResult:
@@ -532,13 +475,17 @@ def condition_25_371(inp: EngineInput) -> ConditionResult:
 
 
 def run_far25(inp: EngineInput) -> List[ConditionResult]:
-    """Optional FAR 25 engine cases. Turbopropeller only; empty otherwise."""
+    """Optional FAR 25 supplemental engine cases. Turbopropeller only; empty otherwise.
+
+    Only the cases that are *not* duplicated by the corrected FAR 23 set: sudden
+    stoppage with a simultaneous 1g vertical, maximum engine acceleration torque
+    (no FAR 23 analog), and the A2-vertical gyroscopic case. The FAR 25 torque
+    cases 25.361(a)(1)(i)/(ii)/(iii) were removed as exact duplicates of the
+    corrected 23.361(a)(1)/(a)(2)/(a)(3).
+    """
     if not inp.is_turboprop:
         return []
     return [
-        condition_25_361_a1i(inp),
-        condition_25_361_a1ii(inp),
-        condition_25_361_a1iii(inp),
         condition_25_361_a3i(inp),
         condition_25_361_a3ii(inp),
         condition_25_371(inp),

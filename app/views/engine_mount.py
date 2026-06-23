@@ -159,21 +159,25 @@ with st.sidebar:
 
     st.header("Certification basis")
     include_far25 = st.checkbox(
-        "Add FAR 25 cases (optional)",
+        "Add supplemental FAR 25 cases (optional)",
         value=st.session_state.get("include_far25", False),
         key="include_far25",
         help=(
-            "Keeps every FAR 23 case and appends the optional 14 CFR 25.361 / "
-            "25.371 engine-torque cases on top (turbopropeller engines only). The "
-            "FAR 23 results are unchanged. Gyroscopic loads use the conservative "
-            "fixed FAR 23.371(b) rates as an initial-concept stand-in for the "
-            "25.371 maneuver-derived rates."
+            "Keeps every FAR 23 case and appends the three 14 CFR 25.361 / 25.371 "
+            "cases that are *not* already covered by the corrected FAR 23 set "
+            "(turbopropeller engines only): sudden stoppage with a 1g vertical, "
+            "maximum engine acceleration torque, and gyroscopic loads at the A2 "
+            "limit load factor. The duplicate FAR 25 torque cases were removed "
+            "because they equal the corrected 23.361(a)(1)/(a)(2)/(a)(3). The FAR "
+            "23 results are unchanged. Gyroscopic loads use the conservative fixed "
+            "FAR 23.371(b) rates as an initial-concept stand-in for the 25.371 "
+            "maneuver-derived rates."
         ),
     )
     if include_far25:
         st.caption(
-            "FAR 25 cases apply to turbopropeller engines only; recip/jet "
-            "installations show the FAR 23 set unchanged."
+            "Supplemental FAR 25 cases apply to turbopropeller engines only; "
+            "recip/jet installations show the FAR 23 set unchanged."
         )
 
 # --------------------------------------------------------------------------- #

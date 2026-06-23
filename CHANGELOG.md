@@ -69,20 +69,22 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
-- **Optional FAR 25 engine cases (concept superset).** `Project.include_far25`
-  (default off) appends the **14 CFR 25.361 / 25.371** engine-mount cases on top of
-  the oracle-locked FAR 23 set, for **turbopropeller** engines: 25.361(a)(1)(i)
-  `1.25×takeoff torque @ 0.75n`, (a)(1)(ii) `1.25×max-cont torque @ 1.0n`,
-  (a)(1)(iii) `1.6×takeoff @ 1g`, (a)(3)(i) stoppage `@ 1g`, (a)(3)(ii) max-accel
-  torque `@ 1g`, and 25.371 gyroscopic. The 1.25 factor now applies to the takeoff
-  case too (FAR 23 had none there). 25.371 reuses the fixed FAR 23.371(b) rates
-  (2.5/1.0 rad/s) as a conservative concept stand-in for the maneuver-derived rates,
-  with the vertical load on the A2 limit load factor. New optional input
+- **Optional supplemental FAR 25 engine cases (concept superset).**
+  `Project.include_far25` (default off) appends only the **non-duplicative**
+  **14 CFR 25.361 / 25.371** engine-mount cases on top of the oracle-locked FAR 23
+  set, for **turbopropeller** engines: (a)(3)(i) stoppage `@ 1g`, (a)(3)(ii)
+  max-accel torque `@ 1g` (no FAR 23 analog), and 25.371 gyroscopic on the A2 limit
+  load factor. The FAR 25 torque cases 25.361(a)(1)(i)/(ii)/(iii) are **omitted** —
+  with the AC 23-19A correction factoring the FAR 23 takeoff case, they are
+  bit-for-bit duplicates of the corrected 23.361(a)(1)/(a)(2)/(a)(3) for a
+  turbopropeller. 25.371 reuses the fixed FAR 23.371(b) rates (2.5/1.0 rad/s) as a
+  conservative concept stand-in for the maneuver-derived rates. New optional input
   `EngineInput.max_accel_torque` (blank → `max_engine_torque`); recip/jet engines get
-  no FAR 25 cases. The engine-mount GUI gains an **"Add FAR 25 cases"** checkbox.
-  FAR 23 output is byte-identical when off. Source text in
-  `reference/14CFR_Part25_engine_torque.md`; formula-closure tested
-  (`tests/test_engine_far25.py`, +13). No oracle exists for Part 25.
+  no FAR 25 cases. The engine-mount GUI gains an **"Add supplemental FAR 25 cases"**
+  checkbox. Kept opt-in (not folded into the FAR 23 path) so the Appendix A/B oracle
+  — 6 turboprop conditions, 2.5g gyro vertical — is byte-identical when off. Source
+  text in `reference/14CFR_Part25_engine_torque.md`; formula-closure tested
+  (`tests/test_engine_far25.py`). No oracle exists for Part 25.
 - **Balanced-tail-load verification — BALLOADS (Step C11).** New
   `modules/balloads.py` (registers `"balloads"`): the off-pipeline cross-check of
   `BALLOADS.BAS` (Reference 1 Ch 8–9). For every flaps-retracted V-n condition it
