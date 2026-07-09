@@ -102,9 +102,11 @@ cg_cases = [
     if pd.notna(r["weight_lb"]) and pd.notna(r["xcg (in)"])
 ]
 
-project.flight_loads = FlightLoadsInput(
+# Merge (never wholesale-replace) so a loaded project's flaps-down
+# configuration and extra altitudes survive the page's persist path.
+project.flight_loads = fl.merged(
     mac=mac, wing_area_sqft=s, xw=xw, zw=zw, xtc=xtc, xtf=xtf, mn=mn,
-    altitudes_ft=[altitude], configurations=[cruise], cg_cases=cg_cases,
+    altitude_ft=altitude, configuration=cruise, cg_cases=cg_cases,
 )
 st.session_state["project"] = project
 

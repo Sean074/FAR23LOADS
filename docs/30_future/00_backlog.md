@@ -64,14 +64,14 @@ all pass; no `skip`/`xfail` needing a backlog note; `[Unreleased]` complete.
 
 Remaining work, in priority order:
 
-### R1 — Step D0 defect fix (the only code work)
+### R1 — Step D0 defect fix (the only code work) ✅ **done 2026-07-08**
 
-The flight-envelope destructive slice overwrite (see **Known defects** below and
-Phase D **Step D0**) must close before release — §3.2 of the release process
-requires no open critical findings. Merge-write fix in
-`app/views/flight_envelope.py`, regression test (flaps-down config + two
-altitudes survive the page's persist path), `CHANGELOG.md` `Fixed` entry, and
-the backlog→history lifecycle move for D0.
+Shipped: `FlightLoadsInput.merged()` (pure, `farloads/models.py`) +
+`app/views/flight_envelope.py` persists through it; regression tests in
+`tests/test_flight_envelope.py` (flaps-down config + two altitudes survive the
+persist path); `CHANGELOG.md` `Fixed` entry; D0 moved to
+`40_history/00_completed_development.md`. Suite 257 passed, ruff clean —
+§3.2's no-open-critical-findings gate is met.
 
 ### R2 — GUI / CLI smoke test (§3.5)
 
@@ -121,27 +121,15 @@ Loads Plots → Export). Narrative, assessment findings, locked decisions D-1…
 and the page conventions are in
 [`02_gui_workflow_plan.md`](02_gui_workflow_plan.md). **Gate:** Phase D starts
 after the `0.2.0` release is cut (decision D-4; the plan is the **Release
-0.2.0** section above); Step D0 is a defect fix and goes **into** that release
-(= release step R1). Invariant throughout: no calc-math change — the
-Appendix A/B oracles pass unmodified at every step.
+0.2.0** section above); Step D0 was a defect fix shipped **inside** that
+release (= release step R1, done 2026-07-08 — see
+`40_history/00_completed_development.md`). Invariant throughout: no calc-math
+change — the Appendix A/B oracles pass unmodified at every step.
 
 Definition of done per step (in addition to the file-top DoD where it applies):
 pages follow the Phase-D page conventions (`02_gui_workflow_plan.md §5` —
 form+Apply, merge-writes, read-don't-re-ask, no airplane-shaped defaults), and
 the workflow-step ↔ registered-module test stays green.
-
-### Step D0 — Fix the flight-envelope destructive slice overwrite *(pre-release defect fix)*
-
-Closes the known defect below. `app/views/flight_envelope.py` rebuilds
-`FlightLoadsInput` wholesale (`configurations=[cruise]`, `altitudes_ft=[altitude]`),
-so merely opening the page deletes any flaps-down configuration or extra
-altitudes a loaded project carried.
-
-1. Merge the page's edits into the existing `project.flight_loads` (preserve
-   configurations/altitudes the page doesn't edit) instead of replacing it.
-2. Regression test: load a project with a flaps-down config + two altitudes,
-   run the page's persist path, assert both survive.
-3. Ship inside the `0.2.0` release.
 
 ### Step D1 — Structured load-case IDs (data model)
 
@@ -341,10 +329,6 @@ changelog entry) when done.
 
 ## Known defects
 
-- **Flight Envelope page destroys unedited `flight_loads` data.**
-  `app/views/flight_envelope.py` persists `FlightLoadsInput(configurations=[cruise],
-  altitudes_ft=[altitude], ...)` on every rerun — a wholesale replacement, so
-  opening the page deletes any flaps-down configuration or additional altitudes a
-  loaded project carried (the schema supports both; the page rebuilds the slice
-  from its own widgets only). Found in the 2026-07-08 GUI review. Fix is **Phase D
-  Step D0** (merge-write + regression test), to ship inside the `0.2.0` release.
+- _(none open — the flight-envelope destructive slice overwrite was fixed in
+  Step D0 / release step R1, 2026-07-08; see
+  `40_history/00_completed_development.md` → Resolved defects.)_

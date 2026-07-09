@@ -9,6 +9,24 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed
+
+- **Flight Envelope page no longer destroys unedited `flight_loads` data**
+  (Phase D Step D0, release step R1). The page previously rebuilt
+  `FlightLoadsInput` wholesale (`configurations=[cruise]`,
+  `altitudes_ft=[altitude]`) on every rerun, so merely opening it deleted any
+  flaps-down configuration or extra altitudes a loaded project carried.
+  `FlightLoadsInput` gains a pure `merged()` method (`farloads/models.py`) that
+  merges one page-edit into the existing slice — the edited altitude replaces
+  `altitudes_ft[0]`, the edited configuration replaces its same-`flaps_down`
+  peer (appended if none), and everything else is preserved — and
+  `app/views/flight_envelope.py` persists through it. This is the first
+  application of the Phase-D "Apply merges into the project slice" page
+  convention (`docs/30_future/02_gui_workflow_plan.md §5`). Regression tests in
+  `tests/test_flight_envelope.py` load a slice with a flaps-down configuration
+  and two altitudes through the persist path and assert both survive. No calc
+  or schema change.
+
 ### Changed
 
 - **Per-module analysis pages now mark their on-screen LIMIT loads.** The

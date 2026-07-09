@@ -1096,6 +1096,52 @@ green (211 tests); `ruff` clean.
 
 ---
 
+## Phase D — Step D0: flight-envelope destructive slice overwrite fix (complete, 2026-07-08)
+
+**Objective.** Close the data-loss defect found in the 2026-07-08 GUI review
+before cutting release `0.2.0` (release step **R1**; §3.2 of the release process
+requires no open critical findings). `app/views/flight_envelope.py` rebuilt
+`FlightLoadsInput` wholesale (`configurations=[cruise]`,
+`altitudes_ft=[altitude]`) on every rerun, so merely opening the page deleted
+any flaps-down configuration or extra altitudes a loaded project carried.
+
+**Deliverables.**
+- `farloads/models.py` — `FlightLoadsInput.merged(...)`: a pure method that
+  merges one page-edit into the existing slice. The edited altitude replaces
+  `altitudes_ft[0]` (the entry a single-altitude widget displays); the edited
+  configuration replaces the first entry with the same `flaps_down` state
+  (appended if there is none); every other altitude/configuration is carried
+  over unchanged. Returns a new instance; no I/O, no schema change.
+- `app/views/flight_envelope.py` — persists via `fl.merged(...)` instead of the
+  wholesale `FlightLoadsInput(...)` rebuild. Write-on-rerun behavior otherwise
+  unchanged (the `st.form` + Apply conversion is Step D6 scope).
+- `tests/test_flight_envelope.py` — two regression tests: a slice with a
+  flaps-down configuration and two altitudes survives the persist path (edits
+  land, unedited content preserved, original slice untouched); an empty slice
+  simply gains the edited configuration.
+- `CHANGELOG.md` `[Unreleased]` `Fixed` entry.
+
+**Test / Acceptance.** Full suite green (257 tests, was 255); `ruff` clean;
+Appendix A/B oracles unmodified (no calc-math change).
+
+**Key decisions** (user-approved 2026-07-08).
+1. **Merge helper lives on the model** (`FlightLoadsInput.merged`) — pure
+   dataclass logic, directly unit-testable, and the reusable seed of the
+   Phase-D "Apply merges into the project slice" page convention
+   (`30_future/02_gui_workflow_plan.md §5.2`) that Step D6 applies suite-wide.
+2. **Altitude merge = replace first, keep rest** — the widget displays
+   `altitudes_ft[0]`, so an edit updates entry 0 and preserves the tail; the
+   real multi-altitude UI arrives in Step D5.
+3. **Merge-write only** — minimal defect fix appropriate for a pre-release
+   patch; the form+Apply rework stays in Step D6.
+
+---
+
 ## Resolved defects
 
-- _(none recorded)_
+- **Flight Envelope page destroyed unedited `flight_loads` data** *(resolved
+  2026-07-08, Phase D Step D0 / release step R1 — see above)*. Wholesale
+  `FlightLoadsInput` replacement on every rerun deleted flaps-down
+  configurations and extra altitudes from loaded projects. Fixed by the pure
+  `FlightLoadsInput.merged()` merge-write; regression-tested in
+  `tests/test_flight_envelope.py`.

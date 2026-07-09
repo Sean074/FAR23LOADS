@@ -21,7 +21,7 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from farloads import Project, io  # noqa: E402
+from farloads import AeroCoeffSet, CgCase, FlightLoadsInput, Project, io  # noqa: E402
 from farloads.modules import flight_envelope as fe  # noqa: E402
 from farloads.modules.flight_envelope import build_envelope, _design_inputs  # noqa: E402
 
@@ -201,6 +201,59 @@ def test_flapped_envelope_corner_set_and_closure():
     assert math.isclose(man2.v_eas_kt, 105.5, rel_tol=5e-3)   # VF
     stal = next(v for v in flap if v.condition == "STAL 2/3G")
     assert math.isclose(stal.nz, 2.0 / 3.0, abs_tol=0.01)
+
+
+def test_merged_preserves_flaps_down_config_and_extra_altitudes():
+    """Regression: the flight-envelope page's persist path must not destroy
+    slice content it does not edit (Step D0 defect — the page previously rebuilt
+    FlightLoadsInput wholesale with configurations=[cruise], altitudes_ft=[alt])."""
+    cruise = AeroCoeffSet(name="CRUISE", stall_cl=1.41, neg_stall_cl=-0.59,
+                          lift=(0.32, 0.08, 0.0, 0.0, 0.0),
+                          drag=(0.027, 0.0, 0.054, 0.0, 0.0),
+                          moment=(-0.017, 0.004, 0.0, 0.0, 0.0), flaps_down=False)
+    landing = AeroCoeffSet(name="LANDING", stall_cl=1.95, neg_stall_cl=-0.59,
+                           lift=(0.9, 0.08, 0.0, 0.0, 0.0),
+                           drag=(0.08, 0.0, 0.054, 0.0, 0.0),
+                           moment=(-0.12, 0.004, 0.0, 0.0, 0.0), flaps_down=True)
+    fl = FlightLoadsInput(mac=69.246, wing_area_sqft=184.125, xw=80.953, zw=87.725,
+                          xtc=253.364, xtf=261.027, mn=0.1,
+                          altitudes_ft=[0.0, 20000.0],
+                          configurations=[cruise, landing],
+                          cg_cases=[CgCase("CG1", 3400.0, 85.1, 93.0)])
+
+    edited_cruise = AeroCoeffSet(name="CRUISE", stall_cl=1.45, neg_stall_cl=-0.6,
+                                 lift=cruise.lift, drag=cruise.drag,
+                                 moment=cruise.moment, flaps_down=False)
+    new_cg = [CgCase("CG1", 3400.0, 85.1, 93.0), CgCase("CG2", 2800.0, 80.0, 93.0)]
+    merged = fl.merged(mac=70.0, wing_area_sqft=184.125, xw=80.953, zw=87.725,
+                       xtc=253.364, xtf=261.027, mn=0.1, altitude_ft=10000.0,
+                       configuration=edited_cruise, cg_cases=new_cg)
+
+    # The edits landed…
+    assert merged.mac == 70.0
+    assert merged.altitudes_ft[0] == 10000.0
+    assert merged.configurations[0].stall_cl == 1.45
+    assert len(merged.cg_cases) == 2
+    # …and the unedited content survived.
+    assert merged.altitudes_ft == [10000.0, 20000.0]
+    assert [c.name for c in merged.configurations] == ["CRUISE", "LANDING"]
+    assert merged.configurations[1].flaps_down and merged.configurations[1].stall_cl == 1.95
+    # The original slice is untouched (merged() returns a new instance).
+    assert fl.altitudes_ft == [0.0, 20000.0] and fl.configurations[0].stall_cl == 1.41
+
+
+def test_merged_appends_config_when_no_flaps_state_peer_exists():
+    """An edit to an empty slice (fresh project) simply adds the configuration."""
+    merged = FlightLoadsInput().merged(
+        mac=69.246, wing_area_sqft=184.125, xw=80.953, zw=87.725, xtc=253.364,
+        xtf=261.027, mn=0.1, altitude_ft=0.0,
+        configuration=AeroCoeffSet(name="CRUISE", stall_cl=1.41, neg_stall_cl=-0.59,
+                                   lift=(0.32, 0.08, 0.0, 0.0, 0.0),
+                                   drag=(0.027, 0.0, 0.054, 0.0, 0.0),
+                                   moment=(-0.017, 0.004, 0.0, 0.0, 0.0)),
+        cg_cases=[])
+    assert [c.name for c in merged.configurations] == ["CRUISE"]
+    assert merged.altitudes_ft == [0.0]
 
 
 if __name__ == "__main__":

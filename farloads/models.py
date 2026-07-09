@@ -437,6 +437,37 @@ class FlightLoadsInput:
     configurations: List[AeroCoeffSet] = field(default_factory=list)
     cg_cases: List[CgCase] = field(default_factory=list)
 
+    def merged(self, *, mac: float, wing_area_sqft: float, xw: float, zw: float,
+               xtc: float, xtf: float, mn: float, altitude_ft: float,
+               configuration: AeroCoeffSet,
+               cg_cases: List[CgCase]) -> "FlightLoadsInput":
+        """One page-edit merged into this slice, preserving what was not edited.
+
+        A GUI page edits the geometry scalars, one altitude, one configuration
+        and the full CG-case table; the slice may carry more (extra altitudes,
+        a flaps-down configuration) that the page must not destroy. The edited
+        altitude replaces ``altitudes_ft[0]`` (the entry a single-altitude
+        widget displays); the edited configuration replaces the first entry
+        with the same ``flaps_down`` state (appended if there is none); every
+        other altitude/configuration is carried over unchanged.
+        """
+        altitudes = [altitude_ft] + list(self.altitudes_ft[1:])
+        configurations: List[AeroCoeffSet] = []
+        replaced = False
+        for existing in self.configurations:
+            if not replaced and existing.flaps_down == configuration.flaps_down:
+                configurations.append(configuration)
+                replaced = True
+            else:
+                configurations.append(existing)
+        if not replaced:
+            configurations.append(configuration)
+        return FlightLoadsInput(
+            mac=mac, wing_area_sqft=wing_area_sqft, xw=xw, zw=zw, xtc=xtc,
+            xtf=xtf, mn=mn, altitudes_ft=altitudes,
+            configurations=configurations, cg_cases=cg_cases,
+        )
+
 
 # --------------------------------------------------------------------------- #
 # Wing inertia loads (WINGINER) -- the Project.wing_mass slice

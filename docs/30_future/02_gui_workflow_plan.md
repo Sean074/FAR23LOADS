@@ -32,10 +32,12 @@ Findings from the 2026-07-08 GUI review (all against the shipped app):
    McMaster's 6-place single without ever entering their own airplane. Defaults
    belong in the loadable example project, not in `st.number_input(value=...)`.
 4. **Pages write to the project on every widget tick, some destructively.**
-   `flight_envelope.py` rebuilds `FlightLoadsInput` wholesale with
+   `flight_envelope.py` rebuilt `FlightLoadsInput` wholesale with
    `configurations=[cruise]` and `altitudes_ft=[altitude]` — opening the page
-   deletes any flaps-down configuration or extra altitudes a loaded project
-   carried. Recorded as a **known defect** (backlog) and fixed in Step D0.
+   deleted any flaps-down configuration or extra altitudes a loaded project
+   carried. **Fixed in Step D0** (2026-07-08, release step R1):
+   `FlightLoadsInput.merged()` merge-write + regression tests. The wider
+   write-on-every-tick pattern remains for D6's form+Apply rework.
 5. **Thin project management.** The loader is a `file_uploader` in the
    dashboard sidebar only; state lives solely in `st.session_state` (a browser
    refresh loses unsaved work); "save" is a download button.
