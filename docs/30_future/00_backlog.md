@@ -28,15 +28,15 @@ history, `CHANGELOG.md`).
 
 ## Current state (snapshot)
 
-**Shipped:** Phases 0–2, Phase-C Steps **C0–C11**, and Phase-D **Step D0–D2**
-(GUI defect fix; structured load-case IDs; six-section navigation restructure).
-**All 22** of Reference 1's
+**Shipped:** Phases 0–2, Phase-C Steps **C0–C11**, and Phase-D **Step D0–D3**
+(GUI defect fix; structured load-case IDs; six-section navigation restructure;
+Start-page local-disk persistence). **All 22** of Reference 1's
 Appendix-C programs are ported (ENGLOADS, WTESTIMA, WTONECG, WTENV,
 WINGGEOM, STRSPEED, MACHLIM, TAU, AIRLOADS, AIRLOAD4, FLTLOADS, SELECT, WINGINER,
 NETLOADS, TAILDIST, AILERON, FLAPLOAD, TABLOADS, ONENGOUT, LGFACTOR, LANDLOAD,
 BALLOADS), plus **2 modern modules** with no `.BAS` oracle (`configuration`,
 `body_loads`).
-Schema is at **`SCHEMA_VERSION = 16`**; 262 tests pass; coverage ~92%. The wing
+Schema is at **`SCHEMA_VERSION = 17`**; 266 tests pass; coverage ~92%. The wing
 distributed-loads vertical slice (geometry → speeds → envelope → airloads → inertia
 → net → sbeam export), the critical-load selection (wing / h-tail / v-tail /
 fuselage), the chordwise tail distribution, the simplified control-surface
@@ -64,7 +64,9 @@ Step D0 was a defect fix shipped **inside** that release (= release step R1).
 Step D1 (structured load-case IDs) shipped 2026-07-08 — see
 `40_history/00_completed_development.md` → "Phase D — Step D1". Step D2
 (six-section navigation restructure) shipped 2026-07-08 — see
-`40_history/00_completed_development.md` → "Phase D — Step D2". **Step D3
+`40_history/00_completed_development.md` → "Phase D — Step D2". Step D3
+(Start-page local-disk persistence) shipped 2026-07-09 — see
+`40_history/00_completed_development.md` → "Phase D — Step D3". **Step D4
 (below) is now the active step.** Invariant throughout: no calc-math
 change — the Appendix A/B oracles pass unmodified at every step.
 
@@ -72,21 +74,6 @@ Definition of done per step (in addition to the file-top DoD where it applies):
 pages follow the Phase-D page conventions (`02_gui_workflow_plan.md §5` —
 form+Apply, merge-writes, read-don't-re-ask, no airplane-shaped defaults), and
 the workflow-step ↔ registered-module test stays green.
-
-### Step D3 — Start (landing) page & local-disk persistence
-
-Decision D-3. Absorbs the former "Home page — Engineer & Date fields" nicety.
-
-1. Projects directory (default `projects/`, git-ignored; location noted in
-   `02_gui_workflow_plan.md §8`): explicit **Save** writes
-   `<name>.project.json` to disk; recent-projects list + **Open** on the
-   landing page; **New from example** (`examples/*.project.json`); keep browser
-   upload/download.
-2. Global project load/save widget in the `Home.py` sidebar (every page), with
-   an unsaved-changes indicator.
-3. Project metadata: optional `engineer` and `date`, carried in the JSON
-   (`SCHEMA_VERSION` bump) and shown on the text report and exports.
-4. Disk I/O lives in `io.py` / the view layer only (never calc).
 
 ### Step D4 — Authoritative shared inputs + Aero Coefficients page
 

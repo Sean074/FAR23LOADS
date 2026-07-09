@@ -9,6 +9,23 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- **Local-disk project persistence + Engineer/Date metadata** (Phase D Step D3,
+  decision D-3). `app/Home.py` now owns a global **Project file** sidebar
+  widget (visible on every page): Open (from a local `projects/` directory,
+  newest-first), New from example (`examples/*.project.json`), Save to disk
+  (overwrites `<name>.project.json`), the existing browser upload/download, and
+  an unsaved-changes indicator; Open/New-from-example confirm via a dialog
+  before discarding unsaved edits. `farloads/io.py` gains
+  `default_projects_dir()` (repo-relative, not cwd-relative) and
+  `list_saved_projects()`. `Project.engineer`/`Project.date` (freeform text,
+  blank by default) are new optional metadata, shown on the dashboard and as a
+  header line in the Export & Report page's text report / zip bundle.
+  `SCHEMA_VERSION` 16 → 17 (additive; omitted from the JSON when blank, so
+  existing files round-trip unchanged). `projects/` is git-ignored. No
+  calc-math change.
+
 ### Changed
 
 - **Six-section GUI navigation restructure** (Phase D Step D2, regroup only).

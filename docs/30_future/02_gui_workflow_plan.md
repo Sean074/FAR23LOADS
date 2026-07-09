@@ -169,9 +169,11 @@ Expected `SCHEMA_VERSION` bumps (older files must still load):
 
 ## 8. Open items (non-blocking, decide during the phase)
 
-- **Projects-directory location** for disk persistence (D3): a `projects/`
-  folder beside the app vs a user-chosen path stored in app config. *Default:
-  `projects/` in the repo working directory, git-ignored.*
+- ~~**Projects-directory location** for disk persistence (D3)~~ — **closed
+  2026-07-09**: `projects/` resolved from `farloads/io.py`'s own file location
+  (repo root / `projects`), not the process cwd, so it's stable regardless of
+  where `streamlit run app/Home.py` is invoked from. Git-ignored; created lazily
+  on first Save. See `00_backlog.md` Step D3.
 - ~~**Case-ID sequence stability across reruns** (D1)~~ — **closed 2026-07-08**:
   fixed, documented enumeration order (component, then each minting module's
   own canonical condition order), no persisted registry. See `00_backlog.md`

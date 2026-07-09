@@ -10,6 +10,68 @@ Acceptance**, **Key decisions**.
 
 ---
 
+## Phase D — Step D3: Start (landing) page & local-disk persistence (complete, 2026-07-09)
+
+**Objective.** Decision D-3: give the locally-run app real project persistence —
+Open/Save against a local `projects/` directory (recent list, New-from-example),
+a global sidebar file widget on every page, and optional `engineer`/`date`
+project metadata carried in the JSON and shown in exports. No autosave; no calc
+change.
+
+**Deliverables.**
+- `farloads/models.py`: `Project.engineer: str = ""`, `Project.date: str = ""`
+  (freeform text, additive). `SCHEMA_VERSION` 16 → 17.
+- `farloads/io.py`: `project_from_dict`/`project_to_dict` round-trip
+  `engineer`/`date` (omitted from the dict when blank, so old files are
+  byte-identical on save). New `default_projects_dir()` (resolved from
+  `io.py`'s own file location — repo root / `projects` — not the process cwd,
+  so it's stable regardless of where `streamlit run app/Home.py` is invoked
+  from) and `list_saved_projects(directory)` (`*.project.json` files,
+  newest-mtime-first, `[]` if the directory doesn't exist yet).
+- `app/Home.py`: the project (`st.session_state["project"]`) and the global
+  **Project file** sidebar widget now live here, above `pg.run()`, so they
+  render on every page regardless of the active view. The widget offers Open
+  (a selectbox of `list_saved_projects`), New from example
+  (`examples/*.project.json`), Save to disk (writes/overwrites
+  `<name>.project.json` into `projects/`, created lazily on first save), the
+  existing browser upload/download, and an unsaved-changes caption (diffs the
+  live project's dict against a snapshot taken on every load/save).
+  Discarding unsaved edits via Open/New-from-example is guarded by an
+  `st.dialog` confirmation.
+- `app/views/dashboard.py`: dropped its own sidebar uploader/download block
+  (superseded by `Home.py`'s); added **Engineer**/**Date** text inputs beside
+  the project-name field.
+- `app/views/export_report.py`: the combined text report and zip bundle now
+  open with a `Project: … / Engineer: … / Date: …` header line (fields omitted
+  when blank); fixed a leftover D2 doc-sync miss ("fill in the Define pages
+  first" → "Airplane pages").
+- `.gitignore`: added `projects/`.
+
+**Test/Acceptance.** New `tests/test_io.py` cases: engineer/date round-trip
+through `project_to_dict`/`project_from_dict`, blank-by-default omission from
+the serialized dict (old files unaffected), `default_projects_dir()` resolves
+repo-relative, `list_saved_projects()` sorts newest-first and returns `[]` for
+a missing directory. Full suite: 266 tests pass; `ruff check farloads/ cli.py`
+clean. Manual: `scripts/smoke_test.sh` passes; a headless Streamlit run hit
+`dashboard`, `export_report`, `configuration_layout` and `results_review` with
+no traceback in the server log.
+
+**Key decisions** (resolved 2026-07-09, see the conversation that opened this
+step for the options considered):
+- **Save overwrite:** silent overwrite of an existing `<name>.project.json` in
+  `projects/` — matches the pre-existing browser-download Save behavior; the
+  directory listing itself is the snapshot/undo mechanism (each file is a full
+  project snapshot; nothing is merged in place).
+- **Unsaved-edit guard:** Open and New-from-example both confirm via a
+  `st.dialog` before replacing `st.session_state["project"]` if the
+  unsaved-changes indicator is active; no guard existed before this step (the
+  old browser uploader silently replaced).
+- **Date field default:** blank, freeform text — no auto-fill to today's date,
+  consistent with page convention §5.4 (no non-project-derived widget
+  defaults).
+
+---
+
 ## Phase D — Step D2: Six-section navigation restructure (complete, 2026-07-08)
 
 **Objective.** Regroup the GUI navigation from the four generic Define →
