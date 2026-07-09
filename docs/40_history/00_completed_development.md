@@ -10,6 +10,107 @@ Acceptance**, **Key decisions**.
 
 ---
 
+## Phase D — Step D1: Structured load-case IDs (complete)
+
+**Objective.** Decision D-1: replace `report.py`'s render-time, per-module,
+unstable `LC{idx}` with a stable, traceable `case_id` (`"<component>-<seq>"`)
+on every delivered load case, assigned by the **calc** modules, so a loads
+release can trace a case from the V-n matrix through SELECT to a component
+load case and its sbeam card. No calc-math change — `CaseRef` is an added
+field; the Appendix A/B oracles pass unmodified (`SCHEMA_VERSION` 15 → 16,
+additive).
+
+**Deliverables.**
+- `CaseRef` dataclass (`case_id`, `component`, `condition`, `cg`, `speed_kt`,
+  `altitude_ft`, `far_reference`) plus an optional `case_ref` field on
+  `ConditionResult`, `VnPoint`, `CriticalCondition`, `WingLoadResult`,
+  `BodyLoadResult`, `TailChordResult`, `ControlSurfaceLoadResult`,
+  `GearReactionCase` (`farloads/models.py`).
+- `farloads/case_ids.py` (new): the six-entry `COMPONENT_PREFIX` map (`wing`→`W`,
+  `htail`→`HT`, `vtail`→`VT`, `fuselage`→`F`, `engine_mount`→`EM`,
+  `landing_gear`→`LG`) and `CaseIdAllocator`, a per-call-site sequential
+  counter with no shared/global state.
+- Minting sites, each in its own already-deterministic emission order:
+  `select.py` (`build_critical`, one allocator for wing/htail/vtail/fuselage,
+  the `CaseRef` also copied back onto the originating `VnPoint`);
+  `wing_inertia.py`/`net_loads.py` (`wing_case_ref`, a pure function of
+  position in `WingMassInput.cases` so both modules agree without shared
+  state); `engine.py` (`EM-`, incl. the 23.371(b) gyro condition's single base
+  id whose 4 sign-combination sub-ids are *derived* at render time —
+  `report.py`'s `_gyro_subcase_id`, an a/b/c/d suffix, since one
+  `ConditionResult` can't carry 4 `CaseRef`s); `landing.py` (`LG-` per
+  `GearReactionCase`, the manual's own 1-based case number kept separately for
+  oracle traceability); `aileron.py`/`flap.py`/`tab.py` (`W-`/`HT-`/`VT-` from
+  their own bands); `one_engine_out.py` (its own `VT-` sequence).
+  `taildist.py`/`body_loads.py` **copy** `case_ref` from SELECT's
+  `CriticalCondition` rather than re-minting.
+- Numeric banding wherever two independent allocators mint into the same
+  prefix (not just across modules but *within* `wing`, since `select_wing`'s
+  own list and WINGINER/NETLOADS's are genuinely separate — see Key decisions):
+  `W-01..39` WINGINER/NETLOADS, `W-40..49` `select_wing`, `W-50..59` AILERON,
+  `W-60..69` FLAPLOAD, `W-70+` a wing tab; `HT-50+`/`VT-50+` for TABLOADS'
+  htail/vtail-hosted tabs.
+- `report.py`: `load_cases_to_rows`/`results_to_rows` emit `ID` from
+  `case_ref.case_id` (falling back to `LC{idx}` only when absent) plus
+  `Component`/`Condition`/`CG`/`Speed (kt)`/`Altitude (ft)` traceability
+  columns.
+- `export/sbeam_bridge.py`: the case id is stamped into the `$`-comment header
+  of every wing/body/tail/control-surface `FORCE`/`MOMENT` card block; new
+  `case_index_rows_from`/`case_index_csv_from` (explicit result groups) and
+  `case_index_rows`/`case_index_csv` (from a `Project`'s persisted slices)
+  build the ID → full-definition case-index table, deduplicated by
+  `case_id`. Wired into the Export page (`app/views/export_report.py`): a new
+  "Case index" section + download button, and the CSV included in the `.zip`
+  bundle.
+- `io.py`: `CaseRef` (de)serialization for the persisted result slices
+  (`EnvelopeResult.vn`/`.critical`, `LoadsResult.*`); `ConditionResult`/
+  `GearReactionCase` are transient (never written to `project.json`), so they
+  need none.
+- `tests/test_case_ids.py`: ids present across all four bundled example
+  projects; the real uniqueness invariant (a `case_id` may legitimately repeat
+  across pipeline stages for the *same* case, but never means two different
+  conditions); stability across two identical runs; the wing-gap bands
+  verified disjoint; `CaseIdAllocator` is a pure per-call counter. Full
+  existing suite (262 tests) passes unmodified, confirming no oracle drift.
+
+**Test / Acceptance.** `pytest` (262 passed, incl. the 5 new D1 tests);
+`ruff check farloads/ cli.py app/views/export_report.py` clean. Manual smoke
+run against all four `examples/*.project.json`: every project emits at least
+one `case_ref`, and — after the banding fix below — zero id collisions
+(no `case_id` maps to two different `condition` labels) across 51-53 cases
+per project.
+
+**Key decisions.**
+- `CaseRef` is a standalone dataclass (not inline fields on eight result
+  types), assigned once by the module that first names a physical condition
+  and copied downstream, with exactly six component prefixes (control
+  surfaces fold into their host — no `AIL`/`FLP`/`TAB` prefix) and stability
+  from each module's own fixed emission order rather than a persisted
+  registry — all locked 2026-07-08 (see `docs/30_future/
+  02_gui_workflow_plan.md` D-1).
+- **Banding bug caught and fixed during implementation.** The original plan
+  text claimed `select_wing`'s own `W-` sequence and WINGINER/NETLOADS's could
+  safely share the `W-01..49` numeric range "so no collision" — a smoke run
+  immediately disproved this (`select_wing`'s `W-02` = PLAA, WINGINER's
+  `W-02` = TORS, same id, two different cases): two independent counters over
+  the same range collide by construction. Fixed by splitting the range
+  (`select_wing` → its own `W-40..49` sub-band) and adding
+  `test_wing_gap_is_banded_not_colliding` to lock it. This is a narrower
+  problem than the accepted "two independent case lists" gap below — banding
+  fixes the collision; it does not unify the lists.
+- **Accepted, not closed:** `select_wing`'s wing `CriticalCondition` list and
+  `WingMassInput.cases` (which actually drives WINGINER/NETLOADS) remain two
+  independent, unlinked case lists — same for `one_engine_out` vs.
+  `select_vtail`. Banding prevents an id collision between them but they are
+  still not the same case object. Tracked as a deferred refinement ("Unify
+  `select_wing`/`one_engine_out` case identity...") — needs its own oracle
+  re-check since closing it changes which case list WINGINER/NETLOADS iterate.
+- Transient results (`ConditionResult`, `GearReactionCase`) get no `io.py`
+  round-trip since they're never persisted on `Project` — only `case_ref` on
+  the persisted result slices needs (de)serialization.
+
+---
+
 ## Release 0.2.0 — Step R2: GUI / CLI smoke test (complete)
 
 **Objective.** Close `RELEASE_PROCESS.md` §3.5 as a permanent, repeatable

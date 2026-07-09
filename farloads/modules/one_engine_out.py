@@ -39,7 +39,9 @@ from dataclasses import dataclass
 from typing import List, Optional, Tuple
 
 from ..constants import KT_TO_FPS_SUITE, LBIN2_PER_SLUGFT2, standard_atmosphere
+from ..case_ids import CaseIdAllocator
 from ..models import (
+    CaseRef,
     ConditionResult,
     EngineInput,
     LoadValue,
@@ -335,13 +337,23 @@ def run(project: Project) -> ModuleResult:
             "one_engine_out needs positive thrust_decay_time_s, windmill_drag_time_s "
             "and rudder_travel_time_s")
 
+    # Own allocator, scoped to this run: ONENGOUT is not one of SELECT's
+    # vtail-critical conditions, so it mints its own VT- sequence, continuing
+    # conceptually after select_vtail's -- not the same case object, no shared
+    # counter (see the accepted-gap note in docs/30_future/00_backlog.md Step D1).
+    allocator = CaseIdAllocator()
     conditions: List[ConditionResult] = []
     for label, far_ref, v_kt in _speed_cases(project, oeo):
         c = _case_inputs(project, v_kt)
         _rows, s = simulate(c)
+        case_ref = CaseRef(
+            case_id=allocator.next_id("vtail"), component="vtail",
+            condition=f"one engine out — {label}", speed_kt=c.v_kt,
+            far_reference=far_ref)
         conditions.append(ConditionResult(
             title=f"One engine out — {label}",
             far_reference=far_ref,
+            case_ref=case_ref,
             values=[
                 LoadValue("V (EAS)", c.v_kt, "kt(EAS)"),
                 LoadValue("Engine thrust", s.thrust_lb, "lb"),

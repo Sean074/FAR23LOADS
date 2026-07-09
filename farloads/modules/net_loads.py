@@ -34,7 +34,13 @@ from ..models import (
 )
 from ..registry import register
 from .airloads import air_load_distribution
-from .wing_inertia import _resolve_case, build_wing_inertia, inertia_units, wing_inertia_distribution
+from .wing_inertia import (
+    _resolve_case,
+    build_wing_inertia,
+    inertia_units,
+    wing_case_ref,
+    wing_inertia_distribution,
+)
 
 
 def _sum_stations(air: WingStationLoad, inertia: WingStationLoad) -> WingStationLoad:
@@ -82,13 +88,17 @@ def build_net_loads(project: Project) -> LoadsResult:
     air_results: List[WingLoadResult] = []
     inertia_results: List[WingLoadResult] = []
     net_results: List[WingLoadResult] = []
-    for case in wm.cases:
+    for i, case in enumerate(wm.cases):
+        ref = wing_case_ref(project, i, case)
         cl, v = _air_cl_v(project, case)
         air = air_load_distribution(geom, aero, cl, v, wm.wrp_waterline, wm.dihedral_deg)
         air.case = case.name
+        air.case_ref = ref
         inertia = wing_inertia_distribution(geom, wm, _resolve_case(project, case), units)
+        inertia.case_ref = ref
         net = WingLoadResult(case=case.name, nz=inertia.nz, nx=inertia.nx,
-                             stations=[_sum_stations(a, i) for a, i in zip(air.stations, inertia.stations)])
+                             stations=[_sum_stations(a, i) for a, i in zip(air.stations, inertia.stations)],
+                             case_ref=ref)
         air_results.append(air)
         inertia_results.append(inertia)
         net_results.append(net)
@@ -129,6 +139,7 @@ def run(project: Project) -> ModuleResult:
                 LoadValue("Root drag shear Sx", root.sx, "lb"),
                 LoadValue("Root chord bending Mzz", root.mzz, "lb-in"),
             ],
+            case_ref=r.case_ref,
         ))
     return ModuleResult(module=MODULE_NAME, conditions=conditions)
 

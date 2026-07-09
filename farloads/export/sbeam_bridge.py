@@ -65,6 +65,13 @@ from ..models import (
 )
 from .coordinates import SBEAM_CID, to_force, to_grid, to_moment
 
+# --------------------------------------------------------------------------- #
+# Case-index export (Step D1): ID -> full definition, across every result slice
+# that carries a CaseRef. Duplicates by ``case_id`` collapse to one row (the
+# same case appears in multiple deliverables -- e.g. a wing case in wing_air,
+# wing_inertia and wing_net -- but the index lists it once).
+# --------------------------------------------------------------------------- #
+
 # sbeam sizes structure to ULTIMATE loads, so every exported force / moment /
 # pressure magnitude is the calc's LIMIT value x this factor (14 CFR 25.303 -> 1.5;
 # see farloads.constants.ULTIMATE_FACTOR). Geometry (coordinates, chord fractions)
@@ -236,6 +243,7 @@ def _case_card_block(r: WingLoadResult, sid: int) -> List[str]:
     root_myy = loads[0].myy if loads else 0.0
     lines = [
         f"$ FAR23LOADS net wing load -- case {r.case} (Nz={r.nz:g}, Nx={r.nx:g}), SID {sid}",
+        f"$ Case ID: {r.case_ref.case_id}" if r.case_ref else "$ Case ID: (none)",
         "$ Axes: FAR23LOADS station/butt/waterline inches -> sbeam CID 0 (identity).",
         "$ Loads are ULTIMATE (limit x 1.5).",
         f"$ FORCE set sums to root Sz = {root_sz:.1f} lb; "
@@ -406,6 +414,7 @@ def body_force_moment_cards(arg, sid_base: int = 1) -> str:
         total_fz = sum(s.fz for s in r.stations) * _SF
         lines = [
             f"$ FAR23LOADS net fuselage load -- case {r.case}, SID {sid}",
+            f"$ Case ID: {r.case_ref.case_id}" if r.case_ref else "$ Case ID: (none)",
             "$ Loads are ULTIMATE (limit x 1.5).",
             f"$ Applied Fz set sums to {total_fz:.2f} lb (vertical equilibrium).",
         ]
@@ -494,6 +503,7 @@ def tail_force_moment_cards(arg, sid_base: int = 1) -> str:
         total = sum(forces)
         lines = [
             f"$ FAR23LOADS chordwise {r.component} load -- case {r.case}, SID {sid}",
+            f"$ Case ID: {r.case_ref.case_id}" if r.case_ref else "$ Case ID: (none)",
             "$ Loads are ULTIMATE (limit x 1.5).",
             f"$ Applied Fz set sums to {total:.1f} lb (= 1.5 x (LT25 + LT50) = "
             f"{(r.lt25 + r.lt50) * _SF:.1f} lb).",
@@ -595,6 +605,7 @@ def control_surface_force_moment_cards(arg, sid_base: int = 1) -> str:
         total = sum(forces)
         lines = [
             f"$ FAR23LOADS control-surface load -- {r.surface} {r.case}, SID {sid}",
+            f"$ Case ID: {r.case_ref.case_id}" if r.case_ref else "$ Case ID: (none)",
             "$ Loads are ULTIMATE (limit x 1.5).",
             f"$ Applied Fz set sums to {total:.1f} lb (= 1.5 x critical load "
             f"{r.load_lb * _SF:.1f} lb).",
@@ -618,3 +629,86 @@ def write_control_surface_csv(arg, path: str) -> None:
 def write_control_surface_force_moment_cards(arg, path: str, sid_base: int = 1) -> None:
     with open(path, "w", encoding="utf-8") as fh:
         fh.write(control_surface_force_moment_cards(arg, sid_base=sid_base))
+
+
+# --------------------------------------------------------------------------- #
+# Case-index table (ID -> component, condition, CG, speed, altitude, FAR)
+# --------------------------------------------------------------------------- #
+def case_index_rows_from(*groups: Sequence) -> List[dict]:
+    """One row per distinct ``case_id`` across any number of case-carrying object
+    groups (anything with a ``.case_ref`` -- ``WingLoadResult``, ``BodyLoadResult``,
+    ``TailChordResult``, ``ControlSurfaceLoadResult``, ``CriticalCondition``,
+    engine ``ConditionResult``, LANDLOAD ``GearReactionCase``, ...). Rows are
+    emitted in first-seen order across the groups, in the order given; a
+    ``case_id`` seen again (the same case appearing in multiple deliverables --
+    e.g. a wing case in ``wing_air``, ``wing_inertia`` and ``wing_net``) is not
+    repeated.
+    """
+    seen = set()
+    rows: List[dict] = []
+    for group in groups:
+        for item in group:
+            ref = getattr(item, "case_ref", None)
+            if ref is None or ref.case_id in seen:
+                continue
+            seen.add(ref.case_id)
+            rows.append({
+                "ID": ref.case_id,
+                "Component": ref.component,
+                "Condition": ref.condition,
+                "CG": ref.cg,
+                "Speed (kt)": f"{ref.speed_kt:.2f}" if ref.speed_kt is not None else "",
+                "Altitude (ft)": f"{ref.altitude_ft:.0f}" if ref.altitude_ft is not None else "",
+                "FAR": ref.far_reference,
+            })
+    return rows
+
+
+def case_index_rows(project: Project, extra: Sequence = ()) -> List[dict]:
+    """One row per distinct ``case_id`` across ``project``'s persisted result
+    slices, plus any ``extra`` case-carrying objects (e.g. a run's engine
+    ``ConditionResult``s or LANDLOAD ``GearReactionCase``s -- transient results
+    not stored on ``Project``, so the caller passes them in when available).
+
+    Rows are emitted in first-seen order: ``loads`` slices (wing_net -> body_net
+    -> tail_chordwise -> control_surface), then ``envelope.critical`` (SELECT's
+    own conditions, including its separate wing sequence -- see the accepted-gap
+    note in ``docs/30_future/00_backlog.md`` Step D1), then ``extra``.
+    """
+    groups: List[Sequence] = []
+    if project.loads is not None:
+        groups += [project.loads.wing_net, project.loads.body_net,
+                  project.loads.tail_chordwise, project.loads.control_surface]
+    if project.envelope is not None and project.envelope.critical is not None:
+        groups.append(project.envelope.critical.conditions)
+    groups.append(extra)
+    return case_index_rows_from(*groups)
+
+
+_CASE_INDEX_FIELDS = ["ID", "Component", "Condition", "CG", "Speed (kt)", "Altitude (ft)", "FAR"]
+
+
+def _rows_to_csv(rows: List[dict]) -> str:
+    buf = _io.StringIO()
+    writer = csv.DictWriter(buf, fieldnames=_CASE_INDEX_FIELDS)
+    writer.writeheader()
+    writer.writerows(rows)
+    return buf.getvalue()
+
+
+def case_index_csv(project: Project, extra: Sequence = ()) -> str:
+    """The case-index table (ID -> full definition) as CSV text, from ``project``'s
+    persisted result slices."""
+    return _rows_to_csv(case_index_rows(project, extra=extra))
+
+
+def case_index_csv_from(*groups: Sequence) -> str:
+    """The case-index table as CSV text, from explicit case-carrying object groups
+    (for a caller -- e.g. the Export page -- that recomputes results live rather
+    than reading them off ``Project``)."""
+    return _rows_to_csv(case_index_rows_from(*groups))
+
+
+def write_case_index_csv(project: Project, path: str, extra: Sequence = ()) -> None:
+    with open(path, "w", encoding="utf-8", newline="") as fh:
+        fh.write(case_index_csv(project, extra=extra))

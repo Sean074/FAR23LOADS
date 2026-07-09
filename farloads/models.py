@@ -917,6 +917,31 @@ class LayoutInput:
 
 
 @dataclass
+class CaseRef:
+    """A stable, traceable identity for one delivered structural load case (Step D1).
+
+    ``case_id`` is ``"<component>-<seq>"`` (``"W-01"``, ``"HT-03"``, ``"VT-02"``,
+    ``"F-04"``, ``"EM-01"``, ``"LG-05"``, ...) -- see ``farloads.case_ids`` for the
+    six-entry component-prefix taxonomy (control surfaces fold into their host
+    structural component; the surface identity lives in ``condition``, not a
+    separate prefix). Minted **once**, by the module that first names the physical
+    condition, and carried unchanged by every downstream stage that derives a
+    result from that same case (never re-minted) -- see ``docs/30_future/
+    00_backlog.md`` Step D1 for the full design, including the accepted gap where
+    the wing (``select_wing`` vs. ``WingMassInput.cases``) and vertical-tail
+    (``select_vtail`` vs. ``one_engine_out``) pipelines mint two independent
+    sequences that share a prefix but are not the same case object.
+    """
+    case_id: str
+    component: str          # "wing" | "htail" | "vtail" | "fuselage" | "engine_mount" | "landing_gear"
+    condition: str          # human label, e.g. "PHAA", "down aileron", "sudden rudder"
+    cg: str = ""
+    speed_kt: Optional[float] = None
+    altitude_ft: Optional[float] = None
+    far_reference: str = ""
+
+
+@dataclass
 class LoadValue:
     """A single labelled output quantity with units (for clean rendering).
 
@@ -947,6 +972,7 @@ class ConditionResult:
     values: List[LoadValue] = field(default_factory=list)
     note: str = ""
     safety_factor: float = ULTIMATE_FACTOR
+    case_ref: Optional[CaseRef] = None
 
 
 @dataclass
@@ -1027,6 +1053,10 @@ class VnPoint:
     lzw: float
     lt: float
     dx: float
+    # Stamped by SELECT (case_ids.py) when this point is chosen as a governing
+    # critical condition -- the same CaseRef as the CriticalCondition it produced.
+    # None for the bulk of the V-n matrix (never selected).
+    case_ref: Optional["CaseRef"] = None
 
 
 @dataclass
@@ -1069,6 +1099,7 @@ class CriticalCondition:
     loads: List[LoadValue] = field(default_factory=list)
     lt25: Optional[float] = None
     lt50: Optional[float] = None
+    case_ref: Optional[CaseRef] = None
 
 
 @dataclass
@@ -1123,6 +1154,7 @@ class WingLoadResult:
     nz: float = 0.0
     nx: float = 0.0
     stations: List[WingStationLoad] = field(default_factory=list)
+    case_ref: Optional[CaseRef] = None
 
 
 @dataclass
@@ -1151,6 +1183,7 @@ class BodyLoadResult:
     """One condition's longitudinal fuselage net-load table (nose-to-tail)."""
     case: str
     stations: List[BodyStationLoad] = field(default_factory=list)
+    case_ref: Optional[CaseRef] = None
 
 
 @dataclass
@@ -1177,6 +1210,7 @@ class TailChordResult:
     lt25: float
     lt50: float
     stations: List[TailChordStation] = field(default_factory=list)
+    case_ref: Optional[CaseRef] = None
 
 
 @dataclass
@@ -1205,6 +1239,7 @@ class ControlSurfaceLoadResult:
     load_lb: float
     v_kt: float = 0.0
     stations: List[ControlSurfaceStation] = field(default_factory=list)
+    case_ref: Optional[CaseRef] = None
 
 
 @dataclass
@@ -1246,6 +1281,7 @@ class GearReactionCase:
     pitchp: float = 0.0
     rollp: float = 0.0
     yawp: float = 0.0
+    case_ref: Optional[CaseRef] = None
 
 
 @dataclass
@@ -1298,8 +1334,13 @@ class LoadsResult:
 # (OneEngineOutInput, ONENGOUT) and the 50%-MAC v-tail station (VTailLoadsInput.xv50)
 # -- additive, older files load unchanged via the from_dict defaults; v15 (Step C10)
 # adds the landing / ground-load input slice (LandingInput, LGFACTOR + LANDLOAD) on
-# Project.landing -- additive, older files load unchanged via the from_dict defaults.
-SCHEMA_VERSION = 15
+# Project.landing -- additive, older files load unchanged via the from_dict defaults;
+# v16 (Step D1) adds the CaseRef dataclass and an optional case_ref field on
+# ConditionResult, VnPoint, CriticalCondition, WingLoadResult, BodyLoadResult,
+# TailChordResult, ControlSurfaceLoadResult and GearReactionCase (the structured
+# load-case ID, see farloads.case_ids) -- additive, older files load unchanged via
+# the from_dict defaults (case_ref = None, back-filled on the next compute).
+SCHEMA_VERSION = 16
 
 
 @dataclass

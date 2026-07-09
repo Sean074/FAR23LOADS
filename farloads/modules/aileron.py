@@ -30,7 +30,9 @@ from __future__ import annotations
 
 from typing import List, NamedTuple
 
+from ..case_ids import CaseIdAllocator, WING_BAND_AILERON
 from ..models import (
+    CaseRef,
     ConditionResult,
     ControlSurfaceLoadResult,
     ControlSurfaceStation,
@@ -114,15 +116,27 @@ def build_aileron(project: Project) -> List[ControlSurfaceLoadResult]:
     r = aileron_loads(sv.va, sv.vc, sv.vd, inp.down_deflection_deg,
                       inp.up_deflection_deg, inp.area_fwd_hinge_sqft,
                       inp.area_aft_hinge_sqft)
+    # W- ids from the AILERON band (case_ids.WING_BAND_AILERON..59) -- aileron/
+    # flap/wing-tab are separate modules from WINGINER/NETLOADS with no shared
+    # allocator state, so they're banded apart within the shared "wing" prefix.
+    allocator = CaseIdAllocator()
+    allocator.seed("wing", WING_BAND_AILERON)
+
+    def ref(case: str) -> CaseRef:
+        return CaseRef(case_id=allocator.next_id("wing"), component="wing",
+                       condition=case, far_reference="23.455")
+
     return [
         ControlSurfaceLoadResult(
             surface=inp.surface, case="down aileron", load_lb=r.down_load_lb,
             v_kt=r.down_speed_kt,
-            stations=_stations(r.down_pressure_psi, r.hinge_chord_fraction)),
+            stations=_stations(r.down_pressure_psi, r.hinge_chord_fraction),
+            case_ref=ref("down aileron")),
         ControlSurfaceLoadResult(
             surface=inp.surface, case="up aileron", load_lb=r.up_load_lb,
             v_kt=r.up_speed_kt,
-            stations=_stations(r.up_pressure_psi, r.hinge_chord_fraction)),
+            stations=_stations(r.up_pressure_psi, r.hinge_chord_fraction),
+            case_ref=ref("up aileron")),
     ]
 
 

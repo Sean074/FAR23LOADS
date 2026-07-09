@@ -97,6 +97,13 @@ if _control:
     _bdf_artifacts["control_surface_loads.bdf"] = _try(sb.control_surface_force_moment_cards, _control) or ""
     _bdf_artifacts["control_surface_loads.csv"] = _try(sb.control_surface_csv, _control) or ""
 
+# Case-index table (Step D1): ID -> full definition, from every module's own
+# ConditionResults (covers engine/landing/SELECT) plus the sbeam component
+# deliverables recomputed above (covers the full wing/body/tail/control sets).
+case_index_csv = sb.case_index_csv_from(
+    *(mr.conditions for mr in module_results), _wing or [], _body or [], _tail or [], _control,
+)
+
 
 # --------------------------------------------------------------------------- #
 # 1. Project file + combined bundle
@@ -116,6 +123,8 @@ def _zip_bundle() -> bytes:
         for module, csv in module_csvs.items():
             if csv:
                 z.writestr(f"load_cases/{_stem}_{module}.csv", csv)
+        if case_index_csv.strip():
+            z.writestr(f"{_stem}_case_index.csv", case_index_csv)
         for name, content in _bdf_artifacts.items():
             if content:
                 z.writestr(f"sbeam/{_stem}_{name}", content)
@@ -167,3 +176,18 @@ _bdf_row("Wing", "wing_loads.bdf", "wing_span_loads.csv", "wing_stick.bdf")
 _bdf_row("Fuselage", "fuselage_loads.bdf", "fuselage_span_loads.csv")
 _bdf_row("Tail", "tail_loads.bdf", "tail_chordwise.csv")
 _bdf_row("Control surfaces", "control_surface_loads.bdf", "control_surface_loads.csv")
+
+# --------------------------------------------------------------------------- #
+# 4. Case-index table (Step D1)
+# --------------------------------------------------------------------------- #
+st.header("Case index")
+st.caption("Every structured case ID this run produced, mapped to its full definition.")
+if case_index_csv.strip():
+    import csv as _csv_mod
+
+    rows = list(_csv_mod.DictReader(_io.StringIO(case_index_csv)))
+    st.dataframe(rows, use_container_width=True, hide_index=True)
+    st.download_button("Case index (CSV)", case_index_csv,
+                       file_name=f"{_stem}_case_index.csv", mime="text/csv")
+else:
+    st.info("No structured case IDs yet — run a component module first.")

@@ -94,13 +94,19 @@ def results_to_rows(results: List[ConditionResult]) -> List[Dict[str, str]]:
     """
     rows: List[Dict[str, str]] = []
     for r in results:
+        ref = r.case_ref
         for v in r.values:
             is_load = _is_load_unit(v.units, v.quantity)
             value = v.value * r.safety_factor if is_load else v.value
             rows.append(
                 {
+                    "ID": ref.case_id if ref else "",
                     "FAR": r.far_reference,
                     "Condition": r.title,
+                    "Component": ref.component if ref else "",
+                    "CG": ref.cg if ref else "",
+                    "Speed (kt)": _fmt(ref.speed_kt) if ref and ref.speed_kt is not None else "",
+                    "Altitude (ft)": _fmt(ref.altitude_ft) if ref and ref.altitude_ft is not None else "",
                     "Quantity": v.label,
                     "Value": _fmt(value),
                     "Units": _ult_units(v.units, v.quantity),
@@ -192,8 +198,23 @@ def _val(loadvalue: Optional[LoadValue]):
     return loadvalue.value if loadvalue is not None else ""
 
 
+_GYRO_SUBCASE_SUFFIX = "abcd"  # sign-combination order matches condition_371_b's itertools.product
+
+
+def _gyro_subcase_id(r: ConditionResult, num: str) -> str:
+    """The sub-case ID for one gyro sign-combination: the condition's calc-minted
+    EM- id with an a/b/c/d suffix (the model has no way to carry 4 case_refs on
+    one ConditionResult -- see docs/30_future/00_backlog.md Step D1)."""
+    if r.case_ref is None:
+        return ""
+    idx = int(num) - 1
+    suffix = _GYRO_SUBCASE_SUFFIX[idx] if 0 <= idx < len(_GYRO_SUBCASE_SUFFIX) else str(num)
+    return f"{r.case_ref.case_id}{suffix}"
+
+
 def _gyro_subcases(r: ConditionResult):
-    """Yield (description, Myy, Mzz, thrust, vertical) for each gyro load case.
+    """Yield (description, Myy, Mzz, thrust, vertical, case_id) for each gyro load
+    case.
 
     The 2.5g vertical load and max-continuous thrust are constant across all four
     sign combinations; only the gyroscopic moments vary.
@@ -211,7 +232,7 @@ def _gyro_subcases(r: ConditionResult):
     for num in sorted(cases, key=int):
         c = cases[num]
         desc = f"{r.title} — Case {num} ({c['signs']})"
-        yield desc, c.get("Myy", ""), c.get("Mzz", ""), thrust, vertical
+        yield desc, c.get("Myy", ""), c.get("Mzz", ""), thrust, vertical, _gyro_subcase_id(r, num)
 
 
 def load_cases_to_rows(results: List[ConditionResult]) -> List[Dict[str, object]]:
@@ -244,12 +265,21 @@ def load_cases_to_rows(results: List[ConditionResult]) -> List[Dict[str, object]
     c_pitch = f"Pitch moment Myy ({mom_ult})"
     c_yaw = f"Yaw moment Mzz ({mom_ult})"
 
-    def row(idx, far, desc, loc, sf, *, fz="", fy="", fx="", mx="", my="", mz=""):
+    def row(idx, far, desc, loc, sf, *, fz="", fy="", fx="", mx="", my="", mz="",
+            case_id="", case_ref=None):
         x, y, z = loc
+        # The structured id (case_ref.case_id or a gyro sub-case id) is used when
+        # present; LC{idx} is only a fallback for results with no case_ref yet
+        # (see docs/30_future/00_backlog.md Step D1) so nothing renders blank.
         return {
-            "ID": f"LC{idx}",
+            "ID": case_id or f"LC{idx}",
             "FAR": far,
             "Case description": desc,
+            "Component": case_ref.component if case_ref else "",
+            "Condition": case_ref.condition if case_ref else "",
+            "CG": case_ref.cg if case_ref else "",
+            "Speed (kt)": _num(case_ref.speed_kt) if case_ref and case_ref.speed_kt is not None else "",
+            "Altitude (ft)": _num(case_ref.altitude_ft) if case_ref and case_ref.altitude_ft is not None else "",
             "SF": _fmt(sf),
             c_id[0]: _num(x),
             c_id[1]: _num(y),
@@ -268,11 +298,13 @@ def load_cases_to_rows(results: List[ConditionResult]) -> List[Dict[str, object]
         loc = _result_location(r) or g_loc
         sf = r.safety_factor
         if r.far_reference == _GYRO_FAR:
-            for desc, my, mz, fx, fz in _gyro_subcases(r):
+            for desc, my, mz, fx, fz, gyro_id in _gyro_subcases(r):
                 idx += 1
-                rows.append(row(idx, r.far_reference, desc, loc, sf, fz=fz, fx=fx, my=my, mz=mz))
+                rows.append(row(idx, r.far_reference, desc, loc, sf, fz=fz, fx=fx, my=my, mz=mz,
+                                case_id=gyro_id, case_ref=r.case_ref))
         else:
             idx += 1
+            case_id = r.case_ref.case_id if r.case_ref else ""
             rows.append(
                 row(
                     idx,
@@ -283,6 +315,8 @@ def load_cases_to_rows(results: List[ConditionResult]) -> List[Dict[str, object]
                     fz=_val(_find_any(r.values, _VERTICAL_LABELS)),
                     fy=_val(_find(r.values, _SIDE_LABEL)),
                     mx=_val(_find(r.values, _TORQUE_LABEL)),
+                    case_id=case_id,
+                    case_ref=r.case_ref,
                 )
             )
     return rows

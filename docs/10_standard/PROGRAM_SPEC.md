@@ -423,6 +423,57 @@ other modules consume).
 
 ---
 
+## Structured load-case IDs (Step D1)
+
+Every delivered load case carries a stable `CaseRef` (`farloads/models.py`):
+`case_id` (`"<component>-<seq>"`), `component`, `condition`, `cg`, `speed_kt`,
+`altitude_ft`, `far_reference`. It replaces `report.py`'s old render-time,
+per-module, unstable `LC{idx}`. Full design in `docs/30_future/
+00_backlog.md` Step D1 (moved to `40_history/00_completed_development.md` once
+shipped); summary for anyone adding a new module:
+
+- **Six component prefixes, no more.** `wing` → `W`, `htail` → `HT`,
+  `vtail` → `VT`, `fuselage` → `F`, `engine_mount` → `EM`,
+  `landing_gear` → `LG` (`farloads/case_ids.py::COMPONENT_PREFIX`).
+  Control surfaces fold into their host structural component (aileron/flap/
+  wing-tab → `W`; htail/vtail-tab → `HT`/`VT`); the surface identity lives in
+  `CaseRef.condition`, not a separate prefix.
+- **Assign once, in the minting module's own fixed emission order**, using a
+  fresh `case_ids.CaseIdAllocator()` per build call — never a shared/global
+  counter. Downstream modules that consume an already-identified result (e.g.
+  TAILDIST/body_loads reading SELECT's `CriticalCondition`s) **copy** the
+  `case_ref`, they never re-mint.
+- **Band disjoint allocators that share a prefix.** Two independent counters
+  over the *same* numeric range collide outright (verified in a smoke run:
+  `select_wing`'s own `W-02` and WINGINER's `W-02` briefly meant two different
+  cases before this was caught) — not just the weaker "divergent sequence"
+  gap below. `case_ids.py` reserves: `W-01..39` WINGINER/NETLOADS structural,
+  `W-40..49` `select_wing`'s own list, `W-50..59` AILERON, `W-60..69`
+  FLAPLOAD, `W-70+` a wing-hosted tab; `HT-50+`/`VT-50+` for TABLOADS' htail/
+  vtail-hosted tabs (disjoint from SELECT's own htail/vtail sequence). A new
+  module minting into an existing prefix must claim its own band here.
+- **Known accepted gap — not closed by D1.** `select_wing`'s own
+  `CriticalCondition` list and `WingMassInput.cases` (which actually drives
+  WINGINER/NETLOADS) are two independent wing case lists (the pre-SELECT "C3
+  bridge" in `models.py`); banding prevents an ID collision but does not make
+  them the same case object, so the same numeric range can label two
+  different physical cases depending which list you're looking at. Same gap
+  between `one_engine_out`'s own `VT-` id and `select_vtail`'s. See "Unify
+  `select_wing`/`one_engine_out` case identity..." in `docs/30_future/
+  00_backlog.md` → Deferred refinements.
+- **A `ConditionResult` carries at most one `CaseRef`.** Where a module packs
+  several sub-cases into one result (23.371(b)'s four gyro sign combinations),
+  the base id is minted once in calc and the sub-case ids are *derived*
+  (`report.py`'s `_gyro_subcase_id`, an a/b/c/d suffix) at render time — this
+  is the one place ID text is built outside a calc module, and only because
+  the model has no way to carry four `CaseRef`s on one result.
+- **Not persisted for transient results.** `ConditionResult`/`GearReactionCase`
+  are never written to `project.json` (they're recomputed every run), so their
+  `case_ref` has no `io.py` round-trip; only the *persisted* result slices
+  (`EnvelopeResult.vn`/`.critical`, `LoadsResult.*`) serialize it.
+
+---
+
 ## Status summary
 
 | Phase | Modules | Done | Remaining |

@@ -145,7 +145,8 @@ def build_tail_chordwise(project: Project) -> List[TailChordResult]:
         stations = chordwise_pressures(cond.lt25, cond.lt50, area_sqin, aft_sqin, span_in)
         results.append(TailChordResult(
             case=cond.label, component=cond.component,
-            lt25=cond.lt25, lt50=cond.lt50, stations=stations))
+            lt25=cond.lt25, lt50=cond.lt50, stations=stations,
+            case_ref=cond.case_ref))
     return results
 
 
@@ -169,6 +170,7 @@ def run(project: Project) -> ModuleResult:
             note="Additive (25% chord) + camber (50% chord) distribution (Ref 1 Ch 10)."
             + (" Concept mode -- unverified extrapolation past the FAR23 band."
                if project.is_concept else ""),
+            case_ref=r.case_ref,
         ))
     return ModuleResult(module=MODULE_NAME, conditions=conditions)
 

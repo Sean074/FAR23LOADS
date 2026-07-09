@@ -9,6 +9,33 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- **Structured load-case IDs** (Phase D Step D1, decision D-1). Every
+  delivered load case now carries a stable, traceable `case_id`
+  (`"<component>-<seq>"`, e.g. `W-01`, `HT-03`, `VT-02`, `F-04`, `EM-01`,
+  `LG-05`) that replaces `report.py`'s old render-time, per-module, unstable
+  `LC{idx}`. New `CaseRef` dataclass (`farloads/models.py`) and
+  `farloads/case_ids.py` (the six-prefix taxonomy + a per-call-site
+  `CaseIdAllocator`, no shared/global state). Minted once by the module that
+  first names a physical condition (`select.py`, `engine.py`, `landing.py`,
+  `aileron.py`, `flap.py`, `tab.py`, `one_engine_out.py`,
+  `wing_inertia.py`/`net_loads.py`) and copied downstream by consumers
+  (`taildist.py`, `body_loads.py`) rather than re-minted. `report.py`'s
+  load-case tables gain `Component`/`Condition`/`CG`/`Speed`/`Altitude`
+  columns; `export/sbeam_bridge.py` stamps the case id into every sbeam
+  `FORCE`/`MOMENT` card comment and adds a new case-index CSV
+  (`case_index_csv_from`/`case_index_rows`), surfaced on the Export page.
+  `SCHEMA_VERSION` 15 → 16 (additive; older files load with `case_ref = None`,
+  back-filled on the next compute). No calc-math change — the Appendix A/B
+  oracles pass unmodified. **Accepted, not closed:** `select_wing`'s own wing
+  `CriticalCondition` list and `WingMassInput.cases` (which drives
+  WINGINER/NETLOADS) remain two independent case lists sharing the `W` prefix
+  in disjoint numeric bands (not the same case object); same gap between
+  `one_engine_out` and `select_vtail`'s vertical-tail sequence — tracked as a
+  deferred refinement. See `docs/30_future/00_backlog.md` → history for the
+  full design and the banding-collision bug caught during implementation.
+
 ## [0.2.0] — 2026-07-08
 
 ### Added

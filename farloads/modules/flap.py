@@ -42,7 +42,9 @@ import math
 from typing import List, NamedTuple
 
 from ..constants import KT_TO_FPS_SUITE
+from ..case_ids import CaseIdAllocator, WING_BAND_FLAP
 from ..models import (
+    CaseRef,
     ConditionResult,
     ControlSurfaceLoadResult,
     ControlSurfaceStation,
@@ -193,8 +195,14 @@ def build_flap(project: Project) -> List[ControlSurfaceLoadResult]:
         ControlSurfaceStation(x=0.0, psi=le),
         ControlSurfaceStation(x=1.0, psi=le / 2.0),
     ]
+    # W- id from the FLAPLOAD band (case_ids.WING_BAND_FLAP..69).
+    allocator = CaseIdAllocator()
+    allocator.seed("wing", WING_BAND_FLAP)
+    ref = CaseRef(case_id=allocator.next_id("wing"), component="wing",
+                  condition=case, far_reference="23.345/23.457")
     return [ControlSurfaceLoadResult(
-        surface=surface, case=case, load_lb=load, v_kt=sv.vf, stations=stations)]
+        surface=surface, case=case, load_lb=load, v_kt=sv.vf, stations=stations,
+        case_ref=ref)]
 
 
 def run(project: Project) -> ModuleResult:
@@ -227,8 +235,10 @@ def run(project: Project) -> ModuleResult:
             "taper LE -> half at TE. Slipstream FAR 23.457(b), gust FAR 23.345(c)(1).")
     if project.is_concept:
         note += " Concept mode -- unverified extrapolation past the FAR23 band."
+    case_ref = build_flap(project)[0].case_ref
     return ModuleResult(module=MODULE_NAME, conditions=[ConditionResult(
-        title="Critical flap loads", far_reference="23.345", values=values, note=note)])
+        title="Critical flap loads", far_reference="23.345", values=values, note=note,
+        case_ref=case_ref)])
 
 
 register(MODULE_NAME, run)

@@ -37,8 +37,10 @@ from __future__ import annotations
 import math
 from typing import List, NamedTuple, Optional, Tuple
 
+from ..case_ids import CaseIdAllocator
 from ..constants import G
 from ..models import (
+    CaseRef,
     CgCase,
     ConditionResult,
     GearReactionCase,
@@ -364,11 +366,21 @@ def landing_reactions(inp: LandingInput, lf_result: LoadFactorResult,
     dn = [result[m] * math.sin(math.radians(phin[m])) for m in range(34)]
 
     # --- Assemble per-case records --------------------------------------------
+    # LG- ids are minted here, in this loop's fixed 1..33 order (the manual's own
+    # case numbering, unrelated to but reused for traceability in CaseRef.condition).
+    allocator = CaseIdAllocator()
     cases: List[GearReactionCase] = []
     for m in range(1, 34):
         fam, far = _family(m)
         i = (m - 1) % 3 if m <= 24 else (m - 25) // 3
         cg_name = cgs[i].name if i < len(cgs) else ""
+        case_ref = CaseRef(
+            case_id=allocator.next_id("landing_gear"),
+            component="landing_gear",
+            condition=f"{fam} (case {m})",
+            cg=cg_name,
+            far_reference=far,
+        )
         cases.append(GearReactionCase(
             case=m, description=fam, far_reference=far, cg_name=cg_name,
             vmp=vmp[m] if m <= 24 else 0.0,
@@ -382,7 +394,8 @@ def landing_reactions(inp: LandingInput, lf_result: LoadFactorResult,
             ns=ns[m] if m <= 24 else 0.0,
             pitchp=pitchp[m] if m <= 24 else 0.0,
             rollp=rollp[m] if m <= 24 else 0.0,
-            yawp=yawp[m] if m <= 24 else 0.0))
+            yawp=yawp[m] if m <= 24 else 0.0,
+            case_ref=case_ref))
     return cases
 
 
@@ -489,6 +502,7 @@ def run(project: Project) -> ModuleResult:
                 LoadValue("Side nose", c.snp, "lb"),
                 LoadValue("Resultant nose", c.result, "lb"),
             ],
+            case_ref=c.case_ref,
         ))
     return ModuleResult(module=MODULE_NAME, conditions=conditions)
 

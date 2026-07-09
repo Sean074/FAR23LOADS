@@ -55,7 +55,9 @@ from __future__ import annotations
 import math
 from typing import Dict, List, Optional
 
+from ..case_ids import CaseIdAllocator, WING_BAND_SELECT
 from ..models import (
+    CaseRef,
     CgCase,
     ConditionResult,
     CriticalCondition,
@@ -633,6 +635,38 @@ def select_fuselage(project: Project) -> List[CriticalCondition]:
     return out
 
 
+def _stamp_case_refs(project: Project, conditions: List[CriticalCondition]) -> None:
+    """Mint a :class:`CaseRef` per condition, in this list's fixed emission order
+    (wing, then htail, then vtail, then fuselage -- ``build_critical``'s own call
+    order), and copy it onto the originating :class:`VnPoint` in
+    ``Project.envelope.vn`` when one exists, so the V-n table can show it too.
+
+    One allocator, scoped to this call, mints all four components -- including
+    ``wing``. This is the *SELECT* wing sequence; WINGINER/NETLOADS mint their own,
+    separate ``W-`` sequence, seeded into its own disjoint band
+    (``case_ids.WING_BAND_SELECT``) so the two counters cannot collide (see the
+    accepted-gap note in ``docs/30_future/00_backlog.md`` Step D1) -- they are not
+    the same case object even though they share a prefix.
+    """
+    allocator = CaseIdAllocator()
+    allocator.seed("wing", WING_BAND_SELECT)
+    vn_by_case = {p.case: p for p in _envelope(project).vn}
+    for c in conditions:
+        p = vn_by_case.get(c.case)
+        ref = CaseRef(
+            case_id=allocator.next_id(c.component),
+            component=c.component,
+            condition=c.label,
+            cg=p.cg if p else "",
+            speed_kt=p.v_eas_kt if p else None,
+            altitude_ft=p.altitude_ft if p else None,
+            far_reference=c.far_reference,
+        )
+        c.case_ref = ref
+        if p is not None:
+            p.case_ref = ref
+
+
 def build_critical(project: Project) -> CriticalLoadSet:
     """Compute the critical-load set for ``Project.envelope.critical``: the wing
     conditions always, plus the rational horizontal-tail loads (when
@@ -642,6 +676,7 @@ def build_critical(project: Project) -> CriticalLoadSet:
     conditions.extend(select_htail(project))
     conditions.extend(select_vtail(project))
     conditions.extend(select_fuselage(project))
+    _stamp_case_refs(project, conditions)
     return CriticalLoadSet(conditions=conditions)
 
 
@@ -655,6 +690,7 @@ def _critical_conditions(cls: CriticalLoadSet, concept: bool) -> List[ConditionR
             far_reference=c.far_reference,
             values=list(c.loads),
             note=note,
+            case_ref=c.case_ref,
         ))
     return out
 

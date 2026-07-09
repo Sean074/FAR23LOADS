@@ -27,6 +27,7 @@ from .models import (
     AileronLoadsInput,
     BodyLoadResult,
     BodyStationLoad,
+    CaseRef,
     CgCase,
     ConcentratedWeight,
     ConditionResult,
@@ -80,6 +81,18 @@ from .models import (
     WingStationLoad,
 )
 from .report import has_load_case_data, load_cases_to_rows, results_to_rows
+
+
+# --------------------------------------------------------------------------- #
+# CaseRef <-> dict (Step D1) -- shared by every result type that carries one:
+# VnPoint, CriticalCondition, WingLoadResult, BodyLoadResult, TailChordResult,
+# ControlSurfaceLoadResult. ``asdict`` already nests CaseRef correctly on the
+# to_dict side (no helper needed there); from_dict needs one since a plain
+# ``**dict(d)`` splat would otherwise pass the nested dict straight through as
+# ``case_ref`` instead of a CaseRef instance.
+# --------------------------------------------------------------------------- #
+def _case_ref_from_dict(raw) -> Any:
+    return CaseRef(**dict(raw)) if raw else None
 
 
 # --------------------------------------------------------------------------- #
@@ -349,7 +362,14 @@ def _critical_condition_from_dict(d: Dict[str, Any]) -> CriticalCondition:
         loads=[LoadValue(**dict(v)) for v in d.get("loads", []) or []],
         lt25=d.get("lt25"),
         lt50=d.get("lt50"),
+        case_ref=_case_ref_from_dict(d.get("case_ref")),
     )
+
+
+def _vn_point_from_dict(d: Dict[str, Any]) -> VnPoint:
+    d = dict(d)
+    ref = d.pop("case_ref", None)
+    return VnPoint(case_ref=_case_ref_from_dict(ref), **d)
 
 
 def _critical_from_dict(d: Dict[str, Any]) -> CriticalLoadSet:
@@ -362,7 +382,7 @@ def envelope_from_dict(d: Dict[str, Any]) -> EnvelopeResult:
     """Build an :class:`EnvelopeResult` from a plain dict (the persisted V-n data)."""
     critical = d.get("critical")
     return EnvelopeResult(
-        vn=[VnPoint(**dict(p)) for p in d.get("vn", []) or []],
+        vn=[_vn_point_from_dict(p) for p in d.get("vn", []) or []],
         tail_balance=[TailBalanceLoad(**dict(t)) for t in d.get("tail_balance", []) or []],
         critical=_critical_from_dict(critical) if critical else None,
     )
@@ -566,6 +586,7 @@ def _wing_load_result_from_dict(d: Dict[str, Any]) -> WingLoadResult:
         nz=d.get("nz", 0.0),
         nx=d.get("nx", 0.0),
         stations=[WingStationLoad(**dict(s)) for s in d.get("stations", []) or []],
+        case_ref=_case_ref_from_dict(d.get("case_ref")),
     )
 
 
@@ -573,6 +594,7 @@ def _body_load_result_from_dict(d: Dict[str, Any]) -> BodyLoadResult:
     return BodyLoadResult(
         case=d.get("case", ""),
         stations=[BodyStationLoad(**dict(s)) for s in d.get("stations", []) or []],
+        case_ref=_case_ref_from_dict(d.get("case_ref")),
     )
 
 
@@ -583,6 +605,7 @@ def _tail_chord_result_from_dict(d: Dict[str, Any]) -> TailChordResult:
         lt25=d.get("lt25", 0.0),
         lt50=d.get("lt50", 0.0),
         stations=[TailChordStation(**dict(s)) for s in d.get("stations", []) or []],
+        case_ref=_case_ref_from_dict(d.get("case_ref")),
     )
 
 
@@ -593,6 +616,7 @@ def _control_surface_result_from_dict(d: Dict[str, Any]) -> ControlSurfaceLoadRe
         load_lb=d.get("load_lb", 0.0),
         v_kt=d.get("v_kt", 0.0),
         stations=[ControlSurfaceStation(**dict(s)) for s in d.get("stations", []) or []],
+        case_ref=_case_ref_from_dict(d.get("case_ref")),
     )
 
 

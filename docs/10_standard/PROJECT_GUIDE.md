@@ -253,6 +253,21 @@ So that every module is copy-of-the-pattern, these are fixed once:
 - **Units at the boundary only.** Calc stays in one internal system; `units.py` converts JSON-in and display/CSV-out. (Already implemented.)
 - **Constants centralized** in `farloads/constants.py` so Decision 3 (and any future "go back to exact") is a one-file change.
 - **Each module has a manual example test** (Appendix A and/or B) under `tests/`.
+- **Structured load-case IDs (Step D1).** Every delivered case carries a
+  `CaseRef` (`case_id`, `component`, `condition`, `cg`, `speed_kt`,
+  `altitude_ft`, `far_reference`) — see `docs/10_standard/PROGRAM_SPEC.md`
+  "Structured load-case IDs" for the full contract. In short, for a **new**
+  module: mint with a fresh `farloads.case_ids.CaseIdAllocator()` inside your
+  own build function, in whatever order you already emit results (no
+  reshuffling to get a "canonical" order — the existing order *is* canonical
+  once it's fixed); if your module is the first to name a physical case (not
+  reading someone else's `CriticalCondition`/`WingLoadCase`), pick one of the
+  six `component` keys in `case_ids.COMPONENT_PREFIX` — never invent a new
+  prefix for a control surface, fold it into its host; if you mint into a
+  prefix another module also mints into, claim a disjoint numeric sub-band in
+  `case_ids.py` (two independent counters over the same range collide, not
+  just diverge — see the wing-gap note in `PROGRAM_SPEC.md`) and `seed()` your
+  allocator to it.
 
 ---
 

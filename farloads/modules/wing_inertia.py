@@ -35,7 +35,9 @@ import math
 from dataclasses import dataclass, field
 from typing import List, Optional
 
+from ..case_ids import COMPONENT_PREFIX, WING_BAND_STRUCTURAL
 from ..models import (
+    CaseRef,
     ConditionResult,
     LoadValue,
     ModuleResult,
@@ -232,6 +234,35 @@ def _resolve_case(project: Project, case: WingLoadCase) -> WingLoadCase:
                         unbal_moment=case.unbal_moment, cl=case.cl, v_eas_kt=case.v_eas_kt)
 
 
+def wing_case_ref(project: Project, index: int, case: WingLoadCase) -> CaseRef:
+    """The :class:`CaseRef` for wing structural case ``index`` (0-based) in
+    ``Project.wing_mass.cases`` -- the WINGINER/NETLOADS structural band
+    (``case_ids.WING_BAND_STRUCTURAL``..49).
+
+    A **pure function of position**, not a stateful allocator, so
+    ``wing_inertia.py`` and ``net_loads.py`` -- two independent modules that both
+    iterate the same ``wm.cases`` list -- agree on the identical ``CaseRef``
+    without sharing runtime state ("assign once, carry downstream" without needing
+    an actual shared object). This is the *WINGINER/NETLOADS* wing sequence;
+    ``select_wing``'s own ``CriticalCondition`` list mints a **separate** ``W-``
+    sequence (same band, not the same case object) -- see the accepted-gap note in
+    ``docs/30_future/00_backlog.md`` Step D1.
+    """
+    seq = WING_BAND_STRUCTURAL + index
+    vp = None
+    if case.case is not None and project.envelope is not None:
+        vp = next((p for p in project.envelope.vn if p.case == case.case), None)
+    return CaseRef(
+        case_id=f"{COMPONENT_PREFIX['wing']}-{seq:02d}",
+        component="wing",
+        condition=case.name,
+        cg=vp.cg if vp else "",
+        speed_kt=case.v_eas_kt if case.v_eas_kt is not None else (vp.v_eas_kt if vp else None),
+        altitude_ft=vp.altitude_ft if vp else None,
+        far_reference="23.301(b)",
+    )
+
+
 def _case_weight(project: Project, cg_name: str) -> float:
     if project.flight_loads is not None:
         for cg in project.flight_loads.cg_cases:
@@ -254,7 +285,12 @@ def build_wing_inertia(project: Project) -> List[WingLoadResult]:
         raise ValueError("wing_inertia needs at least one load case")
     geom = project.geometry.by_name(wm.surface)
     units = inertia_units(geom, wm)
-    return [wing_inertia_distribution(geom, wm, _resolve_case(project, c), units) for c in wm.cases]
+    results = []
+    for i, c in enumerate(wm.cases):
+        r = wing_inertia_distribution(geom, wm, _resolve_case(project, c), units)
+        r.case_ref = wing_case_ref(project, i, c)
+        results.append(r)
+    return results
 
 
 def run(project: Project) -> ModuleResult:
@@ -273,6 +309,7 @@ def run(project: Project) -> ModuleResult:
                 LoadValue("Root drag shear Sx", root.sx, "lb"),
                 LoadValue("Root chord bending Mzz", root.mzz, "lb-in"),
             ],
+            case_ref=r.case_ref,
         ))
     return ModuleResult(module=MODULE_NAME, conditions=conditions)
 

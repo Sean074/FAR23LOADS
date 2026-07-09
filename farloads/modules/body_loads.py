@@ -30,13 +30,14 @@ from typing import Dict, List
 from ..models import (
     BodyLoadResult,
     BodyStationLoad,
+    CriticalCondition,
     ModuleResult,
     Project,
     VnPoint,
 )
 from ..registry import register
 from .flight_envelope import build_envelope
-from .select import select_fuselage
+from .select import _stamp_case_refs, select_fuselage
 
 MODULE_NAME = "body_loads"
 
@@ -73,6 +74,25 @@ def body_distribution(stations, nz: float, tail_load: float, tail_x: float,
     return out
 
 
+def _critical_fuselage(project: Project) -> List[CriticalCondition]:
+    """The SELECT-critical fuselage conditions -- the persisted ``envelope.critical``
+    if present (its ``CaseRef``s already stamped), else freshly computed.
+
+    Calls ``select_fuselage`` directly (not ``build_critical``) so this module
+    doesn't require ``tail_loads``/``vtail_loads`` to be well-formed just to get
+    fuselage conditions -- it reuses SELECT's own ``_stamp_case_refs`` helper so
+    the ``F-`` ids agree with a full SELECT run byte-for-byte (only the fuselage
+    entries advance the fuselage counter, regardless of what other components are
+    in the list)."""
+    if project.envelope is not None and project.envelope.critical is not None:
+        cached = [c for c in project.envelope.critical.conditions if c.component == "fuselage"]
+        if cached:
+            return cached
+    conditions = select_fuselage(project)
+    _stamp_case_refs(project, conditions)
+    return conditions
+
+
 def build_body_loads(project: Project) -> List[BodyLoadResult]:
     """Net fuselage load distribution for each critical fuselage condition."""
     fm = project.fuselage_mass
@@ -85,12 +105,12 @@ def build_body_loads(project: Project) -> List[BodyLoadResult]:
     tail_x = _tail_station(project, max(s.x for s in fm.stations))
 
     results: List[BodyLoadResult] = []
-    for cond in select_fuselage(project):
+    for cond in _critical_fuselage(project):
         p = vn.get(cond.case)
         if p is None:
             continue
         rows = body_distribution(stations, p.nz, p.lt, tail_x, wing_x)
-        results.append(BodyLoadResult(case=cond.label, stations=rows))
+        results.append(BodyLoadResult(case=cond.label, stations=rows, case_ref=cond.case_ref))
     return results
 
 

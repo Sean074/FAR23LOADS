@@ -14,6 +14,7 @@ from __future__ import annotations
 import itertools
 from typing import List
 
+from ..case_ids import CaseIdAllocator
 from ..constants import (
     G,
     GYRO_VERTICAL_LOAD_FACTOR,
@@ -28,6 +29,7 @@ from ..constants import (
     reciprocating_torque_factor,
 )
 from ..models import (
+    CaseRef,
     ConditionResult,
     EngineInput,
     LoadValue,
@@ -565,9 +567,23 @@ def run(project: Project) -> ModuleResult:
         raise ValueError("Project has no engines for the engine module")
 
     single = len(project.engines) == 1
+    allocator = CaseIdAllocator()
     conditions: List[ConditionResult] = []
     for i, eng in enumerate(project.engines, start=1):
         for cond in run_all(eng, include_far25=project.include_far25):
+            # The 23.371(b)/25.371 gyro condition packs 4 sign-combination
+            # sub-cases into one ConditionResult (report.py's _gyro_subcases
+            # fans it out); it still mints exactly one base EM- id here -- the
+            # 4 sub-case ids are derived from it (a/b/c/d suffix) at render
+            # time, since the model has no way to carry 4 case_refs on one
+            # ConditionResult (see docs/30_future/00_backlog.md Step D1).
+            ref = CaseRef(
+                case_id=allocator.next_id("engine_mount"),
+                component="engine_mount",
+                condition=cond.title,
+                far_reference=cond.far_reference,
+            )
+            cond.case_ref = ref
             if not single:
                 tag = eng.engine_designation or f"engine {i}"
                 cond = ConditionResult(
@@ -575,6 +591,7 @@ def run(project: Project) -> ModuleResult:
                     far_reference=cond.far_reference,
                     values=cond.values,
                     note=cond.note,
+                    case_ref=ref,
                 )
             conditions.append(cond)
     return ModuleResult(module=MODULE_NAME, conditions=conditions)

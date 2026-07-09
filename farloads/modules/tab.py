@@ -23,7 +23,14 @@ from __future__ import annotations
 
 from typing import List, NamedTuple
 
+from ..case_ids import (
+    CaseIdAllocator,
+    HTAIL_BAND_TAB,
+    VTAIL_BAND_TAB,
+    WING_BAND_TAB,
+)
 from ..models import (
+    CaseRef,
     ConditionResult,
     ControlSurfaceLoadResult,
     ControlSurfaceStation,
@@ -33,6 +40,9 @@ from ..models import (
     TabSpec,
 )
 from ..registry import register
+
+_TAB_COMPONENT = {"wing": "wing", "htail": "htail", "vtail": "vtail"}
+_TAB_BAND = {"wing": WING_BAND_TAB, "htail": HTAIL_BAND_TAB, "vtail": VTAIL_BAND_TAB}
 
 MODULE_NAME = "tab"
 
@@ -75,15 +85,29 @@ def build_tabs(project: Project) -> List[ControlSurfaceLoadResult]:
     if vc <= 0:
         from .structural_speeds import design_speed_values
         vc = design_speed_values(project, project.speeds).vc
+    # Own allocator, scoped to this call -- tabs are not SELECT-critical
+    # conditions, so each host component's band is seeded away from SELECT's own
+    # sequence for that component (see case_ids.py's HTAIL_BAND_TAB/VTAIL_BAND_TAB/
+    # WING_BAND_TAB docstring).
+    allocator = CaseIdAllocator()
+    seeded = set()
     results: List[ControlSurfaceLoadResult] = []
     for spec in project.tab_loads.tabs:
         r = tab_load(vc, spec.mac_in, spec.area_sqin, spec.airfoil_chord_in,
                      spec.deflection_deg)
+        component = _TAB_COMPONENT.get(spec.surface, "wing")
+        if component not in seeded:
+            allocator.seed(component, _TAB_BAND[component])
+            seeded.add(component)
+        case_ref = CaseRef(
+            case_id=allocator.next_id(component), component=component,
+            condition=f"{spec.surface} tab", far_reference="23.409")
         results.append(ControlSurfaceLoadResult(
             surface=_surface_tag(spec), case=f"{spec.surface} tab", load_lb=r.load_lb,
             v_kt=vc, stations=[
                 ControlSurfaceStation(x=0.0, psi=r.le_pressure_psi),
-                ControlSurfaceStation(x=1.0, psi=r.te_pressure_psi)]))
+                ControlSurfaceStation(x=1.0, psi=r.te_pressure_psi)],
+            case_ref=case_ref))
     return results
 
 
@@ -102,7 +126,7 @@ def run(project: Project) -> ModuleResult:
             "(LE = 2x TE) per CAM 3.224-1(b).")
     if project.is_concept:
         note += " Concept mode -- unverified extrapolation past the FAR23 band."
-    for spec in project.tab_loads.tabs:
+    for result, spec in zip(build_tabs(project), project.tab_loads.tabs):
         r = tab_load(vc, spec.mac_in, spec.area_sqin, spec.airfoil_chord_in,
                      spec.deflection_deg)
         conditions.append(ConditionResult(
@@ -116,6 +140,7 @@ def run(project: Project) -> ModuleResult:
                 LoadValue("Tab TE pressure", r.te_pressure_psi, "lb/in^2"),
             ],
             note=note,
+            case_ref=result.case_ref,
         ))
     return ModuleResult(module=MODULE_NAME, conditions=conditions)
 
