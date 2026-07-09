@@ -39,6 +39,39 @@ HTTP 200 + log scan, not a manual browser pass.
 
 ---
 
+## Release 0.2.0 — Step R3: docs-drift check (complete)
+
+**Objective.** `RELEASE_PROCESS.md` §3.1 — confirm `PROGRAM_SPEC.md`,
+`PROJECT_GUIDE.md` and `20_theory/00_theory_sources.md` match the released
+code (verification pass, not a writing pass).
+
+**Deliverables.** Reviewed all three docs against `farloads/modules/__init__.py`
+(the registered-module list), `models.py` (`Project` slices, `SCHEMA_VERSION`),
+`registry.py`/`workflow.py`, and recent `CHANGELOG.md`/history entries.
+`PROJECT_GUIDE.md` and `20_theory/00_theory_sources.md` matched the code with
+no changes needed. `PROGRAM_SPEC.md` had one gap: `body_loads.py` (registered,
+shipped in Step C6) was documented only as a subordinate mention inside
+SELECT's write-up, with no `### body_loads` entry of its own (unlike
+`configuration`, its sibling "modern addition"), and the cross-module
+field-ownership table omitted the `fuselage_mass` slice it reads. Fixed by
+adding a full `### body_loads — Fuselage net-load distribution (Step C6)`
+entry (FAR §/Source/Reads/Writes/Validation/Notes, matching the template) and
+a `fuselage_mass | direct input | body_loads` row to the ownership table.
+
+**Test / Acceptance.** Cross-checked the new entry's Reads/Writes claims
+directly against `farloads/modules/body_loads.py` (it calls
+`select.select_fuselage(project)` rather than reading a persisted
+`Project.envelope.critical` slice, and reads `Project.tail_loads`/
+`Project.fuselage_mass`) and `models.py`'s `FuselageMassInput`/`FuselageStation`
+dataclasses before writing the doc text, so the fix itself doesn't introduce
+new drift.
+
+**Key decisions.** No code/schema change — docs-only. Did not flag anything
+already tracked as an open item in `docs/30_future/00_backlog.md` (known-open
+≠ drift).
+
+---
+
 ## ULTIMATE load output with a per-case factor of safety (complete)
 
 **Objective.** The suite emitted LIMIT loads everywhere, so downstream structural

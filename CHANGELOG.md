@@ -39,6 +39,11 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- **`PROGRAM_SPEC.md` docs-drift fix** (release step R3, `RELEASE_PROCESS.md`
+  §3.1): `body_loads` (shipped in Step C6) now has its own module-spec entry
+  (it was previously only mentioned inside SELECT's write-up) and the
+  cross-module field-ownership table gained the `fuselage_mass` row it reads.
+  Docs-only; no code/schema change.
 - **Per-module analysis pages now mark their on-screen LIMIT loads.** The
   `flap_loads`, `tab_loads`, `one_engine_out` and `balanced_tail_verification`
   Streamlit pages display the calc's LIMIT values (the oracle-traceable numbers);

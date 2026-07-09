@@ -83,11 +83,17 @@ now points at the script. Verified passing against the current `.venv` (3
 load-case rows written). Moved to
 `40_history/00_completed_development.md`.
 
-### R3 — Docs-drift check (§3.1)
+### R3 — Docs-drift check (§3.1) ✅ **done 2026-07-08**
 
-Review pass confirming `PROGRAM_SPEC.md`, `PROJECT_GUIDE.md` and
-`20_theory/00_theory_sources.md` match the released code (they have been
-maintained per-step; this is verification, not writing).
+Reviewed `PROGRAM_SPEC.md`, `PROJECT_GUIDE.md` and `20_theory/00_theory_sources.md`
+against `farloads/modules/__init__.py`, `models.py`, `registry.py` and recent
+`CHANGELOG.md`/history entries. `PROJECT_GUIDE.md` and `theory_sources.md` were
+clean. Found and fixed one gap in `PROGRAM_SPEC.md`: `body_loads` (registered,
+shipped in C6) had no dedicated module-spec entry (only mentioned inside SELECT's
+write-up) and was missing from the cross-module field-ownership table
+(`fuselage_mass` slice absent). Added a full `### body_loads` entry (parity with
+`configuration`) and the missing table row. No other drift found. Moved to
+`40_history/00_completed_development.md`.
 
 ### R4 — Archive verification baseline (§4.4 — largest documentation task)
 

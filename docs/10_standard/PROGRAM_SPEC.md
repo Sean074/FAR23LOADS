@@ -338,6 +338,26 @@ regression oracle**; Appendix A/B geometry is used only as a *sanity* fixture.
   when no mass slice is present; tail-volume NP with `h_acw=0.25`, `a_t/a_w=1`,
   `1−dε/dα=0.6`). In concept mode the results are flagged unverified extrapolation.
 
+### body_loads — Fuselage net-load distribution (Step C6)
+- **FAR §:** none directly (modern addition); the fuselage design conditions it
+  distributes are 23.301/23.331, selected by SELECT.
+- **Source:** `farloads/modules/body_loads.py`; method refs Reference 1 Ch 15
+  (fuselage net-load distribution along the body).
+- **Reads:** SELECT's fuselage critical conditions via `select.select_fuselage(project)`
+  (not a persisted `Project.envelope.critical` read — it calls SELECT's fuselage
+  selection directly), `Project.tail_loads` (h-tail balancing load + `xt25` tail
+  station) and `Project.fuselage_mass` (`FuselageMassInput` — the per-station
+  lumped fuselage weight distribution, which should exclude wing mass per Ch 15).
+- **Writes:** the longitudinal net shear/bending-moment/torsion distribution
+  along the fuselage stations → `ConditionResult`s / CSV; feeds the sbeam
+  export bridge's body target.
+- **Validation:** **no printed oracle** (a modern addition); closure-checked —
+  the net distribution balances the applied tail load and fuselage inertia
+  relief (physics-closure, not a manual figure).
+- **Notes:** off the FLTLOADS→SELECT→component-module main span-load pipeline
+  in the sense that it distributes a fuselage station-load rather than a wing
+  spanwise one; still driven by SELECT's critical selection.
+
 ---
 
 ## Export bridges
@@ -391,7 +411,8 @@ Derived from **User's Guide Table 2.2** (the authoritative input→output map):
 | `engine[]` | direct input | ENGLOADS, ONENGOUT |
 | `configuration` (`LayoutInput`: fuselage/wing/tail/gear) | configuration (modern; no `.BAS`) | seeds WINGGEOM (`geometry.wing`); reads `weight.envelope`, `engine` |
 | `loads.wing_net` (net wing load) | NETLOADS | report/CSV export; **sbeam export bridge** (FORCE/MOMENT + stick model) |
-| `loads.*` (per-module results) | each component module | report/CSV export only |
+| `fuselage_mass` (per-station fuselage weight) | direct input | body_loads |
+| `loads.*` (per-module results, incl. body_loads' net fuselage shear/BM) | each component module | report/CSV export only |
 | *(verification only)* | BALLOADS | reads FLTLOADS data; no pipeline output |
 
 This table is the build order in disguise: a module is ready to implement once
