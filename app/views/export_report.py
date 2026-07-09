@@ -67,8 +67,15 @@ def _module_label(mr) -> str:
     return step.title if step else mr.module
 
 
+_header_lines = [f"Project: {project.name or '(unnamed)'}"]
+if project.engineer:
+    _header_lines.append(f"Engineer: {project.engineer}")
+if project.date:
+    _header_lines.append(f"Date: {project.date}")
+report_header = "\n".join(_header_lines)
+
 text_report = "\n\n".join(
-    module_text_report(_module_label(mr), mr.conditions) for mr in module_results
+    [report_header] + [module_text_report(_module_label(mr), mr.conditions) for mr in module_results]
 )
 module_csvs = {mr.module: farloads_io.load_cases_csv(mr) for mr in module_results}
 
@@ -139,7 +146,7 @@ c2.download_button("📦 Download all (.zip)", _zip_bundle(),
 # --------------------------------------------------------------------------- #
 st.header("Load cases & report")
 if not module_results:
-    st.info("No module has the inputs it needs yet — fill in the Define pages first.")
+    st.info("No module has the inputs it needs yet — fill in the Airplane pages first.")
 else:
     st.download_button("📄 Combined text report (all modules)", text_report,
                        file_name=f"{_stem}_report.txt", mime="text/plain")

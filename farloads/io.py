@@ -16,8 +16,9 @@ from __future__ import annotations
 
 import csv
 import json
+import os
 from dataclasses import asdict
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Tuple
 
 from .models import (
     SCHEMA_VERSION,
@@ -705,6 +706,8 @@ def project_from_dict(d: Dict[str, Any]) -> Project:
         return Project(
             schema_version=d.get("schema_version", SCHEMA_VERSION),
             name=d.get("name", ""),
+            engineer=d.get("engineer", ""),
+            date=d.get("date", ""),
             engines=engines,
             engine_layout=layout,
             weight=weight_from_dict(weight) if weight else None,
@@ -751,6 +754,10 @@ def project_to_dict(project: Project) -> Dict[str, Any]:
         "schema_version": project.schema_version,
         "name": project.name,
     }
+    if project.engineer:
+        out["engineer"] = project.engineer
+    if project.date:
+        out["date"] = project.date
     if project.engines:
         out["engines"] = [engine_to_dict(e) for e in project.engines]
         if project.engine_layout is not None:
@@ -807,6 +814,32 @@ def save_project(project: Project, path: str) -> None:
     with open(path, "w", encoding="utf-8") as fh:
         json.dump(project_to_dict(project), fh, indent=2)
         fh.write("\n")
+
+
+def default_projects_dir() -> str:
+    """The default local-disk projects directory (Step D3, decision D-3).
+
+    Resolved from this file's location (repo root / ``projects``) rather than
+    the process's current working directory, so it is stable no matter where
+    ``streamlit run app/Home.py`` is invoked from. Git-ignored; not created
+    until the first save.
+    """
+    repo_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    return os.path.join(repo_root, "projects")
+
+
+def list_saved_projects(directory: str) -> List[Tuple[str, float]]:
+    """``(filename, mtime)`` for every ``*.project.json`` in ``directory``,
+    newest first. Returns ``[]`` if the directory does not exist yet."""
+    if not os.path.isdir(directory):
+        return []
+    entries = []
+    for fname in os.listdir(directory):
+        if fname.endswith(".project.json"):
+            mtime = os.path.getmtime(os.path.join(directory, fname))
+            entries.append((fname, mtime))
+    entries.sort(key=lambda e: e[1], reverse=True)
+    return entries
 
 
 def project_to_json(project: Project) -> str:

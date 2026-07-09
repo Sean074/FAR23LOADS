@@ -11,12 +11,9 @@ One page of the multipage app; run the suite with:  streamlit run app/Home.py
 
 from __future__ import annotations
 
-import json
-
 import streamlit as st
 
 from farloads import Project
-from farloads import io as farloads_io
 from farloads import workflow as wf
 
 st.title("🛩️ FAR 23 LOADS — Project Dashboard")
@@ -24,35 +21,22 @@ st.caption(
     "Modern Python/Streamlit port of the McMaster FAR 23 LOADS suite. One reloadable "
     "project carries every module's inputs; work the sections left-to-right in the "
     "sidebar — **Start → Airplane → Envelopes & Critical Conditions → Analysis → "
-    "Loads Plots → Export**."
+    "Loads Plots → Export**. Open/Save a project against local disk from the "
+    "**Project file** widget in the sidebar (every page)."
 )
 
 project: Project = st.session_state.get("project", Project(name=""))
 
 # --------------------------------------------------------------------------- #
-# Load / save the project file
+# Project metadata
 # --------------------------------------------------------------------------- #
-with st.sidebar:
-    st.header("Project file")
-    uploaded = st.file_uploader("Load project.json", type="json")
-    if uploaded is not None:
-        project = farloads_io.project_from_dict(json.load(uploaded))
-        st.session_state["project"] = project
-        st.success(f"Loaded: {project.name or '(unnamed)'}")
-
-col1, col2 = st.columns([2, 1])
+col1, col2, col3 = st.columns([2, 1, 1])
 with col1:
     project.name = st.text_input("Project name", value=project.name)
 with col2:
-    st.write("")  # vertical nudge to align with the text input
-    fname = (project.name or "project").strip().replace(" ", "_") or "project"
-    st.download_button(
-        "💾 Save project (JSON)",
-        farloads_io.project_to_json(project),
-        file_name=f"{fname}.json",
-        mime="application/json",
-        use_container_width=True,
-    )
+    project.engineer = st.text_input("Engineer", value=project.engineer)
+with col3:
+    project.date = st.text_input("Date", value=project.date, placeholder="YYYY-MM-DD")
 st.session_state["project"] = project
 
 # --------------------------------------------------------------------------- #

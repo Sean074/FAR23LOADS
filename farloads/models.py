@@ -1340,7 +1340,9 @@ class LoadsResult:
 # TailChordResult, ControlSurfaceLoadResult and GearReactionCase (the structured
 # load-case ID, see farloads.case_ids) -- additive, older files load unchanged via
 # the from_dict defaults (case_ref = None, back-filled on the next compute).
-SCHEMA_VERSION = 16
+# v17 (Step D3) adds Project.engineer / Project.date (freeform text project
+# metadata, shown on the dashboard and in exports) -- additive, default "".
+SCHEMA_VERSION = 17
 
 
 @dataclass
@@ -1359,6 +1361,8 @@ class Project:
     """
     schema_version: int = SCHEMA_VERSION
     name: str = ""
+    engineer: str = ""
+    date: str = ""
     engines: List["EngineInput"] = field(default_factory=list)
     engine_layout: Optional[EngineLayout] = None
     weight: Optional[WeightInput] = None

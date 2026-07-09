@@ -101,6 +101,61 @@ def test_project_round_trip(tmp_path=None):
             os.remove(out)
 
 
+def test_project_engineer_date_round_trip():
+    """Step D3: engineer/date are additive project metadata (SCHEMA_VERSION 17)."""
+    project = io.load_project(GA6)
+    project.engineer = "J. Doe"
+    project.date = "2026-07-09"
+    d = io.project_to_dict(project)
+    assert d["engineer"] == "J. Doe"
+    assert d["date"] == "2026-07-09"
+    again = io.project_from_dict(d)
+    assert again.engineer == "J. Doe"
+    assert again.date == "2026-07-09"
+
+
+def test_project_engineer_date_default_blank():
+    # Old files with no engineer/date key still load (additive field).
+    project = io.load_project(GA6)
+    assert project.engineer == ""
+    assert project.date == ""
+    assert "engineer" not in io.project_to_dict(project)
+    assert "date" not in io.project_to_dict(project)
+
+
+def test_default_projects_dir_is_repo_relative():
+    projects_dir = io.default_projects_dir()
+    assert os.path.basename(projects_dir) == "projects"
+    repo_root = os.path.dirname(EXAMPLES)
+    assert os.path.abspath(projects_dir) == os.path.join(repo_root, "projects")
+
+
+def test_list_saved_projects(tmp_path=None):
+    import shutil
+    import tempfile
+    import time
+
+    tmpdir = tempfile.mkdtemp()
+    try:
+        assert io.list_saved_projects(os.path.join(tmpdir, "missing")) == []
+
+        older = os.path.join(tmpdir, "older.project.json")
+        newer = os.path.join(tmpdir, "newer.project.json")
+        ignored = os.path.join(tmpdir, "notes.txt")
+        for path in (older, ignored):
+            with open(path, "w", encoding="utf-8") as fh:
+                fh.write("{}")
+        time.sleep(0.01)
+        with open(newer, "w", encoding="utf-8") as fh:
+            fh.write("{}")
+
+        entries = io.list_saved_projects(tmpdir)
+        names = [name for name, _mtime in entries]
+        assert names == ["newer.project.json", "older.project.json"]
+    finally:
+        shutil.rmtree(tmpdir)
+
+
 def test_configuration_round_trip():
     # The configuration/layout slice survives a dict round-trip (v6 schema).
     from farloads import LayoutInput
