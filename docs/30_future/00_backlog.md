@@ -49,98 +49,17 @@ concept mode is a superset that reduces exactly to it on GA inputs.
 
 ---
 
-## Release 0.2.0 — priority work (ships first; gates Phase D)
-
-Cut the first post-0.1.0 release: `pyproject.toml` is still at `version = 0.1.0`
-while the entire Phase 1–2 + C0–C11 body of work sits in `CHANGELOG.md`
-`[Unreleased]` (~617 lines, ready to be dated). No git tag exists yet. Process:
-[`../10_standard/RELEASE_PROCESS.md`](../10_standard/RELEASE_PROCESS.md).
-Pragmatically cut **one `0.2.0`** for the whole body (MINOR-per-module would be
-many bumps).
-
-**Gate status (verified 2026-07-08):** `ruff check farloads/ cli.py` clean;
-`pytest` 255 passed / 0 failed, coverage ~92%; Appendix A/B ±0.1% oracle tests
-all pass; no `skip`/`xfail` needing a backlog note; `[Unreleased]` complete.
-
-Remaining work, in priority order:
-
-### R1 — Step D0 defect fix (the only code work) ✅ **done 2026-07-08**
-
-Shipped: `FlightLoadsInput.merged()` (pure, `farloads/models.py`) +
-`app/views/flight_envelope.py` persists through it; regression tests in
-`tests/test_flight_envelope.py` (flaps-down config + two altitudes survive the
-persist path); `CHANGELOG.md` `Fixed` entry; D0 moved to
-`40_history/00_completed_development.md`. Suite 257 passed, ruff clean —
-§3.2's no-open-critical-findings gate is met.
-
-### R2 — GUI / CLI smoke test (§3.5) ✅ **done 2026-07-08**
-
-Shipped: `scripts/smoke_test.sh` (starts `app/Home.py` headless, polls
-`/_stcore/health`, checks the root page returns HTTP 200 with no traceback in
-the server log, then runs `farloads engine examples/ga6_normal.project.json
--o out.csv` and asserts the CSV header/row count); `RELEASE_PROCESS.md` §3.5
-now points at the script. Verified passing against the current `.venv` (3
-load-case rows written). Moved to
-`40_history/00_completed_development.md`.
-
-### R3 — Docs-drift check (§3.1) ✅ **done 2026-07-08**
-
-Reviewed `PROGRAM_SPEC.md`, `PROJECT_GUIDE.md` and `20_theory/00_theory_sources.md`
-against `farloads/modules/__init__.py`, `models.py`, `registry.py` and recent
-`CHANGELOG.md`/history entries. `PROJECT_GUIDE.md` and `theory_sources.md` were
-clean. Found and fixed one gap in `PROGRAM_SPEC.md`: `body_loads` (registered,
-shipped in C6) had no dedicated module-spec entry (only mentioned inside SELECT's
-write-up) and was missing from the cross-module field-ownership table
-(`fuselage_mass` slice absent). Added a full `### body_loads` entry (parity with
-`configuration`) and the missing table row. No other drift found. Moved to
-`40_history/00_completed_development.md`.
-
-### R4 — Archive verification baseline (§4.4 — largest documentation task) ✅ **done 2026-07-08**
-
-Shipped `docs/40_history/01_verification_baseline_0.2.0.md`: one table per
-module (22 ported programs + `configuration`/`body_loads`) — condition,
-printed Appendix A/B figure, page citation, tolerance — extracted from the
-current `tests/test_*.py` assertions (257 passed, 0 failed at extraction
-time). Closure-locked modules (ONENGOUT, the LANDLOAD wheel-load table beyond
-the legible p231 cells, AIRLOAD4's swept branch, the FAR 25 optional engine
-cases, `body_loads`, `configuration`, concept-mode AIRLOADS/NETLOADS) are
-recorded under their own section with the specific closure/sub-formula check
-each relies on, rather than an invented printed figure. Also records the one
-approved oracle deviation already documented elsewhere (WTENV's aft-gross
-ballast station) and the AC 23-19A torque-factor corrections (ENGLOADS) with
-the manual's raw pre-correction figures called out per row.
-
-### R5 — Version bump + changelog dating (§4.1–4.2) ✅ **done 2026-07-08**
-
-Bumped `pyproject.toml` `version` to `0.2.0`; `CHANGELOG.md` `[Unreleased]`
-renamed to `## [0.2.0] — 2026-07-08`, fresh empty `[Unreleased]` opened above
-it. See `40_history/00_completed_development.md`.
-
-### R6 — Tag & GitHub release (§4.3 — user-run)
-
-`git tag -a v0.2.0 -m "Release v0.2.0"`, push the tag, create the GitHub
-Release with the changelog entry as the body. *(All git actions are the user's
-to run; prepare exact commands.)*
-
-### R7 — Post-release (§5)
-
-Remove this section from the backlog (→ history + changelog note of the
-tag/date in `00_completed_development.md`); Phase D Step D1 becomes the active
-step.
-
----
-
 ## Phase D — GUI workflow restructure (the active plan)
 
 Reorganize the GUI from per-BAS-program pages into the six-section
 loads-release workflow (Start → Airplane → Envelopes & Critical → Analysis →
 Loads Plots → Export). Narrative, assessment findings, locked decisions D-1…D-4
 and the page conventions are in
-[`02_gui_workflow_plan.md`](02_gui_workflow_plan.md). **Gate:** Phase D starts
-after the `0.2.0` release is cut (decision D-4; the plan is the **Release
-0.2.0** section above); Step D0 was a defect fix shipped **inside** that
-release (= release step R1, done 2026-07-08 — see
-`40_history/00_completed_development.md`). Invariant throughout: no calc-math
+[`02_gui_workflow_plan.md`](02_gui_workflow_plan.md). **Gate met:** the `0.2.0`
+release shipped 2026-07-08 (tag `v0.2.0` on `50e2c9c`, GitHub Release
+published — release steps R1–R7, see `40_history/00_completed_development.md`);
+Step D0 was a defect fix shipped **inside** that release (= release step R1).
+**Step D1 (below) is now the active step.** Invariant throughout: no calc-math
 change — the Appendix A/B oracles pass unmodified at every step.
 
 Definition of done per step (in addition to the file-top DoD where it applies):
@@ -148,7 +67,7 @@ pages follow the Phase-D page conventions (`02_gui_workflow_plan.md §5` —
 form+Apply, merge-writes, read-don't-re-ask, no airplane-shaped defaults), and
 the workflow-step ↔ registered-module test stays green.
 
-### Step D1 — Structured load-case IDs (data model)
+### Step D1 — Structured load-case IDs (data model) — active
 
 Decision D-1. The current `report.py` `LC{idx}` is render-time, per-module and
 unstable — a loads release needs stable, traceable case IDs.

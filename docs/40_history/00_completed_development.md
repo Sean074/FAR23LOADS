@@ -126,6 +126,51 @@ No code/schema change.
 
 ---
 
+## Release 0.2.0 — Step R6: tag & GitHub release (complete)
+
+**Objective.** `RELEASE_PROCESS.md` §4.3 — tag the version-bump commit and
+publish the GitHub Release.
+
+**Deliverables.** Annotated tag `v0.2.0` (`git tag -a v0.2.0 -m "Release
+v0.2.0"`) on `50e2c9c` ("Version bump and change log", the commit where
+`pyproject.toml` reads `0.2.0`), pushed to `origin`. GitHub Release `v0.2.0`
+published from that tag with the `CHANGELOG.md` `[0.2.0]` section as the
+release body. No code/schema change; user-run per `CLAUDE.md` (all git/GitHub
+actions are the user's to execute).
+
+**Test / Acceptance.** `git ls-remote --tags origin` shows `v0.2.0` resolving
+to `50e2c9c`; GitHub Release page confirmed published.
+
+**Key decisions.** A `v0.2.0` tag already existed pointing at `a182006`
+("Archive verification baseline", release step R4) — one commit *before* the
+version bump, where `pyproject.toml` still read `0.1.0`. Deleted that tag
+locally and on `origin` and recreated it at `50e2c9c` so the released tag
+matches the versioned commit, rather than leaving the release one commit
+short of its own version bump.
+
+---
+
+## Release 0.2.0 — Step R7: post-release (complete)
+
+**Objective.** `RELEASE_PROCESS.md` §5 — close out the release-priority work
+in the backlog now that `0.2.0` has shipped, and hand off to the next active
+step.
+
+**Deliverables.** Removed the "Release 0.2.0 — priority work" section (steps
+R1–R7) from `docs/30_future/00_backlog.md` in full — all seven steps closed,
+nothing open remains for the release. Updated the Phase D intro in the same
+file: the release gate is recorded as met (tag `v0.2.0` on `50e2c9c`, GitHub
+Release published, 2026-07-08) and **Step D1 (structured load-case IDs)** is
+marked the active step.
+
+**Test / Acceptance.** N/A — docs-only backlog/history bookkeeping; no
+code/schema change.
+
+**Key decisions.** No new defects surfaced during final release testing, so
+§5's "add any new defects found" bullet is a no-op this release.
+
+---
+
 ## ULTIMATE load output with a per-case factor of safety (complete)
 
 **Objective.** The suite emitted LIMIT loads everywhere, so downstream structural
