@@ -28,8 +28,9 @@ history, `CHANGELOG.md`).
 
 ## Current state (snapshot)
 
-**Shipped:** Phases 0–2, Phase-C Steps **C0–C11**, and Phase-D **Step D0–D1**
-(GUI defect fix; structured load-case IDs). **All 22** of Reference 1's
+**Shipped:** Phases 0–2, Phase-C Steps **C0–C11**, and Phase-D **Step D0–D2**
+(GUI defect fix; structured load-case IDs; six-section navigation restructure).
+**All 22** of Reference 1's
 Appendix-C programs are ported (ENGLOADS, WTESTIMA, WTONECG, WTENV,
 WINGGEOM, STRSPEED, MACHLIM, TAU, AIRLOADS, AIRLOAD4, FLTLOADS, SELECT, WINGINER,
 NETLOADS, TAILDIST, AILERON, FLAPLOAD, TABLOADS, ONENGOUT, LGFACTOR, LANDLOAD,
@@ -61,7 +62,9 @@ release shipped 2026-07-08 (tag `v0.2.0` on `50e2c9c`, GitHub Release
 published — release steps R1–R7, see `40_history/00_completed_development.md`);
 Step D0 was a defect fix shipped **inside** that release (= release step R1).
 Step D1 (structured load-case IDs) shipped 2026-07-08 — see
-`40_history/00_completed_development.md` → "Phase D — Step D1". **Step D2
+`40_history/00_completed_development.md` → "Phase D — Step D1". Step D2
+(six-section navigation restructure) shipped 2026-07-08 — see
+`40_history/00_completed_development.md` → "Phase D — Step D2". **Step D3
 (below) is now the active step.** Invariant throughout: no calc-math
 change — the Appendix A/B oracles pass unmodified at every step.
 
@@ -69,17 +72,6 @@ Definition of done per step (in addition to the file-top DoD where it applies):
 pages follow the Phase-D page conventions (`02_gui_workflow_plan.md §5` —
 form+Apply, merge-writes, read-don't-re-ask, no airplane-shaped defaults), and
 the workflow-step ↔ registered-module test stays green.
-
-### Step D2 — Six-section navigation restructure (regroup only) — active
-
-1. Rework `farloads/workflow.py`: replace the four phases with the six sections
-   (Start, Airplane, Envelopes & Critical Conditions, Analysis, Loads Plots,
-   Export); move `airloads` from Define to the Analysis group (metadata move
-   only — `requires`/`produces` unchanged).
-2. `app/Home.py` sidebar grouping + numbering follows automatically; update the
-   dashboard's per-section status board.
-3. No page merges yet (they land in D6); every existing page keeps working
-   under its new section. Nav-drift test updated.
 
 ### Step D3 — Start (landing) page & local-disk persistence
 

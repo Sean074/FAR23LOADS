@@ -9,6 +9,23 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed
+
+- **Six-section GUI navigation restructure** (Phase D Step D2, regroup only).
+  `farloads/workflow.py`'s four phases (Define/Analyze/Review/Export) are
+  replaced with the six Phase-D sections: Start, Airplane, Envelopes &
+  Critical Conditions, Analysis, Loads Plots, Export. `airloads` moves from
+  Define into Analysis; `balanced_tail_verification` and `critical_loads` move
+  alongside their related pages (Analysis and Envelopes & Critical Conditions
+  respectively); `results_review` moves into Export (pre-export summary,
+  alongside `export_report`). The dashboard is now a real `WorkflowStep`
+  (`"dashboard"`, phase Start) instead of a Home.py special case, so
+  `app/Home.py` builds every sidebar group — including Start — uniformly from
+  `wf.by_phase()`; a section with no steps yet (`Loads Plots`, pending Step D7)
+  is omitted from the sidebar rather than shown empty. No page merges, no
+  calc-math or schema change — `requires`/`produces` on every step are
+  unchanged; this is metadata + display only.
+
 ### Added
 
 - **Structured load-case IDs** (Phase D Step D1, decision D-1). Every

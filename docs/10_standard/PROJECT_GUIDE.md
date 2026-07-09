@@ -179,7 +179,7 @@ FAR23LOADS/
 │   ├── models.py                 # Project dataclass + per-domain sub-models
 │   ├── io.py                     # load/save project JSON; CSV writers
 │   ├── registry.py               # module registry: name -> run(project) -> results
-│   ├── workflow.py               # ordered Define→Analyze→Review→Export step graph (drives GUI nav + dashboard)
+│   ├── workflow.py               # ordered Start→Airplane→Envelopes & Critical Conditions→Analysis→Loads Plots→Export step graph (drives GUI nav + dashboard; Phase D)
 │   ├── report.py                 # shared text/CSV rendering (already exists)
 │   ├── export/                   # output bridges to external tools (renderers, NOT registered modules)
 │   │   ├── coordinates.py        # FAR23LOADS axes -> sbeam CID 0 map (single edit-point)
@@ -202,12 +202,12 @@ FAR23LOADS/
 │       ├── engine.py             # ENGLOADS  ← current engloads/engloads/calc.py
 │       ├── one_engine_out.py     # ONENGOUT
 │       └── landing.py            # LGFACTOR + LANDLOAD ✅ (C10)
-├── app/                          # multi-page Streamlit UI (st.navigation, 4 phases)
-│   ├── Home.py                   # entry point: builds the phase nav from farloads.workflow
+├── app/                          # multi-page Streamlit UI (st.navigation, 6 sections — Phase D)
+│   ├── Home.py                   # entry point: builds the section nav from farloads.workflow
 │   ├── views/                    # one view per workflow step (clean names, no prefixes)
-│   │   ├── dashboard.py          #   Overview — load/save + completeness panel
+│   │   ├── dashboard.py          #   Start    — load/save + completeness panel
 │   │   ├── configuration_layout.py … one_engine_out.py   # one per suite program
-│   │   ├── results_review.py     #   Review   — consolidated governing loads
+│   │   ├── results_review.py     #   Export   — consolidated governing loads
 │   │   └── export_report.py      #   Export   — project JSON + CSVs + sbeam BDF
 │   └── data/reference_aircraft.csv
 ├── cli.py                        # `python cli.py engine project.json -o out.csv`

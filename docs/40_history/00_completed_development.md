@@ -10,6 +10,65 @@ Acceptance**, **Key decisions**.
 
 ---
 
+## Phase D — Step D2: Six-section navigation restructure (complete, 2026-07-08)
+
+**Objective.** Regroup the GUI navigation from the four generic Define →
+Analyze → Review → Export phases into the six Phase-D sections — Start,
+Airplane, Envelopes & Critical Conditions, Analysis, Loads Plots, Export — per
+`docs/30_future/02_gui_workflow_plan.md §2`. Regroup only: no page merges (those
+land in Step D6), no calc-math or schema change.
+
+**Deliverables.**
+- `farloads/workflow.py`: `PHASES` replaced with `(START, AIRPLANE, ENVELOPES,
+  ANALYSIS, LOADS_PLOTS, EXPORT)`. Every `WorkflowStep.phase` reassigned per the
+  target table: **Airplane** = `configuration_layout`, `wing_geometry`,
+  `weight_estimate`, `weight_cg_inertia`, `structural_speeds`; **Envelopes &
+  Critical Conditions** = `weight_envelope`, `mach_limit`, `flight_envelope`,
+  `critical_loads`; **Analysis** = `airloads` (moved from Define),
+  `net_wing_loads`, `fuselage_loads`, `tail_distribution`,
+  `balanced_tail_verification` (moved from Review), `aileron_loads`,
+  `flap_loads`, `tab_loads`, `landing_loads`, `engine_mount`,
+  `one_engine_out`; **Loads Plots** = no steps yet (new page lands in Step D7);
+  **Export** = `results_review` (moved from Review) and `export_report`.
+  `requires`/`produces` on every step are byte-identical to before the move.
+- New `dashboard` `WorkflowStep` (`phase=START`, `module=None`,
+  `produces=None`), so the dashboard is a first-class step instead of a
+  `Home.py` special case.
+- `app/Home.py`: dropped the hardcoded `dashboard = st.Page(...)` /
+  `{"Overview": [dashboard]}` special case; every sidebar group (including
+  Start) is now built uniformly from `wf.by_phase()`, with `default=True` set
+  via `step.key == "dashboard"`. Sections with no steps (`Loads Plots`) are
+  skipped rather than shown empty.
+- `app/views/dashboard.py`: per-section status-board columns now iterate the
+  non-empty sections (excluding the dashboard step's own Start entry, to avoid
+  self-listing); docstring/caption updated to the six-section language.
+- `app/views/results_review.py`: docstring/captions updated ("Review-phase" →
+  "Export-section pre-export summary"); no logic change (`step_by_module`
+  already filters on `s.module`, so the module-less `dashboard`/
+  `results_review`/`export_report` steps were already excluded from its
+  module-results rollup).
+- Docs synced: `docs/10_standard/00_program_overview.md`,
+  `docs/10_standard/PROJECT_GUIDE.md` (nav description + package-layout
+  comments); `docs/30_future/02_gui_workflow_plan.md` narrative status.
+
+**Test/Acceptance.** `tests/test_workflow.py` (phase/key validity, the
+registered-module ↔ workflow-step nav-drift guard, `produces`-path resolution)
+passes unchanged with 6 phases instead of 4. Full suite: 262 tests pass;
+`ruff check farloads/ cli.py` clean.
+
+**Key decisions.**
+- `results_review` is not named in the `02_gui_workflow_plan.md §2` target
+  table (which only lists the future D6-merged Analysis pages). Placed in
+  **Export** (alongside `export_report`) as the pre-export consolidated
+  summary, rather than Envelopes & Critical Conditions or Start.
+- The dashboard becomes a real `WorkflowStep` rather than staying a `Home.py`
+  special case, so `wf.by_phase()` is the single uniform builder for all six
+  sections including Start.
+- `Loads Plots` is omitted from the sidebar entirely while it has zero steps,
+  rather than shown as an empty placeholder group, until Step D7 adds its page.
+
+---
+
 ## Phase D — Step D1: Structured load-case IDs (complete)
 
 **Objective.** Decision D-1: replace `report.py`'s render-time, per-module,

@@ -4,14 +4,17 @@ Run with:  streamlit run app/Home.py
 
 The whole app is one reloadable ``project.json`` carried in ``st.session_state``.
 Navigation is built explicitly from :mod:`farloads.workflow` (the single source of
-truth for the step graph) and grouped into the four workflow phases the user moves
-through left-to-right:
+truth for the step graph) and grouped into the six Phase-D workflow sections the
+user moves through left-to-right:
 
-    Overview ──▶ 1 · Define ──▶ 2 · Analyze ──▶ 3 · Review ──▶ 4 · Export
+    1 · Start ──▶ 2 · Airplane ──▶ 3 · Envelopes & Critical Conditions ──▶
+    4 · Analysis ──▶ 5 · Loads Plots ──▶ 6 · Export
 
 Using ``st.navigation`` (rather than the implicit ``pages/`` directory) means page
 order and titles come from the workflow metadata, not filename numbers -- so there
-is no numeric-prefix coupling and no duplicate-index collisions.
+is no numeric-prefix coupling and no duplicate-index collisions. A section with no
+steps yet (``Loads Plots``, pending Step D7) is omitted from the sidebar rather
+than shown empty.
 """
 
 from __future__ import annotations
@@ -26,27 +29,30 @@ st.set_page_config(page_title="FAR 23 LOADS", layout="wide", page_icon="🛩️"
 
 # Numbered, ordered section labels for the sidebar groups.
 _PHASE_LABEL = {
-    wf.DEFINE: "1 · Define",
-    wf.ANALYZE: "2 · Analyze",
-    wf.REVIEW: "3 · Review",
-    wf.EXPORT: "4 · Export",
+    wf.START: "1 · Start",
+    wf.AIRPLANE: "2 · Airplane",
+    wf.ENVELOPES: "3 · Envelopes & Critical Conditions",
+    wf.ANALYSIS: "4 · Analysis",
+    wf.LOADS_PLOTS: "5 · Loads Plots",
+    wf.EXPORT: "6 · Export",
 }
+
+_ICONS = {"dashboard": "🛩️"}
 
 
 def _page(step: wf.WorkflowStep) -> st.Page:
     """A navigable page for a workflow step (view file is ``views/<key>.py``)."""
-    return st.Page(f"views/{step.key}.py", title=step.title, url_path=step.key)
+    return st.Page(
+        f"views/{step.key}.py", title=step.title, url_path=step.key,
+        icon=_ICONS.get(step.key), default=(step.key == "dashboard"),
+    )
 
 
-# Overview / landing page.
-dashboard = st.Page(
-    "views/dashboard.py", title="Project Dashboard", icon="🛩️",
-    url_path="dashboard", default=True,
-)
-
-sections = {"Overview": [dashboard]}
-for phase, steps in wf.by_phase().items():
-    sections[_PHASE_LABEL[phase]] = [_page(s) for s in steps]
+sections = {
+    _PHASE_LABEL[phase]: [_page(s) for s in steps]
+    for phase, steps in wf.by_phase().items()
+    if steps
+}
 
 pg = st.navigation(sections)
 pg.run()

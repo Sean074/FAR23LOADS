@@ -1,9 +1,10 @@
-"""Project Dashboard — the Overview landing page.
+"""Project Dashboard — the Start-section landing page.
 
 Load or save the single ``project.json``, name the project, and see workflow
-progress at a glance: every step in :mod:`farloads.workflow`, grouped by phase,
-with a status that reads the live project (blocked / ready / done). This replaces
-the old Phase-0 Home page, which only inspected four of the ~20 project slices.
+progress at a glance: every step in :mod:`farloads.workflow`, grouped by the six
+Phase-D sections, with a status that reads the live project (blocked / ready /
+done). This replaces the old Phase-0 Home page, which only inspected four of the
+~20 project slices.
 
 One page of the multipage app; run the suite with:  streamlit run app/Home.py
 """
@@ -21,8 +22,9 @@ from farloads import workflow as wf
 st.title("🛩️ FAR 23 LOADS — Project Dashboard")
 st.caption(
     "Modern Python/Streamlit port of the McMaster FAR 23 LOADS suite. One reloadable "
-    "project carries every module's inputs; work the phases left-to-right in the "
-    "sidebar — **Define → Analyze → Review → Export**."
+    "project carries every module's inputs; work the sections left-to-right in the "
+    "sidebar — **Start → Airplane → Envelopes & Critical Conditions → Analysis → "
+    "Loads Plots → Export**."
 )
 
 project: Project = st.session_state.get("project", Project(name=""))
@@ -83,9 +85,15 @@ m3.metric("Schema version", project.schema_version)
 
 st.progress(len(done) / len(producible) if producible else 0.0)
 
-# Per-phase checklists, one column each.
-phase_cols = st.columns(len(wf.PHASES))
-for col, (phase, steps) in zip(phase_cols, wf.by_phase().items()):
+# Per-section checklists, one column each (this dashboard's own Start step and
+# any section with no steps yet — Loads Plots, pending Step D7 — are omitted).
+_sections = {
+    phase: [s for s in steps if s.key != "dashboard"]
+    for phase, steps in wf.by_phase().items()
+}
+_sections = {phase: steps for phase, steps in _sections.items() if steps}
+phase_cols = st.columns(len(_sections))
+for col, (phase, steps) in zip(phase_cols, _sections.items()):
     with col:
         st.subheader(phase)
         for s in steps:

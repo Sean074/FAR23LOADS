@@ -1,9 +1,10 @@
 """Results Review — consolidated governing loads across every component.
 
-The Review-phase summary: the governing (critical) load on each major component
-from SELECT, then every module's results rolled up by workflow phase. Everything
-is recomputed live from the project inputs (the single source of truth), so this
-page is never stale -- it does not rely on persisted result slices.
+The Export-section pre-export summary: the governing (critical) load on each major
+component from SELECT, then every module's results rolled up by workflow section.
+Everything is recomputed live from the project inputs (the single source of
+truth), so this page is never stale -- it does not rely on persisted result
+slices.
 
 One page of the multipage app; run the suite with:  streamlit run app/Home.py
 """
@@ -25,7 +26,7 @@ from farloads.report import (
 st.title("Results Review")
 st.caption(
     "Consolidated governing loads across every component. Recomputed live from the "
-    "project inputs — open the individual phase pages for full distributions, plots "
+    "project inputs — open the individual section pages for full distributions, plots "
     "and per-component exports."
 )
 
@@ -80,8 +81,8 @@ if critical is not None:
 # --------------------------------------------------------------------------- #
 # All module results, rolled up by workflow phase
 # --------------------------------------------------------------------------- #
-st.header("All results by phase")
-st.caption("Every module whose inputs are present, grouped Define → Analyze → Review.")
+st.header("All results by section")
+st.caption("Every module whose inputs are present, grouped by workflow section.")
 
 step_by_module = {s.module: s for s in wf.STEPS if s.module}
 module_results = registry.run_all_modules(project)
@@ -92,7 +93,7 @@ for mr in module_results:
         by_phase[step.phase].append((step, mr))
 
 if not module_results:
-    st.warning("No module has the inputs it needs yet. Fill in the Define pages first.")
+    st.warning("No module has the inputs it needs yet. Fill in the Airplane pages first.")
 
 for phase in wf.PHASES:
     entries = by_phase.get(phase, [])
