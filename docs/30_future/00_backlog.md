@@ -95,14 +95,20 @@ write-up) and was missing from the cross-module field-ownership table
 `configuration`) and the missing table row. No other drift found. Moved to
 `40_history/00_completed_development.md`.
 
-### R4 — Archive verification baseline (§4.4 — largest documentation task)
+### R4 — Archive verification baseline (§4.4 — largest documentation task) ✅ **done 2026-07-08**
 
-No permanent regression-baseline artifact exists yet. Create
-`docs/40_history/01_verification_baseline_0.2.0.md`: one table per module —
-condition → computed figure → Appendix A/B printed figure → reference page
-citation — extracted from the test assertions (the data already lives in
-`tests/test_*.py`). Note the closure-locked modules (ONENGOUT, LANDLOAD wheel
-table, swept AIRLOAD4) as such rather than inventing printed figures.
+Shipped `docs/40_history/01_verification_baseline_0.2.0.md`: one table per
+module (22 ported programs + `configuration`/`body_loads`) — condition,
+printed Appendix A/B figure, page citation, tolerance — extracted from the
+current `tests/test_*.py` assertions (257 passed, 0 failed at extraction
+time). Closure-locked modules (ONENGOUT, the LANDLOAD wheel-load table beyond
+the legible p231 cells, AIRLOAD4's swept branch, the FAR 25 optional engine
+cases, `body_loads`, `configuration`, concept-mode AIRLOADS/NETLOADS) are
+recorded under their own section with the specific closure/sub-formula check
+each relies on, rather than an invented printed figure. Also records the one
+approved oracle deviation already documented elsewhere (WTENV's aft-gross
+ballast station) and the AC 23-19A torque-factor corrections (ENGLOADS) with
+the manual's raw pre-correction figures called out per row.
 
 ### R5 — Version bump + changelog dating (§4.1–4.2)
 

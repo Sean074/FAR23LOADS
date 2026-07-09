@@ -37,6 +37,17 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   and two altitudes through the persist path and assert both survive. No calc
   or schema change.
 
+### Added
+
+- **`docs/40_history/01_verification_baseline_0.2.0.md`** (release step R4,
+  `RELEASE_PROCESS.md` §4.4): the permanent regression-baseline record — one
+  table per module (all 22 ported programs + `configuration`/`body_loads`)
+  mapping each printed Appendix A/B figure the test suite locks against to
+  its reference-page citation and tolerance, plus a dedicated section for the
+  closure-locked modules (ONENGOUT, the LANDLOAD wheel table, swept AIRLOAD4,
+  FAR 25 optional engine cases, `body_loads`, `configuration`, concept-mode
+  closure) that have no printed oracle. Docs-only.
+
 ### Changed
 
 - **`PROGRAM_SPEC.md` docs-drift fix** (release step R3, `RELEASE_PROCESS.md`

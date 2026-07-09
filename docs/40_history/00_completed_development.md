@@ -72,6 +72,42 @@ already tracked as an open item in `docs/30_future/00_backlog.md` (known-open
 
 ---
 
+## Release 0.2.0 — Step R4: archive verification baseline (complete)
+
+**Objective.** `RELEASE_PROCESS.md` §4.4 — create a permanent regression-
+baseline artifact recording every printed Appendix A/B figure the test suite
+locks against, since none existed yet.
+
+**Deliverables.** `docs/40_history/01_verification_baseline_0.2.0.md`: one
+table per module — condition, printed figure, reference-page citation,
+tolerance — for all 22 ported Appendix-C programs plus the two modern
+modules (`configuration`, `body_loads`), extracted directly from the current
+`tests/test_*.py` assertions (fanned out across four parallel read-only
+sweeps of the test files, one per pipeline stage: mass/geometry/speeds;
+envelope/critical; wing/tail component loads; control-surface/engine/gear/
+body). Modules with no printed oracle — ONENGOUT, the LANDLOAD wheel-load
+table past the legible p231 spot-check cells, AIRLOAD4's swept branch, the
+FAR 25 optional engine cases, `body_loads`, `configuration`, and concept-mode
+AIRLOADS/NETLOADS — are recorded in a dedicated "Closure-locked modules"
+section with the specific closure or sub-formula check each relies on,
+instead of an invented printed figure. Also captures the WTENV aft-gross-
+ballast-station approved deviation and the AC 23-19A engine-torque
+corrections (ENGLOADS), calling out the manual's raw pre-correction figure
+alongside the corrected value the code asserts.
+
+**Test / Acceptance.** Every row traces to a currently-passing assertion; the
+document states the run it was extracted against (`pytest`: 257 passed, 0
+failed, coverage ~92%, `ruff check farloads/ cli.py` clean) rather than
+re-deriving numbers by hand. No code/schema change — docs-only.
+
+**Key decisions.** Presented as "what the suite locks against" (printed
+figure + tolerance + citation) rather than a duplicate "computed" column,
+since a passing `math.isclose` assertion already proves computed == printed
+within tolerance; re-stating the computed number would just be the same
+literal copied twice.
+
+---
+
 ## ULTIMATE load output with a per-case factor of safety (complete)
 
 **Objective.** The suite emitted LIMIT loads everywhere, so downstream structural
