@@ -10,6 +10,35 @@ Acceptance**, **Key decisions**.
 
 ---
 
+## Release 0.2.0 — Step R2: GUI / CLI smoke test (complete)
+
+**Objective.** Close `RELEASE_PROCESS.md` §3.5 as a permanent, repeatable
+check instead of a manual checklist pass, so every future release runs the
+same script.
+
+**Deliverables.** `scripts/smoke_test.sh`: starts `app/Home.py` headless on a
+fixed local port, polls Streamlit's `/_stcore/health` endpoint until it comes
+up, curls the root page (asserts HTTP 200) and scans the server log for a
+traceback, stops the server, then runs `farloads engine
+examples/ga6_normal.project.json -o out.csv` and asserts the CSV is non-empty
+with an `ID` header and at least one load-case row. `RELEASE_PROCESS.md` §3.5
+now points at the script instead of prose steps. No `SCHEMA_VERSION` bump, no
+calc change — tooling-only.
+
+**Test / Acceptance.** `scripts/smoke_test.sh` run against a clean `.venv`
+checkout: exits 0, root page 200 with no traceback, CLI wrote 3 load-case rows
+for the `engine` module against `ga6_normal.project.json`.
+
+**Key decisions.** Committed as a standalone bash script rather than a pytest
+case in the main suite — the headless-server subprocess is slow and
+port/timing-sensitive, so it stays out of the default `pytest` gate rather
+than risk flaking CI; not wired into CI in this step. Uses
+`examples/ga6_normal.project.json` only (matches the CLI bullet the release
+process already named). "Renders without error" is checked by process +
+HTTP 200 + log scan, not a manual browser pass.
+
+---
+
 ## ULTIMATE load output with a per-case factor of safety (complete)
 
 **Objective.** The suite emitted LIMIT loads everywhere, so downstream structural

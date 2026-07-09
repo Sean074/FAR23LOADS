@@ -59,8 +59,7 @@ Each item is a hard gate.
 - [ ] For releases that touch a shared upstream module (weights, geometry, aero), re-run the **full** suite — downstream modules read those slices.
 
 ### 3.5 GUI / CLI smoke test
-- [ ] `streamlit run app/Home.py` starts headless without error; a representative project loads, runs, and renders.
-- [ ] `farloads <module> examples/<project>.json -o out.csv` writes the expected load-case CSV.
+- [ ] `scripts/smoke_test.sh` exits 0 — it starts `app/Home.py` headless, checks the root page renders (HTTP 200, no traceback in the server log), then runs `farloads engine examples/ga6_normal.project.json -o out.csv` and checks the CSV.
 
 ---
 

@@ -73,11 +73,15 @@ persist path); `CHANGELOG.md` `Fixed` entry; D0 moved to
 `40_history/00_completed_development.md`. Suite 257 passed, ruff clean —
 §3.2's no-open-critical-findings gate is met.
 
-### R2 — GUI / CLI smoke test (§3.5)
+### R2 — GUI / CLI smoke test (§3.5) ✅ **done 2026-07-08**
 
-`streamlit run app/Home.py` starts headless without error and renders a
-representative project; `farloads engine examples/ga6_normal.project.json -o
-out.csv` writes the expected load-case CSV.
+Shipped: `scripts/smoke_test.sh` (starts `app/Home.py` headless, polls
+`/_stcore/health`, checks the root page returns HTTP 200 with no traceback in
+the server log, then runs `farloads engine examples/ga6_normal.project.json
+-o out.csv` and asserts the CSV header/row count); `RELEASE_PROCESS.md` §3.5
+now points at the script. Verified passing against the current `.venv` (3
+load-case rows written). Moved to
+`40_history/00_completed_development.md`.
 
 ### R3 — Docs-drift check (§3.1)
 

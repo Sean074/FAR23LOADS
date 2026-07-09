@@ -9,6 +9,16 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- **`scripts/smoke_test.sh`** (release step R2, `RELEASE_PROCESS.md` §3.5): a
+  permanent, repeatable GUI/CLI smoke test. Starts `app/Home.py` headless,
+  waits for `/_stcore/health`, checks the root page returns HTTP 200 with no
+  traceback in the server log, then runs `farloads engine
+  examples/ga6_normal.project.json -o out.csv` and checks the CSV header/row
+  count. `RELEASE_PROCESS.md` §3.5 now points at the script instead of manual
+  steps. No calc or schema change.
+
 ### Fixed
 
 - **Flight Envelope page no longer destroys unedited `flight_loads` data**
