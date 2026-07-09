@@ -108,6 +108,24 @@ literal copied twice.
 
 ---
 
+## Release 0.2.0 — Step R5: version bump + changelog dating (complete)
+
+**Objective.** `RELEASE_PROCESS.md` §4.1–4.2 — bump the package version and
+date the changelog so the release is cuttable.
+
+**Deliverables.** `pyproject.toml` `version` `0.1.0` → `0.2.0` (MINOR: new
+modules ported and new GUI/CLI capability since `0.1.0`, per §1's version-
+numbering table). `CHANGELOG.md` `[Unreleased]` renamed to
+`## [0.2.0] — 2026-07-08`, with a fresh empty `[Unreleased]` opened above it.
+No code/schema change.
+
+**Test / Acceptance.** `pytest` and `ruff check farloads/ cli.py` unaffected
+(metadata-only change); `grep version pyproject.toml` shows `0.2.0`.
+
+**Key decisions.** None — mechanical application of §4.1–4.2's two steps.
+
+---
+
 ## ULTIMATE load output with a per-case factor of safety (complete)
 
 **Objective.** The suite emitted LIMIT loads everywhere, so downstream structural

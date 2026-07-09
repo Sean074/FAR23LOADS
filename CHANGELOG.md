@@ -9,6 +9,8 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.2.0] — 2026-07-08
+
 ### Added
 
 - **`scripts/smoke_test.sh`** (release step R2, `RELEASE_PROCESS.md` §3.5): a

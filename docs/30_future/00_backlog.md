@@ -110,10 +110,11 @@ approved oracle deviation already documented elsewhere (WTENV's aft-gross
 ballast station) and the AC 23-19A torque-factor corrections (ENGLOADS) with
 the manual's raw pre-correction figures called out per row.
 
-### R5 — Version bump + changelog dating (§4.1–4.2)
+### R5 — Version bump + changelog dating (§4.1–4.2) ✅ **done 2026-07-08**
 
-Bump `pyproject.toml` to `0.2.0`; rename `[Unreleased]` →
-`## [0.2.0] — YYYY-MM-DD` and open a fresh empty `[Unreleased]`.
+Bumped `pyproject.toml` `version` to `0.2.0`; `CHANGELOG.md` `[Unreleased]`
+renamed to `## [0.2.0] — 2026-07-08`, fresh empty `[Unreleased]` opened above
+it. See `40_history/00_completed_development.md`.
 
 ### R6 — Tag & GitHub release (§4.3 — user-run)
 
