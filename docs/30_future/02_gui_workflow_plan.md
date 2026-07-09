@@ -82,6 +82,20 @@ Notes:
   altitude, FAR reference) — shown as columns in every table/CSV and as a
   comment on every sbeam card. A case-index table (ID → full definition) is a
   first-class export. `report.py`'s render-time `LC{idx}` is retired.
+  **Sub-decisions locked 2026-07-08** (see `00_backlog.md` Step D1 for the full
+  design): traceability lives in a new `CaseRef` dataclass (not inline fields);
+  IDs are assigned once by the module that first names a physical condition and
+  copied downstream, never re-minted; exactly six component prefixes, with
+  control surfaces folding into their host (`W`/`HT`/`VT`/`F`/`EM`/`LG`, no
+  separate `AIL`/`FLP`/`TAB`); stability comes from each module's existing
+  fixed emission order (a pure function of project data), not a persisted
+  registry. **Known accepted gap:** `select_wing`'s wing `CriticalCondition`
+  list and `WingMassInput.cases` (which actually drives WINGINER/NETLOADS) are
+  two independent case lists today: D1 mints `W-` ids on the WINGINER/NETLOADS
+  path (the exported structural deliverable) and a separate `W-` sequence for
+  `select_wing`'s own list, banded so they don't collide numerically but not
+  unified as the same case object. Same caveat for `one_engine_out`'s `VT-` id
+  vs. `select_vtail`'s. A follow-on backlog item unifies these; D1 does not.
 - **D-2: Merge to nine Analysis component pages** (not merely regroup): Wing,
   Tail, Engine Out, Fuselage, Aileron, Flap, Tab, Engine Mount, Landing Gear.
 - **D-3: Local-disk project persistence.** The app runs locally, so the landing
@@ -158,11 +172,10 @@ Expected `SCHEMA_VERSION` bumps (older files must still load):
 - **Projects-directory location** for disk persistence (D3): a `projects/`
   folder beside the app vs a user-chosen path stored in app config. *Default:
   `projects/` in the repo working directory, git-ignored.*
-- **Case-ID sequence stability across reruns** (D1): sequence numbers are
-  assigned in a fixed, documented enumeration order (component, then the
-  module's canonical condition order) so the same project always yields the
-  same IDs; renumbering only occurs when the case set itself changes. Confirm
-  this is acceptable vs. a persisted ID registry if it proves too volatile.
+- ~~**Case-ID sequence stability across reruns** (D1)~~ — **closed 2026-07-08**:
+  fixed, documented enumeration order (component, then each minting module's
+  own canonical condition order), no persisted registry. See `00_backlog.md`
+  Step D1 and the D-1 sub-decisions above.
 - **Comparison-import format** for the Loads Plots page (D7): start with the
   suite's own span-loads CSV schema; extend to a generic station/value CSV
   mapping later if needed.

@@ -70,25 +70,167 @@ the workflow-step ↔ registered-module test stays green.
 ### Step D1 — Structured load-case IDs (data model) — active
 
 Decision D-1. The current `report.py` `LC{idx}` is render-time, per-module and
-unstable — a loads release needs stable, traceable case IDs.
+unstable — a loads release needs stable, traceable case IDs. **Sub-decisions
+locked 2026-07-08** (user-approved, superseding the loose wording above):
 
-1. Add `case_id: str` plus traceability fields (component, condition label,
-   CG case, speed, altitude) to `ConditionResult` — or a small `CaseRef`
-   dataclass it carries — and to the V-n points and the SELECT critical output.
-   `SCHEMA_VERSION` bump; older files load with IDs back-filled on next compute.
-2. Assign IDs in the **calc** modules as `<component>-<seq>` (`W-01`, `HT-03`,
-   `VT-02`, `F-04`, `EM-01`, `LG-05`, …) in a fixed, documented enumeration
-   order so the same project always yields the same IDs.
-3. Retire `LC{idx}`: `load_cases_to_rows` / `results_to_rows` emit the `ID` +
-   traceability columns from the data model; CSVs, Review tables and the text
-   report pick them up unchanged.
-4. Stamp the case ID as a comment on every sbeam `FORCE`/`MOMENT` card
-   (`export/sbeam_bridge.py`).
-5. New export: the **case-index table** (ID → full definition) as CSV, included
-   in the bundle.
-6. Tests: ID uniqueness across a full run, stability across two identical runs,
-   oracle values byte-identical (fields added, values untouched). Docs:
-   `PROGRAM_SPEC.md` (result contract), `PROJECT_GUIDE.md` (convention).
+- **Storage: a `CaseRef` dataclass**, not inline fields scattered across eight
+  result types.
+- **Propagation: assign once, carry downstream.** The module that first names a
+  physical condition mints the `CaseRef`; every downstream stage copies that
+  same object/id rather than re-minting.
+- **Component taxonomy: fold into the host structural component.** Exactly six
+  prefixes — `W` (wing, incl. aileron/flap/wing-tab), `HT` (horizontal tail,
+  incl. htail-tab), `VT` (vertical tail, incl. vtail-tab, incl.
+  one-engine-out), `F` (fuselage), `EM` (engine mount), `LG` (landing gear). No
+  separate `AIL`/`FLP`/`TAB` prefixes; the control-surface identity lives in
+  the `CaseRef.condition` label.
+- **Stability: fixed enumeration order, not a persisted registry.** IDs are
+  recomputed every run from each module's existing deterministic emission
+  order (a pure function of the project's own data — no run-order coupling, no
+  extra persisted state). This closes the "Case-ID sequence stability" open
+  item in `02_gui_workflow_plan.md §8`.
+
+#### 1. `CaseRef` + schema (`models.py`, `SCHEMA_VERSION` 15 → 16)
+
+```python
+@dataclass
+class CaseRef:
+    case_id: str            # "<component>-<seq>", e.g. "W-01", "HT-03"
+    component: str          # "wing" | "htail" | "vtail" | "fuselage" | "engine_mount" | "landing_gear"
+    condition: str          # human label, e.g. "PHAA", "down aileron", "sudden rudder"
+    cg: str = ""
+    speed_kt: Optional[float] = None
+    altitude_ft: Optional[float] = None
+    far_reference: str = ""
+```
+
+Add `case_ref: Optional[CaseRef] = None` to `ConditionResult`, `VnPoint`,
+`CriticalCondition`, `WingLoadResult`, `BodyLoadResult`, `TailChordResult`,
+`ControlSurfaceLoadResult`, `GearReactionCase`. All additive — older project
+JSON loads with `case_ref = None`, back-filled the next time the project is
+recomputed (no migration of stored results; only inputs persist across a
+reload).
+
+#### 2. `farloads/case_ids.py` (new, small, pure)
+
+- `COMPONENT_PREFIX` — the six-entry map above.
+- A tiny `CaseIdAllocator` (a per-call-site counter dict + `next_id(component)
+  -> str`, formatting `f"{prefix}-{n:02d}"`). Each minting module creates its
+  own allocator instance at the top of its build function — no shared/global
+  state, so determinism comes from each module's own fixed iteration order,
+  matching the "fixed enumeration order" decision.
+- Numeric **banding** where one prefix has more than one minting module (only
+  `W`, since aileron/flap/wing-tab fold into it per the taxonomy decision but
+  run as separate modules from WINGINER/NETLOADS with no shared runtime
+  state): reserve `W-01..W-49` for the WINGINER/NETLOADS structural cases,
+  `W-50..W-59` for AILERON, `W-60..W-69` for FLAPLOAD, `W-70+` for a wing-hosted
+  tab. Documented once here and in `case_ids.py`'s module docstring; bands are
+  wide enough that no realistic case count collides. `HT`/`VT` need no
+  banding — TABLOADS entries for those hosts are minted by SELECT/TAILDIST's
+  own htail/vtail sequence (see below), not a separate module.
+
+#### 3. Minting sites (in existing emission order — no loop reshuffling)
+
+- **`select.py`** (`build_critical`): stamp a `CaseRef` on each
+  `CriticalCondition` as `select_wing`/`select_htail`/`select_vtail`/
+  `select_fuselage` append it, using one allocator per component scoped to the
+  `build_critical` call. This covers `htail`, `vtail`, `fuselage` end-to-end —
+  `taildist.py` and `body_loads.py` already iterate
+  `_critical_set(project).conditions` directly, so they **copy**
+  `cond.case_ref` onto the `TailChordResult`/`BodyLoadResult` they produce
+  (pure propagation, no new IDs).
+- **Known wing gap — flag, don't silently paper over.** `select_wing` mints its
+  own `CriticalCondition` list (feeds the critical-loads summary table and the
+  steady-roll torsion condition) but WINGINER/NETLOADS drive off
+  `WingMassInput.cases` (`WingLoadCase`, still user/GUI-supplied per the
+  pre-SELECT "C3 bridge" note in `models.py`) — **two independent wing case
+  lists today, not one.** For D1: mint the `W-` ids on the WINGINER/NETLOADS
+  path (the actual exported structural deliverable — `wing_net` +
+  `export/sbeam_bridge.py`), in `wing_inertia.py`'s case-resolution helper
+  (`_resolve_case`), keyed by the case's position in `wm.cases`; `net_loads.py`
+  reuses the identical `WingLoadCase` object so `wing_air`/`wing_inertia`/
+  `wing_net` for the same case agree without cross-module state.
+  `select_wing`'s own `CriticalCondition` list gets its `W-` ids from a
+  *separate* allocator inside `build_critical` (bounded by the `W-01..W-49`
+  band together with WINGINER, so no collision, but no object-identity link
+  either) — the two sequences can diverge in practice until the wing pipeline
+  is unified. **Do not close this quietly**: add an explicit note to
+  `PROGRAM_SPEC.md` and a code comment flagging it, and open a follow-on
+  backlog item ("unify `select_wing` into `WingMassInput.cases`") rather than
+  pretending the ID makes them the same case. `wing_air`'s single-`target_cl`
+  path (no per-condition loop today) stays out of scope — it is an
+  intermediate distribution, not itself a delivered case.
+- **`engine.py`**: mint `EM-` ids in the existing per-condition loop
+  (23.361(a)(1)/(2)/(3), 23.363, the 23.371(b) gyro block). The gyro condition
+  expands into 4 sign-combination rows in `report.py`'s `_gyro_subcases` — mint
+  4 distinct `EM-` ids there too (one per sub-case), since each is a distinct
+  delivered load case.
+- **`landing.py`** (LANDLOAD): mint `LG-` ids per `GearReactionCase` in the
+  existing generation loop (24 main + 33 nose cases × CG cases). Keep the
+  manual's own 1-based `case` number as-is for oracle/manual traceability
+  (unrelated to the new `case_id`); the `CaseRef.condition` label carries
+  `description`/`cg_name`.
+- **`aileron.py` / `flap.py`**: mint `W-` ids from their own band
+  (`W-50..W-59` / `W-60..W-69`) in their existing emission order (aileron:
+  down/up; flap: the up-to-4 flaps-extended conditions).
+- **`tab.py`**: mint from the host component's band per `TabSpec.surface`
+  (`W-70+` for a wing tab; otherwise fold into the `HT`/`VT` sequence via its
+  own allocator scoped to `build_tab_loads`, since tabs aren't SELECT-critical
+  conditions).
+- **`one_engine_out.py`**: mint its own `VT-` id (own allocator scoped to that
+  module) continuing conceptually after SELECT's vtail sequence — same
+  divergence caveat as wing applies here too (`select_vtail`'s ids and
+  `one_engine_out`'s id are never numerically adjacent by construction, only
+  by convention); note this in the same follow-on-backlog item as the wing gap.
+
+#### 4. Retire `LC{idx}` (`report.py`)
+
+- `load_cases_to_rows` / `results_to_rows` emit the `ID` column from
+  `case_ref.case_id` when present (fall back to the current `LC{idx}` only for
+  results with no `case_ref` yet, so nothing renders blank mid-rollout); add
+  `Component`/`Condition`/`CG`/`Speed`/`Altitude`/`FAR` traceability columns
+  sourced from `CaseRef`. CSVs, Review tables and the text report pick this up
+  unchanged (they already iterate the same row dicts).
+
+#### 5. sbeam export (`export/sbeam_bridge.py`)
+
+- Stamp `case_ref.case_id` into the `$`-comment header of every
+  `FORCE`/`MOMENT` card block (`_case_card_block` and the fuselage equivalent),
+  next to the existing `SID`/`Nz`/`Nx` comment line.
+
+#### 6. New export: case-index table
+
+- A CSV (ID → component, condition, CG, speed, altitude, FAR reference),
+  built from every `case_ref` on the current run's results, included in the
+  export bundle and shown on the Export page (this is also D8 item 1 —
+  implement it once here, D8 just surfaces it in the upgraded export page).
+
+#### 7. Tests
+
+- ID uniqueness across a full `run_all_modules` run (no two results share a
+  `case_id`).
+- Stability: two identical runs of the same project produce byte-identical
+  `case_id` sets (guards the "fixed enumeration order" decision).
+- Oracle values unchanged: existing Appendix A/B tests pass unmodified
+  (`case_ref` is a new field, not a value change).
+- The wing-gap divergence is itself asserted/documented in a test (e.g. a
+  regression test that fails loudly, not silently, if someone later makes
+  `select_wing` and `WingMassInput.cases` agree without updating this note).
+
+#### 8. Docs sync (mandatory, same session per `CLAUDE.md`)
+
+- `PROGRAM_SPEC.md` — the `CaseRef` result contract, the six-prefix taxonomy,
+  the wing/one-engine-out numbering-divergence caveat.
+- `PROJECT_GUIDE.md` — the case-ID convention (banding scheme, allocator
+  pattern) for future modules.
+- `02_gui_workflow_plan.md §8` — close the "Case-ID sequence stability" open
+  item with the fixed-enumeration-order decision.
+- This backlog: move Step D1 to `40_history/00_completed_development.md` and
+  add the follow-on item "Unify `select_wing` into `WingMassInput.cases` /
+  align `one_engine_out`'s VT sequence" to "Deferred refinements" when D1
+  ships — the divergence is accepted for D1 but is not closed by it.
+- `CHANGELOG.md` `[Unreleased]` entry; `SCHEMA_VERSION` bump note in
+  `models.py`'s version-history comment.
 
 ### Step D2 — Six-section navigation restructure (regroup only)
 
@@ -233,6 +375,19 @@ changelog entry) when done.
   Add the printed ±0.1% oracle if a legible Appendix A/B or a `LANDLOAD.OUT`
   surfaces. The airplane-datum loads and unbalanced moments (PITCHP/ROLLP/YAWP) are
   computed but only closure-checked for the same reason.
+- **Unify `select_wing`/`one_engine_out` case identity into their SELECT
+  counterparts (from D1).** D1 mints wing `W-` ids on two independent,
+  unlinked lists — `select_wing`'s `CriticalCondition`s and the
+  `WingMassInput.cases` that actually drive WINGINER/NETLOADS — banded apart
+  so they don't collide numerically but are not the same case object; same gap
+  between `one_engine_out`'s own `VT-` id and `select_vtail`'s sequence. Closing
+  this means wiring `WingMassInput.cases` to derive from `envelope.critical`'s
+  wing conditions when not explicitly given (mirroring the fuselage/tail
+  pattern) and linking `one_engine_out`'s result to `select_vtail`'s
+  `CriticalCondition` list, so each component has exactly one case-ID
+  authority end-to-end. Out of scope for D1 (flagged there as an accepted
+  gap, not silently closed); needs its own oracle re-check since it touches
+  which case list WINGINER/NETLOADS iterate.
 - **Configuration seeding follow-ups (from C5)** → *subsumed by Phase D Step D4*
   (see above); the tasks are carried there verbatim, not duplicated here.
 
