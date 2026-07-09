@@ -6,7 +6,9 @@ dependency order, as a step-by-step plan. The architectural rationale lives in
 [`../10_standard/PROJECT_GUIDE.md §7`](../10_standard/PROJECT_GUIDE.md); the
 per-module spec is [`PROGRAM_SPEC.md`](../10_standard/PROGRAM_SPEC.md); the
 Phase-C narrative (locked decisions, schema, concept-mode invariants) is
-[`01_concept_loads_plan.md`](01_concept_loads_plan.md).
+[`01_concept_loads_plan.md`](01_concept_loads_plan.md); the Phase-D narrative
+(GUI assessment, target six-section structure, locked decisions, page
+conventions) is [`02_gui_workflow_plan.md`](02_gui_workflow_plan.md).
 
 > **Lifecycle rule (hard requirement, per `CLAUDE.md`).** When an item here is
 > finished, in the **same session**: (1) **remove** it from this file, (2) **add**
@@ -44,6 +46,226 @@ oracle exists for those).
 **Remaining suite programs (0):** all 22 Appendix-C programs are ported (BALLOADS
 shipped in Step C11). The FAR23 path stays oracle-locked (Appendix A/B ±0.1%);
 concept mode is a superset that reduces exactly to it on GA inputs.
+
+---
+
+## Release 0.2.0 — priority work (ships first; gates Phase D)
+
+Cut the first post-0.1.0 release: `pyproject.toml` is still at `version = 0.1.0`
+while the entire Phase 1–2 + C0–C11 body of work sits in `CHANGELOG.md`
+`[Unreleased]` (~617 lines, ready to be dated). No git tag exists yet. Process:
+[`../10_standard/RELEASE_PROCESS.md`](../10_standard/RELEASE_PROCESS.md).
+Pragmatically cut **one `0.2.0`** for the whole body (MINOR-per-module would be
+many bumps).
+
+**Gate status (verified 2026-07-08):** `ruff check farloads/ cli.py` clean;
+`pytest` 255 passed / 0 failed, coverage ~92%; Appendix A/B ±0.1% oracle tests
+all pass; no `skip`/`xfail` needing a backlog note; `[Unreleased]` complete.
+
+Remaining work, in priority order:
+
+### R1 — Step D0 defect fix (the only code work)
+
+The flight-envelope destructive slice overwrite (see **Known defects** below and
+Phase D **Step D0**) must close before release — §3.2 of the release process
+requires no open critical findings. Merge-write fix in
+`app/views/flight_envelope.py`, regression test (flaps-down config + two
+altitudes survive the page's persist path), `CHANGELOG.md` `Fixed` entry, and
+the backlog→history lifecycle move for D0.
+
+### R2 — GUI / CLI smoke test (§3.5)
+
+`streamlit run app/Home.py` starts headless without error and renders a
+representative project; `farloads engine examples/ga6_normal.project.json -o
+out.csv` writes the expected load-case CSV.
+
+### R3 — Docs-drift check (§3.1)
+
+Review pass confirming `PROGRAM_SPEC.md`, `PROJECT_GUIDE.md` and
+`20_theory/00_theory_sources.md` match the released code (they have been
+maintained per-step; this is verification, not writing).
+
+### R4 — Archive verification baseline (§4.4 — largest documentation task)
+
+No permanent regression-baseline artifact exists yet. Create
+`docs/40_history/01_verification_baseline_0.2.0.md`: one table per module —
+condition → computed figure → Appendix A/B printed figure → reference page
+citation — extracted from the test assertions (the data already lives in
+`tests/test_*.py`). Note the closure-locked modules (ONENGOUT, LANDLOAD wheel
+table, swept AIRLOAD4) as such rather than inventing printed figures.
+
+### R5 — Version bump + changelog dating (§4.1–4.2)
+
+Bump `pyproject.toml` to `0.2.0`; rename `[Unreleased]` →
+`## [0.2.0] — YYYY-MM-DD` and open a fresh empty `[Unreleased]`.
+
+### R6 — Tag & GitHub release (§4.3 — user-run)
+
+`git tag -a v0.2.0 -m "Release v0.2.0"`, push the tag, create the GitHub
+Release with the changelog entry as the body. *(All git actions are the user's
+to run; prepare exact commands.)*
+
+### R7 — Post-release (§5)
+
+Remove this section from the backlog (→ history + changelog note of the
+tag/date in `00_completed_development.md`); Phase D Step D1 becomes the active
+step.
+
+---
+
+## Phase D — GUI workflow restructure (the active plan)
+
+Reorganize the GUI from per-BAS-program pages into the six-section
+loads-release workflow (Start → Airplane → Envelopes & Critical → Analysis →
+Loads Plots → Export). Narrative, assessment findings, locked decisions D-1…D-4
+and the page conventions are in
+[`02_gui_workflow_plan.md`](02_gui_workflow_plan.md). **Gate:** Phase D starts
+after the `0.2.0` release is cut (decision D-4; the plan is the **Release
+0.2.0** section above); Step D0 is a defect fix and goes **into** that release
+(= release step R1). Invariant throughout: no calc-math change — the
+Appendix A/B oracles pass unmodified at every step.
+
+Definition of done per step (in addition to the file-top DoD where it applies):
+pages follow the Phase-D page conventions (`02_gui_workflow_plan.md §5` —
+form+Apply, merge-writes, read-don't-re-ask, no airplane-shaped defaults), and
+the workflow-step ↔ registered-module test stays green.
+
+### Step D0 — Fix the flight-envelope destructive slice overwrite *(pre-release defect fix)*
+
+Closes the known defect below. `app/views/flight_envelope.py` rebuilds
+`FlightLoadsInput` wholesale (`configurations=[cruise]`, `altitudes_ft=[altitude]`),
+so merely opening the page deletes any flaps-down configuration or extra
+altitudes a loaded project carried.
+
+1. Merge the page's edits into the existing `project.flight_loads` (preserve
+   configurations/altitudes the page doesn't edit) instead of replacing it.
+2. Regression test: load a project with a flaps-down config + two altitudes,
+   run the page's persist path, assert both survive.
+3. Ship inside the `0.2.0` release.
+
+### Step D1 — Structured load-case IDs (data model)
+
+Decision D-1. The current `report.py` `LC{idx}` is render-time, per-module and
+unstable — a loads release needs stable, traceable case IDs.
+
+1. Add `case_id: str` plus traceability fields (component, condition label,
+   CG case, speed, altitude) to `ConditionResult` — or a small `CaseRef`
+   dataclass it carries — and to the V-n points and the SELECT critical output.
+   `SCHEMA_VERSION` bump; older files load with IDs back-filled on next compute.
+2. Assign IDs in the **calc** modules as `<component>-<seq>` (`W-01`, `HT-03`,
+   `VT-02`, `F-04`, `EM-01`, `LG-05`, …) in a fixed, documented enumeration
+   order so the same project always yields the same IDs.
+3. Retire `LC{idx}`: `load_cases_to_rows` / `results_to_rows` emit the `ID` +
+   traceability columns from the data model; CSVs, Review tables and the text
+   report pick them up unchanged.
+4. Stamp the case ID as a comment on every sbeam `FORCE`/`MOMENT` card
+   (`export/sbeam_bridge.py`).
+5. New export: the **case-index table** (ID → full definition) as CSV, included
+   in the bundle.
+6. Tests: ID uniqueness across a full run, stability across two identical runs,
+   oracle values byte-identical (fields added, values untouched). Docs:
+   `PROGRAM_SPEC.md` (result contract), `PROJECT_GUIDE.md` (convention).
+
+### Step D2 — Six-section navigation restructure (regroup only)
+
+1. Rework `farloads/workflow.py`: replace the four phases with the six sections
+   (Start, Airplane, Envelopes & Critical Conditions, Analysis, Loads Plots,
+   Export); move `airloads` from Define to the Analysis group (metadata move
+   only — `requires`/`produces` unchanged).
+2. `app/Home.py` sidebar grouping + numbering follows automatically; update the
+   dashboard's per-section status board.
+3. No page merges yet (they land in D6); every existing page keeps working
+   under its new section. Nav-drift test updated.
+
+### Step D3 — Start (landing) page & local-disk persistence
+
+Decision D-3. Absorbs the former "Home page — Engineer & Date fields" nicety.
+
+1. Projects directory (default `projects/`, git-ignored; location noted in
+   `02_gui_workflow_plan.md §8`): explicit **Save** writes
+   `<name>.project.json` to disk; recent-projects list + **Open** on the
+   landing page; **New from example** (`examples/*.project.json`); keep browser
+   upload/download.
+2. Global project load/save widget in the `Home.py` sidebar (every page), with
+   an unsaved-changes indicator.
+3. Project metadata: optional `engineer` and `date`, carried in the JSON
+   (`SCHEMA_VERSION` bump) and shown on the text report and exports.
+4. Disk I/O lives in `io.py` / the view layer only (never calc).
+
+### Step D4 — Authoritative shared inputs + Aero Coefficients page
+
+Applies the page conventions to the Airplane section. Subsumes the C5
+"Configuration seeding follow-ups" (its tasks are items 3–4 here).
+
+1. Downstream pages **read** wing area, MAC, design weights, CG from the
+   authoritative slices (read-only display + explicit override where the
+   original program allowed one) — kill the duplicate wing-area/MAC/weight
+   entry on Structural Speeds / Flight Envelope.
+2. Remove Appendix-A widget defaults from all pages (convention §5.4); the
+   example project is the way to get the Appendix-A airplane.
+3. Configuration → downstream seeding: push component stations into the Weight
+   DB (WTONECG); set `XLEMAC`/`MAC` into WTENV/STRSPEED; `MassItem.x/z` station
+   assignment (filling the zeros `estimate_to_mass_items` leaves) and engine
+   write-back from the three-view.
+4. Tail/prop ground-clearance refinement; true CG (rather than the 25%-MAC
+   first cut) once a mass slice is present.
+5. New **Aero Coefficients** page (Airplane section): owns the
+   airplane-less-tail coefficient sets — cruise **and flaps-down** — extracted
+   from `flight_envelope.py`. (Provisions the input the deferred flaps-extended
+   refinements from C6/C7 have been waiting on; does not close them.)
+6. 3-view with mass items overlaid (`configuration_layout`'s `_three_view()` +
+   the weight DB).
+7. Convert the Airplane-section pages to form+Apply with merge-writes.
+
+### Step D5 — Envelopes & Critical Conditions section
+
+1. **Weight/CG grid & payload cases** page: loading scenarios defined once,
+   feeding both the CG envelope (WTENV) and the flight-envelope CG cases so
+   they cannot diverge (`SCHEMA_VERSION` bump for the shared payload cases).
+2. **Speed–altitude chart** with VA/VC/VD/VF and the Mach-limit boundary (data
+   already in `speeds` + `speeds.mach_limit`).
+3. **Multi-altitude V-n**: expose `FlightLoadsInput.altitudes_ft` as a real
+   list; plot V-n per altitude (overlay or tabs); verify the calc loop handles
+   >1 entry (regression test; no equation change expected).
+4. **Critical-case selection by case ID**: the SELECT page persists the chosen
+   governing set as case IDs on `envelope.critical`; Review/Export consume the
+   selection.
+
+### Step D6 — Merge Analysis into nine component pages
+
+Decision D-2. Apply the page conventions as each page is merged; per-page LIMIT
+displays keep the caption + `LIMIT`-marker convention.
+
+1. **Wing Loads** = `airloads` (Schrenk) + `net_wing_loads` (air − inertia,
+   shear/BM/torsion) on one page.
+2. **Tail Loads** = `tail_distribution` + `balanced_tail_verification`.
+3. **Engine Out** (`one_engine_out`), **Fuselage Loads**, **Aileron**, **Flap**,
+   **Tab**, **Engine Mount**, **Landing Gear** — 1:1 conversions to the
+   conventions.
+4. `workflow.py` steps/keys updated (merged pages get merged steps); nav-drift
+   test and the dashboard status board follow.
+
+### Step D7 — Loads Plots page (new)
+
+Absorbs the former "per-module graphics audit" nicety.
+
+1. New consolidated page: pick a component → overlay shear/moment/torsion for
+   selected **case IDs**; show the enveloped spanwise curve; total-loads view.
+2. External-comparison import: start with the suite's own span-loads CSV
+   schema (generic mapping later — `02_gui_workflow_plan.md §8`).
+3. Graphics audit: confirm every plot the original program rendered (weight
+   envelope, V-n, spanwise/shear-BM-torsion, Mach lines, three-view) has a
+   Streamlit equivalent; close any gaps found.
+
+### Step D8 — Export & report upgrades
+
+Absorbs the former "`.xlsx` workbook export" nicety.
+
+1. Case-index table (from D1) included in the export bundle and shown on the
+   Export page.
+2. Single multi-sheet `.xlsx` workbook (one tab per module/component) as an
+   alternative to the `.zip`.
+3. Exports honor the D5 critical-case selection (full set vs governing set).
 
 ---
 
@@ -87,29 +309,11 @@ changelog entry) when done.
   Add the printed ±0.1% oracle if a legible Appendix A/B or a `LANDLOAD.OUT`
   surfaces. The airplane-datum loads and unbalanced moments (PITCHP/ROLLP/YAWP) are
   computed but only closure-checked for the same reason.
-- **Configuration seeding follow-ups (from C5).** C5 seeds only the wing geometry
-  surface. Still open: push component stations → Weight DB (WTONECG) and set
-  `XLEMAC`/`MAC` directly into WTENV/STRSPEED; `MassItem.x/z` station assignment
-  (filling the zeros `estimate_to_mass_items` leaves) and engine write-back from
-  the three-view; tail/prop ground-clearance refinement; a true CG (rather than the
-  25%-MAC first cut) once a mass slice is present.
+- **Configuration seeding follow-ups (from C5)** → *subsumed by Phase D Step D4*
+  (see above); the tasks are carried there verbatim, not duplicated here.
 
----
-
-## Modern UI niceties (no `.BAS` oracle)
-
-- **Home page — Engineer & Date fields.** Add optional `Engineer:` and `Date:`
-  metadata alongside the Project Name, carried in the project JSON and shown on
-  reports. *(From the GUI review; the rest of that review — auto-populating the
-  Weight, CG & Inertia page, a three-view, and the MTOW-vs-OEW fleet plot — shipped
-  in the seed-mass-items helper and Step C5.)*
-- **Per-module graphics audit.** Confirm every module that the original rendered as
-  a plot (weight envelope, V-n diagram, spanwise / shear-BM-torsion, Mach lines,
-  three-view) has an equivalent Streamlit chart. *(Most exist; audit for any
-  remaining gaps.)*
-- **`.xlsx` workbook export.** The Export page already bundles a `.zip` of project
-  JSON + per-module load CSVs + sbeam BDF cards; a single multi-sheet `.xlsx`
-  (one tab per module) would be a nicer single-file hand-off. *(Optional.)*
+> The former "Modern UI niceties" section is absorbed into Phase D: Engineer &
+> Date fields → D3, per-module graphics audit → D7, `.xlsx` workbook export → D8.
 
 ---
 
@@ -135,18 +339,12 @@ changelog entry) when done.
 
 ---
 
-## Release / versioning
-
-- [ ] **Cut the first post-0.1.0 release.** `pyproject.toml` is still at
-  `version = 0.1.0` (the Phase 0 baseline) while the entire Phase 1–2 + C0–C11 body
-  of work sits in `CHANGELOG.md [Unreleased]`. Per
-  [`../10_standard/RELEASE_PROCESS.md`](../10_standard/RELEASE_PROCESS.md), a
-  completed roadmap phase warrants a release: bump the version (MINOR per ported
-  module is many bumps — pragmatically cut one `0.2.0` for the Phase 1–2 + Phase-C
-  body), date the changelog, and tag. *(Versioning/tagging is the user's to run.)*
-
----
-
 ## Known defects
 
-- _(none recorded)_
+- **Flight Envelope page destroys unedited `flight_loads` data.**
+  `app/views/flight_envelope.py` persists `FlightLoadsInput(configurations=[cruise],
+  altitudes_ft=[altitude], ...)` on every rerun — a wholesale replacement, so
+  opening the page deletes any flaps-down configuration or additional altitudes a
+  loaded project carried (the schema supports both; the page rebuilds the slice
+  from its own widgets only). Found in the 2026-07-08 GUI review. Fix is **Phase D
+  Step D0** (merge-write + regression test), to ship inside the `0.2.0` release.

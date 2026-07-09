@@ -8,7 +8,7 @@ historical record.
 |---------|------|----------|
 | `10_standard/` | **Code standard** | The authoritative description of how the suite works *today* — architecture, the per-module spec, and the process guides. Update these whenever code changes. |
 | `20_theory/` | **Theory & equation sources** | Where each module's equations and regression oracles come from (the `reference/` PDFs), plus per-module page citations as modules are ported. |
-| `30_future/` | **Future development** | The backlog & step-by-step plan: deferred refinements and open design decisions (all 22 suite programs are now ported). |
+| `30_future/` | **Future development** | The backlog & step-by-step plan: the Phase-D GUI restructure, deferred refinements and open design decisions (all 22 suite programs are now ported). |
 | `40_history/` | **Historic record** | What has shipped — completed modules/phases, key decisions, and resolved defects. |
 
 ---
@@ -34,8 +34,9 @@ historical record.
 
 | File | Scope |
 |------|-------|
-| [`00_backlog.md`](30_future/00_backlog.md) | **Authoritative backlog & development plan** — deferred refinements and open decisions (all 22 suite programs ported) |
+| [`00_backlog.md`](30_future/00_backlog.md) | **Authoritative backlog & development plan** — the Phase-D step plan (D0–D8), deferred refinements and open decisions (all 22 suite programs ported) |
 | [`01_concept_loads_plan.md`](30_future/01_concept_loads_plan.md) | **Phase C plan** — growing the suite into an initial-concept distributed-loads tool (concept mode, Schrenk airloads, per-component distributed loads, sbeam export bridge) |
+| [`02_gui_workflow_plan.md`](30_future/02_gui_workflow_plan.md) | **Phase D plan** — GUI workflow restructure: assessment, six-section target structure, load-case IDs, locked decisions, page conventions |
 
 ## 40_history — Historic record
 
