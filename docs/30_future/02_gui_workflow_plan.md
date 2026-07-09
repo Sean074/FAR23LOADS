@@ -105,6 +105,29 @@ Notes:
   `0.2.0` release is cut (with the D0 defect fix included), so the shipped
   Phase 1–2 + C0–C11 body of work is tagged before GUI churn begins. Deferred
   calc refinements stay open and land opportunistically.
+- **D-5: Step D4 design decisions** *(locked 2026-07-09)*:
+  - **Default-scrub scope.** D4's "remove Appendix-A widget defaults"
+    (convention §5.4) applies only to the five Airplane-section pages plus the
+    new Aero Coefficients page. `flight_envelope`/`weight_envelope`/
+    `mach_limit`/`airloads` keep their Appendix-A-shaped literals for now —
+    they clean up under D5/D6 when those pages get their own form+Apply
+    rework, not as an early sweep.
+  - **Aero-coefficient ownership.** Cruise/flaps-down `AeroCoeffSet`s move to
+    a new `Project.aero_coeffs` slice owned by the new `aero_coefficients`
+    module (Airplane section), not left nested inside `FlightLoadsInput`.
+    `flight_envelope` (Envelopes section) reads it read-only — single owner
+    per slice, even though the writer and the reader sit in different
+    sections. `FlightLoadsInput` keeps only balance geometry and CG cases.
+  - **Component-station mapping.** No new per-component station sub-model on
+    `LayoutInput`. Stations for the Weight-DB seed (and, later, the three-view
+    mass overlay) are **derived** by a pure function from `LayoutInput`'s
+    existing coarse scalars (`le_root_x`, `h_tail_arm`, `v_tail_arm`, gear
+    positions, …) — approximate but zero new required inputs; a user can
+    still override any seeded `MassItem.x/z` by hand afterward.
+  - **Engine three-view write-back.** In scope for D4 (not deferred), per the
+    ownership rule already documented at `EngineInput.engine_cg` — implemented
+    as numeric x/y/z override fields per engine rather than drag-and-drop
+    markers.
 
 ## 4. Invariants (unchanged from Phase C)
 
@@ -145,6 +168,9 @@ Expected `SCHEMA_VERSION` bumps (older files must still load):
 - `case_id` + traceability fields on `ConditionResult` (and the V-n /
   SELECT-critical records) — Step D1.
 - Project metadata: `engineer`, `date` — Step D3.
+- New `Project.aero_coeffs` slice (`cruise`/`flaps_down` `AeroCoeffSet`s moved
+  out of `FlightLoadsInput`) — Step D4 (D4.1, shipped 2026-07-09,
+  `SCHEMA_VERSION` 17 → 18).
 - Payload/loading-scenario cases shared by the CG envelope and the flight
   envelope — Step D5.
 
@@ -154,12 +180,12 @@ Expected `SCHEMA_VERSION` bumps (older files must still load):
   → D3; per-module graphics audit → D7; `.xlsx` workbook → D8.
 - **Subsumes** the "Configuration seeding follow-ups (from C5)" deferred item —
   its tasks (stations → Weight DB, `XLEMAC`/`MAC` → WTENV/STRSPEED, engine
-  write-back, true-CG refinement) become Step D4 tasks.
-- **Prerequisite synergy:** the dedicated Aero Coefficients page (D4) provisions
-  the flaps-down coefficient-set input that the deferred *flaps-extended
-  tail-load / chordwise rows* refinements (from C6/C7) have been waiting on. It
-  does not close them (they also need the CG5–7 fixtures / oracle work), but it
-  removes their GUI blocker.
+  write-back, true-CG refinement) become Step D4.3–D4.6.
+- **Prerequisite synergy:** the dedicated Aero Coefficients page (D4.2)
+  provisions the flaps-down coefficient-set input that the deferred
+  *flaps-extended tail-load / chordwise rows* refinements (from C6/C7) have
+  been waiting on. It does not close them (they also need the CG5–7 fixtures /
+  oracle work), but it removes their GUI blocker.
 - **Multi-altitude V-n (D5)** is a GUI exposure of `FlightLoadsInput.altitudes_ft`,
   which is already a list in the schema; verify the calc loop handles >1 entry
   and add a regression test — no equation change expected.
@@ -181,3 +207,8 @@ Expected `SCHEMA_VERSION` bumps (older files must still load):
 - **Comparison-import format** for the Loads Plots page (D7): start with the
   suite's own span-loads CSV schema; extend to a generic station/value CSV
   mapping later if needed.
+- **`xtc`/`xtf` (tail CP stations) page placement.** These stay on
+  `flight_envelope.py` per the D-5 aero-ownership decision, even though they
+  conceptually depend on flaps state (which now lives on the Aero
+  Coefficients page). Not moved in D4; revisit if D5/D6 makes the split feel
+  wrong in practice.

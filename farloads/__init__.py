@@ -7,6 +7,7 @@ themselves with :mod:`farloads.registry`.
 
 from .models import (
     AeroCoeffSet,
+    AeroCoefficientsInput,
     AeroInput,
     AeroSurfaceInput,
     AileronLoadsInput,
@@ -81,6 +82,7 @@ from .modules.engine import run_all
 
 __all__ = [
     "AeroCoeffSet",
+    "AeroCoefficientsInput",
     "AeroInput",
     "AeroSurfaceInput",
     "AileronLoadsInput",

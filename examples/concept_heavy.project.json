@@ -180,6 +180,35 @@
       }
     ]
   },
+  "aero_coeffs": {
+    "cruise": {
+      "name": "CRUISE",
+      "stall_cl": 1.6,
+      "neg_stall_cl": -0.8,
+      "lift": [
+        0.3,
+        0.08,
+        0,
+        0,
+        0
+      ],
+      "drag": [
+        0.025,
+        0,
+        0.05,
+        0,
+        0
+      ],
+      "moment": [
+        -0.02,
+        0.004,
+        0,
+        0,
+        0
+      ],
+      "flaps_down": false
+    }
+  },
   "flight_loads": {
     "mac": 92.0,
     "wing_area_sqft": 280.0,
@@ -190,35 +219,6 @@
     "mn": 0.1,
     "altitudes_ft": [
       0.0
-    ],
-    "configurations": [
-      {
-        "name": "CRUISE",
-        "stall_cl": 1.6,
-        "neg_stall_cl": -0.8,
-        "lift": [
-          0.3,
-          0.08,
-          0,
-          0,
-          0
-        ],
-        "drag": [
-          0.025,
-          0,
-          0.05,
-          0,
-          0
-        ],
-        "moment": [
-          -0.02,
-          0.004,
-          0,
-          0,
-          0
-        ],
-        "flaps_down": false
-      }
     ],
     "cg_cases": [
       {

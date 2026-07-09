@@ -238,11 +238,11 @@ def _ga6_with_landing():
 
     p = _ga6_three_altitudes()
     p.flight_loads.altitudes_ft = [0.0, 12000.0, 18000.0]
-    cruise = p.flight_loads.configurations[0]
+    cruise = p.aero_coeffs.cruise
     landing = copy.deepcopy(cruise)
     landing.name, landing.flaps_down = "LANDING", True
     landing.stall_cl, landing.neg_stall_cl = 1.9, -0.8
-    p.flight_loads.configurations = [cruise, landing]
+    p.aero_coeffs.flaps_down = landing
     p.tail_loads = _TAIL
     return p
 

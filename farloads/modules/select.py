@@ -214,6 +214,21 @@ def htail_balance(p: VnPoint, cg: CgCase, xw: float, zw: float,
     return {"LT25": lt25, "LT50": lt50, "AT": at, "DELTA": delta, "LT": lt, "CP": cp}
 
 
+def _flaps_by_config_name(project: Project) -> Dict[str, bool]:
+    """Map each ``Project.aero_coeffs`` configuration name to its flaps state
+    (cruise = False, flaps_down = True), for pairing against V-n points'
+    ``config`` field. Empty when the slice is absent."""
+    aero = project.aero_coeffs
+    flaps: Dict[str, bool] = {}
+    if aero is None:
+        return flaps
+    if aero.cruise is not None:
+        flaps[aero.cruise.name] = False
+    if aero.flaps_down is not None:
+        flaps[aero.flaps_down.name] = True
+    return flaps
+
+
 def select_htail_balancing(project: Project) -> List[CriticalCondition]:
     """Select the largest up and down rational balancing tail loads (FAR 23.421),
     flaps retracted and -- when the flapped V-n envelope is present -- flaps
@@ -223,7 +238,7 @@ def select_htail_balancing(project: Project) -> List[CriticalCondition]:
     if ti is None or fl is None:
         return []
     cg_map: Dict[str, CgCase] = {c.name: c for c in fl.cg_cases}
-    flaps: Dict[str, bool] = {c.name: c.flaps_down for c in fl.configurations}
+    flaps: Dict[str, bool] = _flaps_by_config_name(project)
 
     retracted, extended = [], []
     for p in _envelope(project).vn:

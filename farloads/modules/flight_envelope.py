@@ -373,8 +373,17 @@ def build_envelope(project: Project) -> EnvelopeResult:
         raise ValueError("Project has no 'flight_loads' inputs for the flight_envelope module")
     if project.speeds is None:
         raise ValueError("flight_envelope needs 'speeds' (STRSPEED) for the design speeds")
-    if not fl.configurations:
-        raise ValueError("flight_envelope needs at least one configuration")
+    aero = project.aero_coeffs
+    configs: List[AeroCoeffSet] = []
+    if aero is not None:
+        if aero.cruise is not None:
+            configs.append(aero.cruise)
+        if aero.flaps_down is not None:
+            configs.append(aero.flaps_down)
+    if not configs:
+        raise ValueError(
+            "flight_envelope needs 'aero_coeffs' (cruise and/or flaps-down coefficient sets)"
+        )
     if not fl.cg_cases:
         raise ValueError("flight_envelope needs at least one CG case")
 
@@ -383,7 +392,7 @@ def build_envelope(project: Project) -> EnvelopeResult:
     tail: List[TailBalanceLoad] = []
     case = 0
     for alt in fl.altitudes_ft:
-        for config in fl.configurations:
+        for config in configs:
             # Flapped (landing/take-off) envelopes are investigated at sea level
             # only (FLTLOADS.BAS line 3000).
             if config.flaps_down and alt > 0:

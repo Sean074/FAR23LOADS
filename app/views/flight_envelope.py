@@ -5,8 +5,9 @@ One page of the multi-page app; run the suite with:  streamlit run app/Home.py
 Builds the FAR 23.333 maneuver + gust V-n diagram and the balancing horizontal
 tail load at every corner (Reference 1 Ch 8). The design speeds and limit load
 factors come from the Structural Speeds page (STRSPEED); the airplane-less-tail
-aero coefficients, tail-CP / 25%-MAC stations and weight-CG cases are entered
-here (the FLTLOADS input set).
+aero coefficients come from the **Aero Coefficients** page (Step D4.2); the
+balance geometry and weight-CG cases are entered here (the rest of the FLTLOADS
+input set).
 """
 
 from __future__ import annotations
@@ -15,7 +16,7 @@ import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
 
-from farloads import AeroCoeffSet, CgCase, FlightLoadsInput, Project
+from farloads import CgCase, FlightLoadsInput, Project
 from farloads.modules.flight_envelope import build_envelope, run as flt_run
 from farloads.report import module_text_report
 
@@ -33,6 +34,15 @@ if project.speeds is None:
     st.warning(
         "No structural speeds found. Set design speeds on the **Structural Speeds** "
         "page first — FLTLOADS reads VA/VC/VD/VF, MC/MD and the limit load factor from it."
+    )
+    st.stop()
+
+aero = project.aero_coeffs
+if aero is None or (aero.cruise is None and aero.flaps_down is None):
+    st.warning(
+        "No aero coefficients found. Enter the cruise (and optional flaps-down) "
+        "coefficient set on the **Aero Coefficients** page first — FLTLOADS reads "
+        "the airplane-less-tail CL/CD/CM polynomials from it."
     )
     st.stop()
 
@@ -57,7 +67,7 @@ st.caption(
     "CL = C0 + C1·α + C2·α² + C3·α³ + C4·α⁴ (α in deg); CD = D0 + D1·CL + … ; "
     "CM = M0 + M1·α + … — from the Ch 7 aero-coefficients program."
 )
-cfg = next((c for c in fl.configurations if not c.flaps_down), None)
+cfg = project.aero_coeffs.cruise if project.aero_coeffs else None
 coeff_default = pd.DataFrame(
     {
         "row": ["lift (CL vs α)", "drag (CD vs CL)", "moment (CM vs α)"],
@@ -102,12 +112,17 @@ cg_cases = [
     if pd.notna(r["weight_lb"]) and pd.notna(r["xcg (in)"])
 ]
 
-# Merge (never wholesale-replace) so a loaded project's flaps-down
-# configuration and extra altitudes survive the page's persist path.
+# Merge (never wholesale-replace) so a loaded project's extra altitudes
+# survive the page's persist path. Cruise coefficients write into the
+# Project.aero_coeffs slice (Step D4.1); a dedicated flaps-down set and its
+# own Aero Coefficients page land in Step D4.2 -- this block moves there and
+# is preserved (not overwritten) here in the meantime.
 project.flight_loads = fl.merged(
     mac=mac, wing_area_sqft=s, xw=xw, zw=zw, xtc=xtc, xtf=xtf, mn=mn,
-    altitude_ft=altitude, configuration=cruise, cg_cases=cg_cases,
+    altitude_ft=altitude, cg_cases=cg_cases,
 )
+existing_flaps_down = project.aero_coeffs.flaps_down if project.aero_coeffs else None
+project.aero_coeffs = AeroCoefficientsInput(cruise=cruise, flaps_down=existing_flaps_down)
 st.session_state["project"] = project
 
 if project.is_concept:

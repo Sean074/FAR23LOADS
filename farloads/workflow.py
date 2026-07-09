@@ -89,6 +89,10 @@ STEPS: Tuple[WorkflowStep, ...] = (
     WorkflowStep("structural_speeds", "Structural Speeds", AIRPLANE,
                  module="structural_speeds", produces="speeds", bas="STRSPEED",
                  summary="FAR 23 design speeds VA/VC/VD/VS."),
+    WorkflowStep("aero_coefficients", "Aero Coefficients", AIRPLANE,
+                 module=None, produces="aero_coeffs", bas=None,
+                 summary="Airplane-less-tail aero coefficients (cruise + flaps-down) "
+                         "for the flight envelope balance."),
 
     # ---- Envelopes & Critical Conditions: the load environment --------------- #
     WorkflowStep("weight_envelope", "Weight / CG Envelope", ENVELOPES,
@@ -99,8 +103,8 @@ STEPS: Tuple[WorkflowStep, ...] = (
                  module="mach_limit", requires=("speeds",), produces="speeds.mach_limit",
                  bas="MACHLIM", summary="Mach-limited speed boundary."),
     WorkflowStep("flight_envelope", "Flight Envelope (V-n)", ENVELOPES,
-                 module="flight_envelope", requires=("speeds",), produces="flight_loads",
-                 bas="FLTLOADS",
+                 module="flight_envelope", requires=("speeds", "aero_coeffs"),
+                 produces="flight_loads", bas="FLTLOADS",
                  summary="V-n diagram + balancing tail loads (the load environment)."),
     WorkflowStep("critical_loads", "Critical Loads (SELECT)", ENVELOPES,
                  module="select", requires=("flight_loads",), produces="envelope.critical",

@@ -29,7 +29,7 @@ from typing import Dict, List
 
 from ..models import CgCase, ConditionResult, LoadValue, ModuleResult, Project, VnPoint
 from ..registry import register
-from .select import _elevator_load, _envelope, htail_balance
+from .select import _elevator_load, _envelope, _flaps_by_config_name, htail_balance
 
 MODULE_NAME = "balloads"
 
@@ -57,7 +57,7 @@ def verify_balancing(project: Project) -> List[Dict[str, float]]:
     if ti is None or fl is None:
         raise ValueError("balloads needs Project.tail_loads and Project.flight_loads")
     cg_map: Dict[str, CgCase] = {c.name: c for c in fl.cg_cases}
-    flaps: Dict[str, bool] = {c.name: c.flaps_down for c in fl.configurations}
+    flaps: Dict[str, bool] = _flaps_by_config_name(project)
 
     rows: List[Dict[str, float]] = []
     for p in _envelope(project).vn:

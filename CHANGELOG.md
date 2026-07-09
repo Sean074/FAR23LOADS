@@ -11,6 +11,25 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **`Project.aero_coeffs` slice — single-owner airplane-less-tail aero
+  coefficients** (Phase D Step D4.1). New `AeroCoefficientsInput` (`cruise`,
+  `flaps_down`, both `Optional[AeroCoeffSet]`) replaces
+  `FlightLoadsInput.configurations` (a list of `AeroCoeffSet` keyed by
+  `flaps_down`), which is dropped from the schema. `flight_envelope`
+  (FLTLOADS) now reads `Project.aero_coeffs` instead of owning the coefficient
+  list; `select` and `balloads` read it too (via `select._flaps_by_config_name`)
+  for the flaps-retracted/extended split. A new **Aero Coefficients** workflow
+  step (`aero_coefficients`, Airplane section, `produces="aero_coeffs"`) and
+  placeholder page (`app/views/aero_coefficients.py`, read-only) land in the
+  nav; `flight_envelope`'s step now also `requires=("aero_coeffs",)`. The
+  cruise-coefficient editor stays on the **Flight Envelope** page for now,
+  writing into `Project.aero_coeffs.cruise` while preserving any existing
+  `.flaps_down` set — it moves to the new page, plus a flaps-down editor, in
+  Step D4.2. `SCHEMA_VERSION` 17 → 18; older project files (with
+  `flight_loads.configurations`) migrate automatically
+  (`io._legacy_aero_coeffs_from_flight_loads`) so they still load unchanged.
+  No calc-math change (Appendix A/B oracles pass unmodified).
+
 - **Local-disk project persistence + Engineer/Date metadata** (Phase D Step D3,
   decision D-3). `app/Home.py` now owns a global **Project file** sidebar
   widget (visible on every page): Open (from a local `projects/` directory,

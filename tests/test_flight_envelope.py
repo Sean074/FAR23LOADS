@@ -21,7 +21,14 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from farloads import AeroCoeffSet, CgCase, FlightLoadsInput, Project, io  # noqa: E402
+from farloads import (  # noqa: E402
+    AeroCoefficientsInput,
+    AeroCoeffSet,
+    CgCase,
+    FlightLoadsInput,
+    Project,
+    io,
+)
 from farloads.modules import flight_envelope as fe  # noqa: E402
 from farloads.modules.flight_envelope import build_envelope, _design_inputs  # noqa: E402
 
@@ -166,8 +173,33 @@ def test_flight_loads_slice_round_trips_through_io():
     fl = rebuilt.flight_loads
     assert fl is not None
     assert math.isclose(fl.mac, 69.246)
-    assert fl.configurations[0].lift[1] == 0.080358
     assert fl.cg_cases[0].name == "CG1"
+
+
+def test_aero_coeffs_slice_round_trips_through_io():
+    project = io.load_project(_GA)
+    rebuilt = io.project_from_dict(io.project_to_dict(project))
+    aero = rebuilt.aero_coeffs
+    assert aero is not None
+    assert aero.cruise is not None
+    assert aero.cruise.lift[1] == 0.080358
+    assert aero.flaps_down is None
+
+
+def test_legacy_flight_loads_configurations_migrate_to_aero_coeffs():
+    """Pre-schema-18 files carried the coefficient sets as
+    ``flight_loads.configurations``; loading one must still populate
+    ``Project.aero_coeffs`` (Step D4.1 migration)."""
+    legacy = io.project_to_dict(io.load_project(_GA))
+    cruise = legacy["aero_coeffs"].pop("cruise")
+    legacy["flight_loads"]["configurations"] = [dict(cruise, name="CRUISE", flaps_down=False)]
+    del legacy["aero_coeffs"]
+
+    rebuilt = io.project_from_dict(legacy)
+    assert rebuilt.aero_coeffs is not None
+    assert rebuilt.aero_coeffs.cruise is not None
+    assert rebuilt.aero_coeffs.cruise.lift[1] == 0.080358
+    assert rebuilt.aero_coeffs.flaps_down is None
 
 
 def _with_landing():
@@ -179,13 +211,13 @@ def _with_landing():
 
     p = io.load_project(_GA)
     p.flight_loads.altitudes_ft = [0.0]
-    cruise = p.flight_loads.configurations[0]
+    cruise = p.aero_coeffs.cruise
     landing = copy.deepcopy(cruise)
     landing.name = "LANDING"
     landing.flaps_down = True
     landing.stall_cl = 1.9
     landing.neg_stall_cl = -0.8
-    p.flight_loads.configurations = [cruise, landing]
+    p.aero_coeffs.flaps_down = landing
     return p
 
 
@@ -203,57 +235,48 @@ def test_flapped_envelope_corner_set_and_closure():
     assert math.isclose(stal.nz, 2.0 / 3.0, abs_tol=0.01)
 
 
-def test_merged_preserves_flaps_down_config_and_extra_altitudes():
+def test_merged_preserves_extra_altitudes():
     """Regression: the flight-envelope page's persist path must not destroy
     slice content it does not edit (Step D0 defect — the page previously rebuilt
-    FlightLoadsInput wholesale with configurations=[cruise], altitudes_ft=[alt])."""
-    cruise = AeroCoeffSet(name="CRUISE", stall_cl=1.41, neg_stall_cl=-0.59,
-                          lift=(0.32, 0.08, 0.0, 0.0, 0.0),
-                          drag=(0.027, 0.0, 0.054, 0.0, 0.0),
-                          moment=(-0.017, 0.004, 0.0, 0.0, 0.0), flaps_down=False)
-    landing = AeroCoeffSet(name="LANDING", stall_cl=1.95, neg_stall_cl=-0.59,
-                           lift=(0.9, 0.08, 0.0, 0.0, 0.0),
-                           drag=(0.08, 0.0, 0.054, 0.0, 0.0),
-                           moment=(-0.12, 0.004, 0.0, 0.0, 0.0), flaps_down=True)
+    FlightLoadsInput wholesale with altitudes_ft=[alt]). Step D4.1 moved the
+    configuration-preservation half of this guarantee to the view's
+    ``AeroCoefficientsInput`` assignment (``app/views/flight_envelope.py``),
+    since ``configurations`` no longer lives on ``FlightLoadsInput``."""
     fl = FlightLoadsInput(mac=69.246, wing_area_sqft=184.125, xw=80.953, zw=87.725,
                           xtc=253.364, xtf=261.027, mn=0.1,
                           altitudes_ft=[0.0, 20000.0],
-                          configurations=[cruise, landing],
                           cg_cases=[CgCase("CG1", 3400.0, 85.1, 93.0)])
 
-    edited_cruise = AeroCoeffSet(name="CRUISE", stall_cl=1.45, neg_stall_cl=-0.6,
-                                 lift=cruise.lift, drag=cruise.drag,
-                                 moment=cruise.moment, flaps_down=False)
     new_cg = [CgCase("CG1", 3400.0, 85.1, 93.0), CgCase("CG2", 2800.0, 80.0, 93.0)]
     merged = fl.merged(mac=70.0, wing_area_sqft=184.125, xw=80.953, zw=87.725,
                        xtc=253.364, xtf=261.027, mn=0.1, altitude_ft=10000.0,
-                       configuration=edited_cruise, cg_cases=new_cg)
+                       cg_cases=new_cg)
 
     # The edits landed…
     assert merged.mac == 70.0
     assert merged.altitudes_ft[0] == 10000.0
-    assert merged.configurations[0].stall_cl == 1.45
     assert len(merged.cg_cases) == 2
     # …and the unedited content survived.
     assert merged.altitudes_ft == [10000.0, 20000.0]
-    assert [c.name for c in merged.configurations] == ["CRUISE", "LANDING"]
-    assert merged.configurations[1].flaps_down and merged.configurations[1].stall_cl == 1.95
     # The original slice is untouched (merged() returns a new instance).
-    assert fl.altitudes_ft == [0.0, 20000.0] and fl.configurations[0].stall_cl == 1.41
+    assert fl.altitudes_ft == [0.0, 20000.0]
 
 
-def test_merged_appends_config_when_no_flaps_state_peer_exists():
-    """An edit to an empty slice (fresh project) simply adds the configuration."""
-    merged = FlightLoadsInput().merged(
-        mac=69.246, wing_area_sqft=184.125, xw=80.953, zw=87.725, xtc=253.364,
-        xtf=261.027, mn=0.1, altitude_ft=0.0,
-        configuration=AeroCoeffSet(name="CRUISE", stall_cl=1.41, neg_stall_cl=-0.59,
-                                   lift=(0.32, 0.08, 0.0, 0.0, 0.0),
-                                   drag=(0.027, 0.0, 0.054, 0.0, 0.0),
-                                   moment=(-0.017, 0.004, 0.0, 0.0, 0.0)),
-        cg_cases=[])
-    assert [c.name for c in merged.configurations] == ["CRUISE"]
-    assert merged.altitudes_ft == [0.0]
+def test_aero_coefficients_input_preserves_flaps_down_on_cruise_edit():
+    """The view's write-back pattern (``app/views/flight_envelope.py``): editing
+    the cruise set must not drop an existing flaps-down set."""
+    landing = AeroCoeffSet(name="LANDING", stall_cl=1.95, neg_stall_cl=-0.59,
+                           lift=(0.9, 0.08, 0.0, 0.0, 0.0),
+                           drag=(0.08, 0.0, 0.054, 0.0, 0.0),
+                           moment=(-0.12, 0.004, 0.0, 0.0, 0.0), flaps_down=True)
+    aero = AeroCoefficientsInput(cruise=None, flaps_down=landing)
+    edited_cruise = AeroCoeffSet(name="CRUISE", stall_cl=1.45, neg_stall_cl=-0.6,
+                                 lift=(0.32, 0.08, 0.0, 0.0, 0.0),
+                                 drag=(0.027, 0.0, 0.054, 0.0, 0.0),
+                                 moment=(-0.017, 0.004, 0.0, 0.0, 0.0), flaps_down=False)
+    updated = AeroCoefficientsInput(cruise=edited_cruise, flaps_down=aero.flaps_down)
+    assert updated.cruise.stall_cl == 1.45
+    assert updated.flaps_down is landing
 
 
 if __name__ == "__main__":

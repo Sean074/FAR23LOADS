@@ -23,6 +23,7 @@ from typing import Any, Dict, List, Tuple
 from .models import (
     SCHEMA_VERSION,
     AeroCoeffSet,
+    AeroCoefficientsInput,
     AeroInput,
     AeroSurfaceInput,
     AileronLoadsInput,
@@ -308,6 +309,18 @@ def _aero_coeff_set_from_dict(d: Dict[str, Any]) -> AeroCoeffSet:
     )
 
 
+def _aero_coeff_set_to_dict(c: AeroCoeffSet) -> Dict[str, Any]:
+    return {
+        "name": c.name,
+        "stall_cl": c.stall_cl,
+        "neg_stall_cl": c.neg_stall_cl,
+        "lift": list(c.lift),
+        "drag": list(c.drag),
+        "moment": list(c.moment),
+        "flaps_down": c.flaps_down,
+    }
+
+
 def flight_loads_from_dict(d: Dict[str, Any]) -> FlightLoadsInput:
     """Build a :class:`FlightLoadsInput` from a plain dict."""
     return FlightLoadsInput(
@@ -319,7 +332,6 @@ def flight_loads_from_dict(d: Dict[str, Any]) -> FlightLoadsInput:
         xtf=d.get("xtf", 0.0),
         mn=d.get("mn", 0.1),
         altitudes_ft=[float(a) for a in d.get("altitudes_ft", [0.0]) or [0.0]],
-        configurations=[_aero_coeff_set_from_dict(c) for c in d.get("configurations", []) or []],
         cg_cases=[CgCase(**dict(c)) for c in d.get("cg_cases", []) or []],
     )
 
@@ -335,20 +347,50 @@ def flight_loads_to_dict(inp: FlightLoadsInput) -> Dict[str, Any]:
         "xtf": inp.xtf,
         "mn": inp.mn,
         "altitudes_ft": list(inp.altitudes_ft),
-        "configurations": [
-            {
-                "name": c.name,
-                "stall_cl": c.stall_cl,
-                "neg_stall_cl": c.neg_stall_cl,
-                "lift": list(c.lift),
-                "drag": list(c.drag),
-                "moment": list(c.moment),
-                "flaps_down": c.flaps_down,
-            }
-            for c in inp.configurations
-        ],
         "cg_cases": [asdict(c) for c in inp.cg_cases],
     }
+
+
+# --------------------------------------------------------------------------- #
+# Aero coefficients slice <-> dict (Project.aero_coeffs, Step D4.1)
+# --------------------------------------------------------------------------- #
+def aero_coefficients_from_dict(d: Dict[str, Any]) -> AeroCoefficientsInput:
+    """Build an :class:`AeroCoefficientsInput` from a plain dict."""
+    return AeroCoefficientsInput(
+        cruise=_aero_coeff_set_from_dict(d["cruise"]) if d.get("cruise") else None,
+        flaps_down=_aero_coeff_set_from_dict(d["flaps_down"]) if d.get("flaps_down") else None,
+    )
+
+
+def aero_coefficients_to_dict(inp: AeroCoefficientsInput) -> Dict[str, Any]:
+    """Serialize an :class:`AeroCoefficientsInput` to JSON-friendly primitives."""
+    out: Dict[str, Any] = {}
+    if inp.cruise is not None:
+        out["cruise"] = _aero_coeff_set_to_dict(inp.cruise)
+    if inp.flaps_down is not None:
+        out["flaps_down"] = _aero_coeff_set_to_dict(inp.flaps_down)
+    return out
+
+
+def _legacy_aero_coeffs_from_flight_loads(
+    flight_loads: Any,
+) -> Any:
+    """Migrate pre-schema-18 files: ``flight_loads.configurations`` moved to the
+    top-level ``aero_coeffs`` slice (Step D4.1). Returns ``None`` when there is
+    nothing to migrate, so older project files still load."""
+    if not flight_loads:
+        return None
+    configs = flight_loads.get("configurations") or []
+    if not configs:
+        return None
+    cruise = next((c for c in configs if not c.get("flaps_down")), None)
+    flapped = next((c for c in configs if c.get("flaps_down")), None)
+    if cruise is None and flapped is None:
+        return None
+    return AeroCoefficientsInput(
+        cruise=_aero_coeff_set_from_dict(cruise) if cruise else None,
+        flaps_down=_aero_coeff_set_from_dict(flapped) if flapped else None,
+    )
 
 
 # --------------------------------------------------------------------------- #
@@ -676,7 +718,8 @@ def project_from_dict(d: Dict[str, Any]) -> Project:
     """
     if (
         "engines" in d or "engine" in d or "weight" in d or "geometry" in d
-        or "speeds" in d or "aero" in d or "flight_loads" in d or "envelope" in d
+        or "speeds" in d or "aero" in d or "aero_coeffs" in d
+        or "flight_loads" in d or "envelope" in d
         or "mass" in d or "wing_mass" in d or "fuselage_mass" in d
         or "select_input" in d or "tail_loads" in d or "vtail_loads" in d
         or "aileron_loads" in d or "flap_loads" in d or "tab_loads" in d
@@ -687,6 +730,7 @@ def project_from_dict(d: Dict[str, Any]) -> Project:
         geometry = d.get("geometry")
         speeds = d.get("speeds")
         aero = d.get("aero")
+        aero_coeffs = d.get("aero_coeffs")
         flight_loads = d.get("flight_loads")
         envelope = d.get("envelope")
         mass = d.get("mass")
@@ -714,6 +758,10 @@ def project_from_dict(d: Dict[str, Any]) -> Project:
             geometry=geometry_from_dict(geometry) if geometry else None,
             speeds=speeds_from_dict(speeds) if speeds else None,
             aero=aero_from_dict(aero) if aero else None,
+            aero_coeffs=(
+                aero_coefficients_from_dict(aero_coeffs) if aero_coeffs
+                else _legacy_aero_coeffs_from_flight_loads(flight_loads)
+            ),
             flight_loads=flight_loads_from_dict(flight_loads) if flight_loads else None,
             envelope=envelope_from_dict(envelope) if envelope else None,
             mass=mass_from_dict(mass) if mass else None,
@@ -770,6 +818,8 @@ def project_to_dict(project: Project) -> Dict[str, Any]:
         out["speeds"] = speeds_to_dict(project.speeds)
     if project.aero is not None:
         out["aero"] = aero_to_dict(project.aero)
+    if project.aero_coeffs is not None:
+        out["aero_coeffs"] = aero_coefficients_to_dict(project.aero_coeffs)
     if project.flight_loads is not None:
         out["flight_loads"] = flight_loads_to_dict(project.flight_loads)
     if project.envelope is not None:

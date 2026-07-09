@@ -398,6 +398,22 @@ class AeroCoeffSet:
 
 
 @dataclass
+class AeroCoefficientsInput:
+    """Airplane-less-tail aerodynamic coefficient sets -- ``Project.aero_coeffs``.
+
+    The single owner of the Ch 7 aero-coefficients program's output (cruise and,
+    optionally, flaps-down): the Airplane-section **Aero Coefficients** page
+    writes this slice; ``flight_envelope`` (FLTLOADS) reads it read-only rather
+    than asking for coefficients itself (Phase D, Step D4.1). ``cruise`` is the
+    flaps-up set balanced at every altitude in ``FlightLoadsInput.altitudes_ft``;
+    ``flaps_down`` (when present) is balanced at sea level only per FLTLOADS.BAS
+    line 3000 -- see ``flight_envelope.build_envelope``.
+    """
+    cruise: Optional[AeroCoeffSet] = None
+    flaps_down: Optional[AeroCoeffSet] = None
+
+
+@dataclass
 class CgCase:
     """One weight / centre-of-gravity case balanced over the flight envelope.
 
@@ -422,9 +438,10 @@ class FlightLoadsInput:
     fuselage station / waterline of 25% wing MAC; ``wing_area_sqft`` the wing area
     S (ft^2). ``mn`` is the Mach at which the aero coefficients were obtained
     (usually ~0.1; line 138). The design speeds (VA/VC/VD/VF), Mach limits
-    (MC/MD) and the limit load factor come from ``Project.speeds`` (STRSPEED), the
-    single owner. Each ``AeroCoeffSet`` in ``configurations`` is balanced over its
-    ``cg_cases`` at every altitude in ``altitudes_ft``.
+    (MC/MD) and the limit load factor come from ``Project.speeds`` (STRSPEED);
+    the airplane-less-tail coefficient sets come from ``Project.aero_coeffs``
+    (Step D4.1 -- previously carried here as ``configurations``). Each set is
+    balanced over ``cg_cases`` at every altitude in ``altitudes_ft``.
     """
     mac: float = 0.0
     wing_area_sqft: float = 0.0
@@ -434,38 +451,23 @@ class FlightLoadsInput:
     xtf: float = 0.0
     mn: float = 0.1
     altitudes_ft: List[float] = field(default_factory=lambda: [0.0])
-    configurations: List[AeroCoeffSet] = field(default_factory=list)
     cg_cases: List[CgCase] = field(default_factory=list)
 
     def merged(self, *, mac: float, wing_area_sqft: float, xw: float, zw: float,
                xtc: float, xtf: float, mn: float, altitude_ft: float,
-               configuration: AeroCoeffSet,
                cg_cases: List[CgCase]) -> "FlightLoadsInput":
         """One page-edit merged into this slice, preserving what was not edited.
 
-        A GUI page edits the geometry scalars, one altitude, one configuration
-        and the full CG-case table; the slice may carry more (extra altitudes,
-        a flaps-down configuration) that the page must not destroy. The edited
-        altitude replaces ``altitudes_ft[0]`` (the entry a single-altitude
-        widget displays); the edited configuration replaces the first entry
-        with the same ``flaps_down`` state (appended if there is none); every
-        other altitude/configuration is carried over unchanged.
+        A GUI page edits the geometry scalars, one altitude and the full
+        CG-case table; the slice may carry more (extra altitudes) that the
+        page must not destroy. The edited altitude replaces
+        ``altitudes_ft[0]`` (the entry a single-altitude widget displays);
+        every other altitude is carried over unchanged.
         """
         altitudes = [altitude_ft] + list(self.altitudes_ft[1:])
-        configurations: List[AeroCoeffSet] = []
-        replaced = False
-        for existing in self.configurations:
-            if not replaced and existing.flaps_down == configuration.flaps_down:
-                configurations.append(configuration)
-                replaced = True
-            else:
-                configurations.append(existing)
-        if not replaced:
-            configurations.append(configuration)
         return FlightLoadsInput(
             mac=mac, wing_area_sqft=wing_area_sqft, xw=xw, zw=zw, xtc=xtc,
-            xtf=xtf, mn=mn, altitudes_ft=altitudes,
-            configurations=configurations, cg_cases=cg_cases,
+            xtf=xtf, mn=mn, altitudes_ft=altitudes, cg_cases=cg_cases,
         )
 
 
@@ -1342,7 +1344,7 @@ class LoadsResult:
 # the from_dict defaults (case_ref = None, back-filled on the next compute).
 # v17 (Step D3) adds Project.engineer / Project.date (freeform text project
 # metadata, shown on the dashboard and in exports) -- additive, default "".
-SCHEMA_VERSION = 17
+SCHEMA_VERSION = 18
 
 
 @dataclass
@@ -1369,6 +1371,7 @@ class Project:
     geometry: Optional[GeometryInput] = None
     speeds: Optional[StructuralSpeedsInput] = None
     aero: Optional[AeroInput] = None
+    aero_coeffs: Optional[AeroCoefficientsInput] = None
     flight_loads: Optional[FlightLoadsInput] = None
     envelope: Optional[EnvelopeResult] = None
     mass: Optional[MassResult] = None
