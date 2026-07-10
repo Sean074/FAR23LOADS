@@ -37,6 +37,11 @@ if project.geometry is None or project.geometry.by_name("wing") is None:
     st.stop()
 
 existing = project.weight.envelope
+# Design weight: read-through from the Weight DB (Step D4.4), the same source
+# Structural Speeds reads, so it is not entered a third time. This page already
+# requires a weight data base (the st.stop() above), so the total is always
+# available; an override checkbox covers a different structural gross weight.
+mtow_upstream = project.weight.direct_totals()[0]
 
 with st.sidebar:
     st.header("Output units")
@@ -45,8 +50,17 @@ with st.sidebar:
     system = UnitSystem.SI if out_label.startswith("SI") else UnitSystem.IMPERIAL
 
     st.header("Structural limits")
-    gross = st.number_input("Gross weight (lb)", min_value=1.0,
-                            value=float(existing.gross_weight) if existing else 3400.0)
+    override_weight = st.checkbox(
+        "Override gross weight", value=False,
+        help="Uncheck to use the Weight DB total (Weight, CG & Inertia page).",
+    )
+    if override_weight:
+        gross = st.number_input("Gross weight (lb)", min_value=1.0,
+                                value=float(existing.gross_weight) if existing and existing.gross_weight
+                                else mtow_upstream)
+    else:
+        gross = mtow_upstream
+        st.caption(f"Gross weight from the Weight DB: **{mtow_upstream:,.0f} lb**.")
     aft = st.number_input("Aft gross CG (% MAC)", min_value=0.0, max_value=100.0,
                           value=float(existing.aft_gross_pct_mac) if existing else 31.0)
     fwd = st.number_input("Forward gross CG (% MAC)", min_value=0.0, max_value=100.0,

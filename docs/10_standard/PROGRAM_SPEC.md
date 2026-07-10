@@ -148,7 +148,7 @@ chart + tables.
 - **Reads:** `Project.weight` (W, W/S), `Project.geometry` (wing area), CL_max, category (normal/utility/acrobatic, or **concept `"C"`** — see Notes), chosen speeds.
 - **Writes:** minimum-required & chosen V_A, V_C, V_D, V_S, gust speeds; limit maneuver load factors n1/n2 (pos/neg) → `Project.speeds`.
 - **Validation:** Appendix A/B printed design-speed table and load factors (normal n=+3.8).
-- **Notes:** Category drives the maneuver load-factor formula (23.337: n=2.1+24000/(W+10000), capped 3.8/utility 4.4/acrobatic 6.0; negative −0.4× positive for normal/utility, −0.5× for acrobatic — UG Table 7.1). **Concept mode (`category="C"`, Step C0)** bypasses the GA-only 23.337 formula and cap entirely: it requires explicit `chosen_n`/`chosen_nneg` and uses them verbatim (no FAR floor), so >12,500 lb concepts are not forced to a meaningless GA limit; the VC(min)/VD(min) coefficients become out-of-band advisories. `Project.is_concept` is the single concept read-point. STRSPEED also computes Mach limits at altitude (`T = 59 − 0.003566·h`; `a = 29.02·(T+459.4)^0.5`), so it overlaps MACHLIM — keep the shared atmosphere/Mach helper in one place. Feeds MACHLIM, FLTLOADS, AILERON, FLAPLOAD (UG Table 2.2).
+- **Notes:** Category drives the maneuver load-factor formula (23.337: n=2.1+24000/(W+10000), capped 3.8/utility 4.4/acrobatic 6.0; negative −0.4× positive for normal/utility, −0.5× for acrobatic — UG Table 7.1). **Concept mode (`category="C"`, Step C0)** bypasses the GA-only 23.337 formula and cap entirely: it requires explicit `chosen_n`/`chosen_nneg` and uses them verbatim (no FAR floor), so >12,500 lb concepts are not forced to a meaningless GA limit; the VC(min)/VD(min) coefficients become out-of-band advisories. `Project.is_concept` is the single concept read-point. STRSPEED also computes Mach limits at altitude (`T = 59 − 0.003566·h`; `a = 29.02·(T+459.4)^0.5`), so it overlaps MACHLIM — keep the shared atmosphere/Mach helper in one place. Feeds MACHLIM, FLTLOADS, AILERON, FLAPLOAD (UG Table 2.2). **GUI read-through (Step D4.4):** `app/views/structural_speeds.py` reads the design weight from `Project.weight.direct_totals()[0]` (the Weight DB total) when items are present, read-only with an "Override design weight" checkbox, instead of asking for it a second time; likewise wing area from `Project.geometry`'s wing surface (pre-existing `has_wing` gating). When neither upstream slice is populated the page shows an info message pointing at the Airplane-section page that owns it, rather than falling back to an Appendix-A-shaped literal default. `app/views/weight_envelope.py` (WTENV) does the same read-through for its `gross` weight (it already requires a Weight DB to render at all, so the total is always available; only the override path differs).
 
 ### MACHLIM — Mach limit lines
 - **FAR §:** 23.335(b) high-speed limit; compressibility.
@@ -325,7 +325,9 @@ regression oracle**; Appendix A/B geometry is used only as a *sanity* fixture.
   (trapezoidal MAC) and Ch 8 (tail-volume neutral point).
 - **Reads:** `Project.configuration` (`LayoutInput`: fuselage / parametric wing /
   tail areas+arms / gear); `Project.weight.envelope` (aft-gross %MAC for the static
-  margin, optional); `Project.engine` (prop geometry for clearance, optional).
+  margin, optional); `Project.engine` (prop geometry for clearance, optional);
+  `Project.mass` (the WTONECG itemized loading, optional — Step D4.5, see
+  `cg_estimate` below).
 - **Writes:** derived MAC / XLEMAC / Y_MAC / AR / span (obtained by running the
   generated wing polylines through the WINGGEOM strip integrator — WINGGEOM stays
   the owner), horizontal tail volume, neutral-point %MAC + station, static margin,
@@ -341,15 +343,29 @@ regression oracle**; Appendix A/B geometry is used only as a *sanity* fixture.
   and `landing_gear` (weight-weighted ~3:1 main:nose average). The seed button
   (`configuration_layout.py`) matches each `MassItem.name` to a key by
   case-insensitive substring alias, most-specific first, and only fills an item
-  still at `(0, 0, 0)` — a hand-entered station is never overwritten.
+  still at `(0, 0, 0)` — a hand-entered station is never overwritten. The gear
+  tip-back/overturn CG (Step D4.5, `cg_estimate(project, layout, geom) ->
+  (x_cg, z_cg, source)`) is the true weight-averaged station from
+  `Project.mass.cases[0]` (WTONECG's itemized loading — currently always a
+  single case; `weight_onecg.build_mass`'s per-CG-case/gear-up-down set is a
+  later refinement, at which point this should pick the representative case
+  rather than always the first) when present, else the 25%-MAC / wing-
+  reference-waterline first cut; the `source` string ("Weight DB" / "25% MAC
+  estimate") is surfaced as part of the `ConditionResult` label and the
+  three-view CG-marker legend so the UI always states which one is in play.
+  Prop ground clearance does not depend on the CG, so it is unaffected by
+  which source is active.
 - **Validation:** **no oracle.** `tests/test_configuration.py` — analytic-vs-strip
   MAC consistency ±0.1%; Appendix A trapezoid plausibility (MAC 69.246 / MAC butt
   line 87.854, ±10%, since the real wing has an inboard strake); `component_stations`/
   `match_component_station` are checked directly (arm/weighting arithmetic, alias
-  precedence, and that ungiven components are omitted rather than defaulted to 0).
+  precedence, and that ungiven components are omitted rather than defaulted to 0);
+  `cg_estimate` is checked directly for both the mass-present and fallback paths,
+  and that the gear `ConditionResult`'s CG-station label reflects the active source.
 - **Notes:** all stability/gear figures are first-order estimates (CG at 25% MAC
-  when no mass slice is present; tail-volume NP with `h_acw=0.25`, `a_t/a_w=1`,
-  `1−dε/dα=0.6`). In concept mode the results are flagged unverified extrapolation.
+  when no mass slice is present, true weight-averaged CG once one exists — Step
+  D4.5; tail-volume NP with `h_acw=0.25`, `a_t/a_w=1`, `1−dε/dα=0.6`). In concept
+  mode the results are flagged unverified extrapolation.
 
 ### body_loads — Fuselage net-load distribution (Step C6)
 - **FAR §:** none directly (modern addition); the fuselage design conditions it

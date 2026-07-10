@@ -140,24 +140,59 @@ D4.7 last (reworks pages the earlier sub-steps already touched).
    `streamlit.testing.v1.AppTest`: a zero-station item gets seeded, a
    nonzero-station item is left untouched, an unmatched item name is left at
    zero. `tests/test_configuration.py` covers the pure functions directly.
-4. **D4.4 — `XLEMAC`/`MAC`/weight read-through to WTENV/STRSPEED.** Ownership
-   stays `LayoutInput → wing_surface() → Project.geometry → WTENV/STRSPEED`
-   (per `PROGRAM_SPEC.md` — no direct `LayoutInput → WeightEnvelopeInput`
-   write; the existing "Seed wing geometry" button already produces this
-   path). `structural_speeds.py`: extend the existing `has_wing` gating
-   (today only hides wing area) to also read `weight_lb` from
-   `project.weight`'s direct totals, read-only with an override checkbox.
-   `weight_envelope.py`: same dedup for its `gross` weight entry. Both pages:
-   "define in Airplane section" message instead of a literal default when
-   upstream data is missing. This is the item that kills the duplicate
-   wing-area/MAC/weight entry on Structural Speeds / Flight Envelope.
-5. **D4.5 — True CG from `Project.mass`.** Once `Project.mass` is populated,
-   `configuration.py`'s `configuration_properties()` (or `_three_view()`
-   directly) computes CG as the weight-averaged station across
-   `project.mass`'s items instead of `xlemac + 0.25*mac`; falls back to the
-   25%-MAC estimate when `project.mass` is absent, with a caption noting which
-   source is in use. Tail/prop ground-clearance checks recomputed using the
-   D4.3 station data where applicable.
+4. **D4.4 — `XLEMAC`/`MAC`/weight read-through to WTENV/STRSPEED.** *(shipped
+   2026-07-09.)* Ownership stays `LayoutInput → wing_surface() →
+   Project.geometry → WTENV/STRSPEED` (per `PROGRAM_SPEC.md` — no direct
+   `LayoutInput → WeightEnvelopeInput` write; the existing "Seed wing
+   geometry" button already produces this path; wing-area read-through
+   already existed via the `has_wing` gate). `structural_speeds.py`: added
+   the weight read-through — `project.weight.direct_totals()[0]` (the Weight
+   DB total) drives `weight_lb` read-only with an "Override design weight"
+   checkbox when items are present; when absent, an info message ("Add items
+   on the Weight, CG & Inertia page...") replaces the old `3400.0`-shaped
+   fallback, and the wing-area fallback's literal default (`184.125`) is
+   likewise now `0.0` with its own info message. `weight_envelope.py`: same
+   read-through + override checkbox for its `gross` weight (this page already
+   requires a Weight DB to render, so the total is always available; only the
+   override control is new) — its `3400.0` default is gone. Both pages'
+   *other* literal defaults (VH/VS/VSF/altitude/VC/VD on Structural Speeds;
+   the CG-limit percentages on WTENV) are unchanged, deferred to D4.7 per the
+   locked default-scrub-scope decision (D-5). This is the item that kills the
+   duplicate wing-area/weight entry on Structural Speeds / Weight Envelope.
+   Verified with `streamlit.testing.v1.AppTest`: both pages pick up the Weight
+   DB total unedited, the override checkbox lets a different value through,
+   and the "no data" info messages fire (with a graceful `st.error`, not a
+   crash) when the upstream slice is absent; the GA6 example's stored
+   `speeds.weight_lb` (3400) already equals its Weight DB total, so the
+   Appendix A/B oracles are unaffected.
+5. **D4.5 — True CG from `Project.mass`.** *(shipped 2026-07-09.)*
+   `farloads/modules/configuration.py` gained `cg_estimate(project, layout,
+   geom) -> (x_cg, z_cg, source)`: the true weight-averaged station from
+   `Project.mass.cases[0]` (WTONECG's itemized loading) when present, else the
+   pre-D4.5 `xlemac + 0.25*mac` / wing-reference-waterline first cut —
+   `source` is `"Weight DB"` or `"25% MAC estimate"`. `_gear_condition` (the
+   tip-back/overturn/prop-clearance `ConditionResult`) uses it in place of the
+   inline first-cut, including the CG *height* (previously assumed equal to
+   the wing-reference waterline; now the real `z_cg`) — this is what satisfies
+   "tail ground-clearance checks recomputed": the tip-back/overturn angles
+   *are* the tail-strike-relevant figures already in this module, so they
+   sharpen automatically once a mass slice exists, with no separate check
+   needed. Prop ground clearance does not depend on the CG (engine/gear
+   geometry only), so it is unaffected either way — documented explicitly
+   rather than silently left alone. `configuration_layout.py`'s `_three_view()`
+   CG marker (both the top-view and side-view, the latter's height previously
+   hardcoded to `root_waterline_z`) now uses the same `cg_estimate` call, with
+   the source named in the marker's legend entry and the `ConditionResult`
+   label (`"CG station (Weight DB)"` / `"CG station (25% MAC estimate)"`) —
+   satisfying "a caption noting which source is in use." `Project.mass.cases`
+   is currently always a single case (the four structural-limit-loading ×
+   gear-up/down set is a later refinement per `weight_onecg.build_mass`'s own
+   docstring); `cg_estimate` picks `cases[0]` and documents that a multi-case
+   slice needs a representative-case choice revisited then. No schema change.
+   Verified: 3 new `tests/test_configuration.py` cases (fallback path, mass
+   path, and that the `ConditionResult` label reflects the active source) plus
+   a `streamlit.testing.v1.AppTest` run of `configuration_layout.py` with and
+   without `Project.mass` (no exceptions either way).
 6. **D4.6 — Engine write-back + mass-item overlay on the three-view.**
    `_three_view()` gains a `project.weight`/`project.mass` argument and draws
    a marker per `MassItem` (sized/colored by weight or kind) in all three

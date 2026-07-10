@@ -18,8 +18,9 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from farloads import LayoutInput, Project  # noqa: E402
+from farloads import LayoutInput, MassCase, MassResult, Project  # noqa: E402
 from farloads.modules.configuration import (  # noqa: E402
+    cg_estimate,
     component_stations,
     configuration_properties,
     match_component_station,
@@ -95,6 +96,47 @@ def test_stability_and_gear_present_when_data_given():
     assert "Neutral point (%MAC)" in vals
     assert "Tip-back angle" in vals
     assert "Overturn (turnover) angle" in vals
+
+
+def _gear_layout():
+    layout = _trapezoid()
+    layout.nose_gear_x = 20.0
+    layout.main_gear_x = 115.0
+    layout.track = 90.0
+    layout.gear_height = 35.0
+    layout.root_waterline_z = 40.0
+    return layout
+
+
+def test_cg_estimate_falls_back_to_quarter_mac_without_mass():
+    # Step D4.5: no Project.mass -> the pre-D4.5 25%-MAC / wing-waterline first cut.
+    layout = _gear_layout()
+    project = Project(name="t", configuration=layout)
+    geom = _values(project)
+    x_cg, z_cg, source = cg_estimate(project, layout, geom)
+    assert math.isclose(x_cg, geom["XLE(MAC) station of MAC LE"] + 0.25 * geom["MAC"])
+    assert z_cg == layout.root_waterline_z
+    assert source == "25% MAC estimate"
+
+
+def test_cg_estimate_uses_mass_when_present():
+    # Step D4.5: Project.mass (WTONECG's itemized loading) is the true CG.
+    layout = _gear_layout()
+    mass = MassResult(cases=[MassCase(name="itemized loading", weight_lb=2000.0, cg_x=123.4, cg_z=56.7)])
+    project = Project(name="t", configuration=layout, mass=mass)
+    geom = _values(project)
+    x_cg, z_cg, source = cg_estimate(project, layout, geom)
+    assert (x_cg, z_cg, source) == (123.4, 56.7, "Weight DB")
+
+
+def test_gear_condition_label_reflects_cg_source():
+    layout = _gear_layout()
+    mass = MassResult(cases=[MassCase(name="itemized loading", weight_lb=2000.0, cg_x=123.4, cg_z=56.7)])
+    with_mass = _values(Project(name="t", configuration=layout, mass=mass))
+    without_mass = _values(Project(name="t", configuration=layout))
+    assert "CG station (Weight DB)" in with_mass
+    assert "CG station (25% MAC estimate)" in without_mass
+    assert with_mass["CG station (Weight DB)"] == 123.4
 
 
 def _full_layout():

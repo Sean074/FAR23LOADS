@@ -26,6 +26,7 @@ from plotly.subplots import make_subplots
 
 from farloads import LayoutInput, Project, WeightInput
 from farloads.modules.configuration import (
+    cg_estimate,
     component_stations,
     configuration_properties,
     match_component_station,
@@ -99,7 +100,7 @@ except (ValueError, ZeroDivisionError) as exc:
 derived = {v.label: v.value for r in results for v in r.values}
 mac = derived["MAC"]
 xlemac = derived["XLE(MAC) station of MAC LE"]
-x_cg = xlemac + 0.25 * mac
+x_cg, z_cg, cg_source = cg_estimate(project, layout, derived)
 np_station = derived.get("Neutral point station")
 
 
@@ -128,7 +129,7 @@ def _three_view() -> go.Figure:
                     mode="lines", line=dict(color="#888"), showlegend=False, row=1, col=1)
     # CG / NP markers.
     fig.add_scatter(x=[x_cg], y=[0], mode="markers", marker=dict(color="#d62728", size=11, symbol="x"),
-                    name="CG (25% MAC)", row=1, col=1)
+                    name=f"CG ({cg_source})", row=1, col=1)
     if np_station is not None:
         fig.add_scatter(x=[np_station], y=[0], mode="markers",
                         marker=dict(color="#2ca02c", size=11, symbol="circle-open"),
@@ -148,7 +149,7 @@ def _three_view() -> go.Figure:
         if gx:
             fig.add_scatter(x=[gx, gx], y=[ground, layout.root_waterline_z], mode="lines",
                             line=dict(color="#555"), showlegend=False, row=1, col=2)
-    fig.add_scatter(x=[x_cg], y=[layout.root_waterline_z], mode="markers",
+    fig.add_scatter(x=[x_cg], y=[z_cg], mode="markers",
                     marker=dict(color="#d62728", size=11, symbol="x"), showlegend=False, row=1, col=2)
     fig.update_yaxes(scaleanchor="x", scaleratio=1, row=1, col=2)
 

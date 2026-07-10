@@ -260,27 +260,53 @@ def _stability_condition(project: Project, layout: LayoutInput, geom: dict) -> O
                            values=values, note=note)
 
 
+def cg_estimate(project: Project, layout: LayoutInput, geom: dict) -> Tuple[float, float, str]:
+    """The best available CG station/waterline, and a short label for its source.
+
+    True CG (Step D4.5): when ``Project.mass`` is populated (WTONECG has run on
+    the itemized Weight DB), use its weight-averaged station -- the same
+    ``(cg_x, cg_z)`` SELECT/FLTLOADS/LANDLOAD read. ``Project.mass.cases`` is
+    currently always a single "itemized loading" case (`weight_onecg.build_mass`
+    -- the four structural-limit loadings x gear up/down is a later
+    refinement); once that lands this should pick the representative case
+    rather than always the first.
+
+    Falls back to the 25%-MAC / wing-reference-waterline first cut (the only
+    option before a mass slice exists) -- geometric estimates, not certified
+    figures. Callers surface the returned source label so the UI/report make
+    clear which one is in play.
+    """
+    if project.mass is not None and project.mass.cases:
+        case = project.mass.cases[0]
+        return case.cg_x, case.cg_z, "Weight DB"
+    mac = geom["MAC"]
+    xlemac = geom["XLE(MAC) station of MAC LE"]
+    return xlemac + 0.25 * mac, layout.root_waterline_z, "25% MAC estimate"
+
+
 def _gear_condition(project: Project, layout: LayoutInput, geom: dict) -> Optional[ConditionResult]:
     """Tip-back / overturn angles + prop clearance from the gear geometry.
 
-    The CG is taken at 25% MAC (station from WINGGEOM) and at the wing-reference
-    waterline -- a documented first-cut when no mass slice is available -- so the
-    angles are geometric estimates, not certified figures.
+    The CG (:func:`cg_estimate`) is the true weight-averaged station from
+    ``Project.mass`` when available (Step D4.5), else the 25%-MAC / wing-
+    reference-waterline first cut -- so the tip-back/overturn angles (the
+    tail-ground-clearance-relevant figures here) sharpen automatically once a
+    mass slice exists, with no separate refinement needed. Prop clearance does
+    not depend on the CG (it only needs the engine/gear geometry), so it is
+    unaffected either way.
     """
     if layout.main_gear_x <= 0 or layout.gear_height <= 0:
         return None
-    mac = geom["MAC"]
-    xlemac = geom["XLE(MAC) station of MAC LE"]
-    x_cg = xlemac + 0.25 * mac          # CG x ~ 25% MAC (first cut)
-    h_cg = layout.gear_height           # CG height above ground ~ WRP height
+    x_cg, z_cg, cg_source = cg_estimate(project, layout, geom)
     ground_z = layout.root_waterline_z - layout.gear_height
+    h_cg = z_cg - ground_z              # CG height above ground
 
     values: List[LoadValue] = []
 
     # Tip-back: angle of the main-wheel -> CG line from the vertical. CG forward of
     # the main gear (positive) is required; ~15 deg is the usual minimum.
     tipback = math.degrees(math.atan2(layout.main_gear_x - x_cg, h_cg))
-    values.append(LoadValue("CG station (25% MAC est.)", x_cg, _IN))
+    values.append(LoadValue(f"CG station ({cg_source})", x_cg, _IN))
     values.append(LoadValue("Tip-back angle", tipback, _DEG))
 
     # Overturn (turnover) angle: from the CG to the nose-wheel / main-wheel ground
@@ -301,9 +327,13 @@ def _gear_condition(project: Project, layout: LayoutInput, geom: dict) -> Option
         prop_tip_z = eng.prop_cg[2] - eng.prop_diameter_in / 2.0
         values.append(LoadValue("Prop ground clearance", prop_tip_z - ground_z, _IN))
 
+    note = (
+        f"CG from the {cg_source}"
+        + ("." if cg_source == "Weight DB" else " (no mass slice present).")
+        + " Tip-back >= ~15 deg, overturn <= ~63 deg."
+    )
     return ConditionResult(
-        title="Landing-gear geometry (estimate)", far_reference=_FAR, values=values,
-        note="CG at 25% MAC / WRP waterline (first cut). Tip-back >= ~15 deg, overturn <= ~63 deg.",
+        title="Landing-gear geometry (estimate)", far_reference=_FAR, values=values, note=note,
     )
 
 

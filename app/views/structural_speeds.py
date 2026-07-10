@@ -35,18 +35,49 @@ _CAT_LABELS = list(_CATS)
 has_wing = project.geometry is not None and project.geometry.by_name(
     existing.wing_surface if existing else "wing") is not None
 
+# Design weight: read-through from the Weight DB (Step D4.4) so it is not
+# entered twice -- once here, once on Weight, CG & Inertia. An explicit
+# override checkbox covers the (rare) case a page needs a different weight
+# than the itemized total, per the original program's own entry point.
+mtow_upstream = project.weight.direct_totals()[0] if project.weight and project.weight.items else 0.0
+has_weight_db = mtow_upstream > 0
+
 with st.sidebar:
     st.header("Inputs (Imperial / KEAS)")
     cat_default = next((k for k, v in _CATS.items() if existing and v == existing.category), "Normal / commuter")
     cat_label = st.selectbox("Category", _CAT_LABELS, index=_CAT_LABELS.index(cat_default))
-    weight = st.number_input("Design (gross) weight (lb)", min_value=1.0,
-                             value=float(existing.weight_lb) if existing else 3400.0)
+    if has_weight_db:
+        override_weight = st.checkbox(
+            "Override design weight", value=False,
+            help="Uncheck to use the Weight DB total (Weight, CG & Inertia page).",
+        )
+        if override_weight:
+            weight = st.number_input("Design (gross) weight (lb)", min_value=1.0,
+                                     value=float(existing.weight_lb) if existing and existing.weight_lb
+                                     else mtow_upstream)
+        else:
+            weight = mtow_upstream
+            st.caption(f"Design weight from the Weight DB: **{mtow_upstream:,.0f} lb**.")
+    else:
+        weight = st.number_input("Design (gross) weight (lb)", min_value=0.0,
+                                 value=float(existing.weight_lb) if existing and existing.weight_lb else 0.0)
+        if not weight:
+            st.info(
+                "No weight data base found. Add items on the **Weight, CG & Inertia** "
+                "page, or enter the design weight directly above."
+            )
     if has_wing:
         st.caption("Wing area read from the Wing Geometry page.")
         wing_area = None
     else:
-        wing_area = st.number_input("Wing area S (ft²)", min_value=1.0,
-                                    value=float(existing.wing_area_sqft) if existing and existing.wing_area_sqft else 184.125)
+        wing_area = st.number_input("Wing area S (ft²)", min_value=0.0,
+                                    value=float(existing.wing_area_sqft) if existing and existing.wing_area_sqft
+                                    else 0.0)
+        if not wing_area:
+            st.info(
+                "No wing geometry found. Define the wing on the **Configuration & "
+                "Layout** or **Wing Geometry** page, or enter the wing area directly above."
+            )
     vh = st.number_input("Max sea-level speed VH (kt)", min_value=1.0,
                          value=float(existing.vh_kt) if existing else 190.0)
     vs = st.number_input("Stall speed, flaps up VS (kt)", min_value=1.0,

@@ -11,6 +11,32 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **True CG from `Project.mass`** (Phase D Step D4.5). New
+  `farloads/modules/configuration.cg_estimate(project, layout, geom)` returns
+  the weight-averaged CG station from `Project.mass.cases[0]` (WTONECG's
+  itemized loading) when present, else the pre-existing `xlemac + 0.25*mac` /
+  wing-reference-waterline first cut, plus a `source` label
+  ("Weight DB" / "25% MAC estimate"). The landing-gear tip-back/overturn
+  `ConditionResult` and the Configuration & Layout page's three-view CG marker
+  (top and side views) both switch to it automatically once a mass slice
+  exists, with the source named in the `ConditionResult` label and the
+  three-view legend. Prop ground clearance is CG-independent and unaffected.
+  No schema change.
+
+- **Design-weight read-through, Structural Speeds / Weight Envelope** (Phase D
+  Step D4.4). `app/views/structural_speeds.py` reads the design weight from
+  `Project.weight.direct_totals()[0]` (the Weight DB total) when items exist,
+  read-only with an "Override design weight" checkbox, instead of asking for
+  it a second time; when no Weight DB is present it shows an info message
+  pointing at the Weight, CG & Inertia page instead of falling back to a
+  `3400.0`-shaped literal default (same treatment for its wing-area fallback,
+  now `0.0` with its own info message; the pre-existing wing-area
+  read-through from `Project.geometry` is unchanged). `app/views/weight_envelope.py`
+  (WTENV) gets the same weight read-through + override checkbox for its
+  `gross` weight. No calc-math or schema change; the GA6 example is
+  unaffected since its stored `speeds.weight_lb` already equals its Weight DB
+  total.
+
 - **Component-station derivation + Weight DB seeding** (Phase D Step D4.3).
   `farloads/modules/configuration.py` gained two pure functions:
   `component_stations(layout)` derives approximate `(x, y, z)` stations for
