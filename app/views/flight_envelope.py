@@ -62,40 +62,9 @@ with st.sidebar:
     altitude = st.number_input("Altitude (ft)", min_value=0.0,
                                value=float(fl.altitudes_ft[0]) if fl.altitudes_ft else 0.0, step=1000.0)
 
-st.subheader("Airplane-less-tail aerodynamic coefficients (cruise)")
 st.caption(
-    "CL = C0 + C1·α + C2·α² + C3·α³ + C4·α⁴ (α in deg); CD = D0 + D1·CL + … ; "
-    "CM = M0 + M1·α + … — from the Ch 7 aero-coefficients program."
-)
-cfg = project.aero_coeffs.cruise if project.aero_coeffs else None
-coeff_default = pd.DataFrame(
-    {
-        "row": ["lift (CL vs α)", "drag (CD vs CL)", "moment (CM vs α)"],
-        "0": [cfg.lift[0] if cfg else 0.320479, cfg.drag[0] if cfg else 0.026917,
-              cfg.moment[0] if cfg else -0.017328],
-        "1": [cfg.lift[1] if cfg else 0.080358, cfg.drag[1] if cfg else 0.0,
-              cfg.moment[1] if cfg else 0.004128],
-        "2": [cfg.lift[2] if cfg else 0.0, cfg.drag[2] if cfg else 0.053647, cfg.moment[2] if cfg else 0.0],
-        "3": [cfg.lift[3] if cfg else 0.0, cfg.drag[3] if cfg else 0.0, cfg.moment[3] if cfg else 0.0],
-        "4": [cfg.lift[4] if cfg else 0.0, cfg.drag[4] if cfg else 0.0, cfg.moment[4] if cfg else 0.0],
-    }
-)
-coeff_df = st.data_editor(coeff_default, hide_index=True, use_container_width=True, disabled=["row"])
-c1, c2 = st.columns(2)
-stall_cl = c1.number_input("Stall CL", value=float(cfg.stall_cl) if cfg else 1.41, format="%.3f")
-neg_stall_cl = c2.number_input("Negative stall CL", value=float(cfg.neg_stall_cl) if cfg else -0.59,
-                               format="%.3f")
-
-
-def _row(label):
-    r = coeff_df[coeff_df["row"] == label].iloc[0]
-    return tuple(float(r[str(i)]) for i in range(5))
-
-
-cruise = AeroCoeffSet(
-    name="CRUISE", stall_cl=stall_cl, neg_stall_cl=neg_stall_cl,
-    lift=_row("lift (CL vs α)"), drag=_row("drag (CD vs CL)"), moment=_row("moment (CM vs α)"),
-    flaps_down=False,
+    f"Aero coefficients (from the **Aero Coefficients** page): cruise '{aero.cruise.name}'"
+    + (f", flaps-down '{aero.flaps_down.name}'" if aero.flaps_down else "") + "."
 )
 
 st.subheader("Weight / CG cases")
@@ -113,16 +82,12 @@ cg_cases = [
 ]
 
 # Merge (never wholesale-replace) so a loaded project's extra altitudes
-# survive the page's persist path. Cruise coefficients write into the
-# Project.aero_coeffs slice (Step D4.1); a dedicated flaps-down set and its
-# own Aero Coefficients page land in Step D4.2 -- this block moves there and
-# is preserved (not overwritten) here in the meantime.
+# survive the page's persist path. Aero coefficients are owned by the Aero
+# Coefficients page (Step D4.2) -- this page only reads them.
 project.flight_loads = fl.merged(
     mac=mac, wing_area_sqft=s, xw=xw, zw=zw, xtc=xtc, xtf=xtf, mn=mn,
     altitude_ft=altitude, cg_cases=cg_cases,
 )
-existing_flaps_down = project.aero_coeffs.flaps_down if project.aero_coeffs else None
-project.aero_coeffs = AeroCoefficientsInput(cruise=cruise, flaps_down=existing_flaps_down)
 st.session_state["project"] = project
 
 if project.is_concept:

@@ -15,6 +15,7 @@ There is no manual oracle for this page; concept results are first-order estimat
 from __future__ import annotations
 
 import math
+from dataclasses import replace
 from pathlib import Path
 
 import pandas as pd
@@ -23,9 +24,11 @@ import plotly.graph_objects as go
 import streamlit as st
 from plotly.subplots import make_subplots
 
-from farloads import LayoutInput, Project
+from farloads import LayoutInput, Project, WeightInput
 from farloads.modules.configuration import (
+    component_stations,
     configuration_properties,
+    match_component_station,
     wing_polylines,
     wing_surface,
 )
@@ -202,6 +205,38 @@ with right:
             f"Seeded the wing surface (MAC {mac:.2f} in, XLEMAC {xlemac:.2f} in). "
             "Open the Wing Geometry page to refine it."
         )
+
+    st.caption(
+        "Approximate each named component's station from the geometry above into "
+        "the Weight DB (WTONECG) -- only for items whose station is still unset "
+        "(0, 0, 0); a hand-entered station is never overwritten."
+    )
+    if st.button("Seed component stations into Weight DB"):
+        items = project.weight.items if project.weight else []
+        if not items:
+            st.warning(
+                "No weight items to seed. Add items on the Weight, CG & Inertia "
+                "page (or the Weight Estimate page's seed button) first."
+            )
+        else:
+            stations = component_stations(layout)
+            seeded, new_items = 0, []
+            for item in items:
+                if (item.x, item.y, item.z) == (0.0, 0.0, 0.0):
+                    match = match_component_station(item.name, stations)
+                    if match is not None:
+                        item = replace(item, x=match[0], y=match[1], z=match[2])
+                        seeded += 1
+                new_items.append(item)
+            project.weight = WeightInput(estimation=project.weight.estimation, items=new_items)
+            st.session_state["project"] = project
+            if seeded:
+                st.success(
+                    f"Seeded a station for {seeded} weight item(s). Open Weight, "
+                    "CG & Inertia to review or override."
+                )
+            else:
+                st.info("No zero-station items matched a derivable component name.")
 
 # --------------------------------------------------------------------------- #
 # Fleet comparison

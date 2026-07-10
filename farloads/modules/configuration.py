@@ -31,7 +31,7 @@ unverified extrapolation, consistent with the Phase-C validation contract.
 from __future__ import annotations
 
 import math
-from typing import List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple
 
 from ..constants import IN2_PER_FT2
 from ..models import (
@@ -41,6 +41,7 @@ from ..models import (
     ModuleResult,
     Project,
     SurfaceInput,
+    Vec3,
 )
 from ..registry import register
 from .wing_geometry import surface_properties
@@ -110,6 +111,101 @@ def _wing_geometry(layout: LayoutInput) -> dict:
     """
     result = surface_properties(wing_surface(layout))
     return {v.label: v.value for v in result.values}
+
+
+# --------------------------------------------------------------------------- #
+# Component stations -- Weight DB seeding (Step D4.3)
+# --------------------------------------------------------------------------- #
+# Alias substrings (lowercased) that identify a Weight-DB item as belonging to a
+# derived component, most-specific first so "Horizontal tail" matches "h_tail"
+# rather than the lumped "tail" catch-all (WTESTIMA's single "Tail" structure-group
+# item, which has no h/v breakdown -- see estimate_to_mass_items).
+_COMPONENT_ALIASES: Dict[str, Tuple[str, ...]] = {
+    "h_tail": ("horizontal tail", "h-tail", "h_tail", "htail"),
+    "v_tail": ("vertical tail", "v-tail", "v_tail", "vtail"),
+    "main_gear": ("main gear", "main_gear"),
+    "nose_gear": ("nose gear", "nose_gear"),
+    "landing_gear": ("landing gear", "gear"),
+    "wing": ("wing",),
+    "fuselage": ("fuselage",),
+    "tail": ("tail",),
+}
+_COMPONENT_MATCH_ORDER: Tuple[str, ...] = (
+    "h_tail", "v_tail", "main_gear", "nose_gear", "landing_gear", "wing", "fuselage", "tail",
+)
+
+
+def component_stations(layout: LayoutInput) -> Dict[str, Vec3]:
+    """Approximate ``(x, y, z)`` station (fuselage station / butt line / waterline,
+    inches) for each named airframe component, derived from ``LayoutInput``'s
+    coarse scalars -- a rough first-cut for seeding the Weight DB (WTONECG), not a
+    new schema field (Step D4.3; no per-component station sub-model was added --
+    see the D-5 decision in ``docs/30_future/02_gui_workflow_plan.md``). A seeded
+    ``MassItem.x/y/z`` is always overridable by hand afterward.
+
+    Keys present depend on which layout scalars are set: ``"wing"`` (25% MAC,
+    matching the CG first-cut used elsewhere in this module), ``"fuselage"``
+    (length midpoint), ``"h_tail"``/``"v_tail"`` (wing 25% MAC + the tail arm),
+    ``"tail"`` (area-weighted h/v average, for a single lumped "Tail" item),
+    ``"main_gear"``/``"nose_gear"`` (gear station, strut mid-height) and
+    ``"landing_gear"`` (weight-weighted ~3:1 main:nose average, for a single
+    lumped "Landing gear" item). All at butt line ``y=0`` (centreline) except
+    where a component is inherently off-centreline (none of these are).
+    """
+    stations: Dict[str, Vec3] = {}
+    wing_x = layout.le_root_x
+    if layout.wing_area_sqft > 0 and layout.aspect_ratio > 0:
+        geom = _wing_geometry(layout)
+        wing_x = geom["XLE(MAC) station of MAC LE"] + 0.25 * geom["MAC"]
+        stations["wing"] = (wing_x, 0.0, layout.root_waterline_z)
+    if layout.fuselage_length > 0:
+        stations["fuselage"] = (
+            layout.datum_x + layout.fuselage_length / 2.0, 0.0, layout.root_waterline_z,
+        )
+    if layout.h_tail_arm > 0:
+        stations["h_tail"] = (wing_x + layout.h_tail_arm, 0.0, layout.root_waterline_z)
+    if layout.v_tail_arm > 0:
+        stations["v_tail"] = (wing_x + layout.v_tail_arm, 0.0, layout.root_waterline_z)
+    tail_pts = [
+        (layout.h_tail_area, stations["h_tail"]) if "h_tail" in stations else None,
+        (layout.v_tail_area, stations["v_tail"]) if "v_tail" in stations else None,
+    ]
+    tail_pts = [p for p in tail_pts if p is not None]
+    if tail_pts:
+        total_area = sum(a for a, _ in tail_pts) or float(len(tail_pts))
+        tail_x = sum((a or 1.0) * pt[0] for a, pt in tail_pts) / total_area
+        stations["tail"] = (tail_x, 0.0, layout.root_waterline_z)
+    if layout.gear_height > 0:
+        gear_z = layout.root_waterline_z - layout.gear_height / 2.0
+        if layout.main_gear_x > 0:
+            stations["main_gear"] = (layout.main_gear_x, 0.0, gear_z)
+        if layout.nose_gear_x > 0:
+            stations["nose_gear"] = (layout.nose_gear_x, 0.0, gear_z)
+    gear_pts = [
+        (3.0, stations["main_gear"]) if "main_gear" in stations else None,
+        (1.0, stations["nose_gear"]) if "nose_gear" in stations else None,
+    ]
+    gear_pts = [p for p in gear_pts if p is not None]
+    if gear_pts:
+        total_w = sum(w for w, _ in gear_pts)
+        gx = sum(w * pt[0] for w, pt in gear_pts) / total_w
+        gz = sum(w * pt[2] for w, pt in gear_pts) / total_w
+        stations["landing_gear"] = (gx, 0.0, gz)
+    return stations
+
+
+def match_component_station(name: str, stations: Dict[str, Vec3]) -> Optional[Vec3]:
+    """Match a ``MassItem.name`` to a :func:`component_stations` entry by
+    substring alias (case-insensitive), most-specific key first. Returns
+    ``None`` when no alias matches (the item is left untouched by the seed
+    button)."""
+    lname = name.lower()
+    for key in _COMPONENT_MATCH_ORDER:
+        if key not in stations:
+            continue
+        if any(alias in lname for alias in _COMPONENT_ALIASES[key]):
+            return stations[key]
+    return None
 
 
 def _planform_condition(layout: LayoutInput, geom: dict) -> ConditionResult:

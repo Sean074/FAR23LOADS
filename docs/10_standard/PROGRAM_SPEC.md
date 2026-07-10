@@ -330,10 +330,23 @@ regression oracle**; Appendix A/B geometry is used only as a *sanity* fixture.
   generated wing polylines through the WINGGEOM strip integrator — WINGGEOM stays
   the owner), horizontal tail volume, neutral-point %MAC + station, static margin,
   tip-back / overturn angles, prop ground clearance → `ConditionResult`s. The page
-  also *seeds* `Project.geometry` with the generated wing `SurfaceInput`.
+  also *seeds* `Project.geometry` with the generated wing `SurfaceInput`, and (Step
+  D4.3) approximate component stations into the Weight DB (WTONECG) via
+  `component_stations(layout) -> Dict[str, Vec3]` + `match_component_station` —
+  pure functions, no new schema (no per-component station sub-model was added; see
+  the D-5 decision in `docs/30_future/02_gui_workflow_plan.md`). Keys: `wing`
+  (25% MAC), `fuselage` (length midpoint), `h_tail`/`v_tail` (wing 25% MAC + tail
+  arm), `tail` (area-weighted h/v average, for WTESTIMA's single lumped "Tail"
+  structure-group item), `main_gear`/`nose_gear` (gear station, strut mid-height)
+  and `landing_gear` (weight-weighted ~3:1 main:nose average). The seed button
+  (`configuration_layout.py`) matches each `MassItem.name` to a key by
+  case-insensitive substring alias, most-specific first, and only fills an item
+  still at `(0, 0, 0)` — a hand-entered station is never overwritten.
 - **Validation:** **no oracle.** `tests/test_configuration.py` — analytic-vs-strip
   MAC consistency ±0.1%; Appendix A trapezoid plausibility (MAC 69.246 / MAC butt
-  line 87.854, ±10%, since the real wing has an inboard strake).
+  line 87.854, ±10%, since the real wing has an inboard strake); `component_stations`/
+  `match_component_station` are checked directly (arm/weighting arithmetic, alias
+  precedence, and that ungiven components are omitted rather than defaulted to 0).
 - **Notes:** all stability/gear figures are first-order estimates (CG at 25% MAC
   when no mass slice is present; tail-volume NP with `h_acw=0.25`, `a_t/a_w=1`,
   `1−dε/dα=0.6`). In concept mode the results are flagged unverified extrapolation.

@@ -11,6 +11,33 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **Component-station derivation + Weight DB seeding** (Phase D Step D4.3).
+  `farloads/modules/configuration.py` gained two pure functions:
+  `component_stations(layout)` derives approximate `(x, y, z)` stations for
+  named airframe components (wing, fuselage, h-tail, v-tail, a lumped "tail"
+  average, main/nose gear, a lumped "landing_gear" average) from
+  `LayoutInput`'s existing coarse scalars — no schema change; and
+  `match_component_station(name, stations)` maps a `MassItem.name` to one of
+  those keys by case-insensitive substring alias, most-specific first. The
+  Configuration & Layout page gained a "Seed component stations into Weight
+  DB" button (mirroring the existing "Seed wing geometry" button) that fills
+  a weight item's station only when it is still `(0, 0, 0)`, never
+  overwriting a hand-entered value — closing the gap `estimate_to_mass_items`
+  (WTESTIMA) leaves (component weights with no station). No calc-math or
+  schema change.
+
+- **Aero Coefficients page** (Phase D Step D4.2). New `app/views/aero_coefficients.py`
+  is now the single owner of the `Project.aero_coeffs` slice (Step D4.1):
+  a form+Apply page (page conventions §5) editing the cruise coefficient set
+  plus an optional flaps-down (landing) set behind a checkbox, with no
+  Appendix-A-shaped widget defaults (0/blank). Apply wholesale-replaces
+  `project.aero_coeffs` — correct for this page since it is the slice's sole
+  owner. `app/views/flight_envelope.py` drops the cruise-coefficient editor it
+  carried since Step D4.1, gains a "no aero coefficients — define them on the
+  Aero Coefficients page" guard alongside its existing missing-speeds guard,
+  and shows the coefficients it reads as a read-only caption. No calc-math or
+  schema change (reuses the D4.1 `Project.aero_coeffs` slice).
+
 - **`Project.aero_coeffs` slice — single-owner airplane-less-tail aero
   coefficients** (Phase D Step D4.1). New `AeroCoefficientsInput` (`cruise`,
   `flaps_down`, both `Optional[AeroCoeffSet]`) replaces

@@ -20,7 +20,9 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from farloads import LayoutInput, Project  # noqa: E402
 from farloads.modules.configuration import (  # noqa: E402
+    component_stations,
     configuration_properties,
+    match_component_station,
     wing_planform,
 )
 
@@ -93,6 +95,71 @@ def test_stability_and_gear_present_when_data_given():
     assert "Neutral point (%MAC)" in vals
     assert "Tip-back angle" in vals
     assert "Overturn (turnover) angle" in vals
+
+
+def _full_layout():
+    return LayoutInput(
+        fuselage_length=300.0, fuselage_width=48.0, fuselage_height=60.0, datum_x=0.0,
+        wing_area_sqft=174.0, aspect_ratio=6.0, taper_ratio=0.6,
+        le_sweep_deg=2.0, le_root_x=90.0, root_waterline_z=40.0,
+        h_tail_area=30.0, h_tail_arm=180.0, v_tail_area=18.0, v_tail_arm=175.0,
+        nose_gear_x=30.0, main_gear_x=150.0, track=90.0, gear_height=35.0,
+    )
+
+
+def test_component_stations_wing_and_fuselage():
+    # Step D4.3: approximate stations derived from LayoutInput's coarse scalars.
+    layout = _full_layout()
+    stations = component_stations(layout)
+    wing_x, wing_y, wing_z = stations["wing"]
+    assert layout.le_root_x < wing_x < layout.le_root_x + 60.0   # inside the root chord
+    assert wing_y == 0.0 and wing_z == layout.root_waterline_z
+    assert stations["fuselage"] == (150.0, 0.0, 40.0)   # datum + length/2
+
+
+def test_component_stations_tail_arms_and_lumped_average():
+    layout = _full_layout()
+    stations = component_stations(layout)
+    wing_x = stations["wing"][0]
+    assert math.isclose(stations["h_tail"][0], wing_x + 180.0)
+    assert math.isclose(stations["v_tail"][0], wing_x + 175.0)
+    # Area-weighted average (h_tail_area=30, v_tail_area=18) sits between the two,
+    # closer to h_tail (the larger surface).
+    tail_x = stations["tail"][0]
+    assert stations["v_tail"][0] < tail_x < stations["h_tail"][0]
+    expected = (30.0 * stations["h_tail"][0] + 18.0 * stations["v_tail"][0]) / 48.0
+    assert math.isclose(tail_x, expected)
+
+
+def test_component_stations_gear_and_lumped_average():
+    layout = _full_layout()
+    stations = component_stations(layout)
+    gear_z = layout.root_waterline_z - layout.gear_height / 2.0
+    assert stations["main_gear"] == (150.0, 0.0, gear_z)
+    assert stations["nose_gear"] == (30.0, 0.0, gear_z)
+    # Weight-weighted ~3:1 main:nose average for a single lumped "Landing gear" item.
+    assert math.isclose(stations["landing_gear"][0], (3.0 * 150.0 + 1.0 * 30.0) / 4.0)
+    assert math.isclose(stations["landing_gear"][2], gear_z)
+
+
+def test_component_stations_omits_ungiven_components():
+    # A bare wing-only layout must not fabricate tail/gear/fuselage stations.
+    layout = LayoutInput(wing_area_sqft=174.0, aspect_ratio=6.0, le_root_x=90.0)
+    stations = component_stations(layout)
+    assert set(stations) == {"wing"}
+
+
+def test_match_component_station_prefers_specific_over_lumped():
+    layout = _full_layout()
+    stations = component_stations(layout)
+    assert match_component_station("Wing", stations) == stations["wing"]
+    assert match_component_station("Fuselage", stations) == stations["fuselage"]
+    assert match_component_station("Horizontal tail", stations) == stations["h_tail"]
+    assert match_component_station("Vertical tail", stations) == stations["v_tail"]
+    # WTESTIMA's single lumped "Tail" item -- must not accidentally match h_tail/v_tail.
+    assert match_component_station("Tail", stations) == stations["tail"]
+    assert match_component_station("Landing gear", stations) == stations["landing_gear"]
+    assert match_component_station("Nacelle", stations) is None
 
 
 if __name__ == "__main__":

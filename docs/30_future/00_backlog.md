@@ -104,24 +104,42 @@ D4.7 last (reworks pages the earlier sub-steps already touched).
    cruise-coefficient editor in the interim, now writing into
    `project.aero_coeffs.cruise` (preserving any existing `.flaps_down`) — D4.2
    moves that editor to the new page and adds the flaps-down table.
-2. **D4.2 — New Aero Coefficients page.** `app/views/aero_coefficients.py`:
-   move the cruise coefficient-table block out of `flight_envelope.py`
-   (currently lines 55–89) as form+Apply, merge-write into
-   `project.aero_coeffs.cruise`; add a parallel flaps-down table (new UI) →
-   `project.aero_coeffs.flaps_down`. `flight_envelope.py` drops that block and
-   reads `project.aero_coeffs.*` read-only (or a "define in Airplane → Aero
-   Coefficients" message if absent); keeps the balance-geometry block and
-   CG-cases block (CG cases stay deferred to D5). No Appendix-A defaults.
-3. **D4.3 — Station derivation + Weight DB seeding.** Pure function
-   `component_stations(layout: LayoutInput) -> dict[str, Vec3]` (in
-   `configuration.py` or a new helper) deriving approximate x/z per named
-   component (wing, h_tail, v_tail, fuselage nose/tail, main/nose gear,
-   engine(s)) from `LayoutInput`'s existing scalars — no schema change.
-   `configuration_layout.py`: a "Seed component stations into Weight DB"
-   button (same pattern as the existing "Seed wing geometry" button) merges
-   non-zero `x`/`z` into matching `project.weight.items` by name/kind, only
-   filling items still at `(0,0,0)` — never overwrites a user override. Fills
-   the zeros `estimate_to_mass_items` leaves.
+2. **D4.2 — New Aero Coefficients page.** *(shipped 2026-07-09.)*
+   `app/views/aero_coefficients.py` (replacing the D4.1 read-only placeholder)
+   owns the whole `Project.aero_coeffs` slice as a single `st.form` + Apply:
+   a cruise coefficient table/stall-CL pair (defaults 0/blank, no Appendix-A
+   literals) plus an "include a flaps-down configuration" checkbox gating a
+   parallel flaps-down table; Apply wholesale-replaces `project.aero_coeffs`
+   with a fresh `AeroCoefficientsInput` (correct here — unlike a shared slice,
+   this page is the sole owner of the whole thing). `flight_envelope.py`
+   dropped the cruise-editor block entirely, added a guard ("no aero
+   coefficients found... enter them on the Aero Coefficients page first") next
+   to the existing `speeds`-missing guard, and now only shows a read-only
+   caption naming the cruise/flaps-down configuration in use; kept the
+   balance-geometry block and CG-cases block (CG cases stay deferred to D5).
+   Verified end-to-end with `streamlit.testing.v1.AppTest` (both pages render
+   without exceptions on the GA6 example; Apply round-trips the cruise set
+   unchanged; the flight_envelope guard fires when `aero_coeffs` is absent) —
+   no automated UI test suite exists yet, so this was a manual/scripted check,
+   not a pytest addition. No calc-math change; no schema change beyond D4.1.
+3. **D4.3 — Station derivation + Weight DB seeding.** *(shipped 2026-07-09.)*
+   `farloads/modules/configuration.py` gained `component_stations(layout) ->
+   Dict[str, Vec3]` (`wing`, `fuselage`, `h_tail`, `v_tail`, `tail` — area-
+   weighted h/v average for WTESTIMA's single lumped "Tail" item —
+   `main_gear`, `nose_gear`, `landing_gear` — weight-weighted ~3:1 main:nose
+   average; keys present depend on which layout scalars are set, no
+   fabricated zeros) and `match_component_station(name, stations)` (alias
+   substring matching, most-specific key first, e.g. "Horizontal tail" before
+   the lumped "tail" catch-all). Both pure, no schema change — engine(s) were
+   dropped from scope here since `EngineInput.engine_cg` already owns engine
+   position (Step D4.6 wires that up, not D4.3). `configuration_layout.py`
+   gained a "Seed component stations into Weight DB" button (same pattern as
+   "Seed wing geometry") that only fills a `MassItem.x/y/z` still at
+   `(0, 0, 0)` — never overwrites a hand-entered station — so it fills the
+   zeros `estimate_to_mass_items` leaves. Verified with
+   `streamlit.testing.v1.AppTest`: a zero-station item gets seeded, a
+   nonzero-station item is left untouched, an unmatched item name is left at
+   zero. `tests/test_configuration.py` covers the pure functions directly.
 4. **D4.4 — `XLEMAC`/`MAC`/weight read-through to WTENV/STRSPEED.** Ownership
    stays `LayoutInput → wing_surface() → Project.geometry → WTENV/STRSPEED`
    (per `PROGRAM_SPEC.md` — no direct `LayoutInput → WeightEnvelopeInput`
