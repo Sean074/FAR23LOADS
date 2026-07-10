@@ -10,6 +10,80 @@ Acceptance**, **Key decisions**.
 
 ---
 
+## Phase D — Step D6: Merge Analysis into nine component pages (complete, 2026-07-09)
+
+**Objective.** Reorganize the 11 per-BAS-program Analysis pages into the target
+nine component pages (decision D-2), and apply the Phase-D page conventions
+(`02_gui_workflow_plan.md` §5 — form+Apply, merge-writes, read-don't-re-ask, no
+airplane-shaped defaults, LIMIT-marked analysis views) to every one of them.
+Design decisions locked 2026-07-09 (`02_gui_workflow_plan.md` §3 D-7). No
+calc-math change throughout — Appendix A/B oracles pass unmodified;
+`SCHEMA_VERSION` stays at 19 (pure GUI reorg, no new project fields).
+
+**Deliverables.**
+- **Wing Loads** (`app/views/wing_loads.py`, new) merges `airloads.py` +
+  `net_wing_loads.py`: one `st.form` + Apply for the Schrenk aero inputs and the
+  WINGINER/NETLOADS mass distribution. Fixes the `Project.aero.surfaces`
+  wholesale-replace on Apply (upsert-by-name instead, so a future non-wing aero
+  surface would survive this page); scrubs the Appendix-A-shaped widget
+  defaults (section-slope/taper/TAU/target-CL/panel-weight/density-ratio/rib/
+  waterline/dihedral/case-row literals); adds the missing LIMIT caption/column
+  markers to the net-load output.
+- **Tail Loads** (`app/views/tail_loads.py`, new) merges `tail_distribution.py`
+  + `balanced_tail_verification.py` behind one `st.form` + Apply for the
+  chordwise geometry; the balancing-load cross-check keeps its existing
+  correct LIMIT caption.
+- The other 7 pages (Engine Out, Fuselage Loads, Aileron, Flap, Tab, Engine
+  Mount, Landing Gear) converted 1:1 to the conventions: every page's inputs
+  moved into `st.form` + Apply; Fuselage Loads' hardcoded 5-row station table
+  and Engine Mount's baked-in Continental IO-520-BB `default_engine()` (weight/
+  CG/RPM/HP/rotor literals) replaced with blank defaults; Aileron/Fuselage/
+  Landing Gear/Engine Mount gained the LIMIT caption+marker they were missing
+  (Flap/Tab/Engine Out already had it); Landing Gear's max-landing-weight/
+  gross-weight/wing-area inputs got read-only-derivation help text pointing at
+  `Project.mass`/`Project.geometry` (max landing weight stays a page-only
+  input — FAR 23.473(b)/(c) is an engineering judgment call, not derivable).
+- **Engine Mount normalization** (decision D-7): retired the page's separate
+  `st.session_state["engine_inputs"]` store and the ad hoc local `Project(...)`
+  built only for compute/export. The page now reads/writes
+  `Project.engines`/`Project.engine_layout`/`Project.include_far25` directly
+  via `st.session_state["project"]`, matching every other page; an unapplied
+  per-engine edit is discarded on engine/unit switch (Phase-D convention, not a
+  regression — the old separate store's job was working around exactly this).
+  A partially-filled multi-engine layout (a newly-added, still-blank engine)
+  now surfaces as a caught, friendly warning on the export bundle instead of
+  crashing the page.
+- `farloads/workflow.py`: the 11 Analysis steps collapsed to 9. `wing_loads`
+  (`module="net_loads"`) and `tail_loads` (`module="taildist"`) are each the
+  shared nav step for two independently-registered calc modules; `"airloads"`
+  and `"balloads"` were added to `FOLDED_MODULES` (decision D-7, reusing the
+  existing `wing_inertia` precedent rather than adding a `modules` tuple to
+  `WorkflowStep`). `dashboard.py` and `Home.py` needed no code change — both
+  already derive their content purely from `wf.STEPS`/`wf.by_phase()`.
+
+**Key decisions (D-7, locked 2026-07-09).**
+- Merged-page nav steps reuse the `FOLDED_MODULES` precedent rather than adding
+  a `modules: Tuple[str, ...]` field to `WorkflowStep` — zero dataclass/test-
+  shape churn, consistent with the existing `wing_inertia` fold.
+- Engine Mount's state-management is normalized onto the standard
+  `st.session_state["project"]` pattern in this same step, rather than deferred
+  — D6 is exactly the step meant to retire this kind of one-off pattern, and
+  the other convention fixes there are small by comparison.
+
+**Test/Acceptance.** Full suite: 282 tests pass, `ruff check farloads/ cli.py
+app/` clean. `tests/test_workflow.py` updated for the `wing_loads` key (drops
+the `"aero"` requirement, now internal to the merged page).
+`tests/test_views_smoke.py` globs `app/views/*.py` so it picked up the 2 new
+files and dropped the 4 retired ones with no test-code change (24 view/entry
+smoke tests still pass). Every changed page verified with a
+`streamlit.testing.v1.AppTest` script against `examples/ga6_normal.project.json`
+— ran each form's Apply and inspected the resulting `Project` mutation
+(including a multi-engine Engine Mount round-trip: layout switch to Twin,
+edit + Apply both engines, confirm `Project.name` is untouched and both
+engines' data matches what was typed).
+
+---
+
 ## Phase D — Step D5: Envelopes & Critical Conditions section (complete, 2026-07-09)
 
 **Objective.** Give the Envelopes & Critical Conditions section a shared

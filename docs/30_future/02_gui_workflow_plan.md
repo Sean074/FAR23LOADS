@@ -160,6 +160,26 @@ Notes:
     selectors (CG case, altitude) plus an "overlay all altitudes" checkbox that
     plots one V-n trace per altitude, rather than a tab per altitude — reuses
     the existing single-chart pattern with the least new UI surface.
+- **D-7: Step D6 design decisions** *(locked 2026-07-09)*:
+  - **Merged-page nav-step representation.** Wing Loads (AIRLOADS+WINGINER+
+    NETLOADS) and Tail Loads (TAILDIST+BALLOADS) each reuse the existing
+    `FOLDED_MODULES` precedent (the same mechanism that already folds
+    WINGINER's inertia loads into the Wing Loads page) rather than adding a
+    `modules: Tuple[str, ...]` field to `WorkflowStep`. `"airloads"` and
+    `"balloads"` stay independently registered calc modules with their own
+    tests; they just have no dedicated nav step. Zero dataclass/test-shape
+    churn; `dashboard.py`/`Home.py` needed no change since both already derive
+    their content purely from `wf.STEPS`/`wf.by_phase()`.
+  - **Engine Mount state-management normalization.** The page's separate
+    `st.session_state["engine_inputs"]` store and its ad hoc local
+    `Project(...)` (built only for compute/export, never merged back) are
+    retired in this same step rather than deferred to a follow-on mini-step.
+    It now reads/writes `Project.engines`/`Project.engine_layout`/
+    `Project.include_far25` directly through `st.session_state["project"]`,
+    matching every other page. An unapplied per-engine edit is discarded on
+    engine/unit switch — this is the Phase-D form+Apply convention working as
+    intended, not a regression; the old separate store existed specifically to
+    paper over the lack of an Apply gate.
 
 ## 4. Invariants (unchanged from Phase C)
 

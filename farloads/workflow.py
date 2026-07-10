@@ -116,22 +116,23 @@ STEPS: Tuple[WorkflowStep, ...] = (
                  summary="Governing wing/tail/fuselage conditions from the V-n matrix."),
 
     # ---- Analysis: the structural loads -------------------------------------- #
-    WorkflowStep("airloads", "Wing Airloads (Schrenk)", ANALYSIS,
-                 module="airloads", requires=("geometry",), produces="aero",
-                 bas="AIRLOADS", summary="Spanwise wing air-load distribution."),
-    WorkflowStep("net_wing_loads", "Net Wing Loads", ANALYSIS,
-                 module="net_loads", requires=("geometry", "aero"), produces="wing_mass",
-                 bas="WINGINER+NETLOADS",
-                 summary="Spanwise shear / bending / torsion = air − inertia."),
+    # Wing Loads and Tail Loads each merge two independently-registered calc
+    # modules onto one page (Step D6, decision D-7); the secondary module of
+    # each pair is listed in FOLDED_MODULES below, mirroring the wing_inertia
+    # precedent -- it still has its own registered module/tests, it just has
+    # no dedicated nav step of its own.
+    WorkflowStep("wing_loads", "Wing Loads", ANALYSIS,
+                 module="net_loads", requires=("geometry",), produces="wing_mass",
+                 bas="AIRLOADS+WINGINER+NETLOADS",
+                 summary="Schrenk air loads + spanwise shear / bending / torsion "
+                         "(air − inertia)."),
     WorkflowStep("fuselage_loads", "Fuselage Loads", ANALYSIS,
                  module="body_loads", requires=("flight_loads",), produces="fuselage_mass",
                  bas="NETLOADS", summary="Net fuselage shear / bending."),
-    WorkflowStep("tail_distribution", "Tail Distribution", ANALYSIS,
-                 module="taildist", requires=("tail_loads",), produces=None,
-                 bas="TAILDIST", summary="Chordwise tail-load distribution."),
-    WorkflowStep("balanced_tail_verification", "Balanced-Tail Verification", ANALYSIS,
-                 module="balloads", requires=("flight_loads", "tail_loads"), produces=None,
-                 bas="BALLOADS", summary="Cross-check the balancing tail loads."),
+    WorkflowStep("tail_loads", "Tail Loads", ANALYSIS,
+                 module="taildist", requires=("flight_loads", "tail_loads"), produces=None,
+                 bas="TAILDIST+BALLOADS",
+                 summary="Chordwise tail-load distribution + balancing-load cross-check."),
     WorkflowStep("aileron_loads", "Aileron Loads", ANALYSIS,
                  module="aileron", requires=("speeds",), produces="aileron_loads",
                  bas="AILERON", summary="Aileron design loads."),
@@ -167,8 +168,10 @@ STEPS: Tuple[WorkflowStep, ...] = (
 BY_KEY: Dict[str, WorkflowStep] = {s.key: s for s in STEPS}
 
 #: Calc modules folded into another step (contributors, not their own page).
-#: WINGINER's inertia loads are combined with NETLOADS on the Net Wing Loads page.
-FOLDED_MODULES: Tuple[str, ...] = ("wing_inertia",)
+#: WINGINER's inertia loads are combined with NETLOADS on the Wing Loads page;
+#: AIRLOADS (Schrenk) is also combined there (Step D6). BALLOADS's balancing-load
+#: cross-check is combined with TAILDIST on the Tail Loads page (Step D6).
+FOLDED_MODULES: Tuple[str, ...] = ("wing_inertia", "airloads", "balloads")
 
 
 # --------------------------------------------------------------------------- #

@@ -39,26 +39,31 @@ existing = [
 ] or [{"surface": "htail", "mac_in": 0.0, "area_sqin": 0.0, "station_in": 0.0,
        "airfoil_chord_in": 0.0, "deflection_deg": 0.0}]
 
-st.subheader("Tabs")
-edited = st.data_editor(
-    pd.DataFrame(existing), num_rows="dynamic", use_container_width=True,
-    column_config={
-        "surface": st.column_config.SelectboxColumn(options=["wing", "htail", "vtail"]),
-        "mac_in": st.column_config.NumberColumn("MAC (in)"),
-        "area_sqin": st.column_config.NumberColumn("Area (sq in)"),
-        "station_in": st.column_config.NumberColumn("BL/WL of tab MAC (in)"),
-        "airfoil_chord_in": st.column_config.NumberColumn("Airfoil chord at MAC (in)"),
-        "deflection_deg": st.column_config.NumberColumn("Deflection (deg)"),
-    })
-inp.tabs = [
-    TabSpec(surface=str(row.surface), mac_in=float(row.mac_in),
-            area_sqin=float(row.area_sqin), station_in=float(row.station_in),
-            airfoil_chord_in=float(row.airfoil_chord_in),
-            deflection_deg=float(row.deflection_deg))
-    for row in edited.itertuples() if float(row.area_sqin) > 0
-]
-project.tab_loads = inp
-st.session_state["project"] = project
+with st.form("tab_loads_form"):
+    st.subheader("Tabs")
+    edited = st.data_editor(
+        pd.DataFrame(existing), num_rows="dynamic", use_container_width=True,
+        column_config={
+            "surface": st.column_config.SelectboxColumn(options=["wing", "htail", "vtail"]),
+            "mac_in": st.column_config.NumberColumn("MAC (in)"),
+            "area_sqin": st.column_config.NumberColumn("Area (sq in)"),
+            "station_in": st.column_config.NumberColumn("BL/WL of tab MAC (in)"),
+            "airfoil_chord_in": st.column_config.NumberColumn("Airfoil chord at MAC (in)"),
+            "deflection_deg": st.column_config.NumberColumn("Deflection (deg)"),
+        })
+    applied = st.form_submit_button("Apply", type="primary")
+
+if applied:
+    inp.tabs = [
+        TabSpec(surface=str(row.surface), mac_in=float(row.mac_in),
+                area_sqin=float(row.area_sqin), station_in=float(row.station_in),
+                airfoil_chord_in=float(row.airfoil_chord_in),
+                deflection_deg=float(row.deflection_deg))
+        for row in edited.itertuples() if float(row.area_sqin) > 0
+    ]
+    project.tab_loads = inp
+    st.session_state["project"] = project
+    st.success("Tabs applied.")
 
 if project.is_concept:
     st.warning("Concept category (C): an **unverified extrapolation** above the "

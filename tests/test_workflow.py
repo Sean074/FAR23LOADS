@@ -74,6 +74,6 @@ def test_requirements_and_production_on_example():
 
 def test_empty_project_blocks_dependent_steps():
     empty = Project(name="")
-    net = wf.BY_KEY["net_wing_loads"]
-    assert not wf.requirements_met(empty, net)
-    assert set(wf.missing_requirements(empty, net)) == {"geometry", "aero"}
+    wing = wf.BY_KEY["wing_loads"]
+    assert not wf.requirements_met(empty, wing)
+    assert set(wf.missing_requirements(empty, wing)) == {"geometry"}

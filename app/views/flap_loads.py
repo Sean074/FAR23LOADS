@@ -32,25 +32,36 @@ if project.speeds is None:
     st.stop()
 
 inp = project.flap_loads or FlapLoadsInput()
-st.subheader("Flap geometry & deflection")
-c1, c2 = st.columns(2)
-inp.flap_deflection_deg = c1.number_input(
-    "Max flap deflection (deg)", min_value=0.0, value=float(inp.flap_deflection_deg), step=1.0)
-inp.flap_chord_ratio = c2.number_input(
-    "Flap chord / wing chord, E", min_value=0.0, value=float(inp.flap_chord_ratio), step=0.01)
-inp.flap_area_one_side_sqft = c1.number_input(
-    "Flap area on one side, SF (sq ft)", min_value=0.0,
-    value=float(inp.flap_area_one_side_sqft), step=0.1)
-inp.gust_load_factor = c2.number_input(
-    "Flaps-extended gust load factor, NG", min_value=0.0,
-    value=float(inp.gust_load_factor), step=0.1)
-inp.nacelle_frontal_area_sqft = c1.number_input(
-    "Nacelle/fuselage frontal area, AF (sq ft)", min_value=0.0,
-    value=float(inp.nacelle_frontal_area_sqft), step=0.1)
-inp.engine_butt_line_in = c2.number_input(
-    "Engine butt line, BLPROP (in; 0 = fuselage)", value=float(inp.engine_butt_line_in), step=1.0)
-project.flap_loads = inp
-st.session_state["project"] = project
+with st.form("flap_loads_form"):
+    st.subheader("Flap geometry & deflection")
+    c1, c2 = st.columns(2)
+    flap_deflection_deg = c1.number_input(
+        "Max flap deflection (deg)", min_value=0.0, value=float(inp.flap_deflection_deg), step=1.0)
+    flap_chord_ratio = c2.number_input(
+        "Flap chord / wing chord, E", min_value=0.0, value=float(inp.flap_chord_ratio), step=0.01)
+    flap_area_one_side_sqft = c1.number_input(
+        "Flap area on one side, SF (sq ft)", min_value=0.0,
+        value=float(inp.flap_area_one_side_sqft), step=0.1)
+    gust_load_factor = c2.number_input(
+        "Flaps-extended gust load factor, NG", min_value=0.0,
+        value=float(inp.gust_load_factor), step=0.1)
+    nacelle_frontal_area_sqft = c1.number_input(
+        "Nacelle/fuselage frontal area, AF (sq ft)", min_value=0.0,
+        value=float(inp.nacelle_frontal_area_sqft), step=0.1)
+    engine_butt_line_in = c2.number_input(
+        "Engine butt line, BLPROP (in; 0 = fuselage)", value=float(inp.engine_butt_line_in), step=1.0)
+    applied = st.form_submit_button("Apply", type="primary")
+
+if applied:
+    inp.flap_deflection_deg = flap_deflection_deg
+    inp.flap_chord_ratio = flap_chord_ratio
+    inp.flap_area_one_side_sqft = flap_area_one_side_sqft
+    inp.gust_load_factor = gust_load_factor
+    inp.nacelle_frontal_area_sqft = nacelle_frontal_area_sqft
+    inp.engine_butt_line_in = engine_butt_line_in
+    project.flap_loads = inp
+    st.session_state["project"] = project
+    st.success("Flap geometry applied.")
 
 if project.is_concept:
     st.warning("Concept category (C): an **unverified extrapolation** above the "

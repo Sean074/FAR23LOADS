@@ -28,16 +28,17 @@ history, `CHANGELOG.md`).
 
 ## Current state (snapshot)
 
-**Shipped:** Phases 0–2, Phase-C Steps **C0–C11**, and Phase-D **Step D0–D5**
+**Shipped:** Phases 0–2, Phase-C Steps **C0–C11**, and Phase-D **Step D0–D6**
 (GUI defect fix; structured load-case IDs; six-section navigation restructure;
 Start-page local-disk persistence; authoritative shared inputs + Aero
-Coefficients page; Envelopes & Critical Conditions section). **All 22** of Reference 1's
+Coefficients page; Envelopes & Critical Conditions section; Analysis merged
+into nine component pages). **All 22** of Reference 1's
 Appendix-C programs are ported (ENGLOADS, WTESTIMA, WTONECG, WTENV,
 WINGGEOM, STRSPEED, MACHLIM, TAU, AIRLOADS, AIRLOAD4, FLTLOADS, SELECT, WINGINER,
 NETLOADS, TAILDIST, AILERON, FLAPLOAD, TABLOADS, ONENGOUT, LGFACTOR, LANDLOAD,
 BALLOADS), plus **2 modern modules** with no `.BAS` oracle (`configuration`,
 `body_loads`).
-Schema is at **`SCHEMA_VERSION = 17`**; 266 tests pass; coverage ~92%. The wing
+Schema is at **`SCHEMA_VERSION = 19`**; 282 tests pass; coverage ~92%. The wing
 distributed-loads vertical slice (geometry → speeds → envelope → airloads → inertia
 → net → sbeam export), the critical-load selection (wing / h-tail / v-tail /
 fuselage), the chordwise tail distribution, the simplified control-surface
@@ -56,7 +57,7 @@ concept mode is a superset that reduces exactly to it on GA inputs.
 
 Reorganize the GUI from per-BAS-program pages into the six-section
 loads-release workflow (Start → Airplane → Envelopes & Critical → Analysis →
-Loads Plots → Export). Narrative, assessment findings, locked decisions D-1…D-4
+Loads Plots → Export). Narrative, assessment findings, locked decisions D-1…D-7
 and the page conventions are in
 [`02_gui_workflow_plan.md`](02_gui_workflow_plan.md). **Gate met:** the `0.2.0`
 release shipped 2026-07-08 (tag `v0.2.0` on `50e2c9c`, GitHub Release
@@ -71,28 +72,16 @@ Step D1 (structured load-case IDs) shipped 2026-07-08 — see
 (authoritative shared inputs + Aero Coefficients page) shipped 2026-07-09 —
 see `40_history/00_completed_development.md` → "Phase D — Step D4". Step D5
 (Envelopes & Critical Conditions section) shipped 2026-07-09 — see
-`40_history/00_completed_development.md` → "Phase D — Step D5".
-**Step D6 (below) is now the active step.** Invariant throughout: no calc-math
+`40_history/00_completed_development.md` → "Phase D — Step D5". Step D6
+(Analysis merged into nine component pages) shipped 2026-07-09 — see
+`40_history/00_completed_development.md` → "Phase D — Step D6".
+**Step D7 (below) is now the active step.** Invariant throughout: no calc-math
 change — the Appendix A/B oracles pass unmodified at every step.
 
 Definition of done per step (in addition to the file-top DoD where it applies):
 pages follow the Phase-D page conventions (`02_gui_workflow_plan.md §5` —
 form+Apply, merge-writes, read-don't-re-ask, no airplane-shaped defaults), and
 the workflow-step ↔ registered-module test stays green.
-
-### Step D6 — Merge Analysis into nine component pages
-
-Decision D-2. Apply the page conventions as each page is merged; per-page LIMIT
-displays keep the caption + `LIMIT`-marker convention.
-
-1. **Wing Loads** = `airloads` (Schrenk) + `net_wing_loads` (air − inertia,
-   shear/BM/torsion) on one page.
-2. **Tail Loads** = `tail_distribution` + `balanced_tail_verification`.
-3. **Engine Out** (`one_engine_out`), **Fuselage Loads**, **Aileron**, **Flap**,
-   **Tab**, **Engine Mount**, **Landing Gear** — 1:1 conversions to the
-   conventions.
-4. `workflow.py` steps/keys updated (merged pages get merged steps); nav-drift
-   test and the dashboard status board follow.
 
 ### Step D7 — Loads Plots page (new)
 

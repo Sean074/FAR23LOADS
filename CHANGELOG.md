@@ -11,6 +11,26 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **Analysis merged into nine component pages** (Phase D Step D6). The 11
+  per-BAS-program Analysis pages are now 9: **Wing Loads**
+  (`app/views/wing_loads.py`) merges AIRLOADS (Schrenk) + WINGINER + NETLOADS
+  behind one form; **Tail Loads** (`app/views/tail_loads.py`) merges TAILDIST +
+  BALLOADS. `farloads/workflow.py`'s `wing_loads`/`tail_loads` steps are the
+  shared nav step for each pair (`"airloads"`/`"balloads"` added to
+  `FOLDED_MODULES`, reusing the existing `wing_inertia` precedent). The other 7
+  pages (Engine Out, Fuselage Loads, Aileron, Flap, Tab, Engine Mount, Landing
+  Gear) converted to the Phase-D page conventions: inputs moved into
+  `st.form` + an explicit Apply button; Wing Loads' `Project.aero.surfaces`
+  write-back changed from a wholesale replace to an upsert-by-name; Fuselage
+  Loads' hardcoded 5-row station table and Engine Mount's baked-in Continental
+  IO-520-BB `default_engine()` replaced with blank defaults; Aileron/Fuselage/
+  Landing Gear/Engine Mount gained the LIMIT caption+marker they were missing.
+  Engine Mount additionally retired its separate `st.session_state
+  ["engine_inputs"]` store and ad hoc local `Project`, now reading/writing
+  `Project.engines`/`Project.engine_layout`/`Project.include_far25` directly
+  like every other page. No calc-math change; Appendix A/B oracles pass
+  unmodified; `SCHEMA_VERSION` unchanged at 19 (pure GUI reorg).
+
 - **Envelopes & Critical Conditions section** (Phase D Step D5,
   `SCHEMA_VERSION` 18 → 19). New **Weight/CG Grid & Payload Cases** page
   (`app/views/payload_cases.py`) owns a shared `WeightInput.cg_cases` list of

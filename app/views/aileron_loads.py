@@ -31,21 +31,30 @@ if project.speeds is None:
     st.stop()
 
 inp = project.aileron_loads or AileronLoadsInput()
-st.subheader("Aileron geometry & deflection")
-c1, c2 = st.columns(2)
-inp.down_deflection_deg = c1.number_input(
-    "Max down deflection (deg)", min_value=0.0, value=float(inp.down_deflection_deg), step=1.0)
-inp.up_deflection_deg = c2.number_input(
-    "Max up deflection (deg)", min_value=0.0, value=float(inp.up_deflection_deg), step=1.0,
-    help="Magnitude; applied as a negative (trailing-edge-up) throw.")
-inp.area_fwd_hinge_sqft = c1.number_input(
-    "Area fwd of hinge line, SAFWD (sq ft)", min_value=0.0,
-    value=float(inp.area_fwd_hinge_sqft), step=0.1)
-inp.area_aft_hinge_sqft = c2.number_input(
-    "Area aft of hinge line, SAAFT (sq ft)", min_value=0.0,
-    value=float(inp.area_aft_hinge_sqft), step=0.1)
-project.aileron_loads = inp
-st.session_state["project"] = project
+with st.form("aileron_loads_form"):
+    st.subheader("Aileron geometry & deflection")
+    c1, c2 = st.columns(2)
+    down_deflection_deg = c1.number_input(
+        "Max down deflection (deg)", min_value=0.0, value=float(inp.down_deflection_deg), step=1.0)
+    up_deflection_deg = c2.number_input(
+        "Max up deflection (deg)", min_value=0.0, value=float(inp.up_deflection_deg), step=1.0,
+        help="Magnitude; applied as a negative (trailing-edge-up) throw.")
+    area_fwd_hinge_sqft = c1.number_input(
+        "Area fwd of hinge line, SAFWD (sq ft)", min_value=0.0,
+        value=float(inp.area_fwd_hinge_sqft), step=0.1)
+    area_aft_hinge_sqft = c2.number_input(
+        "Area aft of hinge line, SAAFT (sq ft)", min_value=0.0,
+        value=float(inp.area_aft_hinge_sqft), step=0.1)
+    applied = st.form_submit_button("Apply", type="primary")
+
+if applied:
+    inp.down_deflection_deg = down_deflection_deg
+    inp.up_deflection_deg = up_deflection_deg
+    inp.area_fwd_hinge_sqft = area_fwd_hinge_sqft
+    inp.area_aft_hinge_sqft = area_aft_hinge_sqft
+    project.aileron_loads = inp
+    st.session_state["project"] = project
+    st.success("Aileron geometry applied.")
 
 if project.is_concept:
     st.warning("Concept category (C): an **unverified extrapolation** above the "
@@ -59,17 +68,22 @@ except (ValueError, ZeroDivisionError) as exc:
     st.stop()
 
 vals = {v.label: v.value for v in mod.conditions[0].values}
+st.caption(
+    "On-screen loads are **LIMIT** (oracle values, traceable to the manual). The "
+    "CSV / FORCE-card downloads below and the **Review/Export** pages report "
+    "**ULTIMATE** = limit × 1.5 (14 CFR 23.303)."
+)
 m1, m2, m3 = st.columns(3)
-m1.metric("Critical down load (lb)", f"{vals['Critical down aileron load']:,.2f}")
-m2.metric("Critical up load (lb)", f"{vals['Critical up aileron load']:,.2f}")
+m1.metric("Critical down load (lb, LIMIT)", f"{vals['Critical down aileron load']:,.2f}")
+m2.metric("Critical up load (lb, LIMIT)", f"{vals['Critical up aileron load']:,.2f}")
 m3.metric("At speed (kt)", f"{vals['Down aileron speed']:.0f} / {vals['Up aileron speed']:.0f}")
 
 st.subheader("Forward-of-hinge pressures")
 st.write(pd.DataFrame([
-    {"Case": "down", "Load (lb)": round(results[0].load_lb, 2),
-     "Pressure fwd of hinge (lb/in²)": round(vals["Pressure fwd of hinge (down)"], 4)},
-    {"Case": "up", "Load (lb)": round(results[1].load_lb, 2),
-     "Pressure fwd of hinge (lb/in²)": round(vals["Pressure fwd of hinge (up)"], 4)},
+    {"Case": "down", "Load (lb, LIMIT)": round(results[0].load_lb, 2),
+     "Pressure fwd of hinge (lb/in², LIMIT)": round(vals["Pressure fwd of hinge (down)"], 4)},
+    {"Case": "up", "Load (lb, LIMIT)": round(results[1].load_lb, 2),
+     "Pressure fwd of hinge (lb/in², LIMIT)": round(vals["Pressure fwd of hinge (up)"], 4)},
 ]))
 
 # Persist for the sbeam control-surface export.

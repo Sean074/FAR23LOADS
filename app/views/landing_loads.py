@@ -53,39 +53,58 @@ def _gear_inputs(label: str, gear: LandingGearInput) -> LandingGearInput:
     return LandingGearInput((xc, zc), (xs, zs), (xe, ze), rr, strut)
 
 
-st.subheader("Landing load factor (LGFACTOR)")
-c1, c2, c3 = st.columns(3)
-inp.max_landing_weight_lb = c1.number_input(
-    "Max landing weight, W (lb)", min_value=0.0, value=float(inp.max_landing_weight_lb),
-    help="Typically 0.95·MTOW (FAR 23.473(b)/(c)).")
-inp.gross_weight_lb = c2.number_input(
-    "Gross (max take-off) weight, GW (lb)", min_value=0.0, value=float(inp.gross_weight_lb))
-inp.wing_area_sqft = c3.number_input(
-    "Wing area, S (sq ft)", min_value=0.0, value=float(inp.wing_area_sqft),
-    help="0 → read from the wing geometry surface.")
-inp.strut_stroke_in = c1.number_input(
-    "Strut stroke (in)", min_value=0.0, value=float(inp.strut_stroke_in))
-inp.tire_od_in = c2.number_input("Tyre OD (in)", min_value=0.0, value=float(inp.tire_od_in))
-inp.hub_diameter_in = c3.number_input("Hub diameter (in)", min_value=0.0,
+with st.form("landing_loads_form"):
+    st.subheader("Landing load factor (LGFACTOR)")
+    c1, c2, c3 = st.columns(3)
+    max_landing_weight_lb = c1.number_input(
+        "Max landing weight, W (lb)", min_value=0.0, value=float(inp.max_landing_weight_lb),
+        help="Typically 0.95·MTOW (FAR 23.473(b)/(c)); not auto-derived (an engineering "
+             "judgment call, not a duplicate of another slice).")
+    gross_weight_lb = c2.number_input(
+        "Gross (max take-off) weight override, GW (lb)", min_value=0.0,
+        value=float(inp.gross_weight_lb),
+        help="0 → derived from the heaviest CG case (Project.mass).")
+    wing_area_sqft = c3.number_input(
+        "Wing area override, S (sq ft)", min_value=0.0, value=float(inp.wing_area_sqft),
+        help="0 → read from the wing geometry surface (Project.geometry).")
+    strut_stroke_in = c1.number_input(
+        "Strut stroke (in)", min_value=0.0, value=float(inp.strut_stroke_in))
+    tire_od_in = c2.number_input("Tyre OD (in)", min_value=0.0, value=float(inp.tire_od_in))
+    hub_diameter_in = c3.number_input("Hub diameter (in)", min_value=0.0,
                                       value=float(inp.hub_diameter_in))
-inp.lift_factor = c1.number_input(
-    "Wing lift factor, L (≤ 0.667)", min_value=0.0, max_value=0.667,
-    value=float(inp.lift_factor))
-inp.gear_load_factor = c2.number_input(
-    "Gear load factor override, NLG", min_value=0.0, value=float(inp.gear_load_factor),
-    help="0 → use LGFACTOR's computed N − L. LANDLOAD usually rounds it up.")
+    lift_factor = c1.number_input(
+        "Wing lift factor, L (≤ 0.667)", min_value=0.0, max_value=0.667,
+        value=float(inp.lift_factor))
+    gear_load_factor = c2.number_input(
+        "Gear load factor override, NLG", min_value=0.0, value=float(inp.gear_load_factor),
+        help="0 → use LGFACTOR's computed N − L. LANDLOAD usually rounds it up.")
 
-st.subheader("Landing gear geometry (LANDLOAD)")
-inp.main_gear = _gear_inputs("Main gear", inp.main_gear)
-inp.nose_gear = _gear_inputs("Nose gear", inp.nose_gear)
-c = st.columns(2)
-inp.tread_in = c[0].number_input("Tread between mains (in)", min_value=0.0,
+    st.subheader("Landing gear geometry (LANDLOAD)")
+    main_gear = _gear_inputs("Main gear", inp.main_gear)
+    nose_gear = _gear_inputs("Nose gear", inp.nose_gear)
+    c = st.columns(2)
+    tread_in = c[0].number_input("Tread between mains (in)", min_value=0.0,
                                  value=float(inp.tread_in))
-inp.tail_down_angle_deg = c[1].number_input("Tail-down ground angle (deg)", min_value=0.0,
+    tail_down_angle_deg = c[1].number_input("Tail-down ground angle (deg)", min_value=0.0,
                                             value=float(inp.tail_down_angle_deg))
+    applied = st.form_submit_button("Apply", type="primary")
 
-project.landing = inp
-st.session_state["project"] = project
+if applied:
+    inp.max_landing_weight_lb = max_landing_weight_lb
+    inp.gross_weight_lb = gross_weight_lb
+    inp.wing_area_sqft = wing_area_sqft
+    inp.strut_stroke_in = strut_stroke_in
+    inp.tire_od_in = tire_od_in
+    inp.hub_diameter_in = hub_diameter_in
+    inp.lift_factor = lift_factor
+    inp.gear_load_factor = gear_load_factor
+    inp.main_gear = main_gear
+    inp.nose_gear = nose_gear
+    inp.tread_in = tread_in
+    inp.tail_down_angle_deg = tail_down_angle_deg
+    project.landing = inp
+    st.session_state["project"] = project
+    st.success("Landing/ground inputs applied.")
 
 if not inp.cg_cases and (project.mass is None or not project.mass.cases):
     st.warning("Provide the **Weight, CG & Inertia** (WTONECG) results, or enter the "
@@ -110,11 +129,16 @@ m2.metric("Airplane load factor N", f"{lf.airplane_load_factor:.3f}")
 m3.metric("Gear load factor NLG", f"{lf.gear_load_factor:.3f}")
 
 st.subheader("Gear reaction loads (ground line)")
+st.caption(
+    "On-screen reactions are **LIMIT** (oracle values, traceable to the manual). "
+    "The CSV download below and the **Review/Export** pages report **ULTIMATE** "
+    "= limit × 1.5 (14 CFR 23.303)."
+)
 rows = [{
     "Case": c.case, "Condition": c.description, "FAR": c.far_reference, "CG": c.cg_name,
-    "VMP": round(c.vmp, 1), "DMP": round(c.dmp, 1), "SMP": round(c.smp, 1),
-    "RMP": round(c.rmp, 1), "VNP": round(c.vnp, 1), "DNP": round(c.dnp, 1),
-    "SNP": round(c.snp, 1), "RESULT": round(c.result, 1),
+    "VMP (LIMIT)": round(c.vmp, 1), "DMP (LIMIT)": round(c.dmp, 1), "SMP (LIMIT)": round(c.smp, 1),
+    "RMP (LIMIT)": round(c.rmp, 1), "VNP (LIMIT)": round(c.vnp, 1), "DNP (LIMIT)": round(c.dnp, 1),
+    "SNP (LIMIT)": round(c.snp, 1), "RESULT (LIMIT)": round(c.result, 1),
 } for c in reactions]
 st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
 st.caption("VMP/DMP/SMP — vertical/drag/side main per wheel; VNP/DNP/SNP — nose. "

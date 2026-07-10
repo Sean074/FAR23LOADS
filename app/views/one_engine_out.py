@@ -38,27 +38,37 @@ if project.mass is None or not project.mass.cases:
 
 inp = project.one_engine_out or OneEngineOutInput()
 
-st.subheader("Failure transient")
-c1, c2, c3, c4 = st.columns(4)
-inp.thrust_decay_time_s = c1.number_input("Thrust decay time (s)",
+with st.form("one_engine_out_form"):
+    st.subheader("Failure transient")
+    c1, c2, c3, c4 = st.columns(4)
+    thrust_decay_time_s = c1.number_input("Thrust decay time (s)",
                                           value=float(inp.thrust_decay_time_s), min_value=0.0)
-inp.windmill_drag_time_s = c2.number_input("Windmill drag buildup (s)",
+    windmill_drag_time_s = c2.number_input("Windmill drag buildup (s)",
                                            value=float(inp.windmill_drag_time_s), min_value=0.0)
-inp.rudder_travel_time_s = c3.number_input("Full-rudder travel time (s)",
+    rudder_travel_time_s = c3.number_input("Full-rudder travel time (s)",
                                            value=float(inp.rudder_travel_time_s), min_value=0.0)
-inp.time_step_s = c4.number_input("Time step (s)", value=float(inp.time_step_s or 0.05),
+    time_step_s = c4.number_input("Time step (s)", value=float(inp.time_step_s or 0.05),
                                   min_value=0.005, step=0.005, format="%.3f")
 
-c5, c6 = st.columns(2)
-inp.failed_engine_index = int(c5.selectbox(
-    "Failed engine", options=list(range(len(project.engines))),
-    index=min(inp.failed_engine_index, len(project.engines) - 1),
-    format_func=lambda i: f"#{i} {project.engines[i].engine_designation or ''}".strip()))
-inp.use_takeoff_power = c6.checkbox("Use take-off power (else max-continuous)",
+    c5, c6 = st.columns(2)
+    failed_engine_index = int(c5.selectbox(
+        "Failed engine", options=list(range(len(project.engines))),
+        index=min(inp.failed_engine_index, len(project.engines) - 1),
+        format_func=lambda i: f"#{i} {project.engines[i].engine_designation or ''}".strip()))
+    use_takeoff_power = c6.checkbox("Use take-off power (else max-continuous)",
                                     value=inp.use_takeoff_power)
+    applied = st.form_submit_button("Apply", type="primary")
 
-project.one_engine_out = inp
-st.session_state["project"] = project
+if applied:
+    inp.thrust_decay_time_s = thrust_decay_time_s
+    inp.windmill_drag_time_s = windmill_drag_time_s
+    inp.rudder_travel_time_s = rudder_travel_time_s
+    inp.time_step_s = time_step_s
+    inp.failed_engine_index = failed_engine_index
+    inp.use_takeoff_power = use_takeoff_power
+    project.one_engine_out = inp
+    st.session_state["project"] = project
+    st.success("Failure-transient inputs applied.")
 
 if project.is_concept:
     st.warning("Concept category (C): an **unverified extrapolation** above the "

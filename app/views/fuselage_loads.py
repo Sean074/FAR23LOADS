@@ -37,23 +37,27 @@ if project.flight_loads is None:
     st.stop()
 
 fm = project.fuselage_mass or FuselageMassInput()
-st.subheader("Fuselage mass distribution")
-st.caption("Lumped station weights nose→tail (exclude the wing mass outside the "
-           "fuselage, per Ch 15).")
-default = pd.DataFrame(
-    [[s.x, s.weight_lb] for s in fm.stations]
-    or [[30.0, 200.0], [60.0, 400.0], [90.0, 600.0], [140.0, 500.0], [200.0, 300.0]],
-    columns=["x", "weight_lb"],
-)
-df = st.data_editor(default, num_rows="dynamic", hide_index=True, use_container_width=True)
-stations = [
-    FuselageStation(x=float(r["x"]), weight_lb=float(r["weight_lb"]))
-    for _, r in df.iterrows()
-    if pd.notna(r["x"]) and pd.notna(r["weight_lb"])
-]
+with st.form("fuselage_mass_form"):
+    st.subheader("Fuselage mass distribution")
+    st.caption("Lumped station weights nose→tail (exclude the wing mass outside the "
+               "fuselage, per Ch 15).")
+    default = pd.DataFrame(
+        [[s.x, s.weight_lb] for s in fm.stations] or [[0.0, 0.0]],
+        columns=["x", "weight_lb"],
+    )
+    df = st.data_editor(default, num_rows="dynamic", hide_index=True, use_container_width=True)
+    applied = st.form_submit_button("Apply", type="primary")
 
-project.fuselage_mass = FuselageMassInput(stations=stations, ref_waterline=fm.ref_waterline)
-st.session_state["project"] = project
+if applied:
+    stations = [
+        FuselageStation(x=float(r["x"]), weight_lb=float(r["weight_lb"]))
+        for _, r in df.iterrows()
+        if pd.notna(r["x"]) and pd.notna(r["weight_lb"])
+    ]
+    project.fuselage_mass = FuselageMassInput(stations=stations, ref_waterline=fm.ref_waterline)
+    st.session_state["project"] = project
+    st.success("Fuselage mass distribution applied.")
+    fm = project.fuselage_mass
 
 if project.is_concept:
     st.warning("Concept category (C): an **unverified extrapolation** above the "
@@ -74,14 +78,19 @@ if project.loads is not None:
     project.loads.body_net = results
     st.session_state["project"] = project
 
+st.caption(
+    "Loads shown are **LIMIT** (oracle-traceable). The deliverable **ULTIMATE** "
+    "loads (= limit × safety factor, 14 CFR 23.303) come from the "
+    "**Review/Export** pages."
+)
 sel = st.selectbox("Show condition", [r.case for r in results])
 res = next(r for r in results if r.case == sel)
 
 c1, c2 = st.columns(2)
-c1.metric("Closure ΣFz (lb)", f"{sum(s.fz for s in res.stations):,.2f}")
+c1.metric("Closure ΣFz (lb, LIMIT)", f"{sum(s.fz for s in res.stations):,.2f}")
 c2.metric("Stations", str(len(res.stations)))
 
-for title, attr, unit in [("Shear Sz", "sz", "lb"), ("Bending Myy", "myy", "lb-in")]:
+for title, attr, unit in [("Shear Sz", "sz", "lb, LIMIT"), ("Bending Myy", "myy", "lb-in, LIMIT")]:
     fig = go.Figure()
     fig.add_trace(go.Scatter(
         x=[s.x for s in res.stations], y=[getattr(s, attr) for s in res.stations],
@@ -90,7 +99,7 @@ for title, attr, unit in [("Shear Sz", "sz", "lb"), ("Bending Myy", "myy", "lb-i
                       yaxis_title=f"{title} ({unit})", height=320)
     st.plotly_chart(fig, use_container_width=True)
 
-st.subheader("Net fuselage load table")
+st.subheader("Net fuselage load table (LIMIT)")
 st.dataframe(pd.DataFrame(body_load_rows([res])), hide_index=True, use_container_width=True)
 
 buf = _io.StringIO()
