@@ -1,0 +1,302 @@
+"""Streamlit page for Loads Plots (Step D7): consolidated multi-case overlays.
+
+One page of the multi-page app; run the suite with:  streamlit run app/Home.py
+
+A read-only viewer over the distributed-load results already persisted on
+``Project.loads`` by the Analysis-section pages (Wing / Fuselage / Tail /
+Aileron / Flap / Tab Loads). It does not compute anything new and writes
+nothing back to the project: pick a component, overlay the spanwise/chordwise
+curve for the selected case IDs plus their envelope (max |value| per station),
+see a combined wing+fuselage "total loads" snapshot for one case, and
+optionally compare against an externally-computed span-load CSV in the same
+schema :mod:`farloads.export.sbeam_bridge` exports.
+
+Engine Mount and Landing Gear are scalar reaction-load components with no
+spanwise distribution -- the original suite never plotted them either, so they
+are not in the component picker here; see their own Analysis pages.
+"""
+
+from __future__ import annotations
+
+import csv
+import io as _io
+
+import pandas as pd
+import plotly.graph_objects as go
+import streamlit as st
+from plotly.subplots import make_subplots
+
+from farloads import Project
+
+st.title("Loads Plots")
+st.caption(
+    "Consolidated multi-case overlays over the distributed loads already computed "
+    "on the Analysis pages. Values shown are **LIMIT** (oracle-traceable); the "
+    "deliverable **ULTIMATE** loads (= limit × safety factor, 14 CFR 23.303) come "
+    "from the **Review/Export** pages."
+)
+
+project: Project = st.session_state.get("project", Project(name=""))
+loads = project.loads
+
+if loads is None:
+    st.info(
+        "No distributed loads computed yet — visit **Wing Loads**, **Fuselage "
+        "Loads**, **Tail Loads**, **Aileron/Flap/Tab Loads** first."
+    )
+    st.stop()
+
+if project.is_concept:
+    st.warning("Concept category (C): shown curves may be an **unverified "
+               "extrapolation** above the FAR 23 calibration band.")
+
+
+# --------------------------------------------------------------------------- #
+# Curve extraction: normalize every component's results into a common shape --
+# (case_id, case_label, x, {y_field: (title, unit, [values])}) -- so the plot
+# code below is generic across wing/fuselage/tail/control-surface results.
+# --------------------------------------------------------------------------- #
+def _case_label(r) -> str:
+    return r.case_ref.case_id if r.case_ref else r.case
+
+
+def _wing_cases(results):
+    return [
+        (r.case_ref.case_id if r.case_ref else r.case, f"{_case_label(r)} — {r.case}",
+         [s.y for s in r.stations],
+         {"sz": ("Shear Sz", "lb", [s.sz for s in r.stations]),
+          "mxx": ("Bending Mxx", "lb-in", [s.mxx for s in r.stations]),
+          "myy": ("Torsion Myy", "lb-in", [s.myy for s in r.stations])})
+        for r in results
+    ]
+
+
+def _fuselage_cases(results):
+    return [
+        (r.case_ref.case_id if r.case_ref else r.case, f"{_case_label(r)} — {r.case}",
+         [s.x for s in r.stations],
+         {"sz": ("Shear Sz", "lb", [s.sz for s in r.stations]),
+          "myy": ("Bending Myy", "lb-in", [s.myy for s in r.stations])})
+        for r in results
+    ]
+
+
+def _tail_cases(results, component):
+    filtered = [r for r in results if r.component == component]
+    return [
+        (r.case_ref.case_id if r.case_ref else r.case, f"{_case_label(r)} — {r.case}",
+         [s.x for s in sorted(r.stations, key=lambda s: s.x)],
+         {"psi": ("Net pressure PSI", "lb/in^2",
+                  [s.psi for s in sorted(r.stations, key=lambda s: s.x)])})
+        for r in filtered
+    ]
+
+
+def _control_surface_cases(results, surface_match):
+    filtered = [r for r in results if surface_match(r.surface)]
+    return [
+        (r.case_ref.case_id if r.case_ref else r.case,
+         f"{_case_label(r)} — {r.surface}/{r.case}",
+         [s.x for s in sorted(r.stations, key=lambda s: s.x)],
+         {"psi": ("Pressure PSI", "lb/in^2",
+                  [s.psi for s in sorted(r.stations, key=lambda s: s.x)])})
+        for r in filtered
+    ]
+
+
+_COMPONENTS = {
+    "wing": ("Wing", lambda: _wing_cases(loads.wing_net), "Butt line Y (in)"),
+    "fuselage": ("Fuselage", lambda: _fuselage_cases(loads.body_net), "Fuselage station X (in)"),
+    "htail": ("Horizontal Tail", lambda: _tail_cases(loads.tail_chordwise, "htail"),
+              "Chord station from LE (in)"),
+    "vtail": ("Vertical Tail", lambda: _tail_cases(loads.tail_chordwise, "vtail"),
+              "Chord station from LE (in)"),
+    "aileron": ("Aileron", lambda: _control_surface_cases(
+        loads.control_surface, lambda s: s == "aileron"), "Fractional chord"),
+    "flap": ("Flap", lambda: _control_surface_cases(
+        loads.control_surface, lambda s: s == "flap"), "Fractional chord"),
+    "tab": ("Tab", lambda: _control_surface_cases(
+        loads.control_surface, lambda s: s.startswith("tab:")), "Fractional chord"),
+}
+
+
+def _envelope(series: list) -> list:
+    """Max-|value| trace across ``series`` (a list of equal-length value lists)."""
+    return [max(vals, key=abs) for vals in zip(*series)]
+
+
+def _overlay_figure(title: str, x_label: str, y_label: str, x: list,
+                     traces: "list[tuple[str, list]]") -> go.Figure:
+    fig = go.Figure()
+    for name, y in traces:
+        fig.add_trace(go.Scatter(x=x, y=y, name=name, mode="lines+markers", line=dict(width=1.5)))
+    if len(traces) > 1:
+        env = _envelope([y for _, y in traces])
+        fig.add_trace(go.Scatter(x=x, y=env, name="envelope (max |·|)",
+                                 mode="lines", line=dict(width=4, dash="dot")))
+    fig.update_layout(title=title, xaxis_title=x_label, yaxis_title=y_label,
+                      legend=dict(orientation="h"), height=380)
+    return fig
+
+
+# --------------------------------------------------------------------------- #
+# Component / case-ID pickers
+# --------------------------------------------------------------------------- #
+st.header("Overlay by case ID")
+
+available = {k: v for k, v in _COMPONENTS.items() if v[1]()}
+if not available:
+    st.info("No component has any distributed-load results yet — visit an "
+            "Analysis page first (Wing / Fuselage / Tail / Aileron / Flap / Tab Loads).")
+else:
+    comp_key = st.radio(
+        "Component", list(available.keys()),
+        format_func=lambda k: available[k][0], horizontal=True)
+    title, cases_fn, x_label = available[comp_key]
+    cases = cases_fn()
+
+    case_ids = [c[0] for c in cases]
+    labels = {c[0]: c[1] for c in cases}
+    selected = st.multiselect(
+        "Case IDs", case_ids, default=case_ids, format_func=lambda cid: labels[cid])
+
+    shown = [c for c in cases if c[0] in selected]
+    if not shown:
+        st.info("Select at least one case ID above.")
+    else:
+        y_fields = list(shown[0][3].keys())
+        for field in y_fields:
+            y_title, unit, _ = shown[0][3][field]
+            traces = [(labels[cid], data[field][2]) for cid, _, _, data in shown]
+            x = shown[0][2]
+            fig = _overlay_figure(f"{y_title} — {title}", x_label,
+                                  f"{y_title} ({unit}, LIMIT)", x, traces)
+            st.plotly_chart(fig, use_container_width=True)
+
+        st.subheader("Case-index for this selection")
+        st.dataframe(pd.DataFrame([
+            {"Case ID": cid, "Condition": lab} for cid, lab, _, _ in shown
+        ]), hide_index=True, use_container_width=True)
+
+        # Comparison-CSV download: the currently displayed component/cases, one
+        # row per station per case per y-field -- long format, easy to re-plot.
+        buf = _io.StringIO()
+        fieldnames = ["Case ID", "Condition", x_label, "Field", "Value"]
+        writer = csv.DictWriter(buf, fieldnames=fieldnames)
+        writer.writeheader()
+        for cid, lab, x, data in shown:
+            for field, (y_title, unit, values) in data.items():
+                for xv, yv in zip(x, values):
+                    writer.writerow({"Case ID": cid, "Condition": lab, x_label: xv,
+                                     "Field": f"{y_title} ({unit})", "Value": yv})
+        st.download_button("Download this selection (CSV)", buf.getvalue(),
+                           file_name=f"loads_plots_{comp_key}.csv", mime="text/csv")
+
+# --------------------------------------------------------------------------- #
+# Total-loads view: wing + fuselage side by side for one case each.
+# --------------------------------------------------------------------------- #
+st.divider()
+st.header("Total loads (whole-airframe snapshot)")
+
+wing_cases = _wing_cases(loads.wing_net)
+body_cases = _fuselage_cases(loads.body_net)
+
+if not wing_cases or not body_cases:
+    st.info("Needs both Wing Loads and Fuselage Loads results — visit those pages first.")
+else:
+    c1, c2 = st.columns(2)
+    wing_labels = {c[0]: c[1] for c in wing_cases}
+    body_labels = {c[0]: c[1] for c in body_cases}
+    wing_sel = c1.selectbox("Wing case", list(wing_labels), format_func=lambda k: wing_labels[k])
+    body_sel = c2.selectbox("Fuselage case", list(body_labels), format_func=lambda k: body_labels[k])
+
+    w = next(c for c in wing_cases if c[0] == wing_sel)
+    b = next(c for c in body_cases if c[0] == body_sel)
+
+    fig = make_subplots(
+        rows=1, cols=2, subplot_titles=("Wing", "Fuselage"),
+        specs=[[{"secondary_y": True}, {"secondary_y": True}]])
+    fig.add_trace(go.Scatter(x=w[2], y=w[3]["sz"][2], name="Wing Sz (lb)",
+                             mode="lines+markers"), row=1, col=1, secondary_y=False)
+    fig.add_trace(go.Scatter(x=w[2], y=w[3]["mxx"][2], name="Wing Mxx (lb-in)",
+                             mode="lines+markers"), row=1, col=1, secondary_y=True)
+    fig.add_trace(go.Scatter(x=w[2], y=w[3]["myy"][2], name="Wing Myy (lb-in)",
+                             mode="lines+markers"), row=1, col=1, secondary_y=True)
+    fig.add_trace(go.Scatter(x=b[2], y=b[3]["sz"][2], name="Fuselage Sz (lb)",
+                             mode="lines+markers"), row=1, col=2, secondary_y=False)
+    fig.add_trace(go.Scatter(x=b[2], y=b[3]["myy"][2], name="Fuselage Myy (lb-in)",
+                             mode="lines+markers"), row=1, col=2, secondary_y=True)
+    fig.update_yaxes(title_text="Shear (lb, LIMIT)", secondary_y=False)
+    fig.update_yaxes(title_text="Moment (lb-in, LIMIT)", secondary_y=True)
+    fig.update_xaxes(title_text="Butt line Y (in)", row=1, col=1)
+    fig.update_xaxes(title_text="Fuselage station X (in)", row=1, col=2)
+    fig.update_layout(height=420, legend=dict(orientation="h"))
+    st.plotly_chart(fig, use_container_width=True)
+
+# --------------------------------------------------------------------------- #
+# External-comparison CSV import: the sbeam_bridge span-load CSV schema
+# (wing: Case,GID,X,Y,Z,Fx,Fz,My,Sx,Sz,Mxx,Myy,Mzz; body: Case,GID,X,Fz,Sz,Myy).
+# Pure overlay against the live-computed curve above -- no numeric diff table.
+# --------------------------------------------------------------------------- #
+st.divider()
+st.header("External-comparison import")
+st.caption(
+    "Import a span-load CSV in the same schema the **Export** page writes "
+    "(`farloads.export.sbeam_bridge.span_load_csv` / `body_span_load_csv`) to "
+    "overlay an externally-computed distribution against the curves above."
+)
+
+_WING_COLS = {"Case", "GID", "X", "Y", "Z", "Fx", "Fz", "My", "Sx", "Sz", "Mxx", "Myy", "Mzz"}
+_BODY_COLS = {"Case", "GID", "X", "Fz", "Sz", "Myy"}
+
+uploaded = st.file_uploader("Span-load CSV", type=["csv"])
+if uploaded is not None:
+    try:
+        df = pd.read_csv(uploaded)
+    except (pd.errors.ParserError, pd.errors.EmptyDataError, UnicodeDecodeError) as exc:
+        st.error(f"Could not parse CSV: {exc}")
+        df = None
+
+    if df is not None:
+        cols = set(df.columns)
+        if _WING_COLS.issubset(cols):
+            kind, x_col, y_cols = "wing", "Y", ["Sz", "Mxx", "Myy"]
+        elif _BODY_COLS.issubset(cols):
+            kind, x_col, y_cols = "fuselage", "X", ["Sz", "Myy"]
+        else:
+            kind = None
+
+        if kind is None:
+            st.error(
+                "Unrecognized column set. Expected either the wing span-load "
+                f"schema ({sorted(_WING_COLS)}) or the fuselage schema "
+                f"({sorted(_BODY_COLS)})."
+            )
+        else:
+            computed = wing_cases if kind == "wing" else body_cases
+            comp_labels = {c[0]: c[1] for c in computed} if computed else {}
+            st.success(f"Recognized as a {kind} span-load CSV — "
+                      f"{df['Case'].nunique()} case(s), {len(df)} rows.")
+            overlay_target = None
+            if comp_labels:
+                overlay_target = st.selectbox(
+                    f"Overlay against this computed {kind} case",
+                    list(comp_labels), format_func=lambda k: comp_labels[k])
+            for y_col in y_cols:
+                fig = go.Figure()
+                for case_name, grp in df.groupby("Case"):
+                    grp = grp.sort_values(x_col)
+                    fig.add_trace(go.Scatter(
+                        x=grp[x_col], y=grp[y_col], name=f"imported: {case_name}",
+                        mode="lines+markers", line=dict(dash="dash")))
+                if overlay_target is not None:
+                    ref = next(c for c in computed if c[0] == overlay_target)
+                    field = y_col.lower()
+                    if field in ref[3]:
+                        fig.add_trace(go.Scatter(
+                            x=ref[2], y=ref[3][field][2], name=f"computed: {comp_labels[overlay_target]}",
+                            mode="lines+markers"))
+                fig.update_layout(title=f"Imported vs computed — {y_col}",
+                                  xaxis_title=x_col, yaxis_title=y_col, height=360,
+                                  legend=dict(orientation="h"))
+                st.plotly_chart(fig, use_container_width=True)

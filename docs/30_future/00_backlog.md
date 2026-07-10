@@ -28,7 +28,7 @@ history, `CHANGELOG.md`).
 
 ## Current state (snapshot)
 
-**Shipped:** Phases 0–2, Phase-C Steps **C0–C11**, and Phase-D **Step D0–D6**
+**Shipped:** Phases 0–2, Phase-C Steps **C0–C11**, and Phase-D **Step D0–D7**
 (GUI defect fix; structured load-case IDs; six-section navigation restructure;
 Start-page local-disk persistence; authoritative shared inputs + Aero
 Coefficients page; Envelopes & Critical Conditions section; Analysis merged
@@ -74,26 +74,16 @@ see `40_history/00_completed_development.md` → "Phase D — Step D4". Step D5
 (Envelopes & Critical Conditions section) shipped 2026-07-09 — see
 `40_history/00_completed_development.md` → "Phase D — Step D5". Step D6
 (Analysis merged into nine component pages) shipped 2026-07-09 — see
-`40_history/00_completed_development.md` → "Phase D — Step D6".
-**Step D7 (below) is now the active step.** Invariant throughout: no calc-math
+`40_history/00_completed_development.md` → "Phase D — Step D6". Step D7
+(Loads Plots page) shipped 2026-07-09 — see
+`40_history/00_completed_development.md` → "Phase D — Step D7".
+**Step D8 (below) is now the active step.** Invariant throughout: no calc-math
 change — the Appendix A/B oracles pass unmodified at every step.
 
 Definition of done per step (in addition to the file-top DoD where it applies):
 pages follow the Phase-D page conventions (`02_gui_workflow_plan.md §5` —
 form+Apply, merge-writes, read-don't-re-ask, no airplane-shaped defaults), and
 the workflow-step ↔ registered-module test stays green.
-
-### Step D7 — Loads Plots page (new)
-
-Absorbs the former "per-module graphics audit" nicety.
-
-1. New consolidated page: pick a component → overlay shear/moment/torsion for
-   selected **case IDs**; show the enveloped spanwise curve; total-loads view.
-2. External-comparison import: start with the suite's own span-loads CSV
-   schema (generic mapping later — `02_gui_workflow_plan.md §8`).
-3. Graphics audit: confirm every plot the original program rendered (weight
-   envelope, V-n, spanwise/shear-BM-torsion, Mach lines, three-view) has a
-   Streamlit equivalent; close any gaps found.
 
 ### Step D8 — Export & report upgrades
 

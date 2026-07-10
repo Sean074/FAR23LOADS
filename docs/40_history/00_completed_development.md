@@ -10,6 +10,82 @@ Acceptance**, **Key decisions**.
 
 ---
 
+## Phase D — Step D7: Loads Plots page (complete, 2026-07-09)
+
+**Objective.** Add the sixth workflow section's page: a consolidated,
+read-only viewer over the distributed-load results the Analysis pages already
+persist on `Project.loads` — overlay shear/moment/torsion by case ID, an
+enveloped (max |value|) curve, a wing+fuselage whole-airframe snapshot, and an
+external-comparison CSV import — plus the "confirm every plot the original
+suite rendered has a Streamlit equivalent" graphics audit. Pure GUI/view-layer
+step, no calc-math change; no new `Project` slice, so `SCHEMA_VERSION` stays
+at 19.
+
+**Deliverables.**
+- `app/views/loads_plots.py` (new): component picker (Wing / Fuselage /
+  Horizontal Tail / Vertical Tail / Aileron / Flap / Tab — the six
+  `case_ids.py` structural-component prefixes, control surfaces folded into
+  their host per the D-1 taxonomy) reading `Project.loads.wing_net` /
+  `body_net` / `tail_chordwise` / `control_surface`; a case-ID multiselect per
+  component; one overlay figure per load quantity (thin trace per selected
+  case + a dotted max-|value| envelope trace); a "Total loads" section
+  combining one wing case + one fuselage case into a single two-subplot figure
+  (shear on the primary axis, moments on a secondary axis); and a CSV importer
+  that reuses `farloads.export.sbeam_bridge.span_load_csv` /
+  `body_span_load_csv`'s exact column schema, auto-detects wing vs. fuselage
+  shape by column-subset match, and overlays the imported curve (dashed)
+  against a computed one. Writes nothing back to `Project` — no `st.form`/
+  Apply (page convention #1 doesn't apply to a pure viewer).
+- `farloads/workflow.py`: one new `WorkflowStep("loads_plots", "Loads Plots",
+  LOADS_PLOTS, module=None, produces=None, ...)`, mirroring the other
+  GUI-only consolidation steps (`dashboard`, `results_review`,
+  `export_report`). This is the only step in the `LOADS_PLOTS` phase, so
+  `Home.py`'s existing "hide empty section" guard now shows "5 · Loads Plots"
+  in the sidebar with no `Home.py` change needed.
+- **Graphics audit (item 3): no gaps found.** Every plot an original program
+  rendered already has a Streamlit equivalent: weight/CG envelope
+  (`weight_envelope.py`), V-n diagram (`flight_envelope.py`), spanwise shear/
+  bending/torsion (`wing_loads.py`, `fuselage_loads.py`), Mach-limited speed
+  boundary (`mach_limit.py`), and the three-view (`configuration_layout.py`).
+  Engine Mount and Landing Gear are scalar reaction-load components with no
+  spanwise distribution to plot — the original suite never rendered a chart
+  for them either, so they are intentionally **not** in the Loads Plots
+  component picker (a locked design decision, see Key decisions).
+
+**Test / Acceptance.**
+- `tests/test_workflow.py` (the registered-module ↔ workflow-step guard) —
+  passes unchanged; `module=None` steps are already tolerated (three prior
+  precedents).
+- Full suite (`pytest -q`): 283 passed, no calc module touched.
+- Manual verification via `streamlit.testing.v1.AppTest` on
+  `app/views/loads_plots.py`: (1) an empty project shows the "visit an
+  Analysis page first" message with no exception; (2) `examples/ga6_normal
+  .project.json` run through `net_loads`/`taildist`/`aileron`/`flap`/`tab`
+  renders the wing-component overlay (3 quantity charts, no exception); (3)
+  `span_load_csv(project.loads.wing_net)`'s column set round-trips through the
+  page's wing/fuselage schema-detection logic correctly, including the
+  case where a wing CSV's columns are also a superset of the body schema (the
+  wing check is ordered first, so it always wins when both match).
+
+**Key decisions** (resolved with the user before implementation).
+- **Component-picker scope.** Distributed components only (wing, fuselage,
+  htail, vtail, aileron, flap, tab) — Engine Mount / Landing Gear stay off the
+  picker; they're scalar and have no curve to overlay, and the original suite
+  didn't plot them either.
+- **Envelope definition.** Max |value| per station across the selected case
+  IDs (the classic structural-design envelope), not SELECT's governing-set
+  filter — the user picks the cases to overlay freely.
+- **Total-loads view.** A combined wing+fuselage figure (one case each), not
+  just a metrics table — gives a whole-airframe-at-a-glance read.
+- **Import schema.** Reuses the existing `sbeam_bridge` span-load export
+  schema exactly rather than inventing a new generic station/value mapping —
+  a user can export, optionally round-trip through sbeam, and re-import to
+  compare on the same axes with zero new format to document. (The more
+  generic station/value CSV mapping remains a possible future extension, not
+  needed for this step.)
+
+---
+
 ## Phase D — Step D6: Merge Analysis into nine component pages (complete, 2026-07-09)
 
 **Objective.** Reorganize the 11 per-BAS-program Analysis pages into the target

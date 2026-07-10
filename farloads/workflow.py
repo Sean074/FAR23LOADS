@@ -153,7 +153,11 @@ STEPS: Tuple[WorkflowStep, ...] = (
                  produces="one_engine_out", bas="ONENGOUT",
                  summary="One-engine-out vertical-tail loads."),
 
-    # ---- Loads Plots: consolidated plots (new page lands in Step D7) --------- #
+    # ---- Loads Plots: consolidated plots (Step D7) --------------------------- #
+    WorkflowStep("loads_plots", "Loads Plots", LOADS_PLOTS,
+                 module=None, produces=None, bas=None,
+                 summary="Overlay shear/moment/torsion by case ID, envelope curves, "
+                         "whole-airframe view, and external-CSV comparison."),
 
     # ---- Export: hand off to downstream tools -------------------------------- #
     WorkflowStep("results_review", "Results Review", EXPORT,

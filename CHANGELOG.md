@@ -11,6 +11,21 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **Loads Plots page** (Phase D Step D7). New `app/views/loads_plots.py`, the
+  sixth workflow section: a read-only, consolidated viewer over the
+  distributed-load results already persisted on `Project.loads` by the
+  Analysis pages — a component picker (wing / fuselage / horizontal tail /
+  vertical tail / aileron / flap / tab), overlay plots by case ID with a
+  max-|value| envelope trace, a combined wing+fuselage "total loads" snapshot,
+  and an external-comparison CSV importer reusing
+  `farloads.export.sbeam_bridge.span_load_csv`/`body_span_load_csv`'s exact
+  column schema. `farloads/workflow.py` gains the `loads_plots` step
+  (`module=None`, like `dashboard`/`results_review`/`export_report`), which
+  makes "5 · Loads Plots" appear in `Home.py`'s sidebar automatically. Pure
+  GUI addition — no calc-math change, no new `Project` slice,
+  `SCHEMA_VERSION` unchanged at 19. The graphics audit (confirm every plot the
+  original suite rendered has a Streamlit equivalent) found no gaps.
+
 - **Analysis merged into nine component pages** (Phase D Step D6). The 11
   per-BAS-program Analysis pages are now 9: **Wing Loads**
   (`app/views/wing_loads.py`) merges AIRLOADS (Schrenk) + WINGINER + NETLOADS

@@ -260,9 +260,12 @@ Expected `SCHEMA_VERSION` bumps (older files must still load):
   fixed, documented enumeration order (component, then each minting module's
   own canonical condition order), no persisted registry. See `00_backlog.md`
   Step D1 and the D-1 sub-decisions above.
-- **Comparison-import format** for the Loads Plots page (D7): start with the
-  suite's own span-loads CSV schema; extend to a generic station/value CSV
-  mapping later if needed.
+- ~~**Comparison-import format** for the Loads Plots page (D7)~~ — **closed
+  2026-07-09**: implemented against the suite's own span-loads CSV schema
+  (`sbeam_bridge.span_load_csv`/`body_span_load_csv`), auto-detected by column
+  set; a generic station/value CSV mapping remains a possible future
+  extension, not needed for D7. See `00_backlog.md` → history, "Phase D —
+  Step D7".
 - **`xtc`/`xtf` (tail CP stations) page placement.** These stay on
   `flight_envelope.py` per the D-5 aero-ownership decision, even though they
   conceptually depend on flaps state (which now lives on the Aero
