@@ -59,39 +59,49 @@ with st.sidebar:
     system = UnitSystem.SI if out_label.startswith("SI") else UnitSystem.IMPERIAL
 
     st.header("Mission inputs")
-    airplane = st.text_input("Airplane", value=existing.airplane if existing else "")
-    hp = st.number_input("Max continuous HP (total)", min_value=1.0, max_value=3000.0,
-                         value=float(existing.max_continuous_hp) if existing else 265.0)
-    engines = st.number_input("Number of engines", min_value=1, max_value=6,
-                              value=existing.engines if existing else 1)
-    seats = st.number_input("Number of seats", min_value=1, max_value=12,
-                            value=existing.seats if existing else 6)
-    hours = st.number_input("Endurance at cruise power (hr)", min_value=0.1, max_value=10.0,
-                            value=float(existing.cruise_hours) if existing else 3.0)
-    baggage = st.number_input("Baggage weight (lb)", min_value=0.0,
-                              value=float(existing.baggage_lb) if existing else 0.0)
-    pressurized = st.checkbox("Pressurized", value=existing.pressurized if existing else False)
-    default_idx = _ENGINE_LABELS.index(
-        next((k for k, v in _ENGINE_TYPES.items() if existing and v == existing.engine_weight_type),
-             "4-cycle reciprocating")
+    with st.form("weight_estimate_form"):
+        airplane = st.text_input("Airplane", value=existing.airplane if existing else "")
+        hp = st.number_input("Max continuous HP (total)", min_value=0.0, max_value=3000.0,
+                             value=float(existing.max_continuous_hp) if existing else 0.0)
+        engines = st.number_input("Number of engines", min_value=1, max_value=6,
+                                  value=existing.engines if existing else 1)
+        seats = st.number_input("Number of seats", min_value=1, max_value=12,
+                                value=existing.seats if existing else 1)
+        hours = st.number_input("Endurance at cruise power (hr)", min_value=0.0, max_value=10.0,
+                                value=float(existing.cruise_hours) if existing else 0.0)
+        baggage = st.number_input("Baggage weight (lb)", min_value=0.0,
+                                  value=float(existing.baggage_lb) if existing else 0.0)
+        pressurized = st.checkbox("Pressurized", value=existing.pressurized if existing else False)
+        default_idx = _ENGINE_LABELS.index(
+            next((k for k, v in _ENGINE_TYPES.items() if existing and v == existing.engine_weight_type),
+                 "4-cycle reciprocating")
+        )
+        engine_label = st.selectbox("Engine type", _ENGINE_LABELS, index=default_idx)
+        applied = st.form_submit_button("Apply mission inputs", type="primary")
+
+if applied:
+    inp = WeightEstimationInput(
+        airplane=airplane,
+        max_continuous_hp=hp,
+        engines=int(engines),
+        seats=int(seats),
+        cruise_hours=hours,
+        baggage_lb=baggage,
+        pressurized=pressurized,
+        engine_weight_type=_ENGINE_TYPES[engine_label],
     )
-    engine_label = st.selectbox("Engine type", _ENGINE_LABELS, index=default_idx)
+    # Merge-write: keep any existing itemized weight data base and envelope,
+    # only the estimation inputs are this page's own.
+    items = project.weight.items if project.weight else []
+    envelope = project.weight.envelope if project.weight else None
+    project.weight = WeightInput(estimation=inp, items=items, envelope=envelope)
+    st.session_state["project"] = project
+    existing = inp
 
-inp = WeightEstimationInput(
-    airplane=airplane,
-    max_continuous_hp=hp,
-    engines=int(engines),
-    seats=int(seats),
-    cruise_hours=hours,
-    baggage_lb=baggage,
-    pressurized=pressurized,
-    engine_weight_type=_ENGINE_TYPES[engine_label],
-)
-
-# Persist into the shared project (keep any existing itemized weight data base).
-items = project.weight.items if project.weight else []
-project.weight = WeightInput(estimation=inp, items=items)
-st.session_state["project"] = project
+if existing is None:
+    st.info("No mission inputs yet -- fill in the sidebar and Apply mission inputs.")
+    st.stop()
+inp = existing
 
 try:
     results = estimate(inp)
@@ -114,7 +124,7 @@ st.caption(
 )
 if st.button("Seed Weight, CG & Inertia from this estimate"):
     seed_items = estimate_to_mass_items(inp)
-    project.weight = WeightInput(estimation=inp, items=seed_items)
+    project.weight = WeightInput(estimation=inp, items=seed_items, envelope=project.weight.envelope)
     st.session_state["project"] = project
     st.success(
         f"Seeded {len(seed_items)} component(s) into the weight data base. "
@@ -151,14 +161,17 @@ else:
     mtow = _estimate_value("Max take-off weight")
     oew = _estimate_value("Empty weight")
     if mtow and oew:
+        inp_engine_label = next(
+            (k for k, v in _ENGINE_TYPES.items() if v == inp.engine_weight_type), inp.engine_weight_type.value
+        )
         this_airplane = pd.DataFrame([{
-            "aircraft": airplane or "This airplane",
+            "aircraft": inp.airplane or "This airplane",
             "mtow_lb": mtow,
             "oew_lb": oew,
-            "max_hp": hp,
-            "engines": int(engines),
-            "engine_type": engine_label,
-            "seats": int(seats),
+            "max_hp": inp.max_continuous_hp,
+            "engines": inp.engines,
+            "engine_type": inp_engine_label,
+            "seats": inp.seats,
             "series": "This airplane",
         }])
         plot_df = pd.concat([fleet, this_airplane], ignore_index=True)

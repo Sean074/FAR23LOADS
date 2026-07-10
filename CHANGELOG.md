@@ -11,6 +11,24 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **Form+Apply conversion, Airplane section** (Phase D Step D4.7, closing
+  Phase D Step D4). `configuration_layout.py`, `wing_geometry.py`,
+  `weight_estimate.py`, `weight_cg_inertia.py` and `structural_speeds.py`
+  converted to `st.form`+explicit-Apply (matching `aero_coefficients.py`);
+  every remaining Appendix-A-shaped literal default in these pages (GA6
+  geometry, WTESTIMA mission figures, STRSPEED speeds/load-factor figures, the
+  WINGGEOM Appendix-A wing polyline) replaced with 0/blank/derived defaults.
+
+- **Engine write-back + mass-item overlay on the three-view** (Phase D Step
+  D4.6). The Configuration & Layout page's three-view now overlays a marker
+  per `Project.weight.items` `MassItem` (colored by `MassItemKind`, sized by
+  `weight_lb`) and a diamond marker per `Project.engines[]` entry at its
+  `engine_cg`, in all three views. A new "Engine positions (engine_cg)"
+  expander lets you numerically override each engine's X/Y/Z station
+  (defaulted to the current `engine_cg`); Apply writes back into
+  `Project.engines` and re-renders the marker. Page-only change — no
+  calc-math, no schema change.
+
 - **True CG from `Project.mass`** (Phase D Step D4.5). New
   `farloads/modules/configuration.cg_estimate(project, layout, geom)` returns
   the weight-averaged CG station from `Project.mass.cases[0]` (WTONECG's
@@ -97,6 +115,16 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   `SCHEMA_VERSION` 16 → 17 (additive; omitted from the JSON when blank, so
   existing files round-trip unchanged). `projects/` is git-ignored. No
   calc-math change.
+
+### Fixed
+
+- **`project.weight` merge-write dropped `envelope`.** `configuration_layout.
+  py`'s station-seed button and both `project.weight` writes in
+  `weight_estimate.py`/`weight_cg_inertia.py` rebuilt `WeightInput` without
+  carrying forward `.envelope`, silently discarding the Weight Envelope
+  page's inputs on the next save from any of those three pages. Found while
+  verifying the Phase D Step D4 regression DoD item; all three now pass
+  `envelope=project.weight.envelope` through.
 
 ### Changed
 

@@ -15,6 +15,7 @@ There is no manual oracle for this page; concept results are first-order estimat
 from __future__ import annotations
 
 import math
+from collections import defaultdict
 from dataclasses import replace
 from pathlib import Path
 
@@ -24,7 +25,7 @@ import plotly.graph_objects as go
 import streamlit as st
 from plotly.subplots import make_subplots
 
-from farloads import LayoutInput, Project, WeightInput
+from farloads import LayoutInput, MassItemKind, Project, WeightInput
 from farloads.modules.configuration import (
     cg_estimate,
     component_stations,
@@ -43,13 +44,7 @@ st.caption(
 )
 
 project: Project = st.session_state.get("project", Project(name=""))
-layout = project.configuration or LayoutInput(
-    fuselage_length=300.0, fuselage_width=48.0, fuselage_height=60.0,
-    wing_area_sqft=174.0, aspect_ratio=6.0, taper_ratio=0.6,
-    dihedral_deg=3.0, le_sweep_deg=2.0, le_root_x=90.0, root_waterline_z=40.0,
-    h_tail_area=30.0, h_tail_arm=180.0, v_tail_area=18.0, v_tail_arm=175.0,
-    nose_gear_x=30.0, main_gear_x=150.0, track=90.0, gear_height=35.0,
-)
+layout = project.configuration or LayoutInput()
 
 
 # --------------------------------------------------------------------------- #
@@ -61,32 +56,53 @@ def _num(label: str, value: float, key: str, step: float = 1.0) -> float:
 
 with st.sidebar:
     st.header("Geometry (inches / ft²)")
-    with st.expander("Fuselage", expanded=True):
-        layout.fuselage_length = _num("Length (in)", layout.fuselage_length, "f_len")
-        layout.fuselage_width = _num("Width (in)", layout.fuselage_width, "f_wid")
-        layout.fuselage_height = _num("Height (in)", layout.fuselage_height, "f_hgt")
-        layout.datum_x = _num("Nose datum station (in)", layout.datum_x, "f_dat")
-    with st.expander("Wing", expanded=True):
-        layout.wing_area_sqft = _num("Area S (ft²)", layout.wing_area_sqft, "w_area")
-        layout.aspect_ratio = _num("Aspect ratio", layout.aspect_ratio, "w_ar", 0.1)
-        layout.taper_ratio = _num("Taper ratio", layout.taper_ratio, "w_taper", 0.05)
-        layout.le_sweep_deg = _num("LE sweep (deg)", layout.le_sweep_deg, "w_sweep", 0.5)
-        layout.dihedral_deg = _num("Dihedral (deg)", layout.dihedral_deg, "w_dih", 0.5)
-        layout.le_root_x = _num("LE root station (in)", layout.le_root_x, "w_lex")
-        layout.root_waterline_z = _num("Root waterline (in)", layout.root_waterline_z, "w_wl")
-    with st.expander("Tail"):
-        layout.h_tail_area = _num("H-tail area (ft²)", layout.h_tail_area, "h_area")
-        layout.h_tail_arm = _num("H-tail arm (in)", layout.h_tail_arm, "h_arm")
-        layout.v_tail_area = _num("V-tail area (ft²)", layout.v_tail_area, "v_area")
-        layout.v_tail_arm = _num("V-tail arm (in)", layout.v_tail_arm, "v_arm")
-    with st.expander("Landing gear"):
-        layout.nose_gear_x = _num("Nose gear station (in)", layout.nose_gear_x, "g_nose")
-        layout.main_gear_x = _num("Main gear station (in)", layout.main_gear_x, "g_main")
-        layout.track = _num("Track (in)", layout.track, "g_track")
-        layout.gear_height = _num("Gear height (in)", layout.gear_height, "g_hgt")
+    with st.form("layout_form"):
+        with st.expander("Fuselage", expanded=True):
+            fuselage_length = _num("Length (in)", layout.fuselage_length, "f_len")
+            fuselage_width = _num("Width (in)", layout.fuselage_width, "f_wid")
+            fuselage_height = _num("Height (in)", layout.fuselage_height, "f_hgt")
+            datum_x = _num("Nose datum station (in)", layout.datum_x, "f_dat")
+        with st.expander("Wing", expanded=True):
+            wing_area_sqft = _num("Area S (ft²)", layout.wing_area_sqft, "w_area")
+            aspect_ratio = _num("Aspect ratio", layout.aspect_ratio, "w_ar", 0.1)
+            taper_ratio = _num("Taper ratio", layout.taper_ratio, "w_taper", 0.05)
+            le_sweep_deg = _num("LE sweep (deg)", layout.le_sweep_deg, "w_sweep", 0.5)
+            dihedral_deg = _num("Dihedral (deg)", layout.dihedral_deg, "w_dih", 0.5)
+            le_root_x = _num("LE root station (in)", layout.le_root_x, "w_lex")
+            root_waterline_z = _num("Root waterline (in)", layout.root_waterline_z, "w_wl")
+        with st.expander("Tail"):
+            h_tail_area = _num("H-tail area (ft²)", layout.h_tail_area, "h_area")
+            h_tail_arm = _num("H-tail arm (in)", layout.h_tail_arm, "h_arm")
+            v_tail_area = _num("V-tail area (ft²)", layout.v_tail_area, "v_area")
+            v_tail_arm = _num("V-tail arm (in)", layout.v_tail_arm, "v_arm")
+        with st.expander("Landing gear"):
+            nose_gear_x = _num("Nose gear station (in)", layout.nose_gear_x, "g_nose")
+            main_gear_x = _num("Main gear station (in)", layout.main_gear_x, "g_main")
+            track = _num("Track (in)", layout.track, "g_track")
+            gear_height = _num("Gear height (in)", layout.gear_height, "g_hgt")
+        applied = st.form_submit_button("Apply geometry", type="primary")
 
-project.configuration = layout
-st.session_state["project"] = project
+if applied:
+    # This page owns the whole configuration slice, so a wholesale replace on
+    # Apply is correct here (unlike a slice shared with other pages/edits).
+    layout = LayoutInput(
+        fuselage_length=fuselage_length, fuselage_width=fuselage_width,
+        fuselage_height=fuselage_height, datum_x=datum_x,
+        wing_area_sqft=wing_area_sqft, aspect_ratio=aspect_ratio, taper_ratio=taper_ratio,
+        dihedral_deg=dihedral_deg, le_sweep_deg=le_sweep_deg, le_root_x=le_root_x,
+        root_waterline_z=root_waterline_z,
+        h_tail_area=h_tail_area, h_tail_arm=h_tail_arm, v_tail_area=v_tail_area, v_tail_arm=v_tail_arm,
+        nose_gear_x=nose_gear_x, main_gear_x=main_gear_x, track=track, gear_height=gear_height,
+    )
+    project.configuration = layout
+    st.session_state["project"] = project
+
+if project.configuration is None:
+    st.info(
+        "No geometry defined yet -- fill in at least the wing area and aspect "
+        "ratio in the sidebar and Apply geometry."
+    )
+    st.stop()
 
 # --------------------------------------------------------------------------- #
 # Derived assessment
@@ -167,12 +183,86 @@ def _three_view() -> go.Figure:
                         mode="markers", marker=dict(color="#555", size=8), showlegend=False, row=1, col=3)
     fig.update_yaxes(scaleanchor="x", scaleratio=1, row=1, col=3)
 
+    # --- Mass-item overlay (Step D4.6): one marker group per MassItemKind, ---
+    # --- sized by weight, in all three views.                             ---
+    _KIND_COLORS = {
+        MassItemKind.EMPTY: "#7f7f7f",
+        MassItemKind.MINIMUM: "#ff7f0e",
+        MassItemKind.DISCRETIONARY: "#17becf",
+    }
+
+    def _marker_size(weight_lb: float) -> float:
+        return max(6.0, min(24.0, 6.0 + weight_lb ** 0.5))
+
+    mass_items = project.weight.items if project.weight else []
+    groups = defaultdict(list)
+    for it in mass_items:
+        groups[it.kind].append(it)
+    for kind, items in groups.items():
+        color = _KIND_COLORS.get(kind, "#000000")
+        sizes = [_marker_size(it.weight_lb) for it in items]
+        names = [f"{it.name} ({it.weight_lb:.0f} lb)" for it in items]
+        marker = dict(color=color, size=sizes, opacity=0.6, symbol="circle")
+        fig.add_scatter(x=[it.x for it in items], y=[it.y for it in items], mode="markers",
+                        marker=marker, name=f"{kind.value} items", text=names, hoverinfo="text",
+                        row=1, col=1)
+        fig.add_scatter(x=[it.x for it in items], y=[it.z for it in items], mode="markers",
+                        marker=marker, text=names, hoverinfo="text", showlegend=False, row=1, col=2)
+        fig.add_scatter(x=[it.y for it in items], y=[it.z for it in items], mode="markers",
+                        marker=marker, text=names, hoverinfo="text", showlegend=False, row=1, col=3)
+
+    # --- Engine overlay: one marker per Project.engines[] entry, at engine_cg. ---
+    engines = project.engines or []
+    if engines:
+        ex = [e.engine_cg[0] for e in engines]
+        ey = [e.engine_cg[1] for e in engines]
+        ez = [e.engine_cg[2] for e in engines]
+        labels = [e.engine_designation or f"Engine {i + 1}" for i, e in enumerate(engines)]
+        eng_marker = dict(color="#9467bd", size=13, symbol="diamond")
+        fig.add_scatter(x=ex, y=ey, mode="markers", marker=eng_marker, name="Engines",
+                        text=labels, hoverinfo="text", row=1, col=1)
+        fig.add_scatter(x=ex, y=ez, mode="markers", marker=eng_marker,
+                        text=labels, hoverinfo="text", showlegend=False, row=1, col=2)
+        fig.add_scatter(x=ey, y=ez, mode="markers", marker=eng_marker,
+                        text=labels, hoverinfo="text", showlegend=False, row=1, col=3)
+
     fig.update_layout(height=360, margin=dict(l=10, r=10, t=30, b=10),
                       legend=dict(orientation="h", y=1.2, x=0))
     return fig
 
 
 st.plotly_chart(_three_view(), use_container_width=True)
+
+# --------------------------------------------------------------------------- #
+# Engine position write-back (Step D4.6)
+# --------------------------------------------------------------------------- #
+if project.engines:
+    with st.expander("Engine positions (engine_cg)"):
+        st.caption(
+            "Numeric override of each engine's mount station (X/Y/Z, inches) -- "
+            "not drag-and-drop. Defaults to the current EngineInput.engine_cg; "
+            "Apply writes back and re-renders the diamond marker above."
+        )
+        overrides = []
+        for i, eng in enumerate(project.engines):
+            st.markdown(f"**{eng.engine_designation or f'Engine {i + 1}'}**")
+            c1, c2, c3 = st.columns(3)
+            x = c1.number_input("X (in)", value=float(eng.engine_cg[0]), key=f"eng_cg_x_{i}")
+            y = c2.number_input("Y (in)", value=float(eng.engine_cg[1]), key=f"eng_cg_y_{i}")
+            z = c3.number_input("Z (in)", value=float(eng.engine_cg[2]), key=f"eng_cg_z_{i}")
+            overrides.append((x, y, z))
+        if st.button("Apply engine positions"):
+            project.engines = [
+                replace(eng, engine_cg=xyz) for eng, xyz in zip(project.engines, overrides)
+            ]
+            st.session_state["project"] = project
+            st.success(f"Updated engine_cg for {len(overrides)} engine(s).")
+            st.rerun()
+else:
+    st.caption(
+        "No engines defined yet -- add one on the Engine Mount Loads page to see "
+        "it plotted on the three-view."
+    )
 
 # --------------------------------------------------------------------------- #
 # Assessment + seeding
@@ -229,7 +319,9 @@ with right:
                         item = replace(item, x=match[0], y=match[1], z=match[2])
                         seeded += 1
                 new_items.append(item)
-            project.weight = WeightInput(estimation=project.weight.estimation, items=new_items)
+            project.weight = WeightInput(
+                estimation=project.weight.estimation, items=new_items, envelope=project.weight.envelope,
+            )
             st.session_state["project"] = project
             if seeded:
                 st.success(

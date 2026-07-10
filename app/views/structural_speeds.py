@@ -44,63 +44,91 @@ has_weight_db = mtow_upstream > 0
 
 with st.sidebar:
     st.header("Inputs (Imperial / KEAS)")
-    cat_default = next((k for k, v in _CATS.items() if existing and v == existing.category), "Normal / commuter")
-    cat_label = st.selectbox("Category", _CAT_LABELS, index=_CAT_LABELS.index(cat_default))
-    if has_weight_db:
-        override_weight = st.checkbox(
-            "Override design weight", value=False,
-            help="Uncheck to use the Weight DB total (Weight, CG & Inertia page).",
-        )
-        if override_weight:
-            weight = st.number_input("Design (gross) weight (lb)", min_value=1.0,
-                                     value=float(existing.weight_lb) if existing and existing.weight_lb
-                                     else mtow_upstream)
-        else:
-            weight = mtow_upstream
+    with st.form("structural_speeds_form"):
+        cat_default = next((k for k, v in _CATS.items() if existing and v == existing.category), "Normal / commuter")
+        cat_label = st.selectbox("Category", _CAT_LABELS, index=_CAT_LABELS.index(cat_default))
+
+        # Both the DB-read and the override are always rendered (forms don't
+        # react live to a checkbox) -- which one wins is decided at Apply.
+        if has_weight_db:
             st.caption(f"Design weight from the Weight DB: **{mtow_upstream:,.0f} lb**.")
-    else:
-        weight = st.number_input("Design (gross) weight (lb)", min_value=0.0,
-                                 value=float(existing.weight_lb) if existing and existing.weight_lb else 0.0)
-        if not weight:
-            st.info(
+            override_weight = st.checkbox(
+                "Override design weight", value=False,
+                help="Uncheck to use the Weight DB total (Weight, CG & Inertia page).",
+            )
+            weight_override = st.number_input(
+                "Design (gross) weight override (lb)", min_value=0.0,
+                value=float(existing.weight_lb) if existing and existing.weight_lb else mtow_upstream,
+            )
+        else:
+            override_weight = True
+            weight_override = st.number_input(
+                "Design (gross) weight (lb)", min_value=0.0,
+                value=float(existing.weight_lb) if existing and existing.weight_lb else 0.0,
+            )
+            st.caption(
                 "No weight data base found. Add items on the **Weight, CG & Inertia** "
                 "page, or enter the design weight directly above."
             )
-    if has_wing:
-        st.caption("Wing area read from the Wing Geometry page.")
-        wing_area = None
-    else:
-        wing_area = st.number_input("Wing area S (ft²)", min_value=0.0,
-                                    value=float(existing.wing_area_sqft) if existing and existing.wing_area_sqft
-                                    else 0.0)
-        if not wing_area:
-            st.info(
+
+        if has_wing:
+            st.caption("Wing area read from the Wing Geometry page.")
+            wing_area = None
+        else:
+            wing_area = st.number_input("Wing area S (ft²)", min_value=0.0,
+                                        value=float(existing.wing_area_sqft) if existing and existing.wing_area_sqft
+                                        else 0.0)
+            st.caption(
                 "No wing geometry found. Define the wing on the **Configuration & "
                 "Layout** or **Wing Geometry** page, or enter the wing area directly above."
             )
-    vh = st.number_input("Max sea-level speed VH (kt)", min_value=1.0,
-                         value=float(existing.vh_kt) if existing else 190.0)
-    vs = st.number_input("Stall speed, flaps up VS (kt)", min_value=1.0,
-                         value=float(existing.stall_clean_kt) if existing else 62.226)
-    vsf = st.number_input("Stall speed, flaps down VSF (kt)", min_value=1.0,
-                          value=float(existing.stall_flap_kt) if existing else 58.611)
-    alt = st.number_input("Shoulder altitude (ft)", min_value=0.0,
-                          value=float(existing.shoulder_altitude_ft) if existing else 12000.0)
-    st.subheader("Chosen speeds (blank = use minimum)")
-    vc = st.number_input("Chosen cruise VC (kt)", min_value=0.0,
-                         value=float(existing.chosen_vc) if existing and existing.chosen_vc else 170.0)
-    vd = st.number_input("Chosen dive VD (kt)", min_value=0.0,
-                         value=float(existing.chosen_vd) if existing and existing.chosen_vd else 212.5)
+        vh = st.number_input("Max sea-level speed VH (kt)", min_value=0.0,
+                             value=float(existing.vh_kt) if existing else 0.0)
+        vs = st.number_input("Stall speed, flaps up VS (kt)", min_value=0.0,
+                             value=float(existing.stall_clean_kt) if existing else 0.0)
+        vsf = st.number_input("Stall speed, flaps down VSF (kt)", min_value=0.0,
+                              value=float(existing.stall_flap_kt) if existing else 0.0)
+        alt = st.number_input("Shoulder altitude (ft)", min_value=0.0,
+                              value=float(existing.shoulder_altitude_ft) if existing else 0.0)
+        st.subheader("Chosen speeds (blank = use minimum)")
+        vc = st.number_input("Chosen cruise VC (kt)", min_value=0.0,
+                             value=float(existing.chosen_vc) if existing and existing.chosen_vc else 0.0)
+        vd = st.number_input("Chosen dive VD (kt)", min_value=0.0,
+                             value=float(existing.chosen_vd) if existing and existing.chosen_vd else 0.0)
 
-    is_concept = _CATS[cat_label] == "C"
-    chosen_n = chosen_nneg = None
-    if is_concept:
-        st.subheader("Concept load factors (required)")
-        st.caption("No FAR 23.337 cap is applied — you set the limit maneuver factors.")
-        chosen_n = st.number_input("Limit positive load factor n", min_value=0.1,
-                                   value=float(existing.chosen_n) if existing and existing.chosen_n else 3.8)
+        st.subheader("Concept load factors (used only when Category = Concept (C))")
+        st.caption("No FAR 23.337 cap is applied to the Concept category — you set the limit maneuver factors.")
+        chosen_n = st.number_input("Limit positive load factor n", min_value=0.0,
+                                   value=float(existing.chosen_n) if existing and existing.chosen_n else 0.0)
         chosen_nneg = st.number_input("Limit negative load factor n_neg", max_value=0.0,
-                                      value=float(existing.chosen_nneg) if existing and existing.chosen_nneg else -1.52)
+                                      value=float(existing.chosen_nneg) if existing and existing.chosen_nneg else 0.0)
+        applied = st.form_submit_button("Apply", type="primary")
+
+if applied:
+    is_concept_submit = _CATS[cat_label] == "C"
+    weight = weight_override if (override_weight or not has_weight_db) else mtow_upstream
+    inp = StructuralSpeedsInput(
+        category=_CATS[cat_label],
+        weight_lb=weight,
+        wing_area_sqft=wing_area,
+        vh_kt=vh,
+        stall_clean_kt=vs,
+        stall_flap_kt=vsf,
+        shoulder_altitude_ft=alt,
+        chosen_vc=vc or None,
+        chosen_vd=vd or None,
+        chosen_n=chosen_n if is_concept_submit else None,
+        chosen_nneg=chosen_nneg if is_concept_submit else None,
+    )
+    project.speeds = inp
+    st.session_state["project"] = project
+    existing = inp
+
+if existing is None:
+    st.info("No structural-speeds inputs yet -- fill in the sidebar and Apply.")
+    st.stop()
+inp = existing
+is_concept = inp.category == "C"
 
 if is_concept:
     st.warning(
@@ -108,22 +136,6 @@ if is_concept:
         "the FAR 23 ≤12,500 lb calibration band. The statistical weight estimate is "
         "a sanity figure only — use the itemized weight data base as the design weight."
     )
-
-inp = StructuralSpeedsInput(
-    category=_CATS[cat_label],
-    weight_lb=weight,
-    wing_area_sqft=wing_area,
-    vh_kt=vh,
-    stall_clean_kt=vs,
-    stall_flap_kt=vsf,
-    shoulder_altitude_ft=alt,
-    chosen_vc=vc or None,
-    chosen_vd=vd or None,
-    chosen_n=chosen_n,
-    chosen_nneg=chosen_nneg,
-)
-project.speeds = inp
-st.session_state["project"] = project
 
 try:
     results = design_speeds(project, inp)

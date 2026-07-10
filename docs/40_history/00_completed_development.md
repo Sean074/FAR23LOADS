@@ -10,6 +10,98 @@ Acceptance**, **Key decisions**.
 
 ---
 
+## Phase D — Step D4: Authoritative shared inputs + Aero Coefficients page (complete, 2026-07-09)
+
+**Objective.** Kill duplicate wing-area/MAC/weight/CG entry across the
+Airplane-section pages, remove Appendix-A-shaped widget defaults from those
+pages, seed component stations into the Weight DB, compute the true CG from
+`Project.mass`, wire up engine three-view write-back, and apply the Phase-D
+page conventions (`02_gui_workflow_plan.md §5` — `st.form`+Apply, merge-writes,
+read-don't-re-ask, no airplane-shaped defaults) across the section. Design
+decisions locked 2026-07-09 (`02_gui_workflow_plan.md` §3 D-5). No calc-math
+change throughout — Appendix A/B oracles pass unmodified at every sub-step.
+
+**Deliverables (D4.1–D4.7).**
+- **D4.1 — `Project.aero_coeffs` slice.** New `AeroCoefficientsInput`
+  (`cruise`/`flaps_down` `AeroCoeffSet`s) replaces `FlightLoadsInput.
+  configurations`; `SCHEMA_VERSION` 17 → 18 with a legacy-file migration
+  (`io._legacy_aero_coeffs_from_flight_loads`); new `aero_coefficients`
+  workflow step; `select`/`balloads` read the new slice via
+  `select._flaps_by_config_name`.
+- **D4.2 — Aero Coefficients page.** `app/views/aero_coefficients.py` owns the
+  whole slice as a single `st.form`+Apply (cruise + optional flaps-down
+  coefficient tables, 0/blank defaults); `flight_envelope.py` dropped its
+  interim cruise-coefficient editor for a read-only caption + a
+  no-aero-coefficients guard.
+- **D4.3 — Station derivation + Weight DB seeding.** `configuration.
+  component_stations(layout) -> Dict[str, Vec3]` and `match_component_station`
+  (alias substring matching, most-specific first) derive approximate component
+  stations from `LayoutInput`'s existing scalars, no new schema; a
+  "Seed component stations into Weight DB" button on `configuration_layout.py`
+  fills only zero-station `MassItem`s, never overwriting a hand-entered one.
+- **D4.4 — `XLEMAC`/`MAC`/weight read-through.** `structural_speeds.py` and
+  `weight_envelope.py` read the Weight DB total
+  (`project.weight.direct_totals()[0]`) read-only with an explicit "Override"
+  checkbox, replacing hardcoded `3400.0`/`184.125`-shaped fallbacks with
+  0/info-message defaults when no Weight DB exists.
+- **D4.5 — True CG from `Project.mass`.** `configuration.cg_estimate(project,
+  layout, geom) -> (x_cg, z_cg, source)` returns the weight-averaged station
+  from `Project.mass.cases[0]` when present, else the prior 25%-MAC/wing-
+  waterline first cut; the gear tip-back/overturn condition and the three-view
+  CG marker both switch to it automatically, with the source named in the
+  label/legend.
+- **D4.6 — Engine write-back + mass-item overlay.** The three-view overlays a
+  marker per `Project.weight.items` `MassItem` (colored by `MassItemKind`,
+  sized by weight) and a diamond per `Project.engines[]` at its `engine_cg`; a
+  new "Engine positions" expander offers numeric X/Y/Z overrides (not
+  drag-and-drop) that write back into `Project.engines[i].engine_cg` and
+  re-render via `st.rerun()`.
+- **D4.7 — Form+Apply conversion.** `configuration_layout.py`, `wing_geometry.
+  py`, `weight_estimate.py`, `weight_cg_inertia.py` and `structural_speeds.py`
+  converted to `st.form`+explicit-Apply (matching `aero_coefficients.py` from
+  D4.2); every remaining Appendix-A-shaped literal default (GA6 wing/fuselage/
+  tail/gear geometry, WTESTIMA mission figures, STRSPEED VH/VS/VSF/altitude/
+  VC/VD/load-factor figures, the WINGGEOM Appendix-A wing polyline) replaced
+  with 0/blank/derived defaults; conditionally-hidden form fields (override
+  checkboxes, the Concept-category load-factor inputs) changed to always-
+  rendered-but-conditionally-applied, since `st.form` fields don't react live
+  to a sibling widget's value. While verifying the D4 regression check below,
+  found and fixed a **merge-write defect** predating D4.7: `configuration_
+  layout.py`'s station-seed button, and both `project.weight` writes in
+  `weight_estimate.py` and `weight_cg_inertia.py`, constructed a fresh
+  `WeightInput(estimation=..., items=...)` without carrying forward
+  `envelope`, silently dropping the Weight Envelope page's inputs on the next
+  write from any of those three pages — now all three pass `envelope=project.
+  weight.envelope` through.
+
+**Test/Acceptance.** `aero_coefficients` step registered and the nav-drift
+test (`tests/test_workflow.py`) green; `SCHEMA_VERSION` bump with an
+old-project-file load test (`tests/test_flight_envelope.py`); `tests/
+test_configuration.py` gained 8 direct-function tests across D4.3/D4.5
+(`component_stations`, `match_component_station`, `cg_estimate`); no automated
+UI test suite exists, so every page change was verified with a
+`streamlit.testing.v1.AppTest` script (blank project, populated project, and —
+where relevant — clicking Apply/seed buttons), each confirming no exception
+and the expected `Project` slice mutation. D4's regression DoD item — loading
+`examples/ga6_normal.project.json`, running the D4.3 seed logic, and comparing
+`design_speeds`/`weight_envelope.envelope` output before vs. after — confirmed
+bit-identical (the example's 24 items already carry real stations, so the seed
+is a no-op there; the check also caught the merge-write defect above, since
+the pre-fix seed silently cleared `weight.envelope` and made the "after" run
+raise instead of matching). Full suite: 277 tests pass throughout D4.1–D4.7,
+`ruff check farloads/ cli.py` clean at every sub-step.
+
+**Key decisions** (locked 2026-07-09, `02_gui_workflow_plan.md` §3 D-5): the
+default-scrub scope is the five Airplane-section pages + Aero Coefficients
+only (`flight_envelope`/`weight_envelope`/`mach_limit`/`airloads` keep their
+literals until their own D5/D6 rework); aero coefficients get a dedicated
+owned slice rather than nesting in `FlightLoadsInput`; component stations are
+derived from `LayoutInput`'s existing scalars rather than a new per-component
+sub-model; engine three-view write-back is numeric-override, not
+drag-and-drop, and landed in D4 rather than deferred.
+
+---
+
 ## Phase D — Step D3: Start (landing) page & local-disk persistence (complete, 2026-07-09)
 
 **Objective.** Decision D-3: give the locally-run app real project persistence —

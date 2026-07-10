@@ -128,7 +128,7 @@ chart + tables.
 - **Writes:** total weight, CG (x,y,z), and mass moments of inertia (Ixx, Iyy, Izz, products), output in **both slug-ft² and lb-in²** → `Project.mass`.
 - **Validation:** Appendix A/B — CG and inertia for the example loadings.
 - **Notes:** Per UG Table 2.2 / §4.5 the outputs split: **weight & CG → FLTLOADS, LANDLOAD**; **inertia → SELECT, ONENGOUT** (maneuver/gust balancing and unbalanced landing). Component inertia = transfer (parallel-axis) of each item about the airplane CG. Conceptually the same machinery as the engine/rotor inertia in `engloads`, at airplane scale — but ENGLOADS does **not** read `Project.mass` (it is standalone, UG Table 2.2).
-- **Implementation notes:** modules stay pure (`run → ModuleResult`); the persisted `Project.mass` slice (added at Step C6 with SELECT/LANDLOAD) holds the weight/CG/inertia results. `WTESTIMA`/`WTONECG` results are a **property table**, so they render via `report.results_to_rows` / `module_text_report` (not the engine-specific `load_cases_to_rows`). The UI offers an SI **output** toggle: a weight is pounds-*mass* and converts to kg, distinguished from a pounds-*force* load (→ N) by `LoadValue.quantity="mass"`; inertia (slug-ft²/lb-in²) → kg·m², CG positions in→mm, angle (deg) unchanged. Inputs are entered in Imperial. See `units.py`.
+- **Implementation notes:** modules stay pure (`run → ModuleResult`); the persisted `Project.mass` slice (added at Step C6 with SELECT/LANDLOAD) holds the weight/CG/inertia results. `WTESTIMA`/`WTONECG` results are a **property table**, so they render via `report.results_to_rows` / `module_text_report` (not the engine-specific `load_cases_to_rows`). The UI offers an SI **output** toggle: a weight is pounds-*mass* and converts to kg, distinguished from a pounds-*force* load (→ N) by `LoadValue.quantity="mass"`; inertia (slug-ft²/lb-in²) → kg·m², CG positions in→mm, angle (deg) unchanged. Inputs are entered in Imperial. See `units.py`. **`Project.weight` merge-write rule (fixed Step D4.7):** `WeightInput` bundles `estimation`/`items`/`envelope`; every page that owns only one of the three (Weight Estimate → `estimation`, Weight/CG/Inertia → `items`, `configuration_layout`'s station-seed button → `items`) must reconstruct `WeightInput` with the *other two* read from the current `project.weight` and passed through unchanged, never omitted — an omitted field silently resets to its dataclass default (`None`/`[]`) on save. Only `weight_envelope.py` (the `envelope` owner) sets all three explicitly by design.
 
 ---
 
@@ -327,7 +327,9 @@ regression oracle**; Appendix A/B geometry is used only as a *sanity* fixture.
   tail areas+arms / gear); `Project.weight.envelope` (aft-gross %MAC for the static
   margin, optional); `Project.engine` (prop geometry for clearance, optional);
   `Project.mass` (the WTONECG itemized loading, optional — Step D4.5, see
-  `cg_estimate` below).
+  `cg_estimate` below). The page (not the calc) also reads `Project.weight.items`
+  and `Project.engines` to overlay markers on the three-view (Step D4.6, no calc
+  input).
 - **Writes:** derived MAC / XLEMAC / Y_MAC / AR / span (obtained by running the
   generated wing polylines through the WINGGEOM strip integrator — WINGGEOM stays
   the owner), horizontal tail volume, neutral-point %MAC + station, static margin,
@@ -354,7 +356,14 @@ regression oracle**; Appendix A/B geometry is used only as a *sanity* fixture.
   estimate") is surfaced as part of the `ConditionResult` label and the
   three-view CG-marker legend so the UI always states which one is in play.
   Prop ground clearance does not depend on the CG, so it is unaffected by
-  which source is active.
+  which source is active. (Step D4.6) `configuration_layout.py`'s three-view
+  overlays a marker per `Project.weight.items` `MassItem` in all three views —
+  grouped by `MassItemKind` (color) and sized by `weight_lb` — and a diamond
+  marker per `Project.engines[]` entry at its `engine_cg`; this is a
+  page-only, calc-free overlay (no new `ConditionResult`s). The page also
+  gains a per-engine numeric X/Y/Z override (not drag-and-drop), defaulted to
+  the current `EngineInput.engine_cg`, with an Apply button that writes back
+  into `Project.engines[i].engine_cg` and re-renders the marker.
 - **Validation:** **no oracle.** `tests/test_configuration.py` — analytic-vs-strip
   MAC consistency ±0.1%; Appendix A trapezoid plausibility (MAC 69.246 / MAC butt
   line 87.854, ±10%, since the real wing has an inboard strake); `component_stations`/

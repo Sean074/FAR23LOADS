@@ -66,158 +66,16 @@ Step D1 (structured load-case IDs) shipped 2026-07-08 — see
 (six-section navigation restructure) shipped 2026-07-08 — see
 `40_history/00_completed_development.md` → "Phase D — Step D2". Step D3
 (Start-page local-disk persistence) shipped 2026-07-09 — see
-`40_history/00_completed_development.md` → "Phase D — Step D3". **Step D4
-(below) is now the active step.** Invariant throughout: no calc-math
+`40_history/00_completed_development.md` → "Phase D — Step D3". Step D4
+(authoritative shared inputs + Aero Coefficients page) shipped 2026-07-09 —
+see `40_history/00_completed_development.md` → "Phase D — Step D4".
+**Step D5 (below) is now the active step.** Invariant throughout: no calc-math
 change — the Appendix A/B oracles pass unmodified at every step.
 
 Definition of done per step (in addition to the file-top DoD where it applies):
 pages follow the Phase-D page conventions (`02_gui_workflow_plan.md §5` —
 form+Apply, merge-writes, read-don't-re-ask, no airplane-shaped defaults), and
 the workflow-step ↔ registered-module test stays green.
-
-### Step D4 — Authoritative shared inputs + Aero Coefficients page
-
-Applies the page conventions to the Airplane section. Subsumes the C5
-"Configuration seeding follow-ups" (its tasks are folded into D4.3–D4.6).
-Design decisions locked 2026-07-09 (see `02_gui_workflow_plan.md` §3 D-5)
-before starting; sub-steps below are ordered — D4.1/D4.2 must land before
-D4.4 (which reads what D4.1 produces), D4.3 before D4.5/D4.6 (station data),
-D4.7 last (reworks pages the earlier sub-steps already touched).
-
-1. **D4.1 — Schema: new `Project.aero_coeffs` slice.** *(shipped 2026-07-09.)*
-   `models.py`: new
-   `AeroCoefficientsInput` holding `cruise: Optional[AeroCoeffSet]` and
-   `flaps_down: Optional[AeroCoeffSet]`. `FlightLoadsInput` keeps only balance geometry (`mac`,
-   `wing_area_sqft`, `xw`, `zw`, `xtc`, `xtf`, CG cases) and drops
-   `configurations`. `SCHEMA_VERSION` bump + `io.py` round-trip (older files
-   load with an empty/default `aero_coeffs`; a legacy `configurations` list
-   migrates via `io._legacy_aero_coeffs_from_flight_loads`). `workflow.py`: new
-   `aero_coefficients` step in the Airplane section (after
-   `structural_speeds`), `module=None`, `produces="aero_coeffs"`, no
-   `requires` (mirrors the other GUI-only steps — there is no calc behind pure
-   data entry); add `"aero_coeffs"` to the `flight_envelope` step's
-   `requires`. `select`/`balloads` (which paired V-n points to their flaps
-   state via `fl.configurations`) now read `Project.aero_coeffs` through a
-   shared `select._flaps_by_config_name` helper. A placeholder
-   `app/views/aero_coefficients.py` (read-only) fills the new nav slot so
-   `st.Page` has a file to resolve; `app/views/flight_envelope.py` keeps its
-   cruise-coefficient editor in the interim, now writing into
-   `project.aero_coeffs.cruise` (preserving any existing `.flaps_down`) — D4.2
-   moves that editor to the new page and adds the flaps-down table.
-2. **D4.2 — New Aero Coefficients page.** *(shipped 2026-07-09.)*
-   `app/views/aero_coefficients.py` (replacing the D4.1 read-only placeholder)
-   owns the whole `Project.aero_coeffs` slice as a single `st.form` + Apply:
-   a cruise coefficient table/stall-CL pair (defaults 0/blank, no Appendix-A
-   literals) plus an "include a flaps-down configuration" checkbox gating a
-   parallel flaps-down table; Apply wholesale-replaces `project.aero_coeffs`
-   with a fresh `AeroCoefficientsInput` (correct here — unlike a shared slice,
-   this page is the sole owner of the whole thing). `flight_envelope.py`
-   dropped the cruise-editor block entirely, added a guard ("no aero
-   coefficients found... enter them on the Aero Coefficients page first") next
-   to the existing `speeds`-missing guard, and now only shows a read-only
-   caption naming the cruise/flaps-down configuration in use; kept the
-   balance-geometry block and CG-cases block (CG cases stay deferred to D5).
-   Verified end-to-end with `streamlit.testing.v1.AppTest` (both pages render
-   without exceptions on the GA6 example; Apply round-trips the cruise set
-   unchanged; the flight_envelope guard fires when `aero_coeffs` is absent) —
-   no automated UI test suite exists yet, so this was a manual/scripted check,
-   not a pytest addition. No calc-math change; no schema change beyond D4.1.
-3. **D4.3 — Station derivation + Weight DB seeding.** *(shipped 2026-07-09.)*
-   `farloads/modules/configuration.py` gained `component_stations(layout) ->
-   Dict[str, Vec3]` (`wing`, `fuselage`, `h_tail`, `v_tail`, `tail` — area-
-   weighted h/v average for WTESTIMA's single lumped "Tail" item —
-   `main_gear`, `nose_gear`, `landing_gear` — weight-weighted ~3:1 main:nose
-   average; keys present depend on which layout scalars are set, no
-   fabricated zeros) and `match_component_station(name, stations)` (alias
-   substring matching, most-specific key first, e.g. "Horizontal tail" before
-   the lumped "tail" catch-all). Both pure, no schema change — engine(s) were
-   dropped from scope here since `EngineInput.engine_cg` already owns engine
-   position (Step D4.6 wires that up, not D4.3). `configuration_layout.py`
-   gained a "Seed component stations into Weight DB" button (same pattern as
-   "Seed wing geometry") that only fills a `MassItem.x/y/z` still at
-   `(0, 0, 0)` — never overwrites a hand-entered station — so it fills the
-   zeros `estimate_to_mass_items` leaves. Verified with
-   `streamlit.testing.v1.AppTest`: a zero-station item gets seeded, a
-   nonzero-station item is left untouched, an unmatched item name is left at
-   zero. `tests/test_configuration.py` covers the pure functions directly.
-4. **D4.4 — `XLEMAC`/`MAC`/weight read-through to WTENV/STRSPEED.** *(shipped
-   2026-07-09.)* Ownership stays `LayoutInput → wing_surface() →
-   Project.geometry → WTENV/STRSPEED` (per `PROGRAM_SPEC.md` — no direct
-   `LayoutInput → WeightEnvelopeInput` write; the existing "Seed wing
-   geometry" button already produces this path; wing-area read-through
-   already existed via the `has_wing` gate). `structural_speeds.py`: added
-   the weight read-through — `project.weight.direct_totals()[0]` (the Weight
-   DB total) drives `weight_lb` read-only with an "Override design weight"
-   checkbox when items are present; when absent, an info message ("Add items
-   on the Weight, CG & Inertia page...") replaces the old `3400.0`-shaped
-   fallback, and the wing-area fallback's literal default (`184.125`) is
-   likewise now `0.0` with its own info message. `weight_envelope.py`: same
-   read-through + override checkbox for its `gross` weight (this page already
-   requires a Weight DB to render, so the total is always available; only the
-   override control is new) — its `3400.0` default is gone. Both pages'
-   *other* literal defaults (VH/VS/VSF/altitude/VC/VD on Structural Speeds;
-   the CG-limit percentages on WTENV) are unchanged, deferred to D4.7 per the
-   locked default-scrub-scope decision (D-5). This is the item that kills the
-   duplicate wing-area/weight entry on Structural Speeds / Weight Envelope.
-   Verified with `streamlit.testing.v1.AppTest`: both pages pick up the Weight
-   DB total unedited, the override checkbox lets a different value through,
-   and the "no data" info messages fire (with a graceful `st.error`, not a
-   crash) when the upstream slice is absent; the GA6 example's stored
-   `speeds.weight_lb` (3400) already equals its Weight DB total, so the
-   Appendix A/B oracles are unaffected.
-5. **D4.5 — True CG from `Project.mass`.** *(shipped 2026-07-09.)*
-   `farloads/modules/configuration.py` gained `cg_estimate(project, layout,
-   geom) -> (x_cg, z_cg, source)`: the true weight-averaged station from
-   `Project.mass.cases[0]` (WTONECG's itemized loading) when present, else the
-   pre-D4.5 `xlemac + 0.25*mac` / wing-reference-waterline first cut —
-   `source` is `"Weight DB"` or `"25% MAC estimate"`. `_gear_condition` (the
-   tip-back/overturn/prop-clearance `ConditionResult`) uses it in place of the
-   inline first-cut, including the CG *height* (previously assumed equal to
-   the wing-reference waterline; now the real `z_cg`) — this is what satisfies
-   "tail ground-clearance checks recomputed": the tip-back/overturn angles
-   *are* the tail-strike-relevant figures already in this module, so they
-   sharpen automatically once a mass slice exists, with no separate check
-   needed. Prop ground clearance does not depend on the CG (engine/gear
-   geometry only), so it is unaffected either way — documented explicitly
-   rather than silently left alone. `configuration_layout.py`'s `_three_view()`
-   CG marker (both the top-view and side-view, the latter's height previously
-   hardcoded to `root_waterline_z`) now uses the same `cg_estimate` call, with
-   the source named in the marker's legend entry and the `ConditionResult`
-   label (`"CG station (Weight DB)"` / `"CG station (25% MAC estimate)"`) —
-   satisfying "a caption noting which source is in use." `Project.mass.cases`
-   is currently always a single case (the four structural-limit-loading ×
-   gear-up/down set is a later refinement per `weight_onecg.build_mass`'s own
-   docstring); `cg_estimate` picks `cases[0]` and documents that a multi-case
-   slice needs a representative-case choice revisited then. No schema change.
-   Verified: 3 new `tests/test_configuration.py` cases (fallback path, mass
-   path, and that the `ConditionResult` label reflects the active source) plus
-   a `streamlit.testing.v1.AppTest` run of `configuration_layout.py` with and
-   without `Project.mass` (no exceptions either way).
-6. **D4.6 — Engine write-back + mass-item overlay on the three-view.**
-   `_three_view()` gains a `project.weight`/`project.mass` argument and draws
-   a marker per `MassItem` (sized/colored by weight or kind) in all three
-   views. Per-engine numeric x/y/z override inputs (not drag-and-drop) default
-   to `EngineInput.engine_cg`; Apply writes back into `engine_cg` and
-   re-renders the marker. Subsumes "3-view with mass items overlaid" and the
-   engine-write-back clause.
-7. **D4.7 — Form+Apply conversion, Airplane section.** Applied last:
-   convert `configuration_layout.py`, `wing_geometry.py`, `weight_estimate.py`,
-   `weight_cg_inertia.py`, `structural_speeds.py`, and the new
-   `aero_coefficients.py` to the page conventions (§5): inputs in `st.form` +
-   explicit Apply, merge-write, remove remaining Appendix-A-shaped literals
-   from these six files down to 0/blank/derived defaults. Scope note: the
-   Appendix-A defaults on `flight_envelope`/`weight_envelope`/`mach_limit`/
-   `airloads` are **out of D4 scope** — they clean up under D5/D6 when those
-   pages get their own form+Apply rework.
-
-**Definition of done (D4-specific, in addition to the file-top DoD and the
-per-step DoD above):** `aero_coefficients` step registered and the nav-drift
-test green; `SCHEMA_VERSION` bumped with an old-project-file load test; no
-calc-math changes (D4 is schema/UI plumbing only) — Appendix A/B oracle tests
-pass unmodified; a regression test that loading
-`examples/ga6_normal.project.json` and running the D4.3 seed button produces
-the same downstream STRSPEED/WTENV/FLTLOADS results as entering the values by
-hand today.
 
 ### Step D5 — Envelopes & Critical Conditions section
 

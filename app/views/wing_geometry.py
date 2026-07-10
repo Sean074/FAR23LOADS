@@ -28,14 +28,6 @@ st.caption(
 
 project: Project = st.session_state.get("project", Project(name=""))
 geometry = project.geometry or GeometryInput()
-if not geometry.surfaces:
-    geometry = GeometryInput(surfaces=[
-        SurfaceInput(
-            name="wing", symmetric=True, elements=20,
-            leading_edge=[(45.0, 0.0), (64.31301, 46.5), (72.0, 201.0)],
-            trailing_edge=[(146.0, 0.0), (116.0, 201.0)],
-        ),
-    ])
 
 with st.sidebar:
     st.header("Output units")
@@ -43,29 +35,50 @@ with st.sidebar:
                          help="Surface point inputs below are entered in Imperial inches.")
     system = UnitSystem.SI if out_label.startswith("SI") else UnitSystem.IMPERIAL
 
-# Per-surface editable point tables.
-edited_surfaces = []
-for surf in geometry.surfaces:
-    with st.expander(f"Surface: {surf.name}", expanded=(surf.name == "wing")):
-        cols = st.columns(2)
-        with cols[0]:
-            sym = st.checkbox("Symmetric about CL", value=surf.symmetric, key=f"sym_{surf.name}")
-        with cols[1]:
-            elems = st.number_input("Integration elements", min_value=2, max_value=100,
-                                    value=int(surf.elements), key=f"el_{surf.name}")
-        le_df = st.data_editor(pd.DataFrame(surf.leading_edge, columns=["XLE", "YLE"]),
-                               num_rows="dynamic", key=f"le_{surf.name}")
-        te_df = st.data_editor(pd.DataFrame(surf.trailing_edge, columns=["XTE", "YTE"]),
-                               num_rows="dynamic", key=f"te_{surf.name}")
-        edited_surfaces.append(SurfaceInput(
-            name=surf.name, symmetric=sym, elements=int(elems),
+# Add a new (blank) surface -- immediate, not gated behind the edit form below.
+with st.form("add_surface_form", clear_on_submit=True):
+    new_name = st.text_input("New surface name", value="", placeholder="e.g. wing")
+    add_surface = st.form_submit_button("Add surface")
+if add_surface and new_name:
+    surfaces = list(geometry.surfaces) + [SurfaceInput(name=new_name, leading_edge=[], trailing_edge=[])]
+    project.geometry = GeometryInput(surfaces=surfaces)
+    st.session_state["project"] = project
+    st.rerun()
+
+if not geometry.surfaces:
+    st.info("No surfaces defined yet -- add one above (e.g. \"wing\") to enter its leading/trailing edge points.")
+    st.stop()
+
+# Per-surface editable point tables, applied together.
+with st.form("geometry_form"):
+    field_inputs = []
+    for surf in geometry.surfaces:
+        with st.expander(f"Surface: {surf.name}", expanded=(surf.name == "wing")):
+            cols = st.columns(2)
+            with cols[0]:
+                sym = st.checkbox("Symmetric about CL", value=surf.symmetric, key=f"sym_{surf.name}")
+            with cols[1]:
+                elems = st.number_input("Integration elements", min_value=2, max_value=100,
+                                        value=int(surf.elements), key=f"el_{surf.name}")
+            le_df = st.data_editor(pd.DataFrame(surf.leading_edge, columns=["XLE", "YLE"]),
+                                   num_rows="dynamic", key=f"le_{surf.name}")
+            te_df = st.data_editor(pd.DataFrame(surf.trailing_edge, columns=["XTE", "YTE"]),
+                                   num_rows="dynamic", key=f"te_{surf.name}")
+            field_inputs.append((surf.name, sym, elems, le_df, te_df))
+    applied = st.form_submit_button("Apply geometry", type="primary")
+
+if applied:
+    edited_surfaces = [
+        SurfaceInput(
+            name=name, symmetric=sym, elements=int(elems),
             leading_edge=[tuple(r) for r in le_df.dropna().to_numpy().tolist()],
             trailing_edge=[tuple(r) for r in te_df.dropna().to_numpy().tolist()],
-        ))
-
-geometry = GeometryInput(surfaces=edited_surfaces)
-project.geometry = geometry
-st.session_state["project"] = project
+        )
+        for name, sym, elems, le_df, te_df in field_inputs
+    ]
+    geometry = GeometryInput(surfaces=edited_surfaces)
+    project.geometry = geometry
+    st.session_state["project"] = project
 
 try:
     results = geometry_properties(geometry, project)

@@ -51,45 +51,53 @@ if items:
     ])
 else:
     default_df = pd.DataFrame([
-        {"name": "Item 1", "weight_lb": 0.0, "x": 0.0, "y": 0.0, "z": 0.0,
+        {"name": "", "weight_lb": 0.0, "x": 0.0, "y": 0.0, "z": 0.0,
          "ixx": 0.0, "iyy": 0.0, "izz": 0.0, "kind": "empty"}
     ])
 
 st.subheader("Weight data base")
 st.caption("Each row is a component: weight (lb) at station x/y/z (in), with its own inertia (lb-in²).")
-edited = st.data_editor(
-    default_df,
-    num_rows="dynamic",
-    use_container_width=True,
-    hide_index=True,
-    column_config={"kind": st.column_config.SelectboxColumn("kind", options=_KINDS)},
-)
+with st.form("weight_items_form"):
+    edited = st.data_editor(
+        default_df,
+        num_rows="dynamic",
+        use_container_width=True,
+        hide_index=True,
+        column_config={"kind": st.column_config.SelectboxColumn("kind", options=_KINDS)},
+    )
+    applied = st.form_submit_button("Apply weight items", type="primary")
 
-mass_items = []
-for _, row in edited.iterrows():
-    try:
-        kind = MassItemKind(str(row.get("kind", "empty")))
-    except ValueError:
-        kind = MassItemKind.EMPTY
-    mass_items.append(MassItem(
-        name=str(row.get("name", "")),
-        weight_lb=float(row.get("weight_lb", 0) or 0),
-        x=float(row.get("x", 0) or 0),
-        y=float(row.get("y", 0) or 0),
-        z=float(row.get("z", 0) or 0),
-        ixx=float(row.get("ixx", 0) or 0),
-        iyy=float(row.get("iyy", 0) or 0),
-        izz=float(row.get("izz", 0) or 0),
-        kind=kind,
-    ))
+if applied:
+    mass_items = []
+    for _, row in edited.iterrows():
+        try:
+            kind = MassItemKind(str(row.get("kind", "empty")))
+        except ValueError:
+            kind = MassItemKind.EMPTY
+        mass_items.append(MassItem(
+            name=str(row.get("name", "")),
+            weight_lb=float(row.get("weight_lb", 0) or 0),
+            x=float(row.get("x", 0) or 0),
+            y=float(row.get("y", 0) or 0),
+            z=float(row.get("z", 0) or 0),
+            ixx=float(row.get("ixx", 0) or 0),
+            iyy=float(row.get("iyy", 0) or 0),
+            izz=float(row.get("izz", 0) or 0),
+            kind=kind,
+        ))
+    # Merge-write: keep any existing estimation inputs and envelope, only the
+    # itemized data base is this page's own.
+    estimation = project.weight.estimation if project.weight else None
+    envelope = project.weight.envelope if project.weight else None
+    project.weight = WeightInput(estimation=estimation, items=mass_items, envelope=envelope)
+    st.session_state["project"] = project
 
-# Persist into the shared project (keep any existing estimation inputs).
-estimation = project.weight.estimation if project.weight else None
-project.weight = WeightInput(estimation=estimation, items=mass_items)
-st.session_state["project"] = project
+if not project.weight or not project.weight.items:
+    st.info("No weight items yet -- fill in the data base above and Apply weight items.")
+    st.stop()
 
 try:
-    result = weights_and_inertia(mass_items)
+    result = weights_and_inertia(project.weight.items)
 except ValueError as exc:
     st.warning(f"Add at least one non-zero weight item: {exc}")
     st.stop()
