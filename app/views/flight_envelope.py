@@ -16,7 +16,7 @@ import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
 
-from farloads import CgCase, FlightLoadsInput, Project
+from farloads import FlightLoadsInput, Project
 from farloads.modules.flight_envelope import build_envelope, run as flt_run
 from farloads.report import module_text_report
 
@@ -59,34 +59,38 @@ with st.sidebar:
     xtf = st.number_input("Tail CP X, flaps down XTF (in)", value=float(fl.xtf) or 261.027, format="%.3f")
     mn = st.number_input("Reference Mach (coeffs obtained at)", min_value=0.01,
                          value=float(fl.mn) or 0.1, format="%.3f")
-    altitude = st.number_input("Altitude (ft)", min_value=0.0,
-                               value=float(fl.altitudes_ft[0]) if fl.altitudes_ft else 0.0, step=1000.0)
 
 st.caption(
     f"Aero coefficients (from the **Aero Coefficients** page): cruise '{aero.cruise.name}'"
     + (f", flaps-down '{aero.flaps_down.name}'" if aero.flaps_down else "") + "."
 )
 
-st.subheader("Weight / CG cases")
-cg_default = pd.DataFrame(
-    [[c.name, c.weight_lb, c.xcg, c.zcg] for c in fl.cg_cases]
-    or [["CG1", 3400.0, 85.1, 93.0]],
-    columns=["name", "weight_lb", "xcg (in)", "zcg (in)"],
-)
-cg_df = st.data_editor(cg_default, num_rows="dynamic", hide_index=True, use_container_width=True)
-cg_cases = [
-    CgCase(name=str(r["name"]), weight_lb=float(r["weight_lb"]), xcg=float(r["xcg (in)"]),
-           zcg=float(r["zcg (in)"]))
-    for _, r in cg_df.iterrows()
-    if pd.notna(r["weight_lb"]) and pd.notna(r["xcg (in)"])
-]
+st.subheader("Altitudes (V-n balanced at each)")
+alt_default = pd.DataFrame({"altitude_ft": fl.altitudes_ft or [0.0]})
+alt_df = st.data_editor(alt_default, num_rows="dynamic", hide_index=True,
+                        use_container_width=True, key="altitudes_editor")
+altitudes_ft = sorted({float(v) for v in alt_df["altitude_ft"] if pd.notna(v)}) or [0.0]
 
-# Merge (never wholesale-replace) so a loaded project's extra altitudes
-# survive the page's persist path. Aero coefficients are owned by the Aero
-# Coefficients page (Step D4.2) -- this page only reads them.
+st.subheader("Weight / CG cases")
+cg_cases = project.weight.cg_cases if project.weight else []
+if not cg_cases:
+    st.warning(
+        "No loading scenarios found. Define them on the **Weight/CG Grid & Payload "
+        "Cases** page first — FLTLOADS balances over them."
+    )
+    st.stop()
+st.caption("Read from the **Weight/CG Grid & Payload Cases** page (not edited here).")
+st.dataframe(pd.DataFrame([
+    {"name": c.name, "weight_lb": c.weight_lb, "xcg (in)": c.xcg, "zcg (in)": c.zcg}
+    for c in cg_cases
+]), hide_index=True, use_container_width=True)
+
+# Merge (never wholesale-replace) so fields this page doesn't show survive the
+# persist path. Aero coefficients (Step D4.2) and CG cases (Step D5) are owned
+# by other pages -- this page only reads them.
 project.flight_loads = fl.merged(
     mac=mac, wing_area_sqft=s, xw=xw, zw=zw, xtc=xtc, xtf=xtf, mn=mn,
-    altitude_ft=altitude, cg_cases=cg_cases,
+    altitudes_ft=altitudes_ft, cg_cases=cg_cases,
 )
 st.session_state["project"] = project
 
@@ -104,24 +108,39 @@ except (ValueError, ZeroDivisionError) as exc:
     st.stop()
 
 cg_names = [c.name for c in cg_cases]
-selected = st.selectbox("Show CG case", cg_names) if cg_names else None
-pts = [p for p in env.vn if p.cg == selected]
+c1, c2 = st.columns([2, 1])
+selected_cg = c1.selectbox("Show CG case", cg_names) if cg_names else None
+overlay_all_alt = c2.checkbox("Overlay all altitudes", value=False)
+if overlay_all_alt:
+    selected_alt = None
+else:
+    selected_alt = c1.selectbox("Show altitude (ft)", altitudes_ft) if len(altitudes_ft) > 1 else altitudes_ft[0]
 
-# V-n diagram: maneuver corners (line) + gust + balancing points.
-man = [p for p in pts if p.condition.startswith(("STALL", "MAN"))]
-gust = [p for p in pts if p.condition.startswith("GUST")]
+pts = [p for p in env.vn if p.cg == selected_cg
+       and (overlay_all_alt or p.altitude_ft == selected_alt)]
+
+# V-n diagram: maneuver corners (line) + gust + balancing points, one trace per
+# altitude when overlaid (Step D5, multi-altitude V-n).
 fig = go.Figure()
-fig.add_trace(go.Scatter(x=[p.v_eas_kt for p in man], y=[p.nz for p in man],
-                         name="maneuver", mode="markers+lines"))
-fig.add_trace(go.Scatter(x=[p.v_eas_kt for p in gust], y=[p.nz for p in gust],
-                         name="gust", mode="markers"))
-fig.update_layout(title=f"V-n diagram — {selected}", xaxis_title="V (KEAS)",
+alts_to_plot = altitudes_ft if overlay_all_alt else [selected_alt]
+for alt in alts_to_plot:
+    alt_pts = [p for p in pts if p.altitude_ft == alt]
+    man = [p for p in alt_pts if p.condition.startswith(("STALL", "MAN"))]
+    gust = [p for p in alt_pts if p.condition.startswith("GUST")]
+    suffix = f" @ {alt:.0f} ft" if overlay_all_alt else ""
+    fig.add_trace(go.Scatter(x=[p.v_eas_kt for p in man], y=[p.nz for p in man],
+                             name=f"maneuver{suffix}", mode="markers+lines"))
+    fig.add_trace(go.Scatter(x=[p.v_eas_kt for p in gust], y=[p.nz for p in gust],
+                             name=f"gust{suffix}", mode="markers"))
+title_alt = "all altitudes" if overlay_all_alt else f"{selected_alt:.0f} ft"
+fig.update_layout(title=f"V-n diagram — {selected_cg}, {title_alt}", xaxis_title="V (KEAS)",
                   yaxis_title="Load factor NZ", legend=dict(orientation="h"), height=440)
 st.plotly_chart(fig, use_container_width=True)
 
 st.subheader("Balanced flight conditions")
 st.dataframe(pd.DataFrame({
     "case": [p.case for p in pts],
+    "altitude (ft)": [p.altitude_ft for p in pts],
     "condition": [p.condition for p in pts],
     "V (KEAS)": [round(p.v_eas_kt, 1) for p in pts],
     "NZ": [round(p.nz, 2) for p in pts],

@@ -111,18 +111,36 @@ def _ballast(wl: float, xl: float, wa: float, xa: float) -> Optional[Tuple[float
     return wb, (wl * xl - wa * xa) / wb
 
 
-def envelope(project: Project, inp: WeightEnvelopeInput) -> List[ConditionResult]:
-    """Compute the weight/CG envelope, structural limits and ballast."""
-    items = project.weight.items if project.weight else []
-    if not items:
-        raise ValueError("WTENV needs the itemized weight data base (weight.items)")
-
+def _item_buckets(items: List[MassItem]) -> Tuple[List[MassItem], List[MassItem], List[MassItem]]:
     empty = [it for it in items if it.kind == MassItemKind.EMPTY]
     minimum = [it for it in items if it.kind == MassItemKind.MINIMUM]
     discretionary = [
         it for it in items
         if it.kind == MassItemKind.DISCRETIONARY and not _is_ballast(it)
     ]
+    return empty, minimum, discretionary
+
+
+def loading_envelope_points(project: Project) -> List[Tuple[float, float]]:
+    """The forward-loading-envelope vertices (weight, station), most-forward-first.
+
+    Shared by :func:`envelope`'s own ballast calc and the Weight/CG Envelope
+    page's chart (Step D5) -- the same vertices, computed once."""
+    items = project.weight.items if project.weight else []
+    if not items:
+        return []
+    empty, minimum, discretionary = _item_buckets(items)
+    min_w, min_x = _weight_and_station(empty + minimum)
+    return _forward_sequence((min_w, min_x), discretionary)
+
+
+def envelope(project: Project, inp: WeightEnvelopeInput) -> List[ConditionResult]:
+    """Compute the weight/CG envelope, structural limits and ballast."""
+    items = project.weight.items if project.weight else []
+    if not items:
+        raise ValueError("WTENV needs the itemized weight data base (weight.items)")
+
+    empty, minimum, discretionary = _item_buckets(items)
 
     empty_w, empty_x = _weight_and_station(empty)
     min_w, min_x = _weight_and_station(empty + minimum)

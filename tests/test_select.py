@@ -138,6 +138,26 @@ def test_critical_set_round_trips_through_io():
     assert {"PHAA", "PLAA", "PMAA", "NMAA", "ACRL", "TORS"} <= labels
 
 
+def test_critical_load_set_selected_defaults_to_everything():
+    # Step D5: an empty selected_case_ids means "no filter" (backward compat).
+    p = _ga6_three_altitudes()
+    critical = select.build_critical(p)
+    assert critical.selected_case_ids == []
+    assert critical.selected() == critical.conditions
+
+
+def test_critical_load_set_selected_filters_to_case_ids():
+    p = _ga6_three_altitudes()
+    critical = select.build_critical(p)
+    wing_ids = [c.case_ref.case_id for c in critical.conditions
+                if c.component == "wing" and c.case_ref]
+    assert wing_ids
+    critical.selected_case_ids = wing_ids[:1]
+    kept = critical.selected()
+    assert len(kept) == 1
+    assert kept[0].case_ref.case_id == wing_ids[0]
+
+
 def test_select_uses_persisted_envelope_when_present():
     # When Project.envelope is already populated, SELECT searches it directly
     # rather than rebuilding from flight_loads.

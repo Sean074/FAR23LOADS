@@ -11,6 +11,25 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **Envelopes & Critical Conditions section** (Phase D Step D5,
+  `SCHEMA_VERSION` 18 → 19). New **Weight/CG Grid & Payload Cases** page
+  (`app/views/payload_cases.py`) owns a shared `WeightInput.cg_cases` list of
+  named loading scenarios; the Weight/CG Envelope page's chart overlays them
+  read-only against the forward-loading-envelope boundary, and the Flight
+  Envelope page reads them read-only and merges them into the calc-facing
+  `FlightLoadsInput.cg_cases` (unchanged for SELECT/WINGINER/NETLOADS/
+  BALLOADS), so the two views can no longer diverge. Old project files migrate
+  automatically (`io._legacy_cg_cases_from_flight_loads`). The Mach Limit
+  page's chart now overlays the VA/VC/VD/VF design speeds as reference lines
+  over the Mach-limit boundary. The Flight Envelope page exposes
+  `FlightLoadsInput.altitudes_ft` as a real, fully-editable list (multi-altitude
+  V-n), with a CG-case selector, an altitude selector and an "overlay all
+  altitudes" toggle on the V-n chart. The Critical Loads page adds a per-
+  condition opt-out checkbox persisted as `CriticalLoadSet.selected_case_ids`
+  (empty = unfiltered); Results Review's governing-loads summary honors it —
+  the structural calc modules and the sbeam export bridge are unaffected. No
+  calc-math change; Appendix A/B oracles pass unmodified.
+
 - **Form+Apply conversion, Airplane section** (Phase D Step D4.7, closing
   Phase D Step D4). `configuration_layout.py`, `wing_geometry.py`,
   `weight_estimate.py`, `weight_cg_inertia.py` and `structural_speeds.py`

@@ -13,11 +13,12 @@ Inputs are Imperial; an SI output toggle is offered (length -> mm, weight -> kg)
 from __future__ import annotations
 
 import pandas as pd
+import plotly.graph_objects as go
 import streamlit as st
 
 from farloads import Project, UnitSystem, WeightEnvelopeInput, WeightInput, convert_results
 from farloads import io as farloads_io
-from farloads.modules.weight_envelope import envelope as compute_envelope
+from farloads.modules.weight_envelope import envelope as compute_envelope, loading_envelope_points
 from farloads.report import module_text_report
 
 
@@ -80,16 +81,50 @@ inp = WeightEnvelopeInput(
 
 project.weight = WeightInput(
     estimation=project.weight.estimation, items=project.weight.items, envelope=inp,
+    cg_cases=project.weight.cg_cases,
 )
 st.session_state["project"] = project
 
 try:
-    results = compute_envelope(project, inp)
+    raw_results = compute_envelope(project, inp)
 except (ValueError, ZeroDivisionError) as exc:
     st.error(f"Could not compute the weight envelope: {exc}")
     st.stop()
 
-results = convert_results(results, system)
+# --------------------------------------------------------------------------- #
+# Loading-envelope chart: forward boundary + structural limits + the shared
+# loading scenarios (Step D5, Project.weight.cg_cases) overlaid read-only.
+# --------------------------------------------------------------------------- #
+limits_by_label = {v.label: v.value for v in raw_results[1].values}
+fwd_seq = loading_envelope_points(project)
+fig = go.Figure()
+if fwd_seq:
+    fig.add_trace(go.Scatter(
+        x=[x for _w, x in fwd_seq], y=[w for w, _x in fwd_seq],
+        mode="lines+markers", name="Forward loading envelope",
+    ))
+for label, key in [("Aft gross", "Aft gross station"), ("Forward gross", "Forward gross station"),
+                   ("Forward regardless", "Forward regardless station")]:
+    if key in limits_by_label:
+        fig.add_vline(x=limits_by_label[key], line_dash="dash",
+                      annotation_text=label, annotation_position="top")
+if project.weight.cg_cases:
+    fig.add_trace(go.Scatter(
+        x=[c.xcg for c in project.weight.cg_cases], y=[c.weight_lb for c in project.weight.cg_cases],
+        mode="markers+text", name="Loading scenarios",
+        text=[c.name for c in project.weight.cg_cases], textposition="top center",
+        marker=dict(size=10, symbol="diamond"),
+    ))
+fig.update_layout(title="Weight / CG envelope", xaxis_title="Fuselage station (in)",
+                  yaxis_title="Weight (lb)", legend=dict(orientation="h"), height=440)
+st.plotly_chart(fig, use_container_width=True)
+if not project.weight.cg_cases:
+    st.caption(
+        "No loading scenarios yet — define them on the **Weight/CG Grid & Payload "
+        "Cases** page to overlay them here."
+    )
+
+results = convert_results(raw_results, system)
 
 for r in results:
     with st.expander(f"FAR {r.far_reference} — {r.title}", expanded=True):

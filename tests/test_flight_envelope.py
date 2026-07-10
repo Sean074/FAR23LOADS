@@ -120,6 +120,33 @@ def test_tail_balance_parallels_vn():
         assert tb.flaps_down is False
 
 
+def test_multi_altitude_vn_regression():
+    """Step D5: ``build_envelope`` already loops ``for alt in fl.altitudes_ft``
+    (Step C2) -- this locks in that a second altitude produces its own balanced
+    matrix without changing the sea-level (Appendix A) numbers, i.e. no equation
+    change, purely a GUI exposure of an existing calc loop."""
+    project = io.load_project(_GA)
+    baseline = _by_case(build_envelope(project))
+
+    project.flight_loads.altitudes_ft = [0.0, 8000.0]
+    two_alt = build_envelope(project)
+
+    # Sea-level cases are bit-for-bit unchanged by adding a second altitude.
+    for case, p in baseline.items():
+        p2 = next(v for v in two_alt.vn if v.case == case)
+        assert p2.altitude_ft == 0.0
+        assert math.isclose(p2.v_eas_kt, p.v_eas_kt)
+        assert math.isclose(p2.lt, p.lt)
+
+    # The 8000 ft matrix is present, distinct, and the same size as sea level.
+    hi = [v for v in two_alt.vn if v.altitude_ft == 8000.0]
+    lo = [v for v in two_alt.vn if v.altitude_ft == 0.0]
+    assert len(hi) == len(lo) == len(baseline)
+    hi_man_a = next(v for v in hi if v.condition == "MAN A" and v.cg == "CG1")
+    lo_man_a = next(v for v in lo if v.condition == "MAN A" and v.cg == "CG1")
+    assert hi_man_a.v_eas_kt != lo_man_a.v_eas_kt or hi_man_a.alpha_deg != lo_man_a.alpha_deg
+
+
 def test_concept_attains_chosen_load_factor_no_cap():
     project = io.load_project(_CONCEPT)
     assert project.is_concept
@@ -235,13 +262,13 @@ def test_flapped_envelope_corner_set_and_closure():
     assert math.isclose(stal.nz, 2.0 / 3.0, abs_tol=0.01)
 
 
-def test_merged_preserves_extra_altitudes():
-    """Regression: the flight-envelope page's persist path must not destroy
-    slice content it does not edit (Step D0 defect — the page previously rebuilt
-    FlightLoadsInput wholesale with altitudes_ft=[alt]). Step D4.1 moved the
-    configuration-preservation half of this guarantee to the view's
-    ``AeroCoefficientsInput`` assignment (``app/views/flight_envelope.py``),
-    since ``configurations`` no longer lives on ``FlightLoadsInput``."""
+def test_merged_replaces_altitudes_and_cg_cases():
+    """Step D5: the Flight Envelope page now edits the *whole* altitude list
+    (multi-altitude V-n) and reads the whole CG-case list read-only from the
+    Weight/CG Grid page (``Project.weight.cg_cases``) -- so ``merged()`` simply
+    replaces both wholesale on every Apply; there is nothing partial left to
+    preserve (Step D4.1 moved the analogous aero-coefficients guarantee to the
+    view's ``AeroCoefficientsInput`` assignment in ``app/views/flight_envelope.py``)."""
     fl = FlightLoadsInput(mac=69.246, wing_area_sqft=184.125, xw=80.953, zw=87.725,
                           xtc=253.364, xtf=261.027, mn=0.1,
                           altitudes_ft=[0.0, 20000.0],
@@ -249,17 +276,15 @@ def test_merged_preserves_extra_altitudes():
 
     new_cg = [CgCase("CG1", 3400.0, 85.1, 93.0), CgCase("CG2", 2800.0, 80.0, 93.0)]
     merged = fl.merged(mac=70.0, wing_area_sqft=184.125, xw=80.953, zw=87.725,
-                       xtc=253.364, xtf=261.027, mn=0.1, altitude_ft=10000.0,
-                       cg_cases=new_cg)
+                       xtc=253.364, xtf=261.027, mn=0.1,
+                       altitudes_ft=[10000.0, 5000.0], cg_cases=new_cg)
 
-    # The edits landed…
     assert merged.mac == 70.0
-    assert merged.altitudes_ft[0] == 10000.0
+    assert merged.altitudes_ft == [10000.0, 5000.0]
     assert len(merged.cg_cases) == 2
-    # …and the unedited content survived.
-    assert merged.altitudes_ft == [10000.0, 20000.0]
     # The original slice is untouched (merged() returns a new instance).
     assert fl.altitudes_ft == [0.0, 20000.0]
+    assert len(fl.cg_cases) == 1
 
 
 def test_aero_coefficients_input_preserves_flaps_down_on_cruise_edit():

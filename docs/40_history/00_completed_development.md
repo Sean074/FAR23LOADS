@@ -10,6 +10,76 @@ Acceptance**, **Key decisions**.
 
 ---
 
+## Phase D — Step D5: Envelopes & Critical Conditions section (complete, 2026-07-09)
+
+**Objective.** Give the Envelopes & Critical Conditions section a shared
+weight/CG input (so the CG envelope and the flight-envelope balance cannot
+diverge), a combined speed–altitude chart, real multi-altitude V-n, and a
+persisted critical-case selection Review/Export can reuse. Design decisions
+locked 2026-07-09 (`02_gui_workflow_plan.md` §3 D-6). No calc-math change
+throughout — Appendix A/B oracles pass unmodified.
+
+**Deliverables.**
+- **D5.1 — Weight/CG Grid & Payload Cases page.** New `WeightInput.cg_cases`
+  field (`SCHEMA_VERSION` 18 → 19) holding named `CgCase` loading scenarios,
+  owned by the new GUI-only `payload_cases` workflow step
+  (`app/views/payload_cases.py`). `FlightLoadsInput.cg_cases` — the field
+  SELECT/WINGINER/NETLOADS/BALLOADS all read directly — is **not removed**
+  (unlike the D4.1 `aero_coeffs` precedent, cg_cases has too many calc
+  consumers to safely relocate); instead the Flight Envelope page reads
+  `weight.cg_cases` read-only and merges it into `FlightLoadsInput.cg_cases` on
+  every Apply, so there is exactly one place an engineer edits the numbers.
+  `weight_envelope.py`'s chart (new: `loading_envelope_points()` exposes the
+  forward-boundary vertices `envelope()` already computed) overlays the same
+  cases as read-only markers. Old project files migrate via
+  `io._legacy_cg_cases_from_flight_loads` (copies `flight_loads.cg_cases` into
+  `weight.cg_cases` on load; the calc-facing field is unaffected either way).
+- **D5.2 — Speed–altitude chart.** `app/views/mach_limit.py`'s EAS-vs-altitude
+  chart converted from `st.line_chart` to `plotly`, with VA/VC/VD/VF
+  (`structural_speeds.design_speed_values`) added as horizontal reference
+  lines over the existing V(MC)/V(MNE)/V(MD)/V(FC) boundary — display only, no
+  calc change.
+- **D5.3 — Multi-altitude V-n.** `FlightLoadsInput.altitudes_ft` exposed as a
+  real, fully-editable list on the Flight Envelope page (previously a single
+  `number_input` that only ever touched `altitudes_ft[0]`); `merged()`'s
+  `altitude_ft: float` param replaced with `altitudes_ft: List[float]`. The
+  V-n chart gained a CG-case selector, an altitude selector, and an "overlay
+  all altitudes" checkbox. `build_envelope`'s `for alt in fl.altitudes_ft`
+  loop already supported this since Step C2 — confirmed by regression test
+  (`test_multi_altitude_vn_regression`), no equation change.
+- **D5.4 — Critical-case selection.** `CriticalLoadSet.selected_case_ids`
+  (additive, empty = unfiltered) + `.selected()` helper. The Critical Loads
+  page adds a per-condition checkbox (default checked); Results Review reads
+  `.selected()` instead of `.conditions` for its governing-loads summary.
+  Deliberately scoped to that one GUI page — WINGINER/NETLOADS, `body_loads`
+  and the sbeam export bridge all keep reading `.conditions` unfiltered, so a
+  deselected condition can never silently drop out of a structural
+  deliverable (D8.3 is expected to wire the export bundle to this same
+  selection later).
+
+**Test/Acceptance.** `SCHEMA_VERSION` 19 round-trip + legacy-migration tests
+(`tests/test_io.py`: `test_weight_cg_cases_round_trips_through_io`,
+`test_legacy_flight_loads_cg_cases_migrate_to_weight`,
+`test_critical_load_set_selected_case_ids_round_trip`); multi-altitude
+regression (`tests/test_flight_envelope.py::test_multi_altitude_vn_regression`);
+`merged()` signature test rewritten
+(`test_merged_replaces_altitudes_and_cg_cases`); `CriticalLoadSet.selected()`
+unit tests (`tests/test_select.py`). No automated UI test suite exists, so
+every page change (`payload_cases`, `weight_envelope`, `flight_envelope`,
+`mach_limit`, `critical_loads`, `results_review`) was verified with a
+`streamlit.testing.v1.AppTest` script against `examples/ga6_normal.project.json`
+— no exception, expected `Project` slice mutations. Full suite: 284 tests
+pass, `ruff check farloads/ cli.py` clean.
+
+**Key decisions** (locked 2026-07-09, `02_gui_workflow_plan.md` §3 D-6): manual
+weight/CG rows over item-toggle scenario derivation; `WeightInput.cg_cases` as
+the schema home with `FlightLoadsInput.cg_cases` kept as the untouched
+calc-facing field; the speed–altitude chart extends Mach Limit rather than a
+new page; critical-case selection is opt-out (default = everything), display-
+only, never a structural-calc input.
+
+---
+
 ## Phase D — Step D4: Authoritative shared inputs + Aero Coefficients page (complete, 2026-07-09)
 
 **Objective.** Kill duplicate wing-area/MAC/weight/CG entry across the

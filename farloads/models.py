@@ -201,10 +201,18 @@ class WeightInput:
     estimates totals from the mission, the itemized list carries the per-item
     stations that estimation cannot supply, and the envelope adds the limit
     definitions.
+
+    ``cg_cases`` (Step D5) is the shared list of named loading scenarios --
+    weight + CG points entered once on the Weight/CG Grid & Payload Cases page,
+    overlaid on the ``weight_envelope`` chart and merged into
+    ``FlightLoadsInput.cg_cases`` by the Flight Envelope page, so the two can no
+    longer diverge (the calc modules that balance/select over CG cases keep
+    reading ``FlightLoadsInput.cg_cases`` unchanged).
     """
     estimation: Optional[WeightEstimationInput] = None
     items: List[MassItem] = field(default_factory=list)
     envelope: Optional[WeightEnvelopeInput] = None
+    cg_cases: List["CgCase"] = field(default_factory=list)
 
     def direct_totals(self) -> Tuple[float, float, float]:
         """Take-off, empty and useful weights summed directly from ``items``.
@@ -454,20 +462,20 @@ class FlightLoadsInput:
     cg_cases: List[CgCase] = field(default_factory=list)
 
     def merged(self, *, mac: float, wing_area_sqft: float, xw: float, zw: float,
-               xtc: float, xtf: float, mn: float, altitude_ft: float,
+               xtc: float, xtf: float, mn: float, altitudes_ft: List[float],
                cg_cases: List[CgCase]) -> "FlightLoadsInput":
-        """One page-edit merged into this slice, preserving what was not edited.
+        """One page-edit merged into this slice.
 
-        A GUI page edits the geometry scalars, one altitude and the full
-        CG-case table; the slice may carry more (extra altitudes) that the
-        page must not destroy. The edited altitude replaces
-        ``altitudes_ft[0]`` (the entry a single-altitude widget displays);
-        every other altitude is carried over unchanged.
+        Step D5 exposes ``altitudes_ft`` as a real, fully-editable list on the
+        Flight Envelope page (multi-altitude V-n), and ``cg_cases`` is now read
+        from the shared ``WeightInput.cg_cases`` the Weight/CG Grid page owns
+        rather than edited here -- so every field the page can show is edited (or
+        passed through) in full on every Apply; there is no partial/"preserve
+        what wasn't shown" state left to merge.
         """
-        altitudes = [altitude_ft] + list(self.altitudes_ft[1:])
         return FlightLoadsInput(
             mac=mac, wing_area_sqft=wing_area_sqft, xw=xw, zw=zw, xtc=xtc,
-            xtf=xtf, mn=mn, altitudes_ft=altitudes, cg_cases=cg_cases,
+            xtf=xtf, mn=mn, altitudes_ft=list(altitudes_ft), cg_cases=list(cg_cases),
         )
 
 
@@ -1110,8 +1118,27 @@ class CriticalLoadSet:
 
     One :class:`CriticalCondition` per (component, FAR condition). Read by AIRLOADS/
     AIRLOAD4 (iterative -- SELECT names the conditions they evaluate), WINGINER and
-    TAILDIST (the ownership table in ``PROGRAM_SPEC.md``)."""
+    TAILDIST (the ownership table in ``PROGRAM_SPEC.md``).
+
+    ``selected_case_ids`` (Step D5) is the engineer's opt-out subset -- the
+    Critical Loads page persists the ``case_id`` of every condition the engineer
+    keeps for the deliverable; an empty list means "no filter, use every computed
+    condition" (the default, and the whole behavior for any project that predates
+    this field or never visits the page). Structural calc modules (WINGINER,
+    NETLOADS, body_loads, the sbeam bridge) deliberately keep reading
+    ``conditions`` directly -- the selection only governs what the *Results
+    Review* GUI page displays, never what the load-producing modules compute.
+    """
     conditions: List[CriticalCondition] = field(default_factory=list)
+    selected_case_ids: List[str] = field(default_factory=list)
+
+    def selected(self) -> List[CriticalCondition]:
+        """``conditions`` filtered to ``selected_case_ids``, or all of them when
+        that list is empty (no filter applied)."""
+        if not self.selected_case_ids:
+            return self.conditions
+        ids = set(self.selected_case_ids)
+        return [c for c in self.conditions if c.case_ref and c.case_ref.case_id in ids]
 
 
 @dataclass
@@ -1344,7 +1371,17 @@ class LoadsResult:
 # the from_dict defaults (case_ref = None, back-filled on the next compute).
 # v17 (Step D3) adds Project.engineer / Project.date (freeform text project
 # metadata, shown on the dashboard and in exports) -- additive, default "".
-SCHEMA_VERSION = 18
+# v18 (Step D4.1) adds the Project.aero_coeffs slice (AeroCoefficientsInput,
+# moved out of FlightLoadsInput.configurations) -- additive; older files migrate
+# via _legacy_aero_coeffs_from_flight_loads.
+# v19 (Step D5) adds WeightInput.cg_cases (the shared loading-scenario list the
+# new Weight/CG Grid & Payload Cases page owns, read by the Weight/CG Envelope
+# chart and merged into FlightLoadsInput.cg_cases by the Flight Envelope page so
+# the two can no longer diverge) and CriticalLoadSet.selected_case_ids (the
+# opt-out governing-case selection SELECT's page persists for Review/Export) --
+# both additive, older files migrate via _legacy_cg_cases_from_flight_loads /
+# default to an empty (unfiltered) selection.
+SCHEMA_VERSION = 19
 
 
 @dataclass

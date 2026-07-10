@@ -123,6 +123,50 @@ def test_project_engineer_date_default_blank():
     assert "date" not in io.project_to_dict(project)
 
 
+def test_weight_cg_cases_round_trips_through_io():
+    """Step D5: WeightInput.cg_cases is the shared loading-scenario list the
+    Weight/CG Grid page owns (SCHEMA_VERSION 19)."""
+    project = io.load_project(GA6)
+    assert project.weight.cg_cases, "the GA6 example should carry migrated cg_cases"
+    names = {c.name for c in project.weight.cg_cases}
+    assert names == {"CG1", "CG2", "CG3", "CG4"}
+
+    d = io.project_to_dict(project)
+    assert d["weight"]["cg_cases"][0]["name"] == "CG1"
+    again = io.project_from_dict(d)
+    assert [c.name for c in again.weight.cg_cases] == [c.name for c in project.weight.cg_cases]
+
+
+def test_legacy_flight_loads_cg_cases_migrate_to_weight():
+    """Pre-schema-19 files carried the loading scenarios only under
+    ``flight_loads.cg_cases``; loading one must still populate
+    ``Project.weight.cg_cases`` (Step D5 migration) without disturbing the
+    calc-facing ``FlightLoadsInput.cg_cases`` the FLTLOADS/SELECT modules read."""
+    legacy = io.project_to_dict(io.load_project(GA6))
+    del legacy["weight"]["cg_cases"]
+
+    rebuilt = io.project_from_dict(legacy)
+    assert [c.name for c in rebuilt.weight.cg_cases] == ["CG1", "CG2", "CG3", "CG4"]
+    assert [c.name for c in rebuilt.flight_loads.cg_cases] == ["CG1", "CG2", "CG3", "CG4"]
+
+
+def test_critical_load_set_selected_case_ids_round_trip():
+    """Step D5: the Critical Loads page's opt-out selection persists on
+    CriticalLoadSet.selected_case_ids (SCHEMA_VERSION 19); empty means no filter."""
+    from farloads.models import CriticalCondition, CriticalLoadSet, EnvelopeResult
+
+    project = io.load_project(GA6)
+    critical = CriticalLoadSet(
+        conditions=[CriticalCondition(component="wing", label="PHAA", case_ref=None)],
+        selected_case_ids=["W-01"],
+    )
+    project.envelope = EnvelopeResult(critical=critical)
+    d = io.project_to_dict(project)
+    assert d["envelope"]["critical"]["selected_case_ids"] == ["W-01"]
+    again = io.project_from_dict(d)
+    assert again.envelope.critical.selected_case_ids == ["W-01"]
+
+
 def test_default_projects_dir_is_repo_relative():
     projects_dir = io.default_projects_dir()
     assert os.path.basename(projects_dir) == "projects"

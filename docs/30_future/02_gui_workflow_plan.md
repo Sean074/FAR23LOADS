@@ -128,6 +128,38 @@ Notes:
     ownership rule already documented at `EngineInput.engine_cg` — implemented
     as numeric x/y/z override fields per engine rather than drag-and-drop
     markers.
+- **D-6: Step D5 design decisions** *(locked 2026-07-09)*:
+  - **Loading-scenario shape.** Manual weight/CG rows — the new Weight/CG Grid
+    & Payload Cases page edits the same `CgCase` shape (name, weight, xcg, zcg)
+    FLTLOADS already asked for, rather than deriving weight/CG automatically
+    from toggled `weight.items`. Lowest risk, zero new derivation logic.
+  - **Schema home for the shared CG cases.** `WeightInput.cg_cases` — kept
+    alongside `weight.items`/`weight.envelope`. The calc-facing
+    `FlightLoadsInput.cg_cases` field is **not removed**: SELECT, WINGINER,
+    NETLOADS and BALLOADS all read it directly (a wider blast radius than the
+    D4.1 `aero_coeffs` precedent, which had exactly one calc consumer), so
+    those modules are untouched. The Flight Envelope page instead reads
+    `weight.cg_cases` read-only and merges it into `FlightLoadsInput.cg_cases`
+    on every Apply — one editable list, two places it flows to that "cannot
+    diverge" because only one of them is ever edited.
+  - **Speed–altitude chart placement.** Extends the existing Mach Limit page
+    (VA/VC/VD/VF as `plotly` reference lines over the V(MC)/V(MNE)/V(MD)/V(FC)
+    boundary already plotted there) rather than a new page.
+  - **Critical-case selection scope.** Opt-out, default = full set. SELECT's
+    per-(component, FAR label) governing condition is still fully automatic;
+    the Critical Loads page adds per-condition checkboxes (default checked) so
+    an engineer can drop a condition from the **Results Review** page's
+    governing-loads summary. `CriticalLoadSet.selected_case_ids` is empty
+    unless something has actually been deselected, so every existing project
+    (and any project that never visits the page) behaves exactly as before.
+    Deliberately scoped to the GUI summary only — WINGINER/NETLOADS,
+    `body_loads` and the sbeam export bridge all keep reading
+    `CriticalLoadSet.conditions` unfiltered, so a deselected condition can
+    never silently drop out of a structural deliverable.
+  - **Multi-altitude V-n display** *(engineering call, not asked)*: two
+    selectors (CG case, altitude) plus an "overlay all altitudes" checkbox that
+    plots one V-n trace per altitude, rather than a tab per altitude — reuses
+    the existing single-chart pattern with the least new UI surface.
 
 ## 4. Invariants (unchanged from Phase C)
 
@@ -172,7 +204,10 @@ Expected `SCHEMA_VERSION` bumps (older files must still load):
   out of `FlightLoadsInput`) — Step D4 (D4.1, shipped 2026-07-09,
   `SCHEMA_VERSION` 17 → 18).
 - Payload/loading-scenario cases shared by the CG envelope and the flight
-  envelope — Step D5.
+  envelope — Step D5, shipped 2026-07-09 (`SCHEMA_VERSION` 18 → 19):
+  `WeightInput.cg_cases` (new field; older files migrate from
+  `flight_loads.cg_cases` via `io._legacy_cg_cases_from_flight_loads`) and
+  `CriticalLoadSet.selected_case_ids` (new field, additive, empty = unfiltered).
 
 ## 7. Interactions with existing open work
 
@@ -186,9 +221,10 @@ Expected `SCHEMA_VERSION` bumps (older files must still load):
   *flaps-extended tail-load / chordwise rows* refinements (from C6/C7) have
   been waiting on. It does not close them (they also need the CG5–7 fixtures /
   oracle work), but it removes their GUI blocker.
-- **Multi-altitude V-n (D5)** is a GUI exposure of `FlightLoadsInput.altitudes_ft`,
-  which is already a list in the schema; verify the calc loop handles >1 entry
-  and add a regression test — no equation change expected.
+- **Multi-altitude V-n (D5, shipped 2026-07-09)** was a pure GUI exposure of
+  `FlightLoadsInput.altitudes_ft`, already a list in the schema and already
+  looped by `build_envelope` since Step C2 — confirmed by regression test
+  (`test_multi_altitude_vn_regression`); no equation change.
 - **No conflict** with the remaining deferred calc refinements (Appendix-B
   fixtures, swept oracle, per-CG inertia, EFV backfill, printed-oracle backfills)
   — they are calc-side and orthogonal; land them opportunistically per D-4.

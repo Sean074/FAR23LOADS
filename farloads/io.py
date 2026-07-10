@@ -174,7 +174,8 @@ def weight_from_dict(d: Dict[str, Any]) -> WeightInput:
     items = [_mass_item_from_dict(it) for it in d.get("items", []) or []]
     env = d.get("envelope")
     envelope = WeightEnvelopeInput(**dict(env)) if env else None
-    return WeightInput(estimation=estimation, items=items, envelope=envelope)
+    cg_cases = [CgCase(**dict(c)) for c in d.get("cg_cases", []) or []]
+    return WeightInput(estimation=estimation, items=items, envelope=envelope, cg_cases=cg_cases)
 
 
 def weight_to_dict(inp: WeightInput) -> Dict[str, Any]:
@@ -187,7 +188,20 @@ def weight_to_dict(inp: WeightInput) -> Dict[str, Any]:
     out["items"] = [{**asdict(it), "kind": it.kind.value} for it in inp.items]
     if inp.envelope is not None:
         out["envelope"] = asdict(inp.envelope)
+    if inp.cg_cases:
+        out["cg_cases"] = [asdict(c) for c in inp.cg_cases]
     return out
+
+
+def _legacy_cg_cases_from_flight_loads(flight_loads: Any) -> List[CgCase]:
+    """Migrate pre-schema-19 files: ``flight_loads.cg_cases`` was the only copy
+    of the loading scenarios before the Weight/CG Grid & Payload Cases page gave
+    them a shared home on ``weight.cg_cases`` (Step D5). Returns ``[]`` when
+    there is nothing to migrate, so older project files still load; the
+    calc-facing ``FlightLoadsInput.cg_cases`` is unaffected either way."""
+    if not flight_loads:
+        return []
+    return [CgCase(**dict(c)) for c in flight_loads.get("cg_cases", []) or []]
 
 
 # --------------------------------------------------------------------------- #
@@ -418,6 +432,7 @@ def _vn_point_from_dict(d: Dict[str, Any]) -> VnPoint:
 def _critical_from_dict(d: Dict[str, Any]) -> CriticalLoadSet:
     return CriticalLoadSet(
         conditions=[_critical_condition_from_dict(c) for c in d.get("conditions", []) or []],
+        selected_case_ids=[str(i) for i in d.get("selected_case_ids", []) or []],
     )
 
 
@@ -747,6 +762,9 @@ def project_from_dict(d: Dict[str, Any]) -> Project:
         loads = d.get("loads")
         configuration = d.get("configuration")
         engines, layout = _engines_from_dict(d)
+        weight_slice = weight_from_dict(weight) if weight else None
+        if weight_slice is not None and not weight_slice.cg_cases:
+            weight_slice.cg_cases = _legacy_cg_cases_from_flight_loads(flight_loads)
         return Project(
             schema_version=d.get("schema_version", SCHEMA_VERSION),
             name=d.get("name", ""),
@@ -754,7 +772,7 @@ def project_from_dict(d: Dict[str, Any]) -> Project:
             date=d.get("date", ""),
             engines=engines,
             engine_layout=layout,
-            weight=weight_from_dict(weight) if weight else None,
+            weight=weight_slice,
             geometry=geometry_from_dict(geometry) if geometry else None,
             speeds=speeds_from_dict(speeds) if speeds else None,
             aero=aero_from_dict(aero) if aero else None,

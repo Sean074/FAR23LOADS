@@ -95,6 +95,10 @@ STEPS: Tuple[WorkflowStep, ...] = (
                          "for the flight envelope balance."),
 
     # ---- Envelopes & Critical Conditions: the load environment --------------- #
+    WorkflowStep("payload_cases", "Weight/CG Grid & Payload Cases", ENVELOPES,
+                 module=None, requires=("weight",), produces="weight.cg_cases", bas=None,
+                 summary="Named loading scenarios shared by the CG envelope and the "
+                         "flight-envelope balance."),
     WorkflowStep("weight_envelope", "Weight / CG Envelope", ENVELOPES,
                  module="weight_envelope", requires=("geometry", "weight"),
                  produces="weight.envelope", bas="WTENV",

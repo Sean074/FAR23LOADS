@@ -46,10 +46,14 @@ except (ValueError, ZeroDivisionError) as exc:
     st.error(f"Could not select critical loads: {exc}")
     st.stop()
 
-# Persist so downstream pages (Fuselage Loads, exports) can reuse the selection.
-if project.envelope is not None:
-    project.envelope.critical = critical
-    st.session_state["project"] = project
+# Carry forward any previously-persisted selection (Step D5) so re-visiting the
+# page doesn't silently reset a curated subset back to "everything".
+prior_selected = (
+    set(project.envelope.critical.selected_case_ids)
+    if project.envelope is not None and project.envelope.critical is not None
+    and project.envelope.critical.selected_case_ids
+    else None
+)
 
 _COMPONENTS = [
     ("wing", "Wing", "PHAA / PMAA / PLAA / NMAA, accelerated & steady roll"),
@@ -58,6 +62,15 @@ _COMPONENTS = [
     ("fuselage", "Fuselage", "load on wing, aft bending, greatest Nz"),
 ]
 
+st.info(
+    "Uncheck a condition to drop it from the **Results Review** page's governing-"
+    "loads summary — everything is included by default. This never affects the "
+    "structural calc (WINGINER/NETLOADS, fuselage/tail/control-surface loads, "
+    "sbeam export), only that summary."
+)
+
+checked_ids: list = []
+all_ids: list = []
 for key, title, sub in _COMPONENTS:
     conds = [c for c in critical.conditions if c.component == key]
     if not conds:
@@ -66,8 +79,27 @@ for key, title, sub in _COMPONENTS:
     st.caption(sub)
     rows = []
     for c in conds:
+        cid = c.case_ref.case_id if c.case_ref else None
+        if cid:
+            all_ids.append(cid)
+            default_checked = cid in prior_selected if prior_selected is not None else True
+            checked = st.checkbox(
+                f"{c.label} ({cid})", value=default_checked, key=f"select_{cid}",
+            )
+            if checked:
+                checked_ids.append(cid)
         row = {"Condition": c.label, "FAR": c.far_reference, "V-n case": c.case}
         for lv in c.loads:
             row[lv.label] = round(lv.value, 2)
         rows.append(row)
     st.dataframe(pd.DataFrame(rows), hide_index=True, use_container_width=True)
+
+# Empty list means "no filter" (every condition kept) -- only persist a real
+# subset when the engineer has actually deselected something.
+critical.selected_case_ids = [] if checked_ids == all_ids else checked_ids
+
+# Persist so downstream pages (Fuselage Loads, Results Review, exports) can
+# reuse the same selection.
+if project.envelope is not None:
+    project.envelope.critical = critical
+    st.session_state["project"] = project

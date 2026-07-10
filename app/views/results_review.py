@@ -46,6 +46,11 @@ _COMPONENTS = [
 
 try:
     critical = build_critical(project)
+    # Carry forward the Critical Loads page's persisted opt-out selection (Step
+    # D5) -- case IDs are deterministic/stable, so this stays valid across the
+    # fresh recompute above.
+    if project.envelope is not None and project.envelope.critical is not None:
+        critical.selected_case_ids = project.envelope.critical.selected_case_ids
 except (ValueError, ZeroDivisionError, KeyError) as exc:
     critical = None
     st.info(
@@ -57,13 +62,19 @@ if critical is not None:
     if project.is_concept:
         st.warning("Concept category (C): governing loads are an **unverified "
                    "extrapolation** above the FAR 23 calibration band.")
+    if critical.selected_case_ids:
+        st.caption(
+            "Showing the curated selection from the **Critical Loads** page "
+            "(some conditions were deselected there)."
+        )
+    selected_conditions = critical.selected()
     any_shown = False
     cols = st.columns(len(_COMPONENTS))
     for col, (key, title) in zip(cols, _COMPONENTS):
-        conds = [c for c in critical.conditions if c.component == key]
+        conds = [c for c in selected_conditions if c.component == key]
         col.metric(title, f"{len(conds)} cond.")
     for key, title in _COMPONENTS:
-        conds = [c for c in critical.conditions if c.component == key]
+        conds = [c for c in selected_conditions if c.component == key]
         if not conds:
             continue
         any_shown = True

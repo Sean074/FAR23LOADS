@@ -28,9 +28,10 @@ history, `CHANGELOG.md`).
 
 ## Current state (snapshot)
 
-**Shipped:** Phases 0–2, Phase-C Steps **C0–C11**, and Phase-D **Step D0–D3**
+**Shipped:** Phases 0–2, Phase-C Steps **C0–C11**, and Phase-D **Step D0–D5**
 (GUI defect fix; structured load-case IDs; six-section navigation restructure;
-Start-page local-disk persistence). **All 22** of Reference 1's
+Start-page local-disk persistence; authoritative shared inputs + Aero
+Coefficients page; Envelopes & Critical Conditions section). **All 22** of Reference 1's
 Appendix-C programs are ported (ENGLOADS, WTESTIMA, WTONECG, WTENV,
 WINGGEOM, STRSPEED, MACHLIM, TAU, AIRLOADS, AIRLOAD4, FLTLOADS, SELECT, WINGINER,
 NETLOADS, TAILDIST, AILERON, FLAPLOAD, TABLOADS, ONENGOUT, LGFACTOR, LANDLOAD,
@@ -68,28 +69,16 @@ Step D1 (structured load-case IDs) shipped 2026-07-08 — see
 (Start-page local-disk persistence) shipped 2026-07-09 — see
 `40_history/00_completed_development.md` → "Phase D — Step D3". Step D4
 (authoritative shared inputs + Aero Coefficients page) shipped 2026-07-09 —
-see `40_history/00_completed_development.md` → "Phase D — Step D4".
-**Step D5 (below) is now the active step.** Invariant throughout: no calc-math
+see `40_history/00_completed_development.md` → "Phase D — Step D4". Step D5
+(Envelopes & Critical Conditions section) shipped 2026-07-09 — see
+`40_history/00_completed_development.md` → "Phase D — Step D5".
+**Step D6 (below) is now the active step.** Invariant throughout: no calc-math
 change — the Appendix A/B oracles pass unmodified at every step.
 
 Definition of done per step (in addition to the file-top DoD where it applies):
 pages follow the Phase-D page conventions (`02_gui_workflow_plan.md §5` —
 form+Apply, merge-writes, read-don't-re-ask, no airplane-shaped defaults), and
 the workflow-step ↔ registered-module test stays green.
-
-### Step D5 — Envelopes & Critical Conditions section
-
-1. **Weight/CG grid & payload cases** page: loading scenarios defined once,
-   feeding both the CG envelope (WTENV) and the flight-envelope CG cases so
-   they cannot diverge (`SCHEMA_VERSION` bump for the shared payload cases).
-2. **Speed–altitude chart** with VA/VC/VD/VF and the Mach-limit boundary (data
-   already in `speeds` + `speeds.mach_limit`).
-3. **Multi-altitude V-n**: expose `FlightLoadsInput.altitudes_ft` as a real
-   list; plot V-n per altitude (overlay or tabs); verify the calc loop handles
-   >1 entry (regression test; no equation change expected).
-4. **Critical-case selection by case ID**: the SELECT page persists the chosen
-   governing set as case IDs on `envelope.critical`; Review/Export consume the
-   selection.
 
 ### Step D6 — Merge Analysis into nine component pages
 

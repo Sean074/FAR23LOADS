@@ -5,18 +5,22 @@ One page of the multi-page app; run the suite with:  streamlit run app/Home.py
 Enter the cruise/dive Mach limits (MC, MD; usually taken from the Structural
 Speeds page at the shoulder altitude) and the altitude range. The page tabulates
 the Mach-limited equivalent airspeeds (V(MC), V(MNE), V(MD), V(FC)) from the
-shoulder altitude up to the max operating altitude, for the flight-limits diagram.
-All speeds are knots equivalent airspeed (KEAS).
+shoulder altitude up to the max operating altitude, for the flight-limits diagram
+— overlaid with the VA/VC/VD/VF design speeds from Structural Speeds (Step D5)
+so the whole speed-altitude boundary is visible on one chart. All speeds are
+knots equivalent airspeed (KEAS).
 """
 
 from __future__ import annotations
 
 import pandas as pd
+import plotly.graph_objects as go
 import streamlit as st
 
 from farloads import MachLimitInput, Project, StructuralSpeedsInput
 from farloads import io as farloads_io
 from farloads.modules.mach_limit import mach_limit_lines
+from farloads.modules.structural_speeds import design_speed_values
 from farloads.report import module_text_report
 
 
@@ -65,13 +69,35 @@ with st.expander(f"FAR {summary.far_reference} — {summary.title}", expanded=Tr
     st.dataframe(pd.DataFrame(rows), hide_index=True, use_container_width=True)
     st.caption(summary.note)
 
-# The per-altitude lines as a single table + a chart of EAS vs altitude.
+# The per-altitude lines as a single table + a speed-altitude chart, with the
+# VA/VC/VD/VF design speeds (Structural Speeds) overlaid as reference lines
+# (Step D5) so the whole flight-limits boundary reads on one plot.
 table = [{v.label: v.value for v in line.values} for line in lines]
 df = pd.DataFrame(table)
 st.subheader("Mach-limited equivalent airspeeds")
 st.dataframe(df, hide_index=True, use_container_width=True)
 if not df.empty:
-    st.line_chart(df.set_index("Altitude")[["V(MC)", "V(MNE)", "V(MD)", "V(FC)"]])
+    fig = go.Figure()
+    for col in ("V(MC)", "V(MNE)", "V(MD)", "V(FC)"):
+        fig.add_trace(go.Scatter(x=df["Altitude"], y=df[col], name=col, mode="lines+markers"))
+    ds = None
+    if project.speeds is not None and project.speeds.weight_lb > 0:
+        try:
+            ds = design_speed_values(project, project.speeds)
+        except (ValueError, ZeroDivisionError):
+            ds = None
+    if ds is not None:
+        for label, v in [("VA", ds.va), ("VC", ds.vc), ("VD", ds.vd), ("VF", ds.vf)]:
+            fig.add_hline(y=v, line_dash="dash", annotation_text=label,
+                         annotation_position="right")
+    else:
+        st.caption(
+            "Set the design weight on the **Structural Speeds** page to overlay "
+            "VA/VC/VD/VF on this chart."
+        )
+    fig.update_layout(title="Speed–altitude diagram", xaxis_title="Altitude (ft)",
+                      yaxis_title="V (KEAS)", legend=dict(orientation="h"), height=440)
+    st.plotly_chart(fig, use_container_width=True)
 
 st.download_button(
     "Download Mach-limit lines (CSV)",
