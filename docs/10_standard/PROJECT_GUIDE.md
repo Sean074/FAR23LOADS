@@ -183,7 +183,8 @@ FAR23LOADS/
 │   ├── report.py                 # shared text/CSV rendering (already exists)
 │   ├── export/                   # output bridges to external tools (renderers, NOT registered modules)
 │   │   ├── coordinates.py        # FAR23LOADS axes -> sbeam CID 0 map (single edit-point)
-│   │   └── sbeam_bridge.py       # net wing load -> span-load CSV + FORCE/MOMENT cards + CBAR stick model
+│   │   ├── sbeam_bridge.py       # net wing/body/tail/control loads -> span-load CSV + FORCE/MOMENT cards + CBAR stick model + case-index + export-scope filter
+│   │   └── workbook.py           # multi-sheet .xlsx workbook (Step D8.2): one tab per module/component + case index
 │   └── modules/
 │       ├── __init__.py
 │       ├── configuration.py      # Configuration & Layout (modern; no .BAS) -> Project.configuration
@@ -208,7 +209,7 @@ FAR23LOADS/
 │   │   ├── dashboard.py          #   Start    — load/save + completeness panel
 │   │   ├── configuration_layout.py … one_engine_out.py   # one per suite program
 │   │   ├── results_review.py     #   Export   — consolidated governing loads
-│   │   └── export_report.py      #   Export   — project JSON + CSVs + sbeam BDF
+│   │   └── export_report.py      #   Export   — project JSON + CSVs + sbeam BDF + .xlsx workbook + export-scope toggle (D8)
 │   └── data/reference_aircraft.csv
 ├── cli.py                        # `python cli.py engine project.json -o out.csv`
 ├── tests/
@@ -346,7 +347,7 @@ actually took, and it is now complete.
    - **Supplemental FAR 25 cases (concept).** `Project.include_far25` (default off, optional `EngineInput.max_accel_torque`) appends only the **non-duplicative** 14 CFR 25.361/25.371 engine cases (turbopropeller only) on top of the oracle-locked FAR 23 set — additive by construction, FAR 23 output unchanged. The FAR 25 torque cases 25.361(a)(1)(i)/(ii)/(iii) were **removed** as exact duplicates of the corrected 23.361(a)(1)/(a)(2)/(a)(3) (post AC 23-19A); what remains is `(a)(3)(i)` stoppage @1g, `(a)(3)(ii)` max-accel torque (no FAR 23 analog), and 25.371 gyro on the A2 load factor. Kept opt-in (not unconditional) to preserve the Appendix B oracle (6 conditions, 2.5g gyro). Sourced from `reference/14CFR_Part25_engine_torque.md`, formula-closure tested; 25.371 uses the fixed FAR 23.371(b) rates as a conservative concept stand-in. See PROGRAM_SPEC § ENGLOADS.
 3. **Project JSON versioning.** Add a `schema_version` to `project.json` from day one so old saves migrate cleanly as the schema grows? Default: yes.
 4. **Standalone vs project-only inputs.** Hybrid allows a module to run from a partial JSON (just its own slice). Confirm we want to maintain per-module example JSONs in addition to the two full-airplane projects. Default: full projects are canonical; per-module slices are derived for tests.
-5. **CSV vs combined workbook.** "Per-module CSV out" is set. Optionally also offer a single multi-sheet export (zip of CSVs or xlsx) for hand-off? Default: zip of per-module CSVs from the Home page.
+5. **CSV vs combined workbook.** ✅ **RESOLVED (Phase D, Step D8.2, 2026-07-09).** Both: the Export page offers the `.zip` of per-module CSVs *and* a single multi-sheet `.xlsx` workbook (`farloads/export/workbook.py`, `openpyxl` dependency) as a sibling alternative — one tab per module/component plus the case index, BDF card text excluded (not tabular).
 
 ---
 

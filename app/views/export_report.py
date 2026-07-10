@@ -1,13 +1,18 @@
 """Export & Report — every output of the suite in one place.
 
-Four kinds of hand-off, all recomputed live from the project inputs:
+Five kinds of hand-off, all recomputed live from the project inputs:
 
 * **Project file** — the canonical ``project.json`` (the save file / single source
   of truth).
 * **Load-case CSVs & text report** — per-module results for spreadsheets / records.
 * **sbeam BDF cards** — wing / fuselage / tail / control-surface ``FORCE``/``MOMENT``
   cards (and the wing stick model) for the sbeam finite-element bridge.
-* **Combined bundle** — one ``.zip`` of all of the above for archive / hand-off.
+* **Combined bundle** — one ``.zip`` (or one multi-sheet ``.xlsx`` workbook, Step
+  D8.2) of all of the above for archive / hand-off.
+* **Export scope (Step D8.3)** — the fuselage/tail sbeam artifacts and the case
+  index can be filtered to the Critical Loads page's governing-case selection;
+  wing and control-surface exports always include the full set (see the "Export
+  scope" section's caption for why).
 
 Nothing here depends on persisted result slices, so the exports always reflect the
 current inputs. Channels whose inputs are absent are shown as disabled with a note.
@@ -26,6 +31,7 @@ from farloads import Project, registry
 from farloads import io as farloads_io
 from farloads import workflow as wf
 from farloads.export import sbeam_bridge as sb
+from farloads.export.workbook import build_workbook
 from farloads.modules.aileron import build_aileron
 from farloads.modules.body_loads import build_body_loads
 from farloads.modules.flap import build_flap
@@ -88,6 +94,51 @@ _control = []
 for _fn in (build_aileron, build_flap, build_tabs):
     _control += (_try(_fn, project) or [])
 
+# --------------------------------------------------------------------------- #
+# Export scope (Step D8.3): honor the D5 Critical Loads page's opt-out case
+# selection. Case ids are copied verbatim from `envelope.critical.conditions`
+# for fuselage/htail/vtail (body_loads.py, taildist.py), so the filter is exact
+# there. Wing (`WingMassInput.cases`) and control-surface (aileron/flap/tab)
+# results mint their own case ids on disjoint bands that never overlap with
+# `envelope.critical` (see docs/30_future/00_backlog.md, "Unify select_wing/
+# one_engine_out case identity") -- they always export the full set until that
+# gap closes.
+_has_selection = bool(
+    project.envelope is not None
+    and project.envelope.critical is not None
+    and project.envelope.critical.selected_case_ids
+)
+st.header("Export scope")
+_scope = st.radio(
+    "Scope for the fuselage/tail sbeam artifacts and the case index",
+    ["Full set", "Governing set (Critical Loads selection)"],
+    horizontal=True,
+    disabled=not _has_selection,
+    help="Filters to the conditions kept checked on the Critical Loads page. "
+         "Wing and control-surface exports are unaffected (see caption below).",
+)
+if not _has_selection:
+    st.caption(
+        "No conditions are deselected on the **Critical Loads** page, so there is "
+        "nothing to filter yet — every export below is the full set."
+    )
+_selected_ids = (
+    set(project.envelope.critical.selected_case_ids)
+    if _has_selection and _scope.startswith("Governing")
+    else None
+)
+if _selected_ids is not None:
+    if _body:
+        _body = sb.filter_by_selected_case_ids(_body, _selected_ids)
+    if _tail:
+        _tail = sb.filter_by_selected_case_ids(_tail, _selected_ids)
+    if _wing or _control:
+        st.caption(
+            "Wing and control-surface case selection isn't wired to the Critical "
+            "Loads page yet (see backlog — case-identity unification gap); those "
+            "exports always include the full set regardless of this toggle."
+        )
+
 # (filename, content) for each available BDF/CSV sbeam artifact.
 _bdf_artifacts: dict = {}
 if _wing:
@@ -116,7 +167,7 @@ case_index_csv = sb.case_index_csv_from(
 # 1. Project file + combined bundle
 # --------------------------------------------------------------------------- #
 st.header("Project file & bundle")
-c1, c2 = st.columns(2)
+c1, c2, c3 = st.columns(3)
 c1.download_button("💾 Save project.json", project_json,
                    file_name=f"{_stem}.json", mime="application/json")
 
@@ -140,6 +191,34 @@ def _zip_bundle() -> bytes:
 
 c2.download_button("📦 Download all (.zip)", _zip_bundle(),
                    file_name=f"{_stem}_loads_bundle.zip", mime="application/zip")
+
+
+def _workbook_bytes() -> bytes:
+    project_info = {
+        "Name": project.name or "(unnamed)",
+        "Engineer": project.engineer or "",
+        "Date": project.date or "",
+        "Category": "Concept" if project.is_concept else "GA (FAR 23)",
+    }
+    module_labels = {mr.module: _module_label(mr) for mr in module_results}
+    span_csvs = {
+        title: _bdf_artifacts[key]
+        for title, key in [
+            ("Wing Span Loads", "wing_span_loads.csv"),
+            ("Fuselage Span Loads", "fuselage_span_loads.csv"),
+            ("Tail Chordwise", "tail_chordwise.csv"),
+            ("Control Surface Loads", "control_surface_loads.csv"),
+        ]
+        if _bdf_artifacts.get(key)
+    }
+    return build_workbook(project_info, module_csvs, module_labels, case_index_csv, span_csvs)
+
+
+c3.download_button(
+    "📊 Download workbook (.xlsx)", _workbook_bytes(),
+    file_name=f"{_stem}_loads_bundle.xlsx",
+    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+)
 
 # --------------------------------------------------------------------------- #
 # 2. Load-case CSVs + combined text report

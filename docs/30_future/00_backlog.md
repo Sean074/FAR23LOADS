@@ -28,17 +28,18 @@ history, `CHANGELOG.md`).
 
 ## Current state (snapshot)
 
-**Shipped:** Phases 0–2, Phase-C Steps **C0–C11**, and Phase-D **Step D0–D7**
+**Shipped:** Phases 0–2, Phase-C Steps **C0–C11**, and Phase-D **Step D0–D8**
 (GUI defect fix; structured load-case IDs; six-section navigation restructure;
 Start-page local-disk persistence; authoritative shared inputs + Aero
 Coefficients page; Envelopes & Critical Conditions section; Analysis merged
-into nine component pages). **All 22** of Reference 1's
+into nine component pages; Loads Plots page; Export & report upgrades). Phase D
+(the six-section GUI restructure) is now **complete**. **All 22** of Reference 1's
 Appendix-C programs are ported (ENGLOADS, WTESTIMA, WTONECG, WTENV,
 WINGGEOM, STRSPEED, MACHLIM, TAU, AIRLOADS, AIRLOAD4, FLTLOADS, SELECT, WINGINER,
 NETLOADS, TAILDIST, AILERON, FLAPLOAD, TABLOADS, ONENGOUT, LGFACTOR, LANDLOAD,
 BALLOADS), plus **2 modern modules** with no `.BAS` oracle (`configuration`,
 `body_loads`).
-Schema is at **`SCHEMA_VERSION = 19`**; 282 tests pass; coverage ~92%. The wing
+Schema is at **`SCHEMA_VERSION = 19`**; 290 tests pass; coverage ~92%. The wing
 distributed-loads vertical slice (geometry → speeds → envelope → airloads → inertia
 → net → sbeam export), the critical-load selection (wing / h-tail / v-tail /
 fuselage), the chordwise tail distribution, the simplified control-surface
@@ -76,25 +77,13 @@ see `40_history/00_completed_development.md` → "Phase D — Step D4". Step D5
 (Analysis merged into nine component pages) shipped 2026-07-09 — see
 `40_history/00_completed_development.md` → "Phase D — Step D6". Step D7
 (Loads Plots page) shipped 2026-07-09 — see
-`40_history/00_completed_development.md` → "Phase D — Step D7".
-**Step D8 (below) is now the active step.** Invariant throughout: no calc-math
-change — the Appendix A/B oracles pass unmodified at every step.
-
-Definition of done per step (in addition to the file-top DoD where it applies):
-pages follow the Phase-D page conventions (`02_gui_workflow_plan.md §5` —
-form+Apply, merge-writes, read-don't-re-ask, no airplane-shaped defaults), and
-the workflow-step ↔ registered-module test stays green.
-
-### Step D8 — Export & report upgrades
-
-Absorbs the former "`.xlsx` workbook export" nicety.
-
-1. ~~Case-index table included in the export bundle and shown on the Export
-   page~~ — done as part of D1 (`sbeam_bridge.case_index_csv_from`, the Export
-   page's "Case index" section).
-2. Single multi-sheet `.xlsx` workbook (one tab per module/component) as an
-   alternative to the `.zip`.
-3. Exports honor the D5 critical-case selection (full set vs governing set).
+`40_history/00_completed_development.md` → "Phase D — Step D7". Step D8
+(Export & report upgrades) shipped 2026-07-09 — see
+`40_history/00_completed_development.md` → "Phase D — Step D8". **Phase D
+(the six-section GUI restructure) is now complete** — no further Phase-D steps
+are queued; remaining work is the deferred calc refinements and open design
+decisions below. Invariant throughout Phase D: no calc-math change — the
+Appendix A/B oracles pass unmodified at every step.
 
 ---
 

@@ -10,6 +10,74 @@ Acceptance**, **Key decisions**.
 
 ---
 
+## Phase D — Step D8: Export & report upgrades (complete, 2026-07-09)
+
+**Objective.** Close out Phase D (the six-section GUI restructure) with the
+last Export-page item: a multi-sheet `.xlsx` workbook alternative to the
+`.zip` bundle, and wiring the D5 Critical Loads case selection into the
+sbeam/case-index exports where the case-id lineage actually supports it. Pure
+GUI/export-layer step, no calc-math change; no new `Project` slice, so
+`SCHEMA_VERSION` stays at 19. D8.1 (the case-index table) had already shipped
+as part of D1.
+
+**Deliverables.**
+- **D8.2 — `.xlsx` workbook.** New `farloads/export/workbook.py::build_workbook`
+  (pure renderer, `openpyxl` dependency added to `pyproject.toml`): re-shapes
+  the strings/rows the Export page already computes for the CSV/`.zip`
+  channel into one workbook — a `Project` sheet, one tab per module with
+  results, a `Case Index` sheet, and the tabular sbeam span-load CSVs (wing/
+  fuselage span loads, tail chordwise, control-surface loads); BDF card text
+  is excluded (not tabular). Export page gained a "📊 Download workbook
+  (.xlsx)" button, a sibling alternative to the `.zip` (not nested inside it).
+- **D8.3 — export scope filter.** New pure helper
+  `sbeam_bridge.filter_by_selected_case_ids(results, selected_ids)`
+  (`selected_ids is None` = unfiltered; a result with no `case_ref` is always
+  kept). The Export page gained an "Export scope" toggle (Full set /
+  Governing set), disabled when nothing is deselected on the Critical Loads
+  page. Tracing the case-id lineage found the filter is **exact only for
+  fuselage and tail** (`body_loads.py`/`taildist.py` copy `case_ref` verbatim
+  from `envelope.critical.conditions`) — wing (`WingMassInput.cases`, user-
+  authored) and control-surface (aileron/flap/tab) results mint independent
+  case ids on disjoint bands that never overlap `envelope.critical`'s (the
+  known "Unify select_wing/one_engine_out case identity" gap), so those two
+  always export the full set with an explanatory caption rather than
+  silently filtering to nothing.
+
+**Test / Acceptance.**
+- `tests/test_workbook.py` (new): builds a workbook from `ga6_normal
+  .project.json`, re-opens it with `openpyxl.load_workbook`, and asserts
+  expected sheet names, `Project`-sheet field/value round-trip, module-sheet
+  row counts matching their source CSVs, and that no BDF card text leaked
+  into any sheet.
+- `tests/test_sbeam_bridge.py`: three new cases for
+  `filter_by_selected_case_ids` (unfiltered passthrough, keep-only-selected,
+  empty-selection drops all tagged cases).
+- Full suite (`pytest -q`): 290 passed; `ruff check farloads/ cli.py app/`
+  clean.
+- Manual verification: `streamlit run app/Home.py` against `examples/
+  ga6_normal.project.json` — Export page loads, the workbook button produces
+  a valid `.xlsx`, the scope toggle is disabled until a condition is
+  deselected on Critical Loads, and the wing/control-surface caption appears
+  once the toggle is enabled.
+
+**Key decisions** (resolved with the user before implementation).
+- **xlsx library.** `openpyxl` (pandas' default xlsx engine) over `xlsxwriter`
+  — no rich formatting needed here.
+- **D8.3 scope for the wing/control-surface gap.** Filter where the case-id
+  lineage genuinely matches (fuselage/tail); leave wing/control-surface always
+  full-set with a caption, rather than deferring D8.3 until the id-unification
+  mini-step lands.
+- **Toggle blast radius.** The scope toggle affects only the sbeam BDF/CSV
+  artifacts and the case index; per-module load-case CSVs and the combined
+  text report always show every computed case (the oracle-traceable record,
+  not the structural hand-off).
+
+Closes Phase D (Steps D0–D8) — the six-section GUI restructure is complete;
+remaining work is the deferred calc refinements and open design decisions in
+`docs/30_future/00_backlog.md`.
+
+---
+
 ## Phase D — Step D7: Loads Plots page (complete, 2026-07-09)
 
 **Objective.** Add the sixth workflow section's page: a consolidated,

@@ -111,6 +111,7 @@
     "lbs",
     "LGFACTOR",
     "oleo",
+    "openpyxl",
     "PITCHP",
     "ROLLP",
     "SMP",
@@ -232,6 +233,8 @@
     "WUPAIL",
     "xbar",
     "xlemac",
+    "xlsx",
+    "xlsxwriter",
     "ybar",
     "zbar"
   ]

@@ -11,6 +11,19 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **Export & report upgrades** (Phase D Step D8 — closes Phase D). Export page
+  gains a "📊 Download workbook (.xlsx)" button (new `farloads/export
+  /workbook.py::build_workbook`, `openpyxl` dependency): one workbook tab per
+  module/component (Project info, per-module load-case CSVs, the case-index
+  table, and the tabular sbeam span-load CSVs), a sibling alternative to the
+  `.zip` bundle. Export page also gains an "Export scope" toggle (Full set /
+  Governing set) that filters the fuselage/tail sbeam artifacts and the case
+  index to the D5 Critical Loads page's selection (new pure helper
+  `sbeam_bridge.filter_by_selected_case_ids`); wing and control-surface
+  exports always include the full set since their case ids don't overlap
+  `envelope.critical`'s (a known, documented gap — see the backlog). No
+  calc-math change, no new `Project` slice, `SCHEMA_VERSION` unchanged at 19.
+
 - **Loads Plots page** (Phase D Step D7). New `app/views/loads_plots.py`, the
   sixth workflow section: a read-only, consolidated viewer over the
   distributed-load results already persisted on `Project.loads` by the

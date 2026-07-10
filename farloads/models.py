@@ -1126,8 +1126,12 @@ class CriticalLoadSet:
     condition" (the default, and the whole behavior for any project that predates
     this field or never visits the page). Structural calc modules (WINGINER,
     NETLOADS, body_loads, the sbeam bridge) deliberately keep reading
-    ``conditions`` directly -- the selection only governs what the *Results
-    Review* GUI page displays, never what the load-producing modules compute.
+    ``conditions`` directly -- the selection never changes what the
+    load-producing modules compute. It governs what the *Results Review* GUI
+    page displays, and (Step D8.3) an opt-in "governing set" toggle on the
+    *Export* page that filters the fuselage/tail sbeam artifacts and the case
+    index -- wing and control-surface exports are unaffected (their case ids
+    don't overlap this set; see ``sbeam_bridge.filter_by_selected_case_ids``).
     """
     conditions: List[CriticalCondition] = field(default_factory=list)
     selected_case_ids: List[str] = field(default_factory=list)

@@ -24,6 +24,7 @@ from .sbeam_bridge import (
     write_tail_chordwise_csv,
     write_tail_force_moment_cards,
 )
+from .workbook import build_workbook
 
 __all__ = [
     "SBEAM_CID",
@@ -43,4 +44,5 @@ __all__ = [
     "write_tail_chordwise_csv",
     "tail_force_moment_cards",
     "write_tail_force_moment_cards",
+    "build_workbook",
 ]

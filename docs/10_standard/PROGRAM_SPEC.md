@@ -435,6 +435,32 @@ return strings (with thin `write_*` file wrappers), and do no physics.
   deck parses **and solves SOL 101** in the real sbeam (manual verification step).
 - **CLI:** `python cli.py --export-sbeam <prefix> <project.json> [--stick-model]`.
 
+### Export-scope filter (Step D8.3)
+- **Source:** `farloads/export/sbeam_bridge.py::filter_by_selected_case_ids`.
+- Filters any case-carrying result list to `envelope.critical.selected_case_ids`
+  (the D5 Critical Loads page's opt-out selection); a result with no `case_ref`
+  is kept, and `selected_ids is None` returns the input unchanged (no filter).
+- **Used by** the Export page's "Export scope" toggle, and only for fuselage
+  (`body_net`) and tail (`tail_chordwise`) results, whose `case_ref.case_id` is
+  copied verbatim from `envelope.critical.conditions` (`body_loads.py`,
+  `taildist.py`). Wing (`wing_net`) and control-surface (aileron/flap/tab)
+  results mint independent case ids on disjoint bands that never overlap
+  `envelope.critical`'s (see the backlog's "Unify select_wing/one_engine_out
+  case identity" gap), so they always export the full set.
+
+### Workbook export bridge — multi-sheet `.xlsx` (Step D8.2)
+- **Source:** `farloads/export/workbook.py::build_workbook`; `openpyxl` dependency.
+- Pure renderer: re-shapes strings/rows the Export page has already computed
+  for the CSV/`.zip` channel (project fields, per-module load-case CSVs, the
+  case-index table, and the tabular sbeam span-load CSVs) into one workbook —
+  no new calculation. BDF card text is excluded (not tabular data).
+- **Sheets:** `Project`; one per module with results (sheet name = the
+  workflow-step title, truncated to Excel's 31-char limit); `Case Index`; and
+  the tabular sbeam artifacts (`Wing Span Loads`, `Fuselage Span Loads`,
+  `Tail Chordwise`, `Control Surface Loads`) when their inputs are present.
+- **Used by** the Export page's "📊 Download workbook (.xlsx)" button, a
+  sibling alternative to the `.zip` bundle (not nested inside it).
+
 ---
 
 ## Cross-module field ownership (the shared schema at a glance)
@@ -453,7 +479,7 @@ Derived from **User's Guide Table 2.2** (the authoritative input→output map):
 | `aero` (tau, spanwise) | TAU, AIRLOADS/AIRLOAD4 | SELECT, NETLOADS (and AIRLOADS↔SELECT iterate) |
 | `envelope.vn / tail_balance` | FLTLOADS | SELECT, WINGINER |
 | `envelope.critical` | SELECT | AIRLOADS, AIRLOAD4, WINGINER, TAILDIST |
-| `envelope.critical.selected_case_ids` (opt-out GUI selection, Step D5) | Critical Loads page | Results Review page (display filter only — structural calc modules keep reading `envelope.critical.conditions` unfiltered) |
+| `envelope.critical.selected_case_ids` (opt-out GUI selection, Step D5) | Critical Loads page | Results Review page (display filter only); Export page (fuselage/tail sbeam artifacts + case index only, Step D8.3 — structural calc modules keep reading `envelope.critical.conditions` unfiltered) |
 | `loads.wing_inertia` | WINGINER | NETLOADS |
 | `landing` (gear geometry + load factor) | LGFACTOR (writes `.n`), direct gear-geometry input | LANDLOAD; reads `mass` (weight/CG), `geometry.wing` (area) |
 | `engine[]` | direct input | ENGLOADS, ONENGOUT |

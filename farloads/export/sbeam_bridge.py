@@ -632,6 +632,24 @@ def write_control_surface_force_moment_cards(arg, path: str, sid_base: int = 1) 
 
 
 # --------------------------------------------------------------------------- #
+# Export-scope filter (Step D8.3): the Export page's "full set vs governing
+# set" toggle, applied to any case-carrying result list whose ``case_ref``
+# genuinely traces back to ``envelope.critical`` (fuselage/htail/vtail -- see
+# the caller's own scoping note; wing/control-surface results are never passed
+# through this since their case ids don't overlap ``envelope.critical``'s).
+# --------------------------------------------------------------------------- #
+def filter_by_selected_case_ids(results: Sequence, selected_ids) -> List:
+    """``results`` filtered to items whose ``case_ref.case_id`` is in
+    ``selected_ids``; a result with no ``case_ref`` is kept (defensive -- never
+    silently drop an un-tagged case). ``selected_ids is None`` means "no
+    filter", returning ``results`` unchanged."""
+    if selected_ids is None:
+        return list(results)
+    ids = set(selected_ids)
+    return [r for r in results if not r.case_ref or r.case_ref.case_id in ids]
+
+
+# --------------------------------------------------------------------------- #
 # Case-index table (ID -> component, condition, CG, speed, altitude, FAR)
 # --------------------------------------------------------------------------- #
 def case_index_rows_from(*groups: Sequence) -> List[dict]:

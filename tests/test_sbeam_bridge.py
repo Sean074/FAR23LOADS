@@ -254,6 +254,27 @@ def test_control_surface_writers(tmp_path=None):
         assert os.path.getsize(path) > 0
 
 
+# --------------------------------------------------------------------------- #
+# Export-scope filter (Step D8.3)
+# --------------------------------------------------------------------------- #
+def test_filter_by_selected_case_ids_none_is_unfiltered():
+    results = _wing_net(_GA)
+    assert sb.filter_by_selected_case_ids(results, None) == results
+
+
+def test_filter_by_selected_case_ids_keeps_only_selected():
+    results = _wing_net(_GA)
+    ids = {results[0].case_ref.case_id}
+    filtered = sb.filter_by_selected_case_ids(results, ids)
+    assert len(filtered) == 1
+    assert filtered[0].case_ref.case_id == results[0].case_ref.case_id
+
+
+def test_filter_by_selected_case_ids_empty_selection_drops_all_tagged():
+    results = _wing_net(_GA)
+    assert sb.filter_by_selected_case_ids(results, set()) == []
+
+
 if __name__ == "__main__":
     import traceback
 
