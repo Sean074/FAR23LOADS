@@ -5,8 +5,8 @@ One page of the multi-page app; run the suite with:  streamlit run app/Home.py
 Each surface is defined by its leading- and trailing-edge points (fuselage
 station X, butt line Y, inches), ordered inboard -> outboard, and the strip count
 the chord is integrated over. The wing's MAC/XLEMAC seed the later weight-envelope
-and structural-speed pages. Inputs are entered in Imperial; an SI output toggle is
-offered (length -> mm, area -> m²).
+and structural-speed pages. Inputs are entered in Imperial; results follow the
+sidebar's Imperial/SI toggle (``Home.py``).
 """
 
 from __future__ import annotations
@@ -29,11 +29,7 @@ st.caption(
 project: Project = st.session_state.get("project", Project(name=""))
 geometry = project.geometry or GeometryInput()
 
-with st.sidebar:
-    st.header("Output units")
-    out_label = st.radio("Reported lengths/areas in", ["Imperial (in)", "SI (mm, m²)"], index=0,
-                         help="Surface point inputs below are entered in Imperial inches.")
-    system = UnitSystem.SI if out_label.startswith("SI") else UnitSystem.IMPERIAL
+system: UnitSystem = st.session_state.get("unit_system", UnitSystem.IMPERIAL)
 
 # Add a new (blank) surface -- immediate, not gated behind the edit form below.
 with st.form("add_surface_form", clear_on_submit=True):

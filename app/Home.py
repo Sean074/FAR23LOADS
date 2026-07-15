@@ -16,10 +16,15 @@ is no numeric-prefix coupling and no duplicate-index collisions. A section with 
 steps yet (``Loads Plots``, pending Step D7) is omitted from the sidebar rather
 than shown empty.
 
-This module also owns the **global project file widget** (Step D3, decision D-3):
-Open/Save against a local ``projects/`` directory, New-from-example, and the
-browser upload/download fallback. It is built once, here, above ``pg.run()``, so
-it appears in the sidebar on every page regardless of which view is active.
+This module also owns the **global unit-system toggle** and the **global project
+file widget** (Step D3, decision D-3): Imperial/SI selection (``st.session_state
+["unit_system"]``, read by every view via :func:`farloads.units.convert_results`)
+plus Open/Save against a local ``projects/`` directory, New-from-example, and the
+browser upload/download fallback. Both are built once, here, above ``pg.run()``,
+so they appear in the sidebar on every page regardless of which view is active.
+Calc and ``project.json`` stay Imperial-only (canonical internal units); SI is a
+presentation choice applied at each view's render boundary. Airspeed (KEAS) and
+altitude (ft) are aviation-standard units and are not affected by this toggle.
 """
 
 from __future__ import annotations
@@ -29,7 +34,7 @@ import os
 
 import streamlit as st
 
-from farloads import Project
+from farloads import Project, UnitSystem
 from farloads import io as farloads_io
 from farloads import workflow as wf
 
@@ -112,6 +117,23 @@ def _load_with_guard(new_project: Project, source: str) -> None:
 
 
 with st.sidebar:
+    st.header("Units")
+    _unit_label = st.radio(
+        "Reported results in", ["Imperial", "SI"],
+        index=0 if st.session_state.get("unit_system", UnitSystem.IMPERIAL) == UnitSystem.IMPERIAL else 1,
+        horizontal=True, key="_unit_system_radio",
+        help=(
+            "Applies everywhere in the app: weights, lengths, forces, moments, "
+            "torque, power and inertia. Calculations always run in Imperial "
+            "internally (the FAR 23 LOADS manual's units), so this only changes "
+            "how inputs/results are displayed. Airspeed (KEAS) and altitude (ft) "
+            "stay in aviation-standard units in both modes."
+        ),
+    )
+    st.session_state["unit_system"] = (
+        UnitSystem.IMPERIAL if _unit_label == "Imperial" else UnitSystem.SI
+    )
+
     st.header("Project file")
     dirty = _has_unsaved_changes(project)
     st.caption("🟠 Unsaved changes" if dirty else "⚪ No unsaved changes")

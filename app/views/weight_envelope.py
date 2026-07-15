@@ -7,7 +7,7 @@ wing geometry from the Wing Geometry page (it needs the wing's XLEMAC/MAC). Set 
 structural CG limits below as percentages of MAC plus the gross and reduced
 weights; the page reports the structural-limit stations, the minimum/maximum
 loadings, the forward loading envelope and the ballast to reach each limit.
-Inputs are Imperial; an SI output toggle is offered (length -> mm, weight -> kg).
+Inputs are Imperial; results follow the sidebar's Imperial/SI toggle (``Home.py``).
 """
 
 from __future__ import annotations
@@ -44,12 +44,9 @@ existing = project.weight.envelope
 # available; an override checkbox covers a different structural gross weight.
 mtow_upstream = project.weight.direct_totals()[0]
 
-with st.sidebar:
-    st.header("Output units")
-    out_label = st.radio("Reported weights/stations in", ["Imperial (lb, in)", "SI (kg, mm)"], index=0,
-                         help="Limit inputs below are entered in Imperial units.")
-    system = UnitSystem.SI if out_label.startswith("SI") else UnitSystem.IMPERIAL
+system: UnitSystem = st.session_state.get("unit_system", UnitSystem.IMPERIAL)
 
+with st.sidebar:
     st.header("Structural limits")
     override_weight = st.checkbox(
         "Override gross weight", value=False,

@@ -64,21 +64,15 @@ _LAYOUTS = {
 }
 _LAYOUT_LABELS = list(_LAYOUTS)
 
+system: UnitSystem = st.session_state.get("unit_system", UnitSystem.IMPERIAL)
+U = labels_for(system)  # {"weight","length","torque","power"} -> unit string
+
 with st.sidebar:
-    st.header("Units")
-    unit_label = st.radio(
-        "Input / output units",
-        ["Imperial", "SI"],
-        index=0,
-        help=(
-            "Imperial: lb, in, ft-lb, hp. SI: kg, mm, N·m, kW. "
-            "Calculations always run in Imperial internally so results match "
-            "the FAR 23 LOADS manual; SI values are converted at the boundary. "
-            "Switching units re-seeds the fields with converted defaults."
-        ),
+    st.caption(
+        f"Input/output units: **{'Imperial' if system == UnitSystem.IMPERIAL else 'SI'}** "
+        "(set in the sidebar's global **Units** control, above). Switching it "
+        "re-seeds these fields with converted defaults."
     )
-    system = UnitSystem.SI if unit_label == "SI" else UnitSystem.IMPERIAL
-    U = labels_for(system)  # {"weight","length","torque","power"} -> unit string
 
     st.header("Engine layout")
     default_layout_idx = (
@@ -447,7 +441,8 @@ d1, d2, d3 = st.columns(3)
 with d1:
     st.download_button(
         "Download text report",
-        text_report(inp, export_conditions, unit_system=unit_label),
+        text_report(inp, export_conditions,
+                   unit_system="Imperial" if system == UnitSystem.IMPERIAL else "SI"),
         file_name="engine_mount_loads.txt",
         mime="text/plain",
     )

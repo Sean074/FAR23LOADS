@@ -2,8 +2,9 @@
 
 One page of the multi-page app; run the suite with:  streamlit run app/Home.py
 
-Mass-properties figures are reported in Imperial units (the units of the original
-program and the manual's worked examples); SI presentation is deferred.
+Mission inputs are entered in Imperial units (the units of the original program
+and the manual's worked examples); results follow the sidebar's Imperial/SI
+toggle (``Home.py``).
 """
 
 from __future__ import annotations
@@ -52,12 +53,9 @@ _ENGINE_TYPES = {
 }
 _ENGINE_LABELS = list(_ENGINE_TYPES)
 
-with st.sidebar:
-    st.header("Output units")
-    out_label = st.radio("Reported weights in", ["Imperial (lb)", "SI (kg)"], index=0,
-                         help="Mission inputs below are entered in Imperial units.")
-    system = UnitSystem.SI if out_label.startswith("SI") else UnitSystem.IMPERIAL
+system: UnitSystem = st.session_state.get("unit_system", UnitSystem.IMPERIAL)
 
+with st.sidebar:
     st.header("Mission inputs")
     with st.form("weight_estimate_form"):
         airplane = st.text_input("Airplane", value=existing.airplane if existing else "")

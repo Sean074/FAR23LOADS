@@ -2,8 +2,9 @@
 
 One page of the multi-page app; run the suite with:  streamlit run app/Home.py
 
-Edits the itemized weight data base and reports the loading's total weight, CG
-and moments of inertia (slug-ft^2 and lb-in^2). Imperial units throughout.
+Edits the itemized weight data base (entered in Imperial: lb, in, lb-in^2) and
+reports the loading's total weight, CG and moments of inertia; results follow
+the sidebar's Imperial/SI toggle (``Home.py``).
 """
 
 from __future__ import annotations
@@ -30,12 +31,7 @@ st.caption(
     "of gravity and moments of inertia for one loading."
 )
 
-with st.sidebar:
-    st.header("Output units")
-    out_label = st.radio("Reported results in", ["Imperial", "SI"], index=0,
-                         help="The weight data base below is entered in Imperial units "
-                              "(lb, in, lb-in²); this toggle converts the reported results.")
-    system = UnitSystem.SI if out_label == "SI" else UnitSystem.IMPERIAL
+system: UnitSystem = st.session_state.get("unit_system", UnitSystem.IMPERIAL)
 
 _COLUMNS = ["name", "weight_lb", "x", "y", "z", "ixx", "iyy", "izz", "kind"]
 _KINDS = [k.value for k in MassItemKind]
