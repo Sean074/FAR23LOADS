@@ -69,9 +69,11 @@ from .units import (
     UnitSystem,
     convert_results,
     labels_for,
+    si_scalar_label,
     to_display,
     to_imperial,
     to_imperial_scalar,
+    to_si_scalar,
 )
 from . import io, registry
 
@@ -143,9 +145,11 @@ __all__ = [
     "UnitSystem",
     "convert_results",
     "labels_for",
+    "si_scalar_label",
     "to_display",
     "to_imperial",
     "to_imperial_scalar",
+    "to_si_scalar",
     "io",
     "registry",
 ]

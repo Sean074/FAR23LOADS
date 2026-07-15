@@ -13,7 +13,7 @@ from __future__ import annotations
 import pandas as pd
 import streamlit as st
 
-from farloads import Project
+from farloads import ConditionResult, Project, UnitSystem, convert_results
 from farloads.modules.select import build_critical
 
 
@@ -26,6 +26,21 @@ st.caption(
 )
 
 project: Project = st.session_state.get("project", Project(name=""))
+system: UnitSystem = st.session_state.get("unit_system", UnitSystem.IMPERIAL)
+
+
+def _display_loads(loads: list, system: UnitSystem) -> list:
+    """Display-only copy of a ``CriticalCondition.loads`` list converted to
+    ``system`` (Imperial is a no-op). ``CriticalCondition`` carries a bare
+    ``List[LoadValue]`` (not a :class:`~farloads.ConditionResult`), so it is
+    wrapped/unwrapped around :func:`farloads.convert_results` rather than
+    mutating the condition itself.
+    """
+    if system == UnitSystem.IMPERIAL:
+        return loads
+    wrapped = ConditionResult(title="", far_reference="", values=loads)
+    return convert_results([wrapped], system)[0].values
+
 
 if project.flight_loads is None and project.envelope is None:
     st.warning("Define the flight-loads inputs on the **Flight Envelope** page first "
@@ -89,7 +104,7 @@ for key, title, sub in _COMPONENTS:
             if checked:
                 checked_ids.append(cid)
         row = {"Condition": c.label, "FAR": c.far_reference, "V-n case": c.case}
-        for lv in c.loads:
+        for lv in _display_loads(c.loads, system):
             row[lv.label] = round(lv.value, 2)
         rows.append(row)
     st.dataframe(pd.DataFrame(rows), hide_index=True, use_container_width=True)

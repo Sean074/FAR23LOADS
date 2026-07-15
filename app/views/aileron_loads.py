@@ -12,7 +12,7 @@ from __future__ import annotations
 import pandas as pd
 import streamlit as st
 
-from farloads import AileronLoadsInput, Project
+from farloads import AileronLoadsInput, Project, UnitSystem, convert_results, to_si_scalar
 from farloads.export import sbeam_bridge as sb
 from farloads.modules.aileron import build_aileron, run
 
@@ -25,6 +25,7 @@ st.caption(
 )
 
 project: Project = st.session_state.get("project", Project(name=""))
+system: UnitSystem = st.session_state.get("unit_system", UnitSystem.IMPERIAL)
 
 if project.speeds is None:
     st.warning("Define the **Structural Speeds** (VA/VC/VD) first.")
@@ -67,23 +68,28 @@ except (ValueError, ZeroDivisionError) as exc:
     st.error(f"Could not compute aileron loads: {exc}")
     st.stop()
 
-vals = {v.label: v.value for v in mod.conditions[0].values}
+display_conditions = convert_results(mod.conditions, system)
+vals = {v.label: v.value for v in display_conditions[0].values}
+force_u = "N" if system == UnitSystem.SI else "lb"
+pressure_u = "kPa" if system == UnitSystem.SI else "lb/in²"
 st.caption(
     "On-screen loads are **LIMIT** (oracle values, traceable to the manual). The "
     "CSV / FORCE-card downloads below and the **Review/Export** pages report "
     "**ULTIMATE** = limit × 1.5 (14 CFR 23.303)."
 )
 m1, m2, m3 = st.columns(3)
-m1.metric("Critical down load (lb, LIMIT)", f"{vals['Critical down aileron load']:,.2f}")
-m2.metric("Critical up load (lb, LIMIT)", f"{vals['Critical up aileron load']:,.2f}")
+m1.metric(f"Critical down load ({force_u}, LIMIT)", f"{vals['Critical down aileron load']:,.2f}")
+m2.metric(f"Critical up load ({force_u}, LIMIT)", f"{vals['Critical up aileron load']:,.2f}")
 m3.metric("At speed (kt)", f"{vals['Down aileron speed']:.0f} / {vals['Up aileron speed']:.0f}")
 
 st.subheader("Forward-of-hinge pressures")
 st.write(pd.DataFrame([
-    {"Case": "down", "Load (lb, LIMIT)": round(results[0].load_lb, 2),
-     "Pressure fwd of hinge (lb/in², LIMIT)": round(vals["Pressure fwd of hinge (down)"], 4)},
-    {"Case": "up", "Load (lb, LIMIT)": round(results[1].load_lb, 2),
-     "Pressure fwd of hinge (lb/in², LIMIT)": round(vals["Pressure fwd of hinge (up)"], 4)},
+    {"Case": "down", f"Load ({force_u}, LIMIT)": round(to_si_scalar(results[0].load_lb, "lbf", system), 2),
+     f"Pressure fwd of hinge ({pressure_u}, LIMIT)":
+         round(to_si_scalar(vals["Pressure fwd of hinge (down)"], "psi", system), 4)},
+    {"Case": "up", f"Load ({force_u}, LIMIT)": round(to_si_scalar(results[1].load_lb, "lbf", system), 2),
+     f"Pressure fwd of hinge ({pressure_u}, LIMIT)":
+         round(to_si_scalar(vals["Pressure fwd of hinge (up)"], "psi", system), 4)},
 ]))
 
 # Persist for the sbeam control-surface export.

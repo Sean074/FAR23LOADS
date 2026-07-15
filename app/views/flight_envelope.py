@@ -16,7 +16,7 @@ import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
 
-from farloads import FlightLoadsInput, Project
+from farloads import FlightLoadsInput, Project, UnitSystem, convert_results
 from farloads.modules.flight_envelope import build_envelope, run as flt_run
 from farloads.report import module_text_report
 
@@ -29,6 +29,7 @@ st.caption(
 )
 
 project: Project = st.session_state.get("project", Project(name=""))
+system: UnitSystem = st.session_state.get("unit_system", UnitSystem.IMPERIAL)
 
 if project.speeds is None:
     st.warning(
@@ -102,7 +103,7 @@ if project.is_concept:
 
 try:
     env = build_envelope(project)
-    results = flt_run(project).conditions
+    results = convert_results(flt_run(project).conditions, system)
 except (ValueError, ZeroDivisionError) as exc:
     st.error(f"Could not compute the flight envelope: {exc}")
     st.stop()

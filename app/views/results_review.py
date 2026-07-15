@@ -14,7 +14,7 @@ from __future__ import annotations
 import pandas as pd
 import streamlit as st
 
-from farloads import Project, registry
+from farloads import ConditionResult, Project, UnitSystem, convert_results, registry
 from farloads import workflow as wf
 from farloads.modules.select import build_critical
 from farloads.report import (
@@ -31,6 +31,21 @@ st.caption(
 )
 
 project: Project = st.session_state.get("project", Project(name=""))
+system: UnitSystem = st.session_state.get("unit_system", UnitSystem.IMPERIAL)
+
+
+def _display_loads(loads: list, system: UnitSystem) -> list:
+    """Display-only copy of a ``CriticalCondition.loads`` list converted to
+    ``system`` (Imperial is a no-op). ``CriticalCondition`` carries a bare
+    ``List[LoadValue]`` (not a :class:`~farloads.ConditionResult`), so it is
+    wrapped/unwrapped around :func:`farloads.convert_results` rather than
+    mutating the condition itself.
+    """
+    if system == UnitSystem.IMPERIAL:
+        return loads
+    wrapped = ConditionResult(title="", far_reference="", values=loads)
+    return convert_results([wrapped], system)[0].values
+
 
 # --------------------------------------------------------------------------- #
 # Headline: governing (critical) loads from SELECT
@@ -82,7 +97,7 @@ if critical is not None:
         rows = []
         for c in conds:
             row = {"Condition": c.label, "FAR": c.far_reference, "V-n case": c.case}
-            for lv in c.loads:
+            for lv in _display_loads(c.loads, system):
                 row[lv.label] = round(lv.value, 2)
             rows.append(row)
         st.dataframe(pd.DataFrame(rows), hide_index=True, use_container_width=True)
@@ -113,7 +128,7 @@ for phase in wf.PHASES:
     st.subheader(phase)
     for step, mr in entries:
         with st.expander(f"{step.title}  ·  {len(mr.conditions)} condition(s)"):
-            conds = mr.conditions
+            conds = convert_results(mr.conditions, system)
             rows = load_cases_to_rows(conds) if has_load_case_data(conds) else results_to_rows(conds)
             if rows:
                 st.dataframe(pd.DataFrame(rows), hide_index=True, use_container_width=True)

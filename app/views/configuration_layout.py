@@ -25,7 +25,7 @@ import plotly.graph_objects as go
 import streamlit as st
 from plotly.subplots import make_subplots
 
-from farloads import LayoutInput, MassItemKind, Project, WeightInput
+from farloads import LayoutInput, MassItemKind, Project, UnitSystem, WeightInput, convert_results
 from farloads.modules.configuration import (
     cg_estimate,
     component_stations,
@@ -44,6 +44,7 @@ st.caption(
 )
 
 project: Project = st.session_state.get("project", Project(name=""))
+system: UnitSystem = st.session_state.get("unit_system", UnitSystem.IMPERIAL)
 layout = project.configuration or LayoutInput()
 
 
@@ -270,7 +271,10 @@ else:
 left, right = st.columns([3, 2])
 with left:
     st.subheader("Assessment")
-    for r in results:
+    # Display-only conversion: `results`/`derived` above stay Imperial (inches)
+    # because they feed the three-view plotting and cg_estimate() geometry math.
+    display_results = convert_results(results, system)
+    for r in display_results:
         with st.expander(r.title, expanded=True):
             rows = [{"Quantity": v.label, "Value": round(v.value, 4), "Units": v.units} for v in r.values]
             st.dataframe(pd.DataFrame(rows), hide_index=True, use_container_width=True)

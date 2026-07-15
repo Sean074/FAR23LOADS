@@ -14,7 +14,7 @@ from __future__ import annotations
 import pandas as pd
 import streamlit as st
 
-from farloads import LandingGearInput, LandingInput, Project, io
+from farloads import LandingGearInput, LandingInput, Project, UnitSystem, io, si_scalar_label, to_si_scalar
 from farloads.modules.landing import build_landing, run
 
 
@@ -26,6 +26,7 @@ st.caption(
 )
 
 project: Project = st.session_state.get("project", Project(name=""))
+system: UnitSystem = st.session_state.get("unit_system", UnitSystem.IMPERIAL)
 inp = project.landing or LandingInput()
 
 
@@ -134,15 +135,23 @@ st.caption(
     "The CSV download below and the **Review/Export** pages report **ULTIMATE** "
     "= limit × 1.5 (14 CFR 23.303)."
 )
+_lbf_lbl = si_scalar_label("lbf", system)
+# Display-only conversion of the ground-reaction forces; ``reactions``/``mod``
+# (the CSV export below) are never touched -- they stay Imperial.
 rows = [{
     "Case": c.case, "Condition": c.description, "FAR": c.far_reference, "CG": c.cg_name,
-    "VMP (LIMIT)": round(c.vmp, 1), "DMP (LIMIT)": round(c.dmp, 1), "SMP (LIMIT)": round(c.smp, 1),
-    "RMP (LIMIT)": round(c.rmp, 1), "VNP (LIMIT)": round(c.vnp, 1), "DNP (LIMIT)": round(c.dnp, 1),
-    "SNP (LIMIT)": round(c.snp, 1), "RESULT (LIMIT)": round(c.result, 1),
+    f"VMP ({_lbf_lbl}, LIMIT)": round(to_si_scalar(c.vmp, "lbf", system), 1),
+    f"DMP ({_lbf_lbl}, LIMIT)": round(to_si_scalar(c.dmp, "lbf", system), 1),
+    f"SMP ({_lbf_lbl}, LIMIT)": round(to_si_scalar(c.smp, "lbf", system), 1),
+    f"RMP ({_lbf_lbl}, LIMIT)": round(to_si_scalar(c.rmp, "lbf", system), 1),
+    f"VNP ({_lbf_lbl}, LIMIT)": round(to_si_scalar(c.vnp, "lbf", system), 1),
+    f"DNP ({_lbf_lbl}, LIMIT)": round(to_si_scalar(c.dnp, "lbf", system), 1),
+    f"SNP ({_lbf_lbl}, LIMIT)": round(to_si_scalar(c.snp, "lbf", system), 1),
+    f"RESULT ({_lbf_lbl}, LIMIT)": round(to_si_scalar(c.result, "lbf", system), 1),
 } for c in reactions]
 st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
-st.caption("VMP/DMP/SMP — vertical/drag/side main per wheel; VNP/DNP/SNP — nose. "
-           "Loads in lb, with respect to the ground line.")
+st.caption(f"VMP/DMP/SMP — vertical/drag/side main per wheel; VNP/DNP/SNP — nose. "
+           f"Loads in {_lbf_lbl}, with respect to the ground line.")
 
 st.download_button("Download landing loads (CSV)", io.load_cases_csv(mod),
                    file_name="landing_loads.csv", mime="text/csv")

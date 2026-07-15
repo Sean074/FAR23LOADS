@@ -12,7 +12,7 @@ from __future__ import annotations
 import pandas as pd
 import streamlit as st
 
-from farloads import Project, TabLoadsInput, TabSpec
+from farloads import Project, TabLoadsInput, TabSpec, UnitSystem, convert_results, to_si_scalar
 from farloads.export import sbeam_bridge as sb
 from farloads.modules.tab import build_tabs, run
 
@@ -25,6 +25,7 @@ st.caption(
 )
 
 project: Project = st.session_state.get("project", Project(name=""))
+system: UnitSystem = st.session_state.get("unit_system", UnitSystem.IMPERIAL)
 
 if project.speeds is None:
     st.warning("Define the **Structural Speeds** (VC) first.")
@@ -86,13 +87,16 @@ st.caption(
     "CSV / FORCE-card downloads below and the **Review/Export** pages report "
     "**ULTIMATE** = limit × 1.5 (14 CFR 23.303)."
 )
+force_u = "N" if system == UnitSystem.SI else "lb"
+pressure_u = "kPa" if system == UnitSystem.SI else "psi"
+display_conditions = convert_results(mod.conditions, system)
 rows = []
-for cond in mod.conditions:
+for cond in display_conditions:
     v = {x.label: x.value for x in cond.values}
     rows.append({"Tab": cond.title, "E": round(v["Tab chord ratio E"], 4),
-                 "Load (lb, LIMIT)": round(v["Tab load"], 2),
-                 "LE psi (LIMIT)": round(v["Tab LE pressure"], 4),
-                 "TE psi (LIMIT)": round(v["Tab TE pressure"], 4)})
+                 f"Load ({force_u}, LIMIT)": round(v["Tab load"], 2),
+                 f"LE {pressure_u} (LIMIT)": round(to_si_scalar(v["Tab LE pressure"], "psi", system), 4),
+                 f"TE {pressure_u} (LIMIT)": round(to_si_scalar(v["Tab TE pressure"], "psi", system), 4)})
 st.write(pd.DataFrame(rows))
 
 if project.loads is not None:

@@ -15,7 +15,7 @@ from __future__ import annotations
 
 from dataclasses import replace
 from enum import Enum
-from typing import List
+from typing import List, Optional
 
 from .models import ConditionResult, EngineInput, LoadValue
 
@@ -67,6 +67,42 @@ _RESULT_TO_SI = {
 _SI_BY_QUANTITY = {
     "mass": (0.45359237, "kg"),            # lb (mass) -> kg
 }
+
+
+# --------------------------------------------------------------------------- #
+# Scalar display converters for values *outside* LoadValue/ConditionResult --
+# some modules (aileron/flap/tab, body_loads, net_loads, landing, taildist,
+# one_engine_out) return small typed dataclasses (per-station/per-case) rather
+# than LoadValue lists, so their GUI pages convert individual fields for
+# display. These always convert Imperial -> the target system (one-way; the
+# dataclass itself, which also feeds sbeam export and session-state
+# persistence, is never touched -- only a display copy).
+_SCALAR_TO_SI = {
+    "lbf": (4.4482216152605, "N"),        # force
+    "in": (25.4, "mm"),                   # length
+    "sqft": (0.09290304, "m²"),           # area
+    "ft-lb": (1.3558179483314, "N·m"),    # moment (large)
+    "lb-in": (0.1129848333, "N·m"),       # moment (small)
+    "psi": (6.894757, "kPa"),             # pressure (lb/in^2)
+}
+
+
+def to_si_scalar(value: float, unit: str, system: UnitSystem) -> float:
+    """Convert one display value from its Imperial ``unit`` into ``system``.
+
+    ``unit`` is one of :data:`_SCALAR_TO_SI`'s keys. Imperial is a no-op.
+    """
+    if system == UnitSystem.IMPERIAL or value is None or value == "":
+        return value
+    factor, _ = _SCALAR_TO_SI[unit]
+    return value * factor
+
+
+def si_scalar_label(unit: str, system: UnitSystem) -> str:
+    """The display unit string for ``unit`` in ``system`` (Imperial passes through)."""
+    if system == UnitSystem.IMPERIAL:
+        return unit
+    return _SCALAR_TO_SI[unit][1]
 
 
 def labels_for(system: UnitSystem) -> dict:
@@ -166,3 +202,152 @@ def convert_results(
     if system == UnitSystem.IMPERIAL:
         return results
     return [replace(r, values=[_convert_value(v) for v in r.values]) for r in results]
+
+
+# --------------------------------------------------------------------------- #
+# Whole-project display conversion (Project JSON Editor page, app/views/
+# project_editor.py). Converts the *JSON dict* form of a Project (see
+# farloads.io.project_to_dict) field-by-field, for display/hand-editing only.
+# The canonical project.json on disk is always Imperial (io.py never calls
+# this); the editor page converts SI -> Imperial before writing back via
+# io.project_from_dict, so calc/tests/oracle fixtures are unaffected.
+# --------------------------------------------------------------------------- #
+# Kind -> (Imperial -> SI factor, SI label). Derived from an audit of every
+# dimensional field in farloads/models.py; update both this table and
+# _PROJECT_FIELD_KIND when a new dimensional field is added to the schema.
+_KIND_FACTORS = {
+    "mass": (0.45359237, "kg"),                  # lbm -> kg
+    "force": (4.4482216152605, "N"),              # lbf -> N
+    "length_in": (25.4, "mm"),                    # in -> mm
+    "length_ft": (0.3048, "m"),                   # ft -> m
+    "area_sqft": (0.09290304, "m²"),              # sq ft -> m^2
+    "area_sqin": (6.4516e-04, "m²"),              # sq in -> m^2
+    "torque": (1.3558179483314, "N·m"),           # ft-lb -> N·m
+    "moment_in": (0.1129848333, "N·m"),           # lb-in -> N·m
+    "inertia_slugft2": (1.3558179483314, "kg·m²"),  # slug-ft^2 -> kg·m^2
+    "inertia_lbin2": (2.926396534292e-04, "kg·m²"),  # lb-in^2 -> kg·m^2
+    "power": (0.745699872, "kW"),                 # hp -> kW
+    "pressure": (6.894757, "kPa"),                # lb/in^2 -> kPa
+}
+
+# JSON leaf key name -> kind. Airspeed (``_kt``) and altitude (``altitude_ft``,
+# ``altitudes_ft``, ``max_operating_altitude_ft``, ``shoulder_altitude_ft``,
+# ``increment_ft``) are deliberately absent -- they stay aviation-standard
+# (KEAS / ft) in both systems, matching every other unit toggle in the GUI.
+# Angles (``_deg``), dimensionless ratios/coefficients and counts are also
+# absent (nothing to convert). ``load_lb``/``tail_load_lb`` are the two
+# ``_lb``-suffixed fields that are *forces*, not weights -- everything else
+# ending ``_lb`` is a pounds-mass weight.
+_PROJECT_FIELD_KIND = {
+    # mass (lb -> kg)
+    "baggage_lb": "mass", "engine_weight_lb": "mass", "gross_weight_lb": "mass",
+    "hub_weight_lb": "mass", "max_landing_weight_lb": "mass", "panel_weight_lb": "mass",
+    "prop_weight_lb": "mass", "weight_lb": "mass", "wing_weight_lb": "mass",
+    # force (lb -> N)
+    "load_lb": "force", "tail_load_lb": "force",
+    "fx": "force", "fy": "force", "fz": "force", "sx": "force", "sy": "force", "sz": "force",
+    # length, inches (in -> mm) -- includes unsuffixed station/CG coordinates,
+    # all documented as inches in models.py
+    "airfoil_chord_in": "length_in", "diameter_in": "length_in",
+    "engine_butt_line_in": "length_in", "htail_semispan_in": "length_in",
+    "hub_diameter_in": "length_in", "mac_in": "length_in", "prop_diameter_in": "length_in",
+    "rolling_radius_in": "length_in", "station_in": "length_in", "strut_stroke_in": "length_in",
+    "tire_od_in": "length_in", "tread_in": "length_in", "vtail_span_in": "length_in",
+    "xcg_in": "length_in", "x": "length_in", "y": "length_in", "z": "length_in",
+    "cg_x": "length_in", "cg_y": "length_in", "cg_z": "length_in",
+    "xcg": "length_in", "zcg": "length_in",
+    # length, feet (ft -> m) -- geometry lengths, not altitude
+    "airplane_length_ft": "length_ft", "vtail_mac_ft": "length_ft", "wing_span_ft": "length_ft",
+    # area (sq ft / sq in -> m^2)
+    "area_aft_hinge_sqft": "area_sqft", "area_fwd_hinge_sqft": "area_sqft",
+    "elevator_aft_hinge_sqft": "area_sqft", "elevator_area_sqft": "area_sqft",
+    "elevator_fwd_hinge_sqft": "area_sqft", "flap_area_one_side_sqft": "area_sqft",
+    "htail_area_sqft": "area_sqft", "nacelle_frontal_area_sqft": "area_sqft",
+    "rudder_aft_hinge_sqft": "area_sqft", "rudder_area_sqft": "area_sqft",
+    "rudder_fwd_hinge_sqft": "area_sqft", "vtail_area_sqft": "area_sqft",
+    "wing_area_sqft": "area_sqft", "area_sqin": "area_sqin",
+    # torque (ft-lb -> N·m)
+    "max_engine_torque": "torque", "cruise_torque": "torque", "max_accel_torque": "torque",
+    # moment (lb-in -> N·m)
+    "mxx": "moment_in", "myy": "moment_in", "mzz": "moment_in",
+    # inertia
+    "inertia": "inertia_slugft2", "prop_inertia": "inertia_slugft2",
+    "ixx": "inertia_lbin2", "iyy": "inertia_lbin2", "izz": "inertia_lbin2", "ixz": "inertia_lbin2",
+    # power (hp -> kW)
+    "takeoff_hp": "power", "max_cont_hp": "power", "max_continuous_hp": "power",
+    # pressure (lb/in^2 -> kPa)
+    "psi": "pressure",
+}
+
+# Fields whose JSON value is a bare ``[x, y, z]`` array of inch coordinates
+# rather than a keyed dict (see io.py's ``engine_to_dict``/``engine_from_dict``).
+_VEC3_LENGTH_IN_FIELDS = {"engine_cg", "prop_cg"}
+
+
+def _walk_convert(obj, system: UnitSystem):
+    """Recursively convert every known dimensional leaf in a project JSON dict.
+
+    Unknown numeric fields (not in :data:`_PROJECT_FIELD_KIND`) pass through
+    unconverted -- safer than guessing a wrong factor for a field this table
+    doesn't yet know about.
+    """
+    if isinstance(obj, dict):
+        out = {}
+        for key, value in obj.items():
+            if key in _VEC3_LENGTH_IN_FIELDS and isinstance(value, list):
+                factor = _KIND_FACTORS["length_in"][0]
+                out[key] = [v * factor if isinstance(v, (int, float)) else v for v in value]
+                continue
+            kind = _PROJECT_FIELD_KIND.get(key)
+            if kind is not None and isinstance(value, (int, float)) and not isinstance(value, bool):
+                out[key] = value * _KIND_FACTORS[kind][0]
+            else:
+                out[key] = _walk_convert(value, system)
+        return out
+    if isinstance(obj, list):
+        return [_walk_convert(item, system) for item in obj]
+    return obj
+
+
+def project_dict_to_display(project_dict: dict, system: UnitSystem) -> dict:
+    """Convert a ``project_to_dict`` result from Imperial into ``system`` for display.
+
+    One-way (Imperial -> display). Airspeed and altitude fields are left
+    Imperial/aviation-standard regardless of ``system`` (see module docstring).
+    """
+    if system == UnitSystem.IMPERIAL:
+        return project_dict
+    return _walk_convert(project_dict, system)
+
+
+def project_dict_to_imperial(display_dict: dict, system: UnitSystem) -> dict:
+    """Convert a (possibly hand-edited) display dict from ``system`` back to
+    Imperial, the inverse of :func:`project_dict_to_display`."""
+    if system == UnitSystem.IMPERIAL:
+        return display_dict
+
+    def _invert(obj):
+        if isinstance(obj, dict):
+            out = {}
+            for key, value in obj.items():
+                if key in _VEC3_LENGTH_IN_FIELDS and isinstance(value, list):
+                    factor = _KIND_FACTORS["length_in"][0]
+                    out[key] = [v / factor if isinstance(v, (int, float)) else v for v in value]
+                    continue
+                kind = _PROJECT_FIELD_KIND.get(key)
+                if kind is not None and isinstance(value, (int, float)) and not isinstance(value, bool):
+                    out[key] = value / _KIND_FACTORS[kind][0]
+                else:
+                    out[key] = _invert(value)
+            return out
+        if isinstance(obj, list):
+            return [_invert(item) for item in obj]
+        return obj
+
+    return _invert(display_dict)
+
+
+def project_field_si_label(key: str) -> Optional[str]:
+    """The SI display label for a known project-schema field name, else ``None``."""
+    kind = _PROJECT_FIELD_KIND.get(key)
+    return _KIND_FACTORS[kind][1] if kind else None

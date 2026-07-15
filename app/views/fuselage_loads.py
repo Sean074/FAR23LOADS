@@ -18,9 +18,27 @@ import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
 
-from farloads import Project
+from farloads import Project, UnitSystem, si_scalar_label, to_si_scalar
 from farloads.models import FuselageMassInput, FuselageStation
 from farloads.modules.body_loads import body_load_rows, build_body_loads
+
+
+def _convert_body_rows(rows, system: UnitSystem):
+    """Display-only copy of ``body_load_rows`` output converted to ``system``.
+
+    Never mutates the source rows/objects -- CSV/export paths keep using the
+    original Imperial ``rows``/``results``.
+    """
+    return [
+        {
+            **r,
+            "X": round(to_si_scalar(float(r["X"]), "in", system), 3),
+            "Fz": round(to_si_scalar(float(r["Fz"]), "lbf", system), 2),
+            "Sz": round(to_si_scalar(float(r["Sz"]), "lbf", system), 2),
+            "Myy": round(to_si_scalar(float(r["Myy"]), "lb-in", system), 1),
+        }
+        for r in rows
+    ]
 
 
 st.title("Net Fuselage Loads — shear / bending")
@@ -31,6 +49,7 @@ st.caption(
 )
 
 project: Project = st.session_state.get("project", Project(name=""))
+system: UnitSystem = st.session_state.get("unit_system", UnitSystem.IMPERIAL)
 
 if project.flight_loads is None:
     st.warning("Define the flight-loads inputs on the **Flight Envelope** page first.")
@@ -87,20 +106,29 @@ sel = st.selectbox("Show condition", [r.case for r in results])
 res = next(r for r in results if r.case == sel)
 
 c1, c2 = st.columns(2)
-c1.metric("Closure ΣFz (lb, LIMIT)", f"{sum(s.fz for s in res.stations):,.2f}")
+c1.metric(f"Closure ΣFz ({si_scalar_label('lbf', system)}, LIMIT)",
+          f"{to_si_scalar(sum(s.fz for s in res.stations), 'lbf', system):,.2f}")
 c2.metric("Stations", str(len(res.stations)))
 
-for title, attr, unit in [("Shear Sz", "sz", "lb, LIMIT"), ("Bending Myy", "myy", "lb-in, LIMIT")]:
+for title, attr, unit_key in [("Shear Sz", "sz", "lbf"), ("Bending Myy", "myy", "lb-in")]:
+    unit = f"{si_scalar_label(unit_key, system)}, LIMIT"
     fig = go.Figure()
     fig.add_trace(go.Scatter(
-        x=[s.x for s in res.stations], y=[getattr(s, attr) for s in res.stations],
+        x=[to_si_scalar(s.x, "in", system) for s in res.stations],
+        y=[to_si_scalar(getattr(s, attr), unit_key, system) for s in res.stations],
         mode="lines+markers", line=dict(width=3)))
-    fig.update_layout(title=f"{title} — {sel}", xaxis_title="Fuselage station X (in)",
+    fig.update_layout(title=f"{title} — {sel}",
+                      xaxis_title=f"Fuselage station X ({si_scalar_label('in', system)})",
                       yaxis_title=f"{title} ({unit})", height=320)
     st.plotly_chart(fig, use_container_width=True)
 
 st.subheader("Net fuselage load table (LIMIT)")
-st.dataframe(pd.DataFrame(body_load_rows([res])), hide_index=True, use_container_width=True)
+st.caption(
+    f"Columns: X ({si_scalar_label('in', system)}), Fz/Sz ({si_scalar_label('lbf', system)}), "
+    f"Myy ({si_scalar_label('lb-in', system)})."
+)
+st.dataframe(pd.DataFrame(_convert_body_rows(body_load_rows([res]), system)),
+             hide_index=True, use_container_width=True)
 
 buf = _io.StringIO()
 rows = body_load_rows(results)

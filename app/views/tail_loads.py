@@ -21,7 +21,7 @@ import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
 
-from farloads import Project
+from farloads import Project, UnitSystem, si_scalar_label, to_si_scalar
 from farloads.modules.balloads import verify_balancing
 from farloads.modules.taildist import build_tail_chordwise
 
@@ -37,6 +37,7 @@ st.caption(
 )
 
 project: Project = st.session_state.get("project", Project(name=""))
+system: UnitSystem = st.session_state.get("unit_system", UnitSystem.IMPERIAL)
 
 if project.tail_loads is None and project.vtail_loads is None:
     st.warning("Define the tail inputs on the **Critical Loads** page first "
@@ -96,20 +97,29 @@ else:
     sel = st.selectbox("Show condition", labels)
     res = results[labels.index(sel)]
 
+    _lbf_lbl = si_scalar_label("lbf", system)
+    _psi_lbl = si_scalar_label("psi", system)
+    _in_lbl = si_scalar_label("in", system)
+
     m1, m2, m3 = st.columns(3)
-    m1.metric("LT25 (cp 25%) lb", f"{res.lt25:,.1f}")
-    m2.metric("LT50 (cp 50%) lb", f"{res.lt50:,.1f}")
-    m3.metric("Total tail load lb", f"{res.lt25 + res.lt50:,.1f}")
+    m1.metric(f"LT25 (cp 25%) {_lbf_lbl}", f"{to_si_scalar(res.lt25, 'lbf', system):,.1f}")
+    m2.metric(f"LT50 (cp 50%) {_lbf_lbl}", f"{to_si_scalar(res.lt50, 'lbf', system):,.1f}")
+    m3.metric(f"Total tail load {_lbf_lbl}",
+              f"{to_si_scalar(res.lt25 + res.lt50, 'lbf', system):,.1f}")
 
     # Chordwise profile (leading-edge first), as a pressure-vs-chord line.
+    # Display-only conversion; ``stations``/``res``/``results`` (persisted to
+    # project.loads.tail_chordwise and consumed by the sbeam export) are never
+    # touched.
     stations = sorted(res.stations, key=lambda s: s.x)
     fig = go.Figure()
     fig.add_trace(go.Scatter(
-        x=[s.x for s in stations], y=[s.psi for s in stations],
+        x=[to_si_scalar(s.x, "in", system) for s in stations],
+        y=[to_si_scalar(s.psi, "psi", system) for s in stations],
         mode="lines+markers", line=dict(width=3), name="net PSI"))
     fig.update_layout(title=f"Chordwise net pressure — {sel}",
-                      xaxis_title="Chord station from LE (in)",
-                      yaxis_title="Net pressure PSI (lb/in²)", height=360)
+                      xaxis_title=f"Chord station from LE ({_in_lbl})",
+                      yaxis_title=f"Net pressure PSI ({_psi_lbl})", height=360)
     st.plotly_chart(fig, use_container_width=True)
 
     st.subheader("Chordwise distribution table")
@@ -117,13 +127,23 @@ else:
         "Pressures shown are **LIMIT** (oracle-traceable). ULTIMATE deliverables "
         "come from the **Review/Export** pages."
     )
+    # CSV export stays Imperial (canonical units); the on-screen table gets a
+    # separate, display-only converted copy so the toggle never touches export.
     rows = [
         {"Component": r.component, "Condition": r.case,
          "LT25 (lb, LIMIT)": round(r.lt25, 2), "LT50 (lb, LIMIT)": round(r.lt50, 2),
          **{f"PSI(X{i}) (LIMIT)": round(s.psi, 4) for i, s in enumerate(r.stations, start=1)}}
         for r in results
     ]
-    st.dataframe(pd.DataFrame(rows), hide_index=True, use_container_width=True)
+    display_rows = [
+        {"Component": r.component, "Condition": r.case,
+         f"LT25 ({_lbf_lbl}, LIMIT)": round(to_si_scalar(r.lt25, "lbf", system), 2),
+         f"LT50 ({_lbf_lbl}, LIMIT)": round(to_si_scalar(r.lt50, "lbf", system), 2),
+         **{f"PSI(X{i}) ({_psi_lbl}, LIMIT)": round(to_si_scalar(s.psi, "psi", system), 4)
+            for i, s in enumerate(r.stations, start=1)}}
+        for r in results
+    ]
+    st.dataframe(pd.DataFrame(display_rows), hide_index=True, use_container_width=True)
 
     buf = _io.StringIO()
     writer = csv.DictWriter(buf, fieldnames=list(rows[0].keys()))
@@ -158,10 +178,14 @@ else:
         )
         up = max(bal_rows, key=lambda r: r["LT"])
         dn = min(bal_rows, key=lambda r: r["LT"])
+        _lbf_lbl = si_scalar_label("lbf", system)
+        _in_lbl = si_scalar_label("in", system)
         c1, c2 = st.columns(2)
-        c1.metric("Largest UP balancing load LT (LIMIT)", f"{up['LT']:.1f} lb",
+        c1.metric("Largest UP balancing load LT (LIMIT)",
+                  f"{to_si_scalar(up['LT'], 'lbf', system):.1f} {_lbf_lbl}",
                    f"CP {up['CP']:.2f}% MAC")
-        c2.metric("Largest DOWN balancing load LT (LIMIT)", f"{dn['LT']:.1f} lb",
+        c2.metric("Largest DOWN balancing load LT (LIMIT)",
+                  f"{to_si_scalar(dn['LT'], 'lbf', system):.1f} {_lbf_lbl}",
                    f"CP {dn['CP']:.2f}% MAC")
 
         table = pd.DataFrame([{
@@ -169,14 +193,14 @@ else:
             "CG": r["point"].cg,
             "Alt (ft)": round(r["point"].altitude_ft),
             "V (kt EAS)": round(r["point"].v_eas_kt, 1),
-            "LT25 (cp 25%, LIMIT)": round(r["LT25"], 1),
-            "LT50 (cp 50%, LIMIT)": round(r["LT50"], 1),
+            f"LT25 (cp 25%, {_lbf_lbl}, LIMIT)": round(to_si_scalar(r["LT25"], "lbf", system), 1),
+            f"LT50 (cp 50%, {_lbf_lbl}, LIMIT)": round(to_si_scalar(r["LT50"], "lbf", system), 1),
             "Elevator δ (deg)": round(r["DELTA"], 2),
-            "Elevator load (lb, LIMIT)": round(r["ELEV"], 1),
-            "Total LT (lb, LIMIT)": round(r["LT"], 1),
+            f"Elevator load ({_lbf_lbl}, LIMIT)": round(to_si_scalar(r["ELEV"], "lbf", system), 1),
+            f"Total LT ({_lbf_lbl}, LIMIT)": round(to_si_scalar(r["LT"], "lbf", system), 1),
             "Rational CP (% MAC)": round(r["CP"], 2),
-            "Rational XT (in)": round(r["XT"], 2),
-            "Approx XTC (in)": round(r["XTC"], 2),
-            "Error (in)": round(r["DXT"], 2),
+            f"Rational XT ({_in_lbl})": round(to_si_scalar(r["XT"], "in", system), 2),
+            f"Approx XTC ({_in_lbl})": round(to_si_scalar(r["XTC"], "in", system), 2),
+            f"Error ({_in_lbl})": round(to_si_scalar(r["DXT"], "in", system), 2),
         } for r in bal_rows])
         st.dataframe(table, hide_index=True, use_container_width=True)

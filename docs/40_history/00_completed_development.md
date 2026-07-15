@@ -1900,6 +1900,78 @@ Appendix A/B oracles unmodified (no calc-math change).
 
 ---
 
+## Phase D — GUI: session-wide Imperial/SI toggle + Project JSON Editor (complete, 2026-07-14)
+
+**Objective.** The Imperial/SI display toggle existed on only 5 of 24 GUI
+pages, each with its own independent, uncoordinated `st.radio` (no shared
+session state), and 4 of those 5 converted output only (inputs stayed
+Imperial regardless). The remaining 19 pages had no SI display at all. No page
+let a user review/hand-edit the project file itself in their preferred units.
+
+**Deliverables.**
+- `app/Home.py` — a single sidebar "Units" control
+  (`st.session_state["unit_system"]`), read by every view; the 5 pages with a
+  local radio now read this shared value instead.
+- `farloads/units.py` — `to_si_scalar`/`si_scalar_label`, scalar display
+  converters for per-station/per-case dataclasses (wing/fuselage/tail/
+  landing-gear results) that are not `ConditionResult`/`LoadValue`-based, so
+  `convert_results` doesn't reach them.
+- All 19 previously Imperial-only view files wired to the shared toggle,
+  display-only: metrics/tables render in the selected system, but every
+  object feeding sbeam BDF export, `Project` persistence
+  (`st.session_state["project"]`) or a CSV/BDF download stays canonical
+  Imperial, untouched. Airspeed (KEAS) and altitude (ft) are never converted
+  (aviation-standard units in both systems, an explicit user decision).
+  `structural_speeds`/`mach_limit` needed no changes — every field they show
+  is speed/altitude/dimensionless, already outside the toggle's scope.
+- New `app/views/project_editor.py` (Start section, new `WorkflowStep
+  ("project_editor", ...)` in `farloads/workflow.py`): the whole project shown
+  as hand-editable JSON in the selected units. New
+  `farloads.units.project_dict_to_display`/`project_dict_to_imperial` — a
+  field-name-driven whole-project converter (`_PROJECT_FIELD_KIND`, audited
+  against every dimensional field in `models.py`) distinct from the two
+  `_lb`-suffixed *force* fields (`load_lb`, `tail_load_lb`) that must not use
+  the mass factor. Apply parses the edited JSON, converts back to Imperial,
+  and rebuilds the session `Project` via the existing `io.project_from_dict`;
+  the sidebar's existing Open/Save/Download widget is unchanged and still
+  reads/writes one Imperial `project.json`, unmodified format, no unit tag.
+- `tests/test_project_units.py` — round-trip fidelity on all 4 example
+  projects, a regression test pinning the mass-vs-force `_lb` distinction to
+  its correct (different) factors, and confirms airspeed/altitude/unknown
+  fields pass through unconverted.
+- `CHANGELOG.md` `[Unreleased]` `Added` entry;
+  `docs/10_standard/PROJECT_GUIDE.md` file-tree + units-convention updates.
+
+**Test / Acceptance.** Full suite green (297 tests, was 290); `ruff` clean; a
+`streamlit.testing.v1.AppTest` sweep of every view file against 2 example
+projects, in both unit systems, found zero new exceptions (one pre-existing,
+unrelated `st.number_input` `max_value` issue on `weight_estimate.py`,
+reproduced identically on the pre-change branch). No calc-math change, no
+`SCHEMA_VERSION` change (still 19).
+
+**Key decisions** (user-directed 2026-07-14).
+1. **One session-wide toggle, not per-page.** A structural engineer needs
+   consistent units across a session; per-page-independent toggles (the prior
+   state) risked a wing sized in SI next to a fuselage read in Imperial.
+2. **`project.json` stays Imperial-only.** Rejected tagging the file with a
+   stored unit system (see the in-conversation risk review): the schema's
+   field names are themselves unit-suffixed (`_lb`, `_in`, `_kt`...), so a
+   file whose *content* changes meaning under a stored flag while its *field
+   names* don't would silently mislead a hand-editor. The Project JSON Editor
+   page solves the actual need (review/edit in preferred units) at the
+   display layer instead, with no schema/migration risk.
+3. **KEAS/ft stay aviation-standard in SI mode.** Airspeed and altitude are
+   never converted by this toggle, in either the per-page views or the whole-
+   project editor.
+4. **Weight-database externalization considered and declined.** A separate
+   referenced weights (and future aero) JSON file was considered for the
+   project's largest section, but rejected: it would fragment the "one
+   reloadable project.json" architecture (multi-file Open/Save/upload,
+   drift-if-edited-independently risk) for a problem better solved by a
+   readable in-app editor — exactly what this step delivers.
+
+---
+
 ## Resolved defects
 
 - **Flight Envelope page destroyed unedited `flight_loads` data** *(resolved

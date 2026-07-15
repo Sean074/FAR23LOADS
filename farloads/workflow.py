@@ -72,6 +72,10 @@ STEPS: Tuple[WorkflowStep, ...] = (
     WorkflowStep("dashboard", "Project Dashboard", START,
                  module=None, produces=None, bas=None,
                  summary="Load/save the project and see workflow progress at a glance."),
+    WorkflowStep("project_editor", "Project JSON Editor", START,
+                 module=None, produces=None, bas=None,
+                 summary="Review/hand-edit the whole project as JSON, in the "
+                         "sidebar's selected Imperial/SI units."),
 
     # ---- Airplane: geometry, weight, mass, design speeds --------------------- #
     WorkflowStep("configuration_layout", "Configuration & Layout", AIRPLANE,

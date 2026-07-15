@@ -11,6 +11,24 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **Session-wide Imperial/SI display toggle + Project JSON Editor page.** A
+  single sidebar control (`app/Home.py`, `st.session_state["unit_system"]`)
+  now drives Imperial/SI display consistently across every GUI page (all 24
+  views), replacing the handful of pages that previously had their own local,
+  uncoordinated toggle. New `farloads.units` scalar helpers (`to_si_scalar`,
+  `si_scalar_label`) convert per-station/per-case dataclass values (wing/
+  fuselage/tail/landing-gear results) that aren't `ConditionResult`/`LoadValue`
+  based; every conversion is display-only — the objects feeding sbeam BDF
+  export, project persistence and CSV downloads stay canonical Imperial.
+  Airspeed (KEAS) and altitude (ft) are never converted (aviation-standard
+  units in both systems). New `app/views/project_editor.py` (Start section):
+  the whole project shown/hand-editable as JSON in the selected units, backed
+  by new `farloads.units.project_dict_to_display`/`project_dict_to_imperial`
+  (a field-name-driven whole-project converter, distinct from mass-vs-force
+  `_lb` fields); Apply converts back to Imperial before updating the session.
+  `project.json` on disk is unchanged — still Imperial-only, no unit tag ever
+  written, no new `Project` slice, `SCHEMA_VERSION` unchanged at 19.
+
 - **Export & report upgrades** (Phase D Step D8 — closes Phase D). Export page
   gains a "📊 Download workbook (.xlsx)" button (new `farloads/export
   /workbook.py::build_workbook`, `openpyxl` dependency): one workbook tab per

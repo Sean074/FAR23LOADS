@@ -13,7 +13,7 @@ from __future__ import annotations
 import pandas as pd
 import streamlit as st
 
-from farloads import OneEngineOutInput, Project
+from farloads import OneEngineOutInput, Project, UnitSystem, convert_results, to_si_scalar
 from farloads.modules.one_engine_out import run, time_history
 
 
@@ -25,6 +25,7 @@ st.caption(
 )
 
 project: Project = st.session_state.get("project", Project(name=""))
+system: UnitSystem = st.session_state.get("unit_system", UnitSystem.IMPERIAL)
 
 if not project.engines or len(project.engines) < 2:
     st.warning("One-engine-out needs a **multi-engine** layout (define ≥2 engines).")
@@ -85,17 +86,19 @@ st.caption(
     "On-screen loads are **LIMIT** (oracle values, traceable to the manual). The "
     "**Review/Export** pages report **ULTIMATE** = limit × 1.5 (14 CFR 23.303)."
 )
+force_u = "N" if system == UnitSystem.SI else "lb"
+display_conditions = convert_results(mod.conditions, system)
 rows = []
-for cond in mod.conditions:
+for cond in display_conditions:
     v = {x.label: x.value for x in cond.values}
     rows.append({
         "Speed": cond.title.replace("One engine out — ", ""),
         "FAR": cond.far_reference,
         "V (kt EAS)": round(v["V (EAS)"], 1),
-        "Thrust (lb, LIMIT)": round(v["Engine thrust"], 1),
-        "Windmill drag (lb, LIMIT)": round(v["Windmill drag"], 1),
+        f"Thrust ({force_u}, LIMIT)": round(v["Engine thrust"], 1),
+        f"Windmill drag ({force_u}, LIMIT)": round(v["Windmill drag"], 1),
         "Max yaw rate (deg/s)": round(v["Max yawing velocity"], 2),
-        "Max tail load (lb, LIMIT)": round(v["Max tail load"], 1),
+        f"Max tail load ({force_u}, LIMIT)": round(v["Max tail load"], 1),
         "Time to recovery (s)": round(v["Time to recovery"], 2),
     })
 st.dataframe(pd.DataFrame(rows), hide_index=True, use_container_width=True)
@@ -110,10 +113,12 @@ if st.button("Run time history"):
     hist = time_history(project, pick)
     df = pd.DataFrame([{
         "time": r.time, "THETA (deg)": r.theta, "THETADOT (deg/s)": r.theta_dot,
-        "LT25 (lb, LIMIT)": r.lt25, "LT50 (lb, LIMIT)": r.lt50, "LT (lb, LIMIT)": r.lt,
+        f"LT25 ({force_u}, LIMIT)": to_si_scalar(r.lt25, "lbf", system),
+        f"LT50 ({force_u}, LIMIT)": to_si_scalar(r.lt50, "lbf", system),
+        f"LT ({force_u}, LIMIT)": to_si_scalar(r.lt, "lbf", system),
         "rudder (deg)": r.rudder_deg,
     } for r in hist]).set_index("time")
     st.line_chart(df[["THETA (deg)", "THETADOT (deg/s)"]])
-    st.line_chart(df[["LT25 (lb, LIMIT)", "LT50 (lb, LIMIT)", "LT (lb, LIMIT)"]])
+    st.line_chart(df[[f"LT25 ({force_u}, LIMIT)", f"LT50 ({force_u}, LIMIT)", f"LT ({force_u}, LIMIT)"]])
     st.download_button("Download time history (CSV)", df.to_csv(),
                        file_name=f"one_engine_out_{pick.split()[0]}.csv", mime="text/csv")

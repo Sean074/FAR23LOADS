@@ -26,14 +26,42 @@ from farloads import (
     AeroSurfaceInput,
     ConcentratedWeight,
     Project,
+    UnitSystem,
     WingLoadCase,
     WingMassInput,
+    si_scalar_label,
+    to_si_scalar,
 )
 from farloads import io as farloads_io
 from farloads.modules.airloads import run as airloads_run
 from farloads.modules.airloads import schrenk_distribution
 from farloads.modules.net_loads import build_net_loads, wing_load_rows
 from farloads.report import module_text_report
+
+
+def _convert_wing_rows(rows, system: UnitSystem):
+    """Display-only copy of ``wing_load_rows`` output converted to ``system``.
+
+    Never mutates the source rows/objects -- CSV/export paths keep using the
+    original Imperial ``rows``/``results``. Mxx/Myy/Mzz are all "lb-in" per
+    ``net_loads.run`` (see its ``LoadValue`` entries), matching WINGINER/NETLOADS.
+    """
+    return [
+        {
+            **r,
+            "X": round(to_si_scalar(float(r["X"]), "in", system), 3),
+            "Y": round(to_si_scalar(float(r["Y"]), "in", system), 3),
+            "Z": round(to_si_scalar(float(r["Z"]), "in", system), 3),
+            "Fx": round(to_si_scalar(float(r["Fx"]), "lbf", system), 1),
+            "Fz": round(to_si_scalar(float(r["Fz"]), "lbf", system), 1),
+            "Sx": round(to_si_scalar(float(r["Sx"]), "lbf", system), 1),
+            "Sz": round(to_si_scalar(float(r["Sz"]), "lbf", system), 1),
+            "Mxx": round(to_si_scalar(float(r["Mxx"]), "lb-in", system), 0),
+            "Myy": round(to_si_scalar(float(r["Myy"]), "lb-in", system), 0),
+            "Mzz": round(to_si_scalar(float(r["Mzz"]), "lb-in", system), 0),
+        }
+        for r in rows
+    ]
 
 st.title("Wing Loads — AIRLOADS + WINGINER + NETLOADS")
 st.caption(
@@ -44,6 +72,7 @@ st.caption(
 )
 
 project: Project = st.session_state.get("project", Project(name=""))
+system: UnitSystem = st.session_state.get("unit_system", UnitSystem.IMPERIAL)
 
 wing_geom = project.geometry.by_name("wing") if project.geometry else None
 if wing_geom is None:
@@ -129,23 +158,31 @@ col2.metric("TAU", f"{table.tau:.4f}")
 col3.metric("Target CL", f"{table.target_cl:.3f}")
 col4.metric("Recovered CL", f"{table.recovered_cl:.4f}", help="∫c·cl dy / (S/2) — closure check")
 
+_ye_disp = [to_si_scalar(v, "in", system) for v in table.ye]
 fig = go.Figure()
-fig.add_trace(go.Scatter(x=table.ye, y=table.ccl_additive, name="additive (×CL)", mode="lines+markers"))
-fig.add_trace(go.Scatter(x=table.ye, y=table.ccl_basic, name="basic (twist)", mode="lines+markers"))
-fig.add_trace(go.Scatter(x=table.ye, y=table.ccl_total, name=f"total @ CL={table.target_cl:g}",
+fig.add_trace(go.Scatter(x=_ye_disp, y=[to_si_scalar(v, "in", system) for v in table.ccl_additive],
+                         name="additive (×CL)", mode="lines+markers"))
+fig.add_trace(go.Scatter(x=_ye_disp, y=[to_si_scalar(v, "in", system) for v in table.ccl_basic],
+                         name="basic (twist)", mode="lines+markers"))
+fig.add_trace(go.Scatter(x=_ye_disp, y=[to_si_scalar(v, "in", system) for v in table.ccl_total],
+                         name=f"total @ CL={table.target_cl:g}",
                          mode="lines+markers", line=dict(width=3)))
 fig.update_layout(
-    title="Spanwise span load c·cl", xaxis_title="Butt line Y (in)",
-    yaxis_title="c·cl (in)", legend=dict(orientation="h"), height=420)
+    title="Spanwise span load c·cl", xaxis_title=f"Butt line Y ({si_scalar_label('in', system)})",
+    yaxis_title=f"c·cl ({si_scalar_label('in', system)})", legend=dict(orientation="h"), height=420)
 st.plotly_chart(fig, use_container_width=True)
 
 st.subheader("Per-strip distribution")
+_len_lbl = si_scalar_label("in", system)
+# c·cl (chord x dimensionless section cl) carries the same length dimension as
+# chord itself, so it converts with the "in" factor; cl_total is dimensionless
+# and is never converted.
 st.dataframe(pd.DataFrame({
-    "Y (in)": table.ye,
-    "chord (in)": table.chord,
-    "c·cl additive": table.ccl_additive,
-    "c·cl basic": table.ccl_basic,
-    "c·cl total": table.ccl_total,
+    f"Y ({_len_lbl})": [to_si_scalar(v, "in", system) for v in table.ye],
+    f"chord ({_len_lbl})": [to_si_scalar(v, "in", system) for v in table.chord],
+    f"c·cl additive ({_len_lbl})": [to_si_scalar(v, "in", system) for v in table.ccl_additive],
+    f"c·cl basic ({_len_lbl})": [to_si_scalar(v, "in", system) for v in table.ccl_basic],
+    f"c·cl total ({_len_lbl})": [to_si_scalar(v, "in", system) for v in table.ccl_total],
     "cl total": table.cl_total,
 }), hide_index=True, use_container_width=True)
 
@@ -251,23 +288,30 @@ inertia = next(r for r in loads.wing_inertia if r.case == sel)
 net = next(r for r in loads.wing_net if r.case == sel)
 
 c1, c2, c3 = st.columns(3)
-c1.metric("Root shear Sz (lb, LIMIT)", f"{net.stations[0].sz:,.0f}")
-c2.metric("Root bending Mxx (lb-in, LIMIT)", f"{net.stations[0].mxx:,.0f}")
-c3.metric("Root torsion Myy (lb-in, LIMIT)", f"{net.stations[0].myy:,.0f}")
+c1.metric(f"Root shear Sz ({si_scalar_label('lbf', system)}, LIMIT)",
+          f"{to_si_scalar(net.stations[0].sz, 'lbf', system):,.0f}")
+c2.metric(f"Root bending Mxx ({si_scalar_label('lb-in', system)}, LIMIT)",
+          f"{to_si_scalar(net.stations[0].mxx, 'lb-in', system):,.0f}")
+c3.metric(f"Root torsion Myy ({si_scalar_label('lb-in', system)}, LIMIT)",
+          f"{to_si_scalar(net.stations[0].myy, 'lb-in', system):,.0f}")
 
-for title, attr, unit in [("Shear Sz", "sz", "lb, LIMIT"), ("Bending Mxx", "mxx", "lb-in, LIMIT"),
-                          ("Torsion Myy", "myy", "lb-in, LIMIT")]:
+for title, attr, unit_key in [("Shear Sz", "sz", "lbf"), ("Bending Mxx", "mxx", "lb-in"),
+                              ("Torsion Myy", "myy", "lb-in")]:
+    unit = f"{si_scalar_label(unit_key, system)}, LIMIT"
     fig = go.Figure()
     for label, r in [("air", air), ("inertia", inertia), ("net", net)]:
         fig.add_trace(go.Scatter(
-            x=[s.y for s in r.stations], y=[getattr(s, attr) for s in r.stations],
+            x=[to_si_scalar(s.y, "in", system) for s in r.stations],
+            y=[to_si_scalar(getattr(s, attr), unit_key, system) for s in r.stations],
             name=label, mode="lines+markers", line=dict(width=3 if label == "net" else 1)))
-    fig.update_layout(title=f"{title} — {sel}", xaxis_title="Butt line Y (in)",
+    fig.update_layout(title=f"{title} — {sel}",
+                      xaxis_title=f"Butt line Y ({si_scalar_label('in', system)})",
                       yaxis_title=f"{title} ({unit})", legend=dict(orientation="h"), height=320)
     st.plotly_chart(fig, use_container_width=True)
 
 st.subheader("Net load station table (LIMIT)")
-st.dataframe(pd.DataFrame(wing_load_rows([net])), hide_index=True, use_container_width=True)
+st.dataframe(pd.DataFrame(_convert_wing_rows(wing_load_rows([net]), system)),
+             hide_index=True, use_container_width=True)
 
 buf = _io.StringIO()
 rows = wing_load_rows(loads.wing_net)
