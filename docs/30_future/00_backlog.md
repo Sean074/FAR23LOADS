@@ -122,6 +122,95 @@ deferred/declined items below remain open.
 
 ---
 
+## Phase F — Aircraft Comparison page (proposed 2026-07-16)
+
+**Motivation.** Today the fleet comparison (the W/S-vs-W/P and MTOW-vs-OEW
+scatters + the `farloads/fleet.py` nearest-N / percentile readout) is bolted onto
+**two input pages** — Configuration & Layout (`app/views/configuration_layout.py:488`)
+and Weight Estimate (`app/views/weight_estimate.py:164`) — both calling the same
+shared helper `render_fleet_comparison` (`app/components.py:156`). The result is
+two pages showing the *same* fleet plots, split subject metrics (config knows W/S +
+power; weight-estimate knows OEW + power but no wing area, so its subject dot is
+absent from the loading scatter), and no single place that answers "how does this
+airplane compare to similar aircraft?". This is exactly the concept-mode charter
+("assesses a configuration against similar airplanes", `CLAUDE.md`), so it deserves
+a first-class home.
+
+**Decisions (locked with user, 2026-07-16):**
+- **D-F-1 — Single home in Export.** Add one dedicated **Aircraft Comparison** page
+  and **remove** the fleet block from Configuration & Layout and Weight Estimate.
+  The page lives in the `EXPORT` phase, positioned **before** Results Review
+  (`workflow.py` `STEPS`, new `WorkflowStep("aircraft_comparison", …, EXPORT, module=None)`
+  — GUI-only, no calc module; `requires=()` but reads MTOW/OEW/area/power from
+  whatever slices are present).
+- **D-F-2 — Content = table + four plots.** The page carries (1) a **parameter
+  table** (subject row highlighted + nearest-N / full fleet across MTOW, OEW,
+  power, W/S, W/P, wingspan, wing area, aspect ratio, seats), (2) the **W/S-vs-W/P**
+  loading scatter, (3) the **MTOW-vs-OEW** weight scatter (log-log), and (4) new
+  **geometric plots** (wingspan-vs-MTOW, wing-area-vs-MTOW, aspect-ratio, seats-vs-MTOW)
+  showing where the design sits geometrically, not just by loading. Reuse the pure
+  `farloads/fleet.py` placement logic for the readout; the page is presentation only.
+- **D-F-3 — Expand the reference fleet first.** Grow / curate
+  `app/data/reference_aircraft.csv` before building the page: add aircraft to cover
+  the geometric range and add the columns the new plots need (at minimum
+  `aspect_ratio`; `wingspan_ft` and `wing_area_ft2` already exist). Keep the
+  `# comment` header + provenance note per row where practical.
+
+### Step F1 — Expand the reference fleet CSV
+Curate `app/data/reference_aircraft.csv`: add representative aircraft across the
+GA-single → commuter/light-jet range (and any concept-tier comparators the user
+names), and add an `aspect_ratio` column (span²/area, or published). Update the
+`FleetPoint` mapping in `app/components.py` (`_fleet_points`) and the loader to
+carry the new column. No calc-math change; no oracle impact.
+*Done when:* CSV round-trips through `_fleet_points`, every row has the new column
+(or a documented blank), and a test asserts the loaded fleet count + schema.
+
+### Step F2 — Build the Aircraft Comparison page
+- Add `app/views/aircraft_comparison.py` and register
+  `WorkflowStep("aircraft_comparison", "Aircraft Comparison", EXPORT, module=None,
+  produces=None, bas=None, summary="Place the design against similar aircraft.")`
+  in `farloads/workflow.py` **before** the `results_review` step.
+- Move the presentation logic out of `render_fleet_comparison` into the new page
+  (or have the page own the table + four plots and keep the helper only if another
+  caller remains — after this step there is none). **Remove** the
+  `render_fleet_comparison` call + its subject-metric assembly from
+  `configuration_layout.py` and `weight_estimate.py`.
+- Extend the `Subject` side (`farloads/fleet.py`) as needed for the geometric axes:
+  the subject has no stored span — derive it from `configuration.aspect_ratio` and
+  `wing_area_sqft` (`span = sqrt(AR·S)`), and surface `wing_area`, `AR`, and `seats`
+  for the table/plots. Keep `fleet.py` pure (no pandas/Streamlit).
+- The page assembles the subject from the best available slices (MTOW from
+  `speeds.weight_lb` → `weight.direct_totals()[0]` → WTESTIMA result; OEW from
+  `weight.direct_totals()[1]` → WTESTIMA; area from `configuration.wing_area_sqft`
+  → `speeds.wing_area_sqft`; power from `Σ engines[].max_cont_hp` →
+  `weight.estimation.max_continuous_hp`), and shows a clear "metric unavailable"
+  state when a slice is missing rather than dropping the subject silently.
+*Done when:* the page renders table + four plots with the subject highlighted; the
+two input pages no longer show the fleet block; `test_workflow` still passes (every
+registered module has a step — GUI-only steps are exempt); a view smoke-test and a
+`fleet_stats` test covering the geometric-axis subject pass; docs synced
+(`PROGRAM_SPEC.md` GUI-page list, `GUI_design.md §8.4`, this backlog → history,
+`CHANGELOG.md`).
+
+**Invariant:** no calc-math change — the Appendix A/B oracles pass unmodified
+(these are input-assessment plots, not load output, so the ULT/limit rules and
+`load_cases_to_rows` are untouched).
+
+### Open questions for F1 (fleet data) — need user input before F1 lands
+- **Which comparators?** Should the fleet stay in the current GA-single →
+  commuter/CJ-tier band, or add specific type(s) the concept designs will be
+  benchmarked against (e.g. particular turboprops, eVTOL/UAM, a named competitor
+  set)? List the aircraft to add.
+- **Which extra columns?** `aspect_ratio` is in scope. Also want `cruise_kt`,
+  `range_nm`, `service_ceiling`, or a `category` tag (GA / utility / commuter /
+  concept) for colour-coding the scatters? Name the ones worth carrying.
+- **User-supplied comparators (deferred by default).** In-UI project-stored
+  comparator rows (on top of the built-in CSV) were *not* selected for this phase;
+  revisit as a follow-on if benchmarking against unpublished/in-house designs is
+  needed.
+
+---
+
 ## Deferred refinements (carried from shipped steps)
 
 These do not block the plan above; close each under its own mini-step (history +
