@@ -33,13 +33,14 @@ history, `CHANGELOG.md`).
 Start-page local-disk persistence; authoritative shared inputs + Aero
 Coefficients page; Envelopes & Critical Conditions section; Analysis merged
 into nine component pages; Loads Plots page; Export & report upgrades). Phase D
-(the six-section GUI restructure) is now **complete**. **All 22** of Reference 1's
+(the six-section GUI restructure) is now **complete**; **Phase E** (GUI usability
+& concept-awareness) is queued below. **All 22** of Reference 1's
 Appendix-C programs are ported (ENGLOADS, WTESTIMA, WTONECG, WTENV,
 WINGGEOM, STRSPEED, MACHLIM, TAU, AIRLOADS, AIRLOAD4, FLTLOADS, SELECT, WINGINER,
 NETLOADS, TAILDIST, AILERON, FLAPLOAD, TABLOADS, ONENGOUT, LGFACTOR, LANDLOAD,
 BALLOADS), plus **2 modern modules** with no `.BAS` oracle (`configuration`,
 `body_loads`).
-Schema is at **`SCHEMA_VERSION = 19`**; 290 tests pass; coverage ~92%. The wing
+Schema is at **`SCHEMA_VERSION = 20`**; 303 tests pass; coverage ~92%. The wing
 distributed-loads vertical slice (geometry → speeds → envelope → airloads → inertia
 → net → sbeam export), the critical-load selection (wing / h-tail / v-tail /
 fuselage), the chordwise tail distribution, the simplified control-surface
@@ -84,6 +85,98 @@ see `40_history/00_completed_development.md` → "Phase D — Step D4". Step D5
 are queued; remaining work is the deferred calc refinements and open design
 decisions below. Invariant throughout Phase D: no calc-math change — the
 Appendix A/B oracles pass unmodified at every step.
+
+---
+
+## Phase E — GUI usability & concept-awareness (the active plan)
+
+Close the gaps a critical review of the airplane-definition GUI found (2026-07-15):
+FAR 23 applicability is never detected or surfaced (a beyond-FAR23 airplane runs
+GA-calibrated math silently); domain inputs carry no `help=` and there are no
+parameter guides; graphical input-review and input-consistency validation are
+concentrated on one page; the fleet comparison is visual-only and duplicated. The
+target design and the standards these steps build to are in
+[`../10_standard/GUI_design.md`](../10_standard/GUI_design.md); the Phase-D
+structure/decisions they extend are in
+[`02_gui_workflow_plan.md`](02_gui_workflow_plan.md). **Invariant:** no
+calc-math change — the Appendix A/B oracles pass unmodified at every step;
+concept mode reduces exactly to FAR 23 on GA inputs. User-approved directions
+(locked 2026-07-15): warn-banner (non-blocking) for exceedance with a "switch to
+Concept" action; `occupants` as a first-class field; `help=` tooltips + per-page
+parameter guides; and the E3 graphical set (V-n + input-consistency + CG/mass).
+
+### Step E1 — FAR 23 applicability + occupants field
+**Objective.** Detect and surface (never block) when an airplane exceeds FAR 23
+applicability, and add the occupant count that a seat-limit check needs. Adds a
+`Project` field, so `SCHEMA_VERSION` **20 → 21** (older files load with the
+default).
+**Deliverables.** A FAR 23 limits block in `farloads/constants.py` (max takeoff
+weight 12,500 / commuter 19,000 lb; occupants 9 / 19). A pure
+`far23_applicability(project)` helper returning structured exceedances
+(field/value/limit/label) — no Streamlit, yields none on Appendix-A GA inputs.
+`occupants` added to `StructuralSpeedsInput` (co-located with `category` +
+`weight_lb`; echoed read-only on Configuration & Layout), round-tripped in
+`io.py` with an absent-key default. A shared non-blocking banner helper used on
+the Dashboard + definition pages, with a one-click "switch to Concept" action
+(sets `speeds.category = "C"`).
+**Test/Acceptance.** `tests/test_applicability.py` (new): GA Appendix-A input →
+no exceedances; a 20,000 lb / 12-occupant Normal input → the expected exceedance
+list. `io.py` round-trip incl. `occupants`; an old (v20) file still loads. Full
+suite + `ruff check farloads/ cli.py app/` clean. Four docs synced
+(`PROGRAM_SPEC.md`, `20_theory/00_theory_sources.md`, this backlog → history,
+`CHANGELOG.md`).
+
+### Step E2 — Parameter explanation (tooltips + guides)
+**Objective.** Make every airplane-definition input self-explanatory. No schema
+change.
+**Deliverables.** `help=` tooltips on every domain input widget across the
+Airplane pages (`configuration_layout`, `wing_geometry`, `weight_estimate`,
+`weight_cg_inertia`, `structural_speeds`, `aero_coefficients`), citing FAR /
+Reference-1 pages; a collapsible "ℹ️ Parameter guide" expander on the dense pages
+(Config geometry, aero coefficients, inertias) defining MAC/XLEMAC/static margin/
+area-density ratio/the `C0…C4` polynomials.
+**Test/Acceptance.** Manual `streamlit run app/Home.py` walkthrough (tooltips
+present, guides render); full suite + `ruff` clean; `GUI_design.md §8.1` marked
+implemented.
+
+### Step E3 — Graphical review + input-consistency validation
+**Objective.** Give the input-heavy pages a visual sanity check and explicit
+consistency warnings. No schema change.
+**Deliverables.** A V-n envelope plot on `app/views/structural_speeds.py` (from
+VA/VC/VD + the load factors); a CG-marker + mass-distribution plot on
+`app/views/weight_cg_inertia.py`; input-consistency warnings (pure predicates
+surfaced as `st.warning`) for taper > 1, non-positive area, LE/TE ordering,
+Config-vs-WINGGEOM wing-area mismatch, and CG outside the envelope.
+**Test/Acceptance.** Manual walkthrough (plots render; each warning fires on a
+crafted bad input and is silent on good input); full suite + `ruff` clean;
+`GUI_design.md §8.2/§8.3` marked implemented.
+
+### Step E4 — Fleet comparison upgrade (P2)
+**Objective.** Turn the visual, duplicated fleet comparison into a shared,
+quantitative one. No schema change.
+**Deliverables.** One shared fleet-compare helper reused by
+`configuration_layout.py` and `weight_estimate.py`; a quantitative readout
+(nearest-N similar aircraft, W/S & W/P percentile band, outlier flags) atop the
+existing scatters.
+**Test/Acceptance.** `tests/test_fleet_compare.py` (new) for the helper (nearest-N
+/ percentile on a fixture); manual walkthrough; full suite + `ruff` clean.
+
+### Step E5 — Load-path robustness (P2)
+**Objective.** Make the sidebar project load fail gracefully and be schema-aware.
+No schema change.
+**Deliverables.** Wrap the sidebar `load_project` in `app/Home.py` with the same
+graceful `st.error` the JSON editor uses; a soft `SCHEMA_VERSION` check (warn on a
+newer file, migrate an older one) instead of a silent passthrough.
+**Test/Acceptance.** Manual: a malformed / newer-schema file shows a message, not
+a traceback; a valid older file still loads; full suite + `ruff` clean.
+
+### Deferred / declined (Phase E)
+- **Aero-coefficient curve plot** — a CL–α / drag-polar / CM plot on Aerodynamic
+  Data (with the recovered-CL closure check) was reviewed and **not selected**
+  (2026-07-15). Revisit if coefficient-entry errors prove common.
+- **Distinct Commuter category** — splitting a Commuter (19,000 lb / 19-seat)
+  category out of the merged "Normal / commuter" is non-blocking; revisit when a
+  concept airplane needs the intermediate certificated tier represented cleanly.
 
 ---
 

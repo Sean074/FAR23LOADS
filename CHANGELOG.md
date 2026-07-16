@@ -11,6 +11,21 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **Definition pages seed defaults from upstream project data.** Pages no longer
+  re-ask for a quantity another slice already owns. New
+  `farloads.modules.configuration.wing_layout_from_surface()` (the inverse of
+  `wing_polylines`) lets **Configuration & Layout** seed its parametric wing
+  fields (area / aspect ratio / taper / LE sweep / LE station) from an existing
+  WINGGEOM `wing` surface; **Flight Envelope** seeds MAC / wing area / 25%-MAC
+  station from that surface (and waterline from `configuration`) instead of
+  hardcoded Appendix-A literals; **Mach Limit** seeds `MC`/`MD`/shoulder
+  altitude from STRSPEED's `design_speed_values`; **Tail Loads** seeds the
+  h/v-tail spans from `configuration.h_tail_span_ft`/`v_tail_span_ft`; **Wing
+  Loads** seeds dihedral from `configuration.dihedral_deg`. Each seed fires only
+  when the page's own field is still unset, so an explicit value is never
+  overwritten. No calc-math change, no new `Project` slice, `SCHEMA_VERSION`
+  unchanged at 20.
+
 - **Airplane-phase GUI usability pass: tail geometry, wing planform plot,
   aero-data naming.** `LayoutInput` gains `tail_type` (`TailType`:
   `CONVENTIONAL`/`T_TAIL`/`V_TAIL`/`CRUCIFORM`, additive, default
@@ -218,6 +233,25 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   calc-math change.
 
 ### Fixed
+
+- **GUI input widgets ignored the Imperial/SI toggle.** The global unit toggle
+  (`app/Home.py`, `st.session_state["unit_system"]`) governed *results*
+  everywhere but not *inputs* — every sidebar form and `data_editor` accepted
+  and displayed Imperial regardless of the setting, so an SI user's entries were
+  stored as Imperial. All remaining pages with domain inputs now follow the
+  `engine_mount.py` pattern: seed via `farloads.units.to_display`, unit-suffixed
+  labels, widget `key`s suffixed with `system.value` (re-seed on toggle), and
+  `to_imperial_scalar` back to canonical Imperial on Apply (`configuration_
+  layout`, `structural_speeds`, `wing_geometry`, `weight_cg_inertia`,
+  `aileron_loads`, `flap_loads`, `flight_envelope`, `fuselage_loads`,
+  `landing_loads`, `mach_limit`, `payload_cases`, `tab_loads`, `tail_loads`,
+  `weight_envelope`, `weight_estimate`, `wing_loads`). `loads_plots.py`, which
+  never referenced the toggle, gained display-only conversion of its plotted
+  values and axis labels. `farloads/units.py`'s scalar kind tables gained
+  `area_sqft`/`length_ft`/`inertia_lbin2`/`area_sqin`. Airspeed (KEAS) and
+  altitude (ft) stay aviation-standard in both systems. Display/boundary only —
+  `project.json` and the calc core stay Imperial, `SCHEMA_VERSION` unchanged at
+  20; 303 tests pass.
 
 - **`project.weight` merge-write dropped `envelope`.** `configuration_layout.
   py`'s station-seed button and both `project.weight` writes in

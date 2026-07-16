@@ -10,6 +10,77 @@ Acceptance**, **Key decisions**.
 
 ---
 
+## GUI fix — Imperial/SI input widgets & upstream-data seeding (complete, 2026-07-15)
+
+**Objective.** Complete the session-wide Imperial/SI toggle so it governs
+**inputs**, not just results, and stop the definition pages re-asking for data
+the project already holds. The global toggle (`app/Home.py`,
+`st.session_state["unit_system"]`) was advertised as applying "everywhere," but
+only *results* respected it — every input widget (sidebar forms, `data_editor`
+tables) accepted and displayed Imperial regardless, so an SI user entered SI-
+looking numbers that were stored as Imperial (bug A). Separately, several pages
+opened with blank/duplicate fields for quantities an upstream slice already
+owned (bug B). Pure GUI/presentation-boundary work: no calc-math change, the
+Appendix A/B oracles pass unmodified, no new `Project` slice, `SCHEMA_VERSION`
+stays at 20. 19 files, ~698 insertions.
+
+**Deliverables.**
+- **Bug A — input widgets respect the toggle.** Extended `farloads/units.py`'s
+  scalar kind tables (`SI_PER_IMPERIAL`/`UNIT_LABELS`) with `area_sqft`,
+  `length_ft`, `inertia_lbin2` and `area_sqin`, then applied the
+  `engine_mount.py` input pattern to every remaining page with domain inputs:
+  read `system`, `U = labels_for(system)`, seed via `to_display(value, kind,
+  system)`, unit-suffix the label, suffix the widget `key` with `system.value`
+  (so switching units re-seeds the widget), and convert back with
+  `to_imperial_scalar` on Apply so the `Project` stays canonical Imperial.
+  Pages: `configuration_layout`, `structural_speeds`, `wing_geometry`,
+  `weight_cg_inertia`, `aileron_loads`, `flap_loads`, `flight_envelope`,
+  `fuselage_loads`, `landing_loads`, `mach_limit`, `payload_cases`,
+  `tab_loads`, `tail_loads`, `weight_envelope`, `weight_estimate`,
+  `wing_loads`. `loads_plots.py` — which never referenced the toggle at all —
+  gained display-only conversion of its plotted values and axis/legend labels
+  (its external-comparison CSV overlay is forced Imperial, since imported span-
+  load CSVs are always canonical Imperial). Airspeed (KEAS) and altitude (ft)
+  stay aviation-standard in both systems, unchanged.
+- **Bug B — seed from upstream data.** New
+  `farloads.modules.configuration.wing_layout_from_surface()` (the inverse of
+  `wing_polylines`) lets **Configuration & Layout** seed its parametric wing
+  fields (area / aspect ratio / taper / LE sweep / LE station) from an existing
+  WINGGEOM `wing` surface when no `configuration` slice exists yet. **Flight
+  Envelope** seeds MAC / wing area / 25%-MAC station from the `wing` surface
+  (and waterline from `configuration`) instead of hardcoded Appendix-A literals;
+  **Mach Limit** seeds `MC`/`MD`/shoulder altitude from STRSPEED's
+  `design_speed_values`; **Tail Loads** seeds the h/v-tail spans from
+  `configuration.h_tail_span_ft`/`v_tail_span_ft`; **Wing Loads** seeds dihedral
+  from `configuration.dihedral_deg`. Every seed fires only when the page's own
+  field is still unset, so an explicit value is never overwritten.
+
+**Test / Acceptance.**
+- Full suite (`pytest -q`): **303 passed**; `ruff check farloads/ cli.py app/`
+  clean. No test change needed — the calc core, `Project` schema and
+  CSV/report units are untouched.
+- Runtime verification via `streamlit.testing.v1.AppTest` (no browser tooling
+  in-env): confirmed the Imperial→SI display conversion and the SI→Imperial
+  Apply round-trip on representative pages (e.g. Configuration & Layout
+  fuselage length 5000 mm → stored 196.85 in; Structural Speeds 1000 kg →
+  2204.62 lb), that VH/VS/VC/VD/altitude stay kt/ft under SI, and each bug-B
+  seed (Config wing area 138.89 ft² from a surface; Flight Envelope MAC 50.665;
+  Mach Limit MC/MD from STRSPEED; Wing Loads dihedral 5.5° from Config).
+
+**Key decisions.**
+- **Input-boundary conversion, not a stored unit.** `project.json` and the calc
+  core stay Imperial-only; the toggle converts at each widget's seed/Apply
+  boundary exactly like the results path — no unit tag is ever written to disk,
+  so oracle fixtures and older files are unaffected.
+- **Occupancy/`seats` left as-is.** Time-in-hours and the weight-regression
+  `seats` count have no unit kind and were not converted (consistent with the
+  airspeed/altitude aviation-standard exception); a real applicability
+  occupants field is scoped to backlog **Phase E1**, not this fix.
+- **Aero-coefficient page unchanged.** Its inputs are dimensionless polynomial
+  coefficients, so no unit handling applies.
+
+---
+
 ## Phase D — Step D8: Export & report upgrades (complete, 2026-07-09)
 
 **Objective.** Close out Phase D (the six-section GUI restructure) with the
