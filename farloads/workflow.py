@@ -93,10 +93,11 @@ STEPS: Tuple[WorkflowStep, ...] = (
     WorkflowStep("structural_speeds", "Structural Speeds", AIRPLANE,
                  module="structural_speeds", produces="speeds", bas="STRSPEED",
                  summary="FAR 23 design speeds VA/VC/VD/VS."),
-    WorkflowStep("aero_coefficients", "Aero Coefficients", AIRPLANE,
+    WorkflowStep("aero_coefficients", "Aerodynamic Data", AIRPLANE,
                  module=None, produces="aero_coeffs", bas=None,
                  summary="Airplane-less-tail aero coefficients (cruise + flaps-down) "
-                         "for the flight envelope balance."),
+                         "for the flight envelope balance. Per-surface spanwise "
+                         "(Schrenk) aero is entered on the Wing Loads page."),
 
     # ---- Envelopes & Critical Conditions: the load environment --------------- #
     WorkflowStep("payload_cases", "Weight/CG Grid & Payload Cases", ENVELOPES,

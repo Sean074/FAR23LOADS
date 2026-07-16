@@ -25,15 +25,25 @@ import plotly.graph_objects as go
 import streamlit as st
 from plotly.subplots import make_subplots
 
-from farloads import LayoutInput, MassItemKind, Project, UnitSystem, WeightInput, convert_results
+from farloads import LayoutInput, MassItemKind, Project, TailType, UnitSystem, WeightInput, convert_results
 from farloads.modules.configuration import (
     cg_estimate,
     component_stations,
     configuration_properties,
     match_component_station,
+    tail_planform,
     wing_polylines,
     wing_surface,
 )
+from farloads.modules.wing_geometry import surface_top_outline
+
+_TAIL_TYPE_LABELS = {
+    TailType.CONVENTIONAL: "Conventional",
+    TailType.T_TAIL: "T-tail",
+    TailType.V_TAIL: "V-tail",
+    TailType.CRUCIFORM: "Cruciform",
+}
+_TAIL_TYPE_BY_LABEL = {v: k for k, v in _TAIL_TYPE_LABELS.items()}
 
 
 st.title("Configuration & Layout")
@@ -72,10 +82,18 @@ with st.sidebar:
             le_root_x = _num("LE root station (in)", layout.le_root_x, "w_lex")
             root_waterline_z = _num("Root waterline (in)", layout.root_waterline_z, "w_wl")
         with st.expander("Tail"):
+            tail_type_label = st.selectbox(
+                "Tail type", list(_TAIL_TYPE_LABELS.values()),
+                index=list(_TAIL_TYPE_LABELS.keys()).index(layout.tail_type), key="tail_type",
+            )
             h_tail_area = _num("H-tail area (ft²)", layout.h_tail_area, "h_area")
             h_tail_arm = _num("H-tail arm (in)", layout.h_tail_arm, "h_arm")
+            h_tail_span_ft = _num("H-tail span (ft)", layout.h_tail_span_ft, "h_span", 0.5)
+            h_tail_z = _num("H-tail Z offset from waterline (in, 0 = auto for T-tail/cruciform)",
+                            layout.h_tail_z, "h_z", 1.0)
             v_tail_area = _num("V-tail area (ft²)", layout.v_tail_area, "v_area")
             v_tail_arm = _num("V-tail arm (in)", layout.v_tail_arm, "v_arm")
+            v_tail_span_ft = _num("V-tail span (ft)", layout.v_tail_span_ft, "v_span", 0.5)
         with st.expander("Landing gear"):
             nose_gear_x = _num("Nose gear station (in)", layout.nose_gear_x, "g_nose")
             main_gear_x = _num("Main gear station (in)", layout.main_gear_x, "g_main")
@@ -93,6 +111,8 @@ if applied:
         dihedral_deg=dihedral_deg, le_sweep_deg=le_sweep_deg, le_root_x=le_root_x,
         root_waterline_z=root_waterline_z,
         h_tail_area=h_tail_area, h_tail_arm=h_tail_arm, v_tail_area=v_tail_area, v_tail_arm=v_tail_arm,
+        tail_type=_TAIL_TYPE_BY_LABEL[tail_type_label],
+        h_tail_span_ft=h_tail_span_ft, h_tail_z=h_tail_z, v_tail_span_ft=v_tail_span_ft,
         nose_gear_x=nose_gear_x, main_gear_x=main_gear_x, track=track, gear_height=gear_height,
     )
     project.configuration = layout
@@ -130,14 +150,8 @@ def _three_view() -> go.Figure:
     fig = make_subplots(rows=1, cols=3, subplot_titles=("Top", "Side", "Front"))
 
     # --- Top view: X (horizontal) vs Y (lateral). Wing planform both sides. ---
-    le_x = [p[0] for p in le]
-    le_y = [p[1] for p in le]
-    te_x = [p[0] for p in te]
-    te_y = [p[1] for p in te]
-    wing_x = le_x + te_x[::-1] + [le_x[0]]
-    wing_y = le_y + te_y[::-1] + [le_y[0]]
-    for sgn in (1, -1):
-        fig.add_scatter(x=wing_x, y=[sgn * v for v in wing_y], mode="lines",
+    for xs, ys in surface_top_outline(le, te, symmetric=True):
+        fig.add_scatter(x=xs, y=ys, mode="lines",
                         line=dict(color="#1f77b4"), showlegend=False, row=1, col=1)
     # Fuselage outline (length x width).
     nose, tail = layout.datum_x, layout.datum_x + layout.fuselage_length
@@ -183,6 +197,21 @@ def _three_view() -> go.Figure:
         fig.add_scatter(x=[-layout.track / 2, layout.track / 2], y=[ground, ground],
                         mode="markers", marker=dict(color="#555", size=8), showlegend=False, row=1, col=3)
     fig.update_yaxes(scaleanchor="x", scaleratio=1, row=1, col=3)
+
+    # --- Tail (h-tail / v-tail / V-tail panels), sketched from tail_type. ---
+    for panel in tail_planform(layout).values():
+        top_xs = [p[0] for p in panel["top"]]
+        top_ys = [p[1] for p in panel["top"]]
+        fig.add_scatter(x=top_xs, y=top_ys, mode="lines", line=dict(color="#ff7f0e"),
+                        showlegend=False, row=1, col=1)
+        side_xs = [p[0] for p in panel["side"]]
+        side_ys = [p[1] for p in panel["side"]]
+        fig.add_scatter(x=side_xs, y=side_ys, mode="lines", line=dict(color="#ff7f0e"),
+                        showlegend=False, row=1, col=2)
+        front_xs = [p[0] for p in panel["front"]]
+        front_ys = [p[1] for p in panel["front"]]
+        fig.add_scatter(x=front_xs, y=front_ys, mode="lines", line=dict(color="#ff7f0e"),
+                        showlegend=False, row=1, col=3)
 
     # --- Mass-item overlay (Step D4.6): one marker group per MassItemKind, ---
     # --- sized by weight, in all three views.                             ---

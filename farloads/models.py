@@ -874,6 +874,18 @@ class LandingInput:
     n: Optional[float] = None                  # LGFACTOR airplane load factor (result)
 
 
+class TailType(str, Enum):
+    """Empennage arrangement, for the Configuration & Layout three-view.
+
+    Drives how ``farloads.modules.configuration.tail_planform`` places the
+    horizontal/vertical tail surfaces relative to each other; a layout sketch
+    distinction only, not a structural classification."""
+    CONVENTIONAL = "conventional"
+    T_TAIL = "t_tail"
+    V_TAIL = "v_tail"
+    CRUCIFORM = "cruciform"
+
+
 # --------------------------------------------------------------------------- #
 # General configuration & layout (modern addition) -- Project.configuration
 # --------------------------------------------------------------------------- #
@@ -919,6 +931,10 @@ class LayoutInput:
     h_tail_arm: float = 0.0          # h-tail arm (25% wing MAC -> 25% h-tail MAC), in
     v_tail_area: float = 0.0         # vertical tail area, ft^2
     v_tail_arm: float = 0.0          # v-tail arm, in
+    tail_type: TailType = TailType.CONVENTIONAL  # empennage arrangement (layout sketch only)
+    h_tail_span_ft: float = 0.0      # horizontal-tail span, ft (0 -> not drawn)
+    h_tail_z: float = 0.0            # h-tail vertical offset from root_waterline_z, in
+    v_tail_span_ft: float = 0.0      # vertical-tail height, ft (0 -> not drawn)
     # Landing gear
     nose_gear_x: float = 0.0         # nose-gear contact fuselage station, in
     main_gear_x: float = 0.0         # main-gear contact fuselage station, in
@@ -1385,7 +1401,11 @@ class LoadsResult:
 # opt-out governing-case selection SELECT's page persists for Review/Export) --
 # both additive, older files migrate via _legacy_cg_cases_from_flight_loads /
 # default to an empty (unfiltered) selection.
-SCHEMA_VERSION = 19
+# v20 adds LayoutInput.tail_type/h_tail_span_ft/h_tail_z/v_tail_span_ft (the
+# empennage arrangement + minimal span/offset geometry the Configuration &
+# Layout three-view needs to draw a tail shape) -- all additive with defaults
+# that reproduce today's "no tail drawn" rendering, older files migrate for free.
+SCHEMA_VERSION = 20
 
 
 @dataclass

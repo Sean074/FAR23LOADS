@@ -41,6 +41,7 @@ from ..models import (
     ModuleResult,
     Project,
     SurfaceInput,
+    TailType,
     Vec3,
 )
 from ..registry import register
@@ -101,6 +102,106 @@ def wing_surface(layout: LayoutInput) -> SurfaceInput:
     le, te = wing_polylines(layout)
     return SurfaceInput(name="wing", leading_edge=le, trailing_edge=te,
                         symmetric=True, elements=_STRIPS)
+
+
+# V-tail panels have no dedicated dihedral field (Step: tail-type usability pass);
+# a fixed typical value keeps the sketch simple. Documented so a refinement is a
+# one-line change, same convention as the neutral-point assumptions above.
+_V_TAIL_DIHEDRAL_DEG = 40.0
+
+
+def tail_planform(layout: LayoutInput) -> Dict[str, Dict[str, List[Tuple[float, float]]]]:
+    """Tail-surface sketch polylines for the three-view, keyed by panel name.
+
+    Each panel maps to ``{"top": [(x, y), ...], "side": [(x, z), ...], "front":
+    [(y, z), ...]}`` -- ready-to-plot polylines/outlines in the three-view's Top
+    (X, Y) / Side (X, Z) / Front (Y, Z) axes. A first-order rectangular-planform
+    sketch (constant chord = area / span; ``LayoutInput`` carries no tail taper or
+    sweep), not a structural surface definition -- for a real tail polyline, use
+    the WINGGEOM surface editor (Wing / Surface Geometry page).
+
+    Returns ``{}`` when neither ``h_tail_span_ft`` nor ``v_tail_span_ft`` is set,
+    so an older project (before this field existed) draws no tail, exactly as
+    before this addition (backward-compatible).
+
+    Tail X stations are measured from the wing 25%-MAC point plus the existing
+    ``h_tail_arm``/``v_tail_arm`` scalars (mirrors :func:`component_stations`).
+    The vertical-tail root and (for ``T_TAIL``/``CRUCIFORM``) the implied
+    horizontal-tail height are referenced from the top of the fuselage
+    (``root_waterline_z + fuselage_height / 2``), not the fuselage centreline.
+    ``layout.h_tail_z`` is a further user-editable offset from
+    ``root_waterline_z`` on top of that; if left at ``0`` for ``T_TAIL``/
+    ``CRUCIFORM`` a sensible default (top of fin / mid-fin) is used instead of
+    drawing the h-tail at the fuselage centreline.
+    """
+    if layout.h_tail_span_ft <= 0 and layout.v_tail_span_ft <= 0:
+        return {}
+
+    wing_x = layout.le_root_x
+    if layout.wing_area_sqft > 0 and layout.aspect_ratio > 0:
+        geom = _wing_geometry(layout)
+        wing_x = geom["XLE(MAC) station of MAC LE"] + 0.25 * geom["MAC"]
+
+    fin_root_z = layout.root_waterline_z + layout.fuselage_height / 2.0
+    v_span_in = layout.v_tail_span_ft * 12.0
+    panels: Dict[str, Dict[str, List[Tuple[float, float]]]] = {}
+
+    if layout.tail_type == TailType.V_TAIL:
+        if layout.v_tail_area > 0 and v_span_in > 0:
+            area_in2 = (layout.v_tail_area * IN2_PER_FT2) / 2.0  # per panel
+            chord = area_in2 / v_span_in
+            x_mac = wing_x + layout.v_tail_arm
+            x_le, x_te = x_mac - 0.25 * chord, x_mac + 0.75 * chord
+            dihedral = math.radians(_V_TAIL_DIHEDRAL_DEG)
+            proj_y = v_span_in * math.cos(dihedral)
+            proj_z = v_span_in * math.sin(dihedral)
+            for sgn, side in ((1, "right"), (-1, "left")):
+                panels[f"v_tail_{side}"] = {
+                    "top": [(x_le, 0.0), (x_te, 0.0), (x_te, sgn * proj_y),
+                            (x_le, sgn * proj_y), (x_le, 0.0)],
+                    "side": [(x_le, fin_root_z), (x_te, fin_root_z),
+                             (x_te, fin_root_z + proj_z), (x_le, fin_root_z + proj_z),
+                             (x_le, fin_root_z)],
+                    "front": [(0.0, fin_root_z), (sgn * proj_y, fin_root_z + proj_z)],
+                }
+        return panels
+
+    if layout.v_tail_area > 0 and v_span_in > 0:
+        area_in2 = layout.v_tail_area * IN2_PER_FT2
+        chord = area_in2 / v_span_in
+        x_mac = wing_x + layout.v_tail_arm
+        x_le, x_te = x_mac - 0.25 * chord, x_mac + 0.75 * chord
+        z1 = fin_root_z + v_span_in
+        panels["v_tail"] = {
+            "top": [(x_le, 0.0), (x_te, 0.0)],
+            "side": [(x_le, fin_root_z), (x_te, fin_root_z), (x_te, z1),
+                     (x_le, z1), (x_le, fin_root_z)],
+            "front": [(0.0, fin_root_z), (0.0, z1)],
+        }
+
+    if layout.h_tail_area > 0 and layout.h_tail_span_ft > 0:
+        h_span_in = layout.h_tail_span_ft * 12.0
+        area_in2 = layout.h_tail_area * IN2_PER_FT2
+        chord = area_in2 / h_span_in
+        x_mac = wing_x + layout.h_tail_arm
+        x_le, x_te = x_mac - 0.25 * chord, x_mac + 0.75 * chord
+        h_half = h_span_in / 2.0
+
+        h_tail_z = layout.h_tail_z
+        if h_tail_z == 0.0 and layout.tail_type == TailType.T_TAIL:
+            h_tail_z = layout.fuselage_height / 2.0 + v_span_in
+        elif h_tail_z == 0.0 and layout.tail_type == TailType.CRUCIFORM:
+            h_tail_z = layout.fuselage_height / 2.0 + v_span_in * 0.5
+        h_z = layout.root_waterline_z + h_tail_z
+
+        panels["h_tail"] = {
+            "top": [(x_le, h_half), (x_te, h_half), (x_te, -h_half),
+                    (x_le, -h_half), (x_le, h_half)],
+            "side": [(x_le, h_z), (x_te, h_z)],
+            "front": [(-h_half, h_z), (h_half, h_z)],
+        }
+
+    return panels
 
 
 def _wing_geometry(layout: LayoutInput) -> dict:

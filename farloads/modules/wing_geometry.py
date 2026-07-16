@@ -30,7 +30,7 @@ worked example Appendix A p141 (wing: MAC 69.246, XLEMAC 63.641, AR 6.095).
 
 from __future__ import annotations
 
-from typing import List, Optional
+from typing import List, Optional, Sequence, Tuple
 
 from ..models import (
     ConditionResult,
@@ -45,6 +45,38 @@ from ..registry import register
 _FAR = "geometry"  # geometry basis for the 23.301+ airload conditions
 _IN = "in"
 _IN2 = "in^2"
+
+Point = Tuple[float, float]
+
+
+def surface_top_outline(
+    leading_edge: Sequence[Point], trailing_edge: Sequence[Point], symmetric: bool = True,
+) -> List[Tuple[List[float], List[float]]]:
+    """Closed-polygon (x, y) outline(s) for a top-view surface plot.
+
+    A presentation helper (not a load/geometry calc), shared by the Configuration
+    & Layout three-view and the Wing/Surface Geometry planform plot so the two
+    GUI pages don't duplicate the same "polyline -> plotly-ready outline" math.
+
+    Builds one closed outline from ``leading_edge`` + reversed ``trailing_edge``
+    (inboard -> outboard -> back to start); when ``symmetric``, returns that
+    outline plus its mirror image about the centreline (``y -> -y``), matching
+    how a symmetric lifting surface (wing/tail) is entered as one half.
+
+    Returns a list of ``(xs, ys)`` point-list pairs -- one entry, or two when
+    ``symmetric`` -- ready for ``fig.add_scatter(x=xs, y=ys, mode="lines")``.
+    """
+    if not leading_edge or not trailing_edge:
+        return []
+    le_x = [p[0] for p in leading_edge]
+    le_y = [p[1] for p in leading_edge]
+    te_x = [p[0] for p in trailing_edge]
+    te_y = [p[1] for p in trailing_edge]
+    xs = le_x + te_x[::-1] + [le_x[0]]
+    ys = le_y + te_y[::-1] + [le_y[0]]
+    if not symmetric:
+        return [(xs, ys)]
+    return [(xs, list(ys)), (xs, [-v for v in ys])]
 
 
 def _interp_x(polyline: List, y: float) -> float:

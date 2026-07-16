@@ -11,6 +11,22 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **Airplane-phase GUI usability pass: tail geometry, wing planform plot,
+  aero-data naming.** `LayoutInput` gains `tail_type` (`TailType`:
+  `CONVENTIONAL`/`T_TAIL`/`V_TAIL`/`CRUCIFORM`, additive, default
+  `CONVENTIONAL`) plus `h_tail_span_ft`/`h_tail_z`/`v_tail_span_ft` (all
+  default `0.0`, backward-compatible — an older project with these unset draws
+  no tail, exactly as before). New `farloads.modules.configuration.
+  tail_planform()` sketches the tail panel(s) for the Configuration & Layout
+  three-view, which now draws them in Top/Side/Front alongside the existing
+  wing/fuselage/gear overlays. The Wing/Surface Geometry page gains a top-view
+  planform plot (new shared `farloads.modules.wing_geometry.
+  surface_top_outline()` helper, also used by the three-view's wing outline).
+  The `aero_coefficients` Airplane-phase step is retitled "Aerodynamic Data"
+  (key unchanged) with a cross-link caption to the Wing Loads page, where the
+  per-surface spanwise (Schrenk) aero input stays, with a matching caption
+  pointing back. `SCHEMA_VERSION` bumped 19 → 20 (additive fields only).
+
 - **Session-wide Imperial/SI display toggle + Project JSON Editor page.** A
   single sidebar control (`app/Home.py`, `st.session_state["unit_system"]`)
   now drives Imperial/SI display consistently across every GUI page (all 24

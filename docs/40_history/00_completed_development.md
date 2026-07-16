@@ -1972,6 +1972,80 @@ reproduced identically on the pre-change branch). No calc-math change, no
 
 ---
 
+## Airplane-phase GUI usability pass: tail geometry, wing planform plot, aero-data naming (complete, 2026-07-14)
+
+**Objective.** A GUI review requested by the user (mental model: Geometry →
+Weight/CG → Three-view → Aerodynamic data) found the existing 6-step Airplane
+phase already matched that order structurally, but with three real gaps: (1)
+the three-view (`configuration_layout.py`) drew wing/fuselage/gear/CG/NP but
+**no tail at all** — `LayoutInput` stored the tail as area+arm only, with no
+type or enough geometry to sketch one; (2) `wing_geometry.py` (WINGGEOM
+surface-polyline tables) had **zero visualization**; (3) aerodynamic data was
+split across two schema slices in two phases (`aero_coeffs` on its own
+Airplane-phase page, `aero` — per-surface spanwise Schrenk — buried inline on
+the Analysis-phase Wing Loads page) with no naming/cross-link connecting them.
+
+**Deliverables.**
+- `farloads/models.py` — `TailType` enum (`CONVENTIONAL`/`T_TAIL`/`V_TAIL`/
+  `CRUCIFORM`, default `CONVENTIONAL`) and four new additive `LayoutInput`
+  fields (`tail_type`, `h_tail_span_ft`, `h_tail_z`, `v_tail_span_ft`, all
+  zero-valued defaults). `SCHEMA_VERSION` bumped 19 → 20.
+- `farloads/modules/configuration.py` — `tail_planform(layout)`, a pure
+  function returning per-panel `top`/`side`/`front` outline polylines for the
+  three-view, branching on `tail_type` (T-tail places the h-tail atop the fin,
+  cruciform mid-fin, V-tail derives two mirrored diagonal panels from
+  `v_tail_area` at a fixed 40° dihedral instead of separate h/v rectangles).
+  Returns `{}` (draws nothing) when both span fields are unset, so older
+  projects render identically to before this change.
+- `farloads/modules/wing_geometry.py` — `surface_top_outline(le, te,
+  symmetric)`, a shared presentation helper (polyline → plotly-ready top-view
+  outline) used by both `configuration_layout.py` (wing outline, replacing
+  duplicated inline logic) and the new `wing_geometry.py` planform plot.
+- `app/views/configuration_layout.py` — tail-type selector + span/offset
+  inputs in the existing form; the three-view now draws the tail panel(s) in
+  Top/Side/Front alongside the existing wing/fuselage/gear/mass-item/engine
+  overlays.
+- `app/views/wing_geometry.py` — a lightweight top-view planform plot above
+  the per-surface polyline tables, one trace per surface.
+- `app/views/aero_coefficients.py` / `farloads/workflow.py` — the
+  `aero_coefficients` step retitled "Aerodynamic Data" (key unchanged); a
+  cross-link caption added pointing to the Wing Loads page for per-surface
+  spanwise aero, with a matching caption added there pointing back.
+- `tests/test_configuration.py` — 6 new tests covering each `TailType` branch
+  and the empty-when-unset backward-compat case.
+- Docs: `docs/10_standard/PROGRAM_SPEC.md` updated for the `configuration` and
+  `WINGGEOM` module entries and the `aero_coefficients` rename; `cspell.json`
+  extended.
+
+**Test / Acceptance.** Full suite green (303 tests); `ruff check farloads/
+cli.py app/` clean; `tests/test_views_smoke.py`'s headless `AppTest` sweep
+passes for both changed views (this caught an initial relative-import mistake
+— the shared trace helper had to live in `farloads/modules/wing_geometry.py`,
+not a same-directory `app/views/_*.py` module, since Streamlit executes each
+page as a standalone script, not as a package member, so `from .x import y`
+fails both in `AppTest` and in the real multipage app).
+
+**Key decisions** (user-directed, via `AskUserQuestion` during planning).
+1. **Geometry editor and three-view stay one combined page**, not split into
+   two — matches the existing `weight_envelope.py` precedent (edit + its own
+   chart on one page) and avoids duplicating `LayoutInput` editing state
+   across two `st.navigation` pages.
+2. **Tail-type field and its three-view drawing built now**, not deferred —
+   this was the one genuine functional gap (no tail geometry existed at all).
+3. **Aero-data consolidation kept to a rename + cross-link**, not a full
+   `AeroInput` migration onto the Airplane phase — moving spanwise aero input
+   away from Wing Loads' immediate per-strip-distribution feedback loop was
+   judged a net usability loss for a naming-only complaint.
+4. **`workflow.py` step order left unchanged** — investigation found the
+   existing Airplane-phase step order already matches the user's Geometry →
+   Weight/CG → (three-view, combined) → Aero mental model; no reorder needed.
+
+**Deferred (flagged as recommendations, not built this pass).** Full
+`AeroInput`-onto-Airplane-phase migration if the rename+cross-link proves
+insufficient; seeding `tail_type` into the example `.project.json` fixtures.
+
+---
+
 ## Resolved defects
 
 - **Flight Envelope page destroyed unedited `flight_loads` data** *(resolved

@@ -15,13 +15,19 @@ import streamlit as st
 
 from farloads import AeroCoefficientsInput, AeroCoeffSet, Project
 
-st.title("Aero Coefficients")
+st.title("Aerodynamic Data")
 st.caption(
     "Airplane-less-tail aerodynamic coefficient sets (Ch 7 aero-coefficients "
     "program output) that the Flight Envelope page (FLTLOADS) balances against: "
     "CL = C0 + C1·α + C2·α² + C3·α³ + C4·α⁴ (α in deg); CD = D0 + D1·CL + … ; "
     "CM = M0 + M1·α + … . Cruise is balanced at every altitude in the flight "
     "envelope; flaps-down is balanced at sea level only (FLTLOADS.BAS line 3000)."
+)
+st.caption(
+    "This page holds the airplane-less-tail balance coefficients. Each lifting "
+    "surface's spanwise (Schrenk) aero -- lift-curve slope, twist, target CL, "
+    "profile drag, section CM -- is entered on the Wing Loads page (Analysis "
+    "phase), next to the load distribution it drives."
 )
 
 project: Project = st.session_state.get("project", Project(name=""))

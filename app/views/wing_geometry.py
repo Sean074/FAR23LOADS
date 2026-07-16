@@ -12,11 +12,12 @@ sidebar's Imperial/SI toggle (``Home.py``).
 from __future__ import annotations
 
 import pandas as pd
+import plotly.graph_objects as go
 import streamlit as st
 
 from farloads import GeometryInput, Project, SurfaceInput, UnitSystem, convert_results
 from farloads import io as farloads_io
-from farloads.modules.wing_geometry import geometry_properties
+from farloads.modules.wing_geometry import geometry_properties, surface_top_outline
 from farloads.report import module_text_report
 
 
@@ -75,6 +76,26 @@ if applied:
     geometry = GeometryInput(surfaces=edited_surfaces)
     project.geometry = geometry
     st.session_state["project"] = project
+
+def _planform_plot() -> go.Figure:
+    fig = go.Figure()
+    palette = ["#1f77b4", "#ff7f0e", "#2ca02c", "#d62728", "#9467bd", "#8c564b"]
+    for i, surf in enumerate(geometry.surfaces):
+        color = palette[i % len(palette)]
+        outlines = surface_top_outline(surf.leading_edge, surf.trailing_edge, symmetric=surf.symmetric)
+        for j, (xs, ys) in enumerate(outlines):
+            fig.add_scatter(x=xs, y=ys, mode="lines", line=dict(color=color),
+                            name=surf.name, showlegend=(j == 0))
+    fig.update_yaxes(scaleanchor="x", scaleratio=1, title="Y (butt line, in)")
+    fig.update_xaxes(title="X (fuselage station, in)")
+    fig.update_layout(height=340, margin=dict(l=10, r=10, t=30, b=10))
+    return fig
+
+
+if any(surf.leading_edge and surf.trailing_edge for surf in geometry.surfaces):
+    st.plotly_chart(_planform_plot(), use_container_width=True)
+else:
+    st.caption("Enter leading/trailing-edge points below to see the planform plot.")
 
 try:
     results = geometry_properties(geometry, project)

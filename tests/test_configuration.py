@@ -18,12 +18,13 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from farloads import LayoutInput, MassCase, MassResult, Project  # noqa: E402
+from farloads import LayoutInput, MassCase, MassResult, Project, TailType  # noqa: E402
 from farloads.modules.configuration import (  # noqa: E402
     cg_estimate,
     component_stations,
     configuration_properties,
     match_component_station,
+    tail_planform,
     wing_planform,
 )
 
@@ -189,6 +190,73 @@ def test_component_stations_omits_ungiven_components():
     layout = LayoutInput(wing_area_sqft=174.0, aspect_ratio=6.0, le_root_x=90.0)
     stations = component_stations(layout)
     assert set(stations) == {"wing"}
+
+
+def _tail_layout(tail_type=TailType.CONVENTIONAL, **overrides):
+    kwargs = dict(
+        fuselage_length=300.0, fuselage_width=48.0, fuselage_height=60.0, datum_x=0.0,
+        wing_area_sqft=174.0, aspect_ratio=6.0, taper_ratio=0.6,
+        le_sweep_deg=2.0, le_root_x=90.0, root_waterline_z=40.0,
+        h_tail_area=30.0, h_tail_arm=180.0, h_tail_span_ft=10.0,
+        v_tail_area=18.0, v_tail_arm=175.0, v_tail_span_ft=4.0,
+        tail_type=tail_type,
+    )
+    kwargs.update(overrides)
+    return LayoutInput(**kwargs)
+
+
+def test_tail_planform_empty_when_no_span_set():
+    # Backward-compat: an old project with no tail span fields draws nothing.
+    layout = _full_layout()
+    assert layout.tail_type == TailType.CONVENTIONAL
+    assert tail_planform(layout) == {}
+
+
+def test_tail_planform_conventional_draws_h_and_v_tail_near_fuselage():
+    layout = _tail_layout(TailType.CONVENTIONAL)
+    panels = tail_planform(layout)
+    assert set(panels) == {"h_tail", "v_tail"}
+    fin_root_z = layout.root_waterline_z + layout.fuselage_height / 2.0
+    # No explicit h_tail_z -> conventional tail sits at the fuselage waterline.
+    h_z = panels["h_tail"]["side"][0][1]
+    assert math.isclose(h_z, layout.root_waterline_z)
+    v_z0 = panels["v_tail"]["side"][0][1]
+    assert math.isclose(v_z0, fin_root_z)
+
+
+def test_tail_planform_t_tail_places_h_tail_atop_fin():
+    layout = _tail_layout(TailType.T_TAIL)
+    panels = tail_planform(layout)
+    fin_root_z = layout.root_waterline_z + layout.fuselage_height / 2.0
+    v_span_in = layout.v_tail_span_ft * 12.0
+    h_z = panels["h_tail"]["side"][0][1]
+    assert math.isclose(h_z, fin_root_z + v_span_in)
+
+
+def test_tail_planform_t_tail_respects_explicit_h_tail_z():
+    layout = _tail_layout(TailType.T_TAIL, h_tail_z=25.0)
+    panels = tail_planform(layout)
+    h_z = panels["h_tail"]["side"][0][1]
+    assert math.isclose(h_z, layout.root_waterline_z + 25.0)
+
+
+def test_tail_planform_cruciform_places_h_tail_mid_fin():
+    layout = _tail_layout(TailType.CRUCIFORM)
+    panels = tail_planform(layout)
+    fin_root_z = layout.root_waterline_z + layout.fuselage_height / 2.0
+    v_span_in = layout.v_tail_span_ft * 12.0
+    h_z = panels["h_tail"]["side"][0][1]
+    assert math.isclose(h_z, fin_root_z + v_span_in * 0.5)
+
+
+def test_tail_planform_v_tail_draws_two_diagonal_panels_not_h_v():
+    layout = _tail_layout(TailType.V_TAIL)
+    panels = tail_planform(layout)
+    assert set(panels) == {"v_tail_left", "v_tail_right"}
+    left_y = panels["v_tail_left"]["front"][1][0]
+    right_y = panels["v_tail_right"]["front"][1][0]
+    assert left_y < 0 < right_y
+    assert math.isclose(left_y, -right_y)
 
 
 def test_match_component_station_prefers_specific_over_lumped():

@@ -94,6 +94,11 @@ if project.is_concept:
 # future htail/vtail aero entry from another module survives this page's Apply).
 # --------------------------------------------------------------------------- #
 st.header("Wing airloads (Schrenk)")
+st.caption(
+    "This is the wing's spanwise lift/twist/drag input, kept next to the "
+    "per-strip distribution it drives. Airplane-less-tail cruise/flaps-down "
+    "balance coefficients are entered on the Aerodynamic Data page (Airplane phase)."
+)
 
 existing_aero = project.aero.by_name("wing") if project.aero else None
 

@@ -53,6 +53,7 @@ from .models import (
     TabLoadsInput,
     TabSpec,
     TailLoadsInput,
+    TailType,
     VTailLoadsInput,
     LayoutInput,
     LoadsResult,
@@ -710,15 +711,19 @@ def configuration_from_dict(d: Dict[str, Any]) -> LayoutInput:
     """Build a :class:`LayoutInput` from a plain dict.
 
     Every field is an optional scalar with a default, so unknown keys are ignored
-    and missing keys fall back to the dataclass default (additive forward-compat).
+    and missing keys fall back to the dataclass default (additive forward-compat);
+    a file with no ``tail_type`` defaults to ``TailType.CONVENTIONAL``.
     """
     fields = {f for f in LayoutInput.__dataclass_fields__}
-    return LayoutInput(**{k: v for k, v in d.items() if k in fields})
+    kwargs = {k: v for k, v in d.items() if k in fields}
+    if "tail_type" in kwargs:
+        kwargs["tail_type"] = TailType(kwargs["tail_type"])
+    return LayoutInput(**kwargs)
 
 
 def configuration_to_dict(inp: LayoutInput) -> Dict[str, Any]:
     """Serialize a :class:`LayoutInput` to JSON-friendly primitives."""
-    return asdict(inp)
+    return {**asdict(inp), "tail_type": inp.tail_type.value}
 
 
 # --------------------------------------------------------------------------- #

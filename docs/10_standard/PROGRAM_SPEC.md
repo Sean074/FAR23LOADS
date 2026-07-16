@@ -147,7 +147,7 @@ chart + tables.
 - **Reads:** planform inputs per surface (root/tip chord, span, sweep, dihedral, incidence, station offsets) for: wing, horizontal & vertical tail, aileron, flap, elevator, rudder, tabs (the original keeps a `*GEOM.INP/.OUT` per surface).
 - **Writes:** derived geometry per surface — MAC, XLEMAC, area, aspect ratio, spanwise station table, control-surface hinge geometry → `Project.geometry.<surface>`.
 - **Validation:** Appendix A/B — MAC=69.246, XLEMAC=63.641 (wing) and the per-surface area/MAC tables.
-- **Notes:** Many downstream modules read `geometry`. Model surfaces as a dict/list keyed by surface name so one calc serves all. Has graphics (planform plots).
+- **Notes:** Many downstream modules read `geometry`. Model surfaces as a dict/list keyed by surface name so one calc serves all. Has graphics: the Wing/Surface Geometry page plots a top-view planform outline per surface (`farloads.modules.wing_geometry.surface_top_outline`, a presentation-only helper — no new `ConditionResult`), reused by `configuration_layout.py`'s three-view for the wing outline (Airplane-phase GUI usability pass).
 
 ### STRSPEED — Design speeds & maneuver load factors
 - **FAR §:** 23.335 (design airspeeds), 23.337 (limit maneuver load factors), 23.333.
@@ -188,7 +188,10 @@ chart + tables.
 ### FLTLOADS — Flight envelope (V-n) **+ balancing tail loads**
 - **FAR §:** 23.333 (flight envelope), 23.337, 23.341 (gust), 23.345 (flaps), 23.421+ (balancing/horizontal tail loads), 23.423.
 - **Source:** Ch 8, `FLTLOADS.BAS`. UG Table 2.1: *"Balancing calculations for flight envelope."*
-- **Reads:** `Project.speeds` (STRSPEED — VA/VC/VD/VF, MC/MD and the limit load factors via the shared `_maneuver_load_factors`); **`Project.flight_loads`** (`FlightLoadsInput`) for the balance geometry scalars `mac`/`wing_area_sqft`/`xw`/`zw`/`xtc`/`xtf`, the reference Mach `mn`, the altitude list and the four weight-CG cases (`CgCase`); and **`Project.aero_coeffs`** (`AeroCoefficientsInput`, Step D4.1) for the airplane-*less-tail* aero-coefficient polynomials (`AeroCoeffSet`: CL(α), CD(CL), CM(α) + stall CLs) — `.cruise` (flaps up, balanced at every altitude) and, when present, `.flaps_down` (balanced at sea level only, FLTLOADS.BAS line 3000). `Project.aero_coeffs` is the single owner of these coefficient sets; the Airplane-section **Aero Coefficients** page writes it (`flight_envelope` only reads it) — before Step D4.1 they were carried inline as `FlightLoadsInput.configurations`, a list of `AeroCoeffSet` keyed by `flaps_down`; older project files migrate automatically (`io._legacy_aero_coeffs_from_flight_loads`). **As built (C2):** the aero polynomials come from the Ch 7 aero-coefficients program and are entered as input (AIRLOADS/C1 does not yet emit them); the CG cases are entered explicitly (seeding them from `Project.weight.envelope`/WTENV is a later refinement), so the original data-flow's `Project.mass` read is not needed for the balance. **Step D5:** the four weight-CG cases are no longer edited on this page — they are the shared `Project.weight.cg_cases` the **Weight/CG Grid & Payload Cases** page owns; the Flight Envelope page reads that slice read-only and merges it (unchanged) into `FlightLoadsInput.cg_cases`, which `build_envelope`/SELECT/WINGINER/NETLOADS/BALLOADS keep reading exactly as before (no calc module changed). The altitude list, previously a single-altitude widget touching only `altitudes_ft[0]`, is now a fully-editable list on this page (multi-altitude V-n); the calc loop (`for alt in fl.altitudes_ft`) already supported more than one entry since Step C2.
+- **Reads:** `Project.speeds` (STRSPEED — VA/VC/VD/VF, MC/MD and the limit load factors via the shared `_maneuver_load_factors`); **`Project.flight_loads`** (`FlightLoadsInput`) for the balance geometry scalars `mac`/`wing_area_sqft`/`xw`/`zw`/`xtc`/`xtf`, the reference Mach `mn`, the altitude list and the four weight-CG cases (`CgCase`); and **`Project.aero_coeffs`** (`AeroCoefficientsInput`, Step D4.1) for the airplane-*less-tail* aero-coefficient polynomials (`AeroCoeffSet`: CL(α), CD(CL), CM(α) + stall CLs) — `.cruise` (flaps up, balanced at every altitude) and, when present, `.flaps_down` (balanced at sea level only, FLTLOADS.BAS line 3000). `Project.aero_coeffs` is the single owner of these coefficient sets; the Airplane-section **Aerodynamic Data** page (workflow key `aero_coefficients`,
+retitled in the Airplane-phase GUI usability pass — the per-surface spanwise
+Schrenk aero, `Project.aero`, stays on the Wing Loads page next to the load
+distribution it drives, cross-linked from both pages) writes it (`flight_envelope` only reads it) — before Step D4.1 they were carried inline as `FlightLoadsInput.configurations`, a list of `AeroCoeffSet` keyed by `flaps_down`; older project files migrate automatically (`io._legacy_aero_coeffs_from_flight_loads`). **As built (C2):** the aero polynomials come from the Ch 7 aero-coefficients program and are entered as input (AIRLOADS/C1 does not yet emit them); the CG cases are entered explicitly (seeding them from `Project.weight.envelope`/WTENV is a later refinement), so the original data-flow's `Project.mass` read is not needed for the balance. **Step D5:** the four weight-CG cases are no longer edited on this page — they are the shared `Project.weight.cg_cases` the **Weight/CG Grid & Payload Cases** page owns; the Flight Envelope page reads that slice read-only and merges it (unchanged) into `FlightLoadsInput.cg_cases`, which `build_envelope`/SELECT/WINGINER/NETLOADS/BALLOADS keep reading exactly as before (no calc module changed). The altitude list, previously a single-altitude widget touching only `altitudes_ft[0]`, is now a fully-editable list on this page (multi-altitude V-n); the calc loop (`for alt in fl.altitudes_ft`) already supported more than one entry since Step C2.
 - **Writes:** the full balanced V-n matrix (one `VnPoint` per condition × CG × altitude: V, NZ, α, G, CL, M(W+F), LZW, **LT**, DX) and the balancing tail load per point → **`Project.envelope`** (`EnvelopeResult.vn` + `.tail_balance`), consumed by SELECT. The pure entry point is `flight_envelope.build_envelope(project) → EnvelopeResult`; `run(project)` returns the per-point `ModuleResult`.
 - **Validation:** Appendix A "V-n Data" p179-180 — the cruise balanced matrix per CG case. The AoA balance converges NZ only to ±0.005 (FLTLOADS.BAS line 4130), so low-load-factor quantities carry ~0.5% noise; LT and the corner speeds/load factors match tightly.
 - **Notes:** Graphics: the V-n diagram. Faithful port of FLTLOADS.BAS subroutine **3900** (iterate AoA to the required load factor, then dynamic pressure to the Mach-adjusted stall line; Glauert compressibility `G/Gmn`; CLmax-vs-Mach curve) and **4864** (gust load factor, FAR 23.341). Balancing tail load `LT = [M(W+F) + LZ·(Xcg−Xw) − DX·(Zcg−Zw)]/(XT−Xcg)` with *approximate* tail CP (`XTC`≈5% tail MAC flaps-up, `XTF`≈25% flaps-down; Ch 8 "Assumption"). Covers the **cruise** maneuver+gust corner set (20 conditions, lines 1000-1594) plus the flapped LANDING/ENROUTE corner set (added with SELECT, C6); both share the balance engine. SELECT refines the CP rationally; `BALLOADS.BAS` independently verifies it. Produces the candidate conditions SELECT then prunes; feeds SELECT and WINGINER (UG Table 2.2). FLTLOADS uses its own speed-of-sound constant (518.688 vs the shared `standard_atmosphere`'s 518.4), replicated locally for oracle fidelity.
@@ -337,6 +340,20 @@ regression oracle**; Appendix A/B geometry is used only as a *sanity* fixture.
   `cg_estimate` below). The page (not the calc) also reads `Project.weight.items`
   and `Project.engines` to overlay markers on the three-view (Step D4.6, no calc
   input).
+- **Tail geometry (Airplane-phase GUI usability pass):** `LayoutInput.tail_type`
+  (`TailType`: `CONVENTIONAL`/`T_TAIL`/`V_TAIL`/`CRUCIFORM`, additive, default
+  `CONVENTIONAL`) plus `h_tail_span_ft`/`h_tail_z`/`v_tail_span_ft` (all default
+  `0.0`) give the three-view enough to sketch a tail shape —
+  `tail_planform(layout) -> Dict[str, Dict[str, List[(x, y)]]]` returns per-panel
+  `top`/`side`/`front` outline polylines, a first-order rectangular sketch
+  (constant chord = area / span; no taper/sweep data exists for the tail — for a
+  real tail polyline use the WINGGEOM surface editor). `T_TAIL`/`CRUCIFORM` default
+  `h_tail_z` (when left at `0`) to the top/mid-height of the fin instead of the
+  fuselage waterline; `V_TAIL` derives two mirrored diagonal panels from
+  `v_tail_area` at a fixed 40° dihedral (`_V_TAIL_DIHEDRAL_DEG`, no dedicated
+  angle field) instead of separate h/v rectangles. Returns `{}` (nothing drawn)
+  when both span fields are `0`, so an older project without these fields renders
+  identically to before this addition.
 - **Writes:** derived MAC / XLEMAC / Y_MAC / AR / span (obtained by running the
   generated wing polylines through the WINGGEOM strip integrator — WINGGEOM stays
   the owner), horizontal tail volume, neutral-point %MAC + station, static margin,
@@ -377,7 +394,9 @@ regression oracle**; Appendix A/B geometry is used only as a *sanity* fixture.
   `match_component_station` are checked directly (arm/weighting arithmetic, alias
   precedence, and that ungiven components are omitted rather than defaulted to 0);
   `cg_estimate` is checked directly for both the mass-present and fallback paths,
-  and that the gear `ConditionResult`'s CG-station label reflects the active source.
+  and that the gear `ConditionResult`'s CG-station label reflects the active source;
+  `tail_planform` is checked for each `TailType` branch (h-tail height per type,
+  V-tail's mirrored panels) and for the empty-when-unset backward-compat case.
 - **Notes:** all stability/gear figures are first-order estimates (CG at 25% MAC
   when no mass slice is present, true weight-averaged CG once one exists — Step
   D4.5; tail-volume NP with `h_acw=0.25`, `a_t/a_w=1`, `1−dε/dα=0.6`). In concept
@@ -475,7 +494,7 @@ Derived from **User's Guide Table 2.2** (the authoritative input→output map):
 | `mass` (weight/CG + inertias) | WTONECG | FLTLOADS, LANDLOAD (weight/CG); SELECT, ONENGOUT (inertia) |
 | `geometry.<surface>` | WINGGEOM | STRSPEED, AIRLOADS, AIRLOAD4, FLTLOADS, SELECT, ONENGOUT |
 | `speeds` (V_A/C/D, n, mach) | STRSPEED, MACHLIM | FLTLOADS, AILERON, FLAPLOAD |
-| `aero_coeffs` (airplane-less-tail CL/CD/CM, cruise + flaps-down) | Aero Coefficients page (Step D4.1; formerly `FlightLoadsInput.configurations`) | FLTLOADS |
+| `aero_coeffs` (airplane-less-tail CL/CD/CM, cruise + flaps-down) | Aerodynamic Data page (`aero_coefficients` key, Step D4.1; formerly `FlightLoadsInput.configurations`) | FLTLOADS |
 | `aero` (tau, spanwise) | TAU, AIRLOADS/AIRLOAD4 | SELECT, NETLOADS (and AIRLOADS↔SELECT iterate) |
 | `envelope.vn / tail_balance` | FLTLOADS | SELECT, WINGINER |
 | `envelope.critical` | SELECT | AIRLOADS, AIRLOAD4, WINGINER, TAILDIST |
