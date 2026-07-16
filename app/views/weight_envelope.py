@@ -16,7 +16,16 @@ import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
 
-from farloads import Project, UnitSystem, WeightEnvelopeInput, WeightInput, convert_results
+from farloads import (
+    Project,
+    UnitSystem,
+    WeightEnvelopeInput,
+    WeightInput,
+    convert_results,
+    labels_for,
+    to_display,
+    to_imperial_scalar,
+)
 from farloads import io as farloads_io
 from farloads.modules.weight_envelope import envelope as compute_envelope, loading_envelope_points
 from farloads.report import module_text_report
@@ -45,6 +54,7 @@ existing = project.weight.envelope
 mtow_upstream = project.weight.direct_totals()[0]
 
 system: UnitSystem = st.session_state.get("unit_system", UnitSystem.IMPERIAL)
+U = labels_for(system)  # {"weight",...} -> unit string
 
 with st.sidebar:
     st.header("Structural limits")
@@ -53,20 +63,30 @@ with st.sidebar:
         help="Uncheck to use the Weight DB total (Weight, CG & Inertia page).",
     )
     if override_weight:
-        gross = st.number_input("Gross weight (lb)", min_value=1.0,
-                                value=float(existing.gross_weight) if existing and existing.gross_weight
-                                else mtow_upstream)
+        gross_disp = st.number_input(
+            f"Gross weight ({U['weight']})", min_value=1.0,
+            value=float(round(to_display(
+                existing.gross_weight if existing and existing.gross_weight else mtow_upstream,
+                "weight", system), 4)),
+            key=f"gross_weight_{system.value}")
+        gross = to_imperial_scalar(gross_disp, "weight", system)
     else:
         gross = mtow_upstream
-        st.caption(f"Gross weight from the Weight DB: **{mtow_upstream:,.0f} lb**.")
+        st.caption(
+            f"Gross weight from the Weight DB: "
+            f"**{to_display(mtow_upstream, 'weight', system):,.0f} {U['weight']}**.")
     aft = st.number_input("Aft gross CG (% MAC)", min_value=0.0, max_value=100.0,
                           value=float(existing.aft_gross_pct_mac) if existing else 31.0)
     fwd = st.number_input("Forward gross CG (% MAC)", min_value=0.0, max_value=100.0,
                           value=float(existing.fwd_gross_pct_mac) if existing else 20.0)
     reg = st.number_input("Forward regardless CG (% MAC)", min_value=0.0, max_value=100.0,
                           value=float(existing.fwd_regardless_pct_mac) if existing else 13.0)
-    reg_w = st.number_input("Forward regardless weight (lb)", min_value=1.0,
-                            value=float(existing.fwd_regardless_weight) if existing else 2800.0)
+    reg_w_disp = st.number_input(
+        f"Forward regardless weight ({U['weight']})", min_value=1.0,
+        value=float(round(to_display(
+            existing.fwd_regardless_weight if existing else 2800.0, "weight", system), 4)),
+        key=f"reg_w_{system.value}")
+    reg_w = to_imperial_scalar(reg_w_disp, "weight", system)
 
 inp = WeightEnvelopeInput(
     gross_weight=gross,

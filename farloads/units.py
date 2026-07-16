@@ -39,17 +39,18 @@ SI_PER_IMPERIAL = {
     "area_sqft": 0.09290304,     # ft^2 -> m^2
     "length_ft": 0.3048,         # ft -> m
     "inertia_lbin2": 2.926396534292e-04,  # lb-in^2 -> kg*m^2
+    "area_sqin": 6.4516e-04,     # in^2 -> m^2
 }
 
 # Display units for each "kind", by system.
 UNIT_LABELS = {
     UnitSystem.IMPERIAL: {
         "weight": "lb", "length": "in", "torque": "ft-lb", "power": "hp", "inertia": "slug-ft²",
-        "area_sqft": "ft²", "length_ft": "ft", "inertia_lbin2": "lb-in²",
+        "area_sqft": "ft²", "length_ft": "ft", "inertia_lbin2": "lb-in²", "area_sqin": "in²",
     },
     UnitSystem.SI: {
         "weight": "kg", "length": "mm", "torque": "N·m", "power": "kW", "inertia": "kg·m²",
-        "area_sqft": "m²", "length_ft": "m", "inertia_lbin2": "kg·m²",
+        "area_sqft": "m²", "length_ft": "m", "inertia_lbin2": "kg·m²", "area_sqin": "m²",
     },
 }
 

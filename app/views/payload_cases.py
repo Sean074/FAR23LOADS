@@ -15,7 +15,15 @@ from __future__ import annotations
 import pandas as pd
 import streamlit as st
 
-from farloads import CgCase, Project, WeightInput
+from farloads import (
+    CgCase,
+    Project,
+    UnitSystem,
+    WeightInput,
+    labels_for,
+    to_display,
+    to_imperial_scalar,
+)
 
 st.title("Weight/CG Grid & Payload Cases")
 st.caption(
@@ -25,6 +33,8 @@ st.caption(
 )
 
 project: Project = st.session_state.get("project", Project(name=""))
+system: UnitSystem = st.session_state.get("unit_system", UnitSystem.IMPERIAL)
+U = labels_for(system)  # {"weight","length",...} -> unit string
 
 if project.weight is None or not project.weight.items:
     st.warning(
@@ -42,22 +52,29 @@ with st.form("payload_cases_form"):
         "and the resultant fuselage station / waterline of the CG."
     )
     default_rows = pd.DataFrame(
-        [[c.name, c.weight_lb, c.xcg, c.zcg] for c in existing]
+        [[c.name, to_display(c.weight_lb, "weight", system), to_display(c.xcg, "length", system),
+          to_display(c.zcg, "length", system)] for c in existing]
         or [["CG1", 0.0, 0.0, 0.0]],
-        columns=["name", "weight_lb", "xcg (in)", "zcg (in)"],
+        columns=["name", "weight_lb", "xcg", "zcg"],
     )
+    payload_cols = {
+        "weight_lb": st.column_config.NumberColumn(f"weight_lb ({U['weight']})"),
+        "xcg": st.column_config.NumberColumn(f"xcg ({U['length']})"),
+        "zcg": st.column_config.NumberColumn(f"zcg ({U['length']})"),
+    }
     rows = st.data_editor(
-        default_rows, num_rows="dynamic", hide_index=True, use_container_width=True,
-        key="payload_cases_editor",
+        default_rows, column_config=payload_cols, num_rows="dynamic", hide_index=True,
+        use_container_width=True, key=f"payload_cases_editor_{system.value}",
     )
     applied = st.form_submit_button("Apply", type="primary")
 
 if applied:
     cases = [
-        CgCase(name=str(r["name"]), weight_lb=float(r["weight_lb"]),
-               xcg=float(r["xcg (in)"]), zcg=float(r["zcg (in)"]))
+        CgCase(name=str(r["name"]), weight_lb=to_imperial_scalar(float(r["weight_lb"]), "weight", system),
+               xcg=to_imperial_scalar(float(r["xcg"]), "length", system),
+               zcg=to_imperial_scalar(float(r["zcg"]), "length", system))
         for _, r in rows.iterrows()
-        if pd.notna(r["weight_lb"]) and pd.notna(r["xcg (in)"]) and str(r["name"]).strip()
+        if pd.notna(r["weight_lb"]) and pd.notna(r["xcg"]) and str(r["name"]).strip()
     ]
     # This page owns cg_cases exclusively, but the weight slice also carries
     # estimation/items/envelope owned by other pages -- merge, don't replace.
@@ -76,7 +93,9 @@ if not existing:
 st.subheader("Current scenarios")
 st.dataframe(
     pd.DataFrame([
-        {"Name": c.name, "Weight (lb)": c.weight_lb, "Xcg (in)": c.xcg, "Zcg (in)": c.zcg}
+        {"Name": c.name, f"Weight ({U['weight']})": to_display(c.weight_lb, "weight", system),
+         f"Xcg ({U['length']})": to_display(c.xcg, "length", system),
+         f"Zcg ({U['length']})": to_display(c.zcg, "length", system)}
         for c in existing
     ]),
     hide_index=True, use_container_width=True,

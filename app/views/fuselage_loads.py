@@ -18,7 +18,15 @@ import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
 
-from farloads import Project, UnitSystem, si_scalar_label, to_si_scalar
+from farloads import (
+    Project,
+    UnitSystem,
+    labels_for,
+    si_scalar_label,
+    to_display,
+    to_imperial_scalar,
+    to_si_scalar,
+)
 from farloads.models import FuselageMassInput, FuselageStation
 from farloads.modules.body_loads import body_load_rows, build_body_loads
 
@@ -50,6 +58,7 @@ st.caption(
 
 project: Project = st.session_state.get("project", Project(name=""))
 system: UnitSystem = st.session_state.get("unit_system", UnitSystem.IMPERIAL)
+U = labels_for(system)  # {"weight","length",...} -> unit string
 
 if project.flight_loads is None:
     st.warning("Define the flight-loads inputs on the **Flight Envelope** page first.")
@@ -57,19 +66,26 @@ if project.flight_loads is None:
 
 fm = project.fuselage_mass or FuselageMassInput()
 with st.form("fuselage_mass_form"):
-    st.subheader("Fuselage mass distribution")
+    st.subheader(f"Fuselage mass distribution ({U['length']} / {U['weight']})")
     st.caption("Lumped station weights nose→tail (exclude the wing mass outside the "
                "fuselage, per Ch 15).")
     default = pd.DataFrame(
-        [[s.x, s.weight_lb] for s in fm.stations] or [[0.0, 0.0]],
+        [[to_display(s.x, "length", system), to_display(s.weight_lb, "weight", system)]
+         for s in fm.stations] or [[0.0, 0.0]],
         columns=["x", "weight_lb"],
     )
-    df = st.data_editor(default, num_rows="dynamic", hide_index=True, use_container_width=True)
+    station_cols = {
+        "x": st.column_config.NumberColumn(f"x ({U['length']})"),
+        "weight_lb": st.column_config.NumberColumn(f"weight ({U['weight']})"),
+    }
+    df = st.data_editor(default, column_config=station_cols, num_rows="dynamic",
+                        hide_index=True, use_container_width=True, key=f"fuselage_stations_{system.value}")
     applied = st.form_submit_button("Apply", type="primary")
 
 if applied:
     stations = [
-        FuselageStation(x=float(r["x"]), weight_lb=float(r["weight_lb"]))
+        FuselageStation(x=to_imperial_scalar(float(r["x"]), "length", system),
+                        weight_lb=to_imperial_scalar(float(r["weight_lb"]), "weight", system))
         for _, r in df.iterrows()
         if pd.notna(r["x"]) and pd.notna(r["weight_lb"])
     ]

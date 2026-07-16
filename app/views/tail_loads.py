@@ -21,7 +21,7 @@ import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
 
-from farloads import Project, UnitSystem, si_scalar_label, to_si_scalar
+from farloads import Project, UnitSystem, labels_for, si_scalar_label, to_display, to_imperial_scalar, to_si_scalar
 from farloads.modules.balloads import verify_balancing
 from farloads.modules.taildist import build_tail_chordwise
 
@@ -38,6 +38,7 @@ st.caption(
 
 project: Project = st.session_state.get("project", Project(name=""))
 system: UnitSystem = st.session_state.get("unit_system", UnitSystem.IMPERIAL)
+U = labels_for(system)  # {"length",...} -> unit string
 
 if project.tail_loads is None and project.vtail_loads is None:
     st.warning("Define the tail inputs on the **Critical Loads** page first "
@@ -53,28 +54,41 @@ if project.is_concept:
 # tail_loads/vtail_loads slices (targeted field writes, nothing else touched).
 # --------------------------------------------------------------------------- #
 st.header("Chordwise distribution")
+# Defaults from Configuration & Layout's tail spans (h_tail_span_ft/v_tail_span_ft),
+# when this page's own field is still unset -- avoids re-asking for a span
+# already entered there (same bug class fixed on Configuration & Layout).
+layout = project.configuration
+_htail_default = float(project.tail_loads.htail_semispan_in) if project.tail_loads else 0.0
+if not _htail_default and layout is not None and layout.h_tail_span_ft:
+    _htail_default = layout.h_tail_span_ft * 12.0 / 2.0
+_vtail_default = float(project.vtail_loads.vtail_span_in) if project.vtail_loads else 0.0
+if not _vtail_default and layout is not None and layout.v_tail_span_ft:
+    _vtail_default = layout.v_tail_span_ft * 12.0
+
 with st.form("tail_chordwise_form"):
-    st.subheader("Chordwise geometry")
+    st.subheader(f"Chordwise geometry ({U['length']})")
     c1, c2 = st.columns(2)
     htail_semispan_in = None
     vtail_span_in = None
     if project.tail_loads is not None:
         htail_semispan_in = c1.number_input(
-            "Horizontal-tail semi-span (in)", min_value=0.0,
-            value=float(project.tail_loads.htail_semispan_in), step=1.0,
+            f"Horizontal-tail semi-span ({U['length']})", min_value=0.0,
+            value=float(round(to_display(_htail_default, "length", system), 4)), step=1.0,
+            key=f"htail_semispan_{system.value}",
             help="BLHTAIL; the average chord is CAVE = S / (2·semispan).")
     if project.vtail_loads is not None:
         vtail_span_in = c2.number_input(
-            "Vertical-tail span (in)", min_value=0.0,
-            value=float(project.vtail_loads.vtail_span_in), step=1.0,
+            f"Vertical-tail span ({U['length']})", min_value=0.0,
+            value=float(round(to_display(_vtail_default, "length", system), 4)), step=1.0,
+            key=f"vtail_span_{system.value}",
             help="BLHTAIL; the average chord is CAVE = SV / span.")
     applied = st.form_submit_button("Apply", type="primary")
 
 if applied:
     if project.tail_loads is not None and htail_semispan_in is not None:
-        project.tail_loads.htail_semispan_in = htail_semispan_in
+        project.tail_loads.htail_semispan_in = to_imperial_scalar(htail_semispan_in, "length", system)
     if project.vtail_loads is not None and vtail_span_in is not None:
-        project.vtail_loads.vtail_span_in = vtail_span_in
+        project.vtail_loads.vtail_span_in = to_imperial_scalar(vtail_span_in, "length", system)
     st.session_state["project"] = project
     st.success("Chordwise geometry applied.")
 

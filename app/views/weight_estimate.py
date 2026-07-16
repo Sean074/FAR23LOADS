@@ -22,6 +22,9 @@ from farloads import (
     WeightEstimationInput,
     WeightInput,
     convert_results,
+    labels_for,
+    to_display,
+    to_imperial_scalar,
 )
 from farloads import io as farloads_io
 from farloads.modules.weight_estimate import estimate, estimate_to_mass_items
@@ -54,21 +57,27 @@ _ENGINE_TYPES = {
 _ENGINE_LABELS = list(_ENGINE_TYPES)
 
 system: UnitSystem = st.session_state.get("unit_system", UnitSystem.IMPERIAL)
+U = labels_for(system)  # {"power","weight",...} -> unit string
 
 with st.sidebar:
     st.header("Mission inputs")
     with st.form("weight_estimate_form"):
         airplane = st.text_input("Airplane", value=existing.airplane if existing else "")
-        hp = st.number_input("Max continuous HP (total)", min_value=0.0, max_value=3000.0,
-                             value=float(existing.max_continuous_hp) if existing else 0.0)
+        hp_max = to_display(3000.0, "power", system)
+        hp = st.number_input(
+            f"Max continuous power ({U['power']}, total)", min_value=0.0, max_value=hp_max,
+            value=float(round(to_display(existing.max_continuous_hp, "power", system), 4))
+            if existing else 0.0, key=f"max_cont_hp_{system.value}")
         engines = st.number_input("Number of engines", min_value=1, max_value=6,
                                   value=existing.engines if existing else 1)
         seats = st.number_input("Number of seats", min_value=1, max_value=12,
                                 value=existing.seats if existing else 1)
         hours = st.number_input("Endurance at cruise power (hr)", min_value=0.0, max_value=10.0,
                                 value=float(existing.cruise_hours) if existing else 0.0)
-        baggage = st.number_input("Baggage weight (lb)", min_value=0.0,
-                                  value=float(existing.baggage_lb) if existing else 0.0)
+        baggage = st.number_input(
+            f"Baggage weight ({U['weight']})", min_value=0.0,
+            value=float(round(to_display(existing.baggage_lb, "weight", system), 4))
+            if existing else 0.0, key=f"baggage_{system.value}")
         pressurized = st.checkbox("Pressurized", value=existing.pressurized if existing else False)
         default_idx = _ENGINE_LABELS.index(
             next((k for k, v in _ENGINE_TYPES.items() if existing and v == existing.engine_weight_type),
@@ -80,11 +89,11 @@ with st.sidebar:
 if applied:
     inp = WeightEstimationInput(
         airplane=airplane,
-        max_continuous_hp=hp,
+        max_continuous_hp=to_imperial_scalar(hp, "power", system),
         engines=int(engines),
         seats=int(seats),
         cruise_hours=hours,
-        baggage_lb=baggage,
+        baggage_lb=to_imperial_scalar(baggage, "weight", system),
         pressurized=pressurized,
         engine_weight_type=_ENGINE_TYPES[engine_label],
     )

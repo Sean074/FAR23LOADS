@@ -14,7 +14,18 @@ from __future__ import annotations
 import pandas as pd
 import streamlit as st
 
-from farloads import LandingGearInput, LandingInput, Project, UnitSystem, io, si_scalar_label, to_si_scalar
+from farloads import (
+    LandingGearInput,
+    LandingInput,
+    Project,
+    UnitSystem,
+    io,
+    labels_for,
+    si_scalar_label,
+    to_display,
+    to_imperial_scalar,
+    to_si_scalar,
+)
 from farloads.modules.landing import build_landing, run
 
 
@@ -27,52 +38,77 @@ st.caption(
 
 project: Project = st.session_state.get("project", Project(name=""))
 system: UnitSystem = st.session_state.get("unit_system", UnitSystem.IMPERIAL)
+U = labels_for(system)  # {"weight","length","area_sqft",...} -> unit string
 inp = project.landing or LandingInput()
 
 
 def _gear_inputs(label: str, gear: LandingGearInput) -> LandingGearInput:
-    st.markdown(f"**{label}**")
+    st.markdown(f"**{label}** ({U['length']})")
     c = st.columns(4)
     strut = c[0].selectbox(f"{label} strut", ["O", "S"],
                            index=0 if gear.strut == "O" else 1,
                            help="Oleo (O) or spring (S)", key=f"{label}_strut")
-    rr = c[1].number_input(f"{label} rolling radius (in)", min_value=0.0,
-                           value=float(gear.rolling_radius_in), key=f"{label}_rr")
+    rr = c[1].number_input(
+        f"{label} rolling radius ({U['length']})", min_value=0.0,
+        value=float(round(to_display(gear.rolling_radius_in, "length", system), 4)),
+        key=f"{label}_rr_{system.value}")
     cc = st.columns(6)
-    xc = cc[0].number_input(f"{label} X compressed", value=float(gear.axle_compressed[0]),
-                            key=f"{label}_xc")
-    zc = cc[1].number_input(f"{label} Z compressed", value=float(gear.axle_compressed[1]),
-                            key=f"{label}_zc")
-    xs = cc[2].number_input(f"{label} X static", value=float(gear.axle_static[0]),
-                            key=f"{label}_xs")
-    zs = cc[3].number_input(f"{label} Z static", value=float(gear.axle_static[1]),
-                            key=f"{label}_zs")
-    xe = cc[4].number_input(f"{label} X extended", value=float(gear.axle_extended[0]),
-                            key=f"{label}_xe")
-    ze = cc[5].number_input(f"{label} Z extended", value=float(gear.axle_extended[1]),
-                            key=f"{label}_ze")
-    return LandingGearInput((xc, zc), (xs, zs), (xe, ze), rr, strut)
+    xc = cc[0].number_input(
+        f"{label} X compressed", value=float(round(to_display(gear.axle_compressed[0], "length", system), 4)),
+        key=f"{label}_xc_{system.value}")
+    zc = cc[1].number_input(
+        f"{label} Z compressed", value=float(round(to_display(gear.axle_compressed[1], "length", system), 4)),
+        key=f"{label}_zc_{system.value}")
+    xs = cc[2].number_input(
+        f"{label} X static", value=float(round(to_display(gear.axle_static[0], "length", system), 4)),
+        key=f"{label}_xs_{system.value}")
+    zs = cc[3].number_input(
+        f"{label} Z static", value=float(round(to_display(gear.axle_static[1], "length", system), 4)),
+        key=f"{label}_zs_{system.value}")
+    xe = cc[4].number_input(
+        f"{label} X extended", value=float(round(to_display(gear.axle_extended[0], "length", system), 4)),
+        key=f"{label}_xe_{system.value}")
+    ze = cc[5].number_input(
+        f"{label} Z extended", value=float(round(to_display(gear.axle_extended[1], "length", system), 4)),
+        key=f"{label}_ze_{system.value}")
+    return LandingGearInput(
+        (to_imperial_scalar(xc, "length", system), to_imperial_scalar(zc, "length", system)),
+        (to_imperial_scalar(xs, "length", system), to_imperial_scalar(zs, "length", system)),
+        (to_imperial_scalar(xe, "length", system), to_imperial_scalar(ze, "length", system)),
+        to_imperial_scalar(rr, "length", system), strut)
 
 
 with st.form("landing_loads_form"):
     st.subheader("Landing load factor (LGFACTOR)")
     c1, c2, c3 = st.columns(3)
     max_landing_weight_lb = c1.number_input(
-        "Max landing weight, W (lb)", min_value=0.0, value=float(inp.max_landing_weight_lb),
+        f"Max landing weight, W ({U['weight']})", min_value=0.0,
+        value=float(round(to_display(inp.max_landing_weight_lb, "weight", system), 4)),
         help="Typically 0.95·MTOW (FAR 23.473(b)/(c)); not auto-derived (an engineering "
-             "judgment call, not a duplicate of another slice).")
+             "judgment call, not a duplicate of another slice).",
+        key=f"max_landing_weight_{system.value}")
     gross_weight_lb = c2.number_input(
-        "Gross (max take-off) weight override, GW (lb)", min_value=0.0,
-        value=float(inp.gross_weight_lb),
-        help="0 → derived from the heaviest CG case (Project.mass).")
+        f"Gross (max take-off) weight override, GW ({U['weight']})", min_value=0.0,
+        value=float(round(to_display(inp.gross_weight_lb, "weight", system), 4)),
+        help="0 → derived from the heaviest CG case (Project.mass).",
+        key=f"gross_weight_{system.value}")
     wing_area_sqft = c3.number_input(
-        "Wing area override, S (sq ft)", min_value=0.0, value=float(inp.wing_area_sqft),
-        help="0 → read from the wing geometry surface (Project.geometry).")
+        f"Wing area override, S ({U['area_sqft']})", min_value=0.0,
+        value=float(round(to_display(inp.wing_area_sqft, "area_sqft", system), 4)),
+        help="0 → read from the wing geometry surface (Project.geometry).",
+        key=f"wing_area_{system.value}")
     strut_stroke_in = c1.number_input(
-        "Strut stroke (in)", min_value=0.0, value=float(inp.strut_stroke_in))
-    tire_od_in = c2.number_input("Tyre OD (in)", min_value=0.0, value=float(inp.tire_od_in))
-    hub_diameter_in = c3.number_input("Hub diameter (in)", min_value=0.0,
-                                      value=float(inp.hub_diameter_in))
+        f"Strut stroke ({U['length']})", min_value=0.0,
+        value=float(round(to_display(inp.strut_stroke_in, "length", system), 4)),
+        key=f"strut_stroke_{system.value}")
+    tire_od_in = c2.number_input(
+        f"Tyre OD ({U['length']})", min_value=0.0,
+        value=float(round(to_display(inp.tire_od_in, "length", system), 4)),
+        key=f"tire_od_{system.value}")
+    hub_diameter_in = c3.number_input(
+        f"Hub diameter ({U['length']})", min_value=0.0,
+        value=float(round(to_display(inp.hub_diameter_in, "length", system), 4)),
+        key=f"hub_diameter_{system.value}")
     lift_factor = c1.number_input(
         "Wing lift factor, L (≤ 0.667)", min_value=0.0, max_value=0.667,
         value=float(inp.lift_factor))
@@ -84,24 +120,26 @@ with st.form("landing_loads_form"):
     main_gear = _gear_inputs("Main gear", inp.main_gear)
     nose_gear = _gear_inputs("Nose gear", inp.nose_gear)
     c = st.columns(2)
-    tread_in = c[0].number_input("Tread between mains (in)", min_value=0.0,
-                                 value=float(inp.tread_in))
+    tread_in = c[0].number_input(
+        f"Tread between mains ({U['length']})", min_value=0.0,
+        value=float(round(to_display(inp.tread_in, "length", system), 4)),
+        key=f"tread_{system.value}")
     tail_down_angle_deg = c[1].number_input("Tail-down ground angle (deg)", min_value=0.0,
                                             value=float(inp.tail_down_angle_deg))
     applied = st.form_submit_button("Apply", type="primary")
 
 if applied:
-    inp.max_landing_weight_lb = max_landing_weight_lb
-    inp.gross_weight_lb = gross_weight_lb
-    inp.wing_area_sqft = wing_area_sqft
-    inp.strut_stroke_in = strut_stroke_in
-    inp.tire_od_in = tire_od_in
-    inp.hub_diameter_in = hub_diameter_in
+    inp.max_landing_weight_lb = to_imperial_scalar(max_landing_weight_lb, "weight", system)
+    inp.gross_weight_lb = to_imperial_scalar(gross_weight_lb, "weight", system)
+    inp.wing_area_sqft = to_imperial_scalar(wing_area_sqft, "area_sqft", system)
+    inp.strut_stroke_in = to_imperial_scalar(strut_stroke_in, "length", system)
+    inp.tire_od_in = to_imperial_scalar(tire_od_in, "length", system)
+    inp.hub_diameter_in = to_imperial_scalar(hub_diameter_in, "length", system)
     inp.lift_factor = lift_factor
     inp.gear_load_factor = gear_load_factor
     inp.main_gear = main_gear
     inp.nose_gear = nose_gear
-    inp.tread_in = tread_in
+    inp.tread_in = to_imperial_scalar(tread_in, "length", system)
     inp.tail_down_angle_deg = tail_down_angle_deg
     project.landing = inp
     st.session_state["project"] = project

@@ -26,7 +26,7 @@ import plotly.graph_objects as go
 import streamlit as st
 from plotly.subplots import make_subplots
 
-from farloads import Project
+from farloads import Project, UnitSystem, si_scalar_label, to_si_scalar
 
 st.title("Loads Plots")
 st.caption(
@@ -37,6 +37,7 @@ st.caption(
 )
 
 project: Project = st.session_state.get("project", Project(name=""))
+system: UnitSystem = st.session_state.get("unit_system", UnitSystem.IMPERIAL)
 loads = project.loads
 
 if loads is None:
@@ -60,23 +61,30 @@ def _case_label(r) -> str:
     return r.case_ref.case_id if r.case_ref else r.case
 
 
-def _wing_cases(results):
+def _wing_cases(results, sys_=None):
+    sys_ = system if sys_ is None else sys_
     return [
         (r.case_ref.case_id if r.case_ref else r.case, f"{_case_label(r)} — {r.case}",
-         [s.y for s in r.stations],
-         {"sz": ("Shear Sz", "lb", [s.sz for s in r.stations]),
-          "mxx": ("Bending Mxx", "lb-in", [s.mxx for s in r.stations]),
-          "myy": ("Torsion Myy", "lb-in", [s.myy for s in r.stations])})
+         [to_si_scalar(s.y, "in", sys_) for s in r.stations],
+         {"sz": ("Shear Sz", si_scalar_label("lbf", sys_),
+                 [to_si_scalar(s.sz, "lbf", sys_) for s in r.stations]),
+          "mxx": ("Bending Mxx", si_scalar_label("lb-in", sys_),
+                  [to_si_scalar(s.mxx, "lb-in", sys_) for s in r.stations]),
+          "myy": ("Torsion Myy", si_scalar_label("lb-in", sys_),
+                  [to_si_scalar(s.myy, "lb-in", sys_) for s in r.stations])})
         for r in results
     ]
 
 
-def _fuselage_cases(results):
+def _fuselage_cases(results, sys_=None):
+    sys_ = system if sys_ is None else sys_
     return [
         (r.case_ref.case_id if r.case_ref else r.case, f"{_case_label(r)} — {r.case}",
-         [s.x for s in r.stations],
-         {"sz": ("Shear Sz", "lb", [s.sz for s in r.stations]),
-          "myy": ("Bending Myy", "lb-in", [s.myy for s in r.stations])})
+         [to_si_scalar(s.x, "in", sys_) for s in r.stations],
+         {"sz": ("Shear Sz", si_scalar_label("lbf", sys_),
+                 [to_si_scalar(s.sz, "lbf", sys_) for s in r.stations]),
+          "myy": ("Bending Myy", si_scalar_label("lb-in", sys_),
+                  [to_si_scalar(s.myy, "lb-in", sys_) for s in r.stations])})
         for r in results
     ]
 
@@ -85,9 +93,10 @@ def _tail_cases(results, component):
     filtered = [r for r in results if r.component == component]
     return [
         (r.case_ref.case_id if r.case_ref else r.case, f"{_case_label(r)} — {r.case}",
-         [s.x for s in sorted(r.stations, key=lambda s: s.x)],
-         {"psi": ("Net pressure PSI", "lb/in^2",
-                  [s.psi for s in sorted(r.stations, key=lambda s: s.x)])})
+         [to_si_scalar(s.x, "in", system) for s in sorted(r.stations, key=lambda s: s.x)],
+         {"psi": ("Net pressure PSI", si_scalar_label("psi", system),
+                  [to_si_scalar(s.psi, "psi", system)
+                   for s in sorted(r.stations, key=lambda s: s.x)])})
         for r in filtered
     ]
 
@@ -98,19 +107,22 @@ def _control_surface_cases(results, surface_match):
         (r.case_ref.case_id if r.case_ref else r.case,
          f"{_case_label(r)} — {r.surface}/{r.case}",
          [s.x for s in sorted(r.stations, key=lambda s: s.x)],
-         {"psi": ("Pressure PSI", "lb/in^2",
-                  [s.psi for s in sorted(r.stations, key=lambda s: s.x)])})
+         {"psi": ("Pressure PSI", si_scalar_label("psi", system),
+                  [to_si_scalar(s.psi, "psi", system)
+                   for s in sorted(r.stations, key=lambda s: s.x)])})
         for r in filtered
     ]
 
 
 _COMPONENTS = {
-    "wing": ("Wing", lambda: _wing_cases(loads.wing_net), "Butt line Y (in)"),
-    "fuselage": ("Fuselage", lambda: _fuselage_cases(loads.body_net), "Fuselage station X (in)"),
+    "wing": ("Wing", lambda: _wing_cases(loads.wing_net),
+             f"Butt line Y ({si_scalar_label('in', system)})"),
+    "fuselage": ("Fuselage", lambda: _fuselage_cases(loads.body_net),
+                 f"Fuselage station X ({si_scalar_label('in', system)})"),
     "htail": ("Horizontal Tail", lambda: _tail_cases(loads.tail_chordwise, "htail"),
-              "Chord station from LE (in)"),
+              f"Chord station from LE ({si_scalar_label('in', system)})"),
     "vtail": ("Vertical Tail", lambda: _tail_cases(loads.tail_chordwise, "vtail"),
-              "Chord station from LE (in)"),
+              f"Chord station from LE ({si_scalar_label('in', system)})"),
     "aileron": ("Aileron", lambda: _control_surface_cases(
         loads.control_surface, lambda s: s == "aileron"), "Fractional chord"),
     "flap": ("Flap", lambda: _control_surface_cases(
@@ -213,23 +225,27 @@ else:
     w = next(c for c in wing_cases if c[0] == wing_sel)
     b = next(c for c in body_cases if c[0] == body_sel)
 
+    _force_lbl = si_scalar_label("lbf", system)
+    _moment_lbl = si_scalar_label("lb-in", system)
+    _in_lbl = si_scalar_label("in", system)
+
     fig = make_subplots(
         rows=1, cols=2, subplot_titles=("Wing", "Fuselage"),
         specs=[[{"secondary_y": True}, {"secondary_y": True}]])
-    fig.add_trace(go.Scatter(x=w[2], y=w[3]["sz"][2], name="Wing Sz (lb)",
+    fig.add_trace(go.Scatter(x=w[2], y=w[3]["sz"][2], name=f"Wing Sz ({_force_lbl})",
                              mode="lines+markers"), row=1, col=1, secondary_y=False)
-    fig.add_trace(go.Scatter(x=w[2], y=w[3]["mxx"][2], name="Wing Mxx (lb-in)",
+    fig.add_trace(go.Scatter(x=w[2], y=w[3]["mxx"][2], name=f"Wing Mxx ({_moment_lbl})",
                              mode="lines+markers"), row=1, col=1, secondary_y=True)
-    fig.add_trace(go.Scatter(x=w[2], y=w[3]["myy"][2], name="Wing Myy (lb-in)",
+    fig.add_trace(go.Scatter(x=w[2], y=w[3]["myy"][2], name=f"Wing Myy ({_moment_lbl})",
                              mode="lines+markers"), row=1, col=1, secondary_y=True)
-    fig.add_trace(go.Scatter(x=b[2], y=b[3]["sz"][2], name="Fuselage Sz (lb)",
+    fig.add_trace(go.Scatter(x=b[2], y=b[3]["sz"][2], name=f"Fuselage Sz ({_force_lbl})",
                              mode="lines+markers"), row=1, col=2, secondary_y=False)
-    fig.add_trace(go.Scatter(x=b[2], y=b[3]["myy"][2], name="Fuselage Myy (lb-in)",
+    fig.add_trace(go.Scatter(x=b[2], y=b[3]["myy"][2], name=f"Fuselage Myy ({_moment_lbl})",
                              mode="lines+markers"), row=1, col=2, secondary_y=True)
-    fig.update_yaxes(title_text="Shear (lb, LIMIT)", secondary_y=False)
-    fig.update_yaxes(title_text="Moment (lb-in, LIMIT)", secondary_y=True)
-    fig.update_xaxes(title_text="Butt line Y (in)", row=1, col=1)
-    fig.update_xaxes(title_text="Fuselage station X (in)", row=1, col=2)
+    fig.update_yaxes(title_text=f"Shear ({_force_lbl}, LIMIT)", secondary_y=False)
+    fig.update_yaxes(title_text=f"Moment ({_moment_lbl}, LIMIT)", secondary_y=True)
+    fig.update_xaxes(title_text=f"Butt line Y ({_in_lbl})", row=1, col=1)
+    fig.update_xaxes(title_text=f"Fuselage station X ({_in_lbl})", row=1, col=2)
     fig.update_layout(height=420, legend=dict(orientation="h"))
     st.plotly_chart(fig, use_container_width=True)
 
@@ -273,7 +289,15 @@ if uploaded is not None:
                 f"({sorted(_BODY_COLS)})."
             )
         else:
-            computed = wing_cases if kind == "wing" else body_cases
+            # The imported span-load CSV is always in canonical Imperial units
+            # (farloads.export.sbeam_bridge never converts), so build a
+            # Imperial-forced overlay reference here regardless of the global
+            # toggle -- the ``wing_cases``/``body_cases`` used in "Total loads"
+            # above may be SI-converted and would otherwise mismatch units.
+            computed = (
+                _wing_cases(loads.wing_net, UnitSystem.IMPERIAL) if kind == "wing"
+                else _fuselage_cases(loads.body_net, UnitSystem.IMPERIAL)
+            )
             comp_labels = {c[0]: c[1] for c in computed} if computed else {}
             st.success(f"Recognized as a {kind} span-load CSV — "
                       f"{df['Case'].nunique()} case(s), {len(df)} rows.")

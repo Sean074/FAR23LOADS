@@ -32,16 +32,29 @@ st.caption(
 
 project: Project = st.session_state.get("project", Project(name=""))
 existing = project.speeds.mach_limit if project.speeds and project.speeds.mach_limit else None
-# Seed MC/MD from the Structural Speeds page's Mach numbers when available.
-seed_mc = existing.mc if existing else 0.323
-seed_md = existing.md if existing else 0.403
+
+# Seed MC/MD/shoulder altitude from the Structural Speeds page (STRSPEED
+# already computes these Mach numbers at its shoulder altitude) when this
+# page's own mach_limit slice hasn't been set yet, instead of re-asking for
+# numbers the project already has (same bug class fixed on Configuration &
+# Layout: unused upstream data).
+seed_mc, seed_md, seed_shoulder = 0.323, 0.403, 12000.0
+if existing is not None:
+    seed_mc, seed_md, seed_shoulder = existing.mc, existing.md, existing.shoulder_altitude_ft
+elif project.speeds is not None and project.speeds.weight_lb > 0:
+    try:
+        ds = design_speed_values(project, project.speeds)
+        seed_mc, seed_md = ds.mc, ds.md
+        seed_shoulder = project.speeds.shoulder_altitude_ft or seed_shoulder
+    except (ValueError, ZeroDivisionError):
+        pass
 
 with st.sidebar:
     st.header("Inputs")
     mc = st.number_input("Cruise Mach MC", min_value=0.0, max_value=1.0, value=float(seed_mc), format="%.4f")
     md = st.number_input("Dive Mach MD", min_value=0.0, max_value=1.0, value=float(seed_md), format="%.4f")
     shoulder = st.number_input("Shoulder altitude (ft)", min_value=0.0,
-                               value=float(existing.shoulder_altitude_ft) if existing else 12000.0)
+                               value=float(existing.shoulder_altitude_ft) if existing else seed_shoulder)
     max_alt = st.number_input("Max operating altitude (ft)", min_value=0.0,
                               value=float(existing.max_operating_altitude_ft) if existing else 18000.0)
     incr = st.number_input("Altitude increment (ft)", min_value=1.0,

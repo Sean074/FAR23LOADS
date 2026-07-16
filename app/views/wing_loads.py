@@ -29,7 +29,10 @@ from farloads import (
     UnitSystem,
     WingLoadCase,
     WingMassInput,
+    labels_for,
     si_scalar_label,
+    to_display,
+    to_imperial_scalar,
     to_si_scalar,
 )
 from farloads import io as farloads_io
@@ -73,6 +76,7 @@ st.caption(
 
 project: Project = st.session_state.get("project", Project(name=""))
 system: UnitSystem = st.session_state.get("unit_system", UnitSystem.IMPERIAL)
+U = labels_for(system)  # {"length","weight",...} -> unit string
 
 wing_geom = project.geometry.by_name("wing") if project.geometry else None
 if wing_geom is None:
@@ -122,17 +126,21 @@ with st.form("wing_airloads_form"):
         format="%.3f")
 
     st.subheader("Spanwise twist")
-    st.caption("Zero-lift angle (deg) at each butt line Y (inboard → outboard). Empty = untwisted.")
+    st.caption(f"Zero-lift angle (deg) at each butt line Y ({U['length']}, inboard → outboard). "
+              "Empty = untwisted.")
     default_twist = existing_aero.twist if existing_aero and existing_aero.twist else []
+    twist_display = [(to_display(y, "length", system), a) for y, a in default_twist] or [[0.0, 0.0]]
+    twist_cols = {"Y": st.column_config.NumberColumn(f"Y ({U['length']})"),
+                 "Angle": st.column_config.NumberColumn("Angle (deg)")}
     twist_df = st.data_editor(
-        pd.DataFrame(default_twist or [[0.0, 0.0]], columns=["Y (in)", "Angle (deg)"]),
-        num_rows="dynamic", hide_index=True, use_container_width=True)
+        pd.DataFrame(twist_display, columns=["Y", "Angle"]), column_config=twist_cols,
+        num_rows="dynamic", hide_index=True, use_container_width=True, key=f"twist_{system.value}")
 
     aero_applied = st.form_submit_button("Apply", type="primary")
 
 if aero_applied:
-    twist = [(float(r["Y (in)"]), float(r["Angle (deg)"])) for _, r in twist_df.iterrows()
-             if pd.notna(r["Y (in)"]) and pd.notna(r["Angle (deg)"])]
+    twist = [(to_imperial_scalar(float(r["Y"]), "length", system), float(r["Angle"]))
+             for _, r in twist_df.iterrows() if pd.notna(r["Y"]) and pd.notna(r["Angle"])]
     # Drop a lone all-zero placeholder row so an untwisted wing has an empty table.
     if twist == [(0.0, 0.0)]:
         twist = []
@@ -209,23 +217,47 @@ st.header("Net wing loads")
 
 wm = project.wing_mass or WingMassInput()
 
+# Dihedral default: read Configuration & Layout's dihedral_deg when this page's
+# own field is still unset, rather than re-asking for the airplane's already-
+# entered dihedral (same bug class fixed on Configuration & Layout).
+_dihedral_default = float(wm.dihedral_deg)
+if not _dihedral_default and project.configuration is not None:
+    _dihedral_default = project.configuration.dihedral_deg
+
 with st.form("net_wing_loads_form"):
-    st.subheader("Wing mass distribution")
-    panel = st.number_input("Outboard panel weight, one side (lb)", min_value=0.0,
-                            value=float(wm.panel_weight_lb))
+    st.subheader(f"Wing mass distribution ({U['weight']} / {U['length']})")
+    panel = st.number_input(
+        f"Outboard panel weight, one side ({U['weight']})", min_value=0.0,
+        value=float(round(to_display(wm.panel_weight_lb, "weight", system), 4)),
+        key=f"panel_{system.value}")
     dr = st.number_input("Tip/root area-density ratio", min_value=0.0, max_value=1.0,
                          value=float(wm.tip_root_density_ratio), format="%.3f")
-    rib = st.number_input("Inboard rib butt line (in)", value=float(wm.inboard_rib_y))
-    wrp = st.number_input("WL of wing ref plane at centreline (in)", value=float(wm.wrp_waterline))
-    dihedral = st.number_input("Dihedral (deg)", value=float(wm.dihedral_deg))
+    rib = st.number_input(
+        f"Inboard rib butt line ({U['length']})",
+        value=float(round(to_display(wm.inboard_rib_y, "length", system), 4)),
+        key=f"rib_{system.value}")
+    wrp = st.number_input(
+        f"WL of wing ref plane at centreline ({U['length']})",
+        value=float(round(to_display(wm.wrp_waterline, "length", system), 4)),
+        key=f"wrp_{system.value}")
+    dihedral = st.number_input("Dihedral (deg)", value=float(_dihedral_default))
 
-    st.subheader("Concentrated wing weights")
-    cw_default = pd.DataFrame(
-        [[c.name, c.weight_lb, c.x, c.y, c.z] for c in wm.concentrated]
-        or [["", 0.0, 0.0, 0.0, 0.0]],
-        columns=["name", "weight_lb", "x", "y", "z"],
-    )
-    cw_df = st.data_editor(cw_default, num_rows="dynamic", hide_index=True, use_container_width=True)
+    st.subheader(f"Concentrated wing weights ({U['weight']} / {U['length']})")
+    cw_display = [
+        [c.name, to_display(c.weight_lb, "weight", system), to_display(c.x, "length", system),
+         to_display(c.y, "length", system), to_display(c.z, "length", system)]
+        for c in wm.concentrated
+    ] or [["", 0.0, 0.0, 0.0, 0.0]]
+    cw_cols = {
+        "weight_lb": st.column_config.NumberColumn(f"weight ({U['weight']})"),
+        "x": st.column_config.NumberColumn(f"x ({U['length']})"),
+        "y": st.column_config.NumberColumn(f"y ({U['length']})"),
+        "z": st.column_config.NumberColumn(f"z ({U['length']})"),
+    }
+    cw_df = st.data_editor(
+        pd.DataFrame(cw_display, columns=["name", "weight_lb", "x", "y", "z"]),
+        column_config=cw_cols, num_rows="dynamic", hide_index=True,
+        use_container_width=True, key=f"cw_{system.value}")
 
     st.subheader("Critical load cases")
     st.caption("Nz / Nx are the inertia load factors (negative of the air-load factor); "
@@ -246,8 +278,11 @@ def _opt(v):
 
 if mass_applied:
     concentrated = [
-        ConcentratedWeight(name=str(r["name"]), weight_lb=float(r["weight_lb"]),
-                           x=float(r["x"]), y=float(r["y"]), z=float(r["z"]))
+        ConcentratedWeight(
+            name=str(r["name"]), weight_lb=to_imperial_scalar(float(r["weight_lb"]), "weight", system),
+            x=to_imperial_scalar(float(r["x"]), "length", system),
+            y=to_imperial_scalar(float(r["y"]), "length", system),
+            z=to_imperial_scalar(float(r["z"]), "length", system))
         for _, r in cw_df.iterrows()
         if pd.notna(r["weight_lb"]) and float(r["weight_lb"]) != 0.0
     ]
@@ -260,7 +295,9 @@ if mass_applied:
         if pd.notna(r["name"]) and str(r["name"]).strip()
     ]
     project.wing_mass = WingMassInput(
-        panel_weight_lb=panel, tip_root_density_ratio=dr, inboard_rib_y=rib, wrp_waterline=wrp,
+        panel_weight_lb=to_imperial_scalar(panel, "weight", system),
+        tip_root_density_ratio=dr, inboard_rib_y=to_imperial_scalar(rib, "length", system),
+        wrp_waterline=to_imperial_scalar(wrp, "length", system),
         dihedral_deg=dihedral, surface="wing", concentrated=concentrated, cases=cases)
     st.session_state["project"] = project
     st.success("Wing mass distribution applied.")

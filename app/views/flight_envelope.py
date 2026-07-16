@@ -16,8 +16,10 @@ import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
 
-from farloads import FlightLoadsInput, Project, UnitSystem, convert_results
+from farloads import FlightLoadsInput, Project, UnitSystem, convert_results, labels_for, to_display, to_imperial_scalar
+from farloads.constants import IN2_PER_FT2
 from farloads.modules.flight_envelope import build_envelope, run as flt_run
+from farloads.modules.wing_geometry import surface_properties
 from farloads.report import module_text_report
 
 
@@ -30,6 +32,7 @@ st.caption(
 
 project: Project = st.session_state.get("project", Project(name=""))
 system: UnitSystem = st.session_state.get("unit_system", UnitSystem.IMPERIAL)
+U = labels_for(system)  # {"length","area_sqft",...} -> unit string
 
 if project.speeds is None:
     st.warning(
@@ -49,15 +52,52 @@ if aero is None or (aero.cruise is None and aero.flaps_down is None):
 
 fl = project.flight_loads or FlightLoadsInput()
 
+
+def _geometry_defaults(project: Project) -> dict:
+    """MAC/wing-area/25%-MAC-station fallback defaults (Appendix A example
+    figures), overridden by the project's own Wing Geometry / Configuration &
+    Layout data when present -- so a project that already has a "wing" surface
+    doesn't get asked to re-enter numbers WINGGEOM/Configuration already give
+    (same bug class fixed on Configuration & Layout: unused upstream geometry).
+    """
+    defaults = {"mac": 69.246, "wing_area_sqft": 184.125, "xw": 80.953, "zw": 87.725}
+    wing_surf = project.geometry.by_name("wing") if project.geometry else None
+    if wing_surf is not None:
+        try:
+            values = {v.label: v.value for v in surface_properties(wing_surf).values}
+            defaults["mac"] = values["MAC"]
+            defaults["wing_area_sqft"] = values["Total area"] / IN2_PER_FT2
+            defaults["xw"] = values["XLE(MAC) station of MAC LE"] + 0.25 * values["MAC"]
+        except (ValueError, ZeroDivisionError):
+            pass
+    if project.configuration is not None and project.configuration.root_waterline_z:
+        defaults["zw"] = project.configuration.root_waterline_z
+    return defaults
+
+
+_geo_defaults = _geometry_defaults(project)
+
+
+def _num(label: str, value: float, key: str, kind: str, fmt: str = "%.3f", min_value: float = None) -> float:
+    display_value = float(round(to_display(value, kind, system), 4))
+    kwargs = {} if min_value is None else {"min_value": min_value}
+    return float(st.number_input(f"{label} ({U[kind]})", value=display_value, format=fmt,
+                                 key=f"{key}_{system.value}", **kwargs))
+
+
 with st.sidebar:
-    st.header("Geometry (FLTLOADS)")
-    mac = st.number_input("Wing MAC (in)", min_value=0.0, value=float(fl.mac) or 69.246, format="%.3f")
-    s = st.number_input("Wing area S (ft²)", min_value=0.0,
-                        value=float(fl.wing_area_sqft) or 184.125, format="%.3f")
-    xw = st.number_input("X at 25% wing MAC (in)", value=float(fl.xw) or 80.953, format="%.3f")
-    zw = st.number_input("Z (waterline) at 25% MAC (in)", value=float(fl.zw) or 87.725, format="%.3f")
-    xtc = st.number_input("Tail CP X, flaps up XTC (in)", value=float(fl.xtc) or 253.364, format="%.3f")
-    xtf = st.number_input("Tail CP X, flaps down XTF (in)", value=float(fl.xtf) or 261.027, format="%.3f")
+    st.header(f"Geometry (FLTLOADS) ({U['length']} / {U['area_sqft']})")
+    st.caption(
+        f"Input units: **{'Imperial' if system == UnitSystem.IMPERIAL else 'SI'}**. "
+        "Defaults come from the Wing Geometry / Configuration & Layout pages when "
+        "available, else the Appendix A worked example."
+    )
+    mac = _num("Wing MAC", fl.mac or _geo_defaults["mac"], "mac", "length", min_value=0.0)
+    s = _num("Wing area S", fl.wing_area_sqft or _geo_defaults["wing_area_sqft"], "s", "area_sqft", min_value=0.0)
+    xw = _num("X at 25% wing MAC", fl.xw or _geo_defaults["xw"], "xw", "length")
+    zw = _num("Z (waterline) at 25% MAC", fl.zw or _geo_defaults["zw"], "zw", "length")
+    xtc = _num("Tail CP X, flaps up XTC", fl.xtc or 253.364, "xtc", "length")
+    xtf = _num("Tail CP X, flaps down XTF", fl.xtf or 261.027, "xtf", "length")
     mn = st.number_input("Reference Mach (coeffs obtained at)", min_value=0.01,
                          value=float(fl.mn) or 0.1, format="%.3f")
 
@@ -82,7 +122,9 @@ if not cg_cases:
     st.stop()
 st.caption("Read from the **Weight/CG Grid & Payload Cases** page (not edited here).")
 st.dataframe(pd.DataFrame([
-    {"name": c.name, "weight_lb": c.weight_lb, "xcg (in)": c.xcg, "zcg (in)": c.zcg}
+    {"name": c.name, f"weight ({U['weight']})": round(to_display(c.weight_lb, "weight", system), 2),
+     f"xcg ({U['length']})": round(to_display(c.xcg, "length", system), 2),
+     f"zcg ({U['length']})": round(to_display(c.zcg, "length", system), 2)}
     for c in cg_cases
 ]), hide_index=True, use_container_width=True)
 
@@ -90,8 +132,13 @@ st.dataframe(pd.DataFrame([
 # persist path. Aero coefficients (Step D4.2) and CG cases (Step D5) are owned
 # by other pages -- this page only reads them.
 project.flight_loads = fl.merged(
-    mac=mac, wing_area_sqft=s, xw=xw, zw=zw, xtc=xtc, xtf=xtf, mn=mn,
-    altitudes_ft=altitudes_ft, cg_cases=cg_cases,
+    mac=to_imperial_scalar(mac, "length", system),
+    wing_area_sqft=to_imperial_scalar(s, "area_sqft", system),
+    xw=to_imperial_scalar(xw, "length", system),
+    zw=to_imperial_scalar(zw, "length", system),
+    xtc=to_imperial_scalar(xtc, "length", system),
+    xtf=to_imperial_scalar(xtf, "length", system),
+    mn=mn, altitudes_ft=altitudes_ft, cg_cases=cg_cases,
 )
 st.session_state["project"] = project
 

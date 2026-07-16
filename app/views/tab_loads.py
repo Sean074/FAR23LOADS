@@ -12,7 +12,17 @@ from __future__ import annotations
 import pandas as pd
 import streamlit as st
 
-from farloads import Project, TabLoadsInput, TabSpec, UnitSystem, convert_results, to_si_scalar
+from farloads import (
+    Project,
+    TabLoadsInput,
+    TabSpec,
+    UnitSystem,
+    convert_results,
+    labels_for,
+    to_display,
+    to_imperial_scalar,
+    to_si_scalar,
+)
 from farloads.export import sbeam_bridge as sb
 from farloads.modules.tab import build_tabs, run
 
@@ -26,6 +36,7 @@ st.caption(
 
 project: Project = st.session_state.get("project", Project(name=""))
 system: UnitSystem = st.session_state.get("unit_system", UnitSystem.IMPERIAL)
+U = labels_for(system)  # {"length": ..., "area_sqin": ...} -> unit string
 
 if project.speeds is None:
     st.warning("Define the **Structural Speeds** (VC) first.")
@@ -33,8 +44,10 @@ if project.speeds is None:
 
 inp = project.tab_loads or TabLoadsInput()
 existing = [
-    {"surface": t.surface, "mac_in": t.mac_in, "area_sqin": t.area_sqin,
-     "station_in": t.station_in, "airfoil_chord_in": t.airfoil_chord_in,
+    {"surface": t.surface, "mac_in": to_display(t.mac_in, "length", system),
+     "area_sqin": to_display(t.area_sqin, "area_sqin", system),
+     "station_in": to_display(t.station_in, "length", system),
+     "airfoil_chord_in": to_display(t.airfoil_chord_in, "length", system),
      "deflection_deg": t.deflection_deg}
     for t in inp.tabs
 ] or [{"surface": "htail", "mac_in": 0.0, "area_sqin": 0.0, "station_in": 0.0,
@@ -44,23 +57,29 @@ with st.form("tab_loads_form"):
     st.subheader("Tabs")
     edited = st.data_editor(
         pd.DataFrame(existing), num_rows="dynamic", use_container_width=True,
+        key=f"tab_loads_editor_{system.value}",
         column_config={
             "surface": st.column_config.SelectboxColumn(options=["wing", "htail", "vtail"]),
-            "mac_in": st.column_config.NumberColumn("MAC (in)"),
-            "area_sqin": st.column_config.NumberColumn("Area (sq in)"),
-            "station_in": st.column_config.NumberColumn("BL/WL of tab MAC (in)"),
-            "airfoil_chord_in": st.column_config.NumberColumn("Airfoil chord at MAC (in)"),
+            "mac_in": st.column_config.NumberColumn(f"MAC ({U['length']})"),
+            "area_sqin": st.column_config.NumberColumn(f"Area ({U['area_sqin']})"),
+            "station_in": st.column_config.NumberColumn(f"BL/WL of tab MAC ({U['length']})"),
+            "airfoil_chord_in": st.column_config.NumberColumn(
+                f"Airfoil chord at MAC ({U['length']})"),
             "deflection_deg": st.column_config.NumberColumn("Deflection (deg)"),
         })
     applied = st.form_submit_button("Apply", type="primary")
 
 if applied:
     inp.tabs = [
-        TabSpec(surface=str(row.surface), mac_in=float(row.mac_in),
-                area_sqin=float(row.area_sqin), station_in=float(row.station_in),
-                airfoil_chord_in=float(row.airfoil_chord_in),
+        TabSpec(surface=str(row.surface),
+                mac_in=to_imperial_scalar(float(row.mac_in), "length", system),
+                area_sqin=to_imperial_scalar(float(row.area_sqin), "area_sqin", system),
+                station_in=to_imperial_scalar(float(row.station_in), "length", system),
+                airfoil_chord_in=to_imperial_scalar(
+                    float(row.airfoil_chord_in), "length", system),
                 deflection_deg=float(row.deflection_deg))
-        for row in edited.itertuples() if float(row.area_sqin) > 0
+        for row in edited.itertuples()
+        if to_imperial_scalar(float(row.area_sqin), "area_sqin", system) > 0
     ]
     project.tab_loads = inp
     st.session_state["project"] = project
