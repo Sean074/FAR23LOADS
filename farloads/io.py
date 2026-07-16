@@ -258,6 +258,8 @@ def _aero_surface_from_dict(d: Dict[str, Any]) -> AeroSurfaceInput:
         target_cl=d.get("target_cl", 1.0),
         profile_drag=_points(d.get("profile_drag")),
         section_cm=_points(d.get("section_cm")),
+        sweep_deg=d.get("sweep_deg", 0.0),
+        design_mach=d.get("design_mach", 0.0),
     )
 
 
@@ -280,6 +282,8 @@ def aero_to_dict(inp: AeroInput) -> Dict[str, Any]:
                 "target_cl": s.target_cl,
                 "profile_drag": [list(p) for p in s.profile_drag],
                 "section_cm": [list(p) for p in s.section_cm],
+                "sweep_deg": s.sweep_deg,
+                "design_mach": s.design_mach,
             }
             for s in inp.surfaces
         ]

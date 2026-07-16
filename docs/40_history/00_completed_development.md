@@ -10,6 +10,49 @@ Acceptance**, **Key decisions**.
 
 ---
 
+## Phase 1 — Step P1-1: Full-airframe concept reference fixture (complete, 2026-07-16)
+
+**Objective.** Concept mode (`category="C"`) was broadly wired into calc but its
+headline deliverable — per-component distributed loads for a beyond-FAR23 airframe —
+was only ever demonstrated for the *wing*. The one concept fixture
+(`concept_heavy.project.json`) defined a wing surface only; run through
+`run_all_modules` it fired 7 modules and skipped `net_loads`, `body_loads`,
+`taildist`, `aileron`/`flap`/`tab`. P1-1 builds the full-airframe concept example so
+the whole pipeline can be validated (closure checks are the follow-on Step P1-2).
+
+**Deliverables.**
+- **`examples/concept_regional_jet.project.json`** — "RJ-50 concept": a swept-wing,
+  high-subsonic twin-turbofan regional jet (MTOW 33,000 lb, S 500 ft², b 66 ft,
+  AR 8.7, c/4 sweep 24°, cruise M 0.74, 50 seats), `category="C"` with Part 25
+  maneuver load factors (`chosen_n=2.5`, `chosen_nneg=-1.0`, `include_far25=true`).
+  Carries every input slice — including the two no GA fixture had: `fuselage_mass`
+  (body longitudinal mass stations) and `configuration` (`LayoutInput`). Drives
+  **all 19** applicable modules with no missing-slice skip and selects the swept
+  `AIRLOAD4` branch. Airplane chosen per **decision D-1** (2026-07-16); the twin
+  turbofan is modelled with an empty propeller + a fan-spool `Rotor` (gyroscopic
+  case via the 25.371 path, per **D-2**).
+- **`farloads/io.py`** — bug fix: `_aero_surface_from_dict` / `aero_to_dict` now
+  serialize `sweep_deg` and `design_mach`. These `AeroSurfaceInput` fields were
+  added in Step C7 but never wired into the JSON round-trip; no GA fixture set them,
+  so the gap was invisible until this swept concept fixture. Additive and defaulted
+  (0.0), so every existing project loads unchanged and no oracle moves.
+- **`tests/test_concept_regional_jet.py`** — 4 tests: fixture is concept + Part 25
+  load factors; all required component modules run; AIRLOAD4 swept branch selected;
+  `sweep_deg`/`design_mach` round-trip through `io` (the regression guard for the
+  fix above).
+
+**Test / Acceptance (met).** `run_all_modules` on the fixture reaches wing, body,
+tail and all three control-surface modules without a `ValueError`; `airloads`
+selects the AIRLOAD4 swept branch; the project round-trips through `io.py`. Full
+suite **366 passed**, `ruff` clean. No FAR23 oracle change (concept path only; the
+io fix is additive with GA-preserving defaults).
+
+**Key decisions.** D-1 (regional-jet archetype), D-2 (fan-spool rotor for the
+turbofan gyro case). **Accepted limitation:** the suite's `EngineLayout` has no
+aft-fuselage option, so the aft-mounted twin is encoded as `2W` (symmetric mirror
+butt lines) — a layout-sketch limitation, not a structural one; noted in the
+backlog for a possible future `EngineLayout` addition.
+
 ## Phase F — Step F2: Aircraft Comparison page (complete, 2026-07-16)
 
 **Objective.** Give the fleet comparison a first-class home. Before F2 the

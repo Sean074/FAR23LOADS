@@ -11,6 +11,18 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **Full-airframe concept reference fixture (Phase 1, Step P1-1).**
+  `examples/concept_regional_jet.project.json` — "RJ-50 concept", a swept-wing,
+  high-subsonic twin-turbofan regional jet (MTOW 33,000 lb, S 500 ft², c/4 sweep
+  24°, cruise M 0.74, 50 seats; `category="C"`, Part 25 load factors, `include_far25`).
+  It is the first concept example to drive **every** component path — the wing chain,
+  `body_loads`, `taildist`, `aileron`/`flap`/`tab`, and the swept `AIRLOAD4` branch
+  (19 modules, no missing-slice skips) — where `concept_heavy` reached the wing only.
+  Carries the two slices no GA fixture had (`fuselage_mass`, `configuration`); the
+  turbofan is modelled with a fan-spool `Rotor` and no propeller (25.371 gyro path).
+  Guarded by `tests/test_concept_regional_jet.py`. Airplane per decision D-1, engine
+  per D-2.
+
 - **Aircraft Comparison page (Phase F, Step F2).** A dedicated
   `app/views/aircraft_comparison.py` view in the **Export** phase (before Results
   Review; GUI-only `WorkflowStep`) is now the single home for the fleet comparison.
@@ -68,6 +80,15 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   (`vn_diagram` and its tests are untouched).
 
 ### Fixed
+
+- **Swept-wing aero fields dropped by the JSON round-trip (found via Step P1-1).**
+  `AeroSurfaceInput.sweep_deg` / `design_mach` (the fields that auto-select the
+  swept/high-Mach `AIRLOAD4` branch, added in Step C7) were never serialized by
+  `io._aero_surface_from_dict` / `aero_to_dict`, so a swept wing loaded from disk
+  silently reverted to the low-speed Schrenk path. No GA fixture set these fields,
+  so the gap was invisible until the swept `concept_regional_jet` fixture. Both
+  directions now carry them; additive and defaulted (0.0), so every existing project
+  loads unchanged. Regression: `tests/test_concept_regional_jet.py`.
 
 - **Weight Estimate page crashed on beyond-GA projects.** The Mission-inputs form
   hard-capped its widgets at GA-tier limits (`max_value = 3000 hp`, 12 seats, 6

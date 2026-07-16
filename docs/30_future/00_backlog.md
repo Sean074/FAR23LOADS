@@ -59,6 +59,11 @@ fires 7 modules and **skips `net_loads`, `body_loads`, `taildist`,
 `configuration` inputs. Concept closure is tested for the wing only; there is **no
 true concept↔FAR23 identity test** (it is assumed via the GA oracle tests, not
 verified through the concept code path). Phase 1 closes exactly this gap.
+**Step P1-1 shipped 2026-07-16** — a full-airframe concept fixture
+(`examples/concept_regional_jet.project.json`, 366 tests now pass) now drives all 19
+applicable modules including body/tail/control + the swept AIRLOAD4 branch; the
+remaining Phase-1 work is closure validation (P1-2), the identity test (P1-3), the
+export API completion (P1-4) and the gyro guard (P1-5).
 
 **Remaining suite programs (0):** all 22 ported.
 
@@ -69,37 +74,21 @@ verified through the concept code path). Phase 1 closes exactly this gap.
 **Goal.** An engineer can define a beyond-FAR23 configuration, run the *full*
 airframe (wing + body + tail + control surfaces) through concept mode, trust the
 result via physics-closure checks, and export every component to sbeam — with the
-FAR23 oracle still intact. Steps are in dependency/priority order; P1-1 unblocks
-the rest.
+FAR23 oracle still intact. Steps are in dependency/priority order.
 
 > **Invariant (unchanged):** no calc-math change to the FAR23 path — Appendix A/B
 > oracles pass unmodified; concept mode reduces exactly to FAR23 on GA inputs.
 
-### Step P1-1 — A full-airframe concept reference fixture — *airplane chosen: regional jet (D-1, 2026-07-16)*
-**Objective.** Build a concept project JSON (`examples/concept_regional_jet.project.json`)
-that drives **every** component path, not just the wing: `configuration`
-(geometry/CG/tail-volume), tail aero/geometry (`tail_loads`/`vtail_loads`),
-`fuselage_mass` + `flight_loads` (body), `aileron_loads`/`flap_loads`/`tab_loads`,
-and the missing wing-chain slices (`envelope.vn` / `mass` so `wing_inertia` and
-`net_loads` resolve their `nz/nx`). This is the enabler for P1-2…P1-5 and for any
-real concept-loads engineering.
-**Why it's first.** Today `concept_heavy.project.json` exercises the wing only
-(running it through `run_all_modules` fires 7 modules and skips `net_loads`,
-`body_loads`, `taildist`, `aileron`/`flap`/`tab`); tail/body/control concept loads
-are untested territory. Nothing downstream can be validated without a fixture that
-actually reaches those modules.
-**Airplane (D-1, chosen 2026-07-16).** A **regional jet** — swept wing, high
-subsonic Mach, twin (aft- or wing-mounted) turbofans, conventional or T-tail,
-MTOW well above the FAR23 12,500 lb cap. Deliberately picks the configuration that
-**forces the `AIRLOAD4` swept/high-Mach branch** (the least-covered path, furthest
-from any FAR23 oracle) rather than staying on Schrenk. *Working starter geometry
-(refine at build time): MTOW ≈ 30–35,000 lb; wing area ≈ 500–600 ft²; quarter-chord
-sweep ≈ 20–25°; span ≈ 70 ft; cruise Mach ≈ 0.75; ~50 seats.* Confirm/adjust these
-scalars when the fixture is built.
-**Acceptance.** `run_all_modules(load('examples/concept_regional_jet.project.json'))`
-runs the wing, body, tail and control-surface modules without a missing-slice
-`ValueError`; `airloads` selects the AIRLOAD4 swept branch; the project round-trips
-through `io.py`.
+### Step P1-1 — A full-airframe concept reference fixture — **shipped 2026-07-16**
+Added `examples/concept_regional_jet.project.json` (RJ-50 concept — swept-wing,
+high-subsonic twin-turbofan regional jet, MTOW 33,000 lb, `category="C"` / Part 25).
+It drives **all 19** applicable modules — the first fixture to reach `body_loads`,
+`taildist`, `aileron`/`flap`/`tab`, and the swept `AIRLOAD4` branch. Building it
+surfaced and fixed a real `io` gap (`sweep_deg`/`design_mach` were never
+serialized). Guarded by `tests/test_concept_regional_jet.py` (4 tests). See
+`40_history/00_completed_development.md` → "Phase 1 — Step P1-1". *Follow-ons kept
+open: closure validation is P1-2; the aft-fuselage engine layout is modelled as
+`2W` (the suite has no aft-fuselage `EngineLayout` — sketch limitation, noted).*
 
 ### Step P1-2 — Concept distributed-loads end-to-end + closure test suite
 **Objective.** Drive `net_loads`, `body_loads`, `taildist`, `aileron`, `flap`,
