@@ -197,6 +197,51 @@ def standard_atmosphere(altitude_ft: float):
     return a, sigma
 
 
+# Speed of sound at sea level for this atmosphere (kt); the reference used to map
+# an equivalent airspeed to calibrated airspeed (KEAS == KCAS == KTAS at h = 0).
+SEA_LEVEL_SOUND_KT = 29.02436 * (59.0 + 459.4) ** 0.5
+
+
+def eas_to_mach(eas_kt: float, a: float, sigma: float) -> float:
+    """Mach number of an equivalent airspeed: M = TAS/a = KEAS / (a*sqrt(sigma))."""
+    return eas_kt / (a * math.sqrt(sigma))
+
+
+def mach_to_eas(mach: float, a: float, sigma: float) -> float:
+    """Equivalent airspeed (kt) of a Mach number at an altitude: KEAS = M*a*sqrt(sigma)."""
+    return mach * a * math.sqrt(sigma)
+
+
+def convert_airspeed(eas_kt: float, altitude_ft: float, unit: str) -> float:
+    """Convert an equivalent airspeed (KEAS) to KEAS / KTAS / KCAS at an altitude.
+
+    KTAS = KEAS / sqrt(sigma) (true airspeed). KCAS uses the standard subsonic
+    compressible impact-pressure relation::
+
+        M       = KEAS / (a*sqrt(sigma))                 Mach at altitude
+        delta   = P/P0 = sigma * (a/a0)**2               static-pressure ratio
+        qc/P0   = delta * ((1 + 0.2*M**2)**3.5 - 1)      impact pressure
+        KCAS    = a0 * sqrt(5 * ((qc/P0 + 1)**(2/7) - 1))
+
+    with ``a0 = SEA_LEVEL_SOUND_KT``. Exact at sea level (KCAS == KEAS == KTAS) and
+    diverging from EAS with Mach and altitude, matching the CAS x-axis of a
+    speed–altitude flight-limits diagram. Reference: standard airspeed relations
+    (NASA RP-1046 / Aeronautical Vestpocket Handbook), subsonic (M < 1).
+    """
+    u = unit.upper().lstrip("K")  # accept "KEAS"/"EAS", "KTAS"/"TAS", "KCAS"/"CAS"
+    if u == "EAS":
+        return eas_kt
+    a, sigma = standard_atmosphere(altitude_ft)
+    if u == "TAS":
+        return eas_kt / math.sqrt(sigma)
+    if u == "CAS":
+        mach = eas_to_mach(eas_kt, a, sigma)
+        delta = sigma * (a / SEA_LEVEL_SOUND_KT) ** 2
+        qc_over_p0 = delta * ((1.0 + 0.2 * mach * mach) ** 3.5 - 1.0)
+        return SEA_LEVEL_SOUND_KT * math.sqrt(5.0 * ((qc_over_p0 + 1.0) ** (2.0 / 7.0) - 1.0))
+    raise ValueError(f"Unknown airspeed unit {unit!r} (expected KEAS/KTAS/KCAS)")
+
+
 # Knots -> ft/s as the suite computes it (via mph: kt * 1.15 * 88/60), used by
 # FLAPLOAD.BAS for the slipstream/gust velocities. Slightly different from the
 # exact 1.6878; kept to reproduce the slipstream geometry oracle.

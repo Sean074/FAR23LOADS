@@ -10,6 +10,51 @@ Acceptance**, **Key decisions**.
 
 ---
 
+## Phase E — Step E7: Speed–altitude envelope consolidation (complete, 2026-07-16)
+
+**Objective.** Remove the input redundancy between **Structural Speeds** and **Mach
+Limit**, and upgrade the Mach-limit chart into a transport-category-style
+speed–altitude flight-limits diagram (altitude on y, selectable KEAS/KCAS/KTAS on
+x, constant-Mach fan + the composite design-speed boundary). No calc-math or oracle
+change — `mach_limit_lines` is untouched; the airspeed conversions are a new
+presentation-layer helper.
+
+**Deliverables.**
+- **`farloads/constants.py`** — new `convert_airspeed(eas_kt, altitude_ft, unit)`
+  (KEAS/KTAS/KCAS), plus `eas_to_mach`/`mach_to_eas` and `SEA_LEVEL_SOUND_KT`. KTAS =
+  KEAS/√σ; KCAS via the standard subsonic compressible impact-pressure relation
+  (`qc/P0 = δ·((1+0.2M²)^3.5−1)`, `δ = σ·(a/a0)²`), exact at sea level. Pure calc,
+  no I/O.
+- **`app/views/mach_limit.py`** — retitled **Speed–Altitude Envelope**. MC, MD and
+  the shoulder altitude are now READ from the `speeds` slice
+  (`design_speed_values`) instead of re-entered — only the max operating altitude
+  and increment remain as inputs (same unused-upstream-data fix class as Config &
+  Layout). The old V-vs-altitude chart is replaced by a speed–altitude diagram:
+  altitude on y; a **KEAS/KCAS/KTAS** radio for the x-axis; a thin constant-Mach
+  fan; and the operating boundary drawn as EAS-limited (constant) below the shoulder
+  and Mach-limited (V=M·a·√σ) above it, so VC/MC and VD/MD kink at the shoulder
+  exactly like a placard chart. `use_container_width` replaced by `width="stretch"`.
+- **`farloads/workflow.py`** — the `mach_limit` step is retitled "Speed–Altitude
+  Envelope" with an updated summary (module name unchanged, so the CLI/oracle path
+  and the every-module-has-a-step nav test are unaffected).
+- **`tests/test_airspeed_conversions.py`** — new: sea-level unit equality,
+  KTAS = KEAS/√σ, EAS < CAS < TAS at altitude, Mach round-trip, unknown-unit error.
+- **Docs** — `PROGRAM_SPEC.md` MACHLIM notes and `docs/20_theory/00_theory_sources.md`
+  updated; `cspell.json` gains KCAS/KTAS.
+
+**Test / Acceptance.** `ruff check farloads/ cli.py` clean; full `pytest` suite
+passes (353). Smoke-checked against `examples/ga6_normal.project.json`: the VC/MC
+boundary is ~170 KEAS constant to the 12000 ft shoulder then curves in to ~151 KEAS
+at 18000 ft; VA/VF are constant-EAS lines; the Mach fan and MNE/MFC lines render.
+
+**Key decisions.** The diagram stays on its own page (following the Step E6 V-n
+precedent: inputs on the owning page, picture on a dedicated page). MC/MD/shoulder
+are read-only echoes of Structural Speeds; the page adds only the two quantities
+Structural Speeds does not carry. All chart speeds are design *limit* speeds — the
+diagram is a speed boundary, not a load deliverable, so the ULT rule does not apply.
+
+---
+
 ## Phase E — Step E6: V-n diagram consolidation (complete, 2026-07-15)
 
 **Objective.** Remove the redundant second V-n diagram: consolidate the two V-n

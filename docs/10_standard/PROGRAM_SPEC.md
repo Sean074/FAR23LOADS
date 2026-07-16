@@ -163,7 +163,7 @@ chart + tables.
 - **Reads:** `Project.speeds`, altitude range, limiting Mach.
 - **Writes:** Mach-limited speed vs altitude (the V-M limit line) → `Project.speeds.mach_limit`.
 - **Validation:** Appendix B (high-altitude twin) Mach-limit table.
-- **Notes:** Only material for high-performance/high-altitude airplanes (Appendix B). Graphics: V vs altitude limit line. **Step D5:** the page's chart overlays the VA/VC/VD/VF design speeds (`structural_speeds.design_speed_values`) as horizontal reference lines on the same speed-altitude plot — a display-only addition, no change to `mach_limit_lines`' calc.
+- **Notes:** Only material for high-performance/high-altitude airplanes (Appendix B). Graphics: V vs altitude limit line. **Step E7 (Speed–Altitude Envelope consolidation):** the page is retitled **Speed–Altitude Envelope**. MC, MD and the shoulder altitude are now READ from `Project.speeds` (via `structural_speeds.design_speed_values`) instead of re-entered — only the max operating altitude and the increment remain as page inputs (removing the Step D5 duplicate MC/MD/shoulder entry). The chart becomes a transport-category-style speed–altitude flight-limits diagram: **altitude on y**, a **KEAS/KCAS/KTAS** selectable x-axis (via the new `constants.convert_airspeed`), a thin constant-Mach fan, and the design-speed boundary drawn EAS-limited (constant) below the shoulder and Mach-limited (V=M·a·√σ) above it, so VC/MC and VD/MD kink at the shoulder like a placard chart. All chart speeds are design *limit* speeds (a speed boundary, not a load deliverable — the ULT rule does not apply). Display-only + one new pure helper; no change to `mach_limit_lines`' calc.
 
 ---
 

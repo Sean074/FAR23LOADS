@@ -9,7 +9,24 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- **`farloads.constants.convert_airspeed` + `eas_to_mach`/`mach_to_eas` (Phase E,
+  Step E7).** Presentation-layer airspeed conversions: KEAS→KTAS (=KEAS/√σ) and
+  KEAS→KCAS (standard subsonic compressible impact-pressure relation, exact at sea
+  level). Backed by `tests/test_airspeed_conversions.py`.
+
 ### Changed
+
+- **Mach Limit page reworked into the Speed–Altitude Envelope (Phase E, Step E7).**
+  MC, MD and the shoulder altitude are now read from the Structural Speeds `speeds`
+  slice instead of being re-entered — only the max operating altitude and increment
+  remain as inputs. The chart is now a transport-category-style speed–altitude
+  flight-limits diagram: altitude on the y-axis, a **KEAS/KCAS/KTAS** selectable
+  x-axis, a constant-Mach fan, and the design-speed boundary drawn EAS-limited below
+  the shoulder and Mach-limited above it (VC/MC and VD/MD kink at the shoulder). The
+  workflow step is retitled "Speed–Altitude Envelope". GUI + one new pure helper; no
+  calc-math or oracle change (`mach_limit_lines` untouched).
 
 - **V-n diagram consolidated onto the Flight Envelope page (Phase E, Step E6).**
   The suite had two V-n diagrams: the continuous LIMIT textbook envelope on the

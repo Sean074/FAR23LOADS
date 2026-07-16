@@ -107,8 +107,11 @@ consistent:
 The established **seed-chain** (each seeds the next when its target is unset):
 Configuration & Layout → WINGGEOM wing surface → Weight DB component stations;
 Weight Estimate → Weight DB items; Configuration & Layout `dihedral` / tail spans
-→ Wing Loads / Tail Loads; STRSPEED `MC`/`MD`/shoulder altitude → Mach Limit;
-existing wing surface → Configuration & Layout parametric wing fields.
+→ Wing Loads / Tail Loads; existing wing surface → Configuration & Layout
+parametric wing fields. (STRSPEED `MC`/`MD`/shoulder altitude were formerly seeded
+into the Mach Limit page; as of Step E7 the **Speed–Altitude Envelope** page instead
+*reads them through* read-only from `speeds` — not an editable seed — so they are
+never entered twice.)
 
 ---
 
