@@ -275,6 +275,41 @@ def test_filter_by_selected_case_ids_empty_selection_drops_all_tagged():
     assert sb.filter_by_selected_case_ids(results, set()) == []
 
 
+def test_export_package_exposes_all_component_families():
+    """Step P1-4: the whole export surface is reachable from ``farloads.export``.
+
+    Before P1-4 ``__all__`` listed only wing + tail, so a caller following the
+    package API could export only two of the four component families. The concept
+    deliverable is "all components to sbeam" -- assert body + control + the case
+    index are all importable from the package (not just the submodule).
+    """
+    from farloads.export import (  # noqa: F401
+        body_force_moment_cards,
+        body_span_load_csv,
+        case_index_csv,
+        control_surface_csv,
+        control_surface_force_moment_cards,
+        filter_by_selected_case_ids,
+        write_case_index_csv,
+        write_control_surface_csv,
+        write_control_surface_force_moment_cards,
+    )
+    import farloads.export as export_pkg
+
+    # Every re-exported name is advertised in __all__ and resolves to the
+    # sbeam_bridge implementation (no accidental shadowing).
+    for name in (
+        "body_span_load_csv", "body_force_moment_cards",
+        "control_surface_csv", "write_control_surface_csv",
+        "control_surface_force_moment_cards",
+        "write_control_surface_force_moment_cards",
+        "case_index_csv", "write_case_index_csv",
+        "filter_by_selected_case_ids",
+    ):
+        assert name in export_pkg.__all__, f"{name} missing from export __all__"
+        assert getattr(export_pkg, name) is getattr(sb, name)
+
+
 if __name__ == "__main__":
     import traceback
 

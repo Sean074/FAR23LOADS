@@ -297,6 +297,7 @@ Strategy:
 2. For each module, assert its `run(project)` matches the corresponding Appendix figures **within tolerance** (recommended ±0.1%; widen only where the manual visibly rounds an intermediate).
 3. Keep the comparison values in the test as the manual's *printed* numbers, with a comment citing the page — so drift is loud and traceable.
 4. CI/locally: `pytest tests/` runs every module against both airplanes.
+5. **Concept-mode identity guard.** The C-1 invariant ("concept mode reduces exactly to FAR23 on GA inputs") is asserted *through the concept branch itself* by `tests/test_concept.py::test_concept_reduces_to_far23_on_ga_inputs`: `ga6_normal` is run twice through `run_all_modules` — once as Normal, once flipped to `category="C"` with the FAR23-computed load factors — and every module's every `LoadValue` must match at `rel_tol=1e-3` (only the appended concept `note` may differ). Concept mode above the 12,500 lb oracle band has no printed figure, so it is instead validated by physics-closure checks (`test_concept_closure.py`).
 
 ---
 

@@ -10,6 +10,50 @@ Acceptance**, **Key decisions**.
 
 ---
 
+## Phase 1 — Step P1-3: True concept↔FAR23 identity test (complete, 2026-07-16)
+
+**Objective.** The C-1 invariant ("concept mode reduces **exactly** to FAR23 on GA
+inputs") was only *assumed* — guarded indirectly by the absence of regression on the
+GA Appendix-A oracles, never verified *through the concept branch itself*. Add a
+direct identity test: take a GA project, flip it to `category="C"` with the
+FAR23-computed load factors, run the whole pipeline through the concept code path,
+and assert the per-component loads reproduce the FAR23 result.
+
+**Deliverables.**
+- **`tests/test_concept.py`** — two tests + a comparison helper on
+  `examples/ga6_normal.project.json` (Normal category, MTOW 3400 lb):
+  - `test_concept_load_factors_match_far23_caps` pins the single numeric divergence
+    point (`structural_speeds._maneuver_load_factors`): the FAR23 Normal cap
+    (n = 3.8, nneg = −0.4·3.8 = −1.52 per 14 CFR 23.337), fed back as explicit
+    `chosen_n`/`chosen_nneg` in concept mode, is echoed verbatim.
+  - `test_concept_reduces_to_far23_on_ga_inputs` runs `run_all_modules` twice —
+    baseline (`category="N"`) and concept (`category="C"` with the *derived* FAR23
+    load factors) — and asserts full-pipeline parity: `_assert_modules_identical`
+    compares by module name → condition `(title, far_reference)` → `LoadValue` label,
+    checking equal `units`, `safety_factor`, and `value` (`math.isclose(rel_tol=1e-3)`,
+    exact for dimensionless/int). `ConditionResult.note` is deliberately ignored — the
+    appended concept note is the *only* permitted difference.
+  - The file docstring is updated to record that the invariant is now guarded
+    directly (not only via the oracle tests). Load factors are *derived* from the
+    baseline STRSPEED result and fed forward (with a `3.8 / −1.52` citation assert),
+    so the test stays robust if the fixture changes.
+
+**Test / Acceptance (met).** GA-as-concept run reproduces the FAR23 loads to
+`rel_tol=1e-3` across every module `run_all_modules` produces; the sweep fails if any
+concept branch diverges numerically on GA inputs. Full suite **378 passed** (376 →
+378), `ruff check farloads/ cli.py` clean. **Test-only step:** no calc-math change, no
+new module, no `SCHEMA_VERSION` bump. (Removed one pre-existing unused import
+(`StructuralSpeedsInput`) from the touched test file.)
+
+**Key decisions.** Test lives in `test_concept.py` (extended, not a new file) —
+concept tests stay together. Assertion breadth is the **full-pipeline sweep** (every
+`LoadValue` of every module) rather than a few representative modules, since the whole
+point is guarding *any* concept branch. N-factors are **derived from the baseline**
+rather than hardcoded. Confirmed by investigation that
+`_maneuver_load_factors` is the sole numeric concept↔FAR23 branch; every other
+`is_concept` branch is note-text only — so the sweep's note exclusion is exactly the
+permitted-difference boundary.
+
 ## Phase 1 — Step P1-2: Concept distributed-loads end-to-end + closure suite (complete, 2026-07-16)
 
 **Objective.** Concept mode has no printed oracle above 12,500 lb, so physics

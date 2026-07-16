@@ -1,9 +1,23 @@
 """Export bridges from FAR23LOADS results to external structural tools.
 
-Currently the sbeam bridge (C4): turns the NETLOADS net wing load
-(``Project.loads.wing_net``) into an sbeam-consumable span-load CSV, FORCE/MOMENT
-bulk-data cards, and an optional CBAR stick-model BDF. See
-:mod:`farloads.export.sbeam_bridge`.
+Currently the sbeam bridge (C4): turns FAR23LOADS component loads into
+sbeam-consumable span/chordwise-load CSVs, ``FORCE``/``MOMENT`` bulk-data cards,
+and an optional CBAR stick-model BDF. See :mod:`farloads.export.sbeam_bridge`.
+
+The concept deliverable is "all components to sbeam", so the package API exports
+all four component families plus the case index:
+
+- **Wing** — :func:`span_load_csv`, :func:`force_moment_cards`,
+  :func:`stick_model_bdf` (+ ``write_*`` variants), built from the NETLOADS net
+  wing load (``Project.loads.wing_net``).
+- **Body / fuselage** — :func:`body_span_load_csv`, :func:`body_force_moment_cards`.
+- **Tail** — :func:`tail_chordwise_csv`, :func:`tail_force_moment_cards`
+  (+ ``write_*`` variants).
+- **Control surfaces** — :func:`control_surface_csv`,
+  :func:`control_surface_force_moment_cards` (+ ``write_*`` variants).
+- **Case index** — :func:`case_index_csv` (+ ``write_case_index_csv``) and
+  :func:`filter_by_selected_case_ids`, the manifest tying exported decks back to
+  their FAR 23 load-case IDs and the selective-export filter.
 """
 
 from __future__ import annotations
@@ -11,6 +25,12 @@ from __future__ import annotations
 from .coordinates import SBEAM_CID, to_force, to_grid, to_moment
 from .sbeam_bridge import (
     NodalLoad,
+    body_force_moment_cards,
+    body_span_load_csv,
+    case_index_csv,
+    control_surface_csv,
+    control_surface_force_moment_cards,
+    filter_by_selected_case_ids,
     force_moment_cards,
     span_load_csv,
     station_gid,
@@ -18,6 +38,9 @@ from .sbeam_bridge import (
     tail_chordwise_csv,
     tail_force_moment_cards,
     wing_nodal_loads,
+    write_case_index_csv,
+    write_control_surface_csv,
+    write_control_surface_force_moment_cards,
     write_force_moment_cards,
     write_span_load_csv,
     write_stick_model_bdf,
@@ -34,15 +57,29 @@ __all__ = [
     "NodalLoad",
     "wing_nodal_loads",
     "station_gid",
+    # Wing
     "span_load_csv",
     "write_span_load_csv",
     "force_moment_cards",
     "write_force_moment_cards",
     "stick_model_bdf",
     "write_stick_model_bdf",
+    # Body / fuselage
+    "body_span_load_csv",
+    "body_force_moment_cards",
+    # Tail
     "tail_chordwise_csv",
     "write_tail_chordwise_csv",
     "tail_force_moment_cards",
     "write_tail_force_moment_cards",
+    # Control surfaces
+    "control_surface_csv",
+    "write_control_surface_csv",
+    "control_surface_force_moment_cards",
+    "write_control_surface_force_moment_cards",
+    # Case index
+    "case_index_csv",
+    "write_case_index_csv",
+    "filter_by_selected_case_ids",
     "build_workbook",
 ]

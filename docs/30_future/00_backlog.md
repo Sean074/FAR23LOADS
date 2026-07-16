@@ -93,18 +93,6 @@ serialized). Guarded by `tests/test_concept_regional_jet.py` (4 tests). See
 open: closure validation is P1-2; the aft-fuselage engine layout is modelled as
 `2W` (the suite has no aft-fuselage `EngineLayout` — sketch limitation, noted).*
 
-### Step P1-3 — True concept↔FAR23 identity test
-**Objective.** Add a test that takes a GA project (`ga6_normal`), flips it to
-`category="C"` with the equivalent explicit `chosen_n`/`chosen_nneg`, runs it
-through the concept code path, and asserts the per-component loads match the FAR23
-result within tolerance.
-**Why.** The C-1 invariant ("concept reduces **exactly** to FAR23 on GA inputs")
-is currently only *assumed* — asserted by the absence of regression on GA
-fixtures, not verified through the concept branch. A direct identity test guards
-the branch itself.
-**Acceptance.** The GA-as-concept run reproduces the FAR23 loads (`rel_tol=1e-3`);
-the test fails if any concept branch diverges on GA inputs.
-
 ### Step P1-4 — Complete the export package public API
 **Objective.** Re-export the body and control-surface functions from
 `farloads/export/__init__.py` (`__all__` today lists only wing + tail —

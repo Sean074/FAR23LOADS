@@ -25,6 +25,18 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **Concept↔FAR23 identity test (Phase 1, Step P1-3).** `tests/test_concept.py`
+  now guards the C-1 invariant ("concept mode reduces **exactly** to FAR23 on GA
+  inputs") *directly, through the concept branch* — previously it was only assumed
+  via the absence of GA-oracle regression. `test_concept_reduces_to_far23_on_ga_inputs`
+  runs `ga6_normal` through `run_all_modules` twice — once as Normal (`category="N"`)
+  and once flipped to concept (`category="C"`) with the FAR23-computed load factors
+  (n = 3.8, nneg = −1.52 per 14 CFR 23.337, derived from the baseline) — and asserts
+  full-pipeline parity (every module's every `LoadValue` matches at `rel_tol=1e-3`;
+  only the appended concept `note` may differ). `test_concept_load_factors_match_far23_caps`
+  pins the single numeric divergence point (`structural_speeds._maneuver_load_factors`).
+  Test-only (no calc-math or schema change); FAR23 oracles unmoved.
+
 - **Concept distributed-loads closure suite (Phase 1, Step P1-2).**
   `tests/test_concept_closure.py` (10 tests) drives `net_loads`, `body_loads`,
   `taildist`, `aileron`/`flap`/`tab` through the P1-1 concept fixture
