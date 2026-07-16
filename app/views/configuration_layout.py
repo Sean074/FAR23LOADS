@@ -17,15 +17,13 @@ from __future__ import annotations
 import math
 from collections import defaultdict
 from dataclasses import replace
-from pathlib import Path
 
 import pandas as pd
-import plotly.express as px
 import plotly.graph_objects as go
 import streamlit as st
 from plotly.subplots import make_subplots
 
-from components import render_applicability_banner
+from components import render_applicability_banner, render_fleet_comparison
 
 from farloads.applicability import effective_occupants
 from farloads import (
@@ -488,16 +486,8 @@ with right:
                 st.info("No zero-station items matched a derivable component name.")
 
 # --------------------------------------------------------------------------- #
-# Fleet comparison
+# Fleet comparison (shared helper, Step E4)
 # --------------------------------------------------------------------------- #
-_REFERENCE_CSV = Path(__file__).resolve().parent.parent / "data" / "reference_aircraft.csv"
-
-st.subheader("Comparison with similar aircraft")
-st.caption(
-    "Wing loading (W/S) and power loading (W/P) and MTOW-vs-OEW against a reference "
-    "fleet. Reference figures are nominal published specs for visual comparison only."
-)
-
 # This airplane's totals, if known from other slices (configuration carries no weight).
 mtow = None
 if project.speeds is not None and project.speeds.weight_lb:
@@ -506,49 +496,7 @@ elif project.weight is not None and project.weight.items:
     mtow = project.weight.direct_totals()[0]
 power = sum((e.max_cont_hp or 0.0) for e in project.engines) if project.engines else 0.0
 
-try:
-    fleet = pd.read_csv(_REFERENCE_CSV, comment="#")
-except FileNotFoundError:
-    st.info(f"Reference aircraft data file not found at {_REFERENCE_CSV}.")
-else:
-    fleet["series"] = "Reference fleet"
-    fleet["w_s"] = fleet["mtow_lb"] / fleet["wing_area_ft2"]
-    fleet["w_p"] = fleet["mtow_lb"] / fleet["max_hp"].where(fleet["max_hp"] > 0)
-    rows = []
-    if mtow:
-        this = {"aircraft": project.name or "This airplane", "mtow_lb": mtow,
-                "oew_lb": None, "wing_area_ft2": layout.wing_area_sqft,
-                "max_hp": power, "series": "This airplane"}
-        this["w_s"] = mtow / layout.wing_area_sqft if layout.wing_area_sqft else None
-        this["w_p"] = mtow / power if power else None
-        rows.append(this)
-    plot_df = pd.concat([fleet, pd.DataFrame(rows)], ignore_index=True) if rows else fleet
-
-    tab1, tab2 = st.tabs(["Wing loading vs power loading", "MTOW vs OEW"])
-    with tab1:
-        wp_df = plot_df.dropna(subset=["w_s", "w_p"])
-        fig = px.scatter(
-            wp_df, x="w_s", y="w_p", color="series", symbol="series",
-            hover_name="aircraft", hover_data=["mtow_lb", "max_hp", "wing_area_ft2"],
-            color_discrete_map={"Reference fleet": "#1f77b4", "This airplane": "#d62728"},
-            labels={"w_s": "Wing loading W/S (lb/ft²)", "w_p": "Power loading W/P (lb/hp)", "series": ""},
-        )
-        fig.update_layout(legend=dict(orientation="h", y=1.1, x=0))
-        st.plotly_chart(fig, use_container_width=True)
-        st.caption("Jets (max_hp = 0) are excluded from this plot.")
-    with tab2:
-        oew_df = plot_df.dropna(subset=["oew_lb"])
-        fig2 = px.scatter(
-            oew_df, x="oew_lb", y="mtow_lb", color="series", symbol="series",
-            log_x=True, log_y=True, hover_name="aircraft",
-            color_discrete_map={"Reference fleet": "#1f77b4", "This airplane": "#d62728"},
-            labels={"oew_lb": "Empty weight OEW (lb)", "mtow_lb": "MTOW (lb)", "series": ""},
-        )
-        fig2.update_layout(legend=dict(orientation="h", y=1.1, x=0))
-        st.plotly_chart(fig2, use_container_width=True)
-
-    if mtow is None:
-        st.info("Set the design weight (Structural Speeds) or itemized weights to plot this airplane.")
-
-    with st.expander("Reference fleet data"):
-        st.dataframe(fleet.drop(columns=["series"]), hide_index=True, use_container_width=True)
+render_fleet_comparison(
+    project, name=project.name or "This airplane", mtow=mtow,
+    wing_area=layout.wing_area_sqft or None, power=power or None,
+)

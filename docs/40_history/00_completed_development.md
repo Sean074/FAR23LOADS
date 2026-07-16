@@ -10,6 +10,58 @@ Acceptance**, **Key decisions**.
 
 ---
 
+## Phase E — Step E4: Fleet comparison upgrade (complete, 2026-07-15)
+
+**Objective.** Turn the visual, duplicated fleet comparison into a shared,
+quantitative one. GUI-only in effect: **no schema change** (`SCHEMA_VERSION` stays
+22) and **no calc-math change** — the Appendix A/B oracles pass unmodified; the new
+`fleet.py` is an additive pure helper.
+
+**Deliverables.**
+- **`farloads/fleet.py`** — a pure, unit-tested placement helper (no pandas / file
+  access / Streamlit): `FleetPoint` / `Subject` records (with derived `w_s`/`w_p`,
+  `w_p = None` for a jet), `fleet_stats(subject, fleet, *, n=3, band=(10, 90))
+  -> FleetStats`, and `percentile_rank` / `percentile` helpers. Nearest-N uses a
+  normalized-Euclidean distance over whichever metrics the subject supplies (always
+  `log10(MTOW)`, plus W/S and W/P when known), each divided by the fleet spread so
+  the axes are commensurate; a fleet point missing an axis (a jet's W/P) simply
+  drops that term. Percentile rank + p10–p90 outlier band on the subject's W/S and
+  W/P.
+- **`app/components.render_fleet_comparison(project, *, name, mtow, oew, wing_area,
+  power)`** — the single shared presentation wrapper: loads
+  `app/data/reference_aircraft.csv`, builds the `FleetPoint`s + `Subject`, renders
+  the quantitative readout (W/S & W/P percentile-band metrics, a nearest-3 table
+  with distances, an outlier warning) then the W/S-vs-W/P and MTOW-vs-OEW scatters.
+- **`configuration_layout.py` / `weight_estimate.py`** — the duplicated ~65-line
+  fleet blocks are deleted; each page now calls `render_fleet_comparison` with the
+  subject values it already computes (Configuration supplies wing area + installed
+  power; Weight Estimate supplies estimated MTOW/OEW + power, no subject wing area
+  → its W/S shows "—").
+- **Tests** — `tests/test_fleet_compare.py` (10): nearest-N ordering/count, the
+  jet-as-neighbour case, percentile rank + band, outlier firing / silence on a
+  central design, the no-wing-area (Weight-Estimate) subject, the standalone
+  percentile helpers, and an empty-fleet guard.
+
+**Test / Acceptance.** Full suite (**343 passed**, +10 for the new test file) +
+`ruff check farloads/ cli.py app/` clean, confirming the no-calc-change invariant;
+`app/components.py` imports cleanly and exposes `render_fleet_comparison`. The
+existing `tests/test_reference_aircraft.py` still guards the CSV shape. Docs synced
+(`GUI_design.md §8.4/§11`, `PROJECT_GUIDE.md` package layout, this history +
+`CHANGELOG.md`, backlog E4 removed).
+
+**Key decisions.** (D-E4-1) The numeric core lives in a **pure, unit-tested
+`farloads/fleet.py`** (mirroring `applicability.py` / `validation.py`) with the CSV
+load + rendering in an `app/components.py` wrapper, exceeding the backlog's
+manual-only acceptance to keep the math regression-safe. (D-E4-2) Nearest-N is an
+**adaptive normalized-Euclidean** metric over the metrics the subject has; the
+outlier flag is the fleet **p10–p90** band. (D-E4-3) The readout lists the
+**nearest 3** from the **whole fleet**, with jets (`max_hp = 0`) excluded from W/P
+distance and the W/P percentile only, never from the comparator pool. Both pages
+now render **both** scatters (the readout is the unification), where previously
+Weight Estimate showed only MTOW-vs-OEW.
+
+---
+
 ## Phase E — Step E3: Graphical review + input-consistency validation (complete, 2026-07-15)
 
 **Objective.** Give the input-heavy definition pages a visual sanity check and

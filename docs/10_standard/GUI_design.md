@@ -214,11 +214,20 @@ is silently skipped when that envelope (or the wing geometry it needs) is absent
 
 The airplane is placed against the reference fleet in
 `app/data/reference_aircraft.csv` (23 aircraft spanning GA singles to ~41,000-lb /
-50-seat regional turboprops, so a concept airplane has real comparators). Beyond
-the W/S-vs-W/P and MTOW-vs-OEW scatters, a quantitative nearest-match / percentile
-/ outlier readout is the target, via one shared helper reused by Configuration &
-Layout and Weight Estimate. *(Target — Phase E4; today the comparison is visual
-and duplicated across the two pages.)*
+50-seat regional turboprops, so a concept airplane has real comparators). Above the
+W/S-vs-W/P and MTOW-vs-OEW scatters, a quantitative readout reports the nearest-3
+similar aircraft, the W/S and W/P percentile band, and outlier flags. The numeric
+core is the pure, unit-tested `farloads/fleet.py` (`fleet_stats(subject, fleet)` →
+`FleetStats`; no pandas / file access / Streamlit); the CSV load and rendering are
+the single shared `app/components.render_fleet_comparison`, reused by Configuration
+& Layout and Weight Estimate. Locked decisions (Step E4, 2026-07-15): **D-E4-1**
+pure core in `farloads/fleet.py` + presentation wrapper in `app/components.py`;
+**D-E4-2** nearest-N uses a normalized-Euclidean distance over whichever metrics the
+subject supplies (always log-MTOW; add W/S and W/P when known), and the outlier flag
+is the fleet **p10–p90** band; **D-E4-3** the readout lists the **nearest 3** from
+the whole fleet, with jets (`max_hp = 0`, no shaft power) excluded from W/P distance
+and the W/P percentile only, never from the comparator pool. *(Implemented — Phase
+E4.)*
 
 ---
 
@@ -286,10 +295,11 @@ FAR 23 applicability banner + `occupants`/`crew` fields and OEW line (§9,
 Phase E1), the per-widget `help=` tooltips + parameter-guide expanders across
 the six Airplane pages (§8.1, Phase E2), and the Structural Speeds V-n diagram +
 Weight/CG mass-distribution plot + input-consistency warnings (§8.2/§8.3,
-Phase E3).
+Phase E3), and the quantitative fleet comparison — nearest-3 / percentile band /
+outlier flags via the shared `farloads/fleet.py` + `render_fleet_comparison`
+(§8.4, Phase E4).
 
-**Adopted standards pending rollout (backlog Phase E):** the
-quantitative fleet comparison (E4) and load-path robustness (E5).
+**Adopted standards pending rollout (backlog Phase E):** load-path robustness (E5).
 
 Schema is at **`SCHEMA_VERSION = 22`**; Phase D (the six-section GUI restructure)
 is complete. The open GUI plan is

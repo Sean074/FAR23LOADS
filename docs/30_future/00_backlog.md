@@ -34,15 +34,16 @@ Start-page local-disk persistence; authoritative shared inputs + Aero
 Coefficients page; Envelopes & Critical Conditions section; Analysis merged
 into nine component pages; Loads Plots page; Export & report upgrades) and
 Phase-E **Steps E1–E2** (FAR 23 applicability detection + `occupants`/`crew`
-fields + OEW line; per-widget `help=` tooltips + parameter guides). Phase D
-(the six-section GUI restructure) is complete; **Phase E** (GUI usability
-& concept-awareness) is underway — E1–E3 shipped, E4–E5 queued below. **All 22** of Reference 1's
+fields + OEW line; per-widget `help=` tooltips + parameter guides; shared
+quantitative fleet comparison). Phase D (the six-section GUI restructure) is
+complete; **Phase E** (GUI usability & concept-awareness) is underway — E1–E4
+shipped, E5 queued below. **All 22** of Reference 1's
 Appendix-C programs are ported (ENGLOADS, WTESTIMA, WTONECG, WTENV,
 WINGGEOM, STRSPEED, MACHLIM, TAU, AIRLOADS, AIRLOAD4, FLTLOADS, SELECT, WINGINER,
 NETLOADS, TAILDIST, AILERON, FLAPLOAD, TABLOADS, ONENGOUT, LGFACTOR, LANDLOAD,
 BALLOADS), plus **2 modern modules** with no `.BAS` oracle (`configuration`,
 `body_loads`).
-Schema is at **`SCHEMA_VERSION = 22`**; 333 tests pass; coverage ~92%. The wing
+Schema is at **`SCHEMA_VERSION = 22`**; 343 tests pass; coverage ~92%. The wing
 distributed-loads vertical slice (geometry → speeds → envelope → airloads → inertia
 → net → sbeam export), the critical-load selection (wing / h-tail / v-tail /
 fuselage), the chordwise tail distribution, the simplified control-surface
@@ -106,16 +107,6 @@ concept mode reduces exactly to FAR 23 on GA inputs. User-approved directions
 (locked 2026-07-15): warn-banner (non-blocking) for exceedance with a "switch to
 Concept" action; `occupants` as a first-class field; `help=` tooltips + per-page
 parameter guides; and the E3 graphical set (V-n + input-consistency + CG/mass).
-
-### Step E4 — Fleet comparison upgrade (P2)
-**Objective.** Turn the visual, duplicated fleet comparison into a shared,
-quantitative one. No schema change.
-**Deliverables.** One shared fleet-compare helper reused by
-`configuration_layout.py` and `weight_estimate.py`; a quantitative readout
-(nearest-N similar aircraft, W/S & W/P percentile band, outlier flags) atop the
-existing scatters.
-**Test/Acceptance.** `tests/test_fleet_compare.py` (new) for the helper (nearest-N
-/ percentile on a fixture); manual walkthrough; full suite + `ruff` clean.
 
 ### Step E5 — Load-path robustness (P2)
 **Objective.** Make the sidebar project load fail gracefully and be schema-aware.

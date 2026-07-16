@@ -78,6 +78,7 @@ from .units import (
 )
 from . import io, registry
 from .applicability import Exceedance, far23_applicability
+from .fleet import FleetPoint, FleetStats, Subject, fleet_stats
 from .validation import ConsistencyWarning, consistency_warnings
 from .vn_diagram import GustInputs, VnDiagram, VnTrace, build_vn_diagram, resolve_gust_inputs
 
@@ -91,6 +92,10 @@ __all__ = [
     "AeroCoefficientsInput",
     "Exceedance",
     "far23_applicability",
+    "FleetPoint",
+    "FleetStats",
+    "Subject",
+    "fleet_stats",
     "ConsistencyWarning",
     "consistency_warnings",
     "GustInputs",

@@ -24,6 +24,19 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **Quantitative fleet comparison (Phase E, Step E4).** The visual, duplicated
+  fleet scatters on **Configuration & Layout** and **Weight Estimate** are unified
+  behind one shared helper that adds a **quantitative readout** above the scatters:
+  the **nearest-3** similar reference aircraft (by a normalized distance over
+  log-MTOW plus W/S and W/P where known), the **W/S and W/P percentile band**, and
+  **outlier flags** (outside the fleet p10–p90). The numeric core is the new pure,
+  unit-tested `farloads/fleet.py` (`fleet_stats(subject, fleet) -> FleetStats`; no
+  pandas / file access / Streamlit); the CSV load and rendering are the single
+  `app/components.render_fleet_comparison`, reused by both pages. Jets (`max_hp = 0`)
+  are excluded from the W/P comparison only, never from the comparator pool.
+  GUI-only: no schema change (`SCHEMA_VERSION` stays **22**) and no calc-math change
+  — the Appendix A/B oracles are untouched (343 tests pass, +10). Implements
+  `GUI_design.md §8.4`.
 - **Graphical review + input-consistency validation (Phase E, Step E3).** Two new
   pure, unit-tested helpers and their GUI surfacing. `farloads/vn_diagram.py` builds
   a proper **V-n diagram** — the curved stall boundary `n = (V/VS)²`, the flaps-up
