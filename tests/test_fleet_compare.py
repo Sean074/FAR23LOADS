@@ -1,10 +1,11 @@
 """Unit tests for the pure fleet-comparison helper (``farloads.fleet``).
 
-The Configuration & Layout and Weight Estimate pages place one airplane against
-``app/data/reference_aircraft.csv`` via this helper (GUI_design §8.4, Step E4). The
-numeric core is pure -- no pandas, no CSV, no Streamlit -- so these tests build a
-small in-memory fleet fixture and assert the nearest-N ordering, the percentile
-band and the outlier flags directly.
+The Aircraft Comparison page places one airplane against
+``app/data/reference_aircraft.csv`` via this helper (GUI_design §8.4). The numeric
+core is pure -- no pandas, no CSV, no Streamlit -- so these tests build a small
+in-memory fleet fixture and assert the nearest-N ordering, the percentile band and
+the outlier flags directly. The geometry fields (span / AR / seats, backlog F2) are
+presentation-only, so a dedicated test proves they add no distance term.
 """
 
 import math
@@ -98,6 +99,47 @@ def test_subject_without_wing_area_has_no_ws_metric():
     assert stats.ws_band is None
     assert "W/S" not in stats.outliers
     assert stats.wp_percentile is not None  # W/P still computable
+
+
+def test_subject_span_derivation():
+    # Explicit span wins; else span = sqrt(AR * S); else None.
+    assert Subject("s", mtow_lb=3000, wing_area_ft2=170, wingspan_ft=36.0).span == 36.0
+    derived = Subject("s", mtow_lb=3000, wing_area_ft2=180, aspect_ratio=7.5).span
+    assert derived is not None and math.isclose(derived, math.sqrt(7.5 * 180))
+    assert Subject("s", mtow_lb=3000, wing_area_ft2=180).span is None  # no AR, no span
+    assert Subject("s", mtow_lb=3000).span is None  # no area either
+
+
+def test_subject_aspect_ratio_derivation():
+    # Explicit AR wins; else AR = span^2 / S; else None.
+    assert Subject("s", mtow_lb=3000, wing_area_ft2=180, aspect_ratio=7.5).aspect_ratio_effective == 7.5
+    derived = Subject("s", mtow_lb=3000, wing_area_ft2=180, wingspan_ft=36.0).aspect_ratio_effective
+    assert derived is not None and math.isclose(derived, 36.0 ** 2 / 180)
+    assert Subject("s", mtow_lb=3000, wing_area_ft2=180).aspect_ratio_effective is None
+
+
+def test_fleet_point_span_and_aspect_ratio_match_subject_rules():
+    # FleetPoint carries the same presentation-only derivations as Subject.
+    p = FleetPoint("x", 2450, 1691, 180, 174, wingspan_ft=36.1, aspect_ratio=7.5)
+    assert p.span == 36.1
+    assert p.aspect_ratio_effective == 7.5
+    q = FleetPoint("y", 2450, 1691, 180, 180, aspect_ratio=7.5)  # span derived
+    assert q.span is not None and math.isclose(q.span, math.sqrt(7.5 * 180))
+
+
+def test_geometry_fields_add_no_distance_term():
+    # The nearest-N ranking runs on MTOW / W/S / W/P only (decision D-F2-a): a subject
+    # with geometry ranks byte-identically to the same subject without it.
+    base = Subject("t", mtow_lb=2450, oew_lb=1700, wing_area_ft2=174, power_hp=180)
+    with_geom = Subject("t", mtow_lb=2450, oew_lb=1700, wing_area_ft2=174, power_hp=180,
+                        wingspan_ft=36.1, aspect_ratio=7.5, seats=4)
+    a = fleet_stats(base, FLEET, n=6)
+    b = fleet_stats(with_geom, FLEET, n=6)
+    assert [(p.name, round(d, 12)) for p, d in a.nearest] == \
+           [(p.name, round(d, 12)) for p, d in b.nearest]
+    assert a.ws_percentile == b.ws_percentile
+    assert a.wp_percentile == b.wp_percentile
+    assert a.outliers == b.outliers
 
 
 def test_percentile_helpers_standalone():

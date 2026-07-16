@@ -37,14 +37,16 @@ Phase-E **Steps E1–E2** (FAR 23 applicability detection + `occupants`/`crew`
 fields + OEW line; per-widget `help=` tooltips + parameter guides; shared
 quantitative fleet comparison; graceful/schema-aware load path). Phase D (the
 six-section GUI restructure) is complete; **Phase E** (GUI usability &
-concept-awareness) is underway — E1–E5 shipped; Phase E is complete. **All 22**
-of Reference 1's
+concept-awareness) is complete (E1–E7 shipped). **Phase F** (Aircraft Comparison)
+— **F1 and F2 shipped 2026-07-16**: the reference fleet is enriched/expanded and
+the dedicated Aircraft Comparison page is live; only the fleet-data curation
+**Open questions** remain. **All 22** of Reference 1's
 Appendix-C programs are ported (ENGLOADS, WTESTIMA, WTONECG, WTENV,
 WINGGEOM, STRSPEED, MACHLIM, TAU, AIRLOADS, AIRLOAD4, FLTLOADS, SELECT, WINGINER,
 NETLOADS, TAILDIST, AILERON, FLAPLOAD, TABLOADS, ONENGOUT, LGFACTOR, LANDLOAD,
 BALLOADS), plus **2 modern modules** with no `.BAS` oracle (`configuration`,
 `body_loads`).
-Schema is at **`SCHEMA_VERSION = 22`**; 347 tests pass; coverage ~92%. The wing
+Schema is at **`SCHEMA_VERSION = 22`**; 362 tests pass; coverage ~92%. The wing
 distributed-loads vertical slice (geometry → speeds → envelope → airloads → inertia
 → net → sbeam export), the critical-load selection (wing / h-tail / v-tail /
 fuselage), the chordwise tail distribution, the simplified control-surface
@@ -162,36 +164,15 @@ Added the `aspect_ratio` column + six aircraft (23 → 29), and carried
 `40_history/00_completed_development.md` → "Phase F — Step F1". The larger
 comparator-set curation and extra columns remain in **Open questions** below.
 
-### Step F2 — Build the Aircraft Comparison page
-- Add `app/views/aircraft_comparison.py` and register
-  `WorkflowStep("aircraft_comparison", "Aircraft Comparison", EXPORT, module=None,
-  produces=None, bas=None, summary="Place the design against similar aircraft.")`
-  in `farloads/workflow.py` **before** the `results_review` step.
-- Move the presentation logic out of `render_fleet_comparison` into the new page
-  (or have the page own the table + four plots and keep the helper only if another
-  caller remains — after this step there is none). **Remove** the
-  `render_fleet_comparison` call + its subject-metric assembly from
-  `configuration_layout.py` and `weight_estimate.py`.
-- Extend the `Subject` side (`farloads/fleet.py`) as needed for the geometric axes:
-  the subject has no stored span — derive it from `configuration.aspect_ratio` and
-  `wing_area_sqft` (`span = sqrt(AR·S)`), and surface `wing_area`, `AR`, and `seats`
-  for the table/plots. Keep `fleet.py` pure (no pandas/Streamlit).
-- The page assembles the subject from the best available slices (MTOW from
-  `speeds.weight_lb` → `weight.direct_totals()[0]` → WTESTIMA result; OEW from
-  `weight.direct_totals()[1]` → WTESTIMA; area from `configuration.wing_area_sqft`
-  → `speeds.wing_area_sqft`; power from `Σ engines[].max_cont_hp` →
-  `weight.estimation.max_continuous_hp`), and shows a clear "metric unavailable"
-  state when a slice is missing rather than dropping the subject silently.
-*Done when:* the page renders table + four plots with the subject highlighted; the
-two input pages no longer show the fleet block; `test_workflow` still passes (every
-registered module has a step — GUI-only steps are exempt); a view smoke-test and a
-`fleet_stats` test covering the geometric-axis subject pass; docs synced
-(`PROGRAM_SPEC.md` GUI-page list, `GUI_design.md §8.4`, this backlog → history,
-`CHANGELOG.md`).
-
-**Invariant:** no calc-math change — the Appendix A/B oracles pass unmodified
-(these are input-assessment plots, not load output, so the ULT/limit rules and
-`load_cases_to_rows` are untouched).
+### Step F2 — Build the Aircraft Comparison page — **shipped 2026-07-16**
+Added the dedicated `app/views/aircraft_comparison.py` page (Export phase, before
+Results Review): quantitative readout + parameter table + six scatter tabs (loading,
+weight, and wingspan/area/AR/seats-vs-MTOW). `Subject`/`FleetPoint` gained
+presentation-only `span`/`aspect_ratio_effective` derivations (`fleet_stats`
+unchanged, decision D-F2-a); the shared `render_fleet_comparison` helper and the
+fleet block on Configuration & Layout / Weight Estimate were removed. See
+`40_history/00_completed_development.md` → "Phase F — Step F2". The
+comparator-set curation and extra columns remain in **Open questions** below.
 
 ### Open questions (fleet data) — for further curation before/with F2
 - **Which comparators?** Should the fleet stay in the current GA-single →

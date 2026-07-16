@@ -11,6 +11,19 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **Aircraft Comparison page (Phase F, Step F2).** A dedicated
+  `app/views/aircraft_comparison.py` view in the **Export** phase (before Results
+  Review; GUI-only `WorkflowStep`) is now the single home for the fleet comparison.
+  It carries a quantitative readout (nearest-3, W/S & W/P percentile band, outliers),
+  a **parameter table** (subject + nearest-N over MTOW/OEW/power/W-S/W-P/wingspan/
+  area/AR/seats), and **six scatter tabs** (W/S-vs-W/P, MTOW-vs-OEW, and wingspan /
+  wing area / aspect ratio / seats vs. MTOW). `Subject` (and `FleetPoint`) gain
+  presentation-only `wingspan_ft`/`aspect_ratio`/`seats` fields plus `span` /
+  `aspect_ratio_effective` derivations (`span = √(AR·S)`); the nearest-N distance
+  stays on MTOW / W/S / W/P, so `fleet_stats` is byte-identical (decision D-F2-a).
+  Guarded by new `tests/test_aircraft_comparison.py` and extended
+  `tests/test_fleet_compare.py`. No calc-math or oracle change.
+
 - **Reference-fleet expansion for the Aircraft Comparison page (Phase F, Step
   F1).** `app/data/reference_aircraft.csv` gains an `aspect_ratio` column (span²/area)
   and six aircraft (PA-28-181 Archer, Cirrus SR22, Diamond DA40, Extra 300, PA-44
@@ -25,6 +38,12 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   level). Backed by `tests/test_airspeed_conversions.py`.
 
 ### Changed
+
+- **Fleet comparison moved to its own page (Phase F, Step F2).** The shared
+  `app/components.render_fleet_comparison` helper (its private `_fleet_points` /
+  `_fleet_readout`) and the fleet block on **Configuration & Layout** and **Weight
+  Estimate** are removed; the comparison now lives only on the new Aircraft
+  Comparison page. `app/components.py` retains just the FAR 23 applicability banner.
 
 - **Mach Limit page reworked into the Speed–Altitude Envelope (Phase E, Step E7).**
   MC, MD and the shoulder altitude are now read from the Structural Speeds `speeds`

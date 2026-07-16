@@ -165,6 +165,9 @@ STEPS: Tuple[WorkflowStep, ...] = (
                          "whole-airframe view, and external-CSV comparison."),
 
     # ---- Export: hand off to downstream tools -------------------------------- #
+    WorkflowStep("aircraft_comparison", "Aircraft Comparison", EXPORT,
+                 module=None, produces=None, bas=None,
+                 summary="Place the design against similar aircraft."),
     WorkflowStep("results_review", "Results Review", EXPORT,
                  module=None, produces=None, bas=None,
                  summary="Consolidated governing loads across every component."),

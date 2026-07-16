@@ -12,7 +12,6 @@ from __future__ import annotations
 import pandas as pd
 import streamlit as st
 
-from components import render_fleet_comparison
 from farloads import (
     EngineWeightType,
     Project,
@@ -160,26 +159,6 @@ if st.button("Seed Weight, CG & Inertia from this estimate"):
         f"Seeded {len(seed_items)} component(s) into the weight data base. "
         "Open the Weight, CG & Inertia page to set their stations."
     )
-
-# --------------------------------------------------------------------------- #
-# Comparison with similar aircraft (shared helper, Step E4)
-# --------------------------------------------------------------------------- #
-def _estimate_value(label: str) -> float | None:
-    """Pull one labelled figure out of the raw (Imperial) estimate results."""
-    for r in results:
-        for v in r.values:
-            if v.label == label:
-                return float(v.value)
-    return None
-
-
-render_fleet_comparison(
-    project,
-    name=inp.airplane or "This airplane",
-    mtow=_estimate_value("Max take-off weight"),
-    oew=_estimate_value("Empty weight"),
-    power=inp.max_continuous_hp or None,
-)
 
 st.download_button(
     "Download weight estimate (CSV)",

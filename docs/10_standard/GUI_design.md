@@ -189,12 +189,12 @@ that lets the user *see* whether the inputs are self-consistent:
 
 | Page | Graphical review |
 |------|------------------|
-| Configuration & Layout | Three-view (CG, neutral point, gear, mass bubbles, engines) + fleet scatter |
+| Configuration & Layout | Three-view (CG, neutral point, gear, mass bubbles, engines) |
 | Wing / Surface Geometry | Planform plot; derived Area/MAC/XLEMAC/AR/span |
-| Weight Estimate | MTOW-vs-OEW fleet scatter |
 | Flight Envelope (V-n) | Continuous LIMIT design envelope (curved stall boundary, flaps-up/down manoeuvre envelope, gust lines) overlaid on the rigorous Mach-corrected balanced corner points *(consolidated — Phase E6)* |
 | Weight/CG/Inertia | CG marker + mass-distribution plot (with WTENV limits when defined) *(implemented — Phase E3)* |
 | Aerodynamic Data | Echo tables only *(curve plot deferred — see backlog)* |
+| Aircraft Comparison (Export) | Parameter table + six fleet scatters (loading, weight, geometry) *(Phase F, Step F2)* |
 
 The continuous LIMIT design envelope is built by the pure `farloads/vn_diagram.py`
 helper from the STRSPEED design speeds + limit load factors; its gust lines are the
@@ -217,24 +217,36 @@ CG-envelope check compares the WTONECG CG against the WTENV structural envelope 
 is silently skipped when that envelope (or the wing geometry it needs) is absent.
 *(Implemented — Phase E3.)*
 
-### 8.4 Fleet comparison
+### 8.4 Fleet comparison — the Aircraft Comparison page
 
 The airplane is placed against the reference fleet in
-`app/data/reference_aircraft.csv` (23 aircraft spanning GA singles to ~41,000-lb /
-50-seat regional turboprops, so a concept airplane has real comparators). Above the
-W/S-vs-W/P and MTOW-vs-OEW scatters, a quantitative readout reports the nearest-3
-similar aircraft, the W/S and W/P percentile band, and outlier flags. The numeric
-core is the pure, unit-tested `farloads/fleet.py` (`fleet_stats(subject, fleet)` →
-`FleetStats`; no pandas / file access / Streamlit); the CSV load and rendering are
-the single shared `app/components.render_fleet_comparison`, reused by Configuration
-& Layout and Weight Estimate. Locked decisions (Step E4, 2026-07-15): **D-E4-1**
-pure core in `farloads/fleet.py` + presentation wrapper in `app/components.py`;
-**D-E4-2** nearest-N uses a normalized-Euclidean distance over whichever metrics the
-subject supplies (always log-MTOW; add W/S and W/P when known), and the outlier flag
-is the fleet **p10–p90** band; **D-E4-3** the readout lists the **nearest 3** from
-the whole fleet, with jets (`max_hp = 0`, no shaft power) excluded from W/P distance
-and the W/P percentile only, never from the comparator pool. *(Implemented — Phase
-E4.)*
+`app/data/reference_aircraft.csv` (29 aircraft spanning GA singles to ~41,000-lb /
+50-seat regional turboprops, so a concept airplane has real comparators) on **one
+dedicated page** — **Aircraft Comparison**, in the Export phase before Results
+Review (`app/views/aircraft_comparison.py`, GUI-only `WorkflowStep`). The two input
+pages (Configuration & Layout, Weight Estimate) **no longer** carry a fleet block —
+the comparison lives in exactly one place (Phase F, Step F2). The page carries a
+quantitative readout (nearest-3 similar aircraft, W/S & W/P percentile band, outlier
+flags), a **parameter table** (subject row on top, then the nearest-N over MTOW,
+OEW, power, W/S, W/P, wingspan, wing area, aspect ratio, seats), and **six scatter
+tabs**: W/S-vs-W/P, MTOW-vs-OEW, and four geometric scatters (wingspan / wing area /
+aspect ratio / seats vs. MTOW).
+
+The numeric core is the pure, unit-tested `farloads/fleet.py`
+(`fleet_stats(subject, fleet)` → `FleetStats`; no pandas / file access / Streamlit);
+the CSV load and rendering are owned by the page itself. Locked decisions
+(Step E4, 2026-07-15): **D-E4-1** pure core in `farloads/fleet.py`; **D-E4-2**
+nearest-N uses a normalized-Euclidean distance over whichever metrics the subject
+supplies (always log-MTOW; add W/S and W/P when known), and the outlier flag is the
+fleet **p10–p90** band; **D-E4-3** the readout lists the **nearest 3** from the
+whole fleet, with jets (`max_hp = 0`, no shaft power) excluded from W/P distance and
+the W/P percentile only, never from the comparator pool. Step F2 decisions
+(2026-07-16): **D-F2-a** the nearest-N distance stays on MTOW / W/S / W/P — the
+geometry (span / area / AR / seats) is **presentation-only** (table columns and plot
+axes), never a distance term; **D-F2-b** six tabs, one plot each; **D-F2-c** no
+category coloring (two-series `Reference fleet` vs `This airplane`). *(Implemented —
+Phase F, Step F2; the shared `render_fleet_comparison` wrapper on the two input
+pages, its Phase-E4 home, was removed.)*
 
 ---
 
@@ -303,16 +315,17 @@ reruns); the editor surfaces it inline.
 **Implemented today:** the six-section navigation, the global unit toggle and
 project-file widget, the shared-`Project` data flow and seed-chain, the
 form+Apply/merge page conventions, the unit-boundary input pattern across all
-definition pages (§7), the Configuration & Layout three-view + fleet scatters, the
+definition pages (§7), the Configuration & Layout three-view, the
 FAR 23 applicability banner + `occupants`/`crew` fields and OEW line (§9,
 Phase E1), the per-widget `help=` tooltips + parameter-guide expanders across
 the six Airplane pages (§8.1, Phase E2), and the V-n diagram +
 Weight/CG mass-distribution plot + input-consistency warnings (§8.2/§8.3,
 Phase E3; the V-n later consolidated onto the Flight Envelope page in Phase E6),
-and the quantitative fleet comparison — nearest-3 / percentile band /
-outlier flags via the shared `farloads/fleet.py` + `render_fleet_comparison`
-(§8.4, Phase E4), and the graceful, schema-aware load path across the sidebar and the
-JSON Editor (§10, Phase E5).
+and the dedicated **Aircraft Comparison** page — parameter table + six fleet
+scatters + nearest-3 / percentile band / outlier flags via the pure
+`farloads/fleet.py` (§8.4, Phase E4 core; consolidated onto its own Export-phase
+page in Phase F, Step F2), and the graceful, schema-aware load path across the
+sidebar and the JSON Editor (§10, Phase E5).
 
 **Phase E is complete** — all steps E1–E5 have shipped.
 

@@ -1,19 +1,18 @@
 """Quantitative fleet comparison -- pure, unit-testable placement of one airplane
 against a reference fleet.
 
-A companion to the visual W/S-vs-W/P and MTOW-vs-OEW scatters on the Configuration
-& Layout and Weight Estimate pages: those show *where* the design sits; this module
-reports it numerically -- the nearest-N similar aircraft, the wing-loading /
-power-loading percentile band, and outlier flags. It is pure (no pandas, no file
+A companion to the visual W/S-vs-W/P, MTOW-vs-OEW and geometric scatters on the
+Aircraft Comparison page: those show *where* the design sits; this module reports it
+numerically -- the nearest-N similar aircraft, the wing-loading / power-loading
+percentile band, and outlier flags. It is pure (no pandas, no file
 access, no Streamlit); the presentation wrapper that loads the reference CSV and
-renders the readout lives in ``app/components.render_fleet_comparison`` (GUI_design
-§8.4).
+renders the readout + scatters lives in the ``app/views/aircraft_comparison.py``
+page (GUI_design §8.4).
 
-The two calling pages expose different subject metrics -- Configuration & Layout
-knows the wing area and installed power (so W/S and W/P), Weight Estimate knows the
-estimated MTOW and OEW but no subject wing area -- so the nearest-N distance is
-computed over **whichever metrics the subject supplies** (always log-MTOW; add W/S
-and W/P when available), each normalized against the fleet spread so the axes are
+The Aircraft Comparison page assembles the subject from whatever slices are
+present, so a subject may supply any subset of the metrics -- the nearest-N distance
+is computed over **whichever metrics the subject supplies** (always log-MTOW; add
+W/S and W/P when available), each normalized against the fleet spread so the axes are
 commensurate. Jets (no shaft power) carry no W/P and are excluded from W/P distance
 and the W/P percentile only, never from the comparator pool.
 """
@@ -61,6 +60,30 @@ class FleetPoint:
             return self.mtow_lb / self.max_hp
         return None
 
+    @property
+    def span(self) -> Optional[float]:
+        """Wingspan (ft): the stored ``wingspan_ft`` if given, else derived from
+        ``sqrt(aspect_ratio * wing_area_ft2)`` when both are present, else ``None``.
+        Presentation-only geometry, matching :attr:`Subject.span`."""
+        if self.wingspan_ft and self.wingspan_ft > 0:
+            return self.wingspan_ft
+        if (self.aspect_ratio and self.aspect_ratio > 0
+                and self.wing_area_ft2 and self.wing_area_ft2 > 0):
+            return math.sqrt(self.aspect_ratio * self.wing_area_ft2)
+        return None
+
+    @property
+    def aspect_ratio_effective(self) -> Optional[float]:
+        """Aspect ratio: the stored ``aspect_ratio`` if given, else derived from
+        ``wingspan_ft**2 / wing_area_ft2`` when both are present, else ``None``.
+        Presentation-only geometry, matching :attr:`Subject.aspect_ratio_effective`."""
+        if self.aspect_ratio and self.aspect_ratio > 0:
+            return self.aspect_ratio
+        if (self.wingspan_ft and self.wingspan_ft > 0
+                and self.wing_area_ft2 and self.wing_area_ft2 > 0):
+            return self.wingspan_ft ** 2 / self.wing_area_ft2
+        return None
+
 
 @dataclass(frozen=True)
 class Subject:
@@ -69,12 +92,21 @@ class Subject:
     ``mtow_lb`` is always required (the common comparison axis). ``oew_lb``,
     ``wing_area_ft2`` and ``power_hp`` are optional -- each present metric adds a
     dimension to the nearest-N distance and enables its percentile / outlier check.
+
+    ``wingspan_ft``, ``aspect_ratio`` and ``seats`` are **presentation-only**
+    geometry carried for the Aircraft Comparison page's parameter table and its
+    geometric scatter plots (span / area / AR / seats vs. MTOW). They are *not* used
+    by :func:`fleet_stats` -- the loading placement runs on MTOW / W/S / W/P only --
+    so a subject that omits them ranks identically to one that supplies them.
     """
     name: str
     mtow_lb: float
     oew_lb: Optional[float] = None
     wing_area_ft2: Optional[float] = None
     power_hp: Optional[float] = None
+    wingspan_ft: Optional[float] = None
+    aspect_ratio: Optional[float] = None
+    seats: int = 0
 
     @property
     def w_s(self) -> Optional[float]:
@@ -86,6 +118,34 @@ class Subject:
     def w_p(self) -> Optional[float]:
         if self.power_hp and self.power_hp > 0:
             return self.mtow_lb / self.power_hp
+        return None
+
+    @property
+    def span(self) -> Optional[float]:
+        """Wingspan (ft): the stored ``wingspan_ft`` if given, else derived from
+        ``sqrt(aspect_ratio * wing_area_ft2)`` when both are present, else ``None``.
+
+        Presentation-only (the geometric plots) -- never a distance term.
+        """
+        if self.wingspan_ft and self.wingspan_ft > 0:
+            return self.wingspan_ft
+        if (self.aspect_ratio and self.aspect_ratio > 0
+                and self.wing_area_ft2 and self.wing_area_ft2 > 0):
+            return math.sqrt(self.aspect_ratio * self.wing_area_ft2)
+        return None
+
+    @property
+    def aspect_ratio_effective(self) -> Optional[float]:
+        """Aspect ratio: the stored ``aspect_ratio`` if given, else derived from
+        ``wingspan_ft**2 / wing_area_ft2`` when both are present, else ``None``.
+
+        Presentation-only (the geometric plots) -- never a distance term.
+        """
+        if self.aspect_ratio and self.aspect_ratio > 0:
+            return self.aspect_ratio
+        if (self.wingspan_ft and self.wingspan_ft > 0
+                and self.wing_area_ft2 and self.wing_area_ft2 > 0):
+            return self.wingspan_ft ** 2 / self.wing_area_ft2
         return None
 
 

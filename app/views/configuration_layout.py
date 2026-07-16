@@ -23,7 +23,7 @@ import plotly.graph_objects as go
 import streamlit as st
 from plotly.subplots import make_subplots
 
-from components import render_applicability_banner, render_fleet_comparison
+from components import render_applicability_banner
 
 from farloads.applicability import effective_occupants
 from farloads import (
@@ -484,19 +484,3 @@ with right:
                 )
             else:
                 st.info("No zero-station items matched a derivable component name.")
-
-# --------------------------------------------------------------------------- #
-# Fleet comparison (shared helper, Step E4)
-# --------------------------------------------------------------------------- #
-# This airplane's totals, if known from other slices (configuration carries no weight).
-mtow = None
-if project.speeds is not None and project.speeds.weight_lb:
-    mtow = project.speeds.weight_lb
-elif project.weight is not None and project.weight.items:
-    mtow = project.weight.direct_totals()[0]
-power = sum((e.max_cont_hp or 0.0) for e in project.engines) if project.engines else 0.0
-
-render_fleet_comparison(
-    project, name=project.name or "This airplane", mtow=mtow,
-    wing_area=layout.wing_area_sqft or None, power=power or None,
-)

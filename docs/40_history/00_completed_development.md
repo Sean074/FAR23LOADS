@@ -10,6 +10,62 @@ Acceptance**, **Key decisions**.
 
 ---
 
+## Phase F — Step F2: Aircraft Comparison page (complete, 2026-07-16)
+
+**Objective.** Give the fleet comparison a first-class home. Before F2 the
+comparison was bolted onto two *input* pages (Configuration & Layout, Weight
+Estimate) via one shared helper, showing the same scatters twice with split subject
+metrics and no single "how does this airplane compare?" view. F2 consolidates it
+onto one dedicated **Aircraft Comparison** page in the Export phase and adds the
+geometric plots the F1 data enables. Input-assessment only — no calc-math, no oracle
+change; the reference set never enters a FAR computation.
+
+**Deliverables.**
+- **`app/views/aircraft_comparison.py`** — new GUI-only page (Export phase, before
+  Results Review). Assembles the comparison subject from the best-available slices
+  (`_subject_from_project`: MTOW ← speeds/direct-weight/WTESTIMA; OEW ← direct/
+  WTESTIMA; area ← configuration/speeds; power ← Σ engines/estimation; AR ←
+  configuration; seats ← speeds/estimation), showing a clear "—" when a metric is
+  absent rather than dropping the subject. Renders the quantitative readout (nearest-3,
+  W/S & W/P percentile band, outliers), a **parameter table** (subject on top + the
+  nearest-N over MTOW/OEW/power/W-S/W-P/wingspan/area/AR/seats), **six scatter tabs**
+  (W/S-vs-W/P, MTOW-vs-OEW, wingspan/area/AR/seats-vs-MTOW), and the reference-fleet
+  expander. Owns its own `_REFERENCE_CSV` + `_fleet_points`.
+- **`farloads/fleet.py`** — `Subject` gains presentation-only `wingspan_ft`,
+  `aspect_ratio`, `seats` fields plus `span` (= `wingspan_ft`, else `√(AR·S)`) and
+  `aspect_ratio_effective` (= `aspect_ratio`, else `span²/S`) derivations; the same
+  two derivations added to `FleetPoint` for uniform handling. `fleet_stats` is
+  untouched — geometry is never a distance term.
+- **`farloads/workflow.py`** — new
+  `WorkflowStep("aircraft_comparison", "Aircraft Comparison", EXPORT, module=None, …)`
+  positioned immediately before `results_review`.
+- **`app/views/configuration_layout.py` / `app/views/weight_estimate.py`** — the
+  fleet block and its subject-metric assembly removed; the `render_fleet_comparison`
+  imports dropped.
+- **`app/components.py`** — `render_fleet_comparison`, `_fleet_readout`,
+  `_fleet_points` and `_REFERENCE_CSV` deleted (no remaining callers); the module now
+  holds only the FAR 23 applicability banner. Imports trimmed.
+- **`tests/`** — new `test_aircraft_comparison.py` (subject assembly from an example
+  project, the geometric-axis path from a synthetic project, and `None` without
+  MTOW); `test_fleet_compare.py` extended with span/AR derivation tests and a
+  distance-invariance test proving geometry adds no distance term.
+
+**Test / Acceptance.** `ruff check farloads/ cli.py app/` clean; full `pytest` suite
+passes (362, +15 over F1's 354). `test_workflow` still passes (GUI-only steps exempt
+from the module↔step coverage assertion); the auto-discovered view smoke test runs
+the new page without exception; `grep` confirms no remaining `render_fleet_comparison`
+reference.
+
+**Key decisions (locked with user, 2026-07-16).** **D-F2-a** — the nearest-N
+similarity distance stays on MTOW / W/S / W/P; the new geometry is presentation-only
+(table columns + plot axes), so the `fleet_stats` oracle is byte-identical.
+**D-F2-b** — six tabs, one plot each (not a grid). **D-F2-c** — no category coloring
+/ no `category` CSV column in F2 (kept as an Open question). The larger
+comparator-set curation and in-UI user-supplied comparators remain **open questions
+on Phase F** in the backlog.
+
+---
+
 ## Phase F — Step F1: Reference-fleet expansion (complete, 2026-07-16)
 
 **Objective.** Groundwork for the proposed Aircraft Comparison page (Phase F, see

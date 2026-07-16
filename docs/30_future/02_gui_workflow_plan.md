@@ -63,7 +63,7 @@ truth), regrouped from four phases into six sections:
 | 3 | **Envelopes & Critical Conditions** | `weight_envelope`, `flight_envelope`, `mach_limit`, `critical_loads` | Weight/CG grid + payload-cases page; speed–altitude chart with design speeds; V-n at multiple altitudes; critical-case selection by case ID |
 | 4 | **Analysis** | 9 component pages: Wing Loads (= `airloads` + `net_wing_loads`), Tail Loads (= `tail_distribution` + `balanced_tail_verification`), Engine Out (`one_engine_out`), Fuselage Loads, Aileron, Flap, Tab, Engine Mount, Landing Gear | Merge per-program pages into component pages (locked decision) |
 | 5 | **Loads Plots** | — (new) | Overlaid shear/moment/torsion by case ID, spanwise envelope curves, external-CSV comparison, total loads |
-| 6 | **Export** | `export_report` | Case-index table in the bundle; `.xlsx` workbook |
+| 6 | **Export** | `aircraft_comparison`, `results_review`, `export_report` | Case-index table in the bundle; `.xlsx` workbook; dedicated Aircraft Comparison page (Phase F, Step F2) |
 
 Notes:
 
