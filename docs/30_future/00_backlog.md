@@ -156,14 +156,11 @@ a first-class home.
   `aspect_ratio`; `wingspan_ft` and `wing_area_ft2` already exist). Keep the
   `# comment` header + provenance note per row where practical.
 
-### Step F1 — Expand the reference fleet CSV
-Curate `app/data/reference_aircraft.csv`: add representative aircraft across the
-GA-single → commuter/light-jet range (and any concept-tier comparators the user
-names), and add an `aspect_ratio` column (span²/area, or published). Update the
-`FleetPoint` mapping in `app/components.py` (`_fleet_points`) and the loader to
-carry the new column. No calc-math change; no oracle impact.
-*Done when:* CSV round-trips through `_fleet_points`, every row has the new column
-(or a documented blank), and a test asserts the loaded fleet count + schema.
+### Step F1 — Expand the reference fleet CSV — **shipped 2026-07-16**
+Added the `aspect_ratio` column + six aircraft (23 → 29), and carried
+`seats`/`wingspan_ft`/`aspect_ratio` onto `FleetPoint`. See
+`40_history/00_completed_development.md` → "Phase F — Step F1". The larger
+comparator-set curation and extra columns remain in **Open questions** below.
 
 ### Step F2 — Build the Aircraft Comparison page
 - Add `app/views/aircraft_comparison.py` and register
@@ -196,7 +193,7 @@ registered module has a step — GUI-only steps are exempt); a view smoke-test a
 (these are input-assessment plots, not load output, so the ULT/limit rules and
 `load_cases_to_rows` are untouched).
 
-### Open questions for F1 (fleet data) — need user input before F1 lands
+### Open questions (fleet data) — for further curation before/with F2
 - **Which comparators?** Should the fleet stay in the current GA-single →
   commuter/CJ-tier band, or add specific type(s) the concept designs will be
   benchmarked against (e.g. particular turboprops, eVTOL/UAM, a named competitor

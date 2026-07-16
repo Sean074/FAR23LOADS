@@ -10,6 +10,47 @@ Acceptance**, **Key decisions**.
 
 ---
 
+## Phase F — Step F1: Reference-fleet expansion (complete, 2026-07-16)
+
+**Objective.** Groundwork for the proposed Aircraft Comparison page (Phase F, see
+`../30_future/00_backlog.md`): grow and enrich the reference-fleet data set so the
+new page's geometric plots (span / area / aspect-ratio vs. MTOW) and parameter
+table have the columns and spread they need. Data-only step — no calc-math, no
+oracle change; the reference set never enters a FAR computation.
+
+**Deliverables.**
+- **`app/data/reference_aircraft.csv`** — new `aspect_ratio` column on every row
+  (span²/area from the same row, so the geometric plots and the loading scatters
+  stay consistent). Six aircraft added to broaden the geometric spread —
+  Piper PA-28-181 Archer, Cirrus SR22, Diamond DA40, Extra 300 (low-AR aerobatic
+  endpoint), Piper PA-44 Seminole (light twin), Daher TBM 940 (fast single
+  turboprop) — 23 → 29 aircraft. Header comment updated (page reference + the
+  aspect-ratio provenance note).
+- **`farloads/fleet.py`** — `FleetPoint` gains optional `seats`, `wingspan_ft` and
+  `aspect_ratio` fields (defaults, so `fleet_stats` and older callers are
+  unaffected — the loading placement still runs on MTOW / W/S / W/P only).
+- **`app/components.py`** — `_fleet_points` now maps the three new fields onto
+  `FleetPoint`, tolerating a missing/NaN cell (an `_opt` helper) so a partially
+  populated row still loads.
+- **`tests/test_reference_aircraft.py`** — `aspect_ratio` added to the required
+  columns; new `test_aspect_ratio_consistent_with_geometry` (positive and within
+  5% of span²/area); the four added aircraft asserted present.
+
+**Test / Acceptance.** `ruff check farloads/ cli.py` clean; full `pytest` suite
+passes (354). The CSV round-trips through `_fleet_points` with all 29 rows carrying
+the new geometry.
+
+**Key decisions.** `aspect_ratio` is **stored** (not derived at plot time) so the
+geometric plots need no computation and can honour a published AR that differs from
+naïve span²/area for a cranked/tapered reference wing; the F1 rows use the
+consistent span²/area value. The larger comparator-set curation (specific
+concept-tier types, extra columns like `cruise_kt` / a `category` tag) and in-UI
+user-supplied comparators remain **open questions on Phase F** in the backlog,
+pending user direction; F1 ships the unambiguous column + a confident GA→turboprop
+spread.
+
+---
+
 ## Phase E — Step E7: Speed–altitude envelope consolidation (complete, 2026-07-16)
 
 **Objective.** Remove the input redundancy between **Structural Speeds** and **Mach

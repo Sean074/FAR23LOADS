@@ -84,6 +84,11 @@ def render_applicability_banner(project: Project) -> None:
 
 def _fleet_points(fleet: pd.DataFrame) -> list[FleetPoint]:
     """The reference-CSV rows as pure :class:`FleetPoint` records for the stats."""
+    def _opt(row: "pd.Series", key: str) -> Optional[float]:
+        if key not in row or pd.isna(row[key]):
+            return None
+        return float(row[key])
+
     return [
         FleetPoint(
             name=str(row["aircraft"]),
@@ -91,6 +96,9 @@ def _fleet_points(fleet: pd.DataFrame) -> list[FleetPoint]:
             oew_lb=float(row["oew_lb"]),
             max_hp=float(row["max_hp"]),
             wing_area_ft2=float(row["wing_area_ft2"]),
+            seats=int(row["seats"]) if "seats" in row and not pd.isna(row["seats"]) else 0,
+            wingspan_ft=_opt(row, "wingspan_ft"),
+            aspect_ratio=_opt(row, "aspect_ratio"),
         )
         for _, row in fleet.iterrows()
     ]

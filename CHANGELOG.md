@@ -11,6 +11,14 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **Reference-fleet expansion for the Aircraft Comparison page (Phase F, Step
+  F1).** `app/data/reference_aircraft.csv` gains an `aspect_ratio` column (span²/area)
+  and six aircraft (PA-28-181 Archer, Cirrus SR22, Diamond DA40, Extra 300, PA-44
+  Seminole, TBM 940 — 23 → 29) to broaden the geometric spread. `FleetPoint` carries
+  optional `seats` / `wingspan_ft` / `aspect_ratio` (defaults; `fleet_stats`
+  unaffected), and `_fleet_points` maps them. Data-only; no calc-math or oracle
+  change. Guarded by `tests/test_reference_aircraft.py`.
+
 - **`farloads.constants.convert_airspeed` + `eas_to_mach`/`mach_to_eas` (Phase E,
   Step E7).** Presentation-layer airspeed conversions: KEAS→KTAS (=KEAS/√σ) and
   KEAS→KCAS (standard subsonic compressible impact-pressure relation, exact at sea

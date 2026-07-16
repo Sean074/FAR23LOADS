@@ -1,12 +1,14 @@
 """Sanity-check the bundled reference-aircraft data set.
 
-``app/data/reference_aircraft.csv`` feeds the Weight Estimate page's MTOW-vs-OEW
-comparison plot. It is reference data only (never enters a FAR computation), but a
+``app/data/reference_aircraft.csv`` feeds the fleet-comparison plots (the
+Aircraft Comparison page: MTOW-vs-OEW, W/S-vs-W/P, and the geometric span / area /
+AR scatters). It is reference data only (never enters a FAR computation), but a
 malformed row would break the chart, so this test guards its shape and basic
 physical plausibility without importing Streamlit or plotly.
 """
 
 import csv
+import math
 import os
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -14,7 +16,7 @@ CSV_PATH = os.path.join(REPO_ROOT, "app", "data", "reference_aircraft.csv")
 
 _REQUIRED_COLUMNS = {
     "aircraft", "mtow_lb", "oew_lb", "max_hp", "engines",
-    "engine_type", "seats", "wingspan_ft", "wing_area_ft2",
+    "engine_type", "seats", "wingspan_ft", "wing_area_ft2", "aspect_ratio",
 }
 
 
@@ -46,8 +48,24 @@ def test_expected_aircraft_present():
         "Cessna 150", "Van's RV-10", "ATR 42-500", "de Havilland Dash 8-100",
         # heavier / concept tier (Phase C)
         "Cessna 208 Caravan", "Beechcraft 1900D", "Saab 340B",
+        # Step F1 additions (broaden the geometric spread)
+        "Cirrus SR22", "Diamond DA40", "Extra 300", "Daher TBM 940",
     ):
         assert expected in names, f"missing reference aircraft: {expected}"
+
+
+def test_aspect_ratio_consistent_with_geometry():
+    # aspect_ratio is stored so the geometric plots need no derivation; it must be
+    # positive and agree with span^2 / area from the same row (within rounding).
+    for row in _rows():
+        ar = float(row["aspect_ratio"])
+        span = float(row["wingspan_ft"])
+        area = float(row["wing_area_ft2"])
+        assert ar > 0, f"{row['aircraft']}: aspect_ratio must be positive"
+        assert math.isclose(ar, span * span / area, rel_tol=0.05), (
+            f"{row['aircraft']}: aspect_ratio {ar} disagrees with span^2/area "
+            f"{span * span / area:.2f}"
+        )
 
 
 def test_power_loading_data_plausible():

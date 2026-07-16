@@ -31,12 +31,21 @@ DEFAULT_BAND = (10.0, 90.0)  # percentile band for the W/S and W/P outlier flags
 
 @dataclass(frozen=True)
 class FleetPoint:
-    """One reference aircraft (nominal published specs; never a FAR input)."""
+    """One reference aircraft (nominal published specs; never a FAR input).
+
+    ``wingspan_ft`` and ``aspect_ratio`` are optional geometry carried for the
+    geometric comparison plots (span / area / AR vs. MTOW). They are not used by
+    :func:`fleet_stats` -- the loading placement runs on MTOW / W/S / W/P only -- so
+    older callers that omit them are unaffected.
+    """
     name: str
     mtow_lb: float
     oew_lb: float
     max_hp: float
     wing_area_ft2: float
+    seats: int = 0
+    wingspan_ft: Optional[float] = None
+    aspect_ratio: Optional[float] = None
 
     @property
     def w_s(self) -> Optional[float]:
