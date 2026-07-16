@@ -329,8 +329,13 @@ sidebar and the JSON Editor (§10, Phase E5).
 
 **Phase E is complete** — all steps E1–E5 have shipped.
 
-Schema is at **`SCHEMA_VERSION = 22`**; Phase D (the six-section GUI restructure)
-is complete. The open GUI plan is
-[`../30_future/00_backlog.md`](../30_future/00_backlog.md) → **Phase E**; the
-Phase-D narrative and locked decisions are in
+Schema is at **`SCHEMA_VERSION = 22`**; Phases D–F (the six-section GUI
+restructure, the usability/concept-awareness work, and fleet comparison) are all
+complete. The **open GUI plan is now
+[`../30_future/00_backlog.md`](../30_future/00_backlog.md) → Phase G** — the
+workflow-aligned rework (one-unit-per-dimension, single-source-of-truth geometry,
+re-sequenced analysis-flow navigation, fuselage-moment/trim-plot/elevator-chord
+features); its narrative and locked decisions G-1…G-4 are in
+[`../30_future/03_gui_rework_plan.md`](../30_future/03_gui_rework_plan.md). The
+Phase-D narrative is in
 [`../30_future/02_gui_workflow_plan.md`](../30_future/02_gui_workflow_plan.md).

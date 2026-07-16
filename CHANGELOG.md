@@ -9,6 +9,20 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Documentation
+
+- **Phase G — workflow-aligned GUI rework plan.** Added
+  `docs/30_future/03_gui_rework_plan.md` (renamed/expanded from the draft
+  `fix_the_gui.md`): assessment of the redesign proposal against the shipped
+  Phase D/E/F GUI, locked decisions G-1…G-4 (one-unit-per-dimension,
+  single-source-of-truth geometry incl. the fuselage, re-entry vs. true-loss
+  persistence, genuine analysis-flow re-sequencing), and the target six
+  analysis-flow sections with their page mapping. Seeded the step-by-step plan
+  into `00_backlog.md` → Phase G (Steps G0–G8) plus the split-out calc item 2-12
+  (ground-case distributed fuselage loads + pressurization); indexed in
+  `00_INDEX.md` and cross-linked from `GUI_design.md`. Docs only — no code, calc,
+  or schema change.
+
 ### Added
 
 - **Concept distributed-loads closure suite (Phase 1, Step P1-2).**

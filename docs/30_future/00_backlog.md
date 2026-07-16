@@ -232,6 +232,146 @@ Resolved 2026-07-16: **keep the "FAR23LOADS" name** for now. No rename or
 concept-loads sub-brand. Revisit if/when the concept scope becomes the primary
 identity of the tool.
 
+### 2-12 — Ground-case distributed fuselage (and wing) loads *(calc-side; split from Phase G, 2026-07-16)*
+**Objective.** Extend the fuselage (and wing) net-load distribution so it runs for
+**ground/landing** conditions, not just flight conditions, and add the pressurized
+no-down-select rule.
+**Why.** `body_loads` today distributes over **flight** V-n conditions only
+(`select_fuselage` scores `VnPoint`s); the landing path (LGFACTOR + LANDLOAD)
+produces **gear reaction loads** only — there is no distributed fuselage shear/
+bending from ground cases. For **pressurized** airplanes the pressurization load
+must be assessed for flight and **cannot** be down-selected by a ground case, so the
+two families must be carried separately.
+**Scope.** New: a ground-case fuselage inertia/reaction distribution (gear reactions
+as applied external loads on the body axis at the landing load factor from
+LGFACTOR); optionally the wing distribution under the ground reaction; a
+pressurization load case that is never down-selected against flight. **Substantial
+calc work** — the heaviest piece of the GUI rework, deliberately split out so it
+does not gate the usability restructure.
+**Acceptance.** A ground condition produces a distributed fuselage shear/bending run
+(free-free equilibrium closes); the pressurized case is retained independent of the
+governing flight case; FAR23 flight oracles unchanged. **Priority:** after Phase G's
+usability work (G0–G8) unless raised.
+Source narrative: `03_gui_rework_plan.md` §5 item (3).
+
+---
+
+# Phase G — Workflow-aligned GUI rework (usability)
+
+**Goal.** Turn the mature-but-clunky six-section GUI into a **workflow-aligned**
+tool: geometry owned in one place, one unit per dimension app-wide, persistent
+(no re-entry), navigation re-sequenced to the FAR 23 analysis flow — reusing the
+shipped Phase D/E/F pages rather than rebuilding them. Narrative, assessment vs.
+the current code, and locked decisions **G-1…G-4** are in
+[`03_gui_rework_plan.md`](03_gui_rework_plan.md); the six analysis-flow **workflow
+sections** it targets are that doc's §4.
+
+> **Invariant (unchanged):** no calc-math change to the FAR23 path — Appendix A/B
+> oracles pass unmodified throughout; ultimate-load output rules hold; pure calc /
+> thin shells; `workflow.py` stays the single source of navigation truth.
+
+Steps are in dependency order. G0 and G1 (foundational) come before the
+re-sequencing (G2–G3); the new features (G4–G6) and the report (G8) follow.
+
+### Step G0 — One unit per dimension, app-wide (G-1)
+**Objective.** Every quantity type has exactly one display unit per system; no page
+shows the same dimension two ways (today one page mixes `in`, `ft`, `ft²`).
+**Scope.** Audit current per-page units; pick the canonical display unit per **kind**
+in `farloads/units.py` (`UNIT_LABELS`); refactor the definition-page labels so all
+lengths, all areas, etc. read in one unit. Calc stays canonical Imperial
+(`GUI_design.md §7`); Imperial/SI toggle still switches the whole app.
+**Acceptance.** A per-kind unit table exists and is applied on every page; a review
+of each definition page shows no mixed units for one dimension. No calc/oracle change.
+
+### Step G1 — Geometry single source of truth (G-2), incl. fuselage
+**Objective.** All geometry (fuselage, wing, empennage, control surfaces, gear,
+engine locations) is defined on **one** page; every downstream page reads it
+read-only and never re-asks it.
+**Scope.** Consolidate `configuration_layout` + `wing_geometry` into one geometry
+page; make `flight_envelope`/speeds/weight pages read geometry read-only (extend the
+existing seed-chain to strict read-through). **Add the fuselage as a geometry
+entity** (outline for the three-view; the data the G4 moment estimator needs).
+Geometry is defined **first** in the flow (weight DB and aero both need it).
+**Acceptance.** Grep shows geometry inputs entered on exactly one page; downstream
+pages display geometry read-only; a saved→reloaded project needs no geometry
+re-entry (closes the perceived "data not stored", G-3). No calc/oracle change.
+
+### Step G2 — Re-sequence `workflow.py` into the analysis-flow phases (G-4)
+**Objective.** Reorder navigation into the six analysis-flow sections of
+`03_gui_rework_plan.md` §4: **Develop V-n → Flight loads → Other loads → Landing →
+Load-case plotting → Export**.
+**Scope.** Rework the `PHASES`/`STEPS` metadata in `farloads/workflow.py` (the
+single nav source of truth) and the section labels; keep the registered-module ↔
+workflow-step guard test green. No page bodies change in this step (grouping only).
+**Acceptance.** The sidebar presents the six analysis-flow sections in order; the
+nav-drift test passes; every registered module still has a step.
+
+### Step G3 — Phase-1 page consolidation (Develop V-n diagram)
+**Objective.** Collapse the phase-1 pages into the four sub-steps 1a–1e of §4 so the
+"define the airplane & load environment" flow is one coherent sequence.
+**Scope.** Merge weight pages (`weight_estimate` + `weight_cg_inertia` +
+`weight_envelope` + `payload_cases`) into **1b Weight & mass properties** (owns all
+weight/mass data — nothing weight asked downstream); merge `structural_speeds` +
+`mach_limit` into **1c Structural speeds**; merge `aero_coefficients` + the aero
+half of `flight_envelope` into **1d Aero coefficients**; keep the V-n results +
+SELECT as **1e**. Reuse the existing widgets/plots (three-view, mass plot, WTENV
+grid, speed–altitude, V-n) — no new calc.
+**Acceptance.** Phase 1 is 1a–1e as above; each shared quantity is entered once; the
+oracles and existing example projects still load and run unchanged.
+
+### Step G4 — Fuselage pitching-moment estimator (new; GUI + light calc)
+**Objective.** Derive the fuselage pitching-moment contribution from the G1 fuselage
+geometry and feed it into the airplane-less-tail `CM` used by the FLTLOADS balance,
+so the user no longer hand-folds it into the input coefficients.
+**Scope.** A pure helper (fuselage moment from geometry — e.g. Munk/slender-body or a
+documented simplified method, cited to `reference/`) that augments the `M(W+F)`
+coefficient set; surfaced on the 1d Aero page with the estimate shown and
+overridable. **FAR23 GA oracle inputs must reduce exactly** (estimator contributes 0
+or matches the manual's assumed value on Appendix-A inputs, or is off by default so
+oracles are untouched).
+**Acceptance.** The estimate is displayed and overridable; Appendix A/B oracles pass
+unchanged (estimator additive/optional); the balanced tail load reflects the fuselage
+moment when enabled. Cite the method + page in the test.
+
+### Step G5 — Longitudinal-stability / trim plots (new; GUI)
+**Objective.** Add standard longitudinal-stability plots to the flight-loads section
+to check trim and balancing tail loads (CG-vs-balanced-tail-load; static-margin
+sweep).
+**Scope.** GUI plots over existing calc (the FLTLOADS balance already yields tail
+load per CG; `configuration` already computes neutral point / static margin). No new
+calc.
+**Acceptance.** The flight-loads section shows a trim plot (balanced tail load vs CG)
+and a static-margin readout across the CG range; values trace to the existing calc.
+
+### Step G6 — Direct elevator %-chord input (new; GUI + small model field)
+**Objective.** Expose the elevator chord ratio as a direct input instead of only
+deriving it from the hinge-area/tail-area ratio.
+**Scope.** Add an elevator chord-ratio field to `TailLoadsInput` (mirroring
+`TabSpec`'s `E = MACTAB/CAIRFOIL`), serialized in `io.py`, editable on the tail page;
+keep the area-derived value as the default so existing projects are unchanged.
+**Acceptance.** The field round-trips; when unset, results match today's area-derived
+behaviour (regression); when set, it drives the chordwise station. Schema bump,
+older files migrate.
+
+### Step G7 — Persistence verification (G-3)
+**Objective.** Confirm the rework eliminated re-entry and hunt any genuine reload
+bug.
+**Scope.** Verify every input-bearing value lives on a `Project` slice `io.py`
+round-trips (no input-only `st.session_state`); drive save→reload on each example
+project and diff. Fix any real loss found **before** shipping the restructure.
+**Acceptance.** A save→reload of every example project is a no-op (no field resets);
+no input page holds input data outside `st.session_state["project"]`.
+
+### Step G8 — Summary report (Export phase)
+**Objective.** Add the summary report described in `03_gui_rework_plan.md` §4 Phase 6:
+(1) input-data summary; (2) envelope plots (V-n, weight/CG, speed/altitude); (3)
+loads-analysis conditions + FAR coverage; (4) results summary (VMT wing/fuselage,
+control-surface/flap, landing gear, engine loads).
+**Scope.** Assemble from existing per-module results/plots + the case-index table;
+reuse `report.py`/`export_report`. All load figures ULTIMATE per the output rules.
+**Acceptance.** The Export phase produces a single consolidated report with the four
+sections; every load figure is `-ULT` with its `SF`.
+
 ---
 
 ## Open design decisions requiring user input
