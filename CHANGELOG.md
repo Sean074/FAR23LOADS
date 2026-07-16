@@ -11,6 +11,20 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **Concept distributed-loads closure suite (Phase 1, Step P1-2).**
+  `tests/test_concept_closure.py` (10 tests) drives `net_loads`, `body_loads`,
+  `taildist`, `aileron`/`flap`/`tab` through the P1-1 concept fixture
+  (`concept_regional_jet`) and asserts **physics-closure per component** — concept
+  mode's only validation above the 12,500 lb FAR23 oracle band. Checks: wing lift
+  closes vertically (`LZW + LT = Nz·W`); the balancing tail load reacts the pitching
+  moment about the CG (`LT·(Xt−Xcg) = LZW·(Xcg−Xw) − DX·(Zcg−Zw) + M(W+F)`); the
+  fuselage net distribution is free-free (terminal cumulative shear = 0); TAILDIST
+  carries SELECT's `lt25`/`lt50` split verbatim; each control surface's `build_*`
+  load matches its `run` analysis report; and every component family's nodal FORCE
+  set (and its re-parsed cards) sums to that component's root/total at ULTIMATE —
+  the whole concept airframe exports cleanly through `sbeam_bridge`. Test-only
+  (no calc-math or schema change); FAR23 oracles unmoved.
+
 - **Full-airframe concept reference fixture (Phase 1, Step P1-1).**
   `examples/concept_regional_jet.project.json` — "RJ-50 concept", a swept-wing,
   high-subsonic twin-turbofan regional jet (MTOW 33,000 lb, S 500 ft², c/4 sweep

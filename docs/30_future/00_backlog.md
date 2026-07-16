@@ -59,11 +59,14 @@ fires 7 modules and **skips `net_loads`, `body_loads`, `taildist`,
 `configuration` inputs. Concept closure is tested for the wing only; there is **no
 true concept↔FAR23 identity test** (it is assumed via the GA oracle tests, not
 verified through the concept code path). Phase 1 closes exactly this gap.
-**Step P1-1 shipped 2026-07-16** — a full-airframe concept fixture
-(`examples/concept_regional_jet.project.json`, 366 tests now pass) now drives all 19
-applicable modules including body/tail/control + the swept AIRLOAD4 branch; the
-remaining Phase-1 work is closure validation (P1-2), the identity test (P1-3), the
-export API completion (P1-4) and the gyro guard (P1-5).
+**Steps P1-1 and P1-2 shipped 2026-07-16** — a full-airframe concept fixture
+(`examples/concept_regional_jet.project.json`) now drives all 19 applicable modules
+including body/tail/control + the swept AIRLOAD4 branch, and
+`tests/test_concept_closure.py` (10 tests, 376 total now pass) asserts
+physics-closure per component (wing lift = n·W, tail balances the pitching moment,
+body free-free equilibrium, TAILDIST↔SELECT split, control build↔run, and clean
+sbeam export). The remaining Phase-1 work is the identity test (P1-3), the export
+API completion (P1-4) and the gyro guard (P1-5).
 
 **Remaining suite programs (0):** all 22 ported.
 
@@ -89,21 +92,6 @@ serialized). Guarded by `tests/test_concept_regional_jet.py` (4 tests). See
 `40_history/00_completed_development.md` → "Phase 1 — Step P1-1". *Follow-ons kept
 open: closure validation is P1-2; the aft-fuselage engine layout is modelled as
 `2W` (the suite has no aft-fuselage `EngineLayout` — sketch limitation, noted).*
-
-### Step P1-2 — Concept distributed-loads end-to-end + closure test suite
-**Objective.** Drive `net_loads`, `body_loads`, `taildist`, `aileron`, `flap`,
-`tab` through the P1-1 concept fixture and add **physics-closure assertions for
-each** (today only the wing has a concept closure test in
-`test_sbeam_bridge.py::test_concept_closure`): total lift = `n·W`; balancing tail
-load reacts the wing-plus-inertia pitching moment about the CG; body net load
-integrates to the applied inertia/airload distribution; each component's exported
-nodal FORCE/MOMENT set sums to its root/total.
-**Why.** Closure is concept mode's *only* validation (no printed oracle above
-12,500 lb). It must actually run on a concept airframe, per component, or concept
-results for tail/body/control remain unverified.
-**Acceptance.** `tests/test_concept.py` (or per-module concept cases) asserts
-closure for wing, body, tail and each control surface on the concept fixture; the
-whole set exports cleanly through `sbeam_bridge`.
 
 ### Step P1-3 — True concept↔FAR23 identity test
 **Objective.** Add a test that takes a GA project (`ga6_normal`), flips it to

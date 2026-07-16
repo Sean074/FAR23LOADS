@@ -10,6 +10,53 @@ Acceptance**, **Key decisions**.
 
 ---
 
+## Phase 1 — Step P1-2: Concept distributed-loads end-to-end + closure suite (complete, 2026-07-16)
+
+**Objective.** Concept mode has no printed oracle above 12,500 lb, so physics
+*closure* is its only validation — yet before P1-2 the only concept closure test
+(`test_sbeam_bridge.py::test_concept_closure`) covered the **wing alone**. Drive
+`net_loads`, `body_loads`, `taildist`, `aileron`, `flap`, `tab` through the P1-1
+concept fixture and assert closure for every component, so concept results for the
+tail/body/control surfaces stop being unverified.
+
+**Deliverables.**
+- **`tests/test_concept_closure.py`** (10 tests) on
+  `examples/concept_regional_jet.project.json`, with its envelope + SELECT critical
+  set materialised. Three kinds of check:
+  - **Physics closure** (equilibrium identities evaluated through the concept code
+    path, so a concept blow-up can't pass silently): wing
+    `LZW + LT = Nz·W` (FLTLOADS vertical equilibrium) over all 120 V-n points; tail
+    `LT·(Xt−Xcg) = LZW·(Xcg−Xw) − DX·(Zcg−Zw) + M(W+F)` (balancing load reacts the
+    pitching moment about the CG); body terminal cumulative shear `= 0` (the
+    fuselage net distribution is built free-free from inertia + tail air load + wing
+    reaction).
+  - **Cross-module ties** (per the chosen closure-depth decision): TAILDIST carries
+    SELECT's `lt25`/`lt50` split verbatim (exact field equality across all 13 tail
+    conditions — chosen over label-matching the "Total tail load" `LoadValue`, which
+    diverges for the UNSYMMETRICAL and v-tail conditions); each control surface's
+    `build_*` critical load matches a `lb`-unit `LoadValue` in that module's `run`
+    analysis report (the distributed and analysis paths agree on the concept
+    airframe).
+  - **Export integrity**: every component family's nodal FORCE set — and its
+    re-parsed `FORCE` cards (via the shared free-field reader imported from
+    `test_sbeam_bridge`) — sums to that component's root/total at ULTIMATE
+    (`limit × 1.5`); `test_full_airframe_exports_cleanly` is the P1-2 acceptance —
+    wing + body + tail + control all export cleanly through `sbeam_bridge`.
+
+**Test / Acceptance (met).** All closure identities hold to machine precision
+(wing/tail rel ≈ 1e-16, body terminal shear ≈ 1e-12 lb) on the concept fixture;
+the whole component set exports parseable, self-consistent decks. Full suite **376
+passed** (366 → 376), `ruff` clean. **Test-only step:** no calc-math change, no new
+module, no `SCHEMA_VERSION` bump — the FAR23 oracles are untouched.
+
+**Key decisions.** Closure tests live in one dedicated `test_concept_closure.py`
+(not scattered per-module); closure depth is nodal-sum + export integrity **plus
+cross-module ties** (SELECT→TAILDIST field equality, control build↔run agreement),
+not an independent physics re-derivation of tail balancing / control hinge moments.
+The wing `Nz·W` and tail-moment identities re-use the FLTLOADS equilibrium formulas
+deliberately — their value is asserting the concept branch stays balanced, not
+re-deriving the aero.
+
 ## Phase 1 — Step P1-1: Full-airframe concept reference fixture (complete, 2026-07-16)
 
 **Objective.** Concept mode (`category="C"`) was broadly wired into calc but its
