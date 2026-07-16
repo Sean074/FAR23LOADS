@@ -254,10 +254,13 @@ ported. See [`../40_history/00_completed_development.md`](../40_history/00_compl
 
 ## 7. Open user decisions (non-blocking)
 
-- **Naming.** "FAR23LOADS" undersells the concept scope. Keep the name, or adopt a
-  "Concept Loads" sub-brand? *(Deferred; non-blocking.)*
-- **sbeam VLM cross-check.** Build the optional sbeam-VLM backend as a validation
-  aid for concept Schrenk distributions, or leave it out of scope? *(Default: out
-  of Phase C; revisit after C8.)*
-- **Export granularity (C4).** Load-cards-only vs auto-stick-model. *(Working
-  assumption: both, stick model behind a flag.)*
+- **Naming.** *Resolved 2026-07-16 — **keep "FAR23LOADS"** for now.* No rename or
+  concept-loads sub-brand; revisit if concept scope becomes the tool's primary
+  identity. (Tracked in [`00_backlog.md`](00_backlog.md) as decision D-6 / item 2-11.)
+- **sbeam VLM cross-check.** *Resolved 2026-07-16 — **out of scope.*** No
+  sbeam-VLM validation backend; concept aero stays validated by physics-closure +
+  fleet plausibility (invariant C-2). Revisit only if closure proves insufficient.
+  (Tracked in [`00_backlog.md`](00_backlog.md) as decision D-3 / item 2-5.)
+- **Export granularity (C4).** *Resolved 2026-07-16 — **both**: load-cards-only is
+  the default; the assembled-airframe stick model is opt-in behind an explicit
+  flag.* (Tracked in [`00_backlog.md`](00_backlog.md) as decision D-7 / item 2-4.)
