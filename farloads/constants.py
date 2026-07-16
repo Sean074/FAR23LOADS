@@ -56,6 +56,26 @@ TURBOPROP_TORQUE_FACTOR = 1.25
 # Per-occupant design weight, WTESTIMA.BAS line 440 (WTSEATS = SEATS * 170).
 SEAT_WEIGHT_LB = 170.0
 
+# --------------------------------------------------------------------------- #
+# FAR 23 applicability limits (14 CFR 23.1, pre-Amendment 23-64 applicability)
+# --------------------------------------------------------------------------- #
+# The certificated band the FAR23 replication is calibrated to. Non-commuter
+# (Normal / Utility / Acrobatic): <= 12,500 lb max takeoff weight and <= 9
+# passenger seats. Commuter: <= 19,000 lb and <= 19 passenger seats. The required
+# flight crew are excluded from the passenger-seat count -- the crew count is a
+# user input (WeightEstimationInput.crew); DEFAULT_FLIGHT_CREW is the fallback the
+# applicability check assumes when no weight-estimation slice is present. Exceeding
+# these limits does not block the tool -- it flags the airplane as a concept-mode
+# extrapolation (see farloads/applicability.py). The commuter tier is encoded but
+# dormant: no distinct Commuter category exists yet (the merged "Normal / commuter"
+# category maps to "N"), so the check uses the non-commuter tier until a distinct
+# Commuter category lands (backlog "Distinct Commuter category").
+FAR23_MAX_WEIGHT_LB = 12500.0
+FAR23_COMMUTER_MAX_WEIGHT_LB = 19000.0    # encoded; dormant until a distinct Commuter category exists
+FAR23_MAX_PASSENGER_SEATS = 9
+FAR23_COMMUTER_MAX_PASSENGER_SEATS = 19   # encoded; dormant (see above)
+DEFAULT_FLIGHT_CREW = 1                   # assumed crew when no WeightEstimationInput.crew is set
+
 # Inertia unit conversion. WTONECG sums W*d^2 in lb-in^2 and divides by 144*g to
 # report slug-ft^2 (WTONECG.BAS lines 830-860, "A = 32.17*144"). Decision 3 keeps
 # g = 32.174 here; the ~0.01% shift from the program's 32.17 stays within the

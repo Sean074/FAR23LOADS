@@ -214,26 +214,36 @@ and duplicated across the two pages.)*
 The tool must let a user describe an airplane **beyond** FAR 23 while making clear
 it is outside the certificated band — never blocking. The design:
 
-- **Limits encoded once** in `farloads/constants.py` (max takeoff weight 12,500 lb
-  / commuter 19,000 lb; occupants 9 / 19) — today these figures live only in prose
-  and warning strings.
-- **A pure `far23_applicability(project)` helper** returns the structured
-  exceedances (field, value, limit, label); no Streamlit, unit-testable, and
-  yields *no* exceedances on Appendix-A GA inputs.
-- **A non-blocking banner** on the Dashboard and the relevant definition pages
-  when a GA-category airplane exceeds a limit — "exceeds FAR 23 applicability;
-  results are concept-mode extrapolation" — with a one-click **"switch to
-  Concept"** action.
-- **`occupants` is a first-class field** (design home: `StructuralSpeedsInput`,
-  co-located with `category` + `weight_lb`; echoed read-only on Configuration &
-  Layout), driving the seat-count check.
+- **Limits encoded once** in `farloads/constants.py`
+  (`FAR23_MAX_WEIGHT_LB = 12500`, `FAR23_MAX_PASSENGER_SEATS = 9`, and the encoded-
+  but-dormant commuter tier `FAR23_COMMUTER_MAX_WEIGHT_LB = 19000` /
+  `FAR23_COMMUTER_MAX_PASSENGER_SEATS = 19`; `DEFAULT_FLIGHT_CREW = 1`, the crew
+  assumed when no weight-estimation slice is present). The commuter tier is dormant
+  until a distinct Commuter category exists (backlog).
+- **A pure `far23_applicability(project)` helper** (`farloads/applicability.py`)
+  returns the structured exceedances (`Exceedance(field, value, limit, label)`); no
+  Streamlit, unit-testable, and yields *no* exceedances on Appendix-A GA inputs.
+  The MTOW check reads `speeds.weight_lb`, falling back to the Weight DB total; the
+  seat check compares `passenger seats = effective_occupants − effective_crew`
+  against 9, where the crew is the user-set `WeightEstimationInput.crew`.
+- **A non-blocking banner** (`app/components.render_applicability_banner`) on the
+  Dashboard and the definition pages when a non-concept airplane exceeds a limit —
+  "exceeds FAR 23 applicability; results are concept-mode extrapolation" — with a
+  one-click **"Switch to Concept"** action that also seeds the concept load factors
+  from the computed FAR 23.337 values so the flip never breaks the downstream calc.
+- **`occupants` is a first-class field** (`StructuralSpeedsInput.occupants`,
+  co-located with `category` + `weight_lb`; seeds its default from the Weight
+  Estimate seat count; echoed read-only on Configuration & Layout), driving the
+  seat-count check. **`crew` is a user-set field** (`WeightEstimationInput.crew`,
+  co-located with `seats`; default 1) that is subtracted from occupants for the
+  seat check and carried in the **operating empty weight** (WTESTIMA reports a
+  derived `OEW = empty + crew×170` line; the manufacturer's-empty oracle is
+  unchanged).
 - **Concept mode** (`speeds.category == "C"`, surfaced by `Project.is_concept`)
   lets the user set their own limit load factors and, on GA inputs, reduces
   exactly to the FAR 23 result.
 
-*(Target — Phase E1; today only the manual Concept category exists and merely
-decorates output with "unverified extrapolation" captions, with no applicability
-detection or occupants field.)*
+*(Implemented — Phase E1, `SCHEMA_VERSION = 22`.)*
 
 ---
 
@@ -258,14 +268,16 @@ hardening the sidebar load path and adding a schema-version check are Phase E5.
 **Implemented today:** the six-section navigation, the global unit toggle and
 project-file widget, the shared-`Project` data flow and seed-chain, the
 form+Apply/merge page conventions, the unit-boundary input pattern across all
-definition pages (§7), and the Configuration & Layout three-view + fleet scatters.
+definition pages (§7), the Configuration & Layout three-view + fleet scatters, and
+the FAR 23 applicability banner + `occupants`/`crew` fields and OEW line (§9,
+Phase E1).
 
-**Adopted standards pending rollout (backlog Phase E):** FAR 23 applicability
-detection + occupants field (E1), per-widget `help=` + parameter guides (E2), the
+**Adopted standards pending rollout (backlog Phase E):** per-widget `help=` +
+parameter guides (E2), the
 Structural Speeds V-n and Weight/CG mass plots + input-consistency warnings (E3),
 the quantitative fleet comparison (E4), and load-path robustness (E5).
 
-Schema is at **`SCHEMA_VERSION = 20`**; Phase D (the six-section GUI restructure)
+Schema is at **`SCHEMA_VERSION = 22`**; Phase D (the six-section GUI restructure)
 is complete. The open GUI plan is
 [`../30_future/00_backlog.md`](../30_future/00_backlog.md) → **Phase E**; the
 Phase-D narrative and locked decisions are in

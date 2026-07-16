@@ -25,6 +25,9 @@ import plotly.graph_objects as go
 import streamlit as st
 from plotly.subplots import make_subplots
 
+from components import render_applicability_banner
+
+from farloads.applicability import effective_occupants
 from farloads import (
     LayoutInput,
     MassItemKind,
@@ -66,8 +69,15 @@ st.caption(
 )
 
 project: Project = st.session_state.get("project", Project(name=""))
+render_applicability_banner(project)
 system: UnitSystem = st.session_state.get("unit_system", UnitSystem.IMPERIAL)
 U = labels_for(system)  # {"weight","length","area_sqft","length_ft",...} -> unit string
+
+# Read-only echo of the occupant count (owned by the Structural Speeds page,
+# StructuralSpeedsInput.occupants; falls back to the Weight Estimate seat count).
+_occupants = effective_occupants(project)
+if _occupants is not None:
+    st.caption(f"Occupants (from Structural Speeds / Weight Estimate): **{_occupants}**")
 
 # No configuration slice yet (e.g. a loaded project that has WINGGEOM surfaces
 # but was never edited on this page): seed the parametric wing fields from the

@@ -62,6 +62,23 @@ def test_summary_matches_manual():
     assert _value(r, "Options & miscellaneous") == 99
 
 
+def test_operating_empty_weight_adds_crew():
+    # OEW = empty + crew*170 is a derived reporting line; the oracle empty/MTOW
+    # are unchanged. Appendix A default crew = 1 -> OEW 2150 + 170 = 2320.
+    est = ga6_estimation()
+    est.crew = 1
+    r = calc.estimate(est)
+    assert _value(r, "Empty weight") == 2150            # oracle untouched
+    assert _value(r, "Max take-off weight") == 3468     # oracle untouched
+    assert _value(r, "Crew (operating items)") == 170
+    assert _value(r, "Operating empty weight (OEW)") == 2320
+    # Two crew -> OEW rises by another 170, empty/MTOW still unchanged.
+    est.crew = 2
+    r2 = calc.estimate(est)
+    assert _value(r2, "Empty weight") == 2150
+    assert _value(r2, "Operating empty weight (OEW)") == 2490
+
+
 def test_structure_group_matches_manual():
     # Appendix A p133 structure breakdown.
     r = calc.estimate(ga6_estimation())

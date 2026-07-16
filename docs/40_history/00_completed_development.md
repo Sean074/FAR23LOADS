@@ -10,6 +10,72 @@ Acceptance**, **Key decisions**.
 
 ---
 
+## Phase E — Step E1: FAR 23 applicability + occupants/crew fields (complete, 2026-07-15)
+
+**Objective.** Detect and surface — never block — when an airplane exceeds FAR 23
+applicability (higher MTOW / more occupants), so a beyond-FAR23 configuration no
+longer runs GA-calibrated math silently; add the occupant count the seat-limit
+check needs and a user-set flight-crew count carried in the operating empty weight.
+No calc-math change: the Appendix A/B oracles pass unmodified and concept mode still
+reduces exactly to FAR 23 on GA inputs.
+
+**Deliverables.**
+- **Limits block** in `farloads/constants.py`: `FAR23_MAX_WEIGHT_LB = 12500`,
+  `FAR23_MAX_PASSENGER_SEATS = 9`, the encoded-but-dormant commuter tier
+  (`FAR23_COMMUTER_MAX_WEIGHT_LB = 19000` / `FAR23_COMMUTER_MAX_PASSENGER_SEATS = 19`),
+  and `DEFAULT_FLIGHT_CREW = 1` (the crew assumed when no weight-estimation slice is
+  present), cited to 14 CFR 23.1.
+- **Pure helper** `farloads/applicability.py`: `Exceedance(field, value, limit,
+  label)`, `effective_occupants` (speeds.occupants, else Weight Estimate seats),
+  `effective_crew` (weight.estimation.crew, else `DEFAULT_FLIGHT_CREW`),
+  `design_weight_lb` (speeds.weight_lb, else Weight DB total), and
+  `far23_applicability(project)` (`passenger seats = occupants − crew`) — no
+  Streamlit, unit-tested, yields `[]` on Appendix-A GA inputs. Exported from
+  `farloads` (`far23_applicability`, `Exceedance`).
+- **Schema fields** (`SCHEMA_VERSION` **20 → 22**, additive; older files load with
+  defaults): `StructuralSpeedsInput.occupants: Optional[int] = None` (falls back to
+  `weight.estimation.seats`), entered on **Structural Speeds** and echoed read-only
+  on **Configuration & Layout**; and `WeightEstimationInput.crew: int = 1`, entered
+  on **Weight Estimate**, subtracted from occupants for the seat check and carried
+  in a derived **operating empty weight** line WTESTIMA reports
+  (`OEW = empty + crew×170`; reporting-only, `MTOW`/`useful`/`empty` and their
+  Appendix-A oracles untouched, so it is not re-summed with the useful load).
+- **Shared banner** `app/components.render_applicability_banner(project)` on the
+  Dashboard + definition pages: non-blocking `st.warning` + per-exceedance rows +
+  a one-click **"Switch to Concept"** button that sets `speeds.category = "C"` and
+  seeds `chosen_n`/`chosen_nneg` from the computed FAR 23.337 factors (via
+  `structural_speeds._maneuver_load_factors`) so the flip never raises. Suppressed
+  when the project is already concept. `tests/conftest.py` adds `app/` to the path
+  so the view smoke test resolves `components` (Streamlit provides it at runtime via
+  the `app/Home.py` entrypoint).
+
+**Test / Acceptance.** `tests/test_applicability.py` (new): GA Appendix-A →
+no exceedances; a 20,000 lb / 12-occupant Normal → weight (20,000 > 12,500) + seat
+(12 − 1 crew = 11 > 9) exceedances; crew reduces the passenger-seat count;
+`effective_occupants`/`effective_crew`/`design_weight_lb` fallbacks.
+`tests/test_weight_estimate.py`: the derived OEW line (empty 2150 + crew×170) with
+the empty/MTOW oracles unchanged. `tests/test_io.py`: `occupants`/`crew` round-trip
+and old files (no key) load with the defaults. Headless `AppTest` end-to-end: banner
+renders for an over-limit Normal airplane, "Switch to Concept" seeds n=2.9 /
+n_neg=−1.16 with no exception and hides the banner, GA inputs show none. Full suite
+(314 passed) + `ruff check farloads/ cli.py app/` clean. Docs synced
+(`PROGRAM_SPEC.md`, `20_theory/00_theory_sources.md`, `GUI_design.md §9`, this
+history + `CHANGELOG.md`).
+
+**Key decisions.** Seat limit counts **passenger seats excluding crew**, where crew
+is the **user-set `WeightEstimationInput.crew`** (default 1), not a hardcoded
+constant. Crew weight is carried in a **derived OEW reporting line** (`empty +
+crew×170`) rather than reclassifying the itemized crew items into the `EMPTY`
+bucket — that keeps the WTESTIMA empty (2150) and WTENV empty-weight-station (85.1)
+oracles intact (the oracle-safe option the user chose over a documented oracle
+deviation). `occupants` is an **independent field seeded from `weight.seats`**
+(seed-chain), not a re-use of it. The MTOW check reads **`speeds.weight_lb`, falling
+back to the Weight DB total**. "Switch to Concept" **auto-seeds the concept load
+factors** from the FAR 23.337 values. The commuter tier (19,000 / 19) is **encoded
+but dormant** — the merged "Normal / commuter" category maps to `"N"`, so the check
+uses the non-commuter tier until a distinct Commuter category lands (see backlog
+"Distinct Commuter category").
+
 ## GUI fix — Imperial/SI input widgets & upstream-data seeding (complete, 2026-07-15)
 
 **Objective.** Complete the session-wide Imperial/SI toggle so it governs

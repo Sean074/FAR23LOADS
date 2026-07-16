@@ -72,6 +72,15 @@ with st.sidebar:
                                   value=existing.engines if existing else 1)
         seats = st.number_input("Number of seats", min_value=1, max_value=12,
                                 value=existing.seats if existing else 1)
+        crew = st.number_input(
+            "Flight crew", min_value=0, max_value=12,
+            value=existing.crew if existing else 1,
+            help=(
+                "Required flight crew (170 lb each). Carried in the operating empty "
+                "weight (OEW = empty + crew×170), not the payload. The FAR 23 "
+                "applicability check counts passenger seats = occupants − crew."
+            ),
+        )
         hours = st.number_input("Endurance at cruise power (hr)", min_value=0.0, max_value=10.0,
                                 value=float(existing.cruise_hours) if existing else 0.0)
         baggage = st.number_input(
@@ -92,6 +101,7 @@ if applied:
         max_continuous_hp=to_imperial_scalar(hp, "power", system),
         engines=int(engines),
         seats=int(seats),
+        crew=int(crew),
         cruise_hours=hours,
         baggage_lb=to_imperial_scalar(baggage, "weight", system),
         pressurized=pressurized,

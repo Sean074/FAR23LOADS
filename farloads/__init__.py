@@ -77,6 +77,7 @@ from .units import (
     to_si_scalar,
 )
 from . import io, registry
+from .applicability import Exceedance, far23_applicability
 
 # Importing the modules package registers every module (engine, ...) and exposes
 # the engine module's direct ``run_all(EngineInput)`` helper for back-compat.
@@ -86,6 +87,8 @@ from .modules.engine import run_all
 __all__ = [
     "AeroCoeffSet",
     "AeroCoefficientsInput",
+    "Exceedance",
+    "far23_applicability",
     "AeroInput",
     "AeroSurfaceInput",
     "AileronLoadsInput",

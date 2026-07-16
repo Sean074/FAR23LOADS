@@ -11,6 +11,33 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **FAR 23 applicability detection + occupants/crew fields (Phase E, Step E1).** The
+  GUI now surfaces — never blocks — when an airplane exceeds the FAR 23 applicability
+  band. New pure, unit-tested `farloads.far23_applicability(project)` returns the
+  structured exceedances (field / value / limit / label) against the non-commuter
+  FAR 23 tier (12,500 lb / 9 passenger seats, the required flight crew excluded);
+  the limits live once in `farloads/constants.py` (`FAR23_MAX_WEIGHT_LB` etc.,
+  `DEFAULT_FLIGHT_CREW = 1`, with the 19,000 lb / 19-seat commuter tier encoded but
+  dormant until a distinct Commuter category exists). Two additive schema fields
+  (`SCHEMA_VERSION` **20 → 22**, older files load with defaults): a
+  `StructuralSpeedsInput.occupants` field (total souls; falls back to the Weight
+  Estimate seat count) entered on **Structural Speeds** and echoed read-only on
+  **Configuration & Layout**; and a `WeightEstimationInput.crew` field (flight crew,
+  default 1) entered on **Weight Estimate**, subtracted from occupants for the seat
+  check (`passenger seats = occupants − crew`) and carried in a new derived
+  **operating empty weight** line WTESTIMA reports (`OEW = empty + crew×170`, a
+  reporting-only figure — `MTOW`/`useful`/`empty` and their Appendix-A oracles are
+  untouched). A shared `app/components.render_applicability_banner` renders a
+  non-blocking banner on the **Dashboard** and the definition pages with a one-click
+  **"Switch to Concept"** action that flips `speeds.category = "C"` and seeds
+  `chosen_n`/`chosen_nneg` from the computed FAR 23.337 factors so the switch is
+  continuous. No calc-math change — the Appendix A/B oracles pass unmodified and
+  concept mode still reduces exactly to FAR 23 on GA inputs. Tests:
+  `tests/test_applicability.py` (GA → no exceedances; 20,000 lb / 12-occupant Normal
+  → weight + seat exceedances; crew reduces the seat count), the OEW line in
+  `tests/test_weight_estimate.py`, and occupants/crew io round-trip / old-file
+  defaults in `tests/test_io.py`.
+
 - **Definition pages seed defaults from upstream project data.** Pages no longer
   re-ask for a quantity another slice already owns. New
   `farloads.modules.configuration.wing_layout_from_surface()` (the inverse of

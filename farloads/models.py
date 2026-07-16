@@ -162,7 +162,11 @@ class WeightEstimationInput:
     airplane: str = ""
     max_continuous_hp: float = 0.0   # HP -- total of all engines
     engines: int = 1                 # NOENGS
-    seats: int = 1                   # SEATS (170 lb each)
+    seats: int = 1                   # SEATS (170 lb each) -- total occupant seats
+    crew: int = 1                    # flight crew (170 lb each); part of the operating
+                                     # empty weight (OEW = empty + crew*170), not payload.
+                                     # Also the required-crew count the FAR 23 seat-limit
+                                     # check subtracts (passenger seats = occupants - crew).
     cruise_hours: float = 0.0        # HOURS on full tanks at cruise power
     baggage_lb: float = 0.0          # BAG
     pressurized: bool = False        # P$ = "P"
@@ -364,6 +368,10 @@ class StructuralSpeedsInput:
     """
     category: str = "N"
     weight_lb: float = 0.0
+    occupants: Optional[int] = None            # total souls on board; the FAR 23 seat-limit
+                                               # check counts passenger seats = occupants - crew.
+                                               # None -> seeded from Project.weight.seats by
+                                               # farloads.applicability.effective_occupants
     wing_area_sqft: Optional[float] = None     # else read from geometry wing
     vh_kt: float = 0.0                          # max speed at sea level (KEAS)
     stall_clean_kt: float = 0.0                 # VS, flaps retracted at design weight
@@ -1405,7 +1413,13 @@ class LoadsResult:
 # empennage arrangement + minimal span/offset geometry the Configuration &
 # Layout three-view needs to draw a tail shape) -- all additive with defaults
 # that reproduce today's "no tail drawn" rendering, older files migrate for free.
-SCHEMA_VERSION = 20
+# v21 adds StructuralSpeedsInput.occupants (total souls on board; drives the FAR 23
+# passenger-seat applicability check) -- additive, default None, older files load
+# with occupants unset (the check falls back to WeightInput.seats).
+# v22 adds WeightEstimationInput.crew (flight crew; part of the operating empty
+# weight OEW = empty + crew*170, and the required-crew count the FAR 23 seat-limit
+# check subtracts) -- additive, default 1, older files load with crew = 1.
+SCHEMA_VERSION = 22
 
 
 @dataclass

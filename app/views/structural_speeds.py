@@ -14,6 +14,8 @@ from __future__ import annotations
 import pandas as pd
 import streamlit as st
 
+from components import render_applicability_banner
+
 from farloads import Project, StructuralSpeedsInput, UnitSystem, labels_for, to_display, to_imperial_scalar
 from farloads import io as farloads_io
 from farloads.modules.structural_speeds import design_speeds
@@ -27,7 +29,15 @@ st.caption(
 )
 
 project: Project = st.session_state.get("project", Project(name=""))
+render_applicability_banner(project)
 existing = project.speeds
+
+# WTESTIMA design seat count seeds the occupants default (seed-chain) when the
+# user has not set an explicit occupant count for the FAR 23 seat-limit check.
+seats_upstream = (
+    project.weight.estimation.seats
+    if project.weight is not None and project.weight.estimation is not None else 0
+)
 
 system: UnitSystem = st.session_state.get("unit_system", UnitSystem.IMPERIAL)
 U = labels_for(system)  # {"weight","area_sqft",...} -> unit string
@@ -87,6 +97,20 @@ with st.sidebar:
                 "page, or enter the design weight directly above."
             )
 
+        occ_default = (
+            existing.occupants if existing and existing.occupants is not None
+            else seats_upstream
+        )
+        occupants_in = st.number_input(
+            "Occupants (total souls)", min_value=0, step=1, value=int(occ_default),
+            help=(
+                "Total people on board (crew + passengers). The FAR 23 applicability "
+                "check counts passenger seats = occupants − 2 pilot stations against "
+                "the 9-seat limit (14 CFR 23.1). Seeds from the Weight Estimate seat "
+                "count when left unset."
+            ),
+        )
+
         if has_wing:
             st.caption("Wing area read from the Wing Geometry page.")
             wing_area = None
@@ -133,6 +157,7 @@ if applied:
     inp = StructuralSpeedsInput(
         category=_CATS[cat_label],
         weight_lb=weight,
+        occupants=int(occupants_in) if occupants_in else None,
         wing_area_sqft=wing_area_imperial,
         vh_kt=vh,
         stall_clean_kt=vs,

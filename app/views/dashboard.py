@@ -13,6 +13,8 @@ from __future__ import annotations
 
 import streamlit as st
 
+from components import render_applicability_banner
+
 from farloads import Project
 from farloads import workflow as wf
 
@@ -26,6 +28,7 @@ st.caption(
 )
 
 project: Project = st.session_state.get("project", Project(name=""))
+render_applicability_banner(project)
 
 # --------------------------------------------------------------------------- #
 # Project metadata

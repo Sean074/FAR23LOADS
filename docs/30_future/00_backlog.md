@@ -32,15 +32,17 @@ history, `CHANGELOG.md`).
 (GUI defect fix; structured load-case IDs; six-section navigation restructure;
 Start-page local-disk persistence; authoritative shared inputs + Aero
 Coefficients page; Envelopes & Critical Conditions section; Analysis merged
-into nine component pages; Loads Plots page; Export & report upgrades). Phase D
-(the six-section GUI restructure) is now **complete**; **Phase E** (GUI usability
-& concept-awareness) is queued below. **All 22** of Reference 1's
+into nine component pages; Loads Plots page; Export & report upgrades) and
+Phase-E **Step E1** (FAR 23 applicability detection + `occupants`/`crew` fields +
+OEW line). Phase D
+(the six-section GUI restructure) is complete; **Phase E** (GUI usability
+& concept-awareness) is underway — E1 shipped, E2–E5 queued below. **All 22** of Reference 1's
 Appendix-C programs are ported (ENGLOADS, WTESTIMA, WTONECG, WTENV,
 WINGGEOM, STRSPEED, MACHLIM, TAU, AIRLOADS, AIRLOAD4, FLTLOADS, SELECT, WINGINER,
 NETLOADS, TAILDIST, AILERON, FLAPLOAD, TABLOADS, ONENGOUT, LGFACTOR, LANDLOAD,
 BALLOADS), plus **2 modern modules** with no `.BAS` oracle (`configuration`,
 `body_loads`).
-Schema is at **`SCHEMA_VERSION = 20`**; 303 tests pass; coverage ~92%. The wing
+Schema is at **`SCHEMA_VERSION = 22`**; 314 tests pass; coverage ~92%. The wing
 distributed-loads vertical slice (geometry → speeds → envelope → airloads → inertia
 → net → sbeam export), the critical-load selection (wing / h-tail / v-tail /
 fuselage), the chordwise tail distribution, the simplified control-surface
@@ -104,27 +106,6 @@ concept mode reduces exactly to FAR 23 on GA inputs. User-approved directions
 (locked 2026-07-15): warn-banner (non-blocking) for exceedance with a "switch to
 Concept" action; `occupants` as a first-class field; `help=` tooltips + per-page
 parameter guides; and the E3 graphical set (V-n + input-consistency + CG/mass).
-
-### Step E1 — FAR 23 applicability + occupants field
-**Objective.** Detect and surface (never block) when an airplane exceeds FAR 23
-applicability, and add the occupant count that a seat-limit check needs. Adds a
-`Project` field, so `SCHEMA_VERSION` **20 → 21** (older files load with the
-default).
-**Deliverables.** A FAR 23 limits block in `farloads/constants.py` (max takeoff
-weight 12,500 / commuter 19,000 lb; occupants 9 / 19). A pure
-`far23_applicability(project)` helper returning structured exceedances
-(field/value/limit/label) — no Streamlit, yields none on Appendix-A GA inputs.
-`occupants` added to `StructuralSpeedsInput` (co-located with `category` +
-`weight_lb`; echoed read-only on Configuration & Layout), round-tripped in
-`io.py` with an absent-key default. A shared non-blocking banner helper used on
-the Dashboard + definition pages, with a one-click "switch to Concept" action
-(sets `speeds.category = "C"`).
-**Test/Acceptance.** `tests/test_applicability.py` (new): GA Appendix-A input →
-no exceedances; a 20,000 lb / 12-occupant Normal input → the expected exceedance
-list. `io.py` round-trip incl. `occupants`; an old (v20) file still loads. Full
-suite + `ruff check farloads/ cli.py app/` clean. Four docs synced
-(`PROGRAM_SPEC.md`, `20_theory/00_theory_sources.md`, this backlog → history,
-`CHANGELOG.md`).
 
 ### Step E2 — Parameter explanation (tooltips + guides)
 **Objective.** Make every airplane-definition input self-explanatory. No schema

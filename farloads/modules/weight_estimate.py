@@ -134,6 +134,14 @@ def estimate(inp: WeightEstimationInput) -> List[ConditionResult]:
 
     empty = wto - useful
 
+    # Operating empty weight (OEW) = manufacturer's empty + the flight crew, which
+    # are operating items rather than payload. This is a derived reporting figure
+    # only: `wto`/`useful`/`empty` (the Appendix-A oracles) are unchanged, and the
+    # crew weight already sits inside `useful` (seats*170), so OEW is not summed
+    # with the useful load. Payload occupants = (seats - crew).
+    crew_weight = inp.crew * SEAT_WEIGHT_LB
+    oew = empty + crew_weight
+
     def mass(label: str, value: float) -> LoadValue:
         # Weights are pounds-*mass* (quantity="mass" -> kg in SI, not N), and are
         # truncated with int(...) to match the original program's printout.
@@ -146,6 +154,8 @@ def estimate(inp: WeightEstimationInput) -> List[ConditionResult]:
             mass("Max take-off weight", wto),
             mass("Useful load", useful),
             mass("Empty weight", empty),
+            mass("Crew (operating items)", crew_weight),
+            mass("Operating empty weight (OEW)", oew),
             LoadValue("Empty/take-off ratio", int(100 * empty / wto) / 100),
             mass("Options & miscellaneous", options_misc),
         ],

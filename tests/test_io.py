@@ -123,6 +123,37 @@ def test_project_engineer_date_default_blank():
     assert "date" not in io.project_to_dict(project)
 
 
+def test_speeds_occupants_round_trips():
+    """Step E1: StructuralSpeedsInput.occupants is additive (SCHEMA_VERSION 21)."""
+    project = io.load_project(GA6)
+    project.speeds.occupants = 12
+    again = io.project_from_dict(io.project_to_dict(project))
+    assert again.speeds.occupants == 12
+
+
+def test_speeds_occupants_default_none_on_old_file():
+    # An old (v20) file has no occupants key; the speeds slice loads with the
+    # None default (the applicability check then falls back to weight.seats).
+    project = io.load_project(GA6)
+    assert project.speeds.occupants is None
+    d = io.project_to_dict(project)
+    assert d["speeds"].get("occupants") is None
+
+
+def test_estimation_crew_round_trips():
+    """Step E1 follow-up: WeightEstimationInput.crew is additive (SCHEMA_VERSION 22)."""
+    project = io.load_project(GA6)
+    project.weight.estimation.crew = 2
+    again = io.project_from_dict(io.project_to_dict(project))
+    assert again.weight.estimation.crew == 2
+
+
+def test_estimation_crew_default_on_old_file():
+    # An old (< v22) file has no crew key; the estimation loads with crew = 1.
+    project = io.load_project(GA6)
+    assert project.weight.estimation.crew == 1
+
+
 def test_weight_cg_cases_round_trips_through_io():
     """Step D5: WeightInput.cg_cases is the shared loading-scenario list the
     Weight/CG Grid page owns (SCHEMA_VERSION 19)."""
