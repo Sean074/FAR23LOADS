@@ -87,24 +87,6 @@ Reference 1 (`FAR23 loads (1).pdf`, McMaster's theory manual), whose Appendix A
 reports. Each module gets a `tests/test_<module>.py` that checks `run(project)`
 against the appropriate appendix figures within tolerance.
 
-## Engine-mount conditions (Phase 0 module)
-
-For both **reciprocating** and **turboprop** engines:
-
-| FAR §        | Condition                                                  | Engine type |
-|--------------|------------------------------------------------------------|-------------|
-| 23.361(a)(1) | Limit takeoff torque + 75% limit maneuver vertical load    | Both        |
-| 23.361(a)(2) | Factor × max-continuous torque + 100% limit vertical load  | Both        |
-| 23.363       | Side load, independent of other flight loads               | Both        |
-| 23.361(a)(3) | Turboprop propeller control malfunction (1.6 × torque)     | Turboprop   |
-| 23.361(b)(1) | Torque from sudden engine/rotor stoppage                   | Turboprop   |
-| 23.371(b)    | Gyroscopic loads at max continuous RPM                     | Turboprop   |
-
-Sign convention preserved from the original: engine-mount reaction torque is
-reported negative; "clockwise from the pilot's view is positive" for rotor RPM
-and stoppage torque. The `LPRINT` printer output is replaced with on-screen
-tables plus downloadable text/CSV reports and the project JSON.
-
 ## Units
 
 A sidebar toggle switches inputs and results between **Imperial** (lb, in, ft-lb,
