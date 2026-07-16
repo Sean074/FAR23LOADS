@@ -104,6 +104,41 @@ def wing_surface(layout: LayoutInput) -> SurfaceInput:
                         symmetric=True, elements=_STRIPS)
 
 
+def wing_layout_from_surface(surf: SurfaceInput) -> Dict[str, float]:
+    """Best-effort parametric wing scalars, backed out of a WINGGEOM surface.
+
+    The inverse of :func:`wing_polylines`: area and aspect ratio come straight
+    from the WINGGEOM strip integrator (:func:`wing_geometry.surface_properties`);
+    root/tip chord and LE sweep are read from the leading-/trailing-edge
+    polyline's root (first) and tip (last) points. Exact when the surface is the
+    two-point trapezoid ``wing_polylines`` generates; a root/tip-only first-cut
+    for a multi-point (e.g. cranked) polyline.
+
+    Lets a project that already has a "wing" surface (imported ``project.json``,
+    or a project built surface-first on the Wing Geometry page) seed the
+    Configuration & Layout page's parametric wing fields instead of starting
+    from blank defaults. ``root_waterline_z``/``dihedral_deg`` are not returned --
+    a WINGGEOM surface carries no Z data to derive them from.
+    """
+    props = surface_properties(surf)
+    values = {v.label: v.value for v in props.values}
+    xf_root, yroot = surf.leading_edge[0]
+    xf_tip, ytip = surf.leading_edge[-1]
+    xa_root, _ = surf.trailing_edge[0]
+    xa_tip, _ = surf.trailing_edge[-1]
+    root_chord = xa_root - xf_root
+    tip_chord = xa_tip - xf_tip
+    taper_ratio = tip_chord / root_chord if root_chord else 1.0
+    sweep_deg = math.degrees(math.atan2(xf_tip - xf_root, ytip - yroot)) if ytip != yroot else 0.0
+    return {
+        "wing_area_sqft": values["Total area"] / IN2_PER_FT2,
+        "aspect_ratio": values["Aspect ratio"],
+        "taper_ratio": taper_ratio,
+        "le_sweep_deg": sweep_deg,
+        "le_root_x": xf_root,
+    }
+
+
 # V-tail panels have no dedicated dihedral field (Step: tail-type usability pass);
 # a fixed typical value keeps the sketch simple. Documented so a refinement is a
 # one-line change, same convention as the neutral-point assumptions above.

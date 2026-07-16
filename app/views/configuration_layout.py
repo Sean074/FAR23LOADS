@@ -43,6 +43,7 @@ from farloads.modules.configuration import (
     configuration_properties,
     match_component_station,
     tail_planform,
+    wing_layout_from_surface,
     wing_polylines,
     wing_surface,
 )
@@ -67,7 +68,23 @@ st.caption(
 project: Project = st.session_state.get("project", Project(name=""))
 system: UnitSystem = st.session_state.get("unit_system", UnitSystem.IMPERIAL)
 U = labels_for(system)  # {"weight","length","area_sqft","length_ft",...} -> unit string
-layout = project.configuration or LayoutInput()
+
+# No configuration slice yet (e.g. a loaded project that has WINGGEOM surfaces
+# but was never edited on this page): seed the parametric wing fields from the
+# existing "wing" surface rather than showing blank defaults for data the
+# project already has. Not committed to project.configuration until Apply.
+_from_geometry = False
+if project.configuration is not None:
+    layout = project.configuration
+else:
+    layout = LayoutInput()
+    wing_surf = project.geometry.by_name("wing") if project.geometry else None
+    if wing_surf is not None and len(wing_surf.leading_edge) >= 2 and len(wing_surf.trailing_edge) >= 2:
+        try:
+            layout = replace(layout, **wing_layout_from_surface(wing_surf))
+            _from_geometry = True
+        except (ValueError, ZeroDivisionError):
+            pass
 
 
 # --------------------------------------------------------------------------- #
@@ -96,6 +113,12 @@ with st.sidebar:
         "(set in the sidebar's global **Units** control, above). Switching it "
         "re-seeds these fields with converted defaults."
     )
+    if _from_geometry:
+        st.caption(
+            "Wing area/aspect ratio/taper/sweep/LE station below were derived from "
+            "the project's existing **wing** surface (Wing Geometry page) -- review "
+            "and **Apply geometry** to save them into Configuration & Layout."
+        )
     with st.form("layout_form"):
         with st.expander("Fuselage", expanded=True):
             fuselage_length = _num("Length", layout.fuselage_length, "f_len", "length")
