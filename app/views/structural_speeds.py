@@ -30,6 +30,22 @@ st.caption(
 
 project: Project = st.session_state.get("project", Project(name=""))
 render_applicability_banner(project)
+
+with st.expander("ℹ️ Parameter guide", expanded=False):
+    st.markdown(
+        "Design speeds and load factors per 14 CFR 23.335/23.337 (STRSPEED/MACHLIM, Ch 5). All speeds are "
+        "**KEAS** (knots equivalent airspeed) and altitudes are feet — both stay aviation-standard in either "
+        "unit system.\n\n"
+        "- **VS / VSF** — stall speed, flaps up / flaps down.\n"
+        "- **VA** — design manoeuvring speed (the positive-manoeuvre corner of the V-n envelope).\n"
+        "- **VC** — design cruising speed; **VD** — design dive speed; **VF** — design flap speed.\n"
+        "- **VH** — max level-flight speed at max continuous power (sea level).\n"
+        "- **Shoulder altitude** — the envelope 'shoulder' where VC/VD are checked against the cruise/dive "
+        "Mach limit.\n"
+        "- **Concept load factors (n, n_neg)** — for Category = Concept only, you set the limit maneuver "
+        "factors directly; no 14 CFR 23.337 cap is applied."
+    )
+
 existing = project.speeds
 
 # WTESTIMA design seat count seeds the occupants default (seed-chain) when the
@@ -64,7 +80,11 @@ with st.sidebar:
     )
     with st.form("structural_speeds_form"):
         cat_default = next((k for k, v in _CATS.items() if existing and v == existing.category), "Normal / commuter")
-        cat_label = st.selectbox("Category", _CAT_LABELS, index=_CAT_LABELS.index(cat_default))
+        cat_label = st.selectbox(
+            "Category", _CAT_LABELS, index=_CAT_LABELS.index(cat_default),
+            help="Certification category (14 CFR 23.3); sets the limit maneuver load factors (23.337). "
+                 "Concept (C) applies no FAR cap — you set the factors below.",
+        )
 
         # Both the DB-read and the override are always rendered (forms don't
         # react live to a checkbox) -- which one wins is decided at Apply.
@@ -82,6 +102,8 @@ with st.sidebar:
             weight_override = st.number_input(
                 f"Design (gross) weight override ({U['weight']})", min_value=0.0,
                 value=float(weight_default), key=f"weight_override_{system.value}",
+                help="Design gross (take-off) weight used for the load factors and design speeds "
+                     "(14 CFR 23.335; STRSPEED, Ch 5). Used only when 'Override design weight' is ticked.",
             )
         else:
             override_weight = True
@@ -91,6 +113,8 @@ with st.sidebar:
             weight_override = st.number_input(
                 f"Design (gross) weight ({U['weight']})", min_value=0.0,
                 value=float(weight_default), key=f"weight_{system.value}",
+                help="Design gross (take-off) weight used for the load factors and design speeds "
+                     "(14 CFR 23.335; STRSPEED, Ch 5).",
             )
             st.caption(
                 "No weight data base found. Add items on the **Weight, CG & Inertia** "
@@ -122,31 +146,46 @@ with st.sidebar:
             wing_area = st.number_input(
                 f"Wing area S ({U['area_sqft']})", min_value=0.0,
                 value=float(wing_area_default), key=f"wing_area_{system.value}",
+                help="Reference wing area S; with weight gives the wing loading W/S that sets the stall "
+                     "and maneuvering speeds. Read from Wing Geometry when a wing surface exists.",
             )
             st.caption(
                 "No wing geometry found. Define the wing on the **Configuration & "
                 "Layout** or **Wing Geometry** page, or enter the wing area directly above."
             )
         vh = st.number_input("Max sea-level speed VH (kt)", min_value=0.0,
-                             value=float(existing.vh_kt) if existing else 0.0)
+                             value=float(existing.vh_kt) if existing else 0.0,
+                             help="Maximum speed in level flight at max continuous power, sea level (KEAS); "
+                                  "a floor for the minimum cruise speed VC (14 CFR 23.335).")
         vs = st.number_input("Stall speed, flaps up VS (kt)", min_value=0.0,
-                             value=float(existing.stall_clean_kt) if existing else 0.0)
+                             value=float(existing.stall_clean_kt) if existing else 0.0,
+                             help="Clean (flaps-up) stall speed VS (KEAS); sets VA and the positive-manoeuvre "
+                                  "corner of the V-n envelope (14 CFR 23.335).")
         vsf = st.number_input("Stall speed, flaps down VSF (kt)", min_value=0.0,
-                              value=float(existing.stall_flap_kt) if existing else 0.0)
+                              value=float(existing.stall_flap_kt) if existing else 0.0,
+                              help="Flaps-down (landing) stall speed VSF (KEAS); sets the flap design speed VF.")
         alt = st.number_input("Shoulder altitude (ft)", min_value=0.0,
-                              value=float(existing.shoulder_altitude_ft) if existing else 0.0)
+                              value=float(existing.shoulder_altitude_ft) if existing else 0.0,
+                              help="Altitude at the 'shoulder' of the flight envelope where VC/VD are evaluated "
+                                   "for the cruise/dive Mach limit (MACHLIM, Ch 5).")
         st.subheader("Chosen speeds (blank = use minimum)")
         vc = st.number_input("Chosen cruise VC (kt)", min_value=0.0,
-                             value=float(existing.chosen_vc) if existing and existing.chosen_vc else 0.0)
+                             value=float(existing.chosen_vc) if existing and existing.chosen_vc else 0.0,
+                             help="Design cruising speed VC (KEAS); leave 0 to use the FAR 23.335(a) minimum.")
         vd = st.number_input("Chosen dive VD (kt)", min_value=0.0,
-                             value=float(existing.chosen_vd) if existing and existing.chosen_vd else 0.0)
+                             value=float(existing.chosen_vd) if existing and existing.chosen_vd else 0.0,
+                             help="Design dive speed VD (KEAS); leave 0 to use the FAR 23.335(b) minimum.")
 
         st.subheader("Concept load factors (used only when Category = Concept (C))")
         st.caption("No FAR 23.337 cap is applied to the Concept category — you set the limit maneuver factors.")
         chosen_n = st.number_input("Limit positive load factor n", min_value=0.0,
-                                   value=float(existing.chosen_n) if existing and existing.chosen_n else 0.0)
+                                   value=float(existing.chosen_n) if existing and existing.chosen_n else 0.0,
+                                   help="Concept-category limit positive maneuvering load factor (replaces the "
+                                        "FAR 23.337 formula; used only when Category = Concept).")
         chosen_nneg = st.number_input("Limit negative load factor n_neg", max_value=0.0,
-                                      value=float(existing.chosen_nneg) if existing and existing.chosen_nneg else 0.0)
+                                      value=float(existing.chosen_nneg) if existing and existing.chosen_nneg else 0.0,
+                                      help="Concept-category limit negative load factor (≤ 0; used only when "
+                                           "Category = Concept).")
         applied = st.form_submit_button("Apply", type="primary")
 
 if applied:

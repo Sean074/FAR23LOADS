@@ -67,6 +67,20 @@ st.caption(
     f"Each row is a component: weight ({U['weight']}) at station x/y/z ({U['length']}), "
     f"with its own inertia ({U['inertia_lbin2']})."
 )
+with st.expander("ℹ️ Parameter guide", expanded=False):
+    st.markdown(
+        "One row per mass item; the totals below are the loading's weight, CG and moments of inertia "
+        "(WTONECG, Ch 8):\n\n"
+        "- **weight_lb** — the item weight.\n"
+        "- **x / y / z** — the item CG station: X fuselage station (aft of the nose datum), Y butt line "
+        "(+right of centreline), Z waterline (+up).\n"
+        "- **ixx / iyy / izz** — the item's *own* moment of inertia about its CG (lb·in²) — the local term; "
+        "the program adds the parallel-axis (transfer) term from x/y/z automatically, so leave these 0 for "
+        "a point mass.\n"
+        "- **kind** — mass category: *empty* (manufacturer's empty weight), *minimum* (always-present "
+        "useful load), *discretionary* (optional payload/fuel). Drives the CG-envelope loadings.\n\n"
+        "*Roll Ixx is about the X axis, pitch Iyy about Y, yaw Izz about Z.*"
+    )
 _COLUMN_CONFIG = {
     "weight_lb": st.column_config.NumberColumn(f"weight_lb ({U['weight']})"),
     "x": st.column_config.NumberColumn(f"x ({U['length']})"),

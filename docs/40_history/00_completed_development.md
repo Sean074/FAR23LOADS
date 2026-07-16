@@ -10,6 +10,57 @@ Acceptance**, **Key decisions**.
 
 ---
 
+## Phase E — Step E2: Parameter explanation (tooltips + guides) (complete, 2026-07-15)
+
+**Objective.** Make every airplane-definition input self-explanatory. GUI-only:
+no schema change (`SCHEMA_VERSION` stays 22) and no calc-math change — the
+Appendix A/B oracles pass unmodified. Scope is the six Airplane-section pages;
+the Analysis-phase pages are out of scope.
+
+**Deliverables.**
+- **`help=` hover tooltips** on every non-grid domain input widget across
+  `app/views/configuration_layout.py` (23 widgets — fuselage/wing/tail/gear
+  geometry + tail-type + engine X/Y/Z), `weight_estimate.py` (airplane, power,
+  engines, seats, endurance, baggage, pressurized, engine type),
+  `structural_speeds.py` (category, design weight, wing area, VH/VS/VSF, shoulder
+  altitude, VC/VD, concept n/n_neg), `aero_coefficients.py` (config names, stall
+  CL / neg-stall CL, include-flaps-down), and `wing_geometry.py` (symmetric,
+  integration elements). The `configuration_layout._num` helper gained a
+  pass-through `help` parameter. Each tooltip cites the FAR paragraph and/or the
+  Reference-1 program/chapter (regulation + chapter, not exact PDF pages).
+- **"ℹ️ Parameter guide" expanders** (collapsible, `expanded=False`) on the five
+  pages that need one: Configuration & Layout (MAC / XLEMAC / neutral point /
+  static margin / tip-back / overturn / datum convention), Wing / Surface
+  Geometry (XLE/YLE/XTE/YTE / symmetric / integration elements / derived
+  Area·MAC·XLEMAC·AR·span), Weight/CG/Inertia (weight_lb / x·y·z stations /
+  ixx·iyy·izz per-item inertias with the parallel-axis note / mass `kind`),
+  Structural Speeds (VS/VSF/VA/VC/VD/VF/VH / shoulder altitude / KEAS / concept
+  factors), and Aerodynamic Data (the `C0…C4` lift/drag/moment polynomials, α in
+  degrees / stall CL / cruise-vs-flaps-down balancing).
+- **Grid (`st.data_editor`) pages** (Weight/CG inertias, Wing Geometry LE/TE
+  points, the Aero `C0…C4` table) explain their columns in the guide expander
+  rather than per column (no per-column `help=`).
+
+**Test / Acceptance.** Headless `AppTest` end-to-end on all six pages: every page
+renders with **no exceptions**; widgets carry their tooltips (config 23, speeds
+12, aero 7, wing-geometry 2 once a surface exists) and each guide expander +
+glossary term renders. Full suite (**314 passed**) + `ruff check farloads/ cli.py
+app/` clean, confirming the GUI-only / no-calc-change invariant. Docs synced
+(`GUI_design.md §8.1`/§11, this history + `CHANGELOG.md`, backlog E2 removed).
+
+**Key decisions.** Citations are **regulation paragraph + Reference-1
+program/chapter**, not exact PDF page numbers (user choice — avoids a per-field
+371-page trawl for equivalent traceability). Grid inputs are covered by the
+**guide expander only**, not per-column `help=` (user choice — the column-header
+tooltip is more limited and the grids' fields are better defined together).
+Tooltips are **inline `help=` strings** next to each widget (matching the existing
+E1 pattern on `occupants`/`crew`), not a shared help-text module. Guide expanders
+landed on **five** pages, not only the three "dense" pages the backlog named,
+because the grid pages' "guide-only" decision makes the expander the sole
+explanation vehicle for their columns.
+
+---
+
 ## Phase E — Step E1: FAR 23 applicability + occupants/crew fields (complete, 2026-07-15)
 
 **Objective.** Detect and surface — never block — when an airplane exceeds FAR 23

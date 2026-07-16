@@ -11,6 +11,18 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **Parameter explanation — tooltips + guides (Phase E, Step E2).** Every domain
+  input widget across the six Airplane-definition pages (Configuration & Layout,
+  Wing / Surface Geometry, Weight Estimate, Weight/CG/Inertia, Structural Speeds,
+  Aerodynamic Data) now carries a `help=` hover tooltip citing the relevant FAR
+  paragraph and Reference-1 program/chapter; the three grid (`st.data_editor`)
+  pages and the dense pages additionally carry a collapsible **"ℹ️ Parameter
+  guide"** expander defining the jargon (MAC, XLEMAC, static margin, neutral
+  point, tip-back/overturn, shoulder altitude, KEAS, the aero `C0…C4`
+  polynomials, per-item inertias and the parallel-axis convention). GUI-only:
+  no schema change (`SCHEMA_VERSION` stays **22**) and no calc-math change — the
+  Appendix A/B oracles are untouched (314 tests pass). Implements
+  `GUI_design.md §8.1`.
 - **FAR 23 applicability detection + occupants/crew fields (Phase E, Step E1).** The
   GUI now surfaces — never blocks — when an airplane exceeds the FAR 23 applicability
   band. New pure, unit-tested `farloads.far23_applicability(project)` returns the

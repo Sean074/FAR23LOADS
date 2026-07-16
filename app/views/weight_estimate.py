@@ -62,16 +62,21 @@ U = labels_for(system)  # {"power","weight",...} -> unit string
 with st.sidebar:
     st.header("Mission inputs")
     with st.form("weight_estimate_form"):
-        airplane = st.text_input("Airplane", value=existing.airplane if existing else "")
+        airplane = st.text_input("Airplane", value=existing.airplane if existing else "",
+                                 help="Airplane name/label; used on the report and the fleet-comparison marker.")
         hp_max = to_display(3000.0, "power", system)
         hp = st.number_input(
             f"Max continuous power ({U['power']}, total)", min_value=0.0, max_value=hp_max,
             value=float(round(to_display(existing.max_continuous_hp, "power", system), 4))
-            if existing else 0.0, key=f"max_cont_hp_{system.value}")
+            if existing else 0.0, key=f"max_cont_hp_{system.value}",
+            help="Total maximum continuous power for all engines combined (WTESTIMA, Ch 3).")
         engines = st.number_input("Number of engines", min_value=1, max_value=6,
-                                  value=existing.engines if existing else 1)
+                                  value=existing.engines if existing else 1,
+                                  help="Engine count; the power above is the combined total, not per engine.")
         seats = st.number_input("Number of seats", min_value=1, max_value=12,
-                                value=existing.seats if existing else 1)
+                                value=existing.seats if existing else 1,
+                                help="Total design seats (crew + passengers). Seeds the Structural Speeds "
+                                     "occupant count for the FAR 23 seat-limit check.")
         crew = st.number_input(
             "Flight crew", min_value=0, max_value=12,
             value=existing.crew if existing else 1,
@@ -82,17 +87,23 @@ with st.sidebar:
             ),
         )
         hours = st.number_input("Endurance at cruise power (hr)", min_value=0.0, max_value=10.0,
-                                value=float(existing.cruise_hours) if existing else 0.0)
+                                value=float(existing.cruise_hours) if existing else 0.0,
+                                help="Mission endurance at cruise power; drives the estimated fuel weight "
+                                     "(WTESTIMA, Ch 3).")
         baggage = st.number_input(
             f"Baggage weight ({U['weight']})", min_value=0.0,
             value=float(round(to_display(existing.baggage_lb, "weight", system), 4))
-            if existing else 0.0, key=f"baggage_{system.value}")
-        pressurized = st.checkbox("Pressurized", value=existing.pressurized if existing else False)
+            if existing else 0.0, key=f"baggage_{system.value}",
+            help="Design baggage payload weight; part of the useful load.")
+        pressurized = st.checkbox("Pressurized", value=existing.pressurized if existing else False,
+                                  help="Cabin pressurization adds a structural-weight allowance in the estimate.")
         default_idx = _ENGINE_LABELS.index(
             next((k for k, v in _ENGINE_TYPES.items() if existing and v == existing.engine_weight_type),
                  "4-cycle reciprocating")
         )
-        engine_label = st.selectbox("Engine type", _ENGINE_LABELS, index=default_idx)
+        engine_label = st.selectbox("Engine type", _ENGINE_LABELS, index=default_idx,
+                                    help="Engine class; selects the empty-weight correlation used for the "
+                                         "powerplant weight (WTESTIMA, Ch 3).")
         applied = st.form_submit_button("Apply mission inputs", type="primary")
 
 if applied:

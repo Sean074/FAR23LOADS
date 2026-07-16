@@ -33,6 +33,20 @@ st.caption(
 project: Project = st.session_state.get("project", Project(name=""))
 aero = project.aero_coeffs
 
+with st.expander("ℹ️ Parameter guide", expanded=False):
+    st.markdown(
+        "The airplane-less-tail balance coefficients the Flight Envelope page (FLTLOADS) balances against "
+        "(Ch 7 aero-coefficients program):\n\n"
+        "- **lift (CL vs α)** — polynomial `CL = C0 + C1·α + C2·α² + C3·α³ + C4·α⁴`, with α in **degrees**. "
+        "C0 is the zero-α lift; C1 is the lift-curve slope (per deg).\n"
+        "- **drag (CD vs CL)** — polynomial `CD = D0 + D1·CL + D2·CL² + …` (a drag polar in CL).\n"
+        "- **moment (CM vs α)** — polynomial `CM = M0 + M1·α + …` (pitching-moment coefficient).\n"
+        "- **Stall CL / negative stall CL** — the positive and negative maximum lift coefficients that cap "
+        "the balancing solution.\n\n"
+        "**Cruise** is balanced at every altitude in the flight envelope; **Flaps down (landing)** is "
+        "balanced at sea level only (FLTLOADS.BAS line 3000)."
+    )
+
 
 def _coeff_table(existing) -> pd.DataFrame:
     zero = (0.0,) * 5
@@ -60,7 +74,7 @@ with st.form("aero_coefficients_form"):
     st.subheader("Cruise (flaps up)")
     cruise_name = st.text_input(
         "Configuration name", value=aero.cruise.name if aero and aero.cruise else "CRUISE",
-        key="cruise_name",
+        key="cruise_name", help="Label for the cruise (flaps-up) coefficient set.",
     )
     cruise_df = st.data_editor(
         _coeff_table(aero.cruise if aero else None), hide_index=True,
@@ -70,23 +84,27 @@ with st.form("aero_coefficients_form"):
     cruise_stall = c1.number_input(
         "Stall CL", value=float(aero.cruise.stall_cl) if aero and aero.cruise else 0.0,
         format="%.3f", key="cruise_stall",
+        help="Positive maximum lift coefficient (flaps up); caps the positive balancing solution.",
     )
     cruise_neg_stall = c2.number_input(
         "Negative stall CL",
         value=float(aero.cruise.neg_stall_cl) if aero and aero.cruise else 0.0,
         format="%.3f", key="cruise_neg_stall",
+        help="Negative maximum lift coefficient (flaps up); caps the negative balancing solution.",
     )
 
     st.divider()
     include_flaps_down = st.checkbox(
         "Include a flaps-down (landing) configuration",
         value=bool(aero and aero.flaps_down is not None),
+        help="Add a second coefficient set for the landing configuration, balanced at sea level only "
+             "(FLTLOADS.BAS line 3000).",
     )
     st.subheader("Flaps down (landing)")
     st.caption("Ignored unless the checkbox above is ticked.")
     flaps_name = st.text_input(
         "Configuration name", value=aero.flaps_down.name if aero and aero.flaps_down else "LANDING",
-        key="flaps_name",
+        key="flaps_name", help="Label for the flaps-down (landing) coefficient set.",
     )
     flaps_df = st.data_editor(
         _coeff_table(aero.flaps_down if aero else None), hide_index=True,
@@ -96,11 +114,13 @@ with st.form("aero_coefficients_form"):
     flaps_stall = c3.number_input(
         "Stall CL", value=float(aero.flaps_down.stall_cl) if aero and aero.flaps_down else 0.0,
         format="%.3f", key="flaps_stall",
+        help="Positive maximum lift coefficient (flaps down); caps the positive balancing solution.",
     )
     flaps_neg_stall = c4.number_input(
         "Negative stall CL",
         value=float(aero.flaps_down.neg_stall_cl) if aero and aero.flaps_down else 0.0,
         format="%.3f", key="flaps_neg_stall",
+        help="Negative maximum lift coefficient (flaps down); caps the negative balancing solution.",
     )
 
     applied = st.form_submit_button("Apply", type="primary")

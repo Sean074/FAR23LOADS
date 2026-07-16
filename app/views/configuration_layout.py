@@ -100,20 +100,22 @@ else:
 # --------------------------------------------------------------------------- #
 # Input groups
 # --------------------------------------------------------------------------- #
-def _num(label: str, value: float, key: str, kind: str | None = None, step: float = 1.0) -> float:
+def _num(label: str, value: float, key: str, kind: str | None = None, step: float = 1.0,
+         help: str | None = None) -> float:
     """A ``number_input`` seeded from a canonical Imperial ``value``.
 
     When ``kind`` is given, the widget displays/accepts the value converted
     into the selected unit system (label gets the unit suffix, key gets a
     per-system suffix so switching units re-seeds the widget with converted
     defaults). ``kind=None`` is for system-independent quantities (ratios,
-    angles) and passes the value through unchanged.
+    angles) and passes the value through unchanged. ``help`` is the hover
+    tooltip (Step E2).
     """
     if kind is None:
-        return float(st.number_input(label, value=float(value), step=step, key=key))
+        return float(st.number_input(label, value=float(value), step=step, key=key, help=help))
     display_value = float(round(to_display(value, kind, system), 4))
     return float(st.number_input(f"{label} ({U[kind]})", value=display_value, step=step,
-                                  key=f"{key}_{system.value}"))
+                                  key=f"{key}_{system.value}", help=help))
 
 
 with st.sidebar:
@@ -131,37 +133,83 @@ with st.sidebar:
         )
     with st.form("layout_form"):
         with st.expander("Fuselage", expanded=True):
-            fuselage_length = _num("Length", layout.fuselage_length, "f_len", "length")
-            fuselage_width = _num("Width", layout.fuselage_width, "f_wid", "length")
-            fuselage_height = _num("Height", layout.fuselage_height, "f_hgt", "length")
-            datum_x = _num("Nose datum station", layout.datum_x, "f_dat", "length")
+            fuselage_length = _num("Length", layout.fuselage_length, "f_len", "length",
+                                   help="Overall fuselage length, nose to tail (concept estimate — configuration.py).")
+            fuselage_width = _num("Width", layout.fuselage_width, "f_wid", "length",
+                                  help="Maximum fuselage width; sets the top-view body outline.")
+            fuselage_height = _num("Height", layout.fuselage_height, "f_hgt", "length",
+                                   help="Maximum fuselage height; sets the side/front-view body outline.")
+            datum_x = _num("Nose datum station", layout.datum_x, "f_dat", "length",
+                           help="Fuselage station of the nose reference datum; all X stations are measured aft "
+                                "from here (WTONECG station convention).")
         with st.expander("Wing", expanded=True):
-            wing_area_sqft = _num("Area S", layout.wing_area_sqft, "w_area", "area_sqft")
-            aspect_ratio = _num("Aspect ratio", layout.aspect_ratio, "w_ar", None, 0.1)
-            taper_ratio = _num("Taper ratio", layout.taper_ratio, "w_taper", None, 0.05)
-            le_sweep_deg = _num("LE sweep (deg)", layout.le_sweep_deg, "w_sweep", None, 0.5)
-            dihedral_deg = _num("Dihedral (deg)", layout.dihedral_deg, "w_dih", None, 0.5)
-            le_root_x = _num("LE root station", layout.le_root_x, "w_lex", "length")
-            root_waterline_z = _num("Root waterline", layout.root_waterline_z, "w_wl", "length")
+            wing_area_sqft = _num("Area S", layout.wing_area_sqft, "w_area", "area_sqft",
+                                  help="Reference (trapezoidal) wing planform area S; drives W/S and the "
+                                       "WINGGEOM surface seed (Ch 4).")
+            aspect_ratio = _num("Aspect ratio", layout.aspect_ratio, "w_ar", None, 0.1,
+                                help="Wing aspect ratio AR = b²/S; sets the derived span for a given area.")
+            taper_ratio = _num("Taper ratio", layout.taper_ratio, "w_taper", None, 0.05,
+                               help="Tip/root chord ratio λ (0 < λ ≤ 1); values > 1 are flagged inconsistent.")
+            le_sweep_deg = _num("LE sweep (deg)", layout.le_sweep_deg, "w_sweep", None, 0.5,
+                                help="Leading-edge sweep angle Λ_LE, degrees.")
+            dihedral_deg = _num("Dihedral (deg)", layout.dihedral_deg, "w_dih", None, 0.5,
+                                help="Wing dihedral angle, degrees; seeds the Wing/Tail Loads pages and the "
+                                     "front-view sketch.")
+            le_root_x = _num("LE root station", layout.le_root_x, "w_lex", "length",
+                             help="Fuselage station of the wing root leading edge; positions the planform "
+                                  "and sets XLEMAC.")
+            root_waterline_z = _num("Root waterline", layout.root_waterline_z, "w_wl", "length",
+                                    help="Vertical (Z) waterline of the wing root; sets wing height for the "
+                                         "side/front views.")
         with st.expander("Tail"):
             tail_type_label = st.selectbox(
                 "Tail type", list(_TAIL_TYPE_LABELS.values()),
                 index=list(_TAIL_TYPE_LABELS.keys()).index(layout.tail_type), key="tail_type",
+                help="Empennage arrangement; T-tail/cruciform auto-place the h-tail Z when its offset is 0.",
             )
-            h_tail_area = _num("H-tail area", layout.h_tail_area, "h_area", "area_sqft")
-            h_tail_arm = _num("H-tail arm", layout.h_tail_arm, "h_arm", "length")
-            h_tail_span_ft = _num("H-tail span", layout.h_tail_span_ft, "h_span", "length_ft", 0.5)
+            h_tail_area = _num("H-tail area", layout.h_tail_area, "h_area", "area_sqft",
+                               help="Horizontal-tail planform area (14 CFR 23.421 balancing loads).")
+            h_tail_arm = _num("H-tail arm", layout.h_tail_arm, "h_arm", "length",
+                              help="Distance from the wing/CG to the horizontal-tail aerodynamic centre "
+                                   "(tail moment arm).")
+            h_tail_span_ft = _num("H-tail span", layout.h_tail_span_ft, "h_span", "length_ft", 0.5,
+                                  help="Horizontal-tail span; seeds the Tail Loads distribution.")
             h_tail_z = _num("H-tail Z offset from waterline (0 = auto for T-tail/cruciform)",
-                            layout.h_tail_z, "h_z", "length", 1.0)
-            v_tail_area = _num("V-tail area", layout.v_tail_area, "v_area", "area_sqft")
-            v_tail_arm = _num("V-tail arm", layout.v_tail_arm, "v_arm", "length")
-            v_tail_span_ft = _num("V-tail span", layout.v_tail_span_ft, "v_span", "length_ft", 0.5)
+                            layout.h_tail_z, "h_z", "length", 1.0,
+                            help="Vertical offset of the h-tail above the root waterline; leave 0 to auto-place "
+                                 "on the fin for a T-tail/cruciform.")
+            v_tail_area = _num("V-tail area", layout.v_tail_area, "v_area", "area_sqft",
+                               help="Vertical-tail (fin) planform area (14 CFR 23.441/23.443 loads).")
+            v_tail_arm = _num("V-tail arm", layout.v_tail_arm, "v_arm", "length",
+                              help="Distance from the CG to the vertical-tail aerodynamic centre.")
+            v_tail_span_ft = _num("V-tail span", layout.v_tail_span_ft, "v_span", "length_ft", 0.5,
+                                  help="Vertical-tail height; seeds the fin/rudder load distribution.")
         with st.expander("Landing gear"):
-            nose_gear_x = _num("Nose gear station", layout.nose_gear_x, "g_nose", "length")
-            main_gear_x = _num("Main gear station", layout.main_gear_x, "g_main", "length")
-            track = _num("Track", layout.track, "g_track", "length")
-            gear_height = _num("Gear height", layout.gear_height, "g_hgt", "length")
+            nose_gear_x = _num("Nose gear station", layout.nose_gear_x, "g_nose", "length",
+                               help="Fuselage station of the nose-gear contact point (LANDLOAD geometry, Ch 10).")
+            main_gear_x = _num("Main gear station", layout.main_gear_x, "g_main", "length",
+                               help="Fuselage station of the main-gear contact point; with the CG sets the "
+                                    "tip-back margin.")
+            track = _num("Track", layout.track, "g_track", "length",
+                         help="Main-gear track (lateral wheel spacing); with CG height sets the overturn angle.")
+            gear_height = _num("Gear height", layout.gear_height, "g_hgt", "length",
+                               help="Ground-to-waterline gear height; sets the ground line in the side/front views.")
         applied = st.form_submit_button("Apply geometry", type="primary")
+
+    with st.expander("ℹ️ Parameter guide", expanded=False):
+        st.markdown(
+            "- **Datum / station** — X stations are fuselage stations measured aft from the nose datum "
+            "(inches). Y is butt line (lateral, +right), Z is waterline (vertical, +up).\n"
+            "- **MAC** — mean aerodynamic chord, the reference chord of the equivalent rectangular wing; "
+            "loads and the CG are referenced to it.\n"
+            "- **XLEMAC** — fuselage station of the leading edge of the MAC; the origin for %-MAC positions.\n"
+            "- **Neutral point** — the CG station at which the airplane is neutrally stable (∂Cm/∂α = 0).\n"
+            "- **Static margin** — (neutral point − CG) / MAC, as a fraction of MAC; positive = statically stable.\n"
+            "- **Tip-back / overturn angle** — gear-geometry margins: tip-back from the CG-to-main-gear "
+            "geometry, overturn from the CG height and track.\n\n"
+            "Configuration & Layout is a modern, port-free page (no manual oracle); figures are first-order "
+            "concept estimates — see `farloads/modules/configuration.py`."
+        )
 
 if applied:
     def _imp(v: float, kind: str) -> float:
@@ -345,9 +393,12 @@ if project.engines:
         for i, eng in enumerate(project.engines):
             st.markdown(f"**{eng.engine_designation or f'Engine {i + 1}'}**")
             c1, c2, c3 = st.columns(3)
-            x = c1.number_input("X (in)", value=float(eng.engine_cg[0]), key=f"eng_cg_x_{i}")
-            y = c2.number_input("Y (in)", value=float(eng.engine_cg[1]), key=f"eng_cg_y_{i}")
-            z = c3.number_input("Z (in)", value=float(eng.engine_cg[2]), key=f"eng_cg_z_{i}")
+            x = c1.number_input("X (in)", value=float(eng.engine_cg[0]), key=f"eng_cg_x_{i}",
+                                help="Engine CG fuselage station (inches aft of the nose datum).")
+            y = c2.number_input("Y (in)", value=float(eng.engine_cg[1]), key=f"eng_cg_y_{i}",
+                                help="Engine CG butt line (inches, +right of centreline).")
+            z = c3.number_input("Z (in)", value=float(eng.engine_cg[2]), key=f"eng_cg_z_{i}",
+                                help="Engine CG waterline (inches, +up).")
             overrides.append((x, y, z))
         if st.button("Apply engine positions"):
             project.engines = [

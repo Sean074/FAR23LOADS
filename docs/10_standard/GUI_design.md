@@ -168,12 +168,16 @@ standard, the rollout is tracked in
 
 ### 8.1 Explanation
 
-Every domain input widget carries a `help=` tooltip; dense pages (Configuration &
-Layout geometry, Aerodynamic Data coefficients, Weight/CG inertias) additionally
-carry a collapsible **"ℹ️ Parameter guide"** expander. Jargon (MAC, XLEMAC, static
-margin, shoulder altitude, area-density ratio, the aero `C0…C4` polynomials) is
-defined for the user, with FAR / Reference-1 page citations. *(Target — Phase E2;
-today explanation is caption-only, no per-widget `help=`.)*
+Every domain input widget carries a `help=` tooltip; dense and grid pages
+(Configuration & Layout geometry, Wing / Surface Geometry, Aerodynamic Data
+coefficients, Weight/CG inertias, and a short one on Structural Speeds)
+additionally carry a collapsible **"ℹ️ Parameter guide"** expander. Jargon (MAC,
+XLEMAC, static margin, neutral point, tip-back/overturn, shoulder altitude, KEAS,
+the aero `C0…C4` polynomials, per-item inertias and the parallel-axis convention)
+is defined for the user, with FAR paragraph + Reference-1 program/chapter
+citations. The three `st.data_editor` grid pages (Weight/CG inertias, Wing
+Geometry LE/TE points, the Aero `C0…C4` table) explain their columns in the guide
+expander rather than per column. *(Implemented — Phase E2.)*
 
 ### 8.2 Graphical review
 
@@ -268,12 +272,12 @@ hardening the sidebar load path and adding a schema-version check are Phase E5.
 **Implemented today:** the six-section navigation, the global unit toggle and
 project-file widget, the shared-`Project` data flow and seed-chain, the
 form+Apply/merge page conventions, the unit-boundary input pattern across all
-definition pages (§7), the Configuration & Layout three-view + fleet scatters, and
-the FAR 23 applicability banner + `occupants`/`crew` fields and OEW line (§9,
-Phase E1).
+definition pages (§7), the Configuration & Layout three-view + fleet scatters, the
+FAR 23 applicability banner + `occupants`/`crew` fields and OEW line (§9,
+Phase E1), and the per-widget `help=` tooltips + parameter-guide expanders across
+the six Airplane pages (§8.1, Phase E2).
 
-**Adopted standards pending rollout (backlog Phase E):** per-widget `help=` +
-parameter guides (E2), the
+**Adopted standards pending rollout (backlog Phase E):** the
 Structural Speeds V-n and Weight/CG mass plots + input-consistency warnings (E3),
 the quantitative fleet comparison (E4), and load-path robustness (E5).
 

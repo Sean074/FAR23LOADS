@@ -33,10 +33,10 @@ history, `CHANGELOG.md`).
 Start-page local-disk persistence; authoritative shared inputs + Aero
 Coefficients page; Envelopes & Critical Conditions section; Analysis merged
 into nine component pages; Loads Plots page; Export & report upgrades) and
-Phase-E **Step E1** (FAR 23 applicability detection + `occupants`/`crew` fields +
-OEW line). Phase D
+Phase-E **Steps E1–E2** (FAR 23 applicability detection + `occupants`/`crew`
+fields + OEW line; per-widget `help=` tooltips + parameter guides). Phase D
 (the six-section GUI restructure) is complete; **Phase E** (GUI usability
-& concept-awareness) is underway — E1 shipped, E2–E5 queued below. **All 22** of Reference 1's
+& concept-awareness) is underway — E1–E2 shipped, E3–E5 queued below. **All 22** of Reference 1's
 Appendix-C programs are ported (ENGLOADS, WTESTIMA, WTONECG, WTENV,
 WINGGEOM, STRSPEED, MACHLIM, TAU, AIRLOADS, AIRLOAD4, FLTLOADS, SELECT, WINGINER,
 NETLOADS, TAILDIST, AILERON, FLAPLOAD, TABLOADS, ONENGOUT, LGFACTOR, LANDLOAD,
@@ -106,19 +106,6 @@ concept mode reduces exactly to FAR 23 on GA inputs. User-approved directions
 (locked 2026-07-15): warn-banner (non-blocking) for exceedance with a "switch to
 Concept" action; `occupants` as a first-class field; `help=` tooltips + per-page
 parameter guides; and the E3 graphical set (V-n + input-consistency + CG/mass).
-
-### Step E2 — Parameter explanation (tooltips + guides)
-**Objective.** Make every airplane-definition input self-explanatory. No schema
-change.
-**Deliverables.** `help=` tooltips on every domain input widget across the
-Airplane pages (`configuration_layout`, `wing_geometry`, `weight_estimate`,
-`weight_cg_inertia`, `structural_speeds`, `aero_coefficients`), citing FAR /
-Reference-1 pages; a collapsible "ℹ️ Parameter guide" expander on the dense pages
-(Config geometry, aero coefficients, inertias) defining MAC/XLEMAC/static margin/
-area-density ratio/the `C0…C4` polynomials.
-**Test/Acceptance.** Manual `streamlit run app/Home.py` walkthrough (tooltips
-present, guides render); full suite + `ruff` clean; `GUI_design.md §8.1` marked
-implemented.
 
 ### Step E3 — Graphical review + input-consistency validation
 **Objective.** Give the input-heavy pages a visual sanity check and explicit

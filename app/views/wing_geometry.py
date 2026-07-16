@@ -42,6 +42,18 @@ geometry = project.geometry or GeometryInput()
 system: UnitSystem = st.session_state.get("unit_system", UnitSystem.IMPERIAL)
 U = labels_for(system)  # {"length",...} -> unit string
 
+with st.expander("ℹ️ Parameter guide", expanded=False):
+    st.markdown(
+        "Each surface is defined by its leading- and trailing-edge points, ordered inboard → outboard "
+        "(WINGGEOM, Ch 4):\n\n"
+        "- **XLE / XTE** — fuselage station (X, aft of the nose datum) of the leading / trailing edge point.\n"
+        "- **YLE / YTE** — butt line (Y, lateral distance from the centreline) of that point.\n"
+        "- **Symmetric about CL** — enter only the right-hand semi-span; it is mirrored for the integration.\n"
+        "- **Integration elements** — number of spanwise strips the chord is integrated over.\n\n"
+        "**Derived (below):** *Area* = ∫ chord dy; *MAC* = mean aerodynamic chord; *XLEMAC* = station of the "
+        "MAC leading edge; *AR* = b²/S (aspect ratio); *span* b."
+    )
+
 # Add a new (blank) surface -- immediate, not gated behind the edit form below.
 with st.form("add_surface_form", clear_on_submit=True):
     new_name = st.text_input("New surface name", value="", placeholder="e.g. wing")
@@ -63,10 +75,14 @@ with st.form("geometry_form"):
         with st.expander(f"Surface: {surf.name}", expanded=(surf.name == "wing")):
             cols = st.columns(2)
             with cols[0]:
-                sym = st.checkbox("Symmetric about CL", value=surf.symmetric, key=f"sym_{surf.name}")
+                sym = st.checkbox("Symmetric about CL", value=surf.symmetric, key=f"sym_{surf.name}",
+                                  help="Mirror the entered semi-span about the centreline; enter only the "
+                                       "right-hand points when ticked.")
             with cols[1]:
                 elems = st.number_input("Integration elements", min_value=2, max_value=100,
-                                        value=int(surf.elements), key=f"el_{surf.name}")
+                                        value=int(surf.elements), key=f"el_{surf.name}",
+                                        help="Number of spanwise strips the chord is integrated over for "
+                                             "Area/MAC/XLEMAC (WINGGEOM, Ch 4). More strips = finer integration.")
             st.caption(f"Points entered in {U['length']}.")
             le_display = [(to_display(x, "length", system), to_display(y, "length", system))
                           for x, y in surf.leading_edge]
