@@ -15,7 +15,16 @@ import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
 
-from farloads import GeometryInput, Project, SurfaceInput, UnitSystem, convert_results
+from farloads import (
+    GeometryInput,
+    Project,
+    SurfaceInput,
+    UnitSystem,
+    convert_results,
+    labels_for,
+    to_display,
+    to_imperial_scalar,
+)
 from farloads import io as farloads_io
 from farloads.modules.wing_geometry import geometry_properties, surface_top_outline
 from farloads.report import module_text_report
@@ -31,6 +40,7 @@ project: Project = st.session_state.get("project", Project(name=""))
 geometry = project.geometry or GeometryInput()
 
 system: UnitSystem = st.session_state.get("unit_system", UnitSystem.IMPERIAL)
+U = labels_for(system)  # {"length",...} -> unit string
 
 # Add a new (blank) surface -- immediate, not gated behind the edit form below.
 with st.form("add_surface_form", clear_on_submit=True):
@@ -57,19 +67,31 @@ with st.form("geometry_form"):
             with cols[1]:
                 elems = st.number_input("Integration elements", min_value=2, max_value=100,
                                         value=int(surf.elements), key=f"el_{surf.name}")
-            le_df = st.data_editor(pd.DataFrame(surf.leading_edge, columns=["XLE", "YLE"]),
-                                   num_rows="dynamic", key=f"le_{surf.name}")
-            te_df = st.data_editor(pd.DataFrame(surf.trailing_edge, columns=["XTE", "YTE"]),
-                                   num_rows="dynamic", key=f"te_{surf.name}")
+            st.caption(f"Points entered in {U['length']}.")
+            le_display = [(to_display(x, "length", system), to_display(y, "length", system))
+                          for x, y in surf.leading_edge]
+            te_display = [(to_display(x, "length", system), to_display(y, "length", system))
+                          for x, y in surf.trailing_edge]
+            le_cols = {"XLE": st.column_config.NumberColumn(f"XLE ({U['length']})"),
+                      "YLE": st.column_config.NumberColumn(f"YLE ({U['length']})")}
+            te_cols = {"XTE": st.column_config.NumberColumn(f"XTE ({U['length']})"),
+                      "YTE": st.column_config.NumberColumn(f"YTE ({U['length']})")}
+            le_df = st.data_editor(pd.DataFrame(le_display, columns=["XLE", "YLE"]),
+                                   num_rows="dynamic", column_config=le_cols, key=f"le_{surf.name}_{system.value}")
+            te_df = st.data_editor(pd.DataFrame(te_display, columns=["XTE", "YTE"]),
+                                   num_rows="dynamic", column_config=te_cols, key=f"te_{surf.name}_{system.value}")
             field_inputs.append((surf.name, sym, elems, le_df, te_df))
     applied = st.form_submit_button("Apply geometry", type="primary")
 
 if applied:
+    def _imp_pt(row):
+        return tuple(to_imperial_scalar(v, "length", system) for v in row)
+
     edited_surfaces = [
         SurfaceInput(
             name=name, symmetric=sym, elements=int(elems),
-            leading_edge=[tuple(r) for r in le_df.dropna().to_numpy().tolist()],
-            trailing_edge=[tuple(r) for r in te_df.dropna().to_numpy().tolist()],
+            leading_edge=[_imp_pt(r) for r in le_df.dropna().to_numpy().tolist()],
+            trailing_edge=[_imp_pt(r) for r in te_df.dropna().to_numpy().tolist()],
         )
         for name, sym, elems, le_df, te_df in field_inputs
     ]
@@ -84,10 +106,12 @@ def _planform_plot() -> go.Figure:
         color = palette[i % len(palette)]
         outlines = surface_top_outline(surf.leading_edge, surf.trailing_edge, symmetric=surf.symmetric)
         for j, (xs, ys) in enumerate(outlines):
-            fig.add_scatter(x=xs, y=ys, mode="lines", line=dict(color=color),
+            xs_disp = [to_display(x, "length", system) for x in xs]
+            ys_disp = [to_display(y, "length", system) for y in ys]
+            fig.add_scatter(x=xs_disp, y=ys_disp, mode="lines", line=dict(color=color),
                             name=surf.name, showlegend=(j == 0))
-    fig.update_yaxes(scaleanchor="x", scaleratio=1, title="Y (butt line, in)")
-    fig.update_xaxes(title="X (fuselage station, in)")
+    fig.update_yaxes(scaleanchor="x", scaleratio=1, title=f"Y (butt line, {U['length']})")
+    fig.update_xaxes(title=f"X (fuselage station, {U['length']})")
     fig.update_layout(height=340, margin=dict(l=10, r=10, t=30, b=10))
     return fig
 

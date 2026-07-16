@@ -19,6 +19,9 @@ from farloads import (
     UnitSystem,
     WeightInput,
     convert_results,
+    labels_for,
+    to_display,
+    to_imperial_scalar,
 )
 from farloads import io as farloads_io
 from farloads.modules.weight_onecg import weights_and_inertia
@@ -32,6 +35,7 @@ st.caption(
 )
 
 system: UnitSystem = st.session_state.get("unit_system", UnitSystem.IMPERIAL)
+U = labels_for(system)  # {"weight","length","inertia_lbin2",...} -> unit string
 
 _COLUMNS = ["name", "weight_lb", "x", "y", "z", "ixx", "iyy", "izz", "kind"]
 _KINDS = [k.value for k in MassItemKind]
@@ -39,10 +43,17 @@ _KINDS = [k.value for k in MassItemKind]
 project: Project = st.session_state.get("project", Project(name=""))
 items = project.weight.items if project.weight and project.weight.items else []
 
+
+def _disp(v: float, kind: str) -> float:
+    return to_display(v, kind, system)
+
+
 if items:
     default_df = pd.DataFrame([
-        {"name": it.name, "weight_lb": it.weight_lb, "x": it.x, "y": it.y, "z": it.z,
-         "ixx": it.ixx, "iyy": it.iyy, "izz": it.izz, "kind": it.kind.value}
+        {"name": it.name, "weight_lb": _disp(it.weight_lb, "weight"),
+         "x": _disp(it.x, "length"), "y": _disp(it.y, "length"), "z": _disp(it.z, "length"),
+         "ixx": _disp(it.ixx, "inertia_lbin2"), "iyy": _disp(it.iyy, "inertia_lbin2"),
+         "izz": _disp(it.izz, "inertia_lbin2"), "kind": it.kind.value}
         for it in items
     ])
 else:
@@ -52,18 +63,35 @@ else:
     ])
 
 st.subheader("Weight data base")
-st.caption("Each row is a component: weight (lb) at station x/y/z (in), with its own inertia (lb-in²).")
+st.caption(
+    f"Each row is a component: weight ({U['weight']}) at station x/y/z ({U['length']}), "
+    f"with its own inertia ({U['inertia_lbin2']})."
+)
+_COLUMN_CONFIG = {
+    "weight_lb": st.column_config.NumberColumn(f"weight_lb ({U['weight']})"),
+    "x": st.column_config.NumberColumn(f"x ({U['length']})"),
+    "y": st.column_config.NumberColumn(f"y ({U['length']})"),
+    "z": st.column_config.NumberColumn(f"z ({U['length']})"),
+    "ixx": st.column_config.NumberColumn(f"ixx ({U['inertia_lbin2']})"),
+    "iyy": st.column_config.NumberColumn(f"iyy ({U['inertia_lbin2']})"),
+    "izz": st.column_config.NumberColumn(f"izz ({U['inertia_lbin2']})"),
+    "kind": st.column_config.SelectboxColumn("kind", options=_KINDS),
+}
 with st.form("weight_items_form"):
     edited = st.data_editor(
         default_df,
         num_rows="dynamic",
         use_container_width=True,
         hide_index=True,
-        column_config={"kind": st.column_config.SelectboxColumn("kind", options=_KINDS)},
+        column_config=_COLUMN_CONFIG,
+        key=f"weight_items_{system.value}",
     )
     applied = st.form_submit_button("Apply weight items", type="primary")
 
 if applied:
+    def _imp(v: float, kind: str) -> float:
+        return to_imperial_scalar(v, kind, system)
+
     mass_items = []
     for _, row in edited.iterrows():
         try:
@@ -72,13 +100,13 @@ if applied:
             kind = MassItemKind.EMPTY
         mass_items.append(MassItem(
             name=str(row.get("name", "")),
-            weight_lb=float(row.get("weight_lb", 0) or 0),
-            x=float(row.get("x", 0) or 0),
-            y=float(row.get("y", 0) or 0),
-            z=float(row.get("z", 0) or 0),
-            ixx=float(row.get("ixx", 0) or 0),
-            iyy=float(row.get("iyy", 0) or 0),
-            izz=float(row.get("izz", 0) or 0),
+            weight_lb=_imp(float(row.get("weight_lb", 0) or 0), "weight"),
+            x=_imp(float(row.get("x", 0) or 0), "length"),
+            y=_imp(float(row.get("y", 0) or 0), "length"),
+            z=_imp(float(row.get("z", 0) or 0), "length"),
+            ixx=_imp(float(row.get("ixx", 0) or 0), "inertia_lbin2"),
+            iyy=_imp(float(row.get("iyy", 0) or 0), "inertia_lbin2"),
+            izz=_imp(float(row.get("izz", 0) or 0), "inertia_lbin2"),
             kind=kind,
         ))
     # Merge-write: keep any existing estimation inputs and envelope, only the

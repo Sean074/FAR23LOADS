@@ -14,7 +14,7 @@ from __future__ import annotations
 import pandas as pd
 import streamlit as st
 
-from farloads import Project, StructuralSpeedsInput
+from farloads import Project, StructuralSpeedsInput, UnitSystem, labels_for, to_display, to_imperial_scalar
 from farloads import io as farloads_io
 from farloads.modules.structural_speeds import design_speeds
 from farloads.report import module_text_report
@@ -28,6 +28,9 @@ st.caption(
 
 project: Project = st.session_state.get("project", Project(name=""))
 existing = project.speeds
+
+system: UnitSystem = st.session_state.get("unit_system", UnitSystem.IMPERIAL)
+U = labels_for(system)  # {"weight","area_sqft",...} -> unit string
 
 _CATS = {"Normal / commuter": "N", "Utility": "U", "Acrobatic": "A", "Concept (C)": "C"}
 _CAT_LABELS = list(_CATS)
@@ -43,7 +46,12 @@ mtow_upstream = project.weight.direct_totals()[0] if project.weight and project.
 has_weight_db = mtow_upstream > 0
 
 with st.sidebar:
-    st.header("Inputs (Imperial / KEAS)")
+    st.header(f"Inputs ({U['weight']} / KEAS)")
+    st.caption(
+        f"Input units: **{'Imperial' if system == UnitSystem.IMPERIAL else 'SI'}** "
+        "(set in the sidebar's global **Units** control, above). Airspeed (kt) and "
+        "altitude (ft) stay aviation-standard in both systems."
+    )
     with st.form("structural_speeds_form"):
         cat_default = next((k for k, v in _CATS.items() if existing and v == existing.category), "Normal / commuter")
         cat_label = st.selectbox("Category", _CAT_LABELS, index=_CAT_LABELS.index(cat_default))
@@ -51,20 +59,28 @@ with st.sidebar:
         # Both the DB-read and the override are always rendered (forms don't
         # react live to a checkbox) -- which one wins is decided at Apply.
         if has_weight_db:
-            st.caption(f"Design weight from the Weight DB: **{mtow_upstream:,.0f} lb**.")
+            mtow_upstream_display = to_display(mtow_upstream, "weight", system)
+            st.caption(f"Design weight from the Weight DB: **{mtow_upstream_display:,.0f} {U['weight']}**.")
             override_weight = st.checkbox(
                 "Override design weight", value=False,
                 help="Uncheck to use the Weight DB total (Weight, CG & Inertia page).",
             )
+            weight_default = (
+                to_display(existing.weight_lb, "weight", system) if existing and existing.weight_lb
+                else mtow_upstream_display
+            )
             weight_override = st.number_input(
-                "Design (gross) weight override (lb)", min_value=0.0,
-                value=float(existing.weight_lb) if existing and existing.weight_lb else mtow_upstream,
+                f"Design (gross) weight override ({U['weight']})", min_value=0.0,
+                value=float(weight_default), key=f"weight_override_{system.value}",
             )
         else:
             override_weight = True
+            weight_default = (
+                to_display(existing.weight_lb, "weight", system) if existing and existing.weight_lb else 0.0
+            )
             weight_override = st.number_input(
-                "Design (gross) weight (lb)", min_value=0.0,
-                value=float(existing.weight_lb) if existing and existing.weight_lb else 0.0,
+                f"Design (gross) weight ({U['weight']})", min_value=0.0,
+                value=float(weight_default), key=f"weight_{system.value}",
             )
             st.caption(
                 "No weight data base found. Add items on the **Weight, CG & Inertia** "
@@ -75,9 +91,14 @@ with st.sidebar:
             st.caption("Wing area read from the Wing Geometry page.")
             wing_area = None
         else:
-            wing_area = st.number_input("Wing area S (ft²)", min_value=0.0,
-                                        value=float(existing.wing_area_sqft) if existing and existing.wing_area_sqft
-                                        else 0.0)
+            wing_area_default = (
+                to_display(existing.wing_area_sqft, "area_sqft", system) if existing and existing.wing_area_sqft
+                else 0.0
+            )
+            wing_area = st.number_input(
+                f"Wing area S ({U['area_sqft']})", min_value=0.0,
+                value=float(wing_area_default), key=f"wing_area_{system.value}",
+            )
             st.caption(
                 "No wing geometry found. Define the wing on the **Configuration & "
                 "Layout** or **Wing Geometry** page, or enter the wing area directly above."
@@ -106,11 +127,13 @@ with st.sidebar:
 
 if applied:
     is_concept_submit = _CATS[cat_label] == "C"
-    weight = weight_override if (override_weight or not has_weight_db) else mtow_upstream
+    weight_imperial = to_imperial_scalar(weight_override, "weight", system)
+    weight = weight_imperial if (override_weight or not has_weight_db) else mtow_upstream
+    wing_area_imperial = to_imperial_scalar(wing_area, "area_sqft", system) if wing_area else None
     inp = StructuralSpeedsInput(
         category=_CATS[cat_label],
         weight_lb=weight,
-        wing_area_sqft=wing_area,
+        wing_area_sqft=wing_area_imperial,
         vh_kt=vh,
         stall_clean_kt=vs,
         stall_flap_kt=vsf,

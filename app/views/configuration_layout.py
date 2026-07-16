@@ -25,7 +25,18 @@ import plotly.graph_objects as go
 import streamlit as st
 from plotly.subplots import make_subplots
 
-from farloads import LayoutInput, MassItemKind, Project, TailType, UnitSystem, WeightInput, convert_results
+from farloads import (
+    LayoutInput,
+    MassItemKind,
+    Project,
+    TailType,
+    UnitSystem,
+    WeightInput,
+    convert_results,
+    labels_for,
+    to_display,
+    to_imperial_scalar,
+)
 from farloads.modules.configuration import (
     cg_estimate,
     component_stations,
@@ -55,65 +66,89 @@ st.caption(
 
 project: Project = st.session_state.get("project", Project(name=""))
 system: UnitSystem = st.session_state.get("unit_system", UnitSystem.IMPERIAL)
+U = labels_for(system)  # {"weight","length","area_sqft","length_ft",...} -> unit string
 layout = project.configuration or LayoutInput()
 
 
 # --------------------------------------------------------------------------- #
 # Input groups
 # --------------------------------------------------------------------------- #
-def _num(label: str, value: float, key: str, step: float = 1.0) -> float:
-    return float(st.number_input(label, value=float(value), step=step, key=key))
+def _num(label: str, value: float, key: str, kind: str | None = None, step: float = 1.0) -> float:
+    """A ``number_input`` seeded from a canonical Imperial ``value``.
+
+    When ``kind`` is given, the widget displays/accepts the value converted
+    into the selected unit system (label gets the unit suffix, key gets a
+    per-system suffix so switching units re-seeds the widget with converted
+    defaults). ``kind=None`` is for system-independent quantities (ratios,
+    angles) and passes the value through unchanged.
+    """
+    if kind is None:
+        return float(st.number_input(label, value=float(value), step=step, key=key))
+    display_value = float(round(to_display(value, kind, system), 4))
+    return float(st.number_input(f"{label} ({U[kind]})", value=display_value, step=step,
+                                  key=f"{key}_{system.value}"))
 
 
 with st.sidebar:
-    st.header("Geometry (inches / ft²)")
+    st.header(f"Geometry ({U['length']} / {U['area_sqft']})")
+    st.caption(
+        f"Input units: **{'Imperial' if system == UnitSystem.IMPERIAL else 'SI'}** "
+        "(set in the sidebar's global **Units** control, above). Switching it "
+        "re-seeds these fields with converted defaults."
+    )
     with st.form("layout_form"):
         with st.expander("Fuselage", expanded=True):
-            fuselage_length = _num("Length (in)", layout.fuselage_length, "f_len")
-            fuselage_width = _num("Width (in)", layout.fuselage_width, "f_wid")
-            fuselage_height = _num("Height (in)", layout.fuselage_height, "f_hgt")
-            datum_x = _num("Nose datum station (in)", layout.datum_x, "f_dat")
+            fuselage_length = _num("Length", layout.fuselage_length, "f_len", "length")
+            fuselage_width = _num("Width", layout.fuselage_width, "f_wid", "length")
+            fuselage_height = _num("Height", layout.fuselage_height, "f_hgt", "length")
+            datum_x = _num("Nose datum station", layout.datum_x, "f_dat", "length")
         with st.expander("Wing", expanded=True):
-            wing_area_sqft = _num("Area S (ft²)", layout.wing_area_sqft, "w_area")
-            aspect_ratio = _num("Aspect ratio", layout.aspect_ratio, "w_ar", 0.1)
-            taper_ratio = _num("Taper ratio", layout.taper_ratio, "w_taper", 0.05)
-            le_sweep_deg = _num("LE sweep (deg)", layout.le_sweep_deg, "w_sweep", 0.5)
-            dihedral_deg = _num("Dihedral (deg)", layout.dihedral_deg, "w_dih", 0.5)
-            le_root_x = _num("LE root station (in)", layout.le_root_x, "w_lex")
-            root_waterline_z = _num("Root waterline (in)", layout.root_waterline_z, "w_wl")
+            wing_area_sqft = _num("Area S", layout.wing_area_sqft, "w_area", "area_sqft")
+            aspect_ratio = _num("Aspect ratio", layout.aspect_ratio, "w_ar", None, 0.1)
+            taper_ratio = _num("Taper ratio", layout.taper_ratio, "w_taper", None, 0.05)
+            le_sweep_deg = _num("LE sweep (deg)", layout.le_sweep_deg, "w_sweep", None, 0.5)
+            dihedral_deg = _num("Dihedral (deg)", layout.dihedral_deg, "w_dih", None, 0.5)
+            le_root_x = _num("LE root station", layout.le_root_x, "w_lex", "length")
+            root_waterline_z = _num("Root waterline", layout.root_waterline_z, "w_wl", "length")
         with st.expander("Tail"):
             tail_type_label = st.selectbox(
                 "Tail type", list(_TAIL_TYPE_LABELS.values()),
                 index=list(_TAIL_TYPE_LABELS.keys()).index(layout.tail_type), key="tail_type",
             )
-            h_tail_area = _num("H-tail area (ft²)", layout.h_tail_area, "h_area")
-            h_tail_arm = _num("H-tail arm (in)", layout.h_tail_arm, "h_arm")
-            h_tail_span_ft = _num("H-tail span (ft)", layout.h_tail_span_ft, "h_span", 0.5)
-            h_tail_z = _num("H-tail Z offset from waterline (in, 0 = auto for T-tail/cruciform)",
-                            layout.h_tail_z, "h_z", 1.0)
-            v_tail_area = _num("V-tail area (ft²)", layout.v_tail_area, "v_area")
-            v_tail_arm = _num("V-tail arm (in)", layout.v_tail_arm, "v_arm")
-            v_tail_span_ft = _num("V-tail span (ft)", layout.v_tail_span_ft, "v_span", 0.5)
+            h_tail_area = _num("H-tail area", layout.h_tail_area, "h_area", "area_sqft")
+            h_tail_arm = _num("H-tail arm", layout.h_tail_arm, "h_arm", "length")
+            h_tail_span_ft = _num("H-tail span", layout.h_tail_span_ft, "h_span", "length_ft", 0.5)
+            h_tail_z = _num("H-tail Z offset from waterline (0 = auto for T-tail/cruciform)",
+                            layout.h_tail_z, "h_z", "length", 1.0)
+            v_tail_area = _num("V-tail area", layout.v_tail_area, "v_area", "area_sqft")
+            v_tail_arm = _num("V-tail arm", layout.v_tail_arm, "v_arm", "length")
+            v_tail_span_ft = _num("V-tail span", layout.v_tail_span_ft, "v_span", "length_ft", 0.5)
         with st.expander("Landing gear"):
-            nose_gear_x = _num("Nose gear station (in)", layout.nose_gear_x, "g_nose")
-            main_gear_x = _num("Main gear station (in)", layout.main_gear_x, "g_main")
-            track = _num("Track (in)", layout.track, "g_track")
-            gear_height = _num("Gear height (in)", layout.gear_height, "g_hgt")
+            nose_gear_x = _num("Nose gear station", layout.nose_gear_x, "g_nose", "length")
+            main_gear_x = _num("Main gear station", layout.main_gear_x, "g_main", "length")
+            track = _num("Track", layout.track, "g_track", "length")
+            gear_height = _num("Gear height", layout.gear_height, "g_hgt", "length")
         applied = st.form_submit_button("Apply geometry", type="primary")
 
 if applied:
+    def _imp(v: float, kind: str) -> float:
+        return to_imperial_scalar(v, kind, system)
+
     # This page owns the whole configuration slice, so a wholesale replace on
     # Apply is correct here (unlike a slice shared with other pages/edits).
     layout = LayoutInput(
-        fuselage_length=fuselage_length, fuselage_width=fuselage_width,
-        fuselage_height=fuselage_height, datum_x=datum_x,
-        wing_area_sqft=wing_area_sqft, aspect_ratio=aspect_ratio, taper_ratio=taper_ratio,
-        dihedral_deg=dihedral_deg, le_sweep_deg=le_sweep_deg, le_root_x=le_root_x,
-        root_waterline_z=root_waterline_z,
-        h_tail_area=h_tail_area, h_tail_arm=h_tail_arm, v_tail_area=v_tail_area, v_tail_arm=v_tail_arm,
+        fuselage_length=_imp(fuselage_length, "length"), fuselage_width=_imp(fuselage_width, "length"),
+        fuselage_height=_imp(fuselage_height, "length"), datum_x=_imp(datum_x, "length"),
+        wing_area_sqft=_imp(wing_area_sqft, "area_sqft"), aspect_ratio=aspect_ratio, taper_ratio=taper_ratio,
+        dihedral_deg=dihedral_deg, le_sweep_deg=le_sweep_deg, le_root_x=_imp(le_root_x, "length"),
+        root_waterline_z=_imp(root_waterline_z, "length"),
+        h_tail_area=_imp(h_tail_area, "area_sqft"), h_tail_arm=_imp(h_tail_arm, "length"),
+        v_tail_area=_imp(v_tail_area, "area_sqft"), v_tail_arm=_imp(v_tail_arm, "length"),
         tail_type=_TAIL_TYPE_BY_LABEL[tail_type_label],
-        h_tail_span_ft=h_tail_span_ft, h_tail_z=h_tail_z, v_tail_span_ft=v_tail_span_ft,
-        nose_gear_x=nose_gear_x, main_gear_x=main_gear_x, track=track, gear_height=gear_height,
+        h_tail_span_ft=_imp(h_tail_span_ft, "length_ft"), h_tail_z=_imp(h_tail_z, "length"),
+        v_tail_span_ft=_imp(v_tail_span_ft, "length_ft"),
+        nose_gear_x=_imp(nose_gear_x, "length"), main_gear_x=_imp(main_gear_x, "length"),
+        track=_imp(track, "length"), gear_height=_imp(gear_height, "length"),
     )
     project.configuration = layout
     st.session_state["project"] = project
