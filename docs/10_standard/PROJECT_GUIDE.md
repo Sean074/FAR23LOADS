@@ -181,6 +181,9 @@ FAR23LOADS/
 │   ├── registry.py               # module registry: name -> run(project) -> results
 │   ├── workflow.py               # ordered Start→Airplane→Envelopes & Critical Conditions→Analysis→Loads Plots→Export step graph (drives GUI nav + dashboard; Phase D)
 │   ├── report.py                 # shared text/CSV rendering (already exists)
+│   ├── applicability.py          # pure FAR 23 applicability detection (Exceedance list; Phase E1)
+│   ├── validation.py             # pure input-consistency predicates (ConsistencyWarning list; Phase E3)
+│   ├── vn_diagram.py             # pure V-n diagram geometry: stall/manoeuvre/gust polylines (Phase E3)
 │   ├── export/                   # output bridges to external tools (renderers, NOT registered modules)
 │   │   ├── coordinates.py        # FAR23LOADS axes -> sbeam CID 0 map (single edit-point)
 │   │   ├── sbeam_bridge.py       # net wing/body/tail/control loads -> span-load CSV + FORCE/MOMENT cards + CBAR stick model + case-index + export-scope filter

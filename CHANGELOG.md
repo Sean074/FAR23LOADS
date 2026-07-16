@@ -24,6 +24,21 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **Graphical review + input-consistency validation (Phase E, Step E3).** Two new
+  pure, unit-tested helpers and their GUI surfacing. `farloads/vn_diagram.py` builds
+  a proper **V-n diagram** — the curved stall boundary `n = (V/VS)²`, the flaps-up
+  and flaps-down (n ≤ 2.0, 14 CFR 23.337(b)) manoeuvre envelopes and the gust lines
+  at VC/VD (textbook Pratt form, 14 CFR 23.341) — now shown on the **Structural
+  Speeds** page (Flaps up/down/both + gust toggle, LIMIT-marked; the rigorous
+  Mach-corrected gust V-n stays on the Flight Envelope page, unchanged).
+  `farloads/validation.py` adds `consistency_warnings(project)` — taper > 1,
+  non-positive area, LE/TE ordering, Configuration-vs-WINGGEOM wing-area mismatch,
+  and CG outside the WTENV structural envelope — surfaced as `st.warning` on the
+  relevant definition pages. The **Weight/CG/Inertia** page gains a CG-marker +
+  mass-distribution plot (with the WTENV limits when defined). GUI-only in effect:
+  no schema change (`SCHEMA_VERSION` stays **22**) and no calc-math change — the
+  Appendix A/B oracles are untouched (333 tests pass, +18). Implements
+  `GUI_design.md §8.2/§8.3`.
 - **Parameter explanation — tooltips + guides (Phase E, Step E2).** Every domain
   input widget across the six Airplane-definition pages (Configuration & Layout,
   Wing / Surface Geometry, Weight Estimate, Weight/CG/Inertia, Structural Speeds,

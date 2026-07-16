@@ -189,17 +189,26 @@ that lets the user *see* whether the inputs are self-consistent:
 | Configuration & Layout | Three-view (CG, neutral point, gear, mass bubbles, engines) + fleet scatter |
 | Wing / Surface Geometry | Planform plot; derived Area/MAC/XLEMAC/AR/span |
 | Weight Estimate | MTOW-vs-OEW fleet scatter |
-| Structural Speeds | **V-n envelope plot** *(target — Phase E3)* |
-| Weight/CG/Inertia | **CG marker + mass-distribution plot** *(target — Phase E3)* |
+| Structural Speeds | V-n diagram: curved stall boundary, flaps-up/down manoeuvre envelope, gust lines *(implemented — Phase E3)* |
+| Weight/CG/Inertia | CG marker + mass-distribution plot (with WTENV limits when defined) *(implemented — Phase E3)* |
 | Aerodynamic Data | Echo tables only *(curve plot deferred — see backlog)* |
+
+The Structural Speeds V-n is built by the pure `farloads/vn_diagram.py` helper from
+the STRSPEED design speeds + limit load factors; its gust lines are the textbook
+Pratt form (14 CFR 23.341) and are explicitly captioned as approximate, pointing to
+the rigorous Mach-corrected gust V-n on the Flight Envelope page (FLTLOADS), which
+is left unchanged.
 
 ### 8.3 Input-consistency validation
 
 Pages surface explicit `st.warning`s on inconsistent input — taper ratio > 1,
 non-positive area, leading-/trailing-edge point ordering, a wing-area mismatch
 between Configuration & Layout and Wing/Surface Geometry, or a CG outside the
-weight-CG envelope. *(Target — Phase E3; today the plots are the only implicit
-check.)*
+weight-CG envelope. The checks are pure predicates in `farloads/validation.py`
+(`consistency_warnings(project)`), each tagged with the page that renders it; the
+CG-envelope check compares the WTONECG CG against the WTENV structural envelope and
+is silently skipped when that envelope (or the wing geometry it needs) is absent.
+*(Implemented — Phase E3.)*
 
 ### 8.4 Fleet comparison
 
@@ -274,12 +283,13 @@ project-file widget, the shared-`Project` data flow and seed-chain, the
 form+Apply/merge page conventions, the unit-boundary input pattern across all
 definition pages (§7), the Configuration & Layout three-view + fleet scatters, the
 FAR 23 applicability banner + `occupants`/`crew` fields and OEW line (§9,
-Phase E1), and the per-widget `help=` tooltips + parameter-guide expanders across
-the six Airplane pages (§8.1, Phase E2).
+Phase E1), the per-widget `help=` tooltips + parameter-guide expanders across
+the six Airplane pages (§8.1, Phase E2), and the Structural Speeds V-n diagram +
+Weight/CG mass-distribution plot + input-consistency warnings (§8.2/§8.3,
+Phase E3).
 
 **Adopted standards pending rollout (backlog Phase E):** the
-Structural Speeds V-n and Weight/CG mass plots + input-consistency warnings (E3),
-the quantitative fleet comparison (E4), and load-path robustness (E5).
+quantitative fleet comparison (E4) and load-path robustness (E5).
 
 Schema is at **`SCHEMA_VERSION = 22`**; Phase D (the six-section GUI restructure)
 is complete. The open GUI plan is

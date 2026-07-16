@@ -10,6 +10,7 @@ the sidebar's Imperial/SI toggle (``Home.py``).
 from __future__ import annotations
 
 import pandas as pd
+import plotly.graph_objects as go
 import streamlit as st
 
 from farloads import (
@@ -18,6 +19,7 @@ from farloads import (
     Project,
     UnitSystem,
     WeightInput,
+    consistency_warnings,
     convert_results,
     labels_for,
     to_display,
@@ -26,6 +28,7 @@ from farloads import (
 from farloads import io as farloads_io
 from farloads.modules.weight_onecg import weights_and_inertia
 from farloads.report import module_text_report
+from farloads.validation import _wtenv_cg_limits
 
 
 st.title("Weight, CG & Inertia — FAR 23")
@@ -135,18 +138,59 @@ if not project.weight or not project.weight.items:
     st.stop()
 
 try:
-    result = weights_and_inertia(project.weight.items)
+    raw_result = weights_and_inertia(project.weight.items)
 except ValueError as exc:
     st.warning(f"Add at least one non-zero weight item: {exc}")
     st.stop()
 
-result = convert_results([result], system)[0]
+# Input-consistency check (Step E3): CG vs the WTENV structural envelope.
+for _w in consistency_warnings(project):
+    if _w.page == "weight_cg_inertia":
+        st.warning(_w.message)
+
+result = convert_results([raw_result], system)[0]
 
 st.subheader(f"FAR {result.far_reference} — {result.title}")
 rows = [{"Quantity": v.label, "Value": v.value, "Units": v.units} for v in result.values]
 st.dataframe(pd.DataFrame(rows), hide_index=True, use_container_width=True)
 if result.note:
     st.caption(result.note)
+
+# --------------------------------------------------------------------------- #
+# CG marker + mass-distribution plot (Step E3): a stem of each item's weight at
+# its fuselage station, the computed loading CG, and (when defined) the WTENV
+# forward/aft structural CG limits -- a visual sanity check on the loading.
+# --------------------------------------------------------------------------- #
+xbar_in = next((v.value for v in raw_result.values if v.label == "XBAR (fus station)"), None)
+if xbar_in is not None:
+    st.subheader("CG & mass distribution")
+    st.caption(
+        f"Each stem is an item's weight ({U['weight']}) at its fuselage station "
+        f"x ({U['length']}); the dashed line is the loading CG."
+    )
+    _kind_color = {"empty": "#1f77b4", "minimum": "#2ca02c", "discretionary": "#ff7f0e"}
+    fig = go.Figure()
+    for kind in ("empty", "minimum", "discretionary"):
+        pts = [it for it in project.weight.items if it.kind.value == kind and it.weight_lb]
+        if not pts:
+            continue
+        xs = [to_display(it.x, "length", system) for it in pts]
+        ws_ = [to_display(it.weight_lb, "weight", system) for it in pts]
+        fig.add_trace(go.Bar(x=xs, y=ws_, name=kind, width=0.8,
+                             marker_color=_kind_color[kind],
+                             hovertext=[it.name for it in pts]))
+    fig.add_vline(x=to_display(xbar_in, "length", system), line_dash="dash",
+                  line_color="#d62728", annotation_text="CG", annotation_position="top")
+    limits = _wtenv_cg_limits(project)
+    if limits is not None:
+        fwd, aft = limits
+        for x_in, lbl in ((fwd, "fwd limit"), (aft, "aft limit")):
+            fig.add_vline(x=to_display(x_in, "length", system), line_dash="dot",
+                          line_color="#7f7f7f", annotation_text=lbl, annotation_position="bottom")
+    fig.update_layout(barmode="overlay", height=380, legend=dict(orientation="h"),
+                      xaxis_title=f"Fuselage station x ({U['length']})",
+                      yaxis_title=f"Item weight ({U['weight']})")
+    st.plotly_chart(fig, use_container_width=True)
 
 st.download_button(
     "Download weight/CG/inertia (CSV)",

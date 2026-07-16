@@ -10,6 +10,62 @@ Acceptance**, **Key decisions**.
 
 ---
 
+## Phase E — Step E3: Graphical review + input-consistency validation (complete, 2026-07-15)
+
+**Objective.** Give the input-heavy definition pages a visual sanity check and
+explicit input-consistency warnings. GUI-only in effect: **no schema change**
+(`SCHEMA_VERSION` stays 22) and **no calc-math change** — the Appendix A/B oracles
+pass unmodified, and the two new modules are additive pure helpers, not edits to
+any oracle-locked calc.
+
+**Deliverables.**
+- **`farloads/vn_diagram.py`** — a pure, unit-tested V-n diagram builder:
+  `build_vn_diagram(...)` returns the plottable polylines — the curved stall
+  boundary `n = (V/VS)²` sampled VS→VA (fixing the corner-to-corner straight line),
+  the closed positive/negative flaps-up manoeuvre envelope, the flaps-down envelope
+  off VSF/VF capped at n = 2.0 (14 CFR 23.337(b)), and the up/down gust lines at
+  VC/VD (textbook Pratt form, 14 CFR 23.341). `resolve_gust_inputs(...)` resolves
+  the wing lift-curve slope + MAC from the aero/geometry slices when present, else
+  textbook defaults (flagged `approximate`).
+- **`farloads/validation.py`** — pure input-consistency predicates,
+  `consistency_warnings(project) -> list[ConsistencyWarning]`, each tagged with the
+  page that renders it: taper ratio > 1, non-positive reference area,
+  leading-/trailing-edge ordering, Configuration-vs-WINGGEOM wing-area mismatch
+  (5% tol), and CG outside the WTENV structural CG envelope (skipped when that
+  envelope or the wing geometry is absent).
+- **Structural Speeds page** — a **V-n diagram** section (Flaps up/down/both radio,
+  gust-line toggle) rendered from `vn_diagram`, LIMIT-marked, captioned that the
+  gust lines are approximate and pointing to the rigorous Flight Envelope V-n.
+- **Weight/CG/Inertia page** — a **CG marker + mass-distribution** plot (per-item
+  weight stem at its fuselage station, coloured by mass kind, the loading CG line,
+  and the WTENV fwd/aft structural limits when defined) plus the CG-outside-envelope
+  warning.
+- **Wing Geometry** and **Configuration & Layout** pages render their tagged subset
+  of `consistency_warnings` as `st.warning`.
+- **Tests** — `tests/test_vn_diagram.py` (8) and `tests/test_validation.py` (10):
+  physics-closure on the V-n geometry and each predicate firing on crafted bad
+  input while silent on the Appendix-A GA fixture.
+
+**Test / Acceptance.** Headless `AppTest` on the four touched pages: all render with
+**no exceptions** on the GA fixture; the CG warning fires on a far-aft ballast
+loading and is silent on good input. Full suite (**333 passed**, +18 for the two new
+test files) + `ruff check farloads/ cli.py app/` clean, confirming the
+no-calc-change invariant. Docs synced (`GUI_design.md §8.2/§8.3/§11`,
+`PROJECT_GUIDE.md` package layout, `20_theory/00_theory_sources.md`, this history +
+`CHANGELOG.md`, backlog E3 removed).
+
+**Key decisions.** The V-n lives on **Structural Speeds only** (user choice); its
+gust lines use the **textbook Pratt form** rather than FLTLOADS' Mach-corrected
+iteration, so the **Flight Envelope page is left unchanged** and the two can differ
+slightly — the Structural Speeds caption makes this explicit. The CG check is
+against the **WTENV structural envelope** (not the simpler `cg_cases` extents),
+skipped silently when undefined. Predicates live in a **pure, unit-tested
+`farloads/validation.py`** (mirroring `applicability.py`) rather than an app-side
+helper, exceeding the backlog's manual-only acceptance to keep the warnings
+regression-safe.
+
+---
+
 ## Phase E — Step E2: Parameter explanation (tooltips + guides) (complete, 2026-07-15)
 
 **Objective.** Make every airplane-definition input self-explanatory. GUI-only:

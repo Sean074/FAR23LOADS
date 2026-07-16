@@ -20,6 +20,7 @@ from farloads import (
     Project,
     SurfaceInput,
     UnitSystem,
+    consistency_warnings,
     convert_results,
     labels_for,
     to_display,
@@ -37,6 +38,9 @@ st.caption(
 )
 
 project: Project = st.session_state.get("project", Project(name=""))
+for _w in consistency_warnings(project):
+    if _w.page == "wing_geometry":
+        st.warning(_w.message)
 geometry = project.geometry or GeometryInput()
 
 system: UnitSystem = st.session_state.get("unit_system", UnitSystem.IMPERIAL)

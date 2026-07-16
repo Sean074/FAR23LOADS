@@ -35,6 +35,7 @@ from farloads import (
     TailType,
     UnitSystem,
     WeightInput,
+    consistency_warnings,
     convert_results,
     labels_for,
     to_display,
@@ -70,6 +71,9 @@ st.caption(
 
 project: Project = st.session_state.get("project", Project(name=""))
 render_applicability_banner(project)
+for _w in consistency_warnings(project):
+    if _w.page == "configuration_layout":
+        st.warning(_w.message)
 system: UnitSystem = st.session_state.get("unit_system", UnitSystem.IMPERIAL)
 U = labels_for(system)  # {"weight","length","area_sqft","length_ft",...} -> unit string
 

@@ -12,13 +12,24 @@ the shoulder altitude. All speeds are knots equivalent airspeed.
 from __future__ import annotations
 
 import pandas as pd
+import plotly.graph_objects as go
 import streamlit as st
 
 from components import render_applicability_banner
 
-from farloads import Project, StructuralSpeedsInput, UnitSystem, labels_for, to_display, to_imperial_scalar
+from farloads import (
+    Project,
+    StructuralSpeedsInput,
+    UnitSystem,
+    build_vn_diagram,
+    consistency_warnings,
+    labels_for,
+    resolve_gust_inputs,
+    to_display,
+    to_imperial_scalar,
+)
 from farloads import io as farloads_io
-from farloads.modules.structural_speeds import design_speeds
+from farloads.modules.structural_speeds import design_speed_values, design_speeds
 from farloads.report import module_text_report
 
 
@@ -30,6 +41,9 @@ st.caption(
 
 project: Project = st.session_state.get("project", Project(name=""))
 render_applicability_banner(project)
+for _w in consistency_warnings(project):
+    if _w.page == "structural_speeds":
+        st.warning(_w.message)
 
 with st.expander("ℹ️ Parameter guide", expanded=False):
     st.markdown(
@@ -236,6 +250,69 @@ for r in results:
         st.dataframe(pd.DataFrame(rows), hide_index=True, use_container_width=True)
         if r.note:
             st.caption(r.note)
+
+# --------------------------------------------------------------------------- #
+# V-n diagram (Step E3): a graphical sanity check on the design speeds + load
+# factors -- the curved stall boundary, the flaps-up/down manoeuvre envelope and
+# the gust lines. All quantities are LIMIT and the gust lines are a textbook
+# (Pratt) approximation; the rigorous Mach-corrected gust V-n is on the Flight
+# Envelope page (FLTLOADS).
+# --------------------------------------------------------------------------- #
+st.divider()
+st.subheader("V-n diagram")
+st.caption(
+    "Load factors here are **LIMIT**. The gust lines use the textbook Pratt form "
+    "(14 CFR 23.341); the rigorous Mach-corrected gust envelope is on the "
+    "**Flight Envelope (V-n)** page."
+)
+
+try:
+    sv = design_speed_values(project, inp)
+except (ValueError, ZeroDivisionError) as exc:
+    st.info(f"V-n diagram needs valid design speeds: {exc}")
+else:
+    flap_choice = st.radio("Flaps configuration", ["Both", "Flaps up", "Flaps down"],
+                           horizontal=True, index=0,
+                           help="Flaps-up shows the clean manoeuvre envelope; flaps-down "
+                                "the 14 CFR 23.337(b) envelope capped at n = 2.0.")
+    show_gust = st.checkbox("Overlay gust lines (VC, VD)", value=True)
+    _flaps = {"Both": "both", "Flaps up": "up", "Flaps down": "down"}[flap_choice]
+
+    # Resolve the gust-line inputs from the aero/geometry slices when present
+    # (wing lift-curve slope and MAC), else fall back to textbook defaults.
+    slope = None
+    if project.aero_coeffs is not None and project.aero_coeffs.cruise is not None:
+        slope = project.aero_coeffs.cruise.lift[1]
+    mac_ft = None
+    if project.geometry is not None and project.geometry.by_name(inp.wing_surface) is not None:
+        from farloads.modules.wing_geometry import surface_properties
+        _wp = surface_properties(project.geometry.by_name(inp.wing_surface))
+        mac_ft = next((v.value for v in _wp.values if v.label == "MAC"), 0.0) / 12.0
+    elif project.flight_loads is not None and project.flight_loads.mac:
+        mac_ft = project.flight_loads.mac / 12.0
+
+    gust = resolve_gust_inputs(sv.ws, inp.shoulder_altitude_ft, slope, mac_ft) if show_gust else None
+    diagram = build_vn_diagram(
+        vs=inp.stall_clean_kt, va=sv.va, vc=sv.vc, vd=sv.vd,
+        n_pos=sv.n, n_neg=sv.nneg, vsf=inp.stall_flap_kt, vf=sv.vf,
+        flaps=_flaps, gust=gust,
+    )
+    fig = go.Figure()
+    for tr in diagram.traces:
+        is_gust = tr.name.startswith("Gust")
+        fig.add_trace(go.Scatter(
+            x=tr.v, y=tr.n, name=tr.name, mode="lines",
+            line=dict(dash="dot" if is_gust else "solid",
+                      width=1.5 if is_gust else 2.5)))
+    fig.update_layout(title="V-n diagram (LIMIT)", xaxis_title="Speed V (KEAS)",
+                      yaxis_title="Load factor n", legend=dict(orientation="h"), height=440)
+    st.plotly_chart(fig, use_container_width=True)
+    if gust is not None and diagram.gust_approximate:
+        st.caption(
+            "⚠️ Gust lines are approximate: no wing lift-curve slope (Aerodynamic "
+            "Data) and/or MAC (Wing Geometry) was available, so a textbook slope "
+            "and/or Kg = 1 was used."
+        )
 
 st.download_button(
     "Download structural speeds (CSV)",

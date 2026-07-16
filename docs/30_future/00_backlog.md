@@ -36,13 +36,13 @@ into nine component pages; Loads Plots page; Export & report upgrades) and
 Phase-E **Steps E1–E2** (FAR 23 applicability detection + `occupants`/`crew`
 fields + OEW line; per-widget `help=` tooltips + parameter guides). Phase D
 (the six-section GUI restructure) is complete; **Phase E** (GUI usability
-& concept-awareness) is underway — E1–E2 shipped, E3–E5 queued below. **All 22** of Reference 1's
+& concept-awareness) is underway — E1–E3 shipped, E4–E5 queued below. **All 22** of Reference 1's
 Appendix-C programs are ported (ENGLOADS, WTESTIMA, WTONECG, WTENV,
 WINGGEOM, STRSPEED, MACHLIM, TAU, AIRLOADS, AIRLOAD4, FLTLOADS, SELECT, WINGINER,
 NETLOADS, TAILDIST, AILERON, FLAPLOAD, TABLOADS, ONENGOUT, LGFACTOR, LANDLOAD,
 BALLOADS), plus **2 modern modules** with no `.BAS` oracle (`configuration`,
 `body_loads`).
-Schema is at **`SCHEMA_VERSION = 22`**; 314 tests pass; coverage ~92%. The wing
+Schema is at **`SCHEMA_VERSION = 22`**; 333 tests pass; coverage ~92%. The wing
 distributed-loads vertical slice (geometry → speeds → envelope → airloads → inertia
 → net → sbeam export), the critical-load selection (wing / h-tail / v-tail /
 fuselage), the chordwise tail distribution, the simplified control-surface
@@ -106,18 +106,6 @@ concept mode reduces exactly to FAR 23 on GA inputs. User-approved directions
 (locked 2026-07-15): warn-banner (non-blocking) for exceedance with a "switch to
 Concept" action; `occupants` as a first-class field; `help=` tooltips + per-page
 parameter guides; and the E3 graphical set (V-n + input-consistency + CG/mass).
-
-### Step E3 — Graphical review + input-consistency validation
-**Objective.** Give the input-heavy pages a visual sanity check and explicit
-consistency warnings. No schema change.
-**Deliverables.** A V-n envelope plot on `app/views/structural_speeds.py` (from
-VA/VC/VD + the load factors); a CG-marker + mass-distribution plot on
-`app/views/weight_cg_inertia.py`; input-consistency warnings (pure predicates
-surfaced as `st.warning`) for taper > 1, non-positive area, LE/TE ordering,
-Config-vs-WINGGEOM wing-area mismatch, and CG outside the envelope.
-**Test/Acceptance.** Manual walkthrough (plots render; each warning fires on a
-crafted bad input and is silent on good input); full suite + `ruff` clean;
-`GUI_design.md §8.2/§8.3` marked implemented.
 
 ### Step E4 — Fleet comparison upgrade (P2)
 **Objective.** Turn the visual, duplicated fleet comparison into a shared,

@@ -78,6 +78,8 @@ from .units import (
 )
 from . import io, registry
 from .applicability import Exceedance, far23_applicability
+from .validation import ConsistencyWarning, consistency_warnings
+from .vn_diagram import GustInputs, VnDiagram, VnTrace, build_vn_diagram, resolve_gust_inputs
 
 # Importing the modules package registers every module (engine, ...) and exposes
 # the engine module's direct ``run_all(EngineInput)`` helper for back-compat.
@@ -89,6 +91,13 @@ __all__ = [
     "AeroCoefficientsInput",
     "Exceedance",
     "far23_applicability",
+    "ConsistencyWarning",
+    "consistency_warnings",
+    "GustInputs",
+    "VnDiagram",
+    "VnTrace",
+    "build_vn_diagram",
+    "resolve_gust_inputs",
     "AeroInput",
     "AeroSurfaceInput",
     "AileronLoadsInput",
