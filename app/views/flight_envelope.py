@@ -16,9 +16,20 @@ import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
 
-from farloads import FlightLoadsInput, Project, UnitSystem, convert_results, labels_for, to_display, to_imperial_scalar
+from farloads import (
+    FlightLoadsInput,
+    Project,
+    UnitSystem,
+    build_vn_diagram,
+    convert_results,
+    labels_for,
+    resolve_gust_inputs,
+    to_display,
+    to_imperial_scalar,
+)
 from farloads.constants import IN2_PER_FT2
 from farloads.modules.flight_envelope import build_envelope, run as flt_run
+from farloads.modules.structural_speeds import design_speed_values
 from farloads.modules.wing_geometry import surface_properties
 from farloads.report import module_text_report
 
@@ -167,9 +178,41 @@ else:
 pts = [p for p in env.vn if p.cg == selected_cg
        and (overlay_all_alt or p.altitude_ft == selected_alt)]
 
-# V-n diagram: maneuver corners (line) + gust + balancing points, one trace per
-# altitude when overlaid (Step D5, multi-altitude V-n).
+# V-n diagram: the continuous LIMIT design envelope (backdrop) + the rigorous
+# balanced corner points (markers) on top -- one maneuver/gust trace per altitude
+# when overlaid (Step D5, multi-altitude V-n).
 fig = go.Figure()
+
+# LIMIT design-envelope backdrop: the continuous textbook V-n outline rebuilt
+# from the Structural Speeds inputs (project.speeds, guaranteed present here) and
+# drawn behind the rigorous balanced points so the envelope visibly bounds them.
+# Consolidated onto this page -- it was a duplicate diagram on Structural Speeds.
+# All quantities are LIMIT; the gust lines use the textbook Pratt approximation.
+envelope = None
+gust = None
+try:
+    sv = design_speed_values(project, project.speeds)
+except (ValueError, ZeroDivisionError):
+    sv = None
+if sv is not None:
+    slope = aero.cruise.lift[1] if aero.cruise is not None else None
+    mac_ft = (project.flight_loads.mac / 12.0) if project.flight_loads.mac else None
+    # Gust lines are altitude-dependent, so draw them only for a single selected
+    # altitude; the maneuver envelope (stall boundary + n caps) is altitude-free.
+    gust = resolve_gust_inputs(sv.ws, selected_alt, slope, mac_ft) if not overlay_all_alt else None
+    envelope = build_vn_diagram(
+        vs=project.speeds.stall_clean_kt, va=sv.va, vc=sv.vc, vd=sv.vd,
+        n_pos=sv.n, n_neg=sv.nneg, vsf=project.speeds.stall_flap_kt, vf=sv.vf,
+        flaps="both", gust=gust,
+    )
+    for tr in envelope.traces:
+        is_gust = tr.name.startswith("Gust")
+        fig.add_trace(go.Scatter(
+            x=tr.v, y=tr.n, name=f"LIMIT env: {tr.name}", mode="lines",
+            legendgroup="limit_env",
+            line=dict(color="rgba(140,140,140,0.7)",
+                      dash="dot" if is_gust else "solid", width=1.5)))
+
 alts_to_plot = altitudes_ft if overlay_all_alt else [selected_alt]
 for alt in alts_to_plot:
     alt_pts = [p for p in pts if p.altitude_ft == alt]
@@ -184,6 +227,19 @@ title_alt = "all altitudes" if overlay_all_alt else f"{selected_alt:.0f} ft"
 fig.update_layout(title=f"V-n diagram — {selected_cg}, {title_alt}", xaxis_title="V (KEAS)",
                   yaxis_title="Load factor NZ", legend=dict(orientation="h"), height=440)
 st.plotly_chart(fig, use_container_width=True)
+st.caption(
+    "Grey lines are the continuous **LIMIT** design envelope (stall boundary, "
+    "maneuver limits and — for a single altitude — the textbook Pratt gust lines) "
+    "from the **Structural Speeds** inputs; the coloured markers are the rigorous, "
+    "Mach-corrected balanced corner points that feed the tail loads. The envelope "
+    "should bound the markers."
+)
+if envelope is not None and gust is not None and envelope.gust_approximate:
+    st.caption(
+        "⚠️ LIMIT-envelope gust lines are approximate: no wing lift-curve slope "
+        "(Aerodynamic Data) and/or MAC (Wing Geometry) was available, so a textbook "
+        "slope and/or Kg = 1 was used."
+    )
 
 st.subheader("Balanced flight conditions")
 st.dataframe(pd.DataFrame({

@@ -9,6 +9,20 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed
+
+- **V-n diagram consolidated onto the Flight Envelope page (Phase E, Step E6).**
+  The suite had two V-n diagrams: the continuous LIMIT textbook envelope on the
+  **Structural Speeds** page (Step E3) and the rigorous, Mach-corrected balanced
+  corner points on the **Flight Envelope (V-n)** page — redundant. The continuous
+  LIMIT envelope (from the pure `farloads/vn_diagram.py` helper) is now drawn as a
+  grey backdrop on the Flight Envelope page, behind the rigorous balanced markers,
+  so the envelope visibly *bounds* them in a single figure. It is rebuilt there from
+  `project.speeds` (already a required slice) via `design_speed_values` — no new
+  inputs. The Structural Speeds page now shows only its numeric design-speed tables
+  plus a pointer to the Flight Envelope page. GUI-only; no calc math changed
+  (`vn_diagram` and its tests are untouched).
+
 ### Fixed
 
 - **Weight Estimate page crashed on beyond-GA projects.** The Mission-inputs form

@@ -189,15 +189,19 @@ that lets the user *see* whether the inputs are self-consistent:
 | Configuration & Layout | Three-view (CG, neutral point, gear, mass bubbles, engines) + fleet scatter |
 | Wing / Surface Geometry | Planform plot; derived Area/MAC/XLEMAC/AR/span |
 | Weight Estimate | MTOW-vs-OEW fleet scatter |
-| Structural Speeds | V-n diagram: curved stall boundary, flaps-up/down manoeuvre envelope, gust lines *(implemented — Phase E3)* |
+| Flight Envelope (V-n) | Continuous LIMIT design envelope (curved stall boundary, flaps-up/down manoeuvre envelope, gust lines) overlaid on the rigorous Mach-corrected balanced corner points *(consolidated — Phase E6)* |
 | Weight/CG/Inertia | CG marker + mass-distribution plot (with WTENV limits when defined) *(implemented — Phase E3)* |
 | Aerodynamic Data | Echo tables only *(curve plot deferred — see backlog)* |
 
-The Structural Speeds V-n is built by the pure `farloads/vn_diagram.py` helper from
-the STRSPEED design speeds + limit load factors; its gust lines are the textbook
-Pratt form (14 CFR 23.341) and are explicitly captioned as approximate, pointing to
-the rigorous Mach-corrected gust V-n on the Flight Envelope page (FLTLOADS), which
-is left unchanged.
+The continuous LIMIT design envelope is built by the pure `farloads/vn_diagram.py`
+helper from the STRSPEED design speeds + limit load factors; its gust lines are the
+textbook Pratt form (14 CFR 23.341) and are explicitly captioned as approximate.
+It is drawn as a grey backdrop on the **Flight Envelope (V-n)** page (FLTLOADS)
+behind the rigorous, Mach-corrected balanced corner points, so the envelope visibly
+bounds them — a single consolidated V-n. (Originally a separate diagram on
+Structural Speeds in Phase E3; merged onto Flight Envelope in Phase E6 to remove the
+redundancy. The Structural Speeds page now shows only the numeric design-speed
+tables and points to the Flight Envelope page.)
 
 ### 8.3 Input-consistency validation
 
@@ -299,9 +303,10 @@ form+Apply/merge page conventions, the unit-boundary input pattern across all
 definition pages (§7), the Configuration & Layout three-view + fleet scatters, the
 FAR 23 applicability banner + `occupants`/`crew` fields and OEW line (§9,
 Phase E1), the per-widget `help=` tooltips + parameter-guide expanders across
-the six Airplane pages (§8.1, Phase E2), and the Structural Speeds V-n diagram +
+the six Airplane pages (§8.1, Phase E2), and the V-n diagram +
 Weight/CG mass-distribution plot + input-consistency warnings (§8.2/§8.3,
-Phase E3), and the quantitative fleet comparison — nearest-3 / percentile band /
+Phase E3; the V-n later consolidated onto the Flight Envelope page in Phase E6),
+and the quantitative fleet comparison — nearest-3 / percentile band /
 outlier flags via the shared `farloads/fleet.py` + `render_fleet_comparison`
 (§8.4, Phase E4), and the graceful, schema-aware load path across the sidebar and the
 JSON Editor (§10, Phase E5).

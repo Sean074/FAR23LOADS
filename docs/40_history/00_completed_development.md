@@ -10,6 +10,48 @@ Acceptance**, **Key decisions**.
 
 ---
 
+## Phase E — Step E6: V-n diagram consolidation (complete, 2026-07-15)
+
+**Objective.** Remove the redundant second V-n diagram: consolidate the two V-n
+plots (the continuous LIMIT textbook envelope on **Structural Speeds**, added in
+Step E3, and the rigorous Mach-corrected balanced corner points on **Flight
+Envelope (V-n)**) into a single figure on the Flight Envelope page. GUI-only:
+**no schema change** and **no calc-math change** — `farloads/vn_diagram.py` and its
+oracle/closure tests are untouched.
+
+**Deliverables.**
+- **`app/views/flight_envelope.py`** — the continuous LIMIT design envelope
+  (`build_vn_diagram` from `farloads/vn_diagram.py`) is now drawn as a grey backdrop
+  behind the rigorous balanced markers, so the envelope visibly *bounds* them. It is
+  rebuilt from `project.speeds` (a required slice here) via `design_speed_values` —
+  no new input widgets. Gust lines (altitude-dependent, textbook Pratt) are drawn
+  only for a single selected altitude; the altitude-independent maneuver envelope is
+  always drawn. Backdrop build is wrapped in `try/except (ValueError,
+  ZeroDivisionError)` so it degrades to the rigorous-points-only plot rather than
+  erroring. The `gust_approximate` caption (missing lift-curve slope / MAC) carried
+  over from Structural Speeds.
+- **`app/views/structural_speeds.py`** — the Step E3 V-n block removed; the page now
+  shows only its numeric design-speed tables plus a caption pointing to the Flight
+  Envelope (V-n) page. Now-unused imports (`plotly.graph_objects`, `build_vn_diagram`,
+  `resolve_gust_inputs`, `design_speed_values`) dropped.
+- **Docs** — `docs/10_standard/GUI_design.md` §8.2/§11 updated to reflect the single
+  consolidated V-n on the Flight Envelope page.
+
+**Test / Acceptance.** `ruff check` clean (no unused imports left); full `pytest`
+suite passes unchanged (347) — no calc or schema change. Manual: the Flight Envelope
+V-n renders the balanced markers on the LIMIT-envelope backdrop; toggling single
+altitude (gust lines shown) vs "Overlay all altitudes" (gust lines suppressed,
+maneuver envelope still drawn) behaves; a project missing aero/MAC degrades
+gracefully. Structural Speeds shows no diagram, only tables + pointer.
+
+**Key decisions.** The two diagrams were *complementary*, not literal duplicates
+(continuous textbook envelope vs discrete rigorous points), but share LIMIT
+load-factor-vs-KEAS axes — so they were overlaid rather than one simply deleted
+(user choice), keeping the classic envelope shape as a bound on the rigorous points.
+This supersedes the Step E3 "V-n lives on Structural Speeds only" decision.
+
+---
+
 ## Phase E — Step E5: Load-path robustness (complete, 2026-07-15)
 
 **Objective.** Make the sidebar project load fail gracefully and be schema-aware.
