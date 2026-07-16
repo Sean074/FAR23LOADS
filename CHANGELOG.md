@@ -9,6 +9,19 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed
+
+- **Weight Estimate page crashed on beyond-GA projects.** The Mission-inputs form
+  hard-capped its widgets at GA-tier limits (`max_value = 3000 hp`, 12 seats, 6
+  engines, 10 hr) while seeding each widget from the loaded project, so opening a
+  project whose value exceeded a cap raised `StreamlitValueAboveMaxError` before
+  the page could render (e.g. `examples/dhc8_dash8.project.json` at 4000 hp / 39
+  seats). The hard `max_value` caps are removed (keeping `min_value` for physical
+  sanity), consistent with the concept-aware superset that must accept airplanes
+  beyond the GA band (`GUI_design.md §9` — warn, don't block). Regression:
+  `tests/test_views_smoke.py::test_weight_estimate_accepts_beyond_ga_power` loads
+  the DHC-8 into the page and asserts no exception.
+
 ### Added
 
 - **Parameter explanation — tooltips + guides (Phase E, Step E2).** Every domain

@@ -64,21 +64,25 @@ with st.sidebar:
     with st.form("weight_estimate_form"):
         airplane = st.text_input("Airplane", value=existing.airplane if existing else "",
                                  help="Airplane name/label; used on the report and the fleet-comparison marker.")
-        hp_max = to_display(3000.0, "power", system)
+        # No hard max_value caps: this is a concept-aware superset that must accept
+        # airplanes beyond the GA band (e.g. the DHC-8 at 4000 hp / ~50 seats), so a
+        # loaded value can never exceed the widget's own max. min_value keeps physical
+        # sanity. WTESTIMA's own ≤12,500 lb calibration band is surfaced as a warning
+        # (concept mode), not enforced on these inputs.
         hp = st.number_input(
-            f"Max continuous power ({U['power']}, total)", min_value=0.0, max_value=hp_max,
+            f"Max continuous power ({U['power']}, total)", min_value=0.0,
             value=float(round(to_display(existing.max_continuous_hp, "power", system), 4))
             if existing else 0.0, key=f"max_cont_hp_{system.value}",
             help="Total maximum continuous power for all engines combined (WTESTIMA, Ch 3).")
-        engines = st.number_input("Number of engines", min_value=1, max_value=6,
+        engines = st.number_input("Number of engines", min_value=1,
                                   value=existing.engines if existing else 1,
                                   help="Engine count; the power above is the combined total, not per engine.")
-        seats = st.number_input("Number of seats", min_value=1, max_value=12,
+        seats = st.number_input("Number of seats", min_value=1,
                                 value=existing.seats if existing else 1,
                                 help="Total design seats (crew + passengers). Seeds the Structural Speeds "
                                      "occupant count for the FAR 23 seat-limit check.")
         crew = st.number_input(
-            "Flight crew", min_value=0, max_value=12,
+            "Flight crew", min_value=0,
             value=existing.crew if existing else 1,
             help=(
                 "Required flight crew (170 lb each). Carried in the operating empty "
@@ -86,7 +90,7 @@ with st.sidebar:
                 "applicability check counts passenger seats = occupants − crew."
             ),
         )
-        hours = st.number_input("Endurance at cruise power (hr)", min_value=0.0, max_value=10.0,
+        hours = st.number_input("Endurance at cruise power (hr)", min_value=0.0,
                                 value=float(existing.cruise_hours) if existing else 0.0,
                                 help="Mission endurance at cruise power; drives the estimated fuel weight "
                                      "(WTESTIMA, Ch 3).")

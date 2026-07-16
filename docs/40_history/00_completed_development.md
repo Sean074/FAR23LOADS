@@ -2236,6 +2236,21 @@ insufficient; seeding `tail_type` into the example `.project.json` fixtures.
 
 ## Resolved defects
 
+- **Weight Estimate page crashed opening a beyond-GA project** *(resolved
+  2026-07-15)*. The Mission-inputs form hard-capped its widgets at GA-tier limits
+  (`max_value = 3000 hp` / 12 seats / 6 engines / 10 hr) while seeding each widget
+  from the loaded project, so a project whose stored value exceeded a cap raised
+  `StreamlitValueAboveMaxError` before the page rendered (e.g.
+  `examples/dhc8_dash8.project.json` at 4000 hp / 39 seats: value 2982.8 kW > max
+  2237.1 kW in SI). Pre-existing (from the earlier input-units work, not Step E2,
+  which only added the widget's `help=`). Fixed by removing the hard `max_value`
+  caps (keeping `min_value` for physical sanity), consistent with the concept-aware
+  superset that must accept airplanes beyond the GA band (`GUI_design.md §9` — warn,
+  don't block; WTESTIMA's ≤12,500 lb calibration limit is surfaced as a concept-mode
+  warning, not enforced on the inputs). Regression:
+  `tests/test_views_smoke.py::test_weight_estimate_accepts_beyond_ga_power` loads the
+  DHC-8 into the page and asserts no exception.
+
 - **Flight Envelope page destroyed unedited `flight_loads` data** *(resolved
   2026-07-08, Phase D Step D0 / release step R1 — see above)*. Wholesale
   `FlightLoadsInput` replacement on every rerun deleted flaps-down

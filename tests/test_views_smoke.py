@@ -17,21 +17,26 @@ logging.disable(logging.CRITICAL)  # silence Streamlit's bare-mode warnings
 
 _ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 _EXAMPLE = os.path.join(_ROOT, "examples", "ga6_normal.project.json")
+# Beyond-GA project: 4000 hp / ~50 seats -- regression fixture for the
+# StreamlitValueAboveMaxError that fired when weight_estimate.py capped its power
+# widget at 3000 hp while seeding a loaded value above that cap.
+_BEYOND_GA = os.path.join(_ROOT, "examples", "dhc8_dash8.project.json")
+_WEIGHT_ESTIMATE = os.path.join(_ROOT, "app", "views", "weight_estimate.py")
 _VIEWS = sorted(glob.glob(os.path.join(_ROOT, "app", "views", "*.py")))
 _ENTRYPOINT = os.path.join(_ROOT, "app", "Home.py")
 
 pytest.importorskip("streamlit.testing.v1")
 
 
-def _seeded_project():
+def _seeded_project(path=_EXAMPLE):
     from farloads import io
-    return io.load_project(_EXAMPLE)
+    return io.load_project(path)
 
 
-def _run(path):
+def _run(path, project_path=_EXAMPLE):
     from streamlit.testing.v1 import AppTest
     at = AppTest.from_file(path, default_timeout=60)
-    at.session_state["project"] = _seeded_project()
+    at.session_state["project"] = _seeded_project(project_path)
     at.run()
     return at
 
@@ -44,4 +49,10 @@ def test_entrypoint_builds_navigation():
 @pytest.mark.parametrize("path", _VIEWS, ids=[os.path.basename(p) for p in _VIEWS])
 def test_view_runs_without_exception(path):
     at = _run(path)
+    assert not at.exception, [e.message for e in at.exception]
+
+
+def test_weight_estimate_accepts_beyond_ga_power():
+    """A loaded >3000 hp / >12-seat project must not trip a GA-tier widget cap."""
+    at = _run(_WEIGHT_ESTIMATE, _BEYOND_GA)
     assert not at.exception, [e.message for e in at.exception]
