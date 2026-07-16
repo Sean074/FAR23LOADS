@@ -28,6 +28,7 @@ import streamlit as st
 
 from farloads import Project, UnitSystem
 from farloads import io as farloads_io
+from farloads.models import SCHEMA_VERSION
 from farloads.units import project_dict_to_display, project_dict_to_imperial
 
 st.title("Project JSON Editor")
@@ -92,6 +93,12 @@ if apply_col.button("Apply", type="primary"):
     except (TypeError, ValueError, KeyError, AttributeError) as exc:
         st.error(f"Could not build a project from this JSON: {exc}")
         st.stop()
+    status, message = farloads_io.schema_status(new_project.schema_version)
+    if status == "newer":
+        st.warning(message)
+    elif status == "older":
+        new_project.schema_version = SCHEMA_VERSION
+        st.info(message)
     st.session_state["project"] = new_project
     st.session_state[_LOADED_SNAPSHOT_KEY] = None  # force a re-seed next render
     st.success(

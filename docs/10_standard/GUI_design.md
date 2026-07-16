@@ -278,10 +278,16 @@ at each page's render boundary. `Project` carries a `schema_version`
 (`models.py`, `SCHEMA_VERSION`); older on-disk shapes are migrated leniently by
 field-presence heuristics so old files still load.
 
-The Project JSON Editor page (`app/views/project_editor.py`) round-trips the whole
-project as JSON in the selected units (`project_dict_to_display` /
-`project_dict_to_imperial`) and is the one load path with graceful error handling;
-hardening the sidebar load path and adding a schema-version check are Phase E5.
+Every load path is hardened (Phase E5): the three sidebar actions (Open saved,
+Load example, Upload) and the Project JSON Editor's **Apply**
+(`app/views/project_editor.py`, which round-trips the whole project as JSON in the
+selected units via `project_dict_to_display` / `project_dict_to_imperial`) all show
+a graceful `st.error` on a malformed / wrong-shape file instead of a traceback, and
+run a soft `SCHEMA_VERSION` check via the pure `io.schema_status(version)`: a newer
+file warns and still loads (unrecognized fields ignored); an older file is migrated
+in place (its field-presence migration ran in `io.py`; the stamp is bumped to the
+current version). The sidebar surfaces the schema notice as a toast (its adopt path
+reruns); the editor surfaces it inline.
 
 ---
 
@@ -297,9 +303,10 @@ the six Airplane pages (§8.1, Phase E2), and the Structural Speeds V-n diagram 
 Weight/CG mass-distribution plot + input-consistency warnings (§8.2/§8.3,
 Phase E3), and the quantitative fleet comparison — nearest-3 / percentile band /
 outlier flags via the shared `farloads/fleet.py` + `render_fleet_comparison`
-(§8.4, Phase E4).
+(§8.4, Phase E4), and the graceful, schema-aware load path across the sidebar and the
+JSON Editor (§10, Phase E5).
 
-**Adopted standards pending rollout (backlog Phase E):** load-path robustness (E5).
+**Phase E is complete** — all steps E1–E5 have shipped.
 
 Schema is at **`SCHEMA_VERSION = 22`**; Phase D (the six-section GUI restructure)
 is complete. The open GUI plan is

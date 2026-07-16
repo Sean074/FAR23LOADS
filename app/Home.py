@@ -31,12 +31,14 @@ from __future__ import annotations
 
 import json
 import os
+from typing import Callable, Optional
 
 import streamlit as st
 
 from farloads import Project, UnitSystem
 from farloads import io as farloads_io
 from farloads import workflow as wf
+from farloads.models import SCHEMA_VERSION
 
 # Must be the first Streamlit call, and the ONLY set_page_config in the app
 # (individual views must not call it again under st.navigation).
@@ -108,6 +110,33 @@ def _confirm_discard(new_project: Project, source: str) -> None:
         st.rerun()
 
 
+def _apply_schema_check(new_project: Project) -> Project:
+    """Surface a soft ``SCHEMA_VERSION`` mismatch, then return the project ready to
+    adopt. A newer file warns (and still loads); an older file is migrated in place
+    (its field-presence migration already ran in ``io.py``; here we bump the stamp).
+    Uses ``st.toast`` because the adopt path ends in ``st.rerun()``, which would
+    discard an ordinary ``st.warning``."""
+    status, message = farloads_io.schema_status(new_project.schema_version)
+    if status == "newer":
+        st.toast(message, icon="⚠️")
+    elif status == "older":
+        new_project.schema_version = SCHEMA_VERSION
+        st.toast(message, icon="🔁")
+    return new_project
+
+
+def _safe_load(build: Callable[[], Project], source: str) -> Optional[Project]:
+    """Build a project from a load action, showing ``st.error`` instead of a
+    traceback on a malformed / wrong-shape file (parity with the JSON Editor).
+    Returns ``None`` on failure so the caller skips the load."""
+    try:
+        return _apply_schema_check(build())
+    except (json.JSONDecodeError, OSError, TypeError, ValueError, KeyError,
+            AttributeError) as exc:
+        st.error(f"Couldn't load {source}: {exc}")
+        return None
+
+
 def _load_with_guard(new_project: Project, source: str) -> None:
     if _has_unsaved_changes(project):
         _confirm_discard(new_project, source)
@@ -151,7 +180,9 @@ with st.sidebar:
             )
             if st.button("Open", key="_open_saved_btn", use_container_width=True):
                 path = os.path.join(projects_dir, choice)
-                _load_with_guard(farloads_io.load_project(path), choice)
+                loaded = _safe_load(lambda: farloads_io.load_project(path), choice)
+                if loaded is not None:
+                    _load_with_guard(loaded, choice)
         else:
             st.caption(f"No saved projects yet in `{projects_dir}`.")
 
@@ -161,13 +192,17 @@ with st.sidebar:
             )
             if st.button("Load example", key="_open_example_btn", use_container_width=True):
                 path = os.path.join(_EXAMPLES_DIR, example_choice)
-                _load_with_guard(farloads_io.load_project(path), example_choice)
+                loaded = _safe_load(lambda: farloads_io.load_project(path), example_choice)
+                if loaded is not None:
+                    _load_with_guard(loaded, example_choice)
 
         uploaded = st.file_uploader("Upload project.json", type="json", key="_uploader")
         if uploaded is not None:
-            _load_with_guard(
-                farloads_io.project_from_dict(json.load(uploaded)), uploaded.name
+            loaded = _safe_load(
+                lambda: farloads_io.project_from_dict(json.load(uploaded)), uploaded.name
             )
+            if loaded is not None:
+                _load_with_guard(loaded, uploaded.name)
 
     fname = (project.name or "project").strip().replace(" ", "_") or "project"
     if st.button("💾 Save to disk", use_container_width=True, key="_save_btn"):

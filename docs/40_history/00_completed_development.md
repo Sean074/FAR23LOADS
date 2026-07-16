@@ -10,6 +10,53 @@ Acceptance**, **Key decisions**.
 
 ---
 
+## Phase E — Step E5: Load-path robustness (complete, 2026-07-15)
+
+**Objective.** Make the sidebar project load fail gracefully and be schema-aware.
+GUI-only: **no schema change** (`SCHEMA_VERSION` stays 22) and **no calc-math
+change** — the Appendix A/B oracles pass unmodified.
+
+**Deliverables.**
+- **`farloads/io.py`** — a new pure, unit-tested `schema_status(version) ->
+  (status, message)` helper (no Streamlit): classifies an on-disk
+  `schema_version` as `"ok"` / `"newer"` (loads anyway; unrecognized fields
+  ignored) / `"older"` (its field-presence migration already ran in
+  `project_from_dict`; the caller bumps the stamp to `SCHEMA_VERSION`).
+- **`app/Home.py`** — a `_safe_load(build, source) -> Project | None` wrapper
+  around all three sidebar load actions (Open saved, Load example, Upload) that
+  catches `(json.JSONDecodeError, OSError, TypeError, ValueError, KeyError,
+  AttributeError)` and shows `st.error("Couldn't load …: …")` instead of an
+  uncaught traceback, returning `None` so the load is skipped. On success it runs
+  `_apply_schema_check`: a newer file toasts a ⚠️ warning, an older file is
+  migrated in place and toasts a 🔁 notice. Toasts (not `st.warning`) because the
+  adopt path ends in `st.rerun()`, which would discard an ordinary message.
+- **`app/views/project_editor.py`** — the same schema check wired into **Apply**
+  after the existing graceful `project_from_dict` guard (this page does not rerun
+  before render, so it surfaces `st.warning` / `st.info` inline rather than a
+  toast).
+- **Tests** — `tests/test_io.py` (+4): `schema_status` for older/current/newer and
+  a malformed-dict guard asserting `project_from_dict` raises one of the caught
+  types (the contract `_safe_load` relies on to show `st.error`).
+
+**Test / Acceptance.** Full suite (**347 passed**, +4) + `ruff check farloads/
+cli.py app/` clean, confirming the no-calc-change invariant. A malformed /
+newer-schema file shows a message, not a traceback (sidebar and editor); a valid
+older file (e.g. `examples/ga6_normal.project.json`, schema 12) still loads and is
+migrated. Docs synced (`GUI_design.md §10/§11`, this history + `CHANGELOG.md`,
+backlog E5 removed / Phase E marked complete).
+
+**Key decisions.** (D-E5-1) The classification is a **pure, unit-tested**
+`schema_status` in `io.py` (mirroring `fleet.py` / `applicability.py`), exceeding
+the backlog's manual-only acceptance so the version logic is regression-safe.
+(D-E5-2) The schema check is **shared into both** the sidebar and the JSON Editor
+(user-approved 2026-07-15), not sidebar-only, so behavior is consistent wherever a
+project is built from raw JSON. (D-E5-3) An older file is **migrated with a visible
+toast** ("Migrated from schema N to 22"), not silently — nothing is written to disk
+until the user Saves. A newer file **warns and still loads** rather than blocking,
+per the backlog direction.
+
+---
+
 ## Phase E — Step E4: Fleet comparison upgrade (complete, 2026-07-15)
 
 **Objective.** Turn the visual, duplicated fleet comparison into a shared,

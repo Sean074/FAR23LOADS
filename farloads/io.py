@@ -878,6 +878,28 @@ def project_to_dict(project: Project) -> Dict[str, Any]:
     return out
 
 
+def schema_status(version: int) -> Tuple[str, str]:
+    """Classify an on-disk ``schema_version`` against the current one.
+
+    Returns ``(status, message)`` where ``status`` is ``"ok"`` (same version,
+    empty message), ``"newer"`` (file was written by a newer app version -- it
+    still loads, but unrecognized fields are ignored) or ``"older"`` (the file's
+    field-presence migration in :func:`project_from_dict` has already run; the
+    caller should bump the loaded project's ``schema_version`` to
+    :data:`SCHEMA_VERSION`). Pure -- the UI decides how to surface the message so
+    calc stays free of Streamlit.
+    """
+    if version > SCHEMA_VERSION:
+        return "newer", (
+            f"This file was saved by a newer version (schema {version}; this app "
+            f"supports {SCHEMA_VERSION}). Loading anyway -- unrecognized fields "
+            "are ignored."
+        )
+    if version < SCHEMA_VERSION:
+        return "older", f"Migrated from schema {version} to {SCHEMA_VERSION}."
+    return "ok", ""
+
+
 def load_project(path: str) -> Project:
     with open(path, "r", encoding="utf-8") as fh:
         return project_from_dict(json.load(fh))

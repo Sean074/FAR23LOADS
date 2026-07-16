@@ -22,6 +22,22 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   `tests/test_views_smoke.py::test_weight_estimate_accepts_beyond_ga_power` loads
   the DHC-8 into the page and asserts no exception.
 
+### Changed
+
+- **Load-path robustness (Phase E, Step E5).** The three sidebar load actions
+  (Open saved, Load example, Upload) now fail **gracefully**: a malformed or
+  wrong-shape file shows an `st.error` ("Couldn't load …: …") instead of an
+  uncaught traceback, matching the JSON Editor's behavior. Both the sidebar and the
+  Project JSON Editor now run a **soft `SCHEMA_VERSION` check**: a file from a
+  *newer* app version warns and still loads (unrecognized fields ignored); an
+  *older* file is migrated in place (its field-presence migration already ran in
+  `io.py`; the version stamp is bumped to the current `SCHEMA_VERSION`), surfaced as
+  a brief toast in the sidebar / an info line in the editor. The classification is
+  the new pure, unit-tested `farloads.io.schema_status(version) -> (status,
+  message)` (no Streamlit). GUI-only: no schema change (`SCHEMA_VERSION` stays
+  **22**) and no calc-math change — the Appendix A/B oracles are untouched (347
+  tests pass, +4). Implements `GUI_design.md §10`.
+
 ### Added
 
 - **Quantitative fleet comparison (Phase E, Step E4).** The visual, duplicated

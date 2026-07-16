@@ -12,7 +12,7 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from farloads import Project, io, registry  # noqa: E402
-from farloads.models import EngineType  # noqa: E402
+from farloads.models import SCHEMA_VERSION, EngineType  # noqa: E402
 from test_engine import io520bb  # noqa: E402
 
 EXAMPLES = os.path.join(
@@ -322,6 +322,35 @@ def test_csv_has_three_load_cases():
     )
     # Loads are reported ultimate: force/moment headers carry the ULT marker.
     assert "ULT" in lines[0]
+
+
+def test_schema_status_current():
+    status, message = io.schema_status(SCHEMA_VERSION)
+    assert status == "ok"
+    assert message == ""
+
+
+def test_schema_status_older():
+    status, message = io.schema_status(SCHEMA_VERSION - 1)
+    assert status == "older"
+    assert str(SCHEMA_VERSION) in message
+
+
+def test_schema_status_newer():
+    status, message = io.schema_status(SCHEMA_VERSION + 1)
+    assert status == "newer"
+    assert str(SCHEMA_VERSION) in message
+
+
+def test_project_from_dict_raises_on_malformed():
+    # A wrong-shape engine slice must raise one of the load-path's caught types,
+    # not silently build a broken project (Step E5 relies on this to show st.error).
+    raised = False
+    try:
+        io.project_from_dict({"engines": [{"engine_type": "not-a-valid-enum"}]})
+    except (TypeError, ValueError, KeyError, AttributeError):
+        raised = True
+    assert raised
 
 
 if __name__ == "__main__":
