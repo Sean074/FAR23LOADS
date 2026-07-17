@@ -10,6 +10,43 @@ Acceptance**, **Key decisions**.
 
 ---
 
+## Phase 1 — Step P1-4: Complete the export package public API (complete, 2026-07-16)
+
+**Objective.** The concept deliverable is "all components to sbeam", but
+`farloads/export/__init__.py`'s `__all__` advertised only the **wing + tail**
+families — `body_span_load_csv`, `body_force_moment_cards`, `control_surface_csv`,
+`control_surface_force_moment_cards`, their `write_*` variants, and
+`case_index_csv`/`filter_by_selected_case_ids` were reachable only via the
+`sbeam_bridge` submodule. Re-export the missing surface and rewrite the wing-only
+package docstring to describe all four component families + the case index.
+
+**Deliverables.**
+- **`farloads/export/__init__.py`** — imports and `__all__` extended with the body
+  family (`body_span_load_csv`, `body_force_moment_cards`), the control-surface
+  family (`control_surface_csv`/`control_surface_force_moment_cards` + their
+  `write_*` variants), and the case-index family (`case_index_csv`,
+  `write_case_index_csv`, `filter_by_selected_case_ids`). `__all__` is now grouped
+  by component family (Wing / Body / Tail / Control / Case index). The module
+  docstring is rewritten from "wing-only" to enumerate all four families plus the
+  case index. (Body has no `write_*` CSV/card variants in `sbeam_bridge`, so none
+  were invented; the case-index `write_case_index_csv` companion is included to keep
+  the family's public surface complete.)
+- **`tests/test_sbeam_bridge.py`** — `test_export_package_exposes_all_component_families`
+  imports the full body/control/case-index surface directly `from farloads.export`,
+  and asserts each re-exported name is in `export.__all__` and resolves (identity) to
+  the `sbeam_bridge` implementation (no accidental shadowing).
+
+**Test / Acceptance (met).** `from farloads.export import body_force_moment_cards,
+control_surface_force_moment_cards` (and the rest of the surface) now works; the new
+test imports the full surface. Full suite **379 passed** (378 → 379), `ruff check
+farloads/ cli.py` clean. **API-surface-only step:** no calc-math change, no new
+function, no `SCHEMA_VERSION` bump — only which names the package re-exports.
+
+**Key decisions.** Re-export only functions that already exist (no new `write_body_*`
+variants were invented, since the body family never had them); include
+`write_case_index_csv` alongside `case_index_csv` so every CSV/cards producer that is
+re-exported carries its `write_*` companion.
+
 ## Phase 1 — Step P1-3: True concept↔FAR23 identity test (complete, 2026-07-16)
 
 **Objective.** The C-1 invariant ("concept mode reduces **exactly** to FAR23 on GA

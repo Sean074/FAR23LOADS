@@ -25,6 +25,17 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **Complete export package public API (Phase 1, Step P1-4).**
+  `farloads/export/__init__.py` now re-exports all four component families +
+  the case index: the body (`body_span_load_csv`, `body_force_moment_cards`),
+  control-surface (`control_surface_csv`/`control_surface_force_moment_cards` +
+  their `write_*` variants), and case-index (`case_index_csv`,
+  `write_case_index_csv`, `filter_by_selected_case_ids`) functions were previously
+  reachable only via the `sbeam_bridge` submodule (`__all__` advertised wing + tail
+  only). The package docstring is rewritten from "wing-only" to enumerate all four
+  families. Guarded by `test_sbeam_bridge.py::test_export_package_exposes_all_component_families`.
+  API-surface-only (no calc-math or schema change).
+
 - **Concept↔FAR23 identity test (Phase 1, Step P1-3).** `tests/test_concept.py`
   now guards the C-1 invariant ("concept mode reduces **exactly** to FAR23 on GA
   inputs") *directly, through the concept branch* — previously it was only assumed

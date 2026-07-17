@@ -93,19 +93,6 @@ serialized). Guarded by `tests/test_concept_regional_jet.py` (4 tests). See
 open: closure validation is P1-2; the aft-fuselage engine layout is modelled as
 `2W` (the suite has no aft-fuselage `EngineLayout` — sketch limitation, noted).*
 
-### Step P1-4 — Complete the export package public API
-**Objective.** Re-export the body and control-surface functions from
-`farloads/export/__init__.py` (`__all__` today lists only wing + tail —
-`body_span_load_csv`, `body_force_moment_cards`, `control_surface_csv`,
-`control_surface_force_moment_cards`, their `write_*` variants, and
-`case_index_csv`/`filter_by_selected_case_ids` are reachable only via the
-submodule) and update the wing-only package docstring to describe all four
-component families + the case index.
-**Why.** A caller following the package API can currently export only wing + tail;
-the concept deliverable is "all components to sbeam." Small change, real API gap.
-**Acceptance.** `from farloads.export import body_force_moment_cards,
-control_surface_force_moment_cards` works; a test imports the full surface.
-
 ### Step P1-5 — Concept engine gyroscopic rates: guard + warn — *approach chosen (D-2, 2026-07-16)*
 **Objective.** `engine.py`'s `condition_25_371` uses a fixed FAR 23.371(b)
 stand-in (2.5 rad/s yaw, 1 rad/s pitch) in lieu of the maneuver-derived 25.371
