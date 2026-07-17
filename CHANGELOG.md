@@ -25,6 +25,21 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **Concept engine gyroscopic guard + warn (Phase 1, Step P1-5).** The optional
+  FAR 25.371 gyroscopic concept case (`engine.condition_25_371`) uses a fixed
+  FAR 23.371(b) stand-in (2.5 rad/s yaw, 1 rad/s pitch); the gyro moment is linear
+  in body rate, so the stand-in under-predicts for a concept whose real rates are
+  higher. `EngineInput` gains two optional advisory fields —
+  `design_yaw_rate_rad_s` / `design_pitch_rate_rad_s` (**`SCHEMA_VERSION` 22 → 23**,
+  additive; older files load with both unset) — and when a declared rate exceeds its
+  stand-in the case's note becomes an explicit `WARNING -- gyroscopic loads
+  UNDER-PREDICTED …` (naming the axis, rate and moment ratio). Per decision D-2 this
+  is **warn-only**: the reported moment stays at the fixed stand-in (the declared
+  rates are advisory, not a re-derivation). The engine GUI page adds the two rate
+  inputs and renders `WARNING` notes as `st.warning`. The GA/oracle path is
+  unchanged (no declared rates → no warning). Guarded by five new tests in
+  `tests/test_engine_far25.py`.
+
 - **Complete export package public API (Phase 1, Step P1-4).**
   `farloads/export/__init__.py` now re-exports all four component families +
   the case index: the body (`body_span_load_csv`, `body_force_moment_cards`),
@@ -131,6 +146,19 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   (`vn_diagram` and its tests are untouched).
 
 ### Fixed
+
+- **TAILDIST mis-cited every chordwise tail condition as `23.421` (found via the
+  FAA User's Guide review).** `taildist.run` hardcoded `far_reference="23.421"`
+  (balancing loads) on every emitted `ConditionResult`, so the v-tail distributions
+  (23.441/23.443) and the h-tail maneuver/gust/unsymmetrical rows (23.423/425/427)
+  were all reported as "23.421 Balancing Loads." The correct citation was already on
+  the source SELECT `CriticalCondition.far_reference` but was discarded because
+  `TailChordResult` did not carry it. `TailChordResult` gains a `far_reference` field
+  (populated verbatim from the governing condition, serialized by `io`), and
+  `taildist.run` now cites `r.far_reference or "23.421"`. Load magnitudes are
+  unchanged (citation-only). Regression: `test_far_reference_propagates_from_select`
+  in `tests/test_taildist.py`. Additive field, defaulted `""`; older projects load
+  unchanged. Source: FAA User's Guide §20.2.2/20.2.3 (DOT/FAA/AR-96/46).
 
 - **Swept-wing aero fields dropped by the JSON round-trip (found via Step P1-1).**
   `AeroSurfaceInput.sweep_deg` / `design_mach` (the fields that auto-select the

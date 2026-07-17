@@ -669,6 +669,7 @@ def _tail_chord_result_from_dict(d: Dict[str, Any]) -> TailChordResult:
         lt50=d.get("lt50", 0.0),
         stations=[TailChordStation(**dict(s)) for s in d.get("stations", []) or []],
         case_ref=_case_ref_from_dict(d.get("case_ref")),
+        far_reference=d.get("far_reference", ""),
     )
 
 

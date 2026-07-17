@@ -10,6 +10,52 @@ Acceptance**, **Key decisions**.
 
 ---
 
+## Phase 1 — Step P1-5: Concept engine gyroscopic rates — guard + warn (complete, 2026-07-16)
+
+**Objective.** `engine.py`'s `condition_25_371` (the optional FAR 25 gyroscopic
+concept case) uses a fixed FAR 23.371(b) stand-in (2.5 rad/s yaw, 1 rad/s pitch) in
+lieu of the maneuver-derived 25.371 rates the tool does not solve. The gyro moment is
+linear in body rate, so the stand-in is conservative *only while the concept's real
+rates stay at or below it* — for an agile concept it under-predicts silently. Add a
+guard so the non-conservative case cannot pass silently, per decision **D-2 (guard +
+warn, keep the fixed stand-in)**.
+
+**Deliverables.**
+- **`farloads/models.py`** — `EngineInput` gains two optional advisory fields,
+  `design_yaw_rate_rad_s` / `design_pitch_rate_rad_s` (default `None`), the concept's
+  real 25.371 body rates if known. `SCHEMA_VERSION` **22 → 23** (additive; older files
+  load with both unset → no guard, fixed stand-in unchanged). No `io.py` change needed
+  — `engine_from_dict`/`engine_to_dict` use `**d`/`asdict`, so the fields round-trip
+  automatically; `units.to_imperial` uses `replace`, and rad/s are system-independent
+  (like RPM), so they pass through both unit systems unchanged.
+- **`farloads/modules/engine.py`** — `condition_25_371` keeps computing Myy/Mzz at the
+  **fixed** stand-in rates (the moment never changes — advisory rates, not a
+  re-derivation). When a declared rate exceeds its stand-in, the `ConditionResult.note`
+  is replaced with a `WARNING -- gyroscopic loads UNDER-PREDICTED …` message naming the
+  offending axis, the rate, and the moment ratio (`Myy x1.40`), pointing the engineer
+  to scale by the ratio or solve the real 25.371 rates.
+- **`app/views/engine_mount.py`** — two advisory rate inputs under the FAR 25 block
+  (0 = leave unset), wired into the `EngineInput`; the per-condition note now renders as
+  `st.warning` (not `st.info`) when it starts with `WARNING`, so the under-prediction
+  case is visually flagged.
+- **`tests/test_engine_far25.py`** — five tests: no-rates → no warning + stand-in note;
+  rates at/below stand-in → no warning, moment unchanged; yaw > 2.5 and pitch > 1.0 →
+  `WARNING`/`UNDER-PRED` note with the moment value **identical** to the fixed
+  stand-in; and a JSON round-trip of the new fields (schema v23) that re-fires the
+  warning through `calc.run`.
+
+**Test / Acceptance (met).** A concept declaring a rate above the stand-in produces a
+load result carrying an explicit under-prediction warning while the reported moment is
+unchanged; the GA/light path (no declared rates) is untouched — no warning, oracle
+intact. Full suite **385 passed** (379 → 385), `ruff check farloads/ cli.py` clean, the
+edited view compiles.
+
+**Key decisions.** **Warn-only, keep the fixed value** (D-2 literal / the acceptance's
+"under-prediction warning" wording) — the declared rates are *advisory*, driving only
+the guard, not the moment (the "solve for real rates" re-derivation stays deferred). The
+override lives on `EngineInput` (per-engine, local to the case that uses it) rather than a
+global concept slice. **Phase 1 is now complete** (P1-1…P1-5 all shipped).
+
 ## Phase 1 — Step P1-4: Complete the export package public API (complete, 2026-07-16)
 
 **Objective.** The concept deliverable is "all components to sbeam", but

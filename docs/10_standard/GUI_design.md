@@ -329,7 +329,8 @@ sidebar and the JSON Editor (§10, Phase E5).
 
 **Phase E is complete** — all steps E1–E5 have shipped.
 
-Schema is at **`SCHEMA_VERSION = 22`**; Phases D–F (the six-section GUI
+Schema is at **`SCHEMA_VERSION = 23`** (v23 adds the optional concept 25.371
+advisory gyro rates, Phase 1 Step P1-5); Phases D–F (the six-section GUI
 restructure, the usability/concept-awareness work, and fleet comparison) are all
 complete. The **open GUI plan is now
 [`../30_future/00_backlog.md`](../30_future/00_backlog.md) → Phase G** — the

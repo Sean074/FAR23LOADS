@@ -41,8 +41,8 @@ and Phase-F **F1–F2** (2026-07-16). **All 22** Appendix-C programs are ported
 (ENGLOADS, WTESTIMA, WTONECG, WTENV, WINGGEOM, STRSPEED, MACHLIM, TAU, AIRLOADS,
 AIRLOAD4, FLTLOADS, SELECT, WINGINER, NETLOADS, TAILDIST, AILERON, FLAPLOAD,
 TABLOADS, ONENGOUT, LGFACTOR, LANDLOAD, BALLOADS) plus **2 modern modules** with no
-`.BAS` oracle (`configuration`, `body_loads`). Schema **`SCHEMA_VERSION = 22`**;
-362 tests pass; coverage ~92%. The FAR23 path is oracle-locked (Appendix A/B
+`.BAS` oracle (`configuration`, `body_loads`). Schema **`SCHEMA_VERSION = 23`**;
+385 tests pass; coverage ~92%. The FAR23 path is oracle-locked (Appendix A/B
 ±0.1%); ONENGOUT and the LANDLOAD wheel table are closure-locked (no legible
 printed oracle). The GUI is the six-section loads-release workflow (Start →
 Airplane → Envelopes & Critical → Analysis → Loads Plots → Export).
@@ -65,8 +65,8 @@ including body/tail/control + the swept AIRLOAD4 branch, and
 `tests/test_concept_closure.py` (10 tests, 376 total now pass) asserts
 physics-closure per component (wing lift = n·W, tail balances the pitching moment,
 body free-free equilibrium, TAILDIST↔SELECT split, control build↔run, and clean
-sbeam export). The remaining Phase-1 work is the identity test (P1-3), the export
-API completion (P1-4) and the gyro guard (P1-5).
+sbeam export). **Steps P1-3 (identity test), P1-4 (export API) and P1-5 (gyro
+guard + warn) shipped 2026-07-16 — Phase 1 is now complete.**
 
 **Remaining suite programs (0):** all 22 ported.
 
@@ -93,23 +93,10 @@ serialized). Guarded by `tests/test_concept_regional_jet.py` (4 tests). See
 open: closure validation is P1-2; the aft-fuselage engine layout is modelled as
 `2W` (the suite has no aft-fuselage `EngineLayout` — sketch limitation, noted).*
 
-### Step P1-5 — Concept engine gyroscopic rates: guard + warn — *approach chosen (D-2, 2026-07-16)*
-**Objective.** `engine.py`'s `condition_25_371` uses a fixed FAR 23.371(b)
-stand-in (2.5 rad/s yaw, 1 rad/s pitch) in lieu of the maneuver-derived 25.371
-rates the tool does not solve. The moment is linear in body rate, so the fixed
-rates are conservative *only while the concept's real rates stay at or below them*
-— for an agile concept they under-predict silently, with no guard today.
-**Approach (D-2, chosen 2026-07-16): guard + warn, keep the fixed stand-in.**
-Keep the fixed 23.371(b) rates as the default; add a guard that emits a
-`ConditionResult.note` + UI warning when the concept's inputs (or an explicit
-user-supplied rate override) imply real pitch/yaw rates above 2.5 / 1 rad/s, so the
-non-conservative case can never pass silently. No new envelope/rate-derivation math
-(that would be the "solve for real rates" alternative, deferred). Accepts the
-residual over-conservatism for slow transports (e.g. the D-1 regional jet's mount
-is over-sized, not unsafe).
-**Acceptance.** A concept whose implied/override rates exceed the fixed values
-produces a load result carrying an explicit under-prediction warning; the GA/light
-path is unchanged (no warning, oracle intact).
+**Phase 1 is complete** — Steps P1-3 (concept↔FAR23 identity test), P1-4 (export
+package public API) and P1-5 (concept engine gyroscopic guard + warn) all shipped
+2026-07-16; see `40_history/00_completed_development.md`. The remaining suite work
+is the Phase 2 refinements below and the Phase G GUI rework.
 
 ---
 
@@ -139,8 +126,19 @@ persisted per-CG inertia. *(Unblocked calc refinement.)*
 The legible large-deflection chart (Dommasch fig 12:3) lives in
 `_vtail.large_deflection_factor` (recovered for ONENGOUT). SELECT's static v-tail
 rudder load still uses `VTailLoadsInput.rudder_large_deflection_factor` (default
-1.0); wire the recovered curve into `_vt_rudder_load` (~1% shift; needs a
-re-baselined oracle check). *(Unblocked.)*
+1.0); wiring the recovered curve into `_vt_rudder_load` was proposed as a ~1% shift.
+**⚠️ Not a simple wire-in — the naive fix breaks the oracle (investigated
+2026-07-16).** `large_deflection_factor(defl=30°, SR/SV=5.236/14.84=0.353) = 0.53`,
+*not* ~1.009 — applying it the way the elevator applies `_ef` would drop the printed
+SUDDEN RUDDER load from ~586 lb to ~312 lb (−47%), shattering the Appendix A **591 lb**
+oracle (`test_critical_vtail_loads_match_appendix_a`). The elevator chart *does*
+reduce its load (EF≈0.84 at 10°) and matches its oracle, so the manual clearly does
+**not** apply the same large-deflection alleviation to the 23.441 sudden-full-rudder
+limit case — the manual's rudder factor is ~1.0. **Reopen only after** re-reading
+`SELECT.BAS` subroutines 8300/10000 to establish exactly what quantity the rudder
+`EFV` multiplies (and on which deflection variable); the current default-1.0
+pass-through lands within the oracle's 1.5% band and should stay until that is
+pinned down. *(Unblocked but needs source re-read, not a code change.)*
 
 ### 2-4 — sbeam stick model: real stiffness + assembled airframe (from C4)
 The stick model uses **nominal placeholder** structural properties
@@ -173,10 +171,10 @@ landed as a category split out of the merged "Normal / commuter". Non-blocking;
 revisit when a concept needs the intermediate certificated tier represented
 cleanly.
 
-### 2-8 — Aero-coefficient curve plot (declined in E)
+### 2-8 — Aero-coefficient curve plot (declined in E, decision revised include)
 A CL–α / drag-polar / CM plot on Aerodynamic Data (with the recovered-CL closure
 check) was reviewed and **not selected** (2026-07-15). Revisit if
-coefficient-entry errors prove common.
+coefficient-entry errors prove common. Revisit not do.
 
 ### 2-9 — Fleet-data curation — *deferred, fleet is fine as-is (D-4, 2026-07-16)*
 The current fleet (F1 set: 29 aircraft + `aspect_ratio`) is **sufficient for now**
@@ -228,6 +226,97 @@ does not gate the usability restructure.
 governing flight case; FAR23 flight oracles unchanged. **Priority:** after Phase G's
 usability work (G0–G8) unless raised.
 Source narrative: `03_gui_rework_plan.md` §5 item (3).
+
+---
+
+## User's Guide fidelity review findings (2026-07-16)
+
+A full pass of the **FAA User's Guide** (DOT/FAA/AR-96/46) against the ported
+modules. Load *magnitudes* are all oracle-locked and correct; these are citation,
+data-flow-provenance, and optional-capability gaps. **Reference 1 / the `.BAS`
+source is the primary oracle** — the "verify vs `.BAS`" items must be checked
+against it before any code change (the User's Guide is the secondary operational
+reference). Already-tracked overlaps: v-tail EFV → **2-3**; flaps-extended tail →
+**2-6**; commuter category / VB gust → **2-7**; per-CG inertia / WTONECG 4-point
+loading set → **2-2**; case identity → **2-1**. Shipped from this review: the
+TAILDIST per-condition citation fix (CHANGELOG `[Unreleased] → Fixed`, 2026-07-16).
+
+### 2-13 — STRSPEED: VD floor basis + optional CLmax→stall-speed path
+Two items in `structural_speeds.py`. (a) **VD floor** is computed as
+`K_d·(chosen VC)` (`:147-149`); 23.335(b)(2) reads `K_d·VCmin`. For the GA6 case
+(chosen VC 170 vs VCmin ≈142) the code is conservative (~238 vs ~198) but not the
+reg text, and `vd_recommended` is untested — *verify vs STRSPEED.BAS*, then either
+switch to `vc_min` or document the deviation. (b) **No CLmax→VS path** — the guide
+(p7-5) lets the user enter CL-w/CL-f and computes stalling speed; the port only
+accepts stall speeds directly (`StructuralSpeedsInput.stall_*_kt`). Add the optional
+CLmax stall-speed calc or record it as intentionally out of scope.
+*(Citation-verify + optional capability; unblocked.)*
+
+### 2-14 — AIRLOAD4 auto-select Mach threshold (0.4 vs User's Guide 0.5)
+`airloads.py:73` triggers the swept/high-Mach branch at `design_mach > 0.4`; the
+User's Guide states **0.5** (§9.1 and §10.1, both). *Verify vs Reference 1 Ch 12 /
+AIRLOAD4.BAS* — if 0.4 is not sourced there, change `_AIRLOAD4_MACH` to 0.5, else
+document the conservatism. The 15° sweep trigger matches. *(Threshold-verify;
+unblocked.)*
+
+### 2-15 — FLAPLOAD slipstream power: takeoff vs max-continuous HP
+`flap.py:163` (`_engine_power`) uses `max_cont_hp or takeoff_hp` (prefers
+max-continuous); FAR 23.457(b) specifies the slipstream at **takeoff power**.
+*Verify vs FLAPLOAD.BAS* (the input label "Max HP of One Engine" is ambiguous, the
+reg is not); prefer `takeoff_hp` if the source agrees. *(Citation-verify;
+unblocked.)*
+
+### 2-16 — FAR citation cleanups (labels only, no load change)
+- **WTONECG** cites `23.21/23.23` (`weight_onecg.py:34`); User's Guide §4.3 ties the
+  module to **23.25** (weight limits) and **23.29** (empty weight).
+- **FLTLOADS** `_FAR` (`flight_envelope.py:74`) omits **23.345** (high-lift, the
+  flaps-down branch *is* implemented and oracle-tested). Do **not** add 23.373 until
+  the enroute config exists (see 2-19).
+- **SELECT** v-tail SIDE GUST labelled `23.443(b)` (commuter-only paragraph); a
+  normal-category VC lateral gust is **23.443(a)**. *Confirm against the McMaster
+  manual* — `SELECT.BAS` may intentionally label (b); a test asserts the current
+  value. *(Low; labels only — batch and get user sign-off on which reg is authoritative.)*
+
+### 2-17 — ONENGOUT data-flow + scope
+(a) **V-tail geometry provenance:** Table 2.2 sources ONENGOUT's v-tail area / AR /
+rudder area from **WINGGEOM**, but `one_engine_out.py:275-300` reads a separate
+`Project.vtail_loads` slice and never `Project.geometry`. Either derive `vtail_loads`
+from geometry or document the slice as the intended source (same class of GUI-
+mediated feed as FLTLOADS←WTONECG). (b) **Turbopropeller scope (23.367):** `run`
+gates only on slice/engine presence, not `is_turboprop` — it will run for a
+reciprocating multi. Add a gate or a caption. *(Data-flow + guard; unblocked.)*
+
+### 2-18 — AIRLOADS: airplane-less-tail coefficient generation (User's Guide windows 4/6/8)
+The guide's AIRLOADS also computes the airplane-less-tail CL/CD/CM polynomials —
+fuselage/nacelle pitching-moment (window 6), landing-gear aero (window 8), and
+per-station stall CL (window 4). None of these inputs exist in `AeroSurfaceInput`;
+the coefficients are entered by hand as `AeroCoeffSet` (documented in
+`flight_envelope.py`/`airloads.py`). *Documented scope gap* — implement the
+coefficient generator or keep as a tracked future step. *(Medium; unblocked but
+large.)*
+
+### 2-19 — FLTLOADS enroute / speed-control config (FAR 23.373)
+The guide's FLTLOADS models a third config — **enroute** (partial flaps / dive
+brakes / spoilers, window 2 + windows 7-8) with a dedicated **VPF** speed
+(§11.2.3, 23.373). The port builds only cruise + flaps-down. Add an enroute
+`AeroCoeffSet` + VPF, or document the omission (and only then add 23.373 to the
+citation string per 2-16). *(Medium; unblocked.)*
+
+### 2-20 — WINGINER Table 15.1 output completeness
+Table 15.1 lists `THETADOT` (pitch-velocity rate) and a separate incremental
+torsion `DMYY`; `wing_inertia.py` emits neither (only vertical/drag/roll unit cases
+and cumulative `myy`). *Confirm vs WINGINER.BAS* whether a pitch-acceleration case
+is expected; surface `DMYY` if a per-strip incremental column is wanted.
+*(Low; reporting completeness.)*
+
+### 2-21 — Minor UX / reporting parity with the User's Guide
+Batch of low-severity items: **ENGLOADS** captures `prop_blades` (NOBLADES, a
+required guide input) but never uses it — wire into the blade-inertia approximation
+or mark descriptive-only; **AILERON** silently coerces a positive up-deflection
+(`aileron.py:73`) where the guide errors — document the coercion; **WTONECG** omits
+YBAR (=0 for a symmetric airplane) from the CG output; **TAILDIST** implements only
+the average-chord distribution, not the guide's "distributed on N station chords"
+analyses (Figs 20.7-20.10). *(Low; unblocked.)*
 
 ---
 

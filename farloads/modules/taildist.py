@@ -146,7 +146,7 @@ def build_tail_chordwise(project: Project) -> List[TailChordResult]:
         results.append(TailChordResult(
             case=cond.label, component=cond.component,
             lt25=cond.lt25, lt50=cond.lt50, stations=stations,
-            case_ref=cond.case_ref))
+            case_ref=cond.case_ref, far_reference=cond.far_reference))
     return results
 
 
@@ -165,7 +165,9 @@ def run(project: Project) -> ModuleResult:
             values.append(LoadValue(f"PSI(X{i}) net pressure", s.psi, "lb/in^2"))
         conditions.append(ConditionResult(
             title=f"Chordwise {r.component} load: {r.case}",
-            far_reference="23.421",
+            # Cite the governing condition's regulation (23.423/425/427 maneuver/
+            # gust/unsymmetrical h-tail, 23.441/443 v-tail), not just balancing loads.
+            far_reference=r.far_reference or "23.421",
             values=values,
             note="Additive (25% chord) + camber (50% chord) distribution (Ref 1 Ch 10)."
             + (" Concept mode -- unverified extrapolation past the FAR23 band."

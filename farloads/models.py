@@ -127,6 +127,15 @@ class EngineInput:
     # FAR 25-only (optional concept-mode superset; see Project.include_far25)
     max_accel_torque: Optional[float] = None    # FAR 25.361(a)(3)(ii) max accelerating torque, ft-lb
                                                 # (blank -> falls back to max_engine_torque)
+    # Concept-mode advisory rates: the concept's real 25.371 body pitch/yaw rates,
+    # if known. Used ONLY to guard condition_25_371's fixed FAR 23.371(b) stand-in
+    # (2.5 rad/s yaw, 1 rad/s pitch): when either declared rate exceeds the stand-in
+    # the gyro moment (linear in body rate) is non-conservative, so the result
+    # carries an under-prediction warning. Advisory only -- they do NOT change the
+    # computed moment (D-2: keep the fixed stand-in, guard + warn, no rate-derivation
+    # math). Blank -> no guard, fixed stand-in unchanged.
+    design_yaw_rate_rad_s: Optional[float] = None    # concept real yaw rate (25.371)
+    design_pitch_rate_rad_s: Optional[float] = None  # concept real pitch rate (25.371)
 
     @property
     def is_turboprop(self) -> bool:
@@ -1261,13 +1270,18 @@ class TailChordResult:
 
     ``component`` is "htail" / "vtail"; ``case`` the SELECT condition label; ``lt25``
     /``lt50`` the angle-of-attack (25% MAC) and camber (50% MAC) loads it resolves
-    (lb); ``stations`` the five chordwise pressure points (leading-edge first)."""
+    (lb); ``stations`` the five chordwise pressure points (leading-edge first).
+    ``far_reference`` is copied from the source :class:`CriticalCondition` so the
+    distribution keeps the governing condition's citation (23.421 balancing, 23.423
+    maneuver, 23.425 gust, 23.427 unsymmetrical h-tail; 23.441/23.443 v-tail) rather
+    than a single hardcoded value."""
     case: str
     component: str
     lt25: float
     lt50: float
     stations: List[TailChordStation] = field(default_factory=list)
     case_ref: Optional[CaseRef] = None
+    far_reference: str = ""
 
 
 @dataclass
@@ -1419,7 +1433,11 @@ class LoadsResult:
 # v22 adds WeightEstimationInput.crew (flight crew; part of the operating empty
 # weight OEW = empty + crew*170, and the required-crew count the FAR 23 seat-limit
 # check subtracts) -- additive, default 1, older files load with crew = 1.
-SCHEMA_VERSION = 22
+# v23 adds EngineInput.design_yaw_rate_rad_s / design_pitch_rate_rad_s (concept's
+# real 25.371 body rates, advisory) -- additive, default None; used only to guard
+# condition_25_371's fixed FAR 23.371(b) stand-in (warn when a declared rate exceeds
+# it). Older files load with both unset (no guard, fixed stand-in unchanged).
+SCHEMA_VERSION = 23
 
 
 @dataclass

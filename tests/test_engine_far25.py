@@ -92,6 +92,59 @@ def test_25_371_gyro_moments_match_far23_fixed_rates():
     )
 
 
+def test_25_371_no_declared_rates_no_warning():
+    # Default (no advisory rates): fixed FAR 23.371(b) stand-in, no under-prediction
+    # warning -- the GA/oracle path is untouched.
+    r = calc.condition_25_371(turboprop())
+    assert "UNDER-PRED" not in r.note.upper()
+    assert "conservative concept stand-in" in r.note.lower()
+
+
+def test_25_371_declared_rates_below_standin_no_warning():
+    # Declaring rates at or below the fixed stand-in leaves the result conservative:
+    # no warning, moment unchanged.
+    inp = replace(turboprop(), design_yaw_rate_rad_s=2.0, design_pitch_rate_rad_s=0.8)
+    base = calc.condition_25_371(turboprop())
+    r = calc.condition_25_371(inp)
+    assert "UNDER-PRED" not in r.note.upper()
+    assert _value(r, "Myy due to 2.5 rad/s yaw (+/-)") == _value(base, "Myy due to 2.5 rad/s yaw (+/-)")
+
+
+def test_25_371_declared_rate_above_standin_warns_but_keeps_value():
+    # A declared yaw rate above 2.5 rad/s flags the result as under-predicting, but
+    # the moment stays at the fixed stand-in value (advisory rate, not a re-derivation).
+    base = calc.condition_25_371(turboprop())
+    inp = replace(turboprop(), design_yaw_rate_rad_s=3.5)  # 3.5 > 2.5
+    r = calc.condition_25_371(inp)
+    assert r.note.upper().startswith("WARNING")
+    assert "UNDER-PRED" in r.note.upper()
+    assert "yaw 3.5 > 2.5" in r.note
+    # Moment value is identical to the no-override fixed stand-in.
+    assert _value(r, "Myy due to 2.5 rad/s yaw (+/-)") == _value(base, "Myy due to 2.5 rad/s yaw (+/-)")
+    assert _value(r, "Mzz due to 1 rad/s pitch (+/-)") == _value(base, "Mzz due to 1 rad/s pitch (+/-)")
+
+
+def test_25_371_declared_pitch_rate_above_standin_warns():
+    inp = replace(turboprop(), design_pitch_rate_rad_s=1.5)  # 1.5 > 1.0
+    r = calc.condition_25_371(inp)
+    assert r.note.upper().startswith("WARNING")
+    assert "pitch 1.5 > 1" in r.note
+
+
+def test_25_371_advisory_rates_round_trip():
+    # New optional EngineInput fields survive JSON round-trip (schema v23).
+    project = Project(
+        name="tp",
+        engines=[replace(turboprop(), design_yaw_rate_rad_s=3.5, design_pitch_rate_rad_s=1.2)],
+        engine_layout=EngineLayout.SINGLE_NOSE, include_far25=True,
+    )
+    back = fio.project_from_dict(fio.project_to_dict(project))
+    assert back.engines[0].design_yaw_rate_rad_s == 3.5
+    assert back.engines[0].design_pitch_rate_rad_s == 1.2
+    r = [c for c in calc.run(back).conditions if c.far_reference == "25.371"][0]
+    assert r.note.upper().startswith("WARNING")
+
+
 def test_project_flag_appends_far25():
     project = Project(
         name="tp", engines=[turboprop()],

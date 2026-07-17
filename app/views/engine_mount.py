@@ -207,6 +207,8 @@ with st.form("engine_mount_form"):
     takeoff_hp = max_cont_hp = cylinders = None
     max_engine_torque = cruise_torque = hub_weight_lb = stop_time_s = None
     max_accel_torque = None
+    design_yaw_rate = cur.design_yaw_rate_rad_s
+    design_pitch_rate = cur.design_pitch_rate_rad_s
     prop_inertia = None
     rotors: list[Rotor] = []
 
@@ -251,6 +253,29 @@ with st.form("engine_mount_form"):
                     help=("FAR 25.361(a)(3)(ii). Leave at the max engine torque if no "
                           "separate accelerating-torque value is available."),
                 )
+
+            st.caption(
+                "**25.371 gyroscopic rates (advisory).** The 25.371 gyro case uses a "
+                "fixed FAR 23.371(b) stand-in (2.5 rad/s yaw, 1 rad/s pitch). If you "
+                "know the concept's real design rates, enter them here: they do **not** "
+                "change the computed moment, but if either exceeds the stand-in the "
+                "result is flagged as under-predicting (0 = leave unset)."
+            )
+            g1, g2 = st.columns(2)
+            with g1:
+                _yaw_in = st.number_input(
+                    "Design yaw rate, rad/s", value=float(cur.design_yaw_rate_rad_s or 0.0),
+                    min_value=0.0, step=0.1, key=k("design_yaw", False),
+                    help="Concept real 25.371 yaw rate. 0 = use the fixed 2.5 rad/s stand-in.",
+                )
+                design_yaw_rate = _yaw_in if _yaw_in > 0 else None
+            with g2:
+                _pitch_in = st.number_input(
+                    "Design pitch rate, rad/s", value=float(cur.design_pitch_rate_rad_s or 0.0),
+                    min_value=0.0, step=0.1, key=k("design_pitch", False),
+                    help="Concept real 25.371 pitch rate. 0 = use the fixed 1 rad/s stand-in.",
+                )
+                design_pitch_rate = _pitch_in if _pitch_in > 0 else None
 
         st.markdown("**Propeller polar inertia**")
         p1, p2 = st.columns([1, 1])
@@ -361,6 +386,8 @@ if applied:
         stop_time_s=stop_time_s,
         rotors=rotors,
         max_accel_torque=max_accel_torque,
+        design_yaw_rate_rad_s=design_yaw_rate,
+        design_pitch_rate_rad_s=design_pitch_rate,
     )
     engines_working[idx] = to_imperial(inp_display, system)
     project.engines = engines_working
@@ -421,7 +448,10 @@ for r in conditions:
         )
         st.dataframe(df, hide_index=True, use_container_width=True)
         if r.note:
-            st.info(r.note)
+            if r.note.lstrip().upper().startswith("WARNING"):
+                st.warning(r.note)
+            else:
+                st.info(r.note)
 
 # --------------------------------------------------------------------------- #
 # Downloads (always cover every engine in the project)

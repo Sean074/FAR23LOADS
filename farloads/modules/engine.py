@@ -469,6 +469,9 @@ def condition_25_371(inp: EngineInput) -> ConditionResult:
     for rotor in inp.rotors:
         tpitch += _rotor_inertia(rotor) * _omega(rotor.max_rpm)
 
+    # Fixed FAR 23.371(b) stand-in rates -- the moment is ALWAYS computed at these
+    # (D-2: keep the fixed stand-in). Declared concept rates, if any, only drive the
+    # under-prediction guard below; they do not change m_yaw/m_pitch.
     m_yaw = YAW_RATE * tpitch
     m_pitch = PITCH_RATE * tpitch
     thrust = inp.max_engine_torque * omega_prop / VSF
@@ -489,17 +492,43 @@ def condition_25_371(inp: EngineInput) -> ConditionResult:
         values.append(LoadValue(f"{prefix}: Myy", syaw * m_yaw, "ft-lb"))
         values.append(LoadValue(f"{prefix}: Mzz", spitch * m_pitch, "ft-lb"))
 
+    note = (
+        "Conservative concept stand-in: fixed FAR 23.371(b) rates (2.5 rad/s "
+        "yaw, 1 rad/s pitch) used in lieu of the 25.371 maneuver-derived rates; "
+        "valid while the concept's actual rates stay at or below these. All four "
+        "sign combinations of Myy/Mzz are combined with the A2 vertical load and "
+        "max-continuous thrust acting simultaneously."
+    )
+
+    # Guard: if the concept declares a real 25.371 body rate above the fixed
+    # stand-in, the gyro moment (linear in body rate) is under-predicted at the
+    # stand-in rate. Warn so the non-conservative case cannot pass silently; the
+    # reported moment is unchanged (advisory rates, not a re-derivation).
+    exceed = []
+    if inp.design_yaw_rate_rad_s is not None and inp.design_yaw_rate_rad_s > YAW_RATE:
+        exceed.append(
+            f"yaw {inp.design_yaw_rate_rad_s:g} > {YAW_RATE:g} rad/s "
+            f"(Myy x{inp.design_yaw_rate_rad_s / YAW_RATE:.2f})"
+        )
+    if inp.design_pitch_rate_rad_s is not None and inp.design_pitch_rate_rad_s > PITCH_RATE:
+        exceed.append(
+            f"pitch {inp.design_pitch_rate_rad_s:g} > {PITCH_RATE:g} rad/s "
+            f"(Mzz x{inp.design_pitch_rate_rad_s / PITCH_RATE:.2f})"
+        )
+    if exceed:
+        note = (
+            "WARNING -- gyroscopic loads UNDER-PREDICTED: declared concept rate(s) "
+            + "; ".join(exceed)
+            + " exceed the fixed FAR 23.371(b) stand-in, so Myy/Mzz here are "
+            "non-conservative (moment is linear in body rate). Scale by the rate "
+            "ratio(s) above, or solve the 25.371 maneuver-derived rates. " + note
+        )
+
     return ConditionResult(
         title="Gyroscopic loads on engine mount at max continuous RPM",
         far_reference="25.371",
         values=values,
-        note=(
-            "Conservative concept stand-in: fixed FAR 23.371(b) rates (2.5 rad/s "
-            "yaw, 1 rad/s pitch) used in lieu of the 25.371 maneuver-derived rates; "
-            "valid while the concept's actual rates stay at or below these. All four "
-            "sign combinations of Myy/Mzz are combined with the A2 vertical load and "
-            "max-continuous thrust acting simultaneously."
-        ),
+        note=note,
     )
 
 

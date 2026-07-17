@@ -26,12 +26,14 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from dataclasses import replace  # noqa: E402
 
-from farloads import AeroSurfaceInput, Project, SurfaceInput, io  # noqa: E402
+from farloads import AeroSurfaceInput, SurfaceInput, io  # noqa: E402
 from farloads.modules.airloads import schrenk_distribution, use_airload4  # noqa: E402
 from farloads.modules.taildist import (  # noqa: E402
     build_tail_chordwise,
     chordwise_pressures,
+    run,
 )
+from farloads.modules.select import build_critical  # noqa: E402
 
 REL = 1e-3  # ±0.1%
 ABS = 1e-3  # stations printed to 3 decimals; some oracle values are ~0
@@ -125,6 +127,26 @@ def test_select_to_taildist_integration():
     for r in results:
         assert len(r.stations) == 5
         assert r.stations[2].psi == 0.0  # trailing edge carries no net pressure
+
+
+def test_far_reference_propagates_from_select():
+    """The chordwise distribution keeps the governing condition's citation, not a
+    single hardcoded 23.421 (the pre-fix behaviour mis-cited every v-tail and
+    maneuver/gust/unsymmetrical h-tail row as "23.421 Balancing Loads")."""
+    p = io.load_project(_GA)
+    p.flight_loads.altitudes_ft = [0.0, 12000.0, 18000.0]
+
+    # build_tail_chordwise copies far_reference verbatim from the SELECT condition.
+    src = {(c.component, c.label): c.far_reference
+           for c in build_critical(p).conditions if c.component in ("htail", "vtail")}
+    for r in build_tail_chordwise(p):
+        assert r.far_reference == src[(r.component, r.case)]
+
+    # run()'s ConditionResults surface the real citations, so not everything is 23.421.
+    cites = {c.far_reference for c in run(p).conditions}
+    assert cites != {"23.421"}
+    # The four v-tail conditions carry their 23.441/23.443 citations.
+    assert {"23.441(a)(1)", "23.441(a)(2)", "23.441(a)(3)", "23.443(b)"} <= cites
 
 
 # --------------------------------------------------------------------------- #
