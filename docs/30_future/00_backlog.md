@@ -267,15 +267,18 @@ reg is not); prefer `takeoff_hp` if the source agrees. *(Citation-verify;
 unblocked.)*
 
 ### 2-16 — FAR citation cleanups (labels only, no load change)
-- **WTONECG** cites `23.21/23.23` (`weight_onecg.py:34`); User's Guide §4.3 ties the
-  module to **23.25** (weight limits) and **23.29** (empty weight).
-- **FLTLOADS** `_FAR` (`flight_envelope.py:74`) omits **23.345** (high-lift, the
-  flaps-down branch *is* implemented and oracle-tested). Do **not** add 23.373 until
-  the enroute config exists (see 2-19).
-- **SELECT** v-tail SIDE GUST labelled `23.443(b)` (commuter-only paragraph); a
-  normal-category VC lateral gust is **23.443(a)**. *Confirm against the McMaster
-  manual* — `SELECT.BAS` may intentionally label (b); a test asserts the current
-  value. *(Low; labels only — batch and get user sign-off on which reg is authoritative.)*
+- ~~**WTONECG** cites `23.21/23.23`~~ — **done 2026-07-16**: changed to
+  **`23.23/23.29`** (load-distribution limits + empty weight & corresponding CG, the
+  quantities WTONECG computes).
+- ~~**FLTLOADS** `_FAR` omits **23.345**~~ — **done 2026-07-16**: added, now
+  `23.333/23.337/23.341/23.345/23.421`. 23.373 still excluded until the enroute
+  config exists (see 2-19).
+- **SELECT** v-tail SIDE GUST labelled `23.443(b)` — **reviewed 2026-07-16, keep as
+  is.** The primary oracle grounds it: `00_theory_sources.md` and `SELECT.BAS` subr
+  8300 attribute the Kgt/Ude gust-load *formula* the code implements to **23.443(b)**;
+  the User's Guide's 23.443(a) is the looser general-requirement reference. Changing
+  it would contradict the manual and break `test_select.py`/`test_taildist.py`.
+  *(Resolved — no change.)*
 
 ### 2-17 — ONENGOUT data-flow + scope
 (a) **V-tail geometry provenance:** Table 2.2 sources ONENGOUT's v-tail area / AR /

@@ -71,7 +71,8 @@ from ..models import (
 from ..registry import register
 from .structural_speeds import _maneuver_load_factors, design_speeds
 
-_FAR = "23.333/23.337/23.341/23.421"
+# 23.345 = high-lift devices (the flaps-down envelope, n<=2 at sea level).
+_FAR = "23.333/23.337/23.341/23.345/23.421"
 _DEG = 57.2957795  # FLTLOADS.BAS uses 57.3; kept as a named factor for clarity
 _RAD = math.pi / 180.0
 

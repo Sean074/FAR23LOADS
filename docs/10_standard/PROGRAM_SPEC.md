@@ -129,7 +129,7 @@ chart + tables.
 - **Notes:** exists to stop the CG-envelope chart (WTENV) and the flight-envelope balance (FLTLOADS) from carrying two independently-edited copies of the same loading scenarios (the Phase-D GUI assessment's finding #2, "no enforced single source of truth for shared inputs"). The Flight Envelope page reads this slice read-only and merges it into the calc-facing `FlightLoadsInput.cg_cases` (which SELECT/WINGINER/NETLOADS/BALLOADS keep reading unchanged — no calc module was touched by this move). Pre-Step-D5 project files carried the scenarios only under `flight_loads.cg_cases`; `io._legacy_cg_cases_from_flight_loads` migrates them into `weight.cg_cases` on load.
 
 ### WTONECG — Weight & inertia for one configuration
-- **FAR §:** 23.21/23.23; provides masses & inertias for dynamic/gyroscopic conditions.
+- **FAR §:** 23.23 (load-distribution limits) / 23.29 (empty weight & corresponding CG); provides masses & inertias for dynamic/gyroscopic conditions. (User's Guide §4.3 also ties the module to 23.25.)
 - **Source:** Ch 4, `WTONECG.BAS`.
 - **Reads:** `Project.weight` items (component weights + x,y,z locations). Computed at the **4 CG locations** of the structural-limits diagram (aft gross, fwd gross, most-fwd reduced, minimum weight) — ×2 (gear up/down) for retractable gear, so up to 8 loadings, not one.
 - **Writes:** total weight, CG (x,y,z), and mass moments of inertia (Ixx, Iyy, Izz, products), output in **both slug-ft² and lb-in²** → `Project.mass`.

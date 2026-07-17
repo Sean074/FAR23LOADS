@@ -31,7 +31,9 @@ from ..models import (
 )
 from ..registry import register
 
-_FAR = "23.21/23.23"
+# 23.23 load-distribution limits (the CG/loading basis) + 23.29 empty weight and
+# corresponding CG -- the quantities WTONECG actually computes (User's Guide S4.3).
+_FAR = "23.23/23.29"
 _SLUGFT2 = "slug-ft^2"
 _LBIN2 = "lb-in^2"
 

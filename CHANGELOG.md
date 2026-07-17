@@ -147,6 +147,16 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- **FAR-citation labels corrected (found via the FAA User's Guide review).**
+  `WTONECG` (`weight_onecg.py`) cited `23.21/23.23` (proof-of-compliance + load
+  distribution); changed to **`23.23/23.29`** — load-distribution limits and empty
+  weight & corresponding CG, the quantities the module actually computes (User's
+  Guide §4.3). `FLTLOADS` (`flight_envelope.py`) `_FAR` omitted **23.345**
+  (high-lift devices) despite building the oracle-tested flaps-down envelope; now
+  `23.333/23.337/23.341/23.345/23.421`. Labels only — no load value changes. (The
+  SELECT v-tail side-gust `23.443(b)` was reviewed and deliberately kept: the
+  McMaster `SELECT.BAS` grounds the gust-load formula in (b).)
+
 - **TAILDIST mis-cited every chordwise tail condition as `23.421` (found via the
   FAA User's Guide review).** `taildist.run` hardcoded `far_reference="23.421"`
   (balancing loads) on every emitted `ConditionResult`, so the v-tail distributions
