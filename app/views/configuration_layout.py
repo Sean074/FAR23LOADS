@@ -73,7 +73,7 @@ for _w in consistency_warnings(project):
     if _w.page == "configuration_layout":
         st.warning(_w.message)
 system: UnitSystem = st.session_state.get("unit_system", UnitSystem.IMPERIAL)
-U = labels_for(system)  # {"weight","length","area_sqft","length_ft",...} -> unit string
+U = labels_for(system)  # {"weight","length","area_sqft",...} -> unit string
 
 # Read-only echo of the occupant count (owned by the Structural Speeds page,
 # StructuralSpeedsInput.occupants; falls back to the Weight Estimate seat count).
@@ -174,7 +174,7 @@ with st.sidebar:
             h_tail_arm = _num("H-tail arm", layout.h_tail_arm, "h_arm", "length",
                               help="Distance from the wing/CG to the horizontal-tail aerodynamic centre "
                                    "(tail moment arm).")
-            h_tail_span_ft = _num("H-tail span", layout.h_tail_span_ft, "h_span", "length_ft", 0.5,
+            h_tail_span_in = _num("H-tail span", layout.h_tail_span_in, "h_span", "length", 1.0,
                                   help="Horizontal-tail span; seeds the Tail Loads distribution.")
             h_tail_z = _num("H-tail Z offset from waterline (0 = auto for T-tail/cruciform)",
                             layout.h_tail_z, "h_z", "length", 1.0,
@@ -184,7 +184,7 @@ with st.sidebar:
                                help="Vertical-tail (fin) planform area (14 CFR 23.441/23.443 loads).")
             v_tail_arm = _num("V-tail arm", layout.v_tail_arm, "v_arm", "length",
                               help="Distance from the CG to the vertical-tail aerodynamic centre.")
-            v_tail_span_ft = _num("V-tail span", layout.v_tail_span_ft, "v_span", "length_ft", 0.5,
+            v_tail_span_in = _num("V-tail span", layout.v_tail_span_in, "v_span", "length", 1.0,
                                   help="Vertical-tail height; seeds the fin/rudder load distribution.")
         with st.expander("Landing gear"):
             nose_gear_x = _num("Nose gear station", layout.nose_gear_x, "g_nose", "length",
@@ -228,8 +228,8 @@ if applied:
         h_tail_area=_imp(h_tail_area, "area_sqft"), h_tail_arm=_imp(h_tail_arm, "length"),
         v_tail_area=_imp(v_tail_area, "area_sqft"), v_tail_arm=_imp(v_tail_arm, "length"),
         tail_type=_TAIL_TYPE_BY_LABEL[tail_type_label],
-        h_tail_span_ft=_imp(h_tail_span_ft, "length_ft"), h_tail_z=_imp(h_tail_z, "length"),
-        v_tail_span_ft=_imp(v_tail_span_ft, "length_ft"),
+        h_tail_span_in=_imp(h_tail_span_in, "length"), h_tail_z=_imp(h_tail_z, "length"),
+        v_tail_span_in=_imp(v_tail_span_in, "length"),
         nose_gear_x=_imp(nose_gear_x, "length"), main_gear_x=_imp(main_gear_x, "length"),
         track=_imp(track, "length"), gear_height=_imp(gear_height, "length"),
     )

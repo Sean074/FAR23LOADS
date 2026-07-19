@@ -30,7 +30,7 @@ _TAIL = TailLoadsInput(
     elevator_effectiveness=0.614, xt25=261.027, xt50=270.357,
     elevator_te_up_deg=30.0, elevator_te_down_deg=20.0, elevator_area_sqft=16.403,
     elevator_fwd_hinge_sqft=1.639, elevator_aft_hinge_sqft=14.792,
-    airplane_length_ft=26.522, wing_lift_slope_per_rad=4.605,
+    airplane_length_in=26.522 * 12.0, wing_lift_slope_per_rad=4.605,  # 26.522 ft
 )
 
 

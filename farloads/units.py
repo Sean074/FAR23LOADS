@@ -37,20 +37,20 @@ SI_PER_IMPERIAL = {
     "power": 0.745699872,        # hp -> kW
     "inertia": 1.3558179483314,  # slug-ft^2 -> kg*m^2
     "area_sqft": 0.09290304,     # ft^2 -> m^2
-    "length_ft": 0.3048,         # ft -> m
     "inertia_lbin2": 2.926396534292e-04,  # lb-in^2 -> kg*m^2
-    "area_sqin": 6.4516e-04,     # in^2 -> m^2
 }
 
-# Display units for each "kind", by system.
+# Display units for each "kind", by system. One unit per physical dimension
+# (Phase G0): length -> in/mm, area -> ft²/m². ``inertia_lbin2`` is a distinct
+# mass-basis inertia, not a duplicate of ``inertia``.
 UNIT_LABELS = {
     UnitSystem.IMPERIAL: {
         "weight": "lb", "length": "in", "torque": "ft-lb", "power": "hp", "inertia": "slug-ft²",
-        "area_sqft": "ft²", "length_ft": "ft", "inertia_lbin2": "lb-in²", "area_sqin": "in²",
+        "area_sqft": "ft²", "inertia_lbin2": "lb-in²",
     },
     UnitSystem.SI: {
         "weight": "kg", "length": "mm", "torque": "N·m", "power": "kW", "inertia": "kg·m²",
-        "area_sqft": "m²", "length_ft": "m", "inertia_lbin2": "kg·m²", "area_sqin": "m²",
+        "area_sqft": "m²", "inertia_lbin2": "kg·m²",
     },
 }
 
@@ -229,9 +229,7 @@ _KIND_FACTORS = {
     "mass": (0.45359237, "kg"),                  # lbm -> kg
     "force": (4.4482216152605, "N"),              # lbf -> N
     "length_in": (25.4, "mm"),                    # in -> mm
-    "length_ft": (0.3048, "m"),                   # ft -> m
     "area_sqft": (0.09290304, "m²"),              # sq ft -> m^2
-    "area_sqin": (6.4516e-04, "m²"),              # sq in -> m^2
     "torque": (1.3558179483314, "N·m"),           # ft-lb -> N·m
     "moment_in": (0.1129848333, "N·m"),           # lb-in -> N·m
     "inertia_slugft2": (1.3558179483314, "kg·m²"),  # slug-ft^2 -> kg·m^2
@@ -266,16 +264,17 @@ _PROJECT_FIELD_KIND = {
     "xcg_in": "length_in", "x": "length_in", "y": "length_in", "z": "length_in",
     "cg_x": "length_in", "cg_y": "length_in", "cg_z": "length_in",
     "xcg": "length_in", "zcg": "length_in",
-    # length, feet (ft -> m) -- geometry lengths, not altitude
-    "airplane_length_ft": "length_ft", "vtail_mac_ft": "length_ft", "wing_span_ft": "length_ft",
-    # area (sq ft / sq in -> m^2)
+    # geometry lengths formerly stored in feet, now canonical inches (Phase G0)
+    "airplane_length_in": "length_in", "vtail_mac_in": "length_in", "wing_span_in": "length_in",
+    "h_tail_span_in": "length_in", "v_tail_span_in": "length_in",
+    # area (sq ft -> m^2); the tab area (bare ``area_sqft``) was formerly in^2 (G0)
     "area_aft_hinge_sqft": "area_sqft", "area_fwd_hinge_sqft": "area_sqft",
     "elevator_aft_hinge_sqft": "area_sqft", "elevator_area_sqft": "area_sqft",
     "elevator_fwd_hinge_sqft": "area_sqft", "flap_area_one_side_sqft": "area_sqft",
     "htail_area_sqft": "area_sqft", "nacelle_frontal_area_sqft": "area_sqft",
     "rudder_aft_hinge_sqft": "area_sqft", "rudder_area_sqft": "area_sqft",
     "rudder_fwd_hinge_sqft": "area_sqft", "vtail_area_sqft": "area_sqft",
-    "wing_area_sqft": "area_sqft", "area_sqin": "area_sqin",
+    "wing_area_sqft": "area_sqft", "area_sqft": "area_sqft",
     # torque (ft-lb -> N·m)
     "max_engine_torque": "torque", "cruise_torque": "torque", "max_accel_torque": "torque",
     # moment (lb-in -> N·m)

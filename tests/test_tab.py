@@ -53,7 +53,8 @@ def test_tab_io_roundtrip():
     d = io.project_to_dict(p)
     p2 = io.project_from_dict(d)
     assert len(p2.tab_loads.tabs) == 1
-    assert p2.tab_loads.tabs[0].area_sqin == 226.0
+    # Legacy example (area_sqin=226.0) migrates to canonical sq ft (Phase G0).
+    assert math.isclose(p2.tab_loads.tabs[0].area_sqft, 226.0 / 144.0, rel_tol=1e-9)
     assert p2.tab_loads.tabs[0].surface == "htail"
     d.pop("tab_loads", None)
     assert io.project_from_dict(d).tab_loads is None

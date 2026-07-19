@@ -272,10 +272,10 @@ than the persisted `Project.mass`.
 ### TABLOADS — Tab loads (built, Step C8)
 - **FAR §:** 23.409 / CAM 3.224 (control-surface tabs).
 - **Source:** Ch 18, `TABLOADS.BAS`.
-- **Reads:** `Project.speeds` (VC), `Project.tab_loads` (`TabLoadsInput.tabs`, each a `TabSpec`: host surface, tab MAC, area sq in, station, host-airfoil chord at the tab MAC, deflection).
+- **Reads:** `Project.speeds` (VC), `Project.tab_loads` (`TabLoadsInput.tabs`, each a `TabSpec`: host surface, tab MAC, area sq ft, station, host-airfoil chord at the tab MAC, deflection).
 - **Writes:** per-tab chord ratio E, tab load, LE/TE pressures → one `ConditionResult` per tab; `ControlSurfaceLoadResult` (trapezoid LE = 2× TE) for the loads slice + sbeam bridge.
 - **Validation:** Appendix A "Tab Loads" p202 (h-tail tab: E 0.17735, LTAB 84.62 lb, LE 0.4992 / TE 0.2496) within ±0.1% — `tests/test_tab.py`.
-- **Notes:** Full deflection at VC (the shoulder point); host-surface CL lift on the tab neglected (chord ratio ~0.12). Tab areas are in **square inches** (the original program's unit).
+- **Notes:** Full deflection at VC (the shoulder point); host-surface CL lift on the tab neglected (chord ratio ~0.12). `TabSpec.area_sqft` is the tab area in **square feet** (canonical display unit since Phase G0, schema v24; older files with the legacy `area_sqin` key migrate `/144`). The calc restores the original program's square inches internally (`STAB = area_sqft × 144`) so `LTAB = M·δ·Q·STAB/144` is unchanged.
 
 ### TAILDIST — Chordwise tail load distribution (built, Step C7)
 - **FAR §:** 23.421+ tail loads, chordwise distribution.
@@ -343,8 +343,9 @@ regression oracle**; Appendix A/B geometry is used only as a *sanity* fixture.
   input).
 - **Tail geometry (Airplane-phase GUI usability pass):** `LayoutInput.tail_type`
   (`TailType`: `CONVENTIONAL`/`T_TAIL`/`V_TAIL`/`CRUCIFORM`, additive, default
-  `CONVENTIONAL`) plus `h_tail_span_ft`/`h_tail_z`/`v_tail_span_ft` (all default
-  `0.0`) give the three-view enough to sketch a tail shape —
+  `CONVENTIONAL`) plus `h_tail_span_in`/`h_tail_z`/`v_tail_span_in` (all default
+  `0.0`; spans in inches since Phase G0, schema v24 — legacy `*_ft` keys migrate
+  `×12`) give the three-view enough to sketch a tail shape —
   `tail_planform(layout) -> Dict[str, Dict[str, List[(x, y)]]]` returns per-panel
   `top`/`side`/`front` outline polylines, a first-order rectangular sketch
   (constant chord = area / span; no taper/sweep data exists for the tail — for a

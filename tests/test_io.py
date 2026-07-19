@@ -353,6 +353,32 @@ def test_project_from_dict_raises_on_malformed():
     assert raised
 
 
+def test_legacy_ft_sqin_keys_migrate_to_canonical():
+    """Phase G0 (schema v24): a legacy project with the old ft/in^2 geometry keys
+    loads with those keys renamed and rescaled to canonical in/ft^2. Feet -> inches
+    (x12), in^2 -> ft^2 (/144); the calc result is unchanged because the ft/in^2
+    math is restored internally."""
+    d = {
+        "schema_version": 20,
+        "tail_loads": {"airplane_length_ft": 26.522},
+        "vtail_loads": {"airplane_length_ft": 26.522, "wing_span_ft": 33.5,
+                        "vtail_mac_ft": 3.367},
+        "configuration": {"h_tail_span_ft": 10.0, "v_tail_span_ft": 4.0},
+        "tab_loads": {"tabs": [{"surface": "htail", "area_sqin": 226.0}]},
+    }
+    p = io.project_from_dict(d)
+    assert abs(p.tail_loads.airplane_length_in - 26.522 * 12.0) < 1e-9
+    assert abs(p.vtail_loads.wing_span_in - 33.5 * 12.0) < 1e-9
+    assert abs(p.vtail_loads.vtail_mac_in - 3.367 * 12.0) < 1e-9
+    assert abs(p.vtail_loads.airplane_length_in - 26.522 * 12.0) < 1e-9
+    assert abs(p.configuration.h_tail_span_in - 120.0) < 1e-9
+    assert abs(p.configuration.v_tail_span_in - 48.0) < 1e-9
+    assert abs(p.tab_loads.tabs[0].area_sqft - 226.0 / 144.0) < 1e-9
+    # A canonical (new-key) value already present is not double-converted.
+    p2 = io.project_from_dict({"vtail_loads": {"wing_span_in": 402.0}})
+    assert p2.vtail_loads.wing_span_in == 402.0
+
+
 if __name__ == "__main__":
     import traceback
 

@@ -93,7 +93,7 @@ def build_tabs(project: Project) -> List[ControlSurfaceLoadResult]:
     seeded = set()
     results: List[ControlSurfaceLoadResult] = []
     for spec in project.tab_loads.tabs:
-        r = tab_load(vc, spec.mac_in, spec.area_sqin, spec.airfoil_chord_in,
+        r = tab_load(vc, spec.mac_in, spec.area_sqft * _SQIN_PER_SQFT, spec.airfoil_chord_in,
                      spec.deflection_deg)
         component = _TAB_COMPONENT.get(spec.surface, "wing")
         if component not in seeded:
@@ -127,7 +127,7 @@ def run(project: Project) -> ModuleResult:
     if project.is_concept:
         note += " Concept mode -- unverified extrapolation past the FAR23 band."
     for result, spec in zip(build_tabs(project), project.tab_loads.tabs):
-        r = tab_load(vc, spec.mac_in, spec.area_sqin, spec.airfoil_chord_in,
+        r = tab_load(vc, spec.mac_in, spec.area_sqft * _SQIN_PER_SQFT, spec.airfoil_chord_in,
                      spec.deflection_deg)
         conditions.append(ConditionResult(
             title=f"{spec.surface} tab load",

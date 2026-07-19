@@ -36,7 +36,7 @@ st.caption(
 
 project: Project = st.session_state.get("project", Project(name=""))
 system: UnitSystem = st.session_state.get("unit_system", UnitSystem.IMPERIAL)
-U = labels_for(system)  # {"length": ..., "area_sqin": ...} -> unit string
+U = labels_for(system)  # {"length": ..., "area_sqft": ...} -> unit string
 
 if project.speeds is None:
     st.warning("Define the **Structural Speeds** (VC) first.")
@@ -45,12 +45,12 @@ if project.speeds is None:
 inp = project.tab_loads or TabLoadsInput()
 existing = [
     {"surface": t.surface, "mac_in": to_display(t.mac_in, "length", system),
-     "area_sqin": to_display(t.area_sqin, "area_sqin", system),
+     "area_sqft": to_display(t.area_sqft, "area_sqft", system),
      "station_in": to_display(t.station_in, "length", system),
      "airfoil_chord_in": to_display(t.airfoil_chord_in, "length", system),
      "deflection_deg": t.deflection_deg}
     for t in inp.tabs
-] or [{"surface": "htail", "mac_in": 0.0, "area_sqin": 0.0, "station_in": 0.0,
+] or [{"surface": "htail", "mac_in": 0.0, "area_sqft": 0.0, "station_in": 0.0,
        "airfoil_chord_in": 0.0, "deflection_deg": 0.0}]
 
 with st.form("tab_loads_form"):
@@ -61,7 +61,7 @@ with st.form("tab_loads_form"):
         column_config={
             "surface": st.column_config.SelectboxColumn(options=["wing", "htail", "vtail"]),
             "mac_in": st.column_config.NumberColumn(f"MAC ({U['length']})"),
-            "area_sqin": st.column_config.NumberColumn(f"Area ({U['area_sqin']})"),
+            "area_sqft": st.column_config.NumberColumn(f"Area ({U['area_sqft']})"),
             "station_in": st.column_config.NumberColumn(f"BL/WL of tab MAC ({U['length']})"),
             "airfoil_chord_in": st.column_config.NumberColumn(
                 f"Airfoil chord at MAC ({U['length']})"),
@@ -73,13 +73,13 @@ if applied:
     inp.tabs = [
         TabSpec(surface=str(row.surface),
                 mac_in=to_imperial_scalar(float(row.mac_in), "length", system),
-                area_sqin=to_imperial_scalar(float(row.area_sqin), "area_sqin", system),
+                area_sqft=to_imperial_scalar(float(row.area_sqft), "area_sqft", system),
                 station_in=to_imperial_scalar(float(row.station_in), "length", system),
                 airfoil_chord_in=to_imperial_scalar(
                     float(row.airfoil_chord_in), "length", system),
                 deflection_deg=float(row.deflection_deg))
         for row in edited.itertuples()
-        if to_imperial_scalar(float(row.area_sqin), "area_sqin", system) > 0
+        if to_imperial_scalar(float(row.area_sqft), "area_sqft", system) > 0
     ]
     project.tab_loads = inp
     st.session_state["project"] = project

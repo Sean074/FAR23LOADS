@@ -197,8 +197,8 @@ def _tail_layout(tail_type=TailType.CONVENTIONAL, **overrides):
         fuselage_length=300.0, fuselage_width=48.0, fuselage_height=60.0, datum_x=0.0,
         wing_area_sqft=174.0, aspect_ratio=6.0, taper_ratio=0.6,
         le_sweep_deg=2.0, le_root_x=90.0, root_waterline_z=40.0,
-        h_tail_area=30.0, h_tail_arm=180.0, h_tail_span_ft=10.0,
-        v_tail_area=18.0, v_tail_arm=175.0, v_tail_span_ft=4.0,
+        h_tail_area=30.0, h_tail_arm=180.0, h_tail_span_in=120.0,  # 10 ft
+        v_tail_area=18.0, v_tail_arm=175.0, v_tail_span_in=48.0,   # 4 ft
         tail_type=tail_type,
     )
     kwargs.update(overrides)
@@ -228,7 +228,7 @@ def test_tail_planform_t_tail_places_h_tail_atop_fin():
     layout = _tail_layout(TailType.T_TAIL)
     panels = tail_planform(layout)
     fin_root_z = layout.root_waterline_z + layout.fuselage_height / 2.0
-    v_span_in = layout.v_tail_span_ft * 12.0
+    v_span_in = layout.v_tail_span_in
     h_z = panels["h_tail"]["side"][0][1]
     assert math.isclose(h_z, fin_root_z + v_span_in)
 
@@ -244,7 +244,7 @@ def test_tail_planform_cruciform_places_h_tail_mid_fin():
     layout = _tail_layout(TailType.CRUCIFORM)
     panels = tail_planform(layout)
     fin_root_z = layout.root_waterline_z + layout.fuselage_height / 2.0
-    v_span_in = layout.v_tail_span_ft * 12.0
+    v_span_in = layout.v_tail_span_in
     h_z = panels["h_tail"]["side"][0][1]
     assert math.isclose(h_z, fin_root_z + v_span_in * 0.5)
 

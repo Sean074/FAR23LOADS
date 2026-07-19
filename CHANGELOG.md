@@ -9,6 +9,24 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed
+
+- **Canonical display units — one unit per dimension (Phase G, Step G0).** The GUI
+  now shows a single unit per physical dimension: **length → `in` (SI `mm`), area →
+  `ft²` (SI `m²`)**. The geometry inputs that previously carried a different unit are
+  renamed to canonical-unit field names and stored in canonical units
+  (**`SCHEMA_VERSION` 23 → 24**): `TailLoadsInput.airplane_length_ft` and
+  `VTailLoadsInput.{airplane_length_ft, wing_span_ft, vtail_mac_ft}` → `*_in` (×12);
+  `LayoutInput.{h_tail_span_ft, v_tail_span_ft}` → `*_in` (×12);
+  `TabSpec.area_sqin` → `area_sqft` (÷144). The redundant `length_ft`/`area_sqin`
+  kinds are removed from `farloads/units.py` (`SI_PER_IMPERIAL`, `UNIT_LABELS`,
+  `_KIND_FACTORS`); `_PROJECT_FIELD_KIND` maps the renamed keys. **Calc results are
+  unchanged** — the original ft/in² math is restored internally, so the Appendix A/B
+  oracles are untouched. Older project files migrate on load (`io.py`
+  `_rename_legacy_units`); the bundled `examples/*.json` (older schema versions) load
+  via that path. New guardrail tests: one-label-per-dimension (`test_units.py`) and
+  legacy-key migration (`test_io.py`).
+
 ### Documentation
 
 - **Phase G — detailed plan for G0/G1 + canonical-units decision.** Locked the

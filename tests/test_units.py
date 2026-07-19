@@ -31,6 +31,23 @@ def _value(result, label):
     raise KeyError(label)
 
 
+def test_one_display_unit_per_dimension():
+    """Phase G0: exactly one display unit per physical dimension -- length is
+    in/mm and area is ft²/m² in both systems, and the retired feet-length and
+    square-inch area kinds are gone so no page can show a second unit for the
+    same dimension. ``inertia_lbin2`` is a distinct mass-basis inertia, kept."""
+    from farloads.units import UNIT_LABELS
+
+    for system, length_lbl, area_lbl in (
+        (UnitSystem.IMPERIAL, "in", "ft²"),
+        (UnitSystem.SI, "mm", "m²"),
+    ):
+        labels = UNIT_LABELS[system]
+        assert "length_ft" not in labels and "area_sqin" not in labels
+        assert labels["length"] == length_lbl
+        assert labels["area_sqft"] == area_lbl
+
+
 def test_imperial_is_identity():
     inp = turboprop()
     assert to_imperial(inp, UnitSystem.IMPERIAL) is inp

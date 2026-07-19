@@ -52,7 +52,7 @@ _TAIL = TailLoadsInput(
     elevator_effectiveness=0.614, xt25=261.027, xt50=270.357,
     elevator_te_up_deg=30.0, elevator_te_down_deg=20.0, elevator_area_sqft=16.403,
     elevator_fwd_hinge_sqft=1.639, elevator_aft_hinge_sqft=14.792,
-    airplane_length_ft=26.522, wing_lift_slope_per_rad=4.605,
+    airplane_length_in=26.522 * 12.0, wing_lift_slope_per_rad=4.605,  # 26.522 ft
 )
 
 
@@ -60,8 +60,8 @@ _TAIL = TailLoadsInput(
 _VTAIL = VTailLoadsInput(
     rudder_deflection_deg=30.0, vtail_area_sqft=14.84, rudder_area_sqft=5.236,
     rudder_fwd_hinge_sqft=0.57, rudder_aft_hinge_sqft=4.63, aspect_ratio_vtail=1.52,
-    vtail_mac_ft=3.367, xv25=266.83, airplane_length_ft=26.522, wing_span_ft=33.5,
-    gross_weight_lb=3400.0,
+    vtail_mac_in=3.367 * 12.0, xv25=266.83, airplane_length_in=26.522 * 12.0,
+    wing_span_in=33.5 * 12.0, gross_weight_lb=3400.0,  # 3.367/26.522/33.5 ft
 )
 
 

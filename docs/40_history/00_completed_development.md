@@ -10,6 +10,56 @@ Acceptance**, **Key decisions**.
 
 ---
 
+## Phase G — Step G0: One unit per dimension, app-wide (complete, 2026-07-18)
+
+**Objective.** Every quantity type has exactly one display unit per system, so no page
+shows the same physical dimension two ways (the pre-G0 Configuration page mixed `in`,
+`ft` and `ft²`). **Canonical units (locked 2026-07-18, decision G-1):** length →
+**`in`** (SI **`mm`**), area → **`ft²`** (SI **`m²`**).
+
+**Scope decision (deviation from the planned display-only G0).** The backlog framed G0
+as display-only (relabel at the widget boundary, no schema change). On review the only
+offending fields (tail spans in ft, tab area in in²) are *stored* with their unit baked
+into the field name and feed oracle-locked calc, so a display-only relabel would have
+put an `in` label on a feet value. The user chose the **strict rename** option
+(AskUserQuestion, 2026-07-18): rename the fields to canonical-unit names, store
+canonical units, and bump the schema — accepting that G0 thereby overlaps G1's schema
+work. Calc results are held identical by converting back to the original ft/in² inside
+the calc, so the Appendix A/B oracles are untouched.
+
+**Deliverables.**
+- **`farloads/models.py`** — renamed `TailLoadsInput.airplane_length_ft` and
+  `VTailLoadsInput.{airplane_length_ft, wing_span_ft, vtail_mac_ft}` → `*_in` (store
+  inches); `LayoutInput.{h_tail_span_ft, v_tail_span_ft}` → `*_in`;
+  `TabSpec.area_sqin` → `area_sqft`. **`SCHEMA_VERSION` 23 → 24** with a v24 migration
+  note.
+- **`farloads/modules/select.py`** — the `Iyy`/`IZZ` default formulas substitute
+  `LF_ft = LF_in/12`, `B_ft = B_in/12`, `VMAC_ft = VMAC_in/12` so the results are
+  unchanged. **`configuration.py`** — tail-planform spans read inches directly (drop
+  the `×12`). **`tab.py`** — `STAB_in = area_sqft × 144` at the call sites; the
+  `LTAB = M·δ·Q·STAB/144` math is unchanged.
+- **`farloads/units.py`** — removed the redundant `length_ft` and `area_sqin` kinds
+  from `SI_PER_IMPERIAL`, `UNIT_LABELS` and `_KIND_FACTORS`; `_PROJECT_FIELD_KIND` maps
+  the renamed keys to `length_in`/`area_sqft`.
+- **`farloads/io.py`** — `_rename_legacy_units` migrates old files on load (feet keys
+  `×12` → `*_in`, `area_sqin` `/144` → `area_sqft`), wired into
+  `tail_loads_from_dict`, `vtail_loads_from_dict`, `configuration_from_dict`,
+  `tab_loads_from_dict`. The new key wins if both are present (no double-conversion).
+- **Views** — `configuration_layout.py` (spans as `length`/inches), `tail_loads.py`
+  (span defaults read inches), `tab_loads.py` (area column as `area_sqft`).
+- The bundled `examples/*.json` (older schema versions) are left to migrate via the
+  load path rather than rewritten, matching existing practice.
+
+**Test / Acceptance.** Full suite green (387 tests: +`test_one_display_unit_per_dimension`
+in `test_units.py`, +`test_legacy_ft_sqin_keys_migrate_to_canonical` in `test_io.py`).
+Appendix A/B oracles unchanged (`test_select`, `test_balloads`, `test_tab`,
+`test_configuration` fixtures re-expressed in the new units, same asserted outputs).
+`ruff check farloads/ cli.py` clean. Verified `examples/ga6_normal` and
+`examples/concept_regional_jet` migrate and round-trip to the expected canonical values.
+
+**Key decisions.** G-1 (one unit per dimension; length `in`, area `ft²`); strict rename
+over display-only relabel (user, 2026-07-18) — calc-result-preserving, oracle-locked.
+
 ## Phase 1 — Step P1-5: Concept engine gyroscopic rates — guard + warn (complete, 2026-07-16)
 
 **Objective.** `engine.py`'s `condition_25_371` (the optional FAR 25 gyroscopic

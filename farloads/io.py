@@ -98,6 +98,23 @@ def _case_ref_from_dict(raw) -> Any:
     return CaseRef(**dict(raw)) if raw else None
 
 
+def _rename_legacy_units(d: Dict[str, Any], mapping: Dict[str, Any]) -> Dict[str, Any]:
+    """Rename + rescale legacy unit-suffixed keys to canonical units (schema v24,
+    Phase G0). ``mapping`` is ``{old_key: (new_key, factor)}``: a present ``old_key``
+    becomes ``new_key = old_value * factor`` (feet->inches ``*12``, in^2->ft^2
+    ``/144``). The new key wins if both are present. Returns ``d`` unchanged when no
+    legacy key is present, so current files pay nothing."""
+    if not any(k in d for k in mapping):
+        return d
+    out = dict(d)
+    for old, (new, factor) in mapping.items():
+        if old in out:
+            val = out.pop(old)
+            if new not in out and isinstance(val, (int, float)) and not isinstance(val, bool):
+                out[new] = val * factor
+    return out
+
+
 # --------------------------------------------------------------------------- #
 # Engine slice <-> dict
 # --------------------------------------------------------------------------- #
@@ -510,6 +527,7 @@ def select_input_to_dict(inp: SelectInput) -> Dict[str, Any]:
 # --------------------------------------------------------------------------- #
 def tail_loads_from_dict(d: Dict[str, Any]) -> TailLoadsInput:
     """Build a :class:`TailLoadsInput` from a plain dict."""
+    d = _rename_legacy_units(d, {"airplane_length_ft": ("airplane_length_in", 12.0)})
     fields = {f for f in TailLoadsInput.__dataclass_fields__}
     return TailLoadsInput(**{k: v for k, v in d.items() if k in fields})
 
@@ -524,6 +542,11 @@ def tail_loads_to_dict(inp: TailLoadsInput) -> Dict[str, Any]:
 # --------------------------------------------------------------------------- #
 def vtail_loads_from_dict(d: Dict[str, Any]) -> VTailLoadsInput:
     """Build a :class:`VTailLoadsInput` from a plain dict."""
+    d = _rename_legacy_units(d, {
+        "airplane_length_ft": ("airplane_length_in", 12.0),
+        "wing_span_ft": ("wing_span_in", 12.0),
+        "vtail_mac_ft": ("vtail_mac_in", 12.0),
+    })
     fields = {f for f in VTailLoadsInput.__dataclass_fields__}
     return VTailLoadsInput(**{k: v for k, v in d.items() if k in fields})
 
@@ -607,7 +630,9 @@ def flap_loads_to_dict(inp: FlapLoadsInput) -> Dict[str, Any]:
 def tab_loads_from_dict(d: Dict[str, Any]) -> TabLoadsInput:
     """Build a :class:`TabLoadsInput` from a plain dict (nested ``tabs``)."""
     spec_fields = {f for f in TabSpec.__dataclass_fields__}
-    tabs = [TabSpec(**{k: v for k, v in t.items() if k in spec_fields})
+    tabs = [TabSpec(**{k: v for k, v in
+                       _rename_legacy_units(t, {"area_sqin": ("area_sqft", 1.0 / 144.0)}).items()
+                       if k in spec_fields})
             for t in d.get("tabs", []) or []]
     return TabLoadsInput(tabs=tabs)
 
@@ -719,6 +744,10 @@ def configuration_from_dict(d: Dict[str, Any]) -> LayoutInput:
     and missing keys fall back to the dataclass default (additive forward-compat);
     a file with no ``tail_type`` defaults to ``TailType.CONVENTIONAL``.
     """
+    d = _rename_legacy_units(d, {
+        "h_tail_span_ft": ("h_tail_span_in", 12.0),
+        "v_tail_span_ft": ("v_tail_span_in", 12.0),
+    })
     fields = {f for f in LayoutInput.__dataclass_fields__}
     kwargs = {k: v for k, v in d.items() if k in fields}
     if "tail_type" in kwargs:

@@ -155,7 +155,7 @@ def tail_planform(layout: LayoutInput) -> Dict[str, Dict[str, List[Tuple[float, 
     sweep), not a structural surface definition -- for a real tail polyline, use
     the WINGGEOM surface editor (Wing / Surface Geometry page).
 
-    Returns ``{}`` when neither ``h_tail_span_ft`` nor ``v_tail_span_ft`` is set,
+    Returns ``{}`` when neither ``h_tail_span_in`` nor ``v_tail_span_in`` is set,
     so an older project (before this field existed) draws no tail, exactly as
     before this addition (backward-compatible).
 
@@ -169,7 +169,7 @@ def tail_planform(layout: LayoutInput) -> Dict[str, Dict[str, List[Tuple[float, 
     ``CRUCIFORM`` a sensible default (top of fin / mid-fin) is used instead of
     drawing the h-tail at the fuselage centreline.
     """
-    if layout.h_tail_span_ft <= 0 and layout.v_tail_span_ft <= 0:
+    if layout.h_tail_span_in <= 0 and layout.v_tail_span_in <= 0:
         return {}
 
     wing_x = layout.le_root_x
@@ -178,7 +178,7 @@ def tail_planform(layout: LayoutInput) -> Dict[str, Dict[str, List[Tuple[float, 
         wing_x = geom["XLE(MAC) station of MAC LE"] + 0.25 * geom["MAC"]
 
     fin_root_z = layout.root_waterline_z + layout.fuselage_height / 2.0
-    v_span_in = layout.v_tail_span_ft * 12.0
+    v_span_in = layout.v_tail_span_in
     panels: Dict[str, Dict[str, List[Tuple[float, float]]]] = {}
 
     if layout.tail_type == TailType.V_TAIL:
@@ -214,8 +214,8 @@ def tail_planform(layout: LayoutInput) -> Dict[str, Dict[str, List[Tuple[float, 
             "front": [(0.0, fin_root_z), (0.0, z1)],
         }
 
-    if layout.h_tail_area > 0 and layout.h_tail_span_ft > 0:
-        h_span_in = layout.h_tail_span_ft * 12.0
+    if layout.h_tail_area > 0 and layout.h_tail_span_in > 0:
+        h_span_in = layout.h_tail_span_in
         area_in2 = layout.h_tail_area * IN2_PER_FT2
         chord = area_in2 / h_span_in
         x_mac = wing_x + layout.h_tail_arm

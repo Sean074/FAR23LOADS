@@ -655,7 +655,7 @@ class TailLoadsInput:
     elevator_area_sqft: float = 0.0            # SE (total elevator area)
     elevator_fwd_hinge_sqft: float = 0.0       # SEFWDHL
     elevator_aft_hinge_sqft: float = 0.0       # SEAFTHL
-    airplane_length_ft: float = 0.0            # LF (approximate Iyy = 0.44*W*LF^2/384)
+    airplane_length_in: float = 0.0            # LF (inches; Iyy uses LF_ft = LF_in/12)
     wing_lift_slope_per_rad: float = 0.0       # AW (gust downwash relief 1 - 36*aw/ARW)
     # Chordwise distribution (TAILDIST, Ch 10) -- the horizontal-tail semi-span
     # (BLHTAIL, inches) sets the average tail chord CAVE = S/B for the chordwise
@@ -699,11 +699,11 @@ class VTailLoadsInput:
     rudder_fwd_hinge_sqft: float = 0.0         # SRFWDHL
     rudder_aft_hinge_sqft: float = 0.0         # SRAFTHL
     aspect_ratio_vtail: float = 0.0            # ARVT
-    vtail_mac_ft: float = 0.0                  # VMAC
+    vtail_mac_in: float = 0.0                  # VMAC (inches; VMAC_ft = VMAC_in/12)
     xv25: float = 0.0                          # fuselage station of 25% vtail MAC
     xv50: float = 0.0                          # fuselage station of 50% vtail MAC (ONENGOUT camber load)
-    airplane_length_ft: float = 0.0            # LF (IZZ default)
-    wing_span_ft: float = 0.0                  # B (IZZ default)
+    airplane_length_in: float = 0.0            # LF (inches; IZZ uses LF_ft = LF_in/12)
+    wing_span_in: float = 0.0                  # B (inches; IZZ uses B_ft = B_in/12)
     gross_weight_lb: float = 0.0               # GW (IZZ default; 0 -> use the heaviest CG case)
     rudder_large_deflection_factor: float = 1.0  # EFV (subr 10000 chart; ~1.0)
     izz_slugft2: float = 0.0                   # 0 -> compute the default IZZ
@@ -772,11 +772,12 @@ class TabSpec:
     chord ratio ``E = MACTAB/CAIRFOIL`` and a trapezoidal chordwise distribution
     whose leading-edge pressure is twice the trailing-edge pressure. ``surface`` is
     the host surface the tab sits on ("wing" / "htail" / "vtail"); ``station_in`` is
-    the butt line (wing/htail) or water line (vtail) of the tab MAC; ``area_sqin``
-    is in square inches (the original program's unit for tabs)."""
+    the butt line (wing/htail) or water line (vtail) of the tab MAC; ``area_sqft``
+    is in square feet (the canonical display unit; the original program worked in
+    square inches, STAB, which the calc restores internally via ``*144``)."""
     surface: str = "htail"                     # host surface (wing/htail/vtail)
     mac_in: float = 0.0                        # MACTAB (tab MAC chord, in)
-    area_sqin: float = 0.0                     # STAB (tab area, sq in)
+    area_sqft: float = 0.0                     # STAB (tab area, sq ft; STAB_in = area_sqft*144)
     station_in: float = 0.0                    # BL (wing/htail) or WL (vtail) of tab MAC
     airfoil_chord_in: float = 0.0             # CAIRFOIL (host-airfoil chord at the tab MAC, in)
     deflection_deg: float = 0.0                # DELTATAB (max tab deflection, deg)
@@ -949,9 +950,9 @@ class LayoutInput:
     v_tail_area: float = 0.0         # vertical tail area, ft^2
     v_tail_arm: float = 0.0          # v-tail arm, in
     tail_type: TailType = TailType.CONVENTIONAL  # empennage arrangement (layout sketch only)
-    h_tail_span_ft: float = 0.0      # horizontal-tail span, ft (0 -> not drawn)
+    h_tail_span_in: float = 0.0      # horizontal-tail span, in (0 -> not drawn)
     h_tail_z: float = 0.0            # h-tail vertical offset from root_waterline_z, in
-    v_tail_span_ft: float = 0.0      # vertical-tail height, ft (0 -> not drawn)
+    v_tail_span_in: float = 0.0      # vertical-tail height, in (0 -> not drawn)
     # Landing gear
     nose_gear_x: float = 0.0         # nose-gear contact fuselage station, in
     main_gear_x: float = 0.0         # main-gear contact fuselage station, in
@@ -1437,7 +1438,13 @@ class LoadsResult:
 # real 25.371 body rates, advisory) -- additive, default None; used only to guard
 # condition_25_371's fixed FAR 23.371(b) stand-in (warn when a declared rate exceeds
 # it). Older files load with both unset (no guard, fixed stand-in unchanged).
-SCHEMA_VERSION = 23
+# v24 (Phase G0) renames the ft/in^2 geometry inputs to canonical display units --
+# one unit per dimension: length -> in, area -> ft^2. SelectInput.airplane_length_ft
+# -> airplane_length_in, VTailLoadsInput.{airplane_length_ft,wing_span_ft,vtail_mac_ft}
+# -> *_in (each x12), LayoutInput.{h_tail_span_ft,v_tail_span_ft} -> *_in (x12), and
+# TabSpec.area_sqin -> area_sqft (/144). Calc is unchanged in result (the ft/in^2
+# math is restored internally); io.py migrates the legacy keys/values on load.
+SCHEMA_VERSION = 24
 
 
 @dataclass

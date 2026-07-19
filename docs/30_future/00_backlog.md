@@ -337,31 +337,9 @@ sections** it targets are that doc's §4.
 > oracles pass unmodified throughout; ultimate-load output rules hold; pure calc /
 > thin shells; `workflow.py` stays the single source of navigation truth.
 
-Steps are in dependency order. G0 and G1 (foundational) come before the
+Steps are in dependency order. G1 (foundational) comes before the
 re-sequencing (G2–G3); the new features (G4–G6) and the report (G8) follow.
-
-### Step G0 — One unit per dimension, app-wide (G-1)
-**Objective.** Every quantity type has exactly one display unit per system; no page
-shows the same dimension two ways (today one page mixes `in`, `ft`, `ft²`).
-**Canonical units (locked 2026-07-18, G-1):** length → **`in`** (SI **`mm`**),
-area → **`ft²`** (SI **`m²`**). All other kinds (weight, torque, power, inertia)
-already have a single display unit.
-**Scope / files.**
-- `farloads/units.py`: collapse the redundant kinds in `UNIT_LABELS` and
-  `_KIND_FACTORS` — retire `length_ft` (fold into `length` = `in`) and `area_sqin`
-  (fold into `area_sqft` = `ft²`); keep `inertia_lbin2` (a genuinely distinct
-  mass-basis inertia, not a duplicate dimension).
-- Remap every `_PROJECT_FIELD_KIND` entry that points at a retired kind to the
-  surviving kind so field-level SI conversion is unaffected.
-- Sweep the 27 `app/views/*.py` for hard-coded unit suffixes and `labels_for(...)`
-  lookups; make each dimension read one way per page.
-**Guardrails.** Display-only — no `_RESULT_TO_SI` / result-math change, so oracles
-are untouched. Add/keep a test asserting `UNIT_LABELS` has exactly one label per
-dimension (no two kinds share a dimension except the intentional inertia pair).
-**Acceptance.** A per-kind unit table exists and is applied on every page; a review
-of each definition page shows no mixed units for one dimension. No calc/oracle change.
-**Sequencing.** Do **first** — lowest-risk (display-only), unblocks the units
-complaint, and every later page inherits it.
+**G0 shipped 2026-07-18** (see `docs/40_history/00_completed_development.md`).
 
 ### Step G1 — Geometry single source of truth (G-2), incl. fuselage
 **Objective.** All geometry (fuselage, wing, empennage, control surfaces, gear,

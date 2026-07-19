@@ -343,7 +343,7 @@ def select_htail_maneuver(project: Project) -> List[CriticalCondition]:
 
     # Checked: pitch-acceleration increment T = Iyy*theta_ddot/(arm) at VC/VD.
     def iyy(p: VnPoint) -> float:
-        return cg_map[p.cg].weight_lb * ti.airplane_length_ft ** 2 / _G / 12.0 * 0.44
+        return cg_map[p.cg].weight_lb * (ti.airplane_length_in / 12.0) ** 2 / _G / 12.0 * 0.44
 
     def theta_ddot(p: VnPoint) -> float:
         return 39.0 * np_ * (np_ - 1.5) / p.v_eas_kt
@@ -503,8 +503,8 @@ def _default_izz(vt: VTailLoadsInput, gw: float) -> float:
     """Default airplane yaw inertia IZZ (slug-ft^2): wing mass on the span and the
     rest of the empty weight on the length (SELECT.BAS 8884)."""
     w_wing = 0.09 * gw
-    return (w_wing / _G) * vt.wing_span_ft ** 2 / 12.0 \
-        + ((0.62 * gw - w_wing) / _G) * vt.airplane_length_ft ** 2 / 12.0
+    return (w_wing / _G) * (vt.wing_span_in / 12.0) ** 2 / 12.0 \
+        + ((0.62 * gw - w_wing) / _G) * (vt.airplane_length_in / 12.0) ** 2 / 12.0
 
 
 def _vt_rudder_load(p: VnPoint, vt: VTailLoadsInput) -> float:
@@ -525,7 +525,7 @@ def _vt_side_gust(p: VnPoint, cg: CgCase, vt: VTailLoadsInput, izz: float) -> fl
     rho = _sigma(p.altitude_ft) * 0.002378
     lxvt = (vt.xv25 - cg.xcg) / 12.0                     # tail arm, ft
     ude = 50.0 if p.altitude_ft <= 20000.0 else 50.0 - (25.0 / 30000.0) * (p.altitude_ft - 20000.0)
-    ugt = 2.0 * cg.weight_lb / (rho * vt.vtail_mac_ft * _G * av * vt.vtail_area_sqft * (k / lxvt) ** 2)
+    ugt = 2.0 * cg.weight_lb / (rho * (vt.vtail_mac_in / 12.0) * _G * av * vt.vtail_area_sqft * (k / lxvt) ** 2)
     kgt = 0.88 * ugt / (5.3 + ugt)
     return kgt * ude * p.v_eas_kt * av * vt.vtail_area_sqft / 498.0
 
