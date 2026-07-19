@@ -67,11 +67,13 @@ above the six numbered analysis-flow phases:
 Each `WorkflowStep` names its `key` (= the view file stem), `title`, `phase`, the
 calc `module` behind it, and the project slices it `requires`/`produces` — the
 seed of a dependency DAG that also drives the Dashboard completeness panel. A page
-is exactly `app/views/<step.key>.py`. The **Develop V-n diagram** section — the
-definition pages this doc is chiefly about — is: Geometry, Weight Estimate,
-Weight/CG/Inertia, Weight/CG Grid & Payload Cases, Weight/CG Envelope, Structural
-Speeds, Speed–Altitude Envelope, Aerodynamic Data, Flight Envelope (V-n), Critical
-Loads (SELECT).
+is exactly `app/views/<step.key>.py`. Since Step G3 the **Develop V-n diagram**
+section — the definition pages this doc is chiefly about — is five consolidated
+pages, several using `st.tabs` to gather formerly-separate pages: **Geometry**;
+**Weight & Mass Properties** (tabs: Estimate · Weight, CG & Inertia · Payload
+Cases · Weight / CG Envelope); **Structural Speeds** (tabs: Design Speeds ·
+Speed–Altitude Envelope); **Aerodynamic Data**; and **Flight Envelope (V-n)**
+(tabs: V-n diagram · Critical Loads (SELECT)).
 
 The analysis-flow phases and their per-page mapping are in
 [`../30_future/03_gui_rework_plan.md §4`](../30_future/03_gui_rework_plan.md); the

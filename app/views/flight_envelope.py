@@ -1,13 +1,21 @@
-"""Streamlit page for the flight envelope + balancing tail loads (FLTLOADS.BAS).
+"""Streamlit page for the flight envelope + balancing tail loads + SELECT.
 
 One page of the multi-page app; run the suite with:  streamlit run app/Home.py
 
-Builds the FAR 23.333 maneuver + gust V-n diagram and the balancing horizontal
-tail load at every corner (Reference 1 Ch 8). The design speeds and limit load
-factors come from the Structural Speeds page (STRSPEED); the airplane-less-tail
-aero coefficients come from the **Aero Coefficients** page (Step D4.2); the
-balance geometry and weight-CG cases are entered here (the rest of the FLTLOADS
-input set).
+Step G3 merges the FLTLOADS V-n page and the SELECT critical-loads page into one
+tabbed page (the two share the balanced V-n matrix). Builds the FAR 23.333
+maneuver + gust V-n diagram and the balancing horizontal tail load at every corner
+(Reference 1 Ch 8); SELECT then prunes it to the governing wing/tail/fuselage
+conditions (Ch 9). The design speeds and limit load factors come from the
+Structural Speeds page; the airplane-less-tail aero coefficients from the
+Aerodynamic Data page; the balance geometry and weight-CG cases are read/entered
+here (the rest of the FLTLOADS input set).
+
+Two tabs:
+
+* **V-n diagram** -- the maneuver/gust envelope + balanced corner conditions.
+* **Critical Loads (SELECT)** -- the governing conditions per component, with the
+  per-condition include/exclude selection carried to Results Review and exports.
 """
 
 from __future__ import annotations
@@ -17,6 +25,7 @@ import plotly.graph_objects as go
 import streamlit as st
 
 from farloads import (
+    ConditionResult,
     FlightLoadsInput,
     Project,
     UnitSystem,
@@ -29,16 +38,17 @@ from farloads import (
 )
 from farloads.constants import IN2_PER_FT2
 from farloads.modules.flight_envelope import build_envelope, run as flt_run
+from farloads.modules.select import build_critical
 from farloads.modules.structural_speeds import design_speed_values
 from farloads.modules.wing_geometry import surface_properties
 from farloads.report import module_text_report
 
 
-st.title("Flight Envelope (V-n) & Balancing Tail Loads")
+st.title("Flight Envelope (V-n), Balancing Tail Loads & Critical Loads")
 st.caption(
-    "Python/Streamlit port of FLTLOADS.BAS (Hal C. McMaster). Balances the airplane "
-    "at every corner of the FAR 23.333 maneuver + gust envelope and reports the "
-    "balancing horizontal-tail load — the candidate conditions SELECT then prunes."
+    "Python/Streamlit port of FLTLOADS.BAS + SELECT.BAS (Hal C. McMaster). Balances "
+    "the airplane at every corner of the FAR 23.333 maneuver + gust envelope, reports "
+    "the balancing horizontal-tail load, and selects the governing conditions."
 )
 
 project: Project = st.session_state.get("project", Project(name=""))
@@ -56,7 +66,7 @@ aero = project.aero_coeffs
 if aero is None or (aero.cruise is None and aero.flaps_down is None):
     st.warning(
         "No aero coefficients found. Enter the cruise (and optional flaps-down) "
-        "coefficient set on the **Aero Coefficients** page first — FLTLOADS reads "
+        "coefficient set on the **Aerodynamic Data** page first — FLTLOADS reads "
         "the airplane-less-tail CL/CD/CM polynomials from it."
     )
     st.stop()
@@ -65,12 +75,8 @@ fl = project.flight_loads or FlightLoadsInput()
 
 
 def _geometry_defaults(project: Project) -> dict:
-    """MAC/wing-area/25%-MAC-station fallback defaults (Appendix A example
-    figures), overridden by the project's own Wing Geometry / Configuration &
-    Layout data when present -- so a project that already has a "wing" surface
-    doesn't get asked to re-enter numbers WINGGEOM/Configuration already give
-    (same bug class fixed on Configuration & Layout: unused upstream geometry).
-    """
+    """MAC/wing-area/25%-MAC-station fallback defaults (Appendix A example figures),
+    overridden by the project's own Geometry data when present."""
     defaults = {"mac": 69.246, "wing_area_sqft": 184.125, "xw": 80.953, "zw": 87.725}
     wing_surf = project.geometry.by_name("wing") if project.geometry else None
     if wing_surf is not None:
@@ -101,8 +107,8 @@ with st.sidebar:
     st.header(f"Geometry (FLTLOADS) ({U['length']} / {U['area_sqft']})")
     st.caption(
         f"Input units: **{'Imperial' if system == UnitSystem.IMPERIAL else 'SI'}**. "
-        "Defaults come from the Wing Geometry / Configuration & Layout pages when "
-        "available, else the Appendix A worked example."
+        "Defaults come from the Geometry page when available, else the Appendix A "
+        "worked example."
     )
     mac = _num("Wing MAC", fl.mac or _geo_defaults["mac"], "mac", "length", min_value=0.0)
     s = _num("Wing area S", fl.wing_area_sqft or _geo_defaults["wing_area_sqft"], "s", "area_sqft", min_value=0.0)
@@ -114,25 +120,24 @@ with st.sidebar:
                          value=float(fl.mn) or 0.1, format="%.3f")
 
 st.caption(
-    f"Aero coefficients (from the **Aero Coefficients** page): cruise '{aero.cruise.name}'"
+    f"Aero coefficients (from the **Aerodynamic Data** page): cruise '{aero.cruise.name}'"
     + (f", flaps-down '{aero.flaps_down.name}'" if aero.flaps_down else "") + "."
 )
 
-st.subheader("Altitudes (V-n balanced at each)")
 alt_default = pd.DataFrame({"altitude_ft": fl.altitudes_ft or [0.0]})
+st.subheader("Altitudes (V-n balanced at each)")
 alt_df = st.data_editor(alt_default, num_rows="dynamic", hide_index=True,
                         use_container_width=True, key="altitudes_editor")
 altitudes_ft = sorted({float(v) for v in alt_df["altitude_ft"] if pd.notna(v)}) or [0.0]
 
-st.subheader("Weight / CG cases")
 cg_cases = project.weight.cg_cases if project.weight else []
 if not cg_cases:
     st.warning(
-        "No loading scenarios found. Define them on the **Weight/CG Grid & Payload "
-        "Cases** page first — FLTLOADS balances over them."
+        "No loading scenarios found. Define them on the **Weight & Mass Properties** "
+        "page (Payload Cases tab) first — FLTLOADS balances over them."
     )
     st.stop()
-st.caption("Read from the **Weight/CG Grid & Payload Cases** page (not edited here).")
+st.caption("Weight / CG cases read from the **Weight & Mass Properties** page (not edited here).")
 st.dataframe(pd.DataFrame([
     {"name": c.name, f"weight ({U['weight']})": round(to_display(c.weight_lb, "weight", system), 2),
      f"xcg ({U['length']})": round(to_display(c.xcg, "length", system), 2),
@@ -141,8 +146,7 @@ st.dataframe(pd.DataFrame([
 ]), hide_index=True, use_container_width=True)
 
 # Merge (never wholesale-replace) so fields this page doesn't show survive the
-# persist path. Aero coefficients (Step D4.2) and CG cases (Step D5) are owned
-# by other pages -- this page only reads them.
+# persist path. Aero coefficients and CG cases are owned by other pages -- read only.
 project.flight_loads = fl.merged(
     mac=to_imperial_scalar(mac, "length", system),
     wing_area_sqft=to_imperial_scalar(s, "area_sqft", system),
@@ -167,96 +171,188 @@ except (ValueError, ZeroDivisionError) as exc:
     st.error(f"Could not compute the flight envelope: {exc}")
     st.stop()
 
-cg_names = [c.name for c in cg_cases]
-c1, c2 = st.columns([2, 1])
-selected_cg = c1.selectbox("Show CG case", cg_names) if cg_names else None
-overlay_all_alt = c2.checkbox("Overlay all altitudes", value=False)
-if overlay_all_alt:
-    selected_alt = None
-else:
-    selected_alt = c1.selectbox("Show altitude (ft)", altitudes_ft) if len(altitudes_ft) > 1 else altitudes_ft[0]
 
-pts = [p for p in env.vn if p.cg == selected_cg
-       and (overlay_all_alt or p.altitude_ft == selected_alt)]
+# --------------------------------------------------------------------------- #
+# Tab 1 -- V-n diagram + balanced flight conditions
+# --------------------------------------------------------------------------- #
+def _tab_vn() -> None:
+    cg_names = [c.name for c in cg_cases]
+    c1, c2 = st.columns([2, 1])
+    selected_cg = c1.selectbox("Show CG case", cg_names) if cg_names else None
+    overlay_all_alt = c2.checkbox("Overlay all altitudes", value=False)
+    if overlay_all_alt:
+        selected_alt = None
+    else:
+        selected_alt = c1.selectbox("Show altitude (ft)", altitudes_ft) if len(altitudes_ft) > 1 else altitudes_ft[0]
 
-# V-n diagram: the continuous LIMIT design envelope (backdrop) + the rigorous
-# balanced corner points (markers) on top -- one maneuver/gust trace per altitude
-# when overlaid (Step D5, multi-altitude V-n).
-fig = go.Figure()
+    pts = [p for p in env.vn if p.cg == selected_cg
+           and (overlay_all_alt or p.altitude_ft == selected_alt)]
 
-# LIMIT design-envelope backdrop: the continuous textbook V-n outline rebuilt
-# from the Structural Speeds inputs (project.speeds, guaranteed present here) and
-# drawn behind the rigorous balanced points so the envelope visibly bounds them.
-# Consolidated onto this page -- it was a duplicate diagram on Structural Speeds.
-# All quantities are LIMIT; the gust lines use the textbook Pratt approximation.
-envelope = None
-gust = None
-try:
-    sv = design_speed_values(project, project.speeds)
-except (ValueError, ZeroDivisionError):
-    sv = None
-if sv is not None:
-    slope = aero.cruise.lift[1] if aero.cruise is not None else None
-    mac_ft = (project.flight_loads.mac / 12.0) if project.flight_loads.mac else None
-    # Gust lines are altitude-dependent, so draw them only for a single selected
-    # altitude; the maneuver envelope (stall boundary + n caps) is altitude-free.
-    gust = resolve_gust_inputs(sv.ws, selected_alt, slope, mac_ft) if not overlay_all_alt else None
-    envelope = build_vn_diagram(
-        vs=project.speeds.stall_clean_kt, va=sv.va, vc=sv.vc, vd=sv.vd,
-        n_pos=sv.n, n_neg=sv.nneg, vsf=project.speeds.stall_flap_kt, vf=sv.vf,
-        flaps="both", gust=gust,
-    )
-    for tr in envelope.traces:
-        is_gust = tr.name.startswith("Gust")
-        fig.add_trace(go.Scatter(
-            x=tr.v, y=tr.n, name=f"LIMIT env: {tr.name}", mode="lines",
-            legendgroup="limit_env",
-            line=dict(color="rgba(140,140,140,0.7)",
-                      dash="dot" if is_gust else "solid", width=1.5)))
+    fig = go.Figure()
 
-alts_to_plot = altitudes_ft if overlay_all_alt else [selected_alt]
-for alt in alts_to_plot:
-    alt_pts = [p for p in pts if p.altitude_ft == alt]
-    man = [p for p in alt_pts if p.condition.startswith(("STALL", "MAN"))]
-    gust = [p for p in alt_pts if p.condition.startswith("GUST")]
-    suffix = f" @ {alt:.0f} ft" if overlay_all_alt else ""
-    fig.add_trace(go.Scatter(x=[p.v_eas_kt for p in man], y=[p.nz for p in man],
-                             name=f"maneuver{suffix}", mode="markers+lines"))
-    fig.add_trace(go.Scatter(x=[p.v_eas_kt for p in gust], y=[p.nz for p in gust],
-                             name=f"gust{suffix}", mode="markers"))
-title_alt = "all altitudes" if overlay_all_alt else f"{selected_alt:.0f} ft"
-fig.update_layout(title=f"V-n diagram — {selected_cg}, {title_alt}", xaxis_title="V (KEAS)",
-                  yaxis_title="Load factor NZ", legend=dict(orientation="h"), height=440)
-st.plotly_chart(fig, use_container_width=True)
-st.caption(
-    "Grey lines are the continuous **LIMIT** design envelope (stall boundary, "
-    "maneuver limits and — for a single altitude — the textbook Pratt gust lines) "
-    "from the **Structural Speeds** inputs; the coloured markers are the rigorous, "
-    "Mach-corrected balanced corner points that feed the tail loads. The envelope "
-    "should bound the markers."
-)
-if envelope is not None and gust is not None and envelope.gust_approximate:
+    # LIMIT design-envelope backdrop rebuilt from the Structural Speeds inputs.
+    envelope = None
+    gust = None
+    try:
+        sv = design_speed_values(project, project.speeds)
+    except (ValueError, ZeroDivisionError):
+        sv = None
+    if sv is not None:
+        slope = aero.cruise.lift[1] if aero.cruise is not None else None
+        mac_ft = (project.flight_loads.mac / 12.0) if project.flight_loads.mac else None
+        gust = resolve_gust_inputs(sv.ws, selected_alt, slope, mac_ft) if not overlay_all_alt else None
+        envelope = build_vn_diagram(
+            vs=project.speeds.stall_clean_kt, va=sv.va, vc=sv.vc, vd=sv.vd,
+            n_pos=sv.n, n_neg=sv.nneg, vsf=project.speeds.stall_flap_kt, vf=sv.vf,
+            flaps="both", gust=gust,
+        )
+        for tr in envelope.traces:
+            is_gust = tr.name.startswith("Gust")
+            fig.add_trace(go.Scatter(
+                x=tr.v, y=tr.n, name=f"LIMIT env: {tr.name}", mode="lines",
+                legendgroup="limit_env",
+                line=dict(color="rgba(140,140,140,0.7)",
+                          dash="dot" if is_gust else "solid", width=1.5)))
+
+    alts_to_plot = altitudes_ft if overlay_all_alt else [selected_alt]
+    for alt in alts_to_plot:
+        alt_pts = [p for p in pts if p.altitude_ft == alt]
+        man = [p for p in alt_pts if p.condition.startswith(("STALL", "MAN"))]
+        gust = [p for p in alt_pts if p.condition.startswith("GUST")]
+        suffix = f" @ {alt:.0f} ft" if overlay_all_alt else ""
+        fig.add_trace(go.Scatter(x=[p.v_eas_kt for p in man], y=[p.nz for p in man],
+                                 name=f"maneuver{suffix}", mode="markers+lines"))
+        fig.add_trace(go.Scatter(x=[p.v_eas_kt for p in gust], y=[p.nz for p in gust],
+                                 name=f"gust{suffix}", mode="markers"))
+    title_alt = "all altitudes" if overlay_all_alt else f"{selected_alt:.0f} ft"
+    fig.update_layout(title=f"V-n diagram — {selected_cg}, {title_alt}", xaxis_title="V (KEAS)",
+                      yaxis_title="Load factor NZ", legend=dict(orientation="h"), height=440)
+    st.plotly_chart(fig, use_container_width=True)
     st.caption(
-        "⚠️ LIMIT-envelope gust lines are approximate: no wing lift-curve slope "
-        "(Aerodynamic Data) and/or MAC (Wing Geometry) was available, so a textbook "
-        "slope and/or Kg = 1 was used."
+        "Grey lines are the continuous **LIMIT** design envelope (stall boundary, "
+        "maneuver limits and — for a single altitude — the textbook Pratt gust lines) "
+        "from the **Structural Speeds** inputs; the coloured markers are the rigorous, "
+        "Mach-corrected balanced corner points that feed the tail loads. The envelope "
+        "should bound the markers."
+    )
+    if envelope is not None and gust is not None and envelope.gust_approximate:
+        st.caption(
+            "⚠️ LIMIT-envelope gust lines are approximate: no wing lift-curve slope "
+            "(Aerodynamic Data) and/or MAC (Geometry) was available, so a textbook "
+            "slope and/or Kg = 1 was used."
+        )
+
+    st.subheader("Balanced flight conditions")
+    st.dataframe(pd.DataFrame({
+        "case": [p.case for p in pts],
+        "altitude (ft)": [p.altitude_ft for p in pts],
+        "condition": [p.condition for p in pts],
+        "V (KEAS)": [round(p.v_eas_kt, 1) for p in pts],
+        "NZ": [round(p.nz, 2) for p in pts],
+        "α (deg)": [round(p.alpha_deg, 2) for p in pts],
+        "CL": [round(p.cl, 3) for p in pts],
+        "M(W+F)": [round(p.m_wf) for p in pts],
+        "LZW": [round(p.lzw) for p in pts],
+        "LT (tail)": [round(p.lt) for p in pts],
+        "DX": [round(p.dx) for p in pts],
+    }), hide_index=True, use_container_width=True)
+
+    st.download_button(
+        "Download V-n data (text)", module_text_report("Flight envelope (V-n)", results),
+        file_name="flight_envelope.txt", mime="text/plain", key="dl_vn_txt")
+
+
+# --------------------------------------------------------------------------- #
+# Tab 2 -- Critical Loads (SELECT)
+# --------------------------------------------------------------------------- #
+def _display_loads(loads: list, system: UnitSystem) -> list:
+    """Display-only copy of a ``CriticalCondition.loads`` list converted to ``system``."""
+    if system == UnitSystem.IMPERIAL:
+        return loads
+    wrapped = ConditionResult(title="", far_reference="", values=loads)
+    return convert_results([wrapped], system)[0].values
+
+
+_COMPONENTS = [
+    ("wing", "Wing", "PHAA / PMAA / PLAA / NMAA, accelerated & steady roll"),
+    ("htail", "Horizontal tail", "balancing, maneuver, gust, unsymmetrical"),
+    ("vtail", "Vertical tail", "rudder, sideslip, yaw, side gust"),
+    ("fuselage", "Fuselage", "load on wing, aft bending, greatest Nz"),
+]
+
+
+def _tab_select() -> None:
+    st.caption(
+        "SELECT searches the balanced V-n matrix for the governing wing, horizontal-"
+        "tail, vertical-tail and fuselage loads (FAR 23.301/23.331/23.333/23.421/"
+        "23.423/23.425/23.427/23.441/23.443)."
+    )
+    if project.is_concept:
+        st.warning("Concept category (C): critical loads are an **unverified "
+                   "extrapolation** above the FAR 23 calibration band.")
+    if project.tail_loads is None:
+        st.info("Add the **Tail Loads** inputs to the project to include the rational "
+                "horizontal-tail loads; the wing and fuselage conditions are shown regardless.")
+
+    try:
+        critical = build_critical(project)
+    except (ValueError, ZeroDivisionError) as exc:
+        st.error(f"Could not select critical loads: {exc}")
+        return
+
+    # Carry forward any previously-persisted selection so re-visiting doesn't reset
+    # a curated subset back to "everything".
+    prior_selected = (
+        set(project.envelope.critical.selected_case_ids)
+        if project.envelope is not None and project.envelope.critical is not None
+        and project.envelope.critical.selected_case_ids
+        else None
     )
 
-st.subheader("Balanced flight conditions")
-st.dataframe(pd.DataFrame({
-    "case": [p.case for p in pts],
-    "altitude (ft)": [p.altitude_ft for p in pts],
-    "condition": [p.condition for p in pts],
-    "V (KEAS)": [round(p.v_eas_kt, 1) for p in pts],
-    "NZ": [round(p.nz, 2) for p in pts],
-    "α (deg)": [round(p.alpha_deg, 2) for p in pts],
-    "CL": [round(p.cl, 3) for p in pts],
-    "M(W+F)": [round(p.m_wf) for p in pts],
-    "LZW": [round(p.lzw) for p in pts],
-    "LT (tail)": [round(p.lt) for p in pts],
-    "DX": [round(p.dx) for p in pts],
-}), hide_index=True, use_container_width=True)
+    st.info(
+        "Uncheck a condition to drop it from the **Results Review** page's governing-"
+        "loads summary — everything is included by default. This never affects the "
+        "structural calc (WINGINER/NETLOADS, fuselage/tail/control-surface loads, "
+        "sbeam export), only that summary."
+    )
 
-st.download_button(
-    "Download V-n data (text)", module_text_report("Flight envelope (V-n)", results),
-    file_name="flight_envelope.txt", mime="text/plain")
+    checked_ids: list = []
+    all_ids: list = []
+    for key, title, sub in _COMPONENTS:
+        conds = [c for c in critical.conditions if c.component == key]
+        if not conds:
+            continue
+        st.subheader(f"{title} — {len(conds)} condition(s)")
+        st.caption(sub)
+        rows = []
+        for c in conds:
+            cid = c.case_ref.case_id if c.case_ref else None
+            if cid:
+                all_ids.append(cid)
+                default_checked = cid in prior_selected if prior_selected is not None else True
+                checked = st.checkbox(
+                    f"{c.label} ({cid})", value=default_checked, key=f"select_{cid}",
+                )
+                if checked:
+                    checked_ids.append(cid)
+            row = {"Condition": c.label, "FAR": c.far_reference, "V-n case": c.case}
+            for lv in _display_loads(c.loads, system):
+                row[lv.label] = round(lv.value, 2)
+            rows.append(row)
+        st.dataframe(pd.DataFrame(rows), hide_index=True, use_container_width=True)
+
+    # Empty list means "no filter" (every condition kept) -- only persist a real
+    # subset when the engineer has actually deselected something.
+    critical.selected_case_ids = [] if checked_ids == all_ids else checked_ids
+
+    # Persist so downstream pages (Fuselage Loads, Results Review, exports) reuse it.
+    if project.envelope is not None:
+        project.envelope.critical = critical
+        st.session_state["project"] = project
+
+
+_tab_a, _tab_b = st.tabs(["V-n diagram", "Critical Loads (SELECT)"])
+with _tab_a:
+    _tab_vn()
+with _tab_b:
+    _tab_select()

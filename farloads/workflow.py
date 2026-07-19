@@ -88,55 +88,49 @@ STEPS: Tuple[WorkflowStep, ...] = (
                          "sidebar's selected Imperial/SI units."),
 
     # ---- Develop V-n diagram: define the airplane & load environment --------- #
-    # §4 Phase 1 (sub-steps 1a geometry → 1b weight/mass → 1c speeds → 1d aero →
-    # 1e V-n). Step G2 groups the existing pages in analysis order; the page-level
-    # consolidation into 1a–1e is Step G3 (bodies unchanged here).
+    # §4 Phase 1, consolidated to five sub-steps 1a–1e (Step G3). Each merged page
+    # gathers several formerly-separate pages as st.tabs; the secondary calc modules
+    # are folded via FOLDED_MODULES (the wing_inertia precedent), so each sub-step
+    # names one primary module/produces and the others still have registered
+    # modules/tests without a nav step of their own.
     #
     # 1a. Geometry -- Step G1 merged the parametric layout + WINGGEOM planform
     # pages into one Geometry page (the single geometry source of truth). The
-    # wing_geometry calc module is folded in (see FOLDED_MODULES); this one step
-    # owns the geometry slice.
+    # wing_geometry calc module is folded in; this one step owns the geometry slice.
     WorkflowStep("configuration_layout", "Geometry", DEVELOP_VN,
                  module="configuration", produces="geometry", bas="WINGGEOM",
                  summary="Single geometry source of truth: parametric fuselage/wing/"
                          "tail/gear, fuselage outline, and WINGGEOM surface planforms."),
-    # 1b. Weight & mass properties.
-    WorkflowStep("weight_estimate", "Weight Estimate", DEVELOP_VN,
-                 module="weight_estimate", produces="weight.estimation", bas="WTESTIMA",
-                 summary="Statistical empty-weight / MTOW sanity estimate."),
-    WorkflowStep("weight_cg_inertia", "Weight, CG & Inertia", DEVELOP_VN,
+    # 1b. Weight & mass properties -- Step G3 merged Weight Estimate (WTESTIMA),
+    # Weight/CG/Inertia (WTONECG), Payload Cases and Weight/CG Envelope (WTENV) into
+    # one tabbed page that owns all weight/mass data. weight_estimate + weight_envelope
+    # are folded; weight_onecg is the primary (produces mass, the downstream gate).
+    WorkflowStep("weight_mass", "Weight & Mass Properties", DEVELOP_VN,
                  module="weight_onecg", requires=("weight",), produces="mass",
-                 bas="WTONECG", summary="Itemised mass properties: weight, CG, inertia."),
-    WorkflowStep("payload_cases", "Weight/CG Grid & Payload Cases", DEVELOP_VN,
-                 module=None, requires=("weight",), produces="weight.cg_cases", bas=None,
-                 summary="Named loading scenarios shared by the CG envelope and the "
-                         "flight-envelope balance."),
-    WorkflowStep("weight_envelope", "Weight / CG Envelope", DEVELOP_VN,
-                 module="weight_envelope", requires=("geometry", "weight"),
-                 produces="weight.envelope", bas="WTENV",
-                 summary="Loading CG envelope vs limits."),
-    # 1c. Structural design speeds.
+                 bas="WTESTIMA+WTONECG+WTENV",
+                 summary="All weight/mass data: statistical estimate, itemised mass "
+                         "properties (weight/CG/inertia), loading scenarios, and the "
+                         "CG envelope."),
+    # 1c. Structural design speeds -- Step G3 merged STRSPEED design speeds and the
+    # MACHLIM speed–altitude envelope into one tabbed page; mach_limit is folded.
     WorkflowStep("structural_speeds", "Structural Speeds", DEVELOP_VN,
-                 module="structural_speeds", produces="speeds", bas="STRSPEED",
-                 summary="FAR 23 design speeds VA/VC/VD/VS."),
-    WorkflowStep("mach_limit", "Speed–Altitude Envelope", DEVELOP_VN,
-                 module="mach_limit", requires=("speeds",), produces="speeds.mach_limit",
-                 bas="MACHLIM", summary="Speed–altitude flight-limits diagram (Mach + design speeds)."),
-    # 1d. Aerodynamic coefficients.
+                 module="structural_speeds", produces="speeds", bas="STRSPEED+MACHLIM",
+                 summary="FAR 23 design speeds VA/VC/VD/VS + the speed–altitude "
+                         "flight-limits (Mach) envelope."),
+    # 1d. Aerodynamic coefficients. The FLTLOADS balance-geometry/CG inputs stay on
+    # the V-n page (1e) per decision to keep those inputs where they run.
     WorkflowStep("aero_coefficients", "Aerodynamic Data", DEVELOP_VN,
                  module=None, produces="aero_coeffs", bas=None,
                  summary="Airplane-less-tail aero coefficients (cruise + flaps-down) "
                          "for the flight envelope balance. Per-surface spanwise "
                          "(Schrenk) aero is entered on the Wing Loads page."),
-    # 1e. V-n diagram + governing conditions.
+    # 1e. V-n diagram + governing conditions -- Step G3 merged the FLTLOADS V-n page
+    # and the SELECT critical-loads page into one tabbed page; select is folded.
     WorkflowStep("flight_envelope", "Flight Envelope (V-n)", DEVELOP_VN,
                  module="flight_envelope", requires=("speeds", "aero_coeffs"),
-                 produces="flight_loads", bas="FLTLOADS",
-                 summary="V-n diagram + balancing tail loads (the load environment)."),
-    WorkflowStep("critical_loads", "Critical Loads (SELECT)", DEVELOP_VN,
-                 module="select", requires=("flight_loads",), produces="envelope.critical",
-                 bas="SELECT",
-                 summary="Governing wing/tail/fuselage conditions from the V-n matrix."),
+                 produces="flight_loads", bas="FLTLOADS+SELECT",
+                 summary="V-n diagram + balancing tail loads, and the governing "
+                         "wing/tail/fuselage conditions SELECT prunes from the matrix."),
 
     # ---- Flight loads: distributed wing / fuselage / tail loads (§4 Phase 2) - #
     # Wing Loads and Tail Loads each merge two independently-registered calc
@@ -207,7 +201,13 @@ BY_KEY: Dict[str, WorkflowStep] = {s.key: s for s in STEPS}
 #: cross-check is combined with TAILDIST on the Tail Loads page (Step D6).
 #: WINGGEOM (wing_geometry) is combined onto the one Geometry page (Step G1), which
 #: names the ``configuration`` module -- so wing_geometry has no dedicated step.
-FOLDED_MODULES: Tuple[str, ...] = ("wing_inertia", "airloads", "balloads", "wing_geometry")
+#: Step G3 folds four more: weight_estimate + weight_envelope onto the Weight & Mass
+#: Properties page (weight_onecg is its named module), mach_limit onto Structural
+#: Speeds, and select onto the Flight Envelope (V-n) page.
+FOLDED_MODULES: Tuple[str, ...] = (
+    "wing_inertia", "airloads", "balloads", "wing_geometry",
+    "weight_estimate", "weight_envelope", "mach_limit", "select",
+)
 
 
 # --------------------------------------------------------------------------- #

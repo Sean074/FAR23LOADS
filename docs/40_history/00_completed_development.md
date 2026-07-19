@@ -10,6 +10,68 @@ Acceptance**, **Key decisions**.
 
 ---
 
+## Phase G — Step G3: Phase-1 page consolidation (Develop V-n diagram) (complete, 2026-07-19)
+
+**Objective.** Collapse the *Develop V-n diagram* section from ten nav pages into
+the five sub-steps 1a–1e of `03_gui_rework_plan.md` §4, so "define the airplane &
+load environment" is one coherent sequence and each shared quantity is entered once.
+
+**Scope decisions (AskUserQuestion, 2026-07-19).** (1) **Merge layout** → *tabs*:
+each merged page uses `st.tabs` for its sub-pages (rather than one long scrolling
+page of stacked sections). This introduces tabs as the multi-page merge convention
+(previously only Aircraft Comparison used tabs). (2) **1e V-n inputs** → *keep on
+1e*: the FLTLOADS balance-geometry/CG inputs (MAC, wing area, X/Z at 25% MAC,
+tail-CP stations, reference Mach, altitudes) stay on the V-n page where they run;
+1e is input + compute + display + SELECT, not results-only.
+
+**Deliverables.**
+- **`app/views/weight_mass.py`** (new, **1b Weight & Mass Properties**) — one page,
+  four tabs: *Estimate* (WTESTIMA), *Weight, CG & Inertia* (WTONECG), *Payload
+  Cases* (shared `weight.cg_cases`), *Weight / CG Envelope* (WTENV). The single
+  owner of all weight/mass data (decision G-2). Each tab is a function so a
+  missing-prerequisite guard `return`s instead of `st.stop()` (which would kill the
+  sibling tabs); sub-page inputs moved from the sidebar into the tab body so the
+  sidebar doesn't stack four forms.
+- **`app/views/structural_speeds.py`** (rewritten, **1c**) — two tabs: *Design
+  Speeds* (STRSPEED) + *Speed–Altitude Envelope* (MACHLIM). The Design Speeds tab
+  preserves the existing `speeds.mach_limit` sub-slice on Apply.
+- **`app/views/flight_envelope.py`** (rewritten, **1e**) — two tabs: *V-n diagram*
+  (FLTLOADS) + *Critical Loads (SELECT)*. Balance inputs stay in the sidebar
+  (shared by both tabs); the SELECT include/exclude selection persists to
+  `envelope.critical.selected_case_ids` as before.
+- **`app/views/aero_coefficients.py`** (**1d**) — unchanged (the reference-Mach
+  input stayed on 1e per the decision, so 1d needed no move).
+- **Deleted views** (folded into the tabs above): `weight_estimate.py`,
+  `weight_cg_inertia.py`, `payload_cases.py`, `weight_envelope.py`, `mach_limit.py`,
+  `critical_loads.py`.
+- **`farloads/workflow.py`** — the ten Develop-V-n steps become five
+  (`configuration_layout`, `weight_mass`, `structural_speeds`, `aero_coefficients`,
+  `flight_envelope`); `FOLDED_MODULES` gains `weight_estimate`, `weight_envelope`,
+  `mach_limit`, `select` (each still a registered/tested calc module without its own
+  nav step — the wing_inertia precedent). `weight_onecg`/`structural_speeds`/
+  `flight_envelope` are the named primary modules.
+- **Cross-page copy** — warnings/captions in `one_engine_out.py`, `tail_loads.py`,
+  `export_report.py`, `results_review.py`, `configuration_layout.py`, and the merged
+  pages themselves updated to point at the new tab locations (the six deleted pages
+  are no longer nav destinations).
+- **`tests/test_views_smoke.py`** — the beyond-GA power-cap regression fixture
+  repointed from the deleted `weight_estimate.py` to `weight_mass.py`.
+
+**Test / Acceptance.** Full suite green (**385 tests**; the −5 vs. G2's 390 is purely
+the six folded views leaving / one new view joining the auto-globbed smoke
+parametrization). `ruff check farloads/ app/ cli.py` clean. The nav-drift guard
+(`test_every_registered_module_has_a_step`) stays green via `FOLDED_MODULES`.
+Functional render check (headless `AppTest`, ga6 fixture): weight_mass = 4 tabs / 12
+dataframes / 2 plots; structural_speeds = 2 tabs / 1 chart; flight_envelope = 2 tabs
+/ 1 V-n plot. Appendix A/B oracles unchanged (no calc touched).
+
+**Key decisions.** G-4 phase-1 consolidation into 1a–1e; tabs as the merge
+convention; balance inputs stay on 1e; keep the validation page-tags stable and
+filter for them in the merged views (the G1 `wing_geometry`-tag precedent), so
+`validation.py` and its tests are untouched.
+
+---
+
 ## Phase G — Step G2: Re-sequence `workflow.py` into the analysis-flow phases (complete, 2026-07-18)
 
 **Objective.** Reorder the GUI navigation (decision G-4) into the six analysis-flow

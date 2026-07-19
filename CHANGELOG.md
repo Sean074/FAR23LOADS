@@ -11,6 +11,22 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- **Phase-1 page consolidation — Develop V-n diagram (Phase G, Step G3).** The
+  *Develop V-n diagram* section collapses from ten nav pages to five, using
+  `st.tabs` where a page gathers formerly-separate pages. New **Weight & Mass
+  Properties** page (`app/views/weight_mass.py`) with tabs *Estimate* (WTESTIMA) ·
+  *Weight, CG & Inertia* (WTONECG) · *Payload Cases* · *Weight / CG Envelope*
+  (WTENV) — the single owner of all weight/mass data. **Structural Speeds** gains a
+  *Design Speeds* / *Speed–Altitude Envelope* (MACHLIM) tab split; **Flight Envelope
+  (V-n)** gains a *V-n diagram* / *Critical Loads (SELECT)* tab split (the FLTLOADS
+  balance inputs stay on the page, shared by both tabs). Six view files are deleted
+  and folded (`weight_estimate`, `weight_cg_inertia`, `payload_cases`,
+  `weight_envelope`, `mach_limit`, `critical_loads`); `workflow.FOLDED_MODULES` gains
+  `weight_estimate`, `weight_envelope`, `mach_limit`, `select` (each still a
+  registered/tested calc module, now without its own nav step). **No calc, schema,
+  or oracle change** — the folded modules and `Project` slices are untouched; only
+  which page edits a slice moved. Cross-page captions/warnings updated to the new tab
+  locations.
 - **Workflow-aligned navigation re-sequence (Phase G, Step G2).** The GUI sidebar
   is re-grouped from the historical Phase-D sections into the FAR 23 analysis flow
   (decision G-4): an un-numbered **Start** app-shell group (Project Dashboard, JSON

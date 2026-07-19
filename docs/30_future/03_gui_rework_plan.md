@@ -84,6 +84,15 @@ lists the existing pages/modules it consolidates so the plan can reuse them.
 
 ### Phase 1 — Develop V-n diagram (define the airplane & load environment)
 
+> **Shipped 2026-07-19 (Step G3).** The phase-1 pages are consolidated into the
+> five sub-steps 1a–1e below, using `st.tabs` where a sub-step gathers several
+> formerly-separate pages (1b Weight & Mass Properties = Estimate · Weight, CG &
+> Inertia · Payload Cases · Weight / CG Envelope; 1c Structural Speeds = Design
+> Speeds · Speed–Altitude Envelope; 1e Flight Envelope (V-n) = V-n diagram ·
+> Critical Loads (SELECT)). The FLTLOADS balance-geometry/CG inputs stay on 1e (the
+> page that runs them). No calc change; oracles unchanged. See
+> `docs/40_history/00_completed_development.md` → Phase G, Step G3.
+
 The primary user input: geometry, mass distribution, aerodynamic data, and the
 mass + speed/altitude envelopes. Output = the set of load cases to assess
 (mass/CG cases × speed/altitude points).

@@ -18,10 +18,11 @@ logging.disable(logging.CRITICAL)  # silence Streamlit's bare-mode warnings
 _ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 _EXAMPLE = os.path.join(_ROOT, "examples", "ga6_normal.project.json")
 # Beyond-GA project: 4000 hp / ~50 seats -- regression fixture for the
-# StreamlitValueAboveMaxError that fired when weight_estimate.py capped its power
-# widget at 3000 hp while seeding a loaded value above that cap.
+# StreamlitValueAboveMaxError that fired when the weight-estimate power widget was
+# capped at 3000 hp while seeding a loaded value above that cap. The Estimate tab
+# now lives on the merged Weight & Mass Properties page (Step G3).
 _BEYOND_GA = os.path.join(_ROOT, "examples", "dhc8_dash8.project.json")
-_WEIGHT_ESTIMATE = os.path.join(_ROOT, "app", "views", "weight_estimate.py")
+_WEIGHT_ESTIMATE = os.path.join(_ROOT, "app", "views", "weight_mass.py")
 _VIEWS = sorted(glob.glob(os.path.join(_ROOT, "app", "views", "*.py")))
 _ENTRYPOINT = os.path.join(_ROOT, "app", "Home.py")
 

@@ -339,20 +339,7 @@ sections** it targets are that doc's §4.
 
 Steps are in dependency order. G1 (foundational) comes before the
 re-sequencing (G2–G3); the new features (G4–G6) and the report (G8) follow.
-**G0, G1 and G2 shipped 2026-07-18** (see `docs/40_history/00_completed_development.md`).
-
-### Step G3 — Phase-1 page consolidation (Develop V-n diagram)
-**Objective.** Collapse the phase-1 pages into the four sub-steps 1a–1e of §4 so the
-"define the airplane & load environment" flow is one coherent sequence.
-**Scope.** Merge weight pages (`weight_estimate` + `weight_cg_inertia` +
-`weight_envelope` + `payload_cases`) into **1b Weight & mass properties** (owns all
-weight/mass data — nothing weight asked downstream); merge `structural_speeds` +
-`mach_limit` into **1c Structural speeds**; merge `aero_coefficients` + the aero
-half of `flight_envelope` into **1d Aero coefficients**; keep the V-n results +
-SELECT as **1e**. Reuse the existing widgets/plots (three-view, mass plot, WTENV
-grid, speed–altitude, V-n) — no new calc.
-**Acceptance.** Phase 1 is 1a–1e as above; each shared quantity is entered once; the
-oracles and existing example projects still load and run unchanged.
+**G0, G1, G2 and G3 shipped 2026-07-18/19** (see `docs/40_history/00_completed_development.md`).
 
 ### Step G4 — Fuselage pitching-moment estimator (new; GUI + light calc)
 **Objective.** Derive the fuselage pitching-moment contribution from the G1 fuselage

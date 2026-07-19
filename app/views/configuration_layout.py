@@ -642,8 +642,8 @@ with right:
         items = project.weight.items if project.weight else []
         if not items:
             st.warning(
-                "No weight items to seed. Add items on the Weight, CG & Inertia "
-                "page (or the Weight Estimate page's seed button) first."
+                "No weight items to seed. Add items on the Weight & Mass Properties "
+                "page (the Weight, CG & Inertia tab, or the Estimate tab's seed button) first."
             )
         else:
             stations = component_stations(layout)

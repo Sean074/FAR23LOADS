@@ -499,7 +499,7 @@ Derived from **User's Guide Table 2.2** (the authoritative input→output map):
 | `Project` slice | Owned by | Read by |
 |-----------------|----------|---------|
 | `weight` (components, empty/MTOW) | WTESTIMA | WTONECG, WTENV |
-| `weight.cg_cases` (named loading scenarios) | Weight/CG Grid & Payload Cases page (Step D5; modern, no `.BAS`) | weight_envelope (chart overlay, read-only); Flight Envelope page merges it into `FlightLoadsInput.cg_cases` |
+| `weight.cg_cases` (named loading scenarios) | Weight & Mass Properties page, Payload Cases tab (Step G3; Step D5, modern, no `.BAS`) | weight_envelope (chart overlay, read-only); Flight Envelope page merges it into `FlightLoadsInput.cg_cases` |
 | `weight.envelope` (useful-load envelope) | WTENV | FLTLOADS |
 | `mass` (weight/CG + inertias) | WTONECG | FLTLOADS, LANDLOAD (weight/CG); SELECT, ONENGOUT (inertia) |
 | `geometry.surfaces[<surface>]` | WINGGEOM | STRSPEED, AIRLOADS, AIRLOAD4, FLTLOADS, SELECT, ONENGOUT |
@@ -509,7 +509,7 @@ Derived from **User's Guide Table 2.2** (the authoritative input→output map):
 | `aero` (tau, spanwise) | TAU, AIRLOADS/AIRLOAD4 | SELECT, NETLOADS (and AIRLOADS↔SELECT iterate) |
 | `envelope.vn / tail_balance` | FLTLOADS | SELECT, WINGINER |
 | `envelope.critical` | SELECT | AIRLOADS, AIRLOAD4, WINGINER, TAILDIST |
-| `envelope.critical.selected_case_ids` (opt-out GUI selection, Step D5) | Critical Loads page | Results Review page (display filter only); Export page (fuselage/tail sbeam artifacts + case index only, Step D8.3 — structural calc modules keep reading `envelope.critical.conditions` unfiltered) |
+| `envelope.critical.selected_case_ids` (opt-out GUI selection, Step D5) | Flight Envelope (V-n) page, Critical Loads tab (Step G3) | Results Review page (display filter only); Export page (fuselage/tail sbeam artifacts + case index only, Step D8.3 — structural calc modules keep reading `envelope.critical.conditions` unfiltered) |
 | `loads.wing_inertia` | WINGINER | NETLOADS |
 | `landing` (gear geometry + load factor) | LGFACTOR (writes `.n`), direct gear-geometry input | LANDLOAD; reads `mass` (weight/CG), `geometry.wing` (area) |
 | `engine[]` | direct input | ENGLOADS, ONENGOUT |
@@ -523,6 +523,21 @@ everything in its "Read by"/owner chain exists. Note the non-DAG / off-pipeline
 edges: **AIRLOADS↔SELECT** iterate (aero ⇄ critical); **ENGLOADS / TABLOADS** are
 standalone; **BALLOADS** is a post-FLTLOADS verification utility (no output that
 other modules consume).
+
+**GUI page consolidation (Step G3).** The calc modules and slices above are
+unchanged, but the *Develop V-n diagram* nav section now hosts several of them on
+merged, tabbed pages (the `.BAS`→module map and slice ownership hold; only the page
+that edits a slice moved):
+
+| Merged page (nav step) | `st.tabs` | Folded calc modules (still registered/tested) |
+|---|---|---|
+| **Weight & Mass Properties** (`weight_mass`) | Estimate · Weight, CG & Inertia · Payload Cases · Weight / CG Envelope | `weight_estimate`, `weight_envelope` folded; `weight_onecg` is the step's named module |
+| **Structural Speeds** (`structural_speeds`) | Design Speeds · Speed–Altitude Envelope | `mach_limit` folded |
+| **Flight Envelope (V-n)** (`flight_envelope`) | V-n diagram · Critical Loads (SELECT) | `select` folded |
+
+Folded modules are listed in `workflow.FOLDED_MODULES` (the wing_inertia precedent),
+so the nav-drift guard stays green without a dedicated step each. See
+`docs/40_history/00_completed_development.md` → Phase G, Step G3.
 
 ---
 

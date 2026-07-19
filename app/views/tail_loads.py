@@ -41,8 +41,8 @@ system: UnitSystem = st.session_state.get("unit_system", UnitSystem.IMPERIAL)
 U = labels_for(system)  # {"length",...} -> unit string
 
 if project.tail_loads is None and project.vtail_loads is None:
-    st.warning("Define the tail inputs on the **Critical Loads** page first "
-               "(horizontal and/or vertical tail).")
+    st.warning("Define the tail inputs on the **Flight Envelope (V-n)** page "
+               "(Critical Loads tab) first (horizontal and/or vertical tail).")
     st.stop()
 
 if project.is_concept:
@@ -100,7 +100,8 @@ except (ValueError, ZeroDivisionError) as exc:
 
 if not results:
     st.info("No critical tail conditions to distribute. Enter the tail span(s) "
-            "above and ensure the Critical Loads page produced tail loads.")
+            "above and ensure the Critical Loads tab (Flight Envelope (V-n) page) "
+            "produced tail loads.")
 else:
     # Persist so the sbeam tail export can reuse it.
     if project.loads is not None:

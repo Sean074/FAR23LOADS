@@ -10,7 +10,7 @@ Five kinds of hand-off, all recomputed live from the project inputs:
 * **Combined bundle** — one ``.zip`` (or one multi-sheet ``.xlsx`` workbook, Step
   D8.2) of all of the above for archive / hand-off.
 * **Export scope (Step D8.3)** — the fuselage/tail sbeam artifacts and the case
-  index can be filtered to the Critical Loads page's governing-case selection;
+  index can be filtered to the Critical Loads tab's governing-case selection;
   wing and control-surface exports always include the full set (see the "Export
   scope" section's caption for why).
 
@@ -95,7 +95,7 @@ for _fn in (build_aileron, build_flap, build_tabs):
     _control += (_try(_fn, project) or [])
 
 # --------------------------------------------------------------------------- #
-# Export scope (Step D8.3): honor the D5 Critical Loads page's opt-out case
+# Export scope (Step D8.3): honor the D5 Critical Loads tab's opt-out case
 # selection. Case ids are copied verbatim from `envelope.critical.conditions`
 # for fuselage/htail/vtail (body_loads.py, taildist.py), so the filter is exact
 # there. Wing (`WingMassInput.cases`) and control-surface (aileron/flap/tab)
@@ -114,12 +114,14 @@ _scope = st.radio(
     ["Full set", "Governing set (Critical Loads selection)"],
     horizontal=True,
     disabled=not _has_selection,
-    help="Filters to the conditions kept checked on the Critical Loads page. "
-         "Wing and control-surface exports are unaffected (see caption below).",
+    help="Filters to the conditions kept checked on the Flight Envelope (V-n) "
+         "page's Critical Loads tab. Wing and control-surface exports are "
+         "unaffected (see caption below).",
 )
 if not _has_selection:
     st.caption(
-        "No conditions are deselected on the **Critical Loads** page, so there is "
+        "No conditions are deselected on the **Critical Loads** tab (Flight Envelope "
+        "(V-n) page), so there is "
         "nothing to filter yet — every export below is the full set."
     )
 _selected_ids = (

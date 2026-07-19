@@ -31,7 +31,8 @@ if not project.engines or len(project.engines) < 2:
     st.warning("One-engine-out needs a **multi-engine** layout (define ≥2 engines).")
     st.stop()
 if project.vtail_loads is None:
-    st.warning("Define the **vertical-tail geometry** (Critical Loads page) first.")
+    st.warning("Define the **vertical-tail geometry** (Flight Envelope (V-n) page, "
+               "Critical Loads tab) first.")
     st.stop()
 if project.mass is None or not project.mass.cases:
     st.warning("Run **Weight, CG & Inertia** (WTONECG) first — ONENGOUT needs IZZ.")

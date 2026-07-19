@@ -61,7 +61,7 @@ _COMPONENTS = [
 
 try:
     critical = build_critical(project)
-    # Carry forward the Critical Loads page's persisted opt-out selection (Step
+    # Carry forward the Critical Loads tab's persisted opt-out selection (Step
     # D5) -- case IDs are deterministic/stable, so this stays valid across the
     # fresh recompute above.
     if project.envelope is not None and project.envelope.critical is not None:
@@ -69,8 +69,8 @@ try:
 except (ValueError, ZeroDivisionError, KeyError) as exc:
     critical = None
     st.info(
-        "Critical loads need the V-n environment — set up the **Flight Envelope** "
-        f"and **Critical Loads** pages first. ({exc})"
+        "Critical loads need the V-n environment — set up the **Flight Envelope "
+        f"(V-n)** page (V-n diagram + Critical Loads tabs) first. ({exc})"
     )
 
 if critical is not None:
@@ -79,7 +79,7 @@ if critical is not None:
                    "extrapolation** above the FAR 23 calibration band.")
     if critical.selected_case_ids:
         st.caption(
-            "Showing the curated selection from the **Critical Loads** page "
+            "Showing the curated selection from the **Critical Loads** tab "
             "(some conditions were deselected there)."
         )
     selected_conditions = critical.selected()
