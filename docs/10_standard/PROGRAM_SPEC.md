@@ -341,30 +341,36 @@ regression oracle**; Appendix A/B geometry is used only as a *sanity* fixture.
   the station-area table for the three-view body profile and the Step G4 pitching-
   moment estimator; defaulted from the `fuselage_length/width/height` scalars via
   `default_fuselage_outline` for older files). One **Geometry** page owns and edits the
-  whole slice; `SCHEMA_VERSION` **25** (now **26** after Step G4's `fuselage_moment`
-field); legacy files migrate on load.
+  whole slice; `SCHEMA_VERSION` **25** (**26** after Step G4's `fuselage_moment`,
+  **27** after Step G6's `empennage`); legacy files migrate on load.
+- **Single-source empennage (Step G6):** the horizontal-/vertical-tail + elevator/
+  rudder geometry lives in `Project.geometry.empennage` (`EmpennageInput{htail, vtail}`,
+  the analysis-native `TailLoadsInput`/`VTailLoadsInput`). `Project.tail_loads` /
+  `.vtail_loads` are **properties** proxying to it (so SELECT/TAILDIST/BALLOADS/ONENGOUT
+  read them unchanged), and the duplicated `LayoutInput` `h_tail_area`/`h_tail_arm`/
+  `h_tail_span_in`/`v_tail_area`/`v_tail_arm`/`v_tail_span_in` fields are **retired** —
+  the three-view and the tail-volume static margin read the analysis-native values
+  (area/span; arm derived from `xt25`/`xv25` minus the 25% wing-MAC station). `io`
+  migrates a pre-v27 file's top-level `tail_loads`/`vtail_loads` into `geometry.empennage`.
 - **Reads:** `Project.geometry.parametric` (`LayoutInput`: fuselage / parametric wing /
-  tail areas+arms / gear); `Project.weight.envelope` (aft-gross %MAC for the static
+  tail-arrangement (`tail_type`, `h_tail_z`) / gear); `Project.geometry.empennage`
+  (tail + elevator/rudder); `Project.weight.envelope` (aft-gross %MAC for the static
   margin, optional); `Project.engine` (prop geometry for clearance, optional);
   `Project.mass` (the WTONECG itemized loading, optional — Step D4.5, see
   `cg_estimate` below). The page (not the calc) also reads `Project.weight.items`
   and `Project.engines` to overlay markers on the three-view (Step D4.6, no calc
   input).
-- **Tail geometry (Airplane-phase GUI usability pass):** `LayoutInput.tail_type`
-  (`TailType`: `CONVENTIONAL`/`T_TAIL`/`V_TAIL`/`CRUCIFORM`, additive, default
-  `CONVENTIONAL`) plus `h_tail_span_in`/`h_tail_z`/`v_tail_span_in` (all default
-  `0.0`; spans in inches since Phase G0, schema v24 — legacy `*_ft` keys migrate
-  `×12`) give the three-view enough to sketch a tail shape —
-  `tail_planform(layout) -> Dict[str, Dict[str, List[(x, y)]]]` returns per-panel
-  `top`/`side`/`front` outline polylines, a first-order rectangular sketch
-  (constant chord = area / span; no taper/sweep data exists for the tail — for a
-  real tail polyline use the WINGGEOM surface editor). `T_TAIL`/`CRUCIFORM` default
-  `h_tail_z` (when left at `0`) to the top/mid-height of the fin instead of the
-  fuselage waterline; `V_TAIL` derives two mirrored diagonal panels from
-  `v_tail_area` at a fixed 40° dihedral (`_V_TAIL_DIHEDRAL_DEG`, no dedicated
-  angle field) instead of separate h/v rectangles. Returns `{}` (nothing drawn)
-  when both span fields are `0`, so an older project without these fields renders
-  identically to before this addition.
+- **Tail sketch (Step G6):** `tail_planform(layout, empennage) -> Dict[str, Dict[str,
+  List[(x, y)]]]` returns per-panel `top`/`side`/`front` outline polylines from the
+  single-source `empennage` (h-tail area/span `2·htail_semispan_in`, v-tail area/span,
+  the 25%-MAC stations `xt25`/`xv25`), a first-order rectangular sketch (constant chord
+  = area / span; no taper/sweep data for the tail). It also draws the **elevator** and
+  **rudder** as the aft `Saft/S` chord band (`_hinge_fraction(aft_hinge_area, area)`;
+  the `elevator`/`rudder` panels). `LayoutInput.tail_type` (`CONVENTIONAL`/`T_TAIL`/
+  `V_TAIL`/`CRUCIFORM`) and `h_tail_z` still drive placement: `T_TAIL`/`CRUCIFORM`
+  default `h_tail_z` (when `0`) to the top/mid-height of the fin; `V_TAIL` derives two
+  mirrored diagonal panels at a fixed 40° dihedral (`_V_TAIL_DIHEDRAL_DEG`). Returns
+  `{}` (nothing drawn) when there is no empennage geometry.
 - **Writes:** derived MAC / XLEMAC / Y_MAC / AR / span (obtained by running the
   generated wing polylines through the WINGGEOM strip integrator — WINGGEOM stays
   the owner), horizontal tail volume, neutral-point %MAC + station, static margin,

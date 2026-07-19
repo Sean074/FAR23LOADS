@@ -239,8 +239,7 @@ def test_configuration_round_trip():
     layout = LayoutInput(
         fuselage_length=300.0, fuselage_width=48.0, wing_area_sqft=174.0,
         aspect_ratio=6.0, taper_ratio=0.6, le_sweep_deg=2.0, le_root_x=45.0,
-        h_tail_area=21.0, h_tail_arm=180.0, nose_gear_x=20.0, main_gear_x=110.0,
-        track=90.0, gear_height=30.0,
+        nose_gear_x=20.0, main_gear_x=110.0, track=90.0, gear_height=30.0,
     )
     project = Project(name="cfg", geometry=GeometryInput(parametric=layout))
     again = io.project_from_dict(io.project_to_dict(project))
@@ -372,9 +371,10 @@ def test_legacy_ft_sqin_keys_migrate_to_canonical():
     assert abs(p.vtail_loads.wing_span_in - 33.5 * 12.0) < 1e-9
     assert abs(p.vtail_loads.vtail_mac_in - 3.367 * 12.0) < 1e-9
     assert abs(p.vtail_loads.airplane_length_in - 26.522 * 12.0) < 1e-9
-    # v25: the legacy top-level "configuration" block folds onto geometry.parametric.
-    assert abs(p.geometry.parametric.h_tail_span_in - 120.0) < 1e-9
-    assert abs(p.geometry.parametric.v_tail_span_in - 48.0) < 1e-9
+    # v27 (Step G6): legacy top-level tail_loads/vtail_loads migrate into
+    # geometry.empennage; Project.tail_loads/.vtail_loads read them via the property.
+    assert p.geometry.empennage is not None
+    assert p.geometry.empennage.htail is p.tail_loads
     assert abs(p.tab_loads.tabs[0].area_sqft - 226.0 / 144.0) < 1e-9
     # A canonical (new-key) value already present is not double-converted.
     p2 = io.project_from_dict({"vtail_loads": {"wing_span_in": 402.0}})

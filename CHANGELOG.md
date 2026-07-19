@@ -9,6 +9,26 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed
+
+- **Single-source empennage & control-surface geometry (Phase G, Step G6).** The
+  horizontal-/vertical-tail + **elevator/rudder** geometry is now entered **once**,
+  on the Geometry page, and drives both the three-view and the rational tail-load
+  analysis. A new `GeometryInput.empennage` (`EmpennageInput{htail, vtail}`) is the
+  single stored home; `Project.tail_loads`/`.vtail_loads` become **properties**
+  proxying to it (so SELECT/TAILDIST/BALLOADS/one-engine-out read them unchanged),
+  and the duplicated `LayoutInput` h-/v-tail area/span/arm fields are retired (the
+  three-view and the tail-volume static-margin estimate now read the analysis-native
+  values; the tail arm is derived from `xt25`/`xv25` minus the 25% wing-MAC station,
+  not stored twice). The **three-view draws the elevator and rudder** as the aft
+  `Saft/S` chord band, and the Geometry page gains an *Empennage & control surfaces*
+  editor (the elevator/rudder geometry's first GUI home — previously JSON-only); the
+  Tail Loads page becomes analysis-only (reads the geometry read-only). `io` migrates
+  a pre-v27 file's top-level `tail_loads`/`vtail_loads` (and the retired `LayoutInput`
+  tail fields) into `geometry.empennage`; `SCHEMA_VERSION` 26 → 27. The derived
+  slices are byte-identical, so the **Appendix A SELECT tail-load oracles are
+  unchanged** (`tests/test_empennage.py`, `tests/test_select.py`).
+
 ### Added
 
 - **Trim & static-margin plots — Flight Envelope page (Phase G, Step G5).** A new

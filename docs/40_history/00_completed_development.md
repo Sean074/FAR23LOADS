@@ -10,6 +10,69 @@ Acceptance**, **Key decisions**.
 
 ---
 
+## Phase G — Step G6: Single-source empennage & control-surface geometry (complete, 2026-07-19)
+
+**Objective.** Make the Geometry page the single source of truth for the empennage
+and its control surfaces (elevator + rudder), using the parameters native to the
+analysis programs (areas, spans, stations, deflections, effectiveness — not a
+synthetic hingeline/overhang). The three-view depicts the elevator/rudder from that
+same data, and the tail-load analysis reads it — every value entered once. Fixes the
+double-entry (h-/v-tail area/span duplicated between `LayoutInput` and the tail-load
+slices) and the elevator/rudder geometry that had no GUI home (JSON-only) and was
+undrawn.
+
+**Locked decisions (AskUserQuestion, 2026-07-19).** (1) **Representation** → *fully
+derived*: `Project.tail_loads`/`.vtail_loads` become properties proxying to
+`GeometryInput.empennage`; removed from stored JSON (nothing stored twice). (2)
+**Depiction** → *hinge line + shaded band*: the three-view draws the elevator/rudder
+as the aft `Saft/S` chord band. Plus the three carried from the backlog plan: data
+home = `GeometryInput.empennage`; analysis wiring = derive at the boundary (calc
+untouched); scope = elevator + rudder only (ailerons/flaps/tabs later).
+
+**Forced by fixture inspection.** 4 of 5 tail fixtures (incl. GA/Appendix A) carry
+*no* parametric geometry — the tail data lives only in the analysis slices — so
+`EmpennageInput` **stores the native analysis values verbatim** and the property is
+an identity (bit-for-bit). Where the two old homes disagreed (regional-jet h-tail
+span 278.0 analysis vs 278.4 sketch), the analysis value wins.
+
+**Deliverables.**
+- **`EmpennageInput{htail: Optional[TailLoadsInput], vtail: Optional[VTailLoadsInput]}`**
+  on `GeometryInput.empennage` (`farloads/models.py`); `Project.tail_loads`/
+  `.vtail_loads` are now `@property` + setter proxying to it (via `_ensure_empennage`);
+  the duplicated `LayoutInput` `h_tail_area`/`h_tail_arm`/`h_tail_span_in`/`v_tail_area`/
+  `v_tail_arm`/`v_tail_span_in` fields retired (kept `tail_type`, `h_tail_z`).
+  `SCHEMA_VERSION` 26 → 27.
+- **`farloads/io.py`** — `geometry.empennage` (de)serialization (`{htail, vtail}` via
+  the existing `tail_loads_to_dict`/`vtail_loads_to_dict`); migration of a pre-v27
+  file's top-level `tail_loads`/`vtail_loads` into it; top-level write removed.
+- **`farloads/modules/configuration.py`** — `tail_planform(layout, empennage)`,
+  `component_stations(layout, empennage)` and `_stability_condition` read the
+  single-source empennage (area/span/`xt25`/`xv25`; arm derived); `tail_planform` adds
+  `elevator`/`rudder` panels (aft `_hinge_fraction(Saft, S)` chord band).
+- **`app/views/configuration_layout.py`** — an *Empennage & control surfaces* form
+  (all native h-/v-tail + elevator/rudder fields); the Tail expander drops the
+  area/span/arm widgets (arrangement only); the three-view shades the elevator/rudder.
+  **`app/views/tail_loads.py`** — analysis-only: drops the semi-span/span widgets
+  (now on Geometry), reads the geometry read-only.
+
+**Test / Acceptance** (`tests/test_empennage.py`, 4 tests; plus updated
+`test_configuration`/`test_io`/`test_taildist`). The property proxies to
+`geometry.empennage` (set/get/clear); the slice round-trips and serializes under
+`geometry.empennage` (no top-level keys); a pre-v27 top-level file migrates; the
+governing SELECT horizontal-tail loads are **bit-for-bit** across a JSON round-trip
+(the exact Appendix A values stay locked in `test_select.py`, which now feeds the
+tail input through the property → empennage and still passes). `test_configuration`
+asserts the three-view draws the elevator/rudder when the hinge areas are set. Full
+suite **401 passing**; `ruff` clean (`farloads/`, `cli.py`, `app/`).
+
+**Key decisions.** Store (not derive) the native analysis values so the mapper is an
+identity → oracle-safe; analysis value authoritative where the old homes disagreed;
+non-geometry tail-aero params the manual bundles (wing zero-lift IW, wing lift-slope
+AW, ARW, LF) kept on `EmpennageInput` for now (the wing/fuselage read-through cleanup
+is the separate Step G6c).
+
+---
+
 ## Phase G — Step G5: Longitudinal-stability / trim plots (complete, 2026-07-19)
 
 **Objective.** Add standard longitudinal-stability plots to the flight-loads

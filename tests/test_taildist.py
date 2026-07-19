@@ -198,8 +198,8 @@ def test_io_roundtrip_chordwise_fields():
     assert p2.vtail_loads.vtail_span_in == 57.0
     assert len(p2.loads.tail_chordwise) == len(p.loads.tail_chordwise)
     assert p2.loads.tail_chordwise[0].stations[0].psi == p.loads.tail_chordwise[0].stations[0].psi
-    # Older file: drop the new fields -> defaults (0.0), still loads.
-    d["tail_loads"].pop("htail_semispan_in", None)
+    # Step G6: tail geometry serializes under geometry.empennage.htail (not top-level).
+    d["geometry"]["empennage"]["htail"].pop("htail_semispan_in", None)
     p3 = io.project_from_dict(d)
     assert p3.tail_loads.htail_semispan_in == 0.0
 

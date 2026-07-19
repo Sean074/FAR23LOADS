@@ -338,18 +338,92 @@ sections** it targets are that doc's §4.
 > thin shells; `workflow.py` stays the single source of navigation truth.
 
 Steps are in dependency order. G1 (foundational) comes before the
-re-sequencing (G2–G3); the new features (G4–G6) and the report (G8) follow.
-**G0, G1, G2, G3, G4 and G5 shipped 2026-07-18/19** (see `docs/40_history/00_completed_development.md`).
+re-sequencing (G2–G3); the new features (G4–G6, plus the single-source geometry
+siblings G6b/G6c) and the report (G8) follow.
+**G0, G1, G2, G3, G4, G5 and G6 shipped 2026-07-18/19** (see `docs/40_history/00_completed_development.md`).
 
-### Step G6 — Direct elevator %-chord input (new; GUI + small model field)
-**Objective.** Expose the elevator chord ratio as a direct input instead of only
-deriving it from the hinge-area/tail-area ratio.
-**Scope.** Add an elevator chord-ratio field to `TailLoadsInput` (mirroring
-`TabSpec`'s `E = MACTAB/CAIRFOIL`), serialized in `io.py`, editable on the tail page;
-keep the area-derived value as the default so existing projects are unchanged.
-**Acceptance.** The field round-trips; when unset, results match today's area-derived
-behaviour (regression); when set, it drives the chordwise station. Schema bump,
-older files migrate.
+### Step G6b — Single-source landing-gear geometry (new; GUI + model)
+**Objective.** Make the **Geometry page the single source of truth for the landing
+gear**, using the parameters *native to LANDLOAD* (axle stations at each strut state,
+tread, rolling radius, strut type — not a synthetic coarse "gear station"). The
+three-view depicts the gear from that same data, and the ground-load analysis reads
+it — every value entered **once**. Sibling to Step G6; identical single-source
+pattern.
+
+**Problem being fixed.** Gear geometry is entered in two disconnected, unreconciled
+places:
+- The **Geometry page** (`LayoutInput`): `main_gear_x`, `nose_gear_x`, `track`,
+  `gear_height` — coarse stations that drive the three-view + the tip-back / overturn
+  / prop-clearance estimate (`configuration.component_stations` / `_gear_condition`).
+- The **Landing Loads analysis** (`LandingInput` / `LandingGearInput`,
+  `models.py:904-955`): main & nose axle `(X, Z)` at **three** strut states
+  (compressed / static / extended), `rolling_radius_in`, `strut`, and `tread_in` —
+  re-asked in full by its own widgets (`app/views/landing_loads.py:119-127`,
+  `_gear_inputs` + tread).
+- `tread_in` duplicates `track`; the static axle `(X, Z)` duplicates
+  `main_gear_x`/`nose_gear_x`/`gear_height`. **Nothing reconciles them** — a main gear
+  placed at X=100 on Geometry and X=120 on Landing diverges silently. Same defect as
+  the empennage.
+
+**Locked decisions (2026-07-19).**
+1. **Data home** → the geometry slice **owns the gear**: a `GeometryInput.landing_gear`
+   sub-slice (mirrors the Step G6 `empennage` addition) holding the native LANDLOAD
+   parameters. Not a coarse extension of `LayoutInput`.
+2. **Analysis wiring** → **derive** the calc's `LandingInput` gear fields from geometry
+   at the boundary (pure mapper), so **LGFACTOR / LANDLOAD and their oracle tests are
+   untouched** (Appendix A ground-load lock preserved). Same read-through pattern as G6.
+3. **Scope** → landing gear only (tricycle, per LANDLOAD). The non-geometry LANDLOAD
+   inputs (tyre OD/hub, strut stroke, weights, lift factor, load-factor overrides,
+   tail-down angle) stay on the Landing Loads page as analysis inputs.
+
+**Scope.**
+- **Model.** The gear geometry (per-leg axle `(X, Z)` at compressed/static/extended,
+  rolling radius, strut type; tread) moves to a `GeometryInput.landing_gear` sub-slice;
+  the coarse `LayoutInput` gear fields (`main_gear_x`/`nose_gear_x`/`track`/
+  `gear_height`) fold into it (derived: static axle X → station, extended−ground →
+  height, tread → track). `SCHEMA_VERSION` bump; older files migrate.
+- **Derivation.** A pure `landing_gear_to_landing(project)` mapper populates the calc's
+  `LandingInput` gear fields from the geometry slice; `LandingInput` stops carrying the
+  gear geometry as separate user input.
+- **Three-view.** The gear is drawn from the geometry-owned axle positions (Side view:
+  strut + wheel at the static axle; Front view: main-wheel track), replacing the
+  station-only markers; the tip-back / overturn / clearance estimate reads the same
+  source (already does, via `component_stations`).
+- **GUI.** The gear geometry section moves onto the **Geometry** page (the one input
+  location). The **Landing Loads** page drops its `_gear_inputs`/tread widgets and reads
+  the gear read-only, keeping only the LANDLOAD analysis inputs.
+
+**Acceptance.**
+- The new `landing_gear` slice round-trips through `io.py`; older files migrate (legacy
+  `LayoutInput` gear fields + any `landing` gear geometry read into it).
+- **Regression:** the derived `LandingInput` reproduces today's LANDLOAD gear reactions
+  **bit-for-bit** on the fixtures (Appendix A ground-load oracle-lock preserved; calc
+  modules unchanged).
+- The three-view draws the gear (strut + wheels) from the geometry source; tip-back /
+  overturn / clearance are unchanged.
+- No gear geometric value is entered in more than one GUI location (single-source
+  check).
+
+### Step G6c — Geometry single-source cleanup (wing + fuselage tightening)
+**Objective.** Close the remaining softer geometry double-entry surfaced by the G6
+audit, so *all* geometric inputs are single-source (geometry owns; analysis derives).
+Smaller and lower-risk than G6/G6b (these are read-through-with-override today, not
+silent divergence), batched into one cleanup step.
+**Scope.**
+- **Wing.** Make the wing geometry the analysis slices already *default* from a **pure
+  read-through**: `FlightLoadsInput.mac`/`wing_area_sqft`/`xw`/`zw`
+  (`app/views/flight_envelope.py:113-116` re-asks with geometry defaults) and
+  `WingMassInput.dihedral_deg`/`wrp_waterline` (duplicate `LayoutInput.dihedral_deg`/
+  `root_waterline_z`) and `LandingInput.wing_area_sqft` (`models.py:940`, has a
+  geometry fallback) should derive from `Project.geometry`, override only behind an
+  explicit checkbox (the pattern STRSPEED already uses for design weight).
+- **Fuselage.** Treat the `GeometryInput.fuselage` outline as the sole shape source and
+  present the scalar `fuselage_length`/`width`/`height` (`LayoutInput`) as a derived
+  summary of it, so the two cannot drift when both are hand-edited. (`FuselageMassInput`
+  is a longitudinal *mass* distribution, native to the net-load analysis — left as-is.)
+**Acceptance.** No wing or fuselage geometric quantity is stored as an independently
+editable copy of a geometry-slice value without an explicit override toggle; existing
+fixtures/oracles unchanged (read-through preserves today's values); save→reload no-op.
 
 ### Step G7 — Persistence verification (G-3)
 **Objective.** Confirm the rework eliminated re-entry and hunt any genuine reload

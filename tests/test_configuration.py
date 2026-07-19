@@ -19,13 +19,28 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from farloads import (  # noqa: E402
+    EmpennageInput,
     GeometryInput,
     LayoutInput,
     MassCase,
     MassResult,
     Project,
+    TailLoadsInput,
     TailType,
+    VTailLoadsInput,
 )
+
+
+def _emp(h_area=30.0, h_semispan=60.0, v_area=18.0, v_span=48.0,
+         xt25=270.0, xv25=265.0, e_aft=0.0, r_aft=0.0):
+    """Step G6: a single-source empennage (htail/vtail) for the three-view /
+    stability / component-station tests -- the analysis-native area/span/station."""
+    return EmpennageInput(
+        htail=TailLoadsInput(htail_area_sqft=h_area, htail_semispan_in=h_semispan,
+                             xt25=xt25, elevator_aft_hinge_sqft=e_aft),
+        vtail=VTailLoadsInput(vtail_area_sqft=v_area, vtail_span_in=v_span,
+                              xv25=xv25, rudder_aft_hinge_sqft=r_aft),
+    )
 from farloads.modules.configuration import (  # noqa: E402
     cg_estimate,
     component_stations,
@@ -92,14 +107,14 @@ def test_appendix_a_sanity():
 
 def test_stability_and_gear_present_when_data_given():
     layout = _trapezoid()
-    layout.h_tail_area = 30.0
-    layout.h_tail_arm = 180.0
     layout.nose_gear_x = 20.0
     layout.main_gear_x = 115.0
     layout.track = 90.0
     layout.gear_height = 35.0
     layout.root_waterline_z = 40.0
-    vals = _values(Project(name="t", geometry=GeometryInput(parametric=layout)))
+    # Step G6: h-tail area + 25%-MAC station (xt25 well aft -> positive derived arm).
+    emp = EmpennageInput(htail=TailLoadsInput(htail_area_sqft=30.0, xt25=250.0))
+    vals = _values(Project(name="t", geometry=GeometryInput(parametric=layout, empennage=emp)))
     assert vals["Horizontal tail volume V_H"] > 0
     assert "Neutral point (%MAC)" in vals
     assert "Tip-back angle" in vals
@@ -152,7 +167,6 @@ def _full_layout():
         fuselage_length=300.0, fuselage_width=48.0, fuselage_height=60.0, datum_x=0.0,
         wing_area_sqft=174.0, aspect_ratio=6.0, taper_ratio=0.6,
         le_sweep_deg=2.0, le_root_x=90.0, root_waterline_z=40.0,
-        h_tail_area=30.0, h_tail_arm=180.0, v_tail_area=18.0, v_tail_arm=175.0,
         nose_gear_x=30.0, main_gear_x=150.0, track=90.0, gear_height=35.0,
     )
 
@@ -167,17 +181,16 @@ def test_component_stations_wing_and_fuselage():
     assert stations["fuselage"] == (150.0, 0.0, 40.0)   # datum + length/2
 
 
-def test_component_stations_tail_arms_and_lumped_average():
+def test_component_stations_tail_stations_and_lumped_average():
+    # Step G6: the h-/v-tail stations are the empennage 25%-MAC stations xt25/xv25.
     layout = _full_layout()
-    stations = component_stations(layout)
-    wing_x = stations["wing"][0]
-    assert math.isclose(stations["h_tail"][0], wing_x + 180.0)
-    assert math.isclose(stations["v_tail"][0], wing_x + 175.0)
-    # Area-weighted average (h_tail_area=30, v_tail_area=18) sits between the two,
-    # closer to h_tail (the larger surface).
+    stations = component_stations(layout, _emp(h_area=30.0, v_area=18.0, xt25=270.0, xv25=265.0))
+    assert math.isclose(stations["h_tail"][0], 270.0)
+    assert math.isclose(stations["v_tail"][0], 265.0)
+    # Area-weighted average (h_area=30, v_area=18) sits between the two, closer to h.
     tail_x = stations["tail"][0]
     assert stations["v_tail"][0] < tail_x < stations["h_tail"][0]
-    expected = (30.0 * stations["h_tail"][0] + 18.0 * stations["v_tail"][0]) / 48.0
+    expected = (30.0 * 270.0 + 18.0 * 265.0) / 48.0
     assert math.isclose(tail_x, expected)
 
 
@@ -204,24 +217,27 @@ def _tail_layout(tail_type=TailType.CONVENTIONAL, **overrides):
         fuselage_length=300.0, fuselage_width=48.0, fuselage_height=60.0, datum_x=0.0,
         wing_area_sqft=174.0, aspect_ratio=6.0, taper_ratio=0.6,
         le_sweep_deg=2.0, le_root_x=90.0, root_waterline_z=40.0,
-        h_tail_area=30.0, h_tail_arm=180.0, h_tail_span_in=120.0,  # 10 ft
-        v_tail_area=18.0, v_tail_arm=175.0, v_tail_span_in=48.0,   # 4 ft
         tail_type=tail_type,
     )
     kwargs.update(overrides)
     return LayoutInput(**kwargs)
 
 
-def test_tail_planform_empty_when_no_span_set():
-    # Backward-compat: an old project with no tail span fields draws nothing.
+# h-tail semi-span 60 (span 120 = 10 ft), v-tail span 48 (4 ft) -- Step G6 empennage.
+def _tail_e(**overrides):
+    return _emp(h_semispan=60.0, v_span=48.0, **overrides)
+
+
+def test_tail_planform_empty_when_no_empennage():
+    # No empennage geometry -> nothing drawn (backward-compatible).
     layout = _full_layout()
     assert layout.tail_type == TailType.CONVENTIONAL
-    assert tail_planform(layout) == {}
+    assert tail_planform(layout, None) == {}
 
 
 def test_tail_planform_conventional_draws_h_and_v_tail_near_fuselage():
     layout = _tail_layout(TailType.CONVENTIONAL)
-    panels = tail_planform(layout)
+    panels = tail_planform(layout, _tail_e())
     assert set(panels) == {"h_tail", "v_tail"}
     fin_root_z = layout.root_waterline_z + layout.fuselage_height / 2.0
     # No explicit h_tail_z -> conventional tail sits at the fuselage waterline.
@@ -231,34 +247,45 @@ def test_tail_planform_conventional_draws_h_and_v_tail_near_fuselage():
     assert math.isclose(v_z0, fin_root_z)
 
 
+def test_tail_planform_draws_elevator_and_rudder_when_hinge_areas_set():
+    # Step G6: the elevator/rudder are drawn as the aft Saft/S chord band.
+    layout = _tail_layout(TailType.CONVENTIONAL)
+    panels = tail_planform(layout, _tail_e(e_aft=12.0, r_aft=6.0))
+    assert "elevator" in panels and "rudder" in panels
+    # Elevator band is aft of the h-tail LE (hinge -> TE).
+    x_le = panels["h_tail"]["top"][0][0]
+    x_hinge = panels["elevator"]["top"][0][0]
+    assert x_hinge > x_le
+
+
 def test_tail_planform_t_tail_places_h_tail_atop_fin():
     layout = _tail_layout(TailType.T_TAIL)
-    panels = tail_planform(layout)
+    panels = tail_planform(layout, _tail_e())
     fin_root_z = layout.root_waterline_z + layout.fuselage_height / 2.0
-    v_span_in = layout.v_tail_span_in
+    v_span_in = 48.0
     h_z = panels["h_tail"]["side"][0][1]
     assert math.isclose(h_z, fin_root_z + v_span_in)
 
 
 def test_tail_planform_t_tail_respects_explicit_h_tail_z():
     layout = _tail_layout(TailType.T_TAIL, h_tail_z=25.0)
-    panels = tail_planform(layout)
+    panels = tail_planform(layout, _tail_e())
     h_z = panels["h_tail"]["side"][0][1]
     assert math.isclose(h_z, layout.root_waterline_z + 25.0)
 
 
 def test_tail_planform_cruciform_places_h_tail_mid_fin():
     layout = _tail_layout(TailType.CRUCIFORM)
-    panels = tail_planform(layout)
+    panels = tail_planform(layout, _tail_e())
     fin_root_z = layout.root_waterline_z + layout.fuselage_height / 2.0
-    v_span_in = layout.v_tail_span_in
+    v_span_in = 48.0
     h_z = panels["h_tail"]["side"][0][1]
     assert math.isclose(h_z, fin_root_z + v_span_in * 0.5)
 
 
 def test_tail_planform_v_tail_draws_two_diagonal_panels_not_h_v():
     layout = _tail_layout(TailType.V_TAIL)
-    panels = tail_planform(layout)
+    panels = tail_planform(layout, _tail_e())
     assert set(panels) == {"v_tail_left", "v_tail_right"}
     left_y = panels["v_tail_left"]["front"][1][0]
     right_y = panels["v_tail_right"]["front"][1][0]
@@ -290,7 +317,7 @@ def test_default_fuselage_outline_none_without_length():
 
 def test_match_component_station_prefers_specific_over_lumped():
     layout = _full_layout()
-    stations = component_stations(layout)
+    stations = component_stations(layout, _emp(xt25=270.0, xv25=265.0))
     assert match_component_station("Wing", stations) == stations["wing"]
     assert match_component_station("Fuselage", stations) == stations["fuselage"]
     assert match_component_station("Horizontal tail", stations) == stations["h_tail"]

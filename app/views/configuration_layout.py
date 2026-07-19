@@ -34,8 +34,10 @@ from farloads import (
     MassItemKind,
     Project,
     SurfaceInput,
+    TailLoadsInput,
     TailType,
     UnitSystem,
+    VTailLoadsInput,
     WeightInput,
     consistency_warnings,
     convert_results,
@@ -185,29 +187,21 @@ with st.sidebar:
             root_waterline_z = _num("Root waterline", layout.root_waterline_z, "w_wl", "length",
                                     help="Vertical (Z) waterline of the wing root; sets wing height for the "
                                          "side/front views.")
-        with st.expander("Tail"):
+        with st.expander("Tail arrangement"):
             tail_type_label = st.selectbox(
                 "Tail type", list(_TAIL_TYPE_LABELS.values()),
                 index=list(_TAIL_TYPE_LABELS.keys()).index(layout.tail_type), key="tail_type",
                 help="Empennage arrangement; T-tail/cruciform auto-place the h-tail Z when its offset is 0.",
             )
-            h_tail_area = _num("H-tail area", layout.h_tail_area, "h_area", "area_sqft",
-                               help="Horizontal-tail planform area (14 CFR 23.421 balancing loads).")
-            h_tail_arm = _num("H-tail arm", layout.h_tail_arm, "h_arm", "length",
-                              help="Distance from the wing/CG to the horizontal-tail aerodynamic centre "
-                                   "(tail moment arm).")
-            h_tail_span_in = _num("H-tail span", layout.h_tail_span_in, "h_span", "length", 1.0,
-                                  help="Horizontal-tail span; seeds the Tail Loads distribution.")
             h_tail_z = _num("H-tail Z offset from waterline (0 = auto for T-tail/cruciform)",
                             layout.h_tail_z, "h_z", "length", 1.0,
                             help="Vertical offset of the h-tail above the root waterline; leave 0 to auto-place "
                                  "on the fin for a T-tail/cruciform.")
-            v_tail_area = _num("V-tail area", layout.v_tail_area, "v_area", "area_sqft",
-                               help="Vertical-tail (fin) planform area (14 CFR 23.441/23.443 loads).")
-            v_tail_arm = _num("V-tail arm", layout.v_tail_arm, "v_arm", "length",
-                              help="Distance from the CG to the vertical-tail aerodynamic centre.")
-            v_tail_span_in = _num("V-tail span", layout.v_tail_span_in, "v_span", "length", 1.0,
-                                  help="Vertical-tail height; seeds the fin/rudder load distribution.")
+            st.caption(
+                "H-/V-tail **area, span and the elevator/rudder** are the analysis-native "
+                "inputs — set them once in the **Empennage & control surfaces** section "
+                "below (Step G6, single source; the three-view draws them from there)."
+            )
         with st.expander("Landing gear"):
             nose_gear_x = _num("Nose gear station", layout.nose_gear_x, "g_nose", "length",
                                help="Fuselage station of the nose-gear contact point (LANDLOAD geometry, Ch 10).")
@@ -247,11 +241,7 @@ if applied:
         wing_area_sqft=_imp(wing_area_sqft, "area_sqft"), aspect_ratio=aspect_ratio, taper_ratio=taper_ratio,
         dihedral_deg=dihedral_deg, le_sweep_deg=le_sweep_deg, le_root_x=_imp(le_root_x, "length"),
         root_waterline_z=_imp(root_waterline_z, "length"),
-        h_tail_area=_imp(h_tail_area, "area_sqft"), h_tail_arm=_imp(h_tail_arm, "length"),
-        v_tail_area=_imp(v_tail_area, "area_sqft"), v_tail_arm=_imp(v_tail_arm, "length"),
-        tail_type=_TAIL_TYPE_BY_LABEL[tail_type_label],
-        h_tail_span_in=_imp(h_tail_span_in, "length"), h_tail_z=_imp(h_tail_z, "length"),
-        v_tail_span_in=_imp(v_tail_span_in, "length"),
+        tail_type=_TAIL_TYPE_BY_LABEL[tail_type_label], h_tail_z=_imp(h_tail_z, "length"),
         nose_gear_x=_imp(nose_gear_x, "length"), main_gear_x=_imp(main_gear_x, "length"),
         track=_imp(track, "length"), gear_height=_imp(gear_height, "length"),
     )
@@ -359,20 +349,19 @@ def _three_view() -> go.Figure:
                         mode="markers", marker=dict(color="#555", size=8), showlegend=False, row=1, col=3)
     fig.update_yaxes(scaleanchor="x", scaleratio=1, row=1, col=3)
 
-    # --- Tail (h-tail / v-tail / V-tail panels), sketched from tail_type. ---
-    for panel in tail_planform(layout).values():
-        top_xs = [p[0] for p in panel["top"]]
-        top_ys = [p[1] for p in panel["top"]]
-        fig.add_scatter(x=top_xs, y=top_ys, mode="lines", line=dict(color="#ff7f0e"),
-                        showlegend=False, row=1, col=1)
-        side_xs = [p[0] for p in panel["side"]]
-        side_ys = [p[1] for p in panel["side"]]
-        fig.add_scatter(x=side_xs, y=side_ys, mode="lines", line=dict(color="#ff7f0e"),
-                        showlegend=False, row=1, col=2)
-        front_xs = [p[0] for p in panel["front"]]
-        front_ys = [p[1] for p in panel["front"]]
-        fig.add_scatter(x=front_xs, y=front_ys, mode="lines", line=dict(color="#ff7f0e"),
-                        showlegend=False, row=1, col=3)
+    # --- Tail panels + elevator/rudder (Step G6: from the single-source ---
+    # --- empennage; control surfaces shaded distinctly).                 ---
+    _emp = project.geometry.empennage if project.geometry is not None else None
+    for name, panel in tail_planform(layout, _emp).items():
+        ctrl = name.startswith(("elevator", "rudder"))
+        color = "#d62728" if ctrl else "#ff7f0e"
+        fill = "toself" if ctrl else None
+        for col, key in ((1, "top"), (2, "side"), (3, "front")):
+            fig.add_scatter(x=[p[0] for p in panel[key]], y=[p[1] for p in panel[key]],
+                            mode="lines", line=dict(color=color), fill=fill,
+                            fillcolor="rgba(214,39,40,0.25)" if ctrl else None,
+                            name=name if ctrl and col == 1 else None,
+                            showlegend=ctrl and col == 1, row=1, col=col)
 
     # --- Mass-item overlay (Step D4.6): one marker group per MassItemKind, ---
     # --- sized by weight, in all three views.                             ---
@@ -421,6 +410,126 @@ def _three_view() -> go.Figure:
                       legend=dict(orientation="h", y=1.2, x=0))
     return fig
 
+
+# --------------------------------------------------------------------------- #
+# Empennage & control surfaces (Step G6): single-source tail + elevator/rudder
+# geometry, edited once here (drives the three-view above AND the tail-load
+# analysis via the Project.tail_loads/.vtail_loads properties).
+# --------------------------------------------------------------------------- #
+st.subheader("Empennage & control surfaces")
+st.caption(
+    "Single source (Step G6) for the horizontal-/vertical-tail and elevator/rudder "
+    "geometry: entered once here, it drives **both** the three-view below and the "
+    "rational tail-load analysis (SELECT / TAILDIST / BALLOADS / one-engine-out). "
+    "Values are Imperial engineering-native (in, ft², deg) — the manual's tail-load "
+    "input set. The three-view draws the elevator/rudder as the aft Saft/S chord band."
+)
+_emp = project.geometry.empennage if project.geometry is not None else None
+_ht0 = (_emp.htail if _emp is not None else None) or TailLoadsInput()
+_vt0 = (_emp.vtail if _emp is not None else None) or VTailLoadsInput()
+
+with st.form("empennage_form"):
+    en_h = st.checkbox("Model horizontal tail + elevator",
+                       value=_emp is not None and _emp.htail is not None)
+    with st.expander("Horizontal tail & elevator", expanded=True):
+        c = st.columns(3)
+        ht_area = c[0].number_input("H-tail area ST (ft²)", min_value=0.0,
+                                    value=float(_ht0.htail_area_sqft), key="en_ht_area")
+        ht_semi = c[1].number_input("H-tail semi-span (in)", min_value=0.0,
+                                    value=float(_ht0.htail_semispan_in), key="en_ht_semi")
+        ht_arht = c[2].number_input("H-tail aspect ratio ARHT", min_value=0.0,
+                                    value=float(_ht0.aspect_ratio_htail), key="en_arht")
+        ht_arw = c[0].number_input("Wing aspect ratio ARW", min_value=0.0,
+                                   value=float(_ht0.aspect_ratio_wing), key="en_arw")
+        ht_xt25 = c[1].number_input("25% tail-MAC station xt25 (in)",
+                                    value=float(_ht0.xt25), key="en_xt25")
+        ht_xt50 = c[2].number_input("50% tail-MAC station xt50 (in)",
+                                    value=float(_ht0.xt50), key="en_xt50")
+        ht_it = c[0].number_input("Tail incidence IT (deg)",
+                                  value=float(_ht0.tail_incidence_deg), key="en_it")
+        ht_lf = c[1].number_input("Airplane length LF (in)", min_value=0.0,
+                                  value=float(_ht0.airplane_length_in), key="en_lf")
+        ht_aw = c[2].number_input("Wing lift slope AW (per rad)",
+                                  value=float(_ht0.wing_lift_slope_per_rad), key="en_aw")
+        ht_iwc = c[0].number_input("Wing zero-lift, cruise (deg)",
+                                   value=float(_ht0.wing_zero_lift_cruise_deg), key="en_iwc")
+        ht_iwe = c[1].number_input("Wing zero-lift, enroute (deg)",
+                                   value=float(_ht0.wing_zero_lift_enroute_deg), key="en_iwe")
+        ht_iwl = c[2].number_input("Wing zero-lift, landing (deg)",
+                                   value=float(_ht0.wing_zero_lift_landing_deg), key="en_iwl")
+        st.markdown("**Elevator**")
+        e = st.columns(3)
+        el_se = e[0].number_input("Elevator area SE (ft²)", min_value=0.0,
+                                  value=float(_ht0.elevator_area_sqft), key="en_se")
+        el_fwd = e[1].number_input("Area fwd of hinge SEFWDHL (ft²)", min_value=0.0,
+                                   value=float(_ht0.elevator_fwd_hinge_sqft), key="en_sefwd")
+        el_aft = e[2].number_input("Area aft of hinge SEAFTHL (ft²)", min_value=0.0,
+                                   value=float(_ht0.elevator_aft_hinge_sqft), key="en_seaft")
+        el_up = e[0].number_input("TE-up deflection EUP (deg)", min_value=0.0,
+                                  value=float(_ht0.elevator_te_up_deg), key="en_eup")
+        el_dn = e[1].number_input("TE-down deflection EDN (deg)", min_value=0.0,
+                                  value=float(_ht0.elevator_te_down_deg), key="en_edn")
+        el_eff = e[2].number_input("Elevator effectiveness", min_value=0.0,
+                                   value=float(_ht0.elevator_effectiveness), key="en_eeff")
+
+    en_v = st.checkbox("Model vertical tail + rudder",
+                       value=_emp is not None and _emp.vtail is not None)
+    with st.expander("Vertical tail & rudder", expanded=True):
+        c = st.columns(3)
+        vt_area = c[0].number_input("V-tail area SV (ft²)", min_value=0.0,
+                                    value=float(_vt0.vtail_area_sqft), key="en_vt_area")
+        vt_span = c[1].number_input("V-tail span (in)", min_value=0.0,
+                                    value=float(_vt0.vtail_span_in), key="en_vt_span")
+        vt_arvt = c[2].number_input("V-tail aspect ratio ARVT", min_value=0.0,
+                                    value=float(_vt0.aspect_ratio_vtail), key="en_arvt")
+        vt_mac = c[0].number_input("V-tail MAC (in)", min_value=0.0,
+                                   value=float(_vt0.vtail_mac_in), key="en_vmac")
+        vt_xv25 = c[1].number_input("25% V-tail-MAC station xv25 (in)",
+                                    value=float(_vt0.xv25), key="en_xv25")
+        vt_xv50 = c[2].number_input("50% V-tail-MAC station xv50 (in)",
+                                    value=float(_vt0.xv50), key="en_xv50")
+        vt_b = c[0].number_input("Wing span B (in)", min_value=0.0,
+                                 value=float(_vt0.wing_span_in), key="en_wspan")
+        vt_lf = c[1].number_input("Airplane length LF (in)", min_value=0.0,
+                                  value=float(_vt0.airplane_length_in), key="en_vlf")
+        vt_gw = c[2].number_input("Gross weight GW (lb, 0=auto)", min_value=0.0,
+                                  value=float(_vt0.gross_weight_lb), key="en_gw")
+        vt_izz = c[0].number_input("Yaw inertia IZZ (slug·ft², 0=auto)", min_value=0.0,
+                                   value=float(_vt0.izz_slugft2), key="en_izz")
+        st.markdown("**Rudder**")
+        r = st.columns(3)
+        rd_sr = r[0].number_input("Rudder area SR (ft²)", min_value=0.0,
+                                  value=float(_vt0.rudder_area_sqft), key="en_sr")
+        rd_fwd = r[1].number_input("Area fwd of hinge SRFWDHL (ft²)", min_value=0.0,
+                                   value=float(_vt0.rudder_fwd_hinge_sqft), key="en_srfwd")
+        rd_aft = r[2].number_input("Area aft of hinge SRAFTHL (ft²)", min_value=0.0,
+                                   value=float(_vt0.rudder_aft_hinge_sqft), key="en_sraft")
+        rd_rd = r[0].number_input("Rudder deflection RD (deg)", min_value=0.0,
+                                  value=float(_vt0.rudder_deflection_deg), key="en_rd")
+        rd_efv = r[1].number_input("Large-deflection factor EFV", min_value=0.0,
+                                   value=float(_vt0.rudder_large_deflection_factor), key="en_efv")
+    en_applied = st.form_submit_button("Apply empennage", type="primary")
+
+if en_applied:
+    project.tail_loads = TailLoadsInput(
+        tail_incidence_deg=ht_it, wing_zero_lift_cruise_deg=ht_iwc,
+        wing_zero_lift_enroute_deg=ht_iwe, wing_zero_lift_landing_deg=ht_iwl,
+        aspect_ratio_wing=ht_arw, aspect_ratio_htail=ht_arht, htail_area_sqft=ht_area,
+        elevator_effectiveness=el_eff, xt25=ht_xt25, xt50=ht_xt50,
+        elevator_te_up_deg=el_up, elevator_te_down_deg=el_dn, elevator_area_sqft=el_se,
+        elevator_fwd_hinge_sqft=el_fwd, elevator_aft_hinge_sqft=el_aft,
+        airplane_length_in=ht_lf, wing_lift_slope_per_rad=ht_aw, htail_semispan_in=ht_semi,
+    ) if en_h else None
+    project.vtail_loads = VTailLoadsInput(
+        rudder_deflection_deg=rd_rd, vtail_area_sqft=vt_area, rudder_area_sqft=rd_sr,
+        rudder_fwd_hinge_sqft=rd_fwd, rudder_aft_hinge_sqft=rd_aft, aspect_ratio_vtail=vt_arvt,
+        vtail_mac_in=vt_mac, xv25=vt_xv25, xv50=vt_xv50, airplane_length_in=vt_lf,
+        wing_span_in=vt_b, gross_weight_lb=vt_gw, rudder_large_deflection_factor=rd_efv,
+        izz_slugft2=vt_izz, vtail_span_in=vt_span,
+    ) if en_v else None
+    st.session_state["project"] = project
+    st.success("Empennage geometry updated.")
+    st.rerun()
 
 st.plotly_chart(_three_view(), use_container_width=True)
 
@@ -646,7 +755,8 @@ with right:
                 "page (the Weight, CG & Inertia tab, or the Estimate tab's seed button) first."
             )
         else:
-            stations = component_stations(layout)
+            stations = component_stations(
+                layout, project.geometry.empennage if project.geometry is not None else None)
             seeded, new_items = 0, []
             for item in items:
                 if (item.x, item.y, item.z) == (0.0, 0.0, 0.0):

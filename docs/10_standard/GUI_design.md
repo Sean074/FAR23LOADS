@@ -199,7 +199,7 @@ that lets the user *see* whether the inputs are self-consistent:
 
 | Page | Graphical review |
 |------|------------------|
-| Geometry (Step G1: parametric + fuselage outline + WINGGEOM planforms) | Three-view (CG, neutral point, gear, fuselage outline, mass bubbles, engines); per-surface planform-derived Area/MAC/XLEMAC/AR/span |
+| Geometry (Step G1: parametric + fuselage outline + WINGGEOM planforms; Step G6: single-source empennage) | Three-view (CG, neutral point, gear, fuselage outline, mass bubbles, engines, **elevator/rudder** shaded from the aft Saft/S band); per-surface planform-derived Area/MAC/XLEMAC/AR/span. The **Empennage & control surfaces** section (Step G6) is the single input home for the h-/v-tail + elevator/rudder geometry (`GeometryInput.empennage`), feeding both this three-view and the tail-load analysis |
 | Flight Envelope (V-n) | Continuous LIMIT design envelope (curved stall boundary, flaps-up/down manoeuvre envelope, gust lines) overlaid on the rigorous Mach-corrected balanced corner points *(consolidated — Phase E6)* |
 | Weight/CG/Inertia | CG marker + mass-distribution plot (with WTENV limits when defined) *(implemented — Phase E3)* |
 | Aerodynamic Data | Echo tables only *(curve plot deferred — see backlog)*; **fuselage pitching-moment (Munk) estimate** — volume/fineness/k₂−k₁/ΔM1 from the Geometry outline, off-by-default, overridable (Step G4) |
@@ -339,14 +339,15 @@ sidebar and the JSON Editor (§10, Phase E5).
 
 **Phase E is complete** — all steps E1–E5 have shipped.
 
-Schema is at **`SCHEMA_VERSION = 26`** (v24 = Step G0 canonical-unit field
+Schema is at **`SCHEMA_VERSION = 27`** (v24 = Step G0 canonical-unit field
 renames; v25 = Step G1 unified geometry slice + fuselage outline; v26 = Step G4
-`aero_coeffs.fuselage_moment` field); Phases D–F (the
-six-section GUI restructure, the usability/concept-awareness work, and fleet
-comparison) are all complete, and Phase G is under way (G0–G4 shipped). The **open GUI plan is now
+`aero_coeffs.fuselage_moment` field; v27 = Step G6 single-source
+`geometry.empennage` — `tail_loads`/`vtail_loads` become properties over it);
+Phases D–F (the six-section GUI restructure, the usability/concept-awareness work,
+and fleet comparison) are all complete, and Phase G is under way (G0–G6 shipped). The **open GUI plan is now
 [`../30_future/00_backlog.md`](../30_future/00_backlog.md) → Phase G** — the
 workflow-aligned rework (one-unit-per-dimension, single-source-of-truth geometry,
-re-sequenced analysis-flow navigation, fuselage-moment/trim-plot/elevator-chord
+re-sequenced analysis-flow navigation, fuselage-moment/trim-plot/empennage
 features); its narrative and locked decisions G-1…G-4 are in
 [`../30_future/03_gui_rework_plan.md`](../30_future/03_gui_rework_plan.md). The
 Phase-D narrative is in

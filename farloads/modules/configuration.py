@@ -36,6 +36,7 @@ from typing import Dict, List, Optional, Tuple
 from ..constants import IN2_PER_FT2
 from ..models import (
     ConditionResult,
+    EmpennageInput,
     LayoutInput,
     LoadValue,
     ModuleResult,
@@ -145,47 +146,60 @@ def wing_layout_from_surface(surf: SurfaceInput) -> Dict[str, float]:
 _V_TAIL_DIHEDRAL_DEG = 40.0
 
 
-def tail_planform(layout: LayoutInput) -> Dict[str, Dict[str, List[Tuple[float, float]]]]:
+def _hinge_fraction(aft_hinge_sqft: float, area_sqft: float) -> float:
+    """Elevator/rudder chord fraction (hinge line to TE) from the native areas.
+
+    ``Saft/S`` is the control-surface area aft of the hinge as a fraction of the
+    surface area -- for a full-span control the chordwise fraction the movable
+    surface occupies (Step G6: the three-view draws the surface from the same
+    analysis-native areas, not a separate hingeline input). Clamped to a sensible
+    sketch band."""
+    if area_sqft <= 0 or aft_hinge_sqft <= 0:
+        return 0.0
+    return max(0.05, min(0.9, aft_hinge_sqft / area_sqft))
+
+
+def tail_planform(layout: LayoutInput,
+                  empennage: Optional["EmpennageInput"] = None) -> Dict[str, Dict[str, List[Tuple[float, float]]]]:
     """Tail-surface sketch polylines for the three-view, keyed by panel name.
 
     Each panel maps to ``{"top": [(x, y), ...], "side": [(x, z), ...], "front":
     [(y, z), ...]}`` -- ready-to-plot polylines/outlines in the three-view's Top
     (X, Y) / Side (X, Z) / Front (Y, Z) axes. A first-order rectangular-planform
-    sketch (constant chord = area / span; ``LayoutInput`` carries no tail taper or
-    sweep), not a structural surface definition -- for a real tail polyline, use
-    the WINGGEOM surface editor (Wing / Surface Geometry page).
+    sketch (constant chord = area / span; the empennage carries no tail taper or
+    sweep), not a structural surface definition.
 
-    Returns ``{}`` when neither ``h_tail_span_in`` nor ``v_tail_span_in`` is set,
-    so an older project (before this field existed) draws no tail, exactly as
-    before this addition (backward-compatible).
+    Step G6: the tail geometry is read from the single-source ``empennage``
+    (``htail``/``vtail`` = the analysis-native :class:`TailLoadsInput`/
+    :class:`VTailLoadsInput`) -- area ``ST``/``SV``, span (``2*htail_semispan_in`` /
+    ``vtail_span_in``) and the 25%-tail-MAC station (``xt25``/``xv25``) place each
+    surface, and the elevator/rudder are drawn as the aft ``Saft/S`` chord band
+    (``elevator``/``rudder`` panels) so the movable surfaces come from the same data
+    the loads use. Returns ``{}`` when no empennage/tail geometry is present.
 
-    Tail X stations are measured from the wing 25%-MAC point plus the existing
-    ``h_tail_arm``/``v_tail_arm`` scalars (mirrors :func:`component_stations`).
     The vertical-tail root and (for ``T_TAIL``/``CRUCIFORM``) the implied
     horizontal-tail height are referenced from the top of the fuselage
-    (``root_waterline_z + fuselage_height / 2``), not the fuselage centreline.
-    ``layout.h_tail_z`` is a further user-editable offset from
-    ``root_waterline_z`` on top of that; if left at ``0`` for ``T_TAIL``/
-    ``CRUCIFORM`` a sensible default (top of fin / mid-fin) is used instead of
-    drawing the h-tail at the fuselage centreline.
+    (``root_waterline_z + fuselage_height / 2``). ``layout.h_tail_z`` is a further
+    user offset; if left at ``0`` for ``T_TAIL``/``CRUCIFORM`` a sensible default
+    (top of fin / mid-fin) is used instead of the fuselage centreline.
     """
-    if layout.h_tail_span_in <= 0 and layout.v_tail_span_in <= 0:
+    ht = empennage.htail if empennage is not None else None
+    vt = empennage.vtail if empennage is not None else None
+    h_area = ht.htail_area_sqft if ht is not None else 0.0
+    h_span_in = 2.0 * ht.htail_semispan_in if ht is not None else 0.0
+    v_area = vt.vtail_area_sqft if vt is not None else 0.0
+    v_span_in = vt.vtail_span_in if vt is not None else 0.0
+    if h_span_in <= 0 and v_span_in <= 0:
         return {}
 
-    wing_x = layout.le_root_x
-    if layout.wing_area_sqft > 0 and layout.aspect_ratio > 0:
-        geom = _wing_geometry(layout)
-        wing_x = geom["XLE(MAC) station of MAC LE"] + 0.25 * geom["MAC"]
-
     fin_root_z = layout.root_waterline_z + layout.fuselage_height / 2.0
-    v_span_in = layout.v_tail_span_in
     panels: Dict[str, Dict[str, List[Tuple[float, float]]]] = {}
 
     if layout.tail_type == TailType.V_TAIL:
-        if layout.v_tail_area > 0 and v_span_in > 0:
-            area_in2 = (layout.v_tail_area * IN2_PER_FT2) / 2.0  # per panel
+        if v_area > 0 and v_span_in > 0:
+            area_in2 = (v_area * IN2_PER_FT2) / 2.0  # per panel
             chord = area_in2 / v_span_in
-            x_mac = wing_x + layout.v_tail_arm
+            x_mac = vt.xv25
             x_le, x_te = x_mac - 0.25 * chord, x_mac + 0.75 * chord
             dihedral = math.radians(_V_TAIL_DIHEDRAL_DEG)
             proj_y = v_span_in * math.cos(dihedral)
@@ -201,10 +215,10 @@ def tail_planform(layout: LayoutInput) -> Dict[str, Dict[str, List[Tuple[float, 
                 }
         return panels
 
-    if layout.v_tail_area > 0 and v_span_in > 0:
-        area_in2 = layout.v_tail_area * IN2_PER_FT2
+    if v_area > 0 and v_span_in > 0:
+        area_in2 = v_area * IN2_PER_FT2
         chord = area_in2 / v_span_in
-        x_mac = wing_x + layout.v_tail_arm
+        x_mac = vt.xv25
         x_le, x_te = x_mac - 0.25 * chord, x_mac + 0.75 * chord
         z1 = fin_root_z + v_span_in
         panels["v_tail"] = {
@@ -213,12 +227,21 @@ def tail_planform(layout: LayoutInput) -> Dict[str, Dict[str, List[Tuple[float, 
                      (x_le, z1), (x_le, fin_root_z)],
             "front": [(0.0, fin_root_z), (0.0, z1)],
         }
+        # Rudder: aft Saft/S chord band over the fin height (Side view).
+        r_frac = _hinge_fraction(vt.rudder_aft_hinge_sqft, v_area)
+        if r_frac > 0:
+            x_hinge = x_te - r_frac * chord
+            panels["rudder"] = {
+                "top": [(x_hinge, 0.0), (x_te, 0.0)],
+                "side": [(x_hinge, fin_root_z), (x_te, fin_root_z), (x_te, z1),
+                         (x_hinge, z1), (x_hinge, fin_root_z)],
+                "front": [(0.0, fin_root_z), (0.0, z1)],
+            }
 
-    if layout.h_tail_area > 0 and layout.h_tail_span_in > 0:
-        h_span_in = layout.h_tail_span_in
-        area_in2 = layout.h_tail_area * IN2_PER_FT2
+    if h_area > 0 and h_span_in > 0:
+        area_in2 = h_area * IN2_PER_FT2
         chord = area_in2 / h_span_in
-        x_mac = wing_x + layout.h_tail_arm
+        x_mac = ht.xt25
         x_le, x_te = x_mac - 0.25 * chord, x_mac + 0.75 * chord
         h_half = h_span_in / 2.0
 
@@ -235,6 +258,16 @@ def tail_planform(layout: LayoutInput) -> Dict[str, Dict[str, List[Tuple[float, 
             "side": [(x_le, h_z), (x_te, h_z)],
             "front": [(-h_half, h_z), (h_half, h_z)],
         }
+        # Elevator: aft Saft/S chord band over the full h-tail span (Top view).
+        e_frac = _hinge_fraction(ht.elevator_aft_hinge_sqft, h_area)
+        if e_frac > 0:
+            x_hinge = x_te - e_frac * chord
+            panels["elevator"] = {
+                "top": [(x_hinge, h_half), (x_te, h_half), (x_te, -h_half),
+                        (x_hinge, -h_half), (x_hinge, h_half)],
+                "side": [(x_hinge, h_z), (x_te, h_z)],
+                "front": [(-h_half, h_z), (h_half, h_z)],
+            }
 
     return panels
 
@@ -271,7 +304,8 @@ _COMPONENT_MATCH_ORDER: Tuple[str, ...] = (
 )
 
 
-def component_stations(layout: LayoutInput) -> Dict[str, Vec3]:
+def component_stations(layout: LayoutInput,
+                       empennage: Optional[EmpennageInput] = None) -> Dict[str, Vec3]:
     """Approximate ``(x, y, z)`` station (fuselage station / butt line / waterline,
     inches) for each named airframe component, derived from ``LayoutInput``'s
     coarse scalars -- a rough first-cut for seeding the Weight DB (WTONECG), not a
@@ -279,15 +313,16 @@ def component_stations(layout: LayoutInput) -> Dict[str, Vec3]:
     see the D-5 decision in ``docs/30_future/02_gui_workflow_plan.md``). A seeded
     ``MassItem.x/y/z`` is always overridable by hand afterward.
 
-    Keys present depend on which layout scalars are set: ``"wing"`` (25% MAC,
-    matching the CG first-cut used elsewhere in this module), ``"fuselage"``
-    (length midpoint), ``"h_tail"``/``"v_tail"`` (wing 25% MAC + the tail arm),
-    ``"tail"`` (area-weighted h/v average, for a single lumped "Tail" item),
-    ``"main_gear"``/``"nose_gear"`` (gear station, strut mid-height) and
-    ``"landing_gear"`` (weight-weighted ~3:1 main:nose average, for a single
-    lumped "Landing gear" item). All at butt line ``y=0`` (centreline) except
-    where a component is inherently off-centreline (none of these are).
+    Keys present depend on which scalars are set: ``"wing"`` (25% MAC, matching the
+    CG first-cut used elsewhere in this module), ``"fuselage"`` (length midpoint),
+    ``"h_tail"``/``"v_tail"`` (the 25%-tail-MAC station ``xt25``/``xv25`` from the
+    Step-G6 single-source ``empennage``), ``"tail"`` (area-weighted h/v average, for
+    a single lumped "Tail" item), ``"main_gear"``/``"nose_gear"`` (gear station,
+    strut mid-height) and ``"landing_gear"`` (weight-weighted ~3:1 main:nose
+    average). All at butt line ``y=0`` (centreline).
     """
+    ht = empennage.htail if empennage is not None else None
+    vt = empennage.vtail if empennage is not None else None
     stations: Dict[str, Vec3] = {}
     wing_x = layout.le_root_x
     if layout.wing_area_sqft > 0 and layout.aspect_ratio > 0:
@@ -298,13 +333,13 @@ def component_stations(layout: LayoutInput) -> Dict[str, Vec3]:
         stations["fuselage"] = (
             layout.datum_x + layout.fuselage_length / 2.0, 0.0, layout.root_waterline_z,
         )
-    if layout.h_tail_arm > 0:
-        stations["h_tail"] = (wing_x + layout.h_tail_arm, 0.0, layout.root_waterline_z)
-    if layout.v_tail_arm > 0:
-        stations["v_tail"] = (wing_x + layout.v_tail_arm, 0.0, layout.root_waterline_z)
+    if ht is not None and ht.xt25 > 0:
+        stations["h_tail"] = (ht.xt25, 0.0, layout.root_waterline_z)
+    if vt is not None and vt.xv25 > 0:
+        stations["v_tail"] = (vt.xv25, 0.0, layout.root_waterline_z)
     tail_pts = [
-        (layout.h_tail_area, stations["h_tail"]) if "h_tail" in stations else None,
-        (layout.v_tail_area, stations["v_tail"]) if "v_tail" in stations else None,
+        (ht.htail_area_sqft if ht is not None else 0.0, stations["h_tail"]) if "h_tail" in stations else None,
+        (vt.vtail_area_sqft if vt is not None else 0.0, stations["v_tail"]) if "v_tail" in stations else None,
     ]
     tail_pts = [p for p in tail_pts if p is not None]
     if tail_pts:
@@ -363,12 +398,22 @@ def _planform_condition(layout: LayoutInput, geom: dict) -> ConditionResult:
 
 
 def _stability_condition(project: Project, layout: LayoutInput, geom: dict) -> Optional[ConditionResult]:
-    """Tail-volume neutral point + static margin (Ref 1 Ch 8 first-cut)."""
-    if layout.h_tail_area <= 0 or layout.h_tail_arm <= 0:
-        return None
+    """Tail-volume neutral point + static margin (Ref 1 Ch 8 first-cut).
+
+    Reads the h-tail area and 25%-MAC station from the Step-G6 single-source
+    ``geometry.empennage.htail``; the tail arm is derived as ``xt25`` minus the 25%
+    wing-MAC station (``XLEMAC + 0.25*MAC``), so it is not stored twice.
+    """
+    emp = project.geometry.empennage if project.geometry is not None else None
+    ht = emp.htail if emp is not None else None
     mac = geom["MAC"]
     xlemac = geom["XLE(MAC) station of MAC LE"]
-    v_h = (layout.h_tail_area * layout.h_tail_arm) / (layout.wing_area_sqft * mac)
+    if ht is None or ht.htail_area_sqft <= 0 or layout.wing_area_sqft <= 0 or mac <= 0:
+        return None
+    h_arm = ht.xt25 - (xlemac + 0.25 * mac)
+    if h_arm <= 0:
+        return None
+    v_h = (ht.htail_area_sqft * h_arm) / (layout.wing_area_sqft * mac)
     h_n = _H_AC_WING + v_h * _LIFT_SLOPE_RATIO * _DOWNWASH_FACTOR
     np_station = xlemac + h_n * mac
 

@@ -312,11 +312,14 @@ class GeometryInput:
     tail/gear geometry the Geometry page edits and then *seeds* into ``surfaces``
     (WINGGEOM polylines) and downstream (WTENV/STRSPEED ``XLEMAC``/``MAC``).
     ``fuselage`` is the body outline (station-area table) for the three-view and
-    the G4 moment estimator.
+    the G4 moment estimator. ``empennage`` (Step G6) is the single-source horizontal-
+    /vertical-tail + elevator/rudder geometry the three-view draws and the rational
+    tail-load analysis consumes (``Project.tail_loads``/``.vtail_loads`` proxy to it).
     """
     surfaces: List[SurfaceInput] = field(default_factory=list)
     parametric: Optional["LayoutInput"] = None
     fuselage: Optional[FuselageOutline] = None
+    empennage: Optional["EmpennageInput"] = None
 
     def by_name(self, name: str) -> Optional[SurfaceInput]:
         for s in self.surfaces:
@@ -778,6 +781,33 @@ class VTailLoadsInput:
 
 
 # --------------------------------------------------------------------------- #
+# Single-source empennage geometry (Step G6) -- GeometryInput.empennage
+# --------------------------------------------------------------------------- #
+@dataclass
+class EmpennageInput:
+    """Single-source empennage + control-surface geometry (Step G6).
+
+    The horizontal- and vertical-tail definitions (including the elevator and
+    rudder) are entered **once** here, on the Geometry page, and drive *both* the
+    three-view sketch (``configuration.tail_planform`` reads the areas/spans/stations
+    and the hinge-line chord fraction ``Saft/S`` to draw the elevator/rudder) *and*
+    the rational tail-load analysis. ``htail``/``vtail`` carry the native tail-load
+    inputs -- the same :class:`TailLoadsInput` / :class:`VTailLoadsInput` the
+    SELECT/TAILDIST/BALLOADS/ONENGOUT modules read via the ``Project.tail_loads`` /
+    ``Project.vtail_loads`` properties (which now proxy to this slice); ``None`` means
+    that surface's rational loads are not modelled.
+
+    This supersedes the duplicated ``LayoutInput`` h-/v-tail area/span/arm fields
+    (retired in G6): the three-view and the tail-volume static-margin estimate now
+    read the analysis-native values here, so the empennage geometry is stored in
+    exactly one place. The tail *arm* is derived where needed (25% tail MAC station
+    ``xt25``/``xv25`` minus the 25% wing MAC station), not stored twice.
+    """
+    htail: Optional[TailLoadsInput] = None
+    vtail: Optional[VTailLoadsInput] = None
+
+
+# --------------------------------------------------------------------------- #
 # Control-surface simplified loads (AILERON / FLAPLOAD / TABLOADS) -- Step C8
 # --------------------------------------------------------------------------- #
 @dataclass
@@ -991,9 +1021,11 @@ class LayoutInput:
     The wing is parametric (area, aspect ratio, taper, sweep, dihedral); the
     configuration module turns it into the WINGGEOM ``leading_edge``/
     ``trailing_edge`` polylines and the trapezoidal-wing ``MAC``/``XLEMAC``/
-    ``Y_MAC`` (cross-checked against the WINGGEOM strip integrator). Tail surfaces
-    are given as area + arm (tail-volume static-margin estimate); gear as the
-    nose/main stations, track and height (tip-back / overturn / clearance).
+    ``Y_MAC`` (cross-checked against the WINGGEOM strip integrator). The empennage
+    (tail + elevator/rudder) geometry lives in the single-source
+    ``GeometryInput.empennage`` (Step G6); this slice keeps only the empennage
+    *arrangement* (``tail_type``) and h-tail drawing offset (``h_tail_z``). Gear is
+    the nose/main stations, track and height (tip-back / overturn / clearance).
     """
     # Fuselage
     fuselage_length: float = 0.0     # overall length, in
@@ -1008,15 +1040,12 @@ class LayoutInput:
     le_sweep_deg: float = 0.0        # leading-edge sweep
     le_root_x: float = 0.0           # fuselage station of the LE at the centreline, in
     root_waterline_z: float = 0.0    # waterline of the root chord (25% MAC reference), in
-    # Tail (area + moment arm; arms measured from the wing 25% MAC)
-    h_tail_area: float = 0.0         # horizontal tail area, ft^2
-    h_tail_arm: float = 0.0          # h-tail arm (25% wing MAC -> 25% h-tail MAC), in
-    v_tail_area: float = 0.0         # vertical tail area, ft^2
-    v_tail_arm: float = 0.0          # v-tail arm, in
+    # Empennage arrangement + drawing offset only. The tail area/span/arm moved to
+    # the single-source GeometryInput.empennage (Step G6); the three-view and the
+    # stability estimate read the analysis-native values there (htail/vtail area,
+    # span and the 25%-MAC stations), so nothing is entered twice.
     tail_type: TailType = TailType.CONVENTIONAL  # empennage arrangement (layout sketch only)
-    h_tail_span_in: float = 0.0      # horizontal-tail span, in (0 -> not drawn)
     h_tail_z: float = 0.0            # h-tail vertical offset from root_waterline_z, in
-    v_tail_span_in: float = 0.0      # vertical-tail height, in (0 -> not drawn)
     # Landing gear
     nose_gear_x: float = 0.0         # nose-gear contact fuselage station, in
     main_gear_x: float = 0.0         # main-gear contact fuselage station, in
@@ -1549,7 +1578,13 @@ class LoadsResult:
 # fuselage_moment) that flight_envelope adds to the airplane-less-tail M1 only when
 # enabled -- additive, default None -> disabled -> Appendix A/B oracles bit-for-bit
 # unchanged; older files load with no fuselage moment.
-SCHEMA_VERSION = 26
+# v27 (Phase G6) makes GeometryInput.empennage (EmpennageInput: htail/vtail) the
+# single source for the tail + elevator/rudder geometry: Project.tail_loads /
+# .vtail_loads become properties proxying to it, and the duplicated LayoutInput
+# h-/v-tail area/span/arm fields are retired. io migrates legacy top-level
+# tail_loads/vtail_loads (and legacy LayoutInput tail fields) into geometry.empennage;
+# the derived slices are byte-identical, so the SELECT tail-load oracles are unchanged.
+SCHEMA_VERSION = 27
 
 
 @dataclass
@@ -1583,8 +1618,9 @@ class Project:
     wing_mass: Optional[WingMassInput] = None
     fuselage_mass: Optional[FuselageMassInput] = None
     select_input: Optional[SelectInput] = None
-    tail_loads: Optional[TailLoadsInput] = None
-    vtail_loads: Optional[VTailLoadsInput] = None
+    # tail_loads / vtail_loads are properties (Step G6) proxying to the single-source
+    # GeometryInput.empennage.htail / .vtail -- see below. They are NOT dataclass
+    # fields, so construct via geometry=GeometryInput(empennage=...) or assign after.
     aileron_loads: Optional[AileronLoadsInput] = None
     flap_loads: Optional[FlapLoadsInput] = None
     tab_loads: Optional[TabLoadsInput] = None
@@ -1618,3 +1654,39 @@ class Project:
         statistical estimates apply (e.g. STRSPEED bypasses the 23.337 cap, WTESTIMA
         flags itself as a sanity-only figure)."""
         return self.speeds is not None and self.speeds.category.upper() == "C"
+
+    def _ensure_empennage(self) -> "EmpennageInput":
+        """The single-source empennage slice, created (with its geometry) on demand."""
+        if self.geometry is None:
+            self.geometry = GeometryInput()
+        if self.geometry.empennage is None:
+            self.geometry.empennage = EmpennageInput()
+        return self.geometry.empennage
+
+    @property
+    def tail_loads(self) -> Optional["TailLoadsInput"]:
+        """Rational horizontal-tail inputs (Step G6: proxied from
+        ``geometry.empennage.htail``, the single stored home). ``None`` when no
+        empennage/h-tail geometry is present; SELECT/TAILDIST/BALLOADS read this."""
+        emp = self.geometry.empennage if self.geometry is not None else None
+        return emp.htail if emp is not None else None
+
+    @tail_loads.setter
+    def tail_loads(self, value: Optional["TailLoadsInput"]) -> None:
+        if value is None and (self.geometry is None or self.geometry.empennage is None):
+            return
+        self._ensure_empennage().htail = value
+
+    @property
+    def vtail_loads(self) -> Optional["VTailLoadsInput"]:
+        """Rational vertical-tail inputs (Step G6: proxied from
+        ``geometry.empennage.vtail``, the single stored home). ``None`` when no
+        empennage/v-tail geometry is present; SELECT/ONENGOUT/TAILDIST read this."""
+        emp = self.geometry.empennage if self.geometry is not None else None
+        return emp.vtail if emp is not None else None
+
+    @vtail_loads.setter
+    def vtail_loads(self, value: Optional["VTailLoadsInput"]) -> None:
+        if value is None and (self.geometry is None or self.geometry.empennage is None):
+            return
+        self._ensure_empennage().vtail = value

@@ -37,6 +37,7 @@ from .models import (
     ControlSurfaceStation,
     CriticalCondition,
     CriticalLoadSet,
+    EmpennageInput,
     EngineInput,
     EngineLayout,
     EngineType,
@@ -251,14 +252,21 @@ def _fuselage_outline_from_dict(d: Dict[str, Any]) -> FuselageOutline:
     ])
 
 
-def geometry_from_dict(d: Dict[str, Any], legacy_configuration: Optional[Dict[str, Any]] = None) -> GeometryInput:
-    """Build the unified :class:`GeometryInput` from a plain dict (Step G1).
+def geometry_from_dict(d: Dict[str, Any], legacy_configuration: Optional[Dict[str, Any]] = None,
+                       legacy_tail_loads: Optional[Dict[str, Any]] = None,
+                       legacy_vtail_loads: Optional[Dict[str, Any]] = None) -> GeometryInput:
+    """Build the unified :class:`GeometryInput` from a plain dict (Step G1/G6).
 
     ``surfaces`` is the WINGGEOM planform list (unchanged). ``parametric`` is the
     embedded :class:`LayoutInput`; ``legacy_configuration`` folds a pre-v25 file's
     top-level ``"configuration"`` block into it when ``geometry.parametric`` is
     absent. ``fuselage`` is the body outline, defaulted from the parametric
-    length/width/height scalars when the file predates it.
+    length/width/height scalars when the file predates it. ``empennage`` (Step G6)
+    is the single-source tail + elevator/rudder geometry: read from ``d["empennage"]``
+    (``{htail, vtail}``) or, for a pre-v27 file, migrated from the top-level
+    ``tail_loads``/``vtail_loads`` slices passed as ``legacy_tail_loads``/
+    ``legacy_vtail_loads`` (the retired duplicated ``LayoutInput`` tail area/span/arm
+    fields are dropped -- the analysis-native values are authoritative).
     """
     parametric_raw = d.get("parametric")
     if parametric_raw is None:
@@ -273,10 +281,23 @@ def geometry_from_dict(d: Dict[str, Any], legacy_configuration: Optional[Dict[st
     else:
         fuselage = None
 
+    emp_raw = d.get("empennage")
+    if emp_raw is not None:
+        htail_raw, vtail_raw = emp_raw.get("htail"), emp_raw.get("vtail")
+    else:
+        htail_raw, vtail_raw = legacy_tail_loads, legacy_vtail_loads
+    empennage = None
+    if htail_raw is not None or vtail_raw is not None:
+        empennage = EmpennageInput(
+            htail=tail_loads_from_dict(htail_raw) if htail_raw else None,
+            vtail=vtail_loads_from_dict(vtail_raw) if vtail_raw else None,
+        )
+
     return GeometryInput(
         surfaces=[_surface_from_dict(s) for s in d.get("surfaces", []) or []],
         parametric=parametric,
         fuselage=fuselage,
+        empennage=empennage,
     )
 
 
@@ -303,6 +324,14 @@ def geometry_to_dict(inp: GeometryInput) -> Dict[str, Any]:
                 for s in inp.fuselage.sections
             ]
         }
+    if inp.empennage is not None:
+        emp: Dict[str, Any] = {}
+        if inp.empennage.htail is not None:
+            emp["htail"] = tail_loads_to_dict(inp.empennage.htail)
+        if inp.empennage.vtail is not None:
+            emp["vtail"] = vtail_loads_to_dict(inp.empennage.vtail)
+        if emp:
+            out["empennage"] = emp
     return out
 
 
@@ -873,8 +902,10 @@ def project_from_dict(d: Dict[str, Any]) -> Project:
             engine_layout=layout,
             weight=weight_slice,
             geometry=(
-                geometry_from_dict(geometry or {}, legacy_configuration=legacy_configuration)
-                if (geometry or legacy_configuration) else None
+                geometry_from_dict(
+                    geometry or {}, legacy_configuration=legacy_configuration,
+                    legacy_tail_loads=tail_loads, legacy_vtail_loads=vtail_loads)
+                if (geometry or legacy_configuration or tail_loads or vtail_loads) else None
             ),
             speeds=speeds_from_dict(speeds) if speeds else None,
             aero=aero_from_dict(aero) if aero else None,
@@ -888,8 +919,8 @@ def project_from_dict(d: Dict[str, Any]) -> Project:
             wing_mass=wing_mass_from_dict(wing_mass) if wing_mass else None,
             fuselage_mass=fuselage_mass_from_dict(fuselage_mass) if fuselage_mass else None,
             select_input=select_input_from_dict(select_input) if select_input else None,
-            tail_loads=tail_loads_from_dict(tail_loads) if tail_loads else None,
-            vtail_loads=vtail_loads_from_dict(vtail_loads) if vtail_loads else None,
+            # tail_loads / vtail_loads are no longer Project fields (Step G6): they are
+            # migrated into geometry.empennage above (legacy_tail_loads/legacy_vtail_loads).
             aileron_loads=aileron_loads_from_dict(aileron_loads) if aileron_loads else None,
             flap_loads=flap_loads_from_dict(flap_loads) if flap_loads else None,
             tab_loads=tab_loads_from_dict(tab_loads) if tab_loads else None,
@@ -951,10 +982,8 @@ def project_to_dict(project: Project) -> Dict[str, Any]:
         out["fuselage_mass"] = fuselage_mass_to_dict(project.fuselage_mass)
     if project.select_input is not None:
         out["select_input"] = select_input_to_dict(project.select_input)
-    if project.tail_loads is not None:
-        out["tail_loads"] = tail_loads_to_dict(project.tail_loads)
-    if project.vtail_loads is not None:
-        out["vtail_loads"] = vtail_loads_to_dict(project.vtail_loads)
+    # tail_loads / vtail_loads (Step G6) are serialized under geometry.empennage
+    # (geometry_to_dict), not as top-level keys -- the single stored home.
     if project.aileron_loads is not None:
         out["aileron_loads"] = aileron_loads_to_dict(project.aileron_loads)
     if project.flap_loads is not None:

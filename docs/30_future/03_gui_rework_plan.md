@@ -188,8 +188,14 @@ These are the real capability gaps (everything else in §4 is reuse/reorder):
 3. **Ground-case distributed fuselage (and wing) loads** in Phase 4, incl. the
    pressurized no-down-select rule. **Substantial calc work** (new distribution
    path + pressurization load cases), not just GUI.
-4. **Direct elevator %-chord input** (minor — expose the chord ratio directly
-   instead of deriving it from area ratios). *(GUI + small model field.)*
+4. **Single-source empennage & control-surface geometry.** *(GUI + model.)*
+   **Shipped as Step G6 (2026-07-19)**, expanded from the original narrow "direct
+   elevator %-chord input": the h-/v-tail + elevator/rudder geometry is entered once
+   on the Geometry page (`GeometryInput.empennage`; `tail_loads`/`vtail_loads` become
+   properties over it), the three-view draws the elevator/rudder, and the duplicated
+   `LayoutInput` tail fields are retired (schema 26 → 27, oracles bit-for-bit). See
+   `docs/40_history/00_completed_development.md`. The landing-gear and wing/fuselage
+   single-source follow-ons are backlog Steps G6b/G6c.
 
 ---
 
@@ -197,7 +203,8 @@ These are the real capability gaps (everything else in §4 is reuse/reorder):
 
 **In scope for this rework:** §5 items (1) fuselage aero + pitching-moment
 estimator (GUI + light calc), (2) longitudinal-stability / trim plots (GUI), and
-(4) direct elevator %-chord input (GUI + small model field).
+(4) single-source empennage & control-surface geometry (GUI + model; the elevator
+%-chord ask grew into the full single-source empennage step G6).
 
 **Split out** to its own **calc-side backlog item:** §5 item (3) ground-case
 distributed fuselage (and wing) loads + the pressurized no-down-select rule — the

@@ -21,7 +21,7 @@ import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
 
-from farloads import Project, UnitSystem, labels_for, si_scalar_label, to_display, to_imperial_scalar, to_si_scalar
+from farloads import Project, UnitSystem, labels_for, si_scalar_label, to_display, to_si_scalar
 from farloads.modules.balloads import verify_balancing
 from farloads.modules.taildist import build_tail_chordwise
 
@@ -41,8 +41,8 @@ system: UnitSystem = st.session_state.get("unit_system", UnitSystem.IMPERIAL)
 U = labels_for(system)  # {"length",...} -> unit string
 
 if project.tail_loads is None and project.vtail_loads is None:
-    st.warning("Define the tail inputs on the **Flight Envelope (V-n)** page "
-               "(Critical Loads tab) first (horizontal and/or vertical tail).")
+    st.warning("Define the tail geometry on the **Geometry** page (Empennage & "
+               "control surfaces section) first (horizontal and/or vertical tail).")
     st.stop()
 
 if project.is_concept:
@@ -50,47 +50,25 @@ if project.is_concept:
                "FAR 23 calibration band.")
 
 # --------------------------------------------------------------------------- #
-# Chordwise geometry (TAILDIST) -- form + Apply, merged onto the existing
-# tail_loads/vtail_loads slices (targeted field writes, nothing else touched).
+# Chordwise geometry (TAILDIST). Step G6: the tail geometry (incl. the semi-span /
+# span the chordwise profile uses) is the single-source empennage on the Geometry
+# page; this page reads it read-only and only distributes the loads.
 # --------------------------------------------------------------------------- #
 st.header("Chordwise distribution")
-# Defaults from the Geometry page's tail spans (h_tail_span_in/v_tail_span_in),
-# when this page's own field is still unset -- avoids re-asking for a span
-# already entered there (read-only through the unified geometry slice, Step G1).
-layout = project.geometry.parametric if project.geometry is not None else None
-_htail_default = float(project.tail_loads.htail_semispan_in) if project.tail_loads else 0.0
-if not _htail_default and layout is not None and layout.h_tail_span_in:
-    _htail_default = layout.h_tail_span_in / 2.0
-_vtail_default = float(project.vtail_loads.vtail_span_in) if project.vtail_loads else 0.0
-if not _vtail_default and layout is not None and layout.v_tail_span_in:
-    _vtail_default = layout.v_tail_span_in
-
-with st.form("tail_chordwise_form"):
-    st.subheader(f"Chordwise geometry ({U['length']})")
-    c1, c2 = st.columns(2)
-    htail_semispan_in = None
-    vtail_span_in = None
-    if project.tail_loads is not None:
-        htail_semispan_in = c1.number_input(
-            f"Horizontal-tail semi-span ({U['length']})", min_value=0.0,
-            value=float(round(to_display(_htail_default, "length", system), 4)), step=1.0,
-            key=f"htail_semispan_{system.value}",
-            help="BLHTAIL; the average chord is CAVE = S / (2·semispan).")
-    if project.vtail_loads is not None:
-        vtail_span_in = c2.number_input(
-            f"Vertical-tail span ({U['length']})", min_value=0.0,
-            value=float(round(to_display(_vtail_default, "length", system), 4)), step=1.0,
-            key=f"vtail_span_{system.value}",
-            help="BLHTAIL; the average chord is CAVE = SV / span.")
-    applied = st.form_submit_button("Apply", type="primary")
-
-if applied:
-    if project.tail_loads is not None and htail_semispan_in is not None:
-        project.tail_loads.htail_semispan_in = to_imperial_scalar(htail_semispan_in, "length", system)
-    if project.vtail_loads is not None and vtail_span_in is not None:
-        project.vtail_loads.vtail_span_in = to_imperial_scalar(vtail_span_in, "length", system)
-    st.session_state["project"] = project
-    st.success("Chordwise geometry applied.")
+_ht = project.tail_loads
+_vt = project.vtail_loads
+st.caption(
+    "Tail geometry is read from the single-source **Empennage & control surfaces** "
+    "section on the **Geometry** page (Step G6) — edit it there. This page distributes "
+    "the SELECT tail loads over the chord (average chord CAVE = S / span)."
+)
+_gc1, _gc2 = st.columns(2)
+if _ht is not None:
+    _gc1.metric(f"H-tail semi-span ({U['length']})",
+                f"{to_display(_ht.htail_semispan_in, 'length', system):,.1f}")
+if _vt is not None:
+    _gc2.metric(f"V-tail span ({U['length']})",
+                f"{to_display(_vt.vtail_span_in, 'length', system):,.1f}")
 
 try:
     results = build_tail_chordwise(project)
@@ -99,9 +77,9 @@ except (ValueError, ZeroDivisionError) as exc:
     results = []
 
 if not results:
-    st.info("No critical tail conditions to distribute. Enter the tail span(s) "
-            "above and ensure the Critical Loads tab (Flight Envelope (V-n) page) "
-            "produced tail loads.")
+    st.info("No critical tail conditions to distribute. Set the tail span(s) in the "
+            "**Empennage & control surfaces** section on the **Geometry** page, and "
+            "ensure the Critical Loads tab (Flight Envelope (V-n) page) produced tail loads.")
 else:
     # Persist so the sbeam tail export can reuse it.
     if project.loads is not None:
