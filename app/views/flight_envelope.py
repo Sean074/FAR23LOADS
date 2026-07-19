@@ -37,7 +37,8 @@ from farloads import (
     to_imperial_scalar,
 )
 from farloads.constants import IN2_PER_FT2
-from farloads.modules.flight_envelope import build_envelope, run as flt_run
+from farloads.modules.configuration import run as configuration_run
+from farloads.modules.flight_envelope import build_envelope, run as flt_run, trim_sweep
 from farloads.modules.select import build_critical
 from farloads.modules.structural_speeds import design_speed_values
 from farloads.modules.wing_geometry import surface_properties
@@ -351,8 +352,140 @@ def _tab_select() -> None:
         st.session_state["project"] = project
 
 
-_tab_a, _tab_b = st.tabs(["V-n diagram", "Critical Loads (SELECT)"])
+# --------------------------------------------------------------------------- #
+# Tab 3 -- Trim & Stability (Step G5)
+# --------------------------------------------------------------------------- #
+def _neutral_point() -> "tuple[float, float, float] | None":
+    """(neutral-point %MAC, XLE(MAC) station, MAC) from the Configuration module,
+    or ``None`` when the layout geometry it needs isn't in the project (e.g. the
+    Appendix A/B fixtures carry no parametric layout)."""
+    try:
+        conds = configuration_run(project).conditions
+    except (ValueError, ZeroDivisionError, KeyError):
+        return None
+    vals = {lv.label: lv.value for c in conds for lv in c.values}
+    np_pct = vals.get("Neutral point (%MAC)")
+    xlemac = vals.get("XLE(MAC) station of MAC LE")
+    mac_in = vals.get("MAC")
+    if np_pct is None or xlemac is None or not mac_in:
+        return None
+    return np_pct, xlemac, mac_in
+
+
+def _tab_trim() -> None:
+    st.caption(
+        "Balancing horizontal-tail load at 1-g trim (FLTLOADS **BAL A/C/D**) swept "
+        "across the CG range, and the tail-volume static margin. Tail loads on this "
+        "tab are **LIMIT** — the oracle-traceable balance values an engineer checks "
+        "against the manual. The **ULTIMATE** tail loads used for sizing are on the "
+        "**Critical Loads** tab, the Results Review page and the exports. Values are "
+        "Imperial (in, lb), matching the balanced-conditions table."
+    )
+
+    ref_names = [c.name for c in cg_cases]
+    ref_name = st.selectbox(
+        "Reference loading (sets the swept weight & waterline)", ref_names,
+        help="The sweep holds this case's weight and waterline (zcg) fixed and varies "
+             "only the CG station. Cases at this same weight land exactly on the curve.")
+    ref = next(c for c in cg_cases if c.name == ref_name)
+
+    xcgs = [c.xcg for c in cg_cases]
+    lo_default, hi_default = min(xcgs), max(xcgs)
+    if hi_default - lo_default < 1e-6:  # a single distinct station -> widen by +-5% MAC
+        pad = 0.05 * (fl.mac or 1.0) * 12.0
+        lo_default, hi_default = lo_default - pad, hi_default + pad
+
+    c1, c2, c3 = st.columns(3)
+    x_lo = float(c1.number_input("CG station min (in)", value=float(round(lo_default, 2)), format="%.2f"))
+    x_hi = float(c2.number_input("CG station max (in)", value=float(round(hi_default, 2)), format="%.2f"))
+    n_stations = int(c3.slider("Stations", min_value=5, max_value=41, value=15, step=2))
+    if x_hi <= x_lo:
+        st.warning("CG station max must exceed min.")
+        return
+
+    step = (x_hi - x_lo) / (n_stations - 1)
+    stations = [x_lo + i * step for i in range(n_stations)]
+    try:
+        curves = trim_sweep(project, weight_lb=ref.weight_lb, zcg=ref.zcg, xcg_stations=stations)
+    except (ValueError, ZeroDivisionError) as exc:
+        st.error(f"Could not sweep the trim loads: {exc}")
+        return
+
+    fig = go.Figure()
+    fig.add_hline(y=0.0, line=dict(color="rgba(120,120,120,0.6)", width=1))
+    for cur in curves:
+        fig.add_trace(go.Scatter(x=cur.xcg_in, y=cur.lt_lb, mode="lines", name=cur.condition))
+    # Overlay the real CG cases that share the reference weight -- they land on the
+    # curve (the trim sweep reuses the same balance), so this doubles as a check.
+    same_w = [c for c in cg_cases if abs(c.weight_lb - ref.weight_lb) < 1e-6]
+    if same_w:
+        env_bal = {(p.cg, p.condition): p.lt for p in env.vn if p.condition in ("BAL A", "BAL C", "BAL D")}
+        for cond in ("BAL A", "BAL C", "BAL D"):
+            xs = [c.xcg for c in same_w if (c.name, cond) in env_bal]
+            ys = [env_bal[(c.name, cond)] for c in same_w if (c.name, cond) in env_bal]
+            if xs:
+                fig.add_trace(go.Scatter(
+                    x=xs, y=ys, mode="markers", name=f"{cond} CG cases",
+                    marker=dict(symbol="circle-open", size=11), showlegend=False))
+    fig.update_layout(
+        title=f"Balancing tail load vs CG — {ref.weight_lb:.0f} lb, zcg {ref.zcg:.1f} in",
+        xaxis_title="CG station Xcg (in)", yaxis_title="Balancing tail load LT (lb, LIMIT)",
+        legend=dict(orientation="h"), height=430)
+    st.plotly_chart(fig, use_container_width=True)
+    st.caption(
+        "Positive LT is up (tail lift). Open markers are the project's CG cases at this "
+        "weight — they lie on the swept curve because the sweep reuses the same FLTLOADS "
+        "balance (subroutine 3900). A forward CG needs more tail **download** (LT more "
+        "negative) to trim; moving the CG aft raises LT toward (and past) zero.")
+
+    st.dataframe(pd.DataFrame({
+        "Xcg (in)": [round(x, 2) for x in stations],
+        **{f"{cur.condition} LT (lb)": [round(v) for v in cur.lt_lb] for cur in curves},
+    }), hide_index=True, use_container_width=True)
+
+    # ------------------------------------------------------------------ #
+    # Static-margin sweep (tail-volume neutral point, Configuration module)
+    # ------------------------------------------------------------------ #
+    st.subheader("Static margin")
+    npt = _neutral_point()
+    if npt is None:
+        st.info(
+            "The static-margin sweep needs the tail-volume **neutral point** from the "
+            "**Configuration & Layout** page (a parametric layout + horizontal-tail "
+            "area/arm). This project carries no such layout (e.g. an Appendix A/B "
+            "fixture), so only the trim plot above is shown.")
+        return
+    np_pct, xlemac, mac_in = npt
+    cg_pct = [(x - xlemac) / mac_in * 100.0 for x in stations]
+    sm_pct = [np_pct - p for p in cg_pct]
+
+    figs = go.Figure()
+    figs.add_hline(y=0.0, line=dict(color="rgba(200,80,80,0.7)", width=1, dash="dash"),
+                   annotation_text="neutral (NP)", annotation_position="top left")
+    figs.add_trace(go.Scatter(x=[round(p, 2) for p in cg_pct], y=sm_pct, mode="lines",
+                              name="static margin"))
+    env_w = project.weight.envelope if project.weight is not None else None
+    if env_w is not None:
+        for label, pct in (("fwd limit", env_w.fwd_gross_pct_mac), ("aft limit", env_w.aft_gross_pct_mac)):
+            if pct:
+                figs.add_vline(x=pct, line=dict(color="rgba(120,120,120,0.6)", width=1, dash="dot"),
+                               annotation_text=label, annotation_position="top")
+    figs.update_layout(
+        title=f"Static margin vs CG — neutral point {np_pct:.1f} %MAC",
+        xaxis_title="CG (%MAC)", yaxis_title="Static margin (%MAC)",
+        legend=dict(orientation="h"), height=360)
+    st.plotly_chart(figs, use_container_width=True)
+    st.caption(
+        f"Static margin = NP − CG (both %MAC); NP = {np_pct:.1f} %MAC from the tail-volume "
+        "estimate (Configuration & Layout, Ref 1 Ch 8: h_acw = 0.25, a_t/a_w = 1.0, "
+        "1 − dε/dα = 0.6). Positive is statically stable; the margin shrinks as the CG "
+        "moves aft toward the neutral point.")
+
+
+_tab_a, _tab_b, _tab_c = st.tabs(["V-n diagram", "Critical Loads (SELECT)", "Trim & Stability"])
 with _tab_a:
     _tab_vn()
 with _tab_b:
     _tab_select()
+with _tab_c:
+    _tab_trim()

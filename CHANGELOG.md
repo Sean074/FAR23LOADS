@@ -11,6 +11,22 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **Trim & static-margin plots — Flight Envelope page (Phase G, Step G5).** A new
+  **Trim & Stability** tab on the Flight Envelope page plots the balancing
+  horizontal-tail load at 1-g trim (FLTLOADS BAL A/C/D) swept across the CG range,
+  and the tail-volume static margin. A pure `flight_envelope.trim_sweep()` helper
+  re-runs the existing FLTLOADS balance (subroutine 3900) at ~15 interpolated CG
+  stations at a fixed weight/waterline — no new load equations, so a swept station
+  that coincides with a project CG case reproduces that case's `build_envelope` BAL
+  load exactly. The static-margin sweep reads the tail-volume **neutral point** from
+  the Configuration module (`SM = NP − CG`, %MAC) and overlays the WTENV
+  forward/aft CG limits; it is shown only when the project carries a parametric
+  layout (Appendix A/B fixtures show just the trim plot). Tail loads on the tab are
+  **LIMIT** (marked, with the ULTIMATE deliverables pointed to on the Critical
+  Loads tab / Results Review / exports). GUI-only over existing calc — no schema
+  change. (Config-building for the balance was factored into
+  `flight_envelope._balance_configs`, shared by `build_envelope` and `trim_sweep`
+  so both see the same G4 fuselage-augmented coefficients; behaviour unchanged.)
 - **Fuselage pitching-moment estimator — Munk slender-body (Phase G, Step G4).** A
   pure, geometry-only helper (`farloads/fuselage_moment.py`) derives the fuselage's
   contribution to the airplane-less-tail moment slope `dCm/dα` from the G1 fuselage

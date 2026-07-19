@@ -339,17 +339,7 @@ sections** it targets are that doc's §4.
 
 Steps are in dependency order. G1 (foundational) comes before the
 re-sequencing (G2–G3); the new features (G4–G6) and the report (G8) follow.
-**G0, G1, G2, G3 and G4 shipped 2026-07-18/19** (see `docs/40_history/00_completed_development.md`).
-
-### Step G5 — Longitudinal-stability / trim plots (new; GUI)
-**Objective.** Add standard longitudinal-stability plots to the flight-loads section
-to check trim and balancing tail loads (CG-vs-balanced-tail-load; static-margin
-sweep).
-**Scope.** GUI plots over existing calc (the FLTLOADS balance already yields tail
-load per CG; `configuration` already computes neutral point / static margin). No new
-calc.
-**Acceptance.** The flight-loads section shows a trim plot (balanced tail load vs CG)
-and a static-margin readout across the CG range; values trace to the existing calc.
+**G0, G1, G2, G3, G4 and G5 shipped 2026-07-18/19** (see `docs/40_history/00_completed_development.md`).
 
 ### Step G6 — Direct elevator %-chord input (new; GUI + small model field)
 **Objective.** Expose the elevator chord ratio as a direct input instead of only

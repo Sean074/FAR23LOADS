@@ -68,7 +68,7 @@ missing already exist. The claims were checked against the code:
 | "% chord of elevator" missing | **Partial** | Not a *direct* input, but the hinge-line chord fraction is derived from `elevator_aft_hinge_sqft / htail_area` (`taildist.py:80`). A direct field is an *addition*, not a fix. |
 | Fuselage pitching moment not in tail balance | **Partial / misleading** | The FLTLOADS balance *does* carry wing+fuselage moment "M(W+F)" via the airplane-less-tail `CM` polynomial (`flight_envelope.py:162,428`). What is missing is a fuselage-moment *estimator from geometry* — today the user folds it into the input coefficients. |
 | Fuselage as a geometry/aero surface | **Confirmed missing** | Fuselage is only scalars on `LayoutInput` (length/width/height); not a `SurfaceInput`. Drawn as a plain rectangle. |
-| Longitudinal stability / trim plots | **Partial** | A scalar neutral-point / static-margin estimate exists and is marked on the three-view; there is no CG-vs-tail-load *trim plot*. |
+| Longitudinal stability / trim plots | **Shipped (Step G5)** | The Flight Envelope page's **Trim & Stability** tab plots the balancing tail load (BAL A/C/D) swept across the CG range (`flight_envelope.trim_sweep`, re-running the balance) and a static-margin sweep from the Configuration tail-volume neutral point. |
 | Ground-case distributed fuselage loads | **Confirmed missing** | `body_loads` distributes over **flight** V-n conditions only; landing produces gear reactions only; the pressurized no-down-select rule is not modeled. |
 
 **Takeaway.** This rework is ~90% a *re-sequencing + consolidation* of pages that
@@ -181,7 +181,10 @@ These are the real capability gaps (everything else in §4 is reuse/reorder):
    the Aero page, off by default, added to M1 when enabled; Appendix A/B oracles
    unchanged. See `docs/40_history/00_completed_development.md`.
 2. **Longitudinal-stability / trim plots** in Phase 2 (CG-vs-balanced-tail-load,
-   static-margin sweep). *(GUI over existing calc.)*
+   static-margin sweep). *(GUI over existing calc.)* **Shipped as Step G5
+   (2026-07-19)** — the Flight Envelope **Trim & Stability** tab; `trim_sweep()`
+   re-runs the balance across the CG range, static margin from the Configuration
+   neutral point. See `docs/40_history/00_completed_development.md`.
 3. **Ground-case distributed fuselage (and wing) loads** in Phase 4, incl. the
    pressurized no-down-select rule. **Substantial calc work** (new distribution
    path + pressurization load cases), not just GUI.

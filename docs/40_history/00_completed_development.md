@@ -10,6 +10,63 @@ Acceptance**, **Key decisions**.
 
 ---
 
+## Phase G — Step G5: Longitudinal-stability / trim plots (complete, 2026-07-19)
+
+**Objective.** Add standard longitudinal-stability plots to the flight-loads
+section to check trim and balancing tail loads across the CG range
+(CG-vs-balanced-tail-load; static-margin sweep). GUI plots over existing calc — no
+new load equations.
+
+**Scope decisions (AskUserQuestion, 2026-07-19).** (1) **CG axis** → *continuous
+sweep*: re-run the existing `_balance()` at ~15 interpolated CG stations across the
+forward–aft range (reuses the calc, no new math) rather than plotting only the 2–4
+discrete stored CG cases. (2) **Condition** → *BAL trim cases (n = 1)*: trace the
+BAL A / BAL C / BAL D balanced 1-g tail loads (the true "trim" loads), one line
+each. (3) **Placement** → a *new "Trim & Stability" tab* on the merged Flight
+Envelope page (alongside V-n and Critical Loads), keeping all balance-derived plots
+together.
+
+**Deliverables.**
+- **`flight_envelope.trim_sweep(project, *, weight_lb, zcg, xcg_stations,
+  altitude_ft=0)`** (new, pure) → `List[TrimCurve]` — re-runs the FLTLOADS balance
+  (`_balance`, subroutine 3900) at each CG station for BAL A/C/D at `n = 1`, holding
+  weight/waterline and every other flight-loads/speeds input fixed. Adds no load
+  equations, so a station coinciding with a project CG case reproduces that case's
+  `build_envelope` BAL load exactly. Uses the cruise (flaps-up) coefficient set
+  including the Step-G4 fuselage increment when enabled. **LIMIT** output
+  (`TrimCurve.lt_lb`).
+- **`flight_envelope._balance_configs(aero)`** (refactor) — the flaps-up-then-down
+  coefficient list (with the G4 fuselage-moment augmentation) extracted from
+  `build_envelope` and shared with `trim_sweep`, so both see identical coefficients.
+  `build_envelope` behaviour is bit-for-bit unchanged.
+- **`app/views/flight_envelope.py`** — a third **Trim & Stability** tab: a
+  "reference loading" selector (sets the swept weight & waterline), forward/aft CG
+  station bounds and a station-count slider; a *balancing tail load vs CG* Plotly
+  chart (BAL A/C/D lines, with the real CG cases at that weight overlaid as open
+  markers that land on the curve), a swept-value table, and — when the project
+  carries a parametric layout — a *static margin vs CG* chart (`SM = NP − CG`, %MAC)
+  using the Configuration module's tail-volume neutral point, with the WTENV
+  forward/aft CG limits overlaid. Tail loads are marked **LIMIT** with a caption
+  pointing to the ULTIMATE deliverables (Critical Loads tab / Results Review /
+  exports).
+
+**Test / Acceptance** (`tests/test_trim_sweep.py`, 5 tests). The sweep reproduces
+the Appendix A `build_envelope` BAL A/C/D loads exactly at the CG1/CG2 stations
+(both share 3400 lb / zcg 93, so one sweep validates both — the traceability
+guarantee); the tail load rises monotonically moving aft (physical shape); the
+balanced `NZ ≈ 1` at every station; the Configuration neutral point is exposed as a
+sensible %MAC for a layout project and the static-margin arithmetic shrinks moving
+aft; the sweep raises without a cruise coefficient set. No schema change; full suite
+396 passing, `ruff` clean.
+
+**Key decisions.** Continuous sweep (not discrete scatter) reusing `_balance`;
+LIMIT display on this analysis/check tab (marked, deliverables ULTIMATE elsewhere)
+consistent with the sibling V-n tab; static-margin sweep gated on the Configuration
+neutral point so oracle fixtures without a parametric layout degrade to the trim
+plot alone.
+
+---
+
 ## Phase G — Step G4: Fuselage pitching-moment estimator (Munk slender-body) (complete, 2026-07-19)
 
 **Objective.** Derive the fuselage's contribution to the airplane-less-tail

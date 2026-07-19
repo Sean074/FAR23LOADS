@@ -366,6 +366,32 @@ def _flap_config_points(config: AeroCoeffSet, cg: CgCase, fl: FlightLoadsInput,
 # --------------------------------------------------------------------------- #
 # Envelope builder + Project entry point
 # --------------------------------------------------------------------------- #
+def _balance_configs(aero) -> List[AeroCoeffSet]:
+    """The airplane-less-tail coefficient sets the balance runs over.
+
+    The cruise (flaps-up) set first, then the flaps-down set. Step G4 folds the
+    off-by-default Munk fuselage ``dCm/dalpha`` increment into each config's M1 on a
+    *local copy* -- the stored raw coefficients are left untouched, and a disabled
+    (or zero) increment is a no-op so the Appendix A/B oracles stay bit-for-bit.
+    Shared by :func:`build_envelope` and :func:`trim_sweep` so both see the same
+    (fuselage-augmented) coefficients.
+    """
+    configs: List[AeroCoeffSet] = []
+    if aero is not None:
+        if aero.cruise is not None:
+            configs.append(aero.cruise)
+        if aero.flaps_down is not None:
+            configs.append(aero.flaps_down)
+        fm = aero.fuselage_moment
+        if fm is not None and fm.enabled and fm.d_cm_dalpha:
+            configs = [
+                replace(c, moment=(c.moment[0], c.moment[1] + fm.d_cm_dalpha,
+                                   c.moment[2], c.moment[3], c.moment[4]))
+                for c in configs
+            ]
+    return configs
+
+
 def build_envelope(project: Project) -> EnvelopeResult:
     """Compute the full balanced V-n matrix + balancing tail loads (the
     :class:`EnvelopeResult` payload for ``Project.envelope``)."""
@@ -374,23 +400,7 @@ def build_envelope(project: Project) -> EnvelopeResult:
         raise ValueError("Project has no 'flight_loads' inputs for the flight_envelope module")
     if project.speeds is None:
         raise ValueError("flight_envelope needs 'speeds' (STRSPEED) for the design speeds")
-    aero = project.aero_coeffs
-    configs: List[AeroCoeffSet] = []
-    if aero is not None:
-        if aero.cruise is not None:
-            configs.append(aero.cruise)
-        if aero.flaps_down is not None:
-            configs.append(aero.flaps_down)
-        # Step G4: fold the off-by-default Munk fuselage dCm/dalpha increment into
-        # each config's M1 (a local copy -- the stored raw coefficients are left
-        # untouched). Disabled -> no change -> Appendix A/B oracles bit-for-bit.
-        fm = aero.fuselage_moment
-        if fm is not None and fm.enabled and fm.d_cm_dalpha:
-            configs = [
-                replace(c, moment=(c.moment[0], c.moment[1] + fm.d_cm_dalpha,
-                                   c.moment[2], c.moment[3], c.moment[4]))
-                for c in configs
-            ]
+    configs = _balance_configs(project.aero_coeffs)
     if not configs:
         raise ValueError(
             "flight_envelope needs 'aero_coeffs' (cruise and/or flaps-down coefficient sets)"
@@ -419,6 +429,65 @@ def build_envelope(project: Project) -> EnvelopeResult:
                         tail_cp_station=xt, flaps_down=config.flaps_down,
                     ))
     return EnvelopeResult(vn=vn, tail_balance=tail)
+
+
+# --------------------------------------------------------------------------- #
+# Trim sweep -- balancing tail load vs CG station (Step G5, GUI plot support)
+# --------------------------------------------------------------------------- #
+@dataclass
+class TrimCurve:
+    """Balancing tail load LT vs CG station for one BAL (1-g trim) condition.
+
+    ``lt_lb`` is the **LIMIT** balancing tail load (the calc stays limit; the
+    render/export boundary applies the ultimate factor). One entry per station in
+    ``xcg_in``; ``nz``/``v_eas_kt`` are the converged load factor and EAS at each.
+    """
+    condition: str
+    xcg_in: List[float]
+    lt_lb: List[float]
+    nz: List[float]
+    v_eas_kt: List[float]
+
+
+def trim_sweep(project: Project, *, weight_lb: float, zcg: float,
+               xcg_stations: List[float], altitude_ft: float = 0.0) -> List[TrimCurve]:
+    """Balancing tail load LT vs CG station for the BAL (1-g trim) conditions.
+
+    Re-runs the FLTLOADS balance (:func:`_balance`, subroutine 3900) at each CG
+    station in ``xcg_stations`` -- holding weight, waterline ``zcg`` and every other
+    flight-loads / speeds input fixed -- for the three balanced trim conditions
+    (BAL A at VA, BAL C at VC, BAL D at VD, all at ``n = 1``). Pure calc: it adds no
+    load equations, only sweeps the existing balance across CG, so the returned
+    ``lt_lb`` at a station that coincides with a project CG case reproduces that
+    case's :func:`build_envelope` BAL load exactly (the Step G5 trim plot's
+    traceability guarantee). Uses the cruise (flaps-up) coefficient set, including
+    the Step G4 fuselage-moment increment when enabled. LIMIT output.
+    """
+    fl = project.flight_loads
+    if fl is None:
+        raise ValueError("trim_sweep needs 'flight_loads' inputs")
+    if project.speeds is None:
+        raise ValueError("trim_sweep needs 'speeds' (STRSPEED) for the design speeds")
+    cruise = next((c for c in _balance_configs(project.aero_coeffs) if not c.flaps_down), None)
+    if cruise is None:
+        raise ValueError("trim_sweep needs a flaps-up (cruise) aero coefficient set")
+    di = _design_inputs(project)
+    specs = (("BAL A", di.va, di.mc), ("BAL C", di.vc, di.mc), ("BAL D", di.vd, di.md))
+    curves: List[TrimCurve] = []
+    for cond, v, cap in specs:
+        xs: List[float] = []
+        lts: List[float] = []
+        nzs: List[float] = []
+        vs: List[float] = []
+        for x in xcg_stations:
+            cg = CgCase(name="sweep", weight_lb=weight_lb, xcg=x, zcg=zcg)
+            b = _balance(1.0, v, cap, cruise, cg, fl, altitude_ft)
+            xs.append(x)
+            lts.append(b.lt)
+            nzs.append(b.nz)
+            vs.append(b.v_eas)
+        curves.append(TrimCurve(condition=cond, xcg_in=xs, lt_lb=lts, nz=nzs, v_eas_kt=vs))
+    return curves
 
 
 def _point_conditions(env: EnvelopeResult, concept: bool) -> List[ConditionResult]:

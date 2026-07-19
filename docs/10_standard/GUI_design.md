@@ -73,7 +73,9 @@ pages, several using `st.tabs` to gather formerly-separate pages: **Geometry**;
 **Weight & Mass Properties** (tabs: Estimate · Weight, CG & Inertia · Payload
 Cases · Weight / CG Envelope); **Structural Speeds** (tabs: Design Speeds ·
 Speed–Altitude Envelope); **Aerodynamic Data**; and **Flight Envelope (V-n)**
-(tabs: V-n diagram · Critical Loads (SELECT)).
+(tabs: V-n diagram · Critical Loads (SELECT) · Trim & Stability — the last, Step G5,
+plots the balancing tail load swept across the CG range and the tail-volume static
+margin).
 
 The analysis-flow phases and their per-page mapping are in
 [`../30_future/03_gui_rework_plan.md §4`](../30_future/03_gui_rework_plan.md); the
