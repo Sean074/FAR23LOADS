@@ -343,25 +343,50 @@ re-sequencing (G2–G3); the new features (G4–G6) and the report (G8) follow.
 ### Step G0 — One unit per dimension, app-wide (G-1)
 **Objective.** Every quantity type has exactly one display unit per system; no page
 shows the same dimension two ways (today one page mixes `in`, `ft`, `ft²`).
-**Scope.** Audit current per-page units; pick the canonical display unit per **kind**
-in `farloads/units.py` (`UNIT_LABELS`); refactor the definition-page labels so all
-lengths, all areas, etc. read in one unit. Calc stays canonical Imperial
-(`GUI_design.md §7`); Imperial/SI toggle still switches the whole app.
+**Canonical units (locked 2026-07-18, G-1):** length → **`in`** (SI **`mm`**),
+area → **`ft²`** (SI **`m²`**). All other kinds (weight, torque, power, inertia)
+already have a single display unit.
+**Scope / files.**
+- `farloads/units.py`: collapse the redundant kinds in `UNIT_LABELS` and
+  `_KIND_FACTORS` — retire `length_ft` (fold into `length` = `in`) and `area_sqin`
+  (fold into `area_sqft` = `ft²`); keep `inertia_lbin2` (a genuinely distinct
+  mass-basis inertia, not a duplicate dimension).
+- Remap every `_PROJECT_FIELD_KIND` entry that points at a retired kind to the
+  surviving kind so field-level SI conversion is unaffected.
+- Sweep the 27 `app/views/*.py` for hard-coded unit suffixes and `labels_for(...)`
+  lookups; make each dimension read one way per page.
+**Guardrails.** Display-only — no `_RESULT_TO_SI` / result-math change, so oracles
+are untouched. Add/keep a test asserting `UNIT_LABELS` has exactly one label per
+dimension (no two kinds share a dimension except the intentional inertia pair).
 **Acceptance.** A per-kind unit table exists and is applied on every page; a review
 of each definition page shows no mixed units for one dimension. No calc/oracle change.
+**Sequencing.** Do **first** — lowest-risk (display-only), unblocks the units
+complaint, and every later page inherits it.
 
 ### Step G1 — Geometry single source of truth (G-2), incl. fuselage
 **Objective.** All geometry (fuselage, wing, empennage, control surfaces, gear,
 engine locations) is defined on **one** page; every downstream page reads it
 read-only and never re-asks it.
-**Scope.** Consolidate `configuration_layout` + `wing_geometry` into one geometry
-page; make `flight_envelope`/speeds/weight pages read geometry read-only (extend the
-existing seed-chain to strict read-through). **Add the fuselage as a geometry
-entity** (outline for the three-view; the data the G4 moment estimator needs).
-Geometry is defined **first** in the flow (weight DB and aero both need it).
+**Scope / files.**
+- Consolidate `app/views/configuration_layout.py` (owns `configuration`, the
+  three-view, fleet) + `app/views/wing_geometry.py` (owns `geometry`, WINGGEOM
+  planforms) into **one** geometry page, defined **first** in the flow (weight DB
+  and aero both need it).
+- **Add the fuselage as a geometry entity.** Today it is only length/width/height
+  scalars on `LayoutInput`, drawn as a plain rectangle. Give it an outline (the
+  three-view profile + the data the G4 moment estimator consumes). New model
+  field(s) → `io.py` round-trip → **`SCHEMA_VERSION` bump**; older files migrate
+  (default the outline from the existing scalars).
+- Make `flight_envelope`, `structural_speeds`, and the weight pages read geometry
+  **read-only** — extend the existing seed-chain to strict read-through (only the
+  geometry page edits it).
+**Guardrails.** No FAR23 calc change (geometry values are unchanged; only ownership
+and the fuselage outline are new). Follow Form+Apply *merge* not replace (D0 class).
 **Acceptance.** Grep shows geometry inputs entered on exactly one page; downstream
 pages display geometry read-only; a saved→reloaded project needs no geometry
-re-entry (closes the perceived "data not stored", G-3). No calc/oracle change.
+re-entry (closes the perceived "data not stored", G-3). Oracles unchanged.
+**Sequencing.** Do **after G0, before G2/G3** — it is the prerequisite for G4's
+fuselage moment estimator and the biggest usability win.
 
 ### Step G2 — Re-sequence `workflow.py` into the analysis-flow phases (G-4)
 **Objective.** Reorder navigation into the six analysis-flow sections of

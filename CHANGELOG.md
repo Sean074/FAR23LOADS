@@ -11,6 +11,16 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Documentation
 
+- **Phase G — detailed plan for G0/G1 + canonical-units decision.** Locked the
+  G-1 canonical display units (length → `in`/`mm`, area → `ft²`/`m²`) in
+  `docs/30_future/03_gui_rework_plan.md` §2, and expanded `00_backlog.md` → Phase G
+  steps **G0** (units collapse: retire the redundant `length_ft`/`area_sqin` kinds
+  in `units.py`, remap `_PROJECT_FIELD_KIND`, sweep the views — display-only, no
+  oracle change) and **G1** (geometry single-source-of-truth: consolidate
+  `configuration_layout` + `wing_geometry`, add the fuselage as a geometry entity
+  with schema bump, downstream read-through) with file-level scope, guardrails and
+  sequencing. Docs only — no code, calc, or schema change.
+
 - **Phase G — workflow-aligned GUI rework plan.** Added
   `docs/30_future/03_gui_rework_plan.md` (renamed/expanded from the draft
   `fix_the_gui.md`): assessment of the redesign proposal against the shipped
