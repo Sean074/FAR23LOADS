@@ -232,8 +232,9 @@ def test_list_saved_projects(tmp_path=None):
 
 
 def test_configuration_round_trip():
-    # The configuration/layout slice survives a dict round-trip (v6 schema).
-    from farloads import LayoutInput
+    # The parametric layout (unified onto geometry.parametric, v25) survives a
+    # dict round-trip.
+    from farloads import GeometryInput, LayoutInput
 
     layout = LayoutInput(
         fuselage_length=300.0, fuselage_width=48.0, wing_area_sqft=174.0,
@@ -241,9 +242,9 @@ def test_configuration_round_trip():
         h_tail_area=21.0, h_tail_arm=180.0, nose_gear_x=20.0, main_gear_x=110.0,
         track=90.0, gear_height=30.0,
     )
-    project = Project(name="cfg", configuration=layout)
+    project = Project(name="cfg", geometry=GeometryInput(parametric=layout))
     again = io.project_from_dict(io.project_to_dict(project))
-    assert again.configuration == layout
+    assert again.geometry.parametric == layout
 
 
 def test_c6_slices_round_trip():
@@ -371,12 +372,68 @@ def test_legacy_ft_sqin_keys_migrate_to_canonical():
     assert abs(p.vtail_loads.wing_span_in - 33.5 * 12.0) < 1e-9
     assert abs(p.vtail_loads.vtail_mac_in - 3.367 * 12.0) < 1e-9
     assert abs(p.vtail_loads.airplane_length_in - 26.522 * 12.0) < 1e-9
-    assert abs(p.configuration.h_tail_span_in - 120.0) < 1e-9
-    assert abs(p.configuration.v_tail_span_in - 48.0) < 1e-9
+    # v25: the legacy top-level "configuration" block folds onto geometry.parametric.
+    assert abs(p.geometry.parametric.h_tail_span_in - 120.0) < 1e-9
+    assert abs(p.geometry.parametric.v_tail_span_in - 48.0) < 1e-9
     assert abs(p.tab_loads.tabs[0].area_sqft - 226.0 / 144.0) < 1e-9
     # A canonical (new-key) value already present is not double-converted.
     p2 = io.project_from_dict({"vtail_loads": {"wing_span_in": 402.0}})
     assert p2.vtail_loads.wing_span_in == 402.0
+
+
+def test_legacy_configuration_folds_into_geometry():
+    """Phase G1 (schema v25): a pre-v25 file's top-level "configuration" block folds
+    onto the unified geometry slice as geometry.parametric, and the fuselage outline
+    is defaulted from the length/width/height scalars. The oracle-locked .surfaces
+    consumers are untouched."""
+    d = {
+        "schema_version": 24,
+        "configuration": {"wing_area_sqft": 174.0, "aspect_ratio": 6.0,
+                          "fuselage_length": 300.0, "fuselage_width": 48.0,
+                          "fuselage_height": 54.0, "datum_x": 0.0},
+        "geometry": {"surfaces": [{"name": "wing",
+                                   "leading_edge": [[0.0, 0.0], [10.0, 100.0]],
+                                   "trailing_edge": [[50.0, 0.0], [55.0, 100.0]]}]},
+    }
+    p = io.project_from_dict(d)
+    assert p.geometry is not None
+    # Parametric folded in from the legacy top-level key.
+    assert p.geometry.parametric is not None
+    assert p.geometry.parametric.wing_area_sqft == 174.0
+    # Surfaces (oracle path) preserved unchanged.
+    assert [s.name for s in p.geometry.surfaces] == ["wing"]
+    # Fuselage outline defaulted from the scalars: nose -> max (0.35L) -> tail.
+    secs = p.geometry.fuselage.sections
+    assert len(secs) == 3
+    assert secs[0].x == 0.0 and secs[0].width == 0.0
+    assert abs(secs[1].x - 0.35 * 300.0) < 1e-9
+    assert secs[1].width == 48.0 and secs[1].height == 54.0
+    # Round-trips onto the new slice with no legacy top-level "configuration".
+    out = io.project_to_dict(p)
+    assert "configuration" not in out
+    assert out["geometry"]["parametric"]["wing_area_sqft"] == 174.0
+    assert len(out["geometry"]["fuselage"]["sections"]) == 3
+    again = io.project_from_dict(out)
+    assert again.geometry.parametric == p.geometry.parametric
+    assert again.geometry.fuselage == p.geometry.fuselage
+
+
+def test_explicit_fuselage_outline_round_trip_and_not_defaulted():
+    """An explicit fuselage outline survives the round-trip verbatim and is NOT
+    overwritten by the scalar default."""
+    from farloads import FuselageOutline, FuselageSection, GeometryInput, LayoutInput
+
+    fuse = FuselageOutline(sections=[
+        FuselageSection(x=0.0, width=0.0, height=0.0),
+        FuselageSection(x=120.0, width=60.0, height=66.0),
+        FuselageSection(x=280.0, width=8.0, height=12.0),
+    ])
+    project = Project(name="f", geometry=GeometryInput(
+        parametric=LayoutInput(fuselage_length=300.0, fuselage_width=48.0),
+        fuselage=fuse))
+    again = io.project_from_dict(io.project_to_dict(project))
+    # Explicit sections preserved (not replaced by the 48-in-wide scalar default).
+    assert again.geometry.fuselage == fuse
 
 
 if __name__ == "__main__":

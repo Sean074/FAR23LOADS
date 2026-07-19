@@ -217,12 +217,13 @@ st.header("Net wing loads")
 
 wm = project.wing_mass or WingMassInput()
 
-# Dihedral default: read Configuration & Layout's dihedral_deg when this page's
-# own field is still unset, rather than re-asking for the airplane's already-
-# entered dihedral (same bug class fixed on Configuration & Layout).
+# Dihedral default: read the Geometry page's parametric dihedral_deg when this
+# page's own field is still unset, rather than re-asking for the airplane's
+# already-entered dihedral (read-only through the unified geometry slice, Step G1).
 _dihedral_default = float(wm.dihedral_deg)
-if not _dihedral_default and project.configuration is not None:
-    _dihedral_default = project.configuration.dihedral_deg
+_parametric = project.geometry.parametric if project.geometry is not None else None
+if not _dihedral_default and _parametric is not None:
+    _dihedral_default = _parametric.dihedral_deg
 
 with st.form("net_wing_loads_form"):
     st.subheader(f"Wing mass distribution ({U['weight']} / {U['length']})")

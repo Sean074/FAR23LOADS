@@ -18,7 +18,7 @@ import csv
 import json
 import os
 from dataclasses import asdict
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 from .models import (
     SCHEMA_VERSION,
@@ -45,6 +45,8 @@ from .models import (
     FlapLoadsInput,
     FlightLoadsInput,
     FuselageMassInput,
+    FuselageOutline,
+    FuselageSection,
     FuselageStation,
     GeometryInput,
     LandingGearInput,
@@ -82,6 +84,7 @@ from .models import (
     WingLoadResult,
     WingMassInput,
     WingStationLoad,
+    default_fuselage_outline,
 )
 from .report import has_load_case_data, load_cases_to_rows, results_to_rows
 
@@ -240,14 +243,45 @@ def _surface_from_dict(d: Dict[str, Any]) -> SurfaceInput:
     )
 
 
-def geometry_from_dict(d: Dict[str, Any]) -> GeometryInput:
-    """Build a :class:`GeometryInput` from a plain dict (tuple coercion)."""
-    return GeometryInput(surfaces=[_surface_from_dict(s) for s in d.get("surfaces", []) or []])
+def _fuselage_outline_from_dict(d: Dict[str, Any]) -> FuselageOutline:
+    return FuselageOutline(sections=[
+        FuselageSection(x=s["x"], width=s["width"], height=s["height"])
+        for s in d.get("sections", []) or []
+    ])
+
+
+def geometry_from_dict(d: Dict[str, Any], legacy_configuration: Optional[Dict[str, Any]] = None) -> GeometryInput:
+    """Build the unified :class:`GeometryInput` from a plain dict (Step G1).
+
+    ``surfaces`` is the WINGGEOM planform list (unchanged). ``parametric`` is the
+    embedded :class:`LayoutInput`; ``legacy_configuration`` folds a pre-v25 file's
+    top-level ``"configuration"`` block into it when ``geometry.parametric`` is
+    absent. ``fuselage`` is the body outline, defaulted from the parametric
+    length/width/height scalars when the file predates it.
+    """
+    parametric_raw = d.get("parametric")
+    if parametric_raw is None:
+        parametric_raw = legacy_configuration
+    parametric = configuration_from_dict(parametric_raw) if parametric_raw else None
+
+    fuselage_raw = d.get("fuselage")
+    if fuselage_raw:
+        fuselage = _fuselage_outline_from_dict(fuselage_raw)
+    elif parametric is not None:
+        fuselage = default_fuselage_outline(parametric)
+    else:
+        fuselage = None
+
+    return GeometryInput(
+        surfaces=[_surface_from_dict(s) for s in d.get("surfaces", []) or []],
+        parametric=parametric,
+        fuselage=fuselage,
+    )
 
 
 def geometry_to_dict(inp: GeometryInput) -> Dict[str, Any]:
-    """Serialize a :class:`GeometryInput` to JSON-friendly primitives."""
-    return {
+    """Serialize the unified :class:`GeometryInput` to JSON-friendly primitives."""
+    out: Dict[str, Any] = {
         "surfaces": [
             {
                 "name": s.name,
@@ -259,6 +293,16 @@ def geometry_to_dict(inp: GeometryInput) -> Dict[str, Any]:
             for s in inp.surfaces
         ]
     }
+    if inp.parametric is not None:
+        out["parametric"] = configuration_to_dict(inp.parametric)
+    if inp.fuselage is not None:
+        out["fuselage"] = {
+            "sections": [
+                {"x": s.x, "width": s.width, "height": s.height}
+                for s in inp.fuselage.sections
+            ]
+        }
+    return out
 
 
 # --------------------------------------------------------------------------- #
@@ -799,7 +843,9 @@ def project_from_dict(d: Dict[str, Any]) -> Project:
         one_engine_out = d.get("one_engine_out")
         landing = d.get("landing")
         loads = d.get("loads")
-        configuration = d.get("configuration")
+        # v25: the parametric layout unified onto the geometry slice. A pre-v25 file
+        # carries it as a top-level "configuration" block -- fold it into geometry.
+        legacy_configuration = d.get("configuration")
         engines, layout = _engines_from_dict(d)
         weight_slice = weight_from_dict(weight) if weight else None
         if weight_slice is not None and not weight_slice.cg_cases:
@@ -812,7 +858,10 @@ def project_from_dict(d: Dict[str, Any]) -> Project:
             engines=engines,
             engine_layout=layout,
             weight=weight_slice,
-            geometry=geometry_from_dict(geometry) if geometry else None,
+            geometry=(
+                geometry_from_dict(geometry or {}, legacy_configuration=legacy_configuration)
+                if (geometry or legacy_configuration) else None
+            ),
             speeds=speeds_from_dict(speeds) if speeds else None,
             aero=aero_from_dict(aero) if aero else None,
             aero_coeffs=(
@@ -833,7 +882,6 @@ def project_from_dict(d: Dict[str, Any]) -> Project:
             one_engine_out=one_engine_out_from_dict(one_engine_out) if one_engine_out else None,
             landing=landing_from_dict(landing) if landing else None,
             loads=loads_from_dict(loads) if loads else None,
-            configuration=configuration_from_dict(configuration) if configuration else None,
             include_far25=bool(d.get("include_far25", False)),
         )
     # Legacy: the whole file is just the engine slice.
@@ -905,8 +953,6 @@ def project_to_dict(project: Project) -> Dict[str, Any]:
         out["landing"] = landing_to_dict(project.landing)
     if project.loads is not None:
         out["loads"] = loads_to_dict(project.loads)
-    if project.configuration is not None:
-        out["configuration"] = configuration_to_dict(project.configuration)
     if project.include_far25:
         out["include_far25"] = True
     return out

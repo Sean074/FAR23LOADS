@@ -475,9 +475,9 @@ def _gear_condition(project: Project, layout: LayoutInput, geom: dict) -> Option
 
 def configuration_properties(project: Project) -> List[ConditionResult]:
     """All configuration/layout derived quantities for a :class:`Project`."""
-    layout = project.configuration
+    layout = project.geometry.parametric if project.geometry is not None else None
     if layout is None:
-        raise ValueError("Project has no 'configuration' slice for the configuration module")
+        raise ValueError("Project has no 'geometry.parametric' slice for the configuration module")
     geom = _wing_geometry(layout)
     results = [_planform_condition(layout, geom)]
     for cond in (_stability_condition(project, layout, geom),

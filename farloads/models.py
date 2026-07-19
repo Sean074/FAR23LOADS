@@ -267,13 +267,56 @@ class SurfaceInput:
 
 
 @dataclass
-class GeometryInput:
-    """The aerodynamic-surface geometry database read by WINGGEOM and downstream.
+class FuselageSection:
+    """One fuselage cross-section station for the body outline (Step G1).
 
-    ``surfaces`` is the ordered list of surfaces to evaluate (wing first by
-    convention, since wing ``XLEMAC``/``MAC`` seed WTENV and STRSPEED).
+    ``x`` is the fuselage station (in); ``width``/``height`` the maximum body
+    width and height (in) at that station. The cross-sectional area used by the
+    G4 slender-body pitching-moment estimator is derived as an ellipse
+    (``pi/4 * width * height``) -- the sections are the station-area table that
+    both the three-view body profile and that estimator read.
+    """
+    x: float
+    width: float
+    height: float
+
+
+@dataclass
+class FuselageOutline:
+    """The fuselage body outline: cross-sections ordered nose -> tail (Step G1).
+
+    A station-area table (:class:`FuselageSection` list) that gives both the
+    three-view body profile and the cross-sectional-area distribution the G4
+    fuselage pitching-moment estimator consumes. For older projects (which carry
+    only the ``fuselage_length``/``_width``/``_height`` scalars on the parametric
+    slice) it is defaulted from those scalars by
+    :func:`default_fuselage_outline` when the project loads.
+    """
+    sections: List[FuselageSection] = field(default_factory=list)
+
+
+@dataclass
+class GeometryInput:
+    """The single geometry source of truth (Step G1): parametric layout, the
+    WINGGEOM lifting-surface planforms, and the fuselage outline.
+
+    Unifies what used to be two slices -- ``Project.configuration`` (the
+    parametric ``LayoutInput``) and ``Project.geometry`` (the surface planforms)
+    -- into one, so geometry is owned and edited on exactly one page and every
+    downstream page reads it read-only.
+
+    ``surfaces`` is the ordered list of lifting surfaces to evaluate (wing first
+    by convention, since wing ``XLEMAC``/``MAC`` seed WTENV and STRSPEED); the
+    oracle-locked calc (AIRLOADS, WINGINER, NETLOADS, ...) reads it unchanged via
+    :meth:`by_name`/``surfaces``. ``parametric`` is the parametric fuselage/wing/
+    tail/gear geometry the Geometry page edits and then *seeds* into ``surfaces``
+    (WINGGEOM polylines) and downstream (WTENV/STRSPEED ``XLEMAC``/``MAC``).
+    ``fuselage`` is the body outline (station-area table) for the three-view and
+    the G4 moment estimator.
     """
     surfaces: List[SurfaceInput] = field(default_factory=list)
+    parametric: Optional["LayoutInput"] = None
+    fuselage: Optional[FuselageOutline] = None
 
     def by_name(self, name: str) -> Optional[SurfaceInput]:
         for s in self.surfaces:
@@ -905,7 +948,7 @@ class TailType(str, Enum):
 
 
 # --------------------------------------------------------------------------- #
-# General configuration & layout (modern addition) -- Project.configuration
+# General configuration & layout (modern addition) -- GeometryInput.parametric
 # --------------------------------------------------------------------------- #
 @dataclass
 class LayoutInput:
@@ -958,6 +1001,36 @@ class LayoutInput:
     main_gear_x: float = 0.0         # main-gear contact fuselage station, in
     track: float = 0.0               # main-gear track (wheel-to-wheel), in
     gear_height: float = 0.0         # static ground-to-WRP height, in
+
+
+# Default fuselage-outline shape (fractions of overall length / max cross-section)
+# used to seed a body outline from the coarse length/width/height scalars for a
+# project that predates the G1 outline. A first-order nose-cone -> constant-section
+# -> tail-cone form; documented here so a refinement is a one-line change.
+_FUSE_MAX_SECTION_FRAC = 0.35       # station of the max cross-section, fraction of L
+_FUSE_TAIL_WIDTH_FRAC = 0.10        # tail-end width, fraction of max width
+_FUSE_TAIL_HEIGHT_FRAC = 0.15       # tail-end height, fraction of max height
+
+
+def default_fuselage_outline(parametric: "LayoutInput") -> Optional[FuselageOutline]:
+    """A first-order fuselage outline from the parametric length/width/height.
+
+    Three sections nose -> tail: a pointed nose at the datum, the max cross-section
+    at :data:`_FUSE_MAX_SECTION_FRAC` of the length, and a tapered tail cone. Used
+    to migrate an older project (which carries only the scalars) to the G1 body
+    outline. Returns ``None`` when no fuselage length is set (draw nothing, exactly
+    as before the outline existed).
+    """
+    length = parametric.fuselage_length
+    if length <= 0:
+        return None
+    x0 = parametric.datum_x
+    w, h = parametric.fuselage_width, parametric.fuselage_height
+    return FuselageOutline(sections=[
+        FuselageSection(x0, 0.0, 0.0),
+        FuselageSection(x0 + _FUSE_MAX_SECTION_FRAC * length, w, h),
+        FuselageSection(x0 + length, _FUSE_TAIL_WIDTH_FRAC * w, _FUSE_TAIL_HEIGHT_FRAC * h),
+    ])
 
 
 @dataclass
@@ -1444,7 +1517,13 @@ class LoadsResult:
 # -> *_in (each x12), LayoutInput.{h_tail_span_ft,v_tail_span_ft} -> *_in (x12), and
 # TabSpec.area_sqin -> area_sqft (/144). Calc is unchanged in result (the ft/in^2
 # math is restored internally); io.py migrates the legacy keys/values on load.
-SCHEMA_VERSION = 24
+# v25 (Phase G1) unifies geometry into one slice: the parametric LayoutInput (was
+# the separate top-level Project.configuration) and a new FuselageOutline move onto
+# GeometryInput as .parametric and .fuselage, alongside the unchanged .surfaces. A
+# legacy file's top-level "configuration" key is folded into geometry.parametric and
+# the fuselage outline is defaulted from the length/width/height scalars on load
+# (default_fuselage_outline); the oracle-locked .surfaces consumers are untouched.
+SCHEMA_VERSION = 25
 
 
 @dataclass
@@ -1486,7 +1565,6 @@ class Project:
     one_engine_out: Optional[OneEngineOutInput] = None
     landing: Optional[LandingInput] = None
     loads: Optional[LoadsResult] = None
-    configuration: Optional[LayoutInput] = None
     # Opt-in FAR 25 superset: when True the engine module appends the optional
     # 14 CFR 25.361/25.371 cases (turbopropeller only) on top of the oracle-locked
     # FAR 23 conditions. Defaults off, so GA projects are byte-identical.

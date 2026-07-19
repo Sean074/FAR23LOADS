@@ -94,7 +94,7 @@ def _subject_from_project(project: Project) -> Optional[Subject]:
     """
     speeds = project.speeds
     weight = project.weight
-    config = project.configuration
+    config = project.geometry.parametric if project.geometry is not None else None
 
     direct = weight.direct_totals() if (weight and weight.items) else None
 

@@ -10,6 +10,64 @@ Acceptance**, **Key decisions**.
 
 ---
 
+## Phase G — Step G1: Geometry single source of truth, incl. fuselage (complete, 2026-07-18)
+
+**Objective.** All geometry (parametric fuselage/wing/tail/gear, the WINGGEOM
+lifting-surface planforms, and a new fuselage outline) is defined on **one** page;
+every downstream page reads it read-only and never re-asks it. Closes the doc's
+"Is geometry before weight?" decision (geometry first) and the perceived
+"data-not-stored" issue (G-3): re-entry, not true loss.
+
+**Scope decisions (AskUserQuestion, 2026-07-18).** (1) **Fuselage outline** →
+*station-area table* (`FuselageSection` width/height vs. station), because it
+serves both the three-view body profile and the Step G4 slender-body moment
+estimator (cross-section area ≈ π/4·w·h) from one model. (2) **Slice strategy** →
+*unify into one slice* (the heavier refactor): the parametric `LayoutInput`
+(formerly the top-level `Project.configuration`) and the fuselage outline move onto
+`GeometryInput`, alongside the unchanged `.surfaces`. (3) **Nav / guard** → *one
+step, relax guard*: one **Geometry** step, the `wing_geometry` module folded via
+`FOLDED_MODULES` (the existing "one step, multiple modules" mechanism).
+
+**Deliverables.**
+- **`farloads/models.py`** — `GeometryInput` gains `parametric: Optional[LayoutInput]`
+  and `fuselage: Optional[FuselageOutline]` beside `surfaces`; new `FuselageSection`
+  /`FuselageOutline` dataclasses + `default_fuselage_outline(parametric)` (nose →
+  0.35·L max section → tapered tail cone). `Project.configuration` **removed**.
+  **`SCHEMA_VERSION` 24 → 25** with a v25 migration note.
+- **`farloads/io.py`** — `geometry_from_dict`/`geometry_to_dict` carry
+  `parametric` + `fuselage`; `project_from_dict` folds a legacy top-level
+  `"configuration"` block onto `geometry.parametric` and defaults the fuselage
+  outline from the scalars; the top-level `configuration` write is dropped.
+- **`farloads/modules/configuration.py`**, **`validation.py`** — read
+  `project.geometry.parametric`. Oracle-locked `.surfaces` consumers (AIRLOADS,
+  WINGINER, NETLOADS, …) are untouched.
+- **`app/views/configuration_layout.py`** — retitled **Geometry**; the sole editor
+  of the unified slice (`_set_geometry` preserves the other fields on every write).
+  New **Fuselage outline** editor (station-area `data_editor`) and **Lifting-surface
+  planforms** editor (WINGGEOM surface polylines, merged in from the deleted
+  `wing_geometry.py`). Three-view draws the fuselage from its outline sections.
+- **Downstream read-through** — `flight_envelope.py`, `tail_loads.py`,
+  `wing_loads.py`, `aircraft_comparison.py` read `geometry.parametric` read-only
+  (they never wrote geometry — only the Geometry page does).
+- **`farloads/workflow.py`** — one `configuration_layout`/**Geometry** step
+  (`produces="geometry"`); `wing_geometry` added to `FOLDED_MODULES`.
+- **`app/views/wing_geometry.py` deleted** (folded onto the Geometry page).
+
+**Test / Acceptance.** Full suite green (390 tests: +`test_default_fuselage_outline_*`
+and +`test_legacy_configuration_folds_into_geometry` /
++`test_explicit_fuselage_outline_round_trip_and_not_defaulted`; the smoke suite
+loses one param with the removed view). Appendix A/B oracles unchanged (fixtures
+re-expressed as `geometry=GeometryInput(parametric=…)`, same outputs). Views smoke
+test renders the merged Geometry page. `ruff check farloads/ cli.py` clean. Verified
+`examples/concept_regional_jet` migrates (`configuration` → `geometry.parametric` +
+defaulted fuselage sections) and round-trips with no top-level `configuration` key.
+
+**Key decisions.** G-2 (one geometry page, geometry first); unify into one slice;
+fuselage = station-area table (feeds G4); one nav step + fold `wing_geometry`.
+G0 already consumed the schema bump's predecessor, so G1 builds on v24 → v25.
+
+---
+
 ## Phase G — Step G0: One unit per dimension, app-wide (complete, 2026-07-18)
 
 **Objective.** Every quantity type has exactly one display unit per system, so no page

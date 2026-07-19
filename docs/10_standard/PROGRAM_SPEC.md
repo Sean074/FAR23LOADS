@@ -145,9 +145,9 @@ chart + tables.
 - **FAR §:** geometry basis for 23.301+ airloads.
 - **Source:** Ch 5, `WINGGEOM.BAS`. Largest module — runs once per surface.
 - **Reads:** planform inputs per surface (root/tip chord, span, sweep, dihedral, incidence, station offsets) for: wing, horizontal & vertical tail, aileron, flap, elevator, rudder, tabs (the original keeps a `*GEOM.INP/.OUT` per surface).
-- **Writes:** derived geometry per surface — MAC, XLEMAC, area, aspect ratio, spanwise station table, control-surface hinge geometry → `Project.geometry.<surface>`.
+- **Writes:** derived geometry per surface — MAC, XLEMAC, area, aspect ratio, spanwise station table, control-surface hinge geometry → `Project.geometry.surfaces[<surface>]`.
 - **Validation:** Appendix A/B — MAC=69.246, XLEMAC=63.641 (wing) and the per-surface area/MAC tables.
-- **Notes:** Many downstream modules read `geometry`. Model surfaces as a dict/list keyed by surface name so one calc serves all. Has graphics: the Wing/Surface Geometry page plots a top-view planform outline per surface (`farloads.modules.wing_geometry.surface_top_outline`, a presentation-only helper — no new `ConditionResult`), reused by `configuration_layout.py`'s three-view for the wing outline (Airplane-phase GUI usability pass).
+- **Notes:** Many downstream modules read `geometry.surfaces`. Model surfaces as a list keyed by surface name so one calc serves all. **Step G1:** WINGGEOM (the `wing_geometry` module) no longer has its own page — it is folded onto the single **Geometry** page (`configuration_layout.py`, `FOLDED_MODULES`), whose "Lifting-surface planforms" section is the surface polyline editor. Has graphics: the top-view planform outline per surface (`farloads.modules.wing_geometry.surface_top_outline`, a presentation-only helper — no new `ConditionResult`), reused by the Geometry page's three-view for the wing outline.
 
 ### STRSPEED — Design speeds & maneuver load factors
 - **FAR §:** 23.335 (design airspeeds), 23.337 (limit maneuver load factors), 23.333.
@@ -334,7 +334,15 @@ regression oracle**; Appendix A/B geometry is used only as a *sanity* fixture.
 - **FAR §:** none (modern addition; geometric source of truth, not a FAR condition).
 - **Source:** `farloads/modules/configuration.py`; method refs Reference 1 Ch 5
   (trapezoidal MAC) and Ch 8 (tail-volume neutral point).
-- **Reads:** `Project.configuration` (`LayoutInput`: fuselage / parametric wing /
+- **Unified geometry slice (Step G1):** the parametric layout is `Project.geometry.parametric`
+  (`LayoutInput`) — formerly the separate top-level `Project.configuration` slice, now
+  folded onto `GeometryInput` alongside `.surfaces` (WINGGEOM planforms) and a new
+  `.fuselage` outline (`FuselageOutline`: `FuselageSection` width/height vs. station,
+  the station-area table for the three-view body profile and the Step G4 pitching-
+  moment estimator; defaulted from the `fuselage_length/width/height` scalars via
+  `default_fuselage_outline` for older files). One **Geometry** page owns and edits the
+  whole slice; `SCHEMA_VERSION` **25**; legacy files migrate on load.
+- **Reads:** `Project.geometry.parametric` (`LayoutInput`: fuselage / parametric wing /
   tail areas+arms / gear); `Project.weight.envelope` (aft-gross %MAC for the static
   margin, optional); `Project.engine` (prop geometry for clearance, optional);
   `Project.mass` (the WTONECG itemized loading, optional — Step D4.5, see
@@ -494,7 +502,8 @@ Derived from **User's Guide Table 2.2** (the authoritative input→output map):
 | `weight.cg_cases` (named loading scenarios) | Weight/CG Grid & Payload Cases page (Step D5; modern, no `.BAS`) | weight_envelope (chart overlay, read-only); Flight Envelope page merges it into `FlightLoadsInput.cg_cases` |
 | `weight.envelope` (useful-load envelope) | WTENV | FLTLOADS |
 | `mass` (weight/CG + inertias) | WTONECG | FLTLOADS, LANDLOAD (weight/CG); SELECT, ONENGOUT (inertia) |
-| `geometry.<surface>` | WINGGEOM | STRSPEED, AIRLOADS, AIRLOAD4, FLTLOADS, SELECT, ONENGOUT |
+| `geometry.surfaces[<surface>]` | WINGGEOM | STRSPEED, AIRLOADS, AIRLOAD4, FLTLOADS, SELECT, ONENGOUT |
+| `geometry.parametric` (`LayoutInput`: fuselage/wing/tail/gear) + `geometry.fuselage` (`FuselageOutline` station-area table, Step G1) | configuration (modern; no `.BAS`) — the one **Geometry** page | seeds WINGGEOM (`geometry.surfaces[wing]`); reads `weight.envelope`, `engine`; `fuselage` → Step G4 estimator |
 | `speeds` (V_A/C/D, n, mach) | STRSPEED, MACHLIM | FLTLOADS, AILERON, FLAPLOAD |
 | `aero_coeffs` (airplane-less-tail CL/CD/CM, cruise + flaps-down) | Aerodynamic Data page (`aero_coefficients` key, Step D4.1; formerly `FlightLoadsInput.configurations`) | FLTLOADS |
 | `aero` (tau, spanwise) | TAU, AIRLOADS/AIRLOAD4 | SELECT, NETLOADS (and AIRLOADS↔SELECT iterate) |
@@ -504,7 +513,6 @@ Derived from **User's Guide Table 2.2** (the authoritative input→output map):
 | `loads.wing_inertia` | WINGINER | NETLOADS |
 | `landing` (gear geometry + load factor) | LGFACTOR (writes `.n`), direct gear-geometry input | LANDLOAD; reads `mass` (weight/CG), `geometry.wing` (area) |
 | `engine[]` | direct input | ENGLOADS, ONENGOUT |
-| `configuration` (`LayoutInput`: fuselage/wing/tail/gear) | configuration (modern; no `.BAS`) | seeds WINGGEOM (`geometry.wing`); reads `weight.envelope`, `engine` |
 | `loads.wing_net` (net wing load) | NETLOADS | report/CSV export; **sbeam export bridge** (FORCE/MOMENT + stick model) |
 | `fuselage_mass` (per-station fuselage weight) | direct input | body_loads |
 | `loads.*` (per-module results, incl. body_loads' net fuselage shear/BM) | each component module | report/CSV export only |

@@ -111,8 +111,8 @@ relaxation that switched `PI = 3.1416` → `math.pi` is recorded in
 | `LANDLOAD` | Landing loads | ✅ done (C10) |
 
 > **Modern modules (no `.BAS`):** `body_loads` (Ref 1 Ch 15 net fuselage
-> distribution) **done** (C6); `configuration` (Configuration & Layout page)
-> **done** (C5). Neither counts against the 22-program total.
+> distribution) **done** (C6); `configuration` (the unified **Geometry** page,
+> Step G1) **done** (C5). Neither counts against the 22-program total.
 
 Per-module FAR references, inputs, outputs, dependencies and validation examples
 are in [`PROGRAM_SPEC.md`](PROGRAM_SPEC.md).
@@ -191,7 +191,7 @@ FAR23LOADS/
 │   │   └── workbook.py           # multi-sheet .xlsx workbook (Step D8.2): one tab per module/component + case index
 │   └── modules/
 │       ├── __init__.py
-│       ├── configuration.py      # Configuration & Layout (modern; no .BAS) -> Project.configuration
+│       ├── configuration.py      # Geometry page (modern; no .BAS) -> Project.geometry.parametric (Step G1)
 │       ├── weight_estimate.py    # WTESTIMA
 │       ├── weight_envelope.py    # WTENV
 │       ├── weight_onecg.py       # WTONECG

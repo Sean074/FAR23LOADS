@@ -27,18 +27,24 @@ from components import render_applicability_banner
 
 from farloads.applicability import effective_occupants
 from farloads import (
+    FuselageOutline,
+    FuselageSection,
+    GeometryInput,
     LayoutInput,
     MassItemKind,
     Project,
+    SurfaceInput,
     TailType,
     UnitSystem,
     WeightInput,
     consistency_warnings,
     convert_results,
+    default_fuselage_outline,
     labels_for,
     to_display,
     to_imperial_scalar,
 )
+from farloads import io as farloads_io
 from farloads.modules.configuration import (
     cg_estimate,
     component_stations,
@@ -49,7 +55,8 @@ from farloads.modules.configuration import (
     wing_polylines,
     wing_surface,
 )
-from farloads.modules.wing_geometry import surface_top_outline
+from farloads.modules.wing_geometry import geometry_properties, surface_top_outline
+from farloads.report import module_text_report
 
 _TAIL_TYPE_LABELS = {
     TailType.CONVENTIONAL: "Conventional",
@@ -60,17 +67,20 @@ _TAIL_TYPE_LABELS = {
 _TAIL_TYPE_BY_LABEL = {v: k for k, v in _TAIL_TYPE_LABELS.items()}
 
 
-st.title("Configuration & Layout")
+st.title("Geometry")
 st.caption(
-    "Parametric fuselage / wing / tail / gear geometry — the geometric source of "
-    "truth that seeds the geometry, weight and speeds pages. A modern addition with "
+    "The single geometry source of truth (Step G1): parametric fuselage / wing / "
+    "tail / gear, the fuselage outline, and the WINGGEOM lifting-surface planforms "
+    "on one page. Every downstream page reads this read-only. A modern addition with "
     "no original program and no regression oracle; figures are first-order estimates."
 )
 
 project: Project = st.session_state.get("project", Project(name=""))
 render_applicability_banner(project)
 for _w in consistency_warnings(project):
-    if _w.page == "configuration_layout":
+    # The Geometry page is the merged home of the old Configuration & Layout and
+    # Wing Geometry pages (Step G1), so it surfaces both warning categories.
+    if _w.page in ("configuration_layout", "wing_geometry"):
         st.warning(_w.message)
 system: UnitSystem = st.session_state.get("unit_system", UnitSystem.IMPERIAL)
 U = labels_for(system)  # {"weight","length","area_sqft",...} -> unit string
@@ -81,13 +91,14 @@ _occupants = effective_occupants(project)
 if _occupants is not None:
     st.caption(f"Occupants (from Structural Speeds / Weight Estimate): **{_occupants}**")
 
-# No configuration slice yet (e.g. a loaded project that has WINGGEOM surfaces
-# but was never edited on this page): seed the parametric wing fields from the
-# existing "wing" surface rather than showing blank defaults for data the
-# project already has. Not committed to project.configuration until Apply.
+# No parametric slice yet (e.g. a loaded project that has WINGGEOM surfaces but
+# was never edited on this page): seed the parametric wing fields from the existing
+# "wing" surface rather than showing blank defaults for data the project already
+# has. Not committed to project.geometry.parametric until Apply.
+_parametric = project.geometry.parametric if project.geometry is not None else None
 _from_geometry = False
-if project.configuration is not None:
-    layout = project.configuration
+if _parametric is not None:
+    layout = _parametric
 else:
     layout = LayoutInput()
     wing_surf = project.geometry.by_name("wing") if project.geometry else None
@@ -97,6 +108,17 @@ else:
             _from_geometry = True
         except (ValueError, ZeroDivisionError):
             pass
+
+
+def _set_geometry(proj: Project, **changes) -> None:
+    """Write ``changes`` onto the unified geometry slice, creating it if absent
+    and preserving the other geometry fields (parametric / surfaces / fuselage).
+
+    This page is the sole owner/editor of ``Project.geometry``; downstream pages
+    read it read-only (Step G1)."""
+    geom = proj.geometry or GeometryInput()
+    proj.geometry = replace(geom, **changes)
+    st.session_state["project"] = proj
 
 
 # --------------------------------------------------------------------------- #
@@ -233,15 +255,19 @@ if applied:
         nose_gear_x=_imp(nose_gear_x, "length"), main_gear_x=_imp(main_gear_x, "length"),
         track=_imp(track, "length"), gear_height=_imp(gear_height, "length"),
     )
-    project.configuration = layout
-    st.session_state["project"] = project
+    # Preserve a hand-edited fuselage outline; default it from the scalars when none.
+    _existing_fuse = project.geometry.fuselage if project.geometry is not None else None
+    _set_geometry(project, parametric=layout,
+                  fuselage=_existing_fuse or default_fuselage_outline(layout))
 
-if project.configuration is None:
+_parametric = project.geometry.parametric if project.geometry is not None else None
+if _parametric is None:
     st.info(
         "No geometry defined yet -- fill in at least the wing area and aspect "
         "ratio in the sidebar and Apply geometry."
     )
     st.stop()
+layout = _parametric
 
 # --------------------------------------------------------------------------- #
 # Derived assessment
@@ -271,11 +297,21 @@ def _three_view() -> go.Figure:
     for xs, ys in surface_top_outline(le, te, symmetric=True):
         fig.add_scatter(x=xs, y=ys, mode="lines",
                         line=dict(color="#1f77b4"), showlegend=False, row=1, col=1)
-    # Fuselage outline (length x width).
+    # Fuselage top-view outline: the body sections (plan-view half-widths) when a
+    # fuselage outline is present, else the coarse length x width rectangle.
+    fuse = project.geometry.fuselage if project.geometry is not None else None
     nose, tail = layout.datum_x, layout.datum_x + layout.fuselage_length
     hw = layout.fuselage_width / 2.0
-    fig.add_scatter(x=[nose, tail, tail, nose, nose], y=[hw, hw, -hw, -hw, hw],
-                    mode="lines", line=dict(color="#888"), showlegend=False, row=1, col=1)
+    if fuse is not None and fuse.sections:
+        secs = fuse.sections
+        top_x = [s.x for s in secs] + [s.x for s in reversed(secs)] + [secs[0].x]
+        top_y = ([s.width / 2.0 for s in secs]
+                 + [-s.width / 2.0 for s in reversed(secs)] + [secs[0].width / 2.0])
+    else:
+        top_x = [nose, tail, tail, nose, nose]
+        top_y = [hw, hw, -hw, -hw, hw]
+    fig.add_scatter(x=top_x, y=top_y, mode="lines", line=dict(color="#888"),
+                    showlegend=False, row=1, col=1)
     # CG / NP markers.
     fig.add_scatter(x=[x_cg], y=[0], mode="markers", marker=dict(color="#d62728", size=11, symbol="x"),
                     name=f"CG ({cg_source})", row=1, col=1)
@@ -288,8 +324,15 @@ def _three_view() -> go.Figure:
     # --- Side view: X (horizontal) vs Z (waterline). Fuselage + gear. ---
     fh = layout.fuselage_height
     z0 = layout.root_waterline_z - fh / 2.0
-    fig.add_scatter(x=[nose, tail, tail, nose, nose],
-                    y=[z0, z0, z0 + fh, z0 + fh, z0], mode="lines",
+    if fuse is not None and fuse.sections:
+        cz = layout.root_waterline_z
+        side_x = [s.x for s in secs] + [s.x for s in reversed(secs)] + [secs[0].x]
+        side_y = ([cz + s.height / 2.0 for s in secs]
+                  + [cz - s.height / 2.0 for s in reversed(secs)] + [cz + secs[0].height / 2.0])
+    else:
+        side_x = [nose, tail, tail, nose, nose]
+        side_y = [z0, z0, z0 + fh, z0 + fh, z0]
+    fig.add_scatter(x=side_x, y=side_y, mode="lines",
                     line=dict(color="#888"), showlegend=False, row=1, col=2)
     ground = layout.root_waterline_z - layout.gear_height
     fig.add_scatter(x=[nose, tail], y=[ground, ground], mode="lines",
@@ -382,6 +425,148 @@ def _three_view() -> go.Figure:
 st.plotly_chart(_three_view(), use_container_width=True)
 
 # --------------------------------------------------------------------------- #
+# Fuselage outline (Step G1): the station-area table that drives the body
+# profile above and (Step G4) the fuselage pitching-moment estimator.
+# --------------------------------------------------------------------------- #
+with st.expander("Fuselage outline (body sections)"):
+    st.caption(
+        f"Cross-sections nose → tail: fuselage station X and the max body width / "
+        f"height at that station ({U['length']}). Drives the three-view body profile "
+        "and the Step G4 pitching-moment estimator (cross-section area ≈ π/4·w·h). "
+        "Defaults from the Length / Width / Height scalars; edit to refine."
+    )
+    _fuse = project.geometry.fuselage if project.geometry is not None else None
+    _sections = (_fuse.sections if _fuse is not None else None) or (
+        (default_fuselage_outline(layout) or FuselageOutline()).sections
+    )
+    _fuse_rows = [
+        {"X": to_display(s.x, "length", system),
+         "Width": to_display(s.width, "length", system),
+         "Height": to_display(s.height, "length", system)}
+        for s in _sections
+    ]
+    _fuse_cols = {
+        "X": st.column_config.NumberColumn(f"Station X ({U['length']})"),
+        "Width": st.column_config.NumberColumn(f"Width ({U['length']})"),
+        "Height": st.column_config.NumberColumn(f"Height ({U['length']})"),
+    }
+    with st.form("fuselage_outline_form"):
+        _fuse_df = st.data_editor(
+            pd.DataFrame(_fuse_rows, columns=["X", "Width", "Height"]),
+            num_rows="dynamic", column_config=_fuse_cols, key=f"fuse_sections_{system.value}",
+        )
+        if st.form_submit_button("Apply fuselage outline", type="primary"):
+            rows = _fuse_df.dropna().to_numpy().tolist()
+            sections = [
+                FuselageSection(
+                    x=to_imperial_scalar(x, "length", system),
+                    width=to_imperial_scalar(w, "length", system),
+                    height=to_imperial_scalar(h, "length", system),
+                )
+                for x, w, h in sorted(rows, key=lambda r: r[0])
+            ]
+            _set_geometry(project, fuselage=FuselageOutline(sections=sections))
+            st.success(f"Saved {len(sections)} fuselage section(s).")
+            st.rerun()
+
+# --------------------------------------------------------------------------- #
+# Lifting-surface planforms (WINGGEOM) -- merged onto this page (Step G1).
+# The Seed button above generates the wing surface from the parametric planform;
+# here each surface's leading/trailing-edge polylines are refined and integrated.
+# --------------------------------------------------------------------------- #
+st.subheader("Lifting-surface planforms (WINGGEOM)")
+st.caption(
+    "Each lifting surface is defined by its leading-/trailing-edge points (fuselage "
+    f"station X, butt line Y, {U['length']}), inboard → outboard, and the strip count "
+    "the chord is integrated over. The wing's MAC / XLEMAC seed the weight-envelope "
+    "and structural-speed pages."
+)
+_geometry = project.geometry or GeometryInput()
+
+with st.form("add_surface_form", clear_on_submit=True):
+    _new_name = st.text_input("New surface name", value="", placeholder="e.g. wing")
+    if st.form_submit_button("Add surface") and _new_name:
+        _surfaces = list(_geometry.surfaces) + [
+            SurfaceInput(name=_new_name, leading_edge=[], trailing_edge=[])
+        ]
+        _set_geometry(project, surfaces=_surfaces)
+        st.rerun()
+
+if not _geometry.surfaces:
+    st.info(
+        "No lifting surfaces defined yet -- Seed the wing geometry (button below) or "
+        "add one above (e.g. \"wing\") to enter its leading/trailing-edge points."
+    )
+else:
+    with st.form("surface_geometry_form"):
+        _surface_inputs = []
+        for _surf in _geometry.surfaces:
+            with st.expander(f"Surface: {_surf.name}", expanded=(_surf.name == "wing")):
+                _c = st.columns(2)
+                _sym = _c[0].checkbox("Symmetric about CL", value=_surf.symmetric,
+                                      key=f"sym_{_surf.name}")
+                _elems = _c[1].number_input("Integration elements", min_value=2, max_value=100,
+                                            value=int(_surf.elements), key=f"el_{_surf.name}")
+                st.caption(f"Points entered in {U['length']}.")
+                _le = [(to_display(x, "length", system), to_display(y, "length", system))
+                       for x, y in _surf.leading_edge]
+                _te = [(to_display(x, "length", system), to_display(y, "length", system))
+                       for x, y in _surf.trailing_edge]
+                _le_cols = {"XLE": st.column_config.NumberColumn(f"XLE ({U['length']})"),
+                            "YLE": st.column_config.NumberColumn(f"YLE ({U['length']})")}
+                _te_cols = {"XTE": st.column_config.NumberColumn(f"XTE ({U['length']})"),
+                            "YTE": st.column_config.NumberColumn(f"YTE ({U['length']})")}
+                _le_df = st.data_editor(pd.DataFrame(_le, columns=["XLE", "YLE"]),
+                                        num_rows="dynamic", column_config=_le_cols,
+                                        key=f"le_{_surf.name}_{system.value}")
+                _te_df = st.data_editor(pd.DataFrame(_te, columns=["XTE", "YTE"]),
+                                        num_rows="dynamic", column_config=_te_cols,
+                                        key=f"te_{_surf.name}_{system.value}")
+                _surface_inputs.append((_surf.name, _sym, _elems, _le_df, _te_df))
+        if st.form_submit_button("Apply surface geometry", type="primary"):
+            def _imp_pt(row):
+                return tuple(to_imperial_scalar(v, "length", system) for v in row)
+
+            _edited = [
+                SurfaceInput(
+                    name=name, symmetric=sym, elements=int(elems),
+                    leading_edge=[_imp_pt(r) for r in le_df.dropna().to_numpy().tolist()],
+                    trailing_edge=[_imp_pt(r) for r in te_df.dropna().to_numpy().tolist()],
+                )
+                for name, sym, elems, le_df, te_df in _surface_inputs
+            ]
+            _set_geometry(project, surfaces=_edited)
+            st.success(f"Applied {len(_edited)} surface(s).")
+            st.rerun()
+
+    try:
+        _surf_results = geometry_properties(project.geometry, project)
+    except (ValueError, ZeroDivisionError) as _exc:
+        _surf_results = None
+        st.caption(f"Surface integration pending: {_exc}")
+    if _surf_results:
+        _surf_display = convert_results(_surf_results, system)
+        for _r in _surf_display:
+            with st.expander(f"{_r.title}", expanded=(_r == _surf_display[0])):
+                st.dataframe(
+                    pd.DataFrame([{"Quantity": v.label, "Value": round(v.value, 4),
+                                   "Units": v.units} for v in _r.values]),
+                    hide_index=True, use_container_width=True)
+                if _r.note:
+                    st.caption(_r.note)
+        _dl = st.columns(2)
+        _dl[0].download_button(
+            "Download surface geometry (CSV)",
+            farloads_io.load_cases_csv(_surf_results),
+            file_name="wing_geometry.csv", mime="text/csv",
+        )
+        _dl[1].download_button(
+            "Download surface geometry (text)",
+            module_text_report("Aerodynamic surface geometry", _surf_results),
+            file_name="wing_geometry.txt", mime="text/plain",
+        )
+
+# --------------------------------------------------------------------------- #
 # Engine position write-back (Step D4.6)
 # --------------------------------------------------------------------------- #
 if project.engines:
@@ -439,16 +624,13 @@ with right:
         "area from that geometry."
     )
     if st.button("Seed wing geometry (WINGGEOM)"):
-        from farloads import GeometryInput
-
         geom = project.geometry or GeometryInput()
         surfaces = [s for s in geom.surfaces if s.name != "wing"]
         surfaces.insert(0, wing_surface(layout))
-        project.geometry = GeometryInput(surfaces=surfaces)
-        st.session_state["project"] = project
+        _set_geometry(project, surfaces=surfaces)
         st.success(
             f"Seeded the wing surface (MAC {mac:.2f} in, XLEMAC {xlemac:.2f} in). "
-            "Open the Wing Geometry page to refine it."
+            "Refine it in the Lifting-surface planforms section below."
         )
 
     st.caption(

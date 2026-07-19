@@ -172,8 +172,9 @@ standard, the rollout is tracked in
 ### 8.1 Explanation
 
 Every domain input widget carries a `help=` tooltip; dense and grid pages
-(Configuration & Layout geometry, Wing / Surface Geometry, Aerodynamic Data
-coefficients, Weight/CG inertias, and a short one on Structural Speeds)
+(the unified Geometry page — parametric layout, fuselage outline and WINGGEOM
+surface planforms, Step G1 — Aerodynamic Data coefficients, Weight/CG inertias,
+and a short one on Structural Speeds)
 additionally carry a collapsible **"ℹ️ Parameter guide"** expander. Jargon (MAC,
 XLEMAC, static margin, neutral point, tip-back/overturn, shoulder altitude, KEAS,
 the aero `C0…C4` polynomials, per-item inertias and the parallel-axis convention)
@@ -189,8 +190,7 @@ that lets the user *see* whether the inputs are self-consistent:
 
 | Page | Graphical review |
 |------|------------------|
-| Configuration & Layout | Three-view (CG, neutral point, gear, mass bubbles, engines) |
-| Wing / Surface Geometry | Planform plot; derived Area/MAC/XLEMAC/AR/span |
+| Geometry (Step G1: parametric + fuselage outline + WINGGEOM planforms) | Three-view (CG, neutral point, gear, fuselage outline, mass bubbles, engines); per-surface planform-derived Area/MAC/XLEMAC/AR/span |
 | Flight Envelope (V-n) | Continuous LIMIT design envelope (curved stall boundary, flaps-up/down manoeuvre envelope, gust lines) overlaid on the rigorous Mach-corrected balanced corner points *(consolidated — Phase E6)* |
 | Weight/CG/Inertia | CG marker + mass-distribution plot (with WTENV limits when defined) *(implemented — Phase E3)* |
 | Aerodynamic Data | Echo tables only *(curve plot deferred — see backlog)* |

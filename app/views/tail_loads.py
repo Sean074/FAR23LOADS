@@ -54,10 +54,10 @@ if project.is_concept:
 # tail_loads/vtail_loads slices (targeted field writes, nothing else touched).
 # --------------------------------------------------------------------------- #
 st.header("Chordwise distribution")
-# Defaults from Configuration & Layout's tail spans (h_tail_span_in/v_tail_span_in),
+# Defaults from the Geometry page's tail spans (h_tail_span_in/v_tail_span_in),
 # when this page's own field is still unset -- avoids re-asking for a span
-# already entered there (same bug class fixed on Configuration & Layout).
-layout = project.configuration
+# already entered there (read-only through the unified geometry slice, Step G1).
+layout = project.geometry.parametric if project.geometry is not None else None
 _htail_default = float(project.tail_loads.htail_semispan_in) if project.tail_loads else 0.0
 if not _htail_default and layout is not None and layout.h_tail_span_in:
     _htail_default = layout.h_tail_span_in / 2.0

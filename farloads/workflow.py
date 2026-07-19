@@ -78,12 +78,13 @@ STEPS: Tuple[WorkflowStep, ...] = (
                          "sidebar's selected Imperial/SI units."),
 
     # ---- Airplane: geometry, weight, mass, design speeds --------------------- #
-    WorkflowStep("configuration_layout", "Configuration & Layout", AIRPLANE,
-                 module="configuration", produces="configuration", bas=None,
-                 summary="Parametric geometry source of truth + fleet comparison."),
-    WorkflowStep("wing_geometry", "Wing / Surface Geometry", AIRPLANE,
-                 module="wing_geometry", produces="geometry", bas="WINGGEOM",
-                 summary="Lifting-surface planform polylines."),
+    # Step G1: the parametric layout + WINGGEOM planform pages merged into one
+    # Geometry page (the single geometry source of truth). The wing_geometry calc
+    # module is folded in (see FOLDED_MODULES); this one step owns the geometry slice.
+    WorkflowStep("configuration_layout", "Geometry", AIRPLANE,
+                 module="configuration", produces="geometry", bas="WINGGEOM",
+                 summary="Single geometry source of truth: parametric fuselage/wing/"
+                         "tail/gear, fuselage outline, and WINGGEOM surface planforms."),
     WorkflowStep("weight_estimate", "Weight Estimate", AIRPLANE,
                  module="weight_estimate", produces="weight.estimation", bas="WTESTIMA",
                  summary="Statistical empty-weight / MTOW sanity estimate."),
@@ -183,7 +184,9 @@ BY_KEY: Dict[str, WorkflowStep] = {s.key: s for s in STEPS}
 #: WINGINER's inertia loads are combined with NETLOADS on the Wing Loads page;
 #: AIRLOADS (Schrenk) is also combined there (Step D6). BALLOADS's balancing-load
 #: cross-check is combined with TAILDIST on the Tail Loads page (Step D6).
-FOLDED_MODULES: Tuple[str, ...] = ("wing_inertia", "airloads", "balloads")
+#: WINGGEOM (wing_geometry) is combined onto the one Geometry page (Step G1), which
+#: names the ``configuration`` module -- so wing_geometry has no dedicated step.
+FOLDED_MODULES: Tuple[str, ...] = ("wing_inertia", "airloads", "balloads", "wing_geometry")
 
 
 # --------------------------------------------------------------------------- #

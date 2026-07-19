@@ -339,32 +339,7 @@ sections** it targets are that doc's §4.
 
 Steps are in dependency order. G1 (foundational) comes before the
 re-sequencing (G2–G3); the new features (G4–G6) and the report (G8) follow.
-**G0 shipped 2026-07-18** (see `docs/40_history/00_completed_development.md`).
-
-### Step G1 — Geometry single source of truth (G-2), incl. fuselage
-**Objective.** All geometry (fuselage, wing, empennage, control surfaces, gear,
-engine locations) is defined on **one** page; every downstream page reads it
-read-only and never re-asks it.
-**Scope / files.**
-- Consolidate `app/views/configuration_layout.py` (owns `configuration`, the
-  three-view, fleet) + `app/views/wing_geometry.py` (owns `geometry`, WINGGEOM
-  planforms) into **one** geometry page, defined **first** in the flow (weight DB
-  and aero both need it).
-- **Add the fuselage as a geometry entity.** Today it is only length/width/height
-  scalars on `LayoutInput`, drawn as a plain rectangle. Give it an outline (the
-  three-view profile + the data the G4 moment estimator consumes). New model
-  field(s) → `io.py` round-trip → **`SCHEMA_VERSION` bump**; older files migrate
-  (default the outline from the existing scalars).
-- Make `flight_envelope`, `structural_speeds`, and the weight pages read geometry
-  **read-only** — extend the existing seed-chain to strict read-through (only the
-  geometry page edits it).
-**Guardrails.** No FAR23 calc change (geometry values are unchanged; only ownership
-and the fuselage outline are new). Follow Form+Apply *merge* not replace (D0 class).
-**Acceptance.** Grep shows geometry inputs entered on exactly one page; downstream
-pages display geometry read-only; a saved→reloaded project needs no geometry
-re-entry (closes the perceived "data not stored", G-3). Oracles unchanged.
-**Sequencing.** Do **after G0, before G2/G3** — it is the prerequisite for G4's
-fuselage moment estimator and the biggest usability win.
+**G0 and G1 shipped 2026-07-18** (see `docs/40_history/00_completed_development.md`).
 
 ### Step G2 — Re-sequence `workflow.py` into the analysis-flow phases (G-4)
 **Objective.** Reorder navigation into the six analysis-flow sections of

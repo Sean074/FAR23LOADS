@@ -18,7 +18,14 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from farloads import LayoutInput, MassCase, MassResult, Project, TailType  # noqa: E402
+from farloads import (  # noqa: E402
+    GeometryInput,
+    LayoutInput,
+    MassCase,
+    MassResult,
+    Project,
+    TailType,
+)
 from farloads.modules.configuration import (  # noqa: E402
     cg_estimate,
     component_stations,
@@ -53,7 +60,7 @@ def test_mac_matches_closed_form():
     ymac_cf = (semi / 3.0) * (1 + 2 * taper) / (1 + taper)
     xlemac_cf = layout.le_root_x + ymac_cf * math.tan(math.radians(layout.le_sweep_deg))
 
-    vals = _values(Project(name="t", configuration=layout))
+    vals = _values(Project(name="t", geometry=GeometryInput(parametric=layout)))
     assert math.isclose(vals["MAC"], mac_cf, rel_tol=1e-3)
     assert math.isclose(vals["YLE(MAC) butt line of MAC"], ymac_cf, rel_tol=1e-3)
     assert math.isclose(vals["XLE(MAC) station of MAC LE"], xlemac_cf, rel_tol=1e-3)
@@ -62,7 +69,7 @@ def test_mac_matches_closed_form():
 def test_area_aspect_ratio_recovered():
     # The generated planform must round-trip back to the input S and AR (WINGGEOM).
     layout = _trapezoid(area_ft2=200.0, ar=8.0, taper=0.4)
-    vals = _values(Project(name="t", configuration=layout))
+    vals = _values(Project(name="t", geometry=GeometryInput(parametric=layout)))
     assert math.isclose(vals["Aspect ratio"], 8.0, rel_tol=1e-3)
     span = vals["Span"]
     assert math.isclose(span, math.sqrt(8.0 * 200.0) * 12.0, rel_tol=1e-3)
@@ -78,7 +85,7 @@ def test_appendix_a_sanity():
         wing_area_sqft=2 * 13257 / 144.0, aspect_ratio=6.095, taper_ratio=44.0 / 101.0,
         le_sweep_deg=4.0, le_root_x=45.0,
     )
-    vals = _values(Project(name="appA", configuration=layout))
+    vals = _values(Project(name="appA", geometry=GeometryInput(parametric=layout)))
     assert math.isclose(vals["MAC"], 69.246, rel_tol=0.10)
     assert math.isclose(vals["YLE(MAC) butt line of MAC"], 87.854, rel_tol=0.10)
 
@@ -92,7 +99,7 @@ def test_stability_and_gear_present_when_data_given():
     layout.track = 90.0
     layout.gear_height = 35.0
     layout.root_waterline_z = 40.0
-    vals = _values(Project(name="t", configuration=layout))
+    vals = _values(Project(name="t", geometry=GeometryInput(parametric=layout)))
     assert vals["Horizontal tail volume V_H"] > 0
     assert "Neutral point (%MAC)" in vals
     assert "Tip-back angle" in vals
@@ -112,7 +119,7 @@ def _gear_layout():
 def test_cg_estimate_falls_back_to_quarter_mac_without_mass():
     # Step D4.5: no Project.mass -> the pre-D4.5 25%-MAC / wing-waterline first cut.
     layout = _gear_layout()
-    project = Project(name="t", configuration=layout)
+    project = Project(name="t", geometry=GeometryInput(parametric=layout))
     geom = _values(project)
     x_cg, z_cg, source = cg_estimate(project, layout, geom)
     assert math.isclose(x_cg, geom["XLE(MAC) station of MAC LE"] + 0.25 * geom["MAC"])
@@ -124,7 +131,7 @@ def test_cg_estimate_uses_mass_when_present():
     # Step D4.5: Project.mass (WTONECG's itemized loading) is the true CG.
     layout = _gear_layout()
     mass = MassResult(cases=[MassCase(name="itemized loading", weight_lb=2000.0, cg_x=123.4, cg_z=56.7)])
-    project = Project(name="t", configuration=layout, mass=mass)
+    project = Project(name="t", geometry=GeometryInput(parametric=layout), mass=mass)
     geom = _values(project)
     x_cg, z_cg, source = cg_estimate(project, layout, geom)
     assert (x_cg, z_cg, source) == (123.4, 56.7, "Weight DB")
@@ -133,8 +140,8 @@ def test_cg_estimate_uses_mass_when_present():
 def test_gear_condition_label_reflects_cg_source():
     layout = _gear_layout()
     mass = MassResult(cases=[MassCase(name="itemized loading", weight_lb=2000.0, cg_x=123.4, cg_z=56.7)])
-    with_mass = _values(Project(name="t", configuration=layout, mass=mass))
-    without_mass = _values(Project(name="t", configuration=layout))
+    with_mass = _values(Project(name="t", geometry=GeometryInput(parametric=layout), mass=mass))
+    without_mass = _values(Project(name="t", geometry=GeometryInput(parametric=layout)))
     assert "CG station (Weight DB)" in with_mass
     assert "CG station (25% MAC estimate)" in without_mass
     assert with_mass["CG station (Weight DB)"] == 123.4
@@ -257,6 +264,28 @@ def test_tail_planform_v_tail_draws_two_diagonal_panels_not_h_v():
     right_y = panels["v_tail_right"]["front"][1][0]
     assert left_y < 0 < right_y
     assert math.isclose(left_y, -right_y)
+
+
+def test_default_fuselage_outline_from_scalars():
+    # Step G1: a body outline is defaulted from the coarse length/width/height
+    # scalars -- nose point, max section at 0.35L, tapered tail cone.
+    from farloads import default_fuselage_outline
+    layout = LayoutInput(fuselage_length=300.0, fuselage_width=48.0,
+                         fuselage_height=54.0, datum_x=10.0)
+    outline = default_fuselage_outline(layout)
+    assert outline is not None
+    xs = [s.x for s in outline.sections]
+    assert xs[0] == 10.0                        # nose at the datum
+    assert math.isclose(xs[1], 10.0 + 0.35 * 300.0)
+    assert math.isclose(xs[2], 10.0 + 300.0)    # tail
+    assert outline.sections[1].width == 48.0 and outline.sections[1].height == 54.0
+    assert outline.sections[0].width == 0.0     # pointed nose
+
+
+def test_default_fuselage_outline_none_without_length():
+    # No fuselage length -> no outline (draw nothing, as before the outline existed).
+    from farloads import default_fuselage_outline
+    assert default_fuselage_outline(LayoutInput()) is None
 
 
 def test_match_component_station_prefers_specific_over_lumped():

@@ -44,11 +44,17 @@ def test_subject_from_example_project():
 def test_subject_geometric_axes_from_configuration():
     # A project with a configuration slice resolves wing area + AR, and the subject's
     # span derives from sqrt(AR * S) even with no explicitly stored span.
-    from farloads import EngineInput, LayoutInput, Project, StructuralSpeedsInput
+    from farloads import (
+        EngineInput,
+        GeometryInput,
+        LayoutInput,
+        Project,
+        StructuralSpeedsInput,
+    )
     view = _load_view()
     project = Project(
         name="Synthetic",
-        configuration=LayoutInput(wing_area_sqft=180.0, aspect_ratio=7.5),
+        geometry=GeometryInput(parametric=LayoutInput(wing_area_sqft=180.0, aspect_ratio=7.5)),
         speeds=StructuralSpeedsInput(weight_lb=2450.0),
         engines=[EngineInput(max_cont_hp=180.0)],
     )

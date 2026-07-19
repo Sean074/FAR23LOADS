@@ -11,6 +11,25 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- **Geometry single source of truth, incl. fuselage (Phase G, Step G1).** The two
+  geometry-owning pages — Configuration & Layout (parametric `LayoutInput`) and
+  Wing / Surface Geometry (WINGGEOM planforms) — are merged into **one Geometry
+  page**, and their two project slices are **unified into one** (`SCHEMA_VERSION`
+  **24 → 25**): the parametric layout (formerly the top-level `Project.configuration`)
+  and a new **fuselage outline** move onto `GeometryInput` as `.parametric` and
+  `.fuselage`, alongside the unchanged `.surfaces`. The oracle-locked `.surfaces`
+  consumers (AIRLOADS, WINGINER, NETLOADS, …) are untouched. The **fuselage is now a
+  real geometry entity** — a station-area table (`FuselageOutline`/`FuselageSection`,
+  cross-section width/height vs. station) that drives the three-view body profile and
+  seeds the future Step G4 pitching-moment estimator; older files default it from the
+  `fuselage_length/width/height` scalars on load. Downstream pages (flight envelope,
+  structural speeds, weight, tail/wing loads, aircraft comparison) read geometry
+  **read-only** through the unified slice. `workflow.py` collapses to one **Geometry**
+  step (the `wing_geometry` module is folded in via `FOLDED_MODULES`); legacy project
+  files migrate on load (`io.py` folds the top-level `"configuration"` block onto
+  `geometry.parametric`). **Appendix A/B oracles unchanged.** New tests:
+  fuselage-outline default + round-trip (`test_configuration.py`, `test_io.py`) and
+  the legacy-`configuration`→`geometry` migration (`test_io.py`).
 - **Canonical display units — one unit per dimension (Phase G, Step G0).** The GUI
   now shows a single unit per physical dimension: **length → `in` (SI `mm`), area →
   `ft²` (SI `m²`)**. The geometry inputs that previously carried a different unit are

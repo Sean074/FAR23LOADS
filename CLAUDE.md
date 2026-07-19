@@ -115,8 +115,9 @@ I/O; the GUI, CLI and tests are interchangeable front-ends over the same package
 
 - `farloads/` — the pure-calc package. No Streamlit, no file access in calc code.
   - `models.py` — `Project` (the single reloadable input bundle; holds every
-    module's per-domain input/result slice — `engines`, `weight`, `geometry`,
-    `speeds`, `aero`, `flight_loads`, `wing_mass`, `fuselage_mass`, `configuration`,
+    module's per-domain input/result slice — `engines`, `weight`, `geometry`
+    (unified Step G1: `.parametric` layout + `.surfaces` planforms + `.fuselage`
+    outline), `speeds`, `aero`, `flight_loads`, `wing_mass`, `fuselage_mass`,
     and the result slices `mass`/`envelope`/`loads`), the per-module input/result
     dataclasses, `ConditionResult`/`LoadValue` (one FAR condition's labelled
     outputs), `ModuleResult` (a module's name + its conditions), `SCHEMA_VERSION`.

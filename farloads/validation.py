@@ -69,7 +69,7 @@ def _wing_geometry_area_sqft(project: Project) -> Optional[float]:
 
 def _check_taper(project: Project) -> List[ConsistencyWarning]:
     out: List[ConsistencyWarning] = []
-    cfg = project.configuration
+    cfg = project.geometry.parametric if project.geometry is not None else None
     if cfg is not None and cfg.taper_ratio and cfg.taper_ratio > 1.0:
         out.append(ConsistencyWarning(
             "taper_gt_1",
@@ -90,7 +90,7 @@ def _check_taper(project: Project) -> List[ConsistencyWarning]:
 
 def _check_area(project: Project) -> List[ConsistencyWarning]:
     out: List[ConsistencyWarning] = []
-    cfg = project.configuration
+    cfg = project.geometry.parametric if project.geometry is not None else None
     if cfg is not None and cfg.wing_area_sqft is not None and cfg.wing_area_sqft <= 0.0:
         # Only warn once a layout is being defined (non-default fuselage/aspect).
         if cfg.aspect_ratio or cfg.taper_ratio or cfg.fuselage_length:
@@ -140,7 +140,7 @@ def _check_le_te_ordering(project: Project) -> List[ConsistencyWarning]:
 
 
 def _check_area_mismatch(project: Project) -> List[ConsistencyWarning]:
-    cfg = project.configuration
+    cfg = project.geometry.parametric if project.geometry is not None else None
     if cfg is None or not cfg.wing_area_sqft or cfg.wing_area_sqft <= 0.0:
         return []
     geo_area = _wing_geometry_area_sqft(project)

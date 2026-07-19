@@ -81,8 +81,9 @@ def _geometry_defaults(project: Project) -> dict:
             defaults["xw"] = values["XLE(MAC) station of MAC LE"] + 0.25 * values["MAC"]
         except (ValueError, ZeroDivisionError):
             pass
-    if project.configuration is not None and project.configuration.root_waterline_z:
-        defaults["zw"] = project.configuration.root_waterline_z
+    _parametric = project.geometry.parametric if project.geometry is not None else None
+    if _parametric is not None and _parametric.root_waterline_z:
+        defaults["zw"] = _parametric.root_waterline_z
     return defaults
 
 

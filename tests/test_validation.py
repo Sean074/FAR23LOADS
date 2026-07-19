@@ -37,20 +37,20 @@ def test_ga_fixture_is_clean():
 
 
 def test_taper_gt_1_fires():
-    project = Project(name="t", configuration=LayoutInput(
-        wing_area_sqft=150.0, aspect_ratio=7.0, taper_ratio=1.4, fuselage_length=300.0))
+    project = Project(name="t", geometry=GeometryInput(parametric=LayoutInput(
+        wing_area_sqft=150.0, aspect_ratio=7.0, taper_ratio=1.4, fuselage_length=300.0)))
     assert "taper_gt_1" in _codes(project)
 
 
 def test_taper_le_1_silent():
-    project = Project(name="t", configuration=LayoutInput(
-        wing_area_sqft=150.0, aspect_ratio=7.0, taper_ratio=0.5, fuselage_length=300.0))
+    project = Project(name="t", geometry=GeometryInput(parametric=LayoutInput(
+        wing_area_sqft=150.0, aspect_ratio=7.0, taper_ratio=0.5, fuselage_length=300.0)))
     assert "taper_gt_1" not in _codes(project)
 
 
 def test_nonpositive_area_fires():
-    project = Project(name="t", configuration=LayoutInput(
-        wing_area_sqft=0.0, aspect_ratio=7.0, taper_ratio=0.5, fuselage_length=300.0))
+    project = Project(name="t", geometry=GeometryInput(parametric=LayoutInput(
+        wing_area_sqft=0.0, aspect_ratio=7.0, taper_ratio=0.5, fuselage_length=300.0)))
     assert "nonpositive_area" in _codes(project)
 
 
@@ -82,8 +82,9 @@ def test_area_mismatch_fires():
         trailing_edge=[(120.0, 0.0), (120.0, 200.0)])
     project = Project(
         name="t",
-        configuration=LayoutInput(wing_area_sqft=150.0, aspect_ratio=7.0, fuselage_length=300.0),
-        geometry=GeometryInput(surfaces=[surf]))
+        geometry=GeometryInput(
+            parametric=LayoutInput(wing_area_sqft=150.0, aspect_ratio=7.0, fuselage_length=300.0),
+            surfaces=[surf]))
     assert "area_mismatch" in _codes(project)
 
 
@@ -98,8 +99,9 @@ def test_area_match_silent():
                     if v.label == "Total area") / 144.0
     project = Project(
         name="t",
-        configuration=LayoutInput(wing_area_sqft=area_ft2, aspect_ratio=7.0, fuselage_length=300.0),
-        geometry=GeometryInput(surfaces=[surf]))
+        geometry=GeometryInput(
+            parametric=LayoutInput(wing_area_sqft=area_ft2, aspect_ratio=7.0, fuselage_length=300.0),
+            surfaces=[surf]))
     assert "area_mismatch" not in _codes(project)
 
 
