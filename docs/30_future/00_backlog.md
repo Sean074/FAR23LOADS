@@ -339,17 +339,7 @@ sections** it targets are that doc's §4.
 
 Steps are in dependency order. G1 (foundational) comes before the
 re-sequencing (G2–G3); the new features (G4–G6) and the report (G8) follow.
-**G0 and G1 shipped 2026-07-18** (see `docs/40_history/00_completed_development.md`).
-
-### Step G2 — Re-sequence `workflow.py` into the analysis-flow phases (G-4)
-**Objective.** Reorder navigation into the six analysis-flow sections of
-`03_gui_rework_plan.md` §4: **Develop V-n → Flight loads → Other loads → Landing →
-Load-case plotting → Export**.
-**Scope.** Rework the `PHASES`/`STEPS` metadata in `farloads/workflow.py` (the
-single nav source of truth) and the section labels; keep the registered-module ↔
-workflow-step guard test green. No page bodies change in this step (grouping only).
-**Acceptance.** The sidebar presents the six analysis-flow sections in order; the
-nav-drift test passes; every registered module still has a step.
+**G0, G1 and G2 shipped 2026-07-18** (see `docs/40_history/00_completed_development.md`).
 
 ### Step G3 — Phase-1 page consolidation (Develop V-n diagram)
 **Objective.** Collapse the phase-1 pages into the four sub-steps 1a–1e of §4 so the

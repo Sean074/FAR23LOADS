@@ -57,20 +57,25 @@ is the only dataclass⇔JSON mapper; `farloads/units.py` owns unit conversion.
 
 The sidebar is built by `st.navigation` in `app/Home.py` from
 `farloads/workflow.py` — **not** from a `pages/` directory — so page order and
-titles come from workflow metadata, not filename numbers. Work flows left-to-right
-through six sections:
+titles come from workflow metadata, not filename numbers. Since Step G2 the
+sections follow the FAR 23 analysis flow — an un-numbered **Start** app-shell group
+above the six numbered analysis-flow phases:
 
-    1 · Start ─▶ 2 · Airplane ─▶ 3 · Envelopes & Critical Conditions ─▶
-    4 · Analysis ─▶ 5 · Loads Plots ─▶ 6 · Export
+    Start ─▶ 1 · Develop V-n diagram ─▶ 2 · Flight loads ─▶ 3 · Other loads ─▶
+    4 · Landing loads ─▶ 5 · Load-case plotting ─▶ 6 · Export
 
 Each `WorkflowStep` names its `key` (= the view file stem), `title`, `phase`, the
 calc `module` behind it, and the project slices it `requires`/`produces` — the
 seed of a dependency DAG that also drives the Dashboard completeness panel. A page
-is exactly `app/views/<step.key>.py`. The **Airplane** section — the definition
-pages this doc is chiefly about — is: Configuration & Layout, Wing / Surface
-Geometry, Weight Estimate, Weight/CG/Inertia, Structural Speeds, Aerodynamic Data.
+is exactly `app/views/<step.key>.py`. The **Develop V-n diagram** section — the
+definition pages this doc is chiefly about — is: Geometry, Weight Estimate,
+Weight/CG/Inertia, Weight/CG Grid & Payload Cases, Weight/CG Envelope, Structural
+Speeds, Speed–Altitude Envelope, Aerodynamic Data, Flight Envelope (V-n), Critical
+Loads (SELECT).
 
-The full six-section target and its per-page mapping are in
+The analysis-flow phases and their per-page mapping are in
+[`../30_future/03_gui_rework_plan.md §4`](../30_future/03_gui_rework_plan.md); the
+superseded Phase-D six-section grouping is in
 [`../30_future/02_gui_workflow_plan.md §2`](../30_future/02_gui_workflow_plan.md).
 
 ---
@@ -312,7 +317,8 @@ reruns); the editor surfaces it inline.
 
 ## 11. Status & open work
 
-**Implemented today:** the six-section navigation, the global unit toggle and
+**Implemented today:** the workflow-aligned navigation (Start + six analysis-flow
+phases since Step G2; the Phase-D six-section grouping it re-sequenced), the global unit toggle and
 project-file widget, the shared-`Project` data flow and seed-chain, the
 form+Apply/merge page conventions, the unit-boundary input pattern across all
 definition pages (§7), the Configuration & Layout three-view, the
@@ -329,10 +335,10 @@ sidebar and the JSON Editor (§10, Phase E5).
 
 **Phase E is complete** — all steps E1–E5 have shipped.
 
-Schema is at **`SCHEMA_VERSION = 23`** (v23 adds the optional concept 25.371
-advisory gyro rates, Phase 1 Step P1-5); Phases D–F (the six-section GUI
-restructure, the usability/concept-awareness work, and fleet comparison) are all
-complete. The **open GUI plan is now
+Schema is at **`SCHEMA_VERSION = 25`** (v24 = Step G0 canonical-unit field
+renames; v25 = Step G1 unified geometry slice + fuselage outline); Phases D–F (the
+six-section GUI restructure, the usability/concept-awareness work, and fleet
+comparison) are all complete, and Phase G is under way (G0–G2 shipped). The **open GUI plan is now
 [`../30_future/00_backlog.md`](../30_future/00_backlog.md) → Phase G** — the
 workflow-aligned rework (one-unit-per-dimension, single-source-of-truth geometry,
 re-sequenced analysis-flow navigation, fuselage-moment/trim-plot/elevator-chord

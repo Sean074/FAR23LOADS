@@ -4,17 +4,16 @@ Run with:  streamlit run app/Home.py
 
 The whole app is one reloadable ``project.json`` carried in ``st.session_state``.
 Navigation is built explicitly from :mod:`farloads.workflow` (the single source of
-truth for the step graph) and grouped into the six Phase-D workflow sections the
-user moves through left-to-right:
+truth for the step graph) and grouped into a **Start** app-shell section plus the
+six analysis-flow phases the user moves through left-to-right (Step G2):
 
-    1 · Start ──▶ 2 · Airplane ──▶ 3 · Envelopes & Critical Conditions ──▶
-    4 · Analysis ──▶ 5 · Loads Plots ──▶ 6 · Export
+    Start ──▶ 1 · Develop V-n diagram ──▶ 2 · Flight loads ──▶ 3 · Other loads ──▶
+    4 · Landing loads ──▶ 5 · Load-case plotting ──▶ 6 · Export
 
 Using ``st.navigation`` (rather than the implicit ``pages/`` directory) means page
 order and titles come from the workflow metadata, not filename numbers -- so there
 is no numeric-prefix coupling and no duplicate-index collisions. A section with no
-steps yet (``Loads Plots``, pending Step D7) is omitted from the sidebar rather
-than shown empty.
+steps is omitted from the sidebar rather than shown empty.
 
 This module also owns the **global unit-system toggle** and the **global project
 file widget** (Step D3, decision D-3): Imperial/SI selection (``st.session_state
@@ -44,13 +43,15 @@ from farloads.models import SCHEMA_VERSION
 # (individual views must not call it again under st.navigation).
 st.set_page_config(page_title="FAR 23 LOADS", layout="wide", page_icon="🛩️")
 
-# Numbered, ordered section labels for the sidebar groups.
+# Ordered section labels for the sidebar groups: an un-numbered Start app-shell
+# group above the six numbered analysis-flow phases (Step G2).
 _PHASE_LABEL = {
-    wf.START: "1 · Start",
-    wf.AIRPLANE: "2 · Airplane",
-    wf.ENVELOPES: "3 · Envelopes & Critical Conditions",
-    wf.ANALYSIS: "4 · Analysis",
-    wf.LOADS_PLOTS: "5 · Loads Plots",
+    wf.START: "Start",
+    wf.DEVELOP_VN: "1 · Develop V-n diagram",
+    wf.FLIGHT_LOADS: "2 · Flight loads",
+    wf.OTHER_LOADS: "3 · Other loads",
+    wf.LANDING: "4 · Landing loads",
+    wf.LOADS_PLOTTING: "5 · Load-case plotting",
     wf.EXPORT: "6 · Export",
 }
 

@@ -11,6 +11,19 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- **Workflow-aligned navigation re-sequence (Phase G, Step G2).** The GUI sidebar
+  is re-grouped from the historical Phase-D sections into the FAR 23 analysis flow
+  (decision G-4): an un-numbered **Start** app-shell group (Project Dashboard, JSON
+  Editor) above the six numbered analysis phases **1 · Develop V-n diagram → 2 ·
+  Flight loads → 3 · Other loads → 4 · Landing loads → 5 · Load-case plotting → 6 ·
+  Export**. The old **Airplane**/**Envelopes & Critical Conditions** split dissolves
+  — geometry, all weight/CG pages, both speed pages, aero data, and V-n + SELECT now
+  sit together under *Develop V-n diagram*; *Landing Loads* moves after the
+  control-surface/engine *Other loads* group. `farloads/workflow.py` (`PHASES`
+  renamed, `STEPS` reordered/reassigned) and `app/Home.py` (`_PHASE_LABEL`) carry the
+  change; the Dashboard caption follows. **Grouping/labels only — no page bodies, no
+  calc, no schema change** (the per-page consolidation into §4's 1a–1e sub-steps is
+  the separate Step G3). The nav-drift guard test stays green.
 - **Geometry single source of truth, incl. fuselage (Phase G, Step G1).** The two
   geometry-owning pages — Configuration & Layout (parametric `LayoutInput`) and
   Wing / Surface Geometry (WINGGEOM planforms) — are merged into **one Geometry

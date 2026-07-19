@@ -10,6 +10,51 @@ Acceptance**, **Key decisions**.
 
 ---
 
+## Phase G — Step G2: Re-sequence `workflow.py` into the analysis-flow phases (complete, 2026-07-18)
+
+**Objective.** Reorder the GUI navigation (decision G-4) into the six analysis-flow
+sections of `03_gui_rework_plan.md` §4 so page order follows how a FAR 23 analysis
+is actually performed, not the historical 22-program packaging.
+
+**Scope decisions (AskUserQuestion, 2026-07-18).** (1) **Shell pages** → *keep a
+"Start" section*: the two non-analysis app-shell pages (Project Dashboard, JSON
+Editor) stay in a dedicated un-numbered **Start** group above the six analysis
+phases, rather than being folded into an analysis phase (§4 defines only the six
+analysis phases; the shell needs a home). (2) **Label style** → *numbered + §4
+names*: the six analysis phases carry a numeric prefix (`1 · Develop V-n diagram`
+…`6 · Export`); Start is un-numbered to mark it as the shell.
+
+**Deliverables.**
+- **`farloads/workflow.py`** — the `PHASES` constants renamed/re-grouped to
+  `START, DEVELOP_VN, FLIGHT_LOADS, OTHER_LOADS, LANDING, LOADS_PLOTTING, EXPORT`;
+  every `WorkflowStep`'s `phase` reassigned and the `STEPS` tuple reordered into
+  analysis-flow order. The old **Airplane**/**Envelopes & Critical Conditions**
+  split dissolves — geometry, all four weight/CG pages, both speed pages, aero, and
+  the V-n + SELECT pages now sit together under **Develop V-n diagram** in §4's
+  1a→1e order; **Landing Loads** moves *after* the control-surface/engine **Other
+  loads** group. Module docstring updated to point at `03_gui_rework_plan.md §4`.
+- **`app/Home.py`** — `_PHASE_LABEL` remapped to the new phases with the
+  Start-un-numbered / analysis-numbered scheme; module docstring nav diagram updated.
+- **`app/views/dashboard.py`** — the left-to-right section caption updated to the
+  new phase names.
+- **No page bodies changed** — grouping/labels only; the per-page consolidation into
+  §4's 1a–1e sub-steps is the separate Step G3.
+
+**Test / Acceptance.** Full suite green (390 tests, unchanged count — the workflow
+tests are phase-name-agnostic: they read `wf.PHASES`/`wf.by_phase()` dynamically, so
+`test_keys_unique_and_phases_valid`, `test_by_phase_partitions_all_steps`, and the
+nav-drift guard `test_every_registered_module_has_a_step` all validate the new
+grouping automatically). `ruff check farloads/ cli.py` clean. Probe confirms the
+sidebar order: Start → Develop V-n (Geometry…Critical Loads) → Flight loads →
+Other loads → Landing loads → Load-case plotting → Export. Oracles untouched (no
+calc change).
+
+**Key decisions.** G-4 (genuine re-sequence, not relabel); keep a Start shell
+section (7 groups); numbered analysis phases + §4 names. Page consolidation deferred
+to G3 so this step is a safe metadata-only move.
+
+---
+
 ## Phase G — Step G1: Geometry single source of truth, incl. fuselage (complete, 2026-07-18)
 
 **Objective.** All geometry (parametric fuselage/wing/tail/gear, the WINGGEOM

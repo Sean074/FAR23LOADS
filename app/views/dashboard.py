@@ -22,8 +22,8 @@ st.title("🛩️ FAR 23 LOADS — Project Dashboard")
 st.caption(
     "Modern Python/Streamlit port of the McMaster FAR 23 LOADS suite. One reloadable "
     "project carries every module's inputs; work the sections left-to-right in the "
-    "sidebar — **Start → Airplane → Envelopes & Critical Conditions → Analysis → "
-    "Loads Plots → Export**. Open/Save a project against local disk from the "
+    "sidebar — **Start → Develop V-n diagram → Flight loads → Other loads → "
+    "Landing loads → Load-case plotting → Export**. Open/Save a project against local disk from the "
     "**Project file** widget in the sidebar (every page)."
 )
 

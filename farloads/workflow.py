@@ -3,9 +3,12 @@
 This is the single source of truth for *what the suite does and in what order*:
 each :class:`WorkflowStep` names the calc module behind it (``module``), the
 project slice(s) it needs (``requires``) and the slice it produces (``produces``),
-grouped into the six workflow sections the GUI presents -- **Start → Airplane →
-Envelopes & Critical Conditions → Analysis → Loads Plots → Export** (Phase D,
-see ``docs/30_future/02_gui_workflow_plan.md``).
+grouped into the workflow sections the GUI presents. Since Step G2 (Phase G) the
+sections follow the FAR 23 analysis flow -- a **Start** app-shell group followed by
+the six analysis-flow phases **Develop V-n diagram → Flight loads → Other loads →
+Landing loads → Load-case plotting → Export** (see
+``docs/30_future/03_gui_rework_plan.md`` §4; this supersedes the Phase-D
+Start/Airplane/Envelopes/Analysis grouping in ``02_gui_workflow_plan.md``).
 
 It is pure metadata plus pure predicates over a :class:`~farloads.models.Project`
 (no Streamlit, no I/O), so the GUI navigation, the Home dashboard's completeness
@@ -25,17 +28,21 @@ from typing import Dict, List, Optional, Tuple
 from .models import Project
 
 # --------------------------------------------------------------------------- #
-# Phases (ordered) -- the six Phase-D GUI sections
+# Phases (ordered) -- Start app-shell + the six analysis-flow sections (Step G2,
+# see docs/30_future/03_gui_rework_plan.md §4).
 # --------------------------------------------------------------------------- #
 START = "Start"
-AIRPLANE = "Airplane"
-ENVELOPES = "Envelopes & Critical Conditions"
-ANALYSIS = "Analysis"
-LOADS_PLOTS = "Loads Plots"
+DEVELOP_VN = "Develop V-n diagram"
+FLIGHT_LOADS = "Flight loads"
+OTHER_LOADS = "Other loads"
+LANDING = "Landing loads"
+LOADS_PLOTTING = "Load-case plotting"
 EXPORT = "Export"
 
 #: The workflow phases in presentation order.
-PHASES: Tuple[str, ...] = (START, AIRPLANE, ENVELOPES, ANALYSIS, LOADS_PLOTS, EXPORT)
+PHASES: Tuple[str, ...] = (
+    START, DEVELOP_VN, FLIGHT_LOADS, OTHER_LOADS, LANDING, LOADS_PLOTTING, EXPORT,
+)
 
 
 @dataclass(frozen=True)
@@ -68,7 +75,10 @@ class WorkflowStep:
 # The steps, in workflow order within each phase
 # --------------------------------------------------------------------------- #
 STEPS: Tuple[WorkflowStep, ...] = (
-    # ---- Start: landing / project management -------------------------------- #
+    # ---- Start: app shell -- landing / project management -------------------- #
+    # Not part of the FAR 23 analysis flow; the two app-shell pages that carry the
+    # project itself (Step G2 keeps a dedicated Start group above the six
+    # analysis-flow phases -- see 03_gui_rework_plan.md §4).
     WorkflowStep("dashboard", "Project Dashboard", START,
                  module=None, produces=None, bas=None,
                  summary="Load/save the project and see workflow progress at a glance."),
@@ -77,95 +87,106 @@ STEPS: Tuple[WorkflowStep, ...] = (
                  summary="Review/hand-edit the whole project as JSON, in the "
                          "sidebar's selected Imperial/SI units."),
 
-    # ---- Airplane: geometry, weight, mass, design speeds --------------------- #
-    # Step G1: the parametric layout + WINGGEOM planform pages merged into one
-    # Geometry page (the single geometry source of truth). The wing_geometry calc
-    # module is folded in (see FOLDED_MODULES); this one step owns the geometry slice.
-    WorkflowStep("configuration_layout", "Geometry", AIRPLANE,
+    # ---- Develop V-n diagram: define the airplane & load environment --------- #
+    # §4 Phase 1 (sub-steps 1a geometry → 1b weight/mass → 1c speeds → 1d aero →
+    # 1e V-n). Step G2 groups the existing pages in analysis order; the page-level
+    # consolidation into 1a–1e is Step G3 (bodies unchanged here).
+    #
+    # 1a. Geometry -- Step G1 merged the parametric layout + WINGGEOM planform
+    # pages into one Geometry page (the single geometry source of truth). The
+    # wing_geometry calc module is folded in (see FOLDED_MODULES); this one step
+    # owns the geometry slice.
+    WorkflowStep("configuration_layout", "Geometry", DEVELOP_VN,
                  module="configuration", produces="geometry", bas="WINGGEOM",
                  summary="Single geometry source of truth: parametric fuselage/wing/"
                          "tail/gear, fuselage outline, and WINGGEOM surface planforms."),
-    WorkflowStep("weight_estimate", "Weight Estimate", AIRPLANE,
+    # 1b. Weight & mass properties.
+    WorkflowStep("weight_estimate", "Weight Estimate", DEVELOP_VN,
                  module="weight_estimate", produces="weight.estimation", bas="WTESTIMA",
                  summary="Statistical empty-weight / MTOW sanity estimate."),
-    WorkflowStep("weight_cg_inertia", "Weight, CG & Inertia", AIRPLANE,
+    WorkflowStep("weight_cg_inertia", "Weight, CG & Inertia", DEVELOP_VN,
                  module="weight_onecg", requires=("weight",), produces="mass",
                  bas="WTONECG", summary="Itemised mass properties: weight, CG, inertia."),
-    WorkflowStep("structural_speeds", "Structural Speeds", AIRPLANE,
+    WorkflowStep("payload_cases", "Weight/CG Grid & Payload Cases", DEVELOP_VN,
+                 module=None, requires=("weight",), produces="weight.cg_cases", bas=None,
+                 summary="Named loading scenarios shared by the CG envelope and the "
+                         "flight-envelope balance."),
+    WorkflowStep("weight_envelope", "Weight / CG Envelope", DEVELOP_VN,
+                 module="weight_envelope", requires=("geometry", "weight"),
+                 produces="weight.envelope", bas="WTENV",
+                 summary="Loading CG envelope vs limits."),
+    # 1c. Structural design speeds.
+    WorkflowStep("structural_speeds", "Structural Speeds", DEVELOP_VN,
                  module="structural_speeds", produces="speeds", bas="STRSPEED",
                  summary="FAR 23 design speeds VA/VC/VD/VS."),
-    WorkflowStep("aero_coefficients", "Aerodynamic Data", AIRPLANE,
+    WorkflowStep("mach_limit", "Speed–Altitude Envelope", DEVELOP_VN,
+                 module="mach_limit", requires=("speeds",), produces="speeds.mach_limit",
+                 bas="MACHLIM", summary="Speed–altitude flight-limits diagram (Mach + design speeds)."),
+    # 1d. Aerodynamic coefficients.
+    WorkflowStep("aero_coefficients", "Aerodynamic Data", DEVELOP_VN,
                  module=None, produces="aero_coeffs", bas=None,
                  summary="Airplane-less-tail aero coefficients (cruise + flaps-down) "
                          "for the flight envelope balance. Per-surface spanwise "
                          "(Schrenk) aero is entered on the Wing Loads page."),
-
-    # ---- Envelopes & Critical Conditions: the load environment --------------- #
-    WorkflowStep("payload_cases", "Weight/CG Grid & Payload Cases", ENVELOPES,
-                 module=None, requires=("weight",), produces="weight.cg_cases", bas=None,
-                 summary="Named loading scenarios shared by the CG envelope and the "
-                         "flight-envelope balance."),
-    WorkflowStep("weight_envelope", "Weight / CG Envelope", ENVELOPES,
-                 module="weight_envelope", requires=("geometry", "weight"),
-                 produces="weight.envelope", bas="WTENV",
-                 summary="Loading CG envelope vs limits."),
-    WorkflowStep("mach_limit", "Speed–Altitude Envelope", ENVELOPES,
-                 module="mach_limit", requires=("speeds",), produces="speeds.mach_limit",
-                 bas="MACHLIM", summary="Speed–altitude flight-limits diagram (Mach + design speeds)."),
-    WorkflowStep("flight_envelope", "Flight Envelope (V-n)", ENVELOPES,
+    # 1e. V-n diagram + governing conditions.
+    WorkflowStep("flight_envelope", "Flight Envelope (V-n)", DEVELOP_VN,
                  module="flight_envelope", requires=("speeds", "aero_coeffs"),
                  produces="flight_loads", bas="FLTLOADS",
                  summary="V-n diagram + balancing tail loads (the load environment)."),
-    WorkflowStep("critical_loads", "Critical Loads (SELECT)", ENVELOPES,
+    WorkflowStep("critical_loads", "Critical Loads (SELECT)", DEVELOP_VN,
                  module="select", requires=("flight_loads",), produces="envelope.critical",
                  bas="SELECT",
                  summary="Governing wing/tail/fuselage conditions from the V-n matrix."),
 
-    # ---- Analysis: the structural loads -------------------------------------- #
+    # ---- Flight loads: distributed wing / fuselage / tail loads (§4 Phase 2) - #
     # Wing Loads and Tail Loads each merge two independently-registered calc
     # modules onto one page (Step D6, decision D-7); the secondary module of
     # each pair is listed in FOLDED_MODULES below, mirroring the wing_inertia
     # precedent -- it still has its own registered module/tests, it just has
     # no dedicated nav step of its own.
-    WorkflowStep("wing_loads", "Wing Loads", ANALYSIS,
+    WorkflowStep("wing_loads", "Wing Loads", FLIGHT_LOADS,
                  module="net_loads", requires=("geometry",), produces="wing_mass",
                  bas="AIRLOADS+WINGINER+NETLOADS",
                  summary="Schrenk air loads + spanwise shear / bending / torsion "
                          "(air − inertia)."),
-    WorkflowStep("fuselage_loads", "Fuselage Loads", ANALYSIS,
+    WorkflowStep("fuselage_loads", "Fuselage Loads", FLIGHT_LOADS,
                  module="body_loads", requires=("flight_loads",), produces="fuselage_mass",
                  bas="NETLOADS", summary="Net fuselage shear / bending."),
-    WorkflowStep("tail_loads", "Tail Loads", ANALYSIS,
+    WorkflowStep("tail_loads", "Tail Loads", FLIGHT_LOADS,
                  module="taildist", requires=("flight_loads", "tail_loads"), produces=None,
                  bas="TAILDIST+BALLOADS",
                  summary="Chordwise tail-load distribution + balancing-load cross-check."),
-    WorkflowStep("aileron_loads", "Aileron Loads", ANALYSIS,
+
+    # ---- Other loads: control-surface + engine-mount reactions (§4 Phase 3) -- #
+    WorkflowStep("aileron_loads", "Aileron Loads", OTHER_LOADS,
                  module="aileron", requires=("speeds",), produces="aileron_loads",
                  bas="AILERON", summary="Aileron design loads."),
-    WorkflowStep("flap_loads", "Flap Loads", ANALYSIS,
+    WorkflowStep("flap_loads", "Flap Loads", OTHER_LOADS,
                  module="flap", requires=("speeds",), produces="flap_loads",
                  bas="FLAPLOAD", summary="Flap design loads."),
-    WorkflowStep("tab_loads", "Tab Loads", ANALYSIS,
+    WorkflowStep("tab_loads", "Tab Loads", OTHER_LOADS,
                  module="tab", requires=("speeds",), produces="tab_loads",
                  bas="TABLOADS", summary="Control-surface tab loads."),
-    WorkflowStep("landing_loads", "Landing Loads", ANALYSIS,
-                 module="landing", requires=("mass",), produces="landing",
-                 bas="LGFACTOR+LANDLOAD", summary="Landing load factors + gear reactions."),
-    WorkflowStep("engine_mount", "Engine Mount Loads", ANALYSIS,
+    WorkflowStep("engine_mount", "Engine Mount Loads", OTHER_LOADS,
                  module="engine", requires=("engines",), produces=None, bas="ENGLOADS",
                  summary="Engine-mount reaction loads (incl. gyroscopic)."),
-    WorkflowStep("one_engine_out", "One Engine Out", ANALYSIS,
+    WorkflowStep("one_engine_out", "One Engine Out", OTHER_LOADS,
                  module="one_engine_out", requires=("mass", "vtail_loads"),
                  produces="one_engine_out", bas="ONENGOUT",
                  summary="One-engine-out vertical-tail loads."),
 
-    # ---- Loads Plots: consolidated plots (Step D7) --------------------------- #
-    WorkflowStep("loads_plots", "Loads Plots", LOADS_PLOTS,
+    # ---- Landing loads (§4 Phase 4) ------------------------------------------ #
+    WorkflowStep("landing_loads", "Landing Loads", LANDING,
+                 module="landing", requires=("mass",), produces="landing",
+                 bas="LGFACTOR+LANDLOAD", summary="Landing load factors + gear reactions."),
+
+    # ---- Load-case plotting: consolidated plots (Step D7, §4 Phase 5) -------- #
+    WorkflowStep("loads_plots", "Loads Plots", LOADS_PLOTTING,
                  module=None, produces=None, bas=None,
                  summary="Overlay shear/moment/torsion by case ID, envelope curves, "
                          "whole-airframe view, and external-CSV comparison."),
 
-    # ---- Export: hand off to downstream tools -------------------------------- #
+    # ---- Export: hand off to downstream tools (§4 Phase 6) ------------------- #
     WorkflowStep("aircraft_comparison", "Aircraft Comparison", EXPORT,
                  module=None, produces=None, bas=None,
                  summary="Place the design against similar aircraft."),

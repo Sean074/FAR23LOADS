@@ -179,7 +179,7 @@ FAR23LOADS/
 │   ├── models.py                 # Project dataclass + per-domain sub-models
 │   ├── io.py                     # load/save project JSON; CSV writers
 │   ├── registry.py               # module registry: name -> run(project) -> results
-│   ├── workflow.py               # ordered Start→Airplane→Envelopes & Critical Conditions→Analysis→Loads Plots→Export step graph (drives GUI nav + dashboard; Phase D)
+│   ├── workflow.py               # ordered Start→Develop V-n→Flight loads→Other loads→Landing→Load-case plotting→Export step graph (drives GUI nav + dashboard; analysis-flow phases, Step G2)
 │   ├── report.py                 # shared text/CSV rendering (already exists)
 │   ├── applicability.py          # pure FAR 23 applicability detection (Exceedance list; Phase E1)
 │   ├── validation.py             # pure input-consistency predicates (ConsistencyWarning list; Phase E3)

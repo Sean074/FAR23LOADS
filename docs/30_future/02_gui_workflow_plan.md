@@ -1,5 +1,13 @@
 # Phase D — GUI Workflow Restructure (development plan)
 
+> **Superseded (nav grouping) by Phase G, Step G2 (2026-07-18).** The six-section
+> grouping described below (Start → Airplane → Envelopes & Critical Conditions →
+> Analysis → Loads Plots → Export) was re-sequenced into the six analysis-flow
+> phases in [`03_gui_rework_plan.md`](03_gui_rework_plan.md) §4 (Start → Develop V-n
+> diagram → Flight loads → Other loads → Landing loads → Load-case plotting →
+> Export). This document remains the record of the Phase-D restructure that built the
+> pages; `farloads/workflow.py` is the live source of truth for the current grouping.
+
 The GUI today is a faithful *per-BAS-program port*: one page per McMaster
 program, each with its own inputs, defaults and downloads, grouped into the four
 generic phases Define → Analyze → Review → Export. That was the right Phase-A/B
