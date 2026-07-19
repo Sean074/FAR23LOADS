@@ -53,7 +53,7 @@ Appendix A "V-n Data" p179-180 (cruise, CG1: MAN A V 121.3 / NZ +3.80 / LZW
 from __future__ import annotations
 
 import math
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import List, Optional
 
 from ..models import (
@@ -381,6 +381,16 @@ def build_envelope(project: Project) -> EnvelopeResult:
             configs.append(aero.cruise)
         if aero.flaps_down is not None:
             configs.append(aero.flaps_down)
+        # Step G4: fold the off-by-default Munk fuselage dCm/dalpha increment into
+        # each config's M1 (a local copy -- the stored raw coefficients are left
+        # untouched). Disabled -> no change -> Appendix A/B oracles bit-for-bit.
+        fm = aero.fuselage_moment
+        if fm is not None and fm.enabled and fm.d_cm_dalpha:
+            configs = [
+                replace(c, moment=(c.moment[0], c.moment[1] + fm.d_cm_dalpha,
+                                   c.moment[2], c.moment[3], c.moment[4]))
+                for c in configs
+            ]
     if not configs:
         raise ValueError(
             "flight_envelope needs 'aero_coeffs' (cruise and/or flaps-down coefficient sets)"

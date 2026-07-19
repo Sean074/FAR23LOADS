@@ -45,6 +45,7 @@ from .models import (
     FlapLoadsInput,
     FlightLoadsInput,
     FuselageMassInput,
+    FuselageMomentInput,
     FuselageOutline,
     FuselageSection,
     FuselageStation,
@@ -436,9 +437,17 @@ def flight_loads_to_dict(inp: FlightLoadsInput) -> Dict[str, Any]:
 # --------------------------------------------------------------------------- #
 def aero_coefficients_from_dict(d: Dict[str, Any]) -> AeroCoefficientsInput:
     """Build an :class:`AeroCoefficientsInput` from a plain dict."""
+    fm = d.get("fuselage_moment")
     return AeroCoefficientsInput(
         cruise=_aero_coeff_set_from_dict(d["cruise"]) if d.get("cruise") else None,
         flaps_down=_aero_coeff_set_from_dict(d["flaps_down"]) if d.get("flaps_down") else None,
+        fuselage_moment=(
+            FuselageMomentInput(
+                enabled=bool(fm.get("enabled", False)),
+                d_cm_dalpha=float(fm.get("d_cm_dalpha", 0.0)),
+            )
+            if fm else None
+        ),
     )
 
 
@@ -449,6 +458,11 @@ def aero_coefficients_to_dict(inp: AeroCoefficientsInput) -> Dict[str, Any]:
         out["cruise"] = _aero_coeff_set_to_dict(inp.cruise)
     if inp.flaps_down is not None:
         out["flaps_down"] = _aero_coeff_set_to_dict(inp.flaps_down)
+    if inp.fuselage_moment is not None:
+        out["fuselage_moment"] = {
+            "enabled": inp.fuselage_moment.enabled,
+            "d_cm_dalpha": inp.fuselage_moment.d_cm_dalpha,
+        }
     return out
 
 

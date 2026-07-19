@@ -175,7 +175,11 @@ These are the real capability gaps (everything else in §4 is reuse/reorder):
 1. **Fuselage as a geometry entity + pitching-moment estimator.** Add the fuselage
    to the geometry page (outline for the three-view) and derive its pitching-moment
    contribution so the balancing tail load no longer relies on the user hand-folding
-   it into the `CM` coefficients. *(Calc + GUI.)*
+   it into the `CM` coefficients. *(Calc + GUI.)* **Shipped:** the outline is a
+   geometry entity (Step G1) and the **Munk slender-body `dCm/dα` estimator**
+   (`farloads/fuselage_moment.py`) landed as **Step G4 (2026-07-19)** — surfaced on
+   the Aero page, off by default, added to M1 when enabled; Appendix A/B oracles
+   unchanged. See `docs/40_history/00_completed_development.md`.
 2. **Longitudinal-stability / trim plots** in Phase 2 (CG-vs-balanced-tail-load,
    static-margin sweep). *(GUI over existing calc.)*
 3. **Ground-case distributed fuselage (and wing) loads** in Phase 4, incl. the

@@ -184,6 +184,7 @@ FAR23LOADS/
 │   ├── applicability.py          # pure FAR 23 applicability detection (Exceedance list; Phase E1)
 │   ├── validation.py             # pure input-consistency predicates (ConsistencyWarning list; Phase E3)
 │   ├── vn_diagram.py             # pure V-n diagram geometry: stall/manoeuvre/gust polylines (Phase E3)
+│   ├── fuselage_moment.py        # pure Munk slender-body fuselage dCm/dα estimator (off-by-default; Step G4)
 │   ├── fleet.py                  # pure fleet placement: nearest-N / percentile / outlier (FleetStats; Phase E4)
 │   ├── export/                   # output bridges to external tools (renderers, NOT registered modules)
 │   │   ├── coordinates.py        # FAR23LOADS axes -> sbeam CID 0 map (single edit-point)

@@ -13,7 +13,8 @@ from __future__ import annotations
 import pandas as pd
 import streamlit as st
 
-from farloads import AeroCoefficientsInput, AeroCoeffSet, Project
+from farloads import AeroCoefficientsInput, AeroCoeffSet, FuselageMomentInput, Project
+from farloads.fuselage_moment import estimate as estimate_fuselage_moment
 
 st.title("Aerodynamic Data")
 st.caption(
@@ -139,8 +140,13 @@ if applied:
             moment=_row(flaps_df, "moment (CM vs α)"), flaps_down=True,
         )
     # This page owns the whole aero_coeffs slice, so a wholesale replace on
-    # Apply is correct here (unlike a slice shared with other pages/edits).
-    project.aero_coeffs = AeroCoefficientsInput(cruise=cruise, flaps_down=flaps)
+    # Apply is correct here (unlike a slice shared with other pages/edits) --
+    # but carry the fuselage-moment sub-slice through unchanged (its own form
+    # below owns it; omitting it here would silently reset it).
+    project.aero_coeffs = AeroCoefficientsInput(
+        cruise=cruise, flaps_down=flaps,
+        fuselage_moment=aero.fuselage_moment if aero else None,
+    )
     st.session_state["project"] = project
     st.success("Aero coefficients applied.")
     aero = project.aero_coeffs
@@ -162,3 +168,82 @@ if aero.cruise is not None:
     _summary("Cruise", aero.cruise)
 if aero.flaps_down is not None:
     _summary("Flaps down", aero.flaps_down)
+
+# --------------------------------------------------------------------------- #
+# Fuselage pitching-moment estimator (Step G4) -- Munk slender-body dCm/dalpha
+# derived from the G1 fuselage outline, added to the airplane-less-tail M1 when
+# enabled. Off by default so the FAR23 GA oracles (coefficients that already
+# include the fuselage) are untouched.
+# --------------------------------------------------------------------------- #
+st.divider()
+st.subheader("Fuselage pitching-moment (Munk slender-body)")
+st.caption(
+    "Estimates the fuselage's contribution to the airplane-less-tail moment "
+    "slope dCm/dα from the Geometry page fuselage outline, so a concept airplane "
+    "need not hand-fold it into M1 above. **Off by default** — enable it only when "
+    "the coefficients above do *not* already include the fuselage (they do for "
+    "wind-tunnel / DATCOM airplane-less-tail data, e.g. the FAR23 examples). "
+    "Method: Munk (NACA TR-184) / DATCOM 4.2.1.1."
+)
+
+_geom = project.geometry
+_outline = _geom.fuselage if _geom else None
+_fl = project.flight_loads
+_s = _fl.wing_area_sqft if _fl else 0.0
+_mac = _fl.mac if _fl else 0.0
+_est = estimate_fuselage_moment(_outline, _s, _mac)
+
+if _est is None:
+    st.info(
+        "Define the fuselage outline on the Geometry page and the wing area / MAC "
+        "on the Flight Envelope (V-n) page first — the estimator needs at least two "
+        "fuselage stations and a positive wing S and MAC."
+    )
+else:
+    m1, m2, m3 = st.columns(3)
+    m1.metric("Volume", f"{_est.volume_in3:,.0f} in³")
+    m2.metric("Fineness l/d", f"{_est.fineness_ratio:.2f}")
+    m3.metric("k₂ − k₁", f"{_est.k2_minus_k1:.3f}")
+    st.caption(
+        f"Length {_est.length_in:,.1f} in · max equiv. diameter "
+        f"{_est.max_equiv_diameter_in:,.1f} in · wing S {_s:,.1f} ft² · "
+        f"MAC {_mac:,.1f} in → estimated **ΔM1 = {_est.d_cm_dalpha:+.5f} /deg**."
+    )
+
+    _existing_fm = aero.fuselage_moment
+    with st.form("fuselage_moment_form"):
+        fm_enabled = st.checkbox(
+            "Add this fuselage dCm/dα to M1 (both configurations)",
+            value=bool(_existing_fm and _existing_fm.enabled),
+            help="When ticked, the Flight Envelope balance adds the value below to "
+                 "each configuration's M1. Leave off for coefficients that already "
+                 "include the fuselage (the FAR23 oracles).",
+        )
+        _default_val = (
+            _existing_fm.d_cm_dalpha if _existing_fm and _existing_fm.d_cm_dalpha
+            else _est.d_cm_dalpha
+        )
+        fm_value = st.number_input(
+            "ΔM1 = dCm/dα (per degree)", value=float(_default_val), format="%.5f",
+            help=f"Munk estimate is {_est.d_cm_dalpha:+.5f} /deg; overridable. "
+                 "Positive is destabilizing (nose-up with α).",
+        )
+        fm_applied = st.form_submit_button("Apply fuselage moment", type="primary")
+
+    if fm_applied:
+        project.aero_coeffs = AeroCoefficientsInput(
+            cruise=aero.cruise, flaps_down=aero.flaps_down,
+            fuselage_moment=FuselageMomentInput(enabled=fm_enabled, d_cm_dalpha=fm_value),
+        )
+        st.session_state["project"] = project
+        aero = project.aero_coeffs
+        if fm_enabled:
+            st.success(f"Fuselage ΔM1 = {fm_value:+.5f} /deg applied to the balance.")
+        else:
+            st.success("Fuselage moment stored (disabled — no effect on the balance).")
+
+if aero.fuselage_moment is not None and aero.fuselage_moment.enabled:
+    st.info(
+        f"Balance includes a fuselage ΔM1 = {aero.fuselage_moment.d_cm_dalpha:+.5f} /deg "
+        "(the M(W+F) pitching moment on the Flight Envelope page reflects it)."
+    )

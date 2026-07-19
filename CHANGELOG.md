@@ -9,6 +9,24 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- **Fuselage pitching-moment estimator — Munk slender-body (Phase G, Step G4).** A
+  pure, geometry-only helper (`farloads/fuselage_moment.py`) derives the fuselage's
+  contribution to the airplane-less-tail moment slope `dCm/dα` from the G1 fuselage
+  outline (Munk apparent-mass method, NACA TR-184 / DATCOM 4.2.1.1; see
+  `reference/fuselage_pitching_moment.md`), so a concept airplane built from a
+  planform no longer has to hand-fold the fuselage into the FLTLOADS input
+  coefficients. Surfaced on the **Aerodynamic Data** page: the estimate (volume,
+  fineness ratio, `k₂−k₁`, ΔM1) is displayed and overridable, with an enable
+  checkbox. A new `AeroCoefficientsInput.fuselage_moment` field
+  (`FuselageMomentInput{enabled, d_cm_dalpha}`) carries it; when enabled,
+  `flight_envelope.build_envelope` adds ΔM1 to every configuration's M1 (a local
+  copy — the stored raw coefficients are untouched) and the compressibility factor
+  applies automatically. **Off by default → Appendix A/B oracles bit-for-bit
+  unchanged** (their coefficients already include the fuselage). `SCHEMA_VERSION`
+  25 → 26; older files load with no fuselage moment.
+
 ### Changed
 
 - **Phase-1 page consolidation — Develop V-n diagram (Phase G, Step G3).** The

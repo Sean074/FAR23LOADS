@@ -10,6 +10,66 @@ Acceptance**, **Key decisions**.
 
 ---
 
+## Phase G — Step G4: Fuselage pitching-moment estimator (Munk slender-body) (complete, 2026-07-19)
+
+**Objective.** Derive the fuselage's contribution to the airplane-less-tail
+pitching-moment slope `dCm/dα` from the G1 fuselage outline and feed it into the
+FLTLOADS balance, so a **concept** airplane built from a planform no longer has to
+hand-fold the fuselage into the input coefficients. The FAR23 GA/twin oracles
+(whose coefficients already include the fuselage) must reduce exactly.
+
+**Scope decisions (AskUserQuestion, 2026-07-19).** (1) **Method** → *Munk
+slender-body* (apparent-mass), integrating the G1 ellipse-area station table —
+geometry-only, matches the reading `FuselageSection` committed to in G1. (2)
+**Coupling** → *separate off-by-default field*: a new `fuselage_moment` sub-slice,
+disabled by default, added to the balance only when enabled (raw stored
+coefficients stay pristine; a SCHEMA bump). (3) **Terms** → *dCm/dα slope only*:
+for an uncambered outline the Munk moment is a pure α-couple, so the estimator
+populates only ΔM1 and leaves the zero-α free moment M0 as a user input (it
+depends on wing downwash the outline can't supply).
+
+**Deliverables.**
+- **`farloads/fuselage_moment.py`** (new, pure helper) — `estimate(outline, S, mac)
+  → FuselageMomentEstimate` computing `dCm/dα (per rad) = (k₂−k₁)·Vol/(S·mac)`,
+  returned per degree to match M1. Section area = ellipse `π/4·w·h`; `Vol` = the
+  trapezoidal integral; fineness `l/d` = length ÷ max equivalent diameter
+  `√(w·h)`; `(k₂−k₁)` from the Munk prolate-spheroid table (interpolated, clamped).
+  Returns `None` on insufficient geometry (< 2 stations, non-positive S/mac). The
+  result is reference-point independent (volume-based) → no CG station needed.
+- **`FuselageMomentInput{enabled=False, d_cm_dalpha=0.0}`** on
+  `AeroCoefficientsInput.fuselage_moment` (`farloads/models.py`); serialized in
+  `io.py`; `SCHEMA_VERSION` 25 → 26 (additive, older files load with no fuselage
+  moment).
+- **`flight_envelope.build_envelope`** — when `fuselage_moment` is enabled and
+  non-zero, augments each config's M1 by ΔM1 via `dataclasses.replace` on a **local
+  copy** (stored coefficients untouched); `_balance` is unchanged, so the Glauert
+  `g/gmn` compressibility factor applies to the increment automatically. Disabled →
+  no change.
+- **`app/views/aero_coefficients.py`** — a *Fuselage pitching-moment (Munk
+  slender-body)* section: shows volume / fineness / `k₂−k₁` / estimated ΔM1 from
+  the Geometry outline + the Flight-Envelope wing S & MAC, with an enable checkbox
+  and an overridable ΔM1 input. The main aero form's Apply now carries the
+  `fuselage_moment` sub-slice through unchanged.
+- **`reference/fuselage_pitching_moment.md`** — method derivation + the `(k₂−k₁)`
+  table, cited to Munk (NACA TR-184), USAF DATCOM 4.2.1.1, and Perkins & Hage.
+
+**Test / Acceptance** (`tests/test_fuselage_moment.py`, 6 tests). The estimator
+matches the closed form on a known cylinder (volume, fineness, `k₂−k₁`, ΔM1) and
+the interpolation table endpoints; returns `None` on insufficient geometry; a
+**disabled** (or zero) fuselage moment leaves the Appendix A V-n matrix
+bit-for-bit unchanged (`m_wf`/`lt`/`nz` exact); an **enabled** positive ΔM1 shifts
+the balancing tail load (wiring reaches the balance); the field round-trips through
+`io.save/load`. Full suite **391 passed**; `ruff` clean. Oracles unchanged.
+
+**Key decisions.** Off-by-default is the oracle-safety mechanism (the manual's
+coefficients already include the fuselage; enabling on GA inputs would
+double-count). Slope-only keeps the estimate honestly geometric. Local-copy M1
+augmentation (not baking into stored coefficients) keeps the raw coefficients
+auditable and the fuselage term toggleable. Reduces exactly to the FAR23 core on
+GA inputs (estimator disabled).
+
+---
+
 ## Phase G — Step G3: Phase-1 page consolidation (Develop V-n diagram) (complete, 2026-07-19)
 
 **Objective.** Collapse the *Develop V-n diagram* section from ten nav pages into

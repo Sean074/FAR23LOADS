@@ -466,6 +466,24 @@ class AeroCoeffSet:
 
 
 @dataclass
+class FuselageMomentInput:
+    """Munk slender-body fuselage pitching-moment increment (Step G4).
+
+    An off-by-default augmentation of the airplane-less-tail moment slope: when
+    ``enabled`` the FLTLOADS balance adds ``d_cm_dalpha`` (per degree) to every
+    configuration's ``M1`` (dCm/dalpha), so a concept airplane built from a
+    planform can pick up its fuselage pitching moment from the G1 outline instead
+    of the user hand-folding it into the input coefficients. ``d_cm_dalpha`` is
+    the Munk estimate (``farloads.fuselage_moment.estimate``) and is overridable.
+
+    Default ``enabled=False`` / ``0.0`` contributes nothing, so the Appendix A/B
+    oracles (whose coefficients already include the fuselage) are untouched.
+    """
+    enabled: bool = False
+    d_cm_dalpha: float = 0.0    # per degree; added to the airplane-less-tail M1
+
+
+@dataclass
 class AeroCoefficientsInput:
     """Airplane-less-tail aerodynamic coefficient sets -- ``Project.aero_coeffs``.
 
@@ -475,10 +493,13 @@ class AeroCoefficientsInput:
     than asking for coefficients itself (Phase D, Step D4.1). ``cruise`` is the
     flaps-up set balanced at every altitude in ``FlightLoadsInput.altitudes_ft``;
     ``flaps_down`` (when present) is balanced at sea level only per FLTLOADS.BAS
-    line 3000 -- see ``flight_envelope.build_envelope``.
+    line 3000 -- see ``flight_envelope.build_envelope``. ``fuselage_moment`` is
+    the optional off-by-default Munk fuselage dCm/dalpha increment (Step G4),
+    added to both configs' ``M1`` when enabled.
     """
     cruise: Optional[AeroCoeffSet] = None
     flaps_down: Optional[AeroCoeffSet] = None
+    fuselage_moment: Optional[FuselageMomentInput] = None
 
 
 @dataclass
@@ -1523,7 +1544,12 @@ class LoadsResult:
 # legacy file's top-level "configuration" key is folded into geometry.parametric and
 # the fuselage outline is defaulted from the length/width/height scalars on load
 # (default_fuselage_outline); the oracle-locked .surfaces consumers are untouched.
-SCHEMA_VERSION = 25
+# v26 (Phase G4) adds AeroCoefficientsInput.fuselage_moment (FuselageMomentInput:
+# an off-by-default Munk slender-body fuselage dCm/dalpha increment, farloads.
+# fuselage_moment) that flight_envelope adds to the airplane-less-tail M1 only when
+# enabled -- additive, default None -> disabled -> Appendix A/B oracles bit-for-bit
+# unchanged; older files load with no fuselage moment.
+SCHEMA_VERSION = 26
 
 
 @dataclass

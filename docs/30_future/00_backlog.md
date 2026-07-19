@@ -339,21 +339,7 @@ sections** it targets are that doc's §4.
 
 Steps are in dependency order. G1 (foundational) comes before the
 re-sequencing (G2–G3); the new features (G4–G6) and the report (G8) follow.
-**G0, G1, G2 and G3 shipped 2026-07-18/19** (see `docs/40_history/00_completed_development.md`).
-
-### Step G4 — Fuselage pitching-moment estimator (new; GUI + light calc)
-**Objective.** Derive the fuselage pitching-moment contribution from the G1 fuselage
-geometry and feed it into the airplane-less-tail `CM` used by the FLTLOADS balance,
-so the user no longer hand-folds it into the input coefficients.
-**Scope.** A pure helper (fuselage moment from geometry — e.g. Munk/slender-body or a
-documented simplified method, cited to `reference/`) that augments the `M(W+F)`
-coefficient set; surfaced on the 1d Aero page with the estimate shown and
-overridable. **FAR23 GA oracle inputs must reduce exactly** (estimator contributes 0
-or matches the manual's assumed value on Appendix-A inputs, or is off by default so
-oracles are untouched).
-**Acceptance.** The estimate is displayed and overridable; Appendix A/B oracles pass
-unchanged (estimator additive/optional); the balanced tail load reflects the fuselage
-moment when enabled. Cite the method + page in the test.
+**G0, G1, G2, G3 and G4 shipped 2026-07-18/19** (see `docs/40_history/00_completed_development.md`).
 
 ### Step G5 — Longitudinal-stability / trim plots (new; GUI)
 **Objective.** Add standard longitudinal-stability plots to the flight-loads section
