@@ -182,17 +182,25 @@ def test_landload_pipeline_and_run():
 
 
 def test_landing_io_roundtrip():
-    """The landing slice round-trips (nested gear + CG cases); older files load."""
+    """The landing slice round-trips (CG cases + non-geometry params); the gear
+    geometry (Step G6b) round-trips under geometry.landing_gear, not the landing
+    block; older files migrate."""
     p = io.load_project(_GA)
     d = io.project_to_dict(p)
     p2 = io.project_from_dict(d)
     assert p2.landing.gear_load_factor == 2.5
-    assert p2.landing.main_gear.strut == "O"
-    assert p2.landing.main_gear.axle_static == (96.7, 59.6)
     assert p2.landing.cg_cases[0].xcg == 85.1
+    # Gear geometry is the single-source geometry.landing_gear (not on the landing block).
+    assert "main_gear" not in d["landing"] and "tread_in" not in d["landing"]
+    lg = p2.geometry.landing_gear
+    assert lg.main_gear.strut == "O"
+    assert lg.main_gear.axle_static == (96.7, 59.6)
+    assert lg.tread_in == p.geometry.landing_gear.tread_in
+    # Dropping the landing block leaves no landing slice (gear stays under geometry).
     d.pop("landing", None)
     p3 = io.project_from_dict(d)
     assert p3.landing is None
+    assert p3.geometry.landing_gear is not None
 
 
 if __name__ == "__main__":

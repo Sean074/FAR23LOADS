@@ -194,8 +194,10 @@ These are the real capability gaps (everything else in §4 is reuse/reorder):
    on the Geometry page (`GeometryInput.empennage`; `tail_loads`/`vtail_loads` become
    properties over it), the three-view draws the elevator/rudder, and the duplicated
    `LayoutInput` tail fields are retired (schema 26 → 27, oracles bit-for-bit). See
-   `docs/40_history/00_completed_development.md`. The landing-gear and wing/fuselage
-   single-source follow-ons are backlog Steps G6b/G6c.
+   `docs/40_history/00_completed_development.md`. The landing-gear single-source
+   follow-on **shipped as Step G6b (2026-07-19)** (`GeometryInput.landing_gear`; the
+   coarse `LayoutInput` gear fields retired, LANDLOAD synced from it, gear drawn on the
+   three-view); the wing/fuselage read-through cleanup remains backlog Step G6c.
 
 ---
 

@@ -192,7 +192,7 @@ FAR23LOADS/
 │   │   └── workbook.py           # multi-sheet .xlsx workbook (Step D8.2): one tab per module/component + case index
 │   └── modules/
 │       ├── __init__.py
-│       ├── configuration.py      # Geometry page (modern; no .BAS) -> Project.geometry.{parametric,empennage} (Step G1/G6)
+│       ├── configuration.py      # Geometry page (modern; no .BAS) -> Project.geometry.{parametric,empennage,landing_gear} (Step G1/G6/G6b)
 │       ├── weight_estimate.py    # WTESTIMA
 │       ├── weight_envelope.py    # WTENV
 │       ├── weight_onecg.py       # WTONECG

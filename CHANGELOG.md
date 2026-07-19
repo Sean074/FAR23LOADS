@@ -11,6 +11,23 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- **Single-source landing-gear geometry (Phase G, Step G6b).** The tricycle-gear
+  geometry native to LANDLOAD — main/nose axle `(X, Z)` at the three strut states,
+  rolling radius, strut type, and the main-wheel tread — is now entered **once**, on
+  the Geometry page, in a new `GeometryInput.landing_gear` (`LandingGearGeometry`).
+  It drives both the three-view (strut + wheels, ground line) and the ground-load
+  analysis: `landing.build_landing` syncs it onto `Project.landing` before the
+  reaction solve, so the LANDLOAD math is unchanged. The duplicated coarse
+  `LayoutInput` gear fields (`main_gear_x`/`nose_gear_x`/`track`/`gear_height`) are
+  retired — the three-view and the tip-back/overturn/prop-clearance estimate now
+  **derive** the station/track/height from the native axle geometry (ground = static
+  axle `Z` − rolling radius), so a stored coarse height that disagreed with the axles
+  no longer diverges silently. The Landing Loads page drops its gear/tread widgets
+  (reads the geometry read-only), keeping only the non-geometry LANDLOAD inputs. `io`
+  migrates a pre-v28 file's top-level `landing` gear (and legacy `LayoutInput` gear
+  fields) into `geometry.landing_gear`; `SCHEMA_VERSION` 27 → 28. **Appendix A gear
+  reactions unchanged bit-for-bit** (`tests/test_landing_gear_geometry.py`,
+  `tests/test_landing.py`).
 - **Single-source empennage & control-surface geometry (Phase G, Step G6).** The
   horizontal-/vertical-tail + **elevator/rudder** geometry is now entered **once**,
   on the Geometry page, and drives both the three-view and the rational tail-load

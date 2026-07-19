@@ -37,6 +37,7 @@ from ..constants import IN2_PER_FT2
 from ..models import (
     ConditionResult,
     EmpennageInput,
+    LandingGearGeometry,
     LayoutInput,
     LoadValue,
     ModuleResult,
@@ -304,8 +305,35 @@ _COMPONENT_MATCH_ORDER: Tuple[str, ...] = (
 )
 
 
+def gear_stations(layout: LayoutInput, landing_gear: Optional[LandingGearGeometry]) -> Optional[dict]:
+    """Coarse gear geometry derived from the single-source LANDLOAD axle geometry
+    (Step G6b), or ``None`` when no gear geometry is present.
+
+    Returns ``{main_x, nose_x, track, gear_height, ground_z}`` (inches). The main/nose
+    stations are the **static-axle X**; ``track`` is the tread; the ground line is the
+    lowest static wheel contact (static axle ``Z`` minus rolling radius), and
+    ``gear_height`` = root waterline − ground (replacing the retired coarse
+    ``LayoutInput.gear_height`` — the native axle geometry is authoritative).
+    """
+    if landing_gear is None:
+        return None
+    mg, ng = landing_gear.main_gear, landing_gear.nose_gear
+    main_x, nose_x = mg.axle_static[0], ng.axle_static[0]
+    if main_x <= 0 and nose_x <= 0:
+        return None
+    wheels = []
+    if main_x > 0:
+        wheels.append(mg.axle_static[1] - mg.rolling_radius_in)
+    if nose_x > 0:
+        wheels.append(ng.axle_static[1] - ng.rolling_radius_in)
+    ground_z = min(wheels) if wheels else layout.root_waterline_z
+    return {"main_x": main_x, "nose_x": nose_x, "track": landing_gear.tread_in,
+            "gear_height": layout.root_waterline_z - ground_z, "ground_z": ground_z}
+
+
 def component_stations(layout: LayoutInput,
-                       empennage: Optional[EmpennageInput] = None) -> Dict[str, Vec3]:
+                       empennage: Optional[EmpennageInput] = None,
+                       landing_gear: Optional[LandingGearGeometry] = None) -> Dict[str, Vec3]:
     """Approximate ``(x, y, z)`` station (fuselage station / butt line / waterline,
     inches) for each named airframe component, derived from ``LayoutInput``'s
     coarse scalars -- a rough first-cut for seeding the Weight DB (WTONECG), not a
@@ -346,12 +374,13 @@ def component_stations(layout: LayoutInput,
         total_area = sum(a for a, _ in tail_pts) or float(len(tail_pts))
         tail_x = sum((a or 1.0) * pt[0] for a, pt in tail_pts) / total_area
         stations["tail"] = (tail_x, 0.0, layout.root_waterline_z)
-    if layout.gear_height > 0:
-        gear_z = layout.root_waterline_z - layout.gear_height / 2.0
-        if layout.main_gear_x > 0:
-            stations["main_gear"] = (layout.main_gear_x, 0.0, gear_z)
-        if layout.nose_gear_x > 0:
-            stations["nose_gear"] = (layout.nose_gear_x, 0.0, gear_z)
+    gc = gear_stations(layout, landing_gear)
+    if gc is not None and gc["gear_height"] > 0:
+        gear_z = layout.root_waterline_z - gc["gear_height"] / 2.0
+        if gc["main_x"] > 0:
+            stations["main_gear"] = (gc["main_x"], 0.0, gear_z)
+        if gc["nose_x"] > 0:
+            stations["nose_gear"] = (gc["nose_x"], 0.0, gear_z)
     gear_pts = [
         (3.0, stations["main_gear"]) if "main_gear" in stations else None,
         (1.0, stations["nose_gear"]) if "nose_gear" in stations else None,
@@ -476,24 +505,25 @@ def _gear_condition(project: Project, layout: LayoutInput, geom: dict) -> Option
     not depend on the CG (it only needs the engine/gear geometry), so it is
     unaffected either way.
     """
-    if layout.main_gear_x <= 0 or layout.gear_height <= 0:
+    gc = gear_stations(layout, project.geometry.landing_gear if project.geometry is not None else None)
+    if gc is None or gc["main_x"] <= 0 or gc["gear_height"] <= 0:
         return None
     x_cg, z_cg, cg_source = cg_estimate(project, layout, geom)
-    ground_z = layout.root_waterline_z - layout.gear_height
+    ground_z = gc["ground_z"]
     h_cg = z_cg - ground_z              # CG height above ground
 
     values: List[LoadValue] = []
 
     # Tip-back: angle of the main-wheel -> CG line from the vertical. CG forward of
     # the main gear (positive) is required; ~15 deg is the usual minimum.
-    tipback = math.degrees(math.atan2(layout.main_gear_x - x_cg, h_cg))
+    tipback = math.degrees(math.atan2(gc["main_x"] - x_cg, h_cg))
     values.append(LoadValue(f"CG station ({cg_source})", x_cg, _IN))
     values.append(LoadValue("Tip-back angle", tipback, _DEG))
 
     # Overturn (turnover) angle: from the CG to the nose-wheel / main-wheel ground
     # line. Lower is more stable; ~63 deg is the usual maximum.
-    if layout.nose_gear_x and layout.track:
-        xn, xm, half = layout.nose_gear_x, layout.main_gear_x, layout.track / 2.0
+    if gc["nose_x"] and gc["track"]:
+        xn, xm, half = gc["nose_x"], gc["main_x"], gc["track"] / 2.0
         # Perpendicular distance (plan view) from the CG (on the centreline) to the
         # nose-wheel -> main-wheel line.
         dx, dy = xm - xn, half - 0.0

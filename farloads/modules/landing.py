@@ -438,10 +438,25 @@ def _cg_cases(project: Project, inp: LandingInput) -> List[CgCase]:
     ]
 
 
+def _sync_gear_from_geometry(project: Project) -> None:
+    """Step G6b: fill the landing slice's gear geometry from the single-source
+    ``Project.geometry.landing_gear`` before the LANDLOAD solve, so the calc reads
+    the one authoritative copy (the math is unchanged -- it still consumes
+    ``inp.main_gear``/``nose_gear``/``tread_in``). No-op when no gear geometry is
+    present (e.g. a directly-constructed test project that set them on the slice)."""
+    geom = project.geometry
+    lg = geom.landing_gear if geom is not None else None
+    if lg is not None and project.landing is not None:
+        project.landing.main_gear = lg.main_gear
+        project.landing.nose_gear = lg.nose_gear
+        project.landing.tread_in = lg.tread_in
+
+
 def build_landing(project: Project) -> Tuple[LoadFactorResult, List[GearReactionCase]]:
     """Run LGFACTOR then LANDLOAD; return the load factor and the reaction table."""
     if project.landing is None:
         raise ValueError("landing needs the 'landing' input slice")
+    _sync_gear_from_geometry(project)
     inp = project.landing
     s = _wing_area(project, inp)
     lf = landing_load_factor(s, inp.max_landing_weight_lb, inp.strut_stroke_in,

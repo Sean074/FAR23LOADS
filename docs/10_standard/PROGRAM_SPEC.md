@@ -318,7 +318,7 @@ than the persisted `Project.mass`.
 ### LANDLOAD — Landing loads ✅ (Step C10)
 - **FAR §:** 23.473–23.499 (ground loads: level, tail-down, one-wheel, side, braked, supplementary nose wheel).
 - **Source:** Ch 20, `LANDLOAD.BAS` (Appendix C p468). Module `modules/landing.py`.
-- **Reads:** `Project.landing` — the **landing-gear strut geometry** (3 deflection states, rolling radii, tread, tail-down angle, gear load factor) and the LGFACTOR result; the per-CG weight & CG from `Project.landing.cg_cases` else derived from `Project.mass` (WTONECG). The gear geometry has **no home in `Project.geometry`** (that slice is aerodynamic surfaces), so it lives in the dedicated `Project.landing` slice.
+- **Reads:** the **landing-gear geometry** (main/nose axle `(X, Z)` at 3 deflection states, rolling radii, tread, strut type) from the single-source **`Project.geometry.landing_gear`** (`LandingGearGeometry`, Step G6b) — `build_landing` syncs it onto `Project.landing` before the reaction solve (`_sync_gear_from_geometry`), so the LANDLOAD math is unchanged; the **non-geometry** LANDLOAD inputs (max-landing/gross weights, strut stroke, tyre OD/hub, lift factor, tail-down angle, gear-load-factor override) and the LGFACTOR result stay on `Project.landing`; the per-CG weight & CG from `Project.landing.cg_cases` else derived from `Project.mass` (WTONECG). *(Before G6b the gear geometry was carried on `Project.landing` and duplicated by the coarse `LayoutInput` gear fields — now retired.)*
 - **Writes:** the 24 main-wheel + 33 nose-wheel reaction loads for each ground condition (ground-line and airplane-datum) → `ModuleResult` / CSV.
 - **Validation:** Appendix A `LANDLOAD.OUT` p230 — the **gear-geometry intermediates oracle-locked** (K 0.324, GAMMA 17.978, ground angles, BETA, the AP/BP/DP/CP lever-arm table) ±0.1%; the printed p231–233 **wheel-load table is OCR-garbled** in the bundled PDF, so the full matrix is **closure + legible-cell spot-checked** (case 1 VMP 3144 / VNP 1787 / resultant 1879; side cases VMP 2261, SMP −1700/1122) — the ONENGOUT (C9) precedent.
 - **Notes:** **Tricycle gear only** (UG Table 2.1). LANDLOAD takes the gear load factor as a rounded design input (2.5 on p230), distinct from LGFACTOR's computed 2.428.
@@ -342,7 +342,16 @@ regression oracle**; Appendix A/B geometry is used only as a *sanity* fixture.
   moment estimator; defaulted from the `fuselage_length/width/height` scalars via
   `default_fuselage_outline` for older files). One **Geometry** page owns and edits the
   whole slice; `SCHEMA_VERSION` **25** (**26** after Step G4's `fuselage_moment`,
-  **27** after Step G6's `empennage`); legacy files migrate on load.
+  **27** after Step G6's `empennage`, **28** after Step G6b's `landing_gear`); legacy
+  files migrate on load.
+- **Single-source landing gear (Step G6b):** the tricycle-gear geometry (main/nose
+  axle `(X, Z)` at compressed/static/extended, rolling radius, strut type, tread)
+  lives in `Project.geometry.landing_gear` (`LandingGearGeometry`); LANDLOAD reads it
+  (synced onto `Project.landing`), and the retired coarse `LayoutInput`
+  `main_gear_x`/`nose_gear_x`/`track`/`gear_height` are **derived** by
+  `gear_stations(layout, landing_gear)` (ground = static axle `Z` − rolling radius) for
+  the three-view and the tip-back/overturn/clearance estimate. `io` migrates a pre-v28
+  file's top-level `landing` gear into `geometry.landing_gear`.
 - **Single-source empennage (Step G6):** the horizontal-/vertical-tail + elevator/
   rudder geometry lives in `Project.geometry.empennage` (`EmpennageInput{htail, vtail}`,
   the analysis-native `TailLoadsInput`/`VTailLoadsInput`). `Project.tail_loads` /
@@ -353,8 +362,9 @@ regression oracle**; Appendix A/B geometry is used only as a *sanity* fixture.
   (area/span; arm derived from `xt25`/`xv25` minus the 25% wing-MAC station). `io`
   migrates a pre-v27 file's top-level `tail_loads`/`vtail_loads` into `geometry.empennage`.
 - **Reads:** `Project.geometry.parametric` (`LayoutInput`: fuselage / parametric wing /
-  tail-arrangement (`tail_type`, `h_tail_z`) / gear); `Project.geometry.empennage`
-  (tail + elevator/rudder); `Project.weight.envelope` (aft-gross %MAC for the static
+  tail-arrangement (`tail_type`, `h_tail_z`)); `Project.geometry.empennage`
+  (tail + elevator/rudder); `Project.geometry.landing_gear` (gear axles/tread);
+  `Project.weight.envelope` (aft-gross %MAC for the static
   margin, optional); `Project.engine` (prop geometry for clearance, optional);
   `Project.mass` (the WTONECG itemized loading, optional — Step D4.5, see
   `cg_estimate` below). The page (not the calc) also reads `Project.weight.items`

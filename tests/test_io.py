@@ -239,7 +239,6 @@ def test_configuration_round_trip():
     layout = LayoutInput(
         fuselage_length=300.0, fuselage_width=48.0, wing_area_sqft=174.0,
         aspect_ratio=6.0, taper_ratio=0.6, le_sweep_deg=2.0, le_root_x=45.0,
-        nose_gear_x=20.0, main_gear_x=110.0, track=90.0, gear_height=30.0,
     )
     project = Project(name="cfg", geometry=GeometryInput(parametric=layout))
     again = io.project_from_dict(io.project_to_dict(project))

@@ -21,6 +21,8 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from farloads import (  # noqa: E402
     EmpennageInput,
     GeometryInput,
+    LandingGearGeometry,
+    LandingGearInput,
     LayoutInput,
     MassCase,
     MassResult,
@@ -29,6 +31,16 @@ from farloads import (  # noqa: E402
     TailType,
     VTailLoadsInput,
 )
+
+
+def _gear_geom(main_x, nose_x, track=90.0, static_z=10.0, rr=5.0):
+    """Step G6b single-source gear geometry: static axle Z and rolling radius chosen
+    so the ground line (static Z - rr) is 5 in, i.e. gear_height = root waterline - 5."""
+    return LandingGearGeometry(
+        main_gear=LandingGearInput(axle_static=(main_x, static_z), rolling_radius_in=rr),
+        nose_gear=LandingGearInput(axle_static=(nose_x, static_z), rolling_radius_in=rr),
+        tread_in=track,
+    )
 
 
 def _emp(h_area=30.0, h_semispan=60.0, v_area=18.0, v_span=48.0,
@@ -107,14 +119,11 @@ def test_appendix_a_sanity():
 
 def test_stability_and_gear_present_when_data_given():
     layout = _trapezoid()
-    layout.nose_gear_x = 20.0
-    layout.main_gear_x = 115.0
-    layout.track = 90.0
-    layout.gear_height = 35.0
     layout.root_waterline_z = 40.0
     # Step G6: h-tail area + 25%-MAC station (xt25 well aft -> positive derived arm).
     emp = EmpennageInput(htail=TailLoadsInput(htail_area_sqft=30.0, xt25=250.0))
-    vals = _values(Project(name="t", geometry=GeometryInput(parametric=layout, empennage=emp)))
+    vals = _values(Project(name="t", geometry=GeometryInput(
+        parametric=layout, empennage=emp, landing_gear=_gear_geom(115.0, 20.0))))
     assert vals["Horizontal tail volume V_H"] > 0
     assert "Neutral point (%MAC)" in vals
     assert "Tip-back angle" in vals
@@ -123,12 +132,13 @@ def test_stability_and_gear_present_when_data_given():
 
 def _gear_layout():
     layout = _trapezoid()
-    layout.nose_gear_x = 20.0
-    layout.main_gear_x = 115.0
-    layout.track = 90.0
-    layout.gear_height = 35.0
     layout.root_waterline_z = 40.0
     return layout
+
+
+def _gear_project(layout, **kw):
+    return Project(name="t", geometry=GeometryInput(
+        parametric=layout, landing_gear=_gear_geom(115.0, 20.0)), **kw)
 
 
 def test_cg_estimate_falls_back_to_quarter_mac_without_mass():
@@ -155,8 +165,8 @@ def test_cg_estimate_uses_mass_when_present():
 def test_gear_condition_label_reflects_cg_source():
     layout = _gear_layout()
     mass = MassResult(cases=[MassCase(name="itemized loading", weight_lb=2000.0, cg_x=123.4, cg_z=56.7)])
-    with_mass = _values(Project(name="t", geometry=GeometryInput(parametric=layout), mass=mass))
-    without_mass = _values(Project(name="t", geometry=GeometryInput(parametric=layout)))
+    with_mass = _values(_gear_project(layout, mass=mass))
+    without_mass = _values(_gear_project(layout))
     assert "CG station (Weight DB)" in with_mass
     assert "CG station (25% MAC estimate)" in without_mass
     assert with_mass["CG station (Weight DB)"] == 123.4
@@ -167,7 +177,6 @@ def _full_layout():
         fuselage_length=300.0, fuselage_width=48.0, fuselage_height=60.0, datum_x=0.0,
         wing_area_sqft=174.0, aspect_ratio=6.0, taper_ratio=0.6,
         le_sweep_deg=2.0, le_root_x=90.0, root_waterline_z=40.0,
-        nose_gear_x=30.0, main_gear_x=150.0, track=90.0, gear_height=35.0,
     )
 
 
@@ -195,9 +204,11 @@ def test_component_stations_tail_stations_and_lumped_average():
 
 
 def test_component_stations_gear_and_lumped_average():
+    # Step G6b: gear stations from the single-source axle geometry. _gear_geom puts the
+    # ground line at WL 5, so gear_height = 40 - 5 = 35 and strut mid-height = 40 - 35/2.
     layout = _full_layout()
-    stations = component_stations(layout)
-    gear_z = layout.root_waterline_z - layout.gear_height / 2.0
+    stations = component_stations(layout, None, _gear_geom(150.0, 30.0))
+    gear_z = layout.root_waterline_z - 35.0 / 2.0
     assert stations["main_gear"] == (150.0, 0.0, gear_z)
     assert stations["nose_gear"] == (30.0, 0.0, gear_z)
     # Weight-weighted ~3:1 main:nose average for a single lumped "Landing gear" item.
@@ -317,7 +328,7 @@ def test_default_fuselage_outline_none_without_length():
 
 def test_match_component_station_prefers_specific_over_lumped():
     layout = _full_layout()
-    stations = component_stations(layout, _emp(xt25=270.0, xv25=265.0))
+    stations = component_stations(layout, _emp(xt25=270.0, xv25=265.0), _gear_geom(150.0, 30.0))
     assert match_component_station("Wing", stations) == stations["wing"]
     assert match_component_station("Fuselage", stations) == stations["fuselage"]
     assert match_component_station("Horizontal tail", stations) == stations["h_tail"]

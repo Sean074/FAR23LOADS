@@ -30,6 +30,8 @@ from farloads import (
     FuselageOutline,
     FuselageSection,
     GeometryInput,
+    LandingGearGeometry,
+    LandingGearInput,
     LayoutInput,
     MassItemKind,
     Project,
@@ -50,6 +52,7 @@ from farloads import io as farloads_io
 from farloads.modules.configuration import (
     cg_estimate,
     component_stations,
+    gear_stations,
     configuration_properties,
     match_component_station,
     tail_planform,
@@ -203,15 +206,12 @@ with st.sidebar:
                 "below (Step G6, single source; the three-view draws them from there)."
             )
         with st.expander("Landing gear"):
-            nose_gear_x = _num("Nose gear station", layout.nose_gear_x, "g_nose", "length",
-                               help="Fuselage station of the nose-gear contact point (LANDLOAD geometry, Ch 10).")
-            main_gear_x = _num("Main gear station", layout.main_gear_x, "g_main", "length",
-                               help="Fuselage station of the main-gear contact point; with the CG sets the "
-                                    "tip-back margin.")
-            track = _num("Track", layout.track, "g_track", "length",
-                         help="Main-gear track (lateral wheel spacing); with CG height sets the overturn angle.")
-            gear_height = _num("Gear height", layout.gear_height, "g_hgt", "length",
-                               help="Ground-to-waterline gear height; sets the ground line in the side/front views.")
+            st.caption(
+                "Landing-gear geometry (axle stations, tread, rolling radius, strut) is "
+                "the analysis-native LANDLOAD input — set it once in the **Landing gear** "
+                "section below (Step G6b, single source; the three-view + tip-back/"
+                "overturn/clearance derive the station/track/height from it)."
+            )
         applied = st.form_submit_button("Apply geometry", type="primary")
 
     with st.expander("ℹ️ Parameter guide", expanded=False):
@@ -242,8 +242,6 @@ if applied:
         dihedral_deg=dihedral_deg, le_sweep_deg=le_sweep_deg, le_root_x=_imp(le_root_x, "length"),
         root_waterline_z=_imp(root_waterline_z, "length"),
         tail_type=_TAIL_TYPE_BY_LABEL[tail_type_label], h_tail_z=_imp(h_tail_z, "length"),
-        nose_gear_x=_imp(nose_gear_x, "length"), main_gear_x=_imp(main_gear_x, "length"),
-        track=_imp(track, "length"), gear_height=_imp(gear_height, "length"),
     )
     # Preserve a hand-edited fuselage outline; default it from the scalars when none.
     _existing_fuse = project.geometry.fuselage if project.geometry is not None else None
@@ -324,13 +322,22 @@ def _three_view() -> go.Figure:
         side_y = [z0, z0, z0 + fh, z0 + fh, z0]
     fig.add_scatter(x=side_x, y=side_y, mode="lines",
                     line=dict(color="#888"), showlegend=False, row=1, col=2)
-    ground = layout.root_waterline_z - layout.gear_height
-    fig.add_scatter(x=[nose, tail], y=[ground, ground], mode="lines",
-                    line=dict(color="#aaa", dash="dot"), showlegend=False, row=1, col=2)
-    for gx in (layout.nose_gear_x, layout.main_gear_x):
-        if gx:
-            fig.add_scatter(x=[gx, gx], y=[ground, layout.root_waterline_z], mode="lines",
-                            line=dict(color="#555"), showlegend=False, row=1, col=2)
+    # Landing gear (Step G6b): drawn from the single-source axle geometry -- strut
+    # (static axle -> WRP) + wheel at the static axle; ground = lowest wheel contact.
+    _lg = project.geometry.landing_gear if project.geometry is not None else None
+    _gc = gear_stations(layout, _lg)
+    ground = _gc["ground_z"] if _gc is not None else layout.root_waterline_z
+    if _gc is not None:
+        fig.add_scatter(x=[nose, tail], y=[ground, ground], mode="lines",
+                        line=dict(color="#aaa", dash="dot"), showlegend=False, row=1, col=2)
+        for leg in (_lg.nose_gear, _lg.main_gear):
+            gx, gz = leg.axle_static
+            if gx:
+                fig.add_scatter(x=[gx, gx], y=[gz, layout.root_waterline_z], mode="lines",
+                                line=dict(color="#555"), showlegend=False, row=1, col=2)
+                fig.add_scatter(x=[gx], y=[gz], mode="markers",
+                                marker=dict(color="#555", size=9, symbol="circle"),
+                                showlegend=False, row=1, col=2)
     fig.add_scatter(x=[x_cg], y=[z_cg], mode="markers",
                     marker=dict(color="#d62728", size=11, symbol="x"), showlegend=False, row=1, col=2)
     fig.update_yaxes(scaleanchor="x", scaleratio=1, row=1, col=2)
@@ -344,8 +351,8 @@ def _three_view() -> go.Figure:
                     y=[layout.root_waterline_z + dz, layout.root_waterline_z,
                        layout.root_waterline_z + dz], mode="lines",
                     line=dict(color="#1f77b4"), showlegend=False, row=1, col=3)
-    if layout.track:
-        fig.add_scatter(x=[-layout.track / 2, layout.track / 2], y=[ground, ground],
+    if _gc is not None and _gc["track"]:
+        fig.add_scatter(x=[-_gc["track"] / 2, _gc["track"] / 2], y=[ground, ground],
                         mode="markers", marker=dict(color="#555", size=8), showlegend=False, row=1, col=3)
     fig.update_yaxes(scaleanchor="x", scaleratio=1, row=1, col=3)
 
@@ -529,6 +536,56 @@ if en_applied:
     ) if en_v else None
     st.session_state["project"] = project
     st.success("Empennage geometry updated.")
+    st.rerun()
+
+# --------------------------------------------------------------------------- #
+# Landing gear (Step G6b): single-source tricycle-gear geometry, edited once here
+# (drives the three-view strut/wheels AND LANDLOAD via geometry.landing_gear).
+# --------------------------------------------------------------------------- #
+st.subheader("Landing gear")
+st.caption(
+    "Single source (Step G6b) for the tricycle-gear geometry native to LANDLOAD — "
+    "axle (X, Z) at each strut state, rolling radius, strut type, and the main-wheel "
+    "tread. Entered once here; drives the three-view (strut + wheels) and the ground-"
+    "load analysis. The Landing Loads page keeps only the non-geometry LANDLOAD inputs "
+    "(weights, strut stroke, tyre OD/hub, lift factor, tail-down angle). Values are "
+    "Imperial (in). The tip-back/overturn/clearance estimate derives the ground line "
+    "from the static axle Z minus the rolling radius."
+)
+_lg0 = project.geometry.landing_gear if project.geometry is not None else None
+
+
+def _gear_leg(label: str, gear: LandingGearInput, keyp: str) -> LandingGearInput:
+    st.markdown(f"**{label}**")
+    a = st.columns(2)
+    strut = a[0].selectbox(f"{label} strut", ["O", "S"], index=0 if gear.strut == "O" else 1,
+                           key=f"{keyp}_strut", help="O = oleo, S = spring")
+    rr = a[1].number_input(f"{label} rolling radius (in)", min_value=0.0,
+                           value=float(gear.rolling_radius_in), key=f"{keyp}_rr")
+    c = st.columns(6)
+    xc = c[0].number_input(f"{label} X compr.", value=float(gear.axle_compressed[0]), key=f"{keyp}_xc")
+    zc = c[1].number_input(f"{label} Z compr.", value=float(gear.axle_compressed[1]), key=f"{keyp}_zc")
+    xs = c[2].number_input(f"{label} X static", value=float(gear.axle_static[0]), key=f"{keyp}_xs")
+    zs = c[3].number_input(f"{label} Z static", value=float(gear.axle_static[1]), key=f"{keyp}_zs")
+    xe = c[4].number_input(f"{label} X ext.", value=float(gear.axle_extended[0]), key=f"{keyp}_xe")
+    ze = c[5].number_input(f"{label} Z ext.", value=float(gear.axle_extended[1]), key=f"{keyp}_ze")
+    return LandingGearInput(axle_compressed=(xc, zc), axle_static=(xs, zs),
+                            axle_extended=(xe, ze), rolling_radius_in=rr, strut=strut)
+
+
+with st.form("landing_gear_form"):
+    _main0 = _lg0.main_gear if _lg0 is not None else LandingGearInput()
+    _nose0 = _lg0.nose_gear if _lg0 is not None else LandingGearInput()
+    lg_main = _gear_leg("Main gear", _main0, "lgm")
+    lg_nose = _gear_leg("Nose gear", _nose0, "lgn")
+    lg_tread = st.number_input("Tread between mains (in)", min_value=0.0,
+                               value=float(_lg0.tread_in if _lg0 is not None else 0.0), key="lg_tread")
+    lg_applied = st.form_submit_button("Apply landing gear", type="primary")
+
+if lg_applied:
+    _set_geometry(project, landing_gear=LandingGearGeometry(
+        main_gear=lg_main, nose_gear=lg_nose, tread_in=lg_tread))
+    st.success("Landing-gear geometry updated.")
     st.rerun()
 
 st.plotly_chart(_three_view(), use_container_width=True)
@@ -756,7 +813,9 @@ with right:
             )
         else:
             stations = component_stations(
-                layout, project.geometry.empennage if project.geometry is not None else None)
+                layout,
+                project.geometry.empennage if project.geometry is not None else None,
+                project.geometry.landing_gear if project.geometry is not None else None)
             seeded, new_items = 0, []
             for item in items:
                 if (item.x, item.y, item.z) == (0.0, 0.0, 0.0):

@@ -320,6 +320,7 @@ class GeometryInput:
     parametric: Optional["LayoutInput"] = None
     fuselage: Optional[FuselageOutline] = None
     empennage: Optional["EmpennageInput"] = None
+    landing_gear: Optional["LandingGearGeometry"] = None
 
     def by_name(self, name: str) -> Optional[SurfaceInput]:
         for s in self.surfaces:
@@ -986,6 +987,32 @@ class LandingInput:
     n: Optional[float] = None                  # LGFACTOR airplane load factor (result)
 
 
+# --------------------------------------------------------------------------- #
+# Single-source landing-gear geometry (Step G6b) -- GeometryInput.landing_gear
+# --------------------------------------------------------------------------- #
+@dataclass
+class LandingGearGeometry:
+    """Single-source landing-gear geometry (Step G6b).
+
+    The tricycle-gear geometry native to LANDLOAD -- the main/nose axle ``(X, Z)`` at
+    the three strut states (compressed/static/extended), rolling radius and strut
+    type, plus the ``tread`` between the main wheels -- is entered **once** here, on
+    the Geometry page, and drives *both* the three-view (strut + wheels) and the
+    ground-load analysis. It supersedes the duplicated coarse ``LayoutInput`` gear
+    fields (``main_gear_x``/``nose_gear_x``/``track``/``gear_height``, retired in
+    G6b): the three-view and the tip-back / overturn / prop-clearance estimate now
+    derive the station/track/height from the native axle geometry (ground = static
+    axle ``Z`` minus rolling radius). The LANDLOAD calc reads these via
+    ``landing.build_landing`` (which syncs them onto ``Project.landing`` before the
+    reaction solve, so the math is unchanged); the non-geometry LANDLOAD inputs
+    (weights, strut stroke, tyre OD/hub, lift factor, tail-down angle) stay on
+    ``Project.landing``.
+    """
+    main_gear: LandingGearInput = field(default_factory=LandingGearInput)
+    nose_gear: LandingGearInput = field(default_factory=LandingGearInput)
+    tread_in: float = 0.0                       # TREAD (distance between main wheels)
+
+
 class TailType(str, Enum):
     """Empennage arrangement, for the Configuration & Layout three-view.
 
@@ -1023,9 +1050,9 @@ class LayoutInput:
     ``trailing_edge`` polylines and the trapezoidal-wing ``MAC``/``XLEMAC``/
     ``Y_MAC`` (cross-checked against the WINGGEOM strip integrator). The empennage
     (tail + elevator/rudder) geometry lives in the single-source
-    ``GeometryInput.empennage`` (Step G6); this slice keeps only the empennage
-    *arrangement* (``tail_type``) and h-tail drawing offset (``h_tail_z``). Gear is
-    the nose/main stations, track and height (tip-back / overturn / clearance).
+    ``GeometryInput.empennage`` (Step G6) and the landing-gear geometry in
+    ``GeometryInput.landing_gear`` (Step G6b); this slice keeps only the empennage
+    *arrangement* (``tail_type``) and h-tail drawing offset (``h_tail_z``).
     """
     # Fuselage
     fuselage_length: float = 0.0     # overall length, in
@@ -1046,11 +1073,9 @@ class LayoutInput:
     # span and the 25%-MAC stations), so nothing is entered twice.
     tail_type: TailType = TailType.CONVENTIONAL  # empennage arrangement (layout sketch only)
     h_tail_z: float = 0.0            # h-tail vertical offset from root_waterline_z, in
-    # Landing gear
-    nose_gear_x: float = 0.0         # nose-gear contact fuselage station, in
-    main_gear_x: float = 0.0         # main-gear contact fuselage station, in
-    track: float = 0.0               # main-gear track (wheel-to-wheel), in
-    gear_height: float = 0.0         # static ground-to-WRP height, in
+    # Landing-gear geometry moved to the single-source GeometryInput.landing_gear
+    # (Step G6b): the three-view and the tip-back/overturn/clearance estimate derive
+    # the station/track/height from the native LANDLOAD axle geometry there.
 
 
 # Default fuselage-outline shape (fractions of overall length / max cross-section)
@@ -1584,7 +1609,14 @@ class LoadsResult:
 # h-/v-tail area/span/arm fields are retired. io migrates legacy top-level
 # tail_loads/vtail_loads (and legacy LayoutInput tail fields) into geometry.empennage;
 # the derived slices are byte-identical, so the SELECT tail-load oracles are unchanged.
-SCHEMA_VERSION = 27
+# v28 (Phase G6b) makes GeometryInput.landing_gear (LandingGearGeometry: main/nose
+# axle 3-states + tread) the single source for the landing-gear geometry: the coarse
+# LayoutInput gear fields (main_gear_x/nose_gear_x/track/gear_height) are retired (the
+# three-view + tip-back/overturn/clearance derive them from the native axle geometry),
+# and LANDLOAD reads the gear via a sync onto Project.landing (math unchanged -> the
+# Appendix A ground-load oracle is byte-identical). io migrates a pre-v28 file's
+# top-level landing gear (and legacy LayoutInput gear fields) into geometry.landing_gear.
+SCHEMA_VERSION = 28
 
 
 @dataclass

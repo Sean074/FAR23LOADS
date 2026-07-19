@@ -51,6 +51,7 @@ from .models import (
     FuselageSection,
     FuselageStation,
     GeometryInput,
+    LandingGearGeometry,
     LandingGearInput,
     LandingInput,
     SelectInput,
@@ -252,9 +253,18 @@ def _fuselage_outline_from_dict(d: Dict[str, Any]) -> FuselageOutline:
     ])
 
 
+def _landing_gear_from_dict(d: Dict[str, Any]) -> LandingGearGeometry:
+    return LandingGearGeometry(
+        main_gear=_gear_from_dict(d.get("main_gear") or {}),
+        nose_gear=_gear_from_dict(d.get("nose_gear") or {}),
+        tread_in=float(d.get("tread_in", 0.0) or 0.0),
+    )
+
+
 def geometry_from_dict(d: Dict[str, Any], legacy_configuration: Optional[Dict[str, Any]] = None,
                        legacy_tail_loads: Optional[Dict[str, Any]] = None,
-                       legacy_vtail_loads: Optional[Dict[str, Any]] = None) -> GeometryInput:
+                       legacy_vtail_loads: Optional[Dict[str, Any]] = None,
+                       legacy_landing: Optional[Dict[str, Any]] = None) -> GeometryInput:
     """Build the unified :class:`GeometryInput` from a plain dict (Step G1/G6).
 
     ``surfaces`` is the WINGGEOM planform list (unchanged). ``parametric`` is the
@@ -293,11 +303,31 @@ def geometry_from_dict(d: Dict[str, Any], legacy_configuration: Optional[Dict[st
             vtail=vtail_loads_from_dict(vtail_raw) if vtail_raw else None,
         )
 
+    # Step G6b: landing-gear geometry from d["landing_gear"], else migrated from a
+    # pre-v28 file's top-level "landing" gear, else (coarse-only file) synthesized
+    # from the retired LayoutInput gear fields (static axle X + tread only).
+    landing_gear = None
+    lg_raw = d.get("landing_gear")
+    if lg_raw is not None:
+        landing_gear = _landing_gear_from_dict(lg_raw)
+    elif legacy_landing and any(legacy_landing.get(k) for k in ("main_gear", "nose_gear", "tread_in")):
+        landing_gear = _landing_gear_from_dict(legacy_landing)
+    elif parametric_raw and any(parametric_raw.get(k) for k in
+                                ("main_gear_x", "nose_gear_x", "track", "gear_height")):
+        gz = float(parametric_raw.get("root_waterline_z", 0.0) or 0.0) \
+            - float(parametric_raw.get("gear_height", 0.0) or 0.0)
+        landing_gear = LandingGearGeometry(
+            main_gear=LandingGearInput(axle_static=(float(parametric_raw.get("main_gear_x", 0.0) or 0.0), gz)),
+            nose_gear=LandingGearInput(axle_static=(float(parametric_raw.get("nose_gear_x", 0.0) or 0.0), gz)),
+            tread_in=float(parametric_raw.get("track", 0.0) or 0.0),
+        )
+
     return GeometryInput(
         surfaces=[_surface_from_dict(s) for s in d.get("surfaces", []) or []],
         parametric=parametric,
         fuselage=fuselage,
         empennage=empennage,
+        landing_gear=landing_gear,
     )
 
 
@@ -332,6 +362,13 @@ def geometry_to_dict(inp: GeometryInput) -> Dict[str, Any]:
             emp["vtail"] = vtail_loads_to_dict(inp.empennage.vtail)
         if emp:
             out["empennage"] = emp
+    if inp.landing_gear is not None:
+        lg = inp.landing_gear
+        out["landing_gear"] = {
+            "main_gear": asdict(lg.main_gear),
+            "nose_gear": asdict(lg.nose_gear),
+            "tread_in": lg.tread_in,
+        }
     return out
 
 
@@ -670,14 +707,14 @@ def _gear_from_dict(d: Dict[str, Any]) -> LandingGearInput:
 
 
 def landing_from_dict(d: Dict[str, Any]) -> LandingInput:
-    """Build a :class:`LandingInput` from a plain dict (nested gear + CG cases)."""
+    """Build a :class:`LandingInput` from a plain dict (CG cases + non-geometry
+    LANDLOAD params). Step G6b: the gear geometry (``main_gear``/``nose_gear``/
+    ``tread_in``) is no longer read here -- it lives in ``geometry.landing_gear`` and
+    is synced onto ``Project.landing`` by the calc; a legacy file's top-level gear is
+    migrated into geometry by :func:`geometry_from_dict`."""
     fields = {f for f in LandingInput.__dataclass_fields__}
     kw = {k: v for k, v in d.items() if k in fields and k not in
-          ("main_gear", "nose_gear", "cg_cases")}
-    if d.get("main_gear"):
-        kw["main_gear"] = _gear_from_dict(d["main_gear"])
-    if d.get("nose_gear"):
-        kw["nose_gear"] = _gear_from_dict(d["nose_gear"])
+          ("main_gear", "nose_gear", "tread_in", "cg_cases")}
     cg_fields = {f for f in CgCase.__dataclass_fields__}
     kw["cg_cases"] = [CgCase(**{k: v for k, v in c.items() if k in cg_fields})
                       for c in d.get("cg_cases", []) or []]
@@ -685,8 +722,13 @@ def landing_from_dict(d: Dict[str, Any]) -> LandingInput:
 
 
 def landing_to_dict(inp: LandingInput) -> Dict[str, Any]:
-    """Serialize a :class:`LandingInput` to JSON-friendly primitives."""
-    return asdict(inp)
+    """Serialize a :class:`LandingInput` (Step G6b: the gear geometry
+    ``main_gear``/``nose_gear``/``tread_in`` is written under
+    ``geometry.landing_gear``, not here -- the single stored home)."""
+    out = asdict(inp)
+    for gear_key in ("main_gear", "nose_gear", "tread_in"):
+        out.pop(gear_key, None)
+    return out
 
 
 # --------------------------------------------------------------------------- #
@@ -904,8 +946,11 @@ def project_from_dict(d: Dict[str, Any]) -> Project:
             geometry=(
                 geometry_from_dict(
                     geometry or {}, legacy_configuration=legacy_configuration,
-                    legacy_tail_loads=tail_loads, legacy_vtail_loads=vtail_loads)
-                if (geometry or legacy_configuration or tail_loads or vtail_loads) else None
+                    legacy_tail_loads=tail_loads, legacy_vtail_loads=vtail_loads,
+                    legacy_landing=landing)
+                if (geometry or legacy_configuration or tail_loads or vtail_loads
+                    or (landing and any(landing.get(k) for k in ("main_gear", "nose_gear", "tread_in"))))
+                else None
             ),
             speeds=speeds_from_dict(speeds) if speeds else None,
             aero=aero_from_dict(aero) if aero else None,

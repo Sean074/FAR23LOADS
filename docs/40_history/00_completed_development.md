@@ -10,6 +10,65 @@ Acceptance**, **Key decisions**.
 
 ---
 
+## Phase G — Step G6b: Single-source landing-gear geometry (complete, 2026-07-19)
+
+**Objective.** Make the Geometry page the single source of truth for the landing
+gear, using the parameters native to LANDLOAD (axle stations at each strut state,
+tread, rolling radius, strut type — not a synthetic coarse gear station). The
+three-view depicts the gear from that data, and the ground-load analysis reads it —
+every value entered once. Sibling to Step G6.
+
+**Problem fixed.** Gear geometry was entered twice, unreconciled: the coarse
+`LayoutInput` `main_gear_x`/`nose_gear_x`/`track`/`gear_height` (three-view +
+tip-back/overturn/clearance) and the detailed `LandingInput` axle geometry (LANDLOAD).
+In `concept_regional_jet` the stations/tread agreed but the stored `gear_height`
+(75 in) contradicted the axles (static Z 20 − rolling radius 14 → ground WL 6 → ~39
+in) — a silent divergence.
+
+**Locked decision (AskUserQuestion, 2026-07-19).** `gear_height` → *derive from the
+axles* (ground = static axle Z − rolling radius; fully single-source), shifting the
+no-oracle tip-back/overturn/clearance estimate where the old stored value disagreed.
+Plus the three backlog-locked decisions: data home = `GeometryInput.landing_gear`;
+analysis wiring = derive/sync (calc math untouched); scope = landing gear only.
+
+**Forced by fixture inspection.** Only the regional jet has both homes; cessna/ga6
+carry gear only in `LandingInput` and have no parametric geometry — so
+`LandingGearGeometry` **stores the native axle geometry verbatim** (LANDLOAD reads
+the one authoritative copy; the reactions are byte-identical).
+
+**Deliverables.**
+- **`LandingGearGeometry{main_gear, nose_gear: LandingGearInput, tread_in}`** on
+  `GeometryInput.landing_gear` (`farloads/models.py`); the coarse `LayoutInput` gear
+  fields retired. `SCHEMA_VERSION` 27 → 28.
+- **`farloads/io.py`** — `geometry.landing_gear` (de)serialization; `landing_to_dict`
+  strips the gear (written under geometry); migration of a pre-v28 file's top-level
+  `landing` gear (and legacy `LayoutInput` gear) into `geometry.landing_gear`.
+- **`farloads/modules/landing.py`** — `_sync_gear_from_geometry(project)` fills the
+  landing slice's gear from `geometry.landing_gear` at the top of `build_landing`
+  (math unchanged → LANDLOAD oracle bit-for-bit).
+- **`farloads/modules/configuration.py`** — `gear_stations(layout, landing_gear)`
+  derives `{main_x, nose_x, track, gear_height, ground_z}` from the native axles;
+  `component_stations` and `_gear_condition` read it (ground = static axle Z −
+  rolling radius).
+- **`app/views/configuration_layout.py`** — a *Landing gear* form (per-leg axle
+  3-states + rolling radius + strut, tread); the three-view draws the strut + wheels
+  and the derived ground line. **`app/views/landing_loads.py`** — drops the gear/tread
+  widgets, reads the gear read-only, keeps the non-geometry LANDLOAD inputs.
+
+**Test / Acceptance** (`tests/test_landing_gear_geometry.py`, 4 tests; plus updated
+`test_landing`/`test_configuration`/`test_io`). The gear serializes under
+`geometry.landing_gear` (not the landing block); a pre-v28 top-level file migrates;
+`gear_stations` derives the coarse values from the axles (ground = static Z − rolling
+radius); the LANDLOAD reactions are **bit-for-bit** across a JSON round-trip. Full
+suite **405 passing**; `ruff` clean (`farloads/`, `cli.py`, `app/`).
+
+**Key decisions.** Store (not derive) the native axle geometry → LANDLOAD oracle-safe;
+`gear_height` derived from the axles (single-source, shifts the no-oracle estimate);
+gear synced onto `Project.landing` at calc time (mixed slice — the non-geometry
+LANDLOAD params stay stored there).
+
+---
+
 ## Phase G — Step G6: Single-source empennage & control-surface geometry (complete, 2026-07-19)
 
 **Objective.** Make the Geometry page the single source of truth for the empennage

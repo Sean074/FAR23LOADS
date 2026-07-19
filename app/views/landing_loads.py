@@ -15,7 +15,6 @@ import pandas as pd
 import streamlit as st
 
 from farloads import (
-    LandingGearInput,
     LandingInput,
     Project,
     UnitSystem,
@@ -40,43 +39,6 @@ project: Project = st.session_state.get("project", Project(name=""))
 system: UnitSystem = st.session_state.get("unit_system", UnitSystem.IMPERIAL)
 U = labels_for(system)  # {"weight","length","area_sqft",...} -> unit string
 inp = project.landing or LandingInput()
-
-
-def _gear_inputs(label: str, gear: LandingGearInput) -> LandingGearInput:
-    st.markdown(f"**{label}** ({U['length']})")
-    c = st.columns(4)
-    strut = c[0].selectbox(f"{label} strut", ["O", "S"],
-                           index=0 if gear.strut == "O" else 1,
-                           help="Oleo (O) or spring (S)", key=f"{label}_strut")
-    rr = c[1].number_input(
-        f"{label} rolling radius ({U['length']})", min_value=0.0,
-        value=float(round(to_display(gear.rolling_radius_in, "length", system), 4)),
-        key=f"{label}_rr_{system.value}")
-    cc = st.columns(6)
-    xc = cc[0].number_input(
-        f"{label} X compressed", value=float(round(to_display(gear.axle_compressed[0], "length", system), 4)),
-        key=f"{label}_xc_{system.value}")
-    zc = cc[1].number_input(
-        f"{label} Z compressed", value=float(round(to_display(gear.axle_compressed[1], "length", system), 4)),
-        key=f"{label}_zc_{system.value}")
-    xs = cc[2].number_input(
-        f"{label} X static", value=float(round(to_display(gear.axle_static[0], "length", system), 4)),
-        key=f"{label}_xs_{system.value}")
-    zs = cc[3].number_input(
-        f"{label} Z static", value=float(round(to_display(gear.axle_static[1], "length", system), 4)),
-        key=f"{label}_zs_{system.value}")
-    xe = cc[4].number_input(
-        f"{label} X extended", value=float(round(to_display(gear.axle_extended[0], "length", system), 4)),
-        key=f"{label}_xe_{system.value}")
-    ze = cc[5].number_input(
-        f"{label} Z extended", value=float(round(to_display(gear.axle_extended[1], "length", system), 4)),
-        key=f"{label}_ze_{system.value}")
-    return LandingGearInput(
-        (to_imperial_scalar(xc, "length", system), to_imperial_scalar(zc, "length", system)),
-        (to_imperial_scalar(xs, "length", system), to_imperial_scalar(zs, "length", system)),
-        (to_imperial_scalar(xe, "length", system), to_imperial_scalar(ze, "length", system)),
-        to_imperial_scalar(rr, "length", system), strut)
-
 
 with st.form("landing_loads_form"):
     st.subheader("Landing load factor (LGFACTOR)")
@@ -116,16 +78,12 @@ with st.form("landing_loads_form"):
         "Gear load factor override, NLG", min_value=0.0, value=float(inp.gear_load_factor),
         help="0 → use LGFACTOR's computed N − L. LANDLOAD usually rounds it up.")
 
-    st.subheader("Landing gear geometry (LANDLOAD)")
-    main_gear = _gear_inputs("Main gear", inp.main_gear)
-    nose_gear = _gear_inputs("Nose gear", inp.nose_gear)
-    c = st.columns(2)
-    tread_in = c[0].number_input(
-        f"Tread between mains ({U['length']})", min_value=0.0,
-        value=float(round(to_display(inp.tread_in, "length", system), 4)),
-        key=f"tread_{system.value}")
-    tail_down_angle_deg = c[1].number_input("Tail-down ground angle (deg)", min_value=0.0,
-                                            value=float(inp.tail_down_angle_deg))
+    tail_down_angle_deg = st.number_input("Tail-down ground angle (deg)", min_value=0.0,
+                                          value=float(inp.tail_down_angle_deg))
+    st.caption(
+        "The **landing-gear geometry** (axle stations, tread, rolling radius, strut) is "
+        "the single-source **Landing gear** section on the **Geometry** page (Step G6b) — "
+        "edit it there; LANDLOAD reads it read-only.")
     applied = st.form_submit_button("Apply", type="primary")
 
 if applied:
@@ -137,9 +95,6 @@ if applied:
     inp.hub_diameter_in = to_imperial_scalar(hub_diameter_in, "length", system)
     inp.lift_factor = lift_factor
     inp.gear_load_factor = gear_load_factor
-    inp.main_gear = main_gear
-    inp.nose_gear = nose_gear
-    inp.tread_in = to_imperial_scalar(tread_in, "length", system)
     inp.tail_down_angle_deg = tail_down_angle_deg
     project.landing = inp
     st.session_state["project"] = project
