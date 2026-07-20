@@ -9,6 +9,30 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed
+
+- **One-engine-out 23.367(a)(2) case no longer double-factored (M1-5, review T7).**
+  The VC (ultimate) condition carried the default safety factor 1.5 even though
+  23.367(a)(2) loads are *defined as ultimate*, so the render/export layer multiplied
+  an already-ultimate load by 1.5. The safety factor is now owned by the **load-case
+  definition** — set by how the regulation *classifies* the load (LIMIT vs ULTIMATE),
+  not by the speed — and each case definition also fixes the **speed range** it is
+  considered over (evaluated at the critical high end). Being a *failure* case does
+  not by itself reduce the factor. 23.367(a) (turbopropeller; Ref 1 Ch 11 p87;
+  VMC = minimum control speed) defines two cases: **(a)(1)** fuel-flow interruption,
+  **LIMIT → SF 1.5**, considered VMC→VD (a failure that keeps the full factor);
+  **(a)(2)** compressor-from-turbine disconnection / turbine-blade loss,
+  **ULTIMATE → SF 1.0**, considered VMC→VC ("limit treated as ultimate"). The VS
+  point (VS substituted for VMC per the Ch 11 Method) is a **LIMIT → SF 1.5** design
+  point. Each case declares its `load_class`/`safety_factor`, speed range and basis
+  as a row in the `_load_cases` table (new `_LoadCase` NamedTuple), carried onto each
+  `ConditionResult` (`safety_factor` + `note`), so the VC deliverable now renders
+  `lbs-ULT` at `SF=1.0` instead of `SF=1.5`. Three tests added
+  (`test_safety_factors_by_failure_mode`, `test_load_case_owns_sf_and_speed_range`,
+  `test_rendered_loads_are_ultimate_with_correct_sf`). Not an oracle change (no
+  printed ONENGOUT oracle exists; the factor is applied only at the render/export
+  boundary).
+
 ### Changed
 
 - **23.427(a) unsymmetrical tail: restore the full candidate set (M1-4, review T6;

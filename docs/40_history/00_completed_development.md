@@ -10,6 +10,57 @@ Acceptance**, **Key decisions**.
 
 ---
 
+## M1-5 — One-engine-out 23.367(a)(2) case: safety factor 1.0 (complete, 2026-07-20)
+
+**Objective.** Stop double-factoring the one-engine-out **VC (ultimate)** load. The
+23.367(a)(2) loads are defined as ultimate, but the `ConditionResult` carried the
+default SF 1.5, so the render/export layer multiplied an already-ultimate load by
+1.5. (Review finding T7.)
+
+**Regulatory basis.** 14 CFR 23.367(a) (turbopropeller; Ref 1 Ch 11 p87, verbatim
+quote) prescribes two failure modes whose severity fixes both the safety factor and
+the speed ceiling — VMC is the minimum control speed, and the Method allows VS/VSF
+to be substituted for it:
+- **(a)(1)** power failure from **fuel-flow interruption**, VMC→**VD**, loads are
+  **LIMIT** → SF 1.5 (the VD case).
+- **(a)(2)** **compressor-from-turbine disconnection / turbine-blade loss**,
+  VMC→**VC**, loads are **ULTIMATE** → SF 1.0 (the VC case — "limit treated as
+  ultimate").
+- **VS** substitutes for VMC (the shared floor of both ranges) and is taken as a
+  **LIMIT** design point → SF 1.5 (decided 2026-07-20 — the conservative reading;
+  the VD limit case envelopes the fuel-flow load at any lower speed).
+
+**Deliverables.**
+- `one_engine_out._load_cases` returns a case-definition table of `_LoadCase`
+  (new `NamedTuple`: label, far_reference, **load_class**, **safety_factor**,
+  **v_lo_kt/v_hi_kt** speed range, **basis**). The SF is owned by the case definition
+  (its LIMIT/ULTIMATE classification), *not* the speed; the case also carries the
+  speed range it is considered over and is evaluated at the critical high end.
+  `run()` carries `safety_factor` and the basis `note` onto each `ConditionResult`.
+  Explicit `speeds_kt` overrides are single-speed LIMIT cases (SF 1.5).
+- Doc syncs: `PROGRAM_SPEC.md` (ONENGOUT §), `docs/20_theory/00_theory_sources.md`
+  (ONENGOUT row), `CHANGELOG.md`. Backlog **M4-3** extended with the turbopropeller-
+  gate citation and a VSF-substitution note surfaced here.
+
+**Test / Acceptance.** `test_safety_factors_by_failure_mode` (SF 1.0 / 1.5 / 1.5 by
+case + basis note), `test_load_case_owns_sf_and_speed_range` (classification owns the
+SF; the case carries its speed range and evaluates at the high end) and
+`test_rendered_loads_are_ultimate_with_correct_sf` (rendered load-case rows carry
+`-ULT` and `SF` 1 for VC, 1.5 for VD). Full suite green (413 passed), `ruff` clean.
+Not an oracle change — no printed ONENGOUT oracle exists and the factor applies only
+at the render/export boundary.
+
+**Key decisions.** (1) The safety factor is an attribute of the **load-case
+definition** — set by the regulation's LIMIT/ULTIMATE classification of the load, not
+by the speed — and the same definition fixes the speed range the case is considered
+over. Being a *failure* case does not by itself reduce the factor (the (a)(1)
+fuel-flow failure is a failure and stays LIMIT / 1.5). Future flight-test / 14 CFR
+23.302/25.302 probability-interpolated (1.0–1.5) cases slot in as new rows with their
+own classification. (2) VS = limit (SF 1.5), the reported VMC-substitute floor.
+(3) An SF *basis* string is carried now (`_LoadCase.basis` → the `note`); a
+first-class `safety_factor_basis` field and a cross-module case-spec are deferred
+until a second module needs them.
+
 ## M1-4 — 23.427 unsymmetrical tail: restore the full candidate set (complete, 2026-07-20) **[Major]**
 
 **Objective.** Restore SELECT.BAS's full 12-condition candidate set for the

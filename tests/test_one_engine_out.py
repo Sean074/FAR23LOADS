@@ -146,6 +146,52 @@ def test_run_structure():
     assert {"Max tail load", "Max yawing velocity", "Engine thrust", "Windmill drag"} <= labels
 
 
+def test_safety_factors_by_failure_mode():
+    """M1-5 (review T7): the 23.367(a)(2) VC loads are ultimate (SF 1.0 -- limit
+    treated as ultimate); the (a)(1) VD fuel-flow case and the VS (VMC substitute)
+    case are limit (SF 1.5). See Ref 1 Ch 11 p87 / 14 CFR 23.367(a)(1)-(2)."""
+    p = _twin()
+    mr = oeo.run(p)
+    sf = {c.title: c.safety_factor for c in mr.conditions}
+    assert sf["One engine out — VC (ultimate)"] == 1.0   # 23.367(a)(2) turbine failure -> ultimate
+    assert sf["One engine out — VD (limit)"] == 1.5      # 23.367(a)(1) fuel-flow -> limit
+    assert sf["One engine out — VS"] == 1.5              # VMC substitute -> limit
+    # The regulatory basis is carried on each condition's note.
+    vc = next(c for c in mr.conditions if c.title.endswith("VC (ultimate)"))
+    assert "23.367(a)(2)" in vc.note and "ULTIMATE" in vc.note
+
+
+def test_load_case_owns_sf_and_speed_range():
+    """The SF is an attribute of the case definition (its LIMIT/ULTIMATE
+    classification), not the speed; the case also carries the speed range it is
+    considered over, and is evaluated at the range's critical (high) end."""
+    p = _twin()
+    cases = {lc.label: lc for lc in oeo._load_cases(p, p.one_engine_out)}
+    vc, vd, vs = cases["VC (ultimate)"], cases["VD (limit)"], cases["VS"]
+    # SF follows the case's classification, not its speed.
+    assert (vc.load_class, vc.safety_factor) == ("ULTIMATE", 1.0)   # 23.367(a)(2)
+    assert (vd.load_class, vd.safety_factor) == ("LIMIT", 1.5)      # 23.367(a)(1) -- a failure, still 1.5
+    assert (vs.load_class, vs.safety_factor) == ("LIMIT", 1.5)
+    # The case defines a speed range; it is evaluated at the critical (high) end.
+    assert vc.v_hi_kt == float(p.speeds.chosen_vc)
+    assert vd.v_hi_kt == float(p.speeds.chosen_vd)
+    assert vc.v_lo_kt <= vc.v_hi_kt and vd.v_lo_kt <= vd.v_hi_kt  # VMC floor <= ceiling
+
+
+def test_rendered_loads_are_ultimate_with_correct_sf():
+    """The rendered deliverable carries the -ULT marker and each case's SF: the VC
+    ultimate case at SF 1.0, the VD/VS limit cases at SF 1.5 (M1-5)."""
+    from farloads import report
+    p = _twin()
+    rows = {r["Condition"]: r for r in report.load_cases_to_rows(oeo.run(p).conditions)}
+    vc = rows["one engine out — VC (ultimate)"]
+    vd = rows["one engine out — VD (limit)"]
+    assert vc["SF"] == "1" and vd["SF"] == "1.5"
+    # Load columns carry the ULTIMATE marker in their units string, not a bare limit load.
+    load_cols = [k for k in vc if "load" in k.lower() or "moment" in k.lower() or "Thrust" in k]
+    assert load_cols and all("-ULT" in k for k in load_cols)
+
+
 def test_time_history_matches_case():
     p = _twin()
     rows = oeo.time_history(p, "VC (ultimate)")

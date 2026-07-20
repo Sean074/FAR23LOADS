@@ -36,9 +36,14 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass
-from typing import List, Optional, Tuple
+from typing import List, NamedTuple, Optional, Tuple
 
-from ..constants import KT_TO_FPS_SUITE, LBIN2_PER_SLUGFT2, standard_atmosphere
+from ..constants import (
+    KT_TO_FPS_SUITE,
+    LBIN2_PER_SLUGFT2,
+    ULTIMATE_FACTOR,
+    standard_atmosphere,
+)
 from ..case_ids import CaseIdAllocator
 from ..models import (
     CaseRef,
@@ -246,30 +251,97 @@ def _engine_power(eng: EngineInput, use_takeoff: bool) -> float:
     return float(hp)
 
 
-def _speed_cases(project: Project, oeo: OneEngineOutInput) -> List[Tuple[str, str, float]]:
-    """The (label, FAR reference, speed) cases to evaluate.
+class _LoadCase(NamedTuple):
+    """One 23.367 engine-failure design case.
 
-    Default: VC (ultimate, 23.367(a)(2)), VD (limit, 23.367(a)(1)) and VS, taken from
-    ``Project.speeds``. ``oeo.speeds_kt`` overrides with an explicit speed list."""
+    A load case is defined by its **failure condition**, and that definition -- not
+    the speed -- owns two things:
+
+    - ``safety_factor``: set by how the governing regulation *classifies* the load
+      (``load_class`` LIMIT vs ULTIMATE), per 14 CFR 23.303. A LIMIT case renders at
+      1.5; a case the rule defines as ULTIMATE (or an inherently-ultimate value) is
+      SF 1.0 -- a "limit treated as ultimate". Being a *failure* case does **not**
+      by itself reduce the factor (the fuel-flow failure below is a failure and is
+      still LIMIT / 1.5); only the regulation's classification does.
+    - the **speed range** ``[v_lo_kt, v_hi_kt]`` over which the case is considered.
+      Because the tail load grows with dynamic pressure (~V^2), the critical load is
+      at the top of the range, so the case is evaluated at ``v_hi_kt``; ``v_lo_kt``
+      (the VMC floor) records the low end for traceability.
+
+    ``safety_factor`` and ``basis`` live here rather than defaulting at the
+    ``ConditionResult`` level so each case's limit/ultimate status is explicit and
+    traceable to its definition."""
+    label: str
+    far_reference: str
+    load_class: str          # "LIMIT" | "ULTIMATE" -- set by the case definition, not the speed
+    safety_factor: float     # follows from load_class / the regulation, independent of speed
+    v_lo_kt: float           # speed range the case is considered over: low end (~VMC) ...
+    v_hi_kt: float           # ... to high end = the critical, evaluated speed
+    basis: str
+
+
+# 23.367(a) (TURBOPROPELLER airplanes -- gating on is_turboprop is backlog M4-3;
+# Ref 1 Ch 11 p87) defines two failure-condition cases. Each case's DEFINITION fixes
+# its safety factor (via how the rule classifies the load) AND the speed range it is
+# considered over; the speed does not determine the factor. VMC is the minimum
+# control speed, and the Method allows Vs or VSF to be substituted for it:
+#   (a)(1) power failure from FUEL-FLOW INTERRUPTION -- LIMIT (SF 1.5), VMC->VD
+#   (a)(2) COMPRESSOR-FROM-TURBINE DISCONNECTION / TURBINE-BLADE LOSS
+#                                                   -- ULTIMATE (SF 1.0), VMC->VC
+# The VMC-floor point (VS substituted for VMC) is reported as a LIMIT design point
+# (SF 1.5, decided 2026-07-20) -- the shared low end of both ranges.
+_BASIS_VC = ("Case: disconnection of the engine compressor from the turbine or loss of "
+             "the turbine blades (23.367(a)(2)). The case definition classifies these "
+             "loads as ULTIMATE, so SF=1.0 (limit treated as ultimate -- the factor is "
+             "set by the case, not the speed; applying 1.5 would double-factor it). "
+             "Considered from VMC (minimum control speed) up to VC; critical at VC.")
+_BASIS_VD = ("Case: power failure from fuel-flow interruption (23.367(a)(1)). The case "
+             "definition classifies these loads as LIMIT, so SF=1.5 (14 CFR 23.303) -- a "
+             "failure case that keeps the full factor. Considered from VMC up to VD; "
+             "critical at VD.")
+_BASIS_VS = ("VMC floor of the engine-failure cases: VS (clean 1-g stall, from CLmax per "
+             "M1-1b) substituted for VMC (minimum control speed) per Ref 1 Ch 11 Method; "
+             "reported as a LIMIT design point, SF=1.5.")
+_BASIS_OVERRIDE = ("Explicit user-supplied speed; the case is taken as LIMIT (SF=1.5) "
+                   "absent a failure-condition classification.")
+
+
+def _load_cases(project: Project, oeo: OneEngineOutInput) -> List[_LoadCase]:
+    """The 23.367 engine-failure design cases, as a case-definition table.
+
+    Each :class:`_LoadCase` declares its own ``load_class``/``safety_factor`` (from the
+    case's regulatory classification -- see that class) and the speed range it is
+    considered over; it is evaluated at the range's critical (high) end. The
+    render/export layer multiplies the calc's LIMIT loads by ``safety_factor`` to emit
+    ULTIMATE deliverables. Future 23.367-adjacent cases (flight-test factors, a 14 CFR
+    23.302/25.302 probability-interpolated factor of 1.0-1.5) slot in as new rows with
+    their own classification and factor. ``oeo.speeds_kt`` overrides with an explicit
+    speed list, each a LIMIT case at that single speed."""
     sp = project.speeds
     if oeo.speeds_kt:
-        return [(f"V={v:g} kt", "23.367", float(v)) for v in oeo.speeds_kt]
+        return [_LoadCase(f"V={v:g} kt", "23.367", "LIMIT", ULTIMATE_FACTOR,
+                          float(v), float(v), _BASIS_OVERRIDE) for v in oeo.speeds_kt]
     if sp is None:
         raise ValueError("one_engine_out needs Project.speeds (or OneEngineOutInput.speeds_kt)")
-    cases: List[Tuple[str, str, float]] = []
-    if sp.chosen_vc:
-        cases.append(("VC (ultimate)", "23.367(a)(2)", float(sp.chosen_vc)))
-    if sp.chosen_vd:
-        cases.append(("VD (limit)", "23.367(a)(1)", float(sp.chosen_vd)))
-    # VS is derived from CLmax (M1-1b); include it only when the CLmax needed to
-    # derive it is available (Project.aero_coeffs), else skip this optional case.
+    # VS (the VMC substitute / shared low end of both cases' speed ranges) is derived
+    # from CLmax (M1-1b); available only when Project.aero_coeffs is present.
     try:
         from .structural_speeds import design_speed_values
         vs = design_speed_values(project, sp).vs
     except (ValueError, ZeroDivisionError):
         vs = 0.0
+    cases: List[_LoadCase] = []
+    if sp.chosen_vc:
+        v_hi = float(sp.chosen_vc)
+        cases.append(_LoadCase("VC (ultimate)", "23.367(a)(2)", "ULTIMATE", 1.0,
+                               vs or v_hi, v_hi, _BASIS_VC))
+    if sp.chosen_vd:
+        v_hi = float(sp.chosen_vd)
+        cases.append(_LoadCase("VD (limit)", "23.367(a)(1)", "LIMIT", ULTIMATE_FACTOR,
+                               vs or v_hi, v_hi, _BASIS_VD))
     if vs:
-        cases.append(("VS", "23.367", float(vs)))
+        cases.append(_LoadCase("VS", "23.367", "LIMIT", ULTIMATE_FACTOR,
+                               float(vs), float(vs), _BASIS_VS))
     if not cases:
         raise ValueError("one_engine_out found no speeds; set chosen_vc/chosen_vd on Project.speeds")
     return cases
@@ -323,9 +395,9 @@ def time_history(project: Project, speed_label: str) -> List[HistoryRow]:
 
     ``speed_label`` matches a :class:`ConditionResult` title produced by :func:`run`
     (e.g. ``"VC (ultimate)"``)."""
-    for label, _ref, v_kt in _speed_cases(project, project.one_engine_out):
-        if label == speed_label:
-            rows, _ = simulate(_case_inputs(project, v_kt))
+    for lc in _load_cases(project, project.one_engine_out):
+        if lc.label == speed_label:
+            rows, _ = simulate(_case_inputs(project, lc.v_hi_kt))
             return rows
     raise ValueError(f"unknown one-engine-out speed case {speed_label!r}")
 
@@ -350,16 +422,17 @@ def run(project: Project) -> ModuleResult:
     # counter (see the accepted-gap note in docs/30_future/00_backlog.md Step D1).
     allocator = CaseIdAllocator()
     conditions: List[ConditionResult] = []
-    for label, far_ref, v_kt in _speed_cases(project, oeo):
-        c = _case_inputs(project, v_kt)
+    for lc in _load_cases(project, oeo):
+        c = _case_inputs(project, lc.v_hi_kt)
         _rows, s = simulate(c)
         case_ref = CaseRef(
             case_id=allocator.next_id("vtail"), component="vtail",
-            condition=f"one engine out — {label}", speed_kt=c.v_kt,
-            far_reference=far_ref)
+            condition=f"one engine out — {lc.label}", speed_kt=c.v_kt,
+            far_reference=lc.far_reference)
         conditions.append(ConditionResult(
-            title=f"One engine out — {label}",
-            far_reference=far_ref,
+            title=f"One engine out — {lc.label}",
+            far_reference=lc.far_reference,
+            safety_factor=lc.safety_factor,
             case_ref=case_ref,
             values=[
                 LoadValue("V (EAS)", c.v_kt, "kt(EAS)"),
@@ -371,7 +444,8 @@ def run(project: Project) -> ModuleResult:
                 LoadValue("Load at 50% MAC (at peak)", s.lt50_at_peak_lb, "lb"),
                 LoadValue("Time to recovery", s.time_to_recovery_s, "s"),
             ],
-            note=(f"Failed engine #{oeo.failed_engine_index} at butt line {c.bleng:g} in; "
+            note=(f"{lc.basis} "
+                  f"Failed engine #{oeo.failed_engine_index} at butt line {c.bleng:g} in; "
                   f"IZZ {c.izz:g} slug-ft^2."
                   + ("" if s.recovered else
                      f" NOT recovered within {_MAX_SIM_TIME_S:g} s — the airplane is "

@@ -66,11 +66,6 @@ listing-traceable test, and updates `00_theory_sources.md` where the doc
 currently records the defective behavior as if it were the source.
 
 
-### M1-5 — One-engine-out 23.367(a)(2) case: `safety_factor = 1.0` (review T7)
-The "VC (ultimate)" condition carries the default SF 1.5 although 23.367(a)(2)
-loads are defined as ultimate (both references agree) — the export double-
-factors it. One-line fix + test on the rendered units string.
-
 ### M1-6 — VC/VD coefficient clamp at W/S ≥ 100 (review T9)
 `constants.py` keeps tapering K1/K2 past W/S = 100; FAR 23.335 and
 STRSPEED.BAS clamp at 28.6 / 1.35. Inert for GA, non-conservative for the
@@ -275,7 +270,10 @@ oracle re-check required.
 ### M4-3 — ONENGOUT data-flow + turboprop gate (was 2-17)
 (a) v-tail geometry provenance (`vtail_loads` slice vs `geometry`) — derive or
 document; (b) gate 23.367 on `is_turboprop` (or caption) so it can't silently
-run for a reciprocating/turbofan multi.
+run for a reciprocating/turbofan multi (23.367(a) is turbopropeller-specific,
+Ref 1 Ch 11 p87); (c) the Ch 11 Method allows **VSF** (flapped stall) as an
+alternative VMC substitute — the case table uses only VS (clean) today; add VSF
+or document the omission (surfaced during M1-5).
 
 ### M4-4 — Per-CG precise inertia in SELECT (was 2-2)
 Wire the persisted WTONECG per-CG inertia into SELECT's checked-maneuver `Iyy`
@@ -294,6 +292,54 @@ that is never down-selected against flight. **Acceptance:** ground condition
 produces distributed fuselage shear/bending with free-free closure; pressurized
 case retained independent of the governing flight case; FAR23 flight oracles
 unchanged. Source narrative: `03_gui_rework_plan.md` §5 item (3).
+
+### M4-7 — sbeam export ignores per-case safety factor (latent double-factor) **[correctness]**
+`export/sbeam_bridge.py` hardcodes a flat `_SF = ULTIMATE_FACTOR` (1.5) on the wing
+net-load results (`WingLoadResult`, which carry no per-case factor), so it does **not**
+honor `ConditionResult.safety_factor`. Latent today (sbeam exports only wing net loads,
+all LIMIT → ×1.5 is correct; the one non-default case, `one_engine_out`'s 23.367(a)(2)
+ULTIMATE SF 1.0, never reaches the wing stick model), but a **double-factor trap** for
+any ultimate-classified case that later flows to sbeam (25.367 wing ultimate, the M4-8
+25.302 cases). The two export boundaries diverge: `report.py` respects the per-case
+factor; `sbeam_bridge` does not. **Fix (couples with M4-8):** thread the load
+classification / safety factor into the sbeam-consumed results and multiply by the
+per-case factor via the M4-8 resolver instead of the flat `_SF`; test that an
+ULTIMATE-classified case exports at its own factor (SF 1.0), not 1.5. Concrete driver
+for M4-8.
+
+### M4-8 — Centralized two-layer safety-factor policy (foundation for 25.302) **[architecture]**
+Today the safety factor is decided ad hoc: `ConditionResult.safety_factor` defaults to
+`ULTIMATE_FACTOR` (1.5) and only `one_engine_out` overrides it (→1.0). Centralize the
+**policy** (not the carrier — `ConditionResult.safety_factor` stays the carrier) as a
+single audited authority, so which conditions deviate from 1.5 is reviewable in one
+place and Part-25 system-failure cases have a home. Two layers with **different sources
+of authority** — do not conflate them:
+- **Layer 1 — regulation-fixed (code).** A shared `LoadClass` (LIMIT / ULTIMATE / …)
+  + a resolver `resolve(load_class, …) -> (factor, basis)`: `LIMIT → 1.5`,
+  `ULTIMATE` (limit-treated-as-ultimate) `→ 1.0` (14 CFR 23.303/25.303), subsuming
+  `constants.ULTIMATE_FACTOR`. The class is assigned at the case-definition site (the
+  seed already exists: `one_engine_out._LoadCase.load_class`); the resolver turns
+  class → factor + basis. Consumed by **both** `report.py` **and** `sbeam_bridge`
+  (this is what M4-7 wires up). `one_engine_out` migrates to it as the first client.
+- **Layer 2 — agreed failure cases (project input; Phase F25 / 25.302).** A `Project`
+  slice of **named** system-failure factors — `(name, far_reference="25.302",
+  agreed_sf, basis)` — e.g. **`25.302 — MLA Loss → SF 1.25`**. These are *not* code
+  constants and *not* computed from a probability by the tool: in practice loads and
+  systems **agree** the SF per program (it depends on the demonstrated system
+  reliability), so it is an engineering **input**. Each entry (a) renders as its own
+  ULTIMATE load case (`25.302 MLA Loss`, `SF=1.25`, `lbs-ULT`) and (b) **records a
+  design requirement levied on the system** — a loads↔systems interface artifact the
+  tool can later surface as a "system reliability requirements" list. The resolver
+  overlays these named factors on the Layer-1 defaults.
+**Note:** this is a *practical* 25.302 (agreed named-failure-case factors), distinct
+from the full probabilistic **Appendix K** method, which the F25 gap analysis keeps
+out of scope — see [`../20_theory/01_far25_gap_analysis.md`](../20_theory/01_far25_gap_analysis.md).
+**Acceptance:** one resolver is the sole authority for every non-1.5 factor; `report.py`
+and `sbeam_bridge` produce identical factors for the same case; `one_engine_out`
+migrated with oracles/tests unchanged; a Layer-2 named case (e.g. MLA loss @ 1.25)
+round-trips through `io.py` and renders as `lbs-ULT SF=1.25`. Touches the CLAUDE.md
+ultimate-load contract — land deliberately with tests. **Layer 1 + M4-7 can ship
+independently; Layer 2 coordinates with Phase F25.**
 
 ---
 
@@ -337,7 +383,10 @@ Part 25 result carries the "static surrogate — not certification" banner.
   M4-6; the 23.415/25.415 ground-gust module (serves both parts).
 
 Out of scope, documented in the gap analysis: tuned-gust dynamics, continuous
-turbulence, 25.362, rational taxi, Appendix K.
+turbulence, 25.362, rational taxi, the full probabilistic **Appendix K** method.
+(The *practical* 25.302 case — agreed named system-failure factors such as
+`25.302 — MLA Loss → SF 1.25`, negotiated loads↔systems rather than computed from a
+probability — is Layer 2 of **M4-8** and is in scope there.)
 
 ---
 
@@ -448,6 +497,9 @@ reaction matrix stays closure-/legible-cell-locked).
   couple (terminal Myy ≠ 0). **[Major]**
 - **M2-1** — Loads Plots page can never display results (`Project.loads` never
   constructed). **[Major, GUI]**
+- **M4-7** — `sbeam_bridge` hardcodes a flat ×1.5 and ignores
+  `ConditionResult.safety_factor` — **latent** (only LIMIT wing loads reach sbeam
+  today), a double-factor trap for future ULTIMATE cases. **[correctness, latent]**
 
 *(The Step-G6 half-migration breakage found by the 2026-07-19 review was
 resolved 2026-07-20 — suite green, concept fixture runs end-to-end; see
