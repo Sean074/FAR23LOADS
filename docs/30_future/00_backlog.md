@@ -65,14 +65,6 @@ Calculation fixes from the review. Each is small, lands with a new oracle or
 listing-traceable test, and updates `00_theory_sources.md` where the doc
 currently records the defective behavior as if it were the source.
 
-### M1-3 — AIRLOAD4 sweep: restore the renormalization step (review T4) **[Major]**
-`airloads.py` `_apply_sweep` subtracts the Pope sweep term but omits
-AIRLOAD4.BAS's renormalization (COL19→COL20 divide), so integrated CL falls to
-0.940 at Λ=20°, 0.866 at Λ=30° — swept concept wings lose 6–13% of lift,
-non-conservative on exactly the flagship concept case. **Fix:** rescale the
-additive distribution back to the operating CL; add a closure assert
-(`recovered_cl ≈ target_cl` for Λ≠0) to the concept-closure suite; fix the
-docstring's Pope citation (it cites the method while omitting its final step).
 
 ### M1-4 — 23.427 unsymmetrical tail: restore the full candidate set (review T6) **[Major — decided 2026-07-20: restore BASIC behavior]**
 `select.py` filters `"UNCHECKED"` out of the 23.427 candidate search;
@@ -219,9 +211,9 @@ already outputs). Three tiers, one step:
   VMO ⇒ VC ≥ VMO; target VFE ⇒ VF ≥ VFE) and warn concretely when the chosen
   design speeds are infeasible; hook into `validation.py` so infeasibility
   also surfaces on the dashboard.
-**Unblocked (M1-1 VD floor landed 2026-07-19)** — an implied VNE from the
-formerly-under-floored VD would have propagated the error into the advisory.
-Display/validation only; no loads-math change. *(S–M.)*
+**Depends on M1-1** (the VD floor fix) — an implied VNE from the under-floored
+VD would propagate the error into the advisory. Display/validation only; no
+loads-math change. *(S–M; unblocked once M1-1 lands.)*
 
 ### M2-11 — Input data dictionary + short GUI user guide (review D4, part 1)
 (a) A `project.json` **data dictionary** — field, type, units, default, owning
@@ -260,7 +252,7 @@ footer/About.
 Version 0.3.0; date and cut the (currently ~3-phases-deep) `[Unreleased]`
 changelog; refresh the verification baseline as
 `40_history/02_verification_baseline_0.3.0.md` **including the new M1 oracle
-rows** (p155 VD, p181 BAL 1.4VSF landing-config, sweep closure, 23.427 set) and a
+rows** (p155 VD, p178 landing-config, sweep closure, 23.427 set) and a
 one-page **oracle-vs-closure status table**; run the fixed smoke test; tag.
 
 ### M3-3 — *Stretch:* Step G8 — Summary report (Export phase)
@@ -329,11 +321,22 @@ Part 25 result carries the "static surrogate — not certification" banner.
   gap table; freeze parameters.
 - **F25-1 — Transport category "T" envelope pack (M).** 25.337 floor 2.5 /
   negative −1.0; VB (25.335(d)); transport gust corner set — Pratt engine with
-  the 25.341 U_ref schedule + F_g; MZFW design weight. Depends on M1-2/6
-  (M1-1 VD floor landed 2026-07-19).
+  the 25.341 U_ref schedule + F_g; MZFW design weight. Depends on M1-1/2/6.
   Identity test: "T" with FAR 23 parameters reproduces the FAR 23 envelope.
-- **F25-2 — Speeds & placards Part 25 variant (S).** 25.335 margins (VB margin,
-  MD ≥ MC + 0.05/upset) + the M2-10 ladder in VMO/MMO form.
+- **F25-2 — Speeds & placards Part 25 variant (S→M).** 25.335 margins (VB
+  margin; MD ≥ MC + **0.07** default, 0.05–0.07 only as explicit
+  rational-analysis/HSPF override — see `reference/14CFR_MC_MD_speed_margin.md`)
+  + the M2-10 ladder in VMO/MMO form. **Includes fixing a verified concept-mode
+  defect (2026-07-20):** no Mach-margin route exists anywhere and the FAR 23
+  (b)(1) floor `vd = max(chosen_vd, 1.25·VC)` binds unconditionally — a
+  concept user cannot enter a margin-route VD. Demonstrated on the RJ fixture:
+  its own `chosen_vd = 350` (MD 0.851, margin +0.097) is silently overridden
+  to 387.5 kt → MD 0.9423, margin +0.19, inflating every dive-speed case and
+  cascading into MACHLIM (MNE 0.848, MFC 1.13 — nonphysical for a transport).
+  Fix: in concept/T mode offer the margin route as the VD basis (honor chosen
+  VD when MD ≥ MC + margin; warn below 0.07; flag+annotate 0.05–0.07); keep
+  the 1.25 floor for FAR 23 categories. Optional later: the 23.335(b)(4)(i)/
+  25.335(b)(1) upset-criterion calculator (7.5°/20 s/1.5 g per AC 25.335-1A).
 - **F25-3 — Maneuver & tail surrogates (M).** Checked-maneuver 25.331(c)(2)
   static evaluation; yaw overswing case; 25.427/25.349 schedule checks.
 - **F25-4 — Ground-loads parameter variant (M).** LGFACTOR at 10/6 fps,
@@ -355,13 +358,10 @@ assembled combined-airframe export. Granularity per **D-7**: load-cards-only
 default; assembled stick model opt-in behind a flag.
 
 ### L-2 — Flaps-extended tail loads: printed oracle completion (was 2-6)
-M1-2 landed the landing-config aero polynomials (Appendix A p179 input listing)
-as a `flight_envelope` test fixture and oracle-matched the envelope `BAL 1.4VSF`
-balancing point (p181 case 89); completing the SELECT→TAILDIST flaps-extended
-pipeline against the printed chordwise cases (81/106/88/108) still needs the
-CG5–7 loadings added to the fixtures (and, to activate it in the shipped example,
-the p179 `flaps_down` set added to `examples/ga6_normal.project.json`). Also fold
-in the LEV LAND balanced point (Appendix A case 90, the
+M1-2 lands the p176 landing-config polynomials and the p178 oracle rows for the
+envelope; completing the SELECT→TAILDIST flaps-extended pipeline against the
+printed cases (81/106/88/108) still needs the CG5–7 loadings added to the
+fixtures. Also fold in the LEV LAND balanced point (Appendix A case 90, the
 sink-speed/attitude iteration `FLTLOADS.BAS` lines 3410–3600) — currently
 omitted from the flap corner set and undocumented (review minor).
 
@@ -453,8 +453,10 @@ reaction matrix stays closure-/legible-cell-locked).
 
 ## Known defects (open)
 
-- **M1-3** — swept-wing span load loses 6–13% of integrated lift
-  (missing renormalization). **[Major]**
+- **M1-1** — VD floor omits `K_d·VCmin` (non-conservative ~10.7% on the
+  no-chosen-speeds path). **[Critical]**
+- **M1-2** — BAL 1.4VSF balanced at the 2-g stall speed (tail load 2.2× the
+  Appendix A oracle). **[Critical]**
 - **M4-1** — fuselage body-load distribution carries an unreacted pitching
   couple (terminal Myy ≠ 0). **[Major]**
 - **M2-1** — Loads Plots page can never display results (`Project.loads` never

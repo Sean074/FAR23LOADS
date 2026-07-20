@@ -10,6 +10,63 @@ Acceptance**, **Key decisions**.
 
 ---
 
+## M1-3 — AIRLOAD4 sweep: restore the renormalization step (complete, 2026-07-19) **[Major]**
+
+**Objective.** Restore AIRLOAD4.BAS's sweepback renormalization (the
+`COL20 = COL19/CLCOL19` divide) so a swept concept wing's span load re-integrates
+to the operating CL. (Review finding T4.)
+
+**Problem fixed.** `airloads._apply_sweep` subtracted the Pope & Haney sweep term
+(`(1−2y/b)·2(1−cosΛ)`) from the additive distribution but never renormalized, so
+the swept span load integrated to **less** than the operating CL — measured
+**recovered_cl 0.452 vs target 0.50 (−9.6%)** on the shipped flagship
+`concept_regional_jet` (Λ=24°); 0.94 at Λ=20°, 0.87 at Λ=30°. Non-conservative,
+and it reached the deliverables: `net_loads.build_net_loads` →
+`air_load_distribution` reads the swept `cl_additive`, feeding the sbeam
+FORCE/MOMENT export. The regression was unguarded because the only closure test
+used the **unswept** `concept_heavy` fixture.
+
+**Deliverables.**
+- **`airloads.py`:** `_apply_sweep` replaced by `_sweep_operating(...)`, which
+  applies the Pope subtraction **and** the `COL20` renormalization to the
+  **combined operating** distribution (matching AIRLOAD4.BAS's `COL16 = c·kcl/(MAC·CL)`,
+  so wing twist is redistributed too — not additive-only). `schrenk_distribution`
+  sweeps `ccl_total` at `target_cl` (report/closure path), leaving the
+  additive/basic split as the unswept decomposition; `air_load_distribution` sweeps
+  the assembled operating distribution per condition at that condition's CL
+  (deliverable path). Renormalization uses the physically-correct span-load integral
+  (Decision 3 "modernize the math"): the literal chord-weighted `COL16`/`CLCOL19`
+  line is OCR-garbled and closes only to ~0.3% (0.4983), so the port renormalizes to
+  the operating CL exactly. Documented in the `_sweep_operating` docstring.
+- **Tests (`tests/test_airloads.py`):** `test_swept_closure_recovers_target_cl`
+  (Λ≠0 closure on the regional-jet fixture — the guard the branch lacked);
+  `test_sweep_operating_matches_basic_listing` (listing-traceable COL18/COL19/COL20
+  per-station reconstruction + closure); `test_swept_deliverable_recovers_case_cl`
+  (the fix reaches `build_net_loads` — each case's root shear implies its own CL).
+  `tests/test_taildist.py::test_airload4_sweep_shifts_load_outboard` updated to
+  assert on the swept `ccl_total` (root reduced, tip ~unchanged) + closure, since
+  the additive split is now left unswept.
+- **Docs:** `00_theory_sources.md` AIRLOAD4 row and `PROGRAM_SPEC.md` AIRLOAD4
+  validation line record the renormalization as the method's final step and the new
+  closure + listing-traceable checks; backlog M1-3 removed (M1 entry + Known-defect
+  bullet); `CHANGELOG.md` `[Unreleased] → Fixed`.
+
+**Test / Acceptance.** `ruff` (`farloads/ cli.py`) clean; full suite green (410
+passed). `recovered_cl` on the flagship moves 0.452 → 0.500; the unswept GA
+Appendix-A additive (`CC(LA1)` 91.05576) and the Λ=0 reduction invariant are
+unchanged.
+
+**Key decisions (with the user, 2026-07-19).** (1) **Sweep the combined operating
+distribution, not additive-only** — matches AIRLOAD4.BAS (`COL16`), redistributes
+twist, and is oracle-faithful (the flagship wing is twisted 3°→0°, so it changes
+that deliverable). (2) **Validate with closure + a listing-traceable per-station
+test** (no printed Appendix B swept oracle exists). (3) **Renormalize on the
+span-load integral, not the literal chord-weighted `CLCOL19`** — the COL16 line is
+OCR-garbled and the chord-weighted form closes only to ~0.3%; the span-load form
+closes exactly and matches Decision 3. A documented ~0.3% normalization deviation.
+
+---
+
 ## M1-2 — BAL 1.4VSF: balance at 1.4× the 1-g flaps-down stall (complete, 2026-07-19) **[Critical]**
 
 **Objective.** Correct the flaps-extended envelope's `BAL 1.4VSF` condition to

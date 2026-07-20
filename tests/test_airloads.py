@@ -24,11 +24,17 @@ from farloads import (  # noqa: E402
     io,
 )
 from farloads.modules import airloads as airloads_calc  # noqa: E402
-from farloads.modules.airloads import _tau, schrenk_distribution  # noqa: E402
+from farloads.modules.airloads import (  # noqa: E402
+    _sweep_operating,
+    _tau,
+    schrenk_distribution,
+)
+from farloads.modules.net_loads import build_net_loads  # noqa: E402
 
 _EXAMPLES = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "examples")
 _GA = os.path.join(_EXAMPLES, "ga6_normal.project.json")
 _CONCEPT = os.path.join(_EXAMPLES, "concept_heavy.project.json")
+_REGIONAL = os.path.join(_EXAMPLES, "concept_regional_jet.project.json")
 
 REL = 1e-3  # ±0.1% per the modernized-math tolerance convention
 
@@ -135,6 +141,84 @@ def test_ga_fixture_reproduces_oracle_end_to_end():
     t = schrenk_distribution(project.geometry.by_name("wing"), project.aero.by_name("wing"))
     assert math.isclose(t.ccl_additive[0], 91.05576, rel_tol=REL)
     assert math.isclose(t.awo, 3.988146, rel_tol=REL)
+
+
+# --------------------------------------------------------------------------- #
+# AIRLOAD4 swept-wing renormalization (M1-3): the COL20 = COL19/CLCOL19 divide
+# --------------------------------------------------------------------------- #
+def test_swept_closure_recovers_target_cl():
+    """Λ≠0 closure: the swept, renormalized span load re-integrates to the operating
+    CL. Before M1-3 the shipped regional-jet wing (Λ=24°, twisted) lost ~9.6% of its
+    lift (recovered_cl 0.452 vs target 0.50); the COL20 renormalization restores it.
+    This guards the swept branch the previous closure test (unswept concept_heavy) did
+    not exercise."""
+    project = io.load_project(_REGIONAL)
+    assert project.is_concept
+    aero = project.aero.by_name("wing")
+    geom = project.geometry.by_name("wing")
+    assert aero.sweep_deg > 15.0                                  # AIRLOAD4 branch selected
+    t = schrenk_distribution(geom, aero)
+    assert t.airload4
+    assert math.isclose(t.recovered_cl, aero.target_cl, rel_tol=2e-3)
+
+
+def test_sweep_operating_matches_basic_listing():
+    """Listing-traceable per-station check of the AIRLOAD4.BAS sweep subroutine.
+
+    Independently reconstruct the traceable operations of the sweepback-adjust
+    subroutine (AIRLOAD4.BAS: `COL18=(1-2*YE/B)*2*(1-COS(SBA/57.3))`,
+    `COL19=COL16-COL18`, then the `COL20=COL19/CLCOL19` renormalization) and assert
+    the module's `_sweep_operating` reproduces it strip-by-strip. Working in c·cl
+    units the subtraction is `COL19*MAC*CL == ccl_op - Pope*MAC*CL`; the COL20 divide
+    is the span-load renormalization to the operating CL (see the docstring's
+    normalization note re: the OCR-garbled COL16 line and the ~0.3% chord-weight
+    difference from the literal form)."""
+    ye = [10.0, 30.0, 50.0, 70.0, 90.0]
+    chord = [40.0, 36.0, 32.0, 28.0, 24.0]
+    span = 200.0
+    mac = 33.0
+    cl_op = 0.6
+    dy = 20.0
+    area_side = sum(c * dy for c in chord)
+    sweep_deg = 25.0
+    # An arbitrary operating span load c·cl (need not integrate to cl_op pre-sweep).
+    ccl_op = [22.0, 20.0, 17.0, 12.0, 6.0]
+
+    got = _sweep_operating(ccl_op, ye, span, mac, cl_op, area_side, dy, sweep_deg)
+
+    # Reference reconstruction: COL18 (Pope) -> COL19 (subtraction) -> renormalize.
+    cos_lam = math.cos(math.radians(sweep_deg))
+    col18 = [(1.0 - 2.0 * y / span) * 2.0 * (1.0 - cos_lam) for y in ye]      # dimensionless
+    col19 = [cc - p * mac * cl_op for cc, p in zip(ccl_op, col18)]            # c·cl units
+    recovered = sum(c19 * dy for c19 in col19) / area_side                   # span-load CL
+    col20 = [c19 * cl_op / recovered for c19 in col19]                        # -> operating CL
+    for g, ref in zip(got, col20):
+        assert math.isclose(g, ref, rel_tol=1e-12)
+    # The COL20 renormalization re-integrates the swept span load to the operating CL.
+    assert math.isclose(sum(g * dy for g in got) / area_side, cl_op, rel_tol=1e-12)
+
+
+def test_swept_deliverable_recovers_case_cl():
+    """The fix reaches the deliverable path: `build_net_loads` -> `air_load_distribution`
+    sweeps each case at its OWN operating CL, so the integrated wing air load recovers
+    that CL rather than the pre-M1-3 ~9.6%-deficient value. Reconstruct the wing CL from
+    each case's root vertical shear (Sz_root = Σ strip lift; lift = kcl·c·dy·q/144, so
+    Σ kcl·c·dy ≈ 144·Sz_root/q, and CL = that / (S/2)). The small angle-of-attack rotation
+    folded into Sz keeps this within a percent of the exact renormalized CL."""
+    project = io.load_project(_REGIONAL)
+    result = build_net_loads(project)
+    geom = project.geometry.by_name("wing")
+    aero = project.aero.by_name("wing")
+    t = schrenk_distribution(geom, aero)
+    area_side = t.area_total / 2.0
+    cases = {c.name: c for c in project.wing_mass.cases}
+    assert result.wing_air, "expected per-case wing air loads"
+    for air in result.wing_air:
+        case = cases[air.case]
+        q = case.v_eas_kt ** 2 / 295.0
+        sz_root = air.stations[0].sz                         # root cumulative vertical shear
+        implied_cl = (sz_root * 144.0 / q) / area_side
+        assert math.isclose(implied_cl, case.cl, rel_tol=2e-2), (air.case, implied_cl, case.cl)
 
 
 if __name__ == "__main__":

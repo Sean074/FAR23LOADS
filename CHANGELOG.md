@@ -310,6 +310,24 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- **AIRLOAD4 swept-wing renormalization restored (M1-3, review T4 — `[Major]`).**
+  The swept-branch span-load correction subtracted the Pope & Haney sweepback term
+  but omitted AIRLOAD4.BAS's `COL20 = COL19/CLCOL19` renormalization, so a swept
+  concept wing's span load integrated to **less** than the operating CL — the
+  shipped `concept_regional_jet` flagship (Λ=24°) lost **9.6%** of its lift
+  (`recovered_cl` 0.452 vs target 0.50; 6–13% across Λ=20–30°), non-conservative and
+  flowing into the `net_loads` → sbeam FORCE/MOMENT export. `airloads._apply_sweep`
+  is replaced by `_sweep_operating`, which applies the Pope subtraction **and** the
+  renormalization to the **combined operating** distribution (matching AIRLOAD4.BAS
+  `COL16` — twist is redistributed too, not additive-only), at `target_cl` for the
+  report/closure path and per-condition at each case's CL for the deliverable path.
+  Renormalization uses the physically-correct span-load integral (the literal
+  chord-weighted `CLCOL19` line is OCR-garbled and closes only to ~0.3%; span-load
+  form closes exactly — Decision 3). `recovered_cl` on the flagship now recovers
+  0.500; the unswept GA Appendix-A additive and the Λ=0 reduction invariant are
+  unchanged. Guarded by a Λ≠0 closure test, a listing-traceable COL18/COL19/COL20
+  reconstruction, and a deliverable per-case CL-recovery test.
+
 - **`BAL 1.4VSF` balances at the 1-g flaps-down stall (M1-2, review T2 — `[Critical]`).**
   In the flaps-extended envelope corner set, `flight_envelope._flap_config_points`
   captured the **STALL 2G** speed and ran the `BAL 1.4VSF` balancing point at 1.4×

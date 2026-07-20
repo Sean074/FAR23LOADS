@@ -232,36 +232,64 @@ def schrenk_distribution(geom: SurfaceInput, aero: AeroSurfaceInput) -> Spanwise
         sum_ccl_tot += ccl_tot * dy
 
     if airload4 and aero.sweep_deg:
-        _apply_sweep(table, aero.sweep_deg, dy, area_side)
+        # AIRLOAD4 sweepback: redistribute + renormalize the operating (target-CL)
+        # distribution. The additive/basic split stays the unswept decomposition;
+        # only the combined ``ccl_total`` is swept (report + closure at target CL).
+        # The deliverable path re-applies this per condition at its own CL.
+        swept = _sweep_operating(table.ccl_total, table.ye, span, mac,
+                                 aero.target_cl, area_side, dy, aero.sweep_deg)
+        table.ccl_total = swept
+        table.cl_total = [cc / c for cc, c in zip(swept, table.chord)]
 
     table.recovered_cl_additive = sum(ca * dy for ca in table.ccl_additive) / area_side
     table.recovered_cl = sum(ct * dy for ct in table.ccl_total) / area_side
     return table
 
 
-def _apply_sweep(table: SpanwiseTable, sweep_deg: float, dy: float, area_side: float) -> None:
-    """Redistribute the additive span load for sweepback (AIRLOAD4.BAS, Ref 1 Ch 12).
+def _sweep_operating(ccl_op: List[float], ye: List[float], span: float, mac: float,
+                     cl_op: float, area_side: float, dy: float,
+                     sweep_deg: float) -> List[float]:
+    """Sweepback redistribution + renormalization of an OPERATING span load (AIRLOAD4.BAS).
 
-    Pope & Haney (JAS Aug 1949; Pope, *Basic Wing and Airfoil Theory* 1951):
-    ``(c*cl/cmac)_Λ = (c*cl/cmac)_{Λ=0} - (1 - 2y/b)*2*(1 - cos Λ)`` -- sweepback
-    shifts the additive lift outboard (the term vanishes at the tip and at Λ=0, so
-    the unswept distribution is recovered exactly). The basic (twist) distribution
-    is unchanged; the combined span load and section ``cl`` are rebuilt from the
-    corrected additive part. ``cmac`` is the wing MAC. Compressibility (high Mach)
-    is already carried by the operating ``CL`` from FLTLOADS' Glauert factor, so the
-    high-Mach trigger adds no further shape change here."""
+    Pope & Haney (JAS Aug 1949 p505 Eq. 12.38; Pope, *Basic Wing and Airfoil
+    Theory* 1951) redistribute the operating ``c*cl`` for sweepback and then
+    renormalize it back to the operating ``CL``. AIRLOAD4.BAS does this on the
+    *combined operating* distribution (``COL16 = c*kcl/(MAC*CL)``), not the
+    additive part alone, so wing twist is redistributed too:
+
+        COL18 = (1 - 2y/b)*2*(1 - cos Λ)         Pope sweep term (dimensionless)
+        COL19 = COL16 - COL18                    swept, NOT yet renormalized
+        CLCOL19 = SUM(COL19*c*dy)/(S/2)          recovered CL of the swept dist.
+        COL20 = COL19 / CLCOL19                  <-- renormalize to the operating CL
+
+    Working directly in ``c*cl`` units (COL19*MAC*CL): ``delta`` is the Pope term
+    scaled to ``c*cl`` at the operating CL, and the ``COL19 -> COL20`` divide
+    becomes a single ``cl_op / recovered`` rescale where ``recovered`` is the swept
+    distribution's *span-load* CL (``SUM(c*cl)*dy/(S/2)``), so the result
+    re-integrates to ``cl_op`` **exactly**. This ``COL20`` renormalization is the
+    step the original port omitted (M1-3): without it the swept ``c*cl`` integrates
+    to less than ``cl_op`` (0.94 at Λ=20°, 0.87 at Λ=30°), losing 6-13% of the lift.
+
+    Normalization note (documented deviation): the verbatim COL16 line in the
+    bundled listing is OCR-garbled, and the reconstructed ``COL16 = c*kcl/(MAC*CL)``
+    makes ``CLCOL19 = SUM(COL19*c*dy)/(S/2)`` a chord-weighted sum that closes only
+    to ~0.3% (recovered_cl 0.4983 on the flagship, not 0.5000). Per project
+    Decision 3 ("modernize the math") and M1-3's closure requirement, this uses the
+    physically-correct span-load renormalization (no extra chord weight), which
+    restores exactly the operating CL. Same intent as COL20; differs from the
+    literal chord-weighted form by ~0.3%. Reduces to the additive-only result on an
+    untwisted wing.
+
+    Compressibility (high Mach) is already carried by the operating ``CL`` from
+    FLTLOADS' Glauert factor, so the high-Mach trigger adds no further shape change
+    here. The Pope term vanishes at the tip and at Λ=0.
+    """
     cos_lam = math.cos(sweep_deg / 180.0 * PI)
-    b = table.span
-    cmac = table.mac
-    for i, ye in enumerate(table.ye):
-        delta = (1.0 - 2.0 * ye / b) * 2.0 * (1.0 - cos_lam) * cmac
-        ccl_add = table.ccl_additive[i] - delta
-        c = table.chord[i]
-        table.ccl_additive[i] = ccl_add
-        table.cl_additive[i] = ccl_add / c
-        ccl_tot = ccl_add * table.target_cl + table.ccl_basic[i]
-        table.ccl_total[i] = ccl_tot
-        table.cl_total[i] = ccl_tot / c
+    col19 = [cc - (1.0 - 2.0 * y / span) * 2.0 * (1.0 - cos_lam) * mac * cl_op
+             for cc, y in zip(ccl_op, ye)]
+    recovered = sum(c19 * dy for c19 in col19) / area_side if area_side else 0.0
+    factor = cl_op / recovered if recovered else 1.0
+    return [c19 * factor for c19 in col19]
 
 
 def _interp_yv(table, y: float, default: float = 0.0) -> float:
@@ -299,6 +327,17 @@ def air_load_distribution(geom: SurfaceInput, aero: AeroSurfaceInput, cl: float,
     q = v_eas_kt ** 2 / 295.0
     cos_an, sin_an = math.cos(an / _DEG), math.sin(an / _DEG)
 
+    # Operating section cl per strip (unswept additive/basic scaled to this case CL).
+    # On the AIRLOAD4 swept branch, redistribute + renormalize the combined operating
+    # span load at THIS condition's CL -- AIRLOAD4.BAS sweeps the operating distribution
+    # per case, so the twist contribution is swept and the result re-integrates to `cl`.
+    kcl_list = [t.cl_basic[j] + cl * t.cl_additive[j] for j in range(h)]
+    if t.airload4 and t.sweep_deg:
+        ccl_op = [k * t.chord[j] for j, k in enumerate(kcl_list)]
+        ccl_op = _sweep_operating(ccl_op, t.ye, t.span, t.mac, cl,
+                                  t.area_total / 2.0, dy, t.sweep_deg)
+        kcl_list = [cc / t.chord[j] for j, cc in enumerate(ccl_op)]
+
     # Per-strip forces (root->tip) and the 25% chord coordinates.
     cx25: List[float] = []
     zc: List[float] = []
@@ -308,7 +347,7 @@ def air_load_distribution(geom: SurfaceInput, aero: AeroSurfaceInput, cl: float,
     for j in range(h):
         ye = t.ye[j]
         c = t.chord[j]
-        kcl = t.cl_basic[j] + cl * t.cl_additive[j]            # operating section cl
+        kcl = kcl_list[j]                                      # operating section cl (swept if AIRLOAD4)
         refang = _twist_angle(aero.twist, ye)                  # WL to section zero-lift
         ai = (alpha - t.awo + refang) - kcl / mo              # induced angle of attack
         cid = kcl * ai / _DEG                                  # induced drag coefficient

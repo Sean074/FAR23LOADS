@@ -173,15 +173,22 @@ def test_airload4_reduction_invariant():
 
 
 def test_airload4_sweep_shifts_load_outboard():
-    """Sweepback reduces the additive load inboard and leaves the tip ~unchanged
-    (the (1−2y/b) term vanishes at the tip)."""
+    """Sweepback shifts the operating span load outboard (root reduced, tip ~unchanged
+    -- the (1−2y/b) term vanishes at the tip) and, after the COL20 renormalization,
+    the swept distribution re-integrates to the operating CL (M1-3). The sweep acts
+    on the combined operating ``ccl_total``; the additive/basic split is the unswept
+    decomposition (AIRLOAD4.BAS COL16 is the operating distribution)."""
     base = schrenk_distribution(_WING, _AERO)
     swept = schrenk_distribution(_WING, replace(_AERO, sweep_deg=25.0))
     assert swept.airload4
     assert use_airload4(replace(_AERO, sweep_deg=25.0))
-    assert swept.ccl_additive[0] < base.ccl_additive[0]            # root reduced
-    assert abs(swept.ccl_additive[-1] - base.ccl_additive[-1]) < abs(
-        swept.ccl_additive[0] - base.ccl_additive[0])             # tip ~unchanged
+    # The additive/basic decomposition is left unswept; only the total is redistributed.
+    assert swept.ccl_additive == base.ccl_additive
+    assert swept.ccl_total[0] < base.ccl_total[0]                  # root reduced
+    assert abs(swept.ccl_total[-1] - base.ccl_total[-1]) < abs(
+        swept.ccl_total[0] - base.ccl_total[0])                   # tip ~unchanged
+    # COL20 renormalization: the swept span load recovers the operating CL (no lift lost).
+    assert math.isclose(swept.recovered_cl, _AERO.target_cl, rel_tol=2e-3)
 
 
 def test_io_roundtrip_chordwise_fields():
