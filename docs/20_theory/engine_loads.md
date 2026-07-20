@@ -234,5 +234,9 @@ an approved, documented deviation from the oracle:
   formula-checked (`test_361_a3_applies_mean_torque_factor`), not locked to a
   printed figure.
 
-Source: `reference/AC_23-19A_engine_torque.md`; see CLAUDE.md "Approved corrections
-to the source".
+Sources: `reference/AC_23-19A_engine_torque.md`; **FAA User's Guide §17.2.1**, which
+prints the **post-1994 CFR text** of 23.361(c) directing the mean-torque factor onto
+*all* of paragraph (a) — independent corroboration that the manual's narrow
+paraphrase is the defect, not the regulation. Register of record:
+[`02_approved_corrections.md`](02_approved_corrections.md) (policy stated in
+CLAUDE.md).

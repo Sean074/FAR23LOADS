@@ -20,7 +20,7 @@ FLTLOADS' AoA-balance convergence noise).
 
 All fixtures are **Appendix A** (the 6-place GA single, `examples/ga6_normal.project.json`)
 unless noted otherwise. **No Appendix B (10-place twin turboprop) printed table
-is in the bundled `reference/FAR23 loads (1).pdf`** — see "Closure-locked
+is in the bundled `reference/FAR23Loads_Code.pdf`** — see "Closure-locked
 modules" at the end for the modules this affects (ONENGOUT, the LANDLOAD wheel
 table, AIRLOAD4's swept branch) and the engine module's Appendix-B-style inline
 turboprop hand-calc, which is the one exception (an inline worked example, not

@@ -22,8 +22,10 @@ redistribute, including commercially.
 > Reference 1 Appendix-C suite programs ported (ENGLOADS, WTESTIMA, WTONECG, WTENV,
 > WINGGEOM, STRSPEED, MACHLIM, TAU, AIRLOADS, AIRLOAD4, FLTLOADS, SELECT, WINGINER,
 > NETLOADS, TAILDIST, AILERON, FLAPLOAD, TABLOADS, ONENGOUT, LGFACTOR, LANDLOAD,
-> BALLOADS) plus two modern modules (`configuration`, `body_loads`). Schema is at
-> `SCHEMA_VERSION 15`; 242 tests pass (~92% coverage). The wing distributed-loads
+> BALLOADS) plus two modern modules (`configuration`, `body_loads`). The current
+> schema version, test count and coverage are whatever CI reports on the latest
+> commit — see the CI badge and `CHANGELOG.md`, not a number baked in here. The
+> wing distributed-loads
 > vertical slice (geometry → speeds → V-n envelope → airloads → inertia → net)
 > exports to sbeam; the critical-load selection (wing / h-tail / v-tail / fuselage),
 > chordwise tail distribution, simplified control-surface distributions (aileron /
@@ -46,7 +48,7 @@ farloads/                 # shared, pure-calc package (no I/O in calc)
 └── modules/              # one file per program (engine, weight_*, wing_*, airloads,
                           #   flight_envelope, select, net_loads, body_loads, configuration, …)
 app/
-├── Home.py               # st.navigation entry point — 4-phase sidebar (Define→Analyze→Review→Export)
+├── Home.py               # st.navigation entry point — sidebar phases from workflow.py (Start + six analysis-flow sections through Export)
 └── views/                # one page per workflow step + dashboard / results_review / export_report
 cli.py                    # python cli.py engine project.json -o out.csv
 tests/                    # pytest; each module vs the manual's appendices
@@ -82,10 +84,14 @@ and pytest on Python 3.9 / 3.11 / 3.12.
 The math is **modernized** (`math.pi`, clean equations). The manual's printed
 worked-example figures are used as **tolerance-based** regression oracles
 (±0.1%), not exact oracles — see `docs/10_standard/PROJECT_GUIDE.md §6`. The oracle is
-Reference 1 (`FAR23 loads (1).pdf`, McMaster's theory manual), whose Appendix A
-(6-place GA single) and Appendix B (10-place twin turboprop) print full loads
-reports. Each module gets a `tests/test_<module>.py` that checks `run(project)`
-against the appropriate appendix figures within tolerance.
+Reference 1 (`FAR23Loads_Code.pdf`, McMaster's theory manual). **Appendix A**
+(6-place GA single, p131) is the printed oracle and is in hand; **Appendix B**
+(10-place twin turboprop, p251) is **absent from the bundled PDF**, so modules with
+GA-single figures are *oracle-locked* against Appendix A while twin/turboprop-only
+cases (e.g. `one_engine_out`, the turbopropeller engine-mount case) are
+*closure-locked* to the `.BAS` source with the printed twin oracle deferred. The
+canonical, per-module validation status lives in
+[`docs/20_theory/00_theory_sources.md` § Oracle status](docs/20_theory/00_theory_sources.md#oracle-status).
 
 ## Units
 

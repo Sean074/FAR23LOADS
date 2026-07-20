@@ -28,7 +28,7 @@ specialised for that.
 Complete before reading a single line of diff:
 
 - [ ] Read the commit/PR intent.
-- [ ] Open the module's section in [`PROGRAM_SPEC.md`](PROGRAM_SPEC.md) and the relevant Reference 1 chapter (`reference/FAR23 loads (1).pdf`).
+- [ ] Open the module's section in [`PROGRAM_SPEC.md`](PROGRAM_SPEC.md) and the relevant Reference 1 chapter (`reference/FAR23Loads_Code.pdf`).
 - [ ] Confirm the diff includes documentation updates (`docs/`) — flag immediately if absent.
 - [ ] Confirm [`../30_future/00_backlog.md`](../30_future/00_backlog.md) was updated (item removed) and [`../40_history/00_completed_development.md`](../40_history/00_completed_development.md) + `CHANGELOG.md` updated if a module/step closed.
 - [ ] Confirm a `tests/test_<module>.py` exists with Appendix A and/or B assertions.

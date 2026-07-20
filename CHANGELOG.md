@@ -9,6 +9,23 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Documentation
+
+- **Documentation consistency sweep (M1-10).** (a) Corrected the stale reference
+  filenames across 8 docs — `FAR23 loads (1).pdf` → `FAR23Loads_Code.pdf`,
+  `ADA324952.pdf` → `FAR23Loads_UserGuide.pdf` (the dated `PROJECT_REVIEW` finding is
+  left verbatim as it describes the mapping). (b) Stopped baking `SCHEMA_VERSION 15`/
+  `242 tests` into README prose (points at CI + this changelog) and replaced the
+  stale "4-phase Define→Analyze→Review→Export" nav description in README/CLAUDE.md
+  with the real 7 workflow phases. (c) Added a canonical **Oracle status** section to
+  `docs/20_theory/00_theory_sources.md` (Appendix A oracle-locked; Appendix B absent
+  from the bundled scan → twin/turboprop cases closure-locked) and pointed
+  README/PROGRAM_SPEC at it, retiring the contradictory "every module is
+  Appendix-checked" claim. (d) Moved the approved-corrections **register of record**
+  from `CLAUDE.md` to `docs/20_theory/02_approved_corrections.md` (CLAUDE.md keeps the
+  policy + link) and added the FAA User's Guide §17.2.1 corroboration to
+  `engine_loads.md`.
+
 ### Fixed
 
 - **Flap slipstream now uses takeoff power, not max-continuous (M1-9).**

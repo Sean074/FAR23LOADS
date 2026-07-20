@@ -30,6 +30,7 @@ historical record.
 |------|-------|
 | [`00_theory_sources.md`](20_theory/00_theory_sources.md) | The authoritative references (`reference/` PDFs) and how to cite them in code and tests |
 | [`engine_loads.md`](20_theory/engine_loads.md) | **Engine-mount loads (ENGLOADS)** — equations for FAR 23.361/363/371 with a worked IO-520-BB example |
+| [`02_approved_corrections.md`](20_theory/02_approved_corrections.md) | **Approved corrections register** — the authoritative list of deliberate oracle deviations (CLAUDE.md states the policy and links here) |
 
 ## 30_future — Future development
 

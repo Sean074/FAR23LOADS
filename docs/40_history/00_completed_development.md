@@ -10,6 +10,48 @@ Acceptance**, **Key decisions**.
 
 ---
 
+## M1-10 — Documentation consistency sweep (docs, complete 2026-07-20)
+
+**Objective.** Retire the review's three documentation-inconsistency findings
+(D1–D3): stale reference filenames, stale currency claims, and the contradictory
+Appendix-B/oracle status — plus move the approved-corrections register to a durable
+home.
+
+**Deliverables.**
+- **(a) Reference filenames.** Global replace of `FAR23 loads (1).pdf` →
+  `FAR23Loads_Code.pdf` and `ADA324952.pdf` → `FAR23Loads_UserGuide.pdf` across 8
+  docs (`README.md`, `CLAUDE.md`, both history docs, `PROJECT_GUIDE.md`,
+  `CODE_REVIEW_PROCESS.md`, `PROGRAM_SPEC.md`, `00_theory_sources.md`). Left
+  verbatim in `PROJECT_REVIEW_2026-07-19.md` (the dated finding that *describes* the
+  stale→correct mapping) — rewriting it would make it self-contradictory.
+- **(b) Currency.** `README.md` no longer bakes `SCHEMA_VERSION 15`/`242 tests` into
+  prose (points at the CI badge + `CHANGELOG.md`); the "4-phase sidebar
+  (Define→Analyze→Review→Export)" nav description in `README.md`, `CLAUDE.md` (×2)
+  now names the real 7 phases from `workflow.py` (`Start → Develop V-n diagram →
+  Flight loads → Other loads → Landing loads → Load-case plotting → Export`).
+- **(c) Appendix-B status.** New **canonical "Oracle status"** section in
+  `00_theory_sources.md` (`#oracle-status`): Appendix A in-hand/oracle-locked;
+  Appendix B absent from the bundled scan → twin/turboprop-only cases closure-locked;
+  partial-OCR cases noted. `README.md` (which had claimed Appendix B "prints full
+  loads reports" and "each module" is appendix-checked) and `PROGRAM_SPEC.md` now
+  defer to it. Resolves the engine-doc casualty (`one_engine_out` no oracle; `engine`
+  `23.361(a)(3)` formula-checked).
+- **(d) Register move.** The approved-corrections **register of record** moved from
+  `CLAUDE.md` into [`docs/20_theory/02_approved_corrections.md`](../20_theory/02_approved_corrections.md);
+  CLAUDE.md keeps the policy + a link. `docs/00_INDEX.md`, `00_theory_sources.md` and
+  `PROGRAM_SPEC.md` repoint at the register. Added the **FAA User's Guide §17.2.1**
+  (post-1994 CFR text of 23.361(c)) corroboration to `engine_loads.md`.
+
+**Test / Acceptance.** Docs-only; `ruff`/`pytest` unaffected (422 passing). No
+remaining `FAR23 loads (1).pdf`/`ADA324952.pdf`, `4-phase`, `SCHEMA_VERSION 15`, or
+`242 tests` outside the two intentional description lines.
+
+**Key decisions.** Single canonical oracle-status statement lives in the theory doc;
+all other docs link rather than restate. Historical review artifacts that describe a
+now-fixed defect are left intact.
+
+---
+
 ## M1-9 — FLAPLOAD slipstream power: takeoff HP (fix, complete 2026-07-20)
 
 **Objective.** `flap._engine_power` preferred `max_cont_hp` (`max_cont_hp or
@@ -3399,7 +3441,7 @@ output is the maximum vertical-tail load.
   re-run (THETA/THETADOT and LT25/LT50/LT charts + CSV).
 
 **Test / Acceptance.** The printed Appendix B (10-place twin turboprop) oracle is
-**unavailable** — Appendix B is absent from the bundled `reference/FAR23 loads (1).pdf`
+**unavailable** — Appendix B is absent from the bundled `reference/FAR23Loads_Code.pdf`
 (only the Appendix A GA single is present, physical pp. 128–247; Appendix C source from
 248) and the FAA User's Guide Ch 22 gives partial/illegible inputs and **no output
 numbers**. C9 is therefore locked at the **sub-formula level** (`tests/test_one_engine_out.py`:

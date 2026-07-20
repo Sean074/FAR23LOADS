@@ -66,20 +66,6 @@ listing-traceable test, and updates `00_theory_sources.md` where the doc
 currently records the defective behavior as if it were the source.
 
 
-### M1-10 — Documentation consistency sweep (review D1–D3)
-(a) **Reference filenames:** 17 citations across 8 docs point at
-`reference/FAR23 loads (1).pdf` / `ADA324952.pdf`; the actual files are
-`FAR23Loads_Code.pdf` / `FAR23Loads_UserGuide.pdf`. Global find-and-replace.
-(b) **README/CLAUDE.md currency:** schema/test counts and the two-generations-
-stale nav description ("4-phase sidebar"); stop baking hard counts into prose —
-point at CI/CHANGELOG. (c) **Appendix-B status:** one canonical statement
-("Appendix A oracle-locked; Appendix B absent from the bundled PDF; these
-modules closure-locked") linked from README/PROGRAM_SPEC/theory doc instead of
-the current contradiction. (d) Move the approved-corrections **register of
-record** from `CLAUDE.md` into `docs/20_theory/` (CLAUDE.md links to it), and
-add the User's Guide §17.2.1 (post-1994 CFR text) citation to
-`engine_loads.md` as further corroboration of the 23.361(c) correction.
-
 ---
 
 # M2 — Usability & robustness (release-blocking)

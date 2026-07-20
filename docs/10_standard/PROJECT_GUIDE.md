@@ -19,13 +19,13 @@ distributed-loads tool** (Phase C) — see
 ### Source documents (two — both in the repo, keep them distinct)
 
 - **Reference 1** — McMaster, *"FAR23 LOADS"* (Aero Science Software, Std v3.0 /
-  Pro v1.0); file `FAR23 loads (1).pdf` (371 pp). The theoretical development and
+  Pro v1.0); file `FAR23Loads_Code.pdf` (371 pp). The theoretical development and
   the equation + validation oracle: 20 chapters, **Appendix A** (6-place GA loads
   report, p131), **Appendix B** (10-place twin, p251), **Appendix C** `.BAS`
   source for all **22 programs** (p373). Its chapter numbering is what
   `PROGRAM_SPEC.md` cites as "Ch N".
 - **User's Guide** — *DOT/FAA/AR-96/46* (UDRI / Miedlar, March 1997;
-  `ADA324952.pdf`): the operational guide for a later FAA repackaging. Its
+  `FAR23Loads_UserGuide.pdf`): the operational guide for a later FAA repackaging. Its
   **Table 2.2** is the authoritative module input→output map (the basis for the
   data flow in §3 and the ownership table in `PROGRAM_SPEC.md`), it lists the FAR
   regs per module, and it defines the two sample airplanes. Regs through
@@ -286,7 +286,7 @@ two airplanes in its Appendix A/B:
 - **Appendix A** — 6-place general-aviation single (the `engloads` reciprocating example lives here). Sample data set `M2002576` / `WTENV36`-series.
 - **Appendix B** — 10-place twin turboprop (swept wing, altitudes to 50,000 ft, gyroscopic engine loads, one-engine-out — the `engloads` turboprop example lives here). Sample data set `BB*` (`BBFLTLDR`, `BBSELECT`, `PHAABB36`, `ACCELROL`, `TORBB36`).
 
-> ✅ **Oracle is in hand.** Reference 1 is `FAR23 loads (1).pdf` (371 pp) in the
+> ✅ **Oracle is in hand.** Reference 1 is `FAR23Loads_Code.pdf` (371 pp) in the
 > repo: Appendix A loads report starts p131, Appendix B p251, Appendix C `.BAS`
 > source p373. Both the worked example numbers (regression oracle) and the exact
 > equations (per-module transcription source) are therefore available — no
