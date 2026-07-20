@@ -161,6 +161,77 @@ def test_ballast_marker_rows_not_dropped():
     assert any(lbl.startswith("Forward gross ballast (none") for lbl in _labels(r))
 
 
+def _fwd_regardless_project(nose_x, tail_x):
+    """Synthetic DB whose forward-loading vertices all sit just aft of the forward-
+    regardless limit, so the moment-balance ballast lands at a large FORWARD station
+    (~580 in). ``nose_x``/``tail_x`` set the explicit fuselage extent override that
+    decides whether that station is physical (kept) or nonphysical (marker) -- M1-11.
+
+    XLEMAC 1000 / MAC 200 -> fwd-regardless limit = 1000 + 0.10*200 = 1020. The
+    vertices are (700, 1042.86), (900, 1035.6), (1100, 1040); the heaviest at/below
+    the regardless weight (1150) is 1100 @ 1040, 20 in aft of the limit -> ballast
+    weight 50 lb at station (1150*1020 - 1100*1040)/50 = 580.
+    """
+    items = [
+        _mi("empty", 600, 1050, MassItemKind.EMPTY),
+        _mi("crew", 100, 1000, MassItemKind.MINIMUM),
+        _mi("fwd", 200, 1010, MassItemKind.DISCRETIONARY),
+        _mi("aft", 200, 1060, MassItemKind.DISCRETIONARY),
+    ]
+    env = WeightEnvelopeInput(
+        gross_weight=1100, aft_gross_pct_mac=30, fwd_gross_pct_mac=10,
+        fwd_regardless_pct_mac=10, fwd_regardless_weight=1150, xlemac=1000, mac=200,
+        fuselage_nose_x=nose_x, fuselage_tail_x=tail_x,
+    )
+    return Project(name="fwd-reg", weight=WeightInput(items=items, envelope=env))
+
+
+def test_fwd_regardless_station_inside_extent_kept():
+    # With a generous fuselage extent the ~580 in ballast station is physical: the
+    # normal weight + station rows are emitted (no marker).
+    p = _fwd_regardless_project(nose_x=500, tail_x=1200)
+    r = calc.envelope(p, p.weight.envelope)
+    assert math.isclose(_value(r, "Forward regardless ballast weight"), 50.0, rel_tol=TOL)
+    assert math.isclose(_value(r, "Forward regardless ballast station"), 580.0, rel_tol=5e-3)
+
+
+def test_fwd_regardless_station_outside_extent_marks_none():
+    # Same loading, but a fuselage nose at 900 in makes the 580 in ballast station
+    # forward of the fuselage -> nonphysical -> explicit "(none -- ... outside the
+    # fuselage extent [900, 1200])" marker instead of the wild station (M1-11).
+    p = _fwd_regardless_project(nose_x=900, tail_x=1200)
+    r = calc.envelope(p, p.weight.envelope)
+    labels = _labels(r)
+    assert any(
+        lbl.startswith("Forward regardless ballast (none") and "outside the fuselage extent" in lbl
+        for lbl in labels
+    )
+    assert "Forward regardless ballast weight" not in labels
+
+
+def test_fwd_regardless_negative_station_marks_none_via_datum():
+    # dhc8_dash8 carries no fuselage outline: its forward-regardless moment balance
+    # lands at -112 in (ahead of the station-0 datum). The datum fallback flags it
+    # as nonphysical rather than emitting the negative station (M1-11).
+    p = io.load_project(os.path.join(os.path.dirname(_EXAMPLE), "dhc8_dash8.project.json"))
+    r = calc.envelope(p, p.weight.envelope)
+    labels = _labels(r)
+    assert any(
+        lbl.startswith("Forward regardless ballast (none") and "ahead of the station-0 datum" in lbl
+        for lbl in labels
+    )
+    assert "Forward regardless ballast weight" not in labels
+
+
+def test_fwd_regardless_extent_from_geometry_outline_kept():
+    # concept_regional_jet has a G1 fuselage outline [0, 1056]; its 63.7 in ballast
+    # station is inside that extent, so the geometry-derived extent keeps it (proves
+    # the outline path, not just the explicit override, feeds the guard) -- M1-11.
+    p = io.load_project(os.path.join(os.path.dirname(_EXAMPLE), "concept_regional_jet.project.json"))
+    r = calc.envelope(p, p.weight.envelope)
+    assert math.isclose(_value(r, "Forward regardless ballast station"), 63.714, rel_tol=5e-3)
+
+
 def test_run_requires_envelope_inputs():
     raised = False
     try:

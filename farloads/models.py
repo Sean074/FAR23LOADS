@@ -193,6 +193,14 @@ class WeightEnvelopeInput:
     which the forward-regardless limit applies. ``xlemac``/``mac`` are an optional
     direct override used only when no geometry slice is present (otherwise WTENV
     reads them from the ``wing_surface`` of ``Project.geometry``).
+
+    ``fuselage_nose_x``/``fuselage_tail_x`` are an optional direct override of the
+    physical fore/aft fuselage station extent used to reject a nonphysical
+    moment-balance ballast station (a station outside the fuselage -- e.g. forward
+    of the nose datum -- is emitted as a "(none -- ...)" marker rather than a wild
+    number; M1-11). When absent WTENV reads the extent from the ``Project.geometry``
+    fuselage outline, and failing that falls back to the station-0 datum (only a
+    station ahead of the nose is rejected).
     """
     gross_weight: float = 0.0
     aft_gross_pct_mac: float = 0.0
@@ -202,6 +210,8 @@ class WeightEnvelopeInput:
     wing_surface: str = "wing"
     xlemac: Optional[float] = None
     mac: Optional[float] = None
+    fuselage_nose_x: Optional[float] = None
+    fuselage_tail_x: Optional[float] = None
 
 
 @dataclass

@@ -61,6 +61,59 @@ own classification. (2) VS = limit (SF 1.5), the reported VMC-substitute floor.
 first-class `safety_factor_basis` field and a cross-module case-spec are deferred
 until a second module needs them.
 
+## M1-11 — Ballast station rejected when outside the fuselage extent (complete, 2026-07-20)
+
+**Objective.** Stop `weight_envelope` from printing a nonphysical moment-balance
+ballast station on synthetic over-gross concept databases (e.g. `dhc8_dash8`
+forward-regardless → −112 in, forward of the nose datum). Surfaced by M1-7 and
+deferred as a follow-up.
+
+**Investigation (overturned the backlog premise).** The backlog assumed a clean
+"mirror M1-7's aft direction guard for the forward points." Empirically that is
+**oracle-unsafe** and mis-scoped:
+- Forward-gross is already safe — its candidate set is station-filtered (≤ fwd_s),
+  so its reference is always forward of the limit; it cannot produce the bug.
+- Forward-regardless is selected by *weight only*, so its reference CG can land aft
+  of the forward limit. On **every** database — including the GA6, whose oracle
+  reference (2642 @ 72.74) sits 0.1 in aft of the reg limit 72.64 — a direction-only
+  "reference aft of the limit → marker" guard would fire, destroying the 158 lb @
+  71.08 oracle. The real defect is narrower: only `dhc8` produced a station outside
+  the physical airplane (−112, ahead of the datum); `atr42_100` (+112) and
+  `concept_regional_jet` (+64) are physical nose-ballast stations that must be kept.
+
+**Decision (2026-07-20, user).** Guard on **"outside the fuselage extent,"** not a
+direction mirror. A physical fore/aft station extent gates every computed ballast
+station: an explicit `envelope.fuselage_nose_x`/`fuselage_tail_x` override, else the
+Step G1 fuselage outline (`Project.geometry.fuselage` min/max section station), else
+the station-0 datum with an unbounded tail (only a station *ahead of the nose* is
+rejected — the graceful fallback for databases carrying no outline, as `dhc8` does).
+
+**Deliverables.**
+- `WeightEnvelopeInput` — new optional `fuselage_nose_x`/`fuselage_tail_x` (round-trip
+  automatically via `io`'s generic `**dict`).
+- `weight_envelope.py` — `_fuselage_extent(project, env)` helper; `add_ballast` rejects
+  a computed station outside `[nose, tail]` (tail `None` ⇒ only `< nose`) with a
+  `"(none — moment-balance station … {ahead of the station-N datum | outside the
+  fuselage extent […]})"` marker. Module + `WeightEnvelopeInput` docstrings updated.
+- PROGRAM_SPEC, theory-source row, CHANGELOG updated.
+
+**Test / Acceptance.** GA6 p28 triple unchanged (158 @ 71.08 physical). New in
+`test_weight_envelope.py`: `test_fwd_regardless_station_inside_extent_kept` and
+`test_fwd_regardless_station_outside_extent_marks_none` (synthetic DB, ~580 in station,
+explicit extent both sides of it), `test_fwd_regardless_negative_station_marks_none_via_datum`
+(`dhc8_dash8` −112 → datum-branch marker), `test_fwd_regardless_extent_from_geometry_outline_kept`
+(`concept_regional_jet` +64 inside its G1 outline [0, 1056] → kept, exercising the
+outline path). Full suite 422 passing; ruff clean.
+
+**Key decisions / notes.** (1) The direction-only mirror the backlog proposed was
+rejected as oracle-unsafe (would fire on the GA6). (2) Applied with the *actually
+available* extents the guard flags only `dhc8`: `atr42_100` carries no outline (datum
+fallback, +112 kept) and `concept_regional_jet`'s +64 sits inside its [0, 1056]
+outline. To also flag those the operator would supply their fuselage extents — the
+override fields exist for exactly that. (3) The guard is centralized in `add_ballast`,
+so it covers all three ballast points, complementing (not replacing) M1-7's aft
+direction-degeneracy guard.
+
 ## M1-7 — Aft-gross ballast reference point (complete, 2026-07-20)
 
 **Objective.** Stop `weight_envelope`'s aft-gross ballast case from collapsing to

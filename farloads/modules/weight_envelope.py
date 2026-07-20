@@ -28,8 +28,12 @@ the heaviest forward-loading-envelope vertex still within the point's limit:
                     forward-gross station, ballasted at gross weight;
 * forward regardless -> heaviest forward-loading point at/below the reduced
                     weight at which that limit applies.
-When no vertex qualifies (or the reference already meets the target weight) the
-ballast row carries an explicit "none -- <reason>" marker instead of vanishing.
+When no vertex qualifies (or the reference already meets the target weight, or the
+resulting moment-balance station falls outside the fuselage extent) the ballast row
+carries an explicit "none -- <reason>" marker instead of vanishing or printing a
+nonphysical station (M1-7 / M1-11). The fuselage extent is read from an explicit
+``envelope.fuselage_nose_x``/``fuselage_tail_x`` override, else the Step G1 fuselage
+outline, else the station-0 datum (only a station ahead of the nose is rejected).
 
 Note on a preserved original-suite inconsistency: the manual's *hand* ballast
 calc for the aft-gross point rounded the limit station to 85.0 (giving 78 lb @
@@ -91,6 +95,28 @@ def _xlemac_mac(project: Project, env: WeightEnvelopeInput) -> Tuple[float, floa
         "WTENV needs wing XLEMAC/MAC: add a 'wing' geometry surface or set "
         "envelope.xlemac/envelope.mac"
     )
+
+
+def _fuselage_extent(
+    project: Project, env: WeightEnvelopeInput
+) -> Tuple[float, Optional[float]]:
+    """Physical fore/aft fuselage station bounds for the ballast-station sanity
+    check (M1-11).
+
+    Explicit ``env.fuselage_nose_x``/``fuselage_tail_x`` win; else the Step G1
+    fuselage outline (``Project.geometry.fuselage``) supplies min/max section
+    station; failing both, degrade to the station-0 datum with an unbounded tail
+    (``None``) -- only a station *ahead of the nose datum* is then rejected. The
+    tail bound is ``None`` when unknown so a genuine aft loading is never falsely
+    flagged.
+    """
+    if env.fuselage_nose_x is not None and env.fuselage_tail_x is not None:
+        return env.fuselage_nose_x, env.fuselage_tail_x
+    fus = project.geometry.fuselage if project.geometry is not None else None
+    if fus is not None and fus.sections:
+        xs = [s.x for s in fus.sections]
+        return min(xs), max(xs)
+    return 0.0, None
 
 
 def _forward_sequence(start: Tuple[float, float], discretionary: List[MassItem]) -> List[Tuple[float, float]]:
@@ -162,6 +188,7 @@ def envelope(project: Project, inp: WeightEnvelopeInput) -> List[ConditionResult
     reg_s = station(inp.fwd_regardless_pct_mac)
 
     fwd_seq = _forward_sequence((min_w, min_x), discretionary)
+    nose_x, tail_x = _fuselage_extent(project, inp)
 
     summary = ConditionResult(
         title="Weight envelope summary",
@@ -218,6 +245,24 @@ def envelope(project: Project, inp: WeightEnvelopeInput) -> List[ConditionResult
                     f"{label} ballast (none -- loading already at/above target weight)",
                     0.0, _LB, quantity="mass",
                 )
+            )
+            return
+        # Physical sanity: a moment-balance station outside the fuselage extent
+        # (e.g. forward of the nose datum, as on synthetic over-gross concept
+        # databases whose loadings all sit aft of the forward limit) is
+        # nonphysical -- report the degeneracy explicitly rather than a wild
+        # station (M1-11).
+        xb = b[1]
+        if xb < nose_x or (tail_x is not None and xb > tail_x):
+            reason = (
+                f"moment-balance station {xb:.0f} in is ahead of the station-{nose_x:.0f} "
+                "datum; all loadings sit aft of the limit"
+                if tail_x is None
+                else f"moment-balance station {xb:.0f} in is outside the fuselage "
+                f"extent [{nose_x:.0f}, {tail_x:.0f}]"
+            )
+            ballast_values.append(
+                LoadValue(f"{label} ballast (none -- {reason})", 0.0, _LB, quantity="mass")
             )
             return
         ballast_values.append(LoadValue(f"{label} ballast weight", b[0], _LB, quantity="mass"))

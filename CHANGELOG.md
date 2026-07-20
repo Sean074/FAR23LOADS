@@ -11,6 +11,21 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- **Ballast station rejected when it falls outside the fuselage (M1-11).**
+  `weight_envelope`'s forward-regardless reference is selected by weight only, so on
+  synthetic over-gross concept databases whose forward-loading vertices all sit
+  *aft* of the forward-regardless limit the moment balance could land the ballast at
+  a nonphysical station (e.g. `dhc8_dash8` → −112 in, forward of the nose datum).
+  Every computed ballast station is now gated against a physical fore/aft fuselage
+  station extent — an explicit `envelope.fuselage_nose_x`/`fuselage_tail_x` override,
+  else the Step G1 fuselage outline, else the station-0 datum with an unbounded tail
+  (only a station *ahead of the nose* is rejected). A station outside the extent
+  emits the same `"(none — <reason>)"` marker as M1-7's other degeneracies. GA6
+  oracle (158 lb @ 71.08) and the physical concept stations (`atr42_100` +112,
+  `concept_regional_jet` +64, inside its [0, 1056] outline) are unchanged. Adds
+  optional `fuselage_nose_x`/`fuselage_tail_x` to `WeightEnvelopeInput`. Datum-,
+  outline-, and explicit-extent-branch tests in `test_weight_envelope.py`.
+
 - **Aft-gross ballast reference no longer collapses to zero on over-gross
   loadings (M1-7, review T8).** `weight_envelope` used the *full* discretionary
   loading as the aft-gross ballast reference; when that full loading exceeded gross
