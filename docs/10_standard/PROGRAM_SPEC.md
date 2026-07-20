@@ -213,7 +213,13 @@ oracle-match FLTLOADS' `BAL 1.4VSF` at Appendix A p181 — M1-2; wiring the prin
 chordwise cases 81/106/88/108 through SELECT with the CG5–7 loadings remains L-2); the
 v-tail rudder `EFV≈1.0` is an input (illegible chart); SELECT's checked-maneuver
 `Iyy` / v-tail `IZZ` use the Ch 9 approximations (which match the oracle) rather
-than the persisted `Project.mass`.
+than the persisted `Project.mass`. **Approved oracle deviation (M1-4, 2026-07-20):**
+the 23.427(a) unsymmetrical search includes the **unchecked** maneuvers, per
+`SELECT.BAS` lines 6070–6175 and 23.427(a)'s "23.421 **through** 23.425" scope; the
+Appendix A sample-output value (−1111.8, gust-governed) is a stale printout from a
+superseded revision that excluded them, so the GA6 unsymmetrical is −1204.7 (DN
+unchecked governs). See `reference/23_427_unsymmetrical_candidate_set.md` and the
+approved-corrections register in `CLAUDE.md`.
 - **FAR §:** 23.301 critical-load determination across the envelope.
 - **Source:** Ch 9, `SELECT.BAS`.
 - **Reads:** `Project.mass` (WTONECG inertia), `Project.geometry` (WINGGEOM), `Project.envelope.vn` (FLTLOADS); plus AIRLOADS/AIRLOAD4 spanwise airloads. Run once per component (wing, fuselage, htail, vtail).

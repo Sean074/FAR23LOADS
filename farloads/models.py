@@ -1330,6 +1330,7 @@ class CriticalCondition:
     lt25: Optional[float] = None
     lt50: Optional[float] = None
     case_ref: Optional[CaseRef] = None
+    note: str = ""
 
 
 @dataclass

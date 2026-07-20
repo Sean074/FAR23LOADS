@@ -448,12 +448,47 @@ def select_htail_gust(project: Project) -> List[CriticalCondition]:
     return out
 
 
+# Approved oracle deviation (M1-4, approved 2026-07-20): restore the full SELECT.BAS
+# 23.427 candidate set, i.e. include the unchecked maneuvers. See the module note
+# below and docs/20_theory/00_theory_sources.md.
+_UNSYMMETRICAL_DEVIATION_NOTE = (
+    "Approved oracle deviation (M1-4): the 23.427(a) unsymmetrical search includes "
+    "the unchecked-maneuver conditions, per SELECT.BAS lines 6070-6175 (Ref 1 "
+    "Appendix C p440-441) and 23.427(a)'s scope ('the loads prescribed in 23.421 "
+    "through 23.425'). The Appendix A sample output (total -1111.8, governed by "
+    "GUST -C) is a stale printout from a superseded SELECT.BAS that excluded the "
+    "unchecked cases; it disagrees with its own Appendix C listing, which loads "
+    "U1CK/U2CK into the candidate array (L(5)/L(6)) and takes the max over all 12."
+)
+
+
 def select_htail_unsymmetrical(htail: List[CriticalCondition], np_: float) -> List[CriticalCondition]:
     """The unsymmetrical horizontal-tail load (FAR 23.427(a)): the largest-magnitude
-    symmetric tail load, 100% on one side and 100 - 10*(n-1) percent on the other."""
-    # The unchecked-maneuver loads are carried locally to the attach points (FAA CAM
-    # 3.216 policy) and are not combined unsymmetrically, so they are excluded here.
-    candidates = [c for c in htail if "UNCHECKED" not in c.label]
+    symmetric tail load, 100% on one side and 100 - 10*(n-1) percent on the other.
+
+    Approved oracle deviation (M1-4, approved 2026-07-20). SELECT.BAS builds a
+    12-condition candidate array (lines 6030-6140) that **includes** the unchecked
+    maneuvers (``L(5)=U1CK`` / ``L(6)=U2CK``) and searches all of them for the
+    largest magnitude (``FOR I=1 TO 12`` at 6150-6175). 23.427(a) itself applies the
+    unsymmetrical distribution to "the loads prescribed in 23.421 **through** 23.425"
+    -- which spans 23.423, the unchecked maneuver. Earlier revisions of this module
+    filtered the unchecked cases out (citing a CAM 3.216 rationale); that was an
+    undocumented, non-conservative deviation from the BASIC and is removed here.
+
+    The unchecked maneuver is frequently the largest H-tail load: on the Appendix A
+    GA6 it governs (DN UNCHECKED, ~-1400 lb) over the down gust (-1292.8), so the
+    unsymmetrical total moves from the Appendix A printout's -1111.8 to ~-1204.7.
+    That printout is itself inconsistent with the Appendix C listing (it selected
+    GUST -C, which the listing's full search would not) -- it was produced by a
+    superseded SELECT.BAS that excluded the unchecked cases, i.e. the very behavior
+    removed here. The listing + 23.427(a) are authoritative; the sample output is not.
+
+    Sign: SELECT.BAS 6180 sets ``RHSIDE = .5*HTMAX*SGN(LT(HZCASE))`` -- half the
+    governing magnitude, signed by the source case's balanced tail load. For the
+    governing conditions that sign coincides with the condition's own total-load
+    sign (verified against Appendix A), so ``rh = 0.5 * total`` reproduces it.
+    """
+    candidates = list(htail)
     if not candidates:
         return []
     pc = min(100.0 - 10.0 * (np_ - 1.0), 80.0)
@@ -469,7 +504,7 @@ def select_htail_unsymmetrical(htail: List[CriticalCondition], np_: float) -> Li
                LoadValue("RH side load", rh, "lb"),
                LoadValue("LH side load", lh, "lb"),
                LoadValue("Other-side percent", pc, "%")],
-        lt25=worst.lt25, lt50=worst.lt50)]
+        lt25=worst.lt25, lt50=worst.lt50, note=_UNSYMMETRICAL_DEVIATION_NOTE)]
 
 
 def select_htail(project: Project) -> List[CriticalCondition]:
@@ -700,11 +735,12 @@ def _critical_conditions(cls: CriticalLoadSet, concept: bool) -> List[ConditionR
             if concept else "")
     out: List[ConditionResult] = []
     for c in cls.conditions:
+        notes = [n for n in (note, c.note) if n]
         out.append(ConditionResult(
             title=f"Critical {c.component} load {c.label} (case {c.case})",
             far_reference=c.far_reference,
             values=list(c.loads),
-            note=note,
+            note="  ".join(notes),
             case_ref=c.case_ref,
         ))
     return out

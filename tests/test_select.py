@@ -226,8 +226,21 @@ def test_htail_maneuver_loads_match_appendix_a():
 
 
 def test_htail_gust_and_unsymmetrical_match_appendix_a():
-    # Up gust +908.6, down gust -1292.8 (flaps retracted, 23.425(a)(1));
-    # unsymmetrical total -1111.8 (RH -646.4, LH -465.4, 72% on the other side).
+    # Up gust +908.6, down gust -1292.8 (flaps retracted, 23.425(a)(1)).
+    #
+    # Unsymmetrical (23.427(a)): APPROVED ORACLE DEVIATION (M1-4, approved
+    # 2026-07-20). SELECT.BAS lines 6070-6175 include the unchecked maneuvers in the
+    # candidate array (L(5)=U1CK, L(6)=U2CK) and take the max over all 12; 23.427(a)
+    # applies to "the loads prescribed in 23.421 through 23.425", spanning the 23.423
+    # unchecked case. For the GA6 the DN unchecked maneuver (~-1400.8; Appendix A
+    # prints U2CK = -1397.835, case 274 BAL A) governs over the down gust (-1292.8),
+    # so the unsymmetrical total is -1204.7 (RH -700.4, LH -504.3, 72%).
+    #
+    # The Appendix A *sample output* prints -1111.8 (RH -646.4, LH -465.4), governed
+    # by GUST -C (case 173) -- inconsistent with its own Appendix C listing (which
+    # would select the larger unchecked case). That printout was produced by a
+    # superseded SELECT.BAS that excluded the unchecked cases; the listing + the CFR
+    # are authoritative. See docs/20_theory/00_theory_sources.md and select.py.
     p = _ga6_three_altitudes()
     p.tail_loads = _TAIL
     h = {c.label: c for c in select.build_critical(p).conditions if c.component == "htail"}
@@ -236,9 +249,9 @@ def test_htail_gust_and_unsymmetrical_match_appendix_a():
     assert math.isclose(_vals(h["GUST DN RETRACTED"])["Total tail load"], -1292.8, rel_tol=5e-3)
 
     u = _vals(h["UNSYMMETRICAL"])
-    assert math.isclose(u["Total tail load"], -1111.8, rel_tol=5e-3)
-    assert math.isclose(u["RH side load"], -646.4, rel_tol=5e-3)
-    assert math.isclose(u["LH side load"], -465.4, rel_tol=5e-3)
+    assert math.isclose(u["Total tail load"], -1204.7, rel_tol=5e-3)   # was -1111.8 (stale sample output)
+    assert math.isclose(u["RH side load"], -700.4, rel_tol=5e-3)       # was -646.4
+    assert math.isclose(u["LH side load"], -504.3, rel_tol=5e-3)       # was -465.4
     assert math.isclose(u["Other-side percent"], 72.0, abs_tol=0.1)
 
 

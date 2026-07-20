@@ -66,16 +66,6 @@ listing-traceable test, and updates `00_theory_sources.md` where the doc
 currently records the defective behavior as if it were the source.
 
 
-### M1-4 — 23.427 unsymmetrical tail: restore the full candidate set (review T6) **[Major — decided 2026-07-20: restore BASIC behavior]**
-`select.py` filters `"UNCHECKED"` out of the 23.427 candidate search;
-`SELECT.BAS` (lines 6025–6070) loads all 12 conditions including both unchecked
-maneuvers, and 23.427 combines with "the loads prescribed in 23.421 **through**
-23.425". The unchecked maneuver is frequently the largest H-tail load —
-excluding it is non-conservative and was an undocumented deviation. **Fix:**
-include the unchecked conditions, matching the BASIC; regression-test against
-the Appendix A unsymmetrical rows; while there, check the RH-side sign
-convention (BASIC signs by the case's balancing load `SGN(LT(HZCASE))`).
-
 ### M1-5 — One-engine-out 23.367(a)(2) case: `safety_factor = 1.0` (review T7)
 The "VC (ultimate)" condition carries the default SF 1.5 although 23.367(a)(2)
 loads are defined as ultimate (both references agree) — the export double-

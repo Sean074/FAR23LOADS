@@ -88,7 +88,7 @@ analysis, concept scope · **X** = out of scope (document, never silently skip).
 |---|---|---|---|---|
 | 25.331(c)(1) unchecked: max elevator at VA, pitch-acceleration formula *(verify: believed identical 39n(n−1.5)/V lineage)* | 23.423(a)(1) via θ̈ = 39n(n−1.5)/V | SELECT unchecked-maneuver cases (exact to SELECT.BAS) | Possibly none — the formulas share CAR-4b lineage; *verify* the current 25.331(c)(1) text | **A/P** *(verify)* |
 | 25.331(c)(2) **checked** maneuver: prescribed sinusoidal elevator motion, ω from VA…VD | 23.423 checked via the same θ̈ formula at C/D | SELECT checked cases at VC/VD | Part 25 prescribes an elevator time-history, not a θ̈ shortcut | **S** — static surrogate: keep the θ̈ method, tabulate vs the 25.331(c)(2) result once for a reference case; or implement the closed-form checked-maneuver n(t)/δ(t) evaluation (no dynamics beyond rigid-body pitch) |
-| 25.427 unsymmetrical tail (span-wise distribution %, *verify current (b) percentages*) | 23.427 | 100%/50% split (SELECT.BAS; M1-4 restores full candidate set) | Percentage/shape differences | **P** *(verify)* |
+| 25.427 unsymmetrical tail (span-wise distribution %, *verify current (b) percentages*) | 23.427 | 100%/50% split (SELECT.BAS; M1-4 restored the full candidate set incl. unchecked) | Percentage/shape differences | **P** *(verify)* |
 | 25.349(a) rolling: 2/3·n₁ with aileron schedule (full at VA; p-matched at VC; p/3 at VD) *(verify)* | 23.349 similar | AC ROLL/ST ROL cases, deflection schedule per CAM 3.222(b)(3) | Schedule/factor deltas | **P** *(verify)* |
 
 ### 1.6 Yaw / vertical tail

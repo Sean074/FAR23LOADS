@@ -10,6 +10,57 @@ Acceptance**, **Key decisions**.
 
 ---
 
+## M1-4 — 23.427 unsymmetrical tail: restore the full candidate set (complete, 2026-07-20) **[Major]**
+
+**Objective.** Restore SELECT.BAS's full 12-condition candidate set for the
+23.427(a) unsymmetrical horizontal-tail load — specifically, stop excluding the
+**unchecked** maneuvers from the search. (Review finding T6; decision D-9.)
+
+**Problem fixed.** `select_htail_unsymmetrical` filtered `"UNCHECKED" not in
+c.label` out of the candidate list (citing a "FAA CAM 3.216" rationale). That was
+an undocumented, non-conservative deviation from the BASIC: `SELECT.BAS` lines
+6070–6175 (Ref 1 Appendix C p440–441; PDF pp315–316) load the unchecked maneuvers
+into the candidate array (`L(5)=U1CK`, `L(6)=U2CK`) and take the max over all 12
+conditions, and 23.427(a) applies the unsymmetrical distribution to "the loads
+prescribed in 23.421 **through** 23.425" — which spans the 23.423 unchecked case.
+On the Appendix A GA6 the DN unchecked maneuver (`U2CK` = −1397.835, ref case 274
+BAL A) governs over the down gust (−1292.8), so the exclusion under-predicted the
+unsymmetrical load.
+
+**Approved oracle deviation.** The Appendix A **sample output** prints the
+unsymmetrical governed by GUST −C (total −1111.8, RH −646.4) — which the current
+code reproduced. That printout is **inconsistent with its own Appendix C listing**
+(the `FOR I=1 TO 12` search would select the larger unchecked case, not the gust);
+it was produced by a **superseded SELECT.BAS revision that excluded the unchecked
+cases**. The two Reference-1 tier-1 sources conflict; the listing + the CFR are
+authoritative. Approved 2026-07-20. Full trace:
+`reference/23_427_unsymmetrical_candidate_set.md`; register entry in `CLAUDE.md`.
+
+**Deliverables.**
+- `select.py::select_htail_unsymmetrical` searches the full candidate set (unchecked
+  included); docstring documents the deviation, the sign rule (`SELECT.BAS` 6180
+  `RHSIDE=.5*HTMAX*SGN(LT(HZCASE))`, which coincides with the condition's total-load
+  sign for the governing cases), and the confirmed-faithful 80% clamp (6010/6020).
+- The governing `CriticalCondition` carries a documented `note`; `models.py`
+  `CriticalCondition` gains a `note: str = ""` field, merged into the emitted
+  `ConditionResult.note` by `_critical_conditions`.
+- `reference/23_427_unsymmetrical_candidate_set.md` (new) — the listing transcription
+  + the inconsistency analysis + the regulation citation.
+- Doc syncs: `CLAUDE.md` approved-corrections register, `PROGRAM_SPEC.md`,
+  `docs/20_theory/00_theory_sources.md`, `CHANGELOG.md`.
+
+**Test / Acceptance.** `test_htail_gust_and_unsymmetrical_match_appendix_a` asserts
+the restored unsymmetrical: total **−1204.7** (RH −700.4, LH −504.3, 72%), with the
+stale −1111.8 sample-output figures preserved in comments. Full suite green
+(410 passed), `ruff` clean.
+
+**Key decisions.** (1) The Appendix C listing (unchecked included) + 23.427(a)'s
+"23.421 through 23.425" scope override the stale Appendix A sample output — this is
+the tie-break where two tier-1 sources disagree. (2) `rh = 0.5 * total` is retained
+for the RH sign because it reproduces `SGN(LT(HZCASE))` for the governing
+conditions (verified vs Appendix A). (3) The 80% other-side cap is faithful to
+`SELECT.BAS` 6020, not a defect.
+
 ## M1-3 — AIRLOAD4 sweep: restore the renormalization step (complete, 2026-07-19) **[Major]**
 
 **Objective.** Restore AIRLOAD4.BAS's sweepback renormalization (the

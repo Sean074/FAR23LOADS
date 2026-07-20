@@ -256,6 +256,21 @@ replicate the manual exactly (warts and all). Record each correction here:
   printed Appendix B engine-mount oracle exists in the bundled PDF, so it is
   formula-checked (`test_361_a3_applies_mean_torque_factor`). Source:
   `reference/AC_23-19A_engine_torque.md`.
+- **23.427(a) unsymmetrical-tail candidate set** *(approved 2026-07-20)* — the
+  Appendix A **sample output** prints the unsymmetrical h-tail load governed by the
+  down gust (total −1111.8), i.e. it **excludes** the unchecked maneuvers. That
+  printout is inconsistent with its own **Appendix C listing**: `SELECT.BAS` lines
+  6070–6175 load the unchecked maneuvers into the 23.427 candidate array
+  (`L(5)=U1CK`, `L(6)=U2CK`) and take the max over all 12 conditions. 23.427(a)
+  applies the unsymmetrical distribution to "the loads prescribed in 23.421
+  **through** 23.425" — spanning the 23.423 unchecked case. The stale sample output
+  was produced by a superseded `SELECT.BAS` revision; the listing + the CFR are
+  authoritative. `select_htail_unsymmetrical` now searches the full candidate set
+  (an earlier revision excluded the unchecked cases citing "CAM 3.216"); on the GA6
+  the DN unchecked maneuver governs and the unsymmetrical total moves to −1204.7
+  (RH −700.4, LH −504.3, 72%). Regression-tested in
+  `test_htail_gust_and_unsymmetrical_match_appendix_a` (manual's −1111.8 kept in a
+  comment). Source: `reference/23_427_unsymmetrical_candidate_set.md`.
 
 ### Preserved engineering conventions
 

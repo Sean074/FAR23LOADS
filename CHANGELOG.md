@@ -11,6 +11,24 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- **23.427(a) unsymmetrical tail: restore the full candidate set (M1-4, review T6;
+  approved oracle deviation).** `select_htail_unsymmetrical` no longer filters the
+  **unchecked** maneuvers out of the 23.427 search. `SELECT.BAS` lines 6070–6175
+  (Ref 1 Appendix C p440–441) load the unchecked cases into the candidate array
+  (`L(5)=U1CK`, `L(6)=U2CK`) and take the max over all 12 conditions; 23.427(a)
+  applies the unsymmetrical distribution to "the loads prescribed in 23.421
+  **through** 23.425", spanning the 23.423 unchecked case. The earlier exclusion
+  (citing a "CAM 3.216" rationale) was an undocumented, non-conservative deviation.
+  On the Appendix A GA6 the DN unchecked maneuver governs, so the unsymmetrical
+  total moves from **−1111.8 → −1204.7** (RH −700.4, LH −504.3, 72%). The Appendix A
+  sample output's −1111.8 (gust-governed) is a **stale printout from a superseded
+  `SELECT.BAS` revision** — it is inconsistent with its own Appendix C listing, which
+  the larger unchecked case (`U2CK` = −1397.835) would win. The listing + the CFR
+  are authoritative. The governing condition carries a documented `note`;
+  `CriticalCondition` gains a `note` field. `test_htail_gust_and_unsymmetrical_match_appendix_a`
+  updated (manual's −1111.8 kept in a comment). Source:
+  `reference/23_427_unsymmetrical_candidate_set.md`; register in `CLAUDE.md`.
+
 - **Single-source stall from CLmax (M1-1b; closes old 2-13(b)).** Stall speeds are
   no longer hand-entered scalars. The maximum lift coefficients live once on
   `AeroCoefficientsInput` — `clmax_clean` / `clmax_clean_neg` / `clmax_flap` — and
