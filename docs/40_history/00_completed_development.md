@@ -61,6 +61,47 @@ own classification. (2) VS = limit (SF 1.5), the reported VMC-substitute floor.
 first-class `safety_factor_basis` field and a cross-module case-spec are deferred
 until a second module needs them.
 
+## M1-7 — Aft-gross ballast reference point (complete, 2026-07-20)
+
+**Objective.** Stop `weight_envelope`'s aft-gross ballast case from collapsing to
+0 lb whenever the full discretionary loading exceeds gross weight. The reference was
+the *full* (max) loading, so `WB = gross − max_load` went negative and `_ballast`
+returned `None` → 0 lb — on the twin/concept databases (`concept_regional_jet`,
+`atr42_100`). Inert on the GA6 (max load 3322 < gross 3400, so the full loading is
+itself the correct reference → 78 lb). (Review finding T8.)
+
+**Regulatory / source basis.** Reference 1 Ch 3 p21-22: the aft-gross ballast
+reference is "the heaviest loading not exceeding gross," the same "≤ target"
+selection already used for the forward-regardless point (WTONECG/WTENV data base).
+
+**Deliverables.**
+- `weight_envelope.py` — aft-gross reference is now the heaviest forward-loading
+  vertex with `weight ≤ gross_weight` (mirroring `reg_cands`). Docstring updated.
+- **Degenerate-case hardening** (decided 2026-07-20, "harden all three"): all three
+  ballast references emit an explicit `"(none — <reason>)"` marker row instead of
+  silently dropping the structural point (empty candidate set) or, for aft-gross,
+  printing a nonphysical moment-balance station when the heaviest ≤-gross loading
+  already sits at/aft of the aft-CG limit (the aft-CG case is then reached with no
+  ballast).
+- Theory-source row + CHANGELOG updated.
+
+**Test / Acceptance.** GA6 p28 triple unchanged (78/418/158; stations 108.4/80.27/
+70.97 — the existing 6 tests stay green). New: `test_aft_gross_uses_heaviest_loading_below_gross`
+(synthetic over-gross DB → 100 lb from the 1100-lb reference, not 0 from the 1500-lb
+full loading), `test_aft_gross_degenerate_reference_reports_marker` and
+`test_ballast_marker_rows_not_dropped` (`concept_regional_jet`). Full suite 418
+passing; ruff clean.
+
+**Key decisions.** (1) The aft-gross ballast **station** stays the exact moment
+balance (~108.4); the manual's hand-rounded 103.7 (which used limit station 85.0 vs
+the exact 85.107) remains a *documented* deviation and is **not** reintroduced — the
+backlog's "@ 103.7" target was stale. (2) Degeneracy is reported, not hidden: a real
+loading that already achieves the aft-CG extreme yields "no ballast," parallel to the
+existing "already at/above target weight" guard. (3) The pre-existing forward-*
+nonphysical-station behavior on synthetic concept databases (e.g. `dhc8_dash8`
+forward-regardless) is out of scope — it is not introduced by this change and lives
+in the oracle-validated forward paths; deferred as a follow-up (M1-11).
+
 ## M1-6 — VC/VD coefficient clamp at W/S ≥ 100 (complete, 2026-07-20)
 
 **Objective.** Stop the FAR 23.335(a)/(b) minimum-speed coefficients Kc/Kd from

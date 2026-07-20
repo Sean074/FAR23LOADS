@@ -22,6 +22,11 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from farloads import Project, WeightInput, io  # noqa: E402
+from farloads.models import (  # noqa: E402
+    MassItem,
+    MassItemKind,
+    WeightEnvelopeInput,
+)
 from farloads.modules import weight_envelope as calc  # noqa: E402
 
 TOL = 1e-3  # ±0.1% relative
@@ -88,6 +93,72 @@ def test_four_structural_points_for_fltloads():
     assert _value(r, "Aft gross point weight") == 3400
     assert _value(r, "Forward regardless point weight") == 2800
     assert math.isclose(_value(r, "Minimum weight point station"), 73.09, rel_tol=TOL)
+
+
+def _labels(conditions):
+    return [v.label for c in conditions for v in c.values]
+
+
+def _mi(name, w, x, kind):
+    return MassItem(name=name, weight_lb=w, x=x, y=0.0, z=0.0,
+                    ixx=0.0, iyy=0.0, izz=0.0, kind=kind)
+
+
+def _over_gross_project(disc_c_station):
+    """A synthetic database whose FULL loading (1500 lb) exceeds gross (1200 lb).
+
+    XLEMAC 100 / MAC 50 -> aft-gross limit station = 100 + 0.30*50 = 115.
+    The forward-loading vertices are (700, 108.57), (900, 104.44), (1100, 102.73),
+    (1500, x). ``disc_c_station`` places the heaviest (aft) discretionary item, so
+    it selects whether the heaviest at-or-below-gross vertex lands forward of the
+    aft limit (positive ballast) or the full loading pushes it aft.
+    """
+    items = [
+        _mi("empty", 600, 110, MassItemKind.EMPTY),
+        _mi("crew", 100, 100, MassItemKind.MINIMUM),
+        _mi("fwd_a", 200, 90, MassItemKind.DISCRETIONARY),
+        _mi("fwd_b", 200, 95, MassItemKind.DISCRETIONARY),
+        _mi("aft_c", 400, disc_c_station, MassItemKind.DISCRETIONARY),
+    ]
+    env = WeightEnvelopeInput(
+        gross_weight=1200, aft_gross_pct_mac=30, fwd_gross_pct_mac=10,
+        fwd_regardless_pct_mac=5, fwd_regardless_weight=1000, xlemac=100, mac=50,
+    )
+    return Project(name="over-gross", weight=WeightInput(items=items, envelope=env))
+
+
+def test_aft_gross_uses_heaviest_loading_below_gross():
+    # M1-7: when the full discretionary loading (1500) exceeds gross (1200), the
+    # aft-gross reference is the heaviest vertex NOT exceeding gross (1100 @ 102.73,
+    # forward of the aft limit) -> positive ballast, NOT the 0 the prior code emitted
+    # from the negative (gross - max_load) difference.
+    p = _over_gross_project(disc_c_station=130)
+    r = calc.envelope(p, p.weight.envelope)
+    assert math.isclose(_value(r, "Aft gross ballast weight"), 100.0, rel_tol=TOL)
+    # ballast station is the exact moment balance (1200*115 - 1100*102.73)/100.
+    assert math.isclose(_value(r, "Aft gross ballast station"), 250.0, rel_tol=5e-3)
+
+
+def test_aft_gross_degenerate_reference_reports_marker():
+    # If the heaviest at-or-below-gross loading already sits at/aft of the aft-CG
+    # limit, the aft-CG case needs no ballast: an explicit "(none ...)" marker is
+    # emitted (0 lb), not a wild negative moment-balance station. concept_regional_jet
+    # (full loading 34800 > gross 33000; reference 32800 @ 607.2, aft of the 593.8
+    # limit) exercises this.
+    p = io.load_project(os.path.join(os.path.dirname(_EXAMPLE), "concept_regional_jet.project.json"))
+    r = calc.envelope(p, p.weight.envelope)
+    labels = _labels(r)
+    assert any(lbl.startswith("Aft gross ballast (none") for lbl in labels)
+    assert "Aft gross ballast weight" not in labels  # no nonphysical station emitted
+
+
+def test_ballast_marker_rows_not_dropped():
+    # M1-7 hardening: a reference with no qualifying vertex emits an explicit marker
+    # row rather than silently vanishing. On concept_regional_jet the forward-gross
+    # candidate set is empty (no loading forward of the fwd-gross station).
+    p = io.load_project(os.path.join(os.path.dirname(_EXAMPLE), "concept_regional_jet.project.json"))
+    r = calc.envelope(p, p.weight.envelope)
+    assert any(lbl.startswith("Forward gross ballast (none") for lbl in _labels(r))
 
 
 def test_run_requires_envelope_inputs():

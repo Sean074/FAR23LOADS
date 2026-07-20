@@ -66,13 +66,6 @@ listing-traceable test, and updates `00_theory_sources.md` where the doc
 currently records the defective behavior as if it were the source.
 
 
-### M1-7 — Aft-gross ballast reference point (review T8)
-`weight_envelope.py` uses the full discretionary loading as the aft-gross
-reference; the manual's hand calc (Ref 1 p28) uses the heaviest loading **not
-exceeding gross** (3322 lb → 78 lb @ 103.7). The module returns 0 lb on the
-manual's own database while its docstring claims the 78/418/158 match. Mirror
-the `reg_cands` "≤ gross" logic; test against the p28 triple.
-
 ### M1-8 — AIRLOAD4 Mach threshold 0.4 vs 0.5 (was 2-14) *(verify)*
 `airloads.py:73` triggers the swept/high-Mach branch at `design_mach > 0.4`;
 the User's Guide says **0.5** (§9.1, §10.1). Verify vs Ref 1 Ch 12 /
@@ -98,6 +91,17 @@ the current contradiction. (d) Move the approved-corrections **register of
 record** from `CLAUDE.md` into `docs/20_theory/` (CLAUDE.md links to it), and
 add the User's Guide §17.2.1 (post-1994 CFR text) citation to
 `engine_loads.md` as further corroboration of the 23.361(c) correction.
+
+### M1-11 — Ballast forward-reference nonphysical stations (surfaced by M1-7)
+`weight_envelope.py` forward-gross / forward-regardless can emit a nonphysical
+moment-balance station on synthetic over-gross concept databases (e.g.
+`dhc8_dash8` forward-regardless → −112 in) when the selected reference already
+sits forward of the target limit. Pre-existing (not introduced by M1-7, which
+scoped the *aft*-gross reference) and in the oracle-validated forward paths, so
+deferred. Fix: mirror M1-7's aft direction-degeneracy guard for the forward
+points (reference already at/forward of the forward limit → explicit "(none — …)"
+marker), keeping the GA6 oracle (418 @ 80.27 / 158 @ 70.97) unchanged. Needs a
+synthetic fixture; verify the direction convention against Ref 1 Ch 3.
 
 ---
 

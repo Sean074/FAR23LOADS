@@ -11,6 +11,21 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- **Aft-gross ballast reference no longer collapses to zero on over-gross
+  loadings (M1-7, review T8).** `weight_envelope` used the *full* discretionary
+  loading as the aft-gross ballast reference; when that full loading exceeded gross
+  weight (`WB = gross − max_load < 0`) the case silently reported **0 lb ballast**
+  — the twin/concept databases (`concept_regional_jet`, `atr42_100`). The aft-gross
+  reference is now the **heaviest loading not exceeding gross** (mirroring the
+  forward-regardless selection): unchanged on the GA6 (max load 3322 < gross 3400 →
+  78 lb @ 108.4, oracle intact) but correct on over-gross databases. Degenerate
+  references — an empty candidate set, a loading already at/above the target weight,
+  or a heaviest ≤-gross loading already at/aft of the aft-CG limit — now emit an
+  explicit `"(none — <reason>)"` marker row instead of silently dropping the
+  structural point or printing a nonphysical moment-balance station. The manual's
+  hand-rounded 103.7 aft-gross station stays a documented deviation (exact balance
+  108.4 retained). Over-gross regression + marker tests in `test_weight_envelope.py`.
+
 - **VC/VD speed coefficients clamp at W/S = 100 (M1-6, review T9).** The FAR
   23.335(a)/(b) minimum-speed coefficients Kc/Kd are tabulated only to a wing
   loading of 100 lb/ft² (Kc → 28.6, Kd → 1.35). `constants.cruise_speed_coefficient`

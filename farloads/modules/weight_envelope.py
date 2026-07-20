@@ -18,12 +18,18 @@ balance about the airplane nose:
     XB = (WL*XL - WA*XA) / WB          ballast station
 
 where (WL, XL) is the structural limit and (WA, XA) the reference envelope point.
-The reference points are selected as in the worked example (Ch 3 p21-22):
-* aft gross      -> the full discretionary loading (heaviest, aft-most);
+The reference points are selected as in the worked example (Ch 3 p21-22), each
+the heaviest forward-loading-envelope vertex still within the point's limit:
+* aft gross      -> the heaviest loading NOT exceeding gross weight (== the full
+                    discretionary loading when that is itself at/under gross, as
+                    on the GA6; on databases whose full loading exceeds gross the
+                    reference is the last vertex at/below gross -- M1-7);
 * forward gross  -> heaviest forward-loading point with X at/forward of the
                     forward-gross station, ballasted at gross weight;
 * forward regardless -> heaviest forward-loading point at/below the reduced
                     weight at which that limit applies.
+When no vertex qualifies (or the reference already meets the target weight) the
+ballast row carries an explicit "none -- <reason>" marker instead of vanishing.
 
 Note on a preserved original-suite inconsistency: the manual's *hand* ballast
 calc for the aft-gross point rounded the limit station to 85.0 (giving 78 lb @
@@ -186,29 +192,62 @@ def envelope(project: Project, inp: WeightEnvelopeInput) -> List[ConditionResult
         note="The four points (aft gross, fwd gross, fwd regardless, min weight) feed FLTLOADS.",
     )
 
-    # Ballast reference points (see module docstring).
+    # Ballast reference points (see module docstring). Each reference is the
+    # heaviest forward-loading-envelope vertex that stays within the point's
+    # weight/station limit. When no vertex qualifies, or the reference already
+    # meets the target weight, an explicit marker row is emitted rather than
+    # silently dropping the structural point (M1-7).
     ballast_values: List[LoadValue] = []
 
-    def add_ballast(label: str, wl: float, xl: float, ref: Optional[Tuple[float, float]]) -> None:
+    def add_ballast(
+        label: str,
+        wl: float,
+        xl: float,
+        ref: Optional[Tuple[float, float]],
+        no_ref_reason: str,
+    ) -> None:
         if ref is None:
+            ballast_values.append(
+                LoadValue(f"{label} ballast (none -- {no_ref_reason})", 0.0, _LB, quantity="mass")
+            )
             return
         b = _ballast(wl, xl, ref[0], ref[1])
         if b is None:
-            ballast_values.append(LoadValue(f"{label} ballast", 0.0, _LB, quantity="mass"))
+            ballast_values.append(
+                LoadValue(
+                    f"{label} ballast (none -- loading already at/above target weight)",
+                    0.0, _LB, quantity="mass",
+                )
+            )
             return
         ballast_values.append(LoadValue(f"{label} ballast weight", b[0], _LB, quantity="mass"))
         ballast_values.append(LoadValue(f"{label} ballast station", b[1], _IN))
 
-    # Aft gross: reference is the full (max) discretionary loading.
-    add_ballast("Aft gross", inp.gross_weight, aft_s, (max_w, max_x))
+    # Aft gross: heaviest loading NOT exceeding gross weight (the manual's Ch 3
+    # p22 reference). Equals the full loading when that is itself at/under gross
+    # (as on the GA6 -> 78 lb); M1-7 fixed the prior code, which used the full
+    # loading unconditionally and returned 0 ballast whenever it exceeded gross.
+    aft_cands = [p for p in fwd_seq if p[0] <= inp.gross_weight]
+    aft_ref = max(aft_cands, key=lambda p: p[0]) if aft_cands else None
+    aft_reason = "no loading at/below gross weight"
+    if aft_ref is not None and aft_ref[1] >= aft_s:
+        # The heaviest at-or-below-gross loading already sits at/aft of the aft CG
+        # limit, so the aft-CG structural case is reached by a real loading with no
+        # ballast (forward ballast would land at a nonphysical station). Report the
+        # degeneracy explicitly rather than a wild moment-balance station (M1-7).
+        aft_ref = None
+        aft_reason = "loading already at/aft of the aft-gross limit"
+    add_ballast("Aft gross", inp.gross_weight, aft_s, aft_ref, aft_reason)
     # Forward gross: heaviest forward-loading point at/forward of the fwd-gross station.
     fwd_cands = [p for p in fwd_seq if p[1] <= fwd_s]
     fwd_ref = max(fwd_cands, key=lambda p: p[0]) if fwd_cands else None
-    add_ballast("Forward gross", inp.gross_weight, fwd_s, fwd_ref)
+    add_ballast("Forward gross", inp.gross_weight, fwd_s, fwd_ref,
+                "no loading forward of the fwd-gross station")
     # Forward regardless: heaviest forward-loading point at/below the reduced weight.
     reg_cands = [p for p in fwd_seq if p[0] <= inp.fwd_regardless_weight]
     reg_ref = max(reg_cands, key=lambda p: p[0]) if reg_cands else None
-    add_ballast("Forward regardless", inp.fwd_regardless_weight, reg_s, reg_ref)
+    add_ballast("Forward regardless", inp.fwd_regardless_weight, reg_s, reg_ref,
+                "no loading at/below the regardless weight")
 
     ballast = ConditionResult(
         title="Ballast to reach the structural limits",
