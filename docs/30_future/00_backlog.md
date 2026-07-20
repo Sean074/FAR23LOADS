@@ -211,9 +211,9 @@ already outputs). Three tiers, one step:
   VMO ⇒ VC ≥ VMO; target VFE ⇒ VF ≥ VFE) and warn concretely when the chosen
   design speeds are infeasible; hook into `validation.py` so infeasibility
   also surfaces on the dashboard.
-**Depends on M1-1** (the VD floor fix) — an implied VNE from the under-floored
-VD would propagate the error into the advisory. Display/validation only; no
-loads-math change. *(S–M; unblocked once M1-1 lands.)*
+**Built on M1-1** (the VD floor fix, now landed) — an implied VNE from the
+under-floored VD would have propagated the error into the advisory. Display/
+validation only; no loads-math change. *(S–M; unblocked.)*
 
 ### M2-11 — Input data dictionary + short GUI user guide (review D4, part 1)
 (a) A `project.json` **data dictionary** — field, type, units, default, owning
@@ -321,7 +321,8 @@ Part 25 result carries the "static surrogate — not certification" banner.
   gap table; freeze parameters.
 - **F25-1 — Transport category "T" envelope pack (M).** 25.337 floor 2.5 /
   negative −1.0; VB (25.335(d)); transport gust corner set — Pratt engine with
-  the 25.341 U_ref schedule + F_g; MZFW design weight. Depends on M1-1/2/6.
+  the 25.341 U_ref schedule + F_g; MZFW design weight. Depends on M1-6
+  (M1-1/2 landed).
   Identity test: "T" with FAR 23 parameters reproduces the FAR 23 envelope.
 - **F25-2 — Speeds & placards Part 25 variant (S→M).** 25.335 margins (VB
   margin; MD ≥ MC + **0.07** default, 0.05–0.07 only as explicit
@@ -453,10 +454,6 @@ reaction matrix stays closure-/legible-cell-locked).
 
 ## Known defects (open)
 
-- **M1-1** — VD floor omits `K_d·VCmin` (non-conservative ~10.7% on the
-  no-chosen-speeds path). **[Critical]**
-- **M1-2** — BAL 1.4VSF balanced at the 2-g stall speed (tail load 2.2× the
-  Appendix A oracle). **[Critical]**
 - **M4-1** — fuselage body-load distribution carries an unreacted pitching
   couple (terminal Myy ≠ 0). **[Major]**
 - **M2-1** — Loads Plots page can never display results (`Project.loads` never
