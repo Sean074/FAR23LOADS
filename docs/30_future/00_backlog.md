@@ -65,21 +65,6 @@ Calculation fixes from the review. Each is small, lands with a new oracle or
 listing-traceable test, and updates `00_theory_sources.md` where the doc
 currently records the defective behavior as if it were the source.
 
-### M1-1 — VD floor: enforce `K_d · VCmin` (review T1, was 2-13(a)) **[Critical]**
-`structural_speeds.py` computes `vd = max(chosen_vd, 1.25·VC)` and reports
-`K_d·VC` as "recommended". `STRSPEED.BAS` (Ref 1 p265–267: `V2DMIN=K2*V1CMIN`,
-enforced at lines 380/390) and FAR 23.335(b)(2) (User's Guide p46) require
-**both** minimums: `VD ≥ max(K_d·VCmin, 1.25·VC)`. With no chosen speeds the
-Appendix A Cat-N case (p155) prints VDmin **198.53 kt**; the code returns
-**177.26** — 10.7% non-conservative, propagating into MACHLIM and every
-downstream case at VD. The chosen-speeds case (p156) masks it, which is why the
-0.2.0 baseline missed it. **Fix:** `vd_min = max(kd*vc_min, 1.25*vc)`; rename
-the reported advisory to `K_d·VCmin`; add the p155 no-chosen-speeds oracle test;
-correct `00_theory_sources.md:59` (it currently documents the Code-manual
-prose error, not the BASIC). Also close the remainder of old 2-13: (b) the
-optional CLmax→stall-speed input path (User's Guide p7-5) — add or record as
-out of scope.
-
 ### M1-3 — AIRLOAD4 sweep: restore the renormalization step (review T4) **[Major]**
 `airloads.py` `_apply_sweep` subtracts the Pope sweep term but omits
 AIRLOAD4.BAS's renormalization (COL19→COL20 divide), so integrated CL falls to
@@ -234,9 +219,9 @@ already outputs). Three tiers, one step:
   VMO ⇒ VC ≥ VMO; target VFE ⇒ VF ≥ VFE) and warn concretely when the chosen
   design speeds are infeasible; hook into `validation.py` so infeasibility
   also surfaces on the dashboard.
-**Depends on M1-1** (the VD floor fix) — an implied VNE from the under-floored
-VD would propagate the error into the advisory. Display/validation only; no
-loads-math change. *(S–M; unblocked once M1-1 lands.)*
+**Unblocked (M1-1 VD floor landed 2026-07-19)** — an implied VNE from the
+formerly-under-floored VD would have propagated the error into the advisory.
+Display/validation only; no loads-math change. *(S–M.)*
 
 ### M2-11 — Input data dictionary + short GUI user guide (review D4, part 1)
 (a) A `project.json` **data dictionary** — field, type, units, default, owning
@@ -344,7 +329,8 @@ Part 25 result carries the "static surrogate — not certification" banner.
   gap table; freeze parameters.
 - **F25-1 — Transport category "T" envelope pack (M).** 25.337 floor 2.5 /
   negative −1.0; VB (25.335(d)); transport gust corner set — Pratt engine with
-  the 25.341 U_ref schedule + F_g; MZFW design weight. Depends on M1-1/2/6.
+  the 25.341 U_ref schedule + F_g; MZFW design weight. Depends on M1-2/6
+  (M1-1 VD floor landed 2026-07-19).
   Identity test: "T" with FAR 23 parameters reproduces the FAR 23 envelope.
 - **F25-2 — Speeds & placards Part 25 variant (S).** 25.335 margins (VB margin,
   MD ≥ MC + 0.05/upset) + the M2-10 ladder in VMO/MMO form.
@@ -467,8 +453,6 @@ reaction matrix stays closure-/legible-cell-locked).
 
 ## Known defects (open)
 
-- **M1-1** — VD floor omits `K_d·VCmin` (non-conservative ~10.7% on the
-  no-chosen-speeds path). **[Critical]**
 - **M1-3** — swept-wing span load loses 6–13% of integrated lift
   (missing renormalization). **[Major]**
 - **M4-1** — fuselage body-load distribution carries an unreacted pitching
