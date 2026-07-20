@@ -294,6 +294,20 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- **VD floor now enforces `K_d·VCmin` (M1-1, review T1 — `[Critical]`).**
+  `structural_speeds.py` computed the K_d dive-speed term as `K_d·VC` and reported
+  it only as a "recommended" advisory, so on the **no-chosen-speeds** path VD fell
+  to the `1.25·VC` floor. FAR 23.335(b) and `STRSPEED.BAS` (`V2DMIN=K2·V1CMIN`,
+  lines 380/390) require **both** minimums with the K_d term on the *minimum* cruise
+  speed: `VD ≥ max(K_d·VCmin, 1.25·VC)`. On the Appendix A Cat-N no-chosen-speeds
+  case (p155) the corrected VD is **198.53 kt**; the prior code returned 177.26 —
+  10.7% non-conservative, propagating into MD/MACHLIM and every case at VD. The
+  chosen-speeds worked example (p156, VD 212.5) clears both floors and is unchanged.
+  Concept mode (Cat C) keeps only the absolute 1.25·VC floor and reports K_d·VCmin
+  as advisory (behavior unchanged). Reported `LoadValue` renamed
+  "Recommended dive VD (gust, K*VC)" → **"Minimum dive VD(min)"** (the enforced
+  floor). New oracle `test_vd_floor_no_chosen_speeds` (p155).
+
 - **FAR-citation labels corrected (found via the FAA User's Guide review).**
   `WTONECG` (`weight_onecg.py`) cited `23.21/23.23` (proof-of-compliance + load
   distribution); changed to **`23.23/23.29`** — load-distribution limits and empty

@@ -11,14 +11,17 @@ Equations (Ch 6):
     n      = 2.1 + 24000/(W+10000), capped 3.8 (N), or 4.4 (U), 6.0 (A)
     n_neg  = -0.4*n (N/U) or -0.5*n (A)
     VC_min = K_c*(W/S)**0.5         [<= 0.9*VH]          K_c by category
-    VD_min = max(K_d*VC, 1.25*VC)                         K_d by category
+    VD_min = max(K_d*VCmin, 1.25*VC)                      K_d by category
     VA_min = VS*sqrt(n)             [<= VC]
     VF_min = max(1.4*VS, 1.8*VSF)
     MC     = VC/(sqrt(sigma)*a),  MD = VD/(sqrt(sigma)*a)  at the shoulder altitude
 
-For the worked example the absolute FAR floor VD >= 1.25*VC governs (212.5 kt),
-so the dive speed is taken as that floor; K_d*VC is reported as the recommended
-gust-based dive speed.
+FAR 23.335(b) imposes both dive-speed minimums: VD >= max(K_d*VCmin, 1.25*VC),
+where the K_d term uses the *minimum* cruise VCmin (STRSPEED.BAS V2DMIN=K2*V1CMIN,
+lines 380/390). With no chosen speeds the K_d*VCmin term governs (Appendix A p155,
+Cat N: 198.53 kt). For the worked chosen-speeds example (p156) the chosen VD 212.5
+already clears both floors, which is why the absolute 1.25*VC floor is what shows.
+Concept mode (Cat C) treats the GA-calibrated K_d term as advisory only.
 
 Reference: STRSPEED.BAS, Ch 6; worked example Appendix A (VA 121.3, VC 170,
 VD 212.5, VF 105.5; n = +3.8 / -1.52; MC 0.323, MD 0.403 at 12000 ft).
@@ -110,7 +113,7 @@ class DesignSpeeds(NamedTuple):
     vc_min: float
     va_min: float
     vf_min: float
-    vd_recommended: float
+    vd_min: float
     n: float
     n_min: float
     nneg: float
@@ -143,11 +146,16 @@ def design_speed_values(project: Project, inp: StructuralSpeedsInput) -> DesignS
         vc_min = 0.9 * inp.vh_kt
     vc = max(inp.chosen_vc, vc_min) if inp.chosen_vc is not None else vc_min
 
-    # Dive speed VD: the FAR floor 1.25*VC governs; K_d*VC is the recommended value.
+    # Dive speed VD: FAR 23.335(b) requires BOTH minimums -- VD >= max(K_d*VCmin,
+    # 1.25*VC). STRSPEED.BAS lines 380/390 (V2DMIN = K2*V1CMIN) use VCmin, not the
+    # chosen VC, in the K_d term. Concept mode (Cat C) treats the GA-calibrated K_d
+    # term as advisory only, retaining just the absolute 1.25*VC floor.
     kd = dive_ratio_coefficient(cat, ws)
-    vd_floor = 1.25 * vc
-    vd_recommended = kd * vc
-    vd = max(inp.chosen_vd, vd_floor) if inp.chosen_vd is not None else vd_floor
+    vd_kd_min = kd * vc_min          # K_d * VCmin  (23.335(b)(2); BASIC V2DMIN)
+    vd_125 = 1.25 * vc               # absolute floor on the actual cruise speed
+    vd_min = max(vd_kd_min, vd_125)
+    hard_floor = vd_125 if cat == "C" else vd_min
+    vd = max(inp.chosen_vd, hard_floor) if inp.chosen_vd is not None else hard_floor
 
     # Maneuver speed VA.
     va_min = inp.stall_clean_kt * math.sqrt(n)
@@ -165,7 +173,7 @@ def design_speed_values(project: Project, inp: StructuralSpeedsInput) -> DesignS
     md = vd / (root_sigma * a)
     return DesignSpeeds(
         va=va, vc=vc, vd=vd, vf=vf, vc_min=vc_min, va_min=va_min, vf_min=vf_min,
-        vd_recommended=vd_recommended, n=n, n_min=n_min, nneg=nneg, nneg_min=nneg_min,
+        vd_min=vd_min, n=n, n_min=n_min, nneg=nneg, nneg_min=nneg_min,
         ws=ws, wing_area_sqft=s, speed_of_sound_kt=a, sigma=sigma, mc=mc, md=md,
     )
 
@@ -175,7 +183,7 @@ def design_speeds(project: Project, inp: StructuralSpeedsInput) -> List[Conditio
     sv = design_speed_values(project, inp)
     cat = inp.category.upper()
     va, vc, vd, vf = sv.va, sv.vc, sv.vd, sv.vf
-    vc_min, va_min, vf_min, vd_recommended = sv.vc_min, sv.va_min, sv.vf_min, sv.vd_recommended
+    vc_min, va_min, vf_min, vd_min = sv.vc_min, sv.va_min, sv.vf_min, sv.vd_min
     n, n_min, nneg, nneg_min = sv.n, sv.n_min, sv.nneg, sv.nneg_min
     ws, s = sv.ws, sv.wing_area_sqft
     a, sigma, mc, md = sv.speed_of_sound_kt, sv.sigma, sv.mc, sv.md
@@ -208,7 +216,7 @@ def design_speeds(project: Project, inp: StructuralSpeedsInput) -> List[Conditio
             LoadValue("Minimum cruise VC(min)", vc_min, _KT),
             LoadValue("Minimum maneuver VA(min)", va_min, _KT),
             LoadValue("Minimum flap VF(min)", vf_min, _KT),
-            LoadValue("Recommended dive VD (gust, K*VC)", vd_recommended, _KT),
+            LoadValue("Minimum dive VD(min)", vd_min, _KT),
             LoadValue("Wing area S", s, "ft^2"),
         ],
     )

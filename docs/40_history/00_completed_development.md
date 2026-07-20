@@ -10,6 +10,51 @@ Acceptance**, **Key decisions**.
 
 ---
 
+## M1-1 — VD floor: enforce `K_d·VCmin` (complete, 2026-07-19) **[Critical]**
+
+**Objective.** Correct the `structural_speeds` (STRSPEED) dive-speed minimum to
+enforce **both** FAR 23.335(b) floors — `VD ≥ max(K_d·VCmin, 1.25·VC)` — with the
+K_d term applied to the *minimum* cruise speed VCmin, matching `STRSPEED.BAS`
+(`V2DMIN=K2·V1CMIN`, lines 380/390). (Review finding T1; was old 2-13(a).)
+
+**Problem fixed.** `design_speed_values` computed the K_d dive term as `K_d·VC` and
+folded it only into a "recommended" advisory (`vd_recommended`), enforcing just the
+`1.25·VC` floor. On the **no-chosen-speeds** path VD therefore collapsed to
+1.25·VCmin. On the Appendix A Cat-N case (p155) the manual prints VD(min) **198.53
+kt** (= K_d·VCmin = 1.40·141.8); the code returned **177.26** — 10.7% non-
+conservative, propagating into MD/MACHLIM and every downstream case evaluated at VD.
+The chosen-speeds worked example (p156, chosen VD 212.5, which clears both floors)
+masked the defect, which is why the 0.2.0 baseline missed it.
+
+**Locked decisions (AskUserQuestion, 2026-07-19).**
+1. **Concept mode (Cat C) — advisory.** The GA-calibrated K_d term is *not*
+   enforced for concept; Cat C retains only the pre-existing absolute 1.25·VC floor
+   (behavior byte-for-byte unchanged), and reports K_d·VCmin as advisory. Preserves
+   the "concept governs / reduces exactly to FAR23 on GA inputs" invariant.
+2. **CLmax → stall-speed path (old 2-13(b)) split out** into new backlog item
+   **M1-1b** at **Level B** (single-source everywhere); M1-1 lands the VD floor
+   alone to keep the `[Critical]` fix small and reviewable.
+
+**Deliverables.**
+- **`structural_speeds.py`:** `vd_min = max(kd*vc_min, 1.25*vc)`; `hard_floor =
+  1.25*vc` for Cat C else `vd_min`; `vd = max(chosen_vd, hard_floor)` (or the floor
+  when no chosen VD). `DesignSpeeds.vd_recommended` → **`vd_min`**; reported
+  `LoadValue` "Recommended dive VD (gust, K*VC)" → **"Minimum dive VD(min)"**.
+  Module docstring rewritten to state the two-term floor + the Cat-C carve-out.
+- **Test:** new `test_vd_floor_no_chosen_speeds` — Cat N, no chosen speeds, asserts
+  VD and VD(min) = 198.53 kt (Appendix A p155, printed number + citation inline).
+- **Docs:** `00_theory_sources.md` STRSPEED row (equation `VD=max(Kd·VCmin,
+  1.25·VC)` + the p155/p156 distinction, replacing the Code-manual prose error);
+  `PROGRAM_SPEC.md` STRSPEED notes; `CHANGELOG.md` `[Unreleased] → Fixed`.
+
+**Test / Acceptance.** `ruff` clean; full suite green (406 passed) — the new p155
+oracle passes, the p156 chosen-speeds oracle (VD 212.5) and the concept fixture are
+unchanged (no regression).
+
+**Key decisions.** As above — Cat C advisory; CLmax split to M1-1b (Level B).
+
+---
+
 ## Phase G — Step G6b: Single-source landing-gear geometry (complete, 2026-07-19)
 
 **Objective.** Make the Geometry page the single source of truth for the landing

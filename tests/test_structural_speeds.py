@@ -59,6 +59,18 @@ def test_design_speeds_match_manual():
     assert math.isclose(_value(r, "Flap speed VF"), 105.5, rel_tol=TOL)
 
 
+def test_vd_floor_no_chosen_speeds():
+    # Appendix A p155, Cat N, no chosen speeds: FAR 23.335(b) requires
+    # VD >= max(K_d*VCmin, 1.25*VC). Here K_d*VCmin = 1.40*141.8 = 198.53 kt
+    # governs over 1.25*VCmin = 177.26. (Pre-fix code returned 177.26 -- 10.7%
+    # non-conservative; STRSPEED.BAS V2DMIN=K2*V1CMIN, lines 380/390.)
+    inp = StructuralSpeedsInput(category="N", weight_lb=3400, wing_area_sqft=184.125,
+                                stall_clean_kt=62.226, stall_flap_kt=58.611, vh_kt=190)
+    r = calc.design_speeds(Project(name="n"), inp)
+    assert math.isclose(_value(r, "Dive speed VD"), 198.53, rel_tol=TOL)          # p155
+    assert math.isclose(_value(r, "Minimum dive VD(min)"), 198.53, rel_tol=TOL)
+
+
 def test_minimum_cruise_speed():
     # K_c = 33 (W/S = 18.47 < 20); VC(min) = 33*sqrt(18.47) = 141.8 kt.
     r = results()
