@@ -118,12 +118,6 @@ for cond in display_conditions:
                  f"TE {pressure_u} (LIMIT)": round(to_si_scalar(v["Tab TE pressure"], "psi", system), 4)})
 st.write(pd.DataFrame(rows))
 
-if project.loads is not None:
-    project.loads.control_surface = [
-        r for r in project.loads.control_surface if not r.surface.startswith("tab:")
-    ] + results
-    st.session_state["project"] = project
-
 st.download_button("Download tab loads (CSV)", sb.control_surface_csv(results),
                    file_name="tab_loads.csv", mime="text/csv")
 st.download_button("Download FORCE cards (sbeam)",

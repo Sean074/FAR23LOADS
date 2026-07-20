@@ -81,11 +81,6 @@ if not results:
             "**Empennage & control surfaces** section on the **Geometry** page, and "
             "ensure the Critical Loads tab (Flight Envelope (V-n) page) produced tail loads.")
 else:
-    # Persist so the sbeam tail export can reuse it.
-    if project.loads is not None:
-        project.loads.tail_chordwise = results
-        st.session_state["project"] = project
-
     labels = [f"{r.component}: {r.case}" for r in results]
     sel = st.selectbox("Show condition", labels)
     res = results[labels.index(sel)]
@@ -101,9 +96,8 @@ else:
               f"{to_si_scalar(res.lt25 + res.lt50, 'lbf', system):,.1f}")
 
     # Chordwise profile (leading-edge first), as a pressure-vs-chord line.
-    # Display-only conversion; ``stations``/``res``/``results`` (persisted to
-    # project.loads.tail_chordwise and consumed by the sbeam export) are never
-    # touched.
+    # Display-only conversion; ``stations``/``res``/``results`` (recomputed by the
+    # Loads Plots and Export pages via ``build_tail_chordwise``) are never touched.
     stations = sorted(res.stations, key=lambda s: s.x)
     fig = go.Figure()
     fig.add_trace(go.Scatter(

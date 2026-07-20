@@ -2,11 +2,11 @@
 
 One page of the multi-page app; run the suite with:  streamlit run app/Home.py
 
-A read-only viewer over the distributed-load results already persisted on
-``Project.loads`` by the Analysis-section pages (Wing / Fuselage / Tail /
-Aileron / Flap / Tab Loads). It does not compute anything new and writes
-nothing back to the project: pick a component, overlay the spanwise/chordwise
-curve for the selected case IDs plus their envelope (max |value| per station),
+A read-only viewer over the distributed-load results **recomputed live from the
+project inputs** (exactly as the Export page does — there is no code path that
+constructs ``Project.loads``). It writes nothing back to the project: pick a
+component, overlay the spanwise/chordwise curve for the selected case IDs plus
+their envelope (max |value| per station),
 see a combined wing+fuselage "total loads" snapshot for one case, and
 optionally compare against an externally-computed span-load CSV in the same
 schema :mod:`farloads.export.sbeam_bridge` exports.
@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import csv
 import io as _io
+from types import SimpleNamespace
 
 import pandas as pd
 import plotly.graph_objects as go
@@ -27,6 +28,12 @@ import streamlit as st
 from plotly.subplots import make_subplots
 
 from farloads import Project, UnitSystem, si_scalar_label, to_si_scalar
+from farloads.modules.aileron import build_aileron
+from farloads.modules.body_loads import build_body_loads
+from farloads.modules.flap import build_flap
+from farloads.modules.net_loads import build_net_loads
+from farloads.modules.tab import build_tabs
+from farloads.modules.taildist import build_tail_chordwise
 
 st.title("Loads Plots")
 st.caption(
@@ -38,12 +45,37 @@ st.caption(
 
 project: Project = st.session_state.get("project", Project(name=""))
 system: UnitSystem = st.session_state.get("unit_system", UnitSystem.IMPERIAL)
-loads = project.loads
 
-if loads is None:
+_CALC_ERRORS = (ValueError, ZeroDivisionError, KeyError, IndexError)
+
+
+def _try(fn, *args):
+    """Run a build call defensively; return its value or ``None``."""
+    try:
+        return fn(*args)
+    except _CALC_ERRORS:
+        return None
+
+
+# Recompute the distributed-load results live from the project inputs, exactly as
+# the Export page does -- nothing is read from a persisted result slice (no code
+# path constructs ``Project.loads``, so it is always ``None``).
+_net = _try(build_net_loads, project)
+_control = []
+for _fn in (build_aileron, build_flap, build_tabs):
+    _control += _try(_fn, project) or []
+loads = SimpleNamespace(
+    wing_net=_net.wing_net if _net is not None else [],
+    body_net=_try(build_body_loads, project) or [],
+    tail_chordwise=_try(build_tail_chordwise, project) or [],
+    control_surface=_control,
+)
+
+if not any((loads.wing_net, loads.body_net, loads.tail_chordwise, loads.control_surface)):
     st.info(
-        "No distributed loads computed yet — visit **Wing Loads**, **Fuselage "
-        "Loads**, **Tail Loads**, **Aileron/Flap/Tab Loads** first."
+        "No distributed loads computed yet — set the upstream inputs on the "
+        "**Wing Loads**, **Fuselage Loads**, **Tail Loads**, and "
+        "**Aileron/Flap/Tab Loads** pages first."
     )
     st.stop()
 

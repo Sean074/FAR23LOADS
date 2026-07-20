@@ -104,13 +104,6 @@ st.write(pd.DataFrame([
          round(to_si_scalar(vals["Pressure fwd of hinge (up)"], "psi", system), 4)},
 ]))
 
-# Persist for the sbeam control-surface export.
-if project.loads is not None:
-    project.loads.control_surface = [
-        r for r in project.loads.control_surface if not r.surface.startswith("aileron")
-    ] + results
-    st.session_state["project"] = project
-
 st.download_button("Download aileron loads (CSV)", sb.control_surface_csv(results),
                    file_name="aileron_loads.csv", mime="text/csv")
 st.download_button("Download FORCE cards (sbeam)",

@@ -108,11 +108,6 @@ if not results:
     st.info("No critical fuselage conditions to distribute.")
     st.stop()
 
-# Persist so the sbeam body export can reuse it.
-if project.loads is not None:
-    project.loads.body_net = results
-    st.session_state["project"] = project
-
 st.caption(
     "Loads shown are **LIMIT** (oracle-traceable). The deliverable **ULTIMATE** "
     "loads (= limit × safety factor, 14 CFR 23.303) come from the "

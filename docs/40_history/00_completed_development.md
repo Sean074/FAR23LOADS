@@ -10,6 +10,48 @@ Acceptance**, **Key decisions**.
 
 ---
 
+## M2-1 — Loads Plots must recompute from the project (GUI fix, complete 2026-07-20)
+
+**Objective.** The **Loads Plots** page (Load-case plotting phase) read
+`Project.loads`, which **no code path ever constructs** — the slice is always
+`None`, so the page stopped at its "No distributed loads computed yet" info box
+with instructions (visit Wing/Fuselage/Tail/Aileron/Flap/Tab Loads) that could
+never succeed. The five Analysis views each carried a matching dead
+`if project.loads is not None:` write-back that never executed. (Review finding
+G2; known defect M2-1, Major/GUI.)
+
+**Deliverables.**
+- **(a) Recompute in `loads_plots.py`.** Removed the `loads = project.loads` /
+  `if loads is None: st.stop()` gate. The page now recomputes the four
+  distributed-load channels live from the project inputs — `build_net_loads`
+  (`.wing_net`), `build_body_loads`, `build_tail_chordwise`, and
+  `build_aileron`/`build_flap`/`build_tabs` (control surfaces) — behind the same
+  defensive `_try` wrapper `export_report.py` uses (catches
+  `ValueError`/`ZeroDivisionError`/`KeyError`/`IndexError` so a channel whose
+  upstream inputs are absent degrades to an empty list). Results are bound to a
+  `SimpleNamespace` with the `LoadsResult` attribute names so the existing
+  curve-extraction and plotting code is unchanged. The page stops only when
+  **all four** channels are empty.
+- **(b) Deleted the five dead write-backs.** Removed the
+  `if project.loads is not None:` guarded writes (and their stale "Persist so the
+  sbeam … export can reuse it" comments) from `fuselage_loads.py`,
+  `tail_loads.py`, `aileron_loads.py`, `flap_loads.py`, `tab_loads.py`. Fixed the
+  one remaining `project.loads.tail_chordwise`-referencing comment in
+  `tail_loads.py`.
+
+**Test / Acceptance.** GUI-only (no calc change); full suite green (422 passing,
+`ruff` clean). Verified the recompute against both shipped fixtures:
+`ga6_normal` → wing 3 / tail 13 / control 4 (body 0 — no fuselage-mass inputs,
+correctly empty); `concept_regional_jet` → wing 3 / body 4 / tail 13 /
+control 4. The page now displays the same distributions the Export page ships.
+
+**Key decisions.** Match the Export page exactly — recompute-from-inputs, never
+read a persisted result slice — so the two pages can never diverge. `LoadsResult`
+stays a valid schema type (the build functions still return those objects); only
+the never-constructed `Project.loads` *slice* is now unused by the GUI.
+
+---
+
 ## M1-10 — Documentation consistency sweep (docs, complete 2026-07-20)
 
 **Objective.** Retire the review's three documentation-inconsistency findings

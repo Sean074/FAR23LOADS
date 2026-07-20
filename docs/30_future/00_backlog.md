@@ -73,13 +73,6 @@ currently records the defective behavior as if it were the source.
 GUI and release-mechanics fixes from the review (G-numbers) plus the surviving
 Phase-G steps. GUI evidence: review §2 screenshots.
 
-### M2-1 — Loads Plots must recompute from the project (review G2)
-The page reads `Project.loads`, which no code path ever constructs — phase 5
-is permanently empty with instructions that cannot succeed. Recompute via
-`build_net_loads`/`build_body_loads`/`build_tail_chordwise` exactly as
-`export_report.py` does; delete the dead `if project.loads is not None`
-guarded writes across the five loads views.
-
 ### M2-2 — Navigation: show the whole workflow; link between pages (review G3+G6)
 `st.navigation(..., expanded=True)` so phases 3–6 (incl. Export) aren't hidden
 behind "View 10 more"; `st.page_link` in the dashboard checklist and in every
@@ -466,8 +459,6 @@ reaction matrix stays closure-/legible-cell-locked).
 
 - **M4-1** — fuselage body-load distribution carries an unreacted pitching
   couple (terminal Myy ≠ 0). **[Major]**
-- **M2-1** — Loads Plots page can never display results (`Project.loads` never
-  constructed). **[Major, GUI]**
 - **M4-7** — `sbeam_bridge` hardcodes a flat ×1.5 and ignores
   `ConditionResult.safety_factor` — **latent** (only LIMIT wing loads reach sbeam
   today), a double-factor trap for future ULTIMATE cases. **[correctness, latent]**

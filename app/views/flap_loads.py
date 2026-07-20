@@ -122,12 +122,6 @@ if "Slipstream factor" in vals:
     s3.metric(f"Slipstream BL band ({length_u})",
               f"{vals['Slipstream inboard BL']:.1f} … {vals['Slipstream outboard BL']:.1f}")
 
-if project.loads is not None:
-    project.loads.control_surface = [
-        r for r in project.loads.control_surface if not r.surface.startswith("flap")
-    ] + results
-    st.session_state["project"] = project
-
 st.download_button("Download flap loads (CSV)", sb.control_surface_csv(results),
                    file_name="flap_loads.csv", mime="text/csv")
 st.download_button("Download FORCE cards (sbeam)",

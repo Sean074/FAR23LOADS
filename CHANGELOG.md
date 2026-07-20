@@ -28,6 +28,17 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- **Loads Plots page now recomputes from the project (M2-1).** The Load-case
+  plotting page read `Project.loads`, a result slice **no code path ever
+  constructs** — so it was permanently empty behind an unsatisfiable "visit the
+  Analysis pages first" message. It now recomputes the wing/fuselage/tail/
+  control-surface distributions live from the inputs (`build_net_loads`,
+  `build_body_loads`, `build_tail_chordwise`, `build_aileron`/`build_flap`/
+  `build_tabs`) behind the same defensive wrapper the Export page uses, so the two
+  pages can never diverge. Removed the matching dead `if project.loads is not
+  None:` write-backs from the five Analysis views (fuselage/tail/aileron/flap/tab
+  loads). GUI-only; no calc change (422 tests green).
+
 - **Flap slipstream now uses takeoff power, not max-continuous (M1-9).**
   `flap._engine_power` preferred `max_cont_hp`; FAR 23.457(b) sizes the flaps-
   extended slipstream on **takeoff power** (Ref 1 p109; FAA User's Guide p14-2).
