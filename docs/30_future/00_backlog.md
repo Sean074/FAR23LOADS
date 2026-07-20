@@ -1,22 +1,19 @@
 # Backlog — Open Work & Development Plan
 
-The authoritative list of **open** items, restructured (2026-07-16) into **two
-priority phases**:
-
-- **Phase 1 — Make concept-loads development possible.** The minimum work that
-  turns concept mode from *wired-in-but-unproven* into a tool an engineer can
-  actually use to develop distributed loads for a beyond-FAR23 configuration.
-- **Phase 2 — Refinements & nice-to-haves.** Everything else, in priority order:
-  calc refinements, FAR23 printed-oracle backfills, export/tooling polish, fleet
-  and UI niceties.
+The authoritative list of **open** items, restructured (2026-07-20) around the
+**path to the first concept-loads release** — three release milestones (M1–M3),
+a post-release milestone (M4), the long-tail refinement list, and future
+directions. Items carry their prior backlog IDs and/or the 2026-07-19 project
+review IDs in parentheses for traceability
+(see [`PROJECT_REVIEW_2026-07-19.md`](../../PROJECT_REVIEW_2026-07-19.md)).
 
 The architectural rationale lives in
 [`../10_standard/PROJECT_GUIDE.md §7`](../10_standard/PROJECT_GUIDE.md); the
 per-module spec is [`PROGRAM_SPEC.md`](../10_standard/PROGRAM_SPEC.md); the
 Phase-C narrative (locked decisions, schema, concept-mode invariants) is
-[`01_concept_loads_plan.md`](01_concept_loads_plan.md); the Phase-D narrative
-(GUI restructure, locked decisions, page conventions) is
-[`02_gui_workflow_plan.md`](02_gui_workflow_plan.md).
+[`01_concept_loads_plan.md`](01_concept_loads_plan.md); the Phase-G narrative
+(GUI rework, locked decisions, page conventions) is
+[`03_gui_rework_plan.md`](03_gui_rework_plan.md).
 
 > **Lifecycle rule (hard requirement, per `CLAUDE.md`).** When an item here is
 > finished, in the **same session**: (1) **remove** it from this file, (2) **add**
@@ -32,405 +29,405 @@ a Streamlit page exists; the `Project` JSON schema is extended and round-trips i
 synced (`PROGRAM_SPEC.md`, `20_theory/00_theory_sources.md`, this backlog →
 history, `CHANGELOG.md`).
 
----
-
-## Current state (snapshot)
-
-**Shipped:** Phases 0–2, Phase-C **C0–C11**, Phase-D **D0–D8**, Phase-E **E1–E7**,
-and Phase-F **F1–F2** (2026-07-16). **All 22** Appendix-C programs are ported
-(ENGLOADS, WTESTIMA, WTONECG, WTENV, WINGGEOM, STRSPEED, MACHLIM, TAU, AIRLOADS,
-AIRLOAD4, FLTLOADS, SELECT, WINGINER, NETLOADS, TAILDIST, AILERON, FLAPLOAD,
-TABLOADS, ONENGOUT, LGFACTOR, LANDLOAD, BALLOADS) plus **2 modern modules** with no
-`.BAS` oracle (`configuration`, `body_loads`). Schema **`SCHEMA_VERSION = 23`**;
-385 tests pass; coverage ~92%. The FAR23 path is oracle-locked (Appendix A/B
-±0.1%); ONENGOUT and the LANDLOAD wheel table are closure-locked (no legible
-printed oracle). The GUI is the six-section loads-release workflow (Start →
-Airplane → Envelopes & Critical → Analysis → Loads Plots → Export).
-
-**Concept-mode reality (the reason Phase 1 exists).** Concept mode is broadly
-plumbed — `Project.is_concept` drives a concept branch in every load module, the
-UI flags concept results as "unverified extrapolation" everywhere, and the sbeam
-bridge implements wing/body/tail/control exports — but its **headline deliverable
-(per-component distributed loads for a beyond-FAR23 airframe) is only proven for
-the wing**. The one concept fixture (`examples/concept_heavy.project.json`,
-18,000 lb) defines a wing surface only; running it through `run_all_modules`
-fires 7 modules and **skips `net_loads`, `body_loads`, `taildist`,
-`aileron`/`flap`/`tab`, and all sbeam exports** for lack of tail/body/control /
-`configuration` inputs. Concept closure is tested for the wing only; there is **no
-true concept↔FAR23 identity test** (it is assumed via the GA oracle tests, not
-verified through the concept code path). Phase 1 closes exactly this gap.
-**Steps P1-1 and P1-2 shipped 2026-07-16** — a full-airframe concept fixture
-(`examples/concept_regional_jet.project.json`) now drives all 19 applicable modules
-including body/tail/control + the swept AIRLOAD4 branch, and
-`tests/test_concept_closure.py` (10 tests, 376 total now pass) asserts
-physics-closure per component (wing lift = n·W, tail balances the pitching moment,
-body free-free equilibrium, TAILDIST↔SELECT split, control build↔run, and clean
-sbeam export). **Steps P1-3 (identity test), P1-4 (export API) and P1-5 (gyro
-guard + warn) shipped 2026-07-16 — Phase 1 is now complete.**
-
-**Remaining suite programs (0):** all 22 ported.
+> **Invariant (unchanged):** no calc-math change to the FAR23 path *except* the
+> reviewed correctness fixes in M1, each of which lands with its own printed-
+> oracle or listing-traceable test; Appendix A oracles pass throughout; concept
+> mode reduces exactly to FAR23 on GA inputs; ultimate-load output rules hold;
+> `workflow.py` stays the single source of navigation truth.
 
 ---
 
-# Phase 1 — Make concept-loads development possible (priority)
+## Current state (as of 2026-07-20)
 
-**Goal.** An engineer can define a beyond-FAR23 configuration, run the *full*
-airframe (wing + body + tail + control surfaces) through concept mode, trust the
-result via physics-closure checks, and export every component to sbeam — with the
-FAR23 oracle still intact. Steps are in dependency/priority order.
+All 22 Appendix-C programs are ported plus 2 modern modules (`configuration`,
+`body_loads`). Phases 0–2, C, D, E, F, Phase 1, and Phase G Steps G0–G6b are
+complete (see history). The full suite is green (see CI for the current count;
+401 passed at the 2026-07-20 snapshot, ~92% coverage), the FAR23 GA path is
+Appendix-A oracle-locked, and the full-airframe concept fixture
+(`examples/concept_regional_jet.project.json`) runs all 19 applicable modules
+end-to-end through the concept branch with physics-closure tests.
 
-> **Invariant (unchanged):** no calc-math change to the FAR23 path — Appendix A/B
-> oracles pass unmodified; concept mode reduces exactly to FAR23 on GA inputs.
-
-### Step P1-1 — A full-airframe concept reference fixture — **shipped 2026-07-16**
-Added `examples/concept_regional_jet.project.json` (RJ-50 concept — swept-wing,
-high-subsonic twin-turbofan regional jet, MTOW 33,000 lb, `category="C"` / Part 25).
-It drives **all 19** applicable modules — the first fixture to reach `body_loads`,
-`taildist`, `aileron`/`flap`/`tab`, and the swept `AIRLOAD4` branch. Building it
-surfaced and fixed a real `io` gap (`sweep_deg`/`design_mach` were never
-serialized). Guarded by `tests/test_concept_regional_jet.py` (4 tests). See
-`40_history/00_completed_development.md` → "Phase 1 — Step P1-1". *Follow-ons kept
-open: closure validation is P1-2; the aft-fuselage engine layout is modelled as
-`2W` (the suite has no aft-fuselage `EngineLayout` — sketch limitation, noted).*
-
-**Phase 1 is complete** — Steps P1-3 (concept↔FAR23 identity test), P1-4 (export
-package public API) and P1-5 (concept engine gyroscopic guard + warn) all shipped
-2026-07-16; see `40_history/00_completed_development.md`. The remaining suite work
-is the Phase 2 refinements below and the Phase G GUI rework.
+The **2026-07-19 project review** (five parallel passes: two technical vs the
+reference PDFs, GUI-live, docs/naming, backlog/release) found the port
+essentially exact wherever a printed oracle exists, and a cluster of defects
+exactly where the oracle net has holes. Those findings are the core of M1/M2
+below. The review also settled the reference-authority hierarchy:
+**(1) `.BAS` listings + Appendix A printed output, (2) the User's Guide's CFR
+quotes (Jan-1994 text), (3) the Code manual's 1990 theory prose** — verify in
+that order; the two PDFs each contain errors the other corrects (VD-minimum
+prose vs 23.335; 23.361(c) pre-/post-Amdt-23-45 text; Nx sign).
 
 ---
 
-# Phase 2 — Refinements & nice-to-haves (priority order)
+# M1 — Correctness & traceability (release-blocking)
 
-Not blocking Phase 1. Listed most-valuable/least-blocked first; each closes under
-its own mini-step (history + changelog entry). Items marked ⛔ are **blocked on
-external reference material** and are lowest actionable priority.
+Calculation fixes from the review. Each is small, lands with a new oracle or
+listing-traceable test, and updates `00_theory_sources.md` where the doc
+currently records the defective behavior as if it were the source.
 
-### 2-1 — Unify `select_wing`/`one_engine_out` case identity (from D1)
-D1 mints wing `W-` ids on two independent, unlinked lists — `select_wing`'s
-`CriticalCondition`s and the `WingMassInput.cases` that actually drive
-WINGINER/NETLOADS — banded apart so they don't collide but are not the same case
-object; same gap between `one_engine_out`'s `VT-` id and `select_vtail`'s. Close by
-deriving `WingMassInput.cases` from `envelope.critical`'s wing conditions when not
-given (mirroring the fuselage/tail pattern) and linking `one_engine_out` to
-`select_vtail`'s `CriticalCondition` list, so each component has one case-ID
-authority end-to-end. Touches which case list WINGINER/NETLOADS iterate → needs an
-oracle re-check. *(Traceability integrity; unblocked.)*
+### M1-1 — VD floor: enforce `K_d · VCmin` (review T1, was 2-13(a)) **[Critical]**
+`structural_speeds.py` computes `vd = max(chosen_vd, 1.25·VC)` and reports
+`K_d·VC` as "recommended". `STRSPEED.BAS` (Ref 1 p265–267: `V2DMIN=K2*V1CMIN`,
+enforced at lines 380/390) and FAR 23.335(b)(2) (User's Guide p46) require
+**both** minimums: `VD ≥ max(K_d·VCmin, 1.25·VC)`. With no chosen speeds the
+Appendix A Cat-N case (p155) prints VDmin **198.53 kt**; the code returns
+**177.26** — 10.7% non-conservative, propagating into MACHLIM and every
+downstream case at VD. The chosen-speeds case (p156) masks it, which is why the
+0.2.0 baseline missed it. **Fix:** `vd_min = max(kd*vc_min, 1.25*vc)`; rename
+the reported advisory to `K_d·VCmin`; add the p155 no-chosen-speeds oracle test;
+correct `00_theory_sources.md:59` (it currently documents the Code-manual
+prose error, not the BASIC). Also close the remainder of old 2-13: (b) the
+optional CLmax→stall-speed input path (User's Guide p7-5) — add or record as
+out of scope.
 
-### 2-2 — Per-CG precise inertia in SELECT (from C6)
-`Project.mass` is persisted (WTONECG), but SELECT's checked-maneuver `Iyy` and
-v-tail `IZZ` still use the Ch 9 approximations (which match the oracle). Wire the
-persisted per-CG inertia. *(Unblocked calc refinement.)*
+### M1-2 — BAL 1.4VSF: balance at 1.4× the 1-g flaps-down stall (review T2) **[Critical]**
+`flight_envelope.py` `_flap_config_points` captures the **STALL 2G** speed and
+runs BAL 1.4VSF at 1.4× that; `FLTLOADS.BAS` (p300–302) saves the **STALL 1GL**
+speed. Verified vs Appendix A p178 case 9 (landing-config polynomials printed
+on p176): oracle V 83.6 kt / LT −430 lb vs code 116.0 kt / −957 lb — balancing
+tail load 2.2× too large, contaminating SELECT and export. **Fix:** balance at
+1.4× the STALL 1GL speed; add the p178 landing-config rows as oracle tests
+(this also partially unblocks old 2-6 — the "real landing-config aero
+polynomials" *are* printed at p176); correct the 0.2.0 baseline note claiming
+they aren't in the repo.
 
-### 2-3 — V-tail large-deflection factor `EFV` → SELECT backfill (from C6/C9)
-The legible large-deflection chart (Dommasch fig 12:3) lives in
-`_vtail.large_deflection_factor` (recovered for ONENGOUT). SELECT's static v-tail
-rudder load still uses `VTailLoadsInput.rudder_large_deflection_factor` (default
-1.0); wiring the recovered curve into `_vt_rudder_load` was proposed as a ~1% shift.
-**⚠️ Not a simple wire-in — the naive fix breaks the oracle (investigated
-2026-07-16).** `large_deflection_factor(defl=30°, SR/SV=5.236/14.84=0.353) = 0.53`,
-*not* ~1.009 — applying it the way the elevator applies `_ef` would drop the printed
-SUDDEN RUDDER load from ~586 lb to ~312 lb (−47%), shattering the Appendix A **591 lb**
-oracle (`test_critical_vtail_loads_match_appendix_a`). The elevator chart *does*
-reduce its load (EF≈0.84 at 10°) and matches its oracle, so the manual clearly does
-**not** apply the same large-deflection alleviation to the 23.441 sudden-full-rudder
-limit case — the manual's rudder factor is ~1.0. **Reopen only after** re-reading
-`SELECT.BAS` subroutines 8300/10000 to establish exactly what quantity the rudder
-`EFV` multiplies (and on which deflection variable); the current default-1.0
-pass-through lands within the oracle's 1.5% band and should stay until that is
-pinned down. *(Unblocked but needs source re-read, not a code change.)*
+### M1-3 — AIRLOAD4 sweep: restore the renormalization step (review T4) **[Major]**
+`airloads.py` `_apply_sweep` subtracts the Pope sweep term but omits
+AIRLOAD4.BAS's renormalization (COL19→COL20 divide), so integrated CL falls to
+0.940 at Λ=20°, 0.866 at Λ=30° — swept concept wings lose 6–13% of lift,
+non-conservative on exactly the flagship concept case. **Fix:** rescale the
+additive distribution back to the operating CL; add a closure assert
+(`recovered_cl ≈ target_cl` for Λ≠0) to the concept-closure suite; fix the
+docstring's Pope citation (it cites the method while omitting its final step).
 
-### 2-4 — sbeam stick model: real stiffness + assembled airframe (from C4)
-The stick model uses **nominal placeholder** structural properties
-(`_MAT1_E = 1.0e7`, aluminum-ish; fine for a determinate reaction check, not a
-real sizing) and exports each component as a **disjoint GID block** (wing 1+,
-body 1001+, tail 2001+, control 3001+) — there is no assembled airframe model.
-Add real/parametric section properties and an assembled combined-airframe export.
-**Granularity (D-7, decided 2026-07-16): both — load-cards-only stays the default
-(splice into a user's existing sbeam model); the assembled-airframe stick model is
-opt-in behind an explicit flag.** *(Concept-adjacent tooling; unblocked.)*
+### M1-4 — 23.427 unsymmetrical tail: restore the full candidate set (review T6) **[Major — decided 2026-07-20: restore BASIC behavior]**
+`select.py` filters `"UNCHECKED"` out of the 23.427 candidate search;
+`SELECT.BAS` (lines 6025–6070) loads all 12 conditions including both unchecked
+maneuvers, and 23.427 combines with "the loads prescribed in 23.421 **through**
+23.425". The unchecked maneuver is frequently the largest H-tail load —
+excluding it is non-conservative and was an undocumented deviation. **Fix:**
+include the unchecked conditions, matching the BASIC; regression-test against
+the Appendix A unsymmetrical rows; while there, check the RH-side sign
+convention (BASIC signs by the case's balancing load `SGN(LT(HZCASE))`).
 
-### 2-5 — sbeam VLM cross-check — *out of scope (D-3, 2026-07-16)*
-Building the optional sbeam-VLM backend to independently validate concept Schrenk
-distributions is **out of scope** (decided 2026-07-16). Concept aero stays
-validated by physics-closure checks + fleet plausibility (per invariant C-2 / the
-Phase-C validation strategy), not an independent VLM. Revisit only if closure
-proves insufficient in practice.
+### M1-5 — One-engine-out 23.367(a)(2) case: `safety_factor = 1.0` (review T7)
+The "VC (ultimate)" condition carries the default SF 1.5 although 23.367(a)(2)
+loads are defined as ultimate (both references agree) — the export double-
+factors it. One-line fix + test on the rendered units string.
 
-### 2-6 — Flaps-extended tail loads: aero + printed oracle (from C6/C7)
-R3/R4 (flapped V-n envelope + flaps-extended balancing/gust) and TAILDIST's 13
-horizontal / 4 vertical chordwise rows are **closure-validated**, but the
-SELECT→TAILDIST pipeline emits only the 9 flaps-retracted horizontal conditions.
-Matching the printed Appendix A flaps-extended cases (81/106/88/108) needs the real
-landing-config aero polynomials and the CG5–7 loadings added to the fixtures.
-*(Partially blocked: needs landing-config aero data.)*
+### M1-6 — VC/VD coefficient clamp at W/S ≥ 100 (review T9)
+`constants.py` keeps tapering K1/K2 past W/S = 100; FAR 23.335 and
+STRSPEED.BAS clamp at 28.6 / 1.35. Inert for GA, non-conservative for the
+heavy-concept band this tool targets. Two-line fix + boundary test.
 
-### 2-7 — Distinct Commuter category (from E)
-The commuter tier (19,000 lb / 19-seat) is encoded in `constants.py` but not fully
-landed as a category split out of the merged "Normal / commuter". Non-blocking;
-revisit when a concept needs the intermediate certificated tier represented
-cleanly.
+### M1-7 — Aft-gross ballast reference point (review T8)
+`weight_envelope.py` uses the full discretionary loading as the aft-gross
+reference; the manual's hand calc (Ref 1 p28) uses the heaviest loading **not
+exceeding gross** (3322 lb → 78 lb @ 103.7). The module returns 0 lb on the
+manual's own database while its docstring claims the 78/418/158 match. Mirror
+the `reg_cands` "≤ gross" logic; test against the p28 triple.
 
-### 2-8 — Aero-coefficient curve plot (declined in E, decision revised include)
-A CL–α / drag-polar / CM plot on Aerodynamic Data (with the recovered-CL closure
-check) was reviewed and **not selected** (2026-07-15). Revisit if
-coefficient-entry errors prove common. Revisit not do.
+### M1-8 — AIRLOAD4 Mach threshold 0.4 vs 0.5 (was 2-14) *(verify)*
+`airloads.py:73` triggers the swept/high-Mach branch at `design_mach > 0.4`;
+the User's Guide says **0.5** (§9.1, §10.1). Verify vs Ref 1 Ch 12 /
+AIRLOAD4.BAS; if 0.4 is unsourced, change `_AIRLOAD4_MACH` to 0.5, else
+document the conservatism. (The 15° sweep trigger matches.)
 
-### 2-9 — Fleet-data curation — *deferred, fleet is fine as-is (D-4, 2026-07-16)*
-The current fleet (F1 set: 29 aircraft + `aspect_ratio`) is **sufficient for now**
-(decided 2026-07-16). No further comparator additions, extra columns
-(`cruise_kt`/`range_nm`/`service_ceiling`/`category` tag), or in-UI user-supplied
-rows are planned. Revisit if a concept design needs peers the current set doesn't
-cover (e.g. when the D-1 regional-jet fixture wants transport-class comparators).
+### M1-9 — FLAPLOAD slipstream power: takeoff HP (was 2-15; review confirms) *(verify → fix)*
+`flap.py` prefers `max_cont_hp`; FAR 23.457(b) specifies **takeoff power** and
+the review confirmed both PDFs quote it (Ref 1 p109; UG p14-2; FLAPLOAD.BAS's
+"MAX HP OF ONE ENGINE" prompt is the only ambiguity). Prefer `takeoff_hp`;
+keep the Appendix A oracle (which used 250 hp) passing.
 
-### 2-10 — FAR23 printed-oracle backfills ⛔ *blocked on reference material*
-Lowest actionable priority — all blocked on a legible source that is **not in the
-bundled `reference/FAR23 loads (1).pdf`**. Close each as a mini-step if a legible
-Appendix B / `.OUT` file surfaces:
-- **AIRLOAD4 swept spanwise printed oracle (C7)** — swept branch is
-  reduction-/closure-validated; a printed Appendix B swept spanwise table needs
-  the twin fixture (D-5).
-- **ONENGOUT printed twin oracle (C9)** — closure-/sub-formula-locked; Appendix B
-  one-engine-out tables are absent from the bundled PDF.
-- **LANDLOAD printed wheel-load oracle (C10)** — LGFACTOR + gear intermediates are
-  oracle-locked, but the printed Appendix A wheel-load table (p231–233) is
-  OCR-garbled; the 24-main/33-nose reaction matrix and datum loads
-  (PITCHP/ROLLP/YAWP) are closure-/legible-cell-locked.
-- **Appendix B twin fixture** (D-5) — the shared blocker for the swept and ONENGOUT
-  oracles; the engine module's Appendix-B turboprop case is encoded inline in
-  `tests/test_engine.py`, not as a project file.
-
-### 2-11 — Naming decision — *keep "FAR23LOADS" for now (D-6, 2026-07-16)*
-Resolved 2026-07-16: **keep the "FAR23LOADS" name** for now. No rename or
-concept-loads sub-brand. Revisit if/when the concept scope becomes the primary
-identity of the tool.
-
-### 2-12 — Ground-case distributed fuselage (and wing) loads *(calc-side; split from Phase G, 2026-07-16)*
-**Objective.** Extend the fuselage (and wing) net-load distribution so it runs for
-**ground/landing** conditions, not just flight conditions, and add the pressurized
-no-down-select rule.
-**Why.** `body_loads` today distributes over **flight** V-n conditions only
-(`select_fuselage` scores `VnPoint`s); the landing path (LGFACTOR + LANDLOAD)
-produces **gear reaction loads** only — there is no distributed fuselage shear/
-bending from ground cases. For **pressurized** airplanes the pressurization load
-must be assessed for flight and **cannot** be down-selected by a ground case, so the
-two families must be carried separately.
-**Scope.** New: a ground-case fuselage inertia/reaction distribution (gear reactions
-as applied external loads on the body axis at the landing load factor from
-LGFACTOR); optionally the wing distribution under the ground reaction; a
-pressurization load case that is never down-selected against flight. **Substantial
-calc work** — the heaviest piece of the GUI rework, deliberately split out so it
-does not gate the usability restructure.
-**Acceptance.** A ground condition produces a distributed fuselage shear/bending run
-(free-free equilibrium closes); the pressurized case is retained independent of the
-governing flight case; FAR23 flight oracles unchanged. **Priority:** after Phase G's
-usability work (G0–G8) unless raised.
-Source narrative: `03_gui_rework_plan.md` §5 item (3).
+### M1-10 — Documentation consistency sweep (review D1–D3)
+(a) **Reference filenames:** 17 citations across 8 docs point at
+`reference/FAR23 loads (1).pdf` / `ADA324952.pdf`; the actual files are
+`FAR23Loads_Code.pdf` / `FAR23Loads_UserGuide.pdf`. Global find-and-replace.
+(b) **README/CLAUDE.md currency:** schema/test counts and the two-generations-
+stale nav description ("4-phase sidebar"); stop baking hard counts into prose —
+point at CI/CHANGELOG. (c) **Appendix-B status:** one canonical statement
+("Appendix A oracle-locked; Appendix B absent from the bundled PDF; these
+modules closure-locked") linked from README/PROGRAM_SPEC/theory doc instead of
+the current contradiction. (d) Move the approved-corrections **register of
+record** from `CLAUDE.md` into `docs/20_theory/` (CLAUDE.md links to it), and
+add the User's Guide §17.2.1 (post-1994 CFR text) citation to
+`engine_loads.md` as further corroboration of the 23.361(c) correction.
 
 ---
 
-## User's Guide fidelity review findings (2026-07-16)
+# M2 — Usability & robustness (release-blocking)
 
-A full pass of the **FAA User's Guide** (DOT/FAA/AR-96/46) against the ported
-modules. Load *magnitudes* are all oracle-locked and correct; these are citation,
-data-flow-provenance, and optional-capability gaps. **Reference 1 / the `.BAS`
-source is the primary oracle** — the "verify vs `.BAS`" items must be checked
-against it before any code change (the User's Guide is the secondary operational
-reference). Already-tracked overlaps: v-tail EFV → **2-3**; flaps-extended tail →
-**2-6**; commuter category / VB gust → **2-7**; per-CG inertia / WTONECG 4-point
-loading set → **2-2**; case identity → **2-1**. Shipped from this review: the
-TAILDIST per-condition citation fix (CHANGELOG `[Unreleased] → Fixed`, 2026-07-16).
+GUI and release-mechanics fixes from the review (G-numbers) plus the surviving
+Phase-G steps. GUI evidence: review §2 screenshots.
 
-### 2-13 — STRSPEED: VD floor basis + optional CLmax→stall-speed path
-Two items in `structural_speeds.py`. (a) **VD floor** is computed as
-`K_d·(chosen VC)` (`:147-149`); 23.335(b)(2) reads `K_d·VCmin`. For the GA6 case
-(chosen VC 170 vs VCmin ≈142) the code is conservative (~238 vs ~198) but not the
-reg text, and `vd_recommended` is untested — *verify vs STRSPEED.BAS*, then either
-switch to `vc_min` or document the deviation. (b) **No CLmax→VS path** — the guide
-(p7-5) lets the user enter CL-w/CL-f and computes stalling speed; the port only
-accepts stall speeds directly (`StructuralSpeedsInput.stall_*_kt`). Add the optional
-CLmax stall-speed calc or record it as intentionally out of scope.
-*(Citation-verify + optional capability; unblocked.)*
+### M2-1 — Loads Plots must recompute from the project (review G2)
+The page reads `Project.loads`, which no code path ever constructs — phase 5
+is permanently empty with instructions that cannot succeed. Recompute via
+`build_net_loads`/`build_body_loads`/`build_tail_chordwise` exactly as
+`export_report.py` does; delete the dead `if project.loads is not None`
+guarded writes across the five loads views.
 
-### 2-14 — AIRLOAD4 auto-select Mach threshold (0.4 vs User's Guide 0.5)
-`airloads.py:73` triggers the swept/high-Mach branch at `design_mach > 0.4`; the
-User's Guide states **0.5** (§9.1 and §10.1, both). *Verify vs Reference 1 Ch 12 /
-AIRLOAD4.BAS* — if 0.4 is not sourced there, change `_AIRLOAD4_MACH` to 0.5, else
-document the conservatism. The 15° sweep trigger matches. *(Threshold-verify;
-unblocked.)*
+### M2-2 — Navigation: show the whole workflow; link between pages (review G3+G6)
+`st.navigation(..., expanded=True)` so phases 3–6 (incl. Export) aren't hidden
+behind "View 10 more"; `st.page_link` in the dashboard checklist and in every
+"go set X first" gating message; fix the stale page names in those messages
+("Wing Geometry", "Configuration & Layout").
 
-### 2-15 — FLAPLOAD slipstream power: takeoff vs max-continuous HP
-`flap.py:163` (`_engine_power`) uses `max_cont_hp or takeoff_hp` (prefers
-max-continuous); FAR 23.457(b) specifies the slipstream at **takeoff power**.
-*Verify vs FLAPLOAD.BAS* (the input label "Max HP of One Engine" is ambiguous, the
-reg is not); prefer `takeoff_hp` if the source agrees. *(Citation-verify;
-unblocked.)*
+### M2-3 — Dirty flag: move on-render writes into Apply handlers (review G4)
+`structural_speeds.py` and `flight_envelope.py` (views) write to the project on
+render, so "Unsaved changes" trips with zero user edits and the discard-confirm
+dialog fires spuriously. Move the writes into the submit handlers; add a test
+that a render pass leaves the project hash unchanged.
 
-### 2-16 — FAR citation cleanups (labels only, no load change)
-- ~~**WTONECG** cites `23.21/23.23`~~ — **done 2026-07-16**: changed to
-  **`23.23/23.29`** (load-distribution limits + empty weight & corresponding CG, the
-  quantities WTONECG computes).
-- ~~**FLTLOADS** `_FAR` omits **23.345**~~ — **done 2026-07-16**: added, now
-  `23.333/23.337/23.341/23.345/23.421`. 23.373 still excluded until the enroute
-  config exists (see 2-19).
-- **SELECT** v-tail SIDE GUST labelled `23.443(b)` — **reviewed 2026-07-16, keep as
-  is.** The primary oracle grounds it: `00_theory_sources.md` and `SELECT.BAS` subr
-  8300 attribute the Kgt/Ude gust-load *formula* the code implements to **23.443(b)**;
-  the User's Guide's 23.443(a) is the looser general-requirement reference. Changing
-  it would contradict the manual and break `test_select.py`/`test_taildist.py`.
-  *(Resolved — no change.)*
+### M2-4 — Results Review header tables: units, ULT marking, SF (review G5)
+The "Governing loads (SELECT)" tables drop `LoadValue.units` and the mandatory
+`-ULT`/SF marking and print literal "None" in sparse cells — on the page whose
+job is consolidated deliverable loads. Render units+ULT in headers (as Wing
+Loads does), SF column, "—" for absent values.
 
-### 2-17 — ONENGOUT data-flow + scope
-(a) **V-tail geometry provenance:** Table 2.2 sources ONENGOUT's v-tail area / AR /
-rudder area from **WINGGEOM**, but `one_engine_out.py:275-300` reads a separate
-`Project.vtail_loads` slice and never `Project.geometry`. Either derive `vtail_loads`
-from geometry or document the slice as the intended source (same class of GUI-
-mediated feed as FLTLOADS←WTONECG). (b) **Turbopropeller scope (23.367):** `run`
-gates only on slice/engine presence, not `is_turboprop` — it will run for a
-reciprocating multi. Add a gate or a caption. *(Data-flow + guard; unblocked.)*
+### M2-5 — Aircraft Comparison: surface-planform fallback + phase move (review G7)
+The subject aircraft shows "None" for W/S, span, area with the shipped examples
+(reads the parametric layout; examples carry `geometry.surfaces`). Fall back to
+surface-derived values; move (or link) the page into the Develop phase — the
+fleet check belongs at definition time, not after Export.
 
-### 2-18 — AIRLOADS: airplane-less-tail coefficient generation (User's Guide windows 4/6/8)
-The guide's AIRLOADS also computes the airplane-less-tail CL/CD/CM polynomials —
-fuselage/nacelle pitching-moment (window 6), landing-gear aero (window 8), and
-per-station stall CL (window 4). None of these inputs exist in `AeroSurfaceInput`;
-the coefficients are entered by hand as `AeroCoeffSet` (documented in
-`flight_envelope.py`/`airloads.py`). *Documented scope gap* — implement the
-coefficient generator or keep as a tracked future step. *(Medium; unblocked but
-large.)*
+### M2-6 — Step G6c — Geometry single-source cleanup (wing + fuselage tightening)
+Close the remaining softer geometry double-entry surfaced by the G6 audit.
+**Wing:** `FlightLoadsInput.mac`/`wing_area_sqft`/`xw`/`zw`,
+`WingMassInput.dihedral_deg`/`wrp_waterline`, `LandingInput.wing_area_sqft`
+become pure read-throughs from `Project.geometry`, override only behind an
+explicit checkbox (STRSPEED's design-weight pattern). **Fuselage:** the
+`GeometryInput.fuselage` outline is the sole shape source; the scalar
+`LayoutInput` length/width/height present as a derived summary.
+**Acceptance:** no wing/fuselage geometric quantity stored as an independently
+editable copy without an override toggle; fixtures/oracles unchanged;
+save→reload no-op.
 
-### 2-19 — FLTLOADS enroute / speed-control config (FAR 23.373)
-The guide's FLTLOADS models a third config — **enroute** (partial flaps / dive
-brakes / spoilers, window 2 + windows 7-8) with a dedicated **VPF** speed
-(§11.2.3, 23.373). The port builds only cruise + flaps-down. Add an enroute
-`AeroCoeffSet` + VPF, or document the omission (and only then add 23.373 to the
-citation string per 2-16). *(Medium; unblocked.)*
+### M2-7 — Step G7 — Persistence verification (G-3)
+Verify every input-bearing value lives on a `Project` slice `io.py` round-trips
+(no input-only `st.session_state`); drive save→reload on each example project
+(now at schema 28) and diff. **Acceptance:** save→reload of every example is a
+no-op; no input page holds input data outside `st.session_state["project"]`.
 
-### 2-20 — WINGINER Table 15.1 output completeness
-Table 15.1 lists `THETADOT` (pitch-velocity rate) and a separate incremental
-torsion `DMYY`; `wing_inertia.py` emits neither (only vertical/drag/roll unit cases
-and cumulative `myy`). *Confirm vs WINGINER.BAS* whether a pitch-acceleration case
-is expected; surface `DMYY` if a per-strip incremental column is wanted.
-*(Low; reporting completeness.)*
+### M2-8 — Landing default CG derivation (review, landing minor)
+`landing._cg_cases` derives "aft max landing" and "fwd max landing" from the
+**same** heaviest mass case — the fwd/aft distinction is degenerate and
+nose-gear/braked-roll loads are under-predicted unless explicit `cg_cases` are
+given (UG fig 18.2 uses three distinct loadings). Derive fwd/aft stations from
+the WTENV structural envelope, or refuse to auto-derive and require explicit
+`cg_cases`; also consider the 23.473(g) floors (N ≥ 2.67, NLG ≥ 2.0) as a
+warning note in concept mode.
 
-### 2-21 — Minor UX / reporting parity with the User's Guide
-Batch of low-severity items: **ENGLOADS** captures `prop_blades` (NOBLADES, a
-required guide input) but never uses it — wire into the blade-inertia approximation
-or mark descriptive-only; **AILERON** silently coerces a positive up-deflection
-(`aileron.py:73`) where the guide errors — document the coercion; **WTONECG** omits
-YBAR (=0 for a symmetric airplane) from the CG output; **TAILDIST** implements only
-the average-chord distribution, not the guide's "distributed on N station chords"
-analyses (Figs 20.7-20.10). *(Low; unblocked.)*
+### M2-9 — `scripts/smoke_test.sh` portability
+Hardcodes `.venv/bin/*`; fails on any machine that installs differently. Use
+`python -m` invocations / the active interpreter.
+
+### M2-10 — Input data dictionary + short GUI user guide (review D4, part 1)
+(a) A `project.json` **data dictionary** — field, type, units, default, owning
+page, consuming modules — generated from the dataclasses (the schema is 28
+versions deep and the only reference is `models.py`). (b) A **5–10 page GUI
+user guide**: the workflow phases, what to enter where, the seed chain,
+LIMIT-vs-ULTIMATE reading rules, one end-to-end `ga6_normal` walkthrough with
+three or four hand-checkable numbers (the data already exists in the 0.2.0
+verification baseline — it needs narrative).
 
 ---
 
-# Phase G — Workflow-aligned GUI rework (usability)
+# M3 — Cut the release: **sloads 0.3.0** (concept-loads v1)
 
-**Goal.** Turn the mature-but-clunky six-section GUI into a **workflow-aligned**
-tool: geometry owned in one place, one unit per dimension app-wide, persistent
-(no re-entry), navigation re-sequenced to the FAR 23 analysis flow — reusing the
-shipped Phase D/E/F pages rather than rebuilding them. Narrative, assessment vs.
-the current code, and locked decisions **G-1…G-4** are in
-[`03_gui_rework_plan.md`](03_gui_rework_plan.md); the six analysis-flow **workflow
-sections** it targets are that doc's §4.
+### M3-1 — Rename: FAR23LOADS → **sloads** (supersedes D-6; decided 2026-07-20)
+**Full rename** — repo folder, Python package/import (`farloads` → `sloads`),
+CLI command, GUI title/brand, README H1, pyproject name (PyPI `sloads` is
+unclaimed, verified 2026-07-20). Rationale: (1) "FAR 23 LOADS" is the exact
+name of a commercial product currently marketed by McGettrick Structural
+Engineering / DARcorporation (see `reference/FAR-23-Loads-Brochure-2023.pdf`) —
+an open reimplementation must not adopt that mark as its title; (2) the tool's
+identity is a **concept development tool** extending beyond FAR 23 (concept
+mode, Part 25 supplemental cases, sbeam handoff, later OpenVSP interfaces);
+(3) `sloads` joins the family of **sbeam** and **smodal** ("s" = simple /
+Sean). **Attribution stays prominent:** describe the heritage as a modern open
+replication of the FAR23 loads suite, citing the very public FAA/DOT report
+**DOT/FAA/AR-96/46** (User's Guide for FAR23 Loads Program, 1997) and the
+Hal C. McMaster CAE manual, with an explicit **non-affiliation** sentence
+naming McGettrick Structural Engineering and DARcorporation.
+**Acceptance:** one name everywhere (grep for `farloads`/`FAR23LOADS`/"FAR 23
+LOADS" finds only the historical-attribution passages); imports/CLI/tests
+green; docs and examples updated; disclaimer present in README and the GUI
+footer/About.
 
-> **Invariant (unchanged):** no calc-math change to the FAR23 path — Appendix A/B
-> oracles pass unmodified throughout; ultimate-load output rules hold; pure calc /
-> thin shells; `workflow.py` stays the single source of navigation truth.
+### M3-2 — Release cut per `RELEASE_PROCESS.md`
+Version 0.3.0; date and cut the (currently ~3-phases-deep) `[Unreleased]`
+changelog; refresh the verification baseline as
+`40_history/02_verification_baseline_0.3.0.md` **including the new M1 oracle
+rows** (p155 VD, p178 landing-config, sweep closure, 23.427 set) and a
+one-page **oracle-vs-closure status table**; run the fixed smoke test; tag.
 
-Steps are in dependency order. G1 (foundational) comes before the
-re-sequencing (G2–G3); the new features (G4–G6, plus the single-source geometry
-sibling G6c) and the report (G8) follow.
-**G0, G1, G2, G3, G4, G5, G6 and G6b shipped 2026-07-18/19** (see `docs/40_history/00_completed_development.md`).
+### M3-3 — *Stretch:* Step G8 — Summary report (Export phase)
+The consolidated four-section loads report (`03_gui_rework_plan.md` §4 Phase 6):
+input summary; envelope plots (V-n, weight/CG, speed/altitude); conditions +
+FAR coverage; results summary (VMT wing/fuselage, control/flap, gear, engine).
+All load figures ULTIMATE with SF. **Include a methods/limitations statement
+stamped into the exported deliverables** (CSV/BDF/report) so downstream sizing
+inherits the concept-mode caveat the UI already shows. Ships with 0.3.0 if M1/M2
+go fast; otherwise first item of M4.
 
-### Step G6c — Geometry single-source cleanup (wing + fuselage tightening)
-**Objective.** Close the remaining softer geometry double-entry surfaced by the G6
-audit, so *all* geometric inputs are single-source (geometry owns; analysis derives).
-Smaller and lower-risk than G6/G6b (these are read-through-with-override today, not
-silent divergence), batched into one cleanup step.
-**Scope.**
-- **Wing.** Make the wing geometry the analysis slices already *default* from a **pure
-  read-through**: `FlightLoadsInput.mac`/`wing_area_sqft`/`xw`/`zw`
-  (`app/views/flight_envelope.py:113-116` re-asks with geometry defaults) and
-  `WingMassInput.dihedral_deg`/`wrp_waterline` (duplicate `LayoutInput.dihedral_deg`/
-  `root_waterline_z`) and `LandingInput.wing_area_sqft` (`models.py:940`, has a
-  geometry fallback) should derive from `Project.geometry`, override only behind an
-  explicit checkbox (the pattern STRSPEED already uses for design weight).
-- **Fuselage.** Treat the `GeometryInput.fuselage` outline as the sole shape source and
-  present the scalar `fuselage_length`/`width`/`height` (`LayoutInput`) as a derived
-  summary of it, so the two cannot drift when both are hand-edited. (`FuselageMassInput`
-  is a longitudinal *mass* distribution, native to the net-load analysis — left as-is.)
-**Acceptance.** No wing or fuselage geometric quantity is stored as an independently
-editable copy of a geometry-slice value without an explicit override toggle; existing
-fixtures/oracles unchanged (read-through preserves today's values); save→reload no-op.
+---
 
-### Step G7 — Persistence verification (G-3)
-**Objective.** Confirm the rework eliminated re-entry and hunt any genuine reload
-bug.
-**Scope.** Verify every input-bearing value lives on a `Project` slice `io.py`
-round-trips (no input-only `st.session_state`); drive save→reload on each example
-project and diff. Fix any real loss found **before** shipping the restructure.
-**Acceptance.** A save→reload of every example project is a no-op (no field resets);
-no input page holds input data outside `st.session_state["project"]`.
+# M4 — Post-release (next after 0.3.0, priority order)
 
-### Step G8 — Summary report (Export phase)
-**Objective.** Add the summary report described in `03_gui_rework_plan.md` §4 Phase 6:
-(1) input-data summary; (2) envelope plots (V-n, weight/CG, speed/altitude); (3)
-loads-analysis conditions + FAR coverage; (4) results summary (VMT wing/fuselage,
-control-surface/flap, landing gear, engine loads).
-**Scope.** Assemble from existing per-module results/plots + the case-index table;
-reuse `report.py`/`export_report`. All load figures ULTIMATE per the output rules.
-**Acceptance.** The Export phase produces a single consolidated report with the four
-sections; every load figure is `-ULT` with its `SF`.
+### M4-1 — Fuselage body loads: moment closure (review T5) **[Major]**
+`body_loads` applies a single vertical wing reaction and closes ΣFz only; the
+Ch 15 procedure (Ref 1 p103) reacts the unbalanced moment at the front/rear
+spar attachments (and includes the pitching load factor). Verified: terminal
+Myy ≠ 0 (the exported body set carries a net couple). Two-unknown spar-reaction
+solve; validate terminal Myy ≈ 0 in the closure suite. **Until fixed, body-load
+exports carry a caveat note** (add the note in M3 if this doesn't make 0.3.0).
+
+### M4-2 — Unify `select_wing`/`one_engine_out` case identity (was 2-1)
+One case-ID authority per component end-to-end: derive `WingMassInput.cases`
+from `envelope.critical` when not given; link `one_engine_out` to
+`select_vtail`'s `CriticalCondition` list. Touches WINGINER/NETLOADS iteration →
+oracle re-check required.
+
+### M4-3 — ONENGOUT data-flow + turboprop gate (was 2-17)
+(a) v-tail geometry provenance (`vtail_loads` slice vs `geometry`) — derive or
+document; (b) gate 23.367 on `is_turboprop` (or caption) so it can't silently
+run for a reciprocating/turbofan multi.
+
+### M4-4 — Per-CG precise inertia in SELECT (was 2-2)
+Wire the persisted WTONECG per-CG inertia into SELECT's checked-maneuver `Iyy`
+and v-tail `IZZ` (currently the Ch 9 approximations, which match the oracle).
+
+### M4-5 — Aero-coefficient curve plot (was 2-8; decided 2026-07-20: include)
+CL–α / drag-polar / CM plot on Aerodynamic Data with the recovered-CL closure
+check — catches coefficient-entry errors, which matter more for concept
+aircraft with hand-built polynomials.
+
+### M4-6 — Ground-case distributed fuselage (and wing) loads + pressurization (was 2-12)
+The heaviest open calc item. Ground-case fuselage inertia/reaction distribution
+(gear reactions as applied external loads at the LGFACTOR landing load factor);
+optionally the wing distribution under ground reaction; a pressurization case
+that is never down-selected against flight. **Acceptance:** ground condition
+produces distributed fuselage shear/bending with free-free closure; pressurized
+case retained independent of the governing flight case; FAR23 flight oracles
+unchanged. Source narrative: `03_gui_rework_plan.md` §5 item (3).
+
+---
+
+# Long tail — refinements & scope extensions (priority order)
+
+### L-1 — sbeam stick model: real stiffness + assembled airframe (was 2-4)
+Real/parametric section properties (today `_MAT1_E = 1.0e7` placeholder) and an
+assembled combined-airframe export. Granularity per **D-7**: load-cards-only
+default; assembled stick model opt-in behind a flag.
+
+### L-2 — Flaps-extended tail loads: printed oracle completion (was 2-6)
+M1-2 lands the p176 landing-config polynomials and the p178 oracle rows for the
+envelope; completing the SELECT→TAILDIST flaps-extended pipeline against the
+printed cases (81/106/88/108) still needs the CG5–7 loadings added to the
+fixtures. Also fold in the LEV LAND balanced point (Appendix A case 90, the
+sink-speed/attitude iteration `FLTLOADS.BAS` lines 3410–3600) — currently
+omitted from the flap corner set and undocumented (review minor).
+
+### L-3 — V-tail large-deflection factor EFV → SELECT (was 2-3) ⚠️
+**Not a simple wire-in — the naive fix breaks the 591-lb oracle by −47%**
+(investigated 2026-07-16: `large_deflection_factor(30°, 0.353)=0.53`, not
+~1.0). Reopen only after re-reading `SELECT.BAS` subroutines 8300/10000 to pin
+down exactly what quantity the rudder EFV multiplies. The default-1.0
+pass-through matches the oracle and stays until then.
+
+### L-4 — Distinct Commuter category + VB (was 2-7)
+The 19,000-lb/19-seat tier is encoded but dormant; neither VB (23.335(d)) nor
+the 66-fps rough-air gust (23.341) is computed anywhere (the BASIC suite
+predates commuter support too). Land as one step when a concept needs the tier.
+
+### L-5 — FLTLOADS enroute / speed-control config (was 2-19)
+Third config — enroute (partial flaps / dive brakes / spoilers) with VPF
+(UG §11.2.3, 23.373). Add an enroute `AeroCoeffSet` + VPF, or document the
+omission (only then add 23.373 to the citation string).
+
+### L-6 — AIRLOADS airplane-less-tail coefficient generation (was 2-18)
+The guide's windows 4/6/8 (fuselage/nacelle CM, gear aero, per-station stall
+CL) — implement the coefficient generator or keep as a tracked scope gap
+(coefficients are entered by hand today, documented).
+
+### L-7 — WINGINER Table 15.1 completeness (was 2-20)
+Confirm vs WINGINER.BAS whether a THETADOT pitch-acceleration case is expected;
+surface `DMYY` if a per-strip incremental torsion column is wanted.
+
+### L-8 — Minor UX / reporting parity batch (was 2-21, extended by review notes)
+ENGLOADS `prop_blades` captured but unused; AILERON positive-deflection
+coercion undocumented; WTONECG YBAR omitted; TAILDIST average-chord only (not
+the guide's N-station-chord variants, Figs 20.7–20.10). Plus review nits:
+V-n plot negative closure should show −1.0 at VD for U/A categories (loads are
+right; display only); chosen VA silently clamped to VC (BASIC only raises —
+warn instead); 190-lb occupant caption for U/A (23.25(a)(2)); MC-vs-MD Mach cap
+on cruise stall-line conditions (numerically inert; comment or match BASIC);
+dashboard "Schema version" metric and BASIC program names are developer-facing;
+save-filename sanitization; add `st.spinner` on the heavy recomputes; migrate
+off the deprecated `use_container_width`.
+
+### L-9 — FAR23 printed-oracle backfills ⛔ *blocked on reference material* (was 2-10)
+Close each as a mini-step **only if** a legible Appendix B / `.INP`/`.OUT`
+surfaces (see D-5): AIRLOAD4 swept printed spanwise table; ONENGOUT printed
+twin oracle; LANDLOAD printed wheel-load matrix (p231–233 is OCR-garbled — the
+reaction matrix stays closure-/legible-cell-locked).
+
+---
+
+# Future directions (not yet scoped — placeholders, much later)
+
+- **OpenVSP interface.** Geometry **import/export** (`.vsp3`/DegenGeom ↔
+  `GeometryInput`) and **aero import** (VSPAERO results as an
+  `AeroCoeffSet`/span-load source). Deliberately unscoped; note that an aero
+  import would also provide the natural cross-check whose absence D-3 accepted
+  (revisit D-3's "closure proves insufficient" trigger when this lands).
+- **Deeper sbeam integration** beyond L-1 (loads → sizing → updated
+  weights/stiffness loop), and eventual **smodal** hand-off.
+- **Additional load-case families** beyond the current FAR23 + Part 25
+  supplemental set, as concept needs dictate.
 
 ---
 
 ## Open design decisions requiring user input
 
-The decisions that gate or shape the work above. **D-1 and D-2 gate Phase 1**; the
-rest shape Phase 2.
+- [ ] **D-5 — Appendix B twin fixture (blocks L-9).** The swept (C7) and
+  ONENGOUT (C9) printed oracles want the 10-place twin turboprop as a fixture,
+  but Appendix B is **not in the bundled PDF**. *Can the user supply a legible
+  Appendix B or the original `.INP`/`.OUT` files?* Until then
+  `examples/twin_turboprop.project.json` can't be built and these oracles stay
+  blocked. **(Reviewed 2026-07-20: keep blocked as-is.)**
 
-- [x] **D-1 — The concept reference airplane (gates P1-1) — RESOLVED 2026-07-16:
-  regional jet.** A swept-wing, high-subsonic-Mach twin turbofan (MTOW well above
-  12,500 lb), chosen specifically to force the `AIRLOAD4` swept branch — the
-  least-covered concept path, furthest from any FAR23 oracle. Working starter
-  geometry recorded in Step P1-1; the exact scalars (MTOW, area, sweep, span, Mach,
-  seats) are confirmed/adjusted at build time. Phase 1 can now start.
-- [x] **D-2 — Concept engine gyroscopic rates (gates P1-5) — RESOLVED 2026-07-16:
-  guard + warn.** Keep the fixed FAR 23.371(b) rates (2.5 / 1 rad/s) as the default
-  stand-in, but add a guard that emits a note + UI warning when the concept's
-  implied or user-override rates exceed them, so the non-conservative case cannot
-  pass silently. Solving for real maneuver-derived rates (the fully-correct 25.371
-  path) is deferred — not built in P1-5. See Step P1-5.
-- [x] **D-3 — sbeam VLM cross-check (shapes 2-5) — RESOLVED 2026-07-16: out of
-  scope.** No sbeam-VLM validation backend. Concept aero relies on physics-closure
-  + fleet plausibility (invariant C-2). Revisit only if closure proves insufficient.
-- [x] **D-4 — Fleet-comparison curation (shapes 2-9) — RESOLVED 2026-07-16: fine
-  as-is.** The current 29-aircraft fleet is sufficient for now; no further
-  comparators, columns, or user-supplied rows planned. Revisit if a concept design
-  (e.g. the D-1 regional jet) needs transport-class peers the set lacks.
-- [ ] **D-5 — Appendix B twin fixture (blocks 2-10).** The swept (C7) and ONENGOUT
-  (C9) printed oracles want the 10-place twin turboprop as a fixture, but Appendix
-  B is **not in the bundled PDF**. *Can the user supply a legible Appendix B or the
-  original `.INP`/`.OUT` files?* Until then `examples/twin_turboprop.project.json`
-  can't be built and these oracles stay blocked.
-- [x] **D-6 — Naming (shapes 2-11) — RESOLVED 2026-07-16: keep "FAR23LOADS".** No
-  rename or sub-brand for now; revisit if concept scope becomes the tool's primary
-  identity.
-- [x] **D-7 — sbeam export granularity (shapes 2-4) — RESOLVED 2026-07-16: both,
-  assembled behind a flag.** Emit load-cards-only by default (splice into a user's
-  existing sbeam model); the auto-generated assembled-airframe stick model is opt-in
-  behind an explicit flag. See Step 2-4.
-- [x] **D-8 — Standalone vs project-only inputs — RESOLVED 2026-07-16: full
-  projects canonical.** Full-airplane project JSONs are the canonical input form;
-  per-module input slices are **derived** from them for tests, not maintained as
-  standalone example files.
+### Resolved decisions (record; full rationale in history / plan docs)
+
+| ID | Decision | Resolved |
+|----|----------|----------|
+| D-1 | Concept reference airplane = swept twin-turbofan regional jet (forces the AIRLOAD4 swept branch) | 2026-07-16 |
+| D-2 | Concept gyroscopic rates: keep 23.371(b) fixed rates + guard/warn on exceedance | 2026-07-16 |
+| D-3 | No sbeam-VLM validation backend; closure + fleet plausibility (revisit trigger: see OpenVSP note above) | 2026-07-16 |
+| D-4 | Fleet comparison set (29 aircraft) sufficient as-is | 2026-07-16 |
+| D-6 | ~~Keep "FAR23LOADS"~~ **Superseded → full rename to `sloads` at 0.3.0 (M3-1)** | 2026-07-20 |
+| D-7 | sbeam export: load-cards-only default; assembled stick model behind a flag | 2026-07-16 |
+| D-8 | Full-airplane project JSONs are the canonical input form; per-module slices derived | 2026-07-16 |
+| D-9 | 23.427 unsymmetrical search: restore the full SELECT.BAS candidate set incl. unchecked (M1-4) | 2026-07-20 |
+| D-10 | Aero-coefficient curve plot: include (M4-5) — supersedes the 2026-07-15 decline | 2026-07-20 |
+| D-11 | Backlog restructured to release milestones; rename ships with the release as **sloads 0.3.0** | 2026-07-20 |
 
 ---
 
-## Known defects
+## Known defects (open)
 
-- _(none open — the flight-envelope destructive slice overwrite was fixed in
-  Step D0 / release step R1, 2026-07-08; see
-  `40_history/00_completed_development.md` → Resolved defects.)_
-</content>
-</invoke>
+- **M1-1** — VD floor omits `K_d·VCmin` (non-conservative ~10.7% on the
+  no-chosen-speeds path). **[Critical]**
+- **M1-2** — BAL 1.4VSF balanced at the 2-g stall speed (tail load 2.2× the
+  Appendix A oracle). **[Critical]**
+- **M1-3** — swept-wing span load loses 6–13% of integrated lift
+  (missing renormalization). **[Major]**
+- **M4-1** — fuselage body-load distribution carries an unreacted pitching
+  couple (terminal Myy ≠ 0). **[Major]**
+- **M2-1** — Loads Plots page can never display results (`Project.loads` never
+  constructed). **[Major, GUI]**
+
+*(The Step-G6 half-migration breakage found by the 2026-07-19 review was
+resolved 2026-07-20 — suite green, concept fixture runs end-to-end; see
+history.)*

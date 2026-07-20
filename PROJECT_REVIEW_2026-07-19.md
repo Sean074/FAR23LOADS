@@ -1,18 +1,20 @@
 # FAR23LOADS — Critical Project Review
 
-**Date:** 2026-07-19 · **Reviewer:** Claude (Cowork session) · **Snapshot:** working tree staged ~11:52 EDT, re-checked 12:20 EDT
+**Date:** 2026-07-19 · **Updated:** 2026-07-20 after the Step G6/G6b GUI work landed · **Reviewer:** Claude (Cowork session)
+
+> **Rev 2 note (2026-07-20).** The G6/G6b session that was in flight during the original review has finished and was re-verified against the updated tree: the full suite is now **401 passed / 0 failed** (was 15 failed / 382 passed), `SCHEMA_VERSION` is 28, the concept regional jet runs all 19 modules end-to-end, and the Geometry page renders exception-free against GA6, ATR-42, and the concept jet (checked live and via AppTest). Findings T3 and G1 below are marked **RESOLVED**; Step G6b (single-source landing-gear geometry) also landed, closing one should-have item. Doc-sync for G6/G6b was done properly (CHANGELOG, history, backlog removal, spec/design-doc updates) — the process criticism in T3 reflected a mid-migration snapshot. **All other findings — including both remaining Critical calculation defects (T1, T2) — are unchanged and still stand**; none of the affected modules (structural_speeds, flight_envelope, airloads, select, one_engine_out, weight_envelope, constants, loads_plots, Home.py, results_review) were touched.
 
 **Scope requested:** (1) technical accuracy against the two main references, FAR23Loads_Code.pdf and FAR23Loads_UserGuide.pdf, including the suspicion that Code.pdf contains errors corrected in the UserGuide; (2) GUI usability; (3) documentation level; (4) project name; (5) backlog triage toward a concept-loads release.
 
 **Method.** Full source tree, docs, tests, and both reference PDFs (text-extracted with page markers; original pages consulted where OCR was garbled) were reviewed by five parallel review passes: two technical-accuracy passes (envelope/speeds/weights and component loads), a GUI pass that installed and ran the Streamlit app end-to-end under Playwright with 64 screenshots, a documentation/naming pass, and a backlog/release pass that ran the full pytest suite, the CLI, and all six example projects. Headline findings were independently re-verified against the code before inclusion. Numeric claims below were reproduced by executing the `farloads` modules against the Appendix A inputs printed in the references.
 
-**Important caveat — the tree moved during review.** Files were being actively edited on your machine while this review ran (configuration.py, configuration_layout.py, tail_loads.py, test_configuration.py, CHANGELOG, backlog and history all changed between 11:55 and 12:10). The Step G6 findings below were re-checked against the 12:10 versions and still reproduce (15 test failures), but if a G6 fix session is in flight, treat those specific items as "verify after that session lands."
+**Tree movement during review — now resolved.** Files were being actively edited on your machine while the original review ran (the G6 migration session). That session has since completed; the Rev 2 note above records the re-verification results, and the G6-related findings below are annotated accordingly.
 
 ---
 
 ## Executive summary
 
-The engineering core of this project is unusually good. The BASIC-to-Python port is faithful to a degree rarely seen — dozens of Appendix A oracle values reproduce to the printed digit, the theory-source traceability is page-cited, and the LIMIT/ULTIMATE discipline is enforced consistently. The review nonetheless found **two Critical calculation defects** (dive-speed floor and the flaps-down balanced condition), **one Critical mid-migration breakage** (Step G6: 15 test failures, the Geometry page and the flagship concept fixture crash), and a cluster of Major issues concentrated exactly where no printed oracle test exists — which is also the answer to why they survived: the verification strategy is excellent where Appendix A prints a number and thin where it doesn't.
+The engineering core of this project is unusually good. The BASIC-to-Python port is faithful to a degree rarely seen — dozens of Appendix A oracle values reproduce to the printed digit, the theory-source traceability is page-cited, and the LIMIT/ULTIMATE discipline is enforced consistently. The review nonetheless found **two Critical calculation defects** (dive-speed floor and the flaps-down balanced condition), one Critical mid-migration breakage (Step G6 — **since resolved**: suite now 401/401 green, concept fixture and Geometry page verified working), and a cluster of Major issues concentrated exactly where no printed oracle test exists — which is also the answer to why they survived: the verification strategy is excellent where Appendix A prints a number and thin where it doesn't.
 
 Your suspicion about the references is **confirmed and answered concretely**: the Code.pdf manual contains at least two demonstrable errors that the UserGuide corrects — and in one of them (§23.335 dive speed) the Python code followed the Code.pdf's wrong prose. But the relationship is not one-directional: the UserGuide has its own errors that Code.pdf gets right. The reliable authority hierarchy is: **(1) the BASIC listings + Appendix A printed outputs, (2) the UserGuide's CFR quotes (1994 text), (3) the Code.pdf theory prose (1990)** — in that order.
 
@@ -45,8 +47,8 @@ Six places were found where the two references (or a reference and itself) disag
 **T2 · [CRITICAL] Flap-envelope "BAL 1.4VSF" balanced at 1.4× the 2-g stall speed instead of 1.4× the 1-g flaps-down stall.**
 `farloads/modules/flight_envelope.py:356-363`: `v3` captures the STALL **2G** speed and BAL 1.4VSF runs at `1.4·v3`. FLTLOADS.BAS (Code.pdf p. 300–302) saves the STALL **1GL** speed for this condition. Verified against Appendix A p. 178 case 9 (using the landing-config polynomials printed on p. 176): oracle V = 83.6 kt / LT = −430 lb; code produces V = 116.0 kt / LT = −957 lb — the balancing tail load is **2.2× too large** (conservative direction, but wrong, and it contaminates the SELECT search and export). Note: the 0.2.0 baseline says the repo lacks landing-config aero polynomials — Code.pdf p. 176 prints them; using them is what exposed this. **Fix:** capture the STALL 1GL speed and balance at 1.4× that; add the p. 178 landing rows as oracle tests; correct the baseline note. All 28 other cruise/flap rows of the same run reproduce the manual within print precision.
 
-**T3 · [CRITICAL, in flight] Step G6 is half-migrated; suite red; Geometry page and concept fixture crash.**
-Verified live at both the 11:52 and 12:10 snapshots: **15 failed / 382 passed**. `EmpennageInput` exists, `SCHEMA_VERSION` bumped to 27, tail fields removed from `LayoutInput` — but `configuration.py:400` (`component_stations`) and the Geometry/Tail Loads views still read the removed fields. Consequences: `AttributeError: 'LayoutInput' object has no attribute 'h_tail_area'` on the Geometry page (raw traceback in the GUI — the workflow's step 1), and `concept_regional_jet` — the flagship concept fixture — cannot complete a full run. The views smoke test *does* catch it, which means the change shipped (or is being made) against a red suite. Files were being edited during this review, so this is likely being fixed as you read — but the process finding stands: a schema bump landed with consumers unmigrated and no changelog entry at the time of the snapshot.
+**T3 · [RESOLVED 2026-07-20] Step G6 half-migration (was Critical).**
+At the original review snapshots (11:52 and 12:10): 15 failed / 382 passed, `AttributeError` on the Geometry page, and the concept fixture unable to complete a run — a schema bump (v27) landed with consumers unmigrated. **Re-verified after the session finished:** the full suite is **401 passed / 0 failed**; `concept_regional_jet` runs all 19 modules end-to-end (120 envelope conditions, 23 SELECT cases, etc.); the Geometry, Tail Loads, and Landing Loads views render exception-free against GA6, ATR-42, and the concept jet; and the doc-sync was completed properly (CHANGELOG entries for G6 *and* G6b, same-day history records, backlog entries removed leaving only G6c open, GUI_design updated to "SCHEMA_VERSION = 28", PROGRAM_SPEC ownership updated with `geometry.empennage` and `geometry.landing_gear`). The G6b step additionally single-sourced the landing-gear geometry with a bit-for-bit Appendix A gear-reaction regression test (`tests/test_landing_gear_geometry.py`) — closing a should-have from §5. The only residue worth keeping in mind: the mid-migration window was real, and the review happened to land inside it; the "don't ship a schema bump against a red suite" lesson stands even though the outcome was fine.
 
 **T4 · [MAJOR] Swept-wing span-load correction omits the BASIC's renormalization — swept wings lose 6–13% of total lift.**
 `airloads.py:242-264` (`_apply_sweep`) subtracts the Pope sweep term but never renormalizes the integrated CL back to the operating value. AIRLOAD4.BAS explicitly renormalizes (COL19→COL20 divide; Pope & Haney's actual procedure). Measured: at target CL = 1.0 the recovered CL is **0.940 at Λ = 20°, 0.866 at Λ = 30°** (1.000 at Λ = 0). Root shear/bending under-predicted on exactly the swept concept configurations the concept mode targets — **non-conservative**. The docstring cites Pope while omitting Pope's step. Fix is a few lines (rescale + closure assert `recovered_cl ≈ target_cl`).
@@ -82,7 +84,7 @@ The app was installed fresh, launched headless, and driven end-to-end with Playw
 
 ### What's broken
 
-**G1 · [CRITICAL] The Geometry page — step 1 of the workflow — crashes with a raw traceback on every project** (same root cause as T3). The user's first analysis click yields `AttributeError` with Streamlit's "Ask Google / Ask ChatGPT" links. The three-view sketch and parametric seed are unreachable.
+**G1 · [RESOLVED 2026-07-20] The Geometry page crash (was Critical, same root cause as T3).** Re-verified live in the running app and via AppTest against all three example projects: the page renders cleanly, with graceful gating ("No geometry defined yet — fill in at least the wing area…") on an empty project. The three-view now also draws the elevator/rudder and gear from the single-source geometry (G6/G6b).
 
 **G2 · [CRITICAL] The Loads Plots page (workflow phase 5) can never show anything.** It reads `project.loads`, which no code path ever constructs — every writer is guarded by `if project.loads is not None` and nothing creates it. Even with a fully-computed GA6 project and every loads page visited, phase 5 permanently says "visit Wing Loads … first," instructions that cannot succeed. The Export page proves the fix: it recomputes via `build_net_loads`/`build_body_loads` directly. Make Loads Plots do the same and delete the dead guarded writes.
 
@@ -104,19 +106,21 @@ Navigation order matches how a loads engineer actually works, driven from a sing
 
 ### Top 5 usability actions for the concept release, by value ÷ effort
 
-1. Fix the Geometry crash (with T3) and keep the views smoke test green.
-2. Make Loads Plots recompute from the project (copy the Export pattern).
+1. ~~Fix the Geometry crash~~ **Done (G6/G6b, verified).**
+2. Make Loads Plots recompute from the project (copy the Export pattern) — still the top open item.
 3. `expanded=True` + `st.page_link` in the checklist and every gating message; fix stale page names.
 4. Move on-render project writes into Apply handlers so the dirty flag means something.
 5. Finish the Results Review header tables: units, `-ULT ×1.5`, SF column, "—" for absent values.
+
+(G2–G7 were re-checked against the updated tree: none of the affected files changed, so all remain open.)
 
 ---
 
 ## 3 · Documentation
 
-### The headline problem: the repo violates its own doc-sync rule, at the newest change
+### The headline doc-sync concern — largely resolved by the finished G6/G6b session
 
-CLAUDE.md declares missing doc updates a `[CRITICAL]` review finding, yet at the review snapshot Step G6 had shipped its schema bump (v27) with: the backlog still listing G6 as open work, no CHANGELOG entry, `GUI_design.md` still saying "SCHEMA_VERSION = 26," and PROGRAM_SPEC still presenting `tail_loads`/`vtail_loads` as real top-level slices. (The backlog/CHANGELOG/history files were updated during this review — re-check after the in-flight session lands.) The process is good; enforcement is the gap.
+At the original review snapshot, Step G6 had shipped its schema bump with no backlog/CHANGELOG/spec updates — an apparent violation of the repo's own doc-sync rule. **Re-checked after the session finished: the sync was completed properly** — CHANGELOG entries for G6 and G6b, same-day history records, backlog removal (only G6c remains open), GUI_design's schema line now reads 28, and PROGRAM_SPEC's ownership section covers `geometry.empennage` and `geometry.landing_gear`. The review simply landed inside the migration window. The residual point is smaller but real: the doc-sync discipline works *within* a session, while the multi-generation drift below (README, CLAUDE.md, reference filenames) shows it has not been applied *retroactively* to older docs.
 
 ### Findings
 
@@ -154,13 +158,13 @@ PyPI check (live): `farloads`, `far23loads`, `part23loads`, `conceptloads`, `air
 
 ## 5 · Backlog triage — path to the concept-loads release
 
-**Verified current state (12:20 EDT):** version 0.2.0 (2026-07-08), SCHEMA_VERSION 27, **pytest: 15 failed / 382 passed** (all 15 from the G6 half-migration), ruff clean, editable install clean on a fresh machine. CLI end-to-end works (engine module → CSV with correct `-ULT`/SF columns). Full pipeline: `ga6_normal` 18 modules/238 conditions OK; `cessna_210` 18/556 OK; `atr42_100` 14/440 OK; `concept_regional_jet` **crashes** in `configuration` (G6) — its other 18 modules run clean. sbeam export works on both GA6 and the concept jet. `smoke_test.sh` hardcodes `.venv/bin/*` paths and won't run as-is on a fresh machine (its two checks pass when run manually).
+**Verified current state (updated 2026-07-20, post-G6/G6b):** version 0.2.0 (2026-07-08), SCHEMA_VERSION **28**, **pytest: 401 passed / 0 failed** (~92% coverage), ruff clean, editable install clean on a fresh machine. CLI end-to-end works (engine module → CSV with correct `-ULT`/SF columns). Full pipeline: `ga6_normal`, `cessna_210`, `atr42_100` all clean, and `concept_regional_jet` now runs **all 19 modules end-to-end** (previously crashed in `configuration`). sbeam export works on both GA6 and the concept jet. New since the original review: G6b single-sourced the landing-gear geometry with a bit-for-bit Appendix A gear-reaction regression, and io migrates pre-v28 files (legacy `LayoutInput` gear fields → `geometry.landing_gear`). Still true: `smoke_test.sh` hardcodes `.venv/bin/*` paths and won't run as-is on a fresh machine (its two checks pass when run manually).
 
 ### Must-have for the concept-loads release (blocking)
 
 | Item | Why | Effort |
 |---|---|---|
-| Finish Step G6 + suite green (in flight) | The tool is currently broken at its flagship use case | M |
+| ~~Finish Step G6 + suite green~~ | **Done 2026-07-20 — verified: 401/401 green, concept fixture runs, G6b landed too** | ✔ |
 | **Fix T1 (VD floor)** + add the p. 155 no-chosen-speeds oracle test | Non-conservative envelope speeds — "silently wrong numbers" is the one absolute disqualifier | S |
 | **Fix T2 (BAL 1.4VSF)** + add p. 178 landing-config oracle rows | Wrong balanced condition feeding SELECT/export | S |
 | **Fix T4 (sweep renormalization)** + closure assert | 6–13% missing lift on precisely the swept concept wings the release is for | S |
@@ -169,12 +173,12 @@ PyPI check (live): `farloads`, `far23loads`, `part23loads`, `conceptloads`, `air
 | Backlog 2-14 (AIRLOAD4 Mach threshold) and 2-15 (flap slipstream HP — same as T-minor above): verify vs the BASIC and close | Method-selection and load-magnitude correctness for concepts | S |
 | G7 persistence verification (save→reload no-op on every example) after the schema-27 bump | "Import/export cleanly" is a release criterion | S |
 | Doc consistency sweep: D1 filenames, D2 README/CLAUDE numbers and phases, D3 Appendix-B statement | Credibility; their own standard calls this CRITICAL | S–M |
-| GUI items G1–G3 (crash, dead Loads Plots page, hidden nav) | First-run experience is currently a stack trace and an un-completable instruction | S–M |
+| GUI items G2–G3 (dead Loads Plots page, hidden nav) — G1 is done | First-run experience still includes an un-completable instruction and a hidden workflow tail | S–M |
 | Cut the release: 0.3.0, changelog cut, refreshed verification baseline (incl. the new oracle tests), fixed smoke test | Un-tagged fixes don't exist; the baseline is the traceability artifact | M |
 
 ### Should-have (ship without if needed)
 
-T5 (fuselage moment closure — flight-loads deliverables for wing/tail are unaffected; body loads should carry a caveat until fixed), T8 (ballast reference), G4/G5/G6/G7 GUI polish, Step G8 summary report (the natural "kick off structural development" deliverable, but Export already ships JSON/CSV/workbook/sbeam/case-index), backlog 2-1 (case-identity unification), 2-17(b) (turboprop gate on OEO), G6b/G6c (gear/geometry single-sourcing), 2-2 (per-CG inertia), landing default-CG derivation fix (T-minor; or require explicit `cg_cases`), a concept-methods/limitations note stamped into exported deliverables (fold into G8).
+T5 (fuselage moment closure — flight-loads deliverables for wing/tail are unaffected; body loads should carry a caveat until fixed), T8 (ballast reference), G4/G5/G6/G7 GUI polish, Step G8 summary report (the natural "kick off structural development" deliverable, but Export already ships JSON/CSV/workbook/sbeam/case-index), backlog 2-1 (case-identity unification), 2-17(b) (turboprop gate on OEO), ~~G6b~~ (done 2026-07-20) / G6c (geometry single-sourcing cleanup — the last open Phase G step), 2-2 (per-CG inertia), landing default-CG derivation fix (T-minor — still present in the updated landing.py: "aft" and "fwd" max-landing cases still share the same derived CG; explicit `cg_cases` remains the safe path), a concept-methods/limitations note stamped into exported deliverables (fold into G8).
 
 ### Defer to later releases
 
@@ -188,8 +192,8 @@ Roughly a third of the backlog is closed work wearing open numbering, violating 
 
 ### Suggested milestones
 
-- **M1 — Green and honest (days):** land G6 fully, suite green; fix T1/T2/T4 (+T6/T7/T9, all small) with their new oracle tests; doc consistency sweep (D1–D3).
-- **M2 — Usable (days):** G1–G3 GUI fixes + G7 persistence check; smoke-test fix; `project.json` data dictionary; short GUI user guide.
+- **M1 — Green and honest (days):** ~~land G6 fully, suite green~~ (done); fix T1/T2/T4 (+T6/T7/T9, all small) with their new oracle tests; doc consistency sweep (D1–D3). **M1 is now purely the calculation fixes + doc sweep.**
+- **M2 — Usable (days):** G2–G3 GUI fixes + G7 persistence check; smoke-test fix; `project.json` data dictionary; short GUI user guide.
 - **M3 — Cut 0.3.0 "Concept Loads v1":** refreshed verification baseline including the new oracle rows and a one-page oracle-vs-closure status table; changelog cut; tag. Stretch: G8 summary report with the methods/limitations statement.
 - **M4 — post-release:** T5/T8, GUI polish batch, case-identity unification, then the 2-12 ground-loads epic as its own release.
 
@@ -197,6 +201,6 @@ Roughly a third of the backlog is closed work wearing open numbering, violating 
 
 ## Appendix — housekeeping from this review
 
-- **Cleanup needed on your machine:** the review had to split the 134 MB Code.pdf to transfer it (it exceeded the file-bridge transfer window). The temporary chunks were moved to `FAR23LOADS/_to_delete/_staging_tmp/` (~260 MB) — this session cannot delete files on your disk, so please delete that folder.
+- **Cleanup needed on your machine:** the review had to split the 134 MB Code.pdf to transfer it (it exceeded the file-bridge transfer window), and the Rev 2 re-verification needed a second temp folder to work around a stale file-bridge cache. Please delete both `FAR23LOADS/_to_delete/` (~260 MB) and `FAR23LOADS/_staging_tmp2/` (~0.4 MB) — this session cannot delete files on your disk.
 - Screenshots of every GUI page (64 PNGs, including the evidence for each GUI finding) are in the session workspace; ask if you'd like them delivered.
 - Five sub-reviews' full raw findings (including the complete confirmed-correct inventories with page-by-page reference citations) are available on request; this report is the verified synthesis.
