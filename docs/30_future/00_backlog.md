@@ -65,22 +65,20 @@ Calculation fixes from the review. Each is small, lands with a new oracle or
 listing-traceable test, and updates `00_theory_sources.md` where the doc
 currently records the defective behavior as if it were the source.
 
-> **M1-1 (VD floor: enforce `K_d·VCmin`) and M1-1b (CLmax → stall-speed
-> single-source) are complete** — moved to
-> [`../40_history/00_completed_development.md`](../40_history/00_completed_development.md)
-> (2026-07-19). VD now enforces `max(K_d·VCmin, 1.25·VC)`, and stall speeds VS/VSF
-> derive from the CLmax on `aero_coeffs` (the old 2-13(b) path).
-
-### M1-2 — BAL 1.4VSF: balance at 1.4× the 1-g flaps-down stall (review T2) **[Critical]**
-`flight_envelope.py` `_flap_config_points` captures the **STALL 2G** speed and
-runs BAL 1.4VSF at 1.4× that; `FLTLOADS.BAS` (p300–302) saves the **STALL 1GL**
-speed. Verified vs Appendix A p178 case 9 (landing-config polynomials printed
-on p176): oracle V 83.6 kt / LT −430 lb vs code 116.0 kt / −957 lb — balancing
-tail load 2.2× too large, contaminating SELECT and export. **Fix:** balance at
-1.4× the STALL 1GL speed; add the p178 landing-config rows as oracle tests
-(this also partially unblocks old 2-6 — the "real landing-config aero
-polynomials" *are* printed at p176); correct the 0.2.0 baseline note claiming
-they aren't in the repo.
+### M1-1 — VD floor: enforce `K_d · VCmin` (review T1, was 2-13(a)) **[Critical]**
+`structural_speeds.py` computes `vd = max(chosen_vd, 1.25·VC)` and reports
+`K_d·VC` as "recommended". `STRSPEED.BAS` (Ref 1 p265–267: `V2DMIN=K2*V1CMIN`,
+enforced at lines 380/390) and FAR 23.335(b)(2) (User's Guide p46) require
+**both** minimums: `VD ≥ max(K_d·VCmin, 1.25·VC)`. With no chosen speeds the
+Appendix A Cat-N case (p155) prints VDmin **198.53 kt**; the code returns
+**177.26** — 10.7% non-conservative, propagating into MACHLIM and every
+downstream case at VD. The chosen-speeds case (p156) masks it, which is why the
+0.2.0 baseline missed it. **Fix:** `vd_min = max(kd*vc_min, 1.25*vc)`; rename
+the reported advisory to `K_d·VCmin`; add the p155 no-chosen-speeds oracle test;
+correct `00_theory_sources.md:59` (it currently documents the Code-manual
+prose error, not the BASIC). Also close the remainder of old 2-13: (b) the
+optional CLmax→stall-speed input path (User's Guide p7-5) — add or record as
+out of scope.
 
 ### M1-3 — AIRLOAD4 sweep: restore the renormalization step (review T4) **[Major]**
 `airloads.py` `_apply_sweep` subtracts the Pope sweep term but omits
@@ -197,7 +195,7 @@ save→reload no-op.
 ### M2-7 — Step G7 — Persistence verification (G-3)
 Verify every input-bearing value lives on a `Project` slice `io.py` round-trips
 (no input-only `st.session_state`); drive save→reload on each example project
-(now at schema 29) and diff. **Acceptance:** save→reload of every example is a
+(now at schema 28) and diff. **Acceptance:** save→reload of every example is a
 no-op; no input page holds input data outside `st.session_state["project"]`.
 
 ### M2-8 — Landing default CG derivation (review, landing minor)
@@ -236,14 +234,13 @@ already outputs). Three tiers, one step:
   VMO ⇒ VC ≥ VMO; target VFE ⇒ VF ≥ VFE) and warn concretely when the chosen
   design speeds are infeasible; hook into `validation.py` so infeasibility
   also surfaces on the dashboard.
-**Depended on M1-1** (the VD floor fix) — an implied VNE from the under-floored
-VD would have propagated the error into the advisory. **M1-1 has landed
-(2026-07-19), so this is unblocked.** Display/validation only; no loads-math
-change. *(S–M.)*
+**Depends on M1-1** (the VD floor fix) — an implied VNE from the under-floored
+VD would propagate the error into the advisory. Display/validation only; no
+loads-math change. *(S–M; unblocked once M1-1 lands.)*
 
 ### M2-11 — Input data dictionary + short GUI user guide (review D4, part 1)
 (a) A `project.json` **data dictionary** — field, type, units, default, owning
-page, consuming modules — generated from the dataclasses (the schema is 29
+page, consuming modules — generated from the dataclasses (the schema is 28
 versions deep and the only reference is `models.py`). (b) A **5–10 page GUI
 user guide**: the workflow phases, what to enter where, the seed chain,
 LIMIT-vs-ULTIMATE reading rules, one end-to-end `ga6_normal` walkthrough with
@@ -278,7 +275,7 @@ footer/About.
 Version 0.3.0; date and cut the (currently ~3-phases-deep) `[Unreleased]`
 changelog; refresh the verification baseline as
 `40_history/02_verification_baseline_0.3.0.md` **including the new M1 oracle
-rows** (p155 VD, p178 landing-config, sweep closure, 23.427 set) and a
+rows** (p155 VD, p181 BAL 1.4VSF landing-config, sweep closure, 23.427 set) and a
 one-page **oracle-vs-closure status table**; run the fixed smoke test; tag.
 
 ### M3-3 — *Stretch:* Step G8 — Summary report (Export phase)
@@ -333,6 +330,37 @@ unchanged. Source narrative: `03_gui_rework_plan.md` §5 item (3).
 
 ---
 
+# Phase F25 — FAR 25 concept coverage (post-0.3.0)
+
+Extend the FAR 23 analyses into a **FAR 25 static surrogate** for
+transport-category concepts. Full gap analysis, comparison table, and step
+details: [`../20_theory/01_far25_gap_analysis.md`](../20_theory/01_far25_gap_analysis.md)
+(2026-07-20). Pattern throughout: opt-in supplement per module (the shipped
+`engine.include_far25` flag is the template); FAR 23 path untouched; every
+Part 25 result carries the "static surrogate — not certification" banner.
+
+- **F25-0 — Verify pass (S, first).** Pull current CFR text for every
+  *(verify)* row into `reference/14CFR_Part25_loads_extracts.md`; correct the
+  gap table; freeze parameters.
+- **F25-1 — Transport category "T" envelope pack (M).** 25.337 floor 2.5 /
+  negative −1.0; VB (25.335(d)); transport gust corner set — Pratt engine with
+  the 25.341 U_ref schedule + F_g; MZFW design weight. Depends on M1-1/2/6.
+  Identity test: "T" with FAR 23 parameters reproduces the FAR 23 envelope.
+- **F25-2 — Speeds & placards Part 25 variant (S).** 25.335 margins (VB margin,
+  MD ≥ MC + 0.05/upset) + the M2-10 ladder in VMO/MMO form.
+- **F25-3 — Maneuver & tail surrogates (M).** Checked-maneuver 25.331(c)(2)
+  static evaluation; yaw overswing case; 25.427/25.349 schedule checks.
+- **F25-4 — Ground-loads parameter variant (M).** LGFACTOR at 10/6 fps,
+  lift = W, LDW/MTOW pairing; LANDLOAD tables documented as surrogate.
+  Coordinates with M4-6.
+- **F25-5 — Pressurization & small gaps (S).** Part 25 combination rules into
+  M4-6; the 23.415/25.415 ground-gust module (serves both parts).
+
+Out of scope, documented in the gap analysis: tuned-gust dynamics, continuous
+turbulence, 25.362, rational taxi, Appendix K.
+
+---
+
 # Long tail — refinements & scope extensions (priority order)
 
 ### L-1 — sbeam stick model: real stiffness + assembled airframe (was 2-4)
@@ -341,10 +369,13 @@ assembled combined-airframe export. Granularity per **D-7**: load-cards-only
 default; assembled stick model opt-in behind a flag.
 
 ### L-2 — Flaps-extended tail loads: printed oracle completion (was 2-6)
-M1-2 lands the p176 landing-config polynomials and the p178 oracle rows for the
-envelope; completing the SELECT→TAILDIST flaps-extended pipeline against the
-printed cases (81/106/88/108) still needs the CG5–7 loadings added to the
-fixtures. Also fold in the LEV LAND balanced point (Appendix A case 90, the
+M1-2 landed the landing-config aero polynomials (Appendix A p179 input listing)
+as a `flight_envelope` test fixture and oracle-matched the envelope `BAL 1.4VSF`
+balancing point (p181 case 89); completing the SELECT→TAILDIST flaps-extended
+pipeline against the printed chordwise cases (81/106/88/108) still needs the
+CG5–7 loadings added to the fixtures (and, to activate it in the shipped example,
+the p179 `flaps_down` set added to `examples/ga6_normal.project.json`). Also fold
+in the LEV LAND balanced point (Appendix A case 90, the
 sink-speed/attitude iteration `FLTLOADS.BAS` lines 3410–3600) — currently
 omitted from the flap corner set and undocumented (review minor).
 
@@ -436,8 +467,8 @@ reaction matrix stays closure-/legible-cell-locked).
 
 ## Known defects (open)
 
-- **M1-2** — BAL 1.4VSF balanced at the 2-g stall speed (tail load 2.2× the
-  Appendix A oracle). **[Critical]**
+- **M1-1** — VD floor omits `K_d·VCmin` (non-conservative ~10.7% on the
+  no-chosen-speeds path). **[Critical]**
 - **M1-3** — swept-wing span load loses 6–13% of integrated lift
   (missing renormalization). **[Major]**
 - **M4-1** — fuselage body-load distribution carries an unreacted pitching

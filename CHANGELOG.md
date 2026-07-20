@@ -310,6 +310,23 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- **`BAL 1.4VSF` balances at the 1-g flaps-down stall (M1-2, review T2 — `[Critical]`).**
+  In the flaps-extended envelope corner set, `flight_envelope._flap_config_points`
+  captured the **STALL 2G** speed and ran the `BAL 1.4VSF` balancing point at 1.4×
+  that. `FLTLOADS.BAS` (Code.pdf p300–302) saves the **STALL 1GL** (1-g flaps-down
+  stall) speed for this condition; since STALL 2G ≈ √2 × STALL 1G, the balance speed
+  was ~1.4× too high and the balancing tail load (∝ V²) ~2.2× too large, feeding the
+  SELECT search and sbeam export. Fixed to balance at 1.4× the STALL 1GL speed. On
+  Appendix A p181 (LANDING CG5, case 89 `BAL 1.4VS`) the corrected point is V 83.6 kt
+  / LT −430 lb; the defect produced ~116 kt / −957 lb. The real landing-config aero
+  polynomials (Appendix A p179 input listing) are now transcribed into the
+  `flight_envelope` test fixture — correcting the 0.2.0 baseline note that the repo
+  lacked them — and the new `test_bal_1p4vsf_balances_at_one_g_flaps_down_stall`
+  asserts both the exact fix invariant and the p181 oracle. The shipped
+  `examples/ga6_normal.project.json` is unchanged (it carries no `flaps_down` set),
+  so no existing envelope/SELECT/export result moved; activating the full
+  flaps-extended SELECT→TAILDIST pipeline in the example stays with L-2.
+
 - **VD floor now enforces `K_d·VCmin` (M1-1, review T1 — `[Critical]`).**
   `structural_speeds.py` computed the K_d dive-speed term as `K_d·VC` and reported
   it only as a "recommended" advisory, so on the **no-chosen-speeds** path VD fell

@@ -328,7 +328,13 @@ def _flap_config_points(config: AeroCoeffSet, cg: CgCase, fl: FlightLoadsInput,
     (FLTLOADS.BAS subroutine 3000): the flap envelope is limited to n=2 (FAR 23.345)
     and investigated at sea level only. Conditions: stall at 2/3 g / 1 g / 2 g, the
     n=2 and n=0 maneuver points at VF, the +/- gusts at VF (Ude 25 fps), and the VF /
-    1.4 Vs balancing points."""
+    1.4 Vs balancing points.
+
+    BAL 1.4VSF balances the airplane at 1.4x the **1-g flaps-down stall (STALL 1GL)**
+    speed -- FLTLOADS.BAS (Code.pdf p300-302) saves the STALL 1GL speed for this
+    condition, and Appendix A p178 case 9 prints V 83.6 kt / LT -430 lb (landing-config
+    polynomials p176). (Earlier code balanced at 1.4x the STALL 2G speed, giving a
+    balance speed ~1.4x too high and a tail load ~2.2x too large -- review finding T2.)"""
     w, s = cg.weight_lb, fl.wing_area_sqft
     scl = config.stall_cl
     pts: List[VnPoint] = []
@@ -352,14 +358,14 @@ def _flap_config_points(config: AeroCoeffSet, cg: CgCase, fl: FlightLoadsInput,
         return add(cond, n, v, cap)
 
     add("STAL 2/3G", 2.0 / 3.0, stall_v(2.0 / 3.0), di.mc)
-    add("STALL 1GL", 1.0, stall_v(1.0), di.mc)
-    v3 = add("STALL 2G", 2.0, stall_v(2.0), di.mc).v_eas
+    v_1gl = add("STALL 1GL", 1.0, stall_v(1.0), di.mc).v_eas
+    add("STALL 2G", 2.0, stall_v(2.0), di.mc)
     add("MAN 2G VF", 2.0, di.vf, di.mc)
     add("MAN 0G VF", 0.0, di.vf, di.mc)
     add_gust("GUST VF", 1, di.vf, di.mc)
     add_gust("GUST -VF", -1, di.vf, di.mc)
     add("BAL VF", 1.0, di.vf, di.mc)
-    add("BAL 1.4VSF", 1.0, 1.4 * v3, di.mc)
+    add("BAL 1.4VSF", 1.0, 1.4 * v_1gl, di.mc)
     return pts, case
 
 

@@ -10,6 +10,59 @@ Acceptance**, **Key decisions**.
 
 ---
 
+## M1-2 — BAL 1.4VSF: balance at 1.4× the 1-g flaps-down stall (complete, 2026-07-19) **[Critical]**
+
+**Objective.** Correct the flaps-extended envelope's `BAL 1.4VSF` condition to
+balance the airplane at **1.4× the 1-g flaps-down stall (`STALL 1GL`)** speed, per
+`FLTLOADS.BAS` (Code.pdf p300–302, which saves the STALL 1GL speed for this case).
+(Review finding T2; was old 2-6 in part.)
+
+**Problem fixed.** `flight_envelope._flap_config_points` captured the **STALL 2G**
+speed (`v3 = add("STALL 2G", …).v_eas`) and ran `BAL 1.4VSF` at `1.4·v3`. Because
+STALL 2G ≈ √2 × STALL 1G, the balance speed was ~1.4× too high and the balancing
+tail load (∝ q ∝ V²) ~2.2× too large — a wrong load that fed the SELECT search and
+the sbeam export. Against Appendix A p181 (LANDING CG5, case 89 `BAL 1.4VS`), the
+oracle is V 83.6 kt / LT −430 lb; the defect produced ~116 kt / −957 lb. The defect
+was masked because the shipped `examples/ga6_normal.project.json` carries no
+`aero_coeffs.flaps_down` set, so the flaps-extended branch was dormant and the only
+prior flapped test used a *synthetic* landing config (closure-checked, no oracle).
+
+**Deliverables.**
+- **`flight_envelope.py`:** `_flap_config_points` now captures the STALL 1GL
+  balanced EAS (`v_1gl = add("STALL 1GL", …).v_eas`) and runs `add("BAL 1.4VSF",
+  1.0, 1.4 * v_1gl, di.mc)`; STALL 2G stays a plain corner point. Docstring updated
+  to state the STALL 1GL basis + the T2 history.
+- **Test:** the real Appendix A p179 landing-config aero polynomials
+  (`lift/drag/moment`) are transcribed into `tests/test_flight_envelope.py` as
+  module-level `_LANDING`, replacing the synthetic deepcopy in `_with_landing()`
+  (whose stale comment claiming the polynomials "are not in the repo" is corrected).
+  New `test_bal_1p4vsf_balances_at_one_g_flaps_down_stall` asserts the exact fix
+  invariant (`BAL 1.4VSF v == 1.4·STALL 1GL v`, and **not** `1.4·STALL 2G v`) plus
+  the p181 case-89 oracle (V 83.6 kt / LT −430 lb / α −2.54° / CL 0.89) within print
+  precision (LT is a small CG-moment residual, so it carries the widest tolerance).
+- **Docs:** `00_theory_sources.md` FLTLOADS + TAILDIST rows; `PROGRAM_SPEC.md`
+  FLTLOADS notes + the SELECT flaps-extended known-limit; backlog M1-2 removed and
+  L-2 updated; the 0.2.0 verification-baseline "no landing polynomials in the repo"
+  deferrals annotated with the M1-2 correction; `CHANGELOG.md` `[Unreleased] → Fixed`.
+
+**Test / Acceptance.** `ruff` (`farloads/ cli.py`) clean; full suite green (407
+passed) — the new p181 oracle passes; all cruise Appendix-A oracles and the
+concept fixture are unchanged (the shipped example has no `flaps_down` set, so no
+existing SELECT/TAILDIST/export result moved).
+
+**Key decisions (folded into the plan, 2026-07-19).** (1) **Dedicated test
+fixture, not the shipped example** — the p179 landing polynomials are injected in
+the test only; `examples/ga6_normal.project.json` is left without `flaps_down`, so
+the full flaps-extended SELECT→TAILDIST→export activation stays with **L-2** and
+this `[Critical]` fix stays small and reviewable (mirrors M1-1). (2) **Oracle scope
+= the one fixed case** (`BAL 1.4VSF`, p181 case 89); the fuller p181 landing rows
+stay L-2. (3) **Uniform fix, no concept carve-out** — capturing the wrong speed was
+a pure correctness bug, so FAR23 and concept both use the 1-g flaps-down stall.
+(Note: the review cited the pages as p176/p178; the actual printed pages are p179
+for the input listing and p181 for the LANDING CG5 block.)
+
+---
+
 ## M1-1b — CLmax → stall-speed single-source (complete, 2026-07-19)
 
 **Objective.** Enter the maximum lift coefficients **once** and derive the stall
@@ -3065,6 +3118,10 @@ clean.
 3. **Flaps-extended oracle deferred** — the real landing-config aero polynomials
    (and CG5–7 loadings) are not in the repo fixtures, so R3/R4 are closure-validated
    rather than matched to Appendix A cases 81/106/88/108. Recorded as a follow-up.
+   *(Update, M1-2: the landing polynomials — printed at Appendix A p179 — are now in
+   the `flight_envelope` test fixture and the envelope `BAL 1.4VSF` point is
+   oracle-matched at p181; the SELECT→TAILDIST cases 81/106/88/108 with the CG5–7
+   loadings remain L-2.)*
 4. **`Project.mass` persisted but not yet consumed by SELECT** — the checked-
    maneuver `Iyy` and v-tail `IZZ` use the documented Ch 9 approximations (which
    match the oracle); per-CG precise inertia from `Project.mass` is a follow-up.

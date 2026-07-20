@@ -266,6 +266,13 @@ checked only for condition-set presence and that MAN 2G attains NZ=2.0 at
 V=VF (a design-speed check, not an independent LT/LZW oracle). See backlog
 "Deferred refinements."
 
+> **Correction (M1-2, 2026-07-19).** The landing-config aero polynomials *are*
+> printed in the reference (Appendix A p179 input listing) — the "not in the repo"
+> note was about fixtures, not the source. M1-2 transcribed them into the
+> `flight_envelope` test fixture and now oracle-matches the `BAL 1.4VSF` balancing
+> point against Appendix A p181 (V 83.6 kt / LT −430 lb). The fuller flaps-extended
+> chordwise rows (SELECT→TAILDIST, CG5–7) remain deferred to L-2.
+
 ---
 
 ## SELECT — Critical load selection
@@ -353,6 +360,11 @@ large-deflection-chart noise (default `EFV=1.0` vs the manual's back-solved
 balancing/gust — condition-set presence + internal closure (Total = LT25 +
 LT50) only; no landing-config aero polynomials in the repo, so the printed
 Appendix A cases 81/106/88/108 are not checked. See backlog.
+
+> **Correction (M1-2, 2026-07-19).** The landing-config aero polynomials are
+> printed at Appendix A p179 and are now in the `flight_envelope` test fixture; the
+> envelope `BAL 1.4VSF` balancing point is oracle-matched (p181). The chordwise
+> SELECT→TAILDIST cases 81/106/88/108 (needing the CG5–7 loadings) remain L-2.
 
 ---
 

@@ -229,22 +229,30 @@ def test_legacy_flight_loads_configurations_migrate_to_aero_coeffs():
     assert rebuilt.aero_coeffs.flaps_down is None
 
 
+# The GA6 flaps-extended (LANDING) aero coefficients, transcribed from the
+# Appendix A "V-n Data" input listing (Ref 1 Code.pdf p179): the flaps-down
+# lift/drag/pitching-moment polynomials and the flaps-down stall CL. These ARE in
+# the reference -- the 0.2.0 baseline claim that the repo lacked the landing-config
+# polynomials was wrong (they are printed alongside the cruise set), and using them
+# is what validates the flaps-extended balancing tail loads against Appendix A p181.
+_LANDING = AeroCoeffSet(
+    name="LANDING",
+    lift=(1.089965, 0.080358, 0.0, 0.0, 0.0),
+    drag=(0.072334, 0.001716, 0.053644, 0.0, 0.0),
+    moment=(-0.280453, 0.004128, 0.0, 0.0, 0.0),
+    stall_cl=1.5857, neg_stall_cl=-0.41, flaps_down=True,
+)
+
+
 def _with_landing():
-    # The GA6 project plus a synthetic LANDING configuration (flaps extended): the
-    # real landing aero polynomials are not in the repo, so the flapped envelope is
-    # validated by closure (NZ achieved, n<=2 maneuver limit), not the printed
-    # flaps-extended oracle.
+    # The GA6 project plus the real (Appendix A p179) LANDING configuration. The
+    # flapped envelope is exercised for both closure (NZ achieved, n<=2 maneuver
+    # limit) and the printed flaps-extended balancing tail loads (Appendix A p181).
     import copy
 
     p = io.load_project(_GA)
     p.flight_loads.altitudes_ft = [0.0]
-    cruise = p.aero_coeffs.cruise
-    landing = copy.deepcopy(cruise)
-    landing.name = "LANDING"
-    landing.flaps_down = True
-    landing.stall_cl = 1.9
-    landing.neg_stall_cl = -0.8
-    p.aero_coeffs.flaps_down = landing
+    p.aero_coeffs.flaps_down = copy.deepcopy(_LANDING)
     return p
 
 
@@ -260,6 +268,33 @@ def test_flapped_envelope_corner_set_and_closure():
     assert math.isclose(man2.v_eas_kt, 105.5, rel_tol=5e-3)   # VF
     stal = next(v for v in flap if v.condition == "STAL 2/3G")
     assert math.isclose(stal.nz, 2.0 / 3.0, abs_tol=0.01)
+
+
+def test_bal_1p4vsf_balances_at_one_g_flaps_down_stall():
+    """M1-2 / review T2: BAL 1.4VSF balances at 1.4x the **1-g** flaps-down stall
+    (STALL 1GL), not 1.4x the 2-g stall. FLTLOADS.BAS (Code.pdf p300-302) saves the
+    STALL 1GL speed for this condition; the earlier code captured STALL 2G, giving a
+    balance speed ~1.4x too high and a tail load ~2.2x too large.
+
+    Oracle: Appendix A LANDING configuration, CG5 (FS 85.1), landing-block case 9
+    (absolute case 89) 'BAL 1.4VS' -- V 83.6 kt / LT -430 lb (Code.pdf p181; landing
+    aero polynomials p179). LT is a small residual of the CG moment balance, so it
+    carries the widest tolerance, as the cruise LT oracles above do."""
+    flap = [v for v in build_envelope(_with_landing()).vn
+            if v.config == "LANDING" and v.cg == "CG1"]   # manual CG5 (FS 85.1)
+    by = {v.condition: v for v in flap}
+    bal, stall_1gl, stall_2g = by["BAL 1.4VSF"], by["STALL 1GL"], by["STALL 2G"]
+
+    # The fix, stated exactly: the BAL speed is 1.4x the 1-g flaps-down stall speed,
+    assert math.isclose(bal.v_eas_kt, 1.4 * stall_1gl.v_eas_kt, rel_tol=1e-9)
+    # and NOT 1.4x the 2-g stall (the T2 defect, which produced ~116 kt / -957 lb).
+    assert not math.isclose(bal.v_eas_kt, 1.4 * stall_2g.v_eas_kt, rel_tol=1e-2)
+
+    # Appendix A p181 case 89 -- reproduced within print precision.
+    assert math.isclose(bal.v_eas_kt, 83.6, rel_tol=5e-3)     # manual 83.6 kt
+    assert math.isclose(bal.lt, -430.0, rel_tol=1.5e-2)       # manual -430 lb
+    assert math.isclose(bal.alpha_deg, -2.54, abs_tol=0.12)   # manual -2.54 deg
+    assert math.isclose(bal.cl, 0.89, abs_tol=0.02)           # manual +0.89
 
 
 def test_merged_replaces_altitudes_and_cg_cases():
