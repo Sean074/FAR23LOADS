@@ -67,8 +67,20 @@ _DEG = 57.3  # AIRLOADS.BAS uses 57.3 for the rad<->deg factor; kept for fidelit
 
 _FAR = "23.301"  # airload distribution basis (Schrenk)
 
-# AIRLOAD4 auto-select thresholds (Ref 1 Ch 12): use the swept branch when the
-# 25%-chord sweep exceeds ~15 deg or the design Mach exceeds 0.4.
+# AIRLOAD4 auto-select thresholds: use the swept branch when the 25%-chord sweep
+# exceeds 15 deg or the design Mach exceeds 0.4.
+#
+# Mach threshold — Ref-1-vs-User's-Guide conflict (M1-8, resolved 2026-07-20):
+# Ref 1 (McMaster, the primary source of truth) states the trigger as "Mach >.4
+# or sweepback > 15 degrees" (FAR23Loads_Code.pdf, Ch 12 aileron-torsion air-loads
+# section); the FAA User's Guide §9.1/§10.1 instead says "greater than 0.5". No
+# `.BAS` oracle pins it either way — AIRLOAD4 selection in the original suite is a
+# human-operator choice, not a hardcoded `IF MN > …` (the listing has no Mach
+# comparison), so the threshold is a documentation value only. We keep Ref 1's 0.4:
+# it is the higher-authority source and the conservative choice (triggers the swept
+# branch earlier), and it is nearly moot for output anyway — compressibility is
+# carried upstream by FLTLOADS' Glauert CL, so high Mach alone leaves the span-load
+# shape unchanged. See docs/20_theory/00_theory_sources.md (AIRLOAD4 row).
 _AIRLOAD4_SWEEP_DEG = 15.0
 _AIRLOAD4_MACH = 0.4
 

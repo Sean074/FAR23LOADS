@@ -10,6 +10,44 @@ Acceptance**, **Key decisions**.
 
 ---
 
+## M1-8 — AIRLOAD4 Mach threshold 0.4 vs 0.5 (verify, complete 2026-07-20)
+
+**Objective.** Resolve whether `airloads._AIRLOAD4_MACH = 0.4` (the design-Mach
+gate that auto-selects the swept/high-Mach AIRLOAD4 branch) is sourced, given the
+FAA User's Guide (§9.1, §10.1) states the trigger as **0.5**. (Review finding,
+was backlog item 2-14.)
+
+**Verification.** Both authoritative sources were checked directly:
+- **Ref 1** (McMaster, the primary source of truth) — Ch 12 aileron-torsion
+  air-loads section states the trigger as *"AIRLOAD4.BAS for Mach >.4 or sweepback
+  > 15 degrees"* (`FAR23Loads_Code.pdf`). So **0.4 is sourced.**
+- **FAA User's Guide** §9.1 and §10.1 — *"If the Mach number is greater than 0.5,
+  then AIRLOAD4 should/must be used"*. The **0.5** is the outlier.
+- **No `.BAS` oracle** pins the value either way: AIRLOAD4 selection in the
+  original suite is a human-operator choice ("should be used when…"), not a
+  hardcoded `IF MN > …` — the AIRLOAD4.BAS listing carries no Mach comparison.
+
+**Resolution.** Keep Ref 1's **0.4**. It is the higher-authority source and the
+conservative gate (swept branch triggers earlier), and it is nearly moot for
+output regardless — compressibility is carried upstream by FLTLOADS' Glauert `CL`,
+so high Mach alone leaves the span-load shape unchanged. Per the backlog decision
+rule ("if 0.4 is unsourced → 0.5, else document the conservatism"), this is the
+"else" branch: **no code value change**, documentation only. The 15° sweep trigger
+matches across both sources.
+
+**Deliverables.** Source-conflict note on `_AIRLOAD4_MACH` in
+`farloads/modules/airloads.py`; matching notes in `docs/20_theory/00_theory_sources.md`
+(AIRLOAD4 row) and `docs/10_standard/PROGRAM_SPEC.md` (AIRLOADS §); `CHANGELOG.md`.
+
+**Test / Acceptance.** No behavior change (constant unchanged); existing AIRLOAD4
+suite (`test_airloads.py`) stays green. Documentation-only closure.
+
+**Key decisions.** Ref 1 outranks the User's Guide on a source conflict (CLAUDE.md
+source hierarchy); the conservative value is retained; a source is documented on
+the constant so the discrepancy is traceable and does not re-open.
+
+---
+
 ## M1-5 — One-engine-out 23.367(a)(2) case: safety factor 1.0 (complete, 2026-07-20)
 
 **Objective.** Stop double-factoring the one-engine-out **VC (ultimate)** load. The

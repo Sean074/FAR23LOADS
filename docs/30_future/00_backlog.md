@@ -66,12 +66,6 @@ listing-traceable test, and updates `00_theory_sources.md` where the doc
 currently records the defective behavior as if it were the source.
 
 
-### M1-8 — AIRLOAD4 Mach threshold 0.4 vs 0.5 (was 2-14) *(verify)*
-`airloads.py:73` triggers the swept/high-Mach branch at `design_mach > 0.4`;
-the User's Guide says **0.5** (§9.1, §10.1). Verify vs Ref 1 Ch 12 /
-AIRLOAD4.BAS; if 0.4 is unsourced, change `_AIRLOAD4_MACH` to 0.5, else
-document the conservatism. (The 15° sweep trigger matches.)
-
 ### M1-9 — FLAPLOAD slipstream power: takeoff HP (was 2-15; review confirms) *(verify → fix)*
 `flap.py` prefers `max_cont_hp`; FAR 23.457(b) specifies **takeoff power** and
 the review confirmed both PDFs quote it (Ref 1 p109; UG p14-2; FLAPLOAD.BAS's

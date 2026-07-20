@@ -78,6 +78,18 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- **AIRLOAD4 Mach threshold 0.4 verified and documented (M1-8).** The design-Mach
+  gate that auto-selects the swept/high-Mach AIRLOAD4 branch (`_AIRLOAD4_MACH = 0.4`)
+  was flagged against the FAA User's Guide's **0.5** (§9.1, §10.1). Verification
+  confirmed **0.4 is sourced to Ref 1** (Ch 12: *"AIRLOAD4.BAS for Mach >.4 or
+  sweepback > 15 degrees"*, `FAR23Loads_Code.pdf`); the User's Guide is the outlier
+  and no `.BAS` oracle pins the value (selection was a human-operator choice, not a
+  hardcoded comparison). Ref 1's **0.4** is retained — higher-authority source, the
+  conservative gate, and nearly moot for output since compressibility enters via
+  FLTLOADS' upstream Glauert `CL`. **No code value change**; a source-conflict note
+  was added to `airloads.py`, `docs/20_theory/00_theory_sources.md` and
+  `docs/10_standard/PROGRAM_SPEC.md`.
+
 - **23.427(a) unsymmetrical tail: restore the full candidate set (M1-4, review T6;
   approved oracle deviation).** `select_htail_unsymmetrical` no longer filters the
   **unchecked** maneuvers out of the 23.427 search. `SELECT.BAS` lines 6070–6175

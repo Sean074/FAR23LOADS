@@ -178,7 +178,7 @@ chart + tables.
 
 ### AIRLOADS — Spanwise lift distribution (built; AIRLOAD4 swept branch built in C7)
 - **FAR §:** 23.301 (loads), 23.321+ (flight loads), 23.347+ asymmetric.
-- **Source:** Ch 7, `AIRLOADS.BAS` (low speed); Ch 12, `AIRLOAD4.BAS` (sweepback, high Mach) — both in `modules/airloads.py`, the swept branch auto-selected by `use_airload4` when 25%-chord sweep > 15° or design Mach > 0.4.
+- **Source:** Ch 7, `AIRLOADS.BAS` (low speed); Ch 12, `AIRLOAD4.BAS` (sweepback, high Mach) — both in `modules/airloads.py`, the swept branch auto-selected by `use_airload4` when 25%-chord sweep > 15° or design Mach > 0.4. **Mach threshold (M1-8):** Ref 1 (Ch 12) says *"Mach >.4"*, the User's Guide §9.1/§10.1 says *"0.5"*; we keep Ref 1's conservative **0.4** (no `.BAS` oracle exists — selection was an operator choice). See `docs/20_theory/00_theory_sources.md` (AIRLOAD4 row).
 - **Module:** `modules/airloads.py` (registers `"airloads"`).
 - **Reads:** `Project.geometry` (wing planform polylines & strip count) + `Project.aero` (`AeroSurfaceInput`: section slope `mo`, taper/tip ratio for TAU, spanwise `twist` table, `target_cl`, and the C7 `sweep_deg` / `design_mach` AIRLOAD4 triggers).
 - **Writes:** the spanwise additive + basic + combined `c·cl` distribution (the `SpanwiseTable`) returned as a `ModuleResult`, carried on the persisted `Project.aero.spanwise` field.
