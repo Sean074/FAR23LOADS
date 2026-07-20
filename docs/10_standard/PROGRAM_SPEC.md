@@ -272,7 +272,7 @@ approved-corrections register in `CLAUDE.md`.
 ### FLAPLOAD — Flap loads (built, Step C8)
 - **FAR §:** 23.345 (flaps), 23.457 (flap hinge / slipstream).
 - **Source:** Ch 17, `FLAPLOAD.BAS`.
-- **Reads:** `Project.speeds` (STRSPEED VS/VSF/VF + design weight), `Project.geometry` wing area, `Project.engines[0]` (MAXHP/prop diameter for the slipstream), `Project.flap_loads` (`FlapLoadsInput`: gust factor, flap area, deflection, chord ratio, nacelle frontal area, engine butt line).
+- **Reads:** `Project.speeds` (STRSPEED VS/VSF/VF + design weight), `Project.geometry` wing area, `Project.engines[0]` (MAXHP/prop diameter for the slipstream — MAXHP is **takeoff power** per FAR 23.457(b): `takeoff_hp`, falling back to `max_cont_hp` only when unset), `Project.flap_loads` (`FlapLoadsInput`: gust factor, flap area, deflection, chord ratio, nacelle frontal area, engine butt line).
 - **Writes:** the four-condition flap-CL/load envelope, critical load, LE pressure, slipstream band/factor, head-on-gust combined load → `ConditionResult`; `ControlSurfaceLoadResult` (gust-combined envelope) for the loads slice + sbeam bridge.
 - **Validation:** Appendix A "Critical Flap Loads" p201 (CLf 1.7046/1.7046/1.5593/1.5476; critical 629 lb; LE 0.545 psi; slipstream ×1.407, BL 22.828…113.172; gust ×1.301; combined 819 lb) within ±0.1% — `tests/test_flap.py`.
 - **Notes:** Slipstream is the momentum-theory sub 500 (iterate `U1` to absorb 0.85·MAXHP); computed only when engine power is present. Knots→ft/s uses the suite's `1.15·88/60` factor (`constants.KT_TO_FPS_SUITE`) to reproduce the slipstream geometry.

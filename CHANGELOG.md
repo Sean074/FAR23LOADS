@@ -11,6 +11,16 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- **Flap slipstream now uses takeoff power, not max-continuous (M1-9).**
+  `flap._engine_power` preferred `max_cont_hp`; FAR 23.457(b) sizes the flaps-
+  extended slipstream on **takeoff power** (Ref 1 p109; FAA User's Guide p14-2).
+  The MAXHP preference is flipped to `takeoff_hp` (falling back to `max_cont_hp`
+  only when takeoff power is unset), so the GA6 example pipeline now feeds 285 hp
+  instead of 265. The Appendix A "Critical Flap Loads" oracle passes `maxhp=250`
+  directly and is unaffected; the manual's 250 hp is a confirmed stale figure that
+  matches neither GA6 engine rating. Docstring + `PROGRAM_SPEC.md`/theory-doc notes
+  cite 23.457(b).
+
 - **Ballast station rejected when it falls outside the fuselage (M1-11).**
   `weight_envelope`'s forward-regardless reference is selected by weight only, so on
   synthetic over-gross concept databases whose forward-loading vertices all sit

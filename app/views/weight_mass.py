@@ -92,7 +92,10 @@ def _tab_estimate(project: Project, system: UnitSystem, U: dict) -> None:
             f"Max continuous power ({U['power']}, total)", min_value=0.0,
             value=float(round(to_display(existing.max_continuous_hp, "power", system), 4))
             if existing else 0.0, key=f"max_cont_hp_{system.value}",
-            help="Total maximum continuous power for all engines combined (WTESTIMA, Ch 3).")
+            help="Total maximum continuous power for all engines combined. Used **only** "
+                 "for the statistical weight estimate (WTESTIMA, Ch 3) — it is a separate "
+                 "input from the per-engine takeoff/max-continuous power on the Engine "
+                 "Mount page, which drives the engine-torque and flap-slipstream loads.")
         engines = st.number_input("Number of engines", min_value=1,
                                   value=existing.engines if existing else 1,
                                   help="Engine count; the power above is the combined total, not per engine.")

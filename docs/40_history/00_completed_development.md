@@ -10,6 +10,43 @@ Acceptance**, **Key decisions**.
 
 ---
 
+## M1-9 — FLAPLOAD slipstream power: takeoff HP (fix, complete 2026-07-20)
+
+**Objective.** `flap._engine_power` preferred `max_cont_hp` (`max_cont_hp or
+takeoff_hp`) for the flap slipstream MAXHP; FAR 23.457(b) sizes the slipstream on
+**takeoff power**. Flip the preference to `takeoff_hp`. (Review finding, was
+backlog item 2-15.)
+
+**Verification.** Both authoritative sources quote takeoff power — Ref 1 p109 and
+the FAA User's Guide p14-2. The sole ambiguity is `FLAPLOAD.BAS`'s "MAX HP OF ONE
+ENGINE" input prompt, which does not distinguish the rating; the surrounding text
+in both PDFs resolves it to takeoff power.
+
+**Resolution.** `flap._engine_power` now reads `takeoff_hp or max_cont_hp` (was
+`max_cont_hp or takeoff_hp`), falling back to max-continuous only when takeoff
+power is unset. The Appendix A "Critical Flap Loads" oracle (`tests/test_flap.py`)
+calls `flap_loads(..., maxhp=250.0)` directly and is unaffected by the selection
+order — the manual's 250 hp is a **stale figure** (user-confirmed 2026-07-20) that
+matches neither the GA6 example's `takeoff_hp=285` nor `max_cont_hp=265`; the
+oracle tolerance test remains the authority for the slipstream math, and the
+example pipeline now feeds takeoff power (285) as 23.457(b) requires.
+
+**Deliverables.** `farloads/modules/flap.py` `_engine_power` preference flip +
+docstring citing 23.457(b); `docs/10_standard/PROGRAM_SPEC.md` (FLAPLOAD Reads
+line) and `docs/20_theory/00_theory_sources.md` (FLAPLOAD row) note MAXHP = takeoff
+power; `CHANGELOG.md`.
+
+**Test / Acceptance.** `tests/test_flap.py` (5 tests) green — Appendix A oracle
+unchanged.
+
+**Key decisions.** 250 hp is a stale manual figure, not reconciled to the example
+engine data; the tolerance-based oracle stays the math authority (per project
+Decision 3). A separate single-source concern — `WeightEstimationInput.max_continuous_hp`
+duplicating `sum(engines[].max_cont_hp)` — is **out of scope** here and left for the
+G6-series single-source cleanup (M2-6).
+
+---
+
 ## M1-8 — AIRLOAD4 Mach threshold 0.4 vs 0.5 (verify, complete 2026-07-20)
 
 **Objective.** Resolve whether `airloads._AIRLOAD4_MACH = 0.4` (the design-Mach

@@ -156,11 +156,17 @@ def flap_loads(vs: float, vsf: float, vf: float, weight: float, ng: float,
 
 
 def _engine_power(project: Project):
-    """``(MAXHP, prop diameter in)`` from the first engine, or ``(0, 0)``."""
+    """``(MAXHP, prop diameter in)`` from the first engine, or ``(0, 0)``.
+
+    FAR 23.457(b) sizes the flap slipstream on **takeoff power** (Ref 1 p109;
+    UG p14-2), so ``takeoff_hp`` is preferred, falling back to ``max_cont_hp``
+    only when takeoff power is unset. FLAPLOAD.BAS's "MAX HP OF ONE ENGINE"
+    prompt is the sole ambiguity; both PDFs' text quotes takeoff power.
+    """
     eng = project.engine
     if eng is None:
         return 0.0, 0.0
-    hp = eng.max_cont_hp or eng.takeoff_hp or 0.0
+    hp = eng.takeoff_hp or eng.max_cont_hp or 0.0
     return hp or 0.0, eng.prop_diameter_in or 0.0
 
 

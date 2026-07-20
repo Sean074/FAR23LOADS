@@ -66,12 +66,6 @@ listing-traceable test, and updates `00_theory_sources.md` where the doc
 currently records the defective behavior as if it were the source.
 
 
-### M1-9 — FLAPLOAD slipstream power: takeoff HP (was 2-15; review confirms) *(verify → fix)*
-`flap.py` prefers `max_cont_hp`; FAR 23.457(b) specifies **takeoff power** and
-the review confirmed both PDFs quote it (Ref 1 p109; UG p14-2; FLAPLOAD.BAS's
-"MAX HP OF ONE ENGINE" prompt is the only ambiguity). Prefer `takeoff_hp`;
-keep the Appendix A oracle (which used 250 hp) passing.
-
 ### M1-10 — Documentation consistency sweep (review D1–D3)
 (a) **Reference filenames:** 17 citations across 8 docs point at
 `reference/FAR23 loads (1).pdf` / `ADA324952.pdf`; the actual files are
@@ -135,6 +129,15 @@ explicit checkbox (STRSPEED's design-weight pattern). **Fuselage:** the
 **Acceptance:** no wing/fuselage geometric quantity stored as an independently
 editable copy without an override toggle; fixtures/oracles unchanged;
 save→reload no-op.
+**Power double-entry (from M1-9):** `WeightEstimationInput.max_continuous_hp`
+(combined total, Weight & Mass page) restates `sum(engines[].max_cont_hp)`
+(per-engine, Engine Mount page) — the user sets power twice and they can drift.
+`aircraft_comparison.py:87` already documents the intended
+`sum(engines[].max_cont_hp) → weight.max_continuous_hp` relationship. Same
+single-source fix: derive the weight-estimate total from the engine list,
+override only behind an explicit toggle. For now the Weight & Mass help text
+marks the field "used only for the weight estimate" (M1-9). Keep the two rating
+concepts distinct — takeoff vs max-continuous, per-engine vs combined-total.
 
 ### M2-7 — Step G7 — Persistence verification (G-3)
 Verify every input-bearing value lives on a `Project` slice `io.py` round-trips
