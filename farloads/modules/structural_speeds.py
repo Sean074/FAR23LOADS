@@ -250,6 +250,13 @@ def design_speeds(project: Project, inp: StructuralSpeedsInput) -> List[Conditio
             LoadValue("Minimum dive VD(min)", vd_min, _KT),
             LoadValue("Wing area S", s, "ft^2"),
         ],
+        note=(
+            f"OUT-OF-BAND: W/S = {ws:.1f} lb/ft^2 exceeds the FAR 23.335 coefficient "
+            "schedule (tabulated to W/S = 100). Kc/Kd are held at their W/S = 100 "
+            "values (28.6 / 1.35); VC(min)/VD(min) are GA-extrapolated advisories -- "
+            "supply chosen VC/VD."
+            if ws > 100.0 else ""
+        ),
     )
 
     mach = ConditionResult(

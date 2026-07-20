@@ -61,6 +61,39 @@ own classification. (2) VS = limit (SF 1.5), the reported VMC-substitute floor.
 first-class `safety_factor_basis` field and a cross-module case-spec are deferred
 until a second module needs them.
 
+## M1-6 — VC/VD coefficient clamp at W/S ≥ 100 (complete, 2026-07-20)
+
+**Objective.** Stop the FAR 23.335(a)/(b) minimum-speed coefficients Kc/Kd from
+extrapolating past their tabulated range. `constants.cruise_speed_coefficient` /
+`dive_ratio_coefficient` taper linearly from W/S = 20 to 100 (Kc → 28.6, Kd → 1.35)
+but kept tapering *below* those endpoints for W/S > 100, understating VC(min)/VD(min).
+Inert for GA (W/S ≈ 20) but non-conservative for the heavy-concept band this tool
+targets. (Review finding T9.)
+
+**Regulatory basis.** FAR 23.335(a)/(b) tabulate the coefficients only to a wing
+loading of 100 lb/ft²; STRSPEED.BAS clamps Kc/Kd at 28.6 / 1.35 there. Above W/S = 100
+the schedule is outside the certification basis, so the GA-calibrated minimum becomes
+an extrapolated advisory rather than a governing floor.
+
+**Deliverables.**
+- `constants.py` — both coefficient functions clamp `wing_loading` to 100 before the
+  taper (holds Kc = 28.6, Kd = 1.35 for W/S ≥ 100); docstrings updated.
+- `structural_speeds.py` — the design-speeds `ConditionResult` carries an OUT-OF-BAND
+  note for W/S > 100 flagging VC(min)/VD(min) as GA-extrapolated advisories and
+  pointing to chosen VC/VD (warn-only, mirroring the P1-5 pattern; decided 2026-07-20).
+- Docs/theory-source row + CHANGELOG updated.
+
+**Test / Acceptance.** `test_speed_coefficients_clamp_at_wing_loading_100` (continuity
+at 100; Kc/Kd held at 28.6/1.35 for W/S = 180, all categories) and
+`test_out_of_band_note_above_wing_loading_100` (note present for a W/S ≈ 143 concept,
+absent for the GA6). Appendix A oracle unchanged (W/S ≈ 20, below the clamp). Full
+suite green (incl. the 2 new tests); ruff clean.
+
+**Key decisions.** Above-100 policy is **clamp + warn note** (not silent clamp, not a
+hard error): the clamped minimum is emitted *and* flagged, so the no-chosen-speeds
+concept path degrades safely. The clamp is continuous — the taper reaches 28.6/1.35
+exactly at W/S = 100 — so no boundary discontinuity is introduced.
+
 ## M1-4 — 23.427 unsymmetrical tail: restore the full candidate set (complete, 2026-07-20) **[Major]**
 
 **Objective.** Restore SELECT.BAS's full 12-condition candidate set for the

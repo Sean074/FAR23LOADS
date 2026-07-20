@@ -11,6 +11,19 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- **VC/VD speed coefficients clamp at W/S = 100 (M1-6, review T9).** The FAR
+  23.335(a)/(b) minimum-speed coefficients Kc/Kd are tabulated only to a wing
+  loading of 100 lb/ft² (Kc → 28.6, Kd → 1.35). `constants.cruise_speed_coefficient`
+  / `dive_ratio_coefficient` kept extrapolating the W/S = 20→100 taper *below* those
+  endpoints past 100, understating VC(min)/VD(min) — inert for GA (W/S ≈ 20) but
+  non-conservative for the heavy-concept band this tool targets. Both coefficients
+  now hold constant at 28.6 / 1.35 for W/S ≥ 100 (matching STRSPEED.BAS, which clamps
+  there); the clamp is continuous (the taper reaches the endpoint exactly at 100).
+  For W/S > 100 — outside 23.335's tabulated range — `structural_speeds` attaches an
+  OUT-OF-BAND note to the design-speeds condition, flagging VC(min)/VD(min) as
+  GA-extrapolated advisories and pointing to chosen VC/VD (warn-only, mirroring the
+  P1-5 pattern). Boundary + note tests in `test_structural_speeds.py`.
+
 - **One-engine-out 23.367(a)(2) case no longer double-factored (M1-5, review T7).**
   The VC (ultimate) condition carried the default safety factor 1.5 even though
   23.367(a)(2) loads are *defined as ultimate*, so the render/export layer multiplied

@@ -66,11 +66,6 @@ listing-traceable test, and updates `00_theory_sources.md` where the doc
 currently records the defective behavior as if it were the source.
 
 
-### M1-6 — VC/VD coefficient clamp at W/S ≥ 100 (review T9)
-`constants.py` keeps tapering K1/K2 past W/S = 100; FAR 23.335 and
-STRSPEED.BAS clamp at 28.6 / 1.35. Inert for GA, non-conservative for the
-heavy-concept band this tool targets. Two-line fix + boundary test.
-
 ### M1-7 — Aft-gross ballast reference point (review T8)
 `weight_envelope.py` uses the full discretionary loading as the aft-gross
 reference; the manual's hand calc (Ref 1 p28) uses the heaviest loading **not
@@ -357,8 +352,8 @@ Part 25 result carries the "static surrogate — not certification" banner.
   gap table; freeze parameters.
 - **F25-1 — Transport category "T" envelope pack (M).** 25.337 floor 2.5 /
   negative −1.0; VB (25.335(d)); transport gust corner set — Pratt engine with
-  the 25.341 U_ref schedule + F_g; MZFW design weight. Depends on M1-6
-  (M1-1/2 landed).
+  the 25.341 U_ref schedule + F_g; MZFW design weight. M1-6 (W/S ≥ 100
+  coefficient clamp), M1-1/2 landed.
   Identity test: "T" with FAR 23 parameters reproduces the FAR 23 envelope.
 - **F25-2 — Speeds & placards Part 25 variant (S→M).** 25.335 margins (VB
   margin; MD ≥ MC + **0.07** default, 0.05–0.07 only as explicit

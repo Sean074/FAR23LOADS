@@ -18,6 +18,10 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from farloads import AeroCoefficientsInput, Project, StructuralSpeedsInput, io  # noqa: E402
+from farloads.constants import (  # noqa: E402
+    cruise_speed_coefficient,
+    dive_ratio_coefficient,
+)
 from farloads.modules import structural_speeds as calc  # noqa: E402
 
 TOL = 1e-3  # ±0.1% relative
@@ -126,6 +130,35 @@ def test_concept_requires_explicit_load_factors():
     except ValueError:
         raised = True
     assert raised
+
+
+def test_speed_coefficients_clamp_at_wing_loading_100():
+    # FAR 23.335 tabulates Kc/Kd only to W/S = 100 (28.6 / 1.35). Past 100 the
+    # coefficients HOLD at those endpoints; prior code kept extrapolating the taper
+    # (non-conservative for the heavy-concept band). M1-6 (review T9).
+    for cat in ("N", "U", "A"):
+        # Continuous at the boundary: the taper reaches the endpoint exactly at 100.
+        assert math.isclose(cruise_speed_coefficient(cat, 100.0), 28.6, rel_tol=TOL)
+        assert math.isclose(dive_ratio_coefficient(cat, 100.0), 1.35, rel_tol=TOL)
+        # Clamped (not extrapolated below the endpoint) well past 100.
+        assert cruise_speed_coefficient(cat, 180.0) == cruise_speed_coefficient(cat, 100.0)
+        assert dive_ratio_coefficient(cat, 180.0) == dive_ratio_coefficient(cat, 100.0)
+        assert math.isclose(cruise_speed_coefficient(cat, 180.0), 28.6, rel_tol=TOL)
+        assert math.isclose(dive_ratio_coefficient(cat, 180.0), 1.35, rel_tol=TOL)
+
+
+def test_out_of_band_note_above_wing_loading_100():
+    # A concept with W/S > 100 gets an OUT-OF-BAND note on the design-speeds
+    # condition; a GA aircraft (W/S ~ 20) does not. M1-6 (review T9).
+    inp = StructuralSpeedsInput(category="C", weight_lb=40000, wing_area_sqft=280,
+                                chosen_vc=300, chosen_vd=375,
+                                chosen_n=4.0, chosen_nneg=-2.0)
+    r = calc.design_speeds(_project_clmax("c", 2.101, 2.821), inp)
+    speeds = next(c for c in r if c.title == "Structural design speeds")
+    assert "OUT-OF-BAND" in speeds.note
+
+    ga = next(c for c in results() if c.title == "Structural design speeds")
+    assert ga.note == ""
 
 
 def test_run_requires_speeds():
