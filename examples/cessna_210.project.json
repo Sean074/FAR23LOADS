@@ -1,6 +1,6 @@
 {
   "schema_version": 15,
-  "name": "Cessna 210 Centurion — Continental IO-520-A",
+  "name": "Cessna 210 Centurion \u2014 Continental IO-520-A",
   "engines": [
     {
       "engine_designation": "CONTINENTAL IO-520-A",
@@ -31,7 +31,10 @@
       "cruise_torque": null,
       "hub_weight_lb": null,
       "stop_time_s": null,
-      "rotors": []
+      "rotors": [],
+      "max_accel_torque": null,
+      "design_yaw_rate_rad_s": null,
+      "design_pitch_rate_rad_s": null
     }
   ],
   "engine_layout": "1N",
@@ -41,6 +44,7 @@
       "max_continuous_hp": 285,
       "engines": 1,
       "seats": 6,
+      "crew": 1,
       "cruise_hours": 4,
       "baggage_lb": 120,
       "pressurized": false,
@@ -343,7 +347,33 @@
       "wing_surface": "wing",
       "xlemac": null,
       "mac": null
-    }
+    },
+    "cg_cases": [
+      {
+        "name": "CG1",
+        "weight_lb": 3800,
+        "xcg": 70.0,
+        "zcg": 96
+      },
+      {
+        "name": "CG2",
+        "weight_lb": 3800,
+        "xcg": 62.5,
+        "zcg": 96
+      },
+      {
+        "name": "CG3",
+        "weight_lb": 3000,
+        "xcg": 58.0,
+        "zcg": 95
+      },
+      {
+        "name": "CG4",
+        "weight_lb": 2300,
+        "xcg": 59.0,
+        "zcg": 94
+      }
+    ]
   },
   "geometry": {
     "surfaces": [
@@ -397,15 +427,88 @@
         "symmetric": false,
         "elements": 20
       }
-    ]
+    ],
+    "empennage": {
+      "htail": {
+        "tail_incidence_deg": 1.5,
+        "wing_zero_lift_cruise_deg": 3.9,
+        "wing_zero_lift_enroute_deg": 0.0,
+        "wing_zero_lift_landing_deg": 0.0,
+        "aspect_ratio_wing": 7.4,
+        "aspect_ratio_htail": 4.0,
+        "htail_area_sqft": 36.0,
+        "elevator_effectiveness": 0.6,
+        "xt25": 246.0,
+        "xt50": 255.0,
+        "elevator_te_up_deg": 28.0,
+        "elevator_te_down_deg": 20.0,
+        "elevator_area_sqft": 15.5,
+        "elevator_fwd_hinge_sqft": 1.6,
+        "elevator_aft_hinge_sqft": 13.9,
+        "airplane_length_in": 338.4,
+        "wing_lift_slope_per_rad": 4.75,
+        "htail_semispan_in": 72.0
+      },
+      "vtail": {
+        "rudder_deflection_deg": 28.0,
+        "vtail_area_sqft": 14.0,
+        "rudder_area_sqft": 5.0,
+        "rudder_fwd_hinge_sqft": 0.55,
+        "rudder_aft_hinge_sqft": 4.45,
+        "aspect_ratio_vtail": 1.5,
+        "vtail_mac_in": 39.599999999999994,
+        "xv25": 251.0,
+        "xv50": 258.0,
+        "airplane_length_in": 338.4,
+        "wing_span_in": 441.96,
+        "gross_weight_lb": 3800.0,
+        "rudder_large_deflection_factor": 1.0,
+        "izz_slugft2": 0.0,
+        "vtail_span_in": 54.0
+      }
+    },
+    "landing_gear": {
+      "main_gear": {
+        "axle_compressed": [
+          95.6,
+          56.0
+        ],
+        "axle_static": [
+          96.0,
+          59.6
+        ],
+        "axle_extended": [
+          95.5,
+          54.2
+        ],
+        "rolling_radius_in": 8.0,
+        "strut": "O"
+      },
+      "nose_gear": {
+        "axle_compressed": [
+          2.9,
+          47.0
+        ],
+        "axle_static": [
+          3.4,
+          49.5
+        ],
+        "axle_extended": [
+          2.6,
+          45.2
+        ],
+        "rolling_radius_in": 5.7,
+        "strut": "O"
+      },
+      "tread_in": 112.0
+    }
   },
   "speeds": {
     "category": "N",
     "weight_lb": 3800,
+    "occupants": null,
     "wing_area_sqft": 175.0,
     "vh_kt": 200,
-    "stall_clean_kt": 64.5,
-    "stall_flap_kt": 58.0,
     "shoulder_altitude_ft": 12000,
     "wing_surface": "wing",
     "chosen_vc": 167,
@@ -415,7 +518,7 @@
     "chosen_n": null,
     "chosen_nneg": null,
     "mach_limit": {
-      "mc": 0.30,
+      "mc": 0.3,
       "md": 0.38,
       "shoulder_altitude_ft": 12000,
       "max_operating_altitude_ft": 18000,
@@ -460,9 +563,43 @@
             221,
             -0.03
           ]
-        ]
+        ],
+        "sweep_deg": 0.0,
+        "design_mach": 0.0
       }
     ]
+  },
+  "aero_coeffs": {
+    "clmax_clean": 1.5397,
+    "clmax_clean_neg": -0.6,
+    "clmax_flap": 1.9042,
+    "cruise": {
+      "name": "CRUISE",
+      "stall_cl": 1.42,
+      "neg_stall_cl": -0.6,
+      "lift": [
+        0.320479,
+        0.080358,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "drag": [
+        0.026917,
+        0.0,
+        0.053647,
+        0.0,
+        0.0
+      ],
+      "moment": [
+        -0.017328,
+        0.004128,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "flaps_down": false
+    }
   },
   "flight_loads": {
     "mac": 57.7,
@@ -476,35 +613,6 @@
       0.0,
       12000.0,
       18000.0
-    ],
-    "configurations": [
-      {
-        "name": "CRUISE",
-        "stall_cl": 1.42,
-        "neg_stall_cl": -0.60,
-        "lift": [
-          0.320479,
-          0.080358,
-          0.0,
-          0.0,
-          0.0
-        ],
-        "drag": [
-          0.026917,
-          0.0,
-          0.053647,
-          0.0,
-          0.0
-        ],
-        "moment": [
-          -0.017328,
-          0.004128,
-          0.0,
-          0.0,
-          0.0
-        ],
-        "flaps_down": false
-      }
     ],
     "cg_cases": [
       {
@@ -567,43 +675,6 @@
     "basic_airfoil_cm": -0.03,
     "wing_weight_lb": 0.0
   },
-  "tail_loads": {
-    "tail_incidence_deg": 1.5,
-    "wing_zero_lift_cruise_deg": 3.9,
-    "wing_zero_lift_enroute_deg": 0.0,
-    "wing_zero_lift_landing_deg": 0.0,
-    "aspect_ratio_wing": 7.4,
-    "aspect_ratio_htail": 4.0,
-    "htail_area_sqft": 36.0,
-    "elevator_effectiveness": 0.60,
-    "xt25": 246.0,
-    "xt50": 255.0,
-    "elevator_te_up_deg": 28.0,
-    "elevator_te_down_deg": 20.0,
-    "elevator_area_sqft": 15.5,
-    "elevator_fwd_hinge_sqft": 1.6,
-    "elevator_aft_hinge_sqft": 13.9,
-    "airplane_length_ft": 28.2,
-    "wing_lift_slope_per_rad": 4.75,
-    "htail_semispan_in": 72.0
-  },
-  "vtail_loads": {
-    "rudder_deflection_deg": 28.0,
-    "vtail_area_sqft": 14.0,
-    "rudder_area_sqft": 5.0,
-    "rudder_fwd_hinge_sqft": 0.55,
-    "rudder_aft_hinge_sqft": 4.45,
-    "aspect_ratio_vtail": 1.5,
-    "vtail_mac_ft": 3.3,
-    "xv25": 251.0,
-    "xv50": 258.0,
-    "airplane_length_ft": 28.2,
-    "wing_span_ft": 36.83,
-    "gross_weight_lb": 3800.0,
-    "rudder_large_deflection_factor": 1.0,
-    "izz_slugft2": 0.0,
-    "vtail_span_in": 54.0
-  },
   "aileron_loads": {
     "down_deflection_deg": 15.0,
     "up_deflection_deg": 10.0,
@@ -625,7 +696,7 @@
       {
         "surface": "htail",
         "mac_in": 7.0,
-        "area_sqin": 210.0,
+        "area_sqft": 1.4583333333333333,
         "station_in": 17.0,
         "airfoil_chord_in": 40.0,
         "deflection_deg": 15.0
@@ -640,39 +711,6 @@
     "tire_od_in": 19,
     "hub_diameter_in": 7,
     "lift_factor": 0.667,
-    "main_gear": {
-      "axle_compressed": [
-        95.6,
-        56.0
-      ],
-      "axle_static": [
-        96.0,
-        59.6
-      ],
-      "axle_extended": [
-        95.5,
-        54.2
-      ],
-      "rolling_radius_in": 8.0,
-      "strut": "O"
-    },
-    "nose_gear": {
-      "axle_compressed": [
-        2.9,
-        47.0
-      ],
-      "axle_static": [
-        3.4,
-        49.5
-      ],
-      "axle_extended": [
-        2.6,
-        45.2
-      ],
-      "rolling_radius_in": 5.7,
-      "strut": "O"
-    },
-    "tread_in": 112.0,
     "tail_down_angle_deg": 13.0,
     "gear_load_factor": 2.5,
     "cg_cases": [

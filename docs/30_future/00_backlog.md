@@ -65,22 +65,21 @@ Calculation fixes from the review. Each is small, lands with a new oracle or
 listing-traceable test, and updates `00_theory_sources.md` where the doc
 currently records the defective behavior as if it were the source.
 
-### M1-1b — CLmax → stall-speed single-source (Level B; closes old 2-13(b))
-Split out of M1-1 (decided 2026-07-19). Make CLmax the single source for stall
-speeds instead of the hand-entered `stall_clean_kt`/`stall_flap_kt` scalars:
-`VS (KEAS) = √(295·(W/S)/CLmax)` (the suite's `q=V²/295` convention; back-solves
-`ga6` to clean CLmax≈1.41 / flapped≈1.59). **Level B (single-source everywhere,
-decided 2026-07-19):** CLmax entered once; VS/VSF derived per weight/CG case in
-`flight_envelope.py` as well as STRSPEED, with the direct stall scalars demoted to
-explicit overrides. **Scope:** add `clmax_clean`/`clmax_flap` to
-`StructuralSpeedsInput`; shared `stall_speed(w, s, clmax)` helper in `constants.py`;
-audit + rewire the envelope stall lines; `SCHEMA_VERSION` bump + `io.py` round-trip
-(older files' stall scalars remain valid overrides); GUI (enter CLmax once, show
-derived VS/VSF read-only); User's Guide p7-5 citation. **Acceptance:** CLmax
-derivation reproduces `ga6` 62.226/58.611 within ±0.1%; the FLTLOADS Appendix-A
-envelope rows are unchanged; a closure test covers the derivation. (CG does not
-enter the 1-g stall speed here — only weight/W/S; its effect flows in via FLTLOADS'
-balanced cases.)
+### M1-1 — VD floor: enforce `K_d · VCmin` (review T1, was 2-13(a)) **[Critical]**
+`structural_speeds.py` computes `vd = max(chosen_vd, 1.25·VC)` and reports
+`K_d·VC` as "recommended". `STRSPEED.BAS` (Ref 1 p265–267: `V2DMIN=K2*V1CMIN`,
+enforced at lines 380/390) and FAR 23.335(b)(2) (User's Guide p46) require
+**both** minimums: `VD ≥ max(K_d·VCmin, 1.25·VC)`. With no chosen speeds the
+Appendix A Cat-N case (p155) prints VDmin **198.53 kt**; the code returns
+**177.26** — 10.7% non-conservative, propagating into MACHLIM and every
+downstream case at VD. The chosen-speeds case (p156) masks it, which is why the
+0.2.0 baseline missed it. **Fix:** `vd_min = max(kd*vc_min, 1.25*vc)`; rename
+the reported advisory to `K_d·VCmin`; add the p155 no-chosen-speeds oracle test;
+correct `00_theory_sources.md:59` (it currently documents the Code-manual
+prose error, not the BASIC). ~~Also close the remainder of old 2-13: (b) the
+optional CLmax→stall-speed input path (User's Guide p7-5)~~ — **done as M1-1b**
+(CLmax is now the single stall-speed source on `aero_coeffs`; see
+[`../40_history/00_completed_development.md`](../40_history/00_completed_development.md)).
 
 ### M1-2 — BAL 1.4VSF: balance at 1.4× the 1-g flaps-down stall (review T2) **[Critical]**
 `flight_envelope.py` `_flap_config_points` captures the **STALL 2G** speed and
@@ -224,7 +223,34 @@ warning note in concept mode.
 Hardcodes `.venv/bin/*`; fails on any machine that installs differently. Use
 `python -m` invocations / the active interpreter.
 
-### M2-10 — Input data dictionary + short GUI user guide (review D4, part 1)
+### M2-10 — Operational-speed linkage on the Design Speeds page (decided 2026-07-20: all three tiers)
+The design speeds bound the eventual **operating limitations** — the page must
+explain and surface this. Primary sources: Ref 1 **p47** (VNE/MNE = 0.9·VD/MD;
+yellow arc VC→VNE; turbine airplanes use VMO/MMO ≤ VC/MC with the 23.335(b)(4)
+margin — ≥ 0.05 Mach between MC and MD or the flight-test upset margin) and
+FAR 23.1505 (VNE ≤ 0.9·VD; VNO ≤ lesser of VC or 0.89·VNE), 23.1511
+(VFE ≤ VF), 23.629 (flutter clearance to 1.2·VD/MD — the MFC line MACHLIM
+already outputs). Three tiers, one step:
+- **Explain:** an expander on the Design Speeds tab presenting the constraint
+  ladder with the citations above.
+- **Derive:** a pure `operational_implications(speeds, mach)` calc returning
+  the implied preliminary placards (VNE = 0.9·VD, MNE = 0.9·MD,
+  VNO = min(VC, 0.89·VNE), VMO/MMO caps = VC/MC, VFE cap = VF, arc
+  boundaries), rendered as a read-only advisory panel with an "operating
+  limitations are set at certification (Subpart G), not by this tool" caption;
+  unit-tested against the GA6 figures.
+- **Constrain:** optional operational **targets** on `StructuralSpeedsInput`
+  (target VNE or VMO/MMO, VNO, VFE + a turbine/no-yellow-arc flag; schema
+  bump, lenient migration). On Apply, invert the ladder into required design
+  minima (target VNE ⇒ VD ≥ VNE/0.9; target MMO ⇒ MD ≥ MMO + 0.05; target
+  VMO ⇒ VC ≥ VMO; target VFE ⇒ VF ≥ VFE) and warn concretely when the chosen
+  design speeds are infeasible; hook into `validation.py` so infeasibility
+  also surfaces on the dashboard.
+**Depends on M1-1** (the VD floor fix) — an implied VNE from the under-floored
+VD would propagate the error into the advisory. Display/validation only; no
+loads-math change. *(S–M; unblocked once M1-1 lands.)*
+
+### M2-11 — Input data dictionary + short GUI user guide (review D4, part 1)
 (a) A `project.json` **data dictionary** — field, type, units, default, owning
 page, consuming modules — generated from the dataclasses (the schema is 28
 versions deep and the only reference is `models.py`). (b) A **5–10 page GUI
@@ -419,6 +445,8 @@ reaction matrix stays closure-/legible-cell-locked).
 
 ## Known defects (open)
 
+- **M1-1** — VD floor omits `K_d·VCmin` (non-conservative ~10.7% on the
+  no-chosen-speeds path). **[Critical]**
 - **M1-2** — BAL 1.4VSF balanced at the 2-g stall speed (tail load 2.2× the
   Appendix A oracle). **[Critical]**
 - **M1-3** — swept-wing span load loses 6–13% of integrated lift

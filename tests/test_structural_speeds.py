@@ -17,10 +17,17 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from farloads import Project, StructuralSpeedsInput, io  # noqa: E402
+from farloads import AeroCoefficientsInput, Project, StructuralSpeedsInput, io  # noqa: E402
 from farloads.modules import structural_speeds as calc  # noqa: E402
 
 TOL = 1e-3  # ±0.1% relative
+
+
+def _project_clmax(name, clmax_clean, clmax_flap):
+    """A Project carrying only the CLmax (stall-speed source) on aero_coeffs -- the
+    minimum STRSPEED needs to derive VS/VSF (M1-1b)."""
+    return Project(name=name, aero_coeffs=AeroCoefficientsInput(
+        clmax_clean=clmax_clean, clmax_flap=clmax_flap))
 
 _EXAMPLE = os.path.join(
     os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
@@ -65,8 +72,8 @@ def test_vd_floor_no_chosen_speeds():
     # governs over 1.25*VCmin = 177.26. (Pre-fix code returned 177.26 -- 10.7%
     # non-conservative; STRSPEED.BAS V2DMIN=K2*V1CMIN, lines 380/390.)
     inp = StructuralSpeedsInput(category="N", weight_lb=3400, wing_area_sqft=184.125,
-                                stall_clean_kt=62.226, stall_flap_kt=58.611, vh_kt=190)
-    r = calc.design_speeds(Project(name="n"), inp)
+                                vh_kt=190)
+    r = calc.design_speeds(_project_clmax("n", 1.4068, 1.5857), inp)
     assert math.isclose(_value(r, "Dive speed VD"), 198.53, rel_tol=TOL)          # p155
     assert math.isclose(_value(r, "Minimum dive VD(min)"), 198.53, rel_tol=TOL)
 
@@ -86,10 +93,11 @@ def test_cruise_and_dive_mach_at_shoulder():
 
 def test_utility_and_acrobatic_caps():
     # Category caps: utility 4.4, acrobatic 6.0; negative -0.4n / -0.5n.
-    base = dict(weight_lb=3400, wing_area_sqft=184.125, stall_clean_kt=62.226,
-                stall_flap_kt=58.611, chosen_vc=170, chosen_vd=212.5)
-    u = calc.design_speeds(Project(name="u"), StructuralSpeedsInput(category="U", **base))
-    a = calc.design_speeds(Project(name="a"), StructuralSpeedsInput(category="A", **base))
+    base = dict(weight_lb=3400, wing_area_sqft=184.125, chosen_vc=170, chosen_vd=212.5)
+    u = calc.design_speeds(_project_clmax("u", 1.4068, 1.5857),
+                           StructuralSpeedsInput(category="U", **base))
+    a = calc.design_speeds(_project_clmax("a", 1.4068, 1.5857),
+                           StructuralSpeedsInput(category="A", **base))
     assert math.isclose(_value(u, "Limit positive load factor"), 4.4, rel_tol=TOL)
     assert math.isclose(_value(u, "Limit negative load factor"), -0.4 * 4.4, rel_tol=TOL)
     assert math.isclose(_value(a, "Limit positive load factor"), 6.0, rel_tol=TOL)
@@ -100,10 +108,9 @@ def test_concept_bypasses_cap():
     # Category C (concept): the user's n / n_neg are used verbatim, with no
     # FAR 23.337 formula or cap -- even above the 12,500 lb GA band.
     inp = StructuralSpeedsInput(category="C", weight_lb=18000, wing_area_sqft=280,
-                                stall_clean_kt=95, stall_flap_kt=82,
                                 chosen_vc=250, chosen_vd=312.5,
                                 chosen_n=4.0, chosen_nneg=-2.0)
-    r = calc.design_speeds(Project(name="c"), inp)
+    r = calc.design_speeds(_project_clmax("c", 2.101, 2.821), inp)
     assert _value(r, "Limit positive load factor") == 4.0
     assert _value(r, "Limit negative load factor") == -2.0
 
@@ -112,11 +119,10 @@ def test_concept_requires_explicit_load_factors():
     # Concept mode without chosen_n/chosen_nneg is an error (there is no FAR floor
     # to fall back on).
     inp = StructuralSpeedsInput(category="C", weight_lb=18000, wing_area_sqft=280,
-                                stall_clean_kt=95, stall_flap_kt=82,
                                 chosen_vc=250, chosen_vd=312.5)
     raised = False
     try:
-        calc.design_speeds(Project(name="c"), inp)
+        calc.design_speeds(_project_clmax("c", 2.101, 2.821), inp)
     except ValueError:
         raised = True
     assert raised

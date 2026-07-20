@@ -179,13 +179,11 @@ def _tab_design_speeds(project: Project, system: UnitSystem, U: dict) -> None:
                              value=float(existing.vh_kt) if existing else 0.0,
                              help="Maximum speed in level flight at max continuous power, sea level (KEAS); "
                                   "a floor for the minimum cruise speed VC (14 CFR 23.335).")
-        vs = st.number_input("Stall speed, flaps up VS (kt)", min_value=0.0,
-                             value=float(existing.stall_clean_kt) if existing else 0.0,
-                             help="Clean (flaps-up) stall speed VS (KEAS); sets VA and the positive-manoeuvre "
-                                  "corner of the V-n envelope (14 CFR 23.335).")
-        vsf = st.number_input("Stall speed, flaps down VSF (kt)", min_value=0.0,
-                              value=float(existing.stall_flap_kt) if existing else 0.0,
-                              help="Flaps-down (landing) stall speed VSF (KEAS); sets the flap design speed VF.")
+        st.caption(
+            "Stall speeds VS/VSF are **derived from the maximum lift coefficients "
+            "(CLmax)** entered on the **Aerodynamic Data** page — VS = √(295·(W/S)/CLmax) "
+            "at the design weight — and set VA and VF. Enter CLmax there."
+        )
         alt = st.number_input("Shoulder altitude (ft)", min_value=0.0,
                               value=float(existing.shoulder_altitude_ft) if existing else 0.0,
                               help="Altitude at the 'shoulder' of the flight envelope where VC/VD are evaluated "
@@ -221,8 +219,6 @@ def _tab_design_speeds(project: Project, system: UnitSystem, U: dict) -> None:
             occupants=int(occupants_in) if occupants_in else None,
             wing_area_sqft=wing_area_imperial,
             vh_kt=vh,
-            stall_clean_kt=vs,
-            stall_flap_kt=vsf,
             shoulder_altitude_ft=alt,
             chosen_vc=vc or None,
             chosen_vd=vd or None,
@@ -251,6 +247,11 @@ def _tab_design_speeds(project: Project, system: UnitSystem, U: dict) -> None:
         results = design_speeds(project, inp)
     except (ValueError, ZeroDivisionError) as exc:
         st.error(f"Could not compute structural speeds: {exc}")
+        try:
+            st.page_link("views/aero_coefficients.py", label="→ Set CLmax on Aerodynamic Data",
+                         icon="🛩️")
+        except Exception:
+            pass
         return
 
     for r in results:

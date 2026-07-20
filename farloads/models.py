@@ -430,8 +430,10 @@ class StructuralSpeedsInput:
                                                # farloads.applicability.effective_occupants
     wing_area_sqft: Optional[float] = None     # else read from geometry wing
     vh_kt: float = 0.0                          # max speed at sea level (KEAS)
-    stall_clean_kt: float = 0.0                 # VS, flaps retracted at design weight
-    stall_flap_kt: float = 0.0                  # VSF, flaps fully extended
+    # Stall speeds VS/VSF are DERIVED from the maximum lift coefficients that live
+    # on Project.aero_coeffs (clmax_clean/clmax_flap): VS = sqrt(295*(W/S)/CLmax)
+    # at the design weight (User's Guide p7-5). CLmax is entered once, on the
+    # Aerodynamic Data page; STRSPEED reads it (M1-1b). No stall-speed scalar here.
     shoulder_altitude_ft: float = 0.0           # for the MC/MD Mach numbers
     wing_surface: str = "wing"
     chosen_vc: Optional[float] = None
@@ -461,11 +463,15 @@ class AeroCoeffSet:
     the flaps-up ``XTC`` (cruise = up; landing = down).
     """
     name: str                                   # "CRUISE" | "LANDING" | "ENROUTE"
-    stall_cl: float
-    neg_stall_cl: float
     lift: Tuple[float, float, float, float, float]    # C0..C4 (CL vs alpha deg)
     drag: Tuple[float, float, float, float, float]    # D0..D4 (CD vs CL)
     moment: Tuple[float, float, float, float, float]  # M0..M4 (CM vs alpha deg)
+    # stall_cl/neg_stall_cl are DERIVED read-throughs of the parent
+    # AeroCoefficientsInput's clmax_clean/clmax_clean_neg (cruise) or clmax_flap
+    # (flaps_down); AeroCoefficientsInput.__post_init__ keeps them consistent.
+    # FLTLOADS reads these; they are not authored per-config (M1-1b single-source).
+    stall_cl: float = 0.0
+    neg_stall_cl: float = 0.0
     flaps_down: bool = False
 
 
@@ -504,6 +510,36 @@ class AeroCoefficientsInput:
     cruise: Optional[AeroCoeffSet] = None
     flaps_down: Optional[AeroCoeffSet] = None
     fuselage_moment: Optional[FuselageMomentInput] = None
+    # Maximum lift coefficients -- the single authored source for stall (M1-1b).
+    # clmax_clean/clmax_clean_neg = clean (cruise) positive/negative CLmax;
+    # clmax_flap = flaps-down positive CLmax. STRSPEED/flap/one_engine_out derive
+    # VS/VSF from these; FLTLOADS reads the mirrored per-config stall_cl. Kept
+    # decoupled from the polynomial sets so an airplane with stall data but no
+    # balance polynomials (e.g. a GA single with no flaps-down set) still carries
+    # its CLmax. __post_init__ keeps clmax_* and the config stall_cl consistent.
+    clmax_clean: float = 0.0
+    clmax_clean_neg: float = 0.0
+    clmax_flap: float = 0.0
+
+    def __post_init__(self) -> None:
+        # Keep the two stall representations consistent without ever overwriting an
+        # explicitly-authored value (fill-if-missing, both directions). The top-level
+        # clmax_* feed the *stall speed* VS/VSF (STRSPEED); the per-config stall_cl is
+        # the FLTLOADS balance clamp. They usually coincide, but the manual enters
+        # them independently and they can differ slightly (e.g. Appendix A ga6:
+        # clmax_clean 1.4068 from the printed VS vs FLTLOADS stall_cl 1.41 -- the 0.9
+        # stall-margin factor). So each is preserved when set; a missing one is filled
+        # from the other so a project needs only provide whichever it has.
+        if not self.clmax_clean and self.cruise is not None and self.cruise.stall_cl:
+            self.clmax_clean = self.cruise.stall_cl
+            self.clmax_clean_neg = self.cruise.neg_stall_cl
+        if not self.clmax_flap and self.flaps_down is not None and self.flaps_down.stall_cl:
+            self.clmax_flap = self.flaps_down.stall_cl
+        if self.cruise is not None and not self.cruise.stall_cl and self.clmax_clean:
+            self.cruise.stall_cl = self.clmax_clean
+            self.cruise.neg_stall_cl = self.clmax_clean_neg
+        if self.flaps_down is not None and not self.flaps_down.stall_cl and self.clmax_flap:
+            self.flaps_down.stall_cl = self.clmax_flap
 
 
 @dataclass
@@ -842,7 +878,9 @@ class FlapLoadsInput:
     chordwise distribution tapers from the leading edge to half that pressure at the
     trailing edge.
 
-    Stall speeds VS/VSF and the flap design speed VF come from ``Project.speeds``;
+    Stall speeds VS/VSF are derived from the CLmax on ``Project.aero_coeffs``
+    (``clmax_clean``/``clmax_flap``) at the design weight, and the flap design
+    speed VF comes from ``Project.speeds``;
     the design weight from ``Project.speeds.weight_lb``; the wing area from the
     ``Project.geometry`` wing surface; and the propeller power/diameter from
     ``Project.engines[0]`` for the FAR 23.457(b) slipstream amplification. This
@@ -1616,7 +1654,7 @@ class LoadsResult:
 # and LANDLOAD reads the gear via a sync onto Project.landing (math unchanged -> the
 # Appendix A ground-load oracle is byte-identical). io migrates a pre-v28 file's
 # top-level landing gear (and legacy LayoutInput gear fields) into geometry.landing_gear.
-SCHEMA_VERSION = 28
+SCHEMA_VERSION = 29
 
 
 @dataclass

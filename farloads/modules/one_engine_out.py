@@ -261,8 +261,15 @@ def _speed_cases(project: Project, oeo: OneEngineOutInput) -> List[Tuple[str, st
         cases.append(("VC (ultimate)", "23.367(a)(2)", float(sp.chosen_vc)))
     if sp.chosen_vd:
         cases.append(("VD (limit)", "23.367(a)(1)", float(sp.chosen_vd)))
-    if sp.stall_clean_kt:
-        cases.append(("VS", "23.367", float(sp.stall_clean_kt)))
+    # VS is derived from CLmax (M1-1b); include it only when the CLmax needed to
+    # derive it is available (Project.aero_coeffs), else skip this optional case.
+    try:
+        from .structural_speeds import design_speed_values
+        vs = design_speed_values(project, sp).vs
+    except (ValueError, ZeroDivisionError):
+        vs = 0.0
+    if vs:
+        cases.append(("VS", "23.367", float(vs)))
     if not cases:
         raise ValueError("one_engine_out found no speeds; set chosen_vc/chosen_vd on Project.speeds")
     return cases

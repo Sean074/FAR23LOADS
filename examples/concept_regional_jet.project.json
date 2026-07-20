@@ -1,7 +1,6 @@
 {
   "schema_version": 22,
   "name": "RJ-50 concept \u2014 50-seat regional jet (concept mode, Part 25)",
-  "include_far25": true,
   "engines": [
     {
       "engine_designation": "GENERIC TURBOFAN ~7,000 lbf",
@@ -42,7 +41,9 @@
           "inertia": null
         }
       ],
-      "max_accel_torque": 5000.0
+      "max_accel_torque": 5000.0,
+      "design_yaw_rate_rad_s": null,
+      "design_pitch_rate_rad_s": null
     },
     {
       "engine_designation": "GENERIC TURBOFAN ~7,000 lbf",
@@ -83,7 +84,9 @@
           "inertia": null
         }
       ],
-      "max_accel_torque": 5000.0
+      "max_accel_torque": 5000.0,
+      "design_yaw_rate_rad_s": null,
+      "design_pitch_rate_rad_s": null
     }
   ],
   "engine_layout": "2W",
@@ -93,6 +96,7 @@
       "max_continuous_hp": 2800,
       "engines": 2,
       "seats": 50,
+      "crew": 1,
       "cruise_hours": 2,
       "baggage_lb": 2000,
       "pressurized": true,
@@ -252,7 +256,27 @@
       "wing_surface": "wing",
       "xlemac": null,
       "mac": null
-    }
+    },
+    "cg_cases": [
+      {
+        "name": "CG1 aft heavy",
+        "weight_lb": 33000.0,
+        "xcg": 619.48,
+        "zcg": 70.0
+      },
+      {
+        "name": "CG2 fwd heavy",
+        "weight_lb": 33000.0,
+        "xcg": 599.18,
+        "zcg": 70.0
+      },
+      {
+        "name": "CG3 fwd light",
+        "weight_lb": 24000.0,
+        "xcg": 595.12,
+        "zcg": 70.0
+      }
+    ]
   },
   "geometry": {
     "surfaces": [
@@ -306,15 +330,122 @@
         "symmetric": false,
         "elements": 20
       }
-    ]
+    ],
+    "parametric": {
+      "fuselage_length": 1056.0,
+      "fuselage_width": 105.0,
+      "fuselage_height": 120.0,
+      "datum_x": 0.0,
+      "wing_area_sqft": 500.0,
+      "aspect_ratio": 8.712,
+      "taper_ratio": 0.25,
+      "dihedral_deg": 3.0,
+      "le_sweep_deg": 27.2,
+      "le_root_x": 480.0,
+      "root_waterline_z": 45.0,
+      "tail_type": "t_tail",
+      "h_tail_z": 180.0
+    },
+    "fuselage": {
+      "sections": [
+        {
+          "x": 0.0,
+          "width": 0.0,
+          "height": 0.0
+        },
+        {
+          "x": 369.59999999999997,
+          "width": 105.0,
+          "height": 120.0
+        },
+        {
+          "x": 1056.0,
+          "width": 10.5,
+          "height": 18.0
+        }
+      ]
+    },
+    "empennage": {
+      "htail": {
+        "tail_incidence_deg": 1.5,
+        "wing_zero_lift_cruise_deg": 2.5,
+        "wing_zero_lift_enroute_deg": 0.0,
+        "wing_zero_lift_landing_deg": 0.0,
+        "aspect_ratio_wing": 8.712,
+        "aspect_ratio_htail": 4.5,
+        "htail_area_sqft": 120.0,
+        "elevator_effectiveness": 0.55,
+        "xt25": 1047.0,
+        "xt50": 1075.0,
+        "elevator_te_up_deg": 25.0,
+        "elevator_te_down_deg": 20.0,
+        "elevator_area_sqft": 34.0,
+        "elevator_fwd_hinge_sqft": 4.0,
+        "elevator_aft_hinge_sqft": 30.0,
+        "airplane_length_in": 1056.0,
+        "wing_lift_slope_per_rad": 5.2,
+        "htail_semispan_in": 139.0
+      },
+      "vtail": {
+        "rudder_deflection_deg": 25.0,
+        "vtail_area_sqft": 110.0,
+        "rudder_area_sqft": 33.0,
+        "rudder_fwd_hinge_sqft": 4.0,
+        "rudder_aft_hinge_sqft": 29.0,
+        "aspect_ratio_vtail": 1.2,
+        "vtail_mac_in": 115.19999999999999,
+        "xv25": 1010.0,
+        "xv50": 0.0,
+        "airplane_length_in": 1056.0,
+        "wing_span_in": 792.0,
+        "gross_weight_lb": 33000.0,
+        "rudder_large_deflection_factor": 1.0,
+        "izz_slugft2": 0.0,
+        "vtail_span_in": 138.0
+      }
+    },
+    "landing_gear": {
+      "main_gear": {
+        "axle_compressed": [
+          640.0,
+          12.0
+        ],
+        "axle_static": [
+          640.0,
+          20.0
+        ],
+        "axle_extended": [
+          640.0,
+          26.0
+        ],
+        "rolling_radius_in": 14.0,
+        "strut": "O"
+      },
+      "nose_gear": {
+        "axle_compressed": [
+          120.0,
+          12.0
+        ],
+        "axle_static": [
+          120.0,
+          20.0
+        ],
+        "axle_extended": [
+          120.0,
+          26.0
+        ],
+        "rolling_radius_in": 14.0,
+        "strut": "O"
+      },
+      "tread_in": 130.0
+    }
   },
   "speeds": {
     "category": "C",
     "weight_lb": 33000.0,
+    "occupants": null,
     "wing_area_sqft": 500.0,
     "vh_kt": 310,
-    "stall_clean_kt": 118.0,
-    "stall_flap_kt": 94.0,
     "shoulder_altitude_ft": 24000,
     "wing_surface": "wing",
     "chosen_vc": 310,
@@ -376,6 +507,9 @@
     ]
   },
   "aero_coeffs": {
+    "clmax_clean": 1.3983,
+    "clmax_clean_neg": -0.7,
+    "clmax_flap": 2.2035,
     "cruise": {
       "name": "CRUISE",
       "stall_cl": 1.4,
@@ -475,78 +609,7 @@
       }
     ]
   },
-  "select_input": {
-    "full_down_aileron_deg": 15.0,
-    "basic_airfoil_cm": -0.05,
-    "wing_weight_lb": 4200.0
-  },
-  "tail_loads": {
-    "tail_incidence_deg": 1.5,
-    "wing_zero_lift_cruise_deg": 2.5,
-    "wing_zero_lift_enroute_deg": 0.0,
-    "wing_zero_lift_landing_deg": 0.0,
-    "aspect_ratio_wing": 8.712,
-    "aspect_ratio_htail": 4.5,
-    "htail_area_sqft": 120.0,
-    "elevator_effectiveness": 0.55,
-    "xt25": 1047.0,
-    "xt50": 1075.0,
-    "elevator_te_up_deg": 25.0,
-    "elevator_te_down_deg": 20.0,
-    "elevator_area_sqft": 34.0,
-    "elevator_fwd_hinge_sqft": 4.0,
-    "elevator_aft_hinge_sqft": 30.0,
-    "airplane_length_ft": 88.0,
-    "wing_lift_slope_per_rad": 5.2,
-    "htail_semispan_in": 139.0
-  },
-  "vtail_loads": {
-    "rudder_deflection_deg": 25.0,
-    "vtail_area_sqft": 110.0,
-    "rudder_area_sqft": 33.0,
-    "rudder_fwd_hinge_sqft": 4.0,
-    "rudder_aft_hinge_sqft": 29.0,
-    "aspect_ratio_vtail": 1.2,
-    "vtail_mac_ft": 9.6,
-    "xv25": 1010.0,
-    "xv50": 0.0,
-    "airplane_length_ft": 88.0,
-    "wing_span_ft": 66.0,
-    "gross_weight_lb": 33000.0,
-    "rudder_large_deflection_factor": 1.0,
-    "izz_slugft2": 0.0,
-    "vtail_span_in": 138.0
-  },
-  "aileron_loads": {
-    "down_deflection_deg": 15.0,
-    "up_deflection_deg": 10.0,
-    "area_fwd_hinge_sqft": 3.0,
-    "area_aft_hinge_sqft": 12.0,
-    "surface": "aileron"
-  },
-  "flap_loads": {
-    "gust_load_factor": 1.6,
-    "flap_area_one_side_sqft": 55.0,
-    "flap_deflection_deg": 40.0,
-    "flap_chord_ratio": 0.3,
-    "nacelle_frontal_area_sqft": 0.0,
-    "engine_butt_line_in": 0.0,
-    "surface": "flap"
-  },
-  "tab_loads": {
-    "tabs": [
-      {
-        "surface": "htail",
-        "mac_in": 14.0,
-        "area_sqin": 900.0,
-        "station_in": 60.0,
-        "airfoil_chord_in": 70.0,
-        "deflection_deg": 15.0
-      }
-    ]
-  },
   "fuselage_mass": {
-    "ref_waterline": 66.0,
     "stations": [
       {
         "x": 60.0,
@@ -584,32 +647,41 @@
         "x": 1020.0,
         "weight_lb": 1300.0
       }
-    ]
+    ],
+    "ref_waterline": 66.0
   },
-  "configuration": {
-    "fuselage_length": 1056.0,
-    "fuselage_width": 105.0,
-    "fuselage_height": 120.0,
-    "datum_x": 0.0,
-    "wing_area_sqft": 500.0,
-    "aspect_ratio": 8.712,
-    "taper_ratio": 0.25,
-    "dihedral_deg": 3.0,
-    "le_sweep_deg": 27.2,
-    "le_root_x": 480.0,
-    "root_waterline_z": 45.0,
-    "h_tail_area": 120.0,
-    "h_tail_arm": 460.0,
-    "v_tail_area": 110.0,
-    "v_tail_arm": 423.0,
-    "tail_type": "t_tail",
-    "h_tail_span_ft": 23.2,
-    "h_tail_z": 180.0,
-    "v_tail_span_ft": 11.5,
-    "nose_gear_x": 120.0,
-    "main_gear_x": 640.0,
-    "track": 130.0,
-    "gear_height": 75.0
+  "select_input": {
+    "full_down_aileron_deg": 15.0,
+    "basic_airfoil_cm": -0.05,
+    "wing_weight_lb": 4200.0
+  },
+  "aileron_loads": {
+    "down_deflection_deg": 15.0,
+    "up_deflection_deg": 10.0,
+    "area_fwd_hinge_sqft": 3.0,
+    "area_aft_hinge_sqft": 12.0,
+    "surface": "aileron"
+  },
+  "flap_loads": {
+    "gust_load_factor": 1.6,
+    "flap_area_one_side_sqft": 55.0,
+    "flap_deflection_deg": 40.0,
+    "flap_chord_ratio": 0.3,
+    "nacelle_frontal_area_sqft": 0.0,
+    "engine_butt_line_in": 0.0,
+    "surface": "flap"
+  },
+  "tab_loads": {
+    "tabs": [
+      {
+        "surface": "htail",
+        "mac_in": 14.0,
+        "area_sqft": 6.25,
+        "station_in": 60.0,
+        "airfoil_chord_in": 70.0,
+        "deflection_deg": 15.0
+      }
+    ]
   },
   "landing": {
     "wing_area_sqft": 500.0,
@@ -619,39 +691,6 @@
     "tire_od_in": 32,
     "hub_diameter_in": 12,
     "lift_factor": 0.667,
-    "main_gear": {
-      "axle_compressed": [
-        640.0,
-        12.0
-      ],
-      "axle_static": [
-        640.0,
-        20.0
-      ],
-      "axle_extended": [
-        640.0,
-        26.0
-      ],
-      "rolling_radius_in": 14.0,
-      "strut": "O"
-    },
-    "nose_gear": {
-      "axle_compressed": [
-        120.0,
-        12.0
-      ],
-      "axle_static": [
-        120.0,
-        20.0
-      ],
-      "axle_extended": [
-        120.0,
-        26.0
-      ],
-      "rolling_radius_in": 14.0,
-      "strut": "O"
-    },
-    "tread_in": 130.0,
     "tail_down_angle_deg": 12.0,
     "gear_load_factor": 2.0,
     "cg_cases": [
@@ -669,5 +708,6 @@
       }
     ],
     "n": null
-  }
+  },
+  "include_far25": true
 }

@@ -7,6 +7,7 @@
       "max_continuous_hp": 1300,
       "engines": 2,
       "seats": 10,
+      "crew": 1,
       "cruise_hours": 4,
       "baggage_lb": 500,
       "pressurized": true,
@@ -17,114 +18,159 @@
         "name": "Wing",
         "weight_lb": 1800.0,
         "x": 250.0,
+        "y": 0.0,
         "z": 70.0,
+        "ixx": 0.0,
+        "iyy": 0.0,
+        "izz": 0.0,
         "kind": "empty"
       },
       {
         "name": "Fuselage structure",
         "weight_lb": 1700.0,
         "x": 280.0,
+        "y": 0.0,
         "z": 70.0,
+        "ixx": 0.0,
+        "iyy": 0.0,
+        "izz": 0.0,
         "kind": "empty"
       },
       {
         "name": "Tail",
         "weight_lb": 400.0,
         "x": 560.0,
+        "y": 0.0,
         "z": 90.0,
+        "ixx": 0.0,
+        "iyy": 0.0,
+        "izz": 0.0,
         "kind": "empty"
       },
       {
         "name": "Landing gear",
         "weight_lb": 900.0,
         "x": 260.0,
+        "y": 0.0,
         "z": 30.0,
+        "ixx": 0.0,
+        "iyy": 0.0,
+        "izz": 0.0,
         "kind": "empty"
       },
       {
         "name": "Engines (2)",
         "weight_lb": 2400.0,
         "x": 240.0,
+        "y": 0.0,
         "z": 75.0,
+        "ixx": 0.0,
+        "iyy": 0.0,
+        "izz": 0.0,
         "kind": "empty"
       },
       {
         "name": "Systems",
         "weight_lb": 1200.0,
         "x": 200.0,
+        "y": 0.0,
         "z": 70.0,
+        "ixx": 0.0,
+        "iyy": 0.0,
+        "izz": 0.0,
         "kind": "empty"
       },
       {
         "name": "Furnishings",
         "weight_lb": 600.0,
         "x": 300.0,
+        "y": 0.0,
         "z": 70.0,
+        "ixx": 0.0,
+        "iyy": 0.0,
+        "izz": 0.0,
         "kind": "empty"
       },
       {
         "name": "Pilot",
         "weight_lb": 200.0,
         "x": 120.0,
+        "y": 0.0,
         "z": 80.0,
+        "ixx": 0.0,
+        "iyy": 0.0,
+        "izz": 0.0,
         "kind": "minimum"
       },
       {
         "name": "Copilot",
         "weight_lb": 200.0,
         "x": 120.0,
+        "y": 0.0,
         "z": 80.0,
+        "ixx": 0.0,
+        "iyy": 0.0,
+        "izz": 0.0,
         "kind": "minimum"
       },
       {
         "name": "Reserve fuel",
         "weight_lb": 300.0,
         "x": 250.0,
+        "y": 0.0,
         "z": 65.0,
+        "ixx": 0.0,
+        "iyy": 0.0,
+        "izz": 0.0,
         "kind": "minimum"
       },
       {
         "name": "Passengers",
         "weight_lb": 2400.0,
         "x": 300.0,
+        "y": 0.0,
         "z": 80.0,
+        "ixx": 0.0,
+        "iyy": 0.0,
+        "izz": 0.0,
         "kind": "discretionary"
       },
       {
         "name": "Baggage",
         "weight_lb": 400.0,
         "x": 420.0,
+        "y": 0.0,
         "z": 70.0,
+        "ixx": 0.0,
+        "iyy": 0.0,
+        "izz": 0.0,
         "kind": "discretionary"
       },
       {
         "name": "Fuel to gross",
         "weight_lb": 5500.0,
         "x": 250.0,
+        "y": 0.0,
         "z": 65.0,
+        "ixx": 0.0,
+        "iyy": 0.0,
+        "izz": 0.0,
         "kind": "discretionary"
       }
+    ],
+    "cg_cases": [
+      {
+        "name": "CGfwd",
+        "weight_lb": 18000,
+        "xcg": 205.0,
+        "zcg": 100.0
+      }
     ]
-  },
-  "speeds": {
-    "category": "C",
-    "weight_lb": 18000,
-    "wing_area_sqft": 280,
-    "vh_kt": 280,
-    "stall_clean_kt": 95,
-    "stall_flap_kt": 82,
-    "shoulder_altitude_ft": 16000,
-    "chosen_vc": 250,
-    "chosen_vd": 312.5,
-    "chosen_n": 4.0,
-    "chosen_nneg": -2.0
   },
   "geometry": {
     "surfaces": [
       {
         "name": "wing",
-        "symmetric": true,
-        "elements": 20,
         "leading_edge": [
           [
             200,
@@ -144,9 +190,27 @@
             285,
             301
           ]
-        ]
+        ],
+        "symmetric": true,
+        "elements": 20
       }
     ]
+  },
+  "speeds": {
+    "category": "C",
+    "weight_lb": 18000,
+    "occupants": null,
+    "wing_area_sqft": 280,
+    "vh_kt": 280,
+    "shoulder_altitude_ft": 16000,
+    "wing_surface": "wing",
+    "chosen_vc": 250,
+    "chosen_vd": 312.5,
+    "chosen_va": null,
+    "chosen_vf": null,
+    "chosen_n": 4.0,
+    "chosen_nneg": -2.0,
+    "mach_limit": null
   },
   "aero": {
     "surfaces": [
@@ -155,6 +219,7 @@
         "section_slope": 0.1075,
         "taper_ratio": 0.5,
         "tip_ratio": 0.0,
+        "tau": null,
         "twist": [],
         "target_cl": 1.2,
         "profile_drag": [
@@ -176,11 +241,16 @@
             300,
             -0.04
           ]
-        ]
+        ],
+        "sweep_deg": 0.0,
+        "design_mach": 0.0
       }
     ]
   },
   "aero_coeffs": {
+    "clmax_clean": 2.1013,
+    "clmax_clean_neg": -0.8,
+    "clmax_flap": 2.8204,
     "cruise": {
       "name": "CRUISE",
       "stall_cl": 1.6,
@@ -188,23 +258,23 @@
       "lift": [
         0.3,
         0.08,
-        0,
-        0,
-        0
+        0.0,
+        0.0,
+        0.0
       ],
       "drag": [
         0.025,
-        0,
+        0.0,
         0.05,
-        0,
-        0
+        0.0,
+        0.0
       ],
       "moment": [
         -0.02,
         0.004,
-        0,
-        0,
-        0
+        0.0,
+        0.0,
+        0.0
       ],
       "flaps_down": false
     }
@@ -249,7 +319,11 @@
       {
         "name": "PHAA",
         "case": 3,
-        "unbal_moment": 0
+        "nz": null,
+        "nx": null,
+        "unbal_moment": 0,
+        "cl": null,
+        "v_eas_kt": null
       }
     ]
   }

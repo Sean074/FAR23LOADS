@@ -1,6 +1,6 @@
 {
   "schema_version": 15,
-  "name": "ATR 42-300 (\"ATR 42-100\" prototype designation never entered production; -300 is the closest PW120-powered production analog) — 2x PW120 (concept, category C)",
+  "name": "ATR 42-300 (\"ATR 42-100\" prototype designation never entered production; -300 is the closest PW120-powered production analog) \u2014 2x PW120 (concept, category C)",
   "engines": [
     {
       "engine_designation": "PRATT & WHITNEY CANADA PW120 (LH)",
@@ -40,7 +40,10 @@
           "direction": "CW",
           "inertia": null
         }
-      ]
+      ],
+      "max_accel_torque": null,
+      "design_yaw_rate_rad_s": null,
+      "design_pitch_rate_rad_s": null
     },
     {
       "engine_designation": "PRATT & WHITNEY CANADA PW120 (RH)",
@@ -80,7 +83,10 @@
           "direction": "CW",
           "inertia": null
         }
-      ]
+      ],
+      "max_accel_torque": null,
+      "design_yaw_rate_rad_s": null,
+      "design_pitch_rate_rad_s": null
     }
   ],
   "engine_layout": "2W",
@@ -90,6 +96,7 @@
       "max_continuous_hp": 3400,
       "engines": 2,
       "seats": 48,
+      "crew": 1,
       "cruise_hours": 3,
       "baggage_lb": 1200,
       "pressurized": true,
@@ -102,6 +109,9 @@
         "x": 395.0,
         "y": 0.0,
         "z": 170.0,
+        "ixx": 0.0,
+        "iyy": 0.0,
+        "izz": 0.0,
         "kind": "empty"
       },
       {
@@ -110,6 +120,9 @@
         "x": 440.0,
         "y": 0.0,
         "z": 115.0,
+        "ixx": 0.0,
+        "iyy": 0.0,
+        "izz": 0.0,
         "kind": "empty"
       },
       {
@@ -118,6 +131,9 @@
         "x": 830.0,
         "y": 0.0,
         "z": 230.0,
+        "ixx": 0.0,
+        "iyy": 0.0,
+        "izz": 0.0,
         "kind": "empty"
       },
       {
@@ -126,6 +142,9 @@
         "x": 815.0,
         "y": 0.0,
         "z": 220.0,
+        "ixx": 0.0,
+        "iyy": 0.0,
+        "izz": 0.0,
         "kind": "empty"
       },
       {
@@ -134,6 +153,9 @@
         "x": 425.0,
         "y": 0.0,
         "z": 55.0,
+        "ixx": 0.0,
+        "iyy": 0.0,
+        "izz": 0.0,
         "kind": "empty"
       },
       {
@@ -142,6 +164,9 @@
         "x": 130.0,
         "y": 0.0,
         "z": 55.0,
+        "ixx": 0.0,
+        "iyy": 0.0,
+        "izz": 0.0,
         "kind": "empty"
       },
       {
@@ -150,6 +175,9 @@
         "x": 370.0,
         "y": 0.0,
         "z": 160.0,
+        "ixx": 0.0,
+        "iyy": 0.0,
+        "izz": 0.0,
         "kind": "empty"
       },
       {
@@ -158,6 +186,9 @@
         "x": 305.0,
         "y": 0.0,
         "z": 160.0,
+        "ixx": 0.0,
+        "iyy": 0.0,
+        "izz": 0.0,
         "kind": "empty"
       },
       {
@@ -166,6 +197,9 @@
         "x": 385.0,
         "y": 0.0,
         "z": 145.0,
+        "ixx": 0.0,
+        "iyy": 0.0,
+        "izz": 0.0,
         "kind": "empty"
       },
       {
@@ -174,6 +208,9 @@
         "x": 355.0,
         "y": 0.0,
         "z": 115.0,
+        "ixx": 0.0,
+        "iyy": 0.0,
+        "izz": 0.0,
         "kind": "empty"
       },
       {
@@ -182,6 +219,9 @@
         "x": 450.0,
         "y": 0.0,
         "z": 115.0,
+        "ixx": 0.0,
+        "iyy": 0.0,
+        "izz": 0.0,
         "kind": "empty"
       },
       {
@@ -190,6 +230,9 @@
         "x": 155.0,
         "y": 0.0,
         "z": 135.0,
+        "ixx": 0.0,
+        "iyy": 0.0,
+        "izz": 0.0,
         "kind": "empty"
       },
       {
@@ -198,6 +241,9 @@
         "x": 305.0,
         "y": 0.0,
         "z": 105.0,
+        "ixx": 0.0,
+        "iyy": 0.0,
+        "izz": 0.0,
         "kind": "empty"
       },
       {
@@ -206,6 +252,9 @@
         "x": 395.0,
         "y": 0.0,
         "z": 165.0,
+        "ixx": 0.0,
+        "iyy": 0.0,
+        "izz": 0.0,
         "kind": "empty"
       },
       {
@@ -214,6 +263,9 @@
         "x": 130.0,
         "y": 0.0,
         "z": 125.0,
+        "ixx": 0.0,
+        "iyy": 0.0,
+        "izz": 0.0,
         "kind": "minimum"
       },
       {
@@ -222,6 +274,9 @@
         "x": 395.0,
         "y": 0.0,
         "z": 160.0,
+        "ixx": 0.0,
+        "iyy": 0.0,
+        "izz": 0.0,
         "kind": "minimum"
       },
       {
@@ -230,6 +285,9 @@
         "x": 450.0,
         "y": 0.0,
         "z": 125.0,
+        "ixx": 0.0,
+        "iyy": 0.0,
+        "izz": 0.0,
         "kind": "discretionary"
       },
       {
@@ -238,6 +296,9 @@
         "x": 650.0,
         "y": 0.0,
         "z": 105.0,
+        "ixx": 0.0,
+        "iyy": 0.0,
+        "izz": 0.0,
         "kind": "discretionary"
       },
       {
@@ -246,6 +307,9 @@
         "x": 395.0,
         "y": 0.0,
         "z": 160.0,
+        "ixx": 0.0,
+        "iyy": 0.0,
+        "izz": 0.0,
         "kind": "discretionary"
       }
     ],
@@ -258,7 +322,27 @@
       "wing_surface": "wing",
       "xlemac": null,
       "mac": null
-    }
+    },
+    "cg_cases": [
+      {
+        "name": "CGfwd",
+        "weight_lb": 36817,
+        "xcg": 383.0,
+        "zcg": 145.0
+      },
+      {
+        "name": "CGmid",
+        "weight_lb": 36817,
+        "xcg": 400.0,
+        "zcg": 145.0
+      },
+      {
+        "name": "CGaft",
+        "weight_lb": 32000,
+        "xcg": 415.0,
+        "zcg": 145.0
+      }
+    ]
   },
   "geometry": {
     "surfaces": [
@@ -287,15 +371,53 @@
         "symmetric": true,
         "elements": 20
       }
-    ]
+    ],
+    "empennage": {
+      "htail": {
+        "tail_incidence_deg": 1.0,
+        "wing_zero_lift_cruise_deg": 3.0,
+        "wing_zero_lift_enroute_deg": 0.0,
+        "wing_zero_lift_landing_deg": 0.0,
+        "aspect_ratio_wing": 10.9,
+        "aspect_ratio_htail": 4.5,
+        "htail_area_sqft": 85.0,
+        "elevator_effectiveness": 0.62,
+        "xt25": 825.0,
+        "xt50": 842.0,
+        "elevator_te_up_deg": 25.0,
+        "elevator_te_down_deg": 15.0,
+        "elevator_area_sqft": 26.0,
+        "elevator_fwd_hinge_sqft": 3.0,
+        "elevator_aft_hinge_sqft": 23.0,
+        "airplane_length_in": 892.8000000000001,
+        "wing_lift_slope_per_rad": 5.3,
+        "htail_semispan_in": 110.0
+      },
+      "vtail": {
+        "rudder_deflection_deg": 25.0,
+        "vtail_area_sqft": 70.0,
+        "rudder_area_sqft": 22.0,
+        "rudder_fwd_hinge_sqft": 2.5,
+        "rudder_aft_hinge_sqft": 19.5,
+        "aspect_ratio_vtail": 1.6,
+        "vtail_mac_in": 92.4,
+        "xv25": 820.0,
+        "xv50": 835.0,
+        "airplane_length_in": 892.8000000000001,
+        "wing_span_in": 967.1999999999999,
+        "gross_weight_lb": 36817.0,
+        "rudder_large_deflection_factor": 1.0,
+        "izz_slugft2": 0.0,
+        "vtail_span_in": 125.0
+      }
+    }
   },
   "speeds": {
     "category": "C",
     "weight_lb": 36817,
+    "occupants": null,
     "wing_area_sqft": 586.6,
     "vh_kt": 265,
-    "stall_clean_kt": 96,
-    "stall_flap_kt": 81,
     "shoulder_altitude_ft": 12000,
     "wing_surface": "wing",
     "chosen_vc": 240,
@@ -350,9 +472,43 @@
             484,
             -0.035
           ]
-        ]
+        ],
+        "sweep_deg": 0.0,
+        "design_mach": 0.0
       }
     ]
+  },
+  "aero_coeffs": {
+    "clmax_clean": 2.009,
+    "clmax_clean_neg": -0.7,
+    "clmax_flap": 2.822,
+    "cruise": {
+      "name": "CRUISE",
+      "stall_cl": 1.55,
+      "neg_stall_cl": -0.7,
+      "lift": [
+        0.3,
+        0.08,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "drag": [
+        0.025,
+        0.0,
+        0.05,
+        0.0,
+        0.0
+      ],
+      "moment": [
+        -0.02,
+        0.004,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "flaps_down": false
+    }
   },
   "flight_loads": {
     "mac": 92.7,
@@ -366,35 +522,6 @@
       0.0,
       12000.0,
       25000.0
-    ],
-    "configurations": [
-      {
-        "name": "CRUISE",
-        "stall_cl": 1.55,
-        "neg_stall_cl": -0.70,
-        "lift": [
-          0.30,
-          0.08,
-          0.0,
-          0.0,
-          0.0
-        ],
-        "drag": [
-          0.025,
-          0.0,
-          0.05,
-          0.0,
-          0.0
-        ],
-        "moment": [
-          -0.02,
-          0.004,
-          0.0,
-          0.0,
-          0.0
-        ],
-        "flaps_down": false
-      }
     ],
     "cg_cases": [
       {
@@ -457,49 +584,16 @@
     "basic_airfoil_cm": -0.035,
     "wing_weight_lb": 2650.0
   },
-  "tail_loads": {
-    "tail_incidence_deg": 1.0,
-    "wing_zero_lift_cruise_deg": 3.0,
-    "wing_zero_lift_enroute_deg": 0.0,
-    "wing_zero_lift_landing_deg": 0.0,
-    "aspect_ratio_wing": 10.9,
-    "aspect_ratio_htail": 4.5,
-    "htail_area_sqft": 85.0,
-    "elevator_effectiveness": 0.62,
-    "xt25": 825.0,
-    "xt50": 842.0,
-    "elevator_te_up_deg": 25.0,
-    "elevator_te_down_deg": 15.0,
-    "elevator_area_sqft": 26.0,
-    "elevator_fwd_hinge_sqft": 3.0,
-    "elevator_aft_hinge_sqft": 23.0,
-    "airplane_length_ft": 74.4,
-    "wing_lift_slope_per_rad": 5.3,
-    "htail_semispan_in": 110.0
-  },
-  "vtail_loads": {
-    "rudder_deflection_deg": 25.0,
-    "vtail_area_sqft": 70.0,
-    "rudder_area_sqft": 22.0,
-    "rudder_fwd_hinge_sqft": 2.5,
-    "rudder_aft_hinge_sqft": 19.5,
-    "aspect_ratio_vtail": 1.6,
-    "vtail_mac_ft": 7.7,
-    "xv25": 820.0,
-    "xv50": 835.0,
-    "airplane_length_ft": 74.4,
-    "wing_span_ft": 80.6,
-    "gross_weight_lb": 36817.0,
-    "rudder_large_deflection_factor": 1.0,
-    "izz_slugft2": 0.0,
-    "vtail_span_in": 125.0
-  },
   "one_engine_out": {
     "thrust_decay_time_s": 0.5,
     "windmill_drag_time_s": 2.0,
     "rudder_travel_time_s": 0.3,
     "time_step_s": 0.05,
     "failed_engine_index": 0,
-    "use_takeoff_power": true
+    "use_takeoff_power": true,
+    "altitude_ft": null,
+    "speeds_kt": [],
+    "izz_slugft2": 0.0,
+    "xcg_in": 0.0
   }
 }

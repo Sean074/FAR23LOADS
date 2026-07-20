@@ -111,19 +111,24 @@ STEPS: Tuple[WorkflowStep, ...] = (
                  summary="All weight/mass data: statistical estimate, itemised mass "
                          "properties (weight/CG/inertia), loading scenarios, and the "
                          "CG envelope."),
-    # 1c. Structural design speeds -- Step G3 merged STRSPEED design speeds and the
-    # MACHLIM speed–altitude envelope into one tabbed page; mach_limit is folded.
-    WorkflowStep("structural_speeds", "Structural Speeds", DEVELOP_VN,
-                 module="structural_speeds", produces="speeds", bas="STRSPEED+MACHLIM",
-                 summary="FAR 23 design speeds VA/VC/VD/VS + the speed–altitude "
-                         "flight-limits (Mach) envelope."),
-    # 1d. Aerodynamic coefficients. The FLTLOADS balance-geometry/CG inputs stay on
-    # the V-n page (1e) per decision to keep those inputs where they run.
+    # 1c. Aerodynamic data. Owns the maximum lift coefficients (CLmax); STRSPEED
+    # (1d) derives the stall speeds VS/VSF from them (M1-1b single-source), so this
+    # page precedes Structural Speeds. The FLTLOADS balance-geometry/CG inputs stay
+    # on the V-n page (1e) per decision to keep those inputs where they run.
     WorkflowStep("aero_coefficients", "Aerodynamic Data", DEVELOP_VN,
                  module=None, produces="aero_coeffs", bas=None,
-                 summary="Airplane-less-tail aero coefficients (cruise + flaps-down) "
-                         "for the flight envelope balance. Per-surface spanwise "
-                         "(Schrenk) aero is entered on the Wing Loads page."),
+                 summary="Maximum lift coefficients (CLmax) + airplane-less-tail aero "
+                         "coefficients (cruise + flaps-down) for the flight envelope "
+                         "balance. Per-surface spanwise (Schrenk) aero is entered on "
+                         "the Wing Loads page."),
+    # 1d. Structural design speeds -- Step G3 merged STRSPEED design speeds and the
+    # MACHLIM speed–altitude envelope into one tabbed page; mach_limit is folded.
+    # Requires aero_coeffs for the CLmax that sets VS/VSF (M1-1b).
+    WorkflowStep("structural_speeds", "Structural Speeds", DEVELOP_VN,
+                 module="structural_speeds", requires=("aero_coeffs",),
+                 produces="speeds", bas="STRSPEED+MACHLIM",
+                 summary="FAR 23 design speeds VA/VC/VD/VS + the speed–altitude "
+                         "flight-limits (Mach) envelope."),
     # 1e. V-n diagram + governing conditions -- Step G3 merged the FLTLOADS V-n page
     # and the SELECT critical-loads page into one tabbed page; select is folded.
     WorkflowStep("flight_envelope", "Flight Envelope (V-n)", DEVELOP_VN,

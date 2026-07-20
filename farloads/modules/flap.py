@@ -175,7 +175,7 @@ def _compute(project: Project) -> FlapResult:
     sw = _wing_area_sqft(project, sp)
     maxhp, pdia = _engine_power(project)
     return flap_loads(
-        vs=sp.stall_clean_kt, vsf=sp.stall_flap_kt, vf=sv.vf, weight=sp.weight_lb,
+        vs=sv.vs, vsf=sv.vsf, vf=sv.vf, weight=sp.weight_lb,
         ng=inp.gust_load_factor, sf=inp.flap_area_one_side_sqft, sw=sw,
         delta_deg=inp.flap_deflection_deg, e=inp.flap_chord_ratio,
         maxhp=maxhp, pdia_in=pdia, blprop=inp.engine_butt_line_in,

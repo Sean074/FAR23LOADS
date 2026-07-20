@@ -11,6 +11,22 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- **Single-source stall from CLmax (M1-1b; closes old 2-13(b)).** Stall speeds are
+  no longer hand-entered scalars. The maximum lift coefficients live once on
+  `AeroCoefficientsInput` — `clmax_clean` / `clmax_clean_neg` / `clmax_flap` — and
+  STRSPEED, `flap` and `one_engine_out` **derive** VS/VSF from them at the design
+  weight (`constants.stall_speed_kt`: `VS = √(295·(W/S)/CLmax)`, User's Guide p7-5),
+  which in turn set VA and VF. The `StructuralSpeedsInput.stall_clean_kt` /
+  `stall_flap_kt` fields are removed; CLmax is entered on the **Aerodynamic Data**
+  page, which now precedes **Structural Speeds** in the workflow (STRSPEED
+  `requires=("aero_coeffs",)`). The FLTLOADS balance clamp `AeroCoeffSet.stall_cl`
+  stays authored per config (it can differ from the stall-speed CLmax by the 0.9
+  stall-margin factor — e.g. Appendix A ga6: `clmax_clean` 1.4068 from the printed
+  VS vs FLTLOADS `stall_cl` 1.41); `AeroCoefficientsInput.__post_init__` fills either
+  representation from the other only when one is missing, never overwriting. All
+  Appendix-A oracles (STRSPEED VA/VF and the FLTLOADS/SELECT envelope) are preserved
+  exactly. `SCHEMA_VERSION` → 29; example projects updated.
+
 - **Single-source landing-gear geometry (Phase G, Step G6b).** The tricycle-gear
   geometry native to LANDLOAD — main/nose axle `(X, Z)` at the three strut states,
   rolling radius, strut type, and the main-wheel tread — is now entered **once**, on

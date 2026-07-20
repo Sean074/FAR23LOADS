@@ -72,6 +72,31 @@ def _row(df: pd.DataFrame, label: str) -> tuple:
 
 
 with st.form("aero_coefficients_form"):
+    st.subheader("Maximum lift coefficients (CLmax)")
+    st.caption(
+        "The single source for stall: **VS/VSF are derived from these** "
+        "(VS = √(295·(W/S)/CLmax)) and drive the design speeds VA/VF on the "
+        "Structural Speeds page. FLTLOADS also caps its balancing solution with them. "
+        "Flaps-down CLmax is used even without a flaps-down coefficient set below."
+    )
+    m1, m2, m3 = st.columns(3)
+    clmax_clean = m1.number_input(
+        "Clean CLmax (flaps up)", value=float(aero.clmax_clean) if aero else 0.0,
+        format="%.4f", key="clmax_clean",
+        help="Positive maximum lift coefficient, flaps up. Sets VS and caps the positive balance.",
+    )
+    clmax_clean_neg = m2.number_input(
+        "Clean negative CLmax", value=float(aero.clmax_clean_neg) if aero else 0.0,
+        format="%.4f", key="clmax_clean_neg",
+        help="Negative maximum lift coefficient, flaps up; caps the negative balancing solution.",
+    )
+    clmax_flap = m3.number_input(
+        "Flaps-down CLmax", value=float(aero.clmax_flap) if aero else 0.0,
+        format="%.4f", key="clmax_flap",
+        help="Positive maximum lift coefficient, flaps down (landing). Sets VSF and hence VF.",
+    )
+
+    st.divider()
     st.subheader("Cruise (flaps up)")
     cruise_name = st.text_input(
         "Configuration name", value=aero.cruise.name if aero and aero.cruise else "CRUISE",
@@ -80,18 +105,6 @@ with st.form("aero_coefficients_form"):
     cruise_df = st.data_editor(
         _coeff_table(aero.cruise if aero else None), hide_index=True,
         use_container_width=True, disabled=["row"], key="cruise_coeff",
-    )
-    c1, c2 = st.columns(2)
-    cruise_stall = c1.number_input(
-        "Stall CL", value=float(aero.cruise.stall_cl) if aero and aero.cruise else 0.0,
-        format="%.3f", key="cruise_stall",
-        help="Positive maximum lift coefficient (flaps up); caps the positive balancing solution.",
-    )
-    cruise_neg_stall = c2.number_input(
-        "Negative stall CL",
-        value=float(aero.cruise.neg_stall_cl) if aero and aero.cruise else 0.0,
-        format="%.3f", key="cruise_neg_stall",
-        help="Negative maximum lift coefficient (flaps up); caps the negative balancing solution.",
     )
 
     st.divider()
@@ -111,40 +124,30 @@ with st.form("aero_coefficients_form"):
         _coeff_table(aero.flaps_down if aero else None), hide_index=True,
         use_container_width=True, disabled=["row"], key="flaps_coeff",
     )
-    c3, c4 = st.columns(2)
-    flaps_stall = c3.number_input(
-        "Stall CL", value=float(aero.flaps_down.stall_cl) if aero and aero.flaps_down else 0.0,
-        format="%.3f", key="flaps_stall",
-        help="Positive maximum lift coefficient (flaps down); caps the positive balancing solution.",
-    )
-    flaps_neg_stall = c4.number_input(
-        "Negative stall CL",
-        value=float(aero.flaps_down.neg_stall_cl) if aero and aero.flaps_down else 0.0,
-        format="%.3f", key="flaps_neg_stall",
-        help="Negative maximum lift coefficient (flaps down); caps the negative balancing solution.",
-    )
 
     applied = st.form_submit_button("Apply", type="primary")
 
 if applied:
     cruise = AeroCoeffSet(
-        name=cruise_name or "CRUISE", stall_cl=cruise_stall, neg_stall_cl=cruise_neg_stall,
+        name=cruise_name or "CRUISE",
         lift=_row(cruise_df, "lift (CL vs α)"), drag=_row(cruise_df, "drag (CD vs CL)"),
         moment=_row(cruise_df, "moment (CM vs α)"), flaps_down=False,
     )
     flaps = None
     if include_flaps_down:
         flaps = AeroCoeffSet(
-            name=flaps_name or "LANDING", stall_cl=flaps_stall, neg_stall_cl=flaps_neg_stall,
+            name=flaps_name or "LANDING",
             lift=_row(flaps_df, "lift (CL vs α)"), drag=_row(flaps_df, "drag (CD vs CL)"),
             moment=_row(flaps_df, "moment (CM vs α)"), flaps_down=True,
         )
     # This page owns the whole aero_coeffs slice, so a wholesale replace on
     # Apply is correct here (unlike a slice shared with other pages/edits) --
     # but carry the fuselage-moment sub-slice through unchanged (its own form
-    # below owns it; omitting it here would silently reset it).
+    # below owns it; omitting it here would silently reset it). The CLmax scalars
+    # are the single stall source; __post_init__ stamps the per-config stall_cl.
     project.aero_coeffs = AeroCoefficientsInput(
         cruise=cruise, flaps_down=flaps,
+        clmax_clean=clmax_clean, clmax_clean_neg=clmax_clean_neg, clmax_flap=clmax_flap,
         fuselage_moment=aero.fuselage_moment if aero else None,
     )
     st.session_state["project"] = project

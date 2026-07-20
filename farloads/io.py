@@ -425,6 +425,9 @@ def speeds_from_dict(d: Dict[str, Any]) -> StructuralSpeedsInput:
     """Build a :class:`StructuralSpeedsInput` from a plain dict (nested MACHLIM)."""
     d = dict(d)
     ml = d.pop("mach_limit", None)
+    # Stall speeds are derived from CLmax (M1-1b); drop any legacy scalar keys.
+    d.pop("stall_clean_kt", None)
+    d.pop("stall_flap_kt", None)
     mach_limit = MachLimitInput(**dict(ml)) if ml else None
     return StructuralSpeedsInput(mach_limit=mach_limit, **d)
 
@@ -445,10 +448,12 @@ def _coeff5(raw) -> tuple:
 
 
 def _aero_coeff_set_from_dict(d: Dict[str, Any]) -> AeroCoeffSet:
+    # stall_cl/neg_stall_cl are derived from the parent's clmax_* (M1-1b); accept
+    # a legacy per-config value if present, else default and let __post_init__ sync.
     return AeroCoeffSet(
         name=d.get("name", "CRUISE"),
-        stall_cl=d["stall_cl"],
-        neg_stall_cl=d["neg_stall_cl"],
+        stall_cl=d.get("stall_cl", 0.0),
+        neg_stall_cl=d.get("neg_stall_cl", 0.0),
         lift=_coeff5(d.get("lift")),
         drag=_coeff5(d.get("drag")),
         moment=_coeff5(d.get("moment")),
@@ -457,6 +462,10 @@ def _aero_coeff_set_from_dict(d: Dict[str, Any]) -> AeroCoeffSet:
 
 
 def _aero_coeff_set_to_dict(c: AeroCoeffSet) -> Dict[str, Any]:
+    # stall_cl/neg_stall_cl are the FLTLOADS balance clamp -- authored per config and
+    # round-tripped (they can differ slightly from the parent's stall-speed clmax_*;
+    # see AeroCoefficientsInput.__post_init__). M1-1b: the *stall-speed* source moved
+    # to the parent clmax_*; the FLTLOADS clamp stays here.
     return {
         "name": c.name,
         "stall_cl": c.stall_cl,
@@ -507,6 +516,9 @@ def aero_coefficients_from_dict(d: Dict[str, Any]) -> AeroCoefficientsInput:
     return AeroCoefficientsInput(
         cruise=_aero_coeff_set_from_dict(d["cruise"]) if d.get("cruise") else None,
         flaps_down=_aero_coeff_set_from_dict(d["flaps_down"]) if d.get("flaps_down") else None,
+        clmax_clean=float(d.get("clmax_clean", 0.0)),
+        clmax_clean_neg=float(d.get("clmax_clean_neg", 0.0)),
+        clmax_flap=float(d.get("clmax_flap", 0.0)),
         fuselage_moment=(
             FuselageMomentInput(
                 enabled=bool(fm.get("enabled", False)),
@@ -520,6 +532,12 @@ def aero_coefficients_from_dict(d: Dict[str, Any]) -> AeroCoefficientsInput:
 def aero_coefficients_to_dict(inp: AeroCoefficientsInput) -> Dict[str, Any]:
     """Serialize an :class:`AeroCoefficientsInput` to JSON-friendly primitives."""
     out: Dict[str, Any] = {}
+    if inp.clmax_clean:
+        out["clmax_clean"] = inp.clmax_clean
+    if inp.clmax_clean_neg:
+        out["clmax_clean_neg"] = inp.clmax_clean_neg
+    if inp.clmax_flap:
+        out["clmax_flap"] = inp.clmax_flap
     if inp.cruise is not None:
         out["cruise"] = _aero_coeff_set_to_dict(inp.cruise)
     if inp.flaps_down is not None:

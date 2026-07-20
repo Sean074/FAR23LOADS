@@ -14,11 +14,11 @@ the ``(k2-k1)`` table are in ``reference/fuselage_pitching_moment.md``.
 import math
 import os
 import sys
+from dataclasses import replace
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from farloads import (  # noqa: E402
-    AeroCoefficientsInput,
     FuselageMomentInput,
     FuselageOutline,
     FuselageSection,
@@ -85,10 +85,7 @@ def test_disabled_fuselage_moment_leaves_oracle_unchanged():
     ):
         proj = io.load_project(_GA)
         assert proj.aero_coeffs is not None
-        proj.aero_coeffs = AeroCoefficientsInput(
-            cruise=proj.aero_coeffs.cruise, flaps_down=proj.aero_coeffs.flaps_down,
-            fuselage_moment=fmi,
-        )
+        proj.aero_coeffs = replace(proj.aero_coeffs, fuselage_moment=fmi)
         env = build_envelope(proj)
         for p in env.vn:
             b = base_by_case[p.case]
@@ -104,8 +101,8 @@ def test_enabled_fuselage_moment_shifts_balanced_tail_load():
     base = {p.case: p for p in build_envelope(io.load_project(_GA)).vn}
 
     proj = io.load_project(_GA)
-    proj.aero_coeffs = AeroCoefficientsInput(
-        cruise=proj.aero_coeffs.cruise, flaps_down=proj.aero_coeffs.flaps_down,
+    proj.aero_coeffs = replace(
+        proj.aero_coeffs,
         fuselage_moment=FuselageMomentInput(enabled=True, d_cm_dalpha=0.01),
     )
     env = {p.case: p for p in build_envelope(proj).vn}
@@ -117,8 +114,8 @@ def test_enabled_fuselage_moment_shifts_balanced_tail_load():
 
 def test_serialization_round_trips_fuselage_moment(tmp_path):
     proj = io.load_project(_GA)
-    proj.aero_coeffs = AeroCoefficientsInput(
-        cruise=proj.aero_coeffs.cruise, flaps_down=proj.aero_coeffs.flaps_down,
+    proj.aero_coeffs = replace(
+        proj.aero_coeffs,
         fuselage_moment=FuselageMomentInput(enabled=True, d_cm_dalpha=0.0042),
     )
     path = os.path.join(tmp_path, "with_fus_moment.project.json")

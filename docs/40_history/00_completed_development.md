@@ -10,6 +10,51 @@ Acceptance**, **Key decisions**.
 
 ---
 
+## M1-1b — CLmax → stall-speed single-source (complete, 2026-07-19)
+
+**Objective.** Enter the maximum lift coefficients **once** and derive the stall
+speeds from them, instead of hand-entering `stall_clean_kt`/`stall_flap_kt` on the
+speeds slice (closes old 2-13(b), User's Guide p7-5; split out of M1-1).
+
+**Locked decisions (AskUserQuestion, 2026-07-19).** (1) Level B — CLmax is the
+single stall-speed source across STRSPEED and the flight envelope. (2) CLmax lives
+on `aero_coeffs` (not `speeds`). (3) No back-compat — remove the scalars and edit
+the example files; CLmax is the input. (4) CLmax entered on the Aerodynamic Data
+page, which **moves before** Structural Speeds in the workflow.
+
+**Deliverables.**
+- `AeroCoefficientsInput.clmax_clean`/`clmax_clean_neg`/`clmax_flap` — the single
+  authored stall-speed source, decoupled from the polynomial sets so an airplane
+  with stall data but no balance polynomials still carries its CLmax.
+- `constants.stall_speed_kt(W, S, CLmax)` = `√(295·(W/S)/CLmax)`; STRSPEED derives
+  VS/VSF (exposed on `DesignSpeeds.vs`/`.vsf`), `flap` and `one_engine_out` read
+  them. `StructuralSpeedsInput.stall_clean_kt`/`stall_flap_kt` removed; STRSPEED
+  `requires=("aero_coeffs",)`; workflow reordered (Aerodynamic Data before
+  Structural Speeds). `SCHEMA_VERSION` → 29; `io.py` (de)serializes `clmax_*`;
+  GUI: CLmax entered on the Aerodynamic Data page, VS/VSF read-only on Structural
+  Speeds with a page link. Six example projects migrated.
+
+**Key finding — the two stall representations cannot be a single number.** The
+STRSPEED stall *speed* (simple `√(295·(W/S)/CLmax)`) and the FLTLOADS stall *CL*
+(the 0.9-margin balance clamp `AeroCoeffSet.stall_cl`) are entered independently in
+the manual and differ by ~0.1% (Appendix A ga6: `clmax_clean` 1.4068 from the
+printed VS 62.226 vs FLTLOADS `stall_cl` 1.41). Both Appendix-A oracles are tight
+enough to pin each (VA 121.3 needs 1.4068; the SELECT ACRL CL 1.328 needs 1.41), so
+forcing them equal breaks one. Resolution: `clmax_*` is the stall-*speed* source;
+`AeroCoeffSet.stall_cl` stays the FLTLOADS clamp, authored per config;
+`AeroCoefficientsInput.__post_init__` fills either from the other only when one is
+missing (never overwrites). Both round-trip in JSON.
+
+**Test / Acceptance.** `ruff` (`farloads/ cli.py`) clean; full suite green (406);
+all Appendix-A oracles preserved exactly (STRSPEED VA/VF and the FLTLOADS/SELECT
+envelope); ga6 derived VS 62.228 / VSF 58.612 / VA 121.304 / VF 105.502; every
+example project save→reload is a no-op.
+
+**Key decisions.** As above — CLmax on aero_coeffs; hard-replace (no migration);
+stall-speed CLmax kept distinct from the FLTLOADS clamp to preserve both oracles.
+
+---
+
 ## M1-1 — VD floor: enforce `K_d·VCmin` (complete, 2026-07-19) **[Critical]**
 
 **Objective.** Correct the `structural_speeds` (STRSPEED) dive-speed minimum to

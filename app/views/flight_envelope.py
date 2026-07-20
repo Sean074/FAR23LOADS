@@ -203,8 +203,8 @@ def _tab_vn() -> None:
         mac_ft = (project.flight_loads.mac / 12.0) if project.flight_loads.mac else None
         gust = resolve_gust_inputs(sv.ws, selected_alt, slope, mac_ft) if not overlay_all_alt else None
         envelope = build_vn_diagram(
-            vs=project.speeds.stall_clean_kt, va=sv.va, vc=sv.vc, vd=sv.vd,
-            n_pos=sv.n, n_neg=sv.nneg, vsf=project.speeds.stall_flap_kt, vf=sv.vf,
+            vs=sv.vs, va=sv.va, vc=sv.vc, vd=sv.vd,
+            n_pos=sv.n, n_neg=sv.nneg, vsf=sv.vsf, vf=sv.vf,
             flaps="both", gust=gust,
         )
         for tr in envelope.traces:

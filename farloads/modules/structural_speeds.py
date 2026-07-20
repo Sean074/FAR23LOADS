@@ -14,7 +14,13 @@ Equations (Ch 6):
     VD_min = max(K_d*VCmin, 1.25*VC)                      K_d by category
     VA_min = VS*sqrt(n)             [<= VC]
     VF_min = max(1.4*VS, 1.8*VSF)
+    VS     = sqrt(295*(W/S)/CLmax_clean),  VSF = sqrt(295*(W/S)/CLmax_flap)
     MC     = VC/(sqrt(sigma)*a),  MD = VD/(sqrt(sigma)*a)  at the shoulder altitude
+
+The clean/flapped stall speeds VS/VSF are DERIVED from the maximum lift
+coefficients on ``Project.aero_coeffs`` (``clmax_clean``/``clmax_flap``) at the
+design weight -- CLmax is entered once and is the single stall source (M1-1b;
+User's Guide p7-5). VS/VSF then set VA and VF.
 
 FAR 23.335(b) imposes both dive-speed minimums: VD >= max(K_d*VCmin, 1.25*VC),
 where the K_d term uses the *minimum* cruise VCmin (STRSPEED.BAS V2DMIN=K2*V1CMIN,
@@ -36,6 +42,7 @@ from ..constants import (
     cruise_speed_coefficient,
     dive_ratio_coefficient,
     standard_atmosphere,
+    stall_speed_kt,
 )
 from ..models import (
     ConditionResult,
@@ -101,6 +108,25 @@ def _wing_area_sqft(project: Project, inp: StructuralSpeedsInput) -> float:
     )
 
 
+def _stall_speeds(project: Project, weight_lb: float, wing_area_sqft: float):
+    """Clean/flapped stall speeds VS/VSF (KEAS) from the CLmax on ``aero_coeffs``.
+
+    CLmax is the single authored stall source (M1-1b): ``clmax_clean`` gives VS,
+    ``clmax_flap`` gives VSF, both at the design weight (``stall_speed_kt``).
+    Raises when the Aerodynamic Data page's CLmax has not been entered.
+    """
+    aero = project.aero_coeffs
+    if aero is None or not aero.clmax_clean or not aero.clmax_flap:
+        raise ValueError(
+            "STRSPEED needs the maximum lift coefficients: set clmax_clean and "
+            "clmax_flap on the Aerodynamic Data page (Project.aero_coeffs). VS/VSF "
+            "(and hence VA/VF) are derived from CLmax."
+        )
+    vs = stall_speed_kt(weight_lb, wing_area_sqft, aero.clmax_clean)
+    vsf = stall_speed_kt(weight_lb, wing_area_sqft, aero.clmax_flap)
+    return vs, vsf
+
+
 class DesignSpeeds(NamedTuple):
     """The scalar STRSPEED outputs (knots / dimensionless) downstream modules read.
 
@@ -110,6 +136,8 @@ class DesignSpeeds(NamedTuple):
     vc: float
     vd: float
     vf: float
+    vs: float
+    vsf: float
     vc_min: float
     va_min: float
     vf_min: float
@@ -137,6 +165,8 @@ def design_speed_values(project: Project, inp: StructuralSpeedsInput) -> DesignS
 
     n, n_min, nneg, nneg_min = _maneuver_load_factors(cat, w, inp.chosen_n, inp.chosen_nneg)
 
+    vs, vsf = _stall_speeds(project, w, s)
+
     # Cruise speed VC. In concept mode the K_c/K_d coefficients are GA-calibrated
     # (taper to W/S = 100), so VC(min)/VD(min) are out-of-band *advisories* only --
     # the concept supplies chosen_vc/chosen_vd, which govern.
@@ -158,12 +188,12 @@ def design_speed_values(project: Project, inp: StructuralSpeedsInput) -> DesignS
     vd = max(inp.chosen_vd, hard_floor) if inp.chosen_vd is not None else hard_floor
 
     # Maneuver speed VA.
-    va_min = inp.stall_clean_kt * math.sqrt(n)
+    va_min = vs * math.sqrt(n)
     va = max(inp.chosen_va, va_min) if inp.chosen_va is not None else va_min
     va = min(va, vc)
 
     # Flap speed VF.
-    vf_min = max(1.4 * inp.stall_clean_kt, 1.8 * inp.stall_flap_kt)
+    vf_min = max(1.4 * vs, 1.8 * vsf)
     vf = max(inp.chosen_vf, vf_min) if inp.chosen_vf is not None else vf_min
 
     # Cruise/dive Mach at the shoulder altitude.
@@ -172,7 +202,8 @@ def design_speed_values(project: Project, inp: StructuralSpeedsInput) -> DesignS
     mc = vc / (root_sigma * a)
     md = vd / (root_sigma * a)
     return DesignSpeeds(
-        va=va, vc=vc, vd=vd, vf=vf, vc_min=vc_min, va_min=va_min, vf_min=vf_min,
+        va=va, vc=vc, vd=vd, vf=vf, vs=vs, vsf=vsf,
+        vc_min=vc_min, va_min=va_min, vf_min=vf_min,
         vd_min=vd_min, n=n, n_min=n_min, nneg=nneg, nneg_min=nneg_min,
         ws=ws, wing_area_sqft=s, speed_of_sound_kt=a, sigma=sigma, mc=mc, md=md,
     )

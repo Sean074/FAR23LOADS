@@ -251,6 +251,19 @@ KT_TO_FPS_SUITE = 1.15 * 88.0 / 60.0
 DYNAMIC_PRESSURE_DIVISOR = 295.0
 
 
+def stall_speed_kt(weight_lb: float, wing_area_sqft: float, clmax: float) -> float:
+    """1-g stall speed VS (KEAS) from CLmax and wing loading.
+
+    Solves lift = weight at CLmax with the suite's ``Q = V^2/295`` convention
+    (EAS folds in density): ``VS = sqrt(295*(W/S)/CLmax)``. The optional
+    CLmax -> stall-speed input path of the User's Guide (p7-5); ``clmax`` is the
+    clean or flaps-down maximum lift coefficient, ``weight_lb`` the design weight.
+    """
+    if clmax <= 0.0 or wing_area_sqft <= 0.0:
+        raise ValueError("stall_speed_kt needs a positive CLmax and wing area")
+    return math.sqrt(DYNAMIC_PRESSURE_DIVISOR * (weight_lb / wing_area_sqft) / clmax)
+
+
 def cruise_speed_coefficient(category: str, wing_loading: float) -> float:
     """K in VC(min) = K*(W/S)**0.5, by category (Reference 1 Ch 6).
 
