@@ -65,21 +65,11 @@ Calculation fixes from the review. Each is small, lands with a new oracle or
 listing-traceable test, and updates `00_theory_sources.md` where the doc
 currently records the defective behavior as if it were the source.
 
-### M1-1 — VD floor: enforce `K_d · VCmin` (review T1, was 2-13(a)) **[Critical]**
-`structural_speeds.py` computes `vd = max(chosen_vd, 1.25·VC)` and reports
-`K_d·VC` as "recommended". `STRSPEED.BAS` (Ref 1 p265–267: `V2DMIN=K2*V1CMIN`,
-enforced at lines 380/390) and FAR 23.335(b)(2) (User's Guide p46) require
-**both** minimums: `VD ≥ max(K_d·VCmin, 1.25·VC)`. With no chosen speeds the
-Appendix A Cat-N case (p155) prints VDmin **198.53 kt**; the code returns
-**177.26** — 10.7% non-conservative, propagating into MACHLIM and every
-downstream case at VD. The chosen-speeds case (p156) masks it, which is why the
-0.2.0 baseline missed it. **Fix:** `vd_min = max(kd*vc_min, 1.25*vc)`; rename
-the reported advisory to `K_d·VCmin`; add the p155 no-chosen-speeds oracle test;
-correct `00_theory_sources.md:59` (it currently documents the Code-manual
-prose error, not the BASIC). ~~Also close the remainder of old 2-13: (b) the
-optional CLmax→stall-speed input path (User's Guide p7-5)~~ — **done as M1-1b**
-(CLmax is now the single stall-speed source on `aero_coeffs`; see
-[`../40_history/00_completed_development.md`](../40_history/00_completed_development.md)).
+> **M1-1 (VD floor: enforce `K_d·VCmin`) and M1-1b (CLmax → stall-speed
+> single-source) are complete** — moved to
+> [`../40_history/00_completed_development.md`](../40_history/00_completed_development.md)
+> (2026-07-19). VD now enforces `max(K_d·VCmin, 1.25·VC)`, and stall speeds VS/VSF
+> derive from the CLmax on `aero_coeffs` (the old 2-13(b) path).
 
 ### M1-2 — BAL 1.4VSF: balance at 1.4× the 1-g flaps-down stall (review T2) **[Critical]**
 `flight_envelope.py` `_flap_config_points` captures the **STALL 2G** speed and
@@ -207,7 +197,7 @@ save→reload no-op.
 ### M2-7 — Step G7 — Persistence verification (G-3)
 Verify every input-bearing value lives on a `Project` slice `io.py` round-trips
 (no input-only `st.session_state`); drive save→reload on each example project
-(now at schema 28) and diff. **Acceptance:** save→reload of every example is a
+(now at schema 29) and diff. **Acceptance:** save→reload of every example is a
 no-op; no input page holds input data outside `st.session_state["project"]`.
 
 ### M2-8 — Landing default CG derivation (review, landing minor)
@@ -246,13 +236,14 @@ already outputs). Three tiers, one step:
   VMO ⇒ VC ≥ VMO; target VFE ⇒ VF ≥ VFE) and warn concretely when the chosen
   design speeds are infeasible; hook into `validation.py` so infeasibility
   also surfaces on the dashboard.
-**Depends on M1-1** (the VD floor fix) — an implied VNE from the under-floored
-VD would propagate the error into the advisory. Display/validation only; no
-loads-math change. *(S–M; unblocked once M1-1 lands.)*
+**Depended on M1-1** (the VD floor fix) — an implied VNE from the under-floored
+VD would have propagated the error into the advisory. **M1-1 has landed
+(2026-07-19), so this is unblocked.** Display/validation only; no loads-math
+change. *(S–M.)*
 
 ### M2-11 — Input data dictionary + short GUI user guide (review D4, part 1)
 (a) A `project.json` **data dictionary** — field, type, units, default, owning
-page, consuming modules — generated from the dataclasses (the schema is 28
+page, consuming modules — generated from the dataclasses (the schema is 29
 versions deep and the only reference is `models.py`). (b) A **5–10 page GUI
 user guide**: the workflow phases, what to enter where, the seed chain,
 LIMIT-vs-ULTIMATE reading rules, one end-to-end `ga6_normal` walkthrough with
@@ -445,8 +436,6 @@ reaction matrix stays closure-/legible-cell-locked).
 
 ## Known defects (open)
 
-- **M1-1** — VD floor omits `K_d·VCmin` (non-conservative ~10.7% on the
-  no-chosen-speeds path). **[Critical]**
 - **M1-2** — BAL 1.4VSF balanced at the 2-g stall speed (tail load 2.2× the
   Appendix A oracle). **[Critical]**
 - **M1-3** — swept-wing span load loses 6–13% of integrated lift
