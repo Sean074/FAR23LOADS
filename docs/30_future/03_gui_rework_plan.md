@@ -233,3 +233,13 @@ Carried from `GUI_design.md §6` and this document's decisions:
   `SF`); per-module analysis views may show LIMIT only when explicitly marked.
 - **Persistent by construction** — every entered value lives on a `Project` slice
   that `io.py` round-trips; nothing input-bearing lives only in `st.session_state`.
+- **Cross-page links are workflow-derived (M2-2, review G6).** Never hand-type a
+  page path or title in a link or a gating message. Route every `st.page_link`
+  through `components.workflow_page_link(key)` (or `components.gate(message,
+  *keys)` for a "define X on the Y page first" gate), which takes a
+  `farloads.workflow` step `key` and derives the target `views/<key>.py` and the
+  default label from `wf.BY_KEY[key].title` — so a page rename re-labels every
+  link automatically and the stale-name class ("Wing Geometry", "Configuration &
+  Layout" after the G1 merge) can't recur. `tests/test_page_links.py` fails any
+  link naming a non-existent step. The helper degrades to a non-clickable label
+  outside `st.navigation` (AppTest), so standalone rendering never raises.
