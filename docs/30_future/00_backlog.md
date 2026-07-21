@@ -1,11 +1,13 @@
 # Backlog — Open Work & Development Plan
 
-The authoritative list of **open** items, restructured (2026-07-20) around the
-**path to the first concept-loads release** — three release milestones (M1–M3),
-a post-release milestone (M4), the long-tail refinement list, and future
-directions. Items carry their prior backlog IDs and/or the 2026-07-19 project
-review IDs in parentheses for traceability
-(see [`PROJECT_REVIEW_2026-07-19.md`](../../PROJECT_REVIEW_2026-07-19.md)).
+The authoritative list of **open** items, structured around the **path to the
+first concept-loads release**: the release-readiness milestone **M2R**
+(2026-07-21 review fixes), the release cut **M3**, the post-release milestone
+**M4**, Phase F25, the long-tail refinement list, and future directions.
+Milestones M1 and M2 (from the 2026-07-19 review) completed 2026-07-20/21 —
+see history. Items carry their source-review IDs in parentheses
+([`PROJECT_REVIEW_2026-07-19.md`](../../PROJECT_REVIEW_2026-07-19.md),
+[`CODE_REVIEW_2026-07-21.md`](../../CODE_REVIEW_2026-07-21.md)).
 
 The architectural rationale lives in
 [`../10_standard/PROJECT_GUIDE.md §7`](../10_standard/PROJECT_GUIDE.md); the
@@ -29,52 +31,117 @@ a Streamlit page exists; the `Project` JSON schema is extended and round-trips i
 synced (`PROGRAM_SPEC.md`, `20_theory/00_theory_sources.md`, this backlog →
 history, `CHANGELOG.md`).
 
-> **Invariant (unchanged):** no calc-math change to the FAR23 path *except* the
-> reviewed correctness fixes in M1, each of which lands with its own printed-
-> oracle or listing-traceable test; Appendix A oracles pass throughout; concept
-> mode reduces exactly to FAR23 on GA inputs; ultimate-load output rules hold;
-> `workflow.py` stays the single source of navigation truth.
+> **Invariant (unchanged):** no calc-math change to the FAR23 path — Appendix A
+> oracles pass throughout; concept mode reduces exactly to FAR23 on GA inputs;
+> ultimate-load output rules hold; `workflow.py` stays the single source of
+> navigation truth.
 
 ---
 
-## Current state (as of 2026-07-20)
+## Current state (as of 2026-07-21)
 
 All 22 Appendix-C programs are ported plus 2 modern modules (`configuration`,
-`body_loads`). Phases 0–2, C, D, E, F, Phase 1, and Phase G Steps G0–G6b are
-complete (see history). The full suite is green (see CI for the current count;
-401 passed at the 2026-07-20 snapshot, ~92% coverage), the FAR23 GA path is
-Appendix-A oracle-locked, and the full-airframe concept fixture
-(`examples/concept_regional_jet.project.json`) runs all 19 applicable modules
-end-to-end through the concept branch with physics-closure tests.
+`body_loads`). Phases 0–2, C, D, E, F, Phase 1, and Phase G Steps **G0–G7**
+are complete, as are milestones **M1 (all 11 items)** and **M2 (all 11 items)**
+from the 2026-07-19 review (see history). The suite is green (466 passed at the
+2026-07-21 snapshot, ~93% coverage, ruff clean, `SCHEMA_VERSION = 31` — see CI
+for current counts), the FAR23 GA path is Appendix-A oracle-locked including
+the new M1 oracle rows (p155 VD, p178 landing-config, sweep closure), and both
+concept fixtures run end-to-end.
 
-The **2026-07-19 project review** (five parallel passes: two technical vs the
-reference PDFs, GUI-live, docs/naming, backlog/release) found the port
-essentially exact wherever a printed oracle exists, and a cluster of defects
-exactly where the oracle net has holes. Those findings are the core of M1/M2
-below. The review also settled the reference-authority hierarchy:
-**(1) `.BAS` listings + Appendix A printed output, (2) the User's Guide's CFR
-quotes (Jan-1994 text), (3) the Code manual's 1990 theory prose** — verify in
-that order; the two PDFs each contain errors the other corrects (VD-minimum
-prose vs 23.335; 23.361(c) pre-/post-Amdt-23-45 text; Nx sign).
-
----
-
-# M1 — Correctness & traceability (release-blocking)
-
-Calculation fixes from the review. Each is small, lands with a new oracle or
-listing-traceable test, and updates `00_theory_sources.md` where the doc
-currently records the defective behavior as if it were the source.
-
+The **2026-07-21 code & documentation review**
+([`CODE_REVIEW_2026-07-21.md`](../../CODE_REVIEW_2026-07-21.md); per
+`CODE_REVIEW_PROCESS.md`, emphasis maintainability / GUI ease-of-use &
+coverage / documentation) confirmed the sprint's doc-sync discipline held
+(6/6 artifacts on nearly every shipped change; zero stale backlog entries) and
+found: 1 CRITICAL (stale schema line), a small set of release-blocking GUI and
+doc-currency items (→ **M2R** below), and two structural maintainability walls
+to clear **before** the FAR 25 / OpenVSP feature wave (→ M4-9/M4-10/M4-11).
+Reference-authority hierarchy (unchanged): (1) `.BAS` listings + Appendix A
+printed output, (2) User's Guide CFR quotes (Jan-1994), (3) Code-manual 1990
+prose.
 
 ---
 
-# M2 — Usability & robustness (release-blocking)
+# M2R — Release-readiness fixes (2026-07-21 review; release-blocking)
 
-GUI and release-mechanics fixes from the review (G-numbers) plus the surviving
-Phase-G steps. GUI evidence: review §2 screenshots.
+Everything here is small (S unless noted); all must close before the M3 cut.
+Findings verified in the review — file:line evidence there.
 
-*(M2-11 — input data dictionary + GUI user guide — completed 2026-07-20; see
-[`../40_history/00_completed_development.md`](../40_history/00_completed_development.md).)*
+### M2R-1 — Doc currency sweep **[CRITICAL + 3 MAJOR]**
+(a) `GUI_design.md:354`: "SCHEMA_VERSION = 28" → 31, adding the v29 (CLmax
+single-source), v30 (M2-6 derived geometry), v31 (M2-10 placards) descriptions
+— or replace the baked number with a pointer to `DATA_DICTIONARY.md` (correct
+at 31). (b) `CLAUDE.md:19,:28,:189`: retire the "Appendix A/B ±0.1%"
+oracle-lock claim → "Appendix A ±0.1%; twin cases closure-locked", link the
+Oracle-status anchor in `00_theory_sources.md:17` (last D3 remnant).
+(c) `PROGRAM_SPEC.md:359-362`: schema version trail — insert v29, append v31.
+(d) CHANGELOG Documentation entry + `00_INDEX.md` rows for
+`01_far25_gap_analysis.md`, the backlog restructure (D-9…D-11), and the
+`reference/` extracts; INDEX row for `01_verification_baseline_0.2.0.md`; fix
+the INDEX "two-phase plan" backlog description; `00_theory_sources.md:89`
+corrections-register pointer → `02_approved_corrections.md`; README examples
+line → all six fixtures. *(This backlog's own header was refreshed 2026-07-21
+as part of this restructure.)*
+
+### M2R-2 — Non-affiliation & attribution sentence, now **[MAJOR]**
+Add to the README Disclaimer and the GUI footer/About: modern open replication
+of the FAR23 loads suite (DOT/FAA/AR-96/46; Hal C. McMaster CAE manual), **not
+affiliated with McGettrick Structural Engineering, Inc. or DARcorporation**,
+whose "FAR 23 LOADS" is a separate commercial product. Decoupled from the
+M3-1 rename per the 07-19 review ("immediately, regardless") — one sentence,
+legal-exposure mitigation.
+
+### M2R-3 — Ship working examples **[MAJOR]**
+(a) `examples/concept_regional_jet.project.json`: 3 landing `cg_cases`
+(currently 2 → the flagship concept example dead-ends on Landing Loads with a
+red error). (b) `examples/ga6_normal.project.json`: add `fuselage_mass`
+stations so the Appendix-A example reaches Fuselage Loads / Loads Plots / sbeam
+(5 of 6 examples currently error there). Trivial JSON edits; removes the only
+two red errors a first-time user meets.
+
+### M2R-4 — Kill the last on-render Project mutation **[MAJOR]**
+`farloads/modules/landing.py:453-456,472-474` — `build_landing()` writes gear
+geometry onto `project.landing` and `gross_weight_lb`/`n` onto the input slice,
+so merely opening Landing Loads flips "🟠 Unsaved changes" (verified by
+per-page bisection; last G4 residue) and `run()` is impure in the calc layer.
+Fix: read gear geometry into a local effective input
+(`dataclasses.replace`); return derived values instead of storing them. Add a
+render-leaves-project-hash-unchanged test for the page.
+
+### M2R-5 — GUI editors for the blocking uncovered fields **[MAJOR]**
+(a) `landing.cg_cases`: 3-row `st.data_editor` on Landing Loads, seeded from
+`project.mass.cases` (aft-max / fwd-max / fwd-light) — currently editable only
+via raw JSON. (b) `SelectInput.full_down_aileron_deg` / `basic_airfoil_cm` /
+`wing_weight_lb` on the Critical Loads tab (with `help=`) — they drive the
+governing wing-torsion score and critical-fuselage weight and currently
+default silently (0 / 0 / 0.09·MTOW) with no visible knob.
+
+### M2R-6 — Geometry Apply: validate before persisting **[MAJOR]**
+`app/views/configuration_layout.py:260,274-278` — Apply persists an invalid
+layout (e.g. Area S = 0), then `st.error` + `st.stop()` blanks the rest of the
+page including the unrelated empennage/gear forms. Reject the Apply with a
+targeted message (or persist + warn while keeping the page alive).
+
+### M2R-7 — io.py tolerant readers (forward-compat crash) **[MAJOR]**
+Reproduced live: one unknown field in a project file crashes load
+(`MassItem.__init__() got an unexpected keyword argument…`) although
+`schema_status()` promises unrecognized fields are ignored (`io.py:1101-1106`;
+raw-dict splats at `:184,:199,:433`). Fix: one shared `_filtered(cls, d)`
+helper (the `io.py:906` pattern) in **every** `*_from_dict`; test that injects
+an unknown key into every slice of `ga6_normal` and asserts load succeeds.
+Matters for release users sharing files across app versions. (The full
+migration-chain overhaul is M4-10 — not blocking.)
+
+### M2R-8 — `MissingInputError` in the registry **[MAJOR]**
+`registry.py:47-52` swallows *every* `ValueError`, so a genuine calc defect
+silently vanishes from run-all/export, indistinguishable from "inputs not
+entered". Define `MissingInputError(ValueError)`, raise it at the ~21
+missing-slice guards, catch only that in `run_all_modules`. Small; restores
+trust in the release deliverable. While in the area: thread the SELECT
+envelope once per run instead of the up-to-7× `build_envelope()` fallback
+rebuilds (`select.py:92-97`; also imported by `balloads.py:33`) — single
+computation, `MissingInputError` when absent (or one justified fallback site).
 
 ---
 
@@ -90,22 +157,25 @@ an open reimplementation must not adopt that mark as its title; (2) the tool's
 identity is a **concept development tool** extending beyond FAR 23 (concept
 mode, Part 25 supplemental cases, sbeam handoff, later OpenVSP interfaces);
 (3) `sloads` joins the family of **sbeam** and **smodal** ("s" = simple /
-Sean). **Attribution stays prominent:** describe the heritage as a modern open
-replication of the FAR23 loads suite, citing the very public FAA/DOT report
-**DOT/FAA/AR-96/46** (User's Guide for FAR23 Loads Program, 1997) and the
-Hal C. McMaster CAE manual, with an explicit **non-affiliation** sentence
-naming McGettrick Structural Engineering and DARcorporation.
-**Acceptance:** one name everywhere (grep for `farloads`/`FAR23LOADS`/"FAR 23
-LOADS" finds only the historical-attribution passages); imports/CLI/tests
-green; docs and examples updated; disclaimer present in README and the GUI
-footer/About.
+Sean). **Attribution stays prominent** (the M2R-2 sentence predates this step).
+Rename-surface inventory (2026-07-21 review): 391 `farloads` refs in .py
+across 95 files + 257 in docs + pyproject (name, console entry, `--cov`,
+`include=`); the JSON schema, registry names, and session-state keys are
+**clean** — saved project files survive untouched; delete/gitignore
+`farloads.egg-info/`. **Batch with the rename (same churn event, review
+recommendation):** split `models.py` (1,842 lines / 66 classes) into a
+`models/` package by lifecycle (enums / input slices / result types / project).
+**Acceptance:** one name everywhere (grep finds only historical-attribution
+passages); imports/CLI/tests green; docs and examples updated; disclaimer
+present in README and the GUI footer/About.
 
 ### M3-2 — Release cut per `RELEASE_PROCESS.md`
-Version 0.3.0; date and cut the (currently ~3-phases-deep) `[Unreleased]`
-changelog; refresh the verification baseline as
-`40_history/02_verification_baseline_0.3.0.md` **including the new M1 oracle
-rows** (p155 VD, p178 landing-config, sweep closure, 23.427 set) and a
-one-page **oracle-vs-closure status table**; run the fixed smoke test; tag.
+Version 0.3.0; date and cut the `[Unreleased]` changelog (~1,083 lines —
+merge its ten duplicate `### Changed` headings while cutting); refresh the
+verification baseline as `40_history/02_verification_baseline_0.3.0.md`
+**including the new M1 oracle rows** (p155 VD, p178 landing-config, sweep
+closure, 23.427 set) and a one-page **oracle-vs-closure status table**; run
+the smoke test; tag.
 
 ### M3-3 — *Stretch:* Step G8 — Summary report (Export phase)
 The consolidated four-section loads report (`03_gui_rework_plan.md` §4 Phase 6):
@@ -113,8 +183,8 @@ input summary; envelope plots (V-n, weight/CG, speed/altitude); conditions +
 FAR coverage; results summary (VMT wing/fuselage, control/flap, gear, engine).
 All load figures ULTIMATE with SF. **Include a methods/limitations statement
 stamped into the exported deliverables** (CSV/BDF/report) so downstream sizing
-inherits the concept-mode caveat the UI already shows. Ships with 0.3.0 if M1/M2
-go fast; otherwise first item of M4.
+inherits the concept-mode caveat the UI already shows. Ships with 0.3.0 if M2R
+goes fast; otherwise first item of M4.
 
 ---
 
@@ -208,6 +278,51 @@ round-trips through `io.py` and renders as `lbs-ULT SF=1.25`. Touches the CLAUDE
 ultimate-load contract — land deliberately with tests. **Layer 1 + M4-7 can ship
 independently; Layer 2 coordinates with Phase F25.**
 
+### M4-9 — `LoadValue.key`: de-string the load-case semantics **[maintainability, pre-F25]**
+2026-07-21 review, top refactor. Semantics currently ride on display-label
+strings: `report.py:204-260,307` (`_VERTICAL_LABELS`, `_GYRO_CASE_RE` label
+regex), 13 view lookups, 144 test lookups — a cosmetic relabel silently blanks
+CSV columns (`_val` returns `""`, no error) and breaks ~150 sites. Add
+`key: str` to `LoadValue` (e.g. `fz_vertical`), match on key in
+report/sbeam/views/tests, keep `label` cosmetic. Mechanical; **prerequisite for
+F25 supplements emitting new quantities.**
+
+### M4-10 — io.py migration chain + version-bump enforcement **[maintainability, pre-F25]**
+Completes M2R-7. Replace the key-presence sniffing (the 19-clause or-gate at
+`io.py:936-945` + legacy shims; `project_from_dict` CC 51, io.py worst-MI file)
+with `MIGRATIONS: dict[int, callable]` applied hop-by-hop before one tolerant
+reader; check in **one frozen fixture file per historical schema version**
+(only v20/v24 exist today); add the generic sentinel round-trip test (manual
+`to_dict` field lists silently drop new fields); add a fields-hash test that
+fails when persisted dataclasses change without a `SCHEMA_VERSION` bump
+(discipline is currently unenforced).
+
+### M4-11 — App scaffold helpers before the next view wave **[maintainability, pre-F25]**
+~25–35% of the 6.3k-line app layer is repeated per-field idiom: 139
+`number_input`s hand-pairing `to_display`/`to_imperial_scalar` (71+41 sites),
+22 hand-rolled apply handlers, 20 identical page headers, 10 concept-banner
+copies. Build `unit_number_input(...)` (renders converted, returns Imperial —
+removes the silent-unit-bug hazard) and a `page(title, requires=...)` context
+manager (header/gate/concept banner); adopt in the worst views first
+(`_tab_design_speeds` CC 72 → split seed/form/render; `_three_view` CC 52;
+`_tab_vn` CC 44; `landing_reactions` CC 66 per-attitude split). **Do this
+before writing the F25/OpenVSP views, not after 30 views exist.** Est. 1.5–2k
+lines removed.
+
+### M4-12 — Contract & test-architecture cleanups (2026-07-21 review batch)
+Promote the 9 cross-module private-symbol imports to public homes
+(`_interp_x`, `_sigma`, `_maneuver_load_factors`, `htail_balance` family;
+`app/` must not import `farloads` underscore names); `htail_balance` →
+NamedTuple (stringly dict keys cross module boundaries); document the
+`tail_loads`/`vtail_loads` property-proxy trap-doors (invisible to
+`dataclasses.fields/replace/asdict`; silent None no-op) and do not replicate
+the pattern — retire it at the rename break; write the
+`sync_geometry_derived`-inside-`run()` convention into the porting contract;
+consolidate the 9 duplicated `_value` test helpers + example builders into
+`conftest.py`/`tests/helpers.py` (7 files import from `test_engine`); select
+Apply buttons by form key, not list position (`test_dirty_flag.py:84,103`);
+add a cspell config or delete the CODE_REVIEW_PROCESS cspell bullet.
+
 ---
 
 # Phase F25 — FAR 25 concept coverage (post-0.3.0)
@@ -218,10 +333,14 @@ details: [`../20_theory/01_far25_gap_analysis.md`](../20_theory/01_far25_gap_ana
 (2026-07-20). Pattern throughout: opt-in supplement per module (the shipped
 `engine.include_far25` flag is the template); FAR 23 path untouched; every
 Part 25 result carries the "static surrogate — not certification" banner.
+**Preconditions (2026-07-21 review): M4-9, M4-10, and M4-11 land first** — F25
+supplements emit new quantities and new fields, and the label-string/io/app
+walls are cheapest to clear before the wave, not after.
 
 - **F25-0 — Verify pass (S, first).** Pull current CFR text for every
   *(verify)* row into `reference/14CFR_Part25_loads_extracts.md`; correct the
-  gap table; freeze parameters.
+  gap table; freeze parameters. *(First row done 2026-07-20:
+  `reference/14CFR_MC_MD_speed_margin.md`.)*
 - **F25-1 — Transport category "T" envelope pack (M).** 25.337 floor 2.5 /
   negative −1.0; VB (25.335(d)); transport gust corner set — Pratt engine with
   the 25.341 U_ref schedule + F_g; MZFW design weight. M1-6 (W/S ≥ 100
@@ -282,7 +401,10 @@ pass-through matches the oracle and stays until then.
 ### L-4 — Distinct Commuter category + VB (was 2-7)
 The 19,000-lb/19-seat tier is encoded but dormant; neither VB (23.335(d)) nor
 the 66-fps rough-air gust (23.341) is computed anywhere (the BASIC suite
-predates commuter support too). Land as one step when a concept needs the tier.
+predates commuter support too). Note the commuter MC→MD margin rule
+(23.335(b)(4)(iii): 0.07 / rational / 0.05 floor —
+`reference/14CFR_MC_MD_speed_margin.md`). Land as one step when a concept
+needs the tier.
 
 ### L-5 — FLTLOADS enroute / speed-control config (was 2-19)
 Third config — enroute (partial flaps / dive brakes / spoilers) with VPF
@@ -298,24 +420,37 @@ CL) — implement the coefficient generator or keep as a tracked scope gap
 Confirm vs WINGINER.BAS whether a THETADOT pitch-acceleration case is expected;
 surface `DMYY` if a per-strip incremental torsion column is wanted.
 
-### L-8 — Minor UX / reporting parity batch (was 2-21, extended by review notes)
+### L-8 — UX / reporting parity batch (was 2-21; extended by the 07-19 and 07-21 reviews)
 ENGLOADS `prop_blades` captured but unused; AILERON positive-deflection
 coercion undocumented; WTONECG YBAR omitted; TAILDIST average-chord only (not
-the guide's N-station-chord variants, Figs 20.7–20.10). Plus review nits:
+the guide's N-station-chord variants, Figs 20.7–20.10). Review nits (07-19):
 V-n plot negative closure should show −1.0 at VD for U/A categories (loads are
 right; display only); chosen VA silently clamped to VC (BASIC only raises —
 warn instead); 190-lb occupant caption for U/A (23.25(a)(2)); MC-vs-MD Mach cap
 on cruise stall-line conditions (numerically inert; comment or match BASIC);
-dashboard "Schema version" metric and BASIC program names are developer-facing;
-save-filename sanitization; add `st.spinner` on the heavy recomputes; migrate
-off the deprecated `use_container_width`. **Widget freshness (deferred from M2-7):**
-input widgets pass both `key=` and `value=`, so Streamlit's session_state can win over
-the project-seeded `value=` and show a stale field after the project changes underneath
-(cross-page Apply, programmatic load). Not a data-loss bug (Apply is required to
-persist, and per-page unit-suffixed keys limit the blast radius), so it was ruled out
-of the M2-7 *persistence-of-data* acceptance; audit the `key=`+`value=` widgets and
-re-seed on a project change (or prove it cannot occur here). `tests/test_persistence.py`
-already locks the data-persistence half (round-trip completeness + session_state audit).
+save-filename sanitization; `st.spinner` on heavy recomputes; migrate off the
+deprecated `use_container_width`. **New from the 2026-07-21 GUI review:**
+finish the `help=` rollout on the Other-loads/Flight-loads pages (flap 0/6,
+OEO 0/7, wing loads 2/10 vs speeds 21/21; app-wide ~45%); make the G6/G6b
+empennage + landing-gear sections respect the SI toggle (hardcoded ft²/in
+labels — a GUI_design §7 deviation — and ~30 widgets without tooltips) or
+record the exception in GUI_design §7; Results Review "All results by section"
+should include the 8 folded modules' results (map folded → host step);
+human-label the folded-module CSVs on Export ("balloads (CSV)" → descriptive);
+add widgets (or documented JSON-only status) for the remaining uncovered
+fields: `speeds.chosen_va`/`chosen_vf`, `one_engine_out.speeds_kt`,
+`weight.envelope.fuselage_nose_x`/`fuselage_tail_x`; de-jargonize error
+strings (no internal slice names); move the Geometry parametric form and the
+Flight-Envelope altitude Apply out of the sidebar (or visually anchor them);
+first-run Loads Plots info should use the linked `gate()`; OEO "define ≥2
+engines" warning needs a page link. **Widget freshness (deferred from M2-7):**
+input widgets pass both `key=` and `value=`, so Streamlit's session_state can
+win over the project-seeded `value=` and show a stale field after the project
+changes underneath (cross-page Apply, programmatic load). Not a data-loss bug
+(Apply is required to persist, and per-page unit-suffixed keys limit the blast
+radius); audit the `key=`+`value=` widgets and re-seed on a project change (or
+prove it cannot occur). `tests/test_persistence.py` locks the data-persistence
+half.
 
 ### L-9 — FAR23 printed-oracle backfills ⛔ *blocked on reference material* (was 2-10)
 Close each as a mini-step **only if** a legible Appendix B / `.INP`/`.OUT`
@@ -336,6 +471,11 @@ reaction matrix stays closure-/legible-cell-locked).
   weights/stiffness loop), and eventual **smodal** hand-off.
 - **Additional load-case families** beyond the current FAR23 + Part 25
   supplemental set, as concept needs dictate.
+- **Methods manual / DER package** (07-19 review D4 part 2): a consolidated
+  front section (scope, assumptions, method per FAR condition group, approved
+  deviations, oracle-vs-closure table) assembled from theory-sources +
+  PROGRAM_SPEC + docstrings; then per-module walkthroughs in the
+  `engine_loads.md` style (SELECT and FLTLOADS first).
 
 ---
 
@@ -367,11 +507,21 @@ reaction matrix stays closure-/legible-cell-locked).
 
 ## Known defects (open)
 
+- **M2R-7** — `io.py` crashes on project files containing unknown fields
+  (forward-compat promise in `schema_status()` is false — reproduced
+  2026-07-21). **[Major]**
+- **M2R-4** — `landing.build_landing()` mutates the live Project on render;
+  opening Landing Loads trips the unsaved-changes flag. **[Major]**
+- **M2R-3** — shipped examples defective: `concept_regional_jet` has 2 of 3
+  required landing CG cases (Landing page dead-ends); 5 of 6 examples lack
+  `fuselage_mass` (Fuselage Loads errors). **[Major, examples]**
 - **M4-1** — fuselage body-load distribution carries an unreacted pitching
   couple (terminal Myy ≠ 0). **[Major]**
 - **M4-7** — `sbeam_bridge` hardcodes a flat ×1.5 and ignores
   `ConditionResult.safety_factor` — **latent** (only LIMIT wing loads reach sbeam
   today), a double-factor trap for future ULTIMATE cases. **[correctness, latent]**
+- **M4-9** — report/export semantics keyed on display-label strings; a
+  cosmetic relabel silently blanks CSV columns. **[Major, latent]**
 
 *(The Step-G6 half-migration breakage found by the 2026-07-19 review was
 resolved 2026-07-20 — suite green, concept fixture runs end-to-end; see
