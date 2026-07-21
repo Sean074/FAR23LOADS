@@ -305,17 +305,22 @@ def _tab_speed_altitude(project: Project, system: UnitSystem, U: dict) -> None:
         f"From Design Speeds — MC **{mc:.4f}**, MD **{md:.4f}**, "
         f"shoulder **{shoulder:,.0f} ft**."
     )
-    max_alt = st.number_input(
-        "Max operating altitude (ft)", min_value=0.0,
-        value=float(existing.max_operating_altitude_ft) if existing else 18000.0,
-        help="Ceiling of the flight-limits diagram; the Mach-limited table runs from "
-             "the shoulder altitude up to here (MACHLIM, Ch 6).",
-    )
-    incr = st.number_input(
-        "Altitude increment (ft)", min_value=1.0,
-        value=float(existing.increment_ft) if existing else 1000.0,
-        help="Tabulation / plotting step for the Mach-limited airspeeds.",
-    )
+    # Form + Apply (M2-3): the MACHLIM inputs persist only on submit, so merely
+    # visiting this tab no longer mutates the project and trips the dirty flag.
+    with st.form("mach_limit_form"):
+        max_alt = st.number_input(
+            "Max operating altitude (ft)", min_value=0.0,
+            value=float(existing.max_operating_altitude_ft) if existing else 18000.0,
+            help="Ceiling of the flight-limits diagram; the Mach-limited table runs from "
+                 "the shoulder altitude up to here (MACHLIM, Ch 6).",
+        )
+        incr = st.number_input(
+            "Altitude increment (ft)", min_value=1.0,
+            value=float(existing.increment_ft) if existing else 1000.0,
+            help="Tabulation / plotting step for the Mach-limited airspeeds.",
+        )
+        applied = st.form_submit_button("Apply", type="primary")
+
     axis_unit = st.radio(
         "Chart speed axis", ["KEAS", "KCAS", "KTAS"], horizontal=True,
         help="Equivalent (native calc unit), calibrated (compressibility-corrected, "
@@ -327,11 +332,13 @@ def _tab_speed_altitude(project: Project, system: UnitSystem, U: dict) -> None:
         mc=mc, md=md, shoulder_altitude_ft=shoulder,
         max_operating_altitude_ft=max_alt, increment_ft=incr,
     )
-    # Persist into the speeds slice (creating it if the Design Speeds tab has not run).
-    speeds = project.speeds or StructuralSpeedsInput()
-    speeds.mach_limit = inp
-    project.speeds = speeds
-    st.session_state["project"] = project
+    # Persist into the speeds slice only on Apply (creating it if the Design Speeds
+    # tab has not run). The chart below always renders live from the local `inp`.
+    if applied:
+        speeds = project.speeds or StructuralSpeedsInput()
+        speeds.mach_limit = inp
+        project.speeds = speeds
+        st.session_state["project"] = project
 
     try:
         results = mach_limit_lines(inp)

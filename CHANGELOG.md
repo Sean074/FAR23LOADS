@@ -51,6 +51,25 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- **"Unsaved changes" no longer trips on a plain page visit (M2-3, review G4).**
+  `flight_envelope.py` and `structural_speeds.py` auto-seeded derived slices on
+  every render (`flight_loads`; `speeds.mach_limit`), so merely visiting them
+  dirtied the project and fired the discard-confirm dialog spuriously — violating
+  the app's own "Form + Apply, merge not replace" convention. Both now persist
+  **only on an explicit Apply** (`st.form_submit_button`): the FLTLOADS geometry
+  and the MACHLIM altitude inputs live in `st.form`s, and the live V-n / Mach-limit
+  diagrams compute from an in-memory value (Flight Envelope uses a shallow-copy
+  *probe* project carrying the effective input) without mutating the saved project.
+  The SELECT (Critical Loads) tab now persists **only** `selected_case_ids`, and
+  **only when it changed**, onto the stored critical set — instead of reassigning
+  the whole recomputed object every render. Consequence (intended): visiting these
+  pages no longer seeds downstream slices; the engineer clicks Apply once, and the
+  existing downstream gates now correctly mean "hit Apply". New
+  `tests/test_dirty_flag.py` drives both views via `AppTest` and asserts a
+  no-interaction render leaves `project_to_dict` byte-for-byte unchanged for every
+  example, plus that Apply *does* persist. No calc/oracle/schema change (438 tests
+  green).
+
 - **Loads Plots page now recomputes from the project (M2-1).** The Load-case
   plotting page read `Project.loads`, a result slice **no code path ever
   constructs** — so it was permanently empty behind an unsatisfiable "visit the

@@ -10,6 +10,68 @@ Acceptance**, **Key decisions**.
 
 ---
 
+## M2-3 — Dirty flag: move on-render writes into Apply handlers (GUI fix, complete 2026-07-20)
+
+**Objective.** Review finding **G4**: `flight_envelope.py` and
+`structural_speeds.py` mutated the project **on render** (auto-seeding
+derived/defaulted sub-slices outside any Apply handler), so the sidebar's "Unsaved
+changes" flag — `project_to_dict(p) != saved_snapshot` (`Home.py`) — tripped with
+zero user edits and the discard-confirm dialog fired spuriously (reviewer: load
+ATR-42 → "No unsaved changes"; three page-visits later → "Unsaved changes"). Root
+cause: seeding a slice on visit violates the app's own **"Form + Apply, merge not
+replace"** design principle (`03_gui_rework_plan.md §7`). All three written slices
+(`flight_loads`, `speeds.mach_limit`, `envelope.critical`) round-trip through
+`io.py`, so a render-time seed genuinely changed the persisted dict.
+
+**Key decision (2026-07-20, user-confirmed): require an explicit Apply.** Persist
+only on submit; compute the live diagram from an in-memory *effective* input.
+Accepted consequence: visiting no longer seeds downstream slices — the engineer
+clicks Apply once, and the existing downstream gates ("Define the flight-loads
+inputs on the Flight Envelope (V-n) page first") now correctly mean "hit Apply".
+No `SCHEMA_VERSION`/calc-math change; oracles untouched.
+
+**Deliverables (the three write sites fixed; a fourth was already correct).**
+- **`flight_envelope.py` — `flight_loads` (primary).** Wrapped the sidebar
+  FLTLOADS geometry + reference Mach in `st.form("flight_geometry_form")` with an
+  "Apply geometry & altitudes" submit. Each render builds `fl_effective =
+  fl.merged(...)` locally; the page then computes from a **shallow-copy probe** —
+  `session_project = project; project = copy.copy(session_project);
+  project.flight_loads = fl_effective` — so the V-n / SELECT / trim tabs and
+  `build_envelope`/`flt_run` see the effective input without mutating the saved
+  project. `project.flight_loads` is written to the real `session_project` **only**
+  on Apply. Dropped the redundant per-render `st.session_state["project"] =
+  project`. (The page's calc modules were verified pure — no `project.X =`
+  mutation — so the probe sharing the other slices by reference is safe.)
+- **`structural_speeds.py` — `speeds.mach_limit` (primary).** The Speed–Altitude
+  tab (`_tab_speed_altitude`) had **no form**: `max_operating_altitude`/`increment`
+  were bare widgets and the `MachLimitInput` was persisted every render. Wrapped
+  them in `st.form("mach_limit_form")` + Apply; the Mach-limit chart renders live
+  from the local `inp`, and `speeds.mach_limit` persists only on submit. `axis_unit`
+  stays outside the form (display-only). Mirrors the Design Speeds tab, whose form
+  (`if applied:` at :212) was already the correct pattern.
+- **`flight_envelope.py` — SELECT selection.** `_tab_select` reassigned the whole
+  recomputed `critical` object every render (which could differ from stored even
+  with no deselection). Now it writes **only** `selected_case_ids`, and **only when
+  it differs** from the stored value, onto `project.envelope.critical` (shared with
+  the saved project via the probe) — a no-op render leaves the project untouched;
+  a real deselection dirties (correct).
+
+**Test / Acceptance.** New `tests/test_dirty_flag.py`: (1) parametrized over both
+views × all six example projects — an `AppTest` render with **no** widget
+interaction leaves `project_to_dict(session_state["project"])` byte-for-byte equal
+to the loaded project (12 cases); (2) positive path — clearing `mach_limit` /
+`flight_loads`, rendering, then clicking the form's Apply persists the slice.
+GUI-only; full suite green (**438 passing**, `ruff` clean); no calc/oracle/schema
+change.
+
+**Notes / follow-on.** Persistence-hygiene sibling of **M2-7** (Step G7 — full
+save→reload no-op audit); M2-3 fixes the two known offenders, M2-7 verifies the
+whole app. The `flight_loads` geometry-echo fields kept behind the form become pure
+read-throughs under **M2-6** (G6c) — the form is where the override-behind-a-toggle
+pattern will live.
+
+---
+
 ## M2-2 — Navigation: show the whole workflow; link between pages (GUI fix, complete 2026-07-20)
 
 **Objective.** Two review findings, one step. **G3:** half the workflow — phases

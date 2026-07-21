@@ -20,6 +20,8 @@ Two tabs:
 
 from __future__ import annotations
 
+import copy
+
 import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
@@ -109,20 +111,25 @@ def _num(label: str, value: float, key: str, kind: str, fmt: str = "%.3f", min_v
 
 
 with st.sidebar:
-    st.header(f"Geometry (FLTLOADS) ({U['length']} / {U['area_sqft']})")
-    st.caption(
-        f"Input units: **{'Imperial' if system == UnitSystem.IMPERIAL else 'SI'}**. "
-        "Defaults come from the Geometry page when available, else the Appendix A "
-        "worked example."
-    )
-    mac = _num("Wing MAC", fl.mac or _geo_defaults["mac"], "mac", "length", min_value=0.0)
-    s = _num("Wing area S", fl.wing_area_sqft or _geo_defaults["wing_area_sqft"], "s", "area_sqft", min_value=0.0)
-    xw = _num("X at 25% wing MAC", fl.xw or _geo_defaults["xw"], "xw", "length")
-    zw = _num("Z (waterline) at 25% MAC", fl.zw or _geo_defaults["zw"], "zw", "length")
-    xtc = _num("Tail CP X, flaps up XTC", fl.xtc or 253.364, "xtc", "length")
-    xtf = _num("Tail CP X, flaps down XTF", fl.xtf or 261.027, "xtf", "length")
-    mn = st.number_input("Reference Mach (coeffs obtained at)", min_value=0.01,
-                         value=float(fl.mn) or 0.1, format="%.3f")
+    # Form + Apply (M2-3): the FLTLOADS geometry persists only on submit, so merely
+    # visiting this page no longer mutates the project and trips the dirty flag. The
+    # V-n diagram below always renders live from the current inputs (see the probe).
+    with st.form("flight_geometry_form"):
+        st.header(f"Geometry (FLTLOADS) ({U['length']} / {U['area_sqft']})")
+        st.caption(
+            f"Input units: **{'Imperial' if system == UnitSystem.IMPERIAL else 'SI'}**. "
+            "Defaults come from the Geometry page when available, else the Appendix A "
+            "worked example. **Apply** to save into the project."
+        )
+        mac = _num("Wing MAC", fl.mac or _geo_defaults["mac"], "mac", "length", min_value=0.0)
+        s = _num("Wing area S", fl.wing_area_sqft or _geo_defaults["wing_area_sqft"], "s", "area_sqft", min_value=0.0)
+        xw = _num("X at 25% wing MAC", fl.xw or _geo_defaults["xw"], "xw", "length")
+        zw = _num("Z (waterline) at 25% MAC", fl.zw or _geo_defaults["zw"], "zw", "length")
+        xtc = _num("Tail CP X, flaps up XTC", fl.xtc or 253.364, "xtc", "length")
+        xtf = _num("Tail CP X, flaps down XTF", fl.xtf or 261.027, "xtf", "length")
+        mn = st.number_input("Reference Mach (coeffs obtained at)", min_value=0.01,
+                             value=float(fl.mn) or 0.1, format="%.3f")
+        applied = st.form_submit_button("Apply geometry & altitudes", type="primary")
 
 st.caption(
     f"Aero coefficients (from the **Aerodynamic Data** page): cruise '{aero.cruise.name}'"
@@ -134,6 +141,7 @@ st.subheader("Altitudes (V-n balanced at each)")
 alt_df = st.data_editor(alt_default, num_rows="dynamic", hide_index=True,
                         use_container_width=True, key="altitudes_editor")
 altitudes_ft = sorted({float(v) for v in alt_df["altitude_ft"] if pd.notna(v)}) or [0.0]
+st.caption("Edit altitudes above, then **Apply geometry & altitudes** in the sidebar to save.")
 
 cg_cases = project.weight.cg_cases if project.weight else []
 if not cg_cases:
@@ -151,9 +159,10 @@ st.dataframe(pd.DataFrame([
     for c in cg_cases
 ]), hide_index=True, use_container_width=True)
 
-# Merge (never wholesale-replace) so fields this page doesn't show survive the
-# persist path. Aero coefficients and CG cases are owned by other pages -- read only.
-project.flight_loads = fl.merged(
+# The effective FLTLOADS input from the current widgets. Merge (never wholesale-
+# replace) so fields this page doesn't show survive the persist path; aero and CG
+# cases are owned by other pages (read only).
+fl_effective = fl.merged(
     mac=to_imperial_scalar(mac, "length", system),
     wing_area_sqft=to_imperial_scalar(s, "area_sqft", system),
     xw=to_imperial_scalar(xw, "length", system),
@@ -162,7 +171,18 @@ project.flight_loads = fl.merged(
     xtf=to_imperial_scalar(xtf, "length", system),
     mn=mn, altitudes_ft=altitudes_ft, cg_cases=cg_cases,
 )
-st.session_state["project"] = project
+
+# Persist to the real project only on Apply. For the live diagram/SELECT/trim below,
+# compute from a shallow *probe* carrying the effective input, so a plain render
+# never mutates the saved project (M2-3). copy.copy shares the other slices by
+# reference; the page's calc is pure (reads only), and the one intended write --
+# the SELECT selection onto the shared envelope -- is gated on change below.
+session_project = project
+if applied:
+    session_project.flight_loads = fl_effective
+    st.session_state["project"] = session_project
+project = copy.copy(session_project)
+project.flight_loads = fl_effective
 
 if project.is_concept:
     st.warning(
@@ -349,12 +369,16 @@ def _tab_select() -> None:
 
     # Empty list means "no filter" (every condition kept) -- only persist a real
     # subset when the engineer has actually deselected something.
-    critical.selected_case_ids = [] if checked_ids == all_ids else checked_ids
+    new_ids = [] if checked_ids == all_ids else checked_ids
 
-    # Persist so downstream pages (Fuselage Loads, Results Review, exports) reuse it.
-    if project.envelope is not None:
-        project.envelope.critical = critical
-        st.session_state["project"] = project
+    # Persist ONLY the selection, ONLY when it changed (M2-3): reassigning the whole
+    # recomputed `critical` would dirty the project on every render. Write the id
+    # list onto the *stored* critical (shared with the saved project via the probe),
+    # so a no-op render leaves the project byte-for-byte unchanged and a real
+    # deselection persists to Fuselage Loads / Results Review / exports.
+    stored = project.envelope.critical if project.envelope is not None else None
+    if stored is not None and new_ids != stored.selected_case_ids:
+        stored.selected_case_ids = new_ids
 
 
 # --------------------------------------------------------------------------- #

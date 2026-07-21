@@ -226,7 +226,13 @@ Carried from `GUI_design.md §6` and this document's decisions:
   slice read-only; only the sole owner edits it. Geometry lives on one page.
 - **Form + Apply, merge not replace.** Inputs in `st.form` with an explicit Apply;
   Apply merges targeted fields (never wholesale-replaces a shared slice — the D0
-  defect class).
+  defect class). **A render must not write to the project (M2-3, review G4):** never
+  auto-seed a derived/defaulted slice on visit — it trips the "Unsaved changes" flag
+  with no user edit. Persist only in the submit handler; compute the live view from
+  an in-memory value (Flight Envelope uses a shallow-copy *probe* project carrying
+  the effective input) so a plain render leaves `project_to_dict` unchanged. A
+  persisted *selection* (e.g. SELECT's `selected_case_ids`) writes only its own
+  field and only when it changed, never the whole recomputed object.
 - **No airplane-shaped widget defaults** — blank/neutral defaults; Appendix-A
   numbers live in the loadable example project.
 - **LIMIT vs. ULTIMATE marking** — deliverables are ULTIMATE (`-ULT`, per-case
