@@ -73,12 +73,6 @@ currently records the defective behavior as if it were the source.
 GUI and release-mechanics fixes from the review (G-numbers) plus the surviving
 Phase-G steps. GUI evidence: review §2 screenshots.
 
-### M2-7 — Step G7 — Persistence verification (G-3)
-Verify every input-bearing value lives on a `Project` slice `io.py` round-trips
-(no input-only `st.session_state`); drive save→reload on each example project
-(now at schema 30) and diff. **Acceptance:** save→reload of every example is a
-no-op; no input page holds input data outside `st.session_state["project"]`.
-
 ### M2-8 — Landing default CG derivation (review, landing minor)
 `landing._cg_cases` derives "aft max landing" and "fwd max landing" from the
 **same** heaviest mass case — the fwd/aft distinction is degenerate and
@@ -360,7 +354,14 @@ warn instead); 190-lb occupant caption for U/A (23.25(a)(2)); MC-vs-MD Mach cap
 on cruise stall-line conditions (numerically inert; comment or match BASIC);
 dashboard "Schema version" metric and BASIC program names are developer-facing;
 save-filename sanitization; add `st.spinner` on the heavy recomputes; migrate
-off the deprecated `use_container_width`.
+off the deprecated `use_container_width`. **Widget freshness (deferred from M2-7):**
+input widgets pass both `key=` and `value=`, so Streamlit's session_state can win over
+the project-seeded `value=` and show a stale field after the project changes underneath
+(cross-page Apply, programmatic load). Not a data-loss bug (Apply is required to
+persist, and per-page unit-suffixed keys limit the blast radius), so it was ruled out
+of the M2-7 *persistence-of-data* acceptance; audit the `key=`+`value=` widgets and
+re-seed on a project change (or prove it cannot occur here). `tests/test_persistence.py`
+already locks the data-persistence half (round-trip completeness + session_state audit).
 
 ### L-9 — FAR23 printed-oracle backfills ⛔ *blocked on reference material* (was 2-10)
 Close each as a mini-step **only if** a legible Appendix B / `.INP`/`.OUT`

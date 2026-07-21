@@ -10,6 +10,45 @@ Acceptance**, **Key decisions**.
 
 ---
 
+## M2-7 — Step G7 — Persistence verification (G-3, complete 2026-07-20)
+
+**Objective.** Verify (and lock) decision **G-3**: every input-bearing value lives on a
+`Project` slice `io.py` round-trips, with no input data stranded in `st.session_state`;
+save→reload of each example is a no-op.
+
+**Audit result (already satisfied by the D5/G-series/M2-6 single-source work).**
+(1) All six example projects are save→reload no-ops (JSON-normalized dict comparison).
+(2) The only session_state keys the GUI writes are UI state — `project` (the canonical
+store), `unit_system` (display preference), `_saved_project_snapshot` (the dirty-flag
+baseline), `engine_sel` (the Engine Mount radio selection), the Project Editor's re-seeded
+JSON text scratchpad, and Streamlit-managed widget keys — none holding un-persisted
+airplane input. Transient in-form edits before **Apply** are the deliberate Form+Apply
+design (M2-3/G-4), not a violation: the acceptance reads as *persistent* input data.
+
+**Key decisions (2026-07-20, user-confirmed).** (1) **Completeness guard**, not just an
+example no-op check: a field-coverage test constructs each input dataclass with every
+field set to a distinct non-default sentinel (recursively, through nested dataclasses /
+lists / enums), round-trips it through its `io` pair, and asserts every field survives —
+so a field added later without `io` wiring fails the build. Intentionally-derived fields
+(the M2-6 single-source set + the G6/G6b geometry moves) sit in a `DERIVED_NOT_PERSISTED`
+allowlist, itself guarded against rename drift. (2) **Defer** the Streamlit `key=`+`value=`
+display-freshness footgun (orthogonal to data persistence; no data is lost today) to the
+L-8 long-tail UX batch.
+
+**Deliverables.**
+- **`tests/test_persistence.py` (new).** `test_every_example_save_reload_is_a_noop`
+  (relocated from `test_derived_geometry.py`); `test_input_dataclasses_round_trip_every_field`
+  (the completeness guard, with the recursive filler + `DERIVED_NOT_PERSISTED` allowlist);
+  `test_derived_allowlist_entries_are_real_fields` (guards the allowlist against renames);
+  `test_no_input_data_written_outside_project_session_state` (static scan of `app/` — every
+  `st.session_state[...] =` write uses an allow-listed UI key, tripping a review when a new
+  key appears).
+
+**Test / Acceptance.** Full suite green (454 passed), ruff gate clean; the completeness
+guard verified to catch a dropped field (removing an allowlist entry fails the test).
+
+---
+
 ## M2-6 — Step G6c — Geometry single-source cleanup (wing + fuselage + power, complete 2026-07-20)
 
 **Objective.** Close the remaining *softer* geometry/power double-entry the G6 audit
@@ -56,8 +95,9 @@ reference area 500 re-baselines to the WINGGEOM strip integral 497.75 (no printe
   derived copies dropped).
 
 **Test / Acceptance.** New `tests/test_derived_geometry.py` (wing derivation, sync,
-no-persistence, no-geometry fallback, fuselage summary, power resolver, **every example a
-save→reload no-op**). Updated `test_flight_envelope`/`test_io`/`test_empennage` for the
+no-persistence, no-geometry fallback, fuselage summary, power resolver). The
+save→reload-no-op check now lives in `tests/test_persistence.py` (Step M2-7).
+Updated `test_flight_envelope`/`test_io`/`test_empennage` for the
 derived/dropped fields and the newly-running `configuration` module on GA6. Full suite
 green (451 passed), ruff clean; Appendix A oracles bit-for-bit.
 

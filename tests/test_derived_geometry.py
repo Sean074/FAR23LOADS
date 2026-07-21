@@ -8,7 +8,6 @@ are a derived summary of the ``GeometryInput.fuselage`` outline; and the weight-
 derivation, the no-persistence/no-op-round-trip acceptance, and the no-geometry fallback.
 """
 
-import glob
 import math
 import os
 import sys
@@ -75,14 +74,6 @@ def test_wing_scalars_not_persisted_and_round_trip_is_noop():
     # Reload -> re-serialize is a no-op.
     d2 = io.project_to_dict(io.project_from_dict(d1))
     assert d1 == d2
-
-
-def test_every_example_round_trips_with_no_change():
-    """Every shipped example is a save->reload no-op (M2-6 / seeds M2-7)."""
-    for f in sorted(glob.glob(os.path.join(_EXAMPLES, "*.project.json"))):
-        d1 = io.project_to_dict(io.load_project(f))
-        d2 = io.project_to_dict(io.project_from_dict(d1))
-        assert d1 == d2, f
 
 
 def test_no_geometry_leaves_explicit_slice_values_untouched():

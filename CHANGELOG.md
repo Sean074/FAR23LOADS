@@ -9,6 +9,22 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- **Persistence verification + guards (M2-7, Step G7).** Verified decision G-3: every
+  input-bearing value lives on a `Project` slice `io.py` round-trips, with no input data
+  stranded in `st.session_state`. New `tests/test_persistence.py`: (a) every example is a
+  **save→reload no-op**; (b) a **field-coverage completeness guard** — each input dataclass
+  is filled with all-non-default sentinels (recursively) and round-tripped through its `io`
+  pair, so a field added later without `io` wiring fails the build (intentionally-derived
+  fields sit in a rename-guarded `DERIVED_NOT_PERSISTED` allowlist); (c) a **session_state
+  audit** — a static scan of `app/` asserting every `st.session_state[...] =` write uses an
+  allow-listed UI key (`project`/`unit_system`/`_saved_project_snapshot`/`engine_sel` + the
+  Project Editor scratchpad), so a new key that could smuggle input data outside `project`
+  trips a review. The audit found the acceptance already met (the D5/G-series/M2-6
+  single-source work); the Streamlit `key=`+`value=` display-freshness footgun is deferred
+  to the L-8 long-tail batch.
+
 ### Changed
 
 - **Geometry & power single-source cleanup (M2-6, Step G6c).** Closed the last of the
