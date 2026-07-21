@@ -21,6 +21,8 @@ historical record.
 | [`PROJECT_GUIDE.md`](10_standard/PROJECT_GUIDE.md) | Architecture, package layout, porting conventions, validation strategy, dependency-ordered roadmap |
 | [`PROGRAM_SPEC.md`](10_standard/PROGRAM_SPEC.md) | Per-module specification for all 22 programs (inputs, outputs, FAR conditions, `.BAS` mapping) |
 | [`GUI_design.md`](10_standard/GUI_design.md) | **GUI design & structure** — navigation model, global sidebar, page anatomy/conventions, unit-boundary input pattern, definition-page standards, FAR 23 applicability/concept-awareness, JSON persistence |
+| [`GUI_USER_GUIDE.md`](10_standard/GUI_USER_GUIDE.md) | **GUI user guide** — task-oriented walkthrough: workflow phases, what to enter where, the seed chain, LIMIT-vs-ULTIMATE reading rules, and an end-to-end `ga6_normal` example with hand-checkable numbers |
+| [`DATA_DICTIONARY.md`](10_standard/DATA_DICTIONARY.md) | **`project.json` data dictionary** (generated) — every input field's type, units, default, owning page, and consuming modules; produced by [`generate_data_dict.py`](generate_data_dict.py) |
 | [`CODE_REVIEW_PROCESS.md`](10_standard/CODE_REVIEW_PROCESS.md) | Critical code-review process for module ports |
 | [`RELEASE_PROCESS.md`](10_standard/RELEASE_PROCESS.md) | Versioning and release process |
 

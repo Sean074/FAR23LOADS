@@ -73,14 +73,8 @@ currently records the defective behavior as if it were the source.
 GUI and release-mechanics fixes from the review (G-numbers) plus the surviving
 Phase-G steps. GUI evidence: review §2 screenshots.
 
-### M2-11 — Input data dictionary + short GUI user guide (review D4, part 1)
-(a) A `project.json` **data dictionary** — field, type, units, default, owning
-page, consuming modules — generated from the dataclasses (the schema is 28
-versions deep and the only reference is `models.py`). (b) A **5–10 page GUI
-user guide**: the workflow phases, what to enter where, the seed chain,
-LIMIT-vs-ULTIMATE reading rules, one end-to-end `ga6_normal` walkthrough with
-three or four hand-checkable numbers (the data already exists in the 0.2.0
-verification baseline — it needs narrative).
+*(M2-11 — input data dictionary + GUI user guide — completed 2026-07-20; see
+[`../40_history/00_completed_development.md`](../40_history/00_completed_development.md).)*
 
 ---
 

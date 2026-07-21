@@ -11,6 +11,17 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **`project.json` data dictionary + GUI user guide (M2-11).** Two new docs.
+  `docs/10_standard/DATA_DICTIONARY.md` is **generated** by
+  `docs/generate_data_dict.py`, which introspects the `farloads.models` Project
+  input slices (type/default from `dataclasses`/`typing.get_type_hints`, units
+  from inline comments) and emits a per-slice map (owning page + consuming
+  modules, at slice granularity from `workflow.py` + a source scan) plus a field
+  table per input dataclass and an enums appendix; result slices are out of
+  scope. `docs/10_standard/GUI_USER_GUIDE.md` is a task-oriented walkthrough —
+  workflow phases, the single-source seed chain, LIMIT-vs-ULTIMATE reading rules,
+  and an end-to-end `ga6_normal` example with four hand-checkable numbers.
+  `tests/test_data_dictionary.py` guards the generated doc against drift.
 - **Operating-limitation implications on the Design Speeds page (M2-10).** The
   structural design speeds (Subpart C) now explain and surface the **operating
   limitations / cockpit placards** they bound (Subpart G) — advisory only, no
