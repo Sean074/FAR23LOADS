@@ -275,6 +275,147 @@ def design_speeds(project: Project, inp: StructuralSpeedsInput) -> List[Conditio
 
 
 # --------------------------------------------------------------------------- #
+# Operational-limitation placards (M2-10, Subpart G) -- ADVISORY ONLY
+# --------------------------------------------------------------------------- #
+# The design speeds (Subpart C) bound the *operating limitations* set at
+# certification (Subpart G). This derives the preliminary placard speeds those
+# limits imply and, when the user supplies operational *targets*, inverts the
+# ladder into the required design minima and flags infeasible targets. It NEVER
+# changes a design speed or a load -- display/validation only.
+# Sources: reference/14CFR_operating_limitations.md -- Ref 1 p47 (VNE=0.9VD,
+# MNE=0.9MD, yellow arc, turbine VMO/MMO<=VC/MC), 14 CFR 23.1505 (VNE<=0.9VD;
+# VNO<=min(VC, 0.89VNE)), 23.1511 (VFE<=VF), 23.335(b)(4) (MC->MD 0.05 margin).
+_MC_MD_MARGIN = 0.05     # N/U/A minimum Mach margin (23.335(b)(4)(ii)); commuter 0.07 (F25-2)
+_VNO_VNE_RATIO = 0.89    # 23.1505(b)(2)(ii)
+_VNE_VD_RATIO = 0.9      # 23.1505(a)(2)(i) / Ref 1 p47
+
+
+class OperationalPlacards(NamedTuple):
+    """Preliminary Subpart-G placard speeds derived from the design speeds.
+
+    ``vne``/``vno``/``mne`` are the recip yellow-arc family; ``vmo``/``mmo`` the
+    turbine (no-yellow-arc) family; ``vfe`` is common. All KEAS except the Mach
+    numbers. Advisory only -- the certificated placards are set at certification."""
+    vne: float          # 0.9*VD                       (23.1505(a))
+    vno: float          # min(VC, 0.89*VNE)            (23.1505(b))
+    vfe: float          # VF                           (23.1511)
+    mne: float          # 0.9*MD                       (Ref 1 p47)
+    vmo: float          # VC   (turbine max operating) (Ref 1 p47)
+    mmo: float          # MC   (turbine max operating) (Ref 1 p47)
+
+
+def operational_placards(ds: DesignSpeeds) -> OperationalPlacards:
+    """The preliminary placard speeds implied by a set of design speeds."""
+    vne = _VNE_VD_RATIO * ds.vd
+    vno = min(ds.vc, _VNO_VNE_RATIO * vne)
+    return OperationalPlacards(
+        vne=vne, vno=vno, vfe=ds.vf, mne=_VNE_VD_RATIO * ds.md, vmo=ds.vc, mmo=ds.mc,
+    )
+
+
+class TargetCheck(NamedTuple):
+    """One operational-target feasibility check: the design-speed minimum a target
+    implies, the actual design speed, and whether the target is achievable."""
+    target_label: str    # e.g. "VNE"
+    target: float        # the user's target value
+    driver_label: str    # the design speed that must clear the minimum, e.g. "VD"
+    required: float      # required minimum of the driver
+    actual: float        # actual design-speed value
+    units: str
+
+    @property
+    def feasible(self) -> bool:
+        return self.actual >= self.required - 1e-9
+
+
+def operational_target_checks(inp: StructuralSpeedsInput, ds: DesignSpeeds) -> List[TargetCheck]:
+    """Invert the placard ladder into required design minima for each set target.
+
+    target VNE => VD >= VNE/0.9;  target VNO => VC >= VNO and VNE >= VNO/0.89
+    (i.e. VD >= VNO/0.89/0.9);  target VMO => VC >= VMO;  target MMO => MD >= MMO
+    + 0.05;  target VFE => VF >= VFE. Warn-only: nothing here mutates a speed.
+    """
+    out: List[TargetCheck] = []
+    if inp.target_vne:
+        out.append(TargetCheck("VNE", inp.target_vne, "VD",
+                               inp.target_vne / _VNE_VD_RATIO, ds.vd, _KT))
+    if inp.target_vno:
+        out.append(TargetCheck("VNO", inp.target_vno, "VC",
+                               inp.target_vno, ds.vc, _KT))
+        out.append(TargetCheck("VNO", inp.target_vno, "VD (via VNE)",
+                               inp.target_vno / _VNO_VNE_RATIO / _VNE_VD_RATIO, ds.vd, _KT))
+    if inp.target_vmo:
+        out.append(TargetCheck("VMO", inp.target_vmo, "VC", inp.target_vmo, ds.vc, _KT))
+    if inp.target_mmo:
+        out.append(TargetCheck("MMO", inp.target_mmo, "MD",
+                               inp.target_mmo + _MC_MD_MARGIN, ds.md, "Mach"))
+    if inp.target_vfe:
+        out.append(TargetCheck("VFE", inp.target_vfe, "VF", inp.target_vfe, ds.vf, _KT))
+    return out
+
+
+def operational_implications(project: Project, inp: StructuralSpeedsInput) -> List[ConditionResult]:
+    """Advisory operating-limitation placards + optional target feasibility.
+
+    Both placard families are always shown (per the M2-10 decision): the recip
+    yellow-arc set and the turbine VMO/MMO set, each captioned with when it applies.
+    A second condition appears only when the user set operational targets. This is
+    display/validation only -- no design speed or load is changed.
+    """
+    ds = design_speed_values(project, inp)
+    p = operational_placards(ds)
+    fam = ("turbine / 23.335(b)(4) (VMO/MMO govern; no yellow arc)"
+           if inp.no_yellow_arc else "recip / naturally-aspirated (yellow arc VC->VNE)")
+
+    placards = ConditionResult(
+        title="Preliminary operating-limitation placards (advisory)",
+        far_reference="23.1505/23.1511",
+        values=[
+            LoadValue("Never-exceed VNE (recip)", p.vne, _KT),
+            LoadValue("Max structural cruise VNO (recip)", p.vno, _KT),
+            LoadValue("Never-exceed Mach MNE (recip)", p.mne),
+            LoadValue("Max operating VMO (turbine)", p.vmo, _KT),
+            LoadValue("Max operating MMO (turbine)", p.mmo),
+            LoadValue("Flap extended VFE", p.vfe, _KT),
+        ],
+        note=(
+            f"Preliminary placards implied by the design speeds; primary family here: {fam}. "
+            "VNE = 0.9*VD, VNO = min(VC, 0.89*VNE), MNE = 0.9*MD (14 CFR 23.1505; Ref 1 p47); "
+            "turbine airplanes have no yellow arc, VMO/MMO <= VC/MC; VFE = VF (23.1511). "
+            "Operating limitations are set at certification (Subpart G), NOT by this tool -- "
+            "these are advisory design implications only."
+        ),
+    )
+    results = [placards]
+
+    checks = operational_target_checks(inp, ds)
+    if checks:
+        values = []
+        for c in checks:
+            mark = "" if c.feasible else "  <-- INFEASIBLE"
+            values.append(LoadValue(
+                f"{c.target_label} target {c.target:g} => {c.driver_label} >= "
+                f"{c.required:.4g} (have {c.actual:.4g}){mark}", c.required, c.units))
+        infeasible = [c for c in checks if not c.feasible]
+        note = (
+            "All operational targets are achievable with the chosen design speeds."
+            if not infeasible else
+            "INFEASIBLE target(s): " + "; ".join(
+                f"{c.target_label} {c.target:g} needs {c.driver_label} >= {c.required:.4g} "
+                f"but {c.driver_label.split(' ')[0]} = {c.actual:.4g}" for c in infeasible)
+            + ". Raise the driving design speed(s) or lower the target. "
+            "Targets never change the design speeds or any load (display/validation only)."
+        )
+        results.append(ConditionResult(
+            title="Operational-target feasibility (advisory)",
+            far_reference="23.1505/23.335(b)(4)",
+            values=values,
+            note=note,
+        ))
+    return results
+
+
+# --------------------------------------------------------------------------- #
 # Project entry point + registration
 # --------------------------------------------------------------------------- #
 MODULE_NAME = "structural_speeds"

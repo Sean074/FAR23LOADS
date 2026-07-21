@@ -11,6 +11,23 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **Operating-limitation implications on the Design Speeds page (M2-10).** The
+  structural design speeds (Subpart C) now explain and surface the **operating
+  limitations / cockpit placards** they bound (Subpart G) — advisory only, no
+  loads-math change. Three tiers: **Explain** (a constraint-ladder expander with
+  citations); **Derive** (`operational_placards`/`operational_implications` in
+  `structural_speeds.py` — a read-only panel showing **both** placard families:
+  recip yellow-arc VNE=0.9·VD, VNO=min(VC, 0.89·VNE), MNE=0.9·MD and turbine
+  VMO=VC/MMO=MC, plus VFE=VF); **Constrain** (optional operational targets
+  `no_yellow_arc` + `target_vne`/`vno`/`vmo`/`mmo`/`vfe` on `StructuralSpeedsInput`,
+  `SCHEMA_VERSION` 30 → 31 with lenient migration). Targets invert the ladder into
+  the required design minima (`operational_target_checks`) and **warn-only** on
+  infeasibility — never mutating a design speed or load; infeasible targets also
+  surface on the dashboard via `validation._check_operational_targets`. Sources:
+  new `reference/14CFR_operating_limitations.md` (14 CFR 23.1505/23.1511, web-
+  verified; Ref 1 p47; 23.335(b)(4) margin). GA6 placards unit-tested (VNE 191.25,
+  VNO 170, MNE 0.363, VMO 170, MMO 0.3226, VFE 105.5).
+
 - **Persistence verification + guards (M2-7, Step G7).** Verified decision G-3: every
   input-bearing value lives on a `Project` slice `io.py` round-trips, with no input data
   stranded in `st.session_state`. New `tests/test_persistence.py`: (a) every example is a

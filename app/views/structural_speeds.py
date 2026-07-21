@@ -38,7 +38,11 @@ from farloads import (
 from farloads import io as farloads_io
 from farloads.constants import convert_airspeed, mach_to_eas, standard_atmosphere
 from farloads.modules.mach_limit import mach_limit_lines
-from farloads.modules.structural_speeds import design_speed_values, design_speeds
+from farloads.modules.structural_speeds import (
+    design_speed_values,
+    design_speeds,
+    operational_implications,
+)
 from farloads.report import module_text_report
 
 
@@ -80,6 +84,28 @@ def _tab_design_speeds(project: Project, system: UnitSystem, U: dict) -> None:
             "Mach limit.\n"
             "- **Concept load factors (n, n_neg)** — for Category = Concept only, you set the limit maneuver "
             "factors directly; no 14 CFR 23.337 cap is applied."
+        )
+
+    with st.expander("ℹ️ How the design speeds bound the operating limitations", expanded=False):
+        st.markdown(
+            "The **design speeds** here (Subpart C) set the ceiling for the **operating "
+            "limitations / cockpit placards** established at certification (Subpart G). The "
+            "constraint ladder:\n\n"
+            "- **VNE** (never-exceed) = **0.9·VD**; **MNE** = 0.9·MD "
+            "(14 CFR 23.1505(a); Ref 1 p47). The band VC→VNE is the airspeed-indicator "
+            "**yellow arc**.\n"
+            "- **VNO** (max structural cruising) = **min(VC, 0.89·VNE)** (23.1505(b)).\n"
+            "- **VFE** (flap extended) ≤ **VF** (23.1511).\n"
+            "- **Turbine airplanes** (and any airplane whose VD is set by the 23.335(b)(4) "
+            "Mach-margin route) have **no yellow arc**: the max operating speed "
+            "**VMO/MMO ≤ VC/MC**, with ≥ 0.05 Mach between MC and MD "
+            "(23.335(b)(4)(ii); commuter 0.07).\n"
+            "- **Flutter clearance** is shown to **1.2·VD/MD** (MFC, 23.629) on the "
+            "Speed–Altitude Envelope tab.\n\n"
+            "The advisory panel below derives these preliminary placards from your design "
+            "speeds. Set optional **operational targets** in the form to check feasibility "
+            "(e.g. a target VNE requires VD ≥ VNE/0.9). Operating limitations are fixed at "
+            "certification, not by this tool — targets never change any design speed or load."
         )
 
     existing = project.speeds
@@ -207,6 +233,41 @@ def _tab_design_speeds(project: Project, system: UnitSystem, U: dict) -> None:
                                       value=float(existing.chosen_nneg) if existing and existing.chosen_nneg else 0.0,
                                       help="Concept-category limit negative load factor (≤ 0; used only when "
                                            "Category = Concept).")
+
+        st.subheader("Operational targets (optional, advisory)")
+        st.caption(
+            "Preliminary Subpart-G placard **targets** (14 CFR 23.1505/23.1511). These "
+            "**never change** the design speeds or any load — on Apply, each is inverted "
+            "into the design minimum it requires and flagged if the chosen speeds fall "
+            "short (here and on the dashboard). Leave 0 to skip a target."
+        )
+        no_yellow_arc = st.checkbox(
+            "Turbine / no yellow arc (VMO/MMO govern)",
+            value=bool(existing.no_yellow_arc) if existing else False,
+            help="Turbine airplanes (and any airplane with VD set by the 23.335(b)(4) "
+                 "Mach-margin route) have no VNE yellow arc; VMO/MMO ≤ VC/MC govern (Ref 1 p47).",
+        )
+        _oc1, _oc2, _oc3 = st.columns(3)
+        with _oc1:
+            target_vne = st.number_input("Target VNE (kt)", min_value=0.0,
+                                         value=float(existing.target_vne) if existing and existing.target_vne else 0.0,
+                                         help="Desired never-exceed speed; requires VD ≥ VNE/0.9 (23.1505(a)).")
+            target_vfe = st.number_input("Target VFE (kt)", min_value=0.0,
+                                         value=float(existing.target_vfe) if existing and existing.target_vfe else 0.0,
+                                         help="Desired flap extended speed; requires VF ≥ VFE (23.1511).")
+        with _oc2:
+            target_vno = st.number_input("Target VNO (kt)", min_value=0.0,
+                                         value=float(existing.target_vno) if existing and existing.target_vno else 0.0,
+                                         help="Desired max structural cruising speed; requires VC ≥ VNO and "
+                                              "VNE ≥ VNO/0.89 (23.1505(b)).")
+            target_vmo = st.number_input("Target VMO (kt)", min_value=0.0,
+                                         value=float(existing.target_vmo) if existing and existing.target_vmo else 0.0,
+                                         help="Turbine max operating speed; requires VC ≥ VMO (Ref 1 p47).")
+        with _oc3:
+            target_mmo = st.number_input("Target MMO (Mach)", min_value=0.0, format="%.3f",
+                                         value=float(existing.target_mmo) if existing and existing.target_mmo else 0.0,
+                                         help="Turbine max operating Mach; requires MD ≥ MMO + 0.05 (23.335(b)(4)).")
+
         applied = st.form_submit_button("Apply", type="primary")
 
     if applied:
@@ -225,6 +286,12 @@ def _tab_design_speeds(project: Project, system: UnitSystem, U: dict) -> None:
             chosen_vd=vd or None,
             chosen_n=chosen_n if is_concept_submit else None,
             chosen_nneg=chosen_nneg if is_concept_submit else None,
+            no_yellow_arc=bool(no_yellow_arc),
+            target_vne=target_vne or None,
+            target_vno=target_vno or None,
+            target_vmo=target_vmo or None,
+            target_mmo=target_mmo or None,
+            target_vfe=target_vfe or None,
         )
         # Preserve any existing MACHLIM sub-slice owned by the other tab.
         inp.mach_limit = existing.mach_limit if existing else None
@@ -258,6 +325,24 @@ def _tab_design_speeds(project: Project, system: UnitSystem, U: dict) -> None:
             st.dataframe(pd.DataFrame(rows), hide_index=True, use_container_width=True)
             if r.note:
                 st.caption(r.note)
+
+    # Operating-limitation implications (M2-10): read-only advisory placards +
+    # optional operational-target feasibility. Never changes a design speed or load.
+    st.divider()
+    st.subheader("Operating-limitation implications (advisory)")
+    try:
+        op_results = operational_implications(project, inp)
+    except (ValueError, ZeroDivisionError):
+        op_results = []
+    for r in op_results:
+        with st.expander(f"FAR {r.far_reference} — {r.title}", expanded=True):
+            rows = [{"Quantity": v.label, "Value": v.value, "Units": v.units} for v in r.values]
+            st.dataframe(pd.DataFrame(rows), hide_index=True, use_container_width=True)
+            if r.note:
+                st.caption(r.note)
+    for _w in consistency_warnings(project):
+        if _w.page == "structural_speeds" and _w.code == "operational_target_infeasible":
+            st.warning(_w.message)
 
     st.divider()
     st.caption(

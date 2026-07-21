@@ -10,6 +10,59 @@ Acceptance**, **Key decisions**.
 
 ---
 
+## M2-10 — Operational-speed linkage on the Design Speeds page (all three tiers, complete 2026-07-20)
+
+**Objective.** Make the Design Speeds page explain and surface how the structural
+design speeds (Subpart C) bound the eventual **operating limitations / cockpit
+placards** (Subpart G) — advisory only, no loads-math change.
+
+**Key decisions (2026-07-20, user-confirmed).** (1) **All three tiers ship now**
+(Explain + Derive + Constrain), closing M2-10 before the 0.3.0 cut. (2) **Both
+placard families are always shown** in the Derive advisory — the recip yellow-arc
+set (VNE/VNO/MNE) and the turbine VMO/MMO set — each captioned with when it
+applies, rather than inferring one from project data. (3) **Targets are warn-only:**
+an infeasible operational target produces a concrete warning and never mutates a
+design speed or blocks Apply (display/validation only).
+
+**Reference (mandatory consult).** New `reference/14CFR_operating_limitations.md`
+(web-verified 2011 CFR ed.): 14 CFR 23.1505(a) VNE ≤ 0.9·VD; 23.1505(b) VNO ≤
+min(VC, 0.89·VNE); 23.1511 VFE ≤ VF; and Ref 1 p47 (`code.txt` 4147–4152) for
+VNE/MNE = 0.9·VD/MD, the yellow arc, and the turbine/23.335(b)(4) VMO/MMO ≤ VC/MC
+rule. MC→MD 0.05 Mach margin per 23.335(b)(4)(ii) (`14CFR_MC_MD_speed_margin.md`).
+
+**Deliverables.**
+- **`farloads/modules/structural_speeds.py`.** `operational_placards(ds)` →
+  `OperationalPlacards` (VNE=0.9·VD, VNO=min(VC, 0.89·VNE), MNE=0.9·MD, VMO=VC,
+  MMO=MC, VFE=VF); `operational_target_checks(inp, ds)` → `List[TargetCheck]`
+  inverting the ladder into required design minima; `operational_implications(
+  project, inp)` → the advisory `ConditionResult`s (both families + optional
+  feasibility). No load quantity involved, so plain (non-`ULT`) units.
+- **`farloads/models.py`.** `StructuralSpeedsInput` gains `no_yellow_arc` +
+  `target_vne`/`vno`/`vmo`/`mmo`/`vfe`; **SCHEMA_VERSION 30 → 31** (lenient — older
+  files lack the keys and take the defaults; io round-trips via `asdict`/`**d`).
+- **`farloads/validation.py`.** `_check_operational_targets` emits the
+  `operational_target_infeasible` warning (page `structural_speeds`) so infeasible
+  targets also surface on the dashboard.
+- **`app/views/structural_speeds.py`.** Explain expander (constraint ladder +
+  citations); optional operational-target inputs on the form (turbine flag + the
+  five targets); read-only "Operating-limitation implications (advisory)" panel
+  rendering the placards, feasibility and any infeasibility warning.
+- **Examples.** All six fixtures bumped to `schema_version` 31 (pure metadata).
+
+**Test / Acceptance.** `tests/test_structural_speeds.py`:
+`test_operational_placards_ga6` (VNE 191.25, VNO 170, MNE 0.363, VMO 170, MMO
+0.3226, VFE 105.5 within ±0.1%), `test_operational_implications_shows_both_families`,
+`test_operational_target_feasible_and_infeasible`, `test_operational_target_mmo_margin`.
+`tests/test_validation.py`: `test_operational_target_infeasible_fires`,
+`test_operational_target_feasible_silent`. The M2-7 persistence field-coverage guard
+round-trips the new v31 fields. Full suite green (463 passed); ruff clean.
+
+**Docs.** `PROGRAM_SPEC.md` (STRSPEED reads/advisory writes + Notes),
+`20_theory/00_theory_sources.md` (placard-ladder citations), this move,
+`CHANGELOG.md`.
+
+---
+
 ## M2-9 — `scripts/smoke_test.sh` portability (release-mechanics, complete 2026-07-20)
 
 **Objective.** Make the release smoke test run under any install layout, not only a

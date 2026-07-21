@@ -73,33 +73,6 @@ currently records the defective behavior as if it were the source.
 GUI and release-mechanics fixes from the review (G-numbers) plus the surviving
 Phase-G steps. GUI evidence: review §2 screenshots.
 
-### M2-10 — Operational-speed linkage on the Design Speeds page (decided 2026-07-20: all three tiers)
-The design speeds bound the eventual **operating limitations** — the page must
-explain and surface this. Primary sources: Ref 1 **p47** (VNE/MNE = 0.9·VD/MD;
-yellow arc VC→VNE; turbine airplanes use VMO/MMO ≤ VC/MC with the 23.335(b)(4)
-margin — ≥ 0.05 Mach between MC and MD or the flight-test upset margin) and
-FAR 23.1505 (VNE ≤ 0.9·VD; VNO ≤ lesser of VC or 0.89·VNE), 23.1511
-(VFE ≤ VF), 23.629 (flutter clearance to 1.2·VD/MD — the MFC line MACHLIM
-already outputs). Three tiers, one step:
-- **Explain:** an expander on the Design Speeds tab presenting the constraint
-  ladder with the citations above.
-- **Derive:** a pure `operational_implications(speeds, mach)` calc returning
-  the implied preliminary placards (VNE = 0.9·VD, MNE = 0.9·MD,
-  VNO = min(VC, 0.89·VNE), VMO/MMO caps = VC/MC, VFE cap = VF, arc
-  boundaries), rendered as a read-only advisory panel with an "operating
-  limitations are set at certification (Subpart G), not by this tool" caption;
-  unit-tested against the GA6 figures.
-- **Constrain:** optional operational **targets** on `StructuralSpeedsInput`
-  (target VNE or VMO/MMO, VNO, VFE + a turbine/no-yellow-arc flag; schema
-  bump, lenient migration). On Apply, invert the ladder into required design
-  minima (target VNE ⇒ VD ≥ VNE/0.9; target MMO ⇒ MD ≥ MMO + 0.05; target
-  VMO ⇒ VC ≥ VMO; target VFE ⇒ VF ≥ VFE) and warn concretely when the chosen
-  design speeds are infeasible; hook into `validation.py` so infeasibility
-  also surfaces on the dashboard.
-**Built on M1-1** (the VD floor fix, now landed) — an implied VNE from the
-under-floored VD would have propagated the error into the advisory. Display/
-validation only; no loads-math change. *(S–M; unblocked.)*
-
 ### M2-11 — Input data dictionary + short GUI user guide (review D4, part 1)
 (a) A `project.json` **data dictionary** — field, type, units, default, owning
 page, consuming modules — generated from the dataclasses (the schema is 28

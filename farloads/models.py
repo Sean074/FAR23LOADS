@@ -465,6 +465,19 @@ class StructuralSpeedsInput:
     chosen_n: Optional[float] = None            # chosen positive maneuver load factor
     chosen_nneg: Optional[float] = None         # chosen negative maneuver load factor
     mach_limit: Optional[MachLimitInput] = None  # MACHLIM inputs (Project.speeds.mach_limit)
+    # --- Operational-limitation targets (M2-10, Subpart G) --------------------
+    # Optional *advisory* placard targets. They never change the design speeds or
+    # any load (display/validation only); on Apply the ladder is inverted into the
+    # required design minima and an infeasible target warns concretely (here and on
+    # the dashboard via validation.py). ``no_yellow_arc`` marks a turbine / 23.335
+    # (b)(4) airplane (no VNE yellow arc; VMO/MMO govern). See
+    # reference/14CFR_operating_limitations.md (23.1505/23.1511; Ref 1 p47).
+    no_yellow_arc: bool = False                 # turbine / 23.335(b)(4): use VMO/MMO
+    target_vne: Optional[float] = None          # desired never-exceed VNE (KEAS)
+    target_vno: Optional[float] = None          # desired max structural cruise VNO (KEAS)
+    target_vmo: Optional[float] = None          # desired max operating VMO (KEAS, turbine)
+    target_mmo: Optional[float] = None          # desired max operating MMO (Mach, turbine)
+    target_vfe: Optional[float] = None          # desired flap extended VFE (KEAS)
 
 
 # --------------------------------------------------------------------------- #
@@ -1717,7 +1730,11 @@ class LoadsResult:
 # older file's stored copies are read but ignored (re-derived), the outline is
 # defaulted from the length/width/height scalars when absent, and override defaults
 # False. Fixtures fold the derived values (Appendix A oracles within +/-0.1%).
-SCHEMA_VERSION = 30
+# v31 (Step M2-10) adds the operational-limitation targets to StructuralSpeedsInput
+# (no_yellow_arc + target_vne/vno/vmo/mmo/vfe) -- advisory Subpart-G placard targets
+# that never change any load. Migration is lenient: an older file simply lacks the
+# keys and takes the defaults (no_yellow_arc False, all targets None).
+SCHEMA_VERSION = 31
 
 
 @dataclass

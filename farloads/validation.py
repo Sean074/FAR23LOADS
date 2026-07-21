@@ -20,6 +20,9 @@ Checks (14 CFR / Reference-1 context in each predicate):
                              WINGGEOM planform area by more than a tolerance.
 - ``cg_outside_envelope`` -- the WTONECG centre of gravity outside the WTENV
                              structural CG envelope (14 CFR 23.23; Reference 1 Ch 3).
+- ``operational_target_infeasible`` -- an operational placard target (VNE/VNO/VMO/
+                             MMO/VFE) the chosen design speeds cannot achieve (M2-10;
+                             14 CFR 23.1505/23.335(b)(4)). Advisory; no load changes.
 """
 
 from __future__ import annotations
@@ -206,6 +209,42 @@ def _check_cg_envelope(project: Project) -> List[ConsistencyWarning]:
     return []
 
 
+def _check_operational_targets(project: Project) -> List[ConsistencyWarning]:
+    """Warn when an operational placard *target* is infeasible for the chosen
+    design speeds (M2-10). Advisory: nothing here changes a speed or a load.
+
+    Reads the same ladder inversion as the Design Speeds page
+    (``operational_target_checks``); silent when no targets are set or the design
+    speeds cannot be computed (e.g. CLmax not entered yet).
+    """
+    speeds = project.speeds
+    if speeds is None:
+        return []
+    if not any((speeds.target_vne, speeds.target_vno, speeds.target_vmo,
+                speeds.target_mmo, speeds.target_vfe)):
+        return []
+    from .modules.structural_speeds import (
+        design_speed_values,
+        operational_target_checks,
+    )
+    try:
+        ds = design_speed_values(project, speeds)
+    except (ValueError, ZeroDivisionError, KeyError):
+        return []
+    out: List[ConsistencyWarning] = []
+    for c in operational_target_checks(speeds, ds):
+        if not c.feasible:
+            out.append(ConsistencyWarning(
+                "operational_target_infeasible",
+                f"Operational target {c.target_label} = {c.target:g} {c.units} needs "
+                f"{c.driver_label} ≥ {c.required:.4g} {c.units}, but the chosen "
+                f"{c.driver_label.split(' ')[0]} = {c.actual:.4g} {c.units}. Raise the "
+                "design speed or lower the target (advisory only — 14 CFR 23.1505/"
+                "23.335(b)(4); design speeds and loads are unchanged).",
+                PAGE_STRUCTURAL_SPEEDS))
+    return out
+
+
 def consistency_warnings(project: Project) -> List[ConsistencyWarning]:
     """All input-consistency warnings for ``project`` (each tagged with its page).
 
@@ -221,4 +260,5 @@ def consistency_warnings(project: Project) -> List[ConsistencyWarning]:
     out += _check_le_te_ordering(project)
     out += _check_area_mismatch(project)
     out += _check_cg_envelope(project)
+    out += _check_operational_targets(project)
     return out

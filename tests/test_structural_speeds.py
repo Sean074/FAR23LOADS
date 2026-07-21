@@ -161,6 +161,69 @@ def test_out_of_band_note_above_wing_loading_100():
     assert ga.note == ""
 
 
+def test_operational_placards_ga6():
+    # Preliminary Subpart-G placards derived from the GA6 design speeds (M2-10).
+    # VD 212.5, VC 170, VF 105.5, MC 0.3226, MD 0.4033 (Appendix A) =>
+    # VNE = 0.9*VD = 191.25; VNO = min(VC, 0.89*VNE) = min(170, 170.21) = 170;
+    # MNE = 0.9*MD = 0.363; VMO = VC = 170; MMO = MC; VFE = VF (14 CFR 23.1505/
+    # 23.1511; Ref 1 p47; reference/14CFR_operating_limitations.md).
+    project = io.load_project(_EXAMPLE)
+    ds = calc.design_speed_values(project, project.speeds)
+    p = calc.operational_placards(ds)
+    assert math.isclose(p.vne, 0.9 * 212.5, rel_tol=TOL)
+    assert math.isclose(p.vno, 170.0, rel_tol=TOL)
+    assert math.isclose(p.vfe, ds.vf, rel_tol=TOL)
+    assert math.isclose(p.mne, 0.9 * 0.4033, rel_tol=TOL)
+    assert math.isclose(p.vmo, 170.0, rel_tol=TOL)
+    assert math.isclose(p.mmo, ds.mc, rel_tol=TOL)
+
+
+def test_operational_implications_shows_both_families():
+    # The advisory condition always lists both placard families (M2-10 decision).
+    project = io.load_project(_EXAMPLE)
+    op = calc.operational_implications(project, project.speeds)
+    placards = op[0]
+    labels = [v.label for v in placards.values]
+    assert any("VNE" in la for la in labels) and any("VNO" in la for la in labels)
+    assert any("VMO" in la for la in labels) and any("MMO" in la for la in labels)
+    assert any("VFE" in la for la in labels)
+    # Advisory caption present; no targets set -> only the placard condition.
+    assert "certification" in placards.note.lower()
+    assert len(op) == 1
+
+
+def test_operational_target_feasible_and_infeasible():
+    # A target VNE achievable by the design speeds is feasible; one above 0.9*VD is not.
+    project = io.load_project(_EXAMPLE)
+    ds = calc.design_speed_values(project, project.speeds)  # VD 212.5 -> VNE cap 191.25
+    inp = project.speeds
+    inp.target_vne = 180.0                    # needs VD >= 200 (<= 212.5) -> feasible
+    checks = calc.operational_target_checks(inp, ds)
+    vne_check = next(c for c in checks if c.target_label == "VNE")
+    assert vne_check.driver_label == "VD"
+    assert math.isclose(vne_check.required, 180.0 / 0.9, rel_tol=TOL)
+    assert vne_check.feasible
+
+    inp.target_vne = 200.0                    # needs VD >= 222.2 (> 212.5) -> infeasible
+    checks = calc.operational_target_checks(inp, ds)
+    assert not next(c for c in checks if c.target_label == "VNE").feasible
+    # The feasibility condition is emitted with an INFEASIBLE note.
+    op = calc.operational_implications(project, inp)
+    feas = next(c for c in op if c.title.startswith("Operational-target"))
+    assert "INFEASIBLE" in feas.note
+
+
+def test_operational_target_mmo_margin():
+    # A turbine target MMO requires MD >= MMO + 0.05 (23.335(b)(4)(ii)).
+    project = io.load_project(_EXAMPLE)
+    ds = calc.design_speed_values(project, project.speeds)  # MD ~ 0.4033
+    inp = project.speeds
+    inp.target_mmo = 0.40                      # needs MD >= 0.45 (> 0.4033) -> infeasible
+    check = next(c for c in calc.operational_target_checks(inp, ds) if c.target_label == "MMO")
+    assert math.isclose(check.required, 0.45, rel_tol=TOL)
+    assert not check.feasible
+
+
 def test_run_requires_speeds():
     raised = False
     try:

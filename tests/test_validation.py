@@ -120,6 +120,21 @@ def test_cg_check_skipped_without_envelope():
     assert "cg_outside_envelope" not in _codes(project)
 
 
+def test_operational_target_infeasible_fires():
+    # A target VNE above 0.9*VD (GA6 VD 212.5 -> cap 191.25) is infeasible and
+    # surfaces on the Design Speeds page for the dashboard (M2-10).
+    project = farloads_io.load_project(_GA)
+    project.speeds.target_vne = 250.0  # needs VD >= 277.8, chosen VD 212.5
+    assert "operational_target_infeasible" in _codes(project, page="structural_speeds")
+
+
+def test_operational_target_feasible_silent():
+    # A reachable target produces no warning (VNE 180 needs VD >= 200 <= 212.5).
+    project = farloads_io.load_project(_GA)
+    project.speeds.target_vne = 180.0
+    assert "operational_target_infeasible" not in _codes(project)
+
+
 if __name__ == "__main__":
     import traceback
     tests = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
