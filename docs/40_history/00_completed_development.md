@@ -10,6 +10,37 @@ Acceptance**, **Key decisions**.
 
 ---
 
+## M2R-2 — Non-affiliation & attribution sentence (2026-07-21 review, MAJOR, complete 2026-07-21)
+
+**Objective.** State plainly, in both the README and the GUI, that this project
+is an independent open replication and is **not affiliated with** the vendor of
+the commercial "FAR 23 LOADS" product — legal-exposure mitigation, decoupled
+from the M3-1 rename ("immediately, regardless", per the 2026-07-19 review).
+
+**Deliverables.**
+- **`README.md` Disclaimer.** Reworded the opening to "modern **open
+  replication** of the FAR23 loads suite (DOT/FAA/AR-96/46; Hal C. McMaster's CAE
+  theory manual)" and added a dedicated paragraph: **not affiliated with,
+  endorsed by, or associated with McGettrick Structural Engineering, Inc. or
+  DARcorporation**, whose "FAR 23 LOADS" is a separate commercial product.
+- **`app/Home.py` sidebar.** Added an app-wide **ℹ️ About** expander plus a
+  one-line footer caption, built once in the sidebar block so they appear on
+  every page under `st.navigation`. The About text carries the open-replication
+  description, the not-certified caveat, and the same non-affiliation sentence.
+
+**Test / Acceptance.** Documentation/GUI-copy only — no calc/schema/test change.
+`app/Home.py` compiles and passes `ruff`; the About/footer render in the sidebar
+on every page.
+
+**Key decisions.** Placed the GUI notice in the **sidebar** (built once in
+`Home.py`) rather than per-view, so it shows app-wide with no per-page
+duplication; kept it collapsed in an expander plus a persistent one-line footer.
+
+**Docs.** This entry; `CHANGELOG.md` `[Unreleased]` Documentation entry; backlog
+M2R-2 removed.
+
+---
+
 ## M2R-1 — Doc currency sweep (2026-07-21 review, 1 CRITICAL + 3 MAJOR, complete 2026-07-21)
 
 **Objective.** Retire the stale and contradictory documentation the 2026-07-21

@@ -81,6 +81,14 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Documentation
 
+- **Non-affiliation & attribution notice (M2R-2).** Added a non-affiliation
+  statement to the README Disclaimer and an app-wide **About** section in the GUI
+  sidebar (built once in `app/Home.py`, shown on every page): a modern **open
+  replication** of the FAR23 loads suite (DOT/FAA/AR-96/46; Hal C. McMaster's CAE
+  theory manual), **not affiliated with, endorsed by, or associated with
+  McGettrick Structural Engineering, Inc. or DARcorporation**, whose "FAR 23
+  LOADS" is a separate commercial product. Legal-exposure mitigation, decoupled
+  from the M3-1 rename.
 - **Doc currency sweep (M2R-1).** Retired stale/contradictory statements the
   2026-07-21 review flagged (1 CRITICAL + 3 MAJOR). (a) `GUI_design.md`: replaced
   the baked `SCHEMA_VERSION = 28` line with a pointer to the generated

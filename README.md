@@ -102,10 +102,14 @@ converts at the boundary). Saved project JSON is always canonical Imperial.
 
 ## Disclaimer
 
-This project is an independent, modern **replication** of the FAR 23 LOADS suite
-(Hal C. McMaster, Aero Science Software). It is intended as an educational and
-exploratory engineering tool, validated against the worked examples printed in
-the reference manual.
+This project is an independent, modern **open replication** of the FAR23 loads
+suite (DOT/FAA/AR-96/46; Hal C. McMaster's CAE theory manual, Aero Science
+Software). It is intended as an educational and exploratory engineering tool,
+validated against the worked examples printed in the reference manual.
+
+It is **not affiliated with, endorsed by, or associated with McGettrick
+Structural Engineering, Inc. or DARcorporation**, whose "FAR 23 LOADS" is a
+separate commercial product.
 
 Results are **not certified** for safety-critical, regulated, or
 certification structural design. The replication modernises the math (clean

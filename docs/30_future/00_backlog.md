@@ -68,14 +68,6 @@ prose.
 Everything here is small (S unless noted); all must close before the M3 cut.
 Findings verified in the review — file:line evidence there.
 
-### M2R-2 — Non-affiliation & attribution sentence, now **[MAJOR]**
-Add to the README Disclaimer and the GUI footer/About: modern open replication
-of the FAR23 loads suite (DOT/FAA/AR-96/46; Hal C. McMaster CAE manual), **not
-affiliated with McGettrick Structural Engineering, Inc. or DARcorporation**,
-whose "FAR 23 LOADS" is a separate commercial product. Decoupled from the
-M3-1 rename per the 07-19 review ("immediately, regardless") — one sentence,
-legal-exposure mitigation.
-
 ### M2R-3 — Ship working examples **[MAJOR]**
 (a) `examples/concept_regional_jet.project.json`: 3 landing `cg_cases`
 (currently 2 → the flagship concept example dead-ends on Landing Loads with a

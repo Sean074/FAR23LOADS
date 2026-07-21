@@ -220,6 +220,22 @@ with st.sidebar:
         use_container_width=True, key="_download_btn",
     )
 
+    # App-wide About / non-affiliation notice (built once, shown on every page).
+    st.divider()
+    with st.expander("ℹ️ About", expanded=False):
+        st.caption(
+            "A modern **open replication** of the FAR23 loads suite "
+            "(DOT/FAA/AR-96/46; Hal C. McMaster's CAE theory manual). "
+            "An educational and exploratory engineering tool — results are "
+            "**not certified** for structural design or airworthiness decisions."
+        )
+        st.caption(
+            "**Not affiliated with, endorsed by, or associated with McGettrick "
+            "Structural Engineering, Inc. or DARcorporation**, whose "
+            "\"FAR 23 LOADS\" is a separate commercial product."
+        )
+    st.caption("Open replication — not affiliated with McGettrick / DARcorporation.")
+
 sections = {
     _PHASE_LABEL[phase]: [_page(s) for s in steps]
     for phase, steps in wf.by_phase().items()
