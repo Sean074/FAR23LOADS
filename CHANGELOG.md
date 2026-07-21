@@ -93,6 +93,14 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- **`scripts/smoke_test.sh` portability (M2-9).** The release smoke test hardcoded
+  `$ROOT_DIR/.venv/bin/{python,streamlit,farloads}` and failed on any layout without a
+  project-local `.venv` (conda, `pyenv`, system, or a differently-named venv). It now
+  resolves a single interpreter — explicit `PYTHON` override → `.venv` when present →
+  `python3`/`python` on PATH — and invokes tooling through it (`"$PYTHON" -m streamlit run`,
+  `"$PYTHON" cli.py engine`); the three-way `-x` guard becomes one usable-interpreter check
+  plus an `import streamlit, farloads` probe. Script-only; no calc/schema/module change.
+
 - **Landing CG cases: require three explicit distinct loadings + concept 23.473(g)
   floor (M2-8, review — landing minor).** `landing._cg_cases` previously auto-derived
   the fwd/aft max-landing pair from the **single heaviest** `Project.mass` case, so

@@ -14,17 +14,28 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT_DIR"
 
-PYTHON="$ROOT_DIR/.venv/bin/python"
-STREAMLIT="$ROOT_DIR/.venv/bin/streamlit"
-FARLOADS="$ROOT_DIR/.venv/bin/farloads"
+# Resolve the interpreter: honour an explicit PYTHON override, else prefer the
+# project .venv when present, else fall back to whatever python is on PATH. All
+# tooling runs through this one interpreter (python -m streamlit / cli.py) so
+# the smoke test no longer assumes a .venv-shaped install layout.
+PYTHON="${PYTHON:-}"
+if [[ -z "$PYTHON" ]]; then
+  if [[ -x "$ROOT_DIR/.venv/bin/python" ]]; then
+    PYTHON="$ROOT_DIR/.venv/bin/python"
+  else
+    PYTHON="$(command -v python3 || command -v python || true)"
+  fi
+fi
 PROJECT="$ROOT_DIR/examples/ga6_normal.project.json"
 
-for exe in "$PYTHON" "$STREAMLIT" "$FARLOADS"; do
-  if [[ ! -x "$exe" ]]; then
-    echo "smoke_test: missing $exe — run '.venv/bin/pip install -e .[dev]' first" >&2
-    exit 1
-  fi
-done
+if [[ -z "$PYTHON" || ! -x "$PYTHON" ]]; then
+  echo "smoke_test: no usable Python interpreter (set \$PYTHON or install python3)" >&2
+  exit 1
+fi
+if ! "$PYTHON" -c 'import streamlit, farloads' >/dev/null 2>&1; then
+  echo "smoke_test: streamlit/farloads not importable by $PYTHON — run 'pip install -e .[dev]' first" >&2
+  exit 1
+fi
 
 TMP_DIR="$(mktemp -d)"
 SERVER_LOG="$TMP_DIR/streamlit.log"
@@ -42,7 +53,7 @@ cleanup() {
 trap cleanup EXIT
 
 echo "smoke_test: [1/2] starting Streamlit headless on port $PORT ..."
-"$STREAMLIT" run "$ROOT_DIR/app/Home.py" \
+"$PYTHON" -m streamlit run "$ROOT_DIR/app/Home.py" \
   --server.headless true \
   --server.address 127.0.0.1 \
   --server.port "$PORT" \
@@ -89,7 +100,7 @@ STREAMLIT_PID=""
 echo "smoke_test: Streamlit started headless and rendered the root page (HTTP 200, no traceback)."
 
 echo "smoke_test: [2/2] running CLI export against $(basename "$PROJECT") ..."
-"$FARLOADS" engine "$PROJECT" -o "$OUT_CSV"
+"$PYTHON" cli.py engine "$PROJECT" -o "$OUT_CSV"
 
 if [[ ! -s "$OUT_CSV" ]]; then
   echo "smoke_test: FAIL — $OUT_CSV was not written or is empty" >&2

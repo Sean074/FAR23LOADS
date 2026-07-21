@@ -10,6 +10,38 @@ Acceptance**, **Key decisions**.
 
 ---
 
+## M2-9 — `scripts/smoke_test.sh` portability (release-mechanics, complete 2026-07-20)
+
+**Objective.** Make the release smoke test run under any install layout, not only a
+project-local `.venv`.
+
+**Problem.** The script hardcoded `$ROOT_DIR/.venv/bin/{python,streamlit,farloads}` and
+guarded each with an `-x` executable check, so any machine that installed into a
+differently-named venv, a conda env, or a `pyenv`/system interpreter failed the guard
+immediately even with a perfectly good editable install.
+
+**Key decisions (2026-07-20, user-confirmed).** (1) **Interpreter = venv-preferred with
+PATH fallback** — honour an explicit `PYTHON` env override, else prefer
+`$ROOT_DIR/.venv/bin/python` when present, else fall back to `python3`/`python` on PATH;
+keeps the existing dev flow unchanged while unbreaking other layouts. (2) **Invoke through
+the one resolved interpreter** — `"$PYTHON" -m streamlit run …` and `"$PYTHON" cli.py
+engine …` replace the hardcoded `streamlit`/`farloads` binaries.
+
+**Deliverables.**
+- **`scripts/smoke_test.sh`.** Interpreter-resolution block (`PYTHON` override → `.venv` →
+  PATH); the three-way `-x` guard collapses to one usable-interpreter check plus a single
+  `"$PYTHON" -c 'import streamlit, farloads'` importability probe with a generalized
+  `pip install -e .[dev]` hint; both invocation sites routed through `"$PYTHON"`.
+
+**Test / Acceptance.** `bash scripts/smoke_test.sh` passes under the default `.venv`; the
+PATH-fallback path verified via `PYTHON="$(command -v python3)" bash scripts/smoke_test.sh`
+(both: Streamlit HTTP 200 + no traceback, CLI writes 3 load-case rows). Script-only change —
+no calc, schema, or module touched; suite unaffected.
+
+**Key decisions.** See above.
+
+---
+
 ## M2-8 — Landing CG cases: require explicit distinct loadings + concept 23.473(g) floor (review — landing minor, complete 2026-07-20)
 
 **Objective.** Remove the degenerate landing CG-case fallback and flag the FAR 23.473(g)

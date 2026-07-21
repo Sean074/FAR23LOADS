@@ -73,10 +73,6 @@ currently records the defective behavior as if it were the source.
 GUI and release-mechanics fixes from the review (G-numbers) plus the surviving
 Phase-G steps. GUI evidence: review §2 screenshots.
 
-### M2-9 — `scripts/smoke_test.sh` portability
-Hardcodes `.venv/bin/*`; fails on any machine that installs differently. Use
-`python -m` invocations / the active interpreter.
-
 ### M2-10 — Operational-speed linkage on the Design Speeds page (decided 2026-07-20: all three tiers)
 The design speeds bound the eventual **operating limitations** — the page must
 explain and surface this. Primary sources: Ref 1 **p47** (VNE/MNE = 0.9·VD/MD;
