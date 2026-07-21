@@ -10,6 +10,44 @@ Acceptance**, **Key decisions**.
 
 ---
 
+## M2-8 — Landing CG cases: require explicit distinct loadings + concept 23.473(g) floor (review — landing minor, complete 2026-07-20)
+
+**Objective.** Remove the degenerate landing CG-case fallback and flag the FAR 23.473(g)
+load-factor floors in concept mode.
+
+**Problem.** `landing._cg_cases` auto-derived the "aft max landing" and "fwd max landing"
+loadings from the **single heaviest** `Project.mass` case, so the two were byte-for-byte
+identical (same weight, `xcg`, `zcg`). LANDLOAD's nose-gear and braked-roll reactions turn
+on the fwd/aft `xcg` through the `AP/BP/CP` lever arms, so the degenerate pair
+**under-predicted** those reactions whenever a project relied on the fallback. UG fig 18.2
+uses three genuinely distinct loadings.
+
+**Key decisions (2026-07-20, user-confirmed).** (1) **Require explicit `cg_cases`** —
+stop auto-deriving entirely and raise a clear error unless three distinct loadings are
+supplied (rejected the alternative of deriving fwd/aft from the WTENV envelope: it cannot
+supply a per-corner weight or waterline, only the longitudinal station). The WTENV
+structural fwd/aft CG limits (`validation._wtenv_cg_limits`) remain the intended *authoring*
+source. (2) **23.473(g) floors → warn-only, concept mode.** A note on the LGFACTOR
+condition when `N < 2.67` or `NLG < 2.0`, gated on `project.is_concept`; the computed
+`N`/`NLG` are left untouched (Appendix-A 3.0951 / 2.4281 sit above the floors, oracle
+unaffected).
+
+**Deliverables.**
+- **`farloads/modules/landing.py`.** `_cg_cases(inp)` (no longer takes `project`) requires
+  a non-empty, exactly-three `cg_cases` and raises otherwise — the `Project.mass` fallback
+  is gone. `run` appends the concept-mode 23.473(g) floor note when a load factor is short.
+- **`tests/test_landing.py`.** `test_landing_requires_explicit_cg_cases` (empty `cg_cases`
+  raises with a `cg_cases` message); `test_landing_473g_floor_warning_concept` (soft-strut
+  GA gear drives `N`/`NLG` below the floors → the note appears in concept mode);
+  `test_landing_473g_floor_not_warned_in_far23` (the same project in FAR23 mode is silent).
+- **Docs.** `PROGRAM_SPEC.md` (LANDLOAD reads/notes), `20_theory/00_theory_sources.md`
+  (473(g) floor + distinct-CG requirement), this move, `CHANGELOG.md`.
+
+**Test / Acceptance.** Full suite green (457 passed), `ruff` clean. All six shipped
+examples already carry explicit `cg_cases`, so none regress. Calc-local; no schema change.
+
+---
+
 ## M2-7 — Step G7 — Persistence verification (G-3, complete 2026-07-20)
 
 **Objective.** Verify (and lock) decision **G-3**: every input-bearing value lives on a

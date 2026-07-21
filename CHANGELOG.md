@@ -93,6 +93,23 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- **Landing CG cases: require three explicit distinct loadings + concept 23.473(g)
+  floor (M2-8, review — landing minor).** `landing._cg_cases` previously auto-derived
+  the fwd/aft max-landing pair from the **single heaviest** `Project.mass` case, so
+  both max-landing corners were byte-for-byte identical — a **degenerate** fwd/aft
+  distinction that under-predicted the nose-gear and braked-roll reactions (their
+  `AP/BP/CP` lever arms turn on `xcg`) whenever a project leaned on the fallback;
+  UG fig 18.2 uses three genuinely distinct loadings. LANDLOAD now **requires**
+  `landing.cg_cases` (three distinct entries) and raises a clear error when it is
+  empty rather than silently building the degenerate pair; the WTENV structural
+  fwd/aft CG limits (`validation._wtenv_cg_limits`) are the intended source. Added a
+  **concept-mode-only, warn-only** 23.473(g) floor note on the LGFACTOR condition when
+  `N < 2.67` or `NLG < 2.0`; the computed `N`/`NLG` are unchanged, so the Appendix-A
+  oracle (3.0951 / 2.4281, both above the floors) is untouched. All six shipped
+  examples already carry explicit `cg_cases`, so none regress. New tests in
+  `tests/test_landing.py` (missing-`cg_cases` raise; the floor note present in concept
+  mode and absent in FAR23). Calc-local; no schema change (457 tests green, `ruff` clean).
+
 - **Aircraft Comparison: subject geometry from the wing surface + a Develop-phase
   link (M2-5, review G7).** The comparison **subject** read wing geometry only from
   `geometry.parametric` (the `LayoutInput`), so of the six shipped examples only

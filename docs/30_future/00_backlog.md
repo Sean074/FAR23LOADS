@@ -73,15 +73,6 @@ currently records the defective behavior as if it were the source.
 GUI and release-mechanics fixes from the review (G-numbers) plus the surviving
 Phase-G steps. GUI evidence: review §2 screenshots.
 
-### M2-8 — Landing default CG derivation (review, landing minor)
-`landing._cg_cases` derives "aft max landing" and "fwd max landing" from the
-**same** heaviest mass case — the fwd/aft distinction is degenerate and
-nose-gear/braked-roll loads are under-predicted unless explicit `cg_cases` are
-given (UG fig 18.2 uses three distinct loadings). Derive fwd/aft stations from
-the WTENV structural envelope, or refuse to auto-derive and require explicit
-`cg_cases`; also consider the 23.473(g) floors (N ≥ 2.67, NLG ≥ 2.0) as a
-warning note in concept mode.
-
 ### M2-9 — `scripts/smoke_test.sh` portability
 Hardcodes `.venv/bin/*`; fails on any machine that installs differently. Use
 `python -m` invocations / the active interpreter.

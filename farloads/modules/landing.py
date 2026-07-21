@@ -419,23 +419,27 @@ def _wing_area(project: Project, inp: LandingInput) -> float:
     raise ValueError("landing needs a wing area (landing.wing_area_sqft or a geometry wing)")
 
 
-def _cg_cases(project: Project, inp: LandingInput) -> List[CgCase]:
-    """The three landing CG cases: explicit overrides else derived from Project.mass."""
-    if inp.cg_cases:
-        if len(inp.cg_cases) != 3:
-            raise ValueError("landing.cg_cases must have exactly 3 entries (or be empty)")
-        return inp.cg_cases
-    if project.mass is None or not project.mass.cases:
-        raise ValueError("landing needs 'mass' (WTONECG) or explicit landing.cg_cases")
-    # Heaviest case = max-landing; derive aft/fwd by CG station; lightest = fwd-light.
-    by_weight = sorted(project.mass.cases, key=lambda c: c.weight_lb, reverse=True)
-    heavy = by_weight[0]
-    light = by_weight[-1]
-    return [
-        CgCase("aft max landing", heavy.weight_lb, heavy.cg_x, heavy.cg_z),
-        CgCase("fwd max landing", heavy.weight_lb, heavy.cg_x, heavy.cg_z),
-        CgCase("fwd light", light.weight_lb, light.cg_x, light.cg_z),
-    ]
+def _cg_cases(inp: LandingInput) -> List[CgCase]:
+    """The three landing CG cases, from explicit ``landing.cg_cases``.
+
+    LANDLOAD cycles three *distinct* loadings -- aft max landing, fwd max landing
+    and fwd light (UG fig 18.2); the fwd/aft distinction drives the nose-gear and
+    braked-roll lever arms (``AP``/``BP``/``CP`` about ``xcg``). These are **not**
+    auto-derived (M2-8): the earlier fallback took both max-landing corners from the
+    single heaviest ``Project.mass`` case, which cannot supply distinct fwd/aft CG
+    stations -- the pair was degenerate and the nose-gear/braked-roll reactions were
+    under-predicted. Callers must supply the three explicit stations (the WTENV
+    structural fwd/aft CG limits are the intended source; see
+    ``validation._wtenv_cg_limits``)."""
+    if not inp.cg_cases:
+        raise ValueError(
+            "landing needs explicit landing.cg_cases: three distinct CG loadings "
+            "(aft max landing, fwd max landing, fwd light) per UG fig 18.2. "
+            "Auto-derivation from Project.mass was removed (M2-8) -- the heaviest "
+            "mass case cannot supply distinct fwd/aft CG stations.")
+    if len(inp.cg_cases) != 3:
+        raise ValueError("landing.cg_cases must have exactly 3 entries")
+    return inp.cg_cases
 
 
 def _sync_gear_from_geometry(project: Project) -> None:
@@ -462,7 +466,7 @@ def build_landing(project: Project) -> Tuple[LoadFactorResult, List[GearReaction
     lf = landing_load_factor(s, inp.max_landing_weight_lb, inp.strut_stroke_in,
                              inp.tire_od_in, inp.hub_diameter_in, inp.lift_factor,
                              inp.main_gear.strut == "O")
-    cgs = _cg_cases(project, inp)
+    cgs = _cg_cases(inp)
     # Fill gross weight from the heaviest CG case when not given.
     if inp.gross_weight_lb <= 0:
         inp.gross_weight_lb = max(cg.weight_lb for cg in cgs)
@@ -485,6 +489,18 @@ def run(project: Project) -> ModuleResult:
     note = "Tricycle gear only (UG Table 2.1)."
     if project.is_concept:
         note += " Concept mode -- unverified extrapolation past the FAR23 band."
+        # FAR 23.473(g): the limit inertia load factor N must not be < 2.67 and the
+        # limit ground-reaction factor NLG must not be < 2.0. Warn-only (concept
+        # mode) -- the computed N/NLG are left untouched, so the Appendix-A oracle
+        # (N 3.0951 / NLG 2.4281, both above the floors) is unaffected.
+        floors = []
+        if lf.airplane_load_factor < 2.67:
+            floors.append(f"N={lf.airplane_load_factor:.3f} < 2.67")
+        if lf.gear_load_factor < 2.0:
+            floors.append(f"NLG={lf.gear_load_factor:.3f} < 2.0")
+        if floors:
+            note += (" 23.473(g) floor not met (" + "; ".join(floors)
+                     + "): the regulation requires N >= 2.67 and NLG >= 2.0.")
 
     conditions = [ConditionResult(
         title="Landing load factor (LGFACTOR)",

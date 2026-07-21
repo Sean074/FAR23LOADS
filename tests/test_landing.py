@@ -30,11 +30,18 @@ Ch 20; oracles Appendix A p230, p236.
 import math
 import os
 import sys
+from dataclasses import replace
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from farloads import io  # noqa: E402
-from farloads.models import CgCase, LandingGearInput, LandingInput  # noqa: E402
+from farloads.models import (  # noqa: E402
+    CgCase,
+    LandingGearInput,
+    LandingInput,
+    Project,
+    StructuralSpeedsInput,
+)
 from farloads.modules.landing import (  # noqa: E402
     _geometry,
     build_landing,
@@ -201,6 +208,45 @@ def test_landing_io_roundtrip():
     p3 = io.project_from_dict(d)
     assert p3.landing is None
     assert p3.geometry.landing_gear is not None
+
+
+# --------------------------------------------------------------------------- #
+# M2-8 -- explicit CG cases required; concept-mode 23.473(g) floor warning
+# --------------------------------------------------------------------------- #
+def test_landing_requires_explicit_cg_cases():
+    """No auto-derivation from Project.mass: LANDLOAD needs three distinct CG
+    loadings, so an empty ``cg_cases`` (even with a mass slice present) raises a
+    clear error rather than silently building a degenerate fwd/aft pair (M2-8)."""
+    inp = replace(_ga_landing(), cg_cases=[])
+    try:
+        build_landing(Project(landing=inp))
+        raise AssertionError("expected ValueError for missing cg_cases")
+    except ValueError as e:
+        assert "cg_cases" in str(e)
+
+
+def _soft_strut_landing() -> LandingInput:
+    """GA-6 gear with an over-soft oleo stroke so N/NLG fall below the 23.473(g)
+    floors (N < 2.67, NLG < 2.0) -- the trigger for the concept-mode warning."""
+    return replace(_ga_landing(), strut_stroke_in=25.0)
+
+
+def test_landing_473g_floor_warning_concept():
+    """Concept mode notes the 23.473(g) floor when N < 2.67 or NLG < 2.0."""
+    lf, _ = build_landing(Project(landing=_soft_strut_landing()))
+    assert lf.airplane_load_factor < 2.67 and lf.gear_load_factor < 2.0
+    mod = run(Project(landing=_soft_strut_landing(),
+                      speeds=StructuralSpeedsInput(category="C")))
+    note = mod.conditions[0].note
+    assert "23.473(g)" in note and "N=" in note and "NLG=" in note
+
+
+def test_landing_473g_floor_not_warned_in_far23():
+    """The floor note is concept-gated: a FAR23 project below the floor is silent
+    (the computed N/NLG are unchanged in both modes -- warn-only)."""
+    mod = run(Project(landing=_soft_strut_landing(),
+                      speeds=StructuralSpeedsInput(category="N")))
+    assert "23.473(g)" not in mod.conditions[0].note
 
 
 if __name__ == "__main__":
