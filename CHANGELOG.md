@@ -51,6 +51,26 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- **Governing-loads tables now render ULTIMATE with units + SF (M2-4, review
+  G5).** The "Governing loads (SELECT)" tables on **Results Review** and the
+  **Flight Envelope → Critical Loads** tab hand-formatted each cell as
+  `round(lv.value, 2)` — dropping `LoadValue.units`, the mandatory `-ULT` marker
+  and the safety factor, printing literal `None` in the sparse cells where
+  components carry different label sets, and (the substantive bug) **never applying
+  the limit→ultimate factor** — so both consolidation surfaces were showing
+  unmarked LIMIT loads as if they were the deliverable, violating the
+  ultimate-output contract. Both tables now render through one shared
+  `report.governing_loads_table(conditions, system, sf)` helper built on the
+  existing `report.py` ultimate boundary (promoted to the public wrappers
+  `ultimate_units` / `to_ultimate`): load columns scale by the SF and carry `-ULT`
+  in the header (`lbs-ULT`, `ft-lb-ULT`; SI `N-ULT`, `Nm-ULT`); dimensionless/speed
+  columns (n, CL, V) pass through unscaled and unmarked; a trailing `SF` column
+  states the factor (flat 1.5 per 14 CFR 23.303 — the per-case carrier on
+  `CriticalCondition` is deferred to M4-8); and absent cells render `"—"` (no
+  `None`/NaN). The two views can no longer diverge (same helper). The duplicated
+  `_display_loads` in both views is deleted in favor of the shared one. Render-only:
+  no calc/oracle/model/schema change (the calc still emits LIMIT; Appendix A
+  oracles untouched). New `tests/test_results_review.py`.
 - **"Unsaved changes" no longer trips on a plain page visit (M2-3, review G4).**
   `flight_envelope.py` and `structural_speeds.py` auto-seeded derived slices on
   every render (`flight_loads`; `speeds.mach_limit`), so merely visiting them

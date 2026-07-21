@@ -29,7 +29,6 @@ import streamlit as st
 from components import gate
 
 from farloads import (
-    ConditionResult,
     FlightLoadsInput,
     Project,
     UnitSystem,
@@ -46,7 +45,7 @@ from farloads.modules.flight_envelope import build_envelope, run as flt_run, tri
 from farloads.modules.select import build_critical
 from farloads.modules.structural_speeds import design_speed_values
 from farloads.modules.wing_geometry import surface_properties
-from farloads.report import module_text_report
+from farloads.report import governing_loads_table, module_text_report
 
 
 st.title("Flight Envelope (V-n), Balancing Tail Loads & Critical Loads")
@@ -291,14 +290,6 @@ def _tab_vn() -> None:
 # --------------------------------------------------------------------------- #
 # Tab 2 -- Critical Loads (SELECT)
 # --------------------------------------------------------------------------- #
-def _display_loads(loads: list, system: UnitSystem) -> list:
-    """Display-only copy of a ``CriticalCondition.loads`` list converted to ``system``."""
-    if system == UnitSystem.IMPERIAL:
-        return loads
-    wrapped = ConditionResult(title="", far_reference="", values=loads)
-    return convert_results([wrapped], system)[0].values
-
-
 _COMPONENTS = [
     ("wing", "Wing", "PHAA / PMAA / PLAA / NMAA, accelerated & steady roll"),
     ("htail", "Horizontal tail", "balancing, maneuver, gust, unsymmetrical"),
@@ -311,7 +302,9 @@ def _tab_select() -> None:
     st.caption(
         "SELECT searches the balanced V-n matrix for the governing wing, horizontal-"
         "tail, vertical-tail and fuselage loads (FAR 23.301/23.331/23.333/23.421/"
-        "23.423/23.425/23.427/23.441/23.443)."
+        "23.423/23.425/23.427/23.441/23.443). Load columns are **ULTIMATE** (limit × SF), "
+        "marked `-ULT`; the `SF` column states the factor. Dimensionless/speed columns "
+        "(n, CL, V) are unscaled and unmarked."
     )
     if project.is_concept:
         st.warning("Concept category (C): critical loads are an **unverified "
@@ -350,7 +343,6 @@ def _tab_select() -> None:
             continue
         st.subheader(f"{title} — {len(conds)} condition(s)")
         st.caption(sub)
-        rows = []
         for c in conds:
             cid = c.case_ref.case_id if c.case_ref else None
             if cid:
@@ -361,10 +353,7 @@ def _tab_select() -> None:
                 )
                 if checked:
                     checked_ids.append(cid)
-            row = {"Condition": c.label, "FAR": c.far_reference, "V-n case": c.case}
-            for lv in _display_loads(c.loads, system):
-                row[lv.label] = round(lv.value, 2)
-            rows.append(row)
+        rows = governing_loads_table(conds, system)
         st.dataframe(pd.DataFrame(rows), hide_index=True, use_container_width=True)
 
     # Empty list means "no filter" (every condition kept) -- only persist a real

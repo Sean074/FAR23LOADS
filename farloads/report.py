@@ -9,7 +9,9 @@ from __future__ import annotations
 import re
 from typing import Dict, List, Optional
 
-from .models import ConditionResult, EngineInput, LoadValue
+from .constants import ULTIMATE_FACTOR
+from .models import ConditionResult, CriticalCondition, EngineInput, LoadValue
+from .units import UnitSystem, convert_results
 
 
 def _fmt(value: float) -> str:
@@ -84,6 +86,20 @@ def _ult(value, units: str, quantity: str, sf: float):
     return value * sf if _is_load_unit(units, quantity) else value
 
 
+# Public wrappers over the ultimate boundary above, so callers outside this module
+# (the governing-loads views) get ULTIMATE marking/scaling through report.py rather
+# than hand-formatting -- the boundary stays owned here (CLAUDE.md: applied "once,
+# at the render/export boundary").
+def ultimate_units(units: str, quantity: str = "") -> str:
+    """The ULTIMATE-marked units string for a load; non-load units pass through unchanged."""
+    return _ult_units(units, quantity)
+
+
+def to_ultimate(value, units: str, quantity: str = "", sf: float = ULTIMATE_FACTOR):
+    """Scale a value to ULTIMATE (= value x ``sf``) when its units mark it a load; else pass through."""
+    return _ult(value, units, quantity, sf)
+
+
 def results_to_rows(results: List[ConditionResult]) -> List[Dict[str, str]]:
     """Flatten results into rows suitable for a dataframe/table.
 
@@ -113,6 +129,71 @@ def results_to_rows(results: List[ConditionResult]) -> List[Dict[str, str]]:
                     "SF": _fmt(r.safety_factor) if is_load else "",
                 }
             )
+    return rows
+
+
+# --------------------------------------------------------------------------- #
+# Governing-loads table (SELECT critical conditions, per component)
+# --------------------------------------------------------------------------- #
+def _display_loads(loads: List[LoadValue], system: UnitSystem) -> List[LoadValue]:
+    """Display-only copy of a ``CriticalCondition.loads`` list converted to ``system``.
+
+    ``CriticalCondition`` carries a bare ``List[LoadValue]`` (not a
+    :class:`ConditionResult`), so it is wrapped/unwrapped around
+    :func:`~farloads.units.convert_results` rather than mutating the condition itself.
+    Imperial is a no-op.
+    """
+    if system == UnitSystem.IMPERIAL:
+        return loads
+    wrapped = ConditionResult(title="", far_reference="", values=loads)
+    return convert_results([wrapped], system)[0].values
+
+
+def governing_loads_table(
+    conditions: List[CriticalCondition],
+    system: UnitSystem = UnitSystem.IMPERIAL,
+    sf: float = ULTIMATE_FACTOR,
+) -> List[Dict[str, object]]:
+    """Rows for one component's governing (SELECT critical) loads, rendered ULTIMATE.
+
+    Each :class:`CriticalCondition`'s ``loads`` are converted to ``system`` display
+    units, then every *load* quantity (force/moment/pressure) is scaled to ULTIMATE
+    (= limit x ``sf``) and its column header carries the ``-ULT`` marker; dimensionless
+    and speed quantities (n, CL, V) pass through unscaled and unmarked. One row per
+    condition; a trailing ``SF`` column states the factor applied to that row's load
+    cells. Because conditions carry different label sets, cells absent from a given
+    condition render ``"—"`` (values are formatted strings, so this stays clean).
+
+    Shared by the Results Review headline and the Flight Envelope Critical Loads tab
+    so the two governing-loads tables cannot diverge (M2-4).
+    """
+    base_cols = ["Condition", "FAR", "V-n case"]
+    load_cols: List[str] = []  # ordered union of the per-load column headers
+    seen = set()
+    partial: List[Dict[str, object]] = []
+    for c in conditions:
+        row: Dict[str, object] = {
+            "Condition": c.label,
+            "FAR": c.far_reference,
+            "V-n case": _num(c.case) if c.case is not None else "—",
+        }
+        for lv in _display_loads(c.loads, system):
+            u = ultimate_units(lv.units, lv.quantity)
+            header = f"{lv.label} ({u})" if u else lv.label
+            if header not in seen:
+                seen.add(header)
+                load_cols.append(header)
+            row[header] = _fmt(to_ultimate(lv.value, lv.units, lv.quantity, sf))
+        partial.append(row)
+
+    sf_str = _fmt(sf)
+    rows: List[Dict[str, object]] = []
+    for row in partial:
+        full: Dict[str, object] = {col: row.get(col, "—") for col in base_cols}
+        for col in load_cols:
+            full[col] = row.get(col, "—")
+        full["SF"] = sf_str
+        rows.append(full)
     return rows
 
 

@@ -16,10 +16,11 @@ import streamlit as st
 
 from components import gate
 
-from farloads import ConditionResult, Project, UnitSystem, convert_results, registry
+from farloads import Project, UnitSystem, convert_results, registry
 from farloads import workflow as wf
 from farloads.modules.select import build_critical
 from farloads.report import (
+    governing_loads_table,
     has_load_case_data,
     load_cases_to_rows,
     results_to_rows,
@@ -36,23 +37,15 @@ project: Project = st.session_state.get("project", Project(name=""))
 system: UnitSystem = st.session_state.get("unit_system", UnitSystem.IMPERIAL)
 
 
-def _display_loads(loads: list, system: UnitSystem) -> list:
-    """Display-only copy of a ``CriticalCondition.loads`` list converted to
-    ``system`` (Imperial is a no-op). ``CriticalCondition`` carries a bare
-    ``List[LoadValue]`` (not a :class:`~farloads.ConditionResult`), so it is
-    wrapped/unwrapped around :func:`farloads.convert_results` rather than
-    mutating the condition itself.
-    """
-    if system == UnitSystem.IMPERIAL:
-        return loads
-    wrapped = ConditionResult(title="", far_reference="", values=loads)
-    return convert_results([wrapped], system)[0].values
-
-
 # --------------------------------------------------------------------------- #
 # Headline: governing (critical) loads from SELECT
 # --------------------------------------------------------------------------- #
 st.header("Governing loads (SELECT)")
+st.caption(
+    "Load columns are **ULTIMATE** (limit × SF), marked `-ULT` in the header; the "
+    "`SF` column states the factor. Dimensionless/speed columns (n, CL, V) are "
+    "unscaled and unmarked."
+)
 
 _COMPONENTS = [
     ("wing", "Wing"),
@@ -97,12 +90,7 @@ if critical is not None:
             continue
         any_shown = True
         st.subheader(title)
-        rows = []
-        for c in conds:
-            row = {"Condition": c.label, "FAR": c.far_reference, "V-n case": c.case}
-            for lv in _display_loads(c.loads, system):
-                row[lv.label] = round(lv.value, 2)
-            rows.append(row)
+        rows = governing_loads_table(conds, system)
         st.dataframe(pd.DataFrame(rows), hide_index=True, use_container_width=True)
     if not any_shown:
         st.info("No governing conditions selected yet.")

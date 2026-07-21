@@ -10,6 +10,62 @@ Acceptance**, **Key decisions**.
 
 ---
 
+## M2-4 — Results Review header tables: units, ULT marking, SF (GUI fix, complete 2026-07-20)
+
+**Objective.** Review finding **G5**: the "Governing loads (SELECT)"
+per-component tables on **Results Review** and the **Flight Envelope → Critical
+Loads** tab hand-built each row as `row[lv.label] = round(lv.value, 2)` — dropping
+`LoadValue.units`, the mandatory `-ULT` marker and the safety factor, and printing
+literal `None`/NaN in the sparse cells where components carry different label sets.
+The substantive bug: the shared `_display_loads` did only the Imperial→SI
+conversion and **never applied the limit→ultimate factor**, so the headline an
+engineer screenshots into a design review was showing **unmarked LIMIT loads as if
+they were the deliverable** — violating the ultimate-output contract on a
+consolidation page while contradicting the lower per-section tables (which render
+correctly through `report.py`).
+
+**Key decisions (2026-07-20, user-confirmed).** (1) **Flat SF 1.5 at the render
+boundary.** `CriticalCondition` carries no `safety_factor` field, but every SELECT
+governing condition is a standard limit flight-load (SF 1.5 per 14 CFR 23.303);
+apply `constants.ULTIMATE_FACTOR` at the helper and show `SF 1.5` — no
+`models.py`/`io.py`/`SCHEMA_VERSION` change. The per-case carrier is deferred to
+**M4-8** (centralized two-layer SF policy), which is where a non-1.5 governing case
+would first arise. (2) **One shared helper for both tables** so they can't diverge;
+both render ULTIMATE.
+
+**Deliverables.**
+- **`report.py` public wrappers.** `ultimate_units(units, quantity="") -> str` and
+  `to_ultimate(value, units, quantity="", sf=ULTIMATE_FACTOR)` — thin public
+  exposures of the existing privates (`_ult_units`/`_ult`), keeping the
+  limit→ultimate boundary owned by `report.py` (CLAUDE.md: applied "once, at the
+  render/export boundary").
+- **`report.governing_loads_table(conditions, system, sf=ULTIMATE_FACTOR)`.**
+  Returns row dicts (pandas stays in the views). For a list of `CriticalCondition`,
+  it converts each condition's `loads` to display units (the `_display_loads`
+  unit-conversion path, factored out of the two views into `report.py`), builds one
+  row per condition (`Condition`, `FAR`, `V-n case`, then one column per load label
+  headed `f"{label} ({ultimate_units(units, quantity)})"`), scales load cells via
+  `to_ultimate` and formats with `_fmt`, appends an `SF` column, and fills cells
+  absent from a given condition with `"—"` across the column union.
+- **Both views rewired.** `results_review.py` (headline) and `flight_envelope.py`
+  `_tab_select` now call `governing_loads_table(...)`; the duplicated
+  `_display_loads` in each view is deleted. Captions on both surfaces state the
+  tables are ULTIMATE (`-ULT` + `SF`), and the unused `ConditionResult` import is
+  dropped from `flight_envelope.py`.
+
+**Test / Acceptance.** New `tests/test_results_review.py`: (a) a force column
+header carries `-ULT` and its value is `limit × 1.5`; (b) dimensionless columns
+(load factor NZ / CL) are unscaled with no `-ULT`; (c) every row's `SF` column is
+`1.5`; (d) sparse cells render `"—"` with no `None`/NaN and every row spans the
+full column union; plus a determinism check (both views, same helper → identical
+table). Render-only — no calc/oracle/model/schema change (the calc still emits
+LIMIT; Appendix A oracles untouched). Full suite green (441 passed); `ruff` clean.
+Closes the last unmarked-LIMIT deliverable surface found by the review; dovetails
+with **M4-8** (which will let `governing_loads_table` read `c.safety_factor`
+instead of the flat `sf` argument).
+
+---
+
 ## M2-3 — Dirty flag: move on-render writes into Apply handlers (GUI fix, complete 2026-07-20)
 
 **Objective.** Review finding **G4**: `flight_envelope.py` and
