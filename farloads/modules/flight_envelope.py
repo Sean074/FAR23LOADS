@@ -68,6 +68,7 @@ from ..models import (
     TailBalanceLoad,
     VnPoint,
 )
+from ..derived_geometry import sync_geometry_derived
 from ..registry import register
 from .structural_speeds import _maneuver_load_factors, design_speeds
 
@@ -401,6 +402,7 @@ def _balance_configs(aero) -> List[AeroCoeffSet]:
 def build_envelope(project: Project) -> EnvelopeResult:
     """Compute the full balanced V-n matrix + balancing tail loads (the
     :class:`EnvelopeResult` payload for ``Project.envelope``)."""
+    sync_geometry_derived(project)
     fl = project.flight_loads
     if fl is None:
         raise ValueError("Project has no 'flight_loads' inputs for the flight_envelope module")
@@ -469,6 +471,7 @@ def trim_sweep(project: Project, *, weight_lb: float, zcg: float,
     traceability guarantee). Uses the cruise (flaps-up) coefficient set, including
     the Step G4 fuselage-moment increment when enabled. LIMIT output.
     """
+    sync_geometry_derived(project)
     fl = project.flight_loads
     if fl is None:
         raise ValueError("trim_sweep needs 'flight_loads' inputs")

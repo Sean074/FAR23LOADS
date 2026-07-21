@@ -1,5 +1,5 @@
 {
-  "schema_version": 15,
+  "schema_version": 30,
   "name": "ATR 42-300 (\"ATR 42-100\" prototype designation never entered production; -300 is the closest PW120-powered production analog) \u2014 2x PW120 (concept, category C)",
   "engines": [
     {
@@ -94,6 +94,7 @@
     "estimation": {
       "airplane": "ATR 42-300 (48-PAX REGIONAL TURBOPROP TWIN)",
       "max_continuous_hp": 3400,
+      "override_max_continuous_hp": false,
       "engines": 2,
       "seats": 48,
       "crew": 1,
@@ -321,7 +322,9 @@
       "fwd_regardless_weight": 30000,
       "wing_surface": "wing",
       "xlemac": null,
-      "mac": null
+      "mac": null,
+      "fuselage_nose_x": null,
+      "fuselage_tail_x": null
     },
     "cg_cases": [
       {
@@ -372,6 +375,18 @@
         "elements": 20
       }
     ],
+    "parametric": {
+      "datum_x": 0.0,
+      "wing_area_sqft": 480.63888888888897,
+      "aspect_ratio": 13.538461538461535,
+      "taper_ratio": 0.5052631578947369,
+      "dihedral_deg": 2.0,
+      "le_sweep_deg": 2.9568649521964603,
+      "le_root_x": 365,
+      "root_waterline_z": 170.0,
+      "tail_type": "conventional",
+      "h_tail_z": 0.0
+    },
     "empennage": {
       "htail": {
         "tail_incidence_deg": 1.0,
@@ -511,10 +526,6 @@
     }
   },
   "flight_loads": {
-    "mac": 92.7,
-    "wing_area_sqft": 586.6,
-    "xw": 395.0,
-    "zw": 170.0,
     "xtc": 810.0,
     "xtf": 825.0,
     "mn": 0.1,
@@ -548,8 +559,6 @@
     "panel_weight_lb": 1325,
     "tip_root_density_ratio": 0.9,
     "inboard_rib_y": 38,
-    "wrp_waterline": 170.0,
-    "dihedral_deg": 2.0,
     "surface": "wing",
     "concentrated": [
       {

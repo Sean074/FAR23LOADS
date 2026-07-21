@@ -1,5 +1,5 @@
 {
-  "schema_version": 15,
+  "schema_version": 30,
   "name": "de Havilland Canada DHC-8-100 Dash 8 \u2014 2x PW121 (concept, category C)",
   "engines": [
     {
@@ -94,6 +94,7 @@
     "estimation": {
       "airplane": "DHC-8-100 DASH 8 (37-PAX REGIONAL TURBOPROP TWIN)",
       "max_continuous_hp": 4000,
+      "override_max_continuous_hp": false,
       "engines": 2,
       "seats": 39,
       "crew": 1,
@@ -332,7 +333,9 @@
       "fwd_regardless_weight": 28000,
       "wing_surface": "wing",
       "xlemac": null,
-      "mac": null
+      "mac": null,
+      "fuselage_nose_x": null,
+      "fuselage_tail_x": null
     },
     "cg_cases": [
       {
@@ -383,6 +386,18 @@
         "elements": 20
       }
     ],
+    "parametric": {
+      "datum_x": 0.0,
+      "wing_area_sqft": 584.375,
+      "aspect_ratio": 12.363636363636363,
+      "taper_ratio": 0.5,
+      "dihedral_deg": 2.5,
+      "le_sweep_deg": 2.2457425658950716,
+      "le_root_x": 360,
+      "root_waterline_z": 180.0,
+      "tail_type": "conventional",
+      "h_tail_z": 0.0
+    },
     "empennage": {
       "htail": {
         "tail_incidence_deg": 1.0,
@@ -522,10 +537,6 @@
     }
   },
   "flight_loads": {
-    "mac": 85.6,
-    "wing_area_sqft": 585.0,
-    "xw": 390.3,
-    "zw": 180.0,
     "xtc": 795.0,
     "xtf": 810.0,
     "mn": 0.1,
@@ -559,8 +570,6 @@
     "panel_weight_lb": 1500,
     "tip_root_density_ratio": 0.9,
     "inboard_rib_y": 40,
-    "wrp_waterline": 180.0,
-    "dihedral_deg": 2.5,
     "surface": "wing",
     "concentrated": [
       {

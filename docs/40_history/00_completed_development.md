@@ -10,6 +10,59 @@ Acceptance**, **Key decisions**.
 
 ---
 
+## M2-6 — Step G6c — Geometry single-source cleanup (wing + fuselage + power, complete 2026-07-20)
+
+**Objective.** Close the remaining *softer* geometry/power double-entry the G6 audit
+surfaced (after G6/G6b single-sourced the empennage and landing-gear geometry): the wing
+scalars several downstream slices carried as independently-editable copies, the fuselage
+length/width/height that duplicated the outline, and the weight-estimate power that
+restated the engine list.
+
+**Key decisions (2026-07-20, user-confirmed).** (1) **Wing → pure proxy, no override.**
+`FlightLoadsInput.mac`/`wing_area_sqft`/`xw`/`zw`, `WingMassInput.dihedral_deg`/
+`wrp_waterline`, `LandingInput.wing_area_sqft` derive from `Project.geometry`; not
+persisted; GUI read-only. Rather than remove the dataclass fields (dozens of tests
+construct these slices directly), they stay as a derived cache filled by a sync at calc
+entry (mirroring `landing._sync_gear_from_geometry`), and fall back to the stored value
+when no wing geometry is present (the STRSPEED pattern) so bare unit tests are unaffected.
+(2) **Full fixture work now.** GA6 had no `geometry.parametric`, so ZW/dihedral/wrp had no
+source; a parametric wing slice (wing scalars backed out of the WINGGEOM surface +
+`root_waterline_z = 78.5`, `dihedral_deg = 6.0`) was added, and the real derivation
+`ZW = wrp + Y_MAC·tan(dihedral)` implemented (GA6 87.734 vs the old stored 87.725, +0.01%,
+inside the ±0.1% oracle band). (3) **Concept S drift accepted** — the RJ closure fixture's
+reference area 500 re-baselines to the WINGGEOM strip integral 497.75 (no printed oracle).
+(4) **Fuselage → outline sole editable**, `LayoutInput` L/W/H a derived read-only summary.
+(5) **Power → derive from `sum(engines[].max_cont_hp)` + override toggle.**
+
+**Deliverables.**
+- **`farloads/derived_geometry.py` (new).** `wing_reference(project)` (the shared wing
+  derivation, subsuming the three scattered copies in `structural_speeds`,
+  `flight_envelope` and `landing`), `fuselage_summary(outline)`, and
+  `sync_geometry_derived(project)` — called at the top of `build_envelope`/`trim_sweep`/
+  `build_critical`/`build_body_loads`/`verify_balancing`/`build_wing_inertia`/
+  `build_net_loads` and by `io.project_from_dict` after load.
+- **`weight_estimate.resolve_max_continuous_hp(project)`** — engine-list total unless
+  `override_max_continuous_hp`; `run` applies it; `estimate` itself unchanged.
+- **`models.py`** — `WeightEstimationInput.override_max_continuous_hp` (default False);
+  `FlightLoadsInput.merged()` drops the wing-geometry args; derived-field docstrings;
+  `SCHEMA_VERSION` 29 → 30.
+- **`io.py`** — `flight_loads_to_dict`/`wing_mass_to_dict`/`landing_to_dict`/
+  `configuration_to_dict` drop the derived wing/fuselage fields; `from_dict` still reads
+  them (migration); post-load `sync_geometry_derived`.
+- **GUI** — Flight Envelope, Wing Loads, Landing show the wing geometry read-only;
+  Geometry page shows fuselage L/W/H as a read-only summary of the outline (the outline
+  the sole editable shape); Weight & Mass adds the engine-total caption + override toggle.
+- **Fixtures** — all six examples migrated to schema 30 (GA6 gained the parametric slice;
+  derived copies dropped).
+
+**Test / Acceptance.** New `tests/test_derived_geometry.py` (wing derivation, sync,
+no-persistence, no-geometry fallback, fuselage summary, power resolver, **every example a
+save→reload no-op**). Updated `test_flight_envelope`/`test_io`/`test_empennage` for the
+derived/dropped fields and the newly-running `configuration` module on GA6. Full suite
+green (451 passed), ruff clean; Appendix A oracles bit-for-bit.
+
+---
+
 ## M2-5 — Aircraft Comparison: surface-planform fallback + Develop-phase link (GUI fix, complete 2026-07-20)
 
 **Objective.** Review finding **G7**: the Aircraft Comparison subject showed "None"

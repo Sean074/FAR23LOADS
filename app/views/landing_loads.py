@@ -25,6 +25,7 @@ from farloads import (
     to_imperial_scalar,
     to_si_scalar,
 )
+from farloads.derived_geometry import wing_reference
 from farloads.modules.landing import build_landing, run
 
 
@@ -54,11 +55,12 @@ with st.form("landing_loads_form"):
         value=float(round(to_display(inp.gross_weight_lb, "weight", system), 4)),
         help="0 → derived from the heaviest CG case (Project.mass).",
         key=f"gross_weight_{system.value}")
-    wing_area_sqft = c3.number_input(
-        f"Wing area override, S ({U['area_sqft']})", min_value=0.0,
-        value=float(round(to_display(inp.wing_area_sqft, "area_sqft", system), 4)),
-        help="0 → read from the wing geometry surface (Project.geometry).",
-        key=f"wing_area_{system.value}")
+    # Step M2-6: wing area is single-sourced from the geometry wing (read-only here).
+    _wr = wing_reference(project, "wing")
+    _wing_area_display = _wr.s_sqft if _wr is not None else inp.wing_area_sqft
+    c3.metric(f"Wing area S ({U['area_sqft']})",
+              f"{to_display(_wing_area_display, 'area_sqft', system):.3f}",
+              help="Single-sourced from the wing planform on the Geometry page (Step M2-6).")
     strut_stroke_in = c1.number_input(
         f"Strut stroke ({U['length']})", min_value=0.0,
         value=float(round(to_display(inp.strut_stroke_in, "length", system), 4)),
@@ -89,7 +91,7 @@ with st.form("landing_loads_form"):
 if applied:
     inp.max_landing_weight_lb = to_imperial_scalar(max_landing_weight_lb, "weight", system)
     inp.gross_weight_lb = to_imperial_scalar(gross_weight_lb, "weight", system)
-    inp.wing_area_sqft = to_imperial_scalar(wing_area_sqft, "area_sqft", system)
+    # wing_area_sqft is derived from geometry (Step M2-6) -- not written here.
     inp.strut_stroke_in = to_imperial_scalar(strut_stroke_in, "length", system)
     inp.tire_od_in = to_imperial_scalar(tire_od_in, "length", system)
     inp.hub_diameter_in = to_imperial_scalar(hub_diameter_in, "length", system)

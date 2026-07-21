@@ -32,6 +32,7 @@ from ..models import (
     WingLoadResult,
     WingStationLoad,
 )
+from ..derived_geometry import sync_geometry_derived
 from ..registry import register
 from .airloads import air_load_distribution
 from .wing_inertia import (
@@ -71,6 +72,7 @@ def _air_cl_v(project: Project, case: WingLoadCase):
 
 def build_net_loads(project: Project) -> LoadsResult:
     """Compute the air, inertia and net wing-load distributions for every case."""
+    sync_geometry_derived(project)
     wm = project.wing_mass
     if wm is None:
         raise ValueError("Project has no 'wing_mass' inputs for the net_loads module")

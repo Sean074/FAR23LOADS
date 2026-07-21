@@ -18,6 +18,8 @@ toggle (``Home.py``). Each tab is a function so a missing-prerequisite guard can
 
 from __future__ import annotations
 
+from dataclasses import replace
+
 import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
@@ -101,14 +103,29 @@ def _tab_estimate(project: Project, system: UnitSystem, U: dict) -> None:
         # No hard max_value caps: this is a concept-aware superset that must accept
         # airplanes beyond the GA band, so a loaded value can never exceed the widget's
         # own max. WTESTIMA's ≤12,500 lb band is surfaced as a warning, not enforced.
+        # Step M2-6: the combined max-continuous power is single-sourced from the engine
+        # list -- sum(engines[].max_cont_hp) -- unless overridden here. The engine sum is
+        # shown for reference; the override value below is used only when the box is ticked
+        # (or when no engine carries a max-continuous rating). The two power concepts stay
+        # distinct: per-engine ratings on the Engine Mount page (torque/slipstream loads)
+        # vs. this combined total the weight estimate correlates against.
+        _engine_hp_sum = sum((e.max_cont_hp or 0.0) for e in project.engines)
+        st.caption(
+            f"Engine list total (Engine Mount page): **{to_display(_engine_hp_sum, 'power', system):.1f} "
+            f"{U['power']}** — the weight estimate uses this unless you override it below."
+        )
+        override_hp = st.checkbox(
+            "Override max continuous power for the weight estimate",
+            value=existing.override_max_continuous_hp if existing else False,
+            help="Off: the estimate uses the engine-list total above. On: it uses the value "
+                 "you enter here instead (they can legitimately differ for a first-cut estimate).")
         hp = st.number_input(
-            f"Max continuous power ({U['power']}, total)", min_value=0.0,
+            f"Max continuous power override ({U['power']}, total)", min_value=0.0,
             value=float(round(to_display(existing.max_continuous_hp, "power", system), 4))
             if existing else 0.0, key=f"max_cont_hp_{system.value}",
-            help="Total maximum continuous power for all engines combined. Used **only** "
-                 "for the statistical weight estimate (WTESTIMA, Ch 3) — it is a separate "
-                 "input from the per-engine takeoff/max-continuous power on the Engine "
-                 "Mount page, which drives the engine-torque and flap-slipstream loads.")
+            help="Combined total maximum continuous power. Applied only when the override box "
+                 "is ticked (else the engine-list total is used). Separate from the per-engine "
+                 "power on the Engine Mount page (engine-torque and flap-slipstream loads).")
         engines = st.number_input("Number of engines", min_value=1,
                                   value=existing.engines if existing else 1,
                                   help="Engine count; the power above is the combined total, not per engine.")
@@ -149,6 +166,7 @@ def _tab_estimate(project: Project, system: UnitSystem, U: dict) -> None:
         inp = WeightEstimationInput(
             airplane=airplane,
             max_continuous_hp=to_imperial_scalar(hp, "power", system),
+            override_max_continuous_hp=bool(override_hp),
             engines=int(engines),
             seats=int(seats),
             crew=int(crew),
@@ -170,6 +188,12 @@ def _tab_estimate(project: Project, system: UnitSystem, U: dict) -> None:
         st.info("No mission inputs yet -- fill in the form and Apply mission inputs.")
         return
     inp = existing
+
+    # Resolve the max-continuous power the estimate correlates against the same way the
+    # module does (Step M2-6): the engine-list total unless this estimate overrides it.
+    _resolved_hp = (inp.max_continuous_hp if inp.override_max_continuous_hp
+                    else (_engine_hp_sum or inp.max_continuous_hp))
+    inp = replace(inp, max_continuous_hp=_resolved_hp)
 
     try:
         results = estimate(inp)

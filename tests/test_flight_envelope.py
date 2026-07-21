@@ -199,8 +199,22 @@ def test_flight_loads_slice_round_trips_through_io():
     rebuilt = io.project_from_dict(io.project_to_dict(project))
     fl = rebuilt.flight_loads
     assert fl is not None
-    assert math.isclose(fl.mac, 69.246)
+    # Step M2-6: mac/S/xw/zw are derived from geometry, not persisted; they are
+    # re-synced on load, so the round-trip reproduces the wing geometry (mac within
+    # +/-0.1% of the Appendix A 69.246, zw from the parametric wing reference plane).
+    assert math.isclose(fl.mac, 69.246, rel_tol=1e-3)
+    assert math.isclose(fl.zw, 87.734, rel_tol=1e-3)
     assert fl.cg_cases[0].name == "CG1"
+
+
+def test_flight_loads_wing_geometry_not_persisted():
+    """Step M2-6: the derived wing scalars are dropped from the serialized slice
+    (single source is Project.geometry) -- only the tail-CP/Mach/altitude/CG inputs
+    survive on the flight_loads dict."""
+    project = io.load_project(_GA)
+    d = io.project_to_dict(project)["flight_loads"]
+    for k in ("mac", "wing_area_sqft", "xw", "zw"):
+        assert k not in d
 
 
 def test_aero_coeffs_slice_round_trips_through_io():
@@ -310,11 +324,14 @@ def test_merged_replaces_altitudes_and_cg_cases():
                           cg_cases=[CgCase("CG1", 3400.0, 85.1, 93.0)])
 
     new_cg = [CgCase("CG1", 3400.0, 85.1, 93.0), CgCase("CG2", 2800.0, 80.0, 93.0)]
-    merged = fl.merged(mac=70.0, wing_area_sqft=184.125, xw=80.953, zw=87.725,
-                       xtc=253.364, xtf=261.027, mn=0.1,
+    # Step M2-6: merged() no longer takes the wing geometry (mac/S/xw/zw are derived);
+    # the page owns only the tail-CP stations, reference Mach and altitude list.
+    merged = fl.merged(xtc=253.364, xtf=261.027, mn=0.1,
                        altitudes_ft=[10000.0, 5000.0], cg_cases=new_cg)
 
-    assert merged.mac == 70.0
+    # The derived wing scalars carry through from the source slice unchanged.
+    assert merged.mac == 69.246
+    assert merged.zw == 87.725
     assert merged.altitudes_ft == [10000.0, 5000.0]
     assert len(merged.cg_cases) == 2
     # The original slice is untouched (merged() returns a new instance).

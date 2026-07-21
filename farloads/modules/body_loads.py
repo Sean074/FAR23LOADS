@@ -35,6 +35,7 @@ from ..models import (
     Project,
     VnPoint,
 )
+from ..derived_geometry import sync_geometry_derived
 from ..registry import register
 from .flight_envelope import build_envelope
 from .select import _stamp_case_refs, select_fuselage
@@ -95,6 +96,7 @@ def _critical_fuselage(project: Project) -> List[CriticalCondition]:
 
 def build_body_loads(project: Project) -> List[BodyLoadResult]:
     """Net fuselage load distribution for each critical fuselage condition."""
+    sync_geometry_derived(project)
     fm = project.fuselage_mass
     fl = project.flight_loads
     if fm is None or not fm.stations or fl is None:

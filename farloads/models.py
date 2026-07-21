@@ -167,9 +167,21 @@ class MassItem:
 
 @dataclass
 class WeightEstimationInput:
-    """Mission inputs for WTESTIMA (the statistical weight estimate)."""
+    """Mission inputs for WTESTIMA (the statistical weight estimate).
+
+    ``max_continuous_hp`` is the combined total installed max-continuous power the
+    weight estimate correlates against. It is **single-sourced from the engine list**
+    (Step M2-6): the estimator uses ``sum(engines[].max_cont_hp)`` unless
+    ``override_max_continuous_hp`` is set, in which case the stored
+    ``max_continuous_hp`` is used instead. This keeps the two power concepts distinct
+    (per-engine max-continuous on the Engine Mount page vs. the combined-total figure
+    the weight estimate needs) while removing the silent-drift path -- see
+    :func:`farloads.derived_geometry` / ``weight_estimate._max_continuous_hp``. When
+    no engine carries ``max_cont_hp`` (older files), the stored total is the fallback.
+    """
     airplane: str = ""
-    max_continuous_hp: float = 0.0   # HP -- total of all engines
+    max_continuous_hp: float = 0.0   # HP -- combined total; override value (see class doc)
+    override_max_continuous_hp: bool = False  # use the stored total instead of the engine sum
     engines: int = 1                 # NOENGS
     seats: int = 1                   # SEATS (170 lb each) -- total occupant seats
     crew: int = 1                    # flight crew (170 lb each); part of the operating
@@ -581,32 +593,44 @@ class FlightLoadsInput:
     the airplane-less-tail coefficient sets come from ``Project.aero_coeffs``
     (Step D4.1 -- previously carried here as ``configurations``). Each set is
     balanced over ``cg_cases`` at every altitude in ``altitudes_ft``.
+
+    **``mac``/``wing_area_sqft``/``xw``/``zw`` are derived from geometry, not stored
+    (Step M2-6).** They are single-sourced from ``Project.geometry`` -- ``mac``/``S``/
+    ``xw`` from the WINGGEOM wing surface (``xw = XLEMAC + 0.25*MAC``) and ``zw`` from
+    the parametric wing reference plane (``root_waterline_z + Y_MAC*tan(dihedral)``) --
+    by :func:`farloads.derived_geometry.sync_geometry_derived`, which every consuming
+    module calls before reading them. They are **not** serialized (``io.py`` drops
+    them) and the GUI shows them read-only, so there is no independently-editable copy.
+    The dataclass fields survive only as the derived cache / the fallback for a
+    directly-constructed test project that carries no wing geometry (sync is a no-op
+    then, exactly like ``landing._wing_area``).
     """
-    mac: float = 0.0
-    wing_area_sqft: float = 0.0
-    xw: float = 0.0
-    zw: float = 0.0
+    mac: float = 0.0            # derived from geometry (Step M2-6); not persisted
+    wing_area_sqft: float = 0.0  # derived from geometry (Step M2-6); not persisted
+    xw: float = 0.0            # derived from geometry (Step M2-6); not persisted
+    zw: float = 0.0            # derived from geometry (Step M2-6); not persisted
     xtc: float = 0.0
     xtf: float = 0.0
     mn: float = 0.1
     altitudes_ft: List[float] = field(default_factory=lambda: [0.0])
     cg_cases: List[CgCase] = field(default_factory=list)
 
-    def merged(self, *, mac: float, wing_area_sqft: float, xw: float, zw: float,
-               xtc: float, xtf: float, mn: float, altitudes_ft: List[float],
-               cg_cases: List[CgCase]) -> "FlightLoadsInput":
+    def merged(self, *, xtc: float, xtf: float, mn: float,
+               altitudes_ft: List[float], cg_cases: List[CgCase]) -> "FlightLoadsInput":
         """One page-edit merged into this slice.
 
         Step D5 exposes ``altitudes_ft`` as a real, fully-editable list on the
         Flight Envelope page (multi-altitude V-n), and ``cg_cases`` is now read
         from the shared ``WeightInput.cg_cases`` the Weight/CG Grid page owns
-        rather than edited here -- so every field the page can show is edited (or
-        passed through) in full on every Apply; there is no partial/"preserve
-        what wasn't shown" state left to merge.
+        rather than edited here. Step M2-6 makes the wing geometry (``mac``/``S``/
+        ``xw``/``zw``) a read-only derivation from ``Project.geometry`` -- the page
+        no longer edits them -- so the only inputs this page owns are the tail-CP
+        stations, the reference Mach and the altitude list.
         """
         return FlightLoadsInput(
-            mac=mac, wing_area_sqft=wing_area_sqft, xw=xw, zw=zw, xtc=xtc,
-            xtf=xtf, mn=mn, altitudes_ft=list(altitudes_ft), cg_cases=list(cg_cases),
+            mac=self.mac, wing_area_sqft=self.wing_area_sqft, xw=self.xw, zw=self.zw,
+            xtc=xtc, xtf=xtf, mn=mn, altitudes_ft=list(altitudes_ft),
+            cg_cases=list(cg_cases),
         )
 
 
@@ -661,12 +685,20 @@ class WingMassInput:
     ``cases`` is the set of critical conditions to combine (vertical + drag +
     rolling inertia). The planform is read from the matching ``Project.geometry``
     surface (``surface``).
+
+    **``wrp_waterline``/``dihedral_deg`` are derived from geometry, not stored
+    (Step M2-6).** They are single-sourced from the parametric wing on
+    ``Project.geometry`` (``root_waterline_z``/``dihedral_deg``) by
+    :func:`farloads.derived_geometry.sync_geometry_derived`, which WINGINER/NETLOADS
+    call before reading them; they are not serialized and the GUI shows them
+    read-only. The dataclass fields survive as the derived cache / the fallback for
+    a directly-constructed test project with no parametric geometry (sync no-op).
     """
     panel_weight_lb: float = 0.0
     tip_root_density_ratio: float = 1.0
     inboard_rib_y: float = 0.0
-    wrp_waterline: float = 0.0
-    dihedral_deg: float = 0.0
+    wrp_waterline: float = 0.0   # derived from geometry.parametric (Step M2-6); not persisted
+    dihedral_deg: float = 0.0    # derived from geometry.parametric (Step M2-6); not persisted
     surface: str = "wing"
     concentrated: List[ConcentratedWeight] = field(default_factory=list)
     cases: List[WingLoadCase] = field(default_factory=list)
@@ -1016,7 +1048,10 @@ class LandingInput:
     supplementary cases use the max take-off (gross) weight via ``WR = GW/W``.
     **Tricycle gear only** (UG Table 2.1)."""
     # LGFACTOR (landing load factor)
-    wing_area_sqft: float = 0.0                # S (else read from geometry wing)
+    wing_area_sqft: float = 0.0                # S -- derived from the geometry wing
+                                               # (Step M2-6, via landing._wing_area); not
+                                               # persisted. A directly-set value is the
+                                               # fallback when no wing geometry is present.
     max_landing_weight_lb: float = 0.0         # W (LGFACTOR + LANDLOAD reduced weight)
     gross_weight_lb: float = 0.0               # GW (0 -> from Project.mass heaviest case)
     strut_stroke_in: float = 0.0               # SSTRUT (fully extended -> compressed)
@@ -1102,10 +1137,16 @@ class LayoutInput:
     ``GeometryInput.landing_gear`` (Step G6b); this slice keeps only the empennage
     *arrangement* (``tail_type``) and h-tail drawing offset (``h_tail_z``).
     """
-    # Fuselage
-    fuselage_length: float = 0.0     # overall length, in
-    fuselage_width: float = 0.0      # max width, in
-    fuselage_height: float = 0.0     # max height, in
+    # Fuselage. Step M2-6: the station-area ``GeometryInput.fuselage`` outline is the
+    # sole editable shape source; these three scalars are a **derived read-only
+    # summary** of it (length = station span, width/height = max section), kept in
+    # sync by farloads.derived_geometry.sync_geometry_derived and NOT persisted. The
+    # GUI shows them read-only. For an older project that carries only these scalars
+    # (no outline) default_fuselage_outline seeds the outline from them on load, then
+    # the summary re-derives (a stable round-trip for the default 3-section shape).
+    fuselage_length: float = 0.0     # overall length, in -- derived summary (M2-6)
+    fuselage_width: float = 0.0      # max width, in -- derived summary (M2-6)
+    fuselage_height: float = 0.0     # max height, in -- derived summary (M2-6)
     datum_x: float = 0.0             # fuselage station of the nose datum reference, in
     # Wing (parametric planform)
     wing_area_sqft: float = 0.0      # reference (total) wing area S, ft^2
@@ -1665,7 +1706,18 @@ class LoadsResult:
 # and LANDLOAD reads the gear via a sync onto Project.landing (math unchanged -> the
 # Appendix A ground-load oracle is byte-identical). io migrates a pre-v28 file's
 # top-level landing gear (and legacy LayoutInput gear fields) into geometry.landing_gear.
-SCHEMA_VERSION = 29
+# v30 (Step M2-6) single-sources the last of the softer geometry/power double-entry:
+# the wing scalars FlightLoadsInput.mac/wing_area_sqft/xw/zw, WingMassInput.
+# dihedral_deg/wrp_waterline and LandingInput.wing_area_sqft are derived from
+# Project.geometry (the WINGGEOM wing surface + the parametric wing) and no longer
+# persisted; the fuselage LayoutInput.fuselage_length/width/height become a derived
+# read-only summary of the GeometryInput.fuselage outline (also not persisted); and
+# WeightEstimationInput gains override_max_continuous_hp (the weight estimate uses
+# sum(engines[].max_cont_hp) unless overridden). All migrations are lenient -- an
+# older file's stored copies are read but ignored (re-derived), the outline is
+# defaulted from the length/width/height scalars when absent, and override defaults
+# False. Fixtures fold the derived values (Appendix A oracles within +/-0.1%).
+SCHEMA_VERSION = 30
 
 
 @dataclass

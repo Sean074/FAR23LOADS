@@ -28,6 +28,7 @@ from __future__ import annotations
 from typing import Dict, List
 
 from ..models import CgCase, ConditionResult, LoadValue, ModuleResult, Project, VnPoint
+from ..derived_geometry import sync_geometry_derived
 from ..registry import register
 from .select import _elevator_load, _envelope, _flaps_by_config_name, htail_balance
 
@@ -53,6 +54,7 @@ def verify_balancing(project: Project) -> List[Dict[str, float]]:
     ``CP``), the elevator load, the rational station ``XT`` and the approximate
     ``XTC`` FLTLOADS assumed, plus their difference ``DXT``.
     """
+    sync_geometry_derived(project)
     ti, fl = project.tail_loads, project.flight_loads
     if ti is None or fl is None:
         raise ValueError("balloads needs Project.tail_loads and Project.flight_loads")

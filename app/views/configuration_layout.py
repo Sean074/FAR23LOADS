@@ -43,12 +43,12 @@ from farloads import (
     WeightInput,
     consistency_warnings,
     convert_results,
-    default_fuselage_outline,
     labels_for,
     to_display,
     to_imperial_scalar,
 )
 from farloads import io as farloads_io
+from farloads.derived_geometry import fuselage_summary
 from farloads.modules.configuration import (
     cg_estimate,
     component_stations,
@@ -161,14 +161,22 @@ with st.sidebar:
             "Geometry page) -- review and **Apply geometry** to save them into the "
             "parametric layout."
         )
+    # Step M2-6: the fuselage shape is single-sourced from the "Fuselage outline (body
+    # sections)" table below; length/width/height are a read-only summary of it here.
+    _fuse_now = project.geometry.fuselage if project.geometry is not None else None
+    _fuse_sum = fuselage_summary(_fuse_now)
+    _sum_len, _sum_wid, _sum_hgt = _fuse_sum if _fuse_sum is not None else (0.0, 0.0, 0.0)
     with st.form("layout_form"):
         with st.expander("Fuselage", expanded=True):
-            fuselage_length = _num("Length", layout.fuselage_length, "f_len", "length",
-                                   help="Overall fuselage length, nose to tail (concept estimate — configuration.py).")
-            fuselage_width = _num("Width", layout.fuselage_width, "f_wid", "length",
-                                  help="Maximum fuselage width; sets the top-view body outline.")
-            fuselage_height = _num("Height", layout.fuselage_height, "f_hgt", "length",
-                                   help="Maximum fuselage height; sets the side/front-view body outline.")
+            st.caption(
+                "Length / width / height are a **read-only summary** of the *Fuselage "
+                "outline (body sections)* table below (Step M2-6) — edit the outline to "
+                "change the body shape."
+            )
+            _fc1, _fc2, _fc3 = st.columns(3)
+            _fc1.metric(f"Length ({U['length']})", f"{to_display(_sum_len, 'length', system):.2f}")
+            _fc2.metric(f"Max width ({U['length']})", f"{to_display(_sum_wid, 'length', system):.2f}")
+            _fc3.metric(f"Max height ({U['length']})", f"{to_display(_sum_hgt, 'length', system):.2f}")
             datum_x = _num("Nose datum station", layout.datum_x, "f_dat", "length",
                            help="Fuselage station of the nose reference datum; all X stations are measured aft "
                                 "from here (WTONECG station convention).")
@@ -236,18 +244,20 @@ if applied:
 
     # This page owns the whole configuration slice, so a wholesale replace on
     # Apply is correct here (unlike a slice shared with other pages/edits).
+    # Fuselage length/width/height are a derived summary of the outline (Step M2-6):
+    # carry the current summary onto the parametric slice so it stays consistent (io
+    # drops them and sync_geometry_derived re-derives on load / every calc run).
     layout = LayoutInput(
-        fuselage_length=_imp(fuselage_length, "length"), fuselage_width=_imp(fuselage_width, "length"),
-        fuselage_height=_imp(fuselage_height, "length"), datum_x=_imp(datum_x, "length"),
+        fuselage_length=_sum_len, fuselage_width=_sum_wid,
+        fuselage_height=_sum_hgt, datum_x=_imp(datum_x, "length"),
         wing_area_sqft=_imp(wing_area_sqft, "area_sqft"), aspect_ratio=aspect_ratio, taper_ratio=taper_ratio,
         dihedral_deg=dihedral_deg, le_sweep_deg=le_sweep_deg, le_root_x=_imp(le_root_x, "length"),
         root_waterline_z=_imp(root_waterline_z, "length"),
         tail_type=_TAIL_TYPE_BY_LABEL[tail_type_label], h_tail_z=_imp(h_tail_z, "length"),
     )
-    # Preserve a hand-edited fuselage outline; default it from the scalars when none.
+    # Preserve the hand-edited fuselage outline (the sole shape source, Step M2-6).
     _existing_fuse = project.geometry.fuselage if project.geometry is not None else None
-    _set_geometry(project, parametric=layout,
-                  fuselage=_existing_fuse or default_fuselage_outline(layout))
+    _set_geometry(project, parametric=layout, fuselage=_existing_fuse)
 
 _parametric = project.geometry.parametric if project.geometry is not None else None
 if _parametric is None:
@@ -595,17 +605,16 @@ st.plotly_chart(_three_view(), use_container_width=True)
 # Fuselage outline (Step G1): the station-area table that drives the body
 # profile above and (Step G4) the fuselage pitching-moment estimator.
 # --------------------------------------------------------------------------- #
-with st.expander("Fuselage outline (body sections)"):
+with st.expander("Fuselage outline (body sections)", expanded=True):
     st.caption(
-        f"Cross-sections nose → tail: fuselage station X and the max body width / "
-        f"height at that station ({U['length']}). Drives the three-view body profile "
-        "and the Step G4 pitching-moment estimator (cross-section area ≈ π/4·w·h). "
-        "Defaults from the Length / Width / Height scalars; edit to refine."
+        f"**The single source for the fuselage shape** (Step M2-6). Cross-sections "
+        f"nose → tail: fuselage station X and the max body width / height at that station "
+        f"({U['length']}). Drives the three-view body profile, the Length/Width/Height "
+        "summary above, and the Step G4 pitching-moment estimator (cross-section area ≈ "
+        "π/4·w·h)."
     )
     _fuse = project.geometry.fuselage if project.geometry is not None else None
-    _sections = (_fuse.sections if _fuse is not None else None) or (
-        (default_fuselage_outline(layout) or FuselageOutline()).sections
-    )
+    _sections = _fuse.sections if _fuse is not None else []
     _fuse_rows = [
         {"X": to_display(s.x, "length", system),
          "Width": to_display(s.width, "length", system),

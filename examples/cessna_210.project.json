@@ -1,5 +1,5 @@
 {
-  "schema_version": 15,
+  "schema_version": 30,
   "name": "Cessna 210 Centurion \u2014 Continental IO-520-A",
   "engines": [
     {
@@ -42,6 +42,7 @@
     "estimation": {
       "airplane": "CESSNA 210 CENTURION (6-PLACE SINGLE, RETRACTABLE)",
       "max_continuous_hp": 285,
+      "override_max_continuous_hp": false,
       "engines": 1,
       "seats": 6,
       "crew": 1,
@@ -346,7 +347,9 @@
       "fwd_regardless_weight": 3000,
       "wing_surface": "wing",
       "xlemac": null,
-      "mac": null
+      "mac": null,
+      "fuselage_nose_x": null,
+      "fuselage_tail_x": null
     },
     "cg_cases": [
       {
@@ -428,6 +431,18 @@
         "elements": 20
       }
     ],
+    "parametric": {
+      "datum_x": 0.0,
+      "wing_area_sqft": 174.95833333333334,
+      "aspect_ratio": 7.754385964912281,
+      "taper_ratio": 0.7014925373134329,
+      "dihedral_deg": 1.5,
+      "le_sweep_deg": 3.3664606634298013,
+      "le_root_x": 45,
+      "root_waterline_z": 86.0,
+      "tail_type": "conventional",
+      "h_tail_z": 0.0
+    },
     "empennage": {
       "htail": {
         "tail_incidence_deg": 1.5,
@@ -602,10 +617,6 @@
     }
   },
   "flight_loads": {
-    "mac": 57.7,
-    "wing_area_sqft": 175.0,
-    "xw": 65.5,
-    "zw": 96.0,
     "xtc": 238.0,
     "xtf": 246.0,
     "mn": 0.1,
@@ -645,8 +656,6 @@
     "panel_weight_lb": 175,
     "tip_root_density_ratio": 0.95,
     "inboard_rib_y": 24,
-    "wrp_waterline": 86.0,
-    "dihedral_deg": 1.5,
     "surface": "wing",
     "concentrated": [],
     "cases": [
@@ -704,7 +713,6 @@
     ]
   },
   "landing": {
-    "wing_area_sqft": 175.0,
     "max_landing_weight_lb": 3800,
     "gross_weight_lb": 3800,
     "strut_stroke_in": 7,

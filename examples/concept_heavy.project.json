@@ -1,10 +1,11 @@
 {
-  "schema_version": 4,
+  "schema_version": 30,
   "name": "Concept commuter twin (>12,500 lb, category C)",
   "weight": {
     "estimation": {
       "airplane": "CONCEPT 10-PLACE COMMUTER TWIN",
       "max_continuous_hp": 1300,
+      "override_max_continuous_hp": false,
       "engines": 2,
       "seats": 10,
       "crew": 1,
@@ -194,7 +195,19 @@
         "symmetric": true,
         "elements": 20
       }
-    ]
+    ],
+    "parametric": {
+      "datum_x": 0.0,
+      "wing_area_sqft": 282.1875,
+      "aspect_ratio": 8.91851851851852,
+      "taper_ratio": 0.5,
+      "dihedral_deg": 4.0,
+      "le_sweep_deg": 7.569705054817821,
+      "le_root_x": 200,
+      "root_waterline_z": 100.0,
+      "tail_type": "conventional",
+      "h_tail_z": 0.0
+    }
   },
   "speeds": {
     "category": "C",
@@ -280,10 +293,6 @@
     }
   },
   "flight_loads": {
-    "mac": 92.0,
-    "wing_area_sqft": 280.0,
-    "xw": 205.0,
-    "zw": 100.0,
     "xtc": 610.0,
     "xtf": 620.0,
     "mn": 0.1,
@@ -303,8 +312,6 @@
     "panel_weight_lb": 900,
     "tip_root_density_ratio": 0.9,
     "inboard_rib_y": 30,
-    "wrp_waterline": 100.0,
-    "dihedral_deg": 4.0,
     "surface": "wing",
     "concentrated": [
       {

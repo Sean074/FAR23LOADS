@@ -73,31 +73,10 @@ currently records the defective behavior as if it were the source.
 GUI and release-mechanics fixes from the review (G-numbers) plus the surviving
 Phase-G steps. GUI evidence: review §2 screenshots.
 
-### M2-6 — Step G6c — Geometry single-source cleanup (wing + fuselage tightening)
-Close the remaining softer geometry double-entry surfaced by the G6 audit.
-**Wing:** `FlightLoadsInput.mac`/`wing_area_sqft`/`xw`/`zw`,
-`WingMassInput.dihedral_deg`/`wrp_waterline`, `LandingInput.wing_area_sqft`
-become pure read-throughs from `Project.geometry`, override only behind an
-explicit checkbox (STRSPEED's design-weight pattern). **Fuselage:** the
-`GeometryInput.fuselage` outline is the sole shape source; the scalar
-`LayoutInput` length/width/height present as a derived summary.
-**Acceptance:** no wing/fuselage geometric quantity stored as an independently
-editable copy without an override toggle; fixtures/oracles unchanged;
-save→reload no-op.
-**Power double-entry (from M1-9):** `WeightEstimationInput.max_continuous_hp`
-(combined total, Weight & Mass page) restates `sum(engines[].max_cont_hp)`
-(per-engine, Engine Mount page) — the user sets power twice and they can drift.
-`aircraft_comparison.py:87` already documents the intended
-`sum(engines[].max_cont_hp) → weight.max_continuous_hp` relationship. Same
-single-source fix: derive the weight-estimate total from the engine list,
-override only behind an explicit toggle. For now the Weight & Mass help text
-marks the field "used only for the weight estimate" (M1-9). Keep the two rating
-concepts distinct — takeoff vs max-continuous, per-engine vs combined-total.
-
 ### M2-7 — Step G7 — Persistence verification (G-3)
 Verify every input-bearing value lives on a `Project` slice `io.py` round-trips
 (no input-only `st.session_state`); drive save→reload on each example project
-(now at schema 28) and diff. **Acceptance:** save→reload of every example is a
+(now at schema 30) and diff. **Acceptance:** save→reload of every example is a
 no-op; no input page holds input data outside `st.session_state["project"]`.
 
 ### M2-8 — Landing default CG derivation (review, landing minor)

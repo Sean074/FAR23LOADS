@@ -70,6 +70,7 @@ from ..models import (
     VnPoint,
     VTailLoadsInput,
 )
+from ..derived_geometry import sync_geometry_derived
 from ..registry import register
 from ._vtail import large_deflection_factor, rudder_effectiveness, vtail_lift_slope
 from .flight_envelope import _design_inputs, _sigma, build_envelope
@@ -722,6 +723,7 @@ def build_critical(project: Project) -> CriticalLoadSet:
     conditions always, plus the rational horizontal-tail loads (when
     ``Project.tail_loads`` is present), the vertical-tail loads (when
     ``Project.vtail_loads`` is present) and the critical fuselage conditions."""
+    sync_geometry_derived(project)
     conditions = select_wing(project)
     conditions.extend(select_htail(project))
     conditions.extend(select_vtail(project))

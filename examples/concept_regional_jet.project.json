@@ -1,5 +1,5 @@
 {
-  "schema_version": 22,
+  "schema_version": 30,
   "name": "RJ-50 concept \u2014 50-seat regional jet (concept mode, Part 25)",
   "engines": [
     {
@@ -94,6 +94,7 @@
     "estimation": {
       "airplane": "50-PLACE REGIONAL JET (concept)",
       "max_continuous_hp": 2800,
+      "override_max_continuous_hp": false,
       "engines": 2,
       "seats": 50,
       "crew": 1,
@@ -255,7 +256,9 @@
       "fwd_regardless_weight": 24000,
       "wing_surface": "wing",
       "xlemac": null,
-      "mac": null
+      "mac": null,
+      "fuselage_nose_x": null,
+      "fuselage_tail_x": null
     },
     "cg_cases": [
       {
@@ -332,9 +335,6 @@
       }
     ],
     "parametric": {
-      "fuselage_length": 1056.0,
-      "fuselage_width": 105.0,
-      "fuselage_height": 120.0,
       "datum_x": 0.0,
       "wing_area_sqft": 500.0,
       "aspect_ratio": 8.712,
@@ -539,10 +539,6 @@
     }
   },
   "flight_loads": {
-    "mac": 101.5,
-    "wing_area_sqft": 500.0,
-    "xw": 587.0,
-    "zw": 60.0,
     "xtc": 1047.0,
     "xtf": 1075.0,
     "mn": 0.74,
@@ -575,8 +571,6 @@
     "panel_weight_lb": 2100.0,
     "tip_root_density_ratio": 0.35,
     "inboard_rib_y": 40.0,
-    "wrp_waterline": 45.0,
-    "dihedral_deg": 3.0,
     "surface": "wing",
     "concentrated": [],
     "cases": [
@@ -684,7 +678,6 @@
     ]
   },
   "landing": {
-    "wing_area_sqft": 500.0,
     "max_landing_weight_lb": 31000.0,
     "gross_weight_lb": 33000.0,
     "strut_stroke_in": 12,

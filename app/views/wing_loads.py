@@ -39,6 +39,7 @@ from farloads import (
 )
 from farloads import io as farloads_io
 from farloads.modules.airloads import run as airloads_run
+from farloads.derived_geometry import wing_reference
 from farloads.modules.airloads import schrenk_distribution
 from farloads.modules.net_loads import build_net_loads, wing_load_rows
 from farloads.report import module_text_report
@@ -220,13 +221,23 @@ st.header("Net wing loads")
 
 wm = project.wing_mass or WingMassInput()
 
-# Dihedral default: read the Geometry page's parametric dihedral_deg when this
-# page's own field is still unset, rather than re-asking for the airplane's
-# already-entered dihedral (read-only through the unified geometry slice, Step G1).
-_dihedral_default = float(wm.dihedral_deg)
-_parametric = project.geometry.parametric if project.geometry is not None else None
-if not _dihedral_default and _parametric is not None:
-    _dihedral_default = _parametric.dihedral_deg
+# Step M2-6: the wing reference-plane waterline and dihedral are single-sourced from the
+# parametric wing on the Geometry page (WINGINER reads them from there); this page shows
+# them read-only. ``wing_reference`` returns the derived pair when the parametric wing is
+# present, else we fall back to whatever is on the slice.
+_wr = wing_reference(project, wm.surface or "wing")
+_has_parametric = project.geometry is not None and project.geometry.parametric is not None
+_wrp_derived = _wr.wrp_waterline if (_wr is not None and _has_parametric) else wm.wrp_waterline
+_dihedral_derived = _wr.dihedral_deg if (_wr is not None and _has_parametric) else wm.dihedral_deg
+
+st.caption(
+    "**WL of wing ref plane** and **dihedral** are single-sourced from the "
+    "**Geometry** page (Step M2-6); edit them there."
+)
+_gc1, _gc2 = st.columns(2)
+_gc1.metric(f"WL of wing ref plane ({U['length']})",
+            f"{to_display(_wrp_derived, 'length', system):.3f}")
+_gc2.metric("Dihedral (deg)", f"{_dihedral_derived:.3f}")
 
 with st.form("net_wing_loads_form"):
     st.subheader(f"Wing mass distribution ({U['weight']} / {U['length']})")
@@ -240,11 +251,6 @@ with st.form("net_wing_loads_form"):
         f"Inboard rib butt line ({U['length']})",
         value=float(round(to_display(wm.inboard_rib_y, "length", system), 4)),
         key=f"rib_{system.value}")
-    wrp = st.number_input(
-        f"WL of wing ref plane at centreline ({U['length']})",
-        value=float(round(to_display(wm.wrp_waterline, "length", system), 4)),
-        key=f"wrp_{system.value}")
-    dihedral = st.number_input("Dihedral (deg)", value=float(_dihedral_default))
 
     st.subheader(f"Concentrated wing weights ({U['weight']} / {U['length']})")
     cw_display = [
@@ -298,11 +304,14 @@ if mass_applied:
         for _, r in case_df.iterrows()
         if pd.notna(r["name"]) and str(r["name"]).strip()
     ]
+    # wrp_waterline / dihedral_deg are derived from geometry (Step M2-6): persist the
+    # current derived values so the in-session slice is consistent; io drops them and
+    # every WINGINER run re-syncs from the parametric wing.
     project.wing_mass = WingMassInput(
         panel_weight_lb=to_imperial_scalar(panel, "weight", system),
         tip_root_density_ratio=dr, inboard_rib_y=to_imperial_scalar(rib, "length", system),
-        wrp_waterline=to_imperial_scalar(wrp, "length", system),
-        dihedral_deg=dihedral, surface="wing", concentrated=concentrated, cases=cases)
+        wrp_waterline=_wrp_derived, dihedral_deg=_dihedral_derived,
+        surface="wing", concentrated=concentrated, cases=cases)
     st.session_state["project"] = project
     st.success("Wing mass distribution applied.")
     wm = project.wing_mass

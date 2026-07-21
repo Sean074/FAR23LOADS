@@ -48,6 +48,7 @@ from ..models import (
     WingMassInput,
     WingStationLoad,
 )
+from ..derived_geometry import sync_geometry_derived
 from ..registry import register
 from .wing_geometry import _interp_x
 
@@ -276,6 +277,7 @@ MODULE_NAME = "wing_inertia"
 
 def build_wing_inertia(project: Project) -> List[WingLoadResult]:
     """Compute the wing inertia distribution for every configured load case."""
+    sync_geometry_derived(project)
     wm = project.wing_mass
     if wm is None:
         raise ValueError("Project has no 'wing_mass' inputs for the wing_inertia module")

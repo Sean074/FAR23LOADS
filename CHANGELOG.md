@@ -9,6 +9,32 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed
+
+- **Geometry & power single-source cleanup (M2-6, Step G6c).** Closed the last of the
+  softer geometry/power double-entry the G6 audit surfaced. **Wing:**
+  `FlightLoadsInput.mac`/`wing_area_sqft`/`xw`/`zw`, `WingMassInput.dihedral_deg`/
+  `wrp_waterline` and `LandingInput.wing_area_sqft` are now **derived from
+  `Project.geometry`** — MAC/S/XW from the WINGGEOM wing surface (`XW = XLEMAC +
+  0.25·MAC`), ZW from the parametric wing (`root_waterline_z + Y_MAC·tan(dihedral)`),
+  dihedral/wrp from the parametric wing — via a shared
+  `farloads.derived_geometry.sync_geometry_derived` every consuming module calls (the
+  `landing._sync_gear_from_geometry` pattern). They are no longer persisted and the GUI
+  shows them read-only, so there is no independently-editable copy; a project with no
+  wing geometry keeps its slice values (the STRSPEED fallback). **Fuselage:** the
+  `GeometryInput.fuselage` outline is the sole editable shape source; the
+  `LayoutInput.fuselage_length`/`_width`/`_height` scalars are a derived read-only
+  summary of it (length = station span, width/height = max section), not persisted.
+  **Power:** `WeightEstimationInput.max_continuous_hp` is single-sourced from
+  `sum(engines[].max_cont_hp)` (new `resolve_max_continuous_hp`), overridable behind the
+  new `override_max_continuous_hp` toggle; the per-engine vs combined-total and
+  takeoff vs max-continuous concepts stay distinct. `SCHEMA_VERSION` 29 → 30 (lenient:
+  older files' stored copies are read but ignored/re-derived, the fuselage outline is
+  defaulted from the length/width/height scalars when absent, `override` defaults False).
+  All six shipped examples migrated (GA6 gained a parametric wing slice; the derived
+  values fold in within Appendix A ±0.1% — ZW 87.725 → 87.734); every example is a
+  save→reload no-op. Calc unchanged; Appendix A oracles bit-for-bit.
+
 ### Documentation
 
 - **Documentation consistency sweep (M1-10).** (a) Corrected the stale reference

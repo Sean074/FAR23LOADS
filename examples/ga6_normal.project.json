@@ -1,5 +1,5 @@
 {
-  "schema_version": 12,
+  "schema_version": 30,
   "name": "GA 6-place single (Appendix A) \u2014 Continental IO-520-BB",
   "engines": [
     {
@@ -42,6 +42,7 @@
     "estimation": {
       "airplane": "6 PLACE SINGLE ENGINE GENERAL AVIATION",
       "max_continuous_hp": 265,
+      "override_max_continuous_hp": false,
       "engines": 1,
       "seats": 6,
       "crew": 1,
@@ -324,7 +325,9 @@
       "fwd_regardless_weight": 2800,
       "wing_surface": "wing",
       "xlemac": null,
-      "mac": null
+      "mac": null,
+      "fuselage_nose_x": null,
+      "fuselage_tail_x": null
     },
     "cg_cases": [
       {
@@ -414,6 +417,18 @@
         "elements": 20
       }
     ],
+    "parametric": {
+      "datum_x": 0.0,
+      "wing_area_sqft": 184.12113907866492,
+      "aspect_ratio": 6.095171937430409,
+      "taper_ratio": 0.43564356435643564,
+      "dihedral_deg": 6.0,
+      "le_sweep_deg": 7.650650955359411,
+      "le_root_x": 45,
+      "root_waterline_z": 78.5,
+      "tail_type": "conventional",
+      "h_tail_z": 0.0
+    },
     "empennage": {
       "htail": {
         "tail_incidence_deg": 2.0,
@@ -596,10 +611,6 @@
     }
   },
   "flight_loads": {
-    "mac": 69.246,
-    "wing_area_sqft": 184.125,
-    "xw": 80.953,
-    "zw": 87.725,
     "xtc": 253.364,
     "xtf": 261.027,
     "mn": 0.1,
@@ -637,8 +648,6 @@
     "panel_weight_lb": 165,
     "tip_root_density_ratio": 0.95,
     "inboard_rib_y": 23,
-    "wrp_waterline": 78.5,
-    "dihedral_deg": 6.0,
     "surface": "wing",
     "concentrated": [],
     "cases": [
@@ -705,7 +714,6 @@
     ]
   },
   "landing": {
-    "wing_area_sqft": 184.125,
     "max_landing_weight_lb": 3230,
     "gross_weight_lb": 3400,
     "strut_stroke_in": 7,

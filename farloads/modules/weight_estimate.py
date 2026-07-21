@@ -16,6 +16,7 @@ Reference: WTESTIMA.BAS, Appendix C p374-376; worked example Appendix A p133.
 
 from __future__ import annotations
 
+from dataclasses import replace
 from typing import List
 
 from ..constants import (
@@ -241,16 +242,34 @@ _CONCEPT_NOTE = (
 )
 
 
+def resolve_max_continuous_hp(project: Project) -> float:
+    """Combined max-continuous power for the weight estimate (Step M2-6).
+
+    Single-sourced from the engine list -- ``sum(engines[].max_cont_hp)`` -- so the
+    Weight & Mass "max continuous power (total)" field can no longer silently drift
+    from the per-engine Engine Mount ratings. Uses the stored estimation total only
+    when ``estimation.override_max_continuous_hp`` is set, or as the fallback when no
+    engine carries a max-continuous rating (older files / no engine slice)."""
+    est = project.weight.estimation
+    if est.override_max_continuous_hp:
+        return est.max_continuous_hp
+    engine_sum = sum((e.max_cont_hp or 0.0) for e in project.engines)
+    return engine_sum or est.max_continuous_hp
+
+
 def run(project: Project) -> ModuleResult:
     """Run WTESTIMA against a :class:`Project`'s ``weight.estimation`` inputs.
 
     In concept mode the statistical estimate is flagged as a sanity-only figure (the
     summary condition's note); the core :func:`estimate` is unchanged so the FAR23
-    Appendix-A oracle still holds.
+    Appendix-A oracle still holds. The max-continuous power the estimate correlates
+    against is resolved from the engine list (Step M2-6, :func:`resolve_max_continuous_hp`).
     """
     if project.weight is None or project.weight.estimation is None:
         raise ValueError("Project has no 'weight.estimation' inputs for the weight_estimate module")
-    conditions = estimate(project.weight.estimation)
+    est = replace(project.weight.estimation,
+                  max_continuous_hp=resolve_max_continuous_hp(project))
+    conditions = estimate(est)
     if project.is_concept and conditions:
         conditions[0].note = _CONCEPT_NOTE
     return ModuleResult(module=MODULE_NAME, conditions=conditions)

@@ -24,7 +24,9 @@ GA6 = os.path.join(EXAMPLES, "ga6_normal.project.json")
 def test_example_project_loads():
     project = io.load_project(GA6)
     assert isinstance(project, Project)
-    assert project.schema_version == 12
+    # The GA6 fixture is kept at the current schema (Step M2-6 re-derived its wing
+    # geometry into a parametric slice and dropped the persisted derived copies).
+    assert project.schema_version == SCHEMA_VERSION
     assert project.engine is not None
     assert project.engine.engine_type == EngineType.RECIPROCATING
     # Tuple coercion at the boundary (JSON arrays -> Vec3 tuples).
@@ -65,14 +67,16 @@ def test_run_all_modules_runs_present_slices():
     # chordwise distribution) -- skipping any module whose slice is absent via the
     # ValueError path. The aileron/flap/tab slices (Step C8) and the landing slice
     # (Step C10) run too, as does balloads (the C11 balancing-tail verification,
-    # which needs the same tail_loads/flight_loads slices).
+    # which needs the same tail_loads/flight_loads slices). Step M2-6 gave GA6 a
+    # parametric wing slice (single-sourcing the derived wing geometry), so the
+    # configuration module now runs as well.
     project = io.load_project(GA6)
     results = registry.run_all_modules(project)
     assert {r.module for r in results} == {
         "engine", "weight_estimate", "weight_onecg", "weight_envelope",
         "wing_geometry", "structural_speeds", "mach_limit", "airloads",
         "flight_envelope", "wing_inertia", "net_loads", "select", "taildist",
-        "aileron", "flap", "tab", "landing", "balloads",
+        "aileron", "flap", "tab", "landing", "balloads", "configuration",
     }
 
 
@@ -233,16 +237,36 @@ def test_list_saved_projects(tmp_path=None):
 
 def test_configuration_round_trip():
     # The parametric layout (unified onto geometry.parametric, v25) survives a
-    # dict round-trip.
-    from farloads import GeometryInput, LayoutInput
+    # dict round-trip. Step M2-6: the fuselage length/width/height are a derived
+    # read-only summary of the GeometryInput.fuselage outline (not persisted), so
+    # the outline is the single shape source and the scalars re-derive on load.
+    from farloads import FuselageOutline, FuselageSection, GeometryInput, LayoutInput
 
     layout = LayoutInput(
-        fuselage_length=300.0, fuselage_width=48.0, wing_area_sqft=174.0,
-        aspect_ratio=6.0, taper_ratio=0.6, le_sweep_deg=2.0, le_root_x=45.0,
+        wing_area_sqft=174.0, aspect_ratio=6.0, taper_ratio=0.6,
+        le_sweep_deg=2.0, le_root_x=45.0, datum_x=0.0,
     )
-    project = Project(name="cfg", geometry=GeometryInput(parametric=layout))
-    again = io.project_from_dict(io.project_to_dict(project))
-    assert again.geometry.parametric == layout
+    outline = FuselageOutline(sections=[
+        FuselageSection(x=0.0, width=0.0, height=0.0),
+        FuselageSection(x=120.0, width=48.0, height=52.0),
+        FuselageSection(x=300.0, width=6.0, height=9.0),
+    ])
+    project = Project(name="cfg",
+                      geometry=GeometryInput(parametric=layout, fuselage=outline))
+    d = io.project_to_dict(project)
+    # The derived fuselage scalars are not written.
+    for k in ("fuselage_length", "fuselage_width", "fuselage_height"):
+        assert k not in d["geometry"]["parametric"]
+
+    again = io.project_from_dict(d)
+    par = again.geometry.parametric
+    # Non-fuselage parametric fields survive unchanged.
+    assert par.wing_area_sqft == 174.0 and par.le_root_x == 45.0
+    # The fuselage summary is re-derived from the outline (length = station span,
+    # width/height = max section).
+    assert par.fuselage_length == 300.0
+    assert par.fuselage_width == 48.0
+    assert par.fuselage_height == 52.0
 
 
 def test_c6_slices_round_trip():

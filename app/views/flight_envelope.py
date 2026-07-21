@@ -39,12 +39,11 @@ from farloads import (
     to_display,
     to_imperial_scalar,
 )
-from farloads.constants import IN2_PER_FT2
+from farloads.derived_geometry import wing_reference
 from farloads.modules.configuration import run as configuration_run
 from farloads.modules.flight_envelope import build_envelope, run as flt_run, trim_sweep
 from farloads.modules.select import build_critical
 from farloads.modules.structural_speeds import design_speed_values
-from farloads.modules.wing_geometry import surface_properties
 from farloads.report import governing_loads_table, module_text_report
 
 
@@ -79,27 +78,18 @@ if aero is None or (aero.cruise is None and aero.flaps_down is None):
 
 fl = project.flight_loads or FlightLoadsInput()
 
-
-def _geometry_defaults(project: Project) -> dict:
-    """MAC/wing-area/25%-MAC-station fallback defaults (Appendix A example figures),
-    overridden by the project's own Geometry data when present."""
-    defaults = {"mac": 69.246, "wing_area_sqft": 184.125, "xw": 80.953, "zw": 87.725}
-    wing_surf = project.geometry.by_name("wing") if project.geometry else None
-    if wing_surf is not None:
-        try:
-            values = {v.label: v.value for v in surface_properties(wing_surf).values}
-            defaults["mac"] = values["MAC"]
-            defaults["wing_area_sqft"] = values["Total area"] / IN2_PER_FT2
-            defaults["xw"] = values["XLE(MAC) station of MAC LE"] + 0.25 * values["MAC"]
-        except (ValueError, ZeroDivisionError):
-            pass
-    _parametric = project.geometry.parametric if project.geometry is not None else None
-    if _parametric is not None and _parametric.root_waterline_z:
-        defaults["zw"] = _parametric.root_waterline_z
-    return defaults
-
-
-_geo_defaults = _geometry_defaults(project)
+# Step M2-6: the wing geometry (MAC, area S, the 25%-MAC station/waterline) is
+# single-sourced from the Geometry page and shown read-only here -- it is no longer an
+# editable copy on this page. ``wing_reference`` derives MAC/S/XW from the WINGGEOM wing
+# surface and ZW from the parametric wing; when there is no wing geometry yet we fall back
+# to the stored slice values (else the Appendix A worked-example figures) so the page
+# still renders and the V-n diagram has numbers to draw.
+_wr = wing_reference(project, "wing")
+_has_parametric = project.geometry is not None and project.geometry.parametric is not None
+mac = _wr.mac if _wr is not None else (fl.mac or 69.246)
+s = _wr.s_sqft if _wr is not None else (fl.wing_area_sqft or 184.125)
+xw = _wr.xw if _wr is not None else (fl.xw or 80.953)
+zw = _wr.zw if (_wr is not None and _has_parametric) else (fl.zw or 87.725)
 
 
 def _num(label: str, value: float, key: str, kind: str, fmt: str = "%.3f", min_value: float = None) -> float:
@@ -113,17 +103,24 @@ with st.sidebar:
     # Form + Apply (M2-3): the FLTLOADS geometry persists only on submit, so merely
     # visiting this page no longer mutates the project and trips the dirty flag. The
     # V-n diagram below always renders live from the current inputs (see the probe).
-    with st.form("flight_geometry_form"):
-        st.header(f"Geometry (FLTLOADS) ({U['length']} / {U['area_sqft']})")
-        st.caption(
-            f"Input units: **{'Imperial' if system == UnitSystem.IMPERIAL else 'SI'}**. "
-            "Defaults come from the Geometry page when available, else the Appendix A "
-            "worked example. **Apply** to save into the project."
+    st.header(f"Wing geometry (read-only) ({U['length']} / {U['area_sqft']})")
+    st.caption(
+        "Single-sourced from the **Geometry** page (Step M2-6); edit it there. "
+        "MAC/S/X at 25% MAC from the wing planform, waterline from the parametric wing."
+    )
+    st.metric(f"Wing MAC ({U['length']})", f"{to_display(mac, 'length', system):.3f}")
+    st.metric(f"Wing area S ({U['area_sqft']})", f"{to_display(s, 'area_sqft', system):.3f}")
+    st.metric(f"X at 25% wing MAC ({U['length']})", f"{to_display(xw, 'length', system):.3f}")
+    st.metric(f"Z (waterline) at 25% MAC ({U['length']})", f"{to_display(zw, 'length', system):.3f}")
+    if _wr is None:
+        gate(
+            "No wing geometry yet — MAC/S/XW/ZW are showing fallback figures. Define the "
+            "wing on the **Geometry** page so the flight loads use your planform.",
+            "configuration_layout",
         )
-        mac = _num("Wing MAC", fl.mac or _geo_defaults["mac"], "mac", "length", min_value=0.0)
-        s = _num("Wing area S", fl.wing_area_sqft or _geo_defaults["wing_area_sqft"], "s", "area_sqft", min_value=0.0)
-        xw = _num("X at 25% wing MAC", fl.xw or _geo_defaults["xw"], "xw", "length")
-        zw = _num("Z (waterline) at 25% MAC", fl.zw or _geo_defaults["zw"], "zw", "length")
+    with st.form("flight_geometry_form"):
+        st.subheader(f"Tail CP stations & reference Mach ({U['length']})")
+        st.caption("The only FLTLOADS geometry this page owns. **Apply** to save.")
         xtc = _num("Tail CP X, flaps up XTC", fl.xtc or 253.364, "xtc", "length")
         xtf = _num("Tail CP X, flaps down XTF", fl.xtf or 261.027, "xtf", "length")
         mn = st.number_input("Reference Mach (coeffs obtained at)", min_value=0.01,
@@ -162,10 +159,6 @@ st.dataframe(pd.DataFrame([
 # replace) so fields this page doesn't show survive the persist path; aero and CG
 # cases are owned by other pages (read only).
 fl_effective = fl.merged(
-    mac=to_imperial_scalar(mac, "length", system),
-    wing_area_sqft=to_imperial_scalar(s, "area_sqft", system),
-    xw=to_imperial_scalar(xw, "length", system),
-    zw=to_imperial_scalar(zw, "length", system),
     xtc=to_imperial_scalar(xtc, "length", system),
     xtf=to_imperial_scalar(xtf, "length", system),
     mn=mn, altitudes_ft=altitudes_ft, cg_cases=cg_cases,

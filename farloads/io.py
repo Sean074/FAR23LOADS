@@ -493,12 +493,13 @@ def flight_loads_from_dict(d: Dict[str, Any]) -> FlightLoadsInput:
 
 
 def flight_loads_to_dict(inp: FlightLoadsInput) -> Dict[str, Any]:
-    """Serialize a :class:`FlightLoadsInput` to JSON-friendly primitives."""
+    """Serialize a :class:`FlightLoadsInput` to JSON-friendly primitives.
+
+    Step M2-6: ``mac``/``wing_area_sqft``/``xw``/``zw`` are derived from geometry and
+    are deliberately **not** written (see :func:`farloads.derived_geometry`); a legacy
+    file's stored copies are ignored on load and re-derived, so save->reload is a no-op.
+    """
     return {
-        "mac": inp.mac,
-        "wing_area_sqft": inp.wing_area_sqft,
-        "xw": inp.xw,
-        "zw": inp.zw,
         "xtc": inp.xtc,
         "xtf": inp.xtf,
         "mn": inp.mn,
@@ -742,9 +743,11 @@ def landing_from_dict(d: Dict[str, Any]) -> LandingInput:
 def landing_to_dict(inp: LandingInput) -> Dict[str, Any]:
     """Serialize a :class:`LandingInput` (Step G6b: the gear geometry
     ``main_gear``/``nose_gear``/``tread_in`` is written under
-    ``geometry.landing_gear``, not here -- the single stored home)."""
+    ``geometry.landing_gear``, not here -- the single stored home). Step M2-6:
+    ``wing_area_sqft`` is derived from the geometry wing (``landing._wing_area``) and
+    not written -- re-derived on load."""
     out = asdict(inp)
-    for gear_key in ("main_gear", "nose_gear", "tread_in"):
+    for gear_key in ("main_gear", "nose_gear", "tread_in", "wing_area_sqft"):
         out.pop(gear_key, None)
     return out
 
@@ -807,8 +810,13 @@ def wing_mass_from_dict(d: Dict[str, Any]) -> WingMassInput:
 
 
 def wing_mass_to_dict(inp: WingMassInput) -> Dict[str, Any]:
-    """Serialize a :class:`WingMassInput` to JSON-friendly primitives."""
+    """Serialize a :class:`WingMassInput` to JSON-friendly primitives.
+
+    Step M2-6: ``dihedral_deg``/``wrp_waterline`` are derived from the parametric wing
+    on ``Project.geometry`` and are not written (re-derived on load)."""
     out = asdict(inp)
+    out.pop("dihedral_deg", None)
+    out.pop("wrp_waterline", None)
     return out
 
 
@@ -903,8 +911,16 @@ def configuration_from_dict(d: Dict[str, Any]) -> LayoutInput:
 
 
 def configuration_to_dict(inp: LayoutInput) -> Dict[str, Any]:
-    """Serialize a :class:`LayoutInput` to JSON-friendly primitives."""
-    return {**asdict(inp), "tail_type": inp.tail_type.value}
+    """Serialize a :class:`LayoutInput` to JSON-friendly primitives.
+
+    Step M2-6: the fuselage ``fuselage_length``/``fuselage_width``/``fuselage_height``
+    are a derived read-only summary of the ``GeometryInput.fuselage`` outline and are
+    not written; ``configuration_from_dict`` still reads them so an older file with only
+    the scalars (no outline) migrates via ``default_fuselage_outline`` on load."""
+    out = {**asdict(inp), "tail_type": inp.tail_type.value}
+    for key in ("fuselage_length", "fuselage_width", "fuselage_height"):
+        out.pop(key, None)
+    return out
 
 
 # --------------------------------------------------------------------------- #
@@ -953,7 +969,7 @@ def project_from_dict(d: Dict[str, Any]) -> Project:
         weight_slice = weight_from_dict(weight) if weight else None
         if weight_slice is not None and not weight_slice.cg_cases:
             weight_slice.cg_cases = _legacy_cg_cases_from_flight_loads(flight_loads)
-        return Project(
+        project = Project(
             schema_version=d.get("schema_version", SCHEMA_VERSION),
             name=d.get("name", ""),
             engineer=d.get("engineer", ""),
@@ -992,6 +1008,13 @@ def project_from_dict(d: Dict[str, Any]) -> Project:
             loads=loads_from_dict(loads) if loads else None,
             include_far25=bool(d.get("include_far25", False)),
         )
+        # Step M2-6: fill the derived geometry copies (wing mac/S/xw/zw, wing-mass
+        # dihedral/wrp, landing wing area, fuselage L/W/H summary) from the single
+        # source now that every slice is present, so a freshly-loaded project reads
+        # them correctly before any module runs (each module re-syncs defensively).
+        from .derived_geometry import sync_geometry_derived
+        sync_geometry_derived(project)
+        return project
     # Legacy: the whole file is just the engine slice.
     return Project(name="", engines=[engine_from_dict(d)], engine_layout=EngineLayout.SINGLE_NOSE)
 
