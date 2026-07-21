@@ -257,6 +257,18 @@ category coloring (two-series `Reference fleet` vs `This airplane`). *(Implement
 Phase F, Step F2; the shared `render_fleet_comparison` wrapper on the two input
 pages, its Phase-E4 home, was removed.)*
 
+**M2-5 (2026-07-20).** The comparison **subject** now resolves its wing geometry from
+the WINGGEOM planform when no parametric layout is present:
+`_subject_from_project` reads wing **area** `parametric → geometry.by_name("wing")
+surface (Total area ÷ 144) → speeds.wing_area_sqft`, wing **AR** and **span**
+`parametric → surface` (span set directly from the surface Span ÷ 12, not
+back-derived from √(AR·area)). Most shipped examples carry `geometry.surfaces` rather
+than a parametric layout, so this is what fills W/S / area / span / AR for them (e.g.
+GA-6 recovers AR 6.095 / span 33.5 ft). The page **stays in the Export phase** (the
+single navigation-truth order in `workflow.py` is unchanged); a workflow-derived
+`page_link` on the **Weight & Mass Properties** page makes the fleet check reachable
+at definition time.
+
 ---
 
 ## 9. FAR 23 applicability & concept-awareness (warn-but-allow)

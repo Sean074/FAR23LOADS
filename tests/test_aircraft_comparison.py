@@ -31,14 +31,47 @@ def _load_view():
 
 def test_subject_from_example_project():
     # The GA-6 example carries a design weight (speeds) + installed power (engines)
-    # but no configuration slice, so MTOW and power resolve while the geometric axes
-    # stay absent -- the subject is still placed (not dropped).
+    # and no parametric layout, but it *does* carry a WINGGEOM wing surface -- so the
+    # geometric axes (area/AR/span) resolve from the surface fallback (M2-5), and the
+    # subject is fully placed.
     from farloads import io
     view = _load_view()
     subject = view._subject_from_project(io.load_project(_EXAMPLE))
     assert subject is not None
     assert subject.mtow_lb > 0
     assert subject.power_hp and subject.power_hp > 0
+
+
+def test_subject_geometric_axes_from_wing_surface():
+    # M2-5: a project with geometry.surfaces (WINGGEOM planform) but no parametric
+    # layout resolves wing area, aspect ratio and span from the wing surface. The GA-6
+    # example carries no speeds.wing_area_sqft, so W/S is *only* computable via this
+    # fallback. The recovered AR/span match the Appendix A wing (AR 6.095, span 33.5 ft).
+    import math
+
+    from farloads import io
+    view = _load_view()
+    subject = view._subject_from_project(io.load_project(_EXAMPLE))
+    assert subject.wing_area_ft2 and subject.wing_area_ft2 > 0
+    assert subject.w_s and subject.w_s > 0
+    assert math.isclose(subject.aspect_ratio_effective, 6.095, rel_tol=1e-3)
+    assert subject.span is not None and math.isclose(subject.span, 33.5, rel_tol=1e-2)
+
+
+def test_area_priority_surface_over_speeds():
+    # M2-5 priority: parametric -> surface -> speeds. When a project has both a
+    # WINGGEOM wing surface and a scalar speeds.wing_area_sqft (and no parametric),
+    # the computed planform wins.
+    from farloads import io
+    view = _load_view()
+    project = io.load_project(os.path.join(_ROOT, "examples", "atr42_100.project.json"))
+    assert project.speeds.wing_area_sqft  # the fixture carries a scalar area
+    surf = view._wing_surface_props(project)
+    assert surf.get("Total area")
+    subject = view._subject_from_project(project)
+    from farloads.constants import IN2_PER_FT2
+    assert subject.wing_area_ft2 == surf["Total area"] / IN2_PER_FT2
+    assert subject.wing_area_ft2 != project.speeds.wing_area_sqft
 
 
 def test_subject_geometric_axes_from_configuration():

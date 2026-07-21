@@ -27,6 +27,8 @@ import plotly.express as px
 import streamlit as st
 
 from farloads import FleetPoint, Project, Subject, fleet_stats, registry
+from farloads.constants import IN2_PER_FT2
+from farloads.modules.wing_geometry import surface_properties
 
 # The reference fleet (nominal published specs; never a FAR input). This page owns
 # it now that the fleet block has moved off the two input pages (backlog F2).
@@ -77,16 +79,41 @@ def _wtestima_value(project: Project, label: str) -> Optional[float]:
     return None
 
 
+def _wing_surface_props(project: Project) -> dict:
+    """The WINGGEOM planform properties of the ``wing`` surface, or ``{}``.
+
+    Runs :func:`~farloads.modules.wing_geometry.surface_properties` on
+    ``geometry.by_name("wing")`` and returns its labelled figures keyed by label
+    (``"Total area"`` in in², ``"Aspect ratio"``, ``"Span"`` in, ...). Empty when no
+    wing surface exists or the planform is degenerate (any calc failure). This is the
+    surface fallback for the geometric axes on projects that carry
+    ``geometry.surfaces`` but no parametric layout (the shipped Appendix examples),
+    mirroring the same pattern used in ``flight_envelope.py``.
+    """
+    wing = project.geometry.by_name("wing") if project.geometry is not None else None
+    if wing is None:
+        return {}
+    try:
+        return {v.label: v.value for v in surface_properties(wing).values}
+    except (ValueError, ZeroDivisionError):
+        return {}
+
+
 def _subject_from_project(project: Project) -> Optional[Subject]:
     """Assemble the comparison :class:`Subject` from the best-available slices.
 
-    Priority per metric (backlog F2 step 2):
+    Priority per metric (backlog F2 step 2; surface fallback added in M2-5):
       MTOW  -- speeds.weight_lb -> weight.direct_totals()[0] -> WTESTIMA
       OEW   -- weight.direct_totals()[1] -> WTESTIMA
-      area  -- configuration.wing_area_sqft -> speeds.wing_area_sqft
+      area  -- parametric.wing_area_sqft -> WINGGEOM wing surface -> speeds.wing_area_sqft
       power -- Sum engines[].max_cont_hp -> weight.estimation.max_continuous_hp
-      AR    -- configuration.aspect_ratio
+      AR    -- parametric.aspect_ratio -> WINGGEOM wing surface
+      span  -- WINGGEOM wing surface (else back-derived from AR*area by Subject.span)
       seats -- speeds.occupants -> weight.estimation.seats
+
+    Most shipped examples carry ``geometry.surfaces`` (WINGGEOM planforms) rather than
+    a parametric layout, so the surface fallback is what fills W/S, wing area, span and
+    aspect ratio for them (M2-5).
 
     Returns ``None`` only when no MTOW can be found (the common comparison axis); a
     missing secondary metric leaves its field ``None`` (shown as "—"), never dropping
@@ -95,6 +122,7 @@ def _subject_from_project(project: Project) -> Optional[Subject]:
     speeds = project.speeds
     weight = project.weight
     config = project.geometry.parametric if project.geometry is not None else None
+    surf = _wing_surface_props(project)
 
     direct = weight.direct_totals() if (weight and weight.items) else None
 
@@ -117,6 +145,8 @@ def _subject_from_project(project: Project) -> Optional[Subject]:
     wing_area: Optional[float] = None
     if config and config.wing_area_sqft:
         wing_area = float(config.wing_area_sqft)
+    elif surf.get("Total area"):
+        wing_area = float(surf["Total area"]) / IN2_PER_FT2
     elif speeds and speeds.wing_area_sqft:
         wing_area = float(speeds.wing_area_sqft)
 
@@ -129,6 +159,14 @@ def _subject_from_project(project: Project) -> Optional[Subject]:
     aspect_ratio: Optional[float] = None
     if config and config.aspect_ratio:
         aspect_ratio = float(config.aspect_ratio)
+    elif surf.get("Aspect ratio"):
+        aspect_ratio = float(surf["Aspect ratio"])
+
+    # Span from the surface planform (full span, inches) when available; otherwise
+    # Subject.span back-derives it from sqrt(AR * area).
+    wingspan_ft: Optional[float] = None
+    if surf.get("Span"):
+        wingspan_ft = float(surf["Span"]) / 12.0
 
     seats = 0
     if speeds and speeds.occupants:
@@ -142,6 +180,7 @@ def _subject_from_project(project: Project) -> Optional[Subject]:
         oew_lb=oew,
         wing_area_ft2=wing_area,
         power_hp=power,
+        wingspan_ft=wingspan_ft,
         aspect_ratio=aspect_ratio,
         seats=seats,
     )

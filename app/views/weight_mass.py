@@ -22,7 +22,7 @@ import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
 
-from components import gate
+from components import gate, workflow_page_link
 
 from farloads import (
     CgCase,
@@ -59,6 +59,17 @@ st.caption(
 project: Project = st.session_state.get("project", Project(name=""))
 system: UnitSystem = st.session_state.get("unit_system", UnitSystem.IMPERIAL)
 U = labels_for(system)
+
+# Fleet placement belongs at definition time: once MTOW/OEW/power are set here, the
+# Aircraft Comparison page (in the Export phase) places this design against similar
+# airplanes by wing loading, power loading and geometry. Link there rather than
+# moving it (M2-5 — keeps workflow.py the single source of navigation truth).
+workflow_page_link(
+    "aircraft_comparison", label="→ Compare against similar aircraft (fleet W/S, W/P)",
+    icon="📊",
+    help="Place this design against a reference fleet — best checked once the design "
+         "weights and installed power below are set.",
+)
 
 _ENGINE_TYPES = {
     "4-cycle reciprocating": EngineWeightType.RECIP_4CYCLE,

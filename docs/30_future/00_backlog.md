@@ -73,12 +73,6 @@ currently records the defective behavior as if it were the source.
 GUI and release-mechanics fixes from the review (G-numbers) plus the surviving
 Phase-G steps. GUI evidence: review §2 screenshots.
 
-### M2-5 — Aircraft Comparison: surface-planform fallback + phase move (review G7)
-The subject aircraft shows "None" for W/S, span, area with the shipped examples
-(reads the parametric layout; examples carry `geometry.surfaces`). Fall back to
-surface-derived values; move (or link) the page into the Develop phase — the
-fleet check belongs at definition time, not after Export.
-
 ### M2-6 — Step G6c — Geometry single-source cleanup (wing + fuselage tightening)
 Close the remaining softer geometry double-entry surfaced by the G6 audit.
 **Wing:** `FlightLoadsInput.mac`/`wing_area_sqft`/`xw`/`zw`,

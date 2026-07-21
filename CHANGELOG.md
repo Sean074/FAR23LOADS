@@ -51,6 +51,23 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- **Aircraft Comparison: subject geometry from the wing surface + a Develop-phase
+  link (M2-5, review G7).** The comparison **subject** read wing geometry only from
+  `geometry.parametric` (the `LayoutInput`), so of the six shipped examples only
+  `concept_regional_jet` (the one with a parametric layout) showed a wing area,
+  aspect ratio or span — every other example printed "—" for W/S, span and AR
+  because they carry `geometry.surfaces` (WINGGEOM planforms) instead. Added a wing-
+  surface fallback via `wing_geometry.surface_properties(geometry.by_name("wing"))`
+  (the same pattern the Flight Envelope page uses): wing **area** priority is now
+  `parametric → WINGGEOM surface → speeds.wing_area_sqft`; **aspect ratio** and
+  **span** fall back `parametric → surface`; and `Subject.wingspan_ft` is populated
+  directly from the surface span (rather than back-derived from √(AR·area)). Every
+  shipped example now places fully on the fleet scatters (e.g. GA-6 recovers AR 6.095
+  / span 33.5 ft from its wing planform). The page **stays in the Export phase**
+  (unchanged `workflow.py` order); a workflow-derived `page_link` on the **Weight &
+  Mass Properties** page now points to it so the fleet check is reachable at
+  definition time. Presentation-only — the reference fleet is never a FAR input, so
+  no calc/oracle/schema change. Extended `tests/test_aircraft_comparison.py`.
 - **Governing-loads tables now render ULTIMATE with units + SF (M2-4, review
   G5).** The "Governing loads (SELECT)" tables on **Results Review** and the
   **Flight Envelope → Critical Loads** tab hand-formatted each cell as

@@ -10,6 +10,61 @@ Acceptance**, **Key decisions**.
 
 ---
 
+## M2-5 — Aircraft Comparison: surface-planform fallback + Develop-phase link (GUI fix, complete 2026-07-20)
+
+**Objective.** Review finding **G7**: the Aircraft Comparison subject showed "None"
+for W/S, wing area, span and aspect ratio on nearly every shipped example.
+`_subject_from_project` (`aircraft_comparison.py`) read wing geometry only from
+`geometry.parametric` (the `LayoutInput`) — area `parametric.wing_area_sqft →
+speeds.wing_area_sqft`, AR `parametric.aspect_ratio` only, span back-derived from
+`√(AR·area)`. But of the six shipped examples only `concept_regional_jet` carries a
+parametric layout; the rest carry `geometry.surfaces` (WINGGEOM planforms), so AR and
+span were `None` on every non-parametric example (and area/W/S `None` wherever
+`speeds.wing_area_sqft` was also absent, e.g. `ga6_normal`). Also (G7 second half):
+the fleet check lived in the **Export** phase, after the load analysis, when it is
+most useful at *definition* time.
+
+**Key decisions (2026-07-20, user-confirmed).** (1) **Surface-planform fallback with
+area priority `parametric → surface → speeds`.** Add a `geometry.by_name("wing")`
+fallback via `wing_geometry.surface_properties` (which yields **Total area** in²,
+**Aspect ratio**, and **Span** in — full-planform figures), the same pattern
+`flight_envelope.py:89-96` uses; AR and span use the surface as their sole
+non-parametric source. The computed planform is trusted over the scalar
+`speeds.wing_area_sqft`. (2) **Link, do not move.** Keep the page in the Export phase
+(unchanged `workflow.py` order — `03_gui_rework_plan.md §4 Phase 6` placement holds)
+and add a workflow-derived `page_link` from the Develop phase, so the single source
+of navigation truth is untouched.
+
+**Deliverables.**
+- **`aircraft_comparison.py` — `_wing_surface_props(project)`** returns the WINGGEOM
+  `wing`-surface properties keyed by label (`{}` on a missing/degenerate wing).
+  `_subject_from_project` now resolves wing **area** `parametric → surface (Total
+  area ÷ 144) → speeds`, **AR** `parametric → surface`, and sets
+  `Subject.wingspan_ft` directly from the surface **Span** (÷ 12) instead of
+  back-deriving it. The `Subject` constructor now receives `wingspan_ft`.
+- **`weight_mass.py`** — a `components.workflow_page_link("aircraft_comparison")` at
+  the top of the Weight & Mass Properties page (the definition-time point where
+  MTOW/OEW/power are set), captioned as the fleet W/S / W/P check.
+
+**Test / Acceptance.** Extended `tests/test_aircraft_comparison.py`:
+`test_subject_geometric_axes_from_wing_surface` (GA-6 recovers area/W/S and the
+Appendix-A wing AR 6.095 / span 33.5 ft from its planform with no parametric layout
+and no `speeds.wing_area_sqft`); `test_area_priority_surface_over_speeds` (the
+computed planform wins over the scalar `speeds.wing_area_sqft`); the existing
+example/synthetic/no-MTOW tests still hold (parametric still wins where present).
+Every shipped example now places fully on the fleet scatters. Presentation-only — the
+reference fleet is never a FAR input, so no calc/oracle/schema change; `workflow.py`
+step order unchanged. Full suite green (443 passed); `ruff` clean.
+
+**Observation (not blocking, logged).** With the chosen `parametric → surface →
+speeds` order, `atr42_100`'s wing-surface area (≈480 ft²) — a coarser WINGGEOM
+planform — now supersedes its scalar `speeds.wing_area_sqft` (586.6 ft²), shifting
+its displayed W/S. This is the intended "trust the planform" behavior; the underlying
+fixture-area discrepancy is a data-quality item for the ATR planform, not a logic
+defect.
+
+---
+
 ## M2-4 — Results Review header tables: units, ULT marking, SF (GUI fix, complete 2026-07-20)
 
 **Objective.** Review finding **G5**: the "Governing loads (SELECT)"
