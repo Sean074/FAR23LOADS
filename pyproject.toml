@@ -22,7 +22,7 @@ classifiers = [
     "Topic :: Scientific/Engineering",
 ]
 dependencies = [
-    "streamlit>=1.30",
+    "streamlit>=1.36",  # st.navigation(expanded=...) added in 1.36
     "pandas>=2.0",
     "plotly>=5.0",
     "openpyxl>=3.1",

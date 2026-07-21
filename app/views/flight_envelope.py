@@ -24,6 +24,8 @@ import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
 
+from components import gate
+
 from farloads import (
     ConditionResult,
     FlightLoadsInput,
@@ -57,18 +59,20 @@ system: UnitSystem = st.session_state.get("unit_system", UnitSystem.IMPERIAL)
 U = labels_for(system)  # {"length","area_sqft",...} -> unit string
 
 if project.speeds is None:
-    st.warning(
+    gate(
         "No structural speeds found. Set design speeds on the **Structural Speeds** "
-        "page first — FLTLOADS reads VA/VC/VD/VF, MC/MD and the limit load factor from it."
+        "page first — FLTLOADS reads VA/VC/VD/VF, MC/MD and the limit load factor from it.",
+        "structural_speeds",
     )
     st.stop()
 
 aero = project.aero_coeffs
 if aero is None or (aero.cruise is None and aero.flaps_down is None):
-    st.warning(
+    gate(
         "No aero coefficients found. Enter the cruise (and optional flaps-down) "
         "coefficient set on the **Aerodynamic Data** page first — FLTLOADS reads "
-        "the airplane-less-tail CL/CD/CM polynomials from it."
+        "the airplane-less-tail CL/CD/CM polynomials from it.",
+        "aero_coefficients",
     )
     st.stop()
 
@@ -133,9 +137,10 @@ altitudes_ft = sorted({float(v) for v in alt_df["altitude_ft"] if pd.notna(v)}) 
 
 cg_cases = project.weight.cg_cases if project.weight else []
 if not cg_cases:
-    st.warning(
+    gate(
         "No loading scenarios found. Define them on the **Weight & Mass Properties** "
-        "page (Payload Cases tab) first — FLTLOADS balances over them."
+        "page (Payload Cases tab) first — FLTLOADS balances over them.",
+        "weight_mass",
     )
     st.stop()
 st.caption("Weight / CG cases read from the **Weight & Mass Properties** page (not edited here).")
@@ -449,11 +454,12 @@ def _tab_trim() -> None:
     st.subheader("Static margin")
     npt = _neutral_point()
     if npt is None:
-        st.info(
+        gate(
             "The static-margin sweep needs the tail-volume **neutral point** from the "
-            "**Configuration & Layout** page (a parametric layout + horizontal-tail "
-            "area/arm). This project carries no such layout (e.g. an Appendix A/B "
-            "fixture), so only the trim plot above is shown.")
+            "**Geometry** page (a parametric layout + horizontal-tail area/arm). This "
+            "project carries no such layout (e.g. an Appendix A/B fixture), so only the "
+            "trim plot above is shown.",
+            "configuration_layout", kind="info")
         return
     np_pct, xlemac, mac_in = npt
     cg_pct = [(x - xlemac) / mac_in * 100.0 for x in stations]
@@ -477,7 +483,7 @@ def _tab_trim() -> None:
     st.plotly_chart(figs, use_container_width=True)
     st.caption(
         f"Static margin = NP − CG (both %MAC); NP = {np_pct:.1f} %MAC from the tail-volume "
-        "estimate (Configuration & Layout, Ref 1 Ch 8: h_acw = 0.25, a_t/a_w = 1.0, "
+        "estimate (Geometry page, Ref 1 Ch 8: h_acw = 0.25, a_t/a_w = 1.0, "
         "1 − dε/dα = 0.6). Positive is statically stable; the margin shrinks as the CG "
         "moves aft toward the neutral point.")
 

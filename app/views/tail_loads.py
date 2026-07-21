@@ -21,6 +21,8 @@ import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
 
+from components import gate
+
 from farloads import Project, UnitSystem, labels_for, si_scalar_label, to_display, to_si_scalar
 from farloads.modules.balloads import verify_balancing
 from farloads.modules.taildist import build_tail_chordwise
@@ -41,8 +43,9 @@ system: UnitSystem = st.session_state.get("unit_system", UnitSystem.IMPERIAL)
 U = labels_for(system)  # {"length",...} -> unit string
 
 if project.tail_loads is None and project.vtail_loads is None:
-    st.warning("Define the tail geometry on the **Geometry** page (Empennage & "
-               "control surfaces section) first (horizontal and/or vertical tail).")
+    gate("Define the tail geometry on the **Geometry** page (Empennage & "
+         "control surfaces section) first (horizontal and/or vertical tail).",
+         "configuration_layout")
     st.stop()
 
 if project.is_concept:

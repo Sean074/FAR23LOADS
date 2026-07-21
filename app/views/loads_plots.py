@@ -27,6 +27,8 @@ import plotly.graph_objects as go
 import streamlit as st
 from plotly.subplots import make_subplots
 
+from components import gate
+
 from farloads import Project, UnitSystem, si_scalar_label, to_si_scalar
 from farloads.modules.aileron import build_aileron
 from farloads.modules.body_loads import build_body_loads
@@ -190,8 +192,10 @@ st.header("Overlay by case ID")
 
 available = {k: v for k, v in _COMPONENTS.items() if v[1]()}
 if not available:
-    st.info("No component has any distributed-load results yet — visit an "
-            "Analysis page first (Wing / Fuselage / Tail / Aileron / Flap / Tab Loads).")
+    gate("No component has any distributed-load results yet — visit a component "
+         "Loads page first.",
+         "wing_loads", "fuselage_loads", "tail_loads",
+         "aileron_loads", "flap_loads", "tab_loads", kind="info")
 else:
     comp_key = st.radio(
         "Component", list(available.keys()),
@@ -246,7 +250,8 @@ wing_cases = _wing_cases(loads.wing_net)
 body_cases = _fuselage_cases(loads.body_net)
 
 if not wing_cases or not body_cases:
-    st.info("Needs both Wing Loads and Fuselage Loads results — visit those pages first.")
+    gate("Needs both Wing Loads and Fuselage Loads results — visit those pages first.",
+         "wing_loads", "fuselage_loads", kind="info")
 else:
     c1, c2 = st.columns(2)
     wing_labels = {c[0]: c[1] for c in wing_cases}

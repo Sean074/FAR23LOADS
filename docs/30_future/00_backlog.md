@@ -73,12 +73,6 @@ currently records the defective behavior as if it were the source.
 GUI and release-mechanics fixes from the review (G-numbers) plus the surviving
 Phase-G steps. GUI evidence: review §2 screenshots.
 
-### M2-2 — Navigation: show the whole workflow; link between pages (review G3+G6)
-`st.navigation(..., expanded=True)` so phases 3–6 (incl. Export) aren't hidden
-behind "View 10 more"; `st.page_link` in the dashboard checklist and in every
-"go set X first" gating message; fix the stale page names in those messages
-("Wing Geometry", "Configuration & Layout").
-
 ### M2-3 — Dirty flag: move on-render writes into Apply handlers (review G4)
 `structural_speeds.py` and `flight_envelope.py` (views) write to the project on
 render, so "Unsaved changes" trips with zero user edits and the discard-confirm

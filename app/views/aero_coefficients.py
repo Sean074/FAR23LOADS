@@ -13,6 +13,8 @@ from __future__ import annotations
 import pandas as pd
 import streamlit as st
 
+from components import gate
+
 from farloads import AeroCoefficientsInput, AeroCoeffSet, FuselageMomentInput, Project
 from farloads.fuselage_moment import estimate as estimate_fuselage_moment
 
@@ -197,10 +199,11 @@ _mac = _fl.mac if _fl else 0.0
 _est = estimate_fuselage_moment(_outline, _s, _mac)
 
 if _est is None:
-    st.info(
-        "Define the fuselage outline on the Geometry page and the wing area / MAC "
-        "on the Flight Envelope (V-n) page first — the estimator needs at least two "
-        "fuselage stations and a positive wing S and MAC."
+    gate(
+        "Define the fuselage outline on the **Geometry** page and the wing area / MAC "
+        "on the **Flight Envelope (V-n)** page first — the estimator needs at least two "
+        "fuselage stations and a positive wing S and MAC.",
+        "configuration_layout", "flight_envelope", kind="info",
     )
 else:
     m1, m2, m3 = st.columns(3)

@@ -26,6 +26,29 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   policy + link) and added the FAA User's Guide §17.2.1 corroboration to
   `engine_loads.md`.
 
+### Changed
+
+- **Navigation: whole workflow visible + cross-page links (M2-2, review
+  G3+G6).** (a) `st.navigation(..., expanded=True)` in `app/Home.py` so all eight
+  sidebar groups (Start + the six analysis phases, **including Export**) stay open
+  on first run instead of collapsing phases 3–6 behind a "View 10 more" expander
+  (G3). (b) A workflow-derived link helper — `components.workflow_page_link(key)`
+  and `components.gate(message, *keys)` — that derives every link's target path
+  *and* label from `farloads.workflow` (the single source of navigation truth), so
+  a page rename re-labels every link automatically and hand-typed stale page names
+  can't recur. (c) The **Project Dashboard** checklist rows are now `st.page_link`s
+  (status emoji as icon, summary/status/BAS in the tooltip); blocked steps stay
+  navigable so the user lands on the page and reads its own now-linked gating
+  message. (d) Every "define X on the Y page first" gate across 14 views now
+  renders a page link to the page that unblocks it, and the **stale page names**
+  from the G1 merge are fixed — "Wing Geometry" / "Configuration & Layout" →
+  **Geometry**, "Flight Envelope" → **Flight Envelope (V-n)**. The helper degrades
+  to a non-clickable label when run outside `st.navigation` (e.g. AppTest), so
+  standalone rendering never breaks. Bumped the `streamlit` floor to `>=1.36`
+  (`st.navigation(expanded=…)`). New `tests/test_page_links.py` asserts every link
+  key resolves to a real workflow step with a matching view file. GUI-only; no
+  calc/schema change (424 tests green, `ruff` clean).
+
 ### Fixed
 
 - **Loads Plots page now recomputes from the project (M2-1).** The Load-case

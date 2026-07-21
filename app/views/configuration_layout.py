@@ -1,4 +1,4 @@
-"""Configuration & Layout page (modern addition; port-free).
+"""Geometry page (modern addition; port-free; view file kept as configuration_layout).
 
 The geometric source of truth for an initial concept: edit the parametric
 fuselage / wing / tail / gear geometry, see a three-view with the CG and neutral
@@ -23,7 +23,7 @@ import plotly.graph_objects as go
 import streamlit as st
 from plotly.subplots import make_subplots
 
-from components import render_applicability_banner
+from components import gate, render_applicability_banner
 
 from farloads.applicability import effective_occupants
 from farloads import (
@@ -157,8 +157,9 @@ with st.sidebar:
     if _from_geometry:
         st.caption(
             "Wing area/aspect ratio/taper/sweep/LE station below were derived from "
-            "the project's existing **wing** surface (Wing Geometry page) -- review "
-            "and **Apply geometry** to save them into Configuration & Layout."
+            "the project's existing **wing** surface (the Surfaces tab of this "
+            "Geometry page) -- review and **Apply geometry** to save them into the "
+            "parametric layout."
         )
     with st.form("layout_form"):
         with st.expander("Fuselage", expanded=True):
@@ -225,7 +226,7 @@ with st.sidebar:
             "- **Static margin** — (neutral point − CG) / MAC, as a fraction of MAC; positive = statically stable.\n"
             "- **Tip-back / overturn angle** — gear-geometry margins: tip-back from the CG-to-main-gear "
             "geometry, overturn from the CG height and track.\n\n"
-            "Configuration & Layout is a modern, port-free page (no manual oracle); figures are first-order "
+            "The Geometry page is a modern, port-free page (no manual oracle); figures are first-order "
             "concept estimates — see `farloads/modules/configuration.py`."
         )
 
@@ -807,9 +808,10 @@ with right:
     if st.button("Seed component stations into Weight DB"):
         items = project.weight.items if project.weight else []
         if not items:
-            st.warning(
-                "No weight items to seed. Add items on the Weight & Mass Properties "
-                "page (the Weight, CG & Inertia tab, or the Estimate tab's seed button) first."
+            gate(
+                "No weight items to seed. Add items on the **Weight & Mass Properties** "
+                "page (the Weight, CG & Inertia tab, or the Estimate tab's seed button) first.",
+                "weight_mass",
             )
         else:
             stations = component_stations(

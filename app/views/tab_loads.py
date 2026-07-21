@@ -12,6 +12,8 @@ from __future__ import annotations
 import pandas as pd
 import streamlit as st
 
+from components import gate
+
 from farloads import (
     Project,
     TabLoadsInput,
@@ -39,7 +41,7 @@ system: UnitSystem = st.session_state.get("unit_system", UnitSystem.IMPERIAL)
 U = labels_for(system)  # {"length": ..., "area_sqft": ...} -> unit string
 
 if project.speeds is None:
-    st.warning("Define the **Structural Speeds** (VC) first.")
+    gate("Define the **Structural Speeds** (VC) first.", "structural_speeds")
     st.stop()
 
 inp = project.tab_loads or TabLoadsInput()

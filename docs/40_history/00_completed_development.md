@@ -10,6 +10,65 @@ Acceptance**, **Key decisions**.
 
 ---
 
+## M2-2 — Navigation: show the whole workflow; link between pages (GUI fix, complete 2026-07-20)
+
+**Objective.** Two review findings, one step. **G3:** half the workflow — phases
+3–6, *including Export* — was collapsed behind a "View 10 more" expander in the
+sidebar on first run. **G6:** the app had zero `st.page_link`s; the dashboard
+checklist and every "define X on the Y page first" gating message were dead text,
+and two messages named pages that the Step-G1 geometry merge had renamed away
+("Wing Geometry", "Configuration & Layout"). Display/navigation only — no
+calc-math and no schema change; `farloads/workflow.py` stayed the single source of
+navigation truth.
+
+**Deliverables.**
+- **(a) Root-cause link helper (`app/components.py`).** `workflow_page_link(key,
+  *, label, icon, help, disabled)` renders an `st.page_link` to `views/<key>.py`
+  with the label defaulting to the step's canonical `wf.BY_KEY[key].title` — so a
+  page rename re-labels every link automatically and stale hand-typed names can't
+  recur (the G6 root cause). `gate(message, *keys, kind="warning"|"info")` renders
+  the notice plus one link per unblocking page. The helper degrades to a
+  non-clickable `st.markdown` label when `st.page_link` can't resolve a target
+  (standalone execution outside `st.navigation`, e.g. AppTest), so a dashboard row
+  or gate hint never silently vanishes.
+- **(b) Un-hid the workflow (G3).** `app/Home.py` → `st.navigation(sections,
+  expanded=True)`; all eight groups (Start + six analysis phases incl. Export)
+  render open. Bumped the `streamlit` floor `>=1.30` → `>=1.36` in `pyproject.toml`
+  (`expanded=` was added in 1.36).
+- **(c) Linked the dashboard checklist (G6).** `app/views/dashboard.py` rows are
+  now `workflow_page_link`s (status emoji as `icon=`, `summary`/status/BAS folded
+  into the `help=` tooltip). Blocked (⛔) steps stay navigable so the user lands on
+  the page and reads its own now-linked gating message.
+- **(d) Linked + de-staled every gating message (G6).** Converted the "define X
+  first" gates across 14 views to `gate(...)`/`workflow_page_link(...)`:
+  `wing_loads`, `flight_envelope` (×3 + the static-margin info), `fuselage_loads`,
+  `tail_loads`, `weight_mass`, `structural_speeds` (×2, incl. migrating the one
+  pre-existing raw `st.page_link`), `aero_coefficients`, `flap_loads`,
+  `aileron_loads`, `tab_loads`, `one_engine_out` (×2), `results_review` (×2),
+  `loads_plots` (×2), `export_report` (×2), `configuration_layout` (weight-seed
+  gate). Fixed the stale page names: "Wing Geometry" / "Configuration & Layout" →
+  **Geometry**, "Flight Envelope" → **Flight Envelope (V-n)**; and the stale phase
+  word "Airplane pages" / "Analysis page" → concrete page links.
+
+**Test / Acceptance.** GUI-only, no calc/schema change; full suite green (424
+passing, `ruff` clean). New `tests/test_page_links.py`: (1) every `wf.BY_KEY` key
+has a matching `app/views/<key>.py` (the helper's path assumption); (2) an AST
+scan of all views asserts every literal key handed to `gate`/`workflow_page_link`
+is a real workflow step (guards future stale links). The existing `test_views_smoke`
+AppTest suite exercises the rendered links (it caught the standalone
+`st.page_link` `url_pathname` failure, which the helper's fallback resolves). A
+grep for the old page-name references in gating strings is clean.
+
+**Key decisions.** (1) Dashboard rows render as `st.page_link` with icon+help
+(BAS name folds into the tooltip) rather than keeping the markdown row and adding
+a separate link — user-confirmed 2026-07-20. (2) Blocked steps stay **navigable**,
+not disabled — user-confirmed 2026-07-20. (3) Links derive label+path from
+`workflow.py` via one helper, making stale names structurally impossible rather
+than a discipline to maintain. (4) `st.page_link` can't deep-link to a tab within
+a merged page — the tab name stays in prose and the link points at the page.
+
+---
+
 ## M2-1 — Loads Plots must recompute from the project (GUI fix, complete 2026-07-20)
 
 **Objective.** The **Loads Plots** page (Load-case plotting phase) read

@@ -226,5 +226,8 @@ sections = {
     if steps
 }
 
-pg = st.navigation(sections)
+# ``expanded=True`` keeps every phase group (incl. Other loads / Landing /
+# Load-case plotting / Export) open in the sidebar rather than collapsing the tail
+# behind a "View N more" expander on first run (review G3, M2-2).
+pg = st.navigation(sections, expanded=True)
 pg.run()

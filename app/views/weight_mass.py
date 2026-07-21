@@ -22,6 +22,8 @@ import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
 
+from components import gate
+
 from farloads import (
     CgCase,
     EngineWeightType,
@@ -431,8 +433,8 @@ def _tab_envelope(project: Project, system: UnitSystem, U: dict) -> None:
                    "**Weight, CG & Inertia** tab first.")
         return
     if project.geometry is None or project.geometry.by_name("wing") is None:
-        st.warning("No wing geometry found. Define the wing on the **Geometry** page "
-                   "first (WTENV needs the wing XLEMAC/MAC).")
+        gate("No wing geometry found. Define the wing on the **Geometry** page "
+             "first (WTENV needs the wing XLEMAC/MAC).", "configuration_layout")
         return
 
     existing = project.weight.envelope

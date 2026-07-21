@@ -12,6 +12,8 @@ from __future__ import annotations
 import pandas as pd
 import streamlit as st
 
+from components import gate
+
 from farloads import (
     AileronLoadsInput,
     Project,
@@ -38,7 +40,7 @@ system: UnitSystem = st.session_state.get("unit_system", UnitSystem.IMPERIAL)
 U = labels_for(system)  # {"area_sqft",...} -> unit string
 
 if project.speeds is None:
-    st.warning("Define the **Structural Speeds** (VA/VC/VD) first.")
+    gate("Define the **Structural Speeds** (VA/VC/VD) first.", "structural_speeds")
     st.stop()
 
 inp = project.aileron_loads or AileronLoadsInput()

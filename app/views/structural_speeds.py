@@ -23,7 +23,7 @@ import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
 
-from components import render_applicability_banner
+from components import render_applicability_banner, workflow_page_link
 
 from farloads import (
     MachLimitInput,
@@ -175,6 +175,7 @@ def _tab_design_speeds(project: Project, system: UnitSystem, U: dict) -> None:
                 "No wing geometry found. Define the wing on the **Geometry** page, "
                 "or enter the wing area directly above."
             )
+            workflow_page_link("configuration_layout", label="→ Geometry")
         vh = st.number_input("Max sea-level speed VH (kt)", min_value=0.0,
                              value=float(existing.vh_kt) if existing else 0.0,
                              help="Maximum speed in level flight at max continuous power, sea level (KEAS); "
@@ -247,11 +248,8 @@ def _tab_design_speeds(project: Project, system: UnitSystem, U: dict) -> None:
         results = design_speeds(project, inp)
     except (ValueError, ZeroDivisionError) as exc:
         st.error(f"Could not compute structural speeds: {exc}")
-        try:
-            st.page_link("views/aero_coefficients.py", label="→ Set CLmax on Aerodynamic Data",
-                         icon="🛩️")
-        except Exception:
-            pass
+        workflow_page_link("aero_coefficients", label="→ Set CLmax on Aerodynamic Data",
+                           icon="🛩️")
         return
 
     for r in results:

@@ -21,6 +21,8 @@ import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
 
+from components import gate
+
 from farloads import (
     AeroInput,
     AeroSurfaceInput,
@@ -80,9 +82,10 @@ U = labels_for(system)  # {"length","weight",...} -> unit string
 
 wing_geom = project.geometry.by_name("wing") if project.geometry else None
 if wing_geom is None:
-    st.warning(
-        "No wing planform found. Define a `wing` surface on the **Wing Geometry** "
-        "page first — AIRLOADS reads the planform (chord polylines) from it."
+    gate(
+        "No wing planform found. Define a `wing` surface on the **Geometry** "
+        "page first — AIRLOADS reads the planform (chord polylines) from it.",
+        "configuration_layout",
     )
     st.stop()
 

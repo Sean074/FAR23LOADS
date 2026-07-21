@@ -27,6 +27,8 @@ import zipfile
 
 import streamlit as st
 
+from components import gate
+
 from farloads import Project, registry
 from farloads import io as farloads_io
 from farloads import workflow as wf
@@ -227,7 +229,8 @@ c3.download_button(
 # --------------------------------------------------------------------------- #
 st.header("Load cases & report")
 if not module_results:
-    st.info("No module has the inputs it needs yet — fill in the Airplane pages first.")
+    gate("No module has the inputs it needs yet — start from the **Project Dashboard** "
+         "and work the workflow left-to-right.", "dashboard", kind="info")
 else:
     st.download_button("📄 Combined text report (all modules)", text_report,
                        file_name=f"{_stem}_report.txt", mime="text/plain")
@@ -278,4 +281,5 @@ if case_index_csv.strip():
     st.download_button("Case index (CSV)", case_index_csv,
                        file_name=f"{_stem}_case_index.csv", mime="text/csv")
 else:
-    st.info("No structured case IDs yet — run a component module first.")
+    gate("No structured case IDs yet — run a component module first.",
+         "dashboard", kind="info")

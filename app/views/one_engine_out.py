@@ -13,6 +13,8 @@ from __future__ import annotations
 import pandas as pd
 import streamlit as st
 
+from components import gate
+
 from farloads import OneEngineOutInput, Project, UnitSystem, convert_results, to_si_scalar
 from farloads.modules.one_engine_out import run, time_history
 
@@ -31,11 +33,12 @@ if not project.engines or len(project.engines) < 2:
     st.warning("One-engine-out needs a **multi-engine** layout (define ≥2 engines).")
     st.stop()
 if project.vtail_loads is None:
-    st.warning("Define the **vertical-tail geometry** (Flight Envelope (V-n) page, "
-               "Critical Loads tab) first.")
+    gate("Define the **vertical-tail geometry** (Flight Envelope (V-n) page, "
+         "Critical Loads tab) first.", "flight_envelope")
     st.stop()
 if project.mass is None or not project.mass.cases:
-    st.warning("Run **Weight, CG & Inertia** (WTONECG) first — ONENGOUT needs IZZ.")
+    gate("Run **Weight, CG & Inertia** (WTONECG, on the Weight & Mass Properties page) "
+         "first — ONENGOUT needs IZZ.", "weight_mass")
     st.stop()
 
 inp = project.one_engine_out or OneEngineOutInput()

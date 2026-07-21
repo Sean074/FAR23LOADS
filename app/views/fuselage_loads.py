@@ -18,6 +18,8 @@ import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
 
+from components import gate
+
 from farloads import (
     Project,
     UnitSystem,
@@ -61,7 +63,8 @@ system: UnitSystem = st.session_state.get("unit_system", UnitSystem.IMPERIAL)
 U = labels_for(system)  # {"weight","length",...} -> unit string
 
 if project.flight_loads is None:
-    st.warning("Define the flight-loads inputs on the **Flight Envelope** page first.")
+    gate("Define the flight-loads inputs on the **Flight Envelope (V-n)** page first.",
+         "flight_envelope")
     st.stop()
 
 fm = project.fuselage_mass or FuselageMassInput()

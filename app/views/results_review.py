@@ -14,6 +14,8 @@ from __future__ import annotations
 import pandas as pd
 import streamlit as st
 
+from components import gate
+
 from farloads import ConditionResult, Project, UnitSystem, convert_results, registry
 from farloads import workflow as wf
 from farloads.modules.select import build_critical
@@ -68,9 +70,10 @@ try:
         critical.selected_case_ids = project.envelope.critical.selected_case_ids
 except (ValueError, ZeroDivisionError, KeyError) as exc:
     critical = None
-    st.info(
+    gate(
         "Critical loads need the V-n environment — set up the **Flight Envelope "
-        f"(V-n)** page (V-n diagram + Critical Loads tabs) first. ({exc})"
+        f"(V-n)** page (V-n diagram + Critical Loads tabs) first. ({exc})",
+        "flight_envelope", kind="info",
     )
 
 if critical is not None:
@@ -119,7 +122,8 @@ for mr in module_results:
         by_phase[step.phase].append((step, mr))
 
 if not module_results:
-    st.warning("No module has the inputs it needs yet. Fill in the Airplane pages first.")
+    gate("No module has the inputs it needs yet — start from the **Project Dashboard** "
+         "and work the workflow left-to-right.", "dashboard")
 
 for phase in wf.PHASES:
     entries = by_phase.get(phase, [])

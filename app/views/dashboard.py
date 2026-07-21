@@ -13,7 +13,7 @@ from __future__ import annotations
 
 import streamlit as st
 
-from components import render_applicability_banner
+from components import render_applicability_banner, workflow_page_link
 
 from farloads import Project
 from farloads import workflow as wf
@@ -85,10 +85,16 @@ for col, (phase, steps) in zip(phase_cols, _sections.items()):
         st.subheader(phase)
         for s in steps:
             icon, _label, help_ = _status(s)
-            bas = f" · _{s.bas}_" if s.bas else ""
-            st.markdown(f"{icon} **{s.title}**{bas}", help=f"{s.summary}\n\n{help_}")
+            bas = f" · {s.bas}" if s.bas else ""
+            # Clickable row: emoji status as icon, summary + status + BAS in the
+            # tooltip. Blocked steps stay navigable (M2-2) so the user lands on the
+            # page and reads its own (now-linked) gating message.
+            workflow_page_link(
+                s.key, icon=icon, help=f"{s.summary}{bas}\n\n{help_}",
+            )
 
 st.caption(
     "✅ output present  ·  🟡 inputs ready, open the page to compute  ·  "
-    "▫️ derived view (no stored slice)  ·  ⛔ blocked (open an upstream page first)"
+    "▫️ derived view (no stored slice)  ·  ⛔ blocked (open an upstream page first). "
+    "Every row links to its page."
 )
