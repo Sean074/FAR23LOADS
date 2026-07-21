@@ -8,7 +8,7 @@ historical record.
 |---------|------|----------|
 | `10_standard/` | **Code standard** | The authoritative description of how the suite works *today* — architecture, the per-module spec, and the process guides. Update these whenever code changes. |
 | `20_theory/` | **Theory & equation sources** | Where each module's equations and regression oracles come from (the `reference/` PDFs), plus per-module page citations as modules are ported. |
-| `30_future/` | **Future development** | The backlog & step-by-step plan: the two-phase plan (Phase 1 concept-loads enablement, Phase 2 refinements), deferred refinements and open design decisions (all 22 suite programs are now ported). |
+| `30_future/` | **Future development** | The backlog & step-by-step plan, structured around the path to the first concept-loads release: the milestones **M2R → M3 (cut `sloads` 0.3.0) → M4 → Phase F25**, the long-tail refinements, and the open design decisions (all 22 suite programs are ported). |
 | `40_history/` | **Historic record** | What has shipped — completed modules/phases, key decisions, and resolved defects. |
 
 ---
@@ -31,14 +31,15 @@ historical record.
 | File | Scope |
 |------|-------|
 | [`00_theory_sources.md`](20_theory/00_theory_sources.md) | The authoritative references (`reference/` PDFs) and how to cite them in code and tests |
-| [`engine_loads.md`](20_theory/engine_loads.md) | **Engine-mount loads (ENGLOADS)** — equations for FAR 23.361/363/371 with a worked IO-520-BB example |
+| [`01_far25_gap_analysis.md`](20_theory/01_far25_gap_analysis.md) | **FAR 25 gap analysis** (Phase F25) — the FAR 23 → FAR 25 comparison table, per-condition disposition, and what stays out of scope (tuned-gust, continuous turbulence, full Appendix K) |
 | [`02_approved_corrections.md`](20_theory/02_approved_corrections.md) | **Approved corrections register** — the authoritative list of deliberate oracle deviations (CLAUDE.md states the policy and links here) |
+| [`engine_loads.md`](20_theory/engine_loads.md) | **Engine-mount loads (ENGLOADS)** — equations for FAR 23.361/363/371 with a worked IO-520-BB example |
 
 ## 30_future — Future development
 
 | File | Scope |
 |------|-------|
-| [`00_backlog.md`](30_future/00_backlog.md) | **Authoritative backlog & development plan** — the two-phase plan (Phase 1: make concept-loads development possible; Phase 2: priority-ordered refinements & nice-to-haves) and the open design decisions requiring user input (all 22 suite programs ported) |
+| [`00_backlog.md`](30_future/00_backlog.md) | **Authoritative backlog & development plan** — release-milestone structure (**M2R** release-readiness fixes → **M3** the `sloads` 0.3.0 cut → **M4** post-release → **Phase F25** → long tail) and the open design decisions requiring user input (all 22 suite programs ported) |
 | [`01_concept_loads_plan.md`](30_future/01_concept_loads_plan.md) | **Phase C plan** — growing the suite into an initial-concept distributed-loads tool (concept mode, Schrenk airloads, per-component distributed loads, sbeam export bridge) |
 | [`02_gui_workflow_plan.md`](30_future/02_gui_workflow_plan.md) | **Phase D plan** — GUI workflow restructure: assessment, six-section target structure, load-case IDs, locked decisions, page conventions |
 | [`03_gui_rework_plan.md`](30_future/03_gui_rework_plan.md) | **Phase G plan** — workflow-aligned GUI rework: one-unit-per-dimension policy, single-source-of-truth geometry, re-sequenced analysis-flow navigation, and the new fuselage-moment/trim-plot/elevator-chord features (assessment vs. current code, locked decisions G-1…G-4) |
@@ -48,10 +49,16 @@ historical record.
 | File | Scope |
 |------|-------|
 | [`00_completed_development.md`](40_history/00_completed_development.md) | Record of completed modules/phases, key decisions, and resolved defects |
+| [`01_verification_baseline_0.2.0.md`](40_history/01_verification_baseline_0.2.0.md) | **Verification baseline (0.2.0)** — the per-condition table of every checked FAR condition and the printed Appendix A (or worked-example) figure the suite locks against; refreshed per release (`RELEASE_PROCESS.md`) |
 
 ---
 
 > Root-level docs live outside `docs/`: [`../README.md`](../README.md) (user
 > front page), [`../CHANGELOG.md`](../CHANGELOG.md) (release notes), and
 > [`../CLAUDE.md`](../CLAUDE.md) (guidance for Claude Code). The authoritative
-> theory/oracle PDFs live in [`../reference/`](../reference/).
+> theory/oracle PDFs live in [`../reference/`](../reference/), alongside the
+> **CFR/AC text extracts** cited by the calc and the F25 gap analysis —
+> `14CFR_factor_of_safety.md`, `14CFR_operating_limitations.md`,
+> `14CFR_MC_MD_speed_margin.md`, `14CFR_Part25_engine_torque.md`,
+> `AC_23-19A_engine_torque.md`, `23_427_unsymmetrical_candidate_set.md`, and
+> `fuselage_pitching_moment.md`.

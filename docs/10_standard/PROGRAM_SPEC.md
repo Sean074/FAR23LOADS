@@ -222,7 +222,7 @@ the 23.427(a) unsymmetrical search includes the **unchecked** maneuvers, per
 Appendix A sample-output value (−1111.8, gust-governed) is a stale printout from a
 superseded revision that excluded them, so the GA6 unsymmetrical is −1204.7 (DN
 unchecked governs). See `reference/23_427_unsymmetrical_candidate_set.md` and the
-approved-corrections register in `CLAUDE.md`.
+approved-corrections register [`../20_theory/02_approved_corrections.md`](../20_theory/02_approved_corrections.md).
 - **FAR §:** 23.301 critical-load determination across the envelope.
 - **Source:** Ch 9, `SELECT.BAS`.
 - **Reads:** `Project.mass` (WTONECG inertia), `Project.geometry` (WINGGEOM), `Project.envelope.vn` (FLTLOADS); plus AIRLOADS/AIRLOAD4 spanwise airloads. Run once per component (wing, fuselage, htail, vtail).
@@ -358,8 +358,9 @@ regression oracle**; Appendix A/B geometry is used only as a *sanity* fixture.
   path that seeds an outline from the scalars for a pre-outline file. One **Geometry**
   page owns and edits the whole slice; `SCHEMA_VERSION` **25** (**26** after Step G4's
   `fuselage_moment`, **27** after Step G6's `empennage`, **28** after Step G6b's
-  `landing_gear`, **30** after Step M2-6's wing/fuselage single-source); legacy files
-  migrate on load.
+  `landing_gear`, **29** after Step M1-1b's single-source CLmax stall, **30** after
+  Step M2-6's wing/fuselage single-source, **31** after Step M2-10's operational
+  placards); legacy files migrate on load.
 - **Single-source landing gear (Step G6b):** the tricycle-gear geometry (main/nose
   axle `(X, Z)` at compressed/static/extended, rolling radius, strut type, tread)
   lives in `Project.geometry.landing_gear` (`LandingGearGeometry`); LANDLOAD reads it

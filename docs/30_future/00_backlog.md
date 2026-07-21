@@ -68,22 +68,6 @@ prose.
 Everything here is small (S unless noted); all must close before the M3 cut.
 Findings verified in the review — file:line evidence there.
 
-### M2R-1 — Doc currency sweep **[CRITICAL + 3 MAJOR]**
-(a) `GUI_design.md:354`: "SCHEMA_VERSION = 28" → 31, adding the v29 (CLmax
-single-source), v30 (M2-6 derived geometry), v31 (M2-10 placards) descriptions
-— or replace the baked number with a pointer to `DATA_DICTIONARY.md` (correct
-at 31). (b) `CLAUDE.md:19,:28,:189`: retire the "Appendix A/B ±0.1%"
-oracle-lock claim → "Appendix A ±0.1%; twin cases closure-locked", link the
-Oracle-status anchor in `00_theory_sources.md:17` (last D3 remnant).
-(c) `PROGRAM_SPEC.md:359-362`: schema version trail — insert v29, append v31.
-(d) CHANGELOG Documentation entry + `00_INDEX.md` rows for
-`01_far25_gap_analysis.md`, the backlog restructure (D-9…D-11), and the
-`reference/` extracts; INDEX row for `01_verification_baseline_0.2.0.md`; fix
-the INDEX "two-phase plan" backlog description; `00_theory_sources.md:89`
-corrections-register pointer → `02_approved_corrections.md`; README examples
-line → all six fixtures. *(This backlog's own header was refreshed 2026-07-21
-as part of this restructure.)*
-
 ### M2R-2 — Non-affiliation & attribution sentence, now **[MAJOR]**
 Add to the README Disclaimer and the GUI footer/About: modern open replication
 of the FAR23 loads suite (DOT/FAA/AR-96/46; Hal C. McMaster CAE manual), **not

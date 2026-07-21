@@ -10,6 +10,50 @@ Acceptance**, **Key decisions**.
 
 ---
 
+## M2R-1 — Doc currency sweep (2026-07-21 review, 1 CRITICAL + 3 MAJOR, complete 2026-07-21)
+
+**Objective.** Retire the stale and contradictory documentation the 2026-07-21
+code & documentation review flagged, so no shipped doc asserts a false schema
+version or oracle-lock claim.
+
+**Key decisions (2026-07-21, user-confirmed).** (1) The stale `GUI_design.md`
+schema line is fixed by **pointing at the generated `DATA_DICTIONARY.md`** (the
+single source, currently v31) rather than re-baking a number that would rot at
+the next bump. (2) The `CLAUDE.md` oracle-lock sweep fixes the three cited lines
+**plus** a grep-sweep for exact duplicates; the "Appendix A **and/or** B"
+per-module test convention and the frozen `40_history` record are correct and
+left untouched.
+
+**Deliverables.**
+- **(a) `docs/10_standard/GUI_design.md`.** Replaced `SCHEMA_VERSION = 28` + its
+  baked migration trail with a pointer to `DATA_DICTIONARY.md` (v31) and the
+  per-step history in `40_history/`.
+- **(b) `CLAUDE.md`.** Retired the "Appendix A/B ±0.1%" oracle-lock claim at
+  `:19`/`:28`/`:189` → "Appendix A ±0.1%; twin cases closure-locked", linking the
+  Oracle-status anchor in `00_theory_sources.md#oracle-status` (Appendix B is not
+  in the bundled scan). Repo-wide grep confirmed no remaining exact dupes of the
+  false present-tense claim.
+- **(c) `docs/10_standard/PROGRAM_SPEC.md`.** Filled the schema-version trail —
+  inserted **v29** (single-source CLmax stall, M1-1b), appended **v31** (M2-10
+  operational placards).
+- **(d) Cross-doc currency.** `00_INDEX.md`: added rows for
+  `01_far25_gap_analysis.md` and `01_verification_baseline_0.2.0.md`, enumerated
+  the `reference/` CFR/AC text extracts, and replaced the "two-phase plan"
+  backlog description with the M2R→M3→M4→F25 milestone structure.
+  `00_theory_sources.md`: corrections-register pointer `CLAUDE.md` →
+  `02_approved_corrections.md`. `README.md`: examples line → all six fixtures
+  (added `atr42_100`, `concept_regional_jet`).
+
+**Test / Acceptance.** Documentation-only — no calc/schema/test change,
+`SCHEMA_VERSION` stays 31. Re-grep shows no `SCHEMA_VERSION = 28`, no false
+"Appendix A/B ±0.1%" oracle-lock assertion, and no orphaned docs in `00_INDEX.md`.
+Suite unaffected (no code touched).
+
+**Docs.** This entry; `CHANGELOG.md` `[Unreleased]` Documentation entry; backlog
+M2R-1 removed.
+
+---
+
 ## M2-11 — Input data dictionary + short GUI user guide (review D4 part 1, complete 2026-07-20)
 
 **Objective.** Give the project two missing references: a `project.json` **data

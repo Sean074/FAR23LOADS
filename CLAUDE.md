@@ -16,7 +16,8 @@ can exceed the 12,500 lb / GA-seat limits), assesses a configuration against
 similar airplanes, emits per-component distributed loads (wing / body / tail +
 *standard simplified* control-surface distributions), and exports them as
 `FORCE`/`MOMENT` bulk-data cards for **sbeam** structural sizing. The FAR23
-replication core stays oracle-locked (Appendix A/B ±0.1%); concept mode is a
+replication core stays oracle-locked (Appendix A ±0.1%; twin cases
+closure-locked); concept mode is a
 superset that reduces exactly to it on GA inputs. The plan, locked decisions and
 per-step detail are in
 [`docs/30_future/01_concept_loads_plan.md`](docs/30_future/01_concept_loads_plan.md).
@@ -25,7 +26,10 @@ The two authoritative sources live in `reference/` as PDFs and matter when
 porting:
 - **Reference 1** — `reference/FAR23Loads_Code.pdf` (371 pp), McMaster's theory
   manual. The source of truth for equations *and* the regression oracle:
-  Appendix A (6-place GA single) p131, Appendix B (10-place twin turboprop) p251,
+  Appendix A (6-place GA single) p131 is the **in-hand printed oracle (±0.1%)**;
+  Appendix B (10-place twin turboprop) p251 is **not bundled**, so twin cases are
+  **closure-locked**, not oracle-locked (see the Oracle-status statement in
+  [`docs/20_theory/00_theory_sources.md`](docs/20_theory/00_theory_sources.md#oracle-status));
   Appendix C `.BAS` source p373.
 - **FAA User's Guide** — `reference/FAR23Loads_UserGuide.pdf` (DOT/FAA/AR-96/46), the module
   data-flow reference (Table 2.2).
@@ -186,7 +190,8 @@ These are the contract that makes modules copy-of-the-pattern (see PROJECT_GUIDE
 load-case CSV, the sbeam `FORCE`/`MOMENT` cards and span CSV, the shared
 `report.py` tables/text, and the Review/Export consolidation pages — reports
 ULTIMATE loads; none may emit a bare limit load. The internal calc stays **LIMIT**
-so the Appendix A/B oracles are unaffected (math fidelity above); the
+so the Appendix A oracles (and twin-case closure) are unaffected (math fidelity
+above); the
 limit→ultimate factor is applied once, at the render/export boundary (`report.py`,
 `export/sbeam_bridge.py`), to load quantities only (forces/moments/pressures —
 never geometry, weights, inertias, areas, speeds, angles, or the dimensionless

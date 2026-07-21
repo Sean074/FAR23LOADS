@@ -351,12 +351,13 @@ sidebar and the JSON Editor (§10, Phase E5).
 
 **Phase E is complete** — all steps E1–E5 have shipped.
 
-Schema is at **`SCHEMA_VERSION = 28`** (v24 = Step G0 canonical-unit field
-renames; v25 = Step G1 unified geometry slice + fuselage outline; v26 = Step G4
-`aero_coeffs.fuselage_moment` field; v27 = Step G6 single-source
-`geometry.empennage` — `tail_loads`/`vtail_loads` become properties over it; v28 =
-Step G6b single-source `geometry.landing_gear` — the coarse `LayoutInput` gear fields
-retired, LANDLOAD synced from it); Phases D–F (the six-section GUI restructure, the
+The schema field list is **single-sourced in
+[`DATA_DICTIONARY.md`](DATA_DICTIONARY.md)** (generated; currently
+`SCHEMA_VERSION = 31`); the per-step migration history is recorded in
+[`../40_history/00_completed_development.md`](../40_history/00_completed_development.md)
+(recent steps: v28 single-source `geometry.landing_gear`; v29 single-source CLmax
+stall; v30 M2-6 wing/fuselage derived geometry; v31 M2-10 operational placards).
+Phases D–F (the six-section GUI restructure, the
 usability/concept-awareness work, and fleet comparison) are all complete, and Phase G
 is under way (G0–G6 + G6b shipped). The **open GUI plan is now
 [`../30_future/00_backlog.md`](../30_future/00_backlog.md) → Phase G** — the

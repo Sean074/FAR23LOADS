@@ -52,7 +52,7 @@ app/
 └── views/                # one page per workflow step + dashboard / results_review / export_report
 cli.py                    # python cli.py engine project.json -o out.csv
 tests/                    # pytest; each module vs the manual's appendices
-examples/                 # ga6_normal (Appendix A), cessna_210 (normal cat), concept_heavy + dhc8_dash8 (concept) project.json
+examples/                 # ga6_normal (Appendix A), cessna_210 (normal cat), atr42_100 + dhc8_dash8 + concept_regional_jet + concept_heavy (concept) project.json
 docs/                     # by type: 10_standard, 20_theory, 30_future, 40_history (see docs/00_INDEX.md)
 pyproject.toml            # build metadata, deps, ruff + pytest/coverage config
 cspell.json               # domain wordlist

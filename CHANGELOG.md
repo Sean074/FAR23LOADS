@@ -81,6 +81,23 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Documentation
 
+- **Doc currency sweep (M2R-1).** Retired stale/contradictory statements the
+  2026-07-21 review flagged (1 CRITICAL + 3 MAJOR). (a) `GUI_design.md`: replaced
+  the baked `SCHEMA_VERSION = 28` line with a pointer to the generated
+  `DATA_DICTIONARY.md` (currently v31) so it can no longer drift. (b) `CLAUDE.md`:
+  retired the "Appendix A/B ±0.1% oracle-lock" claim (Appendix B is not in the
+  bundled scan) → "Appendix A ±0.1%; twin cases closure-locked", linking the
+  Oracle-status anchor in `00_theory_sources.md`. The "Appendix A **and/or** B"
+  per-module test convention and the frozen history record are correct and left
+  as-is. (c) `PROGRAM_SPEC.md`: filled the schema-version trail — inserted v29
+  (single-source CLmax stall, M1-1b), appended v31 (M2-10 operational placards).
+  (d) `00_INDEX.md`: added rows for `01_far25_gap_analysis.md` and
+  `01_verification_baseline_0.2.0.md`, enumerated the `reference/` CFR/AC text
+  extracts, and replaced the stale "two-phase plan" backlog description with the
+  M2R→M3→M4→F25 milestone structure; corrections-register pointer `CLAUDE.md` →
+  `02_approved_corrections.md` in both `00_theory_sources.md` and
+  `PROGRAM_SPEC.md`; README examples line → all six fixtures (added `atr42_100`,
+  `concept_regional_jet`).
 - **Documentation consistency sweep (M1-10).** (a) Corrected the stale reference
   filenames across 8 docs — `FAR23 loads (1).pdf` → `FAR23Loads_Code.pdf`,
   `ADA324952.pdf` → `FAR23Loads_UserGuide.pdf` (the dated `PROJECT_REVIEW` finding is
