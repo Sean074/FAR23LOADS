@@ -698,6 +698,12 @@
         "weight_lb": 31000.0,
         "xcg": 599.18,
         "zcg": 70.0
+      },
+      {
+        "name": "fwd light",
+        "weight_lb": 26000.0,
+        "xcg": 595.0,
+        "zcg": 70.0
       }
     ],
     "n": null

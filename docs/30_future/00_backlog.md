@@ -68,14 +68,6 @@ prose.
 Everything here is small (S unless noted); all must close before the M3 cut.
 Findings verified in the review — file:line evidence there.
 
-### M2R-3 — Ship working examples **[MAJOR]**
-(a) `examples/concept_regional_jet.project.json`: 3 landing `cg_cases`
-(currently 2 → the flagship concept example dead-ends on Landing Loads with a
-red error). (b) `examples/ga6_normal.project.json`: add `fuselage_mass`
-stations so the Appendix-A example reaches Fuselage Loads / Loads Plots / sbeam
-(5 of 6 examples currently error there). Trivial JSON edits; removes the only
-two red errors a first-time user meets.
-
 ### M2R-4 — Kill the last on-render Project mutation **[MAJOR]**
 `farloads/modules/landing.py:453-456,472-474` — `build_landing()` writes gear
 geometry onto `project.landing` and `gross_weight_lb`/`n` onto the input slice,
@@ -488,9 +480,6 @@ reaction matrix stays closure-/legible-cell-locked).
   2026-07-21). **[Major]**
 - **M2R-4** — `landing.build_landing()` mutates the live Project on render;
   opening Landing Loads trips the unsaved-changes flag. **[Major]**
-- **M2R-3** — shipped examples defective: `concept_regional_jet` has 2 of 3
-  required landing CG cases (Landing page dead-ends); 5 of 6 examples lack
-  `fuselage_mass` (Fuselage Loads errors). **[Major, examples]**
 - **M4-1** — fuselage body-load distribution carries an unreacted pitching
   couple (terminal Myy ≠ 0). **[Major]**
 - **M4-7** — `sbeam_bridge` hardcodes a flat ×1.5 and ignores

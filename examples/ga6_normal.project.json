@@ -680,6 +680,31 @@
       }
     ]
   },
+  "fuselage_mass": {
+    "stations": [
+      {
+        "x": 3.3,
+        "weight_lb": 185
+      },
+      {
+        "x": 44.9,
+        "weight_lb": 933
+      },
+      {
+        "x": 99.1,
+        "weight_lb": 483
+      },
+      {
+        "x": 110.4,
+        "weight_lb": 572
+      },
+      {
+        "x": 169.7,
+        "weight_lb": 405
+      }
+    ],
+    "ref_waterline": 55.0
+  },
   "select_input": {
     "full_down_aileron_deg": 15.0,
     "basic_airfoil_cm": -0.03,

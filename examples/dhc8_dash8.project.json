@@ -436,6 +436,41 @@
         "izz_slugft2": 0.0,
         "vtail_span_in": 130.0
       }
+    },
+    "landing_gear": {
+      "main_gear": {
+        "axle_compressed": [
+          445.0,
+          38
+        ],
+        "axle_static": [
+          445.0,
+          34
+        ],
+        "axle_extended": [
+          445.0,
+          30
+        ],
+        "rolling_radius_in": 17.0,
+        "strut": "O"
+      },
+      "nose_gear": {
+        "axle_compressed": [
+          90.0,
+          33
+        ],
+        "axle_static": [
+          90.0,
+          29
+        ],
+        "axle_extended": [
+          90.0,
+          25
+        ],
+        "rolling_radius_in": 12.0,
+        "strut": "O"
+      },
+      "tread_in": 150.0
     }
   },
   "speeds": {
@@ -599,6 +634,43 @@
       }
     ]
   },
+  "fuselage_mass": {
+    "stations": [
+      {
+        "x": 120.0,
+        "weight_lb": 700
+      },
+      {
+        "x": 230.8,
+        "weight_lb": 1300
+      },
+      {
+        "x": 338.6,
+        "weight_lb": 2850
+      },
+      {
+        "x": 368.8,
+        "weight_lb": 2800
+      },
+      {
+        "x": 436.4,
+        "weight_lb": 6700
+      },
+      {
+        "x": 450.0,
+        "weight_lb": 9040
+      },
+      {
+        "x": 666.7,
+        "weight_lb": 1800
+      },
+      {
+        "x": 817.5,
+        "weight_lb": 700
+      }
+    ],
+    "ref_waterline": 100.0
+  },
   "select_input": {
     "full_down_aileron_deg": 15.0,
     "basic_airfoil_cm": -0.035,
@@ -615,5 +687,36 @@
     "speeds_kt": [],
     "izz_slugft2": 0.0,
     "xcg_in": 0.0
+  },
+  "landing": {
+    "max_landing_weight_lb": 32800.0,
+    "gross_weight_lb": 34500.0,
+    "strut_stroke_in": 12,
+    "tire_od_in": 34,
+    "hub_diameter_in": 14,
+    "lift_factor": 0.667,
+    "tail_down_angle_deg": 12.0,
+    "gear_load_factor": 2.0,
+    "cg_cases": [
+      {
+        "name": "aft max landing",
+        "weight_lb": 32800.0,
+        "xcg": 399.0,
+        "zcg": 117.0
+      },
+      {
+        "name": "fwd max landing",
+        "weight_lb": 32800.0,
+        "xcg": 382.0,
+        "zcg": 117.0
+      },
+      {
+        "name": "fwd light",
+        "weight_lb": 28000.0,
+        "xcg": 380.0,
+        "zcg": 115.0
+      }
+    ],
+    "n": null
   }
 }

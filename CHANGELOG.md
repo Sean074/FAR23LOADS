@@ -79,6 +79,20 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   values fold in within Appendix A ±0.1% — ZW 87.725 → 87.734); every example is a
   save→reload no-op. Calc unchanged; Appendix A oracles bit-for-bit.
 
+### Fixed
+
+- **Ship working examples (M2R-3).** Bundled examples no longer dead-end a
+  first-time user with a red error on Fuselage Loads or Landing Loads. Authored
+  five examples to a clean end-to-end run (all six workflow phases): added
+  `fuselage_mass` to `ga6_normal` / `cessna_210`; a 3rd landing `cg_case` to
+  `concept_regional_jet`; and `fuselage_mass` + a `landing` slice (3 CG cases) +
+  `geometry.landing_gear` to `dhc8_dash8` / `atr42_100`. Station masses and CG
+  cases are derived from each file's own weight items / wing MAC / weight
+  envelope. `concept_heavy` is intentionally kept as the minimal concept-core
+  demo (V-n → Flight Envelope only) and documented as such in the README and GUI
+  user guide. Data-only — no calc or schema change (`SCHEMA_VERSION` stays 31);
+  three fixture-coupled tests updated for the completed state.
+
 ### Documentation
 
 - **Non-affiliation & attribution notice (M2R-2).** Added a non-affiliation

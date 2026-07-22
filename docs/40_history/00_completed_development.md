@@ -10,6 +10,48 @@ Acceptance**, **Key decisions**.
 
 ---
 
+## M2R-3 — Ship working examples (2026-07-21 review, MAJOR, complete 2026-07-21)
+
+**Objective.** Remove the red errors a first-time user meets when loading a
+bundled example: **Fuselage Loads** hard-errored on the 5 examples missing
+`fuselage_mass`, and **Landing Loads** hard-errored on `concept_regional_jet`
+(2 of the required 3 `cg_cases`) and the examples with none.
+
+**Key decisions (2026-07-21 consultation).** Widened the backlog's literal
+two-edit scope after finding every example is also a **test fixture** (loaded
+directly from `examples/`): (1) **complete five** examples to a clean end-to-end
+run rather than the scoped two; (2) **remove nothing** — deletion would only
+trade example-authoring for test-rewriting and lose category coverage; (3) keep
+`concept_heavy` as the **deliberate minimal-core** fixture (it anchors
+`test_concept.py`; no engines/select_input by design), documented as such.
+
+**Deliverables (data-only; `SCHEMA_VERSION` unchanged at 31).**
+- `examples/concept_regional_jet.project.json` — added the 3rd landing `cg_case`
+  (`fwd light`, 26000 lb @ xcg 595).
+- `examples/ga6_normal.project.json`, `examples/cessna_210.project.json` — added
+  `fuselage_mass` (stations binned from the file's own non-wing weight items;
+  centroid ≈ the airplane CG).
+- `examples/dhc8_dash8.project.json`, `examples/atr42_100.project.json` — added
+  `fuselage_mass`, a `landing` slice with 3 CG cases (fwd/aft from the wing MAC +
+  weight-envelope pct-MAC limits), and `geometry.landing_gear` (main aft of the
+  aft CG for tip-back; consistent ground plane).
+- `docs/10_standard/GUI_USER_GUIDE.md`, `README.md` — a bundled-examples table;
+  `concept_heavy` annotated as the minimal concept core (V-n → Flight Envelope).
+- Three fixture-coupled tests updated to the completed state:
+  `test_body_loads.py` (clears `fuselage_mass` locally to still exercise the
+  guard), `test_io.py` (GA6 now runs `body_loads` in run-all), `test_workbook.py`
+  (a module with an empty cases-CSV, like `body_loads`, gets no module sheet).
+
+**Test / Acceptance.** All five completed examples run `body_loads` + `landing`
+and `run_all_modules` with no missing-slice error; the sbeam fuselage span CSV
+exports for each; `concept_heavy` stops cleanly at Flight Envelope. Full suite
+green (466 passed); ruff clean.
+
+**Docs.** This entry; `CHANGELOG.md` `[Unreleased]` entry; backlog M2R-3 item and
+its Known-defects bullet removed.
+
+---
+
 ## M2R-2 — Non-affiliation & attribution sentence (2026-07-21 review, MAJOR, complete 2026-07-21)
 
 **Objective.** State plainly, in both the README and the GUI, that this project

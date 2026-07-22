@@ -29,9 +29,11 @@ _GA = os.path.join(_EXAMPLES, "ga6_normal.project.json")
 
 
 def _try(fn, *args):
-    """GA6 doesn't carry fuselage_mass, so body_loads has nothing to compute
-    from it (as on the live Export page -- see app/views/export_report.py's own
-    ``_try``); tolerate that gap here rather than requiring a new fixture."""
+    """Mirror the live Export page's own ``_try`` (app/views/export_report.py):
+    tolerate a module that has nothing to compute (an example missing an optional
+    upstream slice) rather than requiring every fixture to be complete. GA6 now
+    carries fuselage_mass (M2R-3), so body_loads computes; this stays defensive
+    for the leaner examples that still don't."""
     try:
         return fn(*args)
     except (ValueError, ZeroDivisionError, KeyError, IndexError):
@@ -70,8 +72,12 @@ def test_workbook_has_expected_sheets():
     names = set(wb.sheetnames)
     assert "Project" in names
     assert "Case Index" in names
-    for module in module_csvs:
-        assert module in names
+    for module, csv_text in module_csvs.items():
+        # A module whose standard cases-CSV is empty (e.g. body_loads, whose
+        # output is the fuselage span distribution) gets no module sheet -- match
+        # build_workbook's behaviour, as test_workbook_module_sheet_matches_csv_row_count does.
+        if csv_text.strip():
+            assert module in names
     for title in span_csvs:
         assert title in names
 

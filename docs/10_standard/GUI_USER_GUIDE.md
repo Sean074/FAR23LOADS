@@ -238,7 +238,26 @@ out-of-band result.
 
 ---
 
-## 8. Where to go deeper
+## 8. Bundled examples
+
+Load any of these from **Start → Project JSON Editor** (or `New from example`):
+
+| Example | Category | Runs |
+|---|---|---|
+| `ga6_normal` | FAR 23 Normal (Appendix A) | full workflow, all six phases |
+| `cessna_210` | FAR 23 Normal | full workflow |
+| `concept_regional_jet` | concept jet (T-tail, Part 25 supplement on) | full workflow |
+| `dhc8_dash8` | concept twin-turboprop (one-engine-out) | full workflow |
+| `atr42_100` | concept twin-turboprop (one-engine-out) | full workflow |
+| `concept_heavy` | **minimal concept core** | V-n → Flight Envelope only |
+
+`concept_heavy` is deliberately minimal — it carries just the weight / geometry /
+speeds / aero / flight-loads / wing-mass core to demonstrate the concept V-n
+path, and has no engine, control-surface, fuselage-mass or landing data, so it
+stops cleanly at the Flight Envelope rather than running the downstream loads
+pages. The other five are authored to run end-to-end without a red error.
+
+## 9. Where to go deeper
 
 - **Field reference:** [`DATA_DICTIONARY.md`](DATA_DICTIONARY.md) — every input
   field's type, units, default, owning page, and consuming modules.

@@ -71,9 +71,13 @@ def test_sbeam_body_span_csv():
 
 
 def test_run_requires_fuselage_mass():
+    # GA6 now ships a fuselage_mass slice (M2R-3), so clear it here to exercise
+    # the missing-slice guard directly rather than relying on the fixture's gaps.
+    project = io.load_project(_GA)
+    project.fuselage_mass = None
     raised = False
     try:
-        body_loads.run(io.load_project(_GA))   # no fuselage_mass slice
+        body_loads.run(project)
     except ValueError:
         raised = True
     assert raised
