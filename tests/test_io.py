@@ -461,6 +461,97 @@ def test_explicit_fuselage_outline_round_trip_and_not_defaulted():
     assert again.geometry.fuselage == fuse
 
 
+# --------------------------------------------------------------------------- #
+# M2R-7: tolerant readers -- an unknown field anywhere in a project file must be
+# ignored on load (forward-compat with files saved by another app version), not
+# crash the ``cls(**d)`` splat with an unexpected-keyword TypeError.
+# --------------------------------------------------------------------------- #
+_UNKNOWN_KEY = "__unknown_future_field__"
+
+
+def _inject_unknown(obj):
+    """Recursively add an unknown key to every dict (at every depth, including dicts
+    nested inside lists) in a serialized-project structure."""
+    if isinstance(obj, dict):
+        out = {k: _inject_unknown(v) for k, v in obj.items()}
+        out[_UNKNOWN_KEY] = "ignore-me"
+        return out
+    if isinstance(obj, list):
+        return [_inject_unknown(v) for v in obj]
+    return obj
+
+
+def test_unknown_field_in_every_ga6_slice_is_ignored():
+    """The reported crash (`MassItem.__init__() got an unexpected keyword argument`)
+    and its siblings: poison every slice of ga6_normal with an unknown key and assert
+    the file still loads and re-serializes identically (the garbage is dropped)."""
+    clean = io.project_to_dict(io.load_project(GA6))
+    loaded = io.project_from_dict(_inject_unknown(clean))  # must not raise
+    assert io.project_to_dict(loaded) == clean
+
+
+def _augmented_project():
+    """ga6 plus the *result* slices (envelope / mass / loads / one_engine_out) that the
+    fixture lacks, each with nested objects (VnPoint+CaseRef, CriticalCondition+LoadValue,
+    the four station-load families), so the poison test also exercises those readers."""
+    from farloads.models import (
+        BodyLoadResult,
+        BodyStationLoad,
+        CaseRef,
+        ControlSurfaceLoadResult,
+        ControlSurfaceStation,
+        CriticalCondition,
+        CriticalLoadSet,
+        EnvelopeResult,
+        LoadsResult,
+        LoadValue,
+        MassCase,
+        MassResult,
+        OneEngineOutInput,
+        TailBalanceLoad,
+        TailChordResult,
+        TailChordStation,
+        VnPoint,
+        WingLoadResult,
+        WingStationLoad,
+    )
+
+    p = io.load_project(GA6)
+    ref = CaseRef("w1", "wing", "PHAA")
+    p.envelope = EnvelopeResult(
+        vn=[VnPoint(case="PHAA", condition="A", config="cruise", cg="fwd", altitude_ft=0.0,
+                    v_eas_kt=1, nz=1, alpha_deg=1, g_corr=1, cl=1, m_wf=1, lzw=1, lt=1, dx=1,
+                    case_ref=ref)],
+        tail_balance=[TailBalanceLoad(case="c", condition="A", tail_load_lb=1.0,
+                                      tail_cp_station=1.0, flaps_down=False)],
+        critical=CriticalLoadSet(
+            conditions=[CriticalCondition(component="wing", label="PHAA",
+                                          loads=[LoadValue("Fz", 1.0)], case_ref=ref)],
+            selected_case_ids=["w1"]),
+    )
+    p.mass = MassResult(cases=[MassCase("aft gross", weight_lb=3400.0)])
+    p.loads = LoadsResult(
+        wing_net=[WingLoadResult(case="c", stations=[WingStationLoad(*([1.0] * 10))], case_ref=ref)],
+        body_net=[BodyLoadResult(case="c", stations=[BodyStationLoad(*([1.0] * 10))])],
+        tail_chordwise=[TailChordResult(case="c", component="htail", lt25=1.0, lt50=1.0,
+                                        stations=[TailChordStation(x=1.0, psi=1.0)])],
+        control_surface=[ControlSurfaceLoadResult(surface="aileron", case="c", load_lb=1.0,
+                                                  stations=[ControlSurfaceStation(x=1.0, psi=1.0)])],
+    )
+    p.one_engine_out = OneEngineOutInput()
+    return p
+
+
+def test_unknown_field_in_every_result_slice_is_ignored():
+    """Same guarantee for the result slices (envelope/mass/loads/one_engine_out) and
+    their nested readers, which ga6 alone does not carry."""
+    clean = io.project_to_dict(_augmented_project())
+    # Sanity: the augmented dict actually carries the extra slices.
+    assert {"envelope", "mass", "loads", "one_engine_out"} <= set(clean)
+    loaded = io.project_from_dict(_inject_unknown(clean))  # must not raise
+    assert io.project_to_dict(loaded) == clean
+
+
 if __name__ == "__main__":
     import traceback
 

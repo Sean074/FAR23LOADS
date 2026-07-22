@@ -10,6 +10,45 @@ Acceptance**, **Key decisions**.
 
 ---
 
+## M2R-7 — io.py tolerant readers: unknown fields no longer crash load (2026-07-21 review, MAJOR, complete 2026-07-22)
+
+**Objective.** Make good on `schema_status()`'s forward-compat promise ("unrecognized
+fields are ignored"). A project file carrying one field this app version doesn't know
+(saved by a newer/older build, or hand-edited) crashed load with e.g.
+`MassItem.__init__() got an unexpected keyword argument …` because ~21 `*_from_dict`
+readers splatted the raw dict (`cls(**d)`) straight into the dataclass constructor.
+Matters for release users sharing files across app versions.
+
+**Deliverables (no schema or calc change).**
+- `farloads/io.py` — one shared `_filtered(cls, d)` helper (keep only keys that are
+  fields of dataclass `cls`) routed through **every** `*_from_dict` splat: the raw
+  splats (`_case_ref`, `engine`, `_mass_item`, weight `estimation`/`envelope`/
+  `cg_cases`, `_legacy_cg_cases_from_flight_loads`, `speeds`+`mach_limit`,
+  `flight_loads` cg_cases, `_critical_condition` loads, `_vn_point`, `envelope`
+  tail_balance, `mass`, `fuselage_mass`, `wing_mass` concentrated/cases, and the
+  wing/body/tail/control station-load result readers) **and** the pre-existing ad-hoc
+  `{k: v … if k in fields}` comprehensions (select/tail/vtail/oeo/gear/landing/
+  aileron/flap/tab/configuration), which now call the shared helper. Explicit-key
+  readers (`.get(...)`) were already tolerant and unchanged.
+
+**Test / Acceptance.** `tests/test_io.py`: `test_unknown_field_in_every_ga6_slice_is_ignored`
+recursively injects an unknown key into every dict (all depths, incl. list items) of
+the serialized `ga6_normal` and asserts it loads and re-serializes identically (garbage
+dropped); `test_unknown_field_in_every_result_slice_is_ignored` does the same for a
+project augmented with the result slices ga6 lacks (envelope/mass/loads/one_engine_out
+with nested VnPoint+CaseRef, CriticalCondition+LoadValue, the four station-load
+families). Full suite green (479 passed); ruff clean.
+
+**Key decision.** Minimal tolerant-read guard now (unblocks cross-version file sharing
+for the release); the full migration-chain overhaul — per-version `MIGRATIONS` hops +
+one frozen fixture per historical schema + a fields-hash version-bump gate — stays
+**M4-10** (pre-F25), which now builds on this helper.
+
+**Docs.** This entry; `CHANGELOG.md` `[Unreleased]`; backlog M2R-7 item and its
+Known-defects bullet removed; M4-10 note updated to reference the shared readers.
+
+---
+
 ## M2R-6 — Geometry Apply: validate before persisting (2026-07-21 review, MAJOR, complete 2026-07-21)
 
 **Objective.** The **Geometry** page's sidebar *Apply geometry* button did a

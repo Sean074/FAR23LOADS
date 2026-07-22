@@ -68,16 +68,6 @@ prose.
 Everything here is small (S unless noted); all must close before the M3 cut.
 Findings verified in the review — file:line evidence there.
 
-### M2R-7 — io.py tolerant readers (forward-compat crash) **[MAJOR]**
-Reproduced live: one unknown field in a project file crashes load
-(`MassItem.__init__() got an unexpected keyword argument…`) although
-`schema_status()` promises unrecognized fields are ignored (`io.py:1101-1106`;
-raw-dict splats at `:184,:199,:433`). Fix: one shared `_filtered(cls, d)`
-helper (the `io.py:906` pattern) in **every** `*_from_dict`; test that injects
-an unknown key into every slice of `ga6_normal` and asserts load succeeds.
-Matters for release users sharing files across app versions. (The full
-migration-chain overhaul is M4-10 — not blocking.)
-
 ### M2R-8 — `MissingInputError` in the registry **[MAJOR]**
 `registry.py:47-52` swallows *every* `ValueError`, so a genuine calc defect
 silently vanishes from run-all/export, indistinguishable from "inputs not
@@ -233,7 +223,8 @@ report/sbeam/views/tests, keep `label` cosmetic. Mechanical; **prerequisite for
 F25 supplements emitting new quantities.**
 
 ### M4-10 — io.py migration chain + version-bump enforcement **[maintainability, pre-F25]**
-Completes M2R-7. Replace the key-presence sniffing (the 19-clause or-gate at
+Builds on M2R-7's tolerant `_filtered` readers (done). Replace the key-presence
+sniffing (the 19-clause or-gate at
 `io.py:936-945` + legacy shims; `project_from_dict` CC 51, io.py worst-MI file)
 with `MIGRATIONS: dict[int, callable]` applied hop-by-hop before one tolerant
 reader; check in **one frozen fixture file per historical schema version**
@@ -453,9 +444,6 @@ reaction matrix stays closure-/legible-cell-locked).
 
 ## Known defects (open)
 
-- **M2R-7** — `io.py` crashes on project files containing unknown fields
-  (forward-compat promise in `schema_status()` is false — reproduced
-  2026-07-21). **[Major]**
 - **M4-1** — fuselage body-load distribution carries an unreacted pitching
   couple (terminal Myy ≠ 0). **[Major]**
 - **M4-7** — `sbeam_bridge` hardcodes a flat ×1.5 and ignores

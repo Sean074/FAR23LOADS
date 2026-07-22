@@ -93,6 +93,22 @@ from .report import has_load_case_data, load_cases_to_rows, results_to_rows
 
 
 # --------------------------------------------------------------------------- #
+# Tolerant reader (M2R-7): the one place every ``*_from_dict`` filters a raw dict
+# down to its dataclass's fields before the ``cls(**d)`` splat. A file carrying an
+# unknown key -- saved by a newer app version, an older one, or hand-edited -- must
+# LOAD, dropping the unrecognized field, not crash with ``TypeError: __init__() got
+# an unexpected keyword argument``. This makes good on the forward-compat promise in
+# :func:`schema_status` ("unrecognized fields are ignored"). The full migration-chain
+# overhaul (per-version hops + one frozen fixture per schema) is M4-10; this is the
+# minimal tolerant-read guard that unblocks cross-version file sharing.
+# --------------------------------------------------------------------------- #
+def _filtered(cls: Any, d: Dict[str, Any]) -> Dict[str, Any]:
+    """Keep only the keys of ``d`` that are fields of dataclass ``cls``."""
+    fields = cls.__dataclass_fields__
+    return {k: v for k, v in d.items() if k in fields}
+
+
+# --------------------------------------------------------------------------- #
 # CaseRef <-> dict (Step D1) -- shared by every result type that carries one:
 # VnPoint, CriticalCondition, WingLoadResult, BodyLoadResult, TailChordResult,
 # ControlSurfaceLoadResult. ``asdict`` already nests CaseRef correctly on the
@@ -101,7 +117,7 @@ from .report import has_load_case_data, load_cases_to_rows, results_to_rows
 # ``case_ref`` instead of a CaseRef instance.
 # --------------------------------------------------------------------------- #
 def _case_ref_from_dict(raw) -> Any:
-    return CaseRef(**dict(raw)) if raw else None
+    return CaseRef(**_filtered(CaseRef, raw)) if raw else None
 
 
 def _rename_legacy_units(d: Dict[str, Any], mapping: Dict[str, Any]) -> Dict[str, Any]:
@@ -154,7 +170,7 @@ def engine_from_dict(d: Dict[str, Any]) -> EngineInput:
         engine_cg=engine_cg,
         prop_cg=prop_cg,
         rotors=rotors,
-        **d,
+        **_filtered(EngineInput, d),
     )
 
 
@@ -181,7 +197,7 @@ def engine_to_dict(inp: EngineInput) -> Dict[str, Any]:
 def _mass_item_from_dict(d: Dict[str, Any]) -> MassItem:
     d = dict(d)
     kind = MassItemKind(d.pop("kind", "empty"))
-    return MassItem(kind=kind, **d)
+    return MassItem(kind=kind, **_filtered(MassItem, d))
 
 
 def weight_from_dict(d: Dict[str, Any]) -> WeightInput:
@@ -193,12 +209,12 @@ def weight_from_dict(d: Dict[str, Any]) -> WeightInput:
         est = dict(est)
         estimation = WeightEstimationInput(
             engine_weight_type=EngineWeightType(est.pop("engine_weight_type", "RF")),
-            **est,
+            **_filtered(WeightEstimationInput, est),
         )
     items = [_mass_item_from_dict(it) for it in d.get("items", []) or []]
     env = d.get("envelope")
-    envelope = WeightEnvelopeInput(**dict(env)) if env else None
-    cg_cases = [CgCase(**dict(c)) for c in d.get("cg_cases", []) or []]
+    envelope = WeightEnvelopeInput(**_filtered(WeightEnvelopeInput, env)) if env else None
+    cg_cases = [CgCase(**_filtered(CgCase, c)) for c in d.get("cg_cases", []) or []]
     return WeightInput(estimation=estimation, items=items, envelope=envelope, cg_cases=cg_cases)
 
 
@@ -225,7 +241,7 @@ def _legacy_cg_cases_from_flight_loads(flight_loads: Any) -> List[CgCase]:
     calc-facing ``FlightLoadsInput.cg_cases`` is unaffected either way."""
     if not flight_loads:
         return []
-    return [CgCase(**dict(c)) for c in flight_loads.get("cg_cases", []) or []]
+    return [CgCase(**_filtered(CgCase, c)) for c in flight_loads.get("cg_cases", []) or []]
 
 
 # --------------------------------------------------------------------------- #
@@ -428,8 +444,8 @@ def speeds_from_dict(d: Dict[str, Any]) -> StructuralSpeedsInput:
     # Stall speeds are derived from CLmax (M1-1b); drop any legacy scalar keys.
     d.pop("stall_clean_kt", None)
     d.pop("stall_flap_kt", None)
-    mach_limit = MachLimitInput(**dict(ml)) if ml else None
-    return StructuralSpeedsInput(mach_limit=mach_limit, **d)
+    mach_limit = MachLimitInput(**_filtered(MachLimitInput, ml)) if ml else None
+    return StructuralSpeedsInput(mach_limit=mach_limit, **_filtered(StructuralSpeedsInput, d))
 
 
 def speeds_to_dict(inp: StructuralSpeedsInput) -> Dict[str, Any]:
@@ -488,7 +504,7 @@ def flight_loads_from_dict(d: Dict[str, Any]) -> FlightLoadsInput:
         xtf=d.get("xtf", 0.0),
         mn=d.get("mn", 0.1),
         altitudes_ft=[float(a) for a in d.get("altitudes_ft", [0.0]) or [0.0]],
-        cg_cases=[CgCase(**dict(c)) for c in d.get("cg_cases", []) or []],
+        cg_cases=[CgCase(**_filtered(CgCase, c)) for c in d.get("cg_cases", []) or []],
     )
 
 
@@ -581,7 +597,7 @@ def _critical_condition_from_dict(d: Dict[str, Any]) -> CriticalCondition:
         label=d.get("label", ""),
         far_reference=d.get("far_reference", ""),
         case=d.get("case"),
-        loads=[LoadValue(**dict(v)) for v in d.get("loads", []) or []],
+        loads=[LoadValue(**_filtered(LoadValue, v)) for v in d.get("loads", []) or []],
         lt25=d.get("lt25"),
         lt50=d.get("lt50"),
         case_ref=_case_ref_from_dict(d.get("case_ref")),
@@ -591,7 +607,7 @@ def _critical_condition_from_dict(d: Dict[str, Any]) -> CriticalCondition:
 def _vn_point_from_dict(d: Dict[str, Any]) -> VnPoint:
     d = dict(d)
     ref = d.pop("case_ref", None)
-    return VnPoint(case_ref=_case_ref_from_dict(ref), **d)
+    return VnPoint(case_ref=_case_ref_from_dict(ref), **_filtered(VnPoint, d))
 
 
 def _critical_from_dict(d: Dict[str, Any]) -> CriticalLoadSet:
@@ -606,7 +622,8 @@ def envelope_from_dict(d: Dict[str, Any]) -> EnvelopeResult:
     critical = d.get("critical")
     return EnvelopeResult(
         vn=[_vn_point_from_dict(p) for p in d.get("vn", []) or []],
-        tail_balance=[TailBalanceLoad(**dict(t)) for t in d.get("tail_balance", []) or []],
+        tail_balance=[TailBalanceLoad(**_filtered(TailBalanceLoad, t))
+                      for t in d.get("tail_balance", []) or []],
         critical=_critical_from_dict(critical) if critical else None,
     )
 
@@ -627,7 +644,7 @@ def envelope_to_dict(inp: EnvelopeResult) -> Dict[str, Any]:
 # --------------------------------------------------------------------------- #
 def mass_from_dict(d: Dict[str, Any]) -> MassResult:
     """Build a :class:`MassResult` from a plain dict (the persisted mass props)."""
-    return MassResult(cases=[MassCase(**dict(c)) for c in d.get("cases", []) or []])
+    return MassResult(cases=[MassCase(**_filtered(MassCase, c)) for c in d.get("cases", []) or []])
 
 
 def mass_to_dict(inp: MassResult) -> Dict[str, Any]:
@@ -641,7 +658,8 @@ def mass_to_dict(inp: MassResult) -> Dict[str, Any]:
 def fuselage_mass_from_dict(d: Dict[str, Any]) -> FuselageMassInput:
     """Build a :class:`FuselageMassInput` from a plain dict."""
     return FuselageMassInput(
-        stations=[FuselageStation(**dict(s)) for s in d.get("stations", []) or []],
+        stations=[FuselageStation(**_filtered(FuselageStation, s))
+                  for s in d.get("stations", []) or []],
         ref_waterline=d.get("ref_waterline", 0.0),
     )
 
@@ -656,8 +674,7 @@ def fuselage_mass_to_dict(inp: FuselageMassInput) -> Dict[str, Any]:
 # --------------------------------------------------------------------------- #
 def select_input_from_dict(d: Dict[str, Any]) -> SelectInput:
     """Build a :class:`SelectInput` from a plain dict."""
-    fields = {f for f in SelectInput.__dataclass_fields__}
-    return SelectInput(**{k: v for k, v in d.items() if k in fields})
+    return SelectInput(**_filtered(SelectInput, d))
 
 
 def select_input_to_dict(inp: SelectInput) -> Dict[str, Any]:
@@ -671,8 +688,7 @@ def select_input_to_dict(inp: SelectInput) -> Dict[str, Any]:
 def tail_loads_from_dict(d: Dict[str, Any]) -> TailLoadsInput:
     """Build a :class:`TailLoadsInput` from a plain dict."""
     d = _rename_legacy_units(d, {"airplane_length_ft": ("airplane_length_in", 12.0)})
-    fields = {f for f in TailLoadsInput.__dataclass_fields__}
-    return TailLoadsInput(**{k: v for k, v in d.items() if k in fields})
+    return TailLoadsInput(**_filtered(TailLoadsInput, d))
 
 
 def tail_loads_to_dict(inp: TailLoadsInput) -> Dict[str, Any]:
@@ -690,8 +706,7 @@ def vtail_loads_from_dict(d: Dict[str, Any]) -> VTailLoadsInput:
         "wing_span_ft": ("wing_span_in", 12.0),
         "vtail_mac_ft": ("vtail_mac_in", 12.0),
     })
-    fields = {f for f in VTailLoadsInput.__dataclass_fields__}
-    return VTailLoadsInput(**{k: v for k, v in d.items() if k in fields})
+    return VTailLoadsInput(**_filtered(VTailLoadsInput, d))
 
 
 def vtail_loads_to_dict(inp: VTailLoadsInput) -> Dict[str, Any]:
@@ -704,8 +719,7 @@ def vtail_loads_to_dict(inp: VTailLoadsInput) -> Dict[str, Any]:
 # --------------------------------------------------------------------------- #
 def one_engine_out_from_dict(d: Dict[str, Any]) -> OneEngineOutInput:
     """Build a :class:`OneEngineOutInput` from a plain dict."""
-    fields = {f for f in OneEngineOutInput.__dataclass_fields__}
-    return OneEngineOutInput(**{k: v for k, v in d.items() if k in fields})
+    return OneEngineOutInput(**_filtered(OneEngineOutInput, d))
 
 
 def one_engine_out_to_dict(inp: OneEngineOutInput) -> Dict[str, Any]:
@@ -717,8 +731,7 @@ def one_engine_out_to_dict(inp: OneEngineOutInput) -> Dict[str, Any]:
 # Landing / ground-load input slice <-> dict (LGFACTOR + LANDLOAD)
 # --------------------------------------------------------------------------- #
 def _gear_from_dict(d: Dict[str, Any]) -> LandingGearInput:
-    fields = {f for f in LandingGearInput.__dataclass_fields__}
-    kw = {k: v for k, v in d.items() if k in fields}
+    kw = _filtered(LandingGearInput, d)
     for axle in ("axle_compressed", "axle_static", "axle_extended"):
         if axle in kw and kw[axle] is not None:
             kw[axle] = tuple(kw[axle])
@@ -731,12 +744,9 @@ def landing_from_dict(d: Dict[str, Any]) -> LandingInput:
     ``tread_in``) is no longer read here -- it lives in ``geometry.landing_gear`` and
     is synced onto ``Project.landing`` by the calc; a legacy file's top-level gear is
     migrated into geometry by :func:`geometry_from_dict`."""
-    fields = {f for f in LandingInput.__dataclass_fields__}
-    kw = {k: v for k, v in d.items() if k in fields and k not in
-          ("main_gear", "nose_gear", "tread_in", "cg_cases")}
-    cg_fields = {f for f in CgCase.__dataclass_fields__}
-    kw["cg_cases"] = [CgCase(**{k: v for k, v in c.items() if k in cg_fields})
-                      for c in d.get("cg_cases", []) or []]
+    kw = {k: v for k, v in _filtered(LandingInput, d).items()
+          if k not in ("main_gear", "nose_gear", "tread_in", "cg_cases")}
+    kw["cg_cases"] = [CgCase(**_filtered(CgCase, c)) for c in d.get("cg_cases", []) or []]
     return LandingInput(**kw)
 
 
@@ -757,8 +767,7 @@ def landing_to_dict(inp: LandingInput) -> Dict[str, Any]:
 # --------------------------------------------------------------------------- #
 def aileron_loads_from_dict(d: Dict[str, Any]) -> AileronLoadsInput:
     """Build an :class:`AileronLoadsInput` from a plain dict."""
-    fields = {f for f in AileronLoadsInput.__dataclass_fields__}
-    return AileronLoadsInput(**{k: v for k, v in d.items() if k in fields})
+    return AileronLoadsInput(**_filtered(AileronLoadsInput, d))
 
 
 def aileron_loads_to_dict(inp: AileronLoadsInput) -> Dict[str, Any]:
@@ -768,8 +777,7 @@ def aileron_loads_to_dict(inp: AileronLoadsInput) -> Dict[str, Any]:
 
 def flap_loads_from_dict(d: Dict[str, Any]) -> FlapLoadsInput:
     """Build a :class:`FlapLoadsInput` from a plain dict."""
-    fields = {f for f in FlapLoadsInput.__dataclass_fields__}
-    return FlapLoadsInput(**{k: v for k, v in d.items() if k in fields})
+    return FlapLoadsInput(**_filtered(FlapLoadsInput, d))
 
 
 def flap_loads_to_dict(inp: FlapLoadsInput) -> Dict[str, Any]:
@@ -779,10 +787,8 @@ def flap_loads_to_dict(inp: FlapLoadsInput) -> Dict[str, Any]:
 
 def tab_loads_from_dict(d: Dict[str, Any]) -> TabLoadsInput:
     """Build a :class:`TabLoadsInput` from a plain dict (nested ``tabs``)."""
-    spec_fields = {f for f in TabSpec.__dataclass_fields__}
-    tabs = [TabSpec(**{k: v for k, v in
-                       _rename_legacy_units(t, {"area_sqin": ("area_sqft", 1.0 / 144.0)}).items()
-                       if k in spec_fields})
+    tabs = [TabSpec(**_filtered(TabSpec,
+                                _rename_legacy_units(t, {"area_sqin": ("area_sqft", 1.0 / 144.0)})))
             for t in d.get("tabs", []) or []]
     return TabLoadsInput(tabs=tabs)
 
@@ -804,8 +810,9 @@ def wing_mass_from_dict(d: Dict[str, Any]) -> WingMassInput:
         wrp_waterline=d.get("wrp_waterline", 0.0),
         dihedral_deg=d.get("dihedral_deg", 0.0),
         surface=d.get("surface", "wing"),
-        concentrated=[ConcentratedWeight(**dict(c)) for c in d.get("concentrated", []) or []],
-        cases=[WingLoadCase(**dict(c)) for c in d.get("cases", []) or []],
+        concentrated=[ConcentratedWeight(**_filtered(ConcentratedWeight, c))
+                      for c in d.get("concentrated", []) or []],
+        cases=[WingLoadCase(**_filtered(WingLoadCase, c)) for c in d.get("cases", []) or []],
     )
 
 
@@ -828,7 +835,8 @@ def _wing_load_result_from_dict(d: Dict[str, Any]) -> WingLoadResult:
         case=d.get("case", ""),
         nz=d.get("nz", 0.0),
         nx=d.get("nx", 0.0),
-        stations=[WingStationLoad(**dict(s)) for s in d.get("stations", []) or []],
+        stations=[WingStationLoad(**_filtered(WingStationLoad, s))
+                  for s in d.get("stations", []) or []],
         case_ref=_case_ref_from_dict(d.get("case_ref")),
     )
 
@@ -836,7 +844,8 @@ def _wing_load_result_from_dict(d: Dict[str, Any]) -> WingLoadResult:
 def _body_load_result_from_dict(d: Dict[str, Any]) -> BodyLoadResult:
     return BodyLoadResult(
         case=d.get("case", ""),
-        stations=[BodyStationLoad(**dict(s)) for s in d.get("stations", []) or []],
+        stations=[BodyStationLoad(**_filtered(BodyStationLoad, s))
+                  for s in d.get("stations", []) or []],
         case_ref=_case_ref_from_dict(d.get("case_ref")),
     )
 
@@ -847,7 +856,8 @@ def _tail_chord_result_from_dict(d: Dict[str, Any]) -> TailChordResult:
         component=d.get("component", ""),
         lt25=d.get("lt25", 0.0),
         lt50=d.get("lt50", 0.0),
-        stations=[TailChordStation(**dict(s)) for s in d.get("stations", []) or []],
+        stations=[TailChordStation(**_filtered(TailChordStation, s))
+                  for s in d.get("stations", []) or []],
         case_ref=_case_ref_from_dict(d.get("case_ref")),
         far_reference=d.get("far_reference", ""),
     )
@@ -859,7 +869,8 @@ def _control_surface_result_from_dict(d: Dict[str, Any]) -> ControlSurfaceLoadRe
         case=d.get("case", ""),
         load_lb=d.get("load_lb", 0.0),
         v_kt=d.get("v_kt", 0.0),
-        stations=[ControlSurfaceStation(**dict(s)) for s in d.get("stations", []) or []],
+        stations=[ControlSurfaceStation(**_filtered(ControlSurfaceStation, s))
+                  for s in d.get("stations", []) or []],
         case_ref=_case_ref_from_dict(d.get("case_ref")),
     )
 
@@ -903,8 +914,7 @@ def configuration_from_dict(d: Dict[str, Any]) -> LayoutInput:
         "h_tail_span_ft": ("h_tail_span_in", 12.0),
         "v_tail_span_ft": ("v_tail_span_in", 12.0),
     })
-    fields = {f for f in LayoutInput.__dataclass_fields__}
-    kwargs = {k: v for k, v in d.items() if k in fields}
+    kwargs = _filtered(LayoutInput, d)
     if "tail_type" in kwargs:
         kwargs["tail_type"] = TailType(kwargs["tail_type"])
     return LayoutInput(**kwargs)

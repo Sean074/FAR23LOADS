@@ -101,6 +101,24 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- **`io.py` tolerant readers — unknown fields no longer crash load (M2R-7).** A
+  project file carrying one field this app version doesn't recognize (saved by a
+  newer or older build, or hand-edited) crashed on load with e.g.
+  `MassItem.__init__() got an unexpected keyword argument …`, despite
+  `schema_status()` promising "unrecognized fields are ignored". Every `*_from_dict`
+  now routes its `cls(**d)` splat through one shared `_filtered(cls, d)` helper that
+  drops keys not belonging to the target dataclass — the ~21 raw splats
+  (`MassItem`, `EngineInput`, `WeightEnvelopeInput`, `CgCase`, `MachLimitInput`,
+  `StructuralSpeedsInput`, `LoadValue`, `VnPoint`, `TailBalanceLoad`, `MassCase`,
+  `FuselageStation`, the wing/body/tail/control station-load families, `CaseRef`, …)
+  plus the pre-existing ad-hoc filter comprehensions all share it. Additive
+  forward-compat: known fields load, unknown ones are ignored, missing ones take
+  their defaults. Tests poison **every** slice of `ga6_normal` (and the result
+  slices it lacks — envelope/mass/loads/one_engine_out, with nested VnPoint/CaseRef/
+  LoadValue/station objects) with an unknown key and assert load succeeds and
+  re-serializes identically. No schema change; the full migration-chain overhaul
+  stays M4-10.
+
 - **Geometry Apply validates before persisting (M2R-6).** The **Geometry** page's
   sidebar *Apply geometry* used to store whatever was typed — including an invalid
   wing (e.g. Area S = 0) — which then crashed `configuration_properties` in the page
