@@ -23,6 +23,7 @@ from __future__ import annotations
 from typing import Dict, List
 
 from ..models import (
+    MissingInputError,
     ConditionResult,
     LoadsResult,
     LoadValue,
@@ -63,7 +64,7 @@ def _air_cl_v(project: Project, case: WingLoadCase):
             cl = cl if cl is not None else vp.cl
             v = v if v is not None else vp.v_eas_kt
     if cl is None or v is None:
-        raise ValueError(
+        raise MissingInputError(
             f"net wing case '{case.name}' needs cl/v_eas_kt (explicit or via a "
             "'case' reference into Project.envelope.vn)"
         )
@@ -75,13 +76,13 @@ def build_net_loads(project: Project) -> LoadsResult:
     sync_geometry_derived(project)
     wm = project.wing_mass
     if wm is None:
-        raise ValueError("Project has no 'wing_mass' inputs for the net_loads module")
+        raise MissingInputError("Project has no 'wing_mass' inputs for the net_loads module")
     if project.geometry is None or project.geometry.by_name(wm.surface) is None:
-        raise ValueError(f"net_loads needs a '{wm.surface}' geometry surface")
+        raise MissingInputError(f"net_loads needs a '{wm.surface}' geometry surface")
     if project.aero is None or project.aero.by_name(wm.surface) is None:
-        raise ValueError(f"net_loads needs a '{wm.surface}' aero surface (AIRLOADS)")
+        raise MissingInputError(f"net_loads needs a '{wm.surface}' aero surface (AIRLOADS)")
     if not wm.cases:
-        raise ValueError("net_loads needs at least one load case")
+        raise MissingInputError("net_loads needs at least one load case")
 
     geom = project.geometry.by_name(wm.surface)
     aero = project.aero.by_name(wm.surface)

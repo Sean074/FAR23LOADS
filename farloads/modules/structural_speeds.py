@@ -45,6 +45,7 @@ from ..constants import (
     stall_speed_kt,
 )
 from ..models import (
+    MissingInputError,
     ConditionResult,
     LoadValue,
     ModuleResult,
@@ -69,7 +70,7 @@ def _maneuver_load_factors(category: str, weight: float, chosen_n: Optional[floa
     """
     if category == "C":
         if chosen_n is None or chosen_nneg is None:
-            raise ValueError(
+            raise MissingInputError(
                 "concept category 'C' requires explicit chosen_n and chosen_nneg "
                 "(no FAR 23.337 cap is applied)"
             )
@@ -102,7 +103,7 @@ def _wing_area_sqft(project: Project, inp: StructuralSpeedsInput) -> float:
             return total_in2 / 144.0
     if inp.wing_area_sqft:
         return inp.wing_area_sqft
-    raise ValueError(
+    raise MissingInputError(
         "STRSPEED needs the wing area: add a 'wing' geometry surface or set "
         "speeds.wing_area_sqft"
     )
@@ -117,7 +118,7 @@ def _stall_speeds(project: Project, weight_lb: float, wing_area_sqft: float):
     """
     aero = project.aero_coeffs
     if aero is None or not aero.clmax_clean or not aero.clmax_flap:
-        raise ValueError(
+        raise MissingInputError(
             "STRSPEED needs the maximum lift coefficients: set clmax_clean and "
             "clmax_flap on the Aerodynamic Data page (Project.aero_coeffs). VS/VSF "
             "(and hence VA/VF) are derived from CLmax."
@@ -424,7 +425,7 @@ MODULE_NAME = "structural_speeds"
 def run(project: Project) -> ModuleResult:
     """Run STRSPEED against a :class:`Project`'s ``speeds`` inputs."""
     if project.speeds is None:
-        raise ValueError("Project has no 'speeds' inputs for the structural_speeds module")
+        raise MissingInputError("Project has no 'speeds' inputs for the structural_speeds module")
     return ModuleResult(module=MODULE_NAME, conditions=design_speeds(project, project.speeds))
 
 

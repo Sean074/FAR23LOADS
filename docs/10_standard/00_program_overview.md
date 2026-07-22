@@ -125,14 +125,17 @@ Raise with a descriptive message; never silently emit a wrong or `nan` load.
 
 | Condition | Behaviour |
 |---|---|
-| A module's required `Project` slice is absent | `raise ValueError` — `run_all_modules` catches it and skips that module, so "run all" works on a partially-filled project (`registry.py:43-51`, `modules/engine.py:332`) |
-| Invalid domain input (e.g. a reciprocating engine with < 2 cylinders) | `raise ValueError` with a descriptive message (`constants.py:59`) |
+| A module's required `Project` slice (or a required upstream result/geometry/aero slice, or a required-but-empty input list) is absent | `raise MissingInputError` (a `ValueError` subclass, `models.py`) — `run_all_modules` catches **only** this and skips that module, so "run all" works on a partially-filled project (M2R-8) |
+| Invalid domain input (e.g. a reciprocating engine with < 2 cylinders, a non-positive area, a mismatched element count) or a genuine calc defect | `raise ValueError` with a descriptive message (`constants.py:59`) — **not** caught by `run_all_modules`, so the failure surfaces in run-all/export instead of vanishing |
 | Unknown module name requested | `raise KeyError` listing the registered modules (`registry.py:30`) |
 | An optional input is omitted (e.g. measured polar inertia) | Approximate from geometry where the manual does; never emit `nan` as a reported load value |
 
-The "missing slice → `ValueError` → skipped by `run_all_modules`" idiom is load-
-bearing: it is how a module signals "not my turn" on a project that doesn't carry
-its inputs yet. A new module SHALL follow it rather than returning an empty result.
+The "missing slice → `MissingInputError` → skipped by `run_all_modules`" idiom is
+load-bearing: it is how a module signals "not my turn" on a project that doesn't
+carry its inputs yet. A new module SHALL follow it (raising `MissingInputError` at
+its entry guards) rather than returning an empty result. A plain `ValueError` is
+reserved for present-but-invalid data and genuine defects, which must remain visible
+— before M2R-8 the registry swallowed *every* `ValueError`, hiding those defects.
 
 ---
 

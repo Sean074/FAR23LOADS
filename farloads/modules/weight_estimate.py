@@ -46,6 +46,7 @@ from ..constants import (
     installed_engine_weight,
 )
 from ..models import (
+    MissingInputError,
     ConditionResult,
     LoadValue,
     MassItem,
@@ -99,9 +100,9 @@ def estimate(inp: WeightEstimationInput) -> List[ConditionResult]:
     figure is truncated with ``int(...)`` to match the original program's printout.
     """
     if inp.engines < 1:
-        raise ValueError("WTESTIMA needs at least one engine")
+        raise MissingInputError("WTESTIMA needs at least one engine")
     if inp.seats < 1:
-        raise ValueError("WTESTIMA needs at least one seat")
+        raise MissingInputError("WTESTIMA needs at least one seat")
 
     k = _empty_to_takeoff_ratio(inp)
     fuel = _fuel_weight(inp)
@@ -266,7 +267,7 @@ def run(project: Project) -> ModuleResult:
     against is resolved from the engine list (Step M2-6, :func:`resolve_max_continuous_hp`).
     """
     if project.weight is None or project.weight.estimation is None:
-        raise ValueError("Project has no 'weight.estimation' inputs for the weight_estimate module")
+        raise MissingInputError("Project has no 'weight.estimation' inputs for the weight_estimate module")
     est = replace(project.weight.estimation,
                   max_continuous_hp=resolve_max_continuous_hp(project))
     conditions = estimate(est)

@@ -41,6 +41,7 @@ from typing import List, NamedTuple, Optional, Tuple
 from ..case_ids import CaseIdAllocator
 from ..constants import G
 from ..models import (
+    MissingInputError,
     CaseRef,
     CgCase,
     ConditionResult,
@@ -417,7 +418,7 @@ def _wing_area(project: Project, inp: LandingInput) -> float:
             r = surface_properties(wing)
             total_in2 = next(v.value for v in r.values if v.label == "Total area")
             return total_in2 / 144.0
-    raise ValueError("landing needs a wing area (landing.wing_area_sqft or a geometry wing)")
+    raise MissingInputError("landing needs a wing area (landing.wing_area_sqft or a geometry wing)")
 
 
 def _cg_cases(inp: LandingInput) -> List[CgCase]:
@@ -433,7 +434,7 @@ def _cg_cases(inp: LandingInput) -> List[CgCase]:
     structural fwd/aft CG limits are the intended source; see
     ``validation.wtenv_cg_limits``)."""
     if not inp.cg_cases:
-        raise ValueError(
+        raise MissingInputError(
             "landing needs explicit landing.cg_cases: three distinct CG loadings "
             "(aft max landing, fwd max landing, fwd light) per UG fig 18.2. "
             "Auto-derivation from Project.mass was removed (M2-8) -- the heaviest "
@@ -467,7 +468,7 @@ def build_landing(project: Project) -> Tuple[LoadFactorResult, List[GearReaction
     written back to ``Project.landing`` (the airplane load factor ``N`` is returned on
     ``LoadFactorResult.airplane_load_factor``, not stored)."""
     if project.landing is None:
-        raise ValueError("landing needs the 'landing' input slice")
+        raise MissingInputError("landing needs the 'landing' input slice")
     inp = _effective_gear_input(project, project.landing)
     s = _wing_area(project, inp)
     lf = landing_load_factor(s, inp.max_landing_weight_lb, inp.strut_stroke_in,

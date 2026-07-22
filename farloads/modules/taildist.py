@@ -50,6 +50,7 @@ from __future__ import annotations
 from typing import List, Optional
 
 from ..models import (
+    MissingInputError,
     ConditionResult,
     CriticalCondition,
     CriticalLoadSet,
@@ -153,7 +154,7 @@ def build_tail_chordwise(project: Project) -> List[TailChordResult]:
 def run(project: Project) -> ModuleResult:
     """Run TAILDIST: chordwise distribution per critical tail condition."""
     if project.tail_loads is None and project.vtail_loads is None:
-        raise ValueError("taildist needs 'tail_loads' and/or 'vtail_loads' inputs")
+        raise MissingInputError("taildist needs 'tail_loads' and/or 'vtail_loads' inputs")
     conditions: List[ConditionResult] = []
     for r in build_tail_chordwise(project):
         values: List[LoadValue] = [

@@ -28,6 +28,7 @@ from __future__ import annotations
 from typing import Dict, List
 
 from ..models import (
+    MissingInputError,
     BodyLoadResult,
     BodyStationLoad,
     CriticalCondition,
@@ -100,7 +101,7 @@ def build_body_loads(project: Project) -> List[BodyLoadResult]:
     fm = project.fuselage_mass
     fl = project.flight_loads
     if fm is None or not fm.stations or fl is None:
-        raise ValueError("body_loads needs 'fuselage_mass' stations and 'flight_loads'")
+        raise MissingInputError("body_loads needs 'fuselage_mass' stations and 'flight_loads'")
     vn: Dict[int, VnPoint] = {p.case: p for p in build_envelope(project).vn}
     stations = [(s.x, s.weight_lb) for s in fm.stations]
     wing_x = fl.xw

@@ -57,6 +57,7 @@ from dataclasses import dataclass, replace
 from typing import List, Optional
 
 from ..models import (
+    MissingInputError,
     AeroCoeffSet,
     CgCase,
     ConditionResult,
@@ -405,16 +406,16 @@ def build_envelope(project: Project) -> EnvelopeResult:
     sync_geometry_derived(project)
     fl = project.flight_loads
     if fl is None:
-        raise ValueError("Project has no 'flight_loads' inputs for the flight_envelope module")
+        raise MissingInputError("Project has no 'flight_loads' inputs for the flight_envelope module")
     if project.speeds is None:
-        raise ValueError("flight_envelope needs 'speeds' (STRSPEED) for the design speeds")
+        raise MissingInputError("flight_envelope needs 'speeds' (STRSPEED) for the design speeds")
     configs = _balance_configs(project.aero_coeffs)
     if not configs:
-        raise ValueError(
+        raise MissingInputError(
             "flight_envelope needs 'aero_coeffs' (cruise and/or flaps-down coefficient sets)"
         )
     if not fl.cg_cases:
-        raise ValueError("flight_envelope needs at least one CG case")
+        raise MissingInputError("flight_envelope needs at least one CG case")
 
     di = _design_inputs(project)
     vn: List[VnPoint] = []
@@ -474,12 +475,12 @@ def trim_sweep(project: Project, *, weight_lb: float, zcg: float,
     sync_geometry_derived(project)
     fl = project.flight_loads
     if fl is None:
-        raise ValueError("trim_sweep needs 'flight_loads' inputs")
+        raise MissingInputError("trim_sweep needs 'flight_loads' inputs")
     if project.speeds is None:
-        raise ValueError("trim_sweep needs 'speeds' (STRSPEED) for the design speeds")
+        raise MissingInputError("trim_sweep needs 'speeds' (STRSPEED) for the design speeds")
     cruise = next((c for c in _balance_configs(project.aero_coeffs) if not c.flaps_down), None)
     if cruise is None:
-        raise ValueError("trim_sweep needs a flaps-up (cruise) aero coefficient set")
+        raise MissingInputError("trim_sweep needs a flaps-up (cruise) aero coefficient set")
     di = _design_inputs(project)
     specs = (("BAL A", di.va, di.mc), ("BAL C", di.vc, di.mc), ("BAL D", di.vd, di.md))
     curves: List[TrimCurve] = []

@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from typing import Callable, Dict, List
 
-from .models import ModuleResult, Project
+from .models import MissingInputError, ModuleResult, Project
 
 RunFn = Callable[[Project], ModuleResult]
 
@@ -40,14 +40,16 @@ def available() -> List[str]:
 def run_all_modules(project: Project) -> List[ModuleResult]:
     """Run every registered module that has the input slice it needs.
 
-    A module raises ``ValueError`` when its project slice is absent; those are
-    skipped here so "run all" works on a partially-filled project (Phase 0: only
-    the engine slice is ever present).
+    A module raises :class:`~farloads.models.MissingInputError` when a required
+    project slice is absent; those are skipped here so "run all" works on a
+    partially-filled project. A plain :class:`ValueError` (an invalid domain input
+    or a genuine calc defect) is **not** caught -- it propagates so the failure is
+    visible in run-all/export rather than silently vanishing (M2R-8).
     """
     results: List[ModuleResult] = []
     for name in available():
         try:
             results.append(_REGISTRY[name](project))
-        except ValueError:
+        except MissingInputError:
             continue
     return results

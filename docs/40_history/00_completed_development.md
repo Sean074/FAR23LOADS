@@ -10,6 +10,57 @@ Acceptance**, **Key decisions**.
 
 ---
 
+## M2R-8 — MissingInputError in the registry + single SELECT envelope build (2026-07-21 review, MAJOR, complete 2026-07-22)
+
+**Objective.** `registry.run_all_modules` caught *every* `ValueError`, so a genuine
+calc defect in a module vanished from run-all/export, indistinguishable from "inputs
+not entered". Distinguish the two so defects surface while incomplete-project modules
+still skip. The existing error-handling contract
+(`docs/10_standard/00_program_overview.md`) already drew the line ("required slice
+absent → skip" vs "invalid domain input → surface"); this formalizes it in code.
+
+**Key decisions (2026-07-22 consultation).**
+- *Classification (borderline guards):* "present but not yet filled in" — an empty
+  required list, or an absent required **upstream** slice/named surface — is treated as
+  **not-ready → `MissingInputError` → skip**, preserving run-all's tolerance of
+  partially-built projects. Only genuinely malformed/contradictory data (`<2` cylinders,
+  non-positive area/weight/MC/MD, `>=2` element/point counts, out-of-range index,
+  exactly-3-CG-cases, aero-surface-with-no-matching-geometry, an unknown V-n case
+  reference) stays a plain `ValueError` and now surfaces.
+- *Scope:* both parts — the `MissingInputError` core **and** the "while in the area"
+  SELECT single-envelope-build refactor.
+
+**Deliverables (no calc/oracle change).**
+- `farloads/models.py` — `class MissingInputError(ValueError)`; exported from
+  `farloads/__init__.py`.
+- `farloads/registry.py` — `run_all_modules` catches **only** `MissingInputError`;
+  a plain `ValueError` propagates.
+- The 21 modules — input-absence guards converted from `raise ValueError` to
+  `raise MissingInputError` (slice `None`, absent upstream result/geometry/aero slice,
+  empty required list); malformed-data guards left as `ValueError`.
+- `farloads/modules/select.py` (Part 2) — `_envelope` is the single fallback site
+  (raises `MissingInputError` when no V-n matrix is obtainable); every `select_*`
+  helper (`select_wing`/`select_htail{,_balancing,_maneuver,_gust}`/`select_vtail`/
+  `select_fuselage`/`_stamp_case_refs`) takes an optional `envelope=` parameter
+  resolved by `_resolve_envelope`; `build_critical` builds it **once** and threads it
+  in — was up to 7 rebuilds. Backward-compatible: `body_loads.select_fuselage(project)`,
+  `balloads._envelope(project)` and the tests keep the `(project)` form.
+- `docs/10_standard/00_program_overview.md` — error-handling contract table updated to
+  name `MissingInputError` and the surface-vs-skip split.
+
+**Test / Acceptance.** New `tests/test_registry.py`:
+`test_missing_input_error_is_value_error`; `test_run_all_skips_missing_input_but_propagates_value_error`
+(a `MissingInputError` module skips, a genuine `ValueError` propagates out of run-all);
+`test_run_all_skips_all_modules_on_engine_only_project` (the ~21 guards are complete);
+`test_build_critical_builds_envelope_once` (spies `build_envelope`, asserts exactly 1
+call). Full suite green (483 passed); ruff clean; suite runtime dropped (~44s → ~27s)
+from the removed rebuilds. SELECT oracles unchanged.
+
+**Docs.** This entry; `CHANGELOG.md` `[Unreleased]`; backlog M2R-8 removed (M2R section
+now complete — all eight items in history).
+
+---
+
 ## M2R-7 — io.py tolerant readers: unknown fields no longer crash load (2026-07-21 review, MAJOR, complete 2026-07-22)
 
 **Objective.** Make good on `schema_status()`'s forward-compat promise ("unrecognized

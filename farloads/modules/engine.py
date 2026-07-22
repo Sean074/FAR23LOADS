@@ -29,6 +29,7 @@ from ..constants import (
     reciprocating_torque_factor,
 )
 from ..models import (
+    MissingInputError,
     CaseRef,
     ConditionResult,
     EngineInput,
@@ -593,7 +594,7 @@ def run(project: Project) -> ModuleResult:
     direct ``EngineInput`` -> conditions function used by the calc tests.
     """
     if not project.engines:
-        raise ValueError("Project has no engines for the engine module")
+        raise MissingInputError("Project has no engines for the engine module")
 
     single = len(project.engines) == 1
     allocator = CaseIdAllocator()

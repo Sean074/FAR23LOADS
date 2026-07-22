@@ -16,6 +16,20 @@ from .constants import ULTIMATE_FACTOR
 Vec3 = Tuple[float, float, float]
 
 
+class MissingInputError(ValueError):
+    """A module cannot run because a required ``Project`` input is absent.
+
+    Raised at a module's entry guards when the slice (or a required upstream
+    result/geometry/aero slice) it needs is missing, or a required input list is
+    empty -- i.e. "not my turn" on a partially-filled project.
+    :func:`farloads.registry.run_all_modules` catches **only** this and skips the
+    module. A plain :class:`ValueError` from a module signals an *invalid domain
+    input* or a genuine calc defect (per the error-handling contract in
+    ``docs/10_standard/00_program_overview.md``) and now propagates instead of
+    vanishing from run-all/export. It subclasses :class:`ValueError`, so every
+    existing ``except ValueError`` (the GUI pages, the CLI) still catches it."""
+
+
 class EngineType(str, Enum):
     RECIPROCATING = "R"
     TURBOPROP = "T"

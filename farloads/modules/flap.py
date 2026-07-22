@@ -44,6 +44,7 @@ from typing import List, NamedTuple
 from ..constants import KT_TO_FPS_SUITE
 from ..case_ids import CaseIdAllocator, WING_BAND_FLAP
 from ..models import (
+    MissingInputError,
     CaseRef,
     ConditionResult,
     ControlSurfaceLoadResult,
@@ -172,9 +173,9 @@ def _engine_power(project: Project):
 
 def _compute(project: Project) -> FlapResult:
     if project.flap_loads is None:
-        raise ValueError("flap needs the 'flap_loads' input slice")
+        raise MissingInputError("flap needs the 'flap_loads' input slice")
     if project.speeds is None:
-        raise ValueError("flap needs 'speeds' (STRSPEED VS/VSF/VF)")
+        raise MissingInputError("flap needs 'speeds' (STRSPEED VS/VSF/VF)")
     inp = project.flap_loads
     sp = project.speeds
     sv = design_speed_values(project, sp)
@@ -214,7 +215,7 @@ def build_flap(project: Project) -> List[ControlSurfaceLoadResult]:
 def run(project: Project) -> ModuleResult:
     """Run FLAPLOAD: the critical flaps-extended flap load (FAR 23.345 / 23.457)."""
     if project.flap_loads is None:
-        raise ValueError("Project has no 'flap_loads' inputs for the flap module")
+        raise MissingInputError("Project has no 'flap_loads' inputs for the flap module")
     r = _compute(project)
     values = [
         LoadValue("Critical flap load (23.345(a))", r.critical_lf_lb, "lb"),

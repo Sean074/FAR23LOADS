@@ -57,6 +57,7 @@ from typing import Dict, List, Optional
 
 from ..case_ids import CaseIdAllocator, WING_BAND_SELECT
 from ..models import (
+    MissingInputError,
     CaseRef,
     CgCase,
     ConditionResult,
@@ -90,11 +91,26 @@ _STROLL = ("ST ROL A", "ST ROL C", "ST ROL D")
 
 
 def _envelope(project: Project) -> EnvelopeResult:
-    """The V-n matrix to search: the persisted ``Project.envelope`` if present,
-    else freshly built from the flight-loads inputs (FLTLOADS)."""
+    """The V-n matrix to search: the persisted ``Project.envelope`` if present, else
+    freshly built from the flight-loads inputs (FLTLOADS).
+
+    M2R-8: the **single** fallback site. ``build_critical`` computes this once and
+    threads it into every ``select_*`` helper (via their ``envelope=`` parameter)
+    instead of each rebuilding the whole envelope (up to 7x when nothing is
+    persisted). Raises :class:`MissingInputError` when no V-n matrix can be
+    obtained -- ``build_envelope`` itself raises it when the flight-loads inputs are
+    absent, and an empty result is caught here."""
     if project.envelope is not None and project.envelope.vn:
         return project.envelope
-    return build_envelope(project)
+    env = build_envelope(project)
+    if not env.vn:
+        raise MissingInputError("select needs a V-n matrix (Project.envelope or flight_loads)")
+    return env
+
+
+def _resolve_envelope(project: Project, envelope: Optional[EnvelopeResult]) -> EnvelopeResult:
+    """The threaded envelope when ``build_critical`` supplies one, else built once."""
+    return envelope if envelope is not None else _envelope(project)
 
 
 def _cg_weights(project: Project) -> Dict[str, float]:
@@ -163,11 +179,9 @@ def _condition(component: str, label: str, far: str, p: VnPoint, weights: Dict[s
     )
 
 
-def select_wing(project: Project) -> List[CriticalCondition]:
+def select_wing(project: Project, envelope: Optional[EnvelopeResult] = None) -> List[CriticalCondition]:
     """Search the V-n matrix for the critical wing conditions (SELECT.BAS 3000)."""
-    vn = _envelope(project).vn
-    if not vn:
-        raise ValueError("select needs a V-n matrix (Project.envelope or flight_loads)")
+    vn = _resolve_envelope(project, envelope).vn
     weights = _cg_weights(project)
     si = project.select_input
     aileron_deg = si.full_down_aileron_deg if si else 0.0
@@ -230,7 +244,8 @@ def _flaps_by_config_name(project: Project) -> Dict[str, bool]:
     return flaps
 
 
-def select_htail_balancing(project: Project) -> List[CriticalCondition]:
+def select_htail_balancing(project: Project,
+                           envelope: Optional[EnvelopeResult] = None) -> List[CriticalCondition]:
     """Select the largest up and down rational balancing tail loads (FAR 23.421),
     flaps retracted and -- when the flapped V-n envelope is present -- flaps
     extended (excluding the off-pipeline LEV LAND point)."""
@@ -242,7 +257,7 @@ def select_htail_balancing(project: Project) -> List[CriticalCondition]:
     flaps: Dict[str, bool] = _flaps_by_config_name(project)
 
     retracted, extended = [], []
-    for p in _envelope(project).vn:
+    for p in _resolve_envelope(project, envelope).vn:
         cg = cg_map.get(p.cg)
         if cg is None:
             continue
@@ -300,7 +315,8 @@ def _elevator_load(lt50: float, lt25: float, ti: TailLoadsInput) -> float:
     return cam + att
 
 
-def select_htail_maneuver(project: Project) -> List[CriticalCondition]:
+def select_htail_maneuver(project: Project,
+                          envelope: Optional[EnvelopeResult] = None) -> List[CriticalCondition]:
     """The unchecked (FAR 23.423(a)) and checked (23.423(b)) maneuver tail loads,
     flaps retracted: full elevator deflection at the 1g VA points (unchecked) and a
     pitch-acceleration increment at the VC/VD points (checked)."""
@@ -311,7 +327,7 @@ def select_htail_maneuver(project: Project) -> List[CriticalCondition]:
     np_ = _design_inputs(project).n_pos
     aht = 2.0 * math.pi / (1.0 + 2.0 / ti.aspect_ratio_htail)
     se2st = ti.elevator_area_sqft / ti.htail_area_sqft if ti.htail_area_sqft else 0.0
-    vn = _envelope(project).vn
+    vn = _resolve_envelope(project, envelope).vn
 
     def bal(p: VnPoint):
         return htail_balance(p, cg_map[p.cg], fl.xw, fl.zw, ti)
@@ -373,7 +389,8 @@ def select_htail_maneuver(project: Project) -> List[CriticalCondition]:
     return out
 
 
-def select_htail_gust(project: Project) -> List[CriticalCondition]:
+def select_htail_gust(project: Project,
+                      envelope: Optional[EnvelopeResult] = None) -> List[CriticalCondition]:
     """Up and down gust tail loads, flaps retracted (FAR 23.425(a)(1)): the initial
     balancing load plus the rational gust increment at the BAL C / BAL D points."""
     ti, fl = project.tail_loads, project.flight_loads
@@ -383,7 +400,7 @@ def select_htail_gust(project: Project) -> List[CriticalCondition]:
     aht = 2.0 * math.pi / (1.0 + 2.0 / ti.aspect_ratio_htail)
     aw, arw = ti.wing_lift_slope_per_rad, ti.aspect_ratio_wing
     mac_ft = fl.mac / 12.0
-    vn = _envelope(project).vn
+    vn = _resolve_envelope(project, envelope).vn
 
     def gust_increment(p: VnPoint) -> float:
         w = cg_map[p.cg].weight_lb
@@ -508,15 +525,15 @@ def select_htail_unsymmetrical(htail: List[CriticalCondition], np_: float) -> Li
         lt25=worst.lt25, lt50=worst.lt50, note=_UNSYMMETRICAL_DEVIATION_NOTE)]
 
 
-def select_htail(project: Project) -> List[CriticalCondition]:
+def select_htail(project: Project, envelope: Optional[EnvelopeResult] = None) -> List[CriticalCondition]:
     """All horizontal-tail critical loads (flaps retracted): balancing (23.421),
     unchecked/checked maneuver (23.423), gust (23.425(a)(1)) and the unsymmetrical
     load (23.427(a))."""
     if project.tail_loads is None or project.flight_loads is None:
         return []
-    out = select_htail_balancing(project)
-    out.extend(select_htail_maneuver(project))
-    out.extend(select_htail_gust(project))
+    out = select_htail_balancing(project, envelope)
+    out.extend(select_htail_maneuver(project, envelope))
+    out.extend(select_htail_gust(project, envelope))
     out.extend(select_htail_unsymmetrical(out, _design_inputs(project).n_pos))
     return out
 
@@ -566,7 +583,7 @@ def _vt_side_gust(p: VnPoint, cg: CgCase, vt: VTailLoadsInput, izz: float) -> fl
     return kgt * ude * p.v_eas_kt * av * vt.vtail_area_sqft / 498.0
 
 
-def select_vtail(project: Project) -> List[CriticalCondition]:
+def select_vtail(project: Project, envelope: Optional[EnvelopeResult] = None) -> List[CriticalCondition]:
     """The four critical vertical-tail loads (FAR 23.441 maneuver / 23.443 gust),
     searched over the V-n ``BAL A`` (VA) and ``BAL C`` (VC) points."""
     vt = project.vtail_loads
@@ -574,7 +591,7 @@ def select_vtail(project: Project) -> List[CriticalCondition]:
     if vt is None or fl is None:
         return []
     cg_map: Dict[str, CgCase] = {c.name: c for c in fl.cg_cases}
-    vn = _envelope(project).vn
+    vn = _resolve_envelope(project, envelope).vn
     bal_a = [p for p in vn if p.condition == "BAL A" and p.cg in cg_map]
     bal_c = [p for p in vn if p.condition == "BAL C" and p.cg in cg_map]
     if not bal_a or not bal_c:
@@ -631,7 +648,7 @@ def select_vtail(project: Project) -> List[CriticalCondition]:
 # --------------------------------------------------------------------------- #
 # Critical fuselage conditions (Ch 9; SELECT.BAS subroutine 4000)
 # --------------------------------------------------------------------------- #
-def select_fuselage(project: Project) -> List[CriticalCondition]:
+def select_fuselage(project: Project, envelope: Optional[EnvelopeResult] = None) -> List[CriticalCondition]:
     """The critical fuselage *conditions* (Ch 9): the fuselage load reacted at the
     wing ``LZW - NZ*WW``, the aft-fuselage down/up bending (largest signed product
     of that load and the tail load), and the greatest vertical inertia factor for
@@ -639,7 +656,7 @@ def select_fuselage(project: Project) -> List[CriticalCondition]:
     fl = project.flight_loads
     if fl is None:
         return []
-    vn = _envelope(project).vn
+    vn = _resolve_envelope(project, envelope).vn
     if not vn:
         return []
     si = project.select_input
@@ -686,7 +703,8 @@ def select_fuselage(project: Project) -> List[CriticalCondition]:
     return out
 
 
-def _stamp_case_refs(project: Project, conditions: List[CriticalCondition]) -> None:
+def _stamp_case_refs(project: Project, conditions: List[CriticalCondition],
+                     envelope: Optional[EnvelopeResult] = None) -> None:
     """Mint a :class:`CaseRef` per condition, in this list's fixed emission order
     (wing, then htail, then vtail, then fuselage -- ``build_critical``'s own call
     order), and copy it onto the originating :class:`VnPoint` in
@@ -701,7 +719,7 @@ def _stamp_case_refs(project: Project, conditions: List[CriticalCondition]) -> N
     """
     allocator = CaseIdAllocator()
     allocator.seed("wing", WING_BAND_SELECT)
-    vn_by_case = {p.case: p for p in _envelope(project).vn}
+    vn_by_case = {p.case: p for p in _resolve_envelope(project, envelope).vn}
     for c in conditions:
         p = vn_by_case.get(c.case)
         ref = CaseRef(
@@ -724,11 +742,14 @@ def build_critical(project: Project) -> CriticalLoadSet:
     ``Project.tail_loads`` is present), the vertical-tail loads (when
     ``Project.vtail_loads`` is present) and the critical fuselage conditions."""
     sync_geometry_derived(project)
-    conditions = select_wing(project)
-    conditions.extend(select_htail(project))
-    conditions.extend(select_vtail(project))
-    conditions.extend(select_fuselage(project))
-    _stamp_case_refs(project, conditions)
+    # M2R-8: build the V-n envelope once and thread it into every search, instead of
+    # each helper independently rebuilding it (up to 7x when nothing is persisted).
+    env = _envelope(project)
+    conditions = select_wing(project, env)
+    conditions.extend(select_htail(project, env))
+    conditions.extend(select_vtail(project, env))
+    conditions.extend(select_fuselage(project, env))
+    _stamp_case_refs(project, conditions, env)
     return CriticalLoadSet(conditions=conditions)
 
 

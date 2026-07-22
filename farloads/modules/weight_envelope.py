@@ -50,6 +50,7 @@ from __future__ import annotations
 from typing import List, Optional, Tuple
 
 from ..models import (
+    MissingInputError,
     ConditionResult,
     LoadValue,
     MassItem,
@@ -91,7 +92,7 @@ def _xlemac_mac(project: Project, env: WeightEnvelopeInput) -> Tuple[float, floa
             mac = next(v.value for v in r.values if v.label == "MAC")
             xlemac = next(v.value for v in r.values if v.label.startswith("XLE(MAC)"))
             return xlemac, mac
-    raise ValueError(
+    raise MissingInputError(
         "WTENV needs wing XLEMAC/MAC: add a 'wing' geometry surface or set "
         "envelope.xlemac/envelope.mac"
     )
@@ -170,7 +171,7 @@ def envelope(project: Project, inp: WeightEnvelopeInput) -> List[ConditionResult
     """Compute the weight/CG envelope, structural limits and ballast."""
     items = project.weight.items if project.weight else []
     if not items:
-        raise ValueError("WTENV needs the itemized weight data base (weight.items)")
+        raise MissingInputError("WTENV needs the itemized weight data base (weight.items)")
 
     empty, minimum, discretionary = _item_buckets(items)
 
@@ -323,7 +324,7 @@ MODULE_NAME = "weight_envelope"
 def run(project: Project) -> ModuleResult:
     """Run WTENV against a :class:`Project`'s weight data base + envelope limits."""
     if project.weight is None or project.weight.envelope is None:
-        raise ValueError("Project has no 'weight.envelope' inputs for the weight_envelope module")
+        raise MissingInputError("Project has no 'weight.envelope' inputs for the weight_envelope module")
     return ModuleResult(module=MODULE_NAME, conditions=envelope(project, project.weight.envelope))
 
 

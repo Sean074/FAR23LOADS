@@ -32,6 +32,7 @@ from typing import List, NamedTuple
 
 from ..case_ids import CaseIdAllocator, WING_BAND_AILERON
 from ..models import (
+    MissingInputError,
     CaseRef,
     ConditionResult,
     ControlSurfaceLoadResult,
@@ -108,9 +109,9 @@ def _stations(pressure_psi: float, hinge_fraction: float) -> List[ControlSurface
 def build_aileron(project: Project) -> List[ControlSurfaceLoadResult]:
     """The critical up/down aileron loads as control-surface result records."""
     if project.aileron_loads is None:
-        raise ValueError("aileron needs the 'aileron_loads' input slice")
+        raise MissingInputError("aileron needs the 'aileron_loads' input slice")
     if project.speeds is None:
-        raise ValueError("aileron needs 'speeds' (STRSPEED VA/VC/VD)")
+        raise MissingInputError("aileron needs 'speeds' (STRSPEED VA/VC/VD)")
     inp = project.aileron_loads
     sv = design_speed_values(project, project.speeds)
     r = aileron_loads(sv.va, sv.vc, sv.vd, inp.down_deflection_deg,
@@ -143,9 +144,9 @@ def build_aileron(project: Project) -> List[ControlSurfaceLoadResult]:
 def run(project: Project) -> ModuleResult:
     """Run AILERON: the critical deflected up/down aileron loads (FAR 23.455)."""
     if project.aileron_loads is None:
-        raise ValueError("Project has no 'aileron_loads' inputs for the aileron module")
+        raise MissingInputError("Project has no 'aileron_loads' inputs for the aileron module")
     if project.speeds is None:
-        raise ValueError("aileron needs 'speeds' (STRSPEED VA/VC/VD)")
+        raise MissingInputError("aileron needs 'speeds' (STRSPEED VA/VC/VD)")
     inp = project.aileron_loads
     sv = design_speed_values(project, project.speeds)
     r = aileron_loads(sv.va, sv.vc, sv.vd, inp.down_deflection_deg,

@@ -30,6 +30,7 @@ from ..case_ids import (
     WING_BAND_TAB,
 )
 from ..models import (
+    MissingInputError,
     CaseRef,
     ConditionResult,
     ControlSurfaceLoadResult,
@@ -78,9 +79,9 @@ def _surface_tag(spec: TabSpec) -> str:
 def build_tabs(project: Project) -> List[ControlSurfaceLoadResult]:
     """Each tab's load as a control-surface result record (trapezoid LE = 2x TE)."""
     if project.tab_loads is None:
-        raise ValueError("tab needs the 'tab_loads' input slice")
+        raise MissingInputError("tab needs the 'tab_loads' input slice")
     if project.speeds is None:
-        raise ValueError("tab needs 'speeds' (STRSPEED VC)")
+        raise MissingInputError("tab needs 'speeds' (STRSPEED VC)")
     vc = project.speeds.chosen_vc or 0.0
     if vc <= 0:
         from .structural_speeds import design_speed_values
@@ -114,9 +115,9 @@ def build_tabs(project: Project) -> List[ControlSurfaceLoadResult]:
 def run(project: Project) -> ModuleResult:
     """Run TABLOADS: tab loads at full deflection at VC (FAR 23.409 / CAM 3.224)."""
     if project.tab_loads is None:
-        raise ValueError("Project has no 'tab_loads' inputs for the tab module")
+        raise MissingInputError("Project has no 'tab_loads' inputs for the tab module")
     if project.speeds is None:
-        raise ValueError("tab needs 'speeds' (STRSPEED VC)")
+        raise MissingInputError("tab needs 'speeds' (STRSPEED VC)")
     vc = project.speeds.chosen_vc or 0.0
     if vc <= 0:
         from .structural_speeds import design_speed_values

@@ -51,6 +51,7 @@ from typing import List
 
 from ..constants import PI
 from ..models import (
+    MissingInputError,
     AeroSurfaceInput,
     ConditionResult,
     LoadValue,
@@ -445,9 +446,9 @@ MODULE_NAME = "airloads"
 def run(project: Project) -> ModuleResult:
     """Run AIRLOADS over every aero surface that has a matching planform."""
     if project.aero is None or not project.aero.surfaces:
-        raise ValueError("Project has no 'aero' surfaces for the airloads module")
+        raise MissingInputError("Project has no 'aero' surfaces for the airloads module")
     if project.geometry is None or not project.geometry.surfaces:
-        raise ValueError("airloads needs 'geometry' surfaces for the wing planform")
+        raise MissingInputError("airloads needs 'geometry' surfaces for the wing planform")
 
     conditions: List[ConditionResult] = []
     for aero in project.aero.surfaces:

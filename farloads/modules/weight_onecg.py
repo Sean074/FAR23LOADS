@@ -21,6 +21,7 @@ from typing import List
 
 from ..constants import LBIN2_PER_SLUGFT2
 from ..models import (
+    MissingInputError,
     ConditionResult,
     LoadValue,
     MassCase,
@@ -42,7 +43,7 @@ def weights_and_inertia(items: List[MassItem]) -> ConditionResult:
     """Total weight, CG and moments of inertia for the given loading."""
     loaded = [it for it in items if it.weight_lb != 0]
     if not loaded:
-        raise ValueError("WTONECG needs at least one non-zero weight item")
+        raise MissingInputError("WTONECG needs at least one non-zero weight item")
 
     # Weight and CG (WTONECG.BAS lines 657-750).
     total = sum(it.weight_lb for it in loaded)
@@ -108,7 +109,7 @@ def build_mass(project: Project, name: str = "itemized loading", gear_down: bool
     approximations, so persisting the mass does not change them.
     """
     if project.weight is None or not project.weight.items:
-        raise ValueError("Project has no 'weight.items' data base for the mass slice")
+        raise MissingInputError("Project has no 'weight.items' data base for the mass slice")
     v = {lv.label: lv.value for lv in weights_and_inertia(project.weight.items).values}
     return MassResult(cases=[MassCase(
         name=name, weight_lb=v["Weight"], cg_x=v["XBAR (fus station)"], cg_y=0.0,
@@ -125,7 +126,7 @@ MODULE_NAME = "weight_onecg"
 def run(project: Project) -> ModuleResult:
     """Run WTONECG against a :class:`Project`'s ``weight.items`` data base."""
     if project.weight is None or not project.weight.items:
-        raise ValueError("Project has no 'weight.items' data base for the weight_onecg module")
+        raise MissingInputError("Project has no 'weight.items' data base for the weight_onecg module")
     return ModuleResult(module=MODULE_NAME, conditions=[weights_and_inertia(project.weight.items)])
 
 

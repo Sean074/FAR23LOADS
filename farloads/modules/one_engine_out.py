@@ -46,6 +46,7 @@ from ..constants import (
 )
 from ..case_ids import CaseIdAllocator
 from ..models import (
+    MissingInputError,
     CaseRef,
     ConditionResult,
     EngineInput,
@@ -234,7 +235,7 @@ def _moment(time: float, c: CaseInputs, mom_eng: float, mom_windmill: float,
 # --------------------------------------------------------------------------- #
 def _heaviest_case(project: Project) -> MassCase:
     if project.mass is None or not project.mass.cases:
-        raise ValueError("one_engine_out needs Project.mass (run WTONECG first)")
+        raise MissingInputError("one_engine_out needs Project.mass (run WTONECG first)")
     return max(project.mass.cases, key=lambda m: m.weight_lb)
 
 
@@ -245,7 +246,7 @@ def _engine_power(eng: EngineInput, use_takeoff: bool) -> float:
     other = eng.max_cont_hp if use_takeoff else eng.takeoff_hp
     hp = primary if primary else other
     if not hp:
-        raise ValueError(
+        raise MissingInputError(
             "one_engine_out needs the failed engine's horsepower "
             "(EngineInput.max_cont_hp or takeoff_hp)")
     return float(hp)
@@ -322,7 +323,7 @@ def _load_cases(project: Project, oeo: OneEngineOutInput) -> List[_LoadCase]:
         return [_LoadCase(f"V={v:g} kt", "23.367", "LIMIT", ULTIMATE_FACTOR,
                           float(v), float(v), _BASIS_OVERRIDE) for v in oeo.speeds_kt]
     if sp is None:
-        raise ValueError("one_engine_out needs Project.speeds (or OneEngineOutInput.speeds_kt)")
+        raise MissingInputError("one_engine_out needs Project.speeds (or OneEngineOutInput.speeds_kt)")
     # VS (the VMC substitute / shared low end of both cases' speed ranges) is derived
     # from CLmax (M1-1b); available only when Project.aero_coeffs is present.
     try:
@@ -343,7 +344,7 @@ def _load_cases(project: Project, oeo: OneEngineOutInput) -> List[_LoadCase]:
         cases.append(_LoadCase("VS", "23.367", "LIMIT", ULTIMATE_FACTOR,
                                float(vs), float(vs), _BASIS_VS))
     if not cases:
-        raise ValueError("one_engine_out found no speeds; set chosen_vc/chosen_vd on Project.speeds")
+        raise MissingInputError("one_engine_out found no speeds; set chosen_vc/chosen_vd on Project.speeds")
     return cases
 
 
@@ -352,11 +353,11 @@ def _case_inputs(project: Project, v_kt: float) -> CaseInputs:
     oeo = project.one_engine_out
     vt: Optional[VTailLoadsInput] = project.vtail_loads
     if oeo is None:
-        raise ValueError("one_engine_out needs the 'one_engine_out' input slice")
+        raise MissingInputError("one_engine_out needs the 'one_engine_out' input slice")
     if vt is None:
-        raise ValueError("one_engine_out needs Project.vtail_loads (vertical-tail geometry)")
+        raise MissingInputError("one_engine_out needs Project.vtail_loads (vertical-tail geometry)")
     if not project.engines:
-        raise ValueError("one_engine_out needs Project.engines (the failed engine)")
+        raise MissingInputError("one_engine_out needs Project.engines (the failed engine)")
     if not (0 <= oeo.failed_engine_index < len(project.engines)):
         raise ValueError(f"failed_engine_index {oeo.failed_engine_index} out of range")
     eng = project.engines[oeo.failed_engine_index]
@@ -367,7 +368,7 @@ def _case_inputs(project: Project, v_kt: float) -> CaseInputs:
     alt = oeo.altitude_ft if oeo.altitude_ft is not None else (
         project.speeds.shoulder_altitude_ft if project.speeds else 0.0)
     if izz <= 0:
-        raise ValueError("one_engine_out needs a non-zero IZZ (Project.mass or izz_slugft2)")
+        raise MissingInputError("one_engine_out needs a non-zero IZZ (Project.mass or izz_slugft2)")
 
     return CaseInputs(
         arvt=vt.aspect_ratio_vtail,
@@ -410,7 +411,7 @@ def run(project: Project) -> ModuleResult:
     MAC loads at the peak, and the time to recovery (FAR 23.367)."""
     oeo = project.one_engine_out
     if oeo is None:
-        raise ValueError("one_engine_out needs the 'one_engine_out' input slice")
+        raise MissingInputError("one_engine_out needs the 'one_engine_out' input slice")
     if oeo.thrust_decay_time_s <= 0 or oeo.windmill_drag_time_s <= 0 or oeo.rudder_travel_time_s <= 0:
         raise ValueError(
             "one_engine_out needs positive thrust_decay_time_s, windmill_drag_time_s "

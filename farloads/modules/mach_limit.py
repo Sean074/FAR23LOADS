@@ -27,6 +27,7 @@ from typing import List
 
 from ..constants import standard_atmosphere
 from ..models import (
+    MissingInputError,
     ConditionResult,
     LoadValue,
     MachLimitInput,
@@ -107,7 +108,7 @@ MODULE_NAME = "mach_limit"
 def run(project: Project) -> ModuleResult:
     """Run MACHLIM against a :class:`Project`'s ``speeds.mach_limit`` inputs."""
     if project.speeds is None or project.speeds.mach_limit is None:
-        raise ValueError("Project has no 'speeds.mach_limit' inputs for the mach_limit module")
+        raise MissingInputError("Project has no 'speeds.mach_limit' inputs for the mach_limit module")
     return ModuleResult(module=MODULE_NAME, conditions=mach_limit_lines(project.speeds.mach_limit))
 
 

@@ -1,11 +1,11 @@
 # Backlog — Open Work & Development Plan
 
 The authoritative list of **open** items, structured around the **path to the
-first concept-loads release**: the release-readiness milestone **M2R**
-(2026-07-21 review fixes), the release cut **M3**, the post-release milestone
+first concept-loads release**: the release cut **M3**, the post-release milestone
 **M4**, Phase F25, the long-tail refinement list, and future directions.
-Milestones M1 and M2 (from the 2026-07-19 review) completed 2026-07-20/21 —
-see history. Items carry their source-review IDs in parentheses
+Milestones M1 and M2 (2026-07-19 review) completed 2026-07-20/21 and the
+release-readiness milestone **M2R** (2026-07-21 review fixes, all eight items)
+completed 2026-07-22 — see history. Items carry their source-review IDs in parentheses
 ([`PROJECT_REVIEW_2026-07-19.md`](../../PROJECT_REVIEW_2026-07-19.md),
 [`CODE_REVIEW_2026-07-21.md`](../../CODE_REVIEW_2026-07-21.md)).
 
@@ -55,7 +55,7 @@ The **2026-07-21 code & documentation review**
 coverage / documentation) confirmed the sprint's doc-sync discipline held
 (6/6 artifacts on nearly every shipped change; zero stale backlog entries) and
 found: 1 CRITICAL (stale schema line), a small set of release-blocking GUI and
-doc-currency items (→ **M2R** below), and two structural maintainability walls
+doc-currency items (→ **M2R**, now complete — see history), and two structural maintainability walls
 to clear **before** the FAR 25 / OpenVSP feature wave (→ M4-9/M4-10/M4-11).
 Reference-authority hierarchy (unchanged): (1) `.BAS` listings + Appendix A
 printed output, (2) User's Guide CFR quotes (Jan-1994), (3) Code-manual 1990
@@ -63,24 +63,10 @@ prose.
 
 ---
 
-# M2R — Release-readiness fixes (2026-07-21 review; release-blocking)
-
-Everything here is small (S unless noted); all must close before the M3 cut.
-Findings verified in the review — file:line evidence there.
-
-### M2R-8 — `MissingInputError` in the registry **[MAJOR]**
-`registry.py:47-52` swallows *every* `ValueError`, so a genuine calc defect
-silently vanishes from run-all/export, indistinguishable from "inputs not
-entered". Define `MissingInputError(ValueError)`, raise it at the ~21
-missing-slice guards, catch only that in `run_all_modules`. Small; restores
-trust in the release deliverable. While in the area: thread the SELECT
-envelope once per run instead of the up-to-7× `build_envelope()` fallback
-rebuilds (`select.py:92-97`; also imported by `balloads.py:33`) — single
-computation, `MissingInputError` when absent (or one justified fallback site).
-
----
-
 # M3 — Cut the release: **sloads 0.3.0** (concept-loads v1)
+
+> **M2R (release-readiness fixes) is complete** — all eight items (M2R-1 … M2R-8
+> from the 2026-07-21 review) landed 2026-07-21/22; see history. M3 is the next gate.
 
 ### M3-1 — Rename: FAR23LOADS → **sloads** (supersedes D-6; decided 2026-07-20)
 **Full rename** — repo folder, Python package/import (`farloads` → `sloads`),

@@ -35,6 +35,7 @@ from typing import Dict, List, Optional, Tuple
 
 from ..constants import IN2_PER_FT2
 from ..models import (
+    MissingInputError,
     ConditionResult,
     EmpennageInput,
     LandingGearGeometry,
@@ -552,7 +553,7 @@ def configuration_properties(project: Project) -> List[ConditionResult]:
     """All configuration/layout derived quantities for a :class:`Project`."""
     layout = project.geometry.parametric if project.geometry is not None else None
     if layout is None:
-        raise ValueError("Project has no 'geometry.parametric' slice for the configuration module")
+        raise MissingInputError("Project has no 'geometry.parametric' slice for the configuration module")
     geom = _wing_geometry(layout)
     results = [_planform_condition(layout, geom)]
     for cond in (_stability_condition(project, layout, geom),

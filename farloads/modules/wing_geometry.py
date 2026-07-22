@@ -33,6 +33,7 @@ from __future__ import annotations
 from typing import List, Optional, Sequence, Tuple
 
 from ..models import (
+    MissingInputError,
     ConditionResult,
     GeometryInput,
     LoadValue,
@@ -186,7 +187,7 @@ def _engine_stations(project: Project, geometry: GeometryInput) -> Optional[Cond
 def geometry_properties(geometry: GeometryInput, project: Optional[Project] = None) -> List[ConditionResult]:
     """Geometric properties for every surface, plus engine stations if applicable."""
     if not geometry.surfaces:
-        raise ValueError("WINGGEOM needs at least one surface")
+        raise MissingInputError("WINGGEOM needs at least one surface")
     results = [surface_properties(s) for s in geometry.surfaces]
     if project is not None:
         engines = _engine_stations(project, geometry)
@@ -204,7 +205,7 @@ MODULE_NAME = "wing_geometry"
 def run(project: Project) -> ModuleResult:
     """Run WINGGEOM against a :class:`Project`'s ``geometry`` surfaces."""
     if project.geometry is None or not project.geometry.surfaces:
-        raise ValueError("Project has no 'geometry' surfaces for the wing_geometry module")
+        raise MissingInputError("Project has no 'geometry' surfaces for the wing_geometry module")
     return ModuleResult(module=MODULE_NAME, conditions=geometry_properties(project.geometry, project))
 
 

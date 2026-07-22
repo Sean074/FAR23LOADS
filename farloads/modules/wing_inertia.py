@@ -37,6 +37,7 @@ from typing import List, Optional
 
 from ..case_ids import COMPONENT_PREFIX, WING_BAND_STRUCTURAL
 from ..models import (
+    MissingInputError,
     CaseRef,
     ConditionResult,
     LoadValue,
@@ -219,7 +220,7 @@ def _resolve_case(project: Project, case: WingLoadCase) -> WingLoadCase:
     if case.nz is not None and case.nx is not None:
         return case
     if case.case is None or project.envelope is None:
-        raise ValueError(
+        raise MissingInputError(
             f"wing load case '{case.name}' needs explicit nz/nx or a 'case' "
             "reference into Project.envelope.vn"
         )
@@ -280,11 +281,11 @@ def build_wing_inertia(project: Project) -> List[WingLoadResult]:
     sync_geometry_derived(project)
     wm = project.wing_mass
     if wm is None:
-        raise ValueError("Project has no 'wing_mass' inputs for the wing_inertia module")
+        raise MissingInputError("Project has no 'wing_mass' inputs for the wing_inertia module")
     if project.geometry is None or project.geometry.by_name(wm.surface) is None:
-        raise ValueError(f"wing_inertia needs a '{wm.surface}' geometry surface")
+        raise MissingInputError(f"wing_inertia needs a '{wm.surface}' geometry surface")
     if not wm.cases:
-        raise ValueError("wing_inertia needs at least one load case")
+        raise MissingInputError("wing_inertia needs at least one load case")
     geom = project.geometry.by_name(wm.surface)
     units = inertia_units(geom, wm)
     results = []

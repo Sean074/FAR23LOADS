@@ -101,6 +101,23 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- **`MissingInputError` — genuine calc defects no longer vanish from run-all (M2R-8).**
+  `run_all_modules` caught *every* `ValueError`, so a real defect in a module was
+  indistinguishable from "its inputs aren't entered" and silently disappeared from
+  run-all/export. Added `MissingInputError(ValueError)` (`models.py`), raised at every
+  module's input-absence guards (slice is `None`, a required upstream result/geometry/
+  aero slice is absent, or a required input list is empty), and narrowed
+  `run_all_modules` to catch **only** that — a plain `ValueError` (invalid domain input
+  such as `<2` cylinders / non-positive area / mismatched element counts, or a genuine
+  defect) now propagates and is visible. `MissingInputError` subclasses `ValueError`,
+  so every existing `except ValueError` (GUI pages, CLI) still catches it; only the
+  registry narrowed. The error-handling contract (`docs/10_standard/00_program_overview.md`)
+  is updated to match. **While in the area:** `select.build_critical` now builds the V-n
+  envelope **once** and threads it into all seven `select_*` searches (via a new
+  `envelope=` parameter and the single `_envelope` fallback site) instead of each
+  rebuilding it — up to a 7× saving when no envelope is persisted (the test suite runs
+  noticeably faster). No calc/oracle change; the SELECT figures are unchanged.
+
 - **`io.py` tolerant readers — unknown fields no longer crash load (M2R-7).** A
   project file carrying one field this app version doesn't recognize (saved by a
   newer or older build, or hand-edited) crashed on load with e.g.
