@@ -81,6 +81,23 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- **Kill the last on-render `Project` mutation (M2R-4).** Opening the **Landing
+  Loads** page no longer flips 🟠 *Unsaved changes*: `landing.build_landing()`
+  wrote gear geometry, a derived gross-weight default, and the LGFACTOR result
+  back onto `Project.landing` on every render, so merely visiting the page dirtied
+  the project and `run()` was impure in the calc layer. `build_landing`/`run` are
+  now **pure** — the gear geometry (from the single-source
+  `geometry.landing_gear`) and the gross-weight default are resolved onto a local
+  *effective* input copy via `dataclasses.replace` (`_effective_gear_input`),
+  nothing is written to `Project`. The airplane load factor N is returned on
+  `LoadFactorResult.airplane_load_factor` (already displayed by the view); the
+  redundant write-back `LandingInput.n` field is removed. **Schema:**
+  `SCHEMA_VERSION` 31 → **32**; migration is lenient (the tolerant
+  `landing_from_dict` ignores an older file's `"n"` key). Added a
+  render-leaves-project-unchanged test (the exact `_has_unsaved_changes`
+  predicate); the Appendix-A ground-load oracle is byte-identical (the math runs
+  on an identical effective input).
+
 - **Ship working examples (M2R-3).** Bundled examples no longer dead-end a
   first-time user with a red error on Fuselage Loads or Landing Loads. Authored
   five examples to a clean end-to-end run (all six workflow phases): added

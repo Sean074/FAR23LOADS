@@ -1,5 +1,5 @@
 {
-  "schema_version": 31,
+  "schema_version": 32,
   "name": "RJ-50 concept \u2014 50-seat regional jet (concept mode, Part 25)",
   "engines": [
     {
@@ -705,8 +705,7 @@
         "xcg": 595.0,
         "zcg": 70.0
       }
-    ],
-    "n": null
+    ]
   },
   "include_far25": true
 }

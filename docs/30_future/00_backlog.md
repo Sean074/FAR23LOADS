@@ -44,7 +44,7 @@ All 22 Appendix-C programs are ported plus 2 modern modules (`configuration`,
 `body_loads`). Phases 0–2, C, D, E, F, Phase 1, and Phase G Steps **G0–G7**
 are complete, as are milestones **M1 (all 11 items)** and **M2 (all 11 items)**
 from the 2026-07-19 review (see history). The suite is green (466 passed at the
-2026-07-21 snapshot, ~93% coverage, ruff clean, `SCHEMA_VERSION = 31` — see CI
+2026-07-21 snapshot, ~93% coverage, ruff clean, `SCHEMA_VERSION = 32` — see CI
 for current counts), the FAR23 GA path is Appendix-A oracle-locked including
 the new M1 oracle rows (p155 VD, p178 landing-config, sweep closure), and both
 concept fixtures run end-to-end.
@@ -67,15 +67,6 @@ prose.
 
 Everything here is small (S unless noted); all must close before the M3 cut.
 Findings verified in the review — file:line evidence there.
-
-### M2R-4 — Kill the last on-render Project mutation **[MAJOR]**
-`farloads/modules/landing.py:453-456,472-474` — `build_landing()` writes gear
-geometry onto `project.landing` and `gross_weight_lb`/`n` onto the input slice,
-so merely opening Landing Loads flips "🟠 Unsaved changes" (verified by
-per-page bisection; last G4 residue) and `run()` is impure in the calc layer.
-Fix: read gear geometry into a local effective input
-(`dataclasses.replace`); return derived values instead of storing them. Add a
-render-leaves-project-hash-unchanged test for the page.
 
 ### M2R-5 — GUI editors for the blocking uncovered fields **[MAJOR]**
 (a) `landing.cg_cases`: 3-row `st.data_editor` on Landing Loads, seeded from
@@ -478,8 +469,6 @@ reaction matrix stays closure-/legible-cell-locked).
 - **M2R-7** — `io.py` crashes on project files containing unknown fields
   (forward-compat promise in `schema_status()` is false — reproduced
   2026-07-21). **[Major]**
-- **M2R-4** — `landing.build_landing()` mutates the live Project on render;
-  opening Landing Loads trips the unsaved-changes flag. **[Major]**
 - **M4-1** — fuselage body-load distribution carries an unreacted pitching
   couple (terminal Myy ≠ 0). **[Major]**
 - **M4-7** — `sbeam_bridge` hardcodes a flat ×1.5 and ignores

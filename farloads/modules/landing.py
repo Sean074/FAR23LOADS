@@ -34,6 +34,7 @@ p230 (K 0.324 / GAMMA 17.978 / the AP-BP-DP-CP lever-arm table).
 
 from __future__ import annotations
 
+import dataclasses
 import math
 from typing import List, NamedTuple, Optional, Tuple
 
@@ -442,36 +443,41 @@ def _cg_cases(inp: LandingInput) -> List[CgCase]:
     return inp.cg_cases
 
 
-def _sync_gear_from_geometry(project: Project) -> None:
-    """Step G6b: fill the landing slice's gear geometry from the single-source
-    ``Project.geometry.landing_gear`` before the LANDLOAD solve, so the calc reads
-    the one authoritative copy (the math is unchanged -- it still consumes
-    ``inp.main_gear``/``nose_gear``/``tread_in``). No-op when no gear geometry is
-    present (e.g. a directly-constructed test project that set them on the slice)."""
+def _effective_gear_input(project: Project, inp: LandingInput) -> LandingInput:
+    """Step G6b (M2R-4): return a *copy* of ``inp`` with the gear geometry read from
+    the single-source ``Project.geometry.landing_gear``, so the calc consumes the one
+    authoritative copy **without mutating** the live ``Project.landing`` (rendering the
+    page must leave the project unchanged -- else it trips the unsaved-changes flag).
+    The math is unchanged -- it still reads ``inp.main_gear``/``nose_gear``/``tread_in``.
+    Returns ``inp`` unchanged when no gear geometry is present (e.g. a
+    directly-constructed test project that set them on the slice)."""
     geom = project.geometry
     lg = geom.landing_gear if geom is not None else None
-    if lg is not None and project.landing is not None:
-        project.landing.main_gear = lg.main_gear
-        project.landing.nose_gear = lg.nose_gear
-        project.landing.tread_in = lg.tread_in
+    if lg is None:
+        return inp
+    return dataclasses.replace(inp, main_gear=lg.main_gear, nose_gear=lg.nose_gear,
+                               tread_in=lg.tread_in)
 
 
 def build_landing(project: Project) -> Tuple[LoadFactorResult, List[GearReactionCase]]:
-    """Run LGFACTOR then LANDLOAD; return the load factor and the reaction table."""
+    """Run LGFACTOR then LANDLOAD; return the load factor and the reaction table.
+
+    Pure with respect to ``project`` (M2R-4): the gear geometry and the derived
+    gross-weight default are resolved onto a local *effective* input copy; nothing is
+    written back to ``Project.landing`` (the airplane load factor ``N`` is returned on
+    ``LoadFactorResult.airplane_load_factor``, not stored)."""
     if project.landing is None:
         raise ValueError("landing needs the 'landing' input slice")
-    _sync_gear_from_geometry(project)
-    inp = project.landing
+    inp = _effective_gear_input(project, project.landing)
     s = _wing_area(project, inp)
     lf = landing_load_factor(s, inp.max_landing_weight_lb, inp.strut_stroke_in,
                              inp.tire_od_in, inp.hub_diameter_in, inp.lift_factor,
                              inp.main_gear.strut == "O")
     cgs = _cg_cases(inp)
-    # Fill gross weight from the heaviest CG case when not given.
+    # Fill gross weight from the heaviest CG case when not given (on the local copy).
     if inp.gross_weight_lb <= 0:
-        inp.gross_weight_lb = max(cg.weight_lb for cg in cgs)
+        inp = dataclasses.replace(inp, gross_weight_lb=max(cg.weight_lb for cg in cgs))
     reactions = landing_reactions(inp, lf, cgs)
-    inp.n = lf.airplane_load_factor
     return lf, reactions
 
 

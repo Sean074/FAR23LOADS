@@ -1049,7 +1049,8 @@ class LandingInput:
     (clamped 7-10 fps), the flat-tyre deflection ``(OD - hub)/6`` and the strut
     stroke, with tyre/strut efficiencies (0.3 tyre; 0.5 spring / 0.75 oleo). The
     airplane load factor ``N`` is the absorbed energy ratio and the gear factor is
-    ``NLG = N - L``; ``n`` persists ``N`` into ``Project.landing.n``.
+    ``NLG = N - L`` (both returned on ``LoadFactorResult``; M2R-4 removed the
+    write-back ``n`` field -- rendering the page must not mutate the project).
 
     LANDLOAD (FAR 23.473-23.499) then computes the tricycle-gear reaction loads for
     the level, tail-down, one-wheel, braked-roll, side and supplementary-nose-wheel
@@ -1080,7 +1081,6 @@ class LandingInput:
     # Per-CG weight & CG (aft-max-landing / fwd-max-landing / fwd-light); empty ->
     # derived from Project.mass (WTONECG). Each CgCase: name, weight_lb, xcg, zcg.
     cg_cases: List["CgCase"] = field(default_factory=list)
-    n: Optional[float] = None                  # LGFACTOR airplane load factor (result)
 
 
 # --------------------------------------------------------------------------- #
@@ -1099,8 +1099,9 @@ class LandingGearGeometry:
     G6b): the three-view and the tip-back / overturn / prop-clearance estimate now
     derive the station/track/height from the native axle geometry (ground = static
     axle ``Z`` minus rolling radius). The LANDLOAD calc reads these via
-    ``landing.build_landing`` (which syncs them onto ``Project.landing`` before the
-    reaction solve, so the math is unchanged); the non-geometry LANDLOAD inputs
+    ``landing.build_landing`` (which resolves them onto a local *effective* input copy
+    before the reaction solve -- M2R-4: no write-back to ``Project.landing`` -- so the
+    math is unchanged); the non-geometry LANDLOAD inputs
     (weights, strut stroke, tyre OD/hub, lift factor, tail-down angle) stay on
     ``Project.landing``.
     """
@@ -1734,7 +1735,11 @@ class LoadsResult:
 # (no_yellow_arc + target_vne/vno/vmo/mmo/vfe) -- advisory Subpart-G placard targets
 # that never change any load. Migration is lenient: an older file simply lacks the
 # keys and takes the defaults (no_yellow_arc False, all targets None).
-SCHEMA_VERSION = 31
+# v32 (Step M2R-4) removes the write-back LandingInput.n field (a redundant mirror of
+# LoadFactorResult.airplane_load_factor that build_landing wrote on render, tripping the
+# unsaved-changes flag). Migration is lenient: an older file's "n" key is ignored by the
+# tolerant landing_from_dict reader; the load factor is recomputed each run.
+SCHEMA_VERSION = 32
 
 
 @dataclass

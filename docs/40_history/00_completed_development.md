@@ -10,6 +10,52 @@ Acceptance**, **Key decisions**.
 
 ---
 
+## M2R-4 — Kill the last on-render Project mutation (2026-07-21 review, MAJOR, complete 2026-07-21)
+
+**Objective.** Make rendering the **Landing Loads** page non-mutating.
+`landing.build_landing()` wrote three things back onto the live `Project` on every
+render — gear geometry synced from `geometry.landing_gear` onto `project.landing`,
+the derived gross-weight default (`gross_weight_lb`), and the LGFACTOR result
+(`n`) — so merely opening the page flipped 🟠 *Unsaved changes* (the last G4
+residue, verified by per-page bisection) and `run()` was impure in the calc layer.
+
+**Deliverables (`SCHEMA_VERSION` 31 → 32).**
+- `farloads/modules/landing.py` — replaced the mutating `_sync_gear_from_geometry`
+  (returned `None`, wrote onto `project.landing`) with the pure
+  `_effective_gear_input(project, inp)`, which returns a `dataclasses.replace` copy
+  carrying the single-source `geometry.landing_gear`. `build_landing` resolves the
+  gear geometry **and** the heaviest-CG gross-weight default onto that local
+  effective copy and passes it to `landing_reactions`; the `inp.n =` write-back is
+  deleted (N is already returned on `LoadFactorResult.airplane_load_factor`).
+- `farloads/models.py` — removed the redundant write-back `LandingInput.n` field
+  (a mirror of the returned load factor that nothing consumed); updated the
+  `LandingInput`/`LandingGearGeometry` docstrings and the `SCHEMA_VERSION`
+  changelog comment (v32).
+- `examples/*.project.json` — bumped `schema_version` 31 → 32 and dropped the dead
+  `"n"` key from the `landing` block (data-only; loads are byte-identical).
+- `docs/10_standard/DATA_DICTIONARY.md` regenerated; `PROGRAM_SPEC.md` LGFACTOR/
+  LANDLOAD **Writes/Reads** rows updated (pure; effective-input copy, no
+  write-back).
+
+**Test / Acceptance.** New `test_landing.py::test_render_leaves_project_unchanged`
+asserts `io.project_to_dict(p)` is unchanged after `build_landing(p)` + `run(p)`
+(the exact `_has_unsaved_changes` predicate) on both the full GA-6 fixture and a
+`gross_weight_lb = 0` project (the derived-default path). `test_landload_pipeline_and_run`
+updated to read `lf.airplane_load_factor` instead of the removed `p.landing.n`. The
+Appendix-A ground-load oracle is byte-identical
+(`test_landloads_reactions_unchanged_bit_for_bit` unchanged — the math runs on an
+identical effective input). Full suite green (467 passed); ruff clean.
+
+**Key decisions.** `LandingInput.n` **removed**, not merely left unwritten — it was
+a result-shaped duplicate of `LoadFactorResult.airplane_load_factor` with no
+consumer; migration stays lenient (the tolerant `landing_from_dict` ignores an
+older file's `"n"` key), so a `SCHEMA_VERSION` bump with no migration code suffices.
+
+**Docs.** This entry; `CHANGELOG.md` `[Unreleased]` entry; backlog M2R-4 item and
+its Known-defects bullet removed.
+
+---
+
 ## M2R-3 — Ship working examples (2026-07-21 review, MAJOR, complete 2026-07-21)
 
 **Objective.** Remove the red errors a first-time user meets when loading a

@@ -2,7 +2,7 @@
 
 > **Generated file — do not edit by hand.** Produced by [`docs/generate_data_dict.py`](../generate_data_dict.py) from `farloads/models.py`. Regenerate after any schema change: `.venv/bin/python docs/generate_data_dict.py`.
 
-Schema version: **31**.
+Schema version: **32**.
 
 This dictionary covers the **input** slices of `Project` (`farloads/models.py`) — the fields that make up a `project.json`. The result slices (`envelope`, `mass`, `loads`) are computed outputs and are out of scope.
 
@@ -567,7 +567,6 @@ Inputs for the ground-load conditions (LGFACTOR + LANDLOAD), Ref 1 Ch 20.
 | `tail_down_angle_deg` | `float` | GRA(3) (ground line to WL, tail-down bump) | `0.0` |
 | `gear_load_factor` | `float` | NLG override; 0 -> from LGFACTOR (N - L) | `0.0` |
 | `cg_cases` | `List[CgCase]` |  | `[] (factory)` |
-| `n` | `Optional[float]` | LGFACTOR airplane load factor (result) | `None` |
 
 ## Enumerations
 

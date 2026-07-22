@@ -1,5 +1,5 @@
 {
-  "schema_version": 31,
+  "schema_version": 32,
   "name": "Cessna 210 Centurion \u2014 Continental IO-520-A",
   "engines": [
     {
@@ -769,7 +769,6 @@
         "xcg": 58.0,
         "zcg": 95
       }
-    ],
-    "n": null
+    ]
   }
 }

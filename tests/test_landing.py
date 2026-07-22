@@ -175,17 +175,37 @@ def test_landload_case_formulas():
 
 
 def test_landload_pipeline_and_run():
-    """The GA-6 example flows through build_landing/run; LGFACTOR N persists."""
+    """The GA-6 example flows through build_landing/run; N is returned, not stored."""
     p = io.load_project(_GA)
     lf, rx = build_landing(p)
     assert len(rx) == 33
     assert math.isclose(lf.airplane_load_factor, 3.0951, rel_tol=2e-3)
-    assert p.landing.n is not None and math.isclose(p.landing.n, lf.airplane_load_factor)
     mod = run(p)
     assert mod.module == "landing"
     titles = [c.title for c in mod.conditions]
     assert titles[0].startswith("Landing load factor")
     assert any("Braked roll" in t for t in titles)
+
+
+def test_render_leaves_project_unchanged():
+    """M2R-4: rendering Landing Loads must not mutate the project -- build_landing/run
+    are pure, so the serialized project (the exact unsaved-changes predicate) is
+    unchanged. Covers both the geometry-gear sync and the derived gross-weight path."""
+    # (a) Full GA-6 fixture: geometry gear present, gross_weight_lb set.
+    p = io.load_project(_GA)
+    before = io.project_to_dict(p)
+    build_landing(p)
+    run(p)
+    assert io.project_to_dict(p) == before, "build_landing/run mutated the project"
+
+    # (b) gross_weight_lb == 0 -> the heaviest-CG default is resolved on a local copy,
+    #     never written back onto the input slice.
+    p2 = Project(name="gw0", landing=replace(_ga_landing(), gross_weight_lb=0.0))
+    before2 = io.project_to_dict(p2)
+    lf, _ = build_landing(p2)
+    assert p2.landing.gross_weight_lb == 0.0
+    assert lf.airplane_load_factor > 0
+    assert io.project_to_dict(p2) == before2
 
 
 def test_landing_io_roundtrip():

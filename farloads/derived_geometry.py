@@ -9,8 +9,10 @@ surface + the parametric wing + the fuselage outline).
 
 :func:`wing_reference` computes the wing quantities from geometry; :func:`fuselage_summary`
 the fuselage length/width/height from the outline. :func:`sync_geometry_derived` writes
-the derived values onto the consuming slices; every module that reads them calls it first
-(mirroring ``landing._sync_gear_from_geometry``, Step G6b). When the wing/parametric/outline
+the derived values onto the consuming slices; every module that reads them calls it first.
+(Landing gear was a sibling of this pattern until M2R-4 made it pure: `landing.build_landing`
+now resolves ``geometry.landing_gear`` onto a local effective-input copy instead of writing
+onto ``Project.landing``.) When the wing/parametric/outline
 geometry is absent (a directly-constructed test project) the sync is a no-op, so an
 explicitly-set slice value still flows through -- exactly the STRSPEED wing-area fallback.
 
