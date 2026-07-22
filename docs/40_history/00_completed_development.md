@@ -10,6 +10,82 @@ Acceptance**, **Key decisions**.
 
 ---
 
+## M2R-6 — Geometry Apply: validate before persisting (2026-07-21 review, MAJOR, complete 2026-07-21)
+
+**Objective.** The **Geometry** page's sidebar *Apply geometry* button did a
+wholesale replace of `Project.geometry.parametric` with no validation. Applying an
+invalid wing (e.g. Area S = 0) stored it, then `configuration_properties` in the
+page body raised (`wing_planform` requires positive area/AR) and the
+`try/except → st.error + st.stop()` blanked everything below — including the
+*unrelated* empennage / landing-gear / fuselage-outline / surfaces forms, which live
+past that `st.stop()`.
+
+**Deliverables (GUI-only; no calc or schema change).**
+- `app/views/configuration_layout.py` — new `_layout_errors(layout)` helper (positive
+  wing area, aspect ratio, taper λ) run on the candidate `LayoutInput` **before**
+  `_set_geometry`. An invalid Apply is rejected with a targeted `st.error` listing the
+  offending field(s) and is **not** persisted; the last valid layout survives, so the
+  page body and the downstream forms keep rendering. A valid Apply is unchanged.
+
+**Key decision.** Chose *reject-before-persist* over *persist + warn*: never store a
+layout that would crash the geometry-derived consumers (three-view, assessment,
+downstream seeds, exports), so the invalid value cannot propagate to other pages or a
+saved file.
+
+**Test / Acceptance.** New `tests/test_configuration_layout_view.py` drives the page
+via `AppTest`: setting Area S = 0 and pressing Apply leaves
+`geometry.parametric.wing_area_sqft` unchanged, shows a "not applied" error, and the
+`Apply empennage` / `Apply landing gear` buttons still render (page not blanked); a
+valid edit (S = 200) still persists. Full suite green (477 passed); ruff clean.
+
+**Docs.** This entry; `CHANGELOG.md` `[Unreleased]`; backlog M2R-6 removed.
+
+---
+
+## M2R-5 — GUI editors for the blocking uncovered fields (2026-07-21 review, MAJOR, complete 2026-07-21)
+
+**Objective.** Two inputs that govern the results had **no on-screen widget** —
+editable only by hand-editing `project.json`: (a) `landing.cg_cases`, the three
+distinct landing loadings LANDLOAD requires (aft-max / fwd-max / fwd-light); (b)
+`SelectInput.full_down_aileron_deg` / `basic_airfoil_cm` / `wing_weight_lb`, which
+drive the 23.349(b) steady-roll wing-torsion score and the critical-fuselage wing
+weight and defaulted silently (0 / 0 / 0.09·MTOW).
+
+**Key decision (2026-07-21 consultation).** Seed the landing CG editor from the
+**WTENV structural CG envelope**, not `project.mass.cases` as the backlog literally
+said: `weight_onecg.build_mass` emits only **one** `MassCase` ("itemized loading"),
+so `mass.cases` cannot supply three *distinct* fwd/aft/light rows (the very
+degeneracy M2-8 removed auto-derivation to avoid). WTENV gives the fwd-most/aft-most
+structural CG stations (`validation.wtenv_cg_limits`) plus the gross /
+fwd-regardless weights; the waterline comes from the itemized loading when present.
+The fwd/aft split is a seed the engineer confirms (WTENV cannot distinguish it per
+loading).
+
+**Deliverables (no schema change; `SCHEMA_VERSION` stays 32).**
+- `app/views/landing_loads.py` — a fixed 3-row `st.data_editor` (`_seed_cg_rows`
+  helper) in the page form; Apply writes `landing.cg_cases`; the hard "provide
+  WTONECG results or edit the JSON" gate replaced by an in-place info until three
+  positive-weight rows are applied.
+- `app/views/flight_envelope.py` — a `_select_inputs_form` (`st.expander` + form) on
+  the Critical Loads tab for the three `SelectInput` fields, each with `help=`;
+  Apply writes `project.select_input`.
+- `farloads/validation.py` — promoted `_wtenv_cg_limits` → public
+  `wtenv_cg_limits`; re-pointed the existing `app/views/weight_mass.py` importer
+  (removes one `app/`-imports-`farloads`-underscore violation — partial M4-12).
+
+**Test / Acceptance.** `tests/test_dirty_flag.py`: `landing_loads.py` added to the
+render-leaves-project-unchanged parametrization (both new forms persist only on
+Apply); `test_landing_cg_editor_seeds_and_persists_on_apply` (WTENV seed → Apply →
+3 CG cases at the fwd/aft stations & gross/fwd-regardless weights);
+`test_select_inputs_persist_only_on_apply` (DN / Cm / WW → Apply →
+`project.select_input`). Full suite green (475 passed); ruff clean. No calc change —
+the SELECT/landing oracles are untouched.
+
+**Docs.** This entry; `CHANGELOG.md` `[Unreleased]`; backlog M2R-5 removed and the
+M4-12 note updated for the `wtenv_cg_limits` promotion.
+
+---
+
 ## M2R-4 — Kill the last on-render Project mutation (2026-07-21 review, MAJOR, complete 2026-07-21)
 
 **Objective.** Make rendering the **Landing Loads** page non-mutating.

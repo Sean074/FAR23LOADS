@@ -160,11 +160,15 @@ def _check_area_mismatch(project: Project) -> List[ConsistencyWarning]:
     return []
 
 
-def _wtenv_cg_limits(project: Project) -> Optional["tuple[float, float]"]:
+def wtenv_cg_limits(project: Project) -> Optional["tuple[float, float]"]:
     """(forward-most, aft-most) structural CG station (in) from WTENV, or None.
 
     Needs the WTENV envelope slice and the wing geometry it reads XLEMAC/MAC from;
     returns None (check skipped) when either is absent or the calc cannot run.
+
+    Public (M2R-5): also seeds the Landing Loads CG-case editor and the Weight/CG
+    grid overlay, so it is imported by ``app/`` -- hence a public name (M4-12: ``app/``
+    must not import ``farloads`` underscore symbols).
     """
     if project.weight is None or project.weight.envelope is None:
         return None
@@ -187,7 +191,7 @@ def _wtenv_cg_limits(project: Project) -> Optional["tuple[float, float]"]:
 def _check_cg_envelope(project: Project) -> List[ConsistencyWarning]:
     if project.weight is None or not project.weight.items:
         return []
-    limits = _wtenv_cg_limits(project)
+    limits = wtenv_cg_limits(project)
     if limits is None:
         return []
     fwd, aft = limits

@@ -15,6 +15,7 @@ import pandas as pd
 import streamlit as st
 
 from farloads import (
+    CgCase,
     LandingInput,
     Project,
     UnitSystem,
@@ -27,6 +28,39 @@ from farloads import (
 )
 from farloads.derived_geometry import wing_reference
 from farloads.modules.landing import build_landing, run
+from farloads.validation import wtenv_cg_limits
+
+
+_CG_NAMES = ("aft max landing", "fwd max landing", "fwd light")
+
+
+def _seed_cg_rows(project: Project, inp: LandingInput, system: UnitSystem) -> list:
+    """Three display-unit CG rows for the editor (M2R-5).
+
+    Existing ``landing.cg_cases`` when present (edit what's there); otherwise a
+    best-effort WTENV seed -- the fwd-most / aft-most structural CG stations
+    (``validation.wtenv_cg_limits``) with the gross / fwd-regardless weights and the
+    itemized-loading waterline -- so the engineer confirms/adjusts rather than typing
+    JSON. Falls back to labeled zero rows when no WTENV envelope is present. The
+    fwd/aft station split is a seed only: WTENV cannot distinguish it per loading."""
+    if len(inp.cg_cases) == 3:
+        src = list(inp.cg_cases)
+    else:
+        env = project.weight.envelope if project.weight is not None else None
+        gross = inp.max_landing_weight_lb or (env.gross_weight if env else 0.0)
+        light = (env.fwd_regardless_weight if env and env.fwd_regardless_weight
+                 else 0.0) or gross
+        zbar = (project.mass.cases[0].cg_z
+                if project.mass is not None and project.mass.cases else 0.0)
+        limits = wtenv_cg_limits(project)
+        fwd, aft = limits if limits is not None else (0.0, 0.0)
+        src = [CgCase(_CG_NAMES[0], gross, aft, zbar),
+               CgCase(_CG_NAMES[1], gross, fwd, zbar),
+               CgCase(_CG_NAMES[2], light, fwd, zbar)]
+    return [{"name": c.name,
+             "weight_lb": round(to_display(c.weight_lb, "weight", system), 3),
+             "xcg": round(to_display(c.xcg, "length", system), 3),
+             "zcg": round(to_display(c.zcg, "length", system), 3)} for c in src]
 
 
 st.title("Landing Loads — LGFACTOR + LANDLOAD")
@@ -82,6 +116,24 @@ with st.form("landing_loads_form"):
 
     tail_down_angle_deg = st.number_input("Tail-down ground angle (deg)", min_value=0.0,
                                           value=float(inp.tail_down_angle_deg))
+
+    st.subheader("Landing CG cases")
+    st.caption(
+        "The three distinct landing loadings LANDLOAD cycles (aft-max / fwd-max / "
+        "fwd-light landing; UG fig 18.2) — editable here (previously project-JSON only). "
+        "Seeded from the WTENV structural CG envelope (fwd/aft stations + gross / "
+        "fwd-regardless weights) when present; **confirm the fwd vs aft stations**, which "
+        "WTENV cannot distinguish per loading.")
+    edited_cg = st.data_editor(
+        pd.DataFrame(_seed_cg_rows(project, inp, system)),
+        num_rows="fixed", width="stretch", key=f"landing_cg_editor_{system.value}",
+        column_config={
+            "name": st.column_config.TextColumn("Loading"),
+            "weight_lb": st.column_config.NumberColumn(f"Weight ({U['weight']})", min_value=0.0),
+            "xcg": st.column_config.NumberColumn(f"Xcg station ({U['length']})"),
+            "zcg": st.column_config.NumberColumn(f"Zcg waterline ({U['length']})"),
+        })
+
     st.caption(
         "The **landing-gear geometry** (axle stations, tread, rolling radius, strut) is "
         "the single-source **Landing gear** section on the **Geometry** page (Step G6b) — "
@@ -98,13 +150,19 @@ if applied:
     inp.lift_factor = lift_factor
     inp.gear_load_factor = gear_load_factor
     inp.tail_down_angle_deg = tail_down_angle_deg
+    inp.cg_cases = [
+        CgCase(name=str(r["name"]),
+               weight_lb=to_imperial_scalar(float(r["weight_lb"]), "weight", system),
+               xcg=to_imperial_scalar(float(r["xcg"]), "length", system),
+               zcg=to_imperial_scalar(float(r["zcg"]), "length", system))
+        for r in edited_cg.to_dict("records")]
     project.landing = inp
     st.session_state["project"] = project
     st.success("Landing/ground inputs applied.")
 
-if not inp.cg_cases and (project.mass is None or not project.mass.cases):
-    st.warning("Provide the **Weight, CG & Inertia** (WTONECG) results, or enter the "
-               "three landing CG cases in the project JSON, before computing reactions.")
+if len([c for c in inp.cg_cases if c.weight_lb > 0]) != 3:
+    st.info("Enter the three landing **CG cases** above (each with a positive weight) "
+            "and press **Apply** to compute the ground reactions.")
     st.stop()
 
 if project.is_concept:

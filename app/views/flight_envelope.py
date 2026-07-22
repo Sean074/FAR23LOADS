@@ -31,6 +31,7 @@ from components import gate
 from farloads import (
     FlightLoadsInput,
     Project,
+    SelectInput,
     UnitSystem,
     build_vn_diagram,
     convert_results,
@@ -291,6 +292,39 @@ _COMPONENTS = [
 ]
 
 
+def _select_inputs_form() -> None:
+    """SELECT search inputs beyond the V-n matrix (M2R-5): the wing steady-roll
+    torsion drivers (23.349(b)) and the critical-fuselage wing weight. Previously
+    defaulted silently (0 / 0 / 0.09·MTOW) with no visible knob. Form + Apply, so a
+    plain render never dirties the project."""
+    si = project.select_input or SelectInput()
+    with st.expander("SELECT search inputs (wing torsion & critical fuselage)"):
+        with st.form("select_inputs_form"):
+            c1, c2, c3 = st.columns(3)
+            aileron = c1.number_input(
+                "Full-down aileron deflection, DN (deg)", min_value=0.0,
+                value=float(si.full_down_aileron_deg),
+                help="Drives the FAR 23.349(b) steady-roll wing-torsion score "
+                     "(cm − 0.01·DN)·q·V²; 0 leaves the roll case out of the wing search.")
+            cm = c2.number_input(
+                "Basic airfoil Cm (no aileron)", value=float(si.basic_airfoil_cm),
+                format="%.4f",
+                help="Section pitching-moment coefficient with no aileron deflection; "
+                     "pairs with DN in the wing-torsion score.")
+            wing_weight = c3.number_input(
+                f"Wing weight, WW ({U['weight']})", min_value=0.0,
+                value=float(round(to_display(si.wing_weight_lb, "weight", system), 3)),
+                help="Wing weight reacted at the wing for the critical-fuselage search "
+                     "(load on wing = LZW − Nz·WW). 0 → default 0.09·MTOW.")
+            if st.form_submit_button("Apply", type="primary"):
+                si.full_down_aileron_deg = float(aileron)
+                si.basic_airfoil_cm = float(cm)
+                si.wing_weight_lb = to_imperial_scalar(float(wing_weight), "weight", system)
+                project.select_input = si
+                st.session_state["project"] = project
+                st.success("SELECT search inputs applied.")
+
+
 def _tab_select() -> None:
     st.caption(
         "SELECT searches the balanced V-n matrix for the governing wing, horizontal-"
@@ -305,6 +339,8 @@ def _tab_select() -> None:
     if project.tail_loads is None:
         st.info("Add the **Tail Loads** inputs to the project to include the rational "
                 "horizontal-tail loads; the wing and fuselage conditions are shown regardless.")
+
+    _select_inputs_form()
 
     try:
         critical = build_critical(project)

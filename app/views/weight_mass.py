@@ -47,7 +47,7 @@ from farloads.modules.weight_envelope import envelope as compute_envelope, loadi
 from farloads.modules.weight_estimate import estimate, estimate_to_mass_items
 from farloads.modules.weight_onecg import weights_and_inertia
 from farloads.report import module_text_report
-from farloads.validation import _wtenv_cg_limits
+from farloads.validation import wtenv_cg_limits
 
 
 st.title("Weight & Mass Properties — FAR 23")
@@ -365,7 +365,7 @@ def _tab_cg_inertia(project: Project, system: UnitSystem, U: dict) -> None:
                                  hovertext=[it.name for it in pts]))
         fig.add_vline(x=to_display(xbar_in, "length", system), line_dash="dash",
                       line_color="#d62728", annotation_text="CG", annotation_position="top")
-        limits = _wtenv_cg_limits(project)
+        limits = wtenv_cg_limits(project)
         if limits is not None:
             fwd, aft = limits
             for x_in, lbl in ((fwd, "fwd limit"), (aft, "aft limit")):

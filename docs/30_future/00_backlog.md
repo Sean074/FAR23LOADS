@@ -68,20 +68,6 @@ prose.
 Everything here is small (S unless noted); all must close before the M3 cut.
 Findings verified in the review — file:line evidence there.
 
-### M2R-5 — GUI editors for the blocking uncovered fields **[MAJOR]**
-(a) `landing.cg_cases`: 3-row `st.data_editor` on Landing Loads, seeded from
-`project.mass.cases` (aft-max / fwd-max / fwd-light) — currently editable only
-via raw JSON. (b) `SelectInput.full_down_aileron_deg` / `basic_airfoil_cm` /
-`wing_weight_lb` on the Critical Loads tab (with `help=`) — they drive the
-governing wing-torsion score and critical-fuselage weight and currently
-default silently (0 / 0 / 0.09·MTOW) with no visible knob.
-
-### M2R-6 — Geometry Apply: validate before persisting **[MAJOR]**
-`app/views/configuration_layout.py:260,274-278` — Apply persists an invalid
-layout (e.g. Area S = 0), then `st.error` + `st.stop()` blanks the rest of the
-page including the unrelated empennage/gear forms. Reject the Apply with a
-targeted message (or persist + warn while keeping the page alive).
-
 ### M2R-7 — io.py tolerant readers (forward-compat crash) **[MAJOR]**
 Reproduced live: one unknown field in a project file crashes load
 (`MassItem.__init__() got an unexpected keyword argument…`) although
@@ -269,9 +255,10 @@ before writing the F25/OpenVSP views, not after 30 views exist.** Est. 1.5–2k
 lines removed.
 
 ### M4-12 — Contract & test-architecture cleanups (2026-07-21 review batch)
-Promote the 9 cross-module private-symbol imports to public homes
+Promote the remaining cross-module private-symbol imports to public homes
 (`_interp_x`, `_sigma`, `_maneuver_load_factors`, `htail_balance` family;
-`app/` must not import `farloads` underscore names); `htail_balance` →
+`app/` must not import `farloads` underscore names — the `_wtenv_cg_limits` →
+`wtenv_cg_limits` case was promoted with M2R-5); `htail_balance` →
 NamedTuple (stringly dict keys cross module boundaries); document the
 `tail_loads`/`vtail_loads` property-proxy trap-doors (invisible to
 `dataclasses.fields/replace/asdict`; silent None no-op) and do not replicate

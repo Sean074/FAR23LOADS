@@ -431,7 +431,7 @@ def _cg_cases(inp: LandingInput) -> List[CgCase]:
     stations -- the pair was degenerate and the nose-gear/braked-roll reactions were
     under-predicted. Callers must supply the three explicit stations (the WTENV
     structural fwd/aft CG limits are the intended source; see
-    ``validation._wtenv_cg_limits``)."""
+    ``validation.wtenv_cg_limits``)."""
     if not inp.cg_cases:
         raise ValueError(
             "landing needs explicit landing.cg_cases: three distinct CG loadings "

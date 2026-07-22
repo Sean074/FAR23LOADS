@@ -126,6 +126,25 @@ def _set_geometry(proj: Project, **changes) -> None:
     st.session_state["project"] = proj
 
 
+def _layout_errors(layout: LayoutInput) -> list[str]:
+    """Reasons the parametric wing cannot be applied (M2R-6). Empty -> valid.
+
+    ``configuration.wing_planform`` requires a positive area and aspect ratio (and a
+    positive taper λ for a real trapezoid -- it divides by ``1 + λ``). Persisting an
+    invalid layout used to be stored, then crash ``configuration_properties`` below and
+    ``st.stop()`` -- blanking the unrelated empennage / landing-gear / outline forms
+    further down the page. Validate before persisting so the Apply is rejected with a
+    targeted message and the last valid layout (hence the rest of the page) survives."""
+    errs: list[str] = []
+    if layout.wing_area_sqft <= 0:
+        errs.append("Wing **Area S** must be greater than 0.")
+    if layout.aspect_ratio <= 0:
+        errs.append("**Aspect ratio** must be greater than 0.")
+    if layout.taper_ratio <= 0:
+        errs.append("**Taper ratio** λ must be greater than 0 (tip/root chord ratio).")
+    return errs
+
+
 # --------------------------------------------------------------------------- #
 # Input groups
 # --------------------------------------------------------------------------- #
@@ -247,7 +266,7 @@ if applied:
     # Fuselage length/width/height are a derived summary of the outline (Step M2-6):
     # carry the current summary onto the parametric slice so it stays consistent (io
     # drops them and sync_geometry_derived re-derives on load / every calc run).
-    layout = LayoutInput(
+    _candidate = LayoutInput(
         fuselage_length=_sum_len, fuselage_width=_sum_wid,
         fuselage_height=_sum_hgt, datum_x=_imp(datum_x, "length"),
         wing_area_sqft=_imp(wing_area_sqft, "area_sqft"), aspect_ratio=aspect_ratio, taper_ratio=taper_ratio,
@@ -255,9 +274,16 @@ if applied:
         root_waterline_z=_imp(root_waterline_z, "length"),
         tail_type=_TAIL_TYPE_BY_LABEL[tail_type_label], h_tail_z=_imp(h_tail_z, "length"),
     )
-    # Preserve the hand-edited fuselage outline (the sole shape source, Step M2-6).
-    _existing_fuse = project.geometry.fuselage if project.geometry is not None else None
-    _set_geometry(project, parametric=layout, fuselage=_existing_fuse)
+    # M2R-6: validate BEFORE persisting -- reject an invalid layout with a targeted
+    # message rather than storing it and blanking the page downstream.
+    _errors = _layout_errors(_candidate)
+    if _errors:
+        st.error("Geometry not applied — fix the wing planform:\n\n"
+                 + "\n".join(f"- {e}" for e in _errors))
+    else:
+        # Preserve the hand-edited fuselage outline (the sole shape source, Step M2-6).
+        _existing_fuse = project.geometry.fuselage if project.geometry is not None else None
+        _set_geometry(project, parametric=_candidate, fuselage=_existing_fuse)
 
 _parametric = project.geometry.parametric if project.geometry is not None else None
 if _parametric is None:

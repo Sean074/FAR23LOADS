@@ -11,6 +11,26 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **GUI editors for the blocking uncovered fields (M2R-5).** Two inputs that
+  drove the results but had no on-screen knob (JSON-only) are now editable in the
+  app. **(a) Landing CG cases** — a fixed 3-row `st.data_editor` on **Landing
+  Loads** for `landing.cg_cases` (name / weight / Xcg / Zcg), seeded from the
+  **WTENV structural CG envelope** (fwd/aft stations via the newly-public
+  `validation.wtenv_cg_limits`, with the gross / fwd-regardless weights and the
+  itemized-loading waterline) and editable from there; the page's hard "provide
+  WTONECG or edit the JSON" gate is replaced by an in-place info until the three
+  positive-weight rows are applied. **(b) SELECT search inputs** — a form on the
+  **Critical Loads** tab for `SelectInput.full_down_aileron_deg` /
+  `basic_airfoil_cm` / `wing_weight_lb` (each with `help=`), which drive the
+  23.349(b) steady-roll wing-torsion score and the critical-fuselage wing weight
+  and previously defaulted silently (0 / 0 / 0.09·MTOW). Both persist only on
+  **Apply** (a plain render leaves the project byte-for-byte unchanged — the M2R-4
+  guard, now covering `landing_loads` too). No calc or schema change
+  (`SCHEMA_VERSION` stays 32); the two slices already round-trip in `io.py`. En
+  route, promoted `validation._wtenv_cg_limits` → public `wtenv_cg_limits` and
+  re-pointed the existing `app/views/weight_mass.py` importer (removes one
+  `app/`-imports-`farloads`-underscore violation, per M4-12).
+
 - **`project.json` data dictionary + GUI user guide (M2-11).** Two new docs.
   `docs/10_standard/DATA_DICTIONARY.md` is **generated** by
   `docs/generate_data_dict.py`, which introspects the `farloads.models` Project
@@ -80,6 +100,15 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   save→reload no-op. Calc unchanged; Appendix A oracles bit-for-bit.
 
 ### Fixed
+
+- **Geometry Apply validates before persisting (M2R-6).** The **Geometry** page's
+  sidebar *Apply geometry* used to store whatever was typed — including an invalid
+  wing (e.g. Area S = 0) — which then crashed `configuration_properties` in the page
+  body and hit `st.stop()`, blanking the *unrelated* empennage / landing-gear /
+  fuselage-outline / surfaces forms further down. Apply now validates the candidate
+  `LayoutInput` first (`_layout_errors`: positive area, aspect ratio and taper λ) and,
+  when invalid, rejects the Apply with a targeted message while keeping the last valid
+  layout — so the rest of the page stays alive. GUI-only; no calc or schema change.
 
 - **Kill the last on-render `Project` mutation (M2R-4).** Opening the **Landing
   Loads** page no longer flips 🟠 *Unsaved changes*: `landing.build_landing()`
