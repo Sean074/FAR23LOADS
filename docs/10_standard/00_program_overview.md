@@ -24,7 +24,7 @@ module by module.
 ## Project structure
 
 ```
-farloads/                 # shared, pure-calc package — no I/O in calc code
+sloads/                 # shared, pure-calc package — no I/O in calc code
 ├── constants.py          # g, pi (math.pi), unit factors, atmosphere — the one home for constants
 ├── models.py             # Project + per-domain input/result slices, ConditionResult/LoadValue, ModuleResult, SCHEMA_VERSION
 ├── units.py              # Imperial<->SI conversion at the I/O boundary only
@@ -50,7 +50,7 @@ app/
 │   ├── results_review.py #   Export   — consolidated governing loads (recomputed live)
 │   └── export_report.py  #   Export   — project JSON + per-module CSVs + sbeam BDF cards
 └── data/reference_aircraft.csv
-cli.py                    # argparse front-end; `farloads` console script
+cli.py                    # argparse front-end; `sloads` console script
 tests/                    # pytest; one manual-example test per module vs Appendix A/B
 examples/                 # ga6_normal (Appendix A), cessna_210 (normal cat), concept_heavy + dhc8_dash8 (concept) project.json
 ```
@@ -63,7 +63,7 @@ identical.
 The GUI is organised as a six-section workflow — **Start → Airplane → Envelopes &
 Critical Conditions → Analysis → Loads Plots → Export** (Phase D; see
 `docs/30_future/02_gui_workflow_plan.md`) — built explicitly with `st.navigation`
-from `farloads/workflow.py`, the ordered, dependency-aware step graph (each step
+from `sloads/workflow.py`, the ordered, dependency-aware step graph (each step
 names the calc `module` it runs and the slices it `requires`/`produces`). That one
 source of truth drives both the sidebar grouping (a section with no steps yet is
 omitted rather than shown empty) and the Home dashboard's completeness panel, so
@@ -84,14 +84,14 @@ stale.
   closed sets (engine type, rotor type, rotor direction).
 - **Pure calc, no I/O.** A module exposes `run(project: Project) -> ModuleResult`,
   reads the upstream fields it needs from `Project`, and returns results. No file
-  access, no Streamlit, no printing inside `farloads/` calc code — `io.py` is the
+  access, no Streamlit, no printing inside `sloads/` calc code — `io.py` is the
   only place dataclasses meet JSON/CSV.
 - **Reuse the result types.** Emit `LoadValue`/`ConditionResult`/`ModuleResult`
   so `report.py`, `units.py`, and the CSV writer work unchanged. The CSV is always
   "one row per load case" via `load_cases_to_rows` — generalise it, don't reinvent
   per module.
 - **Self-register** at import (`register("name", run)`) and add the import to
-  `farloads/modules/__init__.py`.
+  `sloads/modules/__init__.py`.
 - **Never recompute another module's quantity** — read it from the `Project`
   slice that owns it.
 - **Constants centralised** in `constants.py`; no bare magic numbers in calc.
@@ -188,11 +188,11 @@ plain units with no `-ULT` suffix.
   per-step completeness; each section groups its pages in the sidebar; the
   Results Review and Export & Report pages (both in Export) consolidate
   governing loads and all exports.
-- **CLI (secondary, batch/automation):** the `farloads` console script (from the
+- **CLI (secondary, batch/automation):** the `sloads` console script (from the
   editable install) or `python cli.py <module> <project.json> [-o out.csv]`;
   `--list` shows registered modules. Text report to stdout, or `-o` writes the
   load-case CSV.
-- **Library:** `import farloads` — `registry.get(name)(project)` over a `Project`
+- **Library:** `import sloads` — `registry.get(name)(project)` over a `Project`
   you build yourself.
 
 ---
@@ -211,13 +211,13 @@ Runtime (`pyproject.toml` `[project.dependencies]`): `streamlit>=1.30`,
   against the Appendix A (6-place GA single, p131) and/or Appendix B (10-place
   twin turboprop, p251) figures within **±0.1%** (`rel_tol=1e-3`); exact equality
   only for integer/dimensionless quantities.
-- `ruff check farloads/ cli.py` clean and `pytest` passing are the merge gate; CI
+- `ruff check sloads/ cli.py` clean and `pytest` passing are the merge gate; CI
   runs both on Python 3.9 / 3.11 / 3.12.
 - **Coverage floor.** `pytest` emits a per-file branch-coverage table (configured
   via `addopts` in `pyproject.toml`). CI additionally enforces
   `--cov-fail-under=80` so coverage cannot silently regress. This floor is a
   **ratchet**: raise it toward 85% as `report.py` and `constants.py` gain tests,
-  and tighten to a per-module gate on `farloads/modules/` (the load math) as the
+  and tighten to a per-module gate on `sloads/modules/` (the load math) as the
   suite grows.
 - A zero-dependency fallback runner exists (`python tests/test_engine.py`) for
   environments without pytest.

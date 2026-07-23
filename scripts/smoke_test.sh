@@ -32,8 +32,8 @@ if [[ -z "$PYTHON" || ! -x "$PYTHON" ]]; then
   echo "smoke_test: no usable Python interpreter (set \$PYTHON or install python3)" >&2
   exit 1
 fi
-if ! "$PYTHON" -c 'import streamlit, farloads' >/dev/null 2>&1; then
-  echo "smoke_test: streamlit/farloads not importable by $PYTHON — run 'pip install -e .[dev]' first" >&2
+if ! "$PYTHON" -c 'import streamlit, sloads' >/dev/null 2>&1; then
+  echo "smoke_test: streamlit/sloads not importable by $PYTHON — run 'pip install -e .[dev]' first" >&2
   exit 1
 fi
 

@@ -37,7 +37,7 @@ The system is a **shared pure-calc package + interchangeable thin front-ends**
 (GUI, CLI, tests). The GUI carries **one reloadable `Project`** in
 `st.session_state["project"]`; every page reads the slices it needs off that
 `Project` and writes its own slice back. Navigation is generated from
-`farloads/workflow.py`, the single source of truth for *what the suite does and in
+`sloads/workflow.py`, the single source of truth for *what the suite does and in
 what order*.
 
 ```
@@ -48,15 +48,15 @@ project.json ──io.load_project──▶ Project ──▶ view widgets ─�
 ```
 
 `app/Home.py` is the entry point; `app/views/<key>.py` is one page each;
-`farloads/models.py` holds `Project` and its per-domain slices; `farloads/io.py`
-is the only dataclass⇔JSON mapper; `farloads/units.py` owns unit conversion.
+`sloads/models.py` holds `Project` and its per-domain slices; `sloads/io.py`
+is the only dataclass⇔JSON mapper; `sloads/units.py` owns unit conversion.
 
 ---
 
 ## 3. Navigation model
 
 The sidebar is built by `st.navigation` in `app/Home.py` from
-`farloads/workflow.py` — **not** from a `pages/` directory — so page order and
+`sloads/workflow.py` — **not** from a `pages/` directory — so page order and
 titles come from workflow metadata, not filename numbers. Since Step G2 the
 sections follow the FAR 23 analysis flow — an un-numbered **Start** app-shell group
 above the six numbered analysis-flow phases:
@@ -147,7 +147,7 @@ The contract that makes pages copy-of-the-pattern (full list in
 Imperial is the canonical internal system; SI is presentation only. Results are
 converted with `convert_results` / `si_scalar_label` / `to_si_scalar`. **Input
 widgets** on the definition pages follow this standard pattern (reference
-implementation: `app/views/engine_mount.py`; helpers in `farloads/units.py`):
+implementation: `app/views/engine_mount.py`; helpers in `sloads/units.py`):
 
 ```python
 system = st.session_state.get("unit_system", UnitSystem.IMPERIAL)
@@ -164,7 +164,7 @@ Key points: seed the widget from the stored Imperial value via
 widget `key` with `system.value` so switching units re-seeds the widget; convert
 back with `to_imperial_scalar(v, kind, system)` before writing the (always
 Imperial) `Project`. Unit **kinds** and their factors/labels live in
-`SI_PER_IMPERIAL` / `UNIT_LABELS` in `farloads/units.py`.
+`SI_PER_IMPERIAL` / `UNIT_LABELS` in `sloads/units.py`.
 
 **Aviation-standard exception:** airspeed (KEAS) and altitude (ft) stay in
 aviation units in *both* systems and are never converted — do not add a unit kind
@@ -205,7 +205,7 @@ that lets the user *see* whether the inputs are self-consistent:
 | Aerodynamic Data | Echo tables only *(curve plot deferred — see backlog)*; **fuselage pitching-moment (Munk) estimate** — volume/fineness/k₂−k₁/ΔM1 from the Geometry outline, off-by-default, overridable (Step G4) |
 | Aircraft Comparison (Export) | Parameter table + six fleet scatters (loading, weight, geometry) *(Phase F, Step F2)* |
 
-The continuous LIMIT design envelope is built by the pure `farloads/vn_diagram.py`
+The continuous LIMIT design envelope is built by the pure `sloads/vn_diagram.py`
 helper from the STRSPEED design speeds + limit load factors; its gust lines are the
 textbook Pratt form (14 CFR 23.341) and are explicitly captioned as approximate.
 It is drawn as a grey backdrop on the **Flight Envelope (V-n)** page (FLTLOADS)
@@ -220,7 +220,7 @@ tables and points to the Flight Envelope page.)
 Pages surface explicit `st.warning`s on inconsistent input — taper ratio > 1,
 non-positive area, leading-/trailing-edge point ordering, a wing-area mismatch
 between Configuration & Layout and Wing/Surface Geometry, or a CG outside the
-weight-CG envelope. The checks are pure predicates in `farloads/validation.py`
+weight-CG envelope. The checks are pure predicates in `sloads/validation.py`
 (`consistency_warnings(project)`), each tagged with the page that renders it; the
 CG-envelope check compares the WTONECG CG against the WTENV structural envelope and
 is silently skipped when that envelope (or the wing geometry it needs) is absent.
@@ -241,10 +241,10 @@ OEW, power, W/S, W/P, wingspan, wing area, aspect ratio, seats), and **six scatt
 tabs**: W/S-vs-W/P, MTOW-vs-OEW, and four geometric scatters (wingspan / wing area /
 aspect ratio / seats vs. MTOW).
 
-The numeric core is the pure, unit-tested `farloads/fleet.py`
+The numeric core is the pure, unit-tested `sloads/fleet.py`
 (`fleet_stats(subject, fleet)` → `FleetStats`; no pandas / file access / Streamlit);
 the CSV load and rendering are owned by the page itself. Locked decisions
-(Step E4, 2026-07-15): **D-E4-1** pure core in `farloads/fleet.py`; **D-E4-2**
+(Step E4, 2026-07-15): **D-E4-1** pure core in `sloads/fleet.py`; **D-E4-2**
 nearest-N uses a normalized-Euclidean distance over whichever metrics the subject
 supplies (always log-MTOW; add W/S and W/P when known), and the outlier flag is the
 fleet **p10–p90** band; **D-E4-3** the readout lists the **nearest 3** from the
@@ -276,13 +276,13 @@ at definition time.
 The tool must let a user describe an airplane **beyond** FAR 23 while making clear
 it is outside the certificated band — never blocking. The design:
 
-- **Limits encoded once** in `farloads/constants.py`
+- **Limits encoded once** in `sloads/constants.py`
   (`FAR23_MAX_WEIGHT_LB = 12500`, `FAR23_MAX_PASSENGER_SEATS = 9`, and the encoded-
   but-dormant commuter tier `FAR23_COMMUTER_MAX_WEIGHT_LB = 19000` /
   `FAR23_COMMUTER_MAX_PASSENGER_SEATS = 19`; `DEFAULT_FLIGHT_CREW = 1`, the crew
   assumed when no weight-estimation slice is present). The commuter tier is dormant
   until a distinct Commuter category exists (backlog).
-- **A pure `far23_applicability(project)` helper** (`farloads/applicability.py`)
+- **A pure `far23_applicability(project)` helper** (`sloads/applicability.py`)
   returns the structured exceedances (`Exceedance(field, value, limit, label)`); no
   Streamlit, unit-testable, and yields *no* exceedances on Appendix-A GA inputs.
   The MTOW check reads `speeds.weight_lb`, falling back to the Weight DB total; the
@@ -311,7 +311,7 @@ it is outside the certificated band — never blocking. The design:
 
 ## 10. JSON persistence
 
-`farloads/io.py` is the **only** dataclass⇔JSON mapper. `project.json` is always
+`sloads/io.py` is the **only** dataclass⇔JSON mapper. `project.json` is always
 canonical Imperial (`io.py` never converts units). The load path carries no unit
 assumption, so loading an Imperial file under an SI toggle converts exactly once,
 at each page's render boundary. `Project` carries a `schema_version`
@@ -345,7 +345,7 @@ Weight/CG mass-distribution plot + input-consistency warnings (§8.2/§8.3,
 Phase E3; the V-n later consolidated onto the Flight Envelope page in Phase E6),
 and the dedicated **Aircraft Comparison** page — parameter table + six fleet
 scatters + nearest-3 / percentile band / outlier flags via the pure
-`farloads/fleet.py` (§8.4, Phase E4 core; consolidated onto its own Export-phase
+`sloads/fleet.py` (§8.4, Phase E4 core; consolidated onto its own Export-phase
 page in Phase F, Step F2), and the graceful, schema-aware load path across the
 sidebar and the JSON Editor (§10, Phase E5).
 

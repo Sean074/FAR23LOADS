@@ -11,7 +11,7 @@ sizing. The FAR23 replication core stays validated against the manual; concept
 mode is a superset of it. See
 [`docs/30_future/01_concept_loads_plan.md`](docs/30_future/01_concept_loads_plan.md).
 
-The codebase is a shared pure-calc package (`farloads`) plus a multi-page
+The codebase is a shared pure-calc package (`sloads`) plus a multi-page
 Streamlit UI (`app/`) and a CLI (`cli.py`). A single reloadable `project.json`
 carries every module's inputs; each module emits its own load-case CSV.
 
@@ -37,7 +37,7 @@ redistribute, including commercially.
 ## Layout
 
 ```
-farloads/                 # shared, pure-calc package (no I/O in calc)
+sloads/                 # shared, pure-calc package (no I/O in calc)
 ├── constants.py          # g, pi (math.pi), unit factors, atmosphere — centralized
 ├── models.py             # Project + per-domain slices, ConditionResult, ModuleResult, SCHEMA_VERSION
 ├── units.py              # Imperial<->SI conversion at the I/O boundary
@@ -60,7 +60,7 @@ cspell.json               # domain wordlist
 
 ## Running
 
-Install the package in editable mode (registers `farloads` and the `cli`
+Install the package in editable mode (registers `sloads` and the `cli`
 module on `sys.path`, so imports work from anywhere — including Streamlit):
 
 ```bash
@@ -69,10 +69,10 @@ source .venv/bin/activate          # Windows: .venv\Scripts\activate
 pip install -e '.[dev]'            # runtime deps + pytest, pytest-cov, ruff
 
 streamlit run app/Home.py                                   # the multi-page UI
-farloads engine examples/ga6_normal.project.json -o engine_loads.csv   # CLI entry point
+sloads engine examples/ga6_normal.project.json -o engine_loads.csv   # CLI entry point
 python cli.py engine examples/ga6_normal.project.json -o engine_loads.csv
 pytest                                                      # the green-build gate
-ruff check farloads/ cli.py                                 # lint
+ruff check sloads/ cli.py                                 # lint
 ```
 
 `requirements.txt` is kept for the bare runtime set; `pip install -e '.[dev]'`
@@ -97,7 +97,7 @@ canonical, per-module validation status lives in
 
 A sidebar toggle switches inputs and results between **Imperial** (lb, in, ft-lb,
 hp) and **SI** (kg, mm, N·m, kW). It is purely a presentation layer: calculations
-always run in the Imperial units of the original program (`farloads/units.py`
+always run in the Imperial units of the original program (`sloads/units.py`
 converts at the boundary). Saved project JSON is always canonical Imperial.
 
 ## Disclaimer

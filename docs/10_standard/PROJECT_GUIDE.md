@@ -47,8 +47,8 @@ These were chosen up front; the rest of the document follows from them.
 
 | # | Decision | Choice | Consequence |
 |---|----------|--------|-------------|
-| 1 | **App architecture** | **Hybrid** — one shared pure-calc package + a multi-page Streamlit UI, with every module *also* runnable standalone from JSON/CLI. | `engloads` is refactored into a package module (`farloads.engine`); the GUI becomes one page among many. |
-| 2 | **Data model** | **One unified project JSON in, per-module CSV out.** A single reloadable `project.json` carries all inputs; each module emits its own load-case CSV. | One shared schema (`farloads.models.Project`); each module reads the slice it needs and appends results. |
+| 1 | **App architecture** | **Hybrid** — one shared pure-calc package + a multi-page Streamlit UI, with every module *also* runnable standalone from JSON/CLI. | `engloads` is refactored into a package module (`sloads.engine`); the GUI becomes one page among many. |
+| 2 | **Data model** | **One unified project JSON in, per-module CSV out.** A single reloadable `project.json` carries all inputs; each module emits its own load-case CSV. | One shared schema (`sloads.models.Project`); each module reads the slice it needs and appends results. |
 | 3 | **Math fidelity** | **Modernize the math** (`math.pi`, accurate constants, clean equations). | The manual's printed figures become **tolerance-based** regression checks, *not* exact oracles. See §6 — this changes how `engloads` is validated today. |
 | 4 | **Scope** | **Full-suite roadmap** — spec all 22 programs now, build in dependency order. | This guide + `PROGRAM_SPEC.md` cover every program; implementation is phased (§7). |
 
@@ -172,7 +172,7 @@ times — not recomputed per module.
 
 ```
 FAR23LOADS/
-├── farloads/                     # the shared, pure-calc package (renamed/grown engloads/engloads)
+├── sloads/                     # the shared, pure-calc package (renamed/grown engloads/engloads)
 │   ├── __init__.py
 │   ├── constants.py              # ONE home for g, pi, unit factors  (centralized — see Decision 3)
 │   ├── units.py                  # Imperial<->SI boundary conversion (already exists)
@@ -209,7 +209,7 @@ FAR23LOADS/
 │       ├── one_engine_out.py     # ONENGOUT
 │       └── landing.py            # LGFACTOR + LANDLOAD ✅ (C10)
 ├── app/                          # multi-page Streamlit UI (st.navigation, 6 sections — Phase D)
-│   ├── Home.py                   # entry point: builds the section nav from farloads.workflow
+│   ├── Home.py                   # entry point: builds the section nav from sloads.workflow
 │   ├── views/                    # one view per workflow step (clean names, no prefixes)
 │   │   ├── dashboard.py          #   Start    — load/save + completeness panel
 │   │   ├── project_editor.py     #   Start    — whole project as JSON, in the sidebar's Imperial/SI units
@@ -242,7 +242,7 @@ FAR23LOADS/
 └── README.md
 ```
 
-> The `engloads` → `farloads` restructure (Phase 0) is complete; the migration
+> The `engloads` → `sloads` restructure (Phase 0) is complete; the migration
 > record is in
 > [`../40_history/00_completed_development.md`](../40_history/00_completed_development.md).
 
@@ -258,13 +258,13 @@ So that every module is copy-of-the-pattern, these are fixed once:
 - **Calc is LIMIT; ALL output is ULTIMATE.** Modules return **limit** loads (the oracle figures), so the Appendix A/B regressions are unaffected — but nothing that leaves the calc may report a bare limit load. `report.py` and `export/sbeam_bridge.py` multiply the **load** quantities (forces/moments/pressures, never geometry/weights/inertias/load factors) by the case `safety_factor` to report **ultimate = limit × 1.5**. The `ULT` marker is part of the units string (force `lbs-ULT`/`N-ULT`, moment `ft-lb-ULT`/`lb-in-ULT`/`Nm-ULT`, pressure `lb/in^2-ULT`), and **every case states its SF** (default 1.5 per 14 CFR 23.303; Part 25 equivalent 25.303). The per-case field is the hook for a future 14 CFR 23.302/25.302 / Appendix K probability-based factor (1.0–1.5); for now every case is 1.5 (incl. sudden engine stoppage). A value already at ultimate is **`ULT SF=1.0`**. See `reference/14CFR_factor_of_safety.md`.
 - **One CSV shape per module = load cases.** Each row is one structural load case: `ID`, `FAR §`, `Case description`, an `SF` column (always populated), application point `Loc X/Y/Z`, then the applied **ultimate** loads/moments with `-ULT` units (`lbs-ULT`/`ft-lb-ULT`/…). This is exactly the `load_cases_to_rows` pattern engloads already established — generalize it, don't reinvent per module.
 - **Units at the boundary only.** Calc stays in one internal system; `units.py` converts JSON-in and display/CSV-out. (Already implemented.) The GUI's Imperial/SI choice is a single session-wide sidebar control (`app/Home.py`, `st.session_state["unit_system"]`) that every view reads for display-only conversion (`convert_results`/`to_si_scalar` for `ConditionResult`/per-station values); it is not a per-page setting. Airspeed (KEAS) and altitude (ft) are aviation-standard and are never converted by this toggle. `project.json` on disk stays Imperial-only regardless of the toggle — `units.project_dict_to_display`/`project_dict_to_imperial` convert the whole project dict for the **Project JSON Editor** page only (hand-edit in your chosen units, Apply converts back to Imperial before it re-enters the session); no unit tag is ever written to the file.
-- **Constants centralized** in `farloads/constants.py` so Decision 3 (and any future "go back to exact") is a one-file change.
+- **Constants centralized** in `sloads/constants.py` so Decision 3 (and any future "go back to exact") is a one-file change.
 - **Each module has a manual example test** (Appendix A and/or B) under `tests/`.
 - **Structured load-case IDs (Step D1).** Every delivered case carries a
   `CaseRef` (`case_id`, `component`, `condition`, `cg`, `speed_kt`,
   `altitude_ft`, `far_reference`) — see `docs/10_standard/PROGRAM_SPEC.md`
   "Structured load-case IDs" for the full contract. In short, for a **new**
-  module: mint with a fresh `farloads.case_ids.CaseIdAllocator()` inside your
+  module: mint with a fresh `sloads.case_ids.CaseIdAllocator()` inside your
   own build function, in whatever order you already emit results (no
   reshuffling to get a "canonical" order — the existing order *is* canonical
   once it's fixed); if your module is the first to name a physical case (not
@@ -315,7 +315,7 @@ against Appendix A/B, a GUI page, and the project JSON schema extended.
 > historical roadmap that produced the present suite.
 
 **Phase 0 — Restructure** ✅ (no new physics)
-`engloads` → `farloads` package + `app/` multipage + `cli.py` + `Project` model +
+`engloads` → `sloads` package + `app/` multipage + `cli.py` + `Project` model +
 `io.py`/`registry.py`. Relax engine tests to tolerance, switch to `math.pi`. Green
 build is the gate.
 
@@ -354,7 +354,7 @@ actually took, and it is now complete.
    - **Supplemental FAR 25 cases (concept).** `Project.include_far25` (default off, optional `EngineInput.max_accel_torque`) appends only the **non-duplicative** 14 CFR 25.361/25.371 engine cases (turbopropeller only) on top of the oracle-locked FAR 23 set — additive by construction, FAR 23 output unchanged. The FAR 25 torque cases 25.361(a)(1)(i)/(ii)/(iii) were **removed** as exact duplicates of the corrected 23.361(a)(1)/(a)(2)/(a)(3) (post AC 23-19A); what remains is `(a)(3)(i)` stoppage @1g, `(a)(3)(ii)` max-accel torque (no FAR 23 analog), and 25.371 gyro on the A2 load factor. Kept opt-in (not unconditional) to preserve the Appendix B oracle (6 conditions, 2.5g gyro). Sourced from `reference/14CFR_Part25_engine_torque.md`, formula-closure tested; 25.371 uses the fixed FAR 23.371(b) rates as a conservative concept stand-in. See PROGRAM_SPEC § ENGLOADS.
 3. **Project JSON versioning.** Add a `schema_version` to `project.json` from day one so old saves migrate cleanly as the schema grows? Default: yes.
 4. **Standalone vs project-only inputs.** Hybrid allows a module to run from a partial JSON (just its own slice). Confirm we want to maintain per-module example JSONs in addition to the two full-airplane projects. Default: full projects are canonical; per-module slices are derived for tests.
-5. **CSV vs combined workbook.** ✅ **RESOLVED (Phase D, Step D8.2, 2026-07-09).** Both: the Export page offers the `.zip` of per-module CSVs *and* a single multi-sheet `.xlsx` workbook (`farloads/export/workbook.py`, `openpyxl` dependency) as a sibling alternative — one tab per module/component plus the case index, BDF card text excluded (not tabular).
+5. **CSV vs combined workbook.** ✅ **RESOLVED (Phase D, Step D8.2, 2026-07-09).** Both: the Export page offers the `.zip` of per-module CSVs *and* a single multi-sheet `.xlsx` workbook (`sloads/export/workbook.py`, `openpyxl` dependency) as a sibling alternative — one tab per module/component plus the case index, BDF card text excluded (not tabular).
 
 ---
 
@@ -365,7 +365,7 @@ pip install -e '.[dev]'          # editable install + dev tools (pytest, ruff)
 streamlit run app/Home.py        # the multi-page UI
 python cli.py engine examples/ga6_normal.project.json -o engine_loads.csv
 pytest                           # the green-build gate
-ruff check farloads/ cli.py      # lint
+ruff check sloads/ cli.py      # lint
 ```
 
 See [`PROGRAM_SPEC.md`](PROGRAM_SPEC.md) for the per-module specification.

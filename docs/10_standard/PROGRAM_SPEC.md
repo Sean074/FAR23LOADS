@@ -75,7 +75,7 @@ Each module has a fixed template:
   single) and the `BB*` files (Appendix B, twin turboprop).
 - **Notes** — modeling assumptions, sign conventions, gotchas.
 
-`Project` is the single shared input model (`farloads/models.py`). "Reads … from
+`Project` is the single shared input model (`sloads/models.py`). "Reads … from
 `Project`" means those fields were produced by an upstream module or entered
 directly; a module never recomputes another module's owned quantity.
 
@@ -126,7 +126,7 @@ chart + tables.
 
 ### payload_cases — Weight/CG Grid & Payload Cases (Step D5; modern, no `.BAS`)
 - **FAR §:** none (a shared-input page, not a FAR condition).
-- **Source:** none — a GUI-only page (`module=None` in `farloads/workflow.py`, same treatment as `aero_coefficients`).
+- **Source:** none — a GUI-only page (`module=None` in `sloads/workflow.py`, same treatment as `aero_coefficients`).
 - **Reads:** `Project.weight.items` (must be non-empty).
 - **Writes:** `Project.weight.cg_cases` — named `CgCase` rows (weight, xcg, zcg) entered once.
 - **Notes:** exists to stop the CG-envelope chart (WTENV) and the flight-envelope balance (FLTLOADS) from carrying two independently-edited copies of the same loading scenarios (the Phase-D GUI assessment's finding #2, "no enforced single source of truth for shared inputs"). The Flight Envelope page reads this slice read-only and merges it into the calc-facing `FlightLoadsInput.cg_cases` (which SELECT/WINGINER/NETLOADS/BALLOADS keep reading unchanged — no calc module was touched by this move). Pre-Step-D5 project files carried the scenarios only under `flight_loads.cg_cases`; `io._legacy_cg_cases_from_flight_loads` migrates them into `weight.cg_cases` on load.
@@ -150,7 +150,7 @@ chart + tables.
 - **Reads:** planform inputs per surface (root/tip chord, span, sweep, dihedral, incidence, station offsets) for: wing, horizontal & vertical tail, aileron, flap, elevator, rudder, tabs (the original keeps a `*GEOM.INP/.OUT` per surface).
 - **Writes:** derived geometry per surface — MAC, XLEMAC, area, aspect ratio, spanwise station table, control-surface hinge geometry → `Project.geometry.surfaces[<surface>]`.
 - **Validation:** Appendix A/B — MAC=69.246, XLEMAC=63.641 (wing) and the per-surface area/MAC tables.
-- **Notes:** Many downstream modules read `geometry.surfaces`. Model surfaces as a list keyed by surface name so one calc serves all. **Step G1:** WINGGEOM (the `wing_geometry` module) no longer has its own page — it is folded onto the single **Geometry** page (`configuration_layout.py`, `FOLDED_MODULES`), whose "Lifting-surface planforms" section is the surface polyline editor. Has graphics: the top-view planform outline per surface (`farloads.modules.wing_geometry.surface_top_outline`, a presentation-only helper — no new `ConditionResult`), reused by the Geometry page's three-view for the wing outline.
+- **Notes:** Many downstream modules read `geometry.surfaces`. Model surfaces as a list keyed by surface name so one calc serves all. **Step G1:** WINGGEOM (the `wing_geometry` module) no longer has its own page — it is folded onto the single **Geometry** page (`configuration_layout.py`, `FOLDED_MODULES`), whose "Lifting-surface planforms" section is the surface polyline editor. Has graphics: the top-view planform outline per surface (`sloads.modules.wing_geometry.surface_top_outline`, a presentation-only helper — no new `ConditionResult`), reused by the Geometry page's three-view for the wing outline.
 
 ### STRSPEED — Design speeds & maneuver load factors
 - **FAR §:** 23.335 (design airspeeds), 23.337 (limit maneuver load factors), 23.333.
@@ -158,7 +158,7 @@ chart + tables.
 - **Reads:** `Project.weight` (W, W/S), `Project.geometry` (wing area), **`Project.aero_coeffs.clmax_clean`/`clmax_flap`** (the maximum lift coefficients — the single stall-speed source; VS/VSF = `√(295·(W/S)/CLmax)` at the design weight, M1-1b, User's Guide p7-5, so STRSPEED `requires` aero_coeffs), category (normal/utility/acrobatic, or **concept `"C"`** — see Notes), chosen speeds, **`occupants`** (Step E1; total souls on board — not used by the load calc, drives the FAR 23 applicability check), and the **operational-limitation targets** (Step M2-10: `no_yellow_arc`, `target_vne`/`vno`/`vmo`/`mmo`/`vfe` — advisory only, see Notes).
 - **Writes:** minimum-required & chosen V_A, V_C, V_D, V_S, gust speeds; limit maneuver load factors n1/n2 (pos/neg) → `Project.speeds`. **Advisory (no persisted result):** the preliminary Subpart-G operating-limitation placards (VNE/VNO/MNE + VMO/MMO + VFE) and any operational-target feasibility (Step M2-10) — a read-only advisory rendered on the Design Speeds page, never a load deliverable.
 - **Validation:** Appendix A/B printed design-speed table and load factors (normal n=+3.8).
-- **Notes:** Category drives the maneuver load-factor formula (23.337: n=2.1+24000/(W+10000), capped 3.8/utility 4.4/acrobatic 6.0; negative −0.4× positive for normal/utility, −0.5× for acrobatic — UG Table 7.1). **Dive speed VD (23.335(b), M1-1):** enforced as `VD ≥ max(K_d·VCmin, 1.25·VC)` — **both** minimums, with the K_d term applied to the *minimum* cruise VCmin (STRSPEED.BAS `V2DMIN=K2·V1CMIN`). On the no-chosen-speeds path K_d·VCmin governs (Appendix A p155, Cat N: 198.53 kt; `test_vd_floor_no_chosen_speeds`); the worked chosen-speeds case (p156, VD 212.5) clears both floors. Concept mode (Cat C) keeps only the absolute 1.25·VC floor and reports K_d·VCmin as advisory. **Concept mode (`category="C"`, Step C0)** bypasses the GA-only 23.337 formula and cap entirely: it requires explicit `chosen_n`/`chosen_nneg` and uses them verbatim (no FAR floor), so >12,500 lb concepts are not forced to a meaningless GA limit; the VC(min)/VD(min) coefficients become out-of-band advisories. `Project.is_concept` is the single concept read-point. **FAR 23 applicability (Step E1):** the pure `farloads.far23_applicability(project)` helper (`farloads/applicability.py`) compares the design gross weight (`speeds.weight_lb`, else the Weight DB total) and passenger-seat count (`occupants − crew`, where `occupants` seeds from the Weight Estimate seat count when unset and `crew` is the user-set `WeightEstimationInput.crew`, default 1) against the non-commuter FAR 23 tier (12,500 lb / 9 seats; limits in `constants.py`, commuter tier dormant) and returns structured `Exceedance`s — none on GA inputs. `app/components.render_applicability_banner` surfaces them on the Dashboard + definition pages with a non-blocking "Switch to Concept" action that seeds `chosen_n`/`chosen_nneg` from the computed 23.337 factors. STRSPEED also computes Mach limits at altitude (`T = 59 − 0.003566·h`; `a = 29.02·(T+459.4)^0.5`), so it overlaps MACHLIM — keep the shared atmosphere/Mach helper in one place. Feeds MACHLIM, FLTLOADS, AILERON, FLAPLOAD (UG Table 2.2). **Operating-limitation implications (Step M2-10, advisory):** the design speeds bound the eventual Subpart-G operating limitations; `operational_implications`/`operational_placards` derive the preliminary placards — **both families** shown (recip yellow-arc: VNE=0.9·VD, VNO=min(VC, 0.89·VNE), MNE=0.9·MD; turbine/no-yellow-arc: VMO=VC, MMO=MC; common VFE=VF) per 14 CFR 23.1505/23.1511 and Ref 1 p47 (`reference/14CFR_operating_limitations.md`). Optional operational **targets** invert the ladder into required design minima (`operational_target_checks`: VNE⇒VD≥VNE/0.9; VNO⇒VC≥VNO and VD≥VNO/0.89/0.9; VMO⇒VC≥VMO; MMO⇒MD≥MMO+0.05 per 23.335(b)(4)(ii); VFE⇒VF≥VFE) and **warn-only** on infeasibility — never mutating a design speed or load. Infeasible targets also surface on the dashboard via `validation._check_operational_targets` (`operational_target_infeasible`, page `structural_speeds`). Display/validation only; the FAR23 loads path is unchanged. **GUI read-through (Step D4.4):** `app/views/structural_speeds.py` reads the design weight from `Project.weight.direct_totals()[0]` (the Weight DB total) when items are present, read-only with an "Override design weight" checkbox, instead of asking for it a second time; likewise wing area from `Project.geometry`'s wing surface (pre-existing `has_wing` gating). When neither upstream slice is populated the page shows an info message pointing at the Airplane-section page that owns it, rather than falling back to an Appendix-A-shaped literal default. `app/views/weight_envelope.py` (WTENV) does the same read-through for its `gross` weight (it already requires a Weight DB to render at all, so the total is always available; only the override path differs).
+- **Notes:** Category drives the maneuver load-factor formula (23.337: n=2.1+24000/(W+10000), capped 3.8/utility 4.4/acrobatic 6.0; negative −0.4× positive for normal/utility, −0.5× for acrobatic — UG Table 7.1). **Dive speed VD (23.335(b), M1-1):** enforced as `VD ≥ max(K_d·VCmin, 1.25·VC)` — **both** minimums, with the K_d term applied to the *minimum* cruise VCmin (STRSPEED.BAS `V2DMIN=K2·V1CMIN`). On the no-chosen-speeds path K_d·VCmin governs (Appendix A p155, Cat N: 198.53 kt; `test_vd_floor_no_chosen_speeds`); the worked chosen-speeds case (p156, VD 212.5) clears both floors. Concept mode (Cat C) keeps only the absolute 1.25·VC floor and reports K_d·VCmin as advisory. **Concept mode (`category="C"`, Step C0)** bypasses the GA-only 23.337 formula and cap entirely: it requires explicit `chosen_n`/`chosen_nneg` and uses them verbatim (no FAR floor), so >12,500 lb concepts are not forced to a meaningless GA limit; the VC(min)/VD(min) coefficients become out-of-band advisories. `Project.is_concept` is the single concept read-point. **FAR 23 applicability (Step E1):** the pure `sloads.far23_applicability(project)` helper (`sloads/applicability.py`) compares the design gross weight (`speeds.weight_lb`, else the Weight DB total) and passenger-seat count (`occupants − crew`, where `occupants` seeds from the Weight Estimate seat count when unset and `crew` is the user-set `WeightEstimationInput.crew`, default 1) against the non-commuter FAR 23 tier (12,500 lb / 9 seats; limits in `constants.py`, commuter tier dormant) and returns structured `Exceedance`s — none on GA inputs. `app/components.render_applicability_banner` surfaces them on the Dashboard + definition pages with a non-blocking "Switch to Concept" action that seeds `chosen_n`/`chosen_nneg` from the computed 23.337 factors. STRSPEED also computes Mach limits at altitude (`T = 59 − 0.003566·h`; `a = 29.02·(T+459.4)^0.5`), so it overlaps MACHLIM — keep the shared atmosphere/Mach helper in one place. Feeds MACHLIM, FLTLOADS, AILERON, FLAPLOAD (UG Table 2.2). **Operating-limitation implications (Step M2-10, advisory):** the design speeds bound the eventual Subpart-G operating limitations; `operational_implications`/`operational_placards` derive the preliminary placards — **both families** shown (recip yellow-arc: VNE=0.9·VD, VNO=min(VC, 0.89·VNE), MNE=0.9·MD; turbine/no-yellow-arc: VMO=VC, MMO=MC; common VFE=VF) per 14 CFR 23.1505/23.1511 and Ref 1 p47 (`reference/14CFR_operating_limitations.md`). Optional operational **targets** invert the ladder into required design minima (`operational_target_checks`: VNE⇒VD≥VNE/0.9; VNO⇒VC≥VNO and VD≥VNO/0.89/0.9; VMO⇒VC≥VMO; MMO⇒MD≥MMO+0.05 per 23.335(b)(4)(ii); VFE⇒VF≥VFE) and **warn-only** on infeasibility — never mutating a design speed or load. Infeasible targets also surface on the dashboard via `validation._check_operational_targets` (`operational_target_infeasible`, page `structural_speeds`). Display/validation only; the FAR23 loads path is unchanged. **GUI read-through (Step D4.4):** `app/views/structural_speeds.py` reads the design weight from `Project.weight.direct_totals()[0]` (the Weight DB total) when items are present, read-only with an "Override design weight" checkbox, instead of asking for it a second time; likewise wing area from `Project.geometry`'s wing surface (pre-existing `has_wing` gating). When neither upstream slice is populated the page shows an info message pointing at the Airplane-section page that owns it, rather than falling back to an Appendix-A-shaped literal default. `app/views/weight_envelope.py` (WTENV) does the same read-through for its `gross` weight (it already requires a Weight DB to render at all, so the total is always available; only the override path differs).
 
 ### MACHLIM — Mach limit lines
 - **FAR §:** 23.335(b) high-speed limit; compressibility.
@@ -191,10 +191,10 @@ chart + tables.
 ### FLTLOADS — Flight envelope (V-n) **+ balancing tail loads**
 - **FAR §:** 23.333 (flight envelope), 23.337, 23.341 (gust), 23.345 (flaps), 23.421+ (balancing/horizontal tail loads), 23.423.
 - **Source:** Ch 8, `FLTLOADS.BAS`. UG Table 2.1: *"Balancing calculations for flight envelope."*
-- **Reads:** `Project.speeds` (STRSPEED — VA/VC/VD/VF, MC/MD and the limit load factors via the shared `_maneuver_load_factors`); **`Project.flight_loads`** (`FlightLoadsInput`) for the balance geometry scalars `mac`/`wing_area_sqft`/`xw`/`zw`/`xtc`/`xtf`, the reference Mach `mn`, the altitude list and the four weight-CG cases (`CgCase`) — **`mac`/`wing_area_sqft`/`xw`/`zw` are derived from `Project.geometry` (Step M2-6), not stored**: MAC/S/XW from the WINGGEOM wing surface (`XW = XLEMAC + 0.25·MAC`), ZW from the parametric wing (`root_waterline_z + Y_MAC·tan(dihedral)`), filled by `farloads.derived_geometry.sync_geometry_derived` at calc entry (`build_envelope`), GUI read-only; `xtc`/`xtf`/`mn`/altitudes stay this page's own input; and **`Project.aero_coeffs`** (`AeroCoefficientsInput`, Step D4.1) for the airplane-*less-tail* aero-coefficient polynomials (`AeroCoeffSet`: CL(α), CD(CL), CM(α) + stall CLs) — `.cruise` (flaps up, balanced at every altitude) and, when present, `.flaps_down` (balanced at sea level only, FLTLOADS.BAS line 3000). `Project.aero_coeffs` is the single owner of these coefficient sets; the Airplane-section **Aerodynamic Data** page (workflow key `aero_coefficients`,
+- **Reads:** `Project.speeds` (STRSPEED — VA/VC/VD/VF, MC/MD and the limit load factors via the shared `_maneuver_load_factors`); **`Project.flight_loads`** (`FlightLoadsInput`) for the balance geometry scalars `mac`/`wing_area_sqft`/`xw`/`zw`/`xtc`/`xtf`, the reference Mach `mn`, the altitude list and the four weight-CG cases (`CgCase`) — **`mac`/`wing_area_sqft`/`xw`/`zw` are derived from `Project.geometry` (Step M2-6), not stored**: MAC/S/XW from the WINGGEOM wing surface (`XW = XLEMAC + 0.25·MAC`), ZW from the parametric wing (`root_waterline_z + Y_MAC·tan(dihedral)`), filled by `sloads.derived_geometry.sync_geometry_derived` at calc entry (`build_envelope`), GUI read-only; `xtc`/`xtf`/`mn`/altitudes stay this page's own input; and **`Project.aero_coeffs`** (`AeroCoefficientsInput`, Step D4.1) for the airplane-*less-tail* aero-coefficient polynomials (`AeroCoeffSet`: CL(α), CD(CL), CM(α) + stall CLs) — `.cruise` (flaps up, balanced at every altitude) and, when present, `.flaps_down` (balanced at sea level only, FLTLOADS.BAS line 3000). `Project.aero_coeffs` is the single owner of these coefficient sets; the Airplane-section **Aerodynamic Data** page (workflow key `aero_coefficients`,
 retitled in the Airplane-phase GUI usability pass — the per-surface spanwise
 Schrenk aero, `Project.aero`, stays on the Wing Loads page next to the load
-distribution it drives, cross-linked from both pages) writes it (`flight_envelope` only reads it) — before Step D4.1 they were carried inline as `FlightLoadsInput.configurations`, a list of `AeroCoeffSet` keyed by `flaps_down`; older project files migrate automatically (`io._legacy_aero_coeffs_from_flight_loads`). **As built (C2):** the aero polynomials come from the Ch 7 aero-coefficients program and are entered as input (AIRLOADS/C1 does not yet emit them); the CG cases are entered explicitly (seeding them from `Project.weight.envelope`/WTENV is a later refinement), so the original data-flow's `Project.mass` read is not needed for the balance. **Step D5:** the four weight-CG cases are no longer edited on this page — they are the shared `Project.weight.cg_cases` the **Weight/CG Grid & Payload Cases** page owns; the Flight Envelope page reads that slice read-only and merges it (unchanged) into `FlightLoadsInput.cg_cases`, which `build_envelope`/SELECT/WINGINER/NETLOADS/BALLOADS keep reading exactly as before (no calc module changed). The altitude list, previously a single-altitude widget touching only `altitudes_ft[0]`, is now a fully-editable list on this page (multi-altitude V-n); the calc loop (`for alt in fl.altitudes_ft`) already supported more than one entry since Step C2. **Step G4:** when `aero_coeffs.fuselage_moment` is enabled, `build_envelope` adds its Munk `dCm/dα` increment (ΔM1) to each config's M1 on a local copy (stored coefficients untouched, Glauert factor applies automatically); off by default so the GA/twin oracles are bit-for-bit unchanged. The estimate is produced by `farloads.fuselage_moment.estimate` from `Project.geometry.fuselage` + this page's wing S/MAC and shown/overridden on the Aerodynamic Data page.
+distribution it drives, cross-linked from both pages) writes it (`flight_envelope` only reads it) — before Step D4.1 they were carried inline as `FlightLoadsInput.configurations`, a list of `AeroCoeffSet` keyed by `flaps_down`; older project files migrate automatically (`io._legacy_aero_coeffs_from_flight_loads`). **As built (C2):** the aero polynomials come from the Ch 7 aero-coefficients program and are entered as input (AIRLOADS/C1 does not yet emit them); the CG cases are entered explicitly (seeding them from `Project.weight.envelope`/WTENV is a later refinement), so the original data-flow's `Project.mass` read is not needed for the balance. **Step D5:** the four weight-CG cases are no longer edited on this page — they are the shared `Project.weight.cg_cases` the **Weight/CG Grid & Payload Cases** page owns; the Flight Envelope page reads that slice read-only and merges it (unchanged) into `FlightLoadsInput.cg_cases`, which `build_envelope`/SELECT/WINGINER/NETLOADS/BALLOADS keep reading exactly as before (no calc module changed). The altitude list, previously a single-altitude widget touching only `altitudes_ft[0]`, is now a fully-editable list on this page (multi-altitude V-n); the calc loop (`for alt in fl.altitudes_ft`) already supported more than one entry since Step C2. **Step G4:** when `aero_coeffs.fuselage_moment` is enabled, `build_envelope` adds its Munk `dCm/dα` increment (ΔM1) to each config's M1 on a local copy (stored coefficients untouched, Glauert factor applies automatically); off by default so the GA/twin oracles are bit-for-bit unchanged. The estimate is produced by `sloads.fuselage_moment.estimate` from `Project.geometry.fuselage` + this page's wing S/MAC and shown/overridden on the Aerodynamic Data page.
 - **Writes:** the full balanced V-n matrix (one `VnPoint` per condition × CG × altitude: V, NZ, α, G, CL, M(W+F), LZW, **LT**, DX) and the balancing tail load per point → **`Project.envelope`** (`EnvelopeResult.vn` + `.tail_balance`), consumed by SELECT. The pure entry point is `flight_envelope.build_envelope(project) → EnvelopeResult`; `run(project)` returns the per-point `ModuleResult`.
 - **Validation:** Appendix A "V-n Data" p179-180 — the cruise balanced matrix per CG case. The AoA balance converges NZ only to ±0.005 (FLTLOADS.BAS line 4130), so low-load-factor quantities carry ~0.5% noise; LT and the corner speeds/load factors match tightly.
 - **Notes:** Graphics: the V-n diagram, plus (Step G5) a **Trim & Stability** tab — `flight_envelope.trim_sweep()` re-runs the balance at ~15 interpolated CG stations for the BAL A/C/D 1-g trim loads (balancing tail load vs CG), and a static-margin sweep (`SM = NP − CG`, %MAC) from the Configuration tail-volume neutral point. It adds no load equations (a swept station coinciding with a CG case reproduces `build_envelope`'s BAL load exactly), and its tail loads are shown **LIMIT** (marked; the ULTIMATE deliverables are the SELECT/Results-Review/export loads). Faithful port of FLTLOADS.BAS subroutine **3900** (iterate AoA to the required load factor, then dynamic pressure to the Mach-adjusted stall line; Glauert compressibility `G/Gmn`; CLmax-vs-Mach curve) and **4864** (gust load factor, FAR 23.341). Balancing tail load `LT = [M(W+F) + LZ·(Xcg−Xw) − DX·(Zcg−Zw)]/(XT−Xcg)` with *approximate* tail CP (`XTC`≈5% tail MAC flaps-up, `XTF`≈25% flaps-down; Ch 8 "Assumption"). Covers the **cruise** maneuver+gust corner set (20 conditions, lines 1000-1594) plus the flapped LANDING/ENROUTE corner set (subr 3000; added with SELECT, C6); both share the balance engine. In the flapped set the `BAL 1.4VSF` point balances at **1.4× the 1-g flaps-down stall (`STALL 1GL`) speed** — FLTLOADS.BAS p300–302 saves the STALL 1GL speed — reproducing Appendix A p181 LANDING CG5 case 89 (V 83.6 kt / LT −430 lb; M1-2). Earlier code balanced at 1.4× `STALL 2G`, ~2.2× too large a tail load (review T2). SELECT refines the CP rationally; `BALLOADS.BAS` independently verifies it. Produces the candidate conditions SELECT then prunes; feeds SELECT and WINGINER (UG Table 2.2). FLTLOADS uses its own speed-of-sound constant (518.688 vs the shared `standard_atmosphere`'s 518.4), replicated locally for oracle fidelity.
@@ -236,7 +236,7 @@ approved-corrections register [`../20_theory/02_approved_corrections.md`](../20_
 
 ### BALLOADS — Rational balanced-tail-load verification (utility) — Step C11
 - **FAR §:** 23.421 (balancing loads); supports the 23.331 rational-balancing requirement.
-- **Source:** Ch 8–9 (method), `BALLOADS.BAS` (Appendix C p497). **Not a FAA menu module.** Module `farloads/modules/balloads.py`, registered `"balloads"`.
+- **Source:** Ch 8–9 (method), `BALLOADS.BAS` (Appendix C p497). **Not a FAA menu module.** Module `sloads/modules/balloads.py`, registered `"balloads"`.
 - **Reads:** `Project.flight_loads` (FLTLOADS V-n / geometry, incl. the approximate `xtc`/`xtf`) and `Project.tail_loads` (h-tail geometry/aero); run after FLTLOADS/SELECT.
 - **Writes:** a verification **report only** (no schema/pipeline output). Per flaps-retracted V-n condition: rational `LT25` (cp 25%), `LT50` (cp 50%), elevator deflection & elevator load, total `LT`, rational CP (% tail MAC) and its fuselage station `XT`, compared to FLTLOADS' approximate `XTC`. Worked hand-calc: 6-place case 202 → `LT = 519.845 lb`.
 - **Validation:** Ch 9 case-202 hand-calc (`LT 519.845`, LT25 +907.62, LT50 −387.78, δ −5.39°, CP 6.35%); rational up/down loads equal SELECT's `BAL UP/DN RETRACTED` exactly (BALLOADS **reuses** `select.htail_balance`).
@@ -303,7 +303,7 @@ approved-corrections register [`../20_theory/02_approved_corrections.md`](../20_
 
 ### ENGLOADS — Engine mount loads ✅ DONE
 - **FAR §:** 23.361(a)(1)/(a)(2)/(a)(3), 23.361(b)(1), 23.363, 23.371(b).
-- **Source:** Ch 19, `ENGLOADS.BAS`. Implemented in `farloads/modules/engine.py` (the original `engloads/` port).
+- **Source:** Ch 19, `ENGLOADS.BAS`. Implemented in `sloads/modules/engine.py` (the original `engloads/` port).
 - **Reads:** `Project.engine` (engine/prop weight, CG, diameter, RPM, HP/torque, rotor list, optional measured polar inertia), `Project.weight` load factor.
 - **Writes:** the 3 (recip) / 6 (turboprop) FAR conditions; load-case CSV (one row per case, gyro 23.371(b) expands to 4 sign-combination cases).
 - **Validation:** Appendix A (Continental IO-520-BB) and Appendix B (turboprop gyro), ±0.1% per Decision 3 — **except** the (a)(1) takeoff torque, see the approved correction below.
@@ -315,11 +315,11 @@ approved-corrections register [`../20_theory/02_approved_corrections.md`](../20_
 
 ### ONENGOUT — One-engine-out loads ✅ DONE (C9)
 - **FAR §:** 23.367 (unsymmetrical loads due to engine failure), multi-engine.
-- **Source:** Ch 11, `ONENGOUT.BAS`. Implemented in `farloads/modules/one_engine_out.py` (registers `"one_engine_out"`).
+- **Source:** Ch 11, `ONENGOUT.BAS`. Implemented in `sloads/modules/one_engine_out.py` (registers `"one_engine_out"`).
 - **Reads:** `Project.one_engine_out` (`OneEngineOutInput` — the failure-transient timing: thrust-decay / windmill-drag / rudder-travel times, Euler step, failed-engine index); the failed `Project.engines[i]` (HP, prop diameter, butt line); `Project.vtail_loads` (ARVT, areas, rudder deflection, `xv25`/`xv50`); `Project.mass` (WTONECG — `IZZ`, CG, heaviest case); `Project.speeds` (VC/VD/VS, shoulder altitude). The 25%/50% MAC v-tail stations are the `xv25`/`xv50` of `VTailLoadsInput` (`xv50` added in C9).
 - **Writes:** the maximum asymmetric **vertical-tail** load per speed (VC ultimate / VD limit / VS) — a `ModuleResult` with one `ConditionResult` each (engine thrust, windmill drag, max yaw rate, **max tail load**, 25%/50% MAC loads at peak, time to recovery). Non-recovery (below VMC) is flagged. The full time history is available on demand (`time_history`) for the Streamlit re-run; it is not persisted.
 - **Safety factor is a case-definition attribute (M1-5, review T7).** The SF is owned by the **load-case definition**, not the speed: how the governing regulation *classifies* the load (LIMIT vs ULTIMATE) sets the factor, and the same case definition also fixes the **speed range** it is considered over (evaluated at the range's critical high end). Being a *failure* case does not by itself reduce the factor. 23.367(a) (turbopropeller; Ref 1 Ch 11 p87; VMC = minimum control speed, Method allows VS/VSF substituted for VMC) defines two cases: **(a)(1)** power failure from **fuel-flow interruption** — **LIMIT → SF 1.5**, considered VMC→VD (a failure case that keeps the full factor); **(a)(2)** **compressor-from-turbine disconnection / turbine-blade loss** — **ULTIMATE → SF 1.0**, considered VMC→VC (a "limit treated as ultimate" value; the previous default 1.5 double-factored it). The **VS** point (VS substituted for VMC, the shared floor) is reported as a **LIMIT** design point (**SF 1.5**, decided 2026-07-20). Each case declares its `load_class`/`safety_factor`, speed range and basis as a row in the `_load_cases` table (`_LoadCase`), carried onto the `ConditionResult` (`safety_factor` + `note`), so the deliverable renders `lbs-ULT` with the correct `SF`. (23.367(a) is turbopropeller-specific — the `is_turboprop` gate and the VSF alternative VMC substitute are backlog M4-3.)
-- **Method:** a **time-marching yaw simulation** (Euler), reusing the shared v-tail aero helpers (`farloads/modules/_vtail.py`: AVT lift slope, EFFECTV, the EF large-deflection chart) that SELECT also uses.
+- **Method:** a **time-marching yaw simulation** (Euler), reusing the shared v-tail aero helpers (`sloads/modules/_vtail.py`: AVT lift slope, EFFECTV, the EF large-deflection chart) that SELECT also uses.
 - **Validation:** **sub-formula exactness** vs `ONENGOUT.BAS` (thrust, windmill drag, AVT, EFFECTV, EF, density ratio) + integration/physics closure (recovery, yaw-rate peak, time-step convergence) + refactor-parity with SELECT. The printed **Appendix B twin oracle is unavailable** — Appendix B is absent from the bundled `reference/FAR23Loads_Code.pdf` (only the Appendix A GA single is present) and the FAA User's Guide Ch 22 gives partial inputs/no outputs; recorded as a deferred item.
 - **Notes:** First module to exercise the first-class multi-engine `Project`. The recovered EF chart (ONENGOUT.BAS subr 10000) is now in `_vtail.large_deflection_factor`; wiring it into SELECT's static v-tail loads (replacing `rudder_large_deflection_factor=1.0`) is a deferred mini-step.
 
@@ -348,7 +348,7 @@ regression oracle**; Appendix A/B geometry is used only as a *sanity* fixture.
 
 ### configuration — General configuration & layout (Step C5)
 - **FAR §:** none (modern addition; geometric source of truth, not a FAR condition).
-- **Source:** `farloads/modules/configuration.py`; method refs Reference 1 Ch 5
+- **Source:** `sloads/modules/configuration.py`; method refs Reference 1 Ch 5
   (trapezoidal MAC) and Ch 8 (tail-volume neutral point).
 - **Unified geometry slice (Step G1):** the parametric layout is `Project.geometry.parametric`
   (`LayoutInput`) — formerly the separate top-level `Project.configuration` slice, now
@@ -453,7 +453,7 @@ regression oracle**; Appendix A/B geometry is used only as a *sanity* fixture.
 ### body_loads — Fuselage net-load distribution (Step C6)
 - **FAR §:** none directly (modern addition); the fuselage design conditions it
   distributes are 23.301/23.331, selected by SELECT.
-- **Source:** `farloads/modules/body_loads.py`; method refs Reference 1 Ch 15
+- **Source:** `sloads/modules/body_loads.py`; method refs Reference 1 Ch 15
   (fuselage net-load distribution along the body).
 - **Reads:** SELECT's fuselage critical conditions via `select.select_fuselage(project)`
   (not a persisted `Project.envelope.critical` read — it calls SELECT's fuselage
@@ -475,11 +475,11 @@ regression oracle**; Appendix A/B geometry is used only as a *sanity* fixture.
 ## Export bridges
 
 These are **output renderers**, not registered calc modules: they read a results
-slice and emit a file for an external tool. They live in `farloads/export/`,
+slice and emit a file for an external tool. They live in `sloads/export/`,
 return strings (with thin `write_*` file wrappers), and do no physics.
 
 ### sbeam export bridge — net wing load → sbeam (Step C4)
-- **Source:** `farloads/export/sbeam_bridge.py`; card style mirrors
+- **Source:** `sloads/export/sbeam_bridge.py`; card style mirrors
   `sbeam/results/load_export.py`.
 - **Reads:** `Project.loads.wing_net` (NETLOADS) — accepts a `Project`, a list of
   `WingLoadResult`, or one result.
@@ -494,7 +494,7 @@ return strings (with thin `write_*` file wrappers), and do no physics.
   the FORCE set sums to the root shear and the MOMENT(My) set to the root torsion
   **exactly**; under the WINGINER quadrature (`y[i]-y[0] = i·dy`) the FORCE
   moments about the root reproduce the root bending exactly.
-- **Coordinates:** `farloads/export/coordinates.py` — FAR23LOADS station-X /
+- **Coordinates:** `sloads/export/coordinates.py` — FAR23LOADS station-X /
   butt-Y / waterline-Z inches → sbeam global CID 0, **identity** (single
   edit-point for any future sign/axis/unit change).
 - **Validation:** force/moment closure (cards re-summed = NETLOADS root totals);
@@ -503,7 +503,7 @@ return strings (with thin `write_*` file wrappers), and do no physics.
 - **CLI:** `python cli.py --export-sbeam <prefix> <project.json> [--stick-model]`.
 
 ### Export-scope filter (Step D8.3)
-- **Source:** `farloads/export/sbeam_bridge.py::filter_by_selected_case_ids`.
+- **Source:** `sloads/export/sbeam_bridge.py::filter_by_selected_case_ids`.
 - Filters any case-carrying result list to `envelope.critical.selected_case_ids`
   (the D5 Critical Loads page's opt-out selection); a result with no `case_ref`
   is kept, and `selected_ids is None` returns the input unchanged (no filter).
@@ -516,7 +516,7 @@ return strings (with thin `write_*` file wrappers), and do no physics.
   case identity" gap), so they always export the full set.
 
 ### Workbook export bridge — multi-sheet `.xlsx` (Step D8.2)
-- **Source:** `farloads/export/workbook.py::build_workbook`; `openpyxl` dependency.
+- **Source:** `sloads/export/workbook.py::build_workbook`; `openpyxl` dependency.
 - Pure renderer: re-shapes strings/rows the Export page has already computed
   for the CSV/`.zip` channel (project fields, per-module load-case CSVs, the
   case-index table, and the tabular sbeam span-load CSVs) into one workbook —
@@ -581,7 +581,7 @@ so the nav-drift guard stays green without a dedicated step each. See
 
 ## Structured load-case IDs (Step D1)
 
-Every delivered load case carries a stable `CaseRef` (`farloads/models.py`):
+Every delivered load case carries a stable `CaseRef` (`sloads/models.py`):
 `case_id` (`"<component>-<seq>"`), `component`, `condition`, `cg`, `speed_kt`,
 `altitude_ft`, `far_reference`. It replaces `report.py`'s old render-time,
 per-module, unstable `LC{idx}`. Full design in `docs/30_future/
@@ -590,7 +590,7 @@ shipped); summary for anyone adding a new module:
 
 - **Six component prefixes, no more.** `wing` → `W`, `htail` → `HT`,
   `vtail` → `VT`, `fuselage` → `F`, `engine_mount` → `EM`,
-  `landing_gear` → `LG` (`farloads/case_ids.py::COMPONENT_PREFIX`).
+  `landing_gear` → `LG` (`sloads/case_ids.py::COMPONENT_PREFIX`).
   Control surfaces fold into their host structural component (aileron/flap/
   wing-tab → `W`; htail/vtail-tab → `HT`/`VT`); the surface identity lives in
   `CaseRef.condition`, not a separate prefix.
@@ -634,7 +634,7 @@ shipped); summary for anyone adding a new module:
 
 | Phase | Modules | Done | Remaining |
 |-------|---------|------|-----------|
-| 0 Restructure | engine → package | ✅ done (engloads → farloads, Project model, io/registry, app/) | 0 |
+| 0 Restructure | engine → package | ✅ done (engloads → sloads, Project model, io/registry, app/) | 0 |
 | 1 Mass | WTESTIMA, WTONECG, WTENV | 3 (WTESTIMA, WTONECG, WTENV) | 0 |
 | 2 Geometry/Speeds | WINGGEOM, STRSPEED, MACHLIM | 3 (WINGGEOM, STRSPEED, MACHLIM) | 0 |
 | 3 Aero/Envelope | TAU\*, AIRLOADS, AIRLOAD4, FLTLOADS, SELECT, BALLOADS† | 6 (all) | 0 |

@@ -6,7 +6,7 @@
 > phases in [`03_gui_rework_plan.md`](03_gui_rework_plan.md) §4 (Start → Develop V-n
 > diagram → Flight loads → Other loads → Landing loads → Load-case plotting →
 > Export). This document remains the record of the Phase-D restructure that built the
-> pages; `farloads/workflow.py` is the live source of truth for the current grouping.
+> pages; `sloads/workflow.py` is the live source of truth for the current grouping.
 
 The GUI today is a faithful *per-BAS-program port*: one page per McMaster
 program, each with its own inputs, defaults and downloads, grouped into the four
@@ -61,7 +61,7 @@ Findings from the 2026-07-08 GUI review (all against the shipped app):
 
 ## 2. Target GUI structure (six sections)
 
-Navigation stays driven from `farloads/workflow.py` (the single source of
+Navigation stays driven from `sloads/workflow.py` (the single source of
 truth), regrouped from four phases into six sections:
 
 | # | Section | Pages (existing → target) | New work |
@@ -197,7 +197,7 @@ Notes:
 - **Ultimate-load output rules** (`CLAUDE.md`) apply unchanged: deliverables are
   ULTIMATE with `-ULT` units and per-case `SF`; per-module analysis pages may
   show LIMIT when explicitly marked.
-- **Pure calc / thin shells.** Case-ID assignment lives in `farloads/` (pure);
+- **Pure calc / thin shells.** Case-ID assignment lives in `sloads/` (pure);
   disk persistence lives in `io.py`/the view layer, never in calc.
 - **`workflow.py` stays the single source of navigation truth**; the
   registered-module ↔ workflow-step test keeps guarding nav drift.
@@ -260,7 +260,7 @@ Expected `SCHEMA_VERSION` bumps (older files must still load):
 ## 8. Open items (non-blocking, decide during the phase)
 
 - ~~**Projects-directory location** for disk persistence (D3)~~ — **closed
-  2026-07-09**: `projects/` resolved from `farloads/io.py`'s own file location
+  2026-07-09**: `projects/` resolved from `sloads/io.py`'s own file location
   (repo root / `projects`), not the process cwd, so it's stable regardless of
   where `streamlit run app/Home.py` is invoked from. Git-ignored; created lazily
   on first Save. See `00_backlog.md` Step D3.

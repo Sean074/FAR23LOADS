@@ -236,7 +236,7 @@ lines removed.
 ### M4-12 — Contract & test-architecture cleanups (2026-07-21 review batch)
 Promote the remaining cross-module private-symbol imports to public homes
 (`_interp_x`, `_sigma`, `_maneuver_load_factors`, `htail_balance` family;
-`app/` must not import `farloads` underscore names — the `_wtenv_cg_limits` →
+`app/` must not import `sloads` underscore names — the `_wtenv_cg_limits` →
 `wtenv_cg_limits` case was promoted with M2R-5); `htail_balance` →
 NamedTuple (stringly dict keys cross module boundaries); document the
 `tail_loads`/`vtail_loads` property-proxy trap-doors (invisible to
