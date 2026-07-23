@@ -14,7 +14,7 @@ from __future__ import annotations
 import pandas as pd
 import streamlit as st
 
-from farloads import (
+from sloads import (
     CgCase,
     LandingInput,
     Project,
@@ -26,9 +26,9 @@ from farloads import (
     to_imperial_scalar,
     to_si_scalar,
 )
-from farloads.derived_geometry import wing_reference
-from farloads.modules.landing import build_landing, run
-from farloads.validation import wtenv_cg_limits
+from sloads.derived_geometry import wing_reference
+from sloads.modules.landing import build_landing, run
+from sloads.validation import wtenv_cg_limits
 
 
 _CG_NAMES = ("aft max landing", "fwd max landing", "fwd light")

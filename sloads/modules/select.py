@@ -302,7 +302,7 @@ def _htail_condition(label: str, far: str, p: VnPoint, total_lt: float,
 
 def _ef(defl: float, se2st: float) -> float:
     """Large-deflection effectiveness factor EF (SELECT.BAS subroutine 10000); see
-    :func:`farloads.modules._vtail.large_deflection_factor`."""
+    :func:`sloads.modules._vtail.large_deflection_factor`."""
     return large_deflection_factor(defl, se2st)
 
 

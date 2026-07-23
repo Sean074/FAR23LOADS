@@ -1,4 +1,4 @@
-# Release Process — FAR 23 LOADS
+# Release Process — sloads
 
 Authoritative guide for versioning, validating, and releasing the suite.
 
@@ -15,7 +15,7 @@ Semantic versioning: `MAJOR.MINOR.PATCH`.
 | `PATCH` | Bug fix that does not change the public interface |
 
 The version lives in `pyproject.toml` under `version =`. The `project.json`
-schema has its own `schema_version` (in `farloads/models.py`) — bump it when the
+schema has its own `schema_version` (in `sloads/models.py`) — bump it when the
 input schema changes, and ensure `io.py` still loads older saves.
 
 Pre-release tags: `0.2.0-beta.1` for candidates shared externally.
@@ -47,8 +47,8 @@ Each item is a hard gate.
 
 ### 3.2 Code quality
 - [ ] No open `[CRITICAL]`/`[MAJOR]` findings from the latest review (see [`CODE_REVIEW_PROCESS.md`](CODE_REVIEW_PROCESS.md)).
-- [ ] `ruff check farloads/ cli.py` is clean.
-- [ ] Public functions in `farloads/` have type hints and docstrings.
+- [ ] `ruff check sloads/ cli.py` is clean.
+- [ ] Public functions in `sloads/` have type hints and docstrings.
 
 ### 3.3 Test suite
 - [ ] `pytest` passes — zero failures, zero errors.
@@ -59,7 +59,7 @@ Each item is a hard gate.
 - [ ] For releases that touch a shared upstream module (weights, geometry, aero), re-run the **full** suite — downstream modules read those slices.
 
 ### 3.5 GUI / CLI smoke test
-- [ ] `scripts/smoke_test.sh` exits 0 — it starts `app/Home.py` headless, checks the root page renders (HTTP 200, no traceback in the server log), then runs `farloads engine examples/ga6_normal.project.json -o out.csv` and checks the CSV.
+- [ ] `scripts/smoke_test.sh` exits 0 — it starts `app/Home.py` headless, checks the root page renders (HTTP 200, no traceback in the server log), then runs `sloads engine examples/ga6_normal.project.json -o out.csv` and checks the CSV.
 
 ---
 

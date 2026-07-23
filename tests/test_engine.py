@@ -13,8 +13,8 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from farloads import EngineInput, EngineType, Rotor, RotorType, run_all
-from farloads.modules import engine as calc
+from sloads import EngineInput, EngineType, Rotor, RotorType, run_all
+from sloads.modules import engine as calc
 
 # Engineering tolerance for matching the manual's printed figures (see Decision 3).
 TOL = 1e-3  # ±0.1% relative
@@ -167,7 +167,7 @@ def test_turboprop_runs_six_conditions():
 # Multi-engine layout (first-class; loads loop over every engine)
 # --------------------------------------------------------------------------- #
 def test_single_engine_run_matches_run_all():
-    from farloads import EngineLayout, Project
+    from sloads import EngineLayout, Project
 
     project = Project(name="single", engines=[io520bb()], engine_layout=EngineLayout.SINGLE_NOSE)
     mr = calc.run(project)
@@ -179,7 +179,7 @@ def test_single_engine_run_matches_run_all():
 
 def test_twin_wing_loops_over_each_engine():
     from dataclasses import replace
-    from farloads import EngineLayout, Project
+    from sloads import EngineLayout, Project
 
     left = replace(io520bb(), engine_designation="LEFT", engine_cg=(22.0, -60.0, -10.0))
     right = replace(io520bb(), engine_designation="RIGHT", engine_cg=(22.0, 60.0, -10.0))
@@ -192,7 +192,7 @@ def test_twin_wing_loops_over_each_engine():
 
 
 def test_engine_layout_count_is_validated():
-    from farloads import EngineLayout, Project
+    from sloads import EngineLayout, Project
 
     raised = False
     try:

@@ -25,7 +25,7 @@ import streamlit as st
 
 from components import render_applicability_banner, workflow_page_link
 
-from farloads import (
+from sloads import (
     MachLimitInput,
     Project,
     StructuralSpeedsInput,
@@ -35,15 +35,15 @@ from farloads import (
     to_display,
     to_imperial_scalar,
 )
-from farloads import io as farloads_io
-from farloads.constants import convert_airspeed, mach_to_eas, standard_atmosphere
-from farloads.modules.mach_limit import mach_limit_lines
-from farloads.modules.structural_speeds import (
+from sloads import io as sloads_io
+from sloads.constants import convert_airspeed, mach_to_eas, standard_atmosphere
+from sloads.modules.mach_limit import mach_limit_lines
+from sloads.modules.structural_speeds import (
     design_speed_values,
     design_speeds,
     operational_implications,
 )
-from farloads.report import module_text_report
+from sloads.report import module_text_report
 
 
 st.title("Structural Design Speeds — FAR 23")
@@ -351,7 +351,7 @@ def _tab_design_speeds(project: Project, system: UnitSystem, U: dict) -> None:
         "these speeds and load factors."
     )
     st.download_button(
-        "Download structural speeds (CSV)", farloads_io.load_cases_csv(results),
+        "Download structural speeds (CSV)", sloads_io.load_cases_csv(results),
         file_name="structural_speeds.csv", mime="text/csv", key="dl_speeds_csv")
     st.download_button(
         "Download structural speeds (text)", module_text_report("Structural design speeds", results),
@@ -528,7 +528,7 @@ def _tab_speed_altitude(project: Project, system: UnitSystem, U: dict) -> None:
     st.plotly_chart(fig, width="stretch")
 
     st.download_button(
-        "Download Mach-limit lines (CSV)", farloads_io.load_cases_csv(results),
+        "Download Mach-limit lines (CSV)", sloads_io.load_cases_csv(results),
         file_name="mach_limit.csv", mime="text/csv", key="dl_mach_csv")
     st.download_button(
         "Download Mach-limit lines (text)", module_text_report("Mach limit lines", results),

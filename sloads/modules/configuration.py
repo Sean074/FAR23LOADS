@@ -13,7 +13,7 @@ WINGGEOM reproduces -- see ``tests/test_configuration.py``). To honour the rule
 that a module must not recompute a quantity another module owns, the MAC /
 XLEMAC / aspect ratio / span are obtained by generating the WINGGEOM edge
 polylines and running them through the WINGGEOM strip integrator
-(:func:`farloads.modules.wing_geometry.surface_properties`), not by an
+(:func:`sloads.modules.wing_geometry.surface_properties`), not by an
 independent integration.
 
 Method references (Reference 1, McMaster):

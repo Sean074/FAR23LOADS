@@ -10,7 +10,7 @@ loading/weight scatters (W/S-vs-W/P, MTOW-vs-OEW) plus four geometric scatters
 
 Presentation only. The reference fleet is nominal published specs (Imperial) — never
 a FAR input, so the ULT/limit rules and ``load_cases_to_rows`` are untouched. The
-nearest-N ranking runs on MTOW / W/S / W/P via the pure :func:`farloads.fleet_stats`;
+nearest-N ranking runs on MTOW / W/S / W/P via the pure :func:`sloads.fleet_stats`;
 the geometry (span / area / AR / seats) is table columns and plot axes only, never a
 distance term (backlog F2 decision D-F2-a).
 
@@ -26,9 +26,9 @@ import pandas as pd
 import plotly.express as px
 import streamlit as st
 
-from farloads import FleetPoint, Project, Subject, fleet_stats, registry
-from farloads.constants import IN2_PER_FT2
-from farloads.modules.wing_geometry import surface_properties
+from sloads import FleetPoint, Project, Subject, fleet_stats, registry
+from sloads.constants import IN2_PER_FT2
+from sloads.modules.wing_geometry import surface_properties
 
 # The reference fleet (nominal published specs; never a FAR input). This page owns
 # it now that the fleet block has moved off the two input pages (backlog F2).
@@ -82,7 +82,7 @@ def _wtestima_value(project: Project, label: str) -> Optional[float]:
 def _wing_surface_props(project: Project) -> dict:
     """The WINGGEOM planform properties of the ``wing`` surface, or ``{}``.
 
-    Runs :func:`~farloads.modules.wing_geometry.surface_properties` on
+    Runs :func:`~sloads.modules.wing_geometry.surface_properties` on
     ``geometry.by_name("wing")`` and returns its labelled figures keyed by label
     (``"Total area"`` in in², ``"Aspect ratio"``, ``"Span"`` in, ...). Empty when no
     wing surface exists or the planform is degenerate (any calc failure). This is the

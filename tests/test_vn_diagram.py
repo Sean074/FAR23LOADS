@@ -1,4 +1,4 @@
-"""Unit tests for the pure V-n diagram builder (``farloads.vn_diagram``).
+"""Unit tests for the pure V-n diagram builder (``sloads.vn_diagram``).
 
 These are physics-closure checks (no printed oracle): the stall boundary is the
 parabola through (VS, 1) and the manoeuvre corner, the flaps-down envelope is
@@ -11,8 +11,8 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from farloads import build_vn_diagram, resolve_gust_inputs
-from farloads.vn_diagram import GustInputs, gust_load_factor
+from sloads import build_vn_diagram, resolve_gust_inputs
+from sloads.vn_diagram import GustInputs, gust_load_factor
 
 TOL = 1e-6
 

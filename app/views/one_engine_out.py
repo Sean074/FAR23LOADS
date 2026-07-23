@@ -15,8 +15,8 @@ import streamlit as st
 
 from components import gate
 
-from farloads import OneEngineOutInput, Project, UnitSystem, convert_results, to_si_scalar
-from farloads.modules.one_engine_out import run, time_history
+from sloads import OneEngineOutInput, Project, UnitSystem, convert_results, to_si_scalar
+from sloads.modules.one_engine_out import run, time_history
 
 
 st.title("One Engine Out — Vertical Tail Loads (ONENGOUT)")

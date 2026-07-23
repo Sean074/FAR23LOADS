@@ -18,14 +18,14 @@ from dataclasses import replace
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from farloads import (  # noqa: E402
+from sloads import (  # noqa: E402
     FuselageMomentInput,
     FuselageOutline,
     FuselageSection,
     io,
 )
-from farloads import fuselage_moment as fm  # noqa: E402
-from farloads.modules.flight_envelope import build_envelope  # noqa: E402
+from sloads import fuselage_moment as fm  # noqa: E402
+from sloads.modules.flight_envelope import build_envelope  # noqa: E402
 
 _EXAMPLES = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "examples")
 _GA = os.path.join(_EXAMPLES, "ga6_normal.project.json")

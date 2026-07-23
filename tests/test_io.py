@@ -11,8 +11,8 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from farloads import Project, io, registry  # noqa: E402
-from farloads.models import SCHEMA_VERSION, EngineType  # noqa: E402
+from sloads import Project, io, registry  # noqa: E402
+from sloads.models import SCHEMA_VERSION, EngineType  # noqa: E402
 from test_engine import io520bb  # noqa: E402
 
 EXAMPLES = os.path.join(
@@ -44,7 +44,7 @@ def test_loaded_project_matches_in_code_example():
     result = registry.get("engine")(project)
     assert result.module == "engine"
     expected = io520bb()
-    from farloads import run_all
+    from sloads import run_all
 
     ref = run_all(expected)
     assert len(result.conditions) == len(ref) == 3
@@ -86,7 +86,7 @@ def test_run_all_modules_skips_missing_slices():
     # A project with only the engine slice runs the engine module alone.
     from test_engine import io520bb
 
-    from farloads import EngineLayout
+    from sloads import EngineLayout
 
     project = Project(name="engine only", engines=[io520bb()], engine_layout=EngineLayout.SINGLE_NOSE)
     results = registry.run_all_modules(project)
@@ -190,7 +190,7 @@ def test_legacy_flight_loads_cg_cases_migrate_to_weight():
 def test_critical_load_set_selected_case_ids_round_trip():
     """Step D5: the Critical Loads page's opt-out selection persists on
     CriticalLoadSet.selected_case_ids (SCHEMA_VERSION 19); empty means no filter."""
-    from farloads.models import CriticalCondition, CriticalLoadSet, EnvelopeResult
+    from sloads.models import CriticalCondition, CriticalLoadSet, EnvelopeResult
 
     project = io.load_project(GA6)
     critical = CriticalLoadSet(
@@ -242,7 +242,7 @@ def test_configuration_round_trip():
     # dict round-trip. Step M2-6: the fuselage length/width/height are a derived
     # read-only summary of the GeometryInput.fuselage outline (not persisted), so
     # the outline is the single shape source and the scalars re-derive on load.
-    from farloads import FuselageOutline, FuselageSection, GeometryInput, LayoutInput
+    from sloads import FuselageOutline, FuselageSection, GeometryInput, LayoutInput
 
     layout = LayoutInput(
         wing_area_sqft=174.0, aspect_ratio=6.0, taper_ratio=0.6,
@@ -275,7 +275,7 @@ def test_c6_slices_round_trip():
     # The v7 (Step C6) slices survive a dict round-trip: the persisted mass
     # properties (WTONECG), the fuselage mass distribution, the SELECT critical
     # set on envelope.critical, and the fuselage net distribution on loads.body_net.
-    from farloads.models import (
+    from sloads.models import (
         BodyLoadResult,
         BodyStationLoad,
         CriticalCondition,
@@ -446,7 +446,7 @@ def test_legacy_configuration_folds_into_geometry():
 def test_explicit_fuselage_outline_round_trip_and_not_defaulted():
     """An explicit fuselage outline survives the round-trip verbatim and is NOT
     overwritten by the scalar default."""
-    from farloads import FuselageOutline, FuselageSection, GeometryInput, LayoutInput
+    from sloads import FuselageOutline, FuselageSection, GeometryInput, LayoutInput
 
     fuse = FuselageOutline(sections=[
         FuselageSection(x=0.0, width=0.0, height=0.0),
@@ -494,7 +494,7 @@ def _augmented_project():
     """ga6 plus the *result* slices (envelope / mass / loads / one_engine_out) that the
     fixture lacks, each with nested objects (VnPoint+CaseRef, CriticalCondition+LoadValue,
     the four station-load families), so the poison test also exercises those readers."""
-    from farloads.models import (
+    from sloads.models import (
         BodyLoadResult,
         BodyStationLoad,
         CaseRef,

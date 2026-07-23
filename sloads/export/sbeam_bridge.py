@@ -14,7 +14,7 @@ consumes for structural sizing, matching sbeam's own card style
   SPC1 + the load cards + a SOL 101 case-control wrapper, so the load runs
   directly in sbeam.
 
-The bridge is a pure renderer (like :mod:`farloads.io`): the building functions
+The bridge is a pure renderer (like :mod:`sloads.io`): the building functions
 return strings, the ``write_*`` wrappers do the only file I/O. It is **not** a
 registered calc module -- the physics already lives in ``modules/net_loads.py``.
 
@@ -40,7 +40,7 @@ the root torsion by construction. With the WINGINER quadrature
 reproduce the root bending exactly as ``sum(dFz * (y - y_root))`` -- the
 force/moment-closure guarantee the C4 acceptance test checks.
 
-Coordinate / units map: see :mod:`farloads.export.coordinates` (identity,
+Coordinate / units map: see :mod:`sloads.export.coordinates` (identity,
 inches, CID 0).
 
 Reference: ``sbeam/results/load_export.py`` (card style); NASTRAN FORCE / MOMENT
@@ -74,7 +74,7 @@ from .coordinates import SBEAM_CID, to_force, to_grid, to_moment
 
 # sbeam sizes structure to ULTIMATE loads, so every exported force / moment /
 # pressure magnitude is the calc's LIMIT value x this factor (14 CFR 25.303 -> 1.5;
-# see farloads.constants.ULTIMATE_FACTOR). Geometry (coordinates, chord fractions)
+# see sloads.constants.ULTIMATE_FACTOR). Geometry (coordinates, chord fractions)
 # is not scaled. The net/tail/control results carry no per-case factor of their own,
 # so the suite-wide default is applied here; revisiting it is a one-constant change.
 _SF = ULTIMATE_FACTOR
@@ -242,9 +242,9 @@ def _case_card_block(r: WingLoadResult, sid: int) -> List[str]:
     root_sz = loads[0].sz if loads else 0.0
     root_myy = loads[0].myy if loads else 0.0
     lines = [
-        f"$ FAR23LOADS net wing load -- case {r.case} (Nz={r.nz:g}, Nx={r.nx:g}), SID {sid}",
+        f"$ SLOADS net wing load -- case {r.case} (Nz={r.nz:g}, Nx={r.nx:g}), SID {sid}",
         f"$ Case ID: {r.case_ref.case_id}" if r.case_ref else "$ Case ID: (none)",
-        "$ Axes: FAR23LOADS station/butt/waterline inches -> sbeam CID 0 (identity).",
+        "$ Axes: SLOADS station/butt/waterline inches -> sbeam CID 0 (identity).",
         "$ Loads are ULTIMATE (limit x 1.5).",
         f"$ FORCE set sums to root Sz = {root_sz:.1f} lb; "
         f"MOMENT(My) set sums to root torsion Myy = {root_myy:.1f} lb-in.",
@@ -413,7 +413,7 @@ def body_force_moment_cards(arg, sid_base: int = 1) -> str:
         sid = sid_base + idx
         total_fz = sum(s.fz for s in r.stations) * _SF
         lines = [
-            f"$ FAR23LOADS net fuselage load -- case {r.case}, SID {sid}",
+            f"$ SLOADS net fuselage load -- case {r.case}, SID {sid}",
             f"$ Case ID: {r.case_ref.case_id}" if r.case_ref else "$ Case ID: (none)",
             "$ Loads are ULTIMATE (limit x 1.5).",
             f"$ Applied Fz set sums to {total_fz:.2f} lb (vertical equilibrium).",
@@ -502,7 +502,7 @@ def tail_force_moment_cards(arg, sid_base: int = 1) -> str:
         forces = _tail_nodal_forces(r)
         total = sum(forces)
         lines = [
-            f"$ FAR23LOADS chordwise {r.component} load -- case {r.case}, SID {sid}",
+            f"$ SLOADS chordwise {r.component} load -- case {r.case}, SID {sid}",
             f"$ Case ID: {r.case_ref.case_id}" if r.case_ref else "$ Case ID: (none)",
             "$ Loads are ULTIMATE (limit x 1.5).",
             f"$ Applied Fz set sums to {total:.1f} lb (= 1.5 x (LT25 + LT50) = "
@@ -604,7 +604,7 @@ def control_surface_force_moment_cards(arg, sid_base: int = 1) -> str:
         forces = _control_nodal_forces(r)
         total = sum(forces)
         lines = [
-            f"$ FAR23LOADS control-surface load -- {r.surface} {r.case}, SID {sid}",
+            f"$ SLOADS control-surface load -- {r.surface} {r.case}, SID {sid}",
             f"$ Case ID: {r.case_ref.case_id}" if r.case_ref else "$ Case ID: (none)",
             "$ Loads are ULTIMATE (limit x 1.5).",
             f"$ Applied Fz set sums to {total:.1f} lb (= 1.5 x critical load "

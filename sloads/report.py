@@ -140,7 +140,7 @@ def _display_loads(loads: List[LoadValue], system: UnitSystem) -> List[LoadValue
 
     ``CriticalCondition`` carries a bare ``List[LoadValue]`` (not a
     :class:`ConditionResult`), so it is wrapped/unwrapped around
-    :func:`~farloads.units.convert_results` rather than mutating the condition itself.
+    :func:`~sloads.units.convert_results` rather than mutating the condition itself.
     Imperial is a no-op.
     """
     if system == UnitSystem.IMPERIAL:

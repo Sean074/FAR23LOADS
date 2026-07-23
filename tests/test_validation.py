@@ -1,4 +1,4 @@
-"""Unit tests for the pure input-consistency predicates (``farloads.validation``).
+"""Unit tests for the pure input-consistency predicates (``sloads.validation``).
 
 Each predicate must fire on a crafted bad input and stay silent on well-formed
 input -- in particular on the Appendix-A GA fixture (``examples/ga6_normal``),
@@ -11,7 +11,7 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from farloads import (
+from sloads import (
     LayoutInput,
     MassItem,
     MassItemKind,
@@ -19,8 +19,8 @@ from farloads import (
     SurfaceInput,
     consistency_warnings,
 )
-from farloads import io as farloads_io
-from farloads.models import GeometryInput
+from sloads import io as sloads_io
+from sloads.models import GeometryInput
 
 _GA = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
                    "examples", "ga6_normal.project.json")
@@ -32,7 +32,7 @@ def _codes(project, page=None):
 
 
 def test_ga_fixture_is_clean():
-    project = farloads_io.load_project(_GA)
+    project = sloads_io.load_project(_GA)
     assert consistency_warnings(project) == []
 
 
@@ -94,7 +94,7 @@ def test_area_match_silent():
         name="wing",
         leading_edge=[(0.0, 0.0), (0.0, 200.0)],
         trailing_edge=[(120.0, 0.0), (120.0, 200.0)])
-    from farloads.modules.wing_geometry import surface_properties
+    from sloads.modules.wing_geometry import surface_properties
     area_ft2 = next(v.value for v in surface_properties(surf).values
                     if v.label == "Total area") / 144.0
     project = Project(
@@ -106,7 +106,7 @@ def test_area_match_silent():
 
 
 def test_cg_outside_envelope_fires():
-    project = farloads_io.load_project(_GA)
+    project = sloads_io.load_project(_GA)
     # Push the loading CG far aft with a heavy tail-boom mass well behind any limit.
     project.weight.items.append(MassItem(
         name="ballast", weight_lb=5000.0, x=100000.0, y=0.0, z=0.0,
@@ -115,7 +115,7 @@ def test_cg_outside_envelope_fires():
 
 
 def test_cg_check_skipped_without_envelope():
-    project = farloads_io.load_project(_GA)
+    project = sloads_io.load_project(_GA)
     project.weight.envelope = None  # no WTENV envelope -> check silently skipped
     assert "cg_outside_envelope" not in _codes(project)
 
@@ -123,14 +123,14 @@ def test_cg_check_skipped_without_envelope():
 def test_operational_target_infeasible_fires():
     # A target VNE above 0.9*VD (GA6 VD 212.5 -> cap 191.25) is infeasible and
     # surfaces on the Design Speeds page for the dashboard (M2-10).
-    project = farloads_io.load_project(_GA)
+    project = sloads_io.load_project(_GA)
     project.speeds.target_vne = 250.0  # needs VD >= 277.8, chosen VD 212.5
     assert "operational_target_infeasible" in _codes(project, page="structural_speeds")
 
 
 def test_operational_target_feasible_silent():
     # A reachable target produces no warning (VNE 180 needs VD >= 200 <= 212.5).
-    project = farloads_io.load_project(_GA)
+    project = sloads_io.load_project(_GA)
     project.speeds.target_vne = 180.0
     assert "operational_target_infeasible" not in _codes(project)
 

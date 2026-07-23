@@ -67,7 +67,7 @@ These are mandatory, not advisory:
   `CHANGELOG.md` `[Unreleased]` entry. Never leave a "done" item in the backlog or
   batch these updates for later. Releases follow
   `docs/10_standard/RELEASE_PROCESS.md`.
-- **Keep the build green.** `ruff check farloads/ cli.py` clean and `pytest`
+- **Keep the build green.** `ruff check sloads/ cli.py` clean and `pytest`
   passing are the merge gate (CI enforces both on 3.9 / 3.11 / 3.12). Add new
   domain terms (program names, variables, units) to `cspell.json`.
 - **Git is the user's to run.** ANY and ALL git usage — `commit`, `add`, `push`,
@@ -80,7 +80,7 @@ These are mandatory, not advisory:
 ## Commands
 
 The project uses a local virtualenv at `.venv/`. The package is installed in
-editable mode (`pip install -e '.[dev]'`), so `import farloads` and `import cli`
+editable mode (`pip install -e '.[dev]'`), so `import sloads` and `import cli`
 work from any cwd — there are no `sys.path` shims in `app/` or `cli.py`. Use the
 venv directly:
 
@@ -94,13 +94,13 @@ venv directly:
 .venv/bin/python tests/test_engine.py        # zero-dependency fallback runner
 
 # Lint (CI gate, alongside pytest)
-.venv/bin/ruff check farloads/ cli.py
+.venv/bin/ruff check sloads/ cli.py
 
 # Run the UI
 .venv/bin/streamlit run app/Home.py
 
 # Run one module from the CLI (installed entry point or the script directly)
-.venv/bin/farloads engine examples/ga6_normal.project.json -o out.csv
+.venv/bin/sloads engine examples/ga6_normal.project.json -o out.csv
 .venv/bin/python cli.py engine examples/ga6_normal.project.json   # text to stdout
 .venv/bin/python cli.py --list               # registered modules
 ```
@@ -117,7 +117,7 @@ and `pytest` on Python 3.9 / 3.11 / 3.12. When you add a new domain term (a
 The system is a **shared pure-calc package + thin I/O shells**. Calc never does
 I/O; the GUI, CLI and tests are interchangeable front-ends over the same package.
 
-- `farloads/` — the pure-calc package. No Streamlit, no file access in calc code.
+- `sloads/` — the pure-calc package. No Streamlit, no file access in calc code.
   - `models.py` — `Project` (the single reloadable input bundle; holds every
     module's per-domain input/result slice — `engines`, `weight`, `geometry`
     (unified Step G1: `.parametric` layout + `.surfaces` planforms + `.fuselage`
@@ -128,7 +128,7 @@ I/O; the GUI, CLI and tests are interchangeable front-ends over the same package
   - `modules/<name>.py` — one file per suite program. Each exposes
     `run(project: Project) -> ModuleResult` and calls `register(name, run)` at
     import time. `modules/__init__.py` imports every module so registration
-    happens on `import farloads`.
+    happens on `import sloads`.
   - `registry.py` — name → `run(project)` lookup. `run_all_modules(project)` runs
     every registered module whose input slice is present (a module raises
     `ValueError` when its slice is missing, and that is skipped).
@@ -147,14 +147,14 @@ I/O; the GUI, CLI and tests are interchangeable front-ends over the same package
     load case — the canonical CSV shape every module reuses) and `text_report`.
   - `constants.py` — the one home for `g`, `pi`, unit factors.
 - `app/Home.py` + `app/views/*.py` — Streamlit multi-page UI. `Home.py` is the
-  `st.navigation` entry point: it builds the sidebar from `farloads/workflow.py`
+  `st.navigation` entry point: it builds the sidebar from `sloads/workflow.py`
   (the ordered step graph — `Start` plus the six analysis-flow phases `Develop V-n
   diagram → Flight loads → Other loads → Landing loads → Load-case plotting →
   Export`), so page order/titles come from workflow metadata, not filename prefixes. Each view is
   `app/views/<workflow-key>.py`; `dashboard.py`, `results_review.py` and
   `export_report.py` are the Overview / Review / Export consolidation pages. Only
   `Home.py` may call `st.set_page_config` (once, before `st.navigation`). The
-  editable install (`pip install -e '.[dev]'`) puts `farloads` on the path, so the
+  editable install (`pip install -e '.[dev]'`) puts `sloads` on the path, so the
   views import it directly — there are no `sys.path` shims.
 - `cli.py` — argparse front-end: load project → `registry.get(module)` → CSV/text.
 - `tests/` — pytest; `conftest.py` puts the repo root and `tests/` on `sys.path`
@@ -179,7 +179,7 @@ These are the contract that makes modules copy-of-the-pattern (see PROJECT_GUIDE
   Set the `ConditionResult.safety_factor` for every case (see **Ultimate-load
   output** below).
 - **Self-register** at import (`register("name", run)`), and add the import to
-  `farloads/modules/__init__.py`.
+  `sloads/modules/__init__.py`.
 - **Constants centralized** in `constants.py`.
 - **One manual-example test** per module under `tests/`, asserting `run(project)`
   against the Appendix A and/or B figures.
@@ -265,6 +265,6 @@ mirror the BASIC — preserve this when it affects a compared figure.
 Reference 1's Appendix C ships **22** programs; the FAA User's Guide repackages
 them into a **20**-item menu. `TAU.BAS` (helper) and `BALLOADS.BAS` (a
 post-`FLTLOADS` balanced-tail-load *verification* utility, off the main pipeline)
-are the two off-menu programs. Module file names in `farloads/modules/` are the
+are the two off-menu programs. Module file names in `sloads/modules/` are the
 modern names mapped to original `.BAS` names in
 `docs/10_standard/PROGRAM_SPEC.md` and the `PROJECT_GUIDE.md §4` layout.

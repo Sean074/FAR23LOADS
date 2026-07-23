@@ -3,7 +3,7 @@ requires = ["setuptools>=42"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "farloads"
+name = "sloads"
 version = "0.2.0"
 description = "Modern Python/Streamlit replication of the FAR 23 LOADS suite (McMaster) — FAR Part 23 Subpart C structural design loads."
 readme = "README.md"
@@ -36,11 +36,11 @@ dev = [
 ]
 
 [project.scripts]
-farloads = "cli:main"
+sloads = "cli:main"
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["farloads*"]
+include = ["sloads*"]
 
 [tool.setuptools]
 py-modules = ["cli"]
@@ -58,11 +58,11 @@ ignore = [
 testpaths = ["tests"]
 python_files = ["test_*.py"]
 python_functions = ["test_*"]
-addopts = "--cov=farloads --cov-report=term-missing"
+addopts = "--cov=sloads --cov-report=term-missing"
 
 [tool.coverage.run]
 branch = true
-source = ["farloads"]
+source = ["sloads"]
 
 [tool.coverage.report]
 show_missing = true

@@ -1,9 +1,9 @@
-"""FAR 23 LOADS — multipage entrypoint.
+"""sloads — multipage entrypoint.
 
 Run with:  streamlit run app/Home.py
 
 The whole app is one reloadable ``project.json`` carried in ``st.session_state``.
-Navigation is built explicitly from :mod:`farloads.workflow` (the single source of
+Navigation is built explicitly from :mod:`sloads.workflow` (the single source of
 truth for the step graph) and grouped into a **Start** app-shell section plus the
 six analysis-flow phases the user moves through left-to-right (Step G2):
 
@@ -17,7 +17,7 @@ steps is omitted from the sidebar rather than shown empty.
 
 This module also owns the **global unit-system toggle** and the **global project
 file widget** (Step D3, decision D-3): Imperial/SI selection (``st.session_state
-["unit_system"]``, read by every view via :func:`farloads.units.convert_results`)
+["unit_system"]``, read by every view via :func:`sloads.units.convert_results`)
 plus Open/Save against a local ``projects/`` directory, New-from-example, and the
 browser upload/download fallback. Both are built once, here, above ``pg.run()``,
 so they appear in the sidebar on every page regardless of which view is active.
@@ -34,14 +34,14 @@ from typing import Callable, Optional
 
 import streamlit as st
 
-from farloads import Project, UnitSystem
-from farloads import io as farloads_io
-from farloads import workflow as wf
-from farloads.models import SCHEMA_VERSION
+from sloads import Project, UnitSystem
+from sloads import io as sloads_io
+from sloads import workflow as wf
+from sloads.models import SCHEMA_VERSION
 
 # Must be the first Streamlit call, and the ONLY set_page_config in the app
 # (individual views must not call it again under st.navigation).
-st.set_page_config(page_title="FAR 23 LOADS", layout="wide", page_icon="🛩️")
+st.set_page_config(page_title="sloads", layout="wide", page_icon="🛩️")
 
 # Ordered section labels for the sidebar groups: an un-numbered Start app-shell
 # group above the six numbered analysis-flow phases (Step G2).
@@ -80,7 +80,7 @@ project: Project = st.session_state["project"]
 
 def _mark_saved(p: Project) -> None:
     """Snapshot ``p`` as the last loaded/saved state (the unsaved-changes baseline)."""
-    st.session_state["_saved_project_snapshot"] = farloads_io.project_to_dict(p)
+    st.session_state["_saved_project_snapshot"] = sloads_io.project_to_dict(p)
 
 
 if "_saved_project_snapshot" not in st.session_state:
@@ -88,7 +88,7 @@ if "_saved_project_snapshot" not in st.session_state:
 
 
 def _has_unsaved_changes(p: Project) -> bool:
-    return farloads_io.project_to_dict(p) != st.session_state.get("_saved_project_snapshot")
+    return sloads_io.project_to_dict(p) != st.session_state.get("_saved_project_snapshot")
 
 
 def _adopt(new_project: Project) -> None:
@@ -117,7 +117,7 @@ def _apply_schema_check(new_project: Project) -> Project:
     (its field-presence migration already ran in ``io.py``; here we bump the stamp).
     Uses ``st.toast`` because the adopt path ends in ``st.rerun()``, which would
     discard an ordinary ``st.warning``."""
-    status, message = farloads_io.schema_status(new_project.schema_version)
+    status, message = sloads_io.schema_status(new_project.schema_version)
     if status == "newer":
         st.toast(message, icon="⚠️")
     elif status == "older":
@@ -168,8 +168,8 @@ with st.sidebar:
     dirty = _has_unsaved_changes(project)
     st.caption("🟠 Unsaved changes" if dirty else "⚪ No unsaved changes")
 
-    projects_dir = farloads_io.default_projects_dir()
-    saved = farloads_io.list_saved_projects(projects_dir)
+    projects_dir = sloads_io.default_projects_dir()
+    saved = sloads_io.list_saved_projects(projects_dir)
     example_files = sorted(
         f for f in os.listdir(_EXAMPLES_DIR) if f.endswith(".project.json")
     ) if os.path.isdir(_EXAMPLES_DIR) else []
@@ -181,7 +181,7 @@ with st.sidebar:
             )
             if st.button("Open", key="_open_saved_btn", use_container_width=True):
                 path = os.path.join(projects_dir, choice)
-                loaded = _safe_load(lambda: farloads_io.load_project(path), choice)
+                loaded = _safe_load(lambda: sloads_io.load_project(path), choice)
                 if loaded is not None:
                     _load_with_guard(loaded, choice)
         else:
@@ -193,14 +193,14 @@ with st.sidebar:
             )
             if st.button("Load example", key="_open_example_btn", use_container_width=True):
                 path = os.path.join(_EXAMPLES_DIR, example_choice)
-                loaded = _safe_load(lambda: farloads_io.load_project(path), example_choice)
+                loaded = _safe_load(lambda: sloads_io.load_project(path), example_choice)
                 if loaded is not None:
                     _load_with_guard(loaded, example_choice)
 
         uploaded = st.file_uploader("Upload project.json", type="json", key="_uploader")
         if uploaded is not None:
             loaded = _safe_load(
-                lambda: farloads_io.project_from_dict(json.load(uploaded)), uploaded.name
+                lambda: sloads_io.project_from_dict(json.load(uploaded)), uploaded.name
             )
             if loaded is not None:
                 _load_with_guard(loaded, uploaded.name)
@@ -209,13 +209,13 @@ with st.sidebar:
     if st.button("💾 Save to disk", use_container_width=True, key="_save_btn"):
         os.makedirs(projects_dir, exist_ok=True)
         save_path = os.path.join(projects_dir, f"{fname}.project.json")
-        farloads_io.save_project(project, save_path)
+        sloads_io.save_project(project, save_path)
         _mark_saved(project)
         st.success(f"Saved: {save_path}")
         st.rerun()
 
     st.download_button(
-        "Download project.json", farloads_io.project_to_json(project),
+        "Download project.json", sloads_io.project_to_json(project),
         file_name=f"{fname}.json", mime="application/json",
         use_container_width=True, key="_download_btn",
     )

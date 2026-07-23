@@ -2,7 +2,7 @@
 
 Thin presentation wrappers over the pure-calc package; they hold no load math of
 their own. The FAR 23 applicability banner is the shared component here: the
-detection lives in :func:`farloads.far23_applicability` (pure, unit-tested) and
+detection lives in :func:`sloads.far23_applicability` (pure, unit-tested) and
 this module only renders it and wires the "switch to Concept" action.
 
 The fleet comparison used to live here too, shared by two input pages; it now has
@@ -15,17 +15,17 @@ from typing import Optional
 
 import streamlit as st
 
-from farloads import Project, StructuralSpeedsInput, far23_applicability
-from farloads import workflow as wf
-from farloads.applicability import design_weight_lb
-from farloads.modules.structural_speeds import _maneuver_load_factors
+from sloads import Project, StructuralSpeedsInput, far23_applicability
+from sloads import workflow as wf
+from sloads.applicability import design_weight_lb
+from sloads.modules.structural_speeds import _maneuver_load_factors
 
 
 # --------------------------------------------------------------------------- #
 # Workflow-derived page links (M2-2, review G6)
 # --------------------------------------------------------------------------- #
 # Every cross-page link derives its target path *and* default label from
-# ``farloads.workflow`` -- the single source of navigation truth -- so a page
+# ``sloads.workflow`` -- the single source of navigation truth -- so a page
 # rename updates every link automatically and stale hand-typed page names (the
 # G6 finding: "Wing Geometry", "Configuration & Layout") can't recur.
 def workflow_page_link(
@@ -38,7 +38,7 @@ def workflow_page_link(
 ) -> None:
     """Render an ``st.page_link`` to the workflow step ``key``.
 
-    ``key`` is a :data:`farloads.workflow.BY_KEY` step key (also the view-file
+    ``key`` is a :data:`sloads.workflow.BY_KEY` step key (also the view-file
     stem, ``app/views/<key>.py``). The label defaults to the step's canonical
     ``title`` so renaming a page re-labels every link to it. Raises ``KeyError``
     on an unknown key -- caught by the nav-integrity test, which is the point.

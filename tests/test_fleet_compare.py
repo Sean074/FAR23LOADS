@@ -1,4 +1,4 @@
-"""Unit tests for the pure fleet-comparison helper (``farloads.fleet``).
+"""Unit tests for the pure fleet-comparison helper (``sloads.fleet``).
 
 The Aircraft Comparison page places one airplane against
 ``app/data/reference_aircraft.csv`` via this helper (GUI_design §8.4). The numeric
@@ -10,7 +10,7 @@ presentation-only, so a dedicated test proves they add no distance term.
 
 import math
 
-from farloads.fleet import (
+from sloads.fleet import (
     FleetPoint,
     Subject,
     fleet_stats,

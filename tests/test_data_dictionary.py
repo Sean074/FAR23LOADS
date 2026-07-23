@@ -1,6 +1,6 @@
 """Drift guard for the generated project.json data dictionary.
 
-`docs/generate_data_dict.py` introspects `farloads.models` and writes
+`docs/generate_data_dict.py` introspects `sloads.models` and writes
 `docs/10_standard/DATA_DICTIONARY.md`. This test asserts the committed doc is
 in sync with the current dataclasses (so a schema change that forgets to
 regenerate fails CI) and that every input slice is documented.
@@ -42,7 +42,7 @@ def test_every_input_slice_is_documented():
 
 
 def test_schema_version_recorded():
-    import farloads.models as models
+    import sloads.models as models
 
     gen = _load_generator()
     assert f"Schema version: **{models.SCHEMA_VERSION}**" in gen.build()

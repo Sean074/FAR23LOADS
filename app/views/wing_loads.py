@@ -8,7 +8,7 @@ distribution (from the spanwise twist), and their combination at a target CL.
 Section 2 forms the net spanwise wing load = air load (section 1) − inertia
 (WINGINER), giving the shear, bending moment and torsion along the 25% chord --
 the headline structural deliverable. AIRLOADS is an independently registered calc
-module (see ``farloads.workflow.FOLDED_MODULES``); this page is its shared nav
+module (see ``sloads.workflow.FOLDED_MODULES``); this page is its shared nav
 step with NETLOADS.
 """
 
@@ -23,7 +23,7 @@ import streamlit as st
 
 from components import gate
 
-from farloads import (
+from sloads import (
     AeroInput,
     AeroSurfaceInput,
     ConcentratedWeight,
@@ -37,12 +37,12 @@ from farloads import (
     to_imperial_scalar,
     to_si_scalar,
 )
-from farloads import io as farloads_io
-from farloads.modules.airloads import run as airloads_run
-from farloads.derived_geometry import wing_reference
-from farloads.modules.airloads import schrenk_distribution
-from farloads.modules.net_loads import build_net_loads, wing_load_rows
-from farloads.report import module_text_report
+from sloads import io as sloads_io
+from sloads.modules.airloads import run as airloads_run
+from sloads.derived_geometry import wing_reference
+from sloads.modules.airloads import schrenk_distribution
+from sloads.modules.net_loads import build_net_loads, wing_load_rows
+from sloads.report import module_text_report
 
 
 def _convert_wing_rows(rows, system: UnitSystem):
@@ -204,7 +204,7 @@ st.dataframe(pd.DataFrame({
 }), hide_index=True, use_container_width=True)
 
 st.download_button(
-    "Download airloads (CSV)", farloads_io.load_cases_csv(air_results),
+    "Download airloads (CSV)", sloads_io.load_cases_csv(air_results),
     file_name="airloads.csv", mime="text/csv")
 st.download_button(
     "Download airloads (text)", module_text_report("Spanwise wing airloads", air_results),

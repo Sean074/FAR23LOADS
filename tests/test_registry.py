@@ -14,8 +14,8 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import pytest  # noqa: E402
 
-from farloads import MissingInputError, io, registry  # noqa: E402
-from farloads.models import ModuleResult  # noqa: E402
+from sloads import MissingInputError, io, registry  # noqa: E402
+from sloads.models import ModuleResult  # noqa: E402
 
 EXAMPLES = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "examples")
 GA6 = os.path.join(EXAMPLES, "ga6_normal.project.json")
@@ -64,7 +64,7 @@ def test_run_all_skips_all_modules_on_engine_only_project():
     only the engine module (every other module skips cleanly)."""
     from test_engine import io520bb
 
-    from farloads import EngineLayout, Project
+    from sloads import EngineLayout, Project
 
     project = Project(name="engine only", engines=[io520bb()], engine_layout=EngineLayout.SINGLE_NOSE)
     results = registry.run_all_modules(project)
@@ -74,7 +74,7 @@ def test_run_all_skips_all_modules_on_engine_only_project():
 def test_build_critical_builds_envelope_once(monkeypatch):
     """M2R-8 threading: with no persisted envelope, ``build_critical`` calls
     ``build_envelope`` exactly once (was up to 7x)."""
-    from farloads.modules import select
+    from sloads.modules import select
 
     project = io.load_project(GA6)
     project.envelope = None  # force the fallback build path

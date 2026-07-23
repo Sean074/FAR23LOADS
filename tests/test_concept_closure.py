@@ -37,16 +37,16 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from farloads import io  # noqa: E402
-from farloads.export import sbeam_bridge as sb  # noqa: E402
-from farloads.modules import aileron as aileron_mod  # noqa: E402
-from farloads.modules import flap as flap_mod  # noqa: E402
-from farloads.modules import tab as tab_mod  # noqa: E402
-from farloads.modules.body_loads import build_body_loads  # noqa: E402
-from farloads.modules.flight_envelope import build_envelope  # noqa: E402
-from farloads.modules.net_loads import build_net_loads  # noqa: E402
-from farloads.modules.select import build_critical  # noqa: E402
-from farloads.modules.taildist import build_tail_chordwise  # noqa: E402
+from sloads import io  # noqa: E402
+from sloads.export import sbeam_bridge as sb  # noqa: E402
+from sloads.modules import aileron as aileron_mod  # noqa: E402
+from sloads.modules import flap as flap_mod  # noqa: E402
+from sloads.modules import tab as tab_mod  # noqa: E402
+from sloads.modules.body_loads import build_body_loads  # noqa: E402
+from sloads.modules.flight_envelope import build_envelope  # noqa: E402
+from sloads.modules.net_loads import build_net_loads  # noqa: E402
+from sloads.modules.select import build_critical  # noqa: E402
+from sloads.modules.taildist import build_tail_chordwise  # noqa: E402
 from test_sbeam_bridge import _parse_cards  # noqa: E402  (shared free-field reader)
 
 _EXAMPLE = os.path.join(

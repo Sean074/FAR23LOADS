@@ -11,8 +11,8 @@ must never be touched, per CLAUDE.md's aviation-standard-units decision.
 import math
 import os
 
-from farloads import UnitSystem, io
-from farloads.units import project_dict_to_display, project_dict_to_imperial
+from sloads import UnitSystem, io
+from sloads.units import project_dict_to_display, project_dict_to_imperial
 
 _EXAMPLES = os.path.join(os.path.dirname(__file__), "..", "examples")
 

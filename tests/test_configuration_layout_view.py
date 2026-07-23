@@ -35,7 +35,7 @@ def _run(project):
 
 
 def test_invalid_apply_is_rejected_and_page_stays_alive():
-    from farloads import io
+    from sloads import io
 
     project = io.load_project(_GA6)
     before_area = project.geometry.parametric.wing_area_sqft
@@ -60,7 +60,7 @@ def test_invalid_apply_is_rejected_and_page_stays_alive():
 
 def test_valid_apply_persists():
     """A valid edit still applies (guard against over-rejection)."""
-    from farloads import io
+    from sloads import io
 
     project = io.load_project(_GA6)
     at = _run(project)

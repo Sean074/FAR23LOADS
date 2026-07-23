@@ -29,18 +29,18 @@ import streamlit as st
 
 from components import gate
 
-from farloads import Project, registry
-from farloads import io as farloads_io
-from farloads import workflow as wf
-from farloads.export import sbeam_bridge as sb
-from farloads.export.workbook import build_workbook
-from farloads.modules.aileron import build_aileron
-from farloads.modules.body_loads import build_body_loads
-from farloads.modules.flap import build_flap
-from farloads.modules.net_loads import build_net_loads
-from farloads.modules.tab import build_tabs
-from farloads.modules.taildist import build_tail_chordwise
-from farloads.report import module_text_report
+from sloads import Project, registry
+from sloads import io as sloads_io
+from sloads import workflow as wf
+from sloads.export import sbeam_bridge as sb
+from sloads.export.workbook import build_workbook
+from sloads.modules.aileron import build_aileron
+from sloads.modules.body_loads import build_body_loads
+from sloads.modules.flap import build_flap
+from sloads.modules.net_loads import build_net_loads
+from sloads.modules.tab import build_tabs
+from sloads.modules.taildist import build_tail_chordwise
+from sloads.report import module_text_report
 
 st.title("Export & Report")
 st.caption(
@@ -65,7 +65,7 @@ def _try(fn, *args):
 # --------------------------------------------------------------------------- #
 # Compute every artifact once (used by both the per-channel buttons and the zip)
 # --------------------------------------------------------------------------- #
-project_json = farloads_io.project_to_json(project)
+project_json = sloads_io.project_to_json(project)
 module_results = registry.run_all_modules(project)
 step_by_module = {s.module: s for s in wf.STEPS if s.module}
 
@@ -85,7 +85,7 @@ report_header = "\n".join(_header_lines)
 text_report = "\n\n".join(
     [report_header] + [module_text_report(_module_label(mr), mr.conditions) for mr in module_results]
 )
-module_csvs = {mr.module: farloads_io.load_cases_csv(mr) for mr in module_results}
+module_csvs = {mr.module: sloads_io.load_cases_csv(mr) for mr in module_results}
 
 # sbeam component loads, defensively.
 _net = _try(build_net_loads, project)

@@ -2,8 +2,8 @@
 """Generate ``docs/10_standard/DATA_DICTIONARY.md`` from the dataclasses.
 
 The ``project.json`` schema (``SCHEMA_VERSION`` is deep and climbing) has no
-reference other than ``farloads/models.py`` itself. This script introspects the
-**input** slices of :class:`farloads.models.Project` and emits a markdown data
+reference other than ``sloads/models.py`` itself. This script introspects the
+**input** slices of :class:`sloads.models.Project` and emits a markdown data
 dictionary: for every field its type, default, a units hint, and -- at *slice*
 granularity -- the page that owns it and the calc modules that consume it.
 
@@ -35,15 +35,16 @@ from __future__ import annotations
 
 import dataclasses
 import inspect
+import enum
 import re
 import typing
 from pathlib import Path
 
-import farloads.models as m
-import farloads.workflow as w
+import sloads.models as m
+import sloads.workflow as w
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-MODULES_DIR = REPO_ROOT / "farloads" / "modules"
+MODULES_DIR = REPO_ROOT / "sloads" / "modules"
 OUT_PATH = REPO_ROOT / "docs" / "10_standard" / "DATA_DICTIONARY.md"
 
 # --------------------------------------------------------------------------- #
@@ -141,7 +142,7 @@ def _units_hint(name, comment):
 
 def _type_str(s):
     """Clean a raw string annotation (the get_type_hints-failed fallback)."""
-    s = re.sub(r"\bfarloads\.models\.", "", str(s))
+    s = re.sub(r"\bsloads\.models\.", "", str(s))
     s = re.sub(r"\btyping\.", "", s)
     return s
 
@@ -181,7 +182,7 @@ def _nested_dataclasses(ann, acc):
 def _default_str(f):
     if f.default is not dataclasses.MISSING:
         val = f.default
-        if isinstance(val, m.Enum):
+        if isinstance(val, enum.Enum):
             return f"{type(val).__name__}.{val.name}"
         return repr(val)
     if f.default_factory is not dataclasses.MISSING:  # type: ignore[misc]
@@ -279,7 +280,7 @@ def build():
     lines.append(
         "> **Generated file — do not edit by hand.** Produced by "
         "[`docs/generate_data_dict.py`](../generate_data_dict.py) from "
-        "`farloads/models.py`. Regenerate after any schema change: "
+        "`sloads/models.py`. Regenerate after any schema change: "
         "`.venv/bin/python docs/generate_data_dict.py`."
     )
     lines.append("")
@@ -287,7 +288,7 @@ def build():
     lines.append("")
     lines.append(
         "This dictionary covers the **input** slices of `Project` "
-        "(`farloads/models.py`) — the fields that make up a `project.json`. The "
+        "(`sloads/models.py`) — the fields that make up a `project.json`. The "
         "result slices (`envelope`, `mass`, `loads`) are computed outputs and are "
         "out of scope."
     )
@@ -375,7 +376,7 @@ def build():
     enum_types = [
         obj
         for _name, obj in sorted(vars(m).items())
-        if isinstance(obj, type) and issubclass(obj, m.Enum) and obj is not m.Enum
+        if isinstance(obj, type) and issubclass(obj, enum.Enum) and obj is not enum.Enum
     ]
     for et in enum_types:
         # Only the enum's *own* docstring -- getdoc() would inherit str/Enum's.

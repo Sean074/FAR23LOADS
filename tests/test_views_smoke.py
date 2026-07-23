@@ -30,7 +30,7 @@ pytest.importorskip("streamlit.testing.v1")
 
 
 def _seeded_project(path=_EXAMPLE):
-    from farloads import io
+    from sloads import io
     return io.load_project(path)
 
 

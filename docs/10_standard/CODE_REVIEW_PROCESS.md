@@ -1,11 +1,11 @@
-# Code Review Process — FAR 23 LOADS
+# Code Review Process — sloads
 
 Authoritative process guide for critical code review in this repository. Reviews
 **must** be critical: identify defects, non-conformance to the documentation and
 the reference manual, and deviations from the porting contract — not just style.
 
 The unit of work here is **porting one suite program** (`.BAS` → a
-`farloads/modules/<name>.py` module) or changing an existing one. This guide is
+`sloads/modules/<name>.py` module) or changing an existing one. This guide is
 specialised for that.
 
 ---
@@ -53,7 +53,7 @@ Per `CLAUDE.md`, every code change updates `docs/` in the same session. Check:
 ### Step 2 — Reference traceability
 
 - [ ] Every non-trivial equation cites its source (FAR section and/or Reference 1 page) in a comment or the spec.
-- [ ] Constants come from `farloads/constants.py`, not bare literals — and `math.pi`, **not** `3.1416` (the modernize-the-math decision).
+- [ ] Constants come from `sloads/constants.py`, not bare literals — and `math.pi`, **not** `3.1416` (the modernize-the-math decision).
 - [ ] The test keeps the manual's **printed figure plus a page citation** next to each assertion, so drift is traceable.
 
 ### Step 3 — Numerical fidelity
@@ -68,7 +68,7 @@ Per `CLAUDE.md`, every code change updates `docs/` in the same session. Check:
 - [ ] **Pure calc, no I/O.** The module exposes `run(project: Project) -> ModuleResult` and does no file/Streamlit access.
 - [ ] **No recomputation of another module's quantity.** Upstream values (weights, CG, geometry, speeds, aero coefficients) are read from the `Project` slice, not recomputed.
 - [ ] **Reuses result types.** Emits `LoadValue`/`ConditionResult`/`ModuleResult` so `report.py`, `units.py`, and the CSV writer work unchanged. The CSV stays "one row per load case" via `load_cases_to_rows` — generalised, not reinvented per module.
-- [ ] **Self-registers** at import (`register("name", run)`) and is imported in `farloads/modules/__init__.py`.
+- [ ] **Self-registers** at import (`register("name", run)`) and is imported in `sloads/modules/__init__.py`.
 - [ ] **Missing-slice behaviour:** the module raises `ValueError` when its input slice is absent (so `run_all_modules` skips it cleanly).
 
 ### Step 5 — Preserved engineering conventions
@@ -84,9 +84,9 @@ Per `CLAUDE.md`, every code change updates `docs/` in the same session. Check:
 
 ### Step 7 — Code quality
 
-- [ ] `ruff check farloads/ cli.py` is clean (single-letter structural names are allowed via the `E741` ignore — do not work around the linter with noqa for other rules without justification).
+- [ ] `ruff check sloads/ cli.py` is clean (single-letter structural names are allowed via the `E741` ignore — do not work around the linter with noqa for other rules without justification).
 - [ ] New domain terms (program names, variables) are added to `cspell.json`.
-- [ ] Public functions in `farloads/` have type hints and a one-line docstring.
+- [ ] Public functions in `sloads/` have type hints and a one-line docstring.
 - [ ] No magic numbers — load factors, tolerances, and unit factors are named constants.
 
 ### Step 8 — Test coverage
@@ -118,7 +118,7 @@ Per `CLAUDE.md`, every code change updates `docs/` in the same session. Check:
 | Recomputing weight/CG/geometry instead of reading the `Project` slice | the module | Two sources of truth diverge |
 | Exact `==` used where a tolerance oracle is required (or vice-versa) | `tests/test_<module>.py` | Brittle or false-passing test |
 | SI constant used inside calc | the module / `units.py` | Calc no longer matches the Imperial manual |
-| Module doesn't `register()` or isn't imported in `modules/__init__.py` | `farloads/modules/__init__.py` | Module invisible to registry/CLI/GUI |
+| Module doesn't `register()` or isn't imported in `modules/__init__.py` | `sloads/modules/__init__.py` | Module invisible to registry/CLI/GUI |
 | Docs not updated; backlog item left in place after completion | `docs/` | Documentation drift; violates `CLAUDE.md` |
 
 ---
@@ -134,7 +134,7 @@ FIX: Concrete suggestion (snippet if helpful).
 Example:
 
 ```
-[CRITICAL] farloads/modules/engine.py:212 — Reaction torque returned positive.
+[CRITICAL] sloads/modules/engine.py:212 — Reaction torque returned positive.
 WHY: The suite reports engine-mount reaction torque negative; a positive sign
      reverses the load direction fed to the mount-structure check.
 FIX: Negate at the LoadValue boundary and add a test asserting torque < 0 for
@@ -149,5 +149,5 @@ A change may be approved **only** when:
 
 - [ ] All `[CRITICAL]` and `[MAJOR]` items are resolved or explicitly justified.
 - [ ] `pytest` passes; the module's Appendix A/B assertions pass within ±0.1%.
-- [ ] `ruff check farloads/ cli.py` is clean.
+- [ ] `ruff check sloads/ cli.py` is clean.
 - [ ] All relevant `docs/` files (spec, theory citation, backlog, history) and `CHANGELOG.md` are in sync with the code.

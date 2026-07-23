@@ -20,12 +20,12 @@ from dataclasses import replace
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from farloads import EngineLayout, OneEngineOutInput, io  # noqa: E402
-from farloads.constants import KT_TO_FPS_SUITE, standard_atmosphere  # noqa: E402
-from farloads.models import MassCase, MassResult  # noqa: E402
-from farloads.modules import one_engine_out as oeo  # noqa: E402
-from farloads.modules import select as sel  # noqa: E402
-from farloads.modules._vtail import (  # noqa: E402
+from sloads import EngineLayout, OneEngineOutInput, io  # noqa: E402
+from sloads.constants import KT_TO_FPS_SUITE, standard_atmosphere  # noqa: E402
+from sloads.models import MassCase, MassResult  # noqa: E402
+from sloads.modules import one_engine_out as oeo  # noqa: E402
+from sloads.modules import select as sel  # noqa: E402
+from sloads.modules._vtail import (  # noqa: E402
     large_deflection_factor,
     rudder_effectiveness,
     vtail_lift_slope,
@@ -181,7 +181,7 @@ def test_load_case_owns_sf_and_speed_range():
 def test_rendered_loads_are_ultimate_with_correct_sf():
     """The rendered deliverable carries the -ULT marker and each case's SF: the VC
     ultimate case at SF 1.0, the VD/VS limit cases at SF 1.5 (M1-5)."""
-    from farloads import report
+    from sloads import report
     p = _twin()
     rows = {r["Condition"]: r for r in report.load_cases_to_rows(oeo.run(p).conditions)}
     vc = rows["one engine out — VC (ultimate)"]

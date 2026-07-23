@@ -8,7 +8,7 @@ MTOW-vs-OEW). Seed buttons push the geometry downstream (WINGGEOM polylines, whi
 in turn feed WTENV / STRSPEED).
 
 There is no manual oracle for this page; concept results are first-order estimates
-(see ``farloads/modules/configuration.py``). Run the suite with:
+(see ``sloads/modules/configuration.py``). Run the suite with:
     streamlit run app/Home.py
 """
 
@@ -25,8 +25,8 @@ from plotly.subplots import make_subplots
 
 from components import gate, render_applicability_banner
 
-from farloads.applicability import effective_occupants
-from farloads import (
+from sloads.applicability import effective_occupants
+from sloads import (
     FuselageOutline,
     FuselageSection,
     GeometryInput,
@@ -47,9 +47,9 @@ from farloads import (
     to_display,
     to_imperial_scalar,
 )
-from farloads import io as farloads_io
-from farloads.derived_geometry import fuselage_summary
-from farloads.modules.configuration import (
+from sloads import io as sloads_io
+from sloads.derived_geometry import fuselage_summary
+from sloads.modules.configuration import (
     cg_estimate,
     component_stations,
     gear_stations,
@@ -60,8 +60,8 @@ from farloads.modules.configuration import (
     wing_polylines,
     wing_surface,
 )
-from farloads.modules.wing_geometry import geometry_properties, surface_top_outline
-from farloads.report import module_text_report
+from sloads.modules.wing_geometry import geometry_properties, surface_top_outline
+from sloads.report import module_text_report
 
 _TAIL_TYPE_LABELS = {
     TailType.CONVENTIONAL: "Conventional",
@@ -254,7 +254,7 @@ with st.sidebar:
             "- **Tip-back / overturn angle** — gear-geometry margins: tip-back from the CG-to-main-gear "
             "geometry, overturn from the CG height and track.\n\n"
             "The Geometry page is a modern, port-free page (no manual oracle); figures are first-order "
-            "concept estimates — see `farloads/modules/configuration.py`."
+            "concept estimates — see `sloads/modules/configuration.py`."
         )
 
 if applied:
@@ -759,7 +759,7 @@ else:
         _dl = st.columns(2)
         _dl[0].download_button(
             "Download surface geometry (CSV)",
-            farloads_io.load_cases_csv(_surf_results),
+            sloads_io.load_cases_csv(_surf_results),
             file_name="wing_geometry.csv", mime="text/csv",
         )
         _dl[1].download_button(

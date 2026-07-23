@@ -8,7 +8,7 @@ critical horizontal/vertical-tail condition SELECT produced -- the additive
 Ch 10) -- and, below it, the BALLOADS cross-check: the rational balancing
 horizontal-tail load recomputed against FLTLOADS' approximate tail centre of
 pressure (FAR 23.421). TAILDIST and BALLOADS are independently registered calc
-modules (see ``farloads.workflow.FOLDED_MODULES``); this page is their shared
+modules (see ``sloads.workflow.FOLDED_MODULES``); this page is their shared
 nav step.
 """
 
@@ -23,9 +23,9 @@ import streamlit as st
 
 from components import gate
 
-from farloads import Project, UnitSystem, labels_for, si_scalar_label, to_display, to_si_scalar
-from farloads.modules.balloads import verify_balancing
-from farloads.modules.taildist import build_tail_chordwise
+from sloads import Project, UnitSystem, labels_for, si_scalar_label, to_display, to_si_scalar
+from sloads.modules.balloads import verify_balancing
+from sloads.modules.taildist import build_tail_chordwise
 
 st.title("Tail Loads — TAILDIST + BALLOADS")
 st.caption(

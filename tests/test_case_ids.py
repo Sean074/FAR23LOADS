@@ -17,14 +17,14 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from farloads import io, registry  # noqa: E402
-from farloads.case_ids import (  # noqa: E402
+from sloads import io, registry  # noqa: E402
+from sloads.case_ids import (  # noqa: E402
     WING_BAND_SELECT,
     WING_BAND_STRUCTURAL,
     CaseIdAllocator,
 )
-from farloads.modules.select import build_critical  # noqa: E402
-from farloads.modules.wing_inertia import build_wing_inertia  # noqa: E402
+from sloads.modules.select import build_critical  # noqa: E402
+from sloads.modules.wing_inertia import build_wing_inertia  # noqa: E402
 
 _EXAMPLES = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "examples")
 _ALL_EXAMPLES = [

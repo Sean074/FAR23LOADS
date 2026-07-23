@@ -1,6 +1,6 @@
 # Engine-Mount Loads (ENGLOADS)
 
-How the `engine` module (`farloads/modules/engine.py`, ported from `ENGLOADS.BAS`)
+How the `engine` module (`sloads/modules/engine.py`, ported from `ENGLOADS.BAS`)
 computes the structural design loads an engine mount must sustain under **FAR Part
 23 Subpart C**, with a fully worked example on the Continental IO-520-BB
 reciprocating installation printed in the manual (Reference 1, Appendix A p131).

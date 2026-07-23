@@ -10,7 +10,7 @@ reports the **maximum vertical-tail load**.
 This is a time-marching simulation (Euler, ``time_step_s`` step), not a static
 condition like SELECT's v-tail loads -- but it shares SELECT's v-tail aero terms
 (``vtail_lift_slope`` AVT, ``rudder_effectiveness`` EFFECTV, ``large_deflection_factor``
-EF; see :mod:`farloads.modules._vtail`). Per ONENGOUT.BAS, with ``Q = V^2/295``:
+EF; see :mod:`sloads.modules._vtail`). Per ONENGOUT.BAS, with ``Q = V^2/295``:
 
     SLOPELT25 = AVT/57.3                                 # per deg
     VTFPS     = (V/sqrt(sigma)) * 1.15 * 88/60           # true airspeed, ft/s

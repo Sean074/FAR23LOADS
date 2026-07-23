@@ -1,19 +1,26 @@
-"""Data models for engine-mount load inputs and results.
+"""Per-module input dataclasses (split from models.py at M3-1).
 
-These dataclasses replace the loose global variables of ENGLOADS.BAS with a
-structured, validated input set and a uniform result type, keeping the
-calculation layer (``modules/engine.py``) free of any I/O.
+The ``*Input`` slices of :class:`~sloads.models.project.Project`, the
+MissingInputError guard type, and the fuselage-outline default helper.
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from enum import Enum
 from typing import List, Optional, Tuple
 
-from .constants import ULTIMATE_FACTOR
+from .enums import (
+    EngineType,
+    EngineWeightType,
+    MassItemKind,
+    RotorDirection,
+    RotorType,
+    TailType,
+)
 
 Vec3 = Tuple[float, float, float]
+
+
 
 
 class MissingInputError(ValueError):
@@ -22,69 +29,12 @@ class MissingInputError(ValueError):
     Raised at a module's entry guards when the slice (or a required upstream
     result/geometry/aero slice) it needs is missing, or a required input list is
     empty -- i.e. "not my turn" on a partially-filled project.
-    :func:`farloads.registry.run_all_modules` catches **only** this and skips the
+    :func:`sloads.registry.run_all_modules` catches **only** this and skips the
     module. A plain :class:`ValueError` from a module signals an *invalid domain
     input* or a genuine calc defect (per the error-handling contract in
     ``docs/10_standard/00_program_overview.md``) and now propagates instead of
     vanishing from run-all/export. It subclasses :class:`ValueError`, so every
     existing ``except ValueError`` (the GUI pages, the CLI) still catches it."""
-
-
-class EngineType(str, Enum):
-    RECIPROCATING = "R"
-    TURBOPROP = "T"
-
-
-class EngineLayout(str, Enum):
-    """Where the engines sit, constrained to the layouts the suite models.
-
-    The value's leading digit is the engine count, so ``expected_count`` reads it
-    directly: one engine on the fuselage nose, or a symmetric pair / two pairs of
-    wing-mounted engines. Wing layouts place engines at mirror-symmetric butt
-    lines (``+y``/``-y``); the nose engine sits on the centreline (``y = 0``).
-    """
-    SINGLE_NOSE = "1N"
-    TWIN_WING = "2W"
-    QUAD_WING = "4W"
-
-    @property
-    def expected_count(self) -> int:
-        return int(self.value[0])
-
-    @property
-    def is_wing_mounted(self) -> bool:
-        return self.value.endswith("W")
-
-
-class RotorType(str, Enum):
-    COMPRESSOR = "C"
-    TURBINE = "T"
-
-
-class RotorDirection(str, Enum):
-    CLOCKWISE = "CW"          # viewed from rear of engine looking forward
-    COUNTERCLOCKWISE = "CC"
-
-
-class EngineWeightType(str, Enum):
-    """Engine family used by WTESTIMA's installed-weight correlation (WTESTIMA.BAS
-    lines 230-290): the two-letter codes of the original program."""
-    RECIP_4CYCLE = "RF"
-    RECIP_2CYCLE = "RT"
-    TURBOCHARGED = "TC"
-    TURBOPROP = "TP"
-    LIQUID_COOLED = "LC"
-
-
-class MassItemKind(str, Enum):
-    """Where a mass item sits in the loading hierarchy of WTONECG/WTENV.
-
-    Mirrors the data-base partition of WTONECG.BAS (empty-weight items, then
-    minimum-flight-weight items, then discretionary useful-load items).
-    """
-    EMPTY = "empty"                  # part of the empty weight
-    MINIMUM = "minimum"              # in minimum flight weight, not empty (pilot, reserve fuel)
-    DISCRETIONARY = "discretionary"  # optional useful load (passengers, fuel, baggage, ballast)
 
 
 @dataclass
@@ -190,7 +140,7 @@ class WeightEstimationInput:
     ``max_continuous_hp`` is used instead. This keeps the two power concepts distinct
     (per-engine max-continuous on the Engine Mount page vs. the combined-total figure
     the weight estimate needs) while removing the silent-drift path -- see
-    :func:`farloads.derived_geometry` / ``weight_estimate._max_continuous_hp``. When
+    :func:`sloads.derived_geometry` / ``weight_estimate._max_continuous_hp``. When
     no engine carries ``max_cont_hp`` (older files), the stored total is the fallback.
     """
     airplane: str = ""
@@ -463,7 +413,7 @@ class StructuralSpeedsInput:
     occupants: Optional[int] = None            # total souls on board; the FAR 23 seat-limit
                                                # check counts passenger seats = occupants - crew.
                                                # None -> seeded from Project.weight.seats by
-                                               # farloads.applicability.effective_occupants
+                                               # sloads.applicability.effective_occupants
     wing_area_sqft: Optional[float] = None     # else read from geometry wing
     vh_kt: float = 0.0                          # max speed at sea level (KEAS)
     # Stall speeds VS/VSF are DERIVED from the maximum lift coefficients that live
@@ -533,7 +483,7 @@ class FuselageMomentInput:
     configuration's ``M1`` (dCm/dalpha), so a concept airplane built from a
     planform can pick up its fuselage pitching moment from the G1 outline instead
     of the user hand-folding it into the input coefficients. ``d_cm_dalpha`` is
-    the Munk estimate (``farloads.fuselage_moment.estimate``) and is overridable.
+    the Munk estimate (``sloads.fuselage_moment.estimate``) and is overridable.
 
     Default ``enabled=False`` / ``0.0`` contributes nothing, so the Appendix A/B
     oracles (whose coefficients already include the fuselage) are untouched.
@@ -625,7 +575,7 @@ class FlightLoadsInput:
     (Step M2-6).** They are single-sourced from ``Project.geometry`` -- ``mac``/``S``/
     ``xw`` from the WINGGEOM wing surface (``xw = XLEMAC + 0.25*MAC``) and ``zw`` from
     the parametric wing reference plane (``root_waterline_z + Y_MAC*tan(dihedral)``) --
-    by :func:`farloads.derived_geometry.sync_geometry_derived`, which every consuming
+    by :func:`sloads.derived_geometry.sync_geometry_derived`, which every consuming
     module calls before reading them. They are **not** serialized (``io.py`` drops
     them) and the GUI shows them read-only, so there is no independently-editable copy.
     The dataclass fields survive only as the derived cache / the fallback for a
@@ -716,7 +666,7 @@ class WingMassInput:
     **``wrp_waterline``/``dihedral_deg`` are derived from geometry, not stored
     (Step M2-6).** They are single-sourced from the parametric wing on
     ``Project.geometry`` (``root_waterline_z``/``dihedral_deg``) by
-    :func:`farloads.derived_geometry.sync_geometry_derived`, which WINGINER/NETLOADS
+    :func:`sloads.derived_geometry.sync_geometry_derived`, which WINGINER/NETLOADS
     call before reading them; they are not serialized and the GUI shows them
     read-only. The dataclass fields survive as the derived cache / the fallback for
     a directly-constructed test project with no parametric geometry (sync no-op).
@@ -1124,18 +1074,6 @@ class LandingGearGeometry:
     tread_in: float = 0.0                       # TREAD (distance between main wheels)
 
 
-class TailType(str, Enum):
-    """Empennage arrangement, for the Configuration & Layout three-view.
-
-    Drives how ``farloads.modules.configuration.tail_planform`` places the
-    horizontal/vertical tail surfaces relative to each other; a layout sketch
-    distinction only, not a structural classification."""
-    CONVENTIONAL = "conventional"
-    T_TAIL = "t_tail"
-    V_TAIL = "v_tail"
-    CRUCIFORM = "cruciform"
-
-
 # --------------------------------------------------------------------------- #
 # General configuration & layout (modern addition) -- GeometryInput.parametric
 # --------------------------------------------------------------------------- #
@@ -1168,7 +1106,7 @@ class LayoutInput:
     # Fuselage. Step M2-6: the station-area ``GeometryInput.fuselage`` outline is the
     # sole editable shape source; these three scalars are a **derived read-only
     # summary** of it (length = station span, width/height = max section), kept in
-    # sync by farloads.derived_geometry.sync_geometry_derived and NOT persisted. The
+    # sync by sloads.derived_geometry.sync_geometry_derived and NOT persisted. The
     # GUI shows them read-only. For an older project that carries only these scalars
     # (no outline) default_fuselage_outline seeds the outline from them on load, then
     # the summary re-derives (a stable round-trip for the default 3-section shape).
@@ -1225,637 +1163,47 @@ def default_fuselage_outline(parametric: "LayoutInput") -> Optional[FuselageOutl
     ])
 
 
-@dataclass
-class CaseRef:
-    """A stable, traceable identity for one delivered structural load case (Step D1).
-
-    ``case_id`` is ``"<component>-<seq>"`` (``"W-01"``, ``"HT-03"``, ``"VT-02"``,
-    ``"F-04"``, ``"EM-01"``, ``"LG-05"``, ...) -- see ``farloads.case_ids`` for the
-    six-entry component-prefix taxonomy (control surfaces fold into their host
-    structural component; the surface identity lives in ``condition``, not a
-    separate prefix). Minted **once**, by the module that first names the physical
-    condition, and carried unchanged by every downstream stage that derives a
-    result from that same case (never re-minted) -- see ``docs/30_future/
-    00_backlog.md`` Step D1 for the full design, including the accepted gap where
-    the wing (``select_wing`` vs. ``WingMassInput.cases``) and vertical-tail
-    (``select_vtail`` vs. ``one_engine_out``) pipelines mint two independent
-    sequences that share a prefix but are not the same case object.
-    """
-    case_id: str
-    component: str          # "wing" | "htail" | "vtail" | "fuselage" | "engine_mount" | "landing_gear"
-    condition: str          # human label, e.g. "PHAA", "down aileron", "sudden rudder"
-    cg: str = ""
-    speed_kt: Optional[float] = None
-    altitude_ft: Optional[float] = None
-    far_reference: str = ""
-
-
-@dataclass
-class LoadValue:
-    """A single labelled output quantity with units (for clean rendering).
-
-    ``units`` is the Imperial display string. ``quantity`` is an optional
-    dimension hint used only to disambiguate SI conversion where the unit string
-    alone is ambiguous: a bare ``"lb"`` is pounds-*force* for a load (→ N) but
-    pounds-*mass* for a weight (→ kg). A weight sets ``quantity="mass"``; loads
-    leave it blank and convert by unit string. See :mod:`farloads.units`.
-    """
-    label: str
-    value: float
-    units: str = ""
-    quantity: str = ""
-
-
-@dataclass
-class ConditionResult:
-    """Result of one FAR 23 load condition.
-
-    ``safety_factor`` is the per-case factor the render/export layer multiplies the
-    LIMIT load quantities by to report ULTIMATE loads (14 CFR 25.303 -> 1.5). It is
-    per-case so a future 14 CFR 25.302 / Appendix K refinement can give a failure
-    case a probability-interpolated factor (1.0-1.5); the calc itself always emits
-    LIMIT values, so the regression oracles are unaffected.
-    """
-    title: str
-    far_reference: str
-    values: List[LoadValue] = field(default_factory=list)
-    note: str = ""
-    safety_factor: float = ULTIMATE_FACTOR
-    case_ref: Optional[CaseRef] = None
-
-
-@dataclass
-class ModuleResult:
-    """The output of one suite module: its name plus the conditions it produced.
-
-    Every module's ``run(project)`` returns this uniform type so the registry,
-    CLI and GUI can treat all 22 programs identically.
-    """
-    module: str
-    conditions: List[ConditionResult] = field(default_factory=list)
-
-
-# --------------------------------------------------------------------------- #
-# Mass-properties results (WTONECG) -- the Project.mass slice
-# --------------------------------------------------------------------------- #
-@dataclass
-class MassCase:
-    """Weight, CG and inertia for one loading (one WTONECG result).
-
-    The persisted form of WTONECG's per-loading output: total ``weight_lb`` at the
-    CG (``cg_x``/``cg_y``/``cg_z``, in) with the moments and product of inertia
-    about that CG in **lb-in^2** (the weight-database unit; convert to slug-ft^2 by
-    dividing by ``constants.LBIN2_PER_SLUGFT2``). ``name`` labels the loading
-    (e.g. "aft gross", "fwd gross", "min weight"); ``gear_down`` distinguishes the
-    gear-up/down pair for retractable gear.
-    """
-    name: str
-    weight_lb: float = 0.0
-    cg_x: float = 0.0
-    cg_y: float = 0.0
-    cg_z: float = 0.0
-    ixx: float = 0.0
-    iyy: float = 0.0
-    izz: float = 0.0
-    ixz: float = 0.0
-    gear_down: bool = True
-
-
-@dataclass
-class MassResult:
-    """The persisted mass-properties slice (``Project.mass``), written by WTONECG.
-
-    Carries the weight/CG/inertia of each structural-limit loading (up to the four
-    CG cases x gear up/down). SELECT reads the inertia for the maneuver/gust
-    balancing and unbalanced-load conditions; FLTLOADS/LANDLOAD read weight & CG.
-    Introduced in Step C6 -- the point at which a consumer (SELECT) finally needs
-    the long-deferred persisted ``Project.mass`` (see the WTONECG note in
-    ``PROGRAM_SPEC.md``)."""
-    cases: List[MassCase] = field(default_factory=list)
-
-
-# --------------------------------------------------------------------------- #
-# Flight-envelope results (FLTLOADS) -- the Project.envelope slice
-# --------------------------------------------------------------------------- #
-@dataclass
-class VnPoint:
-    """One balanced point on the flight envelope (one row of FLTLOADS V-n data).
-
-    The balanced-flight-load output of FLTLOADS.BAS subroutine 3900 for one
-    condition, configuration, CG case and altitude: equivalent airspeed, normal
-    load factor, balanced angle of attack, Glauert compressibility factor, wing
-    lift coefficient, the airplane-less-tail pitching moment ``M(W+F)``, the lift
-    airplane-less-tail normal to the reference ``LZW``, the balancing horizontal
-    tail load ``LT`` and the drag ``DX`` (lb / lb-in).
-    """
-    case: int
-    condition: str
-    config: str
-    cg: str
-    altitude_ft: float
-    v_eas_kt: float
-    nz: float
-    alpha_deg: float
-    g_corr: float
-    cl: float
-    m_wf: float
-    lzw: float
-    lt: float
-    dx: float
-    # Stamped by SELECT (case_ids.py) when this point is chosen as a governing
-    # critical condition -- the same CaseRef as the CriticalCondition it produced.
-    # None for the bulk of the V-n matrix (never selected).
-    case_ref: Optional["CaseRef"] = None
-
-
-@dataclass
-class TailBalanceLoad:
-    """The balancing horizontal-tail load at one V-n point (FLTLOADS, Ch 8).
-
-    ``tail_cp_station`` is the fuselage station of the tail CP used (``XTC`` flaps
-    up, ``XTF`` flaps down); ``tail_load_lb`` is the load that zeroes the pitching
-    moment about the CG. SELECT (C6) later refines the CP rationally.
-    """
-    case: int
-    condition: str
-    tail_load_lb: float
-    tail_cp_station: float
-    flaps_down: bool
-
-
-@dataclass
-class CriticalCondition:
-    """One governing (critical) load condition selected/computed by SELECT (Ch 9).
-
-    SELECT scans the FLTLOADS V-n matrix (plus inertia and geometry) and, per
-    component, computes the rational critical loads and names the governing point.
-    ``component`` is "wing" / "htail" / "vtail" / "fuselage"; ``label`` is the FAR
-    condition tag (wing PHAA/PMAA/PLAA/NMAA; h-tail balancing/maneuver/gust/
-    unsymmetrical; v-tail 23.441/23.443; fuselage 23.301/23.331/23.351/23.471).
-    ``case`` references the source :class:`VnPoint` in ``Project.envelope.vn`` (or
-    ``None`` for a derived condition); ``far_reference`` cites the regulation.
-    ``loads`` carries the governing scalar quantities (n, CL, V, tail load, shear,
-    bending, ...) as labelled :class:`LoadValue`s so report/units render unchanged.
-
-    For horizontal/vertical-tail conditions, ``lt25``/``lt50`` carry the load
-    resolved at 25% MAC (angle-of-attack) and 50% MAC (camber) -- the rational
-    split TAILDIST (C7) distributes chordwise. They are ``None`` for wing/fuselage
-    conditions (and for tail conditions emitted before C7)."""
-    component: str
-    label: str
-    far_reference: str = ""
-    case: Optional[int] = None
-    loads: List[LoadValue] = field(default_factory=list)
-    lt25: Optional[float] = None
-    lt50: Optional[float] = None
-    case_ref: Optional[CaseRef] = None
-    note: str = ""
-
-
-@dataclass
-class CriticalLoadSet:
-    """The governing critical-load set per component (SELECT -> ``envelope.critical``).
-
-    One :class:`CriticalCondition` per (component, FAR condition). Read by AIRLOADS/
-    AIRLOAD4 (iterative -- SELECT names the conditions they evaluate), WINGINER and
-    TAILDIST (the ownership table in ``PROGRAM_SPEC.md``).
-
-    ``selected_case_ids`` (Step D5) is the engineer's opt-out subset -- the
-    Critical Loads page persists the ``case_id`` of every condition the engineer
-    keeps for the deliverable; an empty list means "no filter, use every computed
-    condition" (the default, and the whole behavior for any project that predates
-    this field or never visits the page). Structural calc modules (WINGINER,
-    NETLOADS, body_loads, the sbeam bridge) deliberately keep reading
-    ``conditions`` directly -- the selection never changes what the
-    load-producing modules compute. It governs what the *Results Review* GUI
-    page displays, and (Step D8.3) an opt-in "governing set" toggle on the
-    *Export* page that filters the fuselage/tail sbeam artifacts and the case
-    index -- wing and control-surface exports are unaffected (their case ids
-    don't overlap this set; see ``sbeam_bridge.filter_by_selected_case_ids``).
-    """
-    conditions: List[CriticalCondition] = field(default_factory=list)
-    selected_case_ids: List[str] = field(default_factory=list)
-
-    def selected(self) -> List[CriticalCondition]:
-        """``conditions`` filtered to ``selected_case_ids``, or all of them when
-        that list is empty (no filter applied)."""
-        if not self.selected_case_ids:
-            return self.conditions
-        ids = set(self.selected_case_ids)
-        return [c for c in self.conditions if c.case_ref and c.case_ref.case_id in ids]
-
-
-@dataclass
-class EnvelopeResult:
-    """The persisted flight-envelope slice written by FLTLOADS (read by SELECT,
-    WINGINER). ``vn`` is the full balanced-condition matrix; ``tail_balance`` is
-    the balancing tail load per point. ``critical`` is the per-component governing
-    load set SELECT (C6) computes from that matrix."""
-    vn: List[VnPoint] = field(default_factory=list)
-    tail_balance: List[TailBalanceLoad] = field(default_factory=list)
-    critical: Optional[CriticalLoadSet] = None
-
-
-# --------------------------------------------------------------------------- #
-# Wing distributed loads (WINGINER / NETLOADS) -- the Project.loads slice
-# --------------------------------------------------------------------------- #
-@dataclass
-class WingStationLoad:
-    """Distributed load at one wing station along the 25% chord (airplane axes).
-
-    Coordinates ``x``/``y``/``z`` (in) of the quarter chord; per-strip forces
-    ``fx`` (drag) and ``fz`` (lift); cumulative shears ``sx``/``sz``; bending
-    ``mxx`` (about X, from lift) and ``mzz`` (about Z, from drag); ``myy`` total
-    torsion about Y (lift offset + drag offset + section pitching moment). Pounds
-    and inch-pounds (AIRLOADS.BAS 4700-5060 / WINGINER.BAS / NETLOADS.BAS)."""
-    x: float
-    y: float
-    z: float
-    fx: float
-    fz: float
-    sx: float
-    sz: float
-    mxx: float
-    myy: float
-    mzz: float
-
-
-@dataclass
-class WingLoadResult:
-    """One condition's spanwise wing load table (root-last, mirroring the manual)."""
-    case: str
-    nz: float = 0.0
-    nx: float = 0.0
-    stations: List[WingStationLoad] = field(default_factory=list)
-    case_ref: Optional[CaseRef] = None
-
-
-@dataclass
-class BodyStationLoad:
-    """Net load at one longitudinal fuselage station (airplane body axes).
-
-    ``x`` fuselage station (in); per-segment applied forces ``fx`` (axial), ``fy``
-    (side), ``fz`` (vertical); cumulative shears ``sx``/``sy``/``sz``; bending
-    ``myy`` (about Y, from the vertical load), ``mzz`` (about Z, from the side
-    load) and torsion ``mxx`` (about the body X axis). Pounds and inch-pounds
-    (fuselage net distribution, Ref 1 Ch 15)."""
-    x: float
-    fx: float
-    fy: float
-    fz: float
-    sx: float
-    sy: float
-    sz: float
-    mxx: float
-    myy: float
-    mzz: float
-
-
-@dataclass
-class BodyLoadResult:
-    """One condition's longitudinal fuselage net-load table (nose-to-tail)."""
-    case: str
-    stations: List[BodyStationLoad] = field(default_factory=list)
-    case_ref: Optional[CaseRef] = None
-
-
-@dataclass
-class TailChordStation:
-    """One chordwise station of a tail load distribution (TAILDIST, Ref 1 Ch 10).
-
-    ``x`` is the chord station aft of the leading edge (in); ``psi`` the net load
-    intensity there (lb/in^2), the algebraic sum of the angle-of-attack ("additive")
-    and camber distributions. Five stations define the piecewise-linear profile:
-    leading edge, quarter chord, trailing edge and the hinge-line chord stations."""
-    x: float
-    psi: float
-
-
-@dataclass
-class TailChordResult:
-    """One critical tail condition's chordwise load distribution (TAILDIST, Ch 10).
-
-    ``component`` is "htail" / "vtail"; ``case`` the SELECT condition label; ``lt25``
-    /``lt50`` the angle-of-attack (25% MAC) and camber (50% MAC) loads it resolves
-    (lb); ``stations`` the five chordwise pressure points (leading-edge first).
-    ``far_reference`` is copied from the source :class:`CriticalCondition` so the
-    distribution keeps the governing condition's citation (23.421 balancing, 23.423
-    maneuver, 23.425 gust, 23.427 unsymmetrical h-tail; 23.441/23.443 v-tail) rather
-    than a single hardcoded value."""
-    case: str
-    component: str
-    lt25: float
-    lt50: float
-    stations: List[TailChordStation] = field(default_factory=list)
-    case_ref: Optional[CaseRef] = None
-    far_reference: str = ""
-
-
-@dataclass
-class ControlSurfaceStation:
-    """One chordwise station of a control-surface simplified distribution (Step C8).
-
-    ``x`` is the fractional chord aft of the leading edge (0 = LE, 1 = TE); ``psi``
-    is the load intensity there (lb/in^2). The simplified FAR-style profiles use a
-    few stations: aileron (constant LE->hinge, taper to 0 at TE), flap (LE->half at
-    TE), tab (trapezoid, LE = 2x TE)."""
-    x: float
-    psi: float
-
-
-@dataclass
-class ControlSurfaceLoadResult:
-    """One critical control-surface load + its simplified chordwise distribution.
-
-    ``surface`` is the control surface ("aileron" / "flap" / "tab:htail" ...);
-    ``case`` the FAR condition tag ("down aileron" / "up aileron" / "flap 23.345(a)"
-    / "flap gust-combined" / "<surface> tab"); ``load_lb`` the critical load and
-    ``v_kt`` the speed it occurs at; ``stations`` the simplified chordwise pressure
-    profile (leading-edge first). Produced by AILERON / FLAPLOAD / TABLOADS (C8)."""
-    surface: str
-    case: str
-    load_lb: float
-    v_kt: float = 0.0
-    stations: List[ControlSurfaceStation] = field(default_factory=list)
-    case_ref: Optional[CaseRef] = None
-
-
-@dataclass
-class GearReactionCase:
-    """One LANDLOAD ground-condition wheel-load case (LANDLOAD.BAS output tables).
-
-    The reaction loads for one of the 24 main-wheel / 33 nose-wheel ground cases,
-    carried both with respect to the **ground line** (the "prime" P loads) and with
-    respect to the **airplane datum**, plus the unbalanced moments and the inertia
-    factors. ``case`` is the 1-based case number; ``description`` the FAR condition
-    family; ``cg_name`` the loading. All loads in pounds; moments in inch-pounds;
-    angles in degrees (Ref 1 Ch 20)."""
-    case: int
-    description: str
-    far_reference: str
-    cg_name: str
-    # Ground-line ("prime") reactions
-    vmp: float = 0.0    # vertical main, per wheel
-    dmp: float = 0.0    # drag main
-    smp: float = 0.0    # side main
-    rmp: float = 0.0    # resultant main = sqrt(vmp^2 + dmp^2)
-    vnp: float = 0.0    # vertical nose
-    dnp: float = 0.0    # drag nose
-    snp: float = 0.0    # side nose
-    result: float = 0.0  # resultant nose = sqrt(vnp^2 + dnp^2)
-    # Airplane-datum reactions
-    vm: float = 0.0
-    dm: float = 0.0
-    vn: float = 0.0
-    dn: float = 0.0
-    # Inertia factors (ground line / airplane datum)
-    nvp: float = 0.0
-    ndp: float = 0.0
-    ns: float = 0.0
-    nv: float = 0.0
-    nd: float = 0.0
-    nns: float = 0.0
-    # Unbalanced moments about the airplane CG (ground line)
-    pitchp: float = 0.0
-    rollp: float = 0.0
-    yawp: float = 0.0
-    case_ref: Optional[CaseRef] = None
-
-
-@dataclass
-class LoadsResult:
-    """The persisted distributed-loads slice (``Project.loads``).
-
-    ``wing_air`` is the AIRLOADS air-load distribution, ``wing_inertia`` the
-    WINGINER inertia distribution, and ``wing_net`` their algebraic sum (NETLOADS)
-    -- the headline wing structural deliverable (root shear/BM/torsion). One
-    :class:`WingLoadResult` per critical condition. ``body_net`` is the fuselage
-    longitudinal net-load distribution per critical condition (SELECT, C6) -- the
-    body analogue of ``wing_net``. ``tail_chordwise`` is the chordwise tail-load
-    distribution per critical horizontal/vertical-tail condition (TAILDIST, C7)."""
-    wing_air: List[WingLoadResult] = field(default_factory=list)
-    wing_inertia: List[WingLoadResult] = field(default_factory=list)
-    wing_net: List[WingLoadResult] = field(default_factory=list)
-    body_net: List[BodyLoadResult] = field(default_factory=list)
-    tail_chordwise: List[TailChordResult] = field(default_factory=list)
-    control_surface: List[ControlSurfaceLoadResult] = field(default_factory=list)
-
-
-# Current project-schema version. Bump when the on-disk JSON shape changes so old
-# saves can be migrated (see io.load_project). v2 adds the concept certification
-# category ("C") and the WeightInput direct-weight path; v3 adds the aero slice
-# (AeroInput, TAU + AIRLOADS spanwise lift); v4 adds the flight-loads input slice
-# (FlightLoadsInput, FLTLOADS) and the envelope result slice (EnvelopeResult);
-# v5 adds the wing-mass input slice (WingMassInput, WINGINER), the wing
-# distributed-loads result slice (LoadsResult, WINGINER/NETLOADS) and the
-# section profile-drag / moment tables on AeroSurfaceInput -- all additive, so
-# older files load unchanged via the from_dict defaults; v6 adds the configuration
-# & layout input slice (LayoutInput, the modern Configuration & Layout page) --
-# additive, older files load unchanged; v7 (Step C6) adds the persisted mass slice
-# (MassResult, WTONECG), the fuselage mass-distribution input (FuselageMassInput),
-# the SELECT critical-load set (CriticalLoadSet on EnvelopeResult.critical) and the
-# fuselage net distribution (BodyLoadResult on LoadsResult.body_net) -- all
-# additive, older files load unchanged via the from_dict defaults; v8 adds the
-# SELECT search-input slice (SelectInput, the wing steady-roll aileron inputs) --
-# additive; v9 adds the rational horizontal-tail load inputs (TailLoadsInput) --
-# additive; v10 adds the rational vertical-tail load inputs (VTailLoadsInput) --
-# additive; v11 extends TailLoadsInput with the elevator/maneuver/gust fields
-# (FAR 23.423/23.425 horizontal-tail loads) -- additive (new fields default to 0);
-# v12 (Step C7) adds the tail semi-span/span fields on TailLoadsInput/VTailLoadsInput
-# (TAILDIST chordwise average chord) and the chordwise tail-load result slice
-# (TailChordResult on LoadsResult.tail_chordwise) -- all additive, older files load
-# unchanged via the from_dict defaults; v13 (Step C8) adds the control-surface
-# simplified-load input slices (AileronLoadsInput, FlapLoadsInput, TabLoadsInput)
-# and the control-surface result slice (ControlSurfaceLoadResult on
-# LoadsResult.control_surface) -- all additive, older files load unchanged via the
-# from_dict defaults; v14 (Step C9) adds the one-engine-out input slice
-# (OneEngineOutInput, ONENGOUT) and the 50%-MAC v-tail station (VTailLoadsInput.xv50)
-# -- additive, older files load unchanged via the from_dict defaults; v15 (Step C10)
-# adds the landing / ground-load input slice (LandingInput, LGFACTOR + LANDLOAD) on
-# Project.landing -- additive, older files load unchanged via the from_dict defaults;
-# v16 (Step D1) adds the CaseRef dataclass and an optional case_ref field on
-# ConditionResult, VnPoint, CriticalCondition, WingLoadResult, BodyLoadResult,
-# TailChordResult, ControlSurfaceLoadResult and GearReactionCase (the structured
-# load-case ID, see farloads.case_ids) -- additive, older files load unchanged via
-# the from_dict defaults (case_ref = None, back-filled on the next compute).
-# v17 (Step D3) adds Project.engineer / Project.date (freeform text project
-# metadata, shown on the dashboard and in exports) -- additive, default "".
-# v18 (Step D4.1) adds the Project.aero_coeffs slice (AeroCoefficientsInput,
-# moved out of FlightLoadsInput.configurations) -- additive; older files migrate
-# via _legacy_aero_coeffs_from_flight_loads.
-# v19 (Step D5) adds WeightInput.cg_cases (the shared loading-scenario list the
-# new Weight/CG Grid & Payload Cases page owns, read by the Weight/CG Envelope
-# chart and merged into FlightLoadsInput.cg_cases by the Flight Envelope page so
-# the two can no longer diverge) and CriticalLoadSet.selected_case_ids (the
-# opt-out governing-case selection SELECT's page persists for Review/Export) --
-# both additive, older files migrate via _legacy_cg_cases_from_flight_loads /
-# default to an empty (unfiltered) selection.
-# v20 adds LayoutInput.tail_type/h_tail_span_ft/h_tail_z/v_tail_span_ft (the
-# empennage arrangement + minimal span/offset geometry the Configuration &
-# Layout three-view needs to draw a tail shape) -- all additive with defaults
-# that reproduce today's "no tail drawn" rendering, older files migrate for free.
-# v21 adds StructuralSpeedsInput.occupants (total souls on board; drives the FAR 23
-# passenger-seat applicability check) -- additive, default None, older files load
-# with occupants unset (the check falls back to WeightInput.seats).
-# v22 adds WeightEstimationInput.crew (flight crew; part of the operating empty
-# weight OEW = empty + crew*170, and the required-crew count the FAR 23 seat-limit
-# check subtracts) -- additive, default 1, older files load with crew = 1.
-# v23 adds EngineInput.design_yaw_rate_rad_s / design_pitch_rate_rad_s (concept's
-# real 25.371 body rates, advisory) -- additive, default None; used only to guard
-# condition_25_371's fixed FAR 23.371(b) stand-in (warn when a declared rate exceeds
-# it). Older files load with both unset (no guard, fixed stand-in unchanged).
-# v24 (Phase G0) renames the ft/in^2 geometry inputs to canonical display units --
-# one unit per dimension: length -> in, area -> ft^2. SelectInput.airplane_length_ft
-# -> airplane_length_in, VTailLoadsInput.{airplane_length_ft,wing_span_ft,vtail_mac_ft}
-# -> *_in (each x12), LayoutInput.{h_tail_span_ft,v_tail_span_ft} -> *_in (x12), and
-# TabSpec.area_sqin -> area_sqft (/144). Calc is unchanged in result (the ft/in^2
-# math is restored internally); io.py migrates the legacy keys/values on load.
-# v25 (Phase G1) unifies geometry into one slice: the parametric LayoutInput (was
-# the separate top-level Project.configuration) and a new FuselageOutline move onto
-# GeometryInput as .parametric and .fuselage, alongside the unchanged .surfaces. A
-# legacy file's top-level "configuration" key is folded into geometry.parametric and
-# the fuselage outline is defaulted from the length/width/height scalars on load
-# (default_fuselage_outline); the oracle-locked .surfaces consumers are untouched.
-# v26 (Phase G4) adds AeroCoefficientsInput.fuselage_moment (FuselageMomentInput:
-# an off-by-default Munk slender-body fuselage dCm/dalpha increment, farloads.
-# fuselage_moment) that flight_envelope adds to the airplane-less-tail M1 only when
-# enabled -- additive, default None -> disabled -> Appendix A/B oracles bit-for-bit
-# unchanged; older files load with no fuselage moment.
-# v27 (Phase G6) makes GeometryInput.empennage (EmpennageInput: htail/vtail) the
-# single source for the tail + elevator/rudder geometry: Project.tail_loads /
-# .vtail_loads become properties proxying to it, and the duplicated LayoutInput
-# h-/v-tail area/span/arm fields are retired. io migrates legacy top-level
-# tail_loads/vtail_loads (and legacy LayoutInput tail fields) into geometry.empennage;
-# the derived slices are byte-identical, so the SELECT tail-load oracles are unchanged.
-# v28 (Phase G6b) makes GeometryInput.landing_gear (LandingGearGeometry: main/nose
-# axle 3-states + tread) the single source for the landing-gear geometry: the coarse
-# LayoutInput gear fields (main_gear_x/nose_gear_x/track/gear_height) are retired (the
-# three-view + tip-back/overturn/clearance derive them from the native axle geometry),
-# and LANDLOAD reads the gear via a sync onto Project.landing (math unchanged -> the
-# Appendix A ground-load oracle is byte-identical). io migrates a pre-v28 file's
-# top-level landing gear (and legacy LayoutInput gear fields) into geometry.landing_gear.
-# v30 (Step M2-6) single-sources the last of the softer geometry/power double-entry:
-# the wing scalars FlightLoadsInput.mac/wing_area_sqft/xw/zw, WingMassInput.
-# dihedral_deg/wrp_waterline and LandingInput.wing_area_sqft are derived from
-# Project.geometry (the WINGGEOM wing surface + the parametric wing) and no longer
-# persisted; the fuselage LayoutInput.fuselage_length/width/height become a derived
-# read-only summary of the GeometryInput.fuselage outline (also not persisted); and
-# WeightEstimationInput gains override_max_continuous_hp (the weight estimate uses
-# sum(engines[].max_cont_hp) unless overridden). All migrations are lenient -- an
-# older file's stored copies are read but ignored (re-derived), the outline is
-# defaulted from the length/width/height scalars when absent, and override defaults
-# False. Fixtures fold the derived values (Appendix A oracles within +/-0.1%).
-# v31 (Step M2-10) adds the operational-limitation targets to StructuralSpeedsInput
-# (no_yellow_arc + target_vne/vno/vmo/mmo/vfe) -- advisory Subpart-G placard targets
-# that never change any load. Migration is lenient: an older file simply lacks the
-# keys and takes the defaults (no_yellow_arc False, all targets None).
-# v32 (Step M2R-4) removes the write-back LandingInput.n field (a redundant mirror of
-# LoadFactorResult.airplane_load_factor that build_landing wrote on render, tripping the
-# unsaved-changes flag). Migration is lenient: an older file's "n" key is ignored by the
-# tolerant landing_from_dict reader; the load factor is recomputed each run.
-SCHEMA_VERSION = 32
-
-
-@dataclass
-class Project:
-    """The single, reloadable project that carries every module's inputs.
-
-    One ``project.json`` holds the whole airplane; each module reads the slice it
-    needs and appends its results. Phase 0 added the engine slice and Phase 1 the
-    ``weight`` (mass-properties) slice; geometry, speeds and loads slices are
-    added in later phases.
-
-    Multi-engine is first-class: ``engines`` is the ordered list of engine-mount
-    inputs and ``engine_layout`` constrains it to a modelled layout (1 nose / 2 or
-    4 wing). The ``engine`` property returns the first engine so single-engine
-    call sites and the legacy ``"engine"`` JSON key keep working unchanged.
-    """
-    schema_version: int = SCHEMA_VERSION
-    name: str = ""
-    engineer: str = ""
-    date: str = ""
-    engines: List["EngineInput"] = field(default_factory=list)
-    engine_layout: Optional[EngineLayout] = None
-    weight: Optional[WeightInput] = None
-    geometry: Optional[GeometryInput] = None
-    speeds: Optional[StructuralSpeedsInput] = None
-    aero: Optional[AeroInput] = None
-    aero_coeffs: Optional[AeroCoefficientsInput] = None
-    flight_loads: Optional[FlightLoadsInput] = None
-    envelope: Optional[EnvelopeResult] = None
-    mass: Optional[MassResult] = None
-    wing_mass: Optional[WingMassInput] = None
-    fuselage_mass: Optional[FuselageMassInput] = None
-    select_input: Optional[SelectInput] = None
-    # tail_loads / vtail_loads are properties (Step G6) proxying to the single-source
-    # GeometryInput.empennage.htail / .vtail -- see below. They are NOT dataclass
-    # fields, so construct via geometry=GeometryInput(empennage=...) or assign after.
-    aileron_loads: Optional[AileronLoadsInput] = None
-    flap_loads: Optional[FlapLoadsInput] = None
-    tab_loads: Optional[TabLoadsInput] = None
-    one_engine_out: Optional[OneEngineOutInput] = None
-    landing: Optional[LandingInput] = None
-    loads: Optional[LoadsResult] = None
-    # Opt-in FAR 25 superset: when True the engine module appends the optional
-    # 14 CFR 25.361/25.371 cases (turbopropeller only) on top of the oracle-locked
-    # FAR 23 conditions. Defaults off, so GA projects are byte-identical.
-    include_far25: bool = False
-
-    def __post_init__(self) -> None:
-        if self.engine_layout is not None and self.engines:
-            expected = self.engine_layout.expected_count
-            if len(self.engines) != expected:
-                raise ValueError(
-                    f"engine_layout {self.engine_layout.value} expects {expected} "
-                    f"engine(s), got {len(self.engines)}"
-                )
-
-    @property
-    def engine(self) -> Optional["EngineInput"]:
-        """The first/primary engine (compat shim for single-engine call sites)."""
-        return self.engines[0] if self.engines else None
-
-    @property
-    def is_concept(self) -> bool:
-        """True when the project is in concept mode (speeds ``category == "C"``).
-
-        The single read-point modules use to decide whether the GA-only caps and
-        statistical estimates apply (e.g. STRSPEED bypasses the 23.337 cap, WTESTIMA
-        flags itself as a sanity-only figure)."""
-        return self.speeds is not None and self.speeds.category.upper() == "C"
-
-    def _ensure_empennage(self) -> "EmpennageInput":
-        """The single-source empennage slice, created (with its geometry) on demand."""
-        if self.geometry is None:
-            self.geometry = GeometryInput()
-        if self.geometry.empennage is None:
-            self.geometry.empennage = EmpennageInput()
-        return self.geometry.empennage
-
-    @property
-    def tail_loads(self) -> Optional["TailLoadsInput"]:
-        """Rational horizontal-tail inputs (Step G6: proxied from
-        ``geometry.empennage.htail``, the single stored home). ``None`` when no
-        empennage/h-tail geometry is present; SELECT/TAILDIST/BALLOADS read this."""
-        emp = self.geometry.empennage if self.geometry is not None else None
-        return emp.htail if emp is not None else None
-
-    @tail_loads.setter
-    def tail_loads(self, value: Optional["TailLoadsInput"]) -> None:
-        if value is None and (self.geometry is None or self.geometry.empennage is None):
-            return
-        self._ensure_empennage().htail = value
-
-    @property
-    def vtail_loads(self) -> Optional["VTailLoadsInput"]:
-        """Rational vertical-tail inputs (Step G6: proxied from
-        ``geometry.empennage.vtail``, the single stored home). ``None`` when no
-        empennage/v-tail geometry is present; SELECT/ONENGOUT/TAILDIST read this."""
-        emp = self.geometry.empennage if self.geometry is not None else None
-        return emp.vtail if emp is not None else None
-
-    @vtail_loads.setter
-    def vtail_loads(self, value: Optional["VTailLoadsInput"]) -> None:
-        if value is None and (self.geometry is None or self.geometry.empennage is None):
-            return
-        self._ensure_empennage().vtail = value
+__all__ = [
+    "Vec3",
+    "XYPoint",
+    "MissingInputError",
+    "Rotor",
+    "EngineInput",
+    "MassItem",
+    "WeightEstimationInput",
+    "WeightEnvelopeInput",
+    "WeightInput",
+    "XYPoint",
+    "SurfaceInput",
+    "FuselageSection",
+    "FuselageOutline",
+    "GeometryInput",
+    "AeroSurfaceInput",
+    "AeroInput",
+    "MachLimitInput",
+    "StructuralSpeedsInput",
+    "AeroCoeffSet",
+    "FuselageMomentInput",
+    "AeroCoefficientsInput",
+    "CgCase",
+    "FlightLoadsInput",
+    "ConcentratedWeight",
+    "WingLoadCase",
+    "WingMassInput",
+    "FuselageStation",
+    "FuselageMassInput",
+    "SelectInput",
+    "TailLoadsInput",
+    "VTailLoadsInput",
+    "EmpennageInput",
+    "AileronLoadsInput",
+    "FlapLoadsInput",
+    "TabSpec",
+    "TabLoadsInput",
+    "OneEngineOutInput",
+    "LandingGearInput",
+    "LandingInput",
+    "LandingGearGeometry",
+    "LayoutInput",
+    "default_fuselage_outline",
+]

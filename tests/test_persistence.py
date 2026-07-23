@@ -26,8 +26,8 @@ import typing
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from farloads import io  # noqa: E402
-from farloads.models import (  # noqa: E402
+from sloads import io  # noqa: E402
+from sloads.models import (  # noqa: E402
     AeroCoefficientsInput,
     AeroInput,
     AileronLoadsInput,
@@ -170,7 +170,7 @@ def test_input_dataclasses_round_trip_every_field():
 def test_derived_allowlist_entries_are_real_fields():
     """Guard the guard: every DERIVED_NOT_PERSISTED entry names a real dataclass field
     (so a rename can't silently turn the allowlist into dead weight)."""
-    import farloads.models as M
+    import sloads.models as M
 
     by_name = {c.__name__: c for c in vars(M).values()
                if isinstance(c, type) and dataclasses.is_dataclass(c)}

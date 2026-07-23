@@ -1,6 +1,6 @@
 # Phase C — Initial-Concept Loads Tool (development plan)
 
-The active development plan that grows FAR23LOADS from a faithful ≤12,500 lb
+The active development plan that grows sloads from a faithful ≤12,500 lb
 **FAR Part 23 Subpart C** replication into an **initial-concept distributed-loads
 tool**: one that can exceed the FAR23 weight and seat limits, assesses a candidate
 configuration against similar airplanes, and emits per-component distributed loads
@@ -79,7 +79,7 @@ methods.
 
 ## 4. Schema additions
 
-New `Project` slices (`farloads/models.py`; bump `SCHEMA_VERSION`, extend the
+New `Project` slices (`sloads/models.py`; bump `SCHEMA_VERSION`, extend the
 `io.py` round-trip), mirroring the ownership table in `PROGRAM_SPEC.md`:
 
 | Slice | Owned by | Notes |
@@ -160,13 +160,13 @@ trapezoidal integration of the Schrenk distribution.
 ### Step C4 — sbeam export bridge (wing slice end-to-end)
 **Objective.** Turn the wing distributed load into an sbeam-consumable structural
 load set, proving the integration on the vertical slice.
-**Deliverables.** `farloads/export/sbeam_bridge.py`:
+**Deliverables.** `sloads/export/sbeam_bridge.py`:
 - span-load CSV in sbeam's format;
 - `FORCE`/`MOMENT` bulk-data cards at wing stations, matching sbeam's comma
   free-field card style (`sbeam/results/load_export.py`);
 - optional minimal CBAR stick-model BDF (GRID + CBAR + PBAR + load cards + a SOL
   101 case) so the load runs directly in sbeam;
-- a documented coordinate/units map (FAR23LOADS station-X / butt-Y / waterline-Z,
+- a documented coordinate/units map (SLOADS station-X / butt-Y / waterline-Z,
   inches → sbeam global CID 0).
 - **Ultimate loads.** All exported force/moment/pressure magnitudes are ULTIMATE
   (NETLOADS limit × `constants.ULTIMATE_FACTOR` = 1.5, 14 CFR 23.303; Part 25
@@ -248,15 +248,16 @@ ported. See [`../40_history/00_completed_development.md`](../40_history/00_compl
   default, user-overridable.
 - **Schrenk accuracy for swept/high-AR concept wings** — addressed by AIRLOAD4 in
   C7; default-Schrenk results warn when sweep/Mach exceeds the method's band.
-- **Export coordinate/units mapping** — FAR23LOADS is Imperial inches (station /
+- **Export coordinate/units mapping** — SLOADS is Imperial inches (station /
   butt / waterline); sbeam runs in global CID 0, user-consistent units. The bridge
   documents and tests the transform explicitly.
 
 ## 7. Open user decisions (non-blocking)
 
-- **Naming.** *Resolved 2026-07-16 — **keep "FAR23LOADS"** for now.* No rename or
-  concept-loads sub-brand; revisit if concept scope becomes the tool's primary
-  identity. (Tracked in [`00_backlog.md`](00_backlog.md) as decision D-6 / item 2-11.)
+- **Naming.** *Resolved 2026-07-16 (keep "FAR23LOADS"); **superseded 2026-07-20 →
+  full rename to `sloads`, shipped in M3-1 (2026-07-23).*** The package/CLI/GUI/docs
+  are now `sloads`; the "FAR 23 LOADS" mark survives only as McMaster/DARcorporation
+  attribution. (Tracked in [`00_backlog.md`](00_backlog.md) as decision D-6.)
 - **sbeam VLM cross-check.** *Resolved 2026-07-16 — **out of scope.*** No
   sbeam-VLM validation backend; concept aero stays validated by physics-closure +
   fleet plausibility (invariant C-2). Revisit only if closure proves insufficient.

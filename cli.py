@@ -23,16 +23,16 @@ from __future__ import annotations
 import argparse
 import sys
 
-from farloads import io, registry
-from farloads.report import module_text_report, text_report
+from sloads import io, registry
+from sloads.report import module_text_report, text_report
 
 
 def _export_sbeam(project, prefix: str, target: str, stick_model: bool) -> int:
     """Build the loads for ``target`` and write the sbeam export artifacts."""
-    from farloads.export import sbeam_bridge as sb
+    from sloads.export import sbeam_bridge as sb
 
     if target == "tail":
-        from farloads.modules.taildist import build_tail_chordwise
+        from sloads.modules.taildist import build_tail_chordwise
 
         results = build_tail_chordwise(project)
         csv_path = f"{prefix}.tail_chordwise.csv"
@@ -43,9 +43,9 @@ def _export_sbeam(project, prefix: str, target: str, stick_model: bool) -> int:
         return 0
 
     if target == "control":
-        from farloads.modules.aileron import build_aileron
-        from farloads.modules.flap import build_flap
-        from farloads.modules.tab import build_tabs
+        from sloads.modules.aileron import build_aileron
+        from sloads.modules.flap import build_flap
+        from sloads.modules.tab import build_tabs
 
         results = []
         for build in (build_aileron, build_flap, build_tabs):
@@ -60,7 +60,7 @@ def _export_sbeam(project, prefix: str, target: str, stick_model: bool) -> int:
         print(f"Wrote {len(results)} control-surface condition(s) to: {csv_path}, {bdf_path}")
         return 0
 
-    from farloads.modules.net_loads import build_net_loads
+    from sloads.modules.net_loads import build_net_loads
 
     results = build_net_loads(project).wing_net
     csv_path = f"{prefix}.span_loads.csv"
