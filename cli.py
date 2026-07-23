@@ -1,4 +1,4 @@
-"""Command-line runner for the FAR 23 LOADS suite.
+"""Command-line runner for the sloads suite.
 
 Run one module against a project file and emit its load-case CSV (or a text
 report to stdout):
@@ -77,7 +77,7 @@ def _export_sbeam(project, prefix: str, target: str, stick_model: bool) -> int:
 
 
 def main(argv=None) -> int:
-    parser = argparse.ArgumentParser(description="Run a FAR 23 LOADS module on a project.")
+    parser = argparse.ArgumentParser(description="Run a sloads module on a project.")
     parser.add_argument("module", nargs="?", help="module name, e.g. 'engine'")
     parser.add_argument("project", nargs="?", help="path to project.json")
     parser.add_argument("-o", "--output", help="write load-case CSV to this path")
