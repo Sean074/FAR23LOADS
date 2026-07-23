@@ -16,8 +16,8 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from farloads import MachLimitInput, Project, StructuralSpeedsInput, io  # noqa: E402
-from farloads.modules import mach_limit as calc  # noqa: E402
+from sloads import MachLimitInput, Project, StructuralSpeedsInput, io  # noqa: E402
+from sloads.modules import mach_limit as calc  # noqa: E402
 
 TOL = 1e-3  # ±0.1% relative
 

@@ -18,7 +18,7 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from farloads import (  # noqa: E402
+from sloads import (  # noqa: E402
     EmpennageInput,
     GeometryInput,
     LandingGearGeometry,
@@ -53,7 +53,7 @@ def _emp(h_area=30.0, h_semispan=60.0, v_area=18.0, v_span=48.0,
         vtail=VTailLoadsInput(vtail_area_sqft=v_area, vtail_span_in=v_span,
                               xv25=xv25, rudder_aft_hinge_sqft=r_aft),
     )
-from farloads.modules.configuration import (  # noqa: E402
+from sloads.modules.configuration import (  # noqa: E402
     cg_estimate,
     component_stations,
     configuration_properties,
@@ -307,7 +307,7 @@ def test_tail_planform_v_tail_draws_two_diagonal_panels_not_h_v():
 def test_default_fuselage_outline_from_scalars():
     # Step G1: a body outline is defaulted from the coarse length/width/height
     # scalars -- nose point, max section at 0.35L, tapered tail cone.
-    from farloads import default_fuselage_outline
+    from sloads import default_fuselage_outline
     layout = LayoutInput(fuselage_length=300.0, fuselage_width=48.0,
                          fuselage_height=54.0, datum_x=10.0)
     outline = default_fuselage_outline(layout)
@@ -322,7 +322,7 @@ def test_default_fuselage_outline_from_scalars():
 
 def test_default_fuselage_outline_none_without_length():
     # No fuselage length -> no outline (draw nothing, as before the outline existed).
-    from farloads import default_fuselage_outline
+    from sloads import default_fuselage_outline
     assert default_fuselage_outline(LayoutInput()) is None
 
 

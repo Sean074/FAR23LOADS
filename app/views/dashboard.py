@@ -1,7 +1,7 @@
 """Project Dashboard — the Start-section landing page.
 
 Load or save the single ``project.json``, name the project, and see workflow
-progress at a glance: every step in :mod:`farloads.workflow`, grouped by the six
+progress at a glance: every step in :mod:`sloads.workflow`, grouped by the six
 Phase-D sections, with a status that reads the live project (blocked / ready /
 done). This replaces the old Phase-0 Home page, which only inspected four of the
 ~20 project slices.
@@ -15,8 +15,8 @@ import streamlit as st
 
 from components import render_applicability_banner, workflow_page_link
 
-from farloads import Project
-from farloads import workflow as wf
+from sloads import Project
+from sloads import workflow as wf
 
 st.title("🛩️ FAR 23 LOADS — Project Dashboard")
 st.caption(

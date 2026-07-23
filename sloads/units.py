@@ -1,6 +1,6 @@
 """Unit-system conversion at the input/output boundary.
 
-The calculation core (:mod:`farloads.modules.engine`) works exclusively in the
+The calculation core (:mod:`sloads.modules.engine`) works exclusively in the
 Imperial units of the original ENGLOADS.BAS, so it reproduces the FAR 23 LOADS
 manual's worked examples within tolerance. To offer SI input/output without
 touching that physics, this module converts:
@@ -217,13 +217,13 @@ def convert_results(
 # --------------------------------------------------------------------------- #
 # Whole-project display conversion (Project JSON Editor page, app/views/
 # project_editor.py). Converts the *JSON dict* form of a Project (see
-# farloads.io.project_to_dict) field-by-field, for display/hand-editing only.
+# sloads.io.project_to_dict) field-by-field, for display/hand-editing only.
 # The canonical project.json on disk is always Imperial (io.py never calls
 # this); the editor page converts SI -> Imperial before writing back via
 # io.project_from_dict, so calc/tests/oracle fixtures are unaffected.
 # --------------------------------------------------------------------------- #
 # Kind -> (Imperial -> SI factor, SI label). Derived from an audit of every
-# dimensional field in farloads/models.py; update both this table and
+# dimensional field in sloads/models.py; update both this table and
 # _PROJECT_FIELD_KIND when a new dimensional field is added to the schema.
 _KIND_FACTORS = {
     "mass": (0.45359237, "kg"),                  # lbm -> kg

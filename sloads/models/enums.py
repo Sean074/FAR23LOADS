@@ -70,7 +70,7 @@ class MassItemKind(str, Enum):
 class TailType(str, Enum):
     """Empennage arrangement, for the Configuration & Layout three-view.
 
-    Drives how ``farloads.modules.configuration.tail_planform`` places the
+    Drives how ``sloads.modules.configuration.tail_planform`` places the
     horizontal/vertical tail surfaces relative to each other; a layout sketch
     distinction only, not a structural classification."""
     CONVENTIONAL = "conventional"

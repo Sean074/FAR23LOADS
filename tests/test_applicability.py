@@ -11,8 +11,8 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from farloads import io  # noqa: E402
-from farloads.applicability import (  # noqa: E402
+from sloads import io  # noqa: E402
+from sloads.applicability import (  # noqa: E402
     design_weight_lb,
     effective_crew,
     effective_occupants,
@@ -61,8 +61,8 @@ def test_crew_field_reduces_passenger_seats():
 
 
 def test_effective_crew_defaults_when_no_estimation():
-    from farloads import Project
-    from farloads.constants import DEFAULT_FLIGHT_CREW
+    from sloads import Project
+    from sloads.constants import DEFAULT_FLIGHT_CREW
     assert effective_crew(Project(name="bare")) == DEFAULT_FLIGHT_CREW
 
 

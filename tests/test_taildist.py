@@ -26,14 +26,14 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from dataclasses import replace  # noqa: E402
 
-from farloads import AeroSurfaceInput, SurfaceInput, io  # noqa: E402
-from farloads.modules.airloads import schrenk_distribution, use_airload4  # noqa: E402
-from farloads.modules.taildist import (  # noqa: E402
+from sloads import AeroSurfaceInput, SurfaceInput, io  # noqa: E402
+from sloads.modules.airloads import schrenk_distribution, use_airload4  # noqa: E402
+from sloads.modules.taildist import (  # noqa: E402
     build_tail_chordwise,
     chordwise_pressures,
     run,
 )
-from farloads.modules.select import build_critical  # noqa: E402
+from sloads.modules.select import build_critical  # noqa: E402
 
 REL = 1e-3  # ±0.1%
 ABS = 1e-3  # stations printed to 3 decimals; some oracle values are ~0
@@ -197,7 +197,7 @@ def test_io_roundtrip_chordwise_fields():
     p = io.load_project(_GA)
     p.flight_loads.altitudes_ft = [0.0, 12000.0, 18000.0]
     p.loads = p.loads or None
-    from farloads.models import LoadsResult
+    from sloads.models import LoadsResult
     p.loads = LoadsResult(tail_chordwise=build_tail_chordwise(p))
     d = io.project_to_dict(p)
     p2 = io.project_from_dict(d)

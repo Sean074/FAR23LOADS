@@ -22,9 +22,9 @@ sys.path.insert(0, _HERE)
 
 from dataclasses import replace
 
-from farloads import EngineLayout, Project, run_all
-from farloads import io as fio
-from farloads.modules import engine as calc
+from sloads import EngineLayout, Project, run_all
+from sloads import io as fio
+from sloads.modules import engine as calc
 from test_engine import _value, io520bb, turboprop
 
 TOL = 1e-3  # ±0.1% relative

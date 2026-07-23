@@ -16,8 +16,8 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from farloads import Project, WeightInput, io  # noqa: E402
-from farloads.modules import weight_onecg as calc  # noqa: E402
+from sloads import Project, WeightInput, io  # noqa: E402
+from sloads.modules import weight_onecg as calc  # noqa: E402
 
 TOL = 1e-3  # ±0.1% relative
 

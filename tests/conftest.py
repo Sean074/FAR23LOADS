@@ -1,4 +1,4 @@
-"""Pytest setup: make the repo root importable so ``import farloads`` works and
+"""Pytest setup: make the repo root importable so ``import sloads`` works and
 the test modules can import each other (``from test_engine import io520bb``).
 
 ``app/`` is also added so the view smoke test (which runs each ``app/views/*.py``

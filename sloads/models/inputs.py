@@ -29,7 +29,7 @@ class MissingInputError(ValueError):
     Raised at a module's entry guards when the slice (or a required upstream
     result/geometry/aero slice) it needs is missing, or a required input list is
     empty -- i.e. "not my turn" on a partially-filled project.
-    :func:`farloads.registry.run_all_modules` catches **only** this and skips the
+    :func:`sloads.registry.run_all_modules` catches **only** this and skips the
     module. A plain :class:`ValueError` from a module signals an *invalid domain
     input* or a genuine calc defect (per the error-handling contract in
     ``docs/10_standard/00_program_overview.md``) and now propagates instead of
@@ -140,7 +140,7 @@ class WeightEstimationInput:
     ``max_continuous_hp`` is used instead. This keeps the two power concepts distinct
     (per-engine max-continuous on the Engine Mount page vs. the combined-total figure
     the weight estimate needs) while removing the silent-drift path -- see
-    :func:`farloads.derived_geometry` / ``weight_estimate._max_continuous_hp``. When
+    :func:`sloads.derived_geometry` / ``weight_estimate._max_continuous_hp``. When
     no engine carries ``max_cont_hp`` (older files), the stored total is the fallback.
     """
     airplane: str = ""
@@ -413,7 +413,7 @@ class StructuralSpeedsInput:
     occupants: Optional[int] = None            # total souls on board; the FAR 23 seat-limit
                                                # check counts passenger seats = occupants - crew.
                                                # None -> seeded from Project.weight.seats by
-                                               # farloads.applicability.effective_occupants
+                                               # sloads.applicability.effective_occupants
     wing_area_sqft: Optional[float] = None     # else read from geometry wing
     vh_kt: float = 0.0                          # max speed at sea level (KEAS)
     # Stall speeds VS/VSF are DERIVED from the maximum lift coefficients that live
@@ -483,7 +483,7 @@ class FuselageMomentInput:
     configuration's ``M1`` (dCm/dalpha), so a concept airplane built from a
     planform can pick up its fuselage pitching moment from the G1 outline instead
     of the user hand-folding it into the input coefficients. ``d_cm_dalpha`` is
-    the Munk estimate (``farloads.fuselage_moment.estimate``) and is overridable.
+    the Munk estimate (``sloads.fuselage_moment.estimate``) and is overridable.
 
     Default ``enabled=False`` / ``0.0`` contributes nothing, so the Appendix A/B
     oracles (whose coefficients already include the fuselage) are untouched.
@@ -575,7 +575,7 @@ class FlightLoadsInput:
     (Step M2-6).** They are single-sourced from ``Project.geometry`` -- ``mac``/``S``/
     ``xw`` from the WINGGEOM wing surface (``xw = XLEMAC + 0.25*MAC``) and ``zw`` from
     the parametric wing reference plane (``root_waterline_z + Y_MAC*tan(dihedral)``) --
-    by :func:`farloads.derived_geometry.sync_geometry_derived`, which every consuming
+    by :func:`sloads.derived_geometry.sync_geometry_derived`, which every consuming
     module calls before reading them. They are **not** serialized (``io.py`` drops
     them) and the GUI shows them read-only, so there is no independently-editable copy.
     The dataclass fields survive only as the derived cache / the fallback for a
@@ -666,7 +666,7 @@ class WingMassInput:
     **``wrp_waterline``/``dihedral_deg`` are derived from geometry, not stored
     (Step M2-6).** They are single-sourced from the parametric wing on
     ``Project.geometry`` (``root_waterline_z``/``dihedral_deg``) by
-    :func:`farloads.derived_geometry.sync_geometry_derived`, which WINGINER/NETLOADS
+    :func:`sloads.derived_geometry.sync_geometry_derived`, which WINGINER/NETLOADS
     call before reading them; they are not serialized and the GUI shows them
     read-only. The dataclass fields survive as the derived cache / the fallback for
     a directly-constructed test project with no parametric geometry (sync no-op).
@@ -1106,7 +1106,7 @@ class LayoutInput:
     # Fuselage. Step M2-6: the station-area ``GeometryInput.fuselage`` outline is the
     # sole editable shape source; these three scalars are a **derived read-only
     # summary** of it (length = station span, width/height = max section), kept in
-    # sync by farloads.derived_geometry.sync_geometry_derived and NOT persisted. The
+    # sync by sloads.derived_geometry.sync_geometry_derived and NOT persisted. The
     # GUI shows them read-only. For an older project that carries only these scalars
     # (no outline) default_fuselage_outline seeds the outline from them on load, then
     # the summary re-derives (a stable round-trip for the default 3-section shape).

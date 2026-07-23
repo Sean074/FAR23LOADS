@@ -5,8 +5,8 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from farloads import convert_results, run_all, UnitSystem  # noqa: E402
-from farloads.report import load_cases_to_rows  # noqa: E402
+from sloads import convert_results, run_all, UnitSystem  # noqa: E402
+from sloads.report import load_cases_to_rows  # noqa: E402
 from test_engine import io520bb, turboprop  # noqa: E402
 
 

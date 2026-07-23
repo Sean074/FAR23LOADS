@@ -3,13 +3,13 @@
 One page of the multi-page app; run the suite with:  streamlit run app/Home.py
 
 The canonical ``project.json`` on disk (and every calc module) is always
-Imperial -- see ``farloads/units.py`` and CLAUDE.md's units discussion. This
+Imperial -- see ``sloads/units.py`` and CLAUDE.md's units discussion. This
 page is a presentation-layer convenience only: it shows the *same* project as
 JSON, converted into the sidebar's selected Imperial/SI display units
-(``farloads.units.project_dict_to_display``), so a user reviewing or
+(``sloads.units.project_dict_to_display``), so a user reviewing or
 hand-editing weight/geometry data can work in whichever system they think in.
 Apply converts the edited JSON back to Imperial
-(``farloads.units.project_dict_to_imperial``) and replaces the in-session
+(``sloads.units.project_dict_to_imperial``) and replaces the in-session
 project; the existing sidebar Open/Save/Download widget (``app/Home.py``)
 then persists it exactly as it always has -- one Imperial project.json, with
 all project data in it. No new file, no stored unit tag.
@@ -26,10 +26,10 @@ import json
 
 import streamlit as st
 
-from farloads import Project, UnitSystem
-from farloads import io as farloads_io
-from farloads.models import SCHEMA_VERSION
-from farloads.units import project_dict_to_display, project_dict_to_imperial
+from sloads import Project, UnitSystem
+from sloads import io as sloads_io
+from sloads.models import SCHEMA_VERSION
+from sloads.units import project_dict_to_display, project_dict_to_imperial
 
 st.title("Project JSON Editor")
 st.caption(
@@ -56,7 +56,7 @@ _LOADED_SNAPSHOT_KEY = "_project_editor_loaded_for"
 
 
 def _current_display_text() -> str:
-    raw = farloads_io.project_to_dict(project)
+    raw = sloads_io.project_to_dict(project)
     display = project_dict_to_display(raw, system)
     return json.dumps(display, indent=2, sort_keys=False)
 
@@ -64,7 +64,7 @@ def _current_display_text() -> str:
 # Re-seed the text area whenever the project or the unit system changes
 # underneath it (e.g. applied on another page, or the sidebar toggle flipped) --
 # but never clobber an in-progress hand-edit that hasn't been applied yet.
-_snapshot_id = (id(project), system.value, farloads_io.project_to_json(project))
+_snapshot_id = (id(project), system.value, sloads_io.project_to_json(project))
 if st.session_state.get(_LOADED_SNAPSHOT_KEY) != _snapshot_id:
     st.session_state[_TEXT_KEY] = _current_display_text()
     st.session_state[_LOADED_SNAPSHOT_KEY] = _snapshot_id
@@ -89,11 +89,11 @@ if apply_col.button("Apply", type="primary"):
         st.stop()
     try:
         imperial_dict = project_dict_to_imperial(edited_display, system)
-        new_project = farloads_io.project_from_dict(imperial_dict)
+        new_project = sloads_io.project_from_dict(imperial_dict)
     except (TypeError, ValueError, KeyError, AttributeError) as exc:
         st.error(f"Could not build a project from this JSON: {exc}")
         st.stop()
-    status, message = farloads_io.schema_status(new_project.schema_version)
+    status, message = sloads_io.schema_status(new_project.schema_version)
     if status == "newer":
         st.warning(message)
     elif status == "older":

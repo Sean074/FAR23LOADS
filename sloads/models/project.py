@@ -66,7 +66,7 @@ from .results import EnvelopeResult, LoadsResult, MassResult
 # v16 (Step D1) adds the CaseRef dataclass and an optional case_ref field on
 # ConditionResult, VnPoint, CriticalCondition, WingLoadResult, BodyLoadResult,
 # TailChordResult, ControlSurfaceLoadResult and GearReactionCase (the structured
-# load-case ID, see farloads.case_ids) -- additive, older files load unchanged via
+# load-case ID, see sloads.case_ids) -- additive, older files load unchanged via
 # the from_dict defaults (case_ref = None, back-filled on the next compute).
 # v17 (Step D3) adds Project.engineer / Project.date (freeform text project
 # metadata, shown on the dashboard and in exports) -- additive, default "".
@@ -107,7 +107,7 @@ from .results import EnvelopeResult, LoadsResult, MassResult
 # the fuselage outline is defaulted from the length/width/height scalars on load
 # (default_fuselage_outline); the oracle-locked .surfaces consumers are untouched.
 # v26 (Phase G4) adds AeroCoefficientsInput.fuselage_moment (FuselageMomentInput:
-# an off-by-default Munk slender-body fuselage dCm/dalpha increment, farloads.
+# an off-by-default Munk slender-body fuselage dCm/dalpha increment, sloads.
 # fuselage_moment) that flight_envelope adds to the airplane-less-tail M1 only when
 # enabled -- additive, default None -> disabled -> Appendix A/B oracles bit-for-bit
 # unchanged; older files load with no fuselage moment.

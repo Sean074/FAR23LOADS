@@ -17,7 +17,7 @@ from __future__ import annotations
 import pandas as pd
 import streamlit as st
 
-from farloads import (
+from sloads import (
     EngineInput,
     EngineLayout,
     EngineType,
@@ -32,9 +32,9 @@ from farloads import (
     to_display,
     to_imperial,
 )
-from farloads import io as farloads_io
-from farloads.modules import engine as calc
-from farloads.report import load_cases_to_rows, text_report
+from sloads import io as sloads_io
+from sloads.modules import engine as calc
+from sloads.report import load_cases_to_rows, text_report
 
 
 st.title("Engine Mount Loads — FAR 23")
@@ -490,7 +490,7 @@ with d2:
 with d3:
     # Saved inputs are always canonical Imperial (regardless of the UI unit
     # selection) since io.project_to_json serializes the real project as-is.
-    input_json = farloads_io.project_to_json(project)
+    input_json = sloads_io.project_to_json(project)
     st.download_button(
         "Save project (JSON)", input_json, file_name="engine.project.json",
         mime="application/json",

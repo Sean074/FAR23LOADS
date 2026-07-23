@@ -14,15 +14,15 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import openpyxl  # noqa: E402
 
-from farloads import io, registry  # noqa: E402
-from farloads.export import sbeam_bridge as sb  # noqa: E402
-from farloads.export.workbook import build_workbook  # noqa: E402
-from farloads.modules.aileron import build_aileron  # noqa: E402
-from farloads.modules.body_loads import build_body_loads  # noqa: E402
-from farloads.modules.flap import build_flap  # noqa: E402
-from farloads.modules.net_loads import build_net_loads  # noqa: E402
-from farloads.modules.tab import build_tabs  # noqa: E402
-from farloads.modules.taildist import build_tail_chordwise  # noqa: E402
+from sloads import io, registry  # noqa: E402
+from sloads.export import sbeam_bridge as sb  # noqa: E402
+from sloads.export.workbook import build_workbook  # noqa: E402
+from sloads.modules.aileron import build_aileron  # noqa: E402
+from sloads.modules.body_loads import build_body_loads  # noqa: E402
+from sloads.modules.flap import build_flap  # noqa: E402
+from sloads.modules.net_loads import build_net_loads  # noqa: E402
+from sloads.modules.tab import build_tabs  # noqa: E402
+from sloads.modules.taildist import build_tail_chordwise  # noqa: E402
 
 _EXAMPLES = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "examples")
 _GA = os.path.join(_EXAMPLES, "ga6_normal.project.json")

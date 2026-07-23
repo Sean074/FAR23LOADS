@@ -512,7 +512,7 @@ def flight_loads_to_dict(inp: FlightLoadsInput) -> Dict[str, Any]:
     """Serialize a :class:`FlightLoadsInput` to JSON-friendly primitives.
 
     Step M2-6: ``mac``/``wing_area_sqft``/``xw``/``zw`` are derived from geometry and
-    are deliberately **not** written (see :func:`farloads.derived_geometry`); a legacy
+    are deliberately **not** written (see :func:`sloads.derived_geometry`); a legacy
     file's stored copies are ignored on load and re-derived, so save->reload is a no-op.
     """
     return {

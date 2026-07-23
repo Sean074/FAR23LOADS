@@ -28,7 +28,7 @@ import streamlit as st
 
 from components import gate
 
-from farloads import (
+from sloads import (
     FlightLoadsInput,
     Project,
     SelectInput,
@@ -40,12 +40,12 @@ from farloads import (
     to_display,
     to_imperial_scalar,
 )
-from farloads.derived_geometry import wing_reference
-from farloads.modules.configuration import run as configuration_run
-from farloads.modules.flight_envelope import build_envelope, run as flt_run, trim_sweep
-from farloads.modules.select import build_critical
-from farloads.modules.structural_speeds import design_speed_values
-from farloads.report import governing_loads_table, module_text_report
+from sloads.derived_geometry import wing_reference
+from sloads.modules.configuration import run as configuration_run
+from sloads.modules.flight_envelope import build_envelope, run as flt_run, trim_sweep
+from sloads.modules.select import build_critical
+from sloads.modules.structural_speeds import design_speed_values
+from sloads.report import governing_loads_table, module_text_report
 
 
 st.title("Flight Envelope (V-n), Balancing Tail Loads & Critical Loads")

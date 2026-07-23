@@ -14,7 +14,7 @@ import streamlit as st
 
 from components import gate
 
-from farloads import (
+from sloads import (
     Project,
     TabLoadsInput,
     TabSpec,
@@ -25,8 +25,8 @@ from farloads import (
     to_imperial_scalar,
     to_si_scalar,
 )
-from farloads.export import sbeam_bridge as sb
-from farloads.modules.tab import build_tabs, run
+from sloads.export import sbeam_bridge as sb
+from sloads.modules.tab import build_tabs, run
 
 
 st.title("Control-Surface Tab Loads — TABLOADS")

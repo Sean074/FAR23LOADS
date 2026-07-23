@@ -45,7 +45,7 @@ def wing_reference(project: Project, surface_name: str = "wing") -> Optional[Win
     """The wing reference geometry from ``project.geometry``, or ``None`` when absent.
 
     ``mac``/``s_sqft``/``xlemac``/``y_mac`` come from the WINGGEOM surface strip
-    integrator (:func:`farloads.modules.wing_geometry.surface_properties`); ``xw`` is the
+    integrator (:func:`sloads.modules.wing_geometry.surface_properties`); ``xw`` is the
     25%-MAC station and ``zw`` the 25%-MAC waterline, using the parametric wing's
     ``root_waterline_z`` and ``dihedral_deg`` (both default to 0 when there is no
     parametric slice, so ``zw`` degrades to the centreline waterline). Returns ``None``

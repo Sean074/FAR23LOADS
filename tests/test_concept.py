@@ -23,16 +23,16 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from farloads import (  # noqa: E402
+from sloads import (  # noqa: E402
     MassItem,
     MassItemKind,
     Project,
     WeightInput,
     io,
 )
-from farloads.modules import structural_speeds as speeds_calc  # noqa: E402
-from farloads.modules import weight_estimate as weight_calc  # noqa: E402
-from farloads.registry import run_all_modules  # noqa: E402
+from sloads.modules import structural_speeds as speeds_calc  # noqa: E402
+from sloads.modules import weight_estimate as weight_calc  # noqa: E402
+from sloads.registry import run_all_modules  # noqa: E402
 
 _EXAMPLES_DIR = os.path.join(
     os.path.dirname(os.path.dirname(os.path.abspath(__file__))),

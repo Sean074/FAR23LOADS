@@ -2,7 +2,7 @@
 
 A spreadsheet-native alternative to the ``.zip`` bundle on the Export page: one
 workbook with a tab per module's load-case CSV, the case-index table, and the
-tabular (non-BDF) sbeam span-load CSVs. Like :mod:`farloads.export.sbeam_bridge`,
+tabular (non-BDF) sbeam span-load CSVs. Like :mod:`sloads.export.sbeam_bridge`,
 this is a pure renderer -- it re-shapes strings/rows the Export page has already
 computed for the CSV/zip channel into DataFrames and writes them to one
 in-memory workbook; it performs no new calculation and does no file I/O itself.

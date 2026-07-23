@@ -17,11 +17,11 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from farloads import Project, io  # noqa: E402
-from farloads.modules import net_loads as nl  # noqa: E402
-from farloads.modules.airloads import air_load_distribution  # noqa: E402
-from farloads.modules.flight_envelope import build_envelope  # noqa: E402
-from farloads.modules.net_loads import build_net_loads  # noqa: E402
+from sloads import Project, io  # noqa: E402
+from sloads.modules import net_loads as nl  # noqa: E402
+from sloads.modules.airloads import air_load_distribution  # noqa: E402
+from sloads.modules.flight_envelope import build_envelope  # noqa: E402
+from sloads.modules.net_loads import build_net_loads  # noqa: E402
 
 _EXAMPLES = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "examples")
 _GA = os.path.join(_EXAMPLES, "ga6_normal.project.json")

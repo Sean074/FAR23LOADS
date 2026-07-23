@@ -17,9 +17,9 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from farloads import io  # noqa: E402
-from farloads.modules.configuration import run as configuration_run  # noqa: E402
-from farloads.modules.flight_envelope import build_envelope, trim_sweep  # noqa: E402
+from sloads import io  # noqa: E402
+from sloads.modules.configuration import run as configuration_run  # noqa: E402
+from sloads.modules.flight_envelope import build_envelope, trim_sweep  # noqa: E402
 
 _EXAMPLES = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "examples")
 _GA = os.path.join(_EXAMPLES, "ga6_normal.project.json")

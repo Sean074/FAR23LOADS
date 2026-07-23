@@ -1,7 +1,7 @@
 """Per-program load modules for the FAR 23 LOADS suite.
 
 Importing this package imports each module so it registers itself with
-:mod:`farloads.registry`. Phase 0 shipped the engine-mount module; Phase 1 adds
+:mod:`sloads.registry`. Phase 0 shipped the engine-mount module; Phase 1 adds
 the mass-properties modules (weight estimation and one-condition CG/inertia).
 """
 

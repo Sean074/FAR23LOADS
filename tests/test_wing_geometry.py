@@ -17,8 +17,8 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from farloads import GeometryInput, Project, SurfaceInput, io  # noqa: E402
-from farloads.modules import wing_geometry as calc  # noqa: E402
+from sloads import GeometryInput, Project, SurfaceInput, io  # noqa: E402
+from sloads.modules import wing_geometry as calc  # noqa: E402
 
 TOL = 1e-3  # ±0.1% relative
 
@@ -104,7 +104,7 @@ def test_engine_stations_for_wing_layout():
     project = io.load_project(_EXAMPLE)
     from dataclasses import replace
     from test_engine import io520bb
-    from farloads import EngineLayout
+    from sloads import EngineLayout
 
     left = replace(io520bb(), engine_designation="LEFT", engine_cg=(60.0, -60.0, 90.0))
     right = replace(io520bb(), engine_designation="RIGHT", engine_cg=(60.0, 60.0, 90.0))

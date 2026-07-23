@@ -26,7 +26,7 @@ import streamlit as st
 
 from components import gate, workflow_page_link
 
-from farloads import (
+from sloads import (
     CgCase,
     EngineWeightType,
     MassItem,
@@ -42,12 +42,12 @@ from farloads import (
     to_display,
     to_imperial_scalar,
 )
-from farloads import io as farloads_io
-from farloads.modules.weight_envelope import envelope as compute_envelope, loading_envelope_points
-from farloads.modules.weight_estimate import estimate, estimate_to_mass_items
-from farloads.modules.weight_onecg import weights_and_inertia
-from farloads.report import module_text_report
-from farloads.validation import wtenv_cg_limits
+from sloads import io as sloads_io
+from sloads.modules.weight_envelope import envelope as compute_envelope, loading_envelope_points
+from sloads.modules.weight_estimate import estimate, estimate_to_mass_items
+from sloads.modules.weight_onecg import weights_and_inertia
+from sloads.report import module_text_report
+from sloads.validation import wtenv_cg_limits
 
 
 st.title("Weight & Mass Properties — FAR 23")
@@ -226,7 +226,7 @@ def _tab_estimate(project: Project, system: UnitSystem, U: dict) -> None:
         )
 
     st.download_button(
-        "Download weight estimate (CSV)", farloads_io.load_cases_csv(display_results),
+        "Download weight estimate (CSV)", sloads_io.load_cases_csv(display_results),
         file_name="weight_estimate.csv", mime="text/csv", key="dl_est_csv")
     st.download_button(
         "Download weight estimate (text)", module_text_report("Weight estimate", display_results),
@@ -377,7 +377,7 @@ def _tab_cg_inertia(project: Project, system: UnitSystem, U: dict) -> None:
         st.plotly_chart(fig, use_container_width=True)
 
     st.download_button(
-        "Download weight/CG/inertia (CSV)", farloads_io.load_cases_csv([result]),
+        "Download weight/CG/inertia (CSV)", sloads_io.load_cases_csv([result]),
         file_name="weight_cg_inertia.csv", mime="text/csv", key="dl_cg_csv")
     st.download_button(
         "Download weight/CG/inertia (text)", module_text_report("Weight, CG and inertia", [result]),
@@ -564,7 +564,7 @@ def _tab_envelope(project: Project, system: UnitSystem, U: dict) -> None:
                 st.caption(r.note)
 
     st.download_button(
-        "Download weight envelope (CSV)", farloads_io.load_cases_csv(results),
+        "Download weight envelope (CSV)", sloads_io.load_cases_csv(results),
         file_name="weight_envelope.csv", mime="text/csv", key="dl_env_csv")
     st.download_button(
         "Download weight envelope (text)", module_text_report("Weight envelope", results),

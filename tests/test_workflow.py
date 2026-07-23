@@ -1,6 +1,6 @@
 """Workflow metadata: the Define→Analyze→Review→Export step graph.
 
-Pure-data sanity checks on :mod:`farloads.workflow` -- the single source of truth
+Pure-data sanity checks on :mod:`sloads.workflow` -- the single source of truth
 that drives the GUI navigation and the Home dashboard's completeness panel. These
 guard against the kind of drift that froze the old Home page at "Phase 0": every
 real suite module must have a step, phases/keys must stay well-formed, and the
@@ -12,8 +12,8 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from farloads import Project, io, registry  # noqa: E402
-from farloads import workflow as wf  # noqa: E402
+from sloads import Project, io, registry  # noqa: E402
+from sloads import workflow as wf  # noqa: E402
 
 _EXAMPLES = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "examples")
 

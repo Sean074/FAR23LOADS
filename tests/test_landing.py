@@ -34,15 +34,15 @@ from dataclasses import replace
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from farloads import io  # noqa: E402
-from farloads.models import (  # noqa: E402
+from sloads import io  # noqa: E402
+from sloads.models import (  # noqa: E402
     CgCase,
     LandingGearInput,
     LandingInput,
     Project,
     StructuralSpeedsInput,
 )
-from farloads.modules.landing import (  # noqa: E402
+from sloads.modules.landing import (  # noqa: E402
     _geometry,
     build_landing,
     landing_load_factor,

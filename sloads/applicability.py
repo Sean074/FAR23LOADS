@@ -6,7 +6,7 @@ GUI surfaces the returned exceedances as a non-blocking banner offering a switch
 concept mode (``app/components.py``). On Appendix-A GA inputs it yields no
 exceedances, so the tool reduces exactly to the oracle-locked FAR 23 behaviour.
 
-The certificated limits live in :mod:`farloads.constants`; this module only reads
+The certificated limits live in :mod:`sloads.constants`; this module only reads
 the ``Project`` and compares. No Streamlit, no file access.
 """
 
@@ -78,7 +78,7 @@ def far23_applicability(project: Project) -> List[Exceedance]:
     non-commuter FAR 23 tier (12,500 lb / 9 passenger seats; the required flight
     crew, :func:`effective_crew`, are excluded from the seat count). Returns an
     empty list for a GA airplane inside the band (e.g. Appendix A). The commuter
-    tier (19,000 lb / 19 seats) is encoded in :mod:`farloads.constants` but dormant
+    tier (19,000 lb / 19 seats) is encoded in :mod:`sloads.constants` but dormant
     until a distinct Commuter category exists, so it is not consulted here.
     """
     exceedances: List[Exceedance] = []

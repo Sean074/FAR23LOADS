@@ -9,7 +9,7 @@ component, overlay the spanwise/chordwise curve for the selected case IDs plus
 their envelope (max |value| per station),
 see a combined wing+fuselage "total loads" snapshot for one case, and
 optionally compare against an externally-computed span-load CSV in the same
-schema :mod:`farloads.export.sbeam_bridge` exports.
+schema :mod:`sloads.export.sbeam_bridge` exports.
 
 Engine Mount and Landing Gear are scalar reaction-load components with no
 spanwise distribution -- the original suite never plotted them either, so they
@@ -29,13 +29,13 @@ from plotly.subplots import make_subplots
 
 from components import gate
 
-from farloads import Project, UnitSystem, si_scalar_label, to_si_scalar
-from farloads.modules.aileron import build_aileron
-from farloads.modules.body_loads import build_body_loads
-from farloads.modules.flap import build_flap
-from farloads.modules.net_loads import build_net_loads
-from farloads.modules.tab import build_tabs
-from farloads.modules.taildist import build_tail_chordwise
+from sloads import Project, UnitSystem, si_scalar_label, to_si_scalar
+from sloads.modules.aileron import build_aileron
+from sloads.modules.body_loads import build_body_loads
+from sloads.modules.flap import build_flap
+from sloads.modules.net_loads import build_net_loads
+from sloads.modules.tab import build_tabs
+from sloads.modules.taildist import build_tail_chordwise
 
 st.title("Loads Plots")
 st.caption(
@@ -295,7 +295,7 @@ st.divider()
 st.header("External-comparison import")
 st.caption(
     "Import a span-load CSV in the same schema the **Export** page writes "
-    "(`farloads.export.sbeam_bridge.span_load_csv` / `body_span_load_csv`) to "
+    "(`sloads.export.sbeam_bridge.span_load_csv` / `body_span_load_csv`) to "
     "overlay an externally-computed distribution against the curves above."
 )
 
@@ -327,7 +327,7 @@ if uploaded is not None:
             )
         else:
             # The imported span-load CSV is always in canonical Imperial units
-            # (farloads.export.sbeam_bridge never converts), so build a
+            # (sloads.export.sbeam_bridge never converts), so build a
             # Imperial-forced overlay reference here regardless of the global
             # toggle -- the ``wing_cases``/``body_cases`` used in "Total loads"
             # above may be SI-converted and would otherwise mismatch units.

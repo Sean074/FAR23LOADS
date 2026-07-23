@@ -15,8 +15,8 @@ import streamlit as st
 
 from components import gate
 
-from farloads import AeroCoefficientsInput, AeroCoeffSet, FuselageMomentInput, Project
-from farloads.fuselage_moment import estimate as estimate_fuselage_moment
+from sloads import AeroCoefficientsInput, AeroCoeffSet, FuselageMomentInput, Project
+from sloads.fuselage_moment import estimate as estimate_fuselage_moment
 
 st.title("Aerodynamic Data")
 st.caption(

@@ -43,7 +43,7 @@ def _ids(paths):
 def test_render_leaves_project_unchanged(view, example):
     from streamlit.testing.v1 import AppTest
 
-    from farloads import io
+    from sloads import io
 
     project = io.load_project(example)
     before = io.project_to_dict(project)  # a fresh snapshot dict
@@ -71,7 +71,7 @@ def test_mach_limit_persists_only_on_apply():
     """structural_speeds: MACHLIM is absent after a plain render, present after Apply."""
     from streamlit.testing.v1 import AppTest
 
-    from farloads import io
+    from sloads import io
 
     project = io.load_project(_GA6)
     project.speeds.mach_limit = None  # observe a fresh seed
@@ -91,7 +91,7 @@ def test_flight_loads_persists_only_on_apply():
     """flight_envelope: flight_loads is absent after a plain render, present after Apply."""
     from streamlit.testing.v1 import AppTest
 
-    from farloads import io
+    from sloads import io
 
     project = io.load_project(_GA6)
     project.flight_loads = None  # observe a fresh seed
@@ -111,7 +111,7 @@ def test_landing_cg_editor_seeds_and_persists_on_apply():
     gross/fwd-regardless weights) but persists to landing.cg_cases only on Apply."""
     from streamlit.testing.v1 import AppTest
 
-    from farloads import io
+    from sloads import io
 
     project = io.load_project(_GA6)
     project.landing.cg_cases = []  # observe a fresh WTENV seed
@@ -138,7 +138,7 @@ def test_select_inputs_persist_only_on_apply():
     wing weight) persists to project.select_input only on Apply."""
     from streamlit.testing.v1 import AppTest
 
-    from farloads import io
+    from sloads import io
 
     project = io.load_project(_GA6)
     project.select_input = None  # observe a fresh render

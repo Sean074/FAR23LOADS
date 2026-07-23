@@ -21,7 +21,7 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from farloads import (  # noqa: E402
+from sloads import (  # noqa: E402
     AeroCoefficientsInput,
     AeroCoeffSet,
     CgCase,
@@ -29,8 +29,8 @@ from farloads import (  # noqa: E402
     Project,
     io,
 )
-from farloads.modules import flight_envelope as fe  # noqa: E402
-from farloads.modules.flight_envelope import build_envelope, _design_inputs  # noqa: E402
+from sloads.modules import flight_envelope as fe  # noqa: E402
+from sloads.modules.flight_envelope import build_envelope, _design_inputs  # noqa: E402
 
 _EXAMPLES = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "examples")
 _GA = os.path.join(_EXAMPLES, "ga6_normal.project.json")

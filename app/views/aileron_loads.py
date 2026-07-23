@@ -14,7 +14,7 @@ import streamlit as st
 
 from components import gate
 
-from farloads import (
+from sloads import (
     AileronLoadsInput,
     Project,
     UnitSystem,
@@ -24,8 +24,8 @@ from farloads import (
     to_imperial_scalar,
     to_si_scalar,
 )
-from farloads.export import sbeam_bridge as sb
-from farloads.modules.aileron import build_aileron, run
+from sloads.export import sbeam_bridge as sb
+from sloads.modules.aileron import build_aileron, run
 
 
 st.title("Aileron Loads — AILERON")

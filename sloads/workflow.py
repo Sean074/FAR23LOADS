@@ -10,7 +10,7 @@ Landing loads → Load-case plotting → Export** (see
 ``docs/30_future/03_gui_rework_plan.md`` §4; this supersedes the Phase-D
 Start/Airplane/Envelopes/Analysis grouping in ``02_gui_workflow_plan.md``).
 
-It is pure metadata plus pure predicates over a :class:`~farloads.models.Project`
+It is pure metadata plus pure predicates over a :class:`~sloads.models.Project`
 (no Streamlit, no I/O), so the GUI navigation, the Home dashboard's completeness
 panel, and any future dependency-ordered "run pipeline" can all be driven from
 one place instead of drifting apart. ``requires``/``produces`` are the seed of a
@@ -52,7 +52,7 @@ class WorkflowStep:
     ``key``      stable identifier (also the GUI view-file stem).
     ``title``    human label shown in navigation and the dashboard.
     ``phase``    one of :data:`PHASES`.
-    ``module``   the :mod:`farloads.registry` module name behind the step, or
+    ``module``   the :mod:`sloads.registry` module name behind the step, or
                  ``None`` for a GUI-only view (dashboard / results / export).
     ``requires`` project-slice attribute names that must be present to run.
     ``produces`` dotted attribute path the step fills, or ``None`` for a

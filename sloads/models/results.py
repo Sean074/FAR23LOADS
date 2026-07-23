@@ -19,7 +19,7 @@ class CaseRef:
     """A stable, traceable identity for one delivered structural load case (Step D1).
 
     ``case_id`` is ``"<component>-<seq>"`` (``"W-01"``, ``"HT-03"``, ``"VT-02"``,
-    ``"F-04"``, ``"EM-01"``, ``"LG-05"``, ...) -- see ``farloads.case_ids`` for the
+    ``"F-04"``, ``"EM-01"``, ``"LG-05"``, ...) -- see ``sloads.case_ids`` for the
     six-entry component-prefix taxonomy (control surfaces fold into their host
     structural component; the surface identity lives in ``condition``, not a
     separate prefix). Minted **once**, by the module that first names the physical
@@ -47,7 +47,7 @@ class LoadValue:
     dimension hint used only to disambiguate SI conversion where the unit string
     alone is ambiguous: a bare ``"lb"`` is pounds-*force* for a load (→ N) but
     pounds-*mass* for a weight (→ kg). A weight sets ``quantity="mass"``; loads
-    leave it blank and convert by unit string. See :mod:`farloads.units`.
+    leave it blank and convert by unit string. See :mod:`sloads.units`.
     """
     label: str
     value: float

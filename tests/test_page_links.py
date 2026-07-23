@@ -2,10 +2,10 @@
 
 Every ``st.page_link`` in the app goes through ``components.workflow_page_link``
 (directly or via ``components.gate``), which derives a link's target path and
-label from :mod:`farloads.workflow`. These static checks guard the two ways that
+label from :mod:`sloads.workflow`. These static checks guard the two ways that
 contract can rot:
 
-* a link naming a step ``key`` that isn't in :data:`farloads.workflow.BY_KEY`
+* a link naming a step ``key`` that isn't in :data:`sloads.workflow.BY_KEY`
   (the stale-page-name bug the helper exists to prevent -- "Wing Geometry",
   "Configuration & Layout" -- would resurface as a broken link, not dead text);
 * the helper's core assumption that a step ``key`` is also its view-file stem
@@ -19,7 +19,7 @@ import ast
 import glob
 import os
 
-from farloads import workflow as wf  # noqa: E402
+from sloads import workflow as wf  # noqa: E402
 
 _ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 _VIEWS_DIR = os.path.join(_ROOT, "app", "views")

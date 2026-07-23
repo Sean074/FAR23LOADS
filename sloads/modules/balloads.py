@@ -7,7 +7,7 @@ pressure (``XTC`` ~5% tail MAC flaps-up, ``XTF`` ~25% flaps-down; Ch 8
 it into the angle-of-attack load at 25% tail MAC (``LT25``) and the camber/elevator
 load at 50% (``LT50``) -- to verify that the approximate CP was adequate.
 
-The rational balance equations live in :func:`farloads.modules.select.htail_balance`
+The rational balance equations live in :func:`sloads.modules.select.htail_balance`
 (oracle-locked in Step C6); per the project convention this utility **reuses** that
 routine rather than re-deriving it, so the verification can never silently drift
 from the production balance. BALLOADS' contribution is the *comparison*: for each

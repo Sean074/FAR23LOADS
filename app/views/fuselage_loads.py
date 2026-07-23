@@ -20,7 +20,7 @@ import streamlit as st
 
 from components import gate
 
-from farloads import (
+from sloads import (
     Project,
     UnitSystem,
     labels_for,
@@ -29,8 +29,8 @@ from farloads import (
     to_imperial_scalar,
     to_si_scalar,
 )
-from farloads.models import FuselageMassInput, FuselageStation
-from farloads.modules.body_loads import body_load_rows, build_body_loads
+from sloads.models import FuselageMassInput, FuselageStation
+from sloads.modules.body_loads import body_load_rows, build_body_loads
 
 
 def _convert_body_rows(rows, system: UnitSystem):

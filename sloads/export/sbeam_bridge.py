@@ -14,7 +14,7 @@ consumes for structural sizing, matching sbeam's own card style
   SPC1 + the load cards + a SOL 101 case-control wrapper, so the load runs
   directly in sbeam.
 
-The bridge is a pure renderer (like :mod:`farloads.io`): the building functions
+The bridge is a pure renderer (like :mod:`sloads.io`): the building functions
 return strings, the ``write_*`` wrappers do the only file I/O. It is **not** a
 registered calc module -- the physics already lives in ``modules/net_loads.py``.
 
@@ -40,7 +40,7 @@ the root torsion by construction. With the WINGINER quadrature
 reproduce the root bending exactly as ``sum(dFz * (y - y_root))`` -- the
 force/moment-closure guarantee the C4 acceptance test checks.
 
-Coordinate / units map: see :mod:`farloads.export.coordinates` (identity,
+Coordinate / units map: see :mod:`sloads.export.coordinates` (identity,
 inches, CID 0).
 
 Reference: ``sbeam/results/load_export.py`` (card style); NASTRAN FORCE / MOMENT
@@ -74,7 +74,7 @@ from .coordinates import SBEAM_CID, to_force, to_grid, to_moment
 
 # sbeam sizes structure to ULTIMATE loads, so every exported force / moment /
 # pressure magnitude is the calc's LIMIT value x this factor (14 CFR 25.303 -> 1.5;
-# see farloads.constants.ULTIMATE_FACTOR). Geometry (coordinates, chord fractions)
+# see sloads.constants.ULTIMATE_FACTOR). Geometry (coordinates, chord fractions)
 # is not scaled. The net/tail/control results carry no per-case factor of their own,
 # so the suite-wide default is applied here; revisiting it is a one-constant change.
 _SF = ULTIMATE_FACTOR

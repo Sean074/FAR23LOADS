@@ -16,8 +16,8 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from farloads import Project, SelectInput, TailLoadsInput, io  # noqa: E402
-from farloads.modules import balloads, select  # noqa: E402
+from sloads import Project, SelectInput, TailLoadsInput, io  # noqa: E402
+from sloads.modules import balloads, select  # noqa: E402
 
 _EXAMPLES = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "examples")
 _GA = os.path.join(_EXAMPLES, "ga6_normal.project.json")

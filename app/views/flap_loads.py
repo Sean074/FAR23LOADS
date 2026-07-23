@@ -15,7 +15,7 @@ import streamlit as st
 
 from components import gate
 
-from farloads import (
+from sloads import (
     FlapLoadsInput,
     Project,
     UnitSystem,
@@ -25,8 +25,8 @@ from farloads import (
     to_imperial_scalar,
     to_si_scalar,
 )
-from farloads.export import sbeam_bridge as sb
-from farloads.modules.flap import build_flap, run
+from sloads.export import sbeam_bridge as sb
+from sloads.modules.flap import build_flap, run
 
 
 st.title("Flap Loads — FLAPLOAD")

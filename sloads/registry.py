@@ -1,7 +1,7 @@
 """Module registry: map a module name to its ``run(project)`` function.
 
 Each suite module calls :func:`register` at import time, so importing
-``farloads.modules`` populates the registry. The CLI, GUI "run all" and tests
+``sloads.modules`` populates the registry. The CLI, GUI "run all" and tests
 look modules up here by name instead of importing each one directly -- adding
 program #2..#22 is then just a new module file that registers itself.
 """
@@ -40,7 +40,7 @@ def available() -> List[str]:
 def run_all_modules(project: Project) -> List[ModuleResult]:
     """Run every registered module that has the input slice it needs.
 
-    A module raises :class:`~farloads.models.MissingInputError` when a required
+    A module raises :class:`~sloads.models.MissingInputError` when a required
     project slice is absent; those are skipped here so "run all" works on a
     partially-filled project. A plain :class:`ValueError` (an invalid domain input
     or a genuine calc defect) is **not** caught -- it propagates so the failure is

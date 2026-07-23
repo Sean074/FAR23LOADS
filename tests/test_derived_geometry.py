@@ -14,13 +14,13 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from farloads import Project, io  # noqa: E402
-from farloads.derived_geometry import (  # noqa: E402
+from sloads import Project, io  # noqa: E402
+from sloads.derived_geometry import (  # noqa: E402
     fuselage_summary,
     sync_geometry_derived,
     wing_reference,
 )
-from farloads.models import (  # noqa: E402
+from sloads.models import (  # noqa: E402
     EngineInput,
     FlightLoadsInput,
     FuselageOutline,
@@ -30,7 +30,7 @@ from farloads.models import (  # noqa: E402
     WeightInput,
     WingMassInput,
 )
-from farloads.modules.weight_estimate import resolve_max_continuous_hp  # noqa: E402
+from sloads.modules.weight_estimate import resolve_max_continuous_hp  # noqa: E402
 
 _EXAMPLES = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "examples")
 _GA = os.path.join(_EXAMPLES, "ga6_normal.project.json")

@@ -20,10 +20,10 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from farloads import io  # noqa: E402
-from farloads.modules.flight_envelope import build_envelope  # noqa: E402
-from farloads.export import sbeam_bridge as sb  # noqa: E402
-from farloads.modules.net_loads import build_net_loads  # noqa: E402
+from sloads import io  # noqa: E402
+from sloads.modules.flight_envelope import build_envelope  # noqa: E402
+from sloads.export import sbeam_bridge as sb  # noqa: E402
+from sloads.modules.net_loads import build_net_loads  # noqa: E402
 
 _EXAMPLES = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "examples")
 _GA = os.path.join(_EXAMPLES, "ga6_normal.project.json")
@@ -221,9 +221,9 @@ def test_writers(tmp_path=None):
 # Control-surface export (Step C8): closure -- the FORCE set sums to the load.
 # --------------------------------------------------------------------------- #
 def _control_results():
-    from farloads.modules.aileron import build_aileron
-    from farloads.modules.flap import build_flap
-    from farloads.modules.tab import build_tabs
+    from sloads.modules.aileron import build_aileron
+    from sloads.modules.flap import build_flap
+    from sloads.modules.tab import build_tabs
 
     p = io.load_project(_GA)
     return build_aileron(p) + build_flap(p) + build_tabs(p)
@@ -276,14 +276,14 @@ def test_filter_by_selected_case_ids_empty_selection_drops_all_tagged():
 
 
 def test_export_package_exposes_all_component_families():
-    """Step P1-4: the whole export surface is reachable from ``farloads.export``.
+    """Step P1-4: the whole export surface is reachable from ``sloads.export``.
 
     Before P1-4 ``__all__`` listed only wing + tail, so a caller following the
     package API could export only two of the four component families. The concept
     deliverable is "all components to sbeam" -- assert body + control + the case
     index are all importable from the package (not just the submodule).
     """
-    from farloads.export import (  # noqa: F401
+    from sloads.export import (  # noqa: F401
         body_force_moment_cards,
         body_span_load_csv,
         case_index_csv,
@@ -294,7 +294,7 @@ def test_export_package_exposes_all_component_families():
         write_control_surface_csv,
         write_control_surface_force_moment_cards,
     )
-    import farloads.export as export_pkg
+    import sloads.export as export_pkg
 
     # Every re-exported name is advertised in __all__ and resolves to the
     # sbeam_bridge implementation (no accidental shadowing).

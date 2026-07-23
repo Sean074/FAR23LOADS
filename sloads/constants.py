@@ -66,7 +66,7 @@ SEAT_WEIGHT_LB = 170.0
 # user input (WeightEstimationInput.crew); DEFAULT_FLIGHT_CREW is the fallback the
 # applicability check assumes when no weight-estimation slice is present. Exceeding
 # these limits does not block the tool -- it flags the airplane as a concept-mode
-# extrapolation (see farloads/applicability.py). The commuter tier is encoded but
+# extrapolation (see sloads/applicability.py). The commuter tier is encoded but
 # dormant: no distinct Commuter category exists yet (the merged "Normal / commuter"
 # category maps to "N"), so the check uses the non-commuter tier until a distinct
 # Commuter category lands (backlog "Distinct Commuter category").

@@ -16,10 +16,10 @@ import streamlit as st
 
 from components import gate
 
-from farloads import Project, UnitSystem, convert_results, registry
-from farloads import workflow as wf
-from farloads.modules.select import build_critical
-from farloads.report import (
+from sloads import Project, UnitSystem, convert_results, registry
+from sloads import workflow as wf
+from sloads.modules.select import build_critical
+from sloads.report import (
     governing_loads_table,
     has_load_case_data,
     load_cases_to_rows,

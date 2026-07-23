@@ -1,6 +1,6 @@
 """Input-consistency validation -- pure, unit-testable predicates over a Project.
 
-A companion to :mod:`farloads.applicability`: where that module reports whether an
+A companion to :mod:`sloads.applicability`: where that module reports whether an
 airplane exceeds the FAR 23 *applicability* band, this one reports whether the
 definition inputs are self-consistent. Both are pure (no Streamlit, no file
 access); the definition pages surface the returned warnings as ``st.warning``.
@@ -168,7 +168,7 @@ def wtenv_cg_limits(project: Project) -> Optional["tuple[float, float]"]:
 
     Public (M2R-5): also seeds the Landing Loads CG-case editor and the Weight/CG
     grid overlay, so it is imported by ``app/`` -- hence a public name (M4-12: ``app/``
-    must not import ``farloads`` underscore symbols).
+    must not import ``sloads`` underscore symbols).
     """
     if project.weight is None or project.weight.envelope is None:
         return None

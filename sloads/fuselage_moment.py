@@ -2,7 +2,7 @@
 
 A pure, geometry-only helper that derives the fuselage's contribution to the
 airplane-less-tail pitching-moment slope ``dCm/dalpha`` from the G1 fuselage
-outline (:class:`~farloads.models.FuselageOutline`), so a concept configuration
+outline (:class:`~sloads.models.FuselageOutline`), so a concept configuration
 built up from a planform no longer has to hand-fold the fuselage into the
 FLTLOADS input coefficients.
 
@@ -22,7 +22,7 @@ on the wing reference ``S * mac`` this is a pure slope increment, zero at
 
 The cross-section area at each station is taken as an ellipse of the section
 width and height, ``A = pi/4 * width * height`` (the reading G1 committed to in
-:class:`~farloads.models.FuselageSection`); ``Vol`` is the trapezoidal integral
+:class:`~sloads.models.FuselageSection`); ``Vol`` is the trapezoidal integral
 of ``A`` along the body and the fineness ratio uses the equivalent diameter
 ``d_eq = sqrt(width*height)`` at the widest station. The result is reference-point
 independent (it depends on volume, not on the moment reference), so no CG station
