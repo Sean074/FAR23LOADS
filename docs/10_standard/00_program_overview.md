@@ -1,4 +1,4 @@
-# FAR 23 LOADS — Program Code Standard & Developer Guide
+# sloads — Program Code Standard & Developer Guide
 
 The authoritative description of how the suite is built and the standard every
 ported module must meet. Read this before adding or changing a module.
@@ -32,7 +32,7 @@ sloads/                 # shared, pure-calc package — no I/O in calc code
 ├── registry.py           # name -> run(project) -> ModuleResult lookup; run_all_modules
 ├── report.py             # shared text/CSV rendering (load_cases_to_rows, text_report)
 ├── export/               # output renderers to external tools (NOT registered modules)
-│   ├── coordinates.py    # FAR23LOADS axes -> sbeam CID 0 map (single edit-point)
+│   ├── coordinates.py    # SLOADS axes -> sbeam CID 0 map (single edit-point)
 │   └── sbeam_bridge.py   # net wing/body load -> span CSV + FORCE/MOMENT cards + CBAR stick model
 └── modules/              # one file per suite program; each self-registers on import
     ├── __init__.py       # imports every module so registration happens on import

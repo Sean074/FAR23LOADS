@@ -1,6 +1,6 @@
 # Phase C — Initial-Concept Loads Tool (development plan)
 
-The active development plan that grows FAR23LOADS from a faithful ≤12,500 lb
+The active development plan that grows sloads from a faithful ≤12,500 lb
 **FAR Part 23 Subpart C** replication into an **initial-concept distributed-loads
 tool**: one that can exceed the FAR23 weight and seat limits, assesses a candidate
 configuration against similar airplanes, and emits per-component distributed loads
@@ -166,7 +166,7 @@ load set, proving the integration on the vertical slice.
   free-field card style (`sbeam/results/load_export.py`);
 - optional minimal CBAR stick-model BDF (GRID + CBAR + PBAR + load cards + a SOL
   101 case) so the load runs directly in sbeam;
-- a documented coordinate/units map (FAR23LOADS station-X / butt-Y / waterline-Z,
+- a documented coordinate/units map (SLOADS station-X / butt-Y / waterline-Z,
   inches → sbeam global CID 0).
 - **Ultimate loads.** All exported force/moment/pressure magnitudes are ULTIMATE
   (NETLOADS limit × `constants.ULTIMATE_FACTOR` = 1.5, 14 CFR 23.303; Part 25
@@ -248,7 +248,7 @@ ported. See [`../40_history/00_completed_development.md`](../40_history/00_compl
   default, user-overridable.
 - **Schrenk accuracy for swept/high-AR concept wings** — addressed by AIRLOAD4 in
   C7; default-Schrenk results warn when sweep/Mach exceeds the method's band.
-- **Export coordinate/units mapping** — FAR23LOADS is Imperial inches (station /
+- **Export coordinate/units mapping** — SLOADS is Imperial inches (station /
   butt / waterline); sbeam runs in global CID 0, user-consistent units. The bridge
   documents and tests the transform explicitly.
 

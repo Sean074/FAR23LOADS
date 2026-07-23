@@ -1,4 +1,4 @@
-# Release Process — FAR 23 LOADS
+# Release Process — sloads
 
 Authoritative guide for versioning, validating, and releasing the suite.
 

@@ -1,4 +1,4 @@
-# FAR 23 LOADS Documentation — Index
+# sloads Documentation — Index
 
 This directory is organised into four numbered sections by **document type**.
 Lower numbers are the day-to-day references; higher numbers are planning and

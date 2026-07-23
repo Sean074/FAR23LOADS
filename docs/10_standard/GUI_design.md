@@ -1,4 +1,4 @@
-# FAR 23 LOADS — GUI Design & Structure
+# sloads — GUI Design & Structure
 
 The authoritative description of how the Streamlit GUI is designed and the
 standards every page — especially the airplane-**definition** pages — must meet.

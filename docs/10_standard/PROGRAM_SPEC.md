@@ -1,4 +1,4 @@
-# FAR 23 LOADS — Program Specification
+# sloads — Program Specification
 
 Per-module specification for replicating the 22-program **FAR 23 LOADS** suite.
 Read alongside [`PROJECT_GUIDE.md`](PROJECT_GUIDE.md), which defines the shared
@@ -494,7 +494,7 @@ return strings (with thin `write_*` file wrappers), and do no physics.
   the FORCE set sums to the root shear and the MOMENT(My) set to the root torsion
   **exactly**; under the WINGINER quadrature (`y[i]-y[0] = i·dy`) the FORCE
   moments about the root reproduce the root bending exactly.
-- **Coordinates:** `sloads/export/coordinates.py` — FAR23LOADS station-X /
+- **Coordinates:** `sloads/export/coordinates.py` — SLOADS station-X /
   butt-Y / waterline-Z inches → sbeam global CID 0, **identity** (single
   edit-point for any future sign/axis/unit change).
 - **Validation:** force/moment closure (cards re-summed = NETLOADS root totals);

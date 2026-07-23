@@ -1,4 +1,4 @@
-# Code Review Process — FAR 23 LOADS
+# Code Review Process — sloads
 
 Authoritative process guide for critical code review in this repository. Reviews
 **must** be critical: identify defects, non-conformance to the documentation and
