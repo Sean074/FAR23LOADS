@@ -111,7 +111,7 @@ def test_workbook_excludes_bdf_text():
     for name in wb.sheetnames:
         for row in wb[name].iter_rows(values_only=True):
             for cell in row:
-                assert not (isinstance(cell, str) and cell.startswith("$ FAR23LOADS")), name
+                assert not (isinstance(cell, str) and cell.startswith("$ SLOADS")), name
 
 
 if __name__ == "__main__":

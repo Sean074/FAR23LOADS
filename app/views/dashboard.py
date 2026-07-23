@@ -18,7 +18,7 @@ from components import render_applicability_banner, workflow_page_link
 from sloads import Project
 from sloads import workflow as wf
 
-st.title("🛩️ FAR 23 LOADS — Project Dashboard")
+st.title("🛩️ sloads — Project Dashboard")
 st.caption(
     "Modern Python/Streamlit port of the McMaster FAR 23 LOADS suite. One reloadable "
     "project carries every module's inputs; work the sections left-to-right in the "

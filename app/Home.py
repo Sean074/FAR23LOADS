@@ -1,4 +1,4 @@
-"""FAR 23 LOADS — multipage entrypoint.
+"""sloads — multipage entrypoint.
 
 Run with:  streamlit run app/Home.py
 
@@ -41,7 +41,7 @@ from sloads.models import SCHEMA_VERSION
 
 # Must be the first Streamlit call, and the ONLY set_page_config in the app
 # (individual views must not call it again under st.navigation).
-st.set_page_config(page_title="FAR 23 LOADS", layout="wide", page_icon="🛩️")
+st.set_page_config(page_title="sloads", layout="wide", page_icon="🛩️")
 
 # Ordered section labels for the sidebar groups: an un-numbered Start app-shell
 # group above the six numbered analysis-flow phases (Step G2).

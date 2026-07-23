@@ -1,6 +1,6 @@
-"""Export bridges from FAR23LOADS results to external structural tools.
+"""Export bridges from SLOADS results to external structural tools.
 
-Currently the sbeam bridge (C4): turns FAR23LOADS component loads into
+Currently the sbeam bridge (C4): turns SLOADS component loads into
 sbeam-consumable span/chordwise-load CSVs, ``FORCE``/``MOMENT`` bulk-data cards,
 and an optional CBAR stick-model BDF. See :mod:`sloads.export.sbeam_bridge`.
 

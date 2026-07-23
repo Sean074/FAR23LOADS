@@ -1,4 +1,4 @@
-"""FAR 23 LOADS -- shared pure-calc package for the McMaster suite.
+"""sloads -- shared pure-calc package for the McMaster suite.
 
 Phase 0 ships the engine-mount module (a port of ENGLOADS.BAS); later phases add
 the other programs as ``sloads/modules/<name>.py`` files that register

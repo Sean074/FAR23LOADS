@@ -1,4 +1,4 @@
-# FAR 23 LOADS
+# sloads
 
 A modern Python + Streamlit replication of the **FAR 23 LOADS** suite
 (Hal C. McMaster, Aero Science Software) — the 22-program package that computes
