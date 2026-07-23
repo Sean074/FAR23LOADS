@@ -68,30 +68,6 @@ prose.
 > **M2R (release-readiness fixes) is complete** — all eight items (M2R-1 … M2R-8
 > from the 2026-07-21 review) landed 2026-07-21/22; see history. M3 is the next gate.
 
-### M3-1 — Rename: FAR23LOADS → **sloads** (supersedes D-6; decided 2026-07-20)
-**Full rename** — repo folder, Python package/import (`farloads` → `sloads`),
-CLI command, GUI title/brand, README H1, pyproject name (PyPI `sloads` is
-unclaimed, verified 2026-07-20). Rationale: (1) "FAR 23 LOADS" is the exact
-name of a commercial product currently marketed by McGettrick Structural
-Engineering / DARcorporation (see `reference/FAR-23-Loads-Brochure-2023.pdf`) —
-an open reimplementation must not adopt that mark as its title; (2) the tool's
-identity is a **concept development tool** extending beyond FAR 23 (concept
-mode, Part 25 supplemental cases, sbeam handoff, later OpenVSP interfaces);
-(3) `sloads` joins the family of **sbeam** and **smodal** ("s" = simple /
-Sean). **Attribution stays prominent** (the M2R-2 sentence predates this step).
-Rename-surface inventory (2026-07-21 review): 391 `farloads` refs in .py
-across 95 files + 257 in docs + pyproject (name, console entry, `--cov`,
-`include=`); the JSON schema, registry names, and session-state keys are
-**clean** — saved project files survive untouched; delete/gitignore
-`farloads.egg-info/`. **Batch with the rename (same churn event, review
-recommendation):** split `models.py` (1,842 lines / 66 classes) into a
-`models/` package by lifecycle (enums / input slices / result types / project).
-**Acceptance:** one name everywhere (grep finds only historical-attribution
-passages); imports/CLI/tests green; docs and examples updated; disclaimer
-present in README and the GUI footer/About. **Execution runbook (step-by-step
-git + shell commands):**
-[`04_m3-1_rename_procedure.md`](04_m3-1_rename_procedure.md).
-
 ### M3-2 — Release cut per `RELEASE_PROCESS.md`
 Version 0.3.0; date and cut the `[Unreleased]` changelog (~1,083 lines —
 merge its ten duplicate `### Changed` headings while cutting); refresh the

@@ -75,6 +75,20 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- **Renamed the project `FAR23LOADS`/`farloads` → `sloads`; split `models.py` into a
+  `models/` package (M3-1).** The Python package/import, CLI command
+  (`sloads = "cli:main"`), GUI title/brand, README H1, doc-set titles, and
+  `pyproject` name are now **`sloads`** (lowercase); the sbeam export deck headers and
+  `export/` axis references are **`SLOADS`** (with `tests/test_workbook.py` updated in
+  lockstep). The 1,862-line `models.py` monolith was split AST-deterministically
+  (verified byte-identical) into `sloads/models/{enums,inputs,results,project}.py` with
+  a re-exporting `__init__.py`, so every prior `from sloads.models import X` form
+  resolves unchanged. **No calc/oracle/schema change** — `SCHEMA_VERSION` stays 32;
+  registry names, JSON schema keys and session-state keys are untouched, so saved
+  project files load as-is. The "FAR 23 LOADS" mark survives only as
+  McMaster/DARcorporation attribution (disclaimer retained in README + GUI About); the
+  repo folder name and historical CHANGELOG/`40_history` entries are intentionally left
+  as-is. Full suite green (483 passed); ruff clean; smoke test exit 0.
 - **Geometry & power single-source cleanup (M2-6, Step G6c).** Closed the last of the
   softer geometry/power double-entry the G6 audit surfaced. **Wing:**
   `FlightLoadsInput.mac`/`wing_area_sqft`/`xw`/`zw`, `WingMassInput.dihedral_deg`/

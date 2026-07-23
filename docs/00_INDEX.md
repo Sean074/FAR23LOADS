@@ -43,7 +43,7 @@ historical record.
 | [`01_concept_loads_plan.md`](30_future/01_concept_loads_plan.md) | **Phase C plan** — growing the suite into an initial-concept distributed-loads tool (concept mode, Schrenk airloads, per-component distributed loads, sbeam export bridge) |
 | [`02_gui_workflow_plan.md`](30_future/02_gui_workflow_plan.md) | **Phase D plan** — GUI workflow restructure: assessment, six-section target structure, load-case IDs, locked decisions, page conventions |
 | [`03_gui_rework_plan.md`](30_future/03_gui_rework_plan.md) | **Phase G plan** — workflow-aligned GUI rework: one-unit-per-dimension policy, single-source-of-truth geometry, re-sequenced analysis-flow navigation, and the new fuselage-moment/trim-plot/elevator-chord features (assessment vs. current code, locked decisions G-1…G-4) |
-| [`04_m3-1_rename_procedure.md`](30_future/04_m3-1_rename_procedure.md) | **M3-1 execution runbook** — step-by-step git + shell procedure for the `sloads` → `sloads` rename batched with the `models.py` → `models/` split (branch, `git mv`, package split, import/pyproject rewrite, brand strings, acceptance gate, staged commits) |
+| [`04_m3-1_rename_procedure.md`](30_future/04_m3-1_rename_procedure.md) | **M3-1 execution runbook** — step-by-step git + shell procedure for the `farloads` → `sloads` rename batched with the `models.py` → `models/` split (branch, `git mv`, package split, import/pyproject rewrite, brand strings, acceptance gate, staged commits) |
 
 ## 40_history — Historic record
 

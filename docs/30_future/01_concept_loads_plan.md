@@ -254,9 +254,10 @@ ported. See [`../40_history/00_completed_development.md`](../40_history/00_compl
 
 ## 7. Open user decisions (non-blocking)
 
-- **Naming.** *Resolved 2026-07-16 — **keep "FAR23LOADS"** for now.* No rename or
-  concept-loads sub-brand; revisit if concept scope becomes the tool's primary
-  identity. (Tracked in [`00_backlog.md`](00_backlog.md) as decision D-6 / item 2-11.)
+- **Naming.** *Resolved 2026-07-16 (keep "FAR23LOADS"); **superseded 2026-07-20 →
+  full rename to `sloads`, shipped in M3-1 (2026-07-23).*** The package/CLI/GUI/docs
+  are now `sloads`; the "FAR 23 LOADS" mark survives only as McMaster/DARcorporation
+  attribution. (Tracked in [`00_backlog.md`](00_backlog.md) as decision D-6.)
 - **sbeam VLM cross-check.** *Resolved 2026-07-16 — **out of scope.*** No
   sbeam-VLM validation backend; concept aero stays validated by physics-closure +
   fleet plausibility (invariant C-2). Revisit only if closure proves insufficient.

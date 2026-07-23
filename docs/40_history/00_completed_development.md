@@ -10,6 +10,72 @@ Acceptance**, **Key decisions**.
 
 ---
 
+## M3-1 — Full rename `FAR23LOADS`/`farloads` → **`sloads`** + `models/` package split (decided 2026-07-20, complete 2026-07-23)
+
+**Objective.** Retire the `FAR23LOADS`/`farloads` name — it is the exact mark of a
+commercial product marketed by McGettrick Structural Engineering / DARcorporation
+(`reference/FAR-23-Loads-Brochure-2023.pdf`), and the tool's identity is now a
+concept-development tool extending beyond FAR 23. Adopt `sloads` (joining the
+**sbeam** / **smodal** family) across package/import, CLI, GUI/brand, and docs,
+**batched** (same churn event, per the 2026-07-21 review) with splitting the
+1,862-line `models.py` monolith into a lifecycle-ordered `models/` package. Executed
+per the step-by-step runbook
+[`../30_future/04_m3-1_rename_procedure.md`](../30_future/04_m3-1_rename_procedure.md).
+
+**Key decisions (2026-07-23 consultation).**
+- *Display brand:* lowercase **`sloads`** (app `page_title`, dashboard title, README
+  H1, package/module docstrings, doc-set H1 titles). The pyproject `description` and
+  README/CLAUDE intros keep "*the FAR 23 LOADS suite (McMaster)*" as **attribution**,
+  not rebranded.
+- *sbeam export headers:* rebranded the `$ FAR23LOADS …` deck comments and `export/`
+  axis-convention references to uppercase **`SLOADS`** (machine deck-tag), with
+  `tests/test_workbook.py`'s `startswith("$ …")` assertion updated in lockstep.
+- *History kept verbatim:* `CHANGELOG.md` and `docs/40_history/*` past entries retain
+  their `farloads/…` path references (Keep-a-Changelog convention); the two
+  point-in-time review docs (`PROJECT_REVIEW_2026-07-19.md`,
+  `CODE_REVIEW_2026-07-21.md`) argue *about* the `farloads` name and are untouched.
+- *Repo folder name* (`Loads_Programs/FAR23LOADS`) left as-is — out of scope (renaming
+  it would break the local `.venv`/absolute paths); folder name ≠ package name.
+
+**Deliverables (no calc/oracle/schema change — `SCHEMA_VERSION` stays 32).**
+- **Package move:** `farloads/` → `sloads/` (history-preserving `git mv`).
+- **`models/` package split:** `models.py` → `sloads/models/{enums,inputs,results,project}.py`
+  + a re-exporting `__init__.py` (each submodule with an explicit `__all__`; 72 public
+  names). Dependency order enums → inputs → results → project; every prior import form
+  (`from sloads.models import X`, the `sloads/__init__.py` re-export block) resolves
+  unchanged. Split done AST-deterministically and verified byte-identical (68 defs, 0
+  missing/extra/different).
+- **Import rewrite:** mechanical `farloads` → `sloads` across ~100 `.py` files
+  (imports, attribute paths, Sphinx xrefs, the `farloads_io` alias). Registry
+  `MODULE_NAME` values, JSON schema keys and session-state keys carry no `farloads`
+  token — saved projects load untouched.
+- **`pyproject.toml`:** `name`, `[project.scripts]` (`sloads = "cli:main"`),
+  `packages.find include`, `--cov=sloads`, `[tool.coverage.run] source`.
+- **Brand strings:** `app/Home.py` (docstring + `page_title`), `app/views/dashboard.py`
+  title, README H1, `sloads/__init__.py` docstring → `sloads`; seven doc-set H1 titles
+  (`00_INDEX`, `PROGRAM_SPEC`, `PROJECT_GUIDE`, `RELEASE_PROCESS`, `GUI_design`,
+  `00_program_overview`, `CODE_REVIEW_PROCESS`) → `sloads`.
+- **Docs / CI / scripts sweep:** 17 living docs, `.github/workflows/ci.yml`
+  (`ruff check sloads/`), `scripts/smoke_test.sh`, `.claude/settings.local.json`,
+  `docs/generate_data_dict.py`, and the generated `DATA_DICTIONARY.md` regenerated.
+- **Reinstall:** deleted stale `farloads.egg-info`, `pip install -e '.[dev]'` →
+  `sloads 0.2.0`; `sloads --list` prints all 21 modules.
+
+**Test / Acceptance.** Full suite green (**483 passed**, ~93% cov); `ruff check
+sloads/ cli.py app/` clean; `scripts/smoke_test.sh` exit 0 (headless GUI HTTP 200, no
+traceback, under the new name). Acceptance grep proves **zero** `farloads`/`FAR23LOADS`
+in any `.py`/`.toml`/`.yml`/`.sh`; every remaining brand token is an intended keep
+(the "FAR 23 LOADS suite/manual" attribution family, the DARcorporation disclaimer, the
+kept-verbatim history/review docs, and the repo-folder path). Disclaimer present in
+README and the GUI About.
+
+**Docs.** This entry; `CHANGELOG.md` `[Unreleased]`; backlog M3-1 removed (its D-6
+decision-log row and the `01_concept_loads_plan.md §7` naming note reconciled to point
+here). Supersedes decision **D-6** (2026-07-16 "keep FAR23LOADS"). Feeds **M3-2** (the
+`sloads 0.3.0` release cut).
+
+---
+
 ## M2R-8 — MissingInputError in the registry + single SELECT envelope build (2026-07-21 review, MAJOR, complete 2026-07-22)
 
 **Objective.** `registry.run_all_modules` caught *every* `ValueError`, so a genuine
