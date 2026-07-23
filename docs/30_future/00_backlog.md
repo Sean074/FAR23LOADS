@@ -88,7 +88,9 @@ recommendation):** split `models.py` (1,842 lines / 66 classes) into a
 `models/` package by lifecycle (enums / input slices / result types / project).
 **Acceptance:** one name everywhere (grep finds only historical-attribution
 passages); imports/CLI/tests green; docs and examples updated; disclaimer
-present in README and the GUI footer/About.
+present in README and the GUI footer/About. **Execution runbook (step-by-step
+git + shell commands):**
+[`04_m3-1_rename_procedure.md`](04_m3-1_rename_procedure.md).
 
 ### M3-2 — Release cut per `RELEASE_PROCESS.md`
 Version 0.3.0; date and cut the `[Unreleased]` changelog (~1,083 lines —
