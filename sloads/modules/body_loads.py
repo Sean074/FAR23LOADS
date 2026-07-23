@@ -14,10 +14,22 @@ module:
   4. integrates nose->tail to the running shear ``Sz`` and bending ``Myy``.
 
 There is **no printed station-by-station oracle** (Ch 15 ships no program), so the
-result is validated by equilibrium closure: the shear returns to ~0 aft of the
-wing reaction, and the cumulative applied vertical force is zero. The fuselage
-station weights (``Project.fuselage_mass``) should already exclude the wing mass
-outside the fuselage, per Ch 15.
+result is validated by **vertical (ΣFz) equilibrium closure only**: the shear
+returns to ~0 aft of the wing reaction, and the cumulative applied vertical force
+is zero. The fuselage station weights (``Project.fuselage_mass``) should already
+exclude the wing mass outside the fuselage, per Ch 15.
+
+.. warning::
+
+   **Known limitation — moment closure is not enforced** (backlog **M4-1**,
+   ``docs/30_future/00_backlog.md``). Step 3 above applies a *single* vertical
+   wing reaction, which closes ΣFz but leaves ΣM unbalanced: the terminal
+   ``Myy`` at the tail station is non-zero, so the distribution carries a net
+   pitching couple. The full Ch 15 procedure (Ref 1 p103) instead reacts the
+   unbalanced moment at the **front and rear spar attachments** (a two-unknown
+   reaction solve) and includes the pitching load factor. Until M4-1 lands, the
+   bending distribution is **conservative-but-unclosed** and every deliverable
+   derived from it carries :data:`CLOSURE_CAVEAT`.
 
 Coordinates are the airplane body axes (fuselage station X aft, waterline Z up),
 pounds and inch-pounds.
@@ -42,6 +54,16 @@ from .flight_envelope import build_envelope
 from .select import _stamp_case_refs, select_fuselage
 
 MODULE_NAME = "body_loads"
+
+#: One-line caveat stamped onto every body-load deliverable (BDF comments, GUI
+#: captions) until backlog M4-1 closes the moment balance. See the module
+#: docstring for the full statement.
+CLOSURE_CAVEAT = (
+    "Vertical (Fz) equilibrium only -- a single wing reaction is applied, so the "
+    "moment is NOT balanced (terminal Myy != 0) and the bending distribution "
+    "carries a net pitching couple. The Ch 15 front/rear-spar two-reaction solve "
+    "is open work (backlog M4-1); size the body beam accordingly."
+)
 
 
 def _tail_station(project: Project, fallback: float) -> float:

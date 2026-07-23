@@ -55,7 +55,17 @@ st.title("Net Fuselage Loads — shear / bending")
 st.caption(
     "Python/Streamlit port of the Reference 1 Ch 15 procedure (no original .BAS): "
     "the fuselage is a beam carrying the inertia of its mass items, reacted by the "
-    "tail air load and the wing attachment. Validated by equilibrium closure."
+    "tail air load and the wing attachment. Validated by vertical (Fz) "
+    "equilibrium closure only."
+)
+st.warning(
+    "**Moment closure is open work (backlog M4-1).** A single wing reaction is "
+    "applied, so ΣFz closes but ΣM does not — the terminal `Myy` is non-zero and "
+    "the bending distribution carries a net pitching couple. The Ch 15 "
+    "front/rear-spar two-reaction solve is not implemented yet; size the body "
+    "beam accordingly. The same caveat is stamped into the exported "
+    "`fuselage_loads.bdf` cards.",
+    icon="⚠️",
 )
 
 project: Project = st.session_state.get("project", Project(name=""))

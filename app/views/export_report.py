@@ -265,6 +265,13 @@ def _bdf_row(label: str, *names):
 
 _bdf_row("Wing", "wing_loads.bdf", "wing_span_loads.csv", "wing_stick.bdf")
 _bdf_row("Fuselage", "fuselage_loads.bdf", "fuselage_span_loads.csv")
+if _body:
+    st.caption(
+        "⚠️ **Fuselage caveat (backlog M4-1).** The body distribution closes ΣFz "
+        "but not ΣM — a single wing reaction is applied, so the terminal `Myy` is "
+        "non-zero and the bending carries a net pitching couple. The caveat is "
+        "stamped as `$ CAVEAT:` comments in `fuselage_loads.bdf`."
+    )
 _bdf_row("Tail", "tail_loads.bdf", "tail_chordwise.csv")
 _bdf_row("Control surfaces", "control_surface_loads.bdf", "control_surface_loads.csv")
 

@@ -38,13 +38,15 @@ history, `CHANGELOG.md`).
 
 ---
 
-## Current state (as of 2026-07-21)
+## Current state (as of 2026-07-23)
 
 All 22 Appendix-C programs are ported plus 2 modern modules (`configuration`,
 `body_loads`). Phases 0–2, C, D, E, F, Phase 1, and Phase G Steps **G0–G7**
 are complete, as are milestones **M1 (all 11 items)** and **M2 (all 11 items)**
-from the 2026-07-19 review (see history). The suite is green (466 passed at the
-2026-07-21 snapshot, ~93% coverage, ruff clean, `SCHEMA_VERSION = 32` — see CI
+from the 2026-07-19 review (see history), as is **M2R** (all eight items) and
+**M3-1** (the `farloads` → `sloads` rename). The suite is green (483 passed at
+the 2026-07-23 pre-release snapshot, ~93% coverage, ruff clean, smoke test PASS,
+`SCHEMA_VERSION = 32` — see CI
 for current counts), the FAR23 GA path is Appendix-A oracle-locked including
 the new M1 oracle rows (p155 VD, p178 landing-config, sweep closure), and both
 concept fixtures run end-to-end.
@@ -94,8 +96,11 @@ goes fast; otherwise first item of M4.
 Ch 15 procedure (Ref 1 p103) reacts the unbalanced moment at the front/rear
 spar attachments (and includes the pitching load factor). Verified: terminal
 Myy ≠ 0 (the exported body set carries a net couple). Two-unknown spar-reaction
-solve; validate terminal Myy ≈ 0 in the closure suite. **Until fixed, body-load
-exports carry a caveat note** (add the note in M3 if this doesn't make 0.3.0).
+solve; validate terminal Myy ≈ 0 in the closure suite. **Caveat note shipped
+2026-07-23** (the M3 pre-release obligation is discharged): `body_loads.
+CLOSURE_CAVEAT` is stamped as `$ CAVEAT:` comments in `fuselage_loads.bdf`, and
+the Fuselage Loads page + the Export page's Fuselage row carry the warning. The
+note comes out when the moment balance lands.
 
 ### M4-2 — Unify `select_wing`/`one_engine_out` case identity (was 2-1)
 One case-ID authority per component end-to-end: derive `WingMassInput.cases`

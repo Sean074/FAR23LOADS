@@ -51,6 +51,7 @@ from __future__ import annotations
 
 import csv
 import io as _io
+import textwrap
 from dataclasses import dataclass
 from typing import List, Sequence, Union
 
@@ -64,6 +65,9 @@ from ..models import (
     WingStationLoad,
 )
 from .coordinates import SBEAM_CID, to_force, to_grid, to_moment
+# Single-sourced from the calc that owns the limitation (public symbol, no cycle:
+# nothing under sloads/modules imports the export bridge).
+from ..modules.body_loads import CLOSURE_CAVEAT as _BODY_CLOSURE_CAVEAT
 
 # --------------------------------------------------------------------------- #
 # Case-index export (Step D1): ID -> full definition, across every result slice
@@ -406,7 +410,11 @@ def body_span_load_csv(arg) -> str:
 
 def body_force_moment_cards(arg, sid_base: int = 1) -> str:
     """FORCE bulk-data cards for the fuselage net distribution (one SID per case);
-    the per-station applied Fz set sums to ~0 (vertical equilibrium)."""
+    the per-station applied Fz set sums to ~0 (vertical equilibrium).
+
+    Each case block is stamped with
+    :data:`~sloads.modules.body_loads.CLOSURE_CAVEAT` -- the exported set closes
+    ΣFz but **not** ΣM (backlog M4-1)."""
     results = _body_results(arg)
     blocks: List[str] = []
     for idx, r in enumerate(results):
@@ -418,6 +426,9 @@ def body_force_moment_cards(arg, sid_base: int = 1) -> str:
             "$ Loads are ULTIMATE (limit x 1.5).",
             f"$ Applied Fz set sums to {total_fz:.2f} lb (vertical equilibrium).",
         ]
+        # Wrapped so each comment stays inside the 72-col free-field card width.
+        lines += [f"$ {ln}" for ln in
+                  textwrap.wrap("CAVEAT: " + _BODY_CLOSURE_CAVEAT, width=70)]
         for i, s in enumerate(r.stations):
             fx, fy, fz = to_force(0.0, 0.0, s.fz * _SF)
             if abs(fz) > _TOL:

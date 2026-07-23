@@ -5,6 +5,11 @@ the fuselage net distribution is a modern calc validated by **equilibrium
 closure**: the applied vertical loads (fuselage inertia + tail air load + wing
 reaction) sum to zero, the running shear returns to zero aft of the wing
 reaction, and the exported FORCE set re-sums to zero.
+
+The closure is **vertical (ΣFz) only** — the single wing reaction leaves the
+moment unbalanced (terminal `Myy != 0`), which is open work (backlog M4-1). That
+limitation is a required part of the deliverable until it closes, locked here by
+`test_body_bdf_carries_closure_caveat`.
 """
 
 import math
@@ -68,6 +73,29 @@ def test_sbeam_body_span_csv():
     lines = [ln for ln in csv_text.splitlines() if ln.strip()]
     assert lines[0] == "Case,GID,X,Fz,Sz,Myy"
     assert len(lines) > 1
+
+
+def test_body_bdf_carries_closure_caveat():
+    """Every exported body load set states the open moment-closure limitation.
+
+    Backlog M4-1: the single wing reaction closes ΣFz but not ΣM (terminal
+    Myy != 0). Until the Ch 15 front/rear-spar two-reaction solve lands, the
+    caveat is a required part of the deliverable -- this test is the lock.
+    Delete it (and CLOSURE_CAVEAT) only when M4-1 closes the moment balance.
+    """
+    results = body_loads.build_body_loads(_project())
+    cards = sbeam_bridge.body_force_moment_cards(results)
+    # One wrapped caveat block opens each case's card block -- no case ships bare.
+    assert len([ln for ln in cards.splitlines() if ln.startswith("$ CAVEAT:")]) == len(results)
+    # The wrapped block reproduces the single-sourced text (unwrap, then compare).
+    unwrapped = " ".join(
+        ln[2:] for ln in cards.splitlines() if ln.startswith("$")
+    ).replace("CAVEAT: ", "")
+    assert body_loads.CLOSURE_CAVEAT in unwrapped
+    assert "moment is NOT balanced" in body_loads.CLOSURE_CAVEAT
+    assert "M4-1" in body_loads.CLOSURE_CAVEAT
+    # Every comment line stays inside the free-field card width.
+    assert all(len(ln) <= 72 for ln in cards.splitlines() if ln.startswith("$"))
 
 
 def test_run_requires_fuselage_mass():

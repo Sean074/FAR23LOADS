@@ -11,6 +11,23 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **Body-load moment-closure caveat on every deliverable (M3 pre-release
+  obligation for M4-1).** The Ch 15 fuselage distribution applies a *single*
+  vertical wing reaction, so it closes ΣFz but **not** ΣM — the terminal `Myy` is
+  non-zero and the bending carries a net pitching couple (the Ref 1 p103
+  front/rear-spar two-reaction solve is open work, backlog M4-1). The limitation
+  is now single-sourced as `body_loads.CLOSURE_CAVEAT` and stamped onto every
+  body-load deliverable: wrapped `$ CAVEAT:` comment lines opening each case
+  block in `fuselage_loads.bdf` (`sbeam_bridge.body_force_moment_cards`), an
+  `st.warning` on the **Net Fuselage Loads** page, and a caption under the
+  **Export** page's Fuselage row. `tests/test_body_loads.py::
+  test_body_bdf_carries_closure_caveat` locks it (one block per case, text
+  matches the constant, comment lines ≤ 72 cols). En route, corrected the
+  **overstated** Net Fuselage Loads caption — it claimed "Validated by
+  equilibrium closure" on the exact axis that is known-open. No calc, schema or
+  oracle change (`SCHEMA_VERSION` stays 32); the CSV export shape is untouched
+  (`Case,GID,X,Fz,Sz,Myy`), so no parser breaks.
+
 - **GUI editors for the blocking uncovered fields (M2R-5).** Two inputs that
   drove the results but had no on-screen knob (JSON-only) are now editable in the
   app. **(a) Landing CG cases** — a fixed 3-row `st.data_editor` on **Landing
@@ -189,6 +206,20 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   three fixture-coupled tests updated for the completed state.
 
 ### Documentation
+
+- **Pre-release doc-currency sweep (0.3.0 gate, `RELEASE_PROCESS.md` §3.1).**
+  Fixed the schema-version drift the M2R-2 landing-purity change left behind: the
+  `31 → 32` bump was recorded in the changelog but never propagated, so
+  `GUI_design.md` ("currently `SCHEMA_VERSION = 31`", plus the migration-history
+  list, now carrying `v32 M2R-2 LandingInput.n write-back removed`) and the
+  `PROGRAM_SPEC.md` schema-version trail both read one version stale — a
+  recurrence of the 2026-07-21 review's sole `[CRITICAL]`. Recorded the
+  `body_loads` moment-closure limitation in `PROGRAM_SPEC.md` (Validation) and
+  `20_theory/00_theory_sources.md` (both the module row and the closure-check
+  table row, which claimed a free-free build without qualifying it to ΣFz).
+  Refreshed the backlog "Current state" header (2026-07-21 → 2026-07-23, 466 →
+  **483** passed, smoke test PASS, M2R + M3-1 noted closed) and marked the M4-1
+  caveat-note obligation discharged.
 
 - **Non-affiliation & attribution notice (M2R-2).** Added a non-affiliation
   statement to the README Disclaimer and an app-wide **About** section in the GUI

@@ -364,7 +364,8 @@ regression oracle**; Appendix A/B geometry is used only as a *sanity* fixture.
   `fuselage_moment`, **27** after Step G6's `empennage`, **28** after Step G6b's
   `landing_gear`, **29** after Step M1-1b's single-source CLmax stall, **30** after
   Step M2-6's wing/fuselage single-source, **31** after Step M2-10's operational
-  placards); legacy files migrate on load.
+  placards, **32** after Step M2R-2 removed the `LandingInput.n` write-back);
+  legacy files migrate on load.
 - **Single-source landing gear (Step G6b):** the tricycle-gear geometry (main/nose
   axle `(X, Z)` at compressed/static/extended, rolling radius, strut type, tread)
   lives in `Project.geometry.landing_gear` (`LandingGearGeometry`); LANDLOAD reads it
@@ -465,7 +466,15 @@ regression oracle**; Appendix A/B geometry is used only as a *sanity* fixture.
   export bridge's body target.
 - **Validation:** **no printed oracle** (a modern addition); closure-checked —
   the net distribution balances the applied tail load and fuselage inertia
-  relief (physics-closure, not a manual figure).
+  relief (physics-closure, not a manual figure). **Vertical (ΣFz) closure only:**
+  a single wing reaction is applied, so **ΣM is not balanced** — the terminal
+  `Myy` is non-zero and the bending distribution carries a net pitching couple.
+  The Ch 15 front/rear-spar two-reaction solve (Ref 1 p103, incl. the pitching
+  load factor) is open work — backlog **M4-1**. Until it lands, the limitation is
+  single-sourced as `body_loads.CLOSURE_CAVEAT` and stamped onto every
+  deliverable: `$ CAVEAT:` comment lines in `fuselage_loads.bdf`, a warning on
+  the **Net Fuselage Loads** page, and a caption on the **Export** page's
+  Fuselage row.
 - **Notes:** off the FLTLOADS→SELECT→component-module main span-load pipeline
   in the sense that it distributes a fuselage station-load rather than a wing
   spanwise one; still driven by SELECT's critical selection.
