@@ -50,7 +50,8 @@ historical record.
 | File | Scope |
 |------|-------|
 | [`00_completed_development.md`](40_history/00_completed_development.md) | Record of completed modules/phases, key decisions, and resolved defects |
-| [`01_verification_baseline_0.2.0.md`](40_history/01_verification_baseline_0.2.0.md) | **Verification baseline (0.2.0)** — the per-condition table of every checked FAR condition and the printed Appendix A (or worked-example) figure the suite locks against; refreshed per release (`RELEASE_PROCESS.md`) |
+| [`01_verification_baseline_0.2.0.md`](40_history/01_verification_baseline_0.2.0.md) | Verification baseline (0.2.0) — superseded by the 0.3.0 baseline below |
+| [`02_verification_baseline_0.3.0.md`](40_history/02_verification_baseline_0.3.0.md) | **Verification baseline (0.3.0, current)** — the per-condition table of every checked FAR condition and the printed Appendix A (or worked-example) figure the suite locks against, plus the one-page oracle-vs-closure status table; refreshed per release (`RELEASE_PROCESS.md`) |
 
 ---
 

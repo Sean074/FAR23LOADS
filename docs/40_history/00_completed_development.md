@@ -10,6 +10,45 @@ Acceptance**, **Key decisions**.
 
 ---
 
+## M3-2 — Release cut: **sloads 0.3.0** (concept-loads v1), tag `v0.3.0`, 2026-07-23
+
+**Objective.** Cut the first concept-loads release per `RELEASE_PROCESS.md`,
+gated on the four 2026-07-23 review items (M4-13 … M4-16, all shipped the same
+day) plus M2R and M3-1.
+
+**Deliverables.**
+- **Version** `0.2.0` → **`0.3.0`** in `pyproject.toml` (MINOR: new modules +
+  new GUI/CLI capability since 0.2.0; no breaking schema/CSV change —
+  `SCHEMA_VERSION` 33 loads all older saves through the lenient readers).
+- **Changelog cut** — the ~1,350-line `[Unreleased]` dated to
+  `## [0.3.0] — 2026-07-23` with its twenty duplicate headings merged to four
+  (Added 440 / Changed 344 / Fixed 454 / Documentation 75 lines), a release
+  intro paragraph added, and a fresh empty `[Unreleased]` opened. Changelog
+  title updated to the `sloads` name.
+- **Verification baseline** —
+  [`02_verification_baseline_0.3.0.md`](02_verification_baseline_0.3.0.md)
+  supersedes the 0.2.0 baseline: header re-verified against the 0.3.0 run
+  (**501 passed, ~93% coverage, ruff clean, smoke PASS**); the **new M1 oracle
+  rows** added — STRSPEED p155 VD floor (M1-1, 198.53 kt), FLTLOADS
+  landing-config set (M1-2, p179 polynomials → p181 case 89: 83.6 kt /
+  −430 lb / −2.54°), AIRLOAD4 swept renormalization closure (M1-3), and the
+  SELECT 23.427 approved-deviation figures (M1-4, −1204.7 / −700.4 / −504.3
+  replacing the superseded sample-output prints); a **one-page
+  oracle-vs-closure status table** covering all 24 modules/areas; a LIMIT-basis
+  note tying the oracle figures to the M4-7…M4-16 ultimate-output chain; two
+  stale 0.2.0 claims corrected in place. `00_INDEX.md` updated (0.3.0 baseline
+  current, 0.2.0 marked superseded).
+- **Gates at cut:** `pytest` 501 passed / 0 failed, `ruff check sloads/ cli.py`
+  clean, `scripts/smoke_test.sh` PASS (headless GUI render + CLI export), no
+  open CRITICAL/MAJOR review findings, backlog/history/CHANGELOG lifecycle
+  current.
+- **Tag:** `v0.3.0` (annotated), per `RELEASE_PROCESS.md` §4.3.
+
+**Post-release.** M3-3 (Step G8 summary report), the un-shipped stretch, opens
+M4; the backlog is restructured to post-release form.
+
+---
+
 ## M4-16 — 2026-07-23 review nits batch (doc-currency CRITICAL + maintainability, complete 2026-07-23)
 
 **Objective.** Close the four MINOR/NIT findings of the 2026-07-23 M4-7 review,

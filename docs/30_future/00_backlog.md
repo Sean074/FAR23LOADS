@@ -1,8 +1,9 @@
 # Backlog — Open Work & Development Plan
 
-The authoritative list of **open** items, structured around the **path to the
-first concept-loads release**: the release cut **M3**, the post-release milestone
-**M4**, Phase F25, the long-tail refinement list, and future directions.
+The authoritative list of **open** items. The first concept-loads release —
+**sloads 0.3.0, cut 2026-07-23** — is out; the structure is now the
+post-release milestone **M4**, Phase F25, the long-tail refinement list, and
+future directions.
 Milestones M1 and M2 (2026-07-19 review) completed 2026-07-20/21 and the
 release-readiness milestone **M2R** (2026-07-21 review fixes, all eight items)
 completed 2026-07-22 — see history. Items carry their source-review IDs in parentheses
@@ -74,9 +75,11 @@ items, booked as **M4-13 … M4-16** and **promoted to the M3 release gate**
 ships with 0.3.0. All four shipped the same day — the review gate is clear.
 Gates at review time: ruff clean, 491 passed, ~93% coverage.
 
-**Path to release:** **M3-2 (cut 0.3.0)** is next — the four gate items
-(M4-13 … M4-16) all shipped 2026-07-23. M3-3 (Step G8 summary report) ships
-with 0.3.0 only if time allows, otherwise it opens M4.
+**Release status:** **sloads 0.3.0 cut 2026-07-23** (M3-2 complete —
+changelog dated, verification baseline `02_verification_baseline_0.3.0.md`
+refreshed with the M1 oracle rows + the oracle-vs-closure table, smoke test
+PASS, version bumped; tag `v0.3.0`). M3-3 (Step G8 summary report) did not
+ship with 0.3.0 and opens M4.
 
 Reference-authority hierarchy (unchanged): (1) `.BAS` listings + Appendix A
 printed output, (2) User's Guide CFR quotes (Jan-1994), (3) Code-manual 1990
@@ -84,32 +87,25 @@ prose.
 
 ---
 
-# M3 — Cut the release: **sloads 0.3.0** (concept-loads v1)
+# M3 — ✂ Released: **sloads 0.3.0** (concept-loads v1) — cut 2026-07-23
 
-**The 2026-07-23 review gate is clear** — all four promoted items (M4-13,
-M4-14, M4-15, M4-16) shipped 2026-07-23, as did M2R and M3-1; see history.
-The release cut is the only remaining M3 item (plus the M3-3 stretch).
+**M3 is complete.** M3-1 (rename), the four promoted review items
+(M4-13 … M4-16) and **M3-2 (the release cut)** all shipped; see history and
+`40_history/02_verification_baseline_0.3.0.md`. The M3-3 stretch (Step G8
+summary report) did not make the cut and opens M4 below, per its own
+fallback.
 
-### M3-2 — Release cut per `RELEASE_PROCESS.md` (last — gates on the four items above)
-Version 0.3.0; date and cut the `[Unreleased]` changelog (~1,083 lines —
-merge its ten duplicate `### Changed` headings while cutting); refresh the
-verification baseline as `40_history/02_verification_baseline_0.3.0.md`
-**including the new M1 oracle rows** (p155 VD, p178 landing-config, sweep
-closure, 23.427 set) and a one-page **oracle-vs-closure status table**; run
-the smoke test; tag.
+---
 
-### M3-3 — *Stretch:* Step G8 — Summary report (Export phase)
+# M4 — Post-release (next after 0.3.0, priority order)
+
+### M3-3 — Step G8 — Summary report (Export phase) **[first item of M4, was the M3 stretch]**
 The consolidated four-section loads report (`03_gui_rework_plan.md` §4 Phase 6):
 input summary; envelope plots (V-n, weight/CG, speed/altitude); conditions +
 FAR coverage; results summary (VMT wing/fuselage, control/flap, gear, engine).
 All load figures ULTIMATE with SF. **Include a methods/limitations statement
 stamped into the exported deliverables** (CSV/BDF/report) so downstream sizing
-inherits the concept-mode caveat the UI already shows. Ships with 0.3.0 if the
-release-gate items go fast; otherwise first item of M4.
-
----
-
-# M4 — Post-release (next after 0.3.0, priority order)
+inherits the concept-mode caveat the UI already shows.
 
 ### M4-1 — Fuselage body loads: moment closure (review T5) **[Major]**
 `body_loads` applies a single vertical wing reaction and closes ΣFz only; the
