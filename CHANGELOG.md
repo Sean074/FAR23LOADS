@@ -11,6 +11,22 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- **2026-07-23 review nits batch (M4-16).** (1) **[CRITICAL]**
+  `docs/10_standard/GUI_design.md`'s "currently `SCHEMA_VERSION = …`" paragraph
+  was stale for the **third** time (still 32 after the M4-7 bump to 33) — fixed,
+  the migration-history list gains the `v33 M4-7 per-case safety_factor` row,
+  and a new guard test
+  (`tests/test_data_dictionary.py::test_gui_design_schema_line_current`) asserts
+  the line matches `models.SCHEMA_VERSION`, making a fourth regression
+  unmergeable. (2) `sbeam_bridge._sf()` is now typed (`Union` of the four
+  distributed-load result types) and reads `safety_factor` directly — the
+  `getattr` fallback only served hand-built doubles while masking a future
+  attribute rename (every producer mints the field since M4-13). (3) The SF on
+  deliverables renders as `SF=1.0`, not `SF=1` (`_sf_str` helper across the card
+  `$` headers, closure comments and the four CSV `SF` columns). (4) `io.py`'s
+  intra-package imports reordered alphabetically (`.constants` moved above the
+  `.models` block).
+
 - **Analysis-page LIMIT CSV downloads now carry their basis in the file
   (defect M4-15, 2026-07-23 review MINOR, contract).** The Wing Loads page's
   "Download net wing loads (CSV)" (and, found by the sweep, the Fuselage Loads

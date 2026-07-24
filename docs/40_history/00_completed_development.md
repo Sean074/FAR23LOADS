@@ -10,6 +10,52 @@ Acceptance**, **Key decisions**.
 
 ---
 
+## M4-16 — 2026-07-23 review nits batch (doc-currency CRITICAL + maintainability, complete 2026-07-23)
+
+**Objective.** Close the four MINOR/NIT findings of the 2026-07-23 M4-7 review,
+led by its CRITICAL: `GUI_design.md`'s hand-written "currently
+`SCHEMA_VERSION = …`" paragraph stale for the **third** time (still 32 after the
+M4-7 bump to 33; the 2026-07-21 review's single CRITICAL was the same line at
+v31→v32). Fourth item of the M3 release gate.
+
+**Deliverables.**
+- **`GUI_design.md` schema paragraph** fixed to 33; the recent-steps migration
+  list gains `v33 M4-7 per-case safety_factor`; the paragraph now names its own
+  guard test. **New guard:**
+  `tests/test_data_dictionary.py::test_gui_design_schema_line_current` asserts
+  the doc contains `` `SCHEMA_VERSION = {models.SCHEMA_VERSION}` `` with a
+  pointer failure message — verified to bite by perturbing the line locally
+  (fails with the message) and restoring. A fourth regression is unmergeable
+  (CI runs pytest). Sited in `test_data_dictionary.py` beside the generated-doc
+  drift guards; the deeper fields-hash enforcement remains M4-10.
+- **`sbeam_bridge._sf()`** typed (`Union[WingLoadResult, BodyLoadResult,
+  TailChordResult, ControlSurfaceLoadResult]`) and reads `result.safety_factor`
+  directly — the `getattr` fallback is gone (every producer mints the field
+  since M4-13; the fallback only served hand-built doubles while masking a
+  future attribute rename). `_SF` survives as the default constant the closure
+  tests read; module docstring/comments updated to match.
+- **`_sf_str()` helper** — deliverable SF formatting: always a decimal point
+  (`SF=1.0`, `SF=1.5`, `SF=1.25`), replacing all eleven `f"{sf:g}"` sites
+  (card `$` headers, closure comments, the four CSV `SF` columns). The six test
+  assertions pinning `SF=1` / `{"1"}` moved with it.
+- **`io.py`** intra-package imports ordered alphabetically
+  (`.constants` → `.models` → `.report` → `.validation`).
+
+**Test / Acceptance.** Suite green (**501** passed, +1), `ruff` clean (incl.
+`app/`), self-runners pass (`test_data_dictionary.py`, `test_sbeam_bridge.py`
+24/24). No calc, schema or persisted-format change; the only output change is
+the cosmetic `SF=1` → `SF=1.0` rendering.
+
+**Key decisions.**
+- *Guard test lives with the existing doc-drift tests* — not a new file; the
+  natural companion to `test_schema_version_recorded`.
+- *`Union` over a `Protocol`* for `_sf` — the four concrete types are already
+  imported in the module and the closed set is the point.
+- *`_sf_str` helper over a format-spec* — no single format spec renders 1.0 as
+  `1.0` and 1.25 as `1.25` without trailing-zero noise elsewhere.
+
+---
+
 ## M4-15 — LIMIT-marked deliverables: analysis-page CSV downloads (defect, contract, complete 2026-07-23)
 
 **Objective.** The CLAUDE.md analysis-page exception lets a per-module page show

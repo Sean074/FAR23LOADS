@@ -20,6 +20,7 @@ import os
 from dataclasses import asdict
 from typing import Any, Dict, List, Optional, Tuple
 
+from .constants import ULTIMATE_FACTOR
 from .models import (
     SCHEMA_VERSION,
     AeroCoeffSet,
@@ -89,7 +90,6 @@ from .models import (
     WingStationLoad,
     default_fuselage_outline,
 )
-from .constants import ULTIMATE_FACTOR
 from .report import has_load_case_data, load_cases_to_rows, results_to_rows
 from .validation import safety_factor_valid
 

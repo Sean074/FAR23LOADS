@@ -48,9 +48,11 @@ from the 2026-07-19 review (see history), as is **M2R** (all eight items) and
 safety factor through the sbeam export), **M4-13** (the factor minted once
 by the wing and control-surface producers) and **M4-14** (the persisted factor
 validated to the [1.0, 1.5] band on load); **M4-15** (LIMIT downloads
-basis-marked in-band, ULTIMATE twins added) also shipped 2026-07-23. The suite
-is green (500 passed at
-the 2026-07-23 post-M4-15 snapshot, ~93% coverage, ruff clean, smoke test PASS,
+basis-marked in-band, ULTIMATE twins added) and **M4-16** (review nits batch:
+the CRITICAL `GUI_design.md` schema line fixed **with a guard test**, `_sf()`
+typed, `SF=1.0` formatting, io import order) also shipped 2026-07-23. The suite
+is green (501 passed at
+the 2026-07-23 post-M4-16 snapshot, ~93% coverage, ruff clean, smoke test PASS,
 `SCHEMA_VERSION = 33` — see CI
 for current counts), the FAR23 GA path is Appendix-A oracle-locked including
 the new M1 oracle rows (p155 VD, p178 landing-config, sweep closure), and both
@@ -69,13 +71,12 @@ The **2026-07-23 M4-7 review** (per `CODE_REVIEW_PROCESS.md`, scoped to commit
 unchanged, 6/6 doc artifacts — and found 1 CRITICAL, 2 MAJOR and 4 MINOR/NIT
 items, booked as **M4-13 … M4-16** and **promoted to the M3 release gate**
 (2026-07-23 consolidation): they are correctness/contract defects in code that
-ships with 0.3.0. M4-13, M4-14 and M4-15 shipped the same day; M4-16 remains.
+ships with 0.3.0. All four shipped the same day — the review gate is clear.
 Gates at review time: ruff clean, 491 passed, ~93% coverage.
 
-**Path to release, in order:** M4-16 → **M3-2 (cut
-0.3.0)**; M3-3 (Step G8 summary report) ships with 0.3.0 only if time allows,
-otherwise it opens M4. (M4-13, M4-14 and M4-15, the first three gate items,
-shipped 2026-07-23.)
+**Path to release:** **M3-2 (cut 0.3.0)** is next — the four gate items
+(M4-13 … M4-16) all shipped 2026-07-23. M3-3 (Step G8 summary report) ships
+with 0.3.0 only if time allows, otherwise it opens M4.
 
 Reference-authority hierarchy (unchanged): (1) `.BAS` listings + Appendix A
 printed output, (2) User's Guide CFR quotes (Jan-1994), (3) Code-manual 1990
@@ -85,39 +86,9 @@ prose.
 
 # M3 — Cut the release: **sloads 0.3.0** (concept-loads v1)
 
-The remaining gate is one open **2026-07-23 review item promoted from M4**
-(M4-16), then the release cut. M2R, M3-1, M4-13, M4-14 and M4-15 are complete —
-see history. Priority order:
-
-*(**M4-13** — per-case safety-factor propagation for wing + control surfaces —
-**shipped 2026-07-23**; see history.)*
-
-*(**M4-14** — validate `safety_factor` on load — **shipped 2026-07-23**; see
-history.)*
-
-*(**M4-15** — LIMIT-marked deliverables (wing/fuselage/loads-plots CSV
-downloads + sweep + contract-guard test) — **shipped 2026-07-23**; see
-history.)*
-
-### M4-16 — 2026-07-23 review nits batch **[release blocker (CRITICAL doc line), promoted 2026-07-23]**
-- **[CRITICAL] `docs/10_standard/GUI_design.md:356`** still reads "currently
-  `SCHEMA_VERSION = 32`" after the M4-7 bump to 33, and its migration-history
-  list ends at v32. This is the **third** occurrence of the same stale line
-  (`CHANGELOG.md:250` records fixing it at v31; the 2026-07-21 review's single
-  CRITICAL was the same defect). Fix the line, add the `v33 M4-7 per-case
-  safety_factor` row, **and add a test** asserting the doc contains
-  `SCHEMA_VERSION = {models.SCHEMA_VERSION}` so it cannot regress a fourth time
-  (natural companion to M4-10's version-bump enforcement).
-- `sbeam_bridge._sf()` (`sbeam_bridge.py:96`) has no type hint and duck-types via
-  `getattr`; now that all four result types carry the field the fallback only
-  serves hand-built test doubles while masking a future attribute rename.
-  Annotate the parameter (Union of the four types, or a `Protocol`) and read the
-  attribute directly.
-- `f"{sf:g}"` renders 1.0 as `SF=1` in the card `$` headers and the CSV `SF`
-  column; `SF=1.0` reads better on an engineering deliverable (tests assert the
-  `SF=1` string and move with it).
-- `io.py:92` — `from .constants import ULTIMATE_FACTOR` sits after the long
-  `.models` import block; group it with the other intra-package imports.
+**The 2026-07-23 review gate is clear** — all four promoted items (M4-13,
+M4-14, M4-15, M4-16) shipped 2026-07-23, as did M2R and M3-1; see history.
+The release cut is the only remaining M3 item (plus the M3-3 stretch).
 
 ### M3-2 — Release cut per `RELEASE_PROCESS.md` (last — gates on the four items above)
 Version 0.3.0; date and cut the `[Unreleased]` changelog (~1,083 lines —
@@ -185,8 +156,8 @@ unchanged. Source narrative: `03_gui_rework_plan.md` §5 item (3).
 
 *(**M4-7** — sbeam export ignores the per-case safety factor — **shipped
 2026-07-23**; see history. Its follow-ups from the 2026-07-23 review,
-**M4-13 … M4-16**, are promoted to the **M3 release gate** above; M4-13
-shipped 2026-07-23.)*
+**M4-13 … M4-16**, were promoted to the **M3 release gate** and all shipped
+2026-07-23; see history.)*
 
 ### M4-8 — Centralized two-layer safety-factor policy (foundation for 25.302) **[architecture]**
 Today the safety factor is decided ad hoc: `ConditionResult.safety_factor` defaults to
@@ -460,8 +431,6 @@ reaction matrix stays closure-/legible-cell-locked).
 
 ## Known defects (open)
 
-- **M4-16** — `GUI_design.md` schema-version line stale for the third time (no
-  test guards it). **[Critical — doc currency; M3 release gate]**
 - **M4-1** — fuselage body-load distribution carries an unreacted pitching
   couple (terminal Myy ≠ 0). **[Major — caveat-noted in the deliverables, so
   not release-blocking]**

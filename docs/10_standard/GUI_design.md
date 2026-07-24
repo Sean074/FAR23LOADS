@@ -367,11 +367,15 @@ sidebar and the JSON Editor (§10, Phase E5).
 
 The schema field list is **single-sourced in
 [`DATA_DICTIONARY.md`](DATA_DICTIONARY.md)** (generated; currently
-`SCHEMA_VERSION = 32`); the per-step migration history is recorded in
+`SCHEMA_VERSION = 33`); the per-step migration history is recorded in
 [`../40_history/00_completed_development.md`](../40_history/00_completed_development.md)
 (recent steps: v28 single-source `geometry.landing_gear`; v29 single-source CLmax
 stall; v30 M2-6 wing/fuselage derived geometry; v31 M2-10 operational placards;
-v32 M2R-2 `LandingInput.n` write-back removed).
+v32 M2R-2 `LandingInput.n` write-back removed; v33 M4-7 per-case
+`safety_factor` on `CriticalCondition` + the four distributed-load results).
+This paragraph's version number is guarded by
+`tests/test_data_dictionary.py::test_gui_design_schema_line_current` — update
+it (and this list) with every `SCHEMA_VERSION` bump.
 Phases D–F (the six-section GUI restructure, the
 usability/concept-awareness work, and fleet comparison) are all complete, and Phase G
 is under way (G0–G6 + G6b shipped). The **open GUI plan is now

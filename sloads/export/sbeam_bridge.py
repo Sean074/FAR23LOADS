@@ -24,8 +24,8 @@ sizes structure to ultimate: the calc's LIMIT values x that case's
 carries 1.0). Coordinates and chord fractions are geometry and are not scaled. The
 factor is per *case* and therefore uniform within one exported load set, which keeps
 the force/moment-closure guarantees intact (the exported set sums to that case's
-factor x the root/total). ``_SF`` is only the fallback for a result that carries no
-factor of its own.
+factor x the root/total). Every producer mints the field on its result (M4-13), so
+``_sf`` reads it directly; ``_SF`` survives only as the default constant tests read.
 
 Nodal loads from the cumulative table
 -------------------------------------
@@ -83,18 +83,29 @@ from ..modules.body_loads import CLOSURE_CAVEAT as _BODY_CLOSURE_CAVEAT
 # pressure magnitude is the calc's LIMIT value x the *case's* limit->ultimate factor
 # (``result.safety_factor``; 14 CFR 23.303 -> 1.5 by default, 1.0 for a case whose
 # values are already ultimate). Geometry (coordinates, chord fractions) is not scaled.
-# ``_SF`` is only the fallback for a result that carries no factor of its own (a
-# hand-built result in a test, or an object from before defect M4-7).
+# ``_SF`` is the suite default constant (kept for the closure tests, which read it
+# as ``sb._SF``); ``_sf`` reads each result's own field directly (M4-13/M4-16).
 _SF = ULTIMATE_FACTOR
 
 
-def _sf(result) -> float:
+def _sf(result: Union[WingLoadResult, BodyLoadResult, TailChordResult,
+                      ControlSurfaceLoadResult]) -> float:
     """The limit->ultimate factor to scale ``result``'s loads by (defect M4-7).
 
     Read off the result so each exported load set carries its own case's factor,
     rather than a flat suite-wide constant that would double-factor a case already
-    at ultimate (``safety_factor = 1.0``). Falls back to :data:`_SF`."""
-    return getattr(result, "safety_factor", _SF)
+    at ultimate (``safety_factor = 1.0``). Every producer mints the field
+    (M4-13), so the attribute is read directly — no ``getattr`` fallback that
+    would mask an attribute rename (M4-16)."""
+    return result.safety_factor
+
+
+def _sf_str(sf: float) -> str:
+    """``SF`` as it appears on a deliverable: ``1.0``/``1.5``/``1.25`` — always
+    with a decimal point (``SF=1`` reads poorly on an engineering document,
+    M4-16)."""
+    s = f"{sf:g}"
+    return s if "." in s else f"{sf:.1f}"
 
 # Loads below this magnitude are treated as zero and not emitted (matches
 # sbeam/results/load_export.py).
@@ -226,7 +237,7 @@ def span_load_csv(arg: ResultsArg) -> str:
                 "Fx": f"{nl.fx:.1f}", "Fz": f"{nl.fz:.1f}", "My": f"{nl.my:.0f}",
                 "Sx": f"{nl.sx:.1f}", "Sz": f"{nl.sz:.1f}",
                 "Mxx": f"{nl.mxx:.0f}", "Myy": f"{nl.myy:.0f}", "Mzz": f"{nl.mzz:.0f}",
-                "SF": f"{sf:g}",
+                "SF": f"{_sf_str(sf)}",
             })
     return buf.getvalue()
 
@@ -269,7 +280,7 @@ def _case_card_block(r: WingLoadResult, sid: int) -> List[str]:
         f"$ SLOADS net wing load -- case {r.case} (Nz={r.nz:g}, Nx={r.nx:g}), SID {sid}",
         f"$ Case ID: {r.case_ref.case_id}" if r.case_ref else "$ Case ID: (none)",
         "$ Axes: SLOADS station/butt/waterline inches -> sbeam CID 0 (identity).",
-        f"$ Loads are ULTIMATE (limit x SF={sf:g}).",
+        f"$ Loads are ULTIMATE (limit x SF={_sf_str(sf)}).",
         f"$ FORCE set sums to root Sz = {root_sz:.1f} lb; "
         f"MOMENT(My) set sums to root torsion Myy = {root_myy:.1f} lb-in.",
     ]
@@ -425,7 +436,7 @@ def body_span_load_csv(arg) -> str:
             writer.writerow({
                 "Case": r.case, "GID": _BODY_GID_BASE + i, "X": f"{s.x:.3f}",
                 "Fz": f"{s.fz * sf:.1f}", "Sz": f"{s.sz * sf:.1f}",
-                "Myy": f"{s.myy * sf:.0f}", "SF": f"{sf:g}",
+                "Myy": f"{s.myy * sf:.0f}", "SF": f"{_sf_str(sf)}",
             })
     return buf.getvalue()
 
@@ -446,7 +457,7 @@ def body_force_moment_cards(arg, sid_base: int = 1) -> str:
         lines = [
             f"$ SLOADS net fuselage load -- case {r.case}, SID {sid}",
             f"$ Case ID: {r.case_ref.case_id}" if r.case_ref else "$ Case ID: (none)",
-            f"$ Loads are ULTIMATE (limit x SF={sf:g}).",
+            f"$ Loads are ULTIMATE (limit x SF={_sf_str(sf)}).",
             f"$ Applied Fz set sums to {total_fz:.2f} lb (vertical equilibrium).",
         ]
         # Wrapped so each comment stays inside the 72-col free-field card width.
@@ -524,7 +535,7 @@ def tail_chordwise_csv(arg) -> str:
                 "Case": r.case, "Component": r.component, "GID": _TAIL_GID_BASE + i,
                 "X": f"{s.x:.3f}", "PSI": f"{s.psi * sf:.4f}", "Fz": f"{fz:.1f}",
                 "LT25": f"{r.lt25 * sf:.2f}", "LT50": f"{r.lt50 * sf:.2f}",
-                "SF": f"{sf:g}",
+                "SF": f"{_sf_str(sf)}",
             })
     return buf.getvalue()
 
@@ -542,8 +553,8 @@ def tail_force_moment_cards(arg, sid_base: int = 1) -> str:
         lines = [
             f"$ SLOADS chordwise {r.component} load -- case {r.case}, SID {sid}",
             f"$ Case ID: {r.case_ref.case_id}" if r.case_ref else "$ Case ID: (none)",
-            f"$ Loads are ULTIMATE (limit x SF={sf:g}).",
-            f"$ Applied Fz set sums to {total:.1f} lb (= {sf:g} x (LT25 + LT50) = "
+            f"$ Loads are ULTIMATE (limit x SF={_sf_str(sf)}).",
+            f"$ Applied Fz set sums to {total:.1f} lb (= {_sf_str(sf)} x (LT25 + LT50) = "
             f"{(r.lt25 + r.lt50) * sf:.1f} lb).",
         ]
         for i, fz in enumerate(forces):
@@ -629,7 +640,7 @@ def control_surface_csv(arg) -> str:
             writer.writerow({
                 "Surface": r.surface, "Case": r.case, "GID": _CS_GID_BASE + i,
                 "X": f"{s.x:.3f}", "PSI": f"{s.psi * sf:.4f}", "Fz": f"{fz:.1f}",
-                "Load": f"{r.load_lb * sf:.2f}", "SF": f"{sf:g}",
+                "Load": f"{r.load_lb * sf:.2f}", "SF": f"{_sf_str(sf)}",
             })
     return buf.getvalue()
 
@@ -647,8 +658,8 @@ def control_surface_force_moment_cards(arg, sid_base: int = 1) -> str:
         lines = [
             f"$ SLOADS control-surface load -- {r.surface} {r.case}, SID {sid}",
             f"$ Case ID: {r.case_ref.case_id}" if r.case_ref else "$ Case ID: (none)",
-            f"$ Loads are ULTIMATE (limit x SF={sf:g}).",
-            f"$ Applied Fz set sums to {total:.1f} lb (= {sf:g} x critical load "
+            f"$ Loads are ULTIMATE (limit x SF={_sf_str(sf)}).",
+            f"$ Applied Fz set sums to {total:.1f} lb (= {_sf_str(sf)} x critical load "
             f"{r.load_lb * sf:.1f} lb).",
         ]
         for i, fz in enumerate(forces):

@@ -48,8 +48,27 @@ def test_schema_version_recorded():
     assert f"Schema version: **{models.SCHEMA_VERSION}**" in gen.build()
 
 
+def test_gui_design_schema_line_current():
+    """The hand-written GUI_design.md schema line matches models.SCHEMA_VERSION.
+
+    This line went stale three times (v31, v32 and the v33 bump — the 2026-07-21
+    review's single CRITICAL and the 2026-07-23 review's CRITICAL were the same
+    defect); this guard makes a fourth occurrence unmergeable (M4-16).
+    """
+    import sloads.models as models
+
+    doc = os.path.join(_REPO, "docs", "10_standard", "GUI_design.md")
+    with open(doc, encoding="utf-8") as fh:
+        text = fh.read()
+    assert f"`SCHEMA_VERSION = {models.SCHEMA_VERSION}`" in text, (
+        f"GUI_design.md's 'currently `SCHEMA_VERSION = …`' paragraph is stale — "
+        f"update it (and its migration-history list) to {models.SCHEMA_VERSION}."
+    )
+
+
 if __name__ == "__main__":
     test_committed_doc_matches_generator()
     test_every_input_slice_is_documented()
     test_schema_version_recorded()
+    test_gui_design_schema_line_current()
     print("ok")

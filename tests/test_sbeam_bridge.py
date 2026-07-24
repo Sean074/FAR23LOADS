@@ -353,7 +353,8 @@ def test_wing_export_mixes_factors_across_cases():
 def test_cards_state_the_factor_they_used():
     """The ``$`` header quotes the case's actual SF, never a baked-in 1.5."""
     cards = sb.force_moment_cards(_wing_net_with_sf(1.0))
-    assert "$ Loads are ULTIMATE (limit x SF=1)." in cards
+    # "SF=1.0", not "SF=1" -- deliverable formatting (M4-16).
+    assert "$ Loads are ULTIMATE (limit x SF=1.0)." in cards
     assert "SF=1.5" not in cards
 
 
@@ -362,7 +363,7 @@ def test_span_csv_carries_the_safety_factor_column():
     rows = [ln.split(",") for ln in
             sb.span_load_csv(_wing_net_with_sf(1.0)).strip().splitlines()]
     assert rows[0][-1] == "SF"
-    assert {r[-1] for r in rows[1:]} == {"1"}
+    assert {r[-1] for r in rows[1:]} == {"1.0"}
 
 
 def test_body_tail_control_exports_honour_the_factor():
@@ -378,8 +379,8 @@ def test_body_tail_control_exports_honour_the_factor():
     for r in body:
         r.safety_factor = 1.0
     body_rows = [ln.split(",") for ln in sb.body_span_load_csv(body).strip().splitlines()]
-    assert body_rows[0][-1] == "SF" and {r[-1] for r in body_rows[1:]} == {"1"}
-    assert "$ Loads are ULTIMATE (limit x SF=1)." in sb.body_force_moment_cards(body)
+    assert body_rows[0][-1] == "SF" and {r[-1] for r in body_rows[1:]} == {"1.0"}
+    assert "$ Loads are ULTIMATE (limit x SF=1.0)." in sb.body_force_moment_cards(body)
 
     tail = build_tail_chordwise(p)
     assert tail
@@ -388,7 +389,7 @@ def test_body_tail_control_exports_honour_the_factor():
         assert math.isclose(sum(sb._tail_nodal_forces(r)), r.lt25 + r.lt50,
                             rel_tol=1e-6, abs_tol=1e-6), r.case
     tail_rows = [ln.split(",") for ln in sb.tail_chordwise_csv(tail).strip().splitlines()]
-    assert tail_rows[0][-1] == "SF" and {r[-1] for r in tail_rows[1:]} == {"1"}
+    assert tail_rows[0][-1] == "SF" and {r[-1] for r in tail_rows[1:]} == {"1.0"}
 
     control = _control_results()
     for r in control:
@@ -396,7 +397,7 @@ def test_body_tail_control_exports_honour_the_factor():
         assert math.isclose(sum(sb._control_nodal_forces(r)), r.load_lb,
                             rel_tol=1e-6, abs_tol=1e-6), r.case
     cs_rows = [ln.split(",") for ln in sb.control_surface_csv(control).strip().splitlines()]
-    assert cs_rows[0][-1] == "SF" and {r[-1] for r in cs_rows[1:]} == {"1"}
+    assert cs_rows[0][-1] == "SF" and {r[-1] for r in cs_rows[1:]} == {"1.0"}
 
 
 def test_taildist_and_body_copy_the_condition_factor():
