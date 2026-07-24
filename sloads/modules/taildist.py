@@ -147,7 +147,8 @@ def build_tail_chordwise(project: Project) -> List[TailChordResult]:
         results.append(TailChordResult(
             case=cond.label, component=cond.component,
             lt25=cond.lt25, lt50=cond.lt50, stations=stations,
-            case_ref=cond.case_ref, far_reference=cond.far_reference))
+            case_ref=cond.case_ref, far_reference=cond.far_reference,
+            safety_factor=cond.safety_factor))
     return results
 
 
@@ -174,6 +175,9 @@ def run(project: Project) -> ModuleResult:
             + (" Concept mode -- unverified extrapolation past the FAR23 band."
                if project.is_concept else ""),
             case_ref=r.case_ref,
+            # Same per-case factor the sbeam export scales by, so the rendered and
+            # exported ULTIMATE loads can never disagree (defect M4-7).
+            safety_factor=r.safety_factor,
         ))
     return ModuleResult(module=MODULE_NAME, conditions=conditions)
 

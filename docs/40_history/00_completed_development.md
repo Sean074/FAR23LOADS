@@ -10,6 +10,72 @@ Acceptance**, **Key decisions**.
 
 ---
 
+## M4-7 — sbeam export honours the per-case safety factor (defect, correctness/latent, complete 2026-07-23)
+
+**Objective.** Close the double-factor trap in `export/sbeam_bridge`. The bridge
+hardcoded a flat `_SF = ULTIMATE_FACTOR` at every scaling site and ignored
+`ConditionResult.safety_factor`. The root cause sat one level deeper: the four
+distributed-load result types the bridge consumes (`WingLoadResult`,
+`BodyLoadResult`, `TailChordResult`, `ControlSurfaceLoadResult`) — and the
+`CriticalCondition` upstream of two of them — carried **no** factor at all, so
+there was nothing to read. Latent while every case is 1.5, but (a) a case already
+at ultimate (`SF = 1.0`, per the CLAUDE.md ultimate-load contract) would be
+multiplied by 1.5 a second time, and (b) a future 14 CFR 23.302 / 25.302 /
+Appendix K probability-based factor (1.0–1.5) set on a failure case could reach
+`report.py` but never the exported cards — the report and the deliverable would
+disagree.
+
+**Deliverables.**
+- **`safety_factor: float = ULTIMATE_FACTOR`** added to `CriticalCondition`,
+  `WingLoadResult`, `BodyLoadResult`, `TailChordResult` and
+  `ControlSurfaceLoadResult` (`sloads/models/results.py`), each docstring stating
+  that the stored station values are **LIMIT** and this is the factor the
+  render/export boundary applies.
+- **Producers propagate it:** `modules/taildist.py` and `modules/body_loads.py`
+  copy the governing `CriticalCondition`'s factor into the slice they emit;
+  TAILDIST's rendered `ConditionResult` carries the same value, so the report path
+  and the export path are structurally incapable of disagreeing. The
+  wing/control-surface producers have no upstream factor today and keep the
+  default — the field is now the single place a future refinement sets it.
+- **Bridge scales per result:** new module-private `_sf(result)` (a defensive
+  `getattr` falling back to `_SF`) replaces all nine flat `* _SF` sites across the
+  wing, fuselage, tail-chordwise and control-surface families. `_SF` survives only
+  as the fallback default (and as the constant `tests/test_sbeam_bridge.py` reads).
+- **Cards state the factor they used:** the four hardcoded
+  `$ Loads are ULTIMATE (limit x 1.5)` comment lines, plus the two closure comments
+  spelling out `1.5 x …`, now interpolate the applied factor (`limit x SF=<sf>`).
+- **`SF` column** appended (last, so positional parsers are unaffected) to all four
+  span/chordwise CSVs — the "every load case SHALL state its safety factor"
+  mandate, mirroring `report.py`'s existing `SF` column.
+- **Persistence:** the five `io.py` readers round-trip the field with a lenient
+  `d.get(..., ULTIMATE_FACTOR)`. `SCHEMA_VERSION` 32 → **33**; bundled
+  `examples/*.project.json` restamped. En route, fixed
+  `_critical_condition_from_dict` silently dropping `CriticalCondition.note` on
+  reload (it carried approved-correction provenance).
+
+**Test / Acceptance.** Suite green (491 passed), `ruff check sloads/ cli.py` clean.
+Six new tests in `tests/test_sbeam_bridge.py`: closure against *that case's* factor
+for SF ∈ {1.0, 1.25, 1.5}; two cases with different factors in one export each
+scaling by its own; the card header quoting the actual SF (and never `SF=1.5` when
+the case is 1.0); the `SF` column present and correct on all four CSVs; and the
+taildist/body producers copying a mutated `CriticalCondition.safety_factor`. Plus
+`tests/test_io.py::test_safety_factor_round_trips_on_result_slices` (save/load
+survival + the missing-key default). **Numbers unchanged:** the GA wing span CSV
+load columns and the FORCE/MOMENT cards diff byte-identical against a pre-change
+run — only the new `SF` column and the reworded `$` comment differ.
+
+**Key decisions.**
+- *Full propagation over a bridge-local patch.* A `getattr` in the bridge alone
+  would have been a no-op (no result carried the field); wiring the 23.302 hook
+  end-to-end is what actually closes the defect.
+- *Factor stays per **case**, not per station.* Uniform within one exported load
+  set, which is exactly what the C4 force/moment-closure guarantee requires
+  (`sum(dFz) == safety_factor × root`).
+- *`SF` appended last* in every CSV, so existing positional consumers
+  (`app/views/export_report.py`, `export/workbook.py`, `cli.py`) are unaffected.
+
+---
+
 ## M3-1 — Full rename `FAR23LOADS`/`farloads` → **`sloads`** + `models/` package split (decided 2026-07-20, complete 2026-07-23)
 
 **Objective.** Retire the `FAR23LOADS`/`farloads` name — it is the exact mark of a

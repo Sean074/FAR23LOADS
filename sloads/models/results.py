@@ -189,7 +189,13 @@ class CriticalCondition:
     For horizontal/vertical-tail conditions, ``lt25``/``lt50`` carry the load
     resolved at 25% MAC (angle-of-attack) and 50% MAC (camber) -- the rational
     split TAILDIST (C7) distributes chordwise. They are ``None`` for wing/fuselage
-    conditions (and for tail conditions emitted before C7)."""
+    conditions (and for tail conditions emitted before C7).
+
+    ``loads`` holds **LIMIT** values; ``safety_factor`` is the factor the render/
+    export boundary multiplies them by to report ULTIMATE (see
+    :class:`ConditionResult`). Every distributed-load result derived from this
+    condition copies it, so the sbeam export scales by the owning case's factor
+    rather than a flat suite-wide constant."""
     component: str
     label: str
     far_reference: str = ""
@@ -199,6 +205,7 @@ class CriticalCondition:
     lt50: Optional[float] = None
     case_ref: Optional[CaseRef] = None
     note: str = ""
+    safety_factor: float = ULTIMATE_FACTOR   # limit -> ultimate factor for this case
 
 
 @dataclass
@@ -271,12 +278,17 @@ class WingStationLoad:
 
 @dataclass
 class WingLoadResult:
-    """One condition's spanwise wing load table (root-last, mirroring the manual)."""
+    """One condition's spanwise wing load table (root-last, mirroring the manual).
+
+    ``stations`` hold **LIMIT** loads; ``safety_factor`` is the per-case factor the
+    render/export boundary scales them by to deliver ULTIMATE (see
+    :class:`ConditionResult`)."""
     case: str
     nz: float = 0.0
     nx: float = 0.0
     stations: List[WingStationLoad] = field(default_factory=list)
     case_ref: Optional[CaseRef] = None
+    safety_factor: float = ULTIMATE_FACTOR   # limit -> ultimate factor for this case
 
 
 @dataclass
@@ -302,10 +314,15 @@ class BodyStationLoad:
 
 @dataclass
 class BodyLoadResult:
-    """One condition's longitudinal fuselage net-load table (nose-to-tail)."""
+    """One condition's longitudinal fuselage net-load table (nose-to-tail).
+
+    ``stations`` hold **LIMIT** loads; ``safety_factor`` is the per-case factor the
+    render/export boundary scales them by to deliver ULTIMATE (see
+    :class:`ConditionResult`), copied from the source :class:`CriticalCondition`."""
     case: str
     stations: List[BodyStationLoad] = field(default_factory=list)
     case_ref: Optional[CaseRef] = None
+    safety_factor: float = ULTIMATE_FACTOR   # limit -> ultimate factor for this case
 
 
 @dataclass
@@ -330,7 +347,12 @@ class TailChordResult:
     ``far_reference`` is copied from the source :class:`CriticalCondition` so the
     distribution keeps the governing condition's citation (23.421 balancing, 23.423
     maneuver, 23.425 gust, 23.427 unsymmetrical h-tail; 23.441/23.443 v-tail) rather
-    than a single hardcoded value."""
+    than a single hardcoded value.
+
+    ``lt25``/``lt50`` and the station pressures are **LIMIT**; ``safety_factor`` is
+    the per-case factor the render/export boundary scales them by to deliver
+    ULTIMATE (see :class:`ConditionResult`), copied from the source
+    :class:`CriticalCondition`."""
     case: str
     component: str
     lt25: float
@@ -338,6 +360,7 @@ class TailChordResult:
     stations: List[TailChordStation] = field(default_factory=list)
     case_ref: Optional[CaseRef] = None
     far_reference: str = ""
+    safety_factor: float = ULTIMATE_FACTOR   # limit -> ultimate factor for this case
 
 
 @dataclass
@@ -360,13 +383,18 @@ class ControlSurfaceLoadResult:
     ``case`` the FAR condition tag ("down aileron" / "up aileron" / "flap 23.345(a)"
     / "flap gust-combined" / "<surface> tab"); ``load_lb`` the critical load and
     ``v_kt`` the speed it occurs at; ``stations`` the simplified chordwise pressure
-    profile (leading-edge first). Produced by AILERON / FLAPLOAD / TABLOADS (C8)."""
+    profile (leading-edge first). Produced by AILERON / FLAPLOAD / TABLOADS (C8).
+
+    ``load_lb`` and the station pressures are **LIMIT**; ``safety_factor`` is the
+    per-case factor the render/export boundary scales them by to deliver ULTIMATE
+    (see :class:`ConditionResult`)."""
     surface: str
     case: str
     load_lb: float
     v_kt: float = 0.0
     stations: List[ControlSurfaceStation] = field(default_factory=list)
     case_ref: Optional[CaseRef] = None
+    safety_factor: float = ULTIMATE_FACTOR   # limit -> ultimate factor for this case
 
 
 @dataclass

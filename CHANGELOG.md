@@ -9,7 +9,44 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed
+
+- **The sbeam export now scales by each case's own safety factor (defect M4-7).**
+  `export/sbeam_bridge` hardcoded a flat `_SF = 1.5` at every scaling site and
+  ignored `ConditionResult.safety_factor` — latent, because the four
+  distributed-load result types it consumes carried **no** factor at all, so a
+  case already at ultimate (`SF = 1.0`, per the ultimate-load contract) would have
+  been multiplied by 1.5 a second time, and a future 14 CFR 23.302 / Appendix K
+  probability-based factor could never reach the exported cards. `safety_factor`
+  (default `constants.ULTIMATE_FACTOR` = 1.5) is now a field on `CriticalCondition`,
+  `WingLoadResult`, `BodyLoadResult`, `TailChordResult` and
+  `ControlSurfaceLoadResult`; TAILDIST and the fuselage net distribution copy it
+  from the governing `CriticalCondition` (and TAILDIST's rendered `ConditionResult`
+  carries the same value, so the report and the export can never disagree); the
+  bridge resolves it per result via `_sf()`. **Every number is unchanged** — all
+  defaults are 1.5 — verified by diffing the GA wing span CSV and FORCE/MOMENT
+  cards before and after.
+- The `$ Loads are ULTIMATE (limit x 1.5)` card comment, previously a hardcoded
+  string on all four component families, now states the factor actually applied
+  (`limit x SF=<sf>`).
+- `io._critical_condition_from_dict` silently dropped `CriticalCondition.note` on
+  reload, losing the approved-correction provenance a condition carries; it now
+  round-trips.
+
 ### Added
+
+- **`SF` column on the four sbeam span/chordwise CSVs** (wing, fuselage, tail
+  chordwise, control surface) — the case's limit→ultimate factor, satisfying
+  "every load case SHALL state its safety factor". Appended as the **last**
+  column, so positional parsers are unaffected (`Case,GID,X,Fz,Sz,Myy` →
+  `Case,GID,X,Fz,Sz,Myy,SF`).
+
+### Changed
+
+- `SCHEMA_VERSION` 32 → **33** for the new `safety_factor` field. Migration is
+  lenient: a file predating it simply lacks the key and takes
+  `ULTIMATE_FACTOR`, so every reloaded project exports identical numbers. The
+  bundled `examples/*.project.json` are restamped.
 
 - **Body-load moment-closure caveat on every deliverable (M3 pre-release
   obligation for M4-1).** The Ch 15 fuselage distribution applies a *single*

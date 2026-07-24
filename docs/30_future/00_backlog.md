@@ -415,9 +415,6 @@ reaction matrix stays closure-/legible-cell-locked).
 
 - **M4-1** — fuselage body-load distribution carries an unreacted pitching
   couple (terminal Myy ≠ 0). **[Major]**
-- **M4-7** — `sbeam_bridge` hardcodes a flat ×1.5 and ignores
-  `ConditionResult.safety_factor` — **latent** (only LIMIT wing loads reach sbeam
-  today), a double-factor trap for future ULTIMATE cases. **[correctness, latent]**
 - **M4-9** — report/export semantics keyed on display-label strings; a
   cosmetic relabel silently blanks CSV columns. **[Major, latent]**
 

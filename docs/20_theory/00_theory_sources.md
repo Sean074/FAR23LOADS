@@ -119,7 +119,7 @@ and their sources (`tests/test_concept_closure.py`):
 | Body (fuselage) | terminal cumulative shear `Sz = 0` — the net distribution (inertia + tail air load + wing reaction) is built free-free in **ΣFz only**; terminal `Myy ≠ 0` (moment closure open, backlog M4-1) | Ch 15 (fuselage beam) |
 | Tail (chordwise) | TAILDIST's `lt25`/`lt50` equal SELECT's stamped split verbatim, so the chordwise pressure profile sums back to the SELECT-critical tail load | Ch 10; SELECT→TAILDIST |
 | Control surfaces | each `build_*` critical load matches its `run` analysis report (`lb`-unit `LoadValue`) | AILERON/FLAPLOAD/TABLOADS build↔run |
-| All (export) | every component's nodal FORCE set — and its re-parsed cards — sums to that component's root/total at ULTIMATE (`limit × 1.5`) | `export/sbeam_bridge` increment construction |
+| All (export) | every component's nodal FORCE set — and its re-parsed cards — sums to that component's root/total at ULTIMATE (`limit × that case's safety_factor`, default 1.5; the factor is uniform within a case, so closure is scale-invariant — defect M4-7) | `export/sbeam_bridge` increment construction + `_sf()` |
 
 These hold to machine precision on the concept fixture (wing/tail rel ≈ 1e-16, body
 terminal shear ≈ 1e-12 lb). The wing-`Nz·W` and tail-moment identities deliberately

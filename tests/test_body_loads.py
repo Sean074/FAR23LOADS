@@ -71,7 +71,7 @@ def test_sbeam_body_export_force_set_sums_to_zero():
 def test_sbeam_body_span_csv():
     csv_text = sbeam_bridge.body_span_load_csv(body_loads.build_body_loads(_project()))
     lines = [ln for ln in csv_text.splitlines() if ln.strip()]
-    assert lines[0] == "Case,GID,X,Fz,Sz,Myy"
+    assert lines[0] == "Case,GID,X,Fz,Sz,Myy,SF"
     assert len(lines) > 1
 
 

@@ -319,6 +319,60 @@ def test_c6_slices_round_trip():
     assert again.schema_version == project.schema_version
 
 
+def test_safety_factor_round_trips_on_result_slices():
+    """Defect M4-7: the per-case limit->ultimate factor survives save/load.
+
+    Every case-carrying result the sbeam export scales by must persist its own
+    factor -- otherwise a reloaded project silently reverts to the suite default
+    and the exported cards disagree with the rendered report.
+    """
+    from sloads.constants import ULTIMATE_FACTOR
+    from sloads.models import (
+        BodyLoadResult,
+        ControlSurfaceLoadResult,
+        ControlSurfaceStation,
+        CriticalCondition,
+        CriticalLoadSet,
+        EnvelopeResult,
+        LoadsResult,
+        TailChordResult,
+        TailChordStation,
+        WingLoadResult,
+        WingStationLoad,
+    )
+
+    envelope = EnvelopeResult(critical=CriticalLoadSet(conditions=[
+        CriticalCondition(component="htail", label="balancing", safety_factor=1.0,
+                          note="already ultimate"),
+    ]))
+    loads = LoadsResult(
+        wing_net=[WingLoadResult(case="PHAA", safety_factor=1.0, stations=[
+            WingStationLoad(x=1.0, y=2.0, z=3.0, fx=1.0, fz=2.0, sx=1.0, sz=2.0,
+                            mxx=3.0, myy=4.0, mzz=5.0)])],
+        body_net=[BodyLoadResult(case="net", safety_factor=1.25)],
+        tail_chordwise=[TailChordResult(case="balancing", component="htail", lt25=10.0,
+                                        lt50=2.0, safety_factor=1.0,
+                                        stations=[TailChordStation(x=0.0, psi=0.5)])],
+        control_surface=[ControlSurfaceLoadResult(surface="aileron", case="down aileron",
+                                                  load_lb=300.0, safety_factor=1.0,
+                                                  stations=[ControlSurfaceStation(x=0.0, psi=1.0)])],
+    )
+    project = Project(name="m4-7", envelope=envelope, loads=loads)
+    again = io.project_from_dict(io.project_to_dict(project))
+
+    assert again.envelope.critical == envelope.critical   # incl. note + safety_factor
+    assert again.loads.wing_net == loads.wing_net
+    assert again.loads.body_net == loads.body_net
+    assert again.loads.tail_chordwise == loads.tail_chordwise
+    assert again.loads.control_surface == loads.control_surface
+
+    # A file predating the field takes the suite default (lenient migration).
+    d = io.project_to_dict(project)
+    for r in d["loads"]["wing_net"]:
+        r.pop("safety_factor")
+    assert io.project_from_dict(d).loads.wing_net[0].safety_factor == ULTIMATE_FACTOR
+
+
 def test_legacy_flat_file_still_loads(tmp_path=None):
     # A pre-Project file is just the engine fields at top level; it must wrap.
     flat = os.path.join(EXAMPLES, "_legacy_tmp.json")

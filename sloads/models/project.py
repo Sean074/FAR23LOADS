@@ -143,7 +143,13 @@ from .results import EnvelopeResult, LoadsResult, MassResult
 # LoadFactorResult.airplane_load_factor that build_landing wrote on render, tripping the
 # unsaved-changes flag). Migration is lenient: an older file's "n" key is ignored by the
 # tolerant landing_from_dict reader; the load factor is recomputed each run.
-SCHEMA_VERSION = 32
+# v33 (Defect M4-7) adds safety_factor to CriticalCondition and to the four
+# distributed-load results (WingLoadResult, BodyLoadResult, TailChordResult,
+# ControlSurfaceLoadResult), so the sbeam export scales each case by its owning
+# condition's limit->ultimate factor instead of a flat suite-wide 1.5. Migration is
+# lenient: an older file simply lacks the key and takes the default
+# (constants.ULTIMATE_FACTOR = 1.5), so every exported number is unchanged.
+SCHEMA_VERSION = 33
 
 
 @dataclass

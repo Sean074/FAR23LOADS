@@ -135,7 +135,8 @@ def build_body_loads(project: Project) -> List[BodyLoadResult]:
         if p is None:
             continue
         rows = body_distribution(stations, p.nz, p.lt, tail_x, wing_x)
-        results.append(BodyLoadResult(case=cond.label, stations=rows, case_ref=cond.case_ref))
+        results.append(BodyLoadResult(case=cond.label, stations=rows, case_ref=cond.case_ref,
+                                      safety_factor=cond.safety_factor))
     return results
 
 

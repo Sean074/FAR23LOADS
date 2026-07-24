@@ -89,6 +89,7 @@ from .models import (
     WingStationLoad,
     default_fuselage_outline,
 )
+from .constants import ULTIMATE_FACTOR
 from .report import has_load_case_data, load_cases_to_rows, results_to_rows
 
 
@@ -601,6 +602,8 @@ def _critical_condition_from_dict(d: Dict[str, Any]) -> CriticalCondition:
         lt25=d.get("lt25"),
         lt50=d.get("lt50"),
         case_ref=_case_ref_from_dict(d.get("case_ref")),
+        note=d.get("note", ""),
+        safety_factor=d.get("safety_factor", ULTIMATE_FACTOR),
     )
 
 
@@ -838,6 +841,7 @@ def _wing_load_result_from_dict(d: Dict[str, Any]) -> WingLoadResult:
         stations=[WingStationLoad(**_filtered(WingStationLoad, s))
                   for s in d.get("stations", []) or []],
         case_ref=_case_ref_from_dict(d.get("case_ref")),
+        safety_factor=d.get("safety_factor", ULTIMATE_FACTOR),
     )
 
 
@@ -847,6 +851,7 @@ def _body_load_result_from_dict(d: Dict[str, Any]) -> BodyLoadResult:
         stations=[BodyStationLoad(**_filtered(BodyStationLoad, s))
                   for s in d.get("stations", []) or []],
         case_ref=_case_ref_from_dict(d.get("case_ref")),
+        safety_factor=d.get("safety_factor", ULTIMATE_FACTOR),
     )
 
 
@@ -860,6 +865,7 @@ def _tail_chord_result_from_dict(d: Dict[str, Any]) -> TailChordResult:
                   for s in d.get("stations", []) or []],
         case_ref=_case_ref_from_dict(d.get("case_ref")),
         far_reference=d.get("far_reference", ""),
+        safety_factor=d.get("safety_factor", ULTIMATE_FACTOR),
     )
 
 
@@ -872,6 +878,7 @@ def _control_surface_result_from_dict(d: Dict[str, Any]) -> ControlSurfaceLoadRe
         stations=[ControlSurfaceStation(**_filtered(ControlSurfaceStation, s))
                   for s in d.get("stations", []) or []],
         case_ref=_case_ref_from_dict(d.get("case_ref")),
+        safety_factor=d.get("safety_factor", ULTIMATE_FACTOR),
     )
 
 

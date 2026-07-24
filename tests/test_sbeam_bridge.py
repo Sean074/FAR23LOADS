@@ -183,7 +183,7 @@ def test_span_load_csv_shape():
     lines = text.strip().splitlines()
     header = lines[0].split(",")
     assert header == ["Case", "GID", "X", "Y", "Z", "Fx", "Fz", "My",
-                      "Sx", "Sz", "Mxx", "Myy", "Mzz"]
+                      "Sx", "Sz", "Mxx", "Myy", "Mzz", "SF"]
     assert len(lines) - 1 == sum(len(r.stations) for r in results)
 
 
@@ -308,6 +308,115 @@ def test_export_package_exposes_all_component_families():
     ):
         assert name in export_pkg.__all__, f"{name} missing from export __all__"
         assert getattr(export_pkg, name) is getattr(sb, name)
+
+
+# --------------------------------------------------------------------------- #
+# Per-case safety factor (defect M4-7)
+#
+# The bridge used to hardcode a flat x1.5 and ignore the case's own factor, so a
+# case whose values are already ultimate (safety_factor = 1.0, per the CLAUDE.md
+# ultimate-load contract) would have been multiplied by 1.5 a second time. These
+# lock the factor to the *result*, not to a suite-wide constant.
+# --------------------------------------------------------------------------- #
+def _wing_net_with_sf(sf):
+    """The GA wing net loads with every case's safety factor forced to ``sf``."""
+    results = _wing_net(_GA)
+    for r in results:
+        r.safety_factor = sf
+    return results
+
+
+def test_wing_export_honours_per_case_safety_factor():
+    """Closure holds against *that case's* factor -- SF=1.0 exports unscaled."""
+    for sf in (1.0, 1.25, _SF):
+        for r in _wing_net_with_sf(sf):
+            nodes = sb.wing_nodal_loads(r)
+            root = r.stations[0]
+            assert math.isclose(sum(n.fz for n in nodes), root.sz * sf,
+                                rel_tol=1e-9, abs_tol=1e-6), sf
+            assert math.isclose(sum(n.my for n in nodes), root.myy * sf,
+                                rel_tol=1e-9, abs_tol=1e-3), sf
+
+
+def test_wing_export_mixes_factors_across_cases():
+    """Two cases, two factors: each load set scales by its own, not by the first."""
+    results = _wing_net(_GA)
+    assert len(results) >= 2
+    results[0].safety_factor = 1.0
+    results[1].safety_factor = 1.5
+    for r in results[:2]:
+        nodes = sb.wing_nodal_loads(r)
+        assert math.isclose(sum(n.fz for n in nodes), r.stations[0].sz * r.safety_factor,
+                            rel_tol=1e-9, abs_tol=1e-6), r.case
+
+
+def test_cards_state_the_factor_they_used():
+    """The ``$`` header quotes the case's actual SF, never a baked-in 1.5."""
+    cards = sb.force_moment_cards(_wing_net_with_sf(1.0))
+    assert "$ Loads are ULTIMATE (limit x SF=1)." in cards
+    assert "SF=1.5" not in cards
+
+
+def test_span_csv_carries_the_safety_factor_column():
+    """Every exported load case states its factor (the CLAUDE.md ULT contract)."""
+    rows = [ln.split(",") for ln in
+            sb.span_load_csv(_wing_net_with_sf(1.0)).strip().splitlines()]
+    assert rows[0][-1] == "SF"
+    assert {r[-1] for r in rows[1:]} == {"1"}
+
+
+def test_body_tail_control_exports_honour_the_factor():
+    """The other three component families scale by the result's factor too."""
+    from sloads.modules.body_loads import build_body_loads
+    from sloads.modules.taildist import build_tail_chordwise
+
+    p = io.load_project(_GA)
+    if p.envelope is None:
+        p.envelope = build_envelope(p)
+
+    body = build_body_loads(p)
+    for r in body:
+        r.safety_factor = 1.0
+    body_rows = [ln.split(",") for ln in sb.body_span_load_csv(body).strip().splitlines()]
+    assert body_rows[0][-1] == "SF" and {r[-1] for r in body_rows[1:]} == {"1"}
+    assert "$ Loads are ULTIMATE (limit x SF=1)." in sb.body_force_moment_cards(body)
+
+    tail = build_tail_chordwise(p)
+    assert tail
+    for r in tail:
+        r.safety_factor = 1.0
+        assert math.isclose(sum(sb._tail_nodal_forces(r)), r.lt25 + r.lt50,
+                            rel_tol=1e-6, abs_tol=1e-6), r.case
+    tail_rows = [ln.split(",") for ln in sb.tail_chordwise_csv(tail).strip().splitlines()]
+    assert tail_rows[0][-1] == "SF" and {r[-1] for r in tail_rows[1:]} == {"1"}
+
+    control = _control_results()
+    for r in control:
+        r.safety_factor = 1.0
+        assert math.isclose(sum(sb._control_nodal_forces(r)), r.load_lb,
+                            rel_tol=1e-6, abs_tol=1e-6), r.case
+    cs_rows = [ln.split(",") for ln in sb.control_surface_csv(control).strip().splitlines()]
+    assert cs_rows[0][-1] == "SF" and {r[-1] for r in cs_rows[1:]} == {"1"}
+
+
+def test_taildist_and_body_copy_the_condition_factor():
+    """The producers carry the owning CriticalCondition's factor into the slice."""
+    from sloads.modules.body_loads import build_body_loads
+    from sloads.modules.select import build_critical
+    from sloads.modules.taildist import build_tail_chordwise
+
+    p = io.load_project(_GA)
+    if p.envelope is None:
+        p.envelope = build_envelope(p)
+    # Persist the critical set so both producers read the *same* (mutated) conditions.
+    p.envelope.critical = build_critical(p)
+    for cond in p.envelope.critical.conditions:
+        cond.safety_factor = 1.25
+
+    derived = build_body_loads(p) + build_tail_chordwise(p)
+    assert derived
+    for r in derived:
+        assert r.safety_factor == 1.25, r.case
 
 
 if __name__ == "__main__":

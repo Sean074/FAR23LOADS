@@ -493,7 +493,7 @@ return strings (with thin `write_*` file wrappers), and do no physics.
 - **Reads:** `Project.loads.wing_net` (NETLOADS) — accepts a `Project`, a list of
   `WingLoadResult`, or one result.
 - **Writes:** (1) a **span-load CSV** (one row per wing station per case: applied
-  nodal `Fx/Fz/My` + cumulative `Sx/Sz/Mxx/Myy/Mzz`); (2) **FORCE/MOMENT**
+  nodal `Fx/Fz/My` + cumulative `Sx/Sz/Mxx/Myy/Mzz` + `SF`); (2) **FORCE/MOMENT**
   bulk-data cards, comma free-field unit-scale form (`FORCE, SID, GID, 0, 1.0,
   Fx, Fy, Fz`, components `%.6E`), one load set (SID) per case; (3) an optional
   minimal **CBAR stick-model BDF** (GRID + CBAR chain + PBAR/MAT1 placeholder +
@@ -506,6 +506,15 @@ return strings (with thin `write_*` file wrappers), and do no physics.
 - **Coordinates:** `sloads/export/coordinates.py` — SLOADS station-X /
   butt-Y / waterline-Z inches → sbeam global CID 0, **identity** (single
   edit-point for any future sign/axis/unit change).
+- **Limit → ultimate (defect M4-7):** every exported force/moment/pressure is the
+  calc's LIMIT value × **that case's** `safety_factor` (default
+  `constants.ULTIMATE_FACTOR` = 1.5 per 14 CFR 23.303; `1.0` for a case already at
+  ultimate), resolved per result by `sbeam_bridge._sf()` — never a flat suite-wide
+  constant. Geometry (coordinates, chord fractions) is not scaled. The factor is
+  uniform *within* a case, which is what the closure guarantee requires. Every CSV
+  carries it in the last column (`SF`) and every card block states it in its `$`
+  header. The same applies to the fuselage, tail-chordwise and control-surface
+  exports below.
 - **Validation:** force/moment closure (cards re-summed = NETLOADS root totals);
   a self-contained free-field reader round-trips the cards in tests; the stick
   deck parses **and solves SOL 101** in the real sbeam (manual verification step).
