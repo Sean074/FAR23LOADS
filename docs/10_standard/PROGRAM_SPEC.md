@@ -524,6 +524,19 @@ return strings (with thin `write_*` file wrappers), and do no physics.
   `build_*`. In all of them `run()`'s rendered `ConditionResult` copies the
   factor **from the built result** — never re-defaults it — so the report and
   the exported cards cannot disagree, even for a future non-1.5 case (M4-8).
+- **Read-side validation (defect M4-14):** the persisted `safety_factor` is
+  hand-editable (Project JSON Editor / the file itself), so the five `io.py`
+  readers coerce it through one helper (`io._safety_factor`): anything
+  non-numeric (null, string, bool, NaN/inf) **or outside the legal
+  `[1.0, ULTIMATE_FACTOR]` band** falls back to the conservative default
+  `ULTIMATE_FACTOR` — a low value would silently under-scale cards still
+  labelled ULTIMATE, including on the headless CLI export path. The band is
+  owned by the load-case definition (14 CFR 23.303; a case already at ultimate
+  is 1.0, an agreed 23.302/25.302 failure-case factor lies between). The shared
+  predicate is the public `validation.safety_factor_valid`; the advisory
+  `safety_factor_out_of_range` consistency warning (Export page) covers
+  in-session values, and the JSON editor warns on the raw dict at Apply
+  (post-coercion the built project can no longer show what was typed).
 - **Validation:** force/moment closure (cards re-summed = NETLOADS root totals);
   a self-contained free-field reader round-trips the cards in tests; the stick
   deck parses **and solves SOL 101** in the real sbeam (manual verification step).

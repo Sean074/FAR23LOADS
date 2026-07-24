@@ -11,6 +11,29 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- **A corrupt persisted `safety_factor` can no longer crash or under-scale the
+  export (defect M4-14, 2026-07-23 review MAJOR).** The five `io.py` readers
+  added by M4-7 took `d.get("safety_factor", ULTIMATE_FACTOR)` unchecked, and
+  the field is hand-editable (Project JSON Editor / the file itself):
+  `"safety_factor": null` crashed `body_span_load_csv` with a `TypeError`
+  (breaking the lenient-reader contract), and `0.5` silently **under-scaled**
+  every exported card while still labelled ULTIMATE — including on the headless
+  `cli.py --export-sbeam` path where no GUI warning can surface. The readers now
+  coerce through one helper (`io._safety_factor`): anything non-numeric (null,
+  string, bool, NaN/inf) **or outside the legal [1.0, 1.5] band** (14 CFR
+  23.303; the factor is owned by the load-case definition — a case already at
+  ultimate is 1.0, an agreed 23.302/25.302 failure-case factor lies between)
+  falls back to the conservative `ULTIMATE_FACTOR` default. Companion
+  advisories: a new `safety_factor_out_of_range` consistency warning
+  (`validation._check_safety_factors`, rendered on the Export page) covers
+  in-session values, and the Project JSON Editor scans the **raw** edited dict
+  at Apply — the built project is already coerced, so only the raw dict can
+  show what was typed — and warns that the value was reset. The shared
+  predicate is the new public `validation.safety_factor_valid`. GA path
+  unchanged (the fixture stays warning-free); covered by
+  null/string/bool/NaN/0.5/negative/0.999/1.6 fixtures, legal-band round-trips
+  at 1.0/1.25/1.5, and the exact null-then-export repro.
+
 - **Wing and control-surface producers now mint their per-case safety factor
   once (defect M4-13, 2026-07-23 review MAJOR).** M4-7 threaded the factor for
   the tail and fuselage families only; `net_loads` (`WingLoadResult`) and

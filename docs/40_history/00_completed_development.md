@@ -10,6 +10,73 @@ Acceptance**, **Key decisions**.
 
 ---
 
+## M4-14 — Validate `safety_factor` on load (defect, correctness, complete 2026-07-23)
+
+**Objective.** The five `io.py` readers added by M4-7 took
+`d.get("safety_factor", ULTIMATE_FACTOR)` with no type or range check, and the
+field is persisted in `project.json` and hand-editable (Project JSON Editor page
+or the file directly). Verified failure modes: `"safety_factor": null` →
+`TypeError` out of `body_span_load_csv` (breaking the lenient-reader contract);
+`"safety_factor": 0.5` → every exported card silently **under-scaled while still
+labelled ULTIMATE** — the worst failure mode in the suite, and reachable on the
+headless `cli.py --export-sbeam` path where no GUI warning can surface. From the
+2026-07-23 M4-7 review (MAJOR); second item of the M3 release gate. **Policy
+locked with the user 2026-07-23:** the legal band is **[1.0, 1.5] inclusive**,
+per case, owned by the load-case definition (14 CFR 23.303; a case already at
+ultimate is 1.0, an agreed 23.302/25.302 failure-case factor lies between) —
+anything else is corrupt.
+
+**Deliverables.**
+- **`io._safety_factor(d)`** — one shared coercion helper replacing all five
+  `d.get(...)` sites: anything non-numeric (null, string, bool, NaN/inf) **or
+  outside [1.0, `ULTIMATE_FACTOR`]** falls back to the conservative
+  `ULTIMATE_FACTOR` default (not clamped to the nearest bound — an out-of-band
+  value is treated as corrupt, and coercing a high value *down* or a low value
+  *up to 1.0* would silently trust corrupt data). Read-time coercion is what
+  makes the headless CLI path safe, not just the GUI.
+- **`validation.safety_factor_valid(value)`** — the public shared predicate
+  (public because `app/` must not import underscore names, M4-12), used by the
+  reader, the new check and the JSON editor.
+- **`validation._check_safety_factors`** — advisory `safety_factor_out_of_range`
+  `ConsistencyWarning` (one per offending case, case named in the message)
+  scanning `envelope.critical.conditions` plus all six `Project.loads` families;
+  new `PAGE_EXPORT = "export_report"` tag, rendered by the Export page (which
+  previously rendered no consistency warnings). Catches in-session/programmatic
+  values — a corrupt *persisted* value is coerced before validation ever sees it.
+- **Project JSON Editor** — Apply now scans the **raw** edited dict (recursive
+  `_bad_safety_factors` walk) and warns, per field path, that an invalid value
+  was reset to 1.5: `project_from_dict` has already coerced by the time the
+  project is built, so only the raw dict can show what the user typed.
+- No schema change (`SCHEMA_VERSION` stays 33 — readers got *more* lenient).
+  Docs: `PROGRAM_SPEC.md` "Read-side validation (defect M4-14)" bullet,
+  `GUI_design.md` §8.3, `validation.py` docstring check list.
+
+**Test / Acceptance.** Suite green (**499** passed, +6), `ruff` clean (incl.
+`app/`), both no-pytest self-runners pass. `tests/test_io.py`: corrupt fixtures
+(null / `"1.25"` string / `True` / NaN / inf / 0.5 / −1.5 / 0 / 0.999 / 1.6)
+each coerce to 1.5 across all five readers; the legal band (1.0/1.25/1.5) loads
+verbatim; the exact null-then-`body_span_load_csv` repro no longer raises.
+`tests/test_validation.py`: `safety_factor_out_of_range` fires per case with the
+right page tag for 0.9 and 2.0, is silent across [1.0, 1.5], plus direct
+predicate coverage; the GA fixture stays warning-free (the module's documented
+invariant). GA path unchanged.
+
+**Key decisions.**
+- *Coerce-to-safe-default over warn-only or hard-reject* (user-ratified D1):
+  warn-only leaves the CLI export emitting under-scaled ULTIMATE cards with no
+  human in the loop; hard-reject bricks a saved project over one field. Coercion
+  keeps every deliverable conservative and the file loadable; the warnings
+  explain what happened.
+- *Band is [1.0, 1.5] inclusive, both sides enforced* (user decision 2026-07-23:
+  "the safety factor can be any number between 1.0 and 1.5", set by the case
+  definition). This supersedes the plan's earlier keep-with-warning treatment of
+  values above 1.5 and the backlog's literal `(1.0 …` exclusive lower bound
+  (SF = 1.0 is legal — `one_engine_out` ships such cases).
+- *Warnings surface at the consequence (Export page) and the cause (JSON editor
+  Apply)* — not on Results Review or the Dashboard, kept small (D2).
+
+---
+
 ## M4-13 — Wing + control-surface producers mint the per-case safety factor once (defect, correctness/latent, complete 2026-07-23)
 
 **Objective.** Finish what M4-7 started. M4-7 threaded the factor for the tail

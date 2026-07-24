@@ -29,7 +29,7 @@ import streamlit as st
 
 from components import gate
 
-from sloads import Project, registry
+from sloads import Project, consistency_warnings, registry
 from sloads import io as sloads_io
 from sloads import workflow as wf
 from sloads.export import sbeam_bridge as sb
@@ -50,6 +50,12 @@ st.caption(
 
 project: Project = st.session_state.get("project", Project(name=""))
 _stem = (project.name or "project").strip().replace(" ", "_") or "project"
+
+# Consistency warnings tagged for this page (M4-14: an out-of-range per-case
+# safety_factor would make the exported ULTIMATE loads unconservative).
+for _w in consistency_warnings(project):
+    if _w.page == "export_report":
+        st.warning(_w.message)
 
 _CALC_ERRORS = (ValueError, ZeroDivisionError, KeyError, IndexError)
 

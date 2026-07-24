@@ -219,12 +219,18 @@ tables and points to the Flight Envelope page.)
 
 Pages surface explicit `st.warning`s on inconsistent input — taper ratio > 1,
 non-positive area, leading-/trailing-edge point ordering, a wing-area mismatch
-between Configuration & Layout and Wing/Surface Geometry, or a CG outside the
-weight-CG envelope. The checks are pure predicates in `sloads/validation.py`
+between Configuration & Layout and Wing/Surface Geometry, a CG outside the
+weight-CG envelope, or a per-case `safety_factor` outside the legal [1.0, 1.5]
+band (M4-14; rendered on the Export page, where the consequence lives). The
+checks are pure predicates in `sloads/validation.py`
 (`consistency_warnings(project)`), each tagged with the page that renders it; the
 CG-envelope check compares the WTONECG CG against the WTENV structural envelope and
 is silently skipped when that envelope (or the wing geometry it needs) is absent.
-*(Implemented — Phase E3.)*
+The Project JSON Editor additionally scans the **raw** edited dict at Apply for
+invalid `safety_factor` values (via the public `validation.safety_factor_valid`)
+and warns that they were reset — `io.py`'s readers coerce any invalid persisted
+factor to the conservative 1.5 default on load, so the built project cannot show
+what was typed. *(Implemented — Phase E3; safety-factor check M4-14.)*
 
 ### 8.4 Fleet comparison — the Aircraft Comparison page
 

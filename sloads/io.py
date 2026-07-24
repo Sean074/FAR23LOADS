@@ -91,6 +91,7 @@ from .models import (
 )
 from .constants import ULTIMATE_FACTOR
 from .report import has_load_case_data, load_cases_to_rows, results_to_rows
+from .validation import safety_factor_valid
 
 
 # --------------------------------------------------------------------------- #
@@ -589,6 +590,24 @@ def _legacy_aero_coeffs_from_flight_loads(
     )
 
 
+def _safety_factor(d: Dict[str, Any]) -> float:
+    """The persisted per-case limit->ultimate factor, coerced to the valid band
+    (defect M4-14).
+
+    The field is hand-editable (Project JSON Editor / the file itself) and scales
+    every exported ULTIMATE load, so a corrupt value must never pass through:
+    anything non-numeric (null, string, bool, NaN/inf) or outside the legal
+    **[1.0, ULTIMATE_FACTOR]** band (14 CFR 23.303; a case already at ultimate is
+    1.0) falls back to the conservative default ``ULTIMATE_FACTOR`` — a low value
+    would silently under-scale cards still labelled ULTIMATE, including on the
+    headless CLI export path where no GUI warning can surface.
+    ``validation._check_safety_factors`` is the advisory companion for in-session
+    values, and the Project JSON Editor warns on the raw dict at Apply (both via
+    the shared ``validation.safety_factor_valid``)."""
+    v = d.get("safety_factor", ULTIMATE_FACTOR)
+    return float(v) if safety_factor_valid(v) else ULTIMATE_FACTOR
+
+
 # --------------------------------------------------------------------------- #
 # Envelope slice <-> dict (FLTLOADS result)
 # --------------------------------------------------------------------------- #
@@ -603,7 +622,7 @@ def _critical_condition_from_dict(d: Dict[str, Any]) -> CriticalCondition:
         lt50=d.get("lt50"),
         case_ref=_case_ref_from_dict(d.get("case_ref")),
         note=d.get("note", ""),
-        safety_factor=d.get("safety_factor", ULTIMATE_FACTOR),
+        safety_factor=_safety_factor(d),
     )
 
 
@@ -841,7 +860,7 @@ def _wing_load_result_from_dict(d: Dict[str, Any]) -> WingLoadResult:
         stations=[WingStationLoad(**_filtered(WingStationLoad, s))
                   for s in d.get("stations", []) or []],
         case_ref=_case_ref_from_dict(d.get("case_ref")),
-        safety_factor=d.get("safety_factor", ULTIMATE_FACTOR),
+        safety_factor=_safety_factor(d),
     )
 
 
@@ -851,7 +870,7 @@ def _body_load_result_from_dict(d: Dict[str, Any]) -> BodyLoadResult:
         stations=[BodyStationLoad(**_filtered(BodyStationLoad, s))
                   for s in d.get("stations", []) or []],
         case_ref=_case_ref_from_dict(d.get("case_ref")),
-        safety_factor=d.get("safety_factor", ULTIMATE_FACTOR),
+        safety_factor=_safety_factor(d),
     )
 
 
@@ -865,7 +884,7 @@ def _tail_chord_result_from_dict(d: Dict[str, Any]) -> TailChordResult:
                   for s in d.get("stations", []) or []],
         case_ref=_case_ref_from_dict(d.get("case_ref")),
         far_reference=d.get("far_reference", ""),
-        safety_factor=d.get("safety_factor", ULTIMATE_FACTOR),
+        safety_factor=_safety_factor(d),
     )
 
 
@@ -878,7 +897,7 @@ def _control_surface_result_from_dict(d: Dict[str, Any]) -> ControlSurfaceLoadRe
         stations=[ControlSurfaceStation(**_filtered(ControlSurfaceStation, s))
                   for s in d.get("stations", []) or []],
         case_ref=_case_ref_from_dict(d.get("case_ref")),
-        safety_factor=d.get("safety_factor", ULTIMATE_FACTOR),
+        safety_factor=_safety_factor(d),
     )
 
 

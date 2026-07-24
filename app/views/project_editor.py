@@ -30,6 +30,7 @@ from sloads import Project, UnitSystem
 from sloads import io as sloads_io
 from sloads.models import SCHEMA_VERSION
 from sloads.units import project_dict_to_display, project_dict_to_imperial
+from sloads.validation import safety_factor_valid
 
 st.title("Project JSON Editor")
 st.caption(
@@ -53,6 +54,23 @@ if system == UnitSystem.SI:
 
 _TEXT_KEY = "_project_editor_text"
 _LOADED_SNAPSHOT_KEY = "_project_editor_loaded_for"
+
+
+def _bad_safety_factors(node, path=""):
+    """``(json_path, value)`` for every ``safety_factor`` in the dict tree that
+    fails ``sloads.validation.safety_factor_valid`` (M4-14)."""
+    found = []
+    if isinstance(node, dict):
+        for key, value in node.items():
+            sub = f"{path}.{key}" if path else key
+            if key == "safety_factor" and not safety_factor_valid(value):
+                found.append((sub, value))
+            else:
+                found.extend(_bad_safety_factors(value, sub))
+    elif isinstance(node, list):
+        for i, item in enumerate(node):
+            found.extend(_bad_safety_factors(item, f"{path}[{i}]"))
+    return found
 
 
 def _current_display_text() -> str:
@@ -99,6 +117,16 @@ if apply_col.button("Apply", type="primary"):
     elif status == "older":
         new_project.schema_version = SCHEMA_VERSION
         st.info(message)
+    # Surface an invalid per-case safety_factor at the hand-edit entry point
+    # (M4-14). Checked on the *raw* dict: project_from_dict has already reset
+    # any invalid value to the conservative 1.5 default, so the built project
+    # can't show what was typed.
+    for _path, _v in _bad_safety_factors(imperial_dict):
+        st.warning(
+            f"`{_path}`: safety_factor = {_v!r} is outside the legal [1.0, 1.5] "
+            "band (14 CFR 23.303; the factor is set by the load-case "
+            "definition) and was reset to the conservative default 1.5."
+        )
     st.session_state["project"] = new_project
     st.session_state[_LOADED_SNAPSHOT_KEY] = None  # force a re-seed next render
     st.success(

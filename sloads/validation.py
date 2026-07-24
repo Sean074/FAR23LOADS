@@ -23,13 +23,20 @@ Checks (14 CFR / Reference-1 context in each predicate):
 - ``operational_target_infeasible`` -- an operational placard target (VNE/VNO/VMO/
                              MMO/VFE) the chosen design speeds cannot achieve (M2-10;
                              14 CFR 23.1505/23.335(b)(4)). Advisory; no load changes.
+- ``safety_factor_out_of_range`` -- a per-case limit->ultimate ``safety_factor``
+                             outside the legal [1.0, 1.5] band (14 CFR 23.303;
+                             the factor is owned by the load-case definition).
+                             Advisory companion to ``io._safety_factor``'s
+                             read-time coercion (M4-14).
 """
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 from typing import List, Optional
 
+from .constants import ULTIMATE_FACTOR
 from .models import Project
 
 # Pages that render consistency warnings (the ``page`` tag on each warning).
@@ -37,6 +44,7 @@ PAGE_CONFIGURATION = "configuration_layout"
 PAGE_WING_GEOMETRY = "wing_geometry"
 PAGE_STRUCTURAL_SPEEDS = "structural_speeds"
 PAGE_WEIGHT_CG = "weight_cg_inertia"
+PAGE_EXPORT = "export_report"
 
 # Fractional tolerance for the Configuration-vs-WINGGEOM wing-area agreement check.
 _AREA_MISMATCH_TOL = 0.05
@@ -249,6 +257,54 @@ def _check_operational_targets(project: Project) -> List[ConsistencyWarning]:
     return out
 
 
+def safety_factor_valid(value) -> bool:
+    """True when ``value`` is a usable per-case limit->ultimate factor: numeric,
+    finite and inside the legal **[1.0, ULTIMATE_FACTOR]** band (14 CFR 23.303 —
+    the factor is owned by the load-case definition; a case already at ultimate
+    is 1.0, an agreed 23.302/25.302 failure-case factor lies between).
+
+    Public (M4-14): shared by ``io._safety_factor`` (read-time coercion), the
+    check below, and the Project JSON Editor's Apply handler (``app/`` must not
+    import underscore names, M4-12)."""
+    return (not isinstance(value, bool) and isinstance(value, (int, float))
+            and math.isfinite(value) and 1.0 <= value <= ULTIMATE_FACTOR)
+
+
+def _check_safety_factors(project: Project) -> List[ConsistencyWarning]:
+    """Warn on a per-case ``safety_factor`` outside the legal [1.0, 1.5] band.
+
+    The factor is owned by the load-case definition (14 CFR 23.303; a case
+    already at ultimate is 1.0, and a 23.302/25.302 agreed failure-case factor
+    lies between). ``io._safety_factor`` already coerces a corrupt *persisted*
+    value to ``ULTIMATE_FACTOR`` on load, so this check mainly catches a value
+    mutated in-session (or set programmatically) before it reaches a deliverable:
+    below 1.0 the export would be **unconservative while still labelled
+    ULTIMATE**; above 1.5 is conservative but non-standard.
+    """
+    cases = []
+    if project.envelope is not None and project.envelope.critical is not None:
+        cases += [(c.label or c.component, c.safety_factor)
+                  for c in project.envelope.critical.conditions]
+    loads = project.loads
+    if loads is not None:
+        for family in (loads.wing_air, loads.wing_inertia, loads.wing_net,
+                       loads.body_net, loads.tail_chordwise, loads.control_surface):
+            cases += [(r.case, r.safety_factor) for r in family]
+    out: List[ConsistencyWarning] = []
+    for name, sf in cases:
+        if not safety_factor_valid(sf):
+            out.append(ConsistencyWarning(
+                "safety_factor_out_of_range",
+                f"Load case '{name}' has safety_factor = {sf!r}, outside the legal "
+                f"[1.0, {ULTIMATE_FACTOR:g}] band (14 CFR 23.303; the factor is set "
+                "by the load-case definition). Below 1.0 the exported loads would "
+                "be unconservative while still labelled ULTIMATE. A corrupt value "
+                f"in a saved project.json is reset to {ULTIMATE_FACTOR:g} on load; "
+                "re-run the producing module to restore the case's own factor.",
+                PAGE_EXPORT))
+    return out
+
+
 def consistency_warnings(project: Project) -> List[ConsistencyWarning]:
     """All input-consistency warnings for ``project`` (each tagged with its page).
 
@@ -265,4 +321,5 @@ def consistency_warnings(project: Project) -> List[ConsistencyWarning]:
     out += _check_area_mismatch(project)
     out += _check_cg_envelope(project)
     out += _check_operational_targets(project)
+    out += _check_safety_factors(project)
     return out

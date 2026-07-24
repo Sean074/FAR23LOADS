@@ -135,6 +135,51 @@ def test_operational_target_feasible_silent():
     assert "operational_target_infeasible" not in _codes(project)
 
 
+def _project_with_sf(sf):
+    """A project holding one critical condition and one wing case at ``sf``."""
+    from sloads.models import (
+        CriticalCondition,
+        CriticalLoadSet,
+        EnvelopeResult,
+        LoadsResult,
+        WingLoadResult,
+    )
+
+    return Project(
+        name="sf",
+        envelope=EnvelopeResult(critical=CriticalLoadSet(conditions=[
+            CriticalCondition(component="htail", label="balancing", safety_factor=sf)])),
+        loads=LoadsResult(wing_net=[WingLoadResult(case="PHAA", safety_factor=sf)]),
+    )
+
+
+def test_safety_factor_out_of_range_fires():
+    # Defect M4-14: below 1.0 is unconservative-labelled-ULTIMATE, above 1.5 is
+    # non-standard -- both flagged, one warning per case, on the Export page.
+    for bad in (0.9, 2.0):
+        warnings = [w for w in consistency_warnings(_project_with_sf(bad))
+                    if w.code == "safety_factor_out_of_range"]
+        assert len(warnings) == 2, bad          # the condition + the wing case
+        assert {w.page for w in warnings} == {"export_report"}
+        assert any("balancing" in w.message for w in warnings)
+        assert any("PHAA" in w.message for w in warnings)
+
+
+def test_safety_factor_legal_band_silent():
+    # [1.0, 1.5] inclusive is the legal band (a case already at ultimate is 1.0).
+    for good in (1.0, 1.25, 1.5):
+        assert "safety_factor_out_of_range" not in _codes(_project_with_sf(good)), good
+
+
+def test_safety_factor_valid_predicate():
+    from sloads.validation import safety_factor_valid
+
+    for v in (1.0, 1.25, 1.5):
+        assert safety_factor_valid(v), v
+    for v in (None, "1.25", True, float("nan"), float("inf"), 0.5, -1.5, 0.999, 1.6):
+        assert not safety_factor_valid(v), v
+
+
 if __name__ == "__main__":
     import traceback
     tests = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]

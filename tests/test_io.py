@@ -373,6 +373,92 @@ def test_safety_factor_round_trips_on_result_slices():
     assert io.project_from_dict(d).loads.wing_net[0].safety_factor == ULTIMATE_FACTOR
 
 
+def _m4_14_project_dict():
+    """A persisted project with one case in every safety_factor-carrying slice."""
+    from sloads.models import (
+        BodyLoadResult,
+        BodyStationLoad,
+        ControlSurfaceLoadResult,
+        ControlSurfaceStation,
+        CriticalCondition,
+        CriticalLoadSet,
+        EnvelopeResult,
+        LoadsResult,
+        TailChordResult,
+        TailChordStation,
+        WingLoadResult,
+        WingStationLoad,
+    )
+
+    envelope = EnvelopeResult(critical=CriticalLoadSet(conditions=[
+        CriticalCondition(component="htail", label="balancing")]))
+    loads = LoadsResult(
+        wing_net=[WingLoadResult(case="PHAA", stations=[
+            WingStationLoad(x=1.0, y=2.0, z=3.0, fx=1.0, fz=2.0, sx=1.0, sz=2.0,
+                            mxx=3.0, myy=4.0, mzz=5.0)])],
+        body_net=[BodyLoadResult(case="net", stations=[
+            BodyStationLoad(x=20.0, fx=0.0, fy=0.0, fz=100.0, sx=0.0, sy=0.0,
+                            sz=100.0, mxx=0.0, myy=2000.0, mzz=0.0)])],
+        tail_chordwise=[TailChordResult(case="balancing", component="htail", lt25=10.0,
+                                        lt50=2.0,
+                                        stations=[TailChordStation(x=0.0, psi=0.5)])],
+        control_surface=[ControlSurfaceLoadResult(surface="aileron", case="down aileron",
+                                                  load_lb=300.0,
+                                                  stations=[ControlSurfaceStation(x=0.0, psi=1.0)])],
+    )
+    return io.project_to_dict(Project(name="m4-14", envelope=envelope, loads=loads))
+
+
+def _set_all_safety_factors(d, value):
+    d["envelope"]["critical"]["conditions"][0]["safety_factor"] = value
+    for family in ("wing_net", "body_net", "tail_chordwise", "control_surface"):
+        for r in d["loads"][family]:
+            r["safety_factor"] = value
+
+
+def _all_loaded_safety_factors(d):
+    p = io.project_from_dict(d)
+    return ([c.safety_factor for c in p.envelope.critical.conditions]
+            + [r.safety_factor for r in p.loads.wing_net + p.loads.body_net
+               + p.loads.tail_chordwise + p.loads.control_surface])
+
+
+def test_safety_factor_corrupt_values_coerce_to_default_on_load():
+    """Defect M4-14: a corrupt persisted factor must never pass the readers.
+
+    null crashed the export (`TypeError` out of `body_span_load_csv`); 0.5 (or any
+    value below 1.0) silently under-scaled every card still labelled ULTIMATE. The
+    legal band is [1.0, ULTIMATE_FACTOR], owned by the load-case definition;
+    anything else falls back to the conservative default.
+    """
+    from sloads.constants import ULTIMATE_FACTOR
+
+    for bad in (None, "1.25", True, float("nan"), float("inf"),
+                0.5, -1.5, 0.0, 0.999, 1.6, 2.0):
+        d = _m4_14_project_dict()
+        _set_all_safety_factors(d, bad)
+        assert _all_loaded_safety_factors(d) == [ULTIMATE_FACTOR] * 5, bad
+
+
+def test_safety_factor_legal_band_loads_verbatim():
+    """[1.0, 1.5] inclusive is legal (a case already at ultimate is SF=1.0)."""
+    for good in (1.0, 1.25, 1.5):
+        d = _m4_14_project_dict()
+        _set_all_safety_factors(d, good)
+        assert _all_loaded_safety_factors(d) == [good] * 5, good
+
+
+def test_safety_factor_null_no_longer_crashes_the_export():
+    """The exact M4-14 repro: `"safety_factor": null` then the body export."""
+    from sloads.export.sbeam_bridge import body_span_load_csv
+
+    d = _m4_14_project_dict()
+    _set_all_safety_factors(d, None)
+    p = io.project_from_dict(d)
+    csv_text = body_span_load_csv(p.loads.body_net)   # raised TypeError before
+    assert csv_text.strip().splitlines()[1].endswith("1.5")
+
+
 def test_legacy_flat_file_still_loads(tmp_path=None):
     # A pre-Project file is just the engine fields at top level; it must wrap.
     flat = os.path.join(EXAMPLES, "_legacy_tmp.json")

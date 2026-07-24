@@ -45,9 +45,10 @@ All 22 Appendix-C programs are ported plus 2 modern modules (`configuration`,
 are complete, as are milestones **M1 (all 11 items)** and **M2 (all 11 items)**
 from the 2026-07-19 review (see history), as is **M2R** (all eight items) and
 **M3-1** (the `farloads` → `sloads` rename) and defects **M4-7** (per-case
-safety factor through the sbeam export) and **M4-13** (the factor minted once
-by the wing and control-surface producers). The suite is green (493 passed at
-the 2026-07-23 post-M4-13 snapshot, ~93% coverage, ruff clean, smoke test PASS,
+safety factor through the sbeam export), **M4-13** (the factor minted once
+by the wing and control-surface producers) and **M4-14** (the persisted factor
+validated to the [1.0, 1.5] band on load). The suite is green (499 passed at
+the 2026-07-23 post-M4-14 snapshot, ~93% coverage, ruff clean, smoke test PASS,
 `SCHEMA_VERSION = 33` — see CI
 for current counts), the FAR23 GA path is Appendix-A oracle-locked including
 the new M1 oracle rows (p155 VD, p178 landing-config, sweep closure), and both
@@ -66,12 +67,13 @@ The **2026-07-23 M4-7 review** (per `CODE_REVIEW_PROCESS.md`, scoped to commit
 unchanged, 6/6 doc artifacts — and found 1 CRITICAL, 2 MAJOR and 4 MINOR/NIT
 items, booked as **M4-13 … M4-16** and **promoted to the M3 release gate**
 (2026-07-23 consolidation): they are correctness/contract defects in code that
-ships with 0.3.0. M4-13 shipped the same day; M4-14 … M4-16 remain. Gates at
-review time: ruff clean, 491 passed, ~93% coverage.
+ships with 0.3.0. M4-13 and M4-14 shipped the same day; M4-15/M4-16 remain.
+Gates at review time: ruff clean, 491 passed, ~93% coverage.
 
-**Path to release, in order:** M4-14 → M4-15 → M4-16 → **M3-2 (cut
+**Path to release, in order:** M4-15 → M4-16 → **M3-2 (cut
 0.3.0)**; M3-3 (Step G8 summary report) ships with 0.3.0 only if time allows,
-otherwise it opens M4. (M4-13, the first gate item, shipped 2026-07-23.)
+otherwise it opens M4. (M4-13 and M4-14, the first two gate items, shipped
+2026-07-23.)
 
 Reference-authority hierarchy (unchanged): (1) `.BAS` listings + Appendix A
 printed output, (2) User's Guide CFR quotes (Jan-1994), (3) Code-manual 1990
@@ -81,27 +83,16 @@ prose.
 
 # M3 — Cut the release: **sloads 0.3.0** (concept-loads v1)
 
-The remaining gate is the three open **2026-07-23 review items promoted from M4**
+The remaining gate is the two open **2026-07-23 review items promoted from M4**
 (they are correctness/contract defects in code that ships with 0.3.0), then the
-release cut. M2R, M3-1 and M4-13 are complete — see history. Priority order:
+release cut. M2R, M3-1, M4-13 and M4-14 are complete — see history. Priority
+order:
 
 *(**M4-13** — per-case safety-factor propagation for wing + control surfaces —
 **shipped 2026-07-23**; see history.)*
 
-### M4-14 — Validate `safety_factor` on load (null crash / silent under-scale) **[release blocker, promoted 2026-07-23]**
-2026-07-23 review, MAJOR. The five readers added by M4-7
-(`io.py:606,844,854,868,881`) take `d.get("safety_factor", ULTIMATE_FACTOR)` with
-no type or range check, and the result slices are persisted in `project.json` and
-hand-editable through the **Project JSON Editor** page. Verified against the
-shipped code: `"safety_factor": null` → `TypeError: unsupported operand type(s)
-for *: 'float' and 'NoneType'` out of `body_span_load_csv` (breaking the lenient-
-reader contract), and `"safety_factor": 0.5` → every exported card silently
-**under-scaled** while still labelled ULTIMATE (`c,1001,0.000,0.5,0.5,0,0.5`). An
-unconservative design load presented as ultimate is the worst failure mode in the
-suite. **Fix:** one shared coercion helper for all five readers (non-numeric →
-`ULTIMATE_FACTOR`), plus a `validation.py` `ConsistencyWarning` (or hard reject)
-for anything outside `(1.0 … ULTIMATE_FACTOR]`. **Acceptance:** null/string/0.5/
-negative fixtures each covered; the GA path unchanged.
+*(**M4-14** — validate `safety_factor` on load — **shipped 2026-07-23**; see
+history.)*
 
 ### M4-15 — LIMIT-marked deliverables: the wing-loads page CSV download **[release blocker, promoted 2026-07-23]**
 2026-07-23 review, MINOR (pre-existing, adjacent to M4-7) — but a violation of
@@ -221,7 +212,8 @@ of authority** — do not conflate them:
   — M4-7 (shipped) wired the *carrier* (`safety_factor` on the four
   distributed-load results, read per result by `sbeam_bridge._sf()`); this item
   replaces the ad-hoc **policy** behind it, building on M4-13 (shipped — every
-  producer now mints once) and M4-14 (M3 release gate).
+  producer now mints once) and M4-14 (shipped — read-side band validation and
+  the shared `validation.safety_factor_valid` predicate).
   `one_engine_out` migrates to it as the first client.
 - **Layer 2 — agreed failure cases (project input; Phase F25 / 25.302).** A `Project`
   slice of **named** system-failure factors — `(name, far_reference="25.302",
@@ -242,7 +234,7 @@ migrated with oracles/tests unchanged; a Layer-2 named case (e.g. MLA loss @ 1.2
 round-trips through `io.py` and renders as `lbs-ULT SF=1.25`. Touches the CLAUDE.md
 ultimate-load contract — land deliberately with tests. **Layer 1 can ship
 independently (M4-7's carrier and M4-13's per-producer mints are already in
-place; M4-14 completes the input-validation side);
+place, and M4-14's read-side band validation closes the input side);
 Layer 2 coordinates with Phase F25.**
 
 ### M4-9 — `LoadValue.key`: de-string the load-case semantics **[maintainability, pre-F25]**
@@ -476,9 +468,6 @@ reaction matrix stays closure-/legible-cell-locked).
 
 ## Known defects (open)
 
-- **M4-14** — `safety_factor` read from `project.json` unvalidated: `null`
-  crashes the export, a low value silently under-scales every card that is still
-  labelled ULTIMATE. **[Major — M3 release gate]**
 - **M4-16** — `GUI_design.md` schema-version line stale for the third time (no
   test guards it). **[Critical — doc currency; M3 release gate]**
 - **M4-1** — fuselage body-load distribution carries an unreacted pitching
