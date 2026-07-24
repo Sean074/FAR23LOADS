@@ -141,13 +141,20 @@ def build_body_loads(project: Project) -> List[BodyLoadResult]:
 
 
 def body_load_rows(results: List[BodyLoadResult]) -> List[Dict[str, str]]:
-    """One CSV row per fuselage station per condition."""
+    """One CSV row per fuselage station per condition.
+
+    All loads are **LIMIT** (the oracle-traceable calc values), stated in-band by
+    the ``Basis`` column so the basis travels with any table/CSV built from these
+    rows (defect M4-15); the ULTIMATE deliverable is
+    ``sbeam_bridge.body_span_load_csv``.
+    """
     rows: List[Dict[str, str]] = []
     for r in results:
         for s in r.stations:
             rows.append({
                 "Case": r.case, "X": f"{s.x:.3f}", "Fz": f"{s.fz:.2f}",
                 "Sz": f"{s.sz:.2f}", "Myy": f"{s.myy:.1f}",
+                "Basis": "LIMIT",
             })
     return rows
 

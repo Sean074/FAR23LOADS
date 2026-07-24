@@ -117,7 +117,12 @@ def build_net_loads(project: Project) -> LoadsResult:
 
 
 def wing_load_rows(results: List[WingLoadResult]) -> List[Dict[str, str]]:
-    """One CSV row per station per case (root->tip), the canonical wing-load shape."""
+    """One CSV row per station per case (root->tip), the canonical wing-load shape.
+
+    All loads are **LIMIT** (the oracle-traceable calc values), stated in-band by
+    the ``Basis`` column so the basis travels with any table/CSV built from these
+    rows (defect M4-15); the ULTIMATE deliverable is ``sbeam_bridge.span_load_csv``.
+    """
     rows: List[Dict[str, str]] = []
     for r in results:
         for s in r.stations:
@@ -127,6 +132,7 @@ def wing_load_rows(results: List[WingLoadResult]) -> List[Dict[str, str]]:
                 "Fx": f"{s.fx:.1f}", "Fz": f"{s.fz:.1f}",
                 "Sx": f"{s.sx:.1f}", "Sz": f"{s.sz:.1f}",
                 "Mxx": f"{s.mxx:.0f}", "Myy": f"{s.myy:.0f}", "Mzz": f"{s.mzz:.0f}",
+                "Basis": "LIMIT",
             })
     return rows
 

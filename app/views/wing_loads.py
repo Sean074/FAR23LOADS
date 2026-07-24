@@ -38,6 +38,7 @@ from sloads import (
     to_si_scalar,
 )
 from sloads import io as sloads_io
+from sloads.export import sbeam_bridge as sb
 from sloads.modules.airloads import run as airloads_run
 from sloads.derived_geometry import wing_reference
 from sloads.modules.airloads import schrenk_distribution
@@ -373,5 +374,17 @@ rows = wing_load_rows(loads.wing_net)
 writer = csv.DictWriter(buf, fieldnames=list(rows[0].keys()))
 writer.writeheader()
 writer.writerows(rows)
-st.download_button("Download net wing loads (CSV)", buf.getvalue(),
-                   file_name="net_wing_loads.csv", mime="text/csv")
+# Two basis-marked downloads (defect M4-15): the LIMIT file matches the
+# oracle-traceable on-page table; the ULTIMATE file is the sbeam bridge's span
+# CSV (per-case SF column), the same content family the Export page ships.
+_dl = st.columns(2)
+_dl[0].download_button("Download net wing loads — LIMIT (CSV)", buf.getvalue(),
+                       file_name="net_wing_loads_LIMIT.csv", mime="text/csv")
+_dl[1].download_button("Download net wing loads — ULTIMATE (CSV)",
+                       sb.span_load_csv(loads.wing_net),
+                       file_name="net_wing_loads_ULT.csv", mime="text/csv")
+st.caption(
+    "The LIMIT file carries a `Basis` column and matches the table above. The "
+    "ULTIMATE file is limit × the per-case `SF` (14 CFR 23.303) — the sbeam "
+    "span-load CSV also available on the **Export** page."
+)

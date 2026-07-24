@@ -140,7 +140,7 @@ else:
     writer.writeheader()
     writer.writerows(rows)
     st.download_button("Download tail distributions (CSV)", buf.getvalue(),
-                       file_name="tail_chordwise_loads.csv", mime="text/csv")
+                       file_name="tail_chordwise_loads_LIMIT.csv", mime="text/csv")
 
 # --------------------------------------------------------------------------- #
 # Balanced-tail verification (BALLOADS) -- read-only cross-check, no inputs.

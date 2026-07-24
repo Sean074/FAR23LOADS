@@ -106,8 +106,11 @@ def test_concept_net_closure():
 def test_wing_load_rows_shape():
     loads = build_net_loads(io.load_project(_GA))
     rows = nl.wing_load_rows(loads.wing_net)
-    assert rows and set(rows[0]) == {"Case", "X", "Y", "Z", "Fx", "Fz", "Sx", "Sz", "Mxx", "Myy", "Mzz"}
+    assert rows and set(rows[0]) == {"Case", "X", "Y", "Z", "Fx", "Fz", "Sx", "Sz",
+                                     "Mxx", "Myy", "Mzz", "Basis"}
     assert len(rows) == sum(len(r.stations) for r in loads.wing_net)
+    # The basis travels in-band with every row (defect M4-15).
+    assert all(r["Basis"] == "LIMIT" for r in rows)
 
 
 def test_run_requires_slices():

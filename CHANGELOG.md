@@ -11,6 +11,24 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- **Analysis-page LIMIT CSV downloads now carry their basis in the file
+  (defect M4-15, 2026-07-23 review MINOR, contract).** The Wing Loads page's
+  "Download net wing loads (CSV)" (and, found by the sweep, the Fuselage Loads
+  CSV and the Loads Plots comparison CSV) shipped **LIMIT** station loads with
+  no marker and a neutral filename — the on-page "(LIMIT)" caption did not
+  travel with the file, violating the CLAUDE.md ultimate-deliverable contract.
+  Now: the canonical station-row shapes (`net_loads.wing_load_rows`,
+  `body_loads.body_load_rows`) append an in-band **`Basis = LIMIT`** column;
+  every LIMIT download is filename-marked `*_LIMIT.csv` (wing, fuselage, loads
+  plots, plus the already-column-marked tail-chordwise and one-engine-out
+  files); the Loads Plots CSV `Field` strings gain the `, LIMIT` marker its
+  plot axes already showed; and the Wing/Fuselage Loads pages add a
+  side-by-side **ULTIMATE** download (`*_ULT.csv`, per-case `SF` column) routed
+  through the existing `sbeam_bridge.span_load_csv` /
+  `body_span_load_csv` renderers (user decision 2026-07-23: offer both). A new
+  source-scan guard, `tests/test_ultimate_contract.py`, fails any future view
+  that offers a load CSV with no basis marking and no ULTIMATE channel.
+
 - **A corrupt persisted `safety_factor` can no longer crash or under-scale the
   export (defect M4-14, 2026-07-23 review MAJOR).** The five `io.py` readers
   added by M4-7 took `d.get("safety_factor", ULTIMATE_FACTOR)` unchecked, and

@@ -47,8 +47,10 @@ from the 2026-07-19 review (see history), as is **M2R** (all eight items) and
 **M3-1** (the `farloads` → `sloads` rename) and defects **M4-7** (per-case
 safety factor through the sbeam export), **M4-13** (the factor minted once
 by the wing and control-surface producers) and **M4-14** (the persisted factor
-validated to the [1.0, 1.5] band on load). The suite is green (499 passed at
-the 2026-07-23 post-M4-14 snapshot, ~93% coverage, ruff clean, smoke test PASS,
+validated to the [1.0, 1.5] band on load); **M4-15** (LIMIT downloads
+basis-marked in-band, ULTIMATE twins added) also shipped 2026-07-23. The suite
+is green (500 passed at
+the 2026-07-23 post-M4-15 snapshot, ~93% coverage, ruff clean, smoke test PASS,
 `SCHEMA_VERSION = 33` — see CI
 for current counts), the FAR23 GA path is Appendix-A oracle-locked including
 the new M1 oracle rows (p155 VD, p178 landing-config, sweep closure), and both
@@ -67,13 +69,13 @@ The **2026-07-23 M4-7 review** (per `CODE_REVIEW_PROCESS.md`, scoped to commit
 unchanged, 6/6 doc artifacts — and found 1 CRITICAL, 2 MAJOR and 4 MINOR/NIT
 items, booked as **M4-13 … M4-16** and **promoted to the M3 release gate**
 (2026-07-23 consolidation): they are correctness/contract defects in code that
-ships with 0.3.0. M4-13 and M4-14 shipped the same day; M4-15/M4-16 remain.
+ships with 0.3.0. M4-13, M4-14 and M4-15 shipped the same day; M4-16 remains.
 Gates at review time: ruff clean, 491 passed, ~93% coverage.
 
-**Path to release, in order:** M4-15 → M4-16 → **M3-2 (cut
+**Path to release, in order:** M4-16 → **M3-2 (cut
 0.3.0)**; M3-3 (Step G8 summary report) ships with 0.3.0 only if time allows,
-otherwise it opens M4. (M4-13 and M4-14, the first two gate items, shipped
-2026-07-23.)
+otherwise it opens M4. (M4-13, M4-14 and M4-15, the first three gate items,
+shipped 2026-07-23.)
 
 Reference-authority hierarchy (unchanged): (1) `.BAS` listings + Appendix A
 printed output, (2) User's Guide CFR quotes (Jan-1994), (3) Code-manual 1990
@@ -83,10 +85,9 @@ prose.
 
 # M3 — Cut the release: **sloads 0.3.0** (concept-loads v1)
 
-The remaining gate is the two open **2026-07-23 review items promoted from M4**
-(they are correctness/contract defects in code that ships with 0.3.0), then the
-release cut. M2R, M3-1, M4-13 and M4-14 are complete — see history. Priority
-order:
+The remaining gate is one open **2026-07-23 review item promoted from M4**
+(M4-16), then the release cut. M2R, M3-1, M4-13, M4-14 and M4-15 are complete —
+see history. Priority order:
 
 *(**M4-13** — per-case safety-factor propagation for wing + control surfaces —
 **shipped 2026-07-23**; see history.)*
@@ -94,18 +95,9 @@ order:
 *(**M4-14** — validate `safety_factor` on load — **shipped 2026-07-23**; see
 history.)*
 
-### M4-15 — LIMIT-marked deliverables: the wing-loads page CSV download **[release blocker, promoted 2026-07-23]**
-2026-07-23 review, MINOR (pre-existing, adjacent to M4-7) — but a violation of
-the CLAUDE.md ultimate-deliverable contract, so it ships fixed.
-`app/views/wing_loads.py:376`
-offers "Download net wing loads (CSV)" built from `net_loads.wing_load_rows` —
-**LIMIT** station loads with no `SF` column, no `-ULT`/`LIMIT` marker and a
-neutral filename (`net_wing_loads.csv`). The on-page table is captioned
-"(LIMIT)" per the CLAUDE.md analysis-page exception, but the caption does not
-travel with the downloaded file. **Fix:** either route the download through
-`sbeam_bridge.span_load_csv` (ultimate, `SF` column) or mark it in-band —
-`net_wing_loads_LIMIT.csv` plus a `Basis`/`SF` column. Sweep the other per-module
-pages for the same pattern while in there.
+*(**M4-15** — LIMIT-marked deliverables (wing/fuselage/loads-plots CSV
+downloads + sweep + contract-guard test) — **shipped 2026-07-23**; see
+history.)*
 
 ### M4-16 — 2026-07-23 review nits batch **[release blocker (CRITICAL doc line), promoted 2026-07-23]**
 - **[CRITICAL] `docs/10_standard/GUI_design.md:356`** still reads "currently

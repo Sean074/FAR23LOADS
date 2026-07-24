@@ -53,7 +53,9 @@ def test_body_net_closes_in_equilibrium():
 
 def test_body_load_rows_shape():
     rows = body_loads.body_load_rows(body_loads.build_body_loads(_project()))
-    assert rows and set(rows[0]) == {"Case", "X", "Fz", "Sz", "Myy"}
+    assert rows and set(rows[0]) == {"Case", "X", "Fz", "Sz", "Myy", "Basis"}
+    # The basis travels in-band with every row (defect M4-15).
+    assert all(r["Basis"] == "LIMIT" for r in rows)
 
 
 def test_sbeam_body_export_force_set_sums_to_zero():

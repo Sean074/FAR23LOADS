@@ -235,10 +235,12 @@ else:
         for cid, lab, x, data in shown:
             for field, (y_title, unit, values) in data.items():
                 for xv, yv in zip(x, values):
+                    # ", LIMIT" travels with the file, matching the plot axis
+                    # labels above (defect M4-15).
                     writer.writerow({"Case ID": cid, "Condition": lab, x_label: xv,
-                                     "Field": f"{y_title} ({unit})", "Value": yv})
+                                     "Field": f"{y_title} ({unit}, LIMIT)", "Value": yv})
         st.download_button("Download this selection (CSV)", buf.getvalue(),
-                           file_name=f"loads_plots_{comp_key}.csv", mime="text/csv")
+                           file_name=f"loads_plots_{comp_key}_LIMIT.csv", mime="text/csv")
 
 # --------------------------------------------------------------------------- #
 # Total-loads view: wing + fuselage side by side for one case each.

@@ -99,7 +99,14 @@ SF=1.0`** — still ultimate output, not a limit load. **Scope:** this applies t
 every *deliverable* (the `report.py` tables/text, the load-case CSV, the sbeam
 export, the Review/Export pages); a per-module *analysis* page may instead show the
 calc's LIMIT values when **explicitly marked `LIMIT`** (`flap_loads`, `tab_loads`,
-`one_engine_out`, `balanced_tail_verification`).
+`one_engine_out`, `balanced_tail_verification`). **A LIMIT *download* carries the
+basis in-band (M4-15):** filename `*_LIMIT.csv` plus a `Basis` column (or
+LIMIT-marked column headers) — the canonical station-row shapes
+(`net_loads.wing_load_rows`, `body_loads.body_load_rows`) append `Basis = LIMIT`
+to every row, and the Wing/Fuselage Loads pages pair the LIMIT file with the
+sbeam bridge's ULTIMATE twin (`*_ULT.csv`, `SF` column).
+`tests/test_ultimate_contract.py` scans the app's CSV downloads and enforces
+this.
 
 ---
 

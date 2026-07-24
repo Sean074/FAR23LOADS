@@ -139,6 +139,14 @@ The contract that makes pages copy-of-the-pattern (full list in
   are ULTIMATE; a per-module *analysis* page may show LIMIT values **only** when
   explicitly marked (a caption + a `LIMIT` marker per column). See
   [`00_program_overview.md`](00_program_overview.md) and `CLAUDE.md`.
+  **A LIMIT download must carry the basis in-band (M4-15):** the filename ends
+  `_LIMIT.csv` *and* the content states it (a `Basis` column, or LIMIT-marked
+  column headers) — an on-page caption does not travel with the file. Pages may
+  pair it with the ULTIMATE twin from the sbeam bridge (`*_ULT.csv`, `SF`
+  column), as Wing Loads / Fuselage Loads do.
+  `tests/test_ultimate_contract.py` scans every view's CSV `download_button`
+  and fails on an unmarked load CSV that doesn't route through an ULTIMATE
+  channel.
 
 ---
 

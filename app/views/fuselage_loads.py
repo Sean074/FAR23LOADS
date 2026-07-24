@@ -29,6 +29,7 @@ from sloads import (
     to_imperial_scalar,
     to_si_scalar,
 )
+from sloads.export import sbeam_bridge as sb
 from sloads.models import FuselageMassInput, FuselageStation
 from sloads.modules.body_loads import body_load_rows, build_body_loads
 
@@ -159,5 +160,17 @@ rows = body_load_rows(results)
 writer = csv.DictWriter(buf, fieldnames=list(rows[0].keys()))
 writer.writeheader()
 writer.writerows(rows)
-st.download_button("Download fuselage loads (CSV)", buf.getvalue(),
-                   file_name="net_fuselage_loads.csv", mime="text/csv")
+# Two basis-marked downloads (defect M4-15): the LIMIT file matches the
+# oracle-traceable on-page table; the ULTIMATE file is the sbeam bridge's body
+# span CSV (per-case SF column), the same content family the Export page ships.
+_dl = st.columns(2)
+_dl[0].download_button("Download fuselage loads — LIMIT (CSV)", buf.getvalue(),
+                       file_name="net_fuselage_loads_LIMIT.csv", mime="text/csv")
+_dl[1].download_button("Download fuselage loads — ULTIMATE (CSV)",
+                       sb.body_span_load_csv(results),
+                       file_name="net_fuselage_loads_ULT.csv", mime="text/csv")
+st.caption(
+    "The LIMIT file carries a `Basis` column and matches the table above. The "
+    "ULTIMATE file is limit × the per-case `SF` (14 CFR 23.303) — the sbeam "
+    "body span CSV also available on the **Export** page."
+)

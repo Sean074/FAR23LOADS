@@ -125,4 +125,5 @@ if st.button("Run time history"):
     st.line_chart(df[["THETA (deg)", "THETADOT (deg/s)"]])
     st.line_chart(df[[f"LT25 ({force_u}, LIMIT)", f"LT50 ({force_u}, LIMIT)", f"LT ({force_u}, LIMIT)"]])
     st.download_button("Download time history (CSV)", df.to_csv(),
-                       file_name=f"one_engine_out_{pick.split()[0]}.csv", mime="text/csv")
+                       file_name=f"one_engine_out_{pick.split()[0]}_LIMIT.csv",
+                       mime="text/csv")

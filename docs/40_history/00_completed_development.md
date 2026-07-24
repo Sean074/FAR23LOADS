@@ -10,6 +10,64 @@ Acceptance**, **Key decisions**.
 
 ---
 
+## M4-15 — LIMIT-marked deliverables: analysis-page CSV downloads (defect, contract, complete 2026-07-23)
+
+**Objective.** The CLAUDE.md analysis-page exception lets a per-module page show
+LIMIT values only when explicitly marked and pointing at the ultimate
+deliverables — but the marking must travel with a *download*. The 2026-07-23
+review found `app/views/wing_loads.py`'s "Download net wing loads (CSV)"
+(`net_loads.wing_load_rows`) shipped LIMIT station loads with no marker, no `SF`
+column and a neutral filename; the mandated sweep found the same pattern on the
+Fuselage Loads CSV and (partially) the Loads Plots comparison CSV, whose plot
+axes said `(unit, LIMIT)` while its CSV `Field` column dropped the marker.
+Tail-chordwise and one-engine-out downloads were already column-marked in-band;
+everything else (aileron/flap/tab, engine mount, landing loads, airloads,
+Export page) already routes through the ULTIMATE channels. Third item of the M3
+release gate.
+
+**Deliverables.**
+- **`Basis = LIMIT` column** appended to the two canonical station-row shapes,
+  `net_loads.wing_load_rows` and `body_loads.body_load_rows` — single source, so
+  the on-page tables and every CSV built from the rows state the basis in-band.
+- **Filename convention `*_LIMIT.csv`** applied to every LIMIT download: wing
+  (`net_wing_loads_LIMIT.csv`), fuselage (`net_fuselage_loads_LIMIT.csv`),
+  loads-plots comparison (`loads_plots_<comp>_LIMIT.csv`), tail chordwise and
+  one-engine-out time history (already column-marked; renamed for uniformity).
+  The Loads Plots CSV `Field` strings gain `, LIMIT`, matching the plot axes.
+- **ULTIMATE twins (user decision 2026-07-23: offer both buttons).** Wing and
+  Fuselage Loads pages add a side-by-side ULTIMATE download —
+  `net_wing_loads_ULT.csv` via `sbeam_bridge.span_load_csv` and
+  `net_fuselage_loads_ULT.csv` via `sbeam_bridge.body_span_load_csv` (renderers
+  reused as-is; per-case `SF` column) — with a caption tying the LIMIT file to
+  the on-page oracle-traceable table and the ULT file to the Export page.
+- **`tests/test_ultimate_contract.py`** — source-scan guard: every view CSV
+  `download_button` must be `*_LIMIT.csv`/`*_ULT.csv`, route through an ULTIMATE
+  channel (`sbeam_bridge`/`load_cases_csv`/`load_cases_to_rows`/
+  `case_index_csv`), or sit on the explicit non-load allowlist (geometry,
+  speeds, mass-properties tables). A new page adding an unmarked load CSV fails
+  the suite.
+- Docs: `PROGRAM_SPEC.md` limit-vs-ultimate scope statement and
+  `GUI_design.md` LIMIT-marking convention both extended with the in-band
+  download rule and the guard test.
+
+**Test / Acceptance.** Suite green (**500** passed, +1), `ruff` clean (incl.
+`app/`), self-runners pass. Shape tests extended (`Basis` key + all-rows-LIMIT
+assert); both edited pages render clean under headless `AppTest` on the GA
+fixture. No calc/schema change (`SCHEMA_VERSION` stays 33); the SI display
+converters spread `**r`, so the new string column passes through untouched.
+
+**Key decisions.**
+- *Both buttons* (user decision): keep the LIMIT download (the oracle
+  cross-check artifact matching the on-page table) **and** add the ULTIMATE twin
+  from the bridge, rather than replacing one with the other.
+- *Basis column lives in the canonical row helpers*, not the views — the basis
+  travels with the rows wherever they are rendered next.
+- *Source-scan guard over a runtime test* — cheap, page-agnostic, and fails at
+  the moment a new unmarked load CSV is added, which is when the author has the
+  context to fix it.
+
+---
+
 ## M4-14 — Validate `safety_factor` on load (defect, correctness, complete 2026-07-23)
 
 **Objective.** The five `io.py` readers added by M4-7 took
