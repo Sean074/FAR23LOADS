@@ -419,6 +419,77 @@ def test_taildist_and_body_copy_the_condition_factor():
         assert r.safety_factor == 1.25, r.case
 
 
+# --------------------------------------------------------------------------- #
+# Per-case safety factor, wing + control surfaces (defect M4-13)
+#
+# These four modules own their conditions (no upstream CriticalCondition to copy
+# from), so the factor is minted once in build_* and run()'s ConditionResult must
+# copy it from the built result -- never re-default it independently.
+# --------------------------------------------------------------------------- #
+def _ga_project():
+    p = io.load_project(_GA)
+    if p.envelope is None:
+        p.envelope = build_envelope(p)
+    return p
+
+
+def test_wing_and_control_results_agree_with_their_conditions():
+    """Each producer's result slice and rendered ConditionResult carry one factor."""
+    from sloads.modules import aileron, flap, net_loads, tab
+
+    p = _ga_project()
+
+    loads = net_loads.build_net_loads(p)
+    conds = {c.case_ref.case_id: c for c in net_loads.run(p).conditions}
+    for r in loads.wing_air + loads.wing_inertia + loads.wing_net:
+        assert r.safety_factor == conds[r.case_ref.case_id].safety_factor, r.case
+
+    down, up = aileron.build_aileron(p)
+    assert down.safety_factor == up.safety_factor
+    assert aileron.run(p).conditions[0].safety_factor == down.safety_factor
+
+    built = flap.build_flap(p)[0]
+    assert flap.run(p).conditions[0].safety_factor == built.safety_factor
+
+    for r, c in zip(tab.build_tabs(p), tab.run(p).conditions):
+        assert r.safety_factor == c.safety_factor, r.case
+
+
+def test_run_copies_the_built_results_factor():
+    """run() reads the mint in build_* rather than defaulting a second source of
+    truth -- a non-default factor must reach the rendered ConditionResult."""
+    from sloads.modules import aileron, flap, net_loads, tab
+
+    p = _ga_project()
+
+    def force_sf(results):
+        for r in results:
+            r.safety_factor = 1.25
+        return results
+
+    # build_net_loads returns a LoadsResult; the control-surface builders a list.
+    patches = [
+        (net_loads, "build_net_loads", lambda built: force_sf(built.wing_net)),
+        (aileron, "build_aileron", force_sf),
+        (flap, "build_flap", force_sf),
+        (tab, "build_tabs", force_sf),
+    ]
+    for module, attr, mutate in patches:
+        real = getattr(module, attr)
+
+        def patched(proj, real=real, mutate=mutate):
+            built = real(proj)
+            mutate(built)
+            return built
+
+        setattr(module, attr, patched)
+        try:
+            for cond in module.run(p).conditions:
+                assert cond.safety_factor == 1.25, (module.MODULE_NAME, cond.title)
+        finally:
+            setattr(module, attr, real)
+
+
 if __name__ == "__main__":
     import traceback
 

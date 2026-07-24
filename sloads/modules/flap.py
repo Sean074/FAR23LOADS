@@ -41,7 +41,7 @@ from __future__ import annotations
 import math
 from typing import List, NamedTuple
 
-from ..constants import KT_TO_FPS_SUITE
+from ..constants import KT_TO_FPS_SUITE, ULTIMATE_FACTOR
 from ..case_ids import CaseIdAllocator, WING_BAND_FLAP
 from ..models import (
     MissingInputError,
@@ -207,9 +207,11 @@ def build_flap(project: Project) -> List[ControlSurfaceLoadResult]:
     allocator.seed("wing", WING_BAND_FLAP)
     ref = CaseRef(case_id=allocator.next_id("wing"), component="wing",
                   condition=case, far_reference="23.345/23.457")
+    # Minted here (flap owns its condition); run() copies it onto the rendered
+    # ConditionResult so report and export can never disagree (defect M4-13).
     return [ControlSurfaceLoadResult(
         surface=surface, case=case, load_lb=load, v_kt=sv.vf, stations=stations,
-        case_ref=ref)]
+        case_ref=ref, safety_factor=ULTIMATE_FACTOR)]
 
 
 def run(project: Project) -> ModuleResult:
@@ -242,10 +244,12 @@ def run(project: Project) -> ModuleResult:
             "taper LE -> half at TE. Slipstream FAR 23.457(b), gust FAR 23.345(c)(1).")
     if project.is_concept:
         note += " Concept mode -- unverified extrapolation past the FAR23 band."
-    case_ref = build_flap(project)[0].case_ref
+    built = build_flap(project)[0]
     return ModuleResult(module=MODULE_NAME, conditions=[ConditionResult(
         title="Critical flap loads", far_reference="23.345", values=values, note=note,
-        case_ref=case_ref)])
+        # Same per-case factor the sbeam export scales by, so the rendered and
+        # exported ULTIMATE loads can never disagree (defect M4-13).
+        case_ref=built.case_ref, safety_factor=built.safety_factor)])
 
 
 register(MODULE_NAME, run)

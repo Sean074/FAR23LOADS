@@ -31,6 +31,7 @@ from __future__ import annotations
 from typing import List, NamedTuple
 
 from ..case_ids import CaseIdAllocator, WING_BAND_AILERON
+from ..constants import ULTIMATE_FACTOR
 from ..models import (
     MissingInputError,
     CaseRef,
@@ -127,17 +128,21 @@ def build_aileron(project: Project) -> List[ControlSurfaceLoadResult]:
         return CaseRef(case_id=allocator.next_id("wing"), component="wing",
                        condition=case, far_reference="23.455")
 
+    # One limit->ultimate factor minted for both throws (aileron owns its
+    # conditions); run() copies it onto the rendered ConditionResult so report
+    # and export can never disagree (defect M4-13).
+    sf = ULTIMATE_FACTOR
     return [
         ControlSurfaceLoadResult(
             surface=inp.surface, case="down aileron", load_lb=r.down_load_lb,
             v_kt=r.down_speed_kt,
             stations=_stations(r.down_pressure_psi, r.hinge_chord_fraction),
-            case_ref=ref("down aileron")),
+            case_ref=ref("down aileron"), safety_factor=sf),
         ControlSurfaceLoadResult(
             surface=inp.surface, case="up aileron", load_lb=r.up_load_lb,
             v_kt=r.up_speed_kt,
             stations=_stations(r.up_pressure_psi, r.hinge_chord_fraction),
-            case_ref=ref("up aileron")),
+            case_ref=ref("up aileron"), safety_factor=sf),
     ]
 
 
@@ -147,11 +152,10 @@ def run(project: Project) -> ModuleResult:
         raise MissingInputError("Project has no 'aileron_loads' inputs for the aileron module")
     if project.speeds is None:
         raise MissingInputError("aileron needs 'speeds' (STRSPEED VA/VC/VD)")
-    inp = project.aileron_loads
-    sv = design_speed_values(project, project.speeds)
-    r = aileron_loads(sv.va, sv.vc, sv.vd, inp.down_deflection_deg,
-                      inp.up_deflection_deg, inp.area_fwd_hinge_sqft,
-                      inp.area_aft_hinge_sqft)
+    # Render from the same result records the sbeam export consumes (the constant
+    # LE->hinge pressure is stations[0]), so the factor -- and the numbers -- have
+    # a single source (defect M4-13).
+    down, up = build_aileron(project)
     note = ("Deflected aileron, CAM 3.222(c) CL_ail = 0.04*DEFL; constant pressure "
             "LE->hinge tapering to 0 at the TE.")
     if project.is_concept:
@@ -160,14 +164,16 @@ def run(project: Project) -> ModuleResult:
         title="Critical aileron loads",
         far_reference="23.455",
         values=[
-            LoadValue("Critical down aileron load", r.down_load_lb, "lb"),
-            LoadValue("Down aileron speed", r.down_speed_kt, "kt(EAS)"),
-            LoadValue("Critical up aileron load", r.up_load_lb, "lb"),
-            LoadValue("Up aileron speed", r.up_speed_kt, "kt(EAS)"),
-            LoadValue("Pressure fwd of hinge (down)", r.down_pressure_psi, "lb/in^2"),
-            LoadValue("Pressure fwd of hinge (up)", r.up_pressure_psi, "lb/in^2"),
+            LoadValue("Critical down aileron load", down.load_lb, "lb"),
+            LoadValue("Down aileron speed", down.v_kt, "kt(EAS)"),
+            LoadValue("Critical up aileron load", up.load_lb, "lb"),
+            LoadValue("Up aileron speed", up.v_kt, "kt(EAS)"),
+            LoadValue("Pressure fwd of hinge (down)", down.stations[0].psi, "lb/in^2"),
+            LoadValue("Pressure fwd of hinge (up)", up.stations[0].psi, "lb/in^2"),
         ],
         note=note,
+        case_ref=down.case_ref,
+        safety_factor=down.safety_factor,
     )
     return ModuleResult(module=MODULE_NAME, conditions=[condition])
 

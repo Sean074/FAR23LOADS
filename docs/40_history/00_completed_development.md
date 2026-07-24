@@ -10,6 +10,68 @@ Acceptance**, **Key decisions**.
 
 ---
 
+## M4-13 — Wing + control-surface producers mint the per-case safety factor once (defect, correctness/latent, complete 2026-07-23)
+
+**Objective.** Finish what M4-7 started. M4-7 threaded the factor for the tail
+and fuselage families only; `net_loads` (`WingLoadResult`) and
+`aileron`/`flap`/`tab` (`ControlSurfaceLoadResult`) left their result slice
+**and** their rendered `ConditionResult` to default `safety_factor`
+*independently* — two sources of truth for the same case. Harmless while every
+factor is 1.5, but the first non-default case (M4-8 Layer 1, or a 25.302 named
+case) would make the rendered report and the exported FORCE/MOMENT cards
+disagree — the exact failure M4-7 closed for tail/body. `PROJECT_GUIDE.md` §5
+already asserted the stronger invariant ("minted by the module that owns the
+condition and copied unchanged by everything derived from it"); this brings the
+code up to the doc. Promoted from M4 to the M3 release gate (first item),
+2026-07-23 consolidation; from the 2026-07-23 M4-7 review (MAJOR).
+
+**Deliverables.**
+- **`net_loads.build_net_loads`** mints the wing case's factor once per case
+  (`sf = ULTIMATE_FACTOR`, the line M4-8's Layer-1 resolver will replace) and
+  sets it on the **air, inertia and net** `WingLoadResult`s of that case — the
+  three families describe the same case and are all accepted by the export's
+  `ResultsArg` API. `run()` copies `r.safety_factor` onto each `ConditionResult`
+  (the taildist pattern).
+- **`aileron.build_aileron`** mints one shared factor for both throws (up/down
+  can never diverge); **`run()` now consumes `build_aileron()`** instead of
+  recomputing `aileron_loads` a second time — the rendered loads/speeds/pressures
+  and the exported records now have a single source — and its `ConditionResult`
+  gains the previously missing `case_ref` (the down-throw's) plus the copied
+  factor.
+- **`flap.build_flap` / `tab.build_tabs`** pass `safety_factor=ULTIMATE_FACTOR`
+  explicitly at the mint site; each `run()` copies `case_ref` **and**
+  `safety_factor` from the built result.
+- No model/io/schema change: the fields shipped with M4-7 (`SCHEMA_VERSION`
+  stays 33); `sbeam_bridge._sf()`'s `getattr` fallback now never fires for a
+  project-produced result (its annotation cleanup is M4-16).
+- Docs: `PROGRAM_SPEC.md` sbeam-bridge section gains a "Factor mint sites
+  (defect M4-13)" bullet naming the mint per producer.
+
+**Test / Acceptance.** Suite green (**493** passed, +2), `ruff` clean, the
+no-pytest self-runner passes. Two new tests in `tests/test_sbeam_bridge.py`
+(the acceptance shape of `test_taildist_and_body_copy_the_condition_factor`,
+adapted because these four modules own their conditions and have no persisted
+upstream to mutate): an **agreement test** asserting per-case equality between
+every result slice (incl. `wing_air`/`wing_inertia`) and its rendered
+`ConditionResult` on the GA fixture, and a **mutation test** that wraps each
+module's `build_*` to force a 1.25 mint and asserts `run()`'s conditions carry
+it — failing against the old independent-default code. **Numbers unchanged**
+at SF 1.5 (full suite incl. the Appendix-A oracles p222/p200/p201/p202).
+
+**Key decisions.**
+- *Mint locally in `net_loads`* (option (a)): wing cases have no upstream
+  `CriticalCondition` (their W- case-id band is disjoint from
+  `envelope.critical`), and linking them upstream is M4-2's case-identity
+  unification, kept out of scope. When M4-2 lands, the wing mint moves upstream.
+- *Aileron keeps one `ConditionResult`* covering both exported throws (report
+  shape unchanged); splitting it 1:1 with the export was deferred until after
+  M4-9 de-strings the label lookups.
+- *`wing_air`/`wing_inertia` carry the factor too*, not just `wing_net` —
+  scoping to net only would recreate the two-sources problem for anyone
+  exporting those families directly.
+
+---
+
 ## M4-7 — sbeam export honours the per-case safety factor (defect, correctness/latent, complete 2026-07-23)
 
 **Objective.** Close the double-factor trap in `export/sbeam_bridge`. The bridge

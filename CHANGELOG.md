@@ -11,6 +11,23 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- **Wing and control-surface producers now mint their per-case safety factor
+  once (defect M4-13, 2026-07-23 review MAJOR).** M4-7 threaded the factor for
+  the tail and fuselage families only; `net_loads` (`WingLoadResult`) and
+  `aileron`/`flap`/`tab` (`ControlSurfaceLoadResult`) left their result slice
+  **and** their rendered `ConditionResult` to default the field independently —
+  two sources of truth that would let the report and the exported FORCE/MOMENT
+  cards disagree at the first non-1.5 case. Each of the four modules now mints
+  the factor once in `build_*` (`net_loads` sets it on the air, inertia and net
+  families of the same case; aileron's up/down throws share one mint) and
+  `run()` copies it from the built result — the taildist/body pattern, closing
+  the `PROJECT_GUIDE.md` §5 "minted once, copied unchanged" invariant. Aileron's
+  `ConditionResult` also gains its previously missing `case_ref`, and its
+  rendered pressures/loads now come from the same result records the export
+  consumes. **Every number is unchanged** (all factors are 1.5); locked by an
+  agreement test plus a mutation test that forces a 1.25 mint through each
+  `run()` (`tests/test_sbeam_bridge.py`).
+
 - **The sbeam export now scales by each case's own safety factor (defect M4-7).**
   `export/sbeam_bridge` hardcoded a flat `_SF = 1.5` at every scaling site and
   ignored `ConditionResult.safety_factor` — latent, because the four

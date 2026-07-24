@@ -33,6 +33,7 @@ from ..models import (
     WingLoadResult,
     WingStationLoad,
 )
+from ..constants import ULTIMATE_FACTOR
 from ..derived_geometry import sync_geometry_derived
 from ..registry import register
 from .airloads import air_load_distribution
@@ -93,15 +94,22 @@ def build_net_loads(project: Project) -> LoadsResult:
     net_results: List[WingLoadResult] = []
     for i, case in enumerate(wm.cases):
         ref = wing_case_ref(project, i, case)
+        # The wing case's limit->ultimate factor, minted once here (net_loads owns
+        # the wing conditions -- no upstream CriticalCondition exists for them) and
+        # copied onto all three families and the rendered ConditionResult so report
+        # and export can never disagree (defect M4-13).
+        sf = ULTIMATE_FACTOR
         cl, v = _air_cl_v(project, case)
         air = air_load_distribution(geom, aero, cl, v, wm.wrp_waterline, wm.dihedral_deg)
         air.case = case.name
         air.case_ref = ref
+        air.safety_factor = sf
         inertia = wing_inertia_distribution(geom, wm, _resolve_case(project, case), units)
         inertia.case_ref = ref
+        inertia.safety_factor = sf
         net = WingLoadResult(case=case.name, nz=inertia.nz, nx=inertia.nx,
                              stations=[_sum_stations(a, i) for a, i in zip(air.stations, inertia.stations)],
-                             case_ref=ref)
+                             case_ref=ref, safety_factor=sf)
         air_results.append(air)
         inertia_results.append(inertia)
         net_results.append(net)
@@ -143,6 +151,9 @@ def run(project: Project) -> ModuleResult:
                 LoadValue("Root chord bending Mzz", root.mzz, "lb-in"),
             ],
             case_ref=r.case_ref,
+            # Same per-case factor the sbeam export scales by, so the rendered and
+            # exported ULTIMATE loads can never disagree (defect M4-13).
+            safety_factor=r.safety_factor,
         ))
     return ModuleResult(module=MODULE_NAME, conditions=conditions)
 

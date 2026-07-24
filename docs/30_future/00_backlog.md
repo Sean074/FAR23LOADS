@@ -44,9 +44,10 @@ All 22 Appendix-C programs are ported plus 2 modern modules (`configuration`,
 `body_loads`). Phases 0–2, C, D, E, F, Phase 1, and Phase G Steps **G0–G7**
 are complete, as are milestones **M1 (all 11 items)** and **M2 (all 11 items)**
 from the 2026-07-19 review (see history), as is **M2R** (all eight items) and
-**M3-1** (the `farloads` → `sloads` rename) and defect **M4-7** (per-case
-safety factor through the sbeam export). The suite is green (491 passed at the
-2026-07-23 post-M4-7 snapshot, ~93% coverage, ruff clean, smoke test PASS,
+**M3-1** (the `farloads` → `sloads` rename) and defects **M4-7** (per-case
+safety factor through the sbeam export) and **M4-13** (the factor minted once
+by the wing and control-surface producers). The suite is green (493 passed at
+the 2026-07-23 post-M4-13 snapshot, ~93% coverage, ruff clean, smoke test PASS,
 `SCHEMA_VERSION = 33` — see CI
 for current counts), the FAR23 GA path is Appendix-A oracle-locked including
 the new M1 oracle rows (p155 VD, p178 landing-config, sweep closure), and both
@@ -65,11 +66,12 @@ The **2026-07-23 M4-7 review** (per `CODE_REVIEW_PROCESS.md`, scoped to commit
 unchanged, 6/6 doc artifacts — and found 1 CRITICAL, 2 MAJOR and 4 MINOR/NIT
 items, booked as **M4-13 … M4-16** and **promoted to the M3 release gate**
 (2026-07-23 consolidation): they are correctness/contract defects in code that
-ships with 0.3.0. Gates at review time: ruff clean, 491 passed, ~93% coverage.
+ships with 0.3.0. M4-13 shipped the same day; M4-14 … M4-16 remain. Gates at
+review time: ruff clean, 491 passed, ~93% coverage.
 
-**Path to release, in order:** M4-13 → M4-14 → M4-15 → M4-16 → **M3-2 (cut
+**Path to release, in order:** M4-14 → M4-15 → M4-16 → **M3-2 (cut
 0.3.0)**; M3-3 (Step G8 summary report) ships with 0.3.0 only if time allows,
-otherwise it opens M4.
+otherwise it opens M4. (M4-13, the first gate item, shipped 2026-07-23.)
 
 Reference-authority hierarchy (unchanged): (1) `.BAS` listings + Appendix A
 printed output, (2) User's Guide CFR quotes (Jan-1994), (3) Code-manual 1990
@@ -79,29 +81,12 @@ prose.
 
 # M3 — Cut the release: **sloads 0.3.0** (concept-loads v1)
 
-The remaining gate is the four **2026-07-23 review items promoted from M4**
+The remaining gate is the three open **2026-07-23 review items promoted from M4**
 (they are correctness/contract defects in code that ships with 0.3.0), then the
-release cut. M2R and M3-1 are complete — see history. Priority order:
+release cut. M2R, M3-1 and M4-13 are complete — see history. Priority order:
 
-### M4-13 — Finish the per-case safety-factor propagation (wing + control surfaces) **[release blocker, promoted 2026-07-23]**
-2026-07-23 review, MAJOR. M4-7 threaded the factor for two of the four
-distributed-load families only. `taildist.py:151,180` and `body_loads.py:139`
-copy the governing `CriticalCondition.safety_factor` (and TAILDIST copies it onto
-its rendered `ConditionResult`, so report and export cannot disagree); the other
-two producers do **not**: `net_loads.py:102` (`WingLoadResult`) and
-`aileron.py:131,136` / `flap.py:210` / `tab.py:106`
-(`ControlSurfaceLoadResult`) leave the field at its class default, while their
-`run()` `ConditionResult`s default it *independently* — two sources of truth for
-the same case. Harmless while every factor is 1.5, but the first non-default case
-(M4-8 Layer 1, or a 25.302 named case) makes the rendered report and the exported
-FORCE/MOMENT cards disagree — the exact failure M4-7 closed for tail/body.
-`PROJECT_GUIDE.md` §5 already asserts the stronger invariant ("minted by the
-module that owns the condition and copied unchanged by everything derived from
-it"), so the doc is ahead of the code. **Fix:** in each of the four modules mint
-the factor once and pass the same value to both the distributed-load result and
-the module's `ConditionResult`. **Acceptance:** a test in the shape of
-`test_taildist_and_body_copy_the_condition_factor` covering wing net loads and
-all three control-surface producers; numbers unchanged at SF 1.5.
+*(**M4-13** — per-case safety-factor propagation for wing + control surfaces —
+**shipped 2026-07-23**; see history.)*
 
 ### M4-14 — Validate `safety_factor` on load (null crash / silent under-scale) **[release blocker, promoted 2026-07-23]**
 2026-07-23 review, MAJOR. The five readers added by M4-7
@@ -217,7 +202,8 @@ unchanged. Source narrative: `03_gui_rework_plan.md` §5 item (3).
 
 *(**M4-7** — sbeam export ignores the per-case safety factor — **shipped
 2026-07-23**; see history. Its follow-ups from the 2026-07-23 review,
-**M4-13 … M4-16**, are promoted to the **M3 release gate** above.)*
+**M4-13 … M4-16**, are promoted to the **M3 release gate** above; M4-13
+shipped 2026-07-23.)*
 
 ### M4-8 — Centralized two-layer safety-factor policy (foundation for 25.302) **[architecture]**
 Today the safety factor is decided ad hoc: `ConditionResult.safety_factor` defaults to
@@ -234,8 +220,8 @@ of authority** — do not conflate them:
   class → factor + basis. Consumed by **both** `report.py` **and** `sbeam_bridge`
   — M4-7 (shipped) wired the *carrier* (`safety_factor` on the four
   distributed-load results, read per result by `sbeam_bridge._sf()`); this item
-  replaces the ad-hoc **policy** behind it, building on the M4-13/M4-14 fixes
-  (M3 release gate).
+  replaces the ad-hoc **policy** behind it, building on M4-13 (shipped — every
+  producer now mints once) and M4-14 (M3 release gate).
   `one_engine_out` migrates to it as the first client.
 - **Layer 2 — agreed failure cases (project input; Phase F25 / 25.302).** A `Project`
   slice of **named** system-failure factors — `(name, far_reference="25.302",
@@ -255,7 +241,8 @@ and `sbeam_bridge` produce identical factors for the same case; `one_engine_out`
 migrated with oracles/tests unchanged; a Layer-2 named case (e.g. MLA loss @ 1.25)
 round-trips through `io.py` and renders as `lbs-ULT SF=1.25`. Touches the CLAUDE.md
 ultimate-load contract — land deliberately with tests. **Layer 1 can ship
-independently (M4-7's carrier is already in place, and M4-13/M4-14 complete it);
+independently (M4-7's carrier and M4-13's per-producer mints are already in
+place; M4-14 completes the input-validation side);
 Layer 2 coordinates with Phase F25.**
 
 ### M4-9 — `LoadValue.key`: de-string the load-case semantics **[maintainability, pre-F25]**
@@ -489,10 +476,6 @@ reaction matrix stays closure-/legible-cell-locked).
 
 ## Known defects (open)
 
-- **M4-13** — wing and control-surface results don't carry the governing case's
-  `safety_factor`; their result slice and their `ConditionResult` default it
-  independently (report vs. export can diverge). **[Major, latent — M3 release
-  gate]**
 - **M4-14** — `safety_factor` read from `project.json` unvalidated: `null`
   crashes the export, a low value silently under-scales every card that is still
   labelled ULTIMATE. **[Major — M3 release gate]**

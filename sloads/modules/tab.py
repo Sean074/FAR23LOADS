@@ -29,6 +29,7 @@ from ..case_ids import (
     VTAIL_BAND_TAB,
     WING_BAND_TAB,
 )
+from ..constants import ULTIMATE_FACTOR
 from ..models import (
     MissingInputError,
     CaseRef,
@@ -103,12 +104,14 @@ def build_tabs(project: Project) -> List[ControlSurfaceLoadResult]:
         case_ref = CaseRef(
             case_id=allocator.next_id(component), component=component,
             condition=f"{spec.surface} tab", far_reference="23.409")
+        # Minted here (tab owns its conditions); run() copies it onto the rendered
+        # ConditionResult so report and export can never disagree (defect M4-13).
         results.append(ControlSurfaceLoadResult(
             surface=_surface_tag(spec), case=f"{spec.surface} tab", load_lb=r.load_lb,
             v_kt=vc, stations=[
                 ControlSurfaceStation(x=0.0, psi=r.le_pressure_psi),
                 ControlSurfaceStation(x=1.0, psi=r.te_pressure_psi)],
-            case_ref=case_ref))
+            case_ref=case_ref, safety_factor=ULTIMATE_FACTOR))
     return results
 
 
@@ -142,6 +145,9 @@ def run(project: Project) -> ModuleResult:
             ],
             note=note,
             case_ref=result.case_ref,
+            # Same per-case factor the sbeam export scales by, so the rendered and
+            # exported ULTIMATE loads can never disagree (defect M4-13).
+            safety_factor=result.safety_factor,
         ))
     return ModuleResult(module=MODULE_NAME, conditions=conditions)
 

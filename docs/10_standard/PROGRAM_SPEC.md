@@ -515,6 +515,15 @@ return strings (with thin `write_*` file wrappers), and do no physics.
   carries it in the last column (`SF`) and every card block states it in its `$`
   header. The same applies to the fuselage, tail-chordwise and control-surface
   exports below.
+- **Factor mint sites (defect M4-13):** every distributed-load result carries a
+  factor minted **once** by its producer: `taildist`/`body_loads` copy the
+  governing `CriticalCondition.safety_factor`; `net_loads` (whose wing cases have
+  no upstream `CriticalCondition` — their case ids are on a disjoint band) mints
+  `ULTIMATE_FACTOR` once per case in `build_net_loads` and sets it on the air,
+  inertia **and** net families; `aileron`/`flap`/`tab` mint once in their
+  `build_*`. In all of them `run()`'s rendered `ConditionResult` copies the
+  factor **from the built result** — never re-defaults it — so the report and
+  the exported cards cannot disagree, even for a future non-1.5 case (M4-8).
 - **Validation:** force/moment closure (cards re-summed = NETLOADS root totals);
   a self-contained free-field reader round-trips the cards in tests; the stick
   deck parses **and solves SOL 101** in the real sbeam (manual verification step).
