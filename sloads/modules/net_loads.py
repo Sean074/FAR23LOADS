@@ -38,7 +38,7 @@ from ..constants import ULTIMATE_FACTOR
 from ..derived_geometry import sync_geometry_derived
 from ..registry import register
 from .airloads import air_load_distribution
-from .wing_geometry import _interp_x
+from .wing_geometry import interp_x
 from .wing_inertia import (
     _resolve_case,
     build_wing_inertia,
@@ -111,8 +111,8 @@ def to_loads_ref_axis(results: List[WingLoadResult],
     for r in results:
         stations: List[WingStationLoad] = []
         for s in r.stations:
-            x_le = _interp_x(geom.leading_edge, s.y)
-            x_te = _interp_x(geom.trailing_edge, s.y)
+            x_le = interp_x(geom.leading_edge, s.y)
+            x_te = interp_x(geom.trailing_edge, s.y)
             x_lra = x_le + pct * (x_te - x_le)
             stations.append(WingStationLoad(
                 x=x_lra, y=s.y, z=s.z, fx=s.fx, fz=s.fz, sx=s.sx, sz=s.sz,

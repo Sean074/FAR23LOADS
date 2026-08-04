@@ -26,7 +26,7 @@ import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
 
-from components import gate, workflow_page_link
+from components import gate, page_header, workflow_page_link
 
 from sloads import (
     CgCase,
@@ -41,7 +41,6 @@ from sloads import (
     WeightInput,
     consistency_warnings,
     convert_results,
-    labels_for,
     to_display,
     to_imperial_scalar,
 )
@@ -53,7 +52,7 @@ from sloads.report import module_text_report
 from sloads.validation import wtenv_cg_limits
 
 
-st.title("Weight & Mass Properties — FAR 23")
+project, system, U = page_header("weight_mass", title="Weight & Mass Properties — FAR 23", banner=False)
 st.caption(
     "The single home for all weight/mass data (WTESTIMA + WTONECG + WTENV). "
     "Estimate a starting weight, build the itemised mass data base (weight/CG/"
@@ -61,9 +60,6 @@ st.caption(
     "envelope. Inputs are Imperial; results follow the sidebar's Imperial/SI toggle."
 )
 
-project: Project = st.session_state.get("project", Project(name=""))
-system: UnitSystem = st.session_state.get("unit_system", UnitSystem.IMPERIAL)
-U = labels_for(system)
 
 # Fleet placement belongs at definition time: once MTOW/OEW/power are set here, the
 # Aircraft Comparison page (in the Export phase) places this design against similar

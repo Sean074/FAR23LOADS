@@ -33,6 +33,12 @@ dev = [
     "pytest>=8.0",
     "pytest-cov",
     "ruff",
+    # Cyclomatic-complexity / maintainability-index reporting (M4-11, decision
+    # D-17). A measurement tool only -- deliberately NOT a CI gate: `ruff` and
+    # `pytest` remain the merge gate (see CLAUDE.md). Usage:
+    #   .venv/bin/radon cc -s -n C app/views/
+    #   .venv/bin/radon mi -s app/views/
+    "radon",
 ]
 
 [project.scripts]

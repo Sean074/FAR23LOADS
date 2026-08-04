@@ -93,7 +93,7 @@ def test_concept_round_trips_through_io():
 # Step P1-3 -- concept reduces exactly to FAR23 on GA inputs (identity test).
 #
 # The ONLY numeric branch between concept and FAR23 is
-# ``structural_speeds._maneuver_load_factors``: concept mode returns the user's
+# ``structural_speeds.maneuver_load_factors``: concept mode returns the user's
 # chosen_n/chosen_nneg verbatim, FAR23 computes the 23.337 cap. Every other
 # ``is_concept`` branch (configuration/flap/aileron/tab/taildist/landing/airloads/
 # balloads/select/flight_envelope/weight_estimate/engine) only appends a note and
@@ -168,7 +168,7 @@ def _assert_modules_identical(far, concept):
 def test_concept_load_factors_match_far23_caps():
     """STRSPEED's load-factor tuple is identical FAR23 vs concept (the crux).
 
-    This is the single numeric divergence point (``_maneuver_load_factors``): the
+    This is the single numeric divergence point (``maneuver_load_factors``): the
     FAR23 Normal cap for ga6_normal is n=3.8, nneg=-0.4*3.8=-1.52 (14 CFR 23.337);
     concept mode fed those exact values must echo them.
     """

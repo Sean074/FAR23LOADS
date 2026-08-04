@@ -10,6 +10,163 @@ Acceptance**, **Key decisions**.
 
 ---
 
+## M4-11a — App scaffold: the unit boundary and the page header (complete 2026-08-04)
+
+**Objective.** Build the two shared app helpers **before** the next wave of views
+is written — specifically before G8.6 adds a Summary-report section to
+`export_report.py`, which is free to write against a `page()` helper that exists
+and expensive to retrofit. The 2026-07-21 review scoped this as removing repeated
+per-field idiom; the work turned up that the idiom was not merely repeated but
+**wrong in places**, which became the step's real value.
+
+**Baseline, re-measured 2026-08-04** (`radon`, added to the `dev` extra per
+D-17 — a reporting tool, explicitly not a CI gate). The 2026-07-21 figures the
+plan quoted were stale; the measured worst offenders were `_tab_design_speeds`
+**CC 72**, `_three_view` **63**, `_tab_vn` **44**, `_tab_cg_inertia` **40**,
+`_subject_from_project` **34**, `_tab_trim` **33**; worst MI
+`configuration_layout` **B (16.92)**; 20 views / 6 572 lines.
+
+**Deliverables.**
+- **`components.unit_number_input`** — the whole GUI input unit boundary in one
+  function: Imperial in, Imperial out. Three explicit modes, chosen by the
+  caller and never inferred from a label: `kind=` (converted, unit-suffixed
+  label, per-system widget key), `fixed_unit=KEAS`/`ALTITUDE_FT` (the D-16
+  aviation carve-out — shown, never converted, key *not* suffixed), or neither
+  (dimensionless). Passing both raises `ValueError`. `min_value`/`max_value` are
+  Imperial too and convert with the value.
+- **`components.active_system()`** — per D-16, the single read of the unit
+  selection in the entire app layer; **M4-20 re-points this one function** at the
+  `Project` field without touching a call site.
+- **`components.page_header(key)` / `page(key)`** — the view opening (title,
+  caption, applicability banner, `PageContext`), with `page()` adding an upstream
+  gate as a context manager. `key` is the `workflow.BY_KEY` step key, so the
+  title *and* the required slices come from `workflow.py`; each gate links to the
+  step that **produces** the missing slice, so re-sequencing the workflow
+  re-points every gate with no view edited. Two forms because most views are
+  top-level scripts, where a context manager would mean reindenting whole files;
+  `page()` is what new code and G8.6 use.
+
+**Four real defects fixed** (all found by building the helper, none previously
+reported):
+1. **~40 fields ignored the unit toggle entirely.** The Geometry page's
+   empennage (33), landing-gear (7) and engine-CG (3) forms hard-coded Imperial
+   unit strings into their labels — `"H-tail area ST (ft²)"`, `"Tread between
+   mains (in)"` — and did no conversion, so an SI user saw `(in)` and had their
+   entry stored as inches while the sidebar said SI. The gear caption even
+   documented it: *"Values are Imperial (in)."*
+2. **A double conversion in the layout Apply handler.** With the widgets now
+   returning Imperial, the handler's own `to_imperial_scalar` fired a second
+   time: a 184 ft² wing was stored as **1982 ft²**, in SI only. Caught by the new
+   through-the-view test, not by review.
+3. **Untouched fields drifted the project.** The display seed is rounded to 4
+   decimals for legibility; converting *that* home returns a value a hair off the
+   original, so an SI user's project changed on every Apply, forever. The helper
+   now returns the caller's own Imperial value when the field is untouched.
+4. **Bounds were not converted.** A non-zero `min_value` (an Imperial floor)
+   would have become an SI-magnitude floor and silently stopped constraining.
+
+Also fixed: two `"CG station … (in)"` fields in `flight_envelope`'s trim tab, and
+`structural_speeds`' shoulder altitude moved onto the explicit `ALTITUDE_FT`
+carve-out rather than a hand-typed unit.
+
+**Adopted in** `configuration_layout` (all 43 converted fields + the `_num`
+adapter), `flight_envelope`, `structural_speeds`, and the `page_header` preamble
+in five views.
+
+**Test / Acceptance.** **586 tests pass** (536 → 586, +50), `ruff` clean, and the
+M4-12b result snapshot is untouched — this step changes no calc.
+- `tests/test_app_components.py` (40 tests) pins the helper in isolation:
+  Imperial→Imperial round-trip for **every** unit kind in **both** systems,
+  SI-typed entry converting home, exact pass-through for the carve-out, bound
+  conversion, widget-key discipline, and the ambiguity error.
+- `tests/test_view_unit_roundtrip.py` (10 tests) pins it **through real views**
+  via `AppTest`: type a number in a system's display units, press that form's
+  Apply (by form key, per M4-12a), assert the project holds the Imperial
+  equivalent — Imperial and SI runs asserting the *same* stored value from
+  different typed numbers, which is precisely what a conversion bug breaks. Plus
+  the no-edit drift guard. This is the M4-11 definition-of-done addition; without
+  it the step's headline benefit would have been unverified — and in fact defects
+  2 and 3 were found by it.
+
+**Deliberately not done — tracked as M4-11b.** The complexity-splitting half:
+the six CC-E/F view functions are **unchanged** (re-measured after; identical),
+and the projected "1.5–2k lines removed" was not earned — the app layer *grew*
+~170 net lines, trading duplicated idiom for one documented, tested helper.
+`engine_mount` was left alone on purpose: it is already correct by a different
+route (whole-`EngineInput` conversion at Apply via `units.to_imperial`), so
+per-field adoption there would reintroduce defect 2. None of this blocks G8 —
+G8.6 needs `page()` and `unit_number_input`, which exist.
+
+---
+
+## M4-12b — Contract cleanups: public symbols, typed balance result, documented trap-doors (complete 2026-08-03)
+
+**Objective.** Close the second half of the 2026-07-21 review's M4-12 batch —
+the import contract — **before** M4-11 rewrites the modules that violate it.
+Two `app/` files imported `sloads` underscore names outright
+(`app/views/configuration_layout.py` → `wing_geometry._interp_x`,
+`app/components.py` → `structural_speeds._maneuver_load_factors`), and five more
+private symbols crossed module boundaries inside `sloads/`. Separately,
+`htail_balance` returned a `Dict[str, float]` whose string keys *were* its API
+across three modules.
+
+This is the batch's **oracle re-run gate**: it touches `select`, `balloads`,
+`flight_envelope`, `structural_speeds`, `wing_geometry`, `wing_inertia`,
+`net_loads` and `airloads` — the Appendix-A-locked and twin closure-locked path.
+
+**Deliverables.**
+- **Seven symbols promoted** (D-14: underscore-drop in place + `__all__`, no
+  facade), 66 sites: `wing_geometry._interp_x` → `interp_x`;
+  `structural_speeds._maneuver_load_factors` → `maneuver_load_factors`;
+  `flight_envelope._design_inputs` → `design_inputs`, `._sigma` →
+  `density_ratio`; `select._elevator_load` → `elevator_load`,
+  `._flaps_by_config_name` → `flaps_by_config_name`, `._envelope` →
+  `default_envelope`. Both `app/` violations are gone.
+- **`__all__` on the four defining modules** (`wing_geometry`,
+  `flight_envelope`, `structural_speeds`, `select`), each under a header stating
+  that an underscore-free name outside the list is still not an import contract.
+- **`select.HtailBalance`** (D-13) — a `typing.NamedTuple` with lowercase
+  attributes `lt25/lt50/at/delta/lt/cp`, the Ch 9 symbols tabulated in its class
+  docstring. 64 dict accesses converted across `select`, `balloads` and
+  `test_select`. BALLOADS' own `verify_balancing` **row** dicts are a different
+  structure and deliberately keep their string keys.
+- **Property-proxy trap-door documented** (D-15) — a warning block beside
+  `Project.tail_loads`/`.vtail_loads` in `models/project.py` naming both hazards
+  (invisible to `dataclasses.fields`/`asdict`/`replace`; the setter silently
+  no-ops on `None` with no geometry) and stating that retirement is **M4-10's**.
+- **Three conventions written into the porting contract** (`PROJECT_GUIDE.md`
+  §5): `sync_geometry_derived(project)` first inside `run()` (seven sites, until
+  now convention-by-imitation); explicit public surface with no underscored
+  imports in `app/`; cross-module results typed, not stringly-keyed; and "do not
+  add property proxies to `Project`".
+
+**Test / Acceptance — the oracle gate, met.** A full result snapshot was taken
+**before** any edit — every registered module, every `ConditionResult`, every
+`LoadValue` (label, value, units, quantity) and every `safety_factor`, across
+all **6** `examples/*.project.json` (137,589 lines of JSON) — and re-taken after.
+The two are **byte-identical**, so the rename and the dict→attribute conversion
+provably changed no number anywhere, including both concept fixtures. **536
+tests pass** with every printed Appendix A figure and every tolerance literal
+unedited (the Ch 9 case-202 hand-calc — LT25 +907.62, LT50 −387.78, δ −5.39°,
+LT 519.845, CP 6.35 % — asserted through the new attributes at the same
+tolerances). `ruff check sloads/ cli.py` clean.
+
+**Key decisions.**
+- **D-14 carve-out extended to `_sigma`.** D-14 resolved "mechanical strip
+  unless a bare strip reads badly", with `_envelope`/`_design_inputs` named as
+  the known cases. `_sigma` is a third: `constants.standard_atmosphere` already
+  returns a density ratio called `sigma`, and its own comment records that
+  FLTLOADS' density-ratio branch is *identical* — a public
+  `flight_envelope.sigma` would present two public names for one quantity. It
+  was promoted as **`density_ratio`**, and the duplication itself is logged as
+  **M4-23** rather than resolved here (deduplicating it is a calc-path change,
+  out of this step's scope).
+- `HtailBalance` is a `NamedTuple` rather than a dataclass: it stays
+  tuple-unpackable, is 3.9-compatible, and is immutable by construction, which
+  suits a computed result that several modules read and none should mutate.
+
+---
+
 ## M4-12a — Test-architecture cleanup: shared helpers + form-key button selection (complete 2026-08-03)
 
 **Objective.** Close the first half of the 2026-07-21 review's M4-12 batch, the

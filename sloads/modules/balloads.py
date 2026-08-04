@@ -16,7 +16,7 @@ station ``XT_rational`` and reports it against FLTLOADS' assumed ``XTC``/``XTF``
 
 It also makes the Ch 9 teaching point that the elevator load is **not** always
 opposite the stabilizer load: the per-condition elevator load (reusing SELECT's
-:func:`_elevator_load`) is reported alongside the total.
+:func:`elevator_load`) is reported alongside the total.
 
 Validation: Appendix A / Ch 9 case-202 hand-calc -- the up balancing load with
 flaps retracted is ``LT = 519.845 lb`` (LT25 +907.62, LT50 -387.78, elevator
@@ -31,7 +31,7 @@ from ..models import (CgCase, ConditionResult, LoadValue, MissingInputError, Mod
                       Project, VnPoint)
 from ..derived_geometry import sync_geometry_derived
 from ..registry import register
-from .select import _elevator_load, _envelope, _flaps_by_config_name, htail_balance
+from .select import elevator_load, default_envelope, flaps_by_config_name, htail_balance
 
 MODULE_NAME = "balloads"
 
@@ -60,22 +60,22 @@ def verify_balancing(project: Project) -> List[Dict[str, float]]:
     if ti is None or fl is None:
         raise MissingInputError("balloads needs Project.tail_loads and Project.flight_loads")
     cg_map: Dict[str, CgCase] = {c.name: c for c in fl.cg_cases}
-    flaps: Dict[str, bool] = _flaps_by_config_name(project)
+    flaps: Dict[str, bool] = flaps_by_config_name(project)
 
     rows: List[Dict[str, float]] = []
-    for p in _envelope(project).vn:
+    for p in default_envelope(project).vn:
         if flaps.get(p.config, False):
             continue
         cg = cg_map.get(p.cg)
         if cg is None:
             continue
         b = htail_balance(p, cg, fl.xw, fl.zw, ti)
-        xt = _rational_station(b["CP"], ti.xt25, ti.xt50)
+        xt = _rational_station(b.cp, ti.xt25, ti.xt50)
         rows.append({
             "point": p,
-            "LT25": b["LT25"], "LT50": b["LT50"], "DELTA": b["DELTA"],
-            "LT": b["LT"], "CP": b["CP"],
-            "ELEV": _elevator_load(b["LT50"], b["LT25"], ti),
+            "LT25": b.lt25, "LT50": b.lt50, "DELTA": b.delta,
+            "LT": b.lt, "CP": b.cp,
+            "ELEV": elevator_load(b.lt50, b.lt25, ti),
             "XT": xt, "XTC": fl.xtc, "DXT": xt - fl.xtc,
         })
     return rows

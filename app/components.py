@@ -11,14 +11,16 @@ its own dedicated home in ``app/views/aircraft_comparison.py`` (backlog F2).
 
 from __future__ import annotations
 
-from typing import Optional
+from contextlib import contextmanager
+from typing import Iterator, NamedTuple, Optional
 
 import streamlit as st
 
-from sloads import Project, StructuralSpeedsInput, far23_applicability
+from sloads import Project, StructuralSpeedsInput, UnitSystem, far23_applicability
 from sloads import workflow as wf
 from sloads.applicability import design_weight_lb
-from sloads.modules.structural_speeds import _maneuver_load_factors
+from sloads.modules.structural_speeds import maneuver_load_factors
+from sloads.units import labels_for, to_display, to_imperial_scalar
 
 
 # --------------------------------------------------------------------------- #
@@ -82,7 +84,7 @@ def _switch_to_concept(project: Project) -> None:
     speeds = project.speeds or StructuralSpeedsInput()
     if speeds.chosen_n is None or speeds.chosen_nneg is None:
         weight = design_weight_lb(project)
-        n, _n_min, nneg, _nneg_min = _maneuver_load_factors(
+        n, _n_min, nneg, _nneg_min = maneuver_load_factors(
             speeds.category, weight, speeds.chosen_n, speeds.chosen_nneg
         )
         speeds.chosen_n = n
@@ -119,3 +121,200 @@ def render_applicability_banner(project: Project) -> None:
     if st.button("Switch to Concept", key="switch_to_concept"):
         _switch_to_concept(project)
         st.rerun()
+
+
+# --------------------------------------------------------------------------- #
+# The unit boundary (M4-11, decision D-16)
+# --------------------------------------------------------------------------- #
+#: Units that are **aviation-standard and never converted** by the Imperial/SI
+#: toggle -- airspeed is always KEAS and altitude always feet, in both systems
+#: (``GUI_design.md``, "one unit per dimension"). They are passed to
+#: :func:`unit_number_input` as ``fixed_unit=``, an explicit branch of the
+#: signature: the carve-out is a property of the *field*, decided by the caller,
+#: never sniffed out of a unit string at render time.
+KEAS = "kt (EAS)"
+ALTITUDE_FT = "ft"
+
+
+def active_system() -> UnitSystem:
+    """The display unit system for this render.
+
+    **The single read of the unit selection in the whole app layer.** Today it is
+    the session-wide sidebar toggle (``app/Home.py`` writes
+    ``st.session_state["unit_system"]``); backlog **M4-20** moves the selection
+    onto ``Project`` and re-points *this one function* at the field, without
+    touching any of the call sites that go through :func:`unit_number_input` or
+    :func:`page`.
+    """
+    return st.session_state.get("unit_system", UnitSystem.IMPERIAL)
+
+
+def active_project() -> Project:
+    """The project being edited, or an empty one so a bare page still renders."""
+    return st.session_state.get("project", Project(name=""))
+
+
+def unit_number_input(
+    label: str,
+    value: float,
+    *,
+    kind: Optional[str] = None,
+    fixed_unit: Optional[str] = None,
+    key: Optional[str] = None,
+    container=None,
+    **kwargs,
+) -> float:
+    """A ``st.number_input`` that renders in display units and **returns Imperial**.
+
+    This is the whole unit boundary for GUI input, in one place. The caller holds
+    canonical Imperial values on both sides -- it passes Imperial in and gets
+    Imperial back -- so a view can never convert twice, convert the wrong way, or
+    forget to convert on the way home. Exactly one of these three modes applies:
+
+    * ``kind="length"`` (or any :data:`sloads.units.UNIT_LABELS` kind) --
+      **converted**. The seed is shown in the active system, the label gains the
+      system's unit suffix, and the return value is converted back to Imperial.
+      The widget key gains a per-system suffix so switching systems re-seeds the
+      field with converted defaults instead of reusing the stale number.
+    * ``fixed_unit=KEAS`` / ``fixed_unit=ALTITUDE_FT`` -- **not converted**. The
+      unit is shown in the label and the value passes through untouched, in both
+      systems. The widget key is *not* suffixed: the number is the same in either
+      system, so the field must survive a unit switch unchanged.
+    * neither -- **dimensionless** (ratios, counts, angles in degrees). No unit
+      suffix, no conversion, no key suffix.
+
+    ``container`` is the Streamlit container to render into -- a column from
+    ``st.columns``, an expander, a form -- defaulting to ``st`` itself.
+    ``**kwargs`` go straight to ``number_input`` (``step``, ``format``,
+    ``min_value``, ``help``, ``disabled``, ...).
+
+    Raises ``ValueError`` if both ``kind`` and ``fixed_unit`` are given -- a field
+    is either on the conversion path or off it, never ambiguously both.
+    """
+    if kind is not None and fixed_unit is not None:
+        raise ValueError(
+            f"unit_number_input({label!r}): pass kind= (converted) or fixed_unit= "
+            "(aviation carve-out), not both"
+        )
+
+    system = active_system()
+    where = container if container is not None else st
+
+    if kind is not None:
+        shown = f"{label} ({labels_for(system)[kind]})"
+        seed = float(round(to_display(float(value), kind, system), 4))
+        widget_key = f"{key}_{system.value}" if key else None
+        # Bounds are given in Imperial like the value, so they convert with it --
+        # otherwise a non-zero limit (a 12-in minimum chord, say) would silently
+        # become a 12-*mm* minimum in SI and stop constraining anything.
+        for bound in ("min_value", "max_value"):
+            if kwargs.get(bound) is not None:
+                kwargs[bound] = float(to_display(float(kwargs[bound]), kind, system))
+        entered = float(where.number_input(shown, value=seed, key=widget_key, **kwargs))
+        if entered == seed:
+            # Untouched field: return the caller's own Imperial value rather than
+            # converting the *rounded* display seed back. The seed is rounded to 4
+            # display decimals for legibility (the per-view ``_num`` helpers this
+            # replaces did the same), so converting it home would return a number
+            # a hair different from the one passed in -- and an SI user's project
+            # would drift by that hair on every Apply, silently, forever. Only a
+            # value the user actually changed takes the conversion path.
+            return float(value)
+        return float(to_imperial_scalar(entered, kind, system))
+
+    shown = f"{label} ({fixed_unit})" if fixed_unit else label
+    return float(where.number_input(shown, value=float(value), key=key, **kwargs))
+
+
+# --------------------------------------------------------------------------- #
+# Page scaffold (M4-11)
+# --------------------------------------------------------------------------- #
+#: Project slice -> the workflow step that produces it, derived from
+#: ``workflow.STEPS`` so a re-sequenced workflow re-points every gate link.
+_PRODUCER = {s.produces: s.key for s in wf.STEPS if s.produces}
+
+
+class PageContext(NamedTuple):
+    """What every view needs off the top: the project and its display units.
+
+    ``U`` is ``labels_for(system)`` -- the ``{"length": "in", ...}`` unit-string
+    map views interpolate into headers and column names.
+    """
+    project: Project
+    system: UnitSystem
+    U: dict
+
+
+def page_header(
+    key: str,
+    *,
+    title: Optional[str] = None,
+    caption: Optional[str] = None,
+    banner: bool = True,
+) -> PageContext:
+    """Render a view's standard opening and return its :class:`PageContext`.
+
+    The four lines every view repeated -- title, caption, applicability banner,
+    and reading the project + unit system out of session state -- in one call.
+    ``key`` is the :data:`sloads.workflow.BY_KEY` step key (the view's filename
+    stem), so the **title comes from ``workflow.py``** rather than being restated
+    per page; pass ``title=`` only where a page wants a different heading from
+    its navigation label.
+
+    This is the plain-call form, for the top-level script views. Use
+    :func:`page` -- the same thing plus an automatic upstream gate -- in new code
+    and anywhere the page body already lives inside a function.
+    """
+    step = wf.BY_KEY[key]
+    st.title(title if title is not None else step.title)
+    if caption:
+        st.caption(caption)
+
+    project = active_project()
+    if banner:
+        render_applicability_banner(project)
+
+    system = active_system()
+    return PageContext(project, system, labels_for(system))
+
+
+@contextmanager
+def page(
+    key: str,
+    *,
+    title: Optional[str] = None,
+    caption: Optional[str] = None,
+    banner: bool = True,
+    gate_missing: bool = True,
+) -> Iterator[PageContext]:
+    """:func:`page_header` plus the upstream gate, as a context manager.
+
+    The *required* slices come from the same ``workflow.py`` step as the title,
+    and each gate's jump link is looked up from the step that **produces** the
+    missing slice -- so a re-sequenced workflow re-points every gate without a
+    view being touched. With ``gate_missing`` (the default) the page body is
+    skipped entirely (``st.stop()``) when a requirement is absent.
+
+    A page with a more specific thing to say about *why* it is blocked should
+    keep its own :func:`gate` call and pass ``gate_missing=False``: the generic
+    message here is a floor, not a replacement for page-specific guidance.
+
+    Usage::
+
+        with page("structural_speeds", caption="...") as (project, system, U):
+            v_a = unit_number_input("VA", inp.va, fixed_unit=KEAS, key="va")
+    """
+    ctx = page_header(key, title=title, caption=caption, banner=banner)
+
+    missing = wf.missing_requirements(ctx.project, wf.BY_KEY[key])
+    if missing and gate_missing:
+        for slice_name in missing:
+            producer = _PRODUCER.get(slice_name)
+            target = wf.BY_KEY[producer].title if producer else slice_name
+            gate(
+                f"This page needs **{target}** first — it has no `{slice_name}` yet.",
+                *([producer] if producer else []),
+            )
+        st.stop()
+
+    yield ctx

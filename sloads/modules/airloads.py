@@ -62,7 +62,7 @@ from ..models import (
     WingStationLoad,
 )
 from ..registry import register
-from .wing_geometry import _interp_x
+from .wing_geometry import interp_x
 
 _DEG = 57.3  # AIRLOADS.BAS uses 57.3 for the rad<->deg factor; kept for fidelity
 
@@ -171,7 +171,7 @@ def _twist_angle(twist, ye: float) -> float:
     """
     if not twist:
         return 0.0
-    return _interp_x([(ang, yb) for (yb, ang) in twist], ye)
+    return interp_x([(ang, yb) for (yb, ang) in twist], ye)
 
 
 def schrenk_distribution(geom: SurfaceInput, aero: AeroSurfaceInput) -> SpanwiseTable:
@@ -197,7 +197,7 @@ def schrenk_distribution(geom: SurfaceInput, aero: AeroSurfaceInput) -> Spanwise
     sum_mocac = 0.0           # SUM(mo*c*ac*dy)
     for el in range(h):
         ye = yroot + dy / 2 + el * dy
-        c = _interp_x(geom.trailing_edge, ye) - _interp_x(geom.leading_edge, ye)
+        c = interp_x(geom.trailing_edge, ye) - interp_x(geom.leading_edge, ye)
         ac = _twist_angle(aero.twist, ye)
         ye_list.append(ye)
         chord.append(c)
@@ -306,10 +306,10 @@ def _sweep_operating(ccl_op: List[float], ye: List[float], span: float, mac: flo
 
 
 def _interp_yv(table, y: float, default: float = 0.0) -> float:
-    """Interpolate a ``(butt line Y, value)`` table at ``y`` (reuses _interp_x)."""
+    """Interpolate a ``(butt line Y, value)`` table at ``y`` (reuses interp_x)."""
     if not table:
         return default
-    return _interp_x([(v, yb) for (yb, v) in table], y)
+    return interp_x([(v, yb) for (yb, v) in table], y)
 
 
 def air_load_distribution(geom: SurfaceInput, aero: AeroSurfaceInput, cl: float,
@@ -372,7 +372,7 @@ def air_load_distribution(geom: SurfaceInput, aero: AeroSurfaceInput, cl: float,
         lz.append(lift * cos_an + drag * sin_an)
         dx.append(drag * cos_an - lift * sin_an)
         ml.append(moment)
-        cx25.append(_interp_x(geom.leading_edge, ye) + 0.25 * c)
+        cx25.append(interp_x(geom.leading_edge, ye) + 0.25 * c)
         zc.append(wrp_waterline + math.tan(dihedral_deg / _DEG) * ye)
 
     # Integrate tip->root: cumulative shears, bending moments and torsion.

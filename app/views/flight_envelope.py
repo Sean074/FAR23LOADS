@@ -26,7 +26,7 @@ import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
 
-from components import gate
+from components import gate, unit_number_input
 
 from sloads import (
     FlightLoadsInput,
@@ -443,8 +443,13 @@ def _tab_trim() -> None:
         lo_default, hi_default = lo_default - pad, hi_default + pad
 
     c1, c2, c3 = st.columns(3)
-    x_lo = float(c1.number_input("CG station min (in)", value=float(round(lo_default, 2)), format="%.2f"))
-    x_hi = float(c2.number_input("CG station max (in)", value=float(round(hi_default, 2)), format="%.2f"))
+    # M4-11: these were hard-coded to inches and took raw Imperial even in SI.
+    # Through ``unit_number_input`` they render in the active system and come
+    # back Imperial, which is what ``trim_sweep`` expects for a station.
+    x_lo = unit_number_input("CG station min", round(lo_default, 2), kind="length",
+                             key="trim_x_lo", format="%.2f")
+    x_hi = unit_number_input("CG station max", round(hi_default, 2), kind="length",
+                             key="trim_x_hi", format="%.2f")
     n_stations = int(c3.slider("Stations", min_value=5, max_value=41, value=15, step=2))
     if x_hi <= x_lo:
         st.warning("CG station max must exceed min.")

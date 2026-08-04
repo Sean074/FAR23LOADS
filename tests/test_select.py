@@ -179,12 +179,12 @@ def test_rational_balancing_tail_load_hand_calc():
     pt = next(v for v in build_envelope(p).vn
               if v.condition == "STALL +N" and v.cg == "CG1" and v.altitude_ft == 18000)
     b = select.htail_balance(pt, cg1, fl.xw, fl.zw, _TAIL)
-    assert math.isclose(b["LT25"], 907.62, rel_tol=3e-3), b["LT25"]
-    assert math.isclose(b["LT50"], -387.78, rel_tol=5e-3), b["LT50"]
-    assert math.isclose(b["AT"], 7.747, abs_tol=0.05), b["AT"]   # alpha carries FLTLOADS noise
-    assert math.isclose(b["DELTA"], -5.39, abs_tol=0.03), b["DELTA"]
-    assert math.isclose(b["LT"], 519.845, rel_tol=3e-3), b["LT"]
-    assert math.isclose(b["CP"], 6.35, abs_tol=0.1), b["CP"]
+    assert math.isclose(b.lt25, 907.62, rel_tol=3e-3), b.lt25
+    assert math.isclose(b.lt50, -387.78, rel_tol=5e-3), b.lt50
+    assert math.isclose(b.at, 7.747, abs_tol=0.05), b.at   # alpha carries FLTLOADS noise
+    assert math.isclose(b.delta, -5.39, abs_tol=0.03), b.delta
+    assert math.isclose(b.lt, 519.845, rel_tol=3e-3), b.lt
+    assert math.isclose(b.cp, 6.35, abs_tol=0.1), b.cp
 
 
 def test_critical_htail_balancing_match_appendix_a():

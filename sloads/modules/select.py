@@ -53,7 +53,7 @@ CG3, 12000 ft), ACRL AC ROLL (+1.328, 116, CG2, 12000 ft), TORS ST ROL C
 from __future__ import annotations
 
 import math
-from typing import Dict, List, Optional
+from typing import Dict, List, NamedTuple, Optional
 
 from ..case_ids import CaseIdAllocator, WING_BAND_SELECT
 from ..models import (
@@ -74,7 +74,7 @@ from ..models import (
 from ..derived_geometry import sync_geometry_derived
 from ..registry import register
 from ._vtail import large_deflection_factor, rudder_effectiveness, vtail_lift_slope
-from .flight_envelope import _design_inputs, _sigma, build_envelope
+from .flight_envelope import design_inputs, density_ratio, build_envelope
 
 MODULE_NAME = "select"
 _DEG = 57.3  # SELECT.BAS / BALLOADS use 57.3 deg/rad
@@ -90,7 +90,7 @@ _ACRL = ("AC ROLL", "ACC ROLL")
 _STROLL = ("ST ROL A", "ST ROL C", "ST ROL D")
 
 
-def _envelope(project: Project) -> EnvelopeResult:
+def default_envelope(project: Project) -> EnvelopeResult:
     """The V-n matrix to search: the persisted ``Project.envelope`` if present, else
     freshly built from the flight-loads inputs (FLTLOADS).
 
@@ -110,7 +110,7 @@ def _envelope(project: Project) -> EnvelopeResult:
 
 def _resolve_envelope(project: Project, envelope: Optional[EnvelopeResult]) -> EnvelopeResult:
     """The threaded envelope when ``build_critical`` supplies one, else built once."""
-    return envelope if envelope is not None else _envelope(project)
+    return envelope if envelope is not None else default_envelope(project)
 
 
 def _cg_weights(project: Project) -> Dict[str, float]:
@@ -201,8 +201,36 @@ def select_wing(project: Project, envelope: Optional[EnvelopeResult] = None) -> 
 # --------------------------------------------------------------------------- #
 # Rational horizontal-tail balancing loads (Ch 9 / BALLOADS method)
 # --------------------------------------------------------------------------- #
+class HtailBalance(NamedTuple):
+    """One V-n point's rational horizontal-tail balance (Ref 1 Ch 9).
+
+    Attributes are lowercase Python names; the manual's symbols are the second
+    column, and the equations that produce each are in :func:`htail_balance`.
+
+    ==========  ========  =============================================
+    attribute   Ch 9      quantity
+    ==========  ========  =============================================
+    ``lt25``    LT25      angle-of-attack load, acting at 25 % tail MAC (lb)
+    ``lt50``    LT50      camber/elevator load, acting at 50 % tail MAC (lb)
+    ``at``      AT        tail angle of attack, ``alpha_wl + IT - E`` (deg)
+    ``delta``   DELTA     elevator deflection balancing the CG moment, TE-down + (deg)
+    ``lt``      LT        total balancing load, ``LT25 + LT50`` (lb)
+    ``cp``      CP        centre of pressure of the total load (% tail MAC)
+    ==========  ========  =============================================
+
+    All loads are **LIMIT** (the calc-side convention; the 1.5 factor is applied
+    at the render/export boundary -- see CLAUDE.md's ultimate-load contract).
+    """
+    lt25: float
+    lt50: float
+    at: float
+    delta: float
+    lt: float
+    cp: float
+
+
 def htail_balance(p: VnPoint, cg: CgCase, xw: float, zw: float,
-                  ti: TailLoadsInput) -> Dict[str, float]:
+                  ti: TailLoadsInput) -> HtailBalance:
     """Resolve the balanced tail load at one V-n point into the rational
     angle-of-attack (25% MAC) and camber/elevator (50% MAC) components (Ch 9).
 
@@ -226,10 +254,10 @@ def htail_balance(p: VnPoint, cg: CgCase, xw: float, zw: float,
     lt50 = lt50_per_delta * delta
     lt = lt25 + lt50
     cp = (25.0 * lt25 + 50.0 * lt50) / lt if lt else 0.0
-    return {"LT25": lt25, "LT50": lt50, "AT": at, "DELTA": delta, "LT": lt, "CP": cp}
+    return HtailBalance(lt25=lt25, lt50=lt50, at=at, delta=delta, lt=lt, cp=cp)
 
 
-def _flaps_by_config_name(project: Project) -> Dict[str, bool]:
+def flaps_by_config_name(project: Project) -> Dict[str, bool]:
     """Map each ``Project.aero_coeffs`` configuration name to its flaps state
     (cruise = False, flaps_down = True), for pairing against V-n points'
     ``config`` field. Empty when the slice is absent."""
@@ -254,7 +282,7 @@ def select_htail_balancing(project: Project,
     if ti is None or fl is None:
         return []
     cg_map: Dict[str, CgCase] = {c.name: c for c in fl.cg_cases}
-    flaps: Dict[str, bool] = _flaps_by_config_name(project)
+    flaps: Dict[str, bool] = flaps_by_config_name(project)
 
     retracted, extended = [], []
     for p in _resolve_envelope(project, envelope).vn:
@@ -268,22 +296,22 @@ def select_htail_balancing(project: Project,
 
     def emit(label: str, pick) -> CriticalCondition:
         p, b = pick
-        return _htail_condition(label, "23.421", p, b["LT"], [
-            LoadValue("AoA load LT25 (cp 25%)", b["LT25"], "lb"),
-            LoadValue("Camber/elevator load LT50 (cp 50%)", b["LT50"], "lb"),
-            LoadValue("Tail angle of attack AT", b["AT"], "deg"),
-            LoadValue("Elevator deflection (TE dn +)", b["DELTA"], "deg"),
-            LoadValue("CP of total load", b["CP"], "% tail MAC"),
+        return _htail_condition(label, "23.421", p, b.lt, [
+            LoadValue("AoA load LT25 (cp 25%)", b.lt25, "lb"),
+            LoadValue("Camber/elevator load LT50 (cp 50%)", b.lt50, "lb"),
+            LoadValue("Tail angle of attack AT", b.at, "deg"),
+            LoadValue("Elevator deflection (TE dn +)", b.delta, "deg"),
+            LoadValue("CP of total load", b.cp, "% tail MAC"),
             LoadValue("V (EAS)", p.v_eas_kt, "kt(EAS)"),
-        ], lt25=b["LT25"], lt50=b["LT50"])
+        ], lt25=b.lt25, lt50=b.lt50)
 
     out: List[CriticalCondition] = []
     if retracted:
-        out.append(emit("BAL UP RETRACTED", max(retracted, key=lambda pb: pb[1]["LT"])))
-        out.append(emit("BAL DN RETRACTED", min(retracted, key=lambda pb: pb[1]["LT"])))
+        out.append(emit("BAL UP RETRACTED", max(retracted, key=lambda pb: pb[1].lt)))
+        out.append(emit("BAL DN RETRACTED", min(retracted, key=lambda pb: pb[1].lt)))
     if extended:
-        out.append(emit("BAL UP EXTENDED", max(extended, key=lambda pb: pb[1]["LT"])))
-        out.append(emit("BAL DN EXTENDED", min(extended, key=lambda pb: pb[1]["LT"])))
+        out.append(emit("BAL UP EXTENDED", max(extended, key=lambda pb: pb[1].lt)))
+        out.append(emit("BAL DN EXTENDED", min(extended, key=lambda pb: pb[1].lt)))
     return out
 
 
@@ -306,7 +334,7 @@ def _ef(defl: float, se2st: float) -> float:
     return large_deflection_factor(defl, se2st)
 
 
-def _elevator_load(lt50: float, lt25: float, ti: TailLoadsInput) -> float:
+def elevator_load(lt50: float, lt25: float, ti: TailLoadsInput) -> float:
     """Load carried by the elevator: the camber-load share aft of the hinge plus the
     angle-of-attack-load share (SELECT.BAS 5216-5218)."""
     se, st = ti.elevator_area_sqft, ti.htail_area_sqft
@@ -324,7 +352,7 @@ def select_htail_maneuver(project: Project,
     if ti is None or fl is None:
         return []
     cg_map: Dict[str, CgCase] = {c.name: c for c in fl.cg_cases}
-    np_ = _design_inputs(project).n_pos
+    np_ = design_inputs(project).n_pos
     aht = 2.0 * math.pi / (1.0 + 2.0 / ti.aspect_ratio_htail)
     se2st = ti.elevator_area_sqft / ti.htail_area_sqft if ti.htail_area_sqft else 0.0
     vn = _resolve_envelope(project, envelope).vn
@@ -347,16 +375,16 @@ def select_htail_maneuver(project: Project,
                 b = bal(p)
                 lt50 = sign * edefl * ti.elevator_effectiveness * _ef(edefl, se2st) * aht / _DEG \
                     * p.v_eas_kt ** 2 / 295.0 * ti.htail_area_sqft
-                return b["LT25"] + lt50, b, lt50
+                return b.lt25 + lt50, b, lt50
             p = (min if want_min else max)(bal_a, key=lambda p: total(p)[0])
             tot, b, lt50 = total(p)
             out.append(_htail_condition(label, far, p, tot, [
-                LoadValue("Balanced tail load", b["LT"], "lb"),
-                LoadValue("AoA load (cp 25%)", b["LT25"], "lb"),
+                LoadValue("Balanced tail load", b.lt, "lb"),
+                LoadValue("AoA load (cp 25%)", b.lt25, "lb"),
                 LoadValue("Elevator-deflection increment (cp 50%)", lt50, "lb"),
-                LoadValue("Elevator load", _elevator_load(lt50, b["LT25"], ti), "lb"),
+                LoadValue("Elevator load", elevator_load(lt50, b.lt25, ti), "lb"),
                 LoadValue("Elevator deflection", sign * edefl, "deg"),
-            ], lt25=b["LT25"], lt50=lt50))
+            ], lt25=b.lt25, lt50=lt50))
 
     # Checked: pitch-acceleration increment T = Iyy*theta_ddot/(arm) at VC/VD.
     def iyy(p: VnPoint) -> float:
@@ -371,21 +399,21 @@ def select_htail_maneuver(project: Project,
     bal_cd = [p for p in vn if p.condition in ("BAL C", "BAL D") and in_cg(p)]
     man_cd = [p for p in vn if p.condition in ("MAN C", "MAN D") and in_cg(p)]
     if bal_cd:
-        p = min(bal_cd, key=lambda p: bal(p)["LT"] - increment(p))   # largest down
+        p = min(bal_cd, key=lambda p: bal(p).lt - increment(p))   # largest down
         b = bal(p)
-        out.append(_htail_condition("CHECKED MAN DN", "23.423(b)", p, b["LT"] - increment(p), [
-            LoadValue("Balanced tail load", b["LT"], "lb"),
+        out.append(_htail_condition("CHECKED MAN DN", "23.423(b)", p, b.lt - increment(p), [
+            LoadValue("Balanced tail load", b.lt, "lb"),
             LoadValue("Maneuver load increment", -increment(p), "lb"),
             LoadValue("Pitch inertia Iyy", iyy(p), "slug-ft^2")],
-            lt25=b["LT25"] - increment(p), lt50=b["LT50"]))
+            lt25=b.lt25 - increment(p), lt50=b.lt50))
     if man_cd:
-        p = max(man_cd, key=lambda p: bal(p)["LT"] + increment(p))   # largest up
+        p = max(man_cd, key=lambda p: bal(p).lt + increment(p))   # largest up
         b = bal(p)
-        out.append(_htail_condition("CHECKED MAN UP", "23.423(b)", p, b["LT"] + increment(p), [
-            LoadValue("Balanced tail load", b["LT"], "lb"),
+        out.append(_htail_condition("CHECKED MAN UP", "23.423(b)", p, b.lt + increment(p), [
+            LoadValue("Balanced tail load", b.lt, "lb"),
             LoadValue("Maneuver load increment", increment(p), "lb"),
             LoadValue("Pitch inertia Iyy", iyy(p), "slug-ft^2")],
-            lt25=b["LT25"] + increment(p), lt50=b["LT50"]))
+            lt25=b.lt25 + increment(p), lt50=b.lt50))
     return out
 
 
@@ -407,7 +435,7 @@ def select_htail_gust(project: Project,
         ude = 50.0 if p.condition == "BAL C" else 25.0
         if p.altitude_ft > 20000.0:
             ude *= 1.0 - 0.5 * (p.altitude_ft - 20000.0) / 30000.0
-        rho = _sigma(p.altitude_ft) * 0.002378
+        rho = density_ratio(p.altitude_ft) * 0.002378
         ug = 2.0 * (w / fl.wing_area_sqft) / (rho * mac_ft * aw * _G)
         kg = 0.88 * ug / (5.3 + ug)
         return kg * ude * p.v_eas_kt * ti.htail_area_sqft * aht * (1.0 - 36.0 * (aw / _DEG) / arw) / 498.0
@@ -417,27 +445,27 @@ def select_htail_gust(project: Project,
     if not bal_cd:
         return []
 
-    def bal_full(p: VnPoint) -> Dict[str, float]:
+    def bal_full(p: VnPoint) -> HtailBalance:
         return htail_balance(p, cg_map[p.cg], fl.xw, fl.zw, ti)
 
     def bal_lt(p: VnPoint) -> float:
-        return bal_full(p)["LT"]
+        return bal_full(p).lt
 
     out: List[CriticalCondition] = []
     up = max(bal_cd, key=lambda p: bal_lt(p) + gust_increment(p))
     b = bal_full(up)
     out.append(_htail_condition("GUST UP RETRACTED", "23.425(a)(1)", up,
-                                b["LT"] + gust_increment(up), [
-        LoadValue("Balanced tail load", b["LT"], "lb"),
+                                b.lt + gust_increment(up), [
+        LoadValue("Balanced tail load", b.lt, "lb"),
         LoadValue("Gust increment (cp 25%)", gust_increment(up), "lb")],
-        lt25=b["LT25"] + gust_increment(up), lt50=b["LT50"]))
+        lt25=b.lt25 + gust_increment(up), lt50=b.lt50))
     dn = min(bal_cd, key=lambda p: bal_lt(p) - gust_increment(p))
     b = bal_full(dn)
     out.append(_htail_condition("GUST DN RETRACTED", "23.425(a)(1)", dn,
-                                b["LT"] - gust_increment(dn), [
-        LoadValue("Balanced tail load", b["LT"], "lb"),
+                                b.lt - gust_increment(dn), [
+        LoadValue("Balanced tail load", b.lt, "lb"),
         LoadValue("Gust increment (cp 25%)", -gust_increment(dn), "lb")],
-        lt25=b["LT25"] - gust_increment(dn), lt50=b["LT50"]))
+        lt25=b.lt25 - gust_increment(dn), lt50=b.lt50))
 
     # Flaps extended (FAR 23.425(a)(2)): the BAL VF points with a 25 fps gust at
     # sea-level density (FLTLOADS.BAS 5700-5910).
@@ -452,17 +480,17 @@ def select_htail_gust(project: Project,
         up = max(bal_vf, key=lambda p: bal_lt(p) + flap_gust_increment(p))
         b = bal_full(up)
         out.append(_htail_condition("GUST UP EXTENDED", "23.425(a)(2)", up,
-                                    b["LT"] + flap_gust_increment(up), [
-            LoadValue("Balanced tail load", b["LT"], "lb"),
+                                    b.lt + flap_gust_increment(up), [
+            LoadValue("Balanced tail load", b.lt, "lb"),
             LoadValue("Gust increment (cp 25%)", flap_gust_increment(up), "lb")],
-            lt25=b["LT25"] + flap_gust_increment(up), lt50=b["LT50"]))
+            lt25=b.lt25 + flap_gust_increment(up), lt50=b.lt50))
         dn = min(bal_vf, key=lambda p: bal_lt(p) - flap_gust_increment(p))
         b = bal_full(dn)
         out.append(_htail_condition("GUST DN EXTENDED", "23.425(a)(2)", dn,
-                                    b["LT"] - flap_gust_increment(dn), [
-            LoadValue("Balanced tail load", b["LT"], "lb"),
+                                    b.lt - flap_gust_increment(dn), [
+            LoadValue("Balanced tail load", b.lt, "lb"),
             LoadValue("Gust increment (cp 25%)", -flap_gust_increment(dn), "lb")],
-            lt25=b["LT25"] - flap_gust_increment(dn), lt50=b["LT50"]))
+            lt25=b.lt25 - flap_gust_increment(dn), lt50=b.lt50))
     return out
 
 
@@ -534,7 +562,7 @@ def select_htail(project: Project, envelope: Optional[EnvelopeResult] = None) ->
     out = select_htail_balancing(project, envelope)
     out.extend(select_htail_maneuver(project, envelope))
     out.extend(select_htail_gust(project, envelope))
-    out.extend(select_htail_unsymmetrical(out, _design_inputs(project).n_pos))
+    out.extend(select_htail_unsymmetrical(out, design_inputs(project).n_pos))
     return out
 
 
@@ -575,7 +603,7 @@ def _vt_side_gust(p: VnPoint, cg: CgCase, vt: VTailLoadsInput, izz: float) -> fl
     """Lateral gust side load at VC (FAR 23.443(b), SELECT.BAS 8840-8930)."""
     av = _avt(vt)
     k = math.sqrt(izz / (cg.weight_lb / _G))            # radius of gyration
-    rho = _sigma(p.altitude_ft) * 0.002378
+    rho = density_ratio(p.altitude_ft) * 0.002378
     lxvt = (vt.xv25 - cg.xcg) / 12.0                     # tail arm, ft
     ude = 50.0 if p.altitude_ft <= 20000.0 else 50.0 - (25.0 / 30000.0) * (p.altitude_ft - 20000.0)
     ugt = 2.0 * cg.weight_lb / (rho * (vt.vtail_mac_in / 12.0) * _G * av * vt.vtail_area_sqft * (k / lxvt) ** 2)
@@ -744,7 +772,7 @@ def build_critical(project: Project) -> CriticalLoadSet:
     sync_geometry_derived(project)
     # M2R-8: build the V-n envelope once and thread it into every search, instead of
     # each helper independently rebuilding it (up to 7x when nothing is persisted).
-    env = _envelope(project)
+    env = default_envelope(project)
     conditions = select_wing(project, env)
     conditions.extend(select_htail(project, env))
     conditions.extend(select_vtail(project, env))
@@ -777,3 +805,27 @@ def run(project: Project) -> ModuleResult:
 
 
 register(MODULE_NAME, run)
+
+# --------------------------------------------------------------------------- #
+# Public surface (M4-12b). Names not listed here are module-private: an
+# underscore-free name outside this list is still not an import contract, and
+# ``app/`` must import nothing underscored from ``sloads``.
+# --------------------------------------------------------------------------- #
+__all__ = [
+    "MODULE_NAME",
+    "run",
+    "build_critical",
+    "default_envelope",
+    "select_wing",
+    "select_htail",
+    "select_htail_balancing",
+    "select_htail_maneuver",
+    "select_htail_gust",
+    "select_htail_unsymmetrical",
+    "select_vtail",
+    "select_fuselage",
+    "htail_balance",
+    "HtailBalance",
+    "elevator_load",
+    "flaps_by_config_name",
+]

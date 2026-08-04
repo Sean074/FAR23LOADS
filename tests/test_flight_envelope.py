@@ -30,7 +30,7 @@ from sloads import (  # noqa: E402
     io,
 )
 from sloads.modules import flight_envelope as fe  # noqa: E402
-from sloads.modules.flight_envelope import build_envelope, _design_inputs  # noqa: E402
+from sloads.modules.flight_envelope import build_envelope, design_inputs  # noqa: E402
 
 _EXAMPLES = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "examples")
 _GA = os.path.join(_EXAMPLES, "ga6_normal.project.json")
@@ -47,7 +47,7 @@ def _close(actual, expected, rel=3e-3, abs_=2.0):
 
 
 def test_design_speeds_match_appendix_a():
-    di = _design_inputs(io.load_project(_GA))
+    di = design_inputs(io.load_project(_GA))
     assert math.isclose(di.va, 121.3, rel_tol=1e-3)     # Appendix A p179
     assert math.isclose(di.vc, 170.0, rel_tol=1e-3)
     assert math.isclose(di.vd, 212.5, rel_tol=1e-3)

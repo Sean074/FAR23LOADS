@@ -80,7 +80,7 @@ def surface_top_outline(
     return [(xs, list(ys)), (xs, [-v for v in ys])]
 
 
-def _interp_x(polyline: List, y: float) -> float:
+def interp_x(polyline: List, y: float) -> float:
     """Fuselage station X on an edge polyline at butt line ``y``.
 
     Piecewise-linear between the defining points, ordered inboard -> outboard
@@ -114,8 +114,8 @@ def surface_properties(surf: SurfaceInput) -> ConditionResult:
     area = sc2 = saye = sbarxc = 0.0
     for el in range(h):
         ye = yroot + dy / 2 + el * dy
-        xf = _interp_x(surf.leading_edge, ye)   # leading edge (front)
-        xa = _interp_x(surf.trailing_edge, ye)  # trailing edge (aft)
+        xf = interp_x(surf.leading_edge, ye)   # leading edge (front)
+        xa = interp_x(surf.trailing_edge, ye)  # trailing edge (aft)
         chord = xa - xf
         da = chord * dy
         area += da
@@ -172,8 +172,8 @@ def _engine_stations(project: Project, geometry: GeometryInput) -> Optional[Cond
     values: List[LoadValue] = []
     for i, eng in enumerate(project.engines, start=1):
         y = eng.engine_cg[1]
-        xf = _interp_x(wing.leading_edge, abs(y))
-        xa = _interp_x(wing.trailing_edge, abs(y))
+        xf = interp_x(wing.leading_edge, abs(y))
+        xa = interp_x(wing.trailing_edge, abs(y))
         values.append(LoadValue(f"Engine {i} ({eng.engine_designation or '?'}) butt line Y", y, _IN))
         values.append(LoadValue(f"Engine {i} local wing chord", xa - xf, _IN))
     return ConditionResult(
@@ -210,3 +210,17 @@ def run(project: Project) -> ModuleResult:
 
 
 register(MODULE_NAME, run)
+
+# --------------------------------------------------------------------------- #
+# Public surface (M4-12b). Names not listed here are module-private: an
+# underscore-free name outside this list is still not an import contract, and
+# ``app/`` must import nothing underscored from ``sloads``.
+# --------------------------------------------------------------------------- #
+__all__ = [
+    "MODULE_NAME",
+    "run",
+    "geometry_properties",
+    "surface_properties",
+    "surface_top_outline",
+    "interp_x",
+]

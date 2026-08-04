@@ -71,7 +71,7 @@ from ..models import (
 )
 from ..derived_geometry import sync_geometry_derived
 from ..registry import register
-from .structural_speeds import _maneuver_load_factors, design_speeds
+from .structural_speeds import maneuver_load_factors, design_speeds
 
 # 23.345 = high-lift devices (the flaps-down envelope, n<=2 at sea level).
 _FAR = "23.333/23.337/23.341/23.345/23.421"
@@ -86,7 +86,7 @@ _RAD = math.pi / 180.0
 # standard_atmosphere's 518.4); the ~0.03% difference matters near the Mach cap,
 # so the program's exact form is replicated here for oracle fidelity. The density
 # ratio is identical to constants.standard_atmosphere.
-def _sigma(alt_ft: float) -> float:
+def density_ratio(alt_ft: float) -> float:
     if alt_ft > 35332.0:
         return (7.2725e-04 * math.exp(-4.778e-05 * (alt_ft - 35332.0))) / 0.002378
     return (1.0 - 6.879e-06 * alt_ft) ** 4.258
@@ -138,7 +138,7 @@ def _balance(n: float, v_init: float, mach_cap: float, config: AeroCoeffSet,
     gmn = 1.0 / math.sqrt(1.0 - fl.mn ** 2)
     kmn = _clmax_curve(fl.mn)
     c0, c1, c2, c3, c4 = config.lift
-    sig = _sigma(altitude_ft)
+    sig = density_ratio(altitude_ft)
     a_sound = _speed_of_sound(altitude_ft)
 
     q = v_init ** 2 / 295.0
@@ -214,7 +214,7 @@ def _gust_load_factor(ng: int, v: float, mach_cap: float, ref: str, config: Aero
     selecting the derived gust velocity Ude.
     """
     h = altitude_ft
-    sig = _sigma(h)
+    sig = density_ratio(h)
     ude = _gust_ude(ref, h)
     vt = v / math.sqrt(sig)
     a_sound = _speed_of_sound(h)
@@ -249,7 +249,7 @@ class _DesignInputs:
     category: str
 
 
-def _design_inputs(project: Project) -> _DesignInputs:
+def design_inputs(project: Project) -> _DesignInputs:
     """Pull VA/VC/VD/VF, MC/MD and the limit load factors from STRSPEED."""
     vals = {}
     for cond in design_speeds(project, project.speeds):
@@ -257,7 +257,7 @@ def _design_inputs(project: Project) -> _DesignInputs:
             vals[lv.label] = lv.value
     sp = project.speeds
     cat = sp.category.upper()
-    n_pos, _, n_neg, _ = _maneuver_load_factors(cat, sp.weight_lb, sp.chosen_n, sp.chosen_nneg)
+    n_pos, _, n_neg, _ = maneuver_load_factors(cat, sp.weight_lb, sp.chosen_n, sp.chosen_nneg)
     return _DesignInputs(
         va=vals["Maneuver speed VA"], vc=vals["Cruise speed VC"],
         vd=vals["Dive speed VD"], vf=vals["Flap speed VF"],
@@ -417,7 +417,7 @@ def build_envelope(project: Project) -> EnvelopeResult:
     if not fl.cg_cases:
         raise MissingInputError("flight_envelope needs at least one CG case")
 
-    di = _design_inputs(project)
+    di = design_inputs(project)
     vn: List[VnPoint] = []
     tail: List[TailBalanceLoad] = []
     case = 0
@@ -481,7 +481,7 @@ def trim_sweep(project: Project, *, weight_lb: float, zcg: float,
     cruise = next((c for c in _balance_configs(project.aero_coeffs) if not c.flaps_down), None)
     if cruise is None:
         raise MissingInputError("trim_sweep needs a flaps-up (cruise) aero coefficient set")
-    di = _design_inputs(project)
+    di = design_inputs(project)
     specs = (("BAL A", di.va, di.mc), ("BAL C", di.vc, di.mc), ("BAL D", di.vd, di.md))
     curves: List[TrimCurve] = []
     for cond, v, cap in specs:
@@ -536,3 +536,18 @@ def run(project: Project) -> ModuleResult:
 
 
 register(MODULE_NAME, run)
+
+# --------------------------------------------------------------------------- #
+# Public surface (M4-12b). Names not listed here are module-private: an
+# underscore-free name outside this list is still not an import contract, and
+# ``app/`` must import nothing underscored from ``sloads``.
+# --------------------------------------------------------------------------- #
+__all__ = [
+    "MODULE_NAME",
+    "run",
+    "build_envelope",
+    "design_inputs",
+    "density_ratio",
+    "trim_sweep",
+    "TrimCurve",
+]

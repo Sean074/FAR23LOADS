@@ -51,7 +51,7 @@ from ..models import (
 )
 from ..derived_geometry import sync_geometry_derived
 from ..registry import register
-from .wing_geometry import _interp_x
+from .wing_geometry import interp_x
 
 _DEG = 57.3  # WINGINER.BAS rad<->deg factor
 
@@ -118,9 +118,9 @@ def inertia_units(geom: SurfaceInput, wm: WingMassInput) -> _InertiaUnits:
     h = geom.elements
     dy = (ytip - yroot) / h
     ye = [yroot + dy / 2 + j * dy for j in range(h)]
-    c = [_interp_x(geom.trailing_edge, y) - _interp_x(geom.leading_edge, y) for y in ye]
-    c25x = [_interp_x(geom.leading_edge, y) + 0.25 * cc for y, cc in zip(ye, c)]
-    c50x = [_interp_x(geom.leading_edge, y) + 0.50 * cc for y, cc in zip(ye, c)]
+    c = [interp_x(geom.trailing_edge, y) - interp_x(geom.leading_edge, y) for y in ye]
+    c25x = [interp_x(geom.leading_edge, y) + 0.25 * cc for y, cc in zip(ye, c)]
+    c50x = [interp_x(geom.leading_edge, y) + 0.50 * cc for y, cc in zip(ye, c)]
     dA = [cc * dy for cc in c]
     z = [wm.wrp_waterline + math.tan(wm.dihedral_deg / _DEG) * y for y in ye]
 

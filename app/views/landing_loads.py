@@ -16,7 +16,7 @@ from __future__ import annotations
 import pandas as pd
 import streamlit as st
 
-from components import workflow_page_link
+from components import page_header, workflow_page_link
 
 from sloads import (
     CgCase,
@@ -24,7 +24,6 @@ from sloads import (
     Project,
     UnitSystem,
     io,
-    labels_for,
     si_scalar_label,
     to_display,
     to_imperial_scalar,
@@ -119,16 +118,13 @@ def _seed_warnings(project: Project, inp: LandingInput) -> list:
     return out
 
 
-st.title("Landing Loads — LGFACTOR + LANDLOAD")
+project, system, U = page_header("landing_loads", title="Landing Loads — LGFACTOR + LANDLOAD", banner=False)
 st.caption(
     "Python/Streamlit port of LGFACTOR.BAS + LANDLOAD.BAS (Reference 1 Ch 20): the "
     "landing load factor (FAR 23.473) and the tricycle-gear ground reactions "
     "(FAR 23.473–23.499)."
 )
 
-project: Project = st.session_state.get("project", Project(name=""))
-system: UnitSystem = st.session_state.get("unit_system", UnitSystem.IMPERIAL)
-U = labels_for(system)  # {"weight","length","area_sqft",...} -> unit string
 inp = project.landing or LandingInput()
 
 with st.form("landing_loads_form"):

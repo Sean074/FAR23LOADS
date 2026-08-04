@@ -154,7 +154,11 @@ Layer 2 coordinates with Phase F25.**
 > (decisions D-12 … D-18, resolved 2026-08-03). Note the order: **M4-10 lands
 > before M4-9**, because `LoadValue` is persisted (`io.py:635`) and the new `key`
 > must arrive through the migration chain.
-> **M4-12a (test architecture) shipped 2026-08-03** — next up is **M4-12b**.
+> **M4-12a (test architecture) and M4-12b (contract cleanups) both shipped
+> 2026-08-03 — M4-12 is closed. **M4-11a (the scaffold helpers) shipped
+> 2026-08-04**; its complexity-splitting half is **M4-11b**, which is *not*
+> a G8 blocker — G8.6 only needs `page()`/`unit_number_input`, which exist.
+> Next up is **step 4, G8 (M3-3)**.
 
 ### M4-9 — `LoadValue.key`: de-string the load-case semantics **[maintainability, pre-F25]**
 2026-07-21 review, top refactor. Semantics currently ride on display-label
@@ -179,37 +183,31 @@ reader; check in **one frozen fixture file per historical schema version**
 fails when persisted dataclasses change without a `SCHEMA_VERSION` bump
 (discipline is currently unenforced).
 
-### M4-11 — App scaffold helpers before the next view wave **[maintainability, pre-F25]**
-~25–35% of the 6.3k-line app layer is repeated per-field idiom: 139
-`number_input`s hand-pairing `to_display`/`to_imperial_scalar` (71+41 sites),
-22 hand-rolled apply handlers, 20 identical page headers, 10 concept-banner
-copies. Build `unit_number_input(...)` (renders converted, returns Imperial —
-removes the silent-unit-bug hazard) and a `page(title, requires=...)` context
-manager (header/gate/concept banner); adopt in the worst views first
-(`_tab_design_speeds` CC 72 → split seed/form/render; `_three_view` CC 52;
-`_tab_vn` CC 44; `landing_reactions` CC 66 per-attitude split). **Do this
-before writing the F25/OpenVSP views, not after 30 views exist.** Est. 1.5–2k
-lines removed.
+### M4-11b — Split the four highest-complexity view functions **[maintainability; remainder of M4-11]**
+**M4-11a shipped 2026-08-04** — the scaffold helpers (`unit_number_input`,
+`page_header`/`page`) exist, are tested, and are adopted where they fixed real
+unit defects; see history. What it deliberately did **not** do is the
+complexity-splitting half, re-measured with `radon` on 2026-08-04 and unchanged
+by M4-11a:
 
-### M4-12b — Contract cleanups (2026-07-21 review batch) **[M4-12a shipped 2026-08-03]**
-Promote the remaining cross-module private-symbol imports to public homes
-(`_interp_x`, `_sigma`, `_design_inputs`, `_maneuver_load_factors`,
-`_elevator_load`, `_envelope`, `_flaps_by_config_name`; `app/` must not import
-`sloads` underscore names — the `_wtenv_cg_limits` → `wtenv_cg_limits` case was
-promoted with M2R-5) by **underscore-drop in place + `__all__`** per D-14, with
-chosen names for `_envelope`/`_design_inputs`; `htail_balance` → **NamedTuple
-with lowercase attributes** per D-13 (stringly dict keys cross module
-boundaries); document the `tail_loads`/`vtail_loads` property-proxy trap-doors
-(invisible to `dataclasses.fields/replace/asdict`; silent None no-op) and do not
-replicate the pattern — **retirement is M4-10's** per D-15; write the
-`sync_geometry_derived`-inside-`run()` convention into the porting contract.
-This is **the oracle re-run gate** — it touches `select`/`balloads`/
-`flight_envelope`/`structural_speeds`/`wing_geometry`/`wing_inertia`/`net_loads`;
-every Appendix A assertion must pass with its number unedited. Scoped in
-[`06_m4_maintainability_sequence_plan.md`](06_m4_maintainability_sequence_plan.md) §4 step 2.
+| function | file | CC |
+|---|---|---|
+| `_tab_design_speeds` | `structural_speeds.py` | **F (72)** |
+| `_three_view` | `configuration_layout.py` | **F (63)** |
+| `_tab_vn` | `flight_envelope.py` | **F (44)** |
+| `_tab_cg_inertia` | `weight_mass.py` | **E (40)** |
+| `_subject_from_project` | `aircraft_comparison.py` | **E (34)** |
+| `_tab_trim` | `flight_envelope.py` | **E (33)** |
 
-*(The cspell sub-item is closed — `cspell.json` exists and the
-`CODE_REVIEW_PROCESS.md` bullet is valid.)*
+Split each into seed / form / render (and `landing_reactions` per attitude), and
+finish adopting `unit_number_input` in the views that still hand-pair
+`to_display`/`to_imperial_scalar`. **Note `engine_mount` is already correct by a
+different route** — it converts the whole `EngineInput` at Apply via
+`units.to_imperial`, so per-field adoption there would double-convert; either
+leave it or migrate the whole page in one move. `radon` is in the `dev` extra
+(D-17) — re-measure before and after. The projected "1.5–2k lines removed" is
+this half's to earn: M4-11a *added* ~170 net lines (a documented shared helper in
+place of duplicated idiom), which is the trade it was meant to make.
 
 ### M4-22 — Flight Envelope: SELECT Apply also persists un-applied geometry edits **[Minor, found by M4-12a]**
 `app/views/flight_envelope.py:324` — the SELECT-inputs form handler writes the
@@ -306,7 +304,7 @@ details: [`../20_theory/01_far25_gap_analysis.md`](../20_theory/01_far25_gap_ana
 (2026-07-20). Pattern throughout: opt-in supplement per module (the shipped
 `engine.include_far25` flag is the template); FAR 23 path untouched; every
 Part 25 result carries the "static surrogate — not certification" banner.
-**Preconditions (2026-07-21 review): M4-9, M4-10, and M4-11 land first** — F25
+**Preconditions (2026-07-21 review): M4-9, M4-10, and M4-11 (a+b) land first** — F25
 supplements emit new quantities and new fields, and the label-string/io/app
 walls are cheapest to clear before the wave, not after.
 
@@ -479,3 +477,5 @@ Described in full above; this is the lookup.
 - **M4-22** — Flight Envelope: the SELECT-inputs **Apply** also persists
   un-applied geometry/altitude edits (`flight_envelope.py:324` writes the probe
   copy). **[Minor]**
+- **M4-23** — `flight_envelope.density_ratio` duplicates
+  `constants.standard_atmosphere`'s sigma bit-for-bit. **[Minor]**

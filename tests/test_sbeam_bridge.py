@@ -175,7 +175,7 @@ def test_accepts_project_and_requires_loads():
 
 def test_project_export_transfers_to_loads_ref_axis():
     """The Project path states wing torsion about the surface's LRA, labelled in-band."""
-    from sloads.modules.wing_geometry import _interp_x
+    from sloads.modules.wing_geometry import interp_x
 
     p = io.load_project(_GA)
     p.loads = build_net_loads(p)
@@ -187,8 +187,8 @@ def test_project_export_transfers_to_loads_ref_axis():
     # Cumulative root torsion = the 25%-chord value + SF x Sz x (x_lra - x_25).
     raw = p.loads.wing_net[0].stations[0]
     sf = p.loads.wing_net[0].safety_factor
-    x_le = _interp_x(wing.leading_edge, raw.y)
-    x_te = _interp_x(wing.trailing_edge, raw.y)
+    x_le = interp_x(wing.leading_edge, raw.y)
+    x_te = interp_x(wing.trailing_edge, raw.y)
     x_lra = x_le + 0.40 * (x_te - x_le)
     expected = (raw.myy + raw.sz * (x_lra - raw.x)) * sf
     row = lines[1].split(",")

@@ -60,7 +60,7 @@ analysis, concept scope · **X** = out of scope (document, never silently skip).
 
 | FAR 25 | FAR 23 | What the program does | Difference | Disp. |
 |---|---|---|---|---|
-| 25.337(b): n₁ = 2.1 + 24,000/(W+10,000), **floor 2.5**, cap 3.8 | 23.337(a): same formula, cap 3.8, category floors differ | `structural_speeds._maneuver_load_factors` per category; concept "C" = user-chosen | **Same formula** — only the 2.5 floor differs (bites above W ≈ 50,000 lb) | **P** |
+| 25.337(b): n₁ = 2.1 + 24,000/(W+10,000), **floor 2.5**, cap 3.8 | 23.337(a): same formula, cap 3.8, category floors differ | `structural_speeds.maneuver_load_factors` per category; concept "C" = user-chosen | **Same formula** — only the 2.5 floor differs (bites above W ≈ 50,000 lb) | **P** |
 | 25.337(c): negative **−1.0** to VC, linear to 0 at VD | 23.337(b): −0.4·n₁ (N/U), −0.5·n₁ (A) | MAN −C at −0.4n/−0.5n, MAN −D → 0 at VD (N) or −1.0·? at VD (U/A) | Same envelope *shape* as normal category; magnitude −1.0 fixed instead of −0.4n | **P** |
 | 25.333 (envelope) | 23.333 | FLTLOADS corner-set + balance machinery | None structural — corner set membership changes (see gust rows) | **A** (machinery reused) |
 | 25.345 (high-lift: n = 2.0 flaps + 25 fps gust; en-route flap condition) | 23.345 (same 2.0 g + 25 fps head-on gust) | Flap envelope R3/R4: STAL/MAN 2G/0G VF, GUST ±VF at 25 fps, BAL VF | Very close; *verify* the head-on-gust component and the 25.345(c) en-route-flaps condition (relates to L-5 enroute config) | **P** *(verify)* |

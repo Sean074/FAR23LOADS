@@ -1,8 +1,10 @@
 # M4 maintainability sequence — execution plan (M4-12 → M4-11 → G8 views → M4-10 → M4-9)
 
-**Status:** **Step 1 (M4-12a) complete 2026-08-03** — see the history entry in
-[`../40_history/00_completed_development.md`](../40_history/00_completed_development.md);
-steps 2–6 planned, not started. **All design decisions resolved 2026-08-03**
+**Status:** **Steps 1–3 complete** — M4-12a + M4-12b (2026-08-03, M4-12 closed)
+and **M4-11a** (2026-08-04, the scaffold helpers; the complexity-splitting half
+is backlog **M4-11b** and does not block G8). See the history entries in
+[`../40_history/00_completed_development.md`](../40_history/00_completed_development.md).
+Steps 4–6 planned, not started. Next up is **step 4, G8 (M3-3)**. **All design decisions resolved 2026-08-03**
 (D-12 … D-18, §2). **Written:** 2026-08-03.
 **Scope:** the five pre-F25 maintainability items, in the order the dependency
 analysis below justifies. **Not in scope:** any calc-math change. The invariant
@@ -288,9 +290,15 @@ or `app/` change at all** — this sub-step touches `tests/` only.
 **Risk:** low. The one trap is a key rename that makes an AppTest silently find
 nothing — assert the button was found, not just that Apply worked.
 
-### Step 2 — M4-12b: symbol promotions + contract documentation
+### Step 2 — M4-12b: symbol promotions + contract documentation ✅ *complete 2026-08-03*
 
-**Decisions applied:** D-13, D-14, D-15 (all resolved).
+**Decisions applied:** D-13, D-14, D-15 (all resolved). **Shipped as written.**
+The oracle gate was met by a stronger check than the plan asked for: rather than
+diffing `LT`/`CP` on `ga6_normal`, a full result snapshot (every module, every
+`LoadValue`, every safety factor, all 6 examples) was taken before the first
+edit and re-taken after — **byte-identical**. The D-14 chosen-name carve-out
+took a third symbol, `_sigma` → `density_ratio` (see the register); the
+duplication it exposed is logged as **M4-23**.
 
 1. **Promote** the six symbols per D-14, with `__all__` on each touched module.
    Update the 2 `app/` importers and the 6 `sloads/` importers.
@@ -317,9 +325,23 @@ both concept fixtures still run end-to-end.
 sites in one commit and diffing the computed `LT`/`CP` on `ga6_normal` before and
 after.
 
-### Step 3 — M4-11: app scaffold helpers
+### Step 3 — M4-11: app scaffold helpers ⚠️ *partially complete 2026-08-04 (M4-11a)*
 
-**Decisions applied:** D-16, D-17 (both resolved).
+**Decisions applied:** D-16, D-17 (both resolved). **Sub-steps 1–3 shipped**
+(re-measured baseline, `unit_number_input` built and tested alone first, the page
+scaffold — split into `page_header` + `page` because most views are top-level
+scripts a context manager would force a whole-file reindent on). **Sub-step 4,
+the worst-first CC splitting, did not ship** and is backlog **M4-11b**; the six
+CC-E/F functions are unchanged, and the app layer *grew* ~170 net lines rather
+than shrinking by 1.5–2 k. The step's blocking purpose is met — G8.6 needs
+`page()`/`unit_number_input`, and both exist.
+
+**What the risk section below predicted, and what happened.** The "real risk" it
+names — a helper that renders fine and silently corrupts inputs — was not
+hypothetical: building the round-trip tests found a double conversion (184 ft²
+stored as 1982 ft²), a per-Apply rounding drift, unconverted bounds, and ~40
+Geometry fields that ignored the unit toggle outright. Both required test classes
+exist and are what caught them.
 
 1. **Re-measure** the CC/line baseline per D-17 and record it in the step's
    history entry.

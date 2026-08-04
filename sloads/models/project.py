@@ -243,11 +243,36 @@ class Project:
             self.geometry.empennage = EmpennageInput()
         return self.geometry.empennage
 
+    # ----------------------------------------------------------------------- #
+    # ⚠ Property proxies -- DO NOT REPLICATE THIS PATTERN (M4-12b / D-15)
+    #
+    # ``tail_loads`` and ``vtail_loads`` look like `Project` fields but are
+    # properties over ``geometry.empennage.htail/.vtail`` (the single stored
+    # home, Step G6). Two trap-doors follow, and both have bitten:
+    #
+    #   1. **Invisible to the dataclass protocol.** They are not in
+    #      ``dataclasses.fields(Project)``, so ``asdict``/``replace``/any
+    #      field-walking serializer silently omits them. ``io.py`` only
+    #      round-trips them because it writes them by hand.
+    #   2. **The setter silently no-ops.** Assigning ``None`` to a project with
+    #      no ``geometry``/``empennage`` returns without storing anything -- the
+    #      guard below exists so a `None` assignment does not conjure an empty
+    #      empennage, but it means ``p.tail_loads = None; assert p.tail_loads is
+    #      None`` can pass for the wrong reason, and a caller clearing the slice
+    #      cannot tell success from a no-op.
+    #
+    # New per-domain slices go on ``Project`` as real dataclass fields, or on
+    # their owning input object -- never as a proxy property. **Retirement is
+    # backlog M4-10's** (per D-15): it moves ~40 call sites and belongs with the
+    # ``project_from_dict`` rebuild that carries the legacy top-level keys.
+    # ----------------------------------------------------------------------- #
     @property
     def tail_loads(self) -> Optional["TailLoadsInput"]:
         """Rational horizontal-tail inputs (Step G6: proxied from
         ``geometry.empennage.htail``, the single stored home). ``None`` when no
-        empennage/h-tail geometry is present; SELECT/TAILDIST/BALLOADS read this."""
+        empennage/h-tail geometry is present; SELECT/TAILDIST/BALLOADS read this.
+
+        See the trap-door warning above before relying on assignment semantics."""
         emp = self.geometry.empennage if self.geometry is not None else None
         return emp.htail if emp is not None else None
 

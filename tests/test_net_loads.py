@@ -117,7 +117,7 @@ def test_wing_load_rows_shape():
 
 def test_loads_ref_axis_transfer():
     """Torsion transfer to the LRA: identity at 25%, Sz x axis-shift elsewhere."""
-    from sloads.modules.wing_geometry import _interp_x
+    from sloads.modules.wing_geometry import interp_x
 
     p = io.load_project(_GA)
     loads = build_net_loads(p)
@@ -137,7 +137,7 @@ def test_loads_ref_axis_transfer():
         assert r1.torsion_axis == "LRA 40% chord"
         assert r1.safety_factor == r0.safety_factor and r1.case == r0.case
         for s0, s1 in zip(r0.stations, r1.stations):
-            chord = _interp_x(wing.trailing_edge, s0.y) - _interp_x(wing.leading_edge, s0.y)
+            chord = interp_x(wing.trailing_edge, s0.y) - interp_x(wing.leading_edge, s0.y)
             assert math.isclose(s1.x - s0.x, 0.15 * chord, rel_tol=1e-9, abs_tol=1e-6)
             assert math.isclose(s1.myy, s0.myy + s0.sz * (s1.x - s0.x), abs_tol=1e-6)
             assert s1.sz == s0.sz and s1.sx == s0.sx

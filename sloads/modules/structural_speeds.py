@@ -58,7 +58,7 @@ _FAR = "23.335/23.337"
 _KT = "kt(EAS)"
 
 
-def _maneuver_load_factors(category: str, weight: float, chosen_n: Optional[float],
+def maneuver_load_factors(category: str, weight: float, chosen_n: Optional[float],
                            chosen_nneg: Optional[float]):
     """Limit positive and negative maneuver load factors (FAR 23.337).
 
@@ -164,7 +164,7 @@ def design_speed_values(project: Project, inp: StructuralSpeedsInput) -> DesignS
     ws = w / s
     cat = inp.category.upper()
 
-    n, n_min, nneg, nneg_min = _maneuver_load_factors(cat, w, inp.chosen_n, inp.chosen_nneg)
+    n, n_min, nneg, nneg_min = maneuver_load_factors(cat, w, inp.chosen_n, inp.chosen_nneg)
 
     vs, vsf = _stall_speeds(project, w, s)
 
@@ -430,3 +430,22 @@ def run(project: Project) -> ModuleResult:
 
 
 register(MODULE_NAME, run)
+
+# --------------------------------------------------------------------------- #
+# Public surface (M4-12b). Names not listed here are module-private: an
+# underscore-free name outside this list is still not an import contract, and
+# ``app/`` must import nothing underscored from ``sloads``.
+# --------------------------------------------------------------------------- #
+__all__ = [
+    "MODULE_NAME",
+    "run",
+    "design_speeds",
+    "design_speed_values",
+    "DesignSpeeds",
+    "maneuver_load_factors",
+    "operational_placards",
+    "OperationalPlacards",
+    "operational_target_checks",
+    "TargetCheck",
+    "operational_implications",
+]

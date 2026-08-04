@@ -21,17 +21,15 @@ import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
 
-from components import gate
+from components import gate, page_header
 
 from sloads import (
     AeroInput,
     AeroSurfaceInput,
     ConcentratedWeight,
-    Project,
     UnitSystem,
     WingLoadCase,
     WingMassInput,
-    labels_for,
     si_scalar_label,
     to_display,
     to_imperial_scalar,
@@ -70,7 +68,7 @@ def _convert_wing_rows(rows, system: UnitSystem):
         for r in rows
     ]
 
-st.title("Wing Loads — AIRLOADS + WINGINER + NETLOADS")
+project, system, U = page_header("wing_loads", title="Wing Loads — AIRLOADS + WINGINER + NETLOADS", banner=False)
 st.caption(
     "Python/Streamlit port of AIRLOADS.BAS + TAU.BAS + WINGINER.BAS + NETLOADS.BAS "
     "(Hal C. McMaster). Spanwise c·cl lift distribution by Schrenk's method "
@@ -78,9 +76,6 @@ st.caption(
     "giving the shear, bending moment and torsion along the 25% chord."
 )
 
-project: Project = st.session_state.get("project", Project(name=""))
-system: UnitSystem = st.session_state.get("unit_system", UnitSystem.IMPERIAL)
-U = labels_for(system)  # {"length","weight",...} -> unit string
 
 wing_geom = project.geometry.by_name("wing") if project.geometry else None
 if wing_geom is None:

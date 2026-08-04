@@ -133,8 +133,21 @@ never entered twice.)
 The contract that makes pages copy-of-the-pattern (full list in
 [`02_gui_workflow_plan.md §5`](../30_future/02_gui_workflow_plan.md)):
 
+- **A page opens with `components.page_header(key)`** (or `page(key)`, the
+  context-manager form that also gates on upstream slices) — M4-11. It renders
+  the title, the optional caption and the FAR 23 applicability banner, and
+  returns the `PageContext` (`project`, `system`, `U`) every view needs. `key` is
+  the `workflow.BY_KEY` step key — the view's own filename stem — so **the title
+  and the required upstream slices come from `workflow.py`**, the single source
+  of navigation truth, instead of being restated per page. `page()`'s gate links
+  to whichever step *produces* the missing slice, so re-sequencing the workflow
+  re-points every gate without a view being edited. A page with something more
+  specific to say about being blocked keeps its own `gate()` call and passes
+  `gate_missing=False` — the generic message is a floor, not a replacement.
 - **Inputs live in an `st.form`** with a single **Apply/Compute** submit — the
-  page does not recompute on every keystroke.
+  page does not recompute on every keystroke. **Every form carries a unique
+  string key** (`st.form("empennage_form")`) — tests select its Apply button
+  through that key, never by position or label (M4-12a).
 - **Apply merges** targeted fields onto the existing slice; a sole-owner page may
   fully reconstruct its own slice.
 - **No airplane-shaped widget defaults** — a blank project opens with neutral
@@ -157,32 +170,64 @@ The contract that makes pages copy-of-the-pattern (full list in
 ## 7. Units at the boundary (the definition-page input pattern)
 
 Imperial is the canonical internal system; the *displayed and exported* system is
-whichever the user selected. Results are
-converted with `convert_results` / `si_scalar_label` / `to_si_scalar`. **Input
-widgets** on the definition pages follow this standard pattern (reference
-implementation: `app/views/engine_mount.py`; helpers in `sloads/units.py`):
+whichever the user selected. Results are converted with `convert_results` /
+`si_scalar_label` / `to_si_scalar`.
+
+**Input widgets go through one helper — `components.unit_number_input`** (M4-11).
+It is the entire input unit boundary: the caller passes canonical Imperial in and
+gets canonical Imperial back, so a page cannot convert twice, convert the wrong
+way, or forget to convert on the way home. **A view that writes
+`to_imperial_scalar` around a `number_input` is a defect** — that hand-paired
+idiom is what the helper replaces, and doing both double-converts (a 184 ft²
+wing stored as 1982 ft², silently, in SI only).
 
 ```python
-system = st.session_state.get("unit_system", UnitSystem.IMPERIAL)
-U = labels_for(system)                                   # kind -> unit label
-val = st.number_input(f"Wing area S ({U['area_sqft']})", # unit-suffixed label
-                      value=to_display(imperial, "area_sqft", system),
-                      key=f"w_area_{system.value}")       # re-seed on toggle
+from components import ALTITUDE_FT, KEAS, page_header, unit_number_input
+
+project, system, U = page_header("configuration_layout")      # title + banner + context
+
+area  = unit_number_input("Wing area S", layout.wing_area_sqft,   # converted
+                          kind="area_sqft", key="w_area")
+v_a   = unit_number_input("VA", speeds.va, fixed_unit=KEAS, key="va")   # never converted
+alt   = unit_number_input("Shoulder altitude", inp.alt,
+                          fixed_unit=ALTITUDE_FT, key="alt")           # never converted
+taper = unit_number_input("Taper ratio λ", layout.taper_ratio, key="taper")  # dimensionless
 ...
-inp.wing_area_sqft = to_imperial_scalar(val, "area_sqft", system)   # on Apply
+layout.wing_area_sqft = area      # already Imperial -- no conversion on Apply
 ```
 
-Key points: seed the widget from the stored Imperial value via
-`to_display(value, kind, system)`; suffix the label with `U[kind]`; suffix the
-widget `key` with `system.value` so switching units re-seeds the widget; convert
-back with `to_imperial_scalar(v, kind, system)` before writing the (always
-Imperial) `Project`. Unit **kinds** and their factors/labels live in
-`SI_PER_IMPERIAL` / `UNIT_LABELS` in `sloads/units.py`.
+Exactly one of three modes applies per field, and the mode is **stated by the
+caller, never inferred from the label**:
+
+| mode | what it does |
+|---|---|
+| `kind="area_sqft"` (any `UNIT_LABELS` kind) | converts the seed, suffixes the label with the active system's unit, converts the entry back to Imperial, and suffixes the widget key with the system so a unit switch re-seeds. `min_value`/`max_value` are Imperial too and convert with the value. |
+| `fixed_unit=KEAS` / `fixed_unit=ALTITUDE_FT` | the **aviation carve-out**: shows the unit, converts nothing, and does *not* suffix the key (the number means the same in both systems, so the field must survive a switch). |
+| neither | dimensionless (ratios, counts, angles in degrees) — no suffix, no conversion. |
+
+Passing both `kind=` and `fixed_unit=` raises `ValueError`: a field is on the
+conversion path or off it, never ambiguously both.
+
+An **untouched** field returns the caller's own Imperial value rather than
+converting the rounded display seed home — otherwise an SI user's project would
+drift by the rounding on every Apply, silently and forever.
 
 **Aviation-standard exception:** airspeed (KEAS) and altitude (ft) stay in
 aviation units in *both* systems and are never converted — do not add a unit kind
-for them. Where a deliverable reports them it says so, so an SI reader does not
-read an unconverted speed as an oversight.
+for them; use `fixed_unit=`. Where a deliverable reports them it says so, so an
+SI reader does not read an unconverted speed as an oversight.
+
+**Where the selection is read.** Exactly one function reads it:
+`components.active_system()` (decision D-16). Today it returns the session-wide
+sidebar toggle; backlog **M4-20** re-points that one function at a `Project`
+field without touching a single call site. Views SHALL NOT read
+`st.session_state["unit_system"]` directly.
+
+Unit **kinds** and their factors/labels live in `SI_PER_IMPERIAL` / `UNIT_LABELS`
+in `sloads/units.py`. The helper is pinned by `tests/test_app_components.py`
+(round-trip per kind, per system, plus the carve-out and key discipline) and
+end-to-end through real views in both systems by
+`tests/test_view_unit_roundtrip.py`.
 
 **Exports follow the toggle too.** The toggle is not display-only: the export
 bundle (report, load-case CSV, span CSVs, sbeam BDF) is rendered in the selected

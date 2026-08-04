@@ -23,7 +23,12 @@ import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
 
-from components import render_applicability_banner, workflow_page_link
+from components import (
+    ALTITUDE_FT,
+    page_header,
+    unit_number_input,
+    workflow_page_link,
+)
 
 from sloads import (
     MachLimitInput,
@@ -31,7 +36,6 @@ from sloads import (
     StructuralSpeedsInput,
     UnitSystem,
     consistency_warnings,
-    labels_for,
     to_display,
     to_imperial_scalar,
 )
@@ -46,18 +50,13 @@ from sloads.modules.structural_speeds import (
 from sloads.report import module_text_report
 
 
-st.title("Structural Design Speeds — FAR 23")
+project, system, U = page_header("structural_speeds", title="Structural Design Speeds — FAR 23")
 st.caption(
     "Limit maneuver load factors and design airspeeds (VA, VC, VD, VF) with their "
     "FAR minimums (STRSPEED), plus the Mach-limited speed–altitude flight-limits "
     "diagram (MACHLIM). All speeds are KEAS; altitudes are feet."
 )
 
-project: Project = st.session_state.get("project", Project(name=""))
-system: UnitSystem = st.session_state.get("unit_system", UnitSystem.IMPERIAL)
-U = labels_for(system)
-
-render_applicability_banner(project)
 
 _CATS = {"Normal / commuter": "N", "Utility": "U", "Acrobatic": "A", "Concept (C)": "C"}
 _CAT_LABELS = list(_CATS)
@@ -211,10 +210,13 @@ def _tab_design_speeds(project: Project, system: UnitSystem, U: dict) -> None:
             "(CLmax)** entered on the **Aerodynamic Data** page — VS = √(295·(W/S)/CLmax) "
             "at the design weight — and set VA and VF. Enter CLmax there."
         )
-        alt = st.number_input("Shoulder altitude (ft)", min_value=0.0,
-                              value=float(existing.shoulder_altitude_ft) if existing else 0.0,
-                              help="Altitude at the 'shoulder' of the flight envelope where VC/VD are evaluated "
-                                   "for the cruise/dive Mach limit (MACHLIM, Ch 5).")
+        # Altitude is feet in both unit systems (D-16's aviation carve-out), so it
+        # goes through the explicit non-converted path rather than a hand-typed unit.
+        alt = unit_number_input(
+            "Shoulder altitude", float(existing.shoulder_altitude_ft) if existing else 0.0,
+            fixed_unit=ALTITUDE_FT, key="ss_shoulder_alt", min_value=0.0,
+            help="Altitude at the 'shoulder' of the flight envelope where VC/VD are evaluated "
+                 "for the cruise/dive Mach limit (MACHLIM, Ch 5).")
         st.subheader("Chosen speeds (blank = use minimum)")
         vc = st.number_input("Chosen cruise VC (kt)", min_value=0.0,
                              value=float(existing.chosen_vc) if existing and existing.chosen_vc else 0.0,

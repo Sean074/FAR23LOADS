@@ -10,7 +10,84 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed
+
+- **M4-11a — the Geometry page ignored the SI unit toggle on ~40 fields.** The
+  empennage (33 fields), landing-gear (7) and engine-CG (3) forms hard-coded
+  Imperial unit strings into their labels (`"H-tail area ST (ft²)"`, `"Tread
+  between mains (in)"`) and performed no conversion, so with the sidebar set to
+  SI a user saw `(in)`/`(ft²)` and their entry was stored as inches. The gear
+  caption had documented the behaviour rather than fixed it. All now render in
+  the active system and store canonical Imperial. Two `"CG station … (in)"`
+  fields on the Flight Envelope trim tab had the same defect.
+- **M4-11a — a 184 ft² wing was stored as 1982 ft² in SI.** With the widgets
+  returning canonical Imperial, the Geometry page's Apply handler converted a
+  second time. Found by the new through-the-view test, not by review.
+- **M4-11a — an untouched field drifted the project on every Apply in SI.** The
+  display seed is rounded to 4 decimals for legibility; converting *that* back
+  returned a value a hair off the original. `unit_number_input` now returns the
+  caller's own Imperial value when the field was not edited.
+- **M4-11a — `min_value`/`max_value` were not converted with the value**, so a
+  non-zero Imperial bound would have become an SI-magnitude bound and silently
+  stopped constraining.
+
+### Added
+
+- **M4-11a — `components.unit_number_input`: the GUI input unit boundary, in one
+  place.** Imperial in, Imperial out, so a view cannot convert twice, convert the
+  wrong way, or forget to convert on the way home. Three modes, stated by the
+  caller and never inferred from a label: `kind=` (converted; unit-suffixed
+  label, per-system widget key, bounds converted too), `fixed_unit=KEAS` /
+  `ALTITUDE_FT` (decision D-16's aviation carve-out — displayed, never converted,
+  key deliberately *not* per-system), or neither (dimensionless). Both together
+  raise `ValueError`.
+- **M4-11a — `components.page_header(key)` / `page(key)`**: a view's title,
+  caption, applicability banner and `PageContext` in one call, with `page()`
+  adding a workflow-derived upstream gate as a context manager. The title *and*
+  the required slices come from `workflow.py`, and each gate links to the step
+  that produces the missing slice, so re-sequencing the workflow re-points every
+  gate without touching a view.
+- **M4-11a — `components.active_system()`**, the single read of the unit
+  selection in the whole app layer (D-16); backlog M4-20 re-points that one
+  function at a `Project` field without touching any call site.
+- **M4-11a — two new test files, 50 tests.**
+  `tests/test_app_components.py` pins the helper in isolation (round-trip per
+  unit kind per system, carve-out exactness, bound conversion, key discipline);
+  `tests/test_view_unit_roundtrip.py` pins it end-to-end through real views via
+  `AppTest`, typing in each system and asserting the same stored Imperial value.
+- **`radon`** added to the `dev` extra (decision D-17) for cyclomatic-complexity
+  and maintainability-index reporting. **Explicitly not a CI gate** — `ruff` and
+  `pytest` remain the merge gate.
+
 ### Changed
+
+- **M4-12b — public import contract: seven private symbols promoted, `__all__`
+  on the four defining modules.** `app/` no longer imports any underscored name
+  from `sloads` — the two live violations
+  (`configuration_layout` → `wing_geometry._interp_x`, `components` →
+  `structural_speeds._maneuver_load_factors`) are gone, along with five
+  cross-module private imports inside `sloads/`. Promotions (66 sites):
+  `interp_x`, `maneuver_load_factors`, `design_inputs`, `density_ratio`,
+  `elevator_load`, `flaps_by_config_name`, `default_envelope`. Names outside a
+  module's `__all__` are module-private, and there is deliberately no
+  `sloads/api.py` facade. **No behaviour change:** a full result snapshot — every
+  module, condition, `LoadValue` and safety factor across all 6 examples — is
+  byte-identical before and after, and every Appendix A figure and tolerance
+  literal is unedited.
+- **M4-12b — `select.htail_balance` returns a typed `HtailBalance`.** The
+  rational tail balance crossed three module boundaries as a `Dict[str, float]`
+  whose string keys were the API; it is now a `NamedTuple` with lowercase
+  attributes (`lt25`, `lt50`, `at`, `delta`, `lt`, `cp`) and the Ref 1 Ch 9
+  symbols tabulated in its docstring. BALLOADS' `verify_balancing` row dicts are
+  a separate structure and keep their keys.
+- **M4-12b — porting contract extended** (`PROJECT_GUIDE.md` §5):
+  `sync_geometry_derived(project)` is called first inside `run()` (seven sites,
+  previously convention-by-imitation); cross-module results are typed, not
+  stringly-keyed; the public surface is explicit; and no new property proxies on
+  `Project`. The `Project.tail_loads`/`.vtail_loads` trap-doors — invisible to
+  `dataclasses.fields`/`asdict`/`replace`, and a setter that silently no-ops on
+  `None` — are now documented beside the properties, with retirement assigned to
+  **M4-10**.
 
 - **M4-12a — test architecture: shared helpers and form-key button selection.**
   Nine near-identical `_value` lookups (three different signatures) collapse into

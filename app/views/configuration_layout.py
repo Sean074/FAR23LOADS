@@ -23,7 +23,7 @@ import plotly.graph_objects as go
 import streamlit as st
 from plotly.subplots import make_subplots
 
-from components import gate, render_applicability_banner
+from components import gate, page_header, unit_number_input
 
 from sloads.applicability import effective_occupants
 from sloads import (
@@ -61,7 +61,7 @@ from sloads.modules.configuration import (
     wing_polylines,
     wing_surface,
 )
-from sloads.modules.wing_geometry import _interp_x, geometry_properties, surface_top_outline
+from sloads.modules.wing_geometry import interp_x, geometry_properties, surface_top_outline
 from sloads.report import module_text_report
 
 _TAIL_TYPE_LABELS = {
@@ -73,7 +73,7 @@ _TAIL_TYPE_LABELS = {
 _TAIL_TYPE_BY_LABEL = {v: k for k, v in _TAIL_TYPE_LABELS.items()}
 
 
-st.title("Geometry")
+project = page_header("configuration_layout", title="Geometry").project
 st.caption(
     "The single geometry source of truth (Step G1): parametric fuselage / wing / "
     "tail / gear, the fuselage outline, and the WINGGEOM lifting-surface planforms "
@@ -81,8 +81,6 @@ st.caption(
     "no original program and no regression oracle; figures are first-order estimates."
 )
 
-project: Project = st.session_state.get("project", Project(name=""))
-render_applicability_banner(project)
 for _w in consistency_warnings(project):
     # The Geometry page is the merged home of the old Configuration & Layout and
     # Wing Geometry pages (Step G1), so it surfaces both warning categories.
@@ -151,20 +149,25 @@ def _layout_errors(layout: LayoutInput) -> list[str]:
 # --------------------------------------------------------------------------- #
 def _num(label: str, value: float, key: str, kind: str | None = None, step: float = 1.0,
          help: str | None = None) -> float:
-    """A ``number_input`` seeded from a canonical Imperial ``value``.
+    """This page's positional-argument spelling of :func:`unit_number_input`.
 
-    When ``kind`` is given, the widget displays/accepts the value converted
-    into the selected unit system (label gets the unit suffix, key gets a
-    per-system suffix so switching units re-seeds the widget with converted
-    defaults). ``kind=None`` is for system-independent quantities (ratios,
-    angles) and passes the value through unchanged. ``help`` is the hover
-    tooltip (Step E2).
+    The conversion itself lives in ``components.unit_number_input`` (M4-11) --
+    Imperial in, Imperial out, one place in the whole app. This keeps the
+    ``(label, value, key, kind)`` argument order the page's ~11 sidebar fields
+    already use. ``help`` is the hover tooltip (Step E2).
     """
-    if kind is None:
-        return float(st.number_input(label, value=float(value), step=step, key=key, help=help))
-    display_value = float(round(to_display(value, kind, system), 4))
-    return float(st.number_input(f"{label} ({U[kind]})", value=display_value, step=step,
-                                  key=f"{key}_{system.value}", help=help))
+    return unit_number_input(label, value, kind=kind, key=key, step=step, help=help)
+
+
+def _u(label: str, value: float, kind: str | None, key: str, container=None,
+       **kwargs) -> float:
+    """As :func:`_num`, for the column-laid-out forms further down the page.
+
+    ``container`` is the ``st.columns`` cell to render into; ``kind=None`` marks
+    a dimensionless field (a ratio, a count, an angle in degrees).
+    """
+    return unit_number_input(label, value, kind=kind, key=key, container=container,
+                             min_value=kwargs.pop("min_value", None), **kwargs)
 
 
 with st.sidebar:
@@ -259,9 +262,11 @@ with st.sidebar:
         )
 
 if applied:
-    def _imp(v: float, kind: str) -> float:
-        return to_imperial_scalar(v, kind, system)
-
+    # M4-11: the widgets above go through ``unit_number_input`` (via ``_num``),
+    # which already returns canonical Imperial -- so there is deliberately no
+    # conversion here. The handler used to call ``to_imperial_scalar`` on each
+    # field because ``_num`` returned *display* units; doing both would convert
+    # twice (a 184 ft^2 wing stored as 1982 ft^2 in SI, silently).
     # This page owns the whole configuration slice, so a wholesale replace on
     # Apply is correct here (unlike a slice shared with other pages/edits).
     # Fuselage length/width/height are a derived summary of the outline (Step M2-6):
@@ -269,11 +274,11 @@ if applied:
     # drops them and sync_geometry_derived re-derives on load / every calc run).
     _candidate = LayoutInput(
         fuselage_length=_sum_len, fuselage_width=_sum_wid,
-        fuselage_height=_sum_hgt, datum_x=_imp(datum_x, "length"),
-        wing_area_sqft=_imp(wing_area_sqft, "area_sqft"), aspect_ratio=aspect_ratio, taper_ratio=taper_ratio,
-        dihedral_deg=dihedral_deg, le_sweep_deg=le_sweep_deg, le_root_x=_imp(le_root_x, "length"),
-        root_waterline_z=_imp(root_waterline_z, "length"),
-        tail_type=_TAIL_TYPE_BY_LABEL[tail_type_label], h_tail_z=_imp(h_tail_z, "length"),
+        fuselage_height=_sum_hgt, datum_x=datum_x,
+        wing_area_sqft=wing_area_sqft, aspect_ratio=aspect_ratio, taper_ratio=taper_ratio,
+        dihedral_deg=dihedral_deg, le_sweep_deg=le_sweep_deg, le_root_x=le_root_x,
+        root_waterline_z=root_waterline_z,
+        tail_type=_TAIL_TYPE_BY_LABEL[tail_type_label], h_tail_z=h_tail_z,
     )
     # M2R-6: validate BEFORE persisting -- reject an invalid layout with a targeted
     # message rather than storing it and blanking the page downstream.
@@ -334,8 +339,8 @@ def _three_view() -> go.Figure:
         if len(_s.leading_edge) < 2 or len(_s.trailing_edge) < 2:
             continue
         _ys = sorted({p[1] for p in _s.leading_edge} | {p[1] for p in _s.trailing_edge})
-        _xa = [_interp_x(_s.leading_edge, y)
-               + _s.ref_axis_pct * (_interp_x(_s.trailing_edge, y) - _interp_x(_s.leading_edge, y))
+        _xa = [interp_x(_s.leading_edge, y)
+               + _s.ref_axis_pct * (interp_x(_s.trailing_edge, y) - interp_x(_s.leading_edge, y))
                for y in _ys]
         _mirror = _s.symmetric
         fig.add_scatter(
@@ -499,81 +504,53 @@ with st.form("empennage_form"):
                        value=_emp is not None and _emp.htail is not None)
     with st.expander("Horizontal tail & elevator", expanded=True):
         c = st.columns(3)
-        ht_area = c[0].number_input("H-tail area ST (ft²)", min_value=0.0,
-                                    value=float(_ht0.htail_area_sqft), key="en_ht_area")
-        ht_semi = c[1].number_input("H-tail semi-span (in)", min_value=0.0,
-                                    value=float(_ht0.htail_semispan_in), key="en_ht_semi")
-        ht_arht = c[2].number_input("H-tail aspect ratio ARHT", min_value=0.0,
-                                    value=float(_ht0.aspect_ratio_htail), key="en_arht")
-        ht_arw = c[0].number_input("Wing aspect ratio ARW", min_value=0.0,
-                                   value=float(_ht0.aspect_ratio_wing), key="en_arw")
-        ht_xt25 = c[1].number_input("25% tail-MAC station xt25 (in)",
-                                    value=float(_ht0.xt25), key="en_xt25")
-        ht_xt50 = c[2].number_input("50% tail-MAC station xt50 (in)",
-                                    value=float(_ht0.xt50), key="en_xt50")
-        ht_it = c[0].number_input("Tail incidence IT (deg)",
-                                  value=float(_ht0.tail_incidence_deg), key="en_it")
-        ht_lf = c[1].number_input("Airplane length LF (in)", min_value=0.0,
-                                  value=float(_ht0.airplane_length_in), key="en_lf")
-        ht_aw = c[2].number_input("Wing lift slope AW (per rad)",
-                                  value=float(_ht0.wing_lift_slope_per_rad), key="en_aw")
-        ht_iwc = c[0].number_input("Wing zero-lift, cruise (deg)",
-                                   value=float(_ht0.wing_zero_lift_cruise_deg), key="en_iwc")
-        ht_iwe = c[1].number_input("Wing zero-lift, enroute (deg)",
-                                   value=float(_ht0.wing_zero_lift_enroute_deg), key="en_iwe")
-        ht_iwl = c[2].number_input("Wing zero-lift, landing (deg)",
-                                   value=float(_ht0.wing_zero_lift_landing_deg), key="en_iwl")
+        ht_area = _u("H-tail area ST", _ht0.htail_area_sqft, "area_sqft", "en_ht_area", c[0], min_value=0.0)
+        ht_semi = _u("H-tail semi-span", _ht0.htail_semispan_in, "length", "en_ht_semi", c[1], min_value=0.0)
+        ht_arht = _u("H-tail aspect ratio ARHT", _ht0.aspect_ratio_htail, None, "en_arht", c[2], min_value=0.0)
+        ht_arw = _u("Wing aspect ratio ARW", _ht0.aspect_ratio_wing, None, "en_arw", c[0], min_value=0.0)
+        ht_xt25 = _u("25% tail-MAC station xt25", _ht0.xt25, "length", "en_xt25", c[1])
+        ht_xt50 = _u("50% tail-MAC station xt50", _ht0.xt50, "length", "en_xt50", c[2])
+        ht_it = _u("Tail incidence IT (deg)", _ht0.tail_incidence_deg, None, "en_it", c[0])
+        ht_lf = _u("Airplane length LF", _ht0.airplane_length_in, "length", "en_lf", c[1], min_value=0.0)
+        ht_aw = _u("Wing lift slope AW (per rad)", _ht0.wing_lift_slope_per_rad, None, "en_aw", c[2])
+        ht_iwc = _u("Wing zero-lift, cruise (deg)", _ht0.wing_zero_lift_cruise_deg, None, "en_iwc", c[0])
+        ht_iwe = _u("Wing zero-lift, enroute (deg)", _ht0.wing_zero_lift_enroute_deg, None, "en_iwe", c[1])
+        ht_iwl = _u("Wing zero-lift, landing (deg)", _ht0.wing_zero_lift_landing_deg, None, "en_iwl", c[2])
         st.markdown("**Elevator**")
         e = st.columns(3)
-        el_se = e[0].number_input("Elevator area SE (ft²)", min_value=0.0,
-                                  value=float(_ht0.elevator_area_sqft), key="en_se")
-        el_fwd = e[1].number_input("Area fwd of hinge SEFWDHL (ft²)", min_value=0.0,
-                                   value=float(_ht0.elevator_fwd_hinge_sqft), key="en_sefwd")
-        el_aft = e[2].number_input("Area aft of hinge SEAFTHL (ft²)", min_value=0.0,
-                                   value=float(_ht0.elevator_aft_hinge_sqft), key="en_seaft")
-        el_up = e[0].number_input("TE-up deflection EUP (deg)", min_value=0.0,
-                                  value=float(_ht0.elevator_te_up_deg), key="en_eup")
-        el_dn = e[1].number_input("TE-down deflection EDN (deg)", min_value=0.0,
-                                  value=float(_ht0.elevator_te_down_deg), key="en_edn")
-        el_eff = e[2].number_input("Elevator effectiveness", min_value=0.0,
-                                   value=float(_ht0.elevator_effectiveness), key="en_eeff")
+        el_se = _u("Elevator area SE", _ht0.elevator_area_sqft, "area_sqft", "en_se", e[0], min_value=0.0)
+        el_fwd = _u("Area fwd of hinge SEFWDHL", _ht0.elevator_fwd_hinge_sqft, "area_sqft", "en_sefwd", e[1],
+            min_value=0.0)
+        el_aft = _u("Area aft of hinge SEAFTHL", _ht0.elevator_aft_hinge_sqft, "area_sqft", "en_seaft", e[2],
+            min_value=0.0)
+        el_up = _u("TE-up deflection EUP (deg)", _ht0.elevator_te_up_deg, None, "en_eup", e[0], min_value=0.0)
+        el_dn = _u("TE-down deflection EDN (deg)", _ht0.elevator_te_down_deg, None, "en_edn", e[1], min_value=0.0)
+        el_eff = _u("Elevator effectiveness", _ht0.elevator_effectiveness, None, "en_eeff", e[2], min_value=0.0)
 
     en_v = st.checkbox("Model vertical tail + rudder",
                        value=_emp is not None and _emp.vtail is not None)
     with st.expander("Vertical tail & rudder", expanded=True):
         c = st.columns(3)
-        vt_area = c[0].number_input("V-tail area SV (ft²)", min_value=0.0,
-                                    value=float(_vt0.vtail_area_sqft), key="en_vt_area")
-        vt_span = c[1].number_input("V-tail span (in)", min_value=0.0,
-                                    value=float(_vt0.vtail_span_in), key="en_vt_span")
-        vt_arvt = c[2].number_input("V-tail aspect ratio ARVT", min_value=0.0,
-                                    value=float(_vt0.aspect_ratio_vtail), key="en_arvt")
-        vt_mac = c[0].number_input("V-tail MAC (in)", min_value=0.0,
-                                   value=float(_vt0.vtail_mac_in), key="en_vmac")
-        vt_xv25 = c[1].number_input("25% V-tail-MAC station xv25 (in)",
-                                    value=float(_vt0.xv25), key="en_xv25")
-        vt_xv50 = c[2].number_input("50% V-tail-MAC station xv50 (in)",
-                                    value=float(_vt0.xv50), key="en_xv50")
-        vt_b = c[0].number_input("Wing span B (in)", min_value=0.0,
-                                 value=float(_vt0.wing_span_in), key="en_wspan")
-        vt_lf = c[1].number_input("Airplane length LF (in)", min_value=0.0,
-                                  value=float(_vt0.airplane_length_in), key="en_vlf")
-        vt_gw = c[2].number_input("Gross weight GW (lb, 0=auto)", min_value=0.0,
-                                  value=float(_vt0.gross_weight_lb), key="en_gw")
-        vt_izz = c[0].number_input("Yaw inertia IZZ (slug·ft², 0=auto)", min_value=0.0,
-                                   value=float(_vt0.izz_slugft2), key="en_izz")
+        vt_area = _u("V-tail area SV", _vt0.vtail_area_sqft, "area_sqft", "en_vt_area", c[0], min_value=0.0)
+        vt_span = _u("V-tail span", _vt0.vtail_span_in, "length", "en_vt_span", c[1], min_value=0.0)
+        vt_arvt = _u("V-tail aspect ratio ARVT", _vt0.aspect_ratio_vtail, None, "en_arvt", c[2], min_value=0.0)
+        vt_mac = _u("V-tail MAC", _vt0.vtail_mac_in, "length", "en_vmac", c[0], min_value=0.0)
+        vt_xv25 = _u("25% V-tail-MAC station xv25", _vt0.xv25, "length", "en_xv25", c[1])
+        vt_xv50 = _u("50% V-tail-MAC station xv50", _vt0.xv50, "length", "en_xv50", c[2])
+        vt_b = _u("Wing span B", _vt0.wing_span_in, "length", "en_wspan", c[0], min_value=0.0)
+        vt_lf = _u("Airplane length LF", _vt0.airplane_length_in, "length", "en_vlf", c[1], min_value=0.0)
+        vt_gw = _u("Gross weight GW (0=auto)", _vt0.gross_weight_lb, "weight", "en_gw", c[2], min_value=0.0)
+        vt_izz = _u("Yaw inertia IZZ (0=auto)", _vt0.izz_slugft2, "inertia", "en_izz", c[0], min_value=0.0)
         st.markdown("**Rudder**")
         r = st.columns(3)
-        rd_sr = r[0].number_input("Rudder area SR (ft²)", min_value=0.0,
-                                  value=float(_vt0.rudder_area_sqft), key="en_sr")
-        rd_fwd = r[1].number_input("Area fwd of hinge SRFWDHL (ft²)", min_value=0.0,
-                                   value=float(_vt0.rudder_fwd_hinge_sqft), key="en_srfwd")
-        rd_aft = r[2].number_input("Area aft of hinge SRAFTHL (ft²)", min_value=0.0,
-                                   value=float(_vt0.rudder_aft_hinge_sqft), key="en_sraft")
-        rd_rd = r[0].number_input("Rudder deflection RD (deg)", min_value=0.0,
-                                  value=float(_vt0.rudder_deflection_deg), key="en_rd")
-        rd_efv = r[1].number_input("Large-deflection factor EFV", min_value=0.0,
-                                   value=float(_vt0.rudder_large_deflection_factor), key="en_efv")
+        rd_sr = _u("Rudder area SR", _vt0.rudder_area_sqft, "area_sqft", "en_sr", r[0], min_value=0.0)
+        rd_fwd = _u("Area fwd of hinge SRFWDHL", _vt0.rudder_fwd_hinge_sqft, "area_sqft", "en_srfwd", r[1],
+            min_value=0.0)
+        rd_aft = _u("Area aft of hinge SRAFTHL", _vt0.rudder_aft_hinge_sqft, "area_sqft", "en_sraft", r[2],
+            min_value=0.0)
+        rd_rd = _u("Rudder deflection RD (deg)", _vt0.rudder_deflection_deg, None, "en_rd", r[0], min_value=0.0)
+        rd_efv = _u("Large-deflection factor EFV", _vt0.rudder_large_deflection_factor, None, "en_efv", r[1],
+            min_value=0.0)
     en_applied = st.form_submit_button("Apply empennage", type="primary")
 
 if en_applied:
@@ -607,8 +584,8 @@ st.caption(
     "axle (X, Z) at each strut state, rolling radius, strut type, and the main-wheel "
     "tread. Entered once here; drives the three-view (strut + wheels) and the ground-"
     "load analysis. The Landing Loads page keeps only the non-geometry LANDLOAD inputs "
-    "(weights, strut stroke, tyre OD/hub, lift factor, tail-down angle). Values are "
-    "Imperial (in). The tip-back/overturn/clearance estimate derives the ground line "
+    "(weights, strut stroke, tyre OD/hub, lift factor, tail-down angle). Fields follow "
+    "the sidebar's unit selection. The tip-back/overturn/clearance estimate derives the ground line "
     "from the static axle Z minus the rolling radius."
 )
 _lg0 = project.geometry.landing_gear if project.geometry is not None else None
@@ -619,15 +596,15 @@ def _gear_leg(label: str, gear: LandingGearInput, keyp: str) -> LandingGearInput
     a = st.columns(2)
     strut = a[0].selectbox(f"{label} strut", ["O", "S"], index=0 if gear.strut == "O" else 1,
                            key=f"{keyp}_strut", help="O = oleo, S = spring")
-    rr = a[1].number_input(f"{label} rolling radius (in)", min_value=0.0,
-                           value=float(gear.rolling_radius_in), key=f"{keyp}_rr")
+    rr = _u(f"{label} rolling radius", gear.rolling_radius_in, "length", f"{keyp}_rr", a[1],
+            min_value=0.0)
     c = st.columns(6)
-    xc = c[0].number_input(f"{label} X compr.", value=float(gear.axle_compressed[0]), key=f"{keyp}_xc")
-    zc = c[1].number_input(f"{label} Z compr.", value=float(gear.axle_compressed[1]), key=f"{keyp}_zc")
-    xs = c[2].number_input(f"{label} X static", value=float(gear.axle_static[0]), key=f"{keyp}_xs")
-    zs = c[3].number_input(f"{label} Z static", value=float(gear.axle_static[1]), key=f"{keyp}_zs")
-    xe = c[4].number_input(f"{label} X ext.", value=float(gear.axle_extended[0]), key=f"{keyp}_xe")
-    ze = c[5].number_input(f"{label} Z ext.", value=float(gear.axle_extended[1]), key=f"{keyp}_ze")
+    xc = _u(f"{label} X compr.", gear.axle_compressed[0], "length", f"{keyp}_xc", c[0])
+    zc = _u(f"{label} Z compr.", gear.axle_compressed[1], "length", f"{keyp}_zc", c[1])
+    xs = _u(f"{label} X static", gear.axle_static[0], "length", f"{keyp}_xs", c[2])
+    zs = _u(f"{label} Z static", gear.axle_static[1], "length", f"{keyp}_zs", c[3])
+    xe = _u(f"{label} X ext.", gear.axle_extended[0], "length", f"{keyp}_xe", c[4])
+    ze = _u(f"{label} Z ext.", gear.axle_extended[1], "length", f"{keyp}_ze", c[5])
     return LandingGearInput(axle_compressed=(xc, zc), axle_static=(xs, zs),
                             axle_extended=(xe, ze), rolling_radius_in=rr, strut=strut)
 
@@ -637,8 +614,8 @@ with st.form("landing_gear_form"):
     _nose0 = _lg0.nose_gear if _lg0 is not None else LandingGearInput()
     lg_main = _gear_leg("Main gear", _main0, "lgm")
     lg_nose = _gear_leg("Nose gear", _nose0, "lgn")
-    lg_tread = st.number_input("Tread between mains (in)", min_value=0.0,
-                               value=float(_lg0.tread_in if _lg0 is not None else 0.0), key="lg_tread")
+    lg_tread = _u("Tread between mains", _lg0.tread_in if _lg0 is not None else 0.0,
+                  "length", "lg_tread", min_value=0.0)
     lg_applied = st.form_submit_button("Apply landing gear", type="primary")
 
 if lg_applied:
@@ -842,12 +819,12 @@ if project.engines:
         for i, eng in enumerate(project.engines):
             st.markdown(f"**{eng.engine_designation or f'Engine {i + 1}'}**")
             c1, c2, c3 = st.columns(3)
-            x = c1.number_input("X (in)", value=float(eng.engine_cg[0]), key=f"eng_cg_x_{i}",
-                                help="Engine CG fuselage station (inches aft of the nose datum).")
-            y = c2.number_input("Y (in)", value=float(eng.engine_cg[1]), key=f"eng_cg_y_{i}",
-                                help="Engine CG butt line (inches, +right of centreline).")
-            z = c3.number_input("Z (in)", value=float(eng.engine_cg[2]), key=f"eng_cg_z_{i}",
-                                help="Engine CG waterline (inches, +up).")
+            x = _u("X", eng.engine_cg[0], "length", f"eng_cg_x_{i}", c1,
+                   help="Engine CG fuselage station, aft of the nose datum.")
+            y = _u("Y", eng.engine_cg[1], "length", f"eng_cg_y_{i}", c2,
+                   help="Engine CG butt line, + right of centreline.")
+            z = _u("Z", eng.engine_cg[2], "length", f"eng_cg_z_{i}", c3,
+                   help="Engine CG waterline, + up.")
             overrides.append((x, y, z))
         if st.button("Apply engine positions"):
             project.engines = [

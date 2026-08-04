@@ -260,6 +260,39 @@ So that every module is copy-of-the-pattern, these are fixed once:
 - **One CSV shape per module = load cases.** Each row is one structural load case: `ID`, `FAR §`, `Case description`, an `SF` column (always populated), application point `Loc X/Y/Z`, then the applied **ultimate** loads/moments with `-ULT` units (`lbs-ULT`/`ft-lb-ULT`/…). This is exactly the `load_cases_to_rows` pattern engloads already established — generalize it, don't reinvent per module.
 - **Units at the boundary only.** Calc stays in one internal system; `units.py` converts JSON-in and display/CSV-out. (Already implemented.) **Deliverables render in the user-selected system** — report, load-case CSV, span CSVs and the sbeam BDF, one system per bundle, each stating it in-band; the selection is the GUI toggle, persisted in the project's unit-system field and overridable headless by CLI `--units imperial|si` (default Imperial). See `00_program_overview.md`, *Deliverable units follow the user's selection*, and `SUMMARY_REPORT.md` §3.5. The GUI's Imperial/SI choice is a single session-wide sidebar control (`app/Home.py`, `st.session_state["unit_system"]`) that every view reads for display conversion (`convert_results`/`to_si_scalar` for `ConditionResult`/per-station values); it is not a per-page setting. Airspeed (KEAS) and altitude (ft) are aviation-standard and are never converted by this toggle. `project.json` on disk stays Imperial-only regardless of the toggle — `units.project_dict_to_display`/`project_dict_to_imperial` convert the whole project dict for the **Project JSON Editor** page only (hand-edit in your chosen units, Apply converts back to Imperial before it re-enters the session); no unit tag is ever written to the file.
 - **Constants centralized** in `sloads/constants.py` so Decision 3 (and any future "go back to exact") is a one-file change.
+- **Call `sync_geometry_derived(project)` first inside `run()`** — not in the
+  caller, not at import. Any module that reads geometry-derived quantities
+  (MAC/span/areas/stations resolved from the Step-G1 single-source geometry)
+  opens `run()`/its build function with it, so the module is correct whether it
+  is reached through the registry, the CLI, a view, or a test that hand-builds a
+  `Project`. Seven sites do this today (`body_loads`, `wing_inertia`, `select`,
+  `net_loads`, `flight_envelope` ×2, `balloads`, plus `io.py` on load); it was
+  convention-by-imitation until M4-12b wrote it down. It is idempotent — calling
+  it twice is free, forgetting it is a silent wrong answer.
+- **Public surface is explicit; `app/` never imports an underscored name from
+  `sloads`** (M4-12b / D-14). A leading underscore means module-private, and
+  cross-module use of one is a defect, not a shortcut — the fix is to promote the
+  symbol (drop the underscore, or give it a clearer public name where a bare
+  strip would read badly) and list it in that module's `__all__`. The four
+  modules with a promoted surface carry an `__all__` block:
+  `wing_geometry` (`interp_x`), `flight_envelope` (`design_inputs`,
+  `density_ratio`), `structural_speeds` (`maneuver_load_factors`) and `select`
+  (`default_envelope`, `elevator_load`, `flaps_by_config_name`, `htail_balance`,
+  `HtailBalance`). There is deliberately **no `sloads/api.py` facade** — per-module
+  `__all__` is the contract.
+- **Cross-module results are typed, not stringly-keyed.** A helper whose result
+  crosses a module boundary returns a `NamedTuple` (or dataclass) with named
+  fields, never a `Dict[str, float]` whose keys are the real API — a typo in a
+  key is a runtime `KeyError` at best and a silent wrong branch at worst.
+  `select.htail_balance` → `HtailBalance(lt25, lt50, at, delta, lt, cp)` is the
+  worked example; attribute names are lowercase Python, with the manual's Ch 9
+  symbols (LT25, AT, DELTA, CP…) recorded in the class docstring.
+- **Do not add property proxies to `Project`.** `Project.tail_loads` /
+  `.vtail_loads` proxy `geometry.empennage.htail/.vtail` and are the pattern *not*
+  to copy: they are invisible to `dataclasses.fields`/`asdict`/`replace`, and
+  their setters silently no-op when assigning `None` to a project with no
+  geometry. The warning block sits beside them in `models/project.py`; their
+  retirement is backlog **M4-10**. New slices are real dataclass fields.
 - **Each module has a manual example test** (Appendix A and/or B) under `tests/`.
 - **Structured load-case IDs (Step D1).** Every delivered case carries a
   `CaseRef` (`case_id`, `component`, `condition`, `cg`, `speed_kt`,

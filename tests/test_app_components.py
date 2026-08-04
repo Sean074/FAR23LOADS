@@ -1,0 +1,253 @@
+"""The app scaffold helpers (M4-11): the unit boundary and the page context.
+
+``unit_number_input`` is the whole GUI unit boundary in one function, which makes
+it the single highest-leverage place in the app layer for a silent numeric bug:
+a helper that converts twice, or converts the wrong way, renders *perfectly* and
+quietly corrupts every input on every page. ``test_views_smoke.py`` cannot catch
+that -- it asserts exception-free render, not correct values -- so the round-trip
+below is the actual guard, per the M4-11 definition of done in
+``docs/30_future/06_m4_maintainability_sequence_plan.md`` §4 step 3.
+
+What is asserted:
+
+1. **Imperial in, Imperial out** for every converted unit kind, in *both*
+   systems -- the property the view layer relies on to stay canonical.
+2. **The aviation carve-out is exact**, not merely close: airspeed (KEAS) and
+   altitude (ft) pass through byte-identical in SI (decision D-16).
+3. **The widget key is per-system when converting** and *not* when it isn't --
+   a converted field must re-seed on a unit switch, a KEAS field must not.
+4. **Ambiguity is rejected**: ``kind=`` and ``fixed_unit=`` together raise.
+"""
+
+import math
+import os
+import sys
+
+import pytest
+
+_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+for _p in (_ROOT, os.path.join(_ROOT, "app")):
+    if _p not in sys.path:
+        sys.path.insert(0, _p)
+
+from sloads import UnitSystem  # noqa: E402
+from sloads.units import UNIT_LABELS  # noqa: E402
+
+pytest.importorskip("streamlit")
+
+import components as comp  # noqa: E402
+
+
+# Every kind the unit layer knows -- driven off UNIT_LABELS so a new kind is
+# covered automatically instead of being forgotten here.
+_KINDS = sorted(UNIT_LABELS[UnitSystem.IMPERIAL])
+
+# Representative canonical-Imperial magnitudes (a wing area, a station, a weight...).
+_VALUES = [1.0, 3.25, 174.0, 3400.0, 13257.0, 0.0007]
+
+
+class _FakeStreamlit:
+    """Records the label/key/seed ``unit_number_input`` hands to Streamlit and
+    echoes the seed back, standing in for a user who typed nothing.
+
+    ``unit_number_input`` reads the unit system through ``components.active_system``
+    (decision D-16's single resolver), which the tests monkeypatch directly, so no
+    session state is needed.
+    """
+
+    def __init__(self):
+        self.calls = []
+
+    def number_input(self, label, value=None, key=None, **kwargs):
+        self.calls.append({"label": label, "value": value, "key": key, **kwargs})
+        return value
+
+    @property
+    def last(self):
+        return self.calls[-1]
+
+
+def _harness(monkeypatch, system, *, typed=None):
+    """Install the fake Streamlit + a fixed unit system; return the recorder.
+
+    ``typed`` overrides the echoed value to simulate a user entering a number in
+    display units (that is what exercises the return-path conversion).
+    """
+    fake = _FakeStreamlit()
+    if typed is not None:
+        fake.number_input = lambda label, value=None, key=None, **kw: (
+            fake.calls.append({"label": label, "value": value, "key": key, **kw}) or typed
+        )
+    monkeypatch.setattr(comp, "st", fake)
+    monkeypatch.setattr(comp, "active_system", lambda: system)
+    return fake
+
+
+# --------------------------------------------------------------------------- #
+# 1. Imperial in -> Imperial out (the property the whole app layer rests on)
+# --------------------------------------------------------------------------- #
+@pytest.mark.parametrize("system", [UnitSystem.IMPERIAL, UnitSystem.SI])
+@pytest.mark.parametrize("kind", _KINDS)
+def test_converted_field_round_trips_to_imperial(monkeypatch, system, kind):
+    """The seed is shown converted, and an untouched field returns the *same*
+    Imperial number it was given -- in both systems."""
+    for value in _VALUES:
+        fake = _harness(monkeypatch, system)
+        out = comp.unit_number_input("Field", value, kind=kind, key="f")
+        # The widget was seeded in display units...
+        shown = fake.last["value"]
+        if system is UnitSystem.SI and value > 0.01:
+            assert not math.isclose(shown, value, rel_tol=1e-9) or kind == "inertia_lbin2", \
+                f"{kind} seed was not converted for SI"
+        # ...and what comes back out is canonical Imperial again.
+        assert math.isclose(out, value, rel_tol=1e-6), (kind, system, value, shown, out)
+
+
+@pytest.mark.parametrize("kind", _KINDS)
+def test_user_entry_in_si_is_converted_home(monkeypatch, kind):
+    """A number *typed in SI* comes back as Imperial -- the direction a
+    double-conversion or an inverted factor would break."""
+    from sloads.units import to_display, to_imperial_scalar
+
+    imperial_truth = 123.456
+    si_typed = to_display(imperial_truth, kind, UnitSystem.SI)
+    _harness(monkeypatch, UnitSystem.SI, typed=si_typed)
+    out = comp.unit_number_input("Field", 0.0, kind=kind, key="f")
+    assert math.isclose(out, imperial_truth, rel_tol=1e-9), (kind, si_typed, out)
+    # And the helper agrees with the units layer it delegates to.
+    assert math.isclose(out, to_imperial_scalar(si_typed, kind, UnitSystem.SI), rel_tol=1e-12)
+
+
+def test_converted_label_carries_the_active_systems_unit(monkeypatch):
+    for system in (UnitSystem.IMPERIAL, UnitSystem.SI):
+        fake = _harness(monkeypatch, system)
+        comp.unit_number_input("Area S", 174.0, kind="area_sqft", key="s")
+        assert fake.last["label"] == f"Area S ({UNIT_LABELS[system]['area_sqft']})"
+
+
+# --------------------------------------------------------------------------- #
+# 2. The aviation carve-out (decision D-16) -- exact, in both systems
+# --------------------------------------------------------------------------- #
+@pytest.mark.parametrize("system", [UnitSystem.IMPERIAL, UnitSystem.SI])
+@pytest.mark.parametrize("unit", [comp.KEAS, comp.ALTITUDE_FT])
+def test_fixed_unit_is_never_converted(monkeypatch, system, unit):
+    """Airspeed is KEAS and altitude is feet in *both* systems -- so these pass
+    through untouched, and exactly so (not merely within tolerance)."""
+    fake = _harness(monkeypatch, system)
+    out = comp.unit_number_input("V", 212.4, fixed_unit=unit, key="v")
+    assert fake.last["value"] == 212.4, "a fixed-unit field must be seeded raw"
+    assert out == 212.4, "a fixed-unit field must return exactly what it was given"
+    assert fake.last["label"] == f"V ({unit})"
+
+
+@pytest.mark.parametrize("kind", _KINDS)
+def test_bounds_are_converted_with_the_value(monkeypatch, kind):
+    """``min_value``/``max_value`` are Imperial like the value, so they must be
+    converted too -- an unconverted 12-in floor becomes a 12-mm floor in SI and
+    silently stops constraining anything."""
+    from sloads.units import to_display
+
+    fake = _harness(monkeypatch, UnitSystem.SI)
+    comp.unit_number_input("F", 100.0, kind=kind, key="f", min_value=12.0, max_value=500.0)
+    assert math.isclose(fake.last["min_value"], to_display(12.0, kind, UnitSystem.SI), rel_tol=1e-12)
+    assert math.isclose(fake.last["max_value"], to_display(500.0, kind, UnitSystem.SI), rel_tol=1e-12)
+
+
+def test_zero_and_absent_bounds_pass_through(monkeypatch):
+    fake = _harness(monkeypatch, UnitSystem.SI)
+    comp.unit_number_input("F", 1.0, kind="length", key="f", min_value=0.0)
+    assert fake.last["min_value"] == 0.0
+    fake = _harness(monkeypatch, UnitSystem.SI)
+    comp.unit_number_input("F", 1.0, kind="length", key="f", min_value=None)
+    assert fake.last["min_value"] is None
+
+
+@pytest.mark.parametrize("system", [UnitSystem.IMPERIAL, UnitSystem.SI])
+def test_dimensionless_field_has_no_unit_suffix(monkeypatch, system):
+    fake = _harness(monkeypatch, system)
+    out = comp.unit_number_input("Taper ratio λ", 0.5, key="taper")
+    assert fake.last["label"] == "Taper ratio λ"
+    assert out == 0.5
+
+
+# --------------------------------------------------------------------------- #
+# 3. Widget-key discipline -- converted fields re-seed on a unit switch
+# --------------------------------------------------------------------------- #
+def test_converted_key_is_per_system_but_fixed_and_plain_keys_are_not(monkeypatch):
+    keys = {}
+    for system in (UnitSystem.IMPERIAL, UnitSystem.SI):
+        fake = _harness(monkeypatch, system)
+        comp.unit_number_input("L", 10.0, kind="length", key="k")
+        comp.unit_number_input("V", 10.0, fixed_unit=comp.KEAS, key="k")
+        comp.unit_number_input("R", 10.0, key="k")
+        keys[system] = [c["key"] for c in fake.calls]
+
+    conv_imp, fixed_imp, plain_imp = keys[UnitSystem.IMPERIAL]
+    conv_si, fixed_si, plain_si = keys[UnitSystem.SI]
+    # Converted: distinct per system, so switching units re-seeds with the
+    # converted default instead of reusing the stale number.
+    assert conv_imp != conv_si, "a converted widget must not share a key across systems"
+    # Fixed / dimensionless: the number means the same thing either way, so the
+    # field must survive a unit switch unchanged.
+    assert fixed_imp == fixed_si == "k"
+    assert plain_imp == plain_si == "k"
+
+
+# --------------------------------------------------------------------------- #
+# 4. Ambiguity is a hard error, not a silent precedence rule
+# --------------------------------------------------------------------------- #
+def test_kind_and_fixed_unit_together_raise(monkeypatch):
+    _harness(monkeypatch, UnitSystem.IMPERIAL)
+    with pytest.raises(ValueError):
+        comp.unit_number_input("Bad", 1.0, kind="length", fixed_unit=comp.KEAS, key="b")
+
+
+# --------------------------------------------------------------------------- #
+# 5. The page scaffold derives its gate from workflow.py
+# --------------------------------------------------------------------------- #
+#: Requirements that no workflow step declares as its ``produces``. ``page()``
+#: still gates on them, with a message and no jump link -- these are slices a
+#: page's *own* form fills, or (tail/vtail) the Step-G6 property proxies over
+#: ``geometry.empennage``. Pinned here so a *new* unlinked requirement shows up
+#: as a failure and gets either a producer or a deliberate entry.
+_NO_PRODUCING_STEP = {"engines", "weight", "tail_loads", "vtail_loads"}
+
+
+def test_every_requirement_is_linkable_or_knowingly_not():
+    from sloads import workflow as wf
+
+    required = {r for s in wf.STEPS for r in s.requires}
+    unlinkable = required - set(comp._PRODUCER)
+    assert unlinkable == _NO_PRODUCING_STEP, (
+        "a workflow requirement changed its producer status; page()'s gate would "
+        f"silently lose (or gain) a jump link. Unlinkable now: {sorted(unlinkable)}"
+    )
+
+
+def test_gate_without_a_producer_still_renders_a_message(monkeypatch):
+    """A requirement with no producing step must still produce a visible gate --
+    a missing link is a degraded message, never a blank page."""
+    shown = []
+    monkeypatch.setattr(comp, "gate", lambda msg, *keys, **kw: shown.append((msg, keys)))
+    monkeypatch.setattr(comp, "_PRODUCER", {})
+    fake = _harness(monkeypatch, UnitSystem.IMPERIAL)
+    fake.title = lambda *a, **k: None
+    fake.caption = lambda *a, **k: None
+    fake.session_state = {}
+
+    class _Stop(Exception):
+        pass
+
+    fake.stop = lambda: (_ for _ in ()).throw(_Stop())
+    monkeypatch.setattr(comp, "render_applicability_banner", lambda p: None)
+    monkeypatch.setattr(comp.wf, "missing_requirements", lambda p, s: ["speeds"])
+
+    with pytest.raises(_Stop):
+        with comp.page("flight_envelope"):
+            pass
+    assert shown and "speeds" in shown[0][0]
+    assert shown[0][1] == (), "no producer -> no link, but still a message"
+
+
+if __name__ == "__main__":  # pragma: no cover - needs pytest for parametrize/monkeypatch
+    raise SystemExit(pytest.main([__file__, "-q"]))
