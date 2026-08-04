@@ -248,9 +248,13 @@ ported. See [`../40_history/00_completed_development.md`](../40_history/00_compl
   default, user-overridable.
 - **Schrenk accuracy for swept/high-AR concept wings** — addressed by AIRLOAD4 in
   C7; default-Schrenk results warn when sweep/Mach exceeds the method's band.
-- **Export coordinate/units mapping** — SLOADS is Imperial inches (station /
+- **Export coordinate/units mapping** — SLOADS calc is Imperial inches (station /
   butt / waterline); sbeam runs in global CID 0, user-consistent units. The bridge
-  documents and tests the transform explicitly.
+  documents and tests the transform explicitly. **Units rule (2026-08-03):** the
+  BDF is written in the **user-selected** system, not fixed Imperial, and carries a
+  header comment naming it — sbeam is unit-agnostic but *consistency*-dependent, so
+  the whole bundle ships in one system (`00_program_overview.md`, *Deliverable
+  units follow the user's selection*).
 
 ## 7. Open user decisions (non-blocking)
 

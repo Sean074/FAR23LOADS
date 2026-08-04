@@ -22,6 +22,7 @@ historical record.
 | [`PROGRAM_SPEC.md`](10_standard/PROGRAM_SPEC.md) | Per-module specification for all 22 programs (inputs, outputs, FAR conditions, `.BAS` mapping) |
 | [`GUI_design.md`](10_standard/GUI_design.md) | **GUI design & structure** — navigation model, global sidebar, page anatomy/conventions, unit-boundary input pattern, definition-page standards, FAR 23 applicability/concept-awareness, JSON persistence |
 | [`GUI_USER_GUIDE.md`](10_standard/GUI_USER_GUIDE.md) | **GUI user guide** — task-oriented walkthrough: workflow phases, what to enter where, the seed chain, LIMIT-vs-ULTIMATE reading rules, and an end-to-end `ga6_normal` example with hand-checkable numbers |
+| [`SUMMARY_REPORT.md`](10_standard/SUMMARY_REPORT.md) | **Summary-report document standard** (Step G8) — purpose and audience, whole-document content rules (ultimate-load marking, traceability, axes/signs/stations, absence handling, units), the required section structure, the **excluded-content** list, and the conformance checklist |
 | [`DATA_DICTIONARY.md`](10_standard/DATA_DICTIONARY.md) | **`project.json` data dictionary** (generated) — every input field's type, units, default, owning page, and consuming modules; produced by [`generate_data_dict.py`](generate_data_dict.py) |
 | [`CODE_REVIEW_PROCESS.md`](10_standard/CODE_REVIEW_PROCESS.md) | Critical code-review process for module ports |
 | [`RELEASE_PROCESS.md`](10_standard/RELEASE_PROCESS.md) | Versioning and release process |
@@ -43,6 +44,7 @@ historical record.
 | [`01_concept_loads_plan.md`](30_future/01_concept_loads_plan.md) | **Phase C plan** — growing the suite into an initial-concept distributed-loads tool (concept mode, Schrenk airloads, per-component distributed loads, sbeam export bridge) |
 | [`02_gui_workflow_plan.md`](30_future/02_gui_workflow_plan.md) | **Phase D plan** — GUI workflow restructure: assessment, six-section target structure, load-case IDs, locked decisions, page conventions |
 | [`03_gui_rework_plan.md`](30_future/03_gui_rework_plan.md) | **Phase G plan** — workflow-aligned GUI rework: one-unit-per-dimension policy, single-source-of-truth geometry, re-sequenced analysis-flow navigation, and the new fuselage-moment/trim-plot/elevator-chord features (assessment vs. current code, locked decisions G-1…G-4) |
+| [`05_step_g8_summary_report_plan.md`](30_future/05_step_g8_summary_report_plan.md) | **Step G8 plan** — the consolidated loads summary report: locked decisions (LaTeX/PDF, pgfplots figures, methods-statement stamping, report depth), the `sloads/report/` package layout, seven ordered sub-steps, risks, and the test matrix |
 | [`04_m3-1_rename_procedure.md`](30_future/04_m3-1_rename_procedure.md) | **M3-1 execution runbook** — step-by-step git + shell procedure for the `farloads` → `sloads` rename batched with the `models.py` → `models/` split (branch, `git mv`, package split, import/pyproject rewrite, brand strings, acceptance gate, staged commits) |
 
 ## 40_history — Historic record

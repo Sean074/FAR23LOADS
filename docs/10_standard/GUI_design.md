@@ -90,8 +90,12 @@ superseded Phase-D six-section grouping is in
 `pg.run()`:
 
 - **Unit-system toggle** — an Imperial/SI radio writing
-  `st.session_state["unit_system"]` (a `UnitSystem` enum). It changes only how
-  inputs and results are *displayed*; calc and `project.json` stay Imperial (§7).
+  `st.session_state["unit_system"]` (a `UnitSystem` enum). It changes how inputs
+  and results are *displayed* **and it is the selection that every exported
+  deliverable is rendered in** (report, load-case CSV, span CSVs, sbeam BDF —
+  `00_program_overview.md`, *Deliverable units follow the user's selection*); the
+  toggle persists into the project's unit-system field so a headless re-render
+  reproduces it. Calc and the stored `project.json` values stay Imperial (§7).
 - **Project-file widget** — Open a saved project (local `projects/`), New-from-
   example (`examples/*.project.json`), browser Upload, plus Save-to-disk and
   Download. An unsaved-changes guard (`_has_unsaved_changes` vs. a
@@ -152,7 +156,8 @@ The contract that makes pages copy-of-the-pattern (full list in
 
 ## 7. Units at the boundary (the definition-page input pattern)
 
-Imperial is the canonical internal system; SI is presentation only. Results are
+Imperial is the canonical internal system; the *displayed and exported* system is
+whichever the user selected. Results are
 converted with `convert_results` / `si_scalar_label` / `to_si_scalar`. **Input
 widgets** on the definition pages follow this standard pattern (reference
 implementation: `app/views/engine_mount.py`; helpers in `sloads/units.py`):
@@ -176,7 +181,16 @@ Imperial) `Project`. Unit **kinds** and their factors/labels live in
 
 **Aviation-standard exception:** airspeed (KEAS) and altitude (ft) stay in
 aviation units in *both* systems and are never converted — do not add a unit kind
-for them.
+for them. Where a deliverable reports them it says so, so an SI reader does not
+read an unconverted speed as an oversight.
+
+**Exports follow the toggle too.** The toggle is not display-only: the export
+bundle (report, load-case CSV, span CSVs, sbeam BDF) is rendered in the selected
+system, one system per bundle, each file stating it in-band — see
+[`SUMMARY_REPORT.md`](SUMMARY_REPORT.md) §3.5 for the full rule. The Export page
+SHALL show which system the bundle will be written in, next to the download
+control, so the choice is visible at the point of export rather than only in the
+sidebar.
 
 ---
 
@@ -325,8 +339,10 @@ it is outside the certificated band — never blocking. The design:
 
 ## 10. JSON persistence
 
-`sloads/io.py` is the **only** dataclass⇔JSON mapper. `project.json` is always
-canonical Imperial (`io.py` never converts units). The load path carries no unit
+`sloads/io.py` is the **only** dataclass⇔JSON mapper. `project.json` **values** are
+always canonical Imperial (`io.py` never converts units); the project's
+unit-system field records the user's *display/export preference* only and never
+changes how a stored value is interpreted. The load path carries no unit
 assumption, so loading an Imperial file under an SI toggle converts exactly once,
 at each page's render boundary. `Project` carries a `schema_version`
 (`models.py`, `SCHEMA_VERSION`); older on-disk shapes are migrated leniently by

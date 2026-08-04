@@ -95,8 +95,9 @@ stale.
 - **Never recompute another module's quantity** — read it from the `Project`
   slice that owns it.
 - **Constants centralised** in `constants.py`; no bare magic numbers in calc.
-- **Imperial in, SI at the edge.** Calc always runs in the Imperial units of the
-  original program; `units.py` converts to/from SI at the boundary only.
+- **Imperial in, selected units out.** Calc always runs in the Imperial units of
+  the original program; `units.py` converts at the boundary only, into whichever
+  system the user selected (see *Units* below).
 
 ### Math fidelity (non-obvious)
 
@@ -149,8 +150,36 @@ reserved for present-but-invalid data and genuine defects, which must remain vis
 | Power | hp | kW |
 | Inertia | slug-ft² | kg·m² |
 
-Calc always runs in Imperial; a sidebar toggle and `units.py` convert for display
-only. Saved `project.json` is always canonical Imperial.
+Calc always runs in Imperial; `units.py` converts at the boundary. Saved
+`project.json` values are always canonical Imperial.
+
+### Deliverable units follow the user's selection (mandatory)
+
+**Every deliverable SHALL be rendered in the unit system the user selected**, not
+in the calc's internal Imperial units:
+
+- **Where the selection comes from.** GUI: the sidebar **Imperial / SI** toggle
+  (`st.session_state["unit_system"]`). Headless: the persisted `Project`
+  unit-system field, overridden per-run by the CLI `--units imperial|si` flag.
+  Default **Imperial**, so an unspecified run is byte-identical to today's output.
+- **What it governs.** The whole export bundle in one system — the summary report,
+  the load-case CSV, the span-load CSVs, and the sbeam `FORCE`/`MOMENT` bulk-data
+  cards. Two files of one bundle in different systems is a `[CRITICAL]` finding.
+- **In-band statement.** Every deliverable states its unit system in itself: the
+  report's title page and manifest, a header comment in the BDF, a header row or
+  column-header unit in a CSV. Units are never left to be inferred from magnitude.
+- **Markers convert with the unit** — `N-ULT` / `Nm-ULT` / `Pa-ULT` in SI, exactly
+  as `lbs-ULT` / `ft-lb-ULT` / `lb-in-ULT` / `lb/in²-ULT` in Imperial. No dual
+  display (one system, no parenthetical conversions).
+- **Aviation-standard exception.** Airspeed (KEAS) and altitude (ft) are held in
+  aviation units in *both* systems and are never converted.
+- **Calc and storage are unaffected.** Conversion happens once, at the
+  render/export boundary. The calc stays Imperial and oracle-locked; the persisted
+  unit-system field is a *preference*, never a claim about the units of the stored
+  values.
+
+The standard for the summary report's application of this rule is
+[`SUMMARY_REPORT.md`](SUMMARY_REPORT.md) §3.5.
 
 ### Loads are ULTIMATE (mandatory)
 
@@ -168,7 +197,7 @@ points to the ultimate deliverables. Today that covers `flap_loads`, `tab_loads`
 |---------------|----------------------|-------------------|
 | Force | lbs-ULT | N-ULT |
 | Moment / torque | ft-lb-ULT, lb-in-ULT | Nm-ULT |
-| Design pressure | lb/in²-ULT (psi-ULT) | — |
+| Design pressure | lb/in²-ULT (psi-ULT) | Pa-ULT |
 
 The `-ULT` marker is treated as **part of the units string** (like lb vs. N).
 Every load case carries its **safety factor** (the `SF` column / an `SF=` marker),

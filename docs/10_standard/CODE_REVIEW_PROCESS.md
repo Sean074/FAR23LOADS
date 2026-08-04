@@ -60,7 +60,8 @@ Per `CLAUDE.md`, every code change updates `docs/` in the same session. Check:
 
 - [ ] Tolerance oracle is used correctly: `math.isclose(..., rel_tol=1e-3)` (±0.1%) for real-valued figures; **exact** equality only for integer/dimensionless quantities (counts, load factors).
 - [ ] Preserved BASIC truncations (`int(x*1000)/1000`) are kept **where and only where** they affect a compared figure — verify against the `.BAS` source in Appendix C.
-- [ ] Unit handling: calc runs in the original **Imperial** units; SI is a presentation layer applied at the boundary only (`units.py`). No SI constants leak into calc.
+- [ ] Unit handling: calc runs in the original **Imperial** units; conversion is a presentation layer applied at the boundary only (`units.py`). No SI constants leak into calc.
+- [ ] Deliverable units: any new export/report path renders in the **user-selected** unit system (project field / CLI `--units`, default Imperial), states that system in-band, converts the `-ULT` marker with it, and leaves KEAS/altitude unconverted — `00_program_overview.md`, *Deliverable units follow the user's selection*. A deliverable hard-coded to Imperial is a finding.
 - [ ] Both worked examples are checked where applicable: Appendix A (6-place GA single, p131) and Appendix B (10-place twin turboprop, p251).
 
 ### Step 4 — Porting-contract conformance
@@ -118,6 +119,8 @@ Per `CLAUDE.md`, every code change updates `docs/` in the same session. Check:
 | Recomputing weight/CG/geometry instead of reading the `Project` slice | the module | Two sources of truth diverge |
 | Exact `==` used where a tolerance oracle is required (or vice-versa) | `tests/test_<module>.py` | Brittle or false-passing test |
 | SI constant used inside calc | the module / `units.py` | Calc no longer matches the Imperial manual |
+| Export/report hard-coded to Imperial, or a bundle with files in two systems | the export/report path / `units.py` | Ignores the user's selection; a BDF and a report in different systems mis-size structure with nothing on the page to show it |
+| Converted load whose `-ULT` marker still reads `lbs`/`ft-lb` in SI | `units.py` / the renderer | Basis and magnitude disagree at the point of use |
 | Module doesn't `register()` or isn't imported in `modules/__init__.py` | `sloads/modules/__init__.py` | Module invisible to registry/CLI/GUI |
 | Docs not updated; backlog item left in place after completion | `docs/` | Documentation drift; violates `CLAUDE.md` |
 

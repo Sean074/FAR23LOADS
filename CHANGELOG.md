@@ -10,6 +10,24 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed
+
+- **Standard: deliverable units follow the user's selection** (docs only; the
+  code change is backlog **M4-20**). Exports are no longer fixed to the calc's
+  Imperial units — the report, the load-case CSV, the span-load CSVs and the sbeam
+  `FORCE`/`MOMENT` cards all render in the system the user chose (GUI toggle,
+  persisted in the project, overridable headless by `--units imperial|si`,
+  default Imperial), one system per bundle, each file stating its system in-band.
+  The `-ULT` marker converts with the unit (`N-ULT`, `Nm-ULT`, `Pa-ULT`); no dual
+  display; airspeed (KEAS) and altitude (ft) remain aviation-standard and
+  unconverted in both systems. Calc and the stored `project.json` values stay
+  canonical Imperial, so the Appendix A/B oracles are unaffected. Updated
+  `docs/10_standard/SUMMARY_REPORT.md` §2/§3.5/§4.1/§4.7/§6,
+  `00_program_overview.md`, `GUI_design.md` §4/§7/§10, `PROJECT_GUIDE.md`,
+  `CODE_REVIEW_PROCESS.md` (checklist + finding table),
+  `docs/30_future/01_concept_loads_plan.md` and
+  `05_step_g8_summary_report_plan.md` §10.1 (open question resolved).
+
 ### Fixed
 
 - **M4-17a — the landing-loads ↔ mass-model disconnection.**
@@ -47,6 +65,29 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   M2-8 removal note in the same files.
 
 ### Added
+
+- **Step G8 specification & plan (M3-3, the first M4 item) — docs only, no code.**
+  The consolidated loads summary report is now specified before it is built:
+  `docs/10_standard/SUMMARY_REPORT.md` is the **document standard** (purpose and
+  audience, whole-document content rules — ultimate-load marking, case-ID
+  traceability, axis/sign/station statements, absence handling, units — the
+  required section structure, the **excluded-content** list with the reason for
+  each exclusion, and an eleven-point conformance checklist), and
+  `docs/30_future/05_step_g8_summary_report_plan.md` is the implementation plan
+  (locked decisions G8-1…G8-4: a LaTeX renderer emitting `.tex` always and PDF
+  when a TeX engine is present, pgfplots/TikZ figures generated as text, the
+  methods/limitations statement stamped into BDF `$` comments + CSV `#` headers +
+  `METHODS.txt` + a workbook sheet, and report depth = summary plus every
+  governing case pointing at the bundle's CSV/BDF companions; the `sloads/report/`
+  package layout; seven ordered sub-steps; risks; the test matrix). The backlog
+  entry and `docs/00_INDEX.md` link both. No calc, module or export code changed.
+- **`cspell.json` — the domain wordlist referenced by `CLAUDE.md`, `README.md`
+  and `PROJECT_GUIDE.md` now actually exists.** 119 verified terms (the 21 `.BAS`
+  program names, structural/aero vocabulary, the suite's variable and unit
+  abbreviations, tooling names, and the LaTeX toolchain terms Step G8 will need),
+  plus `ignorePaths` for the venv, caches, `reference/` PDFs and generated data
+  files. Entries were checked against the repo rather than assumed, so no
+  misspelling is whitelisted.
 
 - **M4-18 — the loads reference axis (LRA) + two-sided load envelopes**
   (2026-08-03 loads-plots review). Two review findings closed:

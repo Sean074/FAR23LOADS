@@ -110,6 +110,20 @@ All load figures ULTIMATE with SF. **Include a methods/limitations statement
 stamped into the exported deliverables** (CSV/BDF/report) so downstream sizing
 inherits the concept-mode caveat the UI already shows.
 
+**Specified and planned (2026-08-03).** The document standard — structure,
+required content, excluded content, conformance checklist — is
+[`../10_standard/SUMMARY_REPORT.md`](../10_standard/SUMMARY_REPORT.md); the
+implementation plan (locked decisions, `sloads/report/` package layout, seven
+ordered sub-steps G8.1–G8.7, risks, test matrix) is
+[`05_step_g8_summary_report_plan.md`](05_step_g8_summary_report_plan.md).
+Locked: **LaTeX** renderer (`.tex` always, PDF when a TeX engine is on `PATH`);
+figures as **pgfplots/TikZ source** (no plotly/kaleido, no GUI refactor); the
+methods statement stamped as BDF `$` comments + CSV `#` header lines +
+`METHODS.txt` + a workbook sheet; report depth = **summary + every governing case,
+pointing at the bundle's CSV/BDF companions** for full station distributions.
+No calc change — the Appendix A oracles and the ultimate-load contract are the
+invariant.
+
 ### M4-1 — Fuselage body loads: moment closure (review T5) **[Major]**
 `body_loads` applies a single vertical wing reaction and closes ΣFz only; the
 Ch 15 procedure (Ref 1 p103) reacts the unbalanced moment at the front/rear
@@ -120,6 +134,50 @@ solve; validate terminal Myy ≈ 0 in the closure suite. **Caveat note shipped
 CLOSURE_CAVEAT` is stamped as `$ CAVEAT:` comments in `fuselage_loads.bdf`, and
 the Fuselage Loads page + the Export page's Fuselage row carry the warning. The
 note comes out when the moment balance lands.
+
+**Diagnosis (2026-08-03).** The residual is the *wing-attachment reaction
+moment*, not a trim error: FLTLOADS already closes ΣM_cg for the whole airplane
+(`flight_envelope._balance` solves `LT`), so what is open is the **fuselage-only
+free body** — the wing lift resultant offset from `xw`, the wing pitching
+moment/torque, the wing inertia and the thrust/drag couple are all collapsed into
+one point force at 25 % MAC (`body_loads.body_distribution`, the
+`wing_reaction = nz*w_fus - lt` line). One vertical force at one station has no
+freedom left to satisfy ΣM. The error is **not uniformly conservative**: bending
+aft of the wing is offset by +M_ub and forward of it the other way.
+
+**Decided approach (2026-08-03).** Options weighed: (A) the literal Ch 15
+two-point spar solve; (B) a self-equilibrated distributed correction (linear or
+second-order, ∫w dx = 0 and ∫w·x dx = M_ub) smeared over the **whole** body;
+(C) the same self-equilibrated shape restricted to the wing carry-through;
+(D) the missing pitching load factor; (E) a distributed (Multhopp/Nelson) body
+aero moment. **B over the whole body is rejected as the primary method** — the
+couple physically lives at the wing box, so smearing it relieves wing-region
+bending and loads the tail cone with a correction that has no physical source;
+it closes the beam while making a known unknown invisible.
+
+Ship **C, with A as its degenerate case**:
+- Reactions at the front/rear spar stations (derived from `geometry.surfaces`
+  planform + spar fractions), solved 2×2 from ΣFz = 0 and ΣM = 0:
+  `R_r = (M_ub + R_total*x_f)/(x_r - x_f)`, `R_f = R_total - R_r`.
+- Instead of two point loads, distribute `R_total` plus the couple linearly over
+  `[x_f, x_r]`: `w(ξ) = 12*M_ub/d^2 * (ξ - 1/2)`, `ξ = (x - x_f)/d`,
+  `d = x_r - x_f`. This is the physically correct support region, degenerates
+  continuously to A as `d → 0`, and avoids A's ±M_ub/d shear spike over a short
+  carry-through (smooth for the beam model; consistent with how the carry-through
+  diffuses load into the frames — Bruhn Ch A5, which p103 itself points at).
+  Linear is sufficient; a second-order shape buys nothing over a short interval
+  with only two constraints to satisfy.
+- **Fallback** (behind an explicit flag) when spar stations are undefined: option
+  B, linear over the whole body, `A = 12*M_ub/L^2`. It **SHALL** be labelled in
+  output as a *closure artifact*, not as a computed load.
+- **Acceptance:** terminal `Myy ≈ 0` and ΣFz = 0 in the closure suite; front/rear
+  fitting loads emitted (sbeam wants them); FAR23 flight oracles unchanged
+  (nothing upstream of `body_loads` changes). On close, remove `CLOSURE_CAVEAT`
+  and its three stamp sites (`body_loads.py`, the BDF `$ CAVEAT:` comments in
+  `export/sbeam_bridge.py`, the Fuselage Loads + Export Fuselage-row captions).
+- Split out as their own items: **M4-18** (option D, the pitching load factor —
+  `θ̈ = 0` for the balanced trim cases, so it does **not** substitute for the
+  closure) and **M4-19** (option E, the distributed body aero moment).
 
 ### M4-2 — Unify `select_wing`/`one_engine_out` case identity (was 2-1)
 One case-ID authority per component end-to-end: derive `WingMassInput.cases`
@@ -245,6 +303,76 @@ consolidate the 9 duplicated `_value` test helpers + example builders into
 `conftest.py`/`tests/helpers.py` (7 files import from `test_engine`); select
 Apply buttons by form key, not list position (`test_dirty_flag.py:84,103`);
 add a cspell config or delete the CODE_REVIEW_PROCESS cspell bullet.
+
+### M4-18 — Fuselage pitching load factor (Ch 15's missing half; split from M4-1)
+Ch 15 (Ref 1 p103) says to multiply the station weights by the **linear and
+pitching** load factors; `body_loads` applies only `NZ`. Add the d'Alembert pitch
+term at each station, `f_i += -m_i * θ̈ * (x_i - x_cg)`, for the unbalanced /
+abrupt-pitch conditions (23.423). It is self-equilibrating by construction —
+`Σ m_i (x_i - x_cg) ≡ 0` by definition of the CG, so it adds **zero net force**
+and a net moment of `-Iyy*θ̈`; i.e. the mass-weighted form of a linear
+distribution with net moment and no net shear. **Not a closure mechanism:** for
+the balanced trim points `θ̈ = 0`, so M4-1 stands on its own. Needs `θ̈`, hence
+`Iyy` and an unbalanced pitching condition (`build_envelope` emits only balanced
+trim points today) — pairs naturally with **M4-4** (per-CG precise inertia).
+
+### M4-19 — Distributed fuselage aero pitching moment (Multhopp/Nelson; split from M4-1)
+Step G4's `sloads/fuselage_moment.py` returns a **scalar** Munk slope
+`dCm/dα = (k2-k1)*Vol/(S*mac)`, folded into `M1` for the trim solve only — the
+body's own aero moment never reaches the beam, and the Munk form is the ideal-flow
+limit (it assumes the local flow angle equals free-stream α at every station, so
+it over-predicts the destabilizing slope for a real wing-body, typically by
+10–40 %, because the aft body sits in downwash). Replace/extend with the Multhopp
+strip form (Nelson, *Flight Stability and Automatic Control* §2.3, Eqs. 2.62–2.63;
+same core as DATCOM 4.2.1.1 with its viscous cross-flow addition; primary sources
+Multhopp NACA TM-1036, Gilruth & White NACA TR-711):
+
+    Cm0,fus = (k2-k1)/(36.5*S*c̄) * ∫ w_f^2 * (α_0w + i_f) dx
+    Cmα,fus =        1/(36.5*S*c̄) * ∫ w_f^2 * (∂ε_u/∂α)  dx
+
+This buys three things Munk cannot: a **Cm0** (via body incidence `i_f`), wing
+interference realism (`∂ε_u/∂α` > 1 ahead of the wing, small and recovering aft
+of it), and a **per-station integrand** — a genuine distributed body pitching load
+for `body_loads`, which also shifts `M_ub`. Keep the G4 scalar API as the integral
+of the distribution so `flight_envelope._apply_fuselage_moment` is unchanged and
+off-by-default stays off (Appendix A/B bit-for-bit). New inputs: `i_f` and the
+wing root-chord station for the `∂ε_u/∂α` curve. Update
+`reference/fuselage_pitching_moment.md` (which currently documents the Munk-only
+scope and its deliberate omissions) alongside the calc.
+
+### M4-20 — Deliverables render in the user-selected unit system
+
+**Standard changed 2026-08-03** (`00_program_overview.md` *Deliverable units follow
+the user's selection*; `SUMMARY_REPORT.md` §3.5): exports are no longer fixed to
+Imperial — the whole bundle renders in the system the user chose. The docs are
+updated; the code is not. Work:
+
+- **Selection plumbing.** Add a unit-system field to `Project` (`SCHEMA_VERSION`
+  bump + lenient migration; absent → Imperial) recording the *preference* only —
+  `io.py` still never converts stored values. The GUI sidebar toggle writes it;
+  add `--units imperial|si` to `cli.py`, overriding the field per run.
+- **Unit-aware writers.** `report.py` (`load_cases_to_rows`, `text_report`,
+  the module tables), the load-case CSV, `export/sbeam_bridge.py` (`FORCE`/`MOMENT`
+  cards + span CSV) and the G8 report renderer take the system as a parameter and
+  convert at that boundary. One system per bundle — the bundle writer passes a
+  single value to every file, so two files can't disagree.
+- **In-band statement.** BDF header comment naming the system; a units row or
+  unit-suffixed column headers in each CSV; the report's title page and manifest.
+- **Markers.** Extend `units.py` so the `-ULT` marker converts with the unit
+  (`N-ULT`, `Nm-ULT`, `Pa-ULT`); **`Pa-ULT` is new** — there is no SI pressure kind
+  today (`00_program_overview.md`'s load table had `—`). Add the design-pressure
+  kind and its factor.
+- **GUI.** The Export page states the system the bundle will be written in, beside
+  the download control (`GUI_design.md` §7).
+- **Tests.** Imperial output byte-identical to today (default path unchanged);
+  SI round-trip Imperial → SI → Imperial lossless to display precision; a bundle
+  asserts one system across report + CSV + BDF; KEAS/altitude unconverted in both.
+  Appendix A/B oracles untouched (calc is not in this path).
+
+**Blocks Step G8's units conformance tests** (`05_step_g8_summary_report_plan.md`
+§10.1, resolved against this item). Note the aviation-standard carve-out is
+retained: airspeed (KEAS) and altitude (ft) are never converted, and deliverables
+say so.
 
 ---
 
@@ -432,7 +560,8 @@ reaction matrix stays closure-/legible-cell-locked).
 
 - **M4-1** — fuselage body-load distribution carries an unreacted pitching
   couple (terminal Myy ≠ 0). **[Major — caveat-noted in the deliverables, so
-  not release-blocking]**
+  not release-blocking]** *Approach decided 2026-08-03* (carry-through
+  distributed spar reaction; see M4-1) — not yet implemented.
 - **M4-9** — report/export semantics keyed on display-label strings; a
   cosmetic relabel silently blanks CSV columns. **[Major, latent]**
 
