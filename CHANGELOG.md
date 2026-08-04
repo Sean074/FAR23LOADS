@@ -12,6 +12,23 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- **Backlog hygiene sweep** (docs only, no open work dropped).
+  `docs/30_future/00_backlog.md` 570 → 469 lines: removed the completed-M3
+  section, the shipped-item recitals and the 2026-07-21/07-23 review narratives
+  (all recorded in history), dropped the stale gate snapshots in favour of CI,
+  and stripped the superseded "(was 2-x)" legacy IDs. The resolved
+  design-decision table D-1…D-11 moved to the new register
+  `docs/40_history/03_resolved_decisions.md` (open **D-5** stays in the
+  backlog); M4-1's diagnosis, A–E options trade and formulas moved to the new
+  `docs/30_future/06_m4-1_body_moment_closure.md`, leaving the decided approach
+  and acceptance criteria in the backlog. Both new docs are indexed in
+  `docs/00_INDEX.md`.
+- **Backlog ID collision fixed.** `M4-18` was in use by two different items —
+  the shipped loads-reference-axis step (history, `CHANGELOG`, `GUI_design.md`
+  v34, `PROGRAM_SPEC.md`, `project.py`) and the open fuselage pitching
+  load-factor item. The open item is renumbered **M4-21**; the shipped step
+  keeps M4-18 everywhere it is already cited.
+
 - **Standard: deliverable units follow the user's selection** (docs only; the
   code change is backlog **M4-20**). Exports are no longer fixed to the calc's
   Imperial units — the report, the load-case CSV, the span-load CSVs and the sbeam

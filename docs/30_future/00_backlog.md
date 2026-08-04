@@ -3,12 +3,11 @@
 The authoritative list of **open** items. The first concept-loads release —
 **sloads 0.3.0, cut 2026-07-23** — is out; the structure is now the
 post-release milestone **M4**, Phase F25, the long-tail refinement list, and
-future directions.
-Milestones M1 and M2 (2026-07-19 review) completed 2026-07-20/21 and the
-release-readiness milestone **M2R** (2026-07-21 review fixes, all eight items)
-completed 2026-07-22 — see history. Items carry their source-review IDs in parentheses
-([`PROJECT_REVIEW_2026-07-19.md`](../../PROJECT_REVIEW_2026-07-19.md),
-[`CODE_REVIEW_2026-07-21.md`](../../CODE_REVIEW_2026-07-21.md)).
+future directions. The completed-milestone record (M1, M2, M2R, M3) lives in
+[`../40_history/00_completed_development.md`](../40_history/00_completed_development.md);
+the source reviews are
+[`PROJECT_REVIEW_2026-07-19.md`](../../PROJECT_REVIEW_2026-07-19.md) and
+[`CODE_REVIEW_2026-07-21.md`](../../CODE_REVIEW_2026-07-21.md).
 
 The architectural rationale lives in
 [`../10_standard/PROJECT_GUIDE.md §7`](../10_standard/PROJECT_GUIDE.md); the
@@ -39,64 +38,22 @@ history, `CHANGELOG.md`).
 
 ---
 
-## Current state (as of 2026-07-23)
+## Current state
 
 All 22 Appendix-C programs are ported plus 2 modern modules (`configuration`,
-`body_loads`). Phases 0–2, C, D, E, F, Phase 1, and Phase G Steps **G0–G7**
-are complete, as are milestones **M1 (all 11 items)** and **M2 (all 11 items)**
-from the 2026-07-19 review (see history), as is **M2R** (all eight items) and
-**M3-1** (the `farloads` → `sloads` rename) and defects **M4-7** (per-case
-safety factor through the sbeam export), **M4-13** (the factor minted once
-by the wing and control-surface producers) and **M4-14** (the persisted factor
-validated to the [1.0, 1.5] band on load); **M4-15** (LIMIT downloads
-basis-marked in-band, ULTIMATE twins added) and **M4-16** (review nits batch:
-the CRITICAL `GUI_design.md` schema line fixed **with a guard test**, `_sf()`
-typed, `SF=1.0` formatting, io import order) also shipped 2026-07-23. **M4-17**
-(the landing-loads ↔ mass-model disconnection and the CG-seed hazards found by
-the 2026-08-03 landing-loads review — all five sub-items) shipped 2026-08-03;
-see history. The suite
-is green (501 passed at
-the 2026-07-23 post-M4-16 snapshot, ~93% coverage, ruff clean, smoke test PASS,
-`SCHEMA_VERSION = 33` — see CI
-for current counts), the FAR23 GA path is Appendix-A oracle-locked including
-the new M1 oracle rows (p155 VD, p178 landing-config, sweep closure), and both
+`body_loads`). Phases 0–2, C, D, E, F, Phase 1, Phase G Steps **G0–G7** and
+milestones **M1, M2, M2R, M3** are complete — see history for the step records
+and `40_history/02_verification_baseline_0.3.0.md` for the release baseline.
+The suite is green (ruff clean, smoke test PASS; see CI for current test and
+coverage counts), the FAR23 GA path is Appendix-A oracle-locked, and both
 concept fixtures run end-to-end.
 
-The **2026-07-21 code & documentation review**
-([`CODE_REVIEW_2026-07-21.md`](../../CODE_REVIEW_2026-07-21.md); per
-`CODE_REVIEW_PROCESS.md`, emphasis maintainability / GUI ease-of-use &
-coverage / documentation) confirmed the sprint's doc-sync discipline held
-(6/6 artifacts on nearly every shipped change; zero stale backlog entries) and
-found: 1 CRITICAL (stale schema line), a small set of release-blocking GUI and
-doc-currency items (→ **M2R**, now complete — see history), and two structural maintainability walls
-to clear **before** the FAR 25 / OpenVSP feature wave (→ M4-9/M4-10/M4-11).
-The **2026-07-23 M4-7 review** (per `CODE_REVIEW_PROCESS.md`, scoped to commit
-`34eef4a`) confirmed the change itself is sound — closure-preserving, numbers
-unchanged, 6/6 doc artifacts — and found 1 CRITICAL, 2 MAJOR and 4 MINOR/NIT
-items, booked as **M4-13 … M4-16** and **promoted to the M3 release gate**
-(2026-07-23 consolidation): they are correctness/contract defects in code that
-ships with 0.3.0. All four shipped the same day — the review gate is clear.
-Gates at review time: ruff clean, 491 passed, ~93% coverage.
-
-**Release status:** **sloads 0.3.0 cut 2026-07-23** (M3-2 complete —
-changelog dated, verification baseline `02_verification_baseline_0.3.0.md`
-refreshed with the M1 oracle rows + the oracle-vs-closure table, smoke test
-PASS, version bumped; tag `v0.3.0`). M3-3 (Step G8 summary report) did not
-ship with 0.3.0 and opens M4.
+**Release status:** **sloads 0.3.0 cut 2026-07-23**, tag `v0.3.0`. M3-3 (Step G8
+summary report) did not ship with 0.3.0 and opens M4 below.
 
 Reference-authority hierarchy (unchanged): (1) `.BAS` listings + Appendix A
 printed output, (2) User's Guide CFR quotes (Jan-1994), (3) Code-manual 1990
 prose.
-
----
-
-# M3 — ✂ Released: **sloads 0.3.0** (concept-loads v1) — cut 2026-07-23
-
-**M3 is complete.** M3-1 (rename), the four promoted review items
-(M4-13 … M4-16) and **M3-2 (the release cut)** all shipped; see history and
-`40_history/02_verification_baseline_0.3.0.md`. The M3-3 stretch (Step G8
-summary report) did not make the cut and opens M4 below, per its own
-fallback.
 
 ---
 
@@ -110,82 +67,44 @@ All load figures ULTIMATE with SF. **Include a methods/limitations statement
 stamped into the exported deliverables** (CSV/BDF/report) so downstream sizing
 inherits the concept-mode caveat the UI already shows.
 
-**Specified and planned (2026-08-03).** The document standard — structure,
-required content, excluded content, conformance checklist — is
-[`../10_standard/SUMMARY_REPORT.md`](../10_standard/SUMMARY_REPORT.md); the
-implementation plan (locked decisions, `sloads/report/` package layout, seven
-ordered sub-steps G8.1–G8.7, risks, test matrix) is
+**Specified and planned (2026-08-03).** Document standard (structure, required
+and excluded content, conformance checklist):
+[`../10_standard/SUMMARY_REPORT.md`](../10_standard/SUMMARY_REPORT.md).
+Implementation plan (locked decisions, `sloads/report/` layout, sub-steps
+G8.1–G8.7, risks, test matrix):
 [`05_step_g8_summary_report_plan.md`](05_step_g8_summary_report_plan.md).
-Locked: **LaTeX** renderer (`.tex` always, PDF when a TeX engine is on `PATH`);
-figures as **pgfplots/TikZ source** (no plotly/kaleido, no GUI refactor); the
-methods statement stamped as BDF `$` comments + CSV `#` header lines +
-`METHODS.txt` + a workbook sheet; report depth = **summary + every governing case,
-pointing at the bundle's CSV/BDF companions** for full station distributions.
 No calc change — the Appendix A oracles and the ultimate-load contract are the
 invariant.
 
 ### M4-1 — Fuselage body loads: moment closure (review T5) **[Major]**
 `body_loads` applies a single vertical wing reaction and closes ΣFz only; the
 Ch 15 procedure (Ref 1 p103) reacts the unbalanced moment at the front/rear
-spar attachments (and includes the pitching load factor). Verified: terminal
-Myy ≠ 0 (the exported body set carries a net couple). Two-unknown spar-reaction
-solve; validate terminal Myy ≈ 0 in the closure suite. **Caveat note shipped
-2026-07-23** (the M3 pre-release obligation is discharged): `body_loads.
-CLOSURE_CAVEAT` is stamped as `$ CAVEAT:` comments in `fuselage_loads.bdf`, and
-the Fuselage Loads page + the Export page's Fuselage row carry the warning. The
-note comes out when the moment balance lands.
+spar attachments. Verified: terminal Myy ≠ 0 (the exported body set carries a
+net couple). Caveat-noted in the deliverables since 2026-07-23, so not
+release-blocking; the note comes out when the balance lands.
 
-**Diagnosis (2026-08-03).** The residual is the *wing-attachment reaction
-moment*, not a trim error: FLTLOADS already closes ΣM_cg for the whole airplane
-(`flight_envelope._balance` solves `LT`), so what is open is the **fuselage-only
-free body** — the wing lift resultant offset from `xw`, the wing pitching
-moment/torque, the wing inertia and the thrust/drag couple are all collapsed into
-one point force at 25 % MAC (`body_loads.body_distribution`, the
-`wing_reaction = nz*w_fus - lt` line). One vertical force at one station has no
-freedom left to satisfy ΣM. The error is **not uniformly conservative**: bending
-aft of the wing is offset by +M_ub and forward of it the other way.
+**Approach decided 2026-08-03:** react the couple over the **wing
+carry-through** — a 2×2 front/rear spar solve, applied as a self-equilibrated
+linear distribution over `[x_f, x_r]` (the literal Ch 15 two-point solve is its
+`d → 0` degenerate case), with a flagged whole-body fallback labelled as a
+*closure artifact* when spar stations are undefined. **Acceptance:** terminal
+`Myy ≈ 0` and ΣFz = 0 in the closure suite; front/rear fitting loads emitted;
+FAR23 flight oracles unchanged; `CLOSURE_CAVEAT` and its three stamp sites
+removed on close.
 
-**Decided approach (2026-08-03).** Options weighed: (A) the literal Ch 15
-two-point spar solve; (B) a self-equilibrated distributed correction (linear or
-second-order, ∫w dx = 0 and ∫w·x dx = M_ub) smeared over the **whole** body;
-(C) the same self-equilibrated shape restricted to the wing carry-through;
-(D) the missing pitching load factor; (E) a distributed (Multhopp/Nelson) body
-aero moment. **B over the whole body is rejected as the primary method** — the
-couple physically lives at the wing box, so smearing it relieves wing-region
-bending and loads the tail cone with a correction that has no physical source;
-it closes the beam while making a known unknown invisible.
+Diagnosis, the A–E options trade and the formulas:
+[`06_m4-1_body_moment_closure.md`](06_m4-1_body_moment_closure.md). Split out as
+their own items: **M4-21** (the pitching load factor — `θ̈ = 0` for the balanced
+trim cases, so it does **not** substitute for the closure) and **M4-19** (the
+distributed body aero moment).
 
-Ship **C, with A as its degenerate case**:
-- Reactions at the front/rear spar stations (derived from `geometry.surfaces`
-  planform + spar fractions), solved 2×2 from ΣFz = 0 and ΣM = 0:
-  `R_r = (M_ub + R_total*x_f)/(x_r - x_f)`, `R_f = R_total - R_r`.
-- Instead of two point loads, distribute `R_total` plus the couple linearly over
-  `[x_f, x_r]`: `w(ξ) = 12*M_ub/d^2 * (ξ - 1/2)`, `ξ = (x - x_f)/d`,
-  `d = x_r - x_f`. This is the physically correct support region, degenerates
-  continuously to A as `d → 0`, and avoids A's ±M_ub/d shear spike over a short
-  carry-through (smooth for the beam model; consistent with how the carry-through
-  diffuses load into the frames — Bruhn Ch A5, which p103 itself points at).
-  Linear is sufficient; a second-order shape buys nothing over a short interval
-  with only two constraints to satisfy.
-- **Fallback** (behind an explicit flag) when spar stations are undefined: option
-  B, linear over the whole body, `A = 12*M_ub/L^2`. It **SHALL** be labelled in
-  output as a *closure artifact*, not as a computed load.
-- **Acceptance:** terminal `Myy ≈ 0` and ΣFz = 0 in the closure suite; front/rear
-  fitting loads emitted (sbeam wants them); FAR23 flight oracles unchanged
-  (nothing upstream of `body_loads` changes). On close, remove `CLOSURE_CAVEAT`
-  and its three stamp sites (`body_loads.py`, the BDF `$ CAVEAT:` comments in
-  `export/sbeam_bridge.py`, the Fuselage Loads + Export Fuselage-row captions).
-- Split out as their own items: **M4-18** (option D, the pitching load factor —
-  `θ̈ = 0` for the balanced trim cases, so it does **not** substitute for the
-  closure) and **M4-19** (option E, the distributed body aero moment).
-
-### M4-2 — Unify `select_wing`/`one_engine_out` case identity (was 2-1)
+### M4-2 — Unify `select_wing`/`one_engine_out` case identity
 One case-ID authority per component end-to-end: derive `WingMassInput.cases`
 from `envelope.critical` when not given; link `one_engine_out` to
 `select_vtail`'s `CriticalCondition` list. Touches WINGINER/NETLOADS iteration →
 oracle re-check required.
 
-### M4-3 — ONENGOUT data-flow + turboprop gate (was 2-17)
+### M4-3 — ONENGOUT data-flow + turboprop gate
 (a) v-tail geometry provenance (`vtail_loads` slice vs `geometry`) — derive or
 document; (b) gate 23.367 on `is_turboprop` (or caption) so it can't silently
 run for a reciprocating/turbofan multi (23.367(a) is turbopropeller-specific,
@@ -193,16 +112,16 @@ Ref 1 Ch 11 p87); (c) the Ch 11 Method allows **VSF** (flapped stall) as an
 alternative VMC substitute — the case table uses only VS (clean) today; add VSF
 or document the omission (surfaced during M1-5).
 
-### M4-4 — Per-CG precise inertia in SELECT (was 2-2)
+### M4-4 — Per-CG precise inertia in SELECT
 Wire the persisted WTONECG per-CG inertia into SELECT's checked-maneuver `Iyy`
 and v-tail `IZZ` (currently the Ch 9 approximations, which match the oracle).
 
-### M4-5 — Aero-coefficient curve plot (was 2-8; decided 2026-07-20: include)
+### M4-5 — Aero-coefficient curve plot (decision D-10)
 CL–α / drag-polar / CM plot on Aerodynamic Data with the recovered-CL closure
 check — catches coefficient-entry errors, which matter more for concept
 aircraft with hand-built polynomials.
 
-### M4-6 — Ground-case distributed fuselage (and wing) loads + pressurization (was 2-12)
+### M4-6 — Ground-case distributed fuselage (and wing) loads + pressurization
 The heaviest open calc item. Ground-case fuselage inertia/reaction distribution
 (gear reactions as applied external loads at the LGFACTOR landing load factor);
 optionally the wing distribution under ground reaction; a pressurization case
@@ -210,11 +129,6 @@ that is never down-selected against flight. **Acceptance:** ground condition
 produces distributed fuselage shear/bending with free-free closure; pressurized
 case retained independent of the governing flight case; FAR23 flight oracles
 unchanged. Source narrative: `03_gui_rework_plan.md` §5 item (3).
-
-*(**M4-7** — sbeam export ignores the per-case safety factor — **shipped
-2026-07-23**; see history. Its follow-ups from the 2026-07-23 review,
-**M4-13 … M4-16**, were promoted to the **M3 release gate** and all shipped
-2026-07-23; see history.)*
 
 ### M4-8 — Centralized two-layer safety-factor policy (foundation for 25.302) **[architecture]**
 Today the safety factor is decided ad hoc: `ConditionResult.safety_factor` defaults to
@@ -304,7 +218,7 @@ consolidate the 9 duplicated `_value` test helpers + example builders into
 Apply buttons by form key, not list position (`test_dirty_flag.py:84,103`);
 add a cspell config or delete the CODE_REVIEW_PROCESS cspell bullet.
 
-### M4-18 — Fuselage pitching load factor (Ch 15's missing half; split from M4-1)
+### M4-21 — Fuselage pitching load factor (Ch 15's missing half; split from M4-1)
 Ch 15 (Ref 1 p103) says to multiply the station weights by the **linear and
 pitching** load factors; `body_loads` applies only `NZ`. Add the d'Alembert pitch
 term at each station, `f_i += -m_i * θ̈ * (x_i - x_cg)`, for the unbalanced /
@@ -429,12 +343,12 @@ probability — is Layer 2 of **M4-8** and is in scope there.)
 
 # Long tail — refinements & scope extensions (priority order)
 
-### L-1 — sbeam stick model: real stiffness + assembled airframe (was 2-4)
+### L-1 — sbeam stick model: real stiffness + assembled airframe
 Real/parametric section properties (today `_MAT1_E = 1.0e7` placeholder) and an
 assembled combined-airframe export. Granularity per **D-7**: load-cards-only
 default; assembled stick model opt-in behind a flag.
 
-### L-2 — Flaps-extended tail loads: printed oracle completion (was 2-6)
+### L-2 — Flaps-extended tail loads: printed oracle completion
 M1-2 lands the p176 landing-config polynomials and the p178 oracle rows for the
 envelope; completing the SELECT→TAILDIST flaps-extended pipeline against the
 printed cases (81/106/88/108) still needs the CG5–7 loadings added to the
@@ -442,14 +356,14 @@ fixtures. Also fold in the LEV LAND balanced point (Appendix A case 90, the
 sink-speed/attitude iteration `FLTLOADS.BAS` lines 3410–3600) — currently
 omitted from the flap corner set and undocumented (review minor).
 
-### L-3 — V-tail large-deflection factor EFV → SELECT (was 2-3) ⚠️
+### L-3 — V-tail large-deflection factor EFV → SELECT ⚠️
 **Not a simple wire-in — the naive fix breaks the 591-lb oracle by −47%**
 (investigated 2026-07-16: `large_deflection_factor(30°, 0.353)=0.53`, not
 ~1.0). Reopen only after re-reading `SELECT.BAS` subroutines 8300/10000 to pin
 down exactly what quantity the rudder EFV multiplies. The default-1.0
 pass-through matches the oracle and stays until then.
 
-### L-4 — Distinct Commuter category + VB (was 2-7)
+### L-4 — Distinct Commuter category + VB
 The 19,000-lb/19-seat tier is encoded but dormant; neither VB (23.335(d)) nor
 the 66-fps rough-air gust (23.341) is computed anywhere (the BASIC suite
 predates commuter support too). Note the commuter MC→MD margin rule
@@ -457,21 +371,21 @@ predates commuter support too). Note the commuter MC→MD margin rule
 `reference/14CFR_MC_MD_speed_margin.md`). Land as one step when a concept
 needs the tier.
 
-### L-5 — FLTLOADS enroute / speed-control config (was 2-19)
+### L-5 — FLTLOADS enroute / speed-control config
 Third config — enroute (partial flaps / dive brakes / spoilers) with VPF
 (UG §11.2.3, 23.373). Add an enroute `AeroCoeffSet` + VPF, or document the
 omission (only then add 23.373 to the citation string).
 
-### L-6 — AIRLOADS airplane-less-tail coefficient generation (was 2-18)
+### L-6 — AIRLOADS airplane-less-tail coefficient generation
 The guide's windows 4/6/8 (fuselage/nacelle CM, gear aero, per-station stall
 CL) — implement the coefficient generator or keep as a tracked scope gap
 (coefficients are entered by hand today, documented).
 
-### L-7 — WINGINER Table 15.1 completeness (was 2-20)
+### L-7 — WINGINER Table 15.1 completeness
 Confirm vs WINGINER.BAS whether a THETADOT pitch-acceleration case is expected;
 surface `DMYY` if a per-strip incremental torsion column is wanted.
 
-### L-8 — UX / reporting parity batch (was 2-21; extended by the 07-19 and 07-21 reviews)
+### L-8 — UX / reporting parity batch (extended by the 07-19 and 07-21 reviews)
 ENGLOADS `prop_blades` captured but unused; AILERON positive-deflection
 coercion undocumented; WTONECG YBAR omitted; TAILDIST average-chord only (not
 the guide's N-station-chord variants, Figs 20.7–20.10). Review nits (07-19):
@@ -503,7 +417,7 @@ radius); audit the `key=`+`value=` widgets and re-seed on a project change (or
 prove it cannot occur). `tests/test_persistence.py` locks the data-persistence
 half.
 
-### L-9 — FAR23 printed-oracle backfills ⛔ *blocked on reference material* (was 2-10)
+### L-9 — FAR23 printed-oracle backfills ⛔ *blocked on reference material*
 Close each as a mini-step **only if** a legible Appendix B / `.INP`/`.OUT`
 surfaces (see D-5): AIRLOAD4 swept printed spanwise table; ONENGOUT printed
 twin oracle; LANDLOAD printed wheel-load matrix (p231–233 is OCR-garbled — the
@@ -517,7 +431,8 @@ reaction matrix stays closure-/legible-cell-locked).
   `GeometryInput`) and **aero import** (VSPAERO results as an
   `AeroCoeffSet`/span-load source). Deliberately unscoped; note that an aero
   import would also provide the natural cross-check whose absence D-3 accepted
-  (revisit D-3's "closure proves insufficient" trigger when this lands).
+  (revisit D-3's "closure proves insufficient" trigger when this lands — see the
+  [resolved-decision register](../40_history/03_resolved_decisions.md)).
 - **Deeper sbeam integration** beyond L-1 (loads → sizing → updated
   weights/stiffness loop), and eventual **smodal** hand-off.
 - **Additional load-case families** beyond the current FAR23 + Part 25
@@ -539,32 +454,16 @@ reaction matrix stays closure-/legible-cell-locked).
   `examples/twin_turboprop.project.json` can't be built and these oracles stay
   blocked. **(Reviewed 2026-07-20: keep blocked as-is.)**
 
-### Resolved decisions (record; full rationale in history / plan docs)
-
-| ID | Decision | Resolved |
-|----|----------|----------|
-| D-1 | Concept reference airplane = swept twin-turbofan regional jet (forces the AIRLOAD4 swept branch) | 2026-07-16 |
-| D-2 | Concept gyroscopic rates: keep 23.371(b) fixed rates + guard/warn on exceedance | 2026-07-16 |
-| D-3 | No sbeam-VLM validation backend; closure + fleet plausibility (revisit trigger: see OpenVSP note above) | 2026-07-16 |
-| D-4 | Fleet comparison set (29 aircraft) sufficient as-is | 2026-07-16 |
-| D-6 | ~~Keep "FAR23LOADS"~~ **Superseded → full rename to `sloads` at 0.3.0 (M3-1)** | 2026-07-20 |
-| D-7 | sbeam export: load-cards-only default; assembled stick model behind a flag | 2026-07-16 |
-| D-8 | Full-airplane project JSONs are the canonical input form; per-module slices derived | 2026-07-16 |
-| D-9 | 23.427 unsymmetrical search: restore the full SELECT.BAS candidate set incl. unchecked (M1-4) | 2026-07-20 |
-| D-10 | Aero-coefficient curve plot: include (M4-5) — supersedes the 2026-07-15 decline | 2026-07-20 |
-| D-11 | Backlog restructured to release milestones; rename ships with the release as **sloads 0.3.0** | 2026-07-20 |
+Decisions D-1 … D-11, once answered, moved to the register:
+[`../40_history/03_resolved_decisions.md`](../40_history/03_resolved_decisions.md).
 
 ---
 
-## Known defects (open)
+## Known defects (open) — index
 
-- **M4-1** — fuselage body-load distribution carries an unreacted pitching
-  couple (terminal Myy ≠ 0). **[Major — caveat-noted in the deliverables, so
-  not release-blocking]** *Approach decided 2026-08-03* (carry-through
-  distributed spar reaction; see M4-1) — not yet implemented.
-- **M4-9** — report/export semantics keyed on display-label strings; a
-  cosmetic relabel silently blanks CSV columns. **[Major, latent]**
+Both are described in full above; this is the lookup.
 
-*(The Step-G6 half-migration breakage found by the 2026-07-19 review was
-resolved 2026-07-20 — suite green, concept fixture runs end-to-end; see
-history.)*
+- **M4-1** — unreacted pitching couple in the fuselage body-load distribution
+  (terminal Myy ≠ 0). **[Major — caveat-noted in the deliverables]**
+- **M4-9** — report/export semantics keyed on display-label strings; a cosmetic
+  relabel silently blanks CSV columns. **[Major, latent]**
