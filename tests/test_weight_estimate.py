@@ -20,6 +20,7 @@ from sloads import (  # noqa: E402
     WeightInput,
 )
 from sloads.modules import weight_estimate as calc  # noqa: E402
+from helpers import value_of  # noqa: E402
 
 
 def _raises_value_error(fn) -> bool:
@@ -44,22 +45,14 @@ def ga6_estimation() -> WeightEstimationInput:
     )
 
 
-def _value(results, label):
-    for r in results:
-        for v in r.values:
-            if v.label == label:
-                return v.value
-    raise KeyError(label)
-
-
 def test_summary_matches_manual():
     # Appendix A p133: MAX TAKE OFF WT 3468, USEFUL 1318, EMPTY 2150, ratio .62.
     r = calc.estimate(ga6_estimation())
-    assert _value(r, "Max take-off weight") == 3468
-    assert _value(r, "Useful load") == 1318
-    assert _value(r, "Empty weight") == 2150
-    assert _value(r, "Empty/take-off ratio") == 0.62
-    assert _value(r, "Options & miscellaneous") == 99
+    assert value_of(r, "Max take-off weight") == 3468
+    assert value_of(r, "Useful load") == 1318
+    assert value_of(r, "Empty weight") == 2150
+    assert value_of(r, "Empty/take-off ratio") == 0.62
+    assert value_of(r, "Options & miscellaneous") == 99
 
 
 def test_operating_empty_weight_adds_crew():
@@ -68,53 +61,53 @@ def test_operating_empty_weight_adds_crew():
     est = ga6_estimation()
     est.crew = 1
     r = calc.estimate(est)
-    assert _value(r, "Empty weight") == 2150            # oracle untouched
-    assert _value(r, "Max take-off weight") == 3468     # oracle untouched
-    assert _value(r, "Crew (operating items)") == 170
-    assert _value(r, "Operating empty weight (OEW)") == 2320
+    assert value_of(r, "Empty weight") == 2150            # oracle untouched
+    assert value_of(r, "Max take-off weight") == 3468     # oracle untouched
+    assert value_of(r, "Crew (operating items)") == 170
+    assert value_of(r, "Operating empty weight (OEW)") == 2320
     # Two crew -> OEW rises by another 170, empty/MTOW still unchanged.
     est.crew = 2
     r2 = calc.estimate(est)
-    assert _value(r2, "Empty weight") == 2150
-    assert _value(r2, "Operating empty weight (OEW)") == 2490
+    assert value_of(r2, "Empty weight") == 2150
+    assert value_of(r2, "Operating empty weight (OEW)") == 2490
 
 
 def test_structure_group_matches_manual():
     # Appendix A p133 structure breakdown.
     r = calc.estimate(ga6_estimation())
-    assert _value(r, "Wing") == 359
-    assert _value(r, "Fuselage") == 340
-    assert _value(r, "Tail") == 81
-    assert _value(r, "Nacelle") == 50
-    assert _value(r, "Landing gear") == 198
-    assert _value(r, "Controls") == 52
-    assert _value(r, "Total structure") == 1081
+    assert value_of(r, "Wing") == 359
+    assert value_of(r, "Fuselage") == 340
+    assert value_of(r, "Tail") == 81
+    assert value_of(r, "Nacelle") == 50
+    assert value_of(r, "Landing gear") == 198
+    assert value_of(r, "Controls") == 52
+    assert value_of(r, "Total structure") == 1081
 
 
 def test_powerplant_group_matches_manual():
     # Appendix A p133: installed 490 (prop 83), fuel sys 52, exhaust 72,
     # other 86, total powerplant 700.
     r = calc.estimate(ga6_estimation())
-    assert _value(r, "Engine installed (incl. propeller)") == 490
-    assert _value(r, "Propeller (included above)") == 83
-    assert _value(r, "Fuel system") == 52
-    assert _value(r, "Exhaust") == 72
-    assert _value(r, "Other engine details") == 86
-    assert _value(r, "Total powerplant") == 700
+    assert value_of(r, "Engine installed (incl. propeller)") == 490
+    assert value_of(r, "Propeller (included above)") == 83
+    assert value_of(r, "Fuel system") == 52
+    assert value_of(r, "Exhaust") == 72
+    assert value_of(r, "Other engine details") == 86
+    assert value_of(r, "Total powerplant") == 700
 
 
 def test_systems_group_matches_manual():
     # Appendix A p133 systems breakdown; single-engine "misc" prints 0
     # (the program prints an unset variable there -- preserved quirk).
     r = calc.estimate(ga6_estimation())
-    assert _value(r, "Instruments & nav equip") == 15
-    assert _value(r, "Pneumatics") == 3
-    assert _value(r, "Electrical") == 83
-    assert _value(r, "Electronics") == 0
-    assert _value(r, "Furnishings & equipment") == 152
-    assert _value(r, "Environmental & anti-ice") == 10
-    assert _value(r, "Misc other system wt") == 0
-    assert _value(r, "Total systems weight") == 268
+    assert value_of(r, "Instruments & nav equip") == 15
+    assert value_of(r, "Pneumatics") == 3
+    assert value_of(r, "Electrical") == 83
+    assert value_of(r, "Electronics") == 0
+    assert value_of(r, "Furnishings & equipment") == 152
+    assert value_of(r, "Environmental & anti-ice") == 10
+    assert value_of(r, "Misc other system wt") == 0
+    assert value_of(r, "Total systems weight") == 268
 
 
 def test_seed_mass_items_from_estimate():

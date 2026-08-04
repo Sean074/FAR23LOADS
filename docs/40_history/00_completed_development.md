@@ -10,6 +10,83 @@ Acceptance**, **Key decisions**.
 
 ---
 
+## M4-12a — Test-architecture cleanup: shared helpers + form-key button selection (complete 2026-08-03)
+
+**Objective.** Close the first half of the 2026-07-21 review's M4-12 batch, the
+half that must land **before** M4-11 rewrites the app layer. Two defects:
+
+1. **Nine duplicated `_value` lookups** across the test suite, with three subtly
+   different signatures, plus **seven modules importing fixtures out of
+   `test_engine`** (and an eighth importing a BDF reader out of
+   `test_sbeam_bridge`) — a test module doubling as a library.
+2. **Positional Apply-button selection.** `test_dirty_flag._apply_buttons(at)`
+   collected *every* button whose label contained "Apply" and indexed it
+   `[0]`/`[1]`. `AppTest` flattens every form's submit button into one list, so
+   an index silently rebinds the moment a view gains, loses or reorders a form —
+   the test keeps passing while asserting something else. M4-11 rewrites 22
+   apply handlers, so this had to be fixed first or the refactor would have been
+   unverified.
+
+Sequenced and scoped by
+[`../30_future/06_m4_maintainability_sequence_plan.md`](../30_future/06_m4_maintainability_sequence_plan.md) §4 step 1.
+
+**Deliverables.**
+- **`tests/helpers.py`** — the D-18 API: `value_of(source, label) -> float`,
+  `load_value(source, label) -> LoadValue`, `values_by_label(source) -> Dict`.
+  All three take a `ModuleResult`, a `ConditionResult`, or a nested list of
+  either (the normalisation `io._as_conditions` already models) and raise
+  `KeyError` on a missing label, matching the helpers they replace. **This
+  signature is the one M4-9 re-points at `LoadValue.key`** — fixing it here is
+  the reason the consolidation comes first.
+- **`tests/helpers.apply_button(at, form_key)`** — selects a form's submit
+  button through `proto.form_id` and **asserts it found exactly one**, so a
+  renamed key fails loudly instead of selecting nothing.
+- **`tests/fixtures.py`** — `io520bb()` / `turboprop()` moved out of
+  `test_engine.py`; `parse_cards` (the self-contained free-field BDF reader)
+  moved out of `test_sbeam_bridge.py` into `helpers.py`. **No test module
+  imports another test module** — recorded as a convention in
+  `conftest.py` and `PROJECT_GUIDE.md §7`.
+- **Call-site migration.** 10 files re-pointed at the shared lookups (~180
+  sites, mechanical rename); `test_configuration` keeps a one-line `_props()`
+  composing `values_by_label(configuration_properties(project))`.
+- **Form-key selection everywhere**, not just the two sites the backlog named:
+  `test_dirty_flag` (4 sites), `test_configuration_layout_view` (3, including a
+  label-list presence assertion rewritten as two `apply_button` lookups) and
+  `test_landing` (1).
+- **Two `__main__` self-runners repaired** (`test_dirty_flag`,
+  `test_configuration_layout_view`): both drove `app/views/*.py` through
+  `AppTest` without putting `app/` on `sys.path`, which `conftest.py` only does
+  under pytest, so the documented zero-dependency fallback died on
+  `No module named 'components'`.
+
+**Test / Acceptance.** **536 passed** — the baseline count, with every numeric
+assertion unedited (this step touches `tests/` only; no `sloads/` or `app/`
+change at all, verified against the plan's acceptance clause). `ruff check
+sloads/ cli.py` clean. Every `__main__` self-runner exercised individually.
+Negative control run on the new selector: an unknown form key raises
+`AssertionError` naming the keys that *are* present, rather than returning an
+empty selection.
+
+**Key decisions.**
+- **D-18** (resolved 2026-08-03): three named functions rather than one
+  overloaded helper — the three call-site contracts are genuinely distinct
+  (value vs. `LoadValue`, one condition vs. many).
+- Fixtures live in a **separate `fixtures.py`**, not in `conftest.py`: they are
+  plain builders, not pytest fixtures, and the self-runners import them directly.
+- Confirmed by inspection that **all 24 `st.form(...)` calls across 13 views
+  already carry unique string keys**, so this step needed no `app/` change —
+  correcting the plan's initial assumption that keys would have to be added.
+
+**Follow-on defect found (not fixed here — logged as M4-22).** Clicking the
+`select_inputs_form` Apply on the Flight Envelope page also persists the
+*un-applied* `flight_geometry_form` edits: the SELECT handler writes the page's
+probe copy (which already carries `fl_effective`) back to session state at
+`app/views/flight_envelope.py:324`. Positional button selection had been hiding
+it — `test_flight_loads_persists_only_on_apply` passed while clicking the wrong
+form. It is an `app/` fix, out of M4-12a's tests-only scope.
+
+---
+
 ## M4-1 — Fuselage body loads: moment closure (complete 2026-08-03)
 
 **Objective.** Close the 2026-07-23 review finding T5: `body_loads` applied a

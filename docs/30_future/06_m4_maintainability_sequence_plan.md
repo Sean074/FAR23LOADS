@@ -1,6 +1,8 @@
 # M4 maintainability sequence — execution plan (M4-12 → M4-11 → G8 views → M4-10 → M4-9)
 
-**Status:** planned, not started; **all design decisions resolved 2026-08-03**
+**Status:** **Step 1 (M4-12a) complete 2026-08-03** — see the history entry in
+[`../40_history/00_completed_development.md`](../40_history/00_completed_development.md);
+steps 2–6 planned, not started. **All design decisions resolved 2026-08-03**
 (D-12 … D-18, §2). **Written:** 2026-08-03.
 **Scope:** the five pre-F25 maintainability items, in the order the dependency
 analysis below justifies. **Not in scope:** any calc-math change. The invariant
@@ -253,9 +255,15 @@ swapped from the order this plan was originally requested in.)*
 
 ---
 
-### Step 1 — M4-12a: test-architecture cleanup
+### Step 1 — M4-12a: test-architecture cleanup ✅ *complete 2026-08-03*
 
-**Decisions applied:** D-18 (resolved).
+**Decisions applied:** D-18 (resolved). **Shipped as written**, with three
+additions the work turned up: `parse_cards` also moved out of
+`test_sbeam_bridge` (an eighth test-imports-test); the form-key conversion
+covered `test_configuration_layout_view` and `test_landing` as well as
+`test_dirty_flag`; and two `__main__` self-runners that drove views without
+`app/` on `sys.path` were repaired. It also exposed an app defect the positional
+selection had been masking — backlog **M4-22**.
 
 1. **`tests/helpers.py`** — new module with the D-18 API, docstringed, importable
    via the existing `conftest.py` `sys.path` entry (no packaging change).

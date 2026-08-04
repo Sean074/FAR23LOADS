@@ -21,14 +21,8 @@ from sloads import (  # noqa: E402
 )
 from sloads.units import _convert_value  # noqa: E402
 from sloads.models import LoadValue  # noqa: E402
-from test_engine import io520bb, turboprop  # noqa: E402
-
-
-def _value(result, label):
-    for v in result.values:
-        if v.label == label:
-            return v
-    raise KeyError(label)
+from fixtures import io520bb, turboprop  # noqa: E402
+from helpers import load_value  # noqa: E402
 
 
 def test_one_display_unit_per_dimension():
@@ -73,10 +67,10 @@ def test_si_round_trip_reproduces_imperial():
 
 def test_result_force_converts_to_newtons():
     r = run_all(io520bb())[0]  # 23.361(a)(1)
-    vload_lb = _value(r, "Vertical down load").value
+    vload_lb = load_value(r, "Vertical down load").value
     si = convert_results([r], UnitSystem.SI)[0]
-    vload_n = _value(si, "Vertical down load").value
-    assert _value(si, "Vertical down load").units == "N"
+    vload_n = load_value(si, "Vertical down load").value
+    assert load_value(si, "Vertical down load").units == "N"
     assert math.isclose(vload_n, vload_lb * 4.4482216152605, rel_tol=1e-9)
 
 
@@ -130,10 +124,10 @@ def test_mass_properties_result_converts_end_to_end():
     ]
     r_imp = weights_and_inertia(items)
     r_si = convert_results([r_imp], UnitSystem.SI)[0]
-    assert _value(r_si, "Weight").units == "kg"
-    assert _value(r_si, "XBAR (fus station)").units == "mm"
-    assert _value(r_si, "IZZ").units == "kg·m²"
-    assert _value(r_si, "Principal-axis angle theta").units == "deg"  # unchanged
+    assert load_value(r_si, "Weight").units == "kg"
+    assert load_value(r_si, "XBAR (fus station)").units == "mm"
+    assert load_value(r_si, "IZZ").units == "kg·m²"
+    assert load_value(r_si, "Principal-axis angle theta").units == "deg"  # unchanged
 
 
 def test_to_display_inverts_to_imperial_scalar():

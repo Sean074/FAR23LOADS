@@ -13,7 +13,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from sloads import Project, io, registry  # noqa: E402
 from sloads.models import SCHEMA_VERSION, EngineType  # noqa: E402
-from test_engine import io520bb  # noqa: E402
+from fixtures import io520bb  # noqa: E402
 
 EXAMPLES = os.path.join(
     os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "examples"
@@ -84,7 +84,7 @@ def test_run_all_modules_runs_present_slices():
 
 def test_run_all_modules_skips_missing_slices():
     # A project with only the engine slice runs the engine module alone.
-    from test_engine import io520bb
+    from fixtures import io520bb
 
     from sloads import EngineLayout
 

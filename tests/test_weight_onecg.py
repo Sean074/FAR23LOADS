@@ -18,6 +18,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from sloads import Project, WeightInput, io  # noqa: E402
 from sloads.modules import weight_onecg as calc  # noqa: E402
+from helpers import value_of  # noqa: E402
 
 TOL = 1e-3  # ±0.1% relative
 
@@ -33,49 +34,42 @@ def aft_gross_result():
     return calc.weights_and_inertia(project.weight.items)
 
 
-def _value(result, label):
-    for v in result.values:
-        if v.label == label:
-            return v.value
-    raise KeyError(label)
-
-
 def test_weight_and_cg_match_manual():
     # Appendix A p136 (aft gross weight CG): WEIGHT 3400, XBAR 84.99936,
     # ZBAR 92.57932.
     r = aft_gross_result()
-    assert _value(r, "Weight") == 3400
-    assert math.isclose(_value(r, "XBAR (fus station)"), 84.99936, rel_tol=TOL)
-    assert math.isclose(_value(r, "ZBAR (waterline)"), 92.57932, rel_tol=TOL)
+    assert value_of(r, "Weight") == 3400
+    assert math.isclose(value_of(r, "XBAR (fus station)"), 84.99936, rel_tol=TOL)
+    assert math.isclose(value_of(r, "ZBAR (waterline)"), 92.57932, rel_tol=TOL)
 
 
 def test_inertias_airplane_axes_match_manual():
     # Appendix A p136, slug-ft^2: IXX 1201.527, IYY 2058.209, IZZ 3022.766,
     # IXZ 134.4063.
     r = aft_gross_result()
-    assert math.isclose(_value(r, "IXX"), 1201.527, rel_tol=TOL)
-    assert math.isclose(_value(r, "IYY"), 2058.209, rel_tol=TOL)
-    assert math.isclose(_value(r, "IZZ"), 3022.766, rel_tol=TOL)
-    assert math.isclose(_value(r, "IXZ"), 134.4063, rel_tol=TOL)
+    assert math.isclose(value_of(r, "IXX"), 1201.527, rel_tol=TOL)
+    assert math.isclose(value_of(r, "IYY"), 2058.209, rel_tol=TOL)
+    assert math.isclose(value_of(r, "IZZ"), 3022.766, rel_tol=TOL)
+    assert math.isclose(value_of(r, "IXZ"), 134.4063, rel_tol=TOL)
 
 
 def test_inertias_lb_in2_match_manual():
     # Appendix A p136, lb-in^2: IXX 5566051, IYY 9534613, IZZ 14002901, IXZ 622634.
     r = aft_gross_result()
-    assert math.isclose(_value(r, "IXX (lb-in^2)"), 5566051, rel_tol=TOL)
-    assert math.isclose(_value(r, "IYY (lb-in^2)"), 9534613, rel_tol=TOL)
-    assert math.isclose(_value(r, "IZZ (lb-in^2)"), 14002901, rel_tol=TOL)
-    assert math.isclose(_value(r, "IXZ (lb-in^2)"), 622634, rel_tol=TOL)
+    assert math.isclose(value_of(r, "IXX (lb-in^2)"), 5566051, rel_tol=TOL)
+    assert math.isclose(value_of(r, "IYY (lb-in^2)"), 9534613, rel_tol=TOL)
+    assert math.isclose(value_of(r, "IZZ (lb-in^2)"), 14002901, rel_tol=TOL)
+    assert math.isclose(value_of(r, "IXZ (lb-in^2)"), 622634, rel_tol=TOL)
 
 
 def test_principal_axes_match_manual():
     # Appendix A p136: IX(P) 1191.662, IY(P) 2058.209, IZ(P) 3032.632,
     # theta 4.198392 deg.
     r = aft_gross_result()
-    assert math.isclose(_value(r, "IX(P) principal"), 1191.662, rel_tol=TOL)
-    assert math.isclose(_value(r, "IY(P) principal"), 2058.209, rel_tol=TOL)
-    assert math.isclose(_value(r, "IZ(P) principal"), 3032.632, rel_tol=TOL)
-    assert math.isclose(_value(r, "Principal-axis angle theta"), 4.198392, rel_tol=2e-3)
+    assert math.isclose(value_of(r, "IX(P) principal"), 1191.662, rel_tol=TOL)
+    assert math.isclose(value_of(r, "IY(P) principal"), 2058.209, rel_tol=TOL)
+    assert math.isclose(value_of(r, "IZ(P) principal"), 3032.632, rel_tol=TOL)
+    assert math.isclose(value_of(r, "Principal-axis angle theta"), 4.198392, rel_tol=2e-3)
 
 
 def test_run_requires_items():

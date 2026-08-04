@@ -154,6 +154,7 @@ Layer 2 coordinates with Phase F25.**
 > (decisions D-12 … D-18, resolved 2026-08-03). Note the order: **M4-10 lands
 > before M4-9**, because `LoadValue` is persisted (`io.py:635`) and the new `key`
 > must arrive through the migration chain.
+> **M4-12a (test architecture) shipped 2026-08-03** — next up is **M4-12b**.
 
 ### M4-9 — `LoadValue.key`: de-string the load-case semantics **[maintainability, pre-F25]**
 2026-07-21 review, top refactor. Semantics currently ride on display-label
@@ -190,20 +191,40 @@ manager (header/gate/concept banner); adopt in the worst views first
 before writing the F25/OpenVSP views, not after 30 views exist.** Est. 1.5–2k
 lines removed.
 
-### M4-12 — Contract & test-architecture cleanups (2026-07-21 review batch)
+### M4-12b — Contract cleanups (2026-07-21 review batch) **[M4-12a shipped 2026-08-03]**
 Promote the remaining cross-module private-symbol imports to public homes
-(`_interp_x`, `_sigma`, `_maneuver_load_factors`, `htail_balance` family;
-`app/` must not import `sloads` underscore names — the `_wtenv_cg_limits` →
-`wtenv_cg_limits` case was promoted with M2R-5); `htail_balance` →
-NamedTuple (stringly dict keys cross module boundaries); document the
-`tail_loads`/`vtail_loads` property-proxy trap-doors (invisible to
-`dataclasses.fields/replace/asdict`; silent None no-op) and do not replicate
-the pattern — retire it at the rename break; write the
-`sync_geometry_derived`-inside-`run()` convention into the porting contract;
-consolidate the 9 duplicated `_value` test helpers + example builders into
-`conftest.py`/`tests/helpers.py` (7 files import from `test_engine`); select
-Apply buttons by form key, not list position (`test_dirty_flag.py:84,103`);
-add a cspell config or delete the CODE_REVIEW_PROCESS cspell bullet.
+(`_interp_x`, `_sigma`, `_design_inputs`, `_maneuver_load_factors`,
+`_elevator_load`, `_envelope`, `_flaps_by_config_name`; `app/` must not import
+`sloads` underscore names — the `_wtenv_cg_limits` → `wtenv_cg_limits` case was
+promoted with M2R-5) by **underscore-drop in place + `__all__`** per D-14, with
+chosen names for `_envelope`/`_design_inputs`; `htail_balance` → **NamedTuple
+with lowercase attributes** per D-13 (stringly dict keys cross module
+boundaries); document the `tail_loads`/`vtail_loads` property-proxy trap-doors
+(invisible to `dataclasses.fields/replace/asdict`; silent None no-op) and do not
+replicate the pattern — **retirement is M4-10's** per D-15; write the
+`sync_geometry_derived`-inside-`run()` convention into the porting contract.
+This is **the oracle re-run gate** — it touches `select`/`balloads`/
+`flight_envelope`/`structural_speeds`/`wing_geometry`/`wing_inertia`/`net_loads`;
+every Appendix A assertion must pass with its number unedited. Scoped in
+[`06_m4_maintainability_sequence_plan.md`](06_m4_maintainability_sequence_plan.md) §4 step 2.
+
+*(The cspell sub-item is closed — `cspell.json` exists and the
+`CODE_REVIEW_PROCESS.md` bullet is valid.)*
+
+### M4-22 — Flight Envelope: SELECT Apply also persists un-applied geometry edits **[Minor, found by M4-12a]**
+`app/views/flight_envelope.py:324` — the SELECT-inputs form handler writes the
+page's *probe copy* back to session state (`st.session_state["project"] =
+project`), and that copy already carries `fl_effective` from line 178. So
+pressing **Apply** inside the "SELECT search inputs" expander silently commits
+whatever the user typed into the **Apply geometry & altitudes** form (XTC / XTF /
+reference Mach / the altitudes editor) without pressing that form's own Apply —
+the M2-3 "persist only on Apply" contract, violated for a different form's
+fields. Fix: the SELECT handler should write only `select_input` onto the session
+project (`st.session_state["project"].select_input = si`), never the probe copy.
+Found by M4-12a: positional button selection had hidden it, because
+`test_flight_loads_persists_only_on_apply` was clicking `select_inputs_form` and
+still observing `flight_loads` persisted. Add a test asserting the SELECT Apply
+leaves `flight_loads` untouched — it fails today.
 
 ### M4-21 — Fuselage pitching load factor (Ch 15's missing half; split from M4-1)
 Ch 15 (Ref 1 p103) says to multiply the station weights by the **linear and
@@ -455,3 +476,6 @@ Described in full above; this is the lookup.
 
 - **M4-9** — report/export semantics keyed on display-label strings; a cosmetic
   relabel silently blanks CSV columns. **[Major, latent]**
+- **M4-22** — Flight Envelope: the SELECT-inputs **Apply** also persists
+  un-applied geometry/altitude edits (`flight_envelope.py:324` writes the probe
+  copy). **[Minor]**

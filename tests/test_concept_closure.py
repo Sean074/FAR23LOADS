@@ -47,7 +47,7 @@ from sloads.modules.flight_envelope import build_envelope  # noqa: E402
 from sloads.modules.net_loads import build_net_loads  # noqa: E402
 from sloads.modules.select import build_critical  # noqa: E402
 from sloads.modules.taildist import build_tail_chordwise  # noqa: E402
-from test_sbeam_bridge import _parse_cards  # noqa: E402  (shared free-field reader)
+from helpers import parse_cards  # noqa: E402  (shared free-field reader)
 
 _EXAMPLE = os.path.join(
     os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
@@ -153,7 +153,7 @@ def test_body_vertical_equilibrium():
 def test_body_nodal_cards_sum_to_zero():
     """The exported body FORCE deck parses and its Fz set closes to ~0 (ULTIMATE)."""
     results = build_body_loads(_concept_project())
-    _, _, _, forces, _ = _parse_cards(sb.body_force_moment_cards(results, sid_base=1))
+    _, _, _, forces, _ = parse_cards(sb.body_force_moment_cards(results, sid_base=1))
     assert sorted(forces) == list(range(1, len(results) + 1))
     for idx, r in enumerate(results):
         scale = max(abs(s.fz) for s in r.stations) * _SF
@@ -211,28 +211,28 @@ def test_full_airframe_exports_cleanly():
     assert wing and body and tail and control
 
     # Wing: FORCE Fz re-sums to the NETLOADS root shear.
-    _, _, _, wf, _ = _parse_cards(sb.force_moment_cards(wing, sid_base=1))
+    _, _, _, wf, _ = parse_cards(sb.force_moment_cards(wing, sid_base=1))
     assert len(wf) == len(wing)
     for idx, r in enumerate(wing):
         fz = sum(sc * v[2] for _, sc, v in wf[1 + idx])
         assert math.isclose(fz, r.stations[0].sz * _SF, rel_tol=1e-4, abs_tol=1.0)
 
     # Tail: FORCE Fz re-sums to ULTIMATE (LT25 + LT50).
-    _, _, _, tf, _ = _parse_cards(sb.tail_force_moment_cards(tail, sid_base=1))
+    _, _, _, tf, _ = parse_cards(sb.tail_force_moment_cards(tail, sid_base=1))
     assert len(tf) == len(tail)
     for idx, r in enumerate(tail):
         fz = sum(sc * v[2] for _, sc, v in tf[1 + idx])
         assert math.isclose(fz, (r.lt25 + r.lt50) * _SF, rel_tol=1e-4, abs_tol=1.0)
 
     # Control surfaces: FORCE Fz re-sums to the critical surface load.
-    _, _, _, cf, _ = _parse_cards(sb.control_surface_force_moment_cards(control, sid_base=1))
+    _, _, _, cf, _ = parse_cards(sb.control_surface_force_moment_cards(control, sid_base=1))
     assert len(cf) == len(control)
     for idx, r in enumerate(control):
         fz = sum(sc * v[2] for _, sc, v in cf[1 + idx])
         assert math.isclose(fz, r.load_lb * _SF, rel_tol=1e-4, abs_tol=1.0)
 
     # Body: FORCE deck parses and closes to ~0 (already asserted per case above).
-    _, _, _, bf, _ = _parse_cards(sb.body_force_moment_cards(body, sid_base=1))
+    _, _, _, bf, _ = parse_cards(sb.body_force_moment_cards(body, sid_base=1))
     assert len(bf) == len(body)
 
 

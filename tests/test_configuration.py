@@ -61,15 +61,12 @@ from sloads.modules.configuration import (  # noqa: E402
     tail_planform,
     wing_planform,
 )
+from helpers import values_by_label  # noqa: E402
 
 
-def _values(project):
-    """Flatten all (label -> value) pairs from the module result."""
-    out = {}
-    for cond in configuration_properties(project):
-        for v in cond.values:
-            out[v.label] = v.value
-    return out
+def _props(project):
+    """Every configuration property as ``{label: value}`` (the module's flat table)."""
+    return values_by_label(configuration_properties(project))
 
 
 def _trapezoid(area_ft2=174.0, ar=6.0, taper=0.5, sweep_deg=3.0, le_root_x=45.0):
@@ -87,7 +84,7 @@ def test_mac_matches_closed_form():
     ymac_cf = (semi / 3.0) * (1 + 2 * taper) / (1 + taper)
     xlemac_cf = layout.le_root_x + ymac_cf * math.tan(math.radians(layout.le_sweep_deg))
 
-    vals = _values(Project(name="t", geometry=GeometryInput(parametric=layout)))
+    vals = _props(Project(name="t", geometry=GeometryInput(parametric=layout)))
     assert math.isclose(vals["MAC"], mac_cf, rel_tol=1e-3)
     assert math.isclose(vals["YLE(MAC) butt line of MAC"], ymac_cf, rel_tol=1e-3)
     assert math.isclose(vals["XLE(MAC) station of MAC LE"], xlemac_cf, rel_tol=1e-3)
@@ -96,7 +93,7 @@ def test_mac_matches_closed_form():
 def test_area_aspect_ratio_recovered():
     # The generated planform must round-trip back to the input S and AR (WINGGEOM).
     layout = _trapezoid(area_ft2=200.0, ar=8.0, taper=0.4)
-    vals = _values(Project(name="t", geometry=GeometryInput(parametric=layout)))
+    vals = _props(Project(name="t", geometry=GeometryInput(parametric=layout)))
     assert math.isclose(vals["Aspect ratio"], 8.0, rel_tol=1e-3)
     span = vals["Span"]
     assert math.isclose(span, math.sqrt(8.0 * 200.0) * 12.0, rel_tol=1e-3)
@@ -112,7 +109,7 @@ def test_appendix_a_sanity():
         wing_area_sqft=2 * 13257 / 144.0, aspect_ratio=6.095, taper_ratio=44.0 / 101.0,
         le_sweep_deg=4.0, le_root_x=45.0,
     )
-    vals = _values(Project(name="appA", geometry=GeometryInput(parametric=layout)))
+    vals = _props(Project(name="appA", geometry=GeometryInput(parametric=layout)))
     assert math.isclose(vals["MAC"], 69.246, rel_tol=0.10)
     assert math.isclose(vals["YLE(MAC) butt line of MAC"], 87.854, rel_tol=0.10)
 
@@ -122,7 +119,7 @@ def test_stability_and_gear_present_when_data_given():
     layout.root_waterline_z = 40.0
     # Step G6: h-tail area + 25%-MAC station (xt25 well aft -> positive derived arm).
     emp = EmpennageInput(htail=TailLoadsInput(htail_area_sqft=30.0, xt25=250.0))
-    vals = _values(Project(name="t", geometry=GeometryInput(
+    vals = _props(Project(name="t", geometry=GeometryInput(
         parametric=layout, empennage=emp, landing_gear=_gear_geom(115.0, 20.0))))
     assert vals["Horizontal tail volume V_H"] > 0
     assert "Neutral point (%MAC)" in vals
@@ -145,7 +142,7 @@ def test_cg_estimate_falls_back_to_quarter_mac_without_mass():
     # Step D4.5: no Project.mass -> the pre-D4.5 25%-MAC / wing-waterline first cut.
     layout = _gear_layout()
     project = Project(name="t", geometry=GeometryInput(parametric=layout))
-    geom = _values(project)
+    geom = _props(project)
     x_cg, z_cg, source = cg_estimate(project, layout, geom)
     assert math.isclose(x_cg, geom["XLE(MAC) station of MAC LE"] + 0.25 * geom["MAC"])
     assert z_cg == layout.root_waterline_z
@@ -157,7 +154,7 @@ def test_cg_estimate_uses_mass_when_present():
     layout = _gear_layout()
     mass = MassResult(cases=[MassCase(name="itemized loading", weight_lb=2000.0, cg_x=123.4, cg_z=56.7)])
     project = Project(name="t", geometry=GeometryInput(parametric=layout), mass=mass)
-    geom = _values(project)
+    geom = _props(project)
     x_cg, z_cg, source = cg_estimate(project, layout, geom)
     assert (x_cg, z_cg, source) == (123.4, 56.7, "Weight DB")
 
@@ -165,8 +162,8 @@ def test_cg_estimate_uses_mass_when_present():
 def test_gear_condition_label_reflects_cg_source():
     layout = _gear_layout()
     mass = MassResult(cases=[MassCase(name="itemized loading", weight_lb=2000.0, cg_x=123.4, cg_z=56.7)])
-    with_mass = _values(_gear_project(layout, mass=mass))
-    without_mass = _values(_gear_project(layout))
+    with_mass = _props(_gear_project(layout, mass=mass))
+    without_mass = _props(_gear_project(layout))
     assert "CG station (Weight DB)" in with_mass
     assert "CG station (25% MAC estimate)" in without_mass
     assert with_mass["CG station (Weight DB)"] == 123.4

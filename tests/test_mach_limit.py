@@ -18,6 +18,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from sloads import MachLimitInput, Project, StructuralSpeedsInput, io  # noqa: E402
 from sloads.modules import mach_limit as calc  # noqa: E402
+from helpers import value_of  # noqa: E402
 
 TOL = 1e-3  # ±0.1% relative
 
@@ -33,14 +34,6 @@ def results():
     return calc.mach_limit_lines(project.speeds.mach_limit)
 
 
-def _value(conditions, label):
-    for c in conditions:
-        for v in c.values:
-            if v.label == label:
-                return v.value
-    raise KeyError(label)
-
-
 def _line_at(conditions, altitude):
     for c in conditions:
         if c.title.endswith(f"{altitude:g} ft"):
@@ -51,24 +44,24 @@ def _line_at(conditions, altitude):
 def test_mne_and_mfc():
     # MNE = 0.9*MD = 0.3627; MFC = 1.2*MD = 0.4836.
     r = results()
-    assert math.isclose(_value(r, "Never-exceed Mach MNE"), 0.3627, rel_tol=TOL)
-    assert math.isclose(_value(r, "Flutter-clearance Mach MFC"), 0.4836, rel_tol=TOL)
+    assert math.isclose(value_of(r, "Never-exceed Mach MNE"), 0.3627, rel_tol=TOL)
+    assert math.isclose(value_of(r, "Flutter-clearance Mach MFC"), 0.4836, rel_tol=TOL)
 
 
 def test_line_at_shoulder_altitude():
     # 12000 ft: V(MC) 170.16, V(MNE) 191.08, V(MD) 212.31, V(FC) 254.77.
     line = _line_at(results(), 12000)
-    assert math.isclose(_value([line], "V(MC)"), 170.16, rel_tol=TOL)
-    assert math.isclose(_value([line], "V(MNE)"), 191.08, rel_tol=TOL)
-    assert math.isclose(_value([line], "V(MD)"), 212.31, rel_tol=TOL)
-    assert math.isclose(_value([line], "V(FC)"), 254.77, rel_tol=TOL)
+    assert math.isclose(value_of([line], "V(MC)"), 170.16, rel_tol=TOL)
+    assert math.isclose(value_of([line], "V(MNE)"), 191.08, rel_tol=TOL)
+    assert math.isclose(value_of([line], "V(MD)"), 212.31, rel_tol=TOL)
+    assert math.isclose(value_of([line], "V(FC)"), 254.77, rel_tol=TOL)
 
 
 def test_line_at_max_altitude():
     # 18000 ft: V(MC) 150.77, V(MD) 188.11.
     line = _line_at(results(), 18000)
-    assert math.isclose(_value([line], "V(MC)"), 150.77, rel_tol=TOL)
-    assert math.isclose(_value([line], "V(MD)"), 188.11, rel_tol=TOL)
+    assert math.isclose(value_of([line], "V(MC)"), 150.77, rel_tol=TOL)
+    assert math.isclose(value_of([line], "V(MD)"), 188.11, rel_tol=TOL)
 
 
 def test_altitude_rows_span_shoulder_to_max():
@@ -82,7 +75,7 @@ def test_altitude_rows_span_shoulder_to_max():
 def test_vfc_is_120_percent_of_vmd():
     # V(FC) = 1.2 * V(MD) at every altitude (MFC = 1.2*MD).
     line = _line_at(results(), 15000)
-    assert math.isclose(_value([line], "V(FC)"), 1.2 * _value([line], "V(MD)"), rel_tol=1e-9)
+    assert math.isclose(value_of([line], "V(FC)"), 1.2 * value_of([line], "V(MD)"), rel_tol=1e-9)
 
 
 def test_run_requires_mach_limit_inputs():
@@ -109,7 +102,7 @@ def test_above_tropopause_uses_constant_speed_of_sound():
     lines = [c for c in r if c.title.startswith("Mach limit line")]
     assert len(lines) == 3  # 36000, 38000, 40000
     # V(MD) decreases monotonically with altitude (sigma falls).
-    vmd = [_value([line], "V(MD)") for line in lines]
+    vmd = [value_of([line], "V(MD)") for line in lines]
     assert vmd[0] > vmd[1] > vmd[2]
 
 

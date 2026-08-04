@@ -299,7 +299,28 @@ Strategy:
 2. For each module, assert its `run(project)` matches the corresponding Appendix figures **within tolerance** (recommended ±0.1%; widen only where the manual visibly rounds an intermediate).
 3. Keep the comparison values in the test as the manual's *printed* numbers, with a comment citing the page — so drift is loud and traceable.
 4. CI/locally: `pytest tests/` runs every module against both airplanes.
-5. **Concept-mode identity guard.** The C-1 invariant ("concept mode reduces exactly to FAR23 on GA inputs") is asserted *through the concept branch itself* by `tests/test_concept.py::test_concept_reduces_to_far23_on_ga_inputs`: `ga6_normal` is run twice through `run_all_modules` — once as Normal, once flipped to `category="C"` with the FAR23-computed load factors — and every module's every `LoadValue` must match at `rel_tol=1e-3` (only the appended concept `note` may differ). Concept mode above the 12,500 lb oracle band has no printed figure, so it is instead validated by physics-closure checks (`test_concept_closure.py`).
+5. **Test-suite architecture (M4-12a).** Shared test code lives in two support
+   modules under `tests/`, and **a test module never imports another test
+   module** — `test_engine.py` was a de-facto library for seven other files,
+   which coupled unrelated suites to its import side effects.
+   - `tests/helpers.py` — the label lookups `value_of` (float), `load_value`
+     (`LoadValue`, for units/quantity assertions) and `values_by_label` (flatten
+     all). Each accepts a `ModuleResult`, a `ConditionResult` or a nested list
+     of either. **Do not re-roll a local `_value`;** M4-9 re-points these three
+     functions at `LoadValue.key`, and every private copy is a site that breaks.
+     Also home to `apply_button(at, form_key)` and `parse_cards`.
+   - `tests/fixtures.py` — shared input builders (`io520bb`, `turboprop`).
+     Plain functions, not pytest fixtures, so the `__main__` self-runners can
+     import them.
+   - **AppTest button selection is by form key, never by position or label.**
+     `at.button` flattens every form's submit button into one list, so an index
+     silently rebinds when a view gains, loses or reorders a form and the test
+     passes while asserting something else. Use `helpers.apply_button(at,
+     "<form_key>")`, which asserts it found exactly one match. Every
+     `st.form(...)` in `app/views/` therefore carries a unique string key.
+   - A view-driving self-runner must put `app/` on `sys.path` itself;
+     `conftest.py` only does that under pytest.
+6. **Concept-mode identity guard.** The C-1 invariant ("concept mode reduces exactly to FAR23 on GA inputs") is asserted *through the concept branch itself* by `tests/test_concept.py::test_concept_reduces_to_far23_on_ga_inputs`: `ga6_normal` is run twice through `run_all_modules` — once as Normal, once flipped to `category="C"` with the FAR23-computed load factors — and every module's every `LoadValue` must match at `rel_tol=1e-3` (only the appended concept `note` may differ). Concept mode above the 12,500 lb oracle band has no printed figure, so it is instead validated by physics-closure checks (`test_concept_closure.py`).
 
 ---
 

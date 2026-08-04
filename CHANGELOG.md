@@ -10,7 +10,32 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed
+
+- **M4-12a — test architecture: shared helpers and form-key button selection.**
+  Nine near-identical `_value` lookups (three different signatures) collapse into
+  `tests/helpers.py` — `value_of` / `load_value` / `values_by_label`, each
+  accepting a `ModuleResult`, a `ConditionResult` or a nested list of either.
+  Shared input builders move to `tests/fixtures.py` and the sbeam free-field BDF
+  reader to `helpers.parse_cards`, so **no test module imports another test
+  module** (eight did). The helper signature is deliberately the one **M4-9**
+  will re-point at `LoadValue.key`, which is why the consolidation lands first.
+  Tests-only: no `sloads/` or `app/` change; 536 tests pass with every numeric
+  assertion unedited.
+
 ### Fixed
+
+- **M4-12a — AppTest Apply buttons are selected by form key, not list
+  position.** `at.button` flattens every form's submit button into one list, so
+  `test_dirty_flag`'s `_apply_buttons(at)[0]`/`[1]` silently rebound whenever a
+  view gained, lost or reordered a form — the test kept passing while asserting
+  something else, and M4-11 is about to rewrite 22 apply handlers. All eight
+  positional/label lookups (`test_dirty_flag`, `test_configuration_layout_view`,
+  `test_landing`) now go through `helpers.apply_button(at, form_key)`, which
+  asserts it matched exactly one button. Two `__main__` self-runners that drove
+  views through `AppTest` without putting `app/` on `sys.path` are repaired.
+  The bad selection had been masking a real app defect, now logged as **M4-22**
+  (the Flight Envelope SELECT Apply also persists un-applied geometry edits).
 
 - **M4-1 — fuselage body loads now close the moment, not just the force**
   (Ref 1 Ch 15 p103). `body_loads` applied a single vertical wing reaction and

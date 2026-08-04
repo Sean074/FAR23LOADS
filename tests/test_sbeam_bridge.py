@@ -24,6 +24,7 @@ from sloads import io  # noqa: E402
 from sloads.modules.flight_envelope import build_envelope  # noqa: E402
 from sloads.export import sbeam_bridge as sb  # noqa: E402
 from sloads.modules.net_loads import build_net_loads  # noqa: E402
+from helpers import parse_cards  # noqa: E402  (shared free-field reader)
 
 _EXAMPLES = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "examples")
 _GA = os.path.join(_EXAMPLES, "ga6_normal.project.json")
@@ -35,38 +36,6 @@ def _wing_net(path):
     if p.envelope is None:
         p.envelope = build_envelope(p)
     return build_net_loads(p).wing_net
-
-
-# --------------------------------------------------------------------------- #
-# Self-contained free-field BDF reader (no sbeam import, per the test plan)
-# --------------------------------------------------------------------------- #
-def _parse_cards(text):
-    """Parse the bridge's comma free-field deck into simple card structures.
-
-    Returns ``(grids, cbars, spc1, forces, moments)`` where ``grids`` is
-    ``{gid: (x, y, z)}``, ``cbars`` a list of ``(eid, ga, gb)``, ``spc1`` a list
-    of ``(sid, comp, [gids])`` and ``forces``/``moments`` are ``{sid: [(gid,
-    scale, (n1, n2, n3))]}``.
-    """
-    grids, cbars, spc1 = {}, [], []
-    forces, moments = {}, {}
-    for raw in text.splitlines():
-        line = raw.strip()
-        if not line or line.startswith("$"):
-            continue
-        f = [c.strip() for c in line.split(",")]
-        kw = f[0].upper()
-        if kw == "GRID":
-            grids[int(f[1])] = (float(f[3]), float(f[4]), float(f[5]))
-        elif kw == "CBAR":
-            cbars.append((int(f[1]), int(f[3]), int(f[4])))
-        elif kw == "SPC1":
-            spc1.append((int(f[1]), f[2], [int(g) for g in f[3:] if g]))
-        elif kw in ("FORCE", "MOMENT"):
-            sid, gid, scale = int(f[1]), int(f[2]), float(f[4])
-            vec = (float(f[5]), float(f[6]), float(f[7]))
-            (forces if kw == "FORCE" else moments).setdefault(sid, []).append((gid, scale, vec))
-    return grids, cbars, spc1, forces, moments
 
 
 # --------------------------------------------------------------------------- #
@@ -103,7 +72,7 @@ def test_concept_closure():
 # --------------------------------------------------------------------------- #
 def test_force_moment_cards_round_trip():
     results = _wing_net(_GA)
-    _, _, _, forces, moments = _parse_cards(sb.force_moment_cards(results, sid_base=1))
+    _, _, _, forces, moments = parse_cards(sb.force_moment_cards(results, sid_base=1))
     # One SID per case, contiguous from sid_base.
     assert sorted(forces) == [1, 2, 3]
     for idx, r in enumerate(results):
@@ -146,7 +115,7 @@ def test_stick_model_structure():
     text = sb.stick_model_bdf(results)
     assert text.startswith("SOL 101")
     assert "BEGIN BULK" in text and text.rstrip().endswith("ENDDATA")
-    grids, cbars, spc1, forces, moments = _parse_cards(text)
+    grids, cbars, spc1, forces, moments = parse_cards(text)
     n_stations = len(results[0].stations)
     # One GRID per station + a clamped root node; a CBAR per element of the chain.
     assert len(grids) == n_stations + 1
@@ -166,7 +135,7 @@ def test_stick_model_structure():
 
 def test_grids_match_station_geometry():
     results = _wing_net(_GA)
-    grids, *_ = _parse_cards(sb.stick_model_bdf(results))
+    grids, *_ = parse_cards(sb.stick_model_bdf(results))
     for i, st in enumerate(results[0].stations):
         gx, gy, gz = grids[sb.station_gid(i)]
         assert math.isclose(gx, st.x, abs_tol=1e-3)

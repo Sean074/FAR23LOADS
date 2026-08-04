@@ -13,39 +13,13 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from sloads import EngineInput, EngineType, Rotor, RotorType, run_all
+from sloads import run_all
 from sloads.modules import engine as calc
+from fixtures import io520bb, turboprop
+from helpers import value_of
 
 # Engineering tolerance for matching the manual's printed figures (see Decision 3).
 TOL = 1e-3  # ±0.1% relative
-
-
-def _value(result, label):
-    for v in result.values:
-        if v.label == label:
-            return v.value
-    raise KeyError(label)
-
-
-def io520bb() -> EngineInput:
-    """The reciprocating worked example (Continental IO-520-BB)."""
-    return EngineInput(
-        engine_designation="CONTINENTAL IO-520-BB",
-        prop_designation="HARTZELL",
-        engine_type=EngineType.RECIPROCATING,
-        limit_load_factor=3.8,
-        engine_weight_lb=505,
-        engine_cg=(22.0, 0.0, -10.0),
-        prop_weight_lb=74,
-        prop_diameter_in=84,
-        prop_blades=3,
-        takeoff_rpm=2700,
-        max_cont_rpm=2500,
-        prop_cg=(-10.0, 0.0, 93.022),  # XPROP chosen so combined XPP = 17.91
-        takeoff_hp=285,
-        max_cont_hp=265,
-        cylinders=6,
-    )
 
 
 def test_derived_quantities():
@@ -65,55 +39,29 @@ def test_361_a1():
     # mean torque); the corrected design torque is 1.33 x 554.3884 = 737.34 ft-lb.
     # Vertical loads are unchanged. See CLAUDE.md "Approved corrections to the source".
     r = calc.condition_361_a1(io520bb())
-    assert math.isclose(_value(r, "Vertical load factor"), 2.85, abs_tol=1e-9)
-    assert math.isclose(_value(r, "Vertical down load"), 1650.15, rel_tol=TOL)
-    assert math.isclose(_value(r, "Torque factor"), 1.33, abs_tol=1e-9)
-    assert math.isclose(_value(r, "Mean takeoff torque"), 554.3884, rel_tol=TOL)
-    assert math.isclose(_value(r, "Engine mount torque"), -737.337, rel_tol=TOL)
+    assert math.isclose(value_of(r, "Vertical load factor"), 2.85, abs_tol=1e-9)
+    assert math.isclose(value_of(r, "Vertical down load"), 1650.15, rel_tol=TOL)
+    assert math.isclose(value_of(r, "Torque factor"), 1.33, abs_tol=1e-9)
+    assert math.isclose(value_of(r, "Mean takeoff torque"), 554.3884, rel_tol=TOL)
+    assert math.isclose(value_of(r, "Engine mount torque"), -737.337, rel_tol=TOL)
 
 
 def test_361_a2():
     r = calc.condition_361_a2(io520bb())
-    assert math.isclose(_value(r, "Vertical down load"), 2200.2, rel_tol=TOL)
-    assert math.isclose(_value(r, "Torque factor"), 1.33, abs_tol=1e-9)
-    assert math.isclose(_value(r, "Max continuous torque"), 556.7227, rel_tol=TOL)
-    assert math.isclose(_value(r, "Engine mount torque"), -740.4412, rel_tol=TOL)
+    assert math.isclose(value_of(r, "Vertical down load"), 2200.2, rel_tol=TOL)
+    assert math.isclose(value_of(r, "Torque factor"), 1.33, abs_tol=1e-9)
+    assert math.isclose(value_of(r, "Max continuous torque"), 556.7227, rel_tol=TOL)
+    assert math.isclose(value_of(r, "Engine mount torque"), -740.4412, rel_tol=TOL)
 
 
 def test_363():
     r = calc.condition_363(io520bb())
-    assert math.isclose(_value(r, "Side load factor"), 1.33, abs_tol=1e-9)
-    assert math.isclose(_value(r, "Side load"), 770.07, rel_tol=TOL)
+    assert math.isclose(value_of(r, "Side load factor"), 1.33, abs_tol=1e-9)
+    assert math.isclose(value_of(r, "Side load"), 770.07, rel_tol=TOL)
 
 
 def test_reciprocating_runs_three_conditions():
     assert len(run_all(io520bb())) == 3
-
-
-def turboprop() -> EngineInput:
-    """A turboprop input exercising all six conditions (uses manual's gyro example)."""
-    return EngineInput(
-        engine_designation="PT6",
-        prop_designation="HARTZELL",
-        engine_type=EngineType.TURBOPROP,
-        limit_load_factor=3.8,
-        engine_weight_lb=400,
-        engine_cg=(20.0, 0.0, 0.0),
-        prop_weight_lb=50,
-        prop_diameter_in=101,
-        prop_blades=4,
-        takeoff_rpm=2200,
-        max_cont_rpm=2200,
-        prop_cg=(-10.0, 0.0, 0.0),
-        max_engine_torque=1970,
-        cruise_torque=1800,
-        hub_weight_lb=0.0,
-        stop_time_s=0.3,
-        rotors=[
-            Rotor(diameter_in=10, weight_lb=19.34, max_rpm=-33750, rotor_type=RotorType.TURBINE),
-            Rotor(diameter_in=9, weight_lb=15.66, max_rpm=33000, rotor_type=RotorType.TURBINE),
-        ],
-    )
 
 
 def test_prop_inertia_matches_manual():
@@ -146,17 +94,17 @@ def test_361_a3_applies_mean_torque_factor():
     #   corrected: 1.6 x 1.25 x 1970   = 3940 ft-lb
     # See CLAUDE.md "Approved corrections to the source".
     r = calc.condition_361_a3(turboprop())
-    assert math.isclose(_value(r, "Torque factor"), 1.25, abs_tol=1e-9)
-    assert math.isclose(_value(r, "Malfunction factor"), 1.6, abs_tol=1e-9)
-    assert math.isclose(_value(r, "Mean takeoff torque"), 1970, abs_tol=1e-9)
-    assert math.isclose(_value(r, "Engine mount torque"), -3940, rel_tol=TOL)
-    assert math.isclose(_value(r, "Vertical down load"), 450, abs_tol=1e-9)  # 1g x PPWT
+    assert math.isclose(value_of(r, "Torque factor"), 1.25, abs_tol=1e-9)
+    assert math.isclose(value_of(r, "Malfunction factor"), 1.6, abs_tol=1e-9)
+    assert math.isclose(value_of(r, "Mean takeoff torque"), 1970, abs_tol=1e-9)
+    assert math.isclose(value_of(r, "Engine mount torque"), -3940, rel_tol=TOL)
+    assert math.isclose(value_of(r, "Vertical down load"), 450, abs_tol=1e-9)  # 1g x PPWT
 
 
 def test_gyro_thrust_matches_manual():
     # Manual: THRUST = 1970 * 230.38 / 101.2 = 4484.7 lb
     r = calc.condition_371_b(turboprop())
-    assert math.isclose(_value(r, "Max continuous thrust"), 4484.7, abs_tol=1.0)
+    assert math.isclose(value_of(r, "Max continuous thrust"), 4484.7, abs_tol=1.0)
 
 
 def test_turboprop_runs_six_conditions():

@@ -49,6 +49,7 @@ from sloads.modules.landing import (  # noqa: E402
     landing_reactions,
     run,
 )
+from helpers import apply_button  # noqa: E402
 
 REL = 1e-3  # +-0.1%
 
@@ -469,9 +470,7 @@ def test_seed_never_emits_a_zero_waterline():
     warnings = " ".join(w.value for w in at.warning)
     assert "Zcg waterline" in warnings and "Project.mass" in warnings, warnings
     # Apply cannot persist an incomplete row, and the reactions never compute.
-    apply_buttons = [b for b in at.button if "Apply" in (b.label or "")]
-    assert apply_buttons, "no Apply button rendered"
-    apply_buttons[0].set_value(True).run()
+    apply_button(at, "landing_loads_form").set_value(True).run()
     assert at.session_state["project"].landing.cg_cases == [], "saved a blank waterline"
     assert any("not saved" in e.value for e in at.error), [e.value for e in at.error]
     assert not any("Gear reaction loads" in s.value for s in at.subheader), \

@@ -15,14 +15,23 @@ serialized form is byte-for-byte unchanged -- the regression guard for the fix.
 import glob
 import logging
 import os
+import sys
 
 import pytest
+
+from helpers import apply_button
 
 logging.disable(logging.CRITICAL)  # silence Streamlit's bare-mode warnings
 
 _ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 _VIEWS_DIR = os.path.join(_ROOT, "app", "views")
 _EXAMPLES = sorted(glob.glob(os.path.join(_ROOT, "examples", "*.project.json")))
+
+# Under pytest ``conftest.py`` puts these on the path; the __main__ self-runner
+# has to do it itself, or every view fails on ``import components``.
+for _p in (_ROOT, os.path.join(_ROOT, "app")):
+    if _p not in sys.path:
+        sys.path.insert(0, _p)
 
 # The views whose render must not mutate the project: the two the G4 review flagged
 # (structural_speeds/flight_envelope) plus landing_loads (M2R-4 killed its on-render
@@ -63,8 +72,11 @@ def test_render_leaves_project_unchanged(view, example):
 _GA6 = os.path.join(_ROOT, "examples", "ga6_normal.project.json")
 
 
-def _apply_buttons(at):
-    return [b for b in at.button if "Apply" in (b.label or "")]
+# Apply buttons are selected through their **form key**, never positionally
+# (M4-12a): ``at.button`` is one flat list across every form on the page, so an
+# index silently rebinds to a different form as soon as a view gains, loses or
+# reorders one -- and the test keeps passing while asserting something else. See
+# ``helpers.apply_button``, which also fails loudly on an unknown key.
 
 
 def test_mach_limit_persists_only_on_apply():
@@ -82,8 +94,7 @@ def test_mach_limit_persists_only_on_apply():
     assert not at.exception, [e.message for e in at.exception]
     assert at.session_state["project"].speeds.mach_limit is None, "render seeded MACHLIM"
 
-    # The Speed-Altitude tab's Apply is the second "Apply" submit button.
-    _apply_buttons(at)[1].set_value(True).run()
+    apply_button(at, "mach_limit_form").set_value(True).run()
     assert at.session_state["project"].speeds.mach_limit is not None, "Apply did not persist"
 
 
@@ -102,7 +113,7 @@ def test_flight_loads_persists_only_on_apply():
     assert not at.exception, [e.message for e in at.exception]
     assert at.session_state["project"].flight_loads is None, "render seeded flight_loads"
 
-    _apply_buttons(at)[0].set_value(True).run()
+    apply_button(at, "flight_geometry_form").set_value(True).run()
     assert at.session_state["project"].flight_loads is not None, "Apply did not persist"
 
 
@@ -123,7 +134,7 @@ def test_landing_cg_editor_seeds_and_persists_on_apply():
     # A plain render must not persist the seed.
     assert at.session_state["project"].landing.cg_cases == [], "render seeded cg_cases"
 
-    _apply_buttons(at)[0].set_value(True).run()
+    apply_button(at, "landing_loads_form").set_value(True).run()
     cases = at.session_state["project"].landing.cg_cases
     assert len(cases) == 3, "Apply did not persist the 3 seeded CG cases"
     # WTENV seed (M4-17c): the aft station is the aft-gross limit (85.11), and each
@@ -160,10 +171,7 @@ def test_select_inputs_persist_only_on_apply():
     ni["Full-down aileron deflection, DN (deg)"].set_value(20.0)
     ni["Basic airfoil Cm (no aileron)"].set_value(-0.05)
     ni["Wing weight, WW (lb)"].set_value(300.0)
-    # The SELECT-inputs form button is the only one labelled exactly "Apply" (the V-n
-    # tab's is "Apply geometry & altitudes").
-    select_apply = next(b for b in at.button if b.label == "Apply")
-    select_apply.set_value(True).run()
+    apply_button(at, "select_inputs_form").set_value(True).run()
 
     si = at.session_state["project"].select_input
     assert si is not None, "Apply did not persist select_input"

@@ -62,7 +62,7 @@ def test_run_all_skips_missing_input_but_propagates_value_error():
 def test_run_all_skips_all_modules_on_engine_only_project():
     """The ~21 entry guards are all MissingInputError: an engine-only project runs
     only the engine module (every other module skips cleanly)."""
-    from test_engine import io520bb
+    from fixtures import io520bb
 
     from sloads import EngineLayout, Project
 
