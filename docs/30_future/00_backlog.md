@@ -160,6 +160,7 @@ independently (M4-7's carrier and M4-13's per-producer mints are already in
 place, and M4-14's read-side band validation closes the input side);
 Layer 2 coordinates with Phase F25.**
 
+> **M4-10's chain shipped 2026-08-04; its proxy retirement is M4-10b above.**
 > **M4-12 → M4-11 → G8 views → M4-10 → M4-9 are sequenced and scoped by
 > [`06_m4_maintainability_sequence_plan.md`](06_m4_maintainability_sequence_plan.md)**
 > (decisions D-12 … D-18, resolved 2026-08-03). Note the order: **M4-10 lands
@@ -182,19 +183,28 @@ CSV columns (`_val` returns `""`, no error) and breaks ~150 sites. Add
 report/sbeam/views/tests, keep `label` cosmetic. Mechanical; **prerequisite for
 F25 supplements emitting new quantities.**
 
-### M4-10 — io.py migration chain + version-bump enforcement **[maintainability, pre-F25]**
-Builds on M2R-7's tolerant `_filtered` readers (done). Replace the key-presence
-sniffing (the 19-clause or-gate at
-`io.py:998-1007` (line refs refreshed 2026-08-03) + **five** legacy shims — flat
-engine-only file, pre-v25 top-level `configuration`, pre-G6
-`tail_loads`/`vtail_loads`, `_legacy_cg_cases_from_flight_loads`,
-`_legacy_aero_coeffs_from_flight_loads`; `project_from_dict` CC 51, io.py worst-MI file)
-with `MIGRATIONS: dict[int, callable]` applied hop-by-hop before one tolerant
-reader; check in **one frozen fixture file per historical schema version**
-(only v20/v24 exist today); add the generic sentinel round-trip test (manual
-`to_dict` field lists silently drop new fields); add a fields-hash test that
-fails when persisted dataclasses change without a `SCHEMA_VERSION` bump
-(discipline is currently unenforced).
+### M4-10b — Retire the `tail_loads`/`vtail_loads` property proxies **[remainder of M4-10]**
+**M4-10's migration chain shipped 2026-08-04** (see history): `sloads/migrations.py`,
+the 19-clause or-gate gone, all five legacy shims deleted, frozen fixtures and both
+schema guards in place. The sixth sub-step — retiring the Step-G6 proxies per
+**D-15** — is deliberately separate: it is a ~90-site mechanical change to the
+object model (**73 reads, 19 writes** across 21 files), and its risk is the
+*writes*, not the reads.
+
+`Project.tail_loads`/`.vtail_loads` are properties over
+`geometry.empennage.htail`/`.vtail` whose setter **silently no-ops** when
+assigning `None` to a project with no geometry (`models/project.py`, warning block
+beside the definition). Replacing them with plain reads of
+`geometry.empennage.*` changes assignment semantics at all 19 write sites, so each
+needs looking at rather than a regex. Do it as its own change, with the chain and
+both guards already green, so any regression is attributable — which is exactly
+why the M4-10 plan sequenced it last.
+
+Acceptance: the properties and their setters are gone from `models/project.py`;
+all 6 examples still round-trip byte-identically; every frozen fixture in
+`tests/fixtures_schema/` still loads; `test_migrations.py`'s
+`test_pre_g6_file_lands_its_tail_slices_on_the_empennage` is rewritten against the
+direct path.
 
 ### M4-11b — Split the four highest-complexity view functions **[maintainability; remainder of M4-11]**
 **M4-11a shipped 2026-08-04** — the scaffold helpers (`unit_number_input`,

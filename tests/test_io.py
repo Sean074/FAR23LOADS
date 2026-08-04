@@ -203,9 +203,17 @@ def test_legacy_flight_loads_cg_cases_migrate_to_weight():
     """Pre-schema-19 files carried the loading scenarios only under
     ``flight_loads.cg_cases``; loading one must still populate
     ``Project.weight.cg_cases`` (Step D5 migration) without disturbing the
-    calc-facing ``FlightLoadsInput.cg_cases`` the FLTLOADS/SELECT modules read."""
+    calc-facing ``FlightLoadsInput.cg_cases`` the FLTLOADS/SELECT modules read.
+
+    M4-10: the fixture now declares ``schema_version = 18``, i.e. it really is a
+    pre-v19 file. Before the migration chain the shim ran on *every* file
+    regardless of version, so this test passed while mutating a current-schema
+    dict -- which also meant a v36 project that legitimately had no
+    ``weight.cg_cases`` had them silently invented from ``flight_loads``. The
+    chain runs the hop only for files old enough to need it."""
     legacy = io.project_to_dict(io.load_project(GA6))
     del legacy["weight"]["cg_cases"]
+    legacy["schema_version"] = 18
 
     rebuilt = io.project_from_dict(legacy)
     assert [c.name for c in rebuilt.weight.cg_cases] == ["CG1", "CG2", "CG3", "CG4"]

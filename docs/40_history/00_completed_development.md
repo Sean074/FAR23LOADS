@@ -10,6 +10,94 @@ Acceptance**, **Key decisions**.
 
 ---
 
+## M4-10 — io.py migration chain + schema guards (complete 2026-08-04)
+
+**Objective.** Replace `io.py`'s two structural weaknesses: deciding what it was
+reading by **sniffing keys** (a 19-clause `or` gate enumerating every slice name),
+and handling each legacy file shape with an **inline shim threaded through the
+readers** as a `legacy_*` parameter. Adding a slice meant remembering to extend
+the gate, or a real project would be silently misread as a bare engine file; and
+"is this key absent because the file is old, or because the user never set it?"
+was answered ad hoc, differently, at five separate sites.
+
+**Archaeology (sub-step 1 — the plan noted no document recorded this).**
+Reconstructed from the version history in `models/project.py` and the step
+records here, and now committed as the table in `sloads/migrations.py`'s
+docstring:
+
+| hop | file-shape change | was handled by |
+|---|---|---|
+| v0 | the whole file is a bare `EngineInput` (Phase-0 `engloads`, pre-`Project`) | the or-gate's `else` branch |
+| v0 | singular `"engine"` instead of `"engines": [...]` | `_engines_from_dict` |
+| v18 | `aero_coeffs` split out of `flight_loads.configurations` | `_legacy_aero_coeffs_from_flight_loads` |
+| v19 | `weight.cg_cases` split out of `flight_loads.cg_cases` | `_legacy_cg_cases_from_flight_loads` |
+| v24 | ft/in² geometry keys renamed to in/ft² | `_rename_legacy_units` (5 call sites) |
+| v25 | top-level `configuration` → `geometry.parametric` | `legacy_configuration=` |
+| v27 | top-level `tail_loads`/`vtail_loads` → `geometry.empennage` | `legacy_tail_loads=` / `legacy_vtail_loads=` |
+| v28 | top-level `landing` gear → `geometry.landing_gear` | `legacy_landing=` |
+
+Versions 1–17, 20–23, 26 and 29–36 are additive-only and need no hop.
+
+**Deliverables.**
+- **`sloads/migrations.py`** — `MIGRATIONS: {from_version: hop}` applied in
+  ascending order on a deep copy, then **one tolerant reader**.
+  `project_from_dict` now sees a current-shape dict only. A file claiming a
+  *newer* version passes through untouched, so forward compatibility degrades to
+  "read what you understand" instead of being mangled by hops that do not apply.
+- **`is_project_dict`** replaces the 19-clause gate with a set intersection
+  against `Project`'s **own dataclass fields** plus the four historical top-level
+  names — so adding a slice can no longer silently downgrade a project to an
+  engine-only read. A test asserts every `Project` field is recognised.
+- **All five shims deleted** and the three `legacy_*` reader parameters removed.
+  `io.py` 1,290 → **1,180 lines**; the legacy handling that was scattered across
+  five call sites is 282 documented lines in one module.
+- **Frozen fixtures** — `tests/fixtures_schema/`, one per historical shape
+  actually reachable: v0 bare engine, v18, v24, v26, v28, v36.
+- **Two schema guards** (`tests/test_schema_guards.py`): a **sentinel round-trip**
+  that walks every persisted scalar on a real project and asserts none is lost by
+  `io.py`'s hand-written field lists, and a **fields hash** tripwire over every
+  persisted dataclass's field names — the `SCHEMA_VERSION` discipline was
+  previously unenforced. Its failure message says exactly what to do.
+
+**One real bug found by the existing suite.** The v24 unit-rename hop initially
+covered `vtail_loads` but not `tail_loads`, so a pre-G0 file's
+`airplane_length_ft` was dropped instead of rescaled.
+`test_legacy_ft_sqin_keys_migrate_to_canonical` caught it. The ordering
+constraint behind it is now a comment in the hop: both tail slices are still
+top-level at v24, because the v27 hop that folds them into `geometry.empennage`
+runs *after*.
+
+**A deliberate behaviour change, with two tests updated to match.** The shims ran
+on **every** file regardless of version; the hops are version-gated. Two tests
+named "pre-schema-18/19 files" were in fact mutating a *current* dict, so they
+passed for the wrong reason — and the old behaviour meant a v36 project that
+legitimately had no `weight.cg_cases` had them silently invented from
+`flight_loads`, and one with no `aero_coeffs` had a set resurrected from a stale
+`flight_loads.configurations`. Both fixtures now declare the version they claim
+to test (18 and 17). This is a correctness improvement, not a loosening.
+
+**Test / Acceptance.** **646 tests pass** (611 → 646, +35), `ruff` clean.
+- All 6 `examples/*.project.json` round-trip **byte-identically** — asserted on
+  the round-tripped dict, not the file, per the plan.
+- Every frozen fixture loads, and each is asserted to carry its data *across* the
+  hop (geometry present, tail slices on the empennage, gear on the geometry, CG
+  cases recovered) — the hops move data, they do not merely tolerate its absence.
+- `migrate` is idempotent, does not mutate the caller's dict (the GUI hands the
+  same dict to the JSON editor), and is a **no-op for a current file**.
+- The fields-hash tripwire is itself tested: a test injects a new persisted
+  dataclass and asserts the hash notices, then that it resets. A tripwire that
+  cannot fire is worse than none.
+
+**Not done — sub-step 6, tracked as M4-10b.** Retiring the
+`tail_loads`/`vtail_loads` property proxies (D-15) is **73 reads and 19 writes
+across 21 files**. The risk is the writes: the current setter silently no-ops on
+`None` when there is no geometry, so each assignment site needs looking at rather
+than a regex. The M4-10 plan sequenced it last precisely so it could be attributed
+separately, and that is where it stays — this step is the one that can break a
+user's saved project, and it is now green and verified.
+
+---
+
 ## G8.1–G8.3 + coverage matrix — the report package, document control, and universal methods stamping (complete 2026-08-04)
 
 **Objective.** The first four sub-steps of Step G8 (backlog M3-3): make room for

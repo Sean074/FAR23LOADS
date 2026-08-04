@@ -90,6 +90,7 @@ from .models import (
     WingStationLoad,
     default_fuselage_outline,
 )
+from .migrations import is_project_dict, migrate
 from .report import has_load_case_data, load_cases_to_rows, results_to_rows
 from .validation import safety_factor_valid
 
@@ -122,26 +123,6 @@ def _case_ref_from_dict(raw) -> Any:
     return CaseRef(**_filtered(CaseRef, raw)) if raw else None
 
 
-def _rename_legacy_units(d: Dict[str, Any], mapping: Dict[str, Any]) -> Dict[str, Any]:
-    """Rename + rescale legacy unit-suffixed keys to canonical units (schema v24,
-    Phase G0). ``mapping`` is ``{old_key: (new_key, factor)}``: a present ``old_key``
-    becomes ``new_key = old_value * factor`` (feet->inches ``*12``, in^2->ft^2
-    ``/144``). The new key wins if both are present. Returns ``d`` unchanged when no
-    legacy key is present, so current files pay nothing."""
-    if not any(k in d for k in mapping):
-        return d
-    out = dict(d)
-    for old, (new, factor) in mapping.items():
-        if old in out:
-            val = out.pop(old)
-            if new not in out and isinstance(val, (int, float)) and not isinstance(val, bool):
-                out[new] = val * factor
-    return out
-
-
-# --------------------------------------------------------------------------- #
-# Engine slice <-> dict
-# --------------------------------------------------------------------------- #
 def _rotor_from_dict(d: Dict[str, Any]) -> Rotor:
     return Rotor(
         diameter_in=d["diameter_in"],
@@ -235,20 +216,7 @@ def weight_to_dict(inp: WeightInput) -> Dict[str, Any]:
     return out
 
 
-def _legacy_cg_cases_from_flight_loads(flight_loads: Any) -> List[CgCase]:
-    """Migrate pre-schema-19 files: ``flight_loads.cg_cases`` was the only copy
-    of the loading scenarios before the Weight/CG Grid & Payload Cases page gave
-    them a shared home on ``weight.cg_cases`` (Step D5). Returns ``[]`` when
-    there is nothing to migrate, so older project files still load; the
-    calc-facing ``FlightLoadsInput.cg_cases`` is unaffected either way."""
-    if not flight_loads:
-        return []
-    return [CgCase(**_filtered(CgCase, c)) for c in flight_loads.get("cg_cases", []) or []]
 
-
-# --------------------------------------------------------------------------- #
-# Geometry slice <-> dict
-# --------------------------------------------------------------------------- #
 def _points(raw) -> List:
     """Coerce a list of JSON [x, y] arrays to (x, y) tuples."""
     return [tuple(p) for p in raw or []]
@@ -289,26 +257,21 @@ def _landing_gear_from_dict(d: Dict[str, Any]) -> LandingGearGeometry:
     )
 
 
-def geometry_from_dict(d: Dict[str, Any], legacy_configuration: Optional[Dict[str, Any]] = None,
-                       legacy_tail_loads: Optional[Dict[str, Any]] = None,
-                       legacy_vtail_loads: Optional[Dict[str, Any]] = None,
-                       legacy_landing: Optional[Dict[str, Any]] = None) -> GeometryInput:
+def geometry_from_dict(d: Dict[str, Any]) -> GeometryInput:
     """Build the unified :class:`GeometryInput` from a plain dict (Step G1/G6).
 
-    ``surfaces`` is the WINGGEOM planform list (unchanged). ``parametric`` is the
-    embedded :class:`LayoutInput`; ``legacy_configuration`` folds a pre-v25 file's
-    top-level ``"configuration"`` block into it when ``geometry.parametric`` is
-    absent. ``fuselage`` is the body outline, defaulted from the parametric
-    length/width/height scalars when the file predates it. ``empennage`` (Step G6)
-    is the single-source tail + elevator/rudder geometry: read from ``d["empennage"]``
-    (``{htail, vtail}``) or, for a pre-v27 file, migrated from the top-level
-    ``tail_loads``/``vtail_loads`` slices passed as ``legacy_tail_loads``/
-    ``legacy_vtail_loads`` (the retired duplicated ``LayoutInput`` tail area/span/arm
-    fields are dropped -- the analysis-native values are authoritative).
+    Reads the **current** schema only. A pre-v25 top-level ``"configuration"``
+    block, pre-v27 top-level ``tail_loads``/``vtail_loads`` and a pre-v28 gear on
+    ``landing`` were all folded into this slice by
+    :mod:`sloads.migrations` before this function sees the dict, so the three
+    ``legacy_*`` parameters this used to take are gone (M4-10).
+
+    ``surfaces`` is the WINGGEOM planform list; ``parametric`` the embedded
+    :class:`LayoutInput`; ``fuselage`` the body outline, defaulted from the
+    parametric length/width/height scalars when the file predates it;
+    ``empennage`` (Step G6) the single-source tail + elevator/rudder geometry.
     """
     parametric_raw = d.get("parametric")
-    if parametric_raw is None:
-        parametric_raw = legacy_configuration
     parametric = configuration_from_dict(parametric_raw) if parametric_raw else None
 
     fuselage_raw = d.get("fuselage")
@@ -319,11 +282,8 @@ def geometry_from_dict(d: Dict[str, Any], legacy_configuration: Optional[Dict[st
     else:
         fuselage = None
 
-    emp_raw = d.get("empennage")
-    if emp_raw is not None:
-        htail_raw, vtail_raw = emp_raw.get("htail"), emp_raw.get("vtail")
-    else:
-        htail_raw, vtail_raw = legacy_tail_loads, legacy_vtail_loads
+    emp_raw = d.get("empennage") or {}
+    htail_raw, vtail_raw = emp_raw.get("htail"), emp_raw.get("vtail")
     empennage = None
     if htail_raw is not None or vtail_raw is not None:
         empennage = EmpennageInput(
@@ -331,15 +291,14 @@ def geometry_from_dict(d: Dict[str, Any], legacy_configuration: Optional[Dict[st
             vtail=vtail_loads_from_dict(vtail_raw) if vtail_raw else None,
         )
 
-    # Step G6b: landing-gear geometry from d["landing_gear"], else migrated from a
-    # pre-v28 file's top-level "landing" gear, else (coarse-only file) synthesized
-    # from the retired LayoutInput gear fields (static axle X + tread only).
+    # Step G6b: landing-gear geometry from d["landing_gear"] (a pre-v28 file's
+    # top-level "landing" gear was moved here by the v28 migration hop), else
+    # synthesized from the retired coarse LayoutInput gear fields (static axle X
+    # + tread only) for a file that only ever had those.
     landing_gear = None
     lg_raw = d.get("landing_gear")
     if lg_raw is not None:
         landing_gear = _landing_gear_from_dict(lg_raw)
-    elif legacy_landing and any(legacy_landing.get(k) for k in ("main_gear", "nose_gear", "tread_in")):
-        landing_gear = _landing_gear_from_dict(legacy_landing)
     elif parametric_raw and any(parametric_raw.get(k) for k in
                                 ("main_gear_x", "nose_gear_x", "track", "gear_height")):
         gz = float(parametric_raw.get("root_waterline_z", 0.0) or 0.0) \
@@ -584,27 +543,6 @@ def aero_coefficients_to_dict(inp: AeroCoefficientsInput) -> Dict[str, Any]:
     return out
 
 
-def _legacy_aero_coeffs_from_flight_loads(
-    flight_loads: Any,
-) -> Any:
-    """Migrate pre-schema-18 files: ``flight_loads.configurations`` moved to the
-    top-level ``aero_coeffs`` slice (Step D4.1). Returns ``None`` when there is
-    nothing to migrate, so older project files still load."""
-    if not flight_loads:
-        return None
-    configs = flight_loads.get("configurations") or []
-    if not configs:
-        return None
-    cruise = next((c for c in configs if not c.get("flaps_down")), None)
-    flapped = next((c for c in configs if c.get("flaps_down")), None)
-    if cruise is None and flapped is None:
-        return None
-    return AeroCoefficientsInput(
-        cruise=_aero_coeff_set_from_dict(cruise) if cruise else None,
-        flaps_down=_aero_coeff_set_from_dict(flapped) if flapped else None,
-    )
-
-
 def _safety_factor(d: Dict[str, Any]) -> float:
     """The persisted per-case limit->ultimate factor, coerced to the valid band
     (defect M4-14).
@@ -724,7 +662,6 @@ def select_input_to_dict(inp: SelectInput) -> Dict[str, Any]:
 # --------------------------------------------------------------------------- #
 def tail_loads_from_dict(d: Dict[str, Any]) -> TailLoadsInput:
     """Build a :class:`TailLoadsInput` from a plain dict."""
-    d = _rename_legacy_units(d, {"airplane_length_ft": ("airplane_length_in", 12.0)})
     return TailLoadsInput(**_filtered(TailLoadsInput, d))
 
 
@@ -738,11 +675,6 @@ def tail_loads_to_dict(inp: TailLoadsInput) -> Dict[str, Any]:
 # --------------------------------------------------------------------------- #
 def vtail_loads_from_dict(d: Dict[str, Any]) -> VTailLoadsInput:
     """Build a :class:`VTailLoadsInput` from a plain dict."""
-    d = _rename_legacy_units(d, {
-        "airplane_length_ft": ("airplane_length_in", 12.0),
-        "wing_span_ft": ("wing_span_in", 12.0),
-        "vtail_mac_ft": ("vtail_mac_in", 12.0),
-    })
     return VTailLoadsInput(**_filtered(VTailLoadsInput, d))
 
 
@@ -824,9 +756,7 @@ def flap_loads_to_dict(inp: FlapLoadsInput) -> Dict[str, Any]:
 
 def tab_loads_from_dict(d: Dict[str, Any]) -> TabLoadsInput:
     """Build a :class:`TabLoadsInput` from a plain dict (nested ``tabs``)."""
-    tabs = [TabSpec(**_filtered(TabSpec,
-                                _rename_legacy_units(t, {"area_sqin": ("area_sqft", 1.0 / 144.0)})))
-            for t in d.get("tabs", []) or []]
+    tabs = [TabSpec(**_filtered(TabSpec, t)) for t in d.get("tabs", []) or []]
     return TabLoadsInput(tabs=tabs)
 
 
@@ -962,10 +892,6 @@ def configuration_from_dict(d: Dict[str, Any]) -> LayoutInput:
     and missing keys fall back to the dataclass default (additive forward-compat);
     a file with no ``tail_type`` defaults to ``TailType.CONVENTIONAL``.
     """
-    d = _rename_legacy_units(d, {
-        "h_tail_span_ft": ("h_tail_span_in", 12.0),
-        "v_tail_span_ft": ("v_tail_span_in", 12.0),
-    })
     kwargs = _filtered(LayoutInput, d)
     if "tail_type" in kwargs:
         kwargs["tail_type"] = TailType(kwargs["tail_type"])
@@ -989,22 +915,27 @@ def configuration_to_dict(inp: LayoutInput) -> Dict[str, Any]:
 # Project <-> JSON
 # --------------------------------------------------------------------------- #
 def project_from_dict(d: Dict[str, Any]) -> Project:
-    """Build a :class:`Project` from a dict, accepting the legacy flat shape.
+    """Build a :class:`Project` from a dict of any historical schema version.
 
-    Accepts either the multi-engine ``"engines": [...]`` + ``"engine_layout"``
-    form or the legacy single ``"engine": {...}`` key (wrapped into a one-element
-    list with a SINGLE_NOSE layout).
+    The dict is first normalised to the current shape by
+    :func:`sloads.migrations.migrate` -- a chain of small ``dict -> dict`` hops,
+    one per version that changed the file's *shape* (M4-10). Everything below
+    therefore reads the **current** schema only; there are no ``legacy_*``
+    parameters and no key-presence sniffing left in the readers.
+
+    A bare :class:`EngineInput` file (the Phase-0 ``engloads`` era, before
+    ``Project`` existed) is still accepted, discriminated by
+    :func:`sloads.migrations.is_project_dict` rather than by enumerating every
+    slice name -- so adding a slice to ``Project`` can no longer silently
+    downgrade a real project to an engine-only read.
     """
-    if (
-        "engines" in d or "engine" in d or "weight" in d or "geometry" in d
-        or "speeds" in d or "aero" in d or "aero_coeffs" in d
-        or "flight_loads" in d or "envelope" in d
-        or "mass" in d or "wing_mass" in d or "fuselage_mass" in d
-        or "select_input" in d or "tail_loads" in d or "vtail_loads" in d
-        or "aileron_loads" in d or "flap_loads" in d or "tab_loads" in d
-        or "one_engine_out" in d or "landing" in d or "loads" in d
-        or "configuration" in d or "schema_version" in d or "name" in d
-    ):
+    if not is_project_dict(d):
+        # The whole file is just the engine slice.
+        return Project(name="", engines=[engine_from_dict(d)],
+                       engine_layout=EngineLayout.SINGLE_NOSE)
+
+    d = migrate(d)
+    if True:
         weight = d.get("weight")
         geometry = d.get("geometry")
         speeds = d.get("speeds")
@@ -1016,21 +947,14 @@ def project_from_dict(d: Dict[str, Any]) -> Project:
         wing_mass = d.get("wing_mass")
         fuselage_mass = d.get("fuselage_mass")
         select_input = d.get("select_input")
-        tail_loads = d.get("tail_loads")
-        vtail_loads = d.get("vtail_loads")
         aileron_loads = d.get("aileron_loads")
         flap_loads = d.get("flap_loads")
         tab_loads = d.get("tab_loads")
         one_engine_out = d.get("one_engine_out")
         landing = d.get("landing")
         loads = d.get("loads")
-        # v25: the parametric layout unified onto the geometry slice. A pre-v25 file
-        # carries it as a top-level "configuration" block -- fold it into geometry.
-        legacy_configuration = d.get("configuration")
         engines, layout = _engines_from_dict(d)
         weight_slice = weight_from_dict(weight) if weight else None
-        if weight_slice is not None and not weight_slice.cg_cases:
-            weight_slice.cg_cases = _legacy_cg_cases_from_flight_loads(flight_loads)
         project = Project(
             schema_version=d.get("schema_version", SCHEMA_VERSION),
             name=d.get("name", ""),
@@ -1043,29 +967,19 @@ def project_from_dict(d: Dict[str, Any]) -> Project:
             engines=engines,
             engine_layout=layout,
             weight=weight_slice,
-            geometry=(
-                geometry_from_dict(
-                    geometry or {}, legacy_configuration=legacy_configuration,
-                    legacy_tail_loads=tail_loads, legacy_vtail_loads=vtail_loads,
-                    legacy_landing=landing)
-                if (geometry or legacy_configuration or tail_loads or vtail_loads
-                    or (landing and any(landing.get(k) for k in ("main_gear", "nose_gear", "tread_in"))))
-                else None
-            ),
+            geometry=geometry_from_dict(geometry) if geometry else None,
             speeds=speeds_from_dict(speeds) if speeds else None,
             aero=aero_from_dict(aero) if aero else None,
-            aero_coeffs=(
-                aero_coefficients_from_dict(aero_coeffs) if aero_coeffs
-                else _legacy_aero_coeffs_from_flight_loads(flight_loads)
-            ),
+            aero_coeffs=aero_coefficients_from_dict(aero_coeffs) if aero_coeffs else None,
             flight_loads=flight_loads_from_dict(flight_loads) if flight_loads else None,
             envelope=envelope_from_dict(envelope) if envelope else None,
             mass=mass_from_dict(mass) if mass else None,
             wing_mass=wing_mass_from_dict(wing_mass) if wing_mass else None,
             fuselage_mass=fuselage_mass_from_dict(fuselage_mass) if fuselage_mass else None,
             select_input=select_input_from_dict(select_input) if select_input else None,
-            # tail_loads / vtail_loads are no longer Project fields (Step G6): they are
-            # migrated into geometry.empennage above (legacy_tail_loads/legacy_vtail_loads).
+            # tail_loads / vtail_loads are not Project fields (Step G6); a pre-v27
+            # file's top-level slices were folded into geometry.empennage by the
+            # v27 migration hop before this reader ever saw the dict.
             aileron_loads=aileron_loads_from_dict(aileron_loads) if aileron_loads else None,
             flap_loads=flap_loads_from_dict(flap_loads) if flap_loads else None,
             tab_loads=tab_loads_from_dict(tab_loads) if tab_loads else None,
@@ -1081,8 +995,6 @@ def project_from_dict(d: Dict[str, Any]) -> Project:
         from .derived_geometry import sync_geometry_derived
         sync_geometry_derived(project)
         return project
-    # Legacy: the whole file is just the engine slice.
-    return Project(name="", engines=[engine_from_dict(d)], engine_layout=EngineLayout.SINGLE_NOSE)
 
 
 def _engines_from_dict(d: Dict[str, Any]):

@@ -259,6 +259,20 @@ So that every module is copy-of-the-pattern, these are fixed once:
   The factor lives **on the result**, not in the renderer (defect M4-7): `safety_factor` is a field on `ConditionResult`, `CriticalCondition` and all four distributed-load results (`WingLoadResult`, `BodyLoadResult`, `TailChordResult`, `ControlSurfaceLoadResult`), minted by the module that owns the condition and copied unchanged by everything derived from it. `report.py` and `sbeam_bridge._sf()` each read it off the object they are rendering, so the report and the exported cards can never disagree, and a case at `SF = 1.0` is never double-factored. Every deliverable states the factor it used — the `SF` column in `report.py`'s load-case rows and in the four sbeam span/chordwise CSVs (last column), and the `$ Loads are ULTIMATE (limit x SF=…)` header on every card block.
 - **One CSV shape per module = load cases.** Each row is one structural load case: `ID`, `FAR §`, `Case description`, an `SF` column (always populated), application point `Loc X/Y/Z`, then the applied **ultimate** loads/moments with `-ULT` units (`lbs-ULT`/`ft-lb-ULT`/…). This is exactly the `load_cases_to_rows` pattern engloads already established — generalize it, don't reinvent per module.
 - **Units at the boundary only.** Calc stays in one internal system; `units.py` converts JSON-in and display/CSV-out. (Already implemented.) **Deliverables render in the user-selected system** — report, load-case CSV, span CSVs and the sbeam BDF, one system per bundle, each stating it in-band; the selection is the GUI toggle, persisted in the project's unit-system field and overridable headless by CLI `--units imperial|si` (default Imperial). See `00_program_overview.md`, *Deliverable units follow the user's selection*, and `SUMMARY_REPORT.md` §3.5. The GUI's Imperial/SI choice is a single session-wide sidebar control (`app/Home.py`, `st.session_state["unit_system"]`) that every view reads for display conversion (`convert_results`/`to_si_scalar` for `ConditionResult`/per-station values); it is not a per-page setting. Airspeed (KEAS) and altitude (ft) are aviation-standard and are never converted by this toggle. `project.json` on disk stays Imperial-only regardless of the toggle — `units.project_dict_to_display`/`project_dict_to_imperial` convert the whole project dict for the **Project JSON Editor** page only (hand-edit in your chosen units, Apply converts back to Imperial before it re-enters the session); no unit tag is ever written to the file.
+- **Schema changes go through the migration chain** (`sloads/migrations.py`,
+  M4-10). `io.project_from_dict` reads the **current** schema only; any older
+  file is normalised first by a chain of pure `dict -> dict` hops, one per
+  version that changed the file's *shape*. When you change a persisted dataclass:
+  a **new optional field with a default** needs nothing (the tolerant `_filtered`
+  readers handle it); a **renamed, removed or relocated** field needs a
+  `SCHEMA_VERSION` bump *and* a hop in `MIGRATIONS`, plus a frozen fixture under
+  `tests/fixtures_schema/`. `tests/test_schema_guards.py` enforces this — its
+  fields-hash tripwire fails the moment a persisted shape changes, and its message
+  says what to do. Never add legacy handling *inside* a reader: that is the
+  five-shims-in-five-places pattern the chain replaced.
+  **Supported floor:** v0 (a bare `EngineInput` file from the Phase-0 `engloads`
+  era) and v18 upward. v1–v17 were additive-only, so a file claiming one is read
+  as v18 shape — indistinguishable from a v18 file with those fields unset.
 - **Deliverables state their own basis.** Anything that leaves the tool as a file
   (CSV, BDF, zip, workbook, report) carries the methods & limitations statement
   in band — `report.csv_comment_block` (`#`) or `report.bdf_comment_block` (`$`),

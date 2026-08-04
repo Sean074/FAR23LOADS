@@ -10,7 +10,48 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed
+
+- **M4-10 — `project.json` loading is now a migration chain, not key sniffing.**
+  `io.project_from_dict` decided what it was reading with a 19-clause `or` gate
+  enumerating every slice name, and handled each legacy file shape with an inline
+  shim threaded through the readers. Both are gone. `sloads/migrations.py` holds a
+  chain of pure `dict -> dict` hops — one per version that changed the file's
+  *shape*, with the archaeology of which legacy path belongs to which version
+  finally written down — and `io.py` reads the current schema only.
+  **All five legacy shims deleted**, the three `legacy_*` reader parameters
+  removed, `io.py` down from 1,290 to 1,180 lines. The project/engine
+  discriminator now derives its key set from `Project`'s own dataclass fields, so
+  adding a slice can no longer silently downgrade a real project to an
+  engine-only read. All six examples round-trip byte-identically; six frozen
+  fixtures (v0 bare engine, v18, v24, v26, v28, v36) pin every reachable
+  historical shape.
+- **M4-10 — legacy migrations are version-gated.** The old shims ran on *every*
+  file regardless of version, which meant a current project that legitimately had
+  no `weight.cg_cases` had them invented from `flight_loads`, and one with no
+  `aero_coeffs` had a set resurrected from a stale
+  `flight_loads.configurations`. The hops run only for files old enough to need
+  them. Two tests that claimed to cover "pre-schema-18/19 files" were in fact
+  mutating a current dict and passing for the wrong reason; they now declare the
+  version they test.
+
 ### Added
+
+- **M4-10 — two schema guards** (`tests/test_schema_guards.py`). A **sentinel
+  round-trip** walks every persisted scalar of a real project and asserts none is
+  dropped by `io.py`'s hand-written field lists — the failure mode where a new
+  field works perfectly in memory and in every calc test, then vanishes on
+  save/reload. And a **fields-hash tripwire** over every persisted dataclass's
+  field names, so changing a persisted shape without bumping `SCHEMA_VERSION` now
+  fails loudly; the discipline was previously unenforced. The tripwire is itself
+  tested by injecting a change and asserting it fires.
+
+### Fixed
+
+- **M4-10 — a pre-Phase-G0 file lost its horizontal-tail length.** The v24
+  unit-rename hop covered `vtail_loads` but not `tail_loads`, so
+  `airplane_length_ft` was dropped rather than rescaled to inches. Caught by the
+  existing `test_legacy_ft_sqin_keys_migrate_to_canonical`.
 
 - **G8.3 — every export channel now carries its own methods & limitations
   statement.** A loads CSV forwarded on its own, or a BDF handed to sbeam, now

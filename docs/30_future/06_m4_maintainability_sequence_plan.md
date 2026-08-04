@@ -4,6 +4,7 @@
 and **M4-11a** (2026-08-04, the scaffold helpers; the complexity-splitting half
 is backlog **M4-11b** and does not block G8). See the history entries in
 [`../40_history/00_completed_development.md`](../40_history/00_completed_development.md).
+**Step 5 (M4-10) is shipped 2026-08-04** bar its proxy retirement (M4-10b).
 **Step 4 (G8) is partially shipped 2026-08-04**: G8.1 (the `report/` package),
 G8.2 (schema v36 document control), G8.3 (the methods statement in every export
 channel) and G8.4's coverage matrix are done; the report document itself
@@ -404,9 +405,16 @@ G8.1 (`report.py` → `report/` package) remains independent of everything in th
 plan and could be pulled forward at any time — its own acceptance is "zero
 importing-module changes, no test edits."
 
-### Step 5 — M4-10: io.py migration chain *(per D-12(a))*
+### Step 5 — M4-10: io.py migration chain ✅ *complete 2026-08-04 (sub-steps 1–5)*
 
-**Decisions applied:** D-12, D-15 (both resolved).
+**Decisions applied:** D-12, D-15 (both resolved). Sub-steps 1–5 shipped: the
+archaeology table (now committed in `sloads/migrations.py`'s docstring), the hop
+chain replacing the 19-clause gate **and all five shims**, six frozen fixtures,
+the sentinel round-trip and the fields-hash tripwire. **Sub-step 6 — retiring the
+property proxies — is backlog M4-10b**: 73 reads and 19 writes across 21 files,
+and the risk is the writes, since the current setter silently no-ops on `None`.
+Sequencing it separately is what this plan already asked for ("do it as the last
+sub-step... so a regression is attributable").
 
 1. **Archaeology sub-step** (§3 issue 4): map each legacy path in
    `project_from_dict` to the `SCHEMA_VERSION` at which it was introduced, from
