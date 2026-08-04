@@ -175,8 +175,12 @@ STEPS: Tuple[WorkflowStep, ...] = (
                  summary="One-engine-out vertical-tail loads."),
 
     # ---- Landing loads (§4 Phase 4) ------------------------------------------ #
+    # requires=() since M4-17a: the LANDLOAD calc reads no mass slice (M2-8 removed
+    # the Project.mass CG fallback -- the three landing loadings are explicit), so
+    # requiring "mass" blocked the step on every shipped example for a dependency
+    # that does not exist. The gear geometry it does need is entered on Geometry.
     WorkflowStep("landing_loads", "Landing Loads", LANDING,
-                 module="landing", requires=("mass",), produces="landing",
+                 module="landing", requires=(), produces="landing",
                  bas="LGFACTOR+LANDLOAD", summary="Landing load factors + gear reactions."),
 
     # ---- Load-case plotting: consolidated plots (Step D7, §4 Phase 5) -------- #

@@ -10,6 +10,94 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed
+
+- **M4-17a — the landing-loads ↔ mass-model disconnection.**
+  `weight_onecg.build_mass` had **zero production callers**: no page, no CLI path
+  and no example ever produced `Project.mass`. The dashboard therefore showed
+  Landing Loads "⛔ blocked — Needs: mass" on every shipped example while the
+  landing results computed fine, and the One Engine Out gate was **unsatisfiable
+  through the GUI**. The Weight & Mass Properties **Apply weight items** handler
+  now persists `project.mass = build_mass(project)`, and the landing workflow
+  step's `requires` drops `"mass"` — the LANDLOAD calc has read no mass slice
+  since M2-8. `one_engine_out` still requires it (IZZ).
+- **M4-17c — the landing CG seed could emit a zero waterline.** The seed read
+  `project.mass.cases[0].cg_z`, always absent, and fell back to `0.0` against a
+  ~60 in axle waterline — computing silently with nose-gear reactions of
+  −233…−2887 lb (nonphysical) and braked-roll main loads 2.6× the p230 oracle.
+  Missing-source cells are now **blank, never zero**; the page names the missing
+  source and **blocks the reaction compute** until a real waterline is entered.
+  Legacy project files carrying `zcg: 0` are blocked with an explanation rather
+  than computed — an intentional, load-bearing behaviour change.
+- **M4-17c — the forward CG limit is interpolated at the landing weight.** The
+  seed paired the weight-agnostic outer-hull forward station (72.64 in) with the
+  max-landing weight, where the manual reads the forward limit *at* that weight
+  (76.12 in, Appendix A p230). New public
+  `validation.wtenv_fwd_cg_limit_at_weight(project, weight_lb)` lerps the WTENV
+  forward limit between the forward-regardless and forward-gross anchors,
+  **clamped, never extrapolated**. Max-landing rows are also no longer seeded at
+  full MTOW when the max landing weight is unset.
+- **M4-17e — `_critical` excluded the side load.** The 23.485 family pick was a
+  tie-break accident (cases 19–22 share an identical VMP); the ranking now uses
+  the full √(V²+D²+S²) magnitude. Ranking only — no stored value changes, and the
+  picks are unchanged on every bundled example.
+- **M4-17b — seven stale `Project.mass` doc/help references** in
+  `modules/landing.py`, `models/inputs.py` (four) and `app/views/landing_loads.py`
+  (docstring + the gross-weight-override help), all of which contradicted the
+  M2-8 removal note in the same files.
+
+### Added
+
+- **M4-17e — the full 33-case LANDLOAD matrix in the ULTIMATE deliverable.**
+  `landing.run()` now emits **40** `ConditionResult`s (LGFACTOR + 6 family
+  summaries + 33 per-case): VMP/DMP/SMP/RMP and VNP/DNP/SNP/RESULT
+  (`lbs-ULT`, SF 1.5), the unbalanced pitch/roll/yaw moments (`lb-in-ULT`,
+  SF 1.5) and the **dimensionless** ground-line inertia factors NVP/NDP/NS
+  (unscaled, no `-ULT` — they are load factors). The moments and factors — a
+  third of the original LANDLOAD printout, computed since the port but reaching
+  no deliverable and no test — are also shown on the Landing Loads page
+  (LIMIT-marked) and are the gear-attachment inputs **M4-6** needs. The CSV grows
+  from 7 conditions to ~430 rows, so the deliverable is no longer thinner than
+  the LIMIT analysis screen.
+- **M4-17d — landing hierarchy & sanity validation** in the pure
+  `sloads/validation.py`: `gross_ge_max_landing` (WR = GW/W below 1
+  under-predicts the braked-roll, side and supplementary-nose cases),
+  `landing_light_le_max`, `landing_cg_ordering`, `landing_cg_below_axle`,
+  `landing_cg_names`; plus a post-compute `landing_reaction_warnings`
+  (`landing_negative_vertical`, `landing_zero_nose`) kept **outside**
+  `consistency_warnings` so no definition page pays for a gear solve. Warn-only,
+  and silent on the Appendix-A GA fixture.
+
+### Changed
+
+- Landing CG-case rows are **name-locked and order-canonical**: the data editor's
+  `Loading` column is read-only and Apply writes the canonical names, while
+  `landing._cg_cases` reorders by name when all three canonical names are present
+  (otherwise positional, exactly as before). The editor could previously be
+  renamed or reordered into a silent mis-assignment of the braked-roll/side
+  weight groups, which are indexed positionally.
+- Every bundled `examples/*.project.json` now carries a regenerated `mass` block.
+  Consequence: `configuration.cg_estimate` flips from the 25%-MAC fallback to its
+  "Weight DB" branch, so the tip-back / overturn / CG-station figures change on
+  five examples (e.g. GA-6 CG 74.07 → 85.0 in, tip-back 33.11 → 13.49°, overturn
+  43.01 → 48.69°). `one_engine_out` on the twin turboprops now passes the mass
+  gate and stops at the next missing input (engine horsepower) instead.
+- Removed the never-assigned, never-read `nv`/`nd`/`nns` fields from
+  `GearReactionCase`. The airplane-datum `vm`/`dm`/`vn`/`dn` are kept (they *are*
+  computed) and documented as an M4-6 hook.
+- **`SCHEMA_VERSION` is unchanged (33):** the `mass` block already round-tripped
+  through `io.mass_from_dict`/`mass_to_dict` and is optional on read. Only its
+  *presence* changes, not the schema shape.
+- **`report._LOAD_CASE_LABELS` is deliberately not extended.** A LANDLOAD case is
+  a *pair* of reactions at two stations with three unbalanced moments;
+  `load_cases_to_rows`' single-point-load schema cannot hold that without losing
+  the nose reaction or fabricating locations, so landing keeps routing through
+  `results_to_rows` (locked by a test).
+- **No calc-math change.** The Appendix-A landing oracles (p230 K/GAMMA/BETA and
+  the lever-arm table; p236 V/N/NLG) and all existing tests pass unchanged; the
+  p230 oracles are additionally re-asserted through the full
+  `build_landing(load_project(...))` pipeline as a regression guard.
+
 ---
 
 ## [0.3.0] — 2026-07-23

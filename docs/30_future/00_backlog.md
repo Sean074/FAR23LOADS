@@ -51,7 +51,10 @@ by the wing and control-surface producers) and **M4-14** (the persisted factor
 validated to the [1.0, 1.5] band on load); **M4-15** (LIMIT downloads
 basis-marked in-band, ULTIMATE twins added) and **M4-16** (review nits batch:
 the CRITICAL `GUI_design.md` schema line fixed **with a guard test**, `_sf()`
-typed, `SF=1.0` formatting, io import order) also shipped 2026-07-23. The suite
+typed, `SF=1.0` formatting, io import order) also shipped 2026-07-23. **M4-17**
+(the landing-loads ↔ mass-model disconnection and the CG-seed hazards found by
+the 2026-08-03 landing-loads review — all five sub-items) shipped 2026-08-03;
+see history. The suite
 is green (501 passed at
 the 2026-07-23 post-M4-16 snapshot, ~93% coverage, ruff clean, smoke test PASS,
 `SCHEMA_VERSION = 33` — see CI
@@ -106,71 +109,6 @@ FAR coverage; results summary (VMT wing/fuselage, control/flap, gear, engine).
 All load figures ULTIMATE with SF. **Include a methods/limitations statement
 stamped into the exported deliverables** (CSV/BDF/report) so downstream sizing
 inherits the concept-mode caveat the UI already shows.
-
-### M4-17 — Landing loads ↔ mass model disconnection + CG-seed hazards (2026-08-03 landing-loads review) **[Major — defects in code shipped with 0.3.0; candidate 0.3.1 patch]**
-The 2026-08-03 landing-loads review found the WTONECG mass slice is **never
-produced anywhere** — `weight_onecg.build_mass` has zero callers, the Weight &
-Mass page persists only `project.weight`, and no example carries a `mass`
-block — so everything still referencing it is broken or stale. The LANDLOAD
-calc core itself is sound (oracles pass); every defect below is at the seam
-between the weight model and the landing inputs.
-
-- **(a) Mass-slice wiring (root cause).** Either call `build_mass` from the
-  Weight & Mass Apply handler (persist `project.mass`, so the `weight_mass`
-  step's `produces="mass"` can finally turn ✅), **or** drop `mass` from the
-  landing / one-engine-out `requires` and view gates. Decide once. Today the
-  dashboard shows Landing Loads "⛔ blocked — Needs: mass" **on the shipped
-  GA-6 example** (verified: `missing_requirements` returns `['mass']` while
-  the landing results compute fine), and the One Engine Out gate ("Run
-  Weight, CG & Inertia first") is unsatisfiable through the GUI. Wiring the
-  slice is also the prerequisite for **M4-4** (per-CG precise inertia into
-  SELECT).
-- **(b) Stale doc/help text (doc-sync `[CRITICAL]` class per CLAUDE.md).**
-  The `landing.py` module docstring and the Landing Loads view docstring
-  still say per-CG weight/CG are "read from `Project.mass` (WTONECG)" —
-  contradicting the M2-8 removal note in the same file — and the
-  gross-weight-override help cites `(Project.mass)` for a default actually
-  derived from `landing.cg_cases`.
-- **(c) CG-case seed can emit plausible-looking garbage.** `_seed_cg_rows`
-  reads the waterline from `project.mass.cases[0].cg_z` — always absent in
-  practice — so all three rows seed **`zcg = 0`** against ~55-in axle
-  waterlines, and the seeded rows compute with **no warning**: nose-gear
-  vertical reactions of −233…−2887 lb (nonphysical) and braked-roll main
-  loads 2.6× the p230-oracle values (verified on GA-6). Also: the forward
-  station seeds `min(fwd-gross, fwd-regardless)` (72.64 in) paired with the
-  max-landing weight, where the manual interpolates the forward limit *at
-  the landing weight* (76.12 in); and an unset max-landing weight seeds the
-  two max-landing rows at full MTOW. Fix: never seed a zero waterline
-  (blank the cell / gate on a real source), interpolate the forward limit at
-  the entered landing weight from the WTENV envelope, and add post-compute
-  sanity checks (negative vertical reactions; CG below the axle waterline).
-- **(d) Weight/CG hierarchy unvalidated.** `landing_reactions` assumes the
-  `[aft-max, fwd-max, fwd-light]` ordering **positionally** (names are
-  cosmetic; the data-editor rows can be renamed/reordered into silent
-  mis-assignment of the braked-roll/side weight groups); nothing checks
-  gross ≥ max landing (a gross-override typo silently deflates the `wr`
-  ratio → unconservative braked-roll/supplementary-nose loads), light ≤ max
-  landing, or aft station > fwd station.
-- **(e) Computed LANDLOAD output never delivered.** The unbalanced moments
-  (`pitchp`/`rollp`/`yawp`) and ground-line inertia factors
-  (`nvp`/`ndp`/`ns`) are computed onto `GearReactionCase` but appear in no
-  GUI table, no CSV, no sbeam export, and **no test** — a third of the
-  original LANDLOAD printout, and the fuselage/gear-attachment inputs
-  **M4-6** needs. The ULTIMATE CSV also carries only the 7 summary
-  conditions while the LIMIT screen shows all 33 cases — the deliverable is
-  thinner than the analysis view. Nit: `_critical` ranks by √(V²+D²),
-  excluding side load — the side-family pick is currently right only by
-  tie-break order.
-
-**Acceptance:** the mass slice is produced (or the requirement dropped) and
-the dashboard un-blocks on the GA-6 example; the seed can no longer emit a
-zero waterline and the fwd-max-landing station comes from the interpolated
-WTENV forward limit; hierarchy/sanity validation warns in the view; the
-moments and inertia factors are asserted in `tests/test_landing.py` (closure
-at minimum), shown on the page, and present in the ULTIMATE CSV alongside
-the full 33-case matrix; the three stale doc/help references are fixed; the
-Appendix-A landing oracles (p230/p236) and all existing tests pass unchanged
-(no calc-math change).
 
 ### M4-1 — Fuselage body loads: moment closure (review T5) **[Major]**
 `body_loads` applies a single vertical wing reaction and closes ΣFz only; the
@@ -497,13 +435,6 @@ reaction matrix stays closure-/legible-cell-locked).
   not release-blocking]**
 - **M4-9** — report/export semantics keyed on display-label strings; a
   cosmetic relabel silently blanks CSV columns. **[Major, latent]**
-- **M4-17** — `Project.mass` is never produced (`build_mass` has no callers),
-  so the Landing Loads / One Engine Out workflow gates are unsatisfiable via
-  the GUI (Landing shows "⛔ Needs: mass" even on the shipped GA-6 example);
-  the landing CG-case seed can emit a zero waterline that computes
-  nonphysical reactions without warning; the LANDLOAD unbalanced moments and
-  ground-line inertia factors are computed but reach no deliverable and no
-  test. **[Major — 2026-08-03 landing-loads review]**
 
 *(The Step-G6 half-migration breakage found by the 2026-07-19 review was
 resolved 2026-07-20 — suite green, concept fixture runs end-to-end; see

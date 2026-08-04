@@ -28,16 +28,30 @@ Checks (14 CFR / Reference-1 context in each predicate):
                              the factor is owned by the load-case definition).
                              Advisory companion to ``io._safety_factor``'s
                              read-time coercion (M4-14).
+- ``gross_ge_max_landing`` / ``landing_light_le_max`` / ``landing_cg_ordering`` /
+  ``landing_cg_below_axle`` / ``landing_cg_names`` -- the LANDLOAD weight/CG
+                             hierarchy (M4-17d; 14 CFR 23.473-23.499). See
+                             ``_check_landing_hierarchy``.
+
+Two public helpers here are *not* checks and are consumed by ``app/``:
+``wtenv_cg_limits`` (the weight-agnostic structural CG hull) and
+``wtenv_fwd_cg_limit_at_weight`` (the forward limit interpolated at one weight).
+:func:`landing_reaction_warnings` is a **post-compute** sanity pass over a solved
+LANDLOAD reaction table -- deliberately outside :func:`consistency_warnings`,
+which must stay input-only so no definition page pays for a gear solve.
 """
 
 from __future__ import annotations
 
 import math
 from dataclasses import dataclass
-from typing import List, Optional
+from typing import TYPE_CHECKING, Dict, List, Optional
 
 from .constants import ULTIMATE_FACTOR
 from .models import Project
+
+if TYPE_CHECKING:  # pragma: no cover - typing only
+    from .models import GearReactionCase
 
 # Pages that render consistency warnings (the ``page`` tag on each warning).
 PAGE_CONFIGURATION = "configuration_layout"
@@ -45,6 +59,11 @@ PAGE_WING_GEOMETRY = "wing_geometry"
 PAGE_STRUCTURAL_SPEEDS = "structural_speeds"
 PAGE_WEIGHT_CG = "weight_cg_inertia"
 PAGE_EXPORT = "export_report"
+PAGE_LANDING = "landing_loads"
+
+# The three canonical LANDLOAD loadings, in the positional order the calc consumes
+# (UG fig 18.2). Shared with ``modules.landing._cg_cases`` and the Landing Loads view.
+LANDING_CG_NAMES = ("aft max landing", "fwd max landing", "fwd light")
 
 # Fractional tolerance for the Configuration-vs-WINGGEOM wing-area agreement check.
 _AREA_MISMATCH_TOL = 0.05
@@ -168,15 +187,11 @@ def _check_area_mismatch(project: Project) -> List[ConsistencyWarning]:
     return []
 
 
-def wtenv_cg_limits(project: Project) -> Optional["tuple[float, float]"]:
-    """(forward-most, aft-most) structural CG station (in) from WTENV, or None.
+def _wtenv_stations(project: Project) -> Optional[Dict[str, float]]:
+    """``{label: value}`` from a successful WTENV run, or None when it cannot run.
 
-    Needs the WTENV envelope slice and the wing geometry it reads XLEMAC/MAC from;
-    returns None (check skipped) when either is absent or the calc cannot run.
-
-    Public (M2R-5): also seeds the Landing Loads CG-case editor and the Weight/CG
-    grid overlay, so it is imported by ``app/`` -- hence a public name (M4-12: ``app/``
-    must not import ``sloads`` underscore symbols).
+    Shared by :func:`wtenv_cg_limits` and :func:`wtenv_fwd_cg_limit_at_weight`; the
+    guards and the swallowed-exception set are the originals from ``wtenv_cg_limits``.
     """
     if project.weight is None or project.weight.envelope is None:
         return None
@@ -187,13 +202,85 @@ def wtenv_cg_limits(project: Project) -> Optional["tuple[float, float]"]:
         results = compute_envelope(project, project.weight.envelope)
     except (ValueError, ZeroDivisionError, KeyError):
         return None
-    limits = {v.label: v.value for r in results for v in r.values}
+    return {v.label: v.value for r in results for v in r.values}
+
+
+def wtenv_cg_limits(project: Project) -> Optional["tuple[float, float]"]:
+    """(forward-most, aft-most) structural CG station (in) from WTENV, or None.
+
+    Needs the WTENV envelope slice and the wing geometry it reads XLEMAC/MAC from;
+    returns None (check skipped) when either is absent or the calc cannot run.
+
+    This is the weight-agnostic **outer hull** -- the forward station is the
+    forward-most reached at *any* weight (``min`` of the gross and regardless
+    stations), which is what an envelope-containment check wants. For the forward
+    limit *at a given weight* (what a landing case wants) use
+    :func:`wtenv_fwd_cg_limit_at_weight`.
+
+    Public (M2R-5): also seeds the Landing Loads CG-case editor and the Weight/CG
+    grid overlay, so it is imported by ``app/`` -- hence a public name (M4-12: ``app/``
+    must not import ``sloads`` underscore symbols).
+    """
+    limits = _wtenv_stations(project)
+    if limits is None:
+        return None
     fwd_candidates = [limits[k] for k in ("Forward gross station", "Forward regardless station")
                       if k in limits]
     aft = limits.get("Aft gross station")
     if not fwd_candidates or aft is None:
         return None
     return min(fwd_candidates), aft
+
+
+def wtenv_fwd_cg_limit_at_weight(project: Project, weight_lb: float) -> Optional[float]:
+    """The WTENV **forward** structural CG limit (fuselage station, in) at ``weight_lb``.
+
+    WTENV's forward limit is a two-point line in the weight/CG envelope (Ref 1 Ch 3;
+    14 CFR 23.23): the *forward-regardless* station applies at
+    ``envelope.fwd_regardless_weight`` and the *forward-gross* station at
+    ``envelope.gross_weight``, with the limit linear in weight between them. The
+    manual reads it **at the landing weight** -- Appendix A p230 pairs the 3230 lb
+    max landing weight with 76.12 in, between 72.643 in @ 2800 lb and 77.490 in @
+    3400 lb. (``wtenv_cg_limits`` returns the weight-agnostic hull, 72.643 in, which
+    is the right answer for a containment check and the wrong one for a landing
+    case -- pairing it with the max landing weight was the M4-17c seed defect.)
+
+    **Clamped, never extrapolated**: at or below the lighter anchor the lighter
+    anchor's station is returned, at or above the heavier anchor the heavier one's,
+    so a mis-entered envelope cannot run the limit off the end of the line.
+
+    Returns ``None`` -- and the caller must then leave the cell blank rather than
+    fabricate a station (M4-17c) -- when ``weight_lb <= 0``, when the envelope or
+    wing geometry is absent, when WTENV cannot run, or when either anchor weight or
+    station is missing.
+
+    Public (M4-17c): the Landing Loads CG-case seed imports it, and ``app/`` must not
+    import ``sloads`` underscore symbols (M4-12).
+    """
+    if weight_lb <= 0:
+        return None
+    limits = _wtenv_stations(project)
+    if limits is None:
+        return None
+    fwd_s = limits.get("Forward gross station")
+    reg_s = limits.get("Forward regardless station")
+    if fwd_s is None or reg_s is None:
+        return None
+    env = project.weight.envelope
+    w_gross, w_reg = env.gross_weight, env.fwd_regardless_weight
+    if not w_gross or not w_reg or w_gross <= 0 or w_reg <= 0:
+        return None
+    if w_gross == w_reg:
+        return fwd_s
+    # Anchor by weight, not by name, so a swapped envelope clamps instead of running away.
+    (w_lo, s_lo), (w_hi, s_hi) = (
+        ((w_reg, reg_s), (w_gross, fwd_s)) if w_reg < w_gross
+        else ((w_gross, fwd_s), (w_reg, reg_s)))
+    if weight_lb <= w_lo:
+        return s_lo
+    if weight_lb >= w_hi:
+        return s_hi
+    return s_lo + (weight_lb - w_lo) / (w_hi - w_lo) * (s_hi - s_lo)
 
 
 def _check_cg_envelope(project: Project) -> List[ConsistencyWarning]:
@@ -305,6 +392,130 @@ def _check_safety_factors(project: Project) -> List[ConsistencyWarning]:
     return out
 
 
+def _check_landing_hierarchy(project: Project) -> List[ConsistencyWarning]:
+    """The LANDLOAD weight/CG hierarchy (M4-17d). Warn-only -- no math changes.
+
+    LANDLOAD consumes the three loadings **positionally** (aft max landing, fwd max
+    landing, fwd light; UG fig 18.2) and derives ``WR = GW/W``, so an inconsistent
+    set computes silently and plausibly. The checks:
+
+    * ``gross_ge_max_landing`` -- GW >= W. ``WR`` scales the braked-roll, side and
+      supplementary-nose cases; a gross override below the landing weight gives
+      WR < 1 and **under**-predicts those reactions (unconservative).
+    * ``landing_light_le_max`` -- the fwd-light loading must not exceed the max
+      landing weight; it is the light corner of the envelope.
+    * ``landing_cg_ordering`` -- the aft loading's station must be aft of both
+      forward loadings'. AP/BP/CP are formed about ``xcg``, so a swap silently
+      mis-assigns the nose-gear and braked-roll lever arms.
+    * ``landing_cg_below_axle`` -- every ``zcg`` must be above the static main-axle
+      waterline. A CG at or below the axle is geometrically impossible for a
+      tricycle airplane, and is the signature of the zero-waterline seed (M4-17c).
+    * ``landing_cg_names`` -- the loadings are not the canonical triple, so the calc
+      cannot canonicalize their order and falls back to positional assignment.
+
+    Silent on the Appendix-A GA fixture (3400 >= 3230; 2803 <= 3230; 85.1 aft of
+    76.12/72.64; zcg 92-93 in above the 59.6 in static axle; names canonical).
+    """
+    inp = project.landing
+    if inp is None or len(inp.cg_cases) != 3:
+        return []
+    out: List[ConsistencyWarning] = []
+    aft, fwd_max, fwd_light = inp.cg_cases
+    w_land = inp.max_landing_weight_lb
+    gross = inp.gross_weight_lb or max(c.weight_lb for c in inp.cg_cases)
+
+    if w_land > 0 and gross > 0 and gross < w_land - 1e-6:
+        out.append(ConsistencyWarning(
+            "gross_ge_max_landing",
+            f"Gross weight {gross:,.0f} lb is below the max landing weight "
+            f"{w_land:,.0f} lb. LANDLOAD scales the braked-roll, side and "
+            f"supplementary-nose cases by WR = GW/W = {gross / w_land:.3f}; below 1.0 "
+            "those reactions are under-predicted (unconservative). Check the gross "
+            "weight override or the max landing weight (14 CFR 23.473(b)/(c)).",
+            PAGE_LANDING))
+    if w_land > 0 and fwd_light.weight_lb > w_land + 1e-6:
+        out.append(ConsistencyWarning(
+            "landing_light_le_max",
+            f"The '{fwd_light.name}' loading weighs {fwd_light.weight_lb:,.0f} lb, more "
+            f"than the max landing weight {w_land:,.0f} lb. It is the *light* corner of "
+            "the landing envelope (UG fig 18.2).",
+            PAGE_LANDING))
+    if aft.xcg <= max(fwd_max.xcg, fwd_light.xcg):
+        out.append(ConsistencyWarning(
+            "landing_cg_ordering",
+            f"The aft loading '{aft.name}' is at station {aft.xcg:,.2f} in, not aft of "
+            f"the forward loadings ({fwd_max.xcg:,.2f} / {fwd_light.xcg:,.2f} in). The "
+            "AP/BP/CP lever arms are formed about xcg, so a fwd/aft swap mis-assigns "
+            "the nose-gear and braked-roll reactions.",
+            PAGE_LANDING))
+    lg = project.geometry.landing_gear if project.geometry is not None else None
+    if lg is not None:
+        axle_wl = lg.main_gear.axle_static[1]
+        if axle_wl > 0:
+            low = [c for c in inp.cg_cases if c.zcg <= axle_wl]
+            if low:
+                out.append(ConsistencyWarning(
+                    "landing_cg_below_axle",
+                    "Landing CG waterline at or below the static main-axle waterline "
+                    f"({axle_wl:,.1f} in) for: "
+                    + ", ".join(f"'{c.name}' zcg={c.zcg:,.1f} in" for c in low)
+                    + ". A CG at or below the axle is geometrically impossible for a "
+                    "tricycle airplane; a zero waterline puts the CG on the ground "
+                    "line and inverts the nose-gear reaction (M4-17c).",
+                    PAGE_LANDING))
+    if sorted(c.name.strip().lower() for c in inp.cg_cases) != sorted(LANDING_CG_NAMES):
+        out.append(ConsistencyWarning(
+            "landing_cg_names",
+            "The three landing loadings are not named "
+            + ", ".join(f"'{n}'" for n in LANDING_CG_NAMES)
+            + ", so LANDLOAD cannot canonicalize their order and assigns the "
+              "braked-roll / side weight groups **by row position** (row 1 aft max "
+              "landing, row 2 fwd max landing, row 3 fwd light). Confirm the order.",
+            PAGE_LANDING))
+    return out
+
+
+def landing_reaction_warnings(cases: "List[GearReactionCase]") -> List[ConsistencyWarning]:
+    """Post-compute sanity checks on a solved LANDLOAD reaction table (M4-17d).
+
+    Pure, and deliberately *outside* :func:`consistency_warnings`: these need the
+    solved reactions, and that aggregate must stay an input-only predicate that no
+    definition page pays a gear solve for. The Landing Loads view calls this after
+    ``modules.landing.build_landing``.
+
+    * ``landing_negative_vertical`` -- any VMP or VNP below zero. A wheel cannot pull
+      the airplane down; a negative vertical reaction means the CG/lever arms are
+      wrong. With a zero waterline the GA-6 nose reactions run -233..-2887 lb.
+    * ``landing_zero_nose`` -- VNP is zero on a 3-wheel level case (1-3) or a
+      braked-roll nose-down case (13-15), where the nose wheel is loaded by
+      construction.
+    """
+    out: List[ConsistencyWarning] = []
+    negative = [c for c in cases if c.vmp < -1e-6 or c.vnp < -1e-6]
+    if negative:
+        worst = min(negative, key=lambda c: min(c.vmp, c.vnp))
+        out.append(ConsistencyWarning(
+            "landing_negative_vertical",
+            f"{len(negative)} ground case(s) have a **negative vertical reaction** "
+            f"(worst: case {worst.case}, {worst.description}, VMP {worst.vmp:,.0f} / "
+            f"VNP {worst.vnp:,.0f} lb). A wheel cannot pull the airplane down -- check "
+            "the CG waterlines and stations against the axle geometry (a zero "
+            "waterline is the usual cause). Cases: "
+            + ", ".join(str(c.case) for c in negative) + ".",
+            PAGE_LANDING))
+    nose_loaded = [c for c in cases if c.case in tuple(range(1, 4)) + tuple(range(13, 16))]
+    zero_nose = [c for c in nose_loaded if abs(c.vnp) <= 1e-9]
+    if zero_nose:
+        out.append(ConsistencyWarning(
+            "landing_zero_nose",
+            "The nose wheel carries no load in case(s) "
+            + ", ".join(str(c.case) for c in zero_nose)
+            + " (3-wheel level / braked roll nose down), where it is loaded by "
+              "construction. Check the nose-gear axle geometry and the CG stations.",
+            PAGE_LANDING))
+    return out
+
+
 def consistency_warnings(project: Project) -> List[ConsistencyWarning]:
     """All input-consistency warnings for ``project`` (each tagged with its page).
 
@@ -322,4 +533,5 @@ def consistency_warnings(project: Project) -> List[ConsistencyWarning]:
     out += _check_cg_envelope(project)
     out += _check_operational_targets(project)
     out += _check_safety_factors(project)
+    out += _check_landing_hierarchy(project)
     return out

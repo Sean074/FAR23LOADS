@@ -1018,8 +1018,11 @@ class LandingInput:
 
     LANDLOAD (FAR 23.473-23.499) then computes the tricycle-gear reaction loads for
     the level, tail-down, one-wheel, braked-roll, side and supplementary-nose-wheel
-    ground conditions, reading the gross / max-landing weights and the per-CG
-    weight & CG from ``Project.mass`` (WTONECG) unless overridden by ``cg_cases``.
+    ground conditions, reading the per-CG weight & CG from the three **required**
+    ``cg_cases`` (aft/fwd max landing, fwd light; UG fig 18.2). ``Project.mass`` is
+    not read at all (M2-8 removed the auto-derivation -- a single heaviest mass case
+    cannot supply distinct fwd/aft stations), so the landing workflow step requires
+    no ``mass`` slice (M4-17a).
 
     The reduced landing weight (FAR 23.473(b)/(c); typically 0.95*MTOW) applies to
     the level / tail-down / one-wheel cases; the side, braked-roll and nose
@@ -1031,7 +1034,8 @@ class LandingInput:
                                                # persisted. A directly-set value is the
                                                # fallback when no wing geometry is present.
     max_landing_weight_lb: float = 0.0         # W (LGFACTOR + LANDLOAD reduced weight)
-    gross_weight_lb: float = 0.0               # GW (0 -> from Project.mass heaviest case)
+    gross_weight_lb: float = 0.0               # GW (0 -> max(cg_cases[].weight_lb), on a
+                                               # local copy -- landing.build_landing)
     strut_stroke_in: float = 0.0               # SSTRUT (fully extended -> compressed)
     tire_od_in: float = 0.0                    # OD (outer diameter of tyre)
     hub_diameter_in: float = 0.0               # ID (hub diameter)
@@ -1042,8 +1046,10 @@ class LandingInput:
     tread_in: float = 0.0                      # TREAD (distance between main wheels)
     tail_down_angle_deg: float = 0.0           # GRA(3) (ground line to WL, tail-down bump)
     gear_load_factor: float = 0.0              # NLG override; 0 -> from LGFACTOR (N - L)
-    # Per-CG weight & CG (aft-max-landing / fwd-max-landing / fwd-light); empty ->
-    # derived from Project.mass (WTONECG). Each CgCase: name, weight_lb, xcg, zcg.
+    # Per-CG weight & CG -- **required**: exactly three loadings, consumed positionally
+    # as [aft max landing, fwd max landing, fwd light] (empty raises, M2-8). Each
+    # CgCase: name, weight_lb, xcg, zcg (waterline; a zero waterline is rejected by
+    # the view and flagged by validation._check_landing_hierarchy -- M4-17c).
     cg_cases: List["CgCase"] = field(default_factory=list)
 
 

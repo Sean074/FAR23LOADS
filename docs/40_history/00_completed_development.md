@@ -10,6 +10,125 @@ Acceptance**, **Key decisions**.
 
 ---
 
+## M4-17 — Landing loads ↔ mass model disconnection + CG-seed hazards (complete 2026-08-03)
+
+**Objective.** Close all five sub-items of the 2026-08-03 landing-loads review.
+Its root finding: `weight_onecg.build_mass` had **zero production callers**, so
+`Project.mass` was never produced anywhere — no page, no CLI path, no example.
+Everything downstream of the slice was broken or stale in code shipped with
+**0.3.0**, while the LANDLOAD calc core itself was sound (the oracles pass). Every
+defect sat at the seam between the weight model and the landing inputs.
+
+**Deliverables.**
+- **(a) Mass-slice wiring.** `app/views/weight_mass.py`'s **Apply weight items**
+  handler now persists `project.mass = build_mass(project)` (guarded — a
+  degenerate item list warns and leaves any prior slice), so the `weight_mass`
+  step's `produces="mass"` finally turns ✅ and the One Engine Out gate becomes
+  satisfiable. Separately, `workflow.py`'s landing step drops `"mass"` from
+  `requires` (now `requires=()`): the calc has read no mass slice since M2-8, so
+  the requirement blocked the step on every shipped example for a dependency that
+  does not exist. `one_engine_out` keeps it — it genuinely dereferences IZZ. The
+  OEO gate text now names the button that satisfies it. This also unblocks
+  **M4-4** (per-CG precise inertia into SELECT).
+- **(b) Doc/help sync.** Seven stale `Project.mass` references corrected —
+  `modules/landing.py` (module + `_cg_cases` docstrings), `models/inputs.py`
+  (four: the `LandingInput` docstring, the `gross_weight_lb` comment and the
+  `cg_cases` comment), and `app/views/landing_loads.py` (page docstring + the
+  gross-weight-override help, which cited `(Project.mass)` for a default actually
+  taken from `landing.cg_cases`).
+- **(c) Seed hardening + a weight-interpolated forward limit.** `_seed_cg_rows`
+  rewritten so **every cell without a real source is blank, never `0.0`**: the
+  waterline from `project.mass.cases[0].cg_z` or blank; the max-landing rows blank
+  rather than seeded at full MTOW when the max landing weight is unset; and the
+  forward stations from the new public
+  `validation.wtenv_fwd_cg_limit_at_weight(project, weight_lb)`, which lerps the
+  WTENV forward limit between its forward-regardless and forward-gross anchors
+  (**clamped, never extrapolated** — `wing_geometry._interp_x` extrapolates and is
+  private, so it was not reused). `validation.wtenv_cg_limits` keeps its
+  weight-agnostic outer-hull semantics unchanged; both now share a
+  `_wtenv_stations` helper. The page names each missing source with its
+  consequence, refuses to save an incomplete row, and **blocks the reaction
+  compute** until every row has a positive weight, station and waterline.
+- **(d) Hierarchy & sanity validation.** `validation._check_landing_hierarchy`
+  (input-side: `gross_ge_max_landing`, `landing_light_le_max`,
+  `landing_cg_ordering`, `landing_cg_below_axle`, `landing_cg_names`) and
+  `validation.landing_reaction_warnings` (post-compute:
+  `landing_negative_vertical`, `landing_zero_nose`), the latter deliberately
+  outside `consistency_warnings` so that aggregate stays input-only and no
+  definition page pays for a gear solve. Warn-only; silent on the GA fixture. The
+  positional-ordering hazard is closed at both ends: the editor's `Loading` column
+  is read-only and Apply writes the canonical names, and `landing._cg_cases`
+  reorders by canonical name when all three are present (a verified no-op on every
+  bundled example and the test fixture).
+- **(e) The undelivered LANDLOAD output.** `landing.run()` emits **40**
+  `ConditionResult`s — LGFACTOR + 6 family summaries + the **full 33-case
+  matrix** — carrying the reactions (`lbs-ULT`, SF 1.5), the unbalanced
+  pitch/roll/yaw moments (`lb-in-ULT`, SF 1.5) and the dimensionless ground-line
+  inertia factors NVP/NDP/NS (unscaled, no `-ULT`, blank SF). Cases 25–33 are
+  nose-only. The moments and factors are also shown on the page (LIMIT-marked).
+  `_critical` now ranks on the full √(V²+D²+S²) rather than the printed
+  two-component `RMP`/`RESULT`, which excluded the side load. The never-assigned
+  `nv`/`nd`/`nns` fields were deleted from `GearReactionCase`.
+- **Examples.** All six `examples/*.project.json` regenerated with a `mass` block.
+- **Docs.** `PROGRAM_SPEC.md` (LANDLOAD Reads/Writes/Notes, WTONECG Notes, both
+  slice-table rows), `20_theory/00_theory_sources.md` (the moment and
+  inertia-factor equations, the ranking basis, the forward-limit interpolation
+  with its p230 citation; WTONECG production note), this history entry, the
+  backlog removal (item + Known-defects bullet) and the `CHANGELOG.md`
+  `[Unreleased]` entry.
+
+**Test / Acceptance.**
+- `tests/test_landing.py` +7: the p230/p236 oracles re-asserted **through**
+  `build_landing(load_project(...))` as a regression guard; closure on
+  PITCHP/ROLLP/YAWP and on NVP/NDP/NS across all three regimes; the 40-condition
+  emission with shared case ids and a uniform SF 1.5; the ULTIMATE CSV
+  (`lbs-ULT`/`lb-in-ULT` at ×1.5, NVP blank-units/blank-SF **unscaled**, and
+  `has_load_case_data is False` locking the `results_to_rows` routing);
+  the side-load ranking; the canonical-name reorder; and an `AppTest` proof that
+  with no waterline source the seed blanks the cell, Apply refuses to save and the
+  reactions never compute.
+- `tests/test_validation.py` +8: the interpolation (**76.117 in @ 3230 lb vs the
+  manual's 76.12**, anchors 72.6431 / 77.4903, clamped outside, `None` with no
+  source), each of the five hierarchy codes on its own perturbed fixture, and the
+  zero-waterline reproduction yielding `landing_negative_vertical`.
+- `tests/test_dirty_flag.py` — the landing seed expectation updated from
+  `[72.6, 72.6, 85.1]` to **`[72.6, 76.1, 85.1]`** (the intended M4-17c change,
+  cited to p230) plus a non-zero-waterline assertion.
+- **Gates:** `pytest` **517 passed** (was 501), `ruff check sloads/ cli.py` clean,
+  `scripts/smoke_test.sh` **PASS**, both `__main__` self-runners green.
+- **Acceptance met:** on the shipped GA-6 example `missing_requirements` is now
+  `[]` for Landing Loads (was `['mass']`) and `is_produced` is `True` for
+  `weight_mass`; the seed cannot emit a zero waterline; the fwd max-landing
+  station comes from the interpolated WTENV limit; the moments and factors are
+  asserted, shown and exported alongside the full 33-case matrix.
+
+**Key decisions.**
+- **Both halves of (a), not either/or** — wire `build_mass` *and* drop landing's
+  `requires`. They are independent facts: the slice genuinely had no producer, and
+  landing genuinely has no such dependency.
+- **Blank-and-block over a geometry fallback** for a missing waterline. A derived
+  CG can still be wrong quietly; the failure mode being fixed is precisely
+  "computes plausibly with no warning".
+- **`SCHEMA_VERSION` not bumped (stays 33).** The JSON *shape* is unchanged —
+  `mass` already round-tripped and is optional on read; only its presence changes.
+- **`report._LOAD_CASE_LABELS` not extended.** A LANDLOAD case is a *pair* of
+  reactions at two stations plus three unbalanced moments;
+  `load_cases_to_rows`' single-point-load schema would lose the nose reaction or
+  fabricate locations. Landing stays on `results_to_rows`, locked by a test.
+- **Moments emitted in `lb-in`, not ft-lb** — `bp`/`cp`/`tread_in` are inches and
+  `report.py` already maps `lb-in → lb-in-ULT`; converting inside the calc would
+  be a presentation change in a pure module.
+- **Examples regenerated (user decision).** Accepted deltas, verified by
+  before/after CLI diffs: `configuration` tip-back/overturn/CG-station move on
+  five examples as `cg_estimate` flips to its "Weight DB" branch (GA-6: CG
+  74.07 → 85.0 in, tip-back 33.11 → 13.49°, overturn 43.01 → 48.69°); the twin
+  turboprops' `one_engine_out` passes the mass gate and stops at the next missing
+  input (engine horsepower). No test expectations moved.
+- **No calc-math change**, so the oracle status is untouched; every value M4-17
+  delivers was already computed by the port.
+
+---
+
 ## M3-2 — Release cut: **sloads 0.3.0** (concept-loads v1), tag `v0.3.0`, 2026-07-23
 
 **Objective.** Cut the first concept-loads release per `RELEASE_PROCESS.md`,

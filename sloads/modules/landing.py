@@ -22,9 +22,17 @@ lift were assumed (``K = NAP/NLG * K0``); the lever arms ``AP/BP/DP/CP`` of
 Appendix C Fig C23.1 are formed for each attitude and CG, then the per-wheel
 vertical / drag / side reactions follow per FAR section.
 
-Reads the per-CG weight & CG from ``Project.mass`` (WTONECG) and the wing area
-from ``Project.geometry`` when not given explicitly; the gear strut geometry is
-``Project.landing``. **Tricycle gear only** (UG Table 2.1).
+Reads the three explicit per-CG loadings from ``Project.landing.cg_cases``
+(required since M2-8 -- **not** derived from ``Project.mass``, which this module
+does not read at all, so the landing workflow step requires no ``mass`` slice:
+M4-17a), the gear strut geometry from ``Project.geometry.landing_gear`` (Step G6b)
+and the wing area from ``Project.geometry`` when not given explicitly.
+**Tricycle gear only** (UG Table 2.1).
+
+``run`` emits the LGFACTOR condition, one critical-reaction summary per FAR ground
+family, **and** the full 33-case reaction matrix, so the ULTIMATE deliverable
+(CSV / Review / Export) carries every case the LIMIT analysis screen shows,
+including the unbalanced moments and the ground-line inertia factors (M4-17e).
 
 Reference: LGFACTOR.BAS (Appendix C p483), LANDLOAD.BAS (Appendix C p468); Ref 1
 Ch 20 p126-130; oracles Appendix A "Landing Load Factor" p236
@@ -52,6 +60,7 @@ from ..models import (
     Project,
 )
 from ..registry import register
+from ..validation import LANDING_CG_NAMES
 
 MODULE_NAME = "landing"
 
@@ -221,7 +230,11 @@ def landing_reactions(inp: LandingInput, lf_result: LoadFactorResult,
     """The 24 main-wheel + 33 nose-wheel ground-condition reactions (LANDLOAD.BAS).
 
     ``cgs`` is the ordered [aft-max-landing, fwd-max-landing, fwd-light] loading;
-    LANDLOAD cycles the three through each condition family."""
+    LANDLOAD cycles the three through each condition family. **The order is the
+    contract** -- the weight tables below index ``cgs`` positionally, and the
+    ``cg_name`` carried on each record is cosmetic. ``_cg_cases`` canonicalizes the
+    order by name when the three canonical names are present; ``validation``
+    warns (``landing_cg_names``) when they are not."""
     if len(cgs) != 3:
         raise ValueError("LANDLOAD needs exactly 3 CG cases (aft/fwd max landing, fwd light)")
     nlg = inp.gear_load_factor or lf_result.gear_load_factor
@@ -432,7 +445,14 @@ def _cg_cases(inp: LandingInput) -> List[CgCase]:
     stations -- the pair was degenerate and the nose-gear/braked-roll reactions were
     under-predicted. Callers must supply the three explicit stations (the WTENV
     structural fwd/aft CG limits are the intended source; see
-    ``validation.wtenv_cg_limits``)."""
+    ``validation.wtenv_cg_limits`` and, for the forward limit read *at* the landing
+    weight, ``validation.wtenv_fwd_cg_limit_at_weight``).
+
+    The three are consumed **positionally** by ``landing_reactions``, so when all
+    three canonical names are present they are reordered into the canonical order
+    here (M4-17d) -- a no-op on well-formed input, and defence in depth behind the
+    view's non-editable name column. A set with other names is passed through in row
+    order exactly as before; ``validation`` warns that it did."""
     if not inp.cg_cases:
         raise MissingInputError(
             "landing needs explicit landing.cg_cases: three distinct CG loadings "
@@ -441,7 +461,11 @@ def _cg_cases(inp: LandingInput) -> List[CgCase]:
             "mass case cannot supply distinct fwd/aft CG stations.")
     if len(inp.cg_cases) != 3:
         raise ValueError("landing.cg_cases must have exactly 3 entries")
-    return inp.cg_cases
+    names = [c.name.strip().lower() for c in inp.cg_cases]
+    if sorted(names) == sorted(LANDING_CG_NAMES):
+        by_name = dict(zip(names, inp.cg_cases))
+        return [by_name[n] for n in LANDING_CG_NAMES]
+    return list(inp.cg_cases)
 
 
 def _effective_gear_input(project: Project, inp: LandingInput) -> LandingInput:
@@ -483,11 +507,55 @@ def build_landing(project: Project) -> Tuple[LoadFactorResult, List[GearReaction
 
 
 def _critical(cases: List[GearReactionCase], far: str) -> Optional[GearReactionCase]:
-    """The case of the given FAR family with the largest resultant ground reaction."""
+    """The case of the given FAR family with the largest resultant ground reaction.
+
+    Ranked on the **full three-component** reaction magnitude -- sqrt(V^2+D^2+S^2)
+    for the main wheel and likewise for the nose -- not on the stored ``rmp``/
+    ``result``, which are the two-component sqrt(V^2+D^2) values LANDLOAD prints and
+    exclude the side load entirely. For the 23.485 side family that made the pick a
+    tie-break accident: cases 19-22 share an identical VMP, so ``max`` returned
+    whichever came first (M4-17e). Ranking only -- no stored value changes, so the
+    oracles are unaffected."""
     family = [c for c in cases if c.far_reference == far]
     if not family:
         return None
-    return max(family, key=lambda c: max(c.rmp, c.result))
+
+    def magnitude(c: GearReactionCase) -> float:
+        return max((_sq(c.vmp) + _sq(c.dmp) + _sq(c.smp)) ** 0.5,
+                   (_sq(c.vnp) + _sq(c.dnp) + _sq(c.snp)) ** 0.5)
+
+    return max(family, key=magnitude)
+
+
+def _case_values(c: GearReactionCase) -> List[LoadValue]:
+    """The per-case LoadValues for one LANDLOAD ground condition (M4-17e).
+
+    Forces (``lb``) and moments (``lb-in``) are load quantities: ``report.py`` marks
+    them ``lbs-ULT`` / ``lb-in-ULT`` and scales them by the case ``safety_factor``.
+    The ground-line inertia factors NVP/NDP/NS are **dimensionless** (units ``""``)
+    -- they are load *factors*, so per the CLAUDE.md ultimate-load rules they take no
+    ``-ULT`` marker, are never scaled, and render with a blank SF column.
+
+    Cases 25-33 are the 23.499 supplementary-nose family: they have no main-wheel
+    reaction, no unbalanced moment and no inertia factor (all structurally zero in
+    ``landing_reactions``), so those rows are omitted rather than emitted as zeros.
+    """
+    nose = [LoadValue("Vertical nose", c.vnp, "lb"),
+            LoadValue("Drag nose", c.dnp, "lb"),
+            LoadValue("Side nose", c.snp, "lb"),
+            LoadValue("Resultant nose", c.result, "lb")]
+    if c.case > 24:
+        return nose
+    return [LoadValue("Vertical main per wheel", c.vmp, "lb"),
+            LoadValue("Drag main per wheel", c.dmp, "lb"),
+            LoadValue("Side main per wheel", c.smp, "lb"),
+            LoadValue("Resultant main per wheel", c.rmp, "lb")] + nose + [
+            LoadValue("Unbalanced pitching moment", c.pitchp, "lb-in"),
+            LoadValue("Unbalanced rolling moment", c.rollp, "lb-in"),
+            LoadValue("Unbalanced yawing moment", c.yawp, "lb-in"),
+            LoadValue("Vertical inertia factor NVP", c.nvp, ""),
+            LoadValue("Drag inertia factor NDP", c.ndp, ""),
+            LoadValue("Side inertia factor NS", c.ns, "")]
 
 
 def run(project: Project) -> ModuleResult:
@@ -540,6 +608,19 @@ def run(project: Project) -> ModuleResult:
                 LoadValue("Side nose", c.snp, "lb"),
                 LoadValue("Resultant nose", c.result, "lb"),
             ],
+            case_ref=c.case_ref,
+        ))
+    # The full 33-case matrix (M4-17e), so the ULTIMATE deliverable (CSV / Results
+    # Review / Export) is no longer thinner than the LIMIT analysis screen, and the
+    # unbalanced moments + ground-line inertia factors -- a third of the original
+    # LANDLOAD printout, and the gear-attachment inputs M4-6 needs -- actually ship.
+    # Each row reuses its own CaseRef, so a summary condition and its matrix row
+    # share a case id: they are the same physical case.
+    for c in reactions:
+        conditions.append(ConditionResult(
+            title=f"{c.description} — case {c.case} ({c.cg_name})",
+            far_reference=c.far_reference,
+            values=_case_values(c),
             case_ref=c.case_ref,
         ))
     return ModuleResult(module=MODULE_NAME, conditions=conditions)

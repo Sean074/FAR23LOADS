@@ -7,6 +7,8 @@ downstream). Four tabs, each a formerly-separate page:
 
 * **Estimate** -- WTESTIMA statistical empty-weight / MTOW sanity figure.
 * **Weight, CG & Inertia** -- WTONECG itemised mass data base → weight/CG/inertia.
+  Apply persists the derived ``Project.mass`` slice (M4-17a), the single source of
+  IZZ for ONENGOUT, of the "Weight DB" CG estimate, and of the landing waterline.
 * **Payload Cases** -- the shared named (weight, CG) loading scenarios
   (``Project.weight.cg_cases``) used by the CG envelope and the FLTLOADS balance.
 * **Weight / CG Envelope** -- WTENV structural CG limits, loadings and ballast.
@@ -31,6 +33,7 @@ from sloads import (
     EngineWeightType,
     MassItem,
     MassItemKind,
+    MissingInputError,
     Project,
     UnitSystem,
     WeightEnvelopeInput,
@@ -45,7 +48,7 @@ from sloads import (
 from sloads import io as sloads_io
 from sloads.modules.weight_envelope import envelope as compute_envelope, loading_envelope_points
 from sloads.modules.weight_estimate import estimate, estimate_to_mass_items
-from sloads.modules.weight_onecg import weights_and_inertia
+from sloads.modules.weight_onecg import build_mass, weights_and_inertia
 from sloads.report import module_text_report
 from sloads.validation import wtenv_cg_limits
 
@@ -320,6 +323,15 @@ def _tab_cg_inertia(project: Project, system: UnitSystem, U: dict) -> None:
         cg_cases = project.weight.cg_cases if project.weight else []
         project.weight = WeightInput(estimation=estimation, items=mass_items,
                                      envelope=envelope, cg_cases=cg_cases)
+        # M4-17a: persist the derived mass-properties slice, so the weight_mass step's
+        # produces="mass" finally turns ✅ and the downstream consumers have a real
+        # source -- ONENGOUT's IZZ, configuration.cg_estimate's "Weight DB" branch and
+        # the Landing Loads waterline seed. build_mass raises on an empty/degenerate
+        # item list; leave any prior slice untouched in that case.
+        try:
+            project.mass = build_mass(project)
+        except (MissingInputError, ValueError, ZeroDivisionError, KeyError) as exc:
+            st.warning(f"Weight items applied, but the mass slice could not be built: {exc}")
         st.session_state["project"] = project
 
     if not project.weight or not project.weight.items:

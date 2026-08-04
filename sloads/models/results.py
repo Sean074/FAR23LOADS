@@ -420,18 +420,18 @@ class GearReactionCase:
     dnp: float = 0.0    # drag nose
     snp: float = 0.0    # side nose
     result: float = 0.0  # resultant nose = sqrt(vnp^2 + dnp^2)
-    # Airplane-datum reactions
+    # Airplane-datum reactions (resolved through PHIM/PHIN; not yet surfaced in a
+    # deliverable -- they are the natural input to the M4-6 ground-case fuselage
+    # distribution, which needs the reactions in the airplane's own axes).
     vm: float = 0.0
     dm: float = 0.0
     vn: float = 0.0
     dn: float = 0.0
-    # Inertia factors (ground line / airplane datum)
+    # Inertia factors (ground line), dimensionless -- load *factors*, so they are
+    # never scaled to ultimate (M4-17e).
     nvp: float = 0.0
     ndp: float = 0.0
     ns: float = 0.0
-    nv: float = 0.0
-    nd: float = 0.0
-    nns: float = 0.0
     # Unbalanced moments about the airplane CG (ground line)
     pitchp: float = 0.0
     rollp: float = 0.0

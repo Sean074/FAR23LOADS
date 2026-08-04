@@ -269,6 +269,215 @@ def test_landing_473g_floor_not_warned_in_far23():
     assert "23.473(g)" not in mod.conditions[0].note
 
 
+# --------------------------------------------------------------------------- #
+# M4-17 -- oracle regression guard, the undelivered outputs, ranking and ordering
+# --------------------------------------------------------------------------- #
+def test_appendix_a_oracles_unchanged_through_the_project_pipeline():
+    """Regression guard for M4-17: the p230/p236 oracles re-asserted *through*
+    ``build_landing(load_project(...))``, so a seed / ordering / emission change that
+    leaked into the math fails here and not only in the low-level helpers."""
+    p = io.load_project(_GA)
+    lf, rx = build_landing(p)
+    # p236 LGFACTOR.
+    assert math.isclose(lf.sink_rate_fps, 9.004822, rel_tol=REL), lf.sink_rate_fps
+    assert math.isclose(lf.airplane_load_factor, 3.095102, rel_tol=2e-3), lf
+    assert math.isclose(lf.gear_load_factor, 2.428102, rel_tol=2e-3), lf
+    # p230 legible wheel-load cells (the reaction table the seed feeds).
+    by_case = {c.case: c for c in rx}
+    assert math.isclose(by_case[1].vmp, 3144, rel_tol=3e-3), by_case[1].vmp
+    assert math.isclose(by_case[1].vnp, 1787, rel_tol=3e-3), by_case[1].vnp
+    assert math.isclose(by_case[19].smp, -1700, rel_tol=3e-3), by_case[19].smp
+
+
+def test_unbalanced_moments_closure():
+    """Closure on PITCHP/ROLLP/YAWP (LANDLOAD.BAS 1910-2090) -- computed since the
+    original port but delivered nowhere and asserted nowhere until M4-17e."""
+    inp = _ga_landing()
+    lf = landing_load_factor(184.125, 3230, 7, 19, 7, 0.667, True)
+    g = _geometry(inp, inp.gear_load_factor, inp.cg_cases)
+    rx = {c.case: c for c in landing_reactions(inp, lf, inp.cg_cases)}
+    wr = inp.gross_weight_lb / inp.max_landing_weight_lb
+    # 2-wheel level (4) and tail-down (7): -2 * RMP * BP for the attitude/CG pair.
+    assert math.isclose(rx[4].pitchp, -2 * rx[4].rmp * g.bp[0][0], rel_tol=1e-9)
+    assert math.isclose(rx[7].pitchp, -2 * rx[7].rmp * g.bp[2][0], rel_tol=1e-9)
+    # One-wheel (10): a single wheel, so -1 * RMP * BP, plus roll/yaw about the tread.
+    assert math.isclose(rx[10].pitchp, -1 * rx[10].rmp * g.bp[0][0], rel_tol=1e-9)
+    assert math.isclose(rx[10].rollp, rx[10].vmp * inp.tread_in / 2, rel_tol=1e-9)
+    assert math.isclose(rx[10].yawp, -rx[10].dmp * inp.tread_in / 2, rel_tol=1e-9)
+    # Braked roll nose clear (16): the drag reaction acts at the CP vertical offset.
+    assert math.isclose(rx[16].pitchp,
+                        -2 * (rx[16].vmp * g.bp[1][0] + rx[16].dmp * g.cp[1][0]), rel_tol=1e-9)
+    # Side load (19/20): pitch from the vertical only; roll/yaw are the 0.83 W couple,
+    # signed by the drift direction (odd case = left drift).
+    w19 = inp.cg_cases[0].weight_lb * wr
+    assert math.isclose(rx[19].pitchp, -2 * rx[19].vmp * g.bp[1][0], rel_tol=1e-9)
+    assert math.isclose(rx[19].rollp, -0.83 * w19 * g.cp[1][0], rel_tol=1e-9)
+    assert math.isclose(rx[20].rollp, +0.83 * w19 * g.cp[1][0], rel_tol=1e-9)
+    assert math.isclose(rx[19].yawp, -0.83 * w19 * g.bp[1][0], rel_tol=1e-9)
+    # 3-wheel level (1-3) is balanced, and the supplementary-nose family has no moment.
+    assert rx[1].pitchp == rx[1].rollp == rx[1].yawp == 0.0
+    for m in range(25, 34):
+        assert rx[m].pitchp == rx[m].rollp == rx[m].yawp == 0.0, m
+
+
+def test_ground_line_inertia_factors_closure():
+    """Closure on NVP/NDP/NS (LANDLOAD.BAS 1910-2000): the three lift/wheel regimes."""
+    inp = _ga_landing()
+    lf = landing_load_factor(184.125, 3230, 7, 19, 7, 0.667, True)
+    rx = {c.case: c for c in landing_reactions(inp, lf, inp.cg_cases)}
+    lift, wr = inp.lift_factor, inp.gross_weight_lb / inp.max_landing_weight_lb
+    w1 = inp.cg_cases[0].weight_lb
+    # Cases 1-9: both mains + the nose, with the wing lift carried.
+    assert math.isclose(rx[1].nvp, (2 * rx[1].vmp + rx[1].vnp + lift * w1) / w1, rel_tol=1e-9)
+    assert math.isclose(rx[1].ndp, (2 * rx[1].dmp + rx[1].dnp) / w1, rel_tol=1e-9)
+    # Cases 10-12 (one wheel): a single main reaction.
+    assert math.isclose(rx[10].nvp, (rx[10].vmp + lift * w1) / w1, rel_tol=1e-9)
+    assert math.isclose(rx[10].ndp, (rx[10].dmp + rx[10].dnp) / w1, rel_tol=1e-9)
+    # Cases 13-24: braked roll / side load carry no lift term.
+    w13 = w1 * wr
+    assert math.isclose(rx[13].nvp, (2 * rx[13].vmp + rx[13].vnp) / w13, rel_tol=1e-9)
+    # NS is the side-load pair difference over the case weight, and zero elsewhere.
+    assert math.isclose(rx[19].ns, (rx[19].smp - rx[20].smp) / w13, rel_tol=1e-9)
+    assert math.isclose(rx[20].ns, (rx[20].smp - rx[19].smp) / w13, rel_tol=1e-9)
+    assert rx[1].ns == 0.0 and rx[13].ns == 0.0
+    for m in range(25, 34):
+        assert rx[m].nvp == rx[m].ndp == rx[m].ns == 0.0, m
+
+
+def test_run_emits_full_case_matrix():
+    """M4-17e: run() carries the 33-case matrix alongside the 7 summary conditions,
+    so the ULTIMATE deliverable is not thinner than the LIMIT analysis screen."""
+    p = io.load_project(_GA)
+    mod = run(p)
+    _, rx = build_landing(p)
+    assert len(mod.conditions) == 1 + 6 + 33, len(mod.conditions)
+    matrix = [c for c in mod.conditions if " — case " in c.title]
+    assert len(matrix) == 33
+    # A summary condition and its matrix row are the same physical case -> same id.
+    assert ({c.case_ref.case_id for c in matrix}
+            == {c.case_ref.case_id for c in rx})
+    labels = {v.label for v in matrix[0].values}
+    for expected in ("Unbalanced pitching moment", "Unbalanced rolling moment",
+                     "Unbalanced yawing moment", "Vertical inertia factor NVP",
+                     "Drag inertia factor NDP", "Side inertia factor NS"):
+        assert expected in labels, expected
+    # Cases 25-33 are nose-only (no main reaction, moment or inertia factor).
+    nose_only = [c for c in matrix if c.title.startswith("supplementary")]
+    assert len(nose_only) == 9
+    assert {v.label for v in nose_only[0].values} == {
+        "Vertical nose", "Drag nose", "Side nose", "Resultant nose"}
+    # One uniform factor across the module (14 CFR 23.303).
+    assert {c.safety_factor for c in mod.conditions} == {1.5}
+
+
+def test_landing_csv_is_ultimate_and_carries_moments_and_factors():
+    """The CSV reports every case ULTIMATE: forces lbs-ULT and moments lb-in-ULT at
+    SF 1.5, while the dimensionless inertia factors pass through **unscaled** with
+    blank units and a blank SF (they are load factors -- CLAUDE.md ultimate rules)."""
+    import csv as _csv
+
+    from sloads.report import has_load_case_data
+
+    p = io.load_project(_GA)
+    mod = run(p)
+    _, rx = build_landing(p)
+    by_case = {c.case: c for c in rx}
+    # Landing is a per-quantity table, not the single-point-load schema, so it routes
+    # through results_to_rows -- report._LOAD_CASE_LABELS is deliberately not extended.
+    assert has_load_case_data(mod.conditions) is False
+    rows = list(_csv.DictReader(io.load_cases_csv(mod).splitlines()))
+    matrix = [r for r in rows if " — case 16 " in r["Condition"]]
+    quantities = {r["Quantity"]: r for r in matrix}
+    force = quantities["Vertical main per wheel"]
+    assert force["Units"] == "lbs-ULT" and force["SF"] == "1.5"
+    assert math.isclose(float(force["Value"]), by_case[16].vmp * 1.5, rel_tol=1e-3)
+    moment = quantities["Unbalanced pitching moment"]
+    assert moment["Units"] == "lb-in-ULT" and moment["SF"] == "1.5"
+    assert math.isclose(float(moment["Value"]), by_case[16].pitchp * 1.5, rel_tol=1e-3)
+    factor = quantities["Vertical inertia factor NVP"]
+    assert factor["Units"] == "" and factor["SF"] == "", factor
+    assert math.isclose(float(factor["Value"]), by_case[16].nvp, rel_tol=1e-3)
+
+
+def test_critical_ranking_includes_side_load():
+    """M4-17e: _critical ranks on the full sqrt(V^2+D^2+S^2), not the printed
+    two-component RMP/RESULT. Numerically inert on the bundled examples (the picks are
+    unchanged) -- the point is that the 23.485 pick is no longer a tie-break accident."""
+    from dataclasses import replace as _replace
+
+    from sloads.modules.landing import _critical
+
+    inp = _ga_landing()
+    lf = landing_load_factor(184.125, 3230, 7, 19, 7, 0.667, True)
+    rx = landing_reactions(inp, lf, inp.cg_cases)
+    for far, case in (("23.479(a)", 4), ("23.481", 7), ("23.483", 10),
+                      ("23.485", 19), ("23.493", 16), ("23.499", 28)):
+        assert _critical(rx, far).case == case, (far, _critical(rx, far).case)
+    # With an inflated side load on case 22 the pick must follow it; the old
+    # max(rmp, result) ranking could not see SMP at all.
+    boosted = [_replace(c, smp=c.smp * 10) if c.case == 22 else c for c in rx]
+    assert _critical(boosted, "23.485").case == 22
+
+
+def test_cg_cases_reordered_by_canonical_name():
+    """M4-17d: the three canonical loadings are consumed positionally, so a shuffled
+    (but canonically named) set is reordered by the calc and gives identical
+    reactions; a non-canonical set stays in row order exactly as before."""
+    inp = _ga_landing()
+    shuffled = replace(inp, cg_cases=[inp.cg_cases[2], inp.cg_cases[0], inp.cg_cases[1]])
+    ordered = build_landing(Project(landing=inp))[1]
+    reordered = build_landing(Project(landing=shuffled))[1]
+    assert [c.vmp for c in reordered] == [c.vmp for c in ordered]
+    assert [c.cg_name for c in reordered] == [c.cg_name for c in ordered]
+    # Non-canonical names: positional, so the shuffle *does* change the answer.
+    renamed = replace(inp, cg_cases=[replace(c, name=f"loading {i}")
+                                     for i, c in enumerate(shuffled.cg_cases)])
+    assert [c.vmp for c in build_landing(Project(landing=renamed))[1]] != [c.vmp for c in ordered]
+
+
+def test_seed_never_emits_a_zero_waterline():
+    """M4-17c: with no waterline source the Landing Loads seed leaves the cell blank
+    and the page **refuses to compute** -- it no longer defaults zcg to 0.0 and
+    silently produces nonphysical reactions.
+
+    Driven through ``AppTest`` (the view is a page script, not an importable module;
+    same precedent as tests/test_dirty_flag.py). The paired positive case -- a real
+    waterline and the interpolated forward station -- is
+    ``test_dirty_flag.test_landing_cg_editor_seeds_and_persists_on_apply``.
+    """
+    try:   # the zero-dependency __main__ runner has neither pytest nor streamlit
+        from streamlit.testing.v1 import AppTest
+    except ImportError:  # pragma: no cover - exercised only by the fallback runner
+        print("SKIP test_seed_never_emits_a_zero_waterline (no streamlit)")
+        return
+
+    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    # conftest.py does this under pytest; repeat it so the __main__ runner can resolve
+    # the view's shared ``components`` import too.
+    if os.path.join(root, "app") not in sys.path:
+        sys.path.insert(0, os.path.join(root, "app"))
+    view = os.path.join(root, "app", "views", "landing_loads.py")
+    p = io.load_project(_GA)
+    p.landing.cg_cases = []   # force a fresh seed
+    p.mass = None             # ...with no waterline source
+
+    at = AppTest.from_file(view, default_timeout=60)
+    at.session_state["project"] = p
+    at.run()
+    assert not at.exception, [e.message for e in at.exception]
+    # The missing source is named, not silently defaulted.
+    warnings = " ".join(w.value for w in at.warning)
+    assert "Zcg waterline" in warnings and "Project.mass" in warnings, warnings
+    # Apply cannot persist an incomplete row, and the reactions never compute.
+    apply_buttons = [b for b in at.button if "Apply" in (b.label or "")]
+    assert apply_buttons, "no Apply button rendered"
+    apply_buttons[0].set_value(True).run()
+    assert at.session_state["project"].landing.cg_cases == [], "saved a blank waterline"
+    assert any("not saved" in e.value for e in at.error), [e.value for e in at.error]
+    assert not any("Gear reaction loads" in s.value for s in at.subheader), \
+        "reactions computed without a waterline"
+
+
 if __name__ == "__main__":
     import traceback
 

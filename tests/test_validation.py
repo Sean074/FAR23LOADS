@@ -180,6 +180,118 @@ def test_safety_factor_valid_predicate():
         assert not safety_factor_valid(v), v
 
 
+# --------------------------------------------------------------------------- #
+# M4-17c -- the WTENV forward CG limit read *at* a weight
+# --------------------------------------------------------------------------- #
+def test_wtenv_fwd_cg_limit_at_weight():
+    """The forward structural CG limit interpolated at a weight (Appendix A p230).
+
+    WTENV's forward limit is a two-point line: 72.643 in at the 2800 lb
+    fwd-regardless weight and 77.490 in at the 3400 lb gross weight. The manual
+    reads it **at the landing weight** -- 76.12 in at 3230 lb -- where
+    ``wtenv_cg_limits`` returns the weight-agnostic hull (72.643 in), which pairing
+    with the max landing weight was the M4-17c seed defect.
+    """
+    import math
+
+    from sloads.validation import wtenv_cg_limits, wtenv_fwd_cg_limit_at_weight
+
+    project = sloads_io.load_project(_GA)
+    hull = wtenv_cg_limits(project)
+    assert math.isclose(hull[0], 72.6431, rel_tol=1e-3), hull
+    # The anchors, then the manual's printed landing-weight value (p230).
+    assert math.isclose(wtenv_fwd_cg_limit_at_weight(project, 2800), 72.6431, rel_tol=1e-3)
+    assert math.isclose(wtenv_fwd_cg_limit_at_weight(project, 3400), 77.4903, rel_tol=1e-3)
+    assert math.isclose(wtenv_fwd_cg_limit_at_weight(project, 3230), 76.12, rel_tol=1e-3), \
+        wtenv_fwd_cg_limit_at_weight(project, 3230)
+    # Clamped, never extrapolated, outside the two anchor weights.
+    assert math.isclose(wtenv_fwd_cg_limit_at_weight(project, 100), 72.6431, rel_tol=1e-3)
+    assert math.isclose(wtenv_fwd_cg_limit_at_weight(project, 99999), 77.4903, rel_tol=1e-3)
+    # No source -> None, so the caller blanks the cell rather than fabricating one.
+    assert wtenv_fwd_cg_limit_at_weight(project, 0) is None
+    assert wtenv_fwd_cg_limit_at_weight(Project(name="empty"), 3230) is None
+
+
+# --------------------------------------------------------------------------- #
+# M4-17d -- landing weight/CG hierarchy + post-compute reaction sanity
+# --------------------------------------------------------------------------- #
+def _ga_with_landing(**changes):
+    from dataclasses import replace
+
+    project = sloads_io.load_project(_GA)
+    project.landing = replace(project.landing, **changes)
+    return project
+
+
+def test_landing_hierarchy_silent_on_ga_fixture():
+    """Covered by test_ga_fixture_is_clean too; asserted here against the page tag."""
+    assert _codes(sloads_io.load_project(_GA), page="landing_loads") == set()
+
+
+def test_landing_gross_below_max_landing_fires():
+    """GW < W deflates WR = GW/W below 1, under-predicting the braked-roll, side and
+    supplementary-nose cases while the numbers still look plausible."""
+    project = _ga_with_landing(gross_weight_lb=3000.0)   # below the 3230 lb landing weight
+    assert "gross_ge_max_landing" in _codes(project, page="landing_loads")
+
+
+def test_landing_light_case_over_max_landing_fires():
+    from dataclasses import replace
+
+    project = sloads_io.load_project(_GA)
+    cases = list(project.landing.cg_cases)
+    cases[2] = replace(cases[2], weight_lb=4000.0)       # light corner heavier than W
+    project.landing.cg_cases = cases
+    assert "landing_light_le_max" in _codes(project, page="landing_loads")
+
+
+def test_landing_cg_ordering_fires_on_fwd_aft_swap():
+    from dataclasses import replace
+
+    project = sloads_io.load_project(_GA)
+    aft, fwd, light = project.landing.cg_cases
+    project.landing.cg_cases = [replace(aft, xcg=fwd.xcg), replace(fwd, xcg=aft.xcg), light]
+    assert "landing_cg_ordering" in _codes(project, page="landing_loads")
+
+
+def test_landing_cg_below_axle_fires_on_zero_waterline():
+    """The M4-17c signature: a zero waterline puts the CG below the 59.6 in static
+    main-axle waterline, which is geometrically impossible for a tricycle airplane."""
+    from dataclasses import replace
+
+    project = sloads_io.load_project(_GA)
+    project.landing.cg_cases = [replace(c, zcg=0.0) for c in project.landing.cg_cases]
+    assert "landing_cg_below_axle" in _codes(project, page="landing_loads")
+
+
+def test_landing_cg_names_fires_on_non_canonical_names():
+    from dataclasses import replace
+
+    project = sloads_io.load_project(_GA)
+    project.landing.cg_cases = [replace(c, name=f"case {i}")
+                                for i, c in enumerate(project.landing.cg_cases)]
+    assert "landing_cg_names" in _codes(project, page="landing_loads")
+
+
+def test_landing_reaction_warnings_flag_the_zero_waterline_reactions():
+    """Post-compute proof of the M4-17c defect: with zcg = 0 the GA-6 nose reactions
+    go negative (-233..-2887 lb), which the old seed produced silently."""
+    from dataclasses import replace
+
+    from sloads.modules.landing import build_landing
+    from sloads.validation import landing_reaction_warnings
+
+    project = sloads_io.load_project(_GA)
+    _, good = build_landing(project)
+    assert landing_reaction_warnings(good) == []
+
+    project.landing.cg_cases = [replace(c, zcg=0.0) for c in project.landing.cg_cases]
+    _, bad = build_landing(project)
+    codes = {w.code for w in landing_reaction_warnings(bad)}
+    assert "landing_negative_vertical" in codes, codes
+    assert any(c.vnp < 0 for c in bad), "expected the nonphysical negative nose reactions"
+
+
 if __name__ == "__main__":
     import traceback
     tests = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]

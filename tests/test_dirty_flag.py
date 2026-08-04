@@ -126,11 +126,18 @@ def test_landing_cg_editor_seeds_and_persists_on_apply():
     _apply_buttons(at)[0].set_value(True).run()
     cases = at.session_state["project"].landing.cg_cases
     assert len(cases) == 3, "Apply did not persist the 3 seeded CG cases"
-    # WTENV seed: aft-most / fwd-most structural CG stations (72.64 / 85.11 for GA6).
+    # WTENV seed (M4-17c): the aft station is the aft-gross limit (85.11), and each
+    # forward station is the forward limit interpolated **at that row's weight** --
+    # 76.12 in at the 3230 lb max landing weight (Appendix A p230; between 72.643 in
+    # @ 2800 lb and 77.490 in @ 3400 lb) and 72.64 in at the 2800 lb light weight.
+    # It was previously 72.6 for both forward rows (the weight-agnostic hull).
     xcgs = sorted(round(c.xcg, 1) for c in cases)
-    assert xcgs == [72.6, 72.6, 85.1], xcgs
+    assert xcgs == [72.6, 76.1, 85.1], xcgs
     # Weights: two max-landing rows at max_landing_weight, the light row at fwd-regardless.
     assert sorted(c.weight_lb for c in cases) == [2800.0, 3230.0, 3230.0]
+    # The waterline comes from the WTONECG mass slice the example now carries (M4-17a);
+    # it is never zero-filled (M4-17c).
+    assert all(c.zcg > 0 for c in cases), [c.zcg for c in cases]
 
 
 def test_select_inputs_persist_only_on_apply():

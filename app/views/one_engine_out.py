@@ -37,8 +37,9 @@ if project.vtail_loads is None:
          "Critical Loads tab) first.", "flight_envelope")
     st.stop()
 if project.mass is None or not project.mass.cases:
-    gate("Run **Weight, CG & Inertia** (WTONECG, on the Weight & Mass Properties page) "
-         "first — ONENGOUT needs IZZ.", "weight_mass")
+    gate("Fill the itemised mass data base on the **Weight & Mass Properties** page "
+         "(Weight, CG & Inertia tab) and press **Apply weight items** — that persists "
+         "the mass slice ONENGOUT reads IZZ from.", "weight_mass")
     st.stop()
 
 inp = project.one_engine_out or OneEngineOutInput()
