@@ -15,7 +15,9 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from sloads import Project, io  # noqa: E402
+from sloads.constants import DEFAULT_FRONT_SPAR_PCT, DEFAULT_REAR_SPAR_PCT  # noqa: E402
 from sloads.derived_geometry import (  # noqa: E402
+    carry_through,
     fuselage_summary,
     sync_geometry_derived,
     wing_reference,
@@ -25,7 +27,9 @@ from sloads.models import (  # noqa: E402
     FlightLoadsInput,
     FuselageOutline,
     FuselageSection,
+    GeometryInput,
     LandingInput,
+    SurfaceInput,
     WeightEstimationInput,
     WeightInput,
     WingMassInput,
@@ -99,6 +103,76 @@ def test_fuselage_summary_derives_from_outline():
     assert fuselage_summary(outline) == (300.0, 48.0, 52.0)
     assert fuselage_summary(None) is None
     assert fuselage_summary(FuselageOutline(sections=[])) is None
+
+
+# --------------------------------------------------------------------------- #
+# Wing carry-through (Ref 1 Ch 15 p103 fuselage moment closure, M4-1)
+# --------------------------------------------------------------------------- #
+def _wing_project(front=None, rear=None, *, root_le=45.0, root_te=146.0):
+    """A minimal project whose wing root chord runs ``root_le`` -> ``root_te``."""
+    wing = SurfaceInput(name="wing",
+                        leading_edge=[(root_le, 0.0), (root_le + 20.0, 100.0)],
+                        trailing_edge=[(root_te, 0.0), (root_te + 5.0, 100.0)],
+                        front_spar_pct=front, rear_spar_pct=rear)
+    return Project(name="ct", geometry=GeometryInput(surfaces=[wing]))
+
+
+def test_carry_through_from_entered_spar_fractions():
+    """x = x_LE(root) + pct * c_root, off the inboard-most polyline points."""
+    ct = carry_through(_wing_project(0.20, 0.60))          # c_root = 101 in
+    assert ct is not None and not ct.assumed
+    assert math.isclose(ct.x_f, 45.0 + 0.20 * 101.0)       # 65.2
+    assert math.isclose(ct.x_r, 45.0 + 0.60 * 101.0)       # 105.6
+    assert math.isclose(ct.d, ct.x_r - ct.x_f)
+    assert (ct.front_pct, ct.rear_pct) == (0.20, 0.60)
+
+
+def test_carry_through_defaults_are_flagged_assumed():
+    """Unset fractions take the module defaults and flag the result -- an assumed
+    spar location must never be reported as entered input (M4-1 decision 2)."""
+    ct = carry_through(_wing_project())
+    assert ct is not None and ct.assumed
+    assert (ct.front_pct, ct.rear_pct) == (DEFAULT_FRONT_SPAR_PCT, DEFAULT_REAR_SPAR_PCT)
+    assert math.isclose(ct.x_f, 45.0 + DEFAULT_FRONT_SPAR_PCT * 101.0)
+    # One entered, one absent is still 'assumed' -- the pair is only as good as
+    # its weaker half.
+    assert carry_through(_wing_project(front=0.18)).assumed
+    assert carry_through(_wing_project(rear=0.62)).assumed
+
+
+def test_carry_through_none_when_underivable():
+    """No geometry / no wing / degenerate root chord / inverted spars -> None, so
+    body_loads takes its flagged whole-body fallback rather than a bogus x_f/x_r."""
+    assert carry_through(Project(name="bare")) is None
+    assert carry_through(_wing_project(), "no_such_surface") is None
+    assert carry_through(_wing_project(root_te=45.0)) is None        # c_root = 0
+    assert carry_through(_wing_project(root_te=20.0)) is None        # c_root < 0
+    assert carry_through(_wing_project(0.60, 0.20)) is None          # x_r <= x_f
+    empty = Project(name="e", geometry=GeometryInput(
+        surfaces=[SurfaceInput(name="wing", leading_edge=[], trailing_edge=[])]))
+    assert carry_through(empty) is None
+
+
+def test_carry_through_on_ga6_example():
+    """The shipped Appendix A wing resolves on the primary path (assumed spars)."""
+    ct = carry_through(io.load_project(_GA))
+    assert ct is not None and ct.assumed and ct.d > 0.0
+
+
+def test_spar_fractions_round_trip_and_default_to_none():
+    """A saved project keeps 'not entered' distinct from an entered number, and an
+    older file (no keys) loads as None -- the lenient v34 -> v35 migration."""
+    p = _wing_project(0.18, 0.62)
+    d = io.project_to_dict(p)
+    surf = d["geometry"]["surfaces"][0]
+    assert (surf["front_spar_pct"], surf["rear_spar_pct"]) == (0.18, 0.62)
+    back = io.project_from_dict(d).geometry.by_name("wing")
+    assert (back.front_spar_pct, back.rear_spar_pct) == (0.18, 0.62)
+    # v34 file: the keys are absent entirely.
+    del surf["front_spar_pct"], surf["rear_spar_pct"]
+    legacy = io.project_from_dict(d).geometry.by_name("wing")
+    assert legacy.front_spar_pct is None and legacy.rear_spar_pct is None
+    assert carry_through(io.project_from_dict(d)).assumed
 
 
 def _project_with_engines(hps, *, estimate_total, override):

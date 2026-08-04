@@ -252,6 +252,15 @@ class SurfaceInput:
     oracle-locked); the cumulative torsion is *transferred* to this axis at the
     render/export boundary (``net_loads.to_loads_ref_axis``). The default 0.25
     reduces exactly to the original quarter-chord reporting.
+
+    ``front_spar_pct``/``rear_spar_pct`` are the surface's front and rear spar
+    stations as fractions of the local chord. For the wing they locate the
+    **carry-through** the fuselage's unbalanced moment is reacted over (Ref 1
+    Ch 15 p103; :func:`sloads.derived_geometry.carry_through`, backlog M4-1).
+    ``None`` means "not entered": the resolver then assumes
+    :data:`~sloads.constants.DEFAULT_FRONT_SPAR_PCT` /
+    :data:`~sloads.constants.DEFAULT_REAR_SPAR_PCT` and marks the result
+    ``assumed``, so an assumed spar location is never reported as input.
     """
     name: str
     leading_edge: List[XYPoint]
@@ -259,6 +268,8 @@ class SurfaceInput:
     symmetric: bool = True
     elements: int = 20
     ref_axis_pct: float = 0.25
+    front_spar_pct: Optional[float] = None   # fraction of chord; None -> assumed default
+    rear_spar_pct: Optional[float] = None    # fraction of chord; None -> assumed default
 
 
 @dataclass

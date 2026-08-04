@@ -157,7 +157,14 @@ from .results import EnvelopeResult, LoadsResult, MassResult
 # (net_loads.to_loads_ref_axis). Migration is lenient: an older file lacks both
 # keys and takes the defaults (0.25 / "25% chord"), reproducing the original
 # quarter-chord reporting bit-for-bit.
-SCHEMA_VERSION = 34
+# v35 (Step M4-1) adds SurfaceInput.front_spar_pct / .rear_spar_pct -- the
+# front/rear spar chord fractions that locate the wing carry-through the Ch 15
+# fuselage moment closure reacts the unbalanced moment over (Ref 1 p103).
+# Migration is lenient: an older file lacks both keys and they stay None, which
+# means "not entered" -- derived_geometry.carry_through then substitutes
+# constants.DEFAULT_FRONT_SPAR_PCT / _REAR_SPAR_PCT and marks the result
+# ``assumed`` so the deliverable states the spar stations were assumed.
+SCHEMA_VERSION = 35
 
 
 @dataclass

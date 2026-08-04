@@ -24,8 +24,66 @@ from __future__ import annotations
 import math
 from typing import NamedTuple, Optional
 
-from .constants import IN2_PER_FT2
+from .constants import DEFAULT_FRONT_SPAR_PCT, DEFAULT_REAR_SPAR_PCT, IN2_PER_FT2
 from .models import Project
+
+
+class CarryThrough(NamedTuple):
+    """The wing carry-through the fuselage moment is reacted over (M4-1).
+
+    ``x_f``/``x_r`` are the front and rear spar fuselage stations (in) at the
+    surface root, ``d = x_r - x_f`` the carry-through length. ``front_pct``/
+    ``rear_pct`` are the chord fractions they came from and ``assumed`` is True
+    when either fraction was not entered and
+    :data:`~sloads.constants.DEFAULT_FRONT_SPAR_PCT` /
+    :data:`~sloads.constants.DEFAULT_REAR_SPAR_PCT` were substituted -- the
+    provenance flag every deliverable states, so an assumed spar location is
+    never reported as input."""
+    surface_name: str
+    x_f: float
+    x_r: float
+    d: float
+    front_pct: float
+    rear_pct: float
+    assumed: bool
+
+
+def carry_through(project: Project, surface_name: str = "wing") -> Optional[CarryThrough]:
+    """The front/rear spar stations at the surface root, or ``None`` when absent.
+
+    The spar stations are the chord fractions ``SurfaceInput.front_spar_pct``/
+    ``.rear_spar_pct`` applied to the **root chord** -- the inboard-most point of
+    the surface's edge polylines, which is the chord the carry-through structure
+    actually spans::
+
+        x_f = x_LE(root) + front_pct * c_root
+        x_r = x_LE(root) + rear_pct  * c_root
+
+    This is the support region ``body_loads`` reacts the Ch 15 unbalanced moment
+    over (Ref 1 p103, backlog M4-1). Returns ``None`` when there is no geometry
+    slice, no matching surface, or the root chord is degenerate (empty polylines
+    or ``c_root <= 0``) -- ``body_loads`` then falls back to its flagged
+    whole-body closure artifact. An unset fraction is filled from the module
+    defaults and flags the result ``assumed``; the fractions are used as given
+    otherwise (no clamping -- an out-of-order pair is caught by ``d <= 0``)."""
+    geom = project.geometry
+    if geom is None:
+        return None
+    surf = geom.by_name(surface_name)
+    if surf is None or not surf.leading_edge or not surf.trailing_edge:
+        return None
+    x_le = surf.leading_edge[0][0]           # polylines run inboard -> outboard
+    c_root = surf.trailing_edge[0][0] - x_le
+    if c_root <= 0.0:
+        return None
+    assumed = surf.front_spar_pct is None or surf.rear_spar_pct is None
+    front = DEFAULT_FRONT_SPAR_PCT if surf.front_spar_pct is None else float(surf.front_spar_pct)
+    rear = DEFAULT_REAR_SPAR_PCT if surf.rear_spar_pct is None else float(surf.rear_spar_pct)
+    x_f = x_le + front * c_root
+    x_r = x_le + rear * c_root
+    if x_r - x_f <= 0.0:
+        return None
+    return CarryThrough(surface_name, x_f, x_r, x_r - x_f, front, rear, assumed)
 
 
 class WingReference(NamedTuple):

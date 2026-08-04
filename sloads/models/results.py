@@ -325,11 +325,30 @@ class BodyLoadResult:
 
     ``stations`` hold **LIMIT** loads; ``safety_factor`` is the per-case factor the
     render/export boundary scales them by to deliver ULTIMATE (see
-    :class:`ConditionResult`), copied from the source :class:`CriticalCondition`."""
+    :class:`ConditionResult`), copied from the source :class:`CriticalCondition`.
+
+    The moment-closure fields (Ref 1 Ch 15 p103, M4-1): ``m_unbalanced`` is the
+    unbalanced moment of the wing-reaction-free set (lb-in, LIMIT);
+    ``r_front``/``r_rear`` are the front/rear spar **fitting loads** (lb, LIMIT) at
+    stations ``x_front``/``x_rear``, reported for the wing-attach fittings and
+    *not* applied on top of the distribution (which already carries them).
+    ``spars_assumed`` marks spar stations taken from the module defaults rather
+    than entered. ``closure_artifact`` marks the fallback path -- no derivable
+    spar stations, so the moment was closed by a whole-body correction with no
+    physical source; those results carry
+    :data:`~sloads.modules.body_loads.CLOSURE_ARTIFACT_CAVEAT` and leave the
+    fitting loads ``None``."""
     case: str
     stations: List[BodyStationLoad] = field(default_factory=list)
     case_ref: Optional[CaseRef] = None
     safety_factor: float = ULTIMATE_FACTOR   # limit -> ultimate factor for this case
+    m_unbalanced: float = 0.0                # lb-in, LIMIT (pass-1 terminal Myy)
+    r_front: Optional[float] = None          # lb, LIMIT -- front spar fitting load
+    r_rear: Optional[float] = None           # lb, LIMIT -- rear spar fitting load
+    x_front: Optional[float] = None          # in -- front spar station
+    x_rear: Optional[float] = None           # in -- rear spar station
+    spars_assumed: bool = False              # spar fractions defaulted, not entered
+    closure_artifact: bool = False           # moment closed by the whole-body fallback
 
 
 @dataclass

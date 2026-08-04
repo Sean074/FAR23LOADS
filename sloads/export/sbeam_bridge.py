@@ -83,7 +83,7 @@ from ..models import (
 from .coordinates import SBEAM_CID, to_force, to_grid, to_moment
 # Single-sourced from the calc that owns the limitation (public symbol, no cycle:
 # nothing under sloads/modules imports the export bridge).
-from ..modules.body_loads import CLOSURE_CAVEAT as _BODY_CLOSURE_CAVEAT
+from ..modules.body_loads import CLOSURE_ARTIFACT_CAVEAT as _BODY_ARTIFACT_CAVEAT
 from ..modules.net_loads import loads_ref_axis_results
 
 # --------------------------------------------------------------------------- #
@@ -471,9 +471,10 @@ def body_force_moment_cards(arg, sid_base: int = 1) -> str:
     """FORCE bulk-data cards for the fuselage net distribution (one SID per case);
     the per-station applied Fz set sums to ~0 (vertical equilibrium).
 
-    Each case block is stamped with
-    :data:`~sloads.modules.body_loads.CLOSURE_CAVEAT` -- the exported set closes
-    ΣFz but **not** ΣM (backlog M4-1)."""
+    The set closes both ΣFz and ΣM (Ref 1 Ch 15 p103, M4-1); each block states
+    both residuals. A case whose moment was closed by the whole-body fallback
+    (no derivable spar stations) is additionally stamped with
+    :data:`~sloads.modules.body_loads.CLOSURE_ARTIFACT_CAVEAT`."""
     results = _body_results(arg)
     blocks: List[str] = []
     for idx, r in enumerate(results):
@@ -485,10 +486,14 @@ def body_force_moment_cards(arg, sid_base: int = 1) -> str:
             f"$ Case ID: {r.case_ref.case_id}" if r.case_ref else "$ Case ID: (none)",
             f"$ Loads are ULTIMATE (limit x SF={_sf_str(sf)}).",
             f"$ Applied Fz set sums to {total_fz:.2f} lb (vertical equilibrium).",
+            f"$ Terminal Myy {r.stations[-1].myy * sf:.2f} lb-in (moment equilibrium).",
         ]
+        if r.spars_assumed:
+            lines.append("$ Wing spar stations ASSUMED (chord-fraction defaults), not entered.")
         # Wrapped so each comment stays inside the 72-col free-field card width.
-        lines += [f"$ {ln}" for ln in
-                  textwrap.wrap("CAVEAT: " + _BODY_CLOSURE_CAVEAT, width=70)]
+        if r.closure_artifact:
+            lines += [f"$ {ln}" for ln in
+                      textwrap.wrap("CAVEAT: " + _BODY_ARTIFACT_CAVEAT, width=70)]
         for i, s in enumerate(r.stations):
             fx, fy, fz = to_force(0.0, 0.0, s.fz * sf)
             if abs(fz) > _TOL:

@@ -63,11 +63,11 @@ def test_sbeam_body_export_force_set_sums_to_zero():
     cards = sbeam_bridge.body_force_moment_cards(res)
     assert "FORCE" in cards
     # Re-sum the Fz of every FORCE card in the first load set: must close to ~0.
-    fz_total = 0.0
-    for line in cards.splitlines():
-        if line.startswith("FORCE, 1,"):
-            fz_total += float(line.split(",")[-1])
-    assert math.isclose(fz_total, 0.0, abs_tol=1e-3)
+    # The tolerance is relative to the load magnitude on the cards -- the cards
+    # carry 6 significant digits (_fmt), so a set of ~10^4 lb loads re-sums to
+    # ~10^-3 lb of print rounding, not of calc error.
+    fz = [float(ln.split(",")[-1]) for ln in cards.splitlines() if ln.startswith("FORCE, 1,")]
+    assert math.isclose(sum(fz), 0.0, abs_tol=1e-5 * sum(abs(f) for f in fz))
 
 
 def test_sbeam_body_span_csv():
@@ -77,25 +77,24 @@ def test_sbeam_body_span_csv():
     assert len(lines) > 1
 
 
-def test_body_bdf_carries_closure_caveat():
-    """Every exported body load set states the open moment-closure limitation.
+def test_body_bdf_ships_no_caveat_on_the_carry_through_path():
+    """M4-1 closed: a set reacted at the spar attachments carries no caveat.
 
-    Backlog M4-1: the single wing reaction closes ΣFz but not ΣM (terminal
-    Myy != 0). Until the Ch 15 front/rear-spar two-reaction solve lands, the
-    caveat is a required part of the deliverable -- this test is the lock.
-    Delete it (and CLOSURE_CAVEAT) only when M4-1 closes the moment balance.
+    The old lock asserted the opposite (every set stated the open ΣM limitation).
+    It is inverted here: the caveat now belongs only to the whole-body fallback,
+    which ``test_body_bdf_flags_the_closure_artifact`` covers. The assumed-spar
+    provenance still ships on every card block.
     """
     results = body_loads.build_body_loads(_project())
+    assert all(not r.closure_artifact for r in results)
     cards = sbeam_bridge.body_force_moment_cards(results)
-    # One wrapped caveat block opens each case's card block -- no case ships bare.
-    assert len([ln for ln in cards.splitlines() if ln.startswith("$ CAVEAT:")]) == len(results)
-    # The wrapped block reproduces the single-sourced text (unwrap, then compare).
-    unwrapped = " ".join(
-        ln[2:] for ln in cards.splitlines() if ln.startswith("$")
-    ).replace("CAVEAT: ", "")
-    assert body_loads.CLOSURE_CAVEAT in unwrapped
-    assert "moment is NOT balanced" in body_loads.CLOSURE_CAVEAT
-    assert "M4-1" in body_loads.CLOSURE_CAVEAT
+    assert "$ CAVEAT:" not in cards
+    # The spar stations were not entered, so every block says so (decision 2).
+    assert len([ln for ln in cards.splitlines()
+                if "spar stations ASSUMED" in ln]) == len(results)
+    # Each block states both closure residuals.
+    assert len([ln for ln in cards.splitlines()
+                if "moment equilibrium" in ln]) == len(results)
     # Every comment line stays inside the free-field card width.
     assert all(len(ln) <= 72 for ln in cards.splitlines() if ln.startswith("$"))
 

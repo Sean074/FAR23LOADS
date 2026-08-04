@@ -863,10 +863,12 @@ with right:
         _prev_wing = geom.by_name("wing")
         surfaces = [s for s in geom.surfaces if s.name != "wing"]
         _seeded = wing_surface(layout)
-        # Re-seeding regenerates the planform, not the loads reference axis --
-        # carry a user-set LRA over.
+        # Re-seeding regenerates the planform, not the loads reference axis or
+        # the spar layout -- carry a user-set LRA and spar fractions over.
         if _prev_wing is not None:
             _seeded.ref_axis_pct = _prev_wing.ref_axis_pct
+            _seeded.front_spar_pct = _prev_wing.front_spar_pct
+            _seeded.rear_spar_pct = _prev_wing.rear_spar_pct
         surfaces.insert(0, _seeded)
         _set_geometry(project, surfaces=surfaces)
         st.success(

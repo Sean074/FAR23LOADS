@@ -49,6 +49,24 @@ TURBOPROP_MALFUNCTION_FACTOR = 1.6
 # Torque multiplication factor for 23.361(a)(2).
 TURBOPROP_TORQUE_FACTOR = 1.25
 
+# --------------------------------------------------------------------------- #
+# Wing carry-through (Ref 1 Ch 15 p103 fuselage moment closure, M4-1)
+# --------------------------------------------------------------------------- #
+# Assumed front/rear spar chord fractions when SurfaceInput.front_spar_pct /
+# .rear_spar_pct are unset -- a conventional light-aircraft two-spar wing box
+# (front spar just aft of the leading-edge radius, rear spar ahead of the
+# flap/aileron hinge line). They are an ASSUMPTION, not a derived value:
+# derived_geometry.carry_through marks a result that uses them ``assumed`` so
+# every deliverable states that the spar stations were not entered.
+DEFAULT_FRONT_SPAR_PCT = 0.15
+DEFAULT_REAR_SPAR_PCT = 0.65
+
+# Point loads the carry-through line load is lumped onto (body_loads). The
+# per-segment lumping is the exact static equivalent of a linear load, so the
+# closure holds at any count >= 2; this only sets how finely the reaction is
+# resolved along the carry-through for the beam model.
+CARRY_THROUGH_NODES = 5
+
 
 # --------------------------------------------------------------------------- #
 # Mass properties (WTESTIMA / WTONECG)

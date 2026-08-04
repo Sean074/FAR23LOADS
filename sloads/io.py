@@ -254,6 +254,11 @@ def _points(raw) -> List:
     return [tuple(p) for p in raw or []]
 
 
+def _opt_float(raw) -> Optional[float]:
+    """``float(raw)``, keeping ``None``/absent distinct from a numeric value."""
+    return None if raw is None else float(raw)
+
+
 def _surface_from_dict(d: Dict[str, Any]) -> SurfaceInput:
     return SurfaceInput(
         name=d["name"],
@@ -262,6 +267,10 @@ def _surface_from_dict(d: Dict[str, Any]) -> SurfaceInput:
         symmetric=d.get("symmetric", True),
         elements=d.get("elements", 20),
         ref_axis_pct=float(d.get("ref_axis_pct", 0.25)),
+        # None is meaningful (= "not entered" -> assumed default, M4-1), so an
+        # absent/null key stays None rather than taking a numeric default here.
+        front_spar_pct=_opt_float(d.get("front_spar_pct")),
+        rear_spar_pct=_opt_float(d.get("rear_spar_pct")),
     )
 
 
@@ -361,6 +370,10 @@ def geometry_to_dict(inp: GeometryInput) -> Dict[str, Any]:
                 "symmetric": s.symmetric,
                 "elements": s.elements,
                 "ref_axis_pct": s.ref_axis_pct,
+                # Written even when None so "not entered" round-trips explicitly
+                # (the assumed-default provenance, M4-1).
+                "front_spar_pct": s.front_spar_pct,
+                "rear_spar_pct": s.rear_spar_pct,
             }
             for s in inp.surfaces
         ]
@@ -874,6 +887,16 @@ def _body_load_result_from_dict(d: Dict[str, Any]) -> BodyLoadResult:
                   for s in d.get("stations", []) or []],
         case_ref=_case_ref_from_dict(d.get("case_ref")),
         safety_factor=_safety_factor(d),
+        # Moment-closure fields (M4-1). An older file lacks them: m_unbalanced
+        # defaults to 0.0 and the fitting loads to None, exactly as a
+        # closure-artifact result serializes.
+        m_unbalanced=float(d.get("m_unbalanced", 0.0) or 0.0),
+        r_front=_opt_float(d.get("r_front")),
+        r_rear=_opt_float(d.get("r_rear")),
+        x_front=_opt_float(d.get("x_front")),
+        x_rear=_opt_float(d.get("x_rear")),
+        spars_assumed=bool(d.get("spars_assumed", False)),
+        closure_artifact=bool(d.get("closure_artifact", False)),
     )
 
 
