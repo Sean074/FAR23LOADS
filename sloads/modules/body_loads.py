@@ -35,7 +35,7 @@ adjacent frames, so it is precedent for diffusing discrete loads into structure,
 not authority for this particular shape.) The reactions ``R_f``/``R_r`` are still
 reported as the fitting loads; they are *not* applied on top of the distribution,
 which already carries them. The options trade is in
-``docs/30_future/06_m4-1_body_moment_closure.md``.
+``docs/40_history/04_m4-1_body_moment_closure.md``.
 
 The spar stations come from :func:`sloads.derived_geometry.carry_through`. When
 they are underivable (no wing surface, degenerate root chord) the module falls
