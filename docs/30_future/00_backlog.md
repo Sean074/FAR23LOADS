@@ -149,6 +149,12 @@ independently (M4-7's carrier and M4-13's per-producer mints are already in
 place, and M4-14's read-side band validation closes the input side);
 Layer 2 coordinates with Phase F25.**
 
+> **M4-12 → M4-11 → G8 views → M4-10 → M4-9 are sequenced and scoped by
+> [`06_m4_maintainability_sequence_plan.md`](06_m4_maintainability_sequence_plan.md)**
+> (decisions D-12 … D-18, resolved 2026-08-03). Note the order: **M4-10 lands
+> before M4-9**, because `LoadValue` is persisted (`io.py:635`) and the new `key`
+> must arrive through the migration chain.
+
 ### M4-9 — `LoadValue.key`: de-string the load-case semantics **[maintainability, pre-F25]**
 2026-07-21 review, top refactor. Semantics currently ride on display-label
 strings: `report.py:204-260,307` (`_VERTICAL_LABELS`, `_GYRO_CASE_RE` label
@@ -161,7 +167,10 @@ F25 supplements emitting new quantities.**
 ### M4-10 — io.py migration chain + version-bump enforcement **[maintainability, pre-F25]**
 Builds on M2R-7's tolerant `_filtered` readers (done). Replace the key-presence
 sniffing (the 19-clause or-gate at
-`io.py:936-945` + legacy shims; `project_from_dict` CC 51, io.py worst-MI file)
+`io.py:998-1007` (line refs refreshed 2026-08-03) + **five** legacy shims — flat
+engine-only file, pre-v25 top-level `configuration`, pre-G6
+`tail_loads`/`vtail_loads`, `_legacy_cg_cases_from_flight_loads`,
+`_legacy_aero_coeffs_from_flight_loads`; `project_from_dict` CC 51, io.py worst-MI file)
 with `MIGRATIONS: dict[int, callable]` applied hop-by-hop before one tolerant
 reader; check in **one frozen fixture file per historical schema version**
 (only v20/v24 exist today); add the generic sentinel round-trip test (manual
@@ -432,8 +441,11 @@ reaction matrix stays closure-/legible-cell-locked).
   `examples/twin_turboprop.project.json` can't be built and these oracles stay
   blocked. **(Reviewed 2026-07-20: keep blocked as-is.)**
 
-Decisions D-1 … D-11, once answered, moved to the register:
+Decisions D-1 … D-18 (all but D-5), once answered, moved to the register:
 [`../40_history/03_resolved_decisions.md`](../40_history/03_resolved_decisions.md).
+**D-12 … D-18** (resolved 2026-08-03) sequence and scope the pre-F25
+maintainability batch — see
+[`06_m4_maintainability_sequence_plan.md`](06_m4_maintainability_sequence_plan.md).
 
 ---
 

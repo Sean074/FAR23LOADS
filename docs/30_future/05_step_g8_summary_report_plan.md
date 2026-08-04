@@ -229,7 +229,8 @@ code makes the diff unreviewable.
 
 **G8.2 — Document-control fields (schema).**
 Add optional `revision`, `checked_by`, `approved_by`, `description` to `Project`,
-round-trip in `io.py`, bump `SCHEMA_VERSION` 34 → 35, add the fields to the
+round-trip in `io.py`, bump `SCHEMA_VERSION` **35 → 36** (corrected 2026-08-03:
+M4-1 consumed 35 for the wing spar fractions), add the fields to the
 Project Dashboard / JSON editor. All default to `""`, so older files load
 unchanged and the title page degrades gracefully when they are absent.
 Regenerate `DATA_DICTIONARY.md`.

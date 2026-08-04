@@ -21,6 +21,13 @@ document named in the *Rationale* column.
 | D-9 | 23.427 unsymmetrical search: restore the full `SELECT.BAS` candidate set incl. unchecked (shipped as M1-4) | 2026-07-20 | [`../20_theory/02_approved_corrections.md`](../20_theory/02_approved_corrections.md) |
 | D-10 | Aero-coefficient curve plot: include (backlog **M4-5**) — supersedes the 2026-07-15 decline | 2026-07-20 | M4-5 (backlog) |
 | D-11 | Backlog restructured to release milestones; rename ships with the release as **sloads 0.3.0** | 2026-07-20 | M3-2 (history) |
+| D-12 | `LoadValue.key` is a **persisted** field (`io.py` `CriticalCondition.loads`), so **M4-10 lands before M4-9**: the key arrives via a normal label→key backfill migration, making M4-9 the migration chain's first customer | 2026-08-03 | [`06_m4_maintainability_sequence_plan.md`](../30_future/06_m4_maintainability_sequence_plan.md) |
+| D-13 | `htail_balance` returns a `typing.NamedTuple` with **lowercase** attributes (`lt25`, `lt50`, `at`, `delta`, `lt`, `cp`); Ref 1 Ch 9 symbols kept in the field docstrings | 2026-08-03 | [`06_m4_maintainability_sequence_plan.md`](../30_future/06_m4_maintainability_sequence_plan.md) |
+| D-14 | Cross-module private symbols are promoted by **underscore-drop in place + `__all__`** per module — no `sloads/api.py` facade; `_envelope` gets a chosen name rather than a mechanical strip | 2026-08-03 | [`06_m4_maintainability_sequence_plan.md`](../30_future/06_m4_maintainability_sequence_plan.md) |
+| D-15 | The `Project.tail_loads`/`.vtail_loads` property proxies are **documented (not replicated) in M4-12b and retired in M4-10**, where `project_from_dict` is rebuilt anyway | 2026-08-03 | [`06_m4_maintainability_sequence_plan.md`](../30_future/06_m4_maintainability_sequence_plan.md) |
+| D-16 | `unit_number_input` reads the active unit system through a **single `_active_system()` resolver** over session state; M4-20 later re-points that one function at the `Project` field | 2026-08-03 | [`06_m4_maintainability_sequence_plan.md`](../30_future/06_m4_maintainability_sequence_plan.md) |
+| D-17 | **`radon` added to the `dev` extra** to measure M4-11 before/after complexity — a reporting tool, explicitly **not** a CI gate | 2026-08-03 | [`06_m4_maintainability_sequence_plan.md`](../30_future/06_m4_maintainability_sequence_plan.md) |
+| D-18 | Consolidated test helpers expose **three named functions** — `value_of`, `load_value`, `values_by_label` — each accepting a `ModuleResult`, `ConditionResult`, or list of either | 2026-08-03 | [`06_m4_maintainability_sequence_plan.md`](../30_future/06_m4_maintainability_sequence_plan.md) |
 
 **Still open:** **D-5** (Appendix B twin fixture — blocks long-tail **L-9**);
 see the backlog.
