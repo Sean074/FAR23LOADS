@@ -24,6 +24,7 @@ from __future__ import annotations
 
 import io as _io
 import zipfile
+from importlib.metadata import PackageNotFoundError, version as _pkg_version
 
 import streamlit as st
 
@@ -46,6 +47,20 @@ from sloads.modules.net_loads import (
 from sloads.modules.tab import build_tabs
 from sloads.modules.taildist import build_tail_chordwise
 from sloads.report import module_text_report
+from sloads.report.methods import (
+    bdf_comment_block,
+    csv_comment_block,
+    methods_statement,
+    strip_comment_lines,
+)
+
+
+def _version(name: str) -> str:
+    """Installed tool version for the methods statement's provenance block."""
+    try:
+        return _pkg_version(name)
+    except PackageNotFoundError:  # pragma: no cover - source checkout without install
+        return ""
 
 st.title("Export & Report")
 st.caption(
@@ -65,10 +80,10 @@ for _w in consistency_warnings(project):
 _CALC_ERRORS = (ValueError, ZeroDivisionError, KeyError, IndexError)
 
 
-def _try(fn, *args):
+def _try(fn, *args, **kwargs):
     """Run a build/export call defensively; return its value or ``None``."""
     try:
-        return fn(*args)
+        return fn(*args, **kwargs)
     except _CALC_ERRORS:
         return None
 
@@ -96,7 +111,7 @@ report_header = "\n".join(_header_lines)
 text_report = "\n\n".join(
     [report_header] + [module_text_report(_module_label(mr), mr.conditions) for mr in module_results]
 )
-module_csvs = {mr.module: sloads_io.load_cases_csv(mr) for mr in module_results}
+
 
 # sbeam component loads, defensively. Wing results are transferred to the wing
 # surface's loads reference axis (LRA) at this boundary -- every exported wing
@@ -118,6 +133,15 @@ for _fn in (build_aileron, build_flap, build_tabs):
 # `envelope.critical` (see docs/30_future/00_backlog.md, "Unify select_wing/
 # one_engine_out case identity") -- they always export the full set until that
 # gap closes.
+# Every case ID this run produced, so the deselected set can be named explicitly
+# rather than described only as "filtered".
+_all_case_ids = {
+    r["ID"] for r in sb.case_index_rows_from(
+        *(mr.conditions for mr in module_results), _wing or [], _body or [],
+        _tail or [], _control,
+    ) if r.get("ID")
+}
+
 _has_selection = bool(
     project.envelope is not None
     and project.envelope.critical is not None
@@ -144,6 +168,23 @@ _selected_ids = (
     if _has_selection and _scope.startswith("Governing")
     else None
 )
+# Methods & limitations (Step G8.3): built once, from the *resolved* export scope,
+# and stamped into every channel -- so a CSV or BDF forwarded on its own still
+# states that its loads are ULTIMATE, under what category, and what this tool does
+# not do. It must come after the scope radio above: an analyst who receives a
+# filtered set has to be told which cases were removed, by ID.
+_tool_version = _version("sloads")
+_deselected_ids = sorted(_all_case_ids - _selected_ids) if _selected_ids is not None else []
+_scope_text = "governing case set" if _deselected_ids else "full case set"
+_stamp_kw = dict(tool_version=_tool_version, scope=_scope_text,
+                 deselected_case_ids=_deselected_ids or None)
+_methods = methods_statement(project, **_stamp_kw)
+_csv_stamp = csv_comment_block(project, **_stamp_kw)
+_bdf_stamp = bdf_comment_block(project, **_stamp_kw)
+
+module_csvs = {mr.module: sloads_io.load_cases_csv(mr, header_comment=_csv_stamp)
+               for mr in module_results}
+
 if _selected_ids is not None:
     if _body:
         _body = sb.filter_by_selected_case_ids(_body, _selected_ids)
@@ -160,26 +201,29 @@ if _selected_ids is not None:
 _bdf_artifacts: dict = {}
 if _wing:
     _bdf_artifacts["wing_loads.bdf"] = _try(sb.force_moment_cards, _wing) or ""
-    _bdf_artifacts["wing_span_loads.csv"] = _try(sb.span_load_csv, _wing) or ""
+    _bdf_artifacts["wing_span_loads.csv"] = _try(sb.span_load_csv, _wing, header_comment=_csv_stamp) or ""
     _bdf_artifacts["wing_stick.bdf"] = _try(sb.stick_model_bdf, _wing) or ""
 if _body:
     _bdf_artifacts["fuselage_loads.bdf"] = _try(sb.body_force_moment_cards, _body) or ""
-    _bdf_artifacts["fuselage_span_loads.csv"] = _try(sb.body_span_load_csv, _body) or ""
+    _bdf_artifacts["fuselage_span_loads.csv"] = _try(sb.body_span_load_csv, _body, header_comment=_csv_stamp) or ""
     # Reported beside the FORCE set, never in it -- the span loads already carry
     # the carry-through reaction (M4-1).
-    _bdf_artifacts["fuselage_fitting_loads.csv"] = _try(sb.body_fitting_load_csv, _body) or ""
+    _bdf_artifacts["fuselage_fitting_loads.csv"] = _try(
+        sb.body_fitting_load_csv, _body, header_comment=_csv_stamp) or ""
 if _tail:
     _bdf_artifacts["tail_loads.bdf"] = _try(sb.tail_force_moment_cards, _tail) or ""
-    _bdf_artifacts["tail_chordwise.csv"] = _try(sb.tail_chordwise_csv, _tail) or ""
+    _bdf_artifacts["tail_chordwise.csv"] = _try(sb.tail_chordwise_csv, _tail, header_comment=_csv_stamp) or ""
 if _control:
     _bdf_artifacts["control_surface_loads.bdf"] = _try(sb.control_surface_force_moment_cards, _control) or ""
-    _bdf_artifacts["control_surface_loads.csv"] = _try(sb.control_surface_csv, _control) or ""
+    _bdf_artifacts["control_surface_loads.csv"] = _try(
+        sb.control_surface_csv, _control, header_comment=_csv_stamp) or ""
 
 # Case-index table (Step D1): ID -> full definition, from every module's own
 # ConditionResults (covers engine/landing/SELECT) plus the sbeam component
 # deliverables recomputed above (covers the full wing/body/tail/control sets).
 case_index_csv = sb.case_index_csv_from(
     *(mr.conditions for mr in module_results), _wing or [], _body or [], _tail or [], _control,
+    header_comment=_csv_stamp,
 )
 
 
@@ -203,6 +247,8 @@ def _zip_bundle() -> bytes:
                 z.writestr(f"load_cases/{_stem}_{module}.csv", csv)
         if case_index_csv.strip():
             z.writestr(f"{_stem}_case_index.csv", case_index_csv)
+        # The bundle's own controlling statement -- readable without opening a CSV.
+        z.writestr("METHODS.txt", _methods)
         for name, content in _bdf_artifacts.items():
             if content:
                 z.writestr(f"sbeam/{_stem}_{name}", content)
@@ -232,7 +278,8 @@ def _workbook_bytes() -> bytes:
         ]
         if _bdf_artifacts.get(key)
     }
-    return build_workbook(project_info, module_csvs, module_labels, case_index_csv, span_csvs)
+    return build_workbook(project_info, module_csvs, module_labels, case_index_csv,
+                          span_csvs, methods=_methods)
 
 
 c3.download_button(
@@ -320,7 +367,7 @@ st.caption("Every structured case ID this run produced, mapped to its full defin
 if case_index_csv.strip():
     import csv as _csv_mod
 
-    rows = list(_csv_mod.DictReader(_io.StringIO(case_index_csv)))
+    rows = list(_csv_mod.DictReader(_io.StringIO(strip_comment_lines(case_index_csv))))
     st.dataframe(rows, use_container_width=True, hide_index=True)
     st.download_button("Case index (CSV)", case_index_csv,
                        file_name=f"{_stem}_case_index.csv", mime="text/csv")

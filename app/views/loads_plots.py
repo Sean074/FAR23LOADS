@@ -348,7 +348,9 @@ _BODY_COLS = {"Case", "GID", "X", "Fz", "Sz", "Myy"}
 uploaded = st.file_uploader("Span-load CSV", type=["csv"])
 if uploaded is not None:
     try:
-        df = pd.read_csv(uploaded)
+        # comment='#': an uploaded file may be one of this tool's own stamped
+        # CSVs, whose methods block sits above the header row (G8.3).
+        df = pd.read_csv(uploaded, comment="#")
     except (pd.errors.ParserError, pd.errors.EmptyDataError, UnicodeDecodeError) as exc:
         st.error(f"Could not parse CSV: {exc}")
         df = None

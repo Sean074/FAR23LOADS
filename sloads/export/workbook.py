@@ -28,9 +28,17 @@ def _sheet_name(name: str) -> str:
 
 
 def _csv_to_df(csv_text: str) -> Optional[pd.DataFrame]:
+    """Parse one CSV string, ignoring the G8.3 ``#`` methods-statement header.
+
+    ``comment="#"`` is required, not cosmetic: since G8.3 every exported CSV may
+    carry the methods & limitations block as ``#`` lines above the header row, and
+    without this pandas would read the first comment line as the column names.
+    Any in-repo CSV reader must do the same.
+    """
     if not csv_text or not csv_text.strip():
         return None
-    return pd.read_csv(_io.StringIO(csv_text))
+    df = pd.read_csv(_io.StringIO(csv_text), comment="#")
+    return None if df.empty and not list(df.columns) else df
 
 
 def build_workbook(
@@ -39,6 +47,7 @@ def build_workbook(
     module_labels: Dict[str, str],
     case_index_csv: str,
     span_csvs: Dict[str, str],
+    methods: str = "",
 ) -> bytes:
     """Build the workbook and return its bytes.
 
@@ -49,6 +58,9 @@ def build_workbook(
     ``case_index_csv`` -- the case-index CSV text.
     ``span_csvs`` -- ``{sheet_title: csv_text}`` for the tabular sbeam artifacts
     (wing/fuselage span loads, tail chordwise, control-surface loads).
+    ``methods`` -- the methods & limitations statement (Step G8.3); when given it
+    becomes a dedicated *Methods* sheet, so a workbook forwarded on its own
+    carries its own basis like every other channel.
     """
     buf = _io.BytesIO()
     with pd.ExcelWriter(buf, engine="openpyxl") as writer:
@@ -72,5 +84,9 @@ def build_workbook(
             if df is None:
                 continue
             df.to_excel(writer, sheet_name=_sheet_name(title), index=False)
+
+        if methods.strip():
+            pd.DataFrame({"Methods and limitations": methods.rstrip("\n").split("\n")}
+                         ).to_excel(writer, sheet_name="Methods", index=False)
 
     return buf.getvalue()

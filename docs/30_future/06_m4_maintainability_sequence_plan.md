@@ -4,7 +4,12 @@
 and **M4-11a** (2026-08-04, the scaffold helpers; the complexity-splitting half
 is backlog **M4-11b** and does not block G8). See the history entries in
 [`../40_history/00_completed_development.md`](../40_history/00_completed_development.md).
-Steps 4–6 planned, not started. Next up is **step 4, G8 (M3-3)**. **All design decisions resolved 2026-08-03**
+**Step 4 (G8) is partially shipped 2026-08-04**: G8.1 (the `report/` package),
+G8.2 (schema v36 document control), G8.3 (the methods statement in every export
+channel) and G8.4's coverage matrix are done; the report document itself
+(`content.py`, `latex.py`, `plots_tex.py`, `export/pdf.py` + UI) is backlog
+**M3-3b**, and is blocked on **M4-20** for unit conformance. Steps 5–6 planned,
+not started. **All design decisions resolved 2026-08-03**
 (D-12 … D-18, §2). **Written:** 2026-08-03.
 **Scope:** the five pre-F25 maintainability items, in the order the dependency
 analysis below justifies. **Not in scope:** any calc-math change. The invariant
@@ -370,7 +375,22 @@ this step's definition of done:
   systems. Without this, the step's own headline benefit ("removes the
   silent-unit-bug hazard") is unverified.
 
-### Step 4 — G8 (M3-3)
+### Step 4 — G8 (M3-3) ⚠️ *partially complete 2026-08-04*
+
+**Shipped:** G8.1 `report.py` → `report/` (with `_fmt` promoted to
+`format_value`, a private cross-boundary import the move surfaced); G8.2 the
+document-control fields at **schema v36**; G8.3 `methods.py` and its stamp in
+every CSV/BDF/zip/workbook channel, with every in-repo CSV reader audited;
+G8.4's `coverage.py`. **Outstanding:** `content.py`, `latex.py`, `plots_tex.py`,
+`export/pdf.py` and the Export-page section — backlog **M3-3b**.
+
+**A prerequisite this plan named and the sequence did not carry.** The G8 plan's
+§10.1 resolution puts the report in the user's selected unit system and states
+plainly that **M4-20 is a prerequisite for G8's conformance tests**. M4-20 is
+still open, so G8.5 must not be written before it — a `.tex` renderer built
+against the Imperial-only writers would have to be retrofitted, which is exactly
+the trap this whole sequence exists to avoid. **M4-20 should be inserted before
+the G8 remainder.**
 
 Run [`05_step_g8_summary_report_plan.md`](05_step_g8_summary_report_plan.md)
 as written, with two corrections from this analysis:

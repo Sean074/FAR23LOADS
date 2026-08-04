@@ -10,7 +10,48 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- **G8.3 — every export channel now carries its own methods & limitations
+  statement.** A loads CSV forwarded on its own, or a BDF handed to sbeam, now
+  states in band that its numbers are ULTIMATE, under what category, how the tool
+  is verified (including that twin-turboprop cases are **closure-locked, not
+  oracle-locked**, because Appendix B is not bundled), the three approved
+  deviations from the source manual, and what the tool does not do. Built once in
+  `sloads/report/methods.py` and wired into `io.load_cases_csv`, all five sbeam
+  CSV writers, the case index, `METHODS.txt` in the zip bundle, and a new
+  *Methods* sheet in the workbook. The statement adapts per project: the concept
+  caveat lists the actual applicability exceedances, and the fuselage
+  closure-artifact caveat appears verbatim only when a case took the fallback
+  path. Deterministic — nothing reads the clock, so two exports of one project
+  are byte-identical. CSV consumers need `comment="#"`; every in-repo reader was
+  audited in the same change.
+- **G8.4 — FAR 23 Subpart C coverage matrix** (`sloads/report/coverage.py`): 52
+  regulations classified against what a run actually produced — *covered* (with a
+  case count), *not applicable* (with the engineering reason), *not analysed*
+  (the gap list), or *out of scope* (the tool does not implement it). The
+  fourth status is a deliberate departure from the plan's three: without it, the
+  16 regulations the suite never implements read as gaps and bury the 9 real ones.
+- **G8.2 — document-control fields** `Project.revision` / `.checked_by` /
+  `.approved_by` / `.description` (**schema v36**), editable on the Dashboard.
+  All free text defaulting to `""`, so older files load unchanged and a project
+  that never sets them serialises exactly as before. `revision` is deliberately
+  free text, not a tool-managed counter (decision G8-5).
+
+### Changed
+
+- **G8.1 — `sloads/report.py` is now the `sloads/report/` package**, the same
+  mechanical move `models.py` → `models/` made at M3-1. Existing code is
+  `report/render.py` verbatim and every public name is re-exported, so all 15
+  importing modules are unchanged. One exception surfaced by the move:
+  `report._fmt` was imported across the module boundary by a test, so it is
+  promoted to **`report.format_value`** per the M4-12b public-symbol contract.
+
 ### Fixed
+
+- **`report.strip_comment_lines` corrupted CRLF line endings.** The reader-side
+  helper split on `\n` and rejoined, silently rewriting the line endings
+  `csv.DictWriter` emits — in the payload it exists to leave untouched.
 
 - **M4-11a — the Geometry page ignored the SI unit toggle on ~40 fields.** The
   empennage (33 fields), landing-gear (7) and engine-CG (3) forms hard-coded

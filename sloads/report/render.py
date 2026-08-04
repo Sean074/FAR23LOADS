@@ -2,6 +2,13 @@
 
 Modernized output: a flat list of rows for on-screen tables and a plain-text
 report for download. No printer escape codes (unlike the original LPRINT).
+
+This module is ``sloads/report.py`` verbatim, moved into the ``report`` package
+at Step G8.1 exactly as ``models.py`` -> ``models/`` moved at M3-1. Every public
+name here is re-exported from :mod:`sloads.report`, so ``from sloads.report
+import load_cases_to_rows`` keeps working unchanged -- the move is mechanical,
+not an API change. It owns the **limit -> ultimate boundary** for tabular and
+text output (see CLAUDE.md's ultimate-load contract).
 """
 
 from __future__ import annotations
@@ -9,12 +16,19 @@ from __future__ import annotations
 import re
 from typing import Dict, List, Optional
 
-from .constants import ULTIMATE_FACTOR
-from .models import ConditionResult, CriticalCondition, EngineInput, LoadValue
-from .units import UnitSystem, convert_results
+from ..constants import ULTIMATE_FACTOR
+from ..models import ConditionResult, CriticalCondition, EngineInput, LoadValue
+from ..units import UnitSystem, convert_results
 
 
-def _fmt(value: float) -> str:
+def format_value(value: float) -> str:
+    """Format one numeric cell for a table or the text report.
+
+    Public since G8.1: it was ``_fmt``, but ``tests/test_results_review.py``
+    already imported it across the module boundary, which the M4-12b public-symbol
+    contract (``PROJECT_GUIDE`` §5) makes a defect rather than a shortcut. Promoted
+    rather than re-exported under its private name.
+    """
     if isinstance(value, int):
         return str(value)
     if value == int(value):
@@ -135,12 +149,12 @@ def results_to_rows(results: List[ConditionResult]) -> List[Dict[str, str]]:
                     "Condition": r.title,
                     "Component": ref.component if ref else "",
                     "CG": ref.cg if ref else "",
-                    "Speed (kt)": _fmt(ref.speed_kt) if ref and ref.speed_kt is not None else "",
-                    "Altitude (ft)": _fmt(ref.altitude_ft) if ref and ref.altitude_ft is not None else "",
+                    "Speed (kt)": format_value(ref.speed_kt) if ref and ref.speed_kt is not None else "",
+                    "Altitude (ft)": format_value(ref.altitude_ft) if ref and ref.altitude_ft is not None else "",
                     "Quantity": v.label,
-                    "Value": _fmt(value),
+                    "Value": format_value(value),
                     "Units": _ult_units(v.units, v.quantity),
-                    "SF": _fmt(r.safety_factor) if is_load else "",
+                    "SF": format_value(r.safety_factor) if is_load else "",
                 }
             )
     return rows
@@ -197,10 +211,10 @@ def governing_loads_table(
             if header not in seen:
                 seen.add(header)
                 load_cols.append(header)
-            row[header] = _fmt(to_ultimate(lv.value, lv.units, lv.quantity, sf))
+            row[header] = format_value(to_ultimate(lv.value, lv.units, lv.quantity, sf))
         partial.append(row)
 
-    sf_str = _fmt(sf)
+    sf_str = format_value(sf)
     rows: List[Dict[str, object]] = []
     for row in partial:
         full: Dict[str, object] = {col: row.get(col, "—") for col in base_cols}
@@ -375,7 +389,7 @@ def load_cases_to_rows(results: List[ConditionResult]) -> List[Dict[str, object]
             "CG": case_ref.cg if case_ref else "",
             "Speed (kt)": _num(case_ref.speed_kt) if case_ref and case_ref.speed_kt is not None else "",
             "Altitude (ft)": _num(case_ref.altitude_ft) if case_ref and case_ref.altitude_ft is not None else "",
-            "SF": _fmt(sf),
+            "SF": format_value(sf),
             c_id[0]: _num(x),
             c_id[1]: _num(y),
             c_id[2]: _num(z),
@@ -428,7 +442,7 @@ def _num(value) -> str:
     """Format a numeric cell; blank for missing components."""
     if value == "" or value is None:
         return ""
-    return _fmt(value)
+    return format_value(value)
 
 
 def module_text_report(title: str, results: List[ConditionResult]) -> str:
@@ -442,12 +456,12 @@ def module_text_report(title: str, results: List[ConditionResult]) -> str:
     lines.append("")
     for r in results:
         lines.append(f"{r.title}")
-        lines.append(f"  FAR {r.far_reference}   [ULTIMATE, SF={_fmt(r.safety_factor)}]")
+        lines.append(f"  FAR {r.far_reference}   [ULTIMATE, SF={format_value(r.safety_factor)}]")
         for v in r.values:
             unit_str = _ult_units(v.units, v.quantity)
             unit = f" {unit_str}" if unit_str else ""
             value = _ult(v.value, v.units, v.quantity, r.safety_factor)
-            lines.append(f"    {v.label:<38}{_fmt(value)}{unit}")
+            lines.append(f"    {v.label:<38}{format_value(value)}{unit}")
         if r.note:
             lines.append(f"    NOTE: {r.note}")
         lines.append("")
@@ -478,12 +492,12 @@ def text_report(
 
     for r in results:
         lines.append(f"{r.title}")
-        lines.append(f"  FAR {r.far_reference}   [ULTIMATE, SF={_fmt(r.safety_factor)}]")
+        lines.append(f"  FAR {r.far_reference}   [ULTIMATE, SF={format_value(r.safety_factor)}]")
         for v in r.values:
             unit_str = _ult_units(v.units, v.quantity)
             unit = f" {unit_str}" if unit_str else ""
             value = _ult(v.value, v.units, v.quantity, r.safety_factor)
-            lines.append(f"    {v.label:<38}{_fmt(value)}{unit}")
+            lines.append(f"    {v.label:<38}{format_value(value)}{unit}")
         if r.note:
             lines.append(f"    NOTE: {r.note}")
         lines.append("")

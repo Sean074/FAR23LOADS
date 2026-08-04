@@ -236,7 +236,7 @@ _CSV_FIELDS = [
 ]
 
 
-def span_load_csv(arg: ResultsArg) -> str:
+def span_load_csv(arg: ResultsArg, header_comment: str = "") -> str:
     """Span-load CSV: one row per wing station per case (root->tip).
 
     Columns ``Fx/Fz/My`` are the applied nodal loads exported as FORCE/MOMENT
@@ -261,7 +261,7 @@ def span_load_csv(arg: ResultsArg) -> str:
                 "MyyAxis": r.torsion_axis,
                 "SF": f"{_sf_str(sf)}",
             })
-    return buf.getvalue()
+    return header_comment + buf.getvalue()
 
 
 def write_span_load_csv(arg: ResultsArg, path: str) -> None:
@@ -487,7 +487,7 @@ def _body_results(arg: "Union[Project, BodyLoadResult, Sequence[BodyLoadResult]]
     return results
 
 
-def body_span_load_csv(arg) -> str:
+def body_span_load_csv(arg, header_comment: str = "") -> str:
     """Span-load CSV for the fuselage net distribution: one row per station per
     case (X, applied Fz, cumulative Sz/Myy). Loads are ULTIMATE; ``SF`` is the case's
     limit->ultimate factor they were scaled by."""
@@ -503,7 +503,7 @@ def body_span_load_csv(arg) -> str:
                 "Fz": f"{s.fz * sf:.1f}", "Sz": f"{s.sz * sf:.1f}",
                 "Myy": f"{s.myy * sf:.0f}", "SF": f"{_sf_str(sf)}",
             })
-    return buf.getvalue()
+    return header_comment + buf.getvalue()
 
 
 def body_force_moment_cards(arg, sid_base: int = 1) -> str:
@@ -550,7 +550,7 @@ _BODY_FITTING_FIELDS = [
 ]
 
 
-def body_fitting_load_csv(arg) -> str:
+def body_fitting_load_csv(arg, header_comment: str = "") -> str:
     """Wing-attach **fitting loads** CSV: one row per critical fuselage condition.
 
     The front/rear spar reactions of the Ch 15 p103 solve (Ref 1 p103) -- the
@@ -579,7 +579,7 @@ def body_fitting_load_csv(arg) -> str:
             "Spars": "assumed" if r.spars_assumed else "entered",
             "SF": _sf_str(sf),
         })
-    return buf.getvalue()
+    return header_comment + buf.getvalue()
 
 
 # --------------------------------------------------------------------------- #
@@ -625,7 +625,7 @@ def _tail_nodal_forces(r: TailChordResult) -> List[float]:
     return [v * scale for v in raw]
 
 
-def tail_chordwise_csv(arg) -> str:
+def tail_chordwise_csv(arg, header_comment: str = "") -> str:
     """Chordwise tail-load CSV: one row per chord station per critical tail
     condition (component, chord station X, net pressure PSI, scaled nodal Fz). Loads
     are ULTIMATE; ``SF`` is the case's limit->ultimate factor they were scaled by."""
@@ -645,7 +645,7 @@ def tail_chordwise_csv(arg) -> str:
                 "LT25": f"{r.lt25 * sf:.2f}", "LT50": f"{r.lt50 * sf:.2f}",
                 "SF": f"{_sf_str(sf)}",
             })
-    return buf.getvalue()
+    return header_comment + buf.getvalue()
 
 
 def tail_force_moment_cards(arg, sid_base: int = 1) -> str:
@@ -731,7 +731,7 @@ def _control_nodal_forces(r: ControlSurfaceLoadResult) -> List[float]:
     return [v * scale for v in raw]
 
 
-def control_surface_csv(arg) -> str:
+def control_surface_csv(arg, header_comment: str = "") -> str:
     """Control-surface load CSV: one row per chord station per critical condition
     (surface, case, chord fraction X, pressure PSI, scaled nodal Fz, total load). Loads
     are ULTIMATE; ``SF`` is the case's limit->ultimate factor they were scaled by."""
@@ -750,7 +750,7 @@ def control_surface_csv(arg) -> str:
                 "X": f"{s.x:.3f}", "PSI": f"{s.psi * sf:.4f}", "Fz": f"{fz:.1f}",
                 "Load": f"{r.load_lb * sf:.2f}", "SF": f"{_sf_str(sf)}",
             })
-    return buf.getvalue()
+    return header_comment + buf.getvalue()
 
 
 def control_surface_force_moment_cards(arg, sid_base: int = 1) -> str:
@@ -866,25 +866,25 @@ def case_index_rows(project: Project, extra: Sequence = ()) -> List[dict]:
 _CASE_INDEX_FIELDS = ["ID", "Component", "Condition", "CG", "Speed (kt)", "Altitude (ft)", "FAR"]
 
 
-def _rows_to_csv(rows: List[dict]) -> str:
+def _rows_to_csv(rows: List[dict], header_comment: str = "") -> str:
     buf = _io.StringIO()
     writer = csv.DictWriter(buf, fieldnames=_CASE_INDEX_FIELDS)
     writer.writeheader()
     writer.writerows(rows)
-    return buf.getvalue()
+    return header_comment + buf.getvalue()
 
 
-def case_index_csv(project: Project, extra: Sequence = ()) -> str:
+def case_index_csv(project: Project, extra: Sequence = (), header_comment: str = "") -> str:
     """The case-index table (ID -> full definition) as CSV text, from ``project``'s
     persisted result slices."""
-    return _rows_to_csv(case_index_rows(project, extra=extra))
+    return _rows_to_csv(case_index_rows(project, extra=extra), header_comment)
 
 
-def case_index_csv_from(*groups: Sequence) -> str:
+def case_index_csv_from(*groups: Sequence, header_comment: str = "") -> str:
     """The case-index table as CSV text, from explicit case-carrying object groups
     (for a caller -- e.g. the Export page -- that recomputes results live rather
     than reading them off ``Project``)."""
-    return _rows_to_csv(case_index_rows_from(*groups))
+    return _rows_to_csv(case_index_rows_from(*groups), header_comment)
 
 
 def write_case_index_csv(project: Project, path: str, extra: Sequence = ()) -> None:

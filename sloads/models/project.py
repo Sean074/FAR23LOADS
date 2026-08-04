@@ -164,7 +164,12 @@ from .results import EnvelopeResult, LoadsResult, MassResult
 # means "not entered" -- derived_geometry.carry_through then substitutes
 # constants.DEFAULT_FRONT_SPAR_PCT / _REAR_SPAR_PCT and marks the result
 # ``assumed`` so the deliverable states the spar stations were assumed.
-SCHEMA_VERSION = 35
+# v36 (Step G8.2) adds the document-control fields Project.revision /
+# .checked_by / .approved_by / .description -- the controlling-document header of
+# the Step-G8 summary report (title page + signature block). All four are
+# free-text and default to "", so an older file loads unchanged and the title
+# page simply omits the rows it has no value for.
+SCHEMA_VERSION = 36  # G8.2: document-control fields (revision/checked_by/approved_by/description)
 
 
 @dataclass
@@ -185,6 +190,17 @@ class Project:
     name: str = ""
     engineer: str = ""
     date: str = ""
+    # --- Document control (Step G8.2) -------------------------------------- #
+    # The controlling-document header of the summary report. All default to ""
+    # so a pre-v36 file loads unchanged and the title page simply omits the row.
+    # ``revision`` is deliberately **free text** the engineer maintains (decision
+    # G8-5), not an auto-incrementing counter: revision identity belongs to the
+    # engineering process, and a tool-managed number would disagree with the
+    # drawing/report system of record the moment the project is copied.
+    revision: str = ""
+    checked_by: str = ""
+    approved_by: str = ""
+    description: str = ""
     engines: List["EngineInput"] = field(default_factory=list)
     engine_layout: Optional[EngineLayout] = None
     weight: Optional[WeightInput] = None

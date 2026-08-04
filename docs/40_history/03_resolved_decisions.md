@@ -28,6 +28,7 @@ document named in the *Rationale* column.
 | D-16 | `unit_number_input` reads the active unit system through a **single `_active_system()` resolver** over session state; M4-20 later re-points that one function at the `Project` field | 2026-08-03 | [`06_m4_maintainability_sequence_plan.md`](../30_future/06_m4_maintainability_sequence_plan.md) |
 | D-17 | **`radon` added to the `dev` extra** to measure M4-11 before/after complexity — a reporting tool, explicitly **not** a CI gate | 2026-08-03 | [`06_m4_maintainability_sequence_plan.md`](../30_future/06_m4_maintainability_sequence_plan.md) |
 | D-18 | Consolidated test helpers expose **three named functions** — `value_of`, `load_value`, `values_by_label` — each accepting a `ModuleResult`, `ConditionResult`, or list of either | 2026-08-03 | [`06_m4_maintainability_sequence_plan.md`](../30_future/06_m4_maintainability_sequence_plan.md) |
+| G8-5 | Summary-report `revision` is **free text** the engineer maintains, not a tool-managed auto-incrementing counter — a tool counter would disagree with the drawing/report system of record the moment a project is copied, and revision identity belongs to the engineering process | 2026-08-04 | [`05_step_g8_summary_report_plan.md`](../30_future/05_step_g8_summary_report_plan.md) §10 |
 
 **Still open:** **D-5** (Appendix B twin fixture — blocks long-tail **L-9**);
 see the backlog.

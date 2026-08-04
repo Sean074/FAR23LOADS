@@ -40,6 +40,31 @@ with col2:
     project.engineer = st.text_input("Engineer", value=project.engineer)
 with col3:
     project.date = st.text_input("Date", value=project.date, placeholder="YYYY-MM-DD")
+
+project.description = st.text_input(
+    "Description", value=project.description,
+    placeholder="e.g. six-place single, normal category",
+    help="One line describing the airplane; appears under the title on the summary report.")
+
+# Document control (Step G8.2) -- the summary report's title page and signature
+# block. Free text, all optional; a blank field is simply omitted from the report.
+with st.expander("Document control (summary report title page)"):
+    st.caption(
+        "Carried onto the **Summary report**'s title page and signature block "
+        "(Export page). All optional — a blank field is omitted rather than "
+        "printed empty. **Revision** is free text you maintain (decision G8-5): "
+        "the tool does not auto-increment it, so it can never disagree with your "
+        "own drawing/report system of record."
+    )
+    d1, d2, d3 = st.columns(3)
+    with d1:
+        project.revision = st.text_input("Revision", value=project.revision,
+                                         placeholder="e.g. A, B, IR")
+    with d2:
+        project.checked_by = st.text_input("Checked by", value=project.checked_by)
+    with d3:
+        project.approved_by = st.text_input("Approved by", value=project.approved_by)
+
 st.session_state["project"] = project
 
 # --------------------------------------------------------------------------- #

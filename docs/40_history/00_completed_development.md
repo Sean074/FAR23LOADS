@@ -10,6 +10,94 @@ Acceptance**, **Key decisions**.
 
 ---
 
+## G8.1–G8.3 + coverage matrix — the report package, document control, and universal methods stamping (complete 2026-08-04)
+
+**Objective.** The first four sub-steps of Step G8 (backlog M3-3): make room for
+the summary report, add its document-control schema, and — the backlog item's
+**explicit ask** — get a methods-and-limitations statement into every export
+channel so downstream sizing inherits the concept-mode caveat the UI already
+shows. The report *document* is not part of this entry; it is backlog **M3-3b**.
+
+**Deliverables.**
+- **G8.1 — `sloads/report.py` → `sloads/report/`**, the same mechanical move
+  `models.py` → `models/` made at M3-1. Today's code is `render.py` verbatim
+  (relative imports rebased one level) and every public name is re-exported, so
+  all 15 importing modules are untouched. The move surfaced one thing that was
+  not mechanical: `tests/test_results_review.py` imported `report._fmt` across
+  the module boundary, which the M4-12b public-symbol contract makes a defect —
+  promoted to **`format_value`** and listed in `__all__` rather than re-exported
+  under its private name.
+- **G8.2 — document control at schema v36.** `Project.revision` /
+  `.checked_by` / `.approved_by` / `.description`, round-tripped in `io.py`,
+  written only when set so a project that never fills them in serialises exactly
+  as before. Editable on the Dashboard behind a *Document control* expander. All
+  six example fixtures, `DATA_DICTIONARY.md` and `GUI_design.md`'s guarded
+  version paragraph updated.
+- **G8.3 — `report/methods.py`, and the stamp in every channel.** One builder
+  produces the eight-block statement (basis, category, verification, math,
+  approved corrections, limitations, scope, provenance); two thin wrappers emit
+  it as `#` (CSV) and `$` (BDF) comment blocks. Wired into `io.load_cases_csv`,
+  all five sbeam CSV writers, the case-index CSV, `METHODS.txt` in the zip, and a
+  new *Methods* sheet in the workbook. The statement adapts per project: the
+  concept caveat lists the actual `far23_applicability` exceedances, and the
+  fuselage `CLOSURE_ARTIFACT_CAVEAT` appears **verbatim** only when a case
+  actually took the fallback path.
+- **G8.4 (part) — `report/coverage.py`**, the FAR 23 Subpart C matrix: 52
+  regulations, each classified against the `far_reference` values a run actually
+  produced.
+
+**Two corrections to the plan, made while building.**
+1. **The coverage table needed a fourth status.** The plan specified three
+   (covered / not applicable / not analysed). With three, the 16 regulations the
+   suite does not implement at all — water loads, jacking, towing, emergency
+   landing — came out as *not analysed*, i.e. as gaps, burying the 9 real ones in
+   26 rows of noise. Added **`out_of_scope`**: a permanent boundary of the tool,
+   declared rather than silently omitted. The GA fixture now reports 25 covered,
+   2 not applicable, **9 actionable gaps**, 16 out of scope.
+2. **Combined citations were being under-credited.** `flight_envelope` cites
+   `"23.333/23.337/23.341/23.345/23.421"` in one string; a prefix test against
+   the whole string credits only 23.333 and reports the other four as gaps
+   despite their having been analysed. The matcher now splits on `/` and
+   prefix-matches each token.
+
+**One real bug found and fixed:** `strip_comment_lines` (the reader-side helper)
+split on `\\n` and rejoined, silently rewriting the CRLF line endings
+`csv.DictWriter` emits — corrupting the payload it exists to leave alone.
+
+**Test / Acceptance.** **611 tests pass** (586 → 611, +25), `ruff` clean, calc
+untouched.
+- `tests/test_methods_stamp.py` (16) — every required block present; the
+  ULTIMATE basis and default 1.5 factor stated; all three approved corrections
+  listed; the twin closure-locked caveat present; the concept caveat in the
+  concept fixture and **not** in the GA one; deselected case IDs named, never
+  silently dropped; determinism (no clock read); every comment line marked; and
+  for each channel, that a stamped CSV parses to the **same rows** as an
+  unstamped one — via `csv.DictReader`, `pandas.read_csv(comment="#")`, and the
+  workbook's own `_csv_to_df`.
+- `tests/test_far_coverage.py` (9) — no regulation dropped or duplicated; every
+  absent row carries a reason; out-of-scope rows are never gaps; the gap list
+  stays short enough to be read and every gap names the module that would close
+  it; turboprop-only and unflapped conclusions land as *not applicable*.
+
+**CSV-reader audit (the plan's top risk).** Every in-repo reader was fixed in the
+same change: `export/workbook._csv_to_df` (`comment="#"`), the Export page's
+case-index `DictReader`, and `loads_plots`' upload reader — which can legitimately
+be handed one of this tool's own stamped CSVs.
+
+**Decision resolved: G8-5** — `revision` is **free text**, not an
+auto-incrementing counter. A tool-managed number would disagree with the
+drawing/report system of record the moment a project is copied.
+
+**Outstanding, and a prerequisite the sequence missed.** `content.py`,
+`latex.py`, `plots_tex.py`, `export/pdf.py` and the Export-page section are
+backlog **M3-3b**. The G8 plan's §10.1 states that **M4-20 is a prerequisite for
+G8's conformance tests** (the report renders in the user's selected unit system);
+M4-20 is still open, so M4-20 should land **before** G8.5 — a `.tex` renderer
+written against the Imperial-only writers would need retrofitting, which is the
+exact trap the M4 sequence exists to avoid.
+
+---
+
 ## M4-11a — App scaffold: the unit boundary and the page header (complete 2026-08-04)
 
 **Objective.** Build the two shared app helpers **before** the next wave of views

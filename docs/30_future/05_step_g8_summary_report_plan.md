@@ -7,8 +7,14 @@ four-section summary report.
 — the authoritative structure, required content and **excluded** content. Where
 this plan and the standard disagree, **the standard wins**; §4 below is the
 build-order reading of it, not a second specification.
-**Status:** planned, not started. This document is the execution plan; the backlog
-entry links here and stays the one-line "open work" record until the step closes.
+**Status (2026-08-04): G8.1, G8.2, G8.3 complete; G8.4 half complete.**
+Shipped: the `sloads/report/` package, the document-control schema fields
+(v36), the methods & limitations statement stamped into **every** export channel
+(the backlog item's explicit ask), and the FAR 23 Subpart C coverage matrix.
+**Remaining: G8.4's `content.py`, G8.5 (`latex.py` + `plots_tex.py`), G8.6
+(`export/pdf.py` + the Export-page section) — tracked as backlog M3-3b.** The
+document itself does not render yet. See the history entry for the detail.
+This document stays the execution plan for the remainder.
 
 ---
 
@@ -221,13 +227,13 @@ revisions becomes unreadable.
 Each sub-step ends with a green build (`ruff check sloads/ cli.py` clean, `pytest`
 passing) and is independently reviewable.
 
-**G8.1 — `report.py` → `report/` package.**
+**G8.1 — `report.py` → `report/` package.** ✅ *complete 2026-08-04*
 Mechanical move (`git mv` by the user, per the git rule) plus
 `__init__.py` re-exports. Acceptance: zero changes to any importing module; full
 suite green; no test edits needed. *Do this first and alone* — mixing it with new
 code makes the diff unreviewable.
 
-**G8.2 — Document-control fields (schema).**
+**G8.2 — Document-control fields (schema).** ✅ *complete 2026-08-04*
 Add optional `revision`, `checked_by`, `approved_by`, `description` to `Project`,
 round-trip in `io.py`, bump `SCHEMA_VERSION` **35 → 36** (corrected 2026-08-03:
 M4-1 consumed 35 for the wing spar fractions), add the fields to the
@@ -235,7 +241,7 @@ Project Dashboard / JSON editor. All default to `""`, so older files load
 unchanged and the title page degrades gracefully when they are absent.
 Regenerate `DATA_DICTIONARY.md`.
 
-**G8.3 — `methods.py` + stamping (the backlog item's explicit ask).**
+**G8.3 — `methods.py` + stamping (the backlog item's explicit ask).** ✅ *complete 2026-08-04*
 The statement, plus wiring it into every channel:
 `io.load_cases_csv`, the sbeam CSV writers and `case_index_csv*` gain a
 `header_comment: str = ""` parameter; the BDF writers extend their existing `$`
@@ -243,7 +249,7 @@ block; the zip gains `METHODS.txt`; `build_workbook` gains a `Methods` sheet.
 Guard test `tests/test_methods_stamp.py` (modelled on `test_ultimate_contract.py`):
 every channel carries the statement, and every stamped CSV still parses.
 
-**G8.4 — `content.py` + `coverage.py`.**
+**G8.4 — `content.py` + `coverage.py`.** ⚠️ *`coverage.py` complete 2026-08-04; `content.py` outstanding*
 The `ReportDocument` model and the builder that fills §§1–4 from a `Project` and
 `registry.run_all_modules()`. The FAR coverage table. No LaTeX yet — this
 sub-step is fully testable on its own.
@@ -337,4 +343,16 @@ which was created 2026-08-03 — add any further new terms there as usual.
    with a revision-history table the user maintains.
 3. **Engine preference order** — `tectonic` first (self-contained, already
    installed) vs. `latexmk`/`pdflatex` first when a full TeX Live exists.
-   Recommendation: **tectonic first**, overridable by an env var.
+   Recommendation: **tectonic first**, overridable by an env var. *Still open —
+   decided when G8.6 is built.*
+
+**Resolved 2026-08-04 while implementing G8.2 — G8-5, `revision` semantics:**
+**free text** the engineer maintains, not a tool-managed counter. A counter the
+tool increments would disagree with the drawing/report system of record the
+moment a project is copied or branched, and revision identity belongs to the
+engineering process rather than to a file. Recorded in the decision register.
+
+**Note on §10.1 (report units) and M4-20.** That entry states M4-20 is "a
+prerequisite for G8's conformance tests". M4-20 is **still open**, so the
+remaining sub-steps cannot claim §3.5 unit conformance until it lands — the
+`.tex` renderer must be written against the unit-aware writers, not retrofitted.

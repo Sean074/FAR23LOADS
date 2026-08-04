@@ -59,22 +59,33 @@ prose.
 
 # M4 — Post-release (next after 0.3.0, priority order)
 
-### M3-3 — Step G8 — Summary report (Export phase) **[first item of M4, was the M3 stretch]**
-The consolidated four-section loads report (`03_gui_rework_plan.md` §4 Phase 6):
-input summary; envelope plots (V-n, weight/CG, speed/altitude); conditions +
-FAR coverage; results summary (VMT wing/fuselage, control/flap, gear, engine).
-All load figures ULTIMATE with SF. **Include a methods/limitations statement
-stamped into the exported deliverables** (CSV/BDF/report) so downstream sizing
-inherits the concept-mode caveat the UI already shows.
+### M3-3b — Step G8 remainder: the report document itself **[first item of M4]**
+**G8.1–G8.3 and half of G8.4 shipped 2026-08-04** (see history): the
+`sloads/report/` package, the v36 document-control fields, the methods &
+limitations statement stamped into **every** export channel, and the FAR 23
+Subpart C coverage matrix. What remains is the document:
 
-**Specified and planned (2026-08-03).** Document standard (structure, required
-and excluded content, conformance checklist):
-[`../10_standard/SUMMARY_REPORT.md`](../10_standard/SUMMARY_REPORT.md).
-Implementation plan (locked decisions, `sloads/report/` layout, sub-steps
-G8.1–G8.7, risks, test matrix):
+- **G8.4 (rest) — `content.py`.** `Project` + `run_all_modules()` →
+  `ReportDocument` (§§1–4 of the structure). Pure, fully testable on its own;
+  `coverage.py` is already built and exported for it to consume.
+- **G8.5 — `latex.py` + `plots_tex.py`.** The `.tex` renderer (escaping,
+  `longtable`, document-control block) and the three pgfplots figures (V-n,
+  weight/CG, speed–altitude — the third has no GUI equivalent and is new work).
+- **G8.6 — `export/pdf.py` + the Export-page section.** Engine discovery
+  (`tectonic` → `latexmk` → `pdflatex`), compile in a temp dir, surface failure
+  as a caption. **Write it against `components.page`/`unit_number_input`** — M4-11a
+  shipped them, which is why G8 was sequenced after it.
+- **G8.7 — doc sync + close-out.**
+
+Plan, locked decisions G8-1…G8-4 and the test matrix:
 [`05_step_g8_summary_report_plan.md`](05_step_g8_summary_report_plan.md).
-No calc change — the Appendix A oracles and the ultimate-load contract are the
-invariant.
+Document standard: [`../10_standard/SUMMARY_REPORT.md`](../10_standard/SUMMARY_REPORT.md).
+
+> **Blocked on M4-20 for unit conformance.** The plan's §10.1 resolution — the
+> report and the whole bundle render in the user's selected unit system — needs
+> M4-20's `Project` unit field, CLI `--units` flag and unit-aware BDF/CSV
+> writers, which are **still open**. Land M4-20 before G8.5, or the `.tex`
+> renderer is written against the wrong boundary and has to be retrofitted.
 
 ### M4-2 — Unify `select_wing`/`one_engine_out` case identity
 One case-ID authority per component end-to-end: derive `WingMassInput.cases`
@@ -158,7 +169,9 @@ Layer 2 coordinates with Phase F25.**
 > 2026-08-03 — M4-12 is closed. **M4-11a (the scaffold helpers) shipped
 > 2026-08-04**; its complexity-splitting half is **M4-11b**, which is *not*
 > a G8 blocker — G8.6 only needs `page()`/`unit_number_input`, which exist.
-> Next up is **step 4, G8 (M3-3)**.
+> **Step 4 (G8) is partially shipped 2026-08-04** — G8.1–G8.3 and the
+> coverage matrix are done; the remainder is **M3-3b** above, which is
+> blocked on **M4-20** for unit conformance.
 
 ### M4-9 — `LoadValue.key`: de-string the load-case semantics **[maintainability, pre-F25]**
 2026-07-21 review, top refactor. Semantics currently ride on display-label

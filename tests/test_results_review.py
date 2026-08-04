@@ -19,7 +19,7 @@ from sloads import Project, SelectInput, UnitSystem, io  # noqa: E402
 from sloads.constants import ULTIMATE_FACTOR  # noqa: E402
 from sloads.modules import select  # noqa: E402
 from sloads.report import (  # noqa: E402
-    _fmt,
+    format_value,
     governing_loads_table,
     to_ultimate,
     ultimate_units,
@@ -57,7 +57,7 @@ def test_governing_loads_table_renders_ultimate_with_sf():
     lv = next(lv for lv in conds[idx].loads if lv.units == "lb")
     header = f"{lv.label} ({ultimate_units(lv.units)})"
     assert "-ULT" in header
-    assert rows[idx][header] == _fmt(lv.value * ULTIMATE_FACTOR)
+    assert rows[idx][header] == format_value(lv.value * ULTIMATE_FACTOR)
 
     # (b) A dimensionless quantity (load factor NZ) is unscaled and unmarked.
     nz_headers = [h for h in rows[0] if h.startswith("Load factor NZ")]
@@ -67,7 +67,7 @@ def test_governing_loads_table_renders_ultimate_with_sf():
     assert any("-ULT" not in h for h in nz_headers) or not nz_headers
 
     # (c) Every row states SF = 1.5.
-    assert all(r["SF"] == _fmt(ULTIMATE_FACTOR) for r in rows)
+    assert all(r["SF"] == format_value(ULTIMATE_FACTOR) for r in rows)
 
     # (d) No None/NaN anywhere; sparse cells render "—".
     all_cols = set().union(*[set(r) for r in rows])

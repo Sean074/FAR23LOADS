@@ -1036,6 +1036,10 @@ def project_from_dict(d: Dict[str, Any]) -> Project:
             name=d.get("name", ""),
             engineer=d.get("engineer", ""),
             date=d.get("date", ""),
+            revision=d.get("revision", ""),
+            checked_by=d.get("checked_by", ""),
+            approved_by=d.get("approved_by", ""),
+            description=d.get("description", ""),
             engines=engines,
             engine_layout=layout,
             weight=weight_slice,
@@ -1104,6 +1108,12 @@ def project_to_dict(project: Project) -> Dict[str, Any]:
         out["engineer"] = project.engineer
     if project.date:
         out["date"] = project.date
+    # Document control (v36). Written only when set, so a project that never
+    # filled them in round-trips byte-identically to a pre-v36 file.
+    for _field in ("revision", "checked_by", "approved_by", "description"):
+        _value = getattr(project, _field, "")
+        if _value:
+            out[_field] = _value
     if project.engines:
         out["engines"] = [engine_to_dict(e) for e in project.engines]
         if project.engine_layout is not None:
@@ -1223,13 +1233,19 @@ def _as_conditions(results) -> List[ConditionResult]:
     return list(results)
 
 
-def load_cases_csv(results) -> str:
+def load_cases_csv(results, header_comment: str = "") -> str:
     """Render module results to a CSV string.
 
     Load-producing modules emit one row per structural load case; modules that
     emit a property table instead (e.g. the mass-properties modules, whose
     ``ConditionResult``s carry no load-case labels) fall back to the generic
     quantity-per-row table so they still export a useful CSV.
+
+    ``header_comment`` (Step G8.3) is prepended verbatim -- pass
+    ``report.csv_comment_block(project)`` so a CSV forwarded on its own still
+    states that its loads are ULTIMATE and under what basis. The lines are
+    ``#``-prefixed, so a reader needs ``comment="#"``; every in-repo reader was
+    audited when this landed.
     """
     conditions = _as_conditions(results)
     if has_load_case_data(conditions):
@@ -1244,9 +1260,9 @@ def load_cases_csv(results) -> str:
     writer = csv.DictWriter(buf, fieldnames=list(rows[0].keys()))
     writer.writeheader()
     writer.writerows(rows)
-    return buf.getvalue()
+    return header_comment + buf.getvalue()
 
 
-def write_load_cases_csv(results, path: str) -> None:
+def write_load_cases_csv(results, path: str, header_comment: str = "") -> None:
     with open(path, "w", encoding="utf-8", newline="") as fh:
-        fh.write(load_cases_csv(results))
+        fh.write(load_cases_csv(results, header_comment=header_comment))
