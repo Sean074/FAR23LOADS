@@ -1,7 +1,7 @@
 """A number typed into a view reaches the project in Imperial — in both systems.
 
 This is the M4-11 acceptance test the plan calls "the real one"
-(``docs/30_future/06_m4_maintainability_sequence_plan.md`` §4 step 3).
+(``docs/40_history/07_m4_maintainability_sequence_plan.md`` §4 step 3).
 ``test_views_smoke.py`` parametrizes over every view but asserts only
 *exception-free render*: a ``unit_number_input`` that converted twice, or in the
 wrong direction, would render perfectly and silently corrupt every input on

@@ -1,9 +1,13 @@
 # Phase D — GUI Workflow Restructure (development plan)
 
-> **Superseded (nav grouping) by Phase G, Step G2 (2026-07-18).** The six-section
+> **Executed and closed** (steps D0–D8, 2026-07-08/14); **nav grouping superseded
+> by Phase G, Step G2 (2026-07-18).** Retained as the historic record of the
+> Phase-D restructure and as the citation target for its D-numbered decisions
+> (D-1 case IDs, D-5, D-6, D-7) and the §5 page conventions, which are all still
+> in force. Not open work. The six-section
 > grouping described below (Start → Airplane → Envelopes & Critical Conditions →
 > Analysis → Loads Plots → Export) was re-sequenced into the six analysis-flow
-> phases in [`03_gui_rework_plan.md`](03_gui_rework_plan.md) §4 (Start → Develop V-n
+> phases in [`03_gui_rework_plan.md`](../30_future/03_gui_rework_plan.md) §4 (Start → Develop V-n
 > diagram → Flight loads → Other loads → Landing loads → Load-case plotting →
 > Export). This document remains the record of the Phase-D restructure that built the
 > pages; `sloads/workflow.py` is the live source of truth for the current grouping.
@@ -16,9 +20,10 @@ airplane analysis. Phase D reorganizes the GUI around the **airplane and the
 loads-release workflow** — without touching the oracle-locked calc.
 
 This document is the Phase-D narrative (assessment, target structure, locked
-decisions, invariants). The **step-by-step plan lives in
-[`00_backlog.md`](00_backlog.md)** (steps D0–D8); the Phase-C narrative it
-follows is [`01_concept_loads_plan.md`](01_concept_loads_plan.md).
+decisions, invariants). The step records for D0–D8 are in
+[`00_completed_development.md`](00_completed_development.md); the Phase-C
+narrative it follows is
+[`01_concept_loads_plan.md`](../30_future/01_concept_loads_plan.md).
 
 ---
 

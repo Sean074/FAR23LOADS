@@ -7,7 +7,7 @@ Read this before adding or changing a view.
 **See also:** [`PROJECT_GUIDE.md`](PROJECT_GUIDE.md) — architecture rationale and
 the shared pure-calc/thin-shell split; [`00_program_overview.md`](00_program_overview.md)
 — coding standards, the error-handling contract and the units convention;
-[`../30_future/02_gui_workflow_plan.md`](../30_future/02_gui_workflow_plan.md) —
+[`../40_history/05_phase_d_gui_workflow_plan.md`](../40_history/05_phase_d_gui_workflow_plan.md) —
 the Phase-D narrative (assessment, the six-section target, locked decisions
 D-1…D-7, page conventions §5) this doc references rather than repeats;
 [`../30_future/00_backlog.md`](../30_future/00_backlog.md) — **Phase E**, the open
@@ -80,7 +80,7 @@ margin).
 The analysis-flow phases and their per-page mapping are in
 [`../30_future/03_gui_rework_plan.md §4`](../30_future/03_gui_rework_plan.md); the
 superseded Phase-D six-section grouping is in
-[`../30_future/02_gui_workflow_plan.md §2`](../30_future/02_gui_workflow_plan.md).
+[`../40_history/05_phase_d_gui_workflow_plan.md §2`](../40_history/05_phase_d_gui_workflow_plan.md).
 
 ---
 
@@ -131,7 +131,7 @@ never entered twice.)
 ## 6. Page anatomy & conventions
 
 The contract that makes pages copy-of-the-pattern (full list in
-[`02_gui_workflow_plan.md §5`](../30_future/02_gui_workflow_plan.md)):
+[`05_phase_d_gui_workflow_plan.md §5`](../40_history/05_phase_d_gui_workflow_plan.md)):
 
 - **A page opens with `components.page_header(key)`** (or `page(key)`, the
   context-manager form that also gates on upstream slices) — M4-11. It renders
@@ -455,4 +455,4 @@ re-sequenced analysis-flow navigation, fuselage-moment/trim-plot/empennage
 features); its narrative and locked decisions G-1…G-4 are in
 [`../30_future/03_gui_rework_plan.md`](../30_future/03_gui_rework_plan.md). The
 Phase-D narrative is in
-[`../30_future/02_gui_workflow_plan.md`](../30_future/02_gui_workflow_plan.md).
+[`../40_history/05_phase_d_gui_workflow_plan.md`](../40_history/05_phase_d_gui_workflow_plan.md).

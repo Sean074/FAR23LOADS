@@ -419,7 +419,7 @@ regression oracle**; Appendix A/B geometry is used only as a *sanity* fixture.
   D4.3) approximate component stations into the Weight DB (WTONECG) via
   `component_stations(layout) -> Dict[str, Vec3]` + `match_component_station` —
   pure functions, no new schema (no per-component station sub-model was added; see
-  the D-5 decision in `docs/30_future/02_gui_workflow_plan.md`). Keys: `wing`
+  the D-5 decision in `docs/40_history/05_phase_d_gui_workflow_plan.md`). Keys: `wing`
   (25% MAC), `fuselage` (length midpoint), `h_tail`/`v_tail` (wing 25% MAC + tail
   arm), `tail` (area-weighted h/v average, for WTESTIMA's single lumped "Tail"
   structure-group item), `main_gear`/`nose_gear` (gear station, strut mid-height)

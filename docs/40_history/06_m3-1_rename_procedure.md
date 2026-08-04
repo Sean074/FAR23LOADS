@@ -1,9 +1,13 @@
 # M3-1 Execution Runbook — Rename `FAR23LOADS`/`farloads` → **`sloads`** (+ split `models.py`)
 
-Step-by-step procedure for backlog item **M3-1** (see
-[`00_backlog.md`](00_backlog.md)). This is the *how*; the backlog entry is the
-*what* and the acceptance criteria. Follow the steps in order — each ends with a
-green-check you must pass before moving on.
+> **Executed and closed** — M3-1 shipped with `sloads` 0.3.0 (2026-07-22/23).
+> Retained as the historic record of *how* the rename was performed, and as the
+> D-6 citation target; it is **not** open work. Step record:
+> [`00_completed_development.md`](00_completed_development.md).
+
+Step-by-step procedure for milestone item **M3-1**. This is the *how*; the
+backlog entry was the *what* and the acceptance criteria. The steps run in
+order — each ends with a green-check that had to pass before moving on.
 
 **Scope (decided):** the full `farloads` → `sloads` rename **batched with** the
 `models.py` → `models/` package split (same churn event, per the 2026-07-21
@@ -321,10 +325,10 @@ exits 0.
 Per `CLAUDE.md` — do this in the **same session** the rename is executed (not the
 planning session):
 
-1. **Remove** M3-1 from [`00_backlog.md`](00_backlog.md) (and drop the D-6 row's
+1. **Remove** M3-1 from [`00_backlog.md`](../30_future/00_backlog.md) (and drop the D-6 row's
    "at 0.3.0 (M3-1)" once closed, as appropriate).
 2. **Add** M3-1 to
-   [`../40_history/00_completed_development.md`](../40_history/00_completed_development.md)
+   [`00_completed_development.md`](00_completed_development.md)
    in full step format (surface counts, split boundaries, acceptance evidence).
 3. **`CHANGELOG.md`** `[Unreleased]` entry (a `Changed` line: package/CLI/brand
    rename to `sloads`; models split).

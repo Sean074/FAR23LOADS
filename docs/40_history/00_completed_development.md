@@ -454,7 +454,7 @@ half that must land **before** M4-11 rewrites the app layer. Two defects:
    unverified.
 
 Sequenced and scoped by
-[`../30_future/06_m4_maintainability_sequence_plan.md`](../30_future/06_m4_maintainability_sequence_plan.md) §4 step 1.
+[`07_m4_maintainability_sequence_plan.md`](07_m4_maintainability_sequence_plan.md) §4 step 1.
 
 **Deliverables.**
 - **`tests/helpers.py`** — the D-18 API: `value_of(source, label) -> float`,
@@ -1142,7 +1142,7 @@ concept-development tool extending beyond FAR 23. Adopt `sloads` (joining the
 **batched** (same churn event, per the 2026-07-21 review) with splitting the
 1,862-line `models.py` monolith into a lifecycle-ordered `models/` package. Executed
 per the step-by-step runbook
-[`../30_future/04_m3-1_rename_procedure.md`](../30_future/04_m3-1_rename_procedure.md).
+[`06_m3-1_rename_procedure.md`](06_m3-1_rename_procedure.md).
 
 **Key decisions (2026-07-23 consultation).**
 - *Display brand:* lowercase **`sloads`** (app `page_title`, dashboard title, README
@@ -3949,9 +3949,9 @@ at 19.
 
 **Objective.** Reorganize the 11 per-BAS-program Analysis pages into the target
 nine component pages (decision D-2), and apply the Phase-D page conventions
-(`02_gui_workflow_plan.md` §5 — form+Apply, merge-writes, read-don't-re-ask, no
+(`05_phase_d_gui_workflow_plan.md` §5 — form+Apply, merge-writes, read-don't-re-ask, no
 airplane-shaped defaults, LIMIT-marked analysis views) to every one of them.
-Design decisions locked 2026-07-09 (`02_gui_workflow_plan.md` §3 D-7). No
+Design decisions locked 2026-07-09 (`05_phase_d_gui_workflow_plan.md` §3 D-7). No
 calc-math change throughout — Appendix A/B oracles pass unmodified;
 `SCHEMA_VERSION` stays at 19 (pure GUI reorg, no new project fields).
 
@@ -4025,7 +4025,7 @@ engines' data matches what was typed).
 weight/CG input (so the CG envelope and the flight-envelope balance cannot
 diverge), a combined speed–altitude chart, real multi-altitude V-n, and a
 persisted critical-case selection Review/Export can reuse. Design decisions
-locked 2026-07-09 (`02_gui_workflow_plan.md` §3 D-6). No calc-math change
+locked 2026-07-09 (`05_phase_d_gui_workflow_plan.md` §3 D-6). No calc-math change
 throughout — Appendix A/B oracles pass unmodified.
 
 **Deliverables.**
@@ -4080,7 +4080,7 @@ every page change (`payload_cases`, `weight_envelope`, `flight_envelope`,
 — no exception, expected `Project` slice mutations. Full suite: 284 tests
 pass, `ruff check farloads/ cli.py` clean.
 
-**Key decisions** (locked 2026-07-09, `02_gui_workflow_plan.md` §3 D-6): manual
+**Key decisions** (locked 2026-07-09, `05_phase_d_gui_workflow_plan.md` §3 D-6): manual
 weight/CG rows over item-toggle scenario derivation; `WeightInput.cg_cases` as
 the schema home with `FlightLoadsInput.cg_cases` kept as the untouched
 calc-facing field; the speed–altitude chart extends Mach Limit rather than a
@@ -4095,9 +4095,9 @@ only, never a structural-calc input.
 Airplane-section pages, remove Appendix-A-shaped widget defaults from those
 pages, seed component stations into the Weight DB, compute the true CG from
 `Project.mass`, wire up engine three-view write-back, and apply the Phase-D
-page conventions (`02_gui_workflow_plan.md §5` — `st.form`+Apply, merge-writes,
+page conventions (`05_phase_d_gui_workflow_plan.md §5` — `st.form`+Apply, merge-writes,
 read-don't-re-ask, no airplane-shaped defaults) across the section. Design
-decisions locked 2026-07-09 (`02_gui_workflow_plan.md` §3 D-5). No calc-math
+decisions locked 2026-07-09 (`05_phase_d_gui_workflow_plan.md` §3 D-5). No calc-math
 change throughout — Appendix A/B oracles pass unmodified at every sub-step.
 
 **Deliverables (D4.1–D4.7).**
@@ -4170,7 +4170,7 @@ the pre-fix seed silently cleared `weight.envelope` and made the "after" run
 raise instead of matching). Full suite: 277 tests pass throughout D4.1–D4.7,
 `ruff check farloads/ cli.py` clean at every sub-step.
 
-**Key decisions** (locked 2026-07-09, `02_gui_workflow_plan.md` §3 D-5): the
+**Key decisions** (locked 2026-07-09, `05_phase_d_gui_workflow_plan.md` §3 D-5): the
 default-scrub scope is the five Airplane-section pages + Aero Coefficients
 only (`flight_envelope`/`weight_envelope`/`mach_limit`/`airloads` keep their
 literals until their own D5/D6 rework); aero coefficients get a dedicated
@@ -4248,7 +4248,7 @@ step for the options considered):
 **Objective.** Regroup the GUI navigation from the four generic Define →
 Analyze → Review → Export phases into the six Phase-D sections — Start,
 Airplane, Envelopes & Critical Conditions, Analysis, Loads Plots, Export — per
-`docs/30_future/02_gui_workflow_plan.md §2`. Regroup only: no page merges (those
+`docs/40_history/05_phase_d_gui_workflow_plan.md §2`. Regroup only: no page merges (those
 land in Step D6), no calc-math or schema change.
 
 **Deliverables.**
@@ -4282,7 +4282,7 @@ land in Step D6), no calc-math or schema change.
   module-results rollup).
 - Docs synced: `docs/10_standard/00_program_overview.md`,
   `docs/10_standard/PROJECT_GUIDE.md` (nav description + package-layout
-  comments); `docs/30_future/02_gui_workflow_plan.md` narrative status.
+  comments); `docs/40_history/05_phase_d_gui_workflow_plan.md` narrative status.
 
 **Test/Acceptance.** `tests/test_workflow.py` (phase/key validity, the
 registered-module ↔ workflow-step nav-drift guard, `produces`-path resolution)
@@ -4290,7 +4290,7 @@ passes unchanged with 6 phases instead of 4. Full suite: 262 tests pass;
 `ruff check farloads/ cli.py` clean.
 
 **Key decisions.**
-- `results_review` is not named in the `02_gui_workflow_plan.md §2` target
+- `results_review` is not named in the `05_phase_d_gui_workflow_plan.md §2` target
   table (which only lists the future D6-merged Analysis pages). Placed in
   **Export** (alongside `export_report`) as the pre-export consolidated
   summary, rather than Envelopes & Critical Conditions or Start.
@@ -4379,7 +4379,7 @@ per project.
   surfaces fold into their host — no `AIL`/`FLP`/`TAB` prefix) and stability
   from each module's own fixed emission order rather than a persisted
   registry — all locked 2026-07-08 (see `docs/30_future/
-  02_gui_workflow_plan.md` D-1).
+  05_phase_d_gui_workflow_plan.md` D-1).
 - **Banding bug caught and fixed during implementation.** The original plan
   text claimed `select_wing`'s own `W-` sequence and WINGINER/NETLOADS's could
   safely share the `W-01..49` numeric range "so no collision" — a smoke run
@@ -5686,7 +5686,7 @@ Appendix A/B oracles unmodified (no calc-math change).
 1. **Merge helper lives on the model** (`FlightLoadsInput.merged`) — pure
    dataclass logic, directly unit-testable, and the reusable seed of the
    Phase-D "Apply merges into the project slice" page convention
-   (`30_future/02_gui_workflow_plan.md §5.2`) that Step D6 applies suite-wide.
+   (`40_history/05_phase_d_gui_workflow_plan.md §5.2`) that Step D6 applies suite-wide.
 2. **Altitude merge = replace first, keep rest** — the widget displays
    `altitudes_ft[0]`, so an edit updates entry 0 and preserves the tail; the
    real multi-altitude UI arrives in Step D5.

@@ -63,7 +63,7 @@ identical.
 
 The GUI is organised as a six-section workflow — **Start → Airplane → Envelopes &
 Critical Conditions → Analysis → Loads Plots → Export** (Phase D; see
-`docs/30_future/02_gui_workflow_plan.md`) — built explicitly with `st.navigation`
+`docs/40_history/05_phase_d_gui_workflow_plan.md`) — built explicitly with `st.navigation`
 from `sloads/workflow.py`, the ordered, dependency-aware step graph (each step
 names the calc `module` it runs and the slices it `requires`/`produces`). That one
 source of truth drives both the sidebar grouping (a section with no steps yet is

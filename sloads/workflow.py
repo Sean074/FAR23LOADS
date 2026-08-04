@@ -8,7 +8,7 @@ sections follow the FAR 23 analysis flow -- a **Start** app-shell group followed
 the six analysis-flow phases **Develop V-n diagram → Flight loads → Other loads →
 Landing loads → Load-case plotting → Export** (see
 ``docs/30_future/03_gui_rework_plan.md`` §4; this supersedes the Phase-D
-Start/Airplane/Envelopes/Analysis grouping in ``02_gui_workflow_plan.md``).
+Start/Airplane/Envelopes/Analysis grouping in ``05_phase_d_gui_workflow_plan.md``).
 
 It is pure metadata plus pure predicates over a :class:`~sloads.models.Project`
 (no Streamlit, no I/O), so the GUI navigation, the Home dashboard's completeness

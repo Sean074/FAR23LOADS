@@ -6,7 +6,7 @@
 > decisions. (To avoid confusion: the six **analysis-flow phases** in §4 are the
 > GUI's *workflow sections*; "Phase G" is the *development phase* that builds them.)
 >
-> **Related:** [`02_gui_workflow_plan.md`](02_gui_workflow_plan.md) (Phase D — the
+> **Related:** [`05_phase_d_gui_workflow_plan.md`](../40_history/05_phase_d_gui_workflow_plan.md) (Phase D — the
 > six-section restructure this reworks), [`../10_standard/GUI_design.md`](../10_standard/GUI_design.md)
 > (the GUI design standard this must keep satisfying), [`01_concept_loads_plan.md`](01_concept_loads_plan.md)
 > (Phase C — concept mode).

@@ -7,7 +7,7 @@ seven files imported fixtures out of ``test_engine``, so a test module was also
 a library. Both are consolidated here.
 
 The three lookup functions are the D-18 API (see
-``docs/30_future/06_m4_maintainability_sequence_plan.md`` §2). They all take the
+``docs/40_history/07_m4_maintainability_sequence_plan.md`` §2). They all take the
 same ``source``: a :class:`~sloads.models.ModuleResult`, a single
 :class:`~sloads.models.ConditionResult`, or a (possibly nested) list of either
 -- the same normalisation ``sloads.io._as_conditions`` performs for the CSV

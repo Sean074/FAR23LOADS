@@ -8,7 +8,7 @@ historical record.
 |---------|------|----------|
 | `10_standard/` | **Code standard** | The authoritative description of how the suite works *today* — architecture, the per-module spec, and the process guides. Update these whenever code changes. |
 | `20_theory/` | **Theory & equation sources** | Where each module's equations and regression oracles come from (the `reference/` PDFs), plus per-module page citations as modules are ported. |
-| `30_future/` | **Future development** | The backlog & step-by-step plan, structured around the path to the first concept-loads release: the milestones **M2R → M3 (cut `sloads` 0.3.0) → M4 → Phase F25**, the long-tail refinements, and the open design decisions (all 22 suite programs are ported). |
+| `30_future/` | **Future development** | The backlog & the live plan documents for **open** work: milestone **M4** (post-0.3.0), **Phase F25**, the long-tail refinements, and the open design decision. Plans whose work has shipped move to `40_history/`. |
 | `40_history/` | **Historic record** | What has shipped — completed modules/phases, key decisions, and resolved defects. |
 
 ---
@@ -40,13 +40,10 @@ historical record.
 
 | File | Scope |
 |------|-------|
-| [`00_backlog.md`](30_future/00_backlog.md) | **Authoritative backlog & development plan** — release-milestone structure (**M2R** release-readiness fixes → **M3** the `sloads` 0.3.0 cut → **M4** post-release → **Phase F25** → long tail) and the open design decisions requiring user input (all 22 suite programs ported) |
+| [`00_backlog.md`](30_future/00_backlog.md) | **Authoritative backlog & development plan** — the open items in priority order (**M4** post-0.3.0 → **Phase F25** → long tail → future directions) and the open design decision requiring user input (all 22 suite programs ported) |
 | [`01_concept_loads_plan.md`](30_future/01_concept_loads_plan.md) | **Phase C plan** — growing the suite into an initial-concept distributed-loads tool (concept mode, Schrenk airloads, per-component distributed loads, sbeam export bridge) |
-| [`02_gui_workflow_plan.md`](30_future/02_gui_workflow_plan.md) | **Phase D plan** — GUI workflow restructure: assessment, six-section target structure, load-case IDs, locked decisions, page conventions |
 | [`03_gui_rework_plan.md`](30_future/03_gui_rework_plan.md) | **Phase G plan** — workflow-aligned GUI rework: one-unit-per-dimension policy, single-source-of-truth geometry, re-sequenced analysis-flow navigation, and the new fuselage-moment/trim-plot/elevator-chord features (assessment vs. current code, locked decisions G-1…G-4) |
-| [`05_step_g8_summary_report_plan.md`](30_future/05_step_g8_summary_report_plan.md) | **Step G8 plan** — the consolidated loads summary report: locked decisions (LaTeX/PDF, pgfplots figures, methods-statement stamping, report depth), the `sloads/report/` package layout, seven ordered sub-steps, risks, and the test matrix |
-| [`06_m4_maintainability_sequence_plan.md`](30_future/06_m4_maintainability_sequence_plan.md) | **M4 maintainability sequence plan** — execution order and per-step detail for the five pre-F25 items (M4-12 → M4-11 → G8 views → M4-10 → M4-9): measured baseline, the blocking design decisions D-12 … D-18, plan-document defects found, per-step acceptance/risk, and the doc-sync matrix |
-| [`04_m3-1_rename_procedure.md`](30_future/04_m3-1_rename_procedure.md) | **M3-1 execution runbook** — step-by-step git + shell procedure for the `farloads` → `sloads` rename batched with the `models.py` → `models/` split (branch, `git mv`, package split, import/pyproject rewrite, brand strings, acceptance gate, staged commits) |
+| [`05_step_g8_summary_report_plan.md`](30_future/05_step_g8_summary_report_plan.md) | **Step G8 plan** — the consolidated loads summary report: locked decisions (LaTeX/PDF, pgfplots figures, methods-statement stamping, report depth), the `sloads/report/` package layout, seven ordered sub-steps, risks, and the test matrix. **Live for the M3-3b remainder** (`content.py`, `latex.py`, `plots_tex.py`, `export/pdf.py`) |
 
 ## 40_history — Historic record
 
@@ -57,6 +54,9 @@ historical record.
 | [`02_verification_baseline_0.3.0.md`](40_history/02_verification_baseline_0.3.0.md) | **Verification baseline (0.3.0, current)** — the per-condition table of every checked FAR condition and the printed Appendix A (or worked-example) figure the suite locks against, plus the one-page oracle-vs-closure status table; refreshed per release (`RELEASE_PROCESS.md`) |
 | [`03_resolved_decisions.md`](40_history/03_resolved_decisions.md) | **Resolved design-decision register** — D-1 … D-11 with resolution date and a pointer to the rationale; open decisions stay in the backlog until answered |
 | [`04_m4-1_body_moment_closure.md`](40_history/04_m4-1_body_moment_closure.md) | **M4-1 design note (closed 2026-08-03)** — fuselage body-load moment closure: diagnosis of the unreacted wing-attachment couple, the A–E options trade, the shipped carry-through distributed spar reaction (formulas, fallback, per-step verification figures) |
+| [`05_phase_d_gui_workflow_plan.md`](40_history/05_phase_d_gui_workflow_plan.md) | **Phase D plan (executed; nav grouping superseded by Phase G)** — GUI workflow restructure: assessment, six-section target structure, load-case IDs, locked decisions D-1…D-7, page conventions. Still the citation target for the D-numbered GUI decisions |
+| [`06_m3-1_rename_procedure.md`](40_history/06_m3-1_rename_procedure.md) | **M3-1 execution runbook (executed 2026-07-22)** — step-by-step git + shell procedure for the `farloads` → `sloads` rename batched with the `models.py` → `models/` split |
+| [`07_m4_maintainability_sequence_plan.md`](40_history/07_m4_maintainability_sequence_plan.md) | **M4 maintainability sequence plan (executed 2026-08-03/04)** — execution order and per-step detail for M4-12 → M4-11 → G8 views → M4-10 → M4-9: measured baseline, design decisions D-12…D-18, per-step acceptance/risk, doc-sync matrix. Remainders M3-3b / M4-10b / M4-11b are carried in the backlog |
 
 ---
 

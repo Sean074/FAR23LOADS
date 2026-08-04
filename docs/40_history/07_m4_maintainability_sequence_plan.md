@@ -1,13 +1,16 @@
 # M4 maintainability sequence — execution plan (M4-12 → M4-11 → G8 views → M4-10 → M4-9)
 
-> **All six steps have shipped (2026-08-04).** What the sequence deliberately
-> scoped out is carried as its own backlog item: **M4-11b** (complexity splits),
-> **M3-3b** (the G8 report document) and **M4-10b** (proxy retirement).
+> **Executed and closed (2026-08-03/04).** All six steps have shipped; this
+> document is the historic record of the sequence and the reasoning behind
+> decisions D-12 … D-18, not open work. What the sequence deliberately scoped
+> out is carried in [`../30_future/00_backlog.md`](../30_future/00_backlog.md):
+> **M3-3b** (the G8 report document), **M4-10b** (proxy retirement) and
+> **M4-11b** (complexity splits).
 
 **Status:** **Steps 1–3 complete** — M4-12a + M4-12b (2026-08-03, M4-12 closed)
 and **M4-11a** (2026-08-04, the scaffold helpers; the complexity-splitting half
 is backlog **M4-11b** and does not block G8). See the history entries in
-[`../40_history/00_completed_development.md`](../40_history/00_completed_development.md).
+[`00_completed_development.md`](00_completed_development.md).
 **Step 5 (M4-10) is shipped 2026-08-04** bar its proxy retirement (M4-10b).
 **Step 4 (G8) is partially shipped 2026-08-04**: G8.1 (the `report/` package),
 G8.2 (schema v36 document control), G8.3 (the methods statement in every export
@@ -18,13 +21,13 @@ not started. **All design decisions resolved 2026-08-03**
 (D-12 … D-18, §2). **Written:** 2026-08-03.
 **Scope:** the five pre-F25 maintainability items, in the order the dependency
 analysis below justifies. **Not in scope:** any calc-math change. The invariant
-throughout is the one in [`00_backlog.md`](00_backlog.md): Appendix A oracles pass
+throughout is the one in [`00_backlog.md`](../30_future/00_backlog.md): Appendix A oracles pass
 unchanged, concept mode still reduces exactly to FAR 23 on GA inputs, the
 ultimate-load contract holds, `workflow.py` stays the single source of navigation
 truth.
 
-Related: [`00_backlog.md`](00_backlog.md) (the items themselves),
-[`05_step_g8_summary_report_plan.md`](05_step_g8_summary_report_plan.md) (G8 in
+Related: [`00_backlog.md`](../30_future/00_backlog.md) (the items themselves),
+[`05_step_g8_summary_report_plan.md`](../30_future/05_step_g8_summary_report_plan.md) (G8 in
 full — this plan only sequences its view work),
 [`../10_standard/GUI_design.md`](../10_standard/GUI_design.md) (page anatomy and
 the unit-boundary pattern M4-11 formalises).
@@ -60,7 +63,7 @@ from `.venv`). The CC figures in M4-11 (`_tab_design_speeds` 72, `landing_reacti
 
 D-12 … D-18 were put to the user on 2026-08-03 and **every one was resolved as
 recommended**. They are recorded in
-[`../40_history/03_resolved_decisions.md`](../40_history/03_resolved_decisions.md);
+[`03_resolved_decisions.md`](03_resolved_decisions.md);
 the analysis behind each is kept below because the steps in §4 depend on the
 reasoning, not just the verdict. **Nothing in this section is still open.**
 
@@ -397,7 +400,7 @@ against the Imperial-only writers would have to be retrofitted, which is exactly
 the trap this whole sequence exists to avoid. **M4-20 should be inserted before
 the G8 remainder.**
 
-Run [`05_step_g8_summary_report_plan.md`](05_step_g8_summary_report_plan.md)
+Run [`05_step_g8_summary_report_plan.md`](../30_future/05_step_g8_summary_report_plan.md)
 as written, with two corrections from this analysis:
 
 - **Fix the G8.2 schema number first** (§3 issue 1): 35 → 36.
@@ -465,7 +468,7 @@ The first draft of the relabel test passed for the wrong reason (a globally
 broken lookup blanks both sides, so equality still held); all three now assert
 the cells are non-blank and each was verified to fail when its own code path is
 reverted to label matching. See
-[`../40_history/00_completed_development.md`](../40_history/00_completed_development.md).
+[`00_completed_development.md`](00_completed_development.md).
 
 **Decisions applied:** D-12 (M4-10 lands first, so the key arrives by migration) and D-18 (the helpers re-point here).
 
@@ -514,4 +517,4 @@ Per CLAUDE.md, each step is incomplete until its docs land in the same session.
 Every step also updates `00_backlog.md` (**remove**) and
 `40_history/00_completed_development.md` (**add**, full step format) in the same
 session, and resolved D-numbers move to
-[`../40_history/03_resolved_decisions.md`](../40_history/03_resolved_decisions.md).
+[`03_resolved_decisions.md`](03_resolved_decisions.md).

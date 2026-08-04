@@ -12,6 +12,28 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- **Backlog review — M4 re-prioritised and the future-development tree pruned
+  (docs only).** **M4-20** (deliverables render in the user-selected unit
+  system) is now the first M4 item: **M3-3b** (the G8 report document) was
+  listed first while being explicitly blocked on it, so the head of the list
+  could not actually be worked. M3-3b follows, with its one unit-independent
+  sub-step (`content.py`) called out as startable in parallel. The backlog's
+  shipped-work narrative is replaced by pointers to `40_history/`, **M4-23**
+  gained a full entry (it was previously only a line in the defect index), and
+  the ~25-nit **L-8** bucket is split into **L-8a…L-8f** (SI-toggle conformance,
+  tooltip rollout, results/export parity, widget freshness, uncovered fields,
+  and a clearly-marked display-only tail) so the items can close independently.
+- **Three spent plan documents moved from `docs/30_future/` to
+  `docs/40_history/`**, so `30_future/` holds only live plans:
+  `02_gui_workflow_plan.md` → `40_history/05_phase_d_gui_workflow_plan.md`
+  (Phase D, executed; nav grouping superseded by Phase G), `04_m3-1_rename_procedure.md`
+  → `40_history/06_m3-1_rename_procedure.md` (executed with 0.3.0), and
+  `06_m4_maintainability_sequence_plan.md` →
+  `40_history/07_m4_maintainability_sequence_plan.md` (all six steps shipped
+  2026-08-03/04). Each carries an "executed and closed" banner; all inbound
+  links across `docs/`, `sloads/`, `tests/` and this changelog were repointed,
+  and every markdown link target under `docs/` was verified to resolve.
+
 - **M4-9 — a result's meaning is now its `key`, not its display label.**
   `LoadValue` gains a stable snake_case `key`; `report`, `export`, the views and
   the tests match on it and nothing branches on `label` any more. Rewording a
@@ -1815,7 +1837,7 @@ export. Suite at cut: 501 tests, ~93% coverage, ruff clean, smoke test PASS,
   peer (appended if none), and everything else is preserved — and
   `app/views/flight_envelope.py` persists through it. This is the first
   application of the Phase-D "Apply merges into the project slice" page
-  convention (`docs/30_future/02_gui_workflow_plan.md §5`). Regression tests in
+  convention (`docs/40_history/05_phase_d_gui_workflow_plan.md §5`). Regression tests in
   `tests/test_flight_envelope.py` load a slice with a flaps-down configuration
   and two altitudes through the persist path and assert both survive. No calc
   or schema change.

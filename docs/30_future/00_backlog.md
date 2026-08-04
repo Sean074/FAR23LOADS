@@ -1,21 +1,17 @@
 # Backlog — Open Work & Development Plan
 
-The authoritative list of **open** items. The first concept-loads release —
-**sloads 0.3.0, cut 2026-07-23** — is out; the structure is now the
-post-release milestone **M4**, Phase F25, the long-tail refinement list, and
-future directions. The completed-milestone record (M1, M2, M2R, M3) lives in
-[`../40_history/00_completed_development.md`](../40_history/00_completed_development.md);
-the source reviews are
-[`PROJECT_REVIEW_2026-07-19.md`](../../PROJECT_REVIEW_2026-07-19.md) and
-[`CODE_REVIEW_2026-07-21.md`](../../CODE_REVIEW_2026-07-21.md).
+The authoritative list of **open** items, in priority order: **M4**
+(post-0.3.0), **Phase F25**, the long-tail refinements, future directions, and
+the one open design decision.
 
-The architectural rationale lives in
-[`../10_standard/PROJECT_GUIDE.md §7`](../10_standard/PROJECT_GUIDE.md); the
-per-module spec is [`PROGRAM_SPEC.md`](../10_standard/PROGRAM_SPEC.md); the
-Phase-C narrative (locked decisions, schema, concept-mode invariants) is
-[`01_concept_loads_plan.md`](01_concept_loads_plan.md); the Phase-G narrative
-(GUI rework, locked decisions, page conventions) is
-[`03_gui_rework_plan.md`](03_gui_rework_plan.md).
+Completed milestones (M1, M2, M2R, M3 and the M4 maintainability sequence) live
+in [`../40_history/00_completed_development.md`](../40_history/00_completed_development.md).
+Narratives: [`01_concept_loads_plan.md`](01_concept_loads_plan.md) (Phase C —
+concept mode), [`03_gui_rework_plan.md`](03_gui_rework_plan.md) (Phase G — GUI
+rework), [`05_step_g8_summary_report_plan.md`](05_step_g8_summary_report_plan.md)
+(Step G8 — the summary report). Architecture:
+[`../10_standard/PROJECT_GUIDE.md §7`](../10_standard/PROJECT_GUIDE.md);
+per-module spec: [`PROGRAM_SPEC.md`](../10_standard/PROGRAM_SPEC.md).
 
 > **Lifecycle rule (hard requirement, per `CLAUDE.md`).** When an item here is
 > finished, in the **same session**: (1) **remove** it from this file, (2) **add**
@@ -23,18 +19,17 @@ Phase-C narrative (locked decisions, schema, concept-mode invariants) is
 > with its full step record, and (3) add a `CHANGELOG.md` `[Unreleased]` entry.
 > The backlog holds **open** items only — never leave a "✅ done" entry here.
 
-**Definition of done** (every step closes against all of these):
-the module is merged and self-registered; a `tests/test_<module>.py` passes
-(Appendix A/B figures within ±0.1% where an oracle exists, else physics-closure);
-a Streamlit page exists; the `Project` JSON schema is extended and round-trips in
-`io.py` (`SCHEMA_VERSION` bumped, older files still load); and the four docs are
-synced (`PROGRAM_SPEC.md`, `20_theory/00_theory_sources.md`, this backlog →
-history, `CHANGELOG.md`).
+**Definition of done** (every step closes against all of these): the module is
+merged and self-registered; a `tests/test_<module>.py` passes (Appendix A/B
+figures within ±0.1% where an oracle exists, else physics-closure); a Streamlit
+page exists; the `Project` JSON schema is extended and round-trips in `io.py`
+(`SCHEMA_VERSION` bumped, older files still load); and the docs are synced
+(`PROGRAM_SPEC.md`, `20_theory/00_theory_sources.md`, this backlog → history,
+`CHANGELOG.md`).
 
-> **Invariant (unchanged):** no calc-math change to the FAR23 path — Appendix A
-> oracles pass throughout; concept mode reduces exactly to FAR23 on GA inputs;
-> ultimate-load output rules hold; `workflow.py` stays the single source of
-> navigation truth.
+> **Invariant:** no calc-math change to the FAR23 path — Appendix A oracles pass
+> throughout; concept mode reduces exactly to FAR23 on GA inputs; ultimate-load
+> output rules hold; `workflow.py` stays the single source of navigation truth.
 
 ---
 
@@ -42,50 +37,79 @@ history, `CHANGELOG.md`).
 
 All 22 Appendix-C programs are ported plus 2 modern modules (`configuration`,
 `body_loads`). Phases 0–2, C, D, E, F, Phase 1, Phase G Steps **G0–G7** and
-milestones **M1, M2, M2R, M3** are complete — see history for the step records
-and `40_history/02_verification_baseline_0.3.0.md` for the release baseline.
-The suite is green (ruff clean, smoke test PASS; see CI for current test and
-coverage counts), the FAR23 GA path is Appendix-A oracle-locked, and both
+milestones **M1, M2, M2R, M3** are complete. The suite is green (ruff clean,
+smoke test PASS), the FAR23 GA path is Appendix-A oracle-locked, and both
 concept fixtures run end-to-end.
 
-**Release status:** **sloads 0.3.0 cut 2026-07-23**, tag `v0.3.0`. M3-3 (Step G8
-summary report) did not ship with 0.3.0 and opens M4 below.
+**Release status:** **sloads 0.3.0 cut 2026-07-23**, tag `v0.3.0`. The M4
+maintainability sequence (M4-12, M4-11a, G8.1–G8.4a, M4-10, M4-9) shipped
+2026-08-03/04; its deliberately-deferred remainders are **M3-3b**, **M4-10b** and
+**M4-11b** below.
 
-Reference-authority hierarchy (unchanged): (1) `.BAS` listings + Appendix A
-printed output, (2) User's Guide CFR quotes (Jan-1994), (3) Code-manual 1990
-prose.
+Reference-authority hierarchy: (1) `.BAS` listings + Appendix A printed output,
+(2) User's Guide CFR quotes (Jan-1994), (3) Code-manual 1990 prose.
 
 ---
 
-# M4 — Post-release (next after 0.3.0, priority order)
+# M4 — Post-release (priority order)
 
-### M3-3b — Step G8 remainder: the report document itself **[first item of M4]**
-**G8.1–G8.3 and half of G8.4 shipped 2026-08-04** (see history): the
-`sloads/report/` package, the v36 document-control fields, the methods &
-limitations statement stamped into **every** export channel, and the FAR 23
-Subpart C coverage matrix. What remains is the document:
+### M4-20 — Deliverables render in the user-selected unit system **[first — unblocks M3-3b]**
+
+**Standard changed 2026-08-03** (`00_program_overview.md` *Deliverable units follow
+the user's selection*; `SUMMARY_REPORT.md` §3.5): exports are no longer fixed to
+Imperial — the whole bundle renders in the system the user chose. The docs are
+updated; the code is not.
+
+- **Selection plumbing.** Add a unit-system field to `Project` (`SCHEMA_VERSION`
+  bump + lenient migration; absent → Imperial) recording the *preference* only —
+  `io.py` still never converts stored values. The GUI sidebar toggle writes it;
+  add `--units imperial|si` to `cli.py`, overriding the field per run. Re-point
+  `components._active_system()` at the new field (per D-16).
+- **Unit-aware writers.** `report/` (`load_cases_to_rows`, `text_report`, the
+  module tables), the load-case CSV, `export/sbeam_bridge.py` (`FORCE`/`MOMENT`
+  cards + span CSV) and the G8 report renderer take the system as a parameter and
+  convert at that boundary. One system per bundle — the bundle writer passes a
+  single value to every file, so two files can't disagree.
+- **In-band statement.** BDF header comment naming the system; a units row or
+  unit-suffixed column headers in each CSV; the report's title page and manifest.
+- **Markers.** Extend `units.py` so the `-ULT` marker converts with the unit
+  (`N-ULT`, `Nm-ULT`, `Pa-ULT`); **`Pa-ULT` is new** — there is no SI pressure kind
+  today. Add the design-pressure kind and its factor.
+- **GUI.** The Export page states the system the bundle will be written in, beside
+  the download control (`GUI_design.md` §7).
+- **Tests.** Imperial output byte-identical to today (default path unchanged);
+  SI round-trip Imperial → SI → Imperial lossless to display precision; a bundle
+  asserts one system across report + CSV + BDF; KEAS/altitude unconverted in both.
+  Appendix A/B oracles untouched (calc is not in this path).
+
+The aviation-standard carve-out is retained: airspeed (KEAS) and altitude (ft)
+are never converted, and deliverables say so.
+
+### M3-3b — Step G8 remainder: the report document itself
+
+G8.1–G8.3 and G8.4's coverage matrix shipped 2026-08-04 (the `sloads/report/`
+package, the v36 document-control fields, the methods & limitations statement in
+every export channel, the FAR 23 Subpart C coverage matrix). What remains is the
+document:
 
 - **G8.4 (rest) — `content.py`.** `Project` + `run_all_modules()` →
-  `ReportDocument` (§§1–4 of the structure). Pure, fully testable on its own;
-  `coverage.py` is already built and exported for it to consume.
+  `ReportDocument` (§§1–4 of the structure). Pure and fully testable on its own;
+  `coverage.py` is already built and exported for it to consume. **This sub-step
+  is unit-system-independent and may start before M4-20 lands.**
 - **G8.5 — `latex.py` + `plots_tex.py`.** The `.tex` renderer (escaping,
   `longtable`, document-control block) and the three pgfplots figures (V-n,
   weight/CG, speed–altitude — the third has no GUI equivalent and is new work).
+  **Blocked on M4-20**: a renderer written against the Imperial-only writers has
+  to be retrofitted (`05_step_g8_summary_report_plan.md` §10.1).
 - **G8.6 — `export/pdf.py` + the Export-page section.** Engine discovery
   (`tectonic` → `latexmk` → `pdflatex`), compile in a temp dir, surface failure
-  as a caption. **Write it against `components.page`/`unit_number_input`** — M4-11a
-  shipped them, which is why G8 was sequenced after it.
+  as a caption. Write it against the existing `components.page` /
+  `unit_number_input` helpers.
 - **G8.7 — doc sync + close-out.**
 
 Plan, locked decisions G8-1…G8-4 and the test matrix:
 [`05_step_g8_summary_report_plan.md`](05_step_g8_summary_report_plan.md).
 Document standard: [`../10_standard/SUMMARY_REPORT.md`](../10_standard/SUMMARY_REPORT.md).
-
-> **Blocked on M4-20 for unit conformance.** The plan's §10.1 resolution — the
-> report and the whole bundle render in the user's selected unit system — needs
-> M4-20's `Project` unit field, CLI `--units` flag and unit-aware BDF/CSV
-> writers, which are **still open**. Land M4-20 before G8.5, or the `.tex`
-> renderer is written against the wrong boundary and has to be retrofitted.
 
 ### M4-2 — Unify `select_wing`/`one_engine_out` case identity
 One case-ID authority per component end-to-end: derive `WingMassInput.cases`
@@ -99,7 +123,7 @@ document; (b) gate 23.367 on `is_turboprop` (or caption) so it can't silently
 run for a reciprocating/turbofan multi (23.367(a) is turbopropeller-specific,
 Ref 1 Ch 11 p87); (c) the Ch 11 Method allows **VSF** (flapped stall) as an
 alternative VMC substitute — the case table uses only VS (clean) today; add VSF
-or document the omission (surfaced during M1-5).
+or document the omission.
 
 ### M4-4 — Per-CG precise inertia in SELECT
 Wire the persisted WTONECG per-CG inertia into SELECT's checked-maneuver `Iyy`
@@ -126,18 +150,16 @@ Today the safety factor is decided ad hoc: `ConditionResult.safety_factor` defau
 single audited authority, so which conditions deviate from 1.5 is reviewable in one
 place and Part-25 system-failure cases have a home. Two layers with **different sources
 of authority** — do not conflate them:
+
 - **Layer 1 — regulation-fixed (code).** A shared `LoadClass` (LIMIT / ULTIMATE / …)
   + a resolver `resolve(load_class, …) -> (factor, basis)`: `LIMIT → 1.5`,
   `ULTIMATE` (limit-treated-as-ultimate) `→ 1.0` (14 CFR 23.303/25.303), subsuming
   `constants.ULTIMATE_FACTOR`. The class is assigned at the case-definition site (the
   seed already exists: `one_engine_out._LoadCase.load_class`); the resolver turns
-  class → factor + basis. Consumed by **both** `report.py` **and** `sbeam_bridge`
-  — M4-7 (shipped) wired the *carrier* (`safety_factor` on the four
-  distributed-load results, read per result by `sbeam_bridge._sf()`); this item
-  replaces the ad-hoc **policy** behind it, building on M4-13 (shipped — every
-  producer now mints once) and M4-14 (shipped — read-side band validation and
-  the shared `validation.safety_factor_valid` predicate).
-  `one_engine_out` migrates to it as the first client.
+  class → factor + basis. Consumed by **both** `report/` **and** `sbeam_bridge`.
+  `one_engine_out` migrates to it as the first client. **Can ship independently** —
+  the carrier (M4-7), the per-producer mints (M4-13) and the read-side band
+  validation (M4-14) are all in place.
 - **Layer 2 — agreed failure cases (project input; Phase F25 / 25.302).** A `Project`
   slice of **named** system-failure factors — `(name, far_reference="25.302",
   agreed_sf, basis)` — e.g. **`25.302 — MLA Loss → SF 1.25`**. These are *not* code
@@ -147,66 +169,38 @@ of authority** — do not conflate them:
   ULTIMATE load case (`25.302 MLA Loss`, `SF=1.25`, `lbs-ULT`) and (b) **records a
   design requirement levied on the system** — a loads↔systems interface artifact the
   tool can later surface as a "system reliability requirements" list. The resolver
-  overlays these named factors on the Layer-1 defaults.
+  overlays these named factors on the Layer-1 defaults. **Coordinates with Phase F25.**
+
 **Note:** this is a *practical* 25.302 (agreed named-failure-case factors), distinct
 from the full probabilistic **Appendix K** method, which the F25 gap analysis keeps
 out of scope — see [`../20_theory/01_far25_gap_analysis.md`](../20_theory/01_far25_gap_analysis.md).
-**Acceptance:** one resolver is the sole authority for every non-1.5 factor; `report.py`
+
+**Acceptance:** one resolver is the sole authority for every non-1.5 factor; `report/`
 and `sbeam_bridge` produce identical factors for the same case; `one_engine_out`
 migrated with oracles/tests unchanged; a Layer-2 named case (e.g. MLA loss @ 1.25)
 round-trips through `io.py` and renders as `lbs-ULT SF=1.25`. Touches the CLAUDE.md
-ultimate-load contract — land deliberately with tests. **Layer 1 can ship
-independently (M4-7's carrier and M4-13's per-producer mints are already in
-place, and M4-14's read-side band validation closes the input side);
-Layer 2 coordinates with Phase F25.**
+ultimate-load contract — land deliberately with tests.
 
-> **The M4 maintainability sequence is complete (2026-08-04): M4-12a/b, M4-11a,
-> G8.1–G8.3, M4-10's chain and M4-9 have all shipped. What remains of it is
-> M4-10b (proxy retirement), M4-11b (complexity splits) and M3-3b (the G8
-> report document), each carried as its own item above.**
-> **M4-12 → M4-11 → G8 views → M4-10 → M4-9 were sequenced and scoped by
-> [`06_m4_maintainability_sequence_plan.md`](06_m4_maintainability_sequence_plan.md)**
-> (decisions D-12 … D-18, resolved 2026-08-03). The order mattered: **M4-10 landed
-> before M4-9**, because `LoadValue` is persisted and the new `key` had to arrive
-> through the migration chain — it became the chain's first real customer
-> (`_v36_load_value_keys`), which validated it.
-> **M4-12a (test architecture) and M4-12b (contract cleanups) both shipped
-> 2026-08-03 — M4-12 is closed. **M4-11a (the scaffold helpers) shipped
-> 2026-08-04**; its complexity-splitting half is **M4-11b**, which is *not*
-> a G8 blocker — G8.6 only needs `page()`/`unit_number_input`, which exist.
-> **Step 4 (G8) is partially shipped 2026-08-04** — G8.1–G8.3 and the
-> coverage matrix are done; the remainder is **M3-3b** above, which is
-> blocked on **M4-20** for unit conformance.
-
-### M4-10b — Retire the `tail_loads`/`vtail_loads` property proxies **[remainder of M4-10]**
-**M4-10's migration chain shipped 2026-08-04** (see history): `sloads/migrations.py`,
-the 19-clause or-gate gone, all five legacy shims deleted, frozen fixtures and both
-schema guards in place. The sixth sub-step — retiring the Step-G6 proxies per
-**D-15** — is deliberately separate: it is a ~90-site mechanical change to the
-object model (**73 reads, 19 writes** across 21 files), and its risk is the
-*writes*, not the reads.
-
+### M4-10b — Retire the `tail_loads`/`vtail_loads` property proxies
 `Project.tail_loads`/`.vtail_loads` are properties over
 `geometry.empennage.htail`/`.vtail` whose setter **silently no-ops** when
 assigning `None` to a project with no geometry (`models/project.py`, warning block
-beside the definition). Replacing them with plain reads of
-`geometry.empennage.*` changes assignment semantics at all 19 write sites, so each
-needs looking at rather than a regex. Do it as its own change, with the chain and
-both guards already green, so any regression is attributable — which is exactly
-why the M4-10 plan sequenced it last.
+beside the definition). Replacing them with plain reads of `geometry.empennage.*`
+is a ~90-site mechanical change (**73 reads, 19 writes** across 21 files), and the
+risk is the **writes**: each of the 19 changes assignment semantics, so each needs
+looking at rather than a regex. Kept separate from M4-10's migration chain
+(shipped) so any regression is attributable.
 
-Acceptance: the properties and their setters are gone from `models/project.py`;
+**Acceptance:** the properties and their setters are gone from `models/project.py`;
 all 6 examples still round-trip byte-identically; every frozen fixture in
 `tests/fixtures_schema/` still loads; `test_migrations.py`'s
 `test_pre_g6_file_lands_its_tail_slices_on_the_empennage` is rewritten against the
 direct path.
 
-### M4-11b — Split the four highest-complexity view functions **[maintainability; remainder of M4-11]**
-**M4-11a shipped 2026-08-04** — the scaffold helpers (`unit_number_input`,
-`page_header`/`page`) exist, are tested, and are adopted where they fixed real
-unit defects; see history. What it deliberately did **not** do is the
-complexity-splitting half, re-measured with `radon` on 2026-08-04 and unchanged
-by M4-11a:
+### M4-11b — Split the highest-complexity view functions **[maintainability]**
+The scaffold helpers (`unit_number_input`, `page_header`/`page`) exist and are
+tested (M4-11a); the complexity-splitting half did not ship. CC re-measured with
+`radon` on 2026-08-04:
 
 | function | file | CC |
 |---|---|---|
@@ -223,11 +217,9 @@ finish adopting `unit_number_input` in the views that still hand-pair
 different route** — it converts the whole `EngineInput` at Apply via
 `units.to_imperial`, so per-field adoption there would double-convert; either
 leave it or migrate the whole page in one move. `radon` is in the `dev` extra
-(D-17) — re-measure before and after. The projected "1.5–2k lines removed" is
-this half's to earn: M4-11a *added* ~170 net lines (a documented shared helper in
-place of duplicated idiom), which is the trade it was meant to make.
+(D-17, reporting only) — re-measure before and after.
 
-### M4-22 — Flight Envelope: SELECT Apply also persists un-applied geometry edits **[Minor, found by M4-12a]**
+### M4-22 — Flight Envelope: SELECT Apply also persists un-applied geometry edits **[Minor defect]**
 `app/views/flight_envelope.py:324` — the SELECT-inputs form handler writes the
 page's *probe copy* back to session state (`st.session_state["project"] =
 project`), and that copy already carries `fl_effective` from line 178. So
@@ -235,14 +227,19 @@ pressing **Apply** inside the "SELECT search inputs" expander silently commits
 whatever the user typed into the **Apply geometry & altitudes** form (XTC / XTF /
 reference Mach / the altitudes editor) without pressing that form's own Apply —
 the M2-3 "persist only on Apply" contract, violated for a different form's
-fields. Fix: the SELECT handler should write only `select_input` onto the session
-project (`st.session_state["project"].select_input = si`), never the probe copy.
-Found by M4-12a: positional button selection had hidden it, because
-`test_flight_loads_persists_only_on_apply` was clicking `select_inputs_form` and
-still observing `flight_loads` persisted. Add a test asserting the SELECT Apply
-leaves `flight_loads` untouched — it fails today.
+fields. **Fix:** the SELECT handler should write only `select_input` onto the
+session project (`st.session_state["project"].select_input = si`), never the probe
+copy. Add a test asserting the SELECT Apply leaves `flight_loads` untouched — it
+fails today.
 
-### M4-21 — Fuselage pitching load factor (Ch 15's missing half; split from M4-1)
+### M4-23 — `flight_envelope.density_ratio` duplicates `constants.standard_atmosphere` **[Minor defect]**
+`density_ratio` (promoted from `_sigma` in M4-12b) reproduces the sigma computed
+by `constants.standard_atmosphere` bit-for-bit. Collapse to one authority —
+`density_ratio` becomes a thin read of `standard_atmosphere`, or is deleted and
+its callers re-pointed. Numerically inert by construction: assert the Appendix A
+oracles and both concept fixtures are unchanged.
+
+### M4-21 — Fuselage pitching load factor (Ch 15's missing half)
 Ch 15 (Ref 1 p103) says to multiply the station weights by the **linear and
 pitching** load factors; `body_loads` applies only `NZ`. Add the d'Alembert pitch
 term at each station, `f_i += -m_i * θ̈ * (x_i - x_cg)`, for the unbalanced /
@@ -250,11 +247,11 @@ abrupt-pitch conditions (23.423). It is self-equilibrating by construction —
 `Σ m_i (x_i - x_cg) ≡ 0` by definition of the CG, so it adds **zero net force**
 and a net moment of `-Iyy*θ̈`; i.e. the mass-weighted form of a linear
 distribution with net moment and no net shear. **Not a closure mechanism:** for
-the balanced trim points `θ̈ = 0`, so M4-1 stands on its own. Needs `θ̈`, hence
-`Iyy` and an unbalanced pitching condition (`build_envelope` emits only balanced
-trim points today) — pairs naturally with **M4-4** (per-CG precise inertia).
+the balanced trim points `θ̈ = 0`, so M4-1 (shipped) stands on its own. Needs `θ̈`,
+hence `Iyy` and an unbalanced pitching condition (`build_envelope` emits only
+balanced trim points today) — pairs naturally with **M4-4**.
 
-### M4-19 — Distributed fuselage aero pitching moment (Multhopp/Nelson; split from M4-1)
+### M4-19 — Distributed fuselage aero pitching moment (Multhopp/Nelson)
 Step G4's `sloads/fuselage_moment.py` returns a **scalar** Munk slope
 `dCm/dα = (k2-k1)*Vol/(S*mac)`, folded into `M1` for the trim solve only — the
 body's own aero moment never reaches the beam, and the Munk form is the ideal-flow
@@ -278,40 +275,6 @@ wing root-chord station for the `∂ε_u/∂α` curve. Update
 `reference/fuselage_pitching_moment.md` (which currently documents the Munk-only
 scope and its deliberate omissions) alongside the calc.
 
-### M4-20 — Deliverables render in the user-selected unit system
-
-**Standard changed 2026-08-03** (`00_program_overview.md` *Deliverable units follow
-the user's selection*; `SUMMARY_REPORT.md` §3.5): exports are no longer fixed to
-Imperial — the whole bundle renders in the system the user chose. The docs are
-updated; the code is not. Work:
-
-- **Selection plumbing.** Add a unit-system field to `Project` (`SCHEMA_VERSION`
-  bump + lenient migration; absent → Imperial) recording the *preference* only —
-  `io.py` still never converts stored values. The GUI sidebar toggle writes it;
-  add `--units imperial|si` to `cli.py`, overriding the field per run.
-- **Unit-aware writers.** `report.py` (`load_cases_to_rows`, `text_report`,
-  the module tables), the load-case CSV, `export/sbeam_bridge.py` (`FORCE`/`MOMENT`
-  cards + span CSV) and the G8 report renderer take the system as a parameter and
-  convert at that boundary. One system per bundle — the bundle writer passes a
-  single value to every file, so two files can't disagree.
-- **In-band statement.** BDF header comment naming the system; a units row or
-  unit-suffixed column headers in each CSV; the report's title page and manifest.
-- **Markers.** Extend `units.py` so the `-ULT` marker converts with the unit
-  (`N-ULT`, `Nm-ULT`, `Pa-ULT`); **`Pa-ULT` is new** — there is no SI pressure kind
-  today (`00_program_overview.md`'s load table had `—`). Add the design-pressure
-  kind and its factor.
-- **GUI.** The Export page states the system the bundle will be written in, beside
-  the download control (`GUI_design.md` §7).
-- **Tests.** Imperial output byte-identical to today (default path unchanged);
-  SI round-trip Imperial → SI → Imperial lossless to display precision; a bundle
-  asserts one system across report + CSV + BDF; KEAS/altitude unconverted in both.
-  Appendix A/B oracles untouched (calc is not in this path).
-
-**Blocks Step G8's units conformance tests** (`05_step_g8_summary_report_plan.md`
-§10.1, resolved against this item). Note the aviation-standard carve-out is
-retained: airspeed (KEAS) and altitude (ft) are never converted, and deliverables
-say so.
-
 ---
 
 # Phase F25 — FAR 25 concept coverage (post-0.3.0)
@@ -322,11 +285,11 @@ details: [`../20_theory/01_far25_gap_analysis.md`](../20_theory/01_far25_gap_ana
 (2026-07-20). Pattern throughout: opt-in supplement per module (the shipped
 `engine.include_far25` flag is the template); FAR 23 path untouched; every
 Part 25 result carries the "static surrogate — not certification" banner.
-**Preconditions (2026-07-21 review): M4-9, M4-10 and M4-11 land first** — F25
-supplements emit new quantities and new fields, and the label-string/io/app
-walls are cheapest to clear before the wave, not after. **M4-9 and M4-10's
-chain shipped 2026-08-04, M4-11a on the same day; only M4-11b (the complexity
-splits) is still open, and it does not gate a new quantity.**
+
+**Preconditions met.** The label-string / io / app walls the 2026-07-21 review
+wanted cleared before the supplement wave — M4-9, M4-10 and M4-11a — all shipped
+2026-08-04. Only M4-11b remains of that batch, and it does not gate a new
+quantity.
 
 - **F25-0 — Verify pass (S, first).** Pull current CFR text for every
   *(verify)* row into `reference/14CFR_Part25_loads_extracts.md`; correct the
@@ -334,8 +297,7 @@ splits) is still open, and it does not gate a new quantity.**
   `reference/14CFR_MC_MD_speed_margin.md`.)*
 - **F25-1 — Transport category "T" envelope pack (M).** 25.337 floor 2.5 /
   negative −1.0; VB (25.335(d)); transport gust corner set — Pratt engine with
-  the 25.341 U_ref schedule + F_g; MZFW design weight. M1-6 (W/S ≥ 100
-  coefficient clamp), M1-1/2 landed.
+  the 25.341 U_ref schedule + F_g; MZFW design weight.
   Identity test: "T" with FAR 23 parameters reproduces the FAR 23 envelope.
 - **F25-2 — Speeds & placards Part 25 variant (S→M).** 25.335 margins (VB
   margin; MD ≥ MC + **0.07** default, 0.05–0.07 only as explicit
@@ -361,9 +323,7 @@ splits) is still open, and it does not gate a new quantity.**
 
 Out of scope, documented in the gap analysis: tuned-gust dynamics, continuous
 turbulence, 25.362, rational taxi, the full probabilistic **Appendix K** method.
-(The *practical* 25.302 case — agreed named system-failure factors such as
-`25.302 — MLA Loss → SF 1.25`, negotiated loads↔systems rather than computed from a
-probability — is Layer 2 of **M4-8** and is in scope there.)
+(The *practical* 25.302 case is Layer 2 of **M4-8** and is in scope there.)
 
 ---
 
@@ -375,12 +335,12 @@ assembled combined-airframe export. Granularity per **D-7**: load-cards-only
 default; assembled stick model opt-in behind a flag.
 
 ### L-2 — Flaps-extended tail loads: printed oracle completion
-M1-2 lands the p176 landing-config polynomials and the p178 oracle rows for the
+M1-2 landed the p176 landing-config polynomials and the p178 oracle rows for the
 envelope; completing the SELECT→TAILDIST flaps-extended pipeline against the
 printed cases (81/106/88/108) still needs the CG5–7 loadings added to the
 fixtures. Also fold in the LEV LAND balanced point (Appendix A case 90, the
 sink-speed/attitude iteration `FLTLOADS.BAS` lines 3410–3600) — currently
-omitted from the flap corner set and undocumented (review minor).
+omitted from the flap corner set and undocumented.
 
 ### L-3 — V-tail large-deflection factor EFV → SELECT ⚠️
 **Not a simple wire-in — the naive fix breaks the 591-lb oracle by −47%**
@@ -411,37 +371,49 @@ CL) — implement the coefficient generator or keep as a tracked scope gap
 Confirm vs WINGINER.BAS whether a THETADOT pitch-acceleration case is expected;
 surface `DMYY` if a per-strip incremental torsion column is wanted.
 
-### L-8 — UX / reporting parity batch (extended by the 07-19 and 07-21 reviews)
-ENGLOADS `prop_blades` captured but unused; AILERON positive-deflection
-coercion undocumented; WTONECG YBAR omitted; TAILDIST average-chord only (not
-the guide's N-station-chord variants, Figs 20.7–20.10). Review nits (07-19):
-V-n plot negative closure should show −1.0 at VD for U/A categories (loads are
-right; display only); chosen VA silently clamped to VC (BASIC only raises —
-warn instead); 190-lb occupant caption for U/A (23.25(a)(2)); MC-vs-MD Mach cap
-on cruise stall-line conditions (numerically inert; comment or match BASIC);
-save-filename sanitization; `st.spinner` on heavy recomputes; migrate off the
-deprecated `use_container_width`. **New from the 2026-07-21 GUI review:**
-finish the `help=` rollout on the Other-loads/Flight-loads pages (flap 0/6,
-OEO 0/7, wing loads 2/10 vs speeds 21/21; app-wide ~45%); make the G6/G6b
-empennage + landing-gear sections respect the SI toggle (hardcoded ft²/in
-labels — a GUI_design §7 deviation — and ~30 widgets without tooltips) or
-record the exception in GUI_design §7; Results Review "All results by section"
-should include the 8 folded modules' results (map folded → host step);
-human-label the folded-module CSVs on Export ("balloads (CSV)" → descriptive);
-add widgets (or documented JSON-only status) for the remaining uncovered
+### L-8a — SI-toggle & unit-label conformance in the GUI
+The G6/G6b empennage + landing-gear sections hardcode ft²/in labels and ignore
+the SI toggle — a `GUI_design.md §7` deviation. Make them respect the toggle
+(adopting `unit_number_input`) or record the exception in `GUI_design.md §7`.
+Pairs with **M4-20**, which fixes the same boundary on the export side.
+
+### L-8b — `help=` tooltip rollout completion
+App-wide tooltip coverage is ~45%. Worst pages: flap loads 0/6, one-engine-out
+0/7, wing loads 2/10 (structural speeds is complete at 21/21); the G6/G6b
+sections add ~30 untooltipped widgets. Finish the rollout page by page.
+
+### L-8c — Results/Export consolidation parity
+Results Review "All results by section" omits the 8 folded modules' results —
+map folded → host step so they appear. Human-label the folded-module CSVs on
+Export ("balloads (CSV)" → a descriptive name).
+
+### L-8d — Widget freshness audit (deferred from M2-7)
+Input widgets pass both `key=` and `value=`, so Streamlit's session_state can win
+over the project-seeded `value=` and show a stale field after the project changes
+underneath (cross-page Apply, programmatic load). **Not a data-loss bug** (Apply
+is required to persist, and per-page unit-suffixed keys limit the blast radius);
+audit the `key=`+`value=` widgets and re-seed on a project change, or prove it
+cannot occur. `tests/test_persistence.py` locks the data-persistence half.
+
+### L-8e — Uncovered input fields & UX nits
+Add widgets (or a documented JSON-only status) for the remaining uncovered
 fields: `speeds.chosen_va`/`chosen_vf`, `one_engine_out.speeds_kt`,
-`weight.envelope.fuselage_nose_x`/`fuselage_tail_x`; de-jargonize error
+`weight.envelope.fuselage_nose_x`/`fuselage_tail_x`. Plus: de-jargonize error
 strings (no internal slice names); move the Geometry parametric form and the
 Flight-Envelope altitude Apply out of the sidebar (or visually anchor them);
-first-run Loads Plots info should use the linked `gate()`; OEO "define ≥2
-engines" warning needs a page link. **Widget freshness (deferred from M2-7):**
-input widgets pass both `key=` and `value=`, so Streamlit's session_state can
-win over the project-seeded `value=` and show a stale field after the project
-changes underneath (cross-page Apply, programmatic load). Not a data-loss bug
-(Apply is required to persist, and per-page unit-suffixed keys limit the blast
-radius); audit the `key=`+`value=` widgets and re-seed on a project change (or
-prove it cannot occur). `tests/test_persistence.py` locks the data-persistence
-half.
+first-run Loads Plots info should use the linked `gate()`; the OEO "define ≥2
+engines" warning needs a page link; save-filename sanitization; `st.spinner` on
+heavy recomputes; migrate off the deprecated `use_container_width`.
+
+### L-8f — Display-only and numerically-inert nits **[lowest priority]**
+None of these change a load. V-n plot negative closure should show −1.0 at VD for
+U/A categories (loads are right; display only); chosen VA is silently clamped to
+VC (BASIC only raises — warn instead); 190-lb occupant caption for U/A
+(23.25(a)(2)); MC-vs-MD Mach cap on cruise stall-line conditions (numerically
+inert — comment or match BASIC); ENGLOADS `prop_blades` captured but unused;
+AILERON positive-deflection coercion undocumented; WTONECG YBAR omitted;
+TAILDIST average-chord only (not the guide's N-station-chord variants,
+Figs 20.7–20.10).
 
 ### L-9 — FAR23 printed-oracle backfills ⛔ *blocked on reference material*
 Close each as a mini-step **only if** a legible Appendix B / `.INP`/`.OUT`
@@ -463,11 +435,11 @@ reaction matrix stays closure-/legible-cell-locked).
   weights/stiffness loop), and eventual **smodal** hand-off.
 - **Additional load-case families** beyond the current FAR23 + Part 25
   supplemental set, as concept needs dictate.
-- **Methods manual / DER package** (07-19 review D4 part 2): a consolidated
-  front section (scope, assumptions, method per FAR condition group, approved
-  deviations, oracle-vs-closure table) assembled from theory-sources +
-  PROGRAM_SPEC + docstrings; then per-module walkthroughs in the
-  `engine_loads.md` style (SELECT and FLTLOADS first).
+- **Methods manual / DER package**: a consolidated front section (scope,
+  assumptions, method per FAR condition group, approved deviations,
+  oracle-vs-closure table) assembled from theory-sources + PROGRAM_SPEC +
+  docstrings; then per-module walkthroughs in the `engine_loads.md` style
+  (SELECT and FLTLOADS first).
 
 ---
 
@@ -480,11 +452,8 @@ reaction matrix stays closure-/legible-cell-locked).
   `examples/twin_turboprop.project.json` can't be built and these oracles stay
   blocked. **(Reviewed 2026-07-20: keep blocked as-is.)**
 
-Decisions D-1 … D-18 (all but D-5), once answered, moved to the register:
+D-1 … D-18 (all but D-5) are answered and recorded in
 [`../40_history/03_resolved_decisions.md`](../40_history/03_resolved_decisions.md).
-**D-12 … D-18** (resolved 2026-08-03) sequence and scope the pre-F25
-maintainability batch — see
-[`06_m4_maintainability_sequence_plan.md`](06_m4_maintainability_sequence_plan.md).
 
 ---
 
@@ -497,3 +466,6 @@ Described in full above; this is the lookup.
   copy). **[Minor]**
 - **M4-23** — `flight_envelope.density_ratio` duplicates
   `constants.standard_atmosphere`'s sigma bit-for-bit. **[Minor]**
+- **F25-2 (concept mode)** — no Mach-margin VD route exists, so the FAR 23
+  `1.25·VC` floor binds unconditionally and inflates every dive-speed case on
+  transport-class concepts. **[Major — scoped into F25-2, not a standalone fix]**

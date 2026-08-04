@@ -46,7 +46,7 @@ one-engine-out gap below):
 ``select_wing``'s own ``CriticalCondition`` list and ``one_engine_out``'s
 vertical-tail result each mint from their *own* allocator too -- see the
 accepted-gap note in ``docs/30_future/00_backlog.md`` Step D1 and
-``docs/30_future/02_gui_workflow_plan.md`` D-1: they share a prefix with
+``docs/40_history/05_phase_d_gui_workflow_plan.md`` D-1: they share a prefix with
 WINGINER/``select_vtail`` respectively but are not the same case object.
 """
 

@@ -6,7 +6,7 @@ a helper that converts twice, or converts the wrong way, renders *perfectly* and
 quietly corrupts every input on every page. ``test_views_smoke.py`` cannot catch
 that -- it asserts exception-free render, not correct values -- so the round-trip
 below is the actual guard, per the M4-11 definition of done in
-``docs/30_future/06_m4_maintainability_sequence_plan.md`` §4 step 3.
+``docs/40_history/07_m4_maintainability_sequence_plan.md`` §4 step 3.
 
 What is asserted:
 

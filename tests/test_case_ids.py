@@ -9,7 +9,7 @@ two *different* physical cases share one, and re-running the same project
 yields byte-identical ids.
 
 Reference: docs/30_future/00_backlog.md Step D1; docs/30_future/
-02_gui_workflow_plan.md D-1.
+05_phase_d_gui_workflow_plan.md D-1.
 """
 
 import os

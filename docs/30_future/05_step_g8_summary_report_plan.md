@@ -1,6 +1,8 @@
 # Step G8 — Consolidated Summary Report (Export phase) — implementation plan
 
-**Backlog item:** M3-3 / Step G8, the first item of **M4** (was the M3 stretch).
+**Backlog item:** M3-3b / Step G8 — the **second** M4 item, behind **M4-20**
+(unit-system plumbing), which G8.5 onward is blocked on (§10.1). G8.4's
+`content.py` is unit-independent and may start first.
 **Source spec:** [`03_gui_rework_plan.md §4 Phase 6`](03_gui_rework_plan.md) — the
 four-section summary report.
 **Document standard:** [`../10_standard/SUMMARY_REPORT.md`](../10_standard/SUMMARY_REPORT.md)

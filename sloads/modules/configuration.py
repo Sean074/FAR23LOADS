@@ -339,7 +339,7 @@ def component_stations(layout: LayoutInput,
     inches) for each named airframe component, derived from ``LayoutInput``'s
     coarse scalars -- a rough first-cut for seeding the Weight DB (WTONECG), not a
     new schema field (Step D4.3; no per-component station sub-model was added --
-    see the D-5 decision in ``docs/30_future/02_gui_workflow_plan.md``). A seeded
+    see the D-5 decision in ``docs/40_history/05_phase_d_gui_workflow_plan.md``). A seeded
     ``MassItem.x/y/z`` is always overridable by hand afterward.
 
     Keys present depend on which scalars are set: ``"wing"`` (25% MAC, matching the
