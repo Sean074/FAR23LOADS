@@ -183,8 +183,10 @@ def test_span_load_csv_shape():
     lines = text.strip().splitlines()
     header = lines[0].split(",")
     assert header == ["Case", "GID", "X", "Y", "Z", "Fx", "Fz", "My",
-                      "Sx", "Sz", "Mxx", "Myy", "Mzz", "SF"]
+                      "Sx", "Sz", "Mxx", "Myy", "Mzz", "MyyAxis", "SF"]
     assert len(lines) - 1 == sum(len(r.stations) for r in results)
+    # The torsion axis travels in-band: untransferred results state 25% chord.
+    assert all(line.split(",")[-2] == "25% chord" for line in lines[1:])
 
 
 # --------------------------------------------------------------------------- #
@@ -200,6 +202,31 @@ def test_accepts_project_and_requires_loads():
         raise AssertionError("expected ValueError when Project.loads is missing")
     p.loads = build_net_loads(p)
     assert sb.span_load_csv(p).startswith("Case,GID")
+
+
+def test_project_export_transfers_to_loads_ref_axis():
+    """The Project path states wing torsion about the surface's LRA, labelled in-band."""
+    from sloads.modules.wing_geometry import _interp_x
+
+    p = io.load_project(_GA)
+    p.loads = build_net_loads(p)
+    wing = p.geometry.by_name(p.wing_mass.surface)
+    wing.ref_axis_pct = 0.40
+    text = sb.span_load_csv(p)
+    lines = text.strip().splitlines()
+    assert all(line.split(",")[-2] == "LRA 40% chord" for line in lines[1:])
+    # Cumulative root torsion = the 25%-chord value + SF x Sz x (x_lra - x_25).
+    raw = p.loads.wing_net[0].stations[0]
+    sf = p.loads.wing_net[0].safety_factor
+    x_le = _interp_x(wing.leading_edge, raw.y)
+    x_te = _interp_x(wing.trailing_edge, raw.y)
+    x_lra = x_le + 0.40 * (x_te - x_le)
+    expected = (raw.myy + raw.sz * (x_lra - raw.x)) * sf
+    row = lines[1].split(",")
+    assert math.isclose(float(row[11]), expected, rel_tol=1e-3, abs_tol=1.0)
+    # The BDF headers and stick-model beam axis carry the same label.
+    assert "$ Torsion My/Myy about the LRA 40% chord" in sb.force_moment_cards(p)
+    assert "$ Beam axis: the wing LRA 40% chord line." in sb.stick_model_bdf(p)
 
 
 def test_writers(tmp_path=None):

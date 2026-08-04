@@ -244,12 +244,21 @@ class SurfaceInput:
     chord is integrated over (``H`` in WINGGEOM.BAS; the Appendix A wing uses 20).
     ``symmetric`` marks a surface symmetric about the airplane centre plane (wing,
     horizontal/vertical tail) versus one defined on a single side (aileron, flap).
+
+    ``ref_axis_pct`` is the surface's **loads reference axis** as a fraction of
+    the local chord — the elastic axis of the beam model the exported loads are
+    applied to (typically 0.40–0.50 of chord for a wing box). The calc itself
+    stays on the original suite's 25% chord (AIRLOADS/WINGINER/NETLOADS,
+    oracle-locked); the cumulative torsion is *transferred* to this axis at the
+    render/export boundary (``net_loads.to_loads_ref_axis``). The default 0.25
+    reduces exactly to the original quarter-chord reporting.
     """
     name: str
     leading_edge: List[XYPoint]
     trailing_edge: List[XYPoint]
     symmetric: bool = True
     elements: int = 20
+    ref_axis_pct: float = 0.25
 
 
 @dataclass

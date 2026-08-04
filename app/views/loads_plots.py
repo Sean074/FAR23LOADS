@@ -6,10 +6,17 @@ A read-only viewer over the distributed-load results **recomputed live from the
 project inputs** (exactly as the Export page does — there is no code path that
 constructs ``Project.loads``). It writes nothing back to the project: pick a
 component, overlay the spanwise/chordwise curve for the selected case IDs plus
-their envelope (max |value| per station),
+their two-sided envelope (pointwise max and min across the cases — a max-|value|
+trace would hide the opposite-sign extreme, which can govern),
 see a combined wing+fuselage "total loads" snapshot for one case, and
 optionally compare against an externally-computed span-load CSV in the same
 schema :mod:`sloads.export.sbeam_bridge` exports.
+
+Wing torsion here (like the Export page) is stated about the wing surface's
+**loads reference axis** (LRA, ``SurfaceInput.ref_axis_pct`` — the beam-model
+elastic axis; the 25%-chord default reduces to the original suite's reporting),
+via the ``net_loads.loads_ref_axis_results`` boundary transfer. Every torsion
+label names its axis.
 
 Engine Mount and Landing Gear are scalar reaction-load components with no
 spanwise distribution -- the original suite never plotted them either, so they
@@ -33,20 +40,35 @@ from sloads import Project, UnitSystem, si_scalar_label, to_si_scalar
 from sloads.modules.aileron import build_aileron
 from sloads.modules.body_loads import build_body_loads
 from sloads.modules.flap import build_flap
-from sloads.modules.net_loads import build_net_loads
+from sloads.modules.net_loads import (
+    build_net_loads,
+    loads_ref_axis_results,
+    torsion_axis_label,
+    wing_lra,
+)
 from sloads.modules.tab import build_tabs
 from sloads.modules.taildist import build_tail_chordwise
+from sloads.report import envelope_extremes
 
 st.title("Loads Plots")
+
+project: Project = st.session_state.get("project", Project(name=""))
+system: UnitSystem = st.session_state.get("unit_system", UnitSystem.IMPERIAL)
+
+# The wing torsion reference axis: the surface's loads reference axis (LRA),
+# named in every torsion label below.
+_LRA = wing_lra(project)
+_WING_TORSION_AXIS = torsion_axis_label(_LRA)
+
 st.caption(
     "Consolidated multi-case overlays over the distributed loads already computed "
     "on the Analysis pages. Values shown are **LIMIT** (oracle-traceable); the "
     "deliverable **ULTIMATE** loads (= limit × safety factor, 14 CFR 23.303) come "
-    "from the **Review/Export** pages."
+    "from the **Review/Export** pages. Wing torsion Myy is stated about the "
+    f"**{_WING_TORSION_AXIS}** (the wing's loads reference axis, set on the "
+    "Geometry page); the envelope traces are the two-sided pointwise max/min "
+    "across the selected cases."
 )
-
-project: Project = st.session_state.get("project", Project(name=""))
-system: UnitSystem = st.session_state.get("unit_system", UnitSystem.IMPERIAL)
 
 _CALC_ERRORS = (ValueError, ZeroDivisionError, KeyError, IndexError)
 
@@ -61,13 +83,15 @@ def _try(fn, *args):
 
 # Recompute the distributed-load results live from the project inputs, exactly as
 # the Export page does -- nothing is read from a persisted result slice (no code
-# path constructs ``Project.loads``, so it is always ``None``).
+# path constructs ``Project.loads``, so it is always ``None``). Wing results are
+# transferred to the loads reference axis at this boundary, matching the export.
 _net = _try(build_net_loads, project)
 _control = []
 for _fn in (build_aileron, build_flap, build_tabs):
     _control += _try(_fn, project) or []
 loads = SimpleNamespace(
-    wing_net=_net.wing_net if _net is not None else [],
+    wing_net=(loads_ref_axis_results(project, _net.wing_net)
+              if _net is not None else []),
     body_net=_try(build_body_loads, project) or [],
     tail_chordwise=_try(build_tail_chordwise, project) or [],
     control_surface=_control,
@@ -104,7 +128,8 @@ def _wing_cases(results, sys_=None):
                  [to_si_scalar(s.sz, "lbf", sys_) for s in r.stations]),
           "mxx": ("Bending Mxx", si_scalar_label("lb-in", sys_),
                   [to_si_scalar(s.mxx, "lb-in", sys_) for s in r.stations]),
-          "myy": ("Torsion Myy", si_scalar_label("lb-in", sys_),
+          # The torsion label carries its reference axis (the result's stamp).
+          "myy": (f"Torsion Myy about {r.torsion_axis}", si_scalar_label("lb-in", sys_),
                   [to_si_scalar(s.myy, "lb-in", sys_) for s in r.stations])})
         for r in results
     ]
@@ -166,20 +191,20 @@ _COMPONENTS = {
 }
 
 
-def _envelope(series: list) -> list:
-    """Max-|value| trace across ``series`` (a list of equal-length value lists)."""
-    return [max(vals, key=abs) for vals in zip(*series)]
-
-
 def _overlay_figure(title: str, x_label: str, y_label: str, x: list,
                      traces: "list[tuple[str, list]]") -> go.Figure:
     fig = go.Figure()
     for name, y in traces:
         fig.add_trace(go.Scatter(x=x, y=y, name=name, mode="lines+markers", line=dict(width=1.5)))
     if len(traces) > 1:
-        env = _envelope([y for _, y in traces])
-        fig.add_trace(go.Scatter(x=x, y=env, name="envelope (max |·|)",
+        # Two-sided envelope: pointwise max AND min across the cases. The
+        # opposite-sign extreme can govern a different part of the structure, so
+        # a single max-|value| trace is not a true envelope.
+        upper, lower = envelope_extremes([y for _, y in traces])
+        fig.add_trace(go.Scatter(x=x, y=upper, name="envelope (max)",
                                  mode="lines", line=dict(width=4, dash="dot")))
+        fig.add_trace(go.Scatter(x=x, y=lower, name="envelope (min)",
+                                 mode="lines", line=dict(width=4, dash="dash")))
     fig.update_layout(title=title, xaxis_title=x_label, yaxis_title=y_label,
                       legend=dict(orientation="h"), height=380)
     return fig
@@ -236,9 +261,21 @@ else:
             for field, (y_title, unit, values) in data.items():
                 for xv, yv in zip(x, values):
                     # ", LIMIT" travels with the file, matching the plot axis
-                    # labels above (defect M4-15).
+                    # labels above (defect M4-15); the torsion y_title carries
+                    # its reference axis the same way.
                     writer.writerow({"Case ID": cid, "Condition": lab, x_label: xv,
                                      "Field": f"{y_title} ({unit}, LIMIT)", "Value": yv})
+        # The plotted two-sided envelope rows travel with the file too.
+        if len(shown) > 1:
+            for field in y_fields:
+                y_title, unit, _ = shown[0][3][field]
+                upper, lower = envelope_extremes([data[field][2] for _, _, _, data in shown])
+                for env_name, env in (("ENVELOPE (max)", upper), ("ENVELOPE (min)", lower)):
+                    for xv, yv in zip(shown[0][2], env):
+                        writer.writerow({"Case ID": env_name,
+                                         "Condition": "pointwise envelope of selection",
+                                         x_label: xv,
+                                         "Field": f"{y_title} ({unit}, LIMIT)", "Value": yv})
         st.download_button("Download this selection (CSV)", buf.getvalue(),
                            file_name=f"loads_plots_{comp_key}_LIMIT.csv", mime="text/csv")
 
@@ -275,7 +312,8 @@ else:
                              mode="lines+markers"), row=1, col=1, secondary_y=False)
     fig.add_trace(go.Scatter(x=w[2], y=w[3]["mxx"][2], name=f"Wing Mxx ({_moment_lbl})",
                              mode="lines+markers"), row=1, col=1, secondary_y=True)
-    fig.add_trace(go.Scatter(x=w[2], y=w[3]["myy"][2], name=f"Wing Myy ({_moment_lbl})",
+    fig.add_trace(go.Scatter(x=w[2], y=w[3]["myy"][2],
+                             name=f"Wing Myy about {_WING_TORSION_AXIS} ({_moment_lbl})",
                              mode="lines+markers"), row=1, col=1, secondary_y=True)
     fig.add_trace(go.Scatter(x=b[2], y=b[3]["sz"][2], name=f"Fuselage Sz ({_force_lbl})",
                              mode="lines+markers"), row=1, col=2, secondary_y=False)
@@ -298,7 +336,10 @@ st.header("External-comparison import")
 st.caption(
     "Import a span-load CSV in the same schema the **Export** page writes "
     "(`sloads.export.sbeam_bridge.span_load_csv` / `body_span_load_csv`) to "
-    "overlay an externally-computed distribution against the curves above."
+    "overlay an externally-computed distribution against the curves above. "
+    f"Computed wing torsion here is about the **{_WING_TORSION_AXIS}** — check "
+    "the imported file's `MyyAxis` column states the same axis before comparing "
+    "`Myy` (mixed axes are comparable only after transfer)."
 )
 
 _WING_COLS = {"Case", "GID", "X", "Y", "Z", "Fx", "Fz", "My", "Sx", "Sz", "Mxx", "Myy", "Mzz"}

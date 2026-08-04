@@ -107,6 +107,31 @@ def test_project_round_trip(tmp_path=None):
             os.remove(out)
 
 
+def test_surface_ref_axis_pct_round_trips():
+    """The loads reference axis (LRA) persists per surface; old files default 0.25."""
+    project = io.load_project(GA6)
+    wing = project.geometry.by_name("wing")
+    assert wing.ref_axis_pct == 0.25  # legacy file without the field
+    wing.ref_axis_pct = 0.42
+    again = io.project_from_dict(io.project_to_dict(project))
+    assert again.geometry.by_name("wing").ref_axis_pct == 0.42
+
+
+def test_wing_load_result_torsion_axis_round_trips():
+    """A transferred result's torsion-axis stamp survives persistence."""
+    from sloads.models import WingLoadResult, LoadsResult
+
+    project = io.load_project(GA6)
+    project.loads = LoadsResult(
+        wing_net=[WingLoadResult(case="X", torsion_axis="LRA 40% chord")])
+    again = io.project_from_dict(io.project_to_dict(project))
+    assert again.loads.wing_net[0].torsion_axis == "LRA 40% chord"
+    # And the default when absent in the file:
+    d = io.project_to_dict(project)
+    del d["loads"]["wing_net"][0]["torsion_axis"]
+    assert io.project_from_dict(d).loads.wing_net[0].torsion_axis == "25% chord"
+
+
 def test_project_engineer_date_round_trip():
     """Step D3: engineer/date are additive project metadata (SCHEMA_VERSION 17)."""
     project = io.load_project(GA6)

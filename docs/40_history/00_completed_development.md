@@ -10,6 +10,69 @@ Acceptance**, **Key decisions**.
 
 ---
 
+## M4-18 — Loads reference axis (LRA) + two-sided load envelopes (complete 2026-08-03)
+
+**Objective.** Close the two findings of the 2026-08-03 loads-plots review:
+(1) the Loads-Plots "envelope" was a single max-|value| trace, which hides the
+opposite-sign extreme (the negative-side load can govern a different part of the
+structure) and jumps discontinuously where the governing sign flips; (2) the wing
+torsion `Myy` was computed and delivered about the 25 % chord with the axis
+stated nowhere in the GUI or the exports — and the beam model the loads apply to
+uses an **elastic axis** (typically 40–50 % chord), not the quarter chord. Both
+per the user's direction: every torsion must name its reference axis (mixed axes
+allowed but always labelled), and the axis should be visible on the three-view.
+
+**Deliverables.**
+- **Loads reference axis (LRA), schema v34.** `SurfaceInput.ref_axis_pct`
+  (fraction of chord, lenient default 0.25) defines each surface's LRA — the
+  beam-model elastic axis the delivered torsion is stated about.
+  `WingLoadResult.torsion_axis` stamps the axis label (`"25% chord"` /
+  `"LRA 40% chord"`) on every result; both fields round-trip through `io`.
+- **Boundary transfer, calc untouched.** `net_loads.to_loads_ref_axis`
+  (+ `loads_ref_axis_results`, `wing_lra`, `torsion_axis_label`) applies
+  `Myy_lra(y) = Myy_25(y) + Sz(y)·(x_lra(y) − x_25(y))` — the statics of moving
+  the moment reference of the outboard load set, WINGINER sign convention —
+  at the render/export boundary only, the same pattern as the limit→ultimate
+  factor. Shears/bending unchanged; `ref_axis_pct = 0.25` is a **bitwise no-op**,
+  so the Appendix A oracles and twin closure are unaffected.
+- **Axis labelled everywhere.** Loads-Plots and the sbeam bridge deliver LRA
+  torsion (the `Project` export path transfers automatically; in-band span-CSV
+  `MyyAxis` column, BDF `$` axis comments, stick-model beam-axis note — the
+  stick-model GRID line follows the LRA). The Wing Loads analysis page and
+  `wing_load_rows` stay at the **labelled** 25 % chord (the oracle-traceable
+  numbers an engineer checks against the manual, with a pointer to the LRA
+  deliverables); `net_loads.run` reports root torsion at both axes (labelled)
+  when the LRA differs. The Geometry page gets a per-surface LRA input
+  (definition help text; re-seeding the wing carries a user-set LRA over) and
+  the three-view top view draws each surface's LRA dash-dot with a legend entry.
+- **Two-sided envelopes.** `report.envelope_extremes` (pure, tested) replaces
+  the view-local max-|value| helper; the Loads-Plots overlay draws
+  "envelope (max)" and "envelope (min)" traces and writes both into the CSV
+  download (`ENVELOPE (max)` / `ENVELOPE (min)` rows).
+
+**Test / Acceptance.** `test_net_loads.py::test_loads_ref_axis_transfer`
+(25 %-no-op identity + per-station formula/invariance checks at 40 %),
+`::test_run_labels_torsion_axis`, `::test_wing_load_rows_shape` (`MyyAxis`
+in-band); `test_sbeam_bridge.py::test_project_export_transfers_to_loads_ref_axis`
+(CSV value = 25 %-chord root + SF·Sz·Δx, axis label in CSV/BDF/stick),
+`::test_span_load_csv_shape` (header + untransferred axis label);
+`test_report.py::test_envelope_extremes_is_two_sided`;
+`test_io.py::test_surface_ref_axis_pct_round_trips`,
+`::test_wing_load_result_torsion_axis_round_trips`. Full suite 523 passed,
+`ruff` clean; `DATA_DICTIONARY.md` regenerated (v34), GUI_design schema line
+bumped.
+
+**Key decisions.** The LRA is *input geometry on the surface* (not a wing-mass
+analysis field) with default 0.25 so every existing project reproduces the
+original quarter-chord reporting bit-for-bit — the reduces-to-FAR23 principle;
+the transfer lives at the render/export boundary (never in the calc) exactly
+like the ULTIMATE factor; mixed axes are permitted but every torsion output must
+carry its axis label in-band (`MyyAxis` column / `$` comments / plot+metric
+labels), following the M4-15 Basis-column pattern; the envelope is two-sided
+max/min rather than max-|value| (a signed extreme pair, not a magnitude).
+
+---
+
 ## M4-17 — Landing loads ↔ mass model disconnection + CG-seed hazards (complete 2026-08-03)
 
 **Objective.** Close all five sub-items of the 2026-08-03 landing-loads review.

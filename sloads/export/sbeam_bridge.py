@@ -43,6 +43,19 @@ the root torsion by construction. With the WINGINER quadrature
 reproduce the root bending exactly as ``sum(dFz * (y - y_root))`` -- the
 force/moment-closure guarantee the C4 acceptance test checks.
 
+Torsion reference axis
+----------------------
+Every exported wing torsion states its chordwise reference axis in-band (the
+span-load CSV ``MyyAxis`` column, the BDF ``$`` header comments). The calc
+produces torsion about the **25% chord** (oracle-locked); when the export is
+built from a ``Project``, the bridge first transfers the wing results to the
+surface's **loads reference axis** (LRA, ``SurfaceInput.ref_axis_pct`` --
+the beam-model elastic axis, typically 40-50% chord) via
+``net_loads.loads_ref_axis_results``, exactly as the limit->ultimate factor is
+applied here at the boundary. Callers passing bare ``WingLoadResult`` lists are
+responsible for transferring first (the results' ``torsion_axis`` stamp is
+exported either way, so the axis is always labelled).
+
 Coordinate / units map: see :mod:`sloads.export.coordinates` (identity,
 inches, CID 0).
 
@@ -71,6 +84,7 @@ from .coordinates import SBEAM_CID, to_force, to_grid, to_moment
 # Single-sourced from the calc that owns the limitation (public symbol, no cycle:
 # nothing under sloads/modules imports the export bridge).
 from ..modules.body_loads import CLOSURE_CAVEAT as _BODY_CLOSURE_CAVEAT
+from ..modules.net_loads import loads_ref_axis_results
 
 # --------------------------------------------------------------------------- #
 # Case-index export (Step D1): ID -> full definition, across every result slice
@@ -131,7 +145,9 @@ class NodalLoad:
     """One wing station's exported nodal load (the applied FORCE/MOMENT content).
 
     ``fx``/``fz`` are the applied force components (lb) and ``my`` the applied
-    torsion (lb-in) at the quarter-chord point ``(x, y, z)`` (in), recovered as
+    torsion (lb-in) at the torsion-reference-axis point ``(x, y, z)`` (in) --
+    the station ``x`` of the source result: 25% chord as computed, or the
+    surface LRA after ``net_loads.to_loads_ref_axis`` -- recovered as
     increments of the NETLOADS cumulative table. ``sz``/``mxx``/``myy`` are the
     cumulative shear / bending / torsion at the station, carried through for the
     span-load CSV's engineering columns."""
@@ -192,7 +208,9 @@ def _as_results(arg: ResultsArg) -> List[WingLoadResult]:
                 "Project has no net wing loads to export -- run the 'net_loads' "
                 "module (build_net_loads) first so Project.loads.wing_net is set."
             )
-        return list(arg.loads.wing_net)
+        # Boundary transfer: exported wing torsion is stated about the surface's
+        # loads reference axis (no-op when the LRA is the 25% chord).
+        return loads_ref_axis_results(arg, list(arg.loads.wing_net))
     if isinstance(arg, WingLoadResult):
         return [arg]
     results = list(arg)
@@ -213,6 +231,7 @@ _CSV_FIELDS = [
     "Case", "GID", "X", "Y", "Z",
     "Fx", "Fz", "My",          # applied nodal load (== the FORCE/MOMENT cards)
     "Sx", "Sz", "Mxx", "Myy", "Mzz",  # cumulative (engineering reference)
+    "MyyAxis",                 # torsion reference axis (in-band, like Basis/SF)
     "SF",                      # the case's limit -> ultimate factor (last column)
 ]
 
@@ -223,6 +242,8 @@ def span_load_csv(arg: ResultsArg) -> str:
     Columns ``Fx/Fz/My`` are the applied nodal loads exported as FORCE/MOMENT
     cards; ``Sx/Sz/Mxx/Myy/Mzz`` are the cumulative NETLOADS distributions. All are
     ULTIMATE; ``SF`` is the case's limit->ultimate factor they were scaled by.
+    ``MyyAxis`` states the chordwise axis ``My``/``Myy`` (and station ``X``) are
+    about -- the axis travels in-band with the file, like ``SF``.
     """
     results = _as_results(arg)
     buf = _io.StringIO()
@@ -237,6 +258,7 @@ def span_load_csv(arg: ResultsArg) -> str:
                 "Fx": f"{nl.fx:.1f}", "Fz": f"{nl.fz:.1f}", "My": f"{nl.my:.0f}",
                 "Sx": f"{nl.sx:.1f}", "Sz": f"{nl.sz:.1f}",
                 "Mxx": f"{nl.mxx:.0f}", "Myy": f"{nl.myy:.0f}", "Mzz": f"{nl.mzz:.0f}",
+                "MyyAxis": r.torsion_axis,
                 "SF": f"{_sf_str(sf)}",
             })
     return buf.getvalue()
@@ -281,6 +303,7 @@ def _case_card_block(r: WingLoadResult, sid: int) -> List[str]:
         f"$ Case ID: {r.case_ref.case_id}" if r.case_ref else "$ Case ID: (none)",
         "$ Axes: SLOADS station/butt/waterline inches -> sbeam CID 0 (identity).",
         f"$ Loads are ULTIMATE (limit x SF={_sf_str(sf)}).",
+        f"$ Torsion My/Myy about the {r.torsion_axis} (station X = that axis).",
         f"$ FORCE set sums to root Sz = {root_sz:.1f} lb; "
         f"MOMENT(My) set sums to root torsion Myy = {root_myy:.1f} lb-in.",
     ]
@@ -329,10 +352,12 @@ def _root_node(loads: List[NodalLoad]) -> tuple:
 def stick_model_bdf(arg: ResultsArg, sid_base: int = 1) -> str:
     """A minimal SOL 101 CBAR stick model carrying the exported wing load sets.
 
-    A clamped cantilever along the wing quarter-chord: one GRID per station plus a
-    clamped root node, a single PBAR/MAT1 (nominal placeholder properties), a CBAR
-    chain, and one SUBCASE per case selecting that case's FORCE/MOMENT load set.
-    Geometry is shared across cases (same wing); only the load set changes.
+    A clamped cantilever along the wing's torsion reference axis (the station
+    ``x`` of the exported loads: 25% chord as computed, or the surface's LRA
+    after the boundary transfer): one GRID per station plus a clamped root node,
+    a single PBAR/MAT1 (nominal placeholder properties), a CBAR chain, and one
+    SUBCASE per case selecting that case's FORCE/MOMENT load set. Geometry is
+    shared across cases (same wing); only the load set changes.
     """
     results = _as_results(arg)
     # Station geometry is shared across cases -- take it from the first.
@@ -356,6 +381,7 @@ def stick_model_bdf(arg: ResultsArg, sid_base: int = 1) -> str:
 
     bulk: List[str] = [
         "$ ------------------------------------------------------------ NODES",
+        f"$ Beam axis: the wing {results[0].torsion_axis} line.",
         "$ GRID, GID, CP, X1, X2, X3",
         f"GRID, {_ROOT_GID}, , {_fmt(rx)}, {_fmt(ry)}, {_fmt(rz)}",
     ]

@@ -107,10 +107,54 @@ def test_wing_load_rows_shape():
     loads = build_net_loads(io.load_project(_GA))
     rows = nl.wing_load_rows(loads.wing_net)
     assert rows and set(rows[0]) == {"Case", "X", "Y", "Z", "Fx", "Fz", "Sx", "Sz",
-                                     "Mxx", "Myy", "Mzz", "Basis"}
+                                     "Mxx", "Myy", "Mzz", "MyyAxis", "Basis"}
     assert len(rows) == sum(len(r.stations) for r in loads.wing_net)
-    # The basis travels in-band with every row (defect M4-15).
+    # The basis and the torsion reference axis travel in-band with every row
+    # (defect M4-15 pattern).
     assert all(r["Basis"] == "LIMIT" for r in rows)
+    assert all(r["MyyAxis"] == "25% chord" for r in rows)
+
+
+def test_loads_ref_axis_transfer():
+    """Torsion transfer to the LRA: identity at 25%, Sz x axis-shift elsewhere."""
+    from sloads.modules.wing_geometry import _interp_x
+
+    p = io.load_project(_GA)
+    loads = build_net_loads(p)
+    wing = p.geometry.by_name(p.wing_mass.surface)
+
+    # Default 25% chord: bitwise no-op, oracle reporting unchanged.
+    assert wing.ref_axis_pct == 0.25
+    same = nl.to_loads_ref_axis(loads.wing_net, wing)
+    assert same[0] is loads.wing_net[0]
+    assert same[0].torsion_axis == "25% chord"
+
+    # LRA at 40% chord: station x moves 0.15*chord aft, Myy shifts by Sz*dx;
+    # shears and bending are untouched.
+    wing.ref_axis_pct = 0.40
+    moved = nl.to_loads_ref_axis(loads.wing_net, wing)
+    for r0, r1 in zip(loads.wing_net, moved):
+        assert r1.torsion_axis == "LRA 40% chord"
+        assert r1.safety_factor == r0.safety_factor and r1.case == r0.case
+        for s0, s1 in zip(r0.stations, r1.stations):
+            chord = _interp_x(wing.trailing_edge, s0.y) - _interp_x(wing.leading_edge, s0.y)
+            assert math.isclose(s1.x - s0.x, 0.15 * chord, rel_tol=1e-9, abs_tol=1e-6)
+            assert math.isclose(s1.myy, s0.myy + s0.sz * (s1.x - s0.x), abs_tol=1e-6)
+            assert s1.sz == s0.sz and s1.sx == s0.sx
+            assert s1.mxx == s0.mxx and s1.mzz == s0.mzz and s1.fz == s0.fz
+
+
+def test_run_labels_torsion_axis():
+    """Every reported root torsion names its axis; the LRA value appears when set."""
+    p = io.load_project(_GA)
+    labels = [v.label for v in nl.run(p).conditions[0].values]
+    assert "Root torsion Myy (25% chord)" in labels
+    assert not any("LRA" in label for label in labels)
+
+    p.geometry.by_name(p.wing_mass.surface).ref_axis_pct = 0.45
+    labels = [v.label for v in nl.run(p).conditions[0].values]
+    assert "Root torsion Myy (25% chord)" in labels        # oracle-traceable value stays
+    assert "Root torsion Myy (LRA 45% chord)" in labels    # LRA deliverable value added
 
 
 def test_run_requires_slices():

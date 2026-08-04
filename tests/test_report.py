@@ -6,7 +6,7 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from sloads import convert_results, run_all, UnitSystem  # noqa: E402
-from sloads.report import load_cases_to_rows  # noqa: E402
+from sloads.report import envelope_extremes, load_cases_to_rows  # noqa: E402
 from test_engine import io520bb, turboprop  # noqa: E402
 
 
@@ -33,6 +33,15 @@ def test_turboprop_expands_gyro_into_four_cases():
     yaw = _col(rows, "Mzz")
     signs = {(float(r[pitch]) > 0, float(r[yaw]) > 0) for r in gyro}
     assert signs == {(True, True), (True, False), (False, True), (False, False)}
+
+
+def test_envelope_extremes_is_two_sided():
+    # A true load envelope keeps BOTH pointwise extremes: at station 1 the
+    # governing positive value (4) and the governing negative one (-5) belong to
+    # different cases -- a single max-|value| trace would report only -5.
+    upper, lower = envelope_extremes([[1.0, -5.0, 3.0], [2.0, 4.0, -6.0]])
+    assert upper == [2.0, 4.0, 3.0]
+    assert lower == [1.0, -5.0, -6.0]
 
 
 def test_every_row_has_a_location():

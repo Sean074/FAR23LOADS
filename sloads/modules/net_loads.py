@@ -29,6 +29,7 @@ from ..models import (
     LoadValue,
     ModuleResult,
     Project,
+    SurfaceInput,
     WingLoadCase,
     WingLoadResult,
     WingStationLoad,
@@ -37,6 +38,7 @@ from ..constants import ULTIMATE_FACTOR
 from ..derived_geometry import sync_geometry_derived
 from ..registry import register
 from .airloads import air_load_distribution
+from .wing_geometry import _interp_x
 from .wing_inertia import (
     _resolve_case,
     build_wing_inertia,
@@ -70,6 +72,82 @@ def _air_cl_v(project: Project, case: WingLoadCase):
             "'case' reference into Project.envelope.vn)"
         )
     return cl, v
+
+
+def torsion_axis_label(pct: float) -> str:
+    """The in-band axis label for a torsion stated about ``pct`` of chord.
+
+    The original suite's quarter chord stays ``"25% chord"``; anything else is
+    the surface's loads reference axis, e.g. ``"LRA 40% chord"``.
+    """
+    return "25% chord" if pct == 0.25 else f"LRA {pct * 100:g}% chord"
+
+
+def to_loads_ref_axis(results: List[WingLoadResult],
+                      geom: SurfaceInput) -> List[WingLoadResult]:
+    """Transfer cumulative torsion from the 25% chord to the surface's LRA.
+
+    The calc (AIRLOADS/WINGINER/NETLOADS) accumulates torsion about the local
+    25%-chord line (oracle-locked); the beam model the deliverables apply to uses
+    the surface's **loads reference axis** (``SurfaceInput.ref_axis_pct``,
+    typically the 40-50%-chord elastic axis). This pure boundary transform moves
+    each station's cumulative torsion to that axis:
+
+        Myy_lra(y) = Myy_25(y) + Sz(y) * (x_lra(y) - x_25(y))
+
+    (a station's torsion is the sum over outboard loads of ``fz_j*(x_axis - x_j)``
+    -- WINGINER.BAS's ``-W*(x50-x25)`` convention -- so shifting the axis
+    chordwise adds ``Sz`` times the shift; shears and bending ``Mxx``/``Mzz``
+    are unchanged). Station ``x`` becomes the LRA coordinate and each result's
+    ``torsion_axis`` is stamped. With ``ref_axis_pct == 0.25`` the input is
+    returned unchanged -- the original quarter-chord reporting, so the FAR23
+    oracles are unaffected.
+    """
+    pct = geom.ref_axis_pct
+    if pct == 0.25:
+        return list(results)
+    axis = torsion_axis_label(pct)
+    out: List[WingLoadResult] = []
+    for r in results:
+        stations: List[WingStationLoad] = []
+        for s in r.stations:
+            x_le = _interp_x(geom.leading_edge, s.y)
+            x_te = _interp_x(geom.trailing_edge, s.y)
+            x_lra = x_le + pct * (x_te - x_le)
+            stations.append(WingStationLoad(
+                x=x_lra, y=s.y, z=s.z, fx=s.fx, fz=s.fz, sx=s.sx, sz=s.sz,
+                mxx=s.mxx, myy=s.myy + s.sz * (x_lra - s.x), mzz=s.mzz,
+            ))
+        out.append(WingLoadResult(case=r.case, nz=r.nz, nx=r.nx, stations=stations,
+                                  case_ref=r.case_ref, safety_factor=r.safety_factor,
+                                  torsion_axis=axis))
+    return out
+
+
+def wing_lra(project: Project) -> float:
+    """The wing surface's loads-reference-axis chord fraction (0.25 when unset)."""
+    wm = project.wing_mass
+    geom = (project.geometry.by_name(wm.surface)
+            if wm is not None and project.geometry is not None else None)
+    return geom.ref_axis_pct if geom is not None else 0.25
+
+
+def loads_ref_axis_results(project: Project,
+                           results: List[WingLoadResult]) -> List[WingLoadResult]:
+    """Resolve the project's wing surface and transfer ``results`` to its LRA.
+
+    The render/export-boundary convenience over :func:`to_loads_ref_axis` (the
+    same role ``report.py`` plays for the limit->ultimate factor): views and the
+    sbeam bridge call this so every delivered wing torsion is stated about the
+    surface's loads reference axis. Results pass through unchanged when the
+    project has no resolvable wing surface or the LRA is the 25% chord.
+    """
+    wm = project.wing_mass
+    geom = (project.geometry.by_name(wm.surface)
+            if wm is not None and project.geometry is not None else None)
+    if geom is None:
+        return list(results)
+    return to_loads_ref_axis(results, geom)
 
 
 def build_net_loads(project: Project) -> LoadsResult:
@@ -121,7 +199,10 @@ def wing_load_rows(results: List[WingLoadResult]) -> List[Dict[str, str]]:
 
     All loads are **LIMIT** (the oracle-traceable calc values), stated in-band by
     the ``Basis`` column so the basis travels with any table/CSV built from these
-    rows (defect M4-15); the ULTIMATE deliverable is ``sbeam_bridge.span_load_csv``.
+    rows (defect M4-15); the ``MyyAxis`` column likewise carries the torsion
+    reference axis (25% chord as computed, or the LRA after
+    :func:`to_loads_ref_axis`). The ULTIMATE deliverable is
+    ``sbeam_bridge.span_load_csv``.
     """
     rows: List[Dict[str, str]] = []
     for r in results:
@@ -132,6 +213,7 @@ def wing_load_rows(results: List[WingLoadResult]) -> List[Dict[str, str]]:
                 "Fx": f"{s.fx:.1f}", "Fz": f"{s.fz:.1f}",
                 "Sx": f"{s.sx:.1f}", "Sz": f"{s.sz:.1f}",
                 "Mxx": f"{s.mxx:.0f}", "Myy": f"{s.myy:.0f}", "Mzz": f"{s.mzz:.0f}",
+                "MyyAxis": r.torsion_axis,
                 "Basis": "LIMIT",
             })
     return rows
@@ -143,19 +225,29 @@ MODULE_NAME = "net_loads"
 def run(project: Project) -> ModuleResult:
     """Run NETLOADS: net = air + inertia at each wing station, per condition."""
     loads = build_net_loads(project)
+    lra = wing_lra(project)
     conditions: List[ConditionResult] = []
-    for r in loads.wing_net:
+    for r, r_lra in zip(loads.wing_net, loads_ref_axis_results(project, loads.wing_net)):
         root = r.stations[0]
+        # The torsion label always names its reference axis: the oracle-traceable
+        # 25%-chord value, plus the LRA-transferred value when the LRA differs.
+        values = [
+            LoadValue("Root shear Sz", root.sz, "lb"),
+            LoadValue("Root bending Mxx", root.mxx, "lb-in"),
+            LoadValue("Root torsion Myy (25% chord)", root.myy, "lb-in"),
+        ]
+        if lra != 0.25:
+            values.append(LoadValue(
+                f"Root torsion Myy ({torsion_axis_label(lra)})",
+                r_lra.stations[0].myy, "lb-in"))
+        values += [
+            LoadValue("Root drag shear Sx", root.sx, "lb"),
+            LoadValue("Root chord bending Mzz", root.mzz, "lb-in"),
+        ]
         conditions.append(ConditionResult(
             title=f"Net wing loads: {r.case} (Nz={r.nz:g}, Nx={r.nx:g})",
             far_reference="23.301",
-            values=[
-                LoadValue("Root shear Sz", root.sz, "lb"),
-                LoadValue("Root bending Mxx", root.mxx, "lb-in"),
-                LoadValue("Root torsion Myy", root.myy, "lb-in"),
-                LoadValue("Root drag shear Sx", root.sx, "lb"),
-                LoadValue("Root chord bending Mzz", root.mzz, "lb-in"),
-            ],
+            values=values,
             case_ref=r.case_ref,
             # Same per-case factor the sbeam export scales by, so the rendered and
             # exported ULTIMATE loads can never disagree (defect M4-13).
@@ -168,4 +260,6 @@ register(MODULE_NAME, run)
 
 
 # Re-export for the registry import side effect (build_wing_inertia used by callers).
-__all__ = ["build_net_loads", "wing_load_rows", "run", "build_wing_inertia"]
+__all__ = ["build_net_loads", "wing_load_rows", "run", "build_wing_inertia",
+           "to_loads_ref_axis", "loads_ref_axis_results", "wing_lra",
+           "torsion_axis_label"]

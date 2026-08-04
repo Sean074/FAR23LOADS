@@ -149,7 +149,15 @@ from .results import EnvelopeResult, LoadsResult, MassResult
 # condition's limit->ultimate factor instead of a flat suite-wide 1.5. Migration is
 # lenient: an older file simply lacks the key and takes the default
 # (constants.ULTIMATE_FACTOR = 1.5), so every exported number is unchanged.
-SCHEMA_VERSION = 33
+# v34 (Step M4-18) adds SurfaceInput.ref_axis_pct -- the surface's loads
+# reference axis (LRA, the beam-model elastic axis) as a fraction of chord --
+# and WingLoadResult.torsion_axis (the in-band label of the axis the cumulative
+# torsion is stated about). The calc stays on the 25% chord (oracle-locked);
+# the wing torsion is transferred to the LRA at the render/export boundary
+# (net_loads.to_loads_ref_axis). Migration is lenient: an older file lacks both
+# keys and takes the defaults (0.25 / "25% chord"), reproducing the original
+# quarter-chord reporting bit-for-bit.
+SCHEMA_VERSION = 34
 
 
 @dataclass

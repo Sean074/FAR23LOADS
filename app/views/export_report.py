@@ -37,7 +37,12 @@ from sloads.export.workbook import build_workbook
 from sloads.modules.aileron import build_aileron
 from sloads.modules.body_loads import build_body_loads
 from sloads.modules.flap import build_flap
-from sloads.modules.net_loads import build_net_loads
+from sloads.modules.net_loads import (
+    build_net_loads,
+    loads_ref_axis_results,
+    torsion_axis_label,
+    wing_lra,
+)
 from sloads.modules.tab import build_tabs
 from sloads.modules.taildist import build_tail_chordwise
 from sloads.report import module_text_report
@@ -93,9 +98,11 @@ text_report = "\n\n".join(
 )
 module_csvs = {mr.module: sloads_io.load_cases_csv(mr) for mr in module_results}
 
-# sbeam component loads, defensively.
+# sbeam component loads, defensively. Wing results are transferred to the wing
+# surface's loads reference axis (LRA) at this boundary -- every exported wing
+# torsion is stated about that axis (in-band: span-CSV `MyyAxis`, BDF comments).
 _net = _try(build_net_loads, project)
-_wing = _net.wing_net if _net is not None else None
+_wing = loads_ref_axis_results(project, _net.wing_net) if _net is not None else None
 _body = _try(build_body_loads, project)
 _tail = _try(build_tail_chordwise, project)
 _control = []
@@ -251,7 +258,12 @@ else:
 # 3. sbeam BDF cards
 # --------------------------------------------------------------------------- #
 st.header("sbeam BDF export")
-st.caption("FORCE/MOMENT cards (and the wing stick model) for the sbeam FE bridge.")
+st.caption(
+    "FORCE/MOMENT cards (and the wing stick model) for the sbeam FE bridge. "
+    f"Wing torsion My/Myy is stated about the **{torsion_axis_label(wing_lra(project))}** "
+    "(the wing's loads reference axis, set on the Geometry page); the axis "
+    "travels in-band in the span-CSV `MyyAxis` column and the BDF `$` comments."
+)
 
 
 def _bdf_row(label: str, *names):

@@ -282,13 +282,20 @@ class WingLoadResult:
 
     ``stations`` hold **LIMIT** loads; ``safety_factor`` is the per-case factor the
     render/export boundary scales them by to deliver ULTIMATE (see
-    :class:`ConditionResult`)."""
+    :class:`ConditionResult`).
+
+    ``torsion_axis`` names the chordwise reference axis the cumulative torsion
+    ``myy`` (and station ``x``) is stated about — ``"25% chord"`` as computed
+    (AIRLOADS/WINGINER/NETLOADS, oracle-locked), or the surface's loads reference
+    axis (e.g. ``"LRA 40% chord"``) after ``net_loads.to_loads_ref_axis``. Every
+    rendered/exported torsion must carry this label."""
     case: str
     nz: float = 0.0
     nx: float = 0.0
     stations: List[WingStationLoad] = field(default_factory=list)
     case_ref: Optional[CaseRef] = None
     safety_factor: float = ULTIMATE_FACTOR   # limit -> ultimate factor for this case
+    torsion_axis: str = "25% chord"          # reference axis of station x / myy
 
 
 @dataclass

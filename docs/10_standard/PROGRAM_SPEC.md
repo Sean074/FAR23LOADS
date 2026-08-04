@@ -271,9 +271,10 @@ approved-corrections register [`../20_theory/02_approved_corrections.md`](../20_
 - **FAR §:** 23.301(b) (net = air + inertia in equilibrium).
 - **Source:** Ch 14, `NETLOADS.BAS`.
 - **Reads:** `Project.wing_mass`, `Project.geometry.<surface>`, `Project.aero.<surface>` (and `Project.envelope.vn` for the per-case CL/V/Nz/Nx). Combines the AIRLOADS air-load distribution and the WINGINER inertia distribution.
-- **Writes:** the net spanwise shear, bending moment and torsion along the 25% chord → **`Project.loads.wing_net`** (+ the air/inertia distributions in `Project.loads`) + a one-row-per-station CSV (`net_loads.wing_load_rows`). Pure entry `net_loads.build_net_loads(project)`.
+- **Writes:** the net spanwise shear, bending moment and torsion along the 25% chord → **`Project.loads.wing_net`** (+ the air/inertia distributions in `Project.loads`) + a one-row-per-station CSV (`net_loads.wing_load_rows`, with the in-band `MyyAxis` torsion-axis column and `Basis` LIMIT marker). Pure entry `net_loads.build_net_loads(project)`.
 - **Validation:** Appendix A "Net Loads, Case 22 PHAA" p222 (root Sz +5837, Mxx +455555, Myy -60940, Mzz -81483) — exact algebraic sum of the air (p206) and inertia distributions.
 - **Notes:** A primary structural deliverable (root shear/BM/torsion), wing only, full fidelity (all of Fx/Fz/Sx/Sz/Mxx/Myy/Mzz). SELECT selects the governing cases; NETLOADS also accepts them supplied directly as `WingLoadCase`s referencing the V-n matrix.
+- **Torsion reference axis (M4-18).** The calc accumulates torsion about the local **25% chord** (AIRLOADS/WINGINER convention, oracle-locked). The deliverables state it about the surface's **loads reference axis** (LRA, `SurfaceInput.ref_axis_pct` — the beam-model elastic axis, typically 40–50 % chord; default 0.25 = the original reporting): `net_loads.to_loads_ref_axis` applies the pure boundary transform `Myy_lra(y) = Myy_25(y) + Sz(y)·(x_lra(y) − x_25(y))` (shears/bending unchanged), stamps `WingLoadResult.torsion_axis`, and is invoked by the Loads-Plots page and the sbeam bridge (`loads_ref_axis_results`) — exactly the limit→ultimate boundary pattern. Every rendered/exported torsion **names its axis** (metric/plot labels, `MyyAxis` CSV column, BDF `$` comments); the Wing Loads analysis page stays at the labelled 25 % chord for manual cross-checks, and `net_loads.run` reports the root torsion at both axes (labelled) when the LRA differs.
 
 ### AILERON — Aileron loads (built, Step C8)
 - **FAR §:** 23.349 (rolling), 23.455 (aileron), CAM 3.222.
@@ -498,9 +499,13 @@ return strings (with thin `write_*` file wrappers), and do no physics.
 - **Source:** `sloads/export/sbeam_bridge.py`; card style mirrors
   `sbeam/results/load_export.py`.
 - **Reads:** `Project.loads.wing_net` (NETLOADS) — accepts a `Project`, a list of
-  `WingLoadResult`, or one result.
+  `WingLoadResult`, or one result. The `Project` path first transfers the wing
+  results to the surface's **loads reference axis** (LRA,
+  `net_loads.loads_ref_axis_results`, Step M4-18) so the exported torsion is
+  about the beam-model axis; bare-result callers transfer beforehand.
 - **Writes:** (1) a **span-load CSV** (one row per wing station per case: applied
-  nodal `Fx/Fz/My` + cumulative `Sx/Sz/Mxx/Myy/Mzz` + `SF`); (2) **FORCE/MOMENT**
+  nodal `Fx/Fz/My` + cumulative `Sx/Sz/Mxx/Myy/Mzz` + the in-band `MyyAxis`
+  torsion-axis column + `SF`); (2) **FORCE/MOMENT**
   bulk-data cards, comma free-field unit-scale form (`FORCE, SID, GID, 0, 1.0,
   Fx, Fy, Fz`, components `%.6E`), one load set (SID) per case; (3) an optional
   minimal **CBAR stick-model BDF** (GRID + CBAR chain + PBAR/MAT1 placeholder +

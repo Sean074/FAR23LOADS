@@ -48,6 +48,30 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **M4-18 — the loads reference axis (LRA) + two-sided load envelopes**
+  (2026-08-03 loads-plots review). Two review findings closed:
+  1. **Wing torsion is now stated about a defined loads reference axis.**
+     New `SurfaceInput.ref_axis_pct` (schema v34, lenient default 0.25) names
+     the chordwise axis of the beam model the delivered loads apply to — the
+     elastic axis, typically 40–50 % chord. The calc stays on the original
+     25 % chord (oracle-locked); `net_loads.to_loads_ref_axis` transfers the
+     cumulative torsion at the render/export boundary
+     (`Myy_lra = Myy_25 + Sz·(x_lra − x_25)`; a bitwise no-op at 0.25), and
+     `WingLoadResult.torsion_axis` stamps the axis on every result. **Every
+     torsion output now names its axis** (mixed axes stay allowed but always
+     labelled): the Loads-Plots/Export pages and the sbeam artifacts deliver
+     LRA torsion (in-band span-CSV `MyyAxis` column + BDF `$` comments +
+     stick-model beam-axis note), the Wing Loads analysis page and
+     `wing_load_rows` stay at the labelled 25 % chord for manual cross-checks,
+     and `net_loads.run` reports the root torsion at both axes when they
+     differ. The LRA is set per surface on the Geometry page (with definition
+     help text, seed carry-over) and drawn dash-dot on the three-view planform.
+  2. **The Loads-Plots envelope is now two-sided.** The single max-|value|
+     trace hid the opposite-sign extreme (which can govern a different part of
+     the structure) and could jump where the governing sign flips; the overlay
+     now draws pointwise **max and min** envelopes (`report.envelope_extremes`)
+     and writes both into the page's CSV download.
+
 - **M4-17e — the full 33-case LANDLOAD matrix in the ULTIMATE deliverable.**
   `landing.run()` now emits **40** `ConditionResult`s (LGFACTOR + 6 family
   summaries + 33 per-case): VMP/DMP/SMP/RMP and VNP/DNP/SNP/RESULT

@@ -308,7 +308,7 @@ def run(project: Project) -> ModuleResult:
             values=[
                 LoadValue("Root shear Sz", root.sz, "lb"),
                 LoadValue("Root bending Mxx", root.mxx, "lb-in"),
-                LoadValue("Root torsion Myy", root.myy, "lb-in"),
+                LoadValue("Root torsion Myy (25% chord)", root.myy, "lb-in"),
                 LoadValue("Root drag shear Sx", root.sx, "lb"),
                 LoadValue("Root chord bending Mzz", root.mzz, "lb-in"),
             ],

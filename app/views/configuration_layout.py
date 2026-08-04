@@ -60,7 +60,7 @@ from sloads.modules.configuration import (
     wing_polylines,
     wing_surface,
 )
-from sloads.modules.wing_geometry import geometry_properties, surface_top_outline
+from sloads.modules.wing_geometry import _interp_x, geometry_properties, surface_top_outline
 from sloads.report import module_text_report
 
 _TAIL_TYPE_LABELS = {
@@ -322,6 +322,27 @@ def _three_view() -> go.Figure:
     for xs, ys in surface_top_outline(le, te, symmetric=True):
         fig.add_scatter(x=xs, y=ys, mode="lines",
                         line=dict(color="#1f77b4"), showlegend=False, row=1, col=1)
+    # Loads reference axis (LRA) overlay: the chordwise axis the delivered
+    # torsion is stated about (SurfaceInput.ref_axis_pct — the beam-model
+    # elastic axis, typically 40–50% chord), drawn per WINGGEOM surface. Falls
+    # back to the parametric wing planform at 25% chord when no surface exists.
+    _lra_surfs = project.geometry.surfaces if project.geometry is not None else []
+    if not _lra_surfs:
+        _lra_surfs = [SurfaceInput(name="wing", leading_edge=le, trailing_edge=te)]
+    for _s in _lra_surfs:
+        if len(_s.leading_edge) < 2 or len(_s.trailing_edge) < 2:
+            continue
+        _ys = sorted({p[1] for p in _s.leading_edge} | {p[1] for p in _s.trailing_edge})
+        _xa = [_interp_x(_s.leading_edge, y)
+               + _s.ref_axis_pct * (_interp_x(_s.trailing_edge, y) - _interp_x(_s.leading_edge, y))
+               for y in _ys]
+        _mirror = _s.symmetric
+        fig.add_scatter(
+            x=(_xa[::-1] + _xa) if _mirror else _xa,
+            y=([-y for y in _ys[::-1]] + _ys) if _mirror else _ys,
+            mode="lines", line=dict(color="#9467bd", dash="dashdot", width=2),
+            name=f"LRA {_s.name} ({_s.ref_axis_pct * 100:g}% chord)",
+            row=1, col=1)
     # Fuselage top-view outline: the body sections (plan-view half-widths) when a
     # fuselage outline is present, else the coarse length x width rectangle.
     fuse = project.geometry.fuselage if project.geometry is not None else None
@@ -704,12 +725,23 @@ else:
         _surface_inputs = []
         for _surf in _geometry.surfaces:
             with st.expander(f"Surface: {_surf.name}", expanded=(_surf.name == "wing")):
-                _c = st.columns(2)
+                _c = st.columns(3)
                 _sym = _c[0].checkbox("Symmetric about CL", value=_surf.symmetric,
                                       key=f"sym_{_surf.name}")
                 _elems = _c[1].number_input("Integration elements", min_value=2, max_value=100,
                                             value=int(_surf.elements), key=f"el_{_surf.name}")
-                st.caption(f"Points entered in {U['length']}.")
+                _lra_pct = _c[2].number_input(
+                    "Loads reference axis (% chord)", min_value=0.0, max_value=100.0,
+                    value=float(_surf.ref_axis_pct * 100.0), step=1.0,
+                    key=f"lra_{_surf.name}",
+                    help="The chordwise axis the delivered torsion is stated about — "
+                         "the elastic axis of the beam model the exported loads apply "
+                         "to (typically 40–50% chord for a wing box). The calc stays "
+                         "on the original 25% chord (oracle-locked); torsion is "
+                         "transferred to this axis at the Loads-Plots/Export boundary. "
+                         "25% reproduces the original suite's reporting exactly.")
+                st.caption(f"Points entered in {U['length']}. Dash-dot line on the "
+                           "three-view above = this surface's LRA.")
                 _le = [(to_display(x, "length", system), to_display(y, "length", system))
                        for x, y in _surf.leading_edge]
                 _te = [(to_display(x, "length", system), to_display(y, "length", system))
@@ -724,7 +756,7 @@ else:
                 _te_df = st.data_editor(pd.DataFrame(_te, columns=["XTE", "YTE"]),
                                         num_rows="dynamic", column_config=_te_cols,
                                         key=f"te_{_surf.name}_{system.value}")
-                _surface_inputs.append((_surf.name, _sym, _elems, _le_df, _te_df))
+                _surface_inputs.append((_surf.name, _sym, _elems, _lra_pct, _le_df, _te_df))
         if st.form_submit_button("Apply surface geometry", type="primary"):
             def _imp_pt(row):
                 return tuple(to_imperial_scalar(v, "length", system) for v in row)
@@ -732,10 +764,11 @@ else:
             _edited = [
                 SurfaceInput(
                     name=name, symmetric=sym, elements=int(elems),
+                    ref_axis_pct=float(lra_pct) / 100.0,
                     leading_edge=[_imp_pt(r) for r in le_df.dropna().to_numpy().tolist()],
                     trailing_edge=[_imp_pt(r) for r in te_df.dropna().to_numpy().tolist()],
                 )
-                for name, sym, elems, le_df, te_df in _surface_inputs
+                for name, sym, elems, lra_pct, le_df, te_df in _surface_inputs
             ]
             _set_geometry(project, surfaces=_edited)
             st.success(f"Applied {len(_edited)} surface(s).")
@@ -827,8 +860,14 @@ with right:
     )
     if st.button("Seed wing geometry (WINGGEOM)"):
         geom = project.geometry or GeometryInput()
+        _prev_wing = geom.by_name("wing")
         surfaces = [s for s in geom.surfaces if s.name != "wing"]
-        surfaces.insert(0, wing_surface(layout))
+        _seeded = wing_surface(layout)
+        # Re-seeding regenerates the planform, not the loads reference axis --
+        # carry a user-set LRA over.
+        if _prev_wing is not None:
+            _seeded.ref_axis_pct = _prev_wing.ref_axis_pct
+        surfaces.insert(0, _seeded)
         _set_geometry(project, surfaces=surfaces)
         st.success(
             f"Seeded the wing surface (MAC {mac:.2f} in, XLEMAC {xlemac:.2f} in). "

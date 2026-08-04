@@ -22,6 +22,20 @@ def _fmt(value: float) -> str:
     return f"{value:.4g}"
 
 
+def envelope_extremes(series: List[List[float]]) -> "tuple[List[float], List[float]]":
+    """Pointwise ``(upper, lower)`` envelope across equal-length value series.
+
+    A true load envelope is two-sided: at each station the maximum **and** the
+    minimum across the cases (the opposite-sign extreme can govern a different
+    part of the structure). A single max-|value| trace hides the opposite-sign
+    extreme and can jump discontinuously where the governing sign flips, so it
+    is not used for envelopes.
+    """
+    upper = [max(vals) for vals in zip(*series)]
+    lower = [min(vals) for vals in zip(*series)]
+    return upper, lower
+
+
 # --------------------------------------------------------------------------- #
 # Limit -> ultimate scaling at the render/export boundary
 # --------------------------------------------------------------------------- #

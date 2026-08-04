@@ -261,6 +261,7 @@ def _surface_from_dict(d: Dict[str, Any]) -> SurfaceInput:
         trailing_edge=_points(d.get("trailing_edge")),
         symmetric=d.get("symmetric", True),
         elements=d.get("elements", 20),
+        ref_axis_pct=float(d.get("ref_axis_pct", 0.25)),
     )
 
 
@@ -359,6 +360,7 @@ def geometry_to_dict(inp: GeometryInput) -> Dict[str, Any]:
                 "trailing_edge": [list(p) for p in s.trailing_edge],
                 "symmetric": s.symmetric,
                 "elements": s.elements,
+                "ref_axis_pct": s.ref_axis_pct,
             }
             for s in inp.surfaces
         ]
@@ -861,6 +863,7 @@ def _wing_load_result_from_dict(d: Dict[str, Any]) -> WingLoadResult:
                   for s in d.get("stations", []) or []],
         case_ref=_case_ref_from_dict(d.get("case_ref")),
         safety_factor=_safety_factor(d),
+        torsion_axis=d.get("torsion_axis", "25% chord"),
     )
 
 

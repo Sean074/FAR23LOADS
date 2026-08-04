@@ -334,7 +334,10 @@ if project.is_concept:
 st.caption(
     "Loads shown are **LIMIT** (oracle-traceable). The deliverable **ULTIMATE** "
     "loads (= limit × safety factor, 14 CFR 23.303) come from the **Review/Export** "
-    "pages."
+    "pages. Torsion Myy on this page is about the **25% chord** (the axis the "
+    "original suite computes about, so these numbers cross-check against the "
+    "manual); the Loads-Plots/Export deliverables state it about the wing's "
+    "**loads reference axis** (LRA, set on the Geometry page)."
 )
 
 case_names = [r.case for r in loads.wing_net]
@@ -348,11 +351,11 @@ c1.metric(f"Root shear Sz ({si_scalar_label('lbf', system)}, LIMIT)",
           f"{to_si_scalar(net.stations[0].sz, 'lbf', system):,.0f}")
 c2.metric(f"Root bending Mxx ({si_scalar_label('lb-in', system)}, LIMIT)",
           f"{to_si_scalar(net.stations[0].mxx, 'lb-in', system):,.0f}")
-c3.metric(f"Root torsion Myy ({si_scalar_label('lb-in', system)}, LIMIT)",
+c3.metric(f"Root torsion Myy, 25% chord ({si_scalar_label('lb-in', system)}, LIMIT)",
           f"{to_si_scalar(net.stations[0].myy, 'lb-in', system):,.0f}")
 
 for title, attr, unit_key in [("Shear Sz", "sz", "lbf"), ("Bending Mxx", "mxx", "lb-in"),
-                              ("Torsion Myy", "myy", "lb-in")]:
+                              ("Torsion Myy about 25% chord", "myy", "lb-in")]:
     unit = f"{si_scalar_label(unit_key, system)}, LIMIT"
     fig = go.Figure()
     for label, r in [("air", air), ("inertia", inertia), ("net", net)]:
