@@ -10,7 +10,56 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed
+
+- **M4-1 — fuselage body loads now close the moment, not just the force**
+  (Ref 1 Ch 15 p103). `body_loads` applied a single vertical wing reaction and
+  closed ΣFz only, so the delivered body beam carried a net pitching couple
+  (terminal `Myy` 7.3e4 – 5.5e5 lb-in on the GA6 conditions). It now follows the
+  manual's two passes: the terminal moment of the inertia + tail-load set **is**
+  the unbalanced moment `M_ub`, which is reacted with the vertical residual at
+  the wing **front and rear spar attachments**
+  (`R_r = (M_ub + R_total·(x_ref − x_f))/(x_r − x_f)`, `R_f = R_total − R_r`).
+  Both residuals now close to ~1e-15 of the loads that produce them. New
+  `SurfaceInput.front_spar_pct`/`.rear_spar_pct` (**schema v35**; `None` = not
+  entered → module defaults 0.15/0.65, flagged `assumed` on every deliverable)
+  and `derived_geometry.carry_through`. The two reactions are applied as the
+  statically equivalent **linear line load** over the carry-through rather than
+  as two point loads — same resultant and first moment, no `±M_ub/d` shear
+  spike, and it collapses onto the manual's literal two-point solve as `d → 0`;
+  closure is independent of the node count. Where the spar stations can't be
+  derived, a flagged whole-body fallback closes the beam and is labelled a
+  **closure artifact** (it has no physical source). Wing-attach fitting loads
+  are reported — `body_loads.fitting_load_rows` (LIMIT) and the new
+  `sbeam_bridge.body_fitting_load_csv` (ULTIMATE, also in the `.zip` bundle and
+  as a workbook sheet) — deliberately *outside* the `FORCE` set, which already
+  carries them. The 2026-07-23 caveat comes off its three stamp sites: BDF
+  blocks now state both residuals and the spar provenance (`$ CAVEAT:` only on
+  the artifact path), the **Net Fuselage Loads** page trades its warning for a
+  terminal-`Myy` metric and a *Wing-attach reactions (LIMIT)* panel, and the
+  **Export** page's Fuselage caption branches artifact/closed. The FAR 23 flight
+  oracles are unaffected (no flight-loads or envelope calc changed).
+  Full record: `docs/40_history/00_completed_development.md` and the design note
+  `docs/40_history/04_m4-1_body_moment_closure.md`.
+
 ### Changed
+
+- **BREAKING (sbeam body decks): fuselage GIDs are now keyed off station
+  provenance, not table index.** The carry-through reaction inserts nodes into
+  the *middle* of the beam, so the old `1001 + i` numbering would have silently
+  renumbered every mass station aft of the wing whenever a spar fraction moved.
+  `BodyStationLoad.source` (`mass`/`tail`/`carry`/`correction`) now drives
+  `sbeam_bridge.body_station_gids`: mass + tail stations keep `1001 +` in
+  nose→tail order, reaction nodes take a disjoint `1501 +` block (each block
+  holds 500; the tail family still starts at 2001, and the function raises
+  rather than collide). **Body decks exported before this release must be
+  re-exported** — `fuselage_loads.bdf` and `fuselage_span_loads.csv` GIDs no
+  longer match a previously issued deck. Wing, tail and control-surface GIDs are
+  unchanged.
+- **The Configuration & Layout page takes the wing spar fractions.** Optional
+  front/rear `% chord` inputs per surface; **left blank they stay `None`**,
+  which is what makes the entered-vs-assumed provenance reachable from the GUI —
+  before this every project necessarily resolved as `assumed`.
 
 - **Backlog hygiene sweep** (docs only, no open work dropped).
   `docs/30_future/00_backlog.md` 570 → 469 lines: removed the completed-M3
@@ -20,7 +69,8 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   design-decision table D-1…D-11 moved to the new register
   `docs/40_history/03_resolved_decisions.md` (open **D-5** stays in the
   backlog); M4-1's diagnosis, A–E options trade and formulas moved to the new
-  `docs/30_future/06_m4-1_body_moment_closure.md`, leaving the decided approach
+  `06_m4-1_body_moment_closure.md` (now closed and filed as
+  `docs/40_history/04_m4-1_body_moment_closure.md`), leaving the decided approach
   and acceptance criteria in the backlog. Both new docs are indexed in
   `docs/00_INDEX.md`.
 - **Backlog ID collision fixed.** `M4-18` was in use by two different items —

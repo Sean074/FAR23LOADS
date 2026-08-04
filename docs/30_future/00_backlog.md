@@ -76,28 +76,6 @@ G8.1–G8.7, risks, test matrix):
 No calc change — the Appendix A oracles and the ultimate-load contract are the
 invariant.
 
-### M4-1 — Fuselage body loads: moment closure (review T5) **[Major]**
-`body_loads` applies a single vertical wing reaction and closes ΣFz only; the
-Ch 15 procedure (Ref 1 p103) reacts the unbalanced moment at the front/rear
-spar attachments. Verified: terminal Myy ≠ 0 (the exported body set carries a
-net couple). Caveat-noted in the deliverables since 2026-07-23, so not
-release-blocking; the note comes out when the balance lands.
-
-**Approach decided 2026-08-03:** react the couple over the **wing
-carry-through** — a 2×2 front/rear spar solve, applied as a self-equilibrated
-linear distribution over `[x_f, x_r]` (the literal Ch 15 two-point solve is its
-`d → 0` degenerate case), with a flagged whole-body fallback labelled as a
-*closure artifact* when spar stations are undefined. **Acceptance:** terminal
-`Myy ≈ 0` and ΣFz = 0 in the closure suite; front/rear fitting loads emitted;
-FAR23 flight oracles unchanged; `CLOSURE_CAVEAT` and its three stamp sites
-removed on close.
-
-Diagnosis, the A–E options trade and the formulas:
-[`06_m4-1_body_moment_closure.md`](06_m4-1_body_moment_closure.md). Split out as
-their own items: **M4-21** (the pitching load factor — `θ̈ = 0` for the balanced
-trim cases, so it does **not** substitute for the closure) and **M4-19** (the
-distributed body aero moment).
-
 ### M4-2 — Unify `select_wing`/`one_engine_out` case identity
 One case-ID authority per component end-to-end: derive `WingMassInput.cases`
 from `envelope.critical` when not given; link `one_engine_out` to
@@ -461,9 +439,7 @@ Decisions D-1 … D-11, once answered, moved to the register:
 
 ## Known defects (open) — index
 
-Both are described in full above; this is the lookup.
+Described in full above; this is the lookup.
 
-- **M4-1** — unreacted pitching couple in the fuselage body-load distribution
-  (terminal Myy ≠ 0). **[Major — caveat-noted in the deliverables]**
 - **M4-9** — report/export semantics keyed on display-label strings; a cosmetic
   relabel silently blanks CSV columns. **[Major, latent]**

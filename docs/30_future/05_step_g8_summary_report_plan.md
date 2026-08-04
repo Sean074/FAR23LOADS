@@ -34,7 +34,7 @@ governed by the same ultimate-load boundary that `report.py` and
 |---|----------|-----------|
 | **G8-1** | **LaTeX only.** A pure renderer emits `.tex`; PDF is compiled when a TeX engine is on `PATH`, otherwise the `.tex` is served with a hint. The bundle always carries the `.tex`. | Controlled-document features (pagination, headers/footers, page *n of m*, ToC, figure/table numbering, `longtable`, signature/revision block) that browser print-to-PDF cannot give. No HTML backend — one renderer, one format. `tectonic` is present at `/opt/homebrew/bin/tectonic`. |
 | **G8-2** | **Plots are pgfplots/TikZ emitted as text.** No plotly in the report, no `kaleido`, no refactor of the Streamlit plot code. | Deterministic, unit-testable source (the same way BDF cards are tested), vector output in the document's own fonts. The plot *data* already comes from pure functions (`vn_diagram.build_vn_diagram`, `weight_envelope.loading_envelope_points`), so no GUI extraction is needed to avoid divergence. |
-| **G8-3** | **Methods statement stamped everywhere:** `$` comment block in each BDF, `#`-prefixed provenance lines above each CSV header, `METHODS.txt` in the zip, a `Methods` sheet in the workbook, and §5 of the report. | Follows the existing `body_loads.CLOSURE_CAVEAT` precedent for BDF. A CSV forwarded on its own still carries its basis. Accepted risk: naive CSV consumers see comment rows (mitigation in §7). |
+| **G8-3** | **Methods statement stamped everywhere:** `$` comment block in each BDF, `#`-prefixed provenance lines above each CSV header, `METHODS.txt` in the zip, a `Methods` sheet in the workbook, and §5 of the report. | Follows the existing `body_loads.CLOSURE_ARTIFACT_CAVEAT` precedent for BDF. A CSV forwarded on its own still carries its basis. Accepted risk: naive CSV consumers see comment rows (mitigation in §7). |
 | **G8-4** | **Depth: summary + every governing case, pointing at companions.** The report carries the governing cases, per-component V/M/T maxima and *where* they occur; full station-by-station distributions stay in the bundle's CSV/BDF files, named from the report. | A single self-contained PDF of every station × every case runs to hundreds of pages. The bundle is the deliverable; the report is its controlling document. |
 
 ---
@@ -162,7 +162,7 @@ maxima block naming *where* each maximum occurs:
 | Component | Reported |
 |-----------|----------|
 | **Wing** | Governing cases (PHAA/PMAA/PLAA/NMAA); max shear / bending / torsion with the span station of each; the torsion axis named explicitly (LRA, % chord, from `net_loads.torsion_axis_label`); two-sided max **and** min envelopes. |
-| **Fuselage** | Governing cases; max V/M/T with body station; **the M4-1 moment-closure caveat verbatim** — the exported set closes ΣFz but not ΣM. |
+| **Fuselage** | Governing cases; max V/M/T with body station; the closure statement — the exported set closes both ΣFz and the terminal `Myy` at the front/rear spar attachments (M4-1); the wing-attach fitting loads, and `body_loads.CLOSURE_ARTIFACT_CAVEAT` **verbatim** whenever a case fell back to the whole-body correction. |
 | **Horizontal / vertical tail** | Balancing, manoeuvre, gust and unsymmetrical conditions; the 25%/50% MAC chordwise split (`lt25`/`lt50`). |
 | **Control surfaces** | Aileron / flap / tab: design pressures, hinge moments, and the *standard simplified* distribution used — flagged as such. |
 | **Landing gear** | Reaction cases per gear (level, tail-down, one-wheel, side, braked) with the gear geometry they act on. |
@@ -199,7 +199,7 @@ per project:
 4. **Modernized math** — `math.pi` and clean equations replace the source's
    `3.1416`, hence tolerance-based (±0.1%) rather than exact agreement.
 5. **Approved corrections** — the three register entries, with citations.
-6. **Known limitations** — the fuselage moment-closure caveat (M4-1); *standard
+6. **Known limitations** — the fuselage closure artifact (`CLOSURE_ARTIFACT_CAVEAT`, fallback path only) and assumed spar stations; *standard
    simplified* control-surface distributions; wing and control-surface exports
    always carry the full case set regardless of the governing-set filter (M4-2
    case-identity gap); no ground-case distributed fuselage loads; no pressurization
@@ -297,7 +297,7 @@ which was created 2026-08-03 — add any further new terms there as usual.
 | `tests/test_report_content.py` | The `ReportDocument` built from `examples/ga6_normal` carries all five sections; weights/speeds/geometry cells equal the project's values; the governing-case count equals `build_critical().selected()`; sections degrade (not raise) when a slice is absent. |
 | `tests/test_far_coverage.py` | Every reg in the static table is either covered by a real `far_reference` from the GA fixture or classified with a reason; no reg is silently dropped; an unflapped project marks 23.345 not-applicable. |
 | `tests/test_report_latex.py` | `.tex` renders for the GA and both concept fixtures; LaTeX specials in a project name are escaped; the VA corner point appears in the V-n `\addplot` coordinates; `-ULT` markers and the `SF` column are present; the concept caveat appears **only** in the concept fixtures; two renders are byte-identical. |
-| `tests/test_methods_stamp.py` | The statement reaches CSV, BDF, `METHODS.txt`, the workbook sheet and the report; stamped CSVs parse to unchanged rows; the concept caveat and the M4-1 fuselage caveat are present when applicable. |
+| `tests/test_methods_stamp.py` | The statement reaches CSV, BDF, `METHODS.txt`, the workbook sheet and the report; stamped CSVs parse to unchanged rows; the concept caveat and the fuselage closure-artifact caveat are present when applicable. |
 | `tests/test_pdf_compile.py` | `skipif` no engine: compiles the GA report, asserts `%PDF-` magic and ≥1 page. Skipped in CI by design. |
 | `tests/test_views_smoke.py` (extend) | The Export page's new section renders without exception when every slice is absent. |
 | Unchanged | Every Appendix A oracle test and `test_ultimate_contract.py` — the invariant. |

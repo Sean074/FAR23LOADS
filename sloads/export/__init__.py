@@ -10,7 +10,9 @@ all four component families plus the case index:
 - **Wing** — :func:`span_load_csv`, :func:`force_moment_cards`,
   :func:`stick_model_bdf` (+ ``write_*`` variants), built from the NETLOADS net
   wing load (``Project.loads.wing_net``).
-- **Body / fuselage** — :func:`body_span_load_csv`, :func:`body_force_moment_cards`.
+- **Body / fuselage** — :func:`body_span_load_csv`, :func:`body_force_moment_cards`,
+  :func:`body_fitting_load_csv` (the wing-attach fitting loads, reported beside
+  the FORCE set rather than in it), :func:`body_station_gids`.
 - **Tail** — :func:`tail_chordwise_csv`, :func:`tail_force_moment_cards`
   (+ ``write_*`` variants).
 - **Control surfaces** — :func:`control_surface_csv`,
@@ -25,8 +27,10 @@ from __future__ import annotations
 from .coordinates import SBEAM_CID, to_force, to_grid, to_moment
 from .sbeam_bridge import (
     NodalLoad,
+    body_fitting_load_csv,
     body_force_moment_cards,
     body_span_load_csv,
+    body_station_gids,
     case_index_csv,
     control_surface_csv,
     control_surface_force_moment_cards,
@@ -67,6 +71,8 @@ __all__ = [
     # Body / fuselage
     "body_span_load_csv",
     "body_force_moment_cards",
+    "body_fitting_load_csv",
+    "body_station_gids",
     # Tail
     "tail_chordwise_csv",
     "write_tail_chordwise_csv",

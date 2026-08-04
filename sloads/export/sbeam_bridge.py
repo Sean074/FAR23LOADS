@@ -429,7 +429,46 @@ def write_stick_model_bdf(arg: ResultsArg, path: str, sid_base: int = 1) -> None
 # carries an applied vertical force (inertia + tail air load + wing reaction) that
 # sums to zero in equilibrium. The export emits a FORCE card (Fz) per station and a
 # span-load CSV; there is no applied torsion, so no MOMENT cards.
-_BODY_GID_BASE = 1001  # body station GIDs start here (disjoint from wing GIDs)
+#
+# GIDs are keyed off each station's provenance (``BodyStationLoad.source``), not
+# its index in the merged table: the wing carry-through reaction (M4-1) inserts
+# extra nodes into the middle of the beam, and an index-based GID would have
+# renumbered every mass station aft of the wing whenever the spar stations
+# changed. Mass/tail stations therefore keep the historical ``1001 + i`` in
+# nose->tail order and the reaction nodes take a disjoint block at ``1501 +``.
+_BODY_GID_BASE = 1001         # fuselage mass stations + the tail air load: 1001-1500
+_BODY_CARRY_GID_BASE = 1501   # carry-through / fallback correction nodes: 1501-2000
+_BODY_GID_BLOCK = 500         # capacity of each block (tail GIDs start at 2001)
+
+#: ``BodyStationLoad.source`` values that belong to the reaction-node GID block.
+_BODY_REACTION_SOURCES = ("carry", "correction")
+
+
+def body_station_gids(result: BodyLoadResult) -> List[int]:
+    """Stable sbeam GIDs for one body result's stations, in table order.
+
+    Fuselage mass stations and the tail air-load station number from
+    :data:`_BODY_GID_BASE` in nose->tail order; the wing carry-through reaction
+    nodes (or the fallback correction nodes) number from
+    :data:`_BODY_CARRY_GID_BASE`. Keying on ``source`` keeps a mass station's GID
+    fixed no matter how many reaction nodes are inserted around it."""
+    gids: List[int] = []
+    n_mass = 0
+    n_reaction = 0
+    for s in result.stations:
+        if s.source in _BODY_REACTION_SOURCES:
+            gids.append(_BODY_CARRY_GID_BASE + n_reaction)
+            n_reaction += 1
+        else:
+            gids.append(_BODY_GID_BASE + n_mass)
+            n_mass += 1
+    if max(n_mass, n_reaction) > _BODY_GID_BLOCK:
+        raise ValueError(
+            f"body export: {n_mass} mass and {n_reaction} reaction stations "
+            f"exceed the {_BODY_GID_BLOCK}-GID block (would collide with the "
+            "tail GIDs at 2001)"
+        )
+    return gids
 
 
 def _body_results(arg: "Union[Project, BodyLoadResult, Sequence[BodyLoadResult]]") -> List[BodyLoadResult]:
@@ -458,9 +497,9 @@ def body_span_load_csv(arg) -> str:
     writer.writeheader()
     for r in results:
         sf = _sf(r)
-        for i, s in enumerate(r.stations):
+        for gid, s in zip(body_station_gids(r), r.stations):
             writer.writerow({
-                "Case": r.case, "GID": _BODY_GID_BASE + i, "X": f"{s.x:.3f}",
+                "Case": r.case, "GID": gid, "X": f"{s.x:.3f}",
                 "Fz": f"{s.fz * sf:.1f}", "Sz": f"{s.sz * sf:.1f}",
                 "Myy": f"{s.myy * sf:.0f}", "SF": f"{_sf_str(sf)}",
             })
@@ -494,15 +533,53 @@ def body_force_moment_cards(arg, sid_base: int = 1) -> str:
         if r.closure_artifact:
             lines += [f"$ {ln}" for ln in
                       textwrap.wrap("CAVEAT: " + _BODY_ARTIFACT_CAVEAT, width=70)]
-        for i, s in enumerate(r.stations):
+        for gid, s in zip(body_station_gids(r), r.stations):
             fx, fy, fz = to_force(0.0, 0.0, s.fz * sf)
             if abs(fz) > _TOL:
                 lines.append(
-                    f"FORCE, {sid}, {_BODY_GID_BASE + i}, {SBEAM_CID}, 1.0, "
+                    f"FORCE, {sid}, {gid}, {SBEAM_CID}, 1.0, "
                     f"{_fmt(fx)}, {_fmt(fy)}, {_fmt(fz)}"
                 )
         blocks.append("\n".join(lines))
     return "\n".join(blocks) + "\n"
+
+
+_BODY_FITTING_FIELDS = [
+    "Case", "Case ID", "X front (in)", "R front (lb-ULT)",
+    "X rear (in)", "R rear (lb-ULT)", "M unbalanced (lb-in-ULT)", "Spars", "SF",
+]
+
+
+def body_fitting_load_csv(arg) -> str:
+    """Wing-attach **fitting loads** CSV: one row per critical fuselage condition.
+
+    The front/rear spar reactions of the Ch 15 p103 solve (Ref 1 p103) -- the
+    sizing loads for the wing-attach fittings, reported here rather than in the
+    FORCE set because the exported body distribution *already carries* them (as
+    the carry-through line load); adding the point reactions on top would double
+    them. Loads are ULTIMATE (``SF`` is the limit->ultimate factor applied);
+    stations and the spar provenance are unscaled.
+
+    A ``closure_artifact`` case has no spar stations and contributes no row, so
+    the file is empty (header only) when every case fell back."""
+    results = _body_results(arg)
+    buf = _io.StringIO()
+    writer = csv.DictWriter(buf, fieldnames=_BODY_FITTING_FIELDS)
+    writer.writeheader()
+    for r in results:
+        if r.r_front is None or r.r_rear is None:
+            continue
+        sf = _sf(r)
+        writer.writerow({
+            "Case": r.case,
+            "Case ID": r.case_ref.case_id if r.case_ref else "",
+            "X front (in)": f"{r.x_front:.3f}", "R front (lb-ULT)": f"{r.r_front * sf:.1f}",
+            "X rear (in)": f"{r.x_rear:.3f}", "R rear (lb-ULT)": f"{r.r_rear * sf:.1f}",
+            "M unbalanced (lb-in-ULT)": f"{r.m_unbalanced * sf:.0f}",
+            "Spars": "assumed" if r.spars_assumed else "entered",
+            "SF": _sf_str(sf),
+        })
+    return buf.getvalue()
 
 
 # --------------------------------------------------------------------------- #

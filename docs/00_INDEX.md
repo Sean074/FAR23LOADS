@@ -46,7 +46,6 @@ historical record.
 | [`03_gui_rework_plan.md`](30_future/03_gui_rework_plan.md) | **Phase G plan** — workflow-aligned GUI rework: one-unit-per-dimension policy, single-source-of-truth geometry, re-sequenced analysis-flow navigation, and the new fuselage-moment/trim-plot/elevator-chord features (assessment vs. current code, locked decisions G-1…G-4) |
 | [`05_step_g8_summary_report_plan.md`](30_future/05_step_g8_summary_report_plan.md) | **Step G8 plan** — the consolidated loads summary report: locked decisions (LaTeX/PDF, pgfplots figures, methods-statement stamping, report depth), the `sloads/report/` package layout, seven ordered sub-steps, risks, and the test matrix |
 | [`04_m3-1_rename_procedure.md`](30_future/04_m3-1_rename_procedure.md) | **M3-1 execution runbook** — step-by-step git + shell procedure for the `farloads` → `sloads` rename batched with the `models.py` → `models/` split (branch, `git mv`, package split, import/pyproject rewrite, brand strings, acceptance gate, staged commits) |
-| [`06_m4-1_body_moment_closure.md`](30_future/06_m4-1_body_moment_closure.md) | **M4-1 design note** — fuselage body-load moment closure: diagnosis of the unreacted wing-attachment couple, the A–E options trade, the decided carry-through distributed spar reaction (formulas, fallback, acceptance) |
 
 ## 40_history — Historic record
 
@@ -56,6 +55,7 @@ historical record.
 | [`01_verification_baseline_0.2.0.md`](40_history/01_verification_baseline_0.2.0.md) | Verification baseline (0.2.0) — superseded by the 0.3.0 baseline below |
 | [`02_verification_baseline_0.3.0.md`](40_history/02_verification_baseline_0.3.0.md) | **Verification baseline (0.3.0, current)** — the per-condition table of every checked FAR condition and the printed Appendix A (or worked-example) figure the suite locks against, plus the one-page oracle-vs-closure status table; refreshed per release (`RELEASE_PROCESS.md`) |
 | [`03_resolved_decisions.md`](40_history/03_resolved_decisions.md) | **Resolved design-decision register** — D-1 … D-11 with resolution date and a pointer to the rationale; open decisions stay in the backlog until answered |
+| [`04_m4-1_body_moment_closure.md`](40_history/04_m4-1_body_moment_closure.md) | **M4-1 design note (closed 2026-08-03)** — fuselage body-load moment closure: diagnosis of the unreacted wing-attachment couple, the A–E options trade, the shipped carry-through distributed spar reaction (formulas, fallback, per-step verification figures) |
 
 ---
 

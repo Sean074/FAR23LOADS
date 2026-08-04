@@ -95,23 +95,28 @@ def _tail_station(project: Project, fallback: float) -> float:
     return ti.xt25 if ti is not None and ti.xt25 else fallback
 
 
-def _integrate(points: Sequence[Tuple[float, float]]) -> List[BodyStationLoad]:
-    """Integrate applied point loads ``(x, fz)`` nose->tail to shear and bending.
+def _integrate(points: Sequence[Tuple[float, float, str]]) -> List[BodyStationLoad]:
+    """Integrate applied point loads ``(x, fz, source)`` nose->tail to shear and
+    bending.
 
     ``Myy`` accumulates the area under the shear curve, so the terminal moment is
     ``sum(fz_i * (L - x_i))`` about the aft-most station -- the reference the
-    p103 reaction solve is written against (:func:`_spar_reactions`)."""
+    p103 reaction solve is written against (:func:`_spar_reactions`).
+
+    ``source`` is carried through onto each :class:`BodyStationLoad` so the
+    export can key a stable GID off the load's provenance rather than its index
+    in the merged, sorted table."""
     ordered = sorted(points, key=lambda pt: pt[0])
     out: List[BodyStationLoad] = []
     sz = 0.0
     myy = 0.0
     prev_x = ordered[0][0]
-    for x, fz in ordered:
+    for x, fz, source in ordered:
         myy += sz * (x - prev_x)                    # area under the shear curve
         sz += fz
         prev_x = x
         out.append(BodyStationLoad(x=x, fx=0.0, fy=0.0, fz=fz, sx=0.0, sy=0.0,
-                                   sz=sz, mxx=0.0, myy=myy, mzz=0.0))
+                                   sz=sz, mxx=0.0, myy=myy, mzz=0.0, source=source))
     return out
 
 
@@ -131,7 +136,8 @@ def _spar_reactions(m_ub: float, r_total: float, x_f: float, x_r: float,
 
 
 def _linear_load_nodes(x_a: float, x_b: float, total: float, couple: float,
-                       nodes: int = CARRY_THROUGH_NODES) -> List[Tuple[float, float]]:
+                       source: str = "carry",
+                       nodes: int = CARRY_THROUGH_NODES) -> List[Tuple[float, float, str]]:
     """Lump a linear line load over ``[x_a, x_b]`` onto ``nodes`` point loads.
 
     The line load ``w(xi) = a + b*(xi - 1/2)`` (``xi = (x - x_a)/d``) is the unique
@@ -155,7 +161,7 @@ def _linear_load_nodes(x_a: float, x_b: float, total: float, couple: float,
         h = xs[k + 1] - xs[k]
         p[k] += h * (2.0 * w[k] + w[k + 1]) / 6.0
         p[k + 1] += h * (w[k] + 2.0 * w[k + 1]) / 6.0
-    return list(zip(xs, p))
+    return [(x, fz, source) for x, fz in zip(xs, p)]
 
 
 def body_distribution(stations, nz: float, tail_load: float, tail_x: float,
@@ -178,9 +184,9 @@ def body_distribution(stations, nz: float, tail_load: float, tail_x: float,
 
     # Pass 1 (p103): inertia + tail air load only. Its terminal moment about the
     # aft-most station is the unbalanced moment.
-    applied: List[Tuple[float, float]] = [(x, -nz * w) for x, w in stations]
-    applied.append((tail_x, tail_load))
-    x_ref = max(x for x, _ in applied)
+    applied: List[Tuple[float, float, str]] = [(x, -nz * w, "mass") for x, w in stations]
+    applied.append((tail_x, tail_load, "tail"))
+    x_ref = max(pt[0] for pt in applied)
     m_ub = _integrate(applied)[-1].myy
 
     info: Dict[str, float] = {"m_unbalanced": m_ub, "r_total": r_total}
@@ -198,10 +204,10 @@ def body_distribution(stations, nz: float, tail_load: float, tail_x: float,
     # Fallback: the historical single wing reaction closes sum(Fz); the moment it
     # leaves over is cancelled by a zero-net-force linear correction over the
     # whole body (``A = 12*M_res/L**2``). Closes the beam, invents the source.
-    applied.append((wing_x, r_total))
+    applied.append((wing_x, r_total, "correction"))
     m_res = _integrate(applied)[-1].myy
-    x_nose = min(x for x, _ in applied)
-    applied += _linear_load_nodes(x_nose, x_ref, 0.0, m_res)
+    x_nose = min(pt[0] for pt in applied)
+    applied += _linear_load_nodes(x_nose, x_ref, 0.0, m_res, source="correction")
     return _integrate(applied), info
 
 

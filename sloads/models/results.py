@@ -306,7 +306,14 @@ class BodyStationLoad:
     (side), ``fz`` (vertical); cumulative shears ``sx``/``sy``/``sz``; bending
     ``myy`` (about Y, from the vertical load), ``mzz`` (about Z, from the side
     load) and torsion ``mxx`` (about the body X axis). Pounds and inch-pounds
-    (fuselage net distribution, Ref 1 Ch 15)."""
+    (fuselage net distribution, Ref 1 Ch 15).
+
+    ``source`` records where the applied load came from, so the export can give
+    each station a **stable GID** independent of its index in the merged table:
+    ``"mass"`` (a fuselage mass item), ``"tail"`` (the balancing tail air load),
+    ``"carry"`` (a wing carry-through reaction node) or ``"correction"`` (a
+    whole-body fallback correction node) -- see
+    :func:`sloads.export.sbeam_bridge.body_station_gids`."""
     x: float
     fx: float
     fy: float
@@ -317,6 +324,7 @@ class BodyStationLoad:
     mxx: float
     myy: float
     mzz: float
+    source: str = "mass"
 
 
 @dataclass

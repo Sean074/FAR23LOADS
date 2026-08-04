@@ -467,22 +467,40 @@ regression oracle**; Appendix A/B geometry is used only as a *sanity* fixture.
 - **Reads:** SELECT's fuselage critical conditions via `select.select_fuselage(project)`
   (not a persisted `Project.envelope.critical` read — it calls SELECT's fuselage
   selection directly), `Project.tail_loads` (h-tail balancing load + `xt25` tail
-  station) and `Project.fuselage_mass` (`FuselageMassInput` — the per-station
-  lumped fuselage weight distribution, which should exclude wing mass per Ch 15).
+  station), `Project.fuselage_mass` (`FuselageMassInput` — the per-station
+  lumped fuselage weight distribution, which should exclude wing mass per Ch 15)
+  and the wing carry-through resolved from `Project.geometry` by
+  `derived_geometry.carry_through` (planform root chord × `SurfaceInput`
+  `front_spar_pct`/`rear_spar_pct`; **M4-1**).
 - **Writes:** the longitudinal net shear/bending-moment/torsion distribution
   along the fuselage stations → `ConditionResult`s / CSV; feeds the sbeam
-  export bridge's body target.
-- **Validation:** **no printed oracle** (a modern addition); closure-checked —
-  the net distribution balances the applied tail load and fuselage inertia
-  relief (physics-closure, not a manual figure). **Vertical (ΣFz) closure only:**
-  a single wing reaction is applied, so **ΣM is not balanced** — the terminal
-  `Myy` is non-zero and the bending distribution carries a net pitching couple.
-  The Ch 15 front/rear-spar two-reaction solve (Ref 1 p103, incl. the pitching
-  load factor) is open work — backlog **M4-1**. Until it lands, the limitation is
-  single-sourced as `body_loads.CLOSURE_CAVEAT` and stamped onto every
-  deliverable: `$ CAVEAT:` comment lines in `fuselage_loads.bdf`, a warning on
-  the **Net Fuselage Loads** page, and a caption on the **Export** page's
-  Fuselage row.
+  export bridge's body target. Per condition it also writes the moment-closure
+  fields on `BodyLoadResult` — `m_unbalanced` and the front/rear spar **fitting
+  loads** `r_front`/`r_rear` at `x_front`/`x_rear`, with the `spars_assumed` /
+  `closure_artifact` provenance flags.
+- **Validation:** **no printed oracle** (a modern addition); closure-checked in
+  **both** degrees of freedom (physics-closure, not a manual figure) — the
+  applied `ΣFz = 0`, the running shear returns to ~0 at the aft end, and the
+  terminal `Myy` returns to ~0. **Moment closure (M4-1, closed 2026-08-03)**
+  follows the two passes of Ref 1 p103: the terminal moment of the
+  inertia + tail-load set is the unbalanced moment `M_ub`, reacted with the
+  vertical residual `R_total = NZ·W_fus − LT` at the wing front/rear spar
+  attachments (`R_r = (M_ub + R_total·(x_ref − x_f))/(x_r − x_f)`,
+  `R_f = R_total − R_r`, `x_ref` = the integrator's aft-most station). The two
+  reactions are applied as the statically **equivalent linear line load** over
+  `[x_f, x_r]` — a documented refinement of p103, which prescribes two point
+  loads: same resultant and first moment, no `±M_ub/d` shear spike across a
+  short carry-through, and it collapses onto the manual's two-point solve as
+  `d → 0`. The fitting loads `R_f`/`R_r` are **reported, not re-applied** (the
+  distribution already carries them). When the spar stations are underivable a
+  whole-body correction closes the beam instead; it has no physical source, so
+  the result is flagged `closure_artifact` and single-sources the limitation as
+  `body_loads.CLOSURE_ARTIFACT_CAVEAT`, stamped as `$ CAVEAT:` lines in
+  `fuselage_loads.bdf`, a warning on the **Net Fuselage Loads** page and a
+  caption on the **Export** page's Fuselage row — **only on that fallback path**.
+  Still open and split out: the pitching load factor (**M4-21**; `θ̈ = 0` on the
+  balanced trim cases, so it does not affect this closure) and the distributed
+  body aero moment (**M4-19**).
 - **Notes:** off the FLTLOADS→SELECT→component-module main span-load pipeline
   in the sense that it distributes a fuselage station-load rather than a wing
   spanwise one; still driven by SELECT's critical selection.

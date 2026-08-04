@@ -48,6 +48,7 @@ from sloads import (
     to_imperial_scalar,
 )
 from sloads import io as sloads_io
+from sloads.constants import DEFAULT_FRONT_SPAR_PCT, DEFAULT_REAR_SPAR_PCT
 from sloads.derived_geometry import fuselage_summary
 from sloads.modules.configuration import (
     cg_estimate,
@@ -740,6 +741,29 @@ else:
                          "on the original 25% chord (oracle-locked); torsion is "
                          "transferred to this axis at the Loads-Plots/Export boundary. "
                          "25% reproduces the original suite's reporting exactly.")
+                # Spar fractions are optional: left blank they stay None, and
+                # body_loads flags the carry-through stations it assumes (M4-1).
+                _sc = st.columns(2)
+                _spar_help = (
+                    "Chordwise position of the wing-attach spar, as a %% of the root "
+                    "chord. Used to place the front/rear carry-through reactions that "
+                    "react the fuselage unbalanced moment (Ref 1 Ch 15 p103) and to "
+                    "report the wing-attach fitting loads. **Leave blank** to accept "
+                    "the module default (%g%%), which is reported as an assumed "
+                    "station on every fuselage deliverable."
+                )
+                _fs_pct = _sc[0].number_input(
+                    "Front spar (% chord, optional)", min_value=0.0, max_value=100.0,
+                    value=None if _surf.front_spar_pct is None
+                    else float(_surf.front_spar_pct * 100.0), step=1.0,
+                    key=f"fs_{_surf.name}",
+                    help=_spar_help % (DEFAULT_FRONT_SPAR_PCT * 100.0))
+                _rs_pct = _sc[1].number_input(
+                    "Rear spar (% chord, optional)", min_value=0.0, max_value=100.0,
+                    value=None if _surf.rear_spar_pct is None
+                    else float(_surf.rear_spar_pct * 100.0), step=1.0,
+                    key=f"rs_{_surf.name}",
+                    help=_spar_help % (DEFAULT_REAR_SPAR_PCT * 100.0))
                 st.caption(f"Points entered in {U['length']}. Dash-dot line on the "
                            "three-view above = this surface's LRA.")
                 _le = [(to_display(x, "length", system), to_display(y, "length", system))
@@ -756,7 +780,8 @@ else:
                 _te_df = st.data_editor(pd.DataFrame(_te, columns=["XTE", "YTE"]),
                                         num_rows="dynamic", column_config=_te_cols,
                                         key=f"te_{_surf.name}_{system.value}")
-                _surface_inputs.append((_surf.name, _sym, _elems, _lra_pct, _le_df, _te_df))
+                _surface_inputs.append((_surf.name, _sym, _elems, _lra_pct,
+                                        _fs_pct, _rs_pct, _le_df, _te_df))
         if st.form_submit_button("Apply surface geometry", type="primary"):
             def _imp_pt(row):
                 return tuple(to_imperial_scalar(v, "length", system) for v in row)
@@ -765,10 +790,12 @@ else:
                 SurfaceInput(
                     name=name, symmetric=sym, elements=int(elems),
                     ref_axis_pct=float(lra_pct) / 100.0,
+                    front_spar_pct=None if fs_pct is None else float(fs_pct) / 100.0,
+                    rear_spar_pct=None if rs_pct is None else float(rs_pct) / 100.0,
                     leading_edge=[_imp_pt(r) for r in le_df.dropna().to_numpy().tolist()],
                     trailing_edge=[_imp_pt(r) for r in te_df.dropna().to_numpy().tolist()],
                 )
-                for name, sym, elems, lra_pct, le_df, te_df in _surface_inputs
+                for name, sym, elems, lra_pct, fs_pct, rs_pct, le_df, te_df in _surface_inputs
             ]
             _set_geometry(project, surfaces=_edited)
             st.success(f"Applied {len(_edited)} surface(s).")

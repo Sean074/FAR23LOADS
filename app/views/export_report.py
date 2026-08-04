@@ -165,6 +165,9 @@ if _wing:
 if _body:
     _bdf_artifacts["fuselage_loads.bdf"] = _try(sb.body_force_moment_cards, _body) or ""
     _bdf_artifacts["fuselage_span_loads.csv"] = _try(sb.body_span_load_csv, _body) or ""
+    # Reported beside the FORCE set, never in it -- the span loads already carry
+    # the carry-through reaction (M4-1).
+    _bdf_artifacts["fuselage_fitting_loads.csv"] = _try(sb.body_fitting_load_csv, _body) or ""
 if _tail:
     _bdf_artifacts["tail_loads.bdf"] = _try(sb.tail_force_moment_cards, _tail) or ""
     _bdf_artifacts["tail_chordwise.csv"] = _try(sb.tail_chordwise_csv, _tail) or ""
@@ -223,6 +226,7 @@ def _workbook_bytes() -> bytes:
         for title, key in [
             ("Wing Span Loads", "wing_span_loads.csv"),
             ("Fuselage Span Loads", "fuselage_span_loads.csv"),
+            ("Fuselage Fitting Loads", "fuselage_fitting_loads.csv"),
             ("Tail Chordwise", "tail_chordwise.csv"),
             ("Control Surface Loads", "control_surface_loads.csv"),
         ]
@@ -282,14 +286,29 @@ def _bdf_row(label: str, *names):
 
 
 _bdf_row("Wing", "wing_loads.bdf", "wing_span_loads.csv", "wing_stick.bdf")
-_bdf_row("Fuselage", "fuselage_loads.bdf", "fuselage_span_loads.csv")
+_bdf_row("Fuselage", "fuselage_loads.bdf", "fuselage_span_loads.csv",
+         "fuselage_fitting_loads.csv")
 if _body:
-    st.caption(
-        "⚠️ **Fuselage caveat (backlog M4-1).** The body distribution closes ΣFz "
-        "but not ΣM — a single wing reaction is applied, so the terminal `Myy` is "
-        "non-zero and the bending carries a net pitching couple. The caveat is "
-        "stamped as `$ CAVEAT:` comments in `fuselage_loads.bdf`."
-    )
+    if any(getattr(r, "closure_artifact", False) for r in _body):
+        st.caption(
+            "⚠️ **Fuselage closure artifact.** The wing spar stations could not be "
+            "derived, so the unbalanced moment was reacted by a correction spread "
+            "over the whole body rather than the wing carry-through: the beam "
+            "closes, but the correction has no physical source and no fitting "
+            "loads are reported. The caveat is stamped as `$ CAVEAT:` comments in "
+            "`fuselage_loads.bdf`. Define the wing spar chord fractions on the "
+            "**Configuration & Layout** page to get the Ch 15 reaction."
+        )
+    else:
+        st.caption(
+            "The body distribution closes both ΣFz and ΣM at the front/rear spar "
+            "attachments (Ref 1 Ch 15 p103); each `fuselage_loads.bdf` block "
+            "states both residuals. `fuselage_fitting_loads.csv` reports the "
+            "wing-attach fitting loads — the span loads already carry them, so do "
+            "not apply them on top."
+            + (" Spar stations are **assumed** (default chord fractions)."
+               if any(getattr(r, "spars_assumed", False) for r in _body) else "")
+        )
 _bdf_row("Tail", "tail_loads.bdf", "tail_chordwise.csv")
 _bdf_row("Control surfaces", "control_surface_loads.bdf", "control_surface_loads.csv")
 

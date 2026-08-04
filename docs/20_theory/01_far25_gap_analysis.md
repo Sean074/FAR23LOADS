@@ -113,7 +113,7 @@ analysis, concept scope · **X** = out of scope (document, never silently skip).
 | FAR 25 | FAR 23 | What the program does | Difference | Disp. |
 |---|---|---|---|---|
 | 25.365: ΔP × 1.33 (valve tolerance), combined with flight loads, external pressure cases *(verify sub-cases)* | 23.365 | Nothing (M4-6 plans the pressure case) | Part 25's combination rules (ΔP + maneuver/gust simultaneously; ΔP alone × factor) must shape M4-6 | **P/N** — fold into M4-6's acceptance |
-| Body distributed loads (25.301/321 general) | Ch 15 method | `body_loads` (M4-1 fixes moment closure) | Same method serves once M4-1 lands + ground cases (M4-6) | **A** (after M4-1) |
+| Body distributed loads (25.301/321 general) | Ch 15 method | `body_loads` (moment closure landed, M4-1) | Same method serves; needs the ground cases (M4-6) | **A** |
 
 ### 1.9 Ground loads
 

@@ -6,7 +6,9 @@ Shows the longitudinal fuselage shear and bending for each critical fuselage
 condition (SELECT) as the fuselage inertia reacted by the tail air load and the
 wing attachment (Reference 1 Ch 15) -- the body analogue of the net wing loads.
 The fuselage mass distribution is entered here; the wing/tail stations come from
-the Flight Envelope and Tail Loads inputs.
+the Flight Envelope and Tail Loads inputs, and the front/rear spar stations that
+react the unbalanced moment (M4-1) from the wing planform + spar fractions on the
+**Configuration & Layout** page.
 """
 
 from __future__ import annotations
@@ -56,17 +58,9 @@ st.title("Net Fuselage Loads — shear / bending")
 st.caption(
     "Python/Streamlit port of the Reference 1 Ch 15 procedure (no original .BAS): "
     "the fuselage is a beam carrying the inertia of its mass items, reacted by the "
-    "tail air load and the wing attachment. Validated by vertical (Fz) "
-    "equilibrium closure only."
-)
-st.warning(
-    "**Moment closure is open work (backlog M4-1).** A single wing reaction is "
-    "applied, so ΣFz closes but ΣM does not — the terminal `Myy` is non-zero and "
-    "the bending distribution carries a net pitching couple. The Ch 15 "
-    "front/rear-spar two-reaction solve is not implemented yet; size the body "
-    "beam accordingly. The same caveat is stamped into the exported "
-    "`fuselage_loads.bdf` cards.",
-    icon="⚠️",
+    "tail air load and the wing attachment. Validated by equilibrium closure — "
+    "vertical (ΣFz) and moment (terminal `Myy`), the Ch 15 p103 two-pass "
+    "front/rear-spar solve."
 )
 
 project: Project = st.session_state.get("project", Project(name=""))
@@ -127,13 +121,56 @@ st.caption(
     "loads (= limit × safety factor, 14 CFR 23.303) come from the "
     "**Review/Export** pages."
 )
+if any(r.closure_artifact for r in results):
+    # Fallback path only: no derivable spar stations, so the moment was closed by
+    # a correction with no physical source (M4-1, CLOSURE_ARTIFACT_CAVEAT).
+    st.warning(
+        "**Closure artifact — the wing spar stations could not be derived.** The "
+        "unbalanced moment was reacted by a self-equilibrated correction spread "
+        "over the *whole* body instead of the wing carry-through: the beam "
+        "closes, but the correction has no physical source (it relieves "
+        "wing-region bending and loads the tail cone), and no fitting loads are "
+        "reported. Define the wing planform and its front/rear spar chord "
+        "fractions on the **Configuration & Layout** page to get the Ch 15 "
+        "carry-through reaction. The same caveat is stamped into the exported "
+        "`fuselage_loads.bdf` cards.",
+        icon="⚠️",
+    )
+
 sel = st.selectbox("Show condition", [r.case for r in results])
 res = next(r for r in results if r.case == sel)
 
-c1, c2 = st.columns(2)
+c1, c2, c3 = st.columns(3)
 c1.metric(f"Closure ΣFz ({si_scalar_label('lbf', system)}, LIMIT)",
           f"{to_si_scalar(sum(s.fz for s in res.stations), 'lbf', system):,.2f}")
-c2.metric("Stations", str(len(res.stations)))
+# Terminal Myy is the moment-closure residual: the p103 spar solve drives it to
+# ~0, and it is the number that was non-zero while M4-1 was open.
+c2.metric(f"Closure terminal Myy ({si_scalar_label('lb-in', system)}, LIMIT)",
+          f"{to_si_scalar(res.stations[-1].myy, 'lb-in', system):,.2f}")
+c3.metric("Stations", str(len(res.stations)))
+
+if res.r_front is not None and res.r_rear is not None:
+    st.subheader("Wing-attach reactions (LIMIT)")
+    f1, f2, f3 = st.columns(3)
+    f1.metric(f"R front @ X = {to_si_scalar(res.x_front, 'in', system):,.2f} "
+              f"{si_scalar_label('in', system)} ({si_scalar_label('lbf', system)}, LIMIT)",
+              f"{to_si_scalar(res.r_front, 'lbf', system):,.1f}")
+    f2.metric(f"R rear @ X = {to_si_scalar(res.x_rear, 'in', system):,.2f} "
+              f"{si_scalar_label('in', system)} ({si_scalar_label('lbf', system)}, LIMIT)",
+              f"{to_si_scalar(res.r_rear, 'lbf', system):,.1f}")
+    f3.metric(f"Unbalanced moment ({si_scalar_label('lb-in', system)}, LIMIT)",
+              f"{to_si_scalar(res.m_unbalanced, 'lb-in', system):,.0f}")
+    st.caption(
+        ("⚠️ Spar stations are **assumed** (module default chord fractions) — enter "
+         "the wing front/rear spar fractions on the **Configuration & Layout** page "
+         "to size the fittings on real geometry. "
+         if res.spars_assumed else
+         "Spar stations are derived from the **entered** wing spar chord fractions. ")
+        + "These are the Ch 15 p103 fitting loads that react the unbalanced moment; "
+        "the load table below **already carries them** as the carry-through "
+        "distribution, so do not apply them again. The ULTIMATE fitting-load CSV "
+        "is on the **Export** page."
+    )
 
 for title, attr, unit_key in [("Shear Sz", "sz", "lbf"), ("Bending Myy", "myy", "lb-in")]:
     unit = f"{si_scalar_label(unit_key, system)}, LIMIT"

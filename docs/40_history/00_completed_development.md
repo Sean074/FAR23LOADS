@@ -10,6 +10,105 @@ Acceptance**, **Key decisions**.
 
 ---
 
+## M4-1 — Fuselage body loads: moment closure (complete 2026-08-03)
+
+**Objective.** Close the 2026-07-23 review finding T5: `body_loads` applied a
+single vertical wing reaction at 25 % wing MAC and closed **ΣFz only**, so the
+delivered fuselage beam carried a net pitching couple (terminal `Myy` ran to
+7.3e4 – 5.5e5 lb-in on the GA6 conditions, signed the wrong way forward of the
+wing and the right way aft of it — not uniformly conservative). Reference 1
+Ch 15 p103 instead reacts the unbalanced moment **at the wing front and rear
+spar attachments**. Shipped since 2026-07-23 as a caveat on every deliverable.
+
+The diagnosis, the A–E options trade, the reaction formula derivation and the
+per-step verification figures are the design note
+[`04_m4-1_body_moment_closure.md`](04_m4-1_body_moment_closure.md).
+
+**Deliverables.**
+- **Spar geometry, schema v35.** `SurfaceInput.front_spar_pct` /
+  `.rear_spar_pct` (fraction of root chord, `None` = *not entered*) and
+  `derived_geometry.carry_through(project)`, which resolves them against the G1
+  planform to a `CarryThrough(x_f, x_r, d, …, assumed)` or `None`. `None` fields
+  substitute the `constants.DEFAULT_FRONT_SPAR_PCT` / `DEFAULT_REAR_SPAR_PCT`
+  (0.15 / 0.65) defaults and mark the result `assumed`, so an assumed station
+  can never be mistaken for an entered one. Both fields round-trip through `io`
+  with `None` preserved.
+- **The p103 two-pass calc.** `body_loads.body_distribution` now runs the
+  manual's two passes explicitly: pass 1 integrates inertia + the tail air load
+  alone, and *its* terminal moment **is** the unbalanced moment `M_ub` ("the
+  moment at the aft end is the unbalanced moment"); pass 2 reacts `M_ub` and the
+  vertical residual `R_total = NZ·W_fus − LT` at the spar attachments and
+  re-integrates. The 2×2 solve, written against the integrator's own aft-most
+  reference station `x_ref`, is
+  `R_r = (M_ub + R_total·(x_ref − x_f))/(x_r − x_f)`, `R_f = R_total − R_r`.
+- **Distributed carry-through reaction (a refinement of p103, ours).** The two
+  point reactions are applied as the statically equivalent **linear line load
+  over `[x_f, x_r]`** — identical resultant and first moment, but without the
+  `±M_ub/d` shear spike two point loads put across a short carry-through, and it
+  collapses continuously onto the manual's literal two-point solve as `d → 0`.
+  Each segment is lumped by its *exact* static equivalent
+  (`P_left = h(2w_k + w_{k+1})/6`), so closure is independent of the node count
+  (`CARRY_THROUGH_NODES = 5`).
+- **Flagged fallback.** With no derivable spar stations the historical single
+  wing reaction is kept and the residual moment cancelled by a zero-net-force
+  whole-body correction. It closes the beam but has **no physical source** (it
+  relieves wing-region bending and loads the tail cone), so the result is
+  flagged `closure_artifact`, reports no fitting loads, and carries the renamed
+  `CLOSURE_ARTIFACT_CAVEAT` onto every deliverable.
+- **Fitting loads reported, never re-applied.** `BodyLoadResult` gained
+  `m_unbalanced`, `r_front`/`r_rear`, `x_front`/`x_rear`, `spars_assumed` and
+  `closure_artifact`; `body_loads.fitting_load_rows` (LIMIT) and
+  `sbeam_bridge.body_fitting_load_csv` (ULTIMATE) emit the wing-attach fitting
+  loads. They are deliberately **outside** the `FORCE` set — the exported
+  distribution already carries them as the carry-through line load, and adding
+  the point reactions on top would double them. Every renderer says so.
+- **Provenance-keyed sbeam GIDs (breaking).** `BodyStationLoad.source`
+  (`mass`/`tail`/`carry`/`correction`) drives `sbeam_bridge.body_station_gids`:
+  mass + tail stations keep the historical `1001 +` nose→tail numbering, and the
+  reaction nodes take a disjoint `1501 +` block. Index-based GIDs would have
+  silently renumbered every mass station aft of the wing whenever a spar
+  fraction moved, because the carry-through inserts nodes into the *middle* of
+  the beam. Body decks issued before this step must be re-exported.
+- **Caveat removed from the three stamp sites** it was placed on 2026-07-23, and
+  replaced by the closure evidence: `fuselage_loads.bdf` blocks state both
+  residuals (ΣFz and terminal `Myy`) and the spar provenance, stamping
+  `$ CAVEAT:` only on the artifact path; the **Net Fuselage Loads** page dropped
+  its warning for a terminal-`Myy` closure metric and a *Wing-attach reactions
+  (LIMIT)* panel; the **Export** page's Fuselage row branches artifact/closed.
+  The **Configuration & Layout** page gained the optional spar-fraction inputs
+  (blank = not entered) that make the entered-vs-assumed provenance reachable at
+  all — before this every project necessarily resolved as `assumed`.
+
+**Test / Acceptance (met).** `tests/test_body_loads.py` carries the closure
+suite: both residuals on every critical fuselage condition, relative to the
+loads that produced them (terminal `Myy` at 2e-16 … 1.4e-15 of peak bending,
+versus 7.3e4 – 5.5e5 lb-in before); `R_f + R_r = R_total` and the pair's moment
+about `x_ref` recovering `−M_ub`; node-count independence at 2/3/5/9/33 nodes;
+`d → 0` collapse onto the two-point solve (closure held while the reactions grow
+as `±M_ub/d` — the spike the distributed form avoids); the fallback closing,
+flagging, emitting no fitting loads and carrying the caveat; GID stability
+across a spar move and the disjointness of the two blocks; the ULTIMATE fitting
+CSV's schema and scaling; and the io round-trip of the new fields.
+`tests/test_derived_geometry.py` covers the resolver (entered, assumed,
+underivable, GA6, round-trip). The FAR 23 flight oracles are untouched — no
+flight-loads or envelope calc changed. Gate: 536 passed, `ruff` clean.
+
+**Key decisions.**
+1. **React over the carry-through, not the whole body** (option C over B): the
+   couple physically lives at the wing box; smearing it over the whole fuselage
+   closes the beam while making a known unknown invisible.
+2. **Default spar fractions are used but always flagged.** 0.15 / 0.65 of root
+   chord; `None` means not entered, and every deliverable states which it got.
+3. **Fitting loads are reported, not applied** (own CSV, not the FORCE set).
+4. **GIDs key off provenance, not index** — accepting a breaking change to body
+   deck numbering in exchange for numbering that survives a geometry edit.
+5. **Split, not folded:** the pitching load factor (**M4-21**) and the
+   distributed body aero moment (**M4-19**) stay separate items. Neither
+   substitutes for this closure — for the balanced trim cases `θ̈ = 0`, so M4-21
+   contributes nothing there, and M4-19 changes `M_ub` without reacting it.
+
+---
+
 ## M4-18 — Loads reference axis (LRA) + two-sided load envelopes (complete 2026-08-03)
 
 **Objective.** Close the two findings of the 2026-08-03 loads-plots review:
