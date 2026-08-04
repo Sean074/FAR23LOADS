@@ -142,8 +142,8 @@ def test_run_structure():
     assert mr.module == "one_engine_out"
     assert [c.title for c in mr.conditions] == [
         "One engine out — VC (ultimate)", "One engine out — VD (limit)", "One engine out — VS"]
-    labels = {v.label for v in mr.conditions[0].values}
-    assert {"Max tail load", "Max yawing velocity", "Engine thrust", "Windmill drag"} <= labels
+    keys = {v.key for v in mr.conditions[0].values}
+    assert {"max_tail_load", "max_yawing_velocity", "engine_thrust", "windmill_drag"} <= keys
 
 
 def test_safety_factors_by_failure_mode():

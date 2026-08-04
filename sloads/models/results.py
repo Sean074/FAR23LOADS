@@ -41,18 +41,35 @@ class CaseRef:
 
 @dataclass
 class LoadValue:
-    """A single labelled output quantity with units (for clean rendering).
+    """A single output quantity: a stable ``key``, a cosmetic ``label``, a value.
+
+    **The key/label contract (M4-9).** ``key`` is the machine identity of the
+    quantity — snake_case, stable, unique within its :class:`ConditionResult`,
+    and the *only* thing downstream code may match on (``report``, the sbeam
+    bridge, the views, ``tests/helpers.py``). ``label`` is display text and may be
+    reworded, translated or unit-annotated at will without breaking anything.
+
+    Before M4-9 the semantics rode on the label string, so a cosmetic relabel
+    silently blanked CSV columns — the lookup returned ``None`` and the renderer
+    wrote an empty cell with no error. ``sloads.load_keys`` holds the canonical
+    keys the load-case schema is built from; every other producer names its own.
+    ``net_loads``' ``f"Root torsion Myy ({axis})"`` is the label that made the
+    case: its text varies with the elastic-axis input while the quantity does not.
 
     ``units`` is the Imperial display string. ``quantity`` is an optional
     dimension hint used only to disambiguate SI conversion where the unit string
     alone is ambiguous: a bare ``"lb"`` is pounds-*force* for a load (→ N) but
     pounds-*mass* for a weight (→ kg). A weight sets ``quantity="mass"``; loads
     leave it blank and convert by unit string. See :mod:`sloads.units`.
+
+    ``key`` is declared last so the long-standing positional calls
+    ``LoadValue(label, value, units)`` keep working; producers pass it by keyword.
     """
     label: str
     value: float
     units: str = ""
     quantity: str = ""
+    key: str = ""
 
 
 @dataclass

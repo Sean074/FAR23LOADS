@@ -92,7 +92,7 @@ except (ValueError, ZeroDivisionError) as exc:
     st.stop()
 
 display_conditions = convert_results(mod.conditions, system)
-vals = {v.label: v.value for v in display_conditions[0].values}
+vals = {v.key: v.value for v in display_conditions[0].values}
 force_u = "N" if system == UnitSystem.SI else "lb"
 pressure_u = "kPa" if system == UnitSystem.SI else "lb/in²"
 st.caption(
@@ -101,28 +101,31 @@ st.caption(
     "**ULTIMATE** = limit × 1.5 (14 CFR 23.303)."
 )
 m1, m2, m3 = st.columns(3)
-m1.metric(f"Critical flap load ({force_u}, LIMIT)", f"{vals['Critical flap load (23.345(a))']:,.0f}")
+m1.metric(f"Critical flap load ({force_u}, LIMIT)", f"{vals['critical_flap_load_23_345_a']:,.0f}")
 m2.metric(f"LE pressure ({pressure_u}, LIMIT)",
-          f"{to_si_scalar(vals['LE pressure (TE = half)'], 'psi', system):.3f}")
-m3.metric(f"Combined w/ gust ({force_u}, LIMIT)", f"{vals['Flap load combined w/ gust']:,.0f}")
+          f"{to_si_scalar(vals['le_pressure_te_half'], 'psi', system):.3f}")
+m3.metric(f"Combined w/ gust ({force_u}, LIMIT)", f"{vals['flap_load_combined_w_gust']:,.0f}")
 
 st.subheader("Flaps-extended envelope")
-labels = ["1G stall", "2G stall", "2G at VF", "gust at VF"]
+# (row heading, LoadValue key suffix) -- the heading is this page's wording,
+# the suffix is the calc's key for the same envelope point (M4-9).
+conditions = [("1G stall", "1g_stall"), ("2G stall", "2g_stall"),
+              ("2G at VF", "2g_at_vf"), ("gust at VF", "gust_at_vf")]
 st.write(pd.DataFrame([
-    {"Condition": lab,
-     "Flap CL": round(vals[f"Flap CL {lab}"], 4),
-     f"Flap load ({force_u}, LIMIT)": round(vals[f"Flap load {lab}"], 1)}
-    for lab in labels
+    {"Condition": heading,
+     "Flap CL": round(vals[f"flap_cl_{suffix}"], 4),
+     f"Flap load ({force_u}, LIMIT)": round(vals[f"flap_load_{suffix}"], 1)}
+    for heading, suffix in conditions
 ]))
 
 if "Slipstream factor" in vals:
     st.subheader("Slipstream (FAR 23.457(b))")
     s1, s2, s3 = st.columns(3)
-    s1.metric("Slipstream factor", f"{vals['Slipstream factor']:.3f}")
-    s2.metric("Slipstream V at flap (kt)", f"{vals['Slipstream velocity at flap']:.1f}")
+    s1.metric("Slipstream factor", f"{vals['slipstream_factor']:.3f}")
+    s2.metric("Slipstream V at flap (kt)", f"{vals['slipstream_velocity_at_flap']:.1f}")
     length_u = "mm" if system == UnitSystem.SI else "in"
     s3.metric(f"Slipstream BL band ({length_u})",
-              f"{vals['Slipstream inboard BL']:.1f} … {vals['Slipstream outboard BL']:.1f}")
+              f"{vals['slipstream_inboard_bl']:.1f} … {vals['slipstream_outboard_bl']:.1f}")
 
 st.download_button("Download flap loads (CSV)", sb.control_surface_csv(results),
                    file_name="flap_loads.csv", mime="text/csv")

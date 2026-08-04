@@ -428,7 +428,7 @@ sidebar and the JSON Editor (§10, Phase E5).
 
 The schema field list is **single-sourced in
 [`DATA_DICTIONARY.md`](DATA_DICTIONARY.md)** (generated; currently
-`SCHEMA_VERSION = 36`); the per-step migration history is recorded in
+`SCHEMA_VERSION = 37`); the per-step migration history is recorded in
 [`../40_history/00_completed_development.md`](../40_history/00_completed_development.md)
 (recent steps: v29 single-source CLmax
 stall; v30 M2-6 wing/fuselage derived geometry; v31 M2-10 operational placards;
@@ -439,7 +439,10 @@ v34 M4-18 `SurfaceInput.ref_axis_pct` (the loads reference axis, LRA) +
 `.rear_spar_pct` (the wing carry-through the Ch 15 fuselage moment closure
 reacts over; `None` = not entered → assumed default); v36 G8.2
 `Project.revision`/`.checked_by`/`.approved_by`/`.description` — the summary
-report's document-control header, all free text defaulting to `""`).
+report's document-control header, all free text defaulting to `""`; v37 M4-9
+`LoadValue.key`, the stable machine identity that replaced the display label as
+the thing report/export/view/test code matches on — the first hop with a real
+data backfill, `migrations._v36_load_value_keys`).
 This paragraph's version number is guarded by
 `tests/test_data_dictionary.py::test_gui_design_schema_line_current` — update
 it (and this list) with every `SCHEMA_VERSION` bump.

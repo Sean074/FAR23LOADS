@@ -232,17 +232,17 @@ def run(project: Project) -> ModuleResult:
         # The torsion label always names its reference axis: the oracle-traceable
         # 25%-chord value, plus the LRA-transferred value when the LRA differs.
         values = [
-            LoadValue("Root shear Sz", root.sz, "lb"),
-            LoadValue("Root bending Mxx", root.mxx, "lb-in"),
-            LoadValue("Root torsion Myy (25% chord)", root.myy, "lb-in"),
+            LoadValue("Root shear Sz", root.sz, "lb", key="root_shear_sz"),
+            LoadValue("Root bending Mxx", root.mxx, "lb-in", key="root_bending_mxx"),
+            LoadValue("Root torsion Myy (25% chord)", root.myy, "lb-in", key="root_torsion_myy_25_pct_chord"),
         ]
         if lra != 0.25:
             values.append(LoadValue(
                 f"Root torsion Myy ({torsion_axis_label(lra)})",
-                r_lra.stations[0].myy, "lb-in"))
+                r_lra.stations[0].myy, "lb-in", key="root_torsion_myy_lra"))
         values += [
-            LoadValue("Root drag shear Sx", root.sx, "lb"),
-            LoadValue("Root chord bending Mzz", root.mzz, "lb-in"),
+            LoadValue("Root drag shear Sx", root.sx, "lb", key="root_drag_shear_sx"),
+            LoadValue("Root chord bending Mzz", root.mzz, "lb-in", key="root_chord_bending_mzz"),
         ]
         conditions.append(ConditionResult(
             title=f"Net wing loads: {r.case} (Nz={r.nz:g}, Nx={r.nx:g})",

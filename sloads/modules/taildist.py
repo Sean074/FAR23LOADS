@@ -159,12 +159,14 @@ def run(project: Project) -> ModuleResult:
     conditions: List[ConditionResult] = []
     for r in build_tail_chordwise(project):
         values: List[LoadValue] = [
-            LoadValue("AoA load LT25 (cp 25%)", r.lt25, "lb"),
-            LoadValue("Camber load LT50 (cp 50%)", r.lt50, "lb"),
+            LoadValue("AoA load LT25 (cp 25%)", r.lt25, "lb", key="aoa_load_lt25_cp_25_pct"),
+            LoadValue("Camber load LT50 (cp 50%)", r.lt50, "lb", key="camber_load_lt50_cp_50_pct"),
         ]
         for i, s in enumerate(r.stations, start=1):
-            values.append(LoadValue(f"X{i} chord station", s.x, "in"))
-            values.append(LoadValue(f"PSI(X{i}) net pressure", s.psi, "lb/in^2"))
+            values.append(LoadValue(f"X{i} chord station", s.x, "in",
+                                    key=f"x{i}_chord_station"))
+            values.append(LoadValue(f"PSI(X{i}) net pressure", s.psi, "lb/in^2",
+                                    key=f"psi_x{i}"))
         conditions.append(ConditionResult(
             title=f"Chordwise {r.component} load: {r.case}",
             # Cite the governing condition's regulation (23.423/425/427 maneuver/

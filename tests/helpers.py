@@ -11,12 +11,14 @@ The three lookup functions are the D-18 API (see
 same ``source``: a :class:`~sloads.models.ModuleResult`, a single
 :class:`~sloads.models.ConditionResult`, or a (possibly nested) list of either
 -- the same normalisation ``sloads.io._as_conditions`` performs for the CSV
-writer. All raise ``KeyError`` on a missing label, matching the helpers they
+writer. All raise ``KeyError`` on a missing key, matching the helpers they
 replace.
 
-``label`` is the lookup key **today**; backlog **M4-9** adds a stable
-``LoadValue.key`` and re-points these three functions at it, which is the point
-of consolidating them into one place first.
+All three look up ``LoadValue.key`` -- the calc's stable machine identity for a
+quantity -- **not** the display label (**M4-9**). That is the point of having
+consolidated them here first: re-pointing ~150 assertions was one edit to three
+functions plus a mechanical rename of the string constants, and a reworded label
+now breaks nothing.
 
 Test input builders live next door in :mod:`fixtures`; no test module imports
 another test module.
@@ -41,34 +43,34 @@ def _conditions(source):
     return out
 
 
-def load_value(source, label):
-    """The first :class:`LoadValue` labelled ``label``. ``KeyError`` if absent.
+def load_value(source, key):
+    """The first :class:`LoadValue` whose ``key`` is ``key``. ``KeyError`` if absent.
 
     Use this when the assertion is about ``units`` or ``quantity``; use
     :func:`value_of` when only the number matters.
     """
     for cond in _conditions(source):
         for v in cond.values:
-            if v.label == label:
+            if v.key == key:
                 return v
-    raise KeyError(label)
+    raise KeyError(key)
 
 
-def value_of(source, label) -> float:
-    """The first value labelled ``label``. ``KeyError`` if absent."""
-    return load_value(source, label).value
+def value_of(source, key) -> float:
+    """The first value keyed ``key``. ``KeyError`` if absent."""
+    return load_value(source, key).value
 
 
-def values_by_label(source) -> Dict[str, float]:
-    """Every ``label -> value`` pair, flattened across all conditions.
+def values_by_key(source) -> Dict[str, float]:
+    """Every ``key -> value`` pair, flattened across all conditions.
 
-    Later duplicates win, so this is for property tables with unique labels;
-    prefer :func:`value_of` when one specific quantity is under test.
+    Later duplicates win, so this is for property tables whose keys are unique
+    across conditions; prefer :func:`value_of` when one quantity is under test.
     """
     out = {}
     for cond in _conditions(source):
         for v in cond.values:
-            out[v.label] = v.value
+            out[v.key] = v.value
     return out
 
 

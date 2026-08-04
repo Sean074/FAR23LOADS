@@ -71,12 +71,12 @@ def mach_limit_lines(inp: MachLimitInput) -> List[ConditionResult]:
         title="Mach limitation summary",
         far_reference=_FAR,
         values=[
-            LoadValue("Cruise Mach MC", inp.mc),
-            LoadValue("Dive Mach MD", inp.md),
-            LoadValue("Never-exceed Mach MNE", mne),
-            LoadValue("Flutter-clearance Mach MFC", mfc),
-            LoadValue("Shoulder altitude", inp.shoulder_altitude_ft, "ft"),
-            LoadValue("Max operating altitude", inp.max_operating_altitude_ft, "ft"),
+            LoadValue("Cruise Mach MC", inp.mc, key="cruise_mach_mc"),
+            LoadValue("Dive Mach MD", inp.md, key="dive_mach_md"),
+            LoadValue("Never-exceed Mach MNE", mne, key="never_exceed_mach_mne"),
+            LoadValue("Flutter-clearance Mach MFC", mfc, key="flutter_clearance_mach_mfc"),
+            LoadValue("Shoulder altitude", inp.shoulder_altitude_ft, "ft", key="shoulder_altitude"),
+            LoadValue("Max operating altitude", inp.max_operating_altitude_ft, "ft", key="max_operating_altitude"),
         ],
         note="MNE = 0.9*MD; MFC = 1.2*MD (never-exceed and flutter-clearance Mach).",
     )
@@ -89,11 +89,11 @@ def mach_limit_lines(inp: MachLimitInput) -> List[ConditionResult]:
             title=f"Mach limit line at {h:g} ft",
             far_reference=_FAR,
             values=[
-                LoadValue("Altitude", h, "ft"),
-                LoadValue("V(MC)", inp.mc * a * rs, _KT),
-                LoadValue("V(MNE)", mne * a * rs, _KT),
-                LoadValue("V(MD)", inp.md * a * rs, _KT),
-                LoadValue("V(FC)", mfc * a * rs, _KT),
+                LoadValue("Altitude", h, "ft", key="altitude"),
+                LoadValue("V(MC)", inp.mc * a * rs, _KT, key="v_mc"),
+                LoadValue("V(MNE)", mne * a * rs, _KT, key="v_mne"),
+                LoadValue("V(MD)", inp.md * a * rs, _KT, key="v_md"),
+                LoadValue("V(FC)", mfc * a * rs, _KT, key="v_fc"),
             ],
         ))
     return results

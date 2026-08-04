@@ -1,5 +1,9 @@
 # M4 maintainability sequence — execution plan (M4-12 → M4-11 → G8 views → M4-10 → M4-9)
 
+> **All six steps have shipped (2026-08-04).** What the sequence deliberately
+> scoped out is carried as its own backlog item: **M4-11b** (complexity splits),
+> **M3-3b** (the G8 report document) and **M4-10b** (proxy retirement).
+
 **Status:** **Steps 1–3 complete** — M4-12a + M4-12b (2026-08-03, M4-12 closed)
 and **M4-11a** (2026-08-04, the scaffold helpers; the complexity-splitting half
 is backlog **M4-11b** and does not block G8). See the history entries in
@@ -256,7 +260,7 @@ Ordering rationale in one line each:
 | 3 | **M4-11** (app scaffold) | G8 view work | G8.6 adds a Summary-report section to `export_report.py`; writing it against the new `page()` helper is free, retrofitting it is not |
 | 4 | **G8** (M3-3, all sub-steps) | — | highest-value item; G8.1 is calc-side and independent, G8.6 is the only view collision |
 | 5 | **M4-10** (io migration chain) | M4-9 | **per D-12** — `LoadValue.key` is persisted and needs a real migration |
-| 6 | **M4-9** (`LoadValue.key`) | Phase F25 | last wall before F25 supplements emit new quantities |
+| 6 ✅ | **M4-9** (`LoadValue.key`) | Phase F25 | last wall before F25 supplements emit new quantities |
 
 *(Steps 5 and 6 sit in the **resolved** D-12(a) order — M4-10 before M4-9,
 swapped from the order this plan was originally requested in.)*
@@ -443,7 +447,25 @@ sub-step... so a regression is attributable").
 the fields-hash test fails when deliberately broken (test the test).
 **Risk:** medium. This is the only step that can break a user's saved project.
 
-### Step 6 — M4-9: `LoadValue.key`
+### Step 6 — M4-9: `LoadValue.key` ✅ *complete 2026-08-04*
+
+**Shipped as written**, with four things the work turned up. (1) `sbeam_bridge`
+needed no change — it renders the distributed-load result dataclasses, not
+`LoadValue`, so it never depended on labels. (2) The view lookups were 10, not
+13, but **six calc-side modules** were also reading another module's labels
+across a boundary (`"Total area"`, `"MAC"`, `"XBAR (fus station)"`, the design
+speeds) — not in the plan's scope and squarely in its spirit. (3)
+`configuration.cg_estimate` took a dict and indexed `geom["MAC"]`, while the
+Configuration page passed it the *LoadValue* table instead of the geometry dict;
+the two worked only because they spelt `"MAC"` the same way, so it now takes
+numbers. (4) The `_GYRO_CASE_RE` redesign the plan flagged resolved cleanly:
+row existence and component come off the key, while the sign-combination
+*wording* still comes off the label — deliberately, because it is display text.
+The first draft of the relabel test passed for the wrong reason (a globally
+broken lookup blanks both sides, so equality still held); all three now assert
+the cells are non-blank and each was verified to fail when its own code path is
+reverted to label matching. See
+[`../40_history/00_completed_development.md`](../40_history/00_completed_development.md).
 
 **Decisions applied:** D-12 (M4-10 lands first, so the key arrives by migration) and D-18 (the helpers re-point here).
 

@@ -254,14 +254,14 @@ def design_inputs(project: Project) -> _DesignInputs:
     vals = {}
     for cond in design_speeds(project, project.speeds):
         for lv in cond.values:
-            vals[lv.label] = lv.value
+            vals[lv.key] = lv.value
     sp = project.speeds
     cat = sp.category.upper()
     n_pos, _, n_neg, _ = maneuver_load_factors(cat, sp.weight_lb, sp.chosen_n, sp.chosen_nneg)
     return _DesignInputs(
-        va=vals["Maneuver speed VA"], vc=vals["Cruise speed VC"],
-        vd=vals["Dive speed VD"], vf=vals["Flap speed VF"],
-        mc=vals["Cruise Mach MC"], md=vals["Dive Mach MD"],
+        va=vals["maneuver_speed_va"], vc=vals["cruise_speed_vc"],
+        vd=vals["dive_speed_vd"], vf=vals["flap_speed_vf"],
+        mc=vals["cruise_mach_mc"], md=vals["dive_mach_md"],
         n_pos=n_pos, n_neg=n_neg, category=cat,
     )
 
@@ -510,15 +510,15 @@ def _point_conditions(env: EnvelopeResult, concept: bool) -> List[ConditionResul
             title=f"{p.config} {p.cg} @ {p.altitude_ft:.0f} ft, case {p.case}: {p.condition}",
             far_reference=_FAR,
             values=[
-                LoadValue("V (EAS)", p.v_eas_kt, "kt(EAS)"),
-                LoadValue("Load factor NZ", p.nz),
-                LoadValue("Angle of attack", p.alpha_deg, "deg"),
-                LoadValue("Compressibility G", p.g_corr),
-                LoadValue("Wing CL", p.cl),
-                LoadValue("Pitching moment M(W+F)", p.m_wf, "lb-in"),
-                LoadValue("Lift less tail LZW", p.lzw, "lb"),
-                LoadValue("Balancing tail load LT", p.lt, "lb"),
-                LoadValue("Drag DX", p.dx, "lb"),
+                LoadValue("V (EAS)", p.v_eas_kt, "kt(EAS)", key="v_eas"),
+                LoadValue("Load factor NZ", p.nz, key="load_factor_nz"),
+                LoadValue("Angle of attack", p.alpha_deg, "deg", key="angle_of_attack"),
+                LoadValue("Compressibility G", p.g_corr, key="compressibility_g"),
+                LoadValue("Wing CL", p.cl, key="wing_cl"),
+                LoadValue("Pitching moment M(W+F)", p.m_wf, "lb-in", key="pitching_moment_m_w_f"),
+                LoadValue("Lift less tail LZW", p.lzw, "lb", key="lift_less_tail_lzw"),
+                LoadValue("Balancing tail load LT", p.lt, "lb", key="balancing_tail_load_lt"),
+                LoadValue("Drag DX", p.dx, "lb", key="drag_dx"),
             ],
             note=note,
         ))

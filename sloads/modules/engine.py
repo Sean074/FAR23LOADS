@@ -28,6 +28,7 @@ from ..constants import (
     YAW_RATE,
     reciprocating_torque_factor,
 )
+from ..load_keys import gyro_key
 from ..models import (
     MissingInputError,
     CaseRef,
@@ -154,14 +155,14 @@ def condition_361_a1(inp: EngineInput) -> ConditionResult:
         title="Limit takeoff torque (factor x mean) with 75% limit maneuver vertical load factor",
         far_reference="23.361(a)(1)",
         values=[
-            LoadValue("Vertical load factor", n75),
-            LoadValue("Vertical down load", vload, "lb"),
-            LoadValue("Applied at X", cg[0], "in"),
-            LoadValue("Applied at Y", cg[1], "in"),
-            LoadValue("Applied at Z", cg[2], "in"),
-            LoadValue("Torque factor", factor),
-            LoadValue("Mean takeoff torque", base_torque, "ft-lb"),
-            LoadValue("Engine mount torque", -torque, "ft-lb"),
+            LoadValue("Vertical load factor", n75, key="vertical_load_factor"),
+            LoadValue("Vertical down load", vload, "lb", key="fz_vertical"),
+            LoadValue("Applied at X", cg[0], "in", key="loc_x"),
+            LoadValue("Applied at Y", cg[1], "in", key="loc_y"),
+            LoadValue("Applied at Z", cg[2], "in", key="loc_z"),
+            LoadValue("Torque factor", factor, key="torque_factor"),
+            LoadValue("Mean takeoff torque", base_torque, "ft-lb", key="mean_takeoff_torque"),
+            LoadValue("Engine mount torque", -torque, "ft-lb", key="mx_mount_torque"),
         ],
         note=(
             "Mean-torque factor applied to the takeoff case per AC 23-19A "
@@ -184,14 +185,14 @@ def condition_361_a2(inp: EngineInput) -> ConditionResult:
         title="Factor times max continuous torque with 100% limit maneuver vertical load factor",
         far_reference="23.361(a)(2)",
         values=[
-            LoadValue("Vertical load factor", n100),
-            LoadValue("Vertical down load", vload, "lb"),
-            LoadValue("Applied at X", cg[0], "in"),
-            LoadValue("Applied at Y", cg[1], "in"),
-            LoadValue("Applied at Z", cg[2], "in"),
-            LoadValue("Torque factor", factor),
-            LoadValue("Max continuous torque", base_torque, "ft-lb"),
-            LoadValue("Engine mount torque", -torque, "ft-lb"),
+            LoadValue("Vertical load factor", n100, key="vertical_load_factor"),
+            LoadValue("Vertical down load", vload, "lb", key="fz_vertical"),
+            LoadValue("Applied at X", cg[0], "in", key="loc_x"),
+            LoadValue("Applied at Y", cg[1], "in", key="loc_y"),
+            LoadValue("Applied at Z", cg[2], "in", key="loc_z"),
+            LoadValue("Torque factor", factor, key="torque_factor"),
+            LoadValue("Max continuous torque", base_torque, "ft-lb", key="max_continuous_torque"),
+            LoadValue("Engine mount torque", -torque, "ft-lb", key="mx_mount_torque"),
         ],
     )
 
@@ -206,12 +207,12 @@ def condition_363(inp: EngineInput) -> ConditionResult:
         title="Side load independent of other flight loads",
         far_reference="23.363(a)&(b)",
         values=[
-            LoadValue("Vertical load factor", 0.0),
-            LoadValue("Side load factor", ny),
-            LoadValue("Side load", side_load, "lb"),
-            LoadValue("Applied at X", cg[0], "in"),
-            LoadValue("Applied at Y", cg[1], "in"),
-            LoadValue("Applied at Z", cg[2], "in"),
+            LoadValue("Vertical load factor", 0.0, key="vertical_load_factor"),
+            LoadValue("Side load factor", ny, key="side_load_factor"),
+            LoadValue("Side load", side_load, "lb", key="fy_side"),
+            LoadValue("Applied at X", cg[0], "in", key="loc_x"),
+            LoadValue("Applied at Y", cg[1], "in", key="loc_y"),
+            LoadValue("Applied at Z", cg[2], "in", key="loc_z"),
         ],
     )
 
@@ -244,15 +245,15 @@ def condition_361_a3(inp: EngineInput) -> ConditionResult:
         title="Turboprop propeller control malfunction",
         far_reference="23.361(a)(3)",
         values=[
-            LoadValue("Vertical load factor", 1.0),
-            LoadValue("Vertical down load", vload, "lb"),
-            LoadValue("Applied at X", cg[0], "in"),
-            LoadValue("Applied at Y", cg[1], "in"),
-            LoadValue("Applied at Z", cg[2], "in"),
-            LoadValue("Torque factor", factor),
-            LoadValue("Malfunction factor", TURBOPROP_MALFUNCTION_FACTOR),
-            LoadValue("Mean takeoff torque", base_torque, "ft-lb"),
-            LoadValue("Engine mount torque", -torque, "ft-lb"),
+            LoadValue("Vertical load factor", 1.0, key="vertical_load_factor"),
+            LoadValue("Vertical down load", vload, "lb", key="fz_vertical"),
+            LoadValue("Applied at X", cg[0], "in", key="loc_x"),
+            LoadValue("Applied at Y", cg[1], "in", key="loc_y"),
+            LoadValue("Applied at Z", cg[2], "in", key="loc_z"),
+            LoadValue("Torque factor", factor, key="torque_factor"),
+            LoadValue("Malfunction factor", TURBOPROP_MALFUNCTION_FACTOR, key="malfunction_factor"),
+            LoadValue("Mean takeoff torque", base_torque, "ft-lb", key="mean_takeoff_torque"),
+            LoadValue("Engine mount torque", -torque, "ft-lb", key="mx_mount_torque"),
         ],
         note=(
             "Mean-torque factor (1.25) applied to the malfunction case per "
@@ -275,13 +276,13 @@ def condition_361_b1(inp: EngineInput) -> ConditionResult:
     for i, rotor in enumerate(inp.rotors, start=1):
         irotor = _rotor_inertia(rotor)
         torq_rotors += irotor * (_omega(rotor.max_rpm) / dt)
-        rotor_values.append(LoadValue(f"Ixx rotor({i})", irotor, "slug-ft^2"))
+        rotor_values.append(LoadValue(f"Ixx rotor({i})", irotor, "slug-ft^2", key=f"ixx_rotor_{i}"))
 
     torq_total = torq_prop + torq_rotors
-    values = [LoadValue("Ixx propeller", iprop, "slug-ft^2")]
+    values = [LoadValue("Ixx propeller", iprop, "slug-ft^2", key="ixx_propeller")]
     values.extend(rotor_values)
-    values.append(LoadValue("Time to stop", dt, "s"))
-    values.append(LoadValue("Engine mount torque", int(-torq_total), "ft-lb"))
+    values.append(LoadValue("Time to stop", dt, "s", key="time_to_stop"))
+    values.append(LoadValue("Engine mount torque", int(-torq_total), "ft-lb", key="mx_mount_torque"))
     return ConditionResult(
         title="Torque for sudden stoppage due to malfunction or structural failure",
         far_reference="23.361(b)(1)",
@@ -316,10 +317,10 @@ def condition_371_b(inp: EngineInput) -> ConditionResult:
 
     # Component magnitudes (the four loads to be combined).
     values = [
-        LoadValue("Myy due to 2.5 rad/s yaw (+/-)", m_yaw, "ft-lb"),
-        LoadValue("Mzz due to 1 rad/s pitch (+/-)", m_pitch, "ft-lb"),
-        LoadValue("Vertical 2.5g load", vload, "lb"),
-        LoadValue("Max continuous thrust", thrust, "lb"),
+        LoadValue("Myy due to 2.5 rad/s yaw (+/-)", m_yaw, "ft-lb", key="myy_due_to_2_5_rad_s_yaw_pm"),
+        LoadValue("Mzz due to 1 rad/s pitch (+/-)", m_pitch, "ft-lb", key="mzz_due_to_1_rad_s_pitch_pm"),
+        LoadValue("Vertical 2.5g load", vload, "lb", key="fz_vertical_2_5g"),
+        LoadValue("Max continuous thrust", thrust, "lb", key="fx_thrust"),
     ]
 
     # Enumerate each load case the mount must be checked against: every sign
@@ -332,8 +333,10 @@ def condition_371_b(inp: EngineInput) -> ConditionResult:
         ytag = "+" if syaw > 0 else "-"
         ptag = "+" if spitch > 0 else "-"
         prefix = f"Case {case} ({ytag}Myy, {ptag}Mzz)"
-        values.append(LoadValue(f"{prefix}: Myy", syaw * m_yaw, "ft-lb"))
-        values.append(LoadValue(f"{prefix}: Mzz", spitch * m_pitch, "ft-lb"))
+        values.append(LoadValue(f"{prefix}: Myy", syaw * m_yaw, "ft-lb",
+                                key=gyro_key(case, "myy")))
+        values.append(LoadValue(f"{prefix}: Mzz", spitch * m_pitch, "ft-lb",
+                                key=gyro_key(case, "mzz")))
 
     return ConditionResult(
         title="Gyroscopic loads on engine mount at max continuous RPM",
@@ -387,12 +390,12 @@ def _stoppage_torque(inp: EngineInput):
     iprop = _prop_inertia(inp)
     dt = inp.stop_time_s
     torq = iprop * (_omega(inp.takeoff_rpm) / dt)
-    detail = [LoadValue("Ixx propeller", iprop, "slug-ft^2")]
+    detail = [LoadValue("Ixx propeller", iprop, "slug-ft^2", key="ixx_propeller")]
     for i, rotor in enumerate(inp.rotors, start=1):
         irotor = _rotor_inertia(rotor)
         torq += irotor * (_omega(rotor.max_rpm) / dt)
-        detail.append(LoadValue(f"Ixx rotor({i})", irotor, "slug-ft^2"))
-    detail.append(LoadValue("Time to stop", dt, "s"))
+        detail.append(LoadValue(f"Ixx rotor({i})", irotor, "slug-ft^2", key=f"ixx_rotor_{i}"))
+    detail.append(LoadValue("Time to stop", dt, "s", key="time_to_stop"))
     return torq, detail
 
 
@@ -407,12 +410,12 @@ def condition_25_361_a3i(inp: EngineInput) -> ConditionResult:
     torq_total, detail = _stoppage_torque(inp)
     values = list(detail)
     values.extend([
-        LoadValue("Vertical load factor", 1.0),
-        LoadValue("Vertical down load", 1.0 * ppwt, "lb"),
-        LoadValue("Applied at X", cg[0], "in"),
-        LoadValue("Applied at Y", cg[1], "in"),
-        LoadValue("Applied at Z", cg[2], "in"),
-        LoadValue("Engine mount torque", int(-torq_total), "ft-lb"),
+        LoadValue("Vertical load factor", 1.0, key="vertical_load_factor"),
+        LoadValue("Vertical down load", 1.0 * ppwt, "lb", key="fz_vertical"),
+        LoadValue("Applied at X", cg[0], "in", key="loc_x"),
+        LoadValue("Applied at Y", cg[1], "in", key="loc_y"),
+        LoadValue("Applied at Z", cg[2], "in", key="loc_z"),
+        LoadValue("Engine mount torque", int(-torq_total), "ft-lb", key="mx_mount_torque"),
     ])
     return ConditionResult(
         title="Sudden engine deceleration (stoppage) torque with 1g level flight loads",
@@ -439,13 +442,13 @@ def condition_25_361_a3ii(inp: EngineInput) -> ConditionResult:
         title="Maximum engine acceleration torque with 1g level flight loads",
         far_reference="25.361(a)(3)(ii)",
         values=[
-            LoadValue("Vertical load factor", 1.0),
-            LoadValue("Vertical down load", 1.0 * ppwt, "lb"),
-            LoadValue("Applied at X", cg[0], "in"),
-            LoadValue("Applied at Y", cg[1], "in"),
-            LoadValue("Applied at Z", cg[2], "in"),
-            LoadValue("Max accelerating torque", accel_torque, "ft-lb"),
-            LoadValue("Engine mount torque", -accel_torque, "ft-lb"),
+            LoadValue("Vertical load factor", 1.0, key="vertical_load_factor"),
+            LoadValue("Vertical down load", 1.0 * ppwt, "lb", key="fz_vertical"),
+            LoadValue("Applied at X", cg[0], "in", key="loc_x"),
+            LoadValue("Applied at Y", cg[1], "in", key="loc_y"),
+            LoadValue("Applied at Z", cg[2], "in", key="loc_z"),
+            LoadValue("Max accelerating torque", accel_torque, "ft-lb", key="max_accelerating_torque"),
+            LoadValue("Engine mount torque", -accel_torque, "ft-lb", key="mx_mount_torque"),
         ],
         note=note,
     )
@@ -479,10 +482,10 @@ def condition_25_371(inp: EngineInput) -> ConditionResult:
     vload = inp.limit_load_factor * combined_weight(inp)
 
     values = [
-        LoadValue("Myy due to 2.5 rad/s yaw (+/-)", m_yaw, "ft-lb"),
-        LoadValue("Mzz due to 1 rad/s pitch (+/-)", m_pitch, "ft-lb"),
-        LoadValue("Vertical limit-load (A2) load", vload, "lb"),
-        LoadValue("Max continuous thrust", thrust, "lb"),
+        LoadValue("Myy due to 2.5 rad/s yaw (+/-)", m_yaw, "ft-lb", key="myy_due_to_2_5_rad_s_yaw_pm"),
+        LoadValue("Mzz due to 1 rad/s pitch (+/-)", m_pitch, "ft-lb", key="mzz_due_to_1_rad_s_pitch_pm"),
+        LoadValue("Vertical limit-load (A2) load", vload, "lb", key="vertical_limit_load_a2_load"),
+        LoadValue("Max continuous thrust", thrust, "lb", key="fx_thrust"),
     ]
     for case, (syaw, spitch) in enumerate(
         itertools.product((+1, -1), repeat=2), start=1
@@ -490,8 +493,10 @@ def condition_25_371(inp: EngineInput) -> ConditionResult:
         ytag = "+" if syaw > 0 else "-"
         ptag = "+" if spitch > 0 else "-"
         prefix = f"Case {case} ({ytag}Myy, {ptag}Mzz)"
-        values.append(LoadValue(f"{prefix}: Myy", syaw * m_yaw, "ft-lb"))
-        values.append(LoadValue(f"{prefix}: Mzz", spitch * m_pitch, "ft-lb"))
+        values.append(LoadValue(f"{prefix}: Myy", syaw * m_yaw, "ft-lb",
+                                key=gyro_key(case, "myy")))
+        values.append(LoadValue(f"{prefix}: Mzz", spitch * m_pitch, "ft-lb",
+                                key=gyro_key(case, "mzz")))
 
     note = (
         "Conservative concept stand-in: fixed FAR 23.371(b) rates (2.5 rad/s "

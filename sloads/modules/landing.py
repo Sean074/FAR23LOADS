@@ -429,7 +429,7 @@ def _wing_area(project: Project, inp: LandingInput) -> float:
         if wing is not None:
             from .wing_geometry import surface_properties
             r = surface_properties(wing)
-            total_in2 = next(v.value for v in r.values if v.label == "Total area")
+            total_in2 = next(v.value for v in r.values if v.key == "total_area")
             return total_in2 / 144.0
     raise MissingInputError("landing needs a wing area (landing.wing_area_sqft or a geometry wing)")
 
@@ -540,22 +540,22 @@ def _case_values(c: GearReactionCase) -> List[LoadValue]:
     reaction, no unbalanced moment and no inertia factor (all structurally zero in
     ``landing_reactions``), so those rows are omitted rather than emitted as zeros.
     """
-    nose = [LoadValue("Vertical nose", c.vnp, "lb"),
-            LoadValue("Drag nose", c.dnp, "lb"),
-            LoadValue("Side nose", c.snp, "lb"),
-            LoadValue("Resultant nose", c.result, "lb")]
+    nose = [LoadValue("Vertical nose", c.vnp, "lb", key="vertical_nose"),
+            LoadValue("Drag nose", c.dnp, "lb", key="drag_nose"),
+            LoadValue("Side nose", c.snp, "lb", key="side_nose"),
+            LoadValue("Resultant nose", c.result, "lb", key="resultant_nose")]
     if c.case > 24:
         return nose
-    return [LoadValue("Vertical main per wheel", c.vmp, "lb"),
-            LoadValue("Drag main per wheel", c.dmp, "lb"),
-            LoadValue("Side main per wheel", c.smp, "lb"),
-            LoadValue("Resultant main per wheel", c.rmp, "lb")] + nose + [
-            LoadValue("Unbalanced pitching moment", c.pitchp, "lb-in"),
-            LoadValue("Unbalanced rolling moment", c.rollp, "lb-in"),
-            LoadValue("Unbalanced yawing moment", c.yawp, "lb-in"),
-            LoadValue("Vertical inertia factor NVP", c.nvp, ""),
-            LoadValue("Drag inertia factor NDP", c.ndp, ""),
-            LoadValue("Side inertia factor NS", c.ns, "")]
+    return [LoadValue("Vertical main per wheel", c.vmp, "lb", key="vertical_main_per_wheel"),
+            LoadValue("Drag main per wheel", c.dmp, "lb", key="drag_main_per_wheel"),
+            LoadValue("Side main per wheel", c.smp, "lb", key="side_main_per_wheel"),
+            LoadValue("Resultant main per wheel", c.rmp, "lb", key="resultant_main_per_wheel")] + nose + [
+            LoadValue("Unbalanced pitching moment", c.pitchp, "lb-in", key="unbalanced_pitching_moment"),
+            LoadValue("Unbalanced rolling moment", c.rollp, "lb-in", key="unbalanced_rolling_moment"),
+            LoadValue("Unbalanced yawing moment", c.yawp, "lb-in", key="unbalanced_yawing_moment"),
+            LoadValue("Vertical inertia factor NVP", c.nvp, "", key="vertical_inertia_factor_nvp"),
+            LoadValue("Drag inertia factor NDP", c.ndp, "", key="drag_inertia_factor_ndp"),
+            LoadValue("Side inertia factor NS", c.ns, "", key="side_inertia_factor_ns")]
 
 
 def run(project: Project) -> ModuleResult:
@@ -581,9 +581,9 @@ def run(project: Project) -> ModuleResult:
         title="Landing load factor (LGFACTOR)",
         far_reference="23.473",
         values=[
-            LoadValue("Sink rate", lf.sink_rate_fps, "ft/s"),
-            LoadValue("Airplane load factor N", lf.airplane_load_factor, ""),
-            LoadValue("Landing gear factor NLG", lf.gear_load_factor, ""),
+            LoadValue("Sink rate", lf.sink_rate_fps, "ft/s", key="sink_rate"),
+            LoadValue("Airplane load factor N", lf.airplane_load_factor, "", key="airplane_load_factor_n"),
+            LoadValue("Landing gear factor NLG", lf.gear_load_factor, "", key="landing_gear_factor_nlg"),
         ],
         note=note,
     )]
@@ -598,15 +598,15 @@ def run(project: Project) -> ModuleResult:
             title=f"{title} (critical reaction)",
             far_reference=far,
             values=[
-                LoadValue("Case", float(c.case), ""),
-                LoadValue("Vertical main per wheel", c.vmp, "lb"),
-                LoadValue("Drag main per wheel", c.dmp, "lb"),
-                LoadValue("Side main per wheel", c.smp, "lb"),
-                LoadValue("Resultant main per wheel", c.rmp, "lb"),
-                LoadValue("Vertical nose", c.vnp, "lb"),
-                LoadValue("Drag nose", c.dnp, "lb"),
-                LoadValue("Side nose", c.snp, "lb"),
-                LoadValue("Resultant nose", c.result, "lb"),
+                LoadValue("Case", float(c.case), "", key="case"),
+                LoadValue("Vertical main per wheel", c.vmp, "lb", key="vertical_main_per_wheel"),
+                LoadValue("Drag main per wheel", c.dmp, "lb", key="drag_main_per_wheel"),
+                LoadValue("Side main per wheel", c.smp, "lb", key="side_main_per_wheel"),
+                LoadValue("Resultant main per wheel", c.rmp, "lb", key="resultant_main_per_wheel"),
+                LoadValue("Vertical nose", c.vnp, "lb", key="vertical_nose"),
+                LoadValue("Drag nose", c.dnp, "lb", key="drag_nose"),
+                LoadValue("Side nose", c.snp, "lb", key="side_nose"),
+                LoadValue("Resultant nose", c.result, "lb", key="resultant_nose"),
             ],
             case_ref=c.case_ref,
         ))

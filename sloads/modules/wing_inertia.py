@@ -306,11 +306,11 @@ def run(project: Project) -> ModuleResult:
             title=f"Wing inertia loads: {r.case} (Nz={r.nz:g}, Nx={r.nx:g})",
             far_reference="23.301(b)",
             values=[
-                LoadValue("Root shear Sz", root.sz, "lb"),
-                LoadValue("Root bending Mxx", root.mxx, "lb-in"),
-                LoadValue("Root torsion Myy (25% chord)", root.myy, "lb-in"),
-                LoadValue("Root drag shear Sx", root.sx, "lb"),
-                LoadValue("Root chord bending Mzz", root.mzz, "lb-in"),
+                LoadValue("Root shear Sz", root.sz, "lb", key="root_shear_sz"),
+                LoadValue("Root bending Mxx", root.mxx, "lb-in", key="root_bending_mxx"),
+                LoadValue("Root torsion Myy (25% chord)", root.myy, "lb-in", key="root_torsion_myy_25_pct_chord"),
+                LoadValue("Root drag shear Sx", root.sx, "lb", key="root_drag_shear_sx"),
+                LoadValue("Root chord bending Mzz", root.mzz, "lb-in", key="root_chord_bending_mzz"),
             ],
             case_ref=r.case_ref,
         ))

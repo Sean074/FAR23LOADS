@@ -99,7 +99,7 @@ def _wing_area_sqft(project: Project, inp: StructuralSpeedsInput) -> float:
         if surf is not None:
             from .wing_geometry import surface_properties
             r = surface_properties(surf)
-            total_in2 = next(v.value for v in r.values if v.label == "Total area")
+            total_in2 = next(v.value for v in r.values if v.key == "total_area")
             return total_in2 / 144.0
     if inp.wing_area_sqft:
         return inp.wing_area_sqft
@@ -224,11 +224,11 @@ def design_speeds(project: Project, inp: StructuralSpeedsInput) -> List[Conditio
         title="Limit maneuver load factors",
         far_reference="23.337",
         values=[
-            LoadValue("Limit positive load factor", n),
-            LoadValue("Minimum required positive factor", n_min),
-            LoadValue("Limit negative load factor", nneg),
-            LoadValue("Minimum required negative factor", nneg_min),
-            LoadValue("Wing loading W/S", ws, "lb/ft^2"),
+            LoadValue("Limit positive load factor", n, key="limit_positive_load_factor"),
+            LoadValue("Minimum required positive factor", n_min, key="minimum_required_positive_factor"),
+            LoadValue("Limit negative load factor", nneg, key="limit_negative_load_factor"),
+            LoadValue("Minimum required negative factor", nneg_min, key="minimum_required_negative_factor"),
+            LoadValue("Wing loading W/S", ws, "lb/ft^2", key="wing_loading_w_s"),
         ],
         note=(
             "Category C (concept) -- user-defined load factors, no FAR 23.337 cap "
@@ -241,15 +241,15 @@ def design_speeds(project: Project, inp: StructuralSpeedsInput) -> List[Conditio
         title="Structural design speeds",
         far_reference="23.335",
         values=[
-            LoadValue("Maneuver speed VA", va, _KT),
-            LoadValue("Cruise speed VC", vc, _KT),
-            LoadValue("Dive speed VD", vd, _KT),
-            LoadValue("Flap speed VF", vf, _KT),
-            LoadValue("Minimum cruise VC(min)", vc_min, _KT),
-            LoadValue("Minimum maneuver VA(min)", va_min, _KT),
-            LoadValue("Minimum flap VF(min)", vf_min, _KT),
-            LoadValue("Minimum dive VD(min)", vd_min, _KT),
-            LoadValue("Wing area S", s, "ft^2"),
+            LoadValue("Maneuver speed VA", va, _KT, key="maneuver_speed_va"),
+            LoadValue("Cruise speed VC", vc, _KT, key="cruise_speed_vc"),
+            LoadValue("Dive speed VD", vd, _KT, key="dive_speed_vd"),
+            LoadValue("Flap speed VF", vf, _KT, key="flap_speed_vf"),
+            LoadValue("Minimum cruise VC(min)", vc_min, _KT, key="minimum_cruise_vc_min"),
+            LoadValue("Minimum maneuver VA(min)", va_min, _KT, key="minimum_maneuver_va_min"),
+            LoadValue("Minimum flap VF(min)", vf_min, _KT, key="minimum_flap_vf_min"),
+            LoadValue("Minimum dive VD(min)", vd_min, _KT, key="minimum_dive_vd_min"),
+            LoadValue("Wing area S", s, "ft^2", key="wing_area_s"),
         ],
         note=(
             f"OUT-OF-BAND: W/S = {ws:.1f} lb/ft^2 exceeds the FAR 23.335 coefficient "
@@ -264,11 +264,11 @@ def design_speeds(project: Project, inp: StructuralSpeedsInput) -> List[Conditio
         title="Cruise/dive Mach at shoulder altitude",
         far_reference="23.335(b)",
         values=[
-            LoadValue("Shoulder altitude", inp.shoulder_altitude_ft, "ft"),
-            LoadValue("Speed of sound", a, _KT),
-            LoadValue("Density ratio sigma", sigma),
-            LoadValue("Cruise Mach MC", mc),
-            LoadValue("Dive Mach MD", md),
+            LoadValue("Shoulder altitude", inp.shoulder_altitude_ft, "ft", key="shoulder_altitude"),
+            LoadValue("Speed of sound", a, _KT, key="speed_of_sound"),
+            LoadValue("Density ratio sigma", sigma, key="density_ratio_sigma"),
+            LoadValue("Cruise Mach MC", mc, key="cruise_mach_mc"),
+            LoadValue("Dive Mach MD", md, key="dive_mach_md"),
         ],
     )
 
@@ -372,12 +372,12 @@ def operational_implications(project: Project, inp: StructuralSpeedsInput) -> Li
         title="Preliminary operating-limitation placards (advisory)",
         far_reference="23.1505/23.1511",
         values=[
-            LoadValue("Never-exceed VNE (recip)", p.vne, _KT),
-            LoadValue("Max structural cruise VNO (recip)", p.vno, _KT),
-            LoadValue("Never-exceed Mach MNE (recip)", p.mne),
-            LoadValue("Max operating VMO (turbine)", p.vmo, _KT),
-            LoadValue("Max operating MMO (turbine)", p.mmo),
-            LoadValue("Flap extended VFE", p.vfe, _KT),
+            LoadValue("Never-exceed VNE (recip)", p.vne, _KT, key="never_exceed_vne_recip"),
+            LoadValue("Max structural cruise VNO (recip)", p.vno, _KT, key="max_structural_cruise_vno_recip"),
+            LoadValue("Never-exceed Mach MNE (recip)", p.mne, key="never_exceed_mach_mne_recip"),
+            LoadValue("Max operating VMO (turbine)", p.vmo, _KT, key="max_operating_vmo_turbine"),
+            LoadValue("Max operating MMO (turbine)", p.mmo, key="max_operating_mmo_turbine"),
+            LoadValue("Flap extended VFE", p.vfe, _KT, key="flap_extended_vfe"),
         ],
         note=(
             f"Preliminary placards implied by the design speeds; primary family here: {fam}. "
@@ -392,11 +392,14 @@ def operational_implications(project: Project, inp: StructuralSpeedsInput) -> Li
     checks = operational_target_checks(inp, ds)
     if checks:
         values = []
-        for c in checks:
+        for i, c in enumerate(checks, start=1):
             mark = "" if c.feasible else "  <-- INFEASIBLE"
+            # The label is a whole sentence (target, driver, actual, feasibility);
+            # the key is the check's position in the ordered check list.
             values.append(LoadValue(
                 f"{c.target_label} target {c.target:g} => {c.driver_label} >= "
-                f"{c.required:.4g} (have {c.actual:.4g}){mark}", c.required, c.units))
+                f"{c.required:.4g} (have {c.actual:.4g}){mark}", c.required, c.units,
+                key=f"target_check_{i}"))
         infeasible = [c for c in checks if not c.feasible]
         note = (
             "All operational targets are achievable with the chosen design speeds."

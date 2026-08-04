@@ -436,14 +436,14 @@ def run(project: Project) -> ModuleResult:
             safety_factor=lc.safety_factor,
             case_ref=case_ref,
             values=[
-                LoadValue("V (EAS)", c.v_kt, "kt(EAS)"),
-                LoadValue("Engine thrust", s.thrust_lb, "lb"),
-                LoadValue("Windmill drag", s.windmill_drag_lb, "lb"),
-                LoadValue("Max yawing velocity", s.max_yaw_rate_deg_s, "deg/s"),
-                LoadValue("Max tail load", s.max_tail_load_lb, "lb"),
-                LoadValue("Load at 25% MAC (at peak)", s.lt25_at_peak_lb, "lb"),
-                LoadValue("Load at 50% MAC (at peak)", s.lt50_at_peak_lb, "lb"),
-                LoadValue("Time to recovery", s.time_to_recovery_s, "s"),
+                LoadValue("V (EAS)", c.v_kt, "kt(EAS)", key="v_eas"),
+                LoadValue("Engine thrust", s.thrust_lb, "lb", key="engine_thrust"),
+                LoadValue("Windmill drag", s.windmill_drag_lb, "lb", key="windmill_drag"),
+                LoadValue("Max yawing velocity", s.max_yaw_rate_deg_s, "deg/s", key="max_yawing_velocity"),
+                LoadValue("Max tail load", s.max_tail_load_lb, "lb", key="max_tail_load"),
+                LoadValue("Load at 25% MAC (at peak)", s.lt25_at_peak_lb, "lb", key="load_at_25_pct_mac_at_peak"),
+                LoadValue("Load at 50% MAC (at peak)", s.lt50_at_peak_lb, "lb", key="load_at_50_pct_mac_at_peak"),
+                LoadValue("Time to recovery", s.time_to_recovery_s, "s", key="time_to_recovery"),
             ],
             note=(f"{lc.basis} "
                   f"Failed engine #{oeo.failed_engine_index} at butt line {c.bleng:g} in; "

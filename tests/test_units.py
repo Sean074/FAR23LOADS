@@ -67,10 +67,10 @@ def test_si_round_trip_reproduces_imperial():
 
 def test_result_force_converts_to_newtons():
     r = run_all(io520bb())[0]  # 23.361(a)(1)
-    vload_lb = load_value(r, "Vertical down load").value
+    vload_lb = load_value(r, "fz_vertical").value
     si = convert_results([r], UnitSystem.SI)[0]
-    vload_n = load_value(si, "Vertical down load").value
-    assert load_value(si, "Vertical down load").units == "N"
+    vload_n = load_value(si, "fz_vertical").value
+    assert load_value(si, "fz_vertical").units == "N"
     assert math.isclose(vload_n, vload_lb * 4.4482216152605, rel_tol=1e-9)
 
 
@@ -124,10 +124,10 @@ def test_mass_properties_result_converts_end_to_end():
     ]
     r_imp = weights_and_inertia(items)
     r_si = convert_results([r_imp], UnitSystem.SI)[0]
-    assert load_value(r_si, "Weight").units == "kg"
-    assert load_value(r_si, "XBAR (fus station)").units == "mm"
-    assert load_value(r_si, "IZZ").units == "kg·m²"
-    assert load_value(r_si, "Principal-axis angle theta").units == "deg"  # unchanged
+    assert load_value(r_si, "weight").units == "kg"
+    assert load_value(r_si, "xbar_fus_station").units == "mm"
+    assert load_value(r_si, "izz").units == "kg·m²"
+    assert load_value(r_si, "principal_axis_angle_theta").units == "deg"  # unchanged
 
 
 def test_to_display_inverts_to_imperial_scalar():

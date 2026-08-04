@@ -96,7 +96,7 @@ def test_area_match_silent():
         trailing_edge=[(120.0, 0.0), (120.0, 200.0)])
     from sloads.modules.wing_geometry import surface_properties
     area_ft2 = next(v.value for v in surface_properties(surf).values
-                    if v.label == "Total area") / 144.0
+                    if v.key == "total_area") / 144.0
     project = Project(
         name="t",
         geometry=GeometryInput(

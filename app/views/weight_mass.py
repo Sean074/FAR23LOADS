@@ -353,7 +353,7 @@ def _tab_cg_inertia(project: Project, system: UnitSystem, U: dict) -> None:
         st.caption(result.note)
 
     # CG marker + mass-distribution plot (Step E3).
-    xbar_in = next((v.value for v in raw_result.values if v.label == "XBAR (fus station)"), None)
+    xbar_in = next((v.value for v in raw_result.values if v.key == "xbar_fus_station"), None)
     if xbar_in is not None:
         st.subheader("CG & mass distribution")
         st.caption(

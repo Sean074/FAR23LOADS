@@ -415,13 +415,15 @@ def _planform_condition(layout: LayoutInput, geom: dict) -> ConditionResult:
         title="Wing planform (parametric -> WINGGEOM)",
         far_reference=_FAR,
         values=[
-            LoadValue("Span", span, _IN),
-            LoadValue("Root chord", c_root, _IN),
-            LoadValue("Tip chord", c_tip, _IN),
-            LoadValue("MAC", geom["MAC"], _IN),
-            LoadValue("XLE(MAC) station of MAC LE", geom["XLE(MAC) station of MAC LE"], _IN),
-            LoadValue("YLE(MAC) butt line of MAC", geom["YLE(MAC) butt line of MAC"], _IN),
-            LoadValue("Aspect ratio", geom["Aspect ratio"]),
+            LoadValue("Span", span, _IN, key="span"),
+            LoadValue("Root chord", c_root, _IN, key="root_chord"),
+            LoadValue("Tip chord", c_tip, _IN, key="tip_chord"),
+            LoadValue("MAC", geom["MAC"], _IN, key="mac"),
+            LoadValue("XLE(MAC) station of MAC LE", geom["XLE(MAC) station of MAC LE"], _IN,
+                key="xle_mac_station_of_mac_le"),
+            LoadValue("YLE(MAC) butt line of MAC", geom["YLE(MAC) butt line of MAC"], _IN,
+                key="yle_mac_butt_line_of_mac"),
+            LoadValue("Aspect ratio", geom["Aspect ratio"], key="aspect_ratio"),
         ],
         note="MAC/XLEMAC/AR via the WINGGEOM strip integrator on the generated polylines.",
     )
@@ -448,9 +450,9 @@ def _stability_condition(project: Project, layout: LayoutInput, geom: dict) -> O
     np_station = xlemac + h_n * mac
 
     values = [
-        LoadValue("Horizontal tail volume V_H", v_h),
-        LoadValue("Neutral point (%MAC)", h_n * 100.0, "%MAC"),
-        LoadValue("Neutral point station", np_station, _IN),
+        LoadValue("Horizontal tail volume V_H", v_h, key="horizontal_tail_volume_v_h"),
+        LoadValue("Neutral point (%MAC)", h_n * 100.0, "%MAC", key="neutral_point_pct_mac"),
+        LoadValue("Neutral point station", np_station, _IN, key="neutral_point_station"),
     ]
     note = (
         "Tail-volume estimate (h_acw=0.25, a_t/a_w=1.0, 1-dε/dα=0.6); "
@@ -462,8 +464,9 @@ def _stability_condition(project: Project, layout: LayoutInput, geom: dict) -> O
     env = project.weight.envelope if project.weight is not None else None
     if env is not None and env.aft_gross_pct_mac:
         h_cg = env.aft_gross_pct_mac / 100.0
-        values.append(LoadValue("CG (%MAC, aft-gross limit)", env.aft_gross_pct_mac, "%MAC"))
-        values.append(LoadValue("Static margin (%MAC)", (h_n - h_cg) * 100.0, "%MAC"))
+        values.append(LoadValue("CG (%MAC, aft-gross limit)", env.aft_gross_pct_mac, "%MAC",
+            key="cg_pct_mac_aft_gross_limit"))
+        values.append(LoadValue("Static margin (%MAC)", (h_n - h_cg) * 100.0, "%MAC", key="static_margin_pct_mac"))
     else:
         note += " Static margin needs a CG (WTENV aft-gross %MAC) -- not in project."
 
@@ -471,7 +474,8 @@ def _stability_condition(project: Project, layout: LayoutInput, geom: dict) -> O
                            values=values, note=note)
 
 
-def cg_estimate(project: Project, layout: LayoutInput, geom: dict) -> Tuple[float, float, str]:
+def cg_estimate(project: Project, layout: LayoutInput,
+                mac: float, xlemac: float) -> Tuple[float, float, str]:
     """The best available CG station/waterline, and a short label for its source.
 
     True CG (Step D4.5): when ``Project.mass`` is populated (WTONECG has run on
@@ -486,12 +490,16 @@ def cg_estimate(project: Project, layout: LayoutInput, geom: dict) -> Tuple[floa
     option before a mass slice exists) -- geometric estimates, not certified
     figures. Callers surface the returned source label so the UI/report make
     clear which one is in play.
+
+    Takes ``mac``/``xlemac`` as plain numbers rather than the geometry dict it
+    used to index by label. The caller inside this module passes
+    ``_wing_geometry``'s dict entries; the Configuration page passed its
+    *LoadValue* table, which worked only because the two dicts happened to spell
+    "MAC" the same way -- a coincidence M4-9 broke and this signature removes.
     """
     if project.mass is not None and project.mass.cases:
         case = project.mass.cases[0]
         return case.cg_x, case.cg_z, "Weight DB"
-    mac = geom["MAC"]
-    xlemac = geom["XLE(MAC) station of MAC LE"]
     return xlemac + 0.25 * mac, layout.root_waterline_z, "25% MAC estimate"
 
 
@@ -509,7 +517,8 @@ def _gear_condition(project: Project, layout: LayoutInput, geom: dict) -> Option
     gc = gear_stations(layout, project.geometry.landing_gear if project.geometry is not None else None)
     if gc is None or gc["main_x"] <= 0 or gc["gear_height"] <= 0:
         return None
-    x_cg, z_cg, cg_source = cg_estimate(project, layout, geom)
+    x_cg, z_cg, cg_source = cg_estimate(
+        project, layout, geom["MAC"], geom["XLE(MAC) station of MAC LE"])
     ground_z = gc["ground_z"]
     h_cg = z_cg - ground_z              # CG height above ground
 
@@ -518,8 +527,8 @@ def _gear_condition(project: Project, layout: LayoutInput, geom: dict) -> Option
     # Tip-back: angle of the main-wheel -> CG line from the vertical. CG forward of
     # the main gear (positive) is required; ~15 deg is the usual minimum.
     tipback = math.degrees(math.atan2(gc["main_x"] - x_cg, h_cg))
-    values.append(LoadValue(f"CG station ({cg_source})", x_cg, _IN))
-    values.append(LoadValue("Tip-back angle", tipback, _DEG))
+    values.append(LoadValue(f"CG station ({cg_source})", x_cg, _IN, key="cg_station"))
+    values.append(LoadValue("Tip-back angle", tipback, _DEG, key="tip_back_angle"))
 
     # Overturn (turnover) angle: from the CG to the nose-wheel / main-wheel ground
     # line. Lower is more stable; ~63 deg is the usual maximum.
@@ -531,13 +540,13 @@ def _gear_condition(project: Project, layout: LayoutInput, geom: dict) -> Option
         seg = math.hypot(dx, dy)
         d = abs(dx * (0.0 - 0.0) - dy * (x_cg - xn)) / seg  # |cross| / |seg|
         overturn = math.degrees(math.atan2(h_cg, d))
-        values.append(LoadValue("Overturn (turnover) angle", overturn, _DEG))
+        values.append(LoadValue("Overturn (turnover) angle", overturn, _DEG, key="overturn_turnover_angle"))
 
     # Prop ground clearance: nose engine prop tip vs ground (needs engine + prop).
     eng = project.engine
     if eng is not None and eng.prop_diameter_in:
         prop_tip_z = eng.prop_cg[2] - eng.prop_diameter_in / 2.0
-        values.append(LoadValue("Prop ground clearance", prop_tip_z - ground_z, _IN))
+        values.append(LoadValue("Prop ground clearance", prop_tip_z - ground_z, _IN, key="prop_ground_clearance"))
 
     note = (
         f"CG from the {cg_source}"

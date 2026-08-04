@@ -36,9 +36,10 @@ v25    top-level ``configuration`` folded into ``geometry``         ``legacy_con
 v27    top-level ``tail_loads``/``vtail_loads`` -> ``geometry``      ``legacy_tail_loads=`` /
        ``.empennage.htail``/``.vtail``                              ``legacy_vtail_loads=``
 v28    top-level ``landing`` gear -> ``geometry.landing_gear``       ``legacy_landing=``
+v36    persisted ``LoadValue`` s gain ``key`` (M4-9)                 nothing — new in v37
 ===== ============================================================ =================================
 
-Versions 1–17, 20–23, 26 and 29–36 are **additive only** — a new optional field
+Versions 1–17, 20–23, 26 and 29–35 are **additive only** — a new optional field
 that the tolerant ``_filtered`` readers already default — so they need no hop.
 
 **Supported floor.** v0 (bare engine file) and anything from v18 up are migrated.
@@ -229,6 +230,77 @@ def _v28_landing_gear(d: Dict[str, Any]) -> Dict[str, Any]:
 
 
 # --------------------------------------------------------------------------- #
+# LoadValue.key backfill (v36, M4-9)
+# --------------------------------------------------------------------------- #
+#: The **frozen** label -> key table for every ``LoadValue`` a v36-or-older file
+#: could carry in ``envelope.critical.conditions[].loads`` -- i.e. every label
+#: ``modules/select.py`` emitted, captured at the moment M4-9 keyed it.
+#:
+#: Frozen means frozen: this table describes what *old files say*, so it must not
+#: be regenerated when a label is later reworded. Rewording a label is precisely
+#: what M4-9 makes safe, and it changes nothing about a file already on disk.
+_V36_LOAD_VALUE_KEYS = {
+    "Altitude": "altitude",
+    "AoA load (cp 25%)": "aoa_load_cp_25_pct",
+    "AoA load LT25 (cp 25%)": "aoa_load_lt25_cp_25_pct",
+    "Balanced tail load": "balanced_tail_load",
+    "Balancing tail load": "balancing_tail_load",
+    "CL": "cl",
+    "CP of total load": "cp_of_total_load",
+    "Camber/elevator load LT50 (cp 50%)": "camber_elevator_load_lt50_cp_50_pct",
+    "Elevator deflection": "elevator_deflection",
+    "Elevator deflection (TE dn +)": "elevator_deflection_te_dn",
+    "Elevator load": "elevator_load",
+    "Elevator-deflection increment (cp 50%)": "elevator_deflection_increment_cp_50_pct",
+    "Fuselage down load on wing": "fuselage_down_load_on_wing",
+    "Fuselage load on wing": "fuselage_load_on_wing",
+    "Gust increment (cp 25%)": "gust_increment_cp_25_pct",
+    "Inertia drag factor NX": "inertia_drag_factor_nx",
+    "LH side load": "lh_side_load",
+    "Load due to rudder (cp 50%)": "load_due_to_rudder_cp_50_pct",
+    "Load due to yaw 19.5deg (cp 25%)": "load_due_to_yaw_19_5deg_cp_25_pct",
+    "Load factor NZ": "load_factor_nz",
+    "Load on rudder": "load_on_rudder",
+    "Maneuver load increment": "maneuver_load_increment",
+    "Other-side percent": "other_side_percent",
+    "Pitch inertia Iyy": "pitch_inertia_iyy",
+    "RH side load": "rh_side_load",
+    "Tail angle of attack AT": "tail_angle_of_attack_at",
+    "Tail load": "tail_load",
+    "Total tail load": "total_tail_load",
+    "Total tail load (cp 25%)": "total_tail_load_cp_25_pct",
+    "V (EAS)": "v_eas",
+    "Yaw inertia IZZ": "yaw_inertia_izz",
+}
+
+
+def _v36_load_value_keys(d: Dict[str, Any]) -> Dict[str, Any]:
+    """Backfill ``LoadValue.key`` on the persisted SELECT critical conditions (M4-9).
+
+    A v36 file stores each critical condition's loads as ``{label, value, units}``
+    with no key, and every consumer now matches on the key -- so without this the
+    reloaded governing-loads table would silently lose its columns, which is the
+    exact failure mode M4-9 exists to remove, re-entering through the file path.
+
+    An unrecognised label keeps ``key == ""``. That is deliberate: guessing a key
+    for a label this build has never emitted would invent an identity, and the row
+    is still displayed (the label was always the display text). Re-running SELECT
+    regenerates the slice with real keys.
+    """
+    envelope = d.get("envelope")
+    critical = envelope.get("critical") if isinstance(envelope, dict) else None
+    if not isinstance(critical, dict):
+        return d
+    for cond in critical.get("conditions") or []:
+        if not isinstance(cond, dict):
+            continue
+        for load in cond.get("loads") or []:
+            if isinstance(load, dict) and not load.get("key"):
+                load["key"] = _V36_LOAD_VALUE_KEYS.get(load.get("label", ""), "")
+    return d
+
+
+# --------------------------------------------------------------------------- #
 # The chain
 # --------------------------------------------------------------------------- #
 #: ``{from_version: hop}`` -- applied in ascending order, each turning a file of
@@ -241,6 +313,7 @@ MIGRATIONS: Dict[int, Callable[[Dict[str, Any]], Dict[str, Any]]] = {
     25: _v25_configuration,
     27: _v27_empennage,
     28: _v28_landing_gear,
+    36: _v36_load_value_keys,
 }
 
 #: The oldest project version whose *shape* is described by a hop. Below this a

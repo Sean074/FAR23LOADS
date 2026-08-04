@@ -46,13 +46,13 @@ def test_wing_matches_manual():
     # Appendix A p141 wing: AREA/SIDE 13257, MAC 69.246, YLE(MAC) 87.854,
     # XLE(MAC) 63.641, ASPECT RATIO 6.095, span = 2*201 = 402.
     r = _surface(wing_results(), "wing")
-    assert math.isclose(value_of(r, "Area per side"), 13257, rel_tol=TOL)
-    assert math.isclose(value_of(r, "MAC"), 69.246, rel_tol=TOL)
-    assert math.isclose(value_of(r, "YLE(MAC) butt line of MAC"), 87.854, rel_tol=TOL)
-    assert math.isclose(value_of(r, "XLE(MAC) station of MAC LE"), 63.641, rel_tol=TOL)
-    assert math.isclose(value_of(r, "Aspect ratio"), 6.095, rel_tol=TOL)
-    assert value_of(r, "Span") == 402
-    assert value_of(r, "Total area") == 2 * value_of(r, "Area per side")
+    assert math.isclose(value_of(r, "area_per_side"), 13257, rel_tol=TOL)
+    assert math.isclose(value_of(r, "mac"), 69.246, rel_tol=TOL)
+    assert math.isclose(value_of(r, "yle_mac_butt_line_of_mac"), 87.854, rel_tol=TOL)
+    assert math.isclose(value_of(r, "xle_mac_station_of_mac_le"), 63.641, rel_tol=TOL)
+    assert math.isclose(value_of(r, "aspect_ratio"), 6.095, rel_tol=TOL)
+    assert value_of(r, "span") == 402
+    assert value_of(r, "total_area") == 2 * value_of(r, "area_per_side")
 
 
 def test_aileron_unsymmetric_path():
@@ -60,11 +60,11 @@ def test_aileron_unsymmetric_path():
     # AR 7.036. Element count is not tabulated, so check loosely (±2%).
     r = _surface(wing_results(), "aileron")
     assert r.note.startswith("Single side")
-    assert math.isclose(value_of(r, "Area per side"), 932, rel_tol=2e-2)
-    assert math.isclose(value_of(r, "MAC"), 11.645, rel_tol=2e-2)
-    assert math.isclose(value_of(r, "Aspect ratio"), 7.036, rel_tol=2e-2)
+    assert math.isclose(value_of(r, "area_per_side"), 932, rel_tol=2e-2)
+    assert math.isclose(value_of(r, "mac"), 11.645, rel_tol=2e-2)
+    assert math.isclose(value_of(r, "aspect_ratio"), 7.036, rel_tol=2e-2)
     # Single-side surface: span and total area are not doubled.
-    assert value_of(r, "Total area") == value_of(r, "Area per side")
+    assert value_of(r, "total_area") == value_of(r, "area_per_side")
 
 
 def test_elements_count_drives_strip_sum():
@@ -87,10 +87,10 @@ def test_rectangular_wing_closed_form():
         leading_edge=[(0, 0), (0, 50)], trailing_edge=[(10, 0), (10, 50)],
     )
     r = calc.surface_properties(surf)
-    assert math.isclose(value_of(r, "MAC"), 10.0, rel_tol=TOL)
-    assert math.isclose(value_of(r, "Aspect ratio"), 10.0, rel_tol=TOL)
-    assert math.isclose(value_of(r, "XLE(MAC) station of MAC LE"), 0.0, abs_tol=1e-9)
-    assert value_of(r, "Span") == 100
+    assert math.isclose(value_of(r, "mac"), 10.0, rel_tol=TOL)
+    assert math.isclose(value_of(r, "aspect_ratio"), 10.0, rel_tol=TOL)
+    assert math.isclose(value_of(r, "xle_mac_station_of_mac_le"), 0.0, abs_tol=1e-9)
+    assert value_of(r, "span") == 100
 
 
 def test_engine_stations_for_wing_layout():
@@ -107,8 +107,8 @@ def test_engine_stations_for_wing_layout():
     results = calc.geometry_properties(project.geometry, project)
     stations = _surface(results, "stations") if any(r.title.endswith("stations") for r in results) else None
     assert stations is not None
-    assert value_of(stations, "Engine 1 (LEFT) butt line Y") == -60.0
-    assert value_of(stations, "Engine 2 (RIGHT) butt line Y") == 60.0
+    assert value_of(stations, "engine_1_butt_line_y") == -60.0
+    assert value_of(stations, "engine_2_butt_line_y") == 60.0
 
 
 def test_run_requires_geometry():

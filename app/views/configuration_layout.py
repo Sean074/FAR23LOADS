@@ -309,10 +309,10 @@ except (ValueError, ZeroDivisionError) as exc:
     st.error(f"Could not derive configuration: {exc}")
     st.stop()
 
-derived = {v.label: v.value for r in results for v in r.values}
-mac = derived["MAC"]
-xlemac = derived["XLE(MAC) station of MAC LE"]
-x_cg, z_cg, cg_source = cg_estimate(project, layout, derived)
+derived = {v.key: v.value for r in results for v in r.values}
+mac = derived["mac"]
+xlemac = derived["xle_mac_station_of_mac_le"]
+x_cg, z_cg, cg_source = cg_estimate(project, layout, mac, xlemac)
 np_station = derived.get("Neutral point station")
 
 

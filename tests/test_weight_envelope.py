@@ -47,45 +47,45 @@ def results():
 def test_structural_limit_stations():
     # Ch 3 p21: 63.641 + .31/.20/.13 * 69.246 = 85.1 / 77.49 / 72.64.
     r = results()
-    assert math.isclose(value_of(r, "Aft gross station"), 85.1, rel_tol=TOL)
-    assert math.isclose(value_of(r, "Forward gross station"), 77.49, rel_tol=TOL)
-    assert math.isclose(value_of(r, "Forward regardless station"), 72.64, rel_tol=TOL)
+    assert math.isclose(value_of(r, "aft_gross_station"), 85.1, rel_tol=TOL)
+    assert math.isclose(value_of(r, "forward_gross_station"), 77.49, rel_tol=TOL)
+    assert math.isclose(value_of(r, "forward_regardless_station"), 72.64, rel_tol=TOL)
 
 
 def test_minimum_and_maximum_loadings():
     # Min flight weight 2063 @ 73.09 (empty + pilot + 1/2 hr fuel);
     # max loading 3322 @ 84.56 (all six occupants + fuel, no ballast).
     r = results()
-    assert math.isclose(value_of(r, "Minimum flight weight"), 2063, rel_tol=TOL)
-    assert math.isclose(value_of(r, "Minimum flight weight station"), 73.09, rel_tol=TOL)
-    assert math.isclose(value_of(r, "Maximum loading weight"), 3322, rel_tol=TOL)
-    assert math.isclose(value_of(r, "Maximum loading station"), 84.56, rel_tol=TOL)
+    assert math.isclose(value_of(r, "minimum_flight_weight"), 2063, rel_tol=TOL)
+    assert math.isclose(value_of(r, "minimum_flight_weight_station"), 73.09, rel_tol=TOL)
+    assert math.isclose(value_of(r, "maximum_loading_weight"), 3322, rel_tol=TOL)
+    assert math.isclose(value_of(r, "maximum_loading_station"), 84.56, rel_tol=TOL)
 
 
 def test_ballast_weights_match_manual():
     # Ch 3 p22 ballast weights: aft 78, fwd gross 418, fwd regardless 158.
     r = results()
-    assert math.isclose(value_of(r, "Aft gross ballast weight"), 78, rel_tol=TOL)
-    assert math.isclose(value_of(r, "Forward gross ballast weight"), 418, rel_tol=TOL)
-    assert math.isclose(value_of(r, "Forward regardless ballast weight"), 158, rel_tol=TOL)
+    assert math.isclose(value_of(r, "aft_gross_ballast_weight"), 78, rel_tol=TOL)
+    assert math.isclose(value_of(r, "forward_gross_ballast_weight"), 418, rel_tol=TOL)
+    assert math.isclose(value_of(r, "forward_regardless_ballast_weight"), 158, rel_tol=TOL)
 
 
 def test_ballast_stations():
     # Forward gross station matches tightly; forward regardless within the hand-
     # calc rounding; aft gross is the exact moment balance (manual hand-rounded).
     r = results()
-    assert math.isclose(value_of(r, "Forward gross ballast station"), 80.27, rel_tol=TOL)
-    assert math.isclose(value_of(r, "Forward regardless ballast station"), 70.97, rel_tol=5e-3)
-    aft = value_of(r, "Aft gross ballast station")
+    assert math.isclose(value_of(r, "forward_gross_ballast_station"), 80.27, rel_tol=TOL)
+    assert math.isclose(value_of(r, "forward_regardless_ballast_station"), 70.97, rel_tol=5e-3)
+    aft = value_of(r, "aft_gross_ballast_station")
     assert 107.0 < aft < 110.0  # exact balance ~108.5; manual hand-calc gave 103.7
 
 
 def test_four_structural_points_for_fltloads():
     # The four CG points handed to FLTLOADS (Appendix A V-n: CG1..CG4).
     r = results()
-    assert value_of(r, "Aft gross point weight") == 3400
-    assert value_of(r, "Forward regardless point weight") == 2800
-    assert math.isclose(value_of(r, "Minimum weight point station"), 73.09, rel_tol=TOL)
+    assert value_of(r, "aft_gross_point_weight") == 3400
+    assert value_of(r, "forward_regardless_point_weight") == 2800
+    assert math.isclose(value_of(r, "minimum_weight_point_station"), 73.09, rel_tol=TOL)
 
 
 def _labels(conditions):
@@ -127,9 +127,9 @@ def test_aft_gross_uses_heaviest_loading_below_gross():
     # from the negative (gross - max_load) difference.
     p = _over_gross_project(disc_c_station=130)
     r = calc.envelope(p, p.weight.envelope)
-    assert math.isclose(value_of(r, "Aft gross ballast weight"), 100.0, rel_tol=TOL)
+    assert math.isclose(value_of(r, "aft_gross_ballast_weight"), 100.0, rel_tol=TOL)
     # ballast station is the exact moment balance (1200*115 - 1100*102.73)/100.
-    assert math.isclose(value_of(r, "Aft gross ballast station"), 250.0, rel_tol=5e-3)
+    assert math.isclose(value_of(r, "aft_gross_ballast_station"), 250.0, rel_tol=5e-3)
 
 
 def test_aft_gross_degenerate_reference_reports_marker():
@@ -184,8 +184,8 @@ def test_fwd_regardless_station_inside_extent_kept():
     # normal weight + station rows are emitted (no marker).
     p = _fwd_regardless_project(nose_x=500, tail_x=1200)
     r = calc.envelope(p, p.weight.envelope)
-    assert math.isclose(value_of(r, "Forward regardless ballast weight"), 50.0, rel_tol=TOL)
-    assert math.isclose(value_of(r, "Forward regardless ballast station"), 580.0, rel_tol=5e-3)
+    assert math.isclose(value_of(r, "forward_regardless_ballast_weight"), 50.0, rel_tol=TOL)
+    assert math.isclose(value_of(r, "forward_regardless_ballast_station"), 580.0, rel_tol=5e-3)
 
 
 def test_fwd_regardless_station_outside_extent_marks_none():
@@ -222,7 +222,7 @@ def test_fwd_regardless_extent_from_geometry_outline_kept():
     # the outline path, not just the explicit override, feeds the guard) -- M1-11.
     p = io.load_project(os.path.join(os.path.dirname(_EXAMPLE), "concept_regional_jet.project.json"))
     r = calc.envelope(p, p.weight.envelope)
-    assert math.isclose(value_of(r, "Forward regardless ballast station"), 63.714, rel_tol=5e-3)
+    assert math.isclose(value_of(r, "forward_regardless_ballast_station"), 63.714, rel_tol=5e-3)
 
 
 def test_run_requires_envelope_inputs():

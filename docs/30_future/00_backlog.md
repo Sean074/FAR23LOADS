@@ -160,12 +160,16 @@ independently (M4-7's carrier and M4-13's per-producer mints are already in
 place, and M4-14's read-side band validation closes the input side);
 Layer 2 coordinates with Phase F25.**
 
-> **M4-10's chain shipped 2026-08-04; its proxy retirement is M4-10b above.**
-> **M4-12 → M4-11 → G8 views → M4-10 → M4-9 are sequenced and scoped by
+> **The M4 maintainability sequence is complete (2026-08-04): M4-12a/b, M4-11a,
+> G8.1–G8.3, M4-10's chain and M4-9 have all shipped. What remains of it is
+> M4-10b (proxy retirement), M4-11b (complexity splits) and M3-3b (the G8
+> report document), each carried as its own item above.**
+> **M4-12 → M4-11 → G8 views → M4-10 → M4-9 were sequenced and scoped by
 > [`06_m4_maintainability_sequence_plan.md`](06_m4_maintainability_sequence_plan.md)**
-> (decisions D-12 … D-18, resolved 2026-08-03). Note the order: **M4-10 lands
-> before M4-9**, because `LoadValue` is persisted (`io.py:635`) and the new `key`
-> must arrive through the migration chain.
+> (decisions D-12 … D-18, resolved 2026-08-03). The order mattered: **M4-10 landed
+> before M4-9**, because `LoadValue` is persisted and the new `key` had to arrive
+> through the migration chain — it became the chain's first real customer
+> (`_v36_load_value_keys`), which validated it.
 > **M4-12a (test architecture) and M4-12b (contract cleanups) both shipped
 > 2026-08-03 — M4-12 is closed. **M4-11a (the scaffold helpers) shipped
 > 2026-08-04**; its complexity-splitting half is **M4-11b**, which is *not*
@@ -173,15 +177,6 @@ Layer 2 coordinates with Phase F25.**
 > **Step 4 (G8) is partially shipped 2026-08-04** — G8.1–G8.3 and the
 > coverage matrix are done; the remainder is **M3-3b** above, which is
 > blocked on **M4-20** for unit conformance.
-
-### M4-9 — `LoadValue.key`: de-string the load-case semantics **[maintainability, pre-F25]**
-2026-07-21 review, top refactor. Semantics currently ride on display-label
-strings: `report.py:204-260,307` (`_VERTICAL_LABELS`, `_GYRO_CASE_RE` label
-regex), 13 view lookups, 144 test lookups — a cosmetic relabel silently blanks
-CSV columns (`_val` returns `""`, no error) and breaks ~150 sites. Add
-`key: str` to `LoadValue` (e.g. `fz_vertical`), match on key in
-report/sbeam/views/tests, keep `label` cosmetic. Mechanical; **prerequisite for
-F25 supplements emitting new quantities.**
 
 ### M4-10b — Retire the `tail_loads`/`vtail_loads` property proxies **[remainder of M4-10]**
 **M4-10's migration chain shipped 2026-08-04** (see history): `sloads/migrations.py`,
@@ -327,9 +322,11 @@ details: [`../20_theory/01_far25_gap_analysis.md`](../20_theory/01_far25_gap_ana
 (2026-07-20). Pattern throughout: opt-in supplement per module (the shipped
 `engine.include_far25` flag is the template); FAR 23 path untouched; every
 Part 25 result carries the "static surrogate — not certification" banner.
-**Preconditions (2026-07-21 review): M4-9, M4-10, and M4-11 (a+b) land first** — F25
+**Preconditions (2026-07-21 review): M4-9, M4-10 and M4-11 land first** — F25
 supplements emit new quantities and new fields, and the label-string/io/app
-walls are cheapest to clear before the wave, not after.
+walls are cheapest to clear before the wave, not after. **M4-9 and M4-10's
+chain shipped 2026-08-04, M4-11a on the same day; only M4-11b (the complexity
+splits) is still open, and it does not gate a new quantity.**
 
 - **F25-0 — Verify pass (S, first).** Pull current CFR text for every
   *(verify)* row into `reference/14CFR_Part25_loads_extracts.md`; correct the
@@ -495,8 +492,6 @@ maintainability batch — see
 
 Described in full above; this is the lookup.
 
-- **M4-9** — report/export semantics keyed on display-label strings; a cosmetic
-  relabel silently blanks CSV columns. **[Major, latent]**
 - **M4-22** — Flight Envelope: the SELECT-inputs **Apply** also persists
   un-applied geometry/altitude edits (`flight_envelope.py:324` writes the probe
   copy). **[Minor]**

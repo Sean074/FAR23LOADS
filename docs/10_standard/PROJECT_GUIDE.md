@@ -254,7 +254,10 @@ So that every module is copy-of-the-pattern, these are fixed once:
 
 - **Pure calc, no I/O.** Each module exposes `run(project: Project) -> ModuleResult`. No Streamlit, no file access inside calc.
 - **Read shared, write own.** A module reads upstream fields from `Project` and returns results; it must not silently recompute an upstream quantity that another module owns.
-- **Results are labelled values.** Reuse the existing `LoadValue(label, value, units)` / `ConditionResult` types so `report.py`, the units layer and the CSV writer work unchanged for every module. A `ConditionResult` also carries `safety_factor` (default `constants.ULTIMATE_FACTOR = 1.5`, 14 CFR 25.303) — see below.
+- **Results are keyed values.** Reuse the existing `LoadValue(label, value, units, quantity, key)` / `ConditionResult` types so `report.py`, the units layer and the CSV writer work unchanged for every module. A `ConditionResult` also carries `safety_factor` (default `constants.ULTIMATE_FACTOR = 1.5`, 14 CFR 25.303) — see below.
+- **`LoadValue.key` is the identity; `label` is cosmetic (M4-9).** Every `LoadValue` SHALL carry a non-empty snake_case `key`, unique within its `ConditionResult`. **Downstream code matches on `key` only** — `report`, `export/sbeam_bridge.py`, the views and `tests/helpers.py`. `label` is display text and may be reworded, re-annotated or translated freely; nothing may branch on it. (Rendering it, as `report.results_to_rows` does in its `Quantity` column, is not branching on it.)
+  Keys that cross a module boundary — the load-case schema's `loc_x`/`fz_vertical`/`fy_side`/`fx_thrust`/`mx_mount_torque` and the `gyro_case{n}_{myy,mzz}` sub-cases — are named once in **`sloads/load_keys.py`** and imported by both producer and consumer. Keys internal to one module are written inline at the producing site. Never derive a key from the label at runtime (`load_keys.key_from_label` exists for the one case where the "label" *is* data — `weight_estimate`'s rows, whose names are the keys of the `WT_*_FRACTIONS` tables).
+  Why: before M4-9 the semantics rode on the label, so rewording a report column silently blanked it — the lookup returned `None`, the renderer wrote an empty cell, and no error was raised anywhere. `tests/test_report.py::test_relabelling_every_load_value_leaves_the_csv_intact` is the standing guard. `key` is **persisted** (the envelope slice), so adding or renaming one is a `SCHEMA_VERSION` bump plus a hop — see `sloads/migrations.py`'s `_v36_load_value_keys` and its frozen table.
 - **Calc is LIMIT; ALL output is ULTIMATE.** Modules return **limit** loads (the oracle figures), so the Appendix A/B regressions are unaffected — but nothing that leaves the calc may report a bare limit load. `report.py` and `export/sbeam_bridge.py` multiply the **load** quantities (forces/moments/pressures, never geometry/weights/inertias/load factors) by the case `safety_factor` to report **ultimate = limit × 1.5**. The `ULT` marker is part of the units string (force `lbs-ULT`/`N-ULT`, moment `ft-lb-ULT`/`lb-in-ULT`/`Nm-ULT`, pressure `lb/in^2-ULT`), and **every case states its SF** (default 1.5 per 14 CFR 23.303; Part 25 equivalent 25.303). The per-case field is the hook for a future 14 CFR 23.302/25.302 / Appendix K probability-based factor (1.0–1.5); for now every case is 1.5 (incl. sudden engine stoppage). A value already at ultimate is **`ULT SF=1.0`**. See `reference/14CFR_factor_of_safety.md`.
   The factor lives **on the result**, not in the renderer (defect M4-7): `safety_factor` is a field on `ConditionResult`, `CriticalCondition` and all four distributed-load results (`WingLoadResult`, `BodyLoadResult`, `TailChordResult`, `ControlSurfaceLoadResult`), minted by the module that owns the condition and copied unchanged by everything derived from it. `report.py` and `sbeam_bridge._sf()` each read it off the object they are rendering, so the report and the exported cards can never disagree, and a case at `SF = 1.0` is never double-factored. Every deliverable states the factor it used — the `SF` column in `report.py`'s load-case rows and in the four sbeam span/chordwise CSVs (last column), and the `$ Loads are ULTIMATE (limit x SF=…)` header on every card block.
 - **One CSV shape per module = load cases.** Each row is one structural load case: `ID`, `FAR §`, `Case description`, an `SF` column (always populated), application point `Loc X/Y/Z`, then the applied **ultimate** loads/moments with `-ULT` units (`lbs-ULT`/`ft-lb-ULT`/…). This is exactly the `load_cases_to_rows` pattern engloads already established — generalize it, don't reinvent per module.
@@ -358,12 +361,17 @@ Strategy:
    modules under `tests/`, and **a test module never imports another test
    module** — `test_engine.py` was a de-facto library for seven other files,
    which coupled unrelated suites to its import side effects.
-   - `tests/helpers.py` — the label lookups `value_of` (float), `load_value`
-     (`LoadValue`, for units/quantity assertions) and `values_by_label` (flatten
+   - `tests/helpers.py` — the **key** lookups `value_of` (float), `load_value`
+     (`LoadValue`, for units/quantity assertions) and `values_by_key` (flatten
      all). Each accepts a `ModuleResult`, a `ConditionResult` or a nested list
-     of either. **Do not re-roll a local `_value`;** M4-9 re-points these three
-     functions at `LoadValue.key`, and every private copy is a site that breaks.
+     of either, and all three match `LoadValue.key`, never the display label
+     (M4-9). **Do not re-roll a local `_value`** — consolidating these was what
+     made re-pointing ~150 assertions one edit to three functions.
      Also home to `apply_button(at, form_key)` and `parse_cards`.
+     Asserting on a *label* is correct in exactly one situation: when the label
+     itself is the subject (`test_net_loads.py` checks that every reported root
+     torsion names its axis; `test_weight_envelope.py` checks the ballast marker
+     rows explain *why* there is no ballast).
    - `tests/fixtures.py` — shared input builders (`io520bb`, `turboprop`).
      Plain functions, not pytest fixtures, so the `__main__` self-runners can
      import them.

@@ -10,6 +10,99 @@ Acceptance**, **Key decisions**.
 
 ---
 
+## M4-9 — `LoadValue.key`: de-string the load-case semantics (complete 2026-08-04)
+
+**Objective.** Take the meaning of a result off its display label. Before this,
+`report.load_cases_to_rows` decided which CSV column a value belonged in by
+comparing `v.label` against string literals (`"Vertical down load"`,
+`"Applied at X"`, a `Case (\d+) \((.*)\): (Myy|Mzz)` regex over the label),
+and 13 view lookups plus ~150 test assertions did the same. Rewording a column
+heading — an editorial change with no engineering content — made the lookup
+return `None`, `_val` turned that into `""`, and the CSV shipped with an empty
+cell. No exception, no warning, no failing test. The 2026-07-21 review's top
+refactor, and the last wall before the Phase-F25 supplements start emitting new
+quantities.
+
+**Deliverables.**
+
+- **`LoadValue.key`** (`models/results.py`) — a stable snake_case machine
+  identity, declared last so the long-standing positional
+  `LoadValue(label, value, units)` calls keep working. `label` is now explicitly
+  cosmetic: it may be reworded, re-annotated or translated freely and nothing may
+  branch on it.
+- **`sloads/load_keys.py`** — the canonical keys that cross a module boundary:
+  `loc_x/y/z`, `fz_vertical`, `fz_vertical_2_5g`, `fy_side`, `fx_thrust`,
+  `mx_mount_torque`, `LOAD_CASE_KEYS`, and `gyro_key`/`parse_gyro_key` for the
+  four 23.371(b) sign combinations. Producer and consumer import the same
+  constant. Keys internal to one module are named inline at the producing site.
+- **327 producing sites keyed** across 21 modules — 303 static labels applied by
+  script, 23 dynamic-label sites (`f"Root torsion Myy ({axis})"`, the per-station
+  and per-engine series, the ballast marker rows) done by hand. `net_loads`'
+  root-torsion row is the case in miniature: its label changes with the
+  elastic-axis input while the quantity does not.
+- **Consumers re-pointed** — `report/render.py` (`has_load_case_data`, `_find`,
+  `_find_any`, `_detect_unit`, `_result_location`, the gyro sub-case split),
+  10 view lookups across 8 pages, and three calc-side cross-module lookups that
+  were reading `"Total area"` / `"MAC"` / `"XBAR (fus station)"` off another
+  module's labels (`validation.py`, `structural_speeds`, `landing`,
+  `weight_envelope`, `weight_estimate`, `flight_envelope.design_inputs`).
+- **`tests/helpers.py` re-pointed at `key`** and ~154 call sites converted —
+  one edit to three functions, which is exactly what M4-12a consolidated them
+  for. `values_by_label` → `values_by_key`.
+- **Schema v36 → v37 + a real backfill hop.** `migrations._v36_load_value_keys`
+  fills `key` on the persisted SELECT critical conditions from a **frozen**
+  label→key table of the 31 labels `select.py` could ever have written. M4-9 is
+  the migration chain's first genuine customer (decision D-12(a)), which is why
+  M4-10 was sequenced ahead of it.
+- **`cg_estimate` no longer takes a dict.** It indexed `geom["MAC"]`, and the
+  Configuration page passed it the *LoadValue* table instead of the geometry
+  dict — the two worked only because they happened to spell `"MAC"` the same
+  way. It now takes `mac`/`xlemac` as numbers.
+
+**Test / Acceptance.** 653 pass (648 → 653), `ruff` clean, coverage 93 %.
+
+- **Nothing changed.** A 405k-line snapshot of every module's every
+  `(label, value, units, quantity)`, every rendered row and every text report,
+  across all six examples, is **byte-identical** before and after — captured
+  before the first edit and re-diffed after each stage.
+- **The relabel guard** — `test_report.py`'s three new tests replace every label
+  with `"relabelled i-j"` and require the CSV, the schema choice
+  (`has_load_case_data`) and the four gyro sub-cases to be unaffected. Each was
+  verified to be **load-bearing** by reverting its own code path to label
+  matching and confirming it fails. The first draft passed for the wrong reason —
+  a globally broken lookup blanks *both* sides and the equality assertion still
+  held — so it now also requires the load cells to be non-blank.
+- **Key hygiene** — every `LoadValue` produced by every module across all six
+  examples has a non-empty key, unique within its `ConditionResult`.
+- The **fields-hash tripwire from M4-10 fired on cue**, which is what it was
+  built for.
+- `test_migrations.py` gains a fixture that actually exercises the backfill
+  (nothing shipped carries persisted SELECT loads — the slice is computed
+  in-session), including a label no build ever emitted, plus a test that the
+  frozen table has not drifted from what `select.py` emits today.
+
+**Key decisions.**
+
+1. **An unknown label backfills to an empty key, not a guessed one.** Inventing
+   an identity for a label this build has never emitted would be worse than
+   admitting ignorance; the row still renders, and re-running SELECT regenerates
+   it properly.
+2. **The gyro sub-case *description* still comes off the label** — deliberately,
+   because it is display text. Which rows exist and which component each value
+   is now come from the key, so a relabel degrades the wording of one cell
+   instead of dropping four rows.
+3. **Keys were seeded by slugifying the labels, then frozen.** The initial
+   choice came from the label; its stability does not. `load_keys.key_from_label`
+   survives for the one case where the "label" genuinely *is* data —
+   `weight_estimate`'s group rows, whose names are the keys of the
+   `WT_*_FRACTIONS` tables.
+4. **Asserting on a label stays correct where the label is the subject** —
+   `test_net_loads` (every root torsion names its axis) and `test_weight_envelope`
+   (the ballast marker rows explain *why* there is no ballast). Both are noted in
+   `PROJECT_GUIDE.md` §5 so the exception is not mistaken for an oversight.
+
+---
+
 ## M4-10 — io.py migration chain + schema guards (complete 2026-08-04)
 
 **Objective.** Replace `io.py`'s two structural weaknesses: deciding what it was

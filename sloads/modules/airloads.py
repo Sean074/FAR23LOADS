@@ -414,19 +414,20 @@ def spanwise_distribution(geom: SurfaceInput, aero: AeroSurfaceInput) -> Conditi
     """
     t = schrenk_distribution(geom, aero)
     values: List[LoadValue] = [
-        LoadValue("Wing lift-curve slope Mo", t.mo_wing, "1/deg"),
-        LoadValue("Wing lift-curve slope M (AR,TAU)", t.m_wing, "1/deg"),
-        LoadValue("TAU planform correction", t.tau),
-        LoadValue("Aspect ratio", t.aspect_ratio),
-        LoadValue("Total wing area S", t.area_total, "in^2"),
-        LoadValue("Span B", t.span, "in"),
-        LoadValue("Mean zero-lift angle Awo", t.awo, "deg"),
-        LoadValue("Target CL", t.target_cl),
-        LoadValue("Recovered CL (closure)", t.recovered_cl),
+        LoadValue("Wing lift-curve slope Mo", t.mo_wing, "1/deg", key="wing_lift_curve_slope_mo"),
+        LoadValue("Wing lift-curve slope M (AR,TAU)", t.m_wing, "1/deg", key="wing_lift_curve_slope_m_ar_tau"),
+        LoadValue("TAU planform correction", t.tau, key="tau_planform_correction"),
+        LoadValue("Aspect ratio", t.aspect_ratio, key="aspect_ratio"),
+        LoadValue("Total wing area S", t.area_total, "in^2", key="total_wing_area_s"),
+        LoadValue("Span B", t.span, "in", key="span_b"),
+        LoadValue("Mean zero-lift angle Awo", t.awo, "deg", key="mean_zero_lift_angle_awo"),
+        LoadValue("Target CL", t.target_cl, key="target_cl"),
+        LoadValue("Recovered CL (closure)", t.recovered_cl, key="recovered_cl_closure"),
     ]
     for i, (ye, ccl, cl) in enumerate(zip(t.ye, t.ccl_total, t.cl_total), start=1):
-        values.append(LoadValue(f"Elem {i} (Y={ye:.3f}) c*cl", ccl, "in"))
-        values.append(LoadValue(f"Elem {i} (Y={ye:.3f}) cl", cl))
+        values.append(LoadValue(f"Elem {i} (Y={ye:.3f}) c*cl", ccl, "in",
+                                key=f"elem{i}_ccl"))
+        values.append(LoadValue(f"Elem {i} (Y={ye:.3f}) cl", cl, key=f"elem{i}_cl"))
     method = ("Schrenk + AIRLOAD4 sweep correction (Ref 1 Ch 12)"
               if t.airload4 else "Schrenk method (Ref 1 Ch 7)")
     return ConditionResult(

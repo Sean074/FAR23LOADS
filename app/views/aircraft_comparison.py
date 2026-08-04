@@ -59,8 +59,8 @@ def _fleet_points(fleet: pd.DataFrame) -> list[FleetPoint]:
     ]
 
 
-def _wtestima_value(project: Project, label: str) -> Optional[float]:
-    """One labelled figure out of a live WTESTIMA estimate, or ``None``.
+def _wtestima_value(project: Project, key: str) -> Optional[float]:
+    """One figure out of a live WTESTIMA estimate, by ``LoadValue.key``, or ``None``.
 
     Runs the registered ``weight_estimate`` module (needs ``weight.estimation``);
     any failure (missing slice, ValueError) yields ``None`` so the caller falls back
@@ -74,7 +74,7 @@ def _wtestima_value(project: Project, label: str) -> Optional[float]:
         return None
     for cond in result.conditions:
         for v in cond.values:
-            if v.label == label:
+            if v.key == key:
                 return float(v.value)
     return None
 
@@ -83,8 +83,8 @@ def _wing_surface_props(project: Project) -> dict:
     """The WINGGEOM planform properties of the ``wing`` surface, or ``{}``.
 
     Runs :func:`~sloads.modules.wing_geometry.surface_properties` on
-    ``geometry.by_name("wing")`` and returns its labelled figures keyed by label
-    (``"Total area"`` in in², ``"Aspect ratio"``, ``"Span"`` in, ...). Empty when no
+    ``geometry.by_name("wing")`` and returns its figures keyed by ``LoadValue.key``
+    (``"total_area"`` in in², ``"aspect_ratio"``, ``"span"`` in, ...). Empty when no
     wing surface exists or the planform is degenerate (any calc failure). This is the
     surface fallback for the geometric axes on projects that carry
     ``geometry.surfaces`` but no parametric layout (the shipped Appendix examples),
@@ -94,7 +94,7 @@ def _wing_surface_props(project: Project) -> dict:
     if wing is None:
         return {}
     try:
-        return {v.label: v.value for v in surface_properties(wing).values}
+        return {v.key: v.value for v in surface_properties(wing).values}
     except (ValueError, ZeroDivisionError):
         return {}
 
@@ -132,7 +132,7 @@ def _subject_from_project(project: Project) -> Optional[Subject]:
     elif direct and direct[0]:
         mtow = float(direct[0])
     else:
-        mtow = _wtestima_value(project, "Max take-off weight")
+        mtow = _wtestima_value(project, "max_take_off_weight")
     if not mtow:
         return None
 
@@ -140,13 +140,13 @@ def _subject_from_project(project: Project) -> Optional[Subject]:
     if direct and direct[1]:
         oew = float(direct[1])
     else:
-        oew = _wtestima_value(project, "Empty weight")
+        oew = _wtestima_value(project, "empty_weight")
 
     wing_area: Optional[float] = None
     if config and config.wing_area_sqft:
         wing_area = float(config.wing_area_sqft)
-    elif surf.get("Total area"):
-        wing_area = float(surf["Total area"]) / IN2_PER_FT2
+    elif surf.get("total_area"):
+        wing_area = float(surf["total_area"]) / IN2_PER_FT2
     elif speeds and speeds.wing_area_sqft:
         wing_area = float(speeds.wing_area_sqft)
 
@@ -159,14 +159,14 @@ def _subject_from_project(project: Project) -> Optional[Subject]:
     aspect_ratio: Optional[float] = None
     if config and config.aspect_ratio:
         aspect_ratio = float(config.aspect_ratio)
-    elif surf.get("Aspect ratio"):
-        aspect_ratio = float(surf["Aspect ratio"])
+    elif surf.get("aspect_ratio"):
+        aspect_ratio = float(surf["aspect_ratio"])
 
     # Span from the surface planform (full span, inches) when available; otherwise
     # Subject.span back-derives it from sqrt(AR * area).
     wingspan_ft: Optional[float] = None
-    if surf.get("Span"):
-        wingspan_ft = float(surf["Span"]) / 12.0
+    if surf.get("span"):
+        wingspan_ft = float(surf["span"]) / 12.0
 
     seats = 0
     if speeds and speeds.occupants:

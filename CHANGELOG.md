@@ -12,6 +12,24 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- **M4-9 — a result's meaning is now its `key`, not its display label.**
+  `LoadValue` gains a stable snake_case `key`; `report`, `export`, the views and
+  the tests match on it and nothing branches on `label` any more. Rewording a
+  column heading used to make the lookup return `None`, which `_val` turned into
+  `""` — the CSV shipped with a blank cell and no error anywhere. All **327**
+  producing sites across 21 modules are keyed, the cross-module keys live in the
+  new `sloads/load_keys.py`, and the 23.371(b) gyro sub-cases come off the key
+  instead of a regex over the label. **No output changed**: a snapshot of every
+  value, every rendered row and every text report across all six examples is
+  byte-identical before and after. `SCHEMA_VERSION` 36 → 37.
+- **M4-9 — six calc-side modules stopped reading another module's labels.**
+  `validation`, `structural_speeds`, `landing`, `weight_envelope`,
+  `weight_estimate` and `flight_envelope.design_inputs` looked up `"Total area"`,
+  `"MAC"`, `"XBAR (fus station)"` and the design speeds by label across a module
+  boundary. `configuration.cg_estimate` no longer takes a dict at all: it indexed
+  `geom["MAC"]`, and the Configuration page was passing it the *LoadValue* table
+  rather than the geometry dict — which worked only because the two happened to
+  spell `"MAC"` the same way.
 - **M4-10 — `project.json` loading is now a migration chain, not key sniffing.**
   `io.project_from_dict` decided what it was reading with a 19-clause `or` gate
   enumerating every slice name, and handled each legacy file shape with an inline
@@ -25,7 +43,8 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   adding a slice can no longer silently downgrade a real project to an
   engine-only read. All six examples round-trip byte-identically; six frozen
   fixtures (v0 bare engine, v18, v24, v26, v28, v36) pin every reachable
-  historical shape.
+  historical shape. *(M4-9 later renamed the v36 fixture and added a v37 one, so
+  the set is seven.)*
 - **M4-10 — legacy migrations are version-gated.** The old shims ran on *every*
   file regardless of version, which meant a current project that legitimately had
   no `weight.cg_cases` had them invented from `flight_loads`, and one with no
@@ -37,6 +56,19 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **M4-9 — a standing relabel guard** (`tests/test_report.py`). Three tests
+  replace every display label with a meaningless one and require the load-case
+  CSV, the schema choice and the four gyro sub-cases to be unaffected — the
+  regression the whole item exists to prevent. Each was verified to fail when its
+  own code path is reverted to label matching.
+- **M4-9 — `sloads/load_keys.py`**, the canonical `LoadValue.key` constants for
+  the load-case schema (`loc_x`, `fz_vertical`, `fy_side`, `fx_thrust`,
+  `mx_mount_torque`, and the `gyro_case{n}_{myy,mzz}` sub-cases), imported by
+  both producer and consumer.
+- **M4-9 — schema v37 backfill hop** (`migrations._v36_load_value_keys`). The
+  persisted SELECT critical conditions get their keys filled from a frozen
+  label→key table; an unrecognised label keeps an empty key rather than an
+  invented one. M4-10's fields-hash tripwire fired on the shape change, as built.
 - **M4-10 — two schema guards** (`tests/test_schema_guards.py`). A **sentinel
   round-trip** walks every persisted scalar of a real project and asserts none is
   dropped by `io.py`'s hand-written field lists — the failure mode where a new

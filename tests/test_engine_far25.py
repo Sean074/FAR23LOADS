@@ -54,24 +54,24 @@ def test_far25_supplement_drops_duplicate_torque_cases():
 
 def test_25_361_a3i_stoppage_plus_1g():
     # Same stoppage torque as 23.361(b)(1), now with a simultaneous 1g vertical.
-    f23 = value_of(calc.condition_361_b1(turboprop()), "Engine mount torque")
+    f23 = value_of(calc.condition_361_b1(turboprop()), "mx_mount_torque")
     r = calc.condition_25_361_a3i(turboprop())
-    assert value_of(r, "Engine mount torque") == f23  # identical torque
-    assert math.isclose(value_of(r, "Vertical down load"), 450.0, rel_tol=TOL)  # 1g*450
+    assert value_of(r, "mx_mount_torque") == f23  # identical torque
+    assert math.isclose(value_of(r, "fz_vertical"), 450.0, rel_tol=TOL)  # 1g*450
 
 
 def test_25_361_a3ii_defaults_to_max_engine_torque():
     # No separate accelerating torque supplied -> falls back to max engine torque,
     # flagged via the note so the assumption is visible.
     r = calc.condition_25_361_a3ii(turboprop())
-    assert math.isclose(value_of(r, "Engine mount torque"), -1970.0, rel_tol=TOL)
+    assert math.isclose(value_of(r, "mx_mount_torque"), -1970.0, rel_tol=TOL)
     assert r.note and "defaulted" in r.note
 
 
 def test_25_361_a3ii_uses_supplied_accel_torque():
     inp = replace(turboprop(), max_accel_torque=2500.0)
     r = calc.condition_25_361_a3ii(inp)
-    assert math.isclose(value_of(r, "Engine mount torque"), -2500.0, rel_tol=TOL)
+    assert math.isclose(value_of(r, "mx_mount_torque"), -2500.0, rel_tol=TOL)
     assert r.note is None
 
 
@@ -79,7 +79,7 @@ def test_25_371_uses_a2_load_factor_not_fixed_25g():
     # The simultaneous vertical uses the project's limit load factor (3.8 -> 1710 lb),
     # not the fixed 2.5g of the FAR 23 gyro case.
     r = calc.condition_25_371(turboprop())
-    assert math.isclose(value_of(r, "Vertical limit-load (A2) load"), 1710.0, rel_tol=TOL)
+    assert math.isclose(value_of(r, "vertical_limit_load_a2_load"), 1710.0, rel_tol=TOL)
 
 
 def test_25_371_gyro_moments_match_far23_fixed_rates():
@@ -87,8 +87,8 @@ def test_25_371_gyro_moments_match_far23_fixed_rates():
     f23 = calc.condition_371_b(turboprop())
     f25 = calc.condition_25_371(turboprop())
     assert math.isclose(
-        value_of(f25, "Myy due to 2.5 rad/s yaw (+/-)"),
-        value_of(f23, "Myy due to 2.5 rad/s yaw (+/-)"),
+        value_of(f25, "myy_due_to_2_5_rad_s_yaw_pm"),
+        value_of(f23, "myy_due_to_2_5_rad_s_yaw_pm"),
         rel_tol=TOL,
     )
 
@@ -108,7 +108,7 @@ def test_25_371_declared_rates_below_standin_no_warning():
     base = calc.condition_25_371(turboprop())
     r = calc.condition_25_371(inp)
     assert "UNDER-PRED" not in r.note.upper()
-    assert value_of(r, "Myy due to 2.5 rad/s yaw (+/-)") == value_of(base, "Myy due to 2.5 rad/s yaw (+/-)")
+    assert value_of(r, "myy_due_to_2_5_rad_s_yaw_pm") == value_of(base, "myy_due_to_2_5_rad_s_yaw_pm")
 
 
 def test_25_371_declared_rate_above_standin_warns_but_keeps_value():
@@ -121,8 +121,8 @@ def test_25_371_declared_rate_above_standin_warns_but_keeps_value():
     assert "UNDER-PRED" in r.note.upper()
     assert "yaw 3.5 > 2.5" in r.note
     # Moment value is identical to the no-override fixed stand-in.
-    assert value_of(r, "Myy due to 2.5 rad/s yaw (+/-)") == value_of(base, "Myy due to 2.5 rad/s yaw (+/-)")
-    assert value_of(r, "Mzz due to 1 rad/s pitch (+/-)") == value_of(base, "Mzz due to 1 rad/s pitch (+/-)")
+    assert value_of(r, "myy_due_to_2_5_rad_s_yaw_pm") == value_of(base, "myy_due_to_2_5_rad_s_yaw_pm")
+    assert value_of(r, "mzz_due_to_1_rad_s_pitch_pm") == value_of(base, "mzz_due_to_1_rad_s_pitch_pm")
 
 
 def test_25_371_declared_pitch_rate_above_standin_warns():

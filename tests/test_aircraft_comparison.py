@@ -67,10 +67,10 @@ def test_area_priority_surface_over_speeds():
     project = io.load_project(os.path.join(_ROOT, "examples", "atr42_100.project.json"))
     assert project.speeds.wing_area_sqft  # the fixture carries a scalar area
     surf = view._wing_surface_props(project)
-    assert surf.get("Total area")
+    assert surf.get("total_area")
     subject = view._subject_from_project(project)
     from sloads.constants import IN2_PER_FT2
-    assert subject.wing_area_ft2 == surf["Total area"] / IN2_PER_FT2
+    assert subject.wing_area_ft2 == surf["total_area"] / IN2_PER_FT2
     assert subject.wing_area_ft2 != project.speeds.wing_area_sqft
 
 

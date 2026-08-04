@@ -61,12 +61,17 @@ from sloads.modules.configuration import (  # noqa: E402
     tail_planform,
     wing_planform,
 )
-from helpers import values_by_label  # noqa: E402
+from helpers import values_by_key  # noqa: E402
 
 
 def _props(project):
     """Every configuration property as ``{label: value}`` (the module's flat table)."""
-    return values_by_label(configuration_properties(project))
+    return values_by_key(configuration_properties(project))
+
+
+def _labels(project):
+    """Every configuration property label (the display text, not the key)."""
+    return {v.label for c in configuration_properties(project) for v in c.values}
 
 
 def _trapezoid(area_ft2=174.0, ar=6.0, taper=0.5, sweep_deg=3.0, le_root_x=45.0):
@@ -85,17 +90,17 @@ def test_mac_matches_closed_form():
     xlemac_cf = layout.le_root_x + ymac_cf * math.tan(math.radians(layout.le_sweep_deg))
 
     vals = _props(Project(name="t", geometry=GeometryInput(parametric=layout)))
-    assert math.isclose(vals["MAC"], mac_cf, rel_tol=1e-3)
-    assert math.isclose(vals["YLE(MAC) butt line of MAC"], ymac_cf, rel_tol=1e-3)
-    assert math.isclose(vals["XLE(MAC) station of MAC LE"], xlemac_cf, rel_tol=1e-3)
+    assert math.isclose(vals["mac"], mac_cf, rel_tol=1e-3)
+    assert math.isclose(vals["yle_mac_butt_line_of_mac"], ymac_cf, rel_tol=1e-3)
+    assert math.isclose(vals["xle_mac_station_of_mac_le"], xlemac_cf, rel_tol=1e-3)
 
 
 def test_area_aspect_ratio_recovered():
     # The generated planform must round-trip back to the input S and AR (WINGGEOM).
     layout = _trapezoid(area_ft2=200.0, ar=8.0, taper=0.4)
     vals = _props(Project(name="t", geometry=GeometryInput(parametric=layout)))
-    assert math.isclose(vals["Aspect ratio"], 8.0, rel_tol=1e-3)
-    span = vals["Span"]
+    assert math.isclose(vals["aspect_ratio"], 8.0, rel_tol=1e-3)
+    span = vals["span"]
     assert math.isclose(span, math.sqrt(8.0 * 200.0) * 12.0, rel_tol=1e-3)
 
 
@@ -110,8 +115,8 @@ def test_appendix_a_sanity():
         le_sweep_deg=4.0, le_root_x=45.0,
     )
     vals = _props(Project(name="appA", geometry=GeometryInput(parametric=layout)))
-    assert math.isclose(vals["MAC"], 69.246, rel_tol=0.10)
-    assert math.isclose(vals["YLE(MAC) butt line of MAC"], 87.854, rel_tol=0.10)
+    assert math.isclose(vals["mac"], 69.246, rel_tol=0.10)
+    assert math.isclose(vals["yle_mac_butt_line_of_mac"], 87.854, rel_tol=0.10)
 
 
 def test_stability_and_gear_present_when_data_given():
@@ -121,10 +126,10 @@ def test_stability_and_gear_present_when_data_given():
     emp = EmpennageInput(htail=TailLoadsInput(htail_area_sqft=30.0, xt25=250.0))
     vals = _props(Project(name="t", geometry=GeometryInput(
         parametric=layout, empennage=emp, landing_gear=_gear_geom(115.0, 20.0))))
-    assert vals["Horizontal tail volume V_H"] > 0
-    assert "Neutral point (%MAC)" in vals
-    assert "Tip-back angle" in vals
-    assert "Overturn (turnover) angle" in vals
+    assert vals["horizontal_tail_volume_v_h"] > 0
+    assert "neutral_point_pct_mac" in vals
+    assert "tip_back_angle" in vals
+    assert "overturn_turnover_angle" in vals
 
 
 def _gear_layout():
@@ -143,8 +148,9 @@ def test_cg_estimate_falls_back_to_quarter_mac_without_mass():
     layout = _gear_layout()
     project = Project(name="t", geometry=GeometryInput(parametric=layout))
     geom = _props(project)
-    x_cg, z_cg, source = cg_estimate(project, layout, geom)
-    assert math.isclose(x_cg, geom["XLE(MAC) station of MAC LE"] + 0.25 * geom["MAC"])
+    x_cg, z_cg, source = cg_estimate(project, layout, geom["mac"],
+                                     geom["xle_mac_station_of_mac_le"])
+    assert math.isclose(x_cg, geom["xle_mac_station_of_mac_le"] + 0.25 * geom["mac"])
     assert z_cg == layout.root_waterline_z
     assert source == "25% MAC estimate"
 
@@ -155,18 +161,20 @@ def test_cg_estimate_uses_mass_when_present():
     mass = MassResult(cases=[MassCase(name="itemized loading", weight_lb=2000.0, cg_x=123.4, cg_z=56.7)])
     project = Project(name="t", geometry=GeometryInput(parametric=layout), mass=mass)
     geom = _props(project)
-    x_cg, z_cg, source = cg_estimate(project, layout, geom)
+    x_cg, z_cg, source = cg_estimate(project, layout, geom["mac"],
+                                     geom["xle_mac_station_of_mac_le"])
     assert (x_cg, z_cg, source) == (123.4, 56.7, "Weight DB")
 
 
 def test_gear_condition_label_reflects_cg_source():
     layout = _gear_layout()
     mass = MassResult(cases=[MassCase(name="itemized loading", weight_lb=2000.0, cg_x=123.4, cg_z=56.7)])
-    with_mass = _props(_gear_project(layout, mass=mass))
-    without_mass = _props(_gear_project(layout))
+    # The CG source rides in the *label* (display text); the key is stable (M4-9).
+    with_mass = _labels(_gear_project(layout, mass=mass))
+    without_mass = _labels(_gear_project(layout))
     assert "CG station (Weight DB)" in with_mass
     assert "CG station (25% MAC estimate)" in without_mass
-    assert with_mass["CG station (Weight DB)"] == 123.4
+    assert _props(_gear_project(layout, mass=mass))["cg_station"] == 123.4
 
 
 def _full_layout():

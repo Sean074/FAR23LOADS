@@ -410,10 +410,10 @@ def _neutral_point() -> "tuple[float, float, float] | None":
         conds = configuration_run(project).conditions
     except (ValueError, ZeroDivisionError, KeyError):
         return None
-    vals = {lv.label: lv.value for c in conds for lv in c.values}
-    np_pct = vals.get("Neutral point (%MAC)")
-    xlemac = vals.get("XLE(MAC) station of MAC LE")
-    mac_in = vals.get("MAC")
+    vals = {lv.key: lv.value for c in conds for lv in c.values}
+    np_pct = vals.get("neutral_point_pct_mac")
+    xlemac = vals.get("xle_mac_station_of_mac_le")
+    mac_in = vals.get("mac")
     if np_pct is None or xlemac is None or not mac_in:
         return None
     return np_pct, xlemac, mac_in

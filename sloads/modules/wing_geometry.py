@@ -141,14 +141,14 @@ def surface_properties(surf: SurfaceInput) -> ConditionResult:
         title=f"Aerodynamic surface geometry: {surf.name}",
         far_reference=_FAR,
         values=[
-            LoadValue("Area per side", area, _IN2),
-            LoadValue("Total area", total_area, _IN2),
-            LoadValue("MAC", mac, _IN),
-            LoadValue("YLE(MAC) butt line of MAC", ybar, _IN),
-            LoadValue("XLE(MAC) station of MAC LE", xlemac, _IN),
-            LoadValue("Aspect ratio", aspect_ratio),
-            LoadValue("Span", span, _IN),
-            LoadValue("Integration elements", h),
+            LoadValue("Area per side", area, _IN2, key="area_per_side"),
+            LoadValue("Total area", total_area, _IN2, key="total_area"),
+            LoadValue("MAC", mac, _IN, key="mac"),
+            LoadValue("YLE(MAC) butt line of MAC", ybar, _IN, key="yle_mac_butt_line_of_mac"),
+            LoadValue("XLE(MAC) station of MAC LE", xlemac, _IN, key="xle_mac_station_of_mac_le"),
+            LoadValue("Aspect ratio", aspect_ratio, key="aspect_ratio"),
+            LoadValue("Span", span, _IN, key="span"),
+            LoadValue("Integration elements", h, key="integration_elements"),
         ],
         note="Symmetric about airplane CL" if surf.symmetric else "Single side (not symmetric about CL)",
     )
@@ -174,8 +174,11 @@ def _engine_stations(project: Project, geometry: GeometryInput) -> Optional[Cond
         y = eng.engine_cg[1]
         xf = interp_x(wing.leading_edge, abs(y))
         xa = interp_x(wing.trailing_edge, abs(y))
-        values.append(LoadValue(f"Engine {i} ({eng.engine_designation or '?'}) butt line Y", y, _IN))
-        values.append(LoadValue(f"Engine {i} local wing chord", xa - xf, _IN))
+        # The label names the engine; the key is its index in project.engines.
+        values.append(LoadValue(f"Engine {i} ({eng.engine_designation or '?'}) butt line Y",
+                                y, _IN, key=f"engine_{i}_butt_line_y"))
+        values.append(LoadValue(f"Engine {i} local wing chord", xa - xf, _IN,
+                                key=f"engine_{i}_local_wing_chord"))
     return ConditionResult(
         title="Wing-mounted engine spanwise stations",
         far_reference=_FAR,

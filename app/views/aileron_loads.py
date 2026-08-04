@@ -83,7 +83,7 @@ except (ValueError, ZeroDivisionError) as exc:
     st.stop()
 
 display_conditions = convert_results(mod.conditions, system)
-vals = {v.label: v.value for v in display_conditions[0].values}
+vals = {v.key: v.value for v in display_conditions[0].values}
 force_u = "N" if system == UnitSystem.SI else "lb"
 pressure_u = "kPa" if system == UnitSystem.SI else "lb/in²"
 st.caption(
@@ -92,18 +92,18 @@ st.caption(
     "**ULTIMATE** = limit × 1.5 (14 CFR 23.303)."
 )
 m1, m2, m3 = st.columns(3)
-m1.metric(f"Critical down load ({force_u}, LIMIT)", f"{vals['Critical down aileron load']:,.2f}")
-m2.metric(f"Critical up load ({force_u}, LIMIT)", f"{vals['Critical up aileron load']:,.2f}")
-m3.metric("At speed (kt)", f"{vals['Down aileron speed']:.0f} / {vals['Up aileron speed']:.0f}")
+m1.metric(f"Critical down load ({force_u}, LIMIT)", f"{vals['critical_down_aileron_load']:,.2f}")
+m2.metric(f"Critical up load ({force_u}, LIMIT)", f"{vals['critical_up_aileron_load']:,.2f}")
+m3.metric("At speed (kt)", f"{vals['down_aileron_speed']:.0f} / {vals['up_aileron_speed']:.0f}")
 
 st.subheader("Forward-of-hinge pressures")
 st.write(pd.DataFrame([
     {"Case": "down", f"Load ({force_u}, LIMIT)": round(to_si_scalar(results[0].load_lb, "lbf", system), 2),
      f"Pressure fwd of hinge ({pressure_u}, LIMIT)":
-         round(to_si_scalar(vals["Pressure fwd of hinge (down)"], "psi", system), 4)},
+         round(to_si_scalar(vals["pressure_fwd_of_hinge_down"], "psi", system), 4)},
     {"Case": "up", f"Load ({force_u}, LIMIT)": round(to_si_scalar(results[1].load_lb, "lbf", system), 2),
      f"Pressure fwd of hinge ({pressure_u}, LIMIT)":
-         round(to_si_scalar(vals["Pressure fwd of hinge (up)"], "psi", system), 4)},
+         round(to_si_scalar(vals["pressure_fwd_of_hinge_up"], "psi", system), 4)},
 ]))
 
 st.download_button("Download aileron loads (CSV)", sb.control_surface_csv(results),

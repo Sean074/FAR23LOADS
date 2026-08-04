@@ -17,6 +17,16 @@ import re
 from typing import Dict, List, Optional
 
 from ..constants import ULTIMATE_FACTOR
+from ..load_keys import (
+    FX_THRUST,
+    FY_SIDE,
+    FZ_VERTICAL_2_5G,
+    LOAD_CASE_KEYS,
+    LOC_KEYS,
+    MX_MOUNT_TORQUE,
+    VERTICAL_KEYS,
+    parse_gyro_key,
+)
 from ..models import ConditionResult, CriticalCondition, EngineInput, LoadValue
 from ..units import UnitSystem, convert_results
 
@@ -228,54 +238,49 @@ def governing_loads_table(
 # --------------------------------------------------------------------------- #
 # Load-case table (one row per structural load case)
 # --------------------------------------------------------------------------- #
-# Labels emitted by the calc modules, mapped into the flat load-case schema below.
-_LOC_LABELS = ("Applied at X", "Applied at Y", "Applied at Z")
-_VERTICAL_LABELS = ("Vertical down load", "Vertical 2.5g load")
-_SIDE_LABEL = "Side load"
-_THRUST_LABEL = "Max continuous thrust"
-_TORQUE_LABEL = "Engine mount torque"
+# The flat load-case schema is assembled by ``LoadValue.key`` (M4-9). It used to
+# match on the display label, so rewording a label silently blanked the column:
+# the lookup returned ``None``, ``_val`` turned that into ``""`` and the renderer
+# wrote an empty cell with no error anywhere. Keys are the calc's machine
+# identity for a quantity and live in :mod:`sloads.load_keys`.
 _GYRO_FAR = "23.371(b)"
-_GYRO_CASE_RE = re.compile(r"Case (\d+) \(([^)]*)\):\s*(Myy|Mzz)")
-
-
-_LOAD_CASE_LABELS = set(_LOC_LABELS) | set(_VERTICAL_LABELS) | {_SIDE_LABEL, _THRUST_LABEL, _TORQUE_LABEL}
 
 
 def has_load_case_data(results: List[ConditionResult]) -> bool:
     """True if these results carry structural load-case data (forces/moments at a
     point), i.e. the ``load_cases_to_rows`` schema applies.
 
-    Mass-properties and other property-table modules emit none of those labels, so
+    Mass-properties and other property-table modules emit none of those keys, so
     this returns False for them and callers fall back to the generic table.
     """
     for r in results:
         if r.far_reference == _GYRO_FAR:
             return True
         for v in r.values:
-            if v.label in _LOAD_CASE_LABELS:
+            if v.key in LOAD_CASE_KEYS:
                 return True
     return False
 
 
-def _find(values: List[LoadValue], label: str) -> Optional[LoadValue]:
+def _find(values: List[LoadValue], key: str) -> Optional[LoadValue]:
     for v in values:
-        if v.label == label:
+        if v.key == key:
             return v
     return None
 
 
-def _find_any(values: List[LoadValue], labels) -> Optional[LoadValue]:
-    for label in labels:
-        v = _find(values, label)
+def _find_any(values: List[LoadValue], keys) -> Optional[LoadValue]:
+    for key in keys:
+        v = _find(values, key)
         if v is not None:
             return v
     return None
 
 
-def _detect_unit(results, labels) -> str:
+def _detect_unit(results, keys) -> str:
     for r in results:
         for v in r.values:
-            if v.label in labels and v.units:
+            if v.key in keys and v.units:
                 return v.units
     return ""
 
@@ -289,7 +294,7 @@ def _detect_moment_unit(results) -> str:
 
 
 def _result_location(r: ConditionResult):
-    locs = [_find(r.values, lbl) for lbl in _LOC_LABELS]
+    locs = [_find(r.values, k) for k in LOC_KEYS]
     if all(locs):
         return tuple(v.value for v in locs)
     return None
@@ -310,15 +315,24 @@ def _val(loadvalue: Optional[LoadValue]):
 _GYRO_SUBCASE_SUFFIX = "abcd"  # sign-combination order matches condition_371_b's itertools.product
 
 
-def _gyro_subcase_id(r: ConditionResult, num: str) -> str:
+def _gyro_subcase_id(r: ConditionResult, num: int) -> str:
     """The sub-case ID for one gyro sign-combination: the condition's calc-minted
     EM- id with an a/b/c/d suffix (the model has no way to carry 4 case_refs on
     one ConditionResult -- see docs/30_future/00_backlog.md Step D1)."""
     if r.case_ref is None:
         return ""
-    idx = int(num) - 1
+    idx = num - 1
     suffix = _GYRO_SUBCASE_SUFFIX[idx] if 0 <= idx < len(_GYRO_SUBCASE_SUFFIX) else str(num)
     return f"{r.case_ref.case_id}{suffix}"
+
+
+#: The gyro sub-case *description* is the only thing still read off the label —
+#: deliberately, because it is display text ("Case 1 (+Myy, +Mzz)"). Which rows
+#: exist, and which component each value is, come from the key (M4-9); this regex
+#: only strips the trailing ": Myy"/": Mzz" component tag off the label so the
+#: same descriptive prefix is not repeated twice in the row. A relabel now
+#: degrades the wording of one cell instead of dropping the row.
+_GYRO_LABEL_TAIL = re.compile(r":\s*(?:Myy|Mzz)\s*$")
 
 
 def _gyro_subcases(r: ConditionResult):
@@ -328,20 +342,20 @@ def _gyro_subcases(r: ConditionResult):
     The 2.5g vertical load and max-continuous thrust are constant across all four
     sign combinations; only the gyroscopic moments vary.
     """
-    thrust = _val(_find(r.values, _THRUST_LABEL))
-    vertical = _val(_find(r.values, "Vertical 2.5g load"))
-    cases: Dict[str, Dict[str, object]] = {}
+    thrust = _val(_find(r.values, FX_THRUST))
+    vertical = _val(_find(r.values, FZ_VERTICAL_2_5G))
+    cases: Dict[int, Dict[str, object]] = {}
     for v in r.values:
-        m = _GYRO_CASE_RE.match(v.label)
-        if not m:
+        parsed = parse_gyro_key(v.key)
+        if parsed is None:
             continue
-        num, signs, comp = m.groups()
-        case = cases.setdefault(num, {"signs": signs})
+        num, comp = parsed
+        case = cases.setdefault(num, {"desc": _GYRO_LABEL_TAIL.sub("", v.label)})
         case[comp] = v.value
-    for num in sorted(cases, key=int):
+    for num in sorted(cases):
         c = cases[num]
-        desc = f"{r.title} — Case {num} ({c['signs']})"
-        yield desc, c.get("Myy", ""), c.get("Mzz", ""), thrust, vertical, _gyro_subcase_id(r, num)
+        desc = f"{r.title} — {c['desc']}"
+        yield desc, c.get("myy", ""), c.get("mzz", ""), thrust, vertical, _gyro_subcase_id(r, num)
 
 
 def load_cases_to_rows(results: List[ConditionResult]) -> List[Dict[str, object]]:
@@ -359,9 +373,9 @@ def load_cases_to_rows(results: List[ConditionResult]) -> List[Dict[str, object]
     (``lbs-ULT``/``Nm-ULT``/...) and the per-case factor is in the ``SF`` column.
     Locations are geometry and are not scaled (plain units).
     """
-    force_u = _detect_unit(results, set(_VERTICAL_LABELS) | {_SIDE_LABEL, _THRUST_LABEL}) or "lb"
-    len_u = _detect_unit(results, set(_LOC_LABELS)) or "in"
-    mom_u = _detect_unit(results, {_TORQUE_LABEL}) or _detect_moment_unit(results)
+    force_u = _detect_unit(results, set(VERTICAL_KEYS) | {FY_SIDE, FX_THRUST}) or "lb"
+    len_u = _detect_unit(results, set(LOC_KEYS)) or "in"
+    mom_u = _detect_unit(results, {MX_MOUNT_TORQUE}) or _detect_moment_unit(results)
     force_ult = _ult_units(force_u)
     mom_ult = _ult_units(mom_u)
     g_loc = _global_location(results)
@@ -421,9 +435,9 @@ def load_cases_to_rows(results: List[ConditionResult]) -> List[Dict[str, object]
                     r.title,
                     loc,
                     sf,
-                    fz=_val(_find_any(r.values, _VERTICAL_LABELS)),
-                    fy=_val(_find(r.values, _SIDE_LABEL)),
-                    mx=_val(_find(r.values, _TORQUE_LABEL)),
+                    fz=_val(_find_any(r.values, VERTICAL_KEYS)),
+                    fy=_val(_find(r.values, FY_SIDE)),
+                    mx=_val(_find(r.values, MX_MOUNT_TORQUE)),
                     case_id=case_id,
                     case_ref=r.case_ref,
                 )

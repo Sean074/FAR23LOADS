@@ -357,16 +357,16 @@ def test_run_emits_full_case_matrix():
     # A summary condition and its matrix row are the same physical case -> same id.
     assert ({c.case_ref.case_id for c in matrix}
             == {c.case_ref.case_id for c in rx})
-    labels = {v.label for v in matrix[0].values}
-    for expected in ("Unbalanced pitching moment", "Unbalanced rolling moment",
-                     "Unbalanced yawing moment", "Vertical inertia factor NVP",
-                     "Drag inertia factor NDP", "Side inertia factor NS"):
-        assert expected in labels, expected
+    keys = {v.key for v in matrix[0].values}
+    for expected in ("unbalanced_pitching_moment", "unbalanced_rolling_moment",
+                     "unbalanced_yawing_moment", "vertical_inertia_factor_nvp",
+                     "drag_inertia_factor_ndp", "side_inertia_factor_ns"):
+        assert expected in keys, expected
     # Cases 25-33 are nose-only (no main reaction, moment or inertia factor).
     nose_only = [c for c in matrix if c.title.startswith("supplementary")]
     assert len(nose_only) == 9
-    assert {v.label for v in nose_only[0].values} == {
-        "Vertical nose", "Drag nose", "Side nose", "Resultant nose"}
+    assert {v.key for v in nose_only[0].values} == {
+        "vertical_nose", "drag_nose", "side_nose", "resultant_nose"}
     # One uniform factor across the module (14 CFR 23.303).
     assert {c.safety_factor for c in mod.conditions} == {1.5}
 

@@ -169,7 +169,15 @@ from .results import EnvelopeResult, LoadsResult, MassResult
 # the Step-G8 summary report (title page + signature block). All four are
 # free-text and default to "", so an older file loads unchanged and the title
 # page simply omits the rows it has no value for.
-SCHEMA_VERSION = 36  # G8.2: document-control fields (revision/checked_by/approved_by/description)
+# v37 (Step M4-9) adds LoadValue.key -- the stable machine identity of an output
+# quantity, replacing the display label as the thing report/export/view/test code
+# matches on. The field is persisted (the envelope slice stores the SELECT
+# critical conditions' LoadValues), so a v36 file carries labels with no keys:
+# migrations._v36_load_value_keys backfills them from the label using the frozen
+# label->key table of the labels that could ever have been written. A label the
+# table does not know keeps an empty key, which is the honest outcome -- the row
+# still renders, it just cannot be matched by key until the file is recomputed.
+SCHEMA_VERSION = 37  # M4-9: LoadValue.key (semantics off the display label)
 
 
 @dataclass

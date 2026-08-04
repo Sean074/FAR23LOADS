@@ -113,11 +113,11 @@ pressure_u = "kPa" if system == UnitSystem.SI else "psi"
 display_conditions = convert_results(mod.conditions, system)
 rows = []
 for cond in display_conditions:
-    v = {x.label: x.value for x in cond.values}
-    rows.append({"Tab": cond.title, "E": round(v["Tab chord ratio E"], 4),
-                 f"Load ({force_u}, LIMIT)": round(v["Tab load"], 2),
-                 f"LE {pressure_u} (LIMIT)": round(to_si_scalar(v["Tab LE pressure"], "psi", system), 4),
-                 f"TE {pressure_u} (LIMIT)": round(to_si_scalar(v["Tab TE pressure"], "psi", system), 4)})
+    v = {x.key: x.value for x in cond.values}
+    rows.append({"Tab": cond.title, "E": round(v["tab_chord_ratio_e"], 4),
+                 f"Load ({force_u}, LIMIT)": round(v["tab_load"], 2),
+                 f"LE {pressure_u} (LIMIT)": round(to_si_scalar(v["tab_le_pressure"], "psi", system), 4),
+                 f"TE {pressure_u} (LIMIT)": round(to_si_scalar(v["tab_te_pressure"], "psi", system), 4)})
 st.write(pd.DataFrame(rows))
 
 st.download_button("Download tab loads (CSV)", sb.control_surface_csv(results),

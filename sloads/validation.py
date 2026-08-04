@@ -93,7 +93,7 @@ def _wing_geometry_area_sqft(project: Project) -> Optional[float]:
         r = surface_properties(surf)
     except (ValueError, ZeroDivisionError):
         return None
-    total_in2 = next((v.value for v in r.values if v.label == "Total area"), None)
+    total_in2 = next((v.value for v in r.values if v.key == "total_area"), None)
     return total_in2 / 144.0 if total_in2 is not None else None
 
 
@@ -295,7 +295,7 @@ def _check_cg_envelope(project: Project) -> List[ConsistencyWarning]:
         result = weights_and_inertia(project.weight.items)
     except (ValueError, ZeroDivisionError):
         return []
-    xbar = next((v.value for v in result.values if v.label == "XBAR (fus station)"), None)
+    xbar = next((v.value for v in result.values if v.key == "xbar_fus_station"), None)
     if xbar is None:
         return []
     if xbar < fwd - 1e-6 or xbar > aft + 1e-6:

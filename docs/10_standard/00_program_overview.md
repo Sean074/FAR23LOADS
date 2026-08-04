@@ -30,6 +30,7 @@ sloads/                 # shared, pure-calc package — no I/O in calc code
 ├── units.py              # Imperial<->SI conversion at the I/O boundary only
 ├── io.py                 # the only dataclass<->JSON mapping; project.json + load-case CSV
 ├── registry.py           # name -> run(project) -> ModuleResult lookup; run_all_modules
+├── load_keys.py          # canonical LoadValue.key constants for the load-case schema
 ├── report.py             # shared text/CSV rendering (load_cases_to_rows, text_report)
 ├── export/               # output renderers to external tools (NOT registered modules)
 │   ├── coordinates.py    # SLOADS axes -> sbeam CID 0 map (single edit-point)
@@ -90,6 +91,12 @@ stale.
   so `report.py`, `units.py`, and the CSV writer work unchanged. The CSV is always
   "one row per load case" via `load_cases_to_rows` — generalise it, don't reinvent
   per module.
+- **Key the values; the label is cosmetic.** Every `LoadValue` carries a stable
+  snake_case `key`, unique within its `ConditionResult`, and that is the only
+  thing `report`, the sbeam bridge, the views and the tests match on. Cross-module
+  keys live in `sloads/load_keys.py`. Rewording a `label` must never change a
+  number, a column or a row — before M4-9 it silently blanked the cell. See
+  `PROJECT_GUIDE.md` §5.
 - **Self-register** at import (`register("name", run)`) and add the import to
   `sloads/modules/__init__.py`.
 - **Never recompute another module's quantity** — read it from the `Project`

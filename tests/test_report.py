@@ -2,11 +2,16 @@
 
 import os
 import sys
+from dataclasses import replace
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from sloads import convert_results, run_all, UnitSystem  # noqa: E402
-from sloads.report import envelope_extremes, load_cases_to_rows  # noqa: E402
+from sloads.report import (  # noqa: E402
+    envelope_extremes,
+    has_load_case_data,
+    load_cases_to_rows,
+)
 from fixtures import io520bb, turboprop  # noqa: E402
 
 
@@ -74,10 +79,10 @@ def test_blank_cells_for_inapplicable_loads():
     assert s[side] != ""
 
 
-def _limit(results, far, label):
-    """The calc's LIMIT value for a labelled quantity of one condition."""
+def _limit(results, far, key):
+    """The calc's LIMIT value for one keyed quantity of one condition."""
     cond = next(c for c in results if c.far_reference == far)
-    return next(v.value for v in cond.values if v.label == label)
+    return next(v.value for v in cond.values if v.key == key)
 
 
 def test_loads_are_ultimate_with_sf_column():
@@ -89,7 +94,7 @@ def test_loads_are_ultimate_with_sf_column():
     assert "ULT" in vert
     a2 = next(r for r in rows if r["FAR"] == "23.361(a)(2)")
     assert a2["SF"] == "1.5"
-    limit_vert = _limit(results, "23.361(a)(2)", "Vertical down load")
+    limit_vert = _limit(results, "23.361(a)(2)", "fz_vertical")
     # rel_tol matches the 4-significant-figure display formatting of the CSV cell.
     import math
     assert math.isclose(float(a2[vert]), 1.5 * limit_vert, rel_tol=1e-3)
@@ -102,9 +107,82 @@ def test_locations_are_not_scaled():
     results = run_all(io520bb())
     rows = load_cases_to_rows(results)
     lx = _col(rows, "Loc X")
-    limit_x = _limit(results, "23.361(a)(2)", "Applied at X")
+    limit_x = _limit(results, "23.361(a)(2)", "loc_x")
     a2 = next(r for r in rows if r["FAR"] == "23.361(a)(2)")
     assert abs(float(a2[lx]) - limit_x) < 1e-6
+
+
+# --------------------------------------------------------------------------- #
+# M4-9: the label is cosmetic
+# --------------------------------------------------------------------------- #
+def _relabelled(results):
+    """The same results with every display label replaced by a meaningless one.
+
+    Keys, values, units and FAR references are untouched -- this is exactly the
+    edit an engineer makes when rewording a report column.
+    """
+    return [
+        replace(c, values=[replace(v, label=f"relabelled {i}-{j}")
+                           for j, v in enumerate(c.values)])
+        for i, c in enumerate(results)
+    ]
+
+
+def test_relabelling_every_load_value_leaves_the_csv_intact():
+    """The regression M4-9 exists to prevent.
+
+    Before ``LoadValue.key``, ``load_cases_to_rows`` matched on the display label,
+    so rewording one silently blanked its column: the lookup returned ``None``,
+    ``_val`` turned that into ``""``, and the CSV shipped with an empty cell and no
+    error anywhere. Every number below must survive a wholesale relabel.
+    """
+    for build in (io520bb, turboprop):
+        results = run_all(build())
+        before = load_cases_to_rows(results)
+        after = load_cases_to_rows(_relabelled(results))
+        assert len(after) == len(before), f"{build.__name__}: relabelling changed the row count"
+        # Guard the guard: an equality-only assertion also passes when the lookup
+        # is broken for *both* sides and every load cell comes back blank. The
+        # applied-at location is on every row (it falls back to the global one) and
+        # some row carries a vertical load, so require both before comparing.
+        # (A blank vertical *is* legitimate on 23.363, the pure side-load case.)
+        vert, loc_x = _col(before, "Vertical load"), _col(before, "Loc X")
+        assert any(row[vert] for row in after), \
+            f"{build.__name__}: every vertical load blanked by the relabel"
+        for row in after:
+            assert row[loc_x] != "", f"{build.__name__}: applied-at X blanked by the relabel"
+        for row_b, row_a in zip(before, after):
+            for column, value in row_b.items():
+                # "Case description" is display text and is *meant* to follow the
+                # label; every other cell is data and must be untouched.
+                if column == "Case description":
+                    continue
+                assert row_a[column] == value, (
+                    f"{build.__name__}: column {column!r} changed when labels were "
+                    f"reworded ({value!r} -> {row_a[column]!r})"
+                )
+
+
+def test_relabelling_does_not_hide_the_load_case_schema():
+    """``has_load_case_data`` chose the CSV shape by label too, so a relabel could
+    silently downgrade a load-case module to the generic property table."""
+    for build in (io520bb, turboprop):
+        results = run_all(build())
+        assert has_load_case_data(results)
+        assert has_load_case_data(_relabelled(results))
+
+
+def test_gyro_subcases_survive_a_relabel():
+    """The four 23.371(b) sign combinations were split out with a regex over the
+    label (``"Case 1 (+Myy, +Mzz): Myy"``). They now come off the key."""
+    results = run_all(turboprop())
+    rows = [r for r in load_cases_to_rows(_relabelled(results)) if r["FAR"] == "23.371(b)"]
+    assert len(rows) == 4
+    pitch = _col(rows, "Pitch moment")
+    yaw = _col(rows, "Yaw moment")
+    assert all(r[pitch] and r[yaw] for r in rows)
+    # and the four sub-case IDs are still distinct (EM-0Na..d), not collapsed.
+    assert len({r["ID"] for r in rows}) == 4
 
 
 if __name__ == "__main__":

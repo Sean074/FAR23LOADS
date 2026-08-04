@@ -29,6 +29,7 @@ from sloads.migrations import (  # noqa: E402
     migrate,
 )
 from sloads.models import SCHEMA_VERSION  # noqa: E402
+from sloads.modules import select  # noqa: E402
 
 _HERE = os.path.dirname(os.path.abspath(__file__))
 _FIXTURES = os.path.join(_HERE, "fixtures_schema")
@@ -81,6 +82,49 @@ def test_pre_g6b_file_lands_its_gear_on_the_geometry():
     assert project.geometry.landing_gear.main_gear is not None
 
 
+def test_pre_m4_9_file_gets_its_load_value_keys_backfilled():
+    """A v36 file's persisted SELECT loads carry labels and no keys. Every consumer
+    now matches on the key, so without the backfill the reloaded governing-loads
+    table would silently lose its columns -- the exact M4-9 failure mode, re-entering
+    through the file path."""
+    project = io.load_project(os.path.join(_FIXTURES, "v36_select_loads_without_keys.json"))
+    by_label = {
+        lv.label: lv
+        for c in project.envelope.critical.conditions
+        for lv in c.loads
+    }
+    assert by_label["Balancing tail load"].key == "balancing_tail_load"
+    assert by_label["Tail angle of attack AT"].key == "tail_angle_of_attack_at"
+    assert by_label["Load factor NZ"].key == "load_factor_nz"
+    assert by_label["V (EAS)"].key == "v_eas"
+    # A label this build has never emitted keeps an empty key rather than an
+    # invented one -- the row still renders, it just cannot be matched by key.
+    assert by_label["A label no build ever emitted"].key == ""
+
+
+def test_the_backfill_table_is_frozen_against_todays_producer():
+    """Every label the table claims maps to a key SELECT still emits under that key.
+
+    The table describes what *old files say*, so it is never regenerated -- but a key
+    renamed in ``select.py`` without a new hop would leave migrated files pointing at
+    a key nothing produces, which this catches.
+    """
+    from sloads.migrations import _V36_LOAD_VALUE_KEYS
+
+    project = io.load_project(_GA)
+    emitted = {
+        lv.label: lv.key
+        for c in select.build_critical(project).conditions
+        for lv in c.loads
+    }
+    drifted = {
+        label: (key, emitted[label])
+        for label, key in _V36_LOAD_VALUE_KEYS.items()
+        if label in emitted and emitted[label] != key
+    }
+    assert not drifted, f"backfill table maps labels to keys select.py no longer emits: {drifted}"
+
+
 def test_pre_d5_file_recovers_its_cg_cases():
     project = io.load_project(os.path.join(_FIXTURES, "v18_cg_cases_on_flight_loads.json"))
     assert project.weight is not None
@@ -98,7 +142,7 @@ def test_bare_engine_file_is_still_accepted():
 # The discriminator that replaced the 19-clause or-gate
 # --------------------------------------------------------------------------- #
 def test_project_and_engine_dicts_are_told_apart():
-    assert is_project_dict(_load("v36_current.json"))
+    assert is_project_dict(_load("v37_current.json"))
     assert not is_project_dict(_load("v0_bare_engine.json"))
 
 
@@ -134,13 +178,13 @@ def test_migrate_is_idempotent():
 
 def test_current_file_is_untouched_by_the_chain():
     """No hop may fire for a current-schema file — that is what version-gating buys."""
-    current = _load("v36_current.json")
+    current = _load("v37_current.json")
     assert migrate(current) == {**current, "schema_version": SCHEMA_VERSION}
 
 
 def test_a_newer_file_is_not_mangled_by_hops_that_do_not_apply():
     """Forward compatibility degrades to 'read what you understand'."""
-    future = _load("v36_current.json")
+    future = _load("v37_current.json")
     future["schema_version"] = SCHEMA_VERSION + 5
     out = migrate(future)
     assert out["schema_version"] == SCHEMA_VERSION + 5

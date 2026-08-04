@@ -220,25 +220,26 @@ def run(project: Project) -> ModuleResult:
         raise MissingInputError("Project has no 'flap_loads' inputs for the flap module")
     r = _compute(project)
     values = [
-        LoadValue("Critical flap load (23.345(a))", r.critical_lf_lb, "lb"),
-        LoadValue("LE pressure (TE = half)", r.le_pressure_psi, "lb/in^2"),
-        LoadValue("Flap CL 1G stall", r.clf[0]),
-        LoadValue("Flap CL 2G stall", r.clf[1]),
-        LoadValue("Flap CL 2G at VF", r.clf[2]),
-        LoadValue("Flap CL gust at VF", r.clf[3]),
-        LoadValue("Flap load 1G stall", r.lf[0], "lb"),
-        LoadValue("Flap load 2G stall", r.lf[1], "lb"),
-        LoadValue("Flap load 2G at VF", r.lf[2], "lb"),
-        LoadValue("Flap load gust at VF", r.lf[3], "lb"),
-        LoadValue("Head-on gust factor", r.gust_factor),
-        LoadValue("Flap load combined w/ gust", r.combined_gust_lb, "lb"),
+        LoadValue("Critical flap load (23.345(a))", r.critical_lf_lb, "lb", key="critical_flap_load_23_345_a"),
+        LoadValue("LE pressure (TE = half)", r.le_pressure_psi, "lb/in^2", key="le_pressure_te_half"),
+        LoadValue("Flap CL 1G stall", r.clf[0], key="flap_cl_1g_stall"),
+        LoadValue("Flap CL 2G stall", r.clf[1], key="flap_cl_2g_stall"),
+        LoadValue("Flap CL 2G at VF", r.clf[2], key="flap_cl_2g_at_vf"),
+        LoadValue("Flap CL gust at VF", r.clf[3], key="flap_cl_gust_at_vf"),
+        LoadValue("Flap load 1G stall", r.lf[0], "lb", key="flap_load_1g_stall"),
+        LoadValue("Flap load 2G stall", r.lf[1], "lb", key="flap_load_2g_stall"),
+        LoadValue("Flap load 2G at VF", r.lf[2], "lb", key="flap_load_2g_at_vf"),
+        LoadValue("Flap load gust at VF", r.lf[3], "lb", key="flap_load_gust_at_vf"),
+        LoadValue("Head-on gust factor", r.gust_factor, key="head_on_gust_factor"),
+        LoadValue("Flap load combined w/ gust", r.combined_gust_lb, "lb", key="flap_load_combined_w_gust"),
     ]
     if r.slipstream_factor > 0:
         values.extend([
-            LoadValue("Slipstream factor", r.slipstream_factor),
-            LoadValue("Slipstream velocity at flap", r.slipstream_velocity_kt, "kt(EAS)"),
-            LoadValue("Slipstream inboard BL", r.slipstream_bl_inboard, "in"),
-            LoadValue("Slipstream outboard BL", r.slipstream_bl_outboard, "in"),
+            LoadValue("Slipstream factor", r.slipstream_factor, key="slipstream_factor"),
+            LoadValue("Slipstream velocity at flap", r.slipstream_velocity_kt, "kt(EAS)",
+                key="slipstream_velocity_at_flap"),
+            LoadValue("Slipstream inboard BL", r.slipstream_bl_inboard, "in", key="slipstream_inboard_bl"),
+            LoadValue("Slipstream outboard BL", r.slipstream_bl_outboard, "in", key="slipstream_outboard_bl"),
         ])
     note = ("Critical flaps-extended load (Abbott & von Doenhoff Fig 98); chordwise "
             "taper LE -> half at TE. Slipstream FAR 23.457(b), gust FAR 23.345(c)(1).")

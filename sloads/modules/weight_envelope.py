@@ -89,8 +89,8 @@ def _xlemac_mac(project: Project, env: WeightEnvelopeInput) -> Tuple[float, floa
         surf = project.geometry.by_name(env.wing_surface)
         if surf is not None:
             r = surface_properties(surf)
-            mac = next(v.value for v in r.values if v.label == "MAC")
-            xlemac = next(v.value for v in r.values if v.label.startswith("XLE(MAC)"))
+            mac = next(v.value for v in r.values if v.key == "mac")
+            xlemac = next(v.value for v in r.values if v.key == "xle_mac_station_of_mac_le")
             return xlemac, mac
     raise MissingInputError(
         "WTENV needs wing XLEMAC/MAC: add a 'wing' geometry surface or set "
@@ -195,12 +195,12 @@ def envelope(project: Project, inp: WeightEnvelopeInput) -> List[ConditionResult
         title="Weight envelope summary",
         far_reference=_FAR,
         values=[
-            LoadValue("Empty weight", empty_w, _LB, quantity="mass"),
-            LoadValue("Empty weight station", empty_x, _IN),
-            LoadValue("Minimum flight weight", min_w, _LB, quantity="mass"),
-            LoadValue("Minimum flight weight station", min_x, _IN),
-            LoadValue("Maximum loading weight", max_w, _LB, quantity="mass"),
-            LoadValue("Maximum loading station", max_x, _IN),
+            LoadValue("Empty weight", empty_w, _LB, quantity="mass", key="empty_weight"),
+            LoadValue("Empty weight station", empty_x, _IN, key="empty_weight_station"),
+            LoadValue("Minimum flight weight", min_w, _LB, quantity="mass", key="minimum_flight_weight"),
+            LoadValue("Minimum flight weight station", min_x, _IN, key="minimum_flight_weight_station"),
+            LoadValue("Maximum loading weight", max_w, _LB, quantity="mass", key="maximum_loading_weight"),
+            LoadValue("Maximum loading station", max_x, _IN, key="maximum_loading_station"),
         ],
     )
 
@@ -208,14 +208,16 @@ def envelope(project: Project, inp: WeightEnvelopeInput) -> List[ConditionResult
         title="Structural CG-limit stations and loadings",
         far_reference=_FAR,
         values=[
-            LoadValue("Aft gross station", aft_s, _IN),
-            LoadValue("Forward gross station", fwd_s, _IN),
-            LoadValue("Forward regardless station", reg_s, _IN),
-            LoadValue("Aft gross point weight", inp.gross_weight, _LB, quantity="mass"),
-            LoadValue("Forward gross point weight", inp.gross_weight, _LB, quantity="mass"),
-            LoadValue("Forward regardless point weight", inp.fwd_regardless_weight, _LB, quantity="mass"),
-            LoadValue("Minimum weight point weight", min_w, _LB, quantity="mass"),
-            LoadValue("Minimum weight point station", min_x, _IN),
+            LoadValue("Aft gross station", aft_s, _IN, key="aft_gross_station"),
+            LoadValue("Forward gross station", fwd_s, _IN, key="forward_gross_station"),
+            LoadValue("Forward regardless station", reg_s, _IN, key="forward_regardless_station"),
+            LoadValue("Aft gross point weight", inp.gross_weight, _LB, quantity="mass", key="aft_gross_point_weight"),
+            LoadValue("Forward gross point weight", inp.gross_weight, _LB, quantity="mass",
+                key="forward_gross_point_weight"),
+            LoadValue("Forward regardless point weight", inp.fwd_regardless_weight, _LB, quantity="mass",
+                key="forward_regardless_point_weight"),
+            LoadValue("Minimum weight point weight", min_w, _LB, quantity="mass", key="minimum_weight_point_weight"),
+            LoadValue("Minimum weight point station", min_x, _IN, key="minimum_weight_point_station"),
         ],
         note="The four points (aft gross, fwd gross, fwd regardless, min weight) feed FLTLOADS.",
     )
@@ -229,6 +231,7 @@ def envelope(project: Project, inp: WeightEnvelopeInput) -> List[ConditionResult
 
     def add_ballast(
         label: str,
+        key: str,
         wl: float,
         xl: float,
         ref: Optional[Tuple[float, float]],
@@ -236,7 +239,8 @@ def envelope(project: Project, inp: WeightEnvelopeInput) -> List[ConditionResult
     ) -> None:
         if ref is None:
             ballast_values.append(
-                LoadValue(f"{label} ballast (none -- {no_ref_reason})", 0.0, _LB, quantity="mass")
+                LoadValue(f"{label} ballast (none -- {no_ref_reason})", 0.0, _LB,
+                          quantity="mass", key=f"{key}_ballast_weight")
             )
             return
         b = _ballast(wl, xl, ref[0], ref[1])
@@ -244,7 +248,7 @@ def envelope(project: Project, inp: WeightEnvelopeInput) -> List[ConditionResult
             ballast_values.append(
                 LoadValue(
                     f"{label} ballast (none -- loading already at/above target weight)",
-                    0.0, _LB, quantity="mass",
+                    0.0, _LB, quantity="mass", key=f"{key}_ballast_weight",
                 )
             )
             return
@@ -263,11 +267,14 @@ def envelope(project: Project, inp: WeightEnvelopeInput) -> List[ConditionResult
                 f"extent [{nose_x:.0f}, {tail_x:.0f}]"
             )
             ballast_values.append(
-                LoadValue(f"{label} ballast (none -- {reason})", 0.0, _LB, quantity="mass")
+                LoadValue(f"{label} ballast (none -- {reason})", 0.0, _LB,
+                          quantity="mass", key=f"{key}_ballast_weight")
             )
             return
-        ballast_values.append(LoadValue(f"{label} ballast weight", b[0], _LB, quantity="mass"))
-        ballast_values.append(LoadValue(f"{label} ballast station", b[1], _IN))
+        ballast_values.append(LoadValue(f"{label} ballast weight", b[0], _LB,
+                                        quantity="mass", key=f"{key}_ballast_weight"))
+        ballast_values.append(LoadValue(f"{label} ballast station", b[1], _IN,
+                                        key=f"{key}_ballast_station"))
 
     # Aft gross: heaviest loading NOT exceeding gross weight (the manual's Ch 3
     # p22 reference). Equals the full loading when that is itself at/under gross
@@ -283,16 +290,17 @@ def envelope(project: Project, inp: WeightEnvelopeInput) -> List[ConditionResult
         # degeneracy explicitly rather than a wild moment-balance station (M1-7).
         aft_ref = None
         aft_reason = "loading already at/aft of the aft-gross limit"
-    add_ballast("Aft gross", inp.gross_weight, aft_s, aft_ref, aft_reason)
+    add_ballast("Aft gross", "aft_gross", inp.gross_weight, aft_s, aft_ref, aft_reason)
     # Forward gross: heaviest forward-loading point at/forward of the fwd-gross station.
     fwd_cands = [p for p in fwd_seq if p[1] <= fwd_s]
     fwd_ref = max(fwd_cands, key=lambda p: p[0]) if fwd_cands else None
-    add_ballast("Forward gross", inp.gross_weight, fwd_s, fwd_ref,
+    add_ballast("Forward gross", "forward_gross", inp.gross_weight, fwd_s, fwd_ref,
                 "no loading forward of the fwd-gross station")
     # Forward regardless: heaviest forward-loading point at/below the reduced weight.
     reg_cands = [p for p in fwd_seq if p[0] <= inp.fwd_regardless_weight]
     reg_ref = max(reg_cands, key=lambda p: p[0]) if reg_cands else None
-    add_ballast("Forward regardless", inp.fwd_regardless_weight, reg_s, reg_ref,
+    add_ballast("Forward regardless", "forward_regardless", inp.fwd_regardless_weight,
+                reg_s, reg_ref,
                 "no loading at/below the regardless weight")
 
     ballast = ConditionResult(
@@ -306,8 +314,9 @@ def envelope(project: Project, inp: WeightEnvelopeInput) -> List[ConditionResult
         title="Forward loading envelope (weight, station)",
         far_reference=_FAR,
         values=[v for i, (w, x) in enumerate(fwd_seq, start=1) for v in (
-            LoadValue(f"Point {i} weight", w, _LB, quantity="mass"),
-            LoadValue(f"Point {i} station", x, _IN),
+            LoadValue(f"Point {i} weight", w, _LB, quantity="mass",
+                      key=f"point_{i}_weight"),
+            LoadValue(f"Point {i} station", x, _IN, key=f"point_{i}_station"),
         )],
         note="Discretionary items added most-forward first; vertices of the forward boundary.",
     )

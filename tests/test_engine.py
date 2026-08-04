@@ -39,25 +39,25 @@ def test_361_a1():
     # mean torque); the corrected design torque is 1.33 x 554.3884 = 737.34 ft-lb.
     # Vertical loads are unchanged. See CLAUDE.md "Approved corrections to the source".
     r = calc.condition_361_a1(io520bb())
-    assert math.isclose(value_of(r, "Vertical load factor"), 2.85, abs_tol=1e-9)
-    assert math.isclose(value_of(r, "Vertical down load"), 1650.15, rel_tol=TOL)
-    assert math.isclose(value_of(r, "Torque factor"), 1.33, abs_tol=1e-9)
-    assert math.isclose(value_of(r, "Mean takeoff torque"), 554.3884, rel_tol=TOL)
-    assert math.isclose(value_of(r, "Engine mount torque"), -737.337, rel_tol=TOL)
+    assert math.isclose(value_of(r, "vertical_load_factor"), 2.85, abs_tol=1e-9)
+    assert math.isclose(value_of(r, "fz_vertical"), 1650.15, rel_tol=TOL)
+    assert math.isclose(value_of(r, "torque_factor"), 1.33, abs_tol=1e-9)
+    assert math.isclose(value_of(r, "mean_takeoff_torque"), 554.3884, rel_tol=TOL)
+    assert math.isclose(value_of(r, "mx_mount_torque"), -737.337, rel_tol=TOL)
 
 
 def test_361_a2():
     r = calc.condition_361_a2(io520bb())
-    assert math.isclose(value_of(r, "Vertical down load"), 2200.2, rel_tol=TOL)
-    assert math.isclose(value_of(r, "Torque factor"), 1.33, abs_tol=1e-9)
-    assert math.isclose(value_of(r, "Max continuous torque"), 556.7227, rel_tol=TOL)
-    assert math.isclose(value_of(r, "Engine mount torque"), -740.4412, rel_tol=TOL)
+    assert math.isclose(value_of(r, "fz_vertical"), 2200.2, rel_tol=TOL)
+    assert math.isclose(value_of(r, "torque_factor"), 1.33, abs_tol=1e-9)
+    assert math.isclose(value_of(r, "max_continuous_torque"), 556.7227, rel_tol=TOL)
+    assert math.isclose(value_of(r, "mx_mount_torque"), -740.4412, rel_tol=TOL)
 
 
 def test_363():
     r = calc.condition_363(io520bb())
-    assert math.isclose(value_of(r, "Side load factor"), 1.33, abs_tol=1e-9)
-    assert math.isclose(value_of(r, "Side load"), 770.07, rel_tol=TOL)
+    assert math.isclose(value_of(r, "side_load_factor"), 1.33, abs_tol=1e-9)
+    assert math.isclose(value_of(r, "fy_side"), 770.07, rel_tol=TOL)
 
 
 def test_reciprocating_runs_three_conditions():
@@ -94,17 +94,17 @@ def test_361_a3_applies_mean_torque_factor():
     #   corrected: 1.6 x 1.25 x 1970   = 3940 ft-lb
     # See CLAUDE.md "Approved corrections to the source".
     r = calc.condition_361_a3(turboprop())
-    assert math.isclose(value_of(r, "Torque factor"), 1.25, abs_tol=1e-9)
-    assert math.isclose(value_of(r, "Malfunction factor"), 1.6, abs_tol=1e-9)
-    assert math.isclose(value_of(r, "Mean takeoff torque"), 1970, abs_tol=1e-9)
-    assert math.isclose(value_of(r, "Engine mount torque"), -3940, rel_tol=TOL)
-    assert math.isclose(value_of(r, "Vertical down load"), 450, abs_tol=1e-9)  # 1g x PPWT
+    assert math.isclose(value_of(r, "torque_factor"), 1.25, abs_tol=1e-9)
+    assert math.isclose(value_of(r, "malfunction_factor"), 1.6, abs_tol=1e-9)
+    assert math.isclose(value_of(r, "mean_takeoff_torque"), 1970, abs_tol=1e-9)
+    assert math.isclose(value_of(r, "mx_mount_torque"), -3940, rel_tol=TOL)
+    assert math.isclose(value_of(r, "fz_vertical"), 450, abs_tol=1e-9)  # 1g x PPWT
 
 
 def test_gyro_thrust_matches_manual():
     # Manual: THRUST = 1970 * 230.38 / 101.2 = 4484.7 lb
     r = calc.condition_371_b(turboprop())
-    assert math.isclose(value_of(r, "Max continuous thrust"), 4484.7, abs_tol=1.0)
+    assert math.isclose(value_of(r, "fx_thrust"), 4484.7, abs_tol=1.0)
 
 
 def test_turboprop_runs_six_conditions():

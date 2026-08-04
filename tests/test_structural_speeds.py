@@ -49,18 +49,18 @@ def results():
 def test_maneuver_load_factors():
     # W = 3400, normal: n = 2.1 + 24000/13400 = 3.891 -> capped 3.8; n_neg = -1.52.
     r = results()
-    assert math.isclose(value_of(r, "Limit positive load factor"), 3.8, rel_tol=TOL)
-    assert math.isclose(value_of(r, "Limit negative load factor"), -1.52, rel_tol=TOL)
-    assert math.isclose(value_of(r, "Wing loading W/S"), 3400 / 184.125, rel_tol=2e-3)
+    assert math.isclose(value_of(r, "limit_positive_load_factor"), 3.8, rel_tol=TOL)
+    assert math.isclose(value_of(r, "limit_negative_load_factor"), -1.52, rel_tol=TOL)
+    assert math.isclose(value_of(r, "wing_loading_w_s"), 3400 / 184.125, rel_tol=2e-3)
 
 
 def test_design_speeds_match_manual():
     # Appendix A: VA 121.3, VC 170, VD 212.5, VF 105.5 (KEAS).
     r = results()
-    assert math.isclose(value_of(r, "Maneuver speed VA"), 121.3, rel_tol=TOL)
-    assert math.isclose(value_of(r, "Cruise speed VC"), 170, rel_tol=TOL)
-    assert math.isclose(value_of(r, "Dive speed VD"), 212.5, rel_tol=TOL)
-    assert math.isclose(value_of(r, "Flap speed VF"), 105.5, rel_tol=TOL)
+    assert math.isclose(value_of(r, "maneuver_speed_va"), 121.3, rel_tol=TOL)
+    assert math.isclose(value_of(r, "cruise_speed_vc"), 170, rel_tol=TOL)
+    assert math.isclose(value_of(r, "dive_speed_vd"), 212.5, rel_tol=TOL)
+    assert math.isclose(value_of(r, "flap_speed_vf"), 105.5, rel_tol=TOL)
 
 
 def test_vd_floor_no_chosen_speeds():
@@ -71,21 +71,21 @@ def test_vd_floor_no_chosen_speeds():
     inp = StructuralSpeedsInput(category="N", weight_lb=3400, wing_area_sqft=184.125,
                                 vh_kt=190)
     r = calc.design_speeds(_project_clmax("n", 1.4068, 1.5857), inp)
-    assert math.isclose(value_of(r, "Dive speed VD"), 198.53, rel_tol=TOL)          # p155
-    assert math.isclose(value_of(r, "Minimum dive VD(min)"), 198.53, rel_tol=TOL)
+    assert math.isclose(value_of(r, "dive_speed_vd"), 198.53, rel_tol=TOL)          # p155
+    assert math.isclose(value_of(r, "minimum_dive_vd_min"), 198.53, rel_tol=TOL)
 
 
 def test_minimum_cruise_speed():
     # K_c = 33 (W/S = 18.47 < 20); VC(min) = 33*sqrt(18.47) = 141.8 kt.
     r = results()
-    assert math.isclose(value_of(r, "Minimum cruise VC(min)"), 141.8, rel_tol=2e-3)
+    assert math.isclose(value_of(r, "minimum_cruise_vc_min"), 141.8, rel_tol=2e-3)
 
 
 def test_cruise_and_dive_mach_at_shoulder():
     # At 12000 ft: MC 0.323, MD 0.403.
     r = results()
-    assert math.isclose(value_of(r, "Cruise Mach MC"), 0.323, rel_tol=3e-3)
-    assert math.isclose(value_of(r, "Dive Mach MD"), 0.403, rel_tol=3e-3)
+    assert math.isclose(value_of(r, "cruise_mach_mc"), 0.323, rel_tol=3e-3)
+    assert math.isclose(value_of(r, "dive_mach_md"), 0.403, rel_tol=3e-3)
 
 
 def test_utility_and_acrobatic_caps():
@@ -95,10 +95,10 @@ def test_utility_and_acrobatic_caps():
                            StructuralSpeedsInput(category="U", **base))
     a = calc.design_speeds(_project_clmax("a", 1.4068, 1.5857),
                            StructuralSpeedsInput(category="A", **base))
-    assert math.isclose(value_of(u, "Limit positive load factor"), 4.4, rel_tol=TOL)
-    assert math.isclose(value_of(u, "Limit negative load factor"), -0.4 * 4.4, rel_tol=TOL)
-    assert math.isclose(value_of(a, "Limit positive load factor"), 6.0, rel_tol=TOL)
-    assert math.isclose(value_of(a, "Limit negative load factor"), -0.5 * 6.0, rel_tol=TOL)
+    assert math.isclose(value_of(u, "limit_positive_load_factor"), 4.4, rel_tol=TOL)
+    assert math.isclose(value_of(u, "limit_negative_load_factor"), -0.4 * 4.4, rel_tol=TOL)
+    assert math.isclose(value_of(a, "limit_positive_load_factor"), 6.0, rel_tol=TOL)
+    assert math.isclose(value_of(a, "limit_negative_load_factor"), -0.5 * 6.0, rel_tol=TOL)
 
 
 def test_concept_bypasses_cap():
@@ -108,8 +108,8 @@ def test_concept_bypasses_cap():
                                 chosen_vc=250, chosen_vd=312.5,
                                 chosen_n=4.0, chosen_nneg=-2.0)
     r = calc.design_speeds(_project_clmax("c", 2.101, 2.821), inp)
-    assert value_of(r, "Limit positive load factor") == 4.0
-    assert value_of(r, "Limit negative load factor") == -2.0
+    assert value_of(r, "limit_positive_load_factor") == 4.0
+    assert value_of(r, "limit_negative_load_factor") == -2.0
 
 
 def test_concept_requires_explicit_load_factors():

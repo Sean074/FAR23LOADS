@@ -45,6 +45,7 @@ from ..constants import (
     WT_SYSTEMS_SINGLE_TOTAL_FRACTION,
     installed_engine_weight,
 )
+from ..load_keys import key_from_label as _key
 from ..models import (
     MissingInputError,
     ConditionResult,
@@ -144,22 +145,28 @@ def estimate(inp: WeightEstimationInput) -> List[ConditionResult]:
     crew_weight = inp.crew * SEAT_WEIGHT_LB
     oew = empty + crew_weight
 
-    def mass(label: str, value: float) -> LoadValue:
+    def mass(label: str, value: float, key: str = "") -> LoadValue:
         # Weights are pounds-*mass* (quantity="mass" -> kg in SI, not N), and are
         # truncated with int(...) to match the original program's printout.
-        return LoadValue(label, int(value), "lb", quantity="mass")
+        #
+        # The group rows below are driven by the WT_*_FRACTIONS tables, whose
+        # dict keys *are* the component names -- for those the label is data
+        # rather than cosmetic text, so the key is derived from it. Rows written
+        # out by hand pass their key explicitly (M4-9).
+        return LoadValue(label, int(value), "lb", quantity="mass",
+                         key=key or _key(label))
 
     summary = ConditionResult(
         title="Estimated weight summary",
         far_reference=_FAR,
         values=[
-            mass("Max take-off weight", wto),
-            mass("Useful load", useful),
-            mass("Empty weight", empty),
-            mass("Crew (operating items)", crew_weight),
-            mass("Operating empty weight (OEW)", oew),
-            LoadValue("Empty/take-off ratio", int(100 * empty / wto) / 100),
-            mass("Options & miscellaneous", options_misc),
+            mass("Max take-off weight", wto, "max_take_off_weight"),
+            mass("Useful load", useful, "useful_load"),
+            mass("Empty weight", empty, "empty_weight"),
+            mass("Crew (operating items)", crew_weight, "crew_operating_items"),
+            mass("Operating empty weight (OEW)", oew, "operating_empty_weight"),
+            LoadValue("Empty/take-off ratio", int(100 * empty / wto) / 100, key="empty_take_off_ratio"),
+            mass("Options & miscellaneous", options_misc, "options_and_miscellaneous"),
         ],
     )
 
@@ -167,19 +174,19 @@ def estimate(inp: WeightEstimationInput) -> List[ConditionResult]:
         title="Structure group",
         far_reference=_FAR,
         values=[mass(name, structure[name]) for name in WT_STRUCTURE_FRACTIONS]
-        + [mass("Total structure", total_structure)],
+        + [mass("Total structure", total_structure, "total_structure")],
     )
 
     powerplant_result = ConditionResult(
         title="Powerplant group",
         far_reference=_FAR,
         values=[
-            mass("Engine installed (incl. propeller)", installed),
-            mass("Propeller (included above)", prop),
-            mass("Fuel system", fuel_system),
-            mass("Exhaust", exhaust),
-            mass("Other engine details", engine_other),
-            mass("Total powerplant", powerplant),
+            mass("Engine installed (incl. propeller)", installed, "engine_installed"),
+            mass("Propeller (included above)", prop, "propeller"),
+            mass("Fuel system", fuel_system, "fuel_system"),
+            mass("Exhaust", exhaust, "exhaust"),
+            mass("Other engine details", engine_other, "other_engine_details"),
+            mass("Total powerplant", powerplant, "total_powerplant"),
         ],
     )
 
@@ -187,7 +194,7 @@ def estimate(inp: WeightEstimationInput) -> List[ConditionResult]:
         title="Systems group",
         far_reference=_FAR,
         values=[mass(name, frac * wto) for name, frac in systems_fracs.items()]
-        + [mass("Total systems weight", total_systems)],
+        + [mass("Total systems weight", total_systems, "total_systems_weight")],
     )
 
     return [summary, structure_result, powerplant_result, systems_result]
@@ -198,11 +205,11 @@ def estimate(inp: WeightEstimationInput) -> List[ConditionResult]:
 # --------------------------------------------------------------------------- #
 # Estimate rows that are roll-ups or duplicates rather than discrete components,
 # so they are skipped when seeding the itemized data base.
-_SEED_SKIP_LABELS = frozenset({
-    "Total structure",
-    "Total powerplant",
-    "Total systems weight",
-    "Propeller (included above)",  # already inside "Engine installed"
+_SEED_SKIP_KEYS = frozenset({
+    "total_structure",
+    "total_powerplant",
+    "total_systems_weight",
+    "propeller",  # already inside "Engine installed"
 })
 
 
@@ -217,10 +224,10 @@ def estimate_to_mass_items(inp: WeightEstimationInput) -> List[MassItem]:
     """
     summary, structure, powerplant, systems = estimate(inp)
     items: List[MassItem] = []
-    options_misc = next((v for v in summary.values if v.label == "Options & miscellaneous"), None)
+    options_misc = next((v for v in summary.values if v.key == "options_and_miscellaneous"), None)
     for group in (structure, powerplant, systems):
         for v in group.values:
-            if v.label in _SEED_SKIP_LABELS:
+            if v.key in _SEED_SKIP_KEYS:
                 continue
             items.append(MassItem(name=v.label, weight_lb=float(v.value), kind=MassItemKind.EMPTY))
     if options_misc is not None:
