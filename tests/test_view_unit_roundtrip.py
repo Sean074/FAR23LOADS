@@ -48,6 +48,12 @@ def _run(view: str, system: UnitSystem, project):
     from streamlit.testing.v1 import AppTest
 
     at = AppTest.from_file(os.path.join(_VIEWS_DIR, view), default_timeout=90)
+    # The unit selection lives on the project (M4-20 step 2, decision D-22) and
+    # ``components.active_system()`` reads it there. The session key is still set
+    # because it is the fallback for a render with no project yet -- but the
+    # project field is what the views actually follow, so setting only the
+    # session key here would silently test the Imperial path twice.
+    project.unit_system = system.value
     at.session_state["project"] = project
     at.session_state["unit_system"] = system
     at.run()

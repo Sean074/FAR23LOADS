@@ -177,7 +177,7 @@ from .results import EnvelopeResult, LoadsResult, MassResult
 # label->key table of the labels that could ever have been written. A label the
 # table does not know keeps an empty key, which is the honest outcome -- the row
 # still renders, it just cannot be matched by key until the file is recomputed.
-SCHEMA_VERSION = 37  # M4-9: LoadValue.key (semantics off the display label)
+SCHEMA_VERSION = 38  # M4-20: Project.unit_system (deliverable-unit preference)
 
 
 @dataclass
@@ -209,6 +209,17 @@ class Project:
     checked_by: str = ""
     approved_by: str = ""
     description: str = ""
+    # --- Deliverable unit preference (M4-20) -------------------------------- #
+    # ``"imperial"`` or ``"si"`` -- the system every *deliverable* is rendered in
+    # (report, load-case CSV, sbeam decks). A **preference only**: it says nothing
+    # about the units of the values stored beside it, which are always canonical
+    # Imperial. ``io.py`` never converts, so a project written on an SI machine
+    # holds the same numbers as one written on an Imperial machine.
+    #
+    # A plain ``str`` rather than ``units.UnitSystem``: ``sloads.units`` imports
+    # from ``sloads.models``, so the enum cannot come the other way without a
+    # cycle. Parse it with ``units.unit_system_from``.
+    unit_system: str = "imperial"
     engines: List["EngineInput"] = field(default_factory=list)
     engine_layout: Optional[EngineLayout] = None
     weight: Optional[WeightInput] = None

@@ -36,6 +36,7 @@ import streamlit as st
 
 from sloads import Project, UnitSystem
 from sloads import io as sloads_io
+from sloads.units import unit_system_from
 from sloads import workflow as wf
 from sloads.models import SCHEMA_VERSION
 
@@ -150,19 +151,27 @@ with st.sidebar:
     st.header("Units")
     _unit_label = st.radio(
         "Reported results in", ["Imperial", "SI"],
-        index=0 if st.session_state.get("unit_system", UnitSystem.IMPERIAL) == UnitSystem.IMPERIAL else 1,
+        index=0 if unit_system_from(project.unit_system) == UnitSystem.IMPERIAL else 1,
         horizontal=True, key="_unit_system_radio",
         help=(
             "Applies everywhere in the app: weights, lengths, forces, moments, "
-            "torque, power and inertia. Calculations always run in Imperial "
-            "internally (the FAR 23 LOADS manual's units), so this only changes "
-            "how inputs/results are displayed. Airspeed (KEAS) and altitude (ft) "
-            "stay in aviation-standard units in both modes."
+            "torque, power and inertia — **and to everything you export** (the "
+            "report, the load-case CSVs and the sbeam decks are all written in "
+            "this system). Calculations always run in Imperial internally (the "
+            "FAR 23 LOADS manual's units), and the saved project.json always "
+            "stores Imperial values — this is a rendering preference, not a "
+            "conversion of your data. Airspeed (KEAS) and altitude (ft) stay in "
+            "aviation-standard units in both modes."
         ),
     )
-    st.session_state["unit_system"] = (
-        UnitSystem.IMPERIAL if _unit_label == "Imperial" else UnitSystem.SI
-    )
+    _selected = UnitSystem.IMPERIAL if _unit_label == "Imperial" else UnitSystem.SI
+    # M4-20 D-22: the selection lives on the project, so changing it is a project
+    # edit and shows as an unsaved change (the dirty flag below is a diff against
+    # the last loaded/saved snapshot). The session key is kept in step so a render
+    # that has no project yet still resolves.
+    if project.unit_system != _selected.value:
+        project.unit_system = _selected.value
+    st.session_state["unit_system"] = _selected
 
     st.header("Project file")
     dirty = _has_unsaved_changes(project)

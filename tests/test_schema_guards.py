@@ -138,7 +138,7 @@ def fields_hash() -> str:
 #: with a default does not (the tolerant readers handle it); a renamed, removed or
 #: relocated field does. If it does: bump ``SCHEMA_VERSION`` and add a hop to
 #: ``sloads.migrations.MIGRATIONS``. Then update this constant.
-EXPECTED_FIELDS_HASH = "e832eecad0f47016"  # v37: LoadValue.key (M4-9)
+EXPECTED_FIELDS_HASH = "595852dc302c7d2f"  # v38: Project.unit_system (M4-20)
 
 
 def test_persisted_dataclass_shapes_are_unchanged():

@@ -428,7 +428,7 @@ sidebar and the JSON Editor (§10, Phase E5).
 
 The schema field list is **single-sourced in
 [`DATA_DICTIONARY.md`](DATA_DICTIONARY.md)** (generated; currently
-`SCHEMA_VERSION = 37`); the per-step migration history is recorded in
+`SCHEMA_VERSION = 38`); the per-step migration history is recorded in
 [`../40_history/00_completed_development.md`](../40_history/00_completed_development.md)
 (recent steps: v29 single-source CLmax
 stall; v30 M2-6 wing/fuselage derived geometry; v31 M2-10 operational placards;
@@ -442,7 +442,13 @@ reacts over; `None` = not entered → assumed default); v36 G8.2
 report's document-control header, all free text defaulting to `""`; v37 M4-9
 `LoadValue.key`, the stable machine identity that replaced the display label as
 the thing report/export/view/test code matches on — the first hop with a real
-data backfill, `migrations._v36_load_value_keys`).
+data backfill, `migrations._v36_load_value_keys`; v38 M4-20
+`Project.unit_system`, the system every *deliverable* is rendered in — a
+**preference only**, never a claim about the units of the values stored beside
+it, which stay canonical Imperial. Additive with a total default, so it needs no
+migration hop: absent *is* its documented value, Imperial. The sidebar
+Imperial/SI toggle writes it, so changing units is a project edit and shows as an
+unsaved change (D-22)).
 This paragraph's version number is guarded by
 `tests/test_data_dictionary.py::test_gui_design_schema_line_current` — update
 it (and this list) with every `SCHEMA_VERSION` bump.

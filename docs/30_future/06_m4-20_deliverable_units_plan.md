@@ -205,7 +205,29 @@ match NIST exactly; `moment` differs between the two channels and nothing else
 does; the `knot` and `lb-in`/`lb/in^2` behaviour is pinned by test.
 **Risk:** low — nothing calls it yet.
 
-### Step 2 — Selection plumbing: `Project.unit_system`, schema 38, CLI, GUI
+### Step 2 — Selection plumbing: `Project.unit_system`, schema 38, CLI, GUI ✅ *complete 2026-08-04*
+
+**Shipped, with three deviations from the text below, all deliberate.**
+
+1. **No migration hop.** The plan called for `_v37_unit_system`; none was written.
+   The field is additive with a *total* default, so absent **is** its documented
+   value and the tolerant readers already produce it — writing a hop that sets a
+   key to the value it already reads as would be ceremony. The `SCHEMA_VERSION`
+   bump is still required and the fields-hash tripwire duly demanded it. This
+   exposed a contradiction in `PROJECT_GUIDE.md`, which said an additive field
+   "needs nothing" while the tripwire fails on *any* persisted-shape change; the
+   convention now states bump-without-hop explicitly.
+2. **`project_to_dict` omits the key when it is default**, on the v36
+   document-control precedent — so the six examples gain nothing and a project
+   that never chose a system round-trips to a pre-v38 file exactly.
+3. **`--units si` with `--export-sbeam` errors instead of exporting.** The sbeam
+   writers are Imperial-only until step 4, and silently writing a deck in units
+   the user did not ask for is precisely the failure this item exists to prevent.
+   The error names the step. It disappears in step 4.
+
+Also of note: the CLI's engine text report now prints a `Units:` line on the
+default path, where it previously printed none — the first instance of D-21's
+"Imperial states its system too" in shipped output.
 
 1. **`Project.unit_system: str = "imperial"`** — a *preference*, not a claim about
    stored values. Document that beside the field, because the whole point of

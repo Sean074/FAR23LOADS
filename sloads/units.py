@@ -485,6 +485,22 @@ def deliverable_units(
     )
 
 
+def unit_system_from(value, default: UnitSystem = UnitSystem.IMPERIAL) -> UnitSystem:
+    """Parse a persisted/CLI unit-system string into a :class:`UnitSystem`.
+
+    Anything unrecognised -- including ``None`` and ``""`` -- falls back to
+    ``default`` (Imperial). A project file is not a place to raise: an unreadable
+    preference must degrade to the documented default, never block the load of an
+    otherwise-valid project.
+    """
+    if isinstance(value, UnitSystem):
+        return value
+    try:
+        return UnitSystem(str(value).strip().lower())
+    except (ValueError, AttributeError):
+        return default
+
+
 def units_statement(u: DeliverableUnits) -> str:
     """The in-band unit statement a deliverable carries, e.g. ``SI (N, mm, N·mm)``.
 

@@ -142,7 +142,7 @@ def test_bare_engine_file_is_still_accepted():
 # The discriminator that replaced the 19-clause or-gate
 # --------------------------------------------------------------------------- #
 def test_project_and_engine_dicts_are_told_apart():
-    assert is_project_dict(_load("v37_current.json"))
+    assert is_project_dict(_load("v38_current.json"))
     assert not is_project_dict(_load("v0_bare_engine.json"))
 
 
@@ -178,13 +178,13 @@ def test_migrate_is_idempotent():
 
 def test_current_file_is_untouched_by_the_chain():
     """No hop may fire for a current-schema file — that is what version-gating buys."""
-    current = _load("v37_current.json")
+    current = _load("v38_current.json")
     assert migrate(current) == {**current, "schema_version": SCHEMA_VERSION}
 
 
 def test_a_newer_file_is_not_mangled_by_hops_that_do_not_apply():
     """Forward compatibility degrades to 'read what you understand'."""
-    future = _load("v37_current.json")
+    future = _load("v38_current.json")
     future["schema_version"] = SCHEMA_VERSION + 5
     out = migrate(future)
     assert out["schema_version"] == SCHEMA_VERSION + 5

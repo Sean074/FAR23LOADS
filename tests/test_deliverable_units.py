@@ -20,16 +20,25 @@ Plan: ``docs/30_future/06_m4-20_deliverable_units_plan.md`` §4 step 1.
 
 from __future__ import annotations
 
+import glob
+import json
 import math
+import os
+import sys
 
-from sloads.models import ConditionResult, LoadValue
-from sloads.report.render import _LOAD_UNITS, _ULT_UNITS, ultimate_units
-from sloads.units import (
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+import cli  # noqa: E402
+from sloads import io  # noqa: E402
+from sloads.models import ConditionResult, LoadValue, Project
+from sloads.report.render import _LOAD_UNITS, _ULT_UNITS, ultimate_units  # noqa: E402
+from sloads.units import (  # noqa: E402
     _RESULT_TO_SI,
     Channel,
     UnitSystem,
     convert_results,
     deliverable_units,
+    unit_system_from,
     units_statement,
 )
 
@@ -195,6 +204,75 @@ def test_every_load_unit_has_an_ultimate_marker():
     exported as a bare limit-looking number."""
     for unit in _LOAD_UNITS:
         assert unit in _ULT_UNITS, f"load unit {unit!r} has no -ULT marker"
+
+
+# --------------------------------------------------------------------------- #
+# Selection plumbing (M4-20 step 2): Project.unit_system, schema 38, the CLI flag
+# --------------------------------------------------------------------------- #
+def test_unit_system_defaults_to_imperial_and_parses_leniently():
+    """An unreadable preference degrades to the documented default. A project file
+    is not a place to raise: a junk value must never block the load of an
+    otherwise-valid project."""
+    assert Project(name="x").unit_system == "imperial"
+    assert unit_system_from("si") is UnitSystem.SI
+    assert unit_system_from("SI") is UnitSystem.SI
+    assert unit_system_from("  Imperial ") is UnitSystem.IMPERIAL
+    assert unit_system_from(UnitSystem.SI) is UnitSystem.SI
+    for junk in (None, "", "metric", "furlongs", 7, []):
+        assert unit_system_from(junk) is UnitSystem.IMPERIAL, junk
+
+
+def test_unit_system_round_trips_and_stays_out_of_a_default_file():
+    """Written only when non-default, on the document-control precedent: a project
+    that never chose a system round-trips byte-identically to a pre-v38 file."""
+    p = Project(name="x")
+    assert "unit_system" not in io.project_to_dict(p)
+
+    p.unit_system = "si"
+    d = io.project_to_dict(p)
+    assert d["unit_system"] == "si"
+    assert io.project_from_dict(d).unit_system == "si"
+
+
+def test_a_pre_v38_file_reads_as_imperial():
+    """Absent *is* the value — which is why this needed no migration hop."""
+    here = os.path.dirname(os.path.abspath(__file__))
+    old = json.load(open(os.path.join(here, "fixtures_schema", "v37_no_unit_system.json")))
+    assert "unit_system" not in old
+    assert io.project_from_dict(old).unit_system == "imperial"
+
+
+def test_v38_adds_no_key_to_the_shipped_examples():
+    """None of the six examples chose a system, so none gains a ``unit_system``
+    key and each still round-trips to a stable dict.
+
+    (The round-trip is asserted as *idempotence*, not equality with the file on
+    disk: ``io.py`` has always normalised some values on read — tuples for
+    coordinate pairs, defaults filled in — which predates this item and is not
+    what this test is about.)
+    """
+    here = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    paths = sorted(glob.glob(os.path.join(here, "examples", "*.project.json")))
+    assert len(paths) == 6, paths
+    for path in paths:
+        with open(path) as fh:
+            on_disk = json.load(fh)
+        first = io.project_to_dict(io.project_from_dict(on_disk))
+        second = io.project_to_dict(io.project_from_dict(first))
+        assert "unit_system" not in first, os.path.basename(path)
+        assert first == second, path
+
+
+def test_cli_units_resolution_order():
+    """Flag beats the project's preference, which beats Imperial."""
+    imperial, si = Project(name="i"), Project(name="s", unit_system="si")
+    assert cli.resolve_units(imperial) is UnitSystem.IMPERIAL
+    assert cli.resolve_units(si) is UnitSystem.SI
+    # the flag overrides the project, in both directions
+    assert cli.resolve_units(imperial, "si") is UnitSystem.SI
+    assert cli.resolve_units(si, "imperial") is UnitSystem.IMPERIAL
+    # no flag, no preference -> today's behaviour, unchanged
+    assert cli.resolve_units(Project(name="x"), None) is UnitSystem.IMPERIAL
 
 
 if __name__ == "__main__":  # zero-dependency self-runner

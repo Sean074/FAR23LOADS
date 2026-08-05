@@ -92,6 +92,7 @@ from .models import (
 )
 from .migrations import is_project_dict, migrate
 from .report import has_load_case_data, load_cases_to_rows, results_to_rows
+from .units import unit_system_from
 from .validation import safety_factor_valid
 
 
@@ -964,6 +965,9 @@ def project_from_dict(d: Dict[str, Any]) -> Project:
             checked_by=d.get("checked_by", ""),
             approved_by=d.get("approved_by", ""),
             description=d.get("description", ""),
+            # v38: absent (every pre-v38 file) reads as Imperial, so an older
+            # project's deliverables render exactly as they do today.
+            unit_system=unit_system_from(d.get("unit_system")).value,
             engines=engines,
             engine_layout=layout,
             weight=weight_slice,
@@ -1026,6 +1030,12 @@ def project_to_dict(project: Project) -> Dict[str, Any]:
         _value = getattr(project, _field, "")
         if _value:
             out[_field] = _value
+    # Deliverable unit preference (v38). Written only when it differs from the
+    # default, on the same principle as the document-control fields above: a
+    # project that never chose a system round-trips byte-identically to a pre-v38
+    # file, and an absent key reads as Imperial.
+    if getattr(project, "unit_system", "imperial") != "imperial":
+        out["unit_system"] = project.unit_system
     if project.engines:
         out["engines"] = [engine_to_dict(e) for e in project.engines]
         if project.engine_layout is not None:

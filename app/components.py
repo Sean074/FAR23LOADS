@@ -20,7 +20,7 @@ from sloads import Project, StructuralSpeedsInput, UnitSystem, far23_applicabili
 from sloads import workflow as wf
 from sloads.applicability import design_weight_lb
 from sloads.modules.structural_speeds import maneuver_load_factors
-from sloads.units import labels_for, to_display, to_imperial_scalar
+from sloads.units import labels_for, to_display, to_imperial_scalar, unit_system_from
 
 
 # --------------------------------------------------------------------------- #
@@ -139,13 +139,18 @@ ALTITUDE_FT = "ft"
 def active_system() -> UnitSystem:
     """The display unit system for this render.
 
-    **The single read of the unit selection in the whole app layer.** Today it is
-    the session-wide sidebar toggle (``app/Home.py`` writes
-    ``st.session_state["unit_system"]``); backlog **M4-20** moves the selection
-    onto ``Project`` and re-points *this one function* at the field, without
-    touching any of the call sites that go through :func:`unit_number_input` or
-    :func:`page`.
+    **The single read of the unit selection in the whole app layer** (D-16), which
+    is why M4-20 step 2 re-pointed this one function at ``Project.unit_system``
+    without touching a single call site that goes through
+    :func:`unit_number_input` or :func:`page`.
+
+    The project field is the authority; the session key is the fallback for a
+    render that has no project yet (the very first paint, before Home.py has put
+    one in session state). Both default to Imperial.
     """
+    project = st.session_state.get("project")
+    if project is not None:
+        return unit_system_from(getattr(project, "unit_system", None))
     return st.session_state.get("unit_system", UnitSystem.IMPERIAL)
 
 

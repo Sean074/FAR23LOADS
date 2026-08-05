@@ -39,8 +39,14 @@ v28    top-level ``landing`` gear -> ``geometry.landing_gear``       ``legacy_la
 v36    persisted ``LoadValue`` s gain ``key`` (M4-9)                 nothing — new in v37
 ===== ============================================================ =================================
 
-Versions 1–17, 20–23, 26 and 29–35 are **additive only** — a new optional field
-that the tolerant ``_filtered`` readers already default — so they need no hop.
+Versions 1–17, 20–23, 26, 29–35 and **37** are **additive only** — a new optional
+field that the tolerant ``_filtered`` readers already default — so they need no
+hop. v38 (``Project.unit_system``, M4-20) is the additive case in its purest
+form: a scalar with a total default whose absence *is* its documented value
+(absent → Imperial), so a pre-v38 file's deliverables render exactly as before.
+The ``SCHEMA_VERSION`` bump is still required — the fields-hash tripwire in
+``tests/test_schema_guards.py`` demands one for any change to a persisted shape,
+which is the discipline working, not a hop being skipped.
 
 **Supported floor.** v0 (bare engine file) and anything from v18 up are migrated.
 A file claiming v1–v17 is read as v18 shape: those versions only ever added

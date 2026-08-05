@@ -99,9 +99,17 @@ latent-defect fixes it carried (`lb-in` and `lb/in^2` had no SI mapping, so
 table; the dead `"knot"` row is gone), and the D-20 doc amendment
 (`Pa-ULT` → `kPa-ULT`) with the D-19 solver-channel carve-out written into
 `00_program_overview.md`, `SUMMARY_REPORT.md` §3.5 and CLAUDE.md.
-**Remaining: steps 2–7** — selection plumbing (`Project.unit_system`, schema 38,
-`--units`, the sidebar toggle), the human-channel writers, the solver channel,
-the in-band statements, the Export page, and close-out.
+**Step 2 shipped 2026-08-04** — `Project.unit_system` at **schema v38** (a
+preference only; additive with a total default, so it needs no migration hop),
+`units.unit_system_from`, CLI `--units imperial|si` with `resolve_units`
+(flag → project → Imperial), and the sidebar toggle now writing the project field
+so a unit change reads as an unsaved change (D-22). `components.active_system()`
+re-pointed at the field — one function, no call-site changes.
+
+**Remaining: steps 3–7** — the human-channel writers (`io.load_cases_csv` takes
+the system), the solver channel (`coordinates.py` scale + the 14 sbeam writers;
+until it lands `--units si --export-sbeam` refuses rather than writing a deck in
+the wrong units), the in-band statements, the Export page, and close-out.
 
 ### M3-3b — Step G8 remainder: the report document itself
 

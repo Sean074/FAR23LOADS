@@ -12,6 +12,29 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **M4-20 step 2 — the unit selection is now part of the project.**
+  `Project.unit_system` (**`SCHEMA_VERSION` 37 → 38**) records which system every
+  *deliverable* is rendered in. It is a **preference only** — `io.py` still never
+  converts, so the values stored beside it are canonical Imperial as always, and
+  a project written on an SI machine holds the same numbers as one written on an
+  Imperial machine. Absent (every pre-v38 file) reads as Imperial, so an older
+  project's output is unchanged. The field is **additive with a total default and
+  therefore needs no migration hop**: absent *is* its documented value. Written to
+  `project.json` only when non-default, on the v36 document-control precedent, so
+  the six shipped examples gain no key at all.
+- **M4-20 step 2 — `--units imperial|si` on the CLI**, with `cli.resolve_units`
+  resolving flag → project preference → Imperial. A run with neither reproduces
+  today's output exactly. `--units si --export-sbeam` **errors** rather than
+  exporting: the sbeam writers are Imperial-only until step 4, and a deck written
+  in units the user did not ask for is the exact failure this item exists to
+  prevent.
+- **M4-20 step 2 — the sidebar Imperial/SI toggle writes the project** (decision
+  D-22), so changing units is a project edit and shows as an unsaved change.
+  `app/components.active_system()` — the single read of the unit selection in the
+  whole app layer (D-16) — was re-pointed at the field, and **no call site
+  changed**: every view follows through `unit_number_input`/`page`, which is what
+  that resolver was built for. `st.session_state["unit_system"]` survives only as
+  the fallback for a render with no project yet.
 - **M4-20 step 1 — deliverable unit sets (`units.py`).** `Channel`,
   `DeliverableUnits`, `deliverable_units(system, channel)` and `units_statement()`:
   the one authority for what units a deliverable is written in. Resolve it **once
@@ -52,6 +75,11 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- **`PROJECT_GUIDE.md`'s schema-change convention contradicted the tripwire.** It
+  said a new optional field with a default "needs nothing", while
+  `test_schema_guards.py`'s fields-hash tripwire fails on *any* persisted-shape
+  change — as it duly did for `unit_system`. The convention now states the
+  additive case explicitly: bump `SCHEMA_VERSION`, write no hop.
 - **`Pa-ULT` → `kPa-ULT` (decision D-20).** `units.py` already converted psi → kPa
   everywhere in the GUI while three documents specified `Pa`. The code was right;
   CLAUDE.md, `00_program_overview.md` and `SUMMARY_REPORT.md` §3.5 now say

@@ -25,6 +25,19 @@ import sys
 
 from sloads import io, registry
 from sloads.report import module_text_report, text_report
+from sloads.units import UnitSystem, convert_results, unit_system_from
+
+
+def resolve_units(project, flag=None) -> UnitSystem:
+    """The unit system this run's output is rendered in.
+
+    Resolution order, highest first: the ``--units`` flag, the project's own
+    ``unit_system`` preference, then Imperial. A run with no flag and a project
+    that never chose reproduces today's output exactly.
+    """
+    if flag:
+        return unit_system_from(flag)
+    return unit_system_from(getattr(project, "unit_system", None))
 
 
 def _export_sbeam(project, prefix: str, target: str, stick_model: bool) -> int:
@@ -95,6 +108,11 @@ def main(argv=None) -> int:
         "--stick-model", action="store_true",
         help="with --export-sbeam, also write the CBAR stick-model BDF (wing target)",
     )
+    parser.add_argument(
+        "--units", choices=("imperial", "si"), default=None,
+        help="unit system for the output; overrides the project's own preference "
+             "for this run (default: the project's, else imperial)",
+    )
     args = parser.parse_args(argv)
 
     if args.list:
@@ -107,7 +125,17 @@ def main(argv=None) -> int:
         project_path = args.module or args.project
         if not project_path:
             parser.error("--export-sbeam requires a project.json path")
-        return _export_sbeam(io.load_project(project_path), args.export_sbeam,
+        project = io.load_project(project_path)
+        # The sbeam writers are still Imperial-only (M4-20 step 4 gives them the
+        # consistent N/mm/N*mm solver set). Refuse rather than silently write a
+        # deck in the wrong units -- a deck whose units are not what was asked
+        # for is exactly the failure this whole item exists to prevent.
+        if resolve_units(project, args.units) != UnitSystem.IMPERIAL:
+            parser.error(
+                "SI sbeam export is not implemented yet (M4-20 step 4); "
+                "re-run with --units imperial, or export the CSV/report instead"
+            )
+        return _export_sbeam(project, args.export_sbeam,
                              args.export_target, args.stick_model)
 
     if not args.module or not args.project:
@@ -120,14 +148,17 @@ def main(argv=None) -> int:
 
     project = io.load_project(args.project)
     result = run(project)
+    system = resolve_units(project, args.units)
+    conditions = convert_results(result.conditions, system)
+    label = "Imperial" if system == UnitSystem.IMPERIAL else "SI"
 
     if args.output:
-        io.write_load_cases_csv(result, args.output)
-        print(f"Wrote {len(result.conditions)} condition(s) to {args.output}")
+        io.write_load_cases_csv(conditions, args.output)
+        print(f"Wrote {len(conditions)} condition(s) to {args.output} ({label})")
     elif args.module == "engine" and project.engine is not None:
-        print(text_report(project.engine, result.conditions))
+        print(text_report(project.engine, conditions, unit_system=label))
     else:
-        print(module_text_report(result.module, result.conditions))
+        print(module_text_report(result.module, conditions))
 
     return 0
 
