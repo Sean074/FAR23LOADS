@@ -30,6 +30,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import cli  # noqa: E402
 from sloads import io, registry  # noqa: E402
+from sloads.export import sbeam_bridge as sb  # noqa: E402
 from sloads.models import ConditionResult, LoadValue, Project
 from sloads.registry import run_all_modules  # noqa: E402
 from sloads.report.render import _LOAD_UNITS, _ULT_UNITS, ultimate_units  # noqa: E402
@@ -98,11 +99,20 @@ def test_human_set_is_not_dimensionally_consistent_in_si():
     assert u.moment.label == "N·m"
 
 
-def test_the_two_channels_differ_only_in_the_moment():
+def test_the_two_channels_differ_in_the_derived_dimensions_only():
+    """The base dimensions are shared; what a channel chooses is the derived ones.
+
+    Both derived dimensions differ, not just the moment: pressure is force /
+    length^2, so the solver's mm length makes its stress unit MPa (N/mm^2) where
+    a report reads in kPa. Same D-19 argument, same 1000x, and it was missed
+    when this file was first written (M4-20 step 1) -- the moment was the loud
+    case, the pressure the quiet one.
+    """
     human = deliverable_units(UnitSystem.SI, Channel.HUMAN)
     solver = deliverable_units(UnitSystem.SI, Channel.SOLVER)
     assert human.moment != solver.moment
-    for dim in ("force", "length", "torque", "pressure"):
+    assert human.pressure != solver.pressure
+    for dim in ("force", "length", "torque"):
         assert getattr(human, dim) == getattr(solver, dim), dim
 
 
@@ -111,6 +121,7 @@ def test_si_factors_are_the_exact_nist_products():
     assert solver.force.factor == 4.4482216152605      # lbf -> N
     assert solver.length.factor == 25.4                # in -> mm
     assert solver.moment.factor == 4.4482216152605 * 25.4   # lb-in -> N·mm
+    assert solver.pressure.factor == 4.4482216152605 / 25.4 ** 2  # psi -> MPa
     human = deliverable_units(UnitSystem.SI, Channel.HUMAN)
     # lb-in -> N·m is the same product with the length in metres.
     assert math.isclose(human.moment.factor, 0.11298482902761668, rel_tol=1e-15)
@@ -400,6 +411,173 @@ def test_write_load_cases_csv_passes_the_system_through(tmp_path=None):
             written = fh.read()
     assert written == io.load_cases_csv(result, system=UnitSystem.SI)
     assert "N-ULT" in written.splitlines()[0]
+
+
+# --------------------------------------------------------------------------- #
+# Step 4 -- the solver channel: the sbeam deck on the N/mm/N*mm set
+# --------------------------------------------------------------------------- #
+def _ga_wing_net():
+    from sloads.modules.net_loads import build_net_loads
+
+    project = io.load_project(os.path.join(
+        os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+        "examples", "ga6_normal.project.json"))
+    return build_net_loads(project).wing_net
+
+
+def _card_sums(bdf: str):
+    """[(stated_sz, stated_myy, summed_fz, summed_my)] per case block."""
+    import re
+
+    out, stated, fz, my = [], None, 0.0, 0.0
+    for line in bdf.splitlines():
+        if line.startswith("$ SLOADS"):
+            if stated is not None:
+                out.append((stated[0], stated[1], fz, my))
+            stated, fz, my = None, 0.0, 0.0
+        elif line.startswith("$ FORCE set sums"):
+            nums = re.findall(r"=\s*(-?[\d.]+)", line)
+            stated = (float(nums[0]), float(nums[1]))
+        elif line.startswith("FORCE,"):
+            fz += float(line.split(",")[7])
+        elif line.startswith("MOMENT,"):
+            my += float(line.split(",")[6])
+    if stated is not None:
+        out.append((stated[0], stated[1], fz, my))
+    return out
+
+
+def test_si_deck_still_closes_on_the_root_shear_and_torsion():
+    """The physics test, not a factor test (plan step 4 acceptance).
+
+    A scale bug that multiplied the cards but not the stated total -- or the
+    moment by the force factor -- would leave every number plausible and the
+    closure broken. Checking the *set sums to the root* in the new units is what
+    actually catches it.
+    """
+    results = _ga_wing_net()
+    for system in (UnitSystem.IMPERIAL, UnitSystem.SI):
+        blocks = _card_sums(sb.force_moment_cards(results, system=system))
+        assert len(blocks) == len(results), system
+        for stated_sz, stated_myy, fz, my in blocks:
+            assert math.isclose(fz, stated_sz, rel_tol=1e-5), (system, fz, stated_sz)
+            assert math.isclose(my, stated_myy, rel_tol=1e-5), (system, my, stated_myy)
+
+
+def test_si_deck_is_the_imperial_deck_times_the_solver_factors():
+    """Same cards, same GIDs, same SIDs -- only the magnitudes move, each by its
+    own dimension's factor. In particular the moment moves by force x length
+    (N*mm), not by the human channel's N*m: that difference is D-19's 1000x."""
+    results = _ga_wing_net()
+    u = deliverable_units(UnitSystem.SI, Channel.SOLVER)
+    imp = [ln for ln in sb.force_moment_cards(results).splitlines()
+           if ln.startswith(("FORCE,", "MOMENT,"))]
+    si = [ln for ln in sb.force_moment_cards(results, system=UnitSystem.SI).splitlines()
+          if ln.startswith(("FORCE,", "MOMENT,"))]
+    assert len(imp) == len(si) and imp
+
+    checked_force = checked_moment = 0
+    for a, b in zip(imp, si):
+        pa, pb = a.split(","), b.split(",")
+        assert pa[:5] == pb[:5], (a, b)   # card type, SID, GID, CID, scale
+        factor = u.force.factor if pa[0] == "FORCE" else u.moment.factor
+        for va, vb in zip(pa[5:], pb[5:]):
+            if abs(float(va)) < 1e-9:
+                assert abs(float(vb)) < 1e-9, (a, b)
+                continue
+            assert math.isclose(float(vb), float(va) * factor, rel_tol=1e-6), (a, b)
+            if pa[0] == "FORCE":
+                checked_force += 1
+            else:
+                checked_moment += 1
+    assert checked_force and checked_moment
+
+
+def test_the_solver_deck_never_uses_the_human_moment():
+    """The 1000x guard, at the level of the numbers in the file.
+
+    An N*m moment in a millimetre deck is the failure D-19 exists to prevent, so
+    assert the deck's moments are *not* what the human channel would have
+    written -- a stronger statement than 'the factor is the one we chose'.
+    """
+    results = _ga_wing_net()
+    human = deliverable_units(UnitSystem.SI, Channel.HUMAN)
+    si = [ln for ln in sb.force_moment_cards(results, system=UnitSystem.SI).splitlines()
+          if ln.startswith("MOMENT,")]
+    imp = [ln for ln in sb.force_moment_cards(results).splitlines()
+           if ln.startswith("MOMENT,")]
+    compared = 0
+    for a, b in zip(imp, si):
+        va, vb = float(a.split(",")[6]), float(b.split(",")[6])
+        if abs(va) < 1e-9:
+            continue
+        assert not math.isclose(vb, va * human.moment.factor, rel_tol=1e-3), a
+        compared += 1
+    assert compared
+
+
+def test_coordinates_refuse_an_inconsistent_unit_set():
+    """The human set is a plausible thing to pass, so the scale point rejects it.
+
+    ``deliverable_units(SI)`` defaults to HUMAN -- the set every *report* uses --
+    and a caller who forgets ``Channel.SOLVER`` gets an error, not a deck with
+    N*m moments and kPa pressures against millimetre GRIDs.
+    """
+    from sloads.export import coordinates as coords
+
+    human = deliverable_units(UnitSystem.SI, Channel.HUMAN)
+    assert not human.is_consistent
+    for call in (lambda: coords.to_grid(1.0, 0.0, 0.0, human),
+                 lambda: coords.to_force(1.0, 0.0, 0.0, human),
+                 lambda: coords.to_moment(0.0, 1.0, 0.0, human),
+                 lambda: coords.to_pressure(1.0, human)):
+        try:
+            call()
+        except ValueError as exc:
+            assert "not dimensionally consistent" in str(exc)
+        else:
+            raise AssertionError("an inconsistent unit set was accepted")
+
+
+def test_every_sbeam_writer_takes_a_system():
+    """A writer without the parameter would silently emit an Imperial file into
+    an SI bundle -- the 'one system per bundle' guarantee is only as good as its
+    least-updated writer, so enumerate them rather than trust the sweep."""
+    import inspect
+
+    writers = [
+        sb.span_load_csv, sb.write_span_load_csv,
+        sb.force_moment_cards, sb.write_force_moment_cards,
+        sb.stick_model_bdf, sb.write_stick_model_bdf,
+        sb.body_span_load_csv, sb.body_force_moment_cards, sb.body_fitting_load_csv,
+        sb.tail_chordwise_csv, sb.write_tail_chordwise_csv,
+        sb.tail_force_moment_cards, sb.write_tail_force_moment_cards,
+        sb.control_surface_csv, sb.write_control_surface_csv,
+        sb.control_surface_force_moment_cards,
+        sb.write_control_surface_force_moment_cards,
+    ]
+    for fn in writers:
+        param = inspect.signature(fn).parameters.get("system")
+        assert param is not None, fn.__name__
+        assert param.kind is inspect.Parameter.KEYWORD_ONLY, fn.__name__
+        assert param.default is UnitSystem.IMPERIAL, fn.__name__
+
+
+def test_sbeam_headers_state_their_units_in_both_systems():
+    """Every dimensional column carries its unit; no column is left bare (D-21)."""
+    results = _ga_wing_net()
+    for system, length, force, moment in (
+        (UnitSystem.IMPERIAL, "(in)", "(lbs-ULT)", "(lb-in-ULT)"),
+        (UnitSystem.SI, "(mm)", "(N-ULT)", "(Nmm-ULT)"),
+    ):
+        header = sb.span_load_csv(results, system=system).splitlines()[0]
+        cells = header.split(",")
+        assert cells[2] == f"X {length}", header
+        assert cells[5] == f"Fx {force}", header
+        assert cells[7] == f"My {moment}", header
+        # Only the non-dimensional columns are bare.
+        bare = [c for c in cells if "(" not in c]
+        assert bare == ["Case", "GID", "MyyAxis", "SF"], bare
 
 
 if __name__ == "__main__":  # zero-dependency self-runner

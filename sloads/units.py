@@ -56,6 +56,11 @@ PSI_TO_KPA = 6.894757            # lb/in^2 -> kilopascal
 LB_IN_TO_N_M = LBF_TO_N * (IN_TO_MM / 1000.0)    # lb-in -> N*m  (0.112984829...)
 LB_IN_TO_N_MM = LBF_TO_N * IN_TO_MM              # lb-in -> N*mm (solver set)
 FT_LB_TO_N_M = LBF_TO_N * FT_TO_M                # ft-lb -> N*m
+# Pressure is force / length^2, and the solver set's length is the millimetre, so
+# its stress unit is N/mm^2 = MPa -- *not* the kPa a human-readable deliverable
+# uses (M4-20 step 4). Same D-19 argument as the moment: a deck in N and mm whose
+# pressures are kPa is wrong by 1000x, silently.
+PSI_TO_MPA = LBF_TO_N / (IN_TO_MM ** 2)          # lb/in^2 -> N/mm^2 (solver set)
 
 # Display units for each "kind", by system. One unit per physical dimension
 # (Phase G0): length -> in/mm, area -> ft²/m². ``inertia_lbin2`` is a distinct
@@ -442,13 +447,20 @@ class DeliverableUnits(NamedTuple):
 
     @property
     def is_consistent(self) -> bool:
-        """True if ``moment == force x length`` -- the invariant a solver deck needs.
+        """True if ``moment == force x length`` **and** ``pressure == force / length^2``.
 
-        Holds exactly for Imperial (1 x 1 = 1) and for the SOLVER set by
-        construction. The HUMAN set deliberately fails it in SI (N*m against a
-        mm length), which is why a deck must never be written from it.
+        The invariant a solver deck rests on: every derived dimension is the
+        product/quotient of the base ones, so a card cannot be off by a decimal
+        power. Holds exactly for Imperial (1 x 1 = 1) and for the SOLVER set by
+        construction. The HUMAN set deliberately fails it in SI (N*m and kPa
+        against a mm length), which is why a deck must never be written from it.
         """
-        return abs(self.moment.factor - self.force.factor * self.length.factor) < 1e-12
+        moment_ok = abs(
+            self.moment.factor - self.force.factor * self.length.factor) < 1e-12
+        pressure_ok = abs(
+            self.pressure.factor
+            - self.force.factor / self.length.factor ** 2) < 1e-12
+        return moment_ok and pressure_ok
 
 
 _IMPERIAL_LABELS = {
@@ -470,9 +482,18 @@ def deliverable_units(
         one = {k: Dimension(1.0, v) for k, v in _IMPERIAL_LABELS.items()}
         return DeliverableUnits(system=system, channel=channel, **one)
 
+    solver = channel == Channel.SOLVER
+    # The solver set's derived dimensions are the base ones combined, so the deck
+    # is dimensionally consistent (D-19): N*mm = N x mm, MPa = N / mm^2. The human
+    # set uses the units an engineering document reads in (N*m, kPa) and is
+    # deliberately inconsistent against a mm length -- see ``is_consistent``.
     moment = (
-        Dimension(LB_IN_TO_N_MM, "N·mm") if channel == Channel.SOLVER
+        Dimension(LB_IN_TO_N_MM, "N·mm") if solver
         else Dimension(LB_IN_TO_N_M, "N·m")
+    )
+    pressure = (
+        Dimension(PSI_TO_MPA, "MPa") if solver
+        else Dimension(PSI_TO_KPA, "kPa")
     )
     return DeliverableUnits(
         system=system,
@@ -481,7 +502,7 @@ def deliverable_units(
         length=Dimension(IN_TO_MM, "mm"),
         moment=moment,
         torque=Dimension(FT_LB_TO_N_M, "N·m"),
-        pressure=Dimension(PSI_TO_KPA, "kPa"),
+        pressure=pressure,
     )
 
 

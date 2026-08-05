@@ -89,8 +89,8 @@ are never converted, and deliverables say so.
 [`06_m4-20_deliverable_units_plan.md`](06_m4-20_deliverable_units_plan.md)**
 (2026-08-04). Seven sub-steps; the spine is a **two-channel** split — the
 human-readable deliverables render N/mm/N·m/kPa, the sbeam decks render the
-consistent solver set **N/mm/N·mm** (D-19: N·m in a deck whose GRIDs are mm is a
-silent 1000× torsion error).
+consistent solver set **N/mm/N·mm/MPa** (D-19: N·m in a deck whose GRIDs are mm
+is a silent 1000× torsion error, and kPa is the same error for a pressure).
 
 **Step 1 shipped 2026-08-04** — `units.py`'s deliverable unit sets
 (`Channel`/`DeliverableUnits`/`deliverable_units`/`units_statement`), the two
@@ -114,10 +114,20 @@ the SI column headers (`N-ULT`, `Nm-ULT`, `mm`) fell out of the existing
 systems. A guard pins `load_cases_csv` as the sole `convert_results` caller in
 `io.py`, so the channel keeps exactly one conversion point.
 
-**Remaining: steps 4–7** — the solver channel (`coordinates.py` scale + the 14
-sbeam writers; until it lands `--units si --export-sbeam` refuses rather than
-writing a deck in the wrong units), the in-band statements, the Export page (it
-still calls `load_cases_csv` without a system, so GUI CSV downloads stay
+**Step 4 shipped 2026-08-04** — the solver channel. `export/coordinates.py` is
+the single scale point (`to_grid`/`to_force`/`to_moment`/`to_pressure`, which now
+**raise** on a dimensionally inconsistent unit set), and all 17 sbeam writers take
+`system=`. CSV cells go through the same three functions the cards do, so a span
+CSV cannot disagree with the deck beside it. `--units si --export-sbeam` now
+works; the temporary refusal is gone. **The solver set gained `MPa`:** step 1 left
+pressure at the human channel's `kPa`, which is the D-19 defect one dimension over
+(pressure is force/length², so an N/mm deck reads stresses in N/mm² = MPa), and
+`is_consistent` now checks both derived dimensions. Imperial output changed by
+**zero numeric characters** across all six examples × wing/tail/control — only
+header rows and two `$` comment lines (D-21).
+
+**Remaining: steps 5–7** — the in-band `$ Units:` / `# Units:` statements, the
+Export page (it still calls the writers without a system, so GUI downloads stay
 Imperial until step 6), and close-out.
 
 ### M3-3b — Step G8 remainder: the report document itself

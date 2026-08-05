@@ -179,7 +179,8 @@ def test_sbeam_body_export_force_set_sums_to_zero():
 def test_sbeam_body_span_csv():
     csv_text = sbeam_bridge.body_span_load_csv(body_loads.build_body_loads(_project()))
     lines = [ln for ln in csv_text.splitlines() if ln.strip()]
-    assert lines[0] == "Case,GID,X,Fz,Sz,Myy,SF"
+    # Unit-and-ULT-marked headers since M4-20 step 4 (was bare "X,Fz,Sz,Myy").
+    assert lines[0] == "Case,GID,X (in),Fz (lbs-ULT),Sz (lbs-ULT),Myy (lb-in-ULT),SF"
     assert len(lines) > 1
 
 
@@ -244,15 +245,17 @@ def test_body_fitting_load_csv_is_ultimate():
     FORCE set, which already carries them as the carry-through distribution."""
     results = body_loads.build_body_loads(_project())
     lines = sbeam_bridge.body_fitting_load_csv(results).strip().splitlines()
+    # The force marker is the renderer's ``lbs-ULT`` since M4-20 step 4; this
+    # file used to be the only deliverable spelling it ``lb-ULT``.
     assert lines[0].split(",") == [
-        "Case", "Case ID", "X front (in)", "R front (lb-ULT)", "X rear (in)",
-        "R rear (lb-ULT)", "M unbalanced (lb-in-ULT)", "Spars", "SF"]
+        "Case", "Case ID", "X front (in)", "R front (lbs-ULT)", "X rear (in)",
+        "R rear (lbs-ULT)", "M unbalanced (lb-in-ULT)", "Spars", "SF"]
     assert len(lines) == len(results) + 1
     row = dict(zip(lines[0].split(","), lines[1].split(",")))
     r = results[0]
     sf = r.safety_factor
-    assert math.isclose(float(row["R front (lb-ULT)"]), r.r_front * sf, rel_tol=1e-4)
-    assert math.isclose(float(row["R rear (lb-ULT)"]), r.r_rear * sf, rel_tol=1e-4)
+    assert math.isclose(float(row["R front (lbs-ULT)"]), r.r_front * sf, rel_tol=1e-4)
+    assert math.isclose(float(row["R rear (lbs-ULT)"]), r.r_rear * sf, rel_tol=1e-4)
     assert row["SF"] == f"{sf:g}" and row["Spars"] == "assumed"
     # Stations are geometry, never scaled by the limit->ultimate factor.
     assert math.isclose(float(row["X front (in)"]), r.x_front, rel_tol=1e-9)

@@ -24,7 +24,7 @@ all four component families plus the case index:
 
 from __future__ import annotations
 
-from .coordinates import SBEAM_CID, to_force, to_grid, to_moment
+from .coordinates import SBEAM_CID, to_force, to_grid, to_moment, to_pressure
 from .sbeam_bridge import (
     NodalLoad,
     body_fitting_load_csv,
@@ -58,6 +58,7 @@ __all__ = [
     "to_force",
     "to_grid",
     "to_moment",
+    "to_pressure",
     "NodalLoad",
     "wing_nodal_loads",
     "station_gid",

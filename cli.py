@@ -16,6 +16,11 @@ stick model); ``--export-target tail`` writes the chordwise tail loads (TAILDIST
     python cli.py --export-sbeam out examples/ga6_normal.project.json
     python cli.py --export-sbeam out --export-target tail examples/ga6_normal.project.json
     python cli.py --export-sbeam out --export-target control examples/ga6_normal.project.json
+
+Output units follow ``--units imperial|si`` (default: the project's own
+preference, else Imperial). An sbeam deck is written in the **solver** unit set,
+which in SI is N / mm / N*mm / MPa -- consistent by construction, unlike the
+N*m a report uses (M4-20 D-19).
 """
 
 from __future__ import annotations
@@ -40,8 +45,13 @@ def resolve_units(project, flag=None) -> UnitSystem:
     return unit_system_from(getattr(project, "unit_system", None))
 
 
-def _export_sbeam(project, prefix: str, target: str, stick_model: bool) -> int:
-    """Build the loads for ``target`` and write the sbeam export artifacts."""
+def _export_sbeam(project, prefix: str, target: str, stick_model: bool,
+                  system: UnitSystem = UnitSystem.IMPERIAL) -> int:
+    """Build the loads for ``target`` and write the sbeam export artifacts.
+
+    ``system`` is resolved once here and passed to every writer, so the files of
+    one export cannot disagree with each other about their units (M4-20 D-19).
+    """
     from sloads.export import sbeam_bridge as sb
 
     if target == "tail":
@@ -50,8 +60,8 @@ def _export_sbeam(project, prefix: str, target: str, stick_model: bool) -> int:
         results = build_tail_chordwise(project)
         csv_path = f"{prefix}.tail_chordwise.csv"
         bdf_path = f"{prefix}.tail_loads.bdf"
-        sb.write_tail_chordwise_csv(results, csv_path)
-        sb.write_tail_force_moment_cards(results, bdf_path)
+        sb.write_tail_chordwise_csv(results, csv_path, system=system)
+        sb.write_tail_force_moment_cards(results, bdf_path, system=system)
         print(f"Wrote {len(results)} tail condition(s) to: {csv_path}, {bdf_path}")
         return 0
 
@@ -68,8 +78,8 @@ def _export_sbeam(project, prefix: str, target: str, stick_model: bool) -> int:
                 pass  # skip a control surface whose input slice is absent
         csv_path = f"{prefix}.control_surface.csv"
         bdf_path = f"{prefix}.control_surface.bdf"
-        sb.write_control_surface_csv(results, csv_path)
-        sb.write_control_surface_force_moment_cards(results, bdf_path)
+        sb.write_control_surface_csv(results, csv_path, system=system)
+        sb.write_control_surface_force_moment_cards(results, bdf_path, system=system)
         print(f"Wrote {len(results)} control-surface condition(s) to: {csv_path}, {bdf_path}")
         return 0
 
@@ -78,12 +88,12 @@ def _export_sbeam(project, prefix: str, target: str, stick_model: bool) -> int:
     results = build_net_loads(project).wing_net
     csv_path = f"{prefix}.span_loads.csv"
     bdf_path = f"{prefix}.loads.bdf"
-    sb.write_span_load_csv(results, csv_path)
-    sb.write_force_moment_cards(results, bdf_path)
+    sb.write_span_load_csv(results, csv_path, system=system)
+    sb.write_force_moment_cards(results, bdf_path, system=system)
     written = [csv_path, bdf_path]
     if stick_model:
         stick_path = f"{prefix}.stick.bdf"
-        sb.write_stick_model_bdf(results, stick_path)
+        sb.write_stick_model_bdf(results, stick_path, system=system)
         written.append(stick_path)
     print(f"Wrote {len(results)} case(s) to: " + ", ".join(written))
     return 0
@@ -126,17 +136,9 @@ def main(argv=None) -> int:
         if not project_path:
             parser.error("--export-sbeam requires a project.json path")
         project = io.load_project(project_path)
-        # The sbeam writers are still Imperial-only (M4-20 step 4 gives them the
-        # consistent N/mm/N*mm solver set). Refuse rather than silently write a
-        # deck in the wrong units -- a deck whose units are not what was asked
-        # for is exactly the failure this whole item exists to prevent.
-        if resolve_units(project, args.units) != UnitSystem.IMPERIAL:
-            parser.error(
-                "SI sbeam export is not implemented yet (M4-20 step 4); "
-                "re-run with --units imperial, or export the CSV/report instead"
-            )
         return _export_sbeam(project, args.export_sbeam,
-                             args.export_target, args.stick_model)
+                             args.export_target, args.stick_model,
+                             resolve_units(project, args.units))
 
     if not args.module or not args.project:
         parser.error("module and project are required (or use --list / --export-sbeam)")

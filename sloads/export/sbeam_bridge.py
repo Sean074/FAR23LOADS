@@ -56,8 +56,23 @@ applied here at the boundary. Callers passing bare ``WingLoadResult`` lists are
 responsible for transferring first (the results' ``torsion_axis`` stamp is
 exported either way, so the axis is always labelled).
 
-Coordinate / units map: see :mod:`sloads.export.coordinates` (identity,
-inches, CID 0).
+Unit systems (M4-20 step 4)
+---------------------------
+Every public writer takes ``system=UnitSystem.IMPERIAL|SI`` and resolves it to
+the **solver** unit set -- ``deliverable_units(system, Channel.SOLVER)``, i.e.
+N / mm / N*mm / MPa in SI. The solver set is deliberately *not* the one a report
+uses (N*m, kPa): a deck whose GRIDs are millimetres and whose forces are newtons
+is only correct with N*mm moments, and an N*m moment in it is a silent 1000x
+torsion error in a file that parses cleanly (decision D-19).
+
+No arithmetic here knows about units. Every dimensional value this module emits
+-- card fields *and* CSV cells alike -- goes through
+:mod:`sloads.export.coordinates`, which is the single scale point, so a span CSV
+can never disagree with the cards beside it. Imperial is the all-1.0 identity, so
+an Imperial export takes the same path it always did.
+
+Coordinate / units map: see :mod:`sloads.export.coordinates` (identity axes,
+CID 0, plus the unit scale).
 
 Reference: ``sbeam/results/load_export.py`` (card style); NASTRAN FORCE / MOMENT
 / GRID / CBAR / PBAR / MAT1 / SPC1 bulk-data cards; Ref 1 Ch 14 (net loads).
@@ -80,11 +95,36 @@ from ..models import (
     WingLoadResult,
     WingStationLoad,
 )
-from .coordinates import SBEAM_CID, to_force, to_grid, to_moment
+from ..report import ultimate_units
+from ..units import Channel, DeliverableUnits, UnitSystem, deliverable_units
+from .coordinates import SBEAM_CID, to_force, to_grid, to_moment, to_pressure
 # Single-sourced from the calc that owns the limitation (public symbol, no cycle:
 # nothing under sloads/modules imports the export bridge).
 from ..modules.body_loads import CLOSURE_ARTIFACT_CAVEAT as _BODY_ARTIFACT_CAVEAT
 from ..modules.net_loads import loads_ref_axis_results
+
+
+# --------------------------------------------------------------------------- #
+# Unit set (M4-20 step 4)
+# --------------------------------------------------------------------------- #
+def _units(system: UnitSystem) -> DeliverableUnits:
+    """The **solver** unit set for ``system`` -- the only one a deck may use (D-19).
+
+    Resolved per writer rather than passed around as a bare factor, so a caller
+    cannot hand one file a different set from the file beside it: the writer's
+    parameter is a *system*, and which units that means for a deck is decided
+    here, once.
+    """
+    return deliverable_units(system, Channel.SOLVER)
+
+
+def _ult(label: str) -> str:
+    """``lb`` -> ``lbs-ULT``, ``N`` -> ``N-ULT`` -- the renderer's own vocabulary.
+
+    Shared with ``report/render.py`` so the sbeam CSVs and the human-readable
+    tables mark ultimate loads identically; a second dialect in the export
+    channel would be a thing to keep in sync forever."""
+    return ultimate_units(label)
 
 # --------------------------------------------------------------------------- #
 # Case-index export (Step D1): ID -> full definition, across every result slice
@@ -227,16 +267,31 @@ def _sid(sid_base: int, case_index: int) -> int:
 # --------------------------------------------------------------------------- #
 # Span-load CSV
 # --------------------------------------------------------------------------- #
-_CSV_FIELDS = [
-    "Case", "GID", "X", "Y", "Z",
-    "Fx", "Fz", "My",          # applied nodal load (== the FORCE/MOMENT cards)
-    "Sx", "Sz", "Mxx", "Myy", "Mzz",  # cumulative (engineering reference)
-    "MyyAxis",                 # torsion reference axis (in-band, like Basis/SF)
-    "SF",                      # the case's limit -> ultimate factor (last column)
-]
+def _csv_fields(u: DeliverableUnits) -> List[str]:
+    """Span-load CSV header row for unit set ``u``.
+
+    Every dimensional column carries its unit and, if it is a load, its ``-ULT``
+    marker -- so the file states its own units and nobody has to infer them from
+    the magnitude of the numbers (D-21). This makes the Imperial header visibly
+    different from the pre-M4-20 bare ``Fx``/``My``; D-21 authorises that, and
+    the alternative (units in SI only) would leave the Imperial deck the one
+    file in the suite you can misread.
+    """
+    ln, fo, mo = u.length.label, _ult(u.force.label), _ult(u.moment.label)
+    return [
+        "Case", "GID", f"X ({ln})", f"Y ({ln})", f"Z ({ln})",
+        # applied nodal load (== the FORCE/MOMENT cards)
+        f"Fx ({fo})", f"Fz ({fo})", f"My ({mo})",
+        # cumulative (engineering reference)
+        f"Sx ({fo})", f"Sz ({fo})",
+        f"Mxx ({mo})", f"Myy ({mo})", f"Mzz ({mo})",
+        "MyyAxis",                 # torsion reference axis (in-band, like Basis/SF)
+        "SF",                      # the case's limit -> ultimate factor (last column)
+    ]
 
 
-def span_load_csv(arg: ResultsArg, header_comment: str = "") -> str:
+def span_load_csv(arg: ResultsArg, header_comment: str = "", *,
+                  system: UnitSystem = UnitSystem.IMPERIAL) -> str:
     """Span-load CSV: one row per wing station per case (root->tip).
 
     Columns ``Fx/Fz/My`` are the applied nodal loads exported as FORCE/MOMENT
@@ -244,46 +299,66 @@ def span_load_csv(arg: ResultsArg, header_comment: str = "") -> str:
     ULTIMATE; ``SF`` is the case's limit->ultimate factor they were scaled by.
     ``MyyAxis`` states the chordwise axis ``My``/``Myy`` (and station ``X``) are
     about -- the axis travels in-band with the file, like ``SF``.
+
+    The cells go through the same ``to_grid``/``to_force``/``to_moment`` the
+    cards do, so this file and the deck beside it are the same numbers in the
+    same units by construction, not by matching two scale factors.
     """
     results = _as_results(arg)
+    u = _units(system)
+    fields = _csv_fields(u)
+    x_h, y_h, z_h, fx_h, fz_h, my_h, sx_h, sz_h, mxx_h, myy_h, mzz_h = fields[2:13]
     buf = _io.StringIO()
-    writer = csv.DictWriter(buf, fieldnames=_CSV_FIELDS)
+    writer = csv.DictWriter(buf, fieldnames=fields)
     writer.writeheader()
     for r in results:
         sf = _sf(r)
         for nl in wing_nodal_loads(r):
+            gx, gy, gz = to_grid(nl.x, nl.y, nl.z, u)
+            fx, _, fz = to_force(nl.fx, 0.0, nl.fz, u)
+            _, my, _ = to_moment(0.0, nl.my, 0.0, u)
+            sx, _, sz = to_force(nl.sx, 0.0, nl.sz, u)
+            mxx, myy, mzz = to_moment(nl.mxx, nl.myy, nl.mzz, u)
             writer.writerow({
                 "Case": r.case, "GID": nl.gid,
-                "X": f"{nl.x:.3f}", "Y": f"{nl.y:.3f}", "Z": f"{nl.z:.3f}",
-                "Fx": f"{nl.fx:.1f}", "Fz": f"{nl.fz:.1f}", "My": f"{nl.my:.0f}",
-                "Sx": f"{nl.sx:.1f}", "Sz": f"{nl.sz:.1f}",
-                "Mxx": f"{nl.mxx:.0f}", "Myy": f"{nl.myy:.0f}", "Mzz": f"{nl.mzz:.0f}",
+                x_h: f"{gx:.3f}", y_h: f"{gy:.3f}", z_h: f"{gz:.3f}",
+                fx_h: f"{fx:.1f}", fz_h: f"{fz:.1f}", my_h: f"{my:.0f}",
+                sx_h: f"{sx:.1f}", sz_h: f"{sz:.1f}",
+                mxx_h: f"{mxx:.0f}", myy_h: f"{myy:.0f}", mzz_h: f"{mzz:.0f}",
                 "MyyAxis": r.torsion_axis,
                 "SF": f"{_sf_str(sf)}",
             })
     return header_comment + buf.getvalue()
 
 
-def write_span_load_csv(arg: ResultsArg, path: str) -> None:
+def write_span_load_csv(arg: ResultsArg, path: str, *,
+                        system: UnitSystem = UnitSystem.IMPERIAL) -> None:
     with open(path, "w", encoding="utf-8", newline="") as fh:
-        fh.write(span_load_csv(arg))
+        fh.write(span_load_csv(arg, system=system))
 
 
 # --------------------------------------------------------------------------- #
 # FORCE / MOMENT bulk-data cards
 # --------------------------------------------------------------------------- #
-def _force_moment_lines(loads: List[NodalLoad], sid: int) -> List[str]:
-    """FORCE/MOMENT card lines for one load set (skip ~zero components)."""
+def _force_moment_lines(loads: List[NodalLoad], sid: int,
+                        u: DeliverableUnits) -> List[str]:
+    """FORCE/MOMENT card lines for one load set (skip ~zero components).
+
+    The negligible-load test is applied to the **unscaled** magnitude, so which
+    cards a case emits is a property of the load, not of the unit system: an SI
+    deck and an Imperial deck of the same case have the same cards, differing
+    only in their numbers.
+    """
     lines: List[str] = []
     for nl in loads:
-        fx, fy, fz = to_force(nl.fx, 0.0, nl.fz)
-        if abs(fx) > _TOL or abs(fy) > _TOL or abs(fz) > _TOL:
+        fx, fy, fz = to_force(nl.fx, 0.0, nl.fz, u)
+        if abs(nl.fx) > _TOL or abs(nl.fz) > _TOL:
             lines.append(
                 f"FORCE, {sid}, {nl.gid}, {SBEAM_CID}, 1.0, "
                 f"{_fmt(fx)}, {_fmt(fy)}, {_fmt(fz)}"
             )
-        mx, my, mz = to_moment(0.0, nl.my, 0.0)
-        if abs(mx) > _TOL or abs(my) > _TOL or abs(mz) > _TOL:
+        mx, my, mz = to_moment(0.0, nl.my, 0.0, u)
+        if abs(nl.my) > _TOL:
             lines.append(
                 f"MOMENT, {sid}, {nl.gid}, {SBEAM_CID}, 1.0, "
                 f"{_fmt(mx)}, {_fmt(my)}, {_fmt(mz)}"
@@ -291,49 +366,57 @@ def _force_moment_lines(loads: List[NodalLoad], sid: int) -> List[str]:
     return lines
 
 
-def _case_card_block(r: WingLoadResult, sid: int) -> List[str]:
+def _case_card_block(r: WingLoadResult, sid: int, u: DeliverableUnits) -> List[str]:
     """One case's commented FORCE/MOMENT block (header + cards)."""
     loads = wing_nodal_loads(r)
     sf = _sf(r)
     # loads carry the ULTIMATE (x sf) cumulative totals, so the comment matches the cards.
-    root_sz = loads[0].sz if loads else 0.0
-    root_myy = loads[0].myy if loads else 0.0
+    _, _, root_sz = to_force(0.0, 0.0, loads[0].sz if loads else 0.0, u)
+    _, root_myy, _ = to_moment(0.0, loads[0].myy if loads else 0.0, 0.0, u)
     lines = [
         f"$ SLOADS net wing load -- case {r.case} (Nz={r.nz:g}, Nx={r.nx:g}), SID {sid}",
         f"$ Case ID: {r.case_ref.case_id}" if r.case_ref else "$ Case ID: (none)",
-        "$ Axes: SLOADS station/butt/waterline inches -> sbeam CID 0 (identity).",
+        "$ Axes: SLOADS station/butt/waterline -> sbeam CID 0 (identity); "
+        f"lengths in {u.length.label}.",
         f"$ Loads are ULTIMATE (limit x SF={_sf_str(sf)}).",
         f"$ Torsion My/Myy about the {r.torsion_axis} (station X = that axis).",
-        f"$ FORCE set sums to root Sz = {root_sz:.1f} lb; "
-        f"MOMENT(My) set sums to root torsion Myy = {root_myy:.1f} lb-in.",
+        f"$ FORCE set sums to root Sz = {root_sz:.1f} {u.force.label}; "
+        f"MOMENT(My) set sums to root torsion Myy = {root_myy:.1f} {u.moment.label}.",
     ]
-    lines += _force_moment_lines(loads, sid)
+    lines += _force_moment_lines(loads, sid, u)
     return lines
 
 
-def force_moment_cards(arg: ResultsArg, sid_base: int = 1) -> str:
+def force_moment_cards(arg: ResultsArg, sid_base: int = 1, *,
+                       system: UnitSystem = UnitSystem.IMPERIAL) -> str:
     """FORCE/MOMENT bulk-data card text for every case (one SID per case)."""
     results = _as_results(arg)
+    u = _units(system)
     blocks: List[str] = []
     for idx, r in enumerate(results):
-        blocks.append("\n".join(_case_card_block(r, _sid(sid_base, idx))))
+        blocks.append("\n".join(_case_card_block(r, _sid(sid_base, idx), u)))
     return "\n".join(blocks) + "\n"
 
 
-def write_force_moment_cards(arg: ResultsArg, path: str, sid_base: int = 1) -> None:
+def write_force_moment_cards(arg: ResultsArg, path: str, sid_base: int = 1, *,
+                             system: UnitSystem = UnitSystem.IMPERIAL) -> None:
     with open(path, "w", encoding="utf-8") as fh:
-        fh.write(force_moment_cards(arg, sid_base=sid_base))
+        fh.write(force_moment_cards(arg, sid_base=sid_base, system=system))
 
 
 # --------------------------------------------------------------------------- #
 # Minimal CBAR stick-model BDF (optional)
 # --------------------------------------------------------------------------- #
-# Nominal placeholder structural properties. A clamped cantilever loaded only at
-# its nodes is statically determinate, so the reaction loads sbeam recovers are
-# independent of these values; they exist only to make the deck solvable. Units
-# are inch / pound-force, consistent with the exported coordinates.
+# Nominal placeholder structural properties, quoted in the Imperial inch /
+# pound-force set and converted with the rest of the deck. A clamped cantilever
+# loaded only at its nodes is statically determinate, so the reaction loads sbeam
+# recovers are independent of these values; they exist only to make the deck
+# solvable. They are converted anyway because a deck that mixes an Imperial
+# modulus with millimetre GRIDs is wrong on its face -- someone will read it, or
+# swap in a real section, long before anyone re-derives that the reactions do not
+# depend on it.
 _MAT1_E = 1.0e7      # psi (aluminium-ish placeholder)
-_MAT1_NU = 0.33
+_MAT1_NU = 0.33      # dimensionless
 _PBAR_A = 1.0        # in^2
 _PBAR_I = 1.0        # in^4 (I1 = I2)
 _PBAR_J = 1.0        # in^4
@@ -349,7 +432,8 @@ def _root_node(loads: List[NodalLoad]) -> tuple:
     return (n0.x, n0.y - dy / 2.0, n0.z)
 
 
-def stick_model_bdf(arg: ResultsArg, sid_base: int = 1) -> str:
+def stick_model_bdf(arg: ResultsArg, sid_base: int = 1, *,
+                    system: UnitSystem = UnitSystem.IMPERIAL) -> str:
     """A minimal SOL 101 CBAR stick model carrying the exported wing load sets.
 
     A clamped cantilever along the wing's torsion reference axis (the station
@@ -360,9 +444,10 @@ def stick_model_bdf(arg: ResultsArg, sid_base: int = 1) -> str:
     shared across cases (same wing); only the load set changes.
     """
     results = _as_results(arg)
+    u = _units(system)
     # Station geometry is shared across cases -- take it from the first.
     base_loads = wing_nodal_loads(results[0])
-    rx, ry, rz = to_grid(*_root_node(base_loads))
+    rx, ry, rz = to_grid(*_root_node(base_loads), units=u)
 
     head: List[str] = ["SOL 101", "$"]
     for idx, r in enumerate(results):
@@ -386,16 +471,23 @@ def stick_model_bdf(arg: ResultsArg, sid_base: int = 1) -> str:
         f"GRID, {_ROOT_GID}, , {_fmt(rx)}, {_fmt(ry)}, {_fmt(rz)}",
     ]
     for nl in base_loads:
-        gx, gy, gz = to_grid(nl.x, nl.y, nl.z)
+        gx, gy, gz = to_grid(nl.x, nl.y, nl.z, u)
         bulk.append(f"GRID, {nl.gid}, , {_fmt(gx)}, {_fmt(gy)}, {_fmt(gz)}")
 
+    # Section properties are area / second moment, so they scale as length^2 and
+    # length^4 -- derived from the one length factor, never quoted per system.
+    e_mod = to_pressure(_MAT1_E, u)
+    area = _PBAR_A * u.length.factor ** 2
+    inertia = _PBAR_I * u.length.factor ** 4
+    torsion_j = _PBAR_J * u.length.factor ** 4
     bulk += [
         "$ --------------------------------------------------------- MATERIAL",
         "$ MAT1, MID, E, G, NU, RHO  (placeholder; reactions are stiffness-independent)",
-        f"MAT1, 1, {_fmt(_MAT1_E)}, , {_MAT1_NU}, 0.0",
+        f"$ E in {u.pressure.label}; A in {u.length.label}^2; I, J in {u.length.label}^4.",
+        f"MAT1, 1, {_fmt(e_mod)}, , {_MAT1_NU}, 0.0",
         "$ ------------------------------------------------------- PROPERTIES",
         "$ PBAR, PID, MID, A, I1, I2, J",
-        f"PBAR, 1, 1, {_fmt(_PBAR_A)}, {_fmt(_PBAR_I)}, {_fmt(_PBAR_I)}, {_fmt(_PBAR_J)}",
+        f"PBAR, 1, 1, {_fmt(area)}, {_fmt(inertia)}, {_fmt(inertia)}, {_fmt(torsion_j)}",
         "$ --------------------------------------------------------- ELEMENTS",
         "$ CBAR, EID, PID, GA, GB, X1, X2, X3  (orientation vector 0,0,1)",
     ]
@@ -412,14 +504,15 @@ def stick_model_bdf(arg: ResultsArg, sid_base: int = 1) -> str:
         "$ ------------------------------------------------------------ LOADS",
     ]
     for idx, r in enumerate(results):
-        bulk += _case_card_block(r, _sid(sid_base, idx))
+        bulk += _case_card_block(r, _sid(sid_base, idx), u)
 
     return "\n".join(head + bulk + ["ENDDATA"]) + "\n"
 
 
-def write_stick_model_bdf(arg: ResultsArg, path: str, sid_base: int = 1) -> None:
+def write_stick_model_bdf(arg: ResultsArg, path: str, sid_base: int = 1, *,
+                          system: UnitSystem = UnitSystem.IMPERIAL) -> None:
     with open(path, "w", encoding="utf-8") as fh:
-        fh.write(stick_model_bdf(arg, sid_base=sid_base))
+        fh.write(stick_model_bdf(arg, sid_base=sid_base, system=system))
 
 
 # --------------------------------------------------------------------------- #
@@ -487,26 +580,37 @@ def _body_results(arg: "Union[Project, BodyLoadResult, Sequence[BodyLoadResult]]
     return results
 
 
-def body_span_load_csv(arg, header_comment: str = "") -> str:
+def body_span_load_csv(arg, header_comment: str = "", *,
+                       system: UnitSystem = UnitSystem.IMPERIAL) -> str:
     """Span-load CSV for the fuselage net distribution: one row per station per
     case (X, applied Fz, cumulative Sz/Myy). Loads are ULTIMATE; ``SF`` is the case's
     limit->ultimate factor they were scaled by."""
     results = _body_results(arg)
+    u = _units(system)
+    x_h = f"X ({u.length.label})"
+    fz_h, sz_h = f"Fz ({_ult(u.force.label)})", f"Sz ({_ult(u.force.label)})"
+    myy_h = f"Myy ({_ult(u.moment.label)})"
     buf = _io.StringIO()
-    writer = csv.DictWriter(buf, fieldnames=["Case", "GID", "X", "Fz", "Sz", "Myy", "SF"])
+    writer = csv.DictWriter(
+        buf, fieldnames=["Case", "GID", x_h, fz_h, sz_h, myy_h, "SF"])
     writer.writeheader()
     for r in results:
         sf = _sf(r)
         for gid, s in zip(body_station_gids(r), r.stations):
+            x, _, _ = to_grid(s.x, 0.0, 0.0, u)
+            _, _, fz = to_force(0.0, 0.0, s.fz * sf, u)
+            _, _, sz = to_force(0.0, 0.0, s.sz * sf, u)
+            _, myy, _ = to_moment(0.0, s.myy * sf, 0.0, u)
             writer.writerow({
-                "Case": r.case, "GID": gid, "X": f"{s.x:.3f}",
-                "Fz": f"{s.fz * sf:.1f}", "Sz": f"{s.sz * sf:.1f}",
-                "Myy": f"{s.myy * sf:.0f}", "SF": f"{_sf_str(sf)}",
+                "Case": r.case, "GID": gid, x_h: f"{x:.3f}",
+                fz_h: f"{fz:.1f}", sz_h: f"{sz:.1f}",
+                myy_h: f"{myy:.0f}", "SF": f"{_sf_str(sf)}",
             })
     return header_comment + buf.getvalue()
 
 
-def body_force_moment_cards(arg, sid_base: int = 1) -> str:
+def body_force_moment_cards(arg, sid_base: int = 1, *,
+                            system: UnitSystem = UnitSystem.IMPERIAL) -> str:
     """FORCE bulk-data cards for the fuselage net distribution (one SID per case);
     the per-station applied Fz set sums to ~0 (vertical equilibrium).
 
@@ -515,17 +619,21 @@ def body_force_moment_cards(arg, sid_base: int = 1) -> str:
     (no derivable spar stations) is additionally stamped with
     :data:`~sloads.modules.body_loads.CLOSURE_ARTIFACT_CAVEAT`."""
     results = _body_results(arg)
+    u = _units(system)
     blocks: List[str] = []
     for idx, r in enumerate(results):
         sid = sid_base + idx
         sf = _sf(r)
-        total_fz = sum(s.fz for s in r.stations) * sf
+        _, _, total_fz = to_force(0.0, 0.0, sum(s.fz for s in r.stations) * sf, u)
+        _, terminal_myy, _ = to_moment(0.0, r.stations[-1].myy * sf, 0.0, u)
         lines = [
             f"$ SLOADS net fuselage load -- case {r.case}, SID {sid}",
             f"$ Case ID: {r.case_ref.case_id}" if r.case_ref else "$ Case ID: (none)",
             f"$ Loads are ULTIMATE (limit x SF={_sf_str(sf)}).",
-            f"$ Applied Fz set sums to {total_fz:.2f} lb (vertical equilibrium).",
-            f"$ Terminal Myy {r.stations[-1].myy * sf:.2f} lb-in (moment equilibrium).",
+            f"$ Applied Fz set sums to {total_fz:.2f} {u.force.label} "
+            "(vertical equilibrium).",
+            f"$ Terminal Myy {terminal_myy:.2f} {u.moment.label} "
+            "(moment equilibrium).",
         ]
         if r.spars_assumed:
             lines.append("$ Wing spar stations ASSUMED (chord-fraction defaults), not entered.")
@@ -534,8 +642,8 @@ def body_force_moment_cards(arg, sid_base: int = 1) -> str:
             lines += [f"$ {ln}" for ln in
                       textwrap.wrap("CAVEAT: " + _BODY_ARTIFACT_CAVEAT, width=70)]
         for gid, s in zip(body_station_gids(r), r.stations):
-            fx, fy, fz = to_force(0.0, 0.0, s.fz * sf)
-            if abs(fz) > _TOL:
+            fx, fy, fz = to_force(0.0, 0.0, s.fz * sf, u)
+            if abs(s.fz * sf) > _TOL:
                 lines.append(
                     f"FORCE, {sid}, {gid}, {SBEAM_CID}, 1.0, "
                     f"{_fmt(fx)}, {_fmt(fy)}, {_fmt(fz)}"
@@ -544,13 +652,22 @@ def body_force_moment_cards(arg, sid_base: int = 1) -> str:
     return "\n".join(blocks) + "\n"
 
 
-_BODY_FITTING_FIELDS = [
-    "Case", "Case ID", "X front (in)", "R front (lb-ULT)",
-    "X rear (in)", "R rear (lb-ULT)", "M unbalanced (lb-in-ULT)", "Spars", "SF",
-]
+def _body_fitting_fields(u: DeliverableUnits) -> List[str]:
+    """Fitting-load CSV header for unit set ``u``.
+
+    This file already carried its units; what changes at M4-20 is that they come
+    from the unit set rather than being written out Imperial, and that the force
+    marker is the renderer's ``lbs-ULT`` rather than this file's own ``lb-ULT``
+    -- one vocabulary across every deliverable."""
+    ln, fo, mo = u.length.label, _ult(u.force.label), _ult(u.moment.label)
+    return [
+        "Case", "Case ID", f"X front ({ln})", f"R front ({fo})",
+        f"X rear ({ln})", f"R rear ({fo})", f"M unbalanced ({mo})", "Spars", "SF",
+    ]
 
 
-def body_fitting_load_csv(arg, header_comment: str = "") -> str:
+def body_fitting_load_csv(arg, header_comment: str = "", *,
+                          system: UnitSystem = UnitSystem.IMPERIAL) -> str:
     """Wing-attach **fitting loads** CSV: one row per critical fuselage condition.
 
     The front/rear spar reactions of the Ch 15 p103 solve (Ref 1 p103) -- the
@@ -563,19 +680,26 @@ def body_fitting_load_csv(arg, header_comment: str = "") -> str:
     A ``closure_artifact`` case has no spar stations and contributes no row, so
     the file is empty (header only) when every case fell back."""
     results = _body_results(arg)
+    u = _units(system)
+    fields = _body_fitting_fields(u)
+    xf_h, rf_h, xr_h, rr_h, m_h = fields[2:7]
     buf = _io.StringIO()
-    writer = csv.DictWriter(buf, fieldnames=_BODY_FITTING_FIELDS)
+    writer = csv.DictWriter(buf, fieldnames=fields)
     writer.writeheader()
     for r in results:
         if r.r_front is None or r.r_rear is None:
             continue
         sf = _sf(r)
+        x_front, x_rear, _ = to_grid(r.x_front, r.x_rear, 0.0, u)
+        _, _, r_front = to_force(0.0, 0.0, r.r_front * sf, u)
+        _, _, r_rear = to_force(0.0, 0.0, r.r_rear * sf, u)
+        _, m_unbalanced, _ = to_moment(0.0, r.m_unbalanced * sf, 0.0, u)
         writer.writerow({
             "Case": r.case,
             "Case ID": r.case_ref.case_id if r.case_ref else "",
-            "X front (in)": f"{r.x_front:.3f}", "R front (lb-ULT)": f"{r.r_front * sf:.1f}",
-            "X rear (in)": f"{r.x_rear:.3f}", "R rear (lb-ULT)": f"{r.r_rear * sf:.1f}",
-            "M unbalanced (lb-in-ULT)": f"{r.m_unbalanced * sf:.0f}",
+            xf_h: f"{x_front:.3f}", rf_h: f"{r_front:.1f}",
+            xr_h: f"{x_rear:.3f}", rr_h: f"{r_rear:.1f}",
+            m_h: f"{m_unbalanced:.0f}",
             "Spars": "assumed" if r.spars_assumed else "entered",
             "SF": _sf_str(sf),
         })
@@ -625,49 +749,64 @@ def _tail_nodal_forces(r: TailChordResult) -> List[float]:
     return [v * scale for v in raw]
 
 
-def tail_chordwise_csv(arg, header_comment: str = "") -> str:
+def tail_chordwise_csv(arg, header_comment: str = "", *,
+                       system: UnitSystem = UnitSystem.IMPERIAL) -> str:
     """Chordwise tail-load CSV: one row per chord station per critical tail
     condition (component, chord station X, net pressure PSI, scaled nodal Fz). Loads
     are ULTIMATE; ``SF`` is the case's limit->ultimate factor they were scaled by."""
     results = _tail_results(arg)
+    u = _units(system)
+    x_h = f"X ({u.length.label})"
+    psi_h = f"PSI ({_ult(u.pressure.label)})"
+    fo = _ult(u.force.label)
+    fz_h, lt25_h, lt50_h = f"Fz ({fo})", f"LT25 ({fo})", f"LT50 ({fo})"
     buf = _io.StringIO()
     writer = csv.DictWriter(
-        buf, fieldnames=["Case", "Component", "GID", "X", "PSI", "Fz", "LT25", "LT50", "SF"])
+        buf, fieldnames=["Case", "Component", "GID", x_h, psi_h, fz_h,
+                         lt25_h, lt50_h, "SF"])
     writer.writeheader()
     for r in results:
         sf = _sf(r)
         forces = _tail_nodal_forces(r)
         stations = sorted(r.stations, key=lambda s: s.x)
+        _, _, lt25 = to_force(0.0, 0.0, r.lt25 * sf, u)
+        _, _, lt50 = to_force(0.0, 0.0, r.lt50 * sf, u)
         for i, (s, fz) in enumerate(zip(stations, forces)):
+            x, _, _ = to_grid(s.x, 0.0, 0.0, u)
+            _, _, fz_out = to_force(0.0, 0.0, fz, u)
             writer.writerow({
                 "Case": r.case, "Component": r.component, "GID": _TAIL_GID_BASE + i,
-                "X": f"{s.x:.3f}", "PSI": f"{s.psi * sf:.4f}", "Fz": f"{fz:.1f}",
-                "LT25": f"{r.lt25 * sf:.2f}", "LT50": f"{r.lt50 * sf:.2f}",
+                x_h: f"{x:.3f}", psi_h: f"{to_pressure(s.psi * sf, u):.4f}",
+                fz_h: f"{fz_out:.1f}",
+                lt25_h: f"{lt25:.2f}", lt50_h: f"{lt50:.2f}",
                 "SF": f"{_sf_str(sf)}",
             })
     return header_comment + buf.getvalue()
 
 
-def tail_force_moment_cards(arg, sid_base: int = 1) -> str:
+def tail_force_moment_cards(arg, sid_base: int = 1, *,
+                            system: UnitSystem = UnitSystem.IMPERIAL) -> str:
     """FORCE bulk-data cards for the chordwise tail loads (one SID per condition);
     each set's applied Fz sums to the total tail load ``LT25 + LT50``."""
     results = _tail_results(arg)
+    u = _units(system)
     blocks: List[str] = []
     for idx, r in enumerate(results):
         sid = sid_base + idx
         sf = _sf(r)
         forces = _tail_nodal_forces(r)
-        total = sum(forces)
+        _, _, total = to_force(0.0, 0.0, sum(forces), u)
+        _, _, lt_total = to_force(0.0, 0.0, (r.lt25 + r.lt50) * sf, u)
         lines = [
             f"$ SLOADS chordwise {r.component} load -- case {r.case}, SID {sid}",
             f"$ Case ID: {r.case_ref.case_id}" if r.case_ref else "$ Case ID: (none)",
             f"$ Loads are ULTIMATE (limit x SF={_sf_str(sf)}).",
-            f"$ Applied Fz set sums to {total:.1f} lb (= {_sf_str(sf)} x (LT25 + LT50) = "
-            f"{(r.lt25 + r.lt50) * sf:.1f} lb).",
+            f"$ Applied Fz set sums to {total:.1f} {u.force.label} "
+            f"(= {_sf_str(sf)} x (LT25 + LT50) = {lt_total:.1f} {u.force.label}).",
         ]
         for i, fz in enumerate(forces):
-            fx2, fy2, fz2 = to_force(0.0, 0.0, fz)
-            if abs(fz2) > _TOL:
+            fx2, fy2, fz2 = to_force(0.0, 0.0, fz, u)
+            if abs(fz) > _TOL:
                 lines.append(
                     f"FORCE, {sid}, {_TAIL_GID_BASE + i}, {SBEAM_CID}, 1.0, "
                     f"{_fmt(fx2)}, {_fmt(fy2)}, {_fmt(fz2)}"
@@ -676,14 +815,16 @@ def tail_force_moment_cards(arg, sid_base: int = 1) -> str:
     return "\n".join(blocks) + "\n"
 
 
-def write_tail_chordwise_csv(arg, path: str) -> None:
+def write_tail_chordwise_csv(arg, path: str, *,
+                             system: UnitSystem = UnitSystem.IMPERIAL) -> None:
     with open(path, "w", encoding="utf-8", newline="") as fh:
-        fh.write(tail_chordwise_csv(arg))
+        fh.write(tail_chordwise_csv(arg, system=system))
 
 
-def write_tail_force_moment_cards(arg, path: str, sid_base: int = 1) -> None:
+def write_tail_force_moment_cards(arg, path: str, sid_base: int = 1, *,
+                                  system: UnitSystem = UnitSystem.IMPERIAL) -> None:
     with open(path, "w", encoding="utf-8") as fh:
-        fh.write(tail_force_moment_cards(arg, sid_base=sid_base))
+        fh.write(tail_force_moment_cards(arg, sid_base=sid_base, system=system))
 
 
 # --------------------------------------------------------------------------- #
@@ -731,48 +872,64 @@ def _control_nodal_forces(r: ControlSurfaceLoadResult) -> List[float]:
     return [v * scale for v in raw]
 
 
-def control_surface_csv(arg, header_comment: str = "") -> str:
+def control_surface_csv(arg, header_comment: str = "", *,
+                        system: UnitSystem = UnitSystem.IMPERIAL) -> str:
     """Control-surface load CSV: one row per chord station per critical condition
     (surface, case, chord fraction X, pressure PSI, scaled nodal Fz, total load). Loads
-    are ULTIMATE; ``SF`` is the case's limit->ultimate factor they were scaled by."""
+    are ULTIMATE; ``SF`` is the case's limit->ultimate factor they were scaled by.
+
+    ``X`` is a **fraction of chord** (0 = LE, 1 = TE), not a station: it is
+    dimensionless and is the one column here that is identical in both unit
+    systems."""
     results = _control_results(arg)
+    u = _units(system)
+    psi_h = f"PSI ({_ult(u.pressure.label)})"
+    fo = _ult(u.force.label)
+    fz_h, load_h = f"Fz ({fo})", f"Load ({fo})"
     buf = _io.StringIO()
     writer = csv.DictWriter(
-        buf, fieldnames=["Surface", "Case", "GID", "X", "PSI", "Fz", "Load", "SF"])
+        buf, fieldnames=["Surface", "Case", "GID", "X (chord frac)", psi_h,
+                         fz_h, load_h, "SF"])
     writer.writeheader()
     for r in results:
         sf = _sf(r)
         forces = _control_nodal_forces(r)
         stations = sorted(r.stations, key=lambda s: s.x)
+        _, _, load = to_force(0.0, 0.0, r.load_lb * sf, u)
         for i, (s, fz) in enumerate(zip(stations, forces)):
+            _, _, fz_out = to_force(0.0, 0.0, fz, u)
             writer.writerow({
                 "Surface": r.surface, "Case": r.case, "GID": _CS_GID_BASE + i,
-                "X": f"{s.x:.3f}", "PSI": f"{s.psi * sf:.4f}", "Fz": f"{fz:.1f}",
-                "Load": f"{r.load_lb * sf:.2f}", "SF": f"{_sf_str(sf)}",
+                "X (chord frac)": f"{s.x:.3f}",
+                psi_h: f"{to_pressure(s.psi * sf, u):.4f}", fz_h: f"{fz_out:.1f}",
+                load_h: f"{load:.2f}", "SF": f"{_sf_str(sf)}",
             })
     return header_comment + buf.getvalue()
 
 
-def control_surface_force_moment_cards(arg, sid_base: int = 1) -> str:
+def control_surface_force_moment_cards(arg, sid_base: int = 1, *,
+                                       system: UnitSystem = UnitSystem.IMPERIAL) -> str:
     """FORCE bulk-data cards for the control-surface loads (one SID per condition);
     each set's applied Fz sums to the critical surface load."""
     results = _control_results(arg)
+    u = _units(system)
     blocks: List[str] = []
     for idx, r in enumerate(results):
         sid = sid_base + idx
         sf = _sf(r)
         forces = _control_nodal_forces(r)
-        total = sum(forces)
+        _, _, total = to_force(0.0, 0.0, sum(forces), u)
+        _, _, critical = to_force(0.0, 0.0, r.load_lb * sf, u)
         lines = [
             f"$ SLOADS control-surface load -- {r.surface} {r.case}, SID {sid}",
             f"$ Case ID: {r.case_ref.case_id}" if r.case_ref else "$ Case ID: (none)",
             f"$ Loads are ULTIMATE (limit x SF={_sf_str(sf)}).",
-            f"$ Applied Fz set sums to {total:.1f} lb (= {_sf_str(sf)} x critical load "
-            f"{r.load_lb * sf:.1f} lb).",
+            f"$ Applied Fz set sums to {total:.1f} {u.force.label} "
+            f"(= {_sf_str(sf)} x critical load {critical:.1f} {u.force.label}).",
         ]
         for i, fz in enumerate(forces):
-            fx2, fy2, fz2 = to_force(0.0, 0.0, fz)
-            if abs(fz2) > _TOL:
+            fx2, fy2, fz2 = to_force(0.0, 0.0, fz, u)
+            if abs(fz) > _TOL:
                 lines.append(
                     f"FORCE, {sid}, {_CS_GID_BASE + i}, {SBEAM_CID}, 1.0, "
                     f"{_fmt(fx2)}, {_fmt(fy2)}, {_fmt(fz2)}"
@@ -781,14 +938,19 @@ def control_surface_force_moment_cards(arg, sid_base: int = 1) -> str:
     return "\n".join(blocks) + "\n"
 
 
-def write_control_surface_csv(arg, path: str) -> None:
+def write_control_surface_csv(arg, path: str, *,
+                              system: UnitSystem = UnitSystem.IMPERIAL) -> None:
     with open(path, "w", encoding="utf-8", newline="") as fh:
-        fh.write(control_surface_csv(arg))
+        fh.write(control_surface_csv(arg, system=system))
 
 
-def write_control_surface_force_moment_cards(arg, path: str, sid_base: int = 1) -> None:
+def write_control_surface_force_moment_cards(
+    arg, path: str, sid_base: int = 1, *,
+    system: UnitSystem = UnitSystem.IMPERIAL,
+) -> None:
     with open(path, "w", encoding="utf-8") as fh:
-        fh.write(control_surface_force_moment_cards(arg, sid_base=sid_base))
+        fh.write(control_surface_force_moment_cards(
+            arg, sid_base=sid_base, system=system))
 
 
 # --------------------------------------------------------------------------- #

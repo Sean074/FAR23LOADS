@@ -121,8 +121,8 @@ set; the user's selection decides the system.
 |---|---|---|
 | Files | module load-case CSVs, `case_index.csv`, the text report, the G8 `.tex`/PDF, the `.xlsx` workbook | `wing/fuselage_span_loads.csv`, `tail_chordwise.csv`, `control_surface_loads.csv`, `fuselage_fitting_loads.csv`, all four `.bdf` |
 | Imperial | lb / in / lb-in / ft-lb / lb/in² | lb / in / lb-in |
-| SI | **N / mm / N·m / kPa** | **N / mm / N·mm** |
-| ULT markers | `lbs-ULT`, `ft-lb-ULT`, `lb-in-ULT`, `lb/in^2-ULT` → `N-ULT`, `Nm-ULT`, `kPa-ULT` | `lb-ULT`, `lb-in-ULT` → `N-ULT`, `Nmm-ULT` |
+| SI | **N / mm / N·m / kPa** | **N / mm / N·mm / MPa** |
+| ULT markers | `lbs-ULT`, `ft-lb-ULT`, `lb-in-ULT`, `lb/in^2-ULT` → `N-ULT`, `Nm-ULT`, `kPa-ULT` | `lbs-ULT`, `lb-in-ULT`, `lb/in^2-ULT` → `N-ULT`, `Nmm-ULT`, `MPa-ULT` |
 | Never converted | airspeed **KEAS**, altitude **ft** | (no speed/altitude columns) |
 | States its system | title page + manifest (report); units row or unit-suffixed headers (CSV) | `$ Units:` header comment (BDF); unit-suffixed headers (CSV) |
 
@@ -295,7 +295,43 @@ human channel, and a test asserts converting twice is not silently accepted
 (feed it already-SI values and require the units to be recognisably wrong, or
 assert the writer is the sole `convert_results` caller in `io.py`).
 
-### Step 4 — Solver channel: `coordinates.py` becomes the scale point ⚠️ *the risky step*
+### Step 4 — Solver channel: `coordinates.py` becomes the scale point ✅ *complete 2026-08-04*
+
+*As built — the solver set also needed its own **pressure**.* Step 1 gave the
+solver channel a consistent moment (`N·mm`) but left pressure at the human
+channel's `kPa`, which is the identical D-19 defect one dimension over: pressure
+is force / length², so a deck in N and mm has stresses in **`MPa` (N/mm²)**, and
+`kPa` in it is wrong by 1000× exactly as `N·m` would be. Fixed here:
+`PSI_TO_MPA` is *derived* (`LBF_TO_N / IN_TO_MM²`), the solver set carries it,
+and `DeliverableUnits.is_consistent` now checks **both** derived dimensions
+(`moment == force × length` **and** `pressure == force / length²`) so the next
+one cannot be missed the same way. The moment was the loud case; the pressure was
+the quiet one.
+
+*As built — the scale point is enforced, not just documented.* `to_grid` /
+`to_force` / `to_moment` / `to_pressure` (new) **raise** on a unit set that fails
+`is_consistent`. `deliverable_units(SI)` defaults to `Channel.HUMAN` — the set
+every report uses — so passing it to a deck writer is a plausible slip, and it
+now fails loudly at the one point every card and cell passes through.
+
+*As built — the CSV cells go through the same three functions the cards do*,
+rather than being scaled beside them. A span CSV and the deck it accompanies
+therefore cannot disagree; there is exactly one multiplication site in the whole
+export channel.
+
+*As built — the negligible-load cut is applied to the unscaled magnitude*, so
+which cards a case emits is a property of the load, not of the unit system. An
+SI deck and an Imperial deck of the same case have the same cards.
+
+*As built — the stick model's placeholder section properties convert too*
+(E by the pressure factor, A by length², I/J by length⁴). The reactions are
+stiffness-independent so the numbers do not matter, but a deck mixing an Imperial
+modulus with millimetre GRIDs is wrong on its face and someone will swap in a
+real section long before they re-derive that it did not matter.
+
+*Verified:* across all six examples × wing/tail/control × stick model, the
+Imperial output changed by **zero numeric characters** — only the header rows and
+two `$` comment lines, both authorised by D-21.
 
 1. **`coordinates.py`** — `to_grid`/`to_force`/`to_moment` take a
    `DeliverableUnits` and apply the scale (identity for Imperial). This is the

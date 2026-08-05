@@ -12,6 +12,44 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **M4-20 step 4 — the sbeam solver channel writes the consistent N/mm/N·mm set.**
+  Every public `export/sbeam_bridge` writer (all 17: wing / body / tail /
+  control-surface CSVs, the four `FORCE`/`MOMENT` card sets and the CBAR stick
+  model, plus the `write_*` wrappers) takes `*, system=UnitSystem.IMPERIAL` and
+  resolves it to `deliverable_units(system, Channel.SOLVER)`. In SI that is
+  **N / mm / N·mm / MPa** — deliberately *not* the `N·m`/`kPa` a report uses,
+  because a deck whose GRIDs are millimetres and whose forces are newtons is only
+  correct when every derived unit is its base units combined (decision D-19).
+  `cli.py --units si --export-sbeam` now works; the temporary refusal added in
+  step 2 is gone.
+- **M4-20 step 4 — `export/coordinates.py` is the enforced single scale point.**
+  `to_grid` / `to_force` / `to_moment` and the new `to_pressure` take the unit set
+  and apply its factor; **no arithmetic in `sbeam_bridge` scales anything.** CSV
+  cell values go through the same three functions the cards do, so a span CSV and
+  the deck it accompanies are the same numbers in the same units by construction.
+  All four **raise** on a unit set that fails `is_consistent`: `deliverable_units(SI)`
+  defaults to the *human* channel, so handing it to a deck writer is a plausible
+  slip, and it now fails loudly instead of writing a 1000×-wrong torsion into a
+  file that parses cleanly.
+- **M4-20 step 4 — the solver unit set gained its own pressure (`MPa`), fixing a
+  step-1 defect.** Step 1 gave the solver channel a consistent *moment* but left
+  *pressure* at the human channel's `kPa` — the identical D-19 error one dimension
+  over, since pressure is force / length². The solver set now carries `MPa`
+  (N/mm²) from the **derived** `units.PSI_TO_MPA = LBF_TO_N / IN_TO_MM²`, and
+  `DeliverableUnits.is_consistent` checks **both** derived dimensions
+  (`moment == force × length` *and* `pressure == force / length²`), so the next one
+  cannot be missed the same way.
+- **M4-20 step 4 — every sbeam CSV header states its units.** The span-load,
+  body, tail and control-surface CSV headers carry the unit and the `-ULT` marker
+  on every dimensional column (`X (in)` → `X (mm)`, `Fz (lbs-ULT)` → `Fz (N-ULT)`,
+  `My (lb-in-ULT)` → `My (Nmm-ULT)`), where they were previously bare (`X`, `Fz`,
+  `My`) and a reader had to know from elsewhere that the file was Imperial. The
+  BDF's axes and equilibrium comment lines take the active labels too. This is a
+  visible **Imperial** change, which D-21 authorises; verified across all six
+  examples × wing/tail/control × stick model, Imperial output changed by **zero
+  numeric characters** — only header rows and two `$` comment lines. The
+  fitting-load CSV's force marker moved from its own `lb-ULT` to the renderer's
+  `lbs-ULT`, so the export channel and the report share one vocabulary.
 - **M4-20 step 3 — the load-case CSV writer takes the unit system.**
   `io.load_cases_csv(results, header_comment="", *, system=UnitSystem.IMPERIAL)`
   and `io.write_load_cases_csv(..., system=...)` convert the whole table **once**,

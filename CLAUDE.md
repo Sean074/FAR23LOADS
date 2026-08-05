@@ -215,9 +215,10 @@ The rules that make this unambiguous:
   units with no `-ULT` suffix.
 - **A solver deck uses a consistent unit set (M4-20 D-19).** Human-readable
   deliverables report moments in `N·m`; the sbeam `FORCE`/`MOMENT` bulk data and
-  its companion span CSVs use **`N·mm`**, because a deck whose GRID coordinates
-  are millimetres and whose forces are newtons is only correct with `N·mm`
-  moments. Resolve the set once per bundle with `units.deliverable_units(system,
+  its companion span CSVs use **`N·mm`** — and, for the same reason, **`MPa`**
+  (N/mm²) rather than `kPa` for a pressure — because a deck whose GRID
+  coordinates are millimetres and whose forces are newtons is only correct when
+  every derived unit is its base units combined. Resolve the set once per bundle with `units.deliverable_units(system,
   channel)` and pass it to every writer; never mint one per file.
 - **Every load case SHALL state its safety factor.** Carry it on
   `ConditionResult.safety_factor` and surface it in output (the `SF` column / an

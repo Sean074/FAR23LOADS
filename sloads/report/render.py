@@ -78,6 +78,7 @@ _LOAD_UNITS = {
     "N·m",       # SI moment (human-readable deliverables)
     "N·mm",      # SI moment (sbeam solver deck -- consistent N/mm set, M4-20 D-19)
     "kPa",       # SI design pressure
+    "MPa",       # SI design pressure (sbeam solver deck -- N/mm^2, M4-20 D-19)
 }
 
 
@@ -106,6 +107,7 @@ _ULT_UNITS = {
     "N·m": "Nm-ULT",       # SI moment
     "N·mm": "Nmm-ULT",     # SI moment, solver deck
     "kPa": "kPa-ULT",      # SI design pressure
+    "MPa": "MPa-ULT",      # SI design pressure, solver deck (N/mm^2)
 }
 
 

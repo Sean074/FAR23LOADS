@@ -151,8 +151,13 @@ def test_span_load_csv_shape():
     text = sb.span_load_csv(results)
     lines = text.strip().splitlines()
     header = lines[0].split(",")
-    assert header == ["Case", "GID", "X", "Y", "Z", "Fx", "Fz", "My",
-                      "Sx", "Sz", "Mxx", "Myy", "Mzz", "MyyAxis", "SF"]
+    # Every dimensional column states its unit and, if it is a load, its ULT
+    # marker (M4-20 step 4). Before that the header was bare -- ``Fx``, ``My`` --
+    # and a reader had to know the file was Imperial from somewhere else.
+    assert header == ["Case", "GID", "X (in)", "Y (in)", "Z (in)",
+                      "Fx (lbs-ULT)", "Fz (lbs-ULT)", "My (lb-in-ULT)",
+                      "Sx (lbs-ULT)", "Sz (lbs-ULT)", "Mxx (lb-in-ULT)",
+                      "Myy (lb-in-ULT)", "Mzz (lb-in-ULT)", "MyyAxis", "SF"]
     assert len(lines) - 1 == sum(len(r.stations) for r in results)
     # The torsion axis travels in-band: untransferred results state 25% chord.
     assert all(line.split(",")[-2] == "25% chord" for line in lines[1:])

@@ -178,11 +178,13 @@ in the calc's internal Imperial units:
 
   | Channel | Files | Imperial | SI |
   |---|---|---|---|
-  | **Human** | report, load-case CSV, case index, text report, workbook | lb, in, lb-in, ft-lb, lb/in² | N, mm, **N·m**, kPa |
-  | **Solver** | sbeam span/chordwise CSVs, all `.bdf` | lb, in, lb-in | N, mm, **N·mm** |
+  | **Human** | report, load-case CSV, case index, text report, workbook | lb, in, lb-in, ft-lb, lb/in² | N, mm, **N·m**, **kPa** |
+  | **Solver** | sbeam span/chordwise CSVs, all `.bdf` | lb, in, lb-in, lb/in² | N, mm, **N·mm**, **MPa** |
 
-  With GRID coordinates in mm and forces in N, an `N·m` moment is wrong by 1000×
-  in a deck that parses cleanly and sizes structure. Resolve the set **once per
+  The solver set's derived units are its base units combined — `N·mm = N × mm`
+  and `MPa = N / mm²` — which is the whole point: with GRID coordinates in mm and
+  forces in N, an `N·m` moment is wrong by 1000× in a deck that parses cleanly
+  and sizes structure, and a `kPa` stress is wrong by 1000× the same way. Resolve the set **once per
   bundle** with `units.deliverable_units(system, channel)` and pass it to every
   writer — that is what makes "one system per bundle" structural rather than a
   convention. Imperial is the all-1.0 identity set, so no writer needs an

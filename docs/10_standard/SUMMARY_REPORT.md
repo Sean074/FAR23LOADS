@@ -145,8 +145,10 @@ fixed to the calc's internal Imperial units. The rule and its consequences:
 - **Solver-deck exception (M4-20 D-19).** The rule above governs *the document*.
   The machine-readable **sbeam** companions (the `FORCE`/`MOMENT` bulk data and
   the span/chordwise CSVs that feed them) SHALL use a dimensionally **consistent**
-  unit set, which in SI means moments in **`N·mm`** beside `N` forces and `mm`
-  coordinates — not the `N·m` the report uses. This is one system with two
+  unit set, which in SI means moments in **`N·mm`** and stresses/pressures in
+  **`MPa`** (= N/mm²) beside `N` forces and `mm` coordinates — not the `N·m` and
+  `kPa` the report uses. Every derived unit in that set is its base units
+  combined, so no card can be off by a decimal power. This is one system with two
   channels, never two systems: a deck carrying `N·m` against `mm` GRID
   coordinates is wrong by 1000× and nothing in the file would show it. Each file
   states its own set in-band, and the report's manifest (§4.7) SHALL name the
