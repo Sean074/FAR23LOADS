@@ -218,10 +218,12 @@ for them; use `fixed_unit=`. Where a deliverable reports them it says so, so an
 SI reader does not read an unconverted speed as an oversight.
 
 **Where the selection is read.** Exactly one function reads it:
-`components.active_system()` (decision D-16). Today it returns the session-wide
-sidebar toggle; backlog **M4-20** re-points that one function at a `Project`
-field without touching a single call site. Views SHALL NOT read
-`st.session_state["unit_system"]` directly.
+`components.active_system()` (decision D-16). Since **M4-20 step 2** it returns
+`Project.unit_system` (the sidebar toggle writes that field, per D-22), with the
+session key surviving only as the fallback for a render that has no project yet.
+Views SHALL NOT read `st.session_state["unit_system"]` directly — twelve did until
+M4-20 step 6, a second authority for the same decision that made step 2's re-point
+reach only the views going through `unit_number_input`/`page`.
 
 Unit **kinds** and their factors/labels live in `SI_PER_IMPERIAL` / `UNIT_LABELS`
 in `sloads/units.py`. The helper is pinned by `tests/test_app_components.py`
@@ -235,7 +237,12 @@ system, one system per bundle, each file stating it in-band — see
 [`SUMMARY_REPORT.md`](SUMMARY_REPORT.md) §3.5 for the full rule. The Export page
 SHALL show which system the bundle will be written in, next to the download
 control, so the choice is visible at the point of export rather than only in the
-sidebar.
+sidebar. Implemented in **M4-20 step 6**: the page resolves `active_system()`
+**once** into a local and hands that one value to every artifact call, and its
+caption is built from `deliverable_units` itself so it cannot drift from the
+files. Every other view's download buttons take their page's system the same way.
+The per-page hand-built **LIMIT** CSVs (`wing_loads`, `fuselage_loads`,
+`tail_loads`, `loads_plots`) are the outstanding exception — backlog **L-8i**.
 
 ---
 

@@ -13,7 +13,7 @@ from __future__ import annotations
 import pandas as pd
 import streamlit as st
 
-from components import gate
+from components import active_system, gate
 
 from sloads import OneEngineOutInput, Project, UnitSystem, convert_results, to_si_scalar
 from sloads.modules.one_engine_out import run, time_history
@@ -27,7 +27,11 @@ st.caption(
 )
 
 project: Project = st.session_state.get("project", Project(name=""))
-system: UnitSystem = st.session_state.get("unit_system", UnitSystem.IMPERIAL)
+# D-16: ``active_system()`` is the single read of the unit selection. Reading
+# ``session_state["unit_system"]`` here was a second authority for the same
+# decision -- since M4-20 step 2 the project field is the source, and the
+# session key is only the no-project-yet fallback inside ``active_system()``.
+system: UnitSystem = active_system()
 
 if not project.engines or len(project.engines) < 2:
     st.warning("One-engine-out needs a **multi-engine** layout (define ≥2 engines).")

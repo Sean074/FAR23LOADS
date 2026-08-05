@@ -312,7 +312,7 @@ st.caption(
     "ultimate). Cases 25–33 are the supplementary nose-wheel family: nose reactions "
     "only.")
 
-st.download_button("Download landing loads (CSV)", io.load_cases_csv(mod),
+st.download_button("Download landing loads (CSV)", io.load_cases_csv(mod, system=system),
                    file_name="landing_loads.csv", mime="text/csv")
 st.caption(
     "The CSV carries **all 33 cases** — reactions, unbalanced moments and inertia "

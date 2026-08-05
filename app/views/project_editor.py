@@ -26,6 +26,8 @@ import json
 
 import streamlit as st
 
+from components import active_system
+
 from sloads import Project, UnitSystem
 from sloads import io as sloads_io
 from sloads.models import SCHEMA_VERSION
@@ -41,7 +43,11 @@ st.caption(
     "the same single Imperial project.json as every other page."
 )
 
-system: UnitSystem = st.session_state.get("unit_system", UnitSystem.IMPERIAL)
+# D-16: ``active_system()`` is the single read of the unit selection. Reading
+# ``session_state["unit_system"]`` here was a second authority for the same
+# decision -- since M4-20 step 2 the project field is the source, and the
+# session key is only the no-project-yet fallback inside ``active_system()``.
+system: UnitSystem = active_system()
 project: Project = st.session_state.get("project", Project(name=""))
 
 if system == UnitSystem.SI:

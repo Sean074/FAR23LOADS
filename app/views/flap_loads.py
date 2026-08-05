@@ -13,7 +13,7 @@ from __future__ import annotations
 import pandas as pd
 import streamlit as st
 
-from components import gate
+from components import active_system, gate
 
 from sloads import (
     FlapLoadsInput,
@@ -37,7 +37,11 @@ st.caption(
 )
 
 project: Project = st.session_state.get("project", Project(name=""))
-system: UnitSystem = st.session_state.get("unit_system", UnitSystem.IMPERIAL)
+# D-16: ``active_system()`` is the single read of the unit selection. Reading
+# ``session_state["unit_system"]`` here was a second authority for the same
+# decision -- since M4-20 step 2 the project field is the source, and the
+# session key is only the no-project-yet fallback inside ``active_system()``.
+system: UnitSystem = active_system()
 U = labels_for(system)  # {"area_sqft","length",...} -> unit string
 
 if project.speeds is None:
@@ -127,8 +131,8 @@ if "Slipstream factor" in vals:
     s3.metric(f"Slipstream BL band ({length_u})",
               f"{vals['slipstream_inboard_bl']:.1f} … {vals['slipstream_outboard_bl']:.1f}")
 
-st.download_button("Download flap loads (CSV)", sb.control_surface_csv(results),
+st.download_button("Download flap loads (CSV)", sb.control_surface_csv(results, system=system),
                    file_name="flap_loads.csv", mime="text/csv")
 st.download_button("Download FORCE cards (sbeam)",
-                   sb.control_surface_force_moment_cards(results),
+                   sb.control_surface_force_moment_cards(results, system=system),
                    file_name="flap_loads.bdf", mime="text/plain")

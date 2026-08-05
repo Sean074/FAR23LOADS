@@ -224,8 +224,13 @@ def _tab_estimate(project: Project, system: UnitSystem, U: dict) -> None:
             "Open the Weight, CG & Inertia tab to set their stations."
         )
 
+        # The CSV writer converts internally (M4-20 step 3), so it takes the *raw*
+        # Imperial results plus the system; the text report is unit-agnostic and
+        # takes the already-converted display copy. Passing the display copy to
+        # both would be the double conversion step 3's guard exists to prevent.
     st.download_button(
-        "Download weight estimate (CSV)", sloads_io.load_cases_csv(display_results),
+        "Download weight estimate (CSV)",
+        sloads_io.load_cases_csv(results, system=system),
         file_name="weight_estimate.csv", mime="text/csv", key="dl_est_csv")
     st.download_button(
         "Download weight estimate (text)", module_text_report("Weight estimate", display_results),
@@ -385,10 +390,12 @@ def _tab_cg_inertia(project: Project, system: UnitSystem, U: dict) -> None:
         st.plotly_chart(fig, use_container_width=True)
 
     st.download_button(
-        "Download weight/CG/inertia (CSV)", sloads_io.load_cases_csv([result]),
+        "Download weight/CG/inertia (CSV)",
+        sloads_io.load_cases_csv([result], system=system),
         file_name="weight_cg_inertia.csv", mime="text/csv", key="dl_cg_csv")
     st.download_button(
-        "Download weight/CG/inertia (text)", module_text_report("Weight, CG and inertia", [result]),
+        "Download weight/CG/inertia (text)",
+        module_text_report("Weight, CG and inertia", convert_results([result], system)),
         file_name="weight_cg_inertia.txt", mime="text/plain", key="dl_cg_txt")
 
 
@@ -572,10 +579,12 @@ def _tab_envelope(project: Project, system: UnitSystem, U: dict) -> None:
                 st.caption(r.note)
 
     st.download_button(
-        "Download weight envelope (CSV)", sloads_io.load_cases_csv(results),
+        "Download weight envelope (CSV)",
+        sloads_io.load_cases_csv(results, system=system),
         file_name="weight_envelope.csv", mime="text/csv", key="dl_env_csv")
     st.download_button(
-        "Download weight envelope (text)", module_text_report("Weight envelope", results),
+        "Download weight envelope (text)",
+        module_text_report("Weight envelope", convert_results(results, system)),
         file_name="weight_envelope.txt", mime="text/plain", key="dl_env_txt")
 
 

@@ -17,6 +17,8 @@ from __future__ import annotations
 import pandas as pd
 import streamlit as st
 
+from components import active_system
+
 from sloads import (
     EngineInput,
     EngineLayout,
@@ -64,7 +66,11 @@ _LAYOUTS = {
 }
 _LAYOUT_LABELS = list(_LAYOUTS)
 
-system: UnitSystem = st.session_state.get("unit_system", UnitSystem.IMPERIAL)
+# D-16: ``active_system()`` is the single read of the unit selection. Reading
+# ``session_state["unit_system"]`` here was a second authority for the same
+# decision -- since M4-20 step 2 the project field is the source, and the
+# session key is only the no-project-yet fallback inside ``active_system()``.
+system: UnitSystem = active_system()
 U = labels_for(system)  # {"weight","length","torque","power"} -> unit string
 
 with st.sidebar:

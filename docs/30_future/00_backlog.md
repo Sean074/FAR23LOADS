@@ -139,8 +139,22 @@ built a `bdf_comment_block` and never applied it, so the four `.bdf` decks carri
 *no* methods or units statement at all — every BDF writer now takes
 `header_comment=` and a source test pins all five deck artifacts.
 
-**Remaining: steps 6–7** — the Export page (it still calls the writers without a
-system, so GUI downloads stay Imperial until step 6) and close-out.
+**Step 6 shipped 2026-08-04** — the GUI download layer. `export_report.py`
+resolves `active_system()` **once** into `_system` and passes it to all eleven
+artifact calls, and states the bundle's system in a caption derived from
+`deliverable_units` itself (so caption and files share one source). The other ten
+views' download buttons take their page's system too — leaving them Imperial while
+the bundle followed the toggle would be the two-files-disagree failure the step
+exists to prevent. **Defects fixed:** `weight_mass.py` passed *display-converted*
+results to `load_cases_csv`, whose writer converts internally since step 3, so its
+CSV was accidentally SI while every other page's was Imperial; and **twelve views
+read `st.session_state["unit_system"]` directly**, a second authority for the
+selection that D-16 forbids and that step 2's re-point never reached — all twelve
+now call `active_system()`.
+
+**Remaining: step 7** — tests, doc sync and close-out (move M4-20 to
+`40_history/00_completed_development.md` and D-19…D-22 to
+`40_history/03_resolved_decisions.md`).
 
 ### M3-3b — Step G8 remainder: the report document itself
 
@@ -452,6 +466,18 @@ otherwise-converted SI table — the same class of defect M4-20 step 1 fixed for
 `lb-in` and `lb/in^2`, at ~1/90th the count. (`ft`, 104 values, is altitude and is
 correctly carved out.) Deferred from M4-20 step 1 because none is a *load*
 quantity, so none reaches a deliverable through the ultimate boundary.
+
+### L-8i — Per-page LIMIT CSVs ignore the unit toggle and state no units
+`wing_loads`, `fuselage_loads`, `tail_loads` and `loads_plots` each build a
+download CSV from their own row dicts (`csv.DictWriter` over `wing_load_rows(...)`
+and friends) instead of a `sloads` writer, so those files are **Imperial in both
+systems** — while the table rendered above them on the same page is converted —
+and their column headers carry no unit at all. They are the LIMIT analysis-page
+channel (the `CLAUDE.md` carve-out allows LIMIT *display*), but a downloaded file
+still leaves the tool, so it owes a unit statement. The work is per-page: convert
+the rows with the page's existing display helper and give the headers
+unit-suffixed names, the same shape M4-20 step 4 applied to the sbeam CSVs. Found
+while implementing M4-20 step 6; pairs with **L-8a**.
 
 ### L-8b — `help=` tooltip rollout completion
 App-wide tooltip coverage is ~45%. Worst pages: flap loads 0/6, one-engine-out

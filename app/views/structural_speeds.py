@@ -36,6 +36,7 @@ from sloads import (
     StructuralSpeedsInput,
     UnitSystem,
     consistency_warnings,
+    convert_results,
     to_display,
     to_imperial_scalar,
 )
@@ -353,10 +354,12 @@ def _tab_design_speeds(project: Project, system: UnitSystem, U: dict) -> None:
         "these speeds and load factors."
     )
     st.download_button(
-        "Download structural speeds (CSV)", sloads_io.load_cases_csv(results),
+        "Download structural speeds (CSV)",
+        sloads_io.load_cases_csv(results, system=system),
         file_name="structural_speeds.csv", mime="text/csv", key="dl_speeds_csv")
     st.download_button(
-        "Download structural speeds (text)", module_text_report("Structural design speeds", results),
+        "Download structural speeds (text)", module_text_report("Structural design speeds",
+                           convert_results(results, system)),
         file_name="structural_speeds.txt", mime="text/plain", key="dl_speeds_txt")
 
 
@@ -530,10 +533,11 @@ def _tab_speed_altitude(project: Project, system: UnitSystem, U: dict) -> None:
     st.plotly_chart(fig, width="stretch")
 
     st.download_button(
-        "Download Mach-limit lines (CSV)", sloads_io.load_cases_csv(results),
+        "Download Mach-limit lines (CSV)",
+        sloads_io.load_cases_csv(results, system=system),
         file_name="mach_limit.csv", mime="text/csv", key="dl_mach_csv")
     st.download_button(
-        "Download Mach-limit lines (text)", module_text_report("Mach limit lines", results),
+        "Download Mach-limit lines (text)", module_text_report("Mach limit lines", convert_results(results, system)),
         file_name="mach_limit.txt", mime="text/plain", key="dl_mach_txt")
 
 

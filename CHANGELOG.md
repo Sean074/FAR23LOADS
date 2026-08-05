@@ -12,6 +12,17 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **M4-20 step 6 — the GUI writes its downloads in the selected system.** The
+  Export page resolves `components.active_system()` **once** into `_system` and
+  passes it to all eleven artifact calls (five decks, five sbeam CSVs, the
+  per-module load-case CSVs) plus the text report and workbook, and states the
+  bundle's system in a caption built from `deliverable_units` itself — so the
+  caption and the files cannot drift. The ten other views with download buttons
+  (wing / fuselage / tail / control-surface / landing / weight / speeds /
+  configuration) take their page's system too. `case_index_csv` deliberately takes
+  none: its only dimensional columns are `Speed (kt)` and `Altitude (ft)`, the two
+  aviation carve-outs.
+
 - **M4-20 step 5 — every deliverable states its unit system in band.** The
   methods & limitations block (`report/methods.py`) takes `system=` and gains a
   `UNITS:` paragraph, so the one statement wrapped for every channel (G8-3) puts
@@ -128,6 +139,18 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- **Twelve views read `st.session_state["unit_system"]` directly**, a second
+  authority for the unit selection that decision D-16 says must not exist (found
+  implementing M4-20 step 6). It was latent rather than live — `Home.py` rewrites
+  the session key from `Project.unit_system` on every render, so the two agree in
+  practice — but it meant step 2's re-point of `active_system()` at the project
+  field reached only the views that go through `unit_number_input`/`page`. All
+  twelve now call `active_system()`, whose own fallback is that same session key.
+- **`weight_mass.py` handed `load_cases_csv` its display-converted results.**
+  Since M4-20 step 3 the writer converts internally, so that page's CSV came out
+  SI while every other page's came out Imperial — an inconsistency no error
+  reported. It now passes the raw results plus `system=`; only the unit-agnostic
+  `module_text_report` gets the converted copy.
 - **The four sbeam `.bdf` decks shipped with no methods or units statement at
   all** (found implementing M4-20 step 5). The Export page built a
   `bdf_comment_block` and then never applied it — the decks were the one channel

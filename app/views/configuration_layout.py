@@ -23,7 +23,7 @@ import plotly.graph_objects as go
 import streamlit as st
 from plotly.subplots import make_subplots
 
-from components import gate, page_header, unit_number_input
+from components import active_system, gate, page_header, unit_number_input
 
 from sloads.applicability import effective_occupants
 from sloads import (
@@ -86,7 +86,11 @@ for _w in consistency_warnings(project):
     # Wing Geometry pages (Step G1), so it surfaces both warning categories.
     if _w.page in ("configuration_layout", "wing_geometry"):
         st.warning(_w.message)
-system: UnitSystem = st.session_state.get("unit_system", UnitSystem.IMPERIAL)
+# D-16: ``active_system()`` is the single read of the unit selection. Reading
+# ``session_state["unit_system"]`` here was a second authority for the same
+# decision -- since M4-20 step 2 the project field is the source, and the
+# session key is only the no-project-yet fallback inside ``active_system()``.
+system: UnitSystem = active_system()
 U = labels_for(system)  # {"weight","length","area_sqft",...} -> unit string
 
 # Read-only echo of the occupant count (owned by the Structural Speeds page,
@@ -796,7 +800,7 @@ else:
         _dl = st.columns(2)
         _dl[0].download_button(
             "Download surface geometry (CSV)",
-            sloads_io.load_cases_csv(_surf_results),
+            sloads_io.load_cases_csv(_surf_results, system=system),
             file_name="wing_geometry.csv", mime="text/csv",
         )
         _dl[1].download_button(

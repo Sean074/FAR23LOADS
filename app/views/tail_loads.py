@@ -21,7 +21,7 @@ import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
 
-from components import gate
+from components import active_system, gate
 
 from sloads import Project, UnitSystem, labels_for, si_scalar_label, to_display, to_si_scalar
 from sloads.modules.balloads import verify_balancing
@@ -39,7 +39,11 @@ st.caption(
 )
 
 project: Project = st.session_state.get("project", Project(name=""))
-system: UnitSystem = st.session_state.get("unit_system", UnitSystem.IMPERIAL)
+# D-16: ``active_system()`` is the single read of the unit selection. Reading
+# ``session_state["unit_system"]`` here was a second authority for the same
+# decision -- since M4-20 step 2 the project field is the source, and the
+# session key is only the no-project-yet fallback inside ``active_system()``.
+system: UnitSystem = active_system()
 U = labels_for(system)  # {"length",...} -> unit string
 
 if project.tail_loads is None and project.vtail_loads is None:

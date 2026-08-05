@@ -284,6 +284,124 @@ def test_the_stamp_still_round_trips_for_csv_readers():
 
 
 # --------------------------------------------------------------------------- #
+# Step 6 — the Export page resolves the system once and states it
+# --------------------------------------------------------------------------- #
+def _view_source(name: str) -> str:
+    here = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    with open(os.path.join(here, "app", "views", f"{name}.py")) as fh:
+        return fh.read()
+
+
+def test_the_export_page_resolves_the_system_exactly_once():
+    """One `active_system()` read, and every artifact call takes that local.
+
+    "One bundle, one system" is only structural if there is a single value to
+    disagree with. A second `active_system()` call would be harmless *today* and
+    a latent split the moment anything sits between them, so the count is pinned
+    rather than the behaviour.
+    """
+    source = _view_source("export_report")
+    calls = [ln for ln in source.splitlines()
+             if "active_system()" in ln and not ln.lstrip().startswith("#")]
+    assert calls == ["_system = active_system()"], calls
+
+
+def test_every_export_page_writer_call_takes_the_bundle_system():
+    """No artifact on the Export page may fall back to a writer's Imperial default.
+
+    A defaulted call is invisible: it produces a perfectly valid file, in the
+    wrong system, beside files in the right one — the exact failure "one bundle,
+    one system" exists to prevent. Every unit-taking writer call is checked here
+    because the page is a script, not an importable function.
+    """
+    import re
+
+    source = _view_source("export_report")
+    # The unit-taking writers, by name; case_index_* is deliberately absent —
+    # it carries only Speed (kt) and Altitude (ft), both aviation carve-outs.
+    writers = ("span_load_csv", "force_moment_cards", "stick_model_bdf",
+               "body_span_load_csv", "body_fitting_load_csv", "tail_chordwise_csv",
+               "control_surface_csv", "load_cases_csv")
+    # Calls wrap across lines, so match each writer reference and read the argument
+    # list that follows it, rather than slicing statements out of the source.
+    checked = 0
+    for match in re.finditer(r"\b(?:sb|sloads_io)\.(\w+)", source):
+        name = match.group(1)
+        # Suffix match: the body/tail/control card writers are
+        # ``body_force_moment_cards`` etc., the same writer per component.
+        if not any(name.endswith(w) for w in writers):
+            continue
+        window = source[match.end(): match.end() + 220]
+        assert "system=_system" in window, f"{name} call defaults to Imperial:\n{window}"
+        checked += 1
+    # 5 decks + 5 sbeam CSVs + the per-module load-case CSV.
+    assert checked == 11, f"{checked} writer calls found, expected 11"
+
+
+def test_the_case_index_needs_no_system():
+    """Its only dimensional columns are the two that are never converted.
+
+    Worth pinning: the case index is the one export that legitimately takes no
+    `system=`, and "this writer was forgotten" and "this writer needs nothing"
+    look identical at a call site.
+    """
+    dimensional = [k for k in sb._CASE_INDEX_FIELDS if "(" in k]
+    assert dimensional == ["Speed (kt)", "Altitude (ft)"], dimensional
+
+
+def _export_page_captions(system: UnitSystem):
+    """Render the Export page headlessly in ``system`` and return its captions."""
+    import logging
+
+    import pytest
+
+    pytest.importorskip("streamlit.testing.v1")
+    from streamlit.testing.v1 import AppTest
+
+    logging.disable(logging.CRITICAL)  # silence Streamlit's bare-mode warnings
+    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    for path in (root, os.path.join(root, "app")):
+        if path not in sys.path:
+            sys.path.insert(0, path)
+
+    project = _ga_project()
+    # The selection lives on the project (D-22) and active_system() reads it
+    # there; the session key is only the no-project-yet fallback.
+    project.unit_system = system.value
+    at = AppTest.from_file(
+        os.path.join(root, "app", "views", "export_report.py"), default_timeout=180)
+    at.session_state["project"] = project
+    at.session_state["unit_system"] = system
+    at.run()
+    assert not at.exception, [e.message for e in at.exception]
+    return [c.value for c in at.caption]
+
+
+def test_the_export_page_states_the_system_it_will_write():
+    """The plan's acceptance: the on-page caption matches what the files contain.
+
+    AppTest cannot read a download button's payload (Streamlit serves it by URL),
+    so the caption is compared against the *unit sets themselves* — the same
+    `deliverable_units` the writers resolve. That is the property that matters:
+    caption and files have one source, so they cannot drift.
+    """
+    for system in (UnitSystem.IMPERIAL, UnitSystem.SI):
+        caption = next(c for c in _export_page_captions(system) if "written in" in c)
+        for channel in (Channel.HUMAN, Channel.SOLVER):
+            u = deliverable_units(system, channel)
+            for dim in (u.force, u.length, u.moment, u.pressure):
+                assert dim.label in caption, (system, channel, dim.label, caption)
+        assert "KEAS" in caption and "ULTIMATE" in caption
+
+    si = next(c for c in _export_page_captions(UnitSystem.SI) if "written in" in c)
+    assert "**SI**" in si and "N·mm" in si
+    imperial = next(
+        c for c in _export_page_captions(UnitSystem.IMPERIAL) if "written in" in c)
+    # Imperial's two channels are the same set, so the caption must not split.
+    assert "**Imperial**" in imperial and "sbeam decks" not in imperial
+
+
+# --------------------------------------------------------------------------- #
 # The mappings this step adds — both were reachable, unconverted, in SI
 # --------------------------------------------------------------------------- #
 def _one(units: str, value: float = 1.0, quantity: str = "") -> LoadValue:

@@ -28,7 +28,7 @@ from importlib.metadata import PackageNotFoundError, version as _pkg_version
 
 import streamlit as st
 
-from components import gate
+from components import active_system, gate
 
 from sloads import Project, consistency_warnings, registry
 from sloads import io as sloads_io
@@ -53,7 +53,13 @@ from sloads.report.methods import (
     methods_statement,
     strip_comment_lines,
 )
-from sloads.units import UnitSystem, deliverable_units, units_statement
+from sloads.units import (
+    Channel,
+    convert_results,
+    deliverable_units,
+    system_name,
+    units_statement,
+)
 
 
 def _version(name: str) -> str:
@@ -92,6 +98,13 @@ def _try(fn, *args, **kwargs):
 # --------------------------------------------------------------------------- #
 # Compute every artifact once (used by both the per-channel buttons and the zip)
 # --------------------------------------------------------------------------- #
+# The bundle's unit system, resolved ONCE from the sidebar toggle and shared by
+# every artifact below -- that single value is what makes "one bundle, one system"
+# true by construction rather than by discipline, and it is what the in-band unit
+# statement (M4-20 step 5) promises the reader. ``active_system()`` is the one read
+# of the selection in the whole app layer (D-16).
+_system = active_system()
+
 project_json = sloads_io.project_to_json(project)
 module_results = registry.run_all_modules(project)
 step_by_module = {s.module: s for s in wf.STEPS if s.module}
@@ -109,8 +122,16 @@ if project.date:
     _header_lines.append(f"Date: {project.date}")
 report_header = "\n".join(_header_lines)
 
+# ``report/render.py`` is unit-agnostic by construction -- it reads each
+# LoadValue's own units string -- so the *caller* converts, unlike the CSV writer
+# which converts internally (M4-20 step 3). Handing it already-converted results
+# AND a system would be a double conversion; these two paths are deliberately
+# asymmetric, exactly as in ``cli.py``.
 text_report = "\n\n".join(
-    [report_header] + [module_text_report(_module_label(mr), mr.conditions) for mr in module_results]
+    [report_header] + [
+        module_text_report(_module_label(mr), convert_results(mr.conditions, _system))
+        for mr in module_results
+    ]
 )
 
 
@@ -177,20 +198,14 @@ _selected_ids = (
 _tool_version = _version("sloads")
 _deselected_ids = sorted(_all_case_ids - _selected_ids) if _selected_ids is not None else []
 _scope_text = "governing case set" if _deselected_ids else "full case set"
-# The bundle's unit system, resolved ONCE and shared by every artifact below --
-# that single value is what makes "one bundle, one system" true by construction
-# rather than by discipline, and it is what the in-band unit statement (M4-20
-# step 5) promises the reader. Step 6 re-points this to
-# ``components.active_system()``; until then the GUI bundle stays Imperial, which
-# is what the writers' defaults already produced.
-_system = UnitSystem.IMPERIAL
 _stamp_kw = dict(tool_version=_tool_version, scope=_scope_text,
                  deselected_case_ids=_deselected_ids or None, system=_system)
 _methods = methods_statement(project, **_stamp_kw)
 _csv_stamp = csv_comment_block(project, **_stamp_kw)
 _bdf_stamp = bdf_comment_block(project, **_stamp_kw)
 
-module_csvs = {mr.module: sloads_io.load_cases_csv(mr, header_comment=_csv_stamp)
+module_csvs = {mr.module: sloads_io.load_cases_csv(mr, header_comment=_csv_stamp,
+                                                   system=_system)
                for mr in module_results}
 
 if _selected_ids is not None:
@@ -209,28 +224,35 @@ if _selected_ids is not None:
 _bdf_artifacts: dict = {}
 if _wing:
     _bdf_artifacts["wing_loads.bdf"] = _try(
-        sb.force_moment_cards, _wing, header_comment=_bdf_stamp) or ""
-    _bdf_artifacts["wing_span_loads.csv"] = _try(sb.span_load_csv, _wing, header_comment=_csv_stamp) or ""
+        sb.force_moment_cards, _wing, header_comment=_bdf_stamp, system=_system) or ""
+    _bdf_artifacts["wing_span_loads.csv"] = _try(
+        sb.span_load_csv, _wing, header_comment=_csv_stamp, system=_system) or ""
     _bdf_artifacts["wing_stick.bdf"] = _try(
-        sb.stick_model_bdf, _wing, header_comment=_bdf_stamp) or ""
+        sb.stick_model_bdf, _wing, header_comment=_bdf_stamp, system=_system) or ""
 if _body:
     _bdf_artifacts["fuselage_loads.bdf"] = _try(
-        sb.body_force_moment_cards, _body, header_comment=_bdf_stamp) or ""
-    _bdf_artifacts["fuselage_span_loads.csv"] = _try(sb.body_span_load_csv, _body, header_comment=_csv_stamp) or ""
+        sb.body_force_moment_cards, _body, header_comment=_bdf_stamp,
+        system=_system) or ""
+    _bdf_artifacts["fuselage_span_loads.csv"] = _try(
+        sb.body_span_load_csv, _body, header_comment=_csv_stamp, system=_system) or ""
     # Reported beside the FORCE set, never in it -- the span loads already carry
     # the carry-through reaction (M4-1).
     _bdf_artifacts["fuselage_fitting_loads.csv"] = _try(
-        sb.body_fitting_load_csv, _body, header_comment=_csv_stamp) or ""
+        sb.body_fitting_load_csv, _body, header_comment=_csv_stamp,
+        system=_system) or ""
 if _tail:
     _bdf_artifacts["tail_loads.bdf"] = _try(
-        sb.tail_force_moment_cards, _tail, header_comment=_bdf_stamp) or ""
-    _bdf_artifacts["tail_chordwise.csv"] = _try(sb.tail_chordwise_csv, _tail, header_comment=_csv_stamp) or ""
+        sb.tail_force_moment_cards, _tail, header_comment=_bdf_stamp,
+        system=_system) or ""
+    _bdf_artifacts["tail_chordwise.csv"] = _try(
+        sb.tail_chordwise_csv, _tail, header_comment=_csv_stamp, system=_system) or ""
 if _control:
     _bdf_artifacts["control_surface_loads.bdf"] = _try(
         sb.control_surface_force_moment_cards, _control,
-        header_comment=_bdf_stamp) or ""
+        header_comment=_bdf_stamp, system=_system) or ""
     _bdf_artifacts["control_surface_loads.csv"] = _try(
-        sb.control_surface_csv, _control, header_comment=_csv_stamp) or ""
+        sb.control_surface_csv, _control, header_comment=_csv_stamp,
+        system=_system) or ""
 
 # Case-index table (Step D1): ID -> full definition, from every module's own
 # ConditionResults (covers engine/landing/SELECT) plus the sbeam component
@@ -245,6 +267,36 @@ case_index_csv = sb.case_index_csv_from(
 # 1. Project file + combined bundle
 # --------------------------------------------------------------------------- #
 st.header("Project file & bundle")
+
+
+def _units_caption() -> str:
+    """The system this bundle will be written in, stated beside the downloads.
+
+    Derived from the same ``_system`` the writers were given and from
+    ``deliverable_units`` itself, so the caption cannot drift from the files: it
+    is the on-page half of the in-band statement each file carries (M4-20 step 5;
+    ``GUI_design.md`` §7).
+    """
+    human = deliverable_units(_system, Channel.HUMAN)
+    solver = deliverable_units(_system, Channel.SOLVER)
+
+    def listed(u):
+        return f"{u.force.label}, {u.length.label}, {u.moment.label}, {u.pressure.label}"
+
+    name = system_name(_system)
+    sets = (
+        f"in **{listed(human)}**" if listed(human) == listed(solver) else
+        f"human-readable files in **{listed(human)}**, the sbeam decks in "
+        f"**{listed(solver)}** (a deck in N and mm needs N·mm moments)"
+    )
+    return (
+        f"Every file below is written in **{name}** — {sets}. Airspeed stays KEAS "
+        "and altitude stays ft in both systems. Change it with the Imperial/SI "
+        "toggle in the sidebar; loads are ULTIMATE in every export."
+    )
+
+
+st.caption(_units_caption())
 c1, c2, c3 = st.columns(3)
 c1.download_button("💾 Save project.json", project_json,
                    file_name=f"{_stem}.json", mime="application/json")

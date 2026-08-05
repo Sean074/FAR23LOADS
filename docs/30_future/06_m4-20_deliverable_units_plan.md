@@ -425,7 +425,42 @@ the same system in all of them; `strip_comment_lines` still round-trips (the G8.
 readers must not break — `workbook._csv_to_df` reads with `comment="#"` and is
 the audited path).
 
-### Step 6 — Export page and bundle: resolve once, state it
+### Step 6 — Export page and bundle: resolve once, state it ✅ *complete 2026-08-04*
+
+*As built — the whole GUI download layer, not only the Export page.* The plan
+scoped step 6 to `export_report.py`, but ten other views ship their own
+CSV/BDF download buttons; leaving them on the writers' Imperial defaults while
+the bundle followed the toggle would produce exactly the two-files-disagree
+failure this step exists to prevent. Every download call in the app layer now
+takes the page's system.
+
+*As built — a pre-existing double-conversion hazard, fixed.* `weight_mass.py`
+handed `load_cases_csv` its **display-converted** results. Since step 3 the writer
+converts internally, so that page's CSV was accidentally SI while every other
+page's was Imperial. It now passes the raw results plus `system=`, and only the
+unit-agnostic `module_text_report` gets the converted copy — the asymmetry step 3
+established, now consistent across all ten views.
+
+**Defect found and fixed here — twelve views bypassed `active_system()`.** They
+read `st.session_state["unit_system"]` directly, a *second* authority for the
+selection that D-16 says must not exist. It was latent rather than live (Home.py
+rewrites the session key from the project field on every render, so the two agree
+in practice), but it means step 2's re-point of `active_system()` at
+`Project.unit_system` reached only the views that went through
+`unit_number_input`/`page`. All twelve now call `active_system()`, whose own
+fallback is that same session key — so behaviour is unchanged where they already
+agreed and correct where they could not.
+
+*Not done here — the per-page hand-built LIMIT CSVs.* `wing_loads`,
+`fuselage_loads`, `tail_loads` and `loads_plots` each build a CSV from their own
+row dicts (`csv.DictWriter` over `wing_load_rows(...)` etc.) rather than through
+a `sloads` writer. Those files are Imperial in both systems and their columns
+state no units at all, while the table above them on the page is converted. They
+are the LIMIT analysis-page channel (the CLAUDE.md carve-out), the row builders
+are bespoke per page, and giving them unit-suffixed headers is the same shape of
+work step 4 did for the sbeam CSVs — logged as **L-8i** rather than folded in.
+
+#### As planned
 
 - `export_report.py` resolves `active_system()` **once** into a local and passes
   it to every artifact call — that single value is what makes "one system per

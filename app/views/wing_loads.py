@@ -30,6 +30,7 @@ from sloads import (
     UnitSystem,
     WingLoadCase,
     WingMassInput,
+    convert_results,
     si_scalar_label,
     to_display,
     to_imperial_scalar,
@@ -200,10 +201,12 @@ st.dataframe(pd.DataFrame({
 }), hide_index=True, use_container_width=True)
 
 st.download_button(
-    "Download airloads (CSV)", sloads_io.load_cases_csv(air_results),
+    "Download airloads (CSV)",
+    sloads_io.load_cases_csv(air_results, system=system),
     file_name="airloads.csv", mime="text/csv")
 st.download_button(
-    "Download airloads (text)", module_text_report("Spanwise wing airloads", air_results),
+    "Download airloads (text)", module_text_report("Spanwise wing airloads",
+                       convert_results(air_results, system)),
     file_name="airloads.txt", mime="text/plain")
 
 # --------------------------------------------------------------------------- #
@@ -379,7 +382,7 @@ _dl = st.columns(2)
 _dl[0].download_button("Download net wing loads — LIMIT (CSV)", buf.getvalue(),
                        file_name="net_wing_loads_LIMIT.csv", mime="text/csv")
 _dl[1].download_button("Download net wing loads — ULTIMATE (CSV)",
-                       sb.span_load_csv(loads.wing_net),
+                       sb.span_load_csv(loads.wing_net, system=system),
                        file_name="net_wing_loads_ULT.csv", mime="text/csv")
 st.caption(
     "The LIMIT file carries a `Basis` column and matches the table above. The "

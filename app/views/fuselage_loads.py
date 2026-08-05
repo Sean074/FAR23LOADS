@@ -20,7 +20,7 @@ import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
 
-from components import gate
+from components import active_system, gate
 
 from sloads import (
     Project,
@@ -64,7 +64,11 @@ st.caption(
 )
 
 project: Project = st.session_state.get("project", Project(name=""))
-system: UnitSystem = st.session_state.get("unit_system", UnitSystem.IMPERIAL)
+# D-16: ``active_system()`` is the single read of the unit selection. Reading
+# ``session_state["unit_system"]`` here was a second authority for the same
+# decision -- since M4-20 step 2 the project field is the source, and the
+# session key is only the no-project-yet fallback inside ``active_system()``.
+system: UnitSystem = active_system()
 U = labels_for(system)  # {"weight","length",...} -> unit string
 
 if project.flight_loads is None:
@@ -204,7 +208,7 @@ _dl = st.columns(2)
 _dl[0].download_button("Download fuselage loads — LIMIT (CSV)", buf.getvalue(),
                        file_name="net_fuselage_loads_LIMIT.csv", mime="text/csv")
 _dl[1].download_button("Download fuselage loads — ULTIMATE (CSV)",
-                       sb.body_span_load_csv(results),
+                       sb.body_span_load_csv(results, system=system),
                        file_name="net_fuselage_loads_ULT.csv", mime="text/csv")
 st.caption(
     "The LIMIT file carries a `Basis` column and matches the table above. The "
