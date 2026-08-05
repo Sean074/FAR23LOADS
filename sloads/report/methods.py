@@ -14,6 +14,13 @@ So the statement is built **once**, here, and wrapped for each channel
 * :func:`csv_comment_block` -- the same, ``#``-prefixed, for a CSV header.
 * :func:`bdf_comment_block` -- the same, ``$``-prefixed, for a NASTRAN deck.
 
+**Units (M4-20 step 5).** The block states the bundle's unit system in band, so a
+forwarded file never needs its units inferred from the magnitude of its numbers.
+The statement is *bundle*-wide, not per-channel: one stamp is wrapped for every
+channel, and the same block lands on both the human-readable CSVs (N*m, kPa) and
+the sbeam decks (N*mm, MPa), so it names both sets and says which files use
+which. Pass the same ``system`` the writers were given.
+
 **Determinism.** Nothing here reads the clock. ``generated`` is a caller-supplied
 string, omitted when ``None`` -- the GUI passes one, the tests do not. Two runs
 of the same project must produce byte-identical output, or the ``.tex`` diff
@@ -30,6 +37,14 @@ from typing import List, Optional
 from ..applicability import far23_applicability
 from ..constants import ULTIMATE_FACTOR
 from ..models import SCHEMA_VERSION, Project
+from ..units import (
+    Channel,
+    UnitSystem,
+    deliverable_units,
+    system_name,
+    units_statement,
+)
+from .render import ultimate_units
 
 #: Bumped with the tool, not the schema; stamped into every channel so a stray
 #: CSV can be traced back to the build that produced it.
@@ -60,6 +75,58 @@ _STANDING_LIMITATIONS = (
     "reactions, not a distributed ground condition (backlog M4-6).",
     "No pressurization load cases.",
 )
+
+
+def _ult_markers(system: UnitSystem) -> str:
+    """The ``-ULT`` markers a bundle in ``system`` can actually contain.
+
+    Derived from the unit sets rather than listed by hand, so it cannot fall out
+    of step with what the writers emit -- the hard-coded list this replaced still
+    named the pre-M4-20 set and would have advertised markers no file carried.
+    Both channels contribute: in SI the solver deck adds ``Nmm-ULT``/``MPa-ULT``
+    to the human channel's ``Nm-ULT``/``kPa-ULT``.
+    """
+    seen = {}  # ordered set
+    for channel in (Channel.HUMAN, Channel.SOLVER):
+        u = deliverable_units(system, channel)
+        for dim in (u.force, u.torque, u.moment, u.pressure):
+            seen[ultimate_units(dim.label)] = None
+    return ", ".join(seen)
+
+
+def _units_block(system: UnitSystem) -> List[str]:
+    """The bundle's UNITS statement -- one system, and the channels it splits into.
+
+    This is bundle-wide prose, not a per-file line: one stamp is wrapped for every
+    channel (decision G8-3), and the Export page puts the *same* block on the
+    human load-case CSVs and on the sbeam CSVs/decks. A channel-specific statement
+    would therefore be wrong on half the files it lands in, so the statement names
+    both sets and says which files use which.
+    """
+    human = deliverable_units(system, Channel.HUMAN)
+    solver = deliverable_units(system, Channel.SOLVER)
+    carve_out = (
+        "Airspeed is KEAS and altitude is ft in both systems (aviation standard, "
+        "never converted)."
+    )
+    def dims(u):
+        return (u.force, u.length, u.moment, u.pressure)
+
+    if dims(human) == dims(solver):
+        # Imperial: one set does both jobs, so do not imply a split that isn't there.
+        return [f"UNITS: {units_statement(human)} throughout. {carve_out}"]
+    def listed(u):
+        # Just the units -- the system is already named once, at the front.
+        return f"{u.force.label}, {u.length.label}, {u.moment.label}, {u.pressure.label}"
+
+    return [
+        f"UNITS: {system_name(system)}. Human-readable deliverables (report, "
+        f"load-case CSVs, workbook) are in {listed(human)}; the sbeam "
+        f"solver decks and their span CSVs are in {listed(solver)} -- a "
+        "deck whose GRID coordinates are mm and whose FORCE cards are N is only "
+        "correct when its MOMENT cards are N*mm and its stresses MPa. "
+        + carve_out,
+    ]
 
 
 def _category_block(project: Project) -> List[str]:
@@ -131,6 +198,7 @@ def methods_statement(
     tool_version: str = "",
     scope: str = "",
     deselected_case_ids: Optional[List[str]] = None,
+    system: UnitSystem = UnitSystem.IMPERIAL,
 ) -> str:
     """The full methods & limitations statement for ``project``.
 
@@ -139,6 +207,12 @@ def methods_statement(
     contains ("full case set" / "governing case set"); ``deselected_case_ids``
     lists any case an opt-out filter removed, because an analyst must never
     silently receive a filtered set.
+
+    ``system`` (M4-20 step 5) is the system the *bundle* was written in, and it
+    must be the same value the writers were given -- this block is the in-band
+    statement that makes a forwarded file self-describing, so a stamp that
+    disagrees with its own numbers is worse than no stamp at all. It is the
+    bundle's system, not a channel's: see :func:`_units_block`.
     """
     L: List[str] = []
     L.append("METHODS AND LIMITATIONS")
@@ -150,10 +224,14 @@ def methods_statement(
         f"factor). Every case states its own safety factor in an 'SF' column or an "
         f"'SF=' marker; the default is {ULTIMATE_FACTOR} per 14 CFR 23.303 "
         f"(25.303 for Part 25). Load quantities carry a '-ULT' unit marker "
-        f"(lbs-ULT, ft-lb-ULT, N-ULT, Nm-ULT). Load factors (n, Nz) are limit and "
+        f"({_ult_markers(system)}). Load factors (n, Nz) are limit and "
         f"dimensionless, and geometry, weights, inertias, areas, speeds and angles "
         f"are never scaled."
     )
+    L.append("")
+
+    # 1b. Units -------------------------------------------------------------- #
+    L.extend(_units_block(system))
     L.append("")
 
     # 2. Category ------------------------------------------------------------ #
@@ -239,7 +317,8 @@ def csv_comment_block(project: Project, **kwargs) -> str:
 
     A consumer must be told to skip them (``pandas.read_csv(..., comment="#")``);
     every in-repo reader was audited at G8.3. The trade is deliberate: a CSV that
-    is forwarded on its own still states that its loads are ultimate.
+    is forwarded on its own still states that its loads are ultimate and which
+    unit system it is written in (``system=``, M4-20 step 5).
     """
     return _prefixed(methods_statement(project, **kwargs), "#")
 
@@ -249,6 +328,11 @@ def bdf_comment_block(project: Project, **kwargs) -> str:
 
     ``$`` is a comment to every bulk-data parser, so this is free -- it follows
     the existing ``body_loads`` caveat precedent already stamped into decks.
+
+    Pass the result as every sbeam BDF writer's ``header_comment`` (M4-20 step 5).
+    Until then this wrapper had one caller, which built the block and never
+    applied it, so the decks were the only channel in a bundle stating neither
+    their basis nor their units.
     """
     return _prefixed(methods_statement(project, **kwargs), "$")
 

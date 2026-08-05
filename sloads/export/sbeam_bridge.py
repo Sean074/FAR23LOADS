@@ -118,6 +118,24 @@ def _units(system: UnitSystem) -> DeliverableUnits:
     return deliverable_units(system, Channel.SOLVER)
 
 
+def _stamped(header_comment: str, deck: str) -> str:
+    """Prepend a ``$``-comment block to a bulk-data deck (M4-20 step 5).
+
+    Every BDF writer takes a ``header_comment`` for the same reason the CSV
+    writers do: a deck forwarded on its own must still state that its loads are
+    ULTIMATE and which unit set it is in. Until step 5 the Export page built a
+    ``bdf_comment_block`` and then never applied it, so the four decks were the
+    one channel in the bundle carrying no statement at all.
+
+    ``$`` is a comment to every bulk-data parser, so the block is inert; a blank
+    ``header_comment`` returns the deck untouched, which keeps every existing
+    caller (and the frozen Imperial comparison) byte-identical.
+    """
+    if not header_comment:
+        return deck
+    return header_comment.rstrip("\n") + "\n" + deck
+
+
 def _ult(label: str) -> str:
     """``lb`` -> ``lbs-ULT``, ``N`` -> ``N-ULT`` -- the renderer's own vocabulary.
 
@@ -388,20 +406,28 @@ def _case_card_block(r: WingLoadResult, sid: int, u: DeliverableUnits) -> List[s
 
 
 def force_moment_cards(arg: ResultsArg, sid_base: int = 1, *,
+                       header_comment: str = "",
                        system: UnitSystem = UnitSystem.IMPERIAL) -> str:
-    """FORCE/MOMENT bulk-data card text for every case (one SID per case)."""
+    """FORCE/MOMENT bulk-data card text for every case (one SID per case).
+
+    ``header_comment`` is the ``$``-prefixed methods & units block
+    (:func:`~sloads.report.bdf_comment_block`), prepended so a deck forwarded on
+    its own states its own basis and unit set -- see :func:`_stamped`.
+    """
     results = _as_results(arg)
     u = _units(system)
     blocks: List[str] = []
     for idx, r in enumerate(results):
         blocks.append("\n".join(_case_card_block(r, _sid(sid_base, idx), u)))
-    return "\n".join(blocks) + "\n"
+    return _stamped(header_comment, "\n".join(blocks) + "\n")
 
 
 def write_force_moment_cards(arg: ResultsArg, path: str, sid_base: int = 1, *,
+                             header_comment: str = "",
                              system: UnitSystem = UnitSystem.IMPERIAL) -> None:
     with open(path, "w", encoding="utf-8") as fh:
-        fh.write(force_moment_cards(arg, sid_base=sid_base, system=system))
+        fh.write(force_moment_cards(arg, sid_base=sid_base,
+                                    header_comment=header_comment, system=system))
 
 
 # --------------------------------------------------------------------------- #
@@ -433,6 +459,7 @@ def _root_node(loads: List[NodalLoad]) -> tuple:
 
 
 def stick_model_bdf(arg: ResultsArg, sid_base: int = 1, *,
+                    header_comment: str = "",
                     system: UnitSystem = UnitSystem.IMPERIAL) -> str:
     """A minimal SOL 101 CBAR stick model carrying the exported wing load sets.
 
@@ -506,13 +533,15 @@ def stick_model_bdf(arg: ResultsArg, sid_base: int = 1, *,
     for idx, r in enumerate(results):
         bulk += _case_card_block(r, _sid(sid_base, idx), u)
 
-    return "\n".join(head + bulk + ["ENDDATA"]) + "\n"
+    return _stamped(header_comment, "\n".join(head + bulk + ["ENDDATA"]) + "\n")
 
 
 def write_stick_model_bdf(arg: ResultsArg, path: str, sid_base: int = 1, *,
+                          header_comment: str = "",
                           system: UnitSystem = UnitSystem.IMPERIAL) -> None:
     with open(path, "w", encoding="utf-8") as fh:
-        fh.write(stick_model_bdf(arg, sid_base=sid_base, system=system))
+        fh.write(stick_model_bdf(arg, sid_base=sid_base,
+                                 header_comment=header_comment, system=system))
 
 
 # --------------------------------------------------------------------------- #
@@ -610,6 +639,7 @@ def body_span_load_csv(arg, header_comment: str = "", *,
 
 
 def body_force_moment_cards(arg, sid_base: int = 1, *,
+                            header_comment: str = "",
                             system: UnitSystem = UnitSystem.IMPERIAL) -> str:
     """FORCE bulk-data cards for the fuselage net distribution (one SID per case);
     the per-station applied Fz set sums to ~0 (vertical equilibrium).
@@ -649,7 +679,7 @@ def body_force_moment_cards(arg, sid_base: int = 1, *,
                     f"{_fmt(fx)}, {_fmt(fy)}, {_fmt(fz)}"
                 )
         blocks.append("\n".join(lines))
-    return "\n".join(blocks) + "\n"
+    return _stamped(header_comment, "\n".join(blocks) + "\n")
 
 
 def _body_fitting_fields(u: DeliverableUnits) -> List[str]:
@@ -785,6 +815,7 @@ def tail_chordwise_csv(arg, header_comment: str = "", *,
 
 
 def tail_force_moment_cards(arg, sid_base: int = 1, *,
+                            header_comment: str = "",
                             system: UnitSystem = UnitSystem.IMPERIAL) -> str:
     """FORCE bulk-data cards for the chordwise tail loads (one SID per condition);
     each set's applied Fz sums to the total tail load ``LT25 + LT50``."""
@@ -812,7 +843,7 @@ def tail_force_moment_cards(arg, sid_base: int = 1, *,
                     f"{_fmt(fx2)}, {_fmt(fy2)}, {_fmt(fz2)}"
                 )
         blocks.append("\n".join(lines))
-    return "\n".join(blocks) + "\n"
+    return _stamped(header_comment, "\n".join(blocks) + "\n")
 
 
 def write_tail_chordwise_csv(arg, path: str, *,
@@ -822,9 +853,11 @@ def write_tail_chordwise_csv(arg, path: str, *,
 
 
 def write_tail_force_moment_cards(arg, path: str, sid_base: int = 1, *,
+                                  header_comment: str = "",
                                   system: UnitSystem = UnitSystem.IMPERIAL) -> None:
     with open(path, "w", encoding="utf-8") as fh:
-        fh.write(tail_force_moment_cards(arg, sid_base=sid_base, system=system))
+        fh.write(tail_force_moment_cards(arg, sid_base=sid_base,
+                                         header_comment=header_comment, system=system))
 
 
 # --------------------------------------------------------------------------- #
@@ -908,6 +941,7 @@ def control_surface_csv(arg, header_comment: str = "", *,
 
 
 def control_surface_force_moment_cards(arg, sid_base: int = 1, *,
+                                       header_comment: str = "",
                                        system: UnitSystem = UnitSystem.IMPERIAL) -> str:
     """FORCE bulk-data cards for the control-surface loads (one SID per condition);
     each set's applied Fz sums to the critical surface load."""
@@ -935,7 +969,7 @@ def control_surface_force_moment_cards(arg, sid_base: int = 1, *,
                     f"{_fmt(fx2)}, {_fmt(fy2)}, {_fmt(fz2)}"
                 )
         blocks.append("\n".join(lines))
-    return "\n".join(blocks) + "\n"
+    return _stamped(header_comment, "\n".join(blocks) + "\n")
 
 
 def write_control_surface_csv(arg, path: str, *,
@@ -946,11 +980,12 @@ def write_control_surface_csv(arg, path: str, *,
 
 def write_control_surface_force_moment_cards(
     arg, path: str, sid_base: int = 1, *,
+    header_comment: str = "",
     system: UnitSystem = UnitSystem.IMPERIAL,
 ) -> None:
     with open(path, "w", encoding="utf-8") as fh:
         fh.write(control_surface_force_moment_cards(
-            arg, sid_base=sid_base, system=system))
+            arg, sid_base=sid_base, header_comment=header_comment, system=system))
 
 
 # --------------------------------------------------------------------------- #

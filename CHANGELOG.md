@@ -12,6 +12,25 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **M4-20 step 5 — every deliverable states its unit system in band.** The
+  methods & limitations block (`report/methods.py`) takes `system=` and gains a
+  `UNITS:` paragraph, so the one statement wrapped for every channel (G8-3) puts
+  the unit set into every file: `# UNITS: …` in each CSV, `$ UNITS: …` in each
+  BDF, the paragraph in `METHODS.txt` and the report. It is *bundle*-wide, not
+  per-channel — the same block lands on both the human CSVs and the sbeam decks,
+  so in SI it names both sets and attributes each (`N·m, kPa` for the readable
+  files, `N·mm, MPa` for the decks); in Imperial one set does both jobs and the
+  statement says so without inventing a split.
+- **M4-20 step 5 — the BASIS `-ULT` marker list is derived, not hard-coded.** It
+  listed `lbs-ULT, ft-lb-ULT, N-ULT, Nm-ULT` regardless of system: markers no
+  Imperial file carries, and missing every marker step 4 added. It is now
+  generated from both channels' unit sets, so it cannot fall out of step with what
+  the writers emit.
+- **M4-20 step 5 — `units_statement` names all four dimensions.** `Imperial (lb,
+  in, lb-in, lb/in^2)` / `SI (N, mm, N·mm, MPa)`; pressure joined it because step
+  4 found that dimension silently wrong, and kPa-vs-MPa is exactly what a reader
+  cannot infer from the numbers.
+
 - **M4-20 step 4 — the sbeam solver channel writes the consistent N/mm/N·mm set.**
   Every public `export/sbeam_bridge` writer (all 17: wing / body / tail /
   control-surface CSVs, the four `FORCE`/`MOMENT` card sets and the CBAR stick
@@ -108,6 +127,16 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   the solver set in both systems.
 
 ### Fixed
+
+- **The four sbeam `.bdf` decks shipped with no methods or units statement at
+  all** (found implementing M4-20 step 5). The Export page built a
+  `bdf_comment_block` and then never applied it — the decks were the one channel
+  in a bundle carrying neither their ULTIMATE basis nor their unit set. `ruff`
+  could not catch it: the unused name is module-level, and its unused-variable
+  rule is a *local* check. Every BDF writer now takes `header_comment=` (matching
+  the CSV writers), the page passes the stamp it builds, and a source-level test
+  asserts all five deck artifacts do. `$` is inert to any bulk-data parser and an
+  unstamped call is byte-identical, so no existing caller changes.
 
 - **`lb-in` and `lb/in^2` had no SI conversion.** `units.convert_results` left
   them Imperial while converting everything around them, so an SI results table

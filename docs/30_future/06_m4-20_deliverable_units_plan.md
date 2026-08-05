@@ -361,7 +361,53 @@ not per writer; a dedicated test asserts `moment` differs between `HUMAN` and
 dimensional identity — force × length = moment — which is the actual invariant,
 and it holds trivially for Imperial too).
 
-### Step 5 — In-band unit statements
+### Step 5 — In-band unit statements ✅ *complete 2026-08-04*
+
+*As built — one bundle-wide statement, not a per-file line.* The plan listed four
+separate statements (a BDF header line, a CSV `# Units:` line, the BASIS
+paragraph, a workbook row). Three of them are the *same* block: `methods.py`
+already builds the statement once and wraps it per channel (G8-3), so adding a
+`UNITS:` paragraph there gives the CSV its `# UNITS: …`, the deck its
+`$ UNITS: …` and `METHODS.txt` its paragraph from one change. Only the workbook,
+which has no comment rows, needed a separate carrier (a `Units` row on the
+*Project* sheet).
+
+*As built — the statement is the **bundle's**, and names both channels.*
+`methods_statement` takes `system=`, not a `DeliverableUnits`. The Export page
+builds one stamp and puts it on both the human load-case CSVs and the sbeam
+CSVs/decks, so a channel-specific statement would be wrong on half the files it
+lands in. In SI the paragraph therefore names both sets and attributes each
+(`N·m, kPa` for the readable files; `N·mm, MPa` for the decks); in Imperial one
+set does both jobs and the statement says so rather than inventing a split.
+
+*As built — the BASIS `-ULT` marker list is derived from the unit sets.* It was
+hard-coded as `lbs-ULT, ft-lb-ULT, N-ULT, Nm-ULT` regardless of system: it named
+markers no Imperial file carries and omitted every marker step 4 added
+(`Nmm-ULT`, `MPa-ULT`). Generated from both channels now, so it cannot drift from
+what the writers emit.
+
+*As built — `units_statement` names all four dimensions* (`Imperial (lb, in,
+lb-in, lb/in^2)`, `SI (N, mm, N·mm, MPa)`). Pressure was added for the reason
+step 4 uncovered: it is the dimension a reader cannot infer from the numbers, and
+kPa-vs-MPa is the same silent 1000× as N·m-vs-N·mm.
+
+**Defect found and fixed here — the `.bdf` decks carried no statement at all.**
+The Export page built a `bdf_comment_block` and then never applied it, so the
+four decks were the one channel in a bundle stating neither their ULTIMATE basis
+(a G8.3 claim) nor their units. `ruff` cannot catch it: the unused name is
+module-level and its unused-variable rule is a *local* check. Every BDF writer
+now takes `header_comment=` like the CSV writers, `_stamped()` prepends it, and a
+source-level test asserts all five deck artifacts pass `_bdf_stamp`. An unstamped
+call is byte-identical, so Imperial CLI output is untouched.
+
+*Not done here — the CLI channel carries no methods stamp.* `cli.py`'s `-o` and
+`--export-sbeam` outputs have never carried the G8.3 block (CSV or BDF); that
+predates M4-20 and is a G8.3 coverage gap, not a units one — every CLI file does
+state its units, via step 3/4's column headers and the decks' `$` axis comments.
+Logged as a backlog item rather than folded in, since stamping the CLI changes
+the bytes of every headless export.
+
+#### As planned
 
 - **BDF:** a `$ Units: Imperial (lb, in, lb-in)` / `$ Units: SI (N, mm, N*mm)`
   line in the header block, beside the existing G8.3 methods stamp.

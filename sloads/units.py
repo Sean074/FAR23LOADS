@@ -522,13 +522,25 @@ def unit_system_from(value, default: UnitSystem = UnitSystem.IMPERIAL) -> UnitSy
         return default
 
 
+def system_name(system: UnitSystem) -> str:
+    """The display name of a unit system, as an in-band statement spells it."""
+    return "Imperial" if system == UnitSystem.IMPERIAL else "SI"
+
+
 def units_statement(u: DeliverableUnits) -> str:
-    """The in-band unit statement a deliverable carries, e.g. ``SI (N, mm, N·mm)``.
+    """The in-band unit statement a deliverable carries, e.g. ``SI (N, mm, N·mm, MPa)``.
 
     Every exported file states its unit system in itself -- a header comment in a
     BDF, a header row or unit-suffixed column in a CSV, the title page and
     manifest in the report. A deliverable whose units must be inferred from the
     magnitude of its numbers is non-conforming (SUMMARY_REPORT.md 3.5).
+
+    All four dimensions are named, pressure included: it is the dimension where a
+    wrong set hides most easily (kPa vs. MPa is a silent 1000x, exactly as N*m vs.
+    N*mm is -- see :meth:`DeliverableUnits.is_consistent`), and the tail/control
+    solver CSVs carry a pressure column.
     """
-    name = "Imperial" if u.system == UnitSystem.IMPERIAL else "SI"
-    return f"{name} ({u.force.label}, {u.length.label}, {u.moment.label})"
+    return (
+        f"{system_name(u.system)} ({u.force.label}, {u.length.label}, "
+        f"{u.moment.label}, {u.pressure.label})"
+    )

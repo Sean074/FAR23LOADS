@@ -33,6 +33,12 @@ from sloads import io, registry  # noqa: E402
 from sloads.export import sbeam_bridge as sb  # noqa: E402
 from sloads.models import ConditionResult, LoadValue, Project
 from sloads.registry import run_all_modules  # noqa: E402
+from sloads.report.methods import (  # noqa: E402
+    bdf_comment_block,
+    csv_comment_block,
+    methods_statement,
+    strip_comment_lines,
+)
 from sloads.report.render import _LOAD_UNITS, _ULT_UNITS, ultimate_units  # noqa: E402
 from sloads.units import (  # noqa: E402
     _RESULT_TO_SI,
@@ -128,12 +134,153 @@ def test_si_factors_are_the_exact_nist_products():
 
 
 # --------------------------------------------------------------------------- #
-# In-band statement
+# In-band statement (step 1: the string; step 5: every channel carries it)
 # --------------------------------------------------------------------------- #
+def _ga_project() -> Project:
+    return io.load_project(os.path.join(
+        os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+        "examples", "ga6_normal.project.json"))
+
+
 def test_units_statement_names_the_system_and_its_set():
-    assert units_statement(deliverable_units(UnitSystem.IMPERIAL)) == "Imperial (lb, in, lb-in)"
-    assert units_statement(deliverable_units(UnitSystem.SI, Channel.HUMAN)) == "SI (N, mm, N·m)"
-    assert units_statement(deliverable_units(UnitSystem.SI, Channel.SOLVER)) == "SI (N, mm, N·mm)"
+    """All four dimensions, pressure included (M4-20 step 5).
+
+    Pressure joined the statement when step 4 found the solver set had been left
+    on the human channel's kPa: it is exactly the dimension a reader cannot infer
+    from the numbers, since kPa and MPa differ by the same silent 1000× as N·m and
+    N·mm. A statement that named only three would have been true and useless.
+    """
+    imperial = "Imperial (lb, in, lb-in, lb/in^2)"
+    assert units_statement(deliverable_units(UnitSystem.IMPERIAL)) == imperial
+    assert units_statement(deliverable_units(UnitSystem.SI, Channel.HUMAN)) == \
+        "SI (N, mm, N·m, kPa)"
+    assert units_statement(deliverable_units(UnitSystem.SI, Channel.SOLVER)) == \
+        "SI (N, mm, N·mm, MPa)"
+
+
+def test_the_methods_statement_names_the_bundles_system_and_both_channels():
+    """The in-band statement is bundle-wide, and says which files use which set.
+
+    One stamp is wrapped for every channel (G8-3) and lands on both the human
+    load-case CSVs and the sbeam decks, so it cannot be channel-specific — it
+    would be wrong on half the files it appears in. In SI it must therefore name
+    *both* sets and attribute each.
+    """
+    project = _ga_project()
+    si = methods_statement(project, system=UnitSystem.SI)
+    assert "UNITS: SI." in si
+    assert "N·m, kPa" in si and "N·mm, MPa" in si
+    assert "sbeam" in si.split("UNITS:")[1].split("\n")[0]
+
+    # Imperial: one set does both jobs, so the statement must not invent a split.
+    imperial = methods_statement(project, system=UnitSystem.IMPERIAL)
+    assert "UNITS: Imperial (lb, in, lb-in, lb/in^2) throughout." in imperial
+    assert "N·mm" not in imperial
+
+
+def test_the_units_statement_repeats_the_aviation_carve_out():
+    """KEAS/ft are unconverted in both systems — the one thing a reader of an SI
+    file would otherwise take for a bug, so the statement says it in band."""
+    for system in (UnitSystem.IMPERIAL, UnitSystem.SI):
+        text = methods_statement(_ga_project(), system=system)
+        assert "KEAS" in text and "altitude is ft" in text
+
+
+def test_the_ult_markers_are_derived_from_the_unit_sets():
+    """BASIS lists the markers a bundle can actually contain, per system.
+
+    The list was hard-coded (``lbs-ULT, ft-lb-ULT, N-ULT, Nm-ULT``) and named
+    markers no Imperial file carries while omitting every marker step 4 added. It
+    is now generated from both channels' sets, so it cannot fall out of step with
+    what the writers emit.
+    """
+    imperial = methods_statement(_ga_project(), system=UnitSystem.IMPERIAL)
+    assert "(lbs-ULT, ft-lb-ULT, lb-in-ULT, lb/in^2-ULT)" in imperial
+
+    si = methods_statement(_ga_project(), system=UnitSystem.SI)
+    for marker in ("N-ULT", "Nm-ULT", "Nmm-ULT", "kPa-ULT", "MPa-ULT"):
+        assert marker in si.split("UNITS:")[0], marker
+
+
+def test_every_bundle_channel_carries_the_unit_statement():
+    """The acceptance criterion: no file leaves without stating its units.
+
+    The BDF decks are the reason this test exists — the Export page built a
+    ``bdf_comment_block`` and never applied it, so until step 5 the four decks
+    were the one channel in the bundle carrying no statement at all.
+    """
+    project = _ga_project()
+    results = _ga_wing_net()
+    kw = dict(system=UnitSystem.SI)
+    csv_stamp = csv_comment_block(project, **kw)
+    bdf_stamp = bdf_comment_block(project, **kw)
+
+    channels = {
+        "load-case CSV": io.load_cases_csv(
+            registry.get("engine")(project), header_comment=csv_stamp,
+            system=UnitSystem.SI),
+        "span CSV": sb.span_load_csv(results, header_comment=csv_stamp,
+                                     system=UnitSystem.SI),
+        "FORCE/MOMENT deck": sb.force_moment_cards(
+            results, header_comment=bdf_stamp, system=UnitSystem.SI),
+        "stick model": sb.stick_model_bdf(
+            results, header_comment=bdf_stamp, system=UnitSystem.SI),
+        "METHODS.txt": methods_statement(project, **kw),
+    }
+    for name, text in channels.items():
+        assert "UNITS: SI." in text, f"{name} states no unit system"
+        assert "N·mm, MPa" in text, f"{name} does not name the solver set"
+
+
+def test_the_deck_stamp_is_comment_only_and_optional():
+    """A stamped deck differs from a bare one by ``$`` lines and nothing else.
+
+    ``$`` is inert to every bulk-data parser, and an unstamped call must stay
+    byte-identical — that is what keeps the frozen Imperial comparison and every
+    existing caller unaffected (D-21).
+    """
+    results = _ga_wing_net()
+    bare = sb.force_moment_cards(results)
+    stamped = sb.force_moment_cards(
+        results, header_comment=bdf_comment_block(_ga_project()))
+    assert stamped != bare
+    added = stamped[: len(stamped) - len(bare)]
+    assert all(ln.startswith("$") or not ln for ln in added.splitlines())
+    assert stamped.endswith(bare)
+
+
+def test_the_export_page_applies_the_stamp_it_builds():
+    """Source guard: every ``.bdf`` artifact gets ``header_comment=_bdf_stamp``.
+
+    The defect this pins was invisible for a whole phase — the page built
+    ``_bdf_stamp`` and then never used it, and because it is a module-level name
+    ruff's unused-variable rule (a *local* check) never fired. The decks shipped
+    unstamped. Reading the page's source is the only way to assert this without a
+    Streamlit runtime.
+    """
+    here = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    with open(os.path.join(here, "app", "views", "export_report.py")) as fh:
+        source = fh.read()
+
+    assignments = [ln for ln in source.splitlines() if '.bdf"] = ' in ln]
+    # wing FORCE/MOMENT + wing stick model + fuselage + tail + control surfaces.
+    assert len(assignments) == 5, assignments
+    for line in assignments:
+        # The call may wrap; take the whole statement up to the closing `or ""`.
+        stmt = source.split(line, 1)[1].split('or ""', 1)[0]
+        assert "_bdf_stamp" in stmt, line
+
+    # ...and the workbook, which has no comment rows, states units in a cell.
+    assert '"Units": units_statement(' in source
+
+
+def test_the_stamp_still_round_trips_for_csv_readers():
+    """``strip_comment_lines`` must survive the extra UNITS line — the G8.3
+    readers (``workbook._csv_to_df`` reads with ``comment="#"``) are the audited
+    path, and a stamp they cannot skip is a header row of prose."""
+    stamp = csv_comment_block(_ga_project(), system=UnitSystem.SI)
+    payload = sb.span_load_csv(_ga_wing_net(), system=UnitSystem.SI)
+    assert strip_comment_lines(stamp + payload) == payload
 
 
 # --------------------------------------------------------------------------- #

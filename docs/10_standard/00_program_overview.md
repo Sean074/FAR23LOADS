@@ -192,6 +192,14 @@ in the calc's internal Imperial units:
 - **In-band statement.** Every deliverable states its unit system in itself: the
   report's title page and manifest, a header comment in the BDF, a header row or
   column-header unit in a CSV. Units are never left to be inferred from magnitude.
+  The carrier is the **methods & limitations block** (`report/methods.py`), which
+  is built once per bundle and wrapped per channel — so `methods_statement(project,
+  system=…)`'s `UNITS:` paragraph reaches every CSV as `# UNITS: …` and every BDF
+  as `$ UNITS: …` from one place. The statement is *bundle*-wide, not per-file: one
+  stamp lands on both the human-readable CSVs and the sbeam decks, so in SI it
+  names **both** sets (`N·m, kPa` and `N·mm, MPa`) and says which files use which.
+  The `.xlsx` workbook has no comment rows and carries a `Units` row on its
+  *Project* sheet instead.
 - **Markers convert with the unit** — `N-ULT` / `Nm-ULT` / `kPa-ULT` in SI, exactly
   as `lbs-ULT` / `ft-lb-ULT` / `lb-in-ULT` / `lb/in²-ULT` in Imperial. No dual
   display (one system, no parenthetical conversions).

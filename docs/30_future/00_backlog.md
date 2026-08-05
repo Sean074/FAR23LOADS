@@ -126,9 +126,21 @@ pressure at the human channel's `kPa`, which is the D-19 defect one dimension ov
 **zero numeric characters** across all six examples × wing/tail/control — only
 header rows and two `$` comment lines (D-21).
 
-**Remaining: steps 5–7** — the in-band `$ Units:` / `# Units:` statements, the
-Export page (it still calls the writers without a system, so GUI downloads stay
-Imperial until step 6), and close-out.
+**Step 5 shipped 2026-08-04** — the in-band statement. `methods_statement` takes
+`system=` and gains a `UNITS:` paragraph, so the block already wrapped per channel
+(G8-3) carries the unit set into every file at once: `# UNITS: …` in each CSV,
+`$ UNITS: …` in each BDF, the paragraph in `METHODS.txt`; the workbook, which has
+no comment rows, gets a `Units` row on its *Project* sheet. The statement is
+**bundle**-wide and names both channels (in SI: `N·m, kPa` for the readable files,
+`N·mm, MPa` for the decks), because one stamp lands on both. The BASIS `-ULT`
+marker list is now derived from the unit sets instead of hard-coded, and
+`units_statement` names all four dimensions. **Defect fixed:** the Export page
+built a `bdf_comment_block` and never applied it, so the four `.bdf` decks carried
+*no* methods or units statement at all — every BDF writer now takes
+`header_comment=` and a source test pins all five deck artifacts.
+
+**Remaining: steps 6–7** — the Export page (it still calls the writers without a
+system, so GUI downloads stay Imperial until step 6) and close-out.
 
 ### M3-3b — Step G8 remainder: the report document itself
 
@@ -421,6 +433,25 @@ The G6/G6b empennage + landing-gear sections hardcode ft²/in labels and ignore
 the SI toggle — a `GUI_design.md §7` deviation. Make them respect the toggle
 (adopting `unit_number_input`) or record the exception in `GUI_design.md §7`.
 Pairs with **M4-20**, which fixes the same boundary on the export side.
+
+### L-8g — CLI exports carry no methods & limitations stamp
+`cli.py`'s `-o` load-case CSV and its `--export-sbeam` CSVs/BDFs have never
+carried the G8.3 methods block that the GUI bundle stamps into every file, so a
+headless export states its ULTIMATE basis, category and approved corrections
+nowhere. (Units *are* stated — the column headers and the decks' `$` axis
+comments carry them since M4-20 steps 3–5 — so this is a G8.3 coverage gap, not a
+units one.) The writers already take `header_comment=`; the work is deciding
+whether a headless export should change bytes, and threading
+`csv_comment_block`/`bdf_comment_block` through `_export_sbeam`. Found while
+implementing M4-20 step 5.
+
+### L-8h — Three result units still have no SI mapping
+`units._RESULT_TO_SI` has no entry for `ft^2` (6 values, wing area), `lb/ft^2`
+(6, wing loading) or `ft/s` (5, sink rate), so those cells stay Imperial inside an
+otherwise-converted SI table — the same class of defect M4-20 step 1 fixed for
+`lb-in` and `lb/in^2`, at ~1/90th the count. (`ft`, 104 values, is altitude and is
+correctly carved out.) Deferred from M4-20 step 1 because none is a *load*
+quantity, so none reaches a deliverable through the ultimate boundary.
 
 ### L-8b — `help=` tooltip rollout completion
 App-wide tooltip coverage is ~45%. Worst pages: flap loads 0/6, one-engine-out
