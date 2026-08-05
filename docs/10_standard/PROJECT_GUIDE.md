@@ -221,6 +221,8 @@ FAR23LOADS/
 ├── tests/
 │   ├── test_engine.py            # current test_calc.py (renamed)
 │   ├── test_units.py, test_report.py, test_io.py
+│   ├── imperial_baseline.py      # renders every deliverable channel of every example (M4-20)
+│   ├── fixtures_imperial/        #   ...digested and frozen: the D-21 "Imperial is unchanged" guard
 │   └── test_<module>.py          # one per module, vs manual Appendix A/B
 ├── examples/
 │   ├── ga6_normal.project.json   # Appendix A — 6-place GA single (category N)
@@ -344,6 +346,8 @@ So that every module is copy-of-the-pattern, these are fixed once:
   `case_ids.py` (two independent counters over the same range collide, not
   just diverge — see the wing-gap note in `PROGRAM_SPEC.md`) and `seed()` your
   allocator to it.
+
+- **Imperial output is frozen (M4-20, decision D-21).** `tests/imperial_baseline.py` renders every deliverable channel (load-case CSVs, text reports, all five sbeam CSVs, all five decks, the case index) for all six examples and digests each into `tests/fixtures_imperial/digests.json` — 256 channels. Any change to an Imperial byte fails `test_imperial_output_matches_the_frozen_baseline`, which names the drifted channel. Regenerate with `.venv/bin/python tests/imperial_baseline.py` **only** when the change to Imperial output is intended, and say so in `CHANGELOG.md`: a regeneration is a claim, not a cleanup.
 
 ---
 

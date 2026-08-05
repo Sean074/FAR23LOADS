@@ -473,7 +473,45 @@ work step 4 did for the sbeam CSVs — logged as **L-8i** rather than folded in.
 **Acceptance:** an AppTest builds a bundle in each system and asserts the caption
 matches what the files contain.
 
-### Step 7 — Tests and doc sync
+### Step 7 — Tests and doc sync ✅ *complete 2026-08-04* — **M4-20 CLOSED**
+
+*As built — the Imperial guard is a digest baseline, not frozen copies.* The plan
+asked for "byte-identical to a frozen pre-M4-20 snapshot of all 6 examples". Six
+examples × ~43 channels of near-identical CSV is megabytes of fixture, and the
+question the guard answers is binary. `tests/imperial_baseline.py` renders every
+channel and freezes a SHA-256 per channel in
+`tests/fixtures_imperial/digests.json` (23 KB, **256 channels**); the failure
+message names the drifted channel, and `python tests/imperial_baseline.py`
+regenerates. Verified to bite: a hand-corrupted digest fails with
+`ga6_normal.project.json: Imperial output changed in ['sbeam/wing_span']`.
+
+*As built — a companion test asserts the baseline is not vacuous.* The renderer
+swallows a `MissingInputError` for an example that lacks a slice, so a regression
+making every channel raise would shrink the fixture to nothing and leave the guard
+green forever. The set of examples reaching the solver channel is pinned exactly —
+`concept_heavy` legitimately has none (no `cl`/`v_eas_kt`, no `fuselage_mass`).
+
+*As built — "oracles unchanged" is asserted structurally.* The plan's matrix row
+was "Appendix A assertions numerically unchanged". The per-module tests already
+assert the numbers; what M4-20 has to prove is that the calc never *reaches* them
+differently. A source guard that no `sloads/modules/*.py` calls `convert_results`
+/ `deliverable_units` / `to_si_scalar` says exactly that, and does not go stale.
+
+*Doc sync.* `DATA_DICTIONARY.md` needed no regeneration (schema v38 landed in step
+2 and it was regenerated then — confirmed by a no-diff run). `CLAUDE.md`,
+`00_program_overview.md`, `SUMMARY_REPORT.md` §3.5, `PROJECT_GUIDE.md` and
+`GUI_design.md` §7 were each updated in the step that changed the behaviour they
+describe, not batched here.
+
+*Close-out.* M4-20 moved to
+[`../40_history/00_completed_development.md`](../40_history/00_completed_development.md);
+**D-19 … D-22** moved to
+[`../40_history/03_resolved_decisions.md`](../40_history/03_resolved_decisions.md);
+**M3-3b G8.5 unblocked** (the `.tex` renderer is now written against the
+unit-aware writers rather than retrofitted). Three follow-ups logged rather than
+folded in: **L-8g**, **L-8h**, **L-8i**.
+
+#### As planned
 
 **Tests** (new file `tests/test_deliverable_units.py` plus additions):
 

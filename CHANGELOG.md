@@ -12,6 +12,19 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **M4-20 step 7 — the Imperial baseline is frozen, and M4-20 is closed.**
+  `tests/imperial_baseline.py` renders every deliverable channel of all six
+  examples and freezes a SHA-256 each in `tests/fixtures_imperial/digests.json`
+  (**256 channels**); the guard is decision D-21's guarantee that adding SI cost
+  the Imperial user nothing, and its failure message names the drifted channel.
+  Regenerate deliberately with `.venv/bin/python tests/imperial_baseline.py`.
+  Joined by the bundle-single-system, per-dimension round-trip and end-to-end CLI
+  tests, and by a source guard that no `sloads/modules/*.py` calls a conversion
+  function — the calc is structurally outside this path, which is what leaves the
+  Appendix A oracles untouched. M4-20 moved to
+  `docs/40_history/00_completed_development.md`, D-19…D-22 to
+  `03_resolved_decisions.md`, and **M3-3b G8.5 is unblocked**.
+
 - **M4-20 step 6 — the GUI writes its downloads in the selected system.** The
   Export page resolves `components.active_system()` **once** into `_system` and
   passes it to all eleven artifact calls (five decks, five sbeam CSVs, the

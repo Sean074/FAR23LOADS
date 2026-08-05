@@ -10,6 +10,102 @@ Acceptance**, **Key decisions**.
 
 ---
 
+## M4-20 — Deliverables render in the user-selected unit system (complete 2026-08-04)
+
+**Objective.** Close the gap the 2026-08-03 standard change opened. `00_program_overview.md`
+(*Deliverable units follow the user's selection*) and `SUMMARY_REPORT.md` §3.5 declared that
+the whole export bundle renders in the system the user chose; the code still wrote every
+deliverable in Imperial, so the Imperial/SI toggle was display-only and the documentation
+described behaviour that did not exist. Blocking **M3-3b** G8.5: a `.tex` renderer written
+against Imperial-only writers would have to be retrofitted.
+
+**Deliverables.** Seven steps, each approved and shipped separately.
+
+- **Step 1 — the unit sets (`units.py`).** `Channel` (HUMAN / SOLVER), `Dimension`,
+  `DeliverableUnits`, `deliverable_units(system, channel)`, `units_statement`,
+  `system_name`. Imperial is the **all-1.0 identity**, so no writer needs an
+  `if system == IMPERIAL` branch and "Imperial is unchanged" is structural rather than
+  promised. Derived factors (`LB_IN_TO_N_M`, `LB_IN_TO_N_MM`, `PSI_TO_MPA`) are computed
+  from named base constants, never quoted.
+- **Step 2 — the selection (`Project.unit_system`, schema v38).** A *preference* field,
+  additive with a total default so it needs no migration hop; `units.unit_system_from`
+  degrades an unrecognised value to Imperial rather than raising; CLI `--units imperial|si`
+  with `resolve_units` (flag → project → Imperial); the sidebar toggle writes the project
+  field, so a unit change reads as an unsaved change (**D-22**).
+  `components.active_system()` re-pointed at the field — one function, no call-site changes.
+- **Step 3 — the human channel.** `io.load_cases_csv` / `write_load_cases_csv` take
+  `system=` and convert **once**, inside the writer. `report/render.py` was not touched: it
+  reads each `LoadValue.units` string, so the SI headers fell out of the existing
+  `_detect_unit`.
+- **Step 4 — the solver channel.** All 17 `sbeam_bridge` writers take `system=`;
+  `export/coordinates.py` is the single scale point (`to_grid`/`to_force`/`to_moment`/
+  `to_pressure`), and card fields *and* CSV cells both route through it, so a span CSV
+  cannot disagree with the deck beside it. Those four **raise** on a dimensionally
+  inconsistent set.
+- **Step 5 — the in-band statement.** `methods_statement(project, system=…)` gains a
+  `UNITS:` paragraph, so the block already wrapped per channel (G8-3) carries the unit set
+  into every file at once: `# UNITS:` in each CSV, `$ UNITS:` in each BDF, the paragraph in
+  `METHODS.txt`; the workbook gets a `Units` row. The BASIS `-ULT` marker list is derived
+  from the unit sets rather than hard-coded.
+- **Step 6 — the GUI.** The Export page resolves `active_system()` **once** and hands that
+  value to all eleven artifact calls, stating the system in a caption built from
+  `deliverable_units` itself. The ten other views' download buttons follow their page's
+  system.
+- **Step 7 — close-out.** The frozen Imperial baseline, the bundle/round-trip/CLI tests,
+  and this record.
+
+**Defects found and fixed along the way** (none were the announced work):
+
+- **`lb-in` and `lb/in^2` had no SI mapping** — **1580 values across the six examples**
+  stayed Imperial inside an otherwise-converted SI table (root bending/torsion, pitching
+  moments, every control-surface design pressure). The dead `"knot"` row, which converted
+  nothing because no producer emits that string, is gone.
+- **The solver set had the human channel's `kPa`** — the D-19 defect one dimension over.
+  Fixed with a derived `PSI_TO_MPA`; `is_consistent` now checks **both** derived dimensions
+  (`moment == force × length` *and* `pressure == force / length²`) so the next one cannot be
+  missed the same way.
+- **The four sbeam `.bdf` decks carried no methods or units statement at all.** The Export
+  page built a `bdf_comment_block` and never applied it; `ruff` could not catch it because
+  the unused name is module-level and its unused-variable rule is a *local* check.
+- **Twelve views read `st.session_state["unit_system"]` directly**, a second authority for
+  the selection that `GUI_design.md` §7 already forbade, and that made step 2's re-point of
+  `active_system()` reach only the views going through `unit_number_input`/`page`.
+- **`weight_mass.py` passed display-converted results to `load_cases_csv`**, whose writer
+  converts internally since step 3 — so that one page's CSV came out SI while every other
+  page's came out Imperial.
+
+**Test / Acceptance.** `tests/test_deliverable_units.py` (47 tests) plus
+`tests/imperial_baseline.py` + `tests/fixtures_imperial/digests.json`:
+
+| Guarantee | Test |
+|---|---|
+| **Imperial output is unchanged** (D-21) | 6 examples × 256 channels digested and frozen; the guard names the drifted channel |
+| Dimensional identity | `moment == force × length` and `pressure == force / length²`, both systems |
+| Channel split | HUMAN ≠ SOLVER in SI, identical in Imperial |
+| One bundle, one system | every channel of a real bundle states the same system, and not the other |
+| SI closure | the SI FORCE set sums to the stated root shear, the MOMENT set to the stated torsion |
+| Aviation carve-out | KEAS/altitude columns byte-identical in both systems, CSV and report |
+| Round trip | Imperial → SI → Imperial exact, per dimension and through `LoadValue` |
+| Oracles untouched | no `sloads/modules/*.py` calls a conversion function — the calc is structurally out of this path |
+| CLI | `--units si` vs. default; `--units si --export-sbeam` writes the solver set |
+| No silent defaults | source guards: the Export page resolves the system once and no writer call omits it |
+
+Suite: **653 → 702 passed**, 93 % coverage, `ruff` clean.
+
+**Key decisions.** **D-19** the solver deck is one *consistent* set (N / mm / N·mm, extended
+in step 4 to MPa) — an `N·m` moment in a deck whose GRIDs are mm is a silent 1000× torsion
+error in a file that parses cleanly and sizes structure wrongly; **D-20** SI design pressure
+is `kPa-ULT` in the human channel; **D-21** the in-band unit statement wins over
+byte-identical Imperial output, so the guard is strip-and-compare; **D-22** the sidebar
+toggle writes `Project.unit_system` and marks the project dirty. Plan and full rationale:
+[`../30_future/06_m4-20_deliverable_units_plan.md`](../30_future/06_m4-20_deliverable_units_plan.md).
+
+**Left open** (logged, not folded in): **L-8g** the CLI carries no G8.3 methods stamp;
+**L-8h** `ft^2`/`lb/ft^2`/`ft/s` still have no SI result mapping (17 values, none a load);
+**L-8i** the per-page hand-built LIMIT CSVs ignore the toggle and state no units.
+
+---
+
 ## M4-9 — `LoadValue.key`: de-string the load-case semantics (complete 2026-08-04)
 
 **Objective.** Take the meaning of a result off its display label. Before this,

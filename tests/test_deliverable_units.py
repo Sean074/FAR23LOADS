@@ -514,7 +514,8 @@ def test_unit_system_round_trips_and_stays_out_of_a_default_file():
 def test_a_pre_v38_file_reads_as_imperial():
     """Absent *is* the value — which is why this needed no migration hop."""
     here = os.path.dirname(os.path.abspath(__file__))
-    old = json.load(open(os.path.join(here, "fixtures_schema", "v37_no_unit_system.json")))
+    with open(os.path.join(here, "fixtures_schema", "v37_no_unit_system.json")) as fh:
+        old = json.load(fh)
     assert "unit_system" not in old
     assert io.project_from_dict(old).unit_system == "imperial"
 
@@ -658,8 +659,13 @@ def test_load_cases_csv_is_the_only_converter_in_the_human_channel():
     assert "_as_conditions" in calls[0], calls
 
 
-def test_write_load_cases_csv_passes_the_system_through(tmp_path=None):
-    """The file writer is a thin wrapper -- it must not drop the parameter."""
+def test_write_load_cases_csv_passes_the_system_through():
+    """The file writer is a thin wrapper -- it must not drop the parameter.
+
+    Uses ``tempfile`` rather than pytest's ``tmp_path`` fixture: every test in
+    this file must also run under the zero-dependency self-runner at the bottom,
+    which calls each test with no arguments and cannot supply a fixture.
+    """
     import tempfile
 
     project = io.load_project(os.path.join(
@@ -843,6 +849,200 @@ def test_sbeam_headers_state_their_units_in_both_systems():
         # Only the non-dimensional columns are bare.
         bare = [c for c in cells if "(" not in c]
         assert bare == ["Case", "GID", "MyyAxis", "SF"], bare
+
+
+# --------------------------------------------------------------------------- #
+# Step 7 — the closing guarantees: Imperial is unchanged, a bundle is one
+# system, the round trip is lossless, and the calc is not in this path
+# --------------------------------------------------------------------------- #
+def test_imperial_output_matches_the_frozen_baseline():
+    """**Decision D-21's guarantee**: no Imperial byte moved across M4-20.
+
+    Six examples × every channel (load-case CSVs, text reports, all five sbeam
+    CSVs, all five decks, the case index), digested and frozen in
+    ``fixtures_imperial/digests.json``. This is the test the whole item rests on:
+    everything else asserts that SI is *right*, and only this asserts that adding
+    SI cost the Imperial user nothing.
+
+    Regenerate with ``.venv/bin/python tests/imperial_baseline.py`` — and only
+    when the change to Imperial output is intended and recorded.
+    """
+    import imperial_baseline as baseline
+
+    frozen = baseline.load_fixture()
+    for example in baseline.EXAMPLES:
+        current = {
+            channel: __import__("hashlib").sha256(text.encode("utf-8")).hexdigest()
+            for channel, text in baseline.artifacts(example).items()
+        }
+        expected = frozen[example]
+        assert set(current) == set(expected), (
+            example, sorted(set(current) ^ set(expected)))
+        drifted = [c for c in sorted(current) if current[c] != expected[c]]
+        assert not drifted, f"{example}: Imperial output changed in {drifted}"
+
+
+def test_the_frozen_baseline_is_not_vacuous():
+    """A guard over an empty set passes forever — pin the coverage too.
+
+    ``imperial_baseline`` swallows the exception when an example lacks a slice, so
+    a regression that made every channel raise would shrink the fixture to nothing
+    and the guard above would still be green.
+    """
+    import imperial_baseline as baseline
+
+    frozen = baseline.load_fixture()
+    assert set(frozen) == set(baseline.EXAMPLES)
+    assert sum(len(v) for v in frozen.values()) > 200, "baseline lost channels"
+    for example, channels in frozen.items():
+        assert any(c.startswith("csv/") for c in channels), example
+
+    # Which examples reach the *solver* channel is pinned exactly, not merely
+    # "most of them": concept_heavy legitimately has none (its wing/body cases
+    # raise MissingInputError — no cl/v_eas_kt, no fuselage_mass), and an example
+    # silently dropping out of the sbeam set is exactly what a lenient assertion
+    # would hide.
+    with_sbeam = {e for e, ch in frozen.items() if any(c.startswith("sbeam/") for c in ch)}
+    assert with_sbeam == set(baseline.EXAMPLES) - {"concept_heavy.project.json"}, with_sbeam
+
+
+def test_a_bundle_states_exactly_one_system():
+    """Every file in one bundle names the same system — the D-19 bundle invariant.
+
+    Two files in one hand-off disagreeing about units is the failure mode the
+    whole two-channel design is built to make impossible; a *channel* difference
+    (N·m vs N·mm) is legitimate, a *system* difference is not.
+    """
+    import imperial_baseline as baseline
+
+    project = _ga_project()
+    for system, expected, forbidden in (
+        (UnitSystem.IMPERIAL, "UNITS: Imperial", "UNITS: SI"),
+        (UnitSystem.SI, "UNITS: SI.", "UNITS: Imperial"),
+    ):
+        stamps = {
+            "csv": csv_comment_block(project, system=system),
+            "bdf": bdf_comment_block(project, system=system),
+            "methods": methods_statement(project, system=system),
+        }
+        # Every channel of a real bundle, each carrying its channel's stamp.
+        bundle = dict(baseline.artifacts("ga6_normal.project.json"))
+        bundle = {
+            name: (stamps["bdf"] if name.endswith(("cards", "stick"))
+                   else stamps["csv"]) + text
+            for name, text in bundle.items()
+        }
+        bundle["METHODS.txt"] = stamps["methods"]
+        for name, text in bundle.items():
+            assert expected in text, f"{name} does not state {expected}"
+            assert forbidden not in text, f"{name} also claims {forbidden}"
+
+
+def test_the_round_trip_is_lossless_per_dimension():
+    """Imperial → SI → Imperial returns the original, dimension by dimension.
+
+    The factors are exact NIST products, so this is exact rather than merely
+    within display precision — a factor quoted to too few places (the way
+    ``0.1129`` would be) fails here long before it shows up in a load.
+    """
+    for system in (UnitSystem.IMPERIAL, UnitSystem.SI):
+        for channel in (Channel.HUMAN, Channel.SOLVER):
+            u = deliverable_units(system, channel)
+            for dim in (u.force, u.length, u.moment, u.torque, u.pressure):
+                for value in (1.0, 1234.5678, 1e-6, 9.87e5):
+                    assert math.isclose(value * dim.factor / dim.factor, value,
+                                        rel_tol=1e-15), (dim.label, value)
+
+    # ...and through the LoadValue path a deliverable actually uses.
+    for units, si_units in (("lb", "N"), ("lb-in", "N·m"), ("lb/in^2", "kPa")):
+        original = 1234.5678
+        si = convert_results([_one(units, original)], UnitSystem.SI)[0].values[0]
+        assert si.units == si_units
+        factor, _ = _RESULT_TO_SI[units]
+        assert math.isclose(si.value / factor, original, rel_tol=1e-12)
+
+
+def test_no_calc_module_converts_units():
+    """The calc is not in the conversion path, so the oracles cannot be touched.
+
+    Appendix A is asserted numerically in the per-module tests; what M4-20 has to
+    prove is that it never *reaches* those assertions differently. Conversion
+    living entirely at the render/export boundary is that proof, and it is a
+    structural property worth pinning rather than re-deriving from a passing suite.
+    """
+    here = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    modules_dir = os.path.join(here, "sloads", "modules")
+    offenders = []
+    for name in sorted(os.listdir(modules_dir)):
+        if not name.endswith(".py"):
+            continue
+        with open(os.path.join(modules_dir, name)) as fh:
+            source = fh.read()
+        for banned in ("convert_results", "deliverable_units", "to_si_scalar"):
+            if banned + "(" in source:
+                offenders.append(f"{name}: {banned}")
+    assert not offenders, offenders
+
+
+# --------------------------------------------------------------------------- #
+# Step 7 — the CLI, end to end
+# --------------------------------------------------------------------------- #
+def _cli_csv(*argv) -> str:
+    """Run the CLI with ``-o`` into a temp file and return what it wrote."""
+    import tempfile
+
+    with tempfile.TemporaryDirectory() as d:
+        out = os.path.join(d, "out.csv")
+        assert cli.main([*argv, "-o", out]) == 0
+        # newline="" -- the writer emits csv's \r\n; a universal-newline read
+        # would translate them and mask a line-ending regression.
+        with open(out, newline="") as fh:
+            return fh.read()
+
+
+def test_cli_writes_the_requested_system():
+    """``--units si`` changes the file; the default is byte-identical to no flag."""
+    here = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    example = os.path.join(here, "examples", "ga6_normal.project.json")
+
+    plain = _cli_csv("engine", example)
+    imperial = _cli_csv("engine", example, "--units", "imperial")
+    si = _cli_csv("engine", example, "--units", "si")
+
+    assert plain == imperial, "the default run must not depend on the flag existing"
+    assert si != plain
+    assert "lbs-ULT" in plain.splitlines()[0] and "N-ULT" in si.splitlines()[0]
+    # The aviation carve-out survives the CLI boundary too.
+    for carved in ("(kt(EAS))", "(ft)"):
+        assert plain.splitlines()[0].count(carved) == si.splitlines()[0].count(carved)
+
+
+def test_cli_exports_an_si_sbeam_deck():
+    """``--units si --export-sbeam`` writes the solver set, not the human one.
+
+    Step 2 made this combination refuse outright (the deck had no SI unit set yet)
+    and step 4 lifted the refusal; this is the end-to-end proof that the lift is
+    real and reaches the files rather than only the writer signatures.
+    """
+    import tempfile
+
+    here = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    example = os.path.join(here, "examples", "ga6_normal.project.json")
+    with tempfile.TemporaryDirectory() as d:
+        prefix = os.path.join(d, "wing")
+        assert cli.main([example, "--export-sbeam", prefix, "--units", "si"]) == 0
+        written = sorted(os.listdir(d))
+        assert written, "export wrote nothing"
+        deck = next(f for f in written if f.endswith(".bdf"))
+        with open(os.path.join(d, deck)) as fh:
+            text = fh.read()
+        assert "lengths in mm" in text
+        assert "N·mm" in text and "N·m." not in text, "deck must not use the human moment"
+
+        span = next(f for f in written if f.endswith(".csv"))
+        with open(os.path.join(d, span)) as fh:
+            header = fh.readline()
+        assert "X (mm)" in header and "Nmm-ULT" in header, header
 
 
 if __name__ == "__main__":  # zero-dependency self-runner

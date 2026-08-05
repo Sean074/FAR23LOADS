@@ -53,109 +53,6 @@ Reference-authority hierarchy: (1) `.BAS` listings + Appendix A printed output,
 
 # M4 — Post-release (priority order)
 
-### M4-20 — Deliverables render in the user-selected unit system **[first — unblocks M3-3b]**
-
-**Standard changed 2026-08-03** (`00_program_overview.md` *Deliverable units follow
-the user's selection*; `SUMMARY_REPORT.md` §3.5): exports are no longer fixed to
-Imperial — the whole bundle renders in the system the user chose. The docs are
-updated; the code is not.
-
-- **Selection plumbing.** Add a unit-system field to `Project` (`SCHEMA_VERSION`
-  bump + lenient migration; absent → Imperial) recording the *preference* only —
-  `io.py` still never converts stored values. The GUI sidebar toggle writes it;
-  add `--units imperial|si` to `cli.py`, overriding the field per run. Re-point
-  `components._active_system()` at the new field (per D-16).
-- **Unit-aware writers.** `report/` (`load_cases_to_rows`, `text_report`, the
-  module tables), the load-case CSV, `export/sbeam_bridge.py` (`FORCE`/`MOMENT`
-  cards + span CSV) and the G8 report renderer take the system as a parameter and
-  convert at that boundary. One system per bundle — the bundle writer passes a
-  single value to every file, so two files can't disagree.
-- **In-band statement.** BDF header comment naming the system; a units row or
-  unit-suffixed column headers in each CSV; the report's title page and manifest.
-- **Markers.** Extend `units.py` so the `-ULT` marker converts with the unit
-  (`N-ULT`, `Nm-ULT`, `Nmm-ULT`, `kPa-ULT`). Design pressure has no SI result
-  mapping today.
-- **GUI.** The Export page states the system the bundle will be written in, beside
-  the download control (`GUI_design.md` §7).
-- **Tests.** Imperial output unchanged but for its new unit statement (strip-and-
-  compare, per D-21); SI round-trip lossless to display precision; a bundle
-  asserts one system across report + CSV + BDF; KEAS/altitude unconverted in both.
-  Appendix A/B oracles untouched (calc is not in this path).
-
-The aviation-standard carve-out is retained: airspeed (KEAS) and altitude (ft)
-are never converted, and deliverables say so.
-
-**Plan, decisions D-19 … D-22 and the risk table:
-[`06_m4-20_deliverable_units_plan.md`](06_m4-20_deliverable_units_plan.md)**
-(2026-08-04). Seven sub-steps; the spine is a **two-channel** split — the
-human-readable deliverables render N/mm/N·m/kPa, the sbeam decks render the
-consistent solver set **N/mm/N·mm/MPa** (D-19: N·m in a deck whose GRIDs are mm
-is a silent 1000× torsion error, and kPa is the same error for a pressure).
-
-**Step 1 shipped 2026-08-04** — `units.py`'s deliverable unit sets
-(`Channel`/`DeliverableUnits`/`deliverable_units`/`units_statement`), the two
-latent-defect fixes it carried (`lb-in` and `lb/in^2` had no SI mapping, so
-**1580 values across the six examples** stayed Imperial inside an otherwise-SI
-table; the dead `"knot"` row is gone), and the D-20 doc amendment
-(`Pa-ULT` → `kPa-ULT`) with the D-19 solver-channel carve-out written into
-`00_program_overview.md`, `SUMMARY_REPORT.md` §3.5 and CLAUDE.md.
-**Step 2 shipped 2026-08-04** — `Project.unit_system` at **schema v38** (a
-preference only; additive with a total default, so it needs no migration hop),
-`units.unit_system_from`, CLI `--units imperial|si` with `resolve_units`
-(flag → project → Imperial), and the sidebar toggle now writing the project field
-so a unit change reads as an unsaved change (D-22). `components.active_system()`
-re-pointed at the field — one function, no call-site changes.
-
-**Step 3 shipped 2026-08-04** — the human channel: `io.load_cases_csv` /
-`write_load_cases_csv` take `system=` and convert **once**, inside the writer.
-`report/render.py` was not touched — it reads each `LoadValue.units` string, so
-the SI column headers (`N-ULT`, `Nm-ULT`, `mm`) fell out of the existing
-`_detect_unit`, and `Speed (kt)` / `Altitude (ft)` are byte-identical in both
-systems. A guard pins `load_cases_csv` as the sole `convert_results` caller in
-`io.py`, so the channel keeps exactly one conversion point.
-
-**Step 4 shipped 2026-08-04** — the solver channel. `export/coordinates.py` is
-the single scale point (`to_grid`/`to_force`/`to_moment`/`to_pressure`, which now
-**raise** on a dimensionally inconsistent unit set), and all 17 sbeam writers take
-`system=`. CSV cells go through the same three functions the cards do, so a span
-CSV cannot disagree with the deck beside it. `--units si --export-sbeam` now
-works; the temporary refusal is gone. **The solver set gained `MPa`:** step 1 left
-pressure at the human channel's `kPa`, which is the D-19 defect one dimension over
-(pressure is force/length², so an N/mm deck reads stresses in N/mm² = MPa), and
-`is_consistent` now checks both derived dimensions. Imperial output changed by
-**zero numeric characters** across all six examples × wing/tail/control — only
-header rows and two `$` comment lines (D-21).
-
-**Step 5 shipped 2026-08-04** — the in-band statement. `methods_statement` takes
-`system=` and gains a `UNITS:` paragraph, so the block already wrapped per channel
-(G8-3) carries the unit set into every file at once: `# UNITS: …` in each CSV,
-`$ UNITS: …` in each BDF, the paragraph in `METHODS.txt`; the workbook, which has
-no comment rows, gets a `Units` row on its *Project* sheet. The statement is
-**bundle**-wide and names both channels (in SI: `N·m, kPa` for the readable files,
-`N·mm, MPa` for the decks), because one stamp lands on both. The BASIS `-ULT`
-marker list is now derived from the unit sets instead of hard-coded, and
-`units_statement` names all four dimensions. **Defect fixed:** the Export page
-built a `bdf_comment_block` and never applied it, so the four `.bdf` decks carried
-*no* methods or units statement at all — every BDF writer now takes
-`header_comment=` and a source test pins all five deck artifacts.
-
-**Step 6 shipped 2026-08-04** — the GUI download layer. `export_report.py`
-resolves `active_system()` **once** into `_system` and passes it to all eleven
-artifact calls, and states the bundle's system in a caption derived from
-`deliverable_units` itself (so caption and files share one source). The other ten
-views' download buttons take their page's system too — leaving them Imperial while
-the bundle followed the toggle would be the two-files-disagree failure the step
-exists to prevent. **Defects fixed:** `weight_mass.py` passed *display-converted*
-results to `load_cases_csv`, whose writer converts internally since step 3, so its
-CSV was accidentally SI while every other page's was Imperial; and **twelve views
-read `st.session_state["unit_system"]` directly**, a second authority for the
-selection that D-16 forbids and that step 2's re-point never reached — all twelve
-now call `active_system()`.
-
-**Remaining: step 7** — tests, doc sync and close-out (move M4-20 to
-`40_history/00_completed_development.md` and D-19…D-22 to
-`40_history/03_resolved_decisions.md`).
-
 ### M3-3b — Step G8 remainder: the report document itself
 
 G8.1–G8.3 and G8.4's coverage matrix shipped 2026-08-04 (the `sloads/report/`
@@ -165,13 +62,16 @@ document:
 
 - **G8.4 (rest) — `content.py`.** `Project` + `run_all_modules()` →
   `ReportDocument` (§§1–4 of the structure). Pure and fully testable on its own;
-  `coverage.py` is already built and exported for it to consume. **This sub-step
-  is unit-system-independent and may start before M4-20 lands.**
+  `coverage.py` is already built and exported for it to consume.
 - **G8.5 — `latex.py` + `plots_tex.py`.** The `.tex` renderer (escaping,
   `longtable`, document-control block) and the three pgfplots figures (V-n,
   weight/CG, speed–altitude — the third has no GUI equivalent and is new work).
-  **Blocked on M4-20**: a renderer written against the Imperial-only writers has
-  to be retrofitted (`05_step_g8_summary_report_plan.md` §10.1).
+  **Unblocked 2026-08-04** — M4-20 shipped, so the renderer is written against the
+  unit-aware writers rather than retrofitted: take the bundle's system as a
+  parameter, resolve `deliverable_units(system, Channel.HUMAN)` for the tables and
+  carry the `UNITS:` statement from `report.methods_statement(project, system=…)`
+  onto the title page and into the manifest
+  (`05_step_g8_summary_report_plan.md` §10.1).
 - **G8.6 — `export/pdf.py` + the Export-page section.** Engine discovery
   (`tectonic` → `latexmk` → `pdflatex`), compile in a temp dir, surface failure
   as a caption. Write it against the existing `components.page` /
