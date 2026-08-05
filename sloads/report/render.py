@@ -75,7 +75,9 @@ _LOAD_UNITS = {
     "lb-in",     # moment (root bending/torsion, pitching moment)
     "lb/in^2",   # control-surface / tab / tail design pressure
     "N",         # SI force
-    "N·m",       # SI moment
+    "N·m",       # SI moment (human-readable deliverables)
+    "N·mm",      # SI moment (sbeam solver deck -- consistent N/mm set, M4-20 D-19)
+    "kPa",       # SI design pressure
 }
 
 
@@ -102,6 +104,8 @@ _ULT_UNITS = {
     "lb/in^2": "lb/in^2-ULT",  # design pressure (psi)
     "N": "N-ULT",          # SI force
     "N·m": "Nm-ULT",       # SI moment
+    "N·mm": "Nmm-ULT",     # SI moment, solver deck
+    "kPa": "kPa-ULT",      # SI design pressure
 }
 
 

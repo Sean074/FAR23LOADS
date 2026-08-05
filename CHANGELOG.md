@@ -10,7 +10,54 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- **M4-20 step 1 — deliverable unit sets (`units.py`).** `Channel`,
+  `DeliverableUnits`, `deliverable_units(system, channel)` and `units_statement()`:
+  the one authority for what units a deliverable is written in. Resolve it **once
+  per bundle** and hand it to every writer, so two files in one export cannot
+  disagree. Imperial is the all-1.0 identity set, so a writer needs no
+  `if system == IMPERIAL` branch — "Imperial output is unchanged" becomes
+  structural rather than a promise. Nothing consumes it yet; steps 2–7 wire it to
+  the CSV/BDF/report writers. Plan:
+  `docs/30_future/06_m4-20_deliverable_units_plan.md`.
+- **The human/solver channel split (decision D-19).** Human-readable deliverables
+  report moments in `N·m`; the sbeam decks and their companion span CSVs use
+  **`N·mm`**, because sbeam is only correct in a dimensionally consistent set — a
+  deck whose GRID coordinates are millimetres and whose forces are newtons needs
+  `N·mm` moments, and an `N·m` one is wrong by 1000× in a file that parses
+  cleanly and sizes structure. Moment factors are now *derived* as force × length
+  from named base constants, and a test asserts `moment == force × length` for
+  the solver set in both systems.
+
+### Fixed
+
+- **`lb-in` and `lb/in^2` had no SI conversion.** `units.convert_results` left
+  them Imperial while converting everything around them, so an SI results table
+  mixed `N` and `lb-in` in adjacent rows with no error anywhere — **1580 values
+  across the six examples**, covering root bending/torsion, pitching moments and
+  every control-surface design pressure. Both now convert (`N·m`, `kPa`) and both
+  are recognised by the ultimate boundary, so they keep their `-ULT` marker. A
+  standing guard asserts every unit in `render._LOAD_UNITS` has an SI mapping and
+  an `-ULT` marker, so the next one added without them fails loudly; it was
+  verified to fail when the `lb-in` row is removed again.
+- **Dead `"knot" → m/s` row removed from the SI table.** The calc emits
+  `kt(EAS)`, never `"knot"`, so the row never matched a value — the KEAS
+  carve-out held by accident. Removing it means the first producer to emit
+  `"knot"` cannot silently convert an airspeed the standard says is never
+  converted. Pinned by test for both `kt(EAS)` and `ft`.
+- **The `lb-in → N·m` factor was quoted twice as a rounded `0.1129848333`** against
+  an exact product of `0.11298482902761668`. Both sites now derive it. SI-only,
+  3.8e-8, below display precision.
+
 ### Changed
+
+- **`Pa-ULT` → `kPa-ULT` (decision D-20).** `units.py` already converted psi → kPa
+  everywhere in the GUI while three documents specified `Pa`. The code was right;
+  CLAUDE.md, `00_program_overview.md` and `SUMMARY_REPORT.md` §3.5 now say
+  `kPa-ULT`, keeping one pressure unit across GUI and exports. `SUMMARY_REPORT.md`
+  §3.5 also gains the solver-deck carve-out its "no dual display" clause would
+  otherwise have forbidden.
 
 - **Backlog review — M4 re-prioritised and the future-development tree pruned
   (docs only).** **M4-20** (deliverables render in the user-selected unit

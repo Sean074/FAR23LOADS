@@ -172,10 +172,25 @@ in the calc's internal Imperial units:
 - **What it governs.** The whole export bundle in one system — the summary report,
   the load-case CSV, the span-load CSVs, and the sbeam `FORCE`/`MOMENT` bulk-data
   cards. Two files of one bundle in different systems is a `[CRITICAL]` finding.
+- **Two channels, one system (M4-20 D-19).** *Which* units a system means depends
+  on the channel the file belongs to, because a solver deck is only correct in a
+  **dimensionally consistent** set:
+
+  | Channel | Files | Imperial | SI |
+  |---|---|---|---|
+  | **Human** | report, load-case CSV, case index, text report, workbook | lb, in, lb-in, ft-lb, lb/in² | N, mm, **N·m**, kPa |
+  | **Solver** | sbeam span/chordwise CSVs, all `.bdf` | lb, in, lb-in | N, mm, **N·mm** |
+
+  With GRID coordinates in mm and forces in N, an `N·m` moment is wrong by 1000×
+  in a deck that parses cleanly and sizes structure. Resolve the set **once per
+  bundle** with `units.deliverable_units(system, channel)` and pass it to every
+  writer — that is what makes "one system per bundle" structural rather than a
+  convention. Imperial is the all-1.0 identity set, so no writer needs an
+  `if system == IMPERIAL` branch.
 - **In-band statement.** Every deliverable states its unit system in itself: the
   report's title page and manifest, a header comment in the BDF, a header row or
   column-header unit in a CSV. Units are never left to be inferred from magnitude.
-- **Markers convert with the unit** — `N-ULT` / `Nm-ULT` / `Pa-ULT` in SI, exactly
+- **Markers convert with the unit** — `N-ULT` / `Nm-ULT` / `kPa-ULT` in SI, exactly
   as `lbs-ULT` / `ft-lb-ULT` / `lb-in-ULT` / `lb/in²-ULT` in Imperial. No dual
   display (one system, no parenthetical conversions).
 - **Aviation-standard exception.** Airspeed (KEAS) and altitude (ft) are held in
@@ -203,8 +218,8 @@ points to the ultimate deliverables. Today that covers `flap_loads`, `tab_loads`
 | Load quantity | Imperial (canonical) | SI (presentation) |
 |---------------|----------------------|-------------------|
 | Force | lbs-ULT | N-ULT |
-| Moment / torque | ft-lb-ULT, lb-in-ULT | Nm-ULT |
-| Design pressure | lb/in²-ULT (psi-ULT) | Pa-ULT |
+| Moment / torque | ft-lb-ULT, lb-in-ULT | Nm-ULT (`Nmm-ULT` in an sbeam deck) |
+| Design pressure | lb/in²-ULT (psi-ULT) | kPa-ULT |
 
 The `-ULT` marker is treated as **part of the units string** (like lb vs. N).
 Every load case carries its **safety factor** (the `SF` column / an `SF=` marker),

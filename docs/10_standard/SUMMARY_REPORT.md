@@ -135,13 +135,22 @@ fixed to the calc's internal Imperial units. The rule and its consequences:
   A deliverable whose unit system must be inferred from the numbers is
   non-conforming.
 - **Markers convert with the unit.** In SI, loads carry the SI marker —
-  `N-ULT`, `Nm-ULT`, `Pa-ULT` — exactly as Imperial carries `lbs-ULT`,
+  `N-ULT`, `Nm-ULT`, `kPa-ULT` — exactly as Imperial carries `lbs-ULT`,
   `ft-lb-ULT`, `lb-in-ULT`, `lb/in^2-ULT`. "Limit vs. ultimate" remains a property
   of the units string (§3.1) in both systems.
 - **Single system, no dual display.** A figure SHALL NOT be shown in one system
   with the other in parentheses. One unit per dimension throughout the document
   (no mixing `in` and `ft`, or `mm` and `m`, for the same quantity in adjacent
   tables).
+- **Solver-deck exception (M4-20 D-19).** The rule above governs *the document*.
+  The machine-readable **sbeam** companions (the `FORCE`/`MOMENT` bulk data and
+  the span/chordwise CSVs that feed them) SHALL use a dimensionally **consistent**
+  unit set, which in SI means moments in **`N·mm`** beside `N` forces and `mm`
+  coordinates — not the `N·m` the report uses. This is one system with two
+  channels, never two systems: a deck carrying `N·m` against `mm` GRID
+  coordinates is wrong by 1000× and nothing in the file would show it. Each file
+  states its own set in-band, and the report's manifest (§4.7) SHALL name the
+  deck's set where it lists the companions.
 - **Aviation-standard exception.** Airspeed (**KEAS**) and altitude (**ft**) are
   aviation-standard and are **not** converted in either system, matching the GUI
   (`GUI_design.md §7`). Where they appear, the report SHALL state that they are

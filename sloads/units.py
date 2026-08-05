@@ -15,7 +15,7 @@ from __future__ import annotations
 
 from dataclasses import replace
 from enum import Enum
-from typing import List, Optional
+from typing import List, NamedTuple, Optional
 
 from .models import ConditionResult, EngineInput, LoadValue
 
@@ -40,6 +40,23 @@ SI_PER_IMPERIAL = {
     "inertia_lbin2": 2.926396534292e-04,  # lb-in^2 -> kg*m^2
 }
 
+# --------------------------------------------------------------------------- #
+# Base factors for the *deliverable* dimensions (M4-20). Named, and derived from
+# each other where they are dimensionally related, so a moment factor can never
+# drift out of step with the force and length factors it is the product of --
+# which is the invariant the sbeam deck's correctness rests on (D-19).
+# --------------------------------------------------------------------------- #
+LBF_TO_N = 4.4482216152605       # pound-force -> newton (exact, NIST)
+IN_TO_MM = 25.4                  # inch -> millimetre (exact)
+FT_TO_M = 0.3048                 # foot -> metre (exact)
+PSI_TO_KPA = 6.894757            # lb/in^2 -> kilopascal
+
+# Moments are force x length, and are computed as such rather than quoted, so
+# the identity holds exactly in every unit set (see ``deliverable_units``).
+LB_IN_TO_N_M = LBF_TO_N * (IN_TO_MM / 1000.0)    # lb-in -> N*m  (0.112984829...)
+LB_IN_TO_N_MM = LBF_TO_N * IN_TO_MM              # lb-in -> N*mm (solver set)
+FT_LB_TO_N_M = LBF_TO_N * FT_TO_M                # ft-lb -> N*m
+
 # Display units for each "kind", by system. One unit per physical dimension
 # (Phase G0): length -> in/mm, area -> ft²/m². ``inertia_lbin2`` is a distinct
 # mass-basis inertia, not a duplicate of ``inertia``.
@@ -61,14 +78,20 @@ UNIT_LABELS = {
 # pounds-*mass* must instead set ``LoadValue.quantity = "mass"`` (see below), so
 # the same "lb" label maps to kg, not N.
 _RESULT_TO_SI = {
-    "lb": (4.4482216152605, "N"),          # lbf -> N (force/load)
-    "in": (25.4, "mm"),                    # in -> mm (position)
+    "lb": (LBF_TO_N, "N"),                 # lbf -> N (force/load)
+    "in": (IN_TO_MM, "mm"),                # in -> mm (position)
     "in^2": (6.4516e-04, "m²"),            # in^2 -> m^2 (surface area)
-    "knot": (0.514444, "m/s"),             # knot -> m/s (airspeed)
-    "ft-lb": (1.3558179483314, "N·m"),     # ft-lb -> N·m (moment/torque)
+    "ft-lb": (FT_LB_TO_N_M, "N·m"),        # ft-lb -> N·m (moment/torque)
+    "lb-in": (LB_IN_TO_N_M, "N·m"),        # lb-in -> N·m (root bending/torsion, pitching moment)
+    "lb/in^2": (PSI_TO_KPA, "kPa"),        # lb/in^2 -> kPa (design pressure)
     "slug-ft^2": (1.3558179483314, "kg·m²"),  # slug-ft^2 -> kg·m^2 (inertia)
     "lb-in^2": (2.926396534292e-04, "kg·m²"),  # lb-in^2 -> kg·m^2 (inertia, mass basis)
 }
+# Airspeed and altitude are deliberately absent: they are aviation-standard
+# (KEAS / ft) in both systems and are never converted. The calc emits them as
+# ``kt(EAS)`` and ``ft``; a ``"knot"`` row lived here until M4-20 and converted
+# nothing (no producer has ever emitted that string), but it would have silently
+# broken the carve-out the day one did.
 
 # SI conversion keyed by an explicit dimension hint, used when the unit string is
 # ambiguous. Currently only "mass": a weight reported in "lb" is pounds-mass and
@@ -88,12 +111,12 @@ _SI_BY_QUANTITY = {
 # dataclass itself, which also feeds sbeam export and session-state
 # persistence, is never touched -- only a display copy).
 _SCALAR_TO_SI = {
-    "lbf": (4.4482216152605, "N"),        # force
-    "in": (25.4, "mm"),                   # length
+    "lbf": (LBF_TO_N, "N"),               # force
+    "in": (IN_TO_MM, "mm"),               # length
     "sqft": (0.09290304, "m²"),           # area
-    "ft-lb": (1.3558179483314, "N·m"),    # moment (large)
-    "lb-in": (0.1129848333, "N·m"),       # moment (small)
-    "psi": (6.894757, "kPa"),             # pressure (lb/in^2)
+    "ft-lb": (FT_LB_TO_N_M, "N·m"),       # moment (large)
+    "lb-in": (LB_IN_TO_N_M, "N·m"),       # moment (small)
+    "psi": (PSI_TO_KPA, "kPa"),           # pressure (lb/in^2)
 }
 
 
@@ -227,15 +250,15 @@ def convert_results(
 # _PROJECT_FIELD_KIND when a new dimensional field is added to the schema.
 _KIND_FACTORS = {
     "mass": (0.45359237, "kg"),                  # lbm -> kg
-    "force": (4.4482216152605, "N"),              # lbf -> N
-    "length_in": (25.4, "mm"),                    # in -> mm
+    "force": (LBF_TO_N, "N"),                     # lbf -> N
+    "length_in": (IN_TO_MM, "mm"),                # in -> mm
     "area_sqft": (0.09290304, "m²"),              # sq ft -> m^2
-    "torque": (1.3558179483314, "N·m"),           # ft-lb -> N·m
-    "moment_in": (0.1129848333, "N·m"),           # lb-in -> N·m
+    "torque": (FT_LB_TO_N_M, "N·m"),              # ft-lb -> N·m
+    "moment_in": (LB_IN_TO_N_M, "N·m"),           # lb-in -> N·m
     "inertia_slugft2": (1.3558179483314, "kg·m²"),  # slug-ft^2 -> kg·m^2
     "inertia_lbin2": (2.926396534292e-04, "kg·m²"),  # lb-in^2 -> kg·m^2
     "power": (0.745699872, "kW"),                 # hp -> kW
-    "pressure": (6.894757, "kPa"),                # lb/in^2 -> kPa
+    "pressure": (PSI_TO_KPA, "kPa"),              # lb/in^2 -> kPa
 }
 
 # JSON leaf key name -> kind. Airspeed (``_kt``) and altitude (``altitude_ft``,
@@ -360,3 +383,115 @@ def project_field_si_label(key: str) -> Optional[str]:
     """The SI display label for a known project-schema field name, else ``None``."""
     kind = _PROJECT_FIELD_KIND.get(key)
     return _KIND_FACTORS[kind][1] if kind else None
+
+
+# --------------------------------------------------------------------------- #
+# Deliverable unit sets (M4-20)
+# --------------------------------------------------------------------------- #
+# Every deliverable is rendered in the unit system the user selected, not in the
+# calc's internal Imperial (00_program_overview.md "Deliverable units follow the
+# user's selection"; SUMMARY_REPORT.md 3.5). *Which* units that means depends on
+# one more thing than the system: the channel the file belongs to.
+#
+# A human-readable deliverable reports a moment in N*m, because that is what an
+# engineer reads and what the GUI already shows. A solver deck cannot: sbeam
+# (NASTRAN) is only correct in a dimensionally *consistent* unit set, so a deck
+# whose GRID coordinates are in mm and whose FORCE cards are in N must carry
+# MOMENT cards in N*mm. Mixing the two is a silent 1000x torsion error in a file
+# that parses perfectly and sizes structure wrongly (decision D-19).
+#
+# Both channels are the same *system*; they differ only in the moment unit, and
+# every file states its own set in-band. One bundle is always one system.
+
+
+class Channel(str, Enum):
+    """Which kind of deliverable a unit set is for (see :func:`deliverable_units`)."""
+
+    #: Report, load-case CSV, case index, text report, workbook -- read by people.
+    HUMAN = "human"
+    #: sbeam span/chordwise CSVs and FORCE/MOMENT bulk data -- read by a solver.
+    SOLVER = "solver"
+
+
+class Dimension(NamedTuple):
+    """One dimension's conversion factor and its display label in some system."""
+
+    factor: float
+    label: str
+
+
+class DeliverableUnits(NamedTuple):
+    """The unit set one deliverable is written in.
+
+    ``factor`` multiplies a canonical Imperial value to reach the target system,
+    so **Imperial is the all-1.0 identity** -- a writer needs no
+    ``if system == IMPERIAL`` branch anywhere, which is what makes "Imperial
+    output is unchanged" structural rather than a promise.
+
+    Airspeed and altitude are absent by design: they are aviation-standard
+    (KEAS / ft) in both systems and are never converted.
+    """
+
+    system: UnitSystem
+    channel: Channel
+    force: Dimension
+    length: Dimension
+    moment: Dimension
+    torque: Dimension
+    pressure: Dimension
+
+    @property
+    def is_consistent(self) -> bool:
+        """True if ``moment == force x length`` -- the invariant a solver deck needs.
+
+        Holds exactly for Imperial (1 x 1 = 1) and for the SOLVER set by
+        construction. The HUMAN set deliberately fails it in SI (N*m against a
+        mm length), which is why a deck must never be written from it.
+        """
+        return abs(self.moment.factor - self.force.factor * self.length.factor) < 1e-12
+
+
+_IMPERIAL_LABELS = {
+    "force": "lb", "length": "in", "moment": "lb-in",
+    "torque": "ft-lb", "pressure": "lb/in^2",
+}
+
+
+def deliverable_units(
+    system: UnitSystem, channel: Channel = Channel.HUMAN
+) -> DeliverableUnits:
+    """The unit set for a deliverable in ``system``, for ``channel``.
+
+    Resolve this **once per bundle** and pass the result to every writer: that is
+    what makes "one system per bundle" true by construction rather than by
+    discipline, so two files in one export cannot disagree.
+    """
+    if system == UnitSystem.IMPERIAL:
+        one = {k: Dimension(1.0, v) for k, v in _IMPERIAL_LABELS.items()}
+        return DeliverableUnits(system=system, channel=channel, **one)
+
+    moment = (
+        Dimension(LB_IN_TO_N_MM, "N·mm") if channel == Channel.SOLVER
+        else Dimension(LB_IN_TO_N_M, "N·m")
+    )
+    return DeliverableUnits(
+        system=system,
+        channel=channel,
+        force=Dimension(LBF_TO_N, "N"),
+        length=Dimension(IN_TO_MM, "mm"),
+        moment=moment,
+        torque=Dimension(FT_LB_TO_N_M, "N·m"),
+        pressure=Dimension(PSI_TO_KPA, "kPa"),
+    )
+
+
+def units_statement(u: DeliverableUnits) -> str:
+    """The in-band unit statement a deliverable carries, e.g. ``SI (N, mm, N·mm)``.
+
+    Every exported file states its unit system in itself -- a header comment in a
+    BDF, a header row or unit-suffixed column in a CSV, the title page and
+    manifest in the report. A deliverable whose units must be inferred from the
+    magnitude of its numbers is non-conforming (SUMMARY_REPORT.md 3.5).
+    """
+    name = "Imperial" if u.system == UnitSystem.IMPERIAL else "SI"
+    return f"{name} ({u.force.label}, {u.length.label}, {u.moment.label})"

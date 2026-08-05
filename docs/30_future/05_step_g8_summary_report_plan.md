@@ -335,7 +335,7 @@ which was created 2026-08-03 — add any further new terms there as usual.
 1. **Report units** — ***Resolved 2026-08-03: honour the user's selection.*** The
    report (and the whole export bundle, sbeam BDF included) renders in the system
    the user chose — GUI toggle, persisted project field, CLI `--units` override,
-   default Imperial. SI markers (`N-ULT`, `Nm-ULT`, `Pa-ULT`), no dual display,
+   default Imperial. SI markers (`N-ULT`, `Nm-ULT`, `kPa-ULT`), no dual display,
    KEAS/altitude unconverted, unit system stated on the title page and in-band in
    every companion file. The standard is `../10_standard/SUMMARY_REPORT.md` §3.5;
    the enabling work (project field, CLI flag, unit-aware BDF/CSV writers) is

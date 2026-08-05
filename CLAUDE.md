@@ -209,9 +209,16 @@ The rules that make this unambiguous:
 
 - **The `ULT` marker is part of the load's units string.** A reported load
   carries it inline: force `lbs-ULT` (SI `N-ULT`), moment/torque `ft-lb-ULT` /
-  `lb-in-ULT` (SI `Nm-ULT`), design pressure `lb/in^2-ULT` (`psi-ULT`). Treat
-  "limit vs. ultimate" as a property of the unit, exactly like lb vs. N.
-  Non-load quantities keep plain units with no `-ULT` suffix.
+  `lb-in-ULT` (SI `Nm-ULT`, or `Nmm-ULT` in an sbeam deck — see below), design
+  pressure `lb/in^2-ULT` (`psi-ULT`; SI `kPa-ULT`). Treat "limit vs. ultimate" as
+  a property of the unit, exactly like lb vs. N. Non-load quantities keep plain
+  units with no `-ULT` suffix.
+- **A solver deck uses a consistent unit set (M4-20 D-19).** Human-readable
+  deliverables report moments in `N·m`; the sbeam `FORCE`/`MOMENT` bulk data and
+  its companion span CSVs use **`N·mm`**, because a deck whose GRID coordinates
+  are millimetres and whose forces are newtons is only correct with `N·mm`
+  moments. Resolve the set once per bundle with `units.deliverable_units(system,
+  channel)` and pass it to every writer; never mint one per file.
 - **Every load case SHALL state its safety factor.** Carry it on
   `ConditionResult.safety_factor` and surface it in output (the `SF` column / an
   `SF=` marker). The default is **1.5 per 14 CFR 23.303** (the Part 25 equivalent

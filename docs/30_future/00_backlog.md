@@ -73,17 +73,35 @@ updated; the code is not.
 - **In-band statement.** BDF header comment naming the system; a units row or
   unit-suffixed column headers in each CSV; the report's title page and manifest.
 - **Markers.** Extend `units.py` so the `-ULT` marker converts with the unit
-  (`N-ULT`, `Nm-ULT`, `Pa-ULT`); **`Pa-ULT` is new** — there is no SI pressure kind
-  today. Add the design-pressure kind and its factor.
+  (`N-ULT`, `Nm-ULT`, `Nmm-ULT`, `kPa-ULT`). Design pressure has no SI result
+  mapping today.
 - **GUI.** The Export page states the system the bundle will be written in, beside
   the download control (`GUI_design.md` §7).
-- **Tests.** Imperial output byte-identical to today (default path unchanged);
-  SI round-trip Imperial → SI → Imperial lossless to display precision; a bundle
+- **Tests.** Imperial output unchanged but for its new unit statement (strip-and-
+  compare, per D-21); SI round-trip lossless to display precision; a bundle
   asserts one system across report + CSV + BDF; KEAS/altitude unconverted in both.
   Appendix A/B oracles untouched (calc is not in this path).
 
 The aviation-standard carve-out is retained: airspeed (KEAS) and altitude (ft)
 are never converted, and deliverables say so.
+
+**Plan, decisions D-19 … D-22 and the risk table:
+[`06_m4-20_deliverable_units_plan.md`](06_m4-20_deliverable_units_plan.md)**
+(2026-08-04). Seven sub-steps; the spine is a **two-channel** split — the
+human-readable deliverables render N/mm/N·m/kPa, the sbeam decks render the
+consistent solver set **N/mm/N·mm** (D-19: N·m in a deck whose GRIDs are mm is a
+silent 1000× torsion error).
+
+**Step 1 shipped 2026-08-04** — `units.py`'s deliverable unit sets
+(`Channel`/`DeliverableUnits`/`deliverable_units`/`units_statement`), the two
+latent-defect fixes it carried (`lb-in` and `lb/in^2` had no SI mapping, so
+**1580 values across the six examples** stayed Imperial inside an otherwise-SI
+table; the dead `"knot"` row is gone), and the D-20 doc amendment
+(`Pa-ULT` → `kPa-ULT`) with the D-19 solver-channel carve-out written into
+`00_program_overview.md`, `SUMMARY_REPORT.md` §3.5 and CLAUDE.md.
+**Remaining: steps 2–7** — selection plumbing (`Project.unit_system`, schema 38,
+`--units`, the sidebar toggle), the human-channel writers, the solver channel,
+the in-band statements, the Export page, and close-out.
 
 ### M3-3b — Step G8 remainder: the report document itself
 
