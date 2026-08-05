@@ -10,6 +10,48 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed
+
+- **Development-process overhaul (2026-08-05).** Documentation-only change set
+  implementing the 2026-08-05 process review
+  (`docs/50_reviews/2026-08-05_development_process_review.md`; findings F1–F7,
+  recommendations R1–R11), which also assessed sloads against the sbeam 2026-08-04
+  process changes. No code touched.
+  - **Mission re-stated** in `CLAUDE.md` and the backlog: a *demonstrated* concept-loads
+    → sbeam sizing loop, continuously verified in CI. **Backlog re-pointed**
+    (`docs/30_future/00_backlog.md`): every item mission-tagged [E]/[V]; new
+    mission-path items filed — the **sbeam round-trip CI harness**, the **global
+    equilibrium invariant on exported decks**, the deck SUBCASE mapping (into M4-2),
+    the load-axis/elastic-axis convention note, and the gust spanwise-distribution
+    decision; ~20 off-mission items (M4-10b/11b, F25-3/5, the L long tail, the
+    future-direction placeholders) moved with full write-ups to the new
+    `docs/30_future/02_parked.md`; no new parallel ID series going forward. Stale
+    D-refs and the `models.py` citation fixed in `01_concept_loads_plan.md`.
+  - **Tiered S/M/L closure** replaces the uniform full-step-format rule in `CLAUDE.md`
+    (small fixes: changelog + backlog + one-line history entry), plus five working
+    rules: design-note-before-code, benchmark-first DoD (closure/invariant gates for
+    concept mode with the same force as the oracle rule), **make-it-structural**
+    (SSOT owner + drift-guard test on first need — the units/SI three-rebuild lesson),
+    generalize-on-first-find, findings-filed-with-bodies. `CLAUDE.md` rewritten as
+    rules + pointers (278 → ~160 lines) with named authoritative single sources.
+  - **Review process tiered** (`CODE_REVIEW_PROCESS.md` §0): light checklist for S,
+    touched-area scoping for M, full process + design-note check for L; ~2-week/5-step
+    review cadence; doc drift reclassified `[CRITICAL]` → `[MAJOR]`.
+  - **Release cadence rule** (`RELEASE_PROCESS.md`): release every ~2–3 weeks or ~5
+    steps behind a bounded gate; the unbounded docs-consistency audit dropped
+    (enforced per-change instead). `[Unreleased]` is release-ripe — 0.4.0 due.
+  - **Conventions charter added** (`docs/10_standard/CONVENTIONS.md`): axes/frames
+    (+aft/+right/+up inches, identity map to sbeam CID 0), the two-channel unit sets,
+    the LIMIT→ULTIMATE contract, case identity, preserved ENGLOADS signs — all
+    code-verified with citations — plus the SSOT-owner/drift-guard table. Its
+    extraction flagged four inconsistencies (chief: `load_keys.py` cites a
+    **nonexistent** `tests/test_load_keys.py` as its uniqueness guard), filed on the
+    backlog as an S-tier batch.
+  - **Docs index** gains the `50_reviews/` section, the parked file and the charter;
+    the resolved-decision count corrected (D-1…D-18). The history-file split (R11) is
+    deferred to its own session (the file carries in-flight changes) and filed on the
+    backlog.
+
 ### Added
 
 - **M3-3b / Step G8 — the consolidated summary report renders.** A loads bundle

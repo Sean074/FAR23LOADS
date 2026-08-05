@@ -24,9 +24,13 @@ Pre-release tags: `0.2.0-beta.1` for candidates shared externally.
 
 ## 2. What constitutes a release
 
-Cut a release when one or more is true:
+**Cadence rule (2026-08-05, process review R3): release small and often.** Cut a release
+whenever the §3 gate passes and any of the following is true:
 
-- A roadmap phase is complete (e.g. all Phase 1 mass-properties modules ported).
+- **~2–3 weeks have passed since the last tag, or ~5 steps have closed** — whichever
+  comes first. Accumulated small improvements are a valid release; do not wait for a
+  phase milestone. Never let `[Unreleased]` grow past roughly a release-worth of work —
+  unreleased work has no regression baseline.
 - A critical numerical-fidelity bug is fixed and verified.
 - A new module is production-ready and passes its Appendix A/B acceptance test.
 - A breaking change to the `project.json` schema or CSV output has been made.
@@ -39,16 +43,18 @@ Do **not** cut a release for documentation-only changes or in-progress modules.
 
 Each item is a hard gate.
 
-### 3.1 Backlog & documentation
-- [ ] [`../30_future/00_backlog.md`](../30_future/00_backlog.md) — every module in this release is removed (closed items don't live in the backlog).
-- [ ] [`../40_history/00_completed_development.md`](../40_history/00_completed_development.md) — every module/step in this release is recorded in full step format.
-- [ ] All `docs/` files are consistent with the released code (no drift): `PROGRAM_SPEC.md`, `PROJECT_GUIDE.md`, `20_theory/00_theory_sources.md`.
+### 3.1 Backlog & documentation (bounded — no unbounded drift audit)
+
+Documentation consistency is enforced **per-change** by the tiered closure requirement
+in `CLAUDE.md`, not re-audited at release time.
+
+- [ ] [`../30_future/00_backlog.md`](../30_future/00_backlog.md) — every item in this release is removed (**spot-check**, not an audit; closed items don't live in the backlog).
+- [ ] [`../40_history/00_completed_development.md`](../40_history/00_completed_development.md) — every module/step in this release is recorded at its closure-tier depth.
 - [ ] `CHANGELOG.md` `[Unreleased]` section is complete; ready to be dated.
 
 ### 3.2 Code quality
 - [ ] No open `[CRITICAL]`/`[MAJOR]` findings from the latest review (see [`CODE_REVIEW_PROCESS.md`](CODE_REVIEW_PROCESS.md)).
 - [ ] `ruff check sloads/ cli.py` is clean.
-- [ ] Public functions in `sloads/` have type hints and docstrings.
 
 ### 3.3 Test suite
 - [ ] `pytest` passes — zero failures, zero errors.

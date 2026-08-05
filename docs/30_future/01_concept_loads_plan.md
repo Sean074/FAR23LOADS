@@ -79,7 +79,8 @@ methods.
 
 ## 4. Schema additions
 
-New `Project` slices (`sloads/models.py`; bump `SCHEMA_VERSION`, extend the
+New `Project` slices (`sloads/models/`, the package that superseded `models.py`
+in M4-10; bump `SCHEMA_VERSION`, extend the
 `io.py` round-trip), mirroring the ownership table in `PROGRAM_SPEC.md`:
 
 | Slice | Owned by | Notes |
@@ -261,11 +262,14 @@ ported. See [`../40_history/00_completed_development.md`](../40_history/00_compl
 - **Naming.** *Resolved 2026-07-16 (keep "FAR23LOADS"); **superseded 2026-07-20 →
   full rename to `sloads`, shipped in M3-1 (2026-07-23).*** The package/CLI/GUI/docs
   are now `sloads`; the "FAR 23 LOADS" mark survives only as McMaster/DARcorporation
-  attribution. (Tracked in [`00_backlog.md`](00_backlog.md) as decision D-6.)
+  attribution. (Recorded as decision D-6 in the
+  [resolved-decision register](../40_history/03_resolved_decisions.md).)
 - **sbeam VLM cross-check.** *Resolved 2026-07-16 — **out of scope.*** No
   sbeam-VLM validation backend; concept aero stays validated by physics-closure +
   fleet plausibility (invariant C-2). Revisit only if closure proves insufficient.
-  (Tracked in [`00_backlog.md`](00_backlog.md) as decision D-3 / item 2-5.)
+  (Recorded as decision D-3 in the
+  [resolved-decision register](../40_history/03_resolved_decisions.md).)
 - **Export granularity (C4).** *Resolved 2026-07-16 — **both**: load-cards-only is
   the default; the assembled-airframe stick model is opt-in behind an explicit
-  flag.* (Tracked in [`00_backlog.md`](00_backlog.md) as decision D-7 / item 2-4.)
+  flag.* (Recorded as decision D-7 in the
+  [resolved-decision register](../40_history/03_resolved_decisions.md).)

@@ -1,15 +1,16 @@
 # sloads Documentation — Index
 
-This directory is organised into four numbered sections by **document type**.
+This directory is organised into five numbered sections by **document type**.
 Lower numbers are the day-to-day references; higher numbers are planning and
 historical record.
 
 | Section | Type | Contents |
 |---------|------|----------|
-| `10_standard/` | **Code standard** | The authoritative description of how the suite works *today* — architecture, the per-module spec, and the process guides. Update these whenever code changes. |
+| `10_standard/` | **Code standard** | The authoritative description of how the suite works *today* — architecture, the per-module spec, the conventions charter, and the process guides. Update these whenever code changes. |
 | `20_theory/` | **Theory & equation sources** | Where each module's equations and regression oracles come from (the `reference/` PDFs), plus per-module page citations as modules are ported. |
-| `30_future/` | **Future development** | The backlog & the live plan documents for **open** work: milestone **M4** (post-0.3.0), **Phase F25**, the long-tail refinements, and the open design decision. Plans whose work has shipped move to `40_history/`. |
+| `30_future/` | **Future development** | The mission-tagged backlog, the parked-items file, and the live plan documents for **open** work. Plans whose work has shipped move to `40_history/`. |
 | `40_history/` | **Historic record** | What has shipped — completed modules/phases, key decisions, and resolved defects. |
+| `50_reviews/` | **Process reviews** | Periodic development-process assessments and the recommendations driving process changes. |
 
 ---
 
@@ -24,8 +25,9 @@ historical record.
 | [`GUI_USER_GUIDE.md`](10_standard/GUI_USER_GUIDE.md) | **GUI user guide** — task-oriented walkthrough: workflow phases, what to enter where, the seed chain, LIMIT-vs-ULTIMATE reading rules, and an end-to-end `ga6_normal` example with hand-checkable numbers |
 | [`SUMMARY_REPORT.md`](10_standard/SUMMARY_REPORT.md) | **Summary-report document standard** (Step G8) — purpose and audience, whole-document content rules (ultimate-load marking, traceability, axes/signs/stations, absence handling, units), the required section structure, the **excluded-content** list, and the conformance checklist |
 | [`DATA_DICTIONARY.md`](10_standard/DATA_DICTIONARY.md) | **`project.json` data dictionary** (generated) — every input field's type, units, default, owning page, and consuming modules; produced by [`generate_data_dict.py`](generate_data_dict.py) |
-| [`CODE_REVIEW_PROCESS.md`](10_standard/CODE_REVIEW_PROCESS.md) | Critical code-review process for module ports |
-| [`RELEASE_PROCESS.md`](10_standard/RELEASE_PROCESS.md) | Versioning and release process |
+| [`CONVENTIONS.md`](10_standard/CONVENTIONS.md) | **Conventions charter** — axes/frames, unit channels, the LIMIT→ULTIMATE contract, case identity, preserved ENGLOADS signs, and the single-source-owner + drift-guard-test table; cite it in every physics/export design note |
+| [`CODE_REVIEW_PROCESS.md`](10_standard/CODE_REVIEW_PROCESS.md) | Critical code-review process for module ports (tiered S/M/L + scoping, 2026-08-05) |
+| [`RELEASE_PROCESS.md`](10_standard/RELEASE_PROCESS.md) | Versioning and release process (cadence rule + bounded gate, 2026-08-05) |
 
 ## 20_theory — Theory & equation sources
 
@@ -40,7 +42,8 @@ historical record.
 
 | File | Scope |
 |------|-------|
-| [`00_backlog.md`](30_future/00_backlog.md) | **Authoritative backlog & development plan** — the open items in priority order (**M4** post-0.3.0 → **Phase F25** → long tail → future directions) and the open design decision requiring user input (all 22 suite programs ported) |
+| [`00_backlog.md`](30_future/00_backlog.md) | **Authoritative backlog & development plan** — mission statement (concept loads → sbeam loop) + mission-tagged open items in priority order, the open-defects index, and the open design decision requiring user input (all 22 suite programs ported) |
+| [`02_parked.md`](30_future/02_parked.md) | **Parked items** — real but off the mission path (M4 deferrals, F25-3/5, the long-tail L-items, future-direction placeholders); move an item back to the backlog before working it |
 | [`01_concept_loads_plan.md`](30_future/01_concept_loads_plan.md) | **Phase C plan** — growing the suite into an initial-concept distributed-loads tool (concept mode, Schrenk airloads, per-component distributed loads, sbeam export bridge) |
 | [`03_gui_rework_plan.md`](30_future/03_gui_rework_plan.md) | **Phase G plan** — workflow-aligned GUI rework: one-unit-per-dimension policy, single-source-of-truth geometry, re-sequenced analysis-flow navigation, and the new fuselage-moment/trim-plot/elevator-chord features (assessment vs. current code, locked decisions G-1…G-4) |
 | [`06_m4-20_deliverable_units_plan.md`](30_future/06_m4-20_deliverable_units_plan.md) | **M4-20 plan — ✅ complete 2026-08-04** — deliverables render in the user-selected unit system: the human/solver **two-channel** unit split (N·m vs. the consistent N/mm/N·mm solver set), decisions D-19…D-22, seven sub-steps, the two `units.py` defects it fixes, and the test/doc-sync matrix |
@@ -53,11 +56,17 @@ historical record.
 | [`00_completed_development.md`](40_history/00_completed_development.md) | Record of completed modules/phases, key decisions, and resolved defects |
 | [`01_verification_baseline_0.2.0.md`](40_history/01_verification_baseline_0.2.0.md) | Verification baseline (0.2.0) — superseded by the 0.3.0 baseline below |
 | [`02_verification_baseline_0.3.0.md`](40_history/02_verification_baseline_0.3.0.md) | **Verification baseline (0.3.0, current)** — the per-condition table of every checked FAR condition and the printed Appendix A (or worked-example) figure the suite locks against, plus the one-page oracle-vs-closure status table; refreshed per release (`RELEASE_PROCESS.md`) |
-| [`03_resolved_decisions.md`](40_history/03_resolved_decisions.md) | **Resolved design-decision register** — D-1 … D-11 with resolution date and a pointer to the rationale; open decisions stay in the backlog until answered |
+| [`03_resolved_decisions.md`](40_history/03_resolved_decisions.md) | **Resolved design-decision register** — D-1 … D-18 (all but D-5) with resolution date and a pointer to the rationale; open decisions stay in the backlog until answered |
 | [`04_m4-1_body_moment_closure.md`](40_history/04_m4-1_body_moment_closure.md) | **M4-1 design note (closed 2026-08-03)** — fuselage body-load moment closure: diagnosis of the unreacted wing-attachment couple, the A–E options trade, the shipped carry-through distributed spar reaction (formulas, fallback, per-step verification figures) |
 | [`05_phase_d_gui_workflow_plan.md`](40_history/05_phase_d_gui_workflow_plan.md) | **Phase D plan (executed; nav grouping superseded by Phase G)** — GUI workflow restructure: assessment, six-section target structure, load-case IDs, locked decisions D-1…D-7, page conventions. Still the citation target for the D-numbered GUI decisions |
 | [`06_m3-1_rename_procedure.md`](40_history/06_m3-1_rename_procedure.md) | **M3-1 execution runbook (executed 2026-07-22)** — step-by-step git + shell procedure for the `farloads` → `sloads` rename batched with the `models.py` → `models/` split |
 | [`07_m4_maintainability_sequence_plan.md`](40_history/07_m4_maintainability_sequence_plan.md) | **M4 maintainability sequence plan (executed 2026-08-03/04)** — execution order and per-step detail for M4-12 → M4-11 → G8 views → M4-10 → M4-9: measured baseline, design decisions D-12…D-18, per-step acceptance/risk, doc-sync matrix. Remainders M3-3b / M4-10b / M4-11b are carried in the backlog |
+
+## 50_reviews — Process reviews
+
+| File | Scope |
+|------|-------|
+| [`2026-08-05_development_process_review.md`](50_reviews/2026-08-05_development_process_review.md) | Full-depth development-process audit (Jun–Aug 2026): findings F1–F7, recommendations R1–R11 behind the 2026-08-05 process changes, and the sbeam cross-project comparison |
 
 ---
 

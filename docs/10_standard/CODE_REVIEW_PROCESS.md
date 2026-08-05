@@ -10,6 +10,37 @@ specialised for that.
 
 ---
 
+## 0. Review tiers, scoping, and cadence (2026-08-05 process review)
+
+Review depth scales with the change, matching the S/M/L closure tiers in `CLAUDE.md`:
+
+| Change tier | Review required |
+|---|---|
+| **S** (small fix, hygiene, docs, display-only) | **Light checklist only:** `ruff` + `pytest` green (oracle and closure gates run with the suite); `CONVENTIONS.md` consulted if units/signs/IDs are touched; same-class defect sweep done; closure tier done. No numbered review steps. |
+| **M** (behavior change, existing capability) | Steps 1 and 8, plus **only the ordered steps (2–7) whose areas the diff touches**. |
+| **L** (new module / load case / physics / schema change) | The full ordered process below, plus the **design-note-before-code** check: theory reference, `CONVENTIONS.md` citations, and the oracle/closure target with expected numbers agreed *before* implementation. |
+
+**Scoping rule (all tiers):** steps 2–7 apply only to areas the diff touches — do not
+walk the porting checklist for a view-layer change.
+
+**Cadence:** hold a scheduled light review every ~2 weeks or every ~5 closed steps,
+whichever comes first, instead of letting findings accumulate into large review waves
+(the 2026-07-21 wave spawned the entire M2R + M4 sequence at once).
+
+**Review hygiene (lessons from the project's own defect history):**
+
+1. **File findings with bodies in the same session they are raised** — a severity-tagged
+   name list is not a finding.
+2. **Generalize on first find:** a confirmed defect is swept across its class in the
+   same fix, with a guard test where feasible (M4-11a found four sibling defects "by
+   building the helper"; the stale `GUI_design.md` schema line recurred until M4-16's
+   guard test).
+3. **Make it structural:** if a review finds the same convention enforced by prose in
+   more than one place, the fix is a single-source code owner + drift-guard test (the
+   `CONVENTIONS.md` SSOT table), not another prose reminder.
+
+---
+
 ## 1. Objectives
 
 | Objective | Why it matters |
@@ -48,7 +79,10 @@ Per `CLAUDE.md`, every code change updates `docs/` in the same session. Check:
 - [ ] `docs/40_history/00_completed_development.md` — the module is **added** with its full step record.
 - [ ] `CHANGELOG.md` — an `[Unreleased]` entry exists.
 
-**Raise as `[CRITICAL]`** if documentation was not updated. Do not approve until docs are in sync.
+The required depth follows the S/M/L closure tier in `CLAUDE.md` — a Tier-S change needs
+the changelog + backlog + one-line history entry, not the full sweep above.
+**Raise as `[MAJOR]`** (blocking) if the closure tier was not completed; documentation
+drift blocks approval but is not the same severity class as a wrong load value.
 
 ### Step 2 — Reference traceability
 
@@ -102,8 +136,8 @@ Per `CLAUDE.md`, every code change updates `docs/` in the same session. Check:
 
 | Severity | Label | Criteria | Action |
 |---|---|---|---|
-| **Critical** | `[CRITICAL]` | Wrong load value, un-cited equation, lost sign convention, docs not updated | Block merge — must fix |
-| **Major** | `[MAJOR]` | Recomputes another module's quantity, missing manual-example test, SI leak into calc | Block merge — must fix or justify |
+| **Critical** | `[CRITICAL]` | Wrong load value, un-cited equation, lost sign convention | Block merge — must fix |
+| **Major** | `[MAJOR]` | Recomputes another module's quantity, missing manual-example test, SI leak into calc, closure tier (docs) not completed | Block merge — must fix or justify |
 | **Minor** | `[MINOR]` | Magic number, missing type hint, suboptimal-but-correct code | Non-blocking — fix in PR or follow-up |
 | **Nit** | `[NIT]` | Style, naming, comment wording | Optional |
 
@@ -153,4 +187,4 @@ A change may be approved **only** when:
 - [ ] All `[CRITICAL]` and `[MAJOR]` items are resolved or explicitly justified.
 - [ ] `pytest` passes; the module's Appendix A/B assertions pass within ±0.1%.
 - [ ] `ruff check sloads/ cli.py` is clean.
-- [ ] All relevant `docs/` files (spec, theory citation, backlog, history) and `CHANGELOG.md` are in sync with the code.
+- [ ] The closure tier (`CLAUDE.md` S/M/L table) is complete for every item the change closes.
