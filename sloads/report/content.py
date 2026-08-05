@@ -1,0 +1,1520 @@
+"""The report's content model: ``Project`` + module results -> :class:`ReportDocument`.
+
+Step G8.4. This module answers *what the report says*; :mod:`sloads.report.latex`
+answers *how it looks*. Keeping the two apart is what lets a test assert
+``doc.section("1. Input summary").subsection("Design speeds").table.rows`` instead
+of matching LaTeX strings, and lets the renderer stay a dumb, fully-covered string
+function.
+
+Three rules govern everything below (``docs/10_standard/SUMMARY_REPORT.md``):
+
+* **Nothing is recomputed here.** Every figure comes from the same pure builder
+  the GUI pages and the sbeam bridge use -- ``run_all_modules``,
+  ``build_net_loads``/``loads_ref_axis_results``, ``build_body_loads``,
+  ``build_tail_chordwise``, the control-surface builders, ``build_vn_diagram``,
+  ``loading_envelope_points``, ``mach_limit_lines``, ``governing_loads_table``.
+  A report that computed its own values would eventually disagree with the
+  exports it accompanies (SUMMARY_REPORT.md §5).
+* **Every load is ULTIMATE, marked, and located.** Loads are scaled by their own
+  case's ``safety_factor``, carry the ``-ULT`` marker of the selected unit system
+  in the column header, state that factor, and name the station/case they occur
+  at. Envelopes are two-sided. Non-load quantities (weights, geometry, speeds,
+  load factors) are never scaled and never marked.
+* **Absence is content.** A section whose inputs are missing carries an
+  ``absent_reason`` and is still rendered, with that reason. It is never silently
+  dropped and never rendered as an empty table (SUMMARY_REPORT.md §3.4).
+
+Pure: no filesystem, no subprocess, no Streamlit, no clock. ``generated`` is a
+caller-supplied string, so two builds of the same project are identical.
+"""
+
+from __future__ import annotations
+
+from dataclasses import dataclass, field
+from typing import Any, Dict, List, Optional, Sequence, Tuple
+
+from ..constants import ULTIMATE_FACTOR
+from ..models import SCHEMA_VERSION, Project
+from ..units import (
+    Channel,
+    DeliverableUnits,
+    UnitSystem,
+    deliverable_units,
+    system_name,
+    units_statement,
+)
+from .coverage import (
+    COVERED,
+    NOT_ANALYSED,
+    NOT_APPLICABLE,
+    OUT_OF_SCOPE,
+    coverage_matrix,
+    coverage_summary,
+)
+from .methods import APPROVED_CORRECTIONS, TOOL_NAME, methods_statement
+from .render import format_value, governing_loads_table, ultimate_units
+
+#: Errors a defensive build step tolerates. Same set the Export page catches: a
+#: half-filled project must yield a report with "not analysed" sections, never a
+#: traceback -- the report is how an engineer *finds* the gaps.
+_CALC_ERRORS = (ValueError, ZeroDivisionError, KeyError, IndexError, TypeError)
+
+#: The one-line load-basis statement, on the title page and in §5 (§3.1).
+BASIS_STATEMENT = (
+    "All loads are ULTIMATE (= limit x SF); safety factor is stated per case; "
+    "load factors are limit."
+)
+
+#: Non-converted, non-scaled aviation-standard units (§3.5).
+AVIATION_UNITS_NOTE = (
+    "Airspeed is KEAS and altitude is ft in both unit systems (aviation standard, "
+    "never converted)."
+)
+
+
+# --------------------------------------------------------------------------- #
+# The content model
+# --------------------------------------------------------------------------- #
+@dataclass(frozen=True)
+class Table:
+    """One rendered table: a caption, column headers and pre-formatted cells.
+
+    Cells are **strings**: the content layer owns formatting (and therefore the
+    unit conversion and the limit->ultimate scaling), so the renderer cannot
+    accidentally reformat a load. ``units`` belong in the column header, never in
+    the cell (§3.5).
+
+    ``status_column`` names a column whose value classifies the row (the coverage
+    matrix's ``Status``); the renderer uses it to make "not analysed" rows
+    visually distinct, which §4.4 requires.
+    """
+
+    title: str
+    columns: List[str]
+    rows: List[List[str]]
+    note: str = ""
+    small: bool = False
+    status_column: str = ""
+
+
+@dataclass(frozen=True)
+class Series:
+    """One named polyline of a figure. ``style`` is a line style, never a colour --
+    figures must stay legible in greyscale (§4.3)."""
+
+    name: str
+    x: List[float]
+    y: List[float]
+    style: str = "solid"
+
+
+@dataclass(frozen=True)
+class PlotData:
+    """The data of one figure, in the renderer-agnostic form ``plots_tex`` consumes."""
+
+    x_label: str
+    y_label: str
+    series: List[Series] = field(default_factory=list)
+    #: Labelled point markers (e.g. the design CG cases).
+    points: List[Tuple[str, float, float]] = field(default_factory=list)
+    #: Labelled vertical reference lines (e.g. the fwd/aft CG limits).
+    vlines: List[Tuple[str, float]] = field(default_factory=list)
+
+
+@dataclass(frozen=True)
+class Figure:
+    """A figure plus the corner-point table §4.3 requires beside it.
+
+    ``data is None`` means the figure could not be built; ``absent_reason`` then
+    says why, and the section renders that sentence instead of an empty axis.
+    """
+
+    key: str
+    title: str
+    data: Optional[PlotData] = None
+    caption: str = ""
+    absent_reason: str = ""
+
+
+@dataclass
+class Section:
+    """One numbered section: prose paragraphs, tables, figures, subsections."""
+
+    title: str
+    body: List[str] = field(default_factory=list)
+    tables: List[Table] = field(default_factory=list)
+    figures: List[Figure] = field(default_factory=list)
+    subsections: List["Section"] = field(default_factory=list)
+    absent_reason: str = ""
+
+    @property
+    def table(self) -> Optional[Table]:
+        """The section's first table (the common case), or ``None``."""
+        return self.tables[0] if self.tables else None
+
+    def subsection(self, title: str) -> Optional["Section"]:
+        """The direct subsection whose title matches ``title`` (case-insensitive)."""
+        for s in self.subsections:
+            if s.title.lower() == title.lower():
+                return s
+        return None
+
+
+@dataclass
+class ReportDocument:
+    """The whole document: title-page control block plus the ordered sections."""
+
+    title: str
+    project_name: str
+    #: (label, value) rows of the document-control block, in reading order.
+    control: List[Tuple[str, str]] = field(default_factory=list)
+    #: "FAR 23 (normal)" or "Concept (C) - unverified extrapolation".
+    badge: str = ""
+    basis: str = BASIS_STATEMENT
+    units_note: str = ""
+    sections: List[Section] = field(default_factory=list)
+    #: The shared methods & limitations statement, verbatim (§4.6).
+    methods: str = ""
+    system: UnitSystem = UnitSystem.IMPERIAL
+
+    def section(self, title: str) -> Optional[Section]:
+        """The section (or subsection, at any depth) whose title matches ``title``.
+
+        Matching is case-insensitive and ignores a leading ``"N. "`` number, so a
+        test can ask for ``"Input summary"`` without pinning the numbering.
+        """
+        want = _bare_title(title)
+        stack: List[Section] = list(self.sections)
+        while stack:
+            s = stack.pop(0)
+            if _bare_title(s.title) == want:
+                return s
+            stack = list(s.subsections) + stack
+        return None
+
+
+def _bare_title(title: str) -> str:
+    head, _, tail = title.partition(" ")
+    return (tail if head.rstrip(".").replace(".", "").isdigit() else title).strip().lower()
+
+
+# --------------------------------------------------------------------------- #
+# Unit helpers -- one resolved set per document (M4-20)
+# --------------------------------------------------------------------------- #
+#: Dimensions the deliverable unit set does not carry, because they are not load
+#: dimensions: (Imperial->SI factor, Imperial label, SI label).
+_EXTRA_DIMENSIONS = {
+    "mass": (0.45359237, "lb", "kg"),
+    "area": (0.09290304, "ft^2", "m^2"),
+    "inertia": (1.3558179483314, "slug-ft^2", "kg*m^2"),
+    "inertia_lbin2": (2.926396534292e-04, "lb-in^2", "kg*m^2"),
+}
+
+#: Imperial unit string -> the :class:`DeliverableUnits` dimension it scales with.
+#: A bare ``"lb"`` is pounds-force here; a weight sets ``quantity="mass"`` and is
+#: excluded by :func:`_load_dimension`, exactly as in ``render.py``.
+_UNIT_DIMENSION = {
+    "lb": "force",
+    "ft-lb": "torque",
+    "lb-in": "moment",
+    "lb/in^2": "pressure",
+}
+
+
+class Units:
+    """The document's resolved unit set, plus the conversions the tables need.
+
+    One instance per document, built from ``deliverable_units(system,
+    Channel.HUMAN)`` -- the report is a human-readable deliverable, so it reports
+    moments in N*m and pressures in kPa, never the solver deck's N*mm/MPa (D-19).
+    Imperial is the all-1.0 identity, so an Imperial report is byte-for-byte what
+    it was before M4-20.
+    """
+
+    def __init__(self, system: UnitSystem) -> None:
+        self.system = system
+        self.d: DeliverableUnits = deliverable_units(system, Channel.HUMAN)
+
+    # -- plain (non-load) quantities: converted, never scaled, never marked --- #
+    def plain(self, value: Any, dim: str) -> str:
+        """A non-load quantity formatted in the document's units (no ``-ULT``).
+
+        ``value`` is typed loosely because an absent quantity reaches here as
+        ``None`` *or* as the empty string the result types use for "this
+        component does not apply"; both render as an empty cell rather than a
+        zero, which would read as a measurement.
+        """
+        if value is None or value == "":
+            return ""
+        return format_value(value * self._factor(dim))
+
+    def label(self, dim: str) -> str:
+        """The plain unit label for ``dim`` (``"in"``/``"mm"``, ``"lb"``/``"kg"``...)."""
+        if dim in _EXTRA_DIMENSIONS:
+            factor, imperial, si = _EXTRA_DIMENSIONS[dim]
+            return imperial if self.system == UnitSystem.IMPERIAL else si
+        return getattr(self.d, dim).label
+
+    def ult_label(self, dim: str) -> str:
+        """The ULTIMATE-marked unit label for a load dimension (``lbs-ULT``/``N-ULT``)."""
+        return ultimate_units(getattr(self.d, dim).label)
+
+    def load(self, value: Any, dim: str, sf: float) -> str:
+        """A LIMIT load, converted and scaled to ULTIMATE by its own case's ``sf``.
+
+        Same loose typing as :meth:`plain`, for the same reason.
+        """
+        if value is None or value == "":
+            return ""
+        return format_value(value * sf * getattr(self.d, dim).factor)
+
+    def _factor(self, dim: str) -> float:
+        if dim in _EXTRA_DIMENSIONS:
+            return 1.0 if self.system == UnitSystem.IMPERIAL else _EXTRA_DIMENSIONS[dim][0]
+        return getattr(self.d, dim).factor
+
+
+def _load_dimension(units: str, quantity: str = "") -> Optional[str]:
+    """The deliverable dimension a LoadValue scales with, or ``None`` if not a load."""
+    if quantity == "mass":
+        return None
+    return _UNIT_DIMENSION.get(units)
+
+
+# --------------------------------------------------------------------------- #
+# Component loads -- the live recompute the report and the bundle share
+# --------------------------------------------------------------------------- #
+@dataclass(frozen=True)
+class ComponentLoads:
+    """The four distributed-load families, recomputed from the current inputs.
+
+    The Export page and the report build these the same way, through this one
+    function, so a bundle's report can never describe different numbers from the
+    CSV/BDF files beside it. Wing results are already transferred to the wing's
+    loads reference axis (LRA) -- every reported wing torsion is about that axis.
+    """
+
+    wing: List[Any] = field(default_factory=list)
+    body: List[Any] = field(default_factory=list)
+    tail: List[Any] = field(default_factory=list)
+    control: List[Any] = field(default_factory=list)
+    #: SELECT's governing conditions, recomputed live (``build_critical``) exactly
+    #: as the Critical Loads and Results Review pages do -- not read off
+    #: ``Project.envelope.critical``, which is only as fresh as the last page
+    #: visit and is absent altogether on a project loaded from JSON.
+    critical: List[Any] = field(default_factory=list)
+
+
+def _try(fn, *args, **kwargs):
+    try:
+        return fn(*args, **kwargs)
+    except _CALC_ERRORS:
+        return None
+
+
+def component_loads(project: Project) -> ComponentLoads:
+    """Recompute the wing / fuselage / tail / control-surface distributed loads.
+
+    Defensive by design: a component whose inputs are absent yields an empty list
+    rather than an exception, so a partially-filled project still reports on the
+    components it *can* cover.
+    """
+    from ..modules.aileron import build_aileron
+    from ..modules.body_loads import build_body_loads
+    from ..modules.flap import build_flap
+    from ..modules.net_loads import build_net_loads, loads_ref_axis_results
+    from ..modules.select import build_critical
+    from ..modules.tab import build_tabs
+    from ..modules.taildist import build_tail_chordwise
+
+    critical = _try(build_critical, project)
+    net = _try(build_net_loads, project)
+    wing = loads_ref_axis_results(project, net.wing_net) if net is not None else None
+    control: List[Any] = []
+    for fn in (build_aileron, build_flap, build_tabs):
+        control += _try(fn, project) or []
+    return ComponentLoads(
+        wing=wing or [],
+        body=_try(build_body_loads, project) or [],
+        tail=_try(build_tail_chordwise, project) or [],
+        control=control,
+        critical=list(critical.conditions) if critical is not None else [],
+    )
+
+
+# --------------------------------------------------------------------------- #
+# §1 Input summary
+# --------------------------------------------------------------------------- #
+def _input_table(title: str, rows: List[Tuple[str, str, str, str]], note: str = "") -> Table:
+    """An input table: quantity / value / units / the page that owns it (§3.2)."""
+    return Table(
+        title=title,
+        columns=["Quantity", "Value", "Units", "Owned by"],
+        rows=[list(r) for r in rows if r[1] != ""],
+        note=note,
+    )
+
+
+def _configuration_section(project: Project) -> Section:
+    from ..applicability import effective_crew, effective_occupants
+
+    speeds = project.speeds
+    est = project.weight.estimation if project.weight is not None else None
+    rows: List[Tuple[str, str, str, str]] = [
+        ("Certification category", (speeds.category if speeds else "") or "(not set)",
+         "", "Structural Speeds"),
+        ("Engine layout",
+         project.engine_layout.value if project.engine_layout is not None else "",
+         "", "Configuration & Layout"),
+        ("Engine count", str(len(project.engines)) if project.engines else "",
+         "", "Configuration & Layout"),
+    ]
+    for i, eng in enumerate(project.engines, start=1):
+        tag = f"Engine {i}" if len(project.engines) > 1 else "Engine"
+        rows.append((f"{tag} designation", eng.engine_designation or "", "", "Engine Mount"))
+        rows.append((f"{tag} propeller", eng.prop_designation or "", "", "Engine Mount"))
+        rows.append((f"{tag} type",
+                     "turbopropeller" if eng.is_turboprop else "reciprocating",
+                     "", "Engine Mount"))
+    occupants = effective_occupants(project)
+    rows += [
+        ("Occupants", str(occupants) if occupants is not None else "", "", "Structural Speeds"),
+        ("Flight crew", str(effective_crew(project)), "", "Weight & Mass Properties"),
+        ("Seats", str(est.seats) if est is not None and est.seats else "",
+         "", "Weight & Mass Properties"),
+        ("FAR 25 optional cases", "included" if project.include_far25 else "not included",
+         "", "Engine Mount"),
+    ]
+    return Section("Configuration", tables=[_input_table("Configuration", rows)])
+
+
+def _geometry_section(project: Project, u: Units) -> Section:
+    from ..derived_geometry import fuselage_summary, wing_reference
+
+    geom = project.geometry
+    if geom is None:
+        return Section("Geometry", absent_reason="this project has no geometry slice")
+
+    L, A, DEG = u.label("length"), u.label("area"), "deg"
+    rows: List[Tuple[str, str, str, str]] = []
+    wing = wing_reference(project)
+    par = geom.parametric
+    if wing is not None:
+        rows += [
+            ("Wing area S", u.plain(wing.s_sqft, "area"), A, "Geometry"),
+            ("Wing MAC", u.plain(wing.mac, "length"), L, "Geometry"),
+            ("MAC leading-edge station XLEMAC", u.plain(wing.xlemac, "length"), L, "Geometry"),
+            ("25% MAC station XW", u.plain(wing.xw, "length"), L, "Geometry"),
+            ("25% MAC waterline ZW", u.plain(wing.zw, "length"), L, "Geometry"),
+            ("Wing dihedral", format_value(wing.dihedral_deg), DEG, "Configuration & Layout"),
+        ]
+    if par is not None:
+        rows += [
+            ("Wing span b", u.plain(_span_in(project), "length"), L, "Geometry"),
+            ("Aspect ratio", format_value(par.aspect_ratio) if par.aspect_ratio else "",
+             "", "Configuration & Layout"),
+            ("Taper ratio", format_value(par.taper_ratio) if par.taper_ratio else "",
+             "", "Configuration & Layout"),
+            ("Leading-edge sweep", format_value(par.le_sweep_deg), DEG, "Configuration & Layout"),
+            ("Empennage arrangement", par.tail_type.value if par.tail_type else "",
+             "", "Configuration & Layout"),
+        ]
+    surf = geom.by_name("wing")
+    if surf is not None:
+        rows.append(("Wing loads reference axis (LRA)",
+                     format_value(surf.ref_axis_pct * 100.0), "% chord", "Geometry"))
+        if surf.front_spar_pct is not None:
+            rows.append(("Front spar", format_value(surf.front_spar_pct * 100.0),
+                         "% chord", "Geometry"))
+        if surf.rear_spar_pct is not None:
+            rows.append(("Rear spar", format_value(surf.rear_spar_pct * 100.0),
+                         "% chord", "Geometry"))
+
+    ht, vt = project.tail_loads, project.vtail_loads
+    if ht is not None:
+        rows += [
+            ("Horizontal-tail area ST", u.plain(ht.htail_area_sqft, "area"), A, "Empennage"),
+            ("Horizontal-tail semi-span", u.plain(ht.htail_semispan_in, "length"), L, "Empennage"),
+            ("Horizontal-tail aspect ratio", format_value(ht.aspect_ratio_htail), "", "Empennage"),
+            ("Elevator area SE", u.plain(ht.elevator_area_sqft, "area"), A, "Empennage"),
+        ]
+    if vt is not None:
+        rows += [
+            ("Vertical-tail area SV", u.plain(vt.vtail_area_sqft, "area"), A, "Empennage"),
+            ("Vertical-tail span", u.plain(vt.vtail_span_in, "length"), L, "Empennage"),
+            ("Vertical-tail MAC", u.plain(vt.vtail_mac_in, "length"), L, "Empennage"),
+            ("Rudder area SR", u.plain(vt.rudder_area_sqft, "area"), A, "Empennage"),
+        ]
+    gear = geom.landing_gear
+    if gear is not None:
+        rows += [
+            ("Main-gear axle station (static)",
+             u.plain(gear.main_gear.axle_static[0], "length"), L, "Landing Gear"),
+            ("Main-gear axle waterline (static)",
+             u.plain(gear.main_gear.axle_static[1], "length"), L, "Landing Gear"),
+            ("Nose-gear axle station (static)",
+             u.plain(gear.nose_gear.axle_static[0], "length"), L, "Landing Gear"),
+            ("Tread (main-wheel track)", u.plain(gear.tread_in, "length"), L, "Landing Gear"),
+        ]
+    fuse = fuselage_summary(geom.fuselage)
+    if fuse is not None:
+        length, width, height = fuse
+        rows += [
+            ("Fuselage length", u.plain(length, "length"), L, "Configuration & Layout"),
+            ("Fuselage maximum width", u.plain(width, "length"), L, "Configuration & Layout"),
+            ("Fuselage maximum depth", u.plain(height, "length"), L, "Configuration & Layout"),
+        ]
+    return Section("Geometry", tables=[_input_table("Geometry", rows)])
+
+
+def _span_in(project: Project) -> Optional[float]:
+    """Wing span (in) from the WINGGEOM surface, or ``None``."""
+    geom = project.geometry
+    surf = geom.by_name("wing") if geom is not None else None
+    if surf is None:
+        return None
+    from ..modules.wing_geometry import surface_properties
+
+    res = _try(surface_properties, surf)
+    if res is None:
+        return None
+    for v in res.values:
+        if v.key == "span":
+            return v.value
+    return None
+
+
+def _weights_section(project: Project, u: Units) -> Section:
+    W, L = u.label("mass"), u.label("length")
+    weight = project.weight
+    if weight is None:
+        return Section("Weights and CG",
+                       absent_reason="this project has no weight slice")
+    rows: List[Tuple[str, str, str, str]] = []
+    mtow, oew, _ = weight.direct_totals() if weight.items else (0.0, 0.0, 0.0)
+    if mtow:
+        rows += [
+            ("Maximum takeoff weight (item sum)", u.plain(mtow, "mass"), W, "Weight & Mass Properties"),
+            ("Empty weight (item sum)", u.plain(oew, "mass"), W, "Weight & Mass Properties"),
+        ]
+    env = weight.envelope
+    if env is not None:
+        rows += [
+            ("Design gross weight", u.plain(env.gross_weight, "mass"), W, "Weight & Mass Properties"),
+            ("Aft CG limit", format_value(env.aft_gross_pct_mac), "% MAC", "Weight & Mass Properties"),
+            ("Forward CG limit (gross)", format_value(env.fwd_gross_pct_mac), "% MAC",
+             "Weight & Mass Properties"),
+            ("Forward CG limit (regardless)", format_value(env.fwd_regardless_pct_mac), "% MAC",
+             "Weight & Mass Properties"),
+        ]
+    for c in weight.cg_cases:
+        rows.append((f"Design CG case '{c.name}'",
+                     f"{u.plain(c.weight_lb, 'mass')} {W} at {u.plain(c.xcg, 'length')} {L}",
+                     "", "Weight & Mass Properties"))
+
+    tables = [_input_table("Weights and CG", rows)]
+    mass = project.mass
+    if mass is not None and mass.cases:
+        inertia_u = u.label("inertia_lbin2")
+        tables.append(Table(
+            title="Mass properties per loading (WTONECG)",
+            columns=["Loading", f"Weight ({W})", f"CG x ({L})", f"CG z ({L})",
+                     f"Iyy ({inertia_u})", f"Izz ({inertia_u})", "Gear"],
+            rows=[[
+                c.name,
+                u.plain(c.weight_lb, "mass"),
+                u.plain(c.cg_x, "length"),
+                u.plain(c.cg_z, "length"),
+                u.plain(c.iyy, "inertia_lbin2"),
+                u.plain(c.izz, "inertia_lbin2"),
+                "down" if c.gear_down else "up",
+            ] for c in mass.cases],
+            note="Provenance: computed per CG case by WTONECG from the itemized "
+                 "weight database (not the Ch 9 approximation).",
+        ))
+    else:
+        tables.append(Table(
+            title="Mass properties per loading (WTONECG)",
+            columns=["Loading", "Status"],
+            rows=[["(none)", "not analysed — no persisted WTONECG mass cases; any "
+                             "inertia used downstream is the Ch 9 approximation"]],
+        ))
+    return Section("Weights and CG", tables=tables)
+
+
+def _speeds_section(project: Project) -> Section:
+    """Design speeds, each with its FAR reference and whether it was user-set."""
+    speeds = project.speeds
+    if speeds is None:
+        return Section("Design speeds",
+                       absent_reason="this project has no design-speed slice")
+    from ..modules.structural_speeds import design_speed_values
+
+    sv = _try(design_speed_values, project, speeds)
+    if sv is None:
+        return Section("Design speeds",
+                       absent_reason="the design speeds could not be "
+                                     "computed from the inputs present")
+
+    def origin(chosen) -> str:
+        return "user-specified" if chosen is not None else "derived (FAR minimum)"
+
+    rows = [
+        ["VS (clean stall)", format_value(sv.vs), "23.335", "derived from CLmax"],
+        ["VSF (flapped stall)", format_value(sv.vsf), "23.335", "derived from CLmax"],
+        ["VA (manoeuvre)", format_value(sv.va), "23.335(c)", origin(speeds.chosen_va)],
+        ["VC (cruise)", format_value(sv.vc), "23.335(a)", origin(speeds.chosen_vc)],
+        ["VD (dive)", format_value(sv.vd), "23.335(b)", origin(speeds.chosen_vd)],
+        ["VF (flap)", format_value(sv.vf), "23.345(b)", origin(speeds.chosen_vf)],
+    ]
+    ml = speeds.mach_limit
+    if ml is not None:
+        rows += [
+            ["MC (cruise Mach)", format_value(ml.mc), "23.335(b)(4)", "Mach Limits"],
+            ["MD (dive Mach)", format_value(ml.md), "23.335(b)(4)", "Mach Limits"],
+        ]
+    tables = [Table(
+        title="Design speeds",
+        columns=["Speed", "Value (KEAS)", "FAR", "Origin"],
+        rows=rows,
+        note=AVIATION_UNITS_NOTE + " Mach numbers are dimensionless.",
+    ), Table(
+        title="Limit manoeuvre load factors",
+        columns=["Quantity", "Value", "FAR minimum", "FAR"],
+        rows=[
+            ["n (positive)", format_value(sv.n), format_value(sv.n_min), "23.337(a)"],
+            ["n (negative)", format_value(sv.nneg), format_value(sv.nneg_min), "23.337(b)"],
+        ],
+        note="Load factors are LIMIT and dimensionless — they are never scaled to "
+             "ultimate and carry no unit marker (§3.1).",
+    )]
+    return Section("Design speeds", tables=tables)
+
+
+def _aero_section(project: Project) -> Section:
+    aero = project.aero_coeffs
+    if aero is None:
+        return Section("Aerodynamic data",
+                       absent_reason="this project has no aerodynamic-coefficient slice")
+    rows: List[Tuple[str, str, str, str]] = [
+        ("CLmax clean", format_value(aero.clmax_clean), "", "Aerodynamic Data"),
+        ("CLmax clean (negative)", format_value(aero.clmax_clean_neg), "", "Aerodynamic Data"),
+        ("CLmax flapped", format_value(aero.clmax_flap), "", "Aerodynamic Data"),
+    ]
+    for name, cset in (("cruise", aero.cruise), ("flaps down", aero.flaps_down)):
+        if cset is None:
+            continue
+        lift = getattr(cset, "lift", None)
+        moment = getattr(cset, "moment", None)
+        if lift:
+            rows.append((f"Lift curve ({name}) CL0, CLalpha",
+                         ", ".join(format_value(v) for v in lift), "per deg", "Aerodynamic Data"))
+        if moment:
+            rows.append((f"Moment curve ({name}) CM set",
+                         ", ".join(format_value(v) for v in moment), "", "Aerodynamic Data"))
+    fm = aero.fuselage_moment
+    rows.append(("Fuselage dCm/dalpha (Munk)",
+                 "enabled" if fm is not None and getattr(fm, "enabled", True) else "not enabled",
+                 "", "Aerodynamic Data"))
+    return Section("Aerodynamic data", tables=[_input_table("Aerodynamic data", rows)])
+
+
+def _section_inputs(project: Project, u: Units) -> Section:
+    return Section(
+        "1. Input summary",
+        body=["The airplane analysed, in enough detail to confirm identity. Each row "
+              "names the page that owns the value, so a wrong number is traceable to "
+              "one screen."],
+        subsections=[
+            _configuration_section(project),
+            _geometry_section(project, u),
+            _weights_section(project, u),
+            _speeds_section(project),
+            _aero_section(project),
+        ],
+    )
+
+
+# --------------------------------------------------------------------------- #
+# §2 Envelope figures
+# --------------------------------------------------------------------------- #
+def _vn_figure(project: Project) -> Tuple[Figure, Optional[Table]]:
+    from ..modules.structural_speeds import design_speed_values
+    from ..vn_diagram import build_vn_diagram, gust_load_factor, resolve_gust_inputs
+
+    speeds = project.speeds
+    sv = _try(design_speed_values, project, speeds) if speeds is not None else None
+    if sv is None:
+        return (Figure("vn", "V-n diagram",
+                       absent_reason="the design speeds this diagram is "
+                                     "built from could not be computed"), None)
+
+    aero = project.aero_coeffs
+    slope = aero.cruise.lift[1] if aero is not None and aero.cruise is not None else None
+    mac_ft = None
+    from ..derived_geometry import wing_reference
+
+    wing = wing_reference(project)
+    if wing is not None and wing.mac:
+        mac_ft = wing.mac / 12.0
+    altitude = 0.0
+    if project.flight_loads is not None and project.flight_loads.altitudes_ft:
+        altitude = project.flight_loads.altitudes_ft[0]
+    gust = resolve_gust_inputs(sv.ws, altitude, slope, mac_ft)
+    diagram = build_vn_diagram(
+        vs=sv.vs, va=sv.va, vc=sv.vc, vd=sv.vd, n_pos=sv.n, n_neg=sv.nneg,
+        vsf=sv.vsf, vf=sv.vf, flaps="both", gust=gust,
+    )
+    styles = ("solid", "dashed", "dotted", "dashdotted", "densely dashed", "densely dotted")
+    series = [
+        Series(t.name, list(t.v), list(t.n), styles[i % len(styles)])
+        for i, t in enumerate(diagram.traces)
+    ]
+    caption = (
+        f"Manoeuvre and gust V-n envelope at {format_value(altitude)} ft. Load "
+        "factors are LIMIT and dimensionless."
+    )
+    if diagram.gust_approximate:
+        caption += (" The gust lines are APPROXIMATE: a default lift-curve slope "
+                    "and/or no gust-alleviation factor was substituted because the "
+                    "aero/geometry inputs were absent.")
+
+    corner_rows = []
+    for label, v in (("VS", sv.vs), ("VSF", sv.vsf), ("VA", sv.va), ("VC", sv.vc),
+                     ("VD", sv.vd), ("VF", sv.vf)):
+        if label in ("VC", "VD"):
+            ref = "C" if label == "VC" else "D"
+            n_gust_up = gust_load_factor(v, ref, gust, 1.0)
+            n_gust_dn = gust_load_factor(v, ref, gust, -1.0)
+            governs = "gust" if abs(n_gust_up) > abs(sv.n) else "manoeuvre"
+            corner_rows.append([label, format_value(v), format_value(sv.n),
+                                format_value(sv.nneg), format_value(n_gust_up),
+                                format_value(n_gust_dn), governs])
+        elif label == "VF":
+            corner_rows.append([label, format_value(v), format_value(min(2.0, sv.n)),
+                                "0", "—", "—", "manoeuvre (flaps, 23.337(b))"])
+        else:
+            corner_rows.append([label, format_value(v), format_value(sv.n),
+                                format_value(sv.nneg), "—", "—", "manoeuvre"])
+    table = Table(
+        title="V-n corner points",
+        columns=["Speed", "V (KEAS)", "n+ (manoeuvre)", "n- (manoeuvre)",
+                 "n+ (gust)", "n- (gust)", "Governs"],
+        rows=corner_rows,
+        note=AVIATION_UNITS_NOTE,
+    )
+    return Figure("vn", "V-n diagram",
+                  data=PlotData("V (KEAS)", "Load factor n", series),
+                  caption=caption), table
+
+
+def _weight_cg_figure(project: Project, u: Units) -> Tuple[Figure, Optional[Table]]:
+    from ..modules.weight_envelope import envelope as weight_envelope
+    from ..modules.weight_envelope import loading_envelope_points
+
+    weight = project.weight
+    env_in = weight.envelope if weight is not None else None
+    points = _try(loading_envelope_points, project) or []
+    if not points:
+        return (Figure("weight_cg", "Weight / CG envelope",
+                       absent_reason="no itemized weight database, so "
+                                     "there is no loading envelope to draw"), None)
+
+    from ..derived_geometry import wing_reference
+
+    W, L = u.label("mass"), u.label("length")
+    len_f = u.d.length.factor
+    mass_f = 1.0 if u.system == UnitSystem.IMPERIAL else _EXTRA_DIMENSIONS["mass"][0]
+    series = [Series("Forward loading envelope",
+                     [x * len_f for _w, x in points],
+                     [w * mass_f for w, _x in points])]
+    vlines: List[Tuple[str, float]] = []
+    if env_in is not None:
+        results = _try(weight_envelope, project, env_in) or []
+        for r in results:
+            for v in r.values:
+                if v.key in ("aft_gross_station", "forward_gross_station",
+                             "forward_regardless_station"):
+                    vlines.append((v.label, v.value * len_f))
+    wing = wing_reference(project)
+    mac = wing.mac if wing is not None else None
+    xlemac = wing.xlemac if wing is not None else None
+    points_marked = [
+        (c.name, c.xcg * len_f, c.weight_lb * mass_f)
+        for c in (weight.cg_cases if weight is not None else [])
+    ]
+
+    def pct_mac(x: float) -> str:
+        if not mac or xlemac is None:
+            return ""
+        return format_value((x - xlemac) / mac * 100.0)
+
+    rows = [[u.plain(w, "mass"), u.plain(x, "length"), pct_mac(x)] for w, x in points]
+    table = Table(
+        title="Weight / CG envelope corner points",
+        columns=[f"Weight ({W})", f"CG station ({L})", "CG (% MAC)"],
+        rows=rows,
+        note="Vertices of the forward loading envelope, most-forward first, in the "
+             "order the discretionary items are loaded.",
+    )
+    return Figure(
+        "weight_cg", "Weight / CG envelope",
+        data=PlotData(f"Fuselage station ({L})", f"Weight ({W})", series,
+                      points=points_marked, vlines=vlines),
+        caption="Forward loading envelope with the structural CG limits and each "
+                "design CG case. Weights and stations are not load quantities and "
+                "are never scaled to ultimate.",
+    ), table
+
+
+def _speed_altitude_figure(project: Project) -> Tuple[Figure, Optional[Table]]:
+    from ..modules.mach_limit import mach_limit_lines
+    from ..vn_diagram import _gust_ude
+
+    ml = project.speeds.mach_limit if project.speeds is not None else None
+    if ml is None:
+        return (Figure("speed_altitude", "Speed / altitude envelope",
+                       absent_reason="this airplane has no Mach-limited boundary — no "
+                                     "MACHLIM inputs are defined, so the operating "
+                                     "envelope is bounded by VD alone"), None)
+    results = _try(mach_limit_lines, ml)
+    if not results:
+        return (Figure("speed_altitude", "Speed / altitude envelope",
+                       absent_reason="the Mach-limit lines could not be "
+                                     "computed from the inputs present"), None)
+
+    lines = results[1:]  # results[0] is the MC/MD/MNE/MFC summary
+
+    def series_for(key: str, name: str, style: str) -> Series:
+        alts, vs = [], []
+        for r in lines:
+            by_key = {v.key: v.value for v in r.values}
+            if key in by_key:
+                vs.append(by_key[key])
+                alts.append(by_key["altitude"])
+        return Series(name, vs, alts, style)
+
+    series = [
+        series_for("v_mc", "V(MC) cruise", "solid"),
+        series_for("v_mne", "V(MNE) never-exceed", "dashed"),
+        series_for("v_md", "V(MD) dive", "dotted"),
+        series_for("v_fc", "V(MFC) flutter clearance", "dashdotted"),
+    ]
+    rows = []
+    for r in lines:
+        by_key = {v.key: v.value for v in r.values}
+        h = by_key["altitude"]
+        rows.append([
+            format_value(h),
+            format_value(by_key["v_mc"]), format_value(by_key["v_mne"]),
+            format_value(by_key["v_md"]), format_value(by_key["v_fc"]),
+            format_value(_gust_ude("C", h)), format_value(_gust_ude("D", h)),
+        ])
+    table = Table(
+        title="Mach-limited speeds and derived gust velocities by altitude",
+        columns=["Altitude (ft)", "V(MC) (KEAS)", "V(MNE) (KEAS)", "V(MD) (KEAS)",
+                 "V(MFC) (KEAS)", "Ude at VC (fps)", "Ude at VD (fps)"],
+        rows=rows,
+        note="The derived gust velocities are tabulated rather than plotted: they "
+             "are a velocity in fps, not an equivalent airspeed, and share no axis "
+             "with the Mach-limited speeds. They taper above 20,000 ft per "
+             "14 CFR 23.333(c)/23.341. " + AVIATION_UNITS_NOTE,
+    )
+    return Figure(
+        "speed_altitude", "Speed / altitude envelope",
+        data=PlotData("V (KEAS)", "Altitude (ft)", series),
+        caption="Mach-limited equivalent airspeeds from the shoulder altitude to the "
+                "maximum operating altitude (MACHLIM).",
+    ), table
+
+
+def _section_envelopes(project: Project, u: Units) -> Section:
+    section = Section(
+        "2. Envelope figures",
+        body=["Each figure is followed by its corner-point table — a plotted "
+              "boundary without its numeric corners is not sufficient for sizing."],
+    )
+    for fig, table in (_vn_figure(project), _weight_cg_figure(project, u),
+                       _speed_altitude_figure(project)):
+        sub = Section(fig.title, figures=[fig])
+        if table is not None:
+            sub.tables.append(table)
+        section.subsections.append(sub)
+    return section
+
+
+# --------------------------------------------------------------------------- #
+# §3 Conditions analysed and FAR coverage
+# --------------------------------------------------------------------------- #
+_STATUS_LABEL = {
+    COVERED: "covered",
+    NOT_APPLICABLE: "not applicable",
+    NOT_ANALYSED: "NOT ANALYSED",
+    OUT_OF_SCOPE: "out of scope",
+}
+
+
+def _case_index_table(module_results, comps: ComponentLoads) -> Table:
+    """The case index, with the safety factor §4.4 requires beside each case."""
+    from ..export.sbeam_bridge import case_index_rows_from
+
+    groups = [mr.conditions for mr in module_results] + [
+        comps.wing, comps.body, comps.tail, comps.control]
+    rows = case_index_rows_from(*groups)
+    sf_by_id: Dict[str, float] = {}
+    for group in groups:
+        for item in group:
+            ref = getattr(item, "case_ref", None)
+            if ref is not None and ref.case_id not in sf_by_id:
+                sf_by_id[ref.case_id] = getattr(item, "safety_factor", ULTIMATE_FACTOR)
+    return Table(
+        title="Case index",
+        columns=["ID", "Component", "Condition", "CG", "Speed (kt)", "Altitude (ft)",
+                 "FAR", "SF"],
+        rows=[[r["ID"], r["Component"], r["Condition"], r["CG"], r["Speed (kt)"],
+               r["Altitude (ft)"], r["FAR"],
+               format_value(sf_by_id.get(r["ID"], ULTIMATE_FACTOR))] for r in rows],
+        small=True,
+        note="Case IDs are the same identities that appear in the companion "
+             "case-index CSV and in the sbeam FORCE/MOMENT cards; they are never "
+             "re-minted or renumbered for presentation.",
+    )
+
+
+def _coverage_table(project: Project, module_results) -> Tuple[Table, str]:
+    refs = [c.far_reference for mr in module_results for c in mr.conditions]
+    rows = coverage_matrix(project, refs)
+    summary = coverage_summary(rows)
+    headline = (
+        f"{summary[COVERED]} regulations covered, {summary[NOT_APPLICABLE]} not "
+        f"applicable to this airplane, {summary[NOT_ANALYSED]} NOT ANALYSED "
+        f"(inputs absent), {summary[OUT_OF_SCOPE]} out of scope for this tool."
+    )
+    table = Table(
+        title="FAR 23 Subpart C coverage",
+        columns=["FAR", "Title", "Module", "Status", "Cases", "Reason"],
+        rows=[[r.far, r.title, r.module, _STATUS_LABEL[r.status],
+               str(r.case_count) if r.case_count else "—", r.reason] for r in rows],
+        small=True,
+        status_column="Status",
+        note="'Not applicable' is an engineering conclusion about this airplane; "
+             "'NOT ANALYSED' is a gap in this run that supplying inputs would close; "
+             "'out of scope' is a permanent boundary of this tool that must be "
+             "covered by other means.",
+    )
+    return table, headline
+
+
+def _section_conditions(project: Project, module_results, comps: ComponentLoads,
+                        scope: str, deselected_case_ids: Sequence[str]) -> Section:
+    coverage, headline = _coverage_table(project, module_results)
+    scope_text = f"Scope of this export: {scope or 'full case set'}."
+    if deselected_case_ids:
+        scope_text += (" The following cases were computed but EXCLUDED from this "
+                       "deliverable: " + ", ".join(deselected_case_ids) + ".")
+    else:
+        scope_text += " No computed case was excluded."
+    return Section(
+        "3. Conditions analysed and FAR coverage",
+        body=[scope_text, headline],
+        tables=[
+            _case_index_table(module_results, comps),
+            coverage,
+            Table(
+                title="Approved corrections to the source manual",
+                columns=["FAR", "Correction"],
+                rows=[[far, text] for far, text in APPROVED_CORRECTIONS],
+                note="Deliberate, documented deviations from McMaster's printed "
+                     "manual, each approved and cited in the project's register of "
+                     "approved corrections.",
+            ),
+        ],
+    )
+
+
+# --------------------------------------------------------------------------- #
+# §4 Results summary (all ULTIMATE, SF per case)
+# --------------------------------------------------------------------------- #
+def _governing_table(title: str, conditions, u: Units) -> Optional[Table]:
+    """One component's governing conditions, straight from ``governing_loads_table``.
+
+    Deliberately not re-derived here: the report's governing figures must equal
+    the ones the Results Review and Critical Loads pages show, and the only way to
+    guarantee that is to call the same function.
+    """
+    if not conditions:
+        return None
+    rows = governing_loads_table(list(conditions), u.system)
+    if not rows:
+        return None
+    columns = list(rows[0].keys())
+    return Table(
+        title=title,
+        columns=columns,
+        rows=[[str(r.get(c, "—")) for c in columns] for r in rows],
+        small=len(columns) > 7,
+        note="Loads are ULTIMATE; the SF column states the factor applied to each "
+             "row's load cells. Dimensionless quantities (n, CL) and speeds are "
+             "limit values and are not scaled.",
+    )
+
+
+class _Extreme:
+    """Running two-sided extreme of one quantity, with where each side occurs."""
+
+    def __init__(self, label: str, units: str) -> None:
+        self.label = label
+        self.units = units
+        self.hi: Optional[float] = None
+        self.lo: Optional[float] = None
+        self.hi_at = ""
+        self.lo_at = ""
+
+    def add(self, value: float, at: str) -> None:
+        if self.hi is None or value > self.hi:
+            self.hi, self.hi_at = value, at
+        if self.lo is None or value < self.lo:
+            self.lo, self.lo_at = value, at
+
+    def row(self) -> List[str]:
+        return [self.label, self.units,
+                format_value(self.hi) if self.hi is not None else "",
+                self.hi_at,
+                format_value(self.lo) if self.lo is not None else "",
+                self.lo_at]
+
+
+_EXTREMES_COLUMNS = ["Quantity", "Units", "Maximum", "Occurs at (case, station)",
+                     "Minimum", "Occurs at (case, station)"]
+_EXTREMES_NOTE = (
+    "Envelopes are two-sided: the maximum and the minimum are reported separately, "
+    "because the opposite-sign extreme can size a different part of the structure. "
+    "Every extreme names the case and the station it occurs at."
+)
+
+
+def _station_extremes_table(title: str, results, u: Units, *, station_attr: str,
+                            station_label: str, quantities, note: str = "") -> Optional[Table]:
+    """Two-sided extremes over a distributed-load family, with case and station."""
+    if not results:
+        return None
+    extremes = {
+        key: _Extreme(label, u.ult_label(dim)) for key, label, dim in quantities
+    }
+    for res in results:
+        sf = getattr(res, "safety_factor", ULTIMATE_FACTOR)
+        case = getattr(res, "case_ref", None)
+        case_id = case.case_id if case is not None else getattr(res, "case", "")
+        for station in res.stations:
+            where = (f"{case_id} at {station_label} "
+                     f"{format_value(getattr(station, station_attr) * u.d.length.factor)} "
+                     f"{u.label('length')}")
+            for key, _label, dim in quantities:
+                value = getattr(station, key) * sf * getattr(u.d, dim).factor
+                extremes[key].add(value, where)
+    return Table(
+        title=title,
+        columns=_EXTREMES_COLUMNS,
+        rows=[extremes[key].row() for key, _l, _d in quantities],
+        note=(note + " " if note else "") + _EXTREMES_NOTE,
+    )
+
+
+def _wing_section(project: Project, comps: ComponentLoads, u: Units,
+                  critical: Dict[str, List[Any]]) -> Section:
+    from ..modules.net_loads import torsion_axis_label, wing_lra
+
+    section = Section("Wing")
+    table = _governing_table("Wing governing conditions", critical.get("wing"), u)
+    if table is not None:
+        section.tables.append(table)
+    if not comps.wing:
+        if table is None:
+            section.absent_reason = ("no wing load cases (the net wing "
+                                     "distribution could not be built from these inputs)")
+        return section
+    axis = comps.wing[0].torsion_axis or torsion_axis_label(wing_lra(project))
+    extremes = _station_extremes_table(
+        "Wing maxima", comps.wing, u,
+        station_attr="y", station_label="span station",
+        quantities=[("sz", "Shear Sz", "force"),
+                    ("sx", "Chord shear Sx", "force"),
+                    ("mxx", "Bending Mxx", "moment"),
+                    ("myy", f"Torsion Myy about the {axis}", "moment"),
+                    ("mzz", "Chord bending Mzz", "moment")],
+        note=f"Wing torsion Myy is stated about the {axis} — the wing's loads "
+             "reference axis, not the quarter chord it is computed on.",
+    )
+    if extremes is not None:
+        section.tables.append(extremes)
+    section.body.append(
+        f"Full station-by-station distributions for all {len(comps.wing)} wing cases "
+        "are in the companion file wing_span_loads.csv and the sbeam deck "
+        "wing_loads.bdf (see the bundle manifest)."
+    )
+    return section
+
+
+def _fuselage_section(comps: ComponentLoads, u: Units,
+                      critical: Dict[str, List[Any]]) -> Section:
+    section = Section("Fuselage")
+    table = _governing_table("Fuselage governing conditions", critical.get("fuselage"), u)
+    if table is not None:
+        section.tables.append(table)
+    if not comps.body:
+        if table is None:
+            section.absent_reason = ("no fuselage load cases (the body "
+                                     "distribution could not be built from these inputs)")
+        return section
+    extremes = _station_extremes_table(
+        "Fuselage maxima", comps.body, u,
+        station_attr="x", station_label="body station",
+        quantities=[("sz", "Vertical shear Sz", "force"),
+                    ("sy", "Side shear Sy", "force"),
+                    ("myy", "Bending Myy", "moment"),
+                    ("mzz", "Side bending Mzz", "moment"),
+                    ("mxx", "Torsion Mxx about the body X axis", "moment")],
+    )
+    if extremes is not None:
+        section.tables.append(extremes)
+
+    fitting_rows = []
+    for r in comps.body:
+        if r.r_front is None and r.r_rear is None:
+            continue
+        case = r.case_ref.case_id if r.case_ref else r.case
+        fitting_rows.append([
+            case,
+            u.load(r.r_front, "force", r.safety_factor),
+            u.plain(r.x_front, "length"),
+            u.load(r.r_rear, "force", r.safety_factor),
+            u.plain(r.x_rear, "length"),
+            format_value(r.safety_factor),
+        ])
+    if fitting_rows:
+        section.tables.append(Table(
+            title="Wing-attach fitting loads",
+            columns=["Case", f"Front spar reaction ({u.ult_label('force')})",
+                     f"Front spar station ({u.label('length')})",
+                     f"Rear spar reaction ({u.ult_label('force')})",
+                     f"Rear spar station ({u.label('length')})", "SF"],
+            rows=fitting_rows,
+            note="Reported for the wing-attach fittings. The fuselage span-load "
+                 "distribution already carries these reactions — do not apply them "
+                 "on top of it.",
+        ))
+
+    if any(getattr(r, "closure_artifact", False) for r in comps.body):
+        from ..modules.body_loads import CLOSURE_ARTIFACT_CAVEAT
+
+        n = sum(1 for r in comps.body if r.closure_artifact)
+        section.body.append(f"CLOSURE CAVEAT ({n} case(s)): {CLOSURE_ARTIFACT_CAVEAT}")
+    else:
+        section.body.append(
+            "The exported set closes both the vertical residual and the terminal Myy "
+            "at the wing front/rear spar attachments (Ref 1 Ch 15 p103)."
+        )
+    if any(getattr(r, "spars_assumed", False) for r in comps.body):
+        section.body.append(
+            "Wing spar stations were ASSUMED (front/rear spar chord fractions were "
+            "not entered), so the carry-through reaction location is a default, not "
+            "an input."
+        )
+    return section
+
+
+def _tail_section(component: str, title: str, comps: ComponentLoads, u: Units,
+                  critical: Dict[str, List[Any]]) -> Section:
+    section = Section(title)
+    table = _governing_table(f"{title} governing conditions", critical.get(component), u)
+    if table is not None:
+        section.tables.append(table)
+    results = [r for r in comps.tail if r.component == component]
+    if not results:
+        if table is None:
+            section.absent_reason = (f"no {title.lower()} load cases in "
+                                     "this run")
+        return section
+    rows = []
+    for r in results:
+        psis = [abs(s.psi) for s in r.stations] or [0.0]
+        rows.append([
+            r.case_ref.case_id if r.case_ref else r.case,
+            r.case,
+            r.far_reference,
+            u.load(r.lt25, "force", r.safety_factor),
+            u.load(r.lt50, "force", r.safety_factor),
+            u.load(max(psis), "pressure", r.safety_factor),
+            format_value(r.safety_factor),
+        ])
+    section.tables.append(Table(
+        title=f"{title} chordwise load split",
+        columns=["ID", "Condition", "FAR",
+                 f"LT25 at 25% MAC ({u.ult_label('force')})",
+                 f"LT50 at 50% MAC ({u.ult_label('force')})",
+                 f"Max |load intensity| ({u.ult_label('pressure')})", "SF"],
+        rows=rows,
+        note="LT25 is the angle-of-attack (additive) load at 25% MAC and LT50 the "
+             "camber load at 50% MAC — the rational chordwise split TAILDIST "
+             "distributes. Full chordwise profiles are in tail_chordwise.csv.",
+    ))
+    return section
+
+
+def _control_surface_section(comps: ComponentLoads, u: Units) -> Section:
+    section = Section("Control surfaces")
+    if not comps.control:
+        section.absent_reason = ("no aileron, flap or tab input slices "
+                                 "in this project")
+        return section
+    rows = []
+    for r in comps.control:
+        psis = [abs(s.psi) for s in r.stations] or [0.0]
+        rows.append([
+            r.case_ref.case_id if r.case_ref else "",
+            r.surface,
+            r.case,
+            u.load(r.load_lb, "force", r.safety_factor),
+            u.load(max(psis), "pressure", r.safety_factor),
+            format_value(r.v_kt) if r.v_kt else "",
+            format_value(r.safety_factor),
+        ])
+    section.tables.append(Table(
+        title="Control-surface design loads",
+        columns=["ID", "Surface", "Condition", f"Load ({u.ult_label('force')})",
+                 f"Max design pressure ({u.ult_label('pressure')})", "V (KEAS)", "SF"],
+        rows=rows,
+        note="The chordwise distributions are the *standard simplified* forms "
+             "(aileron: constant to the hinge then tapering to zero at the trailing "
+             "edge; flap: leading edge to half at the trailing edge; tab: trapezoid "
+             "with the leading edge twice the trailing edge) — not measured or "
+             "CFD distributions.",
+    ))
+    return section
+
+
+def _module_extremes_section(title: str, module_results, module_name: str,
+                             u: Units, note: str = "") -> Section:
+    """Two-sided load extremes over one module's conditions (engine mount, gear).
+
+    These modules produce tens of discrete reaction cases rather than a
+    distribution; inlining every case would bury the governing ones (decision
+    G8-4), so the report carries the extremes with their case IDs and points at
+    the case index and the module's load-case CSV for the rest.
+    """
+    section = Section(title)
+    results = [mr for mr in module_results if mr.module == module_name]
+    conditions = [c for mr in results for c in mr.conditions]
+    if not conditions:
+        section.absent_reason = (f"the {module_name} module produced no "
+                                 "conditions in this run (its inputs are absent)")
+        return section
+    extremes: Dict[str, _Extreme] = {}
+    order: List[str] = []
+    fars = []
+    for c in conditions:
+        if c.far_reference and c.far_reference not in fars:
+            fars.append(c.far_reference)
+        case_id = c.case_ref.case_id if c.case_ref else c.title
+        for v in c.values:
+            dim = _load_dimension(v.units, v.quantity)
+            if dim is None:
+                continue
+            key = v.key or v.label
+            if key not in extremes:
+                extremes[key] = _Extreme(v.label, u.ult_label(dim))
+                order.append(key)
+            extremes[key].add(v.value * c.safety_factor * getattr(u.d, dim).factor,
+                              f"{case_id} (SF {format_value(c.safety_factor)})")
+    if not order:
+        section.absent_reason = (f"the {module_name} module produced no "
+                                 "load quantities in this run")
+        return section
+    section.tables.append(Table(
+        title=f"{title} load extremes",
+        columns=["Quantity", "Units", "Maximum", "Occurs at (case, SF)",
+                 "Minimum", "Occurs at (case, SF)"],
+        rows=[extremes[k].row() for k in order],
+        note=(note + " " if note else "") + _EXTREMES_NOTE
+             + f" Conditions analysed: {len(conditions)}; FAR references: "
+               f"{', '.join(fars) if fars else '—'}. Every case is listed "
+               "individually in the case index and in the module's load-case CSV.",
+    ))
+    return section
+
+
+def _critical_by_component(comps: ComponentLoads,
+                           deselected: Sequence[str] = ()) -> Dict[str, List[Any]]:
+    """SELECT's governing conditions, grouped by component and export-scoped.
+
+    A condition the engineer deselected on the Critical Loads page is not in the
+    deliverable, so it is not in the report's results tables either -- §3.4 makes
+    the exclusion itself reportable (it is listed by ID in §3), but a table of
+    governing loads must describe what was actually delivered.
+    """
+    dropped = set(deselected)
+    out: Dict[str, List[Any]] = {}
+    for c in comps.critical:
+        if c.case_ref is not None and c.case_ref.case_id in dropped:
+            continue
+        out.setdefault(c.component, []).append(c)
+    return out
+
+
+_ENGINE_NOTE = (
+    "Preserved sign conventions: engine-mount reaction torque is reported NEGATIVE, "
+    "and 'clockwise from the pilot's view is positive' for rotor RPM and stoppage "
+    "torque. The four 23.371(b) gyroscopic sign combinations are separate cases "
+    "(suffixes a-d on the engine-mount case ID)."
+)
+_GEAR_NOTE = (
+    "Ground reactions act on the landing-gear geometry reported in §1 (main and nose "
+    "axle stations and tread). Loads with respect to the ground line are the 'prime' "
+    "reactions; the inertia factors are dimensionless load factors and are never "
+    "scaled to ultimate."
+)
+
+
+def _section_results(project: Project, module_results, comps: ComponentLoads,
+                     u: Units, deselected: Sequence[str]) -> Section:
+    critical = _critical_by_component(comps, deselected)
+    return Section(
+        "4. Results summary",
+        body=["Every load below is ULTIMATE, with the safety factor applied to it "
+              "stated per case. Full station-by-station distributions stay in the "
+              "companion data files named in the bundle manifest."],
+        subsections=[
+            _wing_section(project, comps, u, critical),
+            _fuselage_section(comps, u, critical),
+            _tail_section("htail", "Horizontal tail", comps, u, critical),
+            _tail_section("vtail", "Vertical tail", comps, u, critical),
+            _control_surface_section(comps, u),
+            _module_extremes_section("Landing gear", module_results, "landing", u,
+                                     note=_GEAR_NOTE),
+            _module_extremes_section("Engine mount", module_results, "engine", u,
+                                     note=_ENGINE_NOTE),
+        ],
+    )
+
+
+# --------------------------------------------------------------------------- #
+# §5 Methods and limitations + Appendix A manifest
+# --------------------------------------------------------------------------- #
+_REFERENCES = [
+    ["Reference 1", "H. C. McMaster, *FAR 23 LOADS* — theory manual and the printed "
+                    "worked examples (Appendix A, GA single, p131; Appendix B, twin "
+                    "turboprop, p251) this implementation is regression-tested against."],
+    ["FAA User's Guide", "DOT/FAA/AR-96/46 — module data-flow reference (Table 2.2), "
+                         "the provenance of the FAR coverage matrix in §3."],
+    ["14 CFR Part 23 Subpart C", "Flight and ground load requirements; 23.303 is the "
+                                 "1.5 factor of safety applied to every case unless "
+                                 "stated otherwise."],
+    ["14 CFR Part 25", "Referenced only where an opt-in Part 25 case was included "
+                       "(25.303 factor of safety, 25.361/25.371 engine cases)."],
+]
+
+
+def _section_methods(methods_text: str) -> Section:
+    return Section(
+        "5. Methods and limitations",
+        body=[methods_text],
+        tables=[Table(title="References", columns=["Source", "Use"], rows=_REFERENCES)],
+    )
+
+
+def _manifest_rows(comps: ComponentLoads, module_results, u: Units,
+                   solver: DeliverableUnits) -> List[List[str]]:
+    human = f"{u.d.force.label} / {u.d.length.label} / {u.d.moment.label} / {u.d.pressure.label}"
+    deck = (f"{solver.force.label} / {solver.length.label} / {solver.moment.label} / "
+            f"{solver.pressure.label}")
+    rows = [
+        ["<project>.json", "The project inputs this report was produced from.",
+         "canonical Imperial (a stored project is never converted)", "—", "§1"],
+        ["<project>_case_index.csv",
+         "Every case ID produced by this run, mapped to its full definition.",
+         "—", "IDs are verbatim, never renumbered", "§3"],
+        ["METHODS.txt", "The methods & limitations statement, standalone.",
+         human, "—", "§5"],
+        ["load_cases/<project>_<module>.csv",
+         "One row per structural load case, per module.", human,
+         "ULTIMATE loads, SF column per case", "§4"],
+    ]
+    if comps.wing:
+        axis = comps.wing[0].torsion_axis
+        rows += [
+            ["sbeam/<project>_wing_span_loads.csv",
+             "Station-by-station net wing shear, bending and torsion.", deck,
+             f"torsion Myy about the {axis}; ULTIMATE", "§4 Wing"],
+            ["sbeam/<project>_wing_loads.bdf",
+             "FORCE/MOMENT bulk data for the wing.", deck,
+             f"torsion about the {axis}; ULTIMATE", "§4 Wing"],
+            ["sbeam/<project>_wing_stick.bdf", "CBAR stick model of the wing beam.",
+             deck, "geometry only", "§4 Wing"],
+        ]
+    if comps.body:
+        rows += [
+            ["sbeam/<project>_fuselage_span_loads.csv",
+             "Station-by-station fuselage net shear, bending and torsion.", deck,
+             "torsion Mxx about the body X axis; ULTIMATE", "§4 Fuselage"],
+            ["sbeam/<project>_fuselage_loads.bdf",
+             "FORCE/MOMENT bulk data for the fuselage.", deck, "ULTIMATE", "§4 Fuselage"],
+            ["sbeam/<project>_fuselage_fitting_loads.csv",
+             "Wing-attach front/rear spar fitting loads.", deck,
+             "already carried by the span loads — do not superpose", "§4 Fuselage"],
+        ]
+    if comps.tail:
+        rows += [
+            ["sbeam/<project>_tail_chordwise.csv",
+             "Chordwise tail load intensities per critical condition.", deck,
+             "leading-edge-first stations; ULTIMATE", "§4 Tails"],
+            ["sbeam/<project>_tail_loads.bdf", "FORCE/MOMENT bulk data for the tails.",
+             deck, "ULTIMATE", "§4 Tails"],
+        ]
+    if comps.control:
+        rows += [
+            ["sbeam/<project>_control_surface_loads.csv",
+             "Simplified chordwise control-surface distributions.", deck,
+             "standard simplified distributions; ULTIMATE", "§4 Control surfaces"],
+            ["sbeam/<project>_control_surface_loads.bdf",
+             "FORCE/MOMENT bulk data for the control surfaces.", deck, "ULTIMATE",
+             "§4 Control surfaces"],
+        ]
+    if module_results:
+        rows.append(["<project>_report.txt",
+                     "Plain-text per-module report of every condition.", human,
+                     "ULTIMATE", "§4"])
+    return rows
+
+
+def _section_manifest(comps: ComponentLoads, module_results, u: Units) -> Section:
+    solver = deliverable_units(u.system, Channel.SOLVER)
+    same = (u.d.force.label, u.d.length.label, u.d.moment.label, u.d.pressure.label) == (
+        solver.force.label, solver.length.label, solver.moment.label, solver.pressure.label)
+    opening = (
+        f"Every file in this bundle is written in {system_name(u.system)}. "
+        f"Human-readable deliverables are in {units_statement(u.d)}"
+    )
+    opening += (
+        "; the sbeam solver decks and their companion CSVs use the dimensionally "
+        f"consistent set {units_statement(solver)}, because a deck whose GRID "
+        "coordinates are millimetres and whose FORCE cards are newtons is only "
+        "correct when its MOMENT cards are N*mm and its pressures MPa."
+        if not same else " throughout."
+    )
+    return Section(
+        "Appendix A. Bundle manifest",
+        body=[opening + " " + AVIATION_UNITS_NOTE],
+        tables=[Table(
+            title="Companion files",
+            columns=["File", "Contents", "Units", "Conventions", "Summarised in"],
+            rows=_manifest_rows(comps, module_results, u, solver),
+            small=True,
+            note="A distribution file is not usable without its torsion axis and its "
+                 "load basis, so both are stated here as well as in the file itself.",
+        )],
+    )
+
+
+# --------------------------------------------------------------------------- #
+# The document
+# --------------------------------------------------------------------------- #
+def _badge(project: Project) -> str:
+    if project.is_concept:
+        return "Concept (C) — unverified extrapolation"
+    category = (project.speeds.category if project.speeds is not None else "") or "(not set)"
+    return f"FAR 23 — category {category}"
+
+
+def _control_rows(project: Project, generated: Optional[str], tool_version: str,
+                  u: Units) -> List[Tuple[str, str]]:
+    rows = [
+        ("Project", project.name or "(unnamed)"),
+        ("Description", project.description),
+        ("Engineer", project.engineer),
+        ("Date", project.date),
+        ("Revision", project.revision),
+        ("Checked by", project.checked_by),
+        ("Approved by", project.approved_by),
+        ("Certification basis", _badge(project)),
+        ("Tool", f"{TOOL_NAME} {tool_version}".strip()),
+        ("Project schema version", str(SCHEMA_VERSION)),
+        ("Units", units_statement(u.d)),
+        ("Generated", generated or ""),
+    ]
+    # A blank control field is *shown* as blank rather than dropped for the four
+    # signature/revision rows: an empty "Checked by" line is the signature block
+    # §4.1 requires, whereas a missing row reads as an oversight.
+    always = {"Project", "Engineer", "Date", "Revision", "Checked by", "Approved by",
+              "Certification basis", "Tool", "Project schema version", "Units"}
+    return [(k, v) for k, v in rows if v or k in always]
+
+
+def build_report(
+    project: Project,
+    *,
+    system: UnitSystem = UnitSystem.IMPERIAL,
+    generated: Optional[str] = None,
+    tool_version: str = "",
+    scope: str = "",
+    deselected_case_ids: Optional[Sequence[str]] = None,
+    module_results=None,
+    components: Optional[ComponentLoads] = None,
+) -> ReportDocument:
+    """Build the whole :class:`ReportDocument` for ``project``.
+
+    ``system`` is the bundle's unit system and must be the same value every writer
+    in that bundle was given (§3.5). ``generated`` is the caller's timestamp
+    string -- nothing here reads the clock, so two builds of one project at one
+    unit selection are identical.
+
+    ``module_results``/``components`` let a caller that has already computed them
+    (the Export page builds both for the CSV/BDF channels) pass them in, so a
+    bundle computes each result exactly once and the report cannot describe
+    different numbers from the files beside it.
+    """
+    from ..registry import run_all_modules
+
+    u = Units(system)
+    if module_results is None:
+        module_results = _try(run_all_modules, project) or []
+    comps = components if components is not None else component_loads(project)
+    deselected = list(deselected_case_ids or [])
+
+    methods = methods_statement(
+        project, generated=generated, tool_version=tool_version, scope=scope,
+        deselected_case_ids=deselected or None, system=system,
+    )
+    return ReportDocument(
+        title="Structural Design Loads — Summary Report",
+        project_name=project.name or "(unnamed)",
+        control=_control_rows(project, generated, tool_version, u),
+        badge=_badge(project),
+        basis=BASIS_STATEMENT,
+        units_note=f"Units: {units_statement(u.d)}. {AVIATION_UNITS_NOTE}",
+        sections=[
+            _section_inputs(project, u),
+            _section_envelopes(project, u),
+            _section_conditions(project, module_results, comps, scope, deselected),
+            _section_results(project, module_results, comps, u, deselected),
+            _section_methods(methods),
+            _section_manifest(comps, module_results, u),
+        ],
+        methods=methods,
+        system=system,
+    )
+
+
+__all__ = [
+    "BASIS_STATEMENT",
+    "AVIATION_UNITS_NOTE",
+    "Table",
+    "Series",
+    "PlotData",
+    "Figure",
+    "Section",
+    "ReportDocument",
+    "Units",
+    "ComponentLoads",
+    "component_loads",
+    "build_report",
+]

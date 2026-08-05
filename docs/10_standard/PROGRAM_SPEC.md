@@ -598,6 +598,30 @@ return strings (with thin `write_*` file wrappers), and do no physics.
 - **Used by** the Export page's "📊 Download workbook (.xlsx)" button, a
   sibling alternative to the `.zip` bundle (not nested inside it).
 
+### Summary report — the bundle's controlling document (Step G8)
+- **Source:** `sloads/report/content.py` (`build_report`, `component_loads`),
+  `latex.py` (`render_report`/`render_document`), `plots_tex.py` (the three
+  figures), and `sloads/export/pdf.py` (`compile_pdf`, the only impure piece).
+- **Content standard:** [`SUMMARY_REPORT.md`](SUMMARY_REPORT.md) — required
+  sections, marking rules and the excluded-content list. That file is normative;
+  this entry is the data-flow summary.
+- **Reads:** a `Project`, `registry.run_all_modules(project)`, and the four
+  distributed-load families through `component_loads()` (which recomputes
+  `build_net_loads`+`loads_ref_axis_results`, `build_body_loads`,
+  `build_tail_chordwise`, aileron/flap/tab, and `build_critical`). Figures come
+  from `vn_diagram.build_vn_diagram`, `weight_envelope.loading_envelope_points`
+  and `mach_limit.mach_limit_lines`. **Nothing is recomputed here** — the
+  governing tables are `report.governing_loads_table`'s own rows.
+- **Writes:** `.tex` (always) and, when a TeX engine is available, `.pdf`. Both
+  ship in the Export page's `.zip` beside the CSV/BDF files they describe.
+  All loads ULTIMATE with a per-case `SF`; the whole document renders in the
+  selected unit system (`deliverable_units(system, Channel.HUMAN)`), and its
+  manifest names the sbeam decks' consistent solver set beside it (D-19).
+- **Used by** the Export page's **Summary report** section and
+  `cli.py --report out.tex|out.pdf [--units …] [--generated …]`.
+- **Absence is content:** a section whose inputs are missing renders its reason,
+  never an empty table or axis — so the report doubles as the gap list.
+
 ---
 
 ## Cross-module field ownership (the shared schema at a glance)

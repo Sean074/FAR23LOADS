@@ -17,6 +17,13 @@ stick model); ``--export-target tail`` writes the chordwise tail loads (TAILDIST
     python cli.py --export-sbeam out --export-target tail examples/ga6_normal.project.json
     python cli.py --export-sbeam out --export-target control examples/ga6_normal.project.json
 
+Or render the consolidated **summary report** (Step G8) -- the controlling
+document of a loads deliverable. The ``.tex`` is always written; ask for a
+``.pdf`` path and it is compiled too, when a TeX engine is on ``PATH``:
+
+    python cli.py --report out.tex examples/ga6_normal.project.json
+    python cli.py --report out.pdf examples/ga6_normal.project.json --units si
+
 Output units follow ``--units imperial|si`` (default: the project's own
 preference, else Imperial). An sbeam deck is written in the **solver** unit set,
 which in SI is N / mm / N*mm / MPa -- consistent by construction, unlike the
@@ -99,6 +106,49 @@ def _export_sbeam(project, prefix: str, target: str, stick_model: bool,
     return 0
 
 
+def _tool_version() -> str:
+    """The installed package version, for the report's provenance block."""
+    try:
+        from importlib.metadata import PackageNotFoundError, version
+    except ImportError:  # pragma: no cover - Python < 3.8
+        return ""
+    try:
+        return version("sloads")
+    except PackageNotFoundError:  # pragma: no cover - source checkout without install
+        return ""
+
+
+def _write_report(project, path: str, system: UnitSystem, generated: str = "") -> int:
+    """Render the summary report to ``path`` (``.tex``, or ``.pdf`` to compile it).
+
+    The ``.tex`` is the primary artifact and is written in both cases (beside the
+    PDF), per decision G8-1: a machine with no TeX engine still gets the complete
+    document source. ``generated`` is passed through so the caller owns the
+    timestamp -- the renderer never reads the clock.
+    """
+    from sloads.report.latex import render_report
+
+    tex = render_report(project, system=system, generated=generated,
+                        tool_version=_tool_version())
+    tex_path = path[:-4] + ".tex" if path.lower().endswith(".pdf") else path
+    with open(tex_path, "w", encoding="utf-8") as fh:
+        fh.write(tex)
+    print(f"Wrote {tex_path}")
+    if not path.lower().endswith(".pdf"):
+        return 0
+
+    from sloads.export.pdf import compile_pdf
+
+    result = compile_pdf(tex)
+    if not result.ok:
+        print(f"PDF not produced: {result.log}", file=sys.stderr)
+        return 1
+    with open(path, "wb") as fh:
+        fh.write(result.pdf)
+    print(f"Wrote {path} ({len(result.pdf)} bytes, {result.engine})")
+    return 0
+
+
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(description="Run a sloads module on a project.")
     parser.add_argument("module", nargs="?", help="module name, e.g. 'engine'")
@@ -117,6 +167,17 @@ def main(argv=None) -> int:
     parser.add_argument(
         "--stick-model", action="store_true",
         help="with --export-sbeam, also write the CBAR stick-model BDF (wing target)",
+    )
+    parser.add_argument(
+        "--report", metavar="PATH",
+        help="render the consolidated summary report to PATH (.tex; a .pdf path "
+             "also compiles it when a TeX engine is available). PROJECT is then "
+             "the second positional argument",
+    )
+    parser.add_argument(
+        "--generated", metavar="STAMP", default="",
+        help="with --report, the generation timestamp printed on the title page "
+             "(supplied by the caller so two renders stay byte-identical)",
     )
     parser.add_argument(
         "--units", choices=("imperial", "si"), default=None,
@@ -140,8 +201,19 @@ def main(argv=None) -> int:
                              args.export_target, args.stick_model,
                              resolve_units(project, args.units))
 
+    # --report likewise takes the project from the first positional, so no module
+    # name is needed for a report-only run.
+    if args.report:
+        project_path = args.module or args.project
+        if not project_path:
+            parser.error("--report requires a project.json path")
+        project = io.load_project(project_path)
+        return _write_report(project, args.report,
+                             resolve_units(project, args.units), args.generated)
+
     if not args.module or not args.project:
-        parser.error("module and project are required (or use --list / --export-sbeam)")
+        parser.error("module and project are required (or use --list / "
+                     "--export-sbeam / --report)")
 
     try:
         run = registry.get(args.module)

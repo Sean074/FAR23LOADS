@@ -43,8 +43,9 @@ concept fixtures run end-to-end.
 
 **Release status:** **sloads 0.3.0 cut 2026-07-23**, tag `v0.3.0`. The M4
 maintainability sequence (M4-12, M4-11a, G8.1–G8.4a, M4-10, M4-9) shipped
-2026-08-03/04; its deliberately-deferred remainders are **M3-3b**, **M4-10b** and
-**M4-11b** below.
+2026-08-03/04; **M4-20** (deliverable units) and **M3-3b** (Step G8 — the summary
+report document) closed 2026-08-04/05. Its remaining deliberately-deferred
+items are **M4-10b** and **M4-11b** below.
 
 Reference-authority hierarchy: (1) `.BAS` listings + Appendix A printed output,
 (2) User's Guide CFR quotes (Jan-1994), (3) Code-manual 1990 prose.
@@ -52,35 +53,6 @@ Reference-authority hierarchy: (1) `.BAS` listings + Appendix A printed output,
 ---
 
 # M4 — Post-release (priority order)
-
-### M3-3b — Step G8 remainder: the report document itself
-
-G8.1–G8.3 and G8.4's coverage matrix shipped 2026-08-04 (the `sloads/report/`
-package, the v36 document-control fields, the methods & limitations statement in
-every export channel, the FAR 23 Subpart C coverage matrix). What remains is the
-document:
-
-- **G8.4 (rest) — `content.py`.** `Project` + `run_all_modules()` →
-  `ReportDocument` (§§1–4 of the structure). Pure and fully testable on its own;
-  `coverage.py` is already built and exported for it to consume.
-- **G8.5 — `latex.py` + `plots_tex.py`.** The `.tex` renderer (escaping,
-  `longtable`, document-control block) and the three pgfplots figures (V-n,
-  weight/CG, speed–altitude — the third has no GUI equivalent and is new work).
-  **Unblocked 2026-08-04** — M4-20 shipped, so the renderer is written against the
-  unit-aware writers rather than retrofitted: take the bundle's system as a
-  parameter, resolve `deliverable_units(system, Channel.HUMAN)` for the tables and
-  carry the `UNITS:` statement from `report.methods_statement(project, system=…)`
-  onto the title page and into the manifest
-  (`05_step_g8_summary_report_plan.md` §10.1).
-- **G8.6 — `export/pdf.py` + the Export-page section.** Engine discovery
-  (`tectonic` → `latexmk` → `pdflatex`), compile in a temp dir, surface failure
-  as a caption. Write it against the existing `components.page` /
-  `unit_number_input` helpers.
-- **G8.7 — doc sync + close-out.**
-
-Plan, locked decisions G8-1…G8-4 and the test matrix:
-[`05_step_g8_summary_report_plan.md`](05_step_g8_summary_report_plan.md).
-Document standard: [`../10_standard/SUMMARY_REPORT.md`](../10_standard/SUMMARY_REPORT.md).
 
 ### M4-2 — Unify `select_wing`/`one_engine_out` case identity
 One case-ID authority per component end-to-end: derive `WingMassInput.cases`

@@ -9,14 +9,15 @@ four-section summary report.
 — the authoritative structure, required content and **excluded** content. Where
 this plan and the standard disagree, **the standard wins**; §4 below is the
 build-order reading of it, not a second specification.
-**Status (2026-08-04): G8.1, G8.2, G8.3 complete; G8.4 half complete.**
-Shipped: the `sloads/report/` package, the document-control schema fields
-(v36), the methods & limitations statement stamped into **every** export channel
-(the backlog item's explicit ask), and the FAR 23 Subpart C coverage matrix.
-**Remaining: G8.4's `content.py`, G8.5 (`latex.py` + `plots_tex.py`), G8.6
-(`export/pdf.py` + the Export-page section) — tracked as backlog M3-3b.** The
-document itself does not render yet. See the history entry for the detail.
-This document stays the execution plan for the remainder.
+**Status: ✅ COMPLETE — G8.1–G8.3 shipped 2026-08-04, G8.4–G8.7 (backlog M3-3b)
+shipped 2026-08-05.** The report renders, compiles and ships in the bundle. The
+record of what was built, the tests that hold it and the decisions taken along
+the way is the history entry
+[`../40_history/00_completed_development.md` → *M3-3b*](../40_history/00_completed_development.md);
+the standard the result is judged against remains
+[`../10_standard/SUMMARY_REPORT.md`](../10_standard/SUMMARY_REPORT.md), whose
+§6 conformance list now names the test holding each box. This document is kept
+as the plan of record for how the step was sequenced.
 
 ---
 
@@ -251,18 +252,18 @@ block; the zip gains `METHODS.txt`; `build_workbook` gains a `Methods` sheet.
 Guard test `tests/test_methods_stamp.py` (modelled on `test_ultimate_contract.py`):
 every channel carries the statement, and every stamped CSV still parses.
 
-**G8.4 — `content.py` + `coverage.py`.** ⚠️ *`coverage.py` complete 2026-08-04; `content.py` outstanding*
+**G8.4 — `content.py` + `coverage.py`.** ✅ *`coverage.py` 2026-08-04; `content.py` 2026-08-05*
 The `ReportDocument` model and the builder that fills §§1–4 from a `Project` and
 `registry.run_all_modules()`. The FAR coverage table. No LaTeX yet — this
 sub-step is fully testable on its own.
 
-**G8.5 — `latex.py` + `plots_tex.py`.**
+**G8.5 — `latex.py` + `plots_tex.py`.** ✅ *complete 2026-08-05*
 The `.tex` renderer: preamble (`article`, `geometry`, `booktabs`, `longtable`,
 `fancyhdr`, `pgfplots`, `hyperref`), LaTeX escaping of every user-supplied string
 (project names contain `&`, `_`, `%`), the document-control block, and the three
 pgfplots figures. Landscape or reduced font for the wide case-index table.
 
-**G8.6 — `export/pdf.py` + Export page UI.**
+**G8.6 — `export/pdf.py` + Export page UI.** ✅ *complete 2026-08-05*
 Engine discovery (`tectonic` → `latexmk` → `pdflatex`, first found), compile in a
 temp dir, return bytes; surface engine/compile failure as a caption, never an
 exception. A new **Summary report** section on `app/views/export_report.py` —
@@ -272,7 +273,7 @@ direction is consolidation, and the Export page is already the hand-off page. (T
 alternative — a dedicated `summary_report` workflow step — is noted here and
 rejected; revisit only if the section outgrows the page.)
 
-**G8.7 — Doc sync + close-out.**
+**G8.7 — Doc sync + close-out.** ✅ *complete 2026-08-05*
 `SUMMARY_REPORT.md` (reconcile the standard with what shipped — any content rule
 the implementation forced a change to updates the standard, not just the code),
 `PROGRAM_SPEC.md` (the report as an export channel), `PROJECT_GUIDE.md §4`
@@ -343,10 +344,11 @@ which was created 2026-08-03 — add any further new terms there as usual.
 2. **`revision` semantics** — a free-text field the user types, or an
    auto-incrementing counter stored in the project? Recommendation: **free text**,
    with a revision-history table the user maintains.
-3. **Engine preference order** — `tectonic` first (self-contained, already
-   installed) vs. `latexmk`/`pdflatex` first when a full TeX Live exists.
-   Recommendation: **tectonic first**, overridable by an env var. *Still open —
-   decided when G8.6 is built.*
+3. **Engine preference order** — ***Resolved 2026-08-05 (G8.6): `tectonic` →
+   `latexmk` → `pdflatex`, first found wins, overridden entirely by the
+   `SLOADS_TEX_ENGINE` environment variable*** (a binary name or an absolute
+   path). tectonic is self-contained and needs no TeX Live; the env var is the
+   escape hatch for a machine that would rather use its own installation.
 
 **Resolved 2026-08-04 while implementing G8.2 — G8-5, `revision` semantics:**
 **free text** the engineer maintains, not a tool-managed counter. A counter the
@@ -354,7 +356,9 @@ tool increments would disagree with the drawing/report system of record the
 moment a project is copied or branched, and revision identity belongs to the
 engineering process rather than to a file. Recorded in the decision register.
 
-**Note on §10.1 (report units) and M4-20.** That entry states M4-20 is "a
-prerequisite for G8's conformance tests". M4-20 is **still open**, so the
-remaining sub-steps cannot claim §3.5 unit conformance until it lands — the
-`.tex` renderer must be written against the unit-aware writers, not retrofitted.
+**Note on §10.1 (report units) and M4-20.** M4-20 shipped 2026-08-04, so the
+renderer was written against the unit-aware writers rather than retrofitted: the
+bundle's system is a parameter of `build_report`/`render_report`, the tables
+resolve `deliverable_units(system, Channel.HUMAN)`, and the manifest names the
+solver channel's consistent set beside it. §3.5 conformance is held by the unit
+tests listed in `SUMMARY_REPORT.md` §6.

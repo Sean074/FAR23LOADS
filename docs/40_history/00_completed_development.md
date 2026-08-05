@@ -10,6 +10,82 @@ Acceptance**, **Key decisions**.
 
 ---
 
+## M3-3b — Step G8 remainder: the summary report document (complete 2026-08-05)
+
+**Objective.** Finish Step G8. G8.1–G8.3 and the coverage matrix had shipped
+(the `sloads/report/` package, the v36 document-control fields, the methods &
+limitations statement in every export channel); the **document itself** did not
+render. This step built the content model, the LaTeX renderer with its three
+pgfplots figures, the PDF compile step and the two front-ends, against the
+standard in [`../10_standard/SUMMARY_REPORT.md`](../10_standard/SUMMARY_REPORT.md).
+
+**Deliverables.**
+
+- **G8.4 (rest) — `sloads/report/content.py`.** `Project` + module results →
+  `ReportDocument` (`Section` / `Table` / `Figure` / `PlotData`), covering §§1–5
+  plus the bundle manifest. Every load is scaled to ULTIMATE by **its own case's**
+  `safety_factor`, carries the `-ULT` marker of the selected system in its column
+  header, and names the case *and* station it occurs at; envelopes are reported
+  two-sided (max **and** min). Nothing is recomputed: the governing tables are
+  `report.governing_loads_table`'s own output, and the distributions come from
+  `component_loads()` — a new shared builder the Export page now uses too, so the
+  report and the CSV/BDF files beside it in a bundle cannot describe different
+  numbers. Sections whose inputs are absent carry an `absent_reason` instead of
+  disappearing or rendering an empty table.
+- **G8.5 — `latex.py` + `plots_tex.py`.** The `.tex` renderer (title page +
+  document-control/signature block, ToC, `fancyhdr` running heads, "page *n* of
+  *m*", `longtable`/`booktabs` tables) and the three figures as pgfplots source:
+  V-n, weight/CG, and the speed–altitude envelope (new work — the Mach-limit
+  lines had no GUI equivalent). Traces are distinguished by **line style, not
+  colour**, so the document survives greyscale print. Two things earned their own
+  machinery: **escaping** (every user string, plus a Unicode→LaTeX
+  transliteration so one `.tex` compiles under both tectonic/XeTeX and pdflatex)
+  and **column widths** (a `p` column never wraps inside a word, so widths are
+  proportioned in points with a floor at each column's longest token, dropping to
+  `\footnotesize` rather than overflowing).
+- **G8.6 — `sloads/export/pdf.py` + the two front-ends.** Engine discovery
+  (`tectonic` → `latexmk` → `pdflatex`, overridable with `SLOADS_TEX_ENGINE`),
+  compile in a temp directory, return bytes. It **never raises**: a missing engine
+  or a failed compile comes back as a `CompileResult` with a log, which the Export
+  page shows as a caption. A new **Summary report** section on the Export page
+  (`.tex` always, PDF on demand, both in the bundle `.zip`), and `cli.py --report
+  PATH` (a `.pdf` path compiles; `--generated` supplies the timestamp).
+- **G8.7 — doc sync + close-out.** This entry, the backlog removal, the
+  `CHANGELOG` entry, `SUMMARY_REPORT.md` §6 (each conformance box now names the
+  test that holds it), `PROGRAM_SPEC.md`, `PROJECT_GUIDE.md` §4/§5,
+  `GUI_design.md`, `GUI_USER_GUIDE.md`, `00_INDEX.md` and `cspell.json`.
+
+**Test / Acceptance.** `tests/test_report_content.py` (23 tests: structure,
+degradation, ultimate marking, two-sided maxima with stations, SI conversion and
+the aviation-standard carve-out, the governing-table identity, deselected-case
+scoping, the §5 excluded-content sweep), `tests/test_report_latex.py` (17:
+escaping, determinism, greyscale, figure/corner-point agreement, the
+concept-caveat conditionality), `tests/test_pdf_compile.py` (engine discovery
+everywhere; the real compile `skipif` no engine — CI skips it by design, since
+tectonic downloads its support bundle on first use), plus additions to
+`test_methods_stamp.py` (the report is a stamped channel like the others),
+`test_views_smoke.py` (the Export page on an empty project) and
+`test_persistence.py` (the three compiled-PDF session keys allow-listed as
+output, not input). Suite green; `ruff` clean; the Appendix A oracles and
+`test_deliverable_units.py`'s frozen Imperial baseline are untouched.
+
+**Key decisions.**
+
+- **Live recompute, not persisted slices.** The report builds its results the way
+  the Export page does, so it works on a project loaded from JSON that has never
+  been through the GUI, and cannot lag the exports in its own bundle.
+- **Depth follows G8-4.** Modules that emit tens of discrete reaction cases
+  (landing gear, engine mount) are summarised as two-sided extremes naming the
+  governing case and SF, with the full set in the case index and the module CSV —
+  inlining them would bury the governing cases.
+- **The derived gust velocities are tabulated, not plotted.** They are a velocity
+  in fps and share no axis with the Mach-limited equivalent airspeeds; plotting
+  both on one figure would have been a unit error rendered as a picture.
+- **The methods statement lost its backlog IDs.** `SUMMARY_REPORT.md` §5 excludes
+  internal development artifacts from the deliverable, and the statement is now a
+  report section — so the standing limitations are phrased in engineering terms
+  with the tracking IDs left in the repository.
+
 ## M4-20 — Deliverables render in the user-selected unit system (complete 2026-08-04)
 
 **Objective.** Close the gap the 2026-08-03 standard change opened. `00_program_overview.md`

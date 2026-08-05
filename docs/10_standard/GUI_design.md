@@ -244,6 +244,18 @@ files. Every other view's download buttons take their page's system the same way
 The per-page hand-built **LIMIT** CSVs (`wing_loads`, `fuselage_loads`,
 `tail_loads`, `loads_plots`) are the outstanding exception — backlog **L-8i**.
 
+**The Summary report section (Step G8.6).** The Export page's report section
+follows the same one-system rule and adds one convention worth stating, because
+it is the app's only genuinely *slow* action. The `.tex` renders on every page
+run and downloads unconditionally; the **PDF is compiled on demand**, behind a
+`Compile PDF` button, and the bytes are held in session state (`report_pdf_bytes`,
+keyed by `report_pdf_key` — the `.tex` they came from) so the result survives the
+next widget interaction and joins the bundle `.zip`. When the key no longer
+matches the current `.tex`, the page says the inputs changed rather than offering
+a stale document. A machine with no TeX engine gets a caption naming the engines
+it looked for and the `SLOADS_TEX_ENGINE` override — never an exception, and never
+a missing `.tex`.
+
 ---
 
 ## 8. Airplane-definition page standards

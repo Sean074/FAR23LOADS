@@ -65,14 +65,19 @@ APPROVED_CORRECTIONS = (
                   "set, including the two conditions the printed listing omits."),
 )
 
-#: Limitations that hold for every run, regardless of project content.
+#: Limitations that hold for every run, regardless of project content. Each is
+#: phrased in engineering terms with no tracking identifier: the statement is read
+#: by an analyst, and SUMMARY_REPORT.md 5 excludes internal development artifacts
+#: (backlog IDs, ticket references, source paths) from the deliverable. The
+#: tracking IDs for these gaps stay in the repository's backlog.
 _STANDING_LIMITATIONS = (
     "Control-surface distributions are the *standard simplified* forms (not a "
     "measured or CFD chordwise distribution).",
     "Wing and control-surface exports carry the full case set even when a "
-    "governing-set filter is applied elsewhere (case-identity gap, backlog M4-2).",
+    "governing-set filter is applied elsewhere: their case identities are minted "
+    "separately from the governing set, so the filter cannot reach them.",
     "No ground-case distributed fuselage loads: gear reactions are point "
-    "reactions, not a distributed ground condition (backlog M4-6).",
+    "reactions, not a distributed ground condition.",
     "No pressurization load cases.",
 )
 

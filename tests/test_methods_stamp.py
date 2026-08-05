@@ -217,5 +217,20 @@ def test_workbook_gains_a_methods_sheet():
     assert "ULTIMATE" in text
 
 
+def test_summary_report_carries_the_same_statement(tmp_path):
+    """Step G8: the report is a channel like the others. Its §5 is the shared
+    statement verbatim, so the document and the CSV/BDF files stamped beside it in
+    the bundle cannot state different bases (SUMMARY_REPORT.md §4.6)."""
+    from sloads.report.content import build_report
+    from sloads.report.latex import render_report
+
+    project = _project(_GA)
+    doc = build_report(project)
+    assert doc.methods == methods_statement(project)
+    assert "ULTIMATE" in doc.section("5. Methods and limitations").body[0]
+    # And it survives the trip through the renderer (escaped, not dropped).
+    assert "ULTIMATE" in render_report(project)
+
+
 if __name__ == "__main__":
     raise SystemExit(pytest.main([__file__, "-q"]))

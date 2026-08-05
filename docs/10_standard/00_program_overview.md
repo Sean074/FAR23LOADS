@@ -49,7 +49,7 @@ app/
 ├── views/                # one view per step; named by workflow key (no numeric prefixes)
 │   ├── dashboard.py      #   Start    — load/save project + workflow completeness panel
 │   ├── results_review.py #   Export   — consolidated governing loads (recomputed live)
-│   └── export_report.py  #   Export   — project JSON + per-module CSVs + sbeam BDF cards
+│   └── export_report.py  #   Export   — project JSON + per-module CSVs + sbeam BDF cards + summary report (.tex/.pdf)
 └── data/reference_aircraft.csv
 cli.py                    # argparse front-end; `sloads` console script
 tests/                    # pytest; one manual-example test per module vs Appendix A/B
@@ -252,7 +252,10 @@ plain units with no `-ULT` suffix.
 - **CLI (secondary, batch/automation):** the `sloads` console script (from the
   editable install) or `python cli.py <module> <project.json> [-o out.csv]`;
   `--list` shows registered modules. Text report to stdout, or `-o` writes the
-  load-case CSV.
+  load-case CSV. `--export-sbeam PREFIX` writes the sbeam deck set, and
+  `--report PATH` renders the Step-G8 summary report (`.tex` always; a `.pdf`
+  path also compiles it when a TeX engine is available, `--generated` supplies
+  the title-page timestamp). Output units follow `--units imperial|si`.
 - **Library:** `import sloads` — `registry.get(name)(project)` over a `Project`
   you build yourself.
 

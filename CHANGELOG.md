@@ -12,6 +12,37 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **M3-3b / Step G8 — the consolidated summary report renders.** A loads bundle
+  now ships its **controlling document**: the airplane and its inputs, the three
+  envelope figures with their corner-point tables, the case index and FAR 23
+  Subpart C coverage matrix, every governing **ULTIMATE** load with the safety
+  factor and station it acts at, the methods & limitations statement, and a
+  manifest of the companion files. Four new pure modules — `report/content.py`
+  (`Project` → `ReportDocument`), `report/latex.py` (`.tex`), `report/plots_tex.py`
+  (V-n, weight/CG and the new speed–altitude figure as pgfplots source) — plus
+  `export/pdf.py`, the one impure piece (engine discovery `tectonic` → `latexmk` →
+  `pdflatex`, overridable with `SLOADS_TEX_ENGINE`; it returns a log instead of
+  raising, because decision G8-1 makes the `.tex` the deliverable and the PDF
+  best-effort). Available from the Export page's **Summary report** section and
+  headless via `cli.py --report out.tex|out.pdf`. The document honours the
+  selected unit system throughout (M4-20), states its basis and units on the title
+  page, and is byte-identical between two renders of one project — a caller
+  supplies the timestamp, nothing reads the clock.
+
+  The Export page and the report now build their component loads through one
+  shared `report.content.component_loads()`, so a bundle's document and its
+  CSV/BDF files cannot describe different numbers. Sections whose inputs are
+  absent say so with a reason rather than vanishing or rendering an empty table.
+
+### Changed
+
+- **The methods & limitations statement no longer cites backlog IDs.** It is now
+  a report section as well as a CSV/BDF stamp, and `SUMMARY_REPORT.md` §5 excludes
+  internal development artifacts from a deliverable: the two affected limitations
+  are stated in engineering terms and the tracking IDs stay in the repository.
+  Wording only — no channel gains or loses a limitation, and the frozen Imperial
+  baseline (which renders unstamped) is unchanged.
+
 - **M4-20 step 7 — the Imperial baseline is frozen, and M4-20 is closed.**
   `tests/imperial_baseline.py` renders every deliverable channel of all six
   examples and freezes a SHA-256 each in `tests/fixtures_imperial/digests.json`

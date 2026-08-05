@@ -7,6 +7,8 @@ Five kinds of hand-off, all recomputed live from the project inputs:
 * **Load-case CSVs & text report** — per-module results for spreadsheets / records.
 * **sbeam BDF cards** — wing / fuselage / tail / control-surface ``FORCE``/``MOMENT``
   cards (and the wing stick model) for the sbeam finite-element bridge.
+* **Summary report (Step G8)** — the controlling document of the deliverable: a
+  LaTeX ``.tex`` always, compiled to PDF when a TeX engine is available.
 * **Combined bundle** — one ``.zip`` (or one multi-sheet ``.xlsx`` workbook, Step
   D8.2) of all of the above for archive / hand-off.
 * **Export scope (Step D8.3)** — the fuselage/tail sbeam artifacts and the case
@@ -22,6 +24,7 @@ One page of the multipage app; run the suite with:  streamlit run app/Home.py
 
 from __future__ import annotations
 
+import datetime as _dt
 import io as _io
 import zipfile
 from importlib.metadata import PackageNotFoundError, version as _pkg_version
@@ -34,19 +37,12 @@ from sloads import Project, consistency_warnings, registry
 from sloads import io as sloads_io
 from sloads import workflow as wf
 from sloads.export import sbeam_bridge as sb
+from sloads.export.pdf import ENGINE_ENV_VAR, compile_pdf, find_engine
 from sloads.export.workbook import build_workbook
-from sloads.modules.aileron import build_aileron
-from sloads.modules.body_loads import build_body_loads
-from sloads.modules.flap import build_flap
-from sloads.modules.net_loads import (
-    build_net_loads,
-    loads_ref_axis_results,
-    torsion_axis_label,
-    wing_lra,
-)
-from sloads.modules.tab import build_tabs
-from sloads.modules.taildist import build_tail_chordwise
+from sloads.modules.net_loads import torsion_axis_label, wing_lra
 from sloads.report import module_text_report
+from sloads.report.content import ComponentLoads, component_loads
+from sloads.report.latex import render_report
 from sloads.report.methods import (
     bdf_comment_block,
     csv_comment_block,
@@ -135,16 +131,15 @@ text_report = "\n\n".join(
 )
 
 
-# sbeam component loads, defensively. Wing results are transferred to the wing
-# surface's loads reference axis (LRA) at this boundary -- every exported wing
-# torsion is stated about that axis (in-band: span-CSV `MyyAxis`, BDF comments).
-_net = _try(build_net_loads, project)
-_wing = loads_ref_axis_results(project, _net.wing_net) if _net is not None else None
-_body = _try(build_body_loads, project)
-_tail = _try(build_tail_chordwise, project)
-_control = []
-for _fn in (build_aileron, build_flap, build_tabs):
-    _control += (_try(_fn, project) or [])
+# sbeam component loads, defensively, through the one builder the summary report
+# also uses (Step G8.4): the report and the files beside it in the bundle are
+# then the same numbers by construction, not by two call sites agreeing. Wing
+# results come back already transferred to the wing surface's loads reference
+# axis (LRA), so every exported wing torsion is stated about that axis (in-band:
+# span-CSV `MyyAxis`, BDF comments).
+_components = component_loads(project)
+_wing, _body, _tail, _control = (_components.wing, _components.body,
+                                 _components.tail, _components.control)
 
 # --------------------------------------------------------------------------- #
 # Export scope (Step D8.3): honor the D5 Critical Loads tab's opt-out case
@@ -198,8 +193,13 @@ _selected_ids = (
 _tool_version = _version("sloads")
 _deselected_ids = sorted(_all_case_ids - _selected_ids) if _selected_ids is not None else []
 _scope_text = "governing case set" if _deselected_ids else "full case set"
+# One timestamp per page render, shared by every channel. The pure code never
+# reads the clock (a renderer that did would make two revisions of one report
+# undiffable); the caller owns it, and this is the caller.
+_generated = _dt.datetime.now().strftime("%Y-%m-%d %H:%M")
 _stamp_kw = dict(tool_version=_tool_version, scope=_scope_text,
-                 deselected_case_ids=_deselected_ids or None, system=_system)
+                 deselected_case_ids=_deselected_ids or None, system=_system,
+                 generated=_generated)
 _methods = methods_statement(project, **_stamp_kw)
 _csv_stamp = csv_comment_block(project, **_stamp_kw)
 _bdf_stamp = bdf_comment_block(project, **_stamp_kw)
@@ -262,6 +262,18 @@ case_index_csv = sb.case_index_csv_from(
     header_comment=_csv_stamp,
 )
 
+# Summary report (Step G8): rendered from the *scoped* component loads and the
+# module results already computed above, so the document describes exactly the
+# files it ships beside -- same numbers, same unit system, same case set.
+_report_tex = _try(
+    render_report, project, system=_system, generated=_generated,
+    tool_version=_tool_version, scope=_scope_text,
+    deselected_case_ids=_deselected_ids or None,
+    module_results=module_results,
+    components=ComponentLoads(wing=_wing or [], body=_body or [], tail=_tail or [],
+                              control=_control, critical=_components.critical),
+) or ""
+
 
 # --------------------------------------------------------------------------- #
 # 1. Project file + combined bundle
@@ -315,6 +327,13 @@ def _zip_bundle() -> bytes:
             z.writestr(f"{_stem}_case_index.csv", case_index_csv)
         # The bundle's own controlling statement -- readable without opening a CSV.
         z.writestr("METHODS.txt", _methods)
+        # The controlling document travels with the data it controls (Step G8):
+        # the .tex always, the PDF once it has been compiled on this page.
+        if _report_tex:
+            z.writestr(f"{_stem}_summary_report.tex", _report_tex)
+            pdf = st.session_state.get("report_pdf_bytes")
+            if pdf and st.session_state.get("report_pdf_key") == _report_tex:
+                z.writestr(f"{_stem}_summary_report.pdf", pdf)
         for name, content in _bdf_artifacts.items():
             if content:
                 z.writestr(f"sbeam/{_stem}_{name}", content)
@@ -359,7 +378,60 @@ c3.download_button(
 )
 
 # --------------------------------------------------------------------------- #
-# 2. Load-case CSVs + combined text report
+# 2. Summary report (Step G8)
+# --------------------------------------------------------------------------- #
+st.header("Summary report")
+st.caption(
+    "The controlling document of this deliverable: the airplane, its envelope, "
+    "the FAR conditions analysed and every governing **ULTIMATE** load with its "
+    "safety factor, plus the methods & limitations statement and a manifest of "
+    "the files above. The LaTeX source is the primary artifact and always "
+    "downloads; the PDF is compiled here when a TeX engine is available."
+)
+if not _report_tex:
+    gate("The report could not be built from the current inputs — start from the "
+         "**Project Dashboard** and work the workflow left-to-right.",
+         "dashboard", kind="info")
+else:
+    _r1, _r2 = st.columns(2)
+    _r1.download_button("📘 Summary report (.tex)", _report_tex,
+                        file_name=f"{_stem}_summary_report.tex",
+                        mime="application/x-tex")
+    _engine = find_engine()
+    if _engine is None:
+        st.caption(
+            "No TeX engine found on this machine, so no PDF can be compiled here. "
+            "The `.tex` above is complete and compiles anywhere (`tectonic`, "
+            "`latexmk` or `pdflatex`); set the `"
+            + ENGINE_ENV_VAR + "` environment variable to point at a specific one."
+        )
+    else:
+        if _r2.button("🖨️ Compile PDF", help=f"Using {_engine}"):
+            with st.spinner("Compiling the report…"):
+                _result = compile_pdf(_report_tex)
+            st.session_state["report_pdf_bytes"] = _result.pdf
+            st.session_state["report_pdf_key"] = _report_tex
+            st.session_state["report_pdf_log"] = _result.log
+        _pdf = st.session_state.get("report_pdf_bytes")
+        _fresh = st.session_state.get("report_pdf_key") == _report_tex
+        if _pdf and _fresh:
+            st.download_button("📕 Summary report (.pdf)", _pdf,
+                               file_name=f"{_stem}_summary_report.pdf",
+                               mime="application/pdf")
+            st.caption(f"Compiled with `{_engine}`; the PDF is also included in the "
+                       "bundle .zip above.")
+        elif _pdf and not _fresh:
+            st.caption("The inputs changed since the last compile — press "
+                       "**Compile PDF** again for an up-to-date document.")
+        elif st.session_state.get("report_pdf_log"):
+            # A compile failure is a caption, never an exception: the .tex is the
+            # deliverable and is already downloadable above (decision G8-1).
+            st.warning("The report did not compile. The `.tex` above is still "
+                       "complete — compile it elsewhere, or read the engine log:")
+            st.code(st.session_state["report_pdf_log"][-2000:], language="text")
+
+# --------------------------------------------------------------------------- #
+# 3. Load-case CSVs + combined text report
 # --------------------------------------------------------------------------- #
 st.header("Load cases & report")
 if not module_results:
@@ -376,7 +448,7 @@ else:
                                key=f"csv_{mr.module}", disabled=not csv)
 
 # --------------------------------------------------------------------------- #
-# 3. sbeam BDF cards
+# 4. sbeam BDF cards
 # --------------------------------------------------------------------------- #
 st.header("sbeam BDF export")
 st.caption(
@@ -430,7 +502,7 @@ _bdf_row("Tail", "tail_loads.bdf", "tail_chordwise.csv")
 _bdf_row("Control surfaces", "control_surface_loads.bdf", "control_surface_loads.csv")
 
 # --------------------------------------------------------------------------- #
-# 4. Case-index table (Step D1)
+# 5. Case-index table (Step D1)
 # --------------------------------------------------------------------------- #
 st.header("Case index")
 st.caption("Every structured case ID this run produced, mapped to its full definition.")

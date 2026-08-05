@@ -180,7 +180,13 @@ FAR23LOADS/
 │   ├── io.py                     # load/save project JSON; CSV writers
 │   ├── registry.py               # module registry: name -> run(project) -> results
 │   ├── workflow.py               # ordered Start→Develop V-n→Flight loads→Other loads→Landing→Load-case plotting→Export step graph (drives GUI nav + dashboard; analysis-flow phases, Step G2)
-│   ├── report.py                 # shared text/CSV rendering (already exists)
+│   ├── report/                   # rendering + the controlled summary document (Step G8)
+│   │   ├── render.py             # shared text/CSV tables + the limit→ultimate boundary (was report.py)
+│   │   ├── methods.py            # the ONE methods & limitations statement (+ CSV `#` / BDF `$` wrappers)
+│   │   ├── coverage.py           # FAR 23 Subpart C coverage matrix (covered / n-a / not analysed / out of scope)
+│   │   ├── content.py            # Project + module results → ReportDocument (sections/tables/figures) — no LaTeX
+│   │   ├── latex.py              # ReportDocument → .tex (escaping, longtable, document control)
+│   │   └── plots_tex.py          # pgfplots figures: V-n, weight/CG, speed–altitude
 │   ├── applicability.py          # pure FAR 23 applicability detection (Exceedance list; Phase E1)
 │   ├── validation.py             # pure input-consistency predicates (ConsistencyWarning list; Phase E3)
 │   ├── vn_diagram.py             # pure V-n diagram geometry: stall/manoeuvre/gust polylines (Phase E3)
@@ -189,7 +195,8 @@ FAR23LOADS/
 │   ├── export/                   # output bridges to external tools (renderers, NOT registered modules)
 │   │   ├── coordinates.py        # SLOADS axes -> sbeam CID 0 map (single edit-point)
 │   │   ├── sbeam_bridge.py       # net wing/body/tail/control loads -> span-load CSV + FORCE/MOMENT cards + CBAR stick model + case-index + export-scope filter
-│   │   └── workbook.py           # multi-sheet .xlsx workbook (Step D8.2): one tab per module/component + case index
+│   │   ├── workbook.py           # multi-sheet .xlsx workbook (Step D8.2): one tab per module/component + case index
+│   │   └── pdf.py                # ⚠ the ONE impure export helper: TeX engine discovery + subprocess compile (G8.6)
 │   └── modules/
 │       ├── __init__.py
 │       ├── configuration.py      # Geometry page (modern; no .BAS) -> Project.geometry.{parametric,empennage,landing_gear} (Step G1/G6/G6b)
@@ -215,9 +222,9 @@ FAR23LOADS/
 │   │   ├── project_editor.py     #   Start    — whole project as JSON, in the sidebar's Imperial/SI units
 │   │   ├── configuration_layout.py … one_engine_out.py   # one per suite program
 │   │   ├── results_review.py     #   Export   — consolidated governing loads
-│   │   └── export_report.py      #   Export   — project JSON + CSVs + sbeam BDF + .xlsx workbook + export-scope toggle (D8)
+│   │   └── export_report.py      #   Export   — project JSON + CSVs + sbeam BDF + .xlsx workbook + summary report (.tex/.pdf) + export-scope toggle (D8, G8)
 │   └── data/reference_aircraft.csv
-├── cli.py                        # `python cli.py engine project.json -o out.csv`
+├── cli.py                        # `python cli.py engine project.json -o out.csv`; `--export-sbeam`; `--report out.tex|out.pdf`
 ├── tests/
 │   ├── test_engine.py            # current test_calc.py (renamed)
 │   ├── test_units.py, test_report.py, test_io.py
@@ -296,6 +303,26 @@ So that every module is copy-of-the-pattern, these are fixed once:
   is not complete until it is stamped**, and `tests/test_methods_stamp.py` is the
   guard. Any code that *reads* an exported CSV must skip the `#` block
   (`report.strip_comment_lines`, or `pandas.read_csv(..., comment="#")`).
+- **The summary report is a render channel, not a calc (Step G8).**
+  `sloads/report/content.py` turns a `Project` plus its module results into a
+  `ReportDocument`; `latex.py` turns that into `.tex`; `plots_tex.py` emits the
+  three figures as pgfplots source. All three are **pure** — no filesystem, no
+  subprocess, no clock (the generation timestamp is a caller argument, or two
+  renders of one project would not be byte-identical). The report **recomputes
+  nothing**: its governing tables are `report.governing_loads_table`'s output and
+  its distributions come from `report.content.component_loads()`, the one builder
+  the Export page uses for the CSV/BDF channels too — so a bundle's document and
+  its data files cannot describe different numbers. Content rules live in
+  [`SUMMARY_REPORT.md`](SUMMARY_REPORT.md), not here.
+- **⚠ `sloads/export/pdf.py` is the documented I/O exemption.** Compiling `.tex`
+  needs a subprocess and a temp directory, which the "calc never does I/O" rule
+  forbids. It is an *export-side* helper on the same footing as `io.py`: it holds
+  no math, produces no engineering number, and **nothing in `sloads/report/`
+  imports it** — the pure renderer never touches the filesystem. It also never
+  raises: a missing engine or a failed compile returns a `CompileResult` carrying
+  the log, because decision G8-1 makes the `.tex` the deliverable and the PDF
+  best-effort. Engine order `tectonic` → `latexmk` → `pdflatex`, overridden by
+  the `SLOADS_TEX_ENGINE` environment variable.
 - **Constants centralized** in `sloads/constants.py` so Decision 3 (and any future "go back to exact") is a one-file change.
 - **Call `sync_geometry_derived(project)` first inside `run()`** — not in the
   caller, not at import. Any module that reads geometry-derived quantities

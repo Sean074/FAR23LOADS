@@ -20,6 +20,12 @@ all four component families plus the case index:
 - **Case index** — :func:`case_index_csv` (+ ``write_case_index_csv``) and
   :func:`filter_by_selected_case_ids`, the manifest tying exported decks back to
   their FAR 23 load-case IDs and the selective-export filter.
+
+:mod:`sloads.export.pdf` (Step G8.6) also lives here but is **deliberately not
+re-exported**: it is the one module in the codebase that runs a subprocess and
+writes a temp directory (compiling the summary report's ``.tex``), so reaching it
+stays an explicit ``from sloads.export.pdf import compile_pdf`` at the two call
+sites that want it. See its docstring for the documented I/O exemption.
 """
 
 from __future__ import annotations

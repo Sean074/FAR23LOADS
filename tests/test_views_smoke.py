@@ -23,6 +23,7 @@ _EXAMPLE = os.path.join(_ROOT, "examples", "ga6_normal.project.json")
 # now lives on the merged Weight & Mass Properties page (Step G3).
 _BEYOND_GA = os.path.join(_ROOT, "examples", "dhc8_dash8.project.json")
 _WEIGHT_ESTIMATE = os.path.join(_ROOT, "app", "views", "weight_mass.py")
+_EXPORT = os.path.join(_ROOT, "app", "views", "export_report.py")
 _VIEWS = sorted(glob.glob(os.path.join(_ROOT, "app", "views", "*.py")))
 _ENTRYPOINT = os.path.join(_ROOT, "app", "Home.py")
 
@@ -56,4 +57,18 @@ def test_view_runs_without_exception(path):
 def test_weight_estimate_accepts_beyond_ga_power():
     """A loaded >3000 hp / >12-seat project must not trip a GA-tier widget cap."""
     at = _run(_WEIGHT_ESTIMATE, _BEYOND_GA)
+    assert not at.exception, [e.message for e in at.exception]
+
+
+def test_export_page_renders_with_every_slice_absent():
+    """Step G8.6: the Export page (summary report included) has to survive an
+    empty project -- it is the page an engineer lands on before any inputs exist,
+    and every artifact on it is built from slices that are not there yet."""
+    from streamlit.testing.v1 import AppTest
+
+    from sloads import Project
+
+    at = AppTest.from_file(_EXPORT, default_timeout=60)
+    at.session_state["project"] = Project(name="empty")
+    at.run()
     assert not at.exception, [e.message for e in at.exception]

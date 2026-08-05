@@ -193,6 +193,11 @@ _APP = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
 #   engine_sel               -- which engine the Engine Mount radio has selected
 _ALLOWED_SESSION_KEYS = {
     "project", "unit_system", "_saved_project_snapshot", "engine_sel",
+    # Step G8.6: the compiled summary-report PDF, the .tex it was compiled from
+    # (the freshness key) and the engine log. All three are *output* held between
+    # reruns so a compile survives the next widget interaction -- none is airplane
+    # input, and every one is rebuilt from `project` on demand.
+    "report_pdf_bytes", "report_pdf_key", "report_pdf_log",
 }
 # Files allowed to write session_state under a *variable* key (not a string literal).
 # The Project Editor stages the raw JSON text in a re-seeded scratchpad, committed to

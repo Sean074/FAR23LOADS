@@ -13,9 +13,14 @@ Layout:
 * :mod:`~sloads.report.methods`  -- the single source of the methods &
   limitations statement, plus its CSV ``#`` / BDF ``$`` comment-block wrappers.
 * :mod:`~sloads.report.coverage` -- the FAR 23 Subpart C coverage matrix.
-Still to come (Step G8.4's content model onward, backlog **M3-3b**):
-``content.py`` (``Project`` + module results -> ``ReportDocument``), ``latex.py``
-(``ReportDocument`` -> ``.tex``) and ``plots_tex.py`` (pgfplots figures).
+* :mod:`~sloads.report.content`   -- ``Project`` + module results ->
+  :class:`~sloads.report.content.ReportDocument`: *what the report says*.
+* :mod:`~sloads.report.latex`     -- ``ReportDocument`` -> ``.tex``: *how it looks*.
+* :mod:`~sloads.report.plots_tex` -- the three figures as pgfplots source.
+
+The content/renderer split is what lets a test assert
+``doc.section("Design speeds").table.rows`` instead of matching LaTeX strings.
+The document's content rules are ``docs/10_standard/SUMMARY_REPORT.md``.
 
 Everything in this package is **pure**: no filesystem, no subprocess, no
 Streamlit. Compiling a ``.tex`` to PDF needs both, so that one impure piece lives
@@ -34,6 +39,18 @@ from .coverage import (
     coverage_matrix,
     coverage_summary,
 )
+from .content import (
+    ComponentLoads,
+    Figure,
+    PlotData,
+    ReportDocument,
+    Section,
+    Series,
+    Table,
+    build_report,
+    component_loads,
+)
+from .latex import render_document, render_report
 from .methods import (
     bdf_comment_block,
     csv_comment_block,
@@ -78,4 +95,16 @@ __all__ = [
     "NOT_APPLICABLE",
     "NOT_ANALYSED",
     "OUT_OF_SCOPE",
+    # --- G8.4-G8.5: the summary report document ----------------------------- #
+    "build_report",
+    "component_loads",
+    "render_document",
+    "render_report",
+    "ReportDocument",
+    "Section",
+    "Table",
+    "Figure",
+    "PlotData",
+    "Series",
+    "ComponentLoads",
 ]

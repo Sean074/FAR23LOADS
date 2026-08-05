@@ -147,7 +147,14 @@ page takes the engine/propeller weights, CG, power/torque, and rotor data.
 and the landing load factor.
 
 **Export & Report.** Writes the ultimate load-case CSV and the structural-sizing
-cards, with a methods/limitations statement stamped in.
+cards, with a methods/limitations statement stamped in. Its **Summary report**
+section renders the controlling document of the whole deliverable — the airplane,
+its envelope figures, the FAR coverage matrix, and every governing ultimate load
+with the safety factor and station it acts at. The LaTeX `.tex` always downloads;
+press **Compile PDF** to typeset it here when a TeX engine (`tectonic`,
+`latexmk` or `pdflatex`) is installed. Both, plus `METHODS.txt` and every CSV/BDF,
+go in the bundle `.zip`. Headless, the same document comes from
+`python cli.py --report out.pdf project.json`.
 
 ---
 

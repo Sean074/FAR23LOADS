@@ -328,30 +328,69 @@ reason is what a reviewer applies to a case not listed here.
 
 ## 6. Conformance
 
-A report conforms when all of the following hold. These map one-to-one onto the
-Step G8 test suite (see the plan, §8):
+A report conforms when all of the following hold. Each is held by a named test
+(Step G8 shipped 2026-08-05; see
+[`../40_history/00_completed_development.md`](../40_history/00_completed_development.md)):
 
-- [ ] Every required section of §4 is present, or explicitly marked *not analysed*
-      with a reason.
-- [ ] No bare limit load; every load carries `-ULT` and a stated `SF`.
-- [ ] Every load traces to a case ID that exists in the companion case index.
-- [ ] Every condition cites a FAR reference.
-- [ ] Every torsion names its axis; every maximum names its station; envelopes are
-      two-sided.
-- [ ] The FAR coverage matrix classifies every listed regulation, with
-      "not analysed" rows visually distinct.
-- [ ] The methods statement is generated from the shared source and matches the
-      statement stamped into the CSV and BDF exports.
-- [ ] Concept-mode and closure-only caveats appear wherever the affected figures
-      are read, not only in the methods section.
-- [ ] The export scope (full vs governing set) is stated, with exclusions listed.
-- [ ] The report and every companion file in the bundle are in the **selected**
-      unit system, each states that system in-band, and no figure is dual-displayed.
-- [ ] Load markers match the system (`lbs-ULT`/`ft-lb-ULT` or `N-ULT`/`Nm-ULT`);
-      KEAS and altitude are unconverted and said to be.
-- [ ] Two renders of the same project at the same unit selection are byte-identical,
-      and an Imperial → SI → Imperial round trip is lossless to display precision.
-- [ ] No excluded content from §5 appears.
+- [x] Every required section of §4 is present, or explicitly marked *not analysed*
+      with a reason — `test_report_content.py::test_every_required_section_is_present`,
+      `::test_every_component_subsection_is_present`,
+      `::test_sections_degrade_rather_than_raise_on_an_empty_project`.
+- [x] No bare limit load; every load carries `-ULT` and a stated `SF` —
+      `test_report_content.py::test_every_load_column_is_ultimate_marked`,
+      `test_report_latex.py::test_ultimate_markers_and_sf_columns_are_present`.
+- [x] Every load traces to a case ID that exists in the companion case index —
+      `test_report_content.py::test_case_index_states_a_safety_factor_for_every_case`
+      (the report's index is built from the same `case_index_rows_from` the CSV is).
+- [x] Every condition cites a FAR reference —
+      `test_report_content.py::test_input_tables_carry_the_projects_values_and_name_their_owner`
+      and the coverage matrix's own `test_far_coverage.py`.
+- [x] Every torsion names its axis; every maximum names its station; envelopes are
+      two-sided — `test_report_content.py::test_wing_maxima_are_two_sided_and_name_their_station_and_axis`.
+- [x] The FAR coverage matrix classifies every listed regulation, with
+      "not analysed" rows visually distinct —
+      `test_far_coverage.py`, `test_report_latex.py::test_not_analysed_rows_are_visually_distinct_without_colour`.
+- [x] The methods statement is generated from the shared source and matches the
+      statement stamped into the CSV and BDF exports —
+      `test_methods_stamp.py::test_summary_report_carries_the_same_statement`.
+- [x] Concept-mode and closure-only caveats appear wherever the affected figures
+      are read, not only in the methods section —
+      `test_report_latex.py::test_concept_caveat_appears_only_in_concept_fixtures`;
+      the fuselage closure caveat is stated verbatim in §4's Fuselage subsection.
+- [x] The export scope (full vs governing set) is stated, with exclusions listed —
+      `test_report_content.py::test_deselected_cases_are_excluded_from_the_results_and_named_in_scope`.
+- [x] The report and every companion file in the bundle are in the **selected**
+      unit system, each states that system in-band, and no figure is dual-displayed —
+      `test_report_content.py::test_manifest_states_one_system_for_the_whole_bundle`,
+      `test_deliverable_units.py` for the companions.
+- [x] Load markers match the system (`lbs-ULT`/`ft-lb-ULT` or `N-ULT`/`Nm-ULT`);
+      KEAS and altitude are unconverted and said to be —
+      `test_report_content.py::test_si_report_carries_si_markers_and_converts_the_loads`,
+      `::test_speeds_and_altitudes_are_not_converted_in_si`,
+      `::test_geometry_areas_and_lengths_convert_with_their_labels_in_si`.
+- [x] Two renders of the same project at the same unit selection are byte-identical,
+      and an Imperial → SI → Imperial round trip is lossless to display precision —
+      `test_report_latex.py::test_two_renders_are_byte_identical`,
+      `test_deliverable_units.py` (the round trip).
+- [x] No excluded content from §5 appears —
+      `test_report_content.py::test_no_internal_development_artifacts_in_the_document`.
+
+### 6.1 Implementation notes (recorded when the standard was first met)
+
+Three readings this standard left open, resolved while building against it:
+
+- **Depth for discrete-case modules.** Landing gear and engine mount produce tens
+  of reaction cases. §4.5 is met by reporting **two-sided extremes** per quantity,
+  each naming its case and safety factor, with the full set in the case index and
+  the module's load-case CSV — the same pointer-to-companions trade §5 makes for
+  station-by-station distributions.
+- **The derived gust velocities are tabulated, not plotted.** §4.3's third figure
+  carries the Mach-limited equivalent airspeeds; the `Ude` taper above 20,000 ft
+  is a velocity in fps and shares no axis with them, so it appears in that
+  figure's corner table instead. Plotting both would be a unit error drawn as a
+  picture.
+- **Emphasis is weight, never colour.** "Not analysed" rows and figure traces are
+  distinguished by bold and by line style respectively, per §4.3's greyscale rule.
 
 ---
 
