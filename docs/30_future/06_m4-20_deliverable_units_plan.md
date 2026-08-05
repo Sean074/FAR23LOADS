@@ -255,14 +255,28 @@ reproduces today exactly.
 **Risk:** low-medium — it is a schema change, but a leaf scalar with a total
 default.
 
-### Step 3 — Human channel: the writers convert, `render.py` does not
+### Step 3 — Human channel: the writers convert, `render.py` does not ✅ *complete 2026-08-04*
 
 `report/render.py` is **not modified**. The writers gain the parameter:
 
 ```python
-io.load_cases_csv(results, *, system=UnitSystem.IMPERIAL, header_comment="") -> str
-io.write_load_cases_csv(results, path, *, system=..., header_comment="")
+io.load_cases_csv(results, header_comment="", *, system=UnitSystem.IMPERIAL) -> str
+io.write_load_cases_csv(results, path, header_comment="", *, system=...)
 ```
+
+*As built:* `header_comment` stayed where it was rather than moving behind the
+`*` — it is positional in existing calls, and reordering it would have been an
+unrelated breaking change smuggled into a units item. `system` is keyword-only.
+
+*As built:* `module_text_report` gained **no** parameter. It has no
+`unit_system` argument to pass a label to (only `text_report` does), and its
+per-value unit strings already state the units; the missing header line is
+D-21's in-band statement, which is step 5's job, not a signature change here.
+
+*As built:* the GUI's own `load_cases_csv` calls were left alone — they still
+default to Imperial, so GUI CSV downloads do not follow the toggle until step 6.
+The call sites are mixed today (some pass display-converted results, some pass
+raw), which is precisely the inconsistency step 6 resolves.
 
 `load_cases_csv` calls `convert_results(conditions, system)` **once**, then hands
 the converted conditions to the existing `load_cases_to_rows` /`results_to_rows`,

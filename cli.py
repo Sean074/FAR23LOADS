@@ -149,11 +149,14 @@ def main(argv=None) -> int:
     project = io.load_project(args.project)
     result = run(project)
     system = resolve_units(project, args.units)
+    # The two text reports take *converted* results plus a display label; the CSV
+    # writer converts internally (M4-20 step 3), so it gets the raw results and
+    # the system -- handing it ``conditions`` would be a double conversion.
     conditions = convert_results(result.conditions, system)
     label = "Imperial" if system == UnitSystem.IMPERIAL else "SI"
 
     if args.output:
-        io.write_load_cases_csv(conditions, args.output)
+        io.write_load_cases_csv(result.conditions, args.output, system=system)
         print(f"Wrote {len(conditions)} condition(s) to {args.output} ({label})")
     elif args.module == "engine" and project.engine is not None:
         print(text_report(project.engine, conditions, unit_system=label))

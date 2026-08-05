@@ -12,6 +12,22 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **M4-20 step 3 — the load-case CSV writer takes the unit system.**
+  `io.load_cases_csv(results, header_comment="", *, system=UnitSystem.IMPERIAL)`
+  and `io.write_load_cases_csv(..., system=...)` convert the whole table **once**,
+  inside the writer, via `units.convert_results`. `report/render.py` is
+  **unchanged**: it reads each `LoadValue.units` string, so an SI table's headers
+  (`Vertical load (N-ULT)`, `Engine mount torque (Nm-ULT)`, `Loc X (mm)`) come out
+  of the existing `_detect_unit` with no unit-system knowledge in the renderer at
+  all, and `Speed (kt)` / `Altitude (ft)` stay byte-identical in both systems
+  (the aviation carve-out). `system=IMPERIAL` is the identity — swept over every
+  example × every module, the output is byte-identical to the call without the
+  parameter, so no existing caller moves. `cli.py`'s `-o` path now hands the
+  writer *unconverted* results plus the system; the two text reports still take
+  pre-converted results plus their display label. A guard test pins
+  `load_cases_csv` as the **only** `convert_results` caller in `io.py`, so the
+  human export channel has exactly one conversion point and a caller cannot
+  double-convert by pre-converting and passing `system=` as well.
 - **M4-20 step 2 — the unit selection is now part of the project.**
   `Project.unit_system` (**`SCHEMA_VERSION` 37 → 38**) records which system every
   *deliverable* is rendered in. It is a **preference only** — `io.py` still never

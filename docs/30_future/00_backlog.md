@@ -106,10 +106,19 @@ preference only; additive with a total default, so it needs no migration hop),
 so a unit change reads as an unsaved change (D-22). `components.active_system()`
 re-pointed at the field — one function, no call-site changes.
 
-**Remaining: steps 3–7** — the human-channel writers (`io.load_cases_csv` takes
-the system), the solver channel (`coordinates.py` scale + the 14 sbeam writers;
-until it lands `--units si --export-sbeam` refuses rather than writing a deck in
-the wrong units), the in-band statements, the Export page, and close-out.
+**Step 3 shipped 2026-08-04** — the human channel: `io.load_cases_csv` /
+`write_load_cases_csv` take `system=` and convert **once**, inside the writer.
+`report/render.py` was not touched — it reads each `LoadValue.units` string, so
+the SI column headers (`N-ULT`, `Nm-ULT`, `mm`) fell out of the existing
+`_detect_unit`, and `Speed (kt)` / `Altitude (ft)` are byte-identical in both
+systems. A guard pins `load_cases_csv` as the sole `convert_results` caller in
+`io.py`, so the channel keeps exactly one conversion point.
+
+**Remaining: steps 4–7** — the solver channel (`coordinates.py` scale + the 14
+sbeam writers; until it lands `--units si --export-sbeam` refuses rather than
+writing a deck in the wrong units), the in-band statements, the Export page (it
+still calls `load_cases_csv` without a system, so GUI CSV downloads stay
+Imperial until step 6), and close-out.
 
 ### M3-3b — Step G8 remainder: the report document itself
 

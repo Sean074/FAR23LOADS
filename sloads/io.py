@@ -92,7 +92,7 @@ from .models import (
 )
 from .migrations import is_project_dict, migrate
 from .report import has_load_case_data, load_cases_to_rows, results_to_rows
-from .units import unit_system_from
+from .units import UnitSystem, convert_results, unit_system_from
 from .validation import safety_factor_valid
 
 
@@ -1155,7 +1155,12 @@ def _as_conditions(results) -> List[ConditionResult]:
     return list(results)
 
 
-def load_cases_csv(results, header_comment: str = "") -> str:
+def load_cases_csv(
+    results,
+    header_comment: str = "",
+    *,
+    system: UnitSystem = UnitSystem.IMPERIAL,
+) -> str:
     """Render module results to a CSV string.
 
     Load-producing modules emit one row per structural load case; modules that
@@ -1168,8 +1173,18 @@ def load_cases_csv(results, header_comment: str = "") -> str:
     states that its loads are ULTIMATE and under what basis. The lines are
     ``#``-prefixed, so a reader needs ``comment="#"``; every in-repo reader was
     audited when this landed.
+
+    ``system`` (M4-20 step 3) is the *deliverable* unit system: pass
+    :attr:`~sloads.units.UnitSystem.SI` and the whole table is converted once,
+    here, before rendering. This is the **only** unit conversion in the human
+    export channel -- ``report/render.py`` stays unit-agnostic (it reads each
+    ``LoadValue.units`` string and puts it in the column header), so nothing
+    downstream needs to learn about unit systems. Callers therefore pass
+    *Imperial* results plus ``system=``; passing already-converted results and
+    ``system=SI`` would be a double conversion (silently a no-op today, because
+    ``N`` has no SI mapping, but not something to rely on).
     """
-    conditions = _as_conditions(results)
+    conditions = convert_results(_as_conditions(results), system)
     if has_load_case_data(conditions):
         rows = load_cases_to_rows(conditions)
     else:
@@ -1185,6 +1200,13 @@ def load_cases_csv(results, header_comment: str = "") -> str:
     return header_comment + buf.getvalue()
 
 
-def write_load_cases_csv(results, path: str, header_comment: str = "") -> None:
+def write_load_cases_csv(
+    results,
+    path: str,
+    header_comment: str = "",
+    *,
+    system: UnitSystem = UnitSystem.IMPERIAL,
+) -> None:
     with open(path, "w", encoding="utf-8", newline="") as fh:
-        fh.write(load_cases_csv(results, header_comment=header_comment))
+        fh.write(load_cases_csv(results, header_comment=header_comment,
+                                system=system))

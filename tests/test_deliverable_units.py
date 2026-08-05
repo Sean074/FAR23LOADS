@@ -29,8 +29,9 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import cli  # noqa: E402
-from sloads import io  # noqa: E402
+from sloads import io, registry  # noqa: E402
 from sloads.models import ConditionResult, LoadValue, Project
+from sloads.registry import run_all_modules  # noqa: E402
 from sloads.report.render import _LOAD_UNITS, _ULT_UNITS, ultimate_units  # noqa: E402
 from sloads.units import (  # noqa: E402
     _RESULT_TO_SI,
@@ -273,6 +274,132 @@ def test_cli_units_resolution_order():
     assert cli.resolve_units(si, "imperial") is UnitSystem.IMPERIAL
     # no flag, no preference -> today's behaviour, unchanged
     assert cli.resolve_units(Project(name="x"), None) is UnitSystem.IMPERIAL
+
+
+# --------------------------------------------------------------------------- #
+# Step 3 -- the human channel: io.load_cases_csv takes the unit system
+# --------------------------------------------------------------------------- #
+def _every_module_csv(system):
+    """{(example, module): csv} for every example x every module that runs."""
+    here = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    out = {}
+    for path in sorted(glob.glob(os.path.join(here, "examples", "*.project.json"))):
+        project = io.load_project(path)
+        for mr in run_all_modules(project):
+            out[(os.path.basename(path), mr.module)] = io.load_cases_csv(
+                mr, system=system)
+    assert out, "no module CSVs produced -- the sweep is not exercising anything"
+    return out
+
+
+def test_imperial_csv_is_byte_identical_to_the_no_system_call():
+    """Imperial is the identity: the new parameter cannot move today's output.
+
+    ``system=IMPERIAL`` must reach ``convert_results``' early return, not a
+    round trip through a factor table. Swept over every example x module rather
+    than one sample, because the writer picks between two row builders
+    (``load_cases_to_rows`` / ``results_to_rows``) and both paths matter.
+    """
+    for key, csv_si_off in _every_module_csv(UnitSystem.IMPERIAL).items():
+        example, module = key
+        project = io.load_project(os.path.join(
+            os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+            "examples", example))
+        default = io.load_cases_csv(
+            next(mr for mr in run_all_modules(project) if mr.module == module))
+        assert csv_si_off == default, key
+
+
+def test_si_csv_converts_loads_and_leaves_speed_and_altitude_alone():
+    """SI headers carry the SI unit; the aviation carve-out survives the writer.
+
+    The header text is produced by ``report/render.py``'s ``_detect_unit`` from
+    each ``LoadValue.units`` string -- so this is also the assertion that the
+    renderer needed no unit-system knowledge to do the right thing.
+    """
+    imperial = _every_module_csv(UnitSystem.IMPERIAL)
+    si = _every_module_csv(UnitSystem.SI)
+    assert set(imperial) == set(si)
+
+    converted = 0
+    for key in imperial:
+        imp_head = imperial[key].splitlines()[0] if imperial[key] else ""
+        si_head = si[key].splitlines()[0] if si[key] else ""
+        # Speed and altitude columns are byte-identical in both systems.
+        for carved in ("(kt)", "(ft)", "(kt(EAS))"):
+            assert imp_head.count(carved) == si_head.count(carved), (key, carved)
+        # ...while no load column keeps its Imperial marker.
+        for imperial_marker in ("lbs-ULT", "lb-in-ULT", "ft-lb-ULT", "psi-ULT"):
+            assert imperial_marker not in si_head, (key, imperial_marker)
+        if "lbs-ULT" in imp_head:
+            assert "N-ULT" in si_head, key
+            converted += 1
+    assert converted, "no module produced a force column -- sweep is degenerate"
+
+
+def test_si_csv_values_are_the_imperial_values_times_the_factor():
+    """Spot-check the numbers, not only the headers (engine, a load-case table)."""
+    import csv as _csv
+
+    project = io.load_project(os.path.join(
+        os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+        "examples", "ga6_normal.project.json"))
+    result = registry.get("engine")(project)
+    imp = list(_csv.DictReader(io.load_cases_csv(result).splitlines()))
+    si = list(_csv.DictReader(
+        io.load_cases_csv(result, system=UnitSystem.SI).splitlines()))
+    assert len(imp) == len(si) and imp
+
+    force_imp = next(c for c in imp[0] if "lbs-ULT" in c)
+    force_si = next(c for c in si[0] if "N-ULT" in c)
+    checked = 0
+    for a, b in zip(imp, si):
+        if not a[force_imp] or not b[force_si]:
+            continue
+        assert math.isclose(float(b[force_si]),
+                            float(a[force_imp]) * 4.4482216152605,
+                            rel_tol=1e-3), (a[force_imp], b[force_si])
+        checked += 1
+    assert checked, "no force values compared"
+
+
+def test_load_cases_csv_is_the_only_converter_in_the_human_channel():
+    """One conversion point, so a caller cannot convert twice by accident.
+
+    The writer converts internally; a caller that pre-converts *and* passes
+    ``system=SI`` would double-convert. Today that is silently a no-op (``N``
+    has no SI mapping), which is exactly why it needs a guard rather than
+    trust: if ``io.py`` ever grows a second ``convert_results`` call, the human
+    channel has two conversion points and the invariant is gone.
+    """
+    here = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    with open(os.path.join(here, "sloads", "io.py")) as fh:
+        source = fh.read()
+    calls = [ln for ln in source.splitlines()
+             if "convert_results(" in ln and not ln.lstrip().startswith(("#", "*"))
+             and "from .units import" not in ln]
+    assert len(calls) == 1, calls
+    assert "_as_conditions" in calls[0], calls
+
+
+def test_write_load_cases_csv_passes_the_system_through(tmp_path=None):
+    """The file writer is a thin wrapper -- it must not drop the parameter."""
+    import tempfile
+
+    project = io.load_project(os.path.join(
+        os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+        "examples", "ga6_normal.project.json"))
+    result = registry.get("engine")(project)
+    with tempfile.TemporaryDirectory() as d:
+        path = os.path.join(d, "out.csv")
+        io.write_load_cases_csv(result, path, system=UnitSystem.SI)
+        # newline="" -- the writer emits csv's \r\n and universal-newline reads
+        # would translate them, turning a pass-through check into a line-ending
+        # check.
+        with open(path, newline="") as fh:
+            written = fh.read()
+    assert written == io.load_cases_csv(result, system=UnitSystem.SI)
+    assert "N-ULT" in written.splitlines()[0]
 
 
 if __name__ == "__main__":  # zero-dependency self-runner
