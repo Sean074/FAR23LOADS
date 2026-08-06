@@ -447,7 +447,7 @@ sidebar and the JSON Editor (§10, Phase E5).
 
 The schema field list is **single-sourced in
 [`DATA_DICTIONARY.md`](DATA_DICTIONARY.md)** (generated; currently
-`SCHEMA_VERSION = 38`); the per-step migration history is recorded in
+`SCHEMA_VERSION = 39`); the per-step migration history is recorded in
 [`../40_history/00_completed_development.md`](../40_history/00_completed_development.md)
 (recent steps: v29 single-source CLmax
 stall; v30 M2-6 wing/fuselage derived geometry; v31 M2-10 operational placards;
@@ -467,7 +467,13 @@ data backfill, `migrations._v36_load_value_keys`; v38 M4-20
 it, which stay canonical Imperial. Additive with a total default, so it needs no
 migration hop: absent *is* its documented value, Imperial. The sidebar
 Imperial/SI toggle writes it, so changing units is a project edit and shows as an
-unsaved change (D-22)).
+unsaved change (D-22); v39 M4-2 unified load-case identity — no field added or
+removed, but a wing or ONENGOUT case's `case_id` **string** changes (SELECT's
+retired `W-40..49` band, wing ids now keyed to the condition's name rather than
+its list position, ONENGOUT moved to its own `VT-30..` band). The one persisted
+field that references those strings, `CriticalLoadSet.selected_case_ids`, is
+validated on load: an id matching no condition is dropped with a warning rather
+than silently ignored).
 This paragraph's version number is guarded by
 `tests/test_data_dictionary.py::test_gui_design_schema_line_current` — update
 it (and this list) with every `SCHEMA_VERSION` bump.

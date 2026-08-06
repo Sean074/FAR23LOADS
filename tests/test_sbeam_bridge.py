@@ -73,10 +73,11 @@ def test_concept_closure():
 def test_force_moment_cards_round_trip():
     results = _wing_net(_GA)
     _, _, _, forces, moments = parse_cards(sb.force_moment_cards(results, sid_base=1))
-    # One SID per case, contiguous from sid_base.
-    assert sorted(forces) == [1, 2, 3]
+    # One SID per case, taken from the case's own id (M4-2 decision 9): ga6's
+    # PHAA / TORS / ACRL hold wing slots 1 / 6 / 5 -> 101 / 106 / 105.
+    assert sorted(forces) == [101, 105, 106]
     for idx, r in enumerate(results):
-        sid = 1 + idx
+        sid = sb._sid(1, idx, r)
         # Re-summed FORCE / MOMENT match the NETLOADS root totals (scale * vector).
         fz = sum(scale * v[2] for _, scale, v in forces[sid])
         fx = sum(scale * v[0] for _, scale, v in forces[sid])
@@ -128,9 +129,53 @@ def test_stick_model_structure():
     assert spc1 and spc1[0][1] == "123456" and spc1[0][2] == [1]
     loaded = {gid for cards in forces.values() for gid, _, _ in cards}
     assert 1 not in loaded
-    # One subcase + load set per case.
-    assert text.count("SUBCASE ") == len(results)
-    assert sorted(forces) == [1, 2, 3]
+    # One case-control subcase + load set per case, numbered from the case id;
+    # the leading $ map block names each one (M4-2 decisions 8/10).
+    subcases = [ln for ln in text.splitlines() if ln.startswith("SUBCASE ")]
+    assert len(subcases) == len(results)
+    assert sorted(forces) == [101, 105, 106]
+    assert [int(ln.split()[1]) for ln in subcases] == [101, 106, 105]
+    assert text.count("$ SUBCASE ") == len(results)
+
+
+def test_a_filtered_export_does_not_renumber_the_surviving_subcases():
+    """M4-2 decision 8: the deck ``SUBCASE``/``SID`` is a property of the case, so
+    dropping a case from the export leaves the others' numbers exactly where they
+    were. Before M4-2 the number was the case's *position*, so deselecting one
+    case shifted every case after it -- ``SUBCASE 2`` meant a different condition
+    in two exports of the same project, with nothing in either deck saying so."""
+    results = _wing_net(_GA)
+    assert len(results) >= 3
+    full = {r.case_ref.case_id: sb._sid(1, i, r) for i, r in enumerate(results)}
+
+    keep = [r for r in results if r.case_ref.case_id != results[0].case_ref.case_id]
+    kept_ids = [r.case_ref.case_id for r in keep]
+    assert sb.filter_by_selected_case_ids(results, kept_ids) == keep
+    filtered = {r.case_ref.case_id: sb._sid(1, i, r) for i, r in enumerate(keep)}
+    assert filtered == {cid: full[cid] for cid in kept_ids}
+
+    # ... and the deck itself carries those numbers, with the map block naming
+    # the condition behind each one.
+    text = sb.stick_model_bdf(keep)
+    for cid in kept_ids:
+        assert f"SUBCASE {full[cid]}\n" in text
+        assert f"$ SUBCASE {full[cid]} = {cid} -- " in text
+    dropped = results[0].case_ref.case_id
+    assert f"SUBCASE {full[dropped]}\n" not in text
+
+
+def test_subcase_map_names_the_governing_condition():
+    """Decision 10: a deck consumer can trace a subcase back to its condition
+    from the deck alone -- id, condition and FAR reference, on one line."""
+    results = _wing_net(_GA)
+    lines = sb.subcase_map_block(results)
+    assert lines and lines[0].startswith("$ ")
+    body = [ln for ln in lines if ln.startswith("$ SUBCASE ")]
+    assert len(body) == len(results)
+    for r, ln in zip(results, body):
+        ref = r.case_ref
+        assert f"= {ref.case_id} -- {ref.condition}" in ln
+        assert f"FAR {ref.far_reference}" in ln
 
 
 def test_grids_match_station_geometry():

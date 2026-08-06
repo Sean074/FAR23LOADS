@@ -55,9 +55,10 @@ concept fixtures run end-to-end.
 
 **Release status:** **sloads 0.3.0 cut 2026-07-23**, tag `v0.3.0`. The M4
 maintainability sequence (M4-12, M4-11a, G8.1–G8.4a, M4-10, M4-9) shipped
-2026-08-03/04; **M4-20** (deliverable units) and **M3-3b** (Step G8 — the summary
-report document) closed 2026-08-04/05. `[Unreleased]` is release-ripe —
-**cut 0.4.0** per the cadence rule in `RELEASE_PROCESS.md`.
+2026-08-03/04; **M4-20** (deliverable units), **M3-3b** (Step G8 — the summary
+report document) and **M4-2** (unified case identity + deck SUBCASE map, schema
+v39) closed 2026-08-04/05. `[Unreleased]` is release-ripe — **cut 0.4.0** per the
+cadence rule in `RELEASE_PROCESS.md`.
 
 Reference-authority hierarchy: (1) `.BAS` listings + Appendix A printed output,
 (2) User's Guide CFR quotes (Jan-1994), (3) Code-manual 1990 prose.
@@ -84,15 +85,6 @@ per-module. Add an export-boundary check (test + optional runtime warning):
 for each exported case, Σ`FORCE` = n·W (within tolerance) and Σ moments ≈ 0
 about the deck reference, in deck units. Cheap (S) and catches every future
 seam error at the boundary where it matters.
-
-### [E] M4-2 — Unify `select_wing`/`one_engine_out` case identity (+ deck SUBCASE map)
-One case-ID authority per component end-to-end: derive `WingMassInput.cases`
-from `envelope.critical` when not given; link `one_engine_out` to
-`select_vtail`'s `CriticalCondition` list. Touches WINGINER/NETLOADS iteration →
-oracle re-check required. **Extension (2026-08-05):** carry the unified case ID
-into the exported deck — a documented sloads-case → `SUBCASE` ID mapping (and
-`$` case-label comments) so a deck consumer can trace every subcase back to its
-governing condition.
 
 ### [E] M4-8 — Centralized two-layer safety-factor policy (foundation for 25.302) **[architecture]**
 Today the safety factor is decided ad hoc: `ConditionResult.safety_factor` defaults to
@@ -265,7 +257,9 @@ comments carry them since M4-20 steps 3–5 — so this is a G8.3 coverage gap, 
 units one.) The writers already take `header_comment=`; the work is deciding
 whether a headless export should change bytes, and threading
 `csv_comment_block`/`bdf_comment_block` through `_export_sbeam`. Found while
-implementing M4-20 step 5.
+implementing M4-20 step 5. **Note (M4-2):** every deck now carries its own `$`
+subcase-map block regardless of `header_comment`, so a headless deck already
+states its case identity — this item is now only about the methods/basis block.
 
 ### [V] L-8i — Per-page LIMIT CSVs ignore the unit toggle and state no units
 `wing_loads`, `fuselage_loads`, `tail_loads` and `loads_plots` each build a
@@ -290,6 +284,22 @@ Mechanical (S); do after the current working tree is committed.
 
 ## Open defects (index)
 
+- **Derived ACRL wing case disagrees with the worked example's air load [Minor,
+  found 2026-08-05 by M4-2's decision-7 gate].** With `wing_mass.cases` left empty,
+  `wing_inertia.resolve_wing_cases` derives the wing cases from `envelope.critical`.
+  Nz/Nx then reproduce the Appendix A figures closely for every ga6 condition, but
+  the **ACRL** air-load point does not: SELECT's 23.349(a)(2) pick carries CL ≈ 1.30
+  at 117.4 kt where the worked example (Ref 1 p217-221) enters CL 1.55 at 116 kt —
+  a ~19% air-load difference for the same named condition. A derived ACRL case also
+  carries `unbal_moment = 0`, since SELECT's condition does not name the unbalanced
+  rolling moment (it comes from AILERON, Ch 13). **Only the derived route is
+  affected** — every shipped example enters its cases explicitly, and explicit
+  always wins — so no oracle or deliverable moves today. Decide which point ACRL
+  should name (and where the rolling moment comes from) before the derived route is
+  recommended for anything but a first pass. Pinned by
+  `tests/test_wing_case_derivation.py::test_the_acrl_divergence_is_the_documented_one`,
+  which fails if the two ever start agreeing — at which point close this and make
+  the assertion an equality.
 - **M4-22 — Flight Envelope: SELECT Apply also persists un-applied geometry edits [Minor].**
   `app/views/flight_envelope.py:324` — the SELECT-inputs form handler writes the
   page's *probe copy* back to session state (`st.session_state["project"] =

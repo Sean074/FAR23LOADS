@@ -43,6 +43,7 @@ from .wing_inertia import (
     _resolve_case,
     build_wing_inertia,
     inertia_units,
+    resolve_wing_cases,
     wing_case_ref,
     wing_inertia_distribution,
 )
@@ -160,8 +161,12 @@ def build_net_loads(project: Project) -> LoadsResult:
         raise MissingInputError(f"net_loads needs a '{wm.surface}' geometry surface")
     if project.aero is None or project.aero.by_name(wm.surface) is None:
         raise MissingInputError(f"net_loads needs a '{wm.surface}' aero surface (AIRLOADS)")
-    if not wm.cases:
-        raise MissingInputError("net_loads needs at least one load case")
+    cases = resolve_wing_cases(project, wm)
+    if not cases:
+        raise MissingInputError(
+            "net_loads needs at least one load case -- enter them in "
+            "'wing_mass.cases' or run SELECT so they can be derived from "
+            "envelope.critical")
 
     geom = project.geometry.by_name(wm.surface)
     aero = project.aero.by_name(wm.surface)
@@ -170,7 +175,7 @@ def build_net_loads(project: Project) -> LoadsResult:
     air_results: List[WingLoadResult] = []
     inertia_results: List[WingLoadResult] = []
     net_results: List[WingLoadResult] = []
-    for i, case in enumerate(wm.cases):
+    for i, case in enumerate(cases):
         ref = wing_case_ref(project, i, case)
         # The wing case's limit->ultimate factor, minted once here (net_loads owns
         # the wing conditions -- no upstream CriticalCondition exists for them) and

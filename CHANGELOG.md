@@ -12,6 +12,36 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- **M4-2 — unified load-case identity + deck SUBCASE map (schema v39).** One
+  case ID per physical condition, from the SELECT pick to the exported deck.
+  - **Wing.** `select_wing`'s separate `W-40..49` band is retired: a wing
+    condition's sequence now comes from its **name** (`case_ids.WING_SLOTS` —
+    PHAA 1 … TORS 6), and `wing_inertia.wing_case_ref` returns SELECT's own
+    `CaseRef` for the matching condition, so the WINGINER/NETLOADS distribution
+    and the SELECT condition are one case with one id (they were two, with two
+    independently-typed sets of Nz/Nx). **Wing case ids change** where a case's
+    list position differed from its slot (ga6: TORS `W-02` → `W-06`, ACRL
+    `W-03` → `W-05`).
+  - **Vertical tail.** `one_engine_out` moves to its own `VT-30..` band. It
+    previously minted `VT-01..` from a fresh allocator — the same ids
+    `select_vtail` mints, for different physical cases.
+  - **Wing cases derive from SELECT when none are entered**
+    (`wing_inertia.resolve_wing_cases`), with a **Pull cases from SELECT** button
+    on the Wing Loads page. An explicit list always wins, so no shipped example
+    or oracle changes path.
+  - **Decks.** `SUBCASE` and load-set `SID` are one integer derived from the case
+    id (`case_ids.subcase_id`: `W-03` → 103), not the case's position — a
+    filtered export can no longer renumber the subcases that survive. Every deck
+    opens with a `$` subcase-map block naming the condition behind each number,
+    the stick deck carries `LABEL = <case id>`, and the case-index CSV gained a
+    `SUBCASE` column.
+  - **Loading a project** now drops a `selected_case_ids` entry that matches no
+    condition **with a warning** (it silently widened the governing-set export
+    before). Re-pick the governing set on the Critical Loads page if warned.
+  - The frozen Imperial baseline (`tests/fixtures_imperial/digests.json`) was
+    **regenerated deliberately**: case ids, deck SIDs and the new index column
+    move Imperial bytes. No load *value* changes.
+
 - **Development-process overhaul (2026-08-05).** Documentation-only change set
   implementing the 2026-08-05 process review
   (`docs/50_reviews/2026-08-05_development_process_review.md`; findings F1–F7,

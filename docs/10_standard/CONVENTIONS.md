@@ -85,9 +85,17 @@ file + symbol is the anchor.
   `sloads/case_ids.py`.
 - Row identity: stable `LoadValue.key` (machine identity) vs cosmetic `label` (M4-9);
   cross-module keys centralized in `sloads/load_keys.py`.
-- **Known gap (backlog M4-2):** the wing and v-tail pipelines each mint two independent
-  sequences sharing a prefix (banded so they cannot collide —
-  `tests/test_case_ids.py`); the deck-side SUBCASE mapping is scoped into M4-2.
+- **One ID per physical condition (M4-2).** Two modules delivering the same case carry
+  the *same* `CaseRef` — SELECT's wing `CriticalCondition` and the WINGINER/NETLOADS
+  distribution derived from it are one case with one id, not two. The wing `seq` is a
+  property of the condition (`case_ids.WING_SLOTS`), not of its position in a list, so
+  ids do not float when the envelope or the case list changes. Modules that mint their
+  own sequence into a shared prefix are **banded** (`case_ids.py`; ONENGOUT at
+  `VT-30..`), and `tests/test_case_ids.py` fails on any collision.
+- **Deck-side identity (M4-2).** A solver deck's `SUBCASE` and load-set `SID` are one
+  integer derived from the case id — `case_ids.subcase_id` (`W-03` → 103) — never the
+  case's position in the export, so a filtered export cannot renumber what survives.
+  Each deck carries a `$` subcase-map block and the case-index CSV a `SUBCASE` column.
 
 ## 5. Preserved ENGLOADS conventions (verified in code)
 

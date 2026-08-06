@@ -10,6 +10,84 @@ Acceptance**, **Key decisions**.
 
 ---
 
+## M4-2 — Unified load-case identity + deck SUBCASE map (complete 2026-08-05)
+
+**Objective.** One case-ID authority per component, end to end: from the SELECT
+pick, through the structural module that consumes it, into the exported deck.
+Three defects sat under the heading. (1) The same wing condition was entered
+**twice** — `select_wing` searched the V-n matrix and stamped `W-40..49`, while
+the hand-authored `WingMassInput.cases` that actually drives WINGINER/NETLOADS
+stamped `W-01..39` positionally — so one physical PHAA appeared in the exported
+case index under two ids, with two independently-typed sets of Nz/Nx free to
+disagree. (2) `one_engine_out` minted `VT-01..` from a fresh allocator, as did
+`select_vtail`: an **outright collision**, the exact failure `case_ids.py` bands
+away everywhere else, left un-banded. (3) Deck `SUBCASE`/`SID` were the case's
+*position* in the export, so `filter_by_selected_case_ids` silently renumbered
+every surviving subcase and `TITLE` carried the V-n number, not the case id —
+nothing let a deck consumer trace `SUBCASE 3` back to its governing condition.
+
+**Deliverables.**
+
+- **`case_ids.py` — the authority.** `WING_SLOTS` (PHAA 1, PLAA 2, PMAA 3,
+  NMAA 4, ACRL 5, TORS 6) makes the wing `seq` a property of the **condition**,
+  not of a list position; `WING_BAND_SELECT` (40–49) is retired; `WING_BAND_EXTRA`
+  (20–39) holds a hand-authored case SELECT does not emit; `VTAIL_BAND_ONENGOUT`
+  (30–49) ends the ONENGOUT collision; `subcase_id()` maps a case id to its deck
+  integer (per-component block of 100: `W-03` → 103, `VT-31` → 331).
+- **One ID per physical condition.** `select.py` takes wing ids from the slot
+  table; `wing_inertia.wing_case_ref` **returns SELECT's own `CaseRef`** when the
+  condition matches by name, so the spanwise distribution is another deliverable
+  of the same case, which is what `case_index_rows_from`'s dedupe-by-`case_id`
+  always assumed.
+- **`wing_inertia.resolve_wing_cases`.** An empty `WingMassInput.cases` derives
+  one case per `envelope.critical` wing condition; a non-empty list is returned
+  untouched, so every shipped example and every Appendix A oracle takes the path
+  it always did. Both WINGINER and NETLOADS resolve through it, and the Wing Loads
+  page gained a **Pull cases from SELECT** button that materialises the same list
+  into the editable table rather than deriving behind the page's back.
+- **Deck case identity.** `SUBCASE` and `SID` are one integer from
+  `subcase_id(case_id)` across all four card writers; each deck opens with a `$`
+  subcase-map block (`$ SUBCASE 103 = W-03 -- PHAA -- FAR 23.333(b)`); the
+  stick deck carries `LABEL = W-03`; the case-index CSV gained a `SUBCASE`
+  column. `sid_base + index` survives only for results carrying no `CaseRef`.
+- **Schema v39 + doc sync.** No field added or removed — what changes is which
+  *string* a wing/ONENGOUT case carries. `io._critical_from_dict` now drops a
+  `selected_case_ids` entry that matches no condition **with a warning** (a stale
+  id never filtered anything, so it silently *widened* the governing-set export).
+  `PROGRAM_SPEC.md` (case-ID section + the sbeam-bridge SUBCASE scheme),
+  `CONVENTIONS.md` §4, `GUI_design.md`, `DATA_DICTIONARY.md` regenerated.
+
+**Test / Acceptance.** Appendix A oracles unchanged (derivation never fires for a
+project that has cases). `tests/test_case_ids.py` rewritten around the new rule:
+the same wing condition has one id everywhere, a missing pick leaves a gap rather
+than renumbering, ONENGOUT cannot collide with `select_vtail`, and `subcase_id`
+is injective across every band in use. New `tests/test_wing_case_derivation.py`
+is the decision-7 closure gate. `tests/test_sbeam_bridge.py` gained the
+filtered-export stability test (deselecting a case leaves the others' `SUBCASE`
+numbers exactly where they were) and a subcase-map content test. The frozen
+Imperial digest baseline was **deliberately regenerated**: wing case ids, deck
+SIDs and the new index column all move Imperial bytes. 759 tests pass; ruff clean.
+
+**Key decisions.** Ten, agreed in chat 2026-08-05 before implementation and
+recorded on the backlog item: unify rather than link (1); derive only when empty,
+explicit always wins (2); derive from all conditions, not the D5 opt-out subset
+(3); fixed slots rather than positions (4); band ONENGOUT rather than share
+SELECT's counter — "link" means documented disjointness, since the 23.367 dynamic
+case is not one of SELECT's picks (5); migrate in the cheap direction, warn on
+stale ids (6); hold the derivation to a closure gate instead of touching the
+oracle path (7); deterministic per-component subcase blocks, chosen now so L-1's
+assembled deck needs no re-cut (8); SID := SUBCASE (9); record the map in the
+deck, the index, `PROGRAM_SPEC.md` and `CONVENTIONS.md` (10).
+
+**Found while implementing (decision 7's gate paying for itself).** The derived
+and hand-entered ACRL cases agree on Nz/Nx but **not** on the air-load CL/V
+(derived ≈1.30 at 117.4 kt vs the worked example's 1.55 at 116 kt), and a derived
+ACRL carries no unbalanced rolling moment. Filed as an open defect rather than
+absorbed into a loose tolerance; the hand-entered route every example uses is
+unaffected.
+
+---
+
 ## M3-3b — Step G8 remainder: the summary report document (complete 2026-08-05)
 
 **Objective.** Finish Step G8. G8.1–G8.3 and the coverage matrix had shipped

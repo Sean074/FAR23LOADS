@@ -14,6 +14,16 @@ consumes for structural sizing, matching sbeam's own card style
   SPC1 + the load cards + a SOL 101 case-control wrapper, so the load runs
   directly in sbeam.
 
+Case identity in the deck (M4-2)
+--------------------------------
+Every deck's ``SUBCASE`` and load-set ``SID`` is the case's own id put through
+:func:`sloads.case_ids.subcase_id` (``W-03`` -> ``103``), never its position in
+the exported list, and each deck opens with a ``$`` subcase-map block naming the
+governing condition behind each number (:func:`subcase_map_block`). The exported
+case index carries the same number in its ``SUBCASE`` column. A deck consumer can
+therefore trace ``SUBCASE 103`` back to "W-03, PHAA, FAR 23.333(b)" from the deck
+alone, and a filtered export cannot renumber the subcases that survive.
+
 The bridge is a pure renderer (like :mod:`sloads.io`): the building functions
 return strings, the ``write_*`` wrappers do the only file I/O. It is **not** a
 registered calc module -- the physics already lives in ``modules/net_loads.py``.
@@ -86,6 +96,7 @@ import textwrap
 from dataclasses import dataclass
 from typing import List, Sequence, Union
 
+from ..case_ids import subcase_id
 from ..constants import ULTIMATE_FACTOR
 from ..models import (
     BodyLoadResult,
@@ -277,9 +288,72 @@ def _as_results(arg: ResultsArg) -> List[WingLoadResult]:
     return results
 
 
-def _sid(sid_base: int, case_index: int) -> int:
-    """Load-set id for the ``case_index``-th case (0-based)."""
+def _sid(sid_base: int, case_index: int, result=None) -> int:
+    """Load-set id (== the ``SUBCASE`` id) for one exported case (M4-2 decisions 8/9).
+
+    Derived from the case's own ``case_ref.case_id`` via
+    :func:`sloads.case_ids.subcase_id` -- ``W-03`` -> ``103``, ``VT-31`` -> ``331``
+    -- so:
+
+    * a filtered export (:func:`filter_by_selected_case_ids`) cannot renumber the
+      cases that survive: before M4-2 the SID/SUBCASE was the case's *position*,
+      so deselecting one case silently shifted every deck number after it, and a
+      solver result labelled ``SUBCASE 3`` meant a different case in two exports
+      of the same project;
+    * the per-component blocks keep wing / tail / body / gear sets disjoint, which
+      is what an assembled multi-component deck (L-1) needs;
+    * ``LOAD = 103`` inside ``SUBCASE 103`` is self-documenting, and the deck's
+      ``$`` map block (:func:`subcase_map_block`) and the exported case index name
+      the governing condition behind it.
+
+    ``sid_base + case_index`` remains the fallback for a result carrying **no**
+    ``CaseRef`` at all -- a bare ``WingLoadResult`` built in a test or a caller
+    that never ran SELECT still gets a valid, contiguous deck.
+    """
+    ref = getattr(result, "case_ref", None) if result is not None else None
+    if ref is not None:
+        return subcase_id(ref.case_id)
     return sid_base + case_index
+
+
+def subcase_map(results: Sequence) -> List[tuple]:
+    """``[(subcase_id, case_id, condition, far_reference), ...]`` for ``results``.
+
+    The deck-side half of the case index: what a consumer needs to trace a
+    ``SUBCASE`` back to the governing condition without opening another file.
+    A result with no ``CaseRef`` contributes its positional SID and an empty id.
+    """
+    out: List[tuple] = []
+    for idx, r in enumerate(results):
+        ref = getattr(r, "case_ref", None)
+        out.append((
+            _sid(1, idx, r),
+            ref.case_id if ref else "",
+            ref.condition if ref else str(getattr(r, "case", "")),
+            ref.far_reference if ref else "",
+        ))
+    return out
+
+
+def subcase_map_block(results: Sequence) -> List[str]:
+    """The deck's ``$`` subcase-map comment block (M4-2 decision 10).
+
+    One line per exported case::
+
+        $ SUBCASE 103 = W-03 -- PHAA -- FAR 23.333(b)
+
+    ``$`` is a comment to every bulk-data parser, so the block is inert; it exists
+    so the deck states its own case identity rather than making the reader join it
+    to the case-index CSV by position."""
+    rows = subcase_map(results)
+    if not rows:
+        return []
+    lines = ["$ ---------------------------------------------------- SUBCASE MAP",
+             "$ SUBCASE/SID = SLOADS case id -- condition -- FAR reference"]
+    for sid, case_id, condition, far in rows:
+        far_txt = f" -- FAR {far}" if far else ""
+        lines.append(f"$ SUBCASE {sid} = {case_id or '(no case id)'} -- {condition}{far_txt}")
+    return lines
 
 
 # --------------------------------------------------------------------------- #
@@ -416,10 +490,10 @@ def force_moment_cards(arg: ResultsArg, sid_base: int = 1, *,
     """
     results = _as_results(arg)
     u = _units(system)
-    blocks: List[str] = []
+    blocks: List[str] = ["\n".join(subcase_map_block(results))]
     for idx, r in enumerate(results):
-        blocks.append("\n".join(_case_card_block(r, _sid(sid_base, idx), u)))
-    return _stamped(header_comment, "\n".join(blocks) + "\n")
+        blocks.append("\n".join(_case_card_block(r, _sid(sid_base, idx, r), u)))
+    return _stamped(header_comment, "\n".join(b for b in blocks if b) + "\n")
 
 
 def write_force_moment_cards(arg: ResultsArg, path: str, sid_base: int = 1, *,
@@ -476,11 +550,15 @@ def stick_model_bdf(arg: ResultsArg, sid_base: int = 1, *,
     base_loads = wing_nodal_loads(results[0])
     rx, ry, rz = to_grid(*_root_node(base_loads), units=u)
 
-    head: List[str] = ["SOL 101", "$"]
+    head: List[str] = ["SOL 101", "$"] + subcase_map_block(results) + ["$"]
     for idx, r in enumerate(results):
-        sid = _sid(sid_base, idx)
+        # SUBCASE == SID == the case's own id (M4-2 decisions 8/9), so the deck's
+        # numbering is a property of the case, not of this export's case list.
+        sid = _sid(sid_base, idx, r)
+        label = r.case_ref.case_id if r.case_ref else r.case
         head += [
-            f"SUBCASE {idx + 1}",
+            f"SUBCASE {sid}",
+            f"  LABEL = {label}",
             f"  TITLE = {r.case} (Nz={r.nz:g}, Nx={r.nx:g})",
             "  SPC = 1",
             f"  LOAD = {sid}",
@@ -531,7 +609,7 @@ def stick_model_bdf(arg: ResultsArg, sid_base: int = 1, *,
         "$ ------------------------------------------------------------ LOADS",
     ]
     for idx, r in enumerate(results):
-        bulk += _case_card_block(r, _sid(sid_base, idx), u)
+        bulk += _case_card_block(r, _sid(sid_base, idx, r), u)
 
     return _stamped(header_comment, "\n".join(head + bulk + ["ENDDATA"]) + "\n")
 
@@ -650,9 +728,9 @@ def body_force_moment_cards(arg, sid_base: int = 1, *,
     :data:`~sloads.modules.body_loads.CLOSURE_ARTIFACT_CAVEAT`."""
     results = _body_results(arg)
     u = _units(system)
-    blocks: List[str] = []
+    blocks: List[str] = ["\n".join(subcase_map_block(results))]
     for idx, r in enumerate(results):
-        sid = sid_base + idx
+        sid = _sid(sid_base, idx, r)
         sf = _sf(r)
         _, _, total_fz = to_force(0.0, 0.0, sum(s.fz for s in r.stations) * sf, u)
         _, terminal_myy, _ = to_moment(0.0, r.stations[-1].myy * sf, 0.0, u)
@@ -679,7 +757,7 @@ def body_force_moment_cards(arg, sid_base: int = 1, *,
                     f"{_fmt(fx)}, {_fmt(fy)}, {_fmt(fz)}"
                 )
         blocks.append("\n".join(lines))
-    return _stamped(header_comment, "\n".join(blocks) + "\n")
+    return _stamped(header_comment, "\n".join(b for b in blocks if b) + "\n")
 
 
 def _body_fitting_fields(u: DeliverableUnits) -> List[str]:
@@ -821,9 +899,9 @@ def tail_force_moment_cards(arg, sid_base: int = 1, *,
     each set's applied Fz sums to the total tail load ``LT25 + LT50``."""
     results = _tail_results(arg)
     u = _units(system)
-    blocks: List[str] = []
+    blocks: List[str] = ["\n".join(subcase_map_block(results))]
     for idx, r in enumerate(results):
-        sid = sid_base + idx
+        sid = _sid(sid_base, idx, r)
         sf = _sf(r)
         forces = _tail_nodal_forces(r)
         _, _, total = to_force(0.0, 0.0, sum(forces), u)
@@ -843,7 +921,7 @@ def tail_force_moment_cards(arg, sid_base: int = 1, *,
                     f"{_fmt(fx2)}, {_fmt(fy2)}, {_fmt(fz2)}"
                 )
         blocks.append("\n".join(lines))
-    return _stamped(header_comment, "\n".join(blocks) + "\n")
+    return _stamped(header_comment, "\n".join(b for b in blocks if b) + "\n")
 
 
 def write_tail_chordwise_csv(arg, path: str, *,
@@ -947,9 +1025,9 @@ def control_surface_force_moment_cards(arg, sid_base: int = 1, *,
     each set's applied Fz sums to the critical surface load."""
     results = _control_results(arg)
     u = _units(system)
-    blocks: List[str] = []
+    blocks: List[str] = ["\n".join(subcase_map_block(results))]
     for idx, r in enumerate(results):
-        sid = sid_base + idx
+        sid = _sid(sid_base, idx, r)
         sf = _sf(r)
         forces = _control_nodal_forces(r)
         _, _, total = to_force(0.0, 0.0, sum(forces), u)
@@ -969,7 +1047,7 @@ def control_surface_force_moment_cards(arg, sid_base: int = 1, *,
                     f"{_fmt(fx2)}, {_fmt(fy2)}, {_fmt(fz2)}"
                 )
         blocks.append("\n".join(lines))
-    return _stamped(header_comment, "\n".join(blocks) + "\n")
+    return _stamped(header_comment, "\n".join(b for b in blocks if b) + "\n")
 
 
 def write_control_surface_csv(arg, path: str, *,
@@ -1009,6 +1087,16 @@ def filter_by_selected_case_ids(results: Sequence, selected_ids) -> List:
 # --------------------------------------------------------------------------- #
 # Case-index table (ID -> component, condition, CG, speed, altitude, FAR)
 # --------------------------------------------------------------------------- #
+def _subcase_column(case_id: str) -> str:
+    """The case's deck ``SUBCASE`` number for the index, or ``""`` for an id this
+    module cannot map (never raise: the index is a reference table, and a row
+    without a deck number is more useful than no table)."""
+    try:
+        return str(subcase_id(case_id))
+    except ValueError:
+        return ""
+
+
 def case_index_rows_from(*groups: Sequence) -> List[dict]:
     """One row per distinct ``case_id`` across any number of case-carrying object
     groups (anything with a ``.case_ref`` -- ``WingLoadResult``, ``BodyLoadResult``,
@@ -1029,6 +1117,9 @@ def case_index_rows_from(*groups: Sequence) -> List[dict]:
             seen.add(ref.case_id)
             rows.append({
                 "ID": ref.case_id,
+                # The deck-side identity of the same case (M4-2 decision 10): the
+                # index is where a consumer joins "SUBCASE 103" to its condition.
+                "SUBCASE": _subcase_column(ref.case_id),
                 "Component": ref.component,
                 "Condition": ref.condition,
                 "CG": ref.cg,
@@ -1047,8 +1138,9 @@ def case_index_rows(project: Project, extra: Sequence = ()) -> List[dict]:
 
     Rows are emitted in first-seen order: ``loads`` slices (wing_net -> body_net
     -> tail_chordwise -> control_surface), then ``envelope.critical`` (SELECT's
-    own conditions, including its separate wing sequence -- see the accepted-gap
-    note in ``docs/30_future/00_backlog.md`` Step D1), then ``extra``.
+    own conditions -- since M4-2 a wing condition and the WINGINER/NETLOADS
+    distribution derived from it share one ``case_id``, so the dedupe collapses
+    them to a single row), then ``extra``.
     """
     groups: List[Sequence] = []
     if project.loads is not None:
@@ -1060,7 +1152,8 @@ def case_index_rows(project: Project, extra: Sequence = ()) -> List[dict]:
     return case_index_rows_from(*groups)
 
 
-_CASE_INDEX_FIELDS = ["ID", "Component", "Condition", "CG", "Speed (kt)", "Altitude (ft)", "FAR"]
+_CASE_INDEX_FIELDS = ["ID", "SUBCASE", "Component", "Condition", "CG",
+                      "Speed (kt)", "Altitude (ft)", "FAR"]
 
 
 def _rows_to_csv(rows: List[dict], header_comment: str = "") -> str:

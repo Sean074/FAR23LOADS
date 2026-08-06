@@ -55,7 +55,7 @@ from __future__ import annotations
 import math
 from typing import Dict, List, NamedTuple, Optional
 
-from ..case_ids import CaseIdAllocator, WING_BAND_SELECT
+from ..case_ids import CaseIdAllocator, WING_BAND_EXTRA, WING_SLOTS, wing_case_id
 from ..models import (
     MissingInputError,
     CaseRef,
@@ -741,20 +741,24 @@ def _stamp_case_refs(project: Project, conditions: List[CriticalCondition],
     order), and copy it onto the originating :class:`VnPoint` in
     ``Project.envelope.vn`` when one exists, so the V-n table can show it too.
 
-    One allocator, scoped to this call, mints all four components -- including
-    ``wing``. This is the *SELECT* wing sequence; WINGINER/NETLOADS mint their own,
-    separate ``W-`` sequence, seeded into its own disjoint band
-    (``case_ids.WING_BAND_SELECT``) so the two counters cannot collide (see the
-    accepted-gap note in ``docs/30_future/00_backlog.md`` Step D1) -- they are not
-    the same case object even though they share a prefix.
+    One allocator, scoped to this call, mints the htail/vtail/fuselage sequences.
+    **Wing conditions do not use it** (M4-2 decision 4): their ``seq`` comes from
+    the fixed ``case_ids.WING_SLOTS`` table, so ``PHAA`` is ``W-01`` whatever else
+    the envelope selected, and WINGINER/NETLOADS reach the *same* ID for the same
+    condition (decision 1 -- one ID per physical condition, no separate SELECT
+    wing band). A wing label outside the table falls back to the extra band.
     """
     allocator = CaseIdAllocator()
-    allocator.seed("wing", WING_BAND_SELECT)
+    allocator.seed("wing", WING_BAND_EXTRA)
     vn_by_case = {p.case: p for p in _resolve_envelope(project, envelope).vn}
     for c in conditions:
         p = vn_by_case.get(c.case)
+        if c.component == "wing" and c.label in WING_SLOTS:
+            case_id = wing_case_id(c.label)
+        else:
+            case_id = allocator.next_id(c.component)
         ref = CaseRef(
-            case_id=allocator.next_id(c.component),
+            case_id=case_id,
             component=c.component,
             condition=c.label,
             cg=p.cg if p else "",

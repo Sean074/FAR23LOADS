@@ -44,7 +44,7 @@ from ..constants import (
     ULTIMATE_FACTOR,
     standard_atmosphere,
 )
-from ..case_ids import CaseIdAllocator
+from ..case_ids import CaseIdAllocator, VTAIL_BAND_ONENGOUT
 from ..models import (
     MissingInputError,
     CaseRef,
@@ -417,11 +417,14 @@ def run(project: Project) -> ModuleResult:
             "one_engine_out needs positive thrust_decay_time_s, windmill_drag_time_s "
             "and rudder_travel_time_s")
 
-    # Own allocator, scoped to this run: ONENGOUT is not one of SELECT's
-    # vtail-critical conditions, so it mints its own VT- sequence, continuing
-    # conceptually after select_vtail's -- not the same case object, no shared
-    # counter (see the accepted-gap note in docs/30_future/00_backlog.md Step D1).
+    # Own allocator, scoped to this run: ONENGOUT's dynamic 23.367 case is not one
+    # of SELECT's vtail-critical conditions, so it is a different case object with
+    # its own ID -- seeded into its own disjoint band (VTAIL_BAND_ONENGOUT) rather
+    # than sharing SELECT's counter. Before M4-2 it started at VT-01 like SELECT's
+    # own sequence, so the two minted the *same* id for different physical cases
+    # (M4-2 decision 5); tests/test_case_ids.py is the guard.
     allocator = CaseIdAllocator()
+    allocator.seed("vtail", VTAIL_BAND_ONENGOUT)
     conditions: List[ConditionResult] = []
     for lc in _load_cases(project, oeo):
         c = _case_inputs(project, lc.v_hi_kt)

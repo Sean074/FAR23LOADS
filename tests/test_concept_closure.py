@@ -154,10 +154,11 @@ def test_body_nodal_cards_sum_to_zero():
     """The exported body FORCE deck parses and its Fz set closes to ~0 (ULTIMATE)."""
     results = build_body_loads(_concept_project())
     _, _, _, forces, _ = parse_cards(sb.body_force_moment_cards(results, sid_base=1))
-    assert sorted(forces) == list(range(1, len(results) + 1))
+    # One load set per case, keyed by the case's own subcase id (M4-2 decision 9).
+    assert sorted(forces) == sorted(sb._sid(1, i, r) for i, r in enumerate(results))
     for idx, r in enumerate(results):
         scale = max(abs(s.fz) for s in r.stations) * _SF
-        fz = sum(scale_ * v[2] for _, scale_, v in forces[1 + idx])
+        fz = sum(scale_ * v[2] for _, scale_, v in forces[sb._sid(1, idx, r)])
         assert math.isclose(fz, 0.0, abs_tol=1e-6 * scale + 1e-3)
 
 
@@ -214,21 +215,21 @@ def test_full_airframe_exports_cleanly():
     _, _, _, wf, _ = parse_cards(sb.force_moment_cards(wing, sid_base=1))
     assert len(wf) == len(wing)
     for idx, r in enumerate(wing):
-        fz = sum(sc * v[2] for _, sc, v in wf[1 + idx])
+        fz = sum(sc * v[2] for _, sc, v in wf[sb._sid(1, idx, r)])
         assert math.isclose(fz, r.stations[0].sz * _SF, rel_tol=1e-4, abs_tol=1.0)
 
     # Tail: FORCE Fz re-sums to ULTIMATE (LT25 + LT50).
     _, _, _, tf, _ = parse_cards(sb.tail_force_moment_cards(tail, sid_base=1))
     assert len(tf) == len(tail)
     for idx, r in enumerate(tail):
-        fz = sum(sc * v[2] for _, sc, v in tf[1 + idx])
+        fz = sum(sc * v[2] for _, sc, v in tf[sb._sid(1, idx, r)])
         assert math.isclose(fz, (r.lt25 + r.lt50) * _SF, rel_tol=1e-4, abs_tol=1.0)
 
     # Control surfaces: FORCE Fz re-sums to the critical surface load.
     _, _, _, cf, _ = parse_cards(sb.control_surface_force_moment_cards(control, sid_base=1))
     assert len(cf) == len(control)
     for idx, r in enumerate(control):
-        fz = sum(sc * v[2] for _, sc, v in cf[1 + idx])
+        fz = sum(sc * v[2] for _, sc, v in cf[sb._sid(1, idx, r)])
         assert math.isclose(fz, r.load_lb * _SF, rel_tol=1e-4, abs_tol=1.0)
 
     # Body: FORCE deck parses and closes to ~0 (already asserted per case above).

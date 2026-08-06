@@ -42,6 +42,7 @@ from sloads.modules.airloads import run as airloads_run
 from sloads.derived_geometry import wing_reference
 from sloads.modules.airloads import schrenk_distribution
 from sloads.modules.net_loads import build_net_loads, wing_load_rows
+from sloads.modules.wing_inertia import resolve_wing_cases
 from sloads.report import module_text_report
 
 
@@ -238,6 +239,30 @@ _gc1.metric(f"WL of wing ref plane ({U['length']})",
             f"{to_display(_wrp_derived, 'length', system):.3f}")
 _gc2.metric("Dihedral (deg)", f"{_dihedral_derived:.3f}")
 
+# Step M4-2 decision 2: SELECT already searched the V-n matrix for the governing
+# wing conditions, so re-typing them here is a second, silently-divergent entry of
+# the same cases. The button materialises SELECT's list into the editable table --
+# visibly, so the engineer can still override any of it -- rather than deriving
+# behind the page's back; leaving the table empty falls back to the same list at
+# run time (wing_inertia.resolve_wing_cases).
+_from_select = resolve_wing_cases(project, WingMassInput())
+if _from_select:
+    _names = ", ".join(c.name for c in _from_select)
+    _cols = st.columns([1, 3])
+    if _cols[0].button("Pull cases from SELECT", key="pull_wing_cases"):
+        project.wing_mass = WingMassInput(
+            panel_weight_lb=wm.panel_weight_lb, tip_root_density_ratio=wm.tip_root_density_ratio,
+            inboard_rib_y=wm.inboard_rib_y, wrp_waterline=_wrp_derived,
+            dihedral_deg=_dihedral_derived, surface=wm.surface or "wing",
+            concentrated=list(wm.concentrated), cases=_from_select)
+        st.session_state["project"] = project
+        st.rerun()
+    _cols[1].caption(
+        f"SELECT's critical wing conditions: **{_names}**. Nz/Nx/CL/V fill from each "
+        "condition's V-n point; an accelerated-roll case still needs its unbalanced "
+        "rolling moment entered by hand."
+    )
+
 with st.form("net_wing_loads_form"):
     st.subheader(f"Wing mass distribution ({U['weight']} / {U['length']})")
     panel = st.number_input(
@@ -315,8 +340,9 @@ if mass_applied:
     st.success("Wing mass distribution applied.")
     wm = project.wing_mass
 
-if not wm.cases:
-    st.info("No wing load cases defined yet — fill in the form above and Apply.")
+if not resolve_wing_cases(project, wm):
+    st.info("No wing load cases defined yet — fill in the form above and Apply, "
+            "or run SELECT and pull its critical conditions.")
     st.stop()
 
 try:

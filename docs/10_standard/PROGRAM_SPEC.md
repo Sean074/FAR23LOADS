@@ -571,6 +571,20 @@ return strings (with thin `write_*` file wrappers), and do no physics.
   a self-contained free-field reader round-trips the cards in tests; the stick
   deck parses **and solves SOL 101** in the real sbeam (manual verification step).
 - **CLI:** `python cli.py --export-sbeam <prefix> <project.json> [--stick-model]`.
+- **Deck case identity — `SUBCASE`/`SID` numbering (M4-2).** Every deck's
+  `SUBCASE` and its load-set `SID` are the **same integer**, and that integer is
+  the case's own id through `case_ids.subcase_id`: a per-component block of 100
+  plus the sequence number (`W-03` → 103, `HT-02` → 202, `VT-31` → 331,
+  `F-04` → 404, `EM` → 5nn, `LG` → 6nn). Consequences, all of them the point:
+  a filtered export cannot renumber the cases that survive; wing/tail/body/gear
+  sets stay disjoint in an assembled multi-component deck (L-1); and
+  `LOAD = 103` inside `SUBCASE 103` reads as one thing. Each deck opens with a
+  `$` **subcase-map block** (`sbeam_bridge.subcase_map_block`) — one
+  `$ SUBCASE 103 = W-03 -- PHAA -- FAR 23.333(b)` line per exported case — and
+  the case-index CSV carries the same number in its `SUBCASE` column, so a deck
+  consumer can trace a solver result back to its governing condition from the
+  deck alone. `sid_base + index` survives **only** as the fallback for a result
+  carrying no `CaseRef` at all (a bare result list built in a test).
 
 ### Export-scope filter (Step D8.3)
 - **Source:** `sloads/export/sbeam_bridge.py::filter_by_selected_case_ids`.
@@ -582,8 +596,9 @@ return strings (with thin `write_*` file wrappers), and do no physics.
   copied verbatim from `envelope.critical.conditions` (`body_loads.py`,
   `taildist.py`). Wing (`wing_net`) and control-surface (aileron/flap/tab)
   results mint independent case ids on disjoint bands that never overlap
-  `envelope.critical`'s (see the backlog's "Unify select_wing/one_engine_out
-  case identity" gap), so they always export the full set.
+  `envelope.critical`'s, so they always export the full set. Since M4-2 the
+  filter cannot renumber what survives: a deck's `SUBCASE`/`SID` is derived from
+  the case id, not from its position in the exported list (below).
 
 ### Workbook export bridge — multi-sheet `.xlsx` (Step D8.2)
 - **Source:** `sloads/export/workbook.py::build_workbook`; `openpyxl` dependency.
@@ -693,24 +708,37 @@ shipped); summary for anyone adding a new module:
   counter. Downstream modules that consume an already-identified result (e.g.
   TAILDIST/body_loads reading SELECT's `CriticalCondition`s) **copy** the
   `case_ref`, they never re-mint.
+- **One ID per physical condition (M4-2).** Where two modules deliver the same
+  case — SELECT names the governing wing point, WINGINER/NETLOADS distribute it
+  spanwise — they carry the *same* `CaseRef`: `wing_inertia.wing_case_ref`
+  returns SELECT's ref when the condition matches by name, and the case index's
+  dedupe-by-`case_id` collapses the two deliverables to one row. The wing `seq`
+  is a property of the **condition**, from `case_ids.WING_SLOTS`
+  (PHAA 1, PLAA 2, PMAA 3, NMAA 4, ACRL 5, TORS 6), not of its position in any
+  list — so a missing pick leaves a gap instead of renumbering its neighbours,
+  and the strings that `selected_case_ids` and already-exported decks reference
+  do not float.
 - **Band disjoint allocators that share a prefix.** Two independent counters
   over the *same* numeric range collide outright (verified in a smoke run:
   `select_wing`'s own `W-02` and WINGINER's `W-02` briefly meant two different
-  cases before this was caught) — not just the weaker "divergent sequence"
-  gap below. `case_ids.py` reserves: `W-01..39` WINGINER/NETLOADS structural,
-  `W-40..49` `select_wing`'s own list, `W-50..59` AILERON, `W-60..69`
-  FLAPLOAD, `W-70+` a wing-hosted tab; `HT-50+`/`VT-50+` for TABLOADS' htail/
-  vtail-hosted tabs (disjoint from SELECT's own htail/vtail sequence). A new
-  module minting into an existing prefix must claim its own band here.
-- **Known accepted gap — not closed by D1.** `select_wing`'s own
-  `CriticalCondition` list and `WingMassInput.cases` (which actually drives
-  WINGINER/NETLOADS) are two independent wing case lists (the pre-SELECT "C3
-  bridge" in `models.py`); banding prevents an ID collision but does not make
-  them the same case object, so the same numeric range can label two
-  different physical cases depending which list you're looking at. Same gap
-  between `one_engine_out`'s own `VT-` id and `select_vtail`'s. See "Unify
-  `select_wing`/`one_engine_out` case identity..." in `docs/30_future/
-  00_backlog.md` → Deferred refinements.
+  cases before this was caught). `case_ids.py` reserves: `W-01..19` the fixed
+  `WING_SLOTS` conditions (SELECT **and** the WINGINER/NETLOADS results derived
+  from them — the same case, the same id), `W-20..39` a hand-authored wing case
+  outside `WING_SLOTS`, `W-50..59` AILERON, `W-60..69` FLAPLOAD, `W-70+` a
+  wing-hosted tab; `VT-30..49` ONENGOUT (23.367 — a different case from
+  SELECT's v-tail picks, so its own band rather than SELECT's counter);
+  `HT-50+`/`VT-50+` for TABLOADS' htail/vtail-hosted tabs. A new module minting
+  into an existing prefix must claim its own band here, and
+  `tests/test_case_ids.py` is the drift guard.
+- **`WingMassInput.cases` derives from SELECT when empty (M4-2).**
+  `wing_inertia.resolve_wing_cases` returns the hand-authored list untouched when
+  there is one (explicit always wins, so every shipped example and every
+  Appendix A oracle takes the path it always did) and otherwise builds one case
+  per `envelope.critical` wing condition. The Wing Loads page's **Pull cases from
+  SELECT** button materialises the same list into the editable table. Known
+  limitation: a derived ACRL case carries no unbalanced rolling moment, and its
+  air-load CL/V differ from the worked example's — see the open defect in
+  `docs/30_future/00_backlog.md`.
 - **A `ConditionResult` carries at most one `CaseRef`.** Where a module packs
   several sub-cases into one result (23.371(b)'s four gyro sign combinations),
   the base id is minted once in calc and the sub-case ids are *derived*

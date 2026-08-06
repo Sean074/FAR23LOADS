@@ -35,11 +35,12 @@ import math
 from dataclasses import dataclass, field
 from typing import List, Optional
 
-from ..case_ids import COMPONENT_PREFIX, WING_BAND_STRUCTURAL
+from ..case_ids import COMPONENT_PREFIX, WING_BAND_EXTRA, WING_SLOTS, wing_case_id
 from ..models import (
     MissingInputError,
     CaseRef,
     ConditionResult,
+    CriticalCondition,
     LoadValue,
     ModuleResult,
     Project,
@@ -236,26 +237,76 @@ def _resolve_case(project: Project, case: WingLoadCase) -> WingLoadCase:
                         unbal_moment=case.unbal_moment, cl=case.cl, v_eas_kt=case.v_eas_kt)
 
 
-def wing_case_ref(project: Project, index: int, case: WingLoadCase) -> CaseRef:
-    """The :class:`CaseRef` for wing structural case ``index`` (0-based) in
-    ``Project.wing_mass.cases`` -- the WINGINER/NETLOADS structural band
-    (``case_ids.WING_BAND_STRUCTURAL``..49).
+def _critical_wing_conditions(project: Project) -> List[CriticalCondition]:
+    """SELECT's wing conditions, or ``[]`` when SELECT has not run."""
+    if project.envelope is None or project.envelope.critical is None:
+        return []
+    return [c for c in project.envelope.critical.conditions if c.component == "wing"]
 
-    A **pure function of position**, not a stateful allocator, so
-    ``wing_inertia.py`` and ``net_loads.py`` -- two independent modules that both
-    iterate the same ``wm.cases`` list -- agree on the identical ``CaseRef``
-    without sharing runtime state ("assign once, carry downstream" without needing
-    an actual shared object). This is the *WINGINER/NETLOADS* wing sequence;
-    ``select_wing``'s own ``CriticalCondition`` list mints a **separate** ``W-``
-    sequence (same band, not the same case object) -- see the accepted-gap note in
-    ``docs/30_future/00_backlog.md`` Step D1.
+
+def resolve_wing_cases(project: Project, wm: WingMassInput) -> List[WingLoadCase]:
+    """``wm.cases``, or -- when it is empty -- the cases derived from SELECT's
+    wing ``CriticalCondition`` list (M4-2 decision 2).
+
+    SELECT is the case authority: it already searched the V-n matrix for the
+    governing wing points, so re-typing them into ``WingMassInput.cases`` is a
+    second, silently-divergent entry of the same conditions. A derived case
+    carries only its name and its V-n case number; ``_resolve_case`` and
+    ``net_loads._air_cl_v`` fill Nz/Nx/CL/V from that point exactly as they do
+    for a hand-authored case that gives only a ``case`` reference.
+
+    **Explicit entries always win** -- a non-empty ``wm.cases`` is returned
+    untouched, so every existing project (and every Appendix A oracle) takes the
+    path it always did. Derivation is the fallback for a project that never
+    filled the table, and the *Wing Loads* page's "pull from SELECT" button
+    materialises the same list into the editable table so the engineer can see
+    and override it.
+
+    **Limitation:** a derived ACRL case carries ``unbal_moment = 0`` -- SELECT's
+    condition does not name an unbalanced rolling moment (it comes from AILERON,
+    Ref 1 Ch 13). Enter the case explicitly to give one.
     """
-    seq = WING_BAND_STRUCTURAL + index
+    if wm.cases:
+        return list(wm.cases)
+    return [WingLoadCase(name=c.label, case=c.case) for c in _critical_wing_conditions(project)]
+
+
+def wing_case_ref(project: Project, index: int, case: WingLoadCase) -> CaseRef:
+    """The :class:`CaseRef` for wing structural case ``index`` (0-based) in the
+    resolved case list (:func:`resolve_wing_cases`).
+
+    **One ID per physical condition** (M4-2 decision 1): when SELECT has already
+    named this condition, its :class:`CaseRef` is returned *unchanged* -- the
+    spanwise distribution WINGINER/NETLOADS produce is another deliverable of the
+    same case, not a second case, which is exactly what
+    ``sbeam_bridge.case_index_rows_from``'s dedupe-by-``case_id`` assumes. Failing
+    that (SELECT not run, or a case the engineer added by hand), the ID comes from
+    the fixed ``case_ids.WING_SLOTS`` table by **name** -- so ``PHAA`` is ``W-01``
+    either way -- and a name outside the table takes the next
+    ``case_ids.WING_BAND_EXTRA`` slot.
+
+    Still a **pure function** of the project and the case's position, not a
+    stateful allocator, so ``wing_inertia.py`` and ``net_loads.py`` -- two
+    independent modules iterating the same list -- agree on the identical
+    ``CaseRef`` without sharing runtime state.
+    """
+    for c in _critical_wing_conditions(project):
+        if c.label == case.name and c.case_ref is not None:
+            return c.case_ref
+    if case.name in WING_SLOTS:
+        case_id = wing_case_id(case.name)
+    else:
+        # Extra-band cases number by their order among the *other* extras, so
+        # adding a slot case in front of one does not renumber it.
+        cases = resolve_wing_cases(project, project.wing_mass or WingMassInput())
+        extras = [i for i, c in enumerate(cases) if c.name not in WING_SLOTS]
+        seq = WING_BAND_EXTRA + (extras.index(index) if index in extras else index)
+        case_id = f"{COMPONENT_PREFIX['wing']}-{seq:02d}"
     vp = None
     if case.case is not None and project.envelope is not None:
         vp = next((p for p in project.envelope.vn if p.case == case.case), None)
     return CaseRef(
-        case_id=f"{COMPONENT_PREFIX['wing']}-{seq:02d}",
+        case_id=case_id,
         component="wing",
         condition=case.name,
         cg=vp.cg if vp else "",
@@ -284,12 +335,16 @@ def build_wing_inertia(project: Project) -> List[WingLoadResult]:
         raise MissingInputError("Project has no 'wing_mass' inputs for the wing_inertia module")
     if project.geometry is None or project.geometry.by_name(wm.surface) is None:
         raise MissingInputError(f"wing_inertia needs a '{wm.surface}' geometry surface")
-    if not wm.cases:
-        raise MissingInputError("wing_inertia needs at least one load case")
+    cases = resolve_wing_cases(project, wm)
+    if not cases:
+        raise MissingInputError(
+            "wing_inertia needs at least one load case -- enter them in "
+            "'wing_mass.cases' or run SELECT so they can be derived from "
+            "envelope.critical")
     geom = project.geometry.by_name(wm.surface)
     units = inertia_units(geom, wm)
     results = []
-    for i, c in enumerate(wm.cases):
+    for i, c in enumerate(cases):
         r = wing_inertia_distribution(geom, wm, _resolve_case(project, c), units)
         r.case_ref = wing_case_ref(project, i, c)
         results.append(r)

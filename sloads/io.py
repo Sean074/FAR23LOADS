@@ -17,6 +17,7 @@ from __future__ import annotations
 import csv
 import json
 import os
+import warnings
 from dataclasses import asdict
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -587,10 +588,38 @@ def _vn_point_from_dict(d: Dict[str, Any]) -> VnPoint:
 
 
 def _critical_from_dict(d: Dict[str, Any]) -> CriticalLoadSet:
-    return CriticalLoadSet(
-        conditions=[_critical_condition_from_dict(c) for c in d.get("conditions", []) or []],
-        selected_case_ids=[str(i) for i in d.get("selected_case_ids", []) or []],
-    )
+    """The persisted critical-load set, with stale ``selected_case_ids`` dropped
+    **loudly** (schema v39, M4-2 decision 6).
+
+    ``selected_case_ids`` is the one persisted field that references case-id
+    *strings*, so the M4-2 renumbering (SELECT's retired W-40.. band, ONENGOUT's
+    move to VT-30..) can leave a saved project pointing at ids that no longer
+    exist. An id that matches no condition never filtered anything --
+    ``CriticalLoadSet.selected()`` and ``filter_by_selected_case_ids`` simply do
+    not match it -- so the stale entry silently *widened* the governing-set
+    export. Dropping it changes nothing about the result and saying so is the
+    only part that is new.
+
+    Filtering is skipped entirely when no condition carries a ``case_ref`` (a
+    pre-D1 file, or a set persisted before the ids were minted): there is nothing
+    to validate against, and dropping every id there would be the same silent
+    widening in the other direction.
+    """
+    conditions = [_critical_condition_from_dict(c) for c in d.get("conditions", []) or []]
+    ids = [str(i) for i in d.get("selected_case_ids", []) or []]
+    known = {c.case_ref.case_id for c in conditions if c.case_ref is not None}
+    if ids and known:
+        stale = [i for i in ids if i not in known]
+        if stale:
+            warnings.warn(
+                "dropping selected_case_ids that match no critical condition: "
+                + ", ".join(stale)
+                + " (case ids were renumbered by schema v39 / M4-2; re-pick the "
+                  "governing set on the Critical Loads page)",
+                stacklevel=2,
+            )
+            ids = [i for i in ids if i in known]
+    return CriticalLoadSet(conditions=conditions, selected_case_ids=ids)
 
 
 def envelope_from_dict(d: Dict[str, Any]) -> EnvelopeResult:

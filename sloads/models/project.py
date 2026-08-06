@@ -177,7 +177,17 @@ from .results import EnvelopeResult, LoadsResult, MassResult
 # label->key table of the labels that could ever have been written. A label the
 # table does not know keeps an empty key, which is the honest outcome -- the row
 # still renders, it just cannot be matched by key until the file is recomputed.
-SCHEMA_VERSION = 38  # M4-20: Project.unit_system (deliverable-unit preference)
+# v39 (Step M4-2) unifies load-case identity: one case_id per physical condition.
+# No key is added or removed -- what changes is which *string* a wing or ONENGOUT
+# case carries. SELECT's separate wing band (W-40..49) is retired (its conditions
+# now hold the fixed case_ids.WING_SLOTS id, the same one WINGINER/NETLOADS use for
+# the same condition), a wing case's id follows its *name* rather than its list
+# position, and ONENGOUT moves to its own VT-30.. band (it collided with
+# select_vtail's VT-01.. before). The only persisted field affected is
+# CriticalLoadSet.selected_case_ids, which references those strings: io drops an
+# entry that matches no condition and states which, rather than silently ignoring
+# it (a silently-dropped id widens the "governing set" export without saying so).
+SCHEMA_VERSION = 39  # M4-2: unified case identity (wing slots, ONENGOUT band)
 
 
 @dataclass
