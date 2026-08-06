@@ -69,6 +69,7 @@ from ..models import (
     TailBalanceLoad,
     VnPoint,
 )
+from ..aero_curves import clmax_curve as _clmax_curve, drag_cd, lift_cl, moment_cm
 from ..derived_geometry import sync_geometry_derived
 from ..registry import register
 from .structural_speeds import maneuver_load_factors, design_speeds
@@ -98,15 +99,10 @@ def _speed_of_sound(alt_ft: float) -> float:
     return 29.02436 * math.sqrt(518.688 - 0.003566 * alt_ft)
 
 
-def _clmax_curve(mach: float) -> float:
-    """CLmax as a function of Mach (Ch 8 least-squares fit, AR-6 23016/23009)."""
-    m = mach
-    return (1.19367 + 0.32739 * m + 10.8352 * m ** 2 - 44.4985 * m ** 3
-            + 51.8759 * m ** 4 - 19.5434 * m ** 5)
-
-
-def _poly(coeffs, x: float) -> float:
-    return sum(c * x ** i for i, c in enumerate(coeffs))
+# The coefficient polynomials and the CLmax-vs-Mach fit live in
+# ``sloads.aero_curves`` (M4-5) so the Aerodynamic Data page's plotted curve and
+# this balance evaluate one authority; the arithmetic is unchanged (bit-for-bit,
+# Appendix A oracle-locked).
 
 
 # --------------------------------------------------------------------------- #
@@ -137,7 +133,6 @@ def _balance(n: float, v_init: float, mach_cap: float, config: AeroCoeffSet,
     mac = fl.mac
     gmn = 1.0 / math.sqrt(1.0 - fl.mn ** 2)
     kmn = _clmax_curve(fl.mn)
-    c0, c1, c2, c3, c4 = config.lift
     sig = density_ratio(altitude_ft)
     a_sound = _speed_of_sound(altitude_ft)
 
@@ -160,10 +155,9 @@ def _balance(n: float, v_init: float, mach_cap: float, config: AeroCoeffSet,
         da = 10.0
         cl = lz = dx = mm = 0.0
         for _ in range(400):  # inner: angle-of-attack iteration
-            cl = c0 + (c1 * al + c2 * al ** 2 + c3 * al ** 3 + c4 * al ** 4) * g / gmn
-            cd = _poly(config.drag, cl)
-            cm = config.moment[0] + (config.moment[1] * al + config.moment[2] * al ** 2
-                                     + config.moment[3] * al ** 3 + config.moment[4] * al ** 4) * g / gmn
+            cl = lift_cl(config, al, g, gmn)
+            cd = drag_cd(config, cl)
+            cm = moment_cm(config, al, g, gmn)
             ll = cl * q * s
             d = cd * q * s
             mm = cm * q * s * mac
@@ -374,7 +368,7 @@ def _flap_config_points(config: AeroCoeffSet, cg: CgCase, fl: FlightLoadsInput,
 # --------------------------------------------------------------------------- #
 # Envelope builder + Project entry point
 # --------------------------------------------------------------------------- #
-def _balance_configs(aero) -> List[AeroCoeffSet]:
+def balance_configs(aero) -> List[AeroCoeffSet]:
     """The airplane-less-tail coefficient sets the balance runs over.
 
     The cruise (flaps-up) set first, then the flaps-down set. Step G4 folds the
@@ -409,7 +403,7 @@ def build_envelope(project: Project) -> EnvelopeResult:
         raise MissingInputError("Project has no 'flight_loads' inputs for the flight_envelope module")
     if project.speeds is None:
         raise MissingInputError("flight_envelope needs 'speeds' (STRSPEED) for the design speeds")
-    configs = _balance_configs(project.aero_coeffs)
+    configs = balance_configs(project.aero_coeffs)
     if not configs:
         raise MissingInputError(
             "flight_envelope needs 'aero_coeffs' (cruise and/or flaps-down coefficient sets)"
@@ -478,7 +472,7 @@ def trim_sweep(project: Project, *, weight_lb: float, zcg: float,
         raise MissingInputError("trim_sweep needs 'flight_loads' inputs")
     if project.speeds is None:
         raise MissingInputError("trim_sweep needs 'speeds' (STRSPEED) for the design speeds")
-    cruise = next((c for c in _balance_configs(project.aero_coeffs) if not c.flaps_down), None)
+    cruise = next((c for c in balance_configs(project.aero_coeffs) if not c.flaps_down), None)
     if cruise is None:
         raise MissingInputError("trim_sweep needs a flaps-up (cruise) aero coefficient set")
     di = design_inputs(project)

@@ -207,11 +207,6 @@ or document the omission.
 Wire the persisted WTONECG per-CG inertia into SELECT's checked-maneuver `Iyy`
 and v-tail `IZZ` (currently the Ch 9 approximations, which match the oracle).
 
-### [V] M4-5 — Aero-coefficient curve plot (decision D-10)
-CL–α / drag-polar / CM plot on Aerodynamic Data with the recovered-CL closure
-check — catches coefficient-entry errors, which matter more for concept
-aircraft with hand-built polynomials.
-
 ### [V] M4-21 — Fuselage pitching load factor (Ch 15's missing half)
 Ch 15 (Ref 1 p103) says to multiply the station weights by the **linear and
 pitching** load factors; `body_loads` applies only `NZ`. Add the d'Alembert pitch
@@ -300,6 +295,23 @@ Mechanical (S); do after the current working tree is committed.
   `tests/test_wing_case_derivation.py::test_the_acrl_divergence_is_the_documented_one`,
   which fails if the two ever start agreeing — at which point close this and make
   the assertion an equality.
+- **ATR-42 example: seven balanced points sit above the stall CL at 25,000 ft
+  [Minor, found 2026-08-05 by M4-5's stall-clamp closure].** In
+  `examples/atr42_100.project.json`, MAN A / MAN C / AC ROLL at 25,000 ft carry a
+  balanced CL up to **1.767 against a Mach-adjusted stall CL of 1.478** (+0.29).
+  The local Mach is pinned exactly at MC = 0.4555, so `_balance`'s
+  dynamic-pressure iteration cannot raise q any further and never brings CL back
+  onto the stall line: the airplane cannot reach n = 2.5 at that altitude within
+  its own Mach cap and CLmax. The loads reported at those points are therefore
+  not physically attainable. Not a solver defect and not an oracle fixture — a
+  property of that example's speeds/altitude set (or of the Mach-cap handling:
+  arguably the balance should report such a corner as *infeasible* rather than
+  returning an unconverged point). Decide which, then either fix the fixture's
+  altitude list / CLmax or teach `_balance` to flag a Mach-capped non-convergence.
+  Pinned by
+  `tests/test_aero_curves.py::test_the_atr42_stall_exceedance_is_the_documented_mach_capped_one`,
+  which fails if the count or the cause changes. The GA oracle and both concept
+  fixtures close cleanly.
 - **M4-22 — Flight Envelope: SELECT Apply also persists un-applied geometry edits [Minor].**
   `app/views/flight_envelope.py:324` — the SELECT-inputs form handler writes the
   page's *probe copy* back to session state (`st.session_state["project"] =

@@ -88,6 +88,15 @@ from .applicability import Exceedance, far23_applicability
 from .fleet import FleetPoint, FleetStats, Subject, fleet_stats
 from .validation import ConsistencyWarning, consistency_warnings
 from .vn_diagram import GustInputs, VnDiagram, VnTrace, build_vn_diagram, resolve_gust_inputs
+from .aero_curves import (
+    AeroCurves,
+    ClosureResult,
+    CurveTrace,
+    OperatingPoints,
+    build_aero_curves,
+    curve_closure,
+    operating_points,
+)
 
 # Importing the modules package registers every module (engine, ...) and exposes
 # the engine module's direct ``run_all(EngineInput)`` helper for back-compat.
@@ -110,6 +119,13 @@ __all__ = [
     "VnTrace",
     "build_vn_diagram",
     "resolve_gust_inputs",
+    "AeroCurves",
+    "ClosureResult",
+    "CurveTrace",
+    "OperatingPoints",
+    "build_aero_curves",
+    "curve_closure",
+    "operating_points",
     "AeroInput",
     "AeroSurfaceInput",
     "AileronLoadsInput",

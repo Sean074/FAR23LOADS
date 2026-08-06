@@ -10,6 +10,42 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- **M4-5 — aero-coefficient curves + closure on Aerodynamic Data (decision D-10).**
+  The page now plots CL–α, the drag polar (CL vs CD) and CM–α for each
+  configuration, with the balanced V-n points overlaid and the stall clamps drawn,
+  so a coefficient-entry error shows as a shape instead of hiding in a table — the
+  concept-aircraft case, where the polynomials are hand-built.
+  - New pure module `sloads/aero_curves.py` is the **single authority for
+    evaluating** the airplane-less-tail polynomials: `modules/flight_envelope`
+    imports `lift_cl`/`drag_cd`/`moment_cm`/`clmax_curve` instead of inlining
+    them. The FLTLOADS arithmetic is unchanged bit-for-bit (Glauert passed as
+    `(g, gmn)`, not a pre-divided ratio); all Appendix A oracles unmoved.
+  - Two closure metrics, gated in CI on the GA oracle and both concept fixtures:
+    **recovered CL** (each point's CL re-derived from its own `LZW`/`DX`/α/V by
+    inverting the balance rotation, vs the polynomial — a drift guard at 1e-9,
+    since the two are algebraically the same number) and the **stall-clamp
+    margin** (no balanced point above its Mach-adjusted stall CL by more than the
+    balance's 0.005 band).
+  - New `sloads.validation` coefficient-entry checks tagged for the page:
+    `aero_clmax_unreachable`, `aero_lift_slope_sign`, `aero_drag_negative`,
+    `aero_drag_polar_shape`, `aero_clmax_neg_sign`. Advisory only; silent on every
+    shipped fixture.
+  - `flight_envelope.balance_configs` is now public (the page needs the same
+    fuselage-moment-augmented configs the balance flies).
+
+### Fixed
+
+- **Aerodynamic Data: the fuselage-moment Apply no longer rewrites the CLmax
+  scalars** (found while implementing M4-5; same defect class as M4-22). That
+  form rebuilt the whole `aero_coeffs` slice without `clmax_clean` /
+  `clmax_clean_neg` / `clmax_flap`, so `__post_init__` re-derived them from the
+  per-config `stall_cl` — silently moving VS/VSF and hence VA/VF wherever the two
+  legitimately differ, and **zeroing `clmax_flap`** on a project with no
+  flaps-down coefficient set (the regional-jet concept: VF then failed to
+  compute). Pinned by two `AppTest` guards.
+
 ### Changed
 
 - **M4-2 — unified load-case identity + deck SUBCASE map (schema v39).** One

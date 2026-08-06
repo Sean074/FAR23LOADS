@@ -6,17 +6,38 @@ Owns the ``Project.aero_coeffs`` slice (Step D4.1): the Ch 7 aero-coefficients
 program's output, cruise (flaps up) and an optional flaps-down (landing) set,
 that the Flight Envelope page (FLTLOADS) balances against but no longer edits
 (Step D4.2 — this page replaces the interim editor that lived there).
+
+M4-5 (decision D-10) adds the **coefficient curves** below the tables: CL–α, the
+drag polar and CM–α with the balanced envelope points overlaid, the recovered-CL
+closure metric and the stall-clamp margin. All of that math lives in
+``sloads.aero_curves`` (which ``modules.flight_envelope`` also evaluates, so the
+plotted curve and the balance cannot drift apart); the coefficient-entry checks
+are ``sloads.validation`` warnings tagged for this page.
 """
 
 from __future__ import annotations
 
+import copy
+
 import pandas as pd
+import plotly.graph_objects as go
 import streamlit as st
+from plotly.subplots import make_subplots
 
 from components import gate
 
-from sloads import AeroCoefficientsInput, AeroCoeffSet, FuselageMomentInput, Project
+from sloads import (
+    AeroCoefficientsInput,
+    AeroCoeffSet,
+    FuselageMomentInput,
+    Project,
+    build_aero_curves,
+    consistency_warnings,
+    curve_closure,
+    operating_points,
+)
 from sloads.fuselage_moment import estimate as estimate_fuselage_moment
+from sloads.modules.flight_envelope import balance_configs, build_envelope
 
 st.title("Aerodynamic Data")
 st.caption(
@@ -175,6 +196,158 @@ if aero.flaps_down is not None:
     _summary("Flaps down", aero.flaps_down)
 
 # --------------------------------------------------------------------------- #
+# Coefficient curves (M4-5, decision D-10) -- CL-alpha / drag polar / CM-alpha,
+# with the balanced envelope points overlaid and the recovered-CL closure. All
+# math is in ``sloads.aero_curves`` (which the FLTLOADS balance also evaluates,
+# so the plotted curve cannot drift from the one that produces the loads).
+# --------------------------------------------------------------------------- #
+st.divider()
+st.subheader("Coefficient curves")
+st.caption(
+    "The entered polynomials drawn as curves, so a coefficient-entry error shows "
+    "as a shape rather than hiding in a table — the concept-aircraft case, where "
+    "the polynomials are hand-built rather than wind-tunnel/DATCOM output. All "
+    "quantities are **dimensionless**; α is in **degrees** — nothing here changes "
+    "with the unit-system toggle."
+)
+
+for _w in consistency_warnings(project):
+    if _w.page == "aero_coefficients":
+        st.warning(_w.message)
+
+# The balance's own view of the coefficients (Step G4 folds an enabled fuselage
+# dCm/dalpha into M1 on a copy), so the curve is the one FLTLOADS actually flies.
+_configs = balance_configs(aero)
+_fm_on = aero.fuselage_moment is not None and aero.fuselage_moment.enabled
+
+_env = None
+_env_note = ""
+_fl_bal = project.flight_loads
+if _fl_bal is None or project.speeds is None:
+    _env_note = ("no balanced envelope yet — the operating-point overlay needs the "
+                 "**Flight Envelope (V-n)** inputs and the **Structural Speeds** "
+                 "design speeds")
+else:
+    try:
+        _env = build_envelope(copy.deepcopy(project))
+    except (ValueError, ZeroDivisionError, KeyError) as exc:
+        _env_note = f"the balanced envelope could not be built ({exc})"
+
+if _env is None:
+    gate(
+        f"Curves only — {_env_note}. The coefficient curves below are unaffected.",
+        "flight_envelope", "structural_speeds", kind="info",
+    )
+
+
+def _curve_figure(curves) -> go.Figure:
+    """The three-panel coefficient figure for one configuration."""
+    fig = make_subplots(
+        rows=1, cols=3, horizontal_spacing=0.08,
+        subplot_titles=("Lift  CL vs α", "Drag polar  CL vs CD", "Moment  CM vs α"),
+    )
+    fig.add_trace(go.Scatter(x=curves.lift.x, y=curves.lift.y, mode="lines",
+                             name="CL(α)", line=dict(width=3)), row=1, col=1)
+    fig.add_trace(go.Scatter(x=curves.polar.x, y=curves.polar.y, mode="lines",
+                             name="CD(CL)", line=dict(width=3), showlegend=False),
+                  row=1, col=2)
+    fig.add_trace(go.Scatter(x=curves.moment.x, y=curves.moment.y, mode="lines",
+                             name="CM(α)", line=dict(width=3), showlegend=False),
+                  row=1, col=3)
+    # Stall clamps: the balance never carries a CL outside these lines.
+    for cl_line, label in ((curves.stall_cl, "stall CL"),
+                           (curves.neg_stall_cl, "neg stall CL")):
+        if cl_line:
+            for col in (1, 2):
+                fig.add_hline(y=cl_line, row=1, col=col,
+                              line=dict(color="rgba(200,80,80,0.7)", width=1, dash="dash"),
+                              annotation_text=label if col == 1 else None,
+                              annotation_position="top left")
+    if curves.alpha_stall_deg is not None:
+        fig.add_vline(x=curves.alpha_stall_deg, row=1, col=1,
+                      line=dict(color="rgba(120,120,120,0.6)", width=1, dash="dot"),
+                      annotation_text=f"α {curves.alpha_stall_deg:.1f}°",
+                      annotation_position="bottom right")
+    pts = curves.points
+    if pts is not None and len(pts):
+        marker = dict(symbol="circle-open", size=8, color="rgba(60,110,200,0.9)")
+        fig.add_trace(go.Scatter(x=pts.alpha_deg, y=pts.cl, mode="markers",
+                                 name="balanced points", marker=marker,
+                                 text=pts.label, hovertemplate="%{text}<br>α %{x:.2f}° "
+                                 "CL %{y:.3f}<extra></extra>"), row=1, col=1)
+        fig.add_trace(go.Scatter(x=pts.cd, y=pts.cl, mode="markers", marker=marker,
+                                 name="balanced points", showlegend=False,
+                                 text=pts.label, hovertemplate="%{text}<br>CD %{x:.4f} "
+                                 "CL %{y:.3f}<extra></extra>"), row=1, col=2)
+        fig.add_trace(go.Scatter(x=pts.alpha_deg, y=pts.cm, mode="markers", marker=marker,
+                                 name="balanced points", showlegend=False,
+                                 text=pts.label, hovertemplate="%{text}<br>α %{x:.2f}° "
+                                 "CM %{y:.4f}<extra></extra>"), row=1, col=3)
+    fig.update_xaxes(title_text="α (deg)", row=1, col=1)
+    fig.update_xaxes(title_text="CD", row=1, col=2)
+    fig.update_xaxes(title_text="α (deg)", row=1, col=3)
+    fig.update_yaxes(title_text="CL", row=1, col=1)
+    fig.update_yaxes(title_text="CL", row=1, col=2)
+    fig.update_yaxes(title_text="CM", row=1, col=3)
+    fig.update_layout(height=380, legend=dict(orientation="h"),
+                      margin=dict(t=60, b=40, l=10, r=10))
+    return fig
+
+
+for _cfg in _configs:
+    _pts = _closure = None
+    if _env is not None:
+        _pts = operating_points(_env, _cfg.name, wing_area_sqft=_fl_bal.wing_area_sqft,
+                                mac_in=_fl_bal.mac)
+        _closure = curve_closure(_env, _cfg, wing_area_sqft=_fl_bal.wing_area_sqft,
+                                 mach_ref=_fl_bal.mn)
+    _curves = build_aero_curves(_cfg, points=_pts, closure=_closure)
+    st.markdown(f"**{'Flaps down' if _cfg.flaps_down else 'Cruise'} — {_cfg.name}**")
+    st.plotly_chart(_curve_figure(_curves), use_container_width=True)
+
+    _bits = [
+        f"Curve at the reference Mach (as entered). Lift peaks at CL "
+        f"{_curves.cl_max_on_curve:.3f} over α {_curves.alpha_lo_deg:g}…"
+        f"{_curves.alpha_hi_deg:g}°"
+    ]
+    if _curves.alpha_stall_deg is not None:
+        _bits.append(f"reaching the stall CL {_curves.stall_cl:.3f} at α "
+                     f"{_curves.alpha_stall_deg:.1f}°")
+    else:
+        _bits.append(f"**never reaching the stall CL {_curves.stall_cl:.3f}**")
+    if _fm_on:
+        _bits.append("CM includes the enabled fuselage ΔM1")
+    st.caption(" · ".join(_bits) + ".")
+
+    if _closure is not None and _closure.n_points:
+        c1, c2 = st.columns(2)
+        c1.metric(
+            "Recovered-CL closure", f"{_closure.worst_cl:.2e}",
+            help="Worst |CL recovered from the balanced point's own LZW/DX/α/V — "
+                 "inverting the balance rotation — minus the coefficient polynomial "
+                 "at that α|, over every balanced point of this configuration. The "
+                 "two are the same number algebraically, so this is a drift guard "
+                 f"(tolerance {_closure.cl_tol:g}), not a numerical discovery.")
+        c2.metric(
+            "Stall-clamp margin", f"{_closure.worst_stall_excess:.4f}",
+            delta=None if _closure.worst_stall_excess <= _closure.stall_tol else "exceeded",
+            delta_color="inverse",
+            help="Worst amount by which a balanced point's CL sits *above* its "
+                 "Mach-adjusted stall CL. The balance iterates dynamic pressure to "
+                 "hold this at zero; a non-zero value means the point never "
+                 "converged onto the stall line — typically because the Mach cap "
+                 f"binds first (tolerance {_closure.stall_tol:g}).")
+        if _closure.worst_stall_excess > _closure.stall_tol:
+            st.warning(
+                f"{_closure.worst_stall_label}: the balanced CL exceeds the stall CL by "
+                f"{_closure.worst_stall_excess:.3f}. The airplane cannot reach that "
+                "condition's load factor within its Mach cap and stall CL, so those "
+                "points' loads are not physically attainable — check the design "
+                "speeds, the altitude list and the entered CLmax.")
+        st.caption(f"Closure over {_closure.n_points} balanced point"
+                   f"{'s' if _closure.n_points != 1 else ''} of this configuration.")
+
+# --------------------------------------------------------------------------- #
 # Fuselage pitching-moment estimator (Step G4) -- Munk slender-body dCm/dalpha
 # derived from the G1 fuselage outline, added to the airplane-less-tail M1 when
 # enabled. Off by default so the FAR23 GA oracles (coefficients that already
@@ -237,8 +410,16 @@ else:
         fm_applied = st.form_submit_button("Apply fuselage moment", type="primary")
 
     if fm_applied:
+        # Carry the CLmax scalars through explicitly: they are a *sibling* slice
+        # this form does not own, and omitting them let ``__post_init__`` re-derive
+        # them from the per-config ``stall_cl``. Where the two legitimately differ
+        # (ga6: clmax_clean 1.4068 from the printed VS vs stall_cl 1.41) that
+        # silently moved VS -- and hence VA/VF on the Structural Speeds page --
+        # on a form that should touch nothing but the fuselage moment.
         project.aero_coeffs = AeroCoefficientsInput(
             cruise=aero.cruise, flaps_down=aero.flaps_down,
+            clmax_clean=aero.clmax_clean, clmax_clean_neg=aero.clmax_clean_neg,
+            clmax_flap=aero.clmax_flap,
             fuselage_moment=FuselageMomentInput(enabled=fm_enabled, d_cm_dalpha=fm_value),
         )
         st.session_state["project"] = project

@@ -28,6 +28,11 @@ Checks (14 CFR / Reference-1 context in each predicate):
                              the factor is owned by the load-case definition).
                              Advisory companion to ``io._safety_factor``'s
                              read-time coercion (M4-14).
+- ``aero_clmax_unreachable`` / ``aero_lift_slope_sign`` / ``aero_drag_negative`` /
+  ``aero_drag_polar_shape`` / ``aero_clmax_neg_sign``
+                          -- coefficient-entry checks on the airplane-less-tail
+                             polynomials (M4-5; Ref 1 Ch 7/Ch 8). See
+                             ``_check_aero_coefficients``.
 - ``gross_ge_max_landing`` / ``landing_light_le_max`` / ``landing_cg_ordering`` /
   ``landing_cg_below_axle`` / ``landing_cg_names`` -- the LANDLOAD weight/CG
                              hierarchy (M4-17d; 14 CFR 23.473-23.499). See
@@ -60,6 +65,7 @@ PAGE_STRUCTURAL_SPEEDS = "structural_speeds"
 PAGE_WEIGHT_CG = "weight_cg_inertia"
 PAGE_EXPORT = "export_report"
 PAGE_LANDING = "landing_loads"
+PAGE_AERO_COEFFS = "aero_coefficients"
 
 # The three canonical LANDLOAD loadings, in the positional order the calc consumes
 # (UG fig 18.2). Shared with ``modules.landing._cg_cases`` and the Landing Loads view.
@@ -516,6 +522,106 @@ def landing_reaction_warnings(cases: "List[GearReactionCase]") -> List[Consisten
     return out
 
 
+def _check_aero_coefficients(project: Project) -> List[ConsistencyWarning]:
+    """Coefficient-entry checks on the airplane-less-tail polynomials (M4-5).
+
+    The input-side companion to the ``aero_curves`` closure metric: these catch
+    the hand-built-polynomial mistakes a concept airplane is exposed to (the
+    FAR23 examples enter wind-tunnel/DATCOM sets), before the FLTLOADS balance
+    turns them into loads. Advisory only -- nothing here blocks an Apply or
+    changes a number, per this module's conservative charter.
+
+    Reachability is tested against the configuration's own ``stall_cl`` (the
+    value ``_balance`` clamps to, and the one the q-iteration must be able to
+    attain) rather than the parent ``clmax_*`` scalars, which legitimately
+    differ from it (see ``AeroCoefficientsInput.__post_init__``).
+    """
+    aero = project.aero_coeffs
+    if aero is None:
+        return []
+    from .aero_curves import ALPHA_HI_DEG, ALPHA_LO_DEG, ALPHA_SAMPLES, drag_cd, lift_cl
+
+    # No moment-slope check: a positive M1 (nose-up with alpha) is the *normal*
+    # airplane-less-tail state -- the tail is what makes the airplane stable --
+    # and every shipped fixture including the Appendix A GA example carries one
+    # (ga6 M1 = +0.004128). A sign check here would fire on the oracle.
+    out: List[ConsistencyWarning] = []
+
+    if aero.clmax_clean_neg > 0.0:
+        out.append(ConsistencyWarning(
+            "aero_clmax_neg_sign",
+            f"Clean negative CLmax = {aero.clmax_clean_neg:+.4g} is positive; the "
+            "negative maximum lift coefficient caps the *negative* balancing "
+            "solution and is normally negative (e.g. −0.59 on the Appendix A GA "
+            "example). Check the sign.",
+            PAGE_AERO_COEFFS))
+
+    for label, cfg in (("Cruise", aero.cruise), ("Flaps down", aero.flaps_down)):
+        if cfg is None:
+            continue
+        name = f"{label} ({cfg.name})"
+        if cfg.lift[1] <= 0.0:
+            out.append(ConsistencyWarning(
+                "aero_lift_slope_sign",
+                f"{name}: the lift-curve slope C1 = {cfg.lift[1]:+.4g} is not positive. "
+                "CL = C0 + C1·α + … expects α in **degrees** (a per-radian slope "
+                "entered here would be ~57× too large; a transposed row can flip the "
+                "sign). The balance will not converge sensibly.",
+                PAGE_AERO_COEFFS))
+
+        # Can the entered polynomial actually reach the stall CL the balance
+        # clamps to? If not, the dynamic-pressure iteration never converges onto
+        # the stall line and every stall-limited corner is wrong.
+        if cfg.stall_cl > 0.0 and cfg.lift[1] > 0.0:
+            n = max(2, ALPHA_SAMPLES)
+            band = [ALPHA_LO_DEG + (ALPHA_HI_DEG - ALPHA_LO_DEG) * i / (n - 1)
+                    for i in range(n)]
+            cl_max_on_curve = max(lift_cl(cfg, a) for a in band)
+            if cl_max_on_curve < cfg.stall_cl:
+                out.append(ConsistencyWarning(
+                    "aero_clmax_unreachable",
+                    f"{name}: the lift polynomial peaks at CL = {cl_max_on_curve:.4g} "
+                    f"between α = {ALPHA_LO_DEG:g}° and {ALPHA_HI_DEG:g}°, below the "
+                    f"stall CL = {cfg.stall_cl:.4g} the balance clamps to. The "
+                    "FLTLOADS dynamic-pressure iteration cannot reach the stall line, "
+                    "so the stall-limited corners will not converge. Check the lift "
+                    "coefficients against the CLmax entered above.",
+                    PAGE_AERO_COEFFS))
+
+        # Drag over the operating CL band the balance can visit.
+        lo_cl = min(cfg.neg_stall_cl, 0.0)
+        hi_cl = max(cfg.stall_cl, 0.0)
+        if hi_cl > lo_cl:
+            n = 41
+            band_cl = [lo_cl + (hi_cl - lo_cl) * i / (n - 1) for i in range(n)]
+            worst = min((drag_cd(cfg, c), c) for c in band_cl)
+            if worst[0] <= 0.0:
+                out.append(ConsistencyWarning(
+                    "aero_drag_negative",
+                    f"{name}: the drag polar gives CD = {worst[0]:+.4g} at "
+                    f"CL = {worst[1]:+.4g}, inside the operating band "
+                    f"({lo_cl:+.4g} … {hi_cl:+.4g}). Drag cannot be zero or negative; "
+                    "the balance rotates it into the airplane axes (DX), so a negative "
+                    "CD corrupts the balancing tail load. Check D0…D4 "
+                    "(CD = D0 + D1·CL + D2·CL² + …).",
+                    PAGE_AERO_COEFFS))
+
+        # A plain quadratic polar with a non-positive CL^2 term is inverted or
+        # missing its induced-drag term. Only checked for the plain form -- a
+        # general higher-order polar is left alone.
+        if cfg.drag[2] <= 0.0 and not any(cfg.drag[3:]) and any(cfg.drag):
+            out.append(ConsistencyWarning(
+                "aero_drag_polar_shape",
+                f"{name}: the drag polar's CL² term D2 = {cfg.drag[2]:+.4g} is not "
+                "positive with no higher-order terms entered, so drag does not grow "
+                "with lift — the induced-drag term is missing or inverted "
+                "(CD = D0 + D1·CL + D2·CL²; the Appendix A GA example uses "
+                "D2 = 0.0536).",
+                PAGE_AERO_COEFFS))
+
+    return out
+
+
 def consistency_warnings(project: Project) -> List[ConsistencyWarning]:
     """All input-consistency warnings for ``project`` (each tagged with its page).
 
@@ -534,4 +640,5 @@ def consistency_warnings(project: Project) -> List[ConsistencyWarning]:
     out += _check_operational_targets(project)
     out += _check_safety_factors(project)
     out += _check_landing_hierarchy(project)
+    out += _check_aero_coefficients(project)
     return out

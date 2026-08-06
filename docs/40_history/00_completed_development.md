@@ -10,6 +10,24 @@ Acceptance**, **Key decisions**.
 
 ---
 
+## M4-5 — Aero-coefficient curves + closure on Aerodynamic Data (complete 2026-08-05, tier M)
+
+CL–α / drag-polar / CM–α plots with the balanced V-n points overlaid, the stall
+clamps drawn and two closure metrics (recovered CL — a 1e-9 **drift guard**, since
+the recovery and the polynomial are algebraically the same number within a
+converged point — and the stall-clamp margin, which does carry content). New pure
+`sloads/aero_curves.py` is the single authority for evaluating the
+airplane-less-tail polynomials; `modules/flight_envelope` imports it (arithmetic
+bit-for-bit unchanged — Glauert passed as `(g, gmn)`, oracles unmoved). Five
+coefficient-entry checks added to `sloads.validation`, tagged for the page,
+silent on every shipped fixture; **no** moment-slope check (a positive M1 is the
+normal airplane-less-tail state, including on the Appendix A oracle). Gates:
+`tests/test_aero_curves.py` (22) + `tests/test_aero_coefficients_view.py` (6);
+closure asserted on ga6 + both concept fixtures. Two findings raised on the way:
+the fuselage-moment Apply was rewriting the CLmax scalars (fixed here, see
+`CHANGELOG.md`), and the ATR-42 example's seven Mach-capped points above the
+stall CL (filed in the backlog, pinned by test). Closes decision **D-10**.
+
 ## M4-2 — Unified load-case identity + deck SUBCASE map (complete 2026-08-05)
 
 **Objective.** One case-ID authority per component, end to end: from the SELECT
