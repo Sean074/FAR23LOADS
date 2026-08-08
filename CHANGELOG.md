@@ -12,6 +12,31 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **The mass single source of truth** — `sloads/mass_distribution.py` (mission
+  phase 2 step 3; plan 11 decision **B-2**, step B1). The suite carried **two
+  mass models that never reconciled**: the itemized `weight.items` database, and
+  a short hand-entered `fuselage_mass.stations` lump table which was the only
+  input the Ch 15 fuselage beam ever read. Nothing compared them, and the entered
+  table was short on **every** shipped fixture — ga6 492 lb (16 % of the beam),
+  cessna_210 430, dhc8_dash8 2,810, atr42_100 7,541 (23 %),
+  concept_regional_jet 12,600 (41 %), and concept_heavy had no table at all. Every
+  fuselage inertia load, shear, bending moment and exported body card was computed
+  from a beam carrying less mass than the airplane weighed.
+
+  The item database is now authoritative and the beam is **derived** from it.
+  `MassItem.component` tags which structural component carries each item;
+  `mass_distribution` partitions the database, builds the station table, and owns
+  the reconciliation checks. The beam carries everything except the wing — the
+  empennage included, since it hangs off the aft fuselage — while the wing enters
+  as the carry-through *reaction*, never as mass (plan 11 §4's seam rule).
+
+- **`concept_heavy` has fuselage loads for the first time.** It carries no
+  `fuselage_mass.stations`, and that was the only reason it had no body deck;
+  16,200 lb of airplane had no fuselage distribution. A project no longer needs a
+  hand-entered station table to have a fuselage. It is now the sixth of six
+  examples reaching the solver channel.
+
+
 - **Export-boundary equilibrium gate** (`sloads/export/equilibrium.py`, mission
   phase 1 step 1; design note
   `docs/30_future/07_export_equilibrium_invariant_plan.md`). Every exported deck
@@ -145,6 +170,26 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   compute). Pinned by two `AppTest` guards.
 
 ### Changed
+
+- **Schema v41.** `MassItem` gains `component`; `FuselageMassInput` gains
+  `stations_are_override`. Both are optional and additive, but the *meaning* of
+  `fuselage_mass.stations` changed — it is now an explicit override of the derived
+  distribution rather than the sole input. Migration hop
+  `_v40_fuselage_stations_override` therefore marks any pre-B1 file that already
+  carries a station table as an override, so migrating a project **cannot silently
+  move its fuselage loads**; the gap against the SSOT is reported instead
+  (Fuselage Loads page), and adopting it stays the user's decision. Untagged mass
+  items are deliberately *not* migrated to a guessed `component`.
+
+- **Imperial output changed for the body channels** — `sbeam/body_cards`,
+  `sbeam/body_span`, `sbeam/body_fitting` on all six examples, plus
+  `csv/body_loads` and `txt/body_loads` newly present on `concept_heavy` — and
+  `tests/fixtures_imperial/digests.json` was regenerated deliberately for exactly
+  those. **This is an intended change**: the fuselage beam now carries the mass it
+  should. Wing, tail and control decks, every other report/CSV channel and the
+  case index are byte-identical, and the Appendix A oracle suites are unchanged
+  (verified explicitly, plan 11 risk R2 — no oracle module reads `fuselage_mass`).
+
 
 - **Imperial output changed for three deck channels** — `sbeam/body_cards`,
   `sbeam/tail_cards`, `sbeam/control_cards`, plus the `sbeam/tail_chordwise` CSV's

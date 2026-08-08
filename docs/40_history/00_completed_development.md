@@ -10,6 +10,99 @@ Acceptance**, **Key decisions**.
 
 ---
 
+## The mass single source of truth (mission phase 2, step 3 — plan 11 B1 — complete 2026-08-08, tier L)
+
+**Objective.** Make `weight.items` the mass SSOT and derive the Ch 15 fuselage
+beam from it, so the distributed loads and the airplane's own weight statement
+describe one airplane (plan 11 decision **B-2**).
+
+**What was actually wrong.** The suite carried two mass models and **nothing
+compared them**. `weight.items` closes to W and to the CG by construction and is
+what every mass-properties deliverable is computed from;
+`fuselage_mass.stations` was a short hand-entered lump table, and it was the only
+input `body_loads` ever read. Measured across the shipped fixtures:
+
+| fixture | item model | entered | shortfall | of beam |
+|---|---|---|---|---|
+| `ga6_normal` | 3,070 | 2,578 | 492 | 16 % |
+| `cessna_210` | 3,450 | 3,020 | 430 | 12 % |
+| `atr42_100` | 32,751 | 25,210 | 7,541 | 23 % |
+| `dhc8_dash8` | 28,700 | 25,890 | 2,810 | 10 % |
+| `concept_regional_jet` | 30,600 | 18,000 | 12,600 | 41 % |
+| `concept_heavy` | 16,200 | 0 | 16,200 | 100 % |
+
+Plan 11 §1.3 had recorded 427 lb, for ga6 alone. The real figure is every
+fixture, up to 41 % of the beam — and `concept_heavy`'s missing table was the
+sole reason it had no body deck at all. Every fuselage inertia load, shear,
+bending moment and exported body card came from a beam carrying less mass than
+the airplane weighed.
+
+**Deliverables.**
+
+1. `sloads/mass_distribution.py` — the SSOT. Partitions the database by carrying
+   component, derives the beam station table, and owns the reconciliation checks
+   (`partition_closes`, `wing_mass_tie`, `fuselage_reconciliation`,
+   `unmodelled_wing_mass`, `component_summary`).
+2. `MassComponent` + `MassItem.component`; all six fixtures explicitly tagged.
+3. `FuselageMassInput.stations_are_override`; `body_loads` reads the SSOT.
+4. Schema **v41** + migration hop `_v40_fuselage_stations_override`.
+5. `tests/test_mass_distribution.py` — the drift guards, swept over every fixture.
+6. Fuselage Loads page: the component summary, the reconciliation warning, and an
+   explicit override checkbox.
+
+**Test / acceptance.** 968 passed, 16 skipped; `ruff check sloads/ cli.py app/`
+clean. Imperial digests regenerated deliberately, diff confined to the body
+channels (`body_cards`, `body_span`, `body_fitting` on all six, plus
+`csv`/`txt/body_loads` newly present on `concept_heavy`); wing, tail and control
+decks and every other channel byte-identical. **Plan 11 risk R2 verified rather
+than assumed**: the Appendix A oracle suites (`test_engine`, `test_airloads`,
+`test_balloads`, `test_net_loads`, `test_select`, `test_landing`,
+`test_weight_envelope`, `test_weight_onecg`, `test_flight_envelope` — 123 tests)
+pass unchanged, because no oracle module reads `fuselage_mass`.
+
+**Key decisions.**
+
+- **Component tagging is explicit, and geometric inference was abandoned.** Plan
+  11 §3.1 specified defaulting `component` from `(x, y, z)`. That cannot work:
+  **every item in every fixture sits at `y = 0`** — the rows are lumped airplane
+  totals on the centreline, so `"Engines (2)"` on a wing-mounted twin carries no
+  side information at all. Station `x` cannot separate it from a fuselage item
+  either (atr42's wing is at x = 395, its engines at x = 370, both inside the
+  fuselage's own range). `infer_component` survives as a fallback that returns
+  `FUSELAGE` for everything — a deliberate refusal to guess, which guarantees the
+  one thing it can (the beam is *complete*, never light, never mis-attributed) and
+  lets `wing_mass_tie` fail loudly on an untagged file, which is the correct
+  signal.
+- **The beam carries the empennage; plan 11 §1.3 had excluded it.** The h-tail
+  and v-tail hang off the aft fuselage, so their weight is reacted by that beam.
+  Excluding them leaves mass unaccounted for between the two models; including
+  them makes `Σ(wing) + Σ(beam) == Σ(items) == W` exact, which is what
+  `partition_closes` asserts. The wing is the one exclusion, because it enters as
+  the carry-through *reaction* (plan 11 §4's seam rule).
+- **Derived by default, entered as an explicit override** (user, 2026-08-08).
+  The alternative — hand-rewriting each fixture's station weights to sum to the
+  item model — would have meant inventing the per-station split of e.g. atr42's
+  32,751 lb across 8 stations, with no oracle. Deriving closes the gaps by
+  construction and invents nothing.
+- **A migrated file keeps its beam.** Silently moving somebody's fuselage loads
+  on load is not ours to do — on ga6 it is a 19 % change to every body shear. The
+  hop marks an existing table an override and the gap is *reported*, so adopting
+  the SSOT is a decision taken in front of the number.
+- **Zero-tolerance ties only where the data supports them.** The cg-case
+  reconciliation the plan implied belongs to plan 12 **C1** (the item database
+  yields one loading; matching it to a named `cg_case` *is* C1's problem), so it
+  was left out rather than shipped as a fitted tolerance.
+
+**Finding filed rather than folded in.** `wing_mass_tie` fails on the three
+fixtures that hang fuel on the wing — atr42 3,800 lb, dhc8 4,000, concept_heavy
+1,200 — because each airplane's wing-tank fuel sits inside an undivided
+`"Fuel to gross"` row and cannot be shown as wing mass. That fuel is therefore
+carried on both beams. The engine+nacelle half of the twins' concentrated model
+reconciles exactly, so the fixtures are otherwise consistent. Closing it needs
+item rows split into wing-tank and body-tank fractions — new fixture data with no
+oracle — so it is on the backlog and pinned to the pound by
+`test_the_unmodelled_wing_mass_is_pinned_per_fixture`.
+
 ## Export-boundary equilibrium gate (mission phase 1, step 1 — complete 2026-08-08, tier M documented to L depth)
 
 **Objective.** Every deck the sbeam bridge writes makes a claim about itself in

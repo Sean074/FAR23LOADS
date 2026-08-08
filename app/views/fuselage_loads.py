@@ -31,6 +31,7 @@ from sloads import (
     to_imperial_scalar,
     to_si_scalar,
 )
+from sloads import mass_distribution
 from sloads.export import sbeam_bridge as sb
 from sloads.models import FuselageMassInput, FuselageStation
 from sloads.modules.body_loads import body_load_rows, build_body_loads
@@ -77,13 +78,46 @@ if project.flight_loads is None:
     st.stop()
 
 fm = project.fuselage_mass or FuselageMassInput()
+
+# The beam is derived from the itemized weight database (the mass SSOT, step B1);
+# the table below is an explicit override. Show the reconciliation first, so an
+# override is a decision taken in front of the number rather than instead of it.
+_recon = mass_distribution.fuselage_reconciliation(project)
+if _recon is not None and not _recon.ok:
+    st.warning(
+        f"**Entered stations disagree with the weight database:** {_recon.detail}. "
+        "The derived distribution is used unless you tick *override* below."
+    )
+_derived = mass_distribution.derived_fuselage_stations(project)
+_summary = mass_distribution.component_summary(project)
+if _summary:
+    with st.expander(
+            f"Mass model — {len(_derived)} derived stations, "
+            f"{sum(s.weight_lb for s in _derived):,.0f} {U['weight']} on the beam"):
+        st.caption(
+            "Derived from **Weight & CG → items**, tagged by component. The beam "
+            "carries everything except the wing: the wing enters as the "
+            "carry-through reaction, and applying it as mass too would count it "
+            "twice (Ref 1 Ch 15 p103).")
+        st.dataframe(pd.DataFrame(_summary), hide_index=True,
+                     use_container_width=True)
+        _tie = mass_distribution.wing_mass_tie(project)
+        if _tie is not None and not _tie.ok:
+            st.info(f"Wing mass tie: {_tie.detail}.")
+
 with st.form("fuselage_mass_form"):
     st.subheader(f"Fuselage mass distribution ({U['length']} / {U['weight']})")
-    st.caption("Lumped station weights nose→tail (exclude the wing mass outside the "
-               "fuselage, per Ch 15).")
+    st.caption("Lumped station weights nose→tail. Used **only** when *override* is "
+               "ticked; otherwise the distribution is derived from the itemized "
+               "weight database.")
+    override = st.checkbox(
+        "Override the derived distribution with the table below",
+        value=fm.stations_are_override,
+        help="Leave unticked to use the weight database (the single source of "
+             "truth). Tick to hand-enter the beam, e.g. to reproduce a legacy model.")
     default = pd.DataFrame(
         [[to_display(s.x, "length", system), to_display(s.weight_lb, "weight", system)]
-         for s in fm.stations] or [[0.0, 0.0]],
+         for s in (fm.stations or _derived)] or [[0.0, 0.0]],
         columns=["x", "weight_lb"],
     )
     station_cols = {
@@ -101,9 +135,13 @@ if applied:
         for _, r in df.iterrows()
         if pd.notna(r["x"]) and pd.notna(r["weight_lb"])
     ]
-    project.fuselage_mass = FuselageMassInput(stations=stations, ref_waterline=fm.ref_waterline)
+    project.fuselage_mass = FuselageMassInput(
+        stations=stations, ref_waterline=fm.ref_waterline,
+        stations_are_override=bool(override))
     st.session_state["project"] = project
-    st.success("Fuselage mass distribution applied.")
+    st.success("Fuselage mass distribution applied"
+               + (" (overriding the weight database)." if override else
+                  " — the derived distribution is in use."))
     fm = project.fuselage_mass
 
 if project.is_concept:

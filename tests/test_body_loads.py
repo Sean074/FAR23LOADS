@@ -283,17 +283,36 @@ def test_moment_closure_fields_round_trip_through_io():
     assert [s.source for s in got.stations] == [s.source for s in want.stations]
 
 
-def test_run_requires_fuselage_mass():
-    # GA6 now ships a fuselage_mass slice (M2R-3), so clear it here to exercise
-    # the missing-slice guard directly rather than relying on the fixture's gaps.
+def test_run_requires_a_beam_from_either_source():
+    """The guard is now "no station table from *either* source" (step B1).
+
+    Since B1 the beam is derived from ``weight.items`` (the mass SSOT), so
+    clearing ``fuselage_mass`` alone no longer starves the module — the item data
+    base still supplies a table, which is the whole point. Both have to be gone.
+    """
     project = io.load_project(_GA)
     project.fuselage_mass = None
+    project.weight = None
     raised = False
     try:
         body_loads.run(project)
     except ValueError:
         raised = True
     assert raised
+
+
+def test_the_beam_is_derived_from_the_mass_ssot_without_a_station_table():
+    """Clearing ``fuselage_mass`` leaves the beam intact and unchanged.
+
+    Before B1 the entered table was the only source; now it is the *override* and
+    the itemized data base is authoritative, so dropping it changes nothing. That
+    is the SSOT working: one mass model, two ways in."""
+    project = io.load_project(_GA)
+    with_table = body_loads.build_body_loads(project)
+    project.fuselage_mass = None
+    without = body_loads.build_body_loads(project)
+    assert [s.x for s in without[0].stations] == [s.x for s in with_table[0].stations]
+    assert [s.fz for s in without[0].stations] == [s.fz for s in with_table[0].stations]
 
 
 if __name__ == "__main__":

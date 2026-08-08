@@ -196,7 +196,7 @@ from .results import EnvelopeResult, LoadsResult, MassResult
 # MC/MD are now derived by structural_speeds and passed to mach_limit explicitly.
 # The v39 hop drops the dead keys; ``vd_basis`` defaults to the speed-ratio route,
 # so every pre-v40 project keeps exactly the numbers it had.
-SCHEMA_VERSION = 40  # F25-2: dive-speed basis (Mach-margin route); MC/MD single-sourced
+SCHEMA_VERSION = 41  # B1: MassItem.component (the mass SSOT) + fuselage stations_are_override
 
 
 @dataclass

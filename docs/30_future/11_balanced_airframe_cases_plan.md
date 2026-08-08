@@ -1,9 +1,42 @@
 # Design note — Balanced full-airframe load cases (free-free)
 
 **Raised:** 2026-08-08 (user). **Status:** design agreed at the decision level
-(B-1…B-4 answered by the user, 2026-08-08); steps not yet implemented.
-**Closure tier:** L — new physics concept (`BalancedCase`), a schema change, a
-new module, and a change to what the mass model means.
+(B-1…B-4 answered by the user, 2026-08-08). **Step B1 SHIPPED 2026-08-08** — see
+the history entry "The mass single source of truth" in
+[`../40_history/00_completed_development.md`](../40_history/00_completed_development.md);
+B2 onward not yet implemented. **Closure tier:** L — new physics concept
+(`BalancedCase`), a schema change, a new module, and a change to what the mass
+model means.
+
+> **Corrections applied while implementing B1** (the plan text below is left as
+> written, as the record of what was agreed):
+>
+> 1. **§3.1, component inference** — "defaulting to inference from `(x, y, z)`
+>    against the geometry" cannot work. **Every mass item in every fixture sits
+>    at `y = 0`**: the rows are lumped airplane totals on the centreline, so
+>    `"Engines (2)"` on a wing-mounted twin carries no side information, and `x`
+>    cannot separate it from a fuselage item either. The tag is explicit and all
+>    six fixtures carry one; the fallback returns `FUSELAGE` for everything, as a
+>    deliberate refusal to guess.
+> 2. **§1.3, the size of the problem** — 427 lb was ga6 alone. The entered
+>    fuselage table is short on **every** fixture, by 10 % to 41 % of the beam
+>    (`concept_regional_jet` 12,600 lb), and `concept_heavy` had no table at all.
+> 3. **§1.3/§3.1, what the beam carries** — the tails were excluded there. They
+>    hang off the aft fuselage, so that beam reacts their weight; including them
+>    is what makes `Σ(wing) + Σ(beam) == W` exact.
+> 4. **§3.1, `fuselage_mass.stations`** — resolved (user, 2026-08-08) as *derived
+>    by default, entered as an explicit override*, rather than hand-correcting
+>    each fixture's station weights (which would have meant inventing the
+>    per-station split of e.g. atr42's 32,751 lb with no oracle).
+> 5. **§3.1, the `Σw·x = W·cg_x` guards** — trivially true against the item model
+>    itself, and against a *named* `cg_case` they are plan 12 **C1**'s problem
+>    (the database yields one loading; matching it to a case is what C1 derives).
+>    Left out rather than shipped as a fitted tolerance.
+>
+> One finding was filed rather than folded in: the three fixtures that hang fuel
+> on the wing cannot show it as wing mass (it sits inside an undivided
+> `"Fuel to gross"` row), so that fuel is carried on both beams. Pinned to the
+> pound in the tests; on the backlog.
 
 **Goal, in the user's words:** *a full airplane balanced case — wing tip to wing
 tip, nose to tail — with no need for a constraint, because the loads balance.
@@ -202,7 +235,7 @@ introduces is never applied in the assembled model.**
 
 | Step | Scope | Tier | Effort |
 |---|---|---|---|
-| **B1** | `mass_distribution.py` + item `component` tagging + the four drift guards + `fuselage_mass` reconciliation validator. Fixture mass models corrected (ga6's 427 lb). Schema bump + migration. | L | M (~1 session) |
+| ~~**B1**~~ | ~~`mass_distribution.py` + item `component` tagging + the drift guards + `fuselage_mass` reconciliation validator. Schema bump + migration.~~ **SHIPPED 2026-08-08** (schema v41) | L | M (~1 session) |
 | **B2** | `BalancedCase` model, `balance.py`, the per-condition assembly and the 2-DOF residual closure. **Symmetric wing cases only.** | L | M–L (~1.5) |
 | **B3** | The §4 seam rule made structural: an authority function the assembled path consumes, plus a guard test that the `carry` source never reaches an assembled deck. | M | S (~0.5) |
 | **B4** | CI gates: residual < 1 %, `Δn`/n < 1 %, per-component decks and Appendix A **bit-unchanged**. | M | S (~0.5) |

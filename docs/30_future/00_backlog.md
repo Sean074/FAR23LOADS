@@ -90,8 +90,7 @@ the feature-branch work below begins.
 | Phase | Step | What ships | Plan / item | Depends on |
 |---|---|---|---|---|
 | **1 — export-boundary gates** | 2 | sbeam round-trip CI gate (wing + body/tail wrappers, negative tests, CI job) | [plan 10](10_sbeam_roundtrip_ci_harness_plan.md) | step 1 ✅ |
-| **2 — mass model (aim 1)** | 3 | `mass_distribution.py` — `weight.items` as mass SSOT, item→station map, 427 lb fixture fix | plan 11 step **B1** | — (parallel-safe with phase 1) |
-| | 4 | CONM2 + MASSSET export per payload case, `GRAV`-based inertia cross-check in CI | [plan 12](12_conm2_mass_export_plan.md) C1–C7 | steps 2, 3 |
+| **2 — mass model (aim 1)** | 4 | CONM2 + MASSSET export per payload case, `GRAV`-based inertia cross-check in CI | [plan 12](12_conm2_mass_export_plan.md) C1–C7 | step 2; step 3 ✅ |
 | **3 — balanced wing cases (aim 2)** | 5 | Symmetric wing balanced cases + the **assembled full-span deck (primary deliverable)** + UI | plan 11 **B2–B6** | step 4 |
 | | 6 | Antisymmetric wing (`ACRL`/`TORS`) + the left/right reflection machinery (B-6/B-7) | plan 11 **B7** | step 5 |
 | **4 — empennage** | 7 | Distributed h-tail/v-tail loads on the LRA (spanwise strips, GRID+FORCE+MOMENT) | [plan 09](09_distributed_empennage_loads_plan.md) **T1–T5** | steps 1–2 (its T-11 gate) |
@@ -152,6 +151,36 @@ regenerate `tests/fixtures_imperial/digests.json`, and widen
 `tests/test_export_equilibrium.py::test_deck_comments_fit_the_free_field_card_width`
 from `body/tail/control` to include `wing` — the test already documents the
 carve-out. Tier S. Effort: trivial; the digest regeneration is the whole cost.
+
+### [V] Wing-tank fuel is not separable in the item database *(new 2026-08-08, found by the step-B1 wing tie)*
+`mass_distribution.wing_mass_tie` asserts the two models of the same physical
+wing agree: `Σ(items tagged wing) == 2 × (panel_weight_lb + Σ concentrated)`.
+It holds exactly on `ga6_normal`, `cessna_210` and `concept_regional_jet`, and
+fails on the three fixtures that hang fuel on the wing:
+
+| fixture | gap | cause |
+|---|---|---|
+| `atr42_100` | 3,800 lb | `concentrated` "wing fuel" 1,900 lb/side |
+| `dhc8_dash8` | 4,000 lb | `concentrated` "wing fuel" 2,000 lb/side |
+| `concept_heavy` | 1,200 lb | `concentrated` "fuel" 600 lb/side |
+
+The engine+nacelle half of the twins' concentrated model reconciles **exactly**
+(atr42 `Engines (2)` 1780 + `Nacelles (2)` 600 = 2 × 1190; dhc8 2100 + 700 =
+2 × 1400), so the fixtures were built consistently — the gap is fuel alone. Each
+airplane's wing-tank fuel lives inside an undivided `"Fuel to gross"` row, so the
+item database cannot show it as wing mass while WINGINER also hangs it on the
+wing. Consequence: that fuel is carried on **both** beams — inertia relief on the
+wing and inertia load on the fuselage, for the same pounds.
+
+Closing it means **splitting item rows into wing-tank and body-tank fractions**,
+which is new fixture data with no oracle behind it — hence filed rather than
+guessed. Options: a `wing_fraction` on `MassItem`, or separate rows. Either is a
+schema change; the natural pairing is plan 12 **C1** (per-case itemization from
+WTENV), which is already splitting the database per payload case.
+
+Pinned, not hidden: `tests/test_mass_distribution.py::
+test_the_unmodelled_wing_mass_is_pinned_per_fixture` asserts each gap to the
+pound and goes red when it changes in either direction. Tier L (schema). Effort: M.
 
 ### [E] sbeam round-trip CI harness *(new 2026-08-05, process review R9)* — **step 2**
 C4's acceptance ("the exported BDF parses and solves in sbeam") was checked once

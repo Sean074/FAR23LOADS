@@ -188,6 +188,7 @@ FAR23LOADS/
 │   │   ├── latex.py              # ReportDocument → .tex (escaping, longtable, document control)
 │   │   └── plots_tex.py          # pgfplots figures: V-n, weight/CG, speed–altitude
 │   ├── applicability.py          # pure FAR 23 applicability detection (Exceedance list; Phase E1)
+│   ├── mass_distribution.py      # MASS SSOT: weight.items -> per-component station inertia (B1)
 │   ├── validation.py             # pure input-consistency predicates (ConsistencyWarning list; Phase E3)
 │   ├── vn_diagram.py             # pure V-n diagram geometry: stall/manoeuvre/gust polylines (Phase E3)
 │   ├── fuselage_moment.py        # pure Munk slender-body fuselage dCm/dα estimator (off-by-default; Step G4)

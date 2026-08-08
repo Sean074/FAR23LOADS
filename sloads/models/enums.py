@@ -67,6 +67,35 @@ class MassItemKind(str, Enum):
     DISCRETIONARY = "discretionary"  # optional useful load (passengers, fuel, baggage, ballast)
 
 
+class MassComponent(str, Enum):
+    """Which structural component a mass item is carried by (plan 11 B-2, step B1).
+
+    Orthogonal to :class:`MassItemKind`: ``kind`` says *when* an item is aboard
+    (empty / minimum / discretionary — the WTONECG/WTENV loading hierarchy),
+    ``component`` says *where its weight is reacted* — which beam carries it, and
+    therefore which distributed load set it belongs to.
+
+    This is the partition :mod:`sloads.mass_distribution` needs to turn
+    ``weight.items`` into per-component station inertia, so that the fuselage
+    beam, the wing spanwise distribution and (later) the CONM2 export all read
+    one mass model instead of three.
+
+    **Why it is an explicit field and not inferred from geometry.** Plan 11 §3.1
+    proposed defaulting it from ``(x, y, z)``. Measured 2026-08-08: *every* mass
+    item in *every* shipped fixture has ``y = 0`` — the entries are lumped
+    airplane totals on the centreline (``"Engines (2)"``, ``"Nacelles (2)"``), a
+    correct convention for CG and inertia about the airplane axis, but one that
+    carries no side information at all. Inference on ``(x, y, z)`` would tag the
+    whole database ``FUSELAGE``. :func:`sloads.mass_distribution.infer_component`
+    survives as a documented, deliberately conservative fallback for a file that
+    predates the field; every shipped fixture carries explicit tags.
+    """
+    WING = "wing"          # outboard wing panel + anything hung on it (engine, nacelle, wing fuel)
+    FUSELAGE = "fuselage"  # the Ch 15 longitudinal beam: structure, payload, systems, body fuel
+    HTAIL = "htail"        # horizontal tail
+    VTAIL = "vtail"        # vertical tail
+
+
 class VdBasis(str, Enum):
     """Which regulatory route sets the design dive speed VD (F25-2).
 
@@ -106,6 +135,7 @@ __all__ = [
     "RotorDirection",
     "EngineWeightType",
     "MassItemKind",
+    "MassComponent",
     "TailType",
     "VdBasis",
 ]

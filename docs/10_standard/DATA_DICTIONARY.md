@@ -2,7 +2,7 @@
 
 > **Generated file — do not edit by hand.** Produced by [`docs/generate_data_dict.py`](../generate_data_dict.py) from `sloads/models.py`. Regenerate after any schema change: `.venv/bin/python docs/generate_data_dict.py`.
 
-Schema version: **40**.
+Schema version: **41**.
 
 This dictionary covers the **input** slices of `Project` (`sloads/models.py`) — the fields that make up a `project.json`. The result slices (`envelope`, `mass`, `loads`) are computed outputs and are out of scope.
 
@@ -94,6 +94,7 @@ Geometry/aero inputs for SELECT's rational vertical-tail loads (Ch 9).
 - **`EngineLayout`** — `SINGLE_NOSE` = `'1N'`, `TWIN_WING` = `'2W'`, `QUAD_WING` = `'4W'`. Where the engines sit, constrained to the layouts the suite models.
 - **`EngineType`** — `RECIPROCATING` = `'R'`, `TURBOPROP` = `'T'`.
 - **`EngineWeightType`** — `RECIP_4CYCLE` = `'RF'`, `RECIP_2CYCLE` = `'RT'`, `TURBOCHARGED` = `'TC'`, `TURBOPROP` = `'TP'`, `LIQUID_COOLED` = `'LC'`. Engine family used by WTESTIMA's installed-weight correlation (WTESTIMA.BAS     lines 230-290): the two-letter codes of the original program.
+- **`MassComponent`** — `WING` = `'wing'`, `FUSELAGE` = `'fuselage'`, `HTAIL` = `'htail'`, `VTAIL` = `'vtail'`. Which structural component a mass item is carried by (plan 11 B-2, step B1).
 - **`MassItemKind`** — `EMPTY` = `'empty'`, `MINIMUM` = `'minimum'`, `DISCRETIONARY` = `'discretionary'`. Where a mass item sits in the loading hierarchy of WTONECG/WTENV.
 - **`RotorDirection`** — `CLOCKWISE` = `'CW'`, `COUNTERCLOCKWISE` = `'CC'`.
 - **`RotorType`** — `COMPRESSOR` = `'C'`, `TURBINE` = `'T'`.

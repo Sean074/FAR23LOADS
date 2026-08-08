@@ -156,6 +156,51 @@ def test_pre_f25_2_file_loses_its_stale_mach_limit_mc_md():
     assert not (names & {"mc", "md"}), "MC/MD are derived now, not stored"
 
 
+def test_a_pre_b1_file_keeps_its_hand_entered_fuselage_beam():
+    """Step B1 makes the fuselage station table *derived* from ``weight.items``,
+    but a file that already carries one carries somebody's modelling decision.
+
+    The hop marks it an explicit override, so migrating a project cannot silently
+    move its fuselage loads — on ga6 the derived beam is 3070 lb against the 2578
+    lb entered, a 19 % change to every body shear and bending moment. The gap is
+    reported instead (``mass_distribution.fuselage_reconciliation``), and adopting
+    the SSOT stays the user's call.
+    """
+    from sloads import mass_distribution as md
+
+    raw = _load("v40_fuselage_stations.json")
+    assert raw["fuselage_mass"]["stations"], "fixture no longer exercises the hop"
+    assert "stations_are_override" not in raw["fuselage_mass"]
+
+    project = io.load_project(
+        os.path.join(_FIXTURES, "v40_fuselage_stations.json"))
+    assert project.fuselage_mass.stations_are_override is True
+    beam = md.fuselage_beam_stations(project)
+    assert [s.x for s in beam] == [s.x for s in project.fuselage_mass.stations]
+    # ...and the difference from the SSOT is surfaced rather than swallowed.
+    check = md.fuselage_reconciliation(project)
+    assert check is not None and not check.ok
+
+
+def test_a_file_with_no_fuselage_mass_takes_the_derived_beam():
+    """Nothing to preserve means nothing to override: the hop leaves such a file
+    alone and it picks up the item-derived beam."""
+    raw = _load("v39_mach_limit_mc_md.json")
+    raw.pop("fuselage_mass", None)
+    out = migrate(raw)
+    assert "fuselage_mass" not in out
+
+
+def test_untagged_mass_items_are_not_migrated_to_a_component():
+    """``MassItem.component`` is optional and absent means *untagged* — a state
+    ``mass_distribution.infer_component`` handles by design. Writing a guessed tag
+    into the user's file would turn an inference into data."""
+    raw = _load("v40_fuselage_stations.json")
+    out = migrate(raw)
+    for item in out.get("weight", {}).get("items", []) or []:
+        assert item.get("component") is None
+
+
 def test_pre_f25_2_file_defaults_to_the_speed_ratio_dive_speed():
     """The Mach-margin route is opt-in: a pre-v40 file keeps the numbers it had.
 
@@ -175,7 +220,7 @@ def test_an_unknown_dive_speed_basis_is_refused():
     """Reading an unrecognised basis as 'speed_ratio' would silently reapply the
     1.25*VC floor to a project that asked for the margin route -- the F25-2 defect
     re-entering through the file path."""
-    raw = _load("v40_current.json")
+    raw = _load("v41_current.json")
     raw["speeds"]["vd_basis"] = "whatever_the_user_typed"
     with pytest.raises(ValueError):
         io.project_from_dict(raw)
@@ -192,7 +237,7 @@ def test_bare_engine_file_is_still_accepted():
 # The discriminator that replaced the 19-clause or-gate
 # --------------------------------------------------------------------------- #
 def test_project_and_engine_dicts_are_told_apart():
-    assert is_project_dict(_load("v40_current.json"))
+    assert is_project_dict(_load("v41_current.json"))
     assert not is_project_dict(_load("v0_bare_engine.json"))
 
 
@@ -228,13 +273,13 @@ def test_migrate_is_idempotent():
 
 def test_current_file_is_untouched_by_the_chain():
     """No hop may fire for a current-schema file — that is what version-gating buys."""
-    current = _load("v40_current.json")
+    current = _load("v41_current.json")
     assert migrate(current) == {**current, "schema_version": SCHEMA_VERSION}
 
 
 def test_a_newer_file_is_not_mangled_by_hops_that_do_not_apply():
     """Forward compatibility degrades to 'read what you understand'."""
-    future = _load("v40_current.json")
+    future = _load("v41_current.json")
     future["schema_version"] = SCHEMA_VERSION + 5
     out = migrate(future)
     assert out["schema_version"] == SCHEMA_VERSION + 5

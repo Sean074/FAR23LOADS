@@ -1,6 +1,7 @@
 {
   "schema_version": 41,
   "name": "GA 6-place single (Appendix A) \u2014 Continental IO-520-BB",
+  "unit_system": "si",
   "engines": [
     {
       "engine_designation": "CONTINENTAL IO-520-BB",
@@ -62,7 +63,7 @@
         "iyy": 133485,
         "izz": 4444110,
         "kind": "empty",
-        "component": "wing"
+        "component": "fuselage"
       },
       {
         "name": "Horiz tail",
@@ -74,7 +75,7 @@
         "iyy": 0.0,
         "izz": 0.0,
         "kind": "empty",
-        "component": "htail"
+        "component": "fuselage"
       },
       {
         "name": "Vert tail",
@@ -86,7 +87,7 @@
         "iyy": 0.0,
         "izz": 0.0,
         "kind": "empty",
-        "component": "vtail"
+        "component": "fuselage"
       },
       {
         "name": "Main gear wheel",
@@ -380,22 +381,6 @@
       }
     ]
   },
-  "mass": {
-    "cases": [
-      {
-        "name": "itemized loading",
-        "weight_lb": 3400.0,
-        "cg_x": 84.99947352941176,
-        "cg_y": 0.0,
-        "cg_z": 92.57893529411764,
-        "ixx": 5566065.777145765,
-        "iyy": 9534656.489103384,
-        "izz": 14002929.711957617,
-        "ixz": 622619.4856941764,
-        "gear_down": true
-      }
-    ]
-  },
   "geometry": {
     "surfaces": [
       {
@@ -425,7 +410,10 @@
           ]
         ],
         "symmetric": true,
-        "elements": 20
+        "elements": 20,
+        "ref_axis_pct": 0.25,
+        "front_spar_pct": null,
+        "rear_spar_pct": null
       },
       {
         "name": "aileron",
@@ -454,7 +442,10 @@
           ]
         ],
         "symmetric": false,
-        "elements": 20
+        "elements": 20,
+        "ref_axis_pct": 0.25,
+        "front_spar_pct": null,
+        "rear_spar_pct": null
       }
     ],
     "parametric": {
@@ -562,7 +553,17 @@
       "shoulder_altitude_ft": 12000,
       "max_operating_altitude_ft": 18000,
       "increment_ft": 1000
-    }
+    },
+    "no_yellow_arc": false,
+    "target_vne": null,
+    "target_vno": null,
+    "target_vmo": null,
+    "target_mmo": null,
+    "target_vfe": null,
+    "vd_basis": "speed_ratio",
+    "mach_margin_min": null,
+    "mach_margin_basis": null,
+    "vb_kt": null
   },
   "aero": {
     "surfaces": [
@@ -679,6 +680,22 @@
         "weight_lb": 2063,
         "xcg": 73.09,
         "zcg": 90.73001
+      }
+    ]
+  },
+  "mass": {
+    "cases": [
+      {
+        "name": "itemized loading",
+        "weight_lb": 3400.0,
+        "cg_x": 84.99947352941176,
+        "cg_y": 0.0,
+        "cg_z": 92.57893529411764,
+        "ixx": 5566065.777145765,
+        "iyy": 9534656.489103384,
+        "izz": 14002929.711957617,
+        "ixz": 622619.4856941764,
+        "gear_down": true
       }
     ]
   },

@@ -1,5 +1,5 @@
 {
-  "schema_version": 40,
+  "schema_version": 41,
   "name": "RJ-50 concept \u2014 50-seat regional jet (concept mode, Part 25)",
   "engines": [
     {
@@ -113,7 +113,8 @@
         "ixx": 0.0,
         "iyy": 0.0,
         "izz": 0.0,
-        "kind": "empty"
+        "kind": "empty",
+        "component": "wing"
       },
       {
         "name": "Fuselage structure",
@@ -124,7 +125,8 @@
         "ixx": 0.0,
         "iyy": 0.0,
         "izz": 0.0,
-        "kind": "empty"
+        "kind": "empty",
+        "component": "fuselage"
       },
       {
         "name": "Horiz tail",
@@ -135,7 +137,8 @@
         "ixx": 0.0,
         "iyy": 0.0,
         "izz": 0.0,
-        "kind": "empty"
+        "kind": "empty",
+        "component": "htail"
       },
       {
         "name": "Vert tail",
@@ -146,7 +149,8 @@
         "ixx": 0.0,
         "iyy": 0.0,
         "izz": 0.0,
-        "kind": "empty"
+        "kind": "empty",
+        "component": "vtail"
       },
       {
         "name": "Main gear",
@@ -157,7 +161,8 @@
         "ixx": 0.0,
         "iyy": 0.0,
         "izz": 0.0,
-        "kind": "empty"
+        "kind": "empty",
+        "component": "fuselage"
       },
       {
         "name": "Nose gear",
@@ -168,7 +173,8 @@
         "ixx": 0.0,
         "iyy": 0.0,
         "izz": 0.0,
-        "kind": "empty"
+        "kind": "empty",
+        "component": "fuselage"
       },
       {
         "name": "Engines installed (2)",
@@ -179,7 +185,8 @@
         "ixx": 0.0,
         "iyy": 0.0,
         "izz": 0.0,
-        "kind": "empty"
+        "kind": "empty",
+        "component": "fuselage"
       },
       {
         "name": "Systems + furnishings",
@@ -190,7 +197,8 @@
         "ixx": 0.0,
         "iyy": 0.0,
         "izz": 0.0,
-        "kind": "empty"
+        "kind": "empty",
+        "component": "fuselage"
       },
       {
         "name": "Crew (2)",
@@ -201,7 +209,8 @@
         "ixx": 0.0,
         "iyy": 0.0,
         "izz": 0.0,
-        "kind": "minimum"
+        "kind": "minimum",
+        "component": "fuselage"
       },
       {
         "name": "Reserve fuel",
@@ -212,7 +221,8 @@
         "ixx": 0.0,
         "iyy": 0.0,
         "izz": 0.0,
-        "kind": "minimum"
+        "kind": "minimum",
+        "component": "fuselage"
       },
       {
         "name": "Passengers (48)",
@@ -223,7 +233,8 @@
         "ixx": 0.0,
         "iyy": 0.0,
         "izz": 0.0,
-        "kind": "discretionary"
+        "kind": "discretionary",
+        "component": "fuselage"
       },
       {
         "name": "Baggage",
@@ -234,7 +245,8 @@
         "ixx": 0.0,
         "iyy": 0.0,
         "izz": 0.0,
-        "kind": "discretionary"
+        "kind": "discretionary",
+        "component": "fuselage"
       },
       {
         "name": "Mission fuel",
@@ -245,7 +257,8 @@
         "ixx": 0.0,
         "iyy": 0.0,
         "izz": 0.0,
-        "kind": "discretionary"
+        "kind": "discretionary",
+        "component": "fuselage"
       }
     ],
     "envelope": {
@@ -657,7 +670,8 @@
         "weight_lb": 1300.0
       }
     ],
-    "ref_waterline": 66.0
+    "ref_waterline": 66.0,
+    "stations_are_override": false
   },
   "select_input": {
     "full_down_aileron_deg": 15.0,

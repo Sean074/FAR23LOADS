@@ -898,12 +898,14 @@ def test_the_frozen_baseline_is_not_vacuous():
         assert any(c.startswith("csv/") for c in channels), example
 
     # Which examples reach the *solver* channel is pinned exactly, not merely
-    # "most of them": concept_heavy legitimately has none (its wing/body cases
-    # raise MissingInputError — no cl/v_eas_kt, no fuselage_mass), and an example
-    # silently dropping out of the sbeam set is exactly what a lenient assertion
-    # would hide.
+    # "most of them" — an example silently dropping out of the sbeam set is
+    # exactly what a lenient assertion would hide. Every example now reaches it:
+    # concept_heavy was the sole exception until step B1, because it carries no
+    # `fuselage_mass.stations` and the body module read nothing else. The beam is
+    # now derived from `weight.items` (the mass SSOT), so a project needs no
+    # hand-entered station table to have fuselage loads at all.
     with_sbeam = {e for e, ch in frozen.items() if any(c.startswith("sbeam/") for c in ch)}
-    assert with_sbeam == set(baseline.EXAMPLES) - {"concept_heavy.project.json"}, with_sbeam
+    assert with_sbeam == set(baseline.EXAMPLES), with_sbeam
 
 
 def test_a_bundle_states_exactly_one_system():

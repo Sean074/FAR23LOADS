@@ -35,6 +35,24 @@ file + symbol is the anchor.
 - **Reporting rules** (`SUMMARY_REPORT.md` §3.3): torsion always names its axis (wing
   LRA as %chord); moments state their sign convention; maxima carry a station;
   envelopes are two-sided.
+- **`weight.items` is the mass single source of truth (B-2, 2026-08-08).** One mass
+  model, owned by `sloads/mass_distribution.py`. `MassItem.component` tags which
+  structural component reacts each item's weight (`wing` / `fuselage` / `htail` /
+  `vtail`); the tag is **explicit**, because every item in every project sits at
+  `y = 0` (lumped airplane totals on the centreline) and no geometric inference can
+  separate a wing-mounted engine from a fuselage one. The Ch 15 fuselage beam is
+  *derived* from the tagged database; `fuselage_mass.stations` is an explicit
+  override, and the difference is always reported, never silently taken.
+- **The fuselage beam carries everything except the wing.** The empennage included
+  — it hangs off the aft fuselage, so that beam reacts its weight. The wing is the
+  one exclusion: it enters as the carry-through *reaction*, and applying it as mass
+  as well would count it twice (the seam rule below). Hence the invariant
+  `Σ(wing items) + Σ(beam stations) == Σ(all items) == W`, guarded by
+  `mass_distribution.partition_closes`.
+- **A load that a free-body cut introduces is never applied in the assembled model**
+  (plan 11 §4). Each per-component deck takes a cut and carries the cut reaction as
+  an applied load; those reactions must not reappear in an assembled deck, where the
+  solver recovers them.
 - **Per-component moment reference for an exported deck (E-2, 2026-08-08).** A deck's
   moment resultant is meaningless without the point it is about, and there is no single
   airplane-wide point every deck can use — the decks are per-component beam models, not

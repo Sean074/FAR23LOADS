@@ -1,5 +1,5 @@
 {
-  "schema_version": 40,
+  "schema_version": 41,
   "name": "Concept commuter twin (>12,500 lb, category C)",
   "weight": {
     "estimation": {
@@ -24,7 +24,8 @@
         "ixx": 0.0,
         "iyy": 0.0,
         "izz": 0.0,
-        "kind": "empty"
+        "kind": "empty",
+        "component": "wing"
       },
       {
         "name": "Fuselage structure",
@@ -35,7 +36,8 @@
         "ixx": 0.0,
         "iyy": 0.0,
         "izz": 0.0,
-        "kind": "empty"
+        "kind": "empty",
+        "component": "fuselage"
       },
       {
         "name": "Tail",
@@ -46,7 +48,8 @@
         "ixx": 0.0,
         "iyy": 0.0,
         "izz": 0.0,
-        "kind": "empty"
+        "kind": "empty",
+        "component": "htail"
       },
       {
         "name": "Landing gear",
@@ -57,7 +60,8 @@
         "ixx": 0.0,
         "iyy": 0.0,
         "izz": 0.0,
-        "kind": "empty"
+        "kind": "empty",
+        "component": "fuselage"
       },
       {
         "name": "Engines (2)",
@@ -68,7 +72,8 @@
         "ixx": 0.0,
         "iyy": 0.0,
         "izz": 0.0,
-        "kind": "empty"
+        "kind": "empty",
+        "component": "fuselage"
       },
       {
         "name": "Systems",
@@ -79,7 +84,8 @@
         "ixx": 0.0,
         "iyy": 0.0,
         "izz": 0.0,
-        "kind": "empty"
+        "kind": "empty",
+        "component": "fuselage"
       },
       {
         "name": "Furnishings",
@@ -90,7 +96,8 @@
         "ixx": 0.0,
         "iyy": 0.0,
         "izz": 0.0,
-        "kind": "empty"
+        "kind": "empty",
+        "component": "fuselage"
       },
       {
         "name": "Pilot",
@@ -101,7 +108,8 @@
         "ixx": 0.0,
         "iyy": 0.0,
         "izz": 0.0,
-        "kind": "minimum"
+        "kind": "minimum",
+        "component": "fuselage"
       },
       {
         "name": "Copilot",
@@ -112,7 +120,8 @@
         "ixx": 0.0,
         "iyy": 0.0,
         "izz": 0.0,
-        "kind": "minimum"
+        "kind": "minimum",
+        "component": "fuselage"
       },
       {
         "name": "Reserve fuel",
@@ -123,7 +132,8 @@
         "ixx": 0.0,
         "iyy": 0.0,
         "izz": 0.0,
-        "kind": "minimum"
+        "kind": "minimum",
+        "component": "fuselage"
       },
       {
         "name": "Passengers",
@@ -134,7 +144,8 @@
         "ixx": 0.0,
         "iyy": 0.0,
         "izz": 0.0,
-        "kind": "discretionary"
+        "kind": "discretionary",
+        "component": "fuselage"
       },
       {
         "name": "Baggage",
@@ -145,7 +156,8 @@
         "ixx": 0.0,
         "iyy": 0.0,
         "izz": 0.0,
-        "kind": "discretionary"
+        "kind": "discretionary",
+        "component": "fuselage"
       },
       {
         "name": "Fuel to gross",
@@ -156,7 +168,8 @@
         "ixx": 0.0,
         "iyy": 0.0,
         "izz": 0.0,
-        "kind": "discretionary"
+        "kind": "discretionary",
+        "component": "fuselage"
       }
     ],
     "cg_cases": [

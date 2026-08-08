@@ -500,15 +500,21 @@ def test_every_example_has_decks():
 
     Order is ``(wing, body, tail, control)``. The reference aircraft carry no
     ``aileron_loads`` / ``flap_loads`` / ``tab_loads`` input slices, so they have
-    no control-surface deck; ``concept_heavy`` additionally carries no
-    ``fuselage_mass`` stations and no tail slice. ``ga6_normal``,
-    ``cessna_210`` and ``concept_regional_jet`` export all four families.
+    no control-surface deck; ``concept_heavy`` additionally has no tail slice.
+    ``ga6_normal``, ``cessna_210`` and ``concept_regional_jet`` export all four
+    families.
+
+    ``concept_heavy`` **gained a body deck at step B1**: it carries no
+    ``fuselage_mass.stations`` at all, and was the one fixture with no fuselage
+    loads for that reason. The beam is now derived from ``weight.items`` (the
+    mass SSOT), so a project needs no hand-entered station table to have a
+    fuselage.
     """
     coverage = {ex: tuple(bool(c) for c in _cached(ex)) for ex in EXAMPLES}
     assert coverage == {
         "atr42_100.project.json": (True, True, True, False),
         "cessna_210.project.json": (True, True, True, True),
-        "concept_heavy.project.json": (True, False, False, False),
+        "concept_heavy.project.json": (True, True, False, False),
         "concept_regional_jet.project.json": (True, True, True, True),
         "dhc8_dash8.project.json": (True, True, True, False),
         "ga6_normal.project.json": (True, True, True, True),

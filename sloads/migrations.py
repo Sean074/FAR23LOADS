@@ -333,6 +333,37 @@ def _v39_mach_limit_mc_md(d: Dict[str, Any]) -> Dict[str, Any]:
     return d
 
 
+def _v40_fuselage_stations_override(d: Dict[str, Any]) -> Dict[str, Any]:
+    """Keep a pre-B1 file's hand-entered fuselage beam (step B1).
+
+    B1 makes ``weight.items`` the mass SSOT and *derives* the Ch 15 station table
+    from it (:func:`sloads.mass_distribution.fuselage_beam_stations`), because the
+    two models had never been compared and the entered table was short by 10-100 %
+    of the beam on every shipped fixture. Derived is the new default.
+
+    A file that already carries a station table, however, carries somebody's
+    modelling decision, and silently switching their fuselage loads on load is not
+    ours to do -- the numbers would move without anybody asking. So a migrated
+    file keeps its table by being marked an **explicit override**; the difference
+    against the derived distribution is reported by
+    ``mass_distribution.fuselage_reconciliation`` (surfaced on the Fuselage Loads
+    page), and adopting the SSOT is then the user's decision, taken with the gap
+    in front of them.
+
+    Files with no ``fuselage_mass`` at all are untouched: there is nothing to
+    preserve, and they get the derived table.
+
+    ``MassItem.component`` needs no hop -- it is an optional field, absent means
+    "not tagged", and ``mass_distribution.infer_component`` handles the untagged
+    case by design.
+    """
+    fm = d.get("fuselage_mass")
+    if isinstance(fm, dict) and fm.get("stations"):
+        fm.setdefault("stations_are_override", True)
+    return d
+
+
+
 # --------------------------------------------------------------------------- #
 # The chain
 # --------------------------------------------------------------------------- #
@@ -348,6 +379,7 @@ MIGRATIONS: Dict[int, Callable[[Dict[str, Any]], Dict[str, Any]]] = {
     28: _v28_landing_gear,
     36: _v36_load_value_keys,
     39: _v39_mach_limit_mc_md,
+    40: _v40_fuselage_stations_override,
 }
 
 #: The oldest project version whose *shape* is described by a hop. Below this a

@@ -142,6 +142,27 @@ and their sources (`tests/test_concept_closure.py`):
 | Control surfaces | each `build_*` critical load matches its `run` analysis report (`lb`-unit `LoadValue`) | AILERON/FLAPLOAD/TABLOADS build↔run |
 | All (export) | every component's nodal FORCE set — and its re-parsed cards — sums to that component's root/total at ULTIMATE (`limit × that case's safety_factor`, default 1.5; the factor is uniform within a case, so closure is scale-invariant — defect M4-7) | `export/sbeam_bridge` increment construction + `_sf()` |
 
+### The mass model as a closure gate (step B1, 2026-08-08)
+
+The Ch 15 fuselage beam has no printed oracle (Ref 1 ships no program for it), and
+its *input* — the longitudinal mass distribution — had none either: it was a
+hand-entered lump table that nothing checked. Step B1 makes
+`weight.items` the single source and gates the beam on reconciliation identities
+instead (`sloads/mass_distribution.py`, `tests/test_mass_distribution.py`):
+
+| Identity | What it locks |
+|---|---|
+| `Σ(wing items) + Σ(beam stations) == Σ(all items) == W` | The partition is complete: no item lost between the two distributions, none counted twice |
+| `Σ(items tagged wing) == 2 × (panel_weight_lb + Σ concentrated)` | The itemized wing and WINGINER's spanwise model describe one wing. Both WINGINER terms are per **side**, so the airplane carries twice their sum |
+| entered `fuselage_mass.stations` vs the derived table | Reported, never silently taken — the two disagreed by 10–100 % of the beam on every shipped fixture |
+
+The beam carries the empennage (it hangs off the aft fuselage) and excludes the
+wing (which enters as the Ch 15 p103 carry-through reaction — applying it as mass
+too would double it). The free-free closure the beam already satisfied
+(`ΣFz = 0`, terminal `Myy = 0`) is unchanged by all of this: it held on the light
+beam and holds on the correct one, which is precisely why it could not have caught
+the missing mass.
+
 ### The export-boundary closure gate (step 1, 2026-08-08)
 
 The identities above are evaluated on in-memory results. Because concept mode has

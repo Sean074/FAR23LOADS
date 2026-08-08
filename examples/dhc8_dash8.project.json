@@ -1,5 +1,5 @@
 {
-  "schema_version": 40,
+  "schema_version": 41,
   "name": "de Havilland Canada DHC-8-100 Dash 8 \u2014 2x PW121 (concept, category C)",
   "engines": [
     {
@@ -113,7 +113,8 @@
         "ixx": 0.0,
         "iyy": 0.0,
         "izz": 0.0,
-        "kind": "empty"
+        "kind": "empty",
+        "component": "wing"
       },
       {
         "name": "Fuselage structure",
@@ -124,7 +125,8 @@
         "ixx": 0.0,
         "iyy": 0.0,
         "izz": 0.0,
-        "kind": "empty"
+        "kind": "empty",
+        "component": "fuselage"
       },
       {
         "name": "Horiz tail",
@@ -135,7 +137,8 @@
         "ixx": 0.0,
         "iyy": 0.0,
         "izz": 0.0,
-        "kind": "empty"
+        "kind": "empty",
+        "component": "htail"
       },
       {
         "name": "Vert tail",
@@ -146,7 +149,8 @@
         "ixx": 0.0,
         "iyy": 0.0,
         "izz": 0.0,
-        "kind": "empty"
+        "kind": "empty",
+        "component": "vtail"
       },
       {
         "name": "Main gear",
@@ -157,7 +161,8 @@
         "ixx": 0.0,
         "iyy": 0.0,
         "izz": 0.0,
-        "kind": "empty"
+        "kind": "empty",
+        "component": "fuselage"
       },
       {
         "name": "Nose gear",
@@ -168,7 +173,8 @@
         "ixx": 0.0,
         "iyy": 0.0,
         "izz": 0.0,
-        "kind": "empty"
+        "kind": "empty",
+        "component": "fuselage"
       },
       {
         "name": "Engines (2)",
@@ -179,7 +185,8 @@
         "ixx": 0.0,
         "iyy": 0.0,
         "izz": 0.0,
-        "kind": "empty"
+        "kind": "empty",
+        "component": "wing"
       },
       {
         "name": "Propellers (2)",
@@ -190,7 +197,8 @@
         "ixx": 0.0,
         "iyy": 0.0,
         "izz": 0.0,
-        "kind": "empty"
+        "kind": "empty",
+        "component": "fuselage"
       },
       {
         "name": "Nacelles (2)",
@@ -201,7 +209,8 @@
         "ixx": 0.0,
         "iyy": 0.0,
         "izz": 0.0,
-        "kind": "empty"
+        "kind": "empty",
+        "component": "wing"
       },
       {
         "name": "Systems",
@@ -212,7 +221,8 @@
         "ixx": 0.0,
         "iyy": 0.0,
         "izz": 0.0,
-        "kind": "empty"
+        "kind": "empty",
+        "component": "fuselage"
       },
       {
         "name": "Furnishings",
@@ -223,7 +233,8 @@
         "ixx": 0.0,
         "iyy": 0.0,
         "izz": 0.0,
-        "kind": "empty"
+        "kind": "empty",
+        "component": "fuselage"
       },
       {
         "name": "Avionics",
@@ -234,7 +245,8 @@
         "ixx": 0.0,
         "iyy": 0.0,
         "izz": 0.0,
-        "kind": "empty"
+        "kind": "empty",
+        "component": "fuselage"
       },
       {
         "name": "APU",
@@ -245,7 +257,8 @@
         "ixx": 0.0,
         "iyy": 0.0,
         "izz": 0.0,
-        "kind": "empty"
+        "kind": "empty",
+        "component": "fuselage"
       },
       {
         "name": "Air conditioning / pressurization",
@@ -256,7 +269,8 @@
         "ixx": 0.0,
         "iyy": 0.0,
         "izz": 0.0,
-        "kind": "empty"
+        "kind": "empty",
+        "component": "fuselage"
       },
       {
         "name": "Unusable fuel",
@@ -267,7 +281,8 @@
         "ixx": 0.0,
         "iyy": 0.0,
         "izz": 0.0,
-        "kind": "empty"
+        "kind": "empty",
+        "component": "fuselage"
       },
       {
         "name": "Captain + First officer",
@@ -278,7 +293,8 @@
         "ixx": 0.0,
         "iyy": 0.0,
         "izz": 0.0,
-        "kind": "minimum"
+        "kind": "minimum",
+        "component": "fuselage"
       },
       {
         "name": "Reserve fuel",
@@ -289,7 +305,8 @@
         "ixx": 0.0,
         "iyy": 0.0,
         "izz": 0.0,
-        "kind": "minimum"
+        "kind": "minimum",
+        "component": "fuselage"
       },
       {
         "name": "Passengers (37)",
@@ -300,7 +317,8 @@
         "ixx": 0.0,
         "iyy": 0.0,
         "izz": 0.0,
-        "kind": "discretionary"
+        "kind": "discretionary",
+        "component": "fuselage"
       },
       {
         "name": "Baggage / cargo",
@@ -311,7 +329,8 @@
         "ixx": 0.0,
         "iyy": 0.0,
         "izz": 0.0,
-        "kind": "discretionary"
+        "kind": "discretionary",
+        "component": "fuselage"
       },
       {
         "name": "Fuel to gross",
@@ -322,7 +341,8 @@
         "ixx": 0.0,
         "iyy": 0.0,
         "izz": 0.0,
-        "kind": "discretionary"
+        "kind": "discretionary",
+        "component": "fuselage"
       }
     ],
     "envelope": {
@@ -683,7 +703,8 @@
         "weight_lb": 700
       }
     ],
-    "ref_waterline": 100.0
+    "ref_waterline": 100.0,
+    "stations_are_override": false
   },
   "select_input": {
     "full_down_aileron_deg": 15.0,

@@ -138,7 +138,7 @@ def fields_hash() -> str:
 #: with a default does not (the tolerant readers handle it); a renamed, removed or
 #: relocated field does. If it does: bump ``SCHEMA_VERSION`` and add a hop to
 #: ``sloads.migrations.MIGRATIONS``. Then update this constant.
-EXPECTED_FIELDS_HASH = "56bfd25ca407da46"  # v40: speeds.vd_basis +3, MachLimitInput.mc/md removed (F25-2)
+EXPECTED_FIELDS_HASH = "2aaae842078971d7"  # v41: MassItem.component + FuselageMassInput.stations_are_override (B1)
 
 
 def test_persisted_dataclass_shapes_are_unchanged():

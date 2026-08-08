@@ -10,6 +10,7 @@ from dataclasses import dataclass, field
 from typing import List, Optional, Tuple
 
 from .enums import (
+    MassComponent,
     EngineType,
     EngineWeightType,
     MassItemKind,
@@ -118,6 +119,16 @@ class MassItem:
     (all inches). ``ixx``/``iyy``/``izz`` are the item's *own* moments of inertia
     about its CG in **lb-in^2** (the units the original data base stores), added
     to the parallel-axis transfer in WTONECG; leave them 0 for a point mass.
+
+    ``component`` (step B1) tags which structural component carries the item —
+    the partition :mod:`sloads.mass_distribution` needs to turn this database
+    into per-component station inertia. ``kind`` and ``component`` are
+    orthogonal: ``kind`` says *when* the item is aboard, ``component`` says
+    *where its weight is reacted*. ``None`` means "not tagged" and the
+    distribution falls back to
+    :func:`sloads.mass_distribution.infer_component`; see
+    :class:`~sloads.models.enums.MassComponent` for why the tag is explicit
+    rather than inferred by default.
     """
     name: str
     weight_lb: float
@@ -128,6 +139,7 @@ class MassItem:
     iyy: float = 0.0
     izz: float = 0.0
     kind: MassItemKind = MassItemKind.EMPTY
+    component: Optional[MassComponent] = None
 
 
 @dataclass
@@ -754,9 +766,21 @@ class FuselageMassInput:
     A modern default (lumped per-station masses) with no manual precedent, fully
     user-overridable -- mirrors the C3 ``WingMassInput`` modelling note (a documented
     default that the user can override).
+
+    **Since step B1 the station table is derived, not entered, by default.**
+    :func:`sloads.mass_distribution.fuselage_beam_stations` builds it from the
+    itemized ``weight.items`` data base -- the mass SSOT (plan 11 decision B-2) --
+    so the beam cannot silently carry less mass than the airplane weighs; the
+    shipped fixtures were short by 430 to 16,200 lb before this. ``stations``
+    survives as an **explicit** override, taken only when
+    ``stations_are_override`` is set, and
+    :func:`sloads.mass_distribution.fuselage_reconciliation` reports the
+    difference either way. A stale table therefore cannot outrank the SSOT by
+    accident, and a deliberate one still can.
     """
     stations: List[FuselageStation] = field(default_factory=list)
     ref_waterline: float = 0.0
+    stations_are_override: bool = False
 
 
 # --------------------------------------------------------------------------- #

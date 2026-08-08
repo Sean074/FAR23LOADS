@@ -1,5 +1,5 @@
 {
-  "schema_version": 40,
+  "schema_version": 41,
   "name": "Cessna 210 Centurion \u2014 Continental IO-520-A",
   "engines": [
     {
@@ -61,7 +61,8 @@
         "ixx": 4600000,
         "iyy": 140000,
         "izz": 4600000,
-        "kind": "empty"
+        "kind": "empty",
+        "component": "wing"
       },
       {
         "name": "Horiz tail",
@@ -72,7 +73,8 @@
         "ixx": 0.0,
         "iyy": 0.0,
         "izz": 0.0,
-        "kind": "empty"
+        "kind": "empty",
+        "component": "htail"
       },
       {
         "name": "Vert tail",
@@ -83,7 +85,8 @@
         "ixx": 0.0,
         "iyy": 0.0,
         "izz": 0.0,
-        "kind": "empty"
+        "kind": "empty",
+        "component": "vtail"
       },
       {
         "name": "Main gear wheels",
@@ -94,7 +97,8 @@
         "ixx": 0.0,
         "iyy": 0.0,
         "izz": 0.0,
-        "kind": "empty"
+        "kind": "empty",
+        "component": "fuselage"
       },
       {
         "name": "Main gear structure",
@@ -105,7 +109,8 @@
         "ixx": 0.0,
         "iyy": 0.0,
         "izz": 0.0,
-        "kind": "empty"
+        "kind": "empty",
+        "component": "fuselage"
       },
       {
         "name": "Nose gear wheel",
@@ -116,7 +121,8 @@
         "ixx": 0.0,
         "iyy": 0.0,
         "izz": 0.0,
-        "kind": "empty"
+        "kind": "empty",
+        "component": "fuselage"
       },
       {
         "name": "Nose gear structure",
@@ -127,7 +133,8 @@
         "ixx": 0.0,
         "iyy": 0.0,
         "izz": 0.0,
-        "kind": "empty"
+        "kind": "empty",
+        "component": "fuselage"
       },
       {
         "name": "Flight controls",
@@ -138,7 +145,8 @@
         "ixx": 0.0,
         "iyy": 0.0,
         "izz": 0.0,
-        "kind": "empty"
+        "kind": "empty",
+        "component": "fuselage"
       },
       {
         "name": "Nacelle / cowl",
@@ -149,7 +157,8 @@
         "ixx": 0.0,
         "iyy": 0.0,
         "izz": 0.0,
-        "kind": "empty"
+        "kind": "empty",
+        "component": "fuselage"
       },
       {
         "name": "Engine install",
@@ -160,7 +169,8 @@
         "ixx": 52604,
         "iyy": 81473,
         "izz": 81473,
-        "kind": "empty"
+        "kind": "empty",
+        "component": "fuselage"
       },
       {
         "name": "Propeller",
@@ -171,7 +181,8 @@
         "ixx": 0.0,
         "iyy": 0.0,
         "izz": 0.0,
-        "kind": "empty"
+        "kind": "empty",
+        "component": "fuselage"
       },
       {
         "name": "Systems",
@@ -182,7 +193,8 @@
         "ixx": 0.0,
         "iyy": 0.0,
         "izz": 0.0,
-        "kind": "empty"
+        "kind": "empty",
+        "component": "fuselage"
       },
       {
         "name": "Avionics",
@@ -193,7 +205,8 @@
         "ixx": 0.0,
         "iyy": 0.0,
         "izz": 0.0,
-        "kind": "empty"
+        "kind": "empty",
+        "component": "fuselage"
       },
       {
         "name": "Electrical",
@@ -204,7 +217,8 @@
         "ixx": 0.0,
         "iyy": 0.0,
         "izz": 0.0,
-        "kind": "empty"
+        "kind": "empty",
+        "component": "fuselage"
       },
       {
         "name": "Furnishings",
@@ -215,7 +229,8 @@
         "ixx": 0.0,
         "iyy": 0.0,
         "izz": 0.0,
-        "kind": "empty"
+        "kind": "empty",
+        "component": "fuselage"
       },
       {
         "name": "Unusable fuel",
@@ -226,7 +241,8 @@
         "ixx": 0.0,
         "iyy": 0.0,
         "izz": 0.0,
-        "kind": "empty"
+        "kind": "empty",
+        "component": "fuselage"
       },
       {
         "name": "Fuselage structure",
@@ -237,7 +253,8 @@
         "ixx": 0.0,
         "iyy": 1250000,
         "izz": 1250000,
-        "kind": "empty"
+        "kind": "empty",
+        "component": "fuselage"
       },
       {
         "name": "Pilot",
@@ -248,7 +265,8 @@
         "ixx": 28730,
         "iyy": 24480,
         "izz": 4250,
-        "kind": "minimum"
+        "kind": "minimum",
+        "component": "fuselage"
       },
       {
         "name": "30 min fuel",
@@ -259,7 +277,8 @@
         "ixx": 0.0,
         "iyy": 0.0,
         "izz": 0.0,
-        "kind": "minimum"
+        "kind": "minimum",
+        "component": "fuselage"
       },
       {
         "name": "Copilot",
@@ -270,7 +289,8 @@
         "ixx": 28730,
         "iyy": 24480,
         "izz": 4250,
-        "kind": "discretionary"
+        "kind": "discretionary",
+        "component": "fuselage"
       },
       {
         "name": "3rd person",
@@ -281,7 +301,8 @@
         "ixx": 28730,
         "iyy": 24480,
         "izz": 4250,
-        "kind": "discretionary"
+        "kind": "discretionary",
+        "component": "fuselage"
       },
       {
         "name": "4th person",
@@ -292,7 +313,8 @@
         "ixx": 28730,
         "iyy": 24480,
         "izz": 4250,
-        "kind": "discretionary"
+        "kind": "discretionary",
+        "component": "fuselage"
       },
       {
         "name": "5th person",
@@ -303,7 +325,8 @@
         "ixx": 28730,
         "iyy": 24480,
         "izz": 4250,
-        "kind": "discretionary"
+        "kind": "discretionary",
+        "component": "fuselage"
       },
       {
         "name": "6th person",
@@ -314,7 +337,8 @@
         "ixx": 28730,
         "iyy": 24480,
         "izz": 4250,
-        "kind": "discretionary"
+        "kind": "discretionary",
+        "component": "fuselage"
       },
       {
         "name": "Baggage",
@@ -325,7 +349,8 @@
         "ixx": 0.0,
         "iyy": 0.0,
         "izz": 0.0,
-        "kind": "discretionary"
+        "kind": "discretionary",
+        "component": "fuselage"
       },
       {
         "name": "Fuel to gross wt",
@@ -336,7 +361,8 @@
         "ixx": 0.0,
         "iyy": 0.0,
         "izz": 0.0,
-        "kind": "discretionary"
+        "kind": "discretionary",
+        "component": "fuselage"
       }
     ],
     "envelope": {
@@ -720,7 +746,8 @@
         "weight_lb": 70
       }
     ],
-    "ref_waterline": 60.0
+    "ref_waterline": 60.0,
+    "stations_are_override": false
   },
   "select_input": {
     "full_down_aileron_deg": 15.0,

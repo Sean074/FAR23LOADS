@@ -69,6 +69,7 @@ from ..models import (
     VnPoint,
 )
 from ..derived_geometry import CarryThrough, carry_through, sync_geometry_derived
+from ..mass_distribution import fuselage_beam_stations
 from ..registry import register
 from .flight_envelope import build_envelope
 from .select import _stamp_case_refs, select_fuselage
@@ -233,14 +234,18 @@ def _critical_fuselage(project: Project) -> List[CriticalCondition]:
 def build_body_loads(project: Project) -> List[BodyLoadResult]:
     """Net fuselage load distribution for each critical fuselage condition."""
     sync_geometry_derived(project)
-    fm = project.fuselage_mass
     fl = project.flight_loads
-    if fm is None or not fm.stations or fl is None:
+    # The station table is the mass SSOT's (step B1): derived from ``weight.items``
+    # unless the project explicitly overrides it. Before B1 this read
+    # ``fuselage_mass.stations`` directly, and every fixture's beam carried less
+    # mass than the airplane weighed -- see :mod:`sloads.mass_distribution`.
+    beam = fuselage_beam_stations(project)
+    if not beam or fl is None:
         raise MissingInputError("body_loads needs 'fuselage_mass' stations and 'flight_loads'")
     vn: Dict[int, VnPoint] = {p.case: p for p in build_envelope(project).vn}
-    stations = [(s.x, s.weight_lb) for s in fm.stations]
+    stations = [(s.x, s.weight_lb) for s in beam]
     wing_x = fl.xw
-    tail_x = _tail_station(project, max(s.x for s in fm.stations))
+    tail_x = _tail_station(project, max(s.x for s in beam))
     carry = carry_through(project)                  # None -> flagged fallback
 
     results: List[BodyLoadResult] = []

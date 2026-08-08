@@ -67,6 +67,7 @@ from .models import (
     LoadValue,
     MachLimitInput,
     MassCase,
+    MassComponent,
     MassItem,
     MassItemKind,
     MassResult,
@@ -183,7 +184,12 @@ def engine_to_dict(inp: EngineInput) -> Dict[str, Any]:
 def _mass_item_from_dict(d: Dict[str, Any]) -> MassItem:
     d = dict(d)
     kind = MassItemKind(d.pop("kind", "empty"))
-    return MassItem(kind=kind, **_filtered(MassItem, d))
+    raw = d.pop("component", None)
+    # ``None``/absent stays ``None`` -- "not tagged" is a distinct state from any
+    # component, and it is what routes the item through
+    # ``mass_distribution.infer_component`` rather than silently taking a default.
+    component = MassComponent(raw) if raw else None
+    return MassItem(kind=kind, component=component, **_filtered(MassItem, d))
 
 
 def weight_from_dict(d: Dict[str, Any]) -> WeightInput:
@@ -211,7 +217,11 @@ def weight_to_dict(inp: WeightInput) -> Dict[str, Any]:
         est = asdict(inp.estimation)
         est["engine_weight_type"] = inp.estimation.engine_weight_type.value
         out["estimation"] = est
-    out["items"] = [{**asdict(it), "kind": it.kind.value} for it in inp.items]
+    out["items"] = [
+        {**asdict(it), "kind": it.kind.value,
+         "component": it.component.value if it.component else None}
+        for it in inp.items
+    ]
     if inp.envelope is not None:
         out["envelope"] = asdict(inp.envelope)
     if inp.cg_cases:
@@ -673,6 +683,7 @@ def fuselage_mass_from_dict(d: Dict[str, Any]) -> FuselageMassInput:
         stations=[FuselageStation(**_filtered(FuselageStation, s))
                   for s in d.get("stations", []) or []],
         ref_waterline=d.get("ref_waterline", 0.0),
+        stations_are_override=bool(d.get("stations_are_override", False)),
     )
 
 

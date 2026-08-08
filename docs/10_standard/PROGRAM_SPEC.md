@@ -536,6 +536,14 @@ return strings (with thin `write_*` file wrappers), and do no physics.
   carrying concentrated masses**, where the point mass lands entirely at the
   outermost station inboard of it and the exported bending runs ~0.4–1.9 % high
   (open item, filed on the backlog; shear is unaffected).
+- **Fuselage beam mass (step B1, 2026-08-08).** `body_loads` integrates the station
+  table from `mass_distribution.fuselage_beam_stations`, **derived** from the
+  component-tagged `weight.items` database — not `fuselage_mass.stations`, which is
+  now an explicit override (`stations_are_override`). The beam carries every item
+  not tagged `wing`, the empennage included; the wing enters as the carry-through
+  reaction. A project therefore needs no hand-entered station table to have
+  fuselage loads at all. See `CONVENTIONS.md` §1 and
+  `docs/20_theory/00_theory_sources.md`.
 - **`GRID` cards and the stated closure (step 1, 2026-08-08).** Every deck states
   the closure it satisfies in its `$` header and carries the geometry to verify
   it:
