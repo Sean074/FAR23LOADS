@@ -143,6 +143,21 @@ assembled combined-airframe export. Granularity per **D-7**: load-cards-only
 default; assembled stick model opt-in behind a flag. **Note (2026-08-05):** the
 load-application-axis question below should be answered before or with this item.
 
+### [E] Distributed empennage loads → sbeam export *(new 2026-08-08, user)*
+Give the h-tail and v-tail the wing's deliverable: per-station distributed
+ULTIMATE loads on a user-defined LRA, exported as `GRID`+`FORCE`+`MOMENT` cards
+with deck-derived force **and** moment closure. Reuses `SurfaceInput` planforms
+(`geometry.surfaces` gains `"htail"`/`"vtail"`), chord-proportional spanwise
+shape, uniform-area tail mass for inertia, user-set reporting-station count;
+control-surface load smeared first, discrete hinge/actuator option second;
+T-tail transfers the concurrent h-tail balancing + inertia loads to the fin
+tip. Chordwise TAILDIST and all Appendix-A oracles unchanged. Full design note
+and step sequence (T1–T8):
+[`09_distributed_empennage_loads_plan.md`](09_distributed_empennage_loads_plan.md).
+Subsumes M4-3(a) (v-tail geometry provenance) at its T1 step. Effort: L,
+phased. Pairs with the equilibrium-invariant item (its checker gates the new
+decks).
+
 ---
 
 # Valuable (opportunistic — small, independent, or paired with a mission item)

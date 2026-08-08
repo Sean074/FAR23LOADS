@@ -1,0 +1,256 @@
+# Design note — Distributed empennage loads → sbeam FORCE/MOMENT export
+
+**Status:** assessment + step-by-step development guide; decisions T-1…T-7 taken
+2026-08-08 (user). Not yet implemented. **Closure tier: L** (new physics, new
+result slices, schema/contract change — full trail per the CLAUDE.md tier table).
+
+Conventions cited throughout:
+[`../10_standard/CONVENTIONS.md`](../10_standard/CONVENTIONS.md) (§1 axes/signs,
+§2 units channels, §3 LIMIT→ULTIMATE contract, §4 case identity, §6 rule R10
+benchmark-first, §7 single-source owners). Deck contract:
+[`../10_standard/PROGRAM_SPEC.md`](../10_standard/PROGRAM_SPEC.md) sbeam-bridge
+section. Sibling design note this plan extends:
+[`07_export_equilibrium_invariant_plan.md`](07_export_equilibrium_invariant_plan.md)
+(the spanwise tail decks must satisfy the same §4 invariant table on day one).
+
+---
+
+## 1. Objective
+
+Give the empennage the same deliverable the wing already has: per-station
+distributed ULTIMATE loads on a user-defined load reference axis (LRA), exported
+as `GRID` + `FORCE` + `MOMENT` bulk-data cards that close in force **and**
+moment from their own card text.
+
+Today the tail path stops short of that in every dimension:
+
+| Capability | Wing today | Empennage today |
+|---|---|---|
+| Planform geometry (LE/TE lines, taper, sweep) | `SurfaceInput` polylines | none — scalar areas/spans only (`TailLoadsInput`, `VTailLoadsInput`) |
+| Spanwise distribution | Schrenk / AIRLOAD4 strips (`airloads.py`) | **none** — `taildist.py` is chordwise-only, on the average chord |
+| Station count | user-set `SurfaceInput.elements` | fixed 5 chordwise pressure stations |
+| LRA | `SurfaceInput.ref_axis_pct`, transfer at export boundary (`net_loads.to_loads_ref_axis`) | no LRA concept |
+| Surface mass / inertia relief | `WingMassInput` + `wing_inertia.py` | no tail mass slice; empennage mass implicit in aft fuselage stations |
+| Deck | `GRID`+`FORCE`+`MOMENT`, root-clamped stick model | `FORCE` cards only, **no `GRID`, no `MOMENT`** (gap G3 of plan 07) |
+| Control-surface load path | aileron/flap simplified distributions | areas only; no hinge line station, no actuator, no hinge-moment output |
+| T-tail | — | `TailType.T_TAIL` exists but drives **only the three-view sketch** (`configuration.py`); no load-path consequence |
+
+The chordwise TAILDIST path and the SELECT totals (`LT25`/`LT50`, v-tail side
+loads) are Appendix-A oracle-locked and are **inputs to** this feature, never
+modified by it.
+
+## 2. Decisions of record (user, 2026-08-08)
+
+| # | Decision | Rationale |
+|---|---|---|
+| T-1 | **Geometry: reuse `SurfaceInput`.** `"htail"` and `"vtail"` become entries in `geometry.surfaces` — same LE/TE polylines, `elements` (the user-set load-reporting station count), `ref_axis_pct` (the LRA) as the wing | Maximum pipeline reuse: the strip integrator, LRA transfer, and §7 drift guards work unchanged; the existing scalar areas/spans become validated derived quantities |
+| T-2 | **Spanwise shape: proportional to local chord** for both the `LT25` (α) and `LT50` (camber/control) parts, and for the v-tail side load | Simple, one integrator, conservative-ish inboard; no Schrenk machinery needed on the tail. Chordwise placement stays exactly TAILDIST's: `LT25` acts at 25 % chord, `LT50` at 50 % chord — so strip torsion about the LRA is closed-form (§5, step T2) |
+| T-3 | **Mass: evenly distributed** — uniform area density over the defined planform, total from a new per-surface tail mass input; inertia load per case = load factor × distributed weight, opposing the air load (wing sign convention) | User requirement ("evenly distributed into the defined geometry"). Deliberately simpler than the wing's tapered-density model; upgrade path noted in §8 |
+| T-4 | **Control surfaces: both options, distributed first.** Phase 1 ships option 2 (control-surface load smeared into the parent-surface distribution — no new geometry). Phase 2 ships option 1 (user defines hinge + actuator spanwise locations; control load enters the parent surface as discrete point loads at those stations). A per-project mode setting selects | Phase 1 needs zero new geometry and unblocks the deck; phase 2 is the structurally correct localization and needs the hinge/actuator schema |
+| T-5 | **T-tail: concurrent balancing + inertia.** For each vertical-tail case, the horizontal-tail loads concurrent with that flight condition — the balancing tail load `LT` at that case's speed/`n` (from `flight_envelope`/`envelope.vn`) plus h-tail mass inertia — are transferred to the fin-tip station as force + moment cards | Rational pairing, one deck per VT case; the conservative superposed-critical-HT pairing is recorded in §8 as a possible later policy option |
+| T-6 | **Stations:** load reporting stations = `SurfaceInput.elements` mid-strip stations (uniform strips, root→tip), exactly the wing pattern; user-set, validated ≥ 2 | User requirement; identical semantics to the wing keeps `interp_x`/tributary logic shared |
+| T-7 | **Oracle lock:** `taildist.py` chordwise pressures, `select.py` totals, and every Appendix-A figure are unchanged; the spanwise path is a pure consumer of their outputs (concept-mode superset rule, plan 01 §1) | CLAUDE.md invariant |
+
+**Axes note (CONVENTIONS §1, becomes a convention at closure):** the h-tail maps
+exactly like the wing (span along `y`, air load `fz`, torsion `myy` about the
+LRA). The **v-tail spans along `z` and its air load is the side force `fy`**;
+strip math runs in a local (span, chord) frame identical to the wing's, and the
+local→airplane mapping (span→`z`, normal-force→`fy`, torsion about the LRA →
+`myy`… ) is owned by `export/coordinates.py` — the §7 single edit point — with a
+drift-guard test, never hand-mapped per call site.
+
+## 3. Schema additions (one `SCHEMA_VERSION` bump for the phase-1 set)
+
+All round-trip through `io.py`; older files still load (absent slices → feature
+off); `DATA_DICTIONARY.md` regenerated via its generator.
+
+1. **`geometry.surfaces` gains `"htail"` / `"vtail"` `SurfaceInput` entries**
+   (T-1). Validation: when present alongside the scalar slices, planform area
+   must agree with `htail_area_sqft` / `vtail_area_sqft` and span with
+   `htail_semispan_in` / `vtail_span_in` within 1 % — a loud `ValueError`, not a
+   silent preference. The scalars stay authoritative for the oracle-locked
+   modules; the polylines are authoritative for strips.
+2. **`TailMassInput`** (one per surface, mirroring `WingMassInput`'s position in
+   `Project`): `surface: str` (`"htail"`/`"vtail"`), `panel_weight_lb: float`.
+   Uniform density per T-3 — no taper ratio, no concentrated list in phase 1.
+3. **Control-surface attachment** (phase 2 only, T-4): per control surface
+   (elevator, rudder), `hinges_span_in: List[float]` (≥ 2 hinge stations,
+   measured along the surface span axis) and `actuator_span_in: float`.
+4. **`control_load_mode: "smeared" | "discrete"`** (default `"smeared"`), the
+   T-4 selector. `"discrete"` without attachment geometry is a `ValueError`.
+5. **New `LoadsResult` slices:** `htail_span` / `vtail_span` —
+   lists of per-case spanwise results reusing the `WingStationLoad` station
+   shape (`x, y, z, fx, fz, sx, sz, mxx, myy, mzz` — the fields are already
+   surface-generic; the station's span coordinate is stored in `y` in the local
+   frame, mapped at export per §2's axes note). Each result carries the **same
+   `CaseRef` as its source SELECT condition** (§4 case identity: one ID per
+   physical condition — the spanwise result is a new *view* of an existing
+   `HT-xx`/`VT-xx` case, never a new case ID).
+
+## 4. Physics, stated before code (required practice 1)
+
+Per strip `j` at span station `y_j`, chord `c_j`, strip width `Δy`, semispan
+area `S` (for the loaded span), for a case with totals `LT25`, `LT50` (limit):
+
+```
+w25_j = LT25 · (c_j·Δy)/S          # chord-proportional (T-2)
+w50_j = LT50 · (c_j·Δy)/S
+fz_j  = w25_j + w50_j                              # strip air load
+myy_j = w25_j·(x_lra_j − x_25_j) + w50_j·(x_lra_j − x_50_j)   # strip torsion about the LRA
+fzin_j = −n_case · W_surf · (c_j·Δy)/S             # T-3 uniform-area mass, opposing
+```
+
+Cumulative shear/bending/torsion integrate **tip→root** exactly as
+`airloads.py` does (`sz`, `mxx`, `myy` running sums), so the export bridge's
+increments-of-cumulative recovery (`dFz[i] = sz[i]−sz[i+1]`) telescopes
+identically. The v-tail runs the same equations in its local frame with the
+side load as the normal force.
+
+Because the distribution is chord-proportional, two targets are **closed-form**
+and serve as the R10 gates (no printed oracle exists for a spanwise tail
+distribution):
+
+- **Force closure:** root `sz = LT25 + LT50` exactly (telescoping sum).
+- **Bending closure:** root `mxx = (LT25+LT50) · ȳ_A`, where `ȳ_A` is the
+  area centroid of the planform — analytic for a trapezoid:
+  `ȳ_A = (b/3)·(c_r + 2c_t)/(c_r + c_t)`. This is an independent hand-derived
+  target, not a re-run of the quadrature.
+- **Torsion closure:** root `myy = (LT25+LT50)·x̄_lra − LT25·x̄_25 − LT50·x̄_50`
+  with the `x̄` values area-weighted means — again closed-form for straight-line
+  LE/TE.
+- **Inertia closure:** Σ inertia strip loads = `−n_case · W_surf` exactly.
+- **Reduction:** with `ref_axis_pct = 0.25` the `LT25` torsion term vanishes
+  identically (LRA-transfer identity, same property the wing tests pin).
+
+## 5. Step-by-step development guide
+
+Each step lands green (`ruff` + `pytest` 3.9/3.11/3.12) with its gate written
+**with** the feature (R10), and does not start until the previous one is merged.
+
+### T1 — Geometry + schema (Tier M within the phase)
+
+`geometry.surfaces` htail/vtail entries + the 1 % consistency validator +
+`TailMassInput` + the `LoadsResult` slices + `SCHEMA_VERSION` bump + `io.py`
+round-trip + dictionary regen. GUI: the existing geometry page grows the two
+surfaces (reuse the wing's `SurfaceInput` editor). **Gate:** round-trip test
+(new → JSON → load → equal); validator fires on a deliberately inconsistent
+fixture; all existing fixtures load unchanged.
+
+### T2 — Spanwise distribution module `sloads/modules/tail_span.py`
+
+New concept-mode module (`run(project) -> ModuleResult`, self-registers; module
+contract per CLAUDE.md). Consumes: `envelope.critical` (`HT-xx`/`VT-xx`
+conditions with their `LT25`/`LT50` / side-load splits — read, never
+recomputed), the T1 planforms, `TailMassInput`, and each case's load factor
+(from the condition's V-n point; documented fallback `n = 1.0` where the source
+condition carries none, e.g. yaw cases). Emits the §3.5 slices, LIMIT, with
+`safety_factor` carried per case and the torsion axis label stamped
+(`"LRA 42% chord"` — every torsion names its axis). **Phase-1 scope note:**
+v-tail *inertia* loads are omitted (no lateral load factor exists in the case
+data) — documented in-band, revisit in §8. **Gate:** the five §4 closures as
+`tests/test_tail_span.py`, each with the hand-derived number and its derivation
+in the test docstring.
+
+### T3 — UI + CSV reporting
+
+New Streamlit view (registered in `workflow.py` — the nav SSOT, drift-guarded)
+showing per-station tables/plots per case; LIMIT display allowed per the
+CLAUDE.md carve-out, downloads unit-suffixed (lesson L-8i). **Gate:** workflow
+drift guard passes; smoke test renders the page for both concept fixtures.
+
+### T4 — Export: spanwise tail decks (`GRID` + `FORCE` + `MOMENT`)
+
+Extend `sbeam_bridge.py` with `htail_span_*` / `vtail_span_*` writers on the
+wing pattern: `GRID` cards on the LRA line (v-tail grids mapped span→`z` via
+`coordinates.py`, §2 axes note), `FORCE`/`MOMENT` increments of the cumulative
+table, `_sf()` applied once at the boundary, SIDs =
+`case_ids.subcase_id(case_id)` (same SUBCASE as the chordwise deck of the same
+case — separate files, same identity), `$` subcase-map + axes/units header. New
+GID bands (proposal: htail-span 4001+, vtail-span 4501+) added to the
+disjointness drift guard of plan 07 step 3. **Gate:** the plan-07 §4 invariant
+table gains two rows — spanwise tail decks assert `ΣF = sf·(LT25+LT50)` (or
+side-load total), `ΣM(root) = sf·root mxx` and torsion `= sf·root myy` — swept
+across all fixtures × both unit systems in `test_export_equilibrium.py`.
+Imperial digest regeneration, once, deliberately, with its own CHANGELOG line.
+
+### T5 — Control surfaces, option 2 (smeared) — completes phase 1
+
+`control_load_mode = "smeared"`: the `LT50`/control part is already inside the
+T2 distribution, so this step is mostly *labelling and proof*: the deck states
+the mode in its `$` header, and the mode plumbing exists so T6 can add
+`"discrete"`. **Gate:** mode stated in header; smeared results bit-identical to
+T2 output.
+
+### T6 — Control surfaces, option 1 (discrete hinge/actuator) — phase 2
+
+Schema item §3.3/§3.4. In `"discrete"` mode the control part (`LT50` for the
+elevator, the rudder share for the fin) is removed from the smeared strips and
+re-enters the parent surface as point loads: air load on the control surface →
+hinge reactions by tributary span between hinge stations, plus the actuator
+load reacting the hinge moment (hinge moment from the TAILDIST aft-of-hinge
+pressure block — the first hinge-moment output in the suite). Point loads land
+on dedicated `GRID`s at the hinge/actuator span stations on the LRA. **Gates:**
+ΣF identical between modes (exact); Σ hinge+actuator loads = control-surface
+total; root torsion consistency between modes within a stated tolerance, with
+the difference (load localization) printed in the test as the physical
+explanation; smeared mode remains bit-identical (mode isolation).
+
+### T7 — T-tail load transfer
+
+Gated on `layout.tail_type == TailType.T_TAIL` (first load-path consumer of the
+enum). For each VT case: resolve the concurrent h-tail load per T-5 (balancing
+`LT` at the case's speed/`n` + h-tail inertia `−n·W_ht`), then transfer the
+h-tail root reaction set to the **fin-tip station** (the last v-tail `GRID`, no
+new node): `FORCE` (vertical load — axial to the fin) + `MOMENT` cards for the
+lever-arm terms (fore-aft offset `x_ht_lra − x_vt_tip_lra` × vertical load →
+`myy`; h-tail weight/air offsets likewise). The deck `$` header states the
+pairing policy (T-5) and the transferred resultant. **Gate:** deck-derived fin
+resultants (plan-07 checker) equal the VT-only resultants **plus** the stated
+transferred set exactly; with `tail_type` conventional the deck is bit-identical
+to T4 output (gating isolation); equilibrium invariant still passes on the
+combined deck.
+
+### T8 — Closure (Tier L)
+
+`CHANGELOG.md`; backlog item removed; **full step format** in
+`docs/40_history/00_completed_development.md`; `PROGRAM_SPEC.md` (module +
+deck contract rows); `PROJECT_GUIDE.md` schema section;
+**`CONVENTIONS.md`**: the v-tail span-axis mapping (§2 axes note) and the
+T-tail transfer reference point — they are conventions, and conventions live
+there; `theory_sources.md`: the §4 closure gates recorded as the oracle
+substitute (R10); `cspell.json` for new terms.
+
+## 6. Acceptance (whole feature)
+
+1. All §4 closures pass in CI for both concept fixtures; Appendix A oracles and
+   the chordwise TAILDIST path bit-unchanged throughout (T-7).
+2. Spanwise h-tail and v-tail decks satisfy the plan-07 equilibrium invariant
+   (force **and** moment, both unit systems, from their own card text).
+3. Control-surface mode `"discrete"` vs `"smeared"`: ΣF exact-equal, hinge set
+   sums to the control total, smeared path bit-stable.
+4. T-tail: transfer closure per T7's gate; conventional-tail decks unaffected.
+5. GID bands disjoint across every fixture; workflow drift guard green.
+6. `ruff` clean; `pytest` green 3.9/3.11/3.12; Imperial digests regenerated
+   exactly once per byte-changing step.
+
+## 7. Risks
+
+| Risk | Mitigation |
+|---|---|
+| Scalar-vs-polyline geometry drift (two representations of tail area/span) | The 1 % T1 validator is loud; scalars stay oracle-authoritative; backlog M4-3(a) (v-tail geometry provenance) is subsumed here — close or re-scope it at T1 |
+| V-tail axis mapping hand-rolled at a call site | `coordinates.py` single owner + drift guard, written in T2/T4, per CONVENTIONS §7 |
+| `n` for tail inertia not defined for every case | Explicit per-case source table in T2's design review; documented `1.0` fallback, printed in-band |
+| T-tail concurrency assumption challenged later | T-5 pairing stated in the deck header; conservative superposed policy pre-scoped in §8 |
+| Chord-proportional shape questioned vs Schrenk | Recorded as decision T-2 with rationale; upgrading the shape later changes only the `w_j` line in §4 — closures re-derive |
+
+## 8. Deliberately out of scope (candidate backlog items on completion)
+
+- Schrenk (or other rational) spanwise shape for tails — T-2 upgrade path.
+- V-tail lateral inertia (needs a lateral load factor in the case data).
+- Tapered/concentrated tail mass (upgrade `TailMassInput` toward
+  `WingMassInput` parity).
+- Conservative superposed-critical-HT T-tail pairing as a selectable policy.
+- Gust-specific tail spanwise shape (pairs with the existing `[V]` gust
+  spanwise-distribution decision).
+- Hinge-moment deliverable as a reported load case in its own right (T6 emits
+  the number; reporting it as a case is a separate step).
