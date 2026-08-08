@@ -34,7 +34,7 @@ from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 from ..constants import ULTIMATE_FACTOR
-from ..models import SCHEMA_VERSION, Project
+from ..models import SCHEMA_VERSION, Project, VdBasis
 from ..units import (
     Channel,
     DeliverableUnits,
@@ -559,20 +559,41 @@ def _speeds_section(project: Project) -> Section:
     def origin(chosen) -> str:
         return "user-specified" if chosen is not None else "derived (FAR minimum)"
 
+    def _vd_far(sv) -> str:
+        return "25.335(b)" if sv.vd_basis is VdBasis.MACH_MARGIN else "23.335(b)"
+
+    def _vd_origin(speeds, sv) -> str:
+        """VD's origin has to name its *route*, not just whether it was typed in --
+        the same chosen VD survives on one route and is overridden on the other."""
+        if sv.vd_basis is not VdBasis.MACH_MARGIN:
+            return origin(speeds.chosen_vd)
+        raised = speeds.chosen_vd is not None and sv.vd > speeds.chosen_vd * (1 + 1e-9)
+        return "Mach-margin route" + (", raised to meet the margin" if raised else "")
+
     rows = [
         ["VS (clean stall)", format_value(sv.vs), "23.335", "derived from CLmax"],
         ["VSF (flapped stall)", format_value(sv.vsf), "23.335", "derived from CLmax"],
         ["VA (manoeuvre)", format_value(sv.va), "23.335(c)", origin(speeds.chosen_va)],
         ["VC (cruise)", format_value(sv.vc), "23.335(a)", origin(speeds.chosen_vc)],
-        ["VD (dive)", format_value(sv.vd), "23.335(b)", origin(speeds.chosen_vd)],
+        ["VD (dive)", format_value(sv.vd), _vd_far(sv), _vd_origin(speeds, sv)],
         ["VF (flap)", format_value(sv.vf), "23.345(b)", origin(speeds.chosen_vf)],
     ]
-    ml = speeds.mach_limit
-    if ml is not None:
+    # MC/MD are derived from VC/VD at the shoulder altitude by STRSPEED (F25-2);
+    # they used to be read off the stale ``speeds.mach_limit`` copy, which the GUI
+    # had already stopped honouring.
+    if speeds.shoulder_altitude_ft:
         rows += [
-            ["MC (cruise Mach)", format_value(ml.mc), "23.335(b)(4)", "Mach Limits"],
-            ["MD (dive Mach)", format_value(ml.md), "23.335(b)(4)", "Mach Limits"],
+            ["MC (cruise Mach)", format_value(sv.mc), "23.335(b)(4)", "derived at shoulder alt"],
+            ["MD (dive Mach)", format_value(sv.md), "23.335(b)(4)", "derived at shoulder alt"],
         ]
+    if sv.vd_basis is VdBasis.MACH_MARGIN:
+        rows.append(["MD - MC (dive Mach margin)", format_value(sv.mach_margin),
+                     "25.335(b)(2)",
+                     f"required {format_value(sv.mach_margin_required)}"
+                     + (" — REDUCED, rational analysis" if sv.mach_margin_reduced else "")])
+    if speeds.vb_kt:
+        rows.append(["VB (rough air)", format_value(speeds.vb_kt), "25.335(d)",
+                     "user-specified (input only)"])
     tables = [Table(
         title="Design speeds",
         columns=["Speed", "Value (KEAS)", "FAR", "Origin"],
@@ -769,6 +790,7 @@ def _weight_cg_figure(project: Project, u: Units) -> Tuple[Figure, Optional[Tabl
 
 def _speed_altitude_figure(project: Project) -> Tuple[Figure, Optional[Table]]:
     from ..modules.mach_limit import mach_limit_lines
+    from ..modules.structural_speeds import design_speed_values
     from ..vn_diagram import _gust_ude
 
     ml = project.speeds.mach_limit if project.speeds is not None else None
@@ -777,7 +799,9 @@ def _speed_altitude_figure(project: Project) -> Tuple[Figure, Optional[Table]]:
                        absent_reason="this airplane has no Mach-limited boundary — no "
                                      "MACHLIM inputs are defined, so the operating "
                                      "envelope is bounded by VD alone"), None)
-    results = _try(mach_limit_lines, ml)
+    # MC/MD come from STRSPEED, the single producer (F25-2) -- not from ``ml``.
+    ds = _try(design_speed_values, project, project.speeds)
+    results = _try(mach_limit_lines, ml, ds.mc, ds.md) if ds is not None else None
     if not results:
         return (Figure("speed_altitude", "Speed / altitude envelope",
                        absent_reason="the Mach-limit lines could not be "

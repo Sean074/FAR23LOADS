@@ -12,6 +12,45 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **Design-airspeeds theory document** — new
+  `docs/20_theory/design_airspeeds.md`: the STRSPEED/MACHLIM chapter, defining
+  the FAR 23.335/23.337 design speeds and load factors (VS/VSF, n, VC, VD, VA,
+  VF, MC/MD) with the equations and coefficient schedules as implemented, the two
+  25.335(b) dive-speed routes (F25-2) with the margin policy table, the MACHLIM
+  Mach lines, and the Subpart-G operating-limitation relationship (the design
+  speeds cap the placards; VMO ≤ VC, with equality the usual choice) — plus the
+  documented Part 25 gaps (VB/U_ref deferred to F25-1, upset criterion
+  backlogged). Appendix A oracle figures tabulated with page citations. Docs
+  only; no code change.
+
+- **F25-2 — Part 25 speeds & placards: the 25.335(b) Mach-margin dive-speed route.**
+  14 CFR 25.335(b) selects VD by **either** the speed ratio `VC/MC ≤ 0.8·VD/MD`
+  (algebraically `VD ≥ 1.25·VC`) **or** a minimum Mach margin between MC and MD;
+  23.335(b)(4) has the same "or". The suite only ever implemented the first half.
+  `speeds.vd_basis` now picks the route (`speed_ratio` — the default and previous
+  behaviour — or `mach_margin`), available in the concept category **"C" only** so
+  the Appendix-A-oracle-locked FAR 23 path is provably untouched.
+  - **Margin policy has one owner**, `structural_speeds.resolve_mach_margin`:
+    default **0.07 M** (the 25.335(b)(2) rule figure since Amdt 25-91, 1997;
+    AC 25.335-1A calls it sufficient without further investigation); **0.05–0.07 M
+    accepted only with a written rational-analysis basis**
+    (`speeds.mach_margin_basis`), flagged in the results, in `validation.py` and
+    with a GUI warning that it needs significant justification and represents a
+    certification risk; **below 0.05 M refused** (the CFR's absolute floor). The
+    floor constrains what may be *declared* — a chosen VD short of the declared
+    margin is raised to meet it, like every other design-speed minimum.
+  - The M2-10 placard ladder's hardcoded `0.05` is gone: `operational_target_checks`
+    now uses the resolved margin, and the placard block reports the implied MC→MD
+    margin with a `< 0.07` flag.
+  - `speeds.vb_kt` (rough-air speed, 25.335(d)) is accepted and checked for
+    25.335(a) ordering against VC. **Input only** — the full `VC ≥ VB + 1.32·U_ref`
+    margin needs the 25.341 reference-gust schedule and is deferred to F25-1.
+  - Regulation text captured in `reference/14CFR_25_335_design_airspeeds.md`
+    (25.335(a)/(b)/(d), verbatim) and `reference/14CFR_MC_MD_speed_margin.md` §5.
+  - **Not a sufficiency demonstration, and it says so:** 25.335(b) requires the
+    *greater of* the Mach margin and the (b)(1) upset-criterion speed increase;
+    only the Mach term is implemented, and every margin-route output states that.
+
 - **M4-5 — aero-coefficient curves + closure on Aerodynamic Data (decision D-10).**
   The page now plots CL–α, the drag polar (CL vs CD) and CM–α for each
   configuration, with the balanced V-n points overlaid and the stall clamps drawn,
@@ -37,6 +76,28 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- **Concept dive speeds were silently overridden (Major, F25-2).** In concept mode
+  the `1.25·VC` floor was applied unconditionally, so a concept user could not
+  enter a margin-route VD at all. On `examples/concept_regional_jet.project.json`
+  its own `chosen_vd = 350` kt (MD 0.8511, margin +0.097) was overridden to
+  387.5 kt → **MD 0.9423, margin +0.189**, inflating every dive-speed case
+  (`MAN ±D`, `GUST ±D`, `BAL D`, `ST ROL D`) and cascading into MACHLIM
+  (MNE 0.848, **MFC 1.13** — supersonic flutter clearance for a subsonic
+  transport). The RJ fixture now ships on the Mach-margin route and its dive-line
+  loads **decrease**; MNE 0.766, MFC 1.021. Non-dive cases are numerically
+  unchanged, pinned by a new mechanism test. No FAR 23 category is affected.
+- **MC/MD had two homes and the front-ends disagreed (F25-2).** `mach_limit.mc`/
+  `.md` were persisted in the project file *and* recomputed from the design speeds
+  by the Streamlit page, which ignored the stored pair. The registry/CLI path
+  honoured it, so the same RJ project reported **MNE 0.738 from the CLI and 0.848
+  from the GUI** — breaking the "GUI, CLI and tests are interchangeable
+  front-ends" contract. `MachLimitInput.mc/md` are removed; `mach_limit_lines`
+  takes MC/MD as arguments and `structural_speeds.design_speed_values` is the sole
+  producer, guarded by a new test over every shipped example. MACHLIM output moves
+  slightly for the GA fixtures too — their stored MC/MD were the manual's *rounded*
+  printed figures (0.323/0.403 vs the derived 0.32264/0.40330); the Appendix A
+  oracles still pass at ±0.1 % and no load channel moved.
+
 - **Aerodynamic Data: the fuselage-moment Apply no longer rewrites the CLmax
   scalars** (found while implementing M4-5; same defect class as M4-22). That
   form rebuilt the whole `aero_coeffs` slice without `clmax_clean` /
@@ -47,6 +108,14 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   compute). Pinned by two `AppTest` guards.
 
 ### Changed
+
+- **Schema v40 (F25-2).** `speeds` gains `vd_basis`, `mach_margin_min`,
+  `mach_margin_basis` and `vb_kt`; `speeds.mach_limit.mc`/`.md` are **removed**.
+  Migration hop `_v39_mach_limit_mc_md` drops the dead keys and `vd_basis`
+  defaults to `speed_ratio`, so every pre-v40 project loads with exactly the
+  numbers it had — pinned by a reduction-invariant test that compares VD/VC/VA/VF
+  for all six shipped examples against values read off the pre-change build. An
+  unrecognised `vd_basis` is refused at read rather than silently defaulted.
 
 - **M4-2 — unified load-case identity + deck SUBCASE map (schema v39).** One
   case ID per physical condition, from the SELECT pick to the exported deck.

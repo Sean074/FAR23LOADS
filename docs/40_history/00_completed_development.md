@@ -10,6 +10,138 @@ Acceptance**, **Key decisions**.
 
 ---
 
+## Design-airspeeds theory document (complete 2026-08-08, tier S)
+
+New `docs/20_theory/design_airspeeds.md` — the STRSPEED/MACHLIM theory chapter (23.335/23.337 equations as implemented, both 25.335(b) dive-speed routes, MACHLIM lines, the Subpart-G design-speed → operating-limitation relationship, Part 25 gaps, Appendix A oracle table with page cites). Docs only.
+
+## F25-2 — Speeds & placards, Part 25 variant: the Mach-margin dive-speed route (complete 2026-08-08, tier L)
+
+**Objective.** Give a concept configuration the dive speed the regulation
+actually allows it, and fix the Major concept-mode defect that made this urgent.
+14 CFR 25.335(b) reads: "VD must be selected so that VC/MC is not greater than
+0.8 VD/MD, **or** so that the minimum speed margin between VC/MC and VD/MD is the
+greater of [the (b)(1) upset criterion and the (b)(2) Mach margin]"; 23.335(b)(4)
+has the identical "need not be shown if" structure. Since `VD ≥ 1.25·VC` **is**
+`VC ≤ 0.8·VD` written the other way round, what STRSPEED had always implemented
+was precisely, and only, the first half of that disjunction. There was no route
+by which a user could select the margin basis, in any category.
+
+**The defect, as reproduced 2026-08-08.** On
+`examples/concept_regional_jet.project.json` (VC 310 kt, shoulder 24,000 ft,
+where √σ·a = 411.19 kt per unit Mach) the fixture's own `chosen_vd = 350` kt —
+MD 0.8511, margin +0.097, an ordinary transport margin — was silently overridden
+to 1.25·VC = **387.5 kt**, MD **0.9423**, margin **+0.189**. No warning, no note,
+no validation entry: the user's input simply did not survive. Consequences, in
+order of severity: (1) `flight_envelope.design_inputs` reads VD/MD straight out
+of STRSPEED, so `MAN ±D`, `GUST ±D`, `BAL D` and `ST ROL D` were all flown 11 %
+too fast, feeding SELECT, the distributions and the exported decks; (2) MACHLIM
+went nonphysical — MNE 0.848, **MFC 1.13**, a supersonic flutter-clearance Mach
+for a subsonic transport.
+
+**A second defect found while reproducing the first.** `MachLimitInput.mc/md`
+were persisted in the project file *and* recomputed from the design speeds by the
+Streamlit Speed–Altitude tab, which ignored the stored pair outright. The
+registry/CLI path did not. The same RJ project therefore reported **MNE 0.738
+from the CLI and MNE 0.848 from the GUI** — one project, one module, two answers,
+against the `PROJECT_GUIDE` contract that "GUI, CLI and tests are interchangeable
+front-ends". Fixed here rather than filed, per CLAUDE.md required practices 3
+(*make it structural*) and 4 (*generalize on first find*): the margin is a
+statement **about** MC and MD, so there must be exactly one MC/MD.
+
+**Deliverables.**
+
+- **`resolve_mach_margin` — the single owner of the margin decision**
+  (`modules/structural_speeds.py`), with `MACH_MARGIN_DEFAULT = 0.07` and
+  `MACH_MARGIN_FLOOR = 0.05` as its only constants. Consumed by the design-speed
+  resolution, the M2-10 placard ladder and `validation.py`; the ladder's
+  hardcoded `_MC_MD_MARGIN = 0.05` is deleted, so the two can no longer disagree
+  about one project's margin.
+- **`_resolve_vd`** implements the regulation's disjunction. On the margin route
+  the 1.25·VC floor is deliberately **not** also applied — applying both would
+  re-impose exactly the constraint the "or" exists to relieve — and the value it
+  *would* have imposed is reported (`vd_ratio_floor`) so the difference between
+  the two regulatory routes is auditable rather than implicit. Preconditions,
+  each raising with a concrete message: category "C", a non-zero shoulder
+  altitude, a chosen VD.
+- **Schema v40.** `speeds.vd_basis` (`VdBasis.SPEED_RATIO` | `MACH_MARGIN`),
+  `mach_margin_min`, `mach_margin_basis`, `vb_kt`; `mach_limit.mc`/`.md`
+  **removed**; hop `migrations._v39_mach_limit_mc_md`; frozen fixture
+  `tests/fixtures_schema/v39_mach_limit_mc_md.json` (and a new `v40_current.json`).
+  An unrecognised `vd_basis` is refused at read — silently reading it as
+  `speed_ratio` would reapply the 1.25·VC floor to a project that asked for the
+  margin route, i.e. the defect re-entering through the file path.
+- **MC/MD single-sourced.** `mach_limit_lines(inp, mc, md)`; `mach_limit.run`,
+  `report/content.py` (both the design-speed table and the speed–altitude figure)
+  and the Streamlit tab all take them from `design_speed_values`.
+- **VB (25.335(d))** accepted as input and checked for 25.335(a) ordering only.
+- **GUI**: a dive-speed-basis radio, the margin and basis inputs (widget
+  `min_value` = 0.05 so an illegal value cannot be expressed), a persistent
+  certification-risk warning below 0.07 M, a three-metric headline of the route's
+  result, and the VB input.
+- **Regulation text captured first** (the blocking step): new
+  `reference/14CFR_25_335_design_airspeeds.md` with verbatim 25.335(a)/(b)/(d)
+  and the amendment history; `reference/14CFR_MC_MD_speed_margin.md` §5 records
+  the policy as implemented.
+
+**Test / Acceptance.** 809 tests green, ruff clean, coverage 93 %.
+
+- **FAR 23 oracles unmoved** — Appendix A p155 VD 198.53, p156 VD 212.5,
+  MC 0.323 / MD 0.403 (±0.1 %).
+- **Reduction invariant** — `test_speed_ratio_route_reproduces_todays_numbers_on_every_example`
+  compares VD/VC/VA/VF for all six shipped examples at 1e-6 against values read
+  off the pre-change build (commit 5c7809b), so it is a real before/after
+  comparison rather than a restatement of current behaviour. It caught one wrong
+  expectation while being written: `cessna_210`'s VD is governed by the K_d·VCmin
+  term (214.53), not the 1.25·VC floor (208.75).
+- **Margin route** — VD 350 honoured (MD 0.85112, margin +0.09728, unflagged);
+  VD 320 raised to 338.79 (margin exactly 0.07000); the policy table
+  parametrised; category and precondition gates; the "not a sufficiency
+  demonstration" sentence asserted present.
+- **MC/MD drift guard** (`test_mc_md_come_from_strspeed_on_every_front_end`) —
+  for every shipped example, the registry path's MC/MD/MNE/MFC equal
+  `design_speed_values`' at 1e-12, plus a structural check that the duplicate
+  fields no longer exist. This is the test that would have caught the second
+  defect.
+- **Containment, verified explicitly** rather than eyeballed: the Imperial
+  digest baseline shows the RJ moving in its dive-line channels only
+  (`flight_envelope`, `select`, `balloads`, `taildist`, the body and tail decks,
+  the case index) and **every other example moving only in `mach_limit`** — no
+  load channel on any other fixture, and the RJ wing deck unchanged because its
+  governing wing cases are not dive-line. A new mechanism test
+  (`test_only_the_dive_line_moves_with_vd`) pins the cause permanently: every
+  `*D` envelope case flies at VD and no `*A`/`*C` case does.
+- **Re-baselined:** `tests/fixtures_imperial/digests.json`, `DATA_DICTIONARY.md`,
+  `EXPECTED_FIELDS_HASH`. The RJ's dive-line loads **decrease** — recorded as a
+  defect fix, not a methodology change: the previous values were wrong.
+  MACHLIM output moves for the GA fixtures too, because their stored MC/MD were
+  the manual's *rounded* printed figures (0.323/0.403) and the derived pair is
+  full precision (0.32264/0.40330); the printed oracles still pass at ±0.1 %.
+
+**Key decisions** (user, 2026-08-08; recorded in
+[`03_resolved_decisions.md`](03_resolved_decisions.md)).
+
+- **D-1 — concept category "C" only.** FAR 23.335(b)(4) offers the margin route
+  to N/U/A as well; it is withheld so the oracle-locked FAR 23 path is *provably*
+  untouched. `vd_basis = "mach_margin"` in a FAR 23 category raises. Extension is
+  a backlog item.
+- **D-2 — explicit `vd_basis` enum**, not automatic selection: the governing rule
+  stays visible in the JSON and no existing project changes behaviour on load.
+- **D-3 — fix the MC/MD single source in this step** rather than filing it.
+- **D-4 — 0.07 default, 0.05 floor, justification in between.** The floor
+  constrains what may be **declared**; a chosen VD short of the declared margin is
+  **raised**, like every other design-speed minimum in STRSPEED.
+- **D-5 — VB input-only.** 25.335(a) is `VC ≥ VB + 1.32·U_ref`, verified against
+  the CFR in step 0; U_ref (25.341(a)(5)(i)) does not exist in the suite until
+  F25-1, so only the ordering is checked and the deferral is stated in the module
+  docstring, the reference file and the gap-analysis row — shipping half a margin
+  check silently is the failure mode the reference-first rule exists to prevent.
+- **D-7 — the 25.335(b)(1) upset criterion is out of scope**, filed. It matters
+  that this is loud: 25.335(b) wants the *greater of* two terms and only one is
+  implemented, so every margin-route output carries a "NOT A SUFFICIENCY
+  DEMONSTRATION" sentence.
+
+Plan: [`../30_future/08_f25-2_speeds_placards_plan.md`](../30_future/08_f25-2_speeds_placards_plan.md).
+
 ## M4-5 — Aero-coefficient curves + closure on Aerodynamic Data (complete 2026-08-05, tier M)
 
 CL–α / drag-polar / CM–α plots with the balanced V-n points overlaid, the stall

@@ -1,5 +1,5 @@
 {
-  "schema_version": 37,
+  "schema_version": 40,
   "name": "RJ-50 concept \u2014 50-seat regional jet (concept mode, Part 25)",
   "engines": [
     {
@@ -471,12 +471,11 @@
     "chosen_n": 2.5,
     "chosen_nneg": -1.0,
     "mach_limit": {
-      "mc": 0.74,
-      "md": 0.82,
       "shoulder_altitude_ft": 24000,
       "max_operating_altitude_ft": 37000,
       "increment_ft": 1000
-    }
+    },
+    "vd_basis": "mach_margin"
   },
   "aero": {
     "surfaces": [

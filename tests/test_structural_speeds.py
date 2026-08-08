@@ -207,14 +207,33 @@ def test_operational_target_feasible_and_infeasible():
 
 
 def test_operational_target_mmo_margin():
-    # A turbine target MMO requires MD >= MMO + 0.05 (23.335(b)(4)(ii)).
+    """A turbine target MMO requires MD >= MMO + the *resolved* Mach margin.
+
+    That margin was a hardcoded 0.05 in the ladder until F25-2; it is now
+    ``resolve_mach_margin``'s answer, so the ladder and the dive-speed resolution
+    can never disagree about one project's margin. The default is 0.07
+    (25.335(b)(2) since Amdt 25-91; 23.335(b)(4)(iii) for commuter).
+    """
     project = io.load_project(_EXAMPLE)
     ds = calc.design_speed_values(project, project.speeds)  # MD ~ 0.4033
     inp = project.speeds
-    inp.target_mmo = 0.40                      # needs MD >= 0.45 (> 0.4033) -> infeasible
+    inp.target_mmo = 0.40                      # needs MD >= 0.47 (> 0.4033) -> infeasible
     check = next(c for c in calc.operational_target_checks(inp, ds) if c.target_label == "MMO")
-    assert math.isclose(check.required, 0.45, rel_tol=TOL)
+    assert math.isclose(check.required, 0.47, rel_tol=TOL)
     assert not check.feasible
+
+
+def test_operational_target_mmo_margin_follows_a_declared_margin():
+    """A project that declared a reduced margin gets the ladder checked against
+    *that* margin -- one authority, not two."""
+    project = io.load_project(_EXAMPLE)
+    inp = project.speeds
+    inp.target_mmo = 0.40
+    inp.mach_margin_min = 0.06
+    inp.mach_margin_basis = "HSPF credited per 25.335(b)(2)"
+    ds = calc.design_speed_values(project, inp)
+    check = next(c for c in calc.operational_target_checks(inp, ds) if c.target_label == "MMO")
+    assert math.isclose(check.required, 0.46, rel_tol=TOL)
 
 
 def test_run_requires_speeds():
@@ -224,6 +243,210 @@ def test_run_requires_speeds():
     except ValueError:
         raised = True
     assert raised
+
+
+# --------------------------------------------------------------------------- #
+# F25-2 -- the 25.335(b) Mach-margin dive-speed route
+# --------------------------------------------------------------------------- #
+# All numbers below are for examples/concept_regional_jet.project.json: VC 310 kt,
+# shoulder 24,000 ft, where sqrt(sigma)*a = 411.19 kt per unit Mach, so
+# MC = 310/411.19 = 0.75384 and MD = VD/411.19. The margins that follow:
+#   VD 350    -> MD 0.85112, margin +0.09728   (the fixture's own intent)
+#   VD 338.79 -> MD 0.82384, margin +0.07000   (exactly the default)
+#   VD 335    -> MD 0.81471, margin +0.06087   (reduced band, needs a basis)
+# Under the speed-ratio route the same fixture is forced to VD = 1.25*310 = 387.5,
+# MD 0.94231, margin +0.18847 -- the defect F25-2 fixes.
+_RJ = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+    "examples", "concept_regional_jet.project.json",
+)
+
+
+def _rj(**overrides):
+    """The RJ fixture forced onto the Mach-margin route, with field overrides."""
+    from sloads import VdBasis
+
+    project = io.load_project(_RJ)
+    project.speeds.vd_basis = VdBasis.MACH_MARGIN
+    for k, v in overrides.items():
+        setattr(project.speeds, k, v)
+    return project
+
+
+def test_margin_route_honours_a_compliant_chosen_vd():
+    """The defect case. The fixture's own VD 350 clears 0.07 M and must survive;
+    before F25-2 it was silently overridden to 1.25*VC = 387.5 kt, inflating every
+    dive-speed load case."""
+    ds = calc.design_speed_values(*(lambda p: (p, p.speeds))(_rj()))
+    assert math.isclose(ds.vd, 350.0, rel_tol=TOL)
+    assert math.isclose(ds.md, 0.85112, rel_tol=TOL)
+    assert math.isclose(ds.mach_margin, 0.09728, rel_tol=1e-2)
+    assert ds.mach_margin_required == calc.MACH_MARGIN_DEFAULT
+    assert not ds.mach_margin_reduced
+    # And the route it did NOT take is still reported, so the difference is auditable.
+    assert math.isclose(ds.vd_ratio_floor, 387.5, rel_tol=TOL)
+
+
+def test_margin_route_raises_a_short_chosen_vd():
+    """The 0.05 floor constrains what may be *declared*; a chosen VD that falls
+    short of the requirement is raised, like every other design-speed minimum."""
+    p = _rj(chosen_vd=320.0)
+    ds = calc.design_speed_values(p, p.speeds)
+    assert math.isclose(ds.vd, 338.79, rel_tol=TOL)
+    assert math.isclose(ds.mach_margin, calc.MACH_MARGIN_DEFAULT, rel_tol=1e-6)
+
+
+def test_reduced_margin_needs_a_written_basis():
+    p = _rj(chosen_vd=335.0, mach_margin_min=0.06)
+    try:
+        calc.design_speed_values(p, p.speeds)
+    except ValueError as exc:
+        assert "rational" in str(exc).lower()
+    else:
+        raise AssertionError("a sub-0.07 margin with no basis must be refused")
+
+
+def test_reduced_margin_with_a_basis_is_accepted_and_flagged():
+    p = _rj(chosen_vd=335.0, mach_margin_min=0.06,
+            mach_margin_basis="HSPF credited per 25.335(b)(2)")
+    ds = calc.design_speed_values(p, p.speeds)
+    assert math.isclose(ds.vd, 335.0, rel_tol=TOL)
+    assert ds.mach_margin_reduced, "a reduced margin must be flagged, never silent"
+    note = calc.design_speeds(p, p.speeds)[1].note
+    assert "REDUCED MARGIN" in note
+    assert "certification risk" in note
+    assert "HSPF" in note, "the user's own basis text belongs in the record"
+
+
+def test_a_margin_below_the_absolute_floor_is_refused():
+    """0.05 M is 25.335(b)(2)'s 'in any case' floor -- not an input, at any price."""
+    p = _rj(mach_margin_min=0.04, mach_margin_basis="we would really like to")
+    try:
+        calc.design_speed_values(p, p.speeds)
+    except ValueError as exc:
+        assert "floor" in str(exc).lower()
+    else:
+        raise AssertionError("a margin below 0.05 M must be refused")
+
+
+def test_margin_policy_table():
+    """:func:`resolve_mach_margin` is the single authority; this is its contract."""
+    def margin(**kw):
+        return calc.resolve_mach_margin(StructuralSpeedsInput(**kw))
+
+    assert margin().required == calc.MACH_MARGIN_DEFAULT
+    assert not margin().reduced
+    assert margin(mach_margin_min=0.10).required == 0.10
+    assert not margin(mach_margin_min=0.10).reduced
+    assert margin(mach_margin_min=0.06, mach_margin_basis="HSPF").reduced
+    for bad in (dict(mach_margin_min=0.06), dict(mach_margin_min=0.049),
+                dict(mach_margin_min=0.0)):
+        try:
+            margin(**bad)
+        except ValueError:
+            pass
+        else:
+            raise AssertionError(f"{bad} should not resolve")
+
+
+def test_margin_route_is_concept_category_only():
+    """Decision D-1: withheld from N/U/A so the Appendix A oracles stay locked."""
+    p = _rj(category="N")
+    try:
+        calc.design_speed_values(p, p.speeds)
+    except ValueError as exc:
+        assert "concept" in str(exc).lower()
+    else:
+        raise AssertionError("the margin route must be refused outside category C")
+
+
+def test_margin_route_needs_a_shoulder_altitude_and_a_chosen_vd():
+    for kw in (dict(shoulder_altitude_ft=0.0), dict(chosen_vd=None)):
+        p = _rj(**kw)
+        try:
+            calc.design_speed_values(p, p.speeds)
+        except ValueError:
+            pass
+        else:
+            raise AssertionError(f"the margin route must refuse {kw}")
+
+
+def test_margin_route_always_says_the_upset_term_is_missing():
+    """25.335(b) wants the GREATER of the Mach margin and the (b)(1) upset-criterion
+    speed increase. Only the Mach term exists here, so a clean margin is not a
+    sufficiency demonstration and the output must never imply that it is."""
+    p = _rj()
+    note = calc.design_speeds(p, p.speeds)[1].note
+    assert "NOT A SUFFICIENCY DEMONSTRATION" in note
+    assert "upset" in note
+
+
+def test_speed_ratio_route_reproduces_todays_numbers_on_every_example():
+    """The reduction invariant: F25-2 must not move one number in any project that
+    did not ask for the new route.
+
+    Values read off the pre-F25-2 build (commit 5c7809b) and frozen here to full
+    precision, so this is a real before/after comparison rather than a restatement
+    of what the code now does. VD/VC/VA/VF together cover every branch of the
+    speed resolution -- including cessna_210, where the K_d*VCmin term governs
+    (214.53) rather than the 1.25*VC floor (208.75).
+    """
+    import glob
+
+    frozen = {                       # name: (vd, vc, va, vf)
+        "atr42_100": (300.0, 240.0, 167.689469, 161.071890),
+        "cessna_210": (214.529286, 167.0, 125.750359, 104.412313),
+        "concept_heavy": (312.5, 250.0, 189.262399, 147.026469),
+        "concept_regional_jet": (387.5, 310.0, 187.0, 169.581441),
+        "dhc8_dash8": (306.25, 245.0, 145.541218, 140.476021),
+        "ga6_normal": (212.5, 170.0, 121.303759, 105.501985),
+    }
+    seen = set()
+    for path in sorted(glob.glob(os.path.join(os.path.dirname(_RJ), "*.project.json"))):
+        name = os.path.basename(path).replace(".project.json", "")
+        project = io.load_project(path)
+        if project.speeds is None or name not in frozen:
+            continue
+        # The RJ fixture ships on the margin route (F25-2 step 7); the invariant is
+        # about the speed-ratio route, so force it back for the comparison.
+        from sloads import VdBasis
+
+        project.speeds.vd_basis = VdBasis.SPEED_RATIO
+        ds = calc.design_speed_values(project, project.speeds)
+        vd, vc, va, vf = frozen[name]
+        assert math.isclose(ds.vd, vd, rel_tol=1e-6), f"{name} VD"
+        assert math.isclose(ds.vc, vc, rel_tol=1e-6), f"{name} VC"
+        assert math.isclose(ds.va, va, rel_tol=1e-6), f"{name} VA"
+        assert math.isclose(ds.vf, vf, rel_tol=1e-6), f"{name} VF"
+        seen.add(name)
+    assert seen == set(frozen), f"a frozen example vanished: {set(frozen) - seen}"
+
+
+def test_vb_is_input_only_and_checked_for_ordering():
+    """D-5: VB is accepted and its 25.335(a) ordering checked; the +1.32*U_ref term
+    needs the 25.341 gust schedule and is deferred to F25-1."""
+    from sloads.validation import consistency_warnings
+
+    p = _rj(vb_kt=400.0)                     # above VC 310 -> inverted
+    codes = {w.code for w in consistency_warnings(p)}
+    assert "vb_above_vc" in codes
+    ok = _rj(vb_kt=250.0)
+    assert "vb_above_vc" not in {w.code for w in consistency_warnings(ok)}
+    # VB never moves a design speed.
+    assert calc.design_speed_values(p, p.speeds).vd == calc.design_speed_values(
+        _rj(), _rj().speeds).vd
+
+
+def test_the_reduced_margin_reaches_the_dashboard():
+    from sloads.validation import consistency_warnings
+
+    p = _rj(chosen_vd=335.0, mach_margin_min=0.06, mach_margin_basis="HSPF credited")
+    warnings = {w.code: w.message for w in consistency_warnings(p)}
+    assert "mach_margin_reduced" in warnings
+    assert "certification risk" in warnings["mach_margin_reduced"]
+    assert "mach_margin_below_ratio_floor" in warnings, (
+        "VD below 1.25*VC is expected on this route, and must be stated rather "
+        "than left for a reviewer to trip over")
 
 
 if __name__ == "__main__":

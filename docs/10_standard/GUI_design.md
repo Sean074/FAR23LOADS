@@ -447,7 +447,7 @@ sidebar and the JSON Editor (§10, Phase E5).
 
 The schema field list is **single-sourced in
 [`DATA_DICTIONARY.md`](DATA_DICTIONARY.md)** (generated; currently
-`SCHEMA_VERSION = 39`); the per-step migration history is recorded in
+`SCHEMA_VERSION = 40`); the per-step migration history is recorded in
 [`../40_history/00_completed_development.md`](../40_history/00_completed_development.md)
 (recent steps: v29 single-source CLmax
 stall; v30 M2-6 wing/fuselage derived geometry; v31 M2-10 operational placards;
@@ -473,7 +473,16 @@ retired `W-40..49` band, wing ids now keyed to the condition's name rather than
 its list position, ONENGOUT moved to its own `VT-30..` band). The one persisted
 field that references those strings, `CriticalLoadSet.selected_case_ids`, is
 validated on load: an id matching no condition is dropped with a warning rather
-than silently ignored).
+than silently ignored); v40 F25-2 the dive-speed basis — `speeds.vd_basis`
+(`speed_ratio` | `mach_margin`, the two routes 14 CFR 25.335(b) offers
+disjunctively) plus `mach_margin_min`/`mach_margin_basis` and the rough-air
+speed `vb_kt`, and the **removal** of `speeds.mach_limit.mc`/`.md`. Those two
+were a stale duplicate — stored in the file, ignored by the Speed–Altitude tab
+(which recomputed MC/MD from the design speeds) and honoured by the CLI, so one
+project reported two different MNE/MFC depending on the front-end. MC/MD are now
+derived by `structural_speeds` and passed to `mach_limit` explicitly; hop
+`migrations._v39_mach_limit_mc_md` drops the dead keys, and `vd_basis` defaults
+to the speed-ratio route so no existing project's numbers move).
 This paragraph's version number is guarded by
 `tests/test_data_dictionary.py::test_gui_design_schema_line_current` — update
 it (and this list) with every `SCHEMA_VERSION` bump.

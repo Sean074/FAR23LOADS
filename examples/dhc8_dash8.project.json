@@ -1,5 +1,5 @@
 {
-  "schema_version": 37,
+  "schema_version": 40,
   "name": "de Havilland Canada DHC-8-100 Dash 8 \u2014 2x PW121 (concept, category C)",
   "engines": [
     {
@@ -504,8 +504,6 @@
     "chosen_n": 2.5,
     "chosen_nneg": -1.0,
     "mach_limit": {
-      "mc": 0.5,
-      "md": 0.55,
       "shoulder_altitude_ft": 15000,
       "max_operating_altitude_ft": 25000,
       "increment_ft": 1000

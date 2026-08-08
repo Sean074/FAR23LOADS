@@ -350,6 +350,71 @@ def _check_operational_targets(project: Project) -> List[ConsistencyWarning]:
     return out
 
 
+def _check_dive_speed_basis(project: Project) -> List[ConsistencyWarning]:
+    """Surface what the 25.335(b) dive-speed route implies (F25-2).
+
+    Three findings, all advisory -- none changes a speed or a load:
+
+    ``mach_margin_reduced``
+        the margin requirement was declared below 0.07 M on a rational-analysis
+        basis. Legal under 25.335(b)(2), but it must never pass silently.
+    ``mach_margin_below_ratio_floor``
+        informational: the margin route put VD below 1.25*VC. That is the whole
+        point of the route, and it is surfaced so a reviewer comparing against a
+        FAR 23 habit is never surprised by it.
+    ``vb_above_vc``
+        VB (25.335(d)) is at or above VC, which inverts the 25.335(a) ordering.
+
+    Silent when the design speeds cannot be computed yet, like every other check
+    here -- a half-filled project is not a defect.
+    """
+    speeds = project.speeds
+    if speeds is None:
+        return []
+    from .models import VdBasis
+    from .modules.structural_speeds import MACH_MARGIN_DEFAULT, design_speed_values
+
+    try:
+        ds = design_speed_values(project, speeds)
+    except (ValueError, ZeroDivisionError, KeyError):
+        return []
+
+    out: List[ConsistencyWarning] = []
+    if ds.vd_basis is VdBasis.MACH_MARGIN:
+        if ds.mach_margin_reduced:
+            out.append(ConsistencyWarning(
+                "mach_margin_reduced",
+                f"The MC→MD Mach margin is set to {ds.mach_margin_required:.4g} M, "
+                f"below the {MACH_MARGIN_DEFAULT} M default. 14 CFR 25.335(b)(2) "
+                "permits this only on a rational analysis including the effects of "
+                "automatic systems (a credited high-speed protection function): it "
+                "requires significant justification and represents a certification "
+                f"risk. Basis on file: “{(speeds.mach_margin_basis or '').strip()}”. "
+                "AC 25.335-1A treats 0.07 M as sufficient without further "
+                "investigation; 0.05 M is an absolute floor.",
+                PAGE_STRUCTURAL_SPEEDS))
+        if ds.vd < ds.vd_ratio_floor - 1e-9:
+            out.append(ConsistencyWarning(
+                "mach_margin_below_ratio_floor",
+                f"VD = {ds.vd:.4g} kt sits below the 1.25·VC speed-ratio floor "
+                f"({ds.vd_ratio_floor:.4g} kt) because the Mach-margin route was "
+                "selected. 14 CFR 25.335(b) offers the two routes disjunctively, so "
+                "this is expected — but note the margin check covers only the "
+                "(b)(2) Mach term, not the (b)(1) upset criterion, which this suite "
+                "does not implement.",
+                PAGE_STRUCTURAL_SPEEDS))
+    if speeds.vb_kt and speeds.vb_kt >= ds.vc:
+        out.append(ConsistencyWarning(
+            "vb_above_vc",
+            f"The rough-air speed VB = {speeds.vb_kt:.4g} kt is at or above "
+            f"VC = {ds.vc:.4g} kt. 14 CFR 25.335(a)(2) requires VC ≥ VB + 1.32·U_ref, "
+            "so VC must exceed VB. (Only the ordering is checked here — the "
+            "1.32·U_ref term needs the 25.341 reference gust schedule, which is not "
+            "yet implemented.)",
+            PAGE_STRUCTURAL_SPEEDS))
+    return out
+
+
 def safety_factor_valid(value) -> bool:
     """True when ``value`` is a usable per-case limit->ultimate factor: numeric,
     finite and inside the legal **[1.0, ULTIMATE_FACTOR]** band (14 CFR 23.303 —
@@ -638,6 +703,7 @@ def consistency_warnings(project: Project) -> List[ConsistencyWarning]:
     out += _check_area_mismatch(project)
     out += _check_cg_envelope(project)
     out += _check_operational_targets(project)
+    out += _check_dive_speed_basis(project)
     out += _check_safety_factors(project)
     out += _check_landing_hierarchy(project)
     out += _check_aero_coefficients(project)

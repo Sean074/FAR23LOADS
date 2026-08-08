@@ -187,7 +187,16 @@ from .results import EnvelopeResult, LoadsResult, MassResult
 # CriticalLoadSet.selected_case_ids, which references those strings: io drops an
 # entry that matches no condition and states which, rather than silently ignoring
 # it (a silently-dropped id widens the "governing set" export without saying so).
-SCHEMA_VERSION = 39  # M4-2: unified case identity (wing slots, ONENGOUT band)
+# v40 (Step F25-2) adds the dive-speed basis to the speeds slice -- ``vd_basis``
+# plus its Mach-margin parameters (``mach_margin_min``/``mach_margin_basis``) and
+# the rough-air speed ``vb_kt`` -- and **removes** ``speeds.mach_limit.mc``/
+# ``.md``. Those two were a stale duplicate: stored in the file, ignored by the
+# Streamlit page (which recomputed MC/MD from the design speeds) and honoured by
+# the CLI, so the same project gave different MNE/MFC on different front-ends.
+# MC/MD are now derived by structural_speeds and passed to mach_limit explicitly.
+# The v39 hop drops the dead keys; ``vd_basis`` defaults to the speed-ratio route,
+# so every pre-v40 project keeps exactly the numbers it had.
+SCHEMA_VERSION = 40  # F25-2: dive-speed basis (Mach-margin route); MC/MD single-sourced
 
 
 @dataclass

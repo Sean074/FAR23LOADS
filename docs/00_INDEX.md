@@ -36,6 +36,7 @@ historical record.
 | [`00_theory_sources.md`](20_theory/00_theory_sources.md) | The authoritative references (`reference/` PDFs) and how to cite them in code and tests |
 | [`01_far25_gap_analysis.md`](20_theory/01_far25_gap_analysis.md) | **FAR 25 gap analysis** (Phase F25) — the FAR 23 → FAR 25 comparison table, per-condition disposition, and what stays out of scope (tuned-gust, continuous turbulence, full Appendix K) |
 | [`02_approved_corrections.md`](20_theory/02_approved_corrections.md) | **Approved corrections register** — the authoritative list of deliberate oracle deviations (CLAUDE.md states the policy and links here) |
+| [`design_airspeeds.md`](20_theory/design_airspeeds.md) | **Design airspeeds (STRSPEED/MACHLIM)** — FAR 23.335/23.337 equations, the two 25.335(b) dive-speed routes, Mach-limit lines, and the Subpart-G operating-limitation (placard) relationship |
 | [`engine_loads.md`](20_theory/engine_loads.md) | **Engine-mount loads (ENGLOADS)** — equations for FAR 23.361/363/371 with a worked IO-520-BB example |
 
 ## 30_future — Future development
@@ -48,6 +49,8 @@ historical record.
 | [`03_gui_rework_plan.md`](30_future/03_gui_rework_plan.md) | **Phase G plan** — workflow-aligned GUI rework: one-unit-per-dimension policy, single-source-of-truth geometry, re-sequenced analysis-flow navigation, and the new fuselage-moment/trim-plot/elevator-chord features (assessment vs. current code, locked decisions G-1…G-4) |
 | [`06_m4-20_deliverable_units_plan.md`](30_future/06_m4-20_deliverable_units_plan.md) | **M4-20 plan — ✅ complete 2026-08-04** — deliverables render in the user-selected unit system: the human/solver **two-channel** unit split (N·m vs. the consistent N/mm/N·mm solver set), decisions D-19…D-22, seven sub-steps, the two `units.py` defects it fixes, and the test/doc-sync matrix |
 | [`05_step_g8_summary_report_plan.md`](30_future/05_step_g8_summary_report_plan.md) | **Step G8 plan** — the consolidated loads summary report: locked decisions (LaTeX/PDF, pgfplots figures, methods-statement stamping, report depth), the `sloads/report/` package layout, seven ordered sub-steps, risks, and the test matrix. **✅ complete 2026-08-05** — the M3-3b remainder (`content.py`, `latex.py`, `plots_tex.py`, `export/pdf.py`) shipped; kept as the plan of record |
+| [`07_export_equilibrium_invariant_plan.md`](30_future/07_export_equilibrium_invariant_plan.md) | **Export equilibrium-invariant design note** — why R9's "Σ FORCE = n·W" cannot be asserted as written, and the per-deck resultant re-derivation that replaces it |
+| [`08_f25-2_speeds_placards_plan.md`](30_future/08_f25-2_speeds_placards_plan.md) | **F25-2 plan — ✅ complete 2026-08-08** — the 14 CFR 25.335(b) **Mach-margin dive-speed route** (`speeds.vd_basis`), the 0.07/0.05 margin policy and its single owner, the MC/MD single-source fix, decisions D-1…D-7, and the two defects it closed (concept `chosen_vd` silently overridden; CLI and GUI disagreeing about MNE/MFC) |
 
 ## 40_history — Historic record
 

@@ -35,6 +35,7 @@ from sloads import (
     Project,
     StructuralSpeedsInput,
     UnitSystem,
+    VdBasis,
     consistency_warnings,
     convert_results,
     to_display,
@@ -44,6 +45,8 @@ from sloads import io as sloads_io
 from sloads.constants import convert_airspeed, mach_to_eas, standard_atmosphere
 from sloads.modules.mach_limit import mach_limit_lines
 from sloads.modules.structural_speeds import (
+    MACH_MARGIN_DEFAULT,
+    MACH_MARGIN_FLOOR,
     design_speed_values,
     design_speeds,
     operational_implications,
@@ -61,6 +64,14 @@ st.caption(
 
 _CATS = {"Normal / commuter": "N", "Utility": "U", "Acrobatic": "A", "Concept (C)": "C"}
 _CAT_LABELS = list(_CATS)
+
+# The two 25.335(b) dive-speed routes, as the radio presents them (F25-2).
+_VD_BASIS = {
+    "Speed ratio (VD \u2265 1.25\u00b7VC)": VdBasis.SPEED_RATIO,
+    "Mach margin (MD \u2265 MC + margin)": VdBasis.MACH_MARGIN,
+}
+_VD_BASIS_LABELS = list(_VD_BASIS)
+_VD_BASIS_LABEL = {v: k for k, v in _VD_BASIS.items()}
 
 
 # --------------------------------------------------------------------------- #
@@ -96,10 +107,12 @@ def _tab_design_speeds(project: Project, system: UnitSystem, U: dict) -> None:
             "**yellow arc**.\n"
             "- **VNO** (max structural cruising) = **min(VC, 0.89·VNE)** (23.1505(b)).\n"
             "- **VFE** (flap extended) ≤ **VF** (23.1511).\n"
-            "- **Turbine airplanes** (and any airplane whose VD is set by the 23.335(b)(4) "
-            "Mach-margin route) have **no yellow arc**: the max operating speed "
-            "**VMO/MMO ≤ VC/MC**, with ≥ 0.05 Mach between MC and MD "
-            "(23.335(b)(4)(ii); commuter 0.07).\n"
+            "- **Turbine airplanes** (and any airplane whose VD is set by the 25.335(b)(2) / "
+            "23.335(b)(4) Mach-margin route) have **no yellow arc**: the max operating speed "
+            "**VMO/MMO ≤ VC/MC**, with a margin of **≥ 0.07 Mach** between MC and MD "
+            "(25.335(b)(2) since Amdt 25-91; 23.335(b)(4)(iii) commuter). Below 0.07 M "
+            "needs a rational analysis crediting automatic systems; **0.05 M is an "
+            "absolute floor**.\n"
             "- **Flutter clearance** is shown to **1.2·VD/MD** (MFC, 23.629) on the "
             "Speed–Altitude Envelope tab.\n\n"
             "The advisory panel below derives these preliminary placards from your design "
@@ -226,6 +239,62 @@ def _tab_design_speeds(project: Project, system: UnitSystem, U: dict) -> None:
                              value=float(existing.chosen_vd) if existing and existing.chosen_vd else 0.0,
                              help="Design dive speed VD (KEAS); leave 0 to use the FAR 23.335(b) minimum.")
 
+        # --- Dive-speed basis (F25-2). Concept category only (decision D-1); the
+        # widgets always render because a form cannot react live to the category
+        # selectbox, and the choice is discarded at Apply outside category C.
+        st.subheader("Dive-speed basis (used only when Category = Concept (C))")
+        st.caption(
+            "14 CFR 25.335(b) offers **two routes**: the speed ratio VC/MC ≤ 0.8·VD/MD "
+            "(i.e. VD ≥ 1.25·VC) **or** a minimum Mach margin between MC and MD. The "
+            "FAR 23 categories always use the speed ratio; a concept may choose. "
+            "The Mach-margin route needs a shoulder altitude and a chosen VD above."
+        )
+        basis_default = (
+            _VD_BASIS_LABEL[existing.vd_basis] if existing else _VD_BASIS_LABELS[0])
+        basis_label = st.radio(
+            "Dive-speed basis", _VD_BASIS_LABELS,
+            index=_VD_BASIS_LABELS.index(basis_default), horizontal=True,
+            help="Speed ratio: today's behaviour, VD is raised to at least 1.25·VC. "
+                 "Mach margin: your chosen VD is honoured as long as MD clears "
+                 "MC + the margin below, and raised to meet it if not.",
+        )
+        margin_min = st.number_input(
+            "Minimum MC→MD Mach margin", min_value=float(MACH_MARGIN_FLOOR),
+            max_value=0.30, step=0.005, format="%.3f",
+            value=float(existing.mach_margin_min) if existing and existing.mach_margin_min
+            else float(MACH_MARGIN_DEFAULT),
+            help=f"Default {MACH_MARGIN_DEFAULT} M — the 14 CFR 25.335(b)(2) rule "
+                 f"figure since Amdt 25-91 (1997). {MACH_MARGIN_FLOOR} M is an "
+                 "absolute floor and cannot be entered below.",
+        )
+        margin_basis = st.text_input(
+            "Rational-analysis basis (required below 0.07 M)",
+            value=(existing.mach_margin_basis or "") if existing else "",
+            placeholder="e.g. high-speed protection function credited per 25.335(b)(2)",
+            help="Free text, recorded with the results. 25.335(b)(2) permits a margin "
+                 "below 0.07 M only when it is 'determined using a rational analysis "
+                 "that includes the effects of any automatic systems'.",
+        )
+        if margin_min < MACH_MARGIN_DEFAULT:
+            st.warning(
+                f"Reducing the MC→MD margin below **{MACH_MARGIN_DEFAULT} M** requires "
+                "**significant justification** — a rational analysis including the "
+                "effects of automatic systems (14 CFR 25.335(b)(2)) — and **represents "
+                "a certification risk**. AC 25.335-1A treats 0.07 M as sufficient "
+                "without further investigation; sub-0.07 margins in service are "
+                "high-speed-protection-credited and typically remain above 0.06 M. "
+                f"{MACH_MARGIN_FLOOR} M is an absolute floor. See "
+                "`reference/14CFR_MC_MD_speed_margin.md` §2–3."
+            )
+        vb = st.number_input(
+            "Rough-air speed VB (kt, optional)", min_value=0.0,
+            value=float(existing.vb_kt) if existing and existing.vb_kt else 0.0,
+            help="Design speed for maximum gust intensity, 14 CFR 25.335(d). Input "
+                 "only — it is checked against VC for ordering and never changes a "
+                 "design speed or a load. The full VC ≥ VB + 1.32·U_ref margin needs "
+                 "the 25.341 reference-gust schedule, which is not yet implemented.",
+        )
+
         st.subheader("Concept load factors (used only when Category = Concept (C))")
         st.caption("No FAR 23.337 cap is applied to the Concept category — you set the limit maneuver factors.")
         chosen_n = st.number_input("Limit positive load factor n", min_value=0.0,
@@ -289,6 +358,15 @@ def _tab_design_speeds(project: Project, system: UnitSystem, U: dict) -> None:
             chosen_vd=vd or None,
             chosen_n=chosen_n if is_concept_submit else None,
             chosen_nneg=chosen_nneg if is_concept_submit else None,
+            # The dive-speed basis is concept-only (D-1): a FAR 23 category always
+            # persists the speed-ratio route, so switching category cannot leave a
+            # project holding a basis its category refuses to run.
+            vd_basis=(_VD_BASIS[basis_label] if is_concept_submit else VdBasis.SPEED_RATIO),
+            mach_margin_min=(margin_min if is_concept_submit
+                             and _VD_BASIS[basis_label] is VdBasis.MACH_MARGIN
+                             and margin_min != MACH_MARGIN_DEFAULT else None),
+            mach_margin_basis=(margin_basis.strip() or None) if is_concept_submit else None,
+            vb_kt=vb or None,
             no_yellow_arc=bool(no_yellow_arc),
             target_vne=target_vne or None,
             target_vno=target_vno or None,
@@ -321,6 +399,19 @@ def _tab_design_speeds(project: Project, system: UnitSystem, U: dict) -> None:
         workflow_page_link("aero_coefficients", label="→ Set CLmax on Aerodynamic Data",
                            icon="🛩️")
         return
+
+    # The margin route's headline numbers, up front rather than buried in the
+    # condition note: which route ran, what it achieved, and what the other route
+    # would have imposed (F25-2).
+    if inp.vd_basis is VdBasis.MACH_MARGIN:
+        _ds = design_speed_values(project, inp)
+        _c1, _c2, _c3 = st.columns(3)
+        _c1.metric("VD (Mach-margin route)", f"{_ds.vd:,.1f} kt",
+                   delta=f"{_ds.vd - _ds.vd_ratio_floor:+,.1f} kt vs 1.25·VC",
+                   delta_color="off")
+        _c2.metric("MD − MC margin", f"{_ds.mach_margin:.4f}",
+                   delta=f"required {_ds.mach_margin_required:.4f}", delta_color="off")
+        _c3.metric("MC / MD", f"{_ds.mc:.4f} / {_ds.md:.4f}")
 
     for r in results:
         with st.expander(f"FAR {r.far_reference} — {r.title}", expanded=True):
@@ -381,9 +472,9 @@ def _tab_speed_altitude(project: Project, system: UnitSystem, U: dict) -> None:
     if ds is not None:
         mc, md = ds.mc, ds.md
         shoulder = project.speeds.shoulder_altitude_ft
-    elif existing is not None:
-        mc, md, shoulder = existing.mc, existing.md, existing.shoulder_altitude_ft
     else:
+        # There is no stored MC/MD to fall back on any more (F25-2): the pair used
+        # to live on the MACHLIM slice too, and the two copies disagreed.
         st.info(
             "No design speeds yet. Enter the design weight, stall speeds and shoulder "
             "altitude on the **Design Speeds** tab first — MC, MD and the shoulder "
@@ -419,7 +510,7 @@ def _tab_speed_altitude(project: Project, system: UnitSystem, U: dict) -> None:
     )
 
     inp = MachLimitInput(
-        mc=mc, md=md, shoulder_altitude_ft=shoulder,
+        shoulder_altitude_ft=shoulder,
         max_operating_altitude_ft=max_alt, increment_ft=incr,
     )
     # Persist into the speeds slice only on Apply (creating it if the Design Speeds
@@ -431,7 +522,7 @@ def _tab_speed_altitude(project: Project, system: UnitSystem, U: dict) -> None:
         st.session_state["project"] = project
 
     try:
-        results = mach_limit_lines(inp)
+        results = mach_limit_lines(inp, mc, md)
     except (ValueError, ZeroDivisionError) as exc:
         st.error(f"Could not compute the Mach-limit lines: {exc}")
         return

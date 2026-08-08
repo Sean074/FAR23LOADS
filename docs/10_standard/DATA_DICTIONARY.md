@@ -2,7 +2,7 @@
 
 > **Generated file — do not edit by hand.** Produced by [`docs/generate_data_dict.py`](../generate_data_dict.py) from `sloads/models.py`. Regenerate after any schema change: `.venv/bin/python docs/generate_data_dict.py`.
 
-Schema version: **39**.
+Schema version: **40**.
 
 This dictionary covers the **input** slices of `Project` (`sloads/models.py`) — the fields that make up a `project.json`. The result slices (`envelope`, `mass`, `loads`) are computed outputs and are out of scope.
 
@@ -98,4 +98,5 @@ Geometry/aero inputs for SELECT's rational vertical-tail loads (Ch 9).
 - **`RotorDirection`** — `CLOCKWISE` = `'CW'`, `COUNTERCLOCKWISE` = `'CC'`.
 - **`RotorType`** — `COMPRESSOR` = `'C'`, `TURBINE` = `'T'`.
 - **`TailType`** — `CONVENTIONAL` = `'conventional'`, `T_TAIL` = `'t_tail'`, `V_TAIL` = `'v_tail'`, `CRUCIFORM` = `'cruciform'`. Empennage arrangement, for the Configuration & Layout three-view.
+- **`VdBasis`** — `SPEED_RATIO` = `'speed_ratio'`, `MACH_MARGIN` = `'mach_margin'`. Which regulatory route sets the design dive speed VD (F25-2).
 

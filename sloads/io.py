@@ -81,6 +81,7 @@ from .models import (
     TailBalanceLoad,
     TailChordResult,
     TailChordStation,
+    VdBasis,
     VnPoint,
     WeightEnvelopeInput,
     WeightEstimationInput,
@@ -423,6 +424,12 @@ def speeds_from_dict(d: Dict[str, Any]) -> StructuralSpeedsInput:
     d.pop("stall_clean_kt", None)
     d.pop("stall_flap_kt", None)
     mach_limit = MachLimitInput(**_filtered(MachLimitInput, ml)) if ml else None
+    # F25-2: an unrecognised dive-speed basis is an error, not a silent fallback --
+    # quietly reading it as "speed_ratio" would apply the 1.25*VC floor to a project
+    # whose author asked for the Mach-margin route, which is the very defect F25-2
+    # fixes. VdBasis(...) raises ValueError naming the bad value.
+    if d.get("vd_basis") is not None:
+        d["vd_basis"] = VdBasis(d["vd_basis"])
     return StructuralSpeedsInput(mach_limit=mach_limit, **_filtered(StructuralSpeedsInput, d))
 
 

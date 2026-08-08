@@ -16,22 +16,24 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+import glob  # noqa: E402
+
 from sloads import MachLimitInput, Project, StructuralSpeedsInput, io  # noqa: E402
 from sloads.modules import mach_limit as calc  # noqa: E402
+from sloads.modules.structural_speeds import design_speed_values  # noqa: E402
 from helpers import value_of  # noqa: E402
 
 TOL = 1e-3  # ±0.1% relative
 
-_EXAMPLE = os.path.join(
-    os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-    "examples",
-    "ga6_normal.project.json",
-)
+_EXAMPLES_DIR = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "examples")
+_EXAMPLE = os.path.join(_EXAMPLES_DIR, "ga6_normal.project.json")
 
 
 def results():
     project = io.load_project(_EXAMPLE)
-    return calc.mach_limit_lines(project.speeds.mach_limit)
+    ds = design_speed_values(project, project.speeds)
+    return calc.mach_limit_lines(project.speeds.mach_limit, ds.mc, ds.md)
 
 
 def _line_at(conditions, altitude):
@@ -93,12 +95,44 @@ def test_run_requires_mach_limit_inputs():
     assert raised
 
 
+def test_mc_md_come_from_strspeed_on_every_front_end():
+    """The MC/MD drift guard (F25-2).
+
+    MC/MD used to be *stored* on the MACHLIM slice and *recomputed* by the
+    Streamlit page, which ignored the stored pair. The registry/CLI path honoured
+    it, so ``examples/concept_regional_jet.project.json`` reported MNE 0.738 from
+    the CLI and MNE 0.848 from the GUI -- the same project, the same module, two
+    answers, which breaks the "GUI, CLI and tests are interchangeable front-ends"
+    contract. There is now one producer; this asserts it for every shipped
+    fixture, so the duplicate cannot come back.
+    """
+    for path in sorted(glob.glob(os.path.join(_EXAMPLES_DIR, "*.project.json"))):
+        project = io.load_project(path)
+        if project.speeds is None or project.speeds.mach_limit is None:
+            continue
+        ds = design_speed_values(project, project.speeds)
+        r = calc.run(project).conditions
+        name = os.path.basename(path)
+        assert math.isclose(value_of(r, "cruise_mach_mc"), ds.mc, rel_tol=1e-12), name
+        assert math.isclose(value_of(r, "dive_mach_md"), ds.md, rel_tol=1e-12), name
+        assert math.isclose(value_of(r, "never_exceed_mach_mne"), 0.9 * ds.md, rel_tol=1e-12), name
+        assert math.isclose(value_of(r, "flutter_clearance_mach_mfc"), 1.2 * ds.md, rel_tol=1e-12), name
+
+
+def test_mach_limit_input_no_longer_carries_mc_md():
+    """The structural half of the guard above: the duplicate field is gone, so a
+    future edit cannot quietly start reading a stored copy again."""
+    from dataclasses import fields as dc_fields
+
+    assert not ({f.name for f in dc_fields(MachLimitInput)} & {"mc", "md"})
+
+
 def test_above_tropopause_uses_constant_speed_of_sound():
     # Above 35332 ft the speed of sound is constant (~575 kt); two high altitudes
     # share the same a, so V scales only with sqrt(sigma).
-    inp = MachLimitInput(mc=0.5, md=0.6, shoulder_altitude_ft=36000,
+    inp = MachLimitInput(shoulder_altitude_ft=36000,
                          max_operating_altitude_ft=40000, increment_ft=2000)
-    r = calc.mach_limit_lines(inp)
+    r = calc.mach_limit_lines(inp, 0.5, 0.6)
     lines = [c for c in r if c.title.startswith("Mach limit line")]
     assert len(lines) == 3  # 36000, 38000, 40000
     # V(MD) decreases monotonically with altitude (sigma falls).

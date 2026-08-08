@@ -16,6 +16,7 @@ from .enums import (
     RotorDirection,
     RotorType,
     TailType,
+    VdBasis,
 )
 
 Vec3 = Tuple[float, float, float]
@@ -401,13 +402,17 @@ class AeroInput:
 class MachLimitInput:
     """Inputs for MACHLIM (the Mach-limit lines on the flight-limits diagram).
 
-    ``mc``/``md`` are the cruise/dive Mach limits (from STRSPEED at the shoulder
-    altitude); MACHLIM tabulates the Mach-limited equivalent airspeeds from the
-    shoulder altitude up to the max operating altitude in ``increment_ft`` steps
+    MACHLIM tabulates the Mach-limited equivalent airspeeds from the shoulder
+    altitude up to the max operating altitude in ``increment_ft`` steps
     (Reference 1 Ch 6).
+
+    **MC/MD are not inputs** (F25-2, schema v40). They are derived from the
+    design speeds by :func:`sloads.modules.structural_speeds.design_speed_values`
+    and passed to :func:`sloads.modules.mach_limit.mach_limit_lines` explicitly.
+    They used to be stored here *and* silently recomputed by the Streamlit page,
+    so the CLI and the GUI produced different MNE/MFC for the same project; the
+    v39 migration hop drops the stale stored values.
     """
-    mc: float = 0.0
-    md: float = 0.0
     shoulder_altitude_ft: float = 0.0
     max_operating_altitude_ft: float = 0.0
     increment_ft: float = 1000.0
@@ -427,6 +432,10 @@ class StructuralSpeedsInput:
     ``wing_area_sqft``). Each ``chosen_*`` speed is verified against (and raised to)
     its FAR minimum; leave one ``None`` to take the computed minimum directly (in
     concept mode the speed minimums are out-of-band advisories).
+
+    ``vd_basis`` selects which of 25.335(b)'s two disjunctive routes sets VD (see
+    the field comments below); it defaults to the speed-ratio route, so an
+    existing project's numbers are unchanged by F25-2.
     """
     category: str = "N"
     weight_lb: float = 0.0
@@ -449,6 +458,23 @@ class StructuralSpeedsInput:
     chosen_n: Optional[float] = None            # chosen positive maneuver load factor
     chosen_nneg: Optional[float] = None         # chosen negative maneuver load factor
     mach_limit: Optional[MachLimitInput] = None  # MACHLIM inputs (Project.speeds.mach_limit)
+    # --- Dive-speed basis (F25-2, 14 CFR 25.335(b) / 23.335(b)(4)) -------------
+    # 25.335(b) offers two routes disjunctively: the speed ratio VC/MC <= 0.8*VD/MD
+    # (i.e. VD >= 1.25*VC -- the default, and all this suite implemented before
+    # F25-2) OR a minimum Mach margin between MC and MD. ``vd_basis`` picks one.
+    # The margin route is concept-category-"C"-only (decision D-1) and needs a
+    # non-zero shoulder altitude and a chosen_vd; ``mach_margin_min`` defaults to
+    # 0.07 M and may not be declared below 0.05 M, with 0.05-0.07 requiring a
+    # written rational-analysis basis (25.335(b)(2)). Policy owner:
+    # sloads.modules.structural_speeds.resolve_mach_margin. Regulation text:
+    # reference/14CFR_25_335_design_airspeeds.md, 14CFR_MC_MD_speed_margin.md.
+    vd_basis: VdBasis = VdBasis.SPEED_RATIO
+    mach_margin_min: Optional[float] = None     # None -> MACH_MARGIN_DEFAULT (0.07)
+    mach_margin_basis: Optional[str] = None     # rational-analysis / HSPF justification
+    # Rough-air design speed VB (25.335(d)). INPUT ONLY -- F25-2 checks the
+    # 25.335(a) ordering against VC; the full VC >= VB + 1.32*U_ref margin needs
+    # the 25.341 U_ref schedule and is deferred to F25-1.
+    vb_kt: Optional[float] = None
     # --- Operational-limitation targets (M2-10, Subpart G) --------------------
     # Optional *advisory* placard targets. They never change the design speeds or
     # any load (display/validation only); on Apply the ladder is inverted into the

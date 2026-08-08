@@ -37,6 +37,7 @@ v27    top-level ``tail_loads``/``vtail_loads`` -> ``geometry``      ``legacy_ta
        ``.empennage.htail``/``.vtail``                              ``legacy_vtail_loads=``
 v28    top-level ``landing`` gear -> ``geometry.landing_gear``       ``legacy_landing=``
 v36    persisted ``LoadValue`` s gain ``key`` (M4-9)                 nothing — new in v37
+v39    ``speeds.mach_limit.mc``/``.md`` removed (F25-2)              nothing — new in v40
 ===== ============================================================ =================================
 
 Versions 1–17, 20–23, 26, 29–35 and **37** are **additive only** — a new optional
@@ -306,6 +307,32 @@ def _v36_load_value_keys(d: Dict[str, Any]) -> Dict[str, Any]:
     return d
 
 
+def _v39_mach_limit_mc_md(d: Dict[str, Any]) -> Dict[str, Any]:
+    """Drop the stale ``speeds.mach_limit.mc``/``.md`` duplicate (F25-2).
+
+    MC and MD were persisted here *and* recomputed from the design speeds by the
+    Streamlit Speed-Altitude tab, which ignored the stored pair outright. The
+    registry/CLI path did not -- so ``examples/concept_regional_jet.project.json``
+    reported MNE 0.738 from the CLI and MNE 0.848 from the GUI, for the same
+    project and the same module. MC/MD are now derived once by
+    ``structural_speeds.design_speed_values`` and handed to ``mach_limit_lines``.
+
+    Dropping rather than migrating the values is deliberate and is *not* silent
+    data loss: the stored pair was never a user decision the tool acted on in the
+    GUI, and the derived pair is what the design speeds actually imply. A file
+    whose stored MC/MD disagreed with its own VC/VD was, by construction,
+    internally inconsistent.
+    """
+    speeds = d.get("speeds")
+    if not isinstance(speeds, dict):
+        return d
+    ml = speeds.get("mach_limit")
+    if isinstance(ml, dict):
+        ml.pop("mc", None)
+        ml.pop("md", None)
+    return d
+
+
 # --------------------------------------------------------------------------- #
 # The chain
 # --------------------------------------------------------------------------- #
@@ -320,6 +347,7 @@ MIGRATIONS: Dict[int, Callable[[Dict[str, Any]], Dict[str, Any]]] = {
     27: _v27_empennage,
     28: _v28_landing_gear,
     36: _v36_load_value_keys,
+    39: _v39_mach_limit_mc_md,
 }
 
 #: The oldest project version whose *shape* is described by a hop. Below this a

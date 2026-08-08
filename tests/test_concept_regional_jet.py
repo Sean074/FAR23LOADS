@@ -44,6 +44,53 @@ def test_fixture_is_concept_over_ga_limit():
     assert project.speeds.chosen_nneg == -1.0
 
 
+def test_fixture_uses_the_mach_margin_dive_speed_route():
+    """F25-2. This fixture is *the* demonstration of the 25.335(b) margin route.
+
+    Before F25-2 its own chosen VD of 350 kt was silently overridden by the
+    1.25*VC floor to 387.5 kt (MD 0.9423, margin +0.19 -- absurd for a transport),
+    inflating every dive-speed case and driving MACHLIM to MFC 1.13. The route is
+    opt-in, so the fixture must actually carry it.
+    """
+    from sloads import VdBasis
+    from sloads.modules.structural_speeds import design_speed_values
+
+    project = io.load_project(_EXAMPLE)
+    assert project.speeds.vd_basis is VdBasis.MACH_MARGIN
+    ds = design_speed_values(project, project.speeds)
+    assert abs(ds.vd - 350.0) < 1e-6, "the fixture's own chosen VD must survive"
+    assert ds.mach_margin > 0.07, "and it must clear the 0.07 M default on its own"
+    assert abs(ds.vd_ratio_floor - 387.5) < 1e-6
+
+
+def test_only_the_dive_line_moves_with_vd():
+    """The containment claim behind the F25-2 re-baseline.
+
+    Changing VD may move the D-line corner cases and nothing else. This pins the
+    mechanism rather than the numbers: every ``*D`` envelope case flies at VD,
+    and no ``*A``/``*C`` case does -- so a future VD change cannot quietly leak
+    into the low-speed corners.
+    """
+    from sloads.modules.flight_envelope import design_inputs
+    from sloads.registry import get
+
+    project = io.load_project(_EXAMPLE)
+    di = design_inputs(project)
+    speeds_by_case = {}
+    for cond in get("flight_envelope")(project).conditions:
+        for lv in cond.values:
+            if lv.key == "v_eas":
+                speeds_by_case[cond.title] = lv.value
+
+    assert speeds_by_case, "the flight envelope produced no cases"
+    for title, v in speeds_by_case.items():
+        tag = title.rsplit(":", 1)[-1].strip()
+        if tag.endswith("D"):
+            assert abs(v - di.vd) < 1e-6, f"{title} should fly at VD"
+        elif tag.endswith("A") or tag.endswith("C"):
+            assert abs(v - di.vd) > 1e-6, f"{title} must not be tied to VD"
+
+
 def test_full_airframe_runs_end_to_end():
     """Every component module runs -- no missing-slice ValueError skips."""
     project = io.load_project(_EXAMPLE)

@@ -125,21 +125,6 @@ migrated with oracles/tests unchanged; a Layer-2 named case (e.g. MLA loss @ 1.2
 round-trips through `io.py` and renders as `lbs-ULT SF=1.25`. Touches the CLAUDE.md
 ultimate-load contract — land deliberately with tests.
 
-### [E] F25-2 — Speeds & placards Part 25 variant (S→M) **[contains a Major concept-mode defect]**
-25.335 margins (VB margin; MD ≥ MC + **0.07** default, 0.05–0.07 only as explicit
-rational-analysis/HSPF override — see `reference/14CFR_MC_MD_speed_margin.md`)
-+ the M2-10 ladder in VMO/MMO form. **Includes fixing a verified concept-mode
-defect (2026-07-20):** no Mach-margin route exists anywhere and the FAR 23
-(b)(1) floor `vd = max(chosen_vd, 1.25·VC)` binds unconditionally — a
-concept user cannot enter a margin-route VD. Demonstrated on the RJ fixture:
-its own `chosen_vd = 350` (MD 0.851, margin +0.097) is silently overridden
-to 387.5 kt → MD 0.9423, margin +0.19, inflating every dive-speed case and
-cascading into MACHLIM (MNE 0.848, MFC 1.13 — nonphysical for a transport).
-Fix: in concept/T mode offer the margin route as the VD basis (honor chosen
-VD when MD ≥ MC + margin; warn below 0.07; flag+annotate 0.05–0.07); keep
-the 1.25 floor for FAR 23 categories. Optional later: the 23.335(b)(4)(i)/
-25.335(b)(1) upset-criterion calculator (7.5°/20 s/1.5 g per AC 25.335-1A).
-
 ### [E] M4-6 — Ground-case distributed fuselage (and wing) loads + pressurization
 The heaviest open calc item. Ground-case fuselage inertia/reaction distribution
 (gear reactions as applied external loads at the LGFACTOR landing load factor);
@@ -181,12 +166,49 @@ resolved-decision register (S). Not a defect — an undocumented assumption.
 ### [V] F25-0 — Verify pass (S, precedes any F25 build step)
 Pull current CFR text for every *(verify)* row into
 `reference/14CFR_Part25_loads_extracts.md`; correct the gap table; freeze
-parameters. *(First row done 2026-07-20: `reference/14CFR_MC_MD_speed_margin.md`.)*
+parameters. *(Done so far: 2026-07-20 `reference/14CFR_MC_MD_speed_margin.md`; 2026-08-08 `reference/14CFR_25_335_design_airspeeds.md` — 25.335(a)/(b)/(d) verbatim, which cleared the three *(verify)* tags in gap-analysis §1.3.)*
+
+### [V] Upset-criterion speed increase (25.335(b)(1) / 23.335(b)(4)(i)) *(new 2026-08-08, from F25-2)*
+25.335(b) requires the **greater of** the Mach margin and the (b)(1) upset
+criterion: from stabilized flight at VC/MC, upset, flown 20 s along a path 7.5°
+below the initial one, then pulled up at 1.5 g (0.5 g increment) — per
+AC 25.335-1A. F25-2 shipped the Mach term only, so the margin check is
+explicitly **not a sufficiency demonstration** and every margin-route output
+says so. This closes that gap. Needs a drag/thrust model over the 20 s dive (the
+rule permits calculation "if reliable or conservative aerodynamic data is
+used"), so it is a real piece of work, not a formula. Effort: M. Reference text
+already captured: `../../reference/14CFR_25_335_design_airspeeds.md`.
+
+### [V] Mach-margin route for the FAR 23 categories *(new 2026-08-08, from F25-2)*
+23.335(b)(4) offers the margin route to normal/utility/acrobatic (0.05 M) and to
+commuter (0.07 M, rational analysis down to 0.05). F25-2 withheld it from all of
+them (decision F25-2-a) so the Appendix A oracles stayed provably untouched;
+`vd_basis = "mach_margin"` in a FAR 23 category currently raises. The machinery
+is already in place — this is a category gate plus a per-category default in
+`resolve_mach_margin`, and an oracle-unchanged test. Pairs with the dormant
+"Distinct Commuter category" item. Effort: S.
+
+### [V] Flutter-clearance Mach basis for transport concepts *(new 2026-08-08, from F25-2)*
+MACHLIM's `MFC = 1.2·MD` is GA-lineage (MACHLIM.BAS, Ref 1 Ch 6). Even with the
+RJ's dive speed corrected it gives **MFC 1.021** — transonic nonsense for a
+subsonic transport, where flutter clearance is conventionally MD + ~0.05–0.10 M
+(and 23.629/25.629 are framed as a margin, not a ratio). Noticed while
+reproducing the F25-2 dive-speed defect. Needs a verified reference and a
+recorded decision **before** any change — the 1.2 factor is oracle-locked to
+Appendix A p160 (MFC 0.4836), so a change must be an opt-in variant, not an edit
+to the GA path. Effort: S (study + decision) then S (variant).
 
 ### [V] F25-1 — Transport category "T" envelope pack (M)
-25.337 floor 2.5 / negative −1.0; VB (25.335(d)); transport gust corner set —
+25.337 floor 2.5 / negative −1.0; **VB per 25.335(d)** (F25-2 accepts VB as an
+input and checks the 25.335(a) ordering; **computing** it, and the full
+`VC ≥ VB + 1.32·U_ref` margin, both land here with the U_ref schedule — the VB
+formula is the Pratt K_g already in the gust engine, so it is cheap once U_ref
+exists); transport gust corner set —
 Pratt engine with the 25.341 U_ref schedule + F_g; MZFW design weight.
-Identity test: "T" with FAR 23 parameters reproduces the FAR 23 envelope.
+Identity test: "T" with FAR 23 parameters reproduces the FAR 23 envelope. The
+dive-speed machinery is already built (F25-2): "T" inherits
+`structural_speeds.resolve_mach_margin` and the `vd_basis` enum unchanged — only
+the category gate widens.
 (Pattern: opt-in supplement per module, FAR 23 path untouched, "static
 surrogate — not certification" banner. Full gap table:
 [`../20_theory/01_far25_gap_analysis.md`](../20_theory/01_far25_gap_analysis.md).)
@@ -330,8 +352,6 @@ Mechanical (S); do after the current working tree is committed.
   `density_ratio` becomes a thin read of `standard_atmosphere`, or is deleted and
   its callers re-pointed. Numerically inert by construction: assert the Appendix A
   oracles and both concept fixtures are unchanged.
-- **F25-2 (concept mode) [Major]** — no Mach-margin VD route; scoped into the
-  mission-path F25-2 item above, not a standalone fix.
 - **Conventions-extraction findings (2026-08-05) [Minor, S — batch as one fix].**
   From the `CONVENTIONS.md` charter extraction (§8 there): (a) `load_keys.py:11-12`
   cites `tests/test_load_keys.py` as its uniqueness guard but **the test file does

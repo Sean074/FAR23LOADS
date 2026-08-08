@@ -237,6 +237,31 @@ estimate becomes a sanity figure rather than the source of truth (weights come
 straight from the itemized mass database). Concept mode is a **superset** — on
 GA inputs it reduces exactly to the oracle-locked FAR 23 path.
 
+**Dive-speed basis (concept only).** In category `C` the Design Speeds tab adds a
+**Dive speed basis** choice, because 14 CFR 25.335(b) offers two routes and the
+regulation joins them with an *or*:
+
+- **Speed ratio (VD ≥ 1.25·VC)** — the default, and what the suite has always
+  done. `VC/MC ≤ 0.8·VD/MD` is the same statement written the other way round.
+- **Mach margin (MD ≥ MC + margin)** — your chosen VD is honoured as long as MD
+  clears MC by the margin, and raised to meet it if not. Needs a shoulder
+  altitude and a chosen VD. Use this when the ratio route would force a dive
+  speed your configuration does not have (a regional jet at VC 310 kt is pushed
+  to VD 387.5 kt by the ratio, MD 0.94 — a margin of +0.19, which no transport
+  designs to).
+
+The margin defaults to **0.07 M**. Entering less than that requires a written
+**rational-analysis basis** and raises a standing warning: reducing below 0.07 M
+needs significant justification — a rational analysis crediting automatic systems
+(25.335(b)(2)) — and **represents a certification risk**. **0.05 M is an absolute
+floor** the form will not go below. Whichever route you pick, the results state
+that only the (b)(2) Mach term is evaluated: 25.335(b) wants the *greater of*
+that margin and the (b)(1) upset criterion, which this suite does not compute, so
+a clean margin here is not a compliance demonstration.
+
+An optional **rough-air speed VB** (25.335(d)) can be entered; it is checked for
+ordering against VC and never changes a design speed or a load.
+
 Some concept-mode results carry caveats the UI surfaces (e.g. the fuselage
 body-load moment-closure note, and the fixed body-rate stand-in for the 25.371
 gyro case). The Export deliverables stamp a methods/limitations statement so a
@@ -253,7 +278,7 @@ Load any of these from **Start → Project JSON Editor** (or `New from example`)
 |---|---|---|
 | `ga6_normal` | FAR 23 Normal (Appendix A) | full workflow, all six phases |
 | `cessna_210` | FAR 23 Normal | full workflow |
-| `concept_regional_jet` | concept jet (T-tail, Part 25 supplement on) | full workflow |
+| `concept_regional_jet` | concept jet (T-tail, Part 25 supplement on, **25.335(b) Mach-margin dive speed**) | full workflow |
 | `dhc8_dash8` | concept twin-turboprop (one-engine-out) | full workflow |
 | `atr42_100` | concept twin-turboprop (one-engine-out) | full workflow |
 | `concept_heavy` | **minimal concept core** | V-n → Flight Envelope only |

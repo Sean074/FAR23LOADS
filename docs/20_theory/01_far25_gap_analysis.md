@@ -69,10 +69,10 @@ analysis, concept scope · **X** = out of scope (document, never silently skip).
 
 | FAR 25 | FAR 23 | What the program does | Difference | Disp. |
 |---|---|---|---|---|
-| 25.335(a) VC/MC: no formula minimum; must exceed VB by a margin *(verify exact wording)* | 23.335(a): VC ≥ K√(W/S) | K√(W/S) minima; advisory-only in concept mode | Part 25 has no wing-loading formula — VC is chosen against VB/gust and VMO intent | **P** — category-gate the GA minima off; add the VB-margin check |
-| 25.335(b) VD/MD: VC/MC ≤ 0.8·VD/MD **or** margin = greater of upset criterion and **0.07M** (rational analysis w/ automatic systems may reduce; floor **0.05M**) — *verified 2026-07-20, see `reference/14CFR_MC_MD_speed_margin.md`* | 23.335(b)(4): margin = greater of upset and **0.05** (N/U/A) / **0.07** (commuter, rational floor 0.05) — verbatim in the same reference file | STRSPEED floors (b)(1)–(3) only; the (b)(4) margin route is discussed in Ref 1 p47 but never computed | 0.07 entered the Part 25 *rule* at Amdt 25-91 (eff. 1997-08-28); AC 25.335-1A (2000): 0.07 "sufficient without further investigation"; sub-0.07 in practice = HSPF-credited rational analysis (A350 SC template), typically >0.06 per FTHWG 2020 | **P** — "T" category defaults MD ≥ MC + 0.07; 0.05–0.07 only as explicit rational-analysis override (ties into M2-10 ladder, VMO/MMO form) |
+| 25.335(a) VC/MC: no formula minimum; `VC ≥ VB + 1.32·U_REF` (U_REF per 25.341(a)(5)(i)) — *verified 2026-08-08, `reference/14CFR_25_335_design_airspeeds.md`* | 23.335(a): VC ≥ K√(W/S) | K√(W/S) minima; advisory-only in concept mode | Part 25 has no wing-loading formula — VC is chosen against VB/gust and VMO intent | **P / part-shipped (F25-2)** — `speeds.vb_kt` is accepted and the 25.335(a) *ordering* checked (`vb_above_vc`); the `VC ≥ VB + 1.32·U_ref` term needs the 25.341 U_ref schedule and stays with F25-1. Verbatim text now in `reference/14CFR_25_335_design_airspeeds.md` |
+| 25.335(b) VD/MD: VC/MC ≤ 0.8·VD/MD **or** margin = greater of upset criterion and **0.07M** (rational analysis w/ automatic systems may reduce; floor **0.05M**) — *verified 2026-07-20, see `reference/14CFR_MC_MD_speed_margin.md`* | 23.335(b)(4): margin = greater of upset and **0.05** (N/U/A) / **0.07** (commuter, rational floor 0.05) — verbatim in the same reference file | Both routes: the speed-ratio floors, **and** (F25-2) the (b)(2) Mach-margin route via `speeds.vd_basis`. The (b)(1) upset criterion is still not computed | 0.07 entered the Part 25 *rule* at Amdt 25-91 (eff. 1997-08-28); AC 25.335-1A (2000): 0.07 "sufficient without further investigation"; sub-0.07 in practice = HSPF-credited rational analysis (A350 SC template), typically >0.06 per FTHWG 2020 | **SHIPPED (F25-2, 2026-08-08)** — `speeds.vd_basis` selects the route; default MD ≥ MC + 0.07, 0.05–0.07 only with a written rational-analysis basis (flagged everywhere), below 0.05 refused; the M2-10 ladder now uses the resolved margin. Concept category "C" only; the (b)(1) upset term is **not** implemented and every output says so |
 | 25.335(c) VA = VS₁√n | 23.335(c) same | `va_min = VS√n` | None | **A** |
-| 25.335(d) **VB** (rough-air speed; gust-line ∩ CLmax intersection formula) | 23.335(d) (commuter only; absent) | Not computed anywhere (noted in review; L-4) | New speed + a gust case at VB (see 1.4) | **N** |
+| 25.335(d) **VB** (rough-air speed; `VS1·√(1 + Kg·Uref·Vc·a/(498w))`) — *verified 2026-08-08, same reference* | 23.335(d) (commuter only; absent) | Accepted as an input since F25-2 (`speeds.vb_kt`, ordering-checked); not *computed* | New speed + a gust case at VB (see 1.4). The formula is the Pratt K_g applied to U_ref (verbatim in `reference/14CFR_25_335_design_airspeeds.md`), so computing it is cheap once the 25.341 schedule exists | **N** — with F25-1 |
 
 ### 1.4 Gust loads — the biggest gap
 
@@ -173,10 +173,18 @@ FLTLOADS machinery. Acceptance: the RJ fixture runs category "T" end-to-end;
 closure suite extended; V-n plot shows the Part 25 shape; identity test —
 category "T" with FAR 23 parameters reproduces the FAR 23 envelope.
 
-**F25-2 — Speeds & placards, Part 25 variant (S).** 25.335 minima/margins
-(VB margin on VC; MD ≥ MC + 0.05 / upset route) wired into `structural_speeds`
-+ the M2-10 operational ladder in its VMO/MMO (no-yellow-arc) form — Ref 1 p47
-already documents this linkage.
+**F25-2 — Speeds & placards, Part 25 variant (S). ✅ SHIPPED 2026-08-08**
+(tier L; plan `../30_future/08_f25-2_speeds_placards_plan.md`, record in
+`../40_history/00_completed_development.md`). The 25.335(b) Mach-margin route as
+an explicit `speeds.vd_basis`, concept category "C" only; margin policy owned by
+`structural_speeds.resolve_mach_margin` (0.07 default / 0.05 floor /
+justification in between); the M2-10 ladder's hardcoded 0.05 replaced by the
+resolved margin; VB accepted as input with an ordering check. It also fixed a
+Major concept-mode defect (the 1.25·VC floor silently overrode every concept
+`chosen_vd`) and an MC/MD single-source defect (the CLI and the GUI disagreed
+about the same project). **Still open from this row:** the 25.335(b)(1) upset
+criterion, the margin route for N/U/A, and the VB computation — all in the
+backlog.
 
 **F25-3 — Maneuver & tail surrogates (M).** Checked-maneuver 25.331(c)(2)
 static evaluation (or documented equivalence of the θ̈ method); yaw overswing

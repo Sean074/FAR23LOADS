@@ -67,6 +67,26 @@ class MassItemKind(str, Enum):
     DISCRETIONARY = "discretionary"  # optional useful load (passengers, fuel, baggage, ballast)
 
 
+class VdBasis(str, Enum):
+    """Which regulatory route sets the design dive speed VD (F25-2).
+
+    14 CFR 25.335(b) offers the two **disjunctively** ("VD must be selected so
+    that VC/MC is not greater than 0.8 VD/MD, **or** so that the minimum speed
+    margin ... is the greater of ..."); 23.335(b)(4) has the same structure. The
+    speed-ratio floor ``VD >= 1.25*VC`` *is* the ``VC <= 0.8*VD`` ratio written
+    the other way round, so the two members below are the regulation's two
+    routes, not a house convention.
+
+    ``MACH_MARGIN`` is available in the **concept category "C" only** (decision
+    D-1, F25-2): withholding it from N/U/A keeps the Appendix-A-oracle-locked
+    FAR 23 path provably untouched. See
+    ``reference/14CFR_25_335_design_airspeeds.md`` and
+    ``reference/14CFR_MC_MD_speed_margin.md``.
+    """
+    SPEED_RATIO = "speed_ratio"    # VD >= 1.25*VC   (25.335(b) first route; the default)
+    MACH_MARGIN = "mach_margin"    # MD >= MC + margin (25.335(b)(2) / 23.335(b)(4)(iii))
+
+
 class TailType(str, Enum):
     """Empennage arrangement, for the Configuration & Layout three-view.
 
@@ -87,4 +107,5 @@ __all__ = [
     "EngineWeightType",
     "MassItemKind",
     "TailType",
+    "VdBasis",
 ]

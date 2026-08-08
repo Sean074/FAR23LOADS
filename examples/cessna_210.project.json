@@ -1,5 +1,5 @@
 {
-  "schema_version": 37,
+  "schema_version": 40,
   "name": "Cessna 210 Centurion \u2014 Continental IO-520-A",
   "engines": [
     {
@@ -549,8 +549,6 @@
     "chosen_n": null,
     "chosen_nneg": null,
     "mach_limit": {
-      "mc": 0.3,
-      "md": 0.38,
       "shoulder_altitude_ft": 12000,
       "max_operating_altitude_ft": 18000,
       "increment_ft": 1000

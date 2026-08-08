@@ -131,6 +131,56 @@ def test_pre_d5_file_recovers_its_cg_cases():
     assert [c.name for c in project.weight.cg_cases] == ["CG1", "CG2", "CG3", "CG4"]
 
 
+def test_pre_f25_2_file_loses_its_stale_mach_limit_mc_md():
+    """A v39 file stores ``speeds.mach_limit.mc``/``.md``; F25-2 removed them.
+
+    They were a duplicate the GUI already ignored (it recomputed MC/MD from the
+    design speeds) while the CLI honoured them, so one project gave two different
+    MNE/MFC answers. The hop drops the dead keys; the loaded project's MACHLIM
+    slice keeps everything that is still an input.
+    """
+    from dataclasses import fields as dc_fields
+
+    from sloads import MachLimitInput
+
+    raw = _load("v39_mach_limit_mc_md.json")
+    assert "mc" in raw["speeds"]["mach_limit"], "fixture no longer exercises the hop"
+
+    project = io.load_project(os.path.join(_FIXTURES, "v39_mach_limit_mc_md.json"))
+    ml = project.speeds.mach_limit
+    assert ml is not None, "the MACHLIM slice itself must survive"
+    assert ml.shoulder_altitude_ft == 12000
+    assert ml.max_operating_altitude_ft == 18000
+    assert ml.increment_ft == 1000
+    names = {f.name for f in dc_fields(MachLimitInput)}
+    assert not (names & {"mc", "md"}), "MC/MD are derived now, not stored"
+
+
+def test_pre_f25_2_file_defaults_to_the_speed_ratio_dive_speed():
+    """The Mach-margin route is opt-in: a pre-v40 file keeps the numbers it had.
+
+    This is the reduction invariant at the file boundary -- F25-2 must not change
+    one load in a project whose author never asked for the new route.
+    """
+    from sloads import VdBasis
+
+    project = io.load_project(os.path.join(_FIXTURES, "v39_mach_limit_mc_md.json"))
+    assert project.speeds.vd_basis is VdBasis.SPEED_RATIO
+    assert project.speeds.mach_margin_min is None
+    assert project.speeds.mach_margin_basis is None
+    assert project.speeds.vb_kt is None
+
+
+def test_an_unknown_dive_speed_basis_is_refused():
+    """Reading an unrecognised basis as 'speed_ratio' would silently reapply the
+    1.25*VC floor to a project that asked for the margin route -- the F25-2 defect
+    re-entering through the file path."""
+    raw = _load("v40_current.json")
+    raw["speeds"]["vd_basis"] = "whatever_the_user_typed"
+    with pytest.raises(ValueError):
+        io.project_from_dict(raw)
+
+
 def test_bare_engine_file_is_still_accepted():
     """The Phase-0 ``engloads`` era file: the whole document is one EngineInput."""
     project = io.load_project(os.path.join(_FIXTURES, "v0_bare_engine.json"))
@@ -142,7 +192,7 @@ def test_bare_engine_file_is_still_accepted():
 # The discriminator that replaced the 19-clause or-gate
 # --------------------------------------------------------------------------- #
 def test_project_and_engine_dicts_are_told_apart():
-    assert is_project_dict(_load("v38_current.json"))
+    assert is_project_dict(_load("v40_current.json"))
     assert not is_project_dict(_load("v0_bare_engine.json"))
 
 
@@ -178,13 +228,13 @@ def test_migrate_is_idempotent():
 
 def test_current_file_is_untouched_by_the_chain():
     """No hop may fire for a current-schema file — that is what version-gating buys."""
-    current = _load("v38_current.json")
+    current = _load("v40_current.json")
     assert migrate(current) == {**current, "schema_version": SCHEMA_VERSION}
 
 
 def test_a_newer_file_is_not_mangled_by_hops_that_do_not_apply():
     """Forward compatibility degrades to 'read what you understand'."""
-    future = _load("v38_current.json")
+    future = _load("v40_current.json")
     future["schema_version"] = SCHEMA_VERSION + 5
     out = migrate(future)
     assert out["schema_version"] == SCHEMA_VERSION + 5

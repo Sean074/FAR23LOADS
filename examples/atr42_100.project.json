@@ -1,5 +1,5 @@
 {
-  "schema_version": 37,
+  "schema_version": 40,
   "name": "ATR 42-300 (\"ATR 42-100\" prototype designation never entered production; -300 is the closest PW120-powered production analog) \u2014 2x PW120 (concept, category C)",
   "engines": [
     {
@@ -493,8 +493,6 @@
     "chosen_n": 2.5,
     "chosen_nneg": -1.0,
     "mach_limit": {
-      "mc": 0.48,
-      "md": 0.53,
       "shoulder_altitude_ft": 12000,
       "max_operating_altitude_ft": 25000,
       "increment_ft": 1000
