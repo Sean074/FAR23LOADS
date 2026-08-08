@@ -47,7 +47,12 @@ from sloads.modules.flight_envelope import build_envelope  # noqa: E402
 from sloads.modules.net_loads import build_net_loads  # noqa: E402
 from sloads.modules.select import build_critical  # noqa: E402
 from sloads.modules.taildist import build_tail_chordwise  # noqa: E402
-from helpers import parse_cards  # noqa: E402  (shared free-field reader)
+from sloads.export.equilibrium import (  # noqa: E402
+    card_totals,
+    closes,
+    deck_resultants,
+    ref_aftmost_loaded,
+)
 
 _EXAMPLE = os.path.join(
     os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
@@ -151,15 +156,20 @@ def test_body_vertical_equilibrium():
 
 
 def test_body_nodal_cards_sum_to_zero():
-    """The exported body FORCE deck parses and its Fz set closes to ~0 (ULTIMATE)."""
+    """The exported body FORCE deck parses and its Fz set closes to ~0 (ULTIMATE).
+
+    Summation, reference point and tolerance come from
+    :mod:`sloads.export.equilibrium`; the moment half of the same closure, and
+    the sweep across every fixture and both unit systems, live in
+    ``test_export_equilibrium.py``."""
     results = build_body_loads(_concept_project())
-    _, _, _, forces, _ = parse_cards(sb.body_force_moment_cards(results, sid_base=1))
+    res = deck_resultants(sb.body_force_moment_cards(results, sid_base=1),
+                          ref_aftmost_loaded)
     # One load set per case, keyed by the case's own subcase id (M4-2 decision 9).
-    assert sorted(forces) == sorted(sb._sid(1, i, r) for i, r in enumerate(results))
+    assert sorted(res) == sorted(sb._sid(1, i, r) for i, r in enumerate(results))
     for idx, r in enumerate(results):
-        scale = max(abs(s.fz) for s in r.stations) * _SF
-        fz = sum(scale_ * v[2] for _, scale_, v in forces[sb._sid(1, idx, r)])
-        assert math.isclose(fz, 0.0, abs_tol=1e-6 * scale + 1e-3)
+        got = res[sb._sid(1, idx, r)]
+        assert closes(got.fz, 0.0, scale=got.force_scale)
 
 
 # --------------------------------------------------------------------------- #
@@ -212,29 +222,28 @@ def test_full_airframe_exports_cleanly():
     assert wing and body and tail and control
 
     # Wing: FORCE Fz re-sums to the NETLOADS root shear.
-    _, _, _, wf, _ = parse_cards(sb.force_moment_cards(wing, sid_base=1))
+    wf = card_totals(sb.force_moment_cards(wing, sid_base=1))
     assert len(wf) == len(wing)
     for idx, r in enumerate(wing):
-        fz = sum(sc * v[2] for _, sc, v in wf[sb._sid(1, idx, r)])
-        assert math.isclose(fz, r.stations[0].sz * _SF, rel_tol=1e-4, abs_tol=1.0)
+        got = wf[sb._sid(1, idx, r)]
+        assert closes(got.force[2], r.stations[0].sz * _SF, scale=got.force_scale)
 
     # Tail: FORCE Fz re-sums to ULTIMATE (LT25 + LT50).
-    _, _, _, tf, _ = parse_cards(sb.tail_force_moment_cards(tail, sid_base=1))
+    tf = card_totals(sb.tail_force_moment_cards(tail, sid_base=1))
     assert len(tf) == len(tail)
     for idx, r in enumerate(tail):
-        fz = sum(sc * v[2] for _, sc, v in tf[sb._sid(1, idx, r)])
-        assert math.isclose(fz, (r.lt25 + r.lt50) * _SF, rel_tol=1e-4, abs_tol=1.0)
+        got = tf[sb._sid(1, idx, r)]
+        assert closes(got.force[2], (r.lt25 + r.lt50) * _SF, scale=got.force_scale)
 
     # Control surfaces: FORCE Fz re-sums to the critical surface load.
-    _, _, _, cf, _ = parse_cards(sb.control_surface_force_moment_cards(control, sid_base=1))
+    cf = card_totals(sb.control_surface_force_moment_cards(control, sid_base=1))
     assert len(cf) == len(control)
     for idx, r in enumerate(control):
-        fz = sum(sc * v[2] for _, sc, v in cf[sb._sid(1, idx, r)])
-        assert math.isclose(fz, r.load_lb * _SF, rel_tol=1e-4, abs_tol=1.0)
+        got = cf[sb._sid(1, idx, r)]
+        assert closes(got.force[2], r.load_lb * _SF, scale=got.force_scale)
 
     # Body: FORCE deck parses and closes to ~0 (already asserted per case above).
-    _, _, _, bf, _ = parse_cards(sb.body_force_moment_cards(body, sid_base=1))
-    assert len(bf) == len(body)
+    assert len(card_totals(sb.body_force_moment_cards(body, sid_base=1))) == len(body)
 
 
 if __name__ == "__main__":

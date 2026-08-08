@@ -24,7 +24,7 @@ from sloads import io  # noqa: E402
 from sloads.modules.flight_envelope import build_envelope  # noqa: E402
 from sloads.export import sbeam_bridge as sb  # noqa: E402
 from sloads.modules.net_loads import build_net_loads  # noqa: E402
-from helpers import parse_cards  # noqa: E402  (shared free-field reader)
+from sloads.export.equilibrium import card_totals, closes, parse_cards  # noqa: E402
 
 _EXAMPLES = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "examples")
 _GA = os.path.join(_EXAMPLES, "ga6_normal.project.json")
@@ -71,20 +71,24 @@ def test_concept_closure():
 # FORCE/MOMENT card text
 # --------------------------------------------------------------------------- #
 def test_force_moment_cards_round_trip():
+    """Re-summed FORCE / MOMENT match the NETLOADS root totals.
+
+    Summation and tolerance come from :mod:`sloads.export.equilibrium`, the
+    single owner (this file used to hand-roll both, as did three other places).
+    The bare card deck carries no ``GRID`` cards, so it gets the geometry-free
+    :func:`card_totals`; the moment-closure sweep that does integrate lever arms
+    lives in ``test_export_equilibrium.py``."""
     results = _wing_net(_GA)
-    _, _, _, forces, moments = parse_cards(sb.force_moment_cards(results, sid_base=1))
+    totals = card_totals(sb.force_moment_cards(results, sid_base=1))
     # One SID per case, taken from the case's own id (M4-2 decision 9): ga6's
     # PHAA / TORS / ACRL hold wing slots 1 / 6 / 5 -> 101 / 106 / 105.
-    assert sorted(forces) == [101, 105, 106]
+    assert sorted(totals) == [101, 105, 106]
     for idx, r in enumerate(results):
-        sid = sb._sid(1, idx, r)
-        # Re-summed FORCE / MOMENT match the NETLOADS root totals (scale * vector).
-        fz = sum(scale * v[2] for _, scale, v in forces[sid])
-        fx = sum(scale * v[0] for _, scale, v in forces[sid])
-        my = sum(scale * v[1] for _, scale, v in moments[sid])
-        assert math.isclose(fz, r.stations[0].sz * _SF, rel_tol=1e-4, abs_tol=1.0)
-        assert math.isclose(fx, r.stations[0].sx * _SF, rel_tol=1e-4, abs_tol=1.0)
-        assert math.isclose(my, r.stations[0].myy * _SF, rel_tol=1e-4, abs_tol=1.0)
+        got = totals[sb._sid(1, idx, r)]
+        root = r.stations[0]
+        assert closes(got.force[2], root.sz * _SF, scale=got.force_scale)
+        assert closes(got.force[0], root.sx * _SF, scale=got.force_scale)
+        assert closes(got.moment[1], root.myy * _SF, scale=got.moment_scale)
 
 
 def test_force_moment_card_format():

@@ -12,6 +12,35 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **Export-boundary equilibrium gate** (`sloads/export/equilibrium.py`, mission
+  phase 1 step 1; design note
+  `docs/30_future/07_export_equilibrium_invariant_plan.md`). Every exported deck
+  states a closure in its `$` header; until now those claims were verified — where
+  at all — against *in-memory* objects, by four separately hand-rolled,
+  force-only, Imperial-only summations. The new module is the single owner of the
+  other half: parse a deck, re-derive Σ`FORCE`/Σ`MOMENT` **from its own card
+  text** about a stated reference point, and compare at one tolerance policy
+  (`parse_cards`, `card_totals`, `resultant`, `deck_resultants`, `closes`;
+  `parse_cards` moved out of `tests/helpers.py`, which re-exports it).
+  `tests/test_export_equilibrium.py` sweeps **every shipped example × {Imperial,
+  SI} × every deck family** — closing three gaps at once: no moment was ever
+  checked from any deck's text (the body deck's "Terminal Myy … (moment
+  equilibrium)" header claim had been unverified since C6); `system=` was never
+  varied, so a unit set with `moment.factor ≠ force.factor × length.factor` (the
+  D-19 failure mode) was invisible to force-only sums; and the ga6 oracle
+  fixture's body/tail/control decks had no deck coverage at all. The four
+  existing hand-rolled sums in `test_concept_closure.py` / `test_sbeam_bridge.py`
+  now go through the same owner.
+
+- **`GRID` cards on the body and tail decks.** Both decks previously named GIDs
+  that had no `GRID` card in any file: a consumer could not place the loads
+  without a second artifact, and neither deck could be moment-checked from its own
+  text. Both now open with a shared station `GRID` block (`y = z = 0` — the
+  component's beam line in isolation). Control-surface decks deliberately get
+  **none** and say so in-band: `ControlSurfaceStation.x` is a fraction of chord
+  and the result carries no chord length, so any coordinate emitted there would be
+  silently wrong (revisit if the result ever gains a chord).
+
 - **Design-airspeeds theory document** — new
   `docs/20_theory/design_airspeeds.md`: the STRSPEED/MACHLIM chapter, defining
   the FAR 23.335/23.337 design speeds and load factors (VS/VSF, n, VC, VD, VA,
@@ -76,6 +105,14 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- **Deck `$` comments overran the 72-column free-field card width.** The body deck
+  had a one-off assertion of this; the tail deck's "Applied Fz set sums to … =
+  SF × (LT25 + LT50) = …" line overran on any five-figure load (73 columns on
+  `ga6_normal`) because nothing swept the other families. Fixed for the body,
+  tail and control decks and replaced with a swept guard over every example in
+  both unit systems. The wing decks overrun too; that fix changes wing Imperial
+  bytes and is filed on the backlog rather than folded in here.
+
 - **Concept dive speeds were silently overridden (Major, F25-2).** In concept mode
   the `1.25·VC` floor was applied unconditionally, so a concept user could not
   enter a margin-route VD at all. On `examples/concept_regional_jet.project.json`
@@ -108,6 +145,23 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   compute). Pinned by two `AppTest` guards.
 
 ### Changed
+
+- **Imperial output changed for three deck channels** — `sbeam/body_cards`,
+  `sbeam/tail_cards`, `sbeam/control_cards`, plus the `sbeam/tail_chordwise` CSV's
+  `GID` column — and `tests/fixtures_imperial/digests.json` was regenerated
+  deliberately for exactly those. **This is an intended change.** Wing decks,
+  every report/CSV channel and the case index are byte-identical. The content
+  changes are: the new `GRID` blocks; the h-tail/v-tail GID split below; the
+  control deck's chord-fraction note; and two header lines re-wrapped to the
+  72-column free-field width.
+
+- **The h-tail and v-tail now take separate GID blocks** (`2001–2100` /
+  `2101–2200`, via the new `sbeam_bridge.tail_station_gid`). They shared one
+  `2001+` run, which was harmless only while the GIDs were bare references — the
+  two components have different average chords, so their chord stations are
+  *different points*, and one shared `GRID` block would have defined one node at
+  two locations. **v-tail GIDs therefore shift** in both the tail deck and the
+  tail chordwise CSV.
 
 - **Schema v40 (F25-2).** `speeds` gains `vd_basis`, `mach_margin_min`,
   `mach_margin_basis` and `vb_kt`; `speeds.mach_limit.mc`/`.md` are **removed**.

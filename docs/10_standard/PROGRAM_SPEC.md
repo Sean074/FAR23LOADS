@@ -532,7 +532,33 @@ return strings (with thin `write_*` file wrappers), and do no physics.
   *increment of the cumulative* NETLOADS column to the next station outboard, so
   the FORCE set sums to the root shear and the MOMENT(My) set to the root torsion
   **exactly**; under the WINGINER quadrature (`y[i]-y[0] = i·dy`) the FORCE
-  moments about the root reproduce the root bending exactly.
+  moments about the root reproduce the root bending exactly — **except on a wing
+  carrying concentrated masses**, where the point mass lands entirely at the
+  outermost station inboard of it and the exported bending runs ~0.4–1.9 % high
+  (open item, filed on the backlog; shear is unaffected).
+- **`GRID` cards and the stated closure (step 1, 2026-08-08).** Every deck states
+  the closure it satisfies in its `$` header and carries the geometry to verify
+  it:
+
+  | Deck | `GRID` cards | Stated closure, re-derivable from the deck's own text |
+  |---|---|---|
+  | Wing cards | no (geometry is in the stick deck beside it) | Σ`FORCE`.Fz/Fx = SF × root `Sz`/`Sx`; Σ`MOMENT`.My = SF × root `Myy` |
+  | Wing stick | yes (root node + one per station) | the above, plus Σ`FORCE` moment about the root station = SF × root `Mxx` |
+  | Body | **yes** (one per station, `y = z = 0`) | Σ`FORCE`.Fz = 0 **and** its moment about the aft-most `GRID` = 0 (free-free, Ch 15 p103) |
+  | Tail | **yes** (one per chord station, `y = z = 0`; **separate GID block per component**) | Σ`FORCE`.Fz = SF × (`LT25`+`LT50`); the chordwise first moment matches the profile |
+  | Control surface | **no, by design** | Σ`FORCE`.Fz = SF × the critical surface load. `ControlSurfaceStation.x` is a *fraction of chord* and the result carries no chord length, so the deck can carry no geometry; it says so in-band |
+
+  GID blocks: wing `1…N+1`, body mass `1001–1500`, body carry-through/correction
+  `1501–2000`, h-tail `2001–2100`, v-tail `2101–2200`, control surface `3001+` —
+  disjoint, guarded by test. The h-tail and v-tail split (step 1) is required
+  because the two components have different average chords, so their chord
+  stations are different points.
+- **The closure gate** is `sloads/export/equilibrium.py` — the single owner of
+  "parse a deck, re-derive Σ`FORCE`/Σ`MOMENT` from its card text about a stated
+  reference point, and compare at the export-boundary tolerance"
+  (`parse_cards`, `card_totals`, `resultant`, `deck_resultants`, `closes`). Every
+  deck-closure check in the suite goes through it; `tests/test_export_equilibrium.py`
+  sweeps every example × {Imperial, SI} × every deck family.
 - **Coordinates:** `sloads/export/coordinates.py` — SLOADS station-X /
   butt-Y / waterline-Z inches → sbeam global CID 0, **identity** (single
   edit-point for any future sign/axis/unit change).

@@ -10,6 +10,118 @@ Acceptance**, **Key decisions**.
 
 ---
 
+## Export-boundary equilibrium gate (mission phase 1, step 1 — complete 2026-08-08, tier M documented to L depth)
+
+**Objective.** Every deck the sbeam bridge writes makes a claim about itself in
+its `$` header ("FORCE set sums to root Sz", "Applied Fz set sums to 0 (vertical
+equilibrium)", "Terminal Myy … (moment equilibrium)"). Verify those claims **from
+the deck's own card text**, at the boundary where the numbers leave the tool.
+Concept mode has no printed oracle, so a stated physics-closure gate in CI is
+what stands in for one (`CLAUDE.md` required practice 2). Design note:
+`docs/30_future/07_export_equilibrium_invariant_plan.md`.
+
+**What was actually wrong.** Four closure checks existed. All four were
+force-only, Imperial-only, and hand-rolled four separate times
+(`sum(sc * v[2] for _, sc, v in forces[sid])`, in two test files). So:
+
+- **No moment was ever checked from any deck.** The body deck's "Terminal Myy …
+  (moment equilibrium)" header claim had been unverified since step C6. The
+  wing's in-memory bending check summed `NodalLoad` objects, never the deck's own
+  `GRID` coordinates — which are what a solver integrates.
+- **`system=` was never varied.** A unit set with
+  `moment.factor ≠ force.factor × length.factor` — the exact D-19 failure mode
+  `coordinates._checked` exists to prevent — passed the whole suite, because a
+  force-only sum is blind to it.
+- **The body, tail and control decks emitted no `GRID` cards at all.** They named
+  GIDs that existed in no file: not moment-checkable from their own text, and a
+  consumer could not place the loads without a second artifact.
+- **ga6 — the FAR23 oracle fixture — had no body/tail/control deck coverage.**
+  Only the concept fixture was exercised.
+
+**Deliverables.**
+
+1. `sloads/export/equilibrium.py` — the single owner. `parse_cards` (moved out of
+   `tests/helpers.py`, which re-exports it), `card_totals` (geometry-free, for the
+   two decks that carry no `GRID`s), `resultant` / `deck_resultants` (full
+   rigid-body sums about a caller-chosen reference), `ref_first_loaded` /
+   `ref_aftmost_loaded`, and `closes` — one tolerance policy, not five.
+   Production module, so the round-trip harness (step 2) and any later runtime
+   validator consume this authority rather than reimplementing it.
+2. `GRID` cards on the body and tail decks; the control deck's explicit
+   "carries no geometry" note.
+3. The h-tail/v-tail GID split (`tail_station_gid`, blocks `2001+`/`2101+`).
+4. `tests/test_export_equilibrium.py` — the sweep: every example × {Imperial, SI}
+   × every deck family, force **and** moment, plus GID-block disjointness, a
+   non-vacuousness test, and a deck-comment-width guard.
+5. The four hand-rolled sums re-pointed at the owner.
+
+**Test / acceptance.** 903 passed, 17 skipped; `ruff check sloads/ cli.py` clean.
+`tests/fixtures_imperial/digests.json` regenerated **once, deliberately**, with
+the diff confined to `sbeam/body_cards`, `sbeam/tail_cards`,
+`sbeam/control_cards` and `sbeam/tail_chordwise` — wing decks, every report/CSV
+channel and the case index byte-identical. Appendix A oracles unchanged.
+
+**Key decisions.**
+
+- **E-1 — the invariant is per-deck resultant re-derivation, not `Σ FORCE = n·W`.**
+  This is the part worth recording, because the `n·W` form is the one that gets
+  re-proposed. It is unrealizable per-component as literally worded: the body deck
+  already closes to *zero* (it is a free-free beam — inertia + balancing tail load
+  + wing carry-through, Ch 15 p103), the decks' case ids are banded into disjoint
+  ranges on purpose so no case pairs a wing, body and tail block, and the wing
+  deck is a root-clamped half-span whose root shear is **not** `n·W/2` (ga6 PHAA:
+  5836.9 lb against 6460 lb — fuselage-carried lift plus inertia relief), with
+  doubling wrong outright for the antisymmetric `ACRL`/`TORS` cases. The
+  assembled-airframe `n·W` closure is a separate item pairing with the assembled
+  stick model.
+- **A beam torsion is not a rigid-body moment.** Found while implementing §4 of
+  the design note, which had specified the wing's `ΣM.y = SF × root Myy` as a
+  rigid sum. It is not: the wing station `x` sweeps aft and `z` rises with
+  dihedral, so the transfer term `Σ (p − ref) × F` is of the *same order* as the
+  torsion (≈ −93,300 lb-in against a −91,400 lb-in root torsion on ga6 PHAA). The
+  deck's header claims the applied-`MOMENT`-card sum, and that is what is
+  asserted; only bending integrates the `FORCE` lever arms. `Resultant` carries
+  both sums (`m0`, `m`) so a checker cannot silently pick the wrong one. Recorded
+  in `CONVENTIONS.md`.
+- **The wing reference point is the root *station*, not the clamped root node.**
+  The design note said "clamped root node"; that node sits half a strip inboard,
+  which would offset the target by `Sz·dy/2`. The root station is the point
+  `stations[0].mxx` is actually about.
+- **Zero-target tolerance scales with `Σ|term|`, not `max|term|`.** The error
+  being bounded is *accumulated* `%.6E` truncation (~5e-7 per card), so a
+  max-sized budget is too tight by the card count — `concept_regional_jet`'s body
+  deck closed to −11.5 lb-in against an 11.3 lb-in budget, which is the format,
+  not the physics.
+- **h-tail and v-tail must not share a GID block.** Harmless while the GIDs were
+  bare references; the moment a `GRID` card is emitted it would define one node at
+  two locations, because the two components have different average chords (ga6:
+  0→36.39 in vs 0→37.49 in). v-tail GIDs shift as a result.
+- **Control decks carry no geometry, by design (E-5 amended, §3.1).**
+  `ControlSurfaceStation.x` is a fraction of chord and
+  `ControlSurfaceLoadResult` carries no chord length, so `x = 0.35` cannot become
+  a station in inches or millimetres. Emitting it would be a silently wrong
+  coordinate. Revisit when the result gains a chord (natural pairing: the
+  assembled stick model).
+
+**Findings filed rather than folded in** (both discovered *by* the sweep, both
+with bodies on the backlog):
+
+- **Concentrated wing masses are smeared to the nearest node in the exported
+  bending.** WINGINER adds a point mass at its true station
+  (`mxx[i] += w·(cw.y − ye[i])`); the export recovers nodal loads as increments of
+  the cumulative shear, so the mass is picked up entirely at the outermost station
+  *inboard* of it and its lever arm moves inboard by up to one strip width. Shear
+  closes exactly; bending runs high — `atr42_100` +1.91 %, `dhc8_dash8` +1.11 %,
+  `concept_heavy` +0.44 %. `ga6_normal` and `cessna_210` carry no concentrated
+  masses and close exactly, so **no Appendix A oracle is affected**. Pinned, not
+  hidden: `test_wing_deck_bending_closure` asserts exact closure on masses-free
+  wings and asserts the *negation* plus a one-strip-width bound on the three
+  affected fixtures, so the day it is fixed the suite goes red.
+- **Wing deck `$` comments overrun the 72-column free-field width** (up to ~100
+  columns in SI). Cosmetic — `$` is a comment to every parser — and fixing it
+  changes wing Imperial bytes, which this step's acceptance excluded. The
+  body/tail/control decks were swept and are guarded.
+
 ## Design-airspeeds theory document (complete 2026-08-08, tier S)
 
 New `docs/20_theory/design_airspeeds.md` — the STRSPEED/MACHLIM theory chapter (23.335/23.337 equations as implemented, both 25.335(b) dive-speed routes, MACHLIM lines, the Subpart-G design-speed → operating-limitation relationship, Part 25 gaps, Appendix A oracle table with page cites). Docs only.

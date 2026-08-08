@@ -165,6 +165,13 @@ Recorded here as the decisions of record for this step (user, 2026-08-08).
 | S-8 | The gate is **blocking on 3.11 + 3.12**, in its **own job**, not folded into the 3.9/3.11/3.12 test matrix | Keeps `pip install scipy` off the three existing matrix legs; a separate job names the failure ("sbeam round trip") in the PR check list instead of burying it in a 900-test run. 3.9 is skipped for install cost only — sbeam's own CI covers 3.9 |
 | S-9 | **Lands after plan 07** | §2 |
 
+**Addendum (2026-08-08 critical review):** once plan 11's step B5 ships the
+assembled full-span deck — the **primary** deliverable per its decision B-5 —
+this harness gains an **assembled-deck leg**: free-free, determinate support,
+reactions ≈ 0 (the same identity as §3.1's body wrapper, now on the whole
+airplane). The S-4 matrix and the wing/body/tail legs are unchanged; the
+per-component decks remain views and stay gated.
+
 ### 3.1 Open sub-decision — the body wrapper's support set (flagged, my call unless you object)
 
 The fuselage beam is **free-free**: `build_body_loads` assembles it so that

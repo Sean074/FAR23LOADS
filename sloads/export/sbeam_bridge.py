@@ -671,6 +671,44 @@ def body_station_gids(result: BodyLoadResult) -> List[int]:
     return gids
 
 
+def _shared_grid_block(gid_x: List[tuple], u: DeliverableUnits,
+                       what: str, notes: Sequence[str] = ()) -> List[str]:
+    """A ``GRID`` block for nodes on the ``x`` axis, emitted **once** per deck.
+
+    Geometry is shared across the cases in a deck (same airplane), so the block
+    goes ahead of the per-case load blocks exactly as :func:`stick_model_bdf`
+    does. Before this existed the body and tail decks named GIDs that had no
+    ``GRID`` card in any file: a consumer could not place the loads without a
+    second artifact, and neither deck could be moment-checked from its own text
+    (the closure the header claims). ``y``/``z`` are zero -- these decks are the
+    component's beam line in isolation, not its position on the airplane.
+
+    ``gid_x`` pairs are de-duplicated; a GID appearing twice with two different
+    stations is a GID-scheme defect and raises rather than emitting whichever
+    card came last.
+    """
+    merged: dict = {}
+    for gid, x in gid_x:
+        prev = merged.get(gid)
+        if prev is not None and abs(prev - x) > 1e-9:
+            raise ValueError(
+                f"{what} export: GID {gid} is used for two different stations "
+                f"({prev} and {x} in) -- the GID scheme does not separate them"
+            )
+        merged[gid] = x
+    # Wrapped so every comment stays inside the 72-col free-field card width.
+    lines = ["$ ------------------------------------------------------------ NODES"]
+    for note in (f"{what} beam line; y = z = 0 (the component in isolation, not "
+                 "its station on the airplane).",
+                 f"Lengths in {u.length.label}.") + tuple(notes):
+        lines += [f"$ {ln}" for ln in textwrap.wrap(note, width=70)]
+    lines.append("$ GRID, GID, CP, X1, X2, X3")
+    for gid, x in sorted(merged.items()):
+        gx, gy, gz = to_grid(x, 0.0, 0.0, u)
+        lines.append(f"GRID, {gid}, , {_fmt(gx)}, {_fmt(gy)}, {_fmt(gz)}")
+    return lines
+
+
 def _body_results(arg: "Union[Project, BodyLoadResult, Sequence[BodyLoadResult]]") -> List[BodyLoadResult]:
     if isinstance(arg, Project):
         if arg.loads is None or not arg.loads.body_net:
@@ -725,10 +763,22 @@ def body_force_moment_cards(arg, sid_base: int = 1, *,
     The set closes both ΣFz and ΣM (Ref 1 Ch 15 p103, M4-1); each block states
     both residuals. A case whose moment was closed by the whole-body fallback
     (no derivable spar stations) is additionally stamped with
-    :data:`~sloads.modules.body_loads.CLOSURE_ARTIFACT_CAVEAT`."""
+    :data:`~sloads.modules.body_loads.CLOSURE_ARTIFACT_CAVEAT`.
+
+    The deck opens with the station ``GRID`` block, so both residuals it claims
+    are re-derivable from the file alone -- see
+    :mod:`sloads.export.equilibrium`."""
     results = _body_results(arg)
     u = _units(system)
-    blocks: List[str] = ["\n".join(subcase_map_block(results))]
+    grid_lines = _shared_grid_block(
+        [(gid, s.x) for r in results
+         for gid, s in zip(body_station_gids(r), r.stations)],
+        u, "Fuselage",
+        notes=[f"Nose->tail; carry-through / correction nodes take the "
+               f"{_BODY_CARRY_GID_BASE}+ block."],
+    )
+    blocks: List[str] = ["\n".join(subcase_map_block(results)),
+                         "\n".join(grid_lines)]
     for idx, r in enumerate(results):
         sid = _sid(sid_base, idx, r)
         sf = _sf(r)
@@ -742,6 +792,7 @@ def body_force_moment_cards(arg, sid_base: int = 1, *,
             "(vertical equilibrium).",
             f"$ Terminal Myy {terminal_myy:.2f} {u.moment.label} "
             "(moment equilibrium).",
+            "$ i.e. the FORCE moment about the aft-most GRID closes to 0.",
         ]
         if r.spars_assumed:
             lines.append("$ Wing spar stations ASSUMED (chord-fraction defaults), not entered.")
@@ -822,6 +873,36 @@ def body_fitting_load_csv(arg, header_comment: str = "", *,
 # and a per-station FORCE set scaled so its total equals the condition's tail load
 # (LT25 + LT50) -- a determinate, checkable load set for the tail beam in sbeam.
 _TAIL_GID_BASE = 2001  # tail chordwise-station GIDs (disjoint from wing/body GIDs)
+# ...but the h-tail and the v-tail are different beams with different average
+# chords, so their chord stations are *different points* (ga6: the h-tail's five
+# run 0 -> 36.39 in, the v-tail's 0 -> 37.49 in). Sharing one 2001+ run between
+# them was harmless only while the decks named GIDs that existed nowhere; the
+# moment they carry GRID cards it would define one node at two locations. Each
+# component therefore gets its own sub-block.
+_TAIL_COMPONENT_BLOCK = 100          # GIDs per tail component
+_TAIL_COMPONENTS = ("htail", "vtail")  # block order: htail 2001+, vtail 2101+
+
+
+def tail_station_gid(component: str, i: int) -> int:
+    """GID of chord station ``i`` of ``component`` ("htail" / "vtail").
+
+    Raises on an unknown component rather than falling back to a shared block:
+    a silently-colliding GID puts two loads on one node in an assembled deck,
+    which no downstream check would attribute back to here.
+    """
+    try:
+        block = _TAIL_COMPONENTS.index(component)
+    except ValueError:
+        raise ValueError(
+            f"tail export: unknown component {component!r} -- expected one of "
+            f"{_TAIL_COMPONENTS}; it has no GID block"
+        ) from None
+    if not 0 <= i < _TAIL_COMPONENT_BLOCK:
+        raise ValueError(
+            f"tail export: chord station {i} is outside the "
+            f"{_TAIL_COMPONENT_BLOCK}-GID block for {component}"
+        )
+    return _TAIL_GID_BASE + block * _TAIL_COMPONENT_BLOCK + i
 
 
 def _tail_results(arg: "Union[Project, TailChordResult, Sequence[TailChordResult]]") -> List[TailChordResult]:
@@ -883,7 +964,8 @@ def tail_chordwise_csv(arg, header_comment: str = "", *,
             x, _, _ = to_grid(s.x, 0.0, 0.0, u)
             _, _, fz_out = to_force(0.0, 0.0, fz, u)
             writer.writerow({
-                "Case": r.case, "Component": r.component, "GID": _TAIL_GID_BASE + i,
+                "Case": r.case, "Component": r.component,
+                "GID": tail_station_gid(r.component, i),
                 x_h: f"{x:.3f}", psi_h: f"{to_pressure(s.psi * sf, u):.4f}",
                 fz_h: f"{fz_out:.1f}",
                 lt25_h: f"{lt25:.2f}", lt50_h: f"{lt50:.2f}",
@@ -896,10 +978,24 @@ def tail_force_moment_cards(arg, sid_base: int = 1, *,
                             header_comment: str = "",
                             system: UnitSystem = UnitSystem.IMPERIAL) -> str:
     """FORCE bulk-data cards for the chordwise tail loads (one SID per condition);
-    each set's applied Fz sums to the total tail load ``LT25 + LT50``."""
+    each set's applied Fz sums to the total tail load ``LT25 + LT50``.
+
+    The deck opens with the chord-station ``GRID`` block (one sub-block per tail
+    component), so the set's chordwise first moment is re-derivable from the file
+    alone -- see :mod:`sloads.export.equilibrium`. ``x`` is the distance aft of
+    the component's leading edge along its average chord; ``y = z = 0``."""
     results = _tail_results(arg)
     u = _units(system)
-    blocks: List[str] = ["\n".join(subcase_map_block(results))]
+    grid_lines = _shared_grid_block(
+        [(tail_station_gid(r.component, i), s.x)
+         for r in results
+         for i, s in enumerate(sorted(r.stations, key=lambda s: s.x))],
+        u, "Tail chord",
+        notes=["x is aft of the component leading edge, along its average "
+               "chord; h-tail and v-tail take separate GID blocks."],
+    )
+    blocks: List[str] = ["\n".join(subcase_map_block(results)),
+                         "\n".join(grid_lines)]
     for idx, r in enumerate(results):
         sid = _sid(sid_base, idx, r)
         sf = _sf(r)
@@ -910,15 +1006,17 @@ def tail_force_moment_cards(arg, sid_base: int = 1, *,
             f"$ SLOADS chordwise {r.component} load -- case {r.case}, SID {sid}",
             f"$ Case ID: {r.case_ref.case_id}" if r.case_ref else "$ Case ID: (none)",
             f"$ Loads are ULTIMATE (limit x SF={_sf_str(sf)}).",
-            f"$ Applied Fz set sums to {total:.1f} {u.force.label} "
-            f"(= {_sf_str(sf)} x (LT25 + LT50) = {lt_total:.1f} {u.force.label}).",
+            # Split across two lines: a single line overran the 72-col
+            # free-field card width once the load reached five figures.
+            f"$ Applied Fz set sums to {total:.1f} {u.force.label}",
+            f"$   = {_sf_str(sf)} x (LT25 + LT50) = {lt_total:.1f} {u.force.label}.",
         ]
         for i, fz in enumerate(forces):
             fx2, fy2, fz2 = to_force(0.0, 0.0, fz, u)
             if abs(fz) > _TOL:
                 lines.append(
-                    f"FORCE, {sid}, {_TAIL_GID_BASE + i}, {SBEAM_CID}, 1.0, "
-                    f"{_fmt(fx2)}, {_fmt(fy2)}, {_fmt(fz2)}"
+                    f"FORCE, {sid}, {tail_station_gid(r.component, i)}, "
+                    f"{SBEAM_CID}, 1.0, {_fmt(fx2)}, {_fmt(fy2)}, {_fmt(fz2)}"
                 )
         blocks.append("\n".join(lines))
     return _stamped(header_comment, "\n".join(b for b in blocks if b) + "\n")
@@ -1022,10 +1120,28 @@ def control_surface_force_moment_cards(arg, sid_base: int = 1, *,
                                        header_comment: str = "",
                                        system: UnitSystem = UnitSystem.IMPERIAL) -> str:
     """FORCE bulk-data cards for the control-surface loads (one SID per condition);
-    each set's applied Fz sums to the critical surface load."""
+    each set's applied Fz sums to the critical surface load.
+
+    Unlike the wing / body / tail decks this one carries **no** ``GRID`` cards.
+    ``ControlSurfaceStation.x`` is a *fraction of chord* (0 = LE, 1 = TE) and
+    :class:`~sloads.models.ControlSurfaceLoadResult` carries no chord length, so
+    there is no way to turn ``x = 0.35`` into a station in inches or
+    millimetres; emitting it as a coordinate would be a silently wrong GRID. The
+    deck therefore states its closure in force only, and says so in-band."""
     results = _control_results(arg)
     u = _units(system)
-    blocks: List[str] = ["\n".join(subcase_map_block(results))]
+    blocks: List[str] = [
+        "\n".join(subcase_map_block(results)),
+        "\n".join(
+            ["$ ------------------------------------------------------------ NODES"]
+            + [f"$ {ln}" for ln in textwrap.wrap(
+                "NONE. The chordwise profile is in FRACTIONS OF CHORD (0 = LE, "
+                "1 = TE), not stations, and this result carries no chord length "
+                "-- so the deck carries no geometry and states its closure in "
+                "force only. Place the GIDs against your own surface model.",
+                width=70)]
+        ),
+    ]
     for idx, r in enumerate(results):
         sid = _sid(sid_base, idx, r)
         sf = _sf(r)

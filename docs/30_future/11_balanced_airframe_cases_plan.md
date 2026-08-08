@@ -95,11 +95,26 @@ consistent to 0.3 %; what is missing is the assembly.**
 | B-3 | **Residual closed as 2-DOF mass-proportional inertia relief** — `Δn` on every mass plus `−mᵢ·Δθ̈·(xᵢ−x_cg)` — gated at **\|Δn\|/n < 1 %** and residual moment < 1 % of `n·W·MAC`; over the gate the case **fails** rather than silently absorbing the error | §1.4 says 0.32 % today, so the gate bites on regressions, not on the physics. The pitch term is self-equilibrating in force by construction (`Σmᵢ(xᵢ−x_cg) ≡ 0`), so the two DOF do not fight each other |
 | B-4 | **New assembled deck per balanced case**, alongside today's per-component decks; solved in sbeam on a **statically determinate support** with the reactions gated to ≈ 0 | sbeam's SOL 101 has no inertia relief (`SUPORT` is honoured by the SOL 144 trim partition only — verified 2026-08-08). A determinate support carries exactly the residual, so "reactions ≈ 0" *is* the free-free equilibrium proof, through the solver's own assembly |
 
-**Phasing (user, 2026-08-08):** start with the **wing** cases; empennage and
-landing/ground cases follow. Phase 1 is therefore **symmetric flight cases**
-(PHAA, PLAA, PMAA, NMAA…). The antisymmetric wing cases (`ACRL`, `TORS`) need
-distinct left/right loading and a 6-DOF residual, and land in phase 2 with the
-empennage.
+**Phasing (user, 2026-08-08; re-sequenced by the 2026-08-08 critical review —
+see §2.1):** start with the **wing** cases. Phase 1 is **symmetric flight
+cases** (PHAA, PLAA, PMAA, NMAA…). Phase 2 is the antisymmetric wing cases
+(`ACRL`, `TORS`) *plus* the B-6 handedness machinery (distinct left/right
+loading, 6-DOF residual). Phase 3 is the **empennage** cases (needs plan 09's
+distributed tail, pulled forward in the development sequence); phase 4 is
+**landing/ground** (needs M4-6).
+
+### 2.1 Revision — 2026-08-08 critical review (decisions B-5…B-8, user)
+
+The development-plan review against the stated aims (full-span model; left and
+right cases; mass export first) added four decisions and re-sequenced the
+phases. Where they conflict with §2/§5 as first written, **these govern.**
+
+| # | Decision | Rationale |
+|---|---|---|
+| B-5 | **The assembled full-span deck is the *primary* loads deliverable.** Per-component half-span decks remain as analysis/debug **views** — still exported, still oracle-backing, still gated by plans 07/10 — but the balanced full-span free-free deck is what the mission's sizing loop consumes | The airplane model shall be full span (user aim). Consequences: the left/right wing GID band split lands in B5, the round-trip harness (plan 10) gains an assembled-deck leg once B5 exists, and the side-of-body item demotes to a reporting-node addition on the assembled model (a free-free model has no clamp; the SOB load is internal and merely needs a node) |
+| B-6 | **Every asymmetric case family gets a systematic left/right twin, generated at the balanced-case assembly level by reflection** (`y → −y`, side quantities negated): yaw ±β (23.441/443), aileron roll ±, OEI left/right engine, 23.427 unsymmetrical tail both sides. SELECT and the V-n core are untouched; the FAR23 oracles cannot move | Mirroring at assembly derives the opposite-hand case from the computed one without touching the oracle-locked path. The reflection operator gets **one owner** (`export/coordinates.py`, beside the axis maps) plus a drift-guard test — `CLAUDE.md` practice 3, and the same reasoning that put the v-tail axis map there in plan 09 |
+| B-7 | **Case identity: `BalancedCase` keys on the minted `CaseRef`, not on the V-n point index.** Handedness is a **suffix on the existing case id** (`VT-03L` / `VT-03R`), minted by the balance layer; the unhanded id remains the physical condition | B-1's "one per V-n point" fails for exactly the cases the aims add: `CriticalCondition.case` is `None` for derived conditions, and landing cases have no V-n point at all (verified 2026-08-08: `select.py` carries `case=p.case` for wing/tail/fuselage picks, `None` on derived ones). Keying on `CaseRef` covers all four families with one rule and no new ID series (naming rule, 2026-08-05) |
+| B-8 | **Lateral cases close with a lateral analog of B-3:** mass-proportional `Δn_y` plus `Δψ̈·(xᵢ−x_cg)`, gated at the same 1 %. Requires stating the lateral trim balance first — the fin side load is reacted by lateral inertia (`n_y·W`) and yaw acceleration (`I_zz·ψ̈`), and **no lateral load factor exists anywhere in the suite today** (plan 09 omits v-tail inertia for that reason) | The ±β cases are the aims' named example; they cannot balance without a lateral inertia model. The 23.441 machinery already carries `IZZ` (`VTailLoadsInput.izz_slugft2`), so the yaw-acceleration half has a data source; the `n_y` half is new physics and must be designed in the phase-3 design note before code, per `CLAUDE.md` practice 1 |
 
 ## 3. What changes, by area
 
@@ -152,13 +167,17 @@ link to its V-n point. Its own free-free closure is unchanged and stays
 oracle-neutral; what changes is that the assembled case does **not** consume its
 `carry` reaction (§4).
 
-### 3.5 New — the assembled export
+### 3.5 New — the assembled export (**the primary deliverable, B-5**)
 
 One deck per balanced case: GRIDs for both wings, the fuselage and the
 empennage; `FORCE`/`MOMENT` for every applied load; a determinate support; and
 a `$` header stating the case's condition, its residual and its `Δn`. Needs a
 **left/right wing GID band** — today's wing band (2…N) is a single half-span —
-folded into plan 07 step 3's disjointness guard.
+folded into plan 07 step 3's disjointness guard. Per B-5 this deck is the
+mission's primary loads deliverable; the per-component decks stay as views.
+Asymmetric cases are emitted as **handed pairs** (B-6/B-7): the computed case
+plus its reflection, `-L`/`-R` suffixed, both in the same deck as separate
+subcases.
 
 ## 4. The double-count authority table (answers plan 09 decision T-11)
 
@@ -187,10 +206,11 @@ introduces is never applied in the assembled model.**
 | **B2** | `BalancedCase` model, `balance.py`, the per-condition assembly and the 2-DOF residual closure. **Symmetric wing cases only.** | L | M–L (~1.5) |
 | **B3** | The §4 seam rule made structural: an authority function the assembled path consumes, plus a guard test that the `carry` source never reaches an assembled deck. | M | S (~0.5) |
 | **B4** | CI gates: residual < 1 %, `Δn`/n < 1 %, per-component decks and Appendix A **bit-unchanged**. | M | S (~0.5) |
-| **B5** | Assembled deck export + left/right GID bands + determinate support; solves in sbeam with reactions ≈ 0 (rides on plan 10's harness). | L | M (~1) |
+| **B5** | Assembled deck export (**primary deliverable, B-5**) + left/right GID bands + determinate support; solves in sbeam with reactions ≈ 0 (rides on plan 10's harness, which gains an assembled-deck leg here). | L | M (~1) |
 | **B6** | Streamlit view: the balanced case list with its residual and `Δn` columns — the number an engineer needs to trust the case. | M | S–M (~0.5) |
-| **B7** | Antisymmetric cases (`ACRL`, `TORS`): distinct left/right loading, 6-DOF residual. **Phase 2.** | L | M–L (~1.5) |
-| **B8** | Empennage cases (needs plan 09) and landing/ground cases (needs M4-6: gear reactions as applied loads — the gear items are already in `weight.items` at x = 97 and x = 1). **Phase 3.** | L | L |
+| **B7** | Antisymmetric wing cases (`ACRL`, `TORS`): distinct left/right loading, 6-DOF residual, **plus the B-6 reflection operator in `export/coordinates.py` and the B-7 handed-pair minting** — the machinery every later ± family reuses. **Phase 2.** | L | M–L (~1.5) |
+| **B8a** | Empennage cases (needs plan 09 T1–T4): ±β yaw pairs per B-6, lateral closure per B-8 (design note for the `n_y` balance first). **Phase 3.** | L | M–L |
+| **B8b** | Landing/ground cases (needs M4-6: gear reactions as applied loads — the gear items are already in `weight.items` at x = 97 and x = 1). **Phase 4.** | L | M |
 | **B9** | Tier-L closure trail: `CONVENTIONS.md` (§4 rule + the balanced-case concept), `PROGRAM_SPEC.md`, `theory_sources.md` (the closure gate as oracle substitute), `PROJECT_GUIDE.md`, `DATA_DICTIONARY.md` regen, CHANGELOG, history. | S | S (~0.5) |
 
 Phase 1 = B1–B6.
@@ -224,8 +244,8 @@ Phase 1 = B1–B6.
 
 ## 8. Effort
 
-**L, phased.** Phase 1 (B1–B6) ≈ 4–5 sessions. Phase 2 (B7) ≈ 1.5. Phase 3 (B8)
-depends on plan 09 and M4-6 landing first. Recommended on a feature branch with
+**L, phased.** Phase 1 (B1–B6) ≈ 4–5 sessions. Phase 2 (B7) ≈ 1.5. Phase 3
+(B8a) depends on plan 09 T1–T4 landing first; phase 4 (B8b) depends on M4-6. Recommended on a feature branch with
 a merge at each phase boundary, for the same reasons plan 09 gives.
 
 ## 9. What this supersedes

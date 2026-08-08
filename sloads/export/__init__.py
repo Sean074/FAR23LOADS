@@ -17,6 +17,10 @@ all four component families plus the case index:
   (+ ``write_*`` variants).
 - **Control surfaces** — :func:`control_surface_csv`,
   :func:`control_surface_force_moment_cards` (+ ``write_*`` variants).
+- **Closure gate** — :mod:`sloads.export.equilibrium`: :func:`parse_cards`,
+  :func:`deck_resultants` and :func:`closes`, the single owner of "re-derive a
+  deck's Σ force / Σ moment from its own card text and check the claim its
+  header makes". Every deck-closure check in the suite goes through it.
 - **Case index** — :func:`case_index_csv` (+ ``write_case_index_csv``) and
   :func:`filter_by_selected_case_ids`, the manifest tying exported decks back to
   their FAR 23 load-case IDs and the selective-export filter.
@@ -31,6 +35,17 @@ sites that want it. See its docstring for the documented I/O exemption.
 from __future__ import annotations
 
 from .coordinates import SBEAM_CID, to_force, to_grid, to_moment, to_pressure
+from .equilibrium import (
+    CardTotals,
+    Resultant,
+    card_totals,
+    closes,
+    deck_resultants,
+    parse_cards,
+    ref_aftmost_loaded,
+    ref_first_loaded,
+    resultant,
+)
 from .sbeam_bridge import (
     NodalLoad,
     body_fitting_load_csv,
@@ -47,6 +62,7 @@ from .sbeam_bridge import (
     stick_model_bdf,
     tail_chordwise_csv,
     tail_force_moment_cards,
+    tail_station_gid,
     wing_nodal_loads,
     write_case_index_csv,
     write_control_surface_csv,
@@ -85,6 +101,7 @@ __all__ = [
     "write_tail_chordwise_csv",
     "tail_force_moment_cards",
     "write_tail_force_moment_cards",
+    "tail_station_gid",
     # Control surfaces
     "control_surface_csv",
     "write_control_surface_csv",
@@ -95,4 +112,14 @@ __all__ = [
     "write_case_index_csv",
     "filter_by_selected_case_ids",
     "build_workbook",
+    # Export-boundary closure gate (sloads.export.equilibrium)
+    "parse_cards",
+    "CardTotals",
+    "card_totals",
+    "Resultant",
+    "resultant",
+    "deck_resultants",
+    "ref_first_loaded",
+    "ref_aftmost_loaded",
+    "closes",
 ]

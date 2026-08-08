@@ -142,6 +142,41 @@ and their sources (`tests/test_concept_closure.py`):
 | Control surfaces | each `build_*` critical load matches its `run` analysis report (`lb`-unit `LoadValue`) | AILERON/FLAPLOAD/TABLOADS build↔run |
 | All (export) | every component's nodal FORCE set — and its re-parsed cards — sums to that component's root/total at ULTIMATE (`limit × that case's safety_factor`, default 1.5; the factor is uniform within a case, so closure is scale-invariant — defect M4-7) | `export/sbeam_bridge` increment construction + `_sf()` |
 
+### The export-boundary closure gate (step 1, 2026-08-08)
+
+The identities above are evaluated on in-memory results. Because concept mode has
+no printed oracle, the **deliverable itself** needs a stated closure gate too
+(`CLAUDE.md` required practice 2) — the deck a solver actually reads, not the
+objects it was rendered from. `sloads/export/equilibrium.py` re-derives Σ`FORCE`
+and Σ`MOMENT` **from the emitted card text**, about the per-component reference
+of `CONVENTIONS.md` §1, and `tests/test_export_equilibrium.py` sweeps every
+shipped example × {Imperial, SI} × every deck family:
+
+| Deck | Force closure | Moment closure | Basis |
+|---|---|---|---|
+| Wing | Σ`FORCE`.Fz/Fx = SF × root `Sz`/`Sx` | Σ`MOMENT`.My = SF × root `Myy`; Σ`FORCE` moment about the root station = SF × root `Mxx` | Ch 14 (net loads); WINGINER quadrature |
+| Body | Σ`FORCE`.Fz = 0 | Σ`FORCE` moment about the aft-most `GRID` = 0 | **Ch 15 p103** — the fuselage beam is assembled free-free (inertia + tail air load + wing carry-through), so its equilibrium statement is `Σ = 0` |
+| Tail | Σ`FORCE`.Fz = SF × (`LT25`+`LT50`) | chordwise first moment = the profile's own (deck ↔ CSV cannot disagree) | Ch 10 |
+| Control | Σ`FORCE`.Fz = SF × critical load | — (no geometry; chord-fraction profile) | AILERON/FLAPLOAD/TABLOADS |
+
+Two findings recorded because they are the kind that get re-proposed:
+
+1. **The invariant is not `Σ FORCE = n·W`.** That form (as originally worded) is
+   unrealizable per-component: the body deck already closes to *zero*, the decks'
+   case ids are disjoint by construction so no case pairs a wing, body and tail
+   block, and the wing deck is a root-clamped half-span whose root shear is not
+   `n·W/2` (fuselage-carried lift plus inertia relief; and doubling is wrong for
+   the antisymmetric cases outright). The assembled-airframe `n·W` closure is a
+   separate item, pairing with the assembled stick model.
+2. **A beam torsion is not a rigid-body moment** — see `CONVENTIONS.md` §1. The
+   wing torsion claim is on the applied `MOMENT` cards; only bending integrates
+   the `FORCE` lever arms.
+
+Tolerances have one owner (`equilibrium.REL_TOL` / `ZERO_REL_TOL`): `1e-4`
+relative against a non-zero target, and against a **zero** target
+`1e-6 × Σ|term| + 1e-3` in deck units — summed, not maxed, because the error
+being bounded is accumulated `%.6E` card truncation (~5e-7 per card).
+
 These hold to machine precision on the concept fixture (wing/tail rel ≈ 1e-16, body
 terminal shear ≈ 1e-12 lb). The wing-`Nz·W` and tail-moment identities deliberately
 re-use the FLTLOADS equilibrium formulas — their purpose is to prove the **concept

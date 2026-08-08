@@ -16,7 +16,10 @@ shared calc package + a multi-page UI.
 sizing loop** — a concept configuration (which may exceed the FAR23 caps) goes in,
 per-component distributed ULTIMATE loads come out as `FORCE`/`MOMENT` bulk-data cards,
 and the exported deck solves in sbeam with verified global equilibrium, continuously in
-CI. The FAR23 replication core stays **oracle-locked** (Appendix A ±0.1%; twin cases
+CI. **Extended 2026-08-08:** the primary deliverable is the **full-span balanced
+free-free airplane model** (aero + inertia together, left and right cases, CONM2 mass
+export; sequence table in the backlog) — per-component decks remain analysis views.
+The FAR23 replication core stays **oracle-locked** (Appendix A ±0.1%; twin cases
 closure-locked); concept mode is a superset that reduces exactly to it on GA inputs.
 Plan: `docs/30_future/01_concept_loads_plan.md` (shipped); working backlog:
 `docs/30_future/00_backlog.md` (open items only, mission-tagged; off-mission items in

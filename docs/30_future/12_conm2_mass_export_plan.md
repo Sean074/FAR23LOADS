@@ -63,6 +63,28 @@ are oracle-checked.
 pressure and **no mass**. `CONM2`'s `M` is mass, not weight, and the item
 inertias in `weight.items` are lb-in² — a *weight* basis.
 
+### 2.1 The acceleration mechanism, verified (2026-08-08 critical review)
+
+The check's mechanism is sbeam's **`GRAV` card**: selected by LOAD SID like any
+load, assembled as `f = scale · M_global · a_field`
+(`sbeam/assembly/load_vector.py::_apply_grav_to_vector`), so a mass-check
+subcase is `MASSSET` + one `GRAV` carrying the case's `n·g` vector. Verified
+limitation: **sbeam has no `RFORCE`** — `GRAV` is a uniform translational
+acceleration field, so **rotational inertia terms** (`θ̈` pitch, `ψ̈` yaw —
+plan 11 decisions B-3/B-8, M4-21) **cannot be recovered by sbeam from the
+CONM2 set.** The C6 comparison gate is therefore scoped to the translational
+terms (`n_z`, and `n_y` when the lateral cases land); rotational-acceleration
+inertia stays checked by sloads-side closure only, until/unless sbeam grows an
+`RFORCE`. State this scope in the gate and in the mass-check deck's `$` header.
+
+**Full-span consequence (plan 11 decision B-5):** the CONM2 fragment is a
+**full-airplane** mass model — wing (and tail) item weights split per side onto
+the left/right GID bands, fuselage items on the body band — so the assembled
+free-free deck and the mass deck share one geometry. `MassItemKind`
+(EMPTY / MINIMUM / DISCRETIONARY, `models/enums.py`) is the existing partition
+C1's WTENV derivation keys on; the new `component` tag (plan 11 §3.1) is
+orthogonal to it.
+
 ## 3. Agreed decisions
 
 | # | Decision | Rationale |

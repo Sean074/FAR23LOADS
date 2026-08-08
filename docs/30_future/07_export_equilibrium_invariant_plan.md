@@ -1,10 +1,38 @@
 # Design note — Global equilibrium invariant on exported decks
 
 **Backlog item:** `[E] Global equilibrium invariant on exported decks` (raised
-2026-08-05, process review R9). **Status:** design agreed 2026-08-08, not yet
-implemented. **Closure tier:** M (behaviour change to an existing capability —
-three deck families gain `GRID` cards), documented to L depth because the
-acceptance is a *stated physics-closure gate* (`CLAUDE.md` required practice 2).
+2026-08-05, process review R9). **Status: SHIPPED 2026-08-08** — see the history
+entry "Export-boundary equilibrium gate" in
+[`../40_history/00_completed_development.md`](../40_history/00_completed_development.md)
+for what was built and the three places the plan below was wrong. **Closure
+tier:** M (behaviour change to an existing capability — two deck families gain
+`GRID` cards), documented to L depth because the acceptance is a *stated
+physics-closure gate* (`CLAUDE.md` required practice 2).
+
+> **Corrections applied during implementation** (the plan text below is left as
+> written, as the record of what was agreed):
+>
+> 1. **§4, wing `ΣM.y`** — specified as a rigid-body sum equal to `SF × root Myy`.
+>    It is not: the exported torsion is a *beam* torsion about the LRA, and with
+>    the station `x` sweeping aft and `z` rising with dihedral the rigid transfer
+>    term is the same order as the torsion itself. The wing torsion claim is on
+>    the applied `MOMENT` cards; only bending integrates the `FORCE` lever arms.
+> 2. **§3 E-2, wing reference point** — "its clamped root node" is half a strip
+>    inboard of `stations[0]`, which offsets the target by `Sz·dy/2`. The
+>    reference is the **root station**.
+> 3. **§4.1, zero-target tolerance** — sized off `max|term|`, which is too tight
+>    by the card count; the bound is on *accumulated* `%.6E` truncation, so it
+>    scales with `Σ|term|`.
+> 4. **§5 step 2** — the tail needed a **per-component GID block** (h-tail and
+>    v-tail have different average chords, so their chord stations are different
+>    points); §5 step 5's unit drift guard **already existed**
+>    (`test_deliverable_units.py::test_solver_set_is_dimensionally_consistent`).
+> 5. **§3.1** — the recommendation was taken: control decks emit no `GRID` cards.
+>
+> Two defects were found *by* the new sweep and filed with bodies on the backlog
+> rather than folded in: concentrated wing masses smeared to the nearest node in
+> the exported bending (pinned by a strict negative assertion), and wing deck `$`
+> comments overrunning the 72-column card width.
 
 Conventions cited throughout: [`../10_standard/CONVENTIONS.md`](../10_standard/CONVENTIONS.md)
 (axes, sign, units channels, ULT/SF contract, case identity). Deck contract:

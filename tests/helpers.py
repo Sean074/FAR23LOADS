@@ -99,31 +99,8 @@ def apply_button(at, form_key: str):
 # --------------------------------------------------------------------------- #
 # Free-field BDF reader (sbeam export deck)
 # --------------------------------------------------------------------------- #
-def parse_cards(text):
-    """Parse the sbeam bridge's comma free-field deck into simple structures.
-
-    Self-contained on purpose -- the export tests must not depend on sbeam's own
-    parser (see the C4 test plan). Returns ``(grids, cbars, spc1, forces,
-    moments)`` where ``grids`` is ``{gid: (x, y, z)}``, ``cbars`` a list of
-    ``(eid, ga, gb)``, ``spc1`` a list of ``(sid, comp, [gids])`` and
-    ``forces``/``moments`` are ``{sid: [(gid, scale, (n1, n2, n3))]}``.
-    """
-    grids, cbars, spc1 = {}, [], []
-    forces, moments = {}, {}
-    for raw in text.splitlines():
-        line = raw.strip()
-        if not line or line.startswith("$"):
-            continue
-        f = [c.strip() for c in line.split(",")]
-        kw = f[0].upper()
-        if kw == "GRID":
-            grids[int(f[1])] = (float(f[3]), float(f[4]), float(f[5]))
-        elif kw == "CBAR":
-            cbars.append((int(f[1]), int(f[3]), int(f[4])))
-        elif kw == "SPC1":
-            spc1.append((int(f[1]), f[2], [int(g) for g in f[3:] if g]))
-        elif kw in ("FORCE", "MOMENT"):
-            sid, gid, scale = int(f[1]), int(f[2]), float(f[4])
-            vec = (float(f[5]), float(f[6]), float(f[7]))
-            (forces if kw == "FORCE" else moments).setdefault(sid, []).append((gid, scale, vec))
-    return grids, cbars, spc1, forces, moments
+# The reader now lives in ``sloads.export.equilibrium`` -- production code, so
+# the round-trip harness and any later runtime deck validator read decks the same
+# way the tests do rather than reimplementing it. Re-exported here so no existing
+# test import moves.
+from sloads.export.equilibrium import parse_cards  # noqa: E402,F401

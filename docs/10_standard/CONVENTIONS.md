@@ -35,6 +35,21 @@ file + symbol is the anchor.
 - **Reporting rules** (`SUMMARY_REPORT.md` §3.3): torsion always names its axis (wing
   LRA as %chord); moments state their sign convention; maxima carry a station;
   envelopes are two-sided.
+- **Per-component moment reference for an exported deck (E-2, 2026-08-08).** A deck's
+  moment resultant is meaningless without the point it is about, and there is no single
+  airplane-wide point every deck can use — the decks are per-component beam models, not
+  an assembled airframe. Each therefore states its closure about **its own** reference,
+  taken from the deck's own `GRID` cards so the claim is verifiable from the file alone:
+  **wing → its root station**, **body → its aft-most station** (the point the terminal
+  cumulative `Myy` is stated about), **tail → its leading-edge chord station**. Control
+  decks carry no geometry and state a force closure only.
+- **Beam torsion is not a rigid-body moment.** The exported wing `Myy` is a beam torsion
+  about the LRA. Because the station `x` sweeps aft and the station `z` rises with
+  dihedral, the rigid transfer term `Σ (p − ref) × F` is of the *same order* as the
+  torsion itself (≈ −93,300 lb-in against a −91,400 lb-in root torsion on `ga6_normal`
+  PHAA). A deck's torsion claim is therefore about its applied `MOMENT` cards; only the
+  bending claim integrates the `FORCE` lever arms. `export/equilibrium.Resultant` carries
+  both sums (`m0` and `m`) so a checker cannot silently use the wrong one.
 - **Open question (filed on the backlog):** the load-application axis vs elastic-axis
   convention for deck consumers — sbeam's grid line *is* its elastic axis; the torsion
   a consumer should attribute when the beam axis differs from the sloads load-reference
