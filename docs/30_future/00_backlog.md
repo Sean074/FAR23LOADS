@@ -151,12 +151,44 @@ with deck-derived force **and** moment closure. Reuses `SurfaceInput` planforms
 shape, uniform-area tail mass for inertia, user-set reporting-station count;
 control-surface load smeared first, discrete hinge/actuator option second;
 T-tail transfers the concurrent h-tail balancing + inertia loads to the fin
-tip. Chordwise TAILDIST and all Appendix-A oracles unchanged. Full design note
-and step sequence (T1–T8):
+tip. Chordwise TAILDIST and all Appendix-A oracles unchanged. Full design note,
+decisions T-1…T-11 and step detail:
 [`09_distributed_empennage_loads_plan.md`](09_distributed_empennage_loads_plan.md).
-Subsumes M4-3(a) (v-tail geometry provenance) at its T1 step. Effort: L,
-phased. Pairs with the equilibrium-invariant item (its checker gates the new
-decks).
+Subsumes M4-3(a) (v-tail geometry provenance) at its T1 step.
+
+**Effort: L (~8 steps / ≈8 working sessions), phased.** Recommended on a
+feature branch (`feature/distributed-empennage-loads`), cut **after** the
+pending 0.4.0 release, with a merge to `main` at each phase boundary — the
+schema bump, the digest regeneration and the eight-step span all argue against
+landing this piecemeal on a release-ripe trunk.
+
+**Sequencing gate (decision T-11):** the two export-boundary items above
+(**sbeam round-trip CI harness**, **global equilibrium invariant**) land
+**first**. T4's acceptance is "two new rows in the plan-07 §4 invariant table",
+not "author the checker"; and the checker is where the tail double-count rule
+gets decided — `body_loads` already carries the tail air load as a point
+station in the 1001 GID band, so a combined-airframe sum must declare which
+tail representation is authoritative.
+
+| Step | Scope | Tier | Effort |
+|---|---|---|---|
+| **T1** | Geometry + schema: `"htail"`/`"vtail"` `SurfaceInput` entries, full-span consistency validator, `TailMassInput`, `htail_span`/`vtail_span` `LoadsResult` slices, `SCHEMA_VERSION` 40→41 + migration, `io.py` round-trip, dictionary regen, geometry-page editor reuse. Closes M4-3(a). | M | M (~1 session) |
+| **T2** | `sloads/modules/tail_span.py` — chord-proportional strip integrator, LRA torsion, d'Alembert inertia (T-9), per-side scaling for 23.427(a) (T-10); the five §4 closure gates as `tests/test_tail_span.py`. | L | M–L (~1.5) |
+| **T3** | Streamlit view + `workflow.py` registration + unit-suffixed CSV downloads (lesson L-8i). | M | S–M (~0.5) |
+| **T4** | `sbeam_bridge` spanwise writers: `GRID` on the LRA line, `FORCE`/`MOMENT` increments, GID bands 4001+/4501+ into the disjointness guard, two new rows in the plan-07 invariant table, one deliberate Imperial-digest regen. | L | M (~1) |
+| **T5** | `control_load_mode="smeared"` — mode plumbing, deck `$` header statement, bit-identity proof vs T2. **Ends phase 1.** | S | S (~0.5) |
+| **T6** | `control_load_mode="discrete"` — hinge/actuator schema, tributary hinge reactions, first hinge-moment output in the suite, mode-isolation gates. | L | M–L (~1.5) |
+| **T7** | T-tail transfer to the fin tip (first load-path consumer of `TailType.T_TAIL`); gating-isolation + transfer-closure gates. | L | M (~1) |
+| **T8** | Tier-L closure: CHANGELOG, history full step format, `PROGRAM_SPEC.md`, `PROJECT_GUIDE.md`, `CONVENTIONS.md` (v-tail span axis + T-tail transfer point), `theory_sources.md` (closure gates as the oracle substitute), `cspell.json`. | S | S (~0.5) |
+
+**Top risks:** (1) the full-span h-tail beam (T-8) is a *new* topology — it
+needs fuselage-attachment support nodes the wing pipeline has no analogue for,
+and T2/T4 must define them before the invariant can close; (2) double-count
+against `body_loads`' point tail load at the combined-airframe boundary;
+(3) v-tail axis mapping hand-rolled at a call site instead of in
+`coordinates.py`; (4) `n` undefined for the v-tail cases (phase-1 v-tail
+inertia is deliberately omitted); (5) T6's hinge moment is new physics with no
+printed oracle. Full table in the plan §7.
 
 ---
 

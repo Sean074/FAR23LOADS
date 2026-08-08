@@ -1,7 +1,10 @@
 # Design note — Distributed empennage loads → sbeam FORCE/MOMENT export
 
 **Status:** assessment + step-by-step development guide; decisions T-1…T-7 taken
-2026-08-08 (user). Not yet implemented. **Closure tier: L** (new physics, new
+2026-08-08 (user), **T-8…T-11 taken 2026-08-08** in the development-plan review
+(they supersede the T-3 inertia wording and the §3.1/§4 half-vs-full
+bookkeeping). Not yet implemented; **blocked by decision T-11** on the plan-07
+equilibrium invariant + sbeam round-trip harness. **Closure tier: L** (new physics, new
 result slices, schema/contract change — full trail per the CLAUDE.md tier table).
 
 Conventions cited throughout:
@@ -50,6 +53,10 @@ modified by it.
 | T-5 | **T-tail: concurrent balancing + inertia.** For each vertical-tail case, the horizontal-tail loads concurrent with that flight condition — the balancing tail load `LT` at that case's speed/`n` (from `flight_envelope`/`envelope.vn`) plus h-tail mass inertia — are transferred to the fin-tip station as force + moment cards | Rational pairing, one deck per VT case; the conservative superposed-critical-HT pairing is recorded in §8 as a possible later policy option |
 | T-6 | **Stations:** load reporting stations = `SurfaceInput.elements` mid-strip stations (uniform strips, root→tip), exactly the wing pattern; user-set, validated ≥ 2 | User requirement; identical semantics to the wing keeps `interp_x`/tributary logic shared |
 | T-7 | **Oracle lock:** `taildist.py` chordwise pressures, `select.py` totals, and every Appendix-A figure are unchanged; the spanwise path is a pure consumer of their outputs (concept-mode superset rule, plan 01 §1) | CLAUDE.md invariant |
+| T-8 | **H-tail bookkeeping: full-span deck through the centreline.** The h-tail beam runs tip→tip as one member; strips cover the full planform and `LT25`/`LT50` enter as the both-sides totals SELECT already produces. The deck is supported at the **fuselage attachment stations** (not root-clamped like the wing), and the carry-through between them is modelled explicitly | Keeps SELECT/TAILDIST's full-surface, full-load bookkeeping end-to-end with no factor-of-two seam, and is the only topology that can carry the 23.427(a) left/right asymmetry (T-10) in a single deck. Cost, accepted: a beam topology the wing pipeline has no analogue for — the attachment/support nodes must be defined in T2 before T4's invariant can close |
+| T-9 | **Inertia sign: always `−n·W_ht` (d'Alembert), never "opposing the air load."** The inertia direction is set by the case's load factor alone — relieving on up-load cases, **additive** on down-load cases | The governing GA6 h-tail conditions are down-load (DN UNCHECKED ≈ −1400 lb); a magnitude-opposing rule would relieve exactly those and be unconservative. Supersedes the "opposing the air load" wording in T-3 |
+| T-10 | **23.427(a) UNSYMMETRICAL: per-side scaled distribution in phase 1.** Each side carries the same chord-proportional shape scaled by its own share — RH `0.5·total`, LH `pc%·RH` with `pc = min(100 − 10(n−1), 80)`, exactly `select_htail_unsymmetrical`'s split, read never recomputed | A chord-proportional *symmetric* shape cannot represent a named FAR condition; with the T-8 full-span deck this is one scale factor per side, and it is the only h-tail case that produces a net rolling/yawing input to the fuselage — worth having on day one |
+| T-11 | **Sequencing: the plan-07 equilibrium invariant and the sbeam round-trip CI harness land first.** T4's acceptance is "add two rows to the plan-07 §4 invariant table", not "author the checker" | Avoids coupling two `[E]` items, and gives the tail double-count question its proper home: `body_loads` already carries the tail air load as a point station (GID 1001 band), so the export boundary — not a tail step — must declare which tail representation is authoritative in a combined-airframe sum |
 
 **Axes note (CONVENTIONS §1, becomes a convention at closure):** the h-tail maps
 exactly like the wing (span along `y`, air load `fz`, torsion `myy` about the
@@ -70,6 +77,15 @@ off); `DATA_DICTIONARY.md` regenerated via its generator.
    `htail_semispan_in` / `vtail_span_in` within 1 % — a loud `ValueError`, not a
    silent preference. The scalars stay authoritative for the oracle-locked
    modules; the polylines are authoritative for strips.
+   **Half/full bookkeeping (T-8), stated once so the validator cannot get it
+   wrong:** `SurfaceInput` polylines are defined on **one side** for a
+   `symmetric=True` surface, so the h-tail comparison is
+   `2 × polyline_area ↔ htail_area_sqft` and `polyline_semispan ↔
+   htail_semispan_in`. The v-tail is a single-sided surface: `polyline_area ↔
+   vtail_area_sqft`, `polyline_span ↔ vtail_span_in`, no factor. The full-span
+   h-tail *deck* of T-8 is built by mirroring the semispan polyline about the
+   centreline at strip-generation time — one geometry input, two half-planforms,
+   one beam.
 2. **`TailMassInput`** (one per surface, mirroring `WingMassInput`'s position in
    `Project`): `surface: str` (`"htail"`/`"vtail"`), `panel_weight_lb: float`.
    Uniform density per T-3 — no taper ratio, no concentrated list in phase 1.
@@ -78,6 +94,9 @@ off); `DATA_DICTIONARY.md` regenerated via its generator.
    measured along the surface span axis) and `actuator_span_in: float`.
 4. **`control_load_mode: "smeared" | "discrete"`** (default `"smeared"`), the
    T-4 selector. `"discrete"` without attachment geometry is a `ValueError`.
+   **Per surface, with a project-level default** — an elevator may have hinge
+   geometry entered while the rudder does not, and a project-wide flag would
+   force the whole empennage back to `"smeared"` for the missing one.
 5. **New `LoadsResult` slices:** `htail_span` / `vtail_span` —
    lists of per-case spanwise results reusing the `WingStationLoad` station
    shape (`x, y, z, fx, fz, sx, sz, mxx, myy, mzz` — the fields are already
@@ -89,36 +108,53 @@ off); `DATA_DICTIONARY.md` regenerated via its generator.
 
 ## 4. Physics, stated before code (required practice 1)
 
-Per strip `j` at span station `y_j`, chord `c_j`, strip width `Δy`, semispan
-area `S` (for the loaded span), for a case with totals `LT25`, `LT50` (limit):
+Per strip `j` at span station `y_j`, chord `c_j`, strip width `Δy`, **full
+planform area `S`** (both sides for the h-tail, per T-8), for a case with
+totals `LT25`, `LT50` (limit, both-sides as SELECT produces them):
 
 ```
-w25_j = LT25 · (c_j·Δy)/S          # chord-proportional (T-2)
-w50_j = LT50 · (c_j·Δy)/S
-fz_j  = w25_j + w50_j                              # strip air load
-myy_j = w25_j·(x_lra_j − x_25_j) + w50_j·(x_lra_j − x_50_j)   # strip torsion about the LRA
-fzin_j = −n_case · W_surf · (c_j·Δy)/S             # T-3 uniform-area mass, opposing
+k_side = 1                                  # symmetric cases, both sides
+       = per-side share (T-10)              # 23.427(a): RH 1.0, LH pc/100
+w25_j  = k_side · LT25 · (c_j·Δy)/S         # chord-proportional (T-2)
+w50_j  = k_side · LT50 · (c_j·Δy)/S
+fz_j   = w25_j + w50_j                                          # strip air load
+myy_j  = w25_j·(x_lra_j − x_25_j) + w50_j·(x_lra_j − x_50_j)    # strip torsion about the LRA
+fzin_j = −n_case · W_surf · (c_j·Δy)/S      # T-3 uniform-area mass; sign is d'Alembert (T-9),
+                                            # independent of the air-load sign
 ```
 
-Cumulative shear/bending/torsion integrate **tip→root** exactly as
-`airloads.py` does (`sz`, `mxx`, `myy` running sums), so the export bridge's
-increments-of-cumulative recovery (`dFz[i] = sz[i]−sz[i+1]`) telescopes
-identically. The v-tail runs the same equations in its local frame with the
-side load as the normal force.
+For the symmetric cases `k_side = 1` on both halves and the two halves sum to
+the SELECT total exactly; for 23.427(a) the halves sum to `RH + LH`, which is
+the condition's own reported total — so the closure below holds unchanged in
+both. Cumulative shear/bending/torsion integrate **tip→root on each half**
+exactly as `airloads.py` does (`sz`, `mxx`, `myy` running sums), so the export
+bridge's increments-of-cumulative recovery (`dFz[i] = sz[i]−sz[i+1]`)
+telescopes identically; the two halves meet at the centreline station, where
+the carry-through and the fuselage-attachment supports (T-8) live. The v-tail
+runs the same equations in its local frame with the side load as the normal
+force, single-sided and root-supported at the fuselage.
 
-Because the distribution is chord-proportional, two targets are **closed-form**
+Because the distribution is chord-proportional, the targets are **closed-form**
 and serve as the R10 gates (no printed oracle exists for a spanwise tail
-distribution):
+distribution). Per half-planform, with `L_half = k_side·(LT25 + LT50)`:
 
-- **Force closure:** root `sz = LT25 + LT50` exactly (telescoping sum).
-- **Bending closure:** root `mxx = (LT25+LT50) · ȳ_A`, where `ȳ_A` is the
-  area centroid of the planform — analytic for a trapezoid:
-  `ȳ_A = (b/3)·(c_r + 2c_t)/(c_r + c_t)`. This is an independent hand-derived
-  target, not a re-run of the quadrature.
-- **Torsion closure:** root `myy = (LT25+LT50)·x̄_lra − LT25·x̄_25 − LT50·x̄_50`
+- **Force closure:** Σ strip `fz` over the whole deck = `LT25 + LT50` exactly
+  (telescoping sum); per half = `L_half`.
+- **Bending closure:** each half's attachment-station `mxx = L_half · ȳ_A`,
+  where `ȳ_A` is the area centroid of the half planform — analytic for a
+  trapezoid: `ȳ_A = (b/3)·(c_r + 2c_t)/(c_r + c_t)`. An independent
+  hand-derived target, not a re-run of the quadrature.
+- **Centreline rolling closure (T-8 + T-10):** net moment about the centreline
+  = `(L_RH − L_LH)·ȳ_A` — **identically zero for every symmetric case**, and
+  the asymmetry moment for 23.427(a). This is the gate the full-span topology
+  buys, and the one a per-side deck could not state.
+- **Torsion closure:** `myy = (LT25+LT50)·x̄_lra − LT25·x̄_25 − LT50·x̄_50`
   with the `x̄` values area-weighted means — again closed-form for straight-line
   LE/TE.
-- **Inertia closure:** Σ inertia strip loads = `−n_case · W_surf` exactly.
+- **Inertia closure:** Σ inertia strip loads = `−n_case · W_surf` exactly,
+  **signed by `n_case` alone** (T-9); a companion test asserts the down-load
+  cases come out larger in magnitude than air-load-only, which is what pins the
+  sign convention against regression.
 - **Reduction:** with `ref_axis_pct = 0.25` the `LT25` torsion term vanishes
   identically (LRA-transfer identity, same property the wing tests pin).
 
@@ -145,11 +181,18 @@ recomputed), the T1 planforms, `TailMassInput`, and each case's load factor
 (from the condition's V-n point; documented fallback `n = 1.0` where the source
 condition carries none, e.g. yaw cases). Emits the §3.5 slices, LIMIT, with
 `safety_factor` carried per case and the torsion axis label stamped
-(`"LRA 42% chord"` — every torsion names its axis). **Phase-1 scope note:**
-v-tail *inertia* loads are omitted (no lateral load factor exists in the case
-data) — documented in-band, revisit in §8. **Gate:** the five §4 closures as
-`tests/test_tail_span.py`, each with the hand-derived number and its derivation
-in the test docstring.
+(`"LRA 42% chord"` — every torsion names its axis). Builds the **full-span**
+h-tail station set by mirroring the semispan planform (T-8) and defines the
+**fuselage-attachment support stations** the deck is reacted at — these must
+exist here, not be improvised in T4, or the invariant has nothing to close
+against. `select_htail_unsymmetrical`'s RH/LH split is read for `k_side`
+(T-10), never recomputed. Inertia sign is `−n_case` unconditionally (T-9).
+**Phase-1 scope note:** v-tail *inertia* loads are omitted (no lateral load
+factor exists in the case data) — documented in-band, revisit in §8.
+**Gate:** the §4 closures as `tests/test_tail_span.py` — including the
+centreline rolling closure (zero for every symmetric case, the asymmetry
+moment for 23.427(a)) and the down-load inertia-sign test — each with the
+hand-derived number and its derivation in the test docstring.
 
 ### T3 — UI + CSV reporting
 
@@ -167,10 +210,16 @@ table, `_sf()` applied once at the boundary, SIDs =
 `case_ids.subcase_id(case_id)` (same SUBCASE as the chordwise deck of the same
 case — separate files, same identity), `$` subcase-map + axes/units header. New
 GID bands (proposal: htail-span 4001+, vtail-span 4501+) added to the
-disjointness drift guard of plan 07 step 3. **Gate:** the plan-07 §4 invariant
-table gains two rows — spanwise tail decks assert `ΣF = sf·(LT25+LT50)` (or
-side-load total), `ΣM(root) = sf·root mxx` and torsion `= sf·root myy` — swept
-across all fixtures × both unit systems in `test_export_equilibrium.py`.
+disjointness drift guard of plan 07 step 3. The h-tail deck is SPC'd at the
+T2 fuselage-attachment stations (full-span topology, T-8), not at a single
+root node. **Gate:** the plan-07 §4 invariant table gains two rows — spanwise
+tail decks assert `ΣF = sf·(LT25+LT50)` (or side-load total), `ΣM` about the
+attachment stations `= sf·mxx` there, torsion `= sf·myy`, and `ΣM` about the
+centreline `= 0` for symmetric cases — swept across all fixtures × both unit
+systems in `test_export_equilibrium.py` (**which T-11 requires to already
+exist**). Also state, in the deck `$` header and the plan-07 checker, that the
+spanwise tail deck **supersedes** `body_loads`' point tail-load station for any
+combined-airframe sum — the double-count rule, written down once.
 Imperial digest regeneration, once, deliberately, with its own CHANGELOG line.
 
 ### T5 — Control surfaces, option 2 (smeared) — completes phase 1
@@ -225,7 +274,9 @@ substitute (R10); `cspell.json` for new terms.
 1. All §4 closures pass in CI for both concept fixtures; Appendix A oracles and
    the chordwise TAILDIST path bit-unchanged throughout (T-7).
 2. Spanwise h-tail and v-tail decks satisfy the plan-07 equilibrium invariant
-   (force **and** moment, both unit systems, from their own card text).
+   (force **and** moment, both unit systems, from their own card text),
+   including the centreline rolling closure — zero for every symmetric case,
+   the stated asymmetry moment for 23.427(a).
 3. Control-surface mode `"discrete"` vs `"smeared"`: ΣF exact-equal, hinge set
    sums to the control total, smeared path bit-stable.
 4. T-tail: transfer closure per T7's gate; conventional-tail decks unaffected.
@@ -242,6 +293,10 @@ substitute (R10); `cspell.json` for new terms.
 | `n` for tail inertia not defined for every case | Explicit per-case source table in T2's design review; documented `1.0` fallback, printed in-band |
 | T-tail concurrency assumption challenged later | T-5 pairing stated in the deck header; conservative superposed policy pre-scoped in §8 |
 | Chord-proportional shape questioned vs Schrenk | Recorded as decision T-2 with rationale; upgrading the shape later changes only the `w_j` line in §4 — closures re-derive |
+| **Full-span h-tail is a new beam topology** (T-8): fuselage-attachment supports have no wing analogue, and getting them wrong makes the T4 invariant unclosable | Attachment stations are defined and gated in **T2**, before any deck exists; the centreline rolling closure is the specific test that catches a mis-placed support |
+| **Double-count with `body_loads`' point tail-load station** (GID 1001 band) in a combined-airframe sum | T-11: the plan-07 checker declares the authoritative tail representation; T4 restates it in the deck `$` header. Do not defer this to L-1's assembled-airframe export |
+| Half/full (both-sides) bookkeeping seam between SELECT/TAILDIST totals and semispan polylines | Stated once in §3.1 and used everywhere from there; the T1 validator is the drift guard, and T-8's full-span deck removes the factor-of-two entirely from the strip math |
+| **T6 hinge moment is new physics with no printed oracle** | R10 substitute: Σ(hinge + actuator) = control-surface total exactly, and cross-mode ΣF identity; the hinge moment itself is derived from the oracle-locked TAILDIST aft-of-hinge pressure block, so it inherits that provenance |
 
 ## 8. Deliberately out of scope (candidate backlog items on completion)
 
