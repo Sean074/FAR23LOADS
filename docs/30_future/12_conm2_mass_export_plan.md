@@ -1,0 +1,116 @@
+# Design note — CONM2 distributed-mass export per payload case
+
+**Raised:** 2026-08-08 (user), to enable the balanced-airframe work by giving
+sbeam an **independent** mass model against which sloads' inertia loads can be
+checked. **Status:** decisions C-1…C-6 agreed 2026-08-08; not implemented.
+**Closure tier:** L — new export artifact, a schema addition, a new unit
+channel member, GUI + CLI surface, and a new CI gate.
+
+Related: [`11_balanced_airframe_cases_plan.md`](11_balanced_airframe_cases_plan.md)
+(shares the mass SSOT; step B1 there is a hard dependency),
+[`10_sbeam_roundtrip_ci_harness_plan.md`](10_sbeam_roundtrip_ci_harness_plan.md)
+(the solver gate this rides on). Conventions:
+[`../10_standard/CONVENTIONS.md`](../10_standard/CONVENTIONS.md).
+
+---
+
+## 1. The idea, and why it is worth building
+
+sloads' `FORCE`/`MOMENT` export is the **total** applied load — aero **plus**
+inertia — and stays that way (user, 2026-08-08). That total is self-sufficient
+and is the deliverable. But it is also *self-consistent by construction*: the
+inertia half is computed by the same code that writes the cards, so nothing
+outside sloads can contradict it.
+
+Exporting the mass distribution as `CONM2` cards breaks that circularity.
+sbeam can then apply the case acceleration to an **independently parsed** mass
+model, recover the nodal inertia loads itself, and compare. That is a genuine
+external check on the half of the load set that has no printed oracle — and it
+is precisely the class of error the balanced-airframe baseline turned up (a
+427 lb discrepancy between `weight.items` and `fuselage_mass.stations`, plan 11
+§1.3).
+
+## 2. What exists today
+
+**sbeam is ready.** Its parser handles `CONM2` with the full tensor
+(`eid, gid, cid, m, x1, x2, x3, i11, i21, i22, i31, i32, i33`,
+`sbeam/model/mass.py:30`) and — more usefully — it implements **`MASSSET`**, a
+card that adds / deletes / replaces sets of CONM2s per subcase, with a
+duplicate-reference guard. That is purpose-built for one mass configuration per
+payload case in a single deck.
+
+**sloads has one itemization, but four payload cases.**
+
+| | weight | xcg | itemized? | WTENV source |
+|---|---|---|---|---|
+| CG1 | 3400 | 85.10 | ≈ yes | aft gross, 78 lb ballast @ 103.7 |
+| CG2 | 3400 | 77.49 | no | fwd gross, 418 lb ballast |
+| CG3 | 2800 | 72.64 | no | fwd regardless, 158 lb ballast |
+| CG4 | 2063 | 73.09 | no | minimum flight weight |
+
+`flight_loads.cg_cases` defines all four and the whole V-n envelope runs on them
+(`CaseRef.cg`). `weight.items` (24 items) yields exactly **one** loading —
+3400 lb @ cg_x 85.00 — and `weight_onecg.build_mass`'s own docstring concedes
+the point: *"the full per-CG-loading set … is a later refinement."* So three of
+the four payload cases have no item list to turn into CONM2 cards.
+
+They are, however, **derivable**: `weight_envelope` already computes each
+structural limit's reference loading (which discretionary items are aboard) and
+the ballast weight and station, and its Appendix A figures (78 / 418 / 158 lb)
+are oracle-checked.
+
+**A units gap.** `DeliverableUnits` carries force / length / moment / torque /
+pressure and **no mass**. `CONM2`'s `M` is mass, not weight, and the item
+inertias in `weight.items` are lb-in² — a *weight* basis.
+
+## 3. Agreed decisions
+
+| # | Decision | Rationale |
+|---|---|---|
+| C-1 | **Per-case itemization is derived from WTENV's ballast machinery**: base items, minus the discretionary items that loading drops, plus a computed ballast item | §2 — the machinery and its oracle already exist. Reproduces CG1–CG4 with no new user input and no fixture data entry |
+| C-2 | **The check is an inertia-load comparison.** sbeam applies the case acceleration to the CONM2 set and recovers nodal inertia loads; **sloads additionally emits its own inertia contribution as a separate, clearly-marked load set** for comparison. The total `FORCE`/`MOMENT` set remains the deliverable and is unchanged | A properties-only check passes when a mass is in the wrong place with the right total. The distribution is the thing under test |
+| C-3 | **One deck, one `MASSSET` per payload case**; each `CONM2` attaches to a **beam `GRID`** via plan 11's item→station map, with `x1/x2/x3` carrying the offset to the item's true CG | No new grids, no RBE plumbing, no dense solve path — and the offset fields keep each item at its exact CG, so nothing is approximated by the attachment |
+| C-4 | **The Weights page emits both** a `CONM2`+`GRID` bulk-data fragment (pasteable into any model) **and** a self-contained runnable mass-check deck; **`cli.py` gains `--export-conm2`** | A GUI-only artifact cannot be gated in CI, and continuous gating is the mission's standard |
+| C-5 | **`DeliverableUnits` gains `mass` and `mass_inertia` on the SOLVER channel** — lbf·s²/in (g = 386.088 in/s²) Imperial, tonne (g = 9806.65 mm/s²) for N·mm — with an arithmetic drift guard alongside the existing `moment == force × length` one | `CLAUDE.md` practice 3. The units history is the cautionary precedent; a mass channel invented at a call site is exactly the failure mode |
+| C-6 | **Double-counting inertia is made structurally impossible**, not warned about | The total `FORCE`/`MOMENT` cards already contain inertia. A deck that applies those *and* accelerates the CONM2 masses counts it twice. The mass-check deck therefore carries **no** `FORCE`/`MOMENT` load cards at all, and a guard test asserts the two never appear in one subcase |
+
+## 4. Steps
+
+| Step | Scope | Tier | Effort |
+|---|---|---|---|
+| **C1** | Per-case itemization derived from WTENV (C-1): `weight_envelope` exposes each loading's item list + ballast item; validator that each derived case reproduces its `flight_loads.cg_cases` weight/xcg/zcg within tolerance. **ga6 CG1 must come out at 3400 @ 85.10 against the itemized 85.00** — the documented rounding, so the tolerance is set deliberately, not fitted. | L | M (~1) |
+| **C2** | `DeliverableUnits.mass` / `.mass_inertia` on the SOLVER channel + the arithmetic drift guard (C-5). | M | S (~0.5) |
+| **C3** | `sloads/export/mass_cards.py`: `CONM2` + `MASSSET` writer, attaching via plan 11's item→station map with CG offsets (C-3). GID/EID band added to the disjointness guard. | L | M (~1) |
+| **C4** | Inertia-only load set alongside the total in the export (C-2), clearly marked in its `$` header as **not** to be applied with the total set. | M | S–M (~0.5) |
+| **C5** | Weights page download (fragment + runnable deck) and `cli.py --export-conm2` (C-4). | M | S–M (~0.5) |
+| **C6** | CI gates: derived-case properties reconcile to `cg_cases`; sbeam-recovered inertia loads match sloads' inertia-only set within tolerance; **double-count guard test** (C-6). Rides on plan 10's harness. | L | M (~1) |
+| **C7** | Closure trail: `CONVENTIONS.md` (mass units + the no-double-count rule), `PROGRAM_SPEC.md`, `PROJECT_GUIDE.md`, `DATA_DICTIONARY.md` regen, `theory_sources.md`, CHANGELOG, history. | S | S (~0.5) |
+
+**Dependency:** C3 needs plan 11 **B1** (`mass_distribution.py`, the item→station
+map). Land B1 first, or C3 will hand-roll a second mapping — the exact
+duplication `CLAUDE.md` practice 3 exists to prevent.
+
+## 5. Acceptance
+
+1. Each derived payload case reproduces its `flight_loads.cg_cases` weight, xcg
+   and zcg within a stated tolerance, on every fixture that has a weight
+   database.
+2. The CONM2 set for each case sums to that case's weight, CG and Iyy.
+3. sbeam, given the mass deck and the case acceleration, recovers nodal inertia
+   loads matching sloads' inertia-only set within tolerance — **the point of the
+   whole step**.
+4. `u.mass` and `u.mass_inertia` satisfy their dimensional identities in both
+   unit systems.
+5. No subcase anywhere applies both the total `FORCE`/`MOMENT` set and an
+   accelerated CONM2 set (guard test).
+6. Appendix A oracles unchanged; existing decks byte-unchanged — this is
+   additive.
+
+## 6. Risks
+
+| # | Item | Notes |
+|---|---|---|
+| R1 | The derived CG2/CG3/CG4 itemizations are **new numbers with no printed oracle** — Appendix A prints the ballast weights, not per-case item lists | Acceptance 1 (reconcile to `cg_cases`, which *are* oracle-backed) is the substitute gate. State it as a closure gate in `theory_sources.md`, per `CLAUDE.md` practice 2 |
+| R2 | Item inertias are lb-in² about the item's own axes, and `MassItem` carries no products of inertia (`ixy`, `iyz`) | CONM2's `i21`/`i31`/`i32` are emitted as 0 with an explicit `$` note. Correct for the laterally symmetric case the suite assumes; document rather than silently zero |
+| R3 | Double-count (C-6) is the one error here that produces a *plausible* wrong answer — inertia at 2× reads as a heavier airplane, not as a crash | Hence the structural guard rather than a warning, and hence the mass-check deck carrying no load cards at all |
+| R4 | The item→station map moves masses onto the beam axis | CONM2 offsets (C-3) preserve the true CG exactly, so this is presentational, not numerical. Verify with acceptance 2 (Iyy, which is offset-sensitive) |

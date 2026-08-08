@@ -70,21 +70,139 @@ Reference-authority hierarchy: (1) `.BAS` listings + Appendix A printed output,
 ### [E] sbeam round-trip CI harness *(new 2026-08-05, process review R9)*
 C4's acceptance ("the exported BDF parses and solves in sbeam") was checked once
 and never gated; the mission's core claim currently has no regression test.
-Build a CI job/test that exports the flagship concept fixture's governing cases
-via `--export-sbeam`, runs an actual sbeam solve on the deck (sbeam as a dev
-dependency or a pinned checkout), and gates on: solve succeeds; reactions
-balance the applied cards; spot-check values (root shear/bending vs the sloads
-span CSV) within tolerance. **This is the single highest-value new test in the
-project.** Effort: S–M. Pairs with the equilibrium invariant below (run it on
-the same decks).
+Build a CI job/test that exports governing cases via `--export-sbeam`, runs an
+actual sbeam solve on the deck, and gates on: solve succeeds; reactions balance
+the applied cards; spot-check values (root shear/bending vs the sloads span CSV)
+within tolerance. **This is the single highest-value new test in the project.**
+Full design note, decisions S-1…S-9 and step detail:
+[`10_sbeam_roundtrip_ci_harness_plan.md`](10_sbeam_roundtrip_ci_harness_plan.md).
+**Spike (2026-08-08): the round trip already works** — ga6's stick deck solves
+in sbeam in 0.6 s and the recovered reactions/bar forces match the span CSV
+exactly, so this is a harness item, not a physics one. Scope per decision S-2:
+the wing stick model **plus test-only stick wrappers** for the body and tail
+decks; control decks are out (no chord length, hence no geometry). Effort: M.
+**Lands after** the equilibrium invariant below (which supplies the shared
+summation owner and the body/tail `GRID` cards the wrappers need).
 
 ### [E] Global equilibrium invariant on exported decks *(new 2026-08-05, R9)*
-Nothing asserts that an exported case's wing + body + tail cards sum to the
-case's `n·W` with zero net moment about the reference point — closure today is
-per-module. Add an export-boundary check (test + optional runtime warning):
-for each exported case, Σ`FORCE` = n·W (within tolerance) and Σ moments ≈ 0
-about the deck reference, in deck units. Cheap (S) and catches every future
-seam error at the boundary where it matters.
+Nothing verifies from a deck's own text that its cards sum to what the deck
+claims about itself — closure today is per-module and force-only, no moment
+check, no SI coverage. Add an export-boundary check for each exported case in
+deck units. Design note, decisions E-1…E-5 (including why the literal "Σ`FORCE`
+= n·W" form is unrealizable per-component, and the per-component moment
+references): [`07_export_equilibrium_invariant_plan.md`](07_export_equilibrium_invariant_plan.md).
+Cheap (S–M) and catches every future seam error at the boundary where it
+matters. **First of the two export-boundary items** — it creates
+`sloads/export/equilibrium.py` (the single summation owner) and puts `GRID`
+cards on the body/tail decks.
+
+### [E] Balanced full-airframe load cases (free-free) *(new 2026-08-08, user)*
+A full airplane balanced case — wing tip to wing tip, nose to tail — that needs
+**no constraint**, because the applied aero and inertia loads balance: a wing
+case carries its corresponding tail load and the resulting inertia loads, with
+a small residual inertia relief to close. Design note, decisions B-1…B-4, the
+double-count authority table and step detail:
+[`11_balanced_airframe_cases_plan.md`](11_balanced_airframe_cases_plan.md).
+**This is the item plan 07 §9 recommended filing** ("Assembled-airframe n·W
+closure for symmetric cases") — filed here with its decisions answered and its
+baseline measured, so it should not be entered a second time.
+
+**Measured baseline (ga6, 2026-08-08):** the airplane already balances at trim
+level (`lzw + lt == nz·W` exactly), and assembling case 22 from the itemized
+mass model leaves a residual of **−41.0 lb = 0.317 % of n·W** (`Δn` = −0.012 g)
+— comfortably inside the agreed 1 % gate, with the whole residual traced to the
+AIRLOADS strip quadrature vs the FLTLOADS closed-form lift. **The physics is
+already consistent to 0.3 %; what is missing is the assembly.** Two gaps drive
+the work: the wing delivers 11,674 lb at the seam while `body_loads` closes on
+a reaction of 10,479 lb it computes for itself (**9.2 % disagreement**), and
+`weight.items` (24 items, closes to W and CG exactly) and
+`fuselage_mass.stations` (5 hand-entered lumps) differ by **427 lb** with
+nothing reconciling them.
+
+Decisions: the balanced case is owned by the **flight condition** (component
+cases become views; `CriticalCondition.case` is already the V-n index);
+**`weight.items` is the mass SSOT**; residual closed by **2-DOF mass-proportional
+`Δn` + `Δθ̈`** gated at 1 %; a **new assembled deck** solved on a determinate
+support with reactions gated to ≈ 0 (sbeam SOL 101 has no inertia relief —
+`SUPORT` is SOL 144 only). **Answers plan 09 decision T-11's double-count
+question** via the §4 authority table: *a load that a free-body cut introduces
+is never applied in the assembled model.*
+
+**Effort: L (~4–5 sessions phase 1), phased.** Phase 1 (B1–B6) = symmetric wing
+cases; phase 2 (B7) = antisymmetric `ACRL`/`TORS` (distinct left/right loading,
+6-DOF residual); phase 3 (B8) = empennage (needs the plan-09 item) and
+landing/ground (needs M4-6). Rides on both export-boundary items above.
+**Open technical question (R1), to settle before the gate is written:** where
+the wing+fuselage aero pitching moment `m_wf` goes in the distributed model —
+the wing section `Cm` is already in the strip torsion, but the fuselage Munk
+term has no distributed carrier until **M4-19**. The force residual is measured;
+the moment residual cannot be quoted until R1 is decided.
+
+### [E] CONM2 distributed-mass export per payload case *(new 2026-08-08, user)*
+Export the distributed mass as `CONM2` cards from the **Weights page**, one mass
+configuration per payload case, so sbeam can apply the case acceleration to an
+**independently parsed** mass model and check sloads' inertia loads. The
+`FORCE`/`MOMENT` export **stays the total load (aero + inertia)** and is
+unchanged — the CONM2 deck is a separate cross-check artifact, never a second
+half to be added to it. Design note, decisions C-1…C-6 and step detail:
+[`12_conm2_mass_export_plan.md`](12_conm2_mass_export_plan.md).
+
+**Why it matters:** the total load set is self-consistent *by construction* —
+the inertia half is written by the same code that computes it, so nothing
+outside sloads can contradict it. This is the external check on the half of the
+load set that has no printed oracle, and it is the class of error the
+balanced-airframe baseline already found (the 427 lb `weight.items` vs
+`fuselage_mass.stations` discrepancy, now a filed defect).
+
+**State of play:** sbeam is ready — it parses `CONM2` with the full tensor and
+implements **`MASSSET`** (per-subcase add/delete/replace of CONM2 sets), which
+is purpose-built for this. sloads is not: `flight_loads.cg_cases` defines four
+payload cases the whole V-n envelope runs on (CG1 3400@85.10, CG2 3400@77.49,
+CG3 2800@72.64, CG4 2063@73.09), but `weight.items` yields **one** loading
+(3400 @ 85.00) and `weight_onecg.build_mass` concedes it ("the full per-CG-loading
+set … is a later refinement"). The other three are derivable from
+`weight_envelope`, whose ballast figures (78 / 418 / 158 lb) are Appendix-A
+oracle-checked.
+
+Decisions: per-case itemization **derived from WTENV's ballast machinery**; the
+check is an **inertia-load comparison**, so sloads also emits its inertia
+contribution as a separate marked load set; **one deck, one `MASSSET` per payload
+case**, each `CONM2` on a beam `GRID` with `x1/x2/x3` carrying the offset to the
+item's true CG; the Weights page emits both a bulk-data fragment and a runnable
+mass-check deck, plus **`cli.py --export-conm2`** so CI can gate it headlessly;
+`DeliverableUnits` gains **`mass`/`mass_inertia`** on the SOLVER channel
+(lbf·s²/in, tonne) with an arithmetic drift guard. **Double-counting inertia is
+made structurally impossible** (C-6) — the mass-check deck carries no load cards
+at all, and a guard test asserts the total set and an accelerated CONM2 set
+never share a subcase; it is the one error here that yields a *plausible* wrong
+answer rather than a crash.
+
+**Effort: L (~4–5 sessions).** **Depends on** the balanced-airframe item's step
+B1 (`mass_distribution.py`, the item→station map) — land B1 first or C3
+hand-rolls a second mapping. Rides on the round-trip harness for its solver
+gate.
+
+### [E] Side-of-body station for the wing beam *(new 2026-08-08, user)*
+The exported wing stick model is supported at **BL 0, the aircraft centerline**,
+not at the side of body where the wing attaches — verified: `_root_node` sits
+half a strip inboard of station 0, and every fixture defines the wing LE
+polyline from BL 0 (gross-area convention). For ga6 the difference is **16 % in
+root shear and 23 % in root bending** at the BL 23 inboard rib. **Relocating the
+SPC does not fix it** — a single clamp reacts the whole applied load wherever it
+sits, so the side-of-body quantity is an *internal* load needing a node at the
+SOB. Scope: (a) decide the SOB source — a new explicit `SurfaceInput` butt line,
+`geometry.parametric.fuselage_width/2` (unpopulated in every fixture), or
+`wing_mass.inboard_rib_y` (a proxy — it is the WINGINER mass-panel start, and BL
+40 is well inboard of the RJ's fuselage); (b) **add** a SOB station without
+truncating the centerline-origin stations, since Appendix A's root is station 0
+at `y = dy/2` and the `ΣdFz·(y−y₀) = mxx_root` closure is stated about it;
+(c) report the SOB shear/bending/torsion as the wing root design loads, distinct
+from the half-span totals. **The balanced-airframe item above reduces this
+substantially** — a free-free assembled model has no clamp at all, so the SOB
+becomes a reporting node on an internal load. Sequence it after phase 1, or
+fold it into B5. Full reasoning and the measured numbers:
+[`10_sbeam_roundtrip_ci_harness_plan.md`](10_sbeam_roundtrip_ci_harness_plan.md)
+§1.1. Effort: M.
 
 ### [E] M4-8 — Centralized two-layer safety-factor policy (foundation for 25.302) **[architecture]**
 Today the safety factor is decided ad hoc: `ConditionResult.safety_factor` defaults to
@@ -348,6 +466,27 @@ Mechanical (S); do after the current working tree is committed.
 
 ## Open defects (index)
 
+- **`examples/concept_heavy.project.json` cannot be exported to sbeam [Minor,
+  found 2026-08-08 by the round-trip harness spike].** `--export-sbeam` on it
+  raises `MissingInputError: net wing case 'PHAA' needs cl/v_eas_kt (explicit or
+  via a 'case' reference into Project.envelope.vn)` from
+  `sloads/modules/net_loads.py:71`. The other five examples export cleanly.
+  Either a fixture gap (the wing cases were entered without a `case` reference)
+  or a gap in the derived-case route — decide which, then fix the fixture or the
+  derivation. Keeps that fixture out of the round-trip harness's gate matrix
+  until closed.
+- **Fuselage beam mass and the itemized mass model differ by 427 lb on ga6
+  [Minor, found 2026-08-08 by the balanced-airframe baseline].**
+  `weight.items` totals 3400.0 lb at cg_x 85.00 (matching `mass.cases[0]`
+  exactly); less the wing panel (330), h-tail (42) and v-tail (23) it leaves
+  3005 lb belonging to the fuselage beam, against the **2578 lb** entered in
+  `fuselage_mass.stations`. Nothing reconciles the two representations. No
+  deliverable moves today — the FAR23 oracles do not read `fuselage_mass`
+  (**verify explicitly before changing anything**) — but the fuselage beam is
+  running ~14 % light in inertia. Closed by the balanced-airframe item's step
+  B1, which makes `weight.items` the mass SSOT and adds the reconciliation
+  validator; filed separately because the discrepancy is real whether or not
+  that item is worked.
 - **Derived ACRL wing case disagrees with the worked example's air load [Minor,
   found 2026-08-05 by M4-2's decision-7 gate].** With `wing_mass.cases` left empty,
   `wing_inertia.resolve_wing_cases` derives the wing cases from `envelope.critical`.
