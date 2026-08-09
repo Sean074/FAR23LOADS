@@ -159,12 +159,21 @@ def _deg(rad_per_s2: float) -> float:
     return 0.0 if abs(value) < _OMEGA_DOT_NOISE else value
 
 
+def _fin_load(case: BalancedCaseResult) -> float:
+    """The applied fin side load of a lateral case, or 0.0 for every other."""
+    return sum(ld.fy for ld in case.loads if ld.source == "vtail-air")
+
+
 def _header(case: BalancedCaseResult, u: DeliverableUnits) -> List[str]:
     _, _, res_fz = to_force(0.0, 0.0, case.residual_fz, u)
     _, res_my, _ = to_moment(0.0, case.residual_my, 0.0, u)
     _, cm_my, _ = to_moment(0.0, case.fuselage_cm, 0.0, u)
-    hand = {"R": " -- STARBOARD roll (the computed case)",
-            "L": " -- PORT roll (mirror of the starboard case)"}.get(case.hand, "")
+    # What the hand *is* differs between the two handed families, and naming it
+    # "roll" on a rudder kick would be wrong: a lateral case's twin is the
+    # opposite-sign side load, which happens to roll the airplane as well.
+    kind = "roll" if case.unbal_moment else "side load"
+    hand = {"R": f" -- STARBOARD {kind} (the computed case)",
+            "L": f" -- PORT {kind} (mirror of the starboard case)"}.get(case.hand, "")
     # Angular accelerations are reported in deg/s^2 -- a quantity a reader can
     # judge -- while the calc carries them in the weight-space 1/in the closure
     # solves in. The conversion has one owner; see sloads.rigid_body.
@@ -190,6 +199,18 @@ def _header(case: BalancedCaseResult, u: DeliverableUnits) -> List[str]:
         "carry; it has no distributed form until the body aero moment lands).",
         "The support below is determinate: its reaction IS the residual above.",
     ]
+    fin = _fin_load(case)
+    if fin:
+        _, fin_fy, _ = to_force(0.0, fin, 0.0, u)
+        _, _, res_mz = to_moment(0.0, 0.0, case.residual_mz, u)
+        sentences.append(
+            f"LATERAL case: applied fin side load {fin_fy:.1f} {u.force.label}, "
+            f"distributed over the fin span from its root waterline. The "
+            f"pre-closure Fy and Mz ({res_mz:.0f} {u.moment.label}) are that "
+            "load in full, and are NOT a balance error: nothing in an airplane "
+            "cancels a rudder kick -- it yaws and rolls, and the closure above "
+            "is that motion. The 1 % residual gate is on the case's symmetric "
+            "half, which is unchanged.")
     if case.unbal_moment:
         _, roll_my, _ = to_moment(0.0, case.residual_mx, 0.0, u)
         sentences.append(

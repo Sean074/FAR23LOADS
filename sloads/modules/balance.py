@@ -107,6 +107,34 @@ WINGINER's oracle-locked recurrence and this module's ``p_dot`` solve. That
 identity is the B7 closure gate (``test_roll_closure_reproduces_winginer``),
 standing in for the printed oracle concept mode does not have.
 
+The lateral cases (B8a)
+-----------------------
+Plan 13 (``docs/30_future/13_b8a_lateral_closure_plan.md``), decisions L-1…L-8.
+SELECT's four rational v-tail conditions -- sudden rudder, yaw to sideslip, yaw
+15 neutral, side gust -- assemble as balanced cases too, and they are the first
+lateral load factors this suite has ever produced. All four sit on V-n points at
+``n_z ~ 1``, so the vertical/longitudinal/pitch half is the symmetric machinery
+unchanged; what is added is the fin's distributed side load (:func:`fin_sets`)
+and the three lateral degrees of freedom of the closure B8a-2 built.
+
+**Nothing balances a rudder kick, and nothing is supposed to.** In the symmetric
+case aero and inertia nearly cancel and a residual over 1 % means something is
+missing. Laterally there is nothing to cancel against: the pre-closure ``Fy`` and
+``Mz`` residuals **are** the fin load, in full, by construction. So
+:data:`RESIDUAL_GATE` does not apply to them -- the same standing as ``ACRL``'s
+roll residual -- and the gate that does is that the case's *symmetric half*, with
+the fin load removed, still closes inside 1 %.
+
+**The fin is the only lateral aero the suite computes** (decision L-7). Fuselage
+and wing side force in sideslip exist on the airplane and nowhere in these 22
+programs, so ``n_y`` and the yaw acceleration are **over-stated** -- conservative
+for the inertia they drive on every component, and not the airplane's real
+accelerations. That is said in-band, on every lateral case, through
+:data:`LATERAL_AERO_NOTE`. Its magnitude is stated as *unknown*, because
+quantifying it is building the missing model; this is the weaker of the suite's
+two honesty statements and is not dressed up as the stronger one (the lumped
+fuselage ``Cm``, whose size can be quoted).
+
 **The twins come from reflection, not recomputation** (decisions B-6/B-7). Every
 case with antisymmetric content is emitted as a handed pair, the port case being
 the mirror image of the starboard one through
@@ -118,6 +146,7 @@ physical condition.
 from __future__ import annotations
 
 from dataclasses import replace
+from math import degrees
 from typing import List, Sequence, Tuple
 
 from ..case_ids import handed_case_id
@@ -127,6 +156,9 @@ from ..export.coordinates import (
     reflect_moment,
     reflect_point,
     reflect_side,
+    tail_force_to_airplane,
+    tail_station_to_airplane,
+    tail_torsion_to_airplane,
 )
 from ..mass_distribution import (
     CaseLoading,
@@ -142,6 +174,7 @@ from ..models import (
     MissingInputError,
     ModuleResult,
     Project,
+    TailSpanResult,
     VnPoint,
     WingLoadResult,
 )
@@ -151,12 +184,15 @@ from ..rigid_body import (
     PointMass,
     SelfInertia,
     inertia_tensor,
+    radians_per_s2,
     relief_force,
     relief_moment,
 )
+from ..tail_geometry import VTAIL
 from .airloads import air_load_distribution
 from .flight_envelope import build_envelope
 from .select import build_critical
+from .tail_span import build_tail_span
 from .wing_inertia import inertia_units, resolve_wing_cases
 
 MODULE_NAME = "balance"
@@ -177,9 +213,42 @@ ROLLING_WING_CONDITIONS = ("ACRL",)
 #: Every wing condition the assembled deck covers.
 BALANCED_WING_CONDITIONS = SYMMETRIC_WING_CONDITIONS + ROLLING_WING_CONDITIONS
 
+#: SELECT's four rational vertical-tail conditions (FAR 23.441 maneuver, 23.443
+#: gust), each assembled as a **lateral** balanced case at B8a-3. All four sit on
+#: V-n points at ``n_z ~ 1``, so the vertical/longitudinal/pitch half of the case
+#: is the shipped symmetric machinery unchanged and only the applied set grows.
+#: ONENGOUT's 23.367 conditions are deliberately absent: that is a transient, not
+#: a balanced steady case (plan 13 §4).
+BALANCED_VTAIL_CONDITIONS = ("SUDDEN RUDDER", "YAW TO SIDESLIP",
+                             "YAW 15 NEUTRAL", "SIDE GUST")
+
 #: Acceptance gate (plan 11 §6): the residual **before** closure, as a fraction
 #: of ``n*W`` for force and ``n*W*MAC`` for moment.
+#:
+#: **It does not apply laterally, and that is physics rather than an exemption**
+#: (plan 13 §2). A symmetric case's aero and inertia nearly cancel, so a residual
+#: above 1 % means something is missing. A rudder kick has *nothing to cancel
+#: against*: the fin load is reacted by inertia alone, so the pre-closure lateral
+#: residual **is** the whole fin load by construction -- the same standing as
+#: ``ACRL``'s roll residual, which plan 11 §10 already records. The lateral gate
+#: is instead that the case's **symmetric half** still closes inside this bound
+#: with the fin load removed (``test_the_symmetric_half_still_closes``).
 RESIDUAL_GATE = 0.01
+
+#: Applied lateral content below this fraction of ``n*W`` is summation noise, not
+#: a hand (decision L-6).
+HANDEDNESS_TOL = 1e-9
+
+#: The L-7 statement of record, carried in-band on every lateral case: on the
+#: result's ``notes``, hence in the deck header and the UI. The *direction* of
+#: the error is stated, not merely its existence -- and its magnitude is stated
+#: as unknown, because quantifying it is building the missing model.
+LATERAL_AERO_NOTE = (
+    "the fin is the only lateral aerodynamic load this suite computes -- "
+    "fuselage and wing side force in sideslip are not modelled, so n_y and the "
+    "yaw acceleration are OVER-STATED (by an unknown amount) and the inertia "
+    "they drive is conservative on every component; the fin's own design load "
+    "is SELECT's, unchanged")
 
 
 # --------------------------------------------------------------------------- #
@@ -327,6 +396,66 @@ def body_inertia(loading: CaseLoading, project: Project,
         for it in loading.items
         if not assembly_distributes_mass(component_of(it, project))
     ]
+
+
+def fin_sets(result: TailSpanResult) -> List[BalancedLoad]:
+    """The fin's distributed side load, in airplane axes (decision L-6, plan 13 §2).
+
+    A pure consumer of :mod:`sloads.modules.tail_span`, which is itself a pure
+    consumer of SELECT -- so the load a lateral balanced case carries is the
+    Appendix-A-locked side load, strip for strip, and no oracle is at risk from
+    assembling it. What this function adds is the **frame change**, and it makes
+    it through the single owner in :mod:`sloads.export.coordinates` rather than
+    by hand:
+
+    * the fin's span is ``z``, so a station at span ``s`` sits at
+      ``z = root_waterline + s`` -- the waterline B8a-1 gave it, without which
+      the roll moment ``-Fy*(z - z_cg)`` comes out with the wrong **sign** on
+      ``ga6_normal`` (plan 13 §3.3);
+    * the fin's normal force is a **side** force, ``fy``, not ``fz``;
+    * the fin's torsion is about its span axis, so it is ``mz``, and it is the
+      **negated** stored value -- the derivation is in
+      :func:`~sloads.export.coordinates.tail_torsion_to_airplane`.
+
+    The set is air only, and deliberately: fin **inertia** rides in the closure
+    field at the case's own ``n_y``/``omega_dot``, through the ``VTAIL``-tagged
+    mass items :func:`body_inertia` already carries (decision L-8).
+    """
+    loads: List[BalancedLoad] = []
+    for st in result.stations:
+        x, y, z = tail_station_to_airplane(st.x, st.y, VTAIL, root_z=st.z)
+        fx, fy, fz = tail_force_to_airplane(st.fz, VTAIL)
+        mx, my, mz = tail_torsion_to_airplane(st.myy_free, VTAIL)
+        loads.append(BalancedLoad(x=x, y=y, z=z, fx=fx, fy=fy, fz=fz,
+                                  mx=mx, my=my, mz=mz,
+                                  source="vtail-air", side="C"))
+    return loads
+
+
+def is_handed(applied: Sequence[BalancedLoad], n_w: float) -> bool:
+    """Does this **applied** load set have a hand? (decision L-6)
+
+    Two properties, both deliberate and both lost by the obvious alternatives:
+
+    **It reads the distribution, not the resultant.** ``ga6_normal``'s
+    ``YAW TO SIDESLIP`` nets only -97.8 lb of side force out of parts worth
+    -683 (yaw) and +586 (rudder), so ``sum|fy| ~ 1270`` while ``|sum fy| ~ 98``.
+    A net-based predicate would mint a rudder-kick case *unhanded* on the
+    strength of a near-cancellation and assemble it as a symmetric one -- the
+    same silent-symmetry failure plan 11 §10 records for ``TORS``, arrived at
+    from the opposite direction.
+
+    **It is evaluated pre-closure, so it cannot feed on its own output.** From
+    B8a-2 the closure gives any rolling case a lateral relief field, so a
+    predicate reading the *final* load set would find lateral content in every
+    case that rolls and hand every one of them.
+
+    The threshold is a fraction of ``n*W`` rather than an absolute pound, so it
+    means the same thing on a 3,400 lb trainer and a 33,000 lb jet.
+    """
+    if any(ld.mx or ld.mz for ld in applied):
+        return True
+    return sum(abs(ld.fy) for ld in applied) > HANDEDNESS_TOL * n_w
 
 
 def point_mass_self_inertia(loading: CaseLoading, project: Project):
@@ -523,12 +652,25 @@ def unbalanced_rolling_moment(project: Project, condition: str) -> float:
 
 def assemble(project: Project, condition: str, vn: VnPoint,
              loading: CaseLoading, cg: CgCase,
-             case_ref=None, unb: float = 0.0) -> BalancedCaseResult:
+             case_ref=None, unb: float = 0.0,
+             lateral: Sequence[BalancedLoad] = ()) -> BalancedCaseResult:
     """Assemble one balanced case and close its residual.
 
     ``unb`` is the unbalanced rolling moment (FAR 23.349) for an accelerated-roll
     condition; zero makes the case symmetric and is the default, so every
     symmetric caller is unchanged.
+
+    ``lateral`` is the applied side-load set -- the fin distribution of a
+    23.441/23.443 condition (B8a-3, :func:`fin_sets`). The symmetric half of the
+    case is assembled from the V-n point exactly as it always was: all four
+    v-tail conditions sit at ``n_z ~ 1``, so nothing about the vertical,
+    longitudinal or pitching physics changes when a side load is added beside it,
+    and ``test_the_symmetric_half_still_closes`` is the guard that it did not.
+
+    **Handedness is measured, not declared** (decision L-6): the case gets a hand
+    when its *applied* set has lateral content, whatever put it there -- the
+    aileron couple of ``ACRL`` or the fin load of a rudder kick. Before B8a-3 the
+    two would have been separate flags; :func:`is_handed` is the one predicate.
     """
     fl = project.flight_loads
     notes: List[str] = []
@@ -585,7 +727,12 @@ def assemble(project: Project, condition: str, vn: VnPoint,
             "increment is not distributed (WINGINER carries only the inertia "
             "reaction, which IS distributed here)")
 
+    if lateral:
+        loads += list(lateral)
+        notes.append(LATERAL_AERO_NOTE)
+
     ref = (cg.xcg, 0.0, cg.zcg)
+    handed = is_handed(loads, abs(vn.nz * cg.weight_lb))
     residual = resultant6(loads, ref)
     fx, fy, fz, mx, my, mz = residual
     n, omega_dot, tensor = _closure(
@@ -602,8 +749,8 @@ def assemble(project: Project, condition: str, vn: VnPoint,
         p_dot=omega_dot[0], q_dot=omega_dot[1], r_dot=omega_dot[2],
         closure_inertia=tensor,
         unbal_moment=unb, fuselage_cm=fuselage_cm,
-        case_ref=_handed_ref(case_ref, "R") if unb else case_ref,
-        hand="R" if unb else "", notes=notes,
+        case_ref=_handed_ref(case_ref, "R") if handed else case_ref,
+        hand="R" if handed else "", notes=notes,
     )
 
 
@@ -633,8 +780,11 @@ def handed_twin(case: BalancedCaseResult) -> BalancedCaseResult:
     point: the oracle-locked FAR 23 path never sees handedness. Every quantity
     that is odd under the mirror flips through the single owner in
     :mod:`sloads.export.coordinates` -- positions, side tags, the applied couple,
-    the roll relief -- and everything even is untouched, so the twin's vertical,
-    longitudinal and pitching balance is *identical* and only its roll reverses.
+    the fin's side load and torsion, the lateral relief -- and everything even is
+    untouched, so the twin's vertical, longitudinal and pitching balance is
+    *identical* and only its lateral half reverses. On a v-tail case that is the
+    ``-beta`` condition of a ``+beta`` one, got for the cost of a sign flip and
+    without SELECT ever seeing the question.
     """
     if not case.hand:
         raise ValueError(
@@ -657,9 +807,33 @@ def handed_twin(case: BalancedCaseResult) -> BalancedCaseResult:
     )
 
 
+def _fin_distributions(project: Project) -> dict:
+    """``{condition label: fin load set}`` for every v-tail condition, or ``{}``.
+
+    Built once per project rather than per case: ``build_tail_span`` re-resolves
+    the planform and re-runs SELECT, and three of the four conditions share a
+    V-n point. A project with no ``vtail_loads`` yields nothing here and simply
+    assembles no lateral case -- the same "the whole chain must exist" rule the
+    symmetric families follow.
+    """
+    try:
+        spans = build_tail_span(project)
+    except MissingInputError:
+        return {}
+    return {r.case: fin_sets(r) for r in spans.get(VTAIL, ())}
+
+
 def build_balanced_cases(project: Project) -> List[BalancedCaseResult]:
-    """One :class:`BalancedCaseResult` per wing condition SELECT picked -- **two**
-    for a condition carrying an unbalanced rolling moment.
+    """One :class:`BalancedCaseResult` per condition SELECT picked -- **two** for
+    a condition that has a hand.
+
+    Two families, assembled by the same machinery (B8a-3):
+
+    * the **wing** conditions of :data:`BALANCED_WING_CONDITIONS` -- symmetric,
+      plus ``ACRL``'s applied aileron couple;
+    * the **vertical-tail** conditions of :data:`BALANCED_VTAIL_CONDITIONS` --
+      the fin's distributed side load riding on the same symmetric case its V-n
+      point already describes.
 
     A condition is assembled only when the whole chain exists for it: SELECT
     named it, it has a V-n point, and its CG case resolves to a **derivable**
@@ -667,10 +841,11 @@ def build_balanced_cases(project: Project) -> List[BalancedCaseResult]:
     honest inertia set, and inventing one would put fictitious mass into the very
     balance the case exists to demonstrate.
 
-    A rolling condition (``UNB != 0``) is emitted as a **handed pair** -- the
-    computed starboard case and its port mirror (B-6/B-7). A rolling condition
-    whose ``UNB`` happens to be zero is emitted once, unhanded: the twins exist
-    for cases that have a hand, not for cases that are merely allowed one.
+    A case with lateral content in its applied set is emitted as a **handed
+    pair** -- the computed starboard case and its port mirror (B-6/B-7). A
+    condition that is merely *allowed* a hand and turns out not to have one (a
+    rolling condition whose ``UNB`` is zero) is emitted once, unhanded: the twins
+    exist for cases that have a hand.
     """
     sync_geometry_derived(project)
     if project.flight_loads is None or project.wing_mass is None:
@@ -680,10 +855,20 @@ def build_balanced_cases(project: Project) -> List[BalancedCaseResult]:
     vn = {p.case: p for p in envelope.vn}
     cgs = {c.name: c for c in project.flight_loads.cg_cases}
     loadings = {ld.name: ld for ld in derive_case_loadings(project)}
+    fins = _fin_distributions(project)
 
     out: List[BalancedCaseResult] = []
     for cond in critical.conditions:
-        if cond.component != "wing" or cond.label not in BALANCED_WING_CONDITIONS:
+        unb = 0.0
+        lateral: Sequence[BalancedLoad] = ()
+        if cond.component == "wing" and cond.label in BALANCED_WING_CONDITIONS:
+            unb = (unbalanced_rolling_moment(project, cond.label)
+                   if cond.label in ROLLING_WING_CONDITIONS else 0.0)
+        elif cond.component == VTAIL and cond.label in BALANCED_VTAIL_CONDITIONS:
+            lateral = fins.get(cond.label, ())
+            if not lateral:
+                continue
+        else:
             continue
         point = vn.get(cond.case)
         if point is None:
@@ -692,10 +877,8 @@ def build_balanced_cases(project: Project) -> List[BalancedCaseResult]:
         loading = loadings.get(point.cg)
         if cg is None or loading is None or not loading.derivable:
             continue
-        unb = (unbalanced_rolling_moment(project, cond.label)
-               if cond.label in ROLLING_WING_CONDITIONS else 0.0)
         case = assemble(project, cond.label, point, loading, cg,
-                        case_ref=cond.case_ref, unb=unb)
+                        case_ref=cond.case_ref, unb=unb, lateral=lateral)
         out.append(case)
         if case.hand:
             out.append(handed_twin(case))
@@ -719,11 +902,11 @@ def run(project: Project) -> ModuleResult:
     cases = build_balanced_cases(project)
     if not cases:
         raise MissingInputError(
-            "no symmetric wing condition has both a V-n point and a derivable "
-            "payload loading -- nothing to balance")
+            "no wing or vertical-tail condition has both a V-n point and a "
+            "derivable payload loading -- nothing to balance")
     conditions = []
     for c in cases:
-        hand = {"R": " starboard roll", "L": " port roll"}.get(c.hand, "")
+        hand = {"R": " starboard", "L": " port"}.get(c.hand, "")
         roll_values = [
             # Applied, not unbalanced: the airplane is *meant* not to balance a
             # rolling case. See BalancedCaseResult.roll_moment_fraction.
@@ -733,10 +916,24 @@ def run(project: Project) -> ModuleResult:
                       100.0 * c.roll_moment_fraction, "%",
                       key="balanced_roll_moment_pct"),
         ] if c.unbal_moment else []
+        lateral = any(ld.source == "vtail-air" for ld in c.loads)
+        lateral_values = [
+            LoadValue("Lateral load factor Ny", c.delta_ny, "g",
+                      key="balanced_ny"),
+            LoadValue("Yaw acceleration", degrees(radians_per_s2(
+                (0.0, 0.0, c.r_dot))[2]), "deg/s^2", key="balanced_r_dot"),
+            LoadValue("Roll acceleration", degrees(radians_per_s2(
+                (c.p_dot, 0.0, 0.0))[0]), "deg/s^2", key="balanced_p_dot"),
+        ] if lateral else []
+        # A lateral case names the rule SELECT picked it under (23.441(a)(1)
+        # ... 23.443(b)); the symmetric families keep the two references they
+        # have always reported, so no shipped row moves.
+        far = ((c.case_ref.far_reference if c.case_ref else "") or "23.321"
+               ) if lateral else ("23.349" if c.unbal_moment else "23.321")
         conditions.append(ConditionResult(
             title=f"Balanced case {c.label}{hand} (V-n {c.vn_case}, {c.cg})",
-            far_reference="23.349" if c.unbal_moment else "23.321",
-            values=roll_values + [
+            far_reference=far,
+            values=roll_values + lateral_values + [
                 LoadValue("Load factor Nz", c.nz, "g", key="balanced_nz"),
                 LoadValue("Weight", c.weight_lb, "lb", quantity="mass",
                           key="balanced_weight"),
@@ -766,8 +963,13 @@ __all__ = [
     "SYMMETRIC_WING_CONDITIONS",
     "ROLLING_WING_CONDITIONS",
     "BALANCED_WING_CONDITIONS",
+    "BALANCED_VTAIL_CONDITIONS",
+    "HANDEDNESS_TOL",
+    "LATERAL_AERO_NOTE",
     "RESIDUAL_GATE",
     "wing_sets",
+    "fin_sets",
+    "is_handed",
     "body_inertia",
     "resultant",
     "resultant6",
