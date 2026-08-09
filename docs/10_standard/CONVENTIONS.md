@@ -35,6 +35,21 @@ file + symbol is the anchor.
 - **Reporting rules** (`SUMMARY_REPORT.md` §3.3): torsion always names its axis (wing
   LRA as %chord); moments state their sign convention; maxima carry a station;
   envelopes are two-sided.
+- **Mass units are a distinct channel, and the one exemption from the all-1.0
+  Imperial identity (C-5, 2026-08-08).** `CONM2` carries **mass**; the database
+  stores **weight**. `DeliverableUnits.mass`/`.mass_inertia` on the SOLVER channel
+  are lbf·s²/in and t; the HUMAN channel keeps lb and kg. The identity is
+  `force / (mass × length) == g` — exact, and the *same number* in both systems
+  (one standard gravity, expressed per length unit, derived once) — plus
+  `mass_inertia == mass × length²`. `is_mass_consistent` is separate from
+  `is_consistent` so the human channel can fail it without changing what any
+  existing caller sees, and a writer refuses a set that fails it.
+- **Inertia is never applied twice (C-6).** The `FORCE`/`MOMENT` deck is the
+  *total* applied load and already contains inertia. No deck may both apply it
+  and accelerate a mass set: the mass-check deck therefore carries **no load
+  cards at all**, and sloads' inertia-only set is marked a comparison artifact
+  in-band. This is structural, not a warning, because the failure reads as a
+  heavier airplane rather than as a crash.
 - **`weight.items` is the mass single source of truth (B-2, 2026-08-08).** One mass
   model, owned by `sloads/mass_distribution.py`. `MassItem.component` tags which
   structural component reacts each item's weight (`wing` / `fuselage` / `htail` /

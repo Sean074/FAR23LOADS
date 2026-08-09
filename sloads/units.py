@@ -62,6 +62,48 @@ FT_LB_TO_N_M = LBF_TO_N * FT_TO_M                # ft-lb -> N*m
 # pressures are kPa is wrong by 1000x, silently.
 PSI_TO_MPA = LBF_TO_N / (IN_TO_MM ** 2)          # lb/in^2 -> N/mm^2 (solver set)
 
+# --------------------------------------------------------------------------- #
+# Mass (step C2, plan 12 decision C-5) -- the one channel whose Imperial factor
+# is NOT 1.0, and deliberately so.
+# --------------------------------------------------------------------------- #
+# A ``CONM2`` card carries **mass**, and the weight database stores **weight**
+# (lb) -- so this channel's job is the division by g that every other channel
+# never has to do. There is no such thing as an "Imperial identity" here,
+# because the suite has no canonical mass unit to be identical to: the canonical
+# quantity is a pound of *force*, and a consistent Imperial deck (lbf, in, s)
+# measures mass in lbf*s^2/in. Hence the factor below, and hence this block is
+# exempt from the all-1.0 rule the other dimensions follow (which is why
+# ``test_imperial_is_the_all_one_identity`` enumerates its dimensions explicitly
+# rather than sweeping every field).
+#
+# One standard gravity, expressed in each deck's length unit -- *derived*, not
+# quoted twice, so ``force / (mass x length)`` comes out to the same number in
+# both systems **exactly**. That equality is this channel's dimensional identity,
+# the mass analogue of ``moment == force x length`` (D-19), and quoting
+# 386.088 alongside 9806.65 would break it in the eighth digit for no reason.
+#
+# This is ISO 80000 standard gravity (9.80665 m/s^2 -> 386.0886 in/s^2), which
+# differs by 1.5e-6 relative from ``constants.G`` (32.174 ft/s^2 = 386.088
+# in/s^2), the rounded figure the ported calc uses. The difference is deliberate
+# and confined to this channel: ``constants.G`` is oracle-bearing and must not
+# move, while a CONM2 deck has no oracle and should carry the exact standard.
+G_MM_S2 = 9806.65                # standard gravity in mm/s^2 (exact, ISO 80000)
+G_IN_S2 = G_MM_S2 / IN_TO_MM     # ... the same gravity in in/s^2 (386.0886)
+
+#: lb (weight) -> lbf*s^2/in (mass), the consistent Imperial deck unit ("slinch").
+LB_TO_SLINCH = 1.0 / G_IN_S2
+#: lb (weight) -> tonne (= N*s^2/mm), the consistent SI solver deck unit.
+LB_TO_TONNE = LBF_TO_N / G_MM_S2
+
+# Mass moment of inertia is mass x length^2, computed as such for the same
+# reason moments are: the identity then holds exactly in every set. The database
+# stores it as lb-in^2 (a *weight* basis, matching the item weights).
+LB_IN2_TO_SLINCH_IN2 = LB_TO_SLINCH                      # lb-in^2 -> lbf*s^2*in
+LB_IN2_TO_TONNE_MM2 = LB_TO_TONNE * (IN_TO_MM ** 2)      # lb-in^2 -> tonne*mm^2
+# Human-channel mass: the units a weights report reads in, not a deck.
+LB_TO_KG = 0.45359237                                    # lb -> kg (exact)
+LB_IN2_TO_KG_M2 = LB_TO_KG * (IN_TO_MM / 1000.0) ** 2    # lb-in^2 -> kg*m^2
+
 # Display units for each "kind", by system. One unit per physical dimension
 # (Phase G0): length -> in/mm, area -> ft²/m². ``inertia_lbin2`` is a distinct
 # mass-basis inertia, not a duplicate of ``inertia``.
@@ -444,6 +486,8 @@ class DeliverableUnits(NamedTuple):
     moment: Dimension
     torque: Dimension
     pressure: Dimension
+    mass: Dimension = Dimension(1.0, "lb")
+    mass_inertia: Dimension = Dimension(1.0, "lb-in^2")
 
     @property
     def is_consistent(self) -> bool:
@@ -462,6 +506,32 @@ class DeliverableUnits(NamedTuple):
             - self.force.factor / self.length.factor ** 2) < 1e-12
         return moment_ok and pressure_ok
 
+    @property
+    def is_mass_consistent(self) -> bool:
+        """True if the mass pair satisfies ``F = m*a`` in this set's own units.
+
+        The mass analogue of :attr:`is_consistent` (step C2, plan 12 decision
+        C-5), and a **separate** property on purpose: the human channel carries
+        readable mass (lb / kg) and deliberately fails this, exactly as it
+        deliberately fails ``is_consistent`` in SI. Keeping them apart means
+        adding the mass channel cannot change what any existing caller of
+        ``is_consistent`` sees.
+
+        Two identities, both exact by construction (the factors are derived, not
+        quoted):
+
+        * ``force / (mass x length) == g`` -- the same standard gravity in both
+          systems, which is what makes a ``CONM2`` set accelerate to the right
+          force under a ``GRAV`` card;
+        * ``mass_inertia == mass x length^2``.
+        """
+        accel = self.force.factor / (self.mass.factor * self.length.factor)
+        g_ok = abs(accel - G_IN_S2) < 1e-9 * G_IN_S2
+        inertia_ok = abs(
+            self.mass_inertia.factor
+            - self.mass.factor * self.length.factor ** 2) < 1e-15
+        return g_ok and inertia_ok
+
 
 _IMPERIAL_LABELS = {
     "force": "lb", "length": "in", "moment": "lb-in",
@@ -478,11 +548,20 @@ def deliverable_units(
     what makes "one system per bundle" true by construction rather than by
     discipline, so two files in one export cannot disagree.
     """
+    solver = channel == Channel.SOLVER
     if system == UnitSystem.IMPERIAL:
         one = {k: Dimension(1.0, v) for k, v in _IMPERIAL_LABELS.items()}
-        return DeliverableUnits(system=system, channel=channel, **one)
+        # Mass is the one dimension with no Imperial identity to preserve: the
+        # canonical stored quantity is a pound of *force*, so a consistent deck
+        # unit is a division by g away (see LB_TO_SLINCH). The human channel
+        # keeps the pound the whole suite reads in.
+        mass = (Dimension(LB_TO_SLINCH, "lbf*s^2/in") if solver
+                else Dimension(1.0, "lb"))
+        mass_inertia = (Dimension(LB_IN2_TO_SLINCH_IN2, "lbf*s^2*in") if solver
+                        else Dimension(1.0, "lb-in^2"))
+        return DeliverableUnits(system=system, channel=channel,
+                                mass=mass, mass_inertia=mass_inertia, **one)
 
-    solver = channel == Channel.SOLVER
     # The solver set's derived dimensions are the base ones combined, so the deck
     # is dimensionally consistent (D-19): N*mm = N x mm, MPa = N / mm^2. The human
     # set uses the units an engineering document reads in (N*m, kPa) and is
@@ -495,6 +574,10 @@ def deliverable_units(
         Dimension(PSI_TO_MPA, "MPa") if solver
         else Dimension(PSI_TO_KPA, "kPa")
     )
+    mass = (Dimension(LB_TO_TONNE, "t") if solver
+            else Dimension(LB_TO_KG, "kg"))
+    mass_inertia = (Dimension(LB_IN2_TO_TONNE_MM2, "t·mm²") if solver
+                    else Dimension(LB_IN2_TO_KG_M2, "kg·m²"))
     return DeliverableUnits(
         system=system,
         channel=channel,
@@ -503,6 +586,8 @@ def deliverable_units(
         moment=moment,
         torque=Dimension(FT_LB_TO_N_M, "N·m"),
         pressure=pressure,
+        mass=mass,
+        mass_inertia=mass_inertia,
     )
 
 

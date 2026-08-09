@@ -79,12 +79,13 @@ the wrong beam.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Sequence, Tuple
 
 from .models import (
     FuselageStation,
     MassComponent,
     MassItem,
+    MassItemKind,
     Project,
 )
 
@@ -386,6 +387,196 @@ def fuselage_reconciliation(project: Project) -> Optional[MassCheck]:
     )
 
 
+# --------------------------------------------------------------------------- #
+# Per-payload-case itemization (step C1, plan 12 decision C-1)
+# --------------------------------------------------------------------------- #
+#: Ballast above this fraction of the case weight is not ballast -- it is a
+#: statement that the loading is not one the item database can produce. The
+#: derivation still reports the number; it just refuses to present it as a mass
+#: model. 10 % is the gate: real stress/flight-test ballast on the Appendix A
+#: airplane runs 2-7 % (ga6's four cases: 2.3 / 7.3 / 5.6 / 0 %), and the
+#: implausible ones on the other fixtures start at 12 % and reach 31 %.
+BALLAST_CREDIBLE_FRACTION = 0.10
+
+
+@dataclass(frozen=True)
+class CaseLoading:
+    """One payload case's itemization, derived from the weight database.
+
+    ``weight_lb``/``cg_x``/``cg_z`` are the **loading's own** properties, not the
+    case's nominal numbers -- what gets exported is a real loading, never one
+    fudged to hit a target.
+
+    When a ballast row is needed it is *solved* from the case's weight, xcg and
+    zcg, so those three match exactly by construction. When the loading already
+    weighs the case weight, no ballast exists to move it and the match is only
+    within :data:`_CG_MATCH_TOL`: ga6's CG4 is the minimum-flight-weight loading
+    at station 73.0924 against a case entered as 73.09. That difference is real
+    and is exported as it stands.
+
+    What is *not* guaranteed at all is that the ballast is physically credible,
+    and that is what ``derivable`` and ``note`` carry: a case needing 31 % of the
+    airplane as ballast is reported, not exported.
+    """
+
+    name: str
+    items: List[MassItem]
+    weight_lb: float
+    cg_x: float
+    cg_z: float
+    ballast: Optional[MassItem]
+    derivable: bool
+    note: str
+
+    @property
+    def ballast_fraction(self) -> float:
+        return (self.ballast.weight_lb / self.weight_lb
+                if self.ballast is not None and self.weight_lb else 0.0)
+
+
+def _wx(items: Sequence[MassItem]) -> Tuple[float, float, float]:
+    """``(Σw, Σw·x/Σw, Σw·z/Σw)`` over ``items``."""
+    w = sum(it.weight_lb for it in items)
+    if not w:
+        return 0.0, 0.0, 0.0
+    return (w,
+            sum(it.weight_lb * it.x for it in items) / w,
+            sum(it.weight_lb * it.z for it in items) / w)
+
+
+def derive_case_loadings(project: Project) -> List[CaseLoading]:
+    """One :class:`CaseLoading` per ``flight_loads.cg_cases`` entry.
+
+    **How, and why not the way plan 12 C-1 described.** C-1 proposed deriving
+    each loading from WTENV's ballast machinery -- its structural-limit points
+    and their reference vertices. Measured 2026-08-08: the fixtures'
+    ``cg_cases`` *are* WTENV's structural points on ``ga6_normal`` (the
+    Appendix A airplane, built that way) and on **no other fixture** --
+    ``concept_regional_jet``'s cases sit at 619/599/595 in against WTENV's
+    594/574/569. Worse, WTENV's reference is the forward-loading *sequence*, a
+    prefix of the discretionary items sorted by station; targeting the cg cases
+    through it derives only 6 of 18 shipped cases, the rest wanting a ballast
+    station up to 3800 in off the airplane, or landing on a vertex that already
+    weighs the target with the CG 13-60 in away, which no ballast can move.
+
+    So the search is over **discretionary subsets**, not the sorted prefix: any
+    combination of the discretionary items may be aboard (dropping aft
+    passengers is how a real loading moves its CG forward), plus a ballast row
+    solved from the residual. That reaches 16 of 18. The subset count is
+    ``2^n`` over 3-7 discretionary items -- 8 to 128 -- so exhaustive search is
+    the right algorithm, not an optimisation problem.
+
+    Selection rule, stated so it is not an accident of iteration order: among
+    the subsets that reproduce the case within the fuselage extent, take the one
+    needing the **least ballast**; ties break toward the larger payload. Least
+    ballast is the loading closest to something an operator could actually fly.
+
+    The ballast row's ``x`` **and** ``z`` are both solved (weight from the
+    residual, station from the x-moment, waterline from the z-moment), so the
+    derived loading matches the case in all three. Its inertias are zero -- a
+    point mass, which is what a ballast weight is.
+    """
+    fl = project.flight_loads
+    items = project.weight.items if project.weight is not None else []
+    if fl is None or not fl.cg_cases or not items:
+        return []
+
+    from .modules.weight_envelope import _fuselage_extent, _item_buckets
+
+    empty, minimum, discretionary = _item_buckets(items)
+    base = empty + minimum
+    env = project.weight.envelope if project.weight is not None else None
+    nose_x, tail_x = _fuselage_extent(project, env) if env is not None else (0.0, None)
+    # Waterline extent, the z analogue of the fuselage's fore/aft extent. There is
+    # no outline input to read it from, so the airframe's own items bound it: a
+    # ballast weight has to sit somewhere the airplane exists. Without this,
+    # solving the z-moment happily returns a station above the fin -- dhc8's
+    # CGmid wants 1500 lb at waterline 373, which is 143 in over the tail.
+    z_lo = min(it.z for it in items)
+    z_hi = max(it.z for it in items)
+
+    out: List[CaseLoading] = []
+    for case in fl.cg_cases:
+        best: Optional[Tuple[float, int, List[MassItem], Optional[MassItem]]] = None
+        for mask in range(1 << len(discretionary)):
+            sub = [it for i, it in enumerate(discretionary) if mask >> i & 1]
+            wa, xa, za = _wx(base + sub)
+            wb = case.weight_lb - wa
+            if wb < -_BALLAST_EPS:
+                continue                       # loading is already heavier than the case
+            if abs(wb) <= _BALLAST_EPS:
+                if abs(xa - case.xcg) > _CG_MATCH_TOL:
+                    continue                   # right weight, wrong CG -- ballast cannot help
+                cand = (0.0, -len(sub), base + sub, None)
+            else:
+                xb = (case.weight_lb * case.xcg - wa * xa) / wb
+                if xb < nose_x or (tail_x is not None and xb > tail_x):
+                    continue                   # ballast would sit off the airplane
+                zb = (case.weight_lb * case.zcg - wa * za) / wb
+                if not (z_lo <= zb <= z_hi):
+                    continue                   # ballast would float above/below the airframe
+                ballast = MassItem(
+                    name=f"Ballast ({case.name})", weight_lb=wb, x=xb, y=0.0, z=zb,
+                    kind=MassItemKind.DISCRETIONARY, component=MassComponent.FUSELAGE)
+                cand = (wb, -len(sub), base + sub + [ballast], ballast)
+            if best is None or cand[:2] < best[:2]:
+                best = cand
+
+        if best is None:
+            out.append(CaseLoading(
+                name=case.name, items=[], weight_lb=case.weight_lb,
+                cg_x=case.xcg, cg_z=case.zcg, ballast=None, derivable=False,
+                note=("no combination of discretionary items reaches this weight "
+                      "and CG with ballast inside the fuselage -- the case is not "
+                      "a loading this weight database can produce"),
+            ))
+            continue
+
+        wb, _, loading, ballast = best
+        fraction = wb / case.weight_lb if case.weight_lb else 0.0
+        credible = fraction <= BALLAST_CREDIBLE_FRACTION
+        note = "" if credible else (
+            f"ballast {wb:.0f} lb is {fraction * 100:.0f} % of the case weight "
+            f"(gate {BALLAST_CREDIBLE_FRACTION * 100:.0f} %) -- this is not a "
+            "loading, it is a CG point the database cannot reach"
+        )
+        w, cx, cz = _wx(loading)
+        out.append(CaseLoading(
+            name=case.name, items=loading, weight_lb=w, cg_x=cx, cg_z=cz,
+            ballast=ballast, derivable=credible, note=note,
+        ))
+    return out
+
+
+#: Weight below which a residual is "no ballast needed" rather than a mass.
+_BALLAST_EPS = 1e-6
+#: How near a zero-ballast loading's CG must be to the case's to count as it.
+_CG_MATCH_TOL = 0.5   # in
+
+
+def case_loading_checks(project: Project) -> List[MassCheck]:
+    """Each derivable loading reproduces its case's weight and CG (plan 12 acc. 1).
+
+    Exact by construction -- the ballast is *solved* from the target -- so this
+    guards the construction, not the physics: it fails if the subset search ever
+    returns a loading that does not actually sum to what it claims.
+    """
+    out: List[MassCheck] = []
+    for loading in derive_case_loadings(project):
+        if not loading.derivable:
+            continue
+        case = next(c for c in project.flight_loads.cg_cases if c.name == loading.name)
+        for got, want, label in ((loading.weight_lb, case.weight_lb, "weight"),
+                                 (loading.cg_x, case.xcg, "xcg"),
+                                 (loading.cg_z, case.zcg, "zcg")):
+            out.append(MassCheck(
+                code=f"mass_case_{label}", ok=_close(got, want, 1e-9),
+                got=got, want=want,
+                detail=f"{loading.name} {label} {got:.4f} against {want:.4f}",
+            ))
+    return out
+
+
 def all_checks(project: Project) -> List[MassCheck]:
     """Every reconciliation this module owns, in report order."""
     out = [partition_closes(project)]
@@ -431,6 +622,10 @@ __all__ = [
     "distribution",
     "derived_fuselage_stations",
     "fuselage_beam_stations",
+    "BALLAST_CREDIBLE_FRACTION",
+    "CaseLoading",
+    "derive_case_loadings",
+    "case_loading_checks",
     "partition_closes",
     "wing_mass_tie",
     "unmodelled_wing_mass",

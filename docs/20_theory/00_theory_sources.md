@@ -142,6 +142,27 @@ and their sources (`tests/test_concept_closure.py`):
 | Control surfaces | each `build_*` critical load matches its `run` analysis report (`lb`-unit `LoadValue`) | AILERON/FLAPLOAD/TABLOADS build↔run |
 | All (export) | every component's nodal FORCE set — and its re-parsed cards — sums to that component's root/total at ULTIMATE (`limit × that case's safety_factor`, default 1.5; the factor is uniform within a case, so closure is scale-invariant — defect M4-7) | `export/sbeam_bridge` increment construction + `_sf()` |
 
+### The CONM2 mass model as an *external* check (step C1–C5, 2026-08-08)
+
+Every closure gate above is internal: sloads checking sloads. The distributed
+**inertia** load has no printed oracle and, until this step, no external check
+either — the same code computed it and wrote it out, so no artifact could
+disagree. The `CONM2` export supplies one: sbeam parses the mass model
+independently, and its own grid-point-weight generator recovers weight, CG and
+inertia from it.
+
+Verified by hand 2026-08-08 (sbeam is not a dependency, so CI cannot run it):
+`sbeam.gpwg.compute_gpwg` reproduces sloads' mass, CG-x and CG-z for all four
+`ga6_normal` payload cases exactly. The `GRAV`-driven nodal-inertia comparison
+(plan 12 C6) needs the round-trip harness and is filed.
+
+Two scope limits, stated rather than discovered: `GRAV` is a uniform
+*translational* field and sbeam has no `RFORCE`, so rotational-acceleration
+inertia (pitch/yaw) is not recoverable from a `CONM2` set and stays checked by
+sloads-side closure; and a payload case is only exported when the weight database
+can produce it as a loading — 7 of the 18 shipped cases, all four of ga6's among
+them.
+
 ### The mass model as a closure gate (step B1, 2026-08-08)
 
 The Ch 15 fuselage beam has no printed oracle (Ref 1 ships no program for it), and

@@ -17,6 +17,12 @@ all four component families plus the case index:
   (+ ``write_*`` variants).
 - **Control surfaces** — :func:`control_surface_csv`,
   :func:`control_surface_force_moment_cards` (+ ``write_*`` variants).
+- **Mass model** — :mod:`sloads.export.mass_cards`: :func:`conm2_fragment`,
+  :func:`mass_check_deck` and :func:`inertia_only_cards`, the ``CONM2``/
+  ``MASSSET`` export that gives sbeam an *independently parsed* mass model to
+  check sloads' inertia loads against. Deliberately **not** re-exported at
+  package level beyond these three: the inertia-only set is a comparison
+  artifact, never a deliverable, and reaching it stays an explicit import.
 - **Closure gate** — :mod:`sloads.export.equilibrium`: :func:`parse_cards`,
   :func:`deck_resultants` and :func:`closes`, the single owner of "re-derive a
   deck's Σ force / Σ moment from its own card text and check the claim its
@@ -51,6 +57,7 @@ from .sbeam_bridge import (
     body_fitting_load_csv,
     body_force_moment_cards,
     body_span_load_csv,
+    beam_station_gid,
     body_station_gids,
     case_index_csv,
     control_surface_csv,
@@ -96,6 +103,7 @@ __all__ = [
     "body_force_moment_cards",
     "body_fitting_load_csv",
     "body_station_gids",
+    "beam_station_gid",
     # Tail
     "tail_chordwise_csv",
     "write_tail_chordwise_csv",

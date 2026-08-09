@@ -49,6 +49,8 @@ from sloads.modules.weight_envelope import envelope as compute_envelope, loading
 from sloads.modules.weight_estimate import estimate, estimate_to_mass_items
 from sloads.modules.weight_onecg import build_mass, weights_and_inertia
 from sloads.report import module_text_report
+from sloads import mass_distribution
+from sloads.export import mass_cards
 from sloads.validation import wtenv_cg_limits
 
 
@@ -588,8 +590,78 @@ def _tab_envelope(project: Project, system: UnitSystem, U: dict) -> None:
         file_name="weight_envelope.txt", mime="text/plain", key="dl_env_txt")
 
 
-_tab_est, _tab_cg, _tab_pl, _tab_env = st.tabs(
-    ["Estimate", "Weight, CG & Inertia", "Payload Cases", "Weight / CG Envelope"]
+def _tab_mass_export(project, system, U) -> None:
+    """CONM2 / MASSSET mass model — the independent check sbeam can contradict.
+
+    The FORCE/MOMENT deck's inertia half is computed by the same code that
+    writes it, so nothing outside sloads can disagree with it. This gives sbeam
+    a mass model it parses for itself."""
+    st.subheader("CONM2 mass model")
+    st.caption(
+        "The itemized weight database as `CONM2` cards, with one `MASSSET` per "
+        "payload case sloads can actually derive as a loading. sbeam applies the "
+        "case acceleration to its own parse of this and recovers the nodal "
+        "inertia loads — an external check on the half of the load set that has "
+        "no printed oracle.")
+
+    if project.weight is None or not project.weight.items:
+        gate("Enter the itemized weight data base on the **Weight, CG & Inertia** "
+             "tab first.", "weight_mass")
+        return
+
+    loadings = mass_distribution.derive_case_loadings(project)
+    rows = []
+    for ld in loadings:
+        rows.append({
+            "Payload case": ld.name,
+            "Exported": "yes" if ld.derivable else "no",
+            f"Weight ({U['weight']})": f"{to_display(ld.weight_lb, 'weight', system):.0f}",
+            f"X cg ({U['length']})": f"{to_display(ld.cg_x, 'length', system):.2f}",
+            f"Ballast ({U['weight']})": (
+                f"{to_display(ld.ballast.weight_lb, 'weight', system):.0f} "
+                f"({ld.ballast_fraction * 100:.1f} %)" if ld.ballast else "none"),
+            "Note": ld.note,
+        })
+    if rows:
+        st.dataframe(pd.DataFrame(rows), hide_index=True, use_container_width=True)
+    if any(not ld.derivable for ld in loadings):
+        st.info(
+            "A payload case is exported only when the weight database can "
+            "actually produce it as a loading — the discretionary items aboard "
+            "plus a credible ballast weight. A case needing a large fictitious "
+            "ballast is a CG point, not a loading, and exporting it would put "
+            "invented mass into the very model that exists to check the real one.")
+
+    st.warning(
+        "**Do not apply the mass model together with the FORCE/MOMENT deck.** "
+        "Those cards are the *total* applied load and already contain inertia; "
+        "accelerating the masses as well counts it twice.")
+
+    try:
+        fragment = mass_cards.conm2_fragment(project, system=system)
+    except ValueError as exc:
+        st.error(str(exc))
+        return
+    st.download_button(
+        "Download CONM2 + MASSSET fragment (BDF)", fragment,
+        file_name="mass_model.bdf", mime="text/plain", key="dl_conm2_fragment")
+    for label, build, name, key in (
+        ("Download runnable mass-check deck (BDF)", mass_cards.mass_check_deck,
+         "mass_check.bdf", "dl_mass_check"),
+        ("Download sloads inertia set, for comparison only (BDF)",
+         mass_cards.inertia_only_cards, "inertia_only.bdf", "dl_inertia_only"),
+    ):
+        try:
+            text = build(project, system=system)
+        except ValueError as exc:
+            st.caption(f"No {name}: {exc}")
+            continue
+        st.download_button(label, text, file_name=name, mime="text/plain", key=key)
+
+
+_tab_est, _tab_cg, _tab_pl, _tab_env, _tab_mx = st.tabs(
+    ["Estimate", "Weight, CG & Inertia", "Payload Cases", "Weight / CG Envelope",
+     "Mass Export"]
 )
 with _tab_est:
     _tab_estimate(project, system, U)
@@ -599,3 +671,5 @@ with _tab_pl:
     _tab_payload_cases(project, system, U)
 with _tab_env:
     _tab_envelope(project, system, U)
+with _tab_mx:
+    _tab_mass_export(project, system, U)

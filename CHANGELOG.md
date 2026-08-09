@@ -12,6 +12,42 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **CONM2 / MASSSET mass export** — `sloads/export/mass_cards.py`, the mass
+  channel on `DeliverableUnits`, and `cli.py --export-conm2` (mission phase 2
+  step 4; plan 12 C1–C5). The `FORCE`/`MOMENT` deck is the *total* applied load
+  and stays that way, but its inertia half is computed by the same code that
+  writes it, so nothing outside sloads could contradict it. The mass model now
+  exports as `CONM2` cards with one `MASSSET` per derivable payload case, so
+  sbeam parses the masses independently and can disagree.
+  - **Three artifacts**: a pasteable `CONM2`+`MASSSET` fragment; a self-contained
+    runnable mass-check deck (`MASSSET` + `GRAV`, a massless placeholder beam,
+    and **no load cards at all**); and sloads' own inertia contribution as a
+    separate, clearly-marked comparison set.
+  - **Not double-counting inertia is structural, not a warning** (C-6): the
+    check deck carries no `FORCE`/`MOMENT` cards by construction, which is a
+    property a test asserts. Applying the total set *and* accelerating the masses
+    reads as a heavier airplane rather than a crash, which is why it is ruled out
+    rather than flagged.
+  - **`DeliverableUnits` gains `mass` and `mass_inertia`** with their own
+    dimensional identity, `force / (mass × length) == g`, exact and *identical*
+    in both systems (one standard gravity, expressed per length unit and derived
+    from a single constant). `CONM2`'s `M` is mass while the database stores
+    weight, so a set written from the human channel is wrong by 386× in a file
+    that parses cleanly — the writer refuses it, as the moment channel already
+    does.
+  - **Verified against sbeam itself** (2026-08-08, by hand — sbeam is not a
+    dependency, so CI cannot run it): both decks parse with sbeam's own reader,
+    and its grid-point-weight generator reproduces sloads' mass, CG-x and CG-z
+    for all four ga6 payload cases exactly.
+
+- **Per-payload-case itemization** — `mass_distribution.derive_case_loadings`.
+  Each `flight_loads.cg_cases` entry is resolved to an actual loading (which
+  discretionary items are aboard, plus a ballast row solved from the case's
+  weight, xcg and zcg), so the mass model can be exported per case rather than
+  once. A case is exported only when the required ballast is credible; the rest
+  are reported with the number and the reason.
+
+
 - **The mass single source of truth** — `sloads/mass_distribution.py` (mission
   phase 2 step 3; plan 11 decision **B-2**, step B1). The suite carried **two
   mass models that never reconciled**: the itemized `weight.items` database, and
@@ -129,6 +165,18 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
     fuselage-moment-augmented configs the balance flies).
 
 ### Fixed
+
+- **Overlay `CONM2` cards no `MASSSET` named were silently counted in every
+  payload case.** sbeam decides overlay-only status by *reference* — a card no
+  `ADD`/`REPLACE` row names belongs to the baseline mass. The first cut exported
+  every discretionary item, including ga6's own `Ballast` row (superseded by the
+  per-case ballast this step derives), so sbeam's grid-point-weight generator
+  recovered 9.0083 slinch against sloads' 8.8063 for CG1: **78 lb too much, in
+  every case, from a deck that parsed without complaint.** Found by running
+  sbeam's GPWG over the exported deck rather than by inspection. The overlay list
+  is now built from what the loadings actually carry, which makes an unreferenced
+  overlay card impossible to write, and `unreferenced_overlay_eids` guards it.
+
 
 - **Deck `$` comments overran the 72-column free-field card width.** The body deck
   had a one-off assertion of this; the tail deck's "Applied Fz set sums to … =

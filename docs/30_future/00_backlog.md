@@ -90,7 +90,6 @@ the feature-branch work below begins.
 | Phase | Step | What ships | Plan / item | Depends on |
 |---|---|---|---|---|
 | **1 — export-boundary gates** | 2 | sbeam round-trip CI gate (wing + body/tail wrappers, negative tests, CI job) | [plan 10](10_sbeam_roundtrip_ci_harness_plan.md) | step 1 ✅ |
-| **2 — mass model (aim 1)** | 4 | CONM2 + MASSSET export per payload case, `GRAV`-based inertia cross-check in CI | [plan 12](12_conm2_mass_export_plan.md) C1–C7 | step 2; step 3 ✅ |
 | **3 — balanced wing cases (aim 2)** | 5 | Symmetric wing balanced cases + the **assembled full-span deck (primary deliverable)** + UI | plan 11 **B2–B6** | step 4 |
 | | 6 | Antisymmetric wing (`ACRL`/`TORS`) + the left/right reflection machinery (B-6/B-7) | plan 11 **B7** | step 5 |
 | **4 — empennage** | 7 | Distributed h-tail/v-tail loads on the LRA (spanwise strips, GRID+FORCE+MOMENT) | [plan 09](09_distributed_empennage_loads_plan.md) **T1–T5** | steps 1–2 (its T-11 gate) |
@@ -181,6 +180,50 @@ WTENV), which is already splitting the database per payload case.
 Pinned, not hidden: `tests/test_mass_distribution.py::
 test_the_unmodelled_wing_mass_is_pinned_per_fixture` asserts each gap to the
 pound and goes red when it changes in either direction. Tier L (schema). Effort: M.
+
+### [E] CONM2 inertia cross-check in CI *(new 2026-08-08, plan 12 C6 remainder)*
+Plan 12 C1–C5 and C7 shipped 2026-08-08; **C6's solver-side gate did not**, and
+it is the one part that needs the sbeam round-trip harness (**step 2**).
+
+What is already gated in CI (sloads side): the derivation reproduces each case,
+the credibility gate, the mass-channel identities in both unit systems, the
+no-unreferenced-overlay guard, and the structural no-double-count property.
+
+What is **not**: sbeam applying `GRAV` to the `MASSSET` and its recovered nodal
+inertia loads matching `mass_cards.inertia_only_cards` card for card. That was
+verified **by hand** on 2026-08-08 — both decks parse with sbeam's own reader,
+and `sbeam.gpwg.compute_gpwg` reproduces sloads' mass, CG-x and CG-z for all four
+ga6 payload cases exactly — but a hand check is not a gate, and it is what caught
+the overlay-baseline defect in the first place.
+
+Fold into step 2's harness as its third leg (wing deck, body/tail wrappers, mass
+deck). Note the scope limit already documented in `mass_cards.mass_check_deck`:
+`GRAV` is a uniform translational field and sbeam has no `RFORCE`, so
+rotational-acceleration inertia stays checked by sloads-side closure only. Tier M.
+Effort: S once step 2 exists.
+
+### [V] Most payload cases are not loadings the weight database can produce *(new 2026-08-08, found by plan 12 C1)*
+`flight_loads.cg_cases` and the itemized `weight.items` database are entered
+independently, and on 5 of 6 fixtures they do not correspond. Deriving each case
+as "which discretionary items are aboard + ballast" reaches **7 of 18** shipped
+cases within a credible ballast fraction:
+
+| fixture | derivable | why not |
+|---|---|---|
+| `ga6_normal` | 4 / 4 | — (the Appendix A airplane; its cases *are* WTENV's structural points) |
+| `concept_regional_jet` | 2 / 3 | CG3 needs 12 % ballast |
+| `atr42_100` | 1 / 3 | CGfwd/CGmid need 20 % |
+| `dhc8_dash8` | 0 / 3 | 11–18 %, and the solved ballast waterline lands above the fin |
+| `cessna_210` | 0 / 4 | CG1/CG2 need 12–17 %; CG3/CG4 sit forward of anything the database can load |
+| `concept_heavy` | 0 / 1 | needs 31 %; its `zcg` is above the highest item |
+
+This is a **fixture-data** finding, not a code one: the reference-aircraft CG
+cases were entered as CG-envelope corner points, not as loadings. Options: give
+`CgCase` an explicit loading definition (schema change, data entry), or correct
+the fixtures' cases to loadings their databases can produce. Either wants a
+decision before work. Pinned per fixture in
+`tests/test_mass_cards.py::test_which_payload_cases_are_derivable_is_pinned`.
+Tier M–L. Effort: M.
 
 ### [E] sbeam round-trip CI harness *(new 2026-08-05, process review R9)* — **step 2**
 C4's acceptance ("the exported BDF parses and solves in sbeam") was checked once

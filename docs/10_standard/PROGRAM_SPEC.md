@@ -536,6 +536,17 @@ return strings (with thin `write_*` file wrappers), and do no physics.
   carrying concentrated masses**, where the point mass lands entirely at the
   outermost station inboard of it and the exported bending runs ~0.4–1.9 % high
   (open item, filed on the backlog; shear is unaffected).
+- **CONM2 mass export (step C1–C5, 2026-08-08).** `sloads/export/mass_cards.py`
+  writes the itemized mass model as `CONM2` cards with one `MASSSET` per
+  *derivable* payload case, in three artifacts: a pasteable fragment, a
+  self-contained runnable mass-check deck (`MASSSET` + `GRAV`, massless beam,
+  **no load cards**), and sloads' inertia-only set for comparison. EID bands:
+  baseline `9001+`, discretionary overlay `9101+`, per-case ballast `9201+`,
+  `MASSSET` SIDs `9301+`, `GRAV` SIDs `9401+` — disjoint from every GID band.
+  A payload case is exported only when the weight database can produce it as a
+  loading within the ballast-credibility gate; the rest are reported with the
+  number and the reason. Surfaces: `cli.py --export-conm2`, the Weights page's
+  **Mass Export** tab.
 - **Fuselage beam mass (step B1, 2026-08-08).** `body_loads` integrates the station
   table from `mass_distribution.fuselage_beam_stations`, **derived** from the
   component-tagged `weight.items` database — not `fuselage_mass.stations`, which is

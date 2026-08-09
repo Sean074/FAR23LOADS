@@ -644,6 +644,23 @@ _BODY_GID_BLOCK = 500         # capacity of each block (tail GIDs start at 2001)
 _BODY_REACTION_SOURCES = ("carry", "correction")
 
 
+def beam_station_gid(index: int) -> int:
+    """GID of the ``index``-th **fuselage mass station**, nose->tail.
+
+    The station table is the mass SSOT's
+    (:func:`sloads.mass_distribution.fuselage_beam_stations`), and its stations
+    all enter :func:`body_station_gids` with ``source="mass"`` -- so they take
+    the ``1001+`` block in order. Exposed so the CONM2 mass export attaches to
+    the same nodes the fuselage load deck does, rather than re-deriving the
+    numbering (``CLAUDE.md`` practice 3).
+    """
+    if not 0 <= index < _BODY_GID_BLOCK:
+        raise ValueError(
+            f"body export: mass station {index} is outside the "
+            f"{_BODY_GID_BLOCK}-GID block")
+    return _BODY_GID_BASE + index
+
+
 def body_station_gids(result: BodyLoadResult) -> List[int]:
     """Stable sbeam GIDs for one body result's stations, in table order.
 

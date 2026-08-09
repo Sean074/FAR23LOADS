@@ -2,9 +2,47 @@
 
 **Raised:** 2026-08-08 (user), to enable the balanced-airframe work by giving
 sbeam an **independent** mass model against which sloads' inertia loads can be
-checked. **Status:** decisions C-1…C-6 agreed 2026-08-08; not implemented.
-**Closure tier:** L — new export artifact, a schema addition, a new unit
-channel member, GUI + CLI surface, and a new CI gate.
+checked. **Status: C1–C5 and C7 SHIPPED 2026-08-08** — see the history entry
+"CONM2 distributed-mass export" in
+[`../40_history/00_completed_development.md`](../40_history/00_completed_development.md).
+**C6's solver-side gate is not shipped** (it needs the step-2 round-trip
+harness) and is filed on the backlog. **Closure tier:** L — new export artifact,
+a new unit channel member, GUI + CLI surface, and a new CI gate.
+
+> **Corrections applied while implementing** (the plan text below is left as
+> written, as the record of what was agreed):
+>
+> 1. **C-1's premise does not hold.** "Per-case itemization is derived from
+>    WTENV's ballast machinery … reproduces CG1–CG4 with no new user input"
+>    is true for `ga6_normal` and **no other fixture**: the reference aircraft's
+>    `cg_cases` are free-standing CG-envelope corners, not WTENV's structural
+>    points (RJ's sit at 619/599/595 in against WTENV's 594/574/569). Targeting
+>    the cases through WTENV's forward-loading *sequence* derives 6 of 18 cases.
+>    The derivation therefore searches **discretionary subsets** (any combination
+>    aboard, not the station-sorted prefix) and targets each `cg_case` directly.
+> 2. **A credibility gate was added** (user, 2026-08-08). The subset search
+>    reaches 16 of 18, but six need ballast worth 12–31 % of the airplane, which
+>    is a fiction — and C-2's whole point is that the CONM2 set is *independent*,
+>    which it is not if it contains invented mass. Cases over a 10 % ballast
+>    fraction (or whose solved ballast waterline sits outside the airframe) are
+>    reported, not exported: **7 of 18**, including all four ga6 cases.
+> 3. **Acceptance 1 is weaker than it reads.** "Each derived case reproduces its
+>    `cg_cases` weight, xcg and zcg within a stated tolerance" is *exact by
+>    construction* wherever a ballast row exists, because the ballast is solved
+>    from those three numbers. The real content of the step is elsewhere — in the
+>    gate, and in acceptance 3.
+> 4. **C-5's Imperial factor is not 1.0**, and cannot be: the canonical stored
+>    quantity is a pound of *force*. The mass channel is documented as the one
+>    exemption from the all-1.0 identity, with its own `is_mass_consistent`
+>    property rather than an extension of `is_consistent` (so no existing caller
+>    of the latter changes behaviour).
+> 5. **Wing items attach to the fuselage beam**, not to left/right wing bands:
+>    those arrive with plan 11 **B5**. Mass, CG and inertia are exact regardless
+>    (the CONM2 offsets carry the true position), and the deck header says so.
+>
+> One defect was found *by* the work, by running sbeam's own grid-point-weight
+> generator over the exported deck: an overlay `CONM2` that no `MASSSET` names is
+> **baseline** to sbeam, so it is counted in every case. See the history entry.
 
 Related: [`11_balanced_airframe_cases_plan.md`](11_balanced_airframe_cases_plan.md)
 (shares the mass SSOT; step B1 there is a hard dependency),
@@ -100,13 +138,13 @@ orthogonal to it.
 
 | Step | Scope | Tier | Effort |
 |---|---|---|---|
-| **C1** | Per-case itemization derived from WTENV (C-1): `weight_envelope` exposes each loading's item list + ballast item; validator that each derived case reproduces its `flight_loads.cg_cases` weight/xcg/zcg within tolerance. **ga6 CG1 must come out at 3400 @ 85.10 against the itemized 85.00** — the documented rounding, so the tolerance is set deliberately, not fitted. | L | M (~1) |
-| **C2** | `DeliverableUnits.mass` / `.mass_inertia` on the SOLVER channel + the arithmetic drift guard (C-5). | M | S (~0.5) |
-| **C3** | `sloads/export/mass_cards.py`: `CONM2` + `MASSSET` writer, attaching via plan 11's item→station map with CG offsets (C-3). GID/EID band added to the disjointness guard. | L | M (~1) |
-| **C4** | Inertia-only load set alongside the total in the export (C-2), clearly marked in its `$` header as **not** to be applied with the total set. | M | S–M (~0.5) |
-| **C5** | Weights page download (fragment + runnable deck) and `cli.py --export-conm2` (C-4). | M | S–M (~0.5) |
-| **C6** | CI gates: derived-case properties reconcile to `cg_cases`; sbeam-recovered inertia loads match sloads' inertia-only set within tolerance; **double-count guard test** (C-6). Rides on plan 10's harness. | L | M (~1) |
-| **C7** | Closure trail: `CONVENTIONS.md` (mass units + the no-double-count rule), `PROGRAM_SPEC.md`, `PROJECT_GUIDE.md`, `DATA_DICTIONARY.md` regen, `theory_sources.md`, CHANGELOG, history. | S | S (~0.5) |
+| ~~**C1**~~ ✅ | Per-case itemization derived from WTENV (C-1): `weight_envelope` exposes each loading's item list + ballast item; validator that each derived case reproduces its `flight_loads.cg_cases` weight/xcg/zcg within tolerance. **ga6 CG1 must come out at 3400 @ 85.10 against the itemized 85.00** — the documented rounding, so the tolerance is set deliberately, not fitted. | L | M (~1) |
+| ~~**C2**~~ ✅ | `DeliverableUnits.mass` / `.mass_inertia` on the SOLVER channel + the arithmetic drift guard (C-5). | M | S (~0.5) |
+| ~~**C3**~~ ✅ | `sloads/export/mass_cards.py`: `CONM2` + `MASSSET` writer, attaching via plan 11's item→station map with CG offsets (C-3). GID/EID band added to the disjointness guard. | L | M (~1) |
+| ~~**C4**~~ ✅ | Inertia-only load set alongside the total in the export (C-2), clearly marked in its `$` header as **not** to be applied with the total set. | M | S–M (~0.5) |
+| ~~**C5**~~ ✅ | Weights page download (fragment + runnable deck) and `cli.py --export-conm2` (C-4). | M | S–M (~0.5) |
+| **C6** (blocked on step 2; sloads-side half shipped) | CI gates: derived-case properties reconcile to `cg_cases`; sbeam-recovered inertia loads match sloads' inertia-only set within tolerance; **double-count guard test** (C-6). Rides on plan 10's harness. | L | M (~1) |
+| ~~**C7**~~ ✅ | Closure trail: `CONVENTIONS.md` (mass units + the no-double-count rule), `PROGRAM_SPEC.md`, `PROJECT_GUIDE.md`, `DATA_DICTIONARY.md` regen, `theory_sources.md`, CHANGELOG, history. | S | S (~0.5) |
 
 **Dependency:** C3 needs plan 11 **B1** (`mass_distribution.py`, the item→station
 map). Land B1 first, or C3 will hand-roll a second mapping — the exact

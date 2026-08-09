@@ -10,6 +10,96 @@ Acceptance**, **Key decisions**.
 
 ---
 
+## CONM2 distributed-mass export (mission phase 2, step 4 — plan 12 C1–C5, C7 — complete 2026-08-08, tier L)
+
+**Objective.** Break a circularity. The `FORCE`/`MOMENT` deck is the *total*
+applied load — aero plus inertia — and stays that way, but its inertia half is
+computed by the same code that writes the cards, so nothing outside sloads can
+contradict it, and there is no printed oracle for a distributed inertia load.
+Exporting the mass distribution as `CONM2` cards gives sbeam a mass model it
+parses for itself.
+
+**Deliverables.**
+
+1. `sloads/export/mass_cards.py` — `CONM2` + `MASSSET` fragment, a self-contained
+   runnable mass-check deck (`MASSSET` + `GRAV` + a massless placeholder beam,
+   and no load cards), and sloads' own inertia contribution as a separate marked
+   comparison set.
+2. `mass_distribution.derive_case_loadings` — each payload case resolved to an
+   actual loading (discretionary items aboard + a solved ballast row), with a
+   credibility gate.
+3. `DeliverableUnits.mass` / `.mass_inertia` + `is_mass_consistent` (C-5).
+4. `cli.py --export-conm2`; a **Mass Export** tab on the Weights page.
+5. `tests/test_mass_cards.py`.
+
+**Test / acceptance.** 1030 passed, 16 skipped; `ruff check sloads/ cli.py app/`
+clean. No existing deck or digest moved — the step is purely additive.
+
+**Verified against sbeam itself** (by hand; sbeam is not a dependency, so CI
+cannot run it — the same precedent as C4's "the deck parses and solves in
+sbeam"): both artifacts parse with sbeam's own `parse_bdf`, and
+`sbeam.gpwg.compute_gpwg` reproduces sloads' mass, CG-x and CG-z for all four
+ga6 payload cases **exactly** (CG1 8.806269 slinch at x 85.1000, z 93.0000).
+That is plan 12 acceptance 2 and 3, through an independent parser.
+
+**Key decisions, and where the plan was wrong.**
+
+- **C-1's premise fails on 5 of 6 fixtures.** "Per-case itemization derived from
+  WTENV's ballast machinery … reproduces CG1–CG4 with no new user input" holds
+  for `ga6_normal` only — it is the Appendix A airplane and its `cg_cases` *are*
+  WTENV's structural points. Everywhere else the cases are free-standing
+  CG-envelope corners (RJ: 619/599/595 in against WTENV's 594/574/569). Targeting
+  them through WTENV's forward-loading *sequence* derives 6 of 18 cases; the rest
+  want a ballast station up to 3800 in off the airplane, or land on a vertex that
+  already weighs the target with the CG 13–60 in away, which no ballast can move.
+- **So the search is over discretionary subsets**, not the station-sorted prefix
+  — dropping aft passengers is how a real loading moves its CG forward. That
+  reaches 16 of 18, over 8–128 subsets, so exhaustive search is the right
+  algorithm rather than an optimisation.
+- **A credibility gate was added** (user decision, 2026-08-08). Six of those 16
+  need ballast worth 12–31 % of the airplane — `atr42_100` CGfwd wants 7,196 lb;
+  `concept_heavy` 5,500 lb on an 18,000 lb aircraft. That is not ballast, it is a
+  statement that the case is not a loading. And since decision C-2's entire point
+  is an *independent* mass model, a set containing a 7,196 lb invention would
+  make the check validate fiction. Cases over 10 % ballast, or whose solved
+  ballast waterline falls outside the airframe, are reported rather than
+  exported: **7 of 18**, including all four ga6 cases.
+- **Acceptance 1 is weaker than it reads.** "Each derived case reproduces its
+  `cg_cases` weight, xcg and zcg within a stated tolerance" is *exact by
+  construction* wherever a ballast row exists — it is solved from those three
+  numbers. Recorded so it is not mistaken for evidence.
+- **The mass channel's Imperial factor is not 1.0**, and cannot be: the canonical
+  stored quantity is a pound of *force*, so a consistent Imperial deck's mass unit
+  is a division by g away. Documented as the one exemption from the all-1.0
+  identity, with its own `is_mass_consistent` property rather than an extension of
+  `is_consistent`, so no existing caller of the latter changes behaviour. Its
+  identity — `force / (mass × length) == g` — is exact *and identical* in both
+  systems, because one standard gravity is expressed per length unit and derived
+  from a single constant. Quoting 386.088 alongside 9806.65 would have broken it
+  in the eighth digit.
+- **Wing items attach to the fuselage beam**, pending plan 11 B5's left/right
+  bands. Mass, CG and inertia are exact regardless — the CONM2 offsets carry the
+  true position — and the deck header states the limitation rather than implying
+  the wing mass is where it is drawn.
+
+**Defect found by the work, and the reason to run the external tool rather than
+reason about it.** sbeam decides overlay-only status by *reference*: a `CONM2`
+that no `MASSSET` `ADD` row names belongs to the **baseline**, and is therefore
+in every payload case. The first cut exported every discretionary item, including
+ga6's own `Ballast` row — superseded by the per-case ballast this step derives —
+so sbeam's GPWG recovered **9.0083 slinch against sloads' 8.8063 for CG1: 78 lb
+too much, in every case, from a deck that parsed without complaint.** Exactly the
+plausible-wrong-answer failure mode decision C-6 exists to rule out, and it would
+not have been caught by inspecting the deck. Fixed structurally: the overlay list
+is built from what the loadings actually carry, so an unreferenced overlay card
+cannot be written, and `unreferenced_overlay_eids` is the drift guard.
+
+**Not shipped, filed:** C6's solver-side gate (sbeam applying `GRAV` and its
+recovered inertia matching card for card) needs the step-2 round-trip harness.
+Also filed: the finding that most fixtures' payload cases are not loadings their
+weight databases can produce — a fixture-data decision, pinned per fixture in the
+tests.
+
 ## The mass single source of truth (mission phase 2, step 3 — plan 11 B1 — complete 2026-08-08, tier L)
 
 **Objective.** Make `weight.items` the mass SSOT and derive the Ch 15 fuselage

@@ -16,6 +16,7 @@ stick model); ``--export-target tail`` writes the chordwise tail loads (TAILDIST
     python cli.py --export-sbeam out examples/ga6_normal.project.json
     python cli.py --export-sbeam out --export-target tail examples/ga6_normal.project.json
     python cli.py --export-sbeam out --export-target control examples/ga6_normal.project.json
+    python cli.py --export-conm2 out examples/ga6_normal.project.json
 
 Or render the consolidated **summary report** (Step G8) -- the controlling
 document of a loads deliverable. The ``.tex`` is always written; ask for a
@@ -50,6 +51,52 @@ def resolve_units(project, flag=None) -> UnitSystem:
     if flag:
         return unit_system_from(flag)
     return unit_system_from(getattr(project, "unit_system", None))
+
+
+def _export_conm2(project, prefix: str,
+                  system: UnitSystem = UnitSystem.IMPERIAL) -> int:
+    """Write the CONM2/MASSSET mass model (plan 12 C-4).
+
+    Three artifacts, and the split matters: the **fragment** is the mass model
+    alone, for pasting into a model that already has the nodes; the **check
+    deck** is self-contained and runnable (MASSSET + GRAV, and deliberately no
+    load cards at all); the **inertia-only** file is sloads' own contribution,
+    for comparing against what sbeam recovers -- never for applying.
+
+    ``system`` is resolved once and passed to every writer, so the files of one
+    export cannot disagree about their units (D-19).
+    """
+    from sloads.export import mass_cards as mc
+
+    try:
+        fragment = mc.conm2_fragment(project, system=system)
+    except ValueError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+
+    label = "Imperial" if system == UnitSystem.IMPERIAL else "SI"
+    written = []
+    path = f"{prefix}_mass.bdf"
+    with open(path, "w", encoding="utf-8") as fh:
+        fh.write(fragment)
+    written.append(path)
+
+    for name, build in (("mass_check", mc.mass_check_deck),
+                        ("inertia_only", mc.inertia_only_cards)):
+        try:
+            text = build(project, system=system)
+        except ValueError as exc:
+            print(f"note: no {name} deck -- {exc}", file=sys.stderr)
+            continue
+        path = f"{prefix}_{name}.bdf"
+        with open(path, "w", encoding="utf-8") as fh:
+            fh.write(text)
+        written.append(path)
+
+    _, loadings = mc.mass_cards(project)
+    print(f"Wrote {', '.join(written)} ({label}; "
+          f"{len(loadings)} derivable payload case(s))")
+    return 0
 
 
 def _export_sbeam(project, prefix: str, target: str, stick_model: bool,
@@ -180,6 +227,12 @@ def main(argv=None) -> int:
              "(supplied by the caller so two renders stay byte-identical)",
     )
     parser.add_argument(
+        "--export-conm2", metavar="PREFIX",
+        help="write the CONM2/MASSSET mass model: PREFIX_mass.bdf (fragment), "
+             "PREFIX_mass_check.bdf (runnable MASSSET+GRAV deck) and "
+             "PREFIX_inertia_only.bdf (sloads' inertia, for comparison only)",
+    )
+    parser.add_argument(
         "--units", choices=("imperial", "si"), default=None,
         help="unit system for the output; overrides the project's own preference "
              "for this run (default: the project's, else imperial)",
@@ -199,6 +252,16 @@ def main(argv=None) -> int:
         project = io.load_project(project_path)
         return _export_sbeam(project, args.export_sbeam,
                              args.export_target, args.stick_model,
+                             resolve_units(project, args.units))
+
+    # --export-conm2 follows --export-sbeam's shape: project from the first
+    # positional, no module name needed.
+    if args.export_conm2:
+        project_path = args.module or args.project
+        if not project_path:
+            parser.error("--export-conm2 requires a project.json path")
+        project = io.load_project(project_path)
+        return _export_conm2(project, args.export_conm2,
                              resolve_units(project, args.units))
 
     # --report likewise takes the project from the first positional, so no module
