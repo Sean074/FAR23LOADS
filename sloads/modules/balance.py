@@ -432,6 +432,28 @@ def fin_sets(result: TailSpanResult) -> List[BalancedLoad]:
     return loads
 
 
+def is_lateral(case: BalancedCaseResult) -> bool:
+    """Does this case carry an applied fin load? (i.e. is it one of B8a-3's.)
+
+    The ``vtail-air`` tag has exactly one reader -- here and in
+    :func:`fin_load` -- so the deck header, the row table and the gates all agree
+    on what a lateral case *is* (``CLAUDE.md`` practice 3). Asked of the tag and
+    not of :func:`fin_load`'s net, because a fin set whose strips happened to sum
+    to zero would still be a lateral case: it is the distribution that is
+    handed, not the resultant (the same distinction :func:`is_handed` draws).
+    """
+    return any(ld.source == "vtail-air" for ld in case.loads)
+
+
+def fin_load(case: BalancedCaseResult) -> float:
+    """The **net** applied fin side load; ``0.0`` when there is no fin set.
+
+    The number the deck reports and the gates pin. Use :func:`is_lateral` to ask
+    whether the case *has* a fin set.
+    """
+    return sum(ld.fy for ld in case.loads if ld.source == "vtail-air")
+
+
 def is_handed(applied: Sequence[BalancedLoad], n_w: float) -> bool:
     """Does this **applied** load set have a hand? (decision L-6)
 
@@ -916,8 +938,12 @@ def run(project: Project) -> ModuleResult:
                       100.0 * c.roll_moment_fraction, "%",
                       key="balanced_roll_moment_pct"),
         ] if c.unbal_moment else []
-        lateral = any(ld.source == "vtail-air" for ld in c.loads)
+        lateral = is_lateral(c)
         lateral_values = [
+            # The case's defining applied load, reported before the motion it
+            # causes: nothing balances it, so the three below ARE its reaction.
+            LoadValue("Applied fin side load", fin_load(c), "lb",
+                      key="balanced_fin_load"),
             LoadValue("Lateral load factor Ny", c.delta_ny, "g",
                       key="balanced_ny"),
             LoadValue("Yaw acceleration", degrees(radians_per_s2(
@@ -968,7 +994,9 @@ __all__ = [
     "LATERAL_AERO_NOTE",
     "RESIDUAL_GATE",
     "wing_sets",
+    "fin_load",
     "fin_sets",
+    "is_lateral",
     "is_handed",
     "body_inertia",
     "resultant",

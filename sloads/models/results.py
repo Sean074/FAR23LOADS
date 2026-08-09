@@ -419,8 +419,9 @@ class BalancedLoad:
     residual at 20.5 % of ``n*W*MAC`` instead of 0.15 %.
 
     ``source`` records what the load is (``"wing-air"``, ``"wing-inertia"``,
-    ``"tail-air"``, ``"body-inertia"``, ``"fuselage-cm"``, ``"closure-n"``,
-    ``"closure-pitch"``) and ``side`` which half it is on (``"L"``/``"R"``/``"C"``),
+    ``"tail-air"``, ``"vtail-air"``, ``"body-inertia"``, ``"fuselage-cm"``,
+    ``"closure-n"``, ``"closure-pitch"``, ``"closure-roll"``) and ``side`` which
+    half it is on (``"L"``/``"R"``/``"C"``),
     so a deck can band them and a check can attribute a residual to its source.
     """
     x: float
@@ -539,6 +540,13 @@ class BalancedCaseResult:
 
         Against the semi-span rather than the MAC because a rolling moment acts
         through the span.
+
+        From B8a-3 the aileron is not the only source: a **lateral** case's fin
+        load acts above the roll axis, so it rolls the airplane too (1.2 % of
+        ``n*W*b/2`` on ``ga6_normal``'s ``SUDDEN RUDDER``, and the sign says
+        which way). The property is the case's roll either way -- it reads
+        ``residual_mx``, whatever put it there -- and the standing is the same:
+        reported, reacted in full by :attr:`p_dot`, never gated.
         """
         denom = self.n_w * self.semi_span
         return abs(self.residual_mx) / denom if denom else 0.0

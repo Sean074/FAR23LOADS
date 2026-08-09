@@ -103,6 +103,42 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **Lateral balanced airplane cases — the ±β empennage set** (mission phase 4
+  step 8, [plan 13](docs/30_future/13_b8a_lateral_closure_plan.md) step
+  **B8a-3**, decisions **L-6**/**L-7**/**L-8**). The four vertical-tail
+  conditions (`SUDDEN RUDDER`, `YAW TO SIDESLIP`, `YAW 15 NEUTRAL`, `SIDE GUST`)
+  now assemble as full-span free-free cases, each as a **handed pair** —
+  `VT-01R`/`VT-01L` … `VT-04R`/`VT-04L`, the starboard case computed and the port
+  one its mirror. Eight new cases per fixture on `ga6_normal` and
+  `concept_regional_jet` (15 and 14 balanced cases in total).
+
+  The fin's distributed side load is SELECT's, strip for strip, reaching the case
+  through `tail_span` and the existing frame map in `export/coordinates.py` (span
+  → `z`, normal force → `fy`, torsion → `mz` **negated**). Fin **inertia** rides
+  in the closure field at the case's own `n_y`/`ω̇` rather than in the
+  per-component v-tail deck, which stays air-only (decision **L-8**).
+
+  **Nothing balances a rudder kick**, and the deck says so: a lateral case's
+  pre-closure `Fy`/`Mz` *are* the fin load in full, by construction, so plan 11's
+  1 % residual gate does not apply to them — exactly the standing `ACRL`'s roll
+  residual has had since B7. What is gated is that the case's **symmetric half**,
+  with the fin set removed, still closes as it always did; it does, to the last
+  digit, because the fin set carries `fy` and `mz` only.
+
+  Reported per case, in the deck header, the balanced-case table and the module
+  result: the applied fin side load, the lateral load factor `n_y = L_v/W`, and
+  the yaw and roll accelerations it drives — for example `ga6_normal`
+  `SUDDEN RUDDER` +585.7 lb, `n_y` +0.172 g, `ψ̈` +178.0 deg/s², `ṗ` −12.0
+  deg/s²; the RJ's `YAW 15 NEUTRAL` −8042.7 lb, −0.244 g, −55.7, +68.4. All four
+  numbers are pinned per fixture in CI in both directions.
+
+  **A stated limitation, carried in-band** (decision **L-7**): the fin is the
+  only lateral aerodynamic load this suite computes — fuselage and wing side
+  force in sideslip are not modelled — so `n_y` and the yaw acceleration are
+  **over-stated by an unknown amount**, and the inertia they drive is
+  conservative on every component. The fin's own design load is SELECT's,
+  unchanged. The caveat travels as a case note into the deck `$` header and the
+  report rather than living only in documentation.
 - **Theory document for the balancing method** —
   [`docs/20_theory/balanced_cases.md`](docs/20_theory/balanced_cases.md): how a
   balanced free-free case is assembled and closed, with worked examples on the
@@ -118,6 +154,19 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- The balanced-case pitch-residual ceiling is now stated **per family** as well
+  as per fixture (`symmetric` / `lateral`) rather than widened. The lateral cases
+  sit at V-n points the symmetric families never visit, and their pitch residual
+  is larger there (`ga6_normal` `SUDDEN RUDDER` 0.341 %, the RJ's `SIDE GUST`
+  1.586 % — the largest instance yet of the already-filed "RJ low-CL cases exceed
+  the 1 % pitch gate" item). Keeping the symmetric bounds where they were
+  preserves their bite; one widened number would have let a real symmetric
+  regression through.
+- Imperial baseline digests regenerated for **`csv/balance`**, **`txt/balance`**
+  and **`sbeam/balanced_deck`** on `ga6_normal` and `concept_regional_jet` — the
+  eight new lateral cases and the lateral columns. No other channel moved on any
+  fixture: every per-component deck is byte-identical and every Appendix A oracle
+  is unchanged.
 - Imperial baseline digests regenerated for **`sbeam/vtail_span_cards`** and
   **`txt/tail_span`** on the five fixtures with a modelled fin — the v-tail deck
   `GRID` waterlines and the in-band notes. No other channel moved: the wing,

@@ -61,7 +61,8 @@ import textwrap
 from typing import Dict, List, Sequence, Tuple
 
 from ..models import BalancedCaseResult, BalancedLoad, Project
-from ..modules.balance import build_balanced_cases, carry_sources_absent
+from ..modules.balance import (build_balanced_cases, carry_sources_absent,
+                               fin_load, is_lateral)
 from ..rigid_body import radians_per_s2
 from ..units import Channel, DeliverableUnits, UnitSystem, deliverable_units
 from .coordinates import SBEAM_CID, to_force, to_grid, to_moment
@@ -159,11 +160,6 @@ def _deg(rad_per_s2: float) -> float:
     return 0.0 if abs(value) < _OMEGA_DOT_NOISE else value
 
 
-def _fin_load(case: BalancedCaseResult) -> float:
-    """The applied fin side load of a lateral case, or 0.0 for every other."""
-    return sum(ld.fy for ld in case.loads if ld.source == "vtail-air")
-
-
 def _header(case: BalancedCaseResult, u: DeliverableUnits) -> List[str]:
     _, _, res_fz = to_force(0.0, 0.0, case.residual_fz, u)
     _, res_my, _ = to_moment(0.0, case.residual_my, 0.0, u)
@@ -171,7 +167,7 @@ def _header(case: BalancedCaseResult, u: DeliverableUnits) -> List[str]:
     # What the hand *is* differs between the two handed families, and naming it
     # "roll" on a rudder kick would be wrong: a lateral case's twin is the
     # opposite-sign side load, which happens to roll the airplane as well.
-    kind = "roll" if case.unbal_moment else "side load"
+    kind = "side load" if is_lateral(case) else "roll"
     hand = {"R": f" -- STARBOARD {kind} (the computed case)",
             "L": f" -- PORT {kind} (mirror of the starboard case)"}.get(case.hand, "")
     # Angular accelerations are reported in deg/s^2 -- a quantity a reader can
@@ -199,12 +195,12 @@ def _header(case: BalancedCaseResult, u: DeliverableUnits) -> List[str]:
         "carry; it has no distributed form until the body aero moment lands).",
         "The support below is determinate: its reaction IS the residual above.",
     ]
-    fin = _fin_load(case)
-    if fin:
-        _, fin_fy, _ = to_force(0.0, fin, 0.0, u)
+    if is_lateral(case):
+        _, fin_fy, _ = to_force(0.0, fin_load(case), 0.0, u)
         _, _, res_mz = to_moment(0.0, 0.0, case.residual_mz, u)
         sentences.append(
-            f"LATERAL case: applied fin side load {fin_fy:.1f} {u.force.label}, "
+            f"LATERAL case: applied fin side load {fin_fy:.1f} {u.force.label} "
+            f"LIMIT (like the residuals above; the cards below are ULTIMATE), "
             f"distributed over the fin span from its root waterline. The "
             f"pre-closure Fy and Mz ({res_mz:.0f} {u.moment.label}) are that "
             "load in full, and are NOT a balance error: nothing in an airplane "
@@ -278,8 +274,14 @@ def balanced_deck(project: Project, *,
     head: List[str] = ["SOL 101", "$",
                        "$ ------------------------------------------- BALANCED CASE MAP"]
     for i, case in enumerate(cases):
-        head.append(f"$ SUBCASE {BALANCED_SID_BASE + i} = {case.label} -- V-n "
-                    f"{case.vn_case} -- {case.cg} -- Nz {case.nz:g}")
+        # Wrapped, not hand-broken: B8a-3's condition names ("YAW TO SIDESLIP")
+        # are half again as long as the four-letter wing ones and pushed this
+        # line past 72 columns on the fixtures that carry a long CG name.
+        entry = (f"SUBCASE {BALANCED_SID_BASE + i} = {case.label}"
+                 f"{'-' + case.hand if case.hand else ''} -- V-n "
+                 f"{case.vn_case} -- {case.cg} -- Nz {case.nz:g}")
+        head += [f"$ {ln}" for ln in textwrap.wrap(entry, width=70,
+                                                   subsequent_indent="    ")]
     head.append("$")
     for i, case in enumerate(cases):
         sid = BALANCED_SID_BASE + i
@@ -332,20 +334,34 @@ def balanced_case_rows(cases: Sequence[BalancedCaseResult]) -> List[Dict[str, st
 
     The residual and the closure are the case's honesty statement, so they are
     columns of the deliverable rather than a log line.
+
+    The lateral columns (``Ny``, yaw and roll acceleration) are the whole answer
+    of a rudder or gust case, and are printed for every row so the table stays
+    rectangular: on a symmetric case they read ``+0.00000`` / ``0``, which is the
+    statement that the case has no lateral motion, not a missing number.
     """
-    return [{
-        "Case": c.label,
-        "Hand": c.hand or "-",
-        "V-n point": str(c.vn_case),
-        "Loading": c.cg,
-        "Nz": f"{c.nz:.3f}",
-        "Residual Fz (% n*W)": f"{c.force_residual_fraction * 100:.3f}",
-        "Residual My (% n*W*MAC)": f"{c.moment_residual_fraction * 100:.3f}",
-        # Applied, not unbalanced -- see BalancedCaseResult.roll_moment_fraction.
-        "Roll couple (% n*W*b/2)": f"{c.roll_moment_fraction * 100:.3f}",
-        "Closure dn (g)": f"{c.delta_n:+.5f}",
-        "Basis": "LIMIT",
-    } for c in cases]
+    rows: List[Dict[str, str]] = []
+    for c in cases:
+        p_dot, _, r_dot = (_deg(v) for v in
+                           radians_per_s2((c.p_dot, c.q_dot, c.r_dot)))
+        rows.append({
+            "Case": c.label,
+            "Hand": c.hand or "-",
+            "V-n point": str(c.vn_case),
+            "Loading": c.cg,
+            "Nz": f"{c.nz:.3f}",
+            "Residual Fz (% n*W)": f"{c.force_residual_fraction * 100:.3f}",
+            "Residual My (% n*W*MAC)": f"{c.moment_residual_fraction * 100:.3f}",
+            # Applied, not unbalanced -- see
+            # BalancedCaseResult.roll_moment_fraction.
+            "Roll couple (% n*W*b/2)": f"{c.roll_moment_fraction * 100:.3f}",
+            "Closure dn (g)": f"{c.delta_n:+.5f}",
+            "Closure dNy (g)": f"{c.delta_ny:+.5f}",
+            "Yaw acc (deg/s^2)": f"{r_dot:+.4g}",
+            "Roll acc (deg/s^2)": f"{p_dot:+.4g}",
+            "Basis": "LIMIT",
+        })
+    return rows
 
 
 __all__ = [

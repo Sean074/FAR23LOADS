@@ -26,7 +26,11 @@ from sloads import (
 )
 from sloads.export.balanced_deck import balanced_case_rows, balanced_deck
 from sloads.models import MissingInputError
-from sloads.modules.balance import RESIDUAL_GATE, build_balanced_cases
+from sloads.modules.balance import (
+    RESIDUAL_GATE,
+    build_balanced_cases,
+    is_lateral,
+)
 
 st.title("Balanced Cases — assembled full-span, free-free")
 st.caption(
@@ -77,6 +81,13 @@ st.caption(
     "airplane is supposed not to balance — it rolls — and it is reacted in full by "
     "distributed roll-acceleration inertia. It is reported, not gated."
 )
+st.caption(
+    "**dNy**, **yaw** and **roll acceleration** are the answer of a lateral case "
+    "(FAR 23.441/23.443): nothing in an airplane balances a rudder kick, so the "
+    "fin's side load appears in full as a pre-closure `Fy`/`Mz` and the three "
+    "columns are the motion that reacts it — `Ny = Lv/W` exactly. On a symmetric "
+    "case they read zero, which is the statement that it has no lateral motion."
+)
 
 worst = max(max(c.force_residual_fraction, c.moment_residual_fraction)
             for c in cases)
@@ -99,6 +110,7 @@ labels = {
     "wing-air": "Wing air load",
     "wing-inertia": "Wing inertia",
     "tail-air": "Balancing tail load",
+    "vtail-air": "Fin side load (lateral case)",
     "body-inertia": "Fuselage + empennage inertia",
     "fuselage-cm": "Fuselage pitching moment (lumped)",
     "aileron-roll": "Aileron rolling moment (lumped)",
@@ -110,7 +122,8 @@ def _case_label(c) -> str:
     """The selector entry. **Must** carry the hand: the two twins of a rolling
     case are otherwise identical strings, and the picker would silently show the
     starboard case whichever one was chosen."""
-    hand = {"R": " — starboard roll", "L": " — port roll"}.get(c.hand, "")
+    kind = "side load" if is_lateral(c) else "roll"
+    hand = {"R": f" — starboard {kind}", "L": f" — port {kind}"}.get(c.hand, "")
     return f"{c.label}{hand} (V-n {c.vn_case}, {c.cg})"
 
 
@@ -122,10 +135,14 @@ totals = {}
 for load in case.loads:
     entry = totals.setdefault(load.source, [0.0, 0.0])
     entry[0] += load.fz
-    entry[1] += load.my
+    # Side force, not pitching moment: a fin load is entirely ΣFy, so a
+    # breakdown with a vertical column only would report the defining load of
+    # every lateral case as a row of zeros.
+    entry[1] += load.fy
 st.dataframe(pd.DataFrame([
     {"Source": labels.get(src, src),
      f"ΣFz ({U['weight']})": f"{to_display(v[0], 'weight', system):,.1f}",
+     f"ΣFy ({U['weight']})": f"{to_display(v[1], 'weight', system):,.1f}",
      "Cards": sum(1 for ld in case.loads if ld.source == src)}
     for src, v in totals.items()
 ]), hide_index=True, use_container_width=True)

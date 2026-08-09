@@ -557,8 +557,28 @@ the gate is a stated closure/identity set in CI, written with the feature.
 | **G7** | **Handed twins are mirror images** — the existing involution guard extended to a lateral case: `fy`/`mx`/`mz` negate, `fx`/`fz`/`my` identical, `n_y`/`ψ̈`/`ṗ` negate, `n_z`/`q̈` identical | exact | `rel_tol = 1e-12` |
 | **G8** | **Appendix A oracles bit-unchanged**, and every per-component deck byte-unchanged **except the v-tail span deck**, whose `GRID` z-coordinates move by the L-1 fin waterline. That single exception is deliberate, is a defect fix (§3.3), and is called out against plan 11 acceptance #5 with a regenerated digest | — | exact |
 | **G9** | **The symmetric half still closes** (L-5). With the fin load removed, every lateral case meets plan 11 §6's 1 % force and moment gate — i.e. adding a lateral load did not contaminate the symmetric physics | ga6 V-n 14: Fz +0.014 %, My +0.341 %; V-n 35: +0.275 / +0.648 %. RJ V-n 14: +0.214 / +0.663 %; **V-n 95: +0.344 / +1.586 %** | 1 %, with a **per-fixture ceiling** where it already bites — the RJ's BAL C point is over, and it is the largest instance yet of the filed "RJ low-CL cases exceed the 1 % pitch gate" item (previous worst `TORS` 1.174 %). Bounded per fixture as `_PITCH_RESIDUAL_CEILING` already does, never by widening the gate |
-| **G10** | **The lateral quantities are pinned per fixture** (L-5) — `n_y` and `ψ̈` for all four conditions on both fixtures, so a self-consistent-but-wrong fin load cannot balance beautifully and pass silently | §3.1's tables | 1 %; red in either direction |
+| **G10** | **The lateral quantities are pinned per fixture** (L-5) — `n_y` and `ψ̈` for all four conditions on both fixtures, so a self-consistent-but-wrong fin load cannot balance beautifully and pass silently. **Extended on implementation** to four numbers per condition (the net fin load and `ṗ` as well), and `n_y` additionally asserted structurally as `L_v/W` rather than only pinned | fin load and `n_y` exactly §3.1's tables; **`ψ̈` restated from measurement** — see below | `rel_tol = 1e-4`; red in either direction |
 | **G11** | `ruff` clean, `pytest` green on 3.9 / 3.11 / 3.12 | — | — |
+
+**G10 amended on implementation (2026-08-09).** §3.1's `ψ̈` figures were measured
+against the *placement-only* `Izz` that preceded decision L-3; the shipped
+tensor is larger (ga6 2933.5 against 2598), so every yaw is smaller. The fin
+loads and `n_y` are **unchanged from §3.1 to the last digit** — they do not
+depend on the closure — and the roll accelerations are new (§3.1 predated the
+six-DOF field). The gate's table, restated from measurement and now the record:
+
+| Condition | ga6: `L_v` lb / `n_y` g / `ψ̈` / `ṗ` deg/s² | RJ: `L_v` lb / `n_y` g / `ψ̈` / `ṗ` deg/s² |
+|---|---|---|
+| `SUDDEN RUDDER` | +585.7 / +0.17227 / +178.05 / −12.04 | +6907.3 / +0.20931 / +51.57 / −57.75 |
+| `YAW TO SIDESLIP` | −97.8 / −0.02875 / −19.44 / +3.24 | −3548.2 / −0.10752 / −20.84 / +31.13 |
+| `YAW 15 NEUTRAL` | −525.7 / −0.15463 / −151.91 / +11.75 | −8042.7 / −0.24372 / −55.70 / +68.37 |
+| `SIDE GUST` | +604.0 / +0.17764 / +185.51 / −20.16 | +7080.4 / +0.21456 / +42.93 / −77.88 |
+
+ga6 `SUDDEN RUDDER` is 178.05 deg/s² against §3.1's 205.7 — a ratio of 0.866
+where the `Izz` ratio alone gives 0.886, the difference being the `Ixz` coupling
+L-2 introduced. The RJ's roll is large because B8a-1 gave its fin a real
+waterline (+86.0 in against the pre-B8a-1 −1.0 in), which is the defect that
+step existed to fix.
 
 **Pinned facts** (recorded per fixture, red when they change, per the project's
 "pin the finding" practice): the four cases' `n_y` and `ψ̈` (§3.1); the
@@ -573,7 +593,7 @@ payload-case reason already pinned in `test_balance.py`.
 |---|---|---|---|
 | ~~**B8a-1**~~ ✅ | Fin root waterline (L-1): input + derived default + `assumed` flag; v-tail deck `GRID` z fixed; digest regenerated. **SHIPPED 2026-08-09** — schema v43, `tail_geometry.fin_root_waterline` as the single owner (read by the three-view too, which had the same defect), roll arms +14.0 / +86.0 in as predicted, `sbeam/vtail_span_cards` + `txt/tail_span` the only Imperial channels that moved | M | S |
 | ~~**B8a-2**~~ ✅ | The 6-DOF closure (L-2/L-3): full d'Alembert field, 3×3 rotational solve on the assembled tensor, non-wing self-inertia relief; G1/G2/G4/G5/G6. **SHIPPED 2026-08-09** — `sloads/rigid_body.py` as the single owner, `mass_distribution.assembly_distributes_mass` as the L-3 predicate, `BalancedCaseResult` gaining `delta_ny`/`p_dot`/`q_dot`/`r_dot`/`closure_inertia`. All six DOF close to ≤ 2e-16 of `n·W`; `Izz(closure)` 2933.5 ga6 CG2 against G4's predicted 2934. **The B7 gate was restated** (see §5.2) and **the assembled deck was added to the Imperial baseline**, which had never covered it | L | M |
-| **B8a-3** | Lateral case assembly (L-6/L-7): the fin load set, the `VT-xx` handed pairs, in-band caveats; G6 | L | M |
+| ~~**B8a-3**~~ ✅ | Lateral case assembly (L-6/L-7): the fin load set, the `VT-xx` handed pairs, in-band caveats; G7/G9/G10 (§8's "G6" was a slip — G6 shipped with B8a-2). **SHIPPED 2026-08-09** — `balance.fin_sets` consuming `tail_span` through the `export/coordinates` frame map, `balance.is_handed` as the single L-6 predicate (with its own drift guard) and `is_lateral`/`fin_load` as the single readers of the `vtail-air` tag. Eight new cases per fixture (`VT-01R/L`…`VT-04R/L`), the L-7 caveat carried as a case note into the deck and the report. The pitch ceiling became **per family** rather than wider (ga6 lateral 0.70 %, RJ 1.60 %), so the symmetric bounds keep their bite; only `csv/balance`, `txt/balance` and `sbeam/balanced_deck` moved in the Imperial baseline — every per-component deck and every Appendix A oracle is byte-unchanged (**G8**) | L | M |
 | **B8a-4** | Assembled deck + sbeam leg + UI columns; G3 | M | S–M |
 | **B8a-5** | Closure trail: `CONVENTIONS.md` §1/§7/§7.1, `PROGRAM_SPEC.md`, `theory_sources.md`, `DATA_DICTIONARY.md` regen, CHANGELOG, history (Tier L, full step format) | S | S |
 

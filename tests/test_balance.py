@@ -44,7 +44,7 @@ import pytest  # noqa: E402
 
 from sloads import io  # noqa: E402
 from sloads.constants import LBIN2_PER_SLUGFT2  # noqa: E402
-from sloads.models import MissingInputError  # noqa: E402
+from sloads.models import BalancedLoad, MissingInputError  # noqa: E402
 from sloads.modules import one_engine_out  # noqa: E402
 from sloads.rigid_body import InertiaTensor, radians_per_s2  # noqa: E402
 from sloads.export.balanced_deck import (  # noqa: E402
@@ -62,12 +62,17 @@ from sloads.export.coordinates import (  # noqa: E402
 )
 from sloads.export.equilibrium import parse_cards, resultant  # noqa: E402
 from sloads.modules.balance import (  # noqa: E402
+    BALANCED_VTAIL_CONDITIONS,
+    HANDEDNESS_TOL,
     RESIDUAL_GATE,
     ROLLING_WING_CONDITIONS,
     SYMMETRIC_WING_CONDITIONS,
     build_balanced_cases,
     carry_sources_absent,
+    fin_load,
     handed_twin,
+    is_handed,
+    is_lateral,
     resultant6,
 )
 from sloads.modules.balance import resultant as case_resultant  # noqa: E402
@@ -92,11 +97,24 @@ _SYSTEMS = (UnitSystem.IMPERIAL, UnitSystem.SI)
 #:
 #: ``(label, hand)`` pairs from B7: a rolling condition appears **twice**, once
 #: per hand, and every other condition once with no hand.
+#:
+#: B8a-3 adds the four **lateral** conditions -- the vertical tail's own FAR
+#: 23.441/23.443 set -- and every one of them is handed, because a fin load is
+#: handed by construction (decision L-6, :func:`test_the_handedness_predicate`).
+#: They assemble on both fixtures and on neither of the others, for the same
+#: derivable-loading reason the symmetric families do.
+_LATERAL_CASES = [
+    ("SUDDEN RUDDER", "R"), ("SUDDEN RUDDER", "L"),
+    ("YAW TO SIDESLIP", "R"), ("YAW TO SIDESLIP", "L"),
+    ("YAW 15 NEUTRAL", "R"), ("YAW 15 NEUTRAL", "L"),
+    ("SIDE GUST", "R"), ("SIDE GUST", "L"),
+]
+
 _EXPECTED_CASES = {
     "ga6_normal.project.json": [
         ("PHAA", ""), ("PLAA", ""), ("PMAA", ""), ("NMAA", ""),
         ("ACRL", "R"), ("ACRL", "L"), ("TORS", ""),
-    ],
+    ] + _LATERAL_CASES,
     "cessna_210.project.json": [],
     "atr42_100.project.json": [],
     "dhc8_dash8.project.json": [],
@@ -104,7 +122,7 @@ _EXPECTED_CASES = {
     "concept_regional_jet.project.json": [
         ("PHAA", ""), ("PLAA", ""), ("PMAA", ""),
         ("ACRL", "R"), ("ACRL", "L"), ("TORS", ""),
-    ],
+    ] + _LATERAL_CASES,
 }
 
 #: The pre-closure **pitch** residual, per fixture, as a fraction of ``n*W*MAC``.
@@ -119,11 +137,31 @@ _EXPECTED_CASES = {
 #: airplane-less-tail moment and the distributed wing's own section ``Cm`` nearly
 #: cancel and the residual is a difference of large numbers. Filed on the backlog.
 #:
+#: B8a-3 splits the ceiling **per family** rather than widening it, for the same
+#: reason it is stated per fixture: the lateral cases sit at V-n points the
+#: symmetric families never visit (ga6 14 and 35, RJ 14 and 95), and their pitch
+#: residual is larger there -- ga6 ``SUDDEN RUDDER`` 0.341 %, RJ ``SIDE GUST``
+#: 1.586 %. That is *not* lateral contamination: the fin set carries ``fy`` and
+#: ``mz`` only, so it contributes nothing to ``Fz``/``My``, and the symmetric half
+#: of a lateral case has the identical residual to the last digit
+#: (:func:`test_the_symmetric_half_of_a_lateral_case_still_closes`). Keeping the
+#: symmetric bounds where they were preserves their bite; a single widened number
+#: would have let a real symmetric regression through.
+#:
 #: These are upper bounds, not targets: they bite on any regression.
 _PITCH_RESIDUAL_CEILING = {
-    "ga6_normal.project.json": 0.0030,
-    "concept_regional_jet.project.json": 0.0120,
+    "ga6_normal.project.json": {"symmetric": 0.0030, "lateral": 0.0070},
+    "concept_regional_jet.project.json": {"symmetric": 0.0120, "lateral": 0.0160},
 }
+
+
+def _family(case) -> str:
+    """``"lateral"`` for a case carrying an applied fin load, else ``"symmetric"``.
+
+    Named off the *applied* load set through balance's own reader, so the test
+    suite cannot drift from what the deck header calls a lateral case.
+    """
+    return "lateral" if is_lateral(case) else "symmetric"
 
 
 def _project(example: str):
@@ -158,16 +196,22 @@ def test_the_pre_closure_residual_is_within_the_gate(example):
     bounded per fixture instead -- see :data:`_PITCH_RESIDUAL_CEILING` for the
     numbers, the diagnosis and why the gate is not simply widened.
 
-    The **roll** DOF is deliberately not gated here: on a rolling case
-    ``residual_mx`` is the applied aileron couple, which the airplane is supposed
-    not to balance. See :func:`test_the_roll_moment_is_the_applied_couple`.
+    The **roll** and **yaw** DOF are deliberately not gated here. On a rolling
+    case ``residual_mx`` is the applied aileron couple; on a lateral case
+    ``residual_fy``/``residual_mz`` are the applied fin load in full. In both
+    the airplane is *supposed* not to balance them -- it rolls and yaws instead
+    -- so a residual gate on those components would be a gate on nothing. See
+    :func:`test_the_roll_moment_is_the_applied_couple` and
+    :func:`test_the_symmetric_half_of_a_lateral_case_still_closes`.
     """
     for case in build_balanced_cases(_project(example)):
         where = f"{example} {case.label}{case.hand}"
+        ceiling = _PITCH_RESIDUAL_CEILING[example][_family(case)]
         assert case.force_residual_fraction < RESIDUAL_GATE, (
             f"{where}: force residual {case.force_residual_fraction * 100:.3f} %")
-        assert case.moment_residual_fraction < _PITCH_RESIDUAL_CEILING[example], (
-            f"{where}: pitch residual {case.moment_residual_fraction * 100:.3f} %")
+        assert case.moment_residual_fraction < ceiling, (
+            f"{where}: pitch residual {case.moment_residual_fraction * 100:.3f} % "
+            f"against the {_family(case)} ceiling {ceiling * 100:.2f} %")
 
 
 @pytest.mark.parametrize("example", _with_cases())
@@ -371,9 +415,25 @@ def test_the_roll_moment_is_the_applied_couple(example):
     and every other case carries no rolling moment at all. If any other load in
     the assembly had a roll component -- a mirroring slip, an inertia strip on the
     wrong side -- it would land here.
+
+    B8a-3 exempts the **lateral** family, and the exemption is the physics: a fin
+    load sits above the roll axis, so ``-Fy*(z - z_cg)`` is a genuine rolling
+    moment the case is *supposed* to carry, and it is asserted positively here
+    rather than merely excused -- the roll must equal the fin set's own moment
+    about the CG, with no contribution from anything else in the assembly.
     """
-    for case in build_balanced_cases(_project(example)):
+    project = _project(example)
+    cgs = {c.name: c for c in project.flight_loads.cg_cases}
+    for case in build_balanced_cases(project):
         where = f"{example} {case.label}{case.hand}"
+        if is_lateral(case):
+            cg = cgs[case.cg]
+            fin = [ld for ld in case.loads if ld.source == "vtail-air"]
+            _, _, _, mx, _, _ = resultant6(fin, (cg.xcg, 0.0, cg.zcg))
+            assert case.residual_mx == pytest.approx(mx, rel=1e-12), (
+                f"{where}: the pre-closure roll is not the fin load's own moment")
+            assert case.unbal_moment == 0.0, where
+            continue
         assert case.residual_mx == pytest.approx(-case.unbal_moment, abs=1e-6), where
         if not case.hand:
             assert case.unbal_moment == 0.0, where
@@ -430,7 +490,10 @@ def test_roll_closure_reproduces_winginer(example):
     u = inertia_units(geom, wm)
     winginer = {round(y, 6): f for y, f in zip(u.ye, u.fz_r) if f}
 
-    rolling = [c for c in build_balanced_cases(project) if c.hand == "R"]
+    # ``hand == "R"`` no longer means "rolling": from B8a-3 the lateral family is
+    # handed too. Selected on the condition, which is what the check is about.
+    rolling = [c for c in build_balanced_cases(project)
+               if c.hand == "R" and c.label in ROLLING_WING_CONDITIONS]
     assert rolling, f"{example}: no rolling case to check"
     for case in rolling:
         ur = case.unbal_moment / 100000.0
@@ -660,7 +723,8 @@ def test_acrl_gained_the_companion_field_and_an_induced_yaw(example):
     would be applying a lateral force nothing asked for.
     """
     want = _ACRL_LATERAL[example]
-    rolling = [c for c in build_balanced_cases(_project(example)) if c.hand == "R"]
+    rolling = [c for c in build_balanced_cases(_project(example))
+               if c.hand == "R" and c.label in ROLLING_WING_CONDITIONS]
     assert rolling, f"{example}: no rolling case"
     for case in rolling:
         roll = [ld for ld in case.loads if ld.source == "closure-roll"]
@@ -709,7 +773,7 @@ def test_the_case_closes_in_all_six_dof(example):
 
 @pytest.mark.parametrize("example", _with_cases())
 def test_the_lateral_dof_are_untouched(example):
-    """No **applied** load in any shipped family has a side component (**G5**).
+    """No **applied** load in the symmetric families has a side component (**G5**).
 
     ``Fy``/``Mz`` are computed rather than assumed so B8a's lateral cases inherit
     a complete resultant; this pins that today no applied load creates one, which
@@ -725,8 +789,16 @@ def test_the_lateral_dof_are_untouched(example):
     below a card the deck would even print. Bounded rather than asserted exactly
     zero, because rounding the residual to zero to make the claim exact would be
     a rounding dressed as physics.
+
+    B8a-3 scopes it to the **symmetric and rolling** families, which is what it
+    always meant: the lateral family exists precisely to apply a side load, and
+    its own statement of the same kind is
+    :func:`test_the_symmetric_half_of_a_lateral_case_still_closes` -- strip the
+    fin set out and this claim holds again, to the last digit.
     """
     for case in build_balanced_cases(_project(example)):
+        if is_lateral(case):
+            continue
         applied = [ld for ld in case.loads if not ld.source.startswith("closure-")]
         assert all(ld.fy == 0.0 and ld.mz == 0.0 for ld in applied), case.label
         assert case.residual_fy == 0.0, case.label
@@ -739,6 +811,150 @@ def test_the_lateral_dof_are_untouched(example):
         assert lateral < 1e-9 * case.n_w, f"{case.label}: {lateral} lb of side load"
 
 
+# --------------------------------------------------------------------------- #
+# The B8a-3 gates (plan 13 §7): G9, G10, and the L-6 predicate
+# --------------------------------------------------------------------------- #
+#: **G10.** What each lateral case *is*, per fixture: the net applied fin side
+#: load (lb), the lateral load factor it produces (g), and the yaw and roll
+#: accelerations (deg/s^2). Four numbers per condition, pinned in both
+#: directions -- these are the whole answer of a rudder or gust case, and there
+#: is no printed oracle for any of them, so a stated measurement is the gate
+#: (``CLAUDE.md`` practice 2).
+#:
+#: Three of them are *not* free parameters and are asserted structurally as well
+#: as pinned: ``n_y`` is ``L_v / W`` exactly (the ``Sum Fy = 0`` of plan 13 §2),
+#: the yaw follows from the same ``Izz``/``Ixz`` tensor B8a-2 pinned, and the
+#: roll is the fin's own moment about the CG (asserted in
+#: :func:`test_the_roll_moment_is_the_applied_couple`). The fin loads themselves
+#: are SELECT's, unchanged -- see :func:`sloads.modules.balance.fin_sets`.
+#:
+#: The yaw figures are **not** those of plan 13 §3.1: those were measured against
+#: the placement-only ``Izz`` that preceded L-3. Against the shipped tensor
+#: ga6 ``SUDDEN RUDDER`` is 178.05 deg/s^2 rather than 205.7 -- a ratio of 0.866
+#: where the ``Izz`` ratio alone would give 0.886, the difference being the
+#: ``Ixz`` coupling. Plan 13 §7 is amended to these.
+_LATERAL_CASE_NUMBERS = {
+    "ga6_normal.project.json": {
+        "SUDDEN RUDDER": (585.7113, +0.172268, +178.0465, -12.0373),
+        "YAW TO SIDESLIP": (-97.7614, -0.028753, -19.4378, +3.2401),
+        "YAW 15 NEUTRAL": (-525.7482, -0.154632, -151.9110, +11.7518),
+        "SIDE GUST": (603.9904, +0.177644, +185.5132, -20.1640),
+    },
+    "concept_regional_jet.project.json": {
+        "SUDDEN RUDDER": (6907.3247, +0.209313, +51.5652, -57.7489),
+        "YAW TO SIDESLIP": (-3548.1801, -0.107521, -20.8441, +31.1333),
+        "YAW 15 NEUTRAL": (-8042.6960, -0.243718, -55.6995, +68.3709),
+        "SIDE GUST": (7080.4238, +0.214558, +42.9290, -77.8823),
+    },
+}
+
+
+@pytest.mark.parametrize("example", _with_cases())
+def test_the_lateral_cases_are_pinned(example):
+    """**G10.** Every lateral case's applied load and the motion it causes.
+
+    The starboard case is the computed one; the port twin is its mirror and is
+    checked as such by :func:`test_the_handed_twins_are_mirror_images`, so the
+    pins are stated once.
+    """
+    want = _LATERAL_CASE_NUMBERS[example]
+    got = {c.label: c for c in build_balanced_cases(_project(example))
+           if is_lateral(c) and c.hand == "R"}
+    assert sorted(got) == sorted(want), f"{example}: {sorted(got)}"
+    assert sorted(got) == sorted(BALANCED_VTAIL_CONDITIONS), example
+
+    for label, (fin, ny, r_dot, p_dot) in want.items():
+        case = got[label]
+        where = f"{example} {label}"
+        assert fin_load(case) == pytest.approx(fin, rel=1e-4), (
+            f"{where}: fin side load {fin_load(case):.4f} lb")
+        assert case.delta_ny == pytest.approx(ny, rel=1e-4), (
+            f"{where}: Ny {case.delta_ny:+.6f} g")
+        # ...and Ny is not a fitted number: it is Sum Fy = 0, i.e. L_v / W.
+        assert case.delta_ny == pytest.approx(
+            fin_load(case) / case.weight_lb, rel=1e-12), where
+
+        got_p, _, got_r = (math.degrees(v) for v in
+                           radians_per_s2((case.p_dot, case.q_dot, case.r_dot)))
+        assert got_r == pytest.approx(r_dot, rel=1e-4), (
+            f"{where}: yaw acceleration {got_r:+.4f} deg/s^2")
+        assert got_p == pytest.approx(p_dot, rel=1e-4), (
+            f"{where}: roll acceleration {got_p:+.4f} deg/s^2")
+
+
+@pytest.mark.parametrize("example", _with_cases())
+def test_the_symmetric_half_of_a_lateral_case_still_closes(example):
+    """**G9.** The residual gate that *does* apply to a lateral case.
+
+    Plan 11's 1 % residual gate is meaningless laterally by construction:
+    ``residual_fy``/``residual_mz`` before closure **are** the fin load in full,
+    because nothing in an airplane balances a rudder kick -- it yaws, and the
+    closure is that yaw. (The same standing ``ACRL``'s roll residual has had
+    since B7.) Gating them would either be vacuous or force a fictitious
+    balancing load into the case.
+
+    What must still hold is that adding the fin set broke nothing in the half
+    that *does* balance: strip the ``vtail-air`` loads out and the symmetric
+    residual is unchanged to the last digit -- which it is *exactly*, and for a
+    reason worth stating: the fin set carries ``fy`` and ``mz`` only, so it
+    cannot contribute to ``Fx``/``Fz``/``My`` at all. Asserted rather than
+    argued, because a frame-map slip -- the fin's normal force landing back on
+    ``fz`` -- is precisely the error that would break it, and it would break it
+    silently.
+    """
+    project = _project(example)
+    cgs = {c.name: c for c in project.flight_loads.cg_cases}
+    lateral = [c for c in build_balanced_cases(project) if is_lateral(c)]
+    assert lateral, f"{example}: no lateral case"
+    for case in lateral:
+        cg = cgs[case.cg]
+        where = f"{example} {case.label}{case.hand}"
+        applied = [ld for ld in case.loads
+                   if not ld.source.startswith("closure-")]
+        half = [ld for ld in applied if ld.source != "vtail-air"]
+        fx, fy, fz, mx, my, mz = resultant6(half, (cg.xcg, 0.0, cg.zcg))
+
+        assert fx == pytest.approx(case.residual_fx, rel=1e-12), f"{where} Fx"
+        assert fz == pytest.approx(case.residual_fz, rel=1e-12), f"{where} Fz"
+        assert my == pytest.approx(case.residual_my, rel=1e-12), f"{where} My"
+        # The symmetric half is symmetric: no side force, and its roll and yaw
+        # are summation noise rather than load.
+        assert fy == 0.0, f"{where}: the symmetric half carries {fy} lb of Fy"
+        assert abs(mx) < 1e-9 * case.n_w * case.semi_span, f"{where} Mx"
+        assert abs(mz) < 1e-9 * case.n_w * case.semi_span, f"{where} Mz"
+
+        # ...and the lateral residual IS the fin load, not a balance error.
+        assert case.residual_fy == pytest.approx(fin_load(case), rel=1e-12), where
+
+
+def test_the_handedness_predicate():
+    """The **L-6 drift guard**: what makes a case handed, stated in isolation.
+
+    ``is_handed`` reads the *distribution* and not the resultant, which is the
+    whole of decision L-6: ``ga6_normal``'s ``YAW TO SIDESLIP`` nets -97.8 lb of
+    side force out of parts worth -683 and +586, and a net-based predicate would
+    mint it unhanded on that near-cancellation and assemble a rudder-kick case
+    as a symmetric one. The two-strip set below is that failure in miniature.
+    """
+    def load(**kw):
+        return BalancedLoad(x=0.0, y=0.0, z=0.0, **kw)
+
+    n_w = 1000.0
+    assert not is_handed([], n_w)
+    assert not is_handed([load(fz=500.0), load(fz=-500.0, my=3.0)], n_w)
+
+    # Nets to zero, but each half is a real side load: handed.
+    assert is_handed([load(fy=400.0), load(fy=-400.0)], n_w)
+    # A roll or yaw component is enough on its own.
+    assert is_handed([load(mx=1.0)], n_w)
+    assert is_handed([load(mz=1.0)], n_w)
+
+    # The threshold is a fraction of n*W, so it means the same on any airplane.
+    just_under = 0.4 * HANDEDNESS_TOL * n_w
+    assert not is_handed([load(fy=just_under), load(fy=just_under)], n_w)
+    assert is_handed([load(fy=just_under), load(fy=just_under)], n_w / 10.0)
+
+
 @pytest.mark.parametrize("example", _with_cases())
 def test_the_handed_twins_are_mirror_images(example):
     """The port twin is the starboard case reflected -- pairwise, load by load.
@@ -747,6 +963,12 @@ def test_the_handed_twins_are_mirror_images(example):
     longitudinal and pitching balance is the same case), and everything odd
     reverses. Checked on the loads themselves rather than on totals, because a
     totals-only check passes for a case that reflected nothing at all.
+
+    **G7**, extended by B8a-3 to the lateral family, where the mirror has a
+    physical name: the port twin of a rudder kick is the *opposite* kick, the
+    ``-beta`` of a ``+beta`` case. That makes the applied set odd as well as the
+    closure -- the fin's ``fy`` and its ``mz`` torsion both reverse -- which the
+    rolling family, whose applied loads are all symmetric, never exercised.
     """
     cases = build_balanced_cases(_project(example))
     pairs = [(a, b) for a, b in zip(cases, cases[1:])
@@ -762,6 +984,10 @@ def test_the_handed_twins_are_mirror_images(example):
         assert left.p_dot == -right.p_dot
         assert left.r_dot == -right.r_dot
         assert left.delta_ny == -right.delta_ny
+        assert left.residual_fy == -right.residual_fy
+        assert left.residual_mx == -right.residual_mx
+        assert left.residual_mz == -right.residual_mz
+        assert fin_load(left) == -fin_load(right)
         # Even under the mirror: the twin is the same case in these DOF.
         assert left.residual_fz == right.residual_fz
         assert left.residual_fx == right.residual_fx
