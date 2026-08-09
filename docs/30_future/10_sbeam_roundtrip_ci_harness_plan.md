@@ -1,8 +1,9 @@
 # Design note — sbeam round-trip CI harness
 
 **Backlog item:** `[E] sbeam round-trip CI harness` (raised 2026-08-05, process
-review R9). **Status:** design agreed 2026-08-08 (decisions S-1…S-9 below), not
-yet implemented. **Closure tier:** M — no calc-math change and no deliverable
+review R9). **Status:** **SHIPPED 2026-08-08** (mission phase 1, step 2);
+decisions S-1…S-9 below, all implemented as written except where §10 records
+otherwise. **Closure tier:** M — no calc-math change and no deliverable
 byte change, but new dependency surface, a new CI job and a new
 `sloads/export/` module. Documented to L depth because the acceptance *is* a
 stated physics gate (`CLAUDE.md` required practice 2), and because it is the
@@ -465,3 +466,79 @@ it belongs in `00_backlog.md` under **Open defects**, not inside this step.
 the only place with real design content. Step 1 and step 5 are ~30 lines of
 configuration. The S-2 choice (body/tail wrappers) is what moves this from the
 backlog's S–M to M — the wing-only variant would be S.
+
+---
+
+## 10. What shipped, and where it departed from this note (2026-08-08)
+
+Delivered: `sloads/export/roundtrip.py` (`solve_deck`, `wrap_as_stick_model`,
+`total_reaction`, `Support`, `Topology`), `tests/test_sbeam_roundtrip.py`
+(24 solver tests plus 7 wrapper tests that need no solver), the `sbeam` fixture
+in `tests/conftest.py`, the pinned `solver` extra and the `roundtrip` marker in
+`pyproject.toml`, the `sbeam-roundtrip` job in `ci.yml`, and
+`.github/workflows/sbeam-drift.yml`. Acceptance §6 held: **no exported byte
+changed**, so no digest was regenerated.
+
+Four departures, each forced by what the decks actually contain:
+
+1. **The body support is `1234` + `23`, not "z at two stations plus x at one."**
+   §3.1's 3-2-1 is three constraints, not six, and cannot be completed into a
+   determinate set on a **collinear** node line: no combination of translation
+   constraints restrains rotation about the beam axis, and the solve is singular.
+   Beam elements carry rotational stiffness at their nodes, so the collinear
+   analog constrains that rotation directly — six constraints, no redundancy,
+   reactions still fixed by statics alone.
+2. **B-c became the whole cumulative table, not the aft-most element's shear.**
+   That element carries the last station's load, so its shear is *not* zero
+   (measured: −136.79 lb on `ga6_normal`); what vanishes at a free end is the
+   bending, trivially. The available statement is far stronger and is the body's
+   analog of W-c/W-d: sbeam is handed the `FORCE` cards and the `GRID`
+   coordinates and must reproduce `body_loads`' entire Ch 15 cumulative shear and
+   bending table, whose terminal value being zero *is* the deck header's
+   moment-equilibrium claim.
+3. **The wrapper needs node groups.** The tail deck holds **two disjoint beams** —
+   the h-tail and the v-tail, each stated from its own leading edge — so their
+   chord stations interleave in `x` and their first stations are *coincident*.
+   One element run through them solves happily and means nothing, which is a
+   silent failure rather than a loud one; `groups` makes the structures explicit
+   and a test pins the consequence. Coincident nodes *within* a run are real too
+   (`concept_regional_jet` carries the tail air load at exactly a mass lump's
+   station) and are rigidly tied rather than chained.
+4. **The assembled deck needed a `STAR` topology and no new support.** It ships
+   with case control, `GRID`s and its own determinate `SPC1` but **no elements** —
+   a load set on a node cloud, which is all a load deliverable needs to be. The
+   wrapper adds a tree of bars and changes nothing else, because the support
+   under test must be the one the deliverable ships with.
+
+**Solver finding, filed for sbeam, not for sloads.** `recover_reactions`
+subtracts the *unreduced* applied vector at the constrained DOFs, so a load a
+rigid element transfers onto a constrained node is never subtracted and comes
+back out as reaction: on `concept_regional_jet`'s fuselage the aft support
+reported 1738.13 lb against an applied set closing to 0.007 lb — to the pound,
+the tied node's own load. The harness supports away from tied nodes
+(`roundtrip._supportable`), which costs nothing because determinacy needs two
+distinct positions and not two particular ones.
+
+**Pin.** `sbeam @ ed23b2681feccd9fadfd2e4b829d414094c4b63c` — the commit the
+CONM2 work (plan 12) and this step's spike were both verified against.
+`origin/main` was **not** used: it dates from 2026-06-07 and lacks `MASSSET`,
+which plan 12 C6's leg will need. The weekly drift job still tracks `main`, so
+the divergence stays visible.
+
+**Not in this step:** plan 12 **C6**'s mass-deck leg (`MASSSET` + `GRAV` vs
+`mass_cards.inertia_only_cards`). It remains its own backlog item with its own
+closure tier; it is now unblocked, and the harness takes a fourth deck family
+without structural change.
+
+**One planned item deliberately NOT shipped, because this note contradicts
+itself about it.** §1.1 says the wing deck's `$` header "gains a line naming the
+clamp as the **centerline** node and its reaction as the **half-span total**",
+while acceptance §6 says "no exported byte changes ... if one appears, something
+in step 2 leaked into the shipping path; **stop**". A `$` line in
+`stick_model_bdf` is an exported byte change and forces an Imperial digest
+regeneration. The explicit stop-condition won: the harness asserts what the deck
+claims and nothing was added to the deck. The header line is still worth having —
+it is the guard against a consumer reading a centerline reaction as a wing root
+design load — and it pairs naturally with the `[V]` "wing deck `$` comments
+overrun 72 columns" backlog item, which changes the same bytes and needs the same
+single digest regeneration. Ship the two together.

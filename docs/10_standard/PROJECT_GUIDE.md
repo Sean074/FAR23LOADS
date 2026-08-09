@@ -191,6 +191,7 @@ FAR23LOADS/
 │   ├── mass_distribution.py      # MASS SSOT: weight.items -> per-component station inertia (B1)
 │   │   └── export/mass_cards.py  # CONM2/MASSSET mass model for sbeam (C1-C5)
 │   │   └── export/balanced_deck.py # assembled full-span free-free deck (B5)
+│   │   └── export/roundtrip.py     # solve an exported deck in the real sbeam (step 2; test-only use)
 │   ├── validation.py             # pure input-consistency predicates (ConsistencyWarning list; Phase E3)
 │   ├── vn_diagram.py             # pure V-n diagram geometry: stall/manoeuvre/gust polylines (Phase E3)
 │   ├── fuselage_moment.py        # pure Munk slender-body fuselage dCm/dα estimator (off-by-default; Step G4)
@@ -498,3 +499,34 @@ ruff check sloads/ cli.py      # lint
 ```
 
 See [`PROGRAM_SPEC.md`](PROGRAM_SPEC.md) for the per-module specification.
+
+### The `solver` extra and the sbeam pin
+
+The round-trip gate (step 2) solves the exported decks in the **real sbeam**, so
+it needs that repository installed. It is a separate extra, and `dev` does not
+pull it in — `pip install -e '.[dev]'` stays `scipy`-free and fast for everyone
+not working at the export boundary:
+
+```bash
+pip install -e '.[solver]'       # the pinned sbeam, for the round-trip gate
+pytest -m roundtrip              # just that gate (skips if sbeam is absent)
+```
+
+Without sbeam those tests **skip**; with `SLOADS_REQUIRE_SBEAM=1` set (as the
+`sbeam-roundtrip` CI job does) a missing sbeam is a **failure** instead, so a
+broken install cannot report green.
+
+**The pin is a claim, not a convenience.** `pyproject.toml` pins sbeam by commit
+SHA. Bumping it asserts that the new sbeam still honours the deck contract — the
+same posture `tests/imperial_baseline.py` takes about digest regeneration — so
+the bump is a deliberate act with a recorded result:
+
+1. run the weekly `sbeam drift` workflow on demand (`workflow_dispatch`) to see
+   what `main` does with the current gate, or install the candidate SHA locally;
+2. change the SHA in `pyproject.toml`, `pip install -e '.[dev,solver]'`;
+3. `pytest -m roundtrip` must be green **before** the bump is committed;
+4. record the bump in `CHANGELOG.md` with the sbeam commit subject.
+
+A red drift run is a notification that the pin needs a look — never a merge
+block. Design note:
+[`../30_future/10_sbeam_roundtrip_ci_harness_plan.md`](../30_future/10_sbeam_roundtrip_ci_harness_plan.md).

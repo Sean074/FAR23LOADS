@@ -624,8 +624,21 @@ return strings (with thin `write_*` file wrappers), and do no physics.
   in-session values, and the JSON editor warns on the raw dict at Apply
   (post-coercion the built project can no longer show what was typed).
 - **Validation:** force/moment closure (cards re-summed = NETLOADS root totals);
-  a self-contained free-field reader round-trips the cards in tests; the stick
-  deck parses **and solves SOL 101** in the real sbeam (manual verification step).
+  a self-contained free-field reader round-trips the cards in tests; and the
+  decks are **solved in the real sbeam by a standing CI gate** (step 2,
+  `tests/test_sbeam_roundtrip.py`, job `sbeam-roundtrip`) — no longer a manual
+  verification step. The gate covers `ga6_normal` + `concept_regional_jet` ×
+  {Imperial, SI} and asserts, per case: the wing stick deck's reaction and its
+  element-1 end-B internal loads against the NETLOADS root quadrature; the
+  fuselage deck's whole Ch 15 cumulative shear/bending table, recovered by the
+  solver from the cards and `GRID`s alone, on a determinate support whose
+  reactions must be zero; the tail deck's total and chordwise first moment; and
+  the assembled full-span deck's six reaction components, all zero. Body and tail
+  are solved through a **test-only** stick wrapper (`sloads/export/roundtrip.py`)
+  that supplies elements from the deck's own `GRID` cards and is never written by
+  the CLI or the GUI; control-surface decks are permanently out of scope (their
+  chordwise `x` is a fraction of chord, so there is no geometry to solve). The
+  solver enters as a pinned optional extra, `pip install -e '.[solver]'`.
 - **CLI:** `python cli.py --export-sbeam <prefix> <project.json> [--stick-model]`.
 - **Deck case identity — `SUBCASE`/`SID` numbering (M4-2).** Every deck's
   `SUBCASE` and its load-set `SID` are the **same integer**, and that integer is

@@ -1,0 +1,47 @@
+# Interface drift against sbeam's moving tip.
+#
+# The round-trip gate in ci.yml runs against a **pinned** sbeam commit, so an
+# unrelated sbeam change can never redden an unrelated sloads PR. That pin is
+# also how interface drift hides: nothing would notice sbeam changing under us
+# until someone bumped it and had to debug the difference cold.
+#
+# This job runs the same gate against sbeam `main` once a week and is
+# `continue-on-error` throughout: its failure is a notification that the pin
+# needs a look, never a merge block. Bump procedure:
+# docs/10_standard/PROJECT_GUIDE.md, "sbeam pin".
+name: sbeam drift
+
+on:
+  schedule:
+    # Mondays, 06:00 UTC -- before the working week, after the weekend's commits.
+    - cron: "0 6 * * 1"
+  workflow_dispatch:
+
+jobs:
+  drift:
+    runs-on: ubuntu-latest
+    continue-on-error: true
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Install dependencies (sbeam at main, NOT the pin)
+        run: |
+          pip install --upgrade pip
+          pip install -e '.[dev]'
+          pip install "sbeam @ git+https://github.com/Sean074/sbeam.git@main"
+
+      - name: Report the sbeam commit under test
+        run: pip show sbeam
+
+      - name: Round-trip gate against sbeam main
+        continue-on-error: true
+        env:
+          SLOADS_REQUIRE_SBEAM: "1"
+          STREAMLIT_SERVER_HEADLESS: "true"
+        run: pytest -m roundtrip -v --tb=short --no-cov

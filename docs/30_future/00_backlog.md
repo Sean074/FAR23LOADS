@@ -89,9 +89,8 @@ the feature-branch work below begins.
 
 | Phase | Step | What ships | Plan / item | Depends on |
 |---|---|---|---|---|
-| **1 — export-boundary gates** | 2 | sbeam round-trip CI gate (wing + body/tail wrappers, negative tests, CI job) | [plan 10](10_sbeam_roundtrip_ci_harness_plan.md) | step 1 ✅ |
 | **3 — balanced wing cases (aim 2)** | 6 | Antisymmetric wing (`ACRL`/`TORS`) + the left/right reflection machinery (B-6/B-7) | plan 11 **B7** | step 5 ✅ |
-| **4 — empennage** | 7 | Distributed h-tail/v-tail loads on the LRA (spanwise strips, GRID+FORCE+MOMENT) | [plan 09](09_distributed_empennage_loads_plan.md) **T1–T5** | steps 1–2 (its T-11 gate) |
+| **4 — empennage** | 7 | Distributed h-tail/v-tail loads on the LRA (spanwise strips, GRID+FORCE+MOMENT) | [plan 09](09_distributed_empennage_loads_plan.md) **T1–T5** | steps 1–2 ✅ (its T-11 gate) |
 | | 8 | Empennage balanced cases: **±β yaw pairs**, lateral closure design note first (B-8) | plan 11 **B8a** | steps 6, 7 |
 | | 9 | Discrete hinge/actuator controls, T-tail transfer | plan 09 **T6–T8** | step 7 (opportunistic) |
 | **5 — landing** | 10 | Ground-case distributed loads, gear reactions as applied `FORCE` cards | **M4-6** | — (design-note gated) |
@@ -150,6 +149,14 @@ regenerate `tests/fixtures_imperial/digests.json`, and widen
 from `body/tail/control` to include `wing` — the test already documents the
 carve-out. Tier S. Effort: trivial; the digest regeneration is the whole cost.
 
+**Pair it with the centerline-clamp header line (2026-08-08, from step 2).**
+Plan 10 §1.1 wants one more `$` line on the wing stick deck — naming the clamp as
+the **centerline** node and its reaction as the **half-span total**, so no
+consumer reads it as a wing root design load (the side-of-body item, step 13, is
+the real fix). It was not shipped with step 2 because that step's acceptance
+forbade any exported byte change. It changes the same wing Imperial bytes as this
+item and needs the same one digest regeneration, so the two should land together.
+
 ### [V] Wing-tank fuel is not separable in the item database *(new 2026-08-08, found by the step-B1 wing tie)*
 `mass_distribution.wing_mass_tie` asserts the two models of the same physical
 wing agree: `Σ(items tagged wing) == 2 × (panel_weight_lb + Σ concentrated)`.
@@ -195,8 +202,13 @@ and `sbeam.gpwg.compute_gpwg` reproduces sloads' mass, CG-x and CG-z for all fou
 ga6 payload cases exactly — but a hand check is not a gate, and it is what caught
 the overlay-baseline defect in the first place.
 
-Fold into step 2's harness as its third leg (wing deck, body/tail wrappers, mass
-deck). Note the scope limit already documented in `mass_cards.mass_check_deck`:
+**Unblocked 2026-08-08: step 2 shipped**, so the harness this needs exists --
+`sloads/export/roundtrip.py` (`solve_deck`, `wrap_as_stick_model`) and
+`tests/test_sbeam_roundtrip.py`, with the `solver` extra and the
+`sbeam-roundtrip` CI job already in place. What remains is this leg alone:
+solve the mass-check deck (`MASSSET` + `GRAV`) and compare the recovered nodal
+inertia loads with `mass_cards.inertia_only_cards`, card for card. Add it as a
+fourth deck family beside wing / body-tail / assembled. Note the scope limit already documented in `mass_cards.mass_check_deck`:
 `GRAV` is a uniform translational field and sbeam has no `RFORCE`, so
 rotational-acceleration inertia stays checked by sloads-side closure only. Tier M.
 Effort: S once step 2 exists.
@@ -237,25 +249,6 @@ fixtures' cases to loadings their databases can reach.
 Pinned in `tests/test_balance.py::test_which_conditions_assemble_is_pinned`, so
 the coverage is a recorded fact rather than a silent gap, and it goes red the day
 the fixtures are fixed. Tier M–L. Effort: M. Pairs with the sibling item above.
-
-### [E] sbeam round-trip CI harness *(new 2026-08-05, process review R9)* — **step 2**
-C4's acceptance ("the exported BDF parses and solves in sbeam") was checked once
-and never gated; the mission's core claim currently has no regression test.
-Build a CI job/test that exports governing cases via `--export-sbeam`, runs an
-actual sbeam solve on the deck, and gates on: solve succeeds; reactions balance
-the applied cards; spot-check values (root shear/bending vs the sloads span CSV)
-within tolerance. **This is the single highest-value new test in the project.**
-Full design note, decisions S-1…S-9 and step detail:
-[`10_sbeam_roundtrip_ci_harness_plan.md`](10_sbeam_roundtrip_ci_harness_plan.md).
-**Spike (2026-08-08): the round trip already works** — ga6's stick deck solves
-in sbeam in 0.6 s and the recovered reactions/bar forces match the span CSV
-exactly, so this is a harness item, not a physics one. Scope per decision S-2:
-the wing stick model **plus test-only stick wrappers** for the body and tail
-decks; control decks are out (no chord length, hence no geometry). Effort: M.
-**Step 1 shipped 2026-08-08**, so the shared summation owner
-(`sloads/export/equilibrium.py`: `parse_cards`, `card_totals`, `resultant`,
-`deck_resultants`, `closes`) and the body/tail `GRID` cards the wrappers need
-are in place — this item is unblocked.
 
 ### [E] Balanced full-airframe load cases (free-free) *(new 2026-08-08, user)* — **steps 3, 5, 6, 8, 11**
 A full airplane balanced case — wing tip to wing tip, nose to tail — that needs
@@ -378,9 +371,10 @@ pending 0.4.0 release, with a merge to `main` at each phase boundary — the
 schema bump, the digest regeneration and the eight-step span all argue against
 landing this piecemeal on a release-ripe trunk.
 
-**Sequencing gate (decision T-11):** the two export-boundary items above
-(**global equilibrium invariant**, **sbeam round-trip CI harness**) land
-**first**. T4's acceptance is "two new rows in the plan-07 §4 invariant table",
+**Sequencing gate (decision T-11): satisfied 2026-08-08.** Both export-boundary
+items (**global equilibrium invariant** step 1, **sbeam round-trip CI harness**
+step 2) have landed, so this item is unblocked; T4's new deck family should be
+added to *both* gates as it ships. T4's acceptance is "two new rows in the plan-07 §4 invariant table",
 not "author the checker"; and the checker is where the tail double-count rule
 gets decided — `body_loads` already carries the tail air load as a point
 station in the 1001 GID band, so a combined-airframe sum must declare which

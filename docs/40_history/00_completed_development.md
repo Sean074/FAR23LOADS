@@ -10,6 +10,73 @@ Acceptance**, **Key decisions**.
 
 ---
 
+## sbeam round-trip CI gate (mission phase 1, step 2 — plan 10 — complete 2026-08-08, tier M)
+
+**Objective.** Make the mission's core claim testable. "An exported deck solves
+in sbeam with verified global equilibrium, continuously in CI" rested on a manual
+check performed once, in 2026, and never repeated. The 2026-08-08 spike showed
+the round trip already agreed exactly — so this is a harness step, not a physics
+one, and its whole value is turning an unrepeated manual act into a standing gate.
+
+**Result.** `pytest -m roundtrip` — 24 solver tests over `ga6_normal` +
+`concept_regional_jet` × {Imperial, SI} × {wing, body, tail, assembled}, plus 7
+wrapper tests that need no solver — green, in its own blocking CI job. **No
+exported byte changed** (acceptance §6), so no digest was regenerated.
+
+**Deliverables.** `sloads/export/roundtrip.py` (`solve_deck`,
+`wrap_as_stick_model`, `total_reaction`, `Support`, `Topology`);
+`tests/test_sbeam_roundtrip.py`; the `sbeam` fixture in `tests/conftest.py`; the
+pinned `solver` extra and the `roundtrip` marker in `pyproject.toml`; the
+`sbeam-roundtrip` job in `ci.yml`; `.github/workflows/sbeam-drift.yml`.
+
+**Test / Acceptance.** The assertions that carry weight have **two independent
+producers**: the wing deck's reaction and element-1 end-B internal loads are
+checked against the NETLOADS quadrature (`r.stations[0]`) while the cards come
+from `wing_nodal_loads`; the fuselage deck's *entire* Ch 15 cumulative shear and
+bending table is reassembled by sbeam from the `FORCE` cards and `GRID`
+coordinates alone; and the free-free legs target the constant zero. Three
+mutation tests assert the gate **fails** — a wing `FORCE` scaled by 1.01, two
+`SUBCASE`s' `LOAD` ids swapped, and a body `GRID` displaced by 1 %, the last of
+which leaves every force sum closing exactly and can only be caught by solving.
+Without sbeam the suite skips and stays green; with `SLOADS_REQUIRE_SBEAM=1` and
+sbeam absent it fails.
+
+**Key decisions, and the four places the design note was wrong** (full detail in
+plan 10 §10):
+
+- **The determinate body support is `1234` + `23`, not the note's 3-2-1.** Three
+  translation constraints are not six, and on a **collinear** node line no
+  translation scheme restrains rotation about the beam axis — the solve is
+  singular. Beam nodes carry rotational stiffness, so the collinear analog
+  constrains that rotation directly.
+- **B-c became the whole cumulative table.** The note's "aft-most element shear
+  ~ 0" is false (that element carries the last station's load: −136.79 lb on
+  ga6); what is true, and far stronger, is the station-by-station comparison.
+- **The tail deck is two disjoint beams.** The h-tail and v-tail chord lines are
+  each stated from their own leading edge, so their stations interleave and their
+  first stations are coincident. Wrapping them as one run solves happily and means
+  nothing — a silent failure — hence the wrapper's `groups`, and a test pinning
+  the consequence.
+- **The assembled deck ships with no elements.** It is a load set on a node cloud,
+  which is all a load deliverable needs to be; the wrapper adds a tree of bars and
+  keeps the deck's own determinate support, since that support is what is under
+  test.
+- **The pin is `ed23b26`, not `origin/main`** — the commit plan 12 and this
+  step's spike were verified against; `main` predates `MASSSET`, which C6 needs.
+  The weekly drift job tracks `main` non-blockingly.
+
+**Finding recorded against sbeam (not sloads).** `recover_reactions` subtracts
+the unreduced applied vector at constrained DOFs, so a load a rigid element
+transfers onto a constrained node reappears as reaction — measured at 1738.13 lb
+on `concept_regional_jet`'s fuselage, exactly the tied node's own load, against
+an applied set closing to 0.007 lb. The harness supports away from tied nodes.
+
+**Unblocks.** Plan 12 **C6**'s solver-side mass leg (a fourth deck family, no
+structural change needed) and plan 09's **T-11** sequencing gate, which required
+both export-boundary items.
+
+---
+
 ## Balanced free-free airplane cases (mission phase 3, step 5 — plan 11 B2–B6 — complete 2026-08-08, tier L)
 
 **Objective.** Aim 2, in the user's words: *a full airplane balanced case — wing

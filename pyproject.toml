@@ -40,6 +40,20 @@ dev = [
     #   .venv/bin/radon mi -s app/views/
     "radon",
 ]
+# The sbeam round-trip gate's solver (decision S-1, design note
+# docs/30_future/10_sbeam_roundtrip_ci_harness_plan.md). Deliberately NOT in
+# `dev`: `pip install -e '.[dev]'` stays scipy-free and fast for everyone not
+# working at the export boundary, and the gate skips when it is absent.
+#
+# **Pinned by commit, on purpose.** An unrelated sbeam commit must never redden
+# an unrelated sloads PR, and bumping the pin is a *claim* that the new sbeam
+# still honours the deck contract -- the same posture tests/imperial_baseline.py
+# takes about digest regeneration. Bump procedure: PROJECT_GUIDE.md §"sbeam pin".
+# The weekly sbeam-drift workflow tracks `main` non-blockingly so drift is
+# visible without gating.
+solver = [
+    "sbeam @ git+https://github.com/Sean074/sbeam.git@ed23b2681feccd9fadfd2e4b829d414094c4b63c",
+]
 
 [project.scripts]
 sloads = "cli:main"
@@ -65,6 +79,13 @@ testpaths = ["tests"]
 python_files = ["test_*.py"]
 python_functions = ["test_*"]
 addopts = "--cov=sloads --cov-report=term-missing"
+markers = [
+    # The sbeam round-trip gate. Selected by its own CI job (`pytest -m roundtrip`,
+    # decision S-8) so the failure is named in the PR check list rather than
+    # buried in a 900-test run; in the normal matrix these tests skip, because
+    # `dev` does not install the solver.
+    "roundtrip: needs the real sbeam solver installed (`pip install -e '.[solver]'`)",
+]
 
 [tool.coverage.run]
 branch = true

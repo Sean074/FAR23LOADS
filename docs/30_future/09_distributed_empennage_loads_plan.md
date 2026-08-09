@@ -3,8 +3,13 @@
 **Status:** assessment + step-by-step development guide; decisions T-1…T-7 taken
 2026-08-08 (user), **T-8…T-11 taken 2026-08-08** in the development-plan review
 (they supersede the T-3 inertia wording and the §3.1/§4 half-vs-full
-bookkeeping). Not yet implemented; **blocked by decision T-11** on the plan-07
-equilibrium invariant + sbeam round-trip harness. **Closure tier: L** (new physics, new
+bookkeeping). Not yet implemented; decision T-11's gate is **satisfied as of
+2026-08-08** -- the plan-07 equilibrium invariant (step 1) and the sbeam
+round-trip harness (step 2) have both landed, so this item is unblocked. T4 adds
+its deck family to **both** gates: two rows in the plan-07 §4 invariant table and
+a tail leg in `tests/test_sbeam_roundtrip.py` (whose wrapper already solves the
+chordwise tail deck, and whose `groups` argument exists because the h-tail and
+v-tail are separate beams -- the spanwise decks will need the same treatment). **Closure tier: L** (new physics, new
 result slices, schema/contract change — full trail per the CLAUDE.md tier table).
 
 Conventions cited throughout:

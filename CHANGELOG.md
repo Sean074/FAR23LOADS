@@ -12,6 +12,41 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **The exported decks are solved in the real sbeam, in CI** —
+  `sloads/export/roundtrip.py`, `tests/test_sbeam_roundtrip.py`, the `solver`
+  extra and the `sbeam-roundtrip` CI job (mission phase 1 step 2;
+  [plan 10](docs/30_future/10_sbeam_roundtrip_ci_harness_plan.md)). The mission's
+  claim is that a concept configuration's loads come out as a deck **that
+  solves**. That was verified once, by hand, and nothing had re-checked it since.
+
+  It is now a standing gate over `ga6_normal` + `concept_regional_jet` ×
+  {Imperial, SI}, and the assertions that matter have two independent producers:
+  - the **wing** stick deck's reaction and its element-1 end-B internal loads are
+    compared against the NETLOADS quadrature — different code from the cards;
+  - the **fuselage** deck's entire Ch 15 cumulative shear and bending table is
+    reassembled by sbeam from the `FORCE` cards and `GRID` coordinates alone;
+  - the **tail** deck's total and chordwise first moment;
+  - the **assembled full-span deck** — the primary deliverable — is solved, and
+    all six reaction components at its determinate support come out zero. That
+    is the free-free claim proved through a solver's own assembly, on the lever
+    arms it derives from the deck rather than the ones sloads used.
+
+  Body and tail are solved through a **test-only** stick wrapper that supplies
+  elements from the deck's own `GRID` cards; it is never written by the CLI or
+  the GUI, and no exported byte changed in this step. Control-surface decks stay
+  permanently out of scope — a chord *fraction* is not geometry.
+
+  **The gate is shown to bite**: three mutation tests assert it fails — a wing
+  `FORCE` card scaled by 1.01, two `SUBCASE`s' `LOAD` ids swapped, and one body
+  `GRID` displaced by 1 %, which leaves every force sum in the deck closing
+  exactly and can only be caught by solving.
+
+  sbeam enters as a **pinned** optional extra (`pip install -e '.[solver]'`), so
+  an unrelated sbeam commit can never redden an unrelated sloads PR; a weekly
+  non-blocking `sbeam drift` workflow tracks its `main` so drift is visible
+  without gating. Without sbeam installed the gate skips; the CI job sets
+  `SLOADS_REQUIRE_SBEAM=1` so a broken install fails instead of reporting green.
+
 - **Balanced free-free airplane cases** — `sloads/modules/balance.py`,
   `sloads/export/balanced_deck.py`, and a **Balanced Cases** page (mission phase 3
   step 5; plan 11 **B2–B6**). The mission's aim 2: *a full airplane balanced case,

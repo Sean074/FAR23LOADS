@@ -35,3 +35,43 @@ jobs:
         env:
           STREAMLIT_SERVER_HEADLESS: "true"
         run: pytest -v --tb=short --cov-fail-under=80
+
+  # The sbeam round-trip gate: the exported decks are handed to the real solver
+  # and its recovered loads are compared with sloads' own (design note
+  # docs/30_future/10_sbeam_roundtrip_ci_harness_plan.md, decisions S-1/S-8).
+  #
+  # Its own job, not a fourth leg of the matrix above: that keeps `pip install
+  # scipy` off the three existing legs, and names the failure ("sbeam round
+  # trip") in the PR check list instead of burying it in a 1000-test run. 3.9 is
+  # skipped for install cost only -- sbeam's own CI covers it.
+  sbeam-roundtrip:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.12"]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: "pip"
+
+      - name: Install dependencies (with the pinned solver)
+        run: |
+          pip install --upgrade pip
+          pip install -e '.[dev,solver]'
+
+      - name: Round-trip gate
+        env:
+          # Turns "sbeam is missing" from a skip into a failure. Without this a
+          # broken solver install reports green -- the exact failure mode this
+          # gate exists to end (decision S-7).
+          SLOADS_REQUIRE_SBEAM: "1"
+          STREAMLIT_SERVER_HEADLESS: "true"
+        # --no-cov: the --cov-fail-under=80 gate belongs to the full suite, and a
+        # marker-selected subset would trip it spuriously.
+        run: pytest -m roundtrip -v --tb=short --no-cov
