@@ -10,6 +10,69 @@ Acceptance**, **Key decisions**.
 
 ---
 
+## The fin's vertical placement (mission phase 4, step 8 — plan 13 B8a-1 — complete 2026-08-09, tier M)
+
+**Objective.** Give the vertical tail a place on the airplane. B8a's lateral
+balanced cases need the fin's height above the CG, because the roll moment a side
+load makes about the CG is `−Fy·(z − z_cg)` — and the load path was using zero.
+
+**Deliverables.**
+
+- `tail_geometry.fin_root_waterline` — the single owner of where a fin's root
+  sits, resolving explicit input → the T-tail relation
+  (`root_waterline_z + h_tail_z − vtail_span`) → the fuselage top
+  (`root_waterline_z + fuselage_height/2`) → a zero that announces itself. Returns
+  a `FinRoot` carrying the value, whether it was assumed, the branch that produced
+  it and the in-band sentence it owes its consumer.
+- `VTailLoadsInput.vtail_root_waterline_z` (schema **v43**, additive, no hop).
+- `tail_span` uses `planform.root_z` for the v-tail's `z_offset` instead of `0`,
+  and states the fin root and its basis in the result notes.
+- `configuration.tail_planform` reads the same owner instead of its own copy.
+- `CONVENTIONS.md` §1 (the fin has a vertical position; a v-tail station stores
+  its root in `z` and its span in `y`) and §7 (the new owner + its drift guard).
+
+**Test / Acceptance.**
+
+- `test_the_fin_root_waterline_is_pinned_per_fixture` — all five fixtures with a
+  fin: ga6 78.5, RJ 87.0 (T-tail), cessna 86.0, atr42 170.0, dhc8 180.0, each with
+  the branch that produced it.
+- `test_the_fin_sits_above_the_cg_with_the_pinned_roll_arm` — ga6 **+14.0 in**,
+  RJ **+86.0 in**, both exactly as plan 13 §5.1 predicted, with an explicit
+  *sign* assertion because the sign is what was wrong.
+- `test_the_three_view_and_the_load_path_place_one_fin_once` — the drift guard
+  for the new owner.
+- `test_the_t_tail_branch_puts_the_fin_tip_at_the_horizontal_tail`,
+  `test_an_entered_fin_root_wins_and_is_not_assumed`,
+  `test_a_fin_with_no_placement_at_all_says_so_loudly`.
+- Imperial baseline: **`sbeam/vtail_span_cards`** and **`txt/tail_span`** only,
+  on the five fixtures with a fin. Wing, body, h-tail and control decks
+  byte-identical; every Appendix A oracle unchanged. 1247 passed, ruff clean.
+
+**Key decisions.**
+
+- **L-1 (user, 2026-08-08):** explicit input with a tail-type-aware derived
+  default, marked `assumed` and stated in-band — the pattern
+  `resolve_tail_planform` already uses for the derived planform.
+- **Correction while implementing:** the fallback is `fuselage_height / **2**`,
+  not the full height the design note first wrote. That is the established
+  meaning of "the top of the fuselage" here — the three-view has drawn every fin
+  from it since Step G6 — and a load path using a different formula would have
+  silently disagreed with the sketch beside it. No quoted number moved: ga6 has
+  `fuselage_height = 0` and the RJ takes the T-tail branch.
+- **The T-tail branch is not a new convention** — it is the inverse of the
+  three-view's own default, which places a T-tail's horizontal surface at the fin
+  tip. Implementing it fixed the three-view too: the RJ was drawing its fin tip
+  18 in above the horizontal tail it carries.
+- **Generalized on first find** (`CLAUDE.md` practice 4): `configuration.py` held
+  a second copy of the formula, so the fix swept both and left a drift guard
+  rather than fixing only the caller that prompted it.
+
+**Not delivered here** (later B8a steps): the six-DOF closure (B8a-2), the
+lateral case assembly and its handed twins (B8a-3), the assembled deck and sbeam
+leg (B8a-4).
+
+---
+
 ## Release cut: **sloads 0.4.0** (the mission extension, steps 1–7), tag `v0.4.0`, 2026-08-08
 
 **Objective.** Cut the release the backlog's development sequence names as its

@@ -2,7 +2,7 @@
 
 > **Generated file — do not edit by hand.** Produced by [`docs/generate_data_dict.py`](../generate_data_dict.py) from `sloads/models.py`. Regenerate after any schema change: `.venv/bin/python docs/generate_data_dict.py`.
 
-Schema version: **42**.
+Schema version: **43**.
 
 This dictionary covers the **input** slices of `Project` (`sloads/models.py`) — the fields that make up a `project.json`. The result slices (`envelope`, `mass`, `loads`) are computed outputs and are out of scope.
 
@@ -89,6 +89,7 @@ Geometry/aero inputs for SELECT's rational vertical-tail loads (Ch 9).
 | `rudder_large_deflection_factor` | `float` | EFV (subr 10000 chart; ~1.0) | `1.0` |
 | `izz_slugft2` | `float` | 0 -> compute the default IZZ | `0.0` |
 | `vtail_span_in` | `float` | BLHTAIL (vertical-tail span, inches) | `0.0` |
+| `vtail_root_waterline_z` | `float` | 0 -> derived, marked assumed | `0.0` |
 
 ## Enumerations
 

@@ -51,6 +51,7 @@ from sloads.modules.tail_span import (  # noqa: E402
     side_scales,
     strip_spans,
 )
+from sloads.export.coordinates import tail_station_to_airplane  # noqa: E402
 from sloads.tail_geometry import HTAIL, VTAIL, half_area_centroid, resolve_tail_planform  # noqa: E402
 
 _ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -321,13 +322,64 @@ def test_the_inertia_sign_is_dalembert_not_load_opposing():
 
 
 def test_the_vtail_carries_no_inertia_and_says_so():
-    """Phase-1 scope: no lateral load factor exists, so a fin inertia load would
-    be fabricated. Stated in-band on every v-tail result."""
+    """Decision L-8: fin inertia belongs to a balanced case, not to this
+    single-condition view, because ``n_y`` is a property of the case. Stated
+    in-band on every v-tail result rather than left as a silent omission."""
     for r in _results("ga6_normal.project.json"):
         if r.component != VTAIL:
             continue
         assert not r.inertia_modelled and inertia_total(r) == 0.0
-        assert any("no lateral load factor" in n for n in r.notes)
+        assert any("balanced case" in n for n in r.notes)
+
+
+#: The fin's height above the airplane CG, per fixture. This is the quantity
+#: B8a-1 exists for: the roll moment a fin side load makes about the CG is
+#: ``-Fy*(z - z_cg)``, so the sign of this number is the sign of that moment.
+_FIN_ROLL_ARM = {
+    "ga6_normal.project.json": (107.0, 93.0, +14.0),
+    "concept_regional_jet.project.json": (156.0, 70.0, +86.0),
+}
+
+
+@pytest.mark.parametrize("example", sorted(_FIN_ROLL_ARM))
+def test_the_fin_sits_above_the_cg_with_the_pinned_roll_arm(example):
+    """B8a-1's acceptance (plan 13 §5.1).
+
+    Before this step ``tail_span`` passed ``z_offset = 0`` for the v-tail while
+    computing the fin root and discarding it, so every fin was modelled on the
+    waterline datum: ``ga6_normal``'s load centroid sat at ``z = 28.5`` against a
+    CG at 93 — **64.5 in below it** — and the RJ's landed within 1 in of its CG.
+    Both gave a roll moment that was wrong, and ga6's was wrong in sign.
+
+    A fin is above the CG. That is what this asserts, and it is deliberately a
+    *sign* assertion as well as a value one.
+    """
+    want_zc, want_zcg, want_arm = _FIN_ROLL_ARM[example]
+    project = _project(example, weight=0.0)
+    vn = {p.case: p for p in project.envelope.vn}
+    cgs = {c.name: c for c in project.flight_loads.cg_cases}
+    conditions = {c.label: c for c in project.envelope.critical.conditions
+                  if c.component == VTAIL}
+
+    planform = resolve_tail_planform(project, VTAIL)
+    for r in build_tail_span(project)[VTAIL]:
+        # A v-tail station carries the fin root in ``z`` and the span coordinate
+        # in ``y``; the airplane waterline is composed by the export mapper, so
+        # this asserts the number the deck's GRID cards actually get.
+        z = [tail_station_to_airplane(s.x, s.y, VTAIL, s.z)[2] for s in r.stations]
+        assert min(z) > planform.root_z, "stations start outboard of the root"
+        assert max(z) < planform.root_z + planform.span
+
+        total = sum(s.fz for s in r.stations)
+        z_centroid = sum(s.fz * zi for s, zi in zip(r.stations, z)) / total
+        z_cg = cgs[vn[conditions[r.case].case].cg].zcg
+        assert z_centroid == pytest.approx(want_zc, rel=1e-6)
+        assert z_cg == pytest.approx(want_zcg, rel=1e-9)
+        assert z_centroid - z_cg == pytest.approx(want_arm, rel=1e-6)
+        assert z_centroid > z_cg, (
+            f"{example} {r.case}: the fin is modelled BELOW the CG "
+            f"({z_centroid:.1f} against {z_cg:.1f}), which reverses the sign of "
+            "the roll moment its side load makes")
 
 
 # --------------------------------------------------------------------------- #

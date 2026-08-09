@@ -10,6 +10,58 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed
+
+- **The vertical tail was modelled on the waterline datum, not on the airplane**
+  (mission phase 4 step 8, [plan 13](docs/30_future/13_b8a_lateral_closure_plan.md)
+  step **B8a-1**, decision **L-1**). `tail_span` computed the fin's root
+  waterline and then discarded it, passing `z_offset = 0` for the v-tail, so
+  every fin's `GRID` cards ran from `z = 0` to its span. On `ga6_normal` that put
+  the fin's load centroid at `z = 28.5` against a CG at 93 — **64.5 in below its
+  own centre of gravity** — and on `concept_regional_jet` within 1 in of it.
+
+  Nothing shipped consumed the fin's roll arm, so no delivered number was wrong;
+  but the roll moment a side load makes about the CG is `−Fy·(z − z_cg)`, and
+  B8a's lateral balanced cases are built on it. Measured after the fix, both fins
+  sit above the CG at the arms plan 13 §5.1 predicted: `ga6_normal` **+14.0 in**,
+  `concept_regional_jet` **+86.0 in**.
+
+  - **One owner, because there were already two** — `tail_geometry.fin_root_waterline`
+    resolves the fin root (explicit input → the T-tail relation → the fuselage
+    top → a zero that says so, loudly), and both the load path **and the
+    three-view** read it. `configuration.tail_planform` had its own copy of the
+    formula; on `concept_regional_jet` that drew the fin tip 18 in above the
+    horizontal tail it is supposed to carry. Registered in `CONVENTIONS.md` §7
+    with a drift guard that fails if either grows a private copy again.
+  - **The T-tail branch is not a new convention.** It is the inverse of the
+    three-view's own default, which places a T-tail's horizontal surface at the
+    fin tip; solving that relation for the root is what keeps the two in contact
+    when `h_tail_z` is entered rather than defaulted.
+  - Every fixture's fin root, and ga6's and the RJ's roll arms, are **pinned per
+    fixture** — including a sign assertion, since the sign is what was wrong.
+
+### Added
+
+- **`VTailLoadsInput.vtail_root_waterline_z`** (schema **v43**) — the fin root
+  waterline, stated rather than derived. `0` means "derive it and mark it
+  `assumed`", which every shipped fixture still does; the derived value and the
+  branch that produced it are carried in-band on the result, the page and the
+  deck `$` header. Additive with a default, so no migration hop: a pre-v43
+  project keeps exactly the placement it would have been given.
+
+### Changed
+
+- Imperial baseline digests regenerated for **`sbeam/vtail_span_cards`** and
+  **`txt/tail_span`** on the five fixtures with a modelled fin — the v-tail deck
+  `GRID` waterlines and the in-band notes. No other channel moved: the wing,
+  body, h-tail and control decks are byte-identical and every Appendix A oracle
+  is unchanged.
+- The per-component v-tail deck's "no inertia" note now states the reason of
+  record ([plan 13](docs/30_future/13_b8a_lateral_closure_plan.md) decision
+  **L-8**): fin inertia belongs to a balanced case, because `n_y` is a property
+  of the case and not of a single-condition view — replacing "the suite has no
+  lateral load factor", which will stop being true at B8a-3.
+
 ---
 
 ## [0.4.0] — 2026-08-08

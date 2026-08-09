@@ -904,6 +904,12 @@ class VTailLoadsInput:
     # inches; the single surface, so its full span) sets the average chord
     # CAVE = SV/B. 0 disables the chordwise distribution for the vertical tail.
     vtail_span_in: float = 0.0                 # BLHTAIL (vertical-tail span, inches)
+    # Waterline of the fin root (in). **0 -> derive it** (see
+    # ``tail_geometry.fin_root_waterline``); the derived value is marked
+    # ``assumed`` and stated in-band. Plan 13 decision L-1: the fin's height above
+    # the CG is a first-order roll load in a lateral balanced case, so where it
+    # comes from is a decision of record rather than an implicit zero.
+    vtail_root_waterline_z: float = 0.0        # 0 -> derived, marked assumed
 
 
 # --------------------------------------------------------------------------- #

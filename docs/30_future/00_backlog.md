@@ -89,7 +89,7 @@ begins.
 
 | Phase | Step | What ships | Plan / item | Depends on |
 |---|---|---|---|---|
-| **4 — empennage** | 8 | Empennage balanced cases: **±β yaw pairs**, lateral closure design note first (B-8) | plan 11 **B8a** | steps 6 ✅, 7 ✅ |
+| **4 — empennage** | 8 | Empennage balanced cases: **±β yaw pairs**, lateral closure. **Design agreed 2026-08-09** — [plan 13](13_b8a_lateral_closure_plan.md), decisions **L-1…L-8** answered; ready to implement (steps B8a-1…B8a-5 there) | plan 11 **B8a**, [plan 13](13_b8a_lateral_closure_plan.md) | steps 6 ✅, 7 ✅ |
 | | 9 | Discrete hinge/actuator controls, T-tail transfer | plan 09 **T6–T7** | step 7 ✅ (opportunistic) |
 | **5 — landing** | 10 | Ground-case distributed loads, gear reactions as applied `FORCE` cards | **M4-6** | — (design-note gated) |
 | | 11 | Balanced landing cases | plan 11 **B8b** | step 6 ✅, step 10 |
@@ -129,6 +129,49 @@ asserts the *negation* plus a one-strip-width bound on the three affected
 fixtures, so the day this is fixed the suite goes red and the exception is
 deleted. Effort: S–M. Natural pairing: step 5 (balanced wing cases), which
 re-derives the same nodal set.
+
+### [E] `tail_mass` is a parallel mass model no fixture populates — the tail decks carry no inertia *(new 2026-08-09, found by the B8a decision session)*
+Plan 11 decision **B-2** made `weight.items` the mass SSOT, and B1 made
+`fuselage_mass.stations` derived from it. `TailMassInput` was never brought
+along. **No shipped fixture carries a `tail_mass` entry at all**, so
+`tail_span._surface_weight` returns 0 for both surfaces and **every h-tail deck
+on every airplane is air-only** — the "no `tail_mass` entry for this surface —
+air load only, no inertia" note fires on all six. Meanwhile `weight.items` tags
+the empennage mass correctly:
+
+| fixture | h-tail tagged | v-tail tagged | `tail_mass` |
+|---|---|---|---|
+| `ga6_normal` | 42 lb | 23 lb | none |
+| `concept_regional_jet` | 520 lb | 640 lb | none |
+
+Same class as the 427 lb fuselage discrepancy: a second mass model with nothing
+reconciling it to the SSOT. Consequence today is an *omission*, not a wrong
+number — the tail decks state their air-only basis in-band — but plan 09's T-3
+uniform-area-density inertia has therefore **never actually run on a shipped
+fixture**, so its first real exercise will be whenever this is closed.
+
+Fix: derive the surface weight from the tagged items (`tail_mass.panel_weight_lb`
+demoted to an explicit override, exactly as `fuselage_mass.stations` was), with
+the difference reported rather than silently taken. Deliberately **not** folded
+into B8a (decision L-8) — it moves h-tail per-component deck bytes and digests,
+which has nothing to do with lateral closure. Tier M. Effort: S.
+
+### [V] No lateral aerodynamic load exists but the fin *(new 2026-08-09, from plan 13 decision L-7)*
+Nothing in the suite computes fuselage or wing side force in sideslip, so a B8a
+lateral balanced case reacts the fin's load with inertia alone and its `n_y` /
+`ψ̈` are **over-stated** — conservative for structure everywhere it lands, but not
+the airplane's real accelerations. Unlike the lumped fuselage `Cm` there is no
+scalar to lump and **no bound is claimed**: quantifying the error is building the
+model. Stated in-band on every lateral case (deck `$` header, case notes, UI) per
+plan 13 §5.6.
+
+Closing it means the lateral analog of **M4-19**'s Multhopp/Nelson body aero —
+`Cy_β` and `Cn_β` from the same slender-body integrand, lumped at the body
+centroid like `fuselage-cm` or distributed once M4-19 gives it a carrier. The
+sideslip angle is already available in three of the four v-tail conditions
+(19.5°, 15°, and the gust case's effective β); `SUDDEN RUDDER` is rudder
+deflection at zero sideslip and has no body side force to add. Pairs with M4-19.
+Tier L (new physics, no oracle → a stated closure gate). Effort: M.
 
 ### [V] The aileron's own lift increment is not distributed *(new 2026-08-08, from B7)*
 The assembled `ACRL` case applies the unbalanced rolling moment (FAR 23.349) as a
@@ -173,6 +216,14 @@ gate since B2 and was carried by a `1.1x` allowance in the test; `TORS` is newly
 assembled at B7 and merely exposed the same pattern. Now bounded **per fixture**
 (`_PITCH_RESIDUAL_CEILING` in `tests/test_balance.py`) per plan 11 R3's "state
 the floor per fixture", rather than by widening the gate for everyone.
+
+**New instance (2026-08-09, from the plan 13 decision session):** assembling the
+symmetric half at the RJ's **v-tail** V-n points gives +0.663 % at BAL A and
+**+1.586 % at BAL C** — the largest exceedance yet, and it lands on the point
+`SIDE GUST` is picked at, so plan 13's **G9** gate inherits it and needs the same
+per-fixture ceiling. Consistent with the pattern below (BAL C is a high-speed
+low-CL point); it does not change the diagnosis, it widens it beyond the wing
+conditions.
 
 Two candidate causes, neither yet separated: the strip-quadrature-vs-closed-form
 lift floor (R3), and the lumped Munk term itself (**M4-19** would give it a

@@ -144,9 +144,11 @@ def fields_hash() -> str:
 #: gaining ``control_load_mode`` at T5), ``LoadsResult.htail_span``/``.vtail_span``
 #: (a new ``TailSpanResult``), and ``WingStationLoad.myy_free`` -- the free
 #: per-strip torsion, which the cumulative ``myy`` is not.
+#: plan 13 B8a-1 (v43): ``VTailLoadsInput.vtail_root_waterline_z`` -- the fin root
+#: waterline, ``0`` meaning "derive it and mark it assumed" (decision L-1).
 #: All additive with defaults, so ``SCHEMA_VERSION`` bumps but no migration hop
 #: is needed -- absent *is* the documented value in every case.
-EXPECTED_FIELDS_HASH = "79121952a1177221"
+EXPECTED_FIELDS_HASH = "26f9dd60cf2b70d1"
 
 
 def test_persisted_dataclass_shapes_are_unchanged():

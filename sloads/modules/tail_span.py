@@ -62,12 +62,12 @@ none of that.
 
 Phase-1 scope, stated in-band
 -----------------------------
-* **V-tail inertia is omitted.** The suite has no lateral load factor -- the
-  v-tail cases carry the airplane's *normal* ``n``, which is not the
-  acceleration a fin's own mass sees sideways. Applying ``n_z`` to it would be a
-  fabricated load in the wrong direction. Every v-tail result carries
-  ``inertia_modelled=False`` and says so. Revisit with plan 11 B8a, which is
-  where a lateral load factor first has to exist.
+* **V-tail inertia is omitted here, on purpose** (plan 13 decision **L-8**). A
+  fin's mass is accelerated *sideways*, and the lateral load factor that does it
+  is a property of a **balanced case**, not of this single-condition view -- so
+  fin inertia is carried there, through the ``VTAIL``-tagged mass items in the
+  closure field, and not in this deck. Every v-tail result carries
+  ``inertia_modelled=False`` and says so.
 * **Control-surface load is smeared** into the parent surface (decision T-4
   option 2): ``LT50`` *is* the control part and it is already in the
   distribution above. T5 makes the mode explicit; T6 adds the discrete
@@ -349,7 +349,12 @@ def build_tail_span(project: Project) -> Dict[str, List[TailSpanResult]]:
         # Phase 1: the v-tail carries no inertia -- see the module docstring.
         inertia_modelled = component == HTAIL
         weight = _surface_weight(project, component) if inertia_modelled else 0.0
-        z_offset = _h_tail_waterline(project) if component == HTAIL else 0.0
+        # The fin's own root waterline (plan 13 L-1), not zero: the roll moment a
+        # side load makes about the CG is ``-Fy*(z - z_cg)``, so a fin modelled on
+        # the centreline gets that moment wrong and can get it wrong in *sign*.
+        # Owned by ``tail_geometry.fin_root_waterline`` and carried on the
+        # planform, so the three-view and this deck place one fin once.
+        z_offset = _h_tail_waterline(project) if component == HTAIL else planform.root_z
 
         notes = list(planform.notes)
         notes.append(
@@ -359,11 +364,19 @@ def build_tail_span(project: Project) -> Dict[str, List[TailSpanResult]]:
             notes.append(
                 f"condition names no V-n point -- load factor defaulted to "
                 f"{DEFAULT_LOAD_FACTOR:g} for the inertia term")
+        if component == VTAIL:
+            notes.append(
+                f"fin root waterline {planform.root_z:.1f} in "
+                f"({'ASSUMED, ' if planform.root_z_assumed else ''}"
+                f"basis '{planform.root_z_basis}') -- the stations run from there "
+                "to the tip, so the deck's roll arm about the airplane CG is this "
+                "value plus the span")
         if not inertia_modelled:
             notes.append(
-                "v-tail inertia omitted: the suite has no lateral load factor, and "
-                "applying the airplane's normal n to a fin's mass would be a "
-                "fabricated load in the wrong direction (plan 09 phase-1 scope)")
+                "v-tail inertia omitted here: a fin's mass is accelerated "
+                "sideways, and n_y is a property of a balanced case, not of this "
+                "single-condition view -- fin inertia is carried in the balanced "
+                "case instead (plan 13 decision L-8)")
         elif weight <= 0.0:
             notes.append(
                 "no tail_mass entry for this surface -- air load only, no inertia")

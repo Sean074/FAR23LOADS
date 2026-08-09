@@ -64,7 +64,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import List, Optional, Tuple
 
-from .models import GeometryInput, Project, SurfaceInput, TailType
+from .models import LayoutInput, Project, SurfaceInput, TailType
 
 #: Component names, which are also the ``geometry.surfaces`` entry names (T-1).
 HTAIL = "htail"
@@ -105,6 +105,8 @@ class TailPlanform:
     ref_axis_pct: float = 0.25
     assumed: bool = False
     root_z: float = 0.0             # v-tail only: waterline of the fin root
+    root_z_assumed: bool = False    # v-tail only: was root_z derived? (L-1)
+    root_z_basis: str = ""          # v-tail only: which branch supplied it
     notes: List[str] = field(default_factory=list)
 
     @property
@@ -218,18 +220,96 @@ def _scalars(project: Project, component: str) -> Optional[Tuple[float, float, f
     return vt.vtail_area_sqft, vt.vtail_span_in, vt.xv25
 
 
-def _fin_root_z(geometry: Optional[GeometryInput]) -> float:
-    """Waterline of the vertical-tail root: the top of the fuselage.
+@dataclass(frozen=True)
+class FinRoot:
+    """Where the vertical tail's root sits, and on whose authority.
 
-    The same reference ``configuration.tail_planform`` draws the fin from, so the
-    three-view and the load deck put the fin in one place. Zero when there is no
-    parametric layout -- the fin then sits on the centreline, which is wrong but
-    is *stated* (the planform carries a note) rather than guessed at silently.
+    ``assumed`` is False only for an entered value; ``basis`` names the branch of
+    :func:`fin_root_waterline` that produced it, and ``note`` is the in-band
+    sentence a derived value owes its consumer.
     """
-    layout = geometry.parametric if geometry is not None else None
+
+    z: float
+    assumed: bool
+    basis: str
+    note: str = ""
+
+
+def fin_root_waterline(layout: Optional["LayoutInput"], vtail_span_in: float = 0.0,
+                       explicit: float = 0.0) -> FinRoot:
+    """Waterline of the vertical-tail root (in) -- **the single owner** (L-1).
+
+    Design note: ``docs/30_future/13_b8a_lateral_closure_plan.md`` §5.1, decision
+    L-1. Read by :func:`resolve_tail_planform` for the load path and by
+    ``configuration.tail_planform`` for the three-view, so the sketch and the deck
+    cannot put the same fin in two places (``CONVENTIONS.md`` §7 rule 2).
+
+    **Why this is worth an owner at all.** The fin's height above the CG is the
+    lever arm of the roll moment a side load makes, and that is a first-order
+    design load in every lateral case. Before this existed the load path used
+    ``0`` -- placing ``ga6_normal``'s fin *64.5 in below* its own CG and reversing
+    the sign of that moment.
+
+    Resolution order::
+
+        explicit input           -> use it                            (assumed False)
+        T-tail with h_tail_z set -> root_waterline_z + h_tail_z - span (assumed True)
+        otherwise                -> root_waterline_z + fuselage_height/2
+        no layout / no data      -> 0.0, with a loud note
+
+    The T-tail branch is the **inverse of the three-view's own default**, which
+    places a T-tail's horizontal surface at ``fuselage_height/2 + v_span`` above
+    the wing root waterline -- i.e. at the fin tip. Where ``h_tail_z`` is entered
+    instead of defaulted, solving that relation for the root is what keeps the fin
+    tip and the horizontal tail in contact; the fuselage-top formula does not
+    (on ``concept_regional_jet`` it leaves them 18 in apart).
+
+    The fallback is ``fuselage_height / 2`` above the root waterline rather than
+    the full height because that is the established meaning of "the top of the
+    fuselage" in this suite -- ``configuration.tail_planform`` has drawn every fin
+    from it since Step G6, and a load path that used a different one would
+    silently disagree with the three-view beside it.
+    """
+    if explicit:
+        return FinRoot(explicit, False, "entered")
     if layout is None:
-        return 0.0
-    return layout.root_waterline_z + layout.fuselage_height / 2.0
+        return FinRoot(0.0, True, "none", _FIN_ROOT_UNKNOWN)
+    if (layout.tail_type == TailType.T_TAIL and layout.h_tail_z
+            and vtail_span_in > 0):
+        z = layout.root_waterline_z + layout.h_tail_z - vtail_span_in
+        return FinRoot(z, True, "t-tail", (
+            f"vtail root waterline {z:.1f} in ASSUMED from the T-tail relation "
+            f"(root_waterline_z {layout.root_waterline_z:.1f} + h_tail_z "
+            f"{layout.h_tail_z:.1f} - fin span {vtail_span_in:.1f}), which puts "
+            "the fin tip at the horizontal tail. Enter "
+            "vtail_root_waterline_z to state it."))
+    if layout.root_waterline_z or layout.fuselage_height:
+        z = layout.root_waterline_z + layout.fuselage_height / 2.0
+        return FinRoot(z, True, "fuselage-top", (
+            f"vtail root waterline {z:.1f} in ASSUMED as the fuselage top "
+            f"(root_waterline_z {layout.root_waterline_z:.1f} + fuselage_height "
+            f"{layout.fuselage_height:.1f} / 2). Enter vtail_root_waterline_z to "
+            "state it."))
+    return FinRoot(0.0, True, "none", _FIN_ROOT_UNKNOWN)
+
+
+#: What a fin with no vertical placement at all owes its consumer. Loud, because
+#: the consequence is not a small error: the roll moment of a fin side load about
+#: the CG takes the *wrong sign* when the fin is modelled below it.
+_FIN_ROOT_UNKNOWN = (
+    "vtail root waterline is 0 -- no parametric fuselage and no "
+    "vtail_root_waterline_z, so the fin is placed on the airplane centreline. "
+    "Its roll arm about the CG is therefore wrong, and may be wrong in sign.")
+
+
+def _fin_root_z(project: Project) -> FinRoot:
+    """The fin root for this project, from the single owner above."""
+    geometry = project.geometry
+    vt = project.vtail_loads
+    return fin_root_waterline(
+        geometry.parametric if geometry is not None else None,
+        vt.vtail_span_in if vt is not None else 0.0,
+        vt.vtail_root_waterline_z if vt is not None else 0.0)
 
 
 def resolve_tail_planform(project: Project,
@@ -250,7 +330,11 @@ def resolve_tail_planform(project: Project,
     area_in2 = area_sqft * _SQIN_PER_SQFT
     geometry = project.geometry
     surf = geometry.by_name(component) if geometry is not None else None
-    root_z = _fin_root_z(geometry) if component == VTAIL else 0.0
+    # The fin root is a property of the *surface's placement*, not of how its
+    # planform was obtained, so it is resolved once here and applies equally to an
+    # entered polyline and a derived rectangle (L-1).
+    fin_root = _fin_root_z(project) if component == VTAIL else FinRoot(0.0, False, "n/a")
+    root_notes = [fin_root.note] if fin_root.note else []
 
     if surf is not None:
         validate_tail_planform(surf, component, area_sqft, span_in)
@@ -264,7 +348,10 @@ def resolve_tail_planform(project: Project,
             elements=surf.elements,
             ref_axis_pct=surf.ref_axis_pct,
             assumed=False,
-            root_z=root_z,
+            root_z=fin_root.z,
+            root_z_assumed=fin_root.assumed,
+            root_z_basis=fin_root.basis,
+            notes=root_notes,
         )
 
     # Derived: constant chord = S/b, LE a quarter chord ahead of the 25 % MAC
@@ -281,10 +368,7 @@ def resolve_tail_planform(project: Project,
         "bending here is conservative but the station distribution is not the "
         "surface's own."
     ]
-    if component == VTAIL and root_z == 0.0:
-        notes.append(
-            "vtail root waterline is 0 (no parametric fuselage) -- the fin is "
-            "placed on the airplane centreline")
+    notes += root_notes
     return TailPlanform(
         component=component,
         le=[(x_le, 0.0), (x_le, span_in)],
@@ -294,7 +378,9 @@ def resolve_tail_planform(project: Project,
         elements=_derived_elements(project, component),
         ref_axis_pct=_derived_ref_axis(project),
         assumed=True,
-        root_z=root_z,
+        root_z=fin_root.z,
+        root_z_assumed=fin_root.assumed,
+        root_z_basis=fin_root.basis,
         notes=notes,
     )
 
@@ -342,11 +428,13 @@ def is_t_tail(project: Project) -> bool:
 
 
 __all__ = [
+    "FinRoot",
     "HTAIL",
     "VTAIL",
     "TAIL_COMPONENTS",
     "PLANFORM_TOLERANCE",
     "TailPlanform",
+    "fin_root_waterline",
     "half_area_centroid",
     "is_t_tail",
     "resolve_tail_planform",

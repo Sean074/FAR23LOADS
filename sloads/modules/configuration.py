@@ -48,6 +48,7 @@ from ..models import (
     Vec3,
 )
 from ..registry import register
+from ..tail_geometry import fin_root_waterline
 from .wing_geometry import surface_properties
 
 _FAR = "configuration"  # modern addition; no FAR condition / no .BAS oracle
@@ -194,7 +195,10 @@ def tail_planform(layout: LayoutInput,
     if h_span_in <= 0 and v_span_in <= 0:
         return {}
 
-    fin_root_z = layout.root_waterline_z + layout.fuselage_height / 2.0
+    # One owner for where the fin's root sits (plan 13 L-1): the sketch and the
+    # load deck read the same function, so they cannot place one fin twice.
+    fin_root_z = fin_root_waterline(
+        layout, v_span_in, vt.vtail_root_waterline_z if vt is not None else 0.0).z
     panels: Dict[str, Dict[str, List[Tuple[float, float]]]] = {}
 
     if layout.tail_type == TailType.V_TAIL:

@@ -241,5 +241,83 @@ def test_every_fixture_still_loads_and_round_trips(example):
     assert once == twice, example
 
 
+# --------------------------------------------------------------------------- #
+# The fin root waterline (plan 13 B8a-1, decision L-1)
+# --------------------------------------------------------------------------- #
+#: Where each fixture's fin root resolves to, and on whose authority. Pinned
+#: because the value is the lever arm of a first-order roll load: before B8a-1
+#: every fin sat at ``z = 0``, which put ``ga6_normal``'s **below its own CG**
+#: and reversed the sign of the roll moment a side load makes.
+_FIN_ROOT = {
+    "ga6_normal.project.json": (78.5, "fuselage-top"),
+    "concept_regional_jet.project.json": (87.0, "t-tail"),
+    "cessna_210.project.json": (86.0, "fuselage-top"),
+    "atr42_100.project.json": (170.0, "fuselage-top"),
+    "dhc8_dash8.project.json": (180.0, "fuselage-top"),
+}
+
+
+@pytest.mark.parametrize("example", sorted(_FIN_ROOT))
+def test_the_fin_root_waterline_is_pinned_per_fixture(example):
+    want_z, want_basis = _FIN_ROOT[example]
+    planform = resolve_tail_planform(_project(example), VTAIL)
+    assert planform is not None
+    assert planform.root_z == pytest.approx(want_z, rel=1e-9)
+    assert planform.root_z_basis == want_basis
+    assert planform.root_z_assumed, "no fixture enters a fin root yet"
+
+
+def test_an_entered_fin_root_wins_and_is_not_assumed():
+    """The explicit input is the top of the resolution order (L-1)."""
+    project = _project("ga6_normal.project.json")
+    project.vtail_loads.vtail_root_waterline_z = 101.5
+    planform = resolve_tail_planform(project, VTAIL)
+    assert planform.root_z == pytest.approx(101.5)
+    assert not planform.root_z_assumed and planform.root_z_basis == "entered"
+    assert not any("ASSUMED" in n for n in planform.notes)
+
+
+def test_the_t_tail_branch_puts_the_fin_tip_at_the_horizontal_tail():
+    """The T-tail relation is the inverse of the three-view's own default, which
+    places a T-tail's horizontal surface at the fin tip. Solving it for the root
+    is what keeps the two surfaces in contact when ``h_tail_z`` is entered rather
+    than defaulted — the fuselage-top formula leaves them 18 in apart on the RJ."""
+    project = _project("concept_regional_jet.project.json")
+    layout = project.geometry.parametric
+    planform = resolve_tail_planform(project, VTAIL)
+    fin_tip = planform.root_z + planform.span
+    assert fin_tip == pytest.approx(layout.root_waterline_z + layout.h_tail_z)
+    fuselage_top = layout.root_waterline_z + layout.fuselage_height / 2.0
+    assert fuselage_top - planform.root_z == pytest.approx(18.0)
+
+
+def test_a_fin_with_no_placement_at_all_says_so_loudly():
+    """The floor of the resolution order. Silent zero is the defect B8a-1 fixed,
+    so the zero that remains possible has to announce itself."""
+    project = _project("ga6_normal.project.json")
+    project.geometry.parametric.root_waterline_z = 0.0
+    project.geometry.parametric.fuselage_height = 0.0
+    planform = resolve_tail_planform(project, VTAIL)
+    assert planform.root_z == 0.0 and planform.root_z_basis == "none"
+    assert any("wrong in sign" in n for n in planform.notes)
+
+
+@pytest.mark.parametrize("example", sorted(_FIN_ROOT))
+def test_the_three_view_and_the_load_path_place_one_fin_once(example):
+    """The drift guard for the new single-source owner (CONVENTIONS.md §7).
+
+    ``configuration.tail_planform`` draws the fin and ``tail_span`` loads it. They
+    read the same function now; this fails the day one of them grows its own copy
+    of the formula.
+    """
+    from sloads.modules.configuration import tail_planform
+
+    project = _project(example)
+    panels = tail_planform(project.geometry.parametric, project.geometry.empennage)
+    sketch_root = min(z for _, z in panels["v_tail"]["side"])
+    assert sketch_root == pytest.approx(
+        resolve_tail_planform(project, VTAIL).root_z, rel=1e-9)
+
+
 if __name__ == "__main__":
     sys.exit(pytest.main([os.path.abspath(__file__), "-q"]))

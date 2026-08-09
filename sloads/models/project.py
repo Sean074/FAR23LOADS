@@ -197,7 +197,12 @@ from .results import EnvelopeResult, LoadsResult, MassResult
 # MC/MD are now derived by structural_speeds and passed to mach_limit explicitly.
 # The v39 hop drops the dead keys; ``vd_basis`` defaults to the speed-ratio route,
 # so every pre-v40 project keeps exactly the numbers it had.
-SCHEMA_VERSION = 42  # T1: Project.tail_mass + LoadsResult.htail_span/vtail_span (distributed empennage)
+# B8a-1 (v43): ``VTailLoadsInput.vtail_root_waterline_z`` -- the fin's root
+# waterline, explicit where known and derived-and-marked otherwise (plan 13
+# decision L-1). Additive with a 0.0 "derive it" default, so no migration hop is
+# needed: absent *is* the documented value, and every pre-v43 project keeps the
+# derived placement it would have had.
+SCHEMA_VERSION = 43  # B8a-1: VTailLoadsInput.vtail_root_waterline_z (fin root placement)
 
 
 @dataclass

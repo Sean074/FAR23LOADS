@@ -447,7 +447,7 @@ sidebar and the JSON Editor (§10, Phase E5).
 
 The schema field list is **single-sourced in
 [`DATA_DICTIONARY.md`](DATA_DICTIONARY.md)** (generated; currently
-`SCHEMA_VERSION = 42`); the per-step migration history is recorded in
+`SCHEMA_VERSION = 43`); the per-step migration history is recorded in
 [`../40_history/00_completed_development.md`](../40_history/00_completed_development.md)
 (recent steps: v29 single-source CLmax
 stall; v30 M2-6 wing/fuselage derived geometry; v31 M2-10 operational placards;
@@ -494,7 +494,14 @@ total defaults, so no hop: a project with no empennage mass writes no key and
 round-trips byte-identically to a pre-v42 file. The tail *planform* is not a new
 field — decision T-1 reuses `SurfaceInput` via an optional `"htail"`/`"vtail"`
 entry in `geometry.surfaces`, validated against the oracle-authoritative scalar
-area/span to 1 % and **derived as a rectangle, marked assumed**, when absent).
+area/span to 1 % and **derived as a rectangle, marked assumed**, when absent);
+v43 plan 13 B8a-1 the fin's vertical placement — `VTailLoadsInput.
+vtail_root_waterline_z`, the waterline of the vertical-tail root, `0` meaning
+"derive it and mark it assumed". Additive with a default, so no hop: a pre-v43
+project keeps the placement it would have been given. It exists because the fin's
+height above the CG is the lever arm of the roll moment a side load makes, and
+the load path previously used `0` — modelling `ga6_normal`'s fin 64.5 in *below*
+its own CG and reversing that moment's sign).
 This paragraph's version number is guarded by
 `tests/test_data_dictionary.py::test_gui_design_schema_line_current` — update
 it (and this list) with every `SCHEMA_VERSION` bump.

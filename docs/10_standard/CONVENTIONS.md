@@ -185,6 +185,7 @@ export boundary, reduction-to-FAR23 identity on GA inputs. "No oracle" never mea
 | **Centreline reflection** (`y -> -y`; force is a true vector, moment an axial one) | `export/coordinates.py` (`reflect_point`/`reflect_force`/`reflect_moment`/`reflect_side`) | `tests/test_balance.py::test_the_reflection_operator_is_an_involution` + `::test_the_handed_twins_are_mirror_images` |
 | **Empennage local frame → airplane axes** (h-tail spans `y`/loads `fz`/twists `myy`; v-tail spans `z`/loads `fy`/twists **`mzz`**) | `export/coordinates.py` (`tail_station_to_airplane`/`tail_force_to_airplane`/`tail_torsion_to_airplane`) | `tests/test_export_equilibrium.py::test_vtail_span_deck_resultants` |
 | **Empennage planform vs. the scalar area/span** (1 % agreement; scalars stay oracle-authoritative) | `sloads/tail_geometry.py` (`resolve_tail_planform`/`validate_tail_planform`) | `tests/test_tail_geometry.py` |
+| **Vertical-tail root waterline** (where the fin sits; explicit → T-tail relation → fuselage top → a loud zero) | `sloads/tail_geometry.py` (`fin_root_waterline`) — read by both the load path and the three-view | `tests/test_tail_geometry.py::test_the_three_view_and_the_load_path_place_one_fin_once` + `::test_the_fin_root_waterline_is_pinned_per_fixture` |
 | Case IDs | `sloads/case_ids.py` | `tests/test_case_ids.py` |
 | Load-case row keys | `sloads/load_keys.py` | **flagged — see §8** |
 | Data dictionary | `docs/generate_data_dict.py` (generated doc) | `tests/test_data_dictionary.py::test_committed_doc_matches_generator` |
@@ -237,6 +238,18 @@ implies the right. The convention, stated once:
   factor **alone**, never "opposing the air load". The conditions that size a GA
   horizontal tail are down-load ones, so an opposing rule would relieve exactly
   those.
+* **The fin has a vertical position, and it is never implicitly zero (B8a-1,
+  2026-08-09).** The roll moment a fin side load makes about the CG is
+  `−Fy·(z − z_cg)`, so the fin's root waterline is a first-order load quantity,
+  not presentation. It is resolved once by `tail_geometry.fin_root_waterline` —
+  explicit input, else the T-tail relation, else the fuselage top, else a zero
+  that says so — and both the load path and the three-view read that one owner.
+  A fin placed on the waterline datum is not merely imprecise: on `ga6_normal` it
+  sat 64.5 in *below* the CG and reversed the sign of the moment.
+* **A v-tail station stores its root in `z` and its span in `y`.** The airplane
+  waterline is composed by `export/coordinates.tail_station_to_airplane`, which
+  is the only place the two are added. Reading a fin station's `z` as its
+  waterline gives the root for every station on the surface.
 * **The spanwise tail deck supersedes the fuselage deck's point tail-load
   station** (GID 1001 band) in any combined-airframe sum — apply one
   representation, never both. Stated in the deck's own `$` header.
