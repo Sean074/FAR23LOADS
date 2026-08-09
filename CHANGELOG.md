@@ -103,6 +103,12 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **Theory document for the balancing method** —
+  [`docs/20_theory/balanced_cases.md`](docs/20_theory/balanced_cases.md): how a
+  balanced free-free case is assembled and closed, with worked examples on the
+  shipped fixtures (ga6 PHAA symmetric, ga6/RJ ACRL antisymmetric) and the
+  design-of-record lateral empennage cases on a conventional low tail (ga6) and
+  a T-tail (RJ), every shipped figure mapped to the CI gate that pins it.
 - **`VTailLoadsInput.vtail_root_waterline_z`** (schema **v43**) — the fin root
   waterline, stated rather than derived. `0` means "derive it and mark it
   `assumed`", which every shipped fixture still does; the derived value and the
@@ -122,6 +128,14 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   **L-8**): fin inertia belongs to a balanced case, because `n_y` is a property
   of the case and not of a single-condition view — replacing "the suite has no
   lateral load factor", which will stop being true at B8a-3.
+- **The backlog is reorganized around a single priority table** (user-agreed
+  2026-08-09, [`docs/30_future/00_backlog.md`](docs/30_future/00_backlog.md)):
+  every open item, [E] and [V] alike, ranked in one order of work driven by the
+  primary deliverable — sbeam (NASTRAN-style) `FORCE`/`MOMENT` cards for the
+  wing, body and tail load cases. Agreed ordering rules: wrong cards outrank
+  missing cards; landing follows directly after the tail; completed rows are
+  **removed** on closure per the lifecycle rule. Historic step numbers are kept
+  in item names for plan traceability.
 
 ---
 

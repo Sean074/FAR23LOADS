@@ -1,8 +1,9 @@
 # Backlog — Open Work & Development Plan
 
-The authoritative list of **open** items, mission-tagged and in priority order.
-Items off the mission path live in [`02_parked.md`](02_parked.md) — real but
-unscheduled; move them back here before working them. Completed milestones live
+The authoritative list of **open** items, mission-tagged. The **priority
+table** below is the single order of work; the sections after it hold each
+item's detail. Items off the mission path live in [`02_parked.md`](02_parked.md)
+— real but unscheduled; move them back here before working them. Completed milestones live
 in [`../40_history/00_completed_development.md`](../40_history/00_completed_development.md).
 Narratives: [`01_concept_loads_plan.md`](01_concept_loads_plan.md) (Phase C —
 concept mode), [`03_gui_rework_plan.md`](03_gui_rework_plan.md) (Phase G — GUI
@@ -58,49 +59,91 @@ core is untouched; (4) the geometry can **export an LRA-based beam model and
 import one to use as the LRA**. Decisions of record: plan 11 §2/§2.1
 (B-1…B-8), plan 12 (C-1…C-6).
 
+**Priority (user, 2026-08-09):** the deliverable that drives the order of work
+is **sbeam (NASTRAN-style) `FORCE`/`MOMENT` cards for the wing, body and tail
+load cases** — the priority table below is ordered to it.
+
 ## Current state
 
 All 22 Appendix-C programs are ported plus 2 modern modules (`configuration`,
 `body_loads`). Phases 0–2, C, D, E, F, Phase 1, Phase G Steps **G0–G7**,
-milestones **M1, M2, M2R, M3** and mission-extension **steps 1–7** are complete.
-The suite is green (ruff clean, 1232 passed, smoke test PASS), the FAR23 GA path
-is Appendix-A oracle-locked, and both concept fixtures run end-to-end.
+milestones **M1, M2, M2R, M3**, mission-extension **steps 1–7** and step 8's
+**B8a-1/B8a-2** are complete. The suite is green (ruff clean, 1268 passed,
+smoke test PASS), the FAR23 GA path is Appendix-A oracle-locked, and both
+concept fixtures run end-to-end.
 
 **Release status:** **sloads 0.4.0 cut 2026-08-08**, tag `v0.4.0` — the mission
 extension's first seven steps (mass SSOT, CONM2/MASSSET export, balanced
 free-free cases, the handedness machinery, the sbeam round-trip CI harness and
 distributed empennage loads) plus M4-20, M3-3b, M4-2 and F25-2. `[Unreleased]`
-is empty; the next release follows the `RELEASE_PROCESS.md` cadence rule
-(~2–3 weeks or ~5 closed steps).
+holds step 8's **B8a-1** (the fin root waterline) and **B8a-2** (six-DOF
+closure) plus the balancing-method theory document
+(`docs/20_theory/balanced_cases.md`); the next release follows the
+`RELEASE_PROCESS.md` cadence rule (~2–3 weeks or ~5 closed steps).
 
 Reference-authority hierarchy: (1) `.BAS` listings + Appendix A printed output,
 (2) User's Guide CFR quotes (Jan-1994), (3) Code-manual 1990 prose.
 
 ---
 
-# Mission path (priority order)
+# Priority table (2026-08-09, user-agreed — the single order of work)
 
-## Development sequence (2026-08-08, user-agreed)
+Re-prioritized 2026-08-09 to the primary deliverable: **sbeam (NASTRAN-style)
+`FORCE`/`MOMENT` cards for the wing, body and tail load cases**. Ordering rules
+agreed with it: finish the in-progress lateral closure first, then **wrong
+cards outrank missing cards** (the two defects that make shipped cards wrong or
+incomplete come before any new case family), landing follows directly after the
+tail as the last case family missing from the body deck, and the **[V] items
+are ranked** below the [E] items rather than left opportunistic. Historic step
+numbers (steps 8–14) are kept inside item names for traceability with plans
+09/11/12/13; the **Pri** column is ordinal only.
 
-The ordered step-by-step plan for the mission extension. Each step is closed
-per the lifecycle rule before the next starts (parallel-safe steps are marked).
-Housekeeping: **0.4.0 was cut 2026-08-08** before this feature-branch work
-begins.
+> **Removal rule (hard requirement, restating the lifecycle rule).** Once a
+> step is complete it **SHALL be removed** from this table and this file in the
+> same session, with its tiered closure trail. Renumber the remaining rows
+> freely — priorities are an order, not IDs.
 
-| Phase | Step | What ships | Plan / item | Depends on |
-|---|---|---|---|---|
-| **4 — empennage** | 8 | Empennage balanced cases: **±β yaw pairs**, lateral closure. **In progress** — [plan 13](13_b8a_lateral_closure_plan.md), decisions **L-1…L-8** answered; **B8a-1 (fin waterline) and B8a-2 (6-DOF closure) shipped 2026-08-09**; B8a-3 (lateral case assembly) next | plan 11 **B8a**, [plan 13](13_b8a_lateral_closure_plan.md) | steps 6 ✅, 7 ✅ |
-| | 9 | Discrete hinge/actuator controls, T-tail transfer | plan 09 **T6–T7** | step 7 ✅ (opportunistic) |
-| **5 — landing** | 10 | Ground-case distributed loads, gear reactions as applied `FORCE` cards | **M4-6** | — (design-note gated) |
-| | 11 | Balanced landing cases | plan 11 **B8b** | step 6 ✅, step 10 |
-| **6 — model fidelity** | 12 | **LRA beam-model export + import** (geometry ↔ beam bridge) | item below | step 5 ✅ |
-| | 13 | Side-of-body reporting node (reduced scope under the full-span model) | item below | step 5 (or folded into it) |
-| | 14 | Real stiffness / assembled airframe properties | **L-1** | step 12 |
-
-**M4-8** (safety-factor policy, Layer 1) is sequence-independent — ship it in
-any gap. The [V] list stays opportunistic.
+| Pri | Item (detail below / in its plan) | What ships | Tag | Tier / effort | Depends on |
+|---|---|---|---|---|---|
+| 1 | **Step 8 — lateral empennage balanced cases, B8a-3…5** — *in progress*: [plan 13](13_b8a_lateral_closure_plan.md) decisions L-1…L-8 answered; B8a-1 (fin waterline) and B8a-2 (six-DOF closure) shipped 2026-08-09 | ±β lateral case assembly with handed twins on the fin V-n points, assembled-deck export, spec/conventions sync (B8a-4/5) | E | L / ~2 sessions | steps 6 ✅, 7 ✅ |
+| 2 | Concentrated wing masses smeared to the nearest node | Export-side lever-arm split between bracketing nodes; twins' deck root bending stops reading ~1–2 % high | E | L (design note first) / S–M | — |
+| 3 | `tail_mass` derived from the item SSOT | Tail decks gain inertia (every h-tail deck is air-only today); first real exercise of plan 09 T-3 | E | M / S | — |
+| 4 | ONENGOUT fixture data | Turboprop horsepower + an RJ `one_engine_out` slice; the 23.367 module executes on shipped fixtures | E | S / S | — |
+| 5 | CONM2 inertia cross-check in CI (plan 12 C6 remainder) | Mass-check deck (`MASSSET` + `GRAV`) solved in CI as the fourth deck family | E | M / S | step 2 ✅ |
+| 6 | Step 9 — discrete controls + T-tail transfer (plan 09 T6–T7) | Hinge/actuator tributary `FORCE` reactions and the first hinge-moment output; the T-tail fin deck carries the h-tail transfer at the tip | E | L / M–L | step 7 ✅ |
+| 7 | Step 10 — ground-case distributed loads (M4-6) | Gear reactions as applied `FORCE` cards on the body deck; pressurization case | E | L / L | — (design-note gated) |
+| 8 | Step 11 — balanced landing cases (plan 11 B8b) | Free-free ground cases in the assembled deck | E | L / M | steps 6 ✅, Pri 7 |
+| 9 | Step 12 — LRA beam-model export + import | Cards delivered on the consumer's own node line; standalone LRA skeleton export | E | L / M–L | step 5 ✅ |
+| 10 | Step 13 — side-of-body reporting node | SOB internal shear/bending/torsion reported as the wing root design loads | E | M / M | step 5 ✅ (or folded into Pri 9) |
+| 11 | Step 14 — real stiffness / assembled airframe properties (L-1) | Real section properties replacing the `MAT1` placeholder | E | L / M | Pri 9 |
+| 12 | M4-8 — safety-factor policy, Layer 1 | One resolver as the sole authority for every non-1.5 factor | E | M / S–M | none — sequence-independent, ship in any gap |
+| 13 | The aileron's own lift increment is not distributed | `ACRL` wing cards gain the aero half of the couple (acts ~70 % span) | V | L / M | pairs plan 09 spanwise work |
+| 14 | RJ pitch-gate exceedance diagnosis | Element-count study → R3 vs `Cm` split; plan 13 G9 inherits the ceiling | V | M / S | pairs Pri 1 and M4-19 |
+| 15 | Payload cases the weight database can produce (sibling pair) | Four more fixtures gain balanced cases → more assembled decks in CI | V | M–L / M | user decision: loading definition vs fixture fix |
+| 16 | Wing-tank fuel separability | Ends the same pounds riding both beams on the three fuel-in-wing fixtures | V | L / M | pairs plan 12 C1 |
+| 17 | Lateral body aero `Cy_β`/`Cn_β` (L-7) | Honest lateral `n_y`/`ψ̈` (fin-only today — over-stated, conservative) | V | L / M | pairs M4-19 |
+| 18 | Empennage planform polylines (fixture data) | Real taper in the tail card distributions instead of the `assumed` rectangle | V | S / S | — |
+| 19 | h-tail attachment `fuselage_width` (fixture data) | Real attachment stations instead of the `±ds/2` fallback | V | S / S | pairs Pri 10 |
+| 20 | Wing deck `$` width + centerline-clamp header line | 72-column wrap + clamp caveat; one digest regeneration | V | S / S | — |
+| 21 | Load-application axis vs elastic axis — document the torsion reference | Convention in `coordinates.py` + spec + deck `$` header | V | S / S | partially superseded by Pri 9 |
+| 22 | Gust spanwise-distribution decision | Study + recorded decision | V | S / S | — |
+| 23 | M4-19 — Multhopp distributed fuselage `Cm` | A distributed body pitching load for `body_loads` | V | L / M | — |
+| 24 | M4-21 — fuselage pitching load factor | d'Alembert pitch term at each body station | V | M / S | pairs M4-4 |
+| 25 | M4-4 — per-CG precise inertia in SELECT | WTONECG inertia wired into checked-maneuver `Iyy` / v-tail `IZZ` | V | M / S | — |
+| 26 | M4-3 — ONENGOUT data-flow + turboprop gate | Geometry provenance, `is_turboprop` gate, VSF decision | V | M / S | — |
+| 27 | L-8g — CLI methods & limitations stamp | Headless exports state their ULTIMATE basis and category | V | S / S | — |
+| 28 | L-8i — per-page LIMIT CSV units | Converted, unit-suffixed analysis-page downloads | V | S / S | — |
+| 29 | F25-0 — verify pass | Current CFR text for every *(verify)* row | V | S / S | precedes any F25 build step |
+| 30 | Mach-margin route for the FAR 23 categories | Category gate + per-category default | V | S / S | — |
+| 31 | Flutter-clearance Mach basis for transports | Verified reference + decision, then an opt-in variant | V | S / S | — |
+| 32 | Upset-criterion speed increase (25.335(b)(1)) | The 20 s dive integration the margin route lacks | V | M / M | — |
+| 33 | F25-1 — transport category "T" envelope pack | 25.337 floors, 25.341 U_ref schedule, VB | V | M / M | — |
+| 34 | F25-4 — ground-loads parameter variant | 10/6 fps, lift = W, LDW/MTOW pairing | V | M / M | coordinates with Pri 7 |
+| 35 | Split `40_history/00_completed_development.md` by era | Mechanical split + index file | V | S / S | after the working tree is committed |
 
 ---
+
+# Item detail — mission path [E]
 
 ### [E] Concentrated wing masses are smeared to the nearest node in the exported bending *(new 2026-08-08, found by the step-1 equilibrium sweep)*
 WINGINER adds a concentrated wing mass (engine, gear, fuel, store) to the
@@ -415,7 +458,9 @@ with a drift guard); `BalancedCase` **keys on the minted `CaseRef`** with a
 handedness suffix (`VT-03L`/`VT-03R`), not on the V-n index (derived and
 landing conditions have no V-n point); lateral cases close with the **lateral
 2-DOF analog** `Δn_y` + `Δψ̈` — a lateral load factor exists nowhere in the
-suite today, so B8a starts with its design note.
+suite today, so B8a starts with its design note. *(Superseded in part
+2026-08-09: B8a-2 shipped the closure as the full six-DOF rigid-body field —
+see plan 13 and `docs/20_theory/balanced_cases.md`.)*
 
 **Effort: L (~4–5 sessions phase 1), phased.** Phase 1 (B1–B6) = symmetric
 wing cases; phase 2 (B7) = antisymmetric `ACRL`/`TORS` plus the handedness
@@ -586,7 +631,7 @@ the LRA beam-model bridge (step 12).
 
 ---
 
-# Valuable (opportunistic — small, independent, or paired with a mission item)
+# Item detail — valuable [V] (ranked in the priority table above)
 
 ### [V] Load-application axis vs elastic axis — document the torsion reference *(new 2026-08-05, R9)*
 The exported `FORCE` application points sit on the sloads load-reference line;

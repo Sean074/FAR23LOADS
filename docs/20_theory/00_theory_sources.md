@@ -144,6 +144,10 @@ and their sources (`tests/test_concept_closure.py`):
 
 ### The balanced free-free case as a closure gate (step B2–B6, 2026-08-08)
 
+Theory walk-through with worked examples (wing symmetric/antisymmetric, and the
+design-of-record low-tail / T-tail empennage cases) in
+[`balanced_cases.md`](balanced_cases.md).
+
 The FAR 23 core validates against Appendix A; the *assembled airplane* has no
 printed oracle at all, so its gate is equilibrium itself. Plan 11's acceptance,
 now in CI (`tests/test_balance.py`):
