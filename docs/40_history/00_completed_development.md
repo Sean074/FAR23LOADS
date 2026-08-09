@@ -10,6 +10,51 @@ Acceptance**, **Key decisions**.
 
 ---
 
+## Release cut: **sloads 0.4.0** (the mission extension, steps 1–7), tag `v0.4.0`, 2026-08-08
+
+**Objective.** Cut the release the backlog's development sequence names as its
+housekeeping precondition — `[Unreleased]` had grown to ~1,180 lines and seven
+closed mission steps, well past `RELEASE_PROCESS.md` §2's "never let
+`[Unreleased]` grow past roughly a release-worth of work", and unreleased work
+has no regression baseline.
+
+**Deliverables.**
+- **Version** `0.3.0` → **`0.4.0`** in `pyproject.toml` (MINOR: new modules
+  `mass_distribution`, `balance`, `tail_span`, new export and round-trip
+  capability, new GUI pages; no breaking change — `SCHEMA_VERSION` 42 is
+  reached by additive hops and `io.py` loads every older save).
+- **Changelog cut** — `[Unreleased]` dated to `## [0.4.0] — 2026-08-08` with its
+  **twenty duplicate headings merged to three** (Added 16 entries / Fixed 41 /
+  Changed 49; 1,064 content lines), verified content-preserving as a multiset
+  before and after, and a fresh empty `[Unreleased]` opened. Same consolidation
+  the 0.3.0 cut performed for the same reason.
+- **Verification baseline** —
+  [`08_verification_baseline_0.4.0.md`](08_verification_baseline_0.4.0.md), a
+  **delta** baseline: it records the closure gates for everything 0.4.0 added
+  (all closure, no new printed oracle exists for distributed inertia, mass models
+  or an assembled airframe), the ten pinned exceptions with their measured
+  figures, and what measurement changed in the release — and carries the FAR 23
+  oracle tables forward from the 0.3.0 baseline unchanged, on two independent
+  confirmations: the approved-deviations register is byte-unchanged against
+  `v0.3.0`, and every Imperial digest movement is a **new** channel.
+- **Backlog spot-check (§3.1)** — the stale `[E] CONM2 distributed-mass export
+  per payload case` item removed: plan 12 C1–C5/C7 shipped 2026-08-08 and its
+  C6 remainder already has its own entry, so the item was a lifecycle-rule
+  violation (the backlog holds open items only). "Current state" and the
+  sequence table's housekeeping line updated to post-release form.
+- **Gates at cut:** `pytest` **1232 passed / 21 skipped / 0 failed** (coverage
+  93 %), `ruff check sloads/ cli.py` clean, `scripts/smoke_test.sh` PASS, every
+  skip carrying a stated reason and a backlog entry, no open CRITICAL/MAJOR
+  review findings.
+
+**Post-release.** The mission sequence resumes at **step 8** (plan 11 **B8a** —
+empennage balanced cases, ±β yaw pairs, opening with the lateral-closure design
+note for `Δn_y` + `Δψ̈`, since no lateral load factor exists in the suite today).
+The one cheap `[E]` remainder — plan 12 **C6**'s solver-side CONM2 inertia gate,
+unblocked by step 2's round-trip harness — is a natural first slot.
+
+---
+
 ## Distributed empennage loads, phase 1 (mission phase 4, step 7 — plan 09 T1–T5 — complete 2026-08-08, tier L)
 
 **Objective.** Give the empennage the wing's deliverable: per-station distributed

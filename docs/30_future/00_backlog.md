@@ -61,17 +61,17 @@ import one to use as the LRA**. Decisions of record: plan 11 §2/§2.1
 ## Current state
 
 All 22 Appendix-C programs are ported plus 2 modern modules (`configuration`,
-`body_loads`). Phases 0–2, C, D, E, F, Phase 1, Phase G Steps **G0–G7** and
-milestones **M1, M2, M2R, M3** are complete. The suite is green (ruff clean,
-smoke test PASS), the FAR23 GA path is Appendix-A oracle-locked, and both
-concept fixtures run end-to-end.
+`body_loads`). Phases 0–2, C, D, E, F, Phase 1, Phase G Steps **G0–G7**,
+milestones **M1, M2, M2R, M3** and mission-extension **steps 1–7** are complete.
+The suite is green (ruff clean, 1232 passed, smoke test PASS), the FAR23 GA path
+is Appendix-A oracle-locked, and both concept fixtures run end-to-end.
 
-**Release status:** **sloads 0.3.0 cut 2026-07-23**, tag `v0.3.0`. The M4
-maintainability sequence (M4-12, M4-11a, G8.1–G8.4a, M4-10, M4-9) shipped
-2026-08-03/04; **M4-20** (deliverable units), **M3-3b** (Step G8 — the summary
-report document) and **M4-2** (unified case identity + deck SUBCASE map, schema
-v39) closed 2026-08-04/05. `[Unreleased]` is release-ripe — **cut 0.4.0** per the
-cadence rule in `RELEASE_PROCESS.md`.
+**Release status:** **sloads 0.4.0 cut 2026-08-08**, tag `v0.4.0` — the mission
+extension's first seven steps (mass SSOT, CONM2/MASSSET export, balanced
+free-free cases, the handedness machinery, the sbeam round-trip CI harness and
+distributed empennage loads) plus M4-20, M3-3b, M4-2 and F25-2. `[Unreleased]`
+is empty; the next release follows the `RELEASE_PROCESS.md` cadence rule
+(~2–3 weeks or ~5 closed steps).
 
 Reference-authority hierarchy: (1) `.BAS` listings + Appendix A printed output,
 (2) User's Guide CFR quotes (Jan-1994), (3) Code-manual 1990 prose.
@@ -84,8 +84,8 @@ Reference-authority hierarchy: (1) `.BAS` listings + Appendix A printed output,
 
 The ordered step-by-step plan for the mission extension. Each step is closed
 per the lifecycle rule before the next starts (parallel-safe steps are marked).
-Housekeeping first: **cut 0.4.0** off the release-ripe `[Unreleased]` before
-the feature-branch work below begins.
+Housekeeping: **0.4.0 was cut 2026-08-08** before this feature-branch work
+begins.
 
 | Phase | Step | What ships | Plan / item | Depends on |
 |---|---|---|---|---|
@@ -348,58 +348,6 @@ the wing+fuselage aero pitching moment `m_wf` goes in the distributed model —
 the wing section `Cm` is already in the strip torsion, but the fuselage Munk
 term has no distributed carrier until **M4-19**. The force residual is measured;
 the moment residual cannot be quoted until R1 is decided.
-
-### [E] CONM2 distributed-mass export per payload case *(new 2026-08-08, user)* — **step 4**
-Export the distributed mass as `CONM2` cards from the **Weights page**, one mass
-configuration per payload case, so sbeam can apply the case acceleration to an
-**independently parsed** mass model and check sloads' inertia loads. The
-`FORCE`/`MOMENT` export **stays the total load (aero + inertia)** and is
-unchanged — the CONM2 deck is a separate cross-check artifact, never a second
-half to be added to it. Design note, decisions C-1…C-6 and step detail:
-[`12_conm2_mass_export_plan.md`](12_conm2_mass_export_plan.md).
-
-**Why it matters:** the total load set is self-consistent *by construction* —
-the inertia half is written by the same code that computes it, so nothing
-outside sloads can contradict it. This is the external check on the half of the
-load set that has no printed oracle, and it is the class of error the
-balanced-airframe baseline already found (the 427 lb `weight.items` vs
-`fuselage_mass.stations` discrepancy, now a filed defect).
-
-**State of play:** sbeam is ready — it parses `CONM2` with the full tensor and
-implements **`MASSSET`** (per-subcase add/delete/replace of CONM2 sets), which
-is purpose-built for this. sloads is not: `flight_loads.cg_cases` defines four
-payload cases the whole V-n envelope runs on (CG1 3400@85.10, CG2 3400@77.49,
-CG3 2800@72.64, CG4 2063@73.09), but `weight.items` yields **one** loading
-(3400 @ 85.00) and `weight_onecg.build_mass` concedes it ("the full per-CG-loading
-set … is a later refinement"). The other three are derivable from
-`weight_envelope`, whose ballast figures (78 / 418 / 158 lb) are Appendix-A
-oracle-checked.
-
-Decisions: per-case itemization **derived from WTENV's ballast machinery**; the
-check is an **inertia-load comparison**, so sloads also emits its inertia
-contribution as a separate marked load set; **one deck, one `MASSSET` per payload
-case**, each `CONM2` on a beam `GRID` with `x1/x2/x3` carrying the offset to the
-item's true CG; the Weights page emits both a bulk-data fragment and a runnable
-mass-check deck, plus **`cli.py --export-conm2`** so CI can gate it headlessly;
-`DeliverableUnits` gains **`mass`/`mass_inertia`** on the SOLVER channel
-(lbf·s²/in, tonne) with an arithmetic drift guard. **Double-counting inertia is
-made structurally impossible** (C-6) — the mass-check deck carries no load cards
-at all, and a guard test asserts the total set and an accelerated CONM2 set
-never share a subcase; it is the one error here that yields a *plausible* wrong
-answer rather than a crash.
-
-**Mechanism verified (2026-08-08 review, plan 12 §2.1):** the check runs on
-sbeam's `GRAV` card (`f = M·a`, selected by LOAD SID) — one `MASSSET` + one
-`GRAV` per mass-check subcase. sbeam has **no `RFORCE`**, so the gate covers
-**translational** inertia only (`n_z`, later `n_y`); rotational-acceleration
-terms (`Δθ̈`/`Δψ̈`) stay checked by sloads-side closure. The CONM2 fragment is
-**full-airplane** (plan 11 B-5): wing/tail items split per side onto the
-left/right GID bands.
-
-**Effort: L (~4–5 sessions).** **Depends on** the balanced-airframe item's step
-B1 (`mass_distribution.py`, the item→station map) — land B1 first or C3
-hand-rolls a second mapping. Rides on the round-trip harness for its solver
-gate.
 
 ### [E] Distributed empennage loads — phase 2 *(T6–T7; phase 1 shipped 2026-08-08)* — **step 9**
 Phase 1 (**T1–T5**, mission step 7) shipped: the h-tail and v-tail now carry

@@ -10,6 +10,10 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+---
+
+## [0.4.0] — 2026-08-08
+
 ### Added
 
 - **Distributed empennage loads** — `sloads/modules/tail_span.py`,
@@ -56,6 +60,147 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   - `SCHEMA_VERSION` **42** — `Project.tail_mass`, `LoadsResult.htail_span`/
     `.vtail_span`, and `WingStationLoad.myy_free` (the *free* per-strip torsion,
     which the cumulative `myy` is not). All additive; no migration hop.
+
+
+- **M3-3b / Step G8 — the consolidated summary report renders.** A loads bundle
+  now ships its **controlling document**: the airplane and its inputs, the three
+  envelope figures with their corner-point tables, the case index and FAR 23
+  Subpart C coverage matrix, every governing **ULTIMATE** load with the safety
+  factor and station it acts at, the methods & limitations statement, and a
+  manifest of the companion files. Four new pure modules — `report/content.py`
+  (`Project` → `ReportDocument`), `report/latex.py` (`.tex`), `report/plots_tex.py`
+  (V-n, weight/CG and the new speed–altitude figure as pgfplots source) — plus
+  `export/pdf.py`, the one impure piece (engine discovery `tectonic` → `latexmk` →
+  `pdflatex`, overridable with `SLOADS_TEX_ENGINE`; it returns a log instead of
+  raising, because decision G8-1 makes the `.tex` the deliverable and the PDF
+  best-effort). Available from the Export page's **Summary report** section and
+  headless via `cli.py --report out.tex|out.pdf`. The document honours the
+  selected unit system throughout (M4-20), states its basis and units on the title
+  page, and is byte-identical between two renders of one project — a caller
+  supplies the timestamp, nothing reads the clock.
+
+  The Export page and the report now build their component loads through one
+  shared `report.content.component_loads()`, so a bundle's document and its
+  CSV/BDF files cannot describe different numbers. Sections whose inputs are
+  absent say so with a reason rather than vanishing or rendering an empty table.
+
+
+- **M4-9 — a standing relabel guard** (`tests/test_report.py`). Three tests
+  replace every display label with a meaningless one and require the load-case
+  CSV, the schema choice and the four gyro sub-cases to be unaffected — the
+  regression the whole item exists to prevent. Each was verified to fail when its
+  own code path is reverted to label matching.
+- **M4-9 — `sloads/load_keys.py`**, the canonical `LoadValue.key` constants for
+  the load-case schema (`loc_x`, `fz_vertical`, `fy_side`, `fx_thrust`,
+  `mx_mount_torque`, and the `gyro_case{n}_{myy,mzz}` sub-cases), imported by
+  both producer and consumer.
+- **M4-9 — schema v37 backfill hop** (`migrations._v36_load_value_keys`). The
+  persisted SELECT critical conditions get their keys filled from a frozen
+  label→key table; an unrecognised label keeps an empty key rather than an
+  invented one. M4-10's fields-hash tripwire fired on the shape change, as built.
+- **M4-10 — two schema guards** (`tests/test_schema_guards.py`). A **sentinel
+  round-trip** walks every persisted scalar of a real project and asserts none is
+  dropped by `io.py`'s hand-written field lists — the failure mode where a new
+  field works perfectly in memory and in every calc test, then vanishes on
+  save/reload. And a **fields-hash tripwire** over every persisted dataclass's
+  field names, so changing a persisted shape without bumping `SCHEMA_VERSION` now
+  fails loudly; the discipline was previously unenforced. The tripwire is itself
+  tested by injecting a change and asserting it fires.
+
+
+- **M4-11a — `components.unit_number_input`: the GUI input unit boundary, in one
+  place.** Imperial in, Imperial out, so a view cannot convert twice, convert the
+  wrong way, or forget to convert on the way home. Three modes, stated by the
+  caller and never inferred from a label: `kind=` (converted; unit-suffixed
+  label, per-system widget key, bounds converted too), `fixed_unit=KEAS` /
+  `ALTITUDE_FT` (decision D-16's aviation carve-out — displayed, never converted,
+  key deliberately *not* per-system), or neither (dimensionless). Both together
+  raise `ValueError`.
+- **M4-11a — `components.page_header(key)` / `page(key)`**: a view's title,
+  caption, applicability banner and `PageContext` in one call, with `page()`
+  adding a workflow-derived upstream gate as a context manager. The title *and*
+  the required slices come from `workflow.py`, and each gate links to the step
+  that produces the missing slice, so re-sequencing the workflow re-points every
+  gate without touching a view.
+- **M4-11a — `components.active_system()`**, the single read of the unit
+  selection in the whole app layer (D-16); backlog M4-20 re-points that one
+  function at a `Project` field without touching any call site.
+- **M4-11a — two new test files, 50 tests.**
+  `tests/test_app_components.py` pins the helper in isolation (round-trip per
+  unit kind per system, carve-out exactness, bound conversion, key discipline);
+  `tests/test_view_unit_roundtrip.py` pins it end-to-end through real views via
+  `AppTest`, typing in each system and asserting the same stored Imperial value.
+- **`radon`** added to the `dev` extra (decision D-17) for cyclomatic-complexity
+  and maintainability-index reporting. **Explicitly not a CI gate** — `ruff` and
+  `pytest` remain the merge gate.
+
+
+- **Step G8 specification & plan (M3-3, the first M4 item) — docs only, no code.**
+  The consolidated loads summary report is now specified before it is built:
+  `docs/10_standard/SUMMARY_REPORT.md` is the **document standard** (purpose and
+  audience, whole-document content rules — ultimate-load marking, case-ID
+  traceability, axis/sign/station statements, absence handling, units — the
+  required section structure, the **excluded-content** list with the reason for
+  each exclusion, and an eleven-point conformance checklist), and
+  `docs/30_future/05_step_g8_summary_report_plan.md` is the implementation plan
+  (locked decisions G8-1…G8-4: a LaTeX renderer emitting `.tex` always and PDF
+  when a TeX engine is present, pgfplots/TikZ figures generated as text, the
+  methods/limitations statement stamped into BDF `$` comments + CSV `#` headers +
+  `METHODS.txt` + a workbook sheet, and report depth = summary plus every
+  governing case pointing at the bundle's CSV/BDF companions; the `sloads/report/`
+  package layout; seven ordered sub-steps; risks; the test matrix). The backlog
+  entry and `docs/00_INDEX.md` link both. No calc, module or export code changed.
+- **`cspell.json` — the domain wordlist referenced by `CLAUDE.md`, `README.md`
+  and `PROJECT_GUIDE.md` now actually exists.** 119 verified terms (the 21 `.BAS`
+  program names, structural/aero vocabulary, the suite's variable and unit
+  abbreviations, tooling names, and the LaTeX toolchain terms Step G8 will need),
+  plus `ignorePaths` for the venv, caches, `reference/` PDFs and generated data
+  files. Entries were checked against the repo rather than assumed, so no
+  misspelling is whitelisted.
+
+- **M4-18 — the loads reference axis (LRA) + two-sided load envelopes**
+  (2026-08-03 loads-plots review). Two review findings closed:
+  1. **Wing torsion is now stated about a defined loads reference axis.**
+     New `SurfaceInput.ref_axis_pct` (schema v34, lenient default 0.25) names
+     the chordwise axis of the beam model the delivered loads apply to — the
+     elastic axis, typically 40–50 % chord. The calc stays on the original
+     25 % chord (oracle-locked); `net_loads.to_loads_ref_axis` transfers the
+     cumulative torsion at the render/export boundary
+     (`Myy_lra = Myy_25 + Sz·(x_lra − x_25)`; a bitwise no-op at 0.25), and
+     `WingLoadResult.torsion_axis` stamps the axis on every result. **Every
+     torsion output now names its axis** (mixed axes stay allowed but always
+     labelled): the Loads-Plots/Export pages and the sbeam artifacts deliver
+     LRA torsion (in-band span-CSV `MyyAxis` column + BDF `$` comments +
+     stick-model beam-axis note), the Wing Loads analysis page and
+     `wing_load_rows` stay at the labelled 25 % chord for manual cross-checks,
+     and `net_loads.run` reports the root torsion at both axes when they
+     differ. The LRA is set per surface on the Geometry page (with definition
+     help text, seed carry-over) and drawn dash-dot on the three-view planform.
+  2. **The Loads-Plots envelope is now two-sided.** The single max-|value|
+     trace hid the opposite-sign extreme (which can govern a different part of
+     the structure) and could jump where the governing sign flips; the overlay
+     now draws pointwise **max and min** envelopes (`report.envelope_extremes`)
+     and writes both into the page's CSV download.
+
+- **M4-17e — the full 33-case LANDLOAD matrix in the ULTIMATE deliverable.**
+  `landing.run()` now emits **40** `ConditionResult`s (LGFACTOR + 6 family
+  summaries + 33 per-case): VMP/DMP/SMP/RMP and VNP/DNP/SNP/RESULT
+  (`lbs-ULT`, SF 1.5), the unbalanced pitch/roll/yaw moments (`lb-in-ULT`,
+  SF 1.5) and the **dimensionless** ground-line inertia factors NVP/NDP/NS
+  (unscaled, no `-ULT` — they are load factors). The moments and factors — a
+  third of the original LANDLOAD printout, computed since the port but reaching
+  no deliverable and no test — are also shown on the Landing Loads page
+  (LIMIT-marked) and are the gear-attachment inputs **M4-6** needs. The CSV grows
+  from 7 conditions to ~430 rows, so the deliverable is no longer thinner than
+  the LIMIT analysis screen.
+- **M4-17d — landing hierarchy & sanity validation** in the pure
+  `sloads/validation.py`: `gross_ge_max_landing` (WR = GW/W below 1
+  under-predicts the braked-roll, side and supplementary-nose cases),
+  `landing_light_le_max`, `landing_cg_ordering`, `landing_cg_below_axle`,
+  `landing_cg_names`; plus a post-compute `landing_reaction_warnings`
+  (`landing_negative_vertical`, `landing_zero_nose`) kept **outside**
+  `consistency_warnings` so no definition page pays for a gear solve. Warn-only,
+  and silent on the Appendix-A GA fixture.
 
 ### Fixed
 
@@ -323,7 +468,6 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   - `flight_envelope.balance_configs` is now public (the page needs the same
     fuselage-moment-augmented configs the balance flies).
 
-### Fixed
 
 - **Overlay `CONM2` cards no `MASSSET` named were silently counted in every
   payload case.** sbeam decides overlay-only status by *reference* — a card no
@@ -375,6 +519,181 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   legitimately differ, and **zeroing `clmax_flap`** on a project with no
   flaps-down coefficient set (the regional-jet concept: VF then failed to
   compute). Pinned by two `AppTest` guards.
+
+
+- **Twelve views read `st.session_state["unit_system"]` directly**, a second
+  authority for the unit selection that decision D-16 says must not exist (found
+  implementing M4-20 step 6). It was latent rather than live — `Home.py` rewrites
+  the session key from `Project.unit_system` on every render, so the two agree in
+  practice — but it meant step 2's re-point of `active_system()` at the project
+  field reached only the views that go through `unit_number_input`/`page`. All
+  twelve now call `active_system()`, whose own fallback is that same session key.
+- **`weight_mass.py` handed `load_cases_csv` its display-converted results.**
+  Since M4-20 step 3 the writer converts internally, so that page's CSV came out
+  SI while every other page's came out Imperial — an inconsistency no error
+  reported. It now passes the raw results plus `system=`; only the unit-agnostic
+  `module_text_report` gets the converted copy.
+- **The four sbeam `.bdf` decks shipped with no methods or units statement at
+  all** (found implementing M4-20 step 5). The Export page built a
+  `bdf_comment_block` and then never applied it — the decks were the one channel
+  in a bundle carrying neither their ULTIMATE basis nor their unit set. `ruff`
+  could not catch it: the unused name is module-level, and its unused-variable
+  rule is a *local* check. Every BDF writer now takes `header_comment=` (matching
+  the CSV writers), the page passes the stamp it builds, and a source-level test
+  asserts all five deck artifacts do. `$` is inert to any bulk-data parser and an
+  unstamped call is byte-identical, so no existing caller changes.
+
+- **`lb-in` and `lb/in^2` had no SI conversion.** `units.convert_results` left
+  them Imperial while converting everything around them, so an SI results table
+  mixed `N` and `lb-in` in adjacent rows with no error anywhere — **1580 values
+  across the six examples**, covering root bending/torsion, pitching moments and
+  every control-surface design pressure. Both now convert (`N·m`, `kPa`) and both
+  are recognised by the ultimate boundary, so they keep their `-ULT` marker. A
+  standing guard asserts every unit in `render._LOAD_UNITS` has an SI mapping and
+  an `-ULT` marker, so the next one added without them fails loudly; it was
+  verified to fail when the `lb-in` row is removed again.
+- **Dead `"knot" → m/s` row removed from the SI table.** The calc emits
+  `kt(EAS)`, never `"knot"`, so the row never matched a value — the KEAS
+  carve-out held by accident. Removing it means the first producer to emit
+  `"knot"` cannot silently convert an airspeed the standard says is never
+  converted. Pinned by test for both `kt(EAS)` and `ft`.
+- **The `lb-in → N·m` factor was quoted twice as a rounded `0.1129848333`** against
+  an exact product of `0.11298482902761668`. Both sites now derive it. SI-only,
+  3.8e-8, below display precision.
+
+
+- **M4-10 — a pre-Phase-G0 file lost its horizontal-tail length.** The v24
+  unit-rename hop covered `vtail_loads` but not `tail_loads`, so
+  `airplane_length_ft` was dropped rather than rescaled to inches. Caught by the
+  existing `test_legacy_ft_sqin_keys_migrate_to_canonical`.
+
+- **G8.3 — every export channel now carries its own methods & limitations
+  statement.** A loads CSV forwarded on its own, or a BDF handed to sbeam, now
+  states in band that its numbers are ULTIMATE, under what category, how the tool
+  is verified (including that twin-turboprop cases are **closure-locked, not
+  oracle-locked**, because Appendix B is not bundled), the three approved
+  deviations from the source manual, and what the tool does not do. Built once in
+  `sloads/report/methods.py` and wired into `io.load_cases_csv`, all five sbeam
+  CSV writers, the case index, `METHODS.txt` in the zip bundle, and a new
+  *Methods* sheet in the workbook. The statement adapts per project: the concept
+  caveat lists the actual applicability exceedances, and the fuselage
+  closure-artifact caveat appears verbatim only when a case took the fallback
+  path. Deterministic — nothing reads the clock, so two exports of one project
+  are byte-identical. CSV consumers need `comment="#"`; every in-repo reader was
+  audited in the same change.
+- **G8.4 — FAR 23 Subpart C coverage matrix** (`sloads/report/coverage.py`): 52
+  regulations classified against what a run actually produced — *covered* (with a
+  case count), *not applicable* (with the engineering reason), *not analysed*
+  (the gap list), or *out of scope* (the tool does not implement it). The
+  fourth status is a deliberate departure from the plan's three: without it, the
+  16 regulations the suite never implements read as gaps and bury the 9 real ones.
+- **G8.2 — document-control fields** `Project.revision` / `.checked_by` /
+  `.approved_by` / `.description` (**schema v36**), editable on the Dashboard.
+  All free text defaulting to `""`, so older files load unchanged and a project
+  that never sets them serialises exactly as before. `revision` is deliberately
+  free text, not a tool-managed counter (decision G8-5).
+
+
+- **`report.strip_comment_lines` corrupted CRLF line endings.** The reader-side
+  helper split on `\n` and rejoined, silently rewriting the line endings
+  `csv.DictWriter` emits — in the payload it exists to leave untouched.
+
+- **M4-11a — the Geometry page ignored the SI unit toggle on ~40 fields.** The
+  empennage (33 fields), landing-gear (7) and engine-CG (3) forms hard-coded
+  Imperial unit strings into their labels (`"H-tail area ST (ft²)"`, `"Tread
+  between mains (in)"`) and performed no conversion, so with the sidebar set to
+  SI a user saw `(in)`/`(ft²)` and their entry was stored as inches. The gear
+  caption had documented the behaviour rather than fixed it. All now render in
+  the active system and store canonical Imperial. Two `"CG station … (in)"`
+  fields on the Flight Envelope trim tab had the same defect.
+- **M4-11a — a 184 ft² wing was stored as 1982 ft² in SI.** With the widgets
+  returning canonical Imperial, the Geometry page's Apply handler converted a
+  second time. Found by the new through-the-view test, not by review.
+- **M4-11a — an untouched field drifted the project on every Apply in SI.** The
+  display seed is rounded to 4 decimals for legibility; converting *that* back
+  returned a value a hair off the original. `unit_number_input` now returns the
+  caller's own Imperial value when the field was not edited.
+- **M4-11a — `min_value`/`max_value` were not converted with the value**, so a
+  non-zero Imperial bound would have become an SI-magnitude bound and silently
+  stopped constraining.
+
+
+- **M4-12a — AppTest Apply buttons are selected by form key, not list
+  position.** `at.button` flattens every form's submit button into one list, so
+  `test_dirty_flag`'s `_apply_buttons(at)[0]`/`[1]` silently rebound whenever a
+  view gained, lost or reordered a form — the test kept passing while asserting
+  something else, and M4-11 is about to rewrite 22 apply handlers. All eight
+  positional/label lookups (`test_dirty_flag`, `test_configuration_layout_view`,
+  `test_landing`) now go through `helpers.apply_button(at, form_key)`, which
+  asserts it matched exactly one button. Two `__main__` self-runners that drove
+  views through `AppTest` without putting `app/` on `sys.path` are repaired.
+  The bad selection had been masking a real app defect, now logged as **M4-22**
+  (the Flight Envelope SELECT Apply also persists un-applied geometry edits).
+
+- **M4-1 — fuselage body loads now close the moment, not just the force**
+  (Ref 1 Ch 15 p103). `body_loads` applied a single vertical wing reaction and
+  closed ΣFz only, so the delivered body beam carried a net pitching couple
+  (terminal `Myy` 7.3e4 – 5.5e5 lb-in on the GA6 conditions). It now follows the
+  manual's two passes: the terminal moment of the inertia + tail-load set **is**
+  the unbalanced moment `M_ub`, which is reacted with the vertical residual at
+  the wing **front and rear spar attachments**
+  (`R_r = (M_ub + R_total·(x_ref − x_f))/(x_r − x_f)`, `R_f = R_total − R_r`).
+  Both residuals now close to ~1e-15 of the loads that produce them. New
+  `SurfaceInput.front_spar_pct`/`.rear_spar_pct` (**schema v35**; `None` = not
+  entered → module defaults 0.15/0.65, flagged `assumed` on every deliverable)
+  and `derived_geometry.carry_through`. The two reactions are applied as the
+  statically equivalent **linear line load** over the carry-through rather than
+  as two point loads — same resultant and first moment, no `±M_ub/d` shear
+  spike, and it collapses onto the manual's literal two-point solve as `d → 0`;
+  closure is independent of the node count. Where the spar stations can't be
+  derived, a flagged whole-body fallback closes the beam and is labelled a
+  **closure artifact** (it has no physical source). Wing-attach fitting loads
+  are reported — `body_loads.fitting_load_rows` (LIMIT) and the new
+  `sbeam_bridge.body_fitting_load_csv` (ULTIMATE, also in the `.zip` bundle and
+  as a workbook sheet) — deliberately *outside* the `FORCE` set, which already
+  carries them. The 2026-07-23 caveat comes off its three stamp sites: BDF
+  blocks now state both residuals and the spar provenance (`$ CAVEAT:` only on
+  the artifact path), the **Net Fuselage Loads** page trades its warning for a
+  terminal-`Myy` metric and a *Wing-attach reactions (LIMIT)* panel, and the
+  **Export** page's Fuselage caption branches artifact/closed. The FAR 23 flight
+  oracles are unaffected (no flight-loads or envelope calc changed).
+  Full record: `docs/40_history/00_completed_development.md` and the design note
+  `docs/40_history/04_m4-1_body_moment_closure.md`.
+
+
+- **M4-17a — the landing-loads ↔ mass-model disconnection.**
+  `weight_onecg.build_mass` had **zero production callers**: no page, no CLI path
+  and no example ever produced `Project.mass`. The dashboard therefore showed
+  Landing Loads "⛔ blocked — Needs: mass" on every shipped example while the
+  landing results computed fine, and the One Engine Out gate was **unsatisfiable
+  through the GUI**. The Weight & Mass Properties **Apply weight items** handler
+  now persists `project.mass = build_mass(project)`, and the landing workflow
+  step's `requires` drops `"mass"` — the LANDLOAD calc has read no mass slice
+  since M2-8. `one_engine_out` still requires it (IZZ).
+- **M4-17c — the landing CG seed could emit a zero waterline.** The seed read
+  `project.mass.cases[0].cg_z`, always absent, and fell back to `0.0` against a
+  ~60 in axle waterline — computing silently with nose-gear reactions of
+  −233…−2887 lb (nonphysical) and braked-roll main loads 2.6× the p230 oracle.
+  Missing-source cells are now **blank, never zero**; the page names the missing
+  source and **blocks the reaction compute** until a real waterline is entered.
+  Legacy project files carrying `zcg: 0` are blocked with an explanation rather
+  than computed — an intentional, load-bearing behaviour change.
+- **M4-17c — the forward CG limit is interpolated at the landing weight.** The
+  seed paired the weight-agnostic outer-hull forward station (72.64 in) with the
+  max-landing weight, where the manual reads the forward limit *at* that weight
+  (76.12 in, Appendix A p230). New public
+  `validation.wtenv_fwd_cg_limit_at_weight(project, weight_lb)` lerps the WTENV
+  forward limit between the forward-regardless and forward-gross anchors,
+  **clamped, never extrapolated**. Max-landing rows are also no longer seeded at
+  full MTOW when the max landing weight is unset.
+- **M4-17e — `_critical` excluded the side load.** The 23.485 family pick was a
+  tie-break accident (cases 19–22 share an identical VMP); the ranking now uses
+  the full √(V²+D²+S²) magnitude. Ranking only — no stored value changes, and the
+  picks are unchanged on every bundled example.
+- **M4-17b — seven stale `Project.mass` doc/help references** in
+  `modules/landing.py`, `models/inputs.py` (four) and `app/views/landing_loads.py`
+  (docstring + the gross-weight-override help), all of which contradicted the
+  M2-8 removal note in the same files.
 
 ### Changed
 
@@ -507,31 +826,6 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
     deferred to its own session (the file carries in-flight changes) and filed on the
     backlog.
 
-### Added
-
-- **M3-3b / Step G8 — the consolidated summary report renders.** A loads bundle
-  now ships its **controlling document**: the airplane and its inputs, the three
-  envelope figures with their corner-point tables, the case index and FAR 23
-  Subpart C coverage matrix, every governing **ULTIMATE** load with the safety
-  factor and station it acts at, the methods & limitations statement, and a
-  manifest of the companion files. Four new pure modules — `report/content.py`
-  (`Project` → `ReportDocument`), `report/latex.py` (`.tex`), `report/plots_tex.py`
-  (V-n, weight/CG and the new speed–altitude figure as pgfplots source) — plus
-  `export/pdf.py`, the one impure piece (engine discovery `tectonic` → `latexmk` →
-  `pdflatex`, overridable with `SLOADS_TEX_ENGINE`; it returns a log instead of
-  raising, because decision G8-1 makes the `.tex` the deliverable and the PDF
-  best-effort). Available from the Export page's **Summary report** section and
-  headless via `cli.py --report out.tex|out.pdf`. The document honours the
-  selected unit system throughout (M4-20), states its basis and units on the title
-  page, and is byte-identical between two renders of one project — a caller
-  supplies the timestamp, nothing reads the clock.
-
-  The Export page and the report now build their component loads through one
-  shared `report.content.component_loads()`, so a bundle's document and its
-  CSV/BDF files cannot describe different numbers. Sections whose inputs are
-  absent say so with a reason rather than vanishing or rendering an empty table.
-
-### Changed
 
 - **The methods & limitations statement no longer cites backlog IDs.** It is now
   a report section as well as a CSV/BDF stamp, and `SUMMARY_REPORT.md` §5 excludes
@@ -678,49 +972,6 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   from named base constants, and a test asserts `moment == force × length` for
   the solver set in both systems.
 
-### Fixed
-
-- **Twelve views read `st.session_state["unit_system"]` directly**, a second
-  authority for the unit selection that decision D-16 says must not exist (found
-  implementing M4-20 step 6). It was latent rather than live — `Home.py` rewrites
-  the session key from `Project.unit_system` on every render, so the two agree in
-  practice — but it meant step 2's re-point of `active_system()` at the project
-  field reached only the views that go through `unit_number_input`/`page`. All
-  twelve now call `active_system()`, whose own fallback is that same session key.
-- **`weight_mass.py` handed `load_cases_csv` its display-converted results.**
-  Since M4-20 step 3 the writer converts internally, so that page's CSV came out
-  SI while every other page's came out Imperial — an inconsistency no error
-  reported. It now passes the raw results plus `system=`; only the unit-agnostic
-  `module_text_report` gets the converted copy.
-- **The four sbeam `.bdf` decks shipped with no methods or units statement at
-  all** (found implementing M4-20 step 5). The Export page built a
-  `bdf_comment_block` and then never applied it — the decks were the one channel
-  in a bundle carrying neither their ULTIMATE basis nor their unit set. `ruff`
-  could not catch it: the unused name is module-level, and its unused-variable
-  rule is a *local* check. Every BDF writer now takes `header_comment=` (matching
-  the CSV writers), the page passes the stamp it builds, and a source-level test
-  asserts all five deck artifacts do. `$` is inert to any bulk-data parser and an
-  unstamped call is byte-identical, so no existing caller changes.
-
-- **`lb-in` and `lb/in^2` had no SI conversion.** `units.convert_results` left
-  them Imperial while converting everything around them, so an SI results table
-  mixed `N` and `lb-in` in adjacent rows with no error anywhere — **1580 values
-  across the six examples**, covering root bending/torsion, pitching moments and
-  every control-surface design pressure. Both now convert (`N·m`, `kPa`) and both
-  are recognised by the ultimate boundary, so they keep their `-ULT` marker. A
-  standing guard asserts every unit in `render._LOAD_UNITS` has an SI mapping and
-  an `-ULT` marker, so the next one added without them fails loudly; it was
-  verified to fail when the `lb-in` row is removed again.
-- **Dead `"knot" → m/s` row removed from the SI table.** The calc emits
-  `kt(EAS)`, never `"knot"`, so the row never matched a value — the KEAS
-  carve-out held by accident. Removing it means the first producer to emit
-  `"knot"` cannot silently convert an airspeed the standard says is never
-  converted. Pinned by test for both `kt(EAS)` and `ft`.
-- **The `lb-in → N·m` factor was quoted twice as a rounded `0.1129848333`** against
-  an exact product of `0.11298482902761668`. Both sites now derive it. SI-only,
-  3.8e-8, below display precision.
-
-### Changed
 
 - **`PROJECT_GUIDE.md`'s schema-change convention contradicted the tripwire.** It
   said a new optional field with a default "needs nothing", while
@@ -798,64 +1049,6 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   mutating a current dict and passing for the wrong reason; they now declare the
   version they test.
 
-### Added
-
-- **M4-9 — a standing relabel guard** (`tests/test_report.py`). Three tests
-  replace every display label with a meaningless one and require the load-case
-  CSV, the schema choice and the four gyro sub-cases to be unaffected — the
-  regression the whole item exists to prevent. Each was verified to fail when its
-  own code path is reverted to label matching.
-- **M4-9 — `sloads/load_keys.py`**, the canonical `LoadValue.key` constants for
-  the load-case schema (`loc_x`, `fz_vertical`, `fy_side`, `fx_thrust`,
-  `mx_mount_torque`, and the `gyro_case{n}_{myy,mzz}` sub-cases), imported by
-  both producer and consumer.
-- **M4-9 — schema v37 backfill hop** (`migrations._v36_load_value_keys`). The
-  persisted SELECT critical conditions get their keys filled from a frozen
-  label→key table; an unrecognised label keeps an empty key rather than an
-  invented one. M4-10's fields-hash tripwire fired on the shape change, as built.
-- **M4-10 — two schema guards** (`tests/test_schema_guards.py`). A **sentinel
-  round-trip** walks every persisted scalar of a real project and asserts none is
-  dropped by `io.py`'s hand-written field lists — the failure mode where a new
-  field works perfectly in memory and in every calc test, then vanishes on
-  save/reload. And a **fields-hash tripwire** over every persisted dataclass's
-  field names, so changing a persisted shape without bumping `SCHEMA_VERSION` now
-  fails loudly; the discipline was previously unenforced. The tripwire is itself
-  tested by injecting a change and asserting it fires.
-
-### Fixed
-
-- **M4-10 — a pre-Phase-G0 file lost its horizontal-tail length.** The v24
-  unit-rename hop covered `vtail_loads` but not `tail_loads`, so
-  `airplane_length_ft` was dropped rather than rescaled to inches. Caught by the
-  existing `test_legacy_ft_sqin_keys_migrate_to_canonical`.
-
-- **G8.3 — every export channel now carries its own methods & limitations
-  statement.** A loads CSV forwarded on its own, or a BDF handed to sbeam, now
-  states in band that its numbers are ULTIMATE, under what category, how the tool
-  is verified (including that twin-turboprop cases are **closure-locked, not
-  oracle-locked**, because Appendix B is not bundled), the three approved
-  deviations from the source manual, and what the tool does not do. Built once in
-  `sloads/report/methods.py` and wired into `io.load_cases_csv`, all five sbeam
-  CSV writers, the case index, `METHODS.txt` in the zip bundle, and a new
-  *Methods* sheet in the workbook. The statement adapts per project: the concept
-  caveat lists the actual applicability exceedances, and the fuselage
-  closure-artifact caveat appears verbatim only when a case took the fallback
-  path. Deterministic — nothing reads the clock, so two exports of one project
-  are byte-identical. CSV consumers need `comment="#"`; every in-repo reader was
-  audited in the same change.
-- **G8.4 — FAR 23 Subpart C coverage matrix** (`sloads/report/coverage.py`): 52
-  regulations classified against what a run actually produced — *covered* (with a
-  case count), *not applicable* (with the engineering reason), *not analysed*
-  (the gap list), or *out of scope* (the tool does not implement it). The
-  fourth status is a deliberate departure from the plan's three: without it, the
-  16 regulations the suite never implements read as gaps and bury the 9 real ones.
-- **G8.2 — document-control fields** `Project.revision` / `.checked_by` /
-  `.approved_by` / `.description` (**schema v36**), editable on the Dashboard.
-  All free text defaulting to `""`, so older files load unchanged and a project
-  that never sets them serialises exactly as before. `revision` is deliberately
-  free text, not a tool-managed counter (decision G8-5).
-
-### Changed
 
 - **G8.1 — `sloads/report.py` is now the `sloads/report/` package**, the same
   mechanical move `models.py` → `models/` made at M3-1. Existing code is
@@ -864,60 +1057,6 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   `report._fmt` was imported across the module boundary by a test, so it is
   promoted to **`report.format_value`** per the M4-12b public-symbol contract.
 
-### Fixed
-
-- **`report.strip_comment_lines` corrupted CRLF line endings.** The reader-side
-  helper split on `\n` and rejoined, silently rewriting the line endings
-  `csv.DictWriter` emits — in the payload it exists to leave untouched.
-
-- **M4-11a — the Geometry page ignored the SI unit toggle on ~40 fields.** The
-  empennage (33 fields), landing-gear (7) and engine-CG (3) forms hard-coded
-  Imperial unit strings into their labels (`"H-tail area ST (ft²)"`, `"Tread
-  between mains (in)"`) and performed no conversion, so with the sidebar set to
-  SI a user saw `(in)`/`(ft²)` and their entry was stored as inches. The gear
-  caption had documented the behaviour rather than fixed it. All now render in
-  the active system and store canonical Imperial. Two `"CG station … (in)"`
-  fields on the Flight Envelope trim tab had the same defect.
-- **M4-11a — a 184 ft² wing was stored as 1982 ft² in SI.** With the widgets
-  returning canonical Imperial, the Geometry page's Apply handler converted a
-  second time. Found by the new through-the-view test, not by review.
-- **M4-11a — an untouched field drifted the project on every Apply in SI.** The
-  display seed is rounded to 4 decimals for legibility; converting *that* back
-  returned a value a hair off the original. `unit_number_input` now returns the
-  caller's own Imperial value when the field was not edited.
-- **M4-11a — `min_value`/`max_value` were not converted with the value**, so a
-  non-zero Imperial bound would have become an SI-magnitude bound and silently
-  stopped constraining.
-
-### Added
-
-- **M4-11a — `components.unit_number_input`: the GUI input unit boundary, in one
-  place.** Imperial in, Imperial out, so a view cannot convert twice, convert the
-  wrong way, or forget to convert on the way home. Three modes, stated by the
-  caller and never inferred from a label: `kind=` (converted; unit-suffixed
-  label, per-system widget key, bounds converted too), `fixed_unit=KEAS` /
-  `ALTITUDE_FT` (decision D-16's aviation carve-out — displayed, never converted,
-  key deliberately *not* per-system), or neither (dimensionless). Both together
-  raise `ValueError`.
-- **M4-11a — `components.page_header(key)` / `page(key)`**: a view's title,
-  caption, applicability banner and `PageContext` in one call, with `page()`
-  adding a workflow-derived upstream gate as a context manager. The title *and*
-  the required slices come from `workflow.py`, and each gate links to the step
-  that produces the missing slice, so re-sequencing the workflow re-points every
-  gate without touching a view.
-- **M4-11a — `components.active_system()`**, the single read of the unit
-  selection in the whole app layer (D-16); backlog M4-20 re-points that one
-  function at a `Project` field without touching any call site.
-- **M4-11a — two new test files, 50 tests.**
-  `tests/test_app_components.py` pins the helper in isolation (round-trip per
-  unit kind per system, carve-out exactness, bound conversion, key discipline);
-  `tests/test_view_unit_roundtrip.py` pins it end-to-end through real views via
-  `AppTest`, typing in each system and asserting the same stored Imperial value.
-- **`radon`** added to the `dev` extra (decision D-17) for cyclomatic-complexity
-  and maintainability-index reporting. **Explicitly not a CI gate** — `ruff` and
-  `pytest` remain the merge gate.
-
-### Changed
 
 - **M4-12b — public import contract: seven private symbols promoted, `__all__`
   on the four defining modules.** `app/` no longer imports any underscored name
@@ -958,51 +1097,6 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   Tests-only: no `sloads/` or `app/` change; 536 tests pass with every numeric
   assertion unedited.
 
-### Fixed
-
-- **M4-12a — AppTest Apply buttons are selected by form key, not list
-  position.** `at.button` flattens every form's submit button into one list, so
-  `test_dirty_flag`'s `_apply_buttons(at)[0]`/`[1]` silently rebound whenever a
-  view gained, lost or reordered a form — the test kept passing while asserting
-  something else, and M4-11 is about to rewrite 22 apply handlers. All eight
-  positional/label lookups (`test_dirty_flag`, `test_configuration_layout_view`,
-  `test_landing`) now go through `helpers.apply_button(at, form_key)`, which
-  asserts it matched exactly one button. Two `__main__` self-runners that drove
-  views through `AppTest` without putting `app/` on `sys.path` are repaired.
-  The bad selection had been masking a real app defect, now logged as **M4-22**
-  (the Flight Envelope SELECT Apply also persists un-applied geometry edits).
-
-- **M4-1 — fuselage body loads now close the moment, not just the force**
-  (Ref 1 Ch 15 p103). `body_loads` applied a single vertical wing reaction and
-  closed ΣFz only, so the delivered body beam carried a net pitching couple
-  (terminal `Myy` 7.3e4 – 5.5e5 lb-in on the GA6 conditions). It now follows the
-  manual's two passes: the terminal moment of the inertia + tail-load set **is**
-  the unbalanced moment `M_ub`, which is reacted with the vertical residual at
-  the wing **front and rear spar attachments**
-  (`R_r = (M_ub + R_total·(x_ref − x_f))/(x_r − x_f)`, `R_f = R_total − R_r`).
-  Both residuals now close to ~1e-15 of the loads that produce them. New
-  `SurfaceInput.front_spar_pct`/`.rear_spar_pct` (**schema v35**; `None` = not
-  entered → module defaults 0.15/0.65, flagged `assumed` on every deliverable)
-  and `derived_geometry.carry_through`. The two reactions are applied as the
-  statically equivalent **linear line load** over the carry-through rather than
-  as two point loads — same resultant and first moment, no `±M_ub/d` shear
-  spike, and it collapses onto the manual's literal two-point solve as `d → 0`;
-  closure is independent of the node count. Where the spar stations can't be
-  derived, a flagged whole-body fallback closes the beam and is labelled a
-  **closure artifact** (it has no physical source). Wing-attach fitting loads
-  are reported — `body_loads.fitting_load_rows` (LIMIT) and the new
-  `sbeam_bridge.body_fitting_load_csv` (ULTIMATE, also in the `.zip` bundle and
-  as a workbook sheet) — deliberately *outside* the `FORCE` set, which already
-  carries them. The 2026-07-23 caveat comes off its three stamp sites: BDF
-  blocks now state both residuals and the spar provenance (`$ CAVEAT:` only on
-  the artifact path), the **Net Fuselage Loads** page trades its warning for a
-  terminal-`Myy` metric and a *Wing-attach reactions (LIMIT)* panel, and the
-  **Export** page's Fuselage caption branches artifact/closed. The FAR 23 flight
-  oracles are unaffected (no flight-loads or envelope calc changed).
-  Full record: `docs/40_history/00_completed_development.md` and the design note
-  `docs/40_history/04_m4-1_body_moment_closure.md`.
-
-### Changed
 
 - **BREAKING (sbeam body decks): fuselage GIDs are now keyed off station
   provenance, not table index.** The carry-through reaction inserts nodes into
@@ -1055,112 +1149,6 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   `docs/30_future/01_concept_loads_plan.md` and
   `05_step_g8_summary_report_plan.md` §10.1 (open question resolved).
 
-### Fixed
-
-- **M4-17a — the landing-loads ↔ mass-model disconnection.**
-  `weight_onecg.build_mass` had **zero production callers**: no page, no CLI path
-  and no example ever produced `Project.mass`. The dashboard therefore showed
-  Landing Loads "⛔ blocked — Needs: mass" on every shipped example while the
-  landing results computed fine, and the One Engine Out gate was **unsatisfiable
-  through the GUI**. The Weight & Mass Properties **Apply weight items** handler
-  now persists `project.mass = build_mass(project)`, and the landing workflow
-  step's `requires` drops `"mass"` — the LANDLOAD calc has read no mass slice
-  since M2-8. `one_engine_out` still requires it (IZZ).
-- **M4-17c — the landing CG seed could emit a zero waterline.** The seed read
-  `project.mass.cases[0].cg_z`, always absent, and fell back to `0.0` against a
-  ~60 in axle waterline — computing silently with nose-gear reactions of
-  −233…−2887 lb (nonphysical) and braked-roll main loads 2.6× the p230 oracle.
-  Missing-source cells are now **blank, never zero**; the page names the missing
-  source and **blocks the reaction compute** until a real waterline is entered.
-  Legacy project files carrying `zcg: 0` are blocked with an explanation rather
-  than computed — an intentional, load-bearing behaviour change.
-- **M4-17c — the forward CG limit is interpolated at the landing weight.** The
-  seed paired the weight-agnostic outer-hull forward station (72.64 in) with the
-  max-landing weight, where the manual reads the forward limit *at* that weight
-  (76.12 in, Appendix A p230). New public
-  `validation.wtenv_fwd_cg_limit_at_weight(project, weight_lb)` lerps the WTENV
-  forward limit between the forward-regardless and forward-gross anchors,
-  **clamped, never extrapolated**. Max-landing rows are also no longer seeded at
-  full MTOW when the max landing weight is unset.
-- **M4-17e — `_critical` excluded the side load.** The 23.485 family pick was a
-  tie-break accident (cases 19–22 share an identical VMP); the ranking now uses
-  the full √(V²+D²+S²) magnitude. Ranking only — no stored value changes, and the
-  picks are unchanged on every bundled example.
-- **M4-17b — seven stale `Project.mass` doc/help references** in
-  `modules/landing.py`, `models/inputs.py` (four) and `app/views/landing_loads.py`
-  (docstring + the gross-weight-override help), all of which contradicted the
-  M2-8 removal note in the same files.
-
-### Added
-
-- **Step G8 specification & plan (M3-3, the first M4 item) — docs only, no code.**
-  The consolidated loads summary report is now specified before it is built:
-  `docs/10_standard/SUMMARY_REPORT.md` is the **document standard** (purpose and
-  audience, whole-document content rules — ultimate-load marking, case-ID
-  traceability, axis/sign/station statements, absence handling, units — the
-  required section structure, the **excluded-content** list with the reason for
-  each exclusion, and an eleven-point conformance checklist), and
-  `docs/30_future/05_step_g8_summary_report_plan.md` is the implementation plan
-  (locked decisions G8-1…G8-4: a LaTeX renderer emitting `.tex` always and PDF
-  when a TeX engine is present, pgfplots/TikZ figures generated as text, the
-  methods/limitations statement stamped into BDF `$` comments + CSV `#` headers +
-  `METHODS.txt` + a workbook sheet, and report depth = summary plus every
-  governing case pointing at the bundle's CSV/BDF companions; the `sloads/report/`
-  package layout; seven ordered sub-steps; risks; the test matrix). The backlog
-  entry and `docs/00_INDEX.md` link both. No calc, module or export code changed.
-- **`cspell.json` — the domain wordlist referenced by `CLAUDE.md`, `README.md`
-  and `PROJECT_GUIDE.md` now actually exists.** 119 verified terms (the 21 `.BAS`
-  program names, structural/aero vocabulary, the suite's variable and unit
-  abbreviations, tooling names, and the LaTeX toolchain terms Step G8 will need),
-  plus `ignorePaths` for the venv, caches, `reference/` PDFs and generated data
-  files. Entries were checked against the repo rather than assumed, so no
-  misspelling is whitelisted.
-
-- **M4-18 — the loads reference axis (LRA) + two-sided load envelopes**
-  (2026-08-03 loads-plots review). Two review findings closed:
-  1. **Wing torsion is now stated about a defined loads reference axis.**
-     New `SurfaceInput.ref_axis_pct` (schema v34, lenient default 0.25) names
-     the chordwise axis of the beam model the delivered loads apply to — the
-     elastic axis, typically 40–50 % chord. The calc stays on the original
-     25 % chord (oracle-locked); `net_loads.to_loads_ref_axis` transfers the
-     cumulative torsion at the render/export boundary
-     (`Myy_lra = Myy_25 + Sz·(x_lra − x_25)`; a bitwise no-op at 0.25), and
-     `WingLoadResult.torsion_axis` stamps the axis on every result. **Every
-     torsion output now names its axis** (mixed axes stay allowed but always
-     labelled): the Loads-Plots/Export pages and the sbeam artifacts deliver
-     LRA torsion (in-band span-CSV `MyyAxis` column + BDF `$` comments +
-     stick-model beam-axis note), the Wing Loads analysis page and
-     `wing_load_rows` stay at the labelled 25 % chord for manual cross-checks,
-     and `net_loads.run` reports the root torsion at both axes when they
-     differ. The LRA is set per surface on the Geometry page (with definition
-     help text, seed carry-over) and drawn dash-dot on the three-view planform.
-  2. **The Loads-Plots envelope is now two-sided.** The single max-|value|
-     trace hid the opposite-sign extreme (which can govern a different part of
-     the structure) and could jump where the governing sign flips; the overlay
-     now draws pointwise **max and min** envelopes (`report.envelope_extremes`)
-     and writes both into the page's CSV download.
-
-- **M4-17e — the full 33-case LANDLOAD matrix in the ULTIMATE deliverable.**
-  `landing.run()` now emits **40** `ConditionResult`s (LGFACTOR + 6 family
-  summaries + 33 per-case): VMP/DMP/SMP/RMP and VNP/DNP/SNP/RESULT
-  (`lbs-ULT`, SF 1.5), the unbalanced pitch/roll/yaw moments (`lb-in-ULT`,
-  SF 1.5) and the **dimensionless** ground-line inertia factors NVP/NDP/NS
-  (unscaled, no `-ULT` — they are load factors). The moments and factors — a
-  third of the original LANDLOAD printout, computed since the port but reaching
-  no deliverable and no test — are also shown on the Landing Loads page
-  (LIMIT-marked) and are the gear-attachment inputs **M4-6** needs. The CSV grows
-  from 7 conditions to ~430 rows, so the deliverable is no longer thinner than
-  the LIMIT analysis screen.
-- **M4-17d — landing hierarchy & sanity validation** in the pure
-  `sloads/validation.py`: `gross_ge_max_landing` (WR = GW/W below 1
-  under-predicts the braked-roll, side and supplementary-nose cases),
-  `landing_light_le_max`, `landing_cg_ordering`, `landing_cg_below_axle`,
-  `landing_cg_names`; plus a post-compute `landing_reaction_warnings`
-  (`landing_negative_vertical`, `landing_zero_nose`) kept **outside**
-  `consistency_warnings` so no definition page pays for a gear solve. Warn-only,
-  and silent on the Appendix-A GA fixture.
-
-### Changed
 
 - Landing CG-case rows are **name-locked and order-canonical**: the data editor's
   `Loading` column is read-only and Apply writes the canonical names, while
