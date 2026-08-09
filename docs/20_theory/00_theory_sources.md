@@ -142,6 +142,30 @@ and their sources (`tests/test_concept_closure.py`):
 | Control surfaces | each `build_*` critical load matches its `run` analysis report (`lb`-unit `LoadValue`) | AILERON/FLAPLOAD/TABLOADS build↔run |
 | All (export) | every component's nodal FORCE set — and its re-parsed cards — sums to that component's root/total at ULTIMATE (`limit × that case's safety_factor`, default 1.5; the factor is uniform within a case, so closure is scale-invariant — defect M4-7) | `export/sbeam_bridge` increment construction + `_sf()` |
 
+### The balanced free-free case as a closure gate (step B2–B6, 2026-08-08)
+
+The FAR 23 core validates against Appendix A; the *assembled airplane* has no
+printed oracle at all, so its gate is equilibrium itself. Plan 11's acceptance,
+now in CI (`tests/test_balance.py`):
+
+| Identity | Gate | Achieved |
+|---|---|---|
+| `\|ΣFz\|/(n·W)` before closure | < 1 % | 0.05–0.70 % |
+| `\|ΣMy_cg\|/(n·W·MAC)` before closure | < 1 % | 0.12–1.04 % |
+| `\|Δn\|/n` (relief applied) | < 1 % | 0.05–0.70 % |
+| ΣFx, ΣFz, ΣMy after closure | ~ 0 | machine precision |
+| the same, re-derived from the deck's own card text | ~ 0 | ~1e-7 (card format) |
+
+The measurement is deliberately taken **before** the closure: the gate is on what
+the physics achieves, not on what the correction hides. The remaining ~0.3 %
+floor is the strip-quadrature-versus-closed-form difference plan 11 R3 predicted
+(ga6 PHAA: the spanwise integral gives 12,940 lb against the trim's 12,969).
+
+Two terms have no distributed carrier and are stated as lumped rather than
+omitted: the fuselage's share of the airplane-less-tail `Cm` (+4.3 to +6.3 % of
+n·W·MAC — the Munk moment, until M4-19 distributes it) and the longitudinal
+relief that stands in for thrust (FAR 23's `nx`).
+
 ### The CONM2 mass model as an *external* check (step C1–C5, 2026-08-08)
 
 Every closure gate above is internal: sloads checking sloads. The distributed

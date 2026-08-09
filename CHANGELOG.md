@@ -12,6 +12,32 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **Balanced free-free airplane cases** — `sloads/modules/balance.py`,
+  `sloads/export/balanced_deck.py`, and a **Balanced Cases** page (mission phase 3
+  step 5; plan 11 **B2–B6**). The mission's aim 2: *a full airplane balanced case,
+  wing tip to wing tip, nose to tail, with no need for a constraint, because the
+  loads balance.*
+
+  The airplane has always balanced at **trim** (`LZW + LT = Nz·W`, asserted for a
+  long time). What never inherited that balance was the **distributed** load set —
+  the wing distribution, the tail load, the fuselage inertia and the trim solve
+  were four calculations nothing assembled. They are assembled now, and every case
+  states what was left over.
+
+  Achieved on the fixtures that can produce one: pre-closure residuals of
+  **0.05–0.70 % of n·W** in force and **0.12–1.04 % of n·W·MAC** in pitch, against
+  plan 11's 1 % gate — and after closure all three symmetric degrees of freedom
+  come to zero at machine precision, verified again by re-deriving the resultant
+  from the exported deck's own card text.
+
+- **The assembled full-span deck is now the primary loads deliverable** (decision
+  B-5). Both wings on separate GID bands (`4001+` / `4201+` — the first deck in
+  the suite carrying more than a half-span), a determinate six-DOF support whose
+  recovered reaction *is* the residual, and a `$` header stating the pre-closure
+  residual, the relief applied, and that the fuselage `Cm` is lumped. Verified to
+  parse with sbeam's own reader.
+
+
 - **CONM2 / MASSSET mass export** — `sloads/export/mass_cards.py`, the mass
   channel on `DeliverableUnits`, and `cli.py --export-conm2` (mission phase 2
   step 4; plan 12 C1–C5). The `FORCE`/`MOMENT` deck is the *total* applied load
@@ -218,6 +244,20 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   compute). Pinned by two `AppTest` guards.
 
 ### Changed
+
+- **The residual closure is three degrees of freedom, not two.** Plan 11 B-3
+  specified `Δn` plus a pitch term. Nothing in an assembled model reacts **drag** —
+  the suite has no distributed thrust — so leaving x open put 17–26 % of n·W into
+  the support reaction and made "reactions ≈ 0" untrue in a deck that still
+  solved. FAR 23's longitudinal load factor `nx` is exactly this quantity; on ga6
+  PHAA the closure gives 0.661 g against the fixture's entered 0.6065. All three
+  DOF are mutually decoupled, because the loading's centroid *is* the CG.
+
+- **Imperial output gains two channels** (`csv/balance`, `txt/balance`) and
+  `tests/fixtures_imperial/digests.json` was regenerated for exactly those. No
+  existing channel moved — this step is additive, and the Appendix A oracles and
+  every per-component deck are unchanged.
+
 
 - **Schema v41.** `MassItem` gains `component`; `FuselageMassInput` gains
   `stations_are_override`. Both are optional and additive, but the *meaning* of

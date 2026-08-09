@@ -10,6 +10,79 @@ Acceptance**, **Key decisions**.
 
 ---
 
+## Balanced free-free airplane cases (mission phase 3, step 5 — plan 11 B2–B6 — complete 2026-08-08, tier L)
+
+**Objective.** Aim 2, in the user's words: *a full airplane balanced case — wing
+tip to wing tip, nose to tail — with no need for a constraint, because the loads
+balance.* The airplane already balanced at **trim**; the distributed loads never
+inherited it, because the wing distribution, tail load, fuselage inertia and trim
+solve were four separate calculations nothing assembled.
+
+**Result.** Pre-closure residuals of **0.05–0.70 % of n·W** and **0.12–1.04 % of
+n·W·MAC** against plan 11's 1 % gate; all three symmetric DOF close to machine
+precision after relief, re-verified from the exported deck's own card text. The
+assembled deck parses in sbeam.
+
+**Deliverables.** `modules/balance.py` (assembly + 3-DOF closure),
+`export/balanced_deck.py` (the primary deliverable), `BalancedLoad` /
+`BalancedCaseResult`, a **Balanced Cases** view, `tests/test_balance.py`.
+
+**Four design questions resolved by measurement before any code was written**
+(the user's explicit instruction), and each answer changed the build:
+
+- **R1, plan 11's "one genuine unknown" — where `m_wf` goes.** Quantified at last:
+  the trim carries `Cm` for the airplane *less tail* (wing **and** fuselage) while
+  the distributed wing carries only its own section `Cm`. The gap is the
+  fuselage's Munk moment, **+4.3 to +6.3 % of n·W·MAC**, positive, with no
+  distributed carrier until M4-19. Applied as a single labelled free moment
+  (user's call); omitting it would leave a systematic ~5 % residual that the
+  closure would silently absorb — a real aero load disguised as a correction.
+- **Case pairing, which B-1 assumed was solved.** It was not: `wing_mass.cases`
+  carry `case=None` on 5 of 6 fixtures and their hand-entered `cl`/`v` are a
+  *different flight condition* from the V-n point SELECT pairs them with (atr42
+  enters CL 1.55 at 170 kt against 1.7283 at 185.85). Assembling the two halves
+  then compares different conditions, and the force residual runs **10–37 %**. The
+  wing distribution is now recomputed at the V-n point's own condition (user's
+  call). The entered distributions are untouched and remain the FAR 23
+  deliverables — this adds a case, it does not change one.
+- **The mass model is the items, not WINGINER's own** (plan 11 §4, confirmed by
+  measurement). Taking wing inertia from `panel_weight_lb + concentrated`
+  double-counts anything in both models; on atr42 and dhc8 the wing-tank fuel is,
+  and the residual runs 12–13 % instead of 1.9 %. Sourcing it from the WING-tagged
+  items made the wing-fuel defect filed at step B1 **stop mattering here**, which
+  is why those fixtures needed no data fix after all.
+- **The closure needs three DOF, not two.** Nothing reacts drag; see the CHANGELOG.
+
+**Three errors found while building, each only visible by checking rather than
+reasoning** — worth recording because all three produced plausible wrong answers:
+
+1. **A cumulative torsion is not a free moment.** `WingStationLoad.myy` already
+   contains the sweep/dihedral transfer of outboard shear to the inboard
+   reference. Assembling from it *and* applying the strip's position offset
+   double-counts the transfer: **20.5 % of n·W·MAC** instead of 0.12 %. Only the
+   section `Cm` is free, and `_free_moments` recovers it by undoing the two
+   transfer accumulations.
+2. **Wing inertia sits at the 50 % chord, not the 25 %.** WINGINER models the
+   panel mass CG there (its torsion carries `−w·(c50x − c25x)` for exactly that
+   reason); placing it where the *air* load acts drops ~2.5 % of n·W·MAC. It is
+   additionally anchored so the set's centroid is the WING items' own — the item
+   database owns *where* the mass is, WINGINER owns *how it spreads*.
+3. **The deck's nodes must be at true positions.** Keying wing nodes on span
+   station alone collapsed air (25 % chord) and inertia (50 % chord) onto one
+   node; reusing the fuselage beam's `z = 0` line flattened real waterlines; and
+   ballast items — which have no beam station, the beam being derived from the
+   untouched database — fell through to a shared node. Together **3.9–21.9 % of
+   the deck's balance**, while the in-memory case still closed to 1e-13. Found
+   only by re-deriving the resultant from the card text, which is now the
+   acceptance test.
+
+**Scope, pinned rather than skipped.** Balanced cases assemble on `ga6_normal`
+(all four symmetric conditions) and `concept_regional_jet` (three). The other
+four fixtures produce none, because **no payload case of theirs is a loading their
+weight database can produce** — the step-4 finding, biting again. `ACRL`/`TORS`
+are antisymmetric and wait for plan 11 B7's handedness machinery: a symmetric
+assembly of an antisymmetric case would balance and mean nothing.
+
 ## CONM2 distributed-mass export (mission phase 2, step 4 — plan 12 C1–C5, C7 — complete 2026-08-08, tier L)
 
 **Objective.** Break a circularity. The `FORCE`/`MOMENT` deck is the *total*

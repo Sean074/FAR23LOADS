@@ -536,6 +536,17 @@ return strings (with thin `write_*` file wrappers), and do no physics.
   carrying concentrated masses**, where the point mass lands entirely at the
   outermost station inboard of it and the exported bending runs ~0.4–1.9 % high
   (open item, filed on the backlog; shear is unaffected).
+- **Balanced cases and the assembled deck (step B2–B6, 2026-08-08).**
+  `modules/balance.py` assembles one full-span free-free case per symmetric wing
+  condition (`PHAA`/`PLAA`/`PMAA`/`NMAA`) that has both a V-n point and a
+  derivable payload loading: wing air + inertia **both sides** (recomputed at the
+  V-n point's own condition), the balancing tail load, the fuselage/empennage
+  inertia from the mass SSOT, and the fuselage's lumped share of the trim
+  pitching moment. `export/balanced_deck.py` writes it — GID bands: right wing
+  `4001+`, left wing `4201+`, centreline `4401+`; one determinate six-DOF
+  support whose reaction *is* the residual; SUBCASE/SID `5001+`. **No free-body
+  cut reaction appears** (the seam rule). The residual before closure and the
+  relief applied are stated on the result, in the UI and in the deck header.
 - **CONM2 mass export (step C1–C5, 2026-08-08).** `sloads/export/mass_cards.py`
   writes the itemized mass model as `CONM2` cards with one `MASSSET` per
   *derivable* payload case, in three artifacts: a pasteable fragment, a

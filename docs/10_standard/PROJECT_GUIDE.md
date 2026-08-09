@@ -190,6 +190,7 @@ FAR23LOADS/
 │   ├── applicability.py          # pure FAR 23 applicability detection (Exceedance list; Phase E1)
 │   ├── mass_distribution.py      # MASS SSOT: weight.items -> per-component station inertia (B1)
 │   │   └── export/mass_cards.py  # CONM2/MASSSET mass model for sbeam (C1-C5)
+│   │   └── export/balanced_deck.py # assembled full-span free-free deck (B5)
 │   ├── validation.py             # pure input-consistency predicates (ConsistencyWarning list; Phase E3)
 │   ├── vn_diagram.py             # pure V-n diagram geometry: stall/manoeuvre/gust polylines (Phase E3)
 │   ├── fuselage_moment.py        # pure Munk slender-body fuselage dCm/dα estimator (off-by-default; Step G4)

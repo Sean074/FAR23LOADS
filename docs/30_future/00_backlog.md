@@ -90,8 +90,7 @@ the feature-branch work below begins.
 | Phase | Step | What ships | Plan / item | Depends on |
 |---|---|---|---|---|
 | **1 — export-boundary gates** | 2 | sbeam round-trip CI gate (wing + body/tail wrappers, negative tests, CI job) | [plan 10](10_sbeam_roundtrip_ci_harness_plan.md) | step 1 ✅ |
-| **3 — balanced wing cases (aim 2)** | 5 | Symmetric wing balanced cases + the **assembled full-span deck (primary deliverable)** + UI | plan 11 **B2–B6** | step 4 |
-| | 6 | Antisymmetric wing (`ACRL`/`TORS`) + the left/right reflection machinery (B-6/B-7) | plan 11 **B7** | step 5 |
+| **3 — balanced wing cases (aim 2)** | 6 | Antisymmetric wing (`ACRL`/`TORS`) + the left/right reflection machinery (B-6/B-7) | plan 11 **B7** | step 5 ✅ |
 | **4 — empennage** | 7 | Distributed h-tail/v-tail loads on the LRA (spanwise strips, GRID+FORCE+MOMENT) | [plan 09](09_distributed_empennage_loads_plan.md) **T1–T5** | steps 1–2 (its T-11 gate) |
 | | 8 | Empennage balanced cases: **±β yaw pairs**, lateral closure design note first (B-8) | plan 11 **B8a** | steps 6, 7 |
 | | 9 | Discrete hinge/actuator controls, T-tail transfer | plan 09 **T6–T8** | step 7 (opportunistic) |
@@ -224,6 +223,20 @@ the fixtures' cases to loadings their databases can produce. Either wants a
 decision before work. Pinned per fixture in
 `tests/test_mass_cards.py::test_which_payload_cases_are_derivable_is_pinned`.
 Tier M–L. Effort: M.
+
+### [V] Only two fixtures can produce a balanced case *(new 2026-08-08, from plan 11 B2)*
+Balanced cases assemble on `ga6_normal` (4 conditions) and
+`concept_regional_jet` (3). `cessna_210`, `atr42_100`, `dhc8_dash8` and
+`concept_heavy` produce **none** — not for any failure of the assembly, but
+because none of their payload cases is a loading their weight database can
+produce (the step-4 finding: a case needing 12–31 % of the airplane as ballast
+has no honest inertia set). Same root cause, same fix, and the same decision
+still outstanding: give `CgCase` an explicit loading definition, or correct the
+fixtures' cases to loadings their databases can reach.
+
+Pinned in `tests/test_balance.py::test_which_conditions_assemble_is_pinned`, so
+the coverage is a recorded fact rather than a silent gap, and it goes red the day
+the fixtures are fixed. Tier M–L. Effort: M. Pairs with the sibling item above.
 
 ### [E] sbeam round-trip CI harness *(new 2026-08-05, process review R9)* — **step 2**
 C4's acceptance ("the exported BDF parses and solves in sbeam") was checked once

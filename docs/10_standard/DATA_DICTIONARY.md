@@ -21,12 +21,12 @@ The top-level `Project` fields. `name`/`engineer`/`date` are free-text metadata;
 | `engines` | `List[EngineInput]` | Engine Mount Loads | `engine`, `flap`, `one_engine_out`, `weight_estimate`, `wing_geometry` | Engine-mount inputs (one per engine) |
 | `engine_layout` | `EngineLayout (enum)` | Engine Mount Loads | `wing_geometry` | Engine layout constraint (enum) |
 | `weight` | `?` | Weight & Mass Properties | `configuration`, `weight_envelope`, `weight_estimate`, `weight_onecg` | Weight database (WTESTIMA / WTONECG / WTENV) |
-| `geometry` | `?` | Geometry | `airloads`, `configuration`, `flap`, `landing`, `net_loads`, `structural_speeds`, `weight_envelope`, `wing_geometry`, `wing_inertia` | Geometry single-source (WINGGEOM + fuselage + empennage) |
+| `geometry` | `?` | Geometry | `airloads`, `balance`, `configuration`, `flap`, `landing`, `net_loads`, `structural_speeds`, `weight_envelope`, `wing_geometry`, `wing_inertia` | Geometry single-source (WINGGEOM + fuselage + empennage) |
 | `speeds` | `?` | Structural Speeds | `aileron`, `flap`, `flight_envelope`, `mach_limit`, `one_engine_out`, `structural_speeds`, `tab` | Structural design speeds & load factors (STRSPEED) |
-| `aero` | `?` | Aerodynamic Data | `airloads`, `net_loads` | Spanwise airload inputs (AIRLOADS) |
+| `aero` | `?` | Aerodynamic Data | `airloads`, `balance`, `net_loads` | Spanwise airload inputs (AIRLOADS) |
 | `aero_coeffs` | `?` | Aerodynamic Data | `flight_envelope`, `one_engine_out`, `select`, `structural_speeds` | Airplane-less-tail aero coefficients (FLTLOADS input) |
-| `flight_loads` | `?` | Flight Envelope (V-n) | `balloads`, `body_loads`, `flight_envelope`, `select`, `wing_inertia` | Flight envelope / balancing tail loads (FLTLOADS) |
-| `wing_mass` | `?` | Wing Loads | `net_loads`, `wing_inertia` | Wing-mass distribution & load cases (WINGINER) |
+| `flight_loads` | `?` | Flight Envelope (V-n) | `balance`, `balloads`, `body_loads`, `flight_envelope`, `select`, `wing_inertia` | Flight envelope / balancing tail loads (FLTLOADS) |
+| `wing_mass` | `?` | Wing Loads | `balance`, `net_loads`, `wing_inertia` | Wing-mass distribution & load cases (WINGINER) |
 | `fuselage_mass` | `?` | Fuselage Loads | `body_loads` | Fuselage mass distribution (SELECT / Ch 15) |
 | `select_input` | `?` | Wing Loads / Tail Loads | `select` | Critical-load selection inputs (SELECT) |
 | `tail_loads` | `TailLoadsInput` | Geometry (empennage, Step G6) | `balloads`, `body_loads`, `select`, `taildist` | Rational horizontal-tail inputs (via geometry.empennage) |

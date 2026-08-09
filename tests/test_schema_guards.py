@@ -138,7 +138,7 @@ def fields_hash() -> str:
 #: with a default does not (the tolerant readers handle it); a renamed, removed or
 #: relocated field does. If it does: bump ``SCHEMA_VERSION`` and add a hop to
 #: ``sloads.migrations.MIGRATIONS``. Then update this constant.
-EXPECTED_FIELDS_HASH = "2aaae842078971d7"  # v41: MassItem.component + FuselageMassInput.stations_are_override (B1)
+EXPECTED_FIELDS_HASH = "4dcd823cd859fc90"  # + BalancedLoad / BalancedCaseResult (plan 11 B2; new result types, nothing persisted changed)
 
 
 def test_persisted_dataclass_shapes_are_unchanged():

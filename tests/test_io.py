@@ -70,7 +70,10 @@ def test_run_all_modules_runs_present_slices():
     # which needs the same tail_loads/flight_loads slices). Step M2-6 gave GA6 a
     # parametric wing slice (single-sourcing the derived wing geometry), so the
     # configuration module now runs as well. M2R-3 gave GA6 a fuselage_mass slice,
-    # so body_loads (the Ch 15 fuselage net distribution) now runs too.
+    # so body_loads (the Ch 15 fuselage net distribution) now runs too. Plan 11 B2
+    # adds `balance`, which assembles the symmetric wing conditions into full-span
+    # free-free cases -- it runs here because ga6 has a derivable payload loading
+    # for every one of them.
     project = io.load_project(GA6)
     results = registry.run_all_modules(project)
     assert {r.module for r in results} == {
@@ -78,7 +81,7 @@ def test_run_all_modules_runs_present_slices():
         "wing_geometry", "structural_speeds", "mach_limit", "airloads",
         "flight_envelope", "wing_inertia", "net_loads", "select", "taildist",
         "aileron", "flap", "tab", "landing", "balloads", "configuration",
-        "body_loads",
+        "body_loads", "balance",
     }
 
 

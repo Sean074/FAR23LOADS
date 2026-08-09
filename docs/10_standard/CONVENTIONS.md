@@ -64,6 +64,18 @@ file + symbol is the anchor.
   as well would count it twice (the seam rule below). Hence the invariant
   `Σ(wing items) + Σ(beam stations) == Σ(all items) == W`, guarded by
   `mass_distribution.partition_closes`.
+- **A cumulative torsion is not a free moment (2026-08-08).** `WingStationLoad.myy`
+  is the torsion about the *root* reference and already contains the sweep and
+  dihedral transfer of outboard shear inboard. Only the section `Cm` is a free
+  moment. Any assembly that applies a strip's position offset must use the free
+  moment alone, or it double-counts the transfer — worth 20 % of n·W·MAC.
+- **An assembled balanced case closes in three symmetric DOF** — x, z and pitch —
+  by mass-proportional relief. All three are decoupled because the loading's
+  centroid *is* the CG. The x DOF is not optional: nothing else in an assembled
+  model reacts drag, and FAR 23's `nx` is that quantity.
+- **The residual is part of the deliverable.** A balanced case states its
+  pre-closure residual and the relief applied, in the result, the UI and the deck
+  header — the gate is on the physics, not on the correction.
 - **A load that a free-body cut introduces is never applied in the assembled model**
   (plan 11 §4). Each per-component deck takes a cut and carries the cut reaction as
   an applied load; those reactions must not reappear in an assembled deck, where the

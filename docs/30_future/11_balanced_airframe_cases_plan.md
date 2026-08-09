@@ -4,7 +4,8 @@
 (B-1…B-4 answered by the user, 2026-08-08). **Step B1 SHIPPED 2026-08-08** — see
 the history entry "The mass single source of truth" in
 [`../40_history/00_completed_development.md`](../40_history/00_completed_development.md);
-B2 onward not yet implemented. **Closure tier:** L — new physics concept
+**B2–B6 SHIPPED 2026-08-08** (see the history entry "Balanced free-free
+airplane cases"); B7 onward not yet implemented. **Closure tier:** L — new physics concept
 (`BalancedCase`), a schema change, a new module, and a change to what the mass
 model means.
 
@@ -236,11 +237,11 @@ introduces is never applied in the assembled model.**
 | Step | Scope | Tier | Effort |
 |---|---|---|---|
 | ~~**B1**~~ | ~~`mass_distribution.py` + item `component` tagging + the drift guards + `fuselage_mass` reconciliation validator. Schema bump + migration.~~ **SHIPPED 2026-08-08** (schema v41) | L | M (~1 session) |
-| **B2** | `BalancedCase` model, `balance.py`, the per-condition assembly and the 2-DOF residual closure. **Symmetric wing cases only.** | L | M–L (~1.5) |
-| **B3** | The §4 seam rule made structural: an authority function the assembled path consumes, plus a guard test that the `carry` source never reaches an assembled deck. | M | S (~0.5) |
-| **B4** | CI gates: residual < 1 %, `Δn`/n < 1 %, per-component decks and Appendix A **bit-unchanged**. | M | S (~0.5) |
-| **B5** | Assembled deck export (**primary deliverable, B-5**) + left/right GID bands + determinate support; solves in sbeam with reactions ≈ 0 (rides on plan 10's harness, which gains an assembled-deck leg here). | L | M (~1) |
-| **B6** | Streamlit view: the balanced case list with its residual and `Δn` columns — the number an engineer needs to trust the case. | M | S–M (~0.5) |
+| ~~**B2**~~ ✅ | `BalancedCase` model, `balance.py`, the per-condition assembly and the 2-DOF residual closure. **Symmetric wing cases only.** | L | M–L (~1.5) |
+| ~~**B3**~~ ✅ | The §4 seam rule made structural: an authority function the assembled path consumes, plus a guard test that the `carry` source never reaches an assembled deck. | M | S (~0.5) |
+| ~~**B4**~~ ✅ | CI gates: residual < 1 %, `Δn`/n < 1 %, per-component decks and Appendix A **bit-unchanged**. | M | S (~0.5) |
+| ~~**B5**~~ ✅ | Assembled deck export (**primary deliverable, B-5**) + left/right GID bands + determinate support; solves in sbeam with reactions ≈ 0 (rides on plan 10's harness, which gains an assembled-deck leg here). | L | M (~1) |
+| ~~**B6**~~ ✅ | Streamlit view: the balanced case list with its residual and `Δn` columns — the number an engineer needs to trust the case. | M | S–M (~0.5) |
 | **B7** | Antisymmetric wing cases (`ACRL`, `TORS`): distinct left/right loading, 6-DOF residual, **plus the B-6 reflection operator in `export/coordinates.py` and the B-7 handed-pair minting** — the machinery every later ± family reuses. **Phase 2.** | L | M–L (~1.5) |
 | **B8a** | Empennage cases (needs plan 09 T1–T4): ±β yaw pairs per B-6, lateral closure per B-8 (design note for the `n_y` balance first). **Phase 3.** | L | M–L |
 | **B8b** | Landing/ground cases (needs M4-6: gear reactions as applied loads — the gear items are already in `weight.items` at x = 97 and x = 1). **Phase 4.** | L | M |
@@ -268,7 +269,7 @@ Phase 1 = B1–B6.
 
 | # | Item | Notes |
 |---|---|---|
-| R1 | **Where does `m_wf` go?** The trim solve carries a wing+fuselage aero pitching moment (26,355 lb-in at case 22). The wing's own section `Cm` is already in the strip torsion (`Trq = ΣML`); the *fuselage* Munk term has no distributed carrier until **M4-19**. Applying it twice, or not at all, lands directly in the moment residual | **The one genuine unknown in this plan.** §1.4 measured the force residual (0.32 %); the moment residual cannot be quoted until this is decided. Resolve it in B2 before writing the gate, and expect M4-19 to pair |
+| ~~R1~~ **RESOLVED 2026-08-08** | **Where does `m_wf` go?** The trim solve carries a wing+fuselage aero pitching moment (26,355 lb-in at case 22). The wing's own section `Cm` is already in the strip torsion (`Trq = ΣML`); the *fuselage* Munk term has no distributed carrier until **M4-19**. Applying it twice, or not at all, lands directly in the moment residual | **The one genuine unknown in this plan.** §1.4 measured the force residual (0.32 %); the moment residual cannot be quoted until this is decided. Resolve it in B2 before writing the gate, and expect M4-19 to pair |
 | R2 | ga6's `fuselage_mass` fails the new validator by 427 lb | Intended. The fixture is corrected in B1; the FAR23 oracles do not read `fuselage_mass`, so Appendix A is unaffected — **verify that claim explicitly in B1**, do not assume it |
 | R3 | Strip-quadrature vs closed-form lift (−41 lb) sets a floor on achievable residual | 0.32 % against a 1 % gate is comfortable, but a fixture with coarser `elements` will do worse. Consider scaling the gate with element count, or state the floor per fixture |
 | R4 | Antisymmetric cases need both wings loaded differently and a 6-DOF residual | Deferred to B7 by the phasing decision; B2's data structures should not assume symmetry even though phase 1 only exercises it |

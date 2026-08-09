@@ -156,6 +156,12 @@ STEPS: Tuple[WorkflowStep, ...] = (
                  bas="TAILDIST+BALLOADS",
                  summary="Chordwise tail-load distribution + balancing-load cross-check."),
 
+    WorkflowStep("balanced_cases", "Balanced Cases", FLIGHT_LOADS,
+                 module="balance", requires=("flight_loads", "wing_mass"),
+                 produces=None, bas="—",
+                 summary="Assembled full-span free-free cases: aero + inertia, "
+                         "both wings, with the residual stated."),
+
     # ---- Other loads: control-surface + engine-mount reactions (§4 Phase 3) -- #
     WorkflowStep("aileron_loads", "Aileron Loads", OTHER_LOADS,
                  module="aileron", requires=("speeds",), produces="aileron_loads",

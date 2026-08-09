@@ -66,6 +66,8 @@ class _InertiaUnits:
     (100 000 in-lb) cumulative distributions."""
     ye: List[float] = field(default_factory=list)
     c25x: List[float] = field(default_factory=list)
+    #: 50% chord -- where WINGINER models the panel mass CG (see ``tyy_v``).
+    c50x: List[float] = field(default_factory=list)
     z: List[float] = field(default_factory=list)
     w: List[float] = field(default_factory=list)
     sz_v: List[float] = field(default_factory=list)
@@ -128,7 +130,7 @@ def inertia_units(geom: SurfaceInput, wm: WingMassInput) -> _InertiaUnits:
     ii = next((i for i, y in enumerate(ye) if y >= wm.inboard_rib_y), 0)
     w, densr = _root_density(dA, ye, c, dy, ytip, wm, ii)
 
-    u = _InertiaUnits(ye=ye, c25x=c25x, z=z, w=w,
+    u = _InertiaUnits(ye=ye, c25x=c25x, c50x=c50x, z=z, w=w,
                       density_root=int(144 * densr * 1000) / 1000,
                       density_tip=int(144 * wm.tip_root_density_ratio * densr * 1000) / 1000)
 

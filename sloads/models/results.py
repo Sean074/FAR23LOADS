@@ -316,6 +316,95 @@ class WingLoadResult:
 
 
 @dataclass
+class BalancedLoad:
+    """One applied load in an assembled free-free airplane case (plan 11 B2).
+
+    Position ``(x, y, z)`` in airplane axes (in); force ``(fx, fy, fz)`` in lb and
+    **free** moment ``(mx, my, mz)`` in lb-in. "Free" is the operative word: this
+    is the moment the load carries about its *own* point, so a consumer computes
+    the resultant as ``m + (p - ref) x F`` and nothing is counted twice.
+
+    That distinction is the one this class exists to make explicit.
+    ``WingStationLoad.myy`` is **not** a free moment -- it is a cumulative torsion
+    that already contains the sweep/dihedral transfer of outboard shear to the
+    inboard reference -- so assembling from it directly double-counts the transfer.
+    Measured on ``ga6_normal`` PHAA: doing so puts the airplane's pitching-moment
+    residual at 20.5 % of ``n*W*MAC`` instead of 0.15 %.
+
+    ``source`` records what the load is (``"wing-air"``, ``"wing-inertia"``,
+    ``"tail-air"``, ``"body-inertia"``, ``"fuselage-cm"``, ``"closure-n"``,
+    ``"closure-pitch"``) and ``side`` which half it is on (``"L"``/``"R"``/``"C"``),
+    so a deck can band them and a check can attribute a residual to its source.
+    """
+    x: float
+    y: float
+    z: float
+    fx: float = 0.0
+    fy: float = 0.0
+    fz: float = 0.0
+    mx: float = 0.0
+    my: float = 0.0
+    mz: float = 0.0
+    source: str = ""
+    side: str = "C"
+    #: The mass this load represents (lb), for an inertia load; 0.0 for aero.
+    #: Carried so the residual closure can spread relief in proportion to mass
+    #: without dividing a force by a load factor that may be zero.
+    weight_lb: float = 0.0
+
+
+@dataclass
+class BalancedCaseResult:
+    """One balanced free-free airplane case: wing tip to wing tip, nose to tail.
+
+    The mission's aim-2 deliverable (plan 11): a full-airplane load set that needs
+    no constraint because it balances. ``loads`` are **LIMIT** and full-span;
+    ``safety_factor`` is the factor the render/export boundary scales them by.
+
+    The residual fields are the case's own honesty statement and are part of the
+    deliverable, not internal scratch: ``residual_*`` are the out-of-balance
+    *before* closure (what the physics actually achieves), and ``delta_n`` /
+    ``delta_pitch`` the mass-proportional relief applied to close it. A reader who
+    wants to know how much of the balance was assumed rather than computed reads
+    those three numbers.
+    """
+    label: str
+    vn_case: int
+    cg: str
+    nz: float
+    weight_lb: float
+    mac: float
+    loads: List[BalancedLoad] = field(default_factory=list)
+    residual_fz: float = 0.0
+    residual_fx: float = 0.0
+    residual_my: float = 0.0
+    delta_n: float = 0.0
+    #: Longitudinal relief -- the airplane's deceleration under net drag, the
+    #: quantity FAR 23 calls ``nx``. Nothing else in an assembled model reacts
+    #: drag, because the suite has no distributed thrust.
+    delta_nx: float = 0.0
+    delta_pitch: float = 0.0
+    fuselage_cm: float = 0.0
+    case_ref: Optional[CaseRef] = None
+    safety_factor: float = ULTIMATE_FACTOR
+    notes: List[str] = field(default_factory=list)
+
+    @property
+    def n_w(self) -> float:
+        """``n*W`` -- the scale the force residual is judged against."""
+        return abs(self.nz * self.weight_lb)
+
+    @property
+    def force_residual_fraction(self) -> float:
+        return abs(self.residual_fz) / self.n_w if self.n_w else 0.0
+
+    @property
+    def moment_residual_fraction(self) -> float:
+        denom = self.n_w * self.mac
+        return abs(self.residual_my) / denom if denom else 0.0
+
+
+@dataclass
 class BodyStationLoad:
     """Net load at one longitudinal fuselage station (airplane body axes).
 
@@ -523,6 +612,8 @@ __all__ = [
     "EnvelopeResult",
     "WingStationLoad",
     "WingLoadResult",
+    "BalancedLoad",
+    "BalancedCaseResult",
     "BodyStationLoad",
     "BodyLoadResult",
     "TailChordStation",
