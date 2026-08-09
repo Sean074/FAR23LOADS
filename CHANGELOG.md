@@ -139,6 +139,15 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   conservative on every component. The fin's own design load is SELECT's,
   unchanged. The caveat travels as a case note into the deck `$` header and the
   report rather than living only in documentation.
+
+  **The assembled deck carrying these cases solves in the real sbeam** with its
+  determinate support reacting zero in all six components (plan 13 **G3**, step
+  **B8a-4**) — the first time the round-trip gate exercises `fy`, `mx` and `mz`.
+  Two additions make that statement worth its zero target: every assembled case
+  must appear as a subcase and each lateral one must carry real side load into
+  the solver, and a **negative control** reverses the fin load alone and asserts
+  the support then reacts `+2·L_v·SF` in `y`, with the roll and yaw reactions
+  moving with it. Both unit systems, both fixtures, in CI.
 - **Theory document for the balancing method** —
   [`docs/20_theory/balanced_cases.md`](docs/20_theory/balanced_cases.md): how a
   balanced free-free case is assembled and closed, with worked examples on the

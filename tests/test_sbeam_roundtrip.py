@@ -50,6 +50,7 @@ import os
 import re
 import subprocess
 import sys
+from dataclasses import replace
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -57,7 +58,10 @@ import pytest  # noqa: E402
 
 from sloads import io  # noqa: E402
 from sloads.export import sbeam_bridge as sb  # noqa: E402
-from sloads.export.balanced_deck import balanced_deck  # noqa: E402
+from sloads.export.balanced_deck import (  # noqa: E402
+    BALANCED_SID_BASE,
+    balanced_deck,
+)
 from sloads.export.coordinates import to_force, to_grid, to_moment  # noqa: E402
 from sloads.export.equilibrium import (  # noqa: E402
     closes,
@@ -71,6 +75,11 @@ from sloads.export.roundtrip import (  # noqa: E402
     solve_deck,
     total_reaction,
     wrap_as_stick_model,
+)
+from sloads.modules.balance import (  # noqa: E402
+    build_balanced_cases,
+    fin_load,
+    is_lateral,
 )
 from sloads.modules.body_loads import build_body_loads  # noqa: E402
 from sloads.modules.flight_envelope import build_envelope  # noqa: E402
@@ -413,8 +422,14 @@ def _assembled_deck(project, system):
     stiffness matrix, and changes nothing else -- the deck's own determinate
     six-DOF support is kept, because that support *is* what is under test.
     """
+    return _assembled_deck_from(project, system, ())
+
+
+def _assembled_deck_from(project, system, cases):
+    """:func:`_assembled_deck` for a stated case list -- ``()`` means "all of
+    them", which is what the shipped deck writes."""
     return wrap_as_stick_model(
-        balanced_deck(project, system=system),
+        balanced_deck(project, system=system, cases=cases),
         support=Support.DECK, topology=Topology.STAR, system=system,
         title="assembled full-span balanced deck")
 
@@ -430,8 +445,18 @@ def test_assembled_deck_reacts_to_zero(sbeam, example, system):
     with no constraint needed. This is that claim checked by a solver which
     reassembles the whole load set from the card text and the ``GRID``
     coordinates: six recovered reaction components, all zero.
+
+    **Plan 13 G3**, from B8a-3 on: the lateral subcases are the first to put a
+    real ``fy``/``mx``/``mz`` through this leg, and they are where a sign or
+    frame error in the fin's span-to-waterline map would show up as a reaction
+    the paper closure cannot see. Two things guard against passing on that
+    vacuously -- every assembled case must appear as a subcase, and each lateral
+    one must actually carry side load into the solver. That the gate has teeth
+    on those DOF is shown separately, by
+    :func:`test_a_flipped_fin_load_breaks_the_assembled_solve`.
     """
     project, _, _, _ = _components(example)
+    cases = build_balanced_cases(project)
     text = _assembled_deck(project, system)
     sols, grids = _solved(text)
     _, _, spc1, forces, moments = parse_cards(text)
@@ -440,16 +465,87 @@ def test_assembled_deck_reacts_to_zero(sbeam, example, system):
     assert comp == "123456" and len(support_gids) == 1, \
         "the assembled deck's support is meant to be one determinate node"
 
+    # Every case reaches the solver, and the lateral family is among them --
+    # a deck that quietly stopped emitting them would otherwise pass here.
+    by_sid = {BALANCED_SID_BASE + i: c for i, c in enumerate(cases)}
+    assert set(sols) == set(by_sid), (
+        f"{example}: solved {sorted(sols)} against {sorted(by_sid)}")
+    assert sum(1 for c in cases if is_lateral(c)) == 8, \
+        f"{example}: {sum(1 for c in cases if is_lateral(c))} lateral subcases"
+
     for sid, sol in sols.items():
-        where = f"{example} {system.value} assembled SID {sid}"
+        case = by_sid[sid]
+        where = f"{example} {system.value} assembled SID {sid} {case.label}"
         applied = resultant(forces, moments, grids, sid, grids[support_gids[0]])
         got = total_reaction(sol.reactions, grids, ref=grids[support_gids[0]])
         assert applied.n_force, f"{where}: no FORCE cards in this subcase"
+        if is_lateral(case):
+            # The cards sum to zero by construction; what must not be zero is
+            # the side load flowing through them, or "reaction ~ 0" would be the
+            # trivial statement that nothing lateral was applied at all.
+            side = sum(abs(scale * n[1]) for _, scale, n in forces[sid])
+            floor = 0.1 * abs(fin_load(case)) * case.safety_factor
+            _, floor, _ = to_force(0.0, floor, 0.0, _units(system))
+            assert side > abs(floor), (
+                f"{where}: only {side} of side load reached the solver")
         for axis in range(3):
             assert closes(got.force[axis], 0.0, scale=applied.force_scale), \
                 f"{where} force axis {axis}: {got.force[axis]}"
             assert closes(got.moment[axis], 0.0, scale=applied.moment_scale), \
                 f"{where} moment axis {axis}: {got.moment[axis]}"
+
+
+@pytest.mark.roundtrip
+@pytest.mark.parametrize("system", SYSTEMS)
+def test_a_flipped_fin_load_breaks_the_assembled_solve(sbeam, system):
+    """**G3's teeth**: reverse the fin load alone and the solver reacts it.
+
+    A zero-target gate is only worth what its sensitivity is, and "the reactions
+    came out zero" proves nothing unless a wrong deck would have made them
+    non-zero. The mutation is the exact defect plan 13 §3.3 found in the fin's
+    waterline and the one L-6's frame map could reintroduce: the fin's side load
+    with its sign reversed, everything else -- including the closure field that
+    balanced the *original* load -- left untouched. The airplane is then carrying
+    twice the fin load with nothing to react it, and the support must say so.
+
+    Run on ``ga6_normal`` only: the mutation is a property of the assembly, not
+    of a fixture, and a second airplane would only add solve time.
+    """
+    project, _, _, _ = _components("ga6_normal.project.json")
+    cases = build_balanced_cases(project)
+    case = next(c for c in cases if is_lateral(c) and c.hand == "R")
+    flipped = replace(case, loads=[
+        replace(ld, fy=-ld.fy, mz=-ld.mz) if ld.source == "vtail-air" else ld
+        for ld in case.loads])
+
+    text = _assembled_deck_from(project, system, [flipped])
+    sols, grids = _solved(text)
+    _, _, spc1, forces, moments = parse_cards(text)
+    (_, _, support_gids), = [s for s in spc1 if s[1] == "123456"]
+    (sid, sol), = sols.items()
+
+    applied = resultant(forces, moments, grids, sid, grids[support_gids[0]])
+    got = total_reaction(sol.reactions, grids, ref=grids[support_gids[0]])
+    assert not closes(got.force[1], 0.0, scale=applied.force_scale), (
+        f"a reversed fin load left the support reacting {got.force[1]} in y -- "
+        "this gate cannot see a lateral sign error")
+    # ...and it is the fin load **twice over**: the deck now applies the reversed
+    # load *and* the relief that was solved to cancel the original one, so it
+    # carries -2*L_v and the support reacts +2*L_v. Asserting the number and not
+    # merely "non-zero" is what makes this a calibration of the gate rather than
+    # a smoke test -- it says how much of a sign error it would take to hide.
+    _, want, _ = to_force(0.0, 2.0 * fin_load(case) * case.safety_factor, 0.0,
+                          _units(system))
+    assert closes(got.force[1], want, scale=applied.force_scale), got.force[1]
+
+    # The roll and yaw reactions move with it -- the two moment DOF the lateral
+    # family is the first to exercise, and the two the paper closure and the
+    # card sum share an assumption about (the lever arms). Here they are the
+    # solver's own, computed from the GRID cards.
+    for axis, name in ((0, "roll"), (2, "yaw")):
+        assert not closes(got.moment[axis], 0.0, scale=applied.moment_scale), (
+            f"a reversed fin load left the support's {name} reaction at "
+            f"{got.moment[axis]}")
 
 
 # --------------------------------------------------------------------------- #
