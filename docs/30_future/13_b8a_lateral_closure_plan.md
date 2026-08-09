@@ -336,11 +336,28 @@ Consequences, all deliberate:
   lateral field (113 lb/node ga6, 717 lb/node RJ) and, through `Ixz`, a yaw
   residual of +0.66 % / −0.30 % of `n·W·(b/2)` that the new yaw DOF closes. A
   rolling airplane with non-zero `Ixz` yaws; the shipped model could not say so.
-* **B7's closure gate survives untouched.** The roll field's `fz` component is
-  still `−m·ṗ·y`, so `test_roll_closure_reproduces_winginer` reproduces
-  WINGINER's `ur*fz_r` distribution strip for strip exactly as before. WINGINER
-  has no counterpart to the companion `fy`, which is precisely why the assembled
-  model is the only place that load can appear.
+* ~~**B7's closure gate survives untouched.**~~ **Wrong — corrected while
+  implementing B8a-2 (2026-08-09), and the correction is a decision of record.**
+  The roll field's `fz` component is still exactly `−m·ṗ·y`, so WINGINER's
+  **shape** is reproduced strip for strip as this note said. But `ṗ` itself
+  moves: once the companion `fy = +m·ṗ·dz` exists, the roll inertia is
+  `Σw(y² + dz²) + Σ self-Ixx` rather than `Σw·y²`, and **`ṗ` falls 20.7 % on
+  `ga6_normal` and 23.2 % on the regional jet** (`Σw·dz²` alone is +30 % of
+  `Σw·y²` on the RJ). The equality `fz == ur·fz_r` therefore fails at
+  `rel = 1e-9`, and it fails for a real reason: WINGINER's wing-only model puts
+  100 % of the aileron moment on the span, while the assembled airplane reacts
+  about a fifth of it on mass off the roll axis — which is the load a wing-only
+  model has no term for and the assembled model exists to find.
+
+  **Restated gate (user decision, 2026-08-09 — option (a) of three):** assert the
+  two halves separately — *shape*, that `fz/(ur·fz_r)` is the **same constant on
+  every strip** to `rel = 1e-9`; and *magnitude*, that the constant is the wing
+  span's share of the roll moment, **pinned per fixture at ga6 0.795230 / RJ
+  0.769455** and independently equal to `ṗ / (Mx / Σw·y²)`. Strictly stronger
+  than the equality: it keeps the whole of the two-producer check and adds a
+  pinned physical fact that goes red if the roll-inertia model drifts — something
+  the equality could not see, because under it the span *was* the roll inertia by
+  construction.
 * **This subsumes M4-21** (the fuselage pitching load factor): the pitch DOF's
   `fz = +m·q̈·dx` *is* M4-21's `−m_i·θ̈·(x_i − x_cg)`, now with its companion
   term and a real `q̈`. The backlog item reduces to supplying `θ̈` for the
@@ -531,12 +548,12 @@ the gate is a stated closure/identity set in CI, written with the feature.
 
 | # | Gate | Target | Tolerance |
 |---|---|---|---|
-| **G1** | **The yaw DOF reproduces ONENGOUT's ψ̈.** For a given applied yaw moment and a given `Izz`, the closure returns `ψ̈ = M/Izz` — `ONENGOUT.BAS` 282-286, oracle-locked and an entirely independent producer. This is B8a's counterpart to B7's `test_roll_closure_reproduces_winginer` | exact identity | `rel_tol = 1e-9` |
+| **G1** | **The yaw DOF reproduces ONENGOUT's ψ̈.** For a given applied yaw moment and a given `Izz`, the closure returns `ψ̈ = M/Izz` — `ONENGOUT.BAS` 282-286, oracle-locked and an entirely independent producer. This is B8a's counterpart to B7's `test_roll_closure_reproduces_winginer`, and the stronger of the two, because the other producer is FAR 23 code rather than a sibling closure. Checked step by step against ONENGOUT's **own time history**. **Found on implementation:** the two producers meet on *no* fixture — `atr42_100`/`dhc8_dash8` enter the `one_engine_out` slice but assemble no balanced case, the other four assemble no `one_engine_out`, and **neither of the two enters engine horsepower, so ONENGOUT cannot execute on any shipped fixture at all** (filed). The gate supplies that one input and reads every other number from the fixture | exact identity | `rel_tol = 1e-12`, >10 steps, vacuity-guarded |
 | **G2** | **Six-DOF closure.** All six post-closure resultants about the CG vanish | 0 | machine precision (as B7's four) |
 | **G3** | **The assembled deck solves in sbeam with determinate-support reactions ≈ 0** — through plan 10's assembled leg, now exercising `fy`/`mx`/`mz`. This is the gate that catches a lateral sign error | ≈ 0 | plan 07 §4.1 zero-target |
 | **G4** | **The `Izz` reconciliation identity** (§3.4, §5.3) holds per fixture — with L-3 answered it is an **equality**: `Izz(closure) = Izz(WTONECG) − Σ wing self-Izz + Σw·y²(spread)` | ga6 2934 = 2934 (0.0 %), RJ +0.40 % | 1 % |
-| **G5** | **Reduction.** A **symmetric** case (`PHAA`/`PLAA`/`PMAA`/`NMAA`/`TORS`) run through the 6-DOF closure reproduces the shipped result: `n_y = ṗ = ψ̈ = 0` exactly, `delta_n`/`delta_nx` unchanged, and the deck changes only by the pitch companion `fx` (≤ 0.08 % of a node load), asserted explicitly rather than re-baselined | identical | `rel_tol = 1e-12` on the scalars; the companion delta bounded and asserted |
-| **G6** | **`ACRL` moves, and by the measured amount.** The one shipped case whose *physics* L-2 changes: its companion `fy` field and its induced yaw residual are asserted against §3.6's measured figures (ga6 113 lb/node and +0.66 % of n·W·(b/2); RJ 717 lb and −0.30 %), and the net `Fy` the field adds is asserted zero | as measured | 1 % on the quoted figures; `abs_tol = 1e-9·W` on the net `Fy` |
+| **G5** | **Reduction.** A **symmetric** case (`PHAA`/`PLAA`/`PMAA`/`NMAA`/`TORS`) run through the 6-DOF closure keeps `n_x`/`n_z` identical by construction (`F/W`), gives `n_y = 0` exactly, and leaves the lateral relief below 1e-9·n·W. **Amended on implementation (2026-08-09):** the note's "`delta_pitch` unchanged" was wrong — the pitch DOF now solves on a real `Iyy`, so **`q̈` falls 18-22 % on ga6 and 3-4 % on the RJ**. The *deck* still barely moves (the pitch relief is 0.06-0.56 % of a peak node load), but a reported scalar changed, and the gate asserts `q̈ = My/Iyy` with `Iyy > Σw·dx²` rather than claiming equality with the old value | as stated | `rel_tol = 1e-12` on `n`; `1e-9` on `q̈`; lateral relief `< 1e-9·n·W` |
+| **G6** | **`ACRL` moves, and by the measured amount.** The one shipped case whose *physics* L-2 changes: the peak nodal companion `fy` of the **roll DOF alone** (ga6 **89.83 lb**, RJ **551.85 lb**), the induced yaw (**+18.93** / **−0.993 deg/s²**), the net `Fy` the companion adds asserted zero, and the yaw shown to vanish when `Ixz` is zeroed. **Amended:** §3.6's 113/717 lb were the *combined* rotational field measured on the shipped `ṗ`; the per-DOF figures above are what the split field applies | as measured | `rel_tol = 1e-3`; `abs_tol = 1e-9·W` on the net `Fy` |
 | **G7** | **Handed twins are mirror images** — the existing involution guard extended to a lateral case: `fy`/`mx`/`mz` negate, `fx`/`fz`/`my` identical, `n_y`/`ψ̈`/`ṗ` negate, `n_z`/`q̈` identical | exact | `rel_tol = 1e-12` |
 | **G8** | **Appendix A oracles bit-unchanged**, and every per-component deck byte-unchanged **except the v-tail span deck**, whose `GRID` z-coordinates move by the L-1 fin waterline. That single exception is deliberate, is a defect fix (§3.3), and is called out against plan 11 acceptance #5 with a regenerated digest | — | exact |
 | **G9** | **The symmetric half still closes** (L-5). With the fin load removed, every lateral case meets plan 11 §6's 1 % force and moment gate — i.e. adding a lateral load did not contaminate the symmetric physics | ga6 V-n 14: Fz +0.014 %, My +0.341 %; V-n 35: +0.275 / +0.648 %. RJ V-n 14: +0.214 / +0.663 %; **V-n 95: +0.344 / +1.586 %** | 1 %, with a **per-fixture ceiling** where it already bites — the RJ's BAL C point is over, and it is the largest instance yet of the filed "RJ low-CL cases exceed the 1 % pitch gate" item (previous worst `TORS` 1.174 %). Bounded per fixture as `_PITCH_RESIDUAL_CEILING` already does, never by widening the gate |
@@ -555,7 +572,7 @@ payload-case reason already pinned in `test_balance.py`.
 | Step | Scope | Tier | Effort |
 |---|---|---|---|
 | ~~**B8a-1**~~ ✅ | Fin root waterline (L-1): input + derived default + `assumed` flag; v-tail deck `GRID` z fixed; digest regenerated. **SHIPPED 2026-08-09** — schema v43, `tail_geometry.fin_root_waterline` as the single owner (read by the three-view too, which had the same defect), roll arms +14.0 / +86.0 in as predicted, `sbeam/vtail_span_cards` + `txt/tail_span` the only Imperial channels that moved | M | S |
-| **B8a-2** | The 6-DOF closure (L-2/L-3): full d'Alembert field, 3×3 rotational solve on the assembled tensor, non-wing self-inertia relief; G1/G2/G4/G5 | L | M |
+| ~~**B8a-2**~~ ✅ | The 6-DOF closure (L-2/L-3): full d'Alembert field, 3×3 rotational solve on the assembled tensor, non-wing self-inertia relief; G1/G2/G4/G5/G6. **SHIPPED 2026-08-09** — `sloads/rigid_body.py` as the single owner, `mass_distribution.assembly_distributes_mass` as the L-3 predicate, `BalancedCaseResult` gaining `delta_ny`/`p_dot`/`q_dot`/`r_dot`/`closure_inertia`. All six DOF close to ≤ 2e-16 of `n·W`; `Izz(closure)` 2933.5 ga6 CG2 against G4's predicted 2934. **The B7 gate was restated** (see §5.2) and **the assembled deck was added to the Imperial baseline**, which had never covered it | L | M |
 | **B8a-3** | Lateral case assembly (L-6/L-7): the fin load set, the `VT-xx` handed pairs, in-band caveats; G6 | L | M |
 | **B8a-4** | Assembled deck + sbeam leg + UI columns; G3 | M | S–M |
 | **B8a-5** | Closure trail: `CONVENTIONS.md` §1/§7/§7.1, `PROGRAM_SPEC.md`, `theory_sources.md`, `DATA_DICTIONARY.md` regen, CHANGELOG, history (Tier L, full step format) | S | S |

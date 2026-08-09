@@ -10,6 +10,108 @@ Acceptance**, **Key decisions**.
 
 ---
 
+## The six-DOF closure (mission phase 4, step 8 — plan 13 B8a-2 — complete 2026-08-09, tier L)
+
+**Objective.** Replace the four hand-rolled one-component relief fields a balanced
+case closed with by the one field they are slices of — the rigid-body d'Alembert
+field `f = −m(a_cg + ω̇ × r)` — so that the moment the relief produces is
+`−[I]{ω̇}` with a real inertia tensor rather than `−Σw·d²`, and so that the yaw
+degree of freedom B8a's lateral cases need exists at all. Plan 13 decisions
+**L-2** (the full field) and **L-3** (item self-inertia as free-moment relief).
+
+**The argument for doing it once.** Each of the three shipped DOF was missing the
+companion force component of its own acceleration, and the three omissions were
+worth wildly different amounts — **0.08 %, 20 % and 55 %** of their own degree of
+freedom. A suite that adds a fourth and fifth special case is a suite betting the
+next omission is the small kind:
+
+| DOF | Companion it lacked | What the companion is worth |
+|---|---|---|
+| pitch | `fx = −w·q̈·dz` | the force is ≤ 0.08 % of a node load, but the *inertia* was wrong, so **`q̈` fell 18–22 %** on ga6 and 3–4 % on the RJ |
+| roll | `fy = +w·ṗ·dz` | **89.8 lb / 551.9 lb** at a peak node — larger than the roll term already in the deck, because `fz = −w·ṗ·dy` reaches only the wing strips while this reaches every mass off the roll axis |
+| yaw | (the whole DOF) | new; would have been **55 % high** had it copied the pitch DOF's one-component pattern |
+
+**Deliverables.**
+
+- **`sloads/rigid_body.py`** — the single owner: `InertiaTensor` (products of
+  inertia stored as sums `Σw·a·b`, negated only in `matrix()`, which is the form
+  WTONECG prints), a pivoting 3×3 solve that **raises** on a singular tensor
+  rather than pseudo-inverting (risk R4), `relief_force`, `relief_moment`, and
+  the weight-space→rad/s² conversion. Registered in `CONVENTIONS.md` §7.
+- **`mass_distribution.assembly_distributes_mass`** — the L-3 predicate, as a
+  predicate rather than a comment (`CLAUDE.md` practice 3). It decides whose
+  entered self-inertia joins the tensor: a component the assembly *spreads* has
+  its rotational inertia in the spread already (ga6 wing: 4.444e6 entered against
+  4.288e6 built, −3.5 %, the check that they are the same quantity), a component
+  it carries as a point does not (13.3 % of ga6's `Izz`). `balance.body_inertia`
+  and `balance.point_mass_self_inertia` both ask it, so the set carried as points
+  and the set given a free moment cannot drift apart.
+- **`balance._closure`** — six DOF, three decoupled ratios plus one coupled 3×3
+  solve. The rotational relief is emitted as three attributable sources
+  (`closure-roll`/`-pitch`/`-yaw`) plus `closure-self`, not one lumped field, so
+  the B7 gate can still isolate the roll strips and a deck reader can see which
+  acceleration put a card where.
+- **`BalancedCaseResult`** gains `delta_ny` and `closure_inertia`;
+  `delta_pitch`/`delta_roll` become `p_dot`/`q_dot`/`r_dot`, the accelerations
+  they always were. Result-only fields — nothing on disk has this shape, so
+  `SCHEMA_VERSION` stays at **43** (recorded in the fields-hash tripwire).
+- **The assembled deck header** states the six-DOF field, `n` and `ω̇` in deg/s².
+
+**Test / Acceptance.** 1268 passed, 21 skipped; `ruff` clean.
+
+| Gate | Target | Achieved |
+|---|---|---|
+| **G1** yaw ≡ ONENGOUT's `ψ̈ = M/Izz`, step by step against its own time history | exact | `rel_tol = 1e-12`, vacuity-guarded |
+| **G2** all six components close | ~0 | **≤ 2e-16** of `n·W` |
+| **G4** `Izz(closure)` = `Izz(WTONECG) − wing self + Σw·y²` | ga6 2934 | **2933.5** (0.0 %); RJ +0.40 % |
+| **G5** symmetric reduction: `n_x`/`n_z` by construction, `n_y = 0`, lateral relief noise-level | identical | `< 1e-9·n·W` |
+| **G6** `ACRL`'s companion field and induced yaw | as measured | 89.83 / 551.85 lb; **+18.93 / −0.993 deg/s²**; net `Fy` zero |
+| **B7 (restated)** roll ≡ WINGINER | shape exact + ratio pinned | strip ratio constant to 1e-9; 0.795230 / 0.769455 |
+
+Plus a new `tests/test_rigid_body.py` gating the owner on properties rather than
+fixtures — the field's defining identity on a deliberately lopsided mass set with
+every product of inertia non-zero, the no-moment property of a uniform load
+factor, the sign convention, and the singular-tensor raise.
+
+**Key decisions.**
+
+1. **The B7 roll gate is restated, not weakened** (user, 2026-08-09, three options
+   offered). It could not survive as an equality: WINGINER's wing-only model puts
+   100 % of the aileron moment on the span, while the assembled airplane reacts
+   about a fifth of it on mass off the roll axis and on item self-`Ixx` — so `ṗ`
+   falls 20.7 % / 23.2 %. The gate now asserts **shape** (the ratio is the same
+   constant on every strip, `rel = 1e-9` — the whole of what WINGINER's
+   distribution says, untouched) **and magnitude** (that constant is the span's
+   share of the roll moment, pinned per fixture, and independently equal to
+   `ṗ/(Mx/Σw·y²)`). Strictly stronger: the old equality could not see a drift in
+   the roll-inertia model at all, because under it the span *was* the roll
+   inertia by construction. Rejected: excluding `dz²` and self-`Ixx` from the
+   roll DOF to preserve the equality — physically wrong and self-inconsistent
+   with the companion `fy`.
+2. **The assembled deck joined the Imperial baseline.** Found while making the
+   change: the 6-DOF rewrite moved every closure card in every assembled deck and
+   **no digest noticed**, because `imperial_baseline.artifacts` only ever rendered
+   the per-component channels. Plan 11 acceptance #5 — *"if a digest moves,
+   something leaked"* — is empty for a deliverable with no digest, and this is the
+   mission's aim-2 deliverable. Now covered; every other Imperial channel verified
+   byte-unchanged **before** regenerating.
+3. **`SCHEMA_VERSION` does not bump for a result-only rename.** The fields hash
+   covers every dataclass on `sloads.models`' public surface, not only what `io.py`
+   writes. `Project` holds no `BalancedCaseResult` and `io.py` names none of these
+   fields, so there is no on-disk shape and no hop to write — the same standing
+   the B7 change to this class had.
+4. **Noise is bounded, not rounded away.** A symmetric case's roll and yaw
+   residuals are zero only up to summation order, so the solve returns ~1e-18.
+   The tests bound the resulting relief (`< 1e-9·n·W`) rather than asserting an
+   exact zero the arithmetic does not produce; the deck suppresses the *display*
+   of an angular acceleration below 1e-6 deg/s², ten orders below the smallest
+   real one, so a meaningless number does not read as a result or churn a digest.
+
+**Found and filed, not folded in.** `one_engine_out` cannot execute on any shipped
+fixture — `atr42_100`/`dhc8_dash8` enter the slice but no engine horsepower, the
+other four enter no slice — so G1 supplies that one input itself. Same class as
+B8a-1's `tail_mass` finding: the calc is right and the data never reaches it.
+
 ## The fin's vertical placement (mission phase 4, step 8 — plan 13 B8a-1 — complete 2026-08-09, tier M)
 
 **Objective.** Give the vertical tail a place on the airplane. B8a's lateral

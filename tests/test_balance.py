@@ -33,14 +33,20 @@ error found while building:
    closed to 1e-13 -- visible only by re-deriving from the card text.
 """
 
+import math
 import os
 import sys
+from dataclasses import replace
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import pytest  # noqa: E402
 
 from sloads import io  # noqa: E402
+from sloads.constants import LBIN2_PER_SLUGFT2  # noqa: E402
+from sloads.models import MissingInputError  # noqa: E402
+from sloads.modules import one_engine_out  # noqa: E402
+from sloads.rigid_body import InertiaTensor, radians_per_s2  # noqa: E402
 from sloads.export.balanced_deck import (  # noqa: E402
     BALANCED_SID_BASE,
     BALANCED_WING_L_BASE,
@@ -373,9 +379,20 @@ def test_the_roll_moment_is_the_applied_couple(example):
             assert case.unbal_moment == 0.0, where
 
 
+#: The share of the aileron's rolling moment the **wing span** reacts, per
+#: fixture: ``p_dot(closure) / (Mx / Sum w*y^2)``. Pinned because it is the one
+#: number the two roll producers do *not* share, and because it is a physical
+#: statement about the airplane rather than a tolerance -- see
+#: :func:`test_roll_closure_reproduces_winginer`.
+_WING_SPAN_ROLL_SHARE = {
+    "ga6_normal.project.json": 0.795230,
+    "concept_regional_jet.project.json": 0.769455,
+}
+
+
 @pytest.mark.parametrize("example", _with_cases())
 def test_roll_closure_reproduces_winginer(example):
-    """**The B7 closure gate.** The roll relief == WINGINER's unit-roll set.
+    """**The B7 closure gate**, as B8a-2 restated it: shape exactly, magnitude pinned.
 
     Concept mode has no printed oracle, so a stated closure gate against an
     *independent producer* stands in for one (``CLAUDE.md`` practice 2). Here the
@@ -384,9 +401,28 @@ def test_roll_closure_reproduces_winginer(example):
     this step, and the balance layer's roll-acceleration solve, which knows
     nothing about it and closes a residual it computed itself.
 
-    They agree strip for strip, ratio 1.000000 -- and the wing-item/WINGINER-panel
-    scale (0.9903 on ga6, 1.0100 on the RJ) cancels identically, because the
-    closure normalises on the same masses the assembled model carries.
+    **What B8a-2 changed, and why it is not a weakening.** Through B7 this was an
+    equality: the closure's roll strips *were* ``ur*fz_r``, ratio 1.000000. That
+    held because the roll DOF solved on ``Sum w*y^2``, and every mass in every
+    fixture's database sits at ``y = 0``, so the wing span was the airplane's
+    entire roll inertia by construction. The full d'Alembert field (decision L-2)
+    ends that: a mass **above** the roll axis is thrown sideways by a roll
+    acceleration, so ``Sum w*dz^2`` joins the roll inertia -- on
+    ``concept_regional_jet`` it is +30 % of ``Sum w*y^2`` on its own -- and each
+    item's entered self-``Ixx`` joins it too (decision L-3). The airplane
+    therefore reacts about a fifth of the aileron moment somewhere other than the
+    wing span, and WINGINER's wing-only model has no counterpart to that.
+
+    So the gate asserts the two halves separately, which is strictly more than
+    the equality did:
+
+    * **shape** -- ``fz / (ur*fz_r)`` is the *same constant* on every strip, to
+      1e-9. This is the whole of what WINGINER's distribution says, and it is
+      untouched: the relief is still exactly ``-w*p_dot*y``;
+    * **magnitude** -- that constant is the wing span's share of the roll
+      moment, pinned per fixture (:data:`_WING_SPAN_ROLL_SHARE`), and it equals
+      ``p_dot / (Mx / Sum w*y^2)`` by construction. It goes red if the roll
+      inertia model drifts, which the old equality could not see at all.
     """
     project = _project(example)
     wm = project.wing_mass
@@ -402,10 +438,249 @@ def test_roll_closure_reproduces_winginer(example):
                   if ld.source == "closure-roll" and ld.y > 0
                   and round(ld.y, 6) in winginer]
         assert len(strips) >= 5, f"{example}: only {len(strips)} strips matched"
-        for ld in strips:
-            want = ur * winginer[round(ld.y, 6)]
-            assert ld.fz == pytest.approx(want, rel=1e-9), (
-                f"{example} {case.label} strip y={ld.y}: {ld.fz} vs {want}")
+
+        ratios = [ld.fz / (ur * winginer[round(ld.y, 6)]) for ld in strips]
+        for ld, got in zip(strips, ratios):
+            assert got == pytest.approx(ratios[0], rel=1e-9), (
+                f"{example} {case.label} strip y={ld.y}: the roll relief is no "
+                f"longer WINGINER's shape -- ratio {got} against {ratios[0]}")
+
+        share = _WING_SPAN_ROLL_SHARE[example]
+        assert ratios[0] == pytest.approx(share, rel=1e-5), (
+            f"{example} {case.label}: the wing span now reacts {ratios[0]:.6f} "
+            f"of the aileron rolling moment, not the pinned {share}")
+
+        # ...and that constant IS the roll-inertia ratio, not a fitted number.
+        masses = [ld for ld in case.loads if ld.weight_lb]
+        span_only = sum(ld.weight_lb * ld.y ** 2 for ld in masses)
+        assert ratios[0] == pytest.approx(
+            case.p_dot / (case.residual_mx / span_only), rel=1e-9), (
+            f"{example} {case.label}: the magnitude ratio does not equal the "
+            "wing-span share of the assembled roll inertia")
+
+
+# --------------------------------------------------------------------------- #
+# The B8a-2 gates (plan 13 §7): G1, G4, G5, G6
+# --------------------------------------------------------------------------- #
+#: Horsepower supplied to the failed engine so ONENGOUT can be *run*. Not
+#: airplane data and not presented as any: **no shipped fixture can execute
+#: ONENGOUT at all** -- ``atr42_100`` and ``dhc8_dash8`` enter the
+#: ``one_engine_out`` slice but neither enters ``max_cont_hp`` or ``takeoff_hp``
+#: on its engines, and the other four enter no slice. Filed on the backlog
+#: beside the ``tail_mass`` gap; found here.
+#:
+#: G1 is an identity about the **operator** -- ``psi_2dot = Mz / Izz`` -- and it
+#: must hold at every step of any history, so the power that sizes the moment is
+#: irrelevant to what is being asserted. Every other number in the case is the
+#: fixture's own.
+_G1_SYNTHETIC_HP = 2000.0
+
+
+def _oeo_history(project):
+    """``(CaseInputs, [HistoryRow])`` of the first one-engine-out speed case.
+
+    ``None`` when the project enters no such case at all. See
+    :data:`_G1_SYNTHETIC_HP` for the one input this supplies rather than reads.
+    """
+    oeo = project.one_engine_out
+    if oeo is None or not project.engines:
+        return None
+    project = replace(project, engines=[
+        replace(e, max_cont_hp=e.max_cont_hp or _G1_SYNTHETIC_HP,
+                takeoff_hp=e.takeoff_hp or _G1_SYNTHETIC_HP)
+        for e in project.engines])
+    try:
+        cases = one_engine_out._load_cases(project, oeo)
+        if not cases:
+            return None
+        inputs = one_engine_out._case_inputs(project, cases[0].v_hi_kt)
+        rows, _ = one_engine_out.simulate(inputs)
+    except (MissingInputError, ValueError):
+        return None
+    return inputs, rows
+
+
+
+#: Which fixtures carry a one-engine-out case, and so can serve as G1's
+#: independent producer. Pinned, and deliberately **disjoint** from
+#: :func:`_with_cases`: the two fixtures that assemble balanced cases enter no
+#: ``one_engine_out`` slice, and the two that enter one assemble no balanced
+#: case. That is why G1 is stated as an identity on the *solve* rather than on a
+#: case -- the two producers do not meet on any single fixture, and a gate
+#: parametrised over the balanced-case fixtures would have skipped itself into
+#: vacuity on every run.
+_WITH_ONE_ENGINE_OUT = ("atr42_100.project.json", "dhc8_dash8.project.json")
+
+
+def test_g1_has_a_producer_to_check_against():
+    """The vacuity guard for :func:`test_the_yaw_dof_reproduces_onengout`."""
+    got = tuple(e for e in EXAMPLES if _oeo_history(_project(e)) is not None)
+    assert got == _WITH_ONE_ENGINE_OUT, got
+
+
+@pytest.mark.parametrize("example", _WITH_ONE_ENGINE_OUT)
+def test_the_yaw_dof_reproduces_onengout(example):
+    """**G1.** The closure's yaw solve is ``psi_2dot = Mz / Izz`` -- ONENGOUT's.
+
+    B8a-2's counterpart to the B7 roll gate, and the stronger of the two,
+    because the other producer here is **oracle-locked FAR 23 code**:
+    ``ONENGOUT.BAS`` 282-286 (Ref 1 Ch 11 p87-88, FAR 23.367) integrates
+    ``THETA2DOT = MOM/12/IZZ*57.3`` and knows nothing whatever about balanced
+    cases. The yaw degree of freedom is new at B8a-2 and has no other check.
+
+    Run against the module's **own time history** rather than a re-derived
+    formula, so the comparison is with what ONENGOUT actually computes at each
+    step, at that step's own moment. ``_DEG`` is ONENGOUT's 57.3 rather than
+    ``math.degrees``' 57.29578 -- the identity under test is the physics
+    ``M/(12*Izz)``, not the manual's rounding of a radian.
+    """
+    inputs, history = _oeo_history(_project(example))
+    # ONENGOUT is a single-DOF yaw model with no products of inertia, so the
+    # tensor to compare against is diagonal. ``ixx``/``iyy`` are filled only to
+    # keep it invertible -- with every product of inertia zero the yaw row
+    # decouples exactly, and their values cannot reach the answer.
+    izz = inputs.izz * LBIN2_PER_SLUGFT2
+    tensor = InertiaTensor(ixx=izz, iyy=izz, izz=izz)
+    checked = 0
+    for row in history:
+        if not row.moment:
+            continue
+        omega_dot = tensor.solve((0.0, 0.0, row.moment))
+        got = radians_per_s2(omega_dot)[2] * one_engine_out._DEG
+        assert got == pytest.approx(row.theta_2dot, rel=1e-12), (
+            f"{example} t={row.time}: closure {got} vs ONENGOUT {row.theta_2dot}")
+        checked += 1
+    assert checked > 10, f"{example}: only {checked} steps compared"
+
+
+#: ``Izz`` of the assembled closure tensor, slug-ft^2, per fixture and loading.
+#: **G4**, and it is an equality rather than a comparison: with decision L-3
+#: answered, ``Izz(closure)`` must equal ``Izz(WTONECG) - wing self-Izz +
+#: Sum w*y^2(WINGINER spread)`` -- the same airplane from two producers that
+#: share no code. Pinned as well as reconciled, because a reconciliation that
+#: drifted on both sides at once would still balance.
+_CLOSURE_IZZ = {
+    "ga6_normal.project.json": {"CG1": 2992.1, "CG2": 2933.5, "CG3": 2534.2},
+    "concept_regional_jet.project.json": {"CG1 aft heavy": 256507.6,
+                                          "CG2 fwd heavy": 331827.6},
+}
+
+
+@pytest.mark.parametrize("example", _with_cases())
+def test_the_closure_izz_is_pinned_and_reconciles(example):
+    """**G4.** Three producers give three ``Izz`` for one airplane; pin the one
+    that reacts the load, and show it is the others' identity.
+
+    Plan 13 §3.4 measured the spread and it is not noise: ``select._default_izz``
+    (Ch 9) gives ``ga6_normal`` 4169, ``WTONECG`` gives 3023, and the assembled
+    mass set gives 2934. Two of those are printed in Appendix A, side by side,
+    38 % apart. The mitigation (risk R5) is that the case reports which one
+    reacted its load -- so this asserts that number, and that it is reachable
+    from the deliverable rather than only from a scratch script.
+    """
+    for case in build_balanced_cases(_project(example)):
+        want = _CLOSURE_IZZ[example][case.cg]
+        got = case.closure_inertia.izz / LBIN2_PER_SLUGFT2
+        assert got == pytest.approx(want, rel=1e-4), (
+            f"{example} {case.label} {case.cg}: Izz(closure) {got:.1f} "
+            f"against the pinned {want}")
+        # The tensor is the assembled model's, not a re-derivation: it must be
+        # positive-definite in the obvious sense and carry the Ixz coupling.
+        assert case.closure_inertia.ixx > 0 and case.closure_inertia.iyy > 0
+        assert case.closure_inertia.ixz != 0.0
+        assert case.closure_inertia.ixy == pytest.approx(0.0, abs=1e-6), (
+            f"{example} {case.label}: the mass model is not mirror-symmetric")
+
+
+@pytest.mark.parametrize("example", _with_cases())
+def test_a_symmetric_case_reduces_to_three_dof(example):
+    """**G5.** The 6-DOF closure on a symmetric case is the 3-DOF one it replaced.
+
+    The reduction that makes B8a-2 a superset rather than a change: with no
+    lateral applied load, the lateral three solve to zero and the deck carries
+    the same physics it did before -- ``n_x``/``n_z`` identical by construction
+    (they are still ``F/W``), and the pitch DOF still reacting the whole
+    ``My`` residual.
+
+    What did **not** stay identical, and is asserted rather than glossed:
+    ``q_dot`` is no longer ``My / Sum w*dx^2``. The pitch inertia became a real
+    ``Iyy`` -- it gained ``Sum w*dz^2`` and the non-wing self-inertia -- so
+    ``q_dot`` fell 18-22 % on ``ga6_normal`` and 3-4 % on the regional jet. The
+    *deck* barely moved, because the pitch relief is only 0.06-0.56 % of a peak
+    node load, but the reported acceleration did, and it moved towards the
+    truth.
+    """
+    project = _project(example)
+    cgs = {c.name: c for c in project.flight_loads.cg_cases}
+    for case in build_balanced_cases(project):
+        if case.hand:
+            continue
+        where = f"{example} {case.label}"
+        cg = cgs[case.cg]
+        masses = [ld for ld in case.loads if ld.weight_lb]
+        w_total = sum(ld.weight_lb for ld in masses)
+
+        # The translational three are unchanged: still F/W, exactly.
+        assert case.delta_n == pytest.approx(case.residual_fz / w_total, rel=1e-12)
+        assert case.delta_nx == pytest.approx(case.residual_fx / w_total, rel=1e-12)
+        assert case.delta_ny == 0.0, where
+
+        # Pitch reacts the whole My residual, through the real Iyy...
+        assert case.q_dot == pytest.approx(
+            case.residual_my / case.closure_inertia.iyy, rel=1e-9), where
+        # ...which is strictly larger than the Sum w*dx^2 the 3-DOF closure used.
+        old_j = sum(ld.weight_lb * (ld.x - cg.xcg) ** 2 for ld in masses)
+        assert case.closure_inertia.iyy > old_j, where
+        assert abs(case.q_dot) < abs(case.residual_my / old_j), where
+
+
+#: What ``ACRL`` gained at B8a-2, per fixture: the peak nodal companion side
+#: force the roll field applies, and the yaw acceleration ``Ixz`` induces from
+#: it, in deg/s^2. **G6** -- the one shipped case whose *physics* L-2 changes,
+#: so the change is asserted rather than re-baselined (risk R1).
+_ACRL_LATERAL = {
+    "ga6_normal.project.json": {"companion_fy_lb": 89.83, "r_dot_deg_s2": 18.93},
+    "concept_regional_jet.project.json": {"companion_fy_lb": 551.85,
+                                          "r_dot_deg_s2": -0.993},
+}
+
+
+@pytest.mark.parametrize("example", _with_cases())
+def test_acrl_gained_the_companion_field_and_an_induced_yaw(example):
+    """**G6.** A rolling airplane with non-zero ``Ixz`` yaws, and throws mass sideways.
+
+    Both are new at B8a-2 and both are real physics the shipped model could not
+    express. The companion ``fy = +w*p_dot*dz`` is *larger* than the roll term
+    already in the deck, because ``fz = -w*p_dot*dy`` reaches only the wing
+    strips -- every item in every fixture's database sits at ``y = 0`` -- while
+    the companion reaches every mass off the roll axis.
+
+    The net side force it adds must be **zero**: it is a d'Alembert reaction to
+    an angular acceleration, not a side load, and if it netted anything the case
+    would be applying a lateral force nothing asked for.
+    """
+    want = _ACRL_LATERAL[example]
+    rolling = [c for c in build_balanced_cases(_project(example)) if c.hand == "R"]
+    assert rolling, f"{example}: no rolling case"
+    for case in rolling:
+        roll = [ld for ld in case.loads if ld.source == "closure-roll"]
+        assert roll, f"{example}: no roll relief"
+        peak = max(abs(ld.fy) for ld in roll)
+        assert peak == pytest.approx(want["companion_fy_lb"], rel=1e-3), (
+            f"{example} {case.label}: companion peak fy {peak:.1f} lb")
+        assert sum(ld.fy for ld in roll) == pytest.approx(
+            0.0, abs=1e-9 * case.weight_lb), (
+            f"{example} {case.label}: the companion field nets a side force")
+
+        r_dot = math.degrees(radians_per_s2((0.0, 0.0, case.r_dot))[2])
+        assert r_dot == pytest.approx(want["r_dot_deg_s2"], rel=1e-3), (
+            f"{example} {case.label}: induced yaw {r_dot:.3f} deg/s^2")
+        # It is Ixz that induces it -- zero the coupling and the yaw goes away.
+        assert case.closure_inertia.ixz != 0.0
+        uncoupled = replace(case.closure_inertia, ixz=0.0, ixy=0.0, iyz=0.0)
+        assert uncoupled.solve(
+            (case.residual_mx, case.residual_my, case.residual_mz))[2] == \
+            pytest.approx(0.0, abs=abs(case.r_dot) * 1e-3)
 
 
 @pytest.mark.parametrize("example", _with_cases())
@@ -434,18 +709,34 @@ def test_the_case_closes_in_all_six_dof(example):
 
 @pytest.mark.parametrize("example", _with_cases())
 def test_the_lateral_dof_are_untouched(example):
-    """No load in any shipped family has a side component, and nothing invents one.
+    """No **applied** load in any shipped family has a side component (**G5**).
 
     ``Fy``/``Mz`` are computed rather than assumed so B8a's lateral cases inherit
-    a complete resultant; this pins that today they are identically zero, which is
-    what makes the roll check above unambiguous.
+    a complete resultant; this pins that today no applied load creates one, which
+    is what makes the roll check above unambiguous.
+
+    B8a-2 split the statement in two, because a rolling case now *does* carry a
+    lateral relief field (``fy = +w*p_dot*dz``, decision L-2) -- real physics, and
+    the point of the step. What stays absolutely true is the **applied** set, and
+    what stays true of a **symmetric** case is that its lateral relief is
+    float-cancellation noise rather than load: ``residual_mx``/``residual_mz`` on
+    a mirror-symmetric mass model are zero up to summation order, so the solve
+    returns ~1e-18 rad-equivalents and the relief it produces is fifteen orders
+    below a card the deck would even print. Bounded rather than asserted exactly
+    zero, because rounding the residual to zero to make the claim exact would be
+    a rounding dressed as physics.
     """
     for case in build_balanced_cases(_project(example)):
-        # Exactly zero on the loads -- nothing constructs a side component...
-        assert all(ld.fy == 0.0 and ld.mz == 0.0 for ld in case.loads), case.label
-        # ...so the resultant is zero to summation rounding, no more.
+        applied = [ld for ld in case.loads if not ld.source.startswith("closure-")]
+        assert all(ld.fy == 0.0 and ld.mz == 0.0 for ld in applied), case.label
         assert case.residual_fy == 0.0, case.label
         assert abs(case.residual_mz) < 1e-6 * case.n_w * case.semi_span, case.label
+        if case.hand:
+            continue
+        # A symmetric case: the lateral DOF close on noise, not on load.
+        assert case.delta_ny == 0.0, case.label
+        lateral = max(max(abs(ld.fy), abs(ld.mz)) for ld in case.loads)
+        assert lateral < 1e-9 * case.n_w, f"{case.label}: {lateral} lb of side load"
 
 
 @pytest.mark.parametrize("example", _with_cases())
@@ -465,12 +756,18 @@ def test_the_handed_twins_are_mirror_images(example):
         assert right.case_ref.case_id.endswith("R")
         assert left.case_ref.case_id == right.case_ref.case_id[:-1] + "L"
         assert left.unbal_moment == -right.unbal_moment
-        assert left.delta_roll == -right.delta_roll
+        # Odd under the mirror -- the lateral three, all of which B8a-2 made
+        # non-trivial: roll reverses, and so do the yaw and side-force relief it
+        # induces through Ixz.
+        assert left.p_dot == -right.p_dot
+        assert left.r_dot == -right.r_dot
+        assert left.delta_ny == -right.delta_ny
         # Even under the mirror: the twin is the same case in these DOF.
         assert left.residual_fz == right.residual_fz
         assert left.residual_fx == right.residual_fx
         assert left.residual_my == right.residual_my
         assert left.delta_n == right.delta_n
+        assert left.q_dot == right.q_dot
         assert len(left.loads) == len(right.loads)
         for a, b in zip(right.loads, left.loads):
             assert (b.x, b.y, b.z) == (a.x, -a.y, a.z)

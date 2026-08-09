@@ -131,6 +131,7 @@ from ..export.coordinates import (
 from ..mass_distribution import (
     CaseLoading,
     MassComponent,
+    assembly_distributes_mass,
     component_of,
     derive_case_loadings,
 )
@@ -145,6 +146,14 @@ from ..models import (
     WingLoadResult,
 )
 from ..registry import register
+from ..rigid_body import (
+    InertiaTensor,
+    PointMass,
+    SelfInertia,
+    inertia_tensor,
+    relief_force,
+    relief_moment,
+)
 from .airloads import air_load_distribution
 from .flight_envelope import build_envelope
 from .select import build_critical
@@ -305,13 +314,40 @@ def body_inertia(loading: CaseLoading, project: Project,
     The wing enters the fuselage as the carry-through *reaction*, which the
     assembled model's solver recovers -- so no ``carry`` load appears here, and
     none may (plan 11 §4).
+
+    "What the wing does not carry" is asked through
+    :func:`~sloads.mass_distribution.assembly_distributes_mass`, the same
+    predicate :func:`point_mass_self_inertia` uses, so the set of items carried
+    as points and the set contributing a self-inertia free moment cannot drift
+    apart (decision L-3).
     """
     return [
         BalancedLoad(x=it.x, y=it.y, z=it.z, fz=-it.weight_lb * nz,
                      weight_lb=it.weight_lb, source="body-inertia", side="C")
         for it in loading.items
-        if component_of(it, project) != MassComponent.WING
+        if not assembly_distributes_mass(component_of(it, project))
     ]
+
+
+def point_mass_self_inertia(loading: CaseLoading, project: Project):
+    """``[((x, y, z), SelfInertia)]`` for every item carried as a point mass.
+
+    Decision **L-3**: an item the assembly does not spread still resists angular
+    acceleration about its own centre, and that resistance has no other carrier
+    in the model. Items with no entered inertia are dropped rather than emitted
+    as zeros, so the deck gains a ``MOMENT`` card only where the database
+    actually says something -- on ``ga6_normal`` that is a handful of lumps
+    worth 13.3 % of ``Izz``, and on ``concept_regional_jet`` it is nothing at
+    all, because that database enters no self-inertias.
+    """
+    out = []
+    for it in loading.items:
+        if assembly_distributes_mass(component_of(it, project)):
+            continue
+        if it.ixx or it.iyy or it.izz:
+            out.append(((it.x, it.y, it.z),
+                        SelfInertia(it.ixx, it.iyy, it.izz)))
+    return out
 
 
 # --------------------------------------------------------------------------- #
@@ -356,29 +392,63 @@ def resultant6(loads: Sequence[BalancedLoad],
     return fx, fy, fz, mx, my, mz
 
 
+#: One ``closure-*`` source per degree of freedom, and the axis of
+#: ``omega_dot`` each rotational one carries. Split rather than emitted as a
+#: single ``closure-rot`` load because the split is what makes the field
+#: *attributable*: the B7 gate isolates the roll strips and compares them with
+#: WINGINER's unit-roll set, and a deck reader can see which acceleration put a
+#: given card there. The sum of the three is the full field either way.
+_ROTATIONAL_SOURCES = (("closure-roll", 0), ("closure-pitch", 1),
+                       ("closure-yaw", 2))
+
+
 def _closure(loads: List[BalancedLoad], cg: CgCase,
-             residual_fx: float, residual_fz: float,
-             residual_my: float,
-             residual_mx: float = 0.0) -> Tuple[float, float, float, float]:
-    """Close the residual as mass-proportional relief; return ``(dn, dnx, k, k_roll)``.
+             residual: Tuple[float, float, float, float, float, float],
+             self_inertia: Sequence[Tuple[Tuple[float, float, float],
+                                          SelfInertia]] = (),
+             ) -> Tuple[Tuple[float, float, float],
+                        Tuple[float, float, float], InertiaTensor]:
+    """Close the residual as rigid-body relief; return ``(n, omega_dot, tensor)``.
 
-    **Four** degrees of freedom from B7, not the two plan 11 B-3 anticipated --
-    the symmetric airplane's x, z and pitch, plus roll. All four are mutually
-    decoupled, and every cross-term vanishes for the same reason: the loading's
-    own centroid *is* the CG (step C1 solves the ballast from it), so
-    ``sum(w_i*(x_i - x_cg)) == sum(w_i*(z_i - z_cg)) == 0``, and the assembled
-    mass model is mirror-symmetric, so ``sum(w_i*y_i) == 0`` and
-    ``sum(w_i*y_i*(x_i - x_cg)) == 0`` as well.
+    **Six** degrees of freedom from B8a-2 (plan 13 decisions L-2/L-3), not the
+    four B7 carried and not the two plan 11 B-3 anticipated, and -- more to the
+    point -- **one field** rather than four hand-rolled slices of one. The
+    relief is ``f_i = -w_i (n + omega_dot x r_i)``, written once in
+    :mod:`sloads.rigid_body`; this function decides *what* it is applied to and
+    with which accelerations.
 
-    * ``dn`` -- ``-w_i*dn`` on every mass. No pitching moment (x-centroid).
-    * ``dnx`` -- ``-w_i*dnx`` longitudinally. No pitching moment (z-centroid).
-    * pitch -- ``+k*(x_i - x_cg)*w_i``. No force in either component.
-    * roll -- ``+k_roll*y_i*w_i``. **This is the roll acceleration**
-      ``p_dot = -k_roll``, not a numerical correction: it is the same d'Alembert
-      relief WINGINER applies for an accelerated-roll case, and it reproduces
-      that distribution strip for strip (the B7 closure gate). It adds no net
-      force (mirror symmetry) and no pitching moment (same), so it does not
-      disturb the three symmetric DOF.
+    The three translational DOF stay decoupled ratios ``n = F/W``, because the
+    mass set's own centroid *is* the reference point (step C1 solves the ballast
+    from it), so a uniform load factor produces no moment. The three rotational
+    DOF are **one coupled 3x3 solve** on the assembled inertia tensor: the field
+    an angular acceleration applies produces the moment ``-[I]{omega_dot}``
+    exactly, and ``[I]``'s off-diagonal ``Ixz`` is 8.4 % of the ga6's pitch
+    inertia and larger on the regional jet (plan 13 §3.5), so roll and yaw are
+    genuinely coupled and three independent ratios would be wrong rather than
+    approximate.
+
+    What changed at B8a-2, and what it moved
+    ----------------------------------------
+    Each acceleration now applies **both** its force components rather than the
+    one the vertical-only ancestors carried. That is the difference between
+    ``Sum w*d^2`` and a moment of inertia, and it is not uniformly small:
+
+    * pitch gained ``fx = -w*q_dot*dz``. The companion itself is negligible
+      (<= 0.08 % of a node load) but the *acceleration* moved, because the pitch
+      inertia stopped being ``Sum w*dx^2``: ``q_dot`` fell 18-22 % on
+      ``ga6_normal``, 3-4 % on the regional jet;
+    * roll gained ``fy = +w*p_dot*dz``, worth 94-518 lb at a peak node -- larger
+      than the roll term already in the deck, because ``fz = -w*p_dot*dy``
+      touches only the wing strips (every database item sits at ``y = 0``) while
+      the companion touches every mass off the roll axis. ``p_dot`` fell 20.7 %
+      / 23.2 % accordingly, and the B7 gate reads the *shape* it preserves
+      exactly plus that ratio, pinned;
+    * yaw is new, and would have been 55 % wrong had it copied the pitch DOF's
+      one-component pattern.
+
+    Self-inertia (L-3) rides along as a **free moment** ``-[I_self]{omega_dot}``
+    at each node whose mass the assembly carries as a point. It is 13.3 % of
+    ``ga6_normal``'s ``Izz``; the regional jet's database enters none.
 
     The x degree of freedom is not optional: **nothing else in the assembled
     model reacts drag.** The suite has no distributed thrust, and FAR 23's
@@ -396,28 +466,40 @@ def _closure(loads: List[BalancedLoad], cg: CgCase,
     load path stays physical and no relief lands on a node the airplane has no
     mass at.
     """
+    zero = (0.0, 0.0, 0.0)
     masses = [(ld, ld.weight_lb) for ld in loads if ld.weight_lb]
     w_total = sum(w for _, w in masses)
     if not w_total:
-        return 0.0, 0.0, 0.0, 0.0
-    j = sum(w * (ld.x - cg.xcg) ** 2 for ld, w in masses)
-    j_roll = sum(w * ld.y ** 2 for ld, w in masses)
-    dn = residual_fz / w_total
-    dnx = residual_fx / w_total
-    k = residual_my / j if j else 0.0
-    k_roll = -residual_mx / j_roll if j_roll else 0.0
-    for ld, w in masses:
-        loads.append(BalancedLoad(
-            x=ld.x, y=ld.y, z=ld.z, fz=-w * dn, fx=-w * dnx,
-            source="closure-n", side=ld.side))
-        loads.append(BalancedLoad(
-            x=ld.x, y=ld.y, z=ld.z, fz=k * (ld.x - cg.xcg) * w,
-            source="closure-pitch", side=ld.side))
-        if k_roll:
-            loads.append(BalancedLoad(
-                x=ld.x, y=ld.y, z=ld.z, fz=k_roll * ld.y * w,
-                source="closure-roll", side=ld.side))
-    return dn, dnx, k, k_roll
+        return zero, zero, InertiaTensor()
+
+    points = [PointMass(w, ld.x - cg.xcg, ld.y, ld.z - cg.zcg)
+              for ld, w in masses]
+    tensor = inertia_tensor(points, [si for _, si in self_inertia])
+    fx, fy, fz, mx, my, mz = residual
+    n = (fx / w_total, fy / w_total, fz / w_total)
+    omega_dot = tensor.solve((mx, my, mz))
+
+    for (ld, w), pm in zip(masses, points):
+        r = (pm.dx, pm.dy, pm.dz)
+        f = relief_force(w, r, n, zero)
+        loads.append(BalancedLoad(x=ld.x, y=ld.y, z=ld.z,
+                                  fx=f[0], fy=f[1], fz=f[2],
+                                  source="closure-n", side=ld.side))
+        for source, axis in _ROTATIONAL_SOURCES:
+            if not omega_dot[axis]:
+                continue
+            only = tuple(omega_dot[i] if i == axis else 0.0 for i in range(3))
+            f = relief_force(w, r, zero, only)
+            loads.append(BalancedLoad(x=ld.x, y=ld.y, z=ld.z,
+                                      fx=f[0], fy=f[1], fz=f[2],
+                                      source=source, side=ld.side))
+
+    for (x, y, z), si in self_inertia:
+        m = relief_moment(si, omega_dot)
+        if any(m):
+            loads.append(BalancedLoad(x=x, y=y, z=z, mx=m[0], my=m[1], mz=m[2],
+                                      source="closure-self", side="C"))
+    return n, omega_dot, tensor
 
 
 # --------------------------------------------------------------------------- #
@@ -504,8 +586,10 @@ def assemble(project: Project, condition: str, vn: VnPoint,
             "reaction, which IS distributed here)")
 
     ref = (cg.xcg, 0.0, cg.zcg)
-    fx, fy, fz, mx, my, mz = resultant6(loads, ref)
-    dn, dnx, k, k_roll = _closure(loads, cg, fx, fz, my, mx)
+    residual = resultant6(loads, ref)
+    fx, fy, fz, mx, my, mz = residual
+    n, omega_dot, tensor = _closure(
+        loads, cg, residual, point_mass_self_inertia(loading, project))
 
     geom = project.geometry.by_name(project.wing_mass.surface)
     return BalancedCaseResult(
@@ -514,7 +598,9 @@ def assemble(project: Project, condition: str, vn: VnPoint,
         semi_span=geom.leading_edge[-1][1] if geom else 0.0, loads=loads,
         residual_fz=fz, residual_fx=fx, residual_my=my,
         residual_fy=fy, residual_mx=mx, residual_mz=mz,
-        delta_n=dn, delta_nx=dnx, delta_pitch=k, delta_roll=k_roll,
+        delta_n=n[2], delta_nx=n[0], delta_ny=n[1],
+        p_dot=omega_dot[0], q_dot=omega_dot[1], r_dot=omega_dot[2],
+        closure_inertia=tensor,
         unbal_moment=unb, fuselage_cm=fuselage_cm,
         case_ref=_handed_ref(case_ref, "R") if unb else case_ref,
         hand="R" if unb else "", notes=notes,
@@ -526,6 +612,18 @@ def _handed_ref(ref, hand: str):
     if ref is None:
         return None
     return replace(ref, case_id=handed_case_id(ref.case_id, hand))
+
+
+def _flip(value: float) -> float:
+    """``-value``, with IEEE negative zero normalised away.
+
+    A symmetric quantity on a handed pair is exactly ``0.0``, and negating it
+    gives ``-0.0`` -- which renders as ``-0.00000`` in the port twin's deck
+    header beside the starboard twin's ``+0.00000``, reading as a difference
+    where there is none. ``-0.0 + 0.0`` is ``+0.0``; adding zero is the identity
+    on every other value.
+    """
+    return -value + 0.0
 
 
 def handed_twin(case: BalancedCaseResult) -> BalancedCaseResult:
@@ -549,8 +647,10 @@ def handed_twin(case: BalancedCaseResult) -> BalancedCaseResult:
         loads=[reflect_load(ld) for ld in case.loads],
         residual_mx=-case.residual_mx,
         residual_mz=-case.residual_mz,
-        residual_fy=-case.residual_fy,
-        delta_roll=-case.delta_roll,
+        residual_fy=_flip(case.residual_fy),
+        delta_ny=_flip(case.delta_ny),
+        p_dot=_flip(case.p_dot),
+        r_dot=_flip(case.r_dot),
         unbal_moment=-case.unbal_moment,
         hand=reflect_side(case.hand),
         case_ref=_handed_ref(ref, reflect_side(case.hand)),

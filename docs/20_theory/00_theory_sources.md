@@ -153,7 +153,7 @@ now in CI (`tests/test_balance.py`):
 | `\|ΣFz\|/(n·W)` before closure | < 1 % | 0.05–0.70 % |
 | `\|ΣMy_cg\|/(n·W·MAC)` before closure | < 1 % | 0.12–1.04 % |
 | `\|Δn\|/n` (relief applied) | < 1 % | 0.05–0.70 % |
-| ΣFx, ΣFz, ΣMy after closure | ~ 0 | machine precision |
+| all six components after closure (B8a-2) | ~ 0 | ≤ 2e-16 of n·W |
 | the same, re-derived from the deck's own card text | ~ 0 | ~1e-7 (card format) |
 
 The measurement is deliberately taken **before** the closure: the gate is on what
@@ -165,6 +165,39 @@ Two terms have no distributed carrier and are stated as lumped rather than
 omitted: the fuselage's share of the airplane-less-tail `Cm` (+4.3 to +6.3 % of
 n·W·MAC — the Munk moment, until M4-19 distributes it) and the longitudinal
 relief that stands in for thrust (FAR 23's `nx`).
+
+#### The relief field itself, and its two producers (step B8a-2, 2026-08-09)
+
+**Equation.** The closure relief is the rigid-body d'Alembert field, the standard
+result for a free body accelerating under an unbalanced load — **no suite source,
+because no suite program assembles an airplane**:
+
+    f_i = −m_i (a_cg + ω̇ × r_i)        moment about the CG:  −[I]{ω̇}
+
+with `[I]` the full inertia tensor of the assembled mass set (`Ixx`…`Ixz`) plus,
+per plan 13 decision L-3, the entered self-inertia of every item the assembly
+carries as a *point*. So `{ω̇} = [I]⁻¹{M}` — one coupled 3×3 solve, because `Ixz`
+is 8.4 % of the ga6's pitch inertia. Owner: `sloads/rigid_body.py`; conventions in
+`CONVENTIONS.md` §1 and §7. Angular accelerations are carried in weight-space
+`1/in` (g per inch of arm), the same convention that makes the translational DOF
+come out as load factors.
+
+Having no printed oracle, the field is gated by **identities against independent
+producers**, one per rotational degree of freedom — which is what makes this a
+substitute rather than a self-check:
+
+| DOF | Independent producer | Status |
+|---|---|---|
+| **yaw** | `ONENGOUT.BAS` 282-286 — `THETA2DOT = MOM/12/IZZ·57.3`, Ref 1 Ch 11 p87-88 (FAR 23.367). **Oracle-locked FAR 23 code**, checked step by step against its own time history | exact, `rel_tol = 1e-12` |
+| **roll** | `WINGINER`'s `fz_r`/`iwxx` unit-roll recurrence (Appendix A-locked). Reproduces the **shape** strip for strip; the **magnitude** ratio is the wing span's share of the roll moment — 0.795230 ga6 / 0.769455 RJ — because WINGINER's wing-only model has no term for mass off the roll axis | shape exact; ratio pinned |
+| **pitch** | none — `Iyy` has no second producer in the suite. Carried by the closure identity `Σ r × f = −[I]{ω̇}` and by the six-DOF closure itself | identity only |
+| **the tensor** | `WTONECG` (Appendix A p136 oracle) via `Izz(closure) = Izz(WTONECG) − wing self-Izz + Σw·y²(WINGINER spread)` | 0.0 % ga6, +0.40 % RJ |
+
+**A caution recorded with the yaw row:** the two producers meet on no shipped
+fixture — the two airplanes that assemble a balanced case enter no
+`one_engine_out` slice, and the two that enter one carry no engine horsepower, so
+ONENGOUT cannot execute on any fixture as shipped (filed on the backlog). The
+gate supplies that single input and reads everything else from the fixture.
 
 ### The spanwise empennage closures as the oracle substitute (step T1–T5, 2026-08-08)
 

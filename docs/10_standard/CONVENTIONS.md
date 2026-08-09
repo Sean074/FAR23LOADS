@@ -69,10 +69,28 @@ file + symbol is the anchor.
   dihedral transfer of outboard shear inboard. Only the section `Cm` is a free
   moment. Any assembly that applies a strip's position offset must use the free
   moment alone, or it double-counts the transfer — worth 20 % of n·W·MAC.
-- **An assembled balanced case closes in three symmetric DOF** — x, z and pitch —
-  by mass-proportional relief. All three are decoupled because the loading's
-  centroid *is* the CG. The x DOF is not optional: nothing else in an assembled
-  model reacts drag, and FAR 23's `nx` is that quantity.
+- **An assembled balanced case closes in six DOF, by one rigid-body field**
+  (plan 13 decision L-2, 2026-08-09 — this replaces the three-symmetric-DOF rule
+  B2 shipped with). The relief is the d'Alembert field `f_i = −m_i(a_cg + ω̇ × r_i)`,
+  owned by `sloads/rigid_body.py`. The three translational DOF stay decoupled
+  ratios `n = F/W`, because the loading's centroid *is* the CG; the three
+  rotational DOF are **one coupled 3×3 solve** on the assembled inertia tensor,
+  because `Ixz` is 8 % of the ga6's pitch inertia and larger on the regional jet.
+  The x DOF is not optional: nothing else in an assembled model reacts drag, and
+  FAR 23's `nx` is that quantity.
+  - **Every angular acceleration applies two force components, not one.** That is
+    the difference between `Σw·d²` and a moment of inertia, and it is not
+    uniformly small: pitch's omitted companion was worth ≤ 0.08 % of a node load,
+    roll's was *larger than the roll term already in the deck*, and yaw's would
+    have been 55 %. Slicing the field per axis is how a suite acquires three
+    different errors from one omission.
+  - **A mass the assembly carries as a point contributes its own inertia as a
+    free moment** (decision L-3); a mass the assembly *spreads* does not, or the
+    spread is counted twice. The predicate has one owner,
+    `mass_distribution.assembly_distributes_mass`.
+  - Angular accelerations are carried in **weight-space `1/in`** (g per inch of
+    arm), the same convention that makes the translational DOF come out directly
+    as load factors. `rigid_body.radians_per_s2` is the only conversion.
 - **The residual is part of the deliverable.** A balanced case states its
   pre-closure residual and the relief applied, in the result, the UI and the deck
   header — the gate is on the physics, not on the correction.
@@ -186,6 +204,8 @@ export boundary, reduction-to-FAR23 identity on GA inputs. "No oracle" never mea
 | **Empennage local frame → airplane axes** (h-tail spans `y`/loads `fz`/twists `myy`; v-tail spans `z`/loads `fy`/twists **`mzz`**) | `export/coordinates.py` (`tail_station_to_airplane`/`tail_force_to_airplane`/`tail_torsion_to_airplane`) | `tests/test_export_equilibrium.py::test_vtail_span_deck_resultants` |
 | **Empennage planform vs. the scalar area/span** (1 % agreement; scalars stay oracle-authoritative) | `sloads/tail_geometry.py` (`resolve_tail_planform`/`validate_tail_planform`) | `tests/test_tail_geometry.py` |
 | **Vertical-tail root waterline** (where the fin sits; explicit → T-tail relation → fuselage top → a loud zero) | `sloads/tail_geometry.py` (`fin_root_waterline`) — read by both the load path and the three-view | `tests/test_tail_geometry.py::test_the_three_view_and_the_load_path_place_one_fin_once` + `::test_the_fin_root_waterline_is_pinned_per_fixture` |
+| **Rigid-body relief field and the inertia tensor** (`f = −m(a + ω̇ × r)`; products of inertia stored as sums `Σw·a·b`, negated only in `matrix()`; weight-space `1/in`) | `sloads/rigid_body.py` (`InertiaTensor`/`inertia_tensor`/`relief_force`/`relief_moment`) | `tests/test_rigid_body.py::test_the_field_produces_exactly_minus_the_inertia_times_omega_dot` |
+| **Which components the assembly spreads** (decides whose entered self-inertia joins the closure tensor — L-3) | `sloads/mass_distribution.py` (`assembly_distributes_mass`) | `tests/test_rigid_body.py::test_the_distributed_mass_predicate_is_the_wing_and_only_the_wing` |
 | Case IDs | `sloads/case_ids.py` | `tests/test_case_ids.py` |
 | Load-case row keys | `sloads/load_keys.py` | **flagged — see §8** |
 | Data dictionary | `docs/generate_data_dict.py` (generated doc) | `tests/test_data_dictionary.py::test_committed_doc_matches_generator` |

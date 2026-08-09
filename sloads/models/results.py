@@ -10,6 +10,7 @@ from dataclasses import dataclass, field
 from typing import List, Optional
 
 from ..constants import ULTIMATE_FACTOR
+from ..rigid_body import InertiaTensor
 
 
 
@@ -450,9 +451,9 @@ class BalancedCaseResult:
     The residual fields are the case's own honesty statement and are part of the
     deliverable, not internal scratch: ``residual_*`` are the out-of-balance
     *before* closure (what the physics actually achieves), and ``delta_n`` /
-    ``delta_pitch`` the mass-proportional relief applied to close it. A reader who
-    wants to know how much of the balance was assumed rather than computed reads
-    those three numbers.
+    ``q_dot`` the rigid-body relief applied to close it. A reader who wants to
+    know how much of the balance was assumed rather than computed reads those
+    three numbers.
     """
     label: str
     vn_case: int
@@ -482,12 +483,30 @@ class BalancedCaseResult:
     #: quantity FAR 23 calls ``nx``. Nothing else in an assembled model reacts
     #: drag, because the suite has no distributed thrust.
     delta_nx: float = 0.0
-    delta_pitch: float = 0.0
-    #: Roll-acceleration relief, ``+k_roll*y_i*w_i`` on every mass (B7). This is
-    #: ``-p_dot``: the d'Alembert reaction to the aileron's unbalanced rolling
-    #: moment, and the same distribution WINGINER applies for an accelerated-roll
-    #: case -- reproduced strip for strip, which is how it is gated.
-    delta_roll: float = 0.0
+    #: Lateral relief, ``n_y`` (B8a-2). Identically zero until a case carries a
+    #: side load, and computed rather than assumed so the lateral families
+    #: inherit a closure that already covers it.
+    delta_ny: float = 0.0
+    #: The three angular accelerations the closure solves for, in **1/in**
+    #: (weight-space: g per inch of arm -- multiply by
+    #: :data:`sloads.rigid_body.G_IN_S2` for rad/s^2). From B8a-2 these are true
+    #: accelerations out of one coupled 3x3 solve on the assembled inertia
+    #: tensor, not the per-axis moment-distribution coefficients ``delta_pitch``
+    #: / ``delta_roll`` carried before it: ``q_dot`` moved 18-22 % on
+    #: ``ga6_normal`` when the pitch DOF stopped being ``My / Sum w*dx^2``.
+    #:
+    #: ``p_dot`` is the d'Alembert reaction to the aileron's unbalanced rolling
+    #: moment; its sign reverses between the handed twins, as ``r_dot`` and
+    #: :attr:`delta_ny` do.
+    p_dot: float = 0.0
+    q_dot: float = 0.0
+    r_dot: float = 0.0
+    #: The assembled mass set's inertia tensor about the CG (lb-in^2), the one
+    #: the closure actually solved on -- placement plus the self-inertia of every
+    #: item the assembly does not spread (decision L-3). Reported because three
+    #: different ``Izz`` exist for the same airplane and a reader needs to know
+    #: which one reacted the load (plan 13 §3.4, risk R5).
+    closure_inertia: Optional["InertiaTensor"] = None
     #: The applied unbalanced rolling moment (FAR 23.349, lb-in). Zero for a
     #: symmetric case; sign reverses between the handed twins.
     unbal_moment: float = 0.0
@@ -515,7 +534,7 @@ class BalancedCaseResult:
         rolls, and FAR 23.349 is about the loads while it does. The quantity is
         reported (6.7 % of ``n*W*b/2`` on ``ga6_normal`` ACRL, 2.0 % on the
         regional jet) because it says how hard the case rolls, and it is reacted
-        in full by :attr:`delta_roll`. Same standing as :attr:`delta_nx`, which
+        in full by :attr:`p_dot`. Same standing as :attr:`delta_nx`, which
         reacts drag for the same reason: nothing else in an assembled model can.
 
         Against the semi-span rather than the MAC because a rolling moment acts

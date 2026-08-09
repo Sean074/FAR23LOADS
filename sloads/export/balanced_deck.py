@@ -56,11 +56,13 @@ in the assembled model*). Guarded by
 
 from __future__ import annotations
 
+import math
 import textwrap
 from typing import Dict, List, Sequence, Tuple
 
 from ..models import BalancedCaseResult, BalancedLoad, Project
 from ..modules.balance import build_balanced_cases, carry_sources_absent
+from ..rigid_body import radians_per_s2
 from ..units import Channel, DeliverableUnits, UnitSystem, deliverable_units
 from .coordinates import SBEAM_CID, to_force, to_grid, to_moment
 from .sbeam_bridge import _fmt, _sf_str
@@ -142,12 +144,32 @@ def deck_nodes(cases: Sequence[BalancedCaseResult],
     return out
 
 
+#: Below this, in deg/s^2, a reported angular acceleration is float-cancellation
+#: noise rather than motion. A symmetric case's roll and yaw residuals are zero
+#: up to summation order, so the closure returns ~1e-14 deg/s^2 for them --
+#: printing that at four significant figures would put a different meaningless
+#: number in the deck on every platform, and read as a result. The real
+#: accelerations this deck carries run 0.18 to 611 deg/s^2, ten orders above.
+_OMEGA_DOT_NOISE = 1e-6
+
+
+def _deg(rad_per_s2: float) -> float:
+    """An angular acceleration in deg/s^2, with numerical noise snapped to zero."""
+    value = math.degrees(rad_per_s2)
+    return 0.0 if abs(value) < _OMEGA_DOT_NOISE else value
+
+
 def _header(case: BalancedCaseResult, u: DeliverableUnits) -> List[str]:
     _, _, res_fz = to_force(0.0, 0.0, case.residual_fz, u)
     _, res_my, _ = to_moment(0.0, case.residual_my, 0.0, u)
     _, cm_my, _ = to_moment(0.0, case.fuselage_cm, 0.0, u)
     hand = {"R": " -- STARBOARD roll (the computed case)",
             "L": " -- PORT roll (mirror of the starboard case)"}.get(case.hand, "")
+    # Angular accelerations are reported in deg/s^2 -- a quantity a reader can
+    # judge -- while the calc carries them in the weight-space 1/in the closure
+    # solves in. The conversion has one owner; see sloads.rigid_body.
+    p_dot, q_dot, r_dot = (_deg(v) for v in
+                           radians_per_s2((case.p_dot, case.q_dot, case.r_dot)))
     sentences = [
         f"Balanced case {case.label}{hand} -- V-n point {case.vn_case}, "
         f"loading {case.cg}, Nz = {case.nz:g}",
@@ -158,8 +180,11 @@ def _header(case: BalancedCaseResult, u: DeliverableUnits) -> List[str]:
         f"({case.force_residual_fraction * 100:.3f} % of n*W); "
         f"My {res_my:.0f} {u.moment.label} "
         f"({case.moment_residual_fraction * 100:.3f} % of n*W*MAC).",
-        f"Closed by dn = {case.delta_n:+.5f} g plus a self-equilibrating pitch "
-        "relief; both are mass-proportional.",
+        f"Closed in SIX DOF by the rigid-body relief field "
+        f"f = -w (n + wdot x r): n = ({case.delta_nx:+.5f}, "
+        f"{case.delta_ny:+.5f}, {case.delta_n:+.5f}) g, wdot = "
+        f"({p_dot:+.4g}, {q_dot:+.4g}, {r_dot:+.4g}) deg/s^2, plus each "
+        "point mass's own inertia as a free moment.",
         f"Lumped fuselage Cm moment applied: {cm_my:.0f} {u.moment.label} "
         "(the trim's airplane-less-tail Cm that the distributed wing does not "
         "carry; it has no distributed form until the body aero moment lands).",
@@ -172,8 +197,10 @@ def _header(case: BalancedCaseResult, u: DeliverableUnits) -> List[str]:
             f"{u.moment.label} (FAR 23.349), reacted entirely by roll "
             f"acceleration ({case.roll_moment_fraction * 100:.2f} % of "
             "n*W*b/2). That is the physics of an accelerated roll, not an "
-            "out-of-balance: the relief is distributed over every mass and "
-            "reproduces WINGINER's own unit-roll set.")
+            "out-of-balance: the relief is distributed over every mass, and "
+            "over the wing span it is WINGINER's own unit-roll shape. The "
+            "span carries the larger part of it; the rest is reacted by mass "
+            "off the roll axis, which a wing-only model has no term for.")
     sentences += [f"NOTE: {note}" for note in case.notes]
 
     # Free-field bulk data is 72 columns and every one of these is a comment a

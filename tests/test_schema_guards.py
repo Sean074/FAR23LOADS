@@ -148,7 +148,16 @@ def fields_hash() -> str:
 #: waterline, ``0`` meaning "derive it and mark it assumed" (decision L-1).
 #: All additive with defaults, so ``SCHEMA_VERSION`` bumps but no migration hop
 #: is needed -- absent *is* the documented value in every case.
-EXPECTED_FIELDS_HASH = "26f9dd60cf2b70d1"
+#: plan 13 B8a-2: ``BalancedCaseResult`` gains ``delta_ny`` and
+#: ``closure_inertia`` and **renames** ``delta_pitch``/``delta_roll`` to the
+#: accelerations they became, ``p_dot``/``q_dot``/``r_dot``. A rename is not
+#: additive -- but this hash covers every dataclass on ``sloads.models``' public
+#: surface, not only the ones ``io.py`` writes, and ``BalancedCaseResult`` is a
+#: **result**: ``Project`` holds no field of that type and ``io.py`` names none
+#: of these fields, so nothing on disk has this shape and there is no hop to
+#: write. Same standing as the B7 entry above, which changed the same class
+#: without a version bump. ``SCHEMA_VERSION`` stays at 43.
+EXPECTED_FIELDS_HASH = "56ddd215f93057fb"
 
 
 def test_persisted_dataclass_shapes_are_unchanged():

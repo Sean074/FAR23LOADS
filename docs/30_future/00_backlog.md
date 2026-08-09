@@ -89,7 +89,7 @@ begins.
 
 | Phase | Step | What ships | Plan / item | Depends on |
 |---|---|---|---|---|
-| **4 — empennage** | 8 | Empennage balanced cases: **±β yaw pairs**, lateral closure. **Design agreed 2026-08-09** — [plan 13](13_b8a_lateral_closure_plan.md), decisions **L-1…L-8** answered; ready to implement (steps B8a-1…B8a-5 there) | plan 11 **B8a**, [plan 13](13_b8a_lateral_closure_plan.md) | steps 6 ✅, 7 ✅ |
+| **4 — empennage** | 8 | Empennage balanced cases: **±β yaw pairs**, lateral closure. **In progress** — [plan 13](13_b8a_lateral_closure_plan.md), decisions **L-1…L-8** answered; **B8a-1 (fin waterline) and B8a-2 (6-DOF closure) shipped 2026-08-09**; B8a-3 (lateral case assembly) next | plan 11 **B8a**, [plan 13](13_b8a_lateral_closure_plan.md) | steps 6 ✅, 7 ✅ |
 | | 9 | Discrete hinge/actuator controls, T-tail transfer | plan 09 **T6–T7** | step 7 ✅ (opportunistic) |
 | **5 — landing** | 10 | Ground-case distributed loads, gear reactions as applied `FORCE` cards | **M4-6** | — (design-note gated) |
 | | 11 | Balanced landing cases | plan 11 **B8b** | step 6 ✅, step 10 |
@@ -155,6 +155,33 @@ demoted to an explicit override, exactly as `fuselage_mass.stations` was), with
 the difference reported rather than silently taken. Deliberately **not** folded
 into B8a (decision L-8) — it moves h-tail per-component deck bytes and digests,
 which has nothing to do with lateral closure. Tier M. Effort: S.
+
+### [E] ONENGOUT cannot execute on any shipped fixture *(new 2026-08-09, found by plan 13 B8a-2 gate G1)*
+`one_engine_out` is a registered module with an oracle-cited FAR 23.367 time
+integration, and **no shipped fixture can run it**. Two independent gaps, and a
+fixture needs to clear both:
+
+| fixture | `one_engine_out` slice | engine `max_cont_hp` / `takeoff_hp` |
+|---|---|---|
+| `atr42_100`, `dhc8_dash8` | entered | **neither, on either engine** |
+| `ga6_normal`, `concept_regional_jet`, `cessna_210`, `concept_heavy` | **absent** | — |
+
+So `_case_inputs` raises `MissingInputError` on the two that get furthest, and
+the module's whole simulation path is exercised only by unit tests on constructed
+inputs. Same class as the `tail_mass` item above: the calc is right and the data
+never reaches it.
+
+Found because B8a-2's gate **G1** uses ONENGOUT as the independent producer for
+the yaw degree of freedom (`ψ̈ = M/Izz`), and the gate has to supply the
+horsepower itself — every other number it reads from the fixture. Note also that
+the two fixtures with an engine-out slice are exactly the two that assemble **no**
+balanced case, so the two producers meet nowhere; that is why G1 is stated as an
+identity on the solve rather than on a case.
+
+Fix: enter the missing horsepower on the two turboprop fixtures (it is public
+data for both airplanes), and an `one_engine_out` slice on `concept_regional_jet`
+— which is the fixture that most wants a 23.367 case, being the twin whose fin
+B8a is about. Tier S (fixture data; no calc changes). Effort: S.
 
 ### [V] No lateral aerodynamic load exists but the fin *(new 2026-08-09, from plan 13 decision L-7)*
 Nothing in the suite computes fuselage or wing side force in sideslip, so a B8a

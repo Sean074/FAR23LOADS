@@ -10,7 +10,68 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed
+
+- **A balanced case now closes in six degrees of freedom, with one rigid-body
+  field** (mission phase 4 step 8, [plan 13](docs/30_future/13_b8a_lateral_closure_plan.md)
+  step **B8a-2**, decisions **L-2**/**L-3**). The relief is the d'Alembert field
+  `f = −m(a_cg + ω̇ × r)`, written once in the new `sloads/rigid_body.py`. It
+  replaces four hand-rolled one-component slices of the same field — each correct
+  as far as it went, each missing the companion force component that makes the
+  moment it produces equal `−[I]{ω̇}` rather than `−Σw·d²`.
+
+  **The three omissions were worth 0.08 %, 20 % and 55 % of their own degree of
+  freedom**, which is the argument for writing the field once rather than adding
+  a fifth special case:
+
+  - **pitch** gained `fx = −w·q̈·dz`. The companion is negligible, but the pitch
+    inertia stopped being `Σw·dx²`, so **`q̈` fell 18–22 % on `ga6_normal`** and
+    3–4 % on `concept_regional_jet`. The deck barely moved (pitch relief is
+    0.06–0.56 % of a peak node load); the reported acceleration did, towards the
+    truth;
+  - **roll** gained `fy = +w·ṗ·dz` — **89.8 lb at a peak node on `ga6_normal`,
+    551.9 lb on the RJ**, larger than the roll term already in the deck, because
+    `fz = −w·ṗ·dy` reaches only the wing strips (every database item sits at
+    `y = 0`) while the companion reaches every mass off the roll axis. A roll
+    acceleration throws a mass above the roll axis sideways; the shipped model
+    could not say so;
+  - **yaw** is new, is coupled to roll through `Ixz`, and gives `ACRL` an induced
+    yaw of **+18.93 deg/s²** (ga6) / **−0.993** (RJ). A rolling airplane with
+    non-zero `Ixz` yaws.
+
+  The three rotational DOF are now **one 3×3 solve**, not three ratios: `Ixz` is
+  8.4 % of the ga6's pitch inertia and larger on the RJ, so treating them as
+  independent would be wrong rather than approximate. A singular tensor raises
+  rather than pseudo-inverting. All six DOF close to **≤ 2e-16 of `n·W`**.
+
+  - **Item self-inertia now reacts** (decision **L-3**): a mass the assembly
+    carries as a *point* applies its own `−[I_self]{ω̇}` as a free moment —
+    13.3 % of `ga6_normal`'s `Izz`, and the reason `Izz(closure)` comes out at
+    **2933.5 slug-ft²**, matching to 0.0 % the identity `Izz(WTONECG) − wing
+    self-Izz + Σw·y²(spread)`. A mass the assembly *spreads* does not, or the
+    spread is counted twice; the predicate has one owner
+    (`mass_distribution.assembly_distributes_mass`) and a drift guard.
+  - **`BalancedCaseResult`** gains `delta_ny` and `closure_inertia`, and
+    `delta_pitch`/`delta_roll` become the accelerations they are:
+    `p_dot`/`q_dot`/`r_dot`. Result-only fields — nothing on disk has this shape,
+    so `SCHEMA_VERSION` stays at **43**.
+  - **The B7 roll gate was restated, not weakened.** WINGINER's wing-only model
+    reacts 100 % of the aileron moment on the span; the assembled airplane reacts
+    about a fifth of it elsewhere, so the old equality could not survive. The
+    gate now asserts the *shape* strip-for-strip (unchanged, `rel = 1e-9`) **and**
+    pins the magnitude ratio — the wing span's share of the roll moment,
+    **0.795230** ga6 / **0.769455** RJ — which the equality could not see at all.
+
 ### Fixed
+
+- **The assembled balanced deck was not in the Imperial baseline.** Found while
+  changing the closure field: the 6-DOF rewrite moved every closure card in every
+  assembled deck and no digest noticed, because `tests/imperial_baseline.py` only
+  ever rendered the per-component channels. Plan 11 acceptance #5 — *"if a digest
+  moves, something leaked"* — cannot mean anything for a deliverable that has no
+  digest, and the assembled deck is the mission's aim-2 deliverable. Now covered
+  (`sbeam/balanced_deck`, 297 channels across six fixtures). Every other Imperial
+  channel is **byte-unchanged** by B8a-2, verified before regeneration.
 
 - **The vertical tail was modelled on the waterline datum, not on the airplane**
   (mission phase 4 step 8, [plan 13](docs/30_future/13_b8a_lateral_closure_plan.md)

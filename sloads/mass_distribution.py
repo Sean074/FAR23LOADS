@@ -145,6 +145,40 @@ def component_of(item: MassItem, project: Project) -> MassComponent:
         else infer_component(item, project)
 
 
+#: Components whose mass an **assembled balanced case spreads out** rather than
+#: carrying as a point. Today exactly one: ``WING``, which ``balance.wing_sets``
+#: spreads over WINGINER's spanwise shape.
+#:
+#: The set exists because it is the predicate decision L-3 turns on, and a
+#: predicate is not a comment (``CLAUDE.md`` practice 3). See
+#: :func:`assembly_distributes_mass`.
+_DISTRIBUTED_BY_ASSEMBLY = frozenset({MassComponent.WING})
+
+
+def assembly_distributes_mass(component: MassComponent) -> bool:
+    """True when the assembled case spreads ``component``'s mass over a shape.
+
+    Plan 13 decision **L-3**, and the single owner of that question. It decides
+    whether an item's **entered self-inertia** joins the closure tensor: a
+    component the assembly spreads already has its rotational inertia represented
+    *by the spread*, so adding the entered figure on top counts the same physical
+    quantity twice. Measured on ``ga6_normal``'s wing the two agree to -3.5 %
+    (4.444e6 lb-in^2 entered against 4.288e6 built from WINGINER's distribution),
+    which is the check that they are the same quantity rather than two.
+
+    Everything else is carried as a point mass at its own station, so its
+    self-inertia is a **free moment** nothing else in the model supplies --
+    13.3 % of ``ga6_normal``'s ``Izz``, the fuselage-structure lump alone being
+    1.131e6 lb-in^2.
+
+    Stated as a predicate over the component rather than tested inline so that
+    the day the empennage or the fuselage gains a distributed mass model, the
+    exclusion follows it here instead of being rediscovered at the call site.
+    ``tests/test_rigid_body.py`` guards the pairing.
+    """
+    return component in _DISTRIBUTED_BY_ASSEMBLY
+
+
 # --------------------------------------------------------------------------- #
 # The distribution
 # --------------------------------------------------------------------------- #

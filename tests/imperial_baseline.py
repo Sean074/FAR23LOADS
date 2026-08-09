@@ -62,6 +62,7 @@ def artifacts(example: str) -> Dict[str, str]:
     """``{channel: text}`` for one example, rendered in Imperial with no stamp."""
     from sloads import io, registry
     from sloads.export import sbeam_bridge as sb
+    from sloads.export.balanced_deck import balanced_deck
     from sloads.modules.aileron import build_aileron
     from sloads.modules.body_loads import build_body_loads
     from sloads.modules.flap import build_flap
@@ -120,6 +121,17 @@ def artifacts(example: str) -> Dict[str, str]:
             text = _try(fn, results, component=component)
             if text:
                 out[f"sbeam/{name}"] = text
+
+    # The assembled full-span deck -- the mission's aim-2 deliverable, and until
+    # B8a-2 the one deliverable this baseline did **not** cover. Found while
+    # changing the closure field: the 6-DOF rewrite moved every closure card in
+    # every assembled deck and no digest noticed, because the per-component
+    # channels above are all this file ever rendered. Plan 11 acceptance #5 ("if
+    # a digest moves, something leaked") can only mean something if the digest
+    # exists.
+    deck = _try(balanced_deck, project)
+    if deck:
+        out["sbeam/balanced_deck"] = deck
 
     index = _try(sb.case_index_csv_from,
                  *(mr.conditions for mr in module_results),
