@@ -52,9 +52,12 @@ one" -- the classical 3-2-1. That is three constraints, not six, and on a
 fuselage deck's nodes all lie on ``y = z = 0``, so no combination of translation
 constraints restrains rotation about the beam axis, and the solve is singular.
 Beam elements carry rotational stiffness at their nodes, so the collinear analog
-of 3-2-1 constrains that rotation directly: ``1234`` at the first station and
-``23`` at the last -- six constraints, no redundancy, reactions still fixed by
-statics alone. See :data:`Support`.
+of 3-2-1 constrains that rotation directly: all three translations plus the
+rotation **about the beam's own axis** at one end, and the two perpendicular
+translations at the other -- six constraints, no redundancy, reactions still
+fixed by statics alone. Which DOFs those are depends on which way the beam runs
+(:func:`_determinate_components`); an x-only scheme is exactly singular on the
+h-tail's spanwise beam, which runs along ``y``. See :data:`Support`.
 """
 
 from __future__ import annotations
@@ -95,10 +98,12 @@ class Support(Enum):
         is then the deck's own resultant about the leading-edge chord station,
         which is plan 07's E-2 tail reference recovered independently.
     ``DETERMINATE``
-        ``1234`` at the first node and ``23`` at the last -- six constraints on a
-        collinear beam line, no redundancy (see the module docstring). The body
-        deck's convention, where the claim under test is that the reaction is
-        **zero**.
+        Six constraints on a collinear beam line, no redundancy: all three
+        translations plus the rotation about the beam's own axis at one end, and
+        the two perpendicular translations at the other. Which DOFs those are
+        follows the beam's direction (:func:`_determinate_components`). The body
+        and spanwise-tail convention, where the claim under test is the reaction
+        itself.
     ``DECK``
         The deck already carries its own ``SPC1``; emit none. The assembled
         balanced deck's convention -- its determinate six-DOF support *is* the
@@ -252,7 +257,34 @@ def _supportable(run: Sequence[Tuple[int, List[int]]]) -> List[int]:
     return [rep for rep, tied in run if not tied]
 
 
-def _constraint_lines(support: Support,
+def _beam_axis(grids: Dict[int, Vec3], nodes: Sequence[int]) -> int:
+    """Which global axis a collinear run mostly lies along: ``0``/``1``/``2``."""
+    lo, hi = grids[nodes[0]], grids[nodes[-1]]
+    spread = [abs(hi[i] - lo[i]) for i in range(3)]
+    return spread.index(max(spread))
+
+
+def _determinate_components(axis: int) -> Tuple[str, str]:
+    """``(first-node DOFs, last-node DOFs)`` for a beam along ``axis``.
+
+    **The support scheme has to know which way the beam runs.** Six constraints
+    on a collinear set are: all three translations plus the rotation *about the
+    beam's own axis* at one end, and the two translations perpendicular to the
+    axis at the other (which is what restrains the remaining two rotations).
+
+    The axial-rotation DOF is the point. Constraining rotation about ``x`` on a
+    beam that runs along ``y`` leaves the model free to spin about its own axis
+    and the stiffness matrix is **exactly singular** -- which is how this was
+    found: the fuselage and tail-chord decks run along ``x``, so an x-only scheme
+    worked until the h-tail spanwise deck became the first beam in the suite to
+    run along ``y``.
+    """
+    axial_rotation = {0: "4", 1: "5", 2: "6"}[axis]
+    perpendicular = "".join(str(i + 1) for i in range(3) if i != axis)
+    return "123" + axial_rotation, perpendicular
+
+
+def _constraint_lines(support: Support, grids: Dict[int, Vec3],
                       runs: Sequence[Sequence[Tuple[int, List[int]]]]) -> List[str]:
     if support is Support.DECK:
         return []
@@ -267,11 +299,13 @@ def _constraint_lines(support: Support,
             # A one-node run has no beam to be determinate along; clamp it.
             lines.append(f"SPC1, {SPC_SID}, 123456, {free[0]}")
         else:
-            # Six constraints, no redundancy, on a collinear node set -- 1234 at
-            # one end and 23 at the other. See the module docstring on why the
-            # 3-2-1 translation scheme is degenerate here.
-            lines.append(f"SPC1, {SPC_SID}, 1234, {free[0]}")
-            lines.append(f"SPC1, {SPC_SID}, 23, {free[-1]}")
+            # Six constraints, no redundancy, on a collinear node set. See the
+            # module docstring on why the 3-2-1 translation scheme is degenerate
+            # here, and _determinate_components on why the DOFs depend on the
+            # beam's direction.
+            head, tail = _determinate_components(_beam_axis(grids, free))
+            lines.append(f"SPC1, {SPC_SID}, {head}, {free[0]}")
+            lines.append(f"SPC1, {SPC_SID}, {tail}, {free[-1]}")
     return lines
 
 
@@ -369,7 +403,7 @@ def wrap_as_stick_model(deck_text: str, *, support: Support,
 
     bulk = (_property_lines(u)
             + _element_lines(grids, runs, topology)
-            + _constraint_lines(support, runs))
+            + _constraint_lines(support, grids, runs))
 
     if "BEGIN BULK" in deck_text:
         # The deck brought its own case control and constraints (the assembled

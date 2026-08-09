@@ -67,6 +67,7 @@ def artifacts(example: str) -> Dict[str, str]:
     from sloads.modules.flap import build_flap
     from sloads.modules.net_loads import build_net_loads, loads_ref_axis_results
     from sloads.modules.tab import build_tabs
+    from sloads.modules.tail_span import build_tail_span
     from sloads.modules.taildist import build_tail_chordwise
     from sloads.report import module_text_report
 
@@ -106,6 +107,19 @@ def artifacts(example: str) -> Dict[str, str]:
         text = _try(fn, arg)
         if text:
             out[f"sbeam/{name}"] = text
+
+    # Spanwise empennage (plan 09 T4). Per surface, because each has its own axis
+    # map and its own GID band -- a shared channel would hide a swap between them.
+    spans = _try(build_tail_span, project) or {}
+    for component in ("htail", "vtail"):
+        results = spans.get(component) or []
+        if not results:
+            continue
+        for name, fn in ((f"{component}_span_cards", sb.tail_span_force_moment_cards),
+                         (f"{component}_span_csv", sb.tail_span_csv)):
+            text = _try(fn, results, component=component)
+            if text:
+                out[f"sbeam/{name}"] = text
 
     index = _try(sb.case_index_csv_from,
                  *(mr.conditions for mr in module_results),

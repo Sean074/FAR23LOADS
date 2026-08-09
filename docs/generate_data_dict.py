@@ -63,6 +63,7 @@ INPUT_SLICES = [
     ("flight_loads", "Flight envelope / balancing tail loads (FLTLOADS)"),
     ("wing_mass", "Wing-mass distribution & load cases (WINGINER)"),
     ("fuselage_mass", "Fuselage mass distribution (SELECT / Ch 15)"),
+    ("tail_mass", "Empennage surface mass, one per surface (plan 09 T-3)"),
     ("select_input", "Critical-load selection inputs (SELECT)"),
     ("tail_loads", "Rational horizontal-tail inputs (via geometry.empennage)"),
     ("vtail_loads", "Rational vertical-tail inputs (via geometry.empennage)"),
@@ -83,6 +84,7 @@ PAGE_OVERRIDES = {
     "weight": "Weight & Mass Properties",  # step produces `mass`, not `weight`
     "aero": "Aerodynamic Data",
     "select_input": "Wing Loads / Tail Loads",
+    "tail_mass": "Tail Loads",
     "tail_loads": "Geometry (empennage, Step G6)",
     "vtail_loads": "Geometry (empennage, Step G6)",
     "include_far25": "Engine Mount Loads",
@@ -333,6 +335,8 @@ def build():
             type_s = "bool"
         elif attr == "engines":
             type_s = "List[EngineInput]"
+        elif attr == "tail_mass":
+            type_s = "List[TailMassInput]"
         else:
             type_s = cls.__name__ if cls else "?"
         consumers = _consuming_modules(attr)

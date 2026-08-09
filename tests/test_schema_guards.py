@@ -139,10 +139,14 @@ def fields_hash() -> str:
 #: relocated field does. If it does: bump ``SCHEMA_VERSION`` and add a hop to
 #: ``sloads.migrations.MIGRATIONS``. Then update this constant.
 #: plan 11 B7: ``BalancedCaseResult`` gains the lateral residuals, the roll
-#: relief, the applied ``unbal_moment``, ``hand`` and ``semi_span``. All are
-#: optional with defaults, and the type is a **result** -- ``io.py`` never reads
-#: or writes it -- so no on-disk shape moved and no migration hop is needed.
-EXPECTED_FIELDS_HASH = "605d71aadc4e4991"
+#: relief, the applied ``unbal_moment``, ``hand`` and ``semi_span``.
+#: plan 09 T1-T5 (v42): ``Project.tail_mass`` (a new ``TailMassInput``, itself
+#: gaining ``control_load_mode`` at T5), ``LoadsResult.htail_span``/``.vtail_span``
+#: (a new ``TailSpanResult``), and ``WingStationLoad.myy_free`` -- the free
+#: per-strip torsion, which the cumulative ``myy`` is not.
+#: All additive with defaults, so ``SCHEMA_VERSION`` bumps but no migration hop
+#: is needed -- absent *is* the documented value in every case.
+EXPECTED_FIELDS_HASH = "79121952a1177221"
 
 
 def test_persisted_dataclass_shapes_are_unchanged():

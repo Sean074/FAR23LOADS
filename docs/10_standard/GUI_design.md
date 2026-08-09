@@ -447,7 +447,7 @@ sidebar and the JSON Editor (§10, Phase E5).
 
 The schema field list is **single-sourced in
 [`DATA_DICTIONARY.md`](DATA_DICTIONARY.md)** (generated; currently
-`SCHEMA_VERSION = 41`); the per-step migration history is recorded in
+`SCHEMA_VERSION = 42`); the per-step migration history is recorded in
 [`../40_history/00_completed_development.md`](../40_history/00_completed_development.md)
 (recent steps: v29 single-source CLmax
 stall; v30 M2-6 wing/fuselage derived geometry; v31 M2-10 operational placards;
@@ -482,7 +482,19 @@ were a stale duplicate — stored in the file, ignored by the Speed–Altitude t
 project reported two different MNE/MFC depending on the front-end. MC/MD are now
 derived by `structural_speeds` and passed to `mach_limit` explicitly; hop
 `migrations._v39_mach_limit_mc_md` drops the dead keys, and `vd_basis` defaults
-to the speed-ratio route so no existing project's numbers move).
+to the speed-ratio route so no existing project's numbers move); v41 plan 11 B1
+`MassItem.component` — the explicit component tag that makes `weight.items` the
+mass single source of truth (absent → inferred from the item's position), plus
+`FuselageMassInput.stations_are_override` marking a hand-entered station table as
+deliberate rather than merely present; v42 plan 09 T1 the distributed empennage —
+`Project.tail_mass` (a `TailMassInput` per modelled tail surface: uniform area
+density, whole-surface weight) and `LoadsResult.htail_span`/`.vtail_span`, the
+spanwise tail distributions the empennage deck is written from. Additive with
+total defaults, so no hop: a project with no empennage mass writes no key and
+round-trips byte-identically to a pre-v42 file. The tail *planform* is not a new
+field — decision T-1 reuses `SurfaceInput` via an optional `"htail"`/`"vtail"`
+entry in `geometry.surfaces`, validated against the oracle-authoritative scalar
+area/span to 1 % and **derived as a rectangle, marked assumed**, when absent).
 This paragraph's version number is guarded by
 `tests/test_data_dictionary.py::test_gui_design_schema_line_current` — update
 it (and this list) with every `SCHEMA_VERSION` bump.

@@ -10,6 +10,81 @@ Acceptance**, **Key decisions**.
 
 ---
 
+## Distributed empennage loads, phase 1 (mission phase 4, step 7 — plan 09 T1–T5 — complete 2026-08-08, tier L)
+
+**Objective.** Give the empennage the wing's deliverable: per-station distributed
+ULTIMATE loads on a user-defined load reference axis, exported as
+`GRID`+`FORCE`+`MOMENT` cards that close in force **and** moment from their own
+card text. Before this the tail had totals (SELECT) and a chordwise pressure
+profile (TAILDIST) and nothing in between — no planform, no spanwise
+distribution, no surface mass, no `GRID`, no `MOMENT`.
+
+**Result.** Both surfaces distribute, on all five fixtures with an empennage, and
+close against **analytic** targets: force, bending, centreline rolling, torsion,
+inertia and the LRA reduction identity. Two new rows in the export-equilibrium
+sweep (every fixture × both unit systems) and a solver leg in the round-trip
+harness. **Appendix A and the chordwise path are bit-unchanged** — every Imperial
+digest change is a new channel, verified channel-by-channel.
+
+**Deliverables.** `sloads/tail_geometry.py` (planform resolution, the 1 %
+validator, the half/full bookkeeping); `sloads/modules/tail_span.py`; the
+empennage axis map in `export/coordinates.py`; `tail_span_*` writers and GID
+bands 4001+/4501+ in `sbeam_bridge.py`; the **Tail Span Loads** page and its
+workflow step; `Project.tail_mass`, `LoadsResult.htail_span`/`.vtail_span`,
+`WingStationLoad.myy_free` (`SCHEMA_VERSION` 42, additive, no hop);
+`cli.py --export-target htail-span|vtail-span`; `tests/test_tail_geometry.py`
+(34) and `tests/test_tail_span.py` (58).
+
+**Test / Acceptance.** No printed oracle exists for a spanwise tail
+distribution, so the chord-proportional shape's **closed forms are the gate**
+(`CLAUDE.md` practice 2). Each target is computed independently of the module's
+own quadrature — the bending centroid from the planform, the torsion from
+area-weighted chordwise means, the force from SELECT's totals. All six run
+against a **tapered and swept** planform too, because every shipped fixture takes
+the derived rectangle and the sweep-transfer term would otherwise never be
+exercised.
+
+**Key decisions, and the five places measurement changed the plan:**
+
+- **No fixture carries a tail planform**, so one is *derived* (a rectangle from
+  the authoritative area/span — the same first-order shape the three-view has
+  always used) and marked `assumed` everywhere it travels. Cost quantified in
+  band: `ȳ = b/2` for the rectangle against `(b/3)(c_r+2c_t)/(c_r+c_t)` for a
+  taper, so it is conservative in root bending but its station distribution is not
+  the surface's own. Entered polylines win and are validated to 1 %.
+- **The fin's torsion is `Mzz`, not `Myy`** — a surface twists about its *span*
+  axis, and the fin's span is `z`. The sign is the stored value negated, because
+  `r × F` reverses for a side force. Derived in `coordinates.py` with the
+  derivation written down; the v-tail invariant row asserts `Myy == 0` for it.
+- **The determinate support was implicitly x-axis-only** and returned an *exactly
+  singular* matrix on the h-tail's `y`-running beam. Fixed in step 2's own
+  machinery (`roundtrip._determinate_components`), which now picks the
+  axial-rotation DOF from the beam's direction. Only a non-`x` beam could have
+  found it.
+- **`WingStationLoad` gained `myy_free`.** The tail deck applies strip loads
+  directly rather than differencing a cumulative column — which is what smears a
+  concentrated wing mass inboard in the wing bridge — so it needs the per-strip
+  free torsion. The cumulative `myy` carries the sweep transfer and is not that;
+  same distinction plan 11 had to make for the wing.
+- **The h-tail attachment stations have no fuselage width to sit on**
+  (`fuselage_width` is `None` on every fixture), so they fall back to the
+  innermost strip pair — stated on the result, filed on the backlog, same
+  direction as the wing's centreline-clamp limitation.
+
+**Deliberate scope limits, stated in-band:** the v-tail carries **no inertia**
+(the suite has no lateral load factor; applying normal `n` to a fin's mass is a
+fabricated load in the wrong direction — it lands with plan 11 B8a), and
+`control_load_mode="discrete"` **raises** rather than falling back to smeared, so
+no deck can claim a hinge/actuator load path it does not contain.
+
+**Also filed:** the derived-planform gap (fixture data, per airplane) and the
+missing fuselage width for the attachment stations.
+
+**Open from plan 09:** T6 (discrete hinge/actuator controls, the suite's first
+hinge-moment output) and T7 (T-tail transfer) — now step 9.
+
+---
+
 ## Antisymmetric wing cases + the handedness machinery (mission phase 3, step 6 — plan 11 B7 — complete 2026-08-08, tier L)
 
 **Objective.** Phase 2 of the balanced-airframe work: assemble the rolling wing

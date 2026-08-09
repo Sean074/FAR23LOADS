@@ -3,8 +3,9 @@
 **Status:** assessment + step-by-step development guide; decisions T-1…T-7 taken
 2026-08-08 (user), **T-8…T-11 taken 2026-08-08** in the development-plan review
 (they supersede the T-3 inertia wording and the §3.1/§4 half-vs-full
-bookkeeping). Not yet implemented; decision T-11's gate is **satisfied as of
-2026-08-08** -- the plan-07 equilibrium invariant (step 1) and the sbeam
+bookkeeping). **PHASE 1 SHIPPED 2026-08-08** — T1–T5 complete (mission step 7);
+T6–T8 remain (see §9 for what shipped and where measurement changed the plan).
+Decision T-11's gate was **satisfied as of 2026-08-08** -- the plan-07 equilibrium invariant (step 1) and the sbeam
 round-trip harness (step 2) have both landed, so this item is unblocked. T4 adds
 its deck family to **both** gates: two rows in the plan-07 §4 invariant table and
 a tail leg in `tests/test_sbeam_roundtrip.py` (whose wrapper already solves the
@@ -168,7 +169,7 @@ distribution). Per half-planform, with `L_half = k_side·(LT25 + LT50)`:
 Each step lands green (`ruff` + `pytest` 3.9/3.11/3.12) with its gate written
 **with** the feature (R10), and does not start until the previous one is merged.
 
-### T1 — Geometry + schema (Tier M within the phase)
+### ~~T1~~ ✅ — Geometry + schema (Tier M within the phase)
 
 `geometry.surfaces` htail/vtail entries + the 1 % consistency validator +
 `TailMassInput` + the `LoadsResult` slices + `SCHEMA_VERSION` bump + `io.py`
@@ -177,7 +178,7 @@ surfaces (reuse the wing's `SurfaceInput` editor). **Gate:** round-trip test
 (new → JSON → load → equal); validator fires on a deliberately inconsistent
 fixture; all existing fixtures load unchanged.
 
-### T2 — Spanwise distribution module `sloads/modules/tail_span.py`
+### ~~T2~~ ✅ — Spanwise distribution module `sloads/modules/tail_span.py`
 
 New concept-mode module (`run(project) -> ModuleResult`, self-registers; module
 contract per CLAUDE.md). Consumes: `envelope.critical` (`HT-xx`/`VT-xx`
@@ -199,14 +200,14 @@ centreline rolling closure (zero for every symmetric case, the asymmetry
 moment for 23.427(a)) and the down-load inertia-sign test — each with the
 hand-derived number and its derivation in the test docstring.
 
-### T3 — UI + CSV reporting
+### ~~T3~~ ✅ — UI + CSV reporting
 
 New Streamlit view (registered in `workflow.py` — the nav SSOT, drift-guarded)
 showing per-station tables/plots per case; LIMIT display allowed per the
 CLAUDE.md carve-out, downloads unit-suffixed (lesson L-8i). **Gate:** workflow
 drift guard passes; smoke test renders the page for both concept fixtures.
 
-### T4 — Export: spanwise tail decks (`GRID` + `FORCE` + `MOMENT`)
+### ~~T4~~ ✅ — Export: spanwise tail decks (`GRID` + `FORCE` + `MOMENT`)
 
 Extend `sbeam_bridge.py` with `htail_span_*` / `vtail_span_*` writers on the
 wing pattern: `GRID` cards on the LRA line (v-tail grids mapped span→`z` via
@@ -227,7 +228,7 @@ spanwise tail deck **supersedes** `body_loads`' point tail-load station for any
 combined-airframe sum — the double-count rule, written down once.
 Imperial digest regeneration, once, deliberately, with its own CHANGELOG line.
 
-### T5 — Control surfaces, option 2 (smeared) — completes phase 1
+### ~~T5~~ ✅ — Control surfaces, option 2 (smeared) — completes phase 1
 
 `control_load_mode = "smeared"`: the `LT50`/control part is already inside the
 T2 distribution, so this step is mostly *labelling and proof*: the deck states
@@ -314,3 +315,81 @@ substitute (R10); `cspell.json` for new terms.
   spanwise-distribution decision).
 - Hinge-moment deliverable as a reported load case in its own right (T6 emits
   the number; reporting it as a case is a separate step).
+
+
+## 9. Phase 1 as shipped (2026-08-08) — T1–T5
+
+Delivered: `sloads/tail_geometry.py` (planform resolution + the 1 % validator),
+`sloads/modules/tail_span.py`, the `htail`/`vtail` axis map in
+`export/coordinates.py`, the `tail_span_*` writers and GID bands 4001+/4501+ in
+`sbeam_bridge.py`, the **Tail Span Loads** page, `Project.tail_mass` +
+`LoadsResult.htail_span`/`.vtail_span` + `WingStationLoad.myy_free`
+(`SCHEMA_VERSION` 42, additive, no hop), `cli.py --export-target
+htail-span|vtail-span`, and three test modules (`test_tail_geometry.py`,
+`test_tail_span.py`, plus new rows in `test_export_equilibrium.py` and
+`test_sbeam_roundtrip.py`).
+
+**Appendix A and the chordwise TAILDIST path are bit-unchanged** (T-7 held):
+every Imperial digest change is a **new channel**, verified channel-by-channel —
+no existing artifact moved.
+
+### 9.1 Where measurement changed the plan
+
+**1. No fixture carries a tail planform, so one is derived and marked.** §3.1
+assumed `geometry.surfaces` would gain `htail`/`vtail` entries; none of the six
+shipped airplanes has one, and inventing polylines for six aircraft with no
+oracle would have been fabricated data. `tail_geometry` therefore **derives a
+rectangular planform** from the oracle-authoritative area/span — precisely the
+first-order derivation `configuration.tail_planform` already uses for the
+three-view — and sets `assumed=True`, which travels into the result, the page,
+the CSV and the deck header. Entered polylines still win and are still validated
+to 1 %. Quantified in-band: `ybar` for the rectangle is `b/2` against `(b/3)(c_r
++ 2c_t)/(c_r + c_t)` for a taper, so a derived planform is **conservative in root
+bending** but its station distribution is not the surface's own. The gates run
+against a tapered *and swept* planform too, so the closures are not properties of
+the rectangle.
+
+**2. The fin's torsion is `Mzz`, not `Myy`.** §2's axes note says the v-tail's
+span maps to `z` and its load to `fy`, and stops there. A surface's torsion is
+about its **span** axis, so the fin's is about `z` — and the sign is the stored
+value **negated**, because `r x F` with a side force reverses. Derived in
+`coordinates.tail_torsion_to_airplane` with the derivation written down, because
+the h-tail writer's sign copy-pasted onto the fin gives a deck that parses,
+solves, and twists the fin the wrong way. The v-tail invariant row asserts
+`Myy == 0` on the fin deck for exactly this reason.
+
+**3. The determinate support was implicitly x-axis-only.** The round-trip
+harness's `Support.DETERMINATE` constrained `1234` + `23`, which restrains
+rotation about **x**. The h-tail spanwise deck is the first beam in the suite to
+run along **y**, and it came back *exactly singular*: the model was free to spin
+about its own axis. Fixed in `roundtrip._determinate_components`, which picks the
+axial-rotation DOF from the beam's direction. A latent defect in step 2's
+machinery, found by step 7 — and it could only be found by a beam that was not
+along `x`.
+
+**4. `WingStationLoad` gained `myy_free`.** The spanwise deck applies strip loads
+directly rather than differencing a cumulative column (which is what smears a
+concentrated wing mass inboard in the wing bridge), so it needs the per-strip
+free torsion. The cumulative `myy` is **not** that — it carries the sweep
+transfer, the same distinction plan 11 had to make for the wing, where
+`balance._free_moments` reconstructs it. Populated by `tail_span`; left `0.0` by
+the oracle-locked wing chain.
+
+**5. The h-tail attachment stations fall back to the centreline pair.**
+`geometry.parametric.fuselage_width` is `None` on every fixture, so T-8's
+"supported at the fuselage sides" has no data. The attachments become the
+innermost strip pair, stated on the result rather than chosen silently; the
+consequence (a one-strip-wide carry-through, so attachment bending is slightly
+high) is the same direction as the wing's centreline-clamp limitation and is
+filed alongside it.
+
+### 9.2 Scope deliberately left for later
+
+* **V-tail inertia** — omitted, because the suite has **no lateral load factor**
+  and applying the airplane's normal `n` to a fin's mass is a fabricated load in
+  the wrong direction. Stated on every v-tail result. Lands with plan 11 **B8a**,
+  which is where a lateral load factor first has to exist.
+* **T6** (discrete hinge/actuator) and **T7** (T-tail transfer) — unstarted.
+  `control_load_mode` is plumbed and `"discrete"` **raises** rather than falling
+  back, so selecting it cannot silently return a smeared deck.
+* **T8** — the Tier-L closure trail, done as part of this session.

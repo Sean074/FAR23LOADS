@@ -21,6 +21,7 @@ from . import one_engine_out  # noqa: F401
 from . import select  # noqa: F401
 from . import structural_speeds  # noqa: F401
 from . import tab  # noqa: F401
+from . import tail_span  # noqa: F401
 from . import taildist  # noqa: F401
 from . import weight_envelope  # noqa: F401
 from . import weight_estimate  # noqa: F401

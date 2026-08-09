@@ -79,7 +79,8 @@ def test_run_all_modules_runs_present_slices():
     assert {r.module for r in results} == {
         "engine", "weight_estimate", "weight_onecg", "weight_envelope",
         "wing_geometry", "structural_speeds", "mach_limit", "airloads",
-        "flight_envelope", "wing_inertia", "net_loads", "select", "taildist",
+        "flight_envelope", "wing_inertia", "net_loads", "select", "tail_span",
+        "taildist",
         "aileron", "flap", "tab", "landing", "balloads", "configuration",
         "body_loads", "balance",
     }

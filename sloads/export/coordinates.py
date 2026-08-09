@@ -139,3 +139,61 @@ def reflect_moment(mx: float, my: float, mz: float) -> Vec3:
 def reflect_side(side: str) -> str:
     """The mirrored side tag: ``"R" <-> "L"``, centreline unchanged."""
     return {"R": "L", "L": "R"}.get(side, side)
+
+
+# --------------------------------------------------------------------------- #
+# Empennage local frame -> airplane axes (plan 09 §2 axes note)
+# --------------------------------------------------------------------------- #
+# A spanwise tail strip is computed in the surface's own **(span, chord)** frame,
+# which is what lets one integrator serve both surfaces. Mapping that frame onto
+# airplane axes is where the two surfaces stop being alike, and it has one owner
+# -- here -- with a drift guard, because it is a sign/axis convention and those
+# are exactly what CONVENTIONS.md §7 says must never be hand-rolled per call site.
+#
+#   horizontal tail: span -> y, normal force -> fz, torsion -> myy  (the wing's map)
+#   vertical tail:   span -> z, normal force -> fy, torsion -> myy
+#
+# The fin's normal force is a **side** force. Emitting it as ``fz`` -- the obvious
+# copy-paste from the h-tail writer -- produces a deck that parses, solves, and
+# loads the fin in the one direction it is not designed for.
+
+def tail_station_to_airplane(x: float, span: float, component: str,
+                             root_z: float = 0.0) -> Vec3:
+    """Map a tail station's local ``(x, span)`` to an airplane ``(x, y, z)`` point."""
+    if component == "vtail":
+        return (x, 0.0, root_z + span)
+    return (x, span, root_z)
+
+
+def tail_force_to_airplane(normal: float, component: str) -> Vec3:
+    """Map a tail strip's normal force to airplane force components.
+
+    The horizontal tail's normal force is vertical (``fz``); the vertical tail's
+    is lateral (``fy``).
+    """
+    if component == "vtail":
+        return (0.0, normal, 0.0)
+    return (0.0, 0.0, normal)
+
+
+def tail_torsion_to_airplane(torsion: float, component: str) -> Vec3:
+    """Map a tail strip's torsion about its LRA to airplane moment components.
+
+    A surface's torsion is about its **span** axis, and that is where the two
+    empennage surfaces part company: the h-tail's span is ``y``, so its torsion is
+    ``myy``; the fin's span is ``z``, so **its torsion is** ``mzz``, not ``myy``.
+
+    Sign, derived rather than asserted. The stored strip torsion is
+    ``(x_lra - x_load) * normal``. For the h-tail, ``r x F`` with
+    ``r = (x_load - x_lra, 0, 0)`` and ``F = (0, 0, fz)`` gives
+    ``my = (x_lra - x_load)*fz`` -- the stored value unchanged. For the fin,
+    ``F = (0, fy, 0)`` gives ``mz = (x_load - x_lra)*fy`` -- the stored value
+    **negated**.
+
+    That sign is the whole reason this function exists rather than a literal at
+    the call site: a fin torsion emitted with the h-tail's sign is a deck that
+    parses, solves, and twists the fin the wrong way.
+    """
+    if component == "vtail":
+        return (0.0, 0.0, -torsion)
+    return (0.0, torsion, 0.0)

@@ -40,6 +40,7 @@ from sloads.export import sbeam_bridge as sb
 from sloads.export.pdf import ENGINE_ENV_VAR, compile_pdf, find_engine
 from sloads.export.workbook import build_workbook
 from sloads.modules.net_loads import torsion_axis_label, wing_lra
+from sloads.modules.tail_span import build_tail_span
 from sloads.report import module_text_report
 from sloads.report.content import ComponentLoads, component_loads
 from sloads.report.latex import render_report

@@ -12,6 +12,61 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **Distributed empennage loads** — `sloads/modules/tail_span.py`,
+  `sloads/tail_geometry.py`, spanwise decks in `sbeam_bridge`, and a **Tail Span
+  Loads** page (mission phase 4 step 7; [plan 09](docs/30_future/09_distributed_empennage_loads_plan.md)
+  **T1–T5**, phase 1). The tail finally has what the wing has had all along: a
+  load at every span station, on a stated load reference axis, that a beam model
+  can be sized from. The chordwise TAILDIST profile and every Appendix A figure
+  are **unchanged** — this is a pure consumer of SELECT's totals.
+
+  - **Analytic closure gates, because there is no oracle.** Appendix A gives tail
+    totals and a chordwise profile and stops. The chord-proportional shape makes
+    every target closed-form instead: force to `LT25+LT50` exactly, root bending
+    to `L_half·ȳ` with `ȳ` the planform area centroid, torsion to the
+    area-weighted chordwise means, inertia to `−n·W`, and the LRA reduction
+    identity. All six are checked against a **tapered and swept** planform as
+    well, since every shipped fixture takes a derived rectangle.
+  - **The horizontal tail is one full-span beam**, tip to tip through the
+    centreline, reacted at fuselage attachment stations — not a semispan table
+    doubled. That is what lets FAR **23.427(a)**'s unsymmetrical condition live in
+    one deck, and it buys a closure a per-side deck cannot state: the net moment
+    about the centreline is **identically zero for every symmetric case** and the
+    asymmetry moment for 23.427(a).
+  - **Tail inertia is d'Alembert — `−n·W`, signed by the load factor alone.** The
+    intuitive "inertia opposes the air load" is wrong here and wrong in the
+    unconservative direction: the conditions that size a GA horizontal tail are
+    *down*-load ones, so an opposing rule would relieve exactly them. A test
+    asserts the increase.
+  - **The vertical tail is not the horizontal tail rotated.** It spans `z`, its
+    air load is a **side force `fy`**, and its torsion is about its own span axis
+    — `mzz`, with the sign reversed. One owner in `export/coordinates.py`, because
+    the h-tail's convention copy-pasted onto the fin gives a deck that parses,
+    solves, and twists the fin the wrong way.
+  - **Planform derived where absent, and marked.** No fixture carries tail
+    polylines, so a rectangular planform is derived from the authoritative
+    area/span and flagged `assumed` everywhere it travels — result, page, CSV,
+    deck header — with the cost quantified: a real tapered tail carries its load
+    further inboard, so a derived planform is conservative in root bending but its
+    station distribution is not the surface's own. Entered polylines win, and are
+    validated against the scalars to 1 %.
+  - Gated three ways: the closed-form closures, two new rows in the export
+    equilibrium sweep (every fixture × both unit systems), and a solver leg in the
+    sbeam round-trip harness.
+  - `SCHEMA_VERSION` **42** — `Project.tail_mass`, `LoadsResult.htail_span`/
+    `.vtail_span`, and `WingStationLoad.myy_free` (the *free* per-strip torsion,
+    which the cumulative `myy` is not). All additive; no migration hop.
+
+### Fixed
+
+- **The round-trip harness's determinate support was implicitly x-axis-only.**
+  It constrained rotation about `x`, which restrains a beam running along `x` —
+  the fuselage and chordwise-tail decks. The h-tail's spanwise deck is the first
+  beam in the suite to run along `y`, and it came back *exactly singular*: the
+  model was free to spin about its own axis. The support now picks its
+  axial-rotation DOF from the beam's direction. A latent defect in step 2's
+  machinery that only a non-`x` beam could find.
+
 - **Antisymmetric (rolling) balanced cases, and the handedness machinery** —
   `modules/balance.py`, the reflection operator in `export/coordinates.py`
   (mission phase 3 step 6; plan 11 **B7**, decisions B-6/B-7). An accelerated-roll

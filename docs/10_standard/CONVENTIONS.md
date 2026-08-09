@@ -183,6 +183,8 @@ export boundary, reduction-to-FAR23 identity on GA inputs. "No oracle" never mea
 | Deliverable unit sets | `units.deliverable_units` | `tests/test_deliverable_units.py` (identity, consistency, channel) |
 | Export axes/scale | `export/coordinates.py` | `tests/test_sbeam_bridge.py::test_grids_match_station_geometry` + closure/SF tests |
 | **Centreline reflection** (`y -> -y`; force is a true vector, moment an axial one) | `export/coordinates.py` (`reflect_point`/`reflect_force`/`reflect_moment`/`reflect_side`) | `tests/test_balance.py::test_the_reflection_operator_is_an_involution` + `::test_the_handed_twins_are_mirror_images` |
+| **Empennage local frame → airplane axes** (h-tail spans `y`/loads `fz`/twists `myy`; v-tail spans `z`/loads `fy`/twists **`mzz`**) | `export/coordinates.py` (`tail_station_to_airplane`/`tail_force_to_airplane`/`tail_torsion_to_airplane`) | `tests/test_export_equilibrium.py::test_vtail_span_deck_resultants` |
+| **Empennage planform vs. the scalar area/span** (1 % agreement; scalars stay oracle-authoritative) | `sloads/tail_geometry.py` (`resolve_tail_planform`/`validate_tail_planform`) | `tests/test_tail_geometry.py` |
 | Case IDs | `sloads/case_ids.py` | `tests/test_case_ids.py` |
 | Load-case row keys | `sloads/load_keys.py` | **flagged — see §8** |
 | Data dictionary | `docs/generate_data_dict.py` (generated doc) | `tests/test_data_dictionary.py::test_committed_doc_matches_generator` |
@@ -210,6 +212,34 @@ implies the right. The convention, stated once:
 * a **symmetric case has no hand** and gets no twin: it is its own mirror image,
   and minting one would put the same load set in the deck twice. Whether a case
   has a hand is decided by content (a non-zero `unbal_moment`), not by its name.
+
+### 7.2 Empennage axes and bookkeeping (plan 09 decisions T-1/T-8)
+
+* **The horizontal tail maps exactly like the wing** — span along `y`, air load
+  `fz`, torsion `myy` about the load reference axis. **The vertical tail does
+  not**: it spans along `z`, its air load is the **side force `fy`**, and its
+  torsion is about its own span axis, so it is **`mzz`** — with the sign of the
+  stored strip torsion *negated*, because `r × F` reverses for a side force.
+  Both mappings have one owner (§7) and a drift guard; a fin deck written with
+  the h-tail's convention parses, solves, and loads the fin in the one direction
+  it is not designed for.
+* **Half and full.** `SurfaceInput` polylines are one side of a symmetric
+  surface, while every *scalar* tail quantity in the suite is whole-surface:
+  `htail_area_sqft` is both sides, and SELECT's `LT25`/`LT50` are both-sides
+  totals. So the h-tail compares `2 × polyline_area` against the scalar and its
+  polyline span against the **semi**span; the v-tail is a single surface and
+  compares both directly, with no factor. Owned by `tail_geometry`.
+* **The h-tail beam is full span, tip to tip through the centreline**, reacted at
+  the fuselage attachment stations — not a semispan table doubled. It is the only
+  topology that carries the FAR 23.427(a) left/right asymmetry in one model, and
+  it keeps SELECT's both-sides totals end-to-end with no factor-of-two seam.
+* **Tail inertia is d'Alembert**: `−n · W_surface`, signed by the case's load
+  factor **alone**, never "opposing the air load". The conditions that size a GA
+  horizontal tail are down-load ones, so an opposing rule would relieve exactly
+  those.
+* **The spanwise tail deck supersedes the fuselage deck's point tail-load
+  station** (GID 1001 band) in any combined-airframe sum — apply one
+  representation, never both. Stated in the deck's own `$` header.
 
 ## 8. Flagged inconsistencies (2026-08-05 extraction — filed on the backlog)
 

@@ -22,6 +22,7 @@ from .inputs import (
     StructuralSpeedsInput,
     TabLoadsInput,
     TailLoadsInput,
+    TailMassInput,
     VTailLoadsInput,
     WeightInput,
     WingMassInput,
@@ -196,7 +197,7 @@ from .results import EnvelopeResult, LoadsResult, MassResult
 # MC/MD are now derived by structural_speeds and passed to mach_limit explicitly.
 # The v39 hop drops the dead keys; ``vd_basis`` defaults to the speed-ratio route,
 # so every pre-v40 project keeps exactly the numbers it had.
-SCHEMA_VERSION = 41  # B1: MassItem.component (the mass SSOT) + fuselage stations_are_override
+SCHEMA_VERSION = 42  # T1: Project.tail_mass + LoadsResult.htail_span/vtail_span (distributed empennage)
 
 
 @dataclass
@@ -250,6 +251,9 @@ class Project:
     envelope: Optional[EnvelopeResult] = None
     mass: Optional[MassResult] = None
     wing_mass: Optional[WingMassInput] = None
+    #: Per-surface empennage mass (plan 09 T-3): one entry per modelled tail
+    #: surface. Absent -> that surface carries no distributed inertia.
+    tail_mass: List["TailMassInput"] = field(default_factory=list)
     fuselage_mass: Optional[FuselageMassInput] = None
     select_input: Optional[SelectInput] = None
     # tail_loads / vtail_loads are properties (Step G6) proxying to the single-source

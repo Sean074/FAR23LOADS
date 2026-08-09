@@ -10,6 +10,8 @@ report to stdout):
 Or export loads to sbeam (CSV + FORCE/MOMENT cards). The wing target (default)
 writes the net wing load (span-load CSV + FORCE/MOMENT cards + an optional CBAR
 stick model); ``--export-target tail`` writes the chordwise tail loads (TAILDIST);
+``--export-target htail-span``/``vtail-span`` write the **spanwise**
+empennage beam loads (plan 09 T4);
 ``--export-target control`` writes the simplified control-surface loads
 (AILERON / FLAPLOAD / TABLOADS):
 
@@ -119,6 +121,25 @@ def _export_sbeam(project, prefix: str, target: str, stick_model: bool,
         print(f"Wrote {len(results)} tail condition(s) to: {csv_path}, {bdf_path}")
         return 0
 
+    if target in ("htail-span", "vtail-span"):
+        from sloads.modules.tail_span import build_tail_span
+
+        component = target.split("-")[0]
+        results = build_tail_span(project)[component]
+        if not results:
+            print(f"No spanwise {component} loads: the surface needs an area and a "
+                  "span, and a critical condition carrying an LT25/LT50 split.")
+            return 1
+        csv_path = f"{prefix}.{component}_span.csv"
+        bdf_path = f"{prefix}.{component}_span_loads.bdf"
+        with open(csv_path, "w", encoding="utf-8", newline="") as fh:
+            fh.write(sb.tail_span_csv(results, component=component, system=system))
+        sb.write_tail_span_force_moment_cards(results, bdf_path, component=component,
+                                              system=system)
+        print(f"Wrote {len(results)} {component} condition(s) to: "
+              f"{csv_path}, {bdf_path}")
+        return 0
+
     if target == "control":
         from sloads.modules.aileron import build_aileron
         from sloads.modules.flap import build_flap
@@ -208,7 +229,9 @@ def main(argv=None) -> int:
              "(PROJECT is then the second positional argument)",
     )
     parser.add_argument(
-        "--export-target", choices=("wing", "tail", "control"), default="wing",
+        "--export-target",
+        choices=("wing", "tail", "htail-span", "vtail-span", "control"),
+        default="wing",
         help="with --export-sbeam, which loads to export (default: wing)",
     )
     parser.add_argument(

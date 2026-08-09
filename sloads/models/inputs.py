@@ -910,6 +910,52 @@ class VTailLoadsInput:
 # Single-source empennage geometry (Step G6) -- GeometryInput.empennage
 # --------------------------------------------------------------------------- #
 @dataclass
+class TailMassInput:
+    """Surface mass for one empennage surface's distributed inertia (plan 09 T-3).
+
+    Deliberately simpler than :class:`WingMassInput`: the plan's decision T-3 is a
+    **uniform area density** over the defined planform — no root/tip taper ratio,
+    no concentrated-mass list. The strip inertia is therefore
+    ``-n_case * panel_weight_lb * (c_j*dy)/S``, i.e. the surface weight shared out
+    by strip *area*.
+
+    ``panel_weight_lb`` is the **whole surface**: both sides for the horizontal
+    tail, the single fin for the vertical. That matches how every other tail
+    quantity in the suite is stated (``htail_area_sqft`` is both-sides, and
+    SELECT's ``LT25``/``LT50`` are both-sides totals), so there is no factor of
+    two anywhere in the tail path.
+
+    Sign is d'Alembert and set by the load factor **alone** (decision T-9): the
+    inertia load is ``-n``, never "opposing the air load". The governing GA6
+    h-tail conditions are *down*-load cases, so a magnitude-opposing rule would
+    relieve exactly the cases that size the surface.
+
+    Upgrade path (plan 09 §8): taper and concentrated masses toward
+    ``WingMassInput`` parity.
+    """
+    surface: str = "htail"            # "htail" | "vtail"
+    panel_weight_lb: float = 0.0      # whole surface (both sides for the h-tail)
+    #: How the control surface's own load enters the parent surface (T-4).
+    #:
+    #: ``"smeared"`` (phase 1, the default and the only mode implemented): the
+    #: control part is already *in* the spanwise distribution, because ``LT50``
+    #: **is** the camber/elevator load and it is distributed chord-proportionally
+    #: with the rest. Nothing is added or removed; the mode is a statement about
+    #: what the numbers mean, and it is printed on the deck.
+    #:
+    #: ``"discrete"`` (phase 2, T6): the control part is removed from the smeared
+    #: strips and re-enters as hinge reactions plus an actuator load at the
+    #: hinge/actuator span stations. It needs attachment geometry that does not
+    #: exist yet, so selecting it raises rather than silently falling back --
+    #: a silent fallback would report a localized load path the deck does not have.
+    #:
+    #: **Per surface** with a project-level default, per plan §3.4: an elevator may
+    #: have hinge geometry entered while the rudder does not, and one project-wide
+    #: flag would drag the whole empennage back to ``"smeared"`` for the missing one.
+    control_load_mode: str = "smeared"
+
+
+@dataclass
 class EmpennageInput:
     """Single-source empennage + control-surface geometry (Step G6).
 
@@ -1266,6 +1312,7 @@ __all__ = [
     "ConcentratedWeight",
     "WingLoadCase",
     "WingMassInput",
+    "TailMassInput",
     "FuselageStation",
     "FuselageMassInput",
     "SelectInput",

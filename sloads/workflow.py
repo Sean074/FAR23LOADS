@@ -156,6 +156,17 @@ STEPS: Tuple[WorkflowStep, ...] = (
                  bas="TAILDIST+BALLOADS",
                  summary="Chordwise tail-load distribution + balancing-load cross-check."),
 
+    # Spanwise empennage loads (plan 09 T3) -- a *different deliverable* from the
+    # chordwise profile on the Tail Loads page above, not a second view of it:
+    # this is the per-station beam load set the empennage deck is written from,
+    # on the surface's own load reference axis. Same argument that gives Balanced
+    # Cases its own page rather than folding it into Wing Loads.
+    WorkflowStep("tail_span_loads", "Tail Span Loads", FLIGHT_LOADS,
+                 module="tail_span", requires=("flight_loads", "tail_loads"),
+                 produces=None, bas="—",
+                 summary="Spanwise h-tail / v-tail distribution on the load "
+                         "reference axis: per-station shear, bending and torsion."),
+
     WorkflowStep("balanced_cases", "Balanced Cases", FLIGHT_LOADS,
                  module="balance", requires=("flight_loads", "wing_mass"),
                  produces=None, bas="—",

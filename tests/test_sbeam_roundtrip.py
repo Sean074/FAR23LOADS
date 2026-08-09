@@ -76,6 +76,7 @@ from sloads.modules.body_loads import build_body_loads  # noqa: E402
 from sloads.modules.flight_envelope import build_envelope  # noqa: E402
 from sloads.modules.net_loads import build_net_loads, loads_ref_axis_results  # noqa: E402
 from sloads.modules.select import build_critical  # noqa: E402
+from sloads.modules.tail_span import build_tail_span  # noqa: E402
 from sloads.modules.taildist import build_tail_chordwise  # noqa: E402
 from sloads.units import Channel, UnitSystem, deliverable_units  # noqa: E402
 
@@ -134,6 +135,18 @@ def _tail_groups(tail):
         groups.setdefault(r.component, set()).update(
             sb.tail_station_gid(r.component, i) for i in range(len(r.stations)))
     return [sorted(g) for g in groups.values()]
+
+
+def _span_groups(results, component):
+    """The one beam a spanwise tail deck contains, as the wrapper's node group.
+
+    One group, not two: unlike the *chordwise* deck — where the h-tail and v-tail
+    are separate beams with coincident stations — a spanwise deck carries a single
+    surface, and for the h-tail that surface is one full-span member through the
+    centreline (decision T-8).
+    """
+    return [[sb.tail_span_gid(component, i)
+             for i in range(len(results[0].stations))]]
 
 
 def _solved(text):
@@ -346,6 +359,47 @@ def test_tail_deck_solves_and_recovers_the_total_load(sbeam, example, system):
         # coordinates rather than read back out of the card text.
         assert closes(got.moment[1], -applied.my, scale=applied.moment_scale), \
             f"{where} T-c"
+
+
+# --------------------------------------------------------------------------- #
+# Spanwise empennage decks (plan 09 T4)
+# --------------------------------------------------------------------------- #
+@pytest.mark.roundtrip
+@pytest.mark.parametrize("example", MATRIX)
+@pytest.mark.parametrize("system", SYSTEMS)
+@pytest.mark.parametrize("component", ("htail", "vtail"))
+def test_tail_span_deck_solves(sbeam, example, system, component):
+    """The spanwise tail decks solve, and their supports react the applied set.
+
+    The h-tail is the first **full-span** beam in the suite to reach a solver, and
+    the v-tail the first deck whose load is a side force. Both are wrapped with a
+    determinate support and checked the way the body deck is: the reaction is the
+    negative of the applied resultant, computed by sbeam from the deck's own
+    ``GRID`` coordinates.
+    """
+    _, _, _, _ = _components(example)
+    project, _, _, _ = _components(example)
+    spans = build_tail_span(project)
+    results = spans[component]
+    assert results, f"{example}: no {component} spanwise result"
+
+    text = wrap_as_stick_model(
+        sb.tail_span_force_moment_cards(results, component=component,
+                                        sid_base=1, system=system),
+        support=Support.DETERMINATE, system=system,
+        groups=_span_groups(results, component),
+        title=f"{component} spanwise beam")
+    sols, grids = _solved(text)
+    _, _, _, forces, moments = parse_cards(text)
+
+    for idx, r in enumerate(results):
+        sid = sb._sid(1, idx, r)
+        where = f"{example} {system.value} {component}-span {r.case}"
+        applied = resultant(forces, moments, grids, sid, (0.0, 0.0, 0.0))
+        got = total_reaction(sols[sid].reactions, grids)
+        for axis, want in enumerate((applied.fx, applied.fy, applied.fz)):
+            assert closes(got.force[axis], -want, scale=applied.force_scale), \
+                f"{where} reaction axis {axis}"
 
 
 # --------------------------------------------------------------------------- #

@@ -43,6 +43,7 @@ from sloads.export import sbeam_bridge as sb  # noqa: E402
 from sloads.export.coordinates import to_force, to_grid, to_moment  # noqa: E402
 from sloads.export.equilibrium import (  # noqa: E402
     closes,
+    resultant,
     deck_resultants,
     parse_cards,
     ref_aftmost_loaded,
@@ -55,6 +56,8 @@ from sloads.modules.flight_envelope import build_envelope  # noqa: E402
 from sloads.modules.net_loads import build_net_loads, loads_ref_axis_results  # noqa: E402
 from sloads.modules.select import build_critical  # noqa: E402
 from sloads.modules.tab import build_tabs  # noqa: E402
+from sloads.modules.tail_span import build_tail_span  # noqa: E402
+from sloads.modules.tail_span import inertia_total as ts_inertia  # noqa: E402
 from sloads.modules.taildist import build_tail_chordwise  # noqa: E402
 from sloads.units import Channel, UnitSystem, deliverable_units  # noqa: E402
 
@@ -89,7 +92,8 @@ def _components(example: str):
     control = []
     for build in (build_aileron, build_flap, build_tabs):
         control += _try(build, p) or []
-    return wing, body, tail, control
+    spans = _try(build_tail_span, p) or {}
+    return wing, body, tail, control, spans.get("htail", []), spans.get("vtail", [])
 
 
 _CACHE = {}
@@ -129,7 +133,7 @@ def test_wing_deck_resultants(example, system):
     :func:`test_wing_deck_bending_closure` -- it does **not** hold on a wing
     carrying concentrated masses, which this sweep is what found.
     """
-    wing, _, _, _ = _cached(example)
+    wing, _, _, _, _, _ = _cached(example)
     _skip_if_empty(wing, example, "wing")
     u = _units(system)
     # The stick deck is the wing artifact carrying GRID cards, so it is the one
@@ -187,7 +191,7 @@ def test_wing_deck_bending_closure(example, system):
     The negative branch is deliberately strict: when the fix lands, this test
     fails and stops being an exception.
     """
-    wing, _, _, _ = _cached(example)
+    wing, _, _, _, _, _ = _cached(example)
     _skip_if_empty(wing, example, "wing")
     u = _units(system)
     res = deck_resultants(sb.stick_model_bdf(wing, sid_base=1, system=system),
@@ -215,7 +219,7 @@ def test_wing_deck_bending_closure(example, system):
 def test_wing_card_deck_force_matches_stick_deck(example, system):
     """The bare wing card deck and the stick deck carry the same load sets -- the
     two wing artifacts cannot disagree about the load they export."""
-    wing, _, _, _ = _cached(example)
+    wing, _, _, _, _, _ = _cached(example)
     _skip_if_empty(wing, example, "wing")
     _, _, _, cards_f, cards_m = parse_cards(
         sb.force_moment_cards(wing, sid_base=1, system=system))
@@ -238,7 +242,7 @@ def test_body_deck_closes_in_force_and_moment(example, system):
     "Terminal Myy ... (moment equilibrium)" claim, checked here from the deck's
     own ``GRID`` + ``FORCE`` cards for the first time.
     """
-    _, body, _, _ = _cached(example)
+    _, body, _, _, _, _ = _cached(example)
     _skip_if_empty(body, example, "body")
     res = deck_resultants(sb.body_force_moment_cards(body, sid_base=1, system=system),
                           ref_aftmost_loaded)
@@ -259,7 +263,7 @@ def test_body_grids_match_station_geometry(example):
     The check above is only as good as the coordinates it integrates; before this
     step these decks named GIDs that had no ``GRID`` card in any file.
     """
-    _, body, _, _ = _cached(example)
+    _, body, _, _, _, _ = _cached(example)
     _skip_if_empty(body, example, "body")
     u = _units(UnitSystem.SI)
     grids, _, _, forces, _ = parse_cards(
@@ -282,7 +286,7 @@ def test_body_moment_check_is_not_vacuous():
     """
     import copy
 
-    _, body, _, _ = _cached("ga6_normal.project.json")
+    _, body, _, _, _, _ = _cached("ga6_normal.project.json")
     assert body
     broken = copy.deepcopy(body[:1])
     station = max(broken[0].stations, key=lambda s: abs(s.fz))
@@ -308,7 +312,7 @@ def test_tail_deck_resultants(example, system):
     owns (a card routed to the wrong GID, a truncated coordinate, a GID block
     shared between two components with different chords).
     """
-    _, _, tail, _ = _cached(example)
+    _, _, tail, _, _, _ = _cached(example)
     _skip_if_empty(tail, example, "tail")
     u = _units(system)
     res = deck_resultants(sb.tail_force_moment_cards(tail, sid_base=1, system=system),
@@ -344,7 +348,7 @@ def test_tail_components_take_disjoint_grids(example):
     define one node at two locations, and the moment check would integrate the
     wrong lever arms.
     """
-    _, _, tail, _ = _cached(example)
+    _, _, tail, _, _, _ = _cached(example)
     _skip_if_empty(tail, example, "tail")
     grids, _, _, forces, _ = parse_cards(sb.tail_force_moment_cards(tail, sid_base=1))
     by_component = {}
@@ -368,7 +372,7 @@ def test_tail_components_take_disjoint_grids(example):
 @pytest.mark.parametrize("system", _SYSTEMS)
 def test_control_deck_force_resultant(example, system):
     """Control surfaces: Σ``FORCE``.Fz = SF x the critical surface load."""
-    _, _, _, control = _cached(example)
+    _, _, _, control, _, _ = _cached(example)
     _skip_if_empty(control, example, "control-surface")
     u = _units(system)
     text = sb.control_surface_force_moment_cards(control, sid_base=1, system=system)
@@ -392,12 +396,93 @@ def test_control_deck_carries_no_geometry(example):
     millimetre deck, off by three orders of magnitude and dimensionally
     meaningless besides. Revisit if the result ever gains a chord length.
     """
-    _, _, _, control = _cached(example)
+    _, _, _, control, _, _ = _cached(example)
     _skip_if_empty(control, example, "control-surface")
     text = sb.control_surface_force_moment_cards(control, sid_base=1)
     grids, *_ = parse_cards(text)
     assert not grids
     assert "FRACTIONS OF CHORD" in text
+
+
+# --------------------------------------------------------------------------- #
+# Spanwise empennage decks (plan 09 T4) -- the two new rows of the §4 table
+# --------------------------------------------------------------------------- #
+@pytest.mark.parametrize("example", EXAMPLES)
+@pytest.mark.parametrize("system", _SYSTEMS)
+def test_htail_span_deck_resultants(example, system):
+    """H-tail: Σ``FORCE``.Fz = SF x (air + inertia), and Σ about the centreline is
+    the case's rolling input -- **zero for every symmetric condition**.
+
+    The rolling row is the one the full-span topology (T-8) buys: a per-side deck
+    could not state it, and a mirrored-wrong half or a mis-signed side scale is
+    invisible to a force sum but lands here immediately.
+    """
+    _, _, _, _, htail_span, _ = _cached(example)
+    _skip_if_empty(htail_span, example, "h-tail spanwise")
+    u = _units(system)
+    text = sb.tail_span_force_moment_cards(htail_span, component="htail",
+                                           sid_base=1, system=system)
+    grids, _, _, forces, moments = parse_cards(text)
+    assert sorted(forces) == sorted(sb._sid(1, i, r) for i, r in enumerate(htail_span))
+
+    for idx, r in enumerate(htail_span):
+        sid = sb._sid(1, idx, r)
+        where = f"{example} {system.value} htail-span {r.case}"
+        got = resultant(forces, moments, grids, sid, (0.0, 0.0, 0.0))
+        _, _, want = to_force(0.0, 0.0, (r.air_total + ts_inertia(r)) * r.safety_factor, u)
+        assert closes(got.fz, want, scale=got.force_scale), f"{where} Fz"
+        assert closes(got.fy, 0.0, scale=got.force_scale), f"{where} Fy"
+
+        # Rolling moment about the centreline: Σ Fz·y, which the resultant's mx
+        # carries because the reference is the centreline itself.
+        roll = sum(sc * v[2] * grids[gid][1] for gid, sc, v in forces[sid])
+        if r.rh_scale == r.lh_scale:
+            assert closes(roll, 0.0, scale=got.moment_scale), f"{where} roll -> 0"
+        else:
+            assert not closes(roll, 0.0, scale=got.moment_scale), \
+                f"{where}: 23.427(a) must roll the centreline"
+
+
+@pytest.mark.parametrize("example", EXAMPLES)
+@pytest.mark.parametrize("system", _SYSTEMS)
+def test_vtail_span_deck_resultants(example, system):
+    """V-tail: the fin's load is a **side** force, and its torsion is ``Mzz``.
+
+    The axis map is the whole content of this row. Emitting the fin's normal force
+    as ``Fz`` -- the obvious copy-paste from the h-tail writer -- gives a deck
+    that parses, solves, and loads the fin in the one direction it is not designed
+    for; a force-only sum in the wrong component would still "close".
+    """
+    _, _, _, _, _, vtail_span = _cached(example)
+    _skip_if_empty(vtail_span, example, "v-tail spanwise")
+    u = _units(system)
+    text = sb.tail_span_force_moment_cards(vtail_span, component="vtail",
+                                           sid_base=1, system=system)
+    grids, _, _, forces, moments = parse_cards(text)
+
+    for idx, r in enumerate(vtail_span):
+        sid = sb._sid(1, idx, r)
+        where = f"{example} {system.value} vtail-span {r.case}"
+        got = resultant(forces, moments, grids, sid, (0.0, 0.0, 0.0))
+        _, _, want = to_force(0.0, 0.0, r.air_total * r.safety_factor, u)
+        assert closes(got.fy, want, scale=got.force_scale), f"{where} Fy"
+        assert closes(got.fz, 0.0, scale=got.force_scale), f"{where} Fz (must be 0)"
+        # Torsion is about the fin's span axis, z -- not y.
+        assert closes(got.m0y, 0.0, scale=got.moment_scale), f"{where} Myy (must be 0)"
+        assert all(g[1] == 0.0 for g in grids.values()), f"{where}: fin is on the CL"
+
+
+@pytest.mark.parametrize("example", EXAMPLES)
+def test_spanwise_tail_decks_declare_the_double_count_rule(example):
+    """The deck says, in band, that it supersedes the fuselage deck's point tail
+    load -- the T-11 rule, written where a consumer will read it."""
+    _, _, _, _, htail_span, vtail_span = _cached(example)
+    _skip_if_empty(htail_span, example, "h-tail spanwise")
+    for component, results in (("htail", htail_span), ("vtail", vtail_span)):
+        text = sb.tail_span_force_moment_cards(results, component=component)
+        assert "SUPERSEDES the point tail-load station" in text
+        over = [ln for ln in text.splitlines() if ln.startswith("$") and len(ln) > 72]
+        assert not over, f"{example} {component}: {over}"
 
 
 # --------------------------------------------------------------------------- #
@@ -411,7 +496,7 @@ def test_gid_blocks_are_disjoint(example):
     used to be bare references), and an assembled multi-component deck (L-1)
     needs this to hold across the whole airframe, not one family at a time.
     """
-    wing, body, tail, control = _cached(example)
+    wing, body, tail, control, htail_span, vtail_span = _cached(example)
     blocks = {}
     if wing:
         blocks["wing"] = {sb._ROOT_GID} | {
@@ -429,6 +514,11 @@ def test_gid_blocks_are_disjoint(example):
     if control:
         blocks["control"] = {sb._CS_GID_BASE + i
                              for r in control for i in range(len(r.stations))}
+    for name, results in (("htail-span", htail_span), ("vtail-span", vtail_span)):
+        if results:
+            component = name.split("-")[0]
+            blocks[name] = {sb.tail_span_gid(component, i)
+                            for r in results for i in range(len(r.stations))}
     names = sorted(blocks)
     assert names, f"{example}: no exportable component at all"
     for i, a in enumerate(names):
@@ -458,7 +548,7 @@ def test_deck_comments_fit_the_free_field_card_width(example, system):
     cosmetic, not a parse risk. Filed as its own item in
     ``docs/30_future/00_backlog.md``; widen this sweep to ``wing`` when it lands.
     """
-    _, body, tail, control = _cached(example)
+    _, body, tail, control, _, _ = _cached(example)
     decks = []
     if body:
         decks.append(("body", sb.body_force_moment_cards(body, system=system)))
@@ -482,7 +572,7 @@ def test_body_gid_block_capacity_still_guarded():
     rather than by fixture size."""
     import copy
 
-    _, body, _, _ = _cached("ga6_normal.project.json")
+    _, body, _, _, _, _ = _cached("ga6_normal.project.json")
     assert body
     r = copy.deepcopy(body[0])
     proto = [s for s in r.stations if s.source not in sb._BODY_REACTION_SOURCES][0]
@@ -498,7 +588,7 @@ def test_every_example_has_decks():
     """Pin which components each fixture exports, so a skip above is a recorded
     fact about the fixture and not a silently-vanished check.
 
-    Order is ``(wing, body, tail, control)``. The reference aircraft carry no
+    Order is ``(wing, body, tail, control, htail_span, vtail_span)``. The reference aircraft carry no
     ``aileron_loads`` / ``flap_loads`` / ``tab_loads`` input slices, so they have
     no control-surface deck; ``concept_heavy`` additionally has no tail slice.
     ``ga6_normal``, ``cessna_210`` and ``concept_regional_jet`` export all four
@@ -512,12 +602,12 @@ def test_every_example_has_decks():
     """
     coverage = {ex: tuple(bool(c) for c in _cached(ex)) for ex in EXAMPLES}
     assert coverage == {
-        "atr42_100.project.json": (True, True, True, False),
-        "cessna_210.project.json": (True, True, True, True),
-        "concept_heavy.project.json": (True, True, False, False),
-        "concept_regional_jet.project.json": (True, True, True, True),
-        "dhc8_dash8.project.json": (True, True, True, False),
-        "ga6_normal.project.json": (True, True, True, True),
+        "atr42_100.project.json": (True, True, True, False, True, True),
+        "cessna_210.project.json": (True, True, True, True, True, True),
+        "concept_heavy.project.json": (True, True, False, False, False, False),
+        "concept_regional_jet.project.json": (True, True, True, True, True, True),
+        "dhc8_dash8.project.json": (True, True, True, False, True, True),
+        "ga6_normal.project.json": (True, True, True, True, True, True),
     }
 
 

@@ -81,6 +81,8 @@ from .models import (
     SurfaceInput,
     TailBalanceLoad,
     TailChordResult,
+    TailMassInput,
+    TailSpanResult,
     TailChordStation,
     VdBasis,
     VnPoint,
@@ -905,6 +907,35 @@ def _control_surface_result_from_dict(d: Dict[str, Any]) -> ControlSurfaceLoadRe
     )
 
 
+def _tail_span_result_from_dict(d: Dict[str, Any]) -> TailSpanResult:
+    """Read one spanwise empennage result (plan 09 T1).
+
+    Tolerant like its siblings: a file written before the tail path existed has
+    no such entry at all, and one written by a later build carrying extra keys is
+    filtered rather than rejected.
+    """
+    return TailSpanResult(
+        case=d.get("case", ""),
+        component=d.get("component", "htail"),
+        stations=[WingStationLoad(**_filtered(WingStationLoad, s))
+                  for s in d.get("stations", []) or []],
+        lt25=d.get("lt25", 0.0) or 0.0,
+        lt50=d.get("lt50", 0.0) or 0.0,
+        n_case=d.get("n_case", 0.0) or 0.0,
+        surface_weight_lb=d.get("surface_weight_lb", 0.0) or 0.0,
+        attachment_y=[float(v) for v in d.get("attachment_y", []) or []],
+        rh_scale=d.get("rh_scale", 1.0),
+        lh_scale=d.get("lh_scale", 1.0),
+        planform_assumed=bool(d.get("planform_assumed", False)),
+        control_load_mode=d.get("control_load_mode", "smeared"),
+        inertia_modelled=bool(d.get("inertia_modelled", True)),
+        case_ref=_case_ref_from_dict(d.get("case_ref")),
+        safety_factor=_safety_factor(d),
+        torsion_axis=d.get("torsion_axis", "25% chord"),
+        notes=list(d.get("notes", []) or []),
+    )
+
+
 def loads_from_dict(d: Dict[str, Any]) -> LoadsResult:
     """Build a :class:`LoadsResult` from a plain dict (the persisted loads)."""
     return LoadsResult(
@@ -915,6 +946,8 @@ def loads_from_dict(d: Dict[str, Any]) -> LoadsResult:
         tail_chordwise=[_tail_chord_result_from_dict(r) for r in d.get("tail_chordwise", []) or []],
         control_surface=[_control_surface_result_from_dict(r)
                          for r in d.get("control_surface", []) or []],
+        htail_span=[_tail_span_result_from_dict(r) for r in d.get("htail_span", []) or []],
+        vtail_span=[_tail_span_result_from_dict(r) for r in d.get("vtail_span", []) or []],
     )
 
 
@@ -927,6 +960,8 @@ def loads_to_dict(inp: LoadsResult) -> Dict[str, Any]:
         "body_net": [asdict(r) for r in inp.body_net],
         "tail_chordwise": [asdict(r) for r in inp.tail_chordwise],
         "control_surface": [asdict(r) for r in inp.control_surface],
+        "htail_span": [asdict(r) for r in inp.htail_span],
+        "vtail_span": [asdict(r) for r in inp.vtail_span],
     }
 
 
@@ -1026,6 +1061,8 @@ def project_from_dict(d: Dict[str, Any]) -> Project:
             envelope=envelope_from_dict(envelope) if envelope else None,
             mass=mass_from_dict(mass) if mass else None,
             wing_mass=wing_mass_from_dict(wing_mass) if wing_mass else None,
+            tail_mass=[TailMassInput(**_filtered(TailMassInput, t))
+                       for t in d.get("tail_mass", []) or []],
             fuselage_mass=fuselage_mass_from_dict(fuselage_mass) if fuselage_mass else None,
             select_input=select_input_from_dict(select_input) if select_input else None,
             # tail_loads / vtail_loads are not Project fields (Step G6); a pre-v27
@@ -1105,6 +1142,10 @@ def project_to_dict(project: Project) -> Dict[str, Any]:
         out["mass"] = mass_to_dict(project.mass)
     if project.wing_mass is not None:
         out["wing_mass"] = wing_mass_to_dict(project.wing_mass)
+    # Written only when present, so a project with no empennage mass round-trips
+    # byte-identically to a pre-v42 file.
+    if project.tail_mass:
+        out["tail_mass"] = [asdict(t) for t in project.tail_mass]
     if project.fuselage_mass is not None:
         out["fuselage_mass"] = fuselage_mass_to_dict(project.fuselage_mass)
     if project.select_input is not None:

@@ -103,12 +103,22 @@ from ..models import (
     ControlSurfaceLoadResult,
     Project,
     TailChordResult,
+    TailSpanResult,
     WingLoadResult,
     WingStationLoad,
 )
 from ..report import ultimate_units
 from ..units import Channel, DeliverableUnits, UnitSystem, deliverable_units
-from .coordinates import SBEAM_CID, to_force, to_grid, to_moment, to_pressure
+from .coordinates import (
+    SBEAM_CID,
+    tail_force_to_airplane,
+    tail_station_to_airplane,
+    tail_torsion_to_airplane,
+    to_force,
+    to_grid,
+    to_moment,
+    to_pressure,
+)
 # Single-sourced from the calc that owns the limitation (public symbol, no cycle:
 # nothing under sloads/modules imports the export bridge).
 from ..modules.body_loads import CLOSURE_ARTIFACT_CAVEAT as _BODY_ARTIFACT_CAVEAT
@@ -172,7 +182,7 @@ _SF = ULTIMATE_FACTOR
 
 
 def _sf(result: Union[WingLoadResult, BodyLoadResult, TailChordResult,
-                      ControlSurfaceLoadResult]) -> float:
+                      TailSpanResult, ControlSurfaceLoadResult]) -> float:
     """The limit->ultimate factor to scale ``result``'s loads by (defect M4-7).
 
     Read off the result so each exported load set carries its own case's factor,
@@ -1051,6 +1061,186 @@ def write_tail_force_moment_cards(arg, path: str, sid_base: int = 1, *,
     with open(path, "w", encoding="utf-8") as fh:
         fh.write(tail_force_moment_cards(arg, sid_base=sid_base,
                                          header_comment=header_comment, system=system))
+
+
+# --------------------------------------------------------------------------- #
+# Spanwise empennage loads (plan 09 T4) -- GRID + FORCE + MOMENT
+# --------------------------------------------------------------------------- #
+# The tail's version of the wing stick deck, and the first deck family in the
+# suite whose two surfaces do not share an axis map: the h-tail spans ``y`` and
+# loads ``fz``, the fin spans ``z`` and loads ``fy``. That mapping is **not**
+# written here -- it comes from ``coordinates.py``, the single owner, which is
+# also where the fin's torsion sign is derived (plan 09 §2 axes note).
+#
+# Two differences from the wing bridge worth knowing:
+#
+# 1. **No differencing.** The wing writer recovers nodal loads as increments of
+#    the cumulative shear, because WINGINER publishes nothing else -- and that is
+#    what smears a concentrated wing mass one station inboard (the filed wing
+#    export defect). ``tail_span`` publishes the strip loads themselves, so this
+#    writer emits them directly and inherits none of it.
+# 2. **Supported, not clamped.** The h-tail deck is a full-span member reacted at
+#    the fuselage attachment stations the physics defined (decision T-8), not at a
+#    root node. The v-tail is root-supported at the fuselage.
+_HTAIL_SPAN_GID_BASE = 4001   # h-tail spanwise stations: 4001-4499
+_VTAIL_SPAN_GID_BASE = 4501   # v-tail spanwise stations: 4501-4999
+_TAIL_SPAN_BLOCK = 500
+
+
+def tail_span_gid(component: str, i: int) -> int:
+    """GID of spanwise station ``i`` of ``component``.
+
+    Its own band per surface, disjoint from the wing (1+), body (1001+),
+    chordwise tail (2001+) and control (3001+) blocks -- and from each other, so
+    an assembled airframe can carry both surfaces at once.
+    """
+    base = {"htail": _HTAIL_SPAN_GID_BASE, "vtail": _VTAIL_SPAN_GID_BASE}.get(component)
+    if base is None:
+        raise ValueError(
+            f"tail span export: unknown component {component!r} -- expected "
+            "'htail' or 'vtail'; it has no GID block")
+    if not 0 <= i < _TAIL_SPAN_BLOCK:
+        raise ValueError(
+            f"tail span export: station {i} is outside the {_TAIL_SPAN_BLOCK}-GID "
+            f"block for {component}")
+    return base + i
+
+
+def _tail_span_results(arg, component: str) -> List:
+    """The spanwise results to export for one surface."""
+    if isinstance(arg, Project):
+        loads = arg.loads
+        slice_ = getattr(loads, f"{component}_span", None) if loads else None
+        if not slice_:
+            raise ValueError(
+                f"Project has no spanwise {component} loads to export -- run the "
+                f"'tail_span' module (build_tail_span) first so "
+                f"Project.loads.{component}_span is set.")
+        return list(slice_)
+    results = [arg] if isinstance(arg, TailSpanResult) else list(arg)
+    if not results:
+        raise ValueError(f"no spanwise {component} results to export")
+    return results
+
+
+def _tail_span_grid_block(results: Sequence, component: str,
+                          u: DeliverableUnits) -> List[str]:
+    """``GRID`` cards on the surface's load reference axis, emitted once.
+
+    Geometry is shared across the cases in a deck (same surface), so the block
+    goes ahead of the per-case load blocks exactly as the wing stick model does.
+    Unlike the chordwise tail deck, these nodes carry their **real airplane
+    position** -- the fin's stations are at their waterlines, the h-tail's at
+    their butt lines -- because a spanwise deck is a beam in the airplane, not a
+    component in isolation.
+    """
+    lines = ["$ ------------------------------------------------------------ NODES"]
+    axis = ("h-tail: span along Y, load Fz, torsion Myy."
+            if component == "htail"
+            else "v-tail: span along Z, load Fy, torsion Mzz (its span axis).")
+    for note in (f"{component} spanwise stations on the load reference axis. {axis}",
+                 f"Lengths in {u.length.label}."):
+        lines += [f"$ {ln}" for ln in textwrap.wrap(note, width=70)]
+    lines.append("$ GRID, GID, CP, X1, X2, X3")
+    stations = results[0].stations
+    for i, st in enumerate(stations):
+        px, py, pz = tail_station_to_airplane(st.x, st.y, component, st.z)
+        gx, gy, gz = to_grid(px, py, pz, u)
+        lines.append(f"GRID, {tail_span_gid(component, i)}, , "
+                     f"{_fmt(gx)}, {_fmt(gy)}, {_fmt(gz)}")
+    return lines
+
+
+def _tail_span_case_block(r, component: str, sid: int,
+                          u: DeliverableUnits) -> List[str]:
+    """One case's commented FORCE/MOMENT block for a spanwise tail deck."""
+    sf = _sf(r)
+    _, _, air = to_force(0.0, 0.0, r.air_total * sf, u)
+    lines = [
+        f"$ SLOADS spanwise {component} load -- case {r.case}, SID {sid}",
+        f"$ Case ID: {r.case_ref.case_id}" if r.case_ref else "$ Case ID: (none)",
+        f"$ Loads are ULTIMATE (limit x SF={_sf_str(sf)}).",
+        f"$ Torsion about the {r.torsion_axis}.",
+        f"$ Air load {air:.1f} {u.force.label}; strip loads are applied directly",
+        "$   (not differenced from a cumulative column).",
+        f"$ Control-surface load: {r.control_load_mode.upper()} into this surface.",
+    ]
+    notes = list(r.notes)
+    if r.rh_scale != r.lh_scale:
+        notes.append("this deck carries a NET ROLLING input to the fuselage")
+    # The double-count rule, written where a consumer will read it (T-11/T4).
+    notes.append(
+        "SUPERSEDES the point tail-load station in the fuselage deck (GID 1001 "
+        "band) for any combined-airframe sum: apply one representation, not both")
+    for note in notes:
+        lines += [f"$ {ln}" for ln in textwrap.wrap(f"NOTE: {note}", width=70)]
+
+    for i, st in enumerate(r.stations):
+        gid = tail_span_gid(component, i)
+        fx, fy, fz = to_force(*tail_force_to_airplane(st.fz * sf, component), u)
+        if abs(st.fz) > _TOL:
+            lines.append(f"FORCE, {sid}, {gid}, {SBEAM_CID}, 1.0, "
+                         f"{_fmt(fx)}, {_fmt(fy)}, {_fmt(fz)}")
+        mx, my, mz = to_moment(*tail_torsion_to_airplane(st.myy_free * sf, component), u)
+        if abs(st.myy_free) > _TOL:
+            lines.append(f"MOMENT, {sid}, {gid}, {SBEAM_CID}, 1.0, "
+                         f"{_fmt(mx)}, {_fmt(my)}, {_fmt(mz)}")
+    return lines
+
+
+def tail_span_force_moment_cards(arg, component: str = "htail", sid_base: int = 1, *,
+                                 header_comment: str = "",
+                                 system: UnitSystem = UnitSystem.IMPERIAL) -> str:
+    """``GRID``+``FORCE``+``MOMENT`` cards for one surface's spanwise loads."""
+    results = _tail_span_results(arg, component)
+    u = _units(system)
+    blocks: List[str] = ["\n".join(subcase_map_block(results)),
+                         "\n".join(_tail_span_grid_block(results, component, u))]
+    for idx, r in enumerate(results):
+        blocks.append("\n".join(
+            _tail_span_case_block(r, component, _sid(sid_base, idx, r), u)))
+    return _stamped(header_comment, "\n".join(b for b in blocks if b) + "\n")
+
+
+def write_tail_span_force_moment_cards(arg, path: str, component: str = "htail",
+                                       sid_base: int = 1, *,
+                                       header_comment: str = "",
+                                       system: UnitSystem = UnitSystem.IMPERIAL) -> None:
+    with open(path, "w", encoding="utf-8") as fh:
+        fh.write(tail_span_force_moment_cards(
+            arg, component=component, sid_base=sid_base,
+            header_comment=header_comment, system=system))
+
+
+def tail_span_csv(arg, component: str = "htail", header_comment: str = "", *,
+                  system: UnitSystem = UnitSystem.IMPERIAL) -> str:
+    """Spanwise tail-load CSV: one row per station per case, ULTIMATE."""
+    results = _tail_span_results(arg, component)
+    u = _units(system)
+    fo, mo = _ult(u.force.label), _ult(u.moment.label)
+    span_h = f"Span ({u.length.label})"
+    x_h = f"X on LRA ({u.length.label})"
+    f_h, s_h = f"Fn ({fo})", f"Sn ({fo})"
+    b_h, t_h = f"Mxx ({mo})", f"Myy ({mo})"
+    buf = _io.StringIO()
+    writer = csv.DictWriter(buf, fieldnames=["Case", "GID", span_h, x_h, f_h, s_h,
+                                             b_h, t_h, "Axis", "SF"])
+    writer.writeheader()
+    for r in results:
+        sf = _sf(r)
+        for i, st in enumerate(r.stations):
+            _, _, fn = to_force(0.0, 0.0, st.fz * sf, u)
+            _, _, sn = to_force(0.0, 0.0, st.sz * sf, u)
+            bend, tor, _ = to_moment(st.mxx * sf, st.myy * sf, 0.0, u)
+            writer.writerow({
+                "Case": r.case, "GID": tail_span_gid(component, i),
+                span_h: f"{to_grid(st.y, 0.0, 0.0, u)[0]:.3f}",
+                x_h: f"{to_grid(st.x, 0.0, 0.0, u)[0]:.3f}",
+                f_h: f"{fn:.2f}", s_h: f"{sn:.2f}",
+                b_h: f"{bend:.0f}", t_h: f"{tor:.0f}",
+                "Axis": r.torsion_axis, "SF": f"{_sf_str(sf)}",
+            })
+    return header_comment + buf.getvalue()
 
 
 # --------------------------------------------------------------------------- #

@@ -291,6 +291,20 @@ class WingStationLoad:
     mxx: float
     myy: float
     mzz: float
+    #: The **free** torsion this strip carries about the reference axis -- its own
+    #: section/offset moment, with no accumulation of outboard transfer in it.
+    #:
+    #: ``myy`` above is cumulative and is *not* a free moment: it already contains
+    #: the sweep/dihedral transfer of outboard shear, so assembling from it double
+    #: counts (measured at 20.5 % of ``n*W*MAC`` on the wing -- see
+    #: :class:`BalancedLoad`). Anything that needs the free moment therefore had to
+    #: reconstruct it, which is what ``balance._free_moments`` does for the wing.
+    #:
+    #: Populated by ``tail_span`` (whose deck applies strip loads directly, so it
+    #: needs the per-strip value); left ``0.0`` by the oracle-locked wing chain,
+    #: which publishes only the cumulative column. Additive with a default, so no
+    #: on-disk shape moves.
+    myy_free: float = 0.0
 
 
 @dataclass
@@ -313,6 +327,78 @@ class WingLoadResult:
     case_ref: Optional[CaseRef] = None
     safety_factor: float = ULTIMATE_FACTOR   # limit -> ultimate factor for this case
     torsion_axis: str = "25% chord"          # reference axis of station x / myy
+
+
+@dataclass
+class TailSpanResult:
+    """One condition's **spanwise** empennage load table (plan 09 T2).
+
+    The empennage's version of :class:`WingLoadResult`, reusing
+    :class:`WingStationLoad` for the stations themselves (plan 09 §3.5). What it
+    adds is everything the tail has and the wing does not.
+
+    **Frame.** Stations are in the surface's **local (span, chord) frame**: ``y``
+    is the span coordinate, ``x`` the chord station on the loads reference axis,
+    ``z`` zero. For the horizontal tail that frame *is* the airplane frame; the
+    **vertical tail spans along ``z``** and its air load is a side force, so its
+    local→airplane mapping is owned by
+    :func:`sloads.export.coordinates.tail_station_to_airplane` — one edit point,
+    with a drift guard, never hand-mapped at a call site (``CONVENTIONS.md`` §7).
+
+    **Full span, one member** (decision T-8). The h-tail table runs tip to tip
+    through the centreline, so ``y`` is negative on the port half; it is *not* a
+    semispan table doubled. That is the only topology that can carry the
+    23.427(a) left/right asymmetry in one deck, and it keeps SELECT's both-sides
+    totals end-to-end with no factor-of-two seam. ``attachment_y`` are the
+    fuselage attachment span stations the deck is reacted at — defined here, in
+    the physics, rather than improvised by the deck writer, or the export
+    invariant would have nothing to close against.
+
+    ``lt25``/``lt50`` are the SELECT totals this table distributes (read, never
+    recomputed) and ``rh_scale``/``lh_scale`` the per-side shares — ``1.0``/``1.0``
+    for every symmetric case, and 23.427(a)'s split for the unsymmetrical one.
+    ``planform_assumed`` records that the planform was **derived** from the
+    authoritative scalar area/span rather than entered as polylines; it travels
+    into every rendering and deck header, because a derived rectangular tail is a
+    first-order stand-in, not a structural surface definition.
+
+    Stations hold **LIMIT** loads; ``safety_factor`` is the per-case factor the
+    render/export boundary scales them by. ``torsion_axis`` names the axis ``myy``
+    is stated about — every torsion names its axis.
+    """
+    case: str
+    component: str                            # "htail" | "vtail"
+    stations: List[WingStationLoad] = field(default_factory=list)
+    lt25: float = 0.0
+    lt50: float = 0.0
+    n_case: float = 0.0
+    surface_weight_lb: float = 0.0
+    #: Fuselage attachment span stations the full-span h-tail beam is reacted at
+    #: (decision T-8). Empty for the root-supported v-tail.
+    attachment_y: List[float] = field(default_factory=list)
+    rh_scale: float = 1.0
+    lh_scale: float = 1.0
+    planform_assumed: bool = False
+    inertia_modelled: bool = True
+    #: How the control-surface load entered this distribution (T-4/T5). Phase 1
+    #: is ``"smeared"``: the ``LT50`` camber/elevator part is spread into the
+    #: surface with the rest rather than applied at hinge stations. Stated on the
+    #: result because the two modes describe different load paths, and a deck that
+    #: claimed the wrong one would be wrong where a designer looks.
+    control_load_mode: str = "smeared"
+    case_ref: Optional[CaseRef] = None
+    safety_factor: float = ULTIMATE_FACTOR
+    torsion_axis: str = "25% chord"
+    notes: List[str] = field(default_factory=list)
+
+    @property
+    def air_total(self) -> float:
+        """``rh_scale*(LT25+LT50)/2 + lh_scale*(LT25+LT50)/2`` -- the air load this
+        table integrates to, which is the SELECT total for a symmetric case and
+        the ``RH + LH`` sum for 23.427(a)."""
+        half = 0.5 * (self.lt25 + self.lt50)
+        return (self.rh_scale + self.lh_scale) * half if self.component == "htail" \
+            else self.rh_scale * (self.lt25 + self.lt50)
 
 
 @dataclass
@@ -640,6 +726,12 @@ class LoadsResult:
     body_net: List[BodyLoadResult] = field(default_factory=list)
     tail_chordwise: List[TailChordResult] = field(default_factory=list)
     control_surface: List[ControlSurfaceLoadResult] = field(default_factory=list)
+    #: Spanwise empennage distributions (plan 09 T2) -- the tail's analogue of
+    #: ``wing_net``, and the surface the empennage deck is written from. The
+    #: chordwise ``tail_chordwise`` table above is unchanged and remains the
+    #: oracle-locked TAILDIST view of the same conditions.
+    htail_span: List[TailSpanResult] = field(default_factory=list)
+    vtail_span: List[TailSpanResult] = field(default_factory=list)
 
 
 __all__ = [
@@ -662,6 +754,7 @@ __all__ = [
     "BodyLoadResult",
     "TailChordStation",
     "TailChordResult",
+    "TailSpanResult",
     "ControlSurfaceStation",
     "ControlSurfaceLoadResult",
     "GearReactionCase",

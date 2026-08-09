@@ -166,6 +166,49 @@ omitted: the fuselage's share of the airplane-less-tail `Cm` (+4.3 to +6.3 % of
 n·W·MAC — the Munk moment, until M4-19 distributes it) and the longitudinal
 relief that stands in for thrust (FAR 23's `nx`).
 
+### The spanwise empennage closures as the oracle substitute (step T1–T5, 2026-08-08)
+
+Appendix A gives the tail's **totals** (SELECT) and its **chordwise** profile
+(TAILDIST) and stops. There is no printed oracle for a spanwise tail
+distribution, so the gate is `CLAUDE.md` practice 2's substitute — and the
+chord-proportional shape (decision T-2) makes it an unusually strong one, because
+every target is **analytic** rather than a re-run of the quadrature.
+`sloads/modules/tail_span.py`; gates in `tests/test_tail_span.py`.
+
+Per strip `j` of the **whole** planform area `S`, with `LT25`/`LT50` read from
+SELECT and never recomputed (T-7):
+
+    w25 = k_side·LT25·(c_j·dy)/S      w50 = k_side·LT50·(c_j·dy)/S
+    fz  = w25 + w50                  tor = w25·(x_lra − x_25) + w50·(x_lra − x_50)
+    fi  = −n·W_surf·(c_j·dy)/S       (d'Alembert, T-9)
+
+| Closure | Analytic target | Why it is not a tautology |
+|---|---|---|
+| **Force** | Σ air = `LT25 + LT50` exactly | The target is SELECT's own total; a factor-of-two in the half/full bookkeeping lands here |
+| **Bending** | root = `L_half · ȳ`, with `ȳ = (b/3)(c_r + 2c_t)/(c_r + c_t)` | The centroid is computed from the planform, not from the load table |
+| **Centreline rolling** | `(L_RH − L_LH)·ȳ` — **identically zero for every symmetric case** | The gate the full-span topology buys; a per-side deck cannot state it, and a mirrored-wrong half or mis-signed side scale is invisible to a force sum |
+| **Torsion** | `(LT25+LT50)·x̄_lra − LT25·x̄_25 − LT50·x̄_50`, area-weighted | Assembled from area-weighted chordwise means, a different computation from the per-strip sum |
+| **Inertia** | Σ = `−n·W_surf`, **signed by `n` alone** | Companion test asserts a *down*-load case comes out **larger** in magnitude than air alone |
+| **Reduction** | LRA at 25 % chord ⇒ the `LT25` torsion term vanishes identically | Same property the wing's LRA transfer is pinned by |
+
+**The inertia-sign gate is the one worth naming.** The intuitive rule — inertia
+opposes the air load — is wrong for a tail, and wrong in the unconservative
+direction: the GA6 conditions that size the horizontal tail are down-load
+(`UNCHECKED MAN DN`, ≈ −1400 lb), so a magnitude-opposing rule would relieve
+exactly them. Decision T-9 makes the sign `−n` unconditionally, and the test
+asserts the *increase*.
+
+All six closures are additionally checked against a **tapered and swept**
+planform, because every shipped fixture takes the derived rectangle — without
+that, the torsion transfer term (identically zero on an unswept surface) would
+never be exercised.
+
+**Deck-side, the same conditions are gated twice more:** the plan-07 invariant
+sweep gains a spanwise h-tail row (force, and the centreline rolling moment: zero
+symmetric, non-zero for 23.427(a)) and a v-tail row (the load is `Fy` and the
+torsion `Mzz` — a force-only check in the wrong component would still "close"),
+and plan 10's harness solves both decks in the real sbeam.
+
 ### The rolling case's roll closure as a closure gate (step B7, 2026-08-08)
 
 The balanced-case gate above is a *smallness* gate: the residual before closure

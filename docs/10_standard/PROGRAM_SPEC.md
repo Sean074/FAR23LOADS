@@ -561,6 +561,26 @@ return strings (with thin `write_*` file wrappers), and do no physics.
   reflection convention and its owner. **Limitation:** the aileron's own spanwise
   lift increment is not distributed (no aileron butt lines in the schema), stated
   in the deck header, the case notes and the UI, and filed on the backlog.
+- **Spanwise empennage loads and decks (step T1–T5, 2026-08-08).**
+  `sloads/modules/tail_span.py` distributes each critical h-tail/v-tail condition
+  **along the span** in proportion to local chord (SELECT's `LT25`/`LT50` read,
+  never recomputed), on the surface's load reference axis, with uniform-area-
+  density surface inertia at `−n·W` (d'Alembert — the sign follows the load
+  factor alone, so a down-load case is *increased*). The h-tail table is **full
+  span**, tip to tip through the centreline, reacted at fuselage attachment
+  stations; the v-tail is single-sided and root-supported and carries **no
+  inertia** in phase 1 (no lateral load factor exists). FAR 23.427(a) scales the
+  two halves by SELECT's own RH/LH split. The planform comes from an optional
+  `htail`/`vtail` entry in `geometry.surfaces` (validated against the
+  oracle-authoritative area/span to 1 %) or is **derived as a rectangle and
+  marked assumed** — `sloads/tail_geometry.py` owns both. Decks:
+  `tail_span_force_moment_cards`, GID bands `4001+` (h-tail) / `4501+` (v-tail),
+  `GRID` on the LRA at real airplane positions, strip loads applied **directly**
+  (not differenced from a cumulative column), and a `$` header stating the
+  control-load mode and that the deck **supersedes** the fuselage deck's point
+  tail-load station for any combined-airframe sum. Surfaces: the **Tail Span
+  Loads** page, the Export page, `cli.py --export-target htail-span|vtail-span`.
+  The chordwise TAILDIST path and every Appendix A figure are unchanged.
 - **CONM2 mass export (step C1–C5, 2026-08-08).** `sloads/export/mass_cards.py`
   writes the itemized mass model as `CONM2` cards with one `MASSSET` per
   *derivable* payload case, in three artifacts: a pasteable fragment, a

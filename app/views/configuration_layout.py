@@ -686,10 +686,22 @@ st.caption(
     "the chord is integrated over. The wing's MAC / XLEMAC seed the weight-envelope "
     "and structural-speed pages."
 )
+st.caption(
+    "**Empennage planforms (plan 09 T-1).** Add a surface named `htail` or `vtail` "
+    "to give the tail a *spanwise* distributed load on its own load reference axis. "
+    "Points are entered on **one side** for the horizontal tail (it is symmetric — "
+    "the full-span station set is mirrored from them) and over the **whole fin** for "
+    "the vertical tail. The planform is validated against the authoritative "
+    "area/span entered under *Empennage & control surfaces* above, to 1 %. "
+    "**Without such an entry the tail still works**: a rectangular planform is "
+    "derived from that area and span, and every result, table and deck says so — "
+    "it is conservative in root bending but is not the surface's own distribution."
+)
 _geometry = project.geometry or GeometryInput()
 
 with st.form("add_surface_form", clear_on_submit=True):
-    _new_name = st.text_input("New surface name", value="", placeholder="e.g. wing")
+    _new_name = st.text_input("New surface name", value="",
+                              placeholder="e.g. wing, htail, vtail")
     if st.form_submit_button("Add surface") and _new_name:
         _surfaces = list(_geometry.surfaces) + [
             SurfaceInput(name=_new_name, leading_edge=[], trailing_edge=[])
