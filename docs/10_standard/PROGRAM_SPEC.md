@@ -536,10 +536,10 @@ return strings (with thin `write_*` file wrappers), and do no physics.
   carrying concentrated masses**, where the point mass lands entirely at the
   outermost station inboard of it and the exported bending runs ~0.4–1.9 % high
   (open item, filed on the backlog; shear is unaffected).
-- **Balanced cases and the assembled deck (step B2–B6, 2026-08-08).**
-  `modules/balance.py` assembles one full-span free-free case per symmetric wing
-  condition (`PHAA`/`PLAA`/`PMAA`/`NMAA`) that has both a V-n point and a
-  derivable payload loading: wing air + inertia **both sides** (recomputed at the
+- **Balanced cases and the assembled deck (step B2–B7, 2026-08-08).**
+  `modules/balance.py` assembles one full-span free-free case per wing condition
+  (`PHAA`/`PLAA`/`PMAA`/`NMAA`/`TORS`, plus `ACRL`) that has both a V-n point and
+  a derivable payload loading: wing air + inertia **both sides** (recomputed at the
   V-n point's own condition), the balancing tail load, the fuselage/empennage
   inertia from the mass SSOT, and the fuselage's lumped share of the trim
   pitching moment. `export/balanced_deck.py` writes it — GID bands: right wing
@@ -547,6 +547,20 @@ return strings (with thin `write_*` file wrappers), and do no physics.
   support whose reaction *is* the residual; SUBCASE/SID `5001+`. **No free-body
   cut reaction appears** (the seam rule). The residual before closure and the
   relief applied are stated on the result, in the UI and in the deck header.
+- **Antisymmetric (rolling) cases and handedness (step B7, 2026-08-08).** A wing
+  condition carrying an unbalanced rolling moment (`WingLoadCase.unbal_moment`,
+  FAR 23.349 — `ACRL` only; `TORS` enters zero on every fixture because a steady
+  roll has none) is assembled with that couple applied as a **lumped free moment**
+  at the wing aerodynamic centre and reacted by a **fourth closure degree of
+  freedom**, roll acceleration, distributed over every mass. That relief
+  reproduces WINGINER's own unit-roll inertia distribution strip for strip, which
+  is the step's closure gate. `residual_mx` on such a case is the *applied*
+  couple, not an out-of-balance, and is reported rather than gated. Each rolling
+  condition is emitted as a **handed pair** — the computed starboard case and its
+  reflection — with `L`/`R` suffixed case ids; see `CONVENTIONS.md` §7.1 for the
+  reflection convention and its owner. **Limitation:** the aileron's own spanwise
+  lift increment is not distributed (no aileron butt lines in the schema), stated
+  in the deck header, the case notes and the UI, and filed on the backlog.
 - **CONM2 mass export (step C1–C5, 2026-08-08).** `sloads/export/mass_cards.py`
   writes the itemized mass model as `CONM2` cards with one `MASSSET` per
   *derivable* payload case, in three artifacts: a pasteable fragment, a

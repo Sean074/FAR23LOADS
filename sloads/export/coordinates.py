@@ -93,3 +93,49 @@ def to_moment(mx: float, my: float, mz: float,
 def to_pressure(psi: float, units: DeliverableUnits = IMPERIAL) -> float:
     """Map a SLOADS load intensity (lb/in^2) to the deck's stress unit."""
     return psi * _checked(units).pressure.factor
+
+
+# --------------------------------------------------------------------------- #
+# Reflection about the airplane centreline plane (plan 11 decision B-6)
+# --------------------------------------------------------------------------- #
+# Every asymmetric load case has an opposite-hand twin -- +beta yaw implies the
+# -beta case, an aileron roll right implies roll left, an engine-out on the left
+# implies the right. They are derived by **reflecting** the computed case rather
+# than recomputing it, which is what keeps the oracle-locked FAR 23 path out of
+# the handedness question entirely: SELECT, WINGINER and the V-n core never see
+# it, because the mirroring happens at assembly.
+#
+# One owner, here, beside the axis maps, plus a drift guard in
+# ``tests/test_balance.py`` -- ``CLAUDE.md`` required practice 3. A sign
+# convention copied to a second call site is exactly the class of error that
+# produces a deck which parses, solves, and sizes structure to a load the
+# airplane never sees.
+
+def reflect_point(x: float, y: float, z: float) -> Vec3:
+    """Mirror a position through the centreline plane: ``y -> -y``."""
+    return (x, -y, z)
+
+
+def reflect_force(fx: float, fy: float, fz: float) -> Vec3:
+    """Mirror a force. A force is a **true vector**: only its ``y`` component,
+    the one along the mirror normal, changes sign."""
+    return (fx, -fy, fz)
+
+
+def reflect_moment(mx: float, my: float, mz: float) -> Vec3:
+    """Mirror a moment. A moment is an **axial** (pseudo) vector, so it
+    transforms the other way round: the two components *in* the mirror plane
+    flip and the normal one does not.
+
+    Physically this is the whole point of the operator. Roll (``mx``) and yaw
+    (``mz``) reverse -- a roll to starboard mirrors into a roll to port -- while
+    pitch (``my``) is unchanged, because pitching is symmetric about the
+    centreline. Applying the force rule to a moment would mirror a rolling case
+    into itself and negate its pitch, which balances and means nothing.
+    """
+    return (-mx, my, -mz)
+
+
+def reflect_side(side: str) -> str:
+    """The mirrored side tag: ``"R" <-> "L"``, centreline unchanged."""
+    return {"R": "L", "L": "R"}.get(side, side)

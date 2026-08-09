@@ -54,7 +54,7 @@ except (MissingInputError, ValueError) as exc:
 
 if not cases:
     st.warning(
-        "No symmetric wing condition assembles into a balanced case. A condition "
+        "No wing condition assembles into a balanced case. A condition "
         "needs a V-n point **and** a payload loading the weight database can "
         "actually produce — a CG case requiring a large fictitious ballast has no "
         "honest inertia set, and assembling one would put invented mass into the "
@@ -72,7 +72,10 @@ st.dataframe(pd.DataFrame(rows), hide_index=True, use_container_width=True)
 st.caption(
     f"Residuals are measured **before** closure — the gate ({RESIDUAL_GATE:.0%}) "
     "is on the physics, not on the correction. `dn` is the mass-proportional "
-    "relief applied to close what was left."
+    "relief applied to close what was left. **Roll couple** is different in kind: "
+    "on a rolling case (FAR 23.349) it is the *applied* aileron moment, which the "
+    "airplane is supposed not to balance — it rolls — and it is reacted in full by "
+    "distributed roll-acceleration inertia. It is reported, not gated."
 )
 
 worst = max(max(c.force_residual_fraction, c.moment_residual_fraction)
@@ -98,11 +101,22 @@ labels = {
     "tail-air": "Balancing tail load",
     "body-inertia": "Fuselage + empennage inertia",
     "fuselage-cm": "Fuselage pitching moment (lumped)",
+    "aileron-roll": "Aileron rolling moment (lumped)",
     "closure-n": "Closure — vertical / longitudinal relief",
     "closure-pitch": "Closure — pitch relief",
+    "closure-roll": "Roll-acceleration inertia",
 }
-pick = st.selectbox("Case", [f"{c.label} (V-n {c.vn_case}, {c.cg})" for c in cases])
-case = cases[[f"{c.label} (V-n {c.vn_case}, {c.cg})" for c in cases].index(pick)]
+def _case_label(c) -> str:
+    """The selector entry. **Must** carry the hand: the two twins of a rolling
+    case are otherwise identical strings, and the picker would silently show the
+    starboard case whichever one was chosen."""
+    hand = {"R": " — starboard roll", "L": " — port roll"}.get(c.hand, "")
+    return f"{c.label}{hand} (V-n {c.vn_case}, {c.cg})"
+
+
+names = [_case_label(c) for c in cases]
+pick = st.selectbox("Case", names)
+case = cases[names.index(pick)]
 
 totals = {}
 for load in case.loads:

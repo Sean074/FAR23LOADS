@@ -71,6 +71,48 @@ zero force because ``sum(w_i*(x_i - x_cg)) == 0`` by the definition of the CG,
 and the ``delta_n`` term sums to zero moment for the same reason. Both magnitudes
 are recorded on the result, and the gate is on the residual **before** closure --
 the physics, not the correction.
+
+The antisymmetric cases (B7)
+----------------------------
+**Only ``ACRL`` is antisymmetric, and it is measured, not assumed.** The
+handedness of a wing case lives entirely in ``WingLoadCase.unbal_moment`` (UNB,
+FAR 23.349), and UNB is non-zero on ``ACRL`` alone -- ``ga6_normal`` -149,043
+in-lb, ``concept_regional_jet`` -600,000, zero everywhere else including
+``TORS`` on every fixture. That is not a fixture accident: a *steady* roll has no
+unbalanced rolling moment by definition (the aileron moment is balanced by roll
+damping), and the up-going/down-going aero asymmetry that remains has no
+spanwise representation anywhere in this suite. ``TORS`` is therefore assembled
+as the symmetric case it is, and :func:`test_only_acrl_carries_roll` pins that
+finding so a fixture that ever enters a non-zero UNB for it goes red.
+
+**The applied couple is lumped; the reaction is distributed.** WINGINER's model
+-- the one Appendix A is locked to -- never distributes the aileron's own lift
+increment: it takes only the *inertia reaction* to the roll acceleration UNB
+causes (``fz_r``, the unit-roll distribution). The assembled case matches that
+exactly: the aero rolling moment enters as a single labelled free couple at the
+wing aerodynamic centre (``source="aileron-roll"``, the same treatment and the
+same honesty as ``fuselage-cm``), and the distributed antisymmetric load the
+wing actually carries comes out of the **roll degree of freedom of the closure**.
+The consequence is stated wherever the case is rendered: the aileron's spanwise
+lift increment is not modelled, because ``AileronLoadsInput`` carries areas and
+no butt lines (filed in the backlog).
+
+**And that closure is checkable against an independent producer.** Closing the
+roll residual with ``k_roll*w_i*y_i`` -- physically ``-m_i*p_dot*y_i``, the roll
+analog of the pitch term, decoupled from all three symmetric DOF because
+``sum(w_i*y_i) == 0`` for a mirror-symmetric mass model -- reproduces WINGINER's
+``ur*fz_r`` distribution **strip for strip**: ratio 1.000000 on both fixtures,
+with the wing-item/panel scale cancelling identically. Two producers, one answer:
+WINGINER's oracle-locked recurrence and this module's ``p_dot`` solve. That
+identity is the B7 closure gate (``test_roll_closure_reproduces_winginer``),
+standing in for the printed oracle concept mode does not have.
+
+**The twins come from reflection, not recomputation** (decisions B-6/B-7). Every
+case with antisymmetric content is emitted as a handed pair, the port case being
+the mirror image of the starboard one through
+:func:`sloads.export.coordinates.reflect_load`. The FAR 23 core never sees
+handedness; the id gains an ``L``/``R`` suffix and the unhanded id remains the
+physical condition.
 """
 
 from __future__ import annotations
@@ -78,7 +120,14 @@ from __future__ import annotations
 from dataclasses import replace
 from typing import List, Sequence, Tuple
 
+from ..case_ids import handed_case_id
 from ..derived_geometry import sync_geometry_derived
+from ..export.coordinates import (
+    reflect_force,
+    reflect_moment,
+    reflect_point,
+    reflect_side,
+)
 from ..mass_distribution import (
     CaseLoading,
     MassComponent,
@@ -103,11 +152,21 @@ from .wing_inertia import inertia_units, resolve_wing_cases
 
 MODULE_NAME = "balance"
 
-#: Symmetric wing conditions this step assembles. ``ACRL``/``TORS`` are
-#: antisymmetric and need the handedness machinery of plan 11 **B7** (phase 2),
-#: so they are deliberately not here -- a symmetric assembly of an antisymmetric
-#: case would balance and mean nothing.
-SYMMETRIC_WING_CONDITIONS = ("PHAA", "PLAA", "PMAA", "NMAA")
+#: Wing conditions whose load set is symmetric about the centreline. ``TORS``
+#: joined this list at B7 **by measurement**: its ``unbal_moment`` is zero on
+#: every fixture, because a steady roll has no unbalanced rolling moment (see the
+#: module docstring). Assembling it as symmetric is therefore not an
+#: approximation -- it is what the case contains.
+SYMMETRIC_WING_CONDITIONS = ("PHAA", "PLAA", "PMAA", "NMAA", "TORS")
+
+#: Wing conditions that may carry an unbalanced rolling moment, hence a handed
+#: pair. Membership here does **not** by itself make a case antisymmetric: a
+#: condition whose ``unbal_moment`` is zero assembles symmetrically and is minted
+#: unhanded, so the twins never appear for a case that has no hand.
+ROLLING_WING_CONDITIONS = ("ACRL",)
+
+#: Every wing condition the assembled deck covers.
+BALANCED_WING_CONDITIONS = SYMMETRIC_WING_CONDITIONS + ROLLING_WING_CONDITIONS
 
 #: Acceptance gate (plan 11 §6): the residual **before** closure, as a fraction
 #: of ``n*W`` for force and ``n*W*MAC`` for moment.
@@ -145,16 +204,31 @@ def _free_moments(result: WingLoadResult) -> List[float]:
 # --------------------------------------------------------------------------- #
 # The applied sets
 # --------------------------------------------------------------------------- #
-def _mirror(loads: Sequence[BalancedLoad]) -> List[BalancedLoad]:
-    """The port-side image of a starboard set (``y -> -y``).
+def reflect_load(load: BalancedLoad) -> BalancedLoad:
+    """One load's mirror image through the centreline plane (decision B-6).
 
-    Symmetric cases only, which is all this step assembles: the side loads and
-    the roll/yaw moments that a general reflection has to negate are zero here.
-    The general operator is plan 11 **B-6**, and it lands with the antisymmetric
-    cases that actually need it -- writing it now would be a sign convention
-    nothing exercises.
+    Every component goes through the single owner in
+    :mod:`sloads.export.coordinates`, including the ones that are zero today, so
+    the sign convention lives in exactly one place and the lateral families of
+    B8a inherit it already checked.
     """
-    return [replace(ld, y=-ld.y, side="L") for ld in loads]
+    x, y, z = reflect_point(load.x, load.y, load.z)
+    fx, fy, fz = reflect_force(load.fx, load.fy, load.fz)
+    mx, my, mz = reflect_moment(load.mx, load.my, load.mz)
+    return replace(load, x=x, y=y, z=z, fx=fx, fy=fy, fz=fz,
+                   mx=mx, my=my, mz=mz, side=reflect_side(load.side))
+
+
+def _mirror(loads: Sequence[BalancedLoad]) -> List[BalancedLoad]:
+    """The port-side image of a starboard set.
+
+    The *geometric* half of building a full-span airplane out of a half-span
+    calculation -- distinct from :func:`reflect_load`'s use in
+    :func:`handed_twin`, which mirrors a whole assembled case to get its
+    opposite-hand twin. Same operator either way, which is the point of giving it
+    one owner.
+    """
+    return [reflect_load(ld) for ld in loads]
 
 
 def wing_sets(project: Project, vn: VnPoint,
@@ -245,28 +319,66 @@ def body_inertia(loading: CaseLoading, project: Project,
 # --------------------------------------------------------------------------- #
 def resultant(loads: Sequence[BalancedLoad],
               ref: Tuple[float, float, float]) -> Tuple[float, float, float]:
-    """``(Fx, Fz, My)`` of ``loads`` about ``ref`` -- free moments plus lever arms."""
+    """``(Fx, Fz, My)`` of ``loads`` about ``ref`` -- free moments plus lever arms.
+
+    The symmetric three. :func:`resultant6` is the full rigid-body resultant;
+    this stays as the in-plane view every symmetric caller wants.
+    """
+    fx, _, fz, _, my, _ = resultant6(loads, ref)
+    return fx, fz, my
+
+
+def resultant6(loads: Sequence[BalancedLoad],
+               ref: Tuple[float, float, float]) -> Tuple[float, float, float,
+                                                         float, float, float]:
+    """``(Fx, Fy, Fz, Mx, My, Mz)`` of ``loads`` about ``ref``.
+
+    All six, from B7 on, because an antisymmetric case is out of balance in a
+    degree of freedom the symmetric three cannot see: ``ACRL`` assembled without
+    a roll term closes ``Fx``/``Fz``/``My`` to 1e-11 and carries a whole
+    unbalanced rolling moment, which is precisely the case reading as balanced
+    while meaning nothing.
+
+    ``Fy`` and ``Mz`` are identically zero for every family shipped today -- no
+    load in the suite has a side component yet -- and are computed rather than
+    assumed so B8a's lateral cases inherit a resultant that already covers them,
+    and so :func:`test_lateral_dof_are_untouched` can pin the fact.
+    """
     fx = sum(ld.fx for ld in loads)
+    fy = sum(ld.fy for ld in loads)
     fz = sum(ld.fz for ld in loads)
+    mx = sum(ld.mx + (ld.y - ref[1]) * ld.fz - (ld.z - ref[2]) * ld.fy
+             for ld in loads)
     my = sum(ld.my + (ld.z - ref[2]) * ld.fx - (ld.x - ref[0]) * ld.fz
              for ld in loads)
-    return fx, fz, my
+    mz = sum(ld.mz + (ld.x - ref[0]) * ld.fy - (ld.y - ref[1]) * ld.fx
+             for ld in loads)
+    return fx, fy, fz, mx, my, mz
 
 
 def _closure(loads: List[BalancedLoad], cg: CgCase,
              residual_fx: float, residual_fz: float,
-             residual_my: float) -> Tuple[float, float, float]:
-    """Close the residual as mass-proportional relief; return ``(dn, dnx, k)``.
+             residual_my: float,
+             residual_mx: float = 0.0) -> Tuple[float, float, float, float]:
+    """Close the residual as mass-proportional relief; return ``(dn, dnx, k, k_roll)``.
 
-    **Three** degrees of freedom, not the two plan 11 B-3 anticipated -- the
-    symmetric airplane's x, z and pitch. All three are mutually decoupled, and
-    every cross-term vanishes for the same reason: the loading's own centroid
-    *is* the CG (step C1 solves the ballast from it), so
-    ``sum(w_i*(x_i - x_cg)) == sum(w_i*(z_i - z_cg)) == 0``.
+    **Four** degrees of freedom from B7, not the two plan 11 B-3 anticipated --
+    the symmetric airplane's x, z and pitch, plus roll. All four are mutually
+    decoupled, and every cross-term vanishes for the same reason: the loading's
+    own centroid *is* the CG (step C1 solves the ballast from it), so
+    ``sum(w_i*(x_i - x_cg)) == sum(w_i*(z_i - z_cg)) == 0``, and the assembled
+    mass model is mirror-symmetric, so ``sum(w_i*y_i) == 0`` and
+    ``sum(w_i*y_i*(x_i - x_cg)) == 0`` as well.
 
     * ``dn`` -- ``-w_i*dn`` on every mass. No pitching moment (x-centroid).
     * ``dnx`` -- ``-w_i*dnx`` longitudinally. No pitching moment (z-centroid).
     * pitch -- ``+k*(x_i - x_cg)*w_i``. No force in either component.
+    * roll -- ``+k_roll*y_i*w_i``. **This is the roll acceleration**
+      ``p_dot = -k_roll``, not a numerical correction: it is the same d'Alembert
+      relief WINGINER applies for an accelerated-roll case, and it reproduces
+      that distribution strip for strip (the B7 closure gate). It adds no net
+      force (mirror symmetry) and no pitching moment (same), so it does not
+      disturb the three symmetric DOF.
 
     The x degree of freedom is not optional: **nothing else in the assembled
     model reacts drag.** The suite has no distributed thrust, and FAR 23's
@@ -287,11 +399,13 @@ def _closure(loads: List[BalancedLoad], cg: CgCase,
     masses = [(ld, ld.weight_lb) for ld in loads if ld.weight_lb]
     w_total = sum(w for _, w in masses)
     if not w_total:
-        return 0.0, 0.0, 0.0
+        return 0.0, 0.0, 0.0, 0.0
     j = sum(w * (ld.x - cg.xcg) ** 2 for ld, w in masses)
+    j_roll = sum(w * ld.y ** 2 for ld, w in masses)
     dn = residual_fz / w_total
     dnx = residual_fx / w_total
     k = residual_my / j if j else 0.0
+    k_roll = -residual_mx / j_roll if j_roll else 0.0
     for ld, w in masses:
         loads.append(BalancedLoad(
             x=ld.x, y=ld.y, z=ld.z, fz=-w * dn, fx=-w * dnx,
@@ -299,16 +413,41 @@ def _closure(loads: List[BalancedLoad], cg: CgCase,
         loads.append(BalancedLoad(
             x=ld.x, y=ld.y, z=ld.z, fz=k * (ld.x - cg.xcg) * w,
             source="closure-pitch", side=ld.side))
-    return dn, dnx, k
+        if k_roll:
+            loads.append(BalancedLoad(
+                x=ld.x, y=ld.y, z=ld.z, fz=k_roll * ld.y * w,
+                source="closure-roll", side=ld.side))
+    return dn, dnx, k, k_roll
 
 
 # --------------------------------------------------------------------------- #
 # Assembly
 # --------------------------------------------------------------------------- #
+def unbalanced_rolling_moment(project: Project, condition: str) -> float:
+    """The entered ``UNB`` of wing condition ``condition`` (FAR 23.349), or 0.
+
+    Read from the **entered** ``wing_mass.cases``, which is where the aileron's
+    unbalanced rolling moment lives; a *derived* wing case carries ``UNB = 0``
+    (the documented gap in ``wing_inertia.resolve_wing_cases``), so a project
+    relying on the derived route simply has no rolling case to assemble rather
+    than a silently symmetric one.
+    """
+    wm = project.wing_mass
+    if wm is None:
+        return 0.0
+    case = next((c for c in wm.cases if c.name == condition), None)
+    return case.unbal_moment if case is not None else 0.0
+
+
 def assemble(project: Project, condition: str, vn: VnPoint,
              loading: CaseLoading, cg: CgCase,
-             case_ref=None) -> BalancedCaseResult:
-    """Assemble one balanced case and close its residual."""
+             case_ref=None, unb: float = 0.0) -> BalancedCaseResult:
+    """Assemble one balanced case and close its residual.
+
+    ``unb`` is the unbalanced rolling moment (FAR 23.349) for an accelerated-roll
+    condition; zero makes the case symmetric and is the default, so every
+    symmetric caller is unchanged.
+    """
     fl = project.flight_loads
     notes: List[str] = []
 
@@ -347,27 +486,91 @@ def assemble(project: Project, condition: str, vn: VnPoint,
     loads.append(BalancedLoad(x=fl.xw, y=0.0, z=fl.zw, my=fuselage_cm,
                               source="fuselage-cm", side="C"))
 
-    ref = (cg.xcg, 0.0, cg.zcg)
-    fx, fz, my = resultant(loads, ref)
-    dn, dnx, k = _closure(loads, cg, fx, fz, my)
+    # The aileron's rolling moment (FAR 23.349), applied as a labelled free
+    # couple at the wing aerodynamic centre. Sign: WINGINER's unit-roll inertia
+    # set produces a rolling moment of exactly ``+UNB`` (verified: its
+    # normalisation makes ``sum(y*fz_r)`` equal 100,000 for a unit case), and
+    # NETLOADS enters inertia opposing the air load -- so the *aero* moment this
+    # is the couple for is ``-UNB``. The closure's roll DOF then reproduces
+    # WINGINER's distribution strip for strip, which is the check that this sign
+    # is right rather than merely consistent.
+    if unb:
+        loads.append(BalancedLoad(x=fl.xw, y=0.0, z=fl.zw, mx=-unb,
+                                  source="aileron-roll", side="C"))
+        notes.append(
+            f"aileron rolling moment {-unb:+.0f} lb-in applied as a lumped free "
+            "couple: the suite has no aileron spanwise geometry, so its own lift "
+            "increment is not distributed (WINGINER carries only the inertia "
+            "reaction, which IS distributed here)")
 
+    ref = (cg.xcg, 0.0, cg.zcg)
+    fx, fy, fz, mx, my, mz = resultant6(loads, ref)
+    dn, dnx, k, k_roll = _closure(loads, cg, fx, fz, my, mx)
+
+    geom = project.geometry.by_name(project.wing_mass.surface)
     return BalancedCaseResult(
         label=condition, vn_case=vn.case, cg=cg.name, nz=vn.nz,
-        weight_lb=cg.weight_lb, mac=fl.mac, loads=loads,
+        weight_lb=cg.weight_lb, mac=fl.mac,
+        semi_span=geom.leading_edge[-1][1] if geom else 0.0, loads=loads,
         residual_fz=fz, residual_fx=fx, residual_my=my,
-        delta_n=dn, delta_nx=dnx, delta_pitch=k, fuselage_cm=fuselage_cm,
-        case_ref=case_ref, notes=notes,
+        residual_fy=fy, residual_mx=mx, residual_mz=mz,
+        delta_n=dn, delta_nx=dnx, delta_pitch=k, delta_roll=k_roll,
+        unbal_moment=unb, fuselage_cm=fuselage_cm,
+        case_ref=_handed_ref(case_ref, "R") if unb else case_ref,
+        hand="R" if unb else "", notes=notes,
+    )
+
+
+def _handed_ref(ref, hand: str):
+    """``CaseRef`` with the handedness suffix on its id (B-7), or ``None``."""
+    if ref is None:
+        return None
+    return replace(ref, case_id=handed_case_id(ref.case_id, hand))
+
+
+def handed_twin(case: BalancedCaseResult) -> BalancedCaseResult:
+    """The opposite-hand twin of an antisymmetric case, by reflection (B-6).
+
+    Derived from the computed case rather than recomputed, which is the whole
+    point: the oracle-locked FAR 23 path never sees handedness. Every quantity
+    that is odd under the mirror flips through the single owner in
+    :mod:`sloads.export.coordinates` -- positions, side tags, the applied couple,
+    the roll relief -- and everything even is untouched, so the twin's vertical,
+    longitudinal and pitching balance is *identical* and only its roll reverses.
+    """
+    if not case.hand:
+        raise ValueError(
+            f"balanced case {case.label} has no hand -- a symmetric case is its "
+            "own mirror image, and minting a twin for it would put the same "
+            "load set in the deck twice")
+    ref = case.case_ref
+    return replace(
+        case,
+        loads=[reflect_load(ld) for ld in case.loads],
+        residual_mx=-case.residual_mx,
+        residual_mz=-case.residual_mz,
+        residual_fy=-case.residual_fy,
+        delta_roll=-case.delta_roll,
+        unbal_moment=-case.unbal_moment,
+        hand=reflect_side(case.hand),
+        case_ref=_handed_ref(ref, reflect_side(case.hand)),
     )
 
 
 def build_balanced_cases(project: Project) -> List[BalancedCaseResult]:
-    """One :class:`BalancedCaseResult` per symmetric wing condition SELECT picked.
+    """One :class:`BalancedCaseResult` per wing condition SELECT picked -- **two**
+    for a condition carrying an unbalanced rolling moment.
 
     A condition is assembled only when the whole chain exists for it: SELECT
     named it, it has a V-n point, and its CG case resolves to a **derivable**
     loading (step C1). A case whose CG the weight database cannot produce has no
     honest inertia set, and inventing one would put fictitious mass into the very
     balance the case exists to demonstrate.
+
+    A rolling condition (``UNB != 0``) is emitted as a **handed pair** -- the
+    computed starboard case and its port mirror (B-6/B-7). A rolling condition
+    whose ``UNB`` happens to be zero is emitted once, unhanded: the twins exist
+    for cases that have a hand, not for cases that are merely allowed one.
     """
     sync_geometry_derived(project)
     if project.flight_loads is None or project.wing_mass is None:
@@ -380,7 +583,7 @@ def build_balanced_cases(project: Project) -> List[BalancedCaseResult]:
 
     out: List[BalancedCaseResult] = []
     for cond in critical.conditions:
-        if cond.component != "wing" or cond.label not in SYMMETRIC_WING_CONDITIONS:
+        if cond.component != "wing" or cond.label not in BALANCED_WING_CONDITIONS:
             continue
         point = vn.get(cond.case)
         if point is None:
@@ -389,8 +592,13 @@ def build_balanced_cases(project: Project) -> List[BalancedCaseResult]:
         loading = loadings.get(point.cg)
         if cg is None or loading is None or not loading.derivable:
             continue
-        out.append(assemble(project, cond.label, point, loading, cg,
-                            case_ref=cond.case_ref))
+        unb = (unbalanced_rolling_moment(project, cond.label)
+               if cond.label in ROLLING_WING_CONDITIONS else 0.0)
+        case = assemble(project, cond.label, point, loading, cg,
+                        case_ref=cond.case_ref, unb=unb)
+        out.append(case)
+        if case.hand:
+            out.append(handed_twin(case))
     return out
 
 
@@ -415,10 +623,20 @@ def run(project: Project) -> ModuleResult:
             "payload loading -- nothing to balance")
     conditions = []
     for c in cases:
+        hand = {"R": " starboard roll", "L": " port roll"}.get(c.hand, "")
+        roll_values = [
+            # Applied, not unbalanced: the airplane is *meant* not to balance a
+            # rolling case. See BalancedCaseResult.roll_moment_fraction.
+            LoadValue("Applied aileron rolling moment", -c.unbal_moment, "lb-in",
+                      key="balanced_roll_moment"),
+            LoadValue("Roll couple (% of n*W*b/2)",
+                      100.0 * c.roll_moment_fraction, "%",
+                      key="balanced_roll_moment_pct"),
+        ] if c.unbal_moment else []
         conditions.append(ConditionResult(
-            title=f"Balanced case {c.label} (V-n {c.vn_case}, {c.cg})",
-            far_reference="23.321",
-            values=[
+            title=f"Balanced case {c.label}{hand} (V-n {c.vn_case}, {c.cg})",
+            far_reference="23.349" if c.unbal_moment else "23.321",
+            values=roll_values + [
                 LoadValue("Load factor Nz", c.nz, "g", key="balanced_nz"),
                 LoadValue("Weight", c.weight_lb, "lb", quantity="mass",
                           key="balanced_weight"),
@@ -446,10 +664,16 @@ register(MODULE_NAME, run)
 
 __all__ = [
     "SYMMETRIC_WING_CONDITIONS",
+    "ROLLING_WING_CONDITIONS",
+    "BALANCED_WING_CONDITIONS",
     "RESIDUAL_GATE",
     "wing_sets",
     "body_inertia",
     "resultant",
+    "resultant6",
+    "reflect_load",
+    "handed_twin",
+    "unbalanced_rolling_moment",
     "assemble",
     "build_balanced_cases",
     "carry_sources_absent",

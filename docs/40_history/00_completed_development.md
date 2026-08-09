@@ -10,6 +10,76 @@ Acceptance**, **Key decisions**.
 
 ---
 
+## Antisymmetric wing cases + the handedness machinery (mission phase 3, step 6 — plan 11 B7 — complete 2026-08-08, tier L)
+
+**Objective.** Phase 2 of the balanced-airframe work: assemble the rolling wing
+condition as a full-span free-free case, and build the left/right machinery every
+later ± family (yaw ±β, OEI, unsymmetrical tail) reuses — without the
+oracle-locked FAR 23 path ever seeing handedness.
+
+**Result.** `ACRL` assembles and closes in **all six** rigid-body DOF to machine
+precision, on both fixtures and both twins; the roll relief reproduces WINGINER's
+own unit-roll inertia distribution **strip for strip (ratio 1.000000)**; and both
+twins solve in the real sbeam with determinate-support reactions ≈ 0 through plan
+10's assembled leg. Coverage went from 4 and 3 balanced cases to **7 and 6**.
+
+**Deliverables.** `ROLLING_WING_CONDITIONS` + `resultant6` + `handed_twin` +
+`reflect_load` + the roll DOF in `_closure` (`modules/balance.py`); the reflection
+operator `reflect_point`/`reflect_force`/`reflect_moment`/`reflect_side`
+(`export/coordinates.py`, the B-6 single owner); `handed_case_id`/`unhanded_case_id`
+(`case_ids.py`); `BalancedCaseResult.residual_fy/mx/mz`, `delta_roll`,
+`unbal_moment`, `hand`, `semi_span`, `roll_moment_fraction`; deck header and UI
+statements; nine new tests in `tests/test_balance.py`.
+
+**Test / Acceptance.** The gate is an **identity against an independent
+producer**, not a smallness bound — see "Key decisions" for why a smallness bound
+would have been wrong. `test_roll_closure_reproduces_winginer` compares the
+balance layer's roll-acceleration solve against WINGINER's `fz_r`/`iwxx`
+recurrence, which this step did not touch and which knows nothing about the
+balance layer. Supporting gates: `residual_mx == -UNB` exactly and zero on every
+non-rolling case; all six DOF closed after relief; the twins mirror load-by-load
+(not merely in total, which would pass for a case that reflected nothing); the
+reflection operator is an involution; lateral DOF identically zero.
+
+**Key decisions, and the three places measurement overrode the plan:**
+
+- **`TORS` is not antisymmetric** — plan 11 §2 names it as one. Handedness lives
+  in `unbal_moment`, and every fixture enters zero for `TORS`, because a *steady*
+  roll has no unbalanced rolling moment (aileron balanced by roll damping) and
+  the remaining up-going/down-going aero asymmetry has no spanwise representation
+  in this suite. Assembled as the symmetric case it is, with the finding pinned.
+- **The roll residual is not an error.** On a rolling case `residual_mx` is the
+  *applied* couple — 6.71 % of n·W·b/2 on ga6, 2.00 % on the RJ — which the
+  airplane is supposed not to balance. Gating it at 1 % would have failed a
+  correct case. Reported, and reacted in full by the fourth closure DOF, on the
+  same standing `delta_nx` has for drag.
+- **The closure DOF *is* WINGINER's model**, which is what makes it gateable: the
+  wing-item/panel scale (0.9903 ga6, 1.0100 RJ) cancels identically because the
+  closure normalises on the masses the assembled model carries, so the agreement
+  is exact rather than approximate.
+- **The applied couple is lumped** (user decision, 2026-08-08). No aileron butt
+  lines exist in the schema, and lumping reduces *exactly* to the oracle-locked
+  model — WINGINER also carries only the inertia reaction. The reaction is fully
+  distributed; the aero half is not. Stated in-band and filed.
+- **Sign recovered, not assumed.** WINGINER's unit-roll set produces `+UNB`
+  (its normalisation makes `Σ y·fz_r = 100,000`), and NETLOADS enters inertia
+  opposing the air load, so the aero couple is `−UNB`. The strip-for-strip
+  identity confirms it rather than merely being consistent with it.
+
+**Deliberate output change.** `csv/balance` and `txt/balance` moved on the two
+fixtures that assemble cases — new conditions in the balance module's own report.
+**Nothing else moved**: every deck, every per-component artifact and every
+Appendix A channel is byte-identical, verified channel-by-channel before the
+digest was regenerated.
+
+**Filed alongside:** the aileron lift increment is not distributed (needs schema);
+and the RJ's three high-speed low-CL cases exceed the 1 % pitch gate (PLAA
+1.041 %, PMAA 0.967 %, TORS 1.174 %) — PLAA has been over since B2 and `TORS`
+merely exposed the pattern, now bounded per fixture per plan R3 rather than by
+widening the gate for everyone.
+
+---
+
 ## sbeam round-trip CI gate (mission phase 1, step 2 — plan 10 — complete 2026-08-08, tier M)
 
 **Objective.** Make the mission's core claim testable. "An exported deck solves

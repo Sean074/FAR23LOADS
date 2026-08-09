@@ -182,6 +182,7 @@ export boundary, reduction-to-FAR23 identity on GA inputs. "No oracle" never mea
 | Nav / step graph | `sloads/workflow.py` (`STEPS`, `PHASES`) | `tests/test_workflow.py::test_every_registered_module_has_a_step` |
 | Deliverable unit sets | `units.deliverable_units` | `tests/test_deliverable_units.py` (identity, consistency, channel) |
 | Export axes/scale | `export/coordinates.py` | `tests/test_sbeam_bridge.py::test_grids_match_station_geometry` + closure/SF tests |
+| **Centreline reflection** (`y -> -y`; force is a true vector, moment an axial one) | `export/coordinates.py` (`reflect_point`/`reflect_force`/`reflect_moment`/`reflect_side`) | `tests/test_balance.py::test_the_reflection_operator_is_an_involution` + `::test_the_handed_twins_are_mirror_images` |
 | Case IDs | `sloads/case_ids.py` | `tests/test_case_ids.py` |
 | Load-case row keys | `sloads/load_keys.py` | **flagged — see §8** |
 | Data dictionary | `docs/generate_data_dict.py` (generated doc) | `tests/test_data_dictionary.py::test_committed_doc_matches_generator` |
@@ -189,6 +190,26 @@ export boundary, reduction-to-FAR23 identity on GA inputs. "No oracle" never mea
 
 When a new sign/unit/ID-sensitive quantity appears, create its owner + guard test first
 and add the row here.
+
+### 7.1 Handedness (plan 11 decisions B-6/B-7)
+
+Every asymmetric load case has an **opposite-hand twin** — `+beta` yaw implies
+`-beta`, an aileron roll right implies roll left, an engine-out on the left
+implies the right. The convention, stated once:
+
+* the twin is **derived by reflection at the balanced-case assembly**, never
+  recomputed and never obtained by re-running SELECT or the V-n core — so the
+  oracle-locked FAR 23 path never sees handedness at all;
+* reflection is `y -> -y`. A **force** is a true vector, so only `fy` changes
+  sign; a **moment** is an axial vector, so `mx` and `mz` reverse and `my` does
+  not. Applying the force rule to a moment mirrors a rolling case into itself
+  and negates its pitch — it balances, and it means nothing;
+* handedness is a **suffix on the existing case id** (`W-05L` / `W-05R`), minted
+  by the balance layer via `case_ids.handed_case_id`. The unhanded id remains the
+  physical condition; this is not a new ID series (naming rule, 2026-08-05);
+* a **symmetric case has no hand** and gets no twin: it is its own mirror image,
+  and minting one would put the same load set in the deck twice. Whether a case
+  has a hand is decided by content (a non-zero `unbal_moment`), not by its name.
 
 ## 8. Flagged inconsistencies (2026-08-05 extraction — filed on the backlog)
 

@@ -89,13 +89,12 @@ the feature-branch work below begins.
 
 | Phase | Step | What ships | Plan / item | Depends on |
 |---|---|---|---|---|
-| **3 — balanced wing cases (aim 2)** | 6 | Antisymmetric wing (`ACRL`/`TORS`) + the left/right reflection machinery (B-6/B-7) | plan 11 **B7** | step 5 ✅ |
 | **4 — empennage** | 7 | Distributed h-tail/v-tail loads on the LRA (spanwise strips, GRID+FORCE+MOMENT) | [plan 09](09_distributed_empennage_loads_plan.md) **T1–T5** | steps 1–2 ✅ (its T-11 gate) |
-| | 8 | Empennage balanced cases: **±β yaw pairs**, lateral closure design note first (B-8) | plan 11 **B8a** | steps 6, 7 |
+| | 8 | Empennage balanced cases: **±β yaw pairs**, lateral closure design note first (B-8) | plan 11 **B8a** | step 6 ✅, step 7 |
 | | 9 | Discrete hinge/actuator controls, T-tail transfer | plan 09 **T6–T8** | step 7 (opportunistic) |
 | **5 — landing** | 10 | Ground-case distributed loads, gear reactions as applied `FORCE` cards | **M4-6** | — (design-note gated) |
-| | 11 | Balanced landing cases | plan 11 **B8b** | steps 6, 10 |
-| **6 — model fidelity** | 12 | **LRA beam-model export + import** (geometry ↔ beam bridge) | item below | step 5 |
+| | 11 | Balanced landing cases | plan 11 **B8b** | step 6 ✅, step 10 |
+| **6 — model fidelity** | 12 | **LRA beam-model export + import** (geometry ↔ beam bridge) | item below | step 5 ✅ |
 | | 13 | Side-of-body reporting node (reduced scope under the full-span model) | item below | step 5 (or folded into it) |
 | | 14 | Real stiffness / assembled airframe properties | **L-1** | step 12 |
 
@@ -131,6 +130,57 @@ asserts the *negation* plus a one-strip-width bound on the three affected
 fixtures, so the day this is fixed the suite goes red and the exception is
 deleted. Effort: S–M. Natural pairing: step 5 (balanced wing cases), which
 re-derives the same nodal set.
+
+### [V] The aileron's own lift increment is not distributed *(new 2026-08-08, from B7)*
+The assembled `ACRL` case applies the unbalanced rolling moment (FAR 23.349) as a
+**lumped** free couple at the wing aerodynamic centre, because
+`AileronLoadsInput` carries `area_fwd_hinge_sqft`/`area_aft_hinge_sqft` and **no
+spanwise station** — there is nowhere to put a distributed increment. Decision of
+record (user, 2026-08-08): lump it, because that reduces *exactly* to the
+oracle-locked FAR 23 model, where WINGINER likewise carries only the inertia
+reaction and never the aileron's own aero.
+
+The reaction **is** distributed (the roll-acceleration relief, spanwise over
+every mass), so the assembled wing does see a genuinely antisymmetric load; what
+is missing is the aero half of the couple. Consequence for a consumer: `ACRL`
+wing bending omits the aileron's differential lift, which acts near ~70 % span
+and is therefore not negligible for sizing. Stated in the deck `$` header, the
+case notes and the Balanced Cases page rather than left to be discovered.
+
+Closing it means **new geometry input** — an inboard/outboard butt line on
+`AileronLoadsInput`, entered for six fixtures, with no printed oracle to check
+the resulting shape against — hence a step of its own: schema bump + migration,
+a spanwise shape integrating to `UNB`, and a closure gate. Pairs naturally with
+plan 09's spanwise work, which is already building strip integrators. Tier L.
+Effort: M.
+
+### [V] The regional jet's low-CL balanced cases exceed the 1 % pitch gate *(new 2026-08-08, from B7)*
+Plan 11's acceptance is `|dMy|/(n*W*MAC) < 1 %` before closure. `ga6_normal` —
+the Appendix A fixture — meets it on all seven cases (0.117–0.290 %).
+`concept_regional_jet` does not, on its three high-speed low-CL cases:
+
+| case | pitch residual | lumped fuselage `Cm` |
+|---|---|---|
+| PLAA | **1.041 %** | −0.48 % of `n*W*MAC` |
+| PMAA | 0.967 % | +2.11 % |
+| TORS | **1.174 %** | −2.29 % |
+| PHAA / ACRL | 0.442 / 0.148 % | +5.80 / +5.62 % |
+
+The pattern is diagnostic, not random: the exceedance tracks the cases whose
+lumped fuselage `Cm` is small or reversed — i.e. where the trim's
+airplane-less-tail moment and the distributed wing's own section `Cm` nearly
+cancel, so the residual is a difference of large numbers. PLAA has been over the
+gate since B2 and was carried by a `1.1x` allowance in the test; `TORS` is newly
+assembled at B7 and merely exposed the same pattern. Now bounded **per fixture**
+(`_PITCH_RESIDUAL_CEILING` in `tests/test_balance.py`) per plan 11 R3's "state
+the floor per fixture", rather than by widening the gate for everyone.
+
+Two candidate causes, neither yet separated: the strip-quadrature-vs-closed-form
+lift floor (R3), and the lumped Munk term itself (**M4-19** would give it a
+distributed carrier and is the natural pairing). Decide by measuring the residual
+against element count on the RJ first — if it scales with `elements`, it is R3;
+if not, it is the `Cm` split. Tier M. Effort: S to diagnose, then it becomes an
+M4-19 sub-item.
 
 ### [V] Wing deck `$` comments overrun the 72-column free-field width *(new 2026-08-08, found by the step-1 sweep)*
 Free-field bulk data is 72 columns. The wing card / stick decks overrun on two
@@ -250,7 +300,7 @@ Pinned in `tests/test_balance.py::test_which_conditions_assemble_is_pinned`, so
 the coverage is a recorded fact rather than a silent gap, and it goes red the day
 the fixtures are fixed. Tier M–L. Effort: M. Pairs with the sibling item above.
 
-### [E] Balanced full-airframe load cases (free-free) *(new 2026-08-08, user)* — **steps 3, 5, 6, 8, 11**
+### [E] Balanced full-airframe load cases (free-free) *(new 2026-08-08, user)* — **steps 8, 11**
 A full airplane balanced case — wing tip to wing tip, nose to tail — that needs
 **no constraint**, because the applied aero and inertia loads balance: a wing
 case carries its corresponding tail load and the resulting inertia loads, with

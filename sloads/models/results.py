@@ -374,18 +374,42 @@ class BalancedCaseResult:
     nz: float
     weight_lb: float
     mac: float
+    #: Wing semi-span (in) -- the lever the **roll** residual is judged against,
+    #: as the MAC is for pitch. Zero on a result built without geometry, which
+    #: makes :attr:`roll_residual_fraction` 0 rather than dividing by nothing.
+    semi_span: float = 0.0
     loads: List[BalancedLoad] = field(default_factory=list)
     residual_fz: float = 0.0
     residual_fx: float = 0.0
     residual_my: float = 0.0
+    #: The lateral three (B7). ``residual_mx`` is the one that matters today --
+    #: an antisymmetric case is out of balance in **roll**, a degree of freedom
+    #: the symmetric three cannot see, so a case assembled without it reads as
+    #: balanced while carrying a whole unreacted rolling moment. ``fy``/``mz``
+    #: are identically zero until B8a's lateral families and are carried so those
+    #: inherit a complete resultant rather than growing one.
+    residual_fy: float = 0.0
+    residual_mx: float = 0.0
+    residual_mz: float = 0.0
     delta_n: float = 0.0
     #: Longitudinal relief -- the airplane's deceleration under net drag, the
     #: quantity FAR 23 calls ``nx``. Nothing else in an assembled model reacts
     #: drag, because the suite has no distributed thrust.
     delta_nx: float = 0.0
     delta_pitch: float = 0.0
+    #: Roll-acceleration relief, ``+k_roll*y_i*w_i`` on every mass (B7). This is
+    #: ``-p_dot``: the d'Alembert reaction to the aileron's unbalanced rolling
+    #: moment, and the same distribution WINGINER applies for an accelerated-roll
+    #: case -- reproduced strip for strip, which is how it is gated.
+    delta_roll: float = 0.0
+    #: The applied unbalanced rolling moment (FAR 23.349, lb-in). Zero for a
+    #: symmetric case; sign reverses between the handed twins.
+    unbal_moment: float = 0.0
     fuselage_cm: float = 0.0
     case_ref: Optional[CaseRef] = None
+    #: ``"R"``/``"L"`` for the two twins of an antisymmetric case, ``""`` when the
+    #: case is symmetric and therefore its own mirror image (B-6/B-7).
+    hand: str = ""
     safety_factor: float = ULTIMATE_FACTOR
     notes: List[str] = field(default_factory=list)
 
@@ -393,6 +417,26 @@ class BalancedCaseResult:
     def n_w(self) -> float:
         """``n*W`` -- the scale the force residual is judged against."""
         return abs(self.nz * self.weight_lb)
+
+    @property
+    def roll_moment_fraction(self) -> float:
+        """``|Mx| / (n*W*b/2)`` -- how much roll the case carries.
+
+        **Not a residual in the sense the other two are, and deliberately not
+        gated at 1 %.** ``residual_fz`` and ``residual_my`` measure what the
+        physics fails to balance; ``residual_mx`` is the aileron's applied
+        rolling moment, which the airplane is *supposed* not to balance -- it
+        rolls, and FAR 23.349 is about the loads while it does. The quantity is
+        reported (6.7 % of ``n*W*b/2`` on ``ga6_normal`` ACRL, 2.0 % on the
+        regional jet) because it says how hard the case rolls, and it is reacted
+        in full by :attr:`delta_roll`. Same standing as :attr:`delta_nx`, which
+        reacts drag for the same reason: nothing else in an assembled model can.
+
+        Against the semi-span rather than the MAC because a rolling moment acts
+        through the span.
+        """
+        denom = self.n_w * self.semi_span
+        return abs(self.residual_mx) / denom if denom else 0.0
 
     @property
     def force_residual_fraction(self) -> float:

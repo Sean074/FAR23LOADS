@@ -138,7 +138,11 @@ def fields_hash() -> str:
 #: with a default does not (the tolerant readers handle it); a renamed, removed or
 #: relocated field does. If it does: bump ``SCHEMA_VERSION`` and add a hop to
 #: ``sloads.migrations.MIGRATIONS``. Then update this constant.
-EXPECTED_FIELDS_HASH = "4dcd823cd859fc90"  # + BalancedLoad / BalancedCaseResult (plan 11 B2; new result types, nothing persisted changed)
+#: plan 11 B7: ``BalancedCaseResult`` gains the lateral residuals, the roll
+#: relief, the applied ``unbal_moment``, ``hand`` and ``semi_span``. All are
+#: optional with defaults, and the type is a **result** -- ``io.py`` never reads
+#: or writes it -- so no on-disk shape moved and no migration hop is needed.
+EXPECTED_FIELDS_HASH = "605d71aadc4e4991"
 
 
 def test_persisted_dataclass_shapes_are_unchanged():

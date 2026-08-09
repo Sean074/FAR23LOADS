@@ -56,6 +56,7 @@ in the assembled model*). Guarded by
 
 from __future__ import annotations
 
+import textwrap
 from typing import Dict, List, Sequence, Tuple
 
 from ..models import BalancedCaseResult, BalancedLoad, Project
@@ -145,25 +146,43 @@ def _header(case: BalancedCaseResult, u: DeliverableUnits) -> List[str]:
     _, _, res_fz = to_force(0.0, 0.0, case.residual_fz, u)
     _, res_my, _ = to_moment(0.0, case.residual_my, 0.0, u)
     _, cm_my, _ = to_moment(0.0, case.fuselage_cm, 0.0, u)
-    lines = [
-        f"$ Balanced case {case.label} -- V-n point {case.vn_case}, "
+    hand = {"R": " -- STARBOARD roll (the computed case)",
+            "L": " -- PORT roll (mirror of the starboard case)"}.get(case.hand, "")
+    sentences = [
+        f"Balanced case {case.label}{hand} -- V-n point {case.vn_case}, "
         f"loading {case.cg}, Nz = {case.nz:g}",
-        f"$ Case ID: {case.case_ref.case_id if case.case_ref else '(none)'}",
-        f"$ Loads are ULTIMATE (limit x SF={_sf_str(case.safety_factor)}).",
-        "$ FULL SPAN, free-free: aero and inertia together, both wings.",
-        f"$ Residual BEFORE closure: Fz {res_fz:.2f} {u.force.label} "
+        f"Case ID: {case.case_ref.case_id if case.case_ref else '(none)'}",
+        f"Loads are ULTIMATE (limit x SF={_sf_str(case.safety_factor)}).",
+        "FULL SPAN, free-free: aero and inertia together, both wings.",
+        f"Residual BEFORE closure: Fz {res_fz:.2f} {u.force.label} "
         f"({case.force_residual_fraction * 100:.3f} % of n*W); "
         f"My {res_my:.0f} {u.moment.label} "
         f"({case.moment_residual_fraction * 100:.3f} % of n*W*MAC).",
-        f"$ Closed by dn = {case.delta_n:+.5f} g plus a self-equilibrating pitch "
+        f"Closed by dn = {case.delta_n:+.5f} g plus a self-equilibrating pitch "
         "relief; both are mass-proportional.",
-        f"$ Lumped fuselage Cm moment applied: {cm_my:.0f} {u.moment.label} "
-        "(the trim's airplane-less-tail Cm that the distributed wing does not",
-        "$   carry; it has no distributed form until the body aero moment lands).",
-        "$ The support below is determinate: its reaction IS the residual above.",
+        f"Lumped fuselage Cm moment applied: {cm_my:.0f} {u.moment.label} "
+        "(the trim's airplane-less-tail Cm that the distributed wing does not "
+        "carry; it has no distributed form until the body aero moment lands).",
+        "The support below is determinate: its reaction IS the residual above.",
     ]
-    for note in case.notes:
-        lines.append(f"$ NOTE: {note}")
+    if case.unbal_moment:
+        _, roll_my, _ = to_moment(0.0, case.residual_mx, 0.0, u)
+        sentences.append(
+            f"ROLLING case: applied aileron couple {roll_my:.0f} "
+            f"{u.moment.label} (FAR 23.349), reacted entirely by roll "
+            f"acceleration ({case.roll_moment_fraction * 100:.2f} % of "
+            "n*W*b/2). That is the physics of an accelerated roll, not an "
+            "out-of-balance: the relief is distributed over every mass and "
+            "reproduces WINGINER's own unit-roll set.")
+    sentences += [f"NOTE: {note}" for note in case.notes]
+
+    # Free-field bulk data is 72 columns and every one of these is a comment a
+    # human reads; wrapped here rather than hand-broken so a longer number (SI is
+    # wider) cannot silently push a line over.
+    lines: List[str] = []
+    for sentence in sentences:
+        lines += [f"$ {ln}" for ln in textwrap.wrap(sentence, width=70,
+                                                    subsequent_indent="  ")]
     return lines
 
 
@@ -268,11 +287,14 @@ def balanced_case_rows(cases: Sequence[BalancedCaseResult]) -> List[Dict[str, st
     """
     return [{
         "Case": c.label,
+        "Hand": c.hand or "-",
         "V-n point": str(c.vn_case),
         "Loading": c.cg,
         "Nz": f"{c.nz:.3f}",
         "Residual Fz (% n*W)": f"{c.force_residual_fraction * 100:.3f}",
         "Residual My (% n*W*MAC)": f"{c.moment_residual_fraction * 100:.3f}",
+        # Applied, not unbalanced -- see BalancedCaseResult.roll_moment_fraction.
+        "Roll couple (% n*W*b/2)": f"{c.roll_moment_fraction * 100:.3f}",
         "Closure dn (g)": f"{c.delta_n:+.5f}",
         "Basis": "LIMIT",
     } for c in cases]

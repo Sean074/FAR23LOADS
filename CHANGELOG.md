@@ -12,6 +12,49 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **Antisymmetric (rolling) balanced cases, and the handedness machinery** —
+  `modules/balance.py`, the reflection operator in `export/coordinates.py`
+  (mission phase 3 step 6; plan 11 **B7**, decisions B-6/B-7). An accelerated-roll
+  case now assembles as a full-span airplane, and every asymmetric family from
+  here on inherits its left/right twin for free.
+
+  **Only `ACRL` is antisymmetric, which was measured rather than assumed.**
+  Handedness lives entirely in `unbal_moment` (FAR 23.349), and every fixture
+  enters zero for `TORS` — a *steady* roll has no unbalanced moment, the aileron
+  being balanced by roll damping. `TORS` is therefore assembled as the symmetric
+  case it is, and a test pins the finding so a fixture that ever enters a rolling
+  `TORS` goes red instead of being assembled symmetrically and meaning nothing.
+
+  **The roll residual is not an error, and is not gated like one.** On a rolling
+  case `residual_mx` is the *applied* aileron couple — 6.71 % of n·W·b/2 on ga6,
+  2.00 % on the RJ — which the airplane is supposed not to balance. It is reacted
+  in full by a fourth closure degree of freedom, roll acceleration, distributed
+  over every mass; the same standing `nx` already has for drag, because nothing
+  else in a free-free model can react either.
+
+  **That relief reproduces WINGINER's own unit-roll distribution, strip for
+  strip, ratio 1.000000 on both fixtures** — the wing-item/panel scale cancelling
+  identically. Two producers, one answer: oracle-locked FAR 23 code and a residual
+  solve that knows nothing about it. That identity is the step's closure gate,
+  standing in for the printed oracle concept mode does not have. All six DOF then
+  close to machine precision, and both twins solve in the real sbeam with
+  reactions ≈ 0.
+
+  **Twins by reflection, not recomputation.** `y → −y`, with a force mirrored as
+  a true vector and a moment as an axial one — so roll and yaw reverse and pitch
+  does not. One owner in `export/coordinates.py` with an involution drift guard,
+  because a sign convention copied to a second call site is what produces a deck
+  that parses, solves, and sizes structure to a load the airplane never sees.
+  Handedness is a suffix on the existing case id (`W-05L`/`W-05R`), not a new ID
+  series; a symmetric case has no hand and gets no twin.
+
+  **Limitation, stated in-band:** the aileron's own spanwise lift increment is not
+  distributed — the schema has aileron *areas* and no butt lines — so the couple
+  is lumped at the wing aerodynamic centre. This reduces *exactly* to the
+  oracle-locked model, which likewise carries only the inertia reaction, but
+  `ACRL` wing bending omits the differential lift itself. Filed on the backlog,
+  and printed in the deck header, the case notes and the Balanced Cases page.
+
 - **The exported decks are solved in the real sbeam, in CI** —
   `sloads/export/roundtrip.py`, `tests/test_sbeam_roundtrip.py`, the `solver`
   extra and the `sbeam-roundtrip` CI job (mission phase 1 step 2;

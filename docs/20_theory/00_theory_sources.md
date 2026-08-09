@@ -166,6 +166,50 @@ omitted: the fuselage's share of the airplane-less-tail `Cm` (+4.3 to +6.3 % of
 n·W·MAC — the Munk moment, until M4-19 distributes it) and the longitudinal
 relief that stands in for thrust (FAR 23's `nx`).
 
+### The rolling case's roll closure as a closure gate (step B7, 2026-08-08)
+
+The balanced-case gate above is a *smallness* gate: the residual before closure
+must be under 1 %. An **antisymmetric** case cannot be gated that way, because
+what it is out of balance in is not an error. On an accelerated-roll condition
+(FAR 23.349) the applied aileron couple is 6.71 % of `n·W·b/2` on `ga6_normal`
+and 2.00 % on `concept_regional_jet`, and the airplane is *supposed* not to
+balance it — it rolls. The couple is reacted by roll acceleration, exactly as
+drag is reacted by `nx`: nothing else in a free-free model can.
+
+So the gate here is an **identity against an independent producer** instead.
+Closing the roll residual with mass-proportional relief `k·w_i·y_i` (physically
+`−m_i·ṗ·y_i`) must reproduce **WINGINER's own unit-roll inertia distribution** —
+`fz_r[i] = w_i·y_i·10⁵/Iwxx`, WINGINER.BAS's accelerated-roll case, which is
+oracle-locked FAR 23 code that this step did not touch and that knows nothing
+about the balance layer:
+
+| | ga6_normal ACRL | concept_regional_jet ACRL |
+|---|---|---|
+| UNB (in-lb) | −149,043 | −600,000 |
+| per-strip closure ÷ `ur·fz_r` | **1.000000** | **1.000000** |
+| net force added by the roll term | 6.4e-14 lb | 2.3e-13 lb |
+| `residual_mx` vs `−UNB` | exact | exact |
+| all six DOF after relief | machine precision | machine precision |
+
+The wing-item/WINGINER-panel scale (0.9903 and 1.0100) **cancels identically**,
+because the closure normalises on the same masses the assembled model carries —
+which is why the agreement is exact rather than approximate, and why it is a
+gate rather than a coincidence. Both twins then solve in the real sbeam with
+determinate-support reactions ≈ 0 (plan 10's assembled leg).
+
+Sign, recovered rather than assumed: WINGINER's unit-roll set produces a rolling
+moment of exactly `+UNB` (its normalisation makes `Σ y·fz_r = 100,000` for a unit
+case, verified), and NETLOADS enters inertia opposing the air load — so the *aero*
+couple is `−UNB`. The strip-for-strip identity is what confirms that sign is
+right rather than merely self-consistent.
+
+**Scope limit, stated in-band wherever the case is rendered:** the aileron's own
+lift increment has no spanwise carrier (`AileronLoadsInput` has areas, no butt
+lines), so the couple is lumped at the wing aerodynamic centre. This reduces
+*exactly* to the oracle-locked model — WINGINER also carries only the inertia
+reaction — but it means `ACRL` wing bending omits the differential lift itself.
+Filed on the backlog.
+
 ### The CONM2 mass model as an *external* check (step C1–C5, 2026-08-08)
 
 Every closure gate above is internal: sloads checking sloads. The distributed

@@ -157,6 +157,34 @@ SUBCASE_BLOCK: Dict[str, int] = {
 }
 
 
+#: The handedness suffixes a balanced case id may carry (plan 11 decision B-7).
+HANDS = ("L", "R")
+
+
+def handed_case_id(case_id: str, hand: str) -> str:
+    """``("W-05", "R") -> "W-05R"`` -- the handed form of a case id (B-7).
+
+    Every asymmetric family has an opposite-hand twin, and decision B-7 makes
+    handedness a **suffix on the existing id** rather than a new ID series
+    (``CLAUDE.md`` naming rule): the unhanded id remains the physical condition,
+    and ``W-05L``/``W-05R`` are the two cases derived from it. Idempotent -- a
+    handed id re-handed keeps one suffix, so a twin of a twin is not ``W-05RL``.
+
+    Deliberately **not** understood by :func:`subcase_id`: the assembled deck
+    numbers its own subcases positionally from ``BALANCED_SID_BASE``, and a
+    handed id reaching the per-component numbering would mean a component deck
+    had grown a hand it has no band for. That raises, loudly, which is correct.
+    """
+    if hand not in HANDS:
+        raise ValueError(f"hand must be one of {HANDS}, got {hand!r}")
+    return unhanded_case_id(case_id) + hand
+
+
+def unhanded_case_id(case_id: str) -> str:
+    """The physical condition's id, with any handedness suffix removed."""
+    return case_id[:-1] if case_id[-1:] in HANDS else case_id
+
+
 def subcase_id(case_id: str) -> int:
     """The deck ``SUBCASE`` / load-set ``SID`` integer for ``case_id``.
 

@@ -242,12 +242,12 @@ introduces is never applied in the assembled model.**
 | ~~**B4**~~ ✅ | CI gates: residual < 1 %, `Δn`/n < 1 %, per-component decks and Appendix A **bit-unchanged**. | M | S (~0.5) |
 | ~~**B5**~~ ✅ | Assembled deck export (**primary deliverable, B-5**) + left/right GID bands + determinate support; solves in sbeam with reactions ≈ 0 (rides on plan 10's harness, which gains an assembled-deck leg here). | L | M (~1) |
 | ~~**B6**~~ ✅ | Streamlit view: the balanced case list with its residual and `Δn` columns — the number an engineer needs to trust the case. | M | S–M (~0.5) |
-| **B7** | Antisymmetric wing cases (`ACRL`, `TORS`): distinct left/right loading, 6-DOF residual, **plus the B-6 reflection operator in `export/coordinates.py` and the B-7 handed-pair minting** — the machinery every later ± family reuses. **Phase 2.** | L | M–L (~1.5) |
+| ~~**B7**~~ ✅ | Antisymmetric wing cases: the roll DOF, the applied aileron couple, **the B-6 reflection operator in `export/coordinates.py` and the B-7 handed-pair minting** — the machinery every later ± family reuses. **SHIPPED 2026-08-08**; see §10 for what the measurement changed. **Phase 2.** | L | M–L (~1.5) |
 | **B8a** | Empennage cases (needs plan 09 T1–T4): ±β yaw pairs per B-6, lateral closure per B-8 (design note for the `n_y` balance first). **Phase 3.** | L | M–L |
 | **B8b** | Landing/ground cases (needs M4-6: gear reactions as applied loads — the gear items are already in `weight.items` at x = 97 and x = 1). **Phase 4.** | L | M |
 | **B9** | Tier-L closure trail: `CONVENTIONS.md` (§4 rule + the balanced-case concept), `PROGRAM_SPEC.md`, `theory_sources.md` (the closure gate as oracle substitute), `PROJECT_GUIDE.md`, `DATA_DICTIONARY.md` regen, CHANGELOG, history. | S | S (~0.5) |
 
-Phase 1 = B1–B6.
+Phase 1 = B1–B6; phase 2 = B7 (shipped 2026-08-08).
 
 ## 6. Acceptance
 
@@ -288,3 +288,62 @@ Plan 07 §9 ("Assembled-airframe n·W closure for symmetric cases") recommended
 filing exactly this as its own `[E]` item. **This plan is that item** — filed
 with the decisions answered and the baseline measured, so it should be entered
 in `00_backlog.md` under that name pointing here, rather than as a second entry.
+
+
+## 10. B7 as shipped (2026-08-08) — what measurement changed
+
+Phase 2 landed as `ROLLING_WING_CONDITIONS`, a fourth closure DOF, the B-6
+reflection operator and the B-7 handed-pair minting. Three of this note's
+assumptions did not survive contact with the fixtures, and the corrections are
+the substance of the step.
+
+**1. `TORS` is not antisymmetric.** §2's phasing names "the antisymmetric wing
+cases (`ACRL`, `TORS`)", but handedness lives entirely in
+`WingLoadCase.unbal_moment`, and **every shipped fixture enters zero for `TORS`**
+(ga6 and the RJ both). That is not a fixture oversight: a *steady* roll has no
+unbalanced rolling moment by definition — the aileron moment is balanced by roll
+damping — and the up-going/down-going aero asymmetry that remains has no
+spanwise representation anywhere in this suite. `TORS` therefore joined
+`SYMMETRIC_WING_CONDITIONS` and is assembled as the symmetric case it is, with
+`test_only_acrl_carries_roll` pinning the finding so a fixture that ever enters a
+rolling `TORS` goes red rather than being assembled symmetrically and quietly
+meaning nothing. **Only `ACRL` produces handed twins** (ga6 UNB −149,043 in-lb,
+RJ −600,000).
+
+**2. The roll residual is not an error, and must not be gated like one.** R4
+anticipated "a 6-DOF residual"; what it did not anticipate is that on a rolling
+case `residual_mx` is the **applied aileron couple** — 6.71 % of `n·W·b/2` on ga6
+ACRL, 2.00 % on the RJ — which the airplane is *supposed* not to balance. It
+rolls; FAR 23.349 is about the loads while it does. Gating it at 1 % would have
+failed a correct case. It is reported, and reacted in full by the roll DOF of the
+closure, on exactly the standing `delta_nx` already has for drag: nothing else in
+an assembled model can react it.
+
+**3. The closure DOF *is* WINGINER's model, and that is the gate.** Closing the
+roll residual with `k_roll*w_i*y_i` — physically `−m_i*p_dot*y_i` — reproduces
+WINGINER's own unit-roll inertia distribution (`fz_r`, normalised on `iwxx`)
+**strip for strip, ratio 1.000000, on both fixtures**, with the
+wing-item/panel scale (0.9903 ga6, 1.0100 RJ) cancelling identically because the
+closure normalises on the same masses the assembled model carries. Two producers
+— oracle-locked FAR 23 code and a residual solve that knows nothing about it —
+one answer. That identity is the B7 closure gate
+(`test_roll_closure_reproduces_winginer`), standing in for the printed oracle
+concept mode does not have. All six DOF then close to machine precision, and both
+twins solve in sbeam with reactions ≈ 0 through plan 10's assembled leg.
+
+**Decision of record (user, 2026-08-08): the applied couple is lumped.**
+`AileronLoadsInput` carries areas and no butt lines, so there is no spanwise
+station to distribute an aileron lift increment over. The couple is applied as a
+single labelled free moment at the wing aerodynamic centre — the same treatment
+and the same honesty as the lumped fuselage `Cm` — which **reduces exactly to the
+oracle-locked FAR 23 model**, since WINGINER also carries only the inertia
+reaction and never the aileron's own aero. The distributed antisymmetric load the
+wing actually sees is fully spanwise. The limitation is stated in the deck
+header, the case notes and the UI, and is filed on the backlog.
+
+**Also filed:** the RJ's three high-speed low-CL cases exceed the 1 % pitch
+residual gate (PLAA 1.041 %, PMAA 0.967 %, TORS 1.174 %). `TORS` is newly
+assembled at B7 and merely exposed the pattern PLAA already showed; ga6 — the
+Appendix A fixture — meets the gate on every case at 0.12–0.29 %. Bounded per
+fixture (plan R3's "state the floor per fixture") rather than by widening the
+gate for everyone.
