@@ -312,6 +312,17 @@ def test_body_deck_closes_in_force_and_moment(example, system):
         assert got.n_force, f"{where}: deck emitted no FORCE cards"
         assert closes(got.fz, 0.0, scale=got.force_scale), f"{where} Fz -> 0"
         assert closes(got.my, 0.0, scale=got.moment_scale), f"{where} My -> 0"
+        # The other four, swept in with the balanced deck's six-DOF gate (review
+        # F-G1, required practice 4). They are zero **by construction** rather
+        # than by closure: the flight-only body deck is planar -- vertical cards
+        # on nodes at y = z = 0 -- so a non-zero one is a card in a DOF this deck
+        # has no business carrying, which is worth a line to catch. The day the
+        # ground cases land (gear reactions carry side and drag loads) this goes
+        # red, and the new claim gets stated rather than assumed.
+        for axis, value in (("Fx", got.fx), ("Fy", got.fy)):
+            assert closes(value, 0.0, scale=got.force_scale), f"{where} {axis} -> 0"
+        for axis, value in (("Mx", got.mx), ("Mz", got.mz)):
+            assert closes(value, 0.0, scale=got.moment_scale), f"{where} {axis} -> 0"
 
 
 @pytest.mark.parametrize("example", EXAMPLES)

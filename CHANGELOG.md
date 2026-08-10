@@ -12,6 +12,24 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **The assembled deck's card-text closure gate now checks all six DOF.** Review
+  finding **F-G1**: `test_the_deck_balances_from_its_own_cards` asserted `fx`,
+  `fz` and `my` while `equilibrium.Resultant` had carried the lateral three all
+  along — so the node-collapse failure mode the gate exists for (in memory 1e-13,
+  in the deck 3.9–21.9 % out) could hit a fin `FORCE` card or a reflected
+  port-twin node and unbalance `fy`/`mx`/`mz` with nothing looking. Not
+  theoretical since B8a-3: every assembled deck carries eight lateral cases, and
+  the handed twins differ *only* in those components. Roll and yaw are judged
+  against the **semi-span**, the same lever `roll_residual_fraction` uses, so the
+  deck gate and the closure report agree on what "small" means.
+  `test_the_lateral_half_of_the_deck_gate_has_teeth` measures the gain: one
+  reversed lateral `FORCE` card leaves `fy` 3.4 %, `mz` 3.1 % and `mx` 0.20 % out
+  while `fx`/`fz`/`my` stay at 1e-9…1e-8 — the old gate would have called that
+  deck balanced. Swept to the sibling free-free gate in the same change (required
+  practice 4): the body deck's `Σ = 0` claim now covers its other four
+  components, which are zero by construction on a planar flight-only deck and
+  will go red — deliberately — when the ground cases bring side and drag loads.
+
 - **The CONM2 mass model is now solved in CI — the fourth deck family, in both
   unit systems.** Plan 12's **C6** leg, open since 2026-08-08 and the reason the
   `GRAV` defect below could ship: the mass-check deck is handed to the real

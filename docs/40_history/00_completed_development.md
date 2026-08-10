@@ -10,6 +10,20 @@ Acceptance**, **Key decisions**.
 
 ---
 
+## Six-DOF deck closure gate (0.5.0 row — complete 2026-08-10, tier S)
+
+Closed review finding **F-G1**: `test_the_deck_balances_from_its_own_cards` now
+re-derives `fy`/`mx`/`mz` from the card text beside `fx`/`fz`/`my`, roll and yaw
+judged against the semi-span (the lever `roll_residual_fraction` uses).
+`test_the_lateral_half_of_the_deck_gate_has_teeth` calibrates the gain — one
+reversed lateral `FORCE` card puts `fy` 3.4 %, `mz` 3.1 % and `mx` 0.20 % out
+while the three DOF the gate already had stay at 1e-9…1e-8. Swept to the body
+deck's free-free gate in the same change (practice 4); those four are zero by
+construction on a planar flight-only deck and are meant to go red when the ground
+cases land.
+
+---
+
 ## SI mass-check `GRAV` fix + CONM2 round-trip CI leg (0.5.0 row 1 — complete 2026-08-10, tier M)
 
 Closed the 0.5.0 review's CRITICAL **C1** and MAJOR **F-G2** together, because

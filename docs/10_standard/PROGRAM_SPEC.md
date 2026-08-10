@@ -682,7 +682,7 @@ return strings (with thin `write_*` file wrappers), and do no physics.
   |---|---|---|
   | Wing cards | no (geometry is in the stick deck beside it) | Σ`FORCE`.Fz/Fx = SF × root `Sz`/`Sx`; Σ`MOMENT`.My = SF × root `Myy` |
   | Wing stick | yes (root node + one per station) | the above, plus Σ`FORCE` moment **+ applied `MOMENT` Mx/Mz** about *any* station = SF × that station's `Mxx`/`Mzz` (the offset couples make this hold at every node, not only the root) |
-  | Body | **yes** (one per station, `y = z = 0`) | Σ`FORCE`.Fz = 0 **and** its moment about the aft-most `GRID` = 0 (free-free, Ch 15 p103) |
+  | Body | **yes** (one per station, `y = z = 0`) | Σ`FORCE`.Fz = 0 **and** its moment about the aft-most `GRID` = 0 (free-free, Ch 15 p103). The other four components are gated at zero too (2026-08-10, review F-G1's sweep) — zero *by construction* on a planar flight-only deck, so a non-zero one is a card in a DOF this deck does not carry; the ground cases will restate the claim |
   | Tail | **yes** (one per chord station, `y = z = 0`; **separate GID block per component**) | Σ`FORCE`.Fz = SF × (`LT25`+`LT50`); the chordwise first moment matches the profile |
   | Control surface | **no, by design** | Σ`FORCE`.Fz = SF × the critical surface load. `ControlSurfaceStation.x` is a *fraction of chord* and the result carries no chord length, so the deck can carry no geometry; it says so in-band |
 

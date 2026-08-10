@@ -295,6 +295,19 @@ def test_the_deck_balances_from_its_own_cards(example, system):
     than the objects is what makes this meaningful: the in-memory case closed to
     1e-13 while the deck was out by 3.9-21.9 %, because distinct loads were
     collapsing onto shared nodes. Nothing but the card text would have shown it.
+
+    **All six DOF** (review finding F-G1, closed 2026-08-10). Until then this
+    read ``fx``/``fz``/``my`` only, while ``equilibrium.Resultant`` carried the
+    lateral three all along -- so the node-collapse failure mode this gate exists
+    for could hit a fin ``FORCE`` card or a reflected port-twin node and unbalance
+    ``fy``/``mx``/``mz`` with nothing looking. The lateral three are not
+    decoration on this deck: from B8a-3 every assembled deck carries eight
+    lateral cases, and the handed twins differ *only* in those components.
+
+    Levers, per axis: pitch against the MAC as before, roll and yaw against the
+    **semi-span** -- the same lever ``BalancedCaseResult.roll_residual_fraction``
+    judges the physics residual by, so the deck gate and the closure report agree
+    on what "small" means for a moment.
     """
     p = _project(example)
     cgs = {c.name: c for c in p.flight_loads.cg_cases}
@@ -308,11 +321,61 @@ def test_the_deck_balances_from_its_own_cards(example, system):
         got = resultant(forces, moments, grids, BALANCED_SID_BASE + i, ref)
         n_w = case.n_w * case.safety_factor * u.force.factor
         n_w_mac = n_w * case.mac * u.length.factor
+        n_w_span = n_w * case.semi_span * u.length.factor
+        assert n_w_span > 0.0, f"{example}: no semi-span to judge roll/yaw by"
         where = f"{example} {system.value} {case.label}"
         # 1e-5 is the %.6E card format accumulated over ~150 cards, not physics.
         assert abs(got.fx) < 1e-5 * n_w, f"{where} Fx"
+        assert abs(got.fy) < 1e-5 * n_w, f"{where} Fy"
         assert abs(got.fz) < 1e-5 * n_w, f"{where} Fz"
+        assert abs(got.mx) < 1e-5 * n_w_span, f"{where} Mx"
         assert abs(got.my) < 1e-5 * n_w_mac, f"{where} My"
+        assert abs(got.mz) < 1e-5 * n_w_span, f"{where} Mz"
+
+
+def test_the_lateral_half_of_the_deck_gate_has_teeth():
+    """**F-G1's teeth**: reverse one lateral ``FORCE`` card and only ``fy``/``mx``/
+    ``mz`` notice.
+
+    A widened gate that passes on the first run proves nothing, so this measures
+    what the three DOF it gained can see that the three it had could not. The
+    mutation is the review's own failure mode -- a lateral card of the fin family
+    with its ``y`` component reversed, which is what a sign error in the
+    span-to-waterline map or in the port-twin reflection produces.
+
+    Measured on ``ga6_normal``, as fractions of the gate's own scales: ``fy``
+    **3.4 %**, ``mz`` **3.1 %**, ``mx`` **0.20 %** -- against ``fx`` 9e-10,
+    ``fz`` 6e-9 and ``my`` 5e-8, all of them comfortably inside the 1e-5
+    tolerance. The old gate would have called this deck balanced.
+    """
+    p = _project("ga6_normal.project.json")
+    cases = build_balanced_cases(p)
+    index = next(i for i, c in enumerate(cases) if is_lateral(c))
+    sid = BALANCED_SID_BASE + index
+    case = cases[index]
+
+    lines, hit = [], False
+    for line in balanced_deck(p, cases=cases).splitlines():
+        f = line.split(",")
+        if not hit and line.startswith(f"FORCE, {sid},") and abs(float(f[6])) > 1e-9:
+            f[6], hit = f" {-float(f[6]):.6E}", True
+            line = ",".join(f)
+        lines.append(line)
+    assert hit, "no lateral FORCE card to reverse -- the deck format changed"
+
+    cg = {c.name: c for c in p.flight_loads.cg_cases}[case.cg]
+    grids, _, _, forces, moments = parse_cards("\n".join(lines) + "\n")
+    got = resultant(forces, moments, grids, sid, (cg.xcg, 0.0, cg.zcg))
+    n_w = case.n_w * case.safety_factor
+
+    # The three the gate always had: blind to it.
+    assert abs(got.fx) < 1e-5 * n_w
+    assert abs(got.fz) < 1e-5 * n_w
+    assert abs(got.my) < 1e-5 * n_w * case.mac
+    # The three it gained: each on its own, by a wide margin.
+    assert abs(got.fy) > 1e-2 * n_w, got.fy
+    assert abs(got.mx) > 1e-3 * n_w * case.semi_span, got.mx
+    assert abs(got.mz) > 1e-2 * n_w * case.semi_span, got.mz
 
 
 @pytest.mark.parametrize("example", _with_cases())
