@@ -98,6 +98,17 @@ _ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 #: adding a deck family.
 MATRIX = ("ga6_normal.project.json", "concept_regional_jet.project.json")
 
+#: The wing leg adds ``atr42_100`` -- the only fixture in the harness whose wing
+#: hangs **concentrated** masses (engines, nacelles, wing fuel), and therefore
+#: the only one whose deck carries the offset-couple ``MOMENT`` cards that
+#: restore their lever arms. Both MATRIX fixtures are mass-free, so before this
+#: the solver leg could not tell whether sbeam *honours* an ``Mx`` component or
+#: silently drops it -- and W-d, which compares element 1's end-B bending with
+#: the NETLOADS root ``Mxx``, is exactly the assertion that would catch it (it
+#: read 1.91 % high here until the couples existed). Wing-only: this fixture
+#: assembles no balanced case, so it has no business in the other legs.
+WING_MATRIX = MATRIX + ("atr42_100.project.json",)
+
 #: Varying the unit system is what makes a *solve* catch a
 #: ``moment.factor != force.factor x length.factor`` slip (plan 07's G2), which a
 #: force-only check is structurally blind to.
@@ -167,7 +178,7 @@ def _solved(text):
 # Wing -- the deck that is solvable exactly as exported
 # --------------------------------------------------------------------------- #
 @pytest.mark.roundtrip
-@pytest.mark.parametrize("example", MATRIX)
+@pytest.mark.parametrize("example", WING_MATRIX)
 @pytest.mark.parametrize("system", SYSTEMS)
 def test_wing_stick_deck_solves_and_recovers_the_root_loads(sbeam, example, system):
     """W-a...W-d: the wing stick model solves, and sbeam recovers the NETLOADS root.

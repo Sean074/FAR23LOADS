@@ -48,10 +48,40 @@ quantity** between adjacent stations::
 
 Because the cumulative columns telescope, ``sum(dFz) == sz[root]`` *exactly*, so
 the exported FORCE set sums to the NETLOADS root shear and the MOMENT(My) set to
-the root torsion by construction. With the WINGINER quadrature
-(``mxx[i] = mxx[i+1] + sz[i+1]*dy`` and ``y[i]-y[0] = i*dy``) the same increments
-reproduce the root bending exactly as ``sum(dFz * (y - y_root))`` -- the
-force/moment-closure guarantee the C4 acceptance test checks.
+the root torsion by construction.
+
+Concentrated masses: the offset couples
+---------------------------------------
+Differencing assumes the table was built by the lumped-at-nodes recursion
+``mxx[i] = mxx[i+1] + sz[i+1]*dy``, which is exactly how ``airloads`` and the
+panel part of ``wing_inertia`` build it. A **concentrated** wing mass (engine,
+gear, fuel, store) breaks that assumption: WINGINER adds it to every station
+inboard of it at its *true* station ``y_c`` (``mxx[i] += w*(y_c - ye[i])``,
+WINGINER.BAS 1180-1270), and ``y_c`` is not a station. Differencing then picks
+the mass up whole at the node inboard of it, moving its lever arm inboard by up
+to one strip width: shear still telescopes exactly, **bending does not**.
+
+The loss is recoverable from the published table alone. Define the per-station
+defect (:func:`_moment_defect`)::
+
+    delta[k] = mxx[k] - mxx[k+1] - sz[k+1]*(y[k+1] - y[k])
+
+which is identically zero wherever the recursion built the table, and equals
+``w*(y_c - y[j])`` at the single station ``j`` bracketing the mass -- precisely
+the first moment the differencing dropped. It is restored as an applied
+**offset couple** ``mx = delta[j]`` on that node's MOMENT card: a force ``w`` at
+``y_c`` is statically equivalent to that force at node ``j`` plus that couple, so
+nothing moves and the exported set reproduces the cumulative shear **and**
+bending at *every* node, not merely at the root. ``mzz`` (in-plane bending, from
+``fx``) carries the same defect and gets the same treatment.
+
+Measured: ``delta`` is non-zero at exactly one node on the three fixtures with
+concentrated masses (``atr42_100``, ``dhc8_dash8``, ``concept_heavy``) and
+machine-zero everywhere on the three without -- so this is a no-op on the
+Appendix A fixture, and the FORCE cards are unchanged for every wing. Before the
+couples existed the exported root bending read high by 1.91 % / 1.11 % / 0.44 %
+(``Mxx``) and 1.14 % / 0.67 % / 0.32 % (``Mzz``). Design note:
+``docs/30_future/14_concentrated_wing_mass_nodal_split_plan.md``.
 
 Torsion reference axis
 ----------------------
@@ -111,6 +141,7 @@ from ..report import ultimate_units
 from ..units import Channel, DeliverableUnits, UnitSystem, deliverable_units
 from .coordinates import (
     SBEAM_CID,
+    bending_moment_vector,
     tail_force_to_airplane,
     tail_station_to_airplane,
     tail_torsion_to_airplane,
@@ -204,6 +235,12 @@ def _sf_str(sf: float) -> str:
 # sbeam/results/load_export.py).
 _TOL = 1e-9
 
+# A concentrated-mass moment defect below this fraction of its own column's
+# scale is floating-point cancellation residue, not a mass. See
+# :func:`_moment_defect` -- it must be relative, and it cannot be ``_TOL``: the
+# residue reaches 8e-10 lb-in on the shipped fixtures, which straddles it.
+_DEFECT_REL_TOL = 1e-9
+
 # GRID id of the clamped wing-root node in the stick model; station nodes follow.
 _ROOT_GID = 1
 _STATION_GID_BASE = 1  # station i -> GID _STATION_GID_BASE + 1 + i (= 2, 3, ...)
@@ -229,7 +266,14 @@ class NodalLoad:
     surface LRA after ``net_loads.to_loads_ref_axis`` -- recovered as
     increments of the NETLOADS cumulative table. ``sz``/``mxx``/``myy`` are the
     cumulative shear / bending / torsion at the station, carried through for the
-    span-load CSV's engineering columns."""
+    span-load CSV's engineering columns.
+
+    ``mx``/``mz`` are the applied **offset couples** (lb-in) that restore the
+    first moment of a concentrated mass sitting between two stations -- zero at
+    every node of a wing that carries none. See the module docstring; they are
+    stored in the calc's own bending sign (positive-magnitude), and
+    :func:`~sloads.export.coordinates.bending_moment_vector` owns the mapping to
+    the card's CID-0 components."""
     gid: int
     x: float
     y: float
@@ -242,6 +286,52 @@ class NodalLoad:
     mxx: float
     myy: float
     mzz: float
+    mx: float = 0.0
+    mz: float = 0.0
+
+
+def _moment_defect(s: Sequence[WingStationLoad], mom: str, shear: str) -> List[float]:
+    """The per-station bending defect ``delta[k]`` of a cumulative column.
+
+    ``delta[k] = mom[k] - mom[k+1] - shear[k+1]*(y[k+1] - y[k])`` -- the amount
+    by which the published table departs from the lumped-at-nodes recursion the
+    differencing above assumes. Identically zero wherever the table was built by
+    that recursion (both ``airloads`` and ``wing_inertia`` are), and equal to
+    ``w*(y_c - y[k])`` at the one station bracketing a concentrated mass at
+    ``y_c``. See the module docstring for the derivation.
+
+    Node spacing is read per interval rather than taken as the uniform ``dy``
+    the calc happens to use, so a future non-uniform station set needs no change
+    here.
+
+    ``delta`` is a **difference of large nearly-cancelling numbers**, so its
+    floating-point noise floor is set by the magnitude of the column it came
+    from, not by any absolute value: residues of ~1e-9 lb-in appear against
+    columns of ~1e7. Anything below :data:`_DEFECT_REL_TOL` of the column's own
+    scale is therefore cancellation residue and is snapped to zero -- otherwise
+    a wing with no concentrated mass at all would emit that residue into its
+    MOMENT cards, replacing clean zeros with float noise (and, in SI, noise
+    multiplied by the moment factor). The threshold is relative for the same
+    reason the tolerance in ``equilibrium.closes`` is: an absolute one is a
+    different test on a 200-inch wing than on a 500-inch one, and a different
+    test again in N*mm. Measured separation is ~14 orders: residue sits at
+    ~1e-16 of the column, a real concentrated mass at ~1e-2.
+    """
+    h = len(s)
+    raw: List[float] = []
+    for k in range(h):
+        if k + 1 < h:
+            dy = s[k + 1].y - s[k].y
+            raw.append(getattr(s[k], mom) - getattr(s[k + 1], mom)
+                       - getattr(s[k + 1], shear) * dy)
+        else:
+            # No station outboard of the tip: whatever the table still carries
+            # here is a mass outboard of the last station, and the couple is
+            # exactly as valid there (nothing to transfer a force to, which is
+            # why an offset couple and not a force split -- design note 14 D-1).
+            raw.append(getattr(s[k], mom))
+    floor = _DEFECT_REL_TOL * max((abs(getattr(x, mom)) for x in s), default=0.0)
+    return [0.0 if abs(v) <= floor else v for v in raw]
 
 
 def wing_nodal_loads(result: WingLoadResult) -> List[NodalLoad]:
@@ -251,6 +341,15 @@ def wing_nodal_loads(result: WingLoadResult) -> List[NodalLoad]:
     shear/torsion to the next station outboard (the last/tip station keeps its
     full value), so the set sums back to the root totals exactly.
 
+    A concentrated wing mass does not sit on a station, so differencing alone
+    loses its lever arm (it is picked up whole at the node inboard of it). The
+    missing first moment is recovered here as an applied **offset couple**
+    ``mx``/``mz`` -- the exact static equivalent of the force at its true
+    station -- so the exported set reproduces the cumulative shear *and* bending
+    at every node, not just the root. ``mx``/``mz`` are zero at every node of a
+    wing with no concentrated masses, which is every fixture the printed oracle
+    covers.
+
     Forces/moments are returned as ULTIMATE loads (LIMIT x the case's
     ``safety_factor``); the scale is uniform within the case, which preserves the
     force/moment-closure guarantee (``sum(dFz) == safety_factor x root``).
@@ -258,6 +357,8 @@ def wing_nodal_loads(result: WingLoadResult) -> List[NodalLoad]:
     s: List[WingStationLoad] = result.stations
     sf = _sf(result)
     n = len(s)
+    d_mxx = _moment_defect(s, "mxx", "sz")
+    d_mzz = _moment_defect(s, "mzz", "sx")
     out: List[NodalLoad] = []
     for i in range(n):
         nxt = s[i + 1] if i + 1 < n else None
@@ -269,6 +370,7 @@ def wing_nodal_loads(result: WingLoadResult) -> List[NodalLoad]:
             fx=dfx, fz=dfz, my=dmy,
             sz=s[i].sz * sf, sx=s[i].sx * sf,
             mxx=s[i].mxx * sf, myy=s[i].myy * sf, mzz=s[i].mzz * sf,
+            mx=d_mxx[i] * sf, mz=d_mzz[i] * sf,
         ))
     return out
 
@@ -384,6 +486,8 @@ def _csv_fields(u: DeliverableUnits) -> List[str]:
         "Case", "GID", f"X ({ln})", f"Y ({ln})", f"Z ({ln})",
         # applied nodal load (== the FORCE/MOMENT cards)
         f"Fx ({fo})", f"Fz ({fo})", f"My ({mo})",
+        # concentrated-mass offset couples -- zero unless the node brackets one
+        f"Mx ({mo})", f"Mz ({mo})",
         # cumulative (engineering reference)
         f"Sx ({fo})", f"Sz ({fo})",
         f"Mxx ({mo})", f"Myy ({mo})", f"Mzz ({mo})",
@@ -409,7 +513,8 @@ def span_load_csv(arg: ResultsArg, header_comment: str = "", *,
     results = _as_results(arg)
     u = _units(system)
     fields = _csv_fields(u)
-    x_h, y_h, z_h, fx_h, fz_h, my_h, sx_h, sz_h, mxx_h, myy_h, mzz_h = fields[2:13]
+    (x_h, y_h, z_h, fx_h, fz_h, my_h, mx_h, mz_h,
+     sx_h, sz_h, mxx_h, myy_h, mzz_h) = fields[2:15]
     buf = _io.StringIO()
     writer = csv.DictWriter(buf, fieldnames=fields)
     writer.writeheader()
@@ -419,12 +524,14 @@ def span_load_csv(arg: ResultsArg, header_comment: str = "", *,
             gx, gy, gz = to_grid(nl.x, nl.y, nl.z, u)
             fx, _, fz = to_force(nl.fx, 0.0, nl.fz, u)
             _, my, _ = to_moment(0.0, nl.my, 0.0, u)
+            cmx, _, cmz = bending_moment_vector(nl.mx, nl.mz, u)
             sx, _, sz = to_force(nl.sx, 0.0, nl.sz, u)
             mxx, myy, mzz = to_moment(nl.mxx, nl.myy, nl.mzz, u)
             writer.writerow({
                 "Case": r.case, "GID": nl.gid,
                 x_h: f"{gx:.3f}", y_h: f"{gy:.3f}", z_h: f"{gz:.3f}",
                 fx_h: f"{fx:.1f}", fz_h: f"{fz:.1f}", my_h: f"{my:.0f}",
+                mx_h: f"{cmx:.0f}", mz_h: f"{cmz:.0f}",
                 sx_h: f"{sx:.1f}", sz_h: f"{sz:.1f}",
                 mxx_h: f"{mxx:.0f}", myy_h: f"{myy:.0f}", mzz_h: f"{mzz:.0f}",
                 "MyyAxis": r.torsion_axis,
@@ -459,13 +566,40 @@ def _force_moment_lines(loads: List[NodalLoad], sid: int,
                 f"FORCE, {sid}, {nl.gid}, {SBEAM_CID}, 1.0, "
                 f"{_fmt(fx)}, {_fmt(fy)}, {_fmt(fz)}"
             )
-        mx, my, mz = to_moment(0.0, nl.my, 0.0, u)
-        if abs(nl.my) > _TOL:
+        # Torsion about y, plus the concentrated-mass offset couples about x/z
+        # (zero unless this node brackets a concentrated mass). The bending pair
+        # goes through its own map because ``mzz`` is stored against the vector's
+        # sign -- coordinates.bending_moment_vector owns that.
+        bx, _, bz = bending_moment_vector(nl.mx, nl.mz, u)
+        _, my, _ = to_moment(0.0, nl.my, 0.0, u)
+        if max(abs(nl.my), abs(nl.mx), abs(nl.mz)) > _TOL:
             lines.append(
                 f"MOMENT, {sid}, {nl.gid}, {SBEAM_CID}, 1.0, "
-                f"{_fmt(mx)}, {_fmt(my)}, {_fmt(mz)}"
+                f"{_fmt(bx)}, {_fmt(my)}, {_fmt(bz)}"
             )
     return lines
+
+
+def _offset_couple_note(loads: List[NodalLoad]) -> List[str]:
+    """The ``$`` note naming the offset couples, or ``[]`` when there are none.
+
+    Emitted only when the wing actually carries a concentrated mass, so a deck
+    for a wing without one is byte-for-byte what it was before the couples
+    existed. The note states the consequence of dropping them, because a
+    consumer who takes the ``FORCE`` cards and discards the ``MOMENT`` set gets
+    the smeared (high) bending back -- design note 14 D-1's stated cost.
+    """
+    if not any(abs(nl.mx) > _TOL or abs(nl.mz) > _TOL for nl in loads):
+        return []
+    note = (
+        "MOMENT(Mx/Mz) also carries the offset couples of the concentrated "
+        "wing masses (engine/gear/fuel/store), which do not sit on a station: "
+        "each is the exact static equivalent of its force at its true spanwise "
+        "station, so this set reproduces the NETLOADS shear AND bending at "
+        "every node. Applying the FORCE cards without the MOMENT set overstates "
+        "root bending (the mass reverts to the node inboard of it)."
+    )
+    return [f"$ {ln}" for ln in textwrap.wrap(note, width=70)]
 
 
 def _case_card_block(r: WingLoadResult, sid: int, u: DeliverableUnits) -> List[str]:
@@ -484,7 +618,7 @@ def _case_card_block(r: WingLoadResult, sid: int, u: DeliverableUnits) -> List[s
         f"$ Torsion My/Myy about the {r.torsion_axis} (station X = that axis).",
         f"$ FORCE set sums to root Sz = {root_sz:.1f} {u.force.label}; "
         f"MOMENT(My) set sums to root torsion Myy = {root_myy:.1f} {u.moment.label}.",
-    ]
+    ] + _offset_couple_note(loads)
     lines += _force_moment_lines(loads, sid, u)
     return lines
 

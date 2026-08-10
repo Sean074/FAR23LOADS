@@ -40,7 +40,12 @@ import pytest  # noqa: E402
 
 from sloads import io  # noqa: E402
 from sloads.export import sbeam_bridge as sb  # noqa: E402
-from sloads.export.coordinates import to_force, to_grid, to_moment  # noqa: E402
+from sloads.export.coordinates import (  # noqa: E402
+    bending_moment_vector,
+    to_force,
+    to_grid,
+    to_moment,
+)
 from sloads.export.equilibrium import (  # noqa: E402
     closes,
     resultant,
@@ -163,55 +168,107 @@ def _has_concentrated_wing_mass(example: str) -> bool:
 @pytest.mark.parametrize("example", EXAMPLES)
 @pytest.mark.parametrize("system", _SYSTEMS)
 def test_wing_deck_bending_closure(example, system):
-    """The ``FORCE`` set's moment about the root station = SF x root ``Mxx``...
+    """The deck's moment about the root station = SF x root ``Mxx`` and ``Mzz``.
 
-    ...**except on a wing carrying concentrated masses**, where it does not, and
-    that is a defect this sweep found rather than a tolerance to widen.
+    Both bending channels, every fixture, no exception -- including the three
+    that hang concentrated masses on the wing (``atr42_100``, ``dhc8_dash8``,
+    ``concept_heavy``), which this assertion used to *exclude*.
 
-    WINGINER adds a concentrated wing mass to the cumulative bending at its true
-    spanwise station (``mxx[i] += w * (cw.y - ye[i])``, WINGINER.BAS 1180-1270).
-    The export recovers nodal loads as *increments of the cumulative shear*
-    (``dFz[i] = sz[i] - sz[i+1]``), so the point mass is picked up entirely at the
-    outermost station strictly inboard of it -- its lever arm moves inboard by up
-    to one strip width. Shear still closes exactly (the increments telescope);
-    bending does not. On ``atr42_100`` (two engine masses, 24.2 in strips) the
-    exported root bending is 1.91 % high; ``dhc8_dash8`` 1.11 %,
-    ``concept_heavy`` 0.44 %. Direction is consistent: always high, because the
-    mass always moves inboard.
+    A concentrated mass does not sit on a station, so recovering nodal loads by
+    differencing the cumulative shear picked it up whole at the node inboard of
+    it and moved its lever arm inboard by up to one strip width: root bending
+    read 1.91 / 1.11 / 0.44 % high in ``Mxx`` and 1.14 / 0.67 / 0.32 % high in
+    ``Mzz``. The export now emits the mass's **offset couple** on that node's
+    ``MOMENT`` card -- the exact static equivalent of its force at its true
+    station -- so the set closes here and, more strongly, at every node
+    (:func:`test_wing_deck_reproduces_the_station_table_at_every_node`).
 
-    Nothing shipped is wrong today for the fixtures the oracle covers (ga6 and
-    cessna_210 have no concentrated masses and close exactly), but a deck for a
-    twin sizes wing structure to a bending moment ~2 % above the NETLOADS value
-    the report prints beside it. The fix is an export-side change -- split each
-    concentrated mass between its bracketing station nodes -- and it is a physics
-    change to a deliverable, so it gets its own step and design note. Filed:
-    ``docs/30_future/00_backlog.md``, "Concentrated wing masses are smeared to
-    the nearest node in the exported bending".
+    ``Resultant.mx``/``.mz`` already carry the applied ``MOMENT`` set plus the
+    ``FORCE`` lever arms, which is exactly the sum a solver forms. ``Mzz`` maps
+    to ``-z`` and ``Mxx`` to ``+x``; that asymmetry is
+    ``coordinates.bending_moment_vector``'s, not restated here.
 
-    The negative branch is deliberately strict: when the fix lands, this test
-    fails and stops being an exception.
+    Design note: ``docs/30_future/14_concentrated_wing_mass_nodal_split_plan.md``.
     """
     wing, _, _, _, _, _ = _cached(example)
     _skip_if_empty(wing, example, "wing")
     u = _units(system)
     res = deck_resultants(sb.stick_model_bdf(wing, sid_base=1, system=system),
                           ref_first_loaded)
-    smeared = _has_concentrated_wing_mass(example)
     for idx, r in enumerate(wing):
         got = res[sb._sid(1, idx, r)]
-        want, _, _ = to_moment(r.stations[0].mxx * r.safety_factor, 0.0, 0.0, u)
-        where = f"{example} {system.value} wing {r.case} Mxx"
-        if smeared:
-            assert not closes(got.mx, want, scale=got.moment_scale), (
-                f"{where}: bending now closes on a concentrated-mass wing -- if "
-                "the export discretisation was fixed, delete this branch")
-            # ...and the gap is the smear, not something new: always high, and
-            # bounded by one strip width of the total exported shear.
-            dy = r.stations[1].y - r.stations[0].y
-            bound = abs(to_grid(dy, 0.0, 0.0, u)[0] * got.fz)
-            assert 0.0 < got.mx - want < bound, f"{where}: gap {got.mx - want}"
+        root, sf = r.stations[0], r.safety_factor
+        want_mx, _, want_mz = bending_moment_vector(root.mxx * sf, root.mzz * sf, u)
+        where = f"{example} {system.value} wing {r.case}"
+        assert closes(got.mx, want_mx, scale=got.moment_scale), f"{where} Mxx"
+        assert closes(got.mz, want_mz, scale=got.moment_scale), f"{where} Mzz"
+
+
+@pytest.mark.parametrize("example", EXAMPLES)
+@pytest.mark.parametrize("system", _SYSTEMS)
+def test_wing_deck_reproduces_the_station_table_at_every_node(example, system):
+    """Shear **and** bending match the NETLOADS table at *every* station, not
+    just the root -- the property the offset couples buy.
+
+    A force split between the bracketing nodes (the fix as originally filed)
+    would also close at the root, but only by moving load outboard, which
+    corrupts the shear at that node by 22 % on ``atr42_100``. This test is what
+    separates the two: it re-derives, from the deck's own text, the shear and
+    bending carried by everything outboard of each station and compares with
+    that station's published cumulative values. Design note 14 D-1.
+    """
+    wing, _, _, _, _, _ = _cached(example)
+    _skip_if_empty(wing, example, "wing")
+    u = _units(system)
+    text = sb.stick_model_bdf(wing, sid_base=1, system=system)
+    grids, _, _, forces, moments = parse_cards(text)
+    for idx, r in enumerate(wing):
+        sid = sb._sid(1, idx, r)
+        sf = r.safety_factor
+        gids = [sb.station_gid(i) for i in range(len(r.stations))]
+        for k, st in enumerate(r.stations):
+            keep = set(gids[k:])          # this station and everything outboard
+            ref = grids[gids[k]]
+            sub_f = {sid: [c for c in forces.get(sid, ()) if c[0] in keep]}
+            sub_m = {sid: [c for c in moments.get(sid, ()) if c[0] in keep]}
+            got = resultant(sub_f, sub_m, grids, sid, ref)
+            _, _, want_fz = to_force(0.0, 0.0, st.sz * sf, u)
+            want_mx, _, want_mz = bending_moment_vector(st.mxx * sf, st.mzz * sf, u)
+            where = f"{example} {system.value} wing {r.case} station {k}"
+            assert closes(got.fz, want_fz, scale=got.force_scale), f"{where} Sz"
+            assert closes(got.mx, want_mx, scale=got.moment_scale), f"{where} Mxx"
+            assert closes(got.mz, want_mz, scale=got.moment_scale), f"{where} Mzz"
+
+
+@pytest.mark.parametrize("example", EXAMPLES)
+def test_offset_couples_exist_only_where_a_concentrated_mass_does(example):
+    """The couples are non-zero at exactly the nodes bracketing a concentrated
+    mass, and identically zero on a wing that carries none.
+
+    This is the drift guard behind the claim that the fix is a **no-op** on the
+    Appendix A fixture: ``ga6_normal``, ``cessna_210`` and
+    ``concept_regional_jet`` must export not merely small couples but zero ones,
+    so their decks are byte-identical to what they were before the couples
+    existed. It also pins the converse -- if a fixture ever gains a wing point
+    mass, its couples appear and this test says so.
+    """
+    wing, _, _, _, _, _ = _cached(example)
+    _skip_if_empty(wing, example, "wing")
+    expected = _has_concentrated_wing_mass(example)
+    for r in wing:
+        loads = sb.wing_nodal_loads(r)
+        nodes = [i for i, nl in enumerate(loads)
+                 if abs(nl.mx) > 1e-6 or abs(nl.mz) > 1e-6]
+        where = f"{example} wing {r.case}"
+        if expected:
+            assert nodes, f"{where}: concentrated mass but no offset couple"
+            # One bracketing node per fixture -- all masses on the twins fall in
+            # the same strip; a second node would mean the station set moved.
+            assert len(nodes) == 1, f"{where}: couples at {nodes}, expected one"
         else:
-            assert closes(got.mx, want, scale=got.moment_scale), where
+            assert not nodes, (
+                f"{where}: offset couples at {nodes} on a wing with no "
+                "concentrated mass -- the correction is not a no-op here")
 
 
 @pytest.mark.parametrize("example", EXAMPLES)

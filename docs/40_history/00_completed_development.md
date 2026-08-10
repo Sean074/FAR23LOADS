@@ -10,6 +10,76 @@ Acceptance**, **Key decisions**.
 
 ---
 
+## Concentrated wing masses: offset couples in the exported deck (plan 14 — complete 2026-08-09, tier L)
+
+**Objective.** Stop the exported wing deck smearing a concentrated wing mass
+(engine, gear, fuel, store) to the nearest node, which made a twin's deck size
+wing structure to a root bending moment ~2 % above the NETLOADS value the report
+prints beside it. Design note
+[`../30_future/14_concentrated_wing_mass_nodal_split_plan.md`](../30_future/14_concentrated_wing_mass_nodal_split_plan.md),
+decision **D-1**.
+
+**Deliverables.**
+
+- **`sbeam_bridge._moment_defect`** — the per-station defect
+  `δ[k] = mxx[k] − mxx[k+1] − sz[k+1]·dy`. The key result of the design note is
+  that this is **recoverable from the published table alone**: it is identically
+  zero wherever the lumped-at-nodes recursion built the column (both `airloads`
+  and the panel part of `wing_inertia` do) and equals exactly `w·(y_c − y[j])` at
+  the one station bracketing a mass at `y_c`. So the fix needed **no new input,
+  no schema change and no access to `wing_mass.concentrated`** — and, being
+  export-side only, **no calc file was modified**.
+- **Offset couples on the `MOMENT` card** (`NodalLoad.mx`/`.mz`). A force at
+  `y_c` is statically equivalent to that force at node `j` plus the couple
+  `w·(y_c − y[j])`, so no load moves and the exported set reproduces the
+  cumulative shear **and** bending at *every* node. The alternative in the filed
+  item — splitting the force between bracketing nodes — closes only at the root
+  and corrupts that node's shear by **22 % on `atr42_100`**; measuring that is
+  what moved D-1.
+- **`coordinates.bending_moment_vector`** — single owner of the bending sign map
+  (`Mxx → +x`, `Mzz → −z`), so the asymmetry is not spelled out at the writer and
+  copied again at its gate (required practice 3).
+- **`Mzz` swept with `Mxx`** (required practice 4): the in-plane channel carried
+  the identical defect, unfiled and ungated.
+- **Span-load CSV** gains `Mx`/`Mz`, keeping its contract that the applied-load
+  columns *are* the exported cards; deck `$` header states the couples and the
+  consequence of discarding them.
+
+**Test / Acceptance.** 1295 passed, 21 skipped; `ruff` clean.
+
+| Gate | Target | Achieved |
+|---|---|---|
+| Root bending closure, **both channels, all six fixtures**, no exception | exact | `Mxx` was +1.91 / +1.11 / +0.44 %, `Mzz` +1.14 / +0.67 / +0.32 % → exact |
+| **Every station**, shear *and* bending, deck-derived | exact | passed — the gate that separates the couple from the force split |
+| Couples exist only where a concentrated mass does | zero elsewhere | exact zero on the three mass-free fixtures |
+| **Real solver** (`atr42_100` added to the round-trip wing leg) | W-d = NETLOADS root `Mxx` | passed, both unit systems — proves sbeam honours `Mx` |
+| No-op proof | BDF byte-identical | `ga6_normal`, `cessna_210`, `concept_regional_jet` unchanged; only their CSVs move (new columns) |
+| Mutation check | gates must bite | couples suppressed → 15 card-text + **2 real-solver** failures, mass-free fixtures still green |
+
+**Key decisions.**
+
+1. **An offset couple, not a force split (D-1).** Both preserve `ΣF` and close at
+   the root; only the couple is *exact*, because it is the rigid-offset transfer
+   rather than an approximation. It also handles a mass outboard of the last
+   station, which a split cannot (no node to transfer to). Stated cost: a
+   consumer who applies the `FORCE` cards and discards the `MOMENT` set gets the
+   old smeared bending back — said in the deck `$` header, not left to be found.
+2. **The zero threshold is relative, not absolute.** `δ` is a difference of large
+   nearly-cancelling numbers, so its noise floor scales with the column: residue
+   reached **8e-10 lb-in**, straddling the bridge's existing `_TOL = 1e-9`.
+   Emitting it unconditionally replaced clean `0.000000E+00` moment columns on
+   every mass-free deck with float noise. `_DEFECT_REL_TOL = 1e-9` of the
+   column's own scale gives ~14 orders of separation and is unit- and
+   size-independent.
+3. **Two findings recorded rather than silently absorbed.** `concept_heavy` has
+   no wing deck in the Imperial baseline at all (the baseline does not build the
+   envelope) — filed as its own backlog item, since it means one shipped wing
+   deck is digest-uncovered. And the round-trip matrix contained no
+   concentrated-mass wing, so the solver leg could not have caught this class at
+   all; `atr42_100` was added to close that.
+
+---
+
 ## The lateral (±β) empennage balanced cases (mission phase 4, step 8 — plan 13 B8a-3/B8a-4/B8a-5 — complete 2026-08-09, tier L)
 
 **Objective.** Assemble the vertical tail's own FAR 23.441/23.443 conditions as

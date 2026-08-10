@@ -522,7 +522,8 @@ return strings (with thin `write_*` file wrappers), and do no physics.
   `net_loads.loads_ref_axis_results`, Step M4-18) so the exported torsion is
   about the beam-model axis; bare-result callers transfer beforehand.
 - **Writes:** (1) a **span-load CSV** (one row per wing station per case: applied
-  nodal `Fx/Fz/My` + cumulative `Sx/Sz/Mxx/Myy/Mzz` + the in-band `MyyAxis`
+  nodal `Fx/Fz/My` + the `Mx/Mz` offset couples + cumulative `Sx/Sz/Mxx/Myy/Mzz`
+  + the in-band `MyyAxis`
   torsion-axis column + `SF`); (2) **FORCE/MOMENT**
   bulk-data cards, comma free-field unit-scale form (`FORCE, SID, GID, 0, 1.0,
   Fx, Fy, Fz`, components `%.6E`), one load set (SID) per case; (3) an optional
@@ -532,10 +533,21 @@ return strings (with thin `write_*` file wrappers), and do no physics.
   *increment of the cumulative* NETLOADS column to the next station outboard, so
   the FORCE set sums to the root shear and the MOMENT(My) set to the root torsion
   **exactly**; under the WINGINER quadrature (`y[i]-y[0] = i·dy`) the FORCE
-  moments about the root reproduce the root bending exactly — **except on a wing
-  carrying concentrated masses**, where the point mass lands entirely at the
-  outermost station inboard of it and the exported bending runs ~0.4–1.9 % high
-  (open item, filed on the backlog; shear is unaffected).
+  moments about the root reproduce the root bending exactly.
+- **Concentrated-mass offset couples (plan 14, 2026-08-09).** A concentrated wing
+  mass does not sit on a station, so differencing alone picks it up whole at the
+  node inboard of it and loses its lever arm (bending ran 0.4–1.9 % high;
+  in-plane `Mzz` 0.3–1.1 % high; shear was never affected). The lost first moment
+  is the per-station defect `δ[k] = mxx[k] − mxx[k+1] − sz[k+1]·dy` — zero
+  wherever the lumped-at-nodes recursion built the column, `w·(y_c − y[j])` at the
+  bracketing station — and is restored as an applied **couple on that node's
+  MOMENT card** (`Mx`, and `Mz` for the in-plane channel), the rigid-offset
+  static equivalent. The exported set therefore reproduces the cumulative shear
+  **and** bending at **every** node, not just the root, and the `FORCE` cards are
+  unchanged. The couples are exactly zero on a wing with no concentrated mass.
+  **Consumers must apply the `MOMENT` set**: taking the `FORCE` cards alone
+  restores the smeared (high) bending — stated in the deck `$` header. Sign map
+  (`Mxx → +x`, `Mzz → −z`) is owned by `coordinates.bending_moment_vector`.
 - **Balanced cases and the assembled deck (step B2–B7, 2026-08-08).**
   `modules/balance.py` assembles one full-span free-free case per wing condition
   (`PHAA`/`PLAA`/`PMAA`/`NMAA`/`TORS`, plus `ACRL`) that has both a V-n point and
@@ -629,7 +641,7 @@ return strings (with thin `write_*` file wrappers), and do no physics.
   | Deck | `GRID` cards | Stated closure, re-derivable from the deck's own text |
   |---|---|---|
   | Wing cards | no (geometry is in the stick deck beside it) | Σ`FORCE`.Fz/Fx = SF × root `Sz`/`Sx`; Σ`MOMENT`.My = SF × root `Myy` |
-  | Wing stick | yes (root node + one per station) | the above, plus Σ`FORCE` moment about the root station = SF × root `Mxx` |
+  | Wing stick | yes (root node + one per station) | the above, plus Σ`FORCE` moment **+ applied `MOMENT` Mx/Mz** about *any* station = SF × that station's `Mxx`/`Mzz` (the offset couples make this hold at every node, not only the root) |
   | Body | **yes** (one per station, `y = z = 0`) | Σ`FORCE`.Fz = 0 **and** its moment about the aft-most `GRID` = 0 (free-free, Ch 15 p103) |
   | Tail | **yes** (one per chord station, `y = z = 0`; **separate GID block per component**) | Σ`FORCE`.Fz = SF × (`LT25`+`LT50`); the chordwise first moment matches the profile |
   | Control surface | **no, by design** | Σ`FORCE`.Fz = SF × the critical surface load. `ControlSurfaceStation.x` is a *fraction of chord* and the result carries no chord length, so the deck can carry no geometry; it says so in-band |

@@ -90,6 +90,38 @@ def to_moment(mx: float, my: float, mz: float,
     return (mx * k, my * k, mz * k)
 
 
+def bending_moment_vector(mxx: float, mzz: float,
+                          units: DeliverableUnits = IMPERIAL) -> Vec3:
+    """Map a SLOADS spanwise **bending** pair to a CID-0 moment vector.
+
+    ``mxx`` (out-of-plane, from ``fz``) and ``mzz`` (in-plane, from ``fx``) are
+    beam bending moments, both stored by the calc as *positive-magnitude*
+    integrals of ``load x (y - y_ref)``. Against the right-handed ``r x F``
+    vector that a solver recovers from the cards, the two do **not** carry the
+    same sign:
+
+    * ``Mxx`` -> ``+x``.   ``(r x F)_x = dy*fz``, so the calc's sign is the
+      vector's.
+    * ``Mzz`` -> ``-z``.   ``(r x F)_z = -dy*fx``, so the calc's ``mzz`` is the
+      *negation* of the vector component.
+
+    Measured, not assumed: on ``ga6_normal`` the exported deck's resultant about
+    the root reproduces ``mxx`` at a ratio of ``+1.0000`` and ``mzz`` at
+    ``-1.0000`` on every case (both unit systems).
+
+    This asymmetry is a sign convention, so it lives here -- the single editable
+    point for the axis map -- rather than being spelled out at the card writer
+    and copied again at its gate (``CLAUDE.md`` required practice 3). Callers
+    needing an applied-couple card, or a moment gate, take it from this function.
+    """
+    k = _checked(units).moment.factor
+    # ``+ 0.0`` normalises IEEE negative zero: the negation turns a zero ``mzz``
+    # into ``-0.0``, which formats as ``-0.000000E+00`` and would rewrite the
+    # MOMENT card of every wing that carries no concentrated mass -- a byte
+    # change with no number behind it.
+    return (mxx * k, 0.0, -mzz * k + 0.0)
+
+
 def to_pressure(psi: float, units: DeliverableUnits = IMPERIAL) -> float:
     """Map a SLOADS load intensity (lb/in^2) to the deck's stress unit."""
     return psi * _checked(units).pressure.factor

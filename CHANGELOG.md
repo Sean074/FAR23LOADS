@@ -10,6 +10,58 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed
+
+- **Concentrated wing masses no longer smear to the nearest node in the
+  exported bending** ([plan 14](docs/30_future/14_concentrated_wing_mass_nodal_split_plan.md),
+  decision **D-1**). WINGINER adds an engine/gear/fuel/store mass to the
+  cumulative bending at its *true* spanwise station, but the sbeam export
+  recovers nodal loads by differencing the cumulative shear — so the mass was
+  picked up whole at the node inboard of it and its lever arm moved inboard by
+  up to one strip width. Shear telescoped exactly; **bending did not**. A deck
+  for a twin sized wing structure to a root bending moment ~2 % above the
+  NETLOADS value printed beside it.
+
+  The lost first moment turns out to be recoverable **from the published table
+  alone** — no new input, no schema change. The per-station defect
+  `δ[k] = mxx[k] − mxx[k+1] − sz[k+1]·dy` is identically zero wherever the
+  lumped-at-nodes recursion built the column (which is how both `airloads` and
+  the panel part of `wing_inertia` build it) and equals exactly `w·(y_c − y[j])`
+  at the one station bracketing the mass. It is restored as an applied **offset
+  couple** on that node's `MOMENT` card: a force at `y_c` is statically
+  equivalent to that force at node `j` plus that couple, so nothing moves and the
+  exported set now reproduces the cumulative shear **and** bending at *every*
+  node, not merely at the root.
+
+  Measured, root bending before → after: `atr42_100` +1.91 % → exact,
+  `dhc8_dash8` +1.11 % → exact, `concept_heavy` +0.44 % → exact. The **`Mzz`
+  in-plane channel carried the same defect, unfiled and ungated** (+1.14 /
+  +0.67 / +0.32 %) and is swept with it. `δ` is machine-zero on every wing
+  without concentrated masses, so the BDF decks of `ga6_normal`, `cessna_210`
+  and `concept_regional_jet` are **byte-identical** and no Appendix A oracle is
+  touched (no calc file changed).
+
+### Added
+
+- **`coordinates.bending_moment_vector`** — the single owner of the wing bending
+  sign map. `Mxx` maps to `+x` but `Mzz` maps to `−z` (the calc stores both as
+  positive-magnitude integrals, against a right-handed `r × F`); that asymmetry
+  now lives in one function instead of being spelled out at the card writer and
+  copied again at its gate.
+- **Wing deck gates**: bending closure now covers **both** channels on **all six**
+  fixtures with no exception (the old test asserted the *negation* on the three
+  affected ones); a new station-by-station gate asserts shear and bending at
+  *every* node, which is what separates the offset couple from the force split
+  originally proposed; and a guard pins that the couples exist at exactly the
+  nodes bracketing a concentrated mass and nowhere else.
+- **`atr42_100` joins the sbeam round-trip wing leg** (`WING_MATRIX`). The solver
+  matrix was `ga6_normal` + `concept_regional_jet`, both mass-free, so nothing
+  proved the real solver *honours* an `Mx` component rather than dropping it.
+  Assertion W-d — element 1's end-B bending against the NETLOADS root `Mxx` —
+  read 1.91 % high there until the couples existed.
+- **Span-load CSV** gains `Mx`/`Mz` columns, keeping its stated contract that the
+  applied-load columns *are* the exported `FORCE`/`MOMENT` cards.
+
 ### Changed
 
 - **A balanced case now closes in six degrees of freedom, with one rigid-body

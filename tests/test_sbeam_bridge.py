@@ -203,8 +203,11 @@ def test_span_load_csv_shape():
     # Every dimensional column states its unit and, if it is a load, its ULT
     # marker (M4-20 step 4). Before that the header was bare -- ``Fx``, ``My`` --
     # and a reader had to know the file was Imperial from somewhere else.
+    # Mx/Mz are the concentrated-mass offset couples -- part of the applied
+    # nodal load, hence beside Fx/Fz/My rather than with the cumulative columns.
     assert header == ["Case", "GID", "X (in)", "Y (in)", "Z (in)",
                       "Fx (lbs-ULT)", "Fz (lbs-ULT)", "My (lb-in-ULT)",
+                      "Mx (lb-in-ULT)", "Mz (lb-in-ULT)",
                       "Sx (lbs-ULT)", "Sz (lbs-ULT)", "Mxx (lb-in-ULT)",
                       "Myy (lb-in-ULT)", "Mzz (lb-in-ULT)", "MyyAxis", "SF"]
     assert len(lines) - 1 == sum(len(r.stations) for r in results)
@@ -245,8 +248,11 @@ def test_project_export_transfers_to_loads_ref_axis():
     x_te = interp_x(wing.trailing_edge, raw.y)
     x_lra = x_le + 0.40 * (x_te - x_le)
     expected = (raw.myy + raw.sz * (x_lra - raw.x)) * sf
+    # Look the column up by name -- a positional index silently follows the
+    # wrong column the next time one is added (it did, when Mx/Mz arrived).
+    myy_col = lines[0].split(",").index("Myy (lb-in-ULT)")
     row = lines[1].split(",")
-    assert math.isclose(float(row[11]), expected, rel_tol=1e-3, abs_tol=1.0)
+    assert math.isclose(float(row[myy_col]), expected, rel_tol=1e-3, abs_tol=1.0)
     # The BDF headers and stick-model beam axis carry the same label.
     assert "$ Torsion My/Myy about the LRA 40% chord" in sb.force_moment_cards(p)
     assert "$ Beam axis: the wing LRA 40% chord line." in sb.stick_model_bdf(p)
