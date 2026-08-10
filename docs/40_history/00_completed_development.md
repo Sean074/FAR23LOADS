@@ -10,6 +10,19 @@ Acceptance**, **Key decisions**.
 
 ---
 
+## Degenerate-profile raise (0.5.0 row 1 — complete 2026-08-10, tier S)
+
+Closed review finding **F-C4**: `_trapezoid_tributary_forces` — the one owner of
+both chordwise writers' arithmetic — raises when a profile integrates to zero
+under a non-zero case load, instead of scaling by 0.0 and emitting an empty load
+set under a header still claiming the applied sum. A zero case load keeps the
+zero set (nothing to contradict). Pinned by
+`tests/test_sbeam_bridge.py::test_degenerate_chordwise_profile_raises`, which
+covers both the all-zero and the cancelling-antisymmetric profile on the tail
+and control-surface paths.
+
+---
+
 ## Envelope single-owner sweep (0.5.0 row 1 — complete 2026-08-10, tier M)
 
 Closed review finding **F-C6**: the four surviving `project.envelope` bypasses

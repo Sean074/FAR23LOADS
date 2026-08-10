@@ -113,6 +113,19 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- **A degenerate chordwise profile raises instead of silently emitting an empty
+  load set.** Review finding **F-C4**. Both chordwise writers scale their
+  trapezoidal tributary set so it sums to the condition's own critical load;
+  when the profile integrated to zero the scale fell back to `0.0`, so the tail
+  or control-surface deck carried **no load at all** while its case header still
+  claimed the non-zero applied sum — a deck contradicting itself, against the
+  raise-loudly contract every neighbouring path in `sbeam_bridge` honors. The
+  shared owner `_trapezoid_tributary_forces` now raises, naming the component
+  or surface, its case, the profile integral and the load it cannot carry. A
+  zero case load is not contradictory and keeps its zero set.
+  `test_degenerate_chordwise_profile_raises` pins both writers, on the all-zero
+  profile and on the antisymmetric one that cancels to the same degeneracy.
+
 - **The `project.envelope` bypass class is closed, and it now has a drift guard.**
   Review finding **F-C6**, the sweep the `tail_span` `n = 1.0` defect (below) was
   the first-found instance of. One fact drives all of them:

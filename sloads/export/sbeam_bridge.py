@@ -1088,18 +1088,24 @@ def _tail_results(arg: "Union[Project, TailChordResult, Sequence[TailChordResult
     return results
 
 
-def _trapezoid_tributary_forces(stations, total: float) -> List[float]:
+def _trapezoid_tributary_forces(stations, total: float, what: str) -> List[float]:
     """Nodal forces from a chordwise pressure profile, rescaled to sum to ``total``.
 
     Both chordwise writers (tail and control surface) build their load set the
     same way: trapezoidal tributary width per station x that station's pressure,
     then one scale factor so the set carries the condition's own critical load
-    exactly. The two had the arithmetic written out twice, verbatim (review m6);
-    a profile whose stations integrate to zero returns an all-zero set here, in
-    one place, which is what backlog row 3 turns into a raise.
+    exactly. The two had the arithmetic written out twice, verbatim (review m6).
+
+    A profile whose tributary-weighted pressures integrate to zero cannot be
+    scaled to a non-zero ``total``: it **raises** (review F-C4). The former
+    ``scale = 0.0`` fallback emitted an all-zero load set under a case header
+    that still claimed the non-zero applied sum -- an internally contradictory
+    deck, against the raise-loudly contract every neighbouring path here honors.
+    A zero ``total`` with a degenerate profile is not contradictory and keeps
+    the zero set.
 
     ``stations`` must be sorted by ``x``; the caller owns the safety factor, so
-    ``total`` arrives ULTIMATE.
+    ``total`` arrives ULTIMATE. ``what`` names the case/component in the error.
     """
     xs = [s.x for s in stations]
     n = len(xs)
@@ -1107,7 +1113,16 @@ def _trapezoid_tributary_forces(stations, total: float) -> List[float]:
                - (xs[i - 1] if i > 0 else xs[i])) / 2.0 for i in range(n)]
     raw = [s.psi * w for s, w in zip(stations, widths)]
     total_raw = sum(raw)
-    scale = (total / total_raw) if abs(total_raw) > _TOL else 0.0
+    if abs(total_raw) <= _TOL:
+        if abs(total) > _TOL:
+            raise ValueError(
+                f"{what}: the chordwise profile integrates to zero "
+                f"({total_raw:.3e} lb over {n} station(s)), so it cannot carry "
+                f"the condition's {total:.4g} lb (ULT) applied load -- no "
+                f"scaling of this profile reproduces the case total"
+            )
+        return [0.0] * n
+    scale = total / total_raw
     return [v * scale for v in raw]
 
 
@@ -1115,7 +1130,9 @@ def _tail_nodal_forces(r: TailChordResult) -> List[float]:
     """Per-station vertical forces (lb) from the chordwise pressures, scaled so the
     set sums to the total tail load ``LT25 + LT50`` (trapezoidal chord tributaries)."""
     stations = sorted(r.stations, key=lambda s: s.x)
-    return _trapezoid_tributary_forces(stations, (r.lt25 + r.lt50) * _sf(r))
+    return _trapezoid_tributary_forces(
+        stations, (r.lt25 + r.lt50) * _sf(r),
+        f"tail chordwise export: {r.component} case {r.case}")
 
 
 def tail_chordwise_csv(arg, header_comment: str = "", *,
@@ -1465,7 +1482,9 @@ def _control_nodal_forces(r: ControlSurfaceLoadResult) -> List[float]:
     """Per-station forces (lb) from the simplified pressures, scaled so the set sums
     to the critical surface load (trapezoidal chord tributaries)."""
     stations = sorted(r.stations, key=lambda s: s.x)
-    return _trapezoid_tributary_forces(stations, r.load_lb * _sf(r))
+    return _trapezoid_tributary_forces(
+        stations, r.load_lb * _sf(r),
+        f"control-surface export: {r.surface} case {r.case}")
 
 
 def control_surface_csv(arg, header_comment: str = "", *,

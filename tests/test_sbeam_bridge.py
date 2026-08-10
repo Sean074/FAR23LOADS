@@ -285,6 +285,53 @@ def _control_results():
     return build_aileron(p) + build_flap(p) + build_tabs(p)
 
 
+def test_degenerate_chordwise_profile_raises():
+    """A profile integrating to zero under a non-zero case load raises (review F-C4).
+
+    The former ``scale = 0.0`` fallback emitted an empty load set while the case
+    header still claimed the applied total -- a deck contradicting itself. Both
+    chordwise writers share one owner (``_trapezoid_tributary_forces``), so both
+    are pinned here; a zero case load keeps the (consistent) zero set.
+    """
+    from sloads.models.results import (ControlSurfaceLoadResult,
+                                       ControlSurfaceStation, TailChordResult,
+                                       TailChordStation)
+
+    flat = [TailChordStation(x=x, psi=0.0) for x in (0.0, 10.0, 20.0)]
+    tail = TailChordResult(case="X", component="htail", lt25=300.0, lt50=-100.0,
+                           stations=flat, safety_factor=1.0)
+    try:
+        sb._tail_nodal_forces(tail)
+        raise AssertionError("degenerate tail profile did not raise")
+    except ValueError as exc:
+        assert "integrates to zero" in str(exc) and "htail" in str(exc)
+
+    # Antisymmetric pressures cancel to the same degeneracy, not just all-zero.
+    tail.stations = [TailChordStation(x=0.0, psi=1.0),
+                     TailChordStation(x=10.0, psi=0.0),
+                     TailChordStation(x=20.0, psi=-1.0)]
+    try:
+        sb._tail_nodal_forces(tail)
+        raise AssertionError("cancelling tail profile did not raise")
+    except ValueError as exc:
+        assert "integrates to zero" in str(exc)
+
+    tail.lt25, tail.lt50 = 0.0, 0.0        # no claim to contradict -> zero set stands
+    assert sb._tail_nodal_forces(tail) == [0.0, 0.0, 0.0]
+
+    cs = ControlSurfaceLoadResult(
+        surface="aileron", case="down aileron", load_lb=250.0, safety_factor=1.0,
+        stations=[ControlSurfaceStation(x=x, psi=0.0) for x in (0.0, 0.5, 1.0)])
+    try:
+        sb._control_nodal_forces(cs)
+        raise AssertionError("degenerate control-surface profile did not raise")
+    except ValueError as exc:
+        assert "integrates to zero" in str(exc) and "aileron" in str(exc)
+
+    cs.load_lb = 0.0
+    assert sb._control_nodal_forces(cs) == [0.0, 0.0, 0.0]
+
+
 def test_control_surface_force_closure():
     """Each control-surface FORCE set's applied Fz sums to the critical load."""
     results = _control_results()
