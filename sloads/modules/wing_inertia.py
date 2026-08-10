@@ -90,10 +90,19 @@ def _root_density(dA, ye, c, dy, ytip, wm: WingMassInput, ii: int):
     """Iterate the root area density until the panel mass equals the entered weight.
 
     Mirrors WINGINER.BAS lines 730-880 (a partial first-strip correction at the
-    inboard rib, ±1% tolerance, 1e-5 density steps)."""
+    inboard rib, ±1% tolerance, 1e-5 density steps).
+
+    A **non-positive target** short-circuits to an empty panel. The iteration has
+    no fixed point there -- its ±1% band is empty at zero, so it walks the density
+    down past zero and returns *negative* strip masses (-0.108 lb on ``ga6_normal``
+    with the panel weight cleared), which is not a lighter wing but a sign-flipped
+    one. Reported with review F-C5, whose partition gate in :mod:`sloads.modules.balance`
+    is what turns an empty panel into an error where it is one."""
     dr = wm.tip_root_density_ratio
     rsta = wm.inboard_rib_y
     target = wm.panel_weight_lb
+    if target <= 0.0:
+        return [0.0] * len(ye), 0.0
     span_out = ytip - rsta
     densr = 0.02
     w = [0.0] * len(ye)

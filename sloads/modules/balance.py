@@ -367,12 +367,29 @@ def _wing_inertia_scale(loading: CaseLoading, project: Project,
     Decision B-2: the items are the mass SSOT, and WINGINER supplies the *shape*.
     Where the two models already agree the factor is exactly 1.0 (``ga6_normal``
     330 = 2 x 165); where they do not it is what stops the disagreement becoming
-    a load. Returns 0.0 for a wing with no modelled panel, which is a caller
-    error rather than a silent zero -- :func:`assemble` notes it.
+    a load.
+
+    **The partition gate (review F-C5).** WING-tagged items are excluded from
+    :func:`body_inertia` precisely because the wing set carries them, so a wing
+    set scaled to zero would delete their whole weight from the model and let
+    the closure absorb it silently. When the loading has WING items and WINGINER
+    integrates no panel at all there is no spanwise shape to put them on, and
+    that is an inconsistent input rather than a load case: it raises. Only a
+    loading with **no** WING item mass scales to 0.0, and then nothing is lost
+    -- :func:`assemble` notes that case.
     """
     wing_items = sum(it.weight_lb for it in loading.items
                      if component_of(it, project) == MassComponent.WING)
-    return wing_items / panel_both_sides if panel_both_sides else 0.0
+    if panel_both_sides <= 0.0:
+        if wing_items:
+            raise MissingInputError(
+                f"the loading carries {wing_items:.0f} lb of WING-tagged items but "
+                "the wing mass model integrates no panel mass "
+                "(wing_mass.panel_weight_lb = 0): there is no spanwise shape to "
+                "distribute them over. Enter a panel weight, or retag the items "
+                "onto a component the fuselage beam carries")
+        return 0.0
+    return wing_items / panel_both_sides
 
 
 def body_inertia(loading: CaseLoading, project: Project,
@@ -706,7 +723,8 @@ def assemble(project: Project, condition: str, vn: VnPoint,
     wing_r, panel_both, cm_free = wing_sets(project, vn, condition)
     scale = _wing_inertia_scale(loading, project, panel_both)
     if scale == 0.0:
-        notes.append("wing panel mass is zero -- wing inertia not modelled")
+        notes.append("the loading carries no WING-tagged item mass -- "
+                     "wing inertia not modelled")
     elif abs(scale - 1.0) > 1e-6:
         notes.append(
             f"wing inertia scaled x{scale:.4f} onto the loading's WING items "

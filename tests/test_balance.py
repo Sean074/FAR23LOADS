@@ -44,7 +44,8 @@ import pytest  # noqa: E402
 
 from sloads import io  # noqa: E402
 from sloads.constants import LBIN2_PER_SLUGFT2  # noqa: E402
-from sloads.models import BalancedLoad, MissingInputError  # noqa: E402
+from sloads import mass_distribution as md  # noqa: E402
+from sloads.models import BalancedLoad, MassComponent, MissingInputError  # noqa: E402
 from sloads.modules import one_engine_out  # noqa: E402
 from sloads.rigid_body import InertiaTensor, radians_per_s2  # noqa: E402
 from sloads.export.balanced_deck import (  # noqa: E402
@@ -261,6 +262,50 @@ def test_the_inertia_set_weighs_the_case(example):
                        if ld.source in ("wing-inertia", "body-inertia"))
         assert modelled == pytest.approx(case.weight_lb, rel=1e-9), \
             f"{example} {case.label}"
+
+
+def test_wing_items_with_no_panel_model_raise_rather_than_vanish():
+    """The B-2 partition's edge-case gate (review **F-C5**).
+
+    ``panel_weight_lb = 0`` makes WINGINER integrate no panel, so the wing
+    inertia scale has nothing to scale onto -- while ``assembly_distributes_mass``
+    goes on excluding the same WING items from ``body_inertia`` because the wing
+    set is meant to carry them. The whole WING item weight used to leave the
+    model there, absorbed silently by the closure. No shipped fixture reaches it,
+    which is why it needs its own case: ``ga6_normal``'s 330 lb of wing items
+    against an emptied panel model.
+    """
+    p = _project("ga6_normal.project.json")
+    wing = sum(it.weight_lb for it in p.weight.items
+               if md.component_of(it, p) is MassComponent.WING)
+    assert wing, "fixture must carry WING-tagged item mass for this to gate"
+
+    p.wing_mass = replace(p.wing_mass, panel_weight_lb=0.0)
+    with pytest.raises(MissingInputError) as exc:
+        build_balanced_cases(p)
+    assert f"{wing:.0f} lb" in str(exc.value)
+
+
+def test_no_wing_items_and_no_panel_still_weighs_the_case():
+    """The other half of the gate: nothing to spread is not an error.
+
+    With the WING tag off the items, the fuselage beam carries them, the wing
+    inertia scale is legitimately 0.0 and no mass is lost -- so this must build,
+    and the partition must still weigh the whole case.
+    """
+    p = _project("ga6_normal.project.json")
+    p.weight.items = [replace(it, component=MassComponent.FUSELAGE)
+                      if md.component_of(it, p) is MassComponent.WING else it
+                      for it in p.weight.items]
+    p.wing_mass = replace(p.wing_mass, panel_weight_lb=0.0)
+
+    cases = build_balanced_cases(p)
+    assert cases
+    for case in cases:
+        modelled = sum(ld.weight_lb for ld in case.loads
+                       if ld.source in ("wing-inertia", "body-inertia"))
+        assert modelled == pytest.approx(case.weight_lb, rel=1e-9), case.label
+        assert not [ld for ld in case.loads if ld.source == "wing-inertia"]
 
 
 # --------------------------------------------------------------------------- #

@@ -265,7 +265,7 @@ approved-corrections register [`../20_theory/02_approved_corrections.md`](../20_
 - **Reads:** the **`Project.wing_mass`** input slice (`WingMassInput`): outboard panel weight, tip/root area-density ratio, inboard rib butt line, wing-reference-plane waterline + dihedral (**`wrp_waterline`/`dihedral_deg` are derived from the parametric wing on `Project.geometry`, Step M2-6 — not stored, GUI read-only**), concentrated wing masses, and the critical `WingLoadCase` list. The per-case `Nz`/`Nx` come straight from the FLTLOADS `envelope.vn` point (`Nz = −NZ`, `Nx = −DX/W`) when not given explicitly; plus `Project.geometry.<surface>`.
 - **Writes:** the spanwise wing inertia distribution per case → **`Project.loads.wing_inertia`** (one `WingLoadResult` of `WingStationLoad` each). Pure entry `wing_inertia.build_wing_inertia(project)`.
 - **Validation:** Appendix A "Wing Inertia Loads" p217-221 — root/tip density 2.213/2.102 lb/ft²; unit vertical/drag/roll and the combined case 138 (Nz −2.54 Nx −0.1318: root Mxx −41041, Myy +11161).
-- **Notes:** The panel mass is a linearly-tapered area density iterated to the entered panel weight; strips inboard of the rib carry no panel mass; concentrated weights add spanwise steps to the shears/moments. Subtracted from the air load in NETLOADS.
+- **Notes:** The panel mass is a linearly-tapered area density iterated to the entered panel weight; strips inboard of the rib carry no panel mass; concentrated weights add spanwise steps to the shears/moments. Subtracted from the air load in NETLOADS. **A non-positive panel weight short-circuits to an empty panel** (review F-C5, 2026-08-10): the BASIC iteration's ±1% acceptance band is empty at zero, so it walked the density down *through* zero and returned negative strip masses — a sign-flipped wing, not a lighter one (−0.108 lb integrated on `ga6_normal` with the weight cleared).
 
 ### NETLOADS — Net wing loads
 - **FAR §:** 23.301(b) (net = air + inertia in equilibrium).
@@ -559,6 +559,12 @@ return strings (with thin `write_*` file wrappers), and do no physics.
   support whose reaction *is* the residual; SUBCASE/SID `5001+`. **No free-body
   cut reaction appears** (the seam rule). The residual before closure and the
   relief applied are stated on the result, in the UI and in the deck header.
+  **The B-2 partition has an edge-case gate** (review F-C5, 2026-08-10): WING-tagged
+  items are kept out of the fuselage inertia set precisely because the wing set
+  spreads them, so a loading carrying WING item mass against a wing that
+  integrates **no** panel raises rather than scaling the wing inertia to zero and
+  letting the closure absorb the missing weight in silence. A loading with no WING
+  item mass scales legitimately to zero and says so in its case notes.
 - **Antisymmetric (rolling) cases and handedness (step B7, 2026-08-08).** A wing
   condition carrying an unbalanced rolling moment (`WingLoadCase.unbal_moment`,
   FAR 23.349 — `ACRL` only; `TORS` enters zero on every fixture because a steady

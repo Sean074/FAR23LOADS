@@ -77,6 +77,22 @@ def test_combined_torsion_case_matches_appendix_a():
     assert _close(root.mzz, -2130)
 
 
+def test_an_empty_panel_weight_gives_an_empty_panel():
+    """No panel weight entered -> no panel mass, never a negative one (F-C5).
+
+    The BASIC density iteration has no fixed point at a zero target -- its +/-1%
+    acceptance band is empty there -- so it walked the area density down through
+    zero and returned *negative* strip masses (-0.108 lb integrated on this
+    fixture): a sign-flipped wing, which then scaled into the balanced case as a
+    sign-flipped inertia set. Zero in, zero out.
+    """
+    from dataclasses import replace
+    geom, wm, _ = _units()
+    u = inertia_units(geom, replace(wm, panel_weight_lb=0.0))
+    assert u.w == [0.0] * len(u.w)
+    assert u.density_root == 0.0 and u.density_tip == 0.0
+
+
 def test_inboard_strips_carry_no_panel_mass():
     # Strips inboard of the rib (BL 23) have zero panel weight (WINGINER.BAS 770).
     geom, wm, u = _units()

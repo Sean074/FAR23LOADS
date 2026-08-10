@@ -113,6 +113,31 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- **WING-tagged item mass can no longer vanish from the balanced model, and an
+  empty panel weight no longer builds a sign-flipped wing.** Review finding
+  **F-C5**. The two halves of the same degeneracy:
+
+  - `balance._wing_inertia_scale` returned `0.0` whenever WINGINER integrated no
+    panel, zeroing every wing-inertia load — while `assembly_distributes_mass`
+    went on excluding those same WING items from `body_inertia`, because the wing
+    set is what is supposed to carry them. The whole WING item weight left the
+    model and the six-DOF closure absorbed it silently, under a case note that
+    blamed the panel. It now **raises**, naming the orphaned item weight and both
+    ways out (enter a panel weight, or retag the items onto the fuselage beam);
+    only a loading with no WING item mass scales to zero, and its note says that
+    instead of misattributing the cause. No shipped fixture reaches it, which is
+    why `test_wing_items_with_no_panel_model_raise_rather_than_vanish` builds the
+    case explicitly, with the no-WING-items half beside it.
+  - Found while gating it: `panel_weight_lb = 0` never produced the zero panel
+    the finding assumed. The BASIC density iteration's ±1 % acceptance band is
+    empty at a zero target, so it walked the area density down *through* zero and
+    returned **negative** strip masses — −0.108 lb integrated on `ga6_normal`,
+    which the scale then turned into a ×−3045 sign-flipped inertia set that still
+    summed to the right weight and so passed every existing mass gate.
+    `wing_inertia._root_density` short-circuits a non-positive target to an empty
+    panel (`test_an_empty_panel_weight_gives_an_empty_panel`), which is also what
+    lets the partition gate above fire on the input that actually reaches it.
+
 - **A degenerate chordwise profile raises instead of silently emitting an empty
   load set.** Review finding **F-C4**. Both chordwise writers scale their
   trapezoidal tributary set so it sums to the condition's own critical load;

@@ -10,6 +10,39 @@ Acceptance**, **Key decisions**.
 
 ---
 
+## WING-item mass partition guard (0.5.0 row 1 — complete 2026-08-10, tier M)
+
+**Objective.** Close review finding **F-C5**: WING-tagged item mass could leave
+the balanced model entirely when WINGINER integrated no wing panel.
+
+**Deliverables.** `balance._wing_inertia_scale` raises `MissingInputError` when
+the loading carries WING item mass against a non-positive panel, naming the
+orphaned weight and both remedies; only a loading with no WING item mass scales
+to 0.0, and `assemble`'s note now states *that* cause instead of blaming the
+panel. `wing_inertia._root_density` short-circuits a non-positive target to an
+empty panel. `PROGRAM_SPEC.md` states both (WINGINER notes; the balanced-cases
+bullet).
+
+**Test / Acceptance.**
+`test_wing_items_with_no_panel_model_raise_rather_than_vanish` (ga6's 330 lb of
+wing items against an emptied panel) with
+`test_no_wing_items_and_no_panel_still_weighs_the_case` as its other half, and
+`test_an_empty_panel_weight_gives_an_empty_panel` on the density iteration.
+
+**Key decisions.** *Raise, not lump* (user, 2026-08-10): the input is
+inconsistent rather than a load case, and `wing_mass_tie` already reports it —
+lumping the items at their own stations would also have to move the L-3
+self-inertia predicate to keep the point set and the free-moment set together.
+*Fix the density iteration at source*: `panel_weight_lb = 0` never produced the
+zero panel the finding assumed — the ±1 % band is empty at a zero target, so the
+iteration returned **negative** strip masses (−0.108 lb on `ga6_normal`) and the
+scale turned them into a ×−3045 sign-flipped inertia set that still weighed the
+case, passing every existing mass gate. Practice 4 (generalize on first find):
+the guard is worthless without it, since the raise would never have fired on the
+input that actually reaches it.
+
+---
+
 ## Degenerate-profile raise (0.5.0 row 1 — complete 2026-08-10, tier S)
 
 Closed review finding **F-C4**: `_trapezoid_tributary_forces` — the one owner of
