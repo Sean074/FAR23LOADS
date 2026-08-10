@@ -71,8 +71,7 @@ from ..models import (
 from ..derived_geometry import CarryThrough, carry_through, sync_geometry_derived
 from ..mass_distribution import fuselage_beam_stations
 from ..registry import register
-from .flight_envelope import build_envelope
-from .select import _stamp_case_refs, select_fuselage
+from .select import _stamp_case_refs, default_envelope, select_fuselage
 
 MODULE_NAME = "body_loads"
 
@@ -242,7 +241,14 @@ def build_body_loads(project: Project) -> List[BodyLoadResult]:
     beam = fuselage_beam_stations(project)
     if not beam or fl is None:
         raise MissingInputError("body_loads needs 'fuselage_mass' stations and 'flight_loads'")
-    vn: Dict[int, VnPoint] = {p.case: p for p in build_envelope(project).vn}
+    # Through the single owner (``select.default_envelope``), not a fresh
+    # ``build_envelope``: a project that carries a persisted envelope had its
+    # conditions taken from that one by ``_critical_fuselage``, so integrating them
+    # against a *rebuilt* V-n matrix could pair a condition with an ``nz``/``lt``
+    # from a different envelope than the one that selected it (review F-C6). The
+    # raising read, not the tolerant one: a body deck with no V-n matrix behind it
+    # is an input error, not a deck with no cases.
+    vn: Dict[int, VnPoint] = {p.case: p for p in default_envelope(project).vn}
     stations = [(s.x, s.weight_lb) for s in beam]
     wing_x = fl.xw
     tail_x = _tail_station(project, max(s.x for s in beam))

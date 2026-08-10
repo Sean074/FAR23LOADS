@@ -10,6 +10,26 @@ Acceptance**, **Key decisions**.
 
 ---
 
+## Envelope single-owner sweep (0.5.0 row 1 — complete 2026-08-10, tier M)
+
+Closed review finding **F-C6**: the four surviving `project.envelope` bypasses
+(`net_loads._air_cl_v`, `wing_inertia` ×2, `body_loads`, `balance`) now go through
+`select.default_envelope` / the new `default_critical` / `vn_points` / `vn_by_case`
+— `registry.run_all_modules` never assigns `Project.envelope`, so headless the
+derived wing-case route yielded no cases, wing `CaseRef`s named no CG or altitude,
+`body_loads` integrated persisted conditions against a rebuilt V-n matrix, and
+`balance` accepted a persisted envelope with an empty `vn` and dropped every case.
+`tail_span`/`taildist` delegate to the owners too, and the two wing modules share
+one `wing_case_sources(project)` resolved per build. Guard:
+`tests/test_envelope_owner.py` — an AST scan of `sloads/` for direct reads
+(allowlist entries each state their reason) plus a behaviour gate per site, six of
+which fail against the pre-fix code. Imperial output moves in one place, metadata
+only (`atr42_100`'s wing case index/`$ SUBCASE` line now state SELECT's CG, speed,
+altitude and FAR reference, as they always did with a persisted envelope); no load
+number changes anywhere.
+
+---
+
 ## GID/EID/SID band registry + exhaustive disjointness (0.5.0 row 1 — complete 2026-08-10, tier M)
 
 **Objective.** Close review **F-C1** (the balanced deck's `4001+` nodes collided

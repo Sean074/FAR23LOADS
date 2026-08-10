@@ -630,8 +630,9 @@ return strings (with thin `write_*` file wrappers), and do no physics.
   lateral term relieves the surface total by exactly `W_vt/W_case` and inherits
   decision L-7's over-statement caveat — both stated in-band. A condition naming
   no V-n point gets no lateral term. Load factors are resolved through
-  `select.default_envelope`, the single owner; reading `project.envelope`
-  directly made every *exported* deck take the `n = 1.0` fallback.
+  `select.vn_points`, the single owner's tolerant read; reading
+  `project.envelope` directly made every *exported* deck take the `n = 1.0`
+  fallback (see the envelope-owner rule below).
   Mass is entered **only** on the Weights page's `component` column — the Tail
   Span Loads page shows the derived weight read-only and owns no mass input.
 - **CONM2 mass export (step C1–C5, 2026-08-08).** `sloads/export/mass_cards.py`

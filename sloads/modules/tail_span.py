@@ -115,7 +115,7 @@ from ..models import (
 )
 from ..registry import register
 from ..tail_geometry import HTAIL, VTAIL, TailPlanform, resolve_tail_planform
-from .select import build_critical, default_envelope
+from .select import default_critical, vn_points
 
 MODULE_NAME = "tail_span"
 
@@ -286,32 +286,28 @@ def free_torsion_total(planform: TailPlanform, lt25: float, lt50: float, *,
 # Case assembly
 # --------------------------------------------------------------------------- #
 def _critical_set(project: Project) -> CriticalLoadSet:
-    if project.envelope is not None and project.envelope.critical is not None:
-        return project.envelope.critical
-    return build_critical(project)
+    return default_critical(project)
 
 
 def _vn_points(project: Project) -> List["VnPoint"]:
     """The V-n matrix to read load factors from -- through the **single owner**.
 
-    ``select.default_envelope`` is that owner (M2R-8): the persisted
+    ``select.vn_points`` is that owner's tolerant read (M2R-8): the persisted
     ``Project.envelope`` when it has one, freshly built from the flight-loads
-    inputs when it does not. Reading ``project.envelope`` directly -- which this
-    module did until 2026-08-10 -- silently returns nothing on the path that
-    matters most, because ``registry.run_all_modules`` never assigns
-    ``project.envelope``: **every exported tail deck took the ``n = 1.0``
-    fallback**, understating the h-tail inertia by up to 3.8x on exactly the
-    balancing cases that size the surface. That was invisible while the surface
-    weight was always zero, and became a wrong number the moment it was not.
+    inputs when it does not, ``[]`` when neither exists. Reading
+    ``project.envelope`` directly -- which this module did until 2026-08-10 --
+    silently returns nothing on the path that matters most, because
+    ``registry.run_all_modules`` never assigns ``project.envelope``: **every
+    exported tail deck took the ``n = 1.0`` fallback**, understating the h-tail
+    inertia by up to 3.8x on exactly the balancing cases that size the surface.
+    That was invisible while the surface weight was always zero, and became a
+    wrong number the moment it was not.
 
-    An empty list when no V-n matrix can be built at all; each condition then
-    takes the documented fallback and says so, which is the honest end state for
-    a project with no flight-loads inputs.
+    With no V-n matrix at all each condition takes the documented fallback and
+    says so, which is the honest end state for a project with no flight-loads
+    inputs.
     """
-    try:
-        return list(default_envelope(project).vn)
-    except MissingInputError:
-        return []
+    return vn_points(project)
 
 
 def _load_factor(cond: CriticalCondition,

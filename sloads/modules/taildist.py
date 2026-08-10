@@ -61,7 +61,7 @@ from ..models import (
     TailChordStation,
 )
 from ..registry import register
-from .select import build_critical
+from .select import default_critical
 
 MODULE_NAME = "taildist"
 
@@ -103,11 +103,10 @@ def chordwise_pressures(lt25: float, lt50: float, area_sqin: float,
 
 
 def _critical_set(project: Project) -> CriticalLoadSet:
-    """The SELECT critical-load set: the persisted ``envelope.critical`` if present,
-    else freshly computed."""
-    if project.envelope is not None and project.envelope.critical is not None:
-        return project.envelope.critical
-    return build_critical(project)
+    """The SELECT critical-load set, through its single owner
+    (:func:`select.default_critical`): the persisted ``envelope.critical`` if
+    present, else freshly computed."""
+    return default_critical(project)
 
 
 def _surface_geom(project: Project, cond: CriticalCondition) -> Optional[tuple]:

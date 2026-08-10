@@ -33,7 +33,7 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass, field
-from typing import List, Optional
+from typing import Dict, List, NamedTuple, Optional
 
 from ..case_ids import COMPONENT_PREFIX, WING_BAND_EXTRA, WING_SLOTS, wing_case_id
 from ..models import (
@@ -45,6 +45,7 @@ from ..models import (
     ModuleResult,
     Project,
     SurfaceInput,
+    VnPoint,
     WingLoadCase,
     WingLoadResult,
     WingMassInput,
@@ -52,6 +53,7 @@ from ..models import (
 )
 from ..derived_geometry import sync_geometry_derived
 from ..registry import register
+from .select import default_critical, default_envelope
 from .wing_geometry import interp_x
 
 _DEG = 57.3  # WINGINER.BAS rad<->deg factor
@@ -215,19 +217,72 @@ def wing_inertia_distribution(geom: SurfaceInput, wm: WingMassInput,
 # --------------------------------------------------------------------------- #
 # Project entry point + registration
 # --------------------------------------------------------------------------- #
-def _resolve_case(project: Project, case: WingLoadCase) -> WingLoadCase:
+class WingCaseSources(NamedTuple):
+    """The two upstream reads every wing-case helper needs, resolved once per build.
+
+    ``wing_inertia`` and ``net_loads`` walk the same resolved case list and ask the
+    project the same two questions of each case -- *which V-n point does it
+    reference* and *did SELECT already name this condition* -- so both answers come
+    from the ``select`` **single owners** (:func:`select.vn_by_case`,
+    :func:`select.default_critical`) and are threaded, not re-read per case. Reading
+    ``project.envelope`` directly here silently emptied both on the
+    ``registry.run_all_modules`` path, which never assigns it: a SELECT-derived
+    wing case raised ``MissingInputError`` in ``net_loads`` and yielded *no cases at
+    all* in ``wing_inertia`` (review F-C6). Threading also keeps the envelope from
+    being rebuilt once per case, the same reason ``build_critical`` threads
+    ``envelope=`` into every ``select_*`` helper (M2R-8).
+    """
+
+    #: V-n points by case number -- ``{}`` when no matrix can be built at all.
+    vn: Dict[int, VnPoint]
+    #: SELECT's **wing** conditions -- ``[]`` when SELECT cannot run.
+    wing_conditions: List[CriticalCondition]
+
+
+def wing_case_sources(project: Project) -> WingCaseSources:
+    """Resolve :class:`WingCaseSources` for ``project`` through the owners.
+
+    Tolerant by construction: a project with no flight-loads inputs cannot have a
+    V-n matrix or a critical set, and that is not an error *here* -- a case with
+    explicit ``nz``/``nx`` needs neither. The loud failure belongs to the consumer
+    that actually needs the missing value (``_resolve_case``,
+    ``net_loads._air_cl_v``), which names the case it could not resolve.
+
+    The matrix is resolved once and threaded into ``default_critical`` (which would
+    otherwise rebuild it inside ``build_critical``), so one call costs one envelope.
+    """
+    try:
+        envelope = default_envelope(project)
+    except MissingInputError:
+        return WingCaseSources(vn={}, wing_conditions=[])
+    conditions = [c for c in default_critical(project, envelope).conditions
+                  if c.component == "wing"]
+    return WingCaseSources(vn={p.case: p for p in envelope.vn},
+                           wing_conditions=conditions)
+
+
+def _sources(project: Project,
+             sources: Optional[WingCaseSources]) -> WingCaseSources:
+    """The threaded sources when the build supplies them, else resolved once."""
+    return sources if sources is not None else wing_case_sources(project)
+
+
+def _resolve_case(project: Project, case: WingLoadCase,
+                  sources: Optional[WingCaseSources] = None) -> WingLoadCase:
     """Fill Nz/Nx from the referenced V-n point when not given explicitly.
 
     The C3-before-SELECT bridge: ``Nz = −NZ`` and ``Nx = −DX/W`` come straight from
-    the FLTLOADS ``envelope.vn`` point (inertia opposes the air load)."""
+    the FLTLOADS V-n point (inertia opposes the air load), reached through
+    :class:`WingCaseSources`."""
     if case.nz is not None and case.nx is not None:
         return case
-    if case.case is None or project.envelope is None:
+    vn = _sources(project, sources).vn
+    if case.case is None or not vn:
         raise MissingInputError(
             f"wing load case '{case.name}' needs explicit nz/nx or a 'case' "
-            "reference into Project.envelope.vn"
+            "reference into the V-n matrix (Project.envelope or 'flight_loads')"
         )
-    vp = next((p for p in project.envelope.vn if p.case == case.case), None)
+    vp = vn.get(case.case)
     if vp is None:
         raise ValueError(f"wing load case '{case.name}' references unknown V-n case {case.case}")
     nz = case.nz if case.nz is not None else -vp.nz
@@ -239,14 +294,18 @@ def _resolve_case(project: Project, case: WingLoadCase) -> WingLoadCase:
                         unbal_moment=case.unbal_moment, cl=case.cl, v_eas_kt=case.v_eas_kt)
 
 
-def _critical_wing_conditions(project: Project) -> List[CriticalCondition]:
-    """SELECT's wing conditions, or ``[]`` when SELECT has not run."""
-    if project.envelope is None or project.envelope.critical is None:
-        return []
-    return [c for c in project.envelope.critical.conditions if c.component == "wing"]
+def _critical_wing_conditions(project: Project,
+                              sources: Optional[WingCaseSources] = None
+                              ) -> List[CriticalCondition]:
+    """SELECT's wing conditions, or ``[]`` when SELECT cannot run at all.
+
+    Through :class:`WingCaseSources`, so "SELECT has not been *persisted*" is no
+    longer read as "SELECT has no conditions" (review F-C6)."""
+    return _sources(project, sources).wing_conditions
 
 
-def resolve_wing_cases(project: Project, wm: WingMassInput) -> List[WingLoadCase]:
+def resolve_wing_cases(project: Project, wm: WingMassInput,
+                       sources: Optional[WingCaseSources] = None) -> List[WingLoadCase]:
     """``wm.cases``, or -- when it is empty -- the cases derived from SELECT's
     wing ``CriticalCondition`` list (M4-2 decision 2).
 
@@ -270,10 +329,12 @@ def resolve_wing_cases(project: Project, wm: WingMassInput) -> List[WingLoadCase
     """
     if wm.cases:
         return list(wm.cases)
-    return [WingLoadCase(name=c.label, case=c.case) for c in _critical_wing_conditions(project)]
+    return [WingLoadCase(name=c.label, case=c.case)
+            for c in _critical_wing_conditions(project, sources)]
 
 
-def wing_case_ref(project: Project, index: int, case: WingLoadCase) -> CaseRef:
+def wing_case_ref(project: Project, index: int, case: WingLoadCase,
+                  sources: Optional[WingCaseSources] = None) -> CaseRef:
     """The :class:`CaseRef` for wing structural case ``index`` (0-based) in the
     resolved case list (:func:`resolve_wing_cases`).
 
@@ -292,7 +353,8 @@ def wing_case_ref(project: Project, index: int, case: WingLoadCase) -> CaseRef:
     independent modules iterating the same list -- agree on the identical
     ``CaseRef`` without sharing runtime state.
     """
-    for c in _critical_wing_conditions(project):
+    src = _sources(project, sources)
+    for c in src.wing_conditions:
         if c.label == case.name and c.case_ref is not None:
             return c.case_ref
     if case.name in WING_SLOTS:
@@ -300,13 +362,11 @@ def wing_case_ref(project: Project, index: int, case: WingLoadCase) -> CaseRef:
     else:
         # Extra-band cases number by their order among the *other* extras, so
         # adding a slot case in front of one does not renumber it.
-        cases = resolve_wing_cases(project, project.wing_mass or WingMassInput())
+        cases = resolve_wing_cases(project, project.wing_mass or WingMassInput(), src)
         extras = [i for i, c in enumerate(cases) if c.name not in WING_SLOTS]
         seq = WING_BAND_EXTRA + (extras.index(index) if index in extras else index)
         case_id = f"{COMPONENT_PREFIX['wing']}-{seq:02d}"
-    vp = None
-    if case.case is not None and project.envelope is not None:
-        vp = next((p for p in project.envelope.vn if p.case == case.case), None)
+    vp = src.vn.get(case.case) if case.case is not None else None
     return CaseRef(
         case_id=case_id,
         component="wing",
@@ -337,18 +397,20 @@ def build_wing_inertia(project: Project) -> List[WingLoadResult]:
         raise MissingInputError("Project has no 'wing_mass' inputs for the wing_inertia module")
     if project.geometry is None or project.geometry.by_name(wm.surface) is None:
         raise MissingInputError(f"wing_inertia needs a '{wm.surface}' geometry surface")
-    cases = resolve_wing_cases(project, wm)
+    # Resolved once for the whole build and threaded into every helper (M2R-8).
+    src = wing_case_sources(project)
+    cases = resolve_wing_cases(project, wm, src)
     if not cases:
         raise MissingInputError(
             "wing_inertia needs at least one load case -- enter them in "
-            "'wing_mass.cases' or run SELECT so they can be derived from "
-            "envelope.critical")
+            "'wing_mass.cases' or give the flight-loads inputs SELECT needs so "
+            "they can be derived from the critical set")
     geom = project.geometry.by_name(wm.surface)
     units = inertia_units(geom, wm)
     results = []
     for i, c in enumerate(cases):
-        r = wing_inertia_distribution(geom, wm, _resolve_case(project, c), units)
-        r.case_ref = wing_case_ref(project, i, c)
+        r = wing_inertia_distribution(geom, wm, _resolve_case(project, c, src), units)
+        r.case_ref = wing_case_ref(project, i, c, src)
         results.append(r)
     return results
 

@@ -113,6 +113,60 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- **The `project.envelope` bypass class is closed, and it now has a drift guard.**
+  Review finding **F-C6**, the sweep the `tail_span` `n = 1.0` defect (below) was
+  the first-found instance of. One fact drives all of them:
+  `registry.run_all_modules` — the path the Export page, the CLI and every
+  deliverable take — **never assigns `Project.envelope`**, so a module that reads
+  it directly does not get "the persisted envelope when there is one"; headless it
+  gets `None`, and every one of the four surviving sites then did something wrong
+  *quietly*:
+
+  - `wing_inertia._critical_wing_conditions` returned `[]`, so a project that left
+    `wing_mass.cases` empty derived **no wing cases at all** and both WINGINER and
+    NETLOADS raised "needs at least one load case" — the SELECT-derived case route
+    (M4-2 decision 2) was dead headless, exactly like `tail_span`'s V-n read.
+  - `wing_inertia.wing_case_ref` read the V-n point the same way, so every wing
+    case in the case index shipped with **no CG and no altitude** — the deck named
+    a load without the flight condition it was flown at.
+  - `net_loads._air_cl_v` raised `MissingInputError` on a derived case it could
+    have resolved.
+  - `body_loads` did the inverse: `_critical_fuselage` preferred the *persisted*
+    conditions while the distribution loop integrated them against a **freshly
+    rebuilt** V-n matrix — one case, `nz`/`lt` from a different envelope than the
+    one that selected it.
+  - `balance` duplicated the owner's rule as `project.envelope or
+    build_envelope(project)`, which accepts a persisted envelope carrying an
+    **empty `vn`**: every condition then failed its V-n lookup and dropped out
+    under a misleading "nothing to balance".
+
+  `select` now owns the whole rule: `default_envelope` (unchanged),
+  `default_critical` for the critical set, and `vn_points`/`vn_by_case` as the
+  tolerant read for consumers with a documented in-band fallback. `tail_span` and
+  `taildist` delegate to them instead of carrying their own copies, and the two
+  wing modules share one `wing_case_sources(project)` resolved per build and
+  threaded into every helper (the `envelope=` threading convention of M2R-8), so
+  `wing_inertia` and `net_loads` cannot resolve different points for the same case
+  list and the envelope is not rebuilt once per case.
+
+  The guard is `tests/test_envelope_owner.py`: an **AST scan** of `sloads/` fails
+  any new direct `project.envelope` read, with a five-entry allowlist whose
+  entries each state why they are not the persisted-else-compute rule (and a second test that
+  drops a stale allowlist entry). Six of its gates fail against the pre-fix code,
+  including the `tail_span` instance, which had no pin until now.
+
+  **Imperial output moves in one place, by metadata only:** `atr42_100`'s wing
+  case index and stick-deck `$ SUBCASE` line now state `CGfwd / 185.9 kt / 0 ft /
+  FAR 23.333(b)` where they stated a blank CG, `170 kt`, no altitude and
+  `23.301(b)`. That is M4-2 decision 1 (a condition SELECT already named keeps
+  SELECT's `CaseRef`) finally applying headless as it always did with a persisted
+  envelope. **No load number changes, on any fixture, in any channel** — the
+  digests for the other five examples are byte-identical. The fixture enters
+  `PHAA` by hand at CL 1.55 / 170 kt while SELECT's `PHAA` point is 1.7283 /
+  185.85 kt (`balance.py`'s module docstring records the divergence), so the row
+  now states a flight condition the entered numbers were not computed at; filed as
+  its own backlog row rather than settled inside this sweep.
+
 - **The SI mass-check deck's gravity was 25.4× low — `GRAV` now carries g in the
   deck's own length unit.** `mass_cards.mass_check_deck` wrote
   `force/(mass × length)`, which is the mass channel's *dimensional identity* and

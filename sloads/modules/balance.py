@@ -190,8 +190,7 @@ from ..rigid_body import (
 )
 from ..tail_geometry import VTAIL
 from .airloads import air_load_distribution
-from .flight_envelope import build_envelope
-from .select import build_critical
+from .select import default_critical, default_envelope
 from .tail_span import build_tail_span
 from .wing_inertia import inertia_units, resolve_wing_cases
 
@@ -879,8 +878,14 @@ def build_balanced_cases(project: Project) -> List[BalancedCaseResult]:
     sync_geometry_derived(project)
     if project.flight_loads is None or project.wing_mass is None:
         raise MissingInputError("balance needs 'flight_loads' and 'wing_mass'")
-    envelope = project.envelope or build_envelope(project)
-    critical = envelope.critical or build_critical(project)
+    # Both through their single owners (review F-C6). ``project.envelope or
+    # build_envelope(project)`` duplicated the owner's rule and got it wrong at the
+    # edge: a persisted envelope carrying an *empty* ``vn`` was accepted, and every
+    # condition then dropped out of the assembly under a misleading "nothing to
+    # balance". ``default_envelope`` rebuilds in that case; ``default_critical``
+    # applies the same rule to the critical set.
+    envelope = default_envelope(project)
+    critical = default_critical(project)
     vn = {p.case: p for p in envelope.vn}
     cgs = {c.name: c for c in project.flight_loads.cg_cases}
     loadings = {ld.name: ld for ld in derive_case_loadings(project)}

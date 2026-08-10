@@ -113,6 +113,52 @@ def _resolve_envelope(project: Project, envelope: Optional[EnvelopeResult]) -> E
     return envelope if envelope is not None else default_envelope(project)
 
 
+def default_critical(project: Project,
+                     envelope: Optional[EnvelopeResult] = None) -> CriticalLoadSet:
+    """The critical-load set to work from -- the **single owner** of the
+    "persisted, else computed" choice for ``Project.envelope.critical``, one level
+    below :func:`default_envelope`.
+
+    The persisted set when the project carries one (its ``CaseRef``s already
+    stamped), else SELECT's own search, run fresh. Every consumer must come through
+    here: ``registry.run_all_modules`` -- the path the Export page and the CLI take
+    -- never assigns ``Project.envelope``, so a module that reads
+    ``project.envelope.critical`` directly and falls back to *nothing* silently
+    loses every case exactly where it matters most (review F-C6; the ``tail_span``
+    ``n = 1.0`` defect was the same class one level up).
+
+    ``envelope`` is threaded to :func:`build_critical` the same way, so a caller
+    that already resolved the matrix does not pay for it twice.
+
+    Raises :class:`MissingInputError` when no V-n matrix can be obtained at all.
+    """
+    if project.envelope is not None and project.envelope.critical is not None:
+        return project.envelope.critical
+    return build_critical(project, envelope)
+
+
+def vn_points(project: Project) -> List[VnPoint]:
+    """The V-n matrix as a list, through :func:`default_envelope` -- ``[]`` when no
+    matrix can be built at all.
+
+    The **tolerant** read, for consumers whose fallback for a case with no V-n point
+    is documented and stated in-band (``tail_span``'s ``n = 1.0``,
+    ``wing_inertia``'s explicit-``nz``/``nx`` cases): the mere absence of
+    flight-loads inputs must not become a hard input error for them, and they must
+    not read ``project.envelope`` directly to get that tolerance.
+    """
+    try:
+        return list(default_envelope(project).vn)
+    except MissingInputError:
+        return []
+
+
+def vn_by_case(project: Project) -> Dict[int, VnPoint]:
+    """:func:`vn_points` keyed by V-n case number -- the shape every consumer that
+    resolves a ``CriticalCondition.case`` / ``WingLoadCase.case`` reference wants."""
+    return {p.case: p for p in vn_points(project)}
+
+
 def _cg_weights(project: Project) -> Dict[str, float]:
     """Map CG-case name -> design weight (for the Nx = -DX/W inertia factor)."""
     fl = project.flight_loads
@@ -771,15 +817,19 @@ def _stamp_case_refs(project: Project, conditions: List[CriticalCondition],
             p.case_ref = ref
 
 
-def build_critical(project: Project) -> CriticalLoadSet:
+def build_critical(project: Project,
+                   envelope: Optional[EnvelopeResult] = None) -> CriticalLoadSet:
     """Compute the critical-load set for ``Project.envelope.critical``: the wing
     conditions always, plus the rational horizontal-tail loads (when
     ``Project.tail_loads`` is present), the vertical-tail loads (when
-    ``Project.vtail_loads`` is present) and the critical fuselage conditions."""
+    ``Project.vtail_loads`` is present) and the critical fuselage conditions.
+
+    ``envelope`` is the caller's already-resolved V-n matrix, threaded in so a
+    caller that needs both the matrix and the set does not build it twice."""
     sync_geometry_derived(project)
     # M2R-8: build the V-n envelope once and thread it into every search, instead of
     # each helper independently rebuilding it (up to 7x when nothing is persisted).
-    env = default_envelope(project)
+    env = _resolve_envelope(project, envelope)
     conditions = select_wing(project, env)
     conditions.extend(select_htail(project, env))
     conditions.extend(select_vtail(project, env))
@@ -823,6 +873,9 @@ __all__ = [
     "run",
     "build_critical",
     "default_envelope",
+    "default_critical",
+    "vn_points",
+    "vn_by_case",
     "select_wing",
     "select_htail",
     "select_htail_balancing",

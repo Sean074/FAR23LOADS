@@ -20,7 +20,7 @@ Myy -60940, Mzz -81483) and "Case 160 ACCEL ROLL" / "Case 138 TORS".
 
 from __future__ import annotations
 
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 from ..models import (
     MissingInputError,
@@ -40,11 +40,13 @@ from ..registry import register
 from .airloads import air_load_distribution
 from .wing_geometry import interp_x
 from .wing_inertia import (
+    WingCaseSources,
     _resolve_case,
     build_wing_inertia,
     inertia_units,
     resolve_wing_cases,
     wing_case_ref,
+    wing_case_sources,
     wing_inertia_distribution,
 )
 
@@ -59,18 +61,26 @@ def _sum_stations(air: WingStationLoad, inertia: WingStationLoad) -> WingStation
     )
 
 
-def _air_cl_v(project: Project, case: WingLoadCase):
-    """Operating wing CL and speed for a case (explicit, else from envelope.vn)."""
+def _air_cl_v(project: Project, case: WingLoadCase,
+              sources: Optional[WingCaseSources] = None):
+    """Operating wing CL and speed for a case (explicit, else from its V-n point).
+
+    The V-n point comes through :class:`wing_inertia.WingCaseSources` -- the
+    ``select`` single owner -- not from ``project.envelope`` directly: on the
+    ``registry.run_all_modules`` path nothing assigns ``project.envelope``, so the
+    direct read turned every SELECT-derived wing case into a ``MissingInputError``
+    (review F-C6)."""
     cl, v = case.cl, case.v_eas_kt
-    if (cl is None or v is None) and case.case is not None and project.envelope is not None:
-        vp = next((p for p in project.envelope.vn if p.case == case.case), None)
+    if (cl is None or v is None) and case.case is not None:
+        src = sources if sources is not None else wing_case_sources(project)
+        vp = src.vn.get(case.case)
         if vp is not None:
             cl = cl if cl is not None else vp.cl
             v = v if v is not None else vp.v_eas_kt
     if cl is None or v is None:
         raise MissingInputError(
             f"net wing case '{case.name}' needs cl/v_eas_kt (explicit or via a "
-            "'case' reference into Project.envelope.vn)"
+            "'case' reference into the V-n matrix)"
         )
     return cl, v
 
@@ -161,12 +171,16 @@ def build_net_loads(project: Project) -> LoadsResult:
         raise MissingInputError(f"net_loads needs a '{wm.surface}' geometry surface")
     if project.aero is None or project.aero.by_name(wm.surface) is None:
         raise MissingInputError(f"net_loads needs a '{wm.surface}' aero surface (AIRLOADS)")
-    cases = resolve_wing_cases(project, wm)
+    # Resolved once for the whole build and threaded into every helper (M2R-8), so
+    # net_loads and wing_inertia read the same V-n points and the same SELECT
+    # conditions for the same case list.
+    src = wing_case_sources(project)
+    cases = resolve_wing_cases(project, wm, src)
     if not cases:
         raise MissingInputError(
             "net_loads needs at least one load case -- enter them in "
-            "'wing_mass.cases' or run SELECT so they can be derived from "
-            "envelope.critical")
+            "'wing_mass.cases' or give the flight-loads inputs SELECT needs so "
+            "they can be derived from the critical set")
 
     geom = project.geometry.by_name(wm.surface)
     aero = project.aero.by_name(wm.surface)
@@ -176,18 +190,18 @@ def build_net_loads(project: Project) -> LoadsResult:
     inertia_results: List[WingLoadResult] = []
     net_results: List[WingLoadResult] = []
     for i, case in enumerate(cases):
-        ref = wing_case_ref(project, i, case)
+        ref = wing_case_ref(project, i, case, src)
         # The wing case's limit->ultimate factor, minted once here (net_loads owns
         # the wing conditions -- no upstream CriticalCondition exists for them) and
         # copied onto all three families and the rendered ConditionResult so report
         # and export can never disagree (defect M4-13).
         sf = ULTIMATE_FACTOR
-        cl, v = _air_cl_v(project, case)
+        cl, v = _air_cl_v(project, case, src)
         air = air_load_distribution(geom, aero, cl, v, wm.wrp_waterline, wm.dihedral_deg)
         air.case = case.name
         air.case_ref = ref
         air.safety_factor = sf
-        inertia = wing_inertia_distribution(geom, wm, _resolve_case(project, case), units)
+        inertia = wing_inertia_distribution(geom, wm, _resolve_case(project, case, src), units)
         inertia.case_ref = ref
         inertia.safety_factor = sf
         net = WingLoadResult(case=case.name, nz=inertia.nz, nx=inertia.nx,

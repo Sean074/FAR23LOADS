@@ -346,7 +346,8 @@ So that every module is copy-of-the-pattern, these are fixed once:
   modules with a promoted surface carry an `__all__` block:
   `wing_geometry` (`interp_x`), `flight_envelope` (`design_inputs`,
   `density_ratio`), `structural_speeds` (`maneuver_load_factors`) and `select`
-  (`default_envelope`, `elevator_load`, `flaps_by_config_name`, `htail_balance`,
+  (`default_envelope`, `default_critical`, `vn_points`, `vn_by_case`,
+  `elevator_load`, `flaps_by_config_name`, `htail_balance`,
   `HtailBalance`). There is deliberately **no `sloads/api.py` facade** — per-module
   `__all__` is the contract.
 - **Cross-module results are typed, not stringly-keyed.** A helper whose result
