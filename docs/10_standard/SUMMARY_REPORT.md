@@ -206,6 +206,29 @@ The airplane, in enough detail to confirm identity. SHALL include:
 - **Aerodynamic data** — CLmax clean and flapped; lift-curve slopes; the CM set;
   and whether a fuselage pitching-moment contribution is enabled.
 
+### 4.2.1 Axes and sign conventions (required — added 2026-08-10, design note 15)
+
+A dedicated section, rendered between the input summary and the envelope
+figures, stating the sign conventions of record **once, globally** — §3.3's
+point-of-use rules stay in force beside it, not replaced by it. SHALL include:
+
+- **Prose**: the airplane reference frame (+aft / +starboard / +up, right-handed,
+  identity to the solver CID 0), the centreline-reflection rule for handed
+  twins, the statement that attitude angles are not state variables of the
+  analysis, and the two preserved suite sentences of §3.3 **verbatim**.
+- **A conventions table**: quantity → positive physical sense → the
+  `CONVENTIONS.md` section (or SC-decision) it restates. The table *cites* the
+  charter; it never redefines it.
+- **Three figures** (`sign_axes`, `sign_controls`, `sign_beams`): the frame and
+  state signs on a three-view sketch (+α, +β, the moment senses), the
+  control-surface and rotation senses, and the per-component shear/moment/
+  torsion diagram conventions. These are **static inline TikZ** — they carry no
+  project data, so they can never be "not analysed" — and follow every figure
+  rule of §4.3 (vector, document fonts, greyscale).
+
+Single source: `sloads/report/conventions_tex.py`, drift-guarded by
+`tests/test_report_conventions.py` (`CONVENTIONS.md` §7 table).
+
 ### 4.3 Envelope figures (required)
 
 Three figures, each followed by a **corner-point table** — a plotted boundary

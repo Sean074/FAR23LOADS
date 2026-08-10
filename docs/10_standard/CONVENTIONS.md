@@ -171,12 +171,37 @@ file + symbol is the anchor.
   a consumer should attribute when the beam axis differs from the sloads load-reference
   line is not yet stamped in the deck header.
 
-### 1.1 Airplane state and control signs (verified extraction, 2026-08-09)
+### 1.1 Airplane state and control signs (verified extraction 2026-08-09; SC-1…SC-6 approved 2026-08-10)
 
 Documented from code — clarifications of existing behavior, not changes. Full
-evidence trail and the open PROPOSED items (β direction, rudder direction label,
-twist sign, gear V/D/S senses, hand labels):
-`docs/30_future/15_sign_convention_report_section.md`.
+evidence trail: `docs/30_future/15_sign_convention_report_section.md`. The
+formerly-absent conventions are now **decisions of record** (user-approved
+2026-08-10, labels only — no computed number changed):
+
+- **SC-1 — Sideslip:** `+β` = relative wind from **starboard** (nose left of
+  the flight path); the fin's restoring load is then `−fy`, so SELECT's
+  negative entered yaw angles (−19.5°/−15°) are the `+β` cases.
+- **SC-2 — Rudder:** positive `δr` = trailing edge toward **port** (left
+  pedal), producing `+fy` and `+mz` (nose-left) — matching the code's unsigned
+  `RD → +fy`.
+- **SC-3 — Rates:** rates/accelerations are stated right-handed about
+  `(x, y, z)` with the physical senses below; attitude angles are stated **not
+  modelled**, never given an invented sign.
+- **SC-4 — Twist:** twist-table entries are the section zero-lift angle,
+  **nose-up-positive in the same α sense**, relative to the waterline
+  ("WL to section zero-lift", `airloads.py` `_twist_angle` use); washout (tip
+  nose-down) enters as more-negative tip values. Verified in the basic-lift
+  formula `c·cl_b = (mo/2)(ac − Awo)c` — a more positive entry lifts more.
+- **SC-5 — Gear reactions:** stated per wheel in airplane axes — V +up,
+  D +aft, S +starboard; the FAR 23.485 inboard/outboard literals keep their
+  printed signs.
+- **SC-6 — Aileron hand:** deflections stay per-direction magnitudes; a handed
+  rolling case names its pair from the case suffix ("R = right TE-down / left
+  TE-up"), never a global `δa` sign.
+
+The report states all of this once, in its required **"Axes and sign
+conventions"** section (`SUMMARY_REPORT.md` §4.2.1), single-sourced in
+`sloads/report/conventions_tex.py` (§7 table).
 
 - **Physical senses of positive moments** (forced by the right-handed
   +aft/+right/+up frame, not a choice): `+mx` = starboard wing up (roll to
@@ -306,6 +331,7 @@ export boundary, reduction-to-FAR23 identity on GA inputs. "No oracle" never mea
 | **Which components the assembly spreads** (decides whose entered self-inertia joins the closure tensor — L-3) | `sloads/mass_distribution.py` (`assembly_distributes_mass`) | `tests/test_rigid_body.py::test_the_distributed_mass_predicate_is_the_wing_and_only_the_wing` |
 | **Whether a load set has a hand** (reads the *applied* distribution `Σ\|fy\|`, not the resultant, and pre-closure so it cannot feed on its own relief — L-6) | `modules/balance.py` (`is_handed`) | `tests/test_balance.py::test_the_handedness_predicate` |
 | **What makes a case *lateral*, and how lateral** (the sole readers of the `vtail-air` source tag, for the deck header, the row table and the gates) | `modules/balance.py` (`is_lateral` / `fin_load`) | `tests/test_balance.py::test_the_lateral_cases_are_pinned` + `::test_the_symmetric_half_of_a_lateral_case_still_closes` |
+| **Report sign-convention statements** (the "Axes and sign conventions" section: prose, table rows, the three static TikZ figures) | `sloads/report/conventions_tex.py` | `tests/test_report_conventions.py` (frame fragments vs `export/coordinates.py`; §3.3 sentences verbatim; SC-1…SC-6 cited; figures static/greyscale/ASCII) |
 | Case IDs | `sloads/case_ids.py` | `tests/test_case_ids.py` |
 | Load-case row keys | `sloads/load_keys.py` | **flagged — see §8** |
 | Data dictionary | `docs/generate_data_dict.py` (generated doc) | `tests/test_data_dictionary.py::test_committed_doc_matches_generator` |

@@ -10,6 +10,20 @@ Acceptance**, **Key decisions**.
 
 ---
 
+## The report's sign-convention section, and decisions SC-1…SC-6 (design note 15 — complete 2026-08-10, tier M)
+
+The summary report gained a required **"2. Axes and sign conventions"** section
+(SUMMARY_REPORT.md §4.2.1): frame/reflection prose, a conventions-of-record
+table, and three static inline-TikZ figures, single-sourced in
+`report/conventions_tex.py` and drift-guarded by
+`tests/test_report_conventions.py`. The full-code sign-convention extraction
+behind it is stamped in `CONVENTIONS.md` §1.1, and its six genuinely unstated
+conventions were user-approved as **SC-1…SC-6** (β, rudder, rate/attitude
+labels, twist sign — verified in the Schrenk basic-lift formula, gear V/D/S,
+aileron hand). Labels and presentation only; every oracle bit-for-bit.
+
+---
+
 ## The empennage mass SSOT, and the fin's two-axis inertia (complete 2026-08-10, tier L)
 
 **Objective.** Close the filed defect "`tail_mass` is a parallel mass model no

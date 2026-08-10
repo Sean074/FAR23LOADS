@@ -1,7 +1,12 @@
 # Sign-Convention Summary & Report Section — design note
 
-**Status: DRAFT — awaiting user approval of the PROPOSED conventions (§3) and the
-report-section spec (§4) before any code is written** (CLAUDE.md rule 1).
+**Status: ✅ shipped 2026-08-10.** P-1…P-6 user-approved 2026-08-10 and stamped
+into `CONVENTIONS.md` §1.1 as decisions **SC-1…SC-6**; the report section and
+figures shipped per §4 (`report/conventions_tex.py`,
+`tests/test_report_conventions.py`, `SUMMARY_REPORT.md` §4.2.1). P-4's `.BAS`
+verification: the basic-lift formula `c·cl_b=(mo/2)(ac−Awo)c` and the
+"WL to section zero-lift" datum confirm nose-up-positive twist entries
+(`theory_sources.md`, AIRLOADS row). Kept as the plan of record.
 **Tier M** at closure: behavior change to the summary report → `SUMMARY_REPORT.md`
 + this note + CHANGELOG + history line. Charter sections relied on:
 `CONVENTIONS.md` §1, §1.1 (added with this note), §5, §7.1, §7.2;
@@ -94,7 +99,7 @@ All VERIFIED — `export/coordinates.py:6-16`, `CONVENTIONS.md` §1.
 |---|---|---|
 | H-tail | Maps like the wing: span `y`, load `fz`, torsion `myy`; beam is **full span tip-to-tip**, reacted at the fuselage attachments; down-load = negative `LT` | `coordinates.py:186-208`, `tail_span.py:43-51`, `select.py:310-311` |
 | V-tail | Spans `z`, load is **side force `fy`**, torsion is **`mzz` = the stored strip torsion negated** (`r×F` reverses for a side force); station `z` stores the root, span in `y`, composed once by `tail_station_to_airplane` | `coordinates.py:188-231`, `CONVENTIONS.md` §7.2 |
-| Tail inertia | d'Alembert `−n·W_surf`, signed by the case's load factor **alone** — never "opposing the air load"; fin inertia lives in the balanced case, not the fin's own (air-only) deck | `tail_span.py:35-41, 195`, `CONVENTIONS.md` §1, §7.2 |
+| Tail inertia | d'Alembert, signed by the case's load factor **alone** — never "opposing the air load" — and built on the acceleration along the surface's **own normal axis** (2026-08-10, superseding L-8's per-condition half): h-tail `−n_z·W_ht` bending; fin `−n_y·W_vt` bending + `−n_z·W_vt` **axial**. The assembled case still applies each mass once: `balance.fin_sets` reads the air-only `fz − f_inertia` | `tail_span.py` (`distribute` `n_normal`/`n_axial`), `CONVENTIONS.md` §1 |
 | Fin waterline | A first-order **sign** quantity (`−Fy·(z − z_cg)`): never implicitly zero | `tail_geometry.py:249-252`, `balance.py:411-415` |
 
 ### 2.6 Engine and rotation

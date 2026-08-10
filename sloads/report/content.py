@@ -657,7 +657,46 @@ def _section_inputs(project: Project, u: Units) -> Section:
 
 
 # --------------------------------------------------------------------------- #
-# §2 Envelope figures
+# §2 Axes and sign conventions (SUMMARY_REPORT.md §4.2.1; design note 15)
+def _section_conventions() -> Section:
+    """The global sign-convention statement: prose, table and three figures.
+
+    Everything here is read from :mod:`.conventions_tex`, the single source
+    (CLAUDE.md rule 3) — this function only arranges it. It takes no project:
+    the conventions are identical in every report, so the section can never be
+    absent (§3.4 has nothing to say about it).
+    """
+    from .conventions_tex import (CONVENTION_ROWS, CONVENTION_TABLE_NOTE,
+                                  CONVENTIONS_PROSE)
+
+    return Section(
+        "2. Axes and sign conventions",
+        body=list(CONVENTIONS_PROSE),
+        figures=[
+            Figure(key="sign_axes", title="Reference frame and state signs",
+                   caption="x +aft, y +starboard, z +up (right-handed, identity "
+                           "to the solver CID 0); +α nose-up, +β wind from "
+                           "starboard; moment senses as drawn"),
+            Figure(key="sign_controls", title="Control and rotation signs",
+                   caption="elevator TE-down +, rudder TE-to-port + (left "
+                           "pedal), aileron hand per case; clockwise from the "
+                           "pilot's view + for rotation"),
+            Figure(key="sign_beams", title="Shear, moment and torsion diagram "
+                                           "conventions",
+                   caption="wing integrated tip to root, body nose to tail, "
+                           "fin loaded in fy; torsion axes named per figure"),
+        ],
+        tables=[Table(
+            title="Sign conventions of record",
+            columns=["Quantity", "Positive sense", "Charter"],
+            rows=[list(r) for r in CONVENTION_ROWS],
+            note=CONVENTION_TABLE_NOTE,
+        )],
+    )
+
+
+# --------------------------------------------------------------------------- #
+# §3 Envelope figures
 # --------------------------------------------------------------------------- #
 def _vn_figure(project: Project) -> Tuple[Figure, Optional[Table]]:
     from ..modules.structural_speeds import design_speed_values
@@ -854,7 +893,7 @@ def _speed_altitude_figure(project: Project) -> Tuple[Figure, Optional[Table]]:
 
 def _section_envelopes(project: Project, u: Units) -> Section:
     section = Section(
-        "2. Envelope figures",
+        "3. Envelope figures",
         body=["Each figure is followed by its corner-point table — a plotted "
               "boundary without its numeric corners is not sufficient for sizing."],
     )
@@ -868,7 +907,7 @@ def _section_envelopes(project: Project, u: Units) -> Section:
 
 
 # --------------------------------------------------------------------------- #
-# §3 Conditions analysed and FAR coverage
+# §4 Conditions analysed and FAR coverage
 # --------------------------------------------------------------------------- #
 _STATUS_LABEL = {
     COVERED: "covered",
@@ -939,7 +978,7 @@ def _section_conditions(project: Project, module_results, comps: ComponentLoads,
     else:
         scope_text += " No computed case was excluded."
     return Section(
-        "3. Conditions analysed and FAR coverage",
+        "4. Conditions analysed and FAR coverage",
         body=[scope_text, headline],
         tables=[
             _case_index_table(module_results, comps),
@@ -957,7 +996,7 @@ def _section_conditions(project: Project, module_results, comps: ComponentLoads,
 
 
 # --------------------------------------------------------------------------- #
-# §4 Results summary (all ULTIMATE, SF per case)
+# §5 Results summary (all ULTIMATE, SF per case)
 # --------------------------------------------------------------------------- #
 def _governing_table(title: str, conditions, u: Units) -> Optional[Table]:
     """One component's governing conditions, straight from ``governing_loads_table``.
@@ -1303,7 +1342,7 @@ def _section_results(project: Project, module_results, comps: ComponentLoads,
                      u: Units, deselected: Sequence[str]) -> Section:
     critical = _critical_by_component(comps, deselected)
     return Section(
-        "4. Results summary",
+        "5. Results summary",
         body=["Every load below is ULTIMATE, with the safety factor applied to it "
               "stated per case. Full station-by-station distributions stay in the "
               "companion data files named in the bundle manifest."],
@@ -1322,7 +1361,7 @@ def _section_results(project: Project, module_results, comps: ComponentLoads,
 
 
 # --------------------------------------------------------------------------- #
-# §5 Methods and limitations + Appendix A manifest
+# §6 Methods and limitations + Appendix A manifest
 # --------------------------------------------------------------------------- #
 _REFERENCES = [
     ["Reference 1", "H. C. McMaster, *FAR 23 LOADS* — theory manual and the printed "
@@ -1340,7 +1379,7 @@ _REFERENCES = [
 
 def _section_methods(methods_text: str) -> Section:
     return Section(
-        "5. Methods and limitations",
+        "6. Methods and limitations",
         body=[methods_text],
         tables=[Table(title="References", columns=["Source", "Use"], rows=_REFERENCES)],
     )
@@ -1517,6 +1556,7 @@ def build_report(
         units_note=f"Units: {units_statement(u.d)}. {AVIATION_UNITS_NOTE}",
         sections=[
             _section_inputs(project, u),
+            _section_conventions(),
             _section_envelopes(project, u),
             _section_conditions(project, module_results, comps, scope, deselected),
             _section_results(project, module_results, comps, u, deselected),

@@ -10,6 +10,26 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- **The summary report states its sign conventions, with pictures.** A new
+  required section **"2. Axes and sign conventions"** (SUMMARY_REPORT.md
+  §4.2.1, design note 15): the frame and reflection prose, a
+  conventions-of-record table citing the charter per row, and three static
+  inline-TikZ figures (`sign_axes` / `sign_controls` / `sign_beams`) drawing
+  +α/+β, the moment senses, the control and rotation signs, and the
+  per-component shear/moment/torsion diagram conventions. Single-sourced in
+  `sloads/report/conventions_tex.py`, drift-guarded by
+  `tests/test_report_conventions.py` (frame vs `export/coordinates.py`, the
+  §3.3 sentences verbatim, greyscale/ASCII/determinism). Downstream sections
+  renumbered (Envelope figures → 3 … Methods → 6). With it, the six formerly
+  unstated conventions are decisions of record **SC-1…SC-6**
+  (`CONVENTIONS.md` §1.1, user-approved 2026-08-10): +β = wind from starboard,
+  +rudder = TE to port, rates right-handed/attitudes not modelled, twist
+  nose-up-positive (verified in the Schrenk basic-lift formula), gear V/D/S in
+  airplane axes, aileron hand named per case. Labels only — no computed number
+  changed anywhere.
+
 ### Fixed
 
 - **The empennage carries its own mass at last — every h-tail deck the suite has

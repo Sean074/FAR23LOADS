@@ -45,10 +45,11 @@ _CONCEPT = os.path.join(_EXAMPLES, "concept_regional_jet.project.json")
 #: hands.
 REQUIRED_SECTIONS = [
     "1. Input summary",
-    "2. Envelope figures",
-    "3. Conditions analysed and FAR coverage",
-    "4. Results summary",
-    "5. Methods and limitations",
+    "2. Axes and sign conventions",
+    "3. Envelope figures",
+    "4. Conditions analysed and FAR coverage",
+    "5. Results summary",
+    "6. Methods and limitations",
     "Appendix A. Bundle manifest",
 ]
 

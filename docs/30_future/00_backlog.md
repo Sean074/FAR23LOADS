@@ -618,19 +618,6 @@ the LRA beam-model bridge (step 12).
 
 # Item detail — valuable [V] (ranked in the priority table above)
 
-### [V] Sign-convention section + figures in the summary report *(new 2026-08-09, user)*
-
-Design note: [`15_sign_convention_report_section.md`](15_sign_convention_report_section.md)
-(DRAFT). A required "Axes and sign conventions" section in the TeX summary
-report — prose + one conventions table + three inline TikZ figures
-(`sign_axes` / `sign_controls` / `sign_beams`), single-sourced in a new
-`report/conventions_tex.py` with a drift-guard test against
-`export/coordinates.py`. **Blocked on user approval** of the note's proposals
-P-1…P-6 (β direction, rudder direction label, twist sign, gear V/D/S senses,
-aileron hand labels) — the verified extraction is already stamped into
-`CONVENTIONS.md` §1.1. Tier M at closure (`SUMMARY_REPORT.md` gains §4.2.1).
-Not yet slotted in the priority table (user-agreed order — user to place it).
-
 ### [V] Load-application axis vs elastic axis — document the torsion reference *(new 2026-08-05, R9)*
 The exported `FORCE` application points sit on the sloads load-reference line;
 `export/coordinates.py` documents frames but not the **shear-center/elastic-axis

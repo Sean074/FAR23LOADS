@@ -186,7 +186,17 @@ _EMITTERS = {
 
 
 def figure_body_tex(figure: Figure) -> str:
-    """The ``tikzpicture`` for ``figure``, or ``""`` when it has no data."""
+    """The ``tikzpicture`` for ``figure``, or ``""`` when it has no data.
+
+    Static figures (the sign-convention diagrams) are dispatched **before** the
+    ``data is None`` absence test: they carry no ``PlotData`` because they
+    depend on no project data, and a convention can never be "not analysed".
+    """
+    from .conventions_tex import STATIC_EMITTERS
+
+    static = STATIC_EMITTERS.get(figure.key)
+    if static is not None:
+        return static()
     if figure.data is None:
         return ""
     emit = _EMITTERS.get(figure.key, plot_tex)
