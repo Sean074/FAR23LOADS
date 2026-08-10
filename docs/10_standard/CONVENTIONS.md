@@ -148,6 +148,50 @@ file + symbol is the anchor.
   a consumer should attribute when the beam axis differs from the sloads load-reference
   line is not yet stamped in the deck header.
 
+### 1.1 Airplane state and control signs (verified extraction, 2026-08-09)
+
+Documented from code — clarifications of existing behavior, not changes. Full
+evidence trail and the open PROPOSED items (β direction, rudder direction label,
+twist sign, gear V/D/S senses, hand labels):
+`docs/30_future/15_sign_convention_report_section.md`.
+
+- **Physical senses of positive moments** (forced by the right-handed
+  +aft/+right/+up frame, not a choice): `+mx` = starboard wing up (roll to
+  port), `+my` = nose-up pitch (the one stated instance: `validation.py:609`),
+  `+mz` = nose to port (yaw left).
+- **α is nose-up positive, waterline to relative wind** (`alpha_wl`); +α ⇒
+  +lift, `C1 > 0` enforced (`flight_envelope.py:154-176`, `validation.py:631`).
+  Tail: `AT = alpha_wl + IT − E`, downwash `E` positive-defined and
+  subtractive; +IT = tail chord nose-up vs the waterline; +AT ⇒ up (+`fz`)
+  tail load (`select.py:237-250`).
+- **Elevator is TE-down positive** ("TE dn +", `select.py:216, 303`); travel
+  limits `EUP`/`EDN` are stored magnitudes, the −1 applied at use
+  (`select.py:369-376`). **Aileron** deflections are stored magnitudes per
+  direction (down = TE-down +, up applied negative, `aileron.py:68-75`); which
+  wing is deliberately unstated — hand exists only at assembly (§7.1).
+  **Rudder** `RD` is an unsigned magnitude; +RD always yields +`fy`
+  (starboard) fin load (`select.py:591-595`); sideslip yaw angles enter
+  negative (−19.5°/−15°, `select.py:646-662`), so the yaw and rudder terms
+  oppose.
+- **Load factors:** `nz` +up; `nx = −DX/W` (the inertia/deceleration factor,
+  negative for ordinary aft drag, `select.py:117-169`); `n_y = L_v/W` +
+  starboard (`balance.py:632`). Station inertia `fz = −NZ·w`
+  (`body_loads.py:188`); wing-inertia inputs enter as `Nz = −NZ`
+  (`wing_inertia.py:22-25`).
+- **Gusts:** `Ude` is a positive magnitude; the ±hand is the caller's factor
+  (`ng = ±1`, `flight_envelope.py:227`) or, laterally, reflection
+  (`select.py:603-616`).
+- **Wing torsion physical sense:** `+Myy` = leading-edge-up (derived from
+  `my = (x_lra − x_load)·fz`, `coordinates.py:218-222`); a lift resultant aft
+  of the axis gives the negative root torsion the Appendix-A oracles print.
+  Spanwise bending `Mxx`/`Mzz` are positive-magnitude integrals; the CID-0
+  vector map (owner `bending_moment_vector`) sends `Mxx → +x` unchanged and
+  `Mzz → −z` negated (`coordinates.py:93-122`).
+- **Attitude angles (φ/θ/ψ) and body rates as state do not exist in the
+  suite** — only the closure accelerations `p̈/q̈/r̈` (§1) and the unsigned
+  gyroscopic body rates (§5, all four sign permutations enumerated,
+  `engine.py:294-339`). No document may imply otherwise.
+
 ## 2. Units
 
 - **Imperial is canonical internal**; calc runs in the original program's units. SI is
