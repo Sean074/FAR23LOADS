@@ -202,7 +202,7 @@ from .results import EnvelopeResult, LoadsResult, MassResult
 # decision L-1). Additive with a 0.0 "derive it" default, so no migration hop is
 # needed: absent *is* the documented value, and every pre-v43 project keeps the
 # derived placement it would have had.
-SCHEMA_VERSION = 43  # B8a-1: VTailLoadsInput.vtail_root_waterline_z (fin root placement)
+SCHEMA_VERSION = 44  # tail mass from the item SSOT: TailMassInput.weight_is_override
 
 
 @dataclass

@@ -420,11 +420,18 @@ def fin_sets(result: TailSpanResult) -> List[BalancedLoad]:
     The set is air only, and deliberately: fin **inertia** rides in the closure
     field at the case's own ``n_y``/``omega_dot``, through the ``VTAIL``-tagged
     mass items :func:`body_inertia` already carries (decision L-8).
+
+    Which is why the strip's air load is taken as ``fz - f_inertia`` rather than
+    as ``fz``. Since the tail-mass SSOT step the per-condition fin deck carries
+    its own lateral inertia, and reading the net here would apply the fin's mass
+    **twice** in an assembled case -- once relieving the applied side load, once
+    in the closure field. The seam is the same one the wing's carry-through has,
+    and it is held the same way: each mass enters exactly one set.
     """
     loads: List[BalancedLoad] = []
     for st in result.stations:
         x, y, z = tail_station_to_airplane(st.x, st.y, VTAIL, root_z=st.z)
-        fx, fy, fz = tail_force_to_airplane(st.fz, VTAIL)
+        fx, fy, fz = tail_force_to_airplane(st.fz - st.f_inertia, VTAIL)
         mx, my, mz = tail_torsion_to_airplane(st.myy_free, VTAIL)
         loads.append(BalancedLoad(x=x, y=y, z=z, fx=fx, fy=fy, fz=fz,
                                   mx=mx, my=my, mz=mz,

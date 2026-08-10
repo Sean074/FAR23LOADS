@@ -208,6 +208,24 @@ def tail_force_to_airplane(normal: float, component: str) -> Vec3:
     return (0.0, 0.0, normal)
 
 
+def tail_axial_to_airplane(axial: float, component: str) -> Vec3:
+    """Map a tail strip's **span-axis** (axial) force to airplane components.
+
+    A load along the member's own span: it compresses or stretches the beam and
+    bends nothing. The h-tail spans in ``y`` and the fin in ``z``, so the same
+    local number lands on different airplane axes -- which is the entire reason
+    this is here and not a literal at the call site.
+
+    Only the fin has a producer for it (``-n_z*W_vt``: the vertical acceleration
+    runs along a fin's span). The h-tail's mapping is written anyway, because the
+    day a spanwise ``n_y`` reaches the horizontal tail the axis must already be
+    right, not invented then.
+    """
+    if component == "vtail":
+        return (0.0, 0.0, axial)
+    return (0.0, axial, 0.0)
+
+
 def tail_torsion_to_airplane(torsion: float, component: str) -> Vec3:
     """Map a tail strip's torsion about its LRA to airplane moment components.
 

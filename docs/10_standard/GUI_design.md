@@ -447,7 +447,7 @@ sidebar and the JSON Editor (§10, Phase E5).
 
 The schema field list is **single-sourced in
 [`DATA_DICTIONARY.md`](DATA_DICTIONARY.md)** (generated; currently
-`SCHEMA_VERSION = 43`); the per-step migration history is recorded in
+`SCHEMA_VERSION = 44`); the per-step migration history is recorded in
 [`../40_history/00_completed_development.md`](../40_history/00_completed_development.md)
 (recent steps: v29 single-source CLmax
 stall; v30 M2-6 wing/fuselage derived geometry; v31 M2-10 operational placards;
@@ -501,7 +501,15 @@ vtail_root_waterline_z`, the waterline of the vertical-tail root, `0` meaning
 project keeps the placement it would have been given. It exists because the fin's
 height above the CG is the lever arm of the roll moment a side load makes, and
 the load path previously used `0` — modelling `ga6_normal`'s fin 64.5 in *below*
-its own CG and reversing that moment's sign).
+its own CG and reversing that moment's sign); v44 the empennage mass SSOT —
+`TailMassInput.weight_is_override`, which demotes the entered `panel_weight_lb`
+to an explicit override of the `htail`/`vtail`-tagged `weight.items`, exactly as
+v41 did for `FuselageMassInput.stations_are_override`. Hop
+`migrations._v43_tail_mass_override` marks a non-zero entered weight as
+deliberate so a pre-v44 project's tail loads do not move under it; a project that
+entered nothing — which is *every* shipped fixture, and why every h-tail deck the
+suite produced was silently air-only — now derives the surface weight from the
+item data base and gains the inertia it should always have had.
 This paragraph's version number is guarded by
 `tests/test_data_dictionary.py::test_gui_design_schema_line_current` — update
 it (and this list) with every `SCHEMA_VERSION` bump.

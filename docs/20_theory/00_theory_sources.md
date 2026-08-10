@@ -272,7 +272,11 @@ SELECT and never recomputed (T-7):
 
     w25 = k_side·LT25·(c_j·dy)/S      w50 = k_side·LT50·(c_j·dy)/S
     fz  = w25 + w50                  tor = w25·(x_lra − x_25) + w50·(x_lra − x_50)
-    fi  = −n·W_surf·(c_j·dy)/S       (d'Alembert, T-9)
+    fi  = −n_n·W_surf·(c_j·dy)/S     (d'Alembert, T-9; n_n = the surface's own normal-axis factor)
+    fa  = −n_a·W_surf·(c_j·dy)/S     (axial along the span — the fin only)
+
+`W_surf` is derived from the `htail`/`vtail`-tagged `weight.items` since
+2026-08-10, not entered: see "The fin's two inertia axes" below.
 
 | Closure | Analytic target | Why it is not a tautology |
 |---|---|---|
@@ -300,6 +304,45 @@ sweep gains a spanwise h-tail row (force, and the centreline rolling moment: zer
 symmetric, non-zero for 23.427(a)) and a v-tail row (the load is `Fy` and the
 torsion `Mzz` — a force-only check in the wrong component would still "close"),
 and plan 10's harness solves both decks in the real sbeam.
+
+### The fin's two inertia axes, and its exact-ratio closure (2026-08-10)
+
+A surface's inertia is built on the acceleration along **its own normal axis**,
+and that is where the two empennage surfaces stop being alike. The h-tail's
+normal axis is the airplane's vertical, so `n_n = n_z` and there is no axial
+term. The **fin spans in `z`**, so the same vertical acceleration runs *along*
+its beam: it takes `n_n = n_y` for bending and `n_a = n_z` for an axial column
+that compresses the surface and produces no bending at all.
+
+`n_y` has no producer in a single-condition view — a lateral load factor is a
+property of a balanced case — so it is derived the one self-consistent way
+available, from the only lateral aerodynamic load the suite models, which is the
+fin's own:
+
+    n_y = (LT25 + LT50) / W_case          W_case = the condition's V-n CG case weight
+
+That makes the fin's closure **exact and case-independent**, which is why it is
+the gate:
+
+| Closure | Analytic target | Why it is not a tautology |
+|---|---|---|
+| **Fin lateral inertia** | `Σ inertia / Σ air ≡ −W_vt/W_case` | The left side comes out of the strip quadrature; the right is two scalars it never touches. `n_y ∝ Fy` cancels the air load out of the ratio, so the identity holds on a rudder kick and a side gust alike — and fails immediately if the *vertical* factor is reached for where the lateral one belongs |
+| **Fin axial column** | `Σ f_span = −n_z·W_vt`, and root bending unchanged by it | An axial load has no moment about its own line of action; asserting both at once catches it leaking into the bending channel |
+
+**Two limitations, both stated in-band on every fin result rather than only
+here.** First, the term **relieves**: the surface total comes out at exactly
+`(1 − W_vt/W_case)` of the air load — 0.68 % on `ga6_normal`, 1.84 % on the
+regional jet — which is the *unconservative* direction, and small only because a
+fin is light. Second, it inherits decision **L-7** unchanged: with no fuselage or
+wing side force in sideslip modelled anywhere in this suite, the real airplane's
+`n_y` is smaller than this one, so the relief above is an upper bound on itself.
+A condition naming no V-n point has no `W_case` and therefore gets **no** lateral
+term, reported rather than filled with a gross-weight stand-in.
+
+This supersedes plan 13 decision **L-8** for the per-condition view (user
+decision, 2026-08-10). The assembled balanced case still accounts for the fin's
+mass in its closure field, so the applied aerodynamic set it reads from
+`tail_span` is taken as `fz − f_inertia`: each mass enters exactly one field.
 
 ### The rolling case's roll closure as a closure gate (step B7, 2026-08-08)
 

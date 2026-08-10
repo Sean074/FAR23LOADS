@@ -21,7 +21,7 @@ import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
 
-from components import active_system, gate
+from components import active_system, gate, workflow_page_link
 
 from sloads import (
     Project,
@@ -29,9 +29,11 @@ from sloads import (
     labels_for,
     to_display,
 )
-from sloads.models import MissingInputError, TailMassInput
+from sloads import mass_distribution
+from sloads.models import MissingInputError
 from sloads.modules.tail_span import (
     air_total,
+    axial_total,
     build_tail_span,
     inertia_total,
     root_index,
@@ -57,37 +59,47 @@ if project.flight_loads is None or project.tail_loads is None:
     st.stop()
 
 # --------------------------------------------------------------------------- #
-# Surface mass (the only input this page owns)
+# Surface mass -- derived, not entered here (the mass SSOT)
 # --------------------------------------------------------------------------- #
 st.subheader("Empennage surface mass")
 st.caption(
-    "Distributed as a **uniform area density** over the planform, and applied as "
-    "`−n · W` (d'Alembert): the sign follows the case's load factor alone, so the "
-    "tail's own mass **adds** to a down-load condition rather than relieving it. "
-    "That is the conservative and the correct direction — the conditions that size "
-    "a GA horizontal tail are down-load ones. Leave a surface at zero to report "
-    "air load only."
+    "Read from the **weight data base** — the `htail` / `vtail` rows of the "
+    "*Weights & Mass* page's item table, tagged by their `component` column. This "
+    "page owns no mass input: one airplane has one mass model, and entering the "
+    "tail twice is how the two drift apart. Distributed as a **uniform area "
+    "density** over the planform and applied as `−n · W` (d'Alembert), so the "
+    "sign follows the case's load factor alone — the tail's own mass **adds** to "
+    "a down-load condition rather than relieving it, which is both the correct "
+    "and the conservative direction for the conditions that size a horizontal "
+    "tail."
 )
-_existing = {tm.surface: tm.panel_weight_lb for tm in project.tail_mass or []}
-with st.form("tail_mass_form"):
-    _cols = st.columns(2)
-    _h_w = _cols[0].number_input(
-        f"Horizontal tail, whole surface ({U['weight']})",
-        min_value=0.0, value=float(to_display(_existing.get(HTAIL, 0.0), "weight", system)),
-        step=1.0, key="tail_mass_h")
-    _v_w = _cols[1].number_input(
-        f"Vertical tail ({U['weight']})",
-        min_value=0.0, value=float(to_display(_existing.get(VTAIL, 0.0), "weight", system)),
-        step=1.0, key="tail_mass_v")
-    if st.form_submit_button("Apply tail mass", type="primary"):
-        from sloads import to_imperial_scalar
+_derived = {c: mass_distribution.tail_surface_weight(project, c) for c in (HTAIL, VTAIL)}
+_cols = st.columns(2)
+for _col, (_name, _label) in zip(_cols, ((HTAIL, "Horizontal tail"), (VTAIL, "Vertical tail"))):
+    _override = next((tm for tm in project.tail_mass or []
+                      if tm.surface == _name and tm.weight_is_override), None)
+    _col.metric(
+        f"{_label} ({U['weight']})",
+        f"{to_display(_derived[_name], 'weight', system):,.1f}",
+        help="Whole surface: both sides for the horizontal tail, the single fin "
+             "for the vertical.")
+    if _override is not None:
+        _col.caption("⚠️ **Explicit override** in the project file — the weight "
+                     "data base is not being used for this surface.")
 
-        project.tail_mass = [
-            TailMassInput(surface=name, panel_weight_lb=to_imperial_scalar(w, "weight", system))
-            for name, w in ((HTAIL, _h_w), (VTAIL, _v_w)) if w
-        ]
-        st.session_state["project"] = project
-        st.rerun()
+_untagged = [c for c in (HTAIL, VTAIL) if not _derived[c]]
+if _untagged:
+    st.warning(
+        f"**No mass items tagged `{'` / `'.join(_untagged)}`** in the weight data "
+        "base, so the surface(s) below carry **air load only**. That is a gap in "
+        "the data, not a weightless tail: open the *Weights & Mass* page and set "
+        "the `component` column on the empennage rows."
+    )
+for _surface in (HTAIL, VTAIL):
+    _check = mass_distribution.tail_reconciliation(project, _surface)
+    if _check is not None and not _check.ok:
+        st.info(f"**{_surface} mass:** {_check.detail}")
+workflow_page_link("weight_mass", label="→ Weight & Mass Properties (the mass SSOT)")
 
 # --------------------------------------------------------------------------- #
 # The distributions
@@ -117,11 +129,25 @@ if _assumed:
         "named `htail` or `vtail` on the **Geometry** page to use the real planform "
         "— it is validated against the area/span to 1 %."
     )
-if any(not r.inertia_modelled and r.component == VTAIL for r in results):
+# A fin case can carry the axial term with **no** lateral one: no V-n point means
+# no case weight, so n_y has no denominator and is reported as absent rather than
+# invented. The relief figure below therefore reads from a case that has one.
+_fin = [r for r in results if r.component == VTAIL and r.inertia_modelled]
+_fin_lat = [r for r in _fin if r.case_weight_lb > 0.0]
+if _fin:
+    _relief = (f"`W_vt/W` ≈ "
+               f"{100.0 * _fin_lat[0].surface_weight_lb / _fin_lat[0].case_weight_lb:.2f} %"
+               if _fin_lat else "`W_vt/W` of the case weight")
     st.caption(
-        "The vertical tail carries **no inertia load**: the suite has no lateral "
-        "load factor, and applying the airplane's normal `n` to a fin's mass would "
-        "be a fabricated load in the wrong direction."
+        "**The fin's mass acts on two axes, and they are different loads.** Its "
+        "*bending* inertia runs sideways at `n_y = side load / case weight` — the "
+        "free-free lateral response to the fin's own load, the only lateral "
+        f"aerodynamic force this suite models — which **relieves** the surface "
+        f"total by {_relief}. Its *axial* inertia runs along the span at the "
+        "case's own `n`, because a fin spans vertically: it compresses the "
+        "surface and bends nothing. Since no fuselage or wing sideslip force is "
+        "modelled, the real airplane's `n_y` is smaller than this and the relief "
+        "above is an upper bound on itself."
     )
 
 st.subheader("Case summary")
@@ -132,8 +158,14 @@ for r in results:
         "Surface": r.component,
         "Case": r.case,
         "n": f"{r.n_case:.3f}",
+        # The fin bends under n_y and compresses under n; the h-tail has only the
+        # one axis, so its cells are blank rather than a misleading 0.000.
+        "n_y": f"{r.n_y:+.4f}" if r.component == VTAIL else "—",
         f"Air total ({U['weight']})": f"{to_display(air_total(r), 'weight', system):.1f}",
         f"Inertia ({U['weight']})": f"{to_display(inertia_total(r), 'weight', system):.1f}",
+        f"Axial ({U['weight']})": (
+            f"{to_display(axial_total(r), 'weight', system):.1f}"
+            if r.component == VTAIL else "—"),
         f"Root Sz ({U['weight']})": f"{to_display(root.sz, 'weight', system):.1f}" if root else "—",
         f"Root Mxx ({U['torque']})": f"{to_display(root.mxx, 'torque', system):.0f}" if root else "—",
         f"Root Myy ({U['torque']})": f"{to_display(root.myy, 'torque', system):.0f}" if root else "—",

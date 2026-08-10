@@ -10,6 +10,109 @@ Acceptance**, **Key decisions**.
 
 ---
 
+## The empennage mass SSOT, and the fin's two-axis inertia (complete 2026-08-10, tier L)
+
+**Objective.** Close the filed defect "`tail_mass` is a parallel mass model no
+fixture populates — the tail decks carry no inertia", and, by user decision taken
+with it, give the vertical tail the inertia that plan 13 decision **L-8** had
+deferred to the balanced case. Design note agreed in chat 2026-08-10 (this
+entry records it); it extends plan 09 decisions **T-3**/**T-9** and plan 11
+decision **B-2**.
+
+**The defect.** `tail_span._surface_weight` read `Project.tail_mass` and nothing
+else, and **no shipped fixture ever set one** — so it returned 0 on all six
+airplanes and *every h-tail deck the suite had ever produced was air-only*, while
+`weight.items` carried the tail mass correctly the whole time (`ga6_normal`
+42/23 lb, `concept_regional_jet` 520/640). Plan 11 B1 had derived
+`fuselage_mass.stations` from the item SSOT and left `TailMassInput` behind. The
+consequence was an *omission* that announced itself in a note and in no number,
+which is why it survived: plan 09's T-3 inertia had never actually run on a
+shipped fixture.
+
+**Two further defects it exposed**, both swept here per required practice 4:
+
+1. **Every exported tail deck took the `n = 1.0` fallback.**
+   `_load_factor` read `project.envelope` directly rather than through
+   `select.default_envelope`, the single owner (M2R-8) — and
+   `registry.run_all_modules`, the path the Export page and CLI use, never
+   assigns `project.envelope`. Every condition reported "names no V-n point" and
+   took `n = 1.0`, understating h-tail inertia by up to **3.8×** on exactly the
+   balancing cases that size the surface. Invisible while the weight was zero;
+   a wrong number the moment it was not.
+2. **`balance.fin_sets` would have applied the fin's mass twice** — its docstring
+   promised an air-only applied set, and `WingStationLoad.fz` silently stopped
+   being one when the fin gained inertia.
+
+**Deliverables.**
+
+- **`mass_distribution.tail_surface_weight`** — the single owner. Derived from
+  the `htail`/`vtail`-tagged items; `TailMassInput.panel_weight_lb` demoted to an
+  explicit override behind the new `weight_is_override` (v44, hop
+  `_v43_tail_mass_override`), exactly as `stations_are_override` did for the
+  fuselage; `tail_reconciliation` reports the gap either way and
+  `untagged_tail_surfaces` **names** a surface with no tagged item rather than
+  reporting it as weightless (`concept_heavy` has no v-tail item).
+- **The fin's two inertia terms.** A fin's normal axis is lateral, so the
+  acceleration that bends an h-tail compresses a v-tail: bending
+  `−n_y·W_vt` with `n_y = (LT25+LT50)/W_case` (new `lateral_load_factor`), and
+  axial `−n_z·W_vt` along the span (new `WingStationLoad.f_span`/`.s_span`, new
+  `coordinates.tail_axial_to_airplane`, carried in the same `FORCE` cards).
+  `distribute()` now takes `n_normal`/`n_axial` separately so that passing a
+  vertical factor for a fin's bending direction is not expressible.
+- **`WingStationLoad.f_inertia`** — the inertia part of `fz`, carried separably so
+  `balance.fin_sets` can take `fz - f_inertia` and each mass enters exactly one
+  set.
+- **GUI: `component` is editable on the Weights page** (it never was — `kind` was
+  the only tag exposed), and the Tail Span Loads page's mass form is **deleted**:
+  it shows the derived weight read-only, names untagged surfaces, reports
+  overrides, and links to the page that owns the data. The fin's `n_y` and axial
+  column join the case summary.
+
+**Test / Acceptance.** 1322 passed, 21 skipped; `ruff` clean. Imperial baseline
+regenerated — **only the six tail channels moved**, on all five tail-carrying
+fixtures; no wing, body, control or oracle channel changed.
+
+| Gate | Target | Achieved |
+|---|---|---|
+| Fin lateral inertia identity | `Σ inertia / Σ air ≡ −W_vt/W_case` | exact to `rel=1e-12`, every fin case, five fixtures |
+| Fin axial column | `Σ f_span = −n_z·W_vt`, and no bending from it | exact; normal-direction closure unchanged to `1e-12` |
+| H-tail inertia | `Σ = −n_z·W_ht` | exact — **non-trivial for the first time**, the weight having always been 0 |
+| Derived weight | = each fixture's tagged items | 42/23, 45/25, 320/270, 350/300, 520/640, 400/none |
+| **No air-only h-tail deck** on any shipped fixture | regression gate | passes on the untouched files |
+| Applied fin set is air only | `= LT25+LT50` exactly | `rel=1e-12`, while the fin deck itself carries the inertia |
+| Appendix A oracles | unmoved | unmoved (pure consumer, T-7) |
+
+**Effect on the numbers.** `ga6_normal` h-tail surface total: `BAL UP` −30.9 %,
+`BAL DN` **+26.0 %**, `UNCHECKED MAN DN` +3.0 % — the *down*-load cases grow,
+which is decision T-9's point, since those are the conditions that size a GA
+horizontal tail. Fin: `n_y` 0.155–0.178 on ga6, lateral inertia −0.68 % of air on
+every case, axial −23.1 lb.
+
+**Key decisions.**
+
+1. **The tail weight is derived, not entered** (mirroring plan 11 B-2/B1). The
+   entered value survives only as an explicit, marked override, because a stale
+   file must not outrank the SSOT by accident while a deliberate one still can.
+2. **L-8 is superseded for the per-condition view** (user, 2026-08-10). The
+   balanced case remains the authority for a *balanced* lateral field; what
+   changed is that the fin's own mass now appears in the fin's own deck.
+3. **`n_y` is the fin's own load over the case weight, and the relief it produces
+   is reported as unconservative.** It is the free-free lateral response to the
+   only lateral aero the suite models, so it inherits decision **L-7** verbatim:
+   with no fuselage or wing sideslip force, the real airplane's `n_y` is smaller
+   and this relief is an upper bound on itself. Stated in-band on every fin
+   result, deck header and UI row — the alternative, a silent 0.7 % relief in the
+   unconservative direction, is exactly the kind of thing a reviewer must not have
+   to derive.
+4. **A fin condition with no V-n point gets no lateral term at all.** No case
+   weight means `n_y` has no denominator; falling back to a gross-weight stand-in
+   would put a number nobody entered into a structural load.
+5. **The two load factors are separate parameters, not one.** `distribute()`
+   takes `n_normal` and `n_axial`, so "a pull-up bends the fin sideways" is not a
+   mistake the signature permits.
+
+---
+
 ## Concentrated wing masses: offset couples in the exported deck (plan 14 — complete 2026-08-09, tier L)
 
 **Objective.** Stop the exported wing deck smearing a concentrated wing mass

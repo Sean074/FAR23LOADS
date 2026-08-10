@@ -76,7 +76,9 @@ from sloads.modules.balance import (  # noqa: E402
     resultant6,
 )
 from sloads.modules.balance import resultant as case_resultant  # noqa: E402
+from sloads.modules.tail_span import build_tail_span  # noqa: E402
 from sloads.modules.wing_inertia import inertia_units  # noqa: E402
+from sloads.tail_geometry import VTAIL  # noqa: E402
 from sloads.units import Channel, UnitSystem, deliverable_units  # noqa: E402
 
 from imperial_baseline import EXAMPLES  # noqa: E402
@@ -880,6 +882,41 @@ def test_the_lateral_cases_are_pinned(example):
             f"{where}: yaw acceleration {got_r:+.4f} deg/s^2")
         assert got_p == pytest.approx(p_dot, rel=1e-4), (
             f"{where}: roll acceleration {got_p:+.4f} deg/s^2")
+
+
+@pytest.mark.parametrize("example", _with_cases())
+def test_the_applied_fin_set_is_air_only_so_the_mass_is_applied_once(example):
+    """The fin's mass enters an assembled case **once**, in the closure field.
+
+    Since the tail-mass SSOT step the per-condition fin deck carries its own
+    lateral inertia (``-n_y*W_vt``), so ``WingStationLoad.fz`` is a *net* load
+    there. An assembled case must still apply the applied-aerodynamic set air
+    only, because it accounts for the fin's mass separately through the
+    ``VTAIL``-tagged items — reading the net would relieve the side load with a
+    mass it is also carrying in the closure field.
+
+    Asserted against SELECT's own totals, which no part of the assembly touches:
+    Σ applied fin ``fy`` must be the condition's ``LT25+LT50`` exactly, not the
+    ``(1 − W_vt/W)`` fraction of it the fin deck reports. Caught here in the
+    first place only by a pinned number, which is why it now has a gate that says
+    what it means.
+    """
+    project = _project(example)
+    spans = {r.case: r for r in build_tail_span(project)[VTAIL]}
+    for case in build_balanced_cases(project):
+        if not is_lateral(case) or case.hand != "R":
+            continue
+        span = spans[case.label]
+        assert fin_load(case) == pytest.approx(span.air_total, rel=1e-12), (
+            f"{example} {case.label}: the applied fin set is not air only -- "
+            f"{fin_load(case):.4f} lb against SELECT's {span.air_total:.4f} lb")
+        # And the deck the fin is sized from *does* carry the inertia, so the two
+        # differ by exactly the mass ratio. Both statements have to hold at once.
+        if span.inertia_modelled and span.case_weight_lb:
+            net = sum(st.fz for st in span.stations)
+            assert net == pytest.approx(
+                span.air_total * (1.0 - span.surface_weight_lb / span.case_weight_lb),
+                rel=1e-12), f"{example} {case.label}"
 
 
 @pytest.mark.parametrize("example", _with_cases())

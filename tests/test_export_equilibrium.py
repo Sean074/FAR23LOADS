@@ -62,6 +62,7 @@ from sloads.modules.net_loads import build_net_loads, loads_ref_axis_results  # 
 from sloads.modules.select import build_critical  # noqa: E402
 from sloads.modules.tab import build_tabs  # noqa: E402
 from sloads.modules.tail_span import build_tail_span  # noqa: E402
+from sloads.modules.tail_span import axial_total as ts_axial  # noqa: E402
 from sloads.modules.tail_span import inertia_total as ts_inertia  # noqa: E402
 from sloads.modules.taildist import build_tail_chordwise  # noqa: E402
 from sloads.units import Channel, UnitSystem, deliverable_units  # noqa: E402
@@ -509,6 +510,13 @@ def test_vtail_span_deck_resultants(example, system):
     as ``Fz`` -- the obvious copy-paste from the h-tail writer -- gives a deck
     that parses, solves, and loads the fin in the one direction it is not designed
     for; a force-only sum in the wrong component would still "close".
+
+    Since the tail-mass SSOT step the fin carries inertia on **both** of its axes,
+    and this row is where the two are kept apart: the lateral term ``-n_y*W_vt``
+    belongs in ``Fy`` with the air load, and the axial term ``-n_z*W_vt`` -- which
+    exists only because the fin spans in Z -- belongs in ``Fz``, alone. A deck
+    that put the axial term in ``Fy`` would close in *total* force and load the
+    fin sideways with its own weight.
     """
     _, _, _, _, _, vtail_span = _cached(example)
     _skip_if_empty(vtail_span, example, "v-tail spanwise")
@@ -521,9 +529,12 @@ def test_vtail_span_deck_resultants(example, system):
         sid = sb._sid(1, idx, r)
         where = f"{example} {system.value} vtail-span {r.case}"
         got = resultant(forces, moments, grids, sid, (0.0, 0.0, 0.0))
-        _, _, want = to_force(0.0, 0.0, r.air_total * r.safety_factor, u)
+        _, _, want = to_force(
+            0.0, 0.0, (r.air_total + ts_inertia(r)) * r.safety_factor, u)
         assert closes(got.fy, want, scale=got.force_scale), f"{where} Fy"
-        assert closes(got.fz, 0.0, scale=got.force_scale), f"{where} Fz (must be 0)"
+        _, _, want_axial = to_force(
+            0.0, 0.0, ts_axial(r) * r.safety_factor, u)
+        assert closes(got.fz, want_axial, scale=got.force_scale), f"{where} Fz axial"
         # Torsion is about the fin's span axis, z -- not y.
         assert closes(got.m0y, 0.0, scale=got.moment_scale), f"{where} Myy (must be 0)"
         assert all(g[1] == 0.0 for g in grids.values()), f"{where}: fin is on the CL"

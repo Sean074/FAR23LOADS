@@ -57,7 +57,11 @@ file + symbol is the anchor.
   `y = 0` (lumped airplane totals on the centreline) and no geometric inference can
   separate a wing-mounted engine from a fuselage one. The Ch 15 fuselage beam is
   *derived* from the tagged database; `fuselage_mass.stations` is an explicit
-  override, and the difference is always reported, never silently taken.
+  override, and the difference is always reported, never silently taken. **The
+  empennage surface weights follow the same rule since 2026-08-10**
+  (`tail_surface_weight`, with `TailMassInput.panel_weight_lb` as the override) —
+  they were the one consumer B1 left on a parallel model, and the cost was six
+  airplanes' worth of air-only h-tail decks.
 - **The fuselage beam carries everything except the wing.** The empennage included
   — it hangs off the aft fuselage, so that beam reacts its weight. The wing is the
   one exclusion: it enters as the carry-through *reaction*, and applying it as mass
@@ -117,13 +121,32 @@ file + symbol is the anchor.
   drive is conservative on every component. The fin's own design load is
   SELECT's, unchanged. The caveat travels as a case note into the deck `$` header
   and the report; it does not live only in documentation.
-- **Fin inertia lives in the balanced case, not in the fin's own deck**
-  (decision L-8). A lateral load factor exists only where the airplane is
-  assembled, so the `VTAIL`-tagged mass items are accelerated by the balanced
-  case's own `n_y`/`ω̇` in the closure field, and the per-component v-tail span
-  deck stays **air-only**. The alternative — `tail_span` importing `balance` —
-  is circular: the balance needs the fin's air load to compute the very load
-  factor the fin's inertia would need.
+- **A surface's inertia is built on the acceleration along *its own* normal axis**
+  (2026-08-10, superseding decision L-8 for the per-condition view). The h-tail's
+  normal axis is the airplane's vertical, so one term does it: `−n_z·W_ht`,
+  bending. The **fin's normal axis is lateral**, so the same acceleration does
+  something else entirely to it and it takes two terms: `−n_y·W_vt` bending
+  (sideways) and `−n_z·W_vt` **axial** along the span, which compresses the
+  surface and bends nothing. `n_y` is the fin's own side load over the case
+  weight — the free-free lateral response to the only lateral aero this suite
+  models, so it carries decision L-7's caveat and its **relieving** effect
+  (exactly `W_vt/W_case`) is stated in-band as unconservative. A condition naming
+  no V-n point has no case weight and therefore no lateral term, said rather than
+  guessed. Owner: `tail_span.distribute`'s separate `n_normal`/`n_axial`
+  parameters, so a vertical factor cannot be passed for a fin's bending direction.
+- **The assembled case still applies each mass exactly once** (decision L-8's
+  surviving half). The balanced case accelerates the `VTAIL`-tagged mass items in
+  its closure field at its own `n_y`/`ω̇`, so the **applied aerodynamic set** it
+  reads from `tail_span` must be air only: `balance.fin_sets` takes
+  `fz - f_inertia`, never `fz`. The per-component deck and the assembled case
+  each carry the fin's mass — in different fields, once each.
+- **An empennage surface's weight comes from the mass SSOT** (2026-08-10).
+  `mass_distribution.tail_surface_weight` sums the `htail`/`vtail`-tagged
+  `weight.items`; `TailMassInput.panel_weight_lb` is an explicit override only,
+  marked by `weight_is_override`, and the gap is reported by
+  `tail_reconciliation` either way. This is plan 11 B-2/B1's rule applied to the
+  surface the step left behind — before it, no fixture set a `tail_mass` and
+  every h-tail deck the suite shipped was silently air-only.
 - **A load that a free-body cut introduces is never applied in the assembled model**
   (plan 11 §4). Each per-component deck takes a cut and carries the cut reaction as
   an applied load; those reactions must not reappear in an assembled deck, where the
@@ -275,7 +298,8 @@ export boundary, reduction-to-FAR23 identity on GA inputs. "No oracle" never mea
 | Deliverable unit sets | `units.deliverable_units` | `tests/test_deliverable_units.py` (identity, consistency, channel) |
 | Export axes/scale | `export/coordinates.py` | `tests/test_sbeam_bridge.py::test_grids_match_station_geometry` + closure/SF tests |
 | **Centreline reflection** (`y -> -y`; force is a true vector, moment an axial one) | `export/coordinates.py` (`reflect_point`/`reflect_force`/`reflect_moment`/`reflect_side`) | `tests/test_balance.py::test_the_reflection_operator_is_an_involution` + `::test_the_handed_twins_are_mirror_images` |
-| **Empennage local frame → airplane axes** (h-tail spans `y`/loads `fz`/twists `myy`; v-tail spans `z`/loads `fy`/twists **`mzz`**) | `export/coordinates.py` (`tail_station_to_airplane`/`tail_force_to_airplane`/`tail_torsion_to_airplane`) | `tests/test_export_equilibrium.py::test_vtail_span_deck_resultants` |
+| **Empennage local frame → airplane axes** (h-tail spans `y`/loads `fz`/twists `myy`; v-tail spans `z`/loads `fy`/twists **`mzz`**; a span-axis *axial* load follows the span, so `y` for the h-tail and `z` for the fin) | `export/coordinates.py` (`tail_station_to_airplane`/`tail_force_to_airplane`/`tail_torsion_to_airplane`/`tail_axial_to_airplane`) | `tests/test_export_equilibrium.py::test_vtail_span_deck_resultants` |
+| **An empennage surface's mass, and which acceleration acts on it** (derived from the tagged items; the fin's bending factor is lateral, its axial factor vertical) | `sloads/mass_distribution.py` (`tail_surface_weight`) + `modules/tail_span.py` (`lateral_load_factor`, `distribute`'s `n_normal`/`n_axial`) | `tests/test_tail_span.py::test_the_surface_weight_is_derived_from_the_tagged_items` + `::test_the_fin_lateral_inertia_is_exactly_the_weight_ratio_of_the_air_load` + `::test_no_shipped_fixture_produces_an_air_only_htail_deck` |
 | **Empennage planform vs. the scalar area/span** (1 % agreement; scalars stay oracle-authoritative) | `sloads/tail_geometry.py` (`resolve_tail_planform`/`validate_tail_planform`) | `tests/test_tail_geometry.py` |
 | **Vertical-tail root waterline** (where the fin sits; explicit → T-tail relation → fuselage top → a loud zero) | `sloads/tail_geometry.py` (`fin_root_waterline`) — read by both the load path and the three-view | `tests/test_tail_geometry.py::test_the_three_view_and_the_load_path_place_one_fin_once` + `::test_the_fin_root_waterline_is_pinned_per_fixture` |
 | **Rigid-body relief field and the inertia tensor** (`f = −m(a + ω̇ × r)`; products of inertia stored as sums `Σw·a·b`, negated only in `matrix()`; weight-space `1/in`) | `sloads/rigid_body.py` (`InertiaTensor`/`inertia_tensor`/`relief_force`/`relief_moment`) | `tests/test_rigid_body.py::test_the_field_produces_exactly_minus_the_inertia_times_omega_dot` |

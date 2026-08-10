@@ -959,6 +959,18 @@ class TailMassInput:
     #: have hinge geometry entered while the rudder does not, and one project-wide
     #: flag would drag the whole empennage back to ``"smeared"`` for the missing one.
     control_load_mode: str = "smeared"
+    #: Take ``panel_weight_lb`` as an **explicit override** of the item data base.
+    #:
+    #: The surface weight is derived from the ``htail``/``vtail``-tagged
+    #: ``weight.items`` by default (:func:`sloads.mass_distribution
+    #: .tail_surface_weight`) -- the mass SSOT of plan 11 decision B-2, which this
+    #: input predates and was never brought into. The flag is the same escape
+    #: hatch ``FuselageMassInput.stations_are_override`` is, and exists for the
+    #: same reason: a hand-entered weight is a modelling decision somebody made,
+    #: and it should outrank the SSOT only when they say so, not because a file
+    #: is old. :func:`sloads.mass_distribution.tail_reconciliation` reports the
+    #: difference either way.
+    weight_is_override: bool = False
 
 
 @dataclass

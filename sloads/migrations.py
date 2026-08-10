@@ -363,6 +363,27 @@ def _v40_fuselage_stations_override(d: Dict[str, Any]) -> Dict[str, Any]:
     return d
 
 
+def _v43_tail_mass_override(d: Dict[str, Any]) -> Dict[str, Any]:
+    """Keep a pre-SSOT file's hand-entered tail panel weight.
+
+    The empennage half of :func:`_v40_fuselage_stations_override`, and it keeps
+    faith the same way: the surface weight the spanwise tail distribution smears
+    is now **derived** from the ``htail``/``vtail``-tagged ``weight.items``
+    (:func:`sloads.mass_distribution.tail_surface_weight`), because the entered
+    ``tail_mass`` was a second mass model nothing reconciled -- and one that no
+    shipped fixture ever populated, so every h-tail deck was air-only.
+
+    A file that *did* enter a weight made a modelling decision, so it is marked
+    an explicit override rather than being silently replaced by the item sum;
+    ``mass_distribution.tail_reconciliation`` reports the difference either way.
+    A zero or absent weight is left alone -- there is nothing to preserve, and it
+    gets the derived value, which is the whole point of the step.
+    """
+    for tm in d.get("tail_mass") or []:
+        if isinstance(tm, dict) and tm.get("panel_weight_lb"):
+            tm.setdefault("weight_is_override", True)
+    return d
+
 
 # --------------------------------------------------------------------------- #
 # The chain
@@ -380,6 +401,7 @@ MIGRATIONS: Dict[int, Callable[[Dict[str, Any]], Dict[str, Any]]] = {
     36: _v36_load_value_keys,
     39: _v39_mach_limit_mc_md,
     40: _v40_fuselage_stations_override,
+    43: _v43_tail_mass_override,
 }
 
 #: The oldest project version whose *shape* is described by a hop. Below this a

@@ -486,6 +486,19 @@ rudder deflection at zero sideslip and has no body side force to add.
 
 ### 5.7 L-8 as answered — where fin inertia lives
 
+> **SUPERSEDED IN PART, 2026-08-10** (user decision, taken with the tail-mass
+> SSOT step — see `../40_history/00_completed_development.md`). The
+> per-component fin deck **does** now carry inertia: `−n_y·W_vt` bending with
+> `n_y = (LT25+LT50)/W_case`, plus `−n_z·W_vt` axial along the span. The
+> circularity objection below was answered by deriving `n_y` from the fin's own
+> side load — SELECT's, already on the condition — so `tail_span` still does not
+> import `balance`. **What survives unchanged is the second half of this
+> decision:** the assembled balanced case accounts for fin mass in its closure
+> field, so the applied set it reads from `tail_span` is `fz − f_inertia` and
+> each mass is applied exactly once. The partial-coverage objection also stands
+> and is honoured: a condition naming no V-n point gets no lateral term and says
+> so.
+
 Decision of record (user, 2026-08-09). The per-component v-tail deck **stays
 air-only**. Fin inertia appears in the balanced case, arriving through the
 `VTAIL`-tagged items in the §5.2 closure field, at the case's own `n_y`/`ω̇`.
@@ -506,7 +519,8 @@ fabricated load in the wrong direction"* to a statement that fin inertia is
 carried in the balanced case, with a pointer to it. The claim that changes is the
 reason, not the behaviour.
 
-**Filed, not folded in — the tail-mass SSOT gap.** Checking this decision
+**Filed, not folded in — the tail-mass SSOT gap.** *(Closed 2026-08-10, along
+with the inertia decision above.)* Checking this decision
 surfaced that **no shipped fixture populates `tail_mass` at all**, so
 `_surface_weight` returns 0 for both surfaces and the **h-tail decks carry no
 distributed inertia either** — the "no `tail_mass` entry for this surface" note

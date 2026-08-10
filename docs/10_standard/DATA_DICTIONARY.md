@@ -2,7 +2,7 @@
 
 > **Generated file — do not edit by hand.** Produced by [`docs/generate_data_dict.py`](../generate_data_dict.py) from `sloads/models.py`. Regenerate after any schema change: `.venv/bin/python docs/generate_data_dict.py`.
 
-Schema version: **43**.
+Schema version: **44**.
 
 This dictionary covers the **input** slices of `Project` (`sloads/models.py`) — the fields that make up a `project.json`. The result slices (`envelope`, `mass`, `loads`) are computed outputs and are out of scope.
 
@@ -25,10 +25,10 @@ The top-level `Project` fields. `name`/`engineer`/`date` are free-text metadata;
 | `speeds` | `?` | Structural Speeds | `aileron`, `flap`, `flight_envelope`, `mach_limit`, `one_engine_out`, `structural_speeds`, `tab` | Structural design speeds & load factors (STRSPEED) |
 | `aero` | `?` | Aerodynamic Data | `airloads`, `balance`, `net_loads` | Spanwise airload inputs (AIRLOADS) |
 | `aero_coeffs` | `?` | Aerodynamic Data | `flight_envelope`, `one_engine_out`, `select`, `structural_speeds` | Airplane-less-tail aero coefficients (FLTLOADS input) |
-| `flight_loads` | `?` | Flight Envelope (V-n) | `balance`, `balloads`, `body_loads`, `flight_envelope`, `select`, `wing_inertia` | Flight envelope / balancing tail loads (FLTLOADS) |
+| `flight_loads` | `?` | Flight Envelope (V-n) | `balance`, `balloads`, `body_loads`, `flight_envelope`, `select`, `tail_span`, `wing_inertia` | Flight envelope / balancing tail loads (FLTLOADS) |
 | `wing_mass` | `?` | Wing Loads | `balance`, `net_loads`, `wing_inertia` | Wing-mass distribution & load cases (WINGINER) |
 | `fuselage_mass` | `?` | Fuselage Loads | `body_loads` | Fuselage mass distribution (SELECT / Ch 15) |
-| `tail_mass` | `List[TailMassInput]` | Tail Loads | `tail_span` | Empennage surface mass, one per surface (plan 09 T-3) |
+| `tail_mass` | `List[TailMassInput]` | Weight & Mass Properties (component tag) | `tail_span` | Empennage surface mass override — derived from the component-tagged weight.items by default (plan 09 T-3) |
 | `select_input` | `?` | Wing Loads / Tail Loads | `select` | Critical-load selection inputs (SELECT) |
 | `tail_loads` | `TailLoadsInput` | Geometry (empennage, Step G6) | `balloads`, `body_loads`, `select`, `taildist` | Rational horizontal-tail inputs (via geometry.empennage) |
 | `vtail_loads` | `VTailLoadsInput` | Geometry (empennage, Step G6) | `one_engine_out`, `select`, `taildist` | Rational vertical-tail inputs (via geometry.empennage) |

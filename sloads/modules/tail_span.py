@@ -22,7 +22,8 @@ Chord-proportional, for both the angle-of-attack (``LT25``) and camber/control
     w50_j = k_side * LT50 * (c_j*dy)/S
     fz_j  = w25_j + w50_j                                     air
     tor_j = w25_j*(x_lra_j - x25_j) + w50_j*(x_lra_j - x50_j)  torsion about the LRA
-    fi_j  = -n * W_surf * (c_j*dy)/S                          inertia (T-9)
+    fi_j  = -n_n * W_surf * (c_j*dy)/S                        inertia (T-9)
+    fa_j  = -n_a * W_surf * (c_j*dy)/S                        axial (v-tail only)
 
 Chordwise placement stays exactly TAILDIST's -- ``LT25`` at 25 % chord, ``LT50``
 at 50 % -- so the strip torsion about any reference axis is closed-form and the
@@ -60,14 +61,36 @@ is what smears a concentrated mass inboard (the filed wing-export defect). The
 tail publishes the strip loads, so the export needs no differencing and inherits
 none of that.
 
+**4. The surface weight is derived, never entered twice.** It comes from the
+``htail``/``vtail``-tagged rows of ``weight.items`` -- the mass SSOT (plan 11
+decision B-2) -- through ``mass_distribution.tail_surface_weight``. Until
+2026-08-10 this module read ``TailMassInput.panel_weight_lb`` and nothing else,
+and **no shipped fixture had ever set one**, so every h-tail deck the suite
+produced was air-only while the data base carried the tail mass all along. The
+entered value survives as an explicit override; the difference is reported by
+``mass_distribution.tail_reconciliation`` either way.
+
+Each surface's inertia, and why they differ
+-------------------------------------------
+The h-tail's normal axis is the airplane's vertical, so one term does it:
+``-n_z*W_ht`` in ``fz``, bending the surface. The **fin's normal axis is
+lateral**, so the same vertical acceleration does something else entirely to it,
+and the fin needs two terms:
+
+* ``-n_y*W_vt`` in ``fz`` (the local normal, mapped to airplane ``fy``) --
+  the bending term, with ``n_y = (LT25+LT50)/W_case`` from
+  :func:`lateral_load_factor`. It relieves the surface total by exactly
+  ``W_vt/W_case``, which is what makes it self-checking, and it inherits plan 13
+  decision **L-7**'s fin-only over-statement caveat.
+* ``-n_z*W_vt`` in ``f_span`` -- **axial** along the fin, no bending at all.
+
+This supersedes plan 13 decision **L-8** for this per-condition view (user
+decision, 2026-08-10). The balanced case remains the authority for a *balanced*
+lateral field; what changed is that the fin's own mass now appears in the fin's
+own deck, where before the deck was silently air-only.
+
 Phase-1 scope, stated in-band
 -----------------------------
-* **V-tail inertia is omitted here, on purpose** (plan 13 decision **L-8**). A
-  fin's mass is accelerated *sideways*, and the lateral load factor that does it
-  is a property of a **balanced case**, not of this single-condition view -- so
-  fin inertia is carried there, through the ``VTAIL``-tagged mass items in the
-  closure field, and not in this deck. Every v-tail result carries
-  ``inertia_modelled=False`` and says so.
 * **Control-surface load is smeared** into the parent surface (decision T-4
   option 2): ``LT50`` *is* the control part and it is already in the
   distribution above. T5 makes the mode explicit; T6 adds the discrete
@@ -76,7 +99,7 @@ Phase-1 scope, stated in-band
 
 from __future__ import annotations
 
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Sequence, Tuple
 
 from ..models import (
     ConditionResult,
@@ -87,11 +110,12 @@ from ..models import (
     ModuleResult,
     Project,
     TailSpanResult,
+    VnPoint,
     WingStationLoad,
 )
 from ..registry import register
 from ..tail_geometry import HTAIL, VTAIL, TailPlanform, resolve_tail_planform
-from .select import build_critical
+from .select import build_critical, default_envelope
 
 MODULE_NAME = "tail_span"
 
@@ -162,7 +186,8 @@ def attachment_stations(project: Project, planform: TailPlanform) -> List[float]
 def distribute(planform: TailPlanform, lt25: float, lt50: float, *,
                n_case: float = 0.0, surface_weight_lb: float = 0.0,
                rh_scale: float = 1.0, lh_scale: float = 1.0,
-               z_offset: float = 0.0) -> List[WingStationLoad]:
+               z_offset: float = 0.0, n_normal: Optional[float] = None,
+               n_axial: float = 0.0) -> List[WingStationLoad]:
     """The spanwise station table for one condition, in the surface's local frame.
 
     Returns stations ordered by span coordinate: port tip -> starboard tip for
@@ -173,10 +198,21 @@ def distribute(planform: TailPlanform, lt25: float, lt50: float, *,
     ``surface_weight_lb`` of zero switches the inertia off entirely, which is how
     the air-only closure is checked against an independent producer rather than
     against a re-run of this same quadrature.
+
+    **Two load factors, because a surface has two directions.** ``n_normal`` is
+    the acceleration along the surface's *normal* (load) axis and drives the
+    bending inertia in ``fz``; it defaults to ``n_case``, which is right for the
+    horizontal tail, whose normal axis *is* the airplane's vertical. The fin's
+    normal axis is lateral, so its caller passes the lateral factor here and the
+    vertical one as ``n_axial`` -- the term that runs along the fin's span and
+    lands in ``f_span``. Passing ``n_case`` for a fin's normal direction would
+    claim a pull-up bends the fin sideways, which is the error this signature
+    exists to make unavailable.
     """
     area = planform.area
     if area <= 0:
         return []
+    n_bend = n_case if n_normal is None else n_normal
     halves: List[Tuple[float, float]] = (
         [(-1.0, lh_scale), (1.0, rh_scale)] if planform.symmetric
         else [(1.0, rh_scale)])
@@ -192,28 +228,34 @@ def distribute(planform: TailPlanform, lt25: float, lt50: float, *,
             x_lra = planform.x_at(s, planform.ref_axis_pct)
             torsion = (w25 * (x_lra - planform.x_at(s, X25_PCT))
                        + w50 * (x_lra - planform.x_at(s, X50_PCT)))
-            inertia = -n_case * surface_weight_lb * frac
+            inertia = -n_bend * surface_weight_lb * frac
+            axial = -n_axial * surface_weight_lb * frac
             half.append(WingStationLoad(
                 x=x_lra, y=sign * s, z=z_offset,
                 fx=0.0, fz=w25 + w50 + inertia,
                 sx=0.0, sz=0.0, mxx=0.0, myy=0.0, mzz=0.0,
-                myy_free=torsion))
+                myy_free=torsion, f_inertia=inertia, f_span=axial))
         # Cumulative tip -> root on this half. ``myy`` accumulates the strip
         # torsions plus the sweep transfer of outboard shear, exactly as
         # ``airloads`` does; on an unswept planform the transfer term is
         # identically zero and the root torsion is the closed form of plan §4.
         half.sort(key=lambda st: abs(st.y), reverse=True)
-        sz = mxx = myy = 0.0
+        sz = mxx = myy = s_span = 0.0
         prev: Optional[WingStationLoad] = None
         for st in half:
             if prev is not None:
                 mxx += sz * (abs(prev.y) - abs(st.y))
                 myy += sz * (st.x - prev.x)
             sz += st.fz
+            # The axial column accumulates on the same tip->root sweep, and it is
+            # a pure sum: an axial load makes no moment about its own line of
+            # action, so it enters neither ``mxx`` nor ``myy``.
+            s_span += st.f_span
             myy += st.myy_free
             st.sz = sz
             st.mxx = mxx + 0.0
             st.myy = myy
+            st.s_span = s_span
             prev = st
         stations.extend(half)
 
@@ -249,10 +291,34 @@ def _critical_set(project: Project) -> CriticalLoadSet:
     return build_critical(project)
 
 
-def _load_factor(project: Project, cond: CriticalCondition) -> Tuple[float, bool]:
+def _vn_points(project: Project) -> List["VnPoint"]:
+    """The V-n matrix to read load factors from -- through the **single owner**.
+
+    ``select.default_envelope`` is that owner (M2R-8): the persisted
+    ``Project.envelope`` when it has one, freshly built from the flight-loads
+    inputs when it does not. Reading ``project.envelope`` directly -- which this
+    module did until 2026-08-10 -- silently returns nothing on the path that
+    matters most, because ``registry.run_all_modules`` never assigns
+    ``project.envelope``: **every exported tail deck took the ``n = 1.0``
+    fallback**, understating the h-tail inertia by up to 3.8x on exactly the
+    balancing cases that size the surface. That was invisible while the surface
+    weight was always zero, and became a wrong number the moment it was not.
+
+    An empty list when no V-n matrix can be built at all; each condition then
+    takes the documented fallback and says so, which is the honest end state for
+    a project with no flight-loads inputs.
+    """
+    try:
+        return list(default_envelope(project).vn)
+    except MissingInputError:
+        return []
+
+
+def _load_factor(cond: CriticalCondition,
+                 vn_points: Sequence["VnPoint"]) -> Tuple[float, bool]:
     """``(n, from_vn)`` for a condition -- its V-n point's, or the fallback."""
-    if cond.case is not None and project.envelope is not None:
-        point = next((p for p in project.envelope.vn if p.case == cond.case), None)
+    if cond.case is not None:
+        point = next((p for p in vn_points if p.case == cond.case), None)
         if point is not None:
             return point.nz, True
     return DEFAULT_LOAD_FACTOR, False
@@ -285,10 +351,82 @@ def side_scales(cond: CriticalCondition) -> Tuple[float, float]:
 
 
 def _surface_weight(project: Project, component: str) -> float:
+    """The surface weight to smear -- **derived from the item data base**.
+
+    Delegated to :func:`sloads.mass_distribution.tail_surface_weight`, the single
+    owner: the ``htail``/``vtail``-tagged ``weight.items`` by default, the
+    entered ``TailMassInput.panel_weight_lb`` only when it is marked an explicit
+    override. Until this step the entered value was the *only* source and no
+    fixture ever set one, so every h-tail deck the suite shipped was air-only.
+    """
+    from ..mass_distribution import tail_surface_weight
+
+    return tail_surface_weight(project, component)
+
+
+def _weight_basis(project: Project, component: str) -> str:
+    """Where this surface's weight came from -- said on the result, not implied."""
     for tm in project.tail_mass or []:
-        if tm.surface == component:
-            return tm.panel_weight_lb
-    return 0.0
+        if tm.surface == component and tm.weight_is_override:
+            return "entered as an EXPLICIT OVERRIDE of the weight data base"
+    return f"derived from the {component}-tagged items in the weight data base"
+
+
+def _case_weight(project: Project, cond: CriticalCondition,
+                 vn_points: Sequence["VnPoint"]) -> float:
+    """The airplane weight the condition flies at -- its V-n point's CG case.
+
+    The same lookup SELECT makes (``cg_map[point.cg].weight_lb``), so the lateral
+    load factor below is built on the case's own weight and not on a gross-weight
+    stand-in. 0.0 when the condition names no V-n point, which switches the
+    lateral inertia off rather than dividing by a guess.
+    """
+    fl = project.flight_loads
+    if fl is None or cond.case is None:
+        return 0.0
+    point = next((p for p in vn_points if p.case == cond.case), None)
+    if point is None:
+        return 0.0
+    case = next((c for c in fl.cg_cases if c.name == point.cg), None)
+    return case.weight_lb if case is not None else 0.0
+
+
+def lateral_load_factor(project: Project, cond: CriticalCondition,
+                        vn_points: Optional[Sequence["VnPoint"]] = None
+                        ) -> Tuple[float, float]:
+    """``(n_y, W_case)`` for a fin condition -- the fin's own side load over it.
+
+    **Why this is the producer.** A fin's mass is accelerated *sideways*, and the
+    lateral load factor that does it is a property of a balanced case. This is a
+    single-condition view with no balance in it, so the lateral factor is derived
+    the only self-consistent way available: the free-free lateral acceleration of
+    the airplane under the one lateral aerodynamic load the suite models, which
+    is the fin's own::
+
+        n_y = (LT25 + LT50) / W_case
+
+    Two consequences, both stated in-band on every v-tail result rather than left
+    for a reader to work out:
+
+    1. It **relieves**. The strip inertia is ``-n_y*W_vt*frac``, so the surface
+       total comes out at ``(1 - W_vt/W_case)`` of the air load exactly -- 0.7 %
+       on ga6, 1.8 % on the regional jet. Small, and in the unconservative
+       direction, which is precisely why it is reported and not buried.
+    2. It inherits **plan 13 decision L-7**: no fuselage or wing side force in
+       sideslip exists anywhere in this suite, so reacting the fin's load with
+       inertia alone over-states the real airplane's ``n_y``. Conservative for
+       the accelerations, and it makes the relief above an upper bound on itself.
+
+    Superseding L-8 for this view is deliberate (user decision, 2026-08-10): the
+    balanced case remains the authority for a *balanced* lateral field; this term
+    is the fin's own mass in the fin's own deck, and its exactness (item 1) is
+    what makes it checkable.
+    """
+    points = _vn_points(project) if vn_points is None else vn_points
+    weight = _case_weight(project, cond, points)
+    if not weight:
+        return 0.0, 0.0
+    return ((cond.lt25 or 0.0) + (cond.lt50 or 0.0)) / weight, weight
 
 
 def control_load_mode(project: Project, component: str) -> str:
@@ -334,6 +472,10 @@ def build_tail_span(project: Project) -> Dict[str, List[TailSpanResult]]:
     planforms = {c: resolve_tail_planform(project, c) for c in (HTAIL, VTAIL)}
     if not any(planforms.values()):
         return out
+    # Resolved once for the whole build, as ``build_critical`` does with the same
+    # envelope -- not per condition, which would rebuild the V-n matrix up to
+    # thirteen times on a fixture that persists none.
+    vn_points = _vn_points(project)
 
     for cond in _critical_set(project).conditions:
         component = cond.component
@@ -344,11 +486,21 @@ def build_tail_span(project: Project) -> Dict[str, List[TailSpanResult]]:
             continue
 
         mode = control_load_mode(project, component)
-        n_case, from_vn = _load_factor(project, cond)
+        n_case, from_vn = _load_factor(cond, vn_points)
         rh_scale, lh_scale = side_scales(cond)
-        # Phase 1: the v-tail carries no inertia -- see the module docstring.
-        inertia_modelled = component == HTAIL
-        weight = _surface_weight(project, component) if inertia_modelled else 0.0
+        weight = _surface_weight(project, component)
+        # Each surface's inertia is built on the acceleration along *its own*
+        # normal axis. The h-tail's normal axis is the airplane's vertical, so
+        # ``n_case`` is it and there is no axial term. The fin's normal axis is
+        # lateral: its bending inertia comes from ``n_y`` and ``n_case`` becomes
+        # the term that runs *along* the fin's span (axial). Getting these two
+        # crossed would put a pull-up into fin side bending.
+        if component == VTAIL:
+            n_normal, case_weight = lateral_load_factor(project, cond, vn_points)
+            n_axial = n_case
+        else:
+            n_normal, case_weight, n_axial = n_case, 0.0, 0.0
+        inertia_modelled = weight > 0.0 and bool(n_normal or n_axial)
         # The fin's own root waterline (plan 13 L-1), not zero: the roll moment a
         # side load makes about the CG is ``-Fy*(z - z_cg)``, so a fin modelled on
         # the centreline gets that moment wrong and can get it wrong in *sign*.
@@ -371,15 +523,36 @@ def build_tail_span(project: Project) -> Dict[str, List[TailSpanResult]]:
                 f"basis '{planform.root_z_basis}') -- the stations run from there "
                 "to the tip, so the deck's roll arm about the airplane CG is this "
                 "value plus the span")
-        if not inertia_modelled:
+        if weight <= 0.0:
             notes.append(
-                "v-tail inertia omitted here: a fin's mass is accelerated "
-                "sideways, and n_y is a property of a balanced case, not of this "
-                "single-condition view -- fin inertia is carried in the balanced "
-                "case instead (plan 13 decision L-8)")
-        elif weight <= 0.0:
+                f"no {component}-tagged item in the weight data base and no "
+                "entered override -- air load only, no inertia. This is an "
+                "omission in the data, not a weightless surface: tag the "
+                "surface's mass items on the Weights page")
+        else:
             notes.append(
-                "no tail_mass entry for this surface -- air load only, no inertia")
+                f"surface mass {weight:.1f} lb, {_weight_basis(project, component)}, "
+                "smeared as a uniform area density over the planform (T-3)")
+        if component == VTAIL and weight > 0.0:
+            if case_weight:
+                notes.append(
+                    f"fin side inertia at n_y = {n_normal:+.4f} g "
+                    f"(= side load / {case_weight:.0f} lb case weight): the "
+                    "free-free lateral response to the fin's own load, the only "
+                    "lateral aero this suite models. It RELIEVES the surface "
+                    f"total by exactly W_vt/W = {100.0 * weight / case_weight:.2f} %"
+                    " -- and because no fuselage or wing sideslip force exists "
+                    "(plan 13 L-7), the real airplane's n_y is smaller and that "
+                    "relief is an upper bound on itself")
+            else:
+                notes.append(
+                    "fin side inertia omitted: the condition names no V-n point, "
+                    "so there is no case weight to form n_y from")
+            notes.append(
+                f"fin axial inertia {-n_axial * weight:+.1f} lb total at "
+                f"n_z = {n_axial:.3f} g -- the fin spans in Z, so the vertical "
+                "acceleration that bends an h-tail compresses this surface; it "
+                "is an axial column, and it makes no bending")
         if rh_scale != lh_scale:
             notes.append(
                 f"UNSYMMETRICAL (23.427(a)): RH x{rh_scale:.3f}, LH x{lh_scale:.3f} "
@@ -388,15 +561,16 @@ def build_tail_span(project: Project) -> Dict[str, List[TailSpanResult]]:
         stations = distribute(
             planform, cond.lt25, cond.lt50, n_case=n_case,
             surface_weight_lb=weight, rh_scale=rh_scale, lh_scale=lh_scale,
-            z_offset=z_offset)
+            z_offset=z_offset, n_normal=n_normal, n_axial=n_axial)
         out[component].append(TailSpanResult(
             case=cond.label, component=component, stations=stations,
             lt25=cond.lt25, lt50=cond.lt50, n_case=n_case,
-            surface_weight_lb=weight,
+            surface_weight_lb=weight, n_y=n_normal if component == VTAIL else 0.0,
+            case_weight_lb=case_weight,
             attachment_y=attachment_stations(project, planform),
             rh_scale=rh_scale, lh_scale=lh_scale,
             planform_assumed=planform.assumed, control_load_mode=mode,
-            inertia_modelled=inertia_modelled and weight > 0.0,
+            inertia_modelled=inertia_modelled,
             case_ref=cond.case_ref, safety_factor=cond.safety_factor,
             torsion_axis=f"LRA {planform.ref_axis_pct * 100:.0f}% chord",
             notes=notes,
@@ -410,8 +584,27 @@ def air_total(result: TailSpanResult) -> float:
 
 
 def inertia_total(result: TailSpanResult) -> float:
-    """``-n * W_surf`` -- the d'Alembert total (T-9), zero when not modelled."""
-    return -result.n_case * result.surface_weight_lb if result.inertia_modelled else 0.0
+    """``-n_normal * W_surf`` -- the d'Alembert **bending** total (T-9).
+
+    The normal-direction factor, which is the vertical ``n_case`` for the h-tail
+    and the lateral ``n_y`` for the fin -- the one distinction this whole step
+    turns on. Zero when the surface carries no modelled inertia.
+    """
+    if not result.inertia_modelled:
+        return 0.0
+    n = result.n_y if result.component == VTAIL else result.n_case
+    return -n * result.surface_weight_lb
+
+
+def axial_total(result: TailSpanResult) -> float:
+    """``-n_z * W_surf`` along the span -- the fin's axial column, 0 elsewhere.
+
+    Non-zero only for the vertical tail: it is the term that exists *because* the
+    fin spans in Z, so there is nothing for it to be on a horizontal surface.
+    """
+    if not result.inertia_modelled or result.component != VTAIL:
+        return 0.0
+    return -result.n_case * result.surface_weight_lb
 
 
 def root_index(result: TailSpanResult) -> int:
@@ -472,10 +665,12 @@ __all__ = [
     "X50_PCT",
     "air_total",
     "attachment_stations",
+    "axial_total",
     "build_tail_span",
     "distribute",
     "free_torsion_total",
     "inertia_total",
+    "lateral_load_factor",
     "root_index",
     "side_scales",
     "strip_spans",

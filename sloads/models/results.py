@@ -306,6 +306,35 @@ class WingStationLoad:
     #: which publishes only the cumulative column. Additive with a default, so no
     #: on-disk shape moves.
     myy_free: float = 0.0
+    #: The **inertia** part of ``fz`` -- ``-n_normal * W_surf * frac`` -- carried
+    #: alongside the net so a consumer can separate the two without re-deriving
+    #: the quadrature.
+    #:
+    #: It exists because "air only" is a real requirement somewhere else: an
+    #: assembled balanced case applies the surface's mass **once**, through the
+    #: component-tagged mass items in its closure field, so the applied
+    #: aerodynamic set it reads from here must not have inertia in it as well
+    #: (``balance.fin_sets``). Before the tail carried any inertia, ``fz`` *was*
+    #: the air load and the distinction cost nothing; the moment it stopped being
+    #: so, a consumer with no way to ask would have double-counted the mass
+    #: silently. ``fz - f_inertia`` is the air load, exactly.
+    f_inertia: float = 0.0
+    #: Strip load along the member's **span axis** -- an axial load on the beam,
+    #: not a bending one.
+    #:
+    #: The wing and the horizontal tail have no producer for it (a wing carries
+    #: its spanwise inertia as ``fz``), so it is ``0.0`` on both. The **fin** does:
+    #: its span is airplane ``z``, so the vertical acceleration that bends an
+    #: h-tail *compresses* a v-tail, and ``-n_z * W_vt`` is an axial column in its
+    #: deck. Kept as its own field rather than folded into ``fx`` because ``fx`` is
+    #: the chordwise (airplane X, drag) direction and the two are different loads;
+    #: the local->airplane mapping is
+    #: :func:`sloads.export.coordinates.tail_axial_to_airplane`.
+    f_span: float = 0.0
+    #: Cumulative axial force, tip -> root on the station's own half -- what
+    #: ``sz`` is for the normal load. The fin's root axial force is the number a
+    #: sizing check for column buckling reads.
+    s_span: float = 0.0
 
 
 @dataclass
@@ -374,6 +403,14 @@ class TailSpanResult:
     lt50: float = 0.0
     n_case: float = 0.0
     surface_weight_lb: float = 0.0
+    #: The **lateral** load factor the fin's side inertia is built from, and the
+    #: case weight it came from. ``n_y = (LT25+LT50)/W_case`` -- the free-free
+    #: lateral response to the only lateral aero this suite models, so it
+    #: inherits the fin-only over-statement caveat (plan 13 decision L-7) that
+    #: every lateral result already states in-band. Both are ``0.0`` for the
+    #: horizontal tail, whose inertia is the ``n_case`` (vertical) term alone.
+    n_y: float = 0.0
+    case_weight_lb: float = 0.0
     #: Fuselage attachment span stations the full-span h-tail beam is reacted at
     #: (decision T-8). Empty for the root-supported v-tail.
     attachment_y: List[float] = field(default_factory=list)

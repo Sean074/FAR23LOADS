@@ -142,6 +142,7 @@ from ..units import Channel, DeliverableUnits, UnitSystem, deliverable_units
 from .coordinates import (
     SBEAM_CID,
     bending_moment_vector,
+    tail_axial_to_airplane,
     tail_force_to_airplane,
     tail_station_to_airplane,
     tail_torsion_to_airplane,
@@ -152,6 +153,7 @@ from .coordinates import (
 )
 # Single-sourced from the calc that owns the limitation (public symbol, no cycle:
 # nothing under sloads/modules imports the export bridge).
+from ..modules import tail_span
 from ..modules.body_loads import CLOSURE_ARTIFACT_CAVEAT as _BODY_ARTIFACT_CAVEAT
 from ..modules.net_loads import loads_ref_axis_results
 
@@ -1299,6 +1301,22 @@ def _tail_span_case_block(r, component: str, sid: int,
         "$   (not differenced from a cumulative column).",
         f"$ Control-surface load: {r.control_load_mode.upper()} into this surface.",
     ]
+    # Every ``$`` line stays inside 72 columns (the fixed-field bulk-data comment
+    # width), so the inertia basis is wrapped rather than appended.
+    basis: List[str] = []
+    if r.inertia_modelled:
+        _, _, iner = to_force(0.0, 0.0, tail_span.inertia_total(r) * sf, u)
+        basis.append(f"Surface mass {r.surface_weight_lb:.1f} lb: inertia "
+                     f"{iner:.1f} {u.force.label} is IN the loads above.")
+        axial = tail_span.axial_total(r)
+        if abs(axial) > _TOL:
+            _, _, ax_u = to_force(0.0, 0.0, axial * sf, u)
+            basis.append(f"Plus {ax_u:.1f} {u.force.label} AXIAL along the fin's "
+                         "own span axis, carried in the same FORCE cards.")
+    else:
+        basis.append("NO INERTIA in these loads: air load only.")
+    for line in basis:
+        lines += [f"$ {ln}" for ln in textwrap.wrap(line, width=70)]
     notes = list(r.notes)
     if r.rh_scale != r.lh_scale:
         notes.append("this deck carries a NET ROLLING input to the fuselage")
@@ -1311,8 +1329,14 @@ def _tail_span_case_block(r, component: str, sid: int,
 
     for i, st in enumerate(r.stations):
         gid = tail_span_gid(component, i)
-        fx, fy, fz = to_force(*tail_force_to_airplane(st.fz * sf, component), u)
-        if abs(st.fz) > _TOL:
+        # Normal (bending) and span-axis (axial) strip loads are two components of
+        # one applied force, so they go on one card: emitting a second FORCE at
+        # the same GID would be equally valid to a solver but would double the
+        # card count and invite a consumer to apply only one of them.
+        nx, ny, nz = tail_force_to_airplane(st.fz * sf, component)
+        ax, ay, az = tail_axial_to_airplane(st.f_span * sf, component)
+        fx, fy, fz = to_force(nx + ax, ny + ay, nz + az, u)
+        if abs(st.fz) > _TOL or abs(st.f_span) > _TOL:
             lines.append(f"FORCE, {sid}, {gid}, {SBEAM_CID}, 1.0, "
                          f"{_fmt(fx)}, {_fmt(fy)}, {_fmt(fz)}")
         mx, my, mz = to_moment(*tail_torsion_to_airplane(st.myy_free * sf, component), u)
@@ -1356,9 +1380,12 @@ def tail_span_csv(arg, component: str = "htail", header_comment: str = "", *,
     x_h = f"X on LRA ({u.length.label})"
     f_h, s_h = f"Fn ({fo})", f"Sn ({fo})"
     b_h, t_h = f"Mxx ({mo})", f"Myy ({mo})"
+    # The axial column is the fin's ``-n_z*W_vt``; identically zero on the h-tail,
+    # and kept in the header there so one reader parses both surfaces.
+    fa_h, sa_h = f"Fax ({fo})", f"Sax ({fo})"
     buf = _io.StringIO()
     writer = csv.DictWriter(buf, fieldnames=["Case", "GID", span_h, x_h, f_h, s_h,
-                                             b_h, t_h, "Axis", "SF"])
+                                             b_h, t_h, fa_h, sa_h, "Axis", "SF"])
     writer.writeheader()
     for r in results:
         sf = _sf(r)
@@ -1372,6 +1399,8 @@ def tail_span_csv(arg, component: str = "htail", header_comment: str = "", *,
                 x_h: f"{to_grid(st.x, 0.0, 0.0, u)[0]:.3f}",
                 f_h: f"{fn:.2f}", s_h: f"{sn:.2f}",
                 b_h: f"{bend:.0f}", t_h: f"{tor:.0f}",
+                fa_h: f"{to_force(0.0, 0.0, st.f_span * sf, u)[2]:.2f}",
+                sa_h: f"{to_force(0.0, 0.0, st.s_span * sf, u)[2]:.2f}",
                 "Axis": r.torsion_axis, "SF": f"{_sf_str(sf)}",
             })
     return header_comment + buf.getvalue()

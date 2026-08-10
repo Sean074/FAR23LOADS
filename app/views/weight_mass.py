@@ -44,6 +44,7 @@ from sloads import (
     to_display,
     to_imperial_scalar,
 )
+from sloads.models import MassComponent
 from sloads import io as sloads_io
 from sloads.modules.weight_envelope import envelope as compute_envelope, loading_envelope_points
 from sloads.modules.weight_estimate import estimate, estimate_to_mass_items
@@ -244,6 +245,12 @@ def _tab_estimate(project: Project, system: UnitSystem, U: dict) -> None:
 # --------------------------------------------------------------------------- #
 def _tab_cg_inertia(project: Project, system: UnitSystem, U: dict) -> None:
     _KINDS = [k.value for k in MassItemKind]
+    #: The component tag drives which structural beam carries each item -- the
+    #: fuselage station table, the wing panel distribution and the empennage
+    #: surface weights are all derived from it (``sloads.mass_distribution``).
+    #: ``""`` means untagged, which infers ``fuselage``; it is a real state and
+    #: has to be selectable, not a blank that silently becomes something else.
+    _COMPONENTS = [""] + [c.value for c in MassComponent]
     items = project.weight.items if project.weight and project.weight.items else []
 
     def _disp(v: float, kind: str) -> float:
@@ -254,13 +261,14 @@ def _tab_cg_inertia(project: Project, system: UnitSystem, U: dict) -> None:
             {"name": it.name, "weight_lb": _disp(it.weight_lb, "weight"),
              "x": _disp(it.x, "length"), "y": _disp(it.y, "length"), "z": _disp(it.z, "length"),
              "ixx": _disp(it.ixx, "inertia_lbin2"), "iyy": _disp(it.iyy, "inertia_lbin2"),
-             "izz": _disp(it.izz, "inertia_lbin2"), "kind": it.kind.value}
+             "izz": _disp(it.izz, "inertia_lbin2"), "kind": it.kind.value,
+             "component": it.component.value if it.component else ""}
             for it in items
         ])
     else:
         default_df = pd.DataFrame([
             {"name": "", "weight_lb": 0.0, "x": 0.0, "y": 0.0, "z": 0.0,
-             "ixx": 0.0, "iyy": 0.0, "izz": 0.0, "kind": "empty"}
+             "ixx": 0.0, "iyy": 0.0, "izz": 0.0, "kind": "empty", "component": ""}
         ])
 
     st.subheader("Weight data base")
@@ -279,7 +287,15 @@ def _tab_cg_inertia(project: Project, system: UnitSystem, U: dict) -> None:
             "the program adds the parallel-axis (transfer) term from x/y/z automatically, so leave these 0 for "
             "a point mass.\n"
             "- **kind** — mass category: *empty* (manufacturer's empty weight), *minimum* (always-present "
-            "useful load), *discretionary* (optional payload/fuel). Drives the CG-envelope loadings.\n\n"
+            "useful load), *discretionary* (optional payload/fuel). Drives the CG-envelope loadings.\n"
+            "- **component** — which structural component *carries* the item, and so which distributed "
+            "load set its weight enters: *wing* (the panel distribution, plus anything hung on it), "
+            "*fuselage* (the Ch 15 body beam), *htail* / *vtail* (the empennage surface weight the "
+            "spanwise tail loads smear over the planform). This is the **only** place tail mass is "
+            "entered — the Tail Span Loads page derives it from these rows. Blank means untagged and is "
+            "treated as *fuselage*.\n\n"
+            "*`kind` says when an item is aboard; `component` says what holds it up — they are "
+            "independent.*\n\n"
             "*Roll Ixx is about the X axis, pitch Iyy about Y, yaw Izz about Z.*"
         )
     _COLUMN_CONFIG = {
@@ -291,6 +307,11 @@ def _tab_cg_inertia(project: Project, system: UnitSystem, U: dict) -> None:
         "iyy": st.column_config.NumberColumn(f"iyy ({U['inertia_lbin2']})"),
         "izz": st.column_config.NumberColumn(f"izz ({U['inertia_lbin2']})"),
         "kind": st.column_config.SelectboxColumn("kind", options=_KINDS),
+        "component": st.column_config.SelectboxColumn(
+            "component", options=_COMPONENTS,
+            help="Which structural component carries this weight. Drives the "
+                 "fuselage beam stations, the wing panel mass and the empennage "
+                 "surface weights. Blank = untagged, treated as fuselage."),
     }
     with st.form("weight_items_form"):
         edited = st.data_editor(
@@ -309,6 +330,14 @@ def _tab_cg_inertia(project: Project, system: UnitSystem, U: dict) -> None:
                 kind = MassItemKind(str(row.get("kind", "empty")))
             except ValueError:
                 kind = MassItemKind.EMPTY
+            # Untagged stays untagged: ``None`` is the documented "infer it"
+            # state, and coercing a blank to ``fuselage`` here would make the
+            # inference invisible on the page that owns the data.
+            raw_component = str(row.get("component", "") or "").strip()
+            try:
+                component = MassComponent(raw_component) if raw_component else None
+            except ValueError:
+                component = None
             mass_items.append(MassItem(
                 name=str(row.get("name", "")),
                 weight_lb=_imp(float(row.get("weight_lb", 0) or 0), "weight"),
@@ -319,6 +348,7 @@ def _tab_cg_inertia(project: Project, system: UnitSystem, U: dict) -> None:
                 iyy=_imp(float(row.get("iyy", 0) or 0), "inertia_lbin2"),
                 izz=_imp(float(row.get("izz", 0) or 0), "inertia_lbin2"),
                 kind=kind,
+                component=component,
             ))
         # Merge-write: keep estimation, envelope and cg_cases owned by other tabs.
         estimation = project.weight.estimation if project.weight else None

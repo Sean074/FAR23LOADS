@@ -13,6 +13,12 @@ The suite carried **two independent mass models that never reconciled**:
   deliverable is computed from.
 * ``fuselage_mass.stations`` -- a short hand-entered lump table, the only input
   the Ch 15 fuselage beam ever read.
+* ``tail_mass`` -- a per-surface panel weight, the only input the spanwise
+  empennage distribution ever read. **No shipped fixture ever set one**, so its
+  failure mode was quieter and worse than the fuselage's: every h-tail deck in
+  the suite was air-only while the item data base carried the tail weight
+  correctly the whole time (ga6 42/23 lb, the RJ 520/640). Derived since this
+  step -- see :func:`tail_surface_weight`.
 
 Nothing anywhere compared them. Measured 2026-08-08 across the shipped fixtures,
 the second is short of the first by:
@@ -62,6 +68,8 @@ base can produce one. ``FuselageMassInput.stations`` survives as an **explicit**
 override, taken only when ``stations_are_override`` is set -- so a hand-entered
 table is a deliberate act rather than a stale file silently outranking the SSOT,
 and :func:`fuselage_reconciliation` surfaces the difference either way.
+:func:`tail_surface_weight` applies the identical rule to the empennage surface
+weights, with :func:`tail_reconciliation` as its reporter.
 
 Component tagging
 -----------------
@@ -104,6 +112,12 @@ RECONCILE_REL_TOL = 1e-6
 #: table is a rounding of the item model, above it the two disagree about what
 #: is aboard the airplane.
 FUSELAGE_GAP_WARN_FRACTION = 0.01
+
+#: Fractional gap at which :func:`tail_reconciliation` calls an entered surface
+#: weight materially different from the tagged items. 1 %, the fuselage gate's
+#: value and for the same reason -- below it the two are the same airplane
+#: rounded differently; above it they disagree about what the surface is.
+TAIL_GAP_WARN_FRACTION = 0.01
 
 
 # --------------------------------------------------------------------------- #
@@ -394,6 +408,99 @@ def unmodelled_wing_mass(project: Project) -> float:
     return 2.0 * sum(c.weight_lb for c in wm.concentrated) - accounted
 
 
+#: The mass component each empennage surface's distributed inertia is built from.
+#: Keyed by the ``tail_span``/``tail_geometry`` component name so a caller never
+#: has to map the two vocabularies itself.
+TAIL_COMPONENTS = {"htail": MassComponent.HTAIL, "vtail": MassComponent.VTAIL}
+
+
+def derived_tail_surface_weight(project: Project, component: str) -> float:
+    """``Σ weight_lb`` of the items tagged as carried by one empennage surface.
+
+    The tail's half of the same move B1 made for the fuselage beam: the surface
+    weight the spanwise empennage distribution smears is **derived from the item
+    data base**, not entered a second time. ``component`` is ``"htail"`` or
+    ``"vtail"``; anything else is 0.0 rather than an error, because a caller
+    asking about a surface this suite does not model is asking a well-formed
+    question with the answer "no mass".
+
+    Placement is *not* read from the items. Plan 09 decision T-3 distributes the
+    surface weight as a **uniform area density** over the planform, so an item's
+    own ``x``/``z`` says nothing here; it is used by
+    :func:`tail_reconciliation` to report a mistagged item, and by the fuselage
+    beam, which does lump each item at its own station.
+    """
+    tag = TAIL_COMPONENTS.get(component)
+    if tag is None:
+        return 0.0
+    return distribution(project).weight(tag)
+
+
+def tail_surface_weight(project: Project, component: str) -> float:
+    """The surface weight one empennage distribution should use — **the entry point**.
+
+    The derived weight (:func:`derived_tail_surface_weight`) by default; the
+    entered ``TailMassInput.panel_weight_lb`` when that input is marked an
+    explicit override. Exactly :func:`fuselage_beam_stations`' rule, for the same
+    reason: before this, ``tail_span`` read only the entered value, no fixture
+    ever set one, and **every h-tail deck in the suite was air-only** while the
+    item data base carried the tail mass correctly all along.
+
+    Returns 0.0 when neither source has anything — a surface with no tagged item
+    and no override. That is reported in-band by the caller (the deck says it
+    carries no inertia), never silently taken for "weightless".
+    """
+    for tm in project.tail_mass or []:
+        if tm.surface == component and tm.weight_is_override:
+            return tm.panel_weight_lb
+    derived = derived_tail_surface_weight(project, component)
+    if derived:
+        return derived
+    for tm in project.tail_mass or []:
+        if tm.surface == component:
+            return tm.panel_weight_lb
+    return 0.0
+
+
+def tail_reconciliation(project: Project, component: str) -> Optional[MassCheck]:
+    """One surface's **entered** panel weight against the derived one.
+
+    The tail analogue of :func:`fuselage_reconciliation`, and surfaced for the
+    same reason: an entered weight that disagrees with the tagged items is
+    somebody's statement about the airplane, and which of the two is wrong is the
+    user's call, not this module's. ``None`` when nothing is entered to compare.
+    """
+    entered = next((tm for tm in project.tail_mass or []
+                    if tm.surface == component), None)
+    if entered is None or not entered.panel_weight_lb:
+        return None
+    derived = derived_tail_surface_weight(project, component)
+    if not derived:
+        return None
+    got, want = entered.panel_weight_lb, derived
+    return MassCheck(
+        code=f"mass_{component}_reconcile",
+        ok=abs(got - want) <= TAIL_GAP_WARN_FRACTION * abs(want),
+        got=got, want=want,
+        detail=(f"entered {component} weight {got:.1f} lb against {want:.1f} lb "
+                f"of {component}-tagged items ({got - want:+.1f} lb)"
+                + ("; the entered value is the explicit override and is what the "
+                   "distribution uses" if entered.weight_is_override else
+                   "; the derived value is what the distribution uses")),
+    )
+
+
+def untagged_tail_surfaces(project: Project) -> List[str]:
+    """The modelled empennage surfaces with **no** tagged mass item at all.
+
+    A zero here is an omission, not a weightless fin: it means the data base
+    never said which items the surface carries. Named so the caller can say
+    which surface, rather than shipping a deck whose inertia is quietly absent.
+    """
+    return [c for c in TAIL_COMPONENTS
+            if not derived_tail_surface_weight(project, c)]
+
+
 def fuselage_reconciliation(project: Project) -> Optional[MassCheck]:
     """The **entered** station table against the derived one.
 
@@ -614,7 +721,9 @@ def case_loading_checks(project: Project) -> List[MassCheck]:
 def all_checks(project: Project) -> List[MassCheck]:
     """Every reconciliation this module owns, in report order."""
     out = [partition_closes(project)]
-    for check in (wing_mass_tie(project), fuselage_reconciliation(project)):
+    for check in (wing_mass_tie(project), fuselage_reconciliation(project),
+                  tail_reconciliation(project, "htail"),
+                  tail_reconciliation(project, "vtail")):
         if check is not None:
             out.append(check)
     return out
@@ -648,7 +757,9 @@ __all__ = [
     "STATION_MERGE_TOL",
     "RECONCILE_REL_TOL",
     "FUSELAGE_GAP_WARN_FRACTION",
+    "TAIL_GAP_WARN_FRACTION",
     "BEAM_COMPONENTS",
+    "TAIL_COMPONENTS",
     "MassDistribution",
     "MassCheck",
     "infer_component",
@@ -656,6 +767,10 @@ __all__ = [
     "distribution",
     "derived_fuselage_stations",
     "fuselage_beam_stations",
+    "derived_tail_surface_weight",
+    "tail_surface_weight",
+    "tail_reconciliation",
+    "untagged_tail_surfaces",
     "BALLAST_CREDIBLE_FRACTION",
     "CaseLoading",
     "derive_case_loadings",

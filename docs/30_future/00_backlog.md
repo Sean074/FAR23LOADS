@@ -71,9 +71,13 @@ milestones **M1, M2, M2R, M3** and mission-extension **steps 1–8** are complet
 (step 8 = the lateral empennage closure, plan 13 B8a-1…B8a-5, 2026-08-09), plus
 the **concentrated-mass offset couples** (plan 14, 2026-08-09 — the exported
 wing deck now reproduces the NETLOADS shear *and* bending at every node, on a
-concentrated-mass wing, verified in the real solver). The suite is green (ruff
-clean, 1295 passed, smoke test PASS), the FAR23 GA path is Appendix-A
-oracle-locked, and both concept fixtures run end-to-end.
+concentrated-mass wing, verified in the real solver) and the **empennage mass
+SSOT** (2026-08-10 — the tail surface weight is derived from `weight.items`, so
+every h-tail deck carries inertia instead of being silently air-only; the fin
+gains its lateral and axial inertia terms; and the export path's `n = 1.0`
+fallback, which understated h-tail inertia up to 3.8×, is fixed). The suite is
+green (ruff clean, 1322 passed, smoke test PASS), the FAR23 GA path is
+Appendix-A oracle-locked, and both concept fixtures run end-to-end.
 
 **Release status:** **sloads 0.4.0 cut 2026-08-08**, tag `v0.4.0` — the mission
 extension's first seven steps (mass SSOT, CONM2/MASSSET export, balanced
@@ -82,8 +86,11 @@ distributed empennage loads) plus M4-20, M3-3b, M4-2 and F25-2. `[Unreleased]`
 holds **step 8 entire** — the fin root waterline (B8a-1), the six-DOF closure
 (B8a-2) and the lateral ±β empennage cases (B8a-3…5) — plus the
 balancing-method theory document
-(`docs/20_theory/balanced_cases.md`); the next release follows the
-`RELEASE_PROCESS.md` cadence rule (~2–3 weeks or ~5 closed steps).
+(`docs/20_theory/balanced_cases.md`), the concentrated-mass offset couples
+(plan 14) and the **empennage mass SSOT** (2026-08-10: tail decks gain inertia,
+the fin gains its two-axis inertia, and the `n = 1.0` export fallback is fixed);
+the next release follows the `RELEASE_PROCESS.md` cadence rule (~2–3 weeks or ~5
+closed steps).
 
 Reference-authority hierarchy: (1) `.BAS` listings + Appendix A printed output,
 (2) User's Guide CFR quotes (Jan-1994), (3) Code-manual 1990 prose.
@@ -109,40 +116,39 @@ numbers (steps 8–14) are kept inside item names for traceability with plans
 
 | Pri | Item (detail below / in its plan) | What ships | Tag | Tier / effort | Depends on |
 |---|---|---|---|---|---|
-| 1 | `tail_mass` derived from the item SSOT | Tail decks gain inertia (every h-tail deck is air-only today); first real exercise of plan 09 T-3 | E | M / S | — |
-| 2 | ONENGOUT fixture data | Turboprop horsepower + an RJ `one_engine_out` slice; the 23.367 module executes on shipped fixtures | E | S / S | — |
-| 3 | CONM2 inertia cross-check in CI (plan 12 C6 remainder) | Mass-check deck (`MASSSET` + `GRAV`) solved in CI as the fourth deck family | E | M / S | step 2 ✅ |
-| 4 | Step 9 — discrete controls + T-tail transfer (plan 09 T6–T7) | Hinge/actuator tributary `FORCE` reactions and the first hinge-moment output; the T-tail fin deck carries the h-tail transfer at the tip | E | L / M–L | step 7 ✅ |
-| 5 | Step 10 — ground-case distributed loads (M4-6) | Gear reactions as applied `FORCE` cards on the body deck; pressurization case | E | L / L | — (design-note gated) |
-| 6 | Step 11 — balanced landing cases (plan 11 B8b) | Free-free ground cases in the assembled deck | E | L / M | steps 6 ✅, Pri 5 |
-| 7 | Step 12 — LRA beam-model export + import | Cards delivered on the consumer's own node line; standalone LRA skeleton export | E | L / M–L | step 5 ✅ |
-| 8 | Step 13 — side-of-body reporting node | SOB internal shear/bending/torsion reported as the wing root design loads | E | M / M | step 5 ✅ |
-| 9 | Step 14 — real stiffness / assembled airframe properties (L-1) | Real section properties replacing the `MAT1` placeholder | E | L / M | Pri 8 |
-| 10 | M4-8 — safety-factor policy, Layer 1 | One resolver as the sole authority for every non-1.5 factor | E | M / S–M | none — sequence-independent, ship in any gap |
-| 11 | The aileron's own lift increment is not distributed | `ACRL` wing cards gain the aero half of the couple (acts ~70 % span) | V | L / M | pairs plan 09 spanwise work |
-| 12 | RJ pitch-gate exceedance diagnosis | Element-count study → R3 vs `Cm` split; plan 13 G9 inherits the ceiling | V | M / S | pairs M4-19 |
-| 13 | Payload cases the weight database can produce (sibling pair) | Four more fixtures gain balanced cases → more assembled decks in CI | V | M–L / M | user decision: loading definition vs fixture fix |
-| 14 | Wing-tank fuel separability | Ends the same pounds riding both beams on the three fuel-in-wing fixtures | V | L / M | pairs plan 12 C1 |
-| 15 | Lateral body aero `Cy_β`/`Cn_β` (L-7) | Honest lateral `n_y`/`ψ̈` (fin-only today — over-stated, conservative) | V | L / M | pairs M4-19 |
-| 16 | Empennage planform polylines (fixture data) | Real taper in the tail card distributions instead of the `assumed` rectangle | V | S / S | — |
-| 17 | h-tail attachment `fuselage_width` (fixture data) | Real attachment stations instead of the `±ds/2` fallback | V | S / S | pairs Pri 8 (SOB) |
-| 18 | `concept_heavy` wing deck absent from the Imperial baseline | The one shipped wing deck no digest covers gains one | V | S / S | — |
-| 19 | Wing deck `$` width + centerline-clamp header line | 72-column wrap + clamp caveat; one digest regeneration | V | S / S | — |
-| 20 | Load-application axis vs elastic axis — document the torsion reference | Convention in `coordinates.py` + spec + deck `$` header | V | S / S | partially superseded by Pri 8 |
-| 21 | Gust spanwise-distribution decision | Study + recorded decision | V | S / S | — |
-| 22 | M4-19 — Multhopp distributed fuselage `Cm` | A distributed body pitching load for `body_loads` | V | L / M | — |
-| 23 | M4-21 — fuselage pitching load factor | d'Alembert pitch term at each body station | V | M / S | pairs M4-4 |
-| 24 | M4-4 — per-CG precise inertia in SELECT | WTONECG inertia wired into checked-maneuver `Iyy` / v-tail `IZZ` | V | M / S | — |
-| 25 | M4-3 — ONENGOUT data-flow + turboprop gate | Geometry provenance, `is_turboprop` gate, VSF decision | V | M / S | — |
-| 26 | L-8g — CLI methods & limitations stamp | Headless exports state their ULTIMATE basis and category | V | S / S | — |
-| 27 | L-8i — per-page LIMIT CSV units | Converted, unit-suffixed analysis-page downloads | V | S / S | — |
-| 28 | F25-0 — verify pass | Current CFR text for every *(verify)* row | V | S / S | precedes any F25 build step |
-| 29 | Mach-margin route for the FAR 23 categories | Category gate + per-category default | V | S / S | — |
-| 30 | Flutter-clearance Mach basis for transports | Verified reference + decision, then an opt-in variant | V | S / S | — |
-| 31 | Upset-criterion speed increase (25.335(b)(1)) | The 20 s dive integration the margin route lacks | V | M / M | — |
-| 32 | F25-1 — transport category "T" envelope pack | 25.337 floors, 25.341 U_ref schedule, VB | V | M / M | — |
-| 33 | F25-4 — ground-loads parameter variant | 10/6 fps, lift = W, LDW/MTOW pairing | V | M / M | coordinates with Pri 5 |
-| 34 | Split `40_history/00_completed_development.md` by era | Mechanical split + index file | V | S / S | after the working tree is committed |
+| 1 | ONENGOUT fixture data | Turboprop horsepower + an RJ `one_engine_out` slice; the 23.367 module executes on shipped fixtures | E | S / S | — |
+| 2 | CONM2 inertia cross-check in CI (plan 12 C6 remainder) | Mass-check deck (`MASSSET` + `GRAV`) solved in CI as the fourth deck family | E | M / S | step 2 ✅ |
+| 3 | Step 9 — discrete controls + T-tail transfer (plan 09 T6–T7) | Hinge/actuator tributary `FORCE` reactions and the first hinge-moment output; the T-tail fin deck carries the h-tail transfer at the tip | E | L / M–L | step 7 ✅ |
+| 4 | Step 10 — ground-case distributed loads (M4-6) | Gear reactions as applied `FORCE` cards on the body deck; pressurization case | E | L / L | — (design-note gated) |
+| 5 | Step 11 — balanced landing cases (plan 11 B8b) | Free-free ground cases in the assembled deck | E | L / M | steps 6 ✅, Pri 4 |
+| 6 | Step 12 — LRA beam-model export + import | Cards delivered on the consumer's own node line; standalone LRA skeleton export | E | L / M–L | step 5 ✅ |
+| 7 | Step 13 — side-of-body reporting node | SOB internal shear/bending/torsion reported as the wing root design loads | E | M / M | step 5 ✅ |
+| 8 | Step 14 — real stiffness / assembled airframe properties (L-1) | Real section properties replacing the `MAT1` placeholder | E | L / M | Pri 7 |
+| 9 | M4-8 — safety-factor policy, Layer 1 | One resolver as the sole authority for every non-1.5 factor | E | M / S–M | none — sequence-independent, ship in any gap |
+| 10 | The aileron's own lift increment is not distributed | `ACRL` wing cards gain the aero half of the couple (acts ~70 % span) | V | L / M | pairs plan 09 spanwise work |
+| 11 | RJ pitch-gate exceedance diagnosis | Element-count study → R3 vs `Cm` split; plan 13 G9 inherits the ceiling | V | M / S | pairs M4-19 |
+| 12 | Payload cases the weight database can produce (sibling pair) | Four more fixtures gain balanced cases → more assembled decks in CI | V | M–L / M | user decision: loading definition vs fixture fix |
+| 13 | Wing-tank fuel separability | Ends the same pounds riding both beams on the three fuel-in-wing fixtures | V | L / M | pairs plan 12 C1 |
+| 14 | Lateral body aero `Cy_β`/`Cn_β` (L-7) | Honest lateral `n_y`/`ψ̈` (fin-only today — over-stated, conservative) | V | L / M | pairs M4-19 |
+| 15 | Empennage planform polylines (fixture data) | Real taper in the tail card distributions instead of the `assumed` rectangle | V | S / S | — |
+| 16 | h-tail attachment `fuselage_width` (fixture data) | Real attachment stations instead of the `±ds/2` fallback | V | S / S | pairs Pri 7 (SOB) |
+| 17 | `concept_heavy` wing deck absent from the Imperial baseline | The one shipped wing deck no digest covers gains one | V | S / S | — |
+| 18 | Wing deck `$` width + centerline-clamp header line | 72-column wrap + clamp caveat; one digest regeneration | V | S / S | — |
+| 19 | Load-application axis vs elastic axis — document the torsion reference | Convention in `coordinates.py` + spec + deck `$` header | V | S / S | partially superseded by Pri 7 |
+| 20 | Gust spanwise-distribution decision | Study + recorded decision | V | S / S | — |
+| 21 | M4-19 — Multhopp distributed fuselage `Cm` | A distributed body pitching load for `body_loads` | V | L / M | — |
+| 22 | M4-21 — fuselage pitching load factor | d'Alembert pitch term at each body station | V | M / S | pairs M4-4 |
+| 23 | M4-4 — per-CG precise inertia in SELECT | WTONECG inertia wired into checked-maneuver `Iyy` / v-tail `IZZ` | V | M / S | — |
+| 24 | M4-3 — ONENGOUT data-flow + turboprop gate | Geometry provenance, `is_turboprop` gate, VSF decision | V | M / S | — |
+| 25 | L-8g — CLI methods & limitations stamp | Headless exports state their ULTIMATE basis and category | V | S / S | — |
+| 26 | L-8i — per-page LIMIT CSV units | Converted, unit-suffixed analysis-page downloads | V | S / S | — |
+| 27 | F25-0 — verify pass | Current CFR text for every *(verify)* row | V | S / S | precedes any F25 build step |
+| 28 | Mach-margin route for the FAR 23 categories | Category gate + per-category default | V | S / S | — |
+| 29 | Flutter-clearance Mach basis for transports | Verified reference + decision, then an opt-in variant | V | S / S | — |
+| 30 | Upset-criterion speed increase (25.335(b)(1)) | The 20 s dive integration the margin route lacks | V | M / M | — |
+| 31 | F25-1 — transport category "T" envelope pack | 25.337 floors, 25.341 U_ref schedule, VB | V | M / M | — |
+| 32 | F25-4 — ground-loads parameter variant | 10/6 fps, lift = W, LDW/MTOW pairing | V | M / M | coordinates with Pri 4 |
+| 33 | Split `40_history/00_completed_development.md` by era | Mechanical split + index file | V | S / S | after the working tree is committed |
 
 ---
 
@@ -163,32 +169,6 @@ test it — but a byte-level regression in that deck alone would pass CI. Fix:
 build the envelope in `artifacts` as `_components` already does, then regenerate.
 Tier S. Effort: S (the regeneration is the whole cost).
 
-### [E] `tail_mass` is a parallel mass model no fixture populates — the tail decks carry no inertia *(new 2026-08-09, found by the B8a decision session)*
-Plan 11 decision **B-2** made `weight.items` the mass SSOT, and B1 made
-`fuselage_mass.stations` derived from it. `TailMassInput` was never brought
-along. **No shipped fixture carries a `tail_mass` entry at all**, so
-`tail_span._surface_weight` returns 0 for both surfaces and **every h-tail deck
-on every airplane is air-only** — the "no `tail_mass` entry for this surface —
-air load only, no inertia" note fires on all six. Meanwhile `weight.items` tags
-the empennage mass correctly:
-
-| fixture | h-tail tagged | v-tail tagged | `tail_mass` |
-|---|---|---|---|
-| `ga6_normal` | 42 lb | 23 lb | none |
-| `concept_regional_jet` | 520 lb | 640 lb | none |
-
-Same class as the 427 lb fuselage discrepancy: a second mass model with nothing
-reconciling it to the SSOT. Consequence today is an *omission*, not a wrong
-number — the tail decks state their air-only basis in-band — but plan 09's T-3
-uniform-area-density inertia has therefore **never actually run on a shipped
-fixture**, so its first real exercise will be whenever this is closed.
-
-Fix: derive the surface weight from the tagged items (`tail_mass.panel_weight_lb`
-demoted to an explicit override, exactly as `fuselage_mass.stations` was), with
-the difference reported rather than silently taken. Deliberately **not** folded
-into B8a (decision L-8) — it moves h-tail per-component deck bytes and digests,
-which has nothing to do with lateral closure. Tier M. Effort: S.
-
 ### [E] ONENGOUT cannot execute on any shipped fixture *(new 2026-08-09, found by plan 13 B8a-2 gate G1)*
 `one_engine_out` is a registered module with an oracle-cited FAR 23.367 time
 integration, and **no shipped fixture can run it**. Two independent gaps, and a
@@ -201,8 +181,8 @@ fixture needs to clear both:
 
 So `_case_inputs` raises `MissingInputError` on the two that get furthest, and
 the module's whole simulation path is exercised only by unit tests on constructed
-inputs. Same class as the `tail_mass` item above: the calc is right and the data
-never reaches it.
+inputs. Same class as the `tail_mass` gap closed on 2026-08-10: the calc is right
+and the data never reaches it.
 
 Found because B8a-2's gate **G1** uses ONENGOUT as the independent producer for
 the yaw degree of freedom (`ψ̈ = M/Izz`), and the gate has to supply the

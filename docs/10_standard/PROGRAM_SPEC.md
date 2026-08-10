@@ -582,7 +582,11 @@ return strings (with thin `write_*` file wrappers), and do no physics.
   `export/coordinates.py` alone: span → `z` from the fin root waterline, normal
   force → `fy`, torsion → `mz` **negated**. Fin **inertia** is not in this set —
   it rides in the closure field at the case's own `n_y`/`ω̇` through the
-  `VTAIL`-tagged mass items (`CONVENTIONS.md` §1, decision L-8). Reported per
+  `VTAIL`-tagged mass items (`CONVENTIONS.md` §1, decision L-8). Since 2026-08-10
+  the per-condition fin deck carries inertia of its own, so the applied set is
+  taken as `fz - f_inertia`: each mass enters exactly one field, and reading the
+  net here would relieve the applied side load with a mass the closure field is
+  also carrying. Reported per
   case in the result, the UI and the deck header: the applied fin side load, the
   lateral load factor `n_y = L_v/W`, and the yaw and roll accelerations it
   drives. `residual_fy`/`residual_mz` before closure **are** that load and are
@@ -600,10 +604,7 @@ return strings (with thin `write_*` file wrappers), and do no physics.
   density surface inertia at `−n·W` (d'Alembert — the sign follows the load
   factor alone, so a down-load case is *increased*). The h-tail table is **full
   span**, tip to tip through the centreline, reacted at fuselage attachment
-  stations; the v-tail is single-sided and root-supported and carries **no
-  inertia** — the per-component deck stays air-only, and from B8a-3 the fin's
-  inertia is carried by the *balanced* case at its own `n_y`/`ω̇` (decision L-8),
-  which is where a lateral load factor exists. FAR 23.427(a) scales the
+  stations; the v-tail is single-sided and root-supported. FAR 23.427(a) scales the
   two halves by SELECT's own RH/LH split. The planform comes from an optional
   `htail`/`vtail` entry in `geometry.surfaces` (validated against the
   oracle-authoritative area/span to 1 %) or is **derived as a rectangle and
@@ -615,6 +616,24 @@ return strings (with thin `write_*` file wrappers), and do no physics.
   tail-load station for any combined-airframe sum. Surfaces: the **Tail Span
   Loads** page, the Export page, `cli.py --export-target htail-span|vtail-span`.
   The chordwise TAILDIST path and every Appendix A figure are unchanged.
+- **Empennage mass and the fin's two axes (2026-08-10).** The surface weight is
+  **derived from `weight.items`** — the `htail`/`vtail`-tagged rows, through
+  `mass_distribution.tail_surface_weight` — with `TailMassInput.panel_weight_lb`
+  as an explicit override (`weight_is_override`) and the gap always reported
+  (`tail_reconciliation`); a surface with no tagged item is named as a data gap,
+  not reported as weightless. Until this step no fixture entered a `tail_mass` at
+  all and *every h-tail deck was air-only*. Each surface's inertia is built on
+  the acceleration along **its own normal axis**: `−n_z·W_ht` for the h-tail;
+  for the fin, `−n_y·W_vt` bending with `n_y = (LT25+LT50)/W_case` **plus**
+  `−n_z·W_vt` **axial** along the span (`f_span`/`s_span`, mapped by
+  `coordinates.tail_axial_to_airplane`, emitted in the same `FORCE` cards). The
+  lateral term relieves the surface total by exactly `W_vt/W_case` and inherits
+  decision L-7's over-statement caveat — both stated in-band. A condition naming
+  no V-n point gets no lateral term. Load factors are resolved through
+  `select.default_envelope`, the single owner; reading `project.envelope`
+  directly made every *exported* deck take the `n = 1.0` fallback.
+  Mass is entered **only** on the Weights page's `component` column — the Tail
+  Span Loads page shows the derived weight read-only and owns no mass input.
 - **CONM2 mass export (step C1–C5, 2026-08-08).** `sloads/export/mass_cards.py`
   writes the itemized mass model as `CONM2` cards with one `MASSSET` per
   *derivable* payload case, in three artifacts: a pasteable fragment, a

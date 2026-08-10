@@ -62,9 +62,13 @@ EXAMPLES = ("ga6_normal.project.json", "cessna_210.project.json",
             "atr42_100.project.json", "dhc8_dash8.project.json",
             "concept_regional_jet.project.json")
 
-#: A tail mass for the fixtures, which carry none: the gates on the inertia term
-#: need it to be non-zero, and inventing it *in the test* keeps the shipped
-#: fixtures unchanged.
+#: A tail mass held **fixed across every fixture**, so the analytic closures below
+#: read one number instead of six. Since the SSOT step the surface weight is
+#: derived from the ``htail``/``vtail``-tagged weight items (42/23 lb on ga6,
+#: 520/640 on the RJ), so pinning it takes the documented explicit-override path
+#: -- which is also what exercises that path. ``weight=0.0`` is the same
+#: mechanism used to switch the inertia off: an override *of zero*, not an
+#: absent input, because an absent input now correctly derives a real mass.
 _TAIL_WEIGHT = 42.0
 
 _CACHE = {}
@@ -78,9 +82,10 @@ def _project(example: str, weight: float = _TAIL_WEIGHT):
             p.envelope = build_envelope(p)
         if p.envelope.critical is None:
             p.envelope.critical = build_critical(p)
-        if weight:
-            p.tail_mass = [TailMassInput(surface=HTAIL, panel_weight_lb=weight),
-                           TailMassInput(surface=VTAIL, panel_weight_lb=weight)]
+        p.tail_mass = [
+            TailMassInput(surface=s, panel_weight_lb=weight, weight_is_override=True)
+            for s in (HTAIL, VTAIL)
+        ]
         _CACHE[key] = p
     return copy.deepcopy(_CACHE[key])
 
@@ -292,11 +297,20 @@ def test_an_offset_lra_moves_the_torsion_by_the_stated_lever():
 # --------------------------------------------------------------------------- #
 @pytest.mark.parametrize("example", EXAMPLES)
 def test_the_inertia_sums_to_minus_n_times_the_surface_weight(example):
+    """Σ bending inertia = ``−n_normal·W_surf``, on each surface's own axis.
+
+    The normal-direction factor is the vertical ``n_case`` for the h-tail and the
+    lateral ``n_y`` for the fin — the distinction the fin's inertia turns on, and
+    the one a single shared ``n`` would silently get wrong.
+    """
     for r in _results(example):
         if not r.inertia_modelled:
             assert inertia_total(r) == 0.0
             continue
-        assert inertia_total(r) == pytest.approx(-r.n_case * _TAIL_WEIGHT, rel=1e-12)
+        n = r.n_y if r.component == VTAIL else r.n_case
+        assert inertia_total(r) == pytest.approx(-n * _TAIL_WEIGHT, rel=1e-12)
+        assert sum(st.fz for st in r.stations) == pytest.approx(
+            air_total(r) + inertia_total(r), rel=1e-9, abs=1e-9)
 
 
 def test_the_inertia_sign_is_dalembert_not_load_opposing():
@@ -321,15 +335,69 @@ def test_the_inertia_sign_is_dalembert_not_load_opposing():
     assert net == pytest.approx(air - with_mass[down].n_case * _TAIL_WEIGHT, rel=1e-9)
 
 
-def test_the_vtail_carries_no_inertia_and_says_so():
-    """Decision L-8: fin inertia belongs to a balanced case, not to this
-    single-condition view, because ``n_y`` is a property of the case. Stated
-    in-band on every v-tail result rather than left as a silent omission."""
-    for r in _results("ga6_normal.project.json"):
-        if r.component != VTAIL:
+@pytest.mark.parametrize("example", EXAMPLES)
+def test_the_fin_lateral_inertia_is_exactly_the_weight_ratio_of_the_air_load(example):
+    """**The fin gate.** Σ inertia / Σ air ≡ ``−W_vt/W_case``, to machine zero.
+
+    This is what makes the new lateral term self-checking, and it is a real check
+    rather than a restatement: the left side comes out of the strip quadrature
+    (chord-proportional areas summed over the planform) and the right side is two
+    scalars the quadrature never touches. ``n_y = Fy/W_case`` cancels the air load
+    out of the ratio entirely — so the identity holds on a rudder-kick case and a
+    side-gust case alike, and it fails the moment anyone reaches for ``n_case``
+    (vertical) where the fin's lateral factor belongs.
+
+    The relief is also the number a reviewer should see: 0.68 % on ga6's fin,
+    and it is *unconservative*, which is exactly why it is pinned.
+    """
+    for r in _results(example):
+        if r.component != VTAIL or not r.inertia_modelled:
             continue
-        assert not r.inertia_modelled and inertia_total(r) == 0.0
-        assert any("balanced case" in n for n in r.notes)
+        assert r.case_weight_lb > 0.0
+        got = sum(st.fz for st in r.stations)
+        want = air_total(r) * (1.0 - _TAIL_WEIGHT / r.case_weight_lb)
+        assert got == pytest.approx(want, rel=1e-12), f"{example} {r.case}"
+
+
+@pytest.mark.parametrize("example", EXAMPLES)
+def test_the_fin_axial_column_is_minus_nz_times_the_surface_weight(example):
+    """Σ ``f_span`` = ``−n_z·W_vt`` on the fin, and identically zero elsewhere.
+
+    The term that exists *because* the fin spans in Z: the vertical acceleration
+    that bends a horizontal tail compresses a vertical one. It must also make no
+    bending — an axial load has no moment about its own line of action — so the
+    root bending is asserted to be the air+lateral value with the axial column
+    present, not something the axial term has leaked into.
+    """
+    for r in _results(example):
+        axial = sum(st.f_span for st in r.stations)
+        if r.component != VTAIL or not r.inertia_modelled:
+            assert axial == 0.0, f"{example} {r.component} carries an axial term"
+            continue
+        assert axial == pytest.approx(-r.n_case * _TAIL_WEIGHT, rel=1e-12)
+        assert r.stations[root_index(r)].s_span == pytest.approx(axial, rel=1e-12)
+        # No bending from it: the normal-direction closure still holds exactly.
+        assert sum(st.fz for st in r.stations) == pytest.approx(
+            air_total(r) + inertia_total(r), rel=1e-12)
+
+
+def test_a_fin_case_with_no_vn_point_gets_no_lateral_inertia_and_says_so():
+    """No V-n point means no case weight, so ``n_y`` has no denominator.
+
+    The alternative — falling back to a gross-weight stand-in — would put a
+    number nobody entered into a structural load. It reports instead.
+    """
+    p = _project("ga6_normal.project.json")
+    for cond in p.envelope.critical.conditions:
+        if cond.component == VTAIL:
+            cond.case = None
+    for r in build_tail_span(p)[VTAIL]:
+        assert r.n_y == 0.0 and r.case_weight_lb == 0.0
+        assert inertia_total(r) == 0.0
+        assert any("no V-n point" in n for n in r.notes)
+        # The axial term survives: it needs no case weight, only the load factor.
+        assert sum(st.f_span for st in r.stations) == pytest.approx(
+            -r.n_case * _TAIL_WEIGHT, rel=1e-12)
 
 
 #: The fin's height above the airplane CG, per fixture. This is the quantity
@@ -544,6 +612,120 @@ def test_the_deck_states_the_mode():
     results = build_tail_span(_project("ga6_normal.project.json"))[HTAIL]
     text = sb.tail_span_force_moment_cards(results, component=HTAIL)
     assert "Control-surface load: SMEARED into this surface." in text
+
+
+# --------------------------------------------------------------------------- #
+# The surface weight comes from the mass SSOT (the defect this step closed)
+# --------------------------------------------------------------------------- #
+#: What each fixture's empennage weighs according to the ``htail``/``vtail``-tagged
+#: rows of its weight data base. Pinned here, from the fixtures, because the
+#: defect being guarded is precisely that these numbers existed all along and
+#: never reached the distribution. ``concept_heavy`` has no v-tail-tagged item —
+#: kept in the table as ``None``, since "no data" is a different state from
+#: "weighs nothing" and the code has to say which.
+_DERIVED_TAIL_WEIGHT = {
+    "ga6_normal.project.json": (42.0, 23.0),
+    "cessna_210.project.json": (45.0, 25.0),
+    "atr42_100.project.json": (320.0, 270.0),
+    "dhc8_dash8.project.json": (350.0, 300.0),
+    "concept_regional_jet.project.json": (520.0, 640.0),
+    "concept_heavy.project.json": (400.0, None),
+}
+
+
+@pytest.mark.parametrize("example", sorted(_DERIVED_TAIL_WEIGHT))
+def test_the_surface_weight_is_derived_from_the_tagged_items(example):
+    """No ``tail_mass`` entered, and the distribution still carries the mass."""
+    from sloads.mass_distribution import derived_tail_surface_weight, tail_surface_weight
+
+    p = io.load_project(os.path.join(_ROOT, "examples", example))
+    assert not p.tail_mass, f"{example} now enters a tail mass -- update this gate"
+    h_want, v_want = _DERIVED_TAIL_WEIGHT[example]
+    assert tail_surface_weight(p, HTAIL) == pytest.approx(h_want)
+    assert derived_tail_surface_weight(p, HTAIL) == pytest.approx(h_want)
+    assert tail_surface_weight(p, VTAIL) == pytest.approx(v_want or 0.0)
+
+
+@pytest.mark.parametrize("example", EXAMPLES)
+def test_no_shipped_fixture_produces_an_air_only_htail_deck(example):
+    """The regression gate for the defect itself.
+
+    Before this step ``tail_span`` read only the entered ``tail_mass``, no fixture
+    set one, and **every h-tail deck the suite shipped was air-only** — an
+    omission that announced itself in a note and in no number. This asserts the
+    omission cannot come back silently: on the shipped file, untouched, every
+    h-tail result carries a real weight and a non-zero inertia.
+    """
+    p = io.load_project(os.path.join(_ROOT, "examples", example))
+    p.envelope = build_envelope(p)
+    results = build_tail_span(p)[HTAIL]
+    assert results, example
+    for r in results:
+        assert r.surface_weight_lb > 0.0, f"{example} {r.case} has no surface mass"
+        assert r.inertia_modelled and inertia_total(r) != 0.0
+        assert not any("air load only" in n for n in r.notes)
+
+
+def test_an_entered_weight_is_an_override_and_is_reconciled():
+    """Entered beats derived only when marked, and the gap is always reported."""
+    from sloads.mass_distribution import tail_reconciliation, tail_surface_weight
+    from sloads.models import TailMassInput as _TMI
+
+    p = io.load_project(os.path.join(_ROOT, "examples", "ga6_normal.project.json"))
+    # Entered but not marked: the SSOT still wins, and the difference is reported.
+    p.tail_mass = [_TMI(surface=HTAIL, panel_weight_lb=60.0)]
+    assert tail_surface_weight(p, HTAIL) == pytest.approx(42.0)
+    check = tail_reconciliation(p, HTAIL)
+    assert check is not None and not check.ok
+    assert check.got == 60.0 and check.want == pytest.approx(42.0)
+    assert "derived value is what the distribution uses" in check.detail
+    # Marked: the user's number wins, and the report says which one is in use.
+    p.tail_mass[0].weight_is_override = True
+    assert tail_surface_weight(p, HTAIL) == pytest.approx(60.0)
+    assert "explicit override" in tail_reconciliation(p, HTAIL).detail
+
+
+def test_an_untagged_surface_says_so_rather_than_reporting_zero():
+    """A surface with no tagged item is an omission in the data, and is named."""
+    from sloads.mass_distribution import untagged_tail_surfaces
+
+    p = io.load_project(os.path.join(_ROOT, "examples", "concept_heavy.project.json"))
+    assert untagged_tail_surfaces(p) == [VTAIL]
+    p2 = io.load_project(os.path.join(_ROOT, "examples", "ga6_normal.project.json"))
+    assert untagged_tail_surfaces(p2) == []
+
+
+def test_the_override_flag_round_trips_and_an_old_file_keeps_its_weight():
+    """Schema + migration: v43 entered weights survive as explicit overrides."""
+    from sloads.migrations import migrate
+
+    p = io.load_project(os.path.join(_ROOT, "examples", "ga6_normal.project.json"))
+    p.tail_mass = [TailMassInput(surface=HTAIL, panel_weight_lb=99.0,
+                                 weight_is_override=True)]
+    back = io.project_from_dict(io.project_to_dict(p))
+    assert back.tail_mass == p.tail_mass
+
+    old = {"schema_version": 43, "name": "x",
+           "tail_mass": [{"surface": HTAIL, "panel_weight_lb": 99.0},
+                         {"surface": VTAIL, "panel_weight_lb": 0.0}]}
+    hopped = migrate(old)["tail_mass"]
+    assert hopped[0]["weight_is_override"] is True, "an entered weight was discarded"
+    assert "weight_is_override" not in hopped[1], "a zero weight was pinned as an override"
+
+
+def test_the_deck_states_its_inertia_basis():
+    """The deck's own text says whether inertia is in the numbers, and how much."""
+    from sloads.export import sbeam_bridge as sb
+
+    p = io.load_project(os.path.join(_ROOT, "examples", "ga6_normal.project.json"))
+    p.envelope = build_envelope(p)
+    spans = build_tail_span(p)
+    h_text = sb.tail_span_force_moment_cards(spans[HTAIL], component=HTAIL)
+    assert "Surface mass 42.0 lb: inertia" in h_text
+    assert "NO INERTIA" not in h_text
+    v_text = sb.tail_span_force_moment_cards(spans[VTAIL], component=VTAIL)
+    assert "Surface mass 23.0 lb: inertia" in v_text
+    assert "AXIAL along the fin's" in v_text
 
 
 if __name__ == "__main__":

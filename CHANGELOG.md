@@ -12,6 +12,44 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- **The empennage carries its own mass at last — every h-tail deck the suite has
+  ever shipped was air-only.** `tail_span` read the surface weight from
+  `Project.tail_mass` and nothing else, and **no shipped fixture ever set one**,
+  so `_surface_weight` returned 0 on all six airplanes while `weight.items`
+  carried the tail mass correctly the whole time (`ga6_normal` 42/23 lb,
+  `concept_regional_jet` 520/640). Plan 11 decision **B-2** made `weight.items`
+  the mass SSOT and step B1 derived `fuselage_mass.stations` from it;
+  `TailMassInput` was never brought along. It is now: the new
+  `mass_distribution.tail_surface_weight` derives each surface's weight from its
+  `htail`/`vtail`-tagged items, `panel_weight_lb` is demoted to an explicit
+  override behind `weight_is_override` (exactly as `stations_are_override` did
+  for the fuselage), and `tail_reconciliation` reports the difference either way.
+  A surface with no tagged item is **named** as a data gap rather than reported
+  as weightless.
+
+  Effect on `ga6_normal`'s h-tail surface total: `BAL UP` −30.9 %, `BAL DN`
+  **+26.0 %**, `UNCHECKED MAN DN` +3.0 %. The down-load cases grow, which is
+  decision T-9's whole point — those are the conditions that size a GA
+  horizontal tail.
+
+- **Every exported tail deck was taking the `n = 1.0` fallback.**
+  `tail_span._load_factor` read `project.envelope` directly instead of going
+  through `select.default_envelope`, the single owner (M2R-8) — and
+  `registry.run_all_modules`, which is the path the Export page and the CLI use,
+  never assigns `project.envelope`. So every condition reported "names no V-n
+  point" and took `n = 1.0`, understating the h-tail inertia by up to **3.8×** on
+  exactly the balancing cases that size the surface. Invisible while the surface
+  weight was always zero; a wrong number the moment it was not. Found while
+  closing the item above, and swept with it per `CLAUDE.md` practice 4.
+
+- **`balance.fin_sets` would have applied the fin's mass twice.** An assembled
+  lateral case accounts for fin mass in its closure field through the
+  `VTAIL`-tagged items (decision L-8), so the applied aerodynamic set it reads
+  from `tail_span` must be air only — which `WingStationLoad.fz` silently
+  stopped being once the fin gained inertia. The strip's inertia is now carried
+  separably as `f_inertia` and the applied set takes `fz - f_inertia`. Caught by
+  a pinned number; it now has a gate that says what it means.
+
 - **Concentrated wing masses no longer smear to the nearest node in the
   exported bending** ([plan 14](docs/30_future/14_concentrated_wing_mass_nodal_split_plan.md),
   decision **D-1**). WINGINER adds an engine/gear/fuel/store mass to the
@@ -42,6 +80,41 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   touched (no calc file changed).
 
 ### Added
+
+- **The vertical tail carries inertia on both of its axes** (user decision
+  2026-08-10, **superseding plan 13 decision L-8 for the per-condition view**).
+  A fin's normal axis is lateral, so the vertical acceleration that *bends* a
+  horizontal tail *compresses* a vertical one, and the fin needs two terms where
+  the h-tail needs one:
+  - **bending**, `−n_y·W_vt`, with `n_y = (LT25+LT50)/W_case` — the free-free
+    lateral response to the fin's own load, the only lateral aerodynamic force
+    this suite models. It relieves the surface total by **exactly** `W_vt/W_case`
+    (0.68 % on `ga6_normal`, 1.84 % on the RJ), which is what makes it
+    self-checking, and it inherits decision **L-7**'s caveat: with no fuselage or
+    wing sideslip force modelled, the real airplane's `n_y` is smaller and that
+    relief is an upper bound on itself. Stated in-band on every fin result, deck
+    header and UI row — including that it is the unconservative direction.
+  - **axial**, `−n_z·W_vt`, along the span: it compresses the fin and bends
+    nothing. New `WingStationLoad.f_span`/`.s_span` columns, mapped to airplane
+    axes by the new `coordinates.tail_axial_to_airplane`, and carried in the same
+    `FORCE` cards as the normal load.
+
+  A fin condition naming no V-n point has no case weight, so it gets **no**
+  lateral term and says so, rather than dividing by a gross-weight stand-in.
+
+- **`component` is editable on the Weights page.** The weight data base's item
+  editor exposed `kind` but never `component`, so the tag that decides which beam
+  carries each item — and which is now the *only* way to enter tail mass — could
+  not be set in the GUI at all. It is a select column with a blank (untagged,
+  inferred) option, and the Tail Span Loads page's own mass form is **gone**:
+  that page now shows the derived weight read-only, names any untagged surface,
+  reports any override, and links back to the page that owns the data.
+
+- **Tail gates**: the fin's `Σ inertia / Σ air ≡ −W_vt/W_case` identity; the axial
+  column against `−n_z·W_vt` with a proof it makes no bending; the derived weight
+  against each fixture's tagged items; a regression gate that **no shipped
+  fixture produces an air-only h-tail deck**; the override/reconciliation path;
+  the v44 migration hop; and a balance gate that the applied fin set is air only.
 
 - **`coordinates.bending_moment_vector`** — the single owner of the wing bending
   sign map. `Mxx` maps to `+x` but `Mzz` maps to `−z` (the calc stores both as

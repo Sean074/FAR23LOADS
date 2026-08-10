@@ -157,7 +157,19 @@ def fields_hash() -> str:
 #: of these fields, so nothing on disk has this shape and there is no hop to
 #: write. Same standing as the B7 entry above, which changed the same class
 #: without a version bump. ``SCHEMA_VERSION`` stays at 43.
-EXPECTED_FIELDS_HASH = "56ddd215f93057fb"
+#: tail-mass SSOT (v44): ``TailMassInput.weight_is_override`` -- the entered panel
+#: weight demoted to an explicit override of the ``htail``/``vtail``-tagged
+#: ``weight.items``; ``WingStationLoad.f_inertia`` -- the inertia part of ``fz``,
+#: which a consumer needs separable so an assembled case applies the surface's
+#: mass once; ``WingStationLoad.f_span``/``.s_span`` -- the span-axis
+#: (axial) strip load and its cumulative, which only the fin has a producer for;
+#: and ``TailSpanResult.n_y``/``.case_weight_lb`` -- the fin's lateral load factor
+#: and the case weight it was formed from. All additive with defaults. The
+#: version bumps for the first of them, which comes with the hop
+#: ``migrations._v43_tail_mass_override``: absent is *not* the old behaviour there
+#: (an entered weight used to be the only source and is now the override), so a
+#: pre-v44 file has to be marked rather than reinterpreted.
+EXPECTED_FIELDS_HASH = "82dbc19c625c139e"
 
 
 def test_persisted_dataclass_shapes_are_unchanged():
