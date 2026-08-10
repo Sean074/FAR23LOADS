@@ -10,6 +10,34 @@ Acceptance**, **Key decisions**.
 
 ---
 
+## SI mass-check `GRAV` fix + CONM2 round-trip CI leg (0.5.0 row 1 — complete 2026-08-10, tier M)
+
+Closed the 0.5.0 review's CRITICAL **C1** and MAJOR **F-G2** together, because
+they are one defect and its missing gate. `mass_check_deck` wrote
+`force/(mass × length)` as its `GRAV` acceleration — the mass channel's
+dimensional identity, 386.0886 in **both** systems — so the SI deck shipped
+gravity 25.4× low under a header claiming mm/s², and the mass family was the one
+deck family the round-trip harness never solved. Fix: `units.DeliverableUnits.gravity`
+(`force.factor / mass.factor`) as the single owner, with a drift guard pinning
+386.0886 in/s² / 9806.65 mm/s² against quoted figures. Gate: the mass-check deck
+is now the harness's fourth family, solved in **both** unit systems on three
+fixtures — sbeam accelerates the `CONM2` set through its own mass matrix and must
+reproduce sloads' per-case inertia at every node, with the C1 defect itself
+reproduced as the leg's sensitivity test. `inertia_only_cards` gained an optional
+`loading` so there is something exact to compare against (the gross Ch 15 table is
+case-independent and carries no wing mass; default output unchanged).
+
+**Found on the way, and pinned rather than worked around:** sbeam's SOL 101
+assembles its `GRAV` load vector from the **baseline** mass matrix and never
+reaches the `MASSSET` resolver, so every payload subcase of the shipped deck
+accelerates the same mass (`ga6_normal`: 2063 lb four times, against
+3400/3400/2800/2063). The leg folds each case into a baseline deck first
+(`roundtrip.flatten_mass_case`, test-only, re-selects cards but never rewrites
+one); `test_the_shipped_mass_deck_hits_the_sbeam_massset_gap` records the
+behaviour and is meant to go red when the sbeam pin is bumped past the fix.
+
+---
+
 ## The report's sign-convention section, and decisions SC-1…SC-6 (design note 15 — complete 2026-08-10, tier M)
 
 The summary report gained a required **"2. Axes and sign conventions"** section

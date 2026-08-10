@@ -12,6 +12,35 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **The CONM2 mass model is now solved in CI — the fourth deck family, in both
+  unit systems.** Plan 12's **C6** leg, open since 2026-08-08 and the reason the
+  `GRAV` defect below could ship: the mass-check deck is handed to the real
+  sbeam, which accelerates the `CONM2` set through its own mass matrix and must
+  reproduce sloads' per-case inertia **at every node**, Imperial and SI
+  (`tests/test_sbeam_roundtrip.py`, `ga6_normal` / `concept_regional_jet` /
+  `atr42_100`, at Nz = 2.5). Three statements with independent producers: the
+  clamp reacts the case's own weight, the recovered nodal loads equal
+  `inertia_only_cards(loading=...)` card for card, and the cases differ from each
+  other *in their distribution* (the regional jet's two cases weigh the same and
+  differ only in CG, so a total-only check would pass vacuously). The leg's teeth
+  are a reproduction of the C1 defect itself: a 25.4×-low `GRAV` must fail it.
+- **`inertia_only_cards` can state a payload case.** Given a `loading` it writes
+  that case's mass node by node — wing items included, on the node their `CONM2`
+  hangs on — which is the only form that can equal sbeam's recovery rather than
+  merely resemble it (the gross Ch 15 beam table is case-independent and carries
+  no wing). Default output is byte-identical; the CLI and the Weights page are
+  unchanged. New `mass_cards.case_station_weights` owns the gathering, built on
+  the same `_attach_gid` the cards are written with.
+- **Known sbeam limitation, pinned rather than worked around silently.** sbeam's
+  SOL 101 assembles its `GRAV` load vector from the **baseline** mass matrix and
+  never reaches the `MASSSET` resolver, so at the pinned commit every payload
+  subcase of the shipped mass-check deck accelerates the same mass (`ga6_normal`:
+  2063 lb four times, against case weights 3400/3400/2800/2063). The round-trip
+  leg therefore folds each case into a baseline deck first
+  (`export/roundtrip.flatten_mass_case`, test-only, and it may re-select cards
+  but never rewrite one). `test_the_shipped_mass_deck_hits_the_sbeam_massset_gap`
+  records the behaviour and is *meant* to go red when sbeam fixes it.
+
 - **The summary report states its sign conventions, with pictures.** A new
   required section **"2. Axes and sign conventions"** (SUMMARY_REPORT.md
   §4.2.1, design note 15): the frame and reflection prose, a
@@ -31,6 +60,22 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   changed anywhere.
 
 ### Fixed
+
+- **The SI mass-check deck's gravity was 25.4× low — `GRAV` now carries g in the
+  deck's own length unit.** `mass_cards.mass_check_deck` wrote
+  `force/(mass × length)`, which is the mass channel's *dimensional identity* and
+  therefore 386.0886 in **both** unit systems by construction — g in in/s²,
+  always. The SI deck needs 9806.65 mm/s² and instead shipped 386.0886 under a
+  header stating "mm/s²": the artifact whose entire purpose is an independent
+  check of sloads' inertia "proved" that inertia wrong by a factor of 25.4, in a
+  file that parses cleanly (2026-08-10 code review, finding **C1**; Imperial
+  masked it completely, `length.factor = 1.0`). The number now has a single
+  owner — `units.DeliverableUnits.gravity` (`force.factor / mass.factor`) — with
+  a drift guard pinning 386.0886 in/s² and 9806.65 mm/s² against quoted figures,
+  because a derived expectation would have agreed with the defect. The card
+  magnitude is asserted on the parsed card *and* on the `$` header line in both
+  systems; the header now states the product `Nz × g` it actually writes. Only SI
+  `--export-conm2` output changes; no Imperial byte, and no calc, moves.
 
 - **The empennage carries its own mass at last — every h-tail deck the suite has
   ever shipped was air-only.** `tail_span` read the surface weight from

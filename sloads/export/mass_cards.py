@@ -57,7 +57,7 @@ satisfy ``force / (mass x length) == g``.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Dict, List, Sequence, Tuple
+from typing import Dict, List, Optional, Sequence, Tuple
 
 from ..mass_distribution import (
     CaseLoading,
@@ -400,7 +400,7 @@ def mass_check_deck(project: Project, *,
             "to build a mass-check deck from (see mass_distribution."
             "derive_case_loadings for why each case was rejected)")
     stations = fuselage_beam_stations(project)
-    g = u.force.factor / (u.mass.factor * u.length.factor)   # g in deck units
+    g = u.gravity                       # g in deck units -- single owner, units.py
 
     head: List[str] = ["SOL 101", "$"]
     for i, loading in enumerate(loadings):
@@ -446,7 +446,8 @@ def mass_check_deck(project: Project, *,
         "$ Statically determinate: the recovered reactions ARE the residual.",
         f"SPC1, 1, 123456, {beam_station_gid(0)}",
         "$ ------------------------------------------------------ ACCELERATION",
-        f"$ GRAV carries Nz x g = {nz:g} x {g:.4f} {u.length.label}/s^2, down (-z).",
+        f"$ GRAV carries Nz x g = {nz:g} x {g:.4f} = {nz * g:.4f} "
+        f"{u.length.label}/s^2, down (-z).",
         "$ Translational only: sbeam has no RFORCE, so pitch/yaw angular",
         "$ acceleration inertia is NOT recoverable from this set and stays",
         "$ checked by sloads-side closure.",
@@ -460,16 +461,55 @@ def mass_check_deck(project: Project, *,
 # --------------------------------------------------------------------------- #
 # sloads' own inertia contribution, as a comparable load set (C-2 / C4)
 # --------------------------------------------------------------------------- #
+def case_station_weights(project: Project,
+                         loading: CaseLoading) -> List[Tuple[int, float]]:
+    """``[(GID, weight_lb)]`` -- one loading's mass, gathered onto its own nodes.
+
+    The weight behind each ``CONM2`` attachment node for **this payload case**,
+    in beam order. Built by walking ``loading.items`` through the very
+    :func:`_attach_gid` the cards are written with, so it is the same mapping by
+    construction rather than a second one kept in step by hand -- including the
+    wing items, which hang on the nearest fuselage node today (see
+    :func:`_attach_gid`) and are therefore part of what a ``GRAV`` field on this
+    mass set accelerates.
+
+    This is what makes the CONM2 round trip a *card-for-card* claim: the mass
+    model is per case and carries the wing, while the Ch 15 beam table
+    (:func:`sloads.mass_distribution.fuselage_beam_stations`) is gross and
+    carries neither, so comparing sbeam's recovery against that table would be
+    comparing two different airplanes.
+    """
+    stations = fuselage_beam_stations(project)
+    order = {beam_station_gid(i): i for i in range(max(len(stations), 1))}
+    totals: Dict[int, float] = {}
+    for item in loading.items:
+        gid, _ = _attach_gid(item, project, stations)
+        totals[gid] = totals.get(gid, 0.0) + item.weight_lb
+    return sorted(totals.items(), key=lambda pair: order.get(pair[0], 0))
+
+
 def inertia_only_cards(project: Project, *,
                        system: UnitSystem = UnitSystem.IMPERIAL,
                        nz: float = 1.0,
-                       sid: int = GRAV_SID_BASE) -> str:
-    """sloads' inertia load per beam station, as ``FORCE`` cards -- for comparison.
+                       sid: int = GRAV_SID_BASE,
+                       loading: Optional[CaseLoading] = None) -> str:
+    """sloads' inertia load per node, as ``FORCE`` cards -- for comparison.
 
     **Not a deliverable, and never to be applied with the total set** (C-6): the
     ``FORCE``/``MOMENT`` deck already contains this. It exists so the numbers
     sbeam recovers from the ``CONM2`` set can be compared against the numbers
     sloads computes, card for card, at the same nodes.
+
+    Without ``loading`` the cards are the **gross** Ch 15 beam table -- every
+    non-wing item, no payload case -- which is the artifact the CLI and the
+    Weights page have always written and stays byte-identical.
+
+    With a ``loading`` (a :func:`sloads.mass_distribution.derive_case_loadings`
+    entry) the cards are **that payload case's** mass, node by node, including
+    the wing items the ``CONM2`` set hangs on the beam. That is the set a
+    ``GRAV`` field on the case's ``MASSSET`` accelerates, so it is the only form
+    of these cards that can be equal to sbeam's recovery rather than merely
+    similar to it (the round-trip leg, plan 12 C6).
 
     LIMIT, not ultimate: this is the raw ``-w x nz`` inertia, and the comparison
     is against a mass model that carries no safety factor either. Applying a
@@ -477,22 +517,39 @@ def inertia_only_cards(project: Project, *,
     make this check pass while meaning nothing, so neither side has one.
     """
     u = _checked_mass_units(deliverable_units(system, Channel.SOLVER))
-    stations = fuselage_beam_stations(project)
-    if not stations:
-        raise ValueError("Project has no fuselage beam to write inertia loads for")
+    if loading is None:
+        stations = fuselage_beam_stations(project)
+        if not stations:
+            raise ValueError(
+                "Project has no fuselage beam to write inertia loads for")
+        weights = [(beam_station_gid(i), s.weight_lb)
+                   for i, s in enumerate(stations)]
+        basis = []          # the gross artifact's header is unchanged, byte for byte
+    else:
+        weights = case_station_weights(project, loading)
+        if not weights:
+            raise ValueError(
+                f"loading '{loading.name}' carries no mass to write inertia "
+                "loads for")
+        basis = [
+            f"$ Payload case {loading.name}: {loading.weight_lb:.0f} lb, the mass "
+            "the case's",
+            "$ MASSSET carries -- wing items included, on the node their CONM2",
+            "$ hangs on.",
+        ]
     lines = [
         "$ ============================================ SLOADS INERTIA CONTRIBUTION",
-        f"$ Per-station inertia load at Nz = {nz:g}, LIMIT (no SF), in "
+        f"$ Per-node inertia load at Nz = {nz:g}, LIMIT (no SF), in "
         f"{u.force.label}.",
+    ] + basis + [
         "$ COMPARISON ARTIFACT ONLY. The FORCE/MOMENT deliverable already",
         "$ contains this; applying both counts the inertia twice.",
         f"$ Compare against what sbeam recovers from MASSSET + GRAV at Nz = {nz:g}.",
     ]
-    for i, s in enumerate(stations):
-        fz = -s.weight_lb * nz * u.force.factor
+    for gid, weight_lb in weights:
+        fz = -weight_lb * nz * u.force.factor
         lines.append(
-            f"FORCE, {sid}, {beam_station_gid(i)}, {SBEAM_CID}, 1.0, "
-            f"0.0, 0.0, {_fmt(fz)}")
+            f"FORCE, {sid}, {gid}, {SBEAM_CID}, 1.0, 0.0, 0.0, {_fmt(fz)}")
     return "\n".join(lines) + "\n"
 
 
@@ -517,6 +574,7 @@ __all__ = [
     "GRAV_SID_BASE",
     "MassCard",
     "mass_cards",
+    "case_station_weights",
     "unreferenced_overlay_eids",
     "mass_properties",
     "conm2_fragment",

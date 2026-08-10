@@ -57,6 +57,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import pytest  # noqa: E402
 
 from sloads import io  # noqa: E402
+from sloads.export import mass_cards as mc  # noqa: E402
 from sloads.export import sbeam_bridge as sb  # noqa: E402
 from sloads.export.balanced_deck import (  # noqa: E402
     BALANCED_SID_BASE,
@@ -72,10 +73,12 @@ from sloads.export.equilibrium import (  # noqa: E402
 from sloads.export.roundtrip import (  # noqa: E402
     Support,
     Topology,
+    flatten_mass_case,
     solve_deck,
     total_reaction,
     wrap_as_stick_model,
 )
+from sloads.mass_distribution import derive_case_loadings  # noqa: E402
 from sloads.modules.balance import (  # noqa: E402
     build_balanced_cases,
     fin_load,
@@ -113,6 +116,11 @@ WING_MATRIX = MATRIX + ("atr42_100.project.json",)
 #: ``moment.factor != force.factor x length.factor`` slip (plan 07's G2), which a
 #: force-only check is structurally blind to.
 SYSTEMS = (UnitSystem.IMPERIAL, UnitSystem.SI)
+
+#: Load factor the mass leg accelerates at. Deliberately not 1.0: at unity a
+#: deck that dropped ``Nz`` from the ``GRAV`` magnitude entirely would still pass
+#: every assertion.
+NZ = 2.5
 
 _CACHE = {}
 
@@ -557,6 +565,227 @@ def test_a_flipped_fin_load_breaks_the_assembled_solve(sbeam, system):
         assert not closes(got.moment[axis], 0.0, scale=applied.moment_scale), (
             f"a reversed fin load left the support's {name} reaction at "
             f"{got.moment[axis]}")
+
+
+# --------------------------------------------------------------------------- #
+# The mass-check deck -- the fourth family (plan 12 C6, review F-G2 / C1)
+# --------------------------------------------------------------------------- #
+def _loadings(project):
+    return [ld for ld in derive_case_loadings(project) if ld.derivable]
+
+
+def _nodal_inertia(sol, grids, support_gid):
+    """``{gid: Fz}`` -- the inertia load sbeam put on each node, recovered.
+
+    The mass-check deck is a clamped chain, so the load at a node is the jump in
+    element shear across it: element ``i`` joins node ``i-1`` to node ``i``, and
+    what enters at node ``i`` is ``shear(i) - shear(i+1)``. At the clamped node
+    the reaction also passes through, and is subtracted.
+
+    Element shear rather than the reaction *is* the point: the reaction is one
+    number and would be satisfied by any distribution summing to it, while this
+    is the card-for-card comparison plan 12 C6 asks for -- and it is recovered
+    from sbeam's own assembly of the ``CONM2`` cards, never from sloads' idea of
+    where the mass is.
+    """
+    order = sorted(grids)
+    shear = {eid: bar.shear1 for eid, bar in sol.bar_forces.items()}
+    out = {}
+    for i, gid in enumerate(order):
+        out[gid] = shear.get(i, 0.0) - shear.get(i + 1, 0.0)
+        if gid == support_gid:
+            out[gid] -= sol.reactions[gid][2]
+    return out
+
+
+#: Fixtures with at least one derivable payload case *and* a place in the
+#: matrix. ``atr42_100`` joins for the same reason it joins the wing leg: it is
+#: the fixture whose wing carries concentrated mass, so its CONM2 set is the one
+#: where the wing items hung on the fuselage beam actually weigh something.
+MASS_MATRIX = MATRIX + ("atr42_100.project.json",)
+
+
+@pytest.mark.roundtrip
+@pytest.mark.parametrize("example", MASS_MATRIX)
+@pytest.mark.parametrize("system", SYSTEMS)
+def test_mass_deck_recovers_the_inertia_cards_case_for_case(sbeam, example, system):
+    """M-a...M-c: sbeam accelerates the ``CONM2`` set and reproduces sloads' inertia.
+
+    **The check the whole CONM2 export exists for** (plan 12 C6), and the one
+    family the harness never solved until now -- which is exactly why the SI
+    ``GRAV`` acceleration could ship 25.4x low and be caught by a reading rather
+    than by CI (2026-08-10 review, C1/F-G2).
+
+    Three statements, each with two independent producers:
+
+    * **M-a** the total: sbeam's clamp reacts the case's own weight x Nz. sloads
+      never tells it that number -- it comes out of sbeam's mass matrix, built
+      from the ``CONM2`` cards and their offsets.
+    * **M-b** card for card: the nodal inertia sbeam recovers equals
+      ``inertia_only_cards(loading=...)`` at every node.
+    * **M-c** the cases differ. A leg that solved four cases of one airplane and
+      never noticed they were the same mass would be worth nothing, and that is
+      not hypothetical -- it is what the shipped deck does today (see
+      :func:`test_the_shipped_mass_deck_hits_the_sbeam_massset_gap`).
+
+    Run in **both** unit systems: Imperial cannot see a ``length.factor`` slip in
+    the acceleration at all, which is the whole lesson of C1.
+    """
+    project, _, _, _ = _components(example)
+    u = _units(system)
+    deck = mc.mass_check_deck(project, system=system, nz=NZ)
+    seen = []
+
+    for i, loading in enumerate(_loadings(project)):
+        sid = mc.MASSSET_SID_BASE + i
+        where = f"{example} {system.value} mass {loading.name}"
+        text = flatten_mass_case(deck, sid)
+        sols, grids = _solved(text)
+        (solved_sid, sol), = sols.items()
+        assert solved_sid == sid, where
+        (_, _, support_gids), = [s for s in parse_cards(text)[2]]
+        support = support_gids[0]
+
+        want_total = -loading.weight_lb * NZ * u.force.factor
+        assert closes(sol.reactions[support][2], -want_total,
+                      scale=abs(want_total)), f"{where} M-a"
+
+        _, _, _, want_cards, _ = parse_cards(
+            mc.inertia_only_cards(project, system=system, nz=NZ, loading=loading))
+        want = {gid: scale * n[2]
+                for gid, scale, n in want_cards[mc.GRAV_SID_BASE]}
+        got = _nodal_inertia(sol, grids, support)
+        assert set(want) <= set(got), f"{where}: nodes {sorted(set(want) - set(got))}"
+        for gid, value in got.items():
+            assert closes(value, want.get(gid, 0.0), scale=abs(want_total)), \
+                f"{where} M-b node {gid}: {value} vs {want.get(gid, 0.0)}"
+        seen.append(tuple(sorted((gid, round(v, 6)) for gid, v in got.items())))
+
+    assert seen, f"{example}: no derivable payload case reached the solver"
+    if len(seen) > 1:
+        # On the *distribution*, not on the total: the regional jet's two
+        # derivable cases weigh the same 33,000 lb and differ only in where the
+        # payload sits, so a total-only check would pass on it vacuously.
+        assert len(set(seen)) > 1, (
+            f"{example} M-c: every case recovered the same nodal inertia -- "
+            "the per-case mass model is not reaching the solver")
+
+
+@pytest.mark.roundtrip
+@pytest.mark.parametrize("system", SYSTEMS)
+def test_the_shipped_mass_deck_hits_the_sbeam_massset_gap(sbeam, system):
+    """**Pinned sbeam limitation**: SOL 101 ignores the subcase's ``MASSSET``.
+
+    ``solver/sol101.py`` assembles the ``GRAV`` load vector through
+    ``assemble_load_vector(bulk, load_sid)``, which calls
+    ``assemble_global_mass(bulk)`` with no ``massset_sid`` -- so the mass-case
+    resolver is never reached on the static path and every subcase accelerates
+    the **baseline** mass. On ``ga6_normal`` all four payload subcases recover
+    2063 lb against case weights of 3400 / 3400 / 2800 / 2063.
+
+    That is why the leg above flattens each case into a baseline deck rather than
+    solving the deck as shipped. The limitation is pinned here rather than left
+    unstated, and this test **is meant to fail** the day sbeam threads the mass
+    case through -- at which point the flattening becomes unnecessary and the
+    shipped deck can be solved directly. Bump the pin, then delete this.
+    """
+    project, _, _, _ = _components("ga6_normal.project.json")
+    u = _units(system)
+    loadings = _loadings(project)
+    assert len({round(ld.weight_lb, 6) for ld in loadings}) > 1, \
+        "this pin needs cases of differing weight to say anything"
+
+    text = mc.mass_check_deck(project, system=system, nz=NZ)
+    sols, _ = _solved(text)
+    baseline = sum(c.item.weight_lb for c in mc.mass_cards(project)[0]
+                   if not c.overlay)
+    want = baseline * NZ * u.force.factor
+
+    for i, loading in enumerate(loadings):
+        sol = sols[mc.MASSSET_SID_BASE + i]
+        got = sum(v[2] for v in sol.reactions.values())
+        assert closes(got, want, scale=abs(want)), (
+            f"sbeam recovered {got} for {loading.name} against the baseline "
+            f"{want} -- the MASSSET gap this pin records may be fixed; if so, "
+            "solve the shipped deck directly and delete this test")
+
+
+def test_flattening_keeps_the_shipped_cards_and_drops_the_other_overlays():
+    """The transform may re-select mass, and may not rewrite it (no solver needed).
+
+    What it is allowed to do is choose which ``CONM2`` cards are in the model and
+    which subcase survives. What it must never do is touch a card's numbers --
+    otherwise the leg above would be testing the transform rather than the deck.
+    """
+    project, _, _, _ = _components("ga6_normal.project.json")
+    deck = mc.mass_check_deck(project)
+    cards, loadings = mc.mass_cards(project)
+    lines = {ln.split(",")[1].strip(): ln
+             for ln in deck.splitlines() if ln.startswith("CONM2")}
+
+    flat = flatten_mass_case(deck, mc.MASSSET_SID_BASE)
+    kept = {ln.split(",")[1].strip(): ln
+            for ln in flat.splitlines() if ln.startswith("CONM2")}
+    assert kept and all(kept[eid] == lines[eid] for eid in kept), \
+        "a CONM2 card was rewritten, not merely selected"
+    cards_left = [ln for ln in flat.splitlines()
+                  if ln.startswith(("MASSSET", "+,")) or "MASSSET =" in ln]
+    assert not cards_left, cards_left
+    assert flat.count("SUBCASE") == 1
+    assert f"SUBCASE {mc.MASSSET_SID_BASE}" in flat
+
+    # The first loading's own items, and nothing another case adds.
+    want = {c.eid for c in cards if id(c.item) in {id(it) for it in loadings[0].items}}
+    assert {int(eid) for eid in kept} == want
+
+
+@pytest.mark.roundtrip
+def test_the_c1_defect_would_have_failed_this_leg(sbeam):
+    """**The leg's teeth**: rebuild the C1 defect and the solve must reject it.
+
+    The mutation is not invented -- it is the shipped SI ``GRAV`` magnitude
+    before 2026-08-10: ``force/(mass x length)`` instead of ``force/mass``, i.e.
+    the right number divided by ``length.factor`` = 25.4. Recovered inertia comes
+    back 25.4x low and M-a says so. This is the assertion whose absence let a
+    silently-wrong SI deck ship, so it is stated as a defect reproduction rather
+    than as a generic scale perturbation.
+    """
+    project, _, _, _ = _components("ga6_normal.project.json")
+    u = _units(UnitSystem.SI)
+    loading = _loadings(project)[0]
+    deck = mc.mass_check_deck(project, system=UnitSystem.SI, nz=NZ)
+    broken = _mutate(
+        flatten_mass_case(deck, mc.MASSSET_SID_BASE),
+        lambda ln: ln.startswith("GRAV,"),
+        lambda ln: ",".join(
+            f" {float(c) / u.length.factor:.6E}" if i == 3 else c
+            for i, c in enumerate(ln.split(","))))
+
+    sols, grids = _solved(broken)
+    (_, sol), = sols.items()
+    (_, _, support_gids), = parse_cards(broken)[2]
+    want = -loading.weight_lb * NZ * u.force.factor
+    got = sol.reactions[support_gids[0]][2]
+    assert not closes(got, -want, scale=abs(want)), (
+        f"a 25.4x-low GRAV still recovered {got} against {-want} -- this leg "
+        "cannot see the defect it was written for")
+    assert closes(got * u.length.factor, -want, scale=abs(want)), got
+
+
+def test_flattening_refuses_a_deck_it_cannot_fold():
+    """A SCALE or a REPLACE/DELETE row changes what the baseline means, and this
+    transform's whole claim is that it does not. sloads emits neither."""
+    project, _, _, _ = _components("ga6_normal.project.json")
+    deck = mc.mass_check_deck(project)
+    with pytest.raises(ValueError, match="MASSSET 12345"):
+        flatten_mass_case(deck, 12345)
+    scaled = deck.replace(f"MASSSET, {mc.MASSSET_SID_BASE}, CG1, 1.0",
+                          f"MASSSET, {mc.MASSSET_SID_BASE}, CG1, 0.5")
+    with pytest.raises(ValueError, match="SCALE"):
+        flatten_mass_case(scaled, mc.MASSSET_SID_BASE)
+    replaced = deck.replace("+, ADD,", "+, REPLACE,", 1)
+    with pytest.raises(ValueError, match="only ADD"):
+        flatten_mass_case(replaced, mc.MASSSET_SID_BASE)
 
 
 # --------------------------------------------------------------------------- #

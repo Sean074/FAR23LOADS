@@ -89,6 +89,30 @@ def test_the_two_systems_agree_on_gravity_exactly():
     assert accel(UnitSystem.IMPERIAL) == accel(UnitSystem.SI)
 
 
+#: One standard gravity **in each deck's own units** — the number a ``GRAV``
+#: card must carry. Quoted here on purpose: this is the drift guard for
+#: ``DeliverableUnits.gravity``, so deriving it the way the property does would
+#: assert nothing. ISO 80000 standard gravity, per :data:`sloads.units.G_MM_S2`.
+_DECK_GRAVITY = {UnitSystem.IMPERIAL: 386.08858267716535,
+                 UnitSystem.SI: 9806.65}
+
+
+@pytest.mark.parametrize("system", _SYSTEMS)
+def test_deck_gravity_is_g_in_the_decks_own_length_unit(system):
+    """``units.gravity`` is ``force/mass`` — **not** the identity above.
+
+    The two differ by exactly ``length.factor``, which is 1.0 in Imperial and
+    25.4 in SI, so confusing them is invisible on one side and 25.4× low on the
+    other. That is what shipped: the SI mass-check deck wrote 386.0886 under a
+    header claiming mm/s² (2026-08-10 review, finding C1). Pinned per system,
+    against a quoted figure, because a derived expectation would have agreed
+    with the defect.
+    """
+    u = deliverable_units(system, Channel.SOLVER)
+    assert u.gravity == pytest.approx(_DECK_GRAVITY[system], rel=1e-12)
+    assert u.gravity == pytest.approx(G_IN_S2 * u.length.factor, rel=1e-15)
+
+
 @pytest.mark.parametrize("system", _SYSTEMS)
 def test_the_human_mass_channel_is_refused_by_the_writer(system):
     """The human channel's mass is a pound (or a kilogram) — a *weight*.
@@ -295,6 +319,27 @@ def test_the_mass_check_deck_carries_no_load_cards(example, system):
 
 
 @pytest.mark.parametrize("example", _fixtures_with_cards())
+@pytest.mark.parametrize("system", _SYSTEMS)
+def test_the_grav_card_carries_g_in_deck_units(example, system):
+    """The magnitude on the card itself, in both systems — the C1 gate.
+
+    The deck's only previous ``GRAV`` assertion was that the string appeared,
+    which a 25.4×-low acceleration satisfies perfectly. Asserted on the parsed
+    card and on the ``$`` header line together, since it was the header that
+    made the wrong number look right.
+    """
+    u = deliverable_units(system, Channel.SOLVER)
+    text = mc.mass_check_deck(_project(example), system=system, nz=2.5)
+    cards = [ln for ln in text.splitlines() if ln.startswith("GRAV")]
+    assert cards
+    for line in cards:
+        f = [c.strip() for c in line.split(",")]
+        assert float(f[3]) == pytest.approx(2.5 * _DECK_GRAVITY[system], rel=1e-6)
+        assert [float(c) for c in f[4:7]] == [0.0, 0.0, -1.0]
+    assert f"= {2.5 * u.gravity:.4f} {u.length.label}/s^2" in text
+
+
+@pytest.mark.parametrize("example", _fixtures_with_cards())
 def test_the_inertia_only_set_says_it_is_not_a_deliverable(example):
     """It exists to be compared against, not applied — and says so in-band,
     because a file forwarded on its own has only its header to go on."""
@@ -315,6 +360,46 @@ def test_the_inertia_only_set_sums_to_the_beam_weight(system):
         mc.inertia_only_cards(p, system=system, nz=2.5))
     total = sum(sc * v[2] for cards in forces.values() for _, sc, v in cards)
     assert total == pytest.approx(-beam * 2.5 * u.force.factor, rel=1e-6)
+
+
+@pytest.mark.parametrize("example", _fixtures_with_cards())
+@pytest.mark.parametrize("system", _SYSTEMS)
+def test_the_per_case_inertia_set_is_the_mass_the_masset_carries(example, system):
+    """``inertia_only_cards(loading=...)`` is that case's mass, node by node.
+
+    The gross form of these cards is the Ch 15 beam table — every non-wing item,
+    no payload case — and the ``CONM2`` set is per case *and* carries the wing
+    items on the nearest beam node. Two different airplanes, so the round-trip
+    comparison had nothing exact to be equal to. This is the form that does:
+    Σ Fz is the loading's own weight (ballast included, wing included), and every
+    card sits on a node the mass model actually attaches to.
+    """
+    p = _project(example)
+    u = deliverable_units(system, Channel.SOLVER)
+    cards, _ = mc.mass_cards(p)
+    attached = {c.gid for c in cards}
+    for loading in [ld for ld in md.derive_case_loadings(p) if ld.derivable]:
+        text = mc.inertia_only_cards(p, system=system, nz=2.5, loading=loading)
+        _, _, _, forces, _ = parse_cards(text)
+        rows = [row for sid_rows in forces.values() for row in sid_rows]
+        total = sum(sc * v[2] for _, sc, v in rows)
+        assert total == pytest.approx(
+            -loading.weight_lb * 2.5 * u.force.factor, rel=1e-6), loading.name
+        assert {gid for gid, _, _ in rows} <= attached, loading.name
+        assert loading.name in text
+
+
+def test_the_gross_inertia_set_is_unchanged_by_the_per_case_form():
+    """The default artifact is byte-identical — the CLI and the page still write
+    the gross beam table, and the per-case form is strictly an addition."""
+    p = _project("ga6_normal.project.json")
+    stations = md.fuselage_beam_stations(p)
+    _, _, _, forces, _ = parse_cards(mc.inertia_only_cards(p))
+    rows = [row for sid_rows in forces.values() for row in sid_rows]
+    assert [gid for gid, _, _ in rows] == [
+        sb.beam_station_gid(i) for i in range(len(stations))]
+    assert [round(-sc * v[2], 6) for _, sc, v in rows] == [
+        round(s.weight_lb, 6) for s in stations]
 
 
 def test_the_check_deck_beam_is_massless():

@@ -419,6 +419,92 @@ def wrap_as_stick_model(deck_text: str, *, support: Support,
 
 
 # --------------------------------------------------------------------------- #
+# Flattening a MASSSET case (plan 12 C6 leg)
+# --------------------------------------------------------------------------- #
+def flatten_mass_case(deck_text: str, massset_sid: int) -> str:
+    """One ``MASSSET`` case of a mass-check deck, rewritten as a baseline deck.
+
+    **Why this exists, and what it costs.** sbeam's SOL 101 assembles a ``GRAV``
+    load vector from the *baseline* mass matrix:
+    ``solver/sol101.py`` calls ``assemble_load_vector(bulk, load_sid)``, which
+    calls ``assemble_global_mass(bulk)`` with no ``massset_sid`` -- so the
+    subcase's ``MASSSET`` selection reaches the mass-case resolver nowhere on the
+    static path. Measured at the pinned commit on ``ga6_normal``: all four
+    payload subcases recover 2063 lb, the baseline, against case weights of
+    3400 / 3400 / 2800 / 2063. Solving the mass-check deck as shipped therefore
+    checks one case four times.
+
+    This transform gets the other cases solved anyway, by handing sbeam a deck
+    whose baseline **is** the case: the target ``MASSSET``'s effective ``CONM2``
+    set (baseline members plus the cards its ``ADD`` rows name), every other
+    overlay card dropped, no ``MASSSET`` cards left, and only the target's
+    ``SUBCASE`` retained. The mass cards themselves are the shipped ones, byte
+    for byte, and sbeam still builds the mass matrix and the gravity field
+    itself -- so the independence the check rests on is intact. What it does
+    *not* test is sbeam's own ``MASSSET`` selection, which is an sbeam defect and
+    is pinned as a known limitation rather than hidden (see
+    ``tests/test_sbeam_roundtrip.py``).
+
+    Test-only, like :func:`wrap_as_stick_model`: never written by the CLI or the
+    GUI. Handles the decks :func:`sloads.export.mass_cards.mass_check_deck`
+    writes -- ``SCALE`` other than 1.0 and ``REPLACE``/``DELETE`` rows are
+    refused rather than half-implemented, because sloads emits none of them.
+    """
+    sets: Dict[int, List[int]] = {}
+    overlays: List[int] = []
+    current: int = 0
+    for raw in deck_text.splitlines():
+        f = [c.strip() for c in raw.strip().split(",")]
+        if f[0].upper() == "MASSSET":
+            current = int(f[1])
+            if float(f[3]) != 1.0:
+                raise ValueError(
+                    f"MASSSET {current} has SCALE {f[3]}; this transform folds "
+                    "a case into the baseline and only 1.0 is meaning-preserving")
+            sets.setdefault(current, [])
+        elif f[0] == "+":
+            op = f[1].upper()
+            if op != "ADD":
+                raise ValueError(
+                    f"MASSSET {current} carries a {op} row; only ADD is "
+                    "supported (sloads emits no REPLACE/DELETE)")
+            eids = [int(e) for e in f[2:] if e]
+            sets[current].extend(eids)
+            overlays.extend(eids)
+    if massset_sid not in sets:
+        raise ValueError(
+            f"deck defines no MASSSET {massset_sid} (has "
+            f"{sorted(sets) or 'none'})")
+
+    keep = set(sets[massset_sid])
+    drop = set(overlays) - keep
+
+    out: List[str] = []
+    in_case, skipping = True, False
+    for raw in deck_text.splitlines():
+        line = raw.strip()
+        f = [c.strip() for c in line.split(",")]
+        kw = f[0].upper()
+        if in_case:
+            if line.startswith("BEGIN BULK"):
+                in_case = False
+                out.append(raw)
+                continue
+            if line.upper().startswith("SUBCASE"):
+                skipping = int(line.split()[1]) != massset_sid
+            if skipping or line.upper().startswith("MASSSET ="):
+                continue
+            out.append(raw)
+            continue
+        if kw == "MASSSET" or f[0] == "+":
+            continue
+        if kw == "CONM2" and int(f[1]) in drop:
+            continue
+        out.append(raw)
+    return "\n".join(out) + "\n"
+
+
+# --------------------------------------------------------------------------- #
 # Solving
 # --------------------------------------------------------------------------- #
 @dataclass(frozen=True)
@@ -503,6 +589,7 @@ __all__ = [
     "Reaction",
     "SbeamUnavailable",
     "Support",
+    "flatten_mass_case",
     "Topology",
     "solve_deck",
     "total_reaction",

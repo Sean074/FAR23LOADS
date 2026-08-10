@@ -507,6 +507,29 @@ class DeliverableUnits(NamedTuple):
         return moment_ok and pressure_ok
 
     @property
+    def gravity(self) -> float:
+        """One standard gravity **in this set's own units** -- the ``GRAV`` value.
+
+        The single owner of that number (CLAUDE.md practice 3). It is *not* the
+        dimensional identity :attr:`is_mass_consistent` checks: that identity is
+        ``force / (mass x length)``, which is 386.0886 in **both** systems by
+        construction and is therefore g in in/s² wherever it is written. The
+        acceleration a deck needs is ``force / mass`` -- 386.0886 in/s² Imperial,
+        9806.65 mm/s² SI -- and the two differ by exactly ``length.factor``.
+
+        Confusing them is invisible in Imperial (``length.factor == 1.0``) and
+        25.4x low in SI, in a deck that parses cleanly: the D-19 failure class,
+        found by the 2026-08-10 code review (finding C1) after shipping in the
+        SI mass-check deck. Hence one owner and a drift guard, not an expression
+        at the call site.
+
+        Meaningful only for a mass-consistent set (:attr:`is_mass_consistent`);
+        writers must resolve one through ``deliverable_units(system,
+        Channel.SOLVER)`` before reading this.
+        """
+        return self.force.factor / self.mass.factor
+
+    @property
     def is_mass_consistent(self) -> bool:
         """True if the mass pair satisfies ``F = m*a`` in this set's own units.
 

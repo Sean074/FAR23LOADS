@@ -645,6 +645,27 @@ return strings (with thin `write_*` file wrappers), and do no physics.
   loading within the ballast-credibility gate; the rest are reported with the
   number and the reason. Surfaces: `cli.py --export-conm2`, the Weights page's
   **Mass Export** tab.
+  **`GRAV` magnitude (2026-08-10, review finding C1).** The acceleration a deck
+  carries is one standard gravity **in that deck's own length unit** —
+  386.0886 in/s² Imperial, 9806.65 mm/s² SI — owned by
+  `units.DeliverableUnits.gravity` (`force.factor / mass.factor`) and by nothing
+  else. It is *not* the mass channel's dimensional identity
+  `force/(mass × length)`, which is 386.0886 in **both** systems by
+  construction; using that as the card value shipped an SI deck 25.4× low.
+  **Inertia-only artifact (2026-08-10).** `inertia_only_cards` writes the gross
+  Ch 15 beam table by default (unchanged), and *that payload case's* mass — wing
+  items included, on the node their `CONM2` hangs on — when given a `loading`.
+  The per-case form is what the CONM2 round-trip leg compares sbeam's recovery
+  against card for card; the gross form cannot be equal to it, because the
+  `MASSSET` model is per case and carries the wing.
+  **Solver gate (plan 12 C6, 2026-08-10).** The mass-check deck is the round-trip
+  harness's fourth deck family, solved in **both** unit systems: sbeam
+  accelerates the `CONM2` set and must reproduce the per-case inertia at every
+  node. Known sbeam limitation, pinned in `tests/test_sbeam_roundtrip.py`: SOL
+  101 builds its `GRAV` load vector from the **baseline** mass and never reaches
+  the `MASSSET` resolver, so the leg folds each case into a baseline deck
+  (`export/roundtrip.flatten_mass_case`, test-only) to get the case's own mass
+  accelerated.
 - **Fuselage beam mass (step B1, 2026-08-08).** `body_loads` integrates the station
   table from `mass_distribution.fuselage_beam_stations`, **derived** from the
   component-tagged `weight.items` database — not `fuselage_mass.stations`, which is
