@@ -36,10 +36,14 @@ single half-span. Left and right are separate node runs so an antisymmetric case
 ===================  ==============
 band                 GIDs
 ===================  ==============
-right wing            ``4001+``
-left wing             ``4201+``
-centreline            ``4401+`` (fuselage masses, tail load, lumped body Cm)
+right wing            ``6001+``
+left wing             ``6201+``
+centreline            ``6401+`` (fuselage masses, tail load, lumped body Cm)
 ===================  ==============
+
+The three bands are declared in :mod:`sloads.export.bands`, which owns every
+GID/EID/SID run in the suite and proves them disjoint. They were ``4001+`` and
+collided with the spanwise tail decks until 2026-08-10 (review F-C1).
 
 The deck allocates its own nodes at each load's true ``(x, y, z)`` rather than
 reusing the body deck's ``1001+`` beam line -- see :func:`deck_nodes` for why
@@ -65,23 +69,28 @@ from ..modules.balance import (build_balanced_cases, carry_sources_absent,
                                fin_load, is_lateral)
 from ..rigid_body import radians_per_s2
 from ..units import Channel, DeliverableUnits, UnitSystem, deliverable_units
+from .bands import band
 from .coordinates import SBEAM_CID, to_force, to_grid, to_moment
 from .sbeam_bridge import _fmt, _sf_str
 
+#: Node runs, from the band registry (:mod:`sloads.export.bands`) -- the single
+#: owner of every GID/EID/SID band in the suite. These three were 4001/4201/4401
+#: until 2026-08-10, which collided completely with the spanwise tail decks'
+#: 4001-5000; the registry is what makes that class of collision a test failure.
+_NODE_BANDS = {"R": band("balanced-wing-right"),
+               "L": band("balanced-wing-left"),
+               "C": band("balanced-centreline")}
 #: Right-hand wing node run.
-BALANCED_WING_R_BASE = 4001
+BALANCED_WING_R_BASE = _NODE_BANDS["R"].start
 #: Left-hand wing node run -- separate so an antisymmetric case can load the two
 #: sides differently without renumbering (plan 11 B7).
-BALANCED_WING_L_BASE = 4201
+BALANCED_WING_L_BASE = _NODE_BANDS["L"].start
 #: Centreline node run -- fuselage masses, the tail air load, the lumped
 #: fuselage Cm moment, and every closure point that sits on the centreline.
-BALANCED_BODY_BASE = 4401
-#: Node run capacity per wing side, and for the centreline run.
-_WING_BLOCK = 200
-_BODY_BLOCK = 600
+BALANCED_BODY_BASE = _NODE_BANDS["C"].start
 
 #: SUBCASE / load-set ids for the assembled deck.
-BALANCED_SID_BASE = 5001
+BALANCED_SID_BASE = band("balanced-subcase").start
 
 
 def _units(system: UnitSystem) -> DeliverableUnits:
@@ -126,9 +135,6 @@ def deck_nodes(cases: Sequence[BalancedCaseResult],
     offset, so they do not need identical node numbering.
     """
     counts = {"R": 0, "L": 0, "C": 0}
-    bases = {"R": BALANCED_WING_R_BASE, "L": BALANCED_WING_L_BASE,
-             "C": BALANCED_BODY_BASE}
-    blocks = {"R": _WING_BLOCK, "L": _WING_BLOCK, "C": _BODY_BLOCK}
     out: Dict[Tuple[str, float, float, float], int] = {}
     for case in cases:
         for load in case.loads:
@@ -136,11 +142,10 @@ def deck_nodes(cases: Sequence[BalancedCaseResult],
             if key in out:
                 continue
             side = load.side if load.side in counts else "C"
-            if counts[side] >= blocks[side]:
-                raise ValueError(
-                    f"balanced deck: {side}-side nodes exceed the "
-                    f"{blocks[side]}-GID block at {bases[side]}")
-            out[key] = bases[side] + counts[side]
+            try:
+                out[key] = _NODE_BANDS[side].allocate(counts[side])
+            except ValueError as exc:
+                raise ValueError(f"balanced deck: {exc}") from None
             counts[side] += 1
     return out
 

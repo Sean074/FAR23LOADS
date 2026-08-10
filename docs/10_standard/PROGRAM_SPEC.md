@@ -555,7 +555,7 @@ return strings (with thin `write_*` file wrappers), and do no physics.
   V-n point's own condition), the balancing tail load, the fuselage/empennage
   inertia from the mass SSOT, and the fuselage's lumped share of the trim
   pitching moment. `export/balanced_deck.py` writes it — GID bands: right wing
-  `4001+`, left wing `4201+`, centreline `4401+`; one determinate six-DOF
+  `6001+`, left wing `6201+`, centreline `6401+`; one determinate six-DOF
   support whose reaction *is* the residual; SUBCASE/SID `5001+`. **No free-body
   cut reaction appears** (the seam rule). The residual before closure and the
   relief applied are stated on the result, in the UI and in the deck header.
@@ -686,11 +686,20 @@ return strings (with thin `write_*` file wrappers), and do no physics.
   | Tail | **yes** (one per chord station, `y = z = 0`; **separate GID block per component**) | Σ`FORCE`.Fz = SF × (`LT25`+`LT50`); the chordwise first moment matches the profile |
   | Control surface | **no, by design** | Σ`FORCE`.Fz = SF × the critical surface load. `ControlSurfaceStation.x` is a *fraction of chord* and the result carries no chord length, so the deck can carry no geometry; it says so in-band |
 
-  GID blocks: wing `1…N+1`, body mass `1001–1500`, body carry-through/correction
-  `1501–2000`, h-tail `2001–2100`, v-tail `2101–2200`, control surface `3001+` —
-  disjoint, guarded by test. The h-tail and v-tail split (step 1) is required
-  because the two components have different average chords, so their chord
-  stations are different points.
+  **Id bands are owned by `sloads/export/bands.py`** (2026-08-10, review
+  F-C1/F-G3) — the single registry of every GID, EID and SID run in the suite,
+  with the whole map in its module docstring. Every allocator goes through
+  `Band.allocate`, which raises on overflow rather than walking into the next
+  family. GID blocks: wing `1–1000`, body mass `1001–1500`, body
+  carry-through/correction `1501–2000`, chordwise h-tail `2001–2100`, chordwise
+  v-tail `2101–2200`, control surface `3001–4000`, spanwise h-tail `4001–4500`,
+  spanwise v-tail `4501–5000`, balanced deck `6001–7000`. The h-tail and v-tail
+  chordwise split (step 1) is required because the two components have different
+  average chords, so their chord stations are different points. Disjointness is
+  proved over the **whole registry** by `tests/test_bands.py`, which also
+  requires every id-base constant in `sloads/export` to be a registered band —
+  the previous hand-enumerated guards were blind to the balanced deck, which
+  collided with the spanwise tail bands from step B5 until 2026-08-10.
 - **The closure gate** is `sloads/export/equilibrium.py` — the single owner of
   "parse a deck, re-derive Σ`FORCE`/Σ`MOMENT` from its card text about a stated
   reference point, and compare at the export-boundary tolerance"

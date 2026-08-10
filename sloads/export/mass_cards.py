@@ -68,24 +68,31 @@ from ..mass_distribution import (
 )
 from ..models import MassItem, Project
 from ..units import Channel, DeliverableUnits, UnitSystem, deliverable_units
+from .bands import band
 from .coordinates import SBEAM_CID, to_grid
 from .sbeam_bridge import _fmt, _sf_str, beam_station_gid
 
 # --------------------------------------------------------------------------- #
-# EID bands (disjoint from every GID band; see the disjointness guard)
+# EID / SID bands -- declared in :mod:`sloads.export.bands`, the single owner of
+# every id run in the suite; that module's guard proves them disjoint from every
+# GID band, which is what lets a CONM2 set be spliced into a load deck.
 # --------------------------------------------------------------------------- #
-#: Always-aboard items (empty + minimum weight) -- the MASSSET **baseline**.
-MASS_EID_BASELINE = 9001
-#: Discretionary items -- overlay-only, named by a case's ``ADD`` row.
-MASS_EID_DISCRETIONARY = 9101
-#: Per-case ballast -- one overlay card per derived loading.
-MASS_EID_BALLAST = 9201
-#: MASSSET SIDs, one per payload case.
-MASSSET_SID_BASE = 9301
-#: GRAV SIDs, one per payload case.
-GRAV_SID_BASE = 9401
+_BASELINE_BAND = band("mass-baseline")
+_DISCRETIONARY_BAND = band("mass-discretionary")
+_BALLAST_BAND = band("mass-ballast")
+_MASSSET_BAND = band("massset")
+_GRAV_BAND = band("grav")
 
-_EID_BLOCK = 100
+#: Always-aboard items (empty + minimum weight) -- the MASSSET **baseline**.
+MASS_EID_BASELINE = _BASELINE_BAND.start
+#: Discretionary items -- overlay-only, named by a case's ``ADD`` row.
+MASS_EID_DISCRETIONARY = _DISCRETIONARY_BAND.start
+#: Per-case ballast -- one overlay card per derived loading.
+MASS_EID_BALLAST = _BALLAST_BAND.start
+#: MASSSET SIDs, one per payload case.
+MASSSET_SID_BASE = _MASSSET_BAND.start
+#: GRAV SIDs, one per payload case.
+GRAV_SID_BASE = _GRAV_BAND.start
 
 
 def _checked_mass_units(units: DeliverableUnits) -> DeliverableUnits:
@@ -190,21 +197,17 @@ def mass_cards(project: Project) -> Tuple[List[MassCard], List[CaseLoading]]:
                      if it.kind == MassItemKind.DISCRETIONARY and id(it) in carried]
 
     cards: List[MassCard] = []
-    for band, group, overlay in ((MASS_EID_BASELINE, baseline, False),
-                                 (MASS_EID_DISCRETIONARY, discretionary, True)):
-        if len(group) > _EID_BLOCK:
-            raise ValueError(
-                f"mass export: {len(group)} items exceed the {_EID_BLOCK}-EID "
-                f"block at {band}")
+    for eid_band, group, overlay in ((_BASELINE_BAND, baseline, False),
+                                     (_DISCRETIONARY_BAND, discretionary, True)):
         for i, it in enumerate(group):
             gid, offset = _attach_gid(it, project, stations)
-            cards.append(MassCard(eid=band + i, gid=gid, item=it,
+            cards.append(MassCard(eid=eid_band.allocate(i), gid=gid, item=it,
                                   offset=offset, overlay=overlay))
     for i, loading in enumerate(loadings):
         if loading.ballast is None:
             continue
         gid, offset = _attach_gid(loading.ballast, project, stations)
-        cards.append(MassCard(eid=MASS_EID_BALLAST + i, gid=gid,
+        cards.append(MassCard(eid=_BALLAST_BAND.allocate(i), gid=gid,
                               item=loading.ballast, offset=offset, overlay=True))
     return cards, loadings
 
@@ -260,7 +263,7 @@ def _conm2_line(card: MassCard, u: DeliverableUnits) -> str:
 
 def _massset_block(cards: Sequence[MassCard], loading: CaseLoading,
                    index: int) -> List[str]:
-    sid = MASSSET_SID_BASE + index
+    sid = _MASSSET_BAND.allocate(index)
     eids = _overlay_eids(cards, loading, index)
     label = "".join(ch for ch in loading.name.upper() if ch.isalnum())[:8] or f"CASE{index}"
     lines = [
@@ -405,11 +408,11 @@ def mass_check_deck(project: Project, *,
     head: List[str] = ["SOL 101", "$"]
     for i, loading in enumerate(loadings):
         head += [
-            f"SUBCASE {MASSSET_SID_BASE + i}",
+            f"SUBCASE {_MASSSET_BAND.allocate(i)}",
             f"  LABEL = {loading.name}",
             f"  TITLE = mass check, Nz={nz:g} (SF={_sf_str(1.0)}, no load cards)",
-            f"  MASSSET = {MASSSET_SID_BASE + i}",
-            f"  LOAD = {GRAV_SID_BASE + i}",
+            f"  MASSSET = {_MASSSET_BAND.allocate(i)}",
+            f"  LOAD = {_GRAV_BAND.allocate(i)}",
             "  SPC = 1",
             "$",
         ]
@@ -453,7 +456,7 @@ def mass_check_deck(project: Project, *,
         "$ checked by sloads-side closure.",
     ]
     for i, _ in enumerate(loadings):
-        bulk.append(f"GRAV, {GRAV_SID_BASE + i}, 0, {_fmt(nz * g)}, 0.0, 0.0, -1.0")
+        bulk.append(f"GRAV, {_GRAV_BAND.allocate(i)}, 0, {_fmt(nz * g)}, 0.0, 0.0, -1.0")
     bulk += ["$"] + conm2_fragment(project, system=system).splitlines()
     return "\n".join(head + bulk + ["ENDDATA"]) + "\n"
 

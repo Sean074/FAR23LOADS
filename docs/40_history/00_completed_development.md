@@ -10,6 +10,50 @@ Acceptance**, **Key decisions**.
 
 ---
 
+## GID/EID/SID band registry + exhaustive disjointness (0.5.0 row 1 — complete 2026-08-10, tier M)
+
+**Objective.** Close review **F-C1** (the balanced deck's `4001+` nodes collided
+completely with the spanwise tail decks' `4001–5000`) by fixing the root cause the
+review filed as **F-G3**: id bands were per-file constants plus prose, and both
+disjointness guards hand-enumerated the families they knew about, so neither could
+see a new one. `CLAUDE.md` practice 3 — one owner plus a drift guard.
+
+**Deliverables.** `sloads/export/bands.py`: `Band` (name, kind, start, size,
+owner, note, `clear_of_gids`), the `BANDS` registry with the whole GID/EID/SID map
+in its module docstring, `band()` / `bands_of_kind()` / `owner_of()` /
+`overlaps()`. Every allocator in `sbeam_bridge`, `balanced_deck`, `mass_cards` and
+`roundtrip` now draws from it through `Band.allocate`, which raises on overflow;
+the per-module `*_BASE` constants remain as aliases for callers and deck headers.
+New `control_station_gid`, and a capacity guard on `station_gid` (review **m5**).
+The balanced deck re-banded to `6001/6201/6401`. `_trapezoid_tributary_forces`
+folds the duplicated chordwise tributary arithmetic (review **m6**).
+
+**Test / Acceptance.** `tests/test_bands.py`: pairwise disjointness over the whole
+registry; the pre-fix `4001+` band re-declared and shown to collide (the gate has
+teeth); allocator end-points and overflow raises per band; the public base
+constants pinned to their bands; `case_ids.SUBCASE_BLOCK` pinned against its
+mirror. The blind-spot killer is
+`test_every_export_base_constant_is_a_registered_band`, which walks the **module
+globals** of every module under `sloads/export` and fails any id-base constant
+that is not a registered band's start — a new deck family cannot re-open the hole
+by forgetting a test. The two former hand-enumerated guards
+(`test_gid_blocks_are_disjoint`, `test_mass_eids_are_disjoint_from_every_gid_band`)
+now assert only what a registry cannot: that the ids on the cards each fixture
+actually emits fall inside their owner's band.
+
+**Key decisions.** (1) Balanced GIDs went to `6001+`, not `5001+`, so the number
+does not read as the balanced `SUBCASE`/SID base. (2) GID/EID cross-namespace
+disjointness is declared **per band** (`clear_of_gids`) rather than assumed: the
+`CONM2` bands take it so a spliced mass-plus-load deck has one owner per id, and
+the stick model's `CBAR` chain declines, having numbered 1..n alongside its own
+GRIDs since the first deck. (3) `case_ids.SUBCASE_BLOCK` stays the allocator for
+per-component subcase SIDs — calc must not import export — and the registry
+mirrors it under test. (4) The re-band moves exported bytes: the two balanced-deck
+digests were regenerated after confirming the pre-fix deck is reconstructible
+byte-for-byte from the new one by shifting node numbers alone.
+
+---
+
 ## Six-DOF deck closure gate (0.5.0 row — complete 2026-08-10, tier S)
 
 Closed review finding **F-G1**: `test_the_deck_balances_from_its_own_cards` now

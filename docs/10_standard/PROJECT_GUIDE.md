@@ -197,6 +197,7 @@ FAR23LOADS/
 │   ├── fuselage_moment.py        # pure Munk slender-body fuselage dCm/dα estimator (off-by-default; Step G4)
 │   ├── fleet.py                  # pure fleet placement: nearest-N / percentile / outlier (FleetStats; Phase E4)
 │   ├── export/                   # output bridges to external tools (renderers, NOT registered modules)
+│   │   ├── bands.py              # THE GID/EID/SID band registry: one owner per id run, disjointness proved by test
 │   │   ├── coordinates.py        # SLOADS axes -> sbeam CID 0 map (single edit-point)
 │   │   ├── sbeam_bridge.py       # net wing/body/tail/control loads -> span-load CSV + FORCE/MOMENT cards + CBAR stick model + case-index + export-scope filter
 │   │   ├── workbook.py           # multi-sheet .xlsx workbook (Step D8.2): one tab per module/component + case index

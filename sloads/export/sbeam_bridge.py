@@ -139,6 +139,7 @@ from ..models import (
 )
 from ..report import ultimate_units
 from ..units import Channel, DeliverableUnits, UnitSystem, deliverable_units
+from .bands import band
 from .coordinates import (
     SBEAM_CID,
     bending_moment_vector,
@@ -244,8 +245,11 @@ _TOL = 1e-9
 _DEFECT_REL_TOL = 1e-9
 
 # GRID id of the clamped wing-root node in the stick model; station nodes follow.
-_ROOT_GID = 1
-_STATION_GID_BASE = 1  # station i -> GID _STATION_GID_BASE + 1 + i (= 2, 3, ...)
+# Both come out of the band registry (:mod:`sloads.export.bands`) -- see it for
+# the whole GID/EID/SID map and why one owner replaced the per-file constants.
+_WING_BAND = band("wing-stick")
+_ROOT_GID = _WING_BAND.start
+_STATION_GID_BASE = _WING_BAND.start  # station i -> GID base + 1 + i (= 2, 3, ...)
 
 
 def _fmt(val: float) -> str:
@@ -254,8 +258,13 @@ def _fmt(val: float) -> str:
 
 
 def station_gid(i: int) -> int:
-    """GRID id of wing station ``i`` (0 = root), past the clamped root node."""
-    return _STATION_GID_BASE + 1 + i
+    """GRID id of wing station ``i`` (0 = root), past the clamped root node.
+
+    Allocated from the ``wing-stick`` band, so a station count that would have
+    walked into the fuselage block at 1001 raises instead (review m5) -- the
+    same guard every other family already had.
+    """
+    return _WING_BAND.allocate(1 + i)
 
 
 @dataclass
@@ -782,9 +791,11 @@ def write_stick_model_bdf(arg: ResultsArg, path: str, sid_base: int = 1, *,
 # renumbered every mass station aft of the wing whenever the spar stations
 # changed. Mass/tail stations therefore keep the historical ``1001 + i`` in
 # nose->tail order and the reaction nodes take a disjoint block at ``1501 +``.
-_BODY_GID_BASE = 1001         # fuselage mass stations + the tail air load: 1001-1500
-_BODY_CARRY_GID_BASE = 1501   # carry-through / fallback correction nodes: 1501-2000
-_BODY_GID_BLOCK = 500         # capacity of each block (tail GIDs start at 2001)
+_BODY_MASS_BAND = band("body-mass")          # 1001-1500
+_BODY_CARRY_BAND = band("body-reaction")     # 1501-2000
+_BODY_GID_BASE = _BODY_MASS_BAND.start
+_BODY_CARRY_GID_BASE = _BODY_CARRY_BAND.start
+_BODY_GID_BLOCK = _BODY_MASS_BAND.size       # capacity of each block
 
 #: ``BodyStationLoad.source`` values that belong to the reaction-node GID block.
 _BODY_REACTION_SOURCES = ("carry", "correction")
@@ -800,11 +811,7 @@ def beam_station_gid(index: int) -> int:
     the same nodes the fuselage load deck does, rather than re-deriving the
     numbering (``CLAUDE.md`` practice 3).
     """
-    if not 0 <= index < _BODY_GID_BLOCK:
-        raise ValueError(
-            f"body export: mass station {index} is outside the "
-            f"{_BODY_GID_BLOCK}-GID block")
-    return _BODY_GID_BASE + index
+    return _BODY_MASS_BAND.allocate(index)
 
 
 def body_station_gids(result: BodyLoadResult) -> List[int]:
@@ -818,19 +825,19 @@ def body_station_gids(result: BodyLoadResult) -> List[int]:
     gids: List[int] = []
     n_mass = 0
     n_reaction = 0
-    for s in result.stations:
-        if s.source in _BODY_REACTION_SOURCES:
-            gids.append(_BODY_CARRY_GID_BASE + n_reaction)
-            n_reaction += 1
-        else:
-            gids.append(_BODY_GID_BASE + n_mass)
-            n_mass += 1
-    if max(n_mass, n_reaction) > _BODY_GID_BLOCK:
+    try:
+        for s in result.stations:
+            if s.source in _BODY_REACTION_SOURCES:
+                gids.append(_BODY_CARRY_BAND.allocate(n_reaction))
+                n_reaction += 1
+            else:
+                gids.append(_BODY_MASS_BAND.allocate(n_mass))
+                n_mass += 1
+    except ValueError as exc:
         raise ValueError(
             f"body export: {n_mass} mass and {n_reaction} reaction stations "
-            f"exceed the {_BODY_GID_BLOCK}-GID block (would collide with the "
-            "tail GIDs at 2001)"
-        )
+            f"exceed their GID band (would collide with the next band) -- {exc}"
+        ) from None
     return gids
 
 
@@ -1035,15 +1042,17 @@ def body_fitting_load_csv(arg, header_comment: str = "", *,
 # average tail chord at five chord stations. The export emits the profile as a CSV
 # and a per-station FORCE set scaled so its total equals the condition's tail load
 # (LT25 + LT50) -- a determinate, checkable load set for the tail beam in sbeam.
-_TAIL_GID_BASE = 2001  # tail chordwise-station GIDs (disjoint from wing/body GIDs)
+_TAIL_CHORD_BANDS = {"htail": band("tail-chord-htail"),
+                     "vtail": band("tail-chord-vtail")}
+_TAIL_GID_BASE = _TAIL_CHORD_BANDS["htail"].start  # 2001
 # ...but the h-tail and the v-tail are different beams with different average
 # chords, so their chord stations are *different points* (ga6: the h-tail's five
 # run 0 -> 36.39 in, the v-tail's 0 -> 37.49 in). Sharing one 2001+ run between
 # them was harmless only while the decks named GIDs that existed nowhere; the
 # moment they carry GRID cards it would define one node at two locations. Each
 # component therefore gets its own sub-block.
-_TAIL_COMPONENT_BLOCK = 100          # GIDs per tail component
-_TAIL_COMPONENTS = ("htail", "vtail")  # block order: htail 2001+, vtail 2101+
+_TAIL_COMPONENT_BLOCK = _TAIL_CHORD_BANDS["htail"].size  # GIDs per tail component
+_TAIL_COMPONENTS = tuple(_TAIL_CHORD_BANDS)  # block order: htail 2001+, vtail 2101+
 
 
 def tail_station_gid(component: str, i: int) -> int:
@@ -1054,18 +1063,13 @@ def tail_station_gid(component: str, i: int) -> int:
     which no downstream check would attribute back to here.
     """
     try:
-        block = _TAIL_COMPONENTS.index(component)
-    except ValueError:
+        gid_band = _TAIL_CHORD_BANDS[component]
+    except KeyError:
         raise ValueError(
             f"tail export: unknown component {component!r} -- expected one of "
             f"{_TAIL_COMPONENTS}; it has no GID block"
         ) from None
-    if not 0 <= i < _TAIL_COMPONENT_BLOCK:
-        raise ValueError(
-            f"tail export: chord station {i} is outside the "
-            f"{_TAIL_COMPONENT_BLOCK}-GID block for {component}"
-        )
-    return _TAIL_GID_BASE + block * _TAIL_COMPONENT_BLOCK + i
+    return gid_band.allocate(i)
 
 
 def _tail_results(arg: "Union[Project, TailChordResult, Sequence[TailChordResult]]") -> List[TailChordResult]:
@@ -1084,21 +1088,34 @@ def _tail_results(arg: "Union[Project, TailChordResult, Sequence[TailChordResult
     return results
 
 
+def _trapezoid_tributary_forces(stations, total: float) -> List[float]:
+    """Nodal forces from a chordwise pressure profile, rescaled to sum to ``total``.
+
+    Both chordwise writers (tail and control surface) build their load set the
+    same way: trapezoidal tributary width per station x that station's pressure,
+    then one scale factor so the set carries the condition's own critical load
+    exactly. The two had the arithmetic written out twice, verbatim (review m6);
+    a profile whose stations integrate to zero returns an all-zero set here, in
+    one place, which is what backlog row 3 turns into a raise.
+
+    ``stations`` must be sorted by ``x``; the caller owns the safety factor, so
+    ``total`` arrives ULTIMATE.
+    """
+    xs = [s.x for s in stations]
+    n = len(xs)
+    widths = [((xs[i + 1] if i + 1 < n else xs[i])
+               - (xs[i - 1] if i > 0 else xs[i])) / 2.0 for i in range(n)]
+    raw = [s.psi * w for s, w in zip(stations, widths)]
+    total_raw = sum(raw)
+    scale = (total / total_raw) if abs(total_raw) > _TOL else 0.0
+    return [v * scale for v in raw]
+
+
 def _tail_nodal_forces(r: TailChordResult) -> List[float]:
     """Per-station vertical forces (lb) from the chordwise pressures, scaled so the
     set sums to the total tail load ``LT25 + LT50`` (trapezoidal chord tributaries)."""
     stations = sorted(r.stations, key=lambda s: s.x)
-    n = len(stations)
-    widths = []
-    for i, s in enumerate(stations):
-        lo = stations[i - 1].x if i > 0 else s.x
-        hi = stations[i + 1].x if i + 1 < n else s.x
-        widths.append((hi - lo) / 2.0)
-    raw = [s.psi * w for s, w in zip(stations, widths)]
-    total_raw = sum(raw)
-    total = (r.lt25 + r.lt50) * _sf(r)  # ULTIMATE tail load
-    scale = (total / total_raw) if abs(total_raw) > _TOL else 0.0
-    return [v * scale for v in raw]
+    return _trapezoid_tributary_forces(stations, (r.lt25 + r.lt50) * _sf(r))
 
 
 def tail_chordwise_csv(arg, header_comment: str = "", *,
@@ -1218,28 +1235,27 @@ def write_tail_force_moment_cards(arg, path: str, sid_base: int = 1, *,
 # 2. **Supported, not clamped.** The h-tail deck is a full-span member reacted at
 #    the fuselage attachment stations the physics defined (decision T-8), not at a
 #    root node. The v-tail is root-supported at the fuselage.
-_HTAIL_SPAN_GID_BASE = 4001   # h-tail spanwise stations: 4001-4499
-_VTAIL_SPAN_GID_BASE = 4501   # v-tail spanwise stations: 4501-4999
-_TAIL_SPAN_BLOCK = 500
+_TAIL_SPAN_BANDS = {"htail": band("tail-span-htail"),
+                    "vtail": band("tail-span-vtail")}
+_HTAIL_SPAN_GID_BASE = _TAIL_SPAN_BANDS["htail"].start   # 4001-4500
+_VTAIL_SPAN_GID_BASE = _TAIL_SPAN_BANDS["vtail"].start   # 4501-5000
+_TAIL_SPAN_BLOCK = _TAIL_SPAN_BANDS["htail"].size
 
 
 def tail_span_gid(component: str, i: int) -> int:
     """GID of spanwise station ``i`` of ``component``.
 
-    Its own band per surface, disjoint from the wing (1+), body (1001+),
-    chordwise tail (2001+) and control (3001+) blocks -- and from each other, so
-    an assembled airframe can carry both surfaces at once.
+    Its own band per surface, registered in :mod:`sloads.export.bands` and
+    proved disjoint from every other family there -- so an assembled airframe
+    can carry both surfaces at once. The claim used to live in this docstring
+    alone, and was false for two months against the balanced deck (review F-C1).
     """
-    base = {"htail": _HTAIL_SPAN_GID_BASE, "vtail": _VTAIL_SPAN_GID_BASE}.get(component)
-    if base is None:
+    gid_band = _TAIL_SPAN_BANDS.get(component)
+    if gid_band is None:
         raise ValueError(
             f"tail span export: unknown component {component!r} -- expected "
             "'htail' or 'vtail'; it has no GID block")
-    if not 0 <= i < _TAIL_SPAN_BLOCK:
-        raise ValueError(
-            f"tail span export: station {i} is outside the {_TAIL_SPAN_BLOCK}-GID "
-            f"block for {component}")
-    return base + i
+    return gid_band.allocate(i)
 
 
 def _tail_span_results(arg, component: str) -> List:
@@ -1413,7 +1429,18 @@ def tail_span_csv(arg, component: str = "htail", header_comment: str = "", *,
 # (fractional chord 0..1) and a critical total load; the export builds a per-station
 # FORCE set scaled so its sum equals that critical load -- a determinate, checkable
 # load set for the control-surface beam in sbeam.
-_CS_GID_BASE = 3001  # control-surface chord-station GIDs (disjoint from wing/body/tail)
+_CS_BAND = band("control-surface")
+_CS_GID_BASE = _CS_BAND.start  # control-surface chord-station GIDs: 3001-4000
+
+
+def control_station_gid(i: int) -> int:
+    """GID of control-surface chord station ``i``.
+
+    The band was previously open-coded as ``_CS_GID_BASE + i`` at both call
+    sites; going through the registry gives it the capacity guard the other
+    families already had, and gives the disjointness test one owner to ask.
+    """
+    return _CS_BAND.allocate(i)
 
 
 def _control_results(
@@ -1438,17 +1465,7 @@ def _control_nodal_forces(r: ControlSurfaceLoadResult) -> List[float]:
     """Per-station forces (lb) from the simplified pressures, scaled so the set sums
     to the critical surface load (trapezoidal chord tributaries)."""
     stations = sorted(r.stations, key=lambda s: s.x)
-    n = len(stations)
-    widths = []
-    for i, s in enumerate(stations):
-        lo = stations[i - 1].x if i > 0 else s.x
-        hi = stations[i + 1].x if i + 1 < n else s.x
-        widths.append((hi - lo) / 2.0)
-    raw = [s.psi * w for s, w in zip(stations, widths)]
-    total_raw = sum(raw)
-    total = r.load_lb * _sf(r)  # ULTIMATE critical surface load
-    scale = (total / total_raw) if abs(total_raw) > _TOL else 0.0
-    return [v * scale for v in raw]
+    return _trapezoid_tributary_forces(stations, r.load_lb * _sf(r))
 
 
 def control_surface_csv(arg, header_comment: str = "", *,
@@ -1478,7 +1495,7 @@ def control_surface_csv(arg, header_comment: str = "", *,
         for i, (s, fz) in enumerate(zip(stations, forces)):
             _, _, fz_out = to_force(0.0, 0.0, fz, u)
             writer.writerow({
-                "Surface": r.surface, "Case": r.case, "GID": _CS_GID_BASE + i,
+                "Surface": r.surface, "Case": r.case, "GID": control_station_gid(i),
                 "X (chord frac)": f"{s.x:.3f}",
                 psi_h: f"{to_pressure(s.psi * sf, u):.4f}", fz_h: f"{fz_out:.1f}",
                 load_h: f"{load:.2f}", "SF": f"{_sf_str(sf)}",
@@ -1529,7 +1546,7 @@ def control_surface_force_moment_cards(arg, sid_base: int = 1, *,
             fx2, fy2, fz2 = to_force(0.0, 0.0, fz, u)
             if abs(fz) > _TOL:
                 lines.append(
-                    f"FORCE, {sid}, {_CS_GID_BASE + i}, {SBEAM_CID}, 1.0, "
+                    f"FORCE, {sid}, {control_station_gid(i)}, {SBEAM_CID}, 1.0, "
                     f"{_fmt(fx2)}, {_fmt(fy2)}, {_fmt(fz2)}"
                 )
         blocks.append("\n".join(lines))

@@ -33,6 +33,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import pytest  # noqa: E402
 
 from sloads import io, mass_distribution as md  # noqa: E402
+from sloads.export.bands import IdKind, bands_of_kind  # noqa: E402
 from sloads.export import mass_cards as mc  # noqa: E402
 from sloads.export import sbeam_bridge as sb  # noqa: E402
 from sloads.export.equilibrium import parse_cards  # noqa: E402
@@ -267,21 +268,28 @@ def test_the_card_set_reproduces_each_loading(example, system):
 
 @pytest.mark.parametrize("example", _fixtures_with_cards())
 def test_mass_eids_are_disjoint_from_every_gid_band(example):
-    """EIDs and GIDs share no numbers, so an assembled deck cannot collide.
+    """Every emitted EID sits in a registered ``clear_of_gids`` mass band, so no
+    GID band -- present or future -- can collide with it.
 
-    Same argument as the export-boundary GID disjointness guard: the bands only
-    became real when cards started referencing them.
+    This test used to hand-enumerate the GID bands it compared against, and so
+    could only ever see the families its author remembered (it omitted the
+    balanced deck entirely; review F-C1/F-G3). The band-to-band question now
+    belongs to ``tests/test_bands.py``, which asks it of the whole registry;
+    what stays here is that the cards this fixture actually writes land inside
+    the bands that promise it.
     """
     p = _project(example)
     cards, _ = mc.mass_cards(p)
     eids = {c.eid for c in cards}
     assert len(eids) == len(cards), "duplicate EID"
-    gids = {sb._ROOT_GID} | {sb.beam_station_gid(i)
-                             for i in range(len(md.fuselage_beam_stations(p)))}
-    gids |= {sb._CS_GID_BASE + i for i in range(100)}
-    gids |= {sb.tail_station_gid(c, i) for c in ("htail", "vtail") for i in range(100)}
-    assert not (eids & gids), sorted(eids & gids)
-    assert all(e >= mc.MASS_EID_BASELINE for e in eids)
+    mass_bands = [b for b in bands_of_kind(IdKind.EID)
+                  if b.owner.startswith("mass_cards.")]
+    assert all(b.clear_of_gids for b in mass_bands), "a mass EID band stopped "\
+        "promising to stay clear of GID space"
+    for eid in eids:
+        assert any(eid in b for b in mass_bands), f"EID {eid} is in no mass band"
+    every_gid = [b for b in bands_of_kind(IdKind.GID)]
+    assert not [e for e in eids if any(e in b for b in every_gid)]
 
 
 @pytest.mark.parametrize("example", _fixtures_with_cards())

@@ -40,6 +40,7 @@ import pytest  # noqa: E402
 
 from sloads import io  # noqa: E402
 from sloads.export import sbeam_bridge as sb  # noqa: E402
+from sloads.export.bands import band  # noqa: E402
 from sloads.export.coordinates import (  # noqa: E402
     bending_moment_vector,
     to_force,
@@ -569,40 +570,48 @@ def test_spanwise_tail_decks_declare_the_double_count_rule(example):
 # --------------------------------------------------------------------------- #
 @pytest.mark.parametrize("example", EXAMPLES)
 def test_gid_blocks_are_disjoint(example):
-    """Wing / body-mass / body-reaction / tail / control GIDs never collide.
+    """Every GID a deck family actually emits sits inside its **registered**
+    band, and no two families collide.
 
-    Emitting ``GRID`` cards makes collisions real for the first time (the GIDs
-    used to be bare references), and an assembled multi-component deck (L-1)
-    needs this to hold across the whole airframe, not one family at a time.
+    The band-to-band question is settled once, exhaustively, in
+    ``tests/test_bands.py`` -- this test used to hand-enumerate the bands it knew
+    about, which is exactly how it stayed blind to the balanced deck's collision
+    with the tail-span decks for two months (review F-C1). What is left here is
+    the half a registry cannot answer: that the GIDs on the cards this example
+    produces are the ones their owner claims, so an assembled multi-component
+    deck (L-1) really does compose.
     """
     wing, body, tail, control, htail_span, vtail_span = _cached(example)
-    blocks = {}
+    emitted = {}   # band name -> GIDs the decks put on cards
     if wing:
-        blocks["wing"] = {sb._ROOT_GID} | {
+        emitted["wing-stick"] = {sb._ROOT_GID} | {
             sb.station_gid(i) for i in range(len(wing[0].stations))}
     if body:
         mass, reaction = set(), set()
         for r in body:
             for gid, s in zip(sb.body_station_gids(r), r.stations):
                 (reaction if s.source in sb._BODY_REACTION_SOURCES else mass).add(gid)
-        blocks["body-mass"] = mass
-        blocks["body-reaction"] = reaction
-    if tail:
-        blocks["tail"] = {sb.tail_station_gid(r.component, i)
-                          for r in tail for i in range(len(r.stations))}
+        emitted["body-mass"] = mass
+        emitted["body-reaction"] = reaction
+    for r in tail:
+        emitted.setdefault(f"tail-chord-{r.component}", set()).update(
+            sb.tail_station_gid(r.component, i) for i in range(len(r.stations)))
     if control:
-        blocks["control"] = {sb._CS_GID_BASE + i
-                             for r in control for i in range(len(r.stations))}
-    for name, results in (("htail-span", htail_span), ("vtail-span", vtail_span)):
+        emitted["control-surface"] = {sb.control_station_gid(i)
+                                      for r in control for i in range(len(r.stations))}
+    for component, results in (("htail", htail_span), ("vtail", vtail_span)):
         if results:
-            component = name.split("-")[0]
-            blocks[name] = {sb.tail_span_gid(component, i)
-                            for r in results for i in range(len(r.stations))}
-    names = sorted(blocks)
-    assert names, f"{example}: no exportable component at all"
+            emitted[f"tail-span-{component}"] = {
+                sb.tail_span_gid(component, i)
+                for r in results for i in range(len(r.stations))}
+    assert emitted, f"{example}: no exportable component at all"
+    for name, gids in emitted.items():
+        stray = {g for g in gids if g not in band(name)}
+        assert not stray, f"{example}: {name} emitted GIDs outside its band: {sorted(stray)}"
+    names = sorted(emitted)
     for i, a in enumerate(names):
         for b in names[i + 1:]:
-            overlap = blocks[a] & blocks[b]
+            overlap = emitted[a] & emitted[b]
             assert not overlap, f"{example}: {a} and {b} share GIDs {sorted(overlap)}"
 
 

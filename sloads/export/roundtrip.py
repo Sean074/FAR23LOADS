@@ -69,6 +69,7 @@ from enum import Enum
 from typing import Dict, List, Sequence, Tuple
 
 from ..units import Channel, DeliverableUnits, UnitSystem, deliverable_units
+from .bands import band
 from .coordinates import to_pressure
 from .equilibrium import parse_cards
 from .sbeam_bridge import _MAT1_E, _MAT1_NU, _PBAR_A, _PBAR_I, _PBAR_J, _fmt
@@ -78,7 +79,7 @@ Vec3 = Tuple[float, float, float]
 #: SID of the constraint set the wrapper emits, and that its synthesised case
 #: control selects. Matches ``stick_model_bdf``'s and ``balanced_deck``'s, so a
 #: wrapped deck and a shipped one name their constraints the same way.
-SPC_SID = 1
+SPC_SID = band("spc").start
 
 
 class SbeamUnavailable(RuntimeError):
@@ -185,7 +186,8 @@ def _property_lines(u: DeliverableUnits) -> List[str]:
 
 #: First ``RBE2`` id. Rigid elements share NASTRAN's element-id space, so the
 #: ties are numbered well clear of the ``CBAR`` chain rather than interleaved.
-_RBE2_EID_BASE = 900001
+_RBE2_BAND = band("roundtrip-rbe2")
+_RBE2_EID_BASE = _RBE2_BAND.start
 
 
 def _collapse(grids: Dict[int, Vec3],
@@ -230,7 +232,7 @@ def _element_lines(grids: Dict[int, Vec3],
             eid += 1
         for rep, tied in collapsed:
             if tied:
-                ties.append(f"RBE2, {_RBE2_EID_BASE + len(ties)}, {rep}, 123456, "
+                ties.append(f"RBE2, {_RBE2_BAND.allocate(len(ties))}, {rep}, 123456, "
                             + ", ".join(str(g) for g in tied))
     if ties:
         lines += ["$ Coincident nodes, rigidly tied (see roundtrip._collapse)."] + ties

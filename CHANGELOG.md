@@ -12,6 +12,27 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **One owner for every exported id band: `sloads/export/bands.py`.** Review
+  findings **F-C1** (the defect) and **F-G3** (its root cause). GID/EID/SID runs
+  were per-file constants with docstrings claiming disjointness, checked by two
+  tests that hand-enumerated the families their authors remembered — so when the
+  balanced deck opened `4001+` for its right wing, which the spanwise h-tail deck
+  already owned as `4001–4500`, nothing saw it for two months. A splice of those
+  two decks would have summed a wing load and a tail load on one node in a file
+  that parses cleanly. The registry declares every band (name, kind, start, size,
+  owner, and why it sits where it does) with the whole map in its module
+  docstring; every allocator now goes through `Band.allocate`, which raises on
+  overflow instead of walking into the next family — closing review **m5**, the
+  wing station allocator that had no capacity guard at all, and giving the
+  control-surface band its first one (`control_station_gid`).
+  `tests/test_bands.py` asks the disjointness question of the **whole registry**
+  pairwise, and — the part that makes it blind-spot-free — sweeps the module
+  globals of every module under `sloads/export`, failing any id-base constant
+  that is not a registered band's start. A future deck family cannot re-open the
+  hole by forgetting a test. `case_ids.SUBCASE_BLOCK` stays the allocator for the
+  per-component subcase SIDs (calc must not import export); the registry mirrors
+  them and a test pins the mirror so neither can move alone.
+
 - **The assembled deck's card-text closure gate now checks all six DOF.** Review
   finding **F-G1**: `test_the_deck_balances_from_its_own_cards` asserted `fx`,
   `fz` and `my` while `equilibrium.Resultant` had carried the lateral three all
@@ -76,6 +97,19 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   nose-up-positive (verified in the Schrenk basic-lift formula), gear V/D/S in
   airplane axes, aileron hand named per case. Labels only — no computed number
   changed anywhere.
+
+### Changed
+
+- **The balanced deck's nodes moved out of the tail-span range: `4001/4201/4401`
+  → `6001/6201/6401`** (the F-C1 fix). Node **numbering** only — the
+  reconstructed pre-fix deck is byte-identical to the shipped one, and the two
+  balanced-deck digests in `tests/fixtures_imperial/digests.json` are regenerated
+  for that reason and no other; every other Imperial digest is unchanged.
+- **The two chordwise writers share their tributary arithmetic** (review
+  **m6**): `_tail_nodal_forces` and `_control_nodal_forces` had the
+  trapezoid-width-times-pressure-then-rescale loop written out twice, verbatim.
+  One `_trapezoid_tributary_forces` now owns it — which is also the single place
+  backlog row 3's degenerate-profile raise will need to land.
 
 ### Fixed
 
