@@ -561,6 +561,26 @@ return strings (with thin `write_*` file wrappers), and do no physics.
   reflection convention and its owner. **Limitation:** the aileron's own spanwise
   lift increment is not distributed (no aileron butt lines in the schema), stated
   in the deck header, the case notes and the UI, and filed on the backlog.
+- **Lateral (±β) balanced cases (step B8a-3/B8a-4, 2026-08-09).** The four
+  vertical-tail conditions SELECT names — `SUDDEN RUDDER` (FAR 23.441(a)(1)),
+  `YAW TO SIDESLIP` ((a)(2)), `YAW 15 NEUTRAL` ((a)(3)) and `SIDE GUST`
+  (23.443(b)) — assemble as full-span free-free cases, each as a **handed pair**
+  (`VT-01R`/`VT-01L` … `VT-04R`/`VT-04L`). The fin's load set is SELECT's,
+  strip for strip, read through `tail_span` and mapped to airplane axes by
+  `export/coordinates.py` alone: span → `z` from the fin root waterline, normal
+  force → `fy`, torsion → `mz` **negated**. Fin **inertia** is not in this set —
+  it rides in the closure field at the case's own `n_y`/`ω̇` through the
+  `VTAIL`-tagged mass items (`CONVENTIONS.md` §1, decision L-8). Reported per
+  case in the result, the UI and the deck header: the applied fin side load, the
+  lateral load factor `n_y = L_v/W`, and the yaw and roll accelerations it
+  drives. `residual_fy`/`residual_mz` before closure **are** that load and are
+  reported, never gated — the gated statement is that the case's symmetric half
+  is unchanged (`CONVENTIONS.md` §1). Whether a case is handed is decided by
+  `balance.is_handed` on the applied distribution, and whether it is lateral by
+  `balance.is_lateral` (§7 owners). **Limitation, stated in-band:** the fin is
+  the only lateral aero the suite computes, so `n_y` and the yaw are over-stated
+  by an unknown amount and the inertia they drive is conservative everywhere;
+  the fin's own design load is unchanged. Filed on the backlog with M4-19.
 - **Spanwise empennage loads and decks (step T1–T5, 2026-08-08).**
   `sloads/modules/tail_span.py` distributes each critical h-tail/v-tail condition
   **along the span** in proportion to local chord (SELECT's `LT25`/`LT50` read,
@@ -569,7 +589,9 @@ return strings (with thin `write_*` file wrappers), and do no physics.
   factor alone, so a down-load case is *increased*). The h-tail table is **full
   span**, tip to tip through the centreline, reacted at fuselage attachment
   stations; the v-tail is single-sided and root-supported and carries **no
-  inertia** in phase 1 (no lateral load factor exists). FAR 23.427(a) scales the
+  inertia** — the per-component deck stays air-only, and from B8a-3 the fin's
+  inertia is carried by the *balanced* case at its own `n_y`/`ω̇` (decision L-8),
+  which is where a lateral load factor exists. FAR 23.427(a) scales the
   two halves by SELECT's own RH/LH split. The planform comes from an optional
   `htail`/`vtail` entry in `geometry.surfaces` (validated against the
   oracle-authoritative area/span to 1 %) or is **derived as a rectangle and

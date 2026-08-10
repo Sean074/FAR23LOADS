@@ -10,6 +10,98 @@ Acceptance**, **Key decisions**.
 
 ---
 
+## The lateral (±β) empennage balanced cases (mission phase 4, step 8 — plan 13 B8a-3/B8a-4/B8a-5 — complete 2026-08-09, tier L)
+
+**Objective.** Assemble the vertical tail's own FAR 23.441/23.443 conditions as
+full-span free-free airplane cases — the first cases in the suite with a lateral
+load factor at all — and put the assembled deck that carries them through the
+sbeam solve leg. Plan 13 decisions **L-5** (what the residual of such a case
+means), **L-6** (the handedness predicate), **L-7** (the lateral-aero
+limitation) and **L-8** (where fin inertia lives).
+
+**Deliverables.**
+
+- **`balance.fin_sets`** — the fin's distributed side load in airplane axes, a
+  pure consumer of `tail_span` (itself a pure consumer of SELECT), so the load a
+  lateral case carries is the Appendix-A-locked one strip for strip and **no
+  oracle is at risk from assembling it**. The frame change goes through the
+  single owner in `export/coordinates.py`: span → `z` from the fin root
+  waterline, normal force → `fy`, torsion → `mz` negated.
+- **`balance.is_handed`** — one predicate, registered in `CONVENTIONS.md` §7 with
+  its own drift guard, replacing B7's "a non-zero `unbal_moment`". Four handed
+  pairs per fixture: `VT-01R`/`VT-01L` … `VT-04R`/`VT-04L`, eight new cases each
+  (ga6 15 balanced cases, the RJ 14).
+- **`balance.is_lateral` / `fin_load`** — the only readers of the `vtail-air`
+  tag, so the deck header, the row table, the UI and the gates cannot drift about
+  what a lateral case is.
+- **Reporting**: the applied fin side load, `n_y`, `ψ̈` and `ṗ` on the module
+  result; `Closure dNy`/`Yaw acc`/`Roll acc` columns in `balanced_case_rows`; a
+  `LATERAL case:` block in the deck `$` header; a `ΣFy` column and a fin-load row
+  in the Streamlit breakdown, which reported every lateral case as a row of zeros
+  without it. The L-7 caveat travels as a **case note**, into the deck and the
+  report, not only into documentation.
+
+**Test / Acceptance.** 1275 passed, 21 skipped; `ruff` clean. Imperial baseline
+regenerated for `csv/balance`, `txt/balance` and `sbeam/balanced_deck` on the two
+fixtures that assemble cases — **every other channel byte-unchanged**, so every
+per-component deck and every Appendix A oracle is untouched (**G8**).
+
+| Gate | Target | Achieved |
+|---|---|---|
+| **G3** the assembled deck solves in sbeam, reactions ~0, now exercising `fy`/`mx`/`mz` | ~0 | passed unchanged, both fixtures, both unit systems |
+| **G3 (control)** reverse the fin load alone and the support must react it | `+2·L_v·SF` | to export tolerance, both unit systems |
+| **G7** handed twins are mirror images, extended to an odd *applied* set | exact | `fy`/`mx`/`mz` negate, `fx`/`fz`/`my` identical |
+| **G9** the symmetric half still closes with the fin removed | 1 %, per-fixture ceiling | **exact** — a fin set carries `fy`/`mz` only |
+| **G10** the four conditions pinned per fixture | as measured | fin load, `n_y`, `ψ̈`, `ṗ` at `rel_tol = 1e-4`; `n_y` also asserted as `L_v/W` |
+| **L-6** the predicate itself | drift guard | handed on a set that nets zero; unhanded on a symmetric one |
+
+**Key decisions.**
+
+1. **Nothing balances a rudder kick, and the gate says so instead of pretending
+   otherwise** (L-5). A lateral case's pre-closure `Fy`/`Mz` *are* the fin load
+   in full, so plan 11's 1 % residual gate is meaningless on them — the same
+   standing `ACRL`'s roll residual has had since B7. Gating them would either be
+   vacuous or force a fictitious balancing load into the case. What is gated is
+   the **symmetric half**, and it holds *exactly*, because a fin set carries
+   `fy` and `mz` only. Asserted rather than argued: a frame-map slip landing the
+   fin's normal force back on `fz` is precisely what would break it, silently.
+2. **The pitch ceiling was split per family, not widened.** ga6 `SUDDEN RUDDER`
+   0.341 % and the RJ's `SIDE GUST` 1.586 % are over the symmetric bounds — and
+   are *not* lateral contamination, since the symmetric half of those cases has
+   the identical residual to the last digit. They come from V-n points (14, 35,
+   95) the symmetric families never visit. One merged number would have stopped
+   the symmetric bounds from biting; the RJ figure is the largest instance yet of
+   the already-filed "RJ low-CL cases exceed the 1 % pitch gate" item.
+3. **Handedness is decided by the distribution, pre-closure** (L-6). `ga6_normal`'s
+   `YAW TO SIDESLIP` nets −97.8 lb from parts worth −683 and +586, so a
+   net-based predicate would mint a rudder-kick case **unhanded** and assemble it
+   symmetrically — plan 11 §10's `TORS` failure from the opposite direction. And
+   reading the *final* load set would hand every rolling case, since B8a-2 gives
+   those a lateral relief field.
+4. **A zero-target gate is worth only its sensitivity** (B8a-4). G3 passed on the
+   lateral subcases at the first attempt, which is exactly when to distrust it,
+   so it gained vacuity guards (every case present as a subcase; each lateral one
+   carrying real side load into the solver) and a **negative control** that
+   reverses the fin load alone and asserts the support then reacts `+2·L_v·SF` —
+   the load twice over, since the closure still relieves the original.
+5. **G10's `ψ̈` targets were restated from measurement, and the plan amended.**
+   Plan 13 §3.1's figures were taken against the placement-only `Izz` that
+   preceded L-3; against the shipped tensor ga6 `SUDDEN RUDDER` is 178.05 deg/s²
+   rather than 205.7 — ratio 0.866 where `Izz` alone gives 0.886, the difference
+   being the `Ixz` coupling. Fin loads and `n_y` are unchanged from §3.1 to the
+   last digit, because they do not depend on the closure.
+
+**Found and fixed in passing.** The deck's subcase-map `$` lines ran past 72
+columns once the condition names got longer than the four-letter wing ones; they
+are wrapped now rather than hand-broken. `roll_moment_fraction`'s docstring
+claimed the aileron as the only source of `residual_mx` — a fin above the roll
+axis is another (1.2 % of `n·W·b/2` on ga6's `SUDDEN RUDDER`).
+
+**Not delivered here.** The missing lateral aero itself (L-7) — fuselage and wing
+side force in sideslip — stays filed with M4-19; `n_y` and `ψ̈` are over-stated
+by an unknown amount until it lands, which is conservative everywhere and leaves
+the fin's own design load unchanged.
+
 ## The six-DOF closure (mission phase 4, step 8 — plan 13 B8a-2 — complete 2026-08-09, tier L)
 
 **Objective.** Replace the four hand-rolled one-component relief fields a balanced

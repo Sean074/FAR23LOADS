@@ -159,6 +159,16 @@ now in CI (`tests/test_balance.py`):
 | `\|Δn\|/n` (relief applied) | < 1 % | 0.05–0.70 % |
 | all six components after closure (B8a-2) | ~ 0 | ≤ 2e-16 of n·W |
 | the same, re-derived from the deck's own card text | ~ 0 | ~1e-7 (card format) |
+| the same, re-derived by **sbeam** from the deck's own `GRID` cards | ~ 0 | export tolerance, both unit systems |
+| the symmetric half of a **lateral** case, fin load removed (B8a-3) | unchanged | exact — a fin set carries `fy`/`mz` only |
+
+The pre-closure force and pitch rows are read **per family**: the lateral cases
+sit at V-n points the symmetric families never visit, and their pitch residual is
+larger there (ga6 `SUDDEN RUDDER` 0.341 %, RJ `SIDE GUST` 1.586 %). Ceilings are
+stated per fixture *and* per family rather than merged, so the symmetric bounds
+keep their bite. `residual_mx` on a rolling case and `residual_fy`/`residual_mz`
+on a lateral one are **applied loads, not errors**, and are outside this table by
+construction (`CONVENTIONS.md` §1).
 
 The measurement is deliberately taken **before** the closure: the gate is on what
 the physics achieves, not on what the correction hides. The remaining ~0.3 %
@@ -202,6 +212,51 @@ fixture — the two airplanes that assemble a balanced case enter no
 `one_engine_out` slice, and the two that enter one carry no engine horsepower, so
 ONENGOUT cannot execute on any fixture as shipped (filed on the backlog). The
 gate supplies that single input and reads everything else from the fixture.
+
+#### The lateral (±β) cases (step B8a-3, 2026-08-09)
+
+**Equations.** No new aerodynamics: the fin load is SELECT's, `LV` per FAR
+23.441(a)(1)–(a)(3) and 23.443(b) (cited in the `select` row above, Ref 1 Ch 9,
+`SELECT.BAS` subr 8300), distributed along the span by `tail_span`'s
+chord-proportional shape and mapped to airplane axes by `export/coordinates.py`.
+What is new is the **lateral balance**, which is the same rigid-body statement as
+the symmetric one, read in the other three DOF:
+
+    ΣFy = 0  →  n_y = L_v / W
+    ΣMz = 0  →  ψ̈ from the coupled {ω̇} = [I]⁻¹{M} solve above
+    ΣMx = 0  →  ṗ, coupled to ψ̈ through Ixz; the fin's own roll moment is
+                −L_v·(z_fin − z_cg), which is why the fin root waterline is a
+                load quantity (B8a-1, `CONVENTIONS.md` §7.2)
+
+**Why the 1 % residual gate does not apply here.** `residual_fy` and
+`residual_mz` before closure *are* the fin load, by construction — nothing in an
+airplane balances a rudder kick. The gate that does apply is that the case's
+**symmetric half** still closes (`CONVENTIONS.md` §1); it does exactly, since a
+fin set carries `fy` and `mz` only. Same standing as `ACRL`'s roll residual.
+
+Having no printed oracle, the cases are pinned by measurement in both directions
+(`tests/test_balance.py::test_the_lateral_cases_are_pinned`, `rel_tol = 1e-4`),
+with `n_y` additionally asserted **structurally** as `L_v/W` rather than only
+pinned:
+
+| Condition | ga6: `L_v` lb / `n_y` g / `ψ̈` / `ṗ` deg/s² | RJ: `L_v` lb / `n_y` g / `ψ̈` / `ṗ` deg/s² |
+|---|---|---|
+| `SUDDEN RUDDER` | +585.7 / +0.17227 / +178.05 / −12.04 | +6907.3 / +0.20931 / +51.57 / −57.75 |
+| `YAW TO SIDESLIP` | −97.8 / −0.02875 / −19.44 / +3.24 | −3548.2 / −0.10752 / −20.84 / +31.13 |
+| `YAW 15 NEUTRAL` | −525.7 / −0.15463 / −151.91 / +11.75 | −8042.7 / −0.24372 / −55.70 / +68.37 |
+| `SIDE GUST` | +604.0 / +0.17764 / +185.51 / −20.16 | +7080.4 / +0.21456 / +42.93 / −77.88 |
+
+The fin loads reconcile with Appendix A's printed vertical-tail totals (+591 /
+−92 / −526 / +604 — see the `select` row): they are the same numbers, since the
+balance consumes SELECT and never recomputes it.
+
+**A stated limitation, not an approximation** (decision L-7): the fin is the only
+lateral aerodynamic load this suite computes. Fuselage and wing side force in
+sideslip are not modelled, so `n_y` and `ψ̈` are **over-stated by an unknown
+amount** — conservative for the inertia of every component, and leaving the
+fin's own design load (SELECT's) untouched. Paired with M4-19 (the distributed
+body aero moment) on the backlog; carried in-band on every lateral case rather
+than living only here.
 
 ### The spanwise empennage closures as the oracle substitute (step T1–T5, 2026-08-08)
 

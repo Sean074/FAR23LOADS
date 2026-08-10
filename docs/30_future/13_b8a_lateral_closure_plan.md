@@ -1,10 +1,12 @@
 # Design note — B8a lateral closure: the ±β empennage cases
 
-**Raised:** 2026-08-08. **Status:** **design agreed — decisions L-1…L-8 answered
-by the user, 2026-08-08/09; ready to implement.** Written per `CLAUDE.md`
-required practice 1 (design note before code for a physics/L step) and plan 11
-decision **B-8**, which requires "stating the lateral trim balance first". **No
-code has been written yet**; §8's steps are the implementation order.
+**Raised:** 2026-08-08. **Status: SHIPPED 2026-08-09** — decisions L-1…L-8
+answered by the user 2026-08-08/09, and all five steps (B8a-1…B8a-5) complete
+and green with the Tier-L closure trail. Written per `CLAUDE.md` required
+practice 1 (design note before code for a physics/L step) and plan 11 decision
+**B-8**, which requires "stating the lateral trim balance first"; §8's steps
+were the implementation order, and each records what actually shipped —
+including where measurement amended this note (**G5**, **G6**, **G10**).
 
 Each decision's answer of record is in §5's table and expanded in §5.1–§5.7 —
 the resolution order for the fin waterline, the relief field, the self-inertia
@@ -595,7 +597,7 @@ payload-case reason already pinned in `test_balance.py`.
 | ~~**B8a-2**~~ ✅ | The 6-DOF closure (L-2/L-3): full d'Alembert field, 3×3 rotational solve on the assembled tensor, non-wing self-inertia relief; G1/G2/G4/G5/G6. **SHIPPED 2026-08-09** — `sloads/rigid_body.py` as the single owner, `mass_distribution.assembly_distributes_mass` as the L-3 predicate, `BalancedCaseResult` gaining `delta_ny`/`p_dot`/`q_dot`/`r_dot`/`closure_inertia`. All six DOF close to ≤ 2e-16 of `n·W`; `Izz(closure)` 2933.5 ga6 CG2 against G4's predicted 2934. **The B7 gate was restated** (see §5.2) and **the assembled deck was added to the Imperial baseline**, which had never covered it | L | M |
 | ~~**B8a-3**~~ ✅ | Lateral case assembly (L-6/L-7): the fin load set, the `VT-xx` handed pairs, in-band caveats; G7/G9/G10 (§8's "G6" was a slip — G6 shipped with B8a-2). **SHIPPED 2026-08-09** — `balance.fin_sets` consuming `tail_span` through the `export/coordinates` frame map, `balance.is_handed` as the single L-6 predicate (with its own drift guard) and `is_lateral`/`fin_load` as the single readers of the `vtail-air` tag. Eight new cases per fixture (`VT-01R/L`…`VT-04R/L`), the L-7 caveat carried as a case note into the deck and the report. The pitch ceiling became **per family** rather than wider (ga6 lateral 0.70 %, RJ 1.60 %), so the symmetric bounds keep their bite; only `csv/balance`, `txt/balance` and `sbeam/balanced_deck` moved in the Imperial baseline — every per-component deck and every Appendix A oracle is byte-unchanged (**G8**) | L | M |
 | ~~**B8a-4**~~ ✅ | Assembled deck + sbeam leg + UI columns; G3. **SHIPPED 2026-08-09** — deck `$` header `LATERAL case:` block, `Closure dNy`/`Yaw acc`/`Roll acc` columns in `balanced_case_rows`, a `ΣFy` column and a fin-load row in the Streamlit breakdown (which reported every lateral case as a row of zeros without it), and G3 through plan 10's existing assembled leg, now vacuity-guarded and calibrated by a negative control. The subcase-map comment line is wrapped: the longer condition names pushed it past 72 columns | M | S–M |
-| **B8a-5** | Closure trail: `CONVENTIONS.md` §1/§7/§7.1, `PROGRAM_SPEC.md`, `theory_sources.md`, `DATA_DICTIONARY.md` regen, CHANGELOG, history (Tier L, full step format) | S | S |
+| ~~**B8a-5**~~ ✅ | Closure trail: `CONVENTIONS.md` §1/§7/§7.1, `PROGRAM_SPEC.md`, `theory_sources.md`, `DATA_DICTIONARY.md` regen, CHANGELOG, history (Tier L, full step format). **SHIPPED 2026-08-09** — `CONVENTIONS.md` §1 gained the "a residual the airplane is not meant to balance is reported, never gated" rule (with the per-family ceiling rule), the L-7 in-band caveat and the L-8 fin-inertia location; §7 gained `is_handed` and `is_lateral`/`fin_load` as owners with their guards; §7.1's "decided by a non-zero `unbal_moment`" was replaced by the predicate and the ±β family written up as its worked example. `DATA_DICTIONARY.md` regenerates to **no change** — B8a-3 added no schema fields, so `SCHEMA_VERSION` stays at 43. Step 8 removed from the backlog's priority table | S | S |
 
 **Effort: M–L, ≈ 2–2.5 sessions**, matching plan 11 §8's estimate for phase 3.
 

@@ -94,6 +94,36 @@ file + symbol is the anchor.
 - **The residual is part of the deliverable.** A balanced case states its
   pre-closure residual and the relief applied, in the result, the UI and the deck
   header — the gate is on the physics, not on the correction.
+- **A residual the airplane is not meant to balance is reported, never gated**
+  (plan 11 §10, extended by plan 13 decision L-5, 2026-08-09). Two of the six DOF
+  can carry an *applied* load by design: `residual_mx` on a rolling case is the
+  aileron couple (FAR 23.349), and on a **lateral** case `residual_fy`/`residual_mz`
+  are the fin's side load **in full** — nothing in an airplane cancels a rudder
+  kick; it yaws and rolls, and the closure *is* that motion. Applying a 1 % gate
+  to those components would either be vacuous or force a fictitious balancing
+  load into the case. What is gated instead is the case's **symmetric half**:
+  remove the fin set and the force and pitch residuals must be what they always
+  were. They are, to the last digit, because a fin set carries `fy` and `mz` only
+  — asserted rather than argued, since a frame-map slip landing the fin's normal
+  force back on `fz` is exactly what would break it.
+  - Where a residual ceiling has to be stated above the 1 % gate, it is stated
+    **per fixture and per family** (`symmetric`/`lateral`), never widened for
+    everyone: the lateral cases sit at V-n points the symmetric families never
+    visit, and one merged number would stop the symmetric bounds from biting.
+- **A lateral balanced case states what it does not model, in-band** (decision
+  L-7). The fin is the only lateral aerodynamic load this suite computes —
+  fuselage and wing side force in sideslip are not modelled — so `n_y` and the
+  yaw acceleration are **over-stated by an unknown amount**, and the inertia they
+  drive is conservative on every component. The fin's own design load is
+  SELECT's, unchanged. The caveat travels as a case note into the deck `$` header
+  and the report; it does not live only in documentation.
+- **Fin inertia lives in the balanced case, not in the fin's own deck**
+  (decision L-8). A lateral load factor exists only where the airplane is
+  assembled, so the `VTAIL`-tagged mass items are accelerated by the balanced
+  case's own `n_y`/`ω̇` in the closure field, and the per-component v-tail span
+  deck stays **air-only**. The alternative — `tail_span` importing `balance` —
+  is circular: the balance needs the fin's air load to compute the very load
+  factor the fin's inertia would need.
 - **A load that a free-body cut introduces is never applied in the assembled model**
   (plan 11 §4). Each per-component deck takes a cut and carries the cut reaction as
   an applied load; those reactions must not reappear in an assembled deck, where the
@@ -206,6 +236,8 @@ export boundary, reduction-to-FAR23 identity on GA inputs. "No oracle" never mea
 | **Vertical-tail root waterline** (where the fin sits; explicit → T-tail relation → fuselage top → a loud zero) | `sloads/tail_geometry.py` (`fin_root_waterline`) — read by both the load path and the three-view | `tests/test_tail_geometry.py::test_the_three_view_and_the_load_path_place_one_fin_once` + `::test_the_fin_root_waterline_is_pinned_per_fixture` |
 | **Rigid-body relief field and the inertia tensor** (`f = −m(a + ω̇ × r)`; products of inertia stored as sums `Σw·a·b`, negated only in `matrix()`; weight-space `1/in`) | `sloads/rigid_body.py` (`InertiaTensor`/`inertia_tensor`/`relief_force`/`relief_moment`) | `tests/test_rigid_body.py::test_the_field_produces_exactly_minus_the_inertia_times_omega_dot` |
 | **Which components the assembly spreads** (decides whose entered self-inertia joins the closure tensor — L-3) | `sloads/mass_distribution.py` (`assembly_distributes_mass`) | `tests/test_rigid_body.py::test_the_distributed_mass_predicate_is_the_wing_and_only_the_wing` |
+| **Whether a load set has a hand** (reads the *applied* distribution `Σ\|fy\|`, not the resultant, and pre-closure so it cannot feed on its own relief — L-6) | `modules/balance.py` (`is_handed`) | `tests/test_balance.py::test_the_handedness_predicate` |
+| **What makes a case *lateral*, and how lateral** (the sole readers of the `vtail-air` source tag, for the deck header, the row table and the gates) | `modules/balance.py` (`is_lateral` / `fin_load`) | `tests/test_balance.py::test_the_lateral_cases_are_pinned` + `::test_the_symmetric_half_of_a_lateral_case_still_closes` |
 | Case IDs | `sloads/case_ids.py` | `tests/test_case_ids.py` |
 | Load-case row keys | `sloads/load_keys.py` | **flagged — see §8** |
 | Data dictionary | `docs/generate_data_dict.py` (generated doc) | `tests/test_data_dictionary.py::test_committed_doc_matches_generator` |
@@ -232,7 +264,30 @@ implies the right. The convention, stated once:
   physical condition; this is not a new ID series (naming rule, 2026-08-05);
 * a **symmetric case has no hand** and gets no twin: it is its own mirror image,
   and minting one would put the same load set in the deck twice. Whether a case
-  has a hand is decided by content (a non-zero `unbal_moment`), not by its name.
+  has a hand is decided by **content, not by name** — one predicate,
+  `balance.is_handed` (§7), asked of the **applied** set before closure.
+
+**Worked example: the ±β empennage family** (plan 13 decision L-6, 2026-08-09).
+The four vertical-tail conditions are the family this convention was written for,
+and they exercise three parts of it the rolling family never did:
+
+* **The predicate reads the distribution, not the resultant.** `ga6_normal`'s
+  `YAW TO SIDESLIP` nets only −97.8 lb of side force out of parts worth −683
+  (yaw) and +586 (rudder): `Σ|fy| ≈ 1270` against `|Σfy| ≈ 98`. A net-based test
+  would mint a rudder-kick case **unhanded** on the strength of a
+  near-cancellation and assemble it as a symmetric one — the same silent-symmetry
+  failure plan 11 §10 records for `TORS`, reached from the opposite direction.
+* **It is evaluated pre-closure.** From B8a-2 the closure gives any rolling case
+  a lateral relief field, so a predicate reading the *final* load set would find
+  lateral content in every case that rolls and hand all of them.
+* **The applied set is odd under the mirror, not just the closure.** The port
+  twin of a rudder kick is the opposite kick — the `−β` of a `+β` case — so the
+  fin's `fy` **and** its `mz` torsion both reverse. A rolling case's applied
+  loads are all symmetric, so nothing before B8a-3 tested that half of the
+  reflection rule.
+
+Ids follow the same suffix rule: `VT-01R`/`VT-01L` … `VT-04R`/`VT-04L`, from the
+unhanded `VT-0n` SELECT already minted.
 
 ### 7.2 Empennage axes and bookkeeping (plan 09 decisions T-1/T-8)
 
