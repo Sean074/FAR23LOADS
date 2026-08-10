@@ -62,11 +62,12 @@ from __future__ import annotations
 
 import math
 import textwrap
-from typing import Dict, List, Sequence, Tuple
+from typing import Dict, List, Optional, Sequence, Tuple
 
 from ..models import BalancedCaseResult, BalancedLoad, Project
-from ..modules.balance import (build_balanced_cases, carry_sources_absent,
-                               fin_load, is_lateral)
+from ..modules.balance import (SkippedCondition, build_balanced_cases,
+                               carry_sources_absent, fin_load, is_lateral,
+                               skipped_condition_lines, skipped_conditions)
 from ..rigid_body import radians_per_s2
 from ..units import Channel, DeliverableUnits, UnitSystem, deliverable_units
 from .bands import band
@@ -252,16 +253,52 @@ def _load_lines(case: BalancedCaseResult, sid: int, nodes, u: DeliverableUnits,
     return lines
 
 
+def _skipped_block(skipped: Sequence[SkippedCondition]) -> List[str]:
+    """The F-C7 record as deck comment lines, wrapped inside 72 columns.
+
+    Printed whether or not anything was skipped: "every condition assembled" is
+    the completeness statement, and a block that appears only on a lossy run
+    cannot be told from a deck written before the record existed.
+    """
+    out = ["$",
+           "$ ------------------------------ CONDITIONS NOT ASSEMBLED (SELECT set)"]
+    lines = skipped_condition_lines(skipped)
+    if not lines:
+        out.append("$ None -- every condition SELECT named assembled into a case.")
+        return out
+    for line in lines:
+        out += [f"$ {ln}" for ln in textwrap.wrap(line, width=70,
+                                                 initial_indent="- ",
+                                                 subsequent_indent="    ")]
+    return out
+
+
 def balanced_deck(project: Project, *,
                   system: UnitSystem = UnitSystem.IMPERIAL,
-                  cases: Sequence[BalancedCaseResult] = ()) -> str:
+                  cases: Sequence[BalancedCaseResult] = (),
+                  skipped: Optional[Sequence[SkippedCondition]] = None) -> str:
     """The assembled full-span deck: one ``SUBCASE`` per balanced case.
 
     Raises when no symmetric wing condition assembles -- a deck with no subcases
     would read as a clean result rather than as an absent one.
+
+    ``skipped`` is the F-C7 record, stated in the deck's own ``$`` block beside
+    the case map: what the deck covers is only half the statement, and a
+    condition that dropped out is invisible in a deck that lists only what it
+    holds. It is derived here when the caller does not supply it, so the block
+    can never be silently absent; a caller that already assembled (the Balanced
+    Cases page) passes its own record and saves the second pass.
     """
     u = _units(system)
-    cases = list(cases) if cases else build_balanced_cases(project)
+    if cases:
+        cases = list(cases)
+        if skipped is None:
+            skipped = skipped_conditions(project)
+    else:
+        record: List[SkippedCondition] = []
+        cases = build_balanced_cases(project, record)
+        if skipped is None:
+            skipped = record
     if not cases:
         raise ValueError(
             "no balanced case could be assembled -- every symmetric wing "
@@ -287,6 +324,7 @@ def balanced_deck(project: Project, *,
                  f"{case.vn_case} -- {case.cg} -- Nz {case.nz:g}")
         head += [f"$ {ln}" for ln in textwrap.wrap(entry, width=70,
                                                    subsequent_indent="    ")]
+    head += _skipped_block(skipped)
     head.append("$")
     for i, case in enumerate(cases):
         sid = BALANCED_SID_BASE + i

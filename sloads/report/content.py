@@ -968,6 +968,47 @@ def _coverage_table(project: Project, module_results) -> Tuple[Table, str]:
     return table, headline
 
 
+def _balanced_skips_table(project: Project) -> Table:
+    """What the assembled balanced deliverable does **not** cover (review F-C7).
+
+    The balanced free-free deck is the mission's primary loads deliverable, and a
+    deck lists only what it holds: a condition that dropped out for a missing V-n
+    point or a non-derivable loading was invisible in every rendering of it. The
+    reason groups and their wording are ``modules.balance``'s -- this states them,
+    it does not word them.
+
+    A project the balancer cannot run at all yields the "not assembled" row
+    rather than an absent table: silence here is the very failure mode being
+    closed.
+    """
+    from ..modules.balance import build_balanced_cases, skipped_condition_lines
+
+    skipped: List[object] = []
+    cases = _try(build_balanced_cases, project, skipped)
+    if cases is None:
+        rows = [["No balanced case could be assembled for this project — the "
+                 "assembled full-span deliverable is absent from this run."]]
+    elif skipped:
+        rows = [[line] for line in skipped_condition_lines(skipped)]
+    elif cases:
+        rows = [["None — every condition SELECT named was assembled into a "
+                 "balanced case."]]
+    else:
+        rows = [["SELECT named no condition at all, so there was nothing to "
+                 "assemble."]]
+    return Table(
+        title="Conditions not assembled into a balanced case",
+        columns=["Condition set, and why it did not assemble"],
+        rows=rows,
+        small=True,
+        note="The assembled full-span balanced model is the primary loads "
+             "deliverable; the conditions listed here are covered by the "
+             "per-component analyses only. Horizontal-tail, fuselage, ground "
+             "and one-engine-out conditions are a deliberate exclusion; the "
+             "rest are gaps this project's inputs would close.",
+    )
+
+
 def _section_conditions(project: Project, module_results, comps: ComponentLoads,
                         scope: str, deselected_case_ids: Sequence[str]) -> Section:
     coverage, headline = _coverage_table(project, module_results)
@@ -983,6 +1024,7 @@ def _section_conditions(project: Project, module_results, comps: ComponentLoads,
         tables=[
             _case_index_table(module_results, comps),
             coverage,
+            _balanced_skips_table(project),
             Table(
                 title="Approved corrections to the source manual",
                 columns=["FAR", "Correction"],

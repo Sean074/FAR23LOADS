@@ -12,6 +12,26 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **The balanced assembly now states what it did *not* assemble.** Review
+  finding **F-C7**: a condition whose V-n point was missing, whose CG case was
+  unknown, or whose payload loading the weight database cannot derive was
+  dropped by `build_balanced_cases` with no record on the `ModuleResult`, in the
+  deck, or in the report — and the only thing standing between that and a user's
+  project was a test that pins the *shipped fixtures'* drop set. On
+  `concept_regional_jet` the primary deliverable has been quietly missing NMAA;
+  it now says so, in the deck's own `$ CONDITIONS NOT ASSEMBLED` block, in report
+  §4, on the Balanced Cases page, and as a final "Assembly record" condition on
+  the module result. Each entry names the condition, its V-n point and a reason
+  from one of five codes, with the deliberate exclusions (h-tail, fuselage,
+  ground, one-engine-out) recorded as such rather than left to be inferred from
+  their absence. The record is emitted whether or not anything was skipped:
+  "every condition assembled" is the completeness statement. The gate is the
+  property rather than the fixture — assembled ∪ recorded is exactly SELECT's
+  condition set, and the two are disjoint, on every example — so a sixth
+  `continue` cannot be added without a reason travelling with it. Imperial
+  baseline regenerated for the three affected channels (balance CSV, balance
+  text report, assembled deck) on the two fixtures that assemble.
+
 - **One owner for every exported id band: `sloads/export/bands.py`.** Review
   findings **F-C1** (the defect) and **F-G3** (its root cause). GID/EID/SID runs
   were per-file constants with docstrings claiming disjointness, checked by two

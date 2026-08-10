@@ -62,13 +62,17 @@ from sloads.export.coordinates import (  # noqa: E402
     reflect_side,
 )
 from sloads.export.equilibrium import parse_cards, resultant  # noqa: E402
+from sloads.modules import balance as balance_module  # noqa: E402
 from sloads.modules.balance import (  # noqa: E402
     BALANCED_VTAIL_CONDITIONS,
     HANDEDNESS_TOL,
     RESIDUAL_GATE,
     ROLLING_WING_CONDITIONS,
+    SKIP_REASONS,
+    SKIPPED_RECORD_TITLE,
     SYMMETRIC_WING_CONDITIONS,
     build_balanced_cases,
+    skipped_condition_lines,
     carry_sources_absent,
     fin_load,
     handed_twin,
@@ -77,6 +81,7 @@ from sloads.modules.balance import (  # noqa: E402
     resultant6,
 )
 from sloads.modules.balance import resultant as case_resultant  # noqa: E402
+from sloads.modules.select import default_critical  # noqa: E402
 from sloads.modules.tail_span import build_tail_span  # noqa: E402
 from sloads.modules.wing_inertia import inertia_units  # noqa: E402
 from sloads.tail_geometry import VTAIL  # noqa: E402
@@ -182,6 +187,120 @@ def _with_cases():
 def test_which_conditions_assemble_is_pinned(example):
     got = [(c.label, c.hand) for c in build_balanced_cases(_project(example))]
     assert got == _EXPECTED_CASES[example], example
+
+
+# --------------------------------------------------------------------------- #
+# The skipped-conditions record (review F-C7)
+# --------------------------------------------------------------------------- #
+@pytest.mark.parametrize("example", EXAMPLES)
+def test_every_condition_is_either_assembled_or_recorded(example):
+    """**The F-C7 gate.** No condition SELECT named may leave the assembly
+    unaccounted for.
+
+    Before this, a missing V-n point, an unknown CG case or a non-derivable
+    loading each dropped a condition with no record anywhere -- and the only
+    thing standing between that and a user's project was ``_EXPECTED_CASES``
+    above, which pins the *shipped fixtures'* drop set and nothing else. This
+    asserts the property instead of the fixture: assembled ∪ recorded is exactly
+    SELECT's set, and the two are disjoint.
+    """
+    project = _project(example)
+    skipped = []
+    cases = build_balanced_cases(project, skipped)
+
+    named = {(c.component, c.label, c.case)
+             for c in default_critical(project).conditions}
+    assembled = {(c.case_ref.component, c.label, c.vn_case) for c in cases}
+    recorded = {(s.component, s.label, s.case) for s in skipped}
+    assert assembled | recorded == named, sorted(named ^ (assembled | recorded))
+    assert not (assembled & recorded), sorted(assembled & recorded)
+    # Every recorded reason is one of the declared ones -- a hand-written
+    # sentence at a fifth ``continue`` would slip past the two set checks above.
+    assert {s.code for s in skipped} <= set(SKIP_REASONS), skipped
+    assert all(s.reason == SKIP_REASONS[s.code] for s in skipped)
+
+
+def test_the_record_names_the_condition_the_review_found_missing():
+    """``concept_regional_jet`` loses NMAA to a non-derivable loading -- the
+    concrete case F-C7 was raised on. It is now *stated*, with its reason, rather
+    than silently absent from the primary deliverable."""
+    project = _project("concept_regional_jet.project.json")
+    skipped = []
+    build_balanced_cases(project, skipped)
+    nmaa = [s for s in skipped if s.label == "NMAA"]
+    assert len(nmaa) == 1, skipped
+    assert nmaa[0].component == "wing"
+    assert nmaa[0].code == "loading-not-derivable"
+    # The h-tail and fuselage families are a deliberate exclusion, and are
+    # recorded as one rather than left to be inferred from their absence.
+    assert {s.code for s in skipped if s.component in ("htail", "fuselage")} == {
+        "out-of-family"}
+
+
+@pytest.mark.parametrize("example", _with_cases())
+def test_the_deck_states_what_it_does_not_cover(example):
+    """The record travels in the deck's own ``$`` block.
+
+    A deck lists what it holds; a condition that dropped out is invisible in it
+    by construction. The block is emitted whether or not anything was skipped --
+    "none" is the completeness statement, and a block that appears only on a
+    lossy run cannot be told from a deck written before the record existed.
+    """
+    project = _project(example)
+    skipped = []
+    build_balanced_cases(project, skipped)
+    text = balanced_deck(project)
+    assert "CONDITIONS NOT ASSEMBLED" in text
+    # The block is line-wrapped, so it is compared as unwrapped text: every
+    # recorded line, verbatim, has to be in there.
+    block = " ".join(
+        ln.lstrip("$ ").lstrip("- ") for ln in _skipped_lines_of(text))
+    block = " ".join(block.split())
+    for line in skipped_condition_lines(skipped):
+        assert " ".join(line.split()) in block, (example, line)
+    # The deck the caller supplies cases to states the same record as the one
+    # that assembles them itself -- the GUI path must not lose the block.
+    assert _skipped_lines_of(text) == _skipped_lines_of(
+        balanced_deck(project, cases=build_balanced_cases(project),
+                      skipped=skipped))
+
+
+def test_the_deck_block_says_none_when_nothing_was_skipped():
+    assert ("None -- every condition SELECT named assembled into a case."
+            in _skipped_block([]))
+
+
+def test_the_module_result_carries_the_record():
+    """The record is on the ``ModuleResult`` too, so every consumer of the module
+    (report, CSV, GUI) states it without re-running the assembly."""
+    project = _project("concept_regional_jet.project.json")
+    result = balance_module.run(project)
+    record = [c for c in result.conditions if c.title == SKIPPED_RECORD_TITLE]
+    assert len(record) == 1, [c.title for c in result.conditions]
+    row = record[0]
+    skipped = []
+    build_balanced_cases(project, skipped)
+    assert row.values[0].value == float(len(skipped))
+    assert row.values[0].key == "balanced_skipped_count"
+    assert "NMAA" in row.note
+    # It is a statement about the run, not a load case: no case_ref, so it mints
+    # no case-index row, and its one value is dimensionless so the ULTIMATE
+    # boundary passes it through unscaled.
+    assert row.case_ref is None
+    assert row.values[0].units == ""
+
+
+def _skipped_block(skipped):
+    from sloads.export.balanced_deck import _skipped_block as block
+    return "\n".join(block(skipped))
+
+
+def _skipped_lines_of(deck_text: str):
+    lines = deck_text.splitlines()
+    start = lines.index(
+        "$ ------------------------------ CONDITIONS NOT ASSEMBLED (SELECT set)")
+    end = lines.index("$", start)
+    return lines[start:end]
 
 
 # --------------------------------------------------------------------------- #

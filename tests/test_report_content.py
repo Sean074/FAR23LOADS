@@ -194,6 +194,38 @@ def test_case_index_states_a_safety_factor_for_every_case():
         assert float(row[-1]) > 0           # its factor, stated (§3.1)
 
 
+def _skips_table(doc):
+    section = doc.section("Conditions analysed and FAR coverage")
+    tables = [t for t in section.tables
+              if t.title == "Conditions not assembled into a balanced case"]
+    assert len(tables) == 1, [t.title for t in section.tables]
+    return tables[0]
+
+
+def test_the_report_states_which_conditions_did_not_assemble():
+    """The assembled full-span model is the primary deliverable, and a deck lists
+    only what it holds -- so the controlling document, not the deck alone, has to
+    say which conditions are absent from it and why (review F-C7)."""
+    from sloads.modules.balance import build_balanced_cases, skipped_condition_lines
+
+    project = io.load_project(_CONCEPT)
+    skipped = []
+    build_balanced_cases(project, skipped)
+    assert skipped, "fixture no longer exercises the record"
+
+    rows = [row[0] for row in _skips_table(build_report(project)).rows]
+    assert rows == skipped_condition_lines(skipped)
+    assert any("NMAA" in row for row in rows), rows
+
+
+def test_the_skipped_conditions_table_states_absence_rather_than_vanishing():
+    """A project the balancer cannot run at all still gets the statement: silence
+    is the failure mode the record exists to close."""
+    table = _skips_table(build_report(Project(name="empty")))
+    assert len(table.rows) == 1
+    assert "No balanced case could be assembled" in table.rows[0][0]
+
+
 def test_governing_tables_are_governing_loads_tables_output():
     """§5 forbids the report recomputing anything: its governing figures must be
     the same function's output the GUI pages render."""

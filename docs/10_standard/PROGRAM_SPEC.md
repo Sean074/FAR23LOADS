@@ -565,6 +565,22 @@ return strings (with thin `write_*` file wrappers), and do no physics.
   integrates **no** panel raises rather than scaling the wing inertia to zero and
   letting the closure absorb the missing weight in silence. A loading with no WING
   item mass scales legitimately to zero and says so in its case notes.
+  **Every condition that does not assemble is recorded** (review F-C7,
+  2026-08-10). `build_balanced_cases(project, skipped)` extends the caller's list
+  with one `SkippedCondition` (component, condition, V-n point, reason code and
+  reader-facing reason) per dropped condition, and the record is stated on three
+  surfaces: the `ModuleResult` (a final "Assembly record — conditions not
+  assembled" condition carrying the count and the grouped reasons), the deck's
+  own `$ CONDITIONS NOT ASSEMBLED` block, and report §4. Reason codes:
+  `out-of-family` (h-tail, fuselage, ground and ONENGOUT conditions — the
+  deliberate exclusion), `no-fin-loads`, `no-vn-point`, `no-cg-case`,
+  `loading-not-derivable`. The record is emitted whether or not anything was
+  skipped: "every condition assembled" is the completeness statement, and a
+  record that appears only on a lossy run cannot be told from one that was never
+  produced. Gate: assembled ∪ recorded is exactly SELECT's condition set, and the
+  two are disjoint, on every fixture
+  (`test_every_condition_is_either_assembled_or_recorded`) — the property, in
+  place of the shipped fixtures' pinned drop set that was the only guard before.
 - **Antisymmetric (rolling) cases and handedness (step B7, 2026-08-08).** A wing
   condition carrying an unbalanced rolling moment (`WingLoadCase.unbal_moment`,
   FAR 23.349 — `ACRL` only; `TORS` enters zero on every fixture because a steady

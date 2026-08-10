@@ -145,9 +145,9 @@ physical condition.
 
 from __future__ import annotations
 
-from dataclasses import replace
+from dataclasses import dataclass, replace
 from math import degrees
-from typing import List, Sequence, Tuple
+from typing import List, Optional, Sequence, Tuple
 
 from ..case_ids import handed_case_id
 from ..derived_geometry import sync_geometry_derived
@@ -248,6 +248,72 @@ LATERAL_AERO_NOTE = (
     "yaw acceleration are OVER-STATED (by an unknown amount) and the inertia "
     "they drive is conservative on every component; the fin's own design load "
     "is SELECT's, unchanged")
+
+
+# --------------------------------------------------------------------------- #
+# The skipped-conditions record (review F-C7)
+# --------------------------------------------------------------------------- #
+#: Reason codes :func:`build_balanced_cases` records against a condition it did
+#: not assemble. The code is the stable identity (tests and consumers key on it);
+#: the sentence beside it is what the reader gets.
+#:
+#: ``out-of-family`` is a *deliberate* exclusion and the rest are gaps in the
+#: project's inputs, but both are recorded: the deliverable's honesty statement
+#: is "here is every condition SELECT named and what became of it", and a silent
+#: exclusion reads exactly like a condition that was never named.
+#:
+#: The wording is **reader-facing prose, not diagnostics**: these sentences reach
+#: the controlling document (report §4) as well as the deck, and the report's rule
+#: is that its reader is an analyst rather than a maintainer -- so no input-slice
+#: or constant names appear here.
+SKIP_REASONS = {
+    "out-of-family": (
+        "not one of the balanced families this analysis assembles -- "
+        "horizontal-tail, fuselage, ground and one-engine-out conditions are "
+        "covered by the per-component analyses only"),
+    "no-fin-loads": (
+        "no vertical-tail spanwise load distribution is available for it, so "
+        "there is no fin side load to assemble the case around"),
+    "no-vn-point": (
+        "its V-n point is not in the flight envelope, so the case has no "
+        "flight condition to be assembled at"),
+    "no-cg-case": (
+        "its V-n point names a loading this project does not define, so the "
+        "case has no weight or CG"),
+    "loading-not-derivable": (
+        "its payload loading is not derivable from the itemized weight "
+        "database -- a CG the items cannot actually produce has no honest "
+        "inertia set, and inventing one would put fictitious mass into the "
+        "very balance the case exists to demonstrate"),
+}
+
+
+@dataclass(frozen=True)
+class SkippedCondition:
+    """One condition SELECT named that :func:`build_balanced_cases` did not
+    assemble, and why (review F-C7).
+
+    Not persisted and not a schema type: it is a statement *about* a run, minted
+    with the cases and travelling beside them onto the ``ModuleResult``, the deck
+    ``$`` block and the report. ``code`` is the stable machine identity (a key of
+    :data:`SKIP_REASONS`); ``reason`` is the sentence rendered.
+    """
+    component: str
+    label: str
+    case: Optional[int]
+    code: str
+    reason: str
+
+    @property
+    def name(self) -> str:
+        """The condition, named as SELECT names it."""
+        where = f" (V-n {self.case})" if self.case is not None else ""
+        return f"{self.component} {self.label}{where}"
+
+
+def _skip(cond, code: str) -> SkippedCondition:
+    return SkippedCondition(component=cond.component, label=cond.label,
+                            case=cond.case, code=code, reason=SKIP_REASONS[code])
 
 
 # --------------------------------------------------------------------------- #
@@ -869,7 +935,10 @@ def _fin_distributions(project: Project) -> dict:
     return {r.case: fin_sets(r) for r in spans.get(VTAIL, ())}
 
 
-def build_balanced_cases(project: Project) -> List[BalancedCaseResult]:
+def build_balanced_cases(
+        project: Project,
+        skipped: Optional[List[SkippedCondition]] = None,
+) -> List[BalancedCaseResult]:
     """One :class:`BalancedCaseResult` per condition SELECT picked -- **two** for
     a condition that has a hand.
 
@@ -892,6 +961,13 @@ def build_balanced_cases(project: Project) -> List[BalancedCaseResult]:
     condition that is merely *allowed* a hand and turns out not to have one (a
     rolling condition whose ``UNB`` is zero) is emitted once, unhanded: the twins
     exist for cases that have a hand.
+
+    **Every condition that does not assemble is recorded** (review F-C7): pass a
+    list as ``skipped`` and it is extended with one :class:`SkippedCondition` per
+    dropped condition, in SELECT's order. Before this, a missing V-n point or a
+    non-derivable loading dropped a condition out of the primary deliverable in
+    silence, and only the shipped fixtures' drop set was pinned. Callers that
+    want the record alone use :func:`skipped_conditions`.
     """
     sync_geometry_derived(project)
     if project.flight_loads is None or project.wing_mass is None:
@@ -909,6 +985,8 @@ def build_balanced_cases(project: Project) -> List[BalancedCaseResult]:
     loadings = {ld.name: ld for ld in derive_case_loadings(project)}
     fins = _fin_distributions(project)
 
+    record: List[SkippedCondition] = skipped if skipped is not None else []
+
     out: List[BalancedCaseResult] = []
     for cond in critical.conditions:
         unb = 0.0
@@ -919,15 +997,22 @@ def build_balanced_cases(project: Project) -> List[BalancedCaseResult]:
         elif cond.component == VTAIL and cond.label in BALANCED_VTAIL_CONDITIONS:
             lateral = fins.get(cond.label, ())
             if not lateral:
+                record.append(_skip(cond, "no-fin-loads"))
                 continue
         else:
+            record.append(_skip(cond, "out-of-family"))
             continue
         point = vn.get(cond.case)
         if point is None:
+            record.append(_skip(cond, "no-vn-point"))
             continue
         cg = cgs.get(point.cg)
         loading = loadings.get(point.cg)
-        if cg is None or loading is None or not loading.derivable:
+        if cg is None or loading is None:
+            record.append(_skip(cond, "no-cg-case"))
+            continue
+        if not loading.derivable:
+            record.append(_skip(cond, "loading-not-derivable"))
             continue
         case = assemble(project, cond.label, point, loading, cg,
                         case_ref=cond.case_ref, unb=unb, lateral=lateral)
@@ -935,6 +1020,37 @@ def build_balanced_cases(project: Project) -> List[BalancedCaseResult]:
         if case.hand:
             out.append(handed_twin(case))
     return out
+
+
+def skipped_conditions(project: Project) -> List[SkippedCondition]:
+    """The F-C7 record alone, for a caller that already has the cases.
+
+    Assembly is re-run, so a caller that wants both takes the sink form of
+    :func:`build_balanced_cases` instead -- one pass, one record.
+    """
+    record: List[SkippedCondition] = []
+    build_balanced_cases(project, record)
+    return record
+
+
+def skipped_condition_lines(skipped: Sequence[SkippedCondition]) -> List[str]:
+    """The record as text, **one line per reason** -- the single owner of the
+    wording every surface states it in (deck ``$`` block, report, UI).
+
+    Grouped rather than one line per condition because the reasons repeat and the
+    conditions do not: on ``ga6_normal`` a dozen h-tail, fuselage and ground
+    conditions share the one "not a balanced family" sentence, and repeating it
+    per condition buried the record it exists to make readable. Reasons appear in
+    the order SELECT first hit them; conditions in SELECT's order within each.
+    """
+    grouped: List[Tuple[str, List[str]]] = []
+    index = {}
+    for s in skipped:
+        if s.code not in index:
+            index[s.code] = len(grouped)
+            grouped.append((s.reason, []))
+        grouped[index[s.code]][1].append(s.name)
+    return [f"{reason}: {', '.join(names)}" for reason, names in grouped]
 
 
 def carry_sources_absent(result: BalancedCaseResult) -> bool:
@@ -947,11 +1063,46 @@ def carry_sources_absent(result: BalancedCaseResult) -> bool:
     return not any(ld.source in ("carry", "correction") for ld in result.loads)
 
 
-def run(project: Project) -> ModuleResult:
-    """Registry entry point: the balanced cases as a reportable result."""
+#: Title of the F-C7 record row on the ``ModuleResult``. A constant because it is
+#: the string the report and the guard test both look the record up by.
+SKIPPED_RECORD_TITLE = "Assembly record -- conditions not assembled"
+
+
+def _skipped_record(skipped: Sequence[SkippedCondition]):
+    """The F-C7 record as a :class:`ConditionResult` (review F-C7).
+
+    Emitted **whether or not anything was skipped**: "every condition SELECT
+    named assembled" is the statement the deliverable was missing, and a record
+    that appears only when something is wrong cannot be told from one that was
+    never produced. It carries no ``case_ref`` -- it is a statement about the run,
+    not a load case, so it mints no case index row -- and its one value is a
+    dimensionless count, which the ULTIMATE boundary passes through unscaled.
+    """
     from ..models import ConditionResult, LoadValue
 
-    cases = build_balanced_cases(project)
+    lines = skipped_condition_lines(skipped)
+    note = (" | ".join(lines) if lines else
+            "every condition SELECT named was assembled into a balanced case")
+    return ConditionResult(
+        title=SKIPPED_RECORD_TITLE,
+        far_reference="",
+        values=[LoadValue("Conditions not assembled", float(len(skipped)), "",
+                          key="balanced_skipped_count")],
+        note=note,
+    )
+
+
+def run(project: Project) -> ModuleResult:
+    """Registry entry point: the balanced cases as a reportable result.
+
+    The last condition is always the F-C7 skipped-conditions record
+    (:func:`_skipped_record`), so a consumer of this result can always state what
+    the assembled deliverable does *not* cover.
+    """
+    from ..models import ConditionResult, LoadValue
+
+    skipped: List[SkippedCondition] = []
+    cases = build_balanced_cases(project, skipped)
     if not cases:
         raise MissingInputError(
             "no wing or vertical-tail condition has both a V-n point and a "
@@ -1009,6 +1160,7 @@ def run(project: Project) -> ModuleResult:
             ],
             note="; ".join(c.notes) or None,
         ))
+    conditions.append(_skipped_record(skipped))
     return ModuleResult(module=MODULE_NAME, conditions=conditions)
 
 
@@ -1023,6 +1175,9 @@ __all__ = [
     "HANDEDNESS_TOL",
     "LATERAL_AERO_NOTE",
     "RESIDUAL_GATE",
+    "SKIP_REASONS",
+    "SKIPPED_RECORD_TITLE",
+    "SkippedCondition",
     "wing_sets",
     "fin_load",
     "fin_sets",
@@ -1036,5 +1191,7 @@ __all__ = [
     "unbalanced_rolling_moment",
     "assemble",
     "build_balanced_cases",
+    "skipped_conditions",
+    "skipped_condition_lines",
     "carry_sources_absent",
 ]

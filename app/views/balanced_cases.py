@@ -30,6 +30,7 @@ from sloads.modules.balance import (
     RESIDUAL_GATE,
     build_balanced_cases,
     is_lateral,
+    skipped_condition_lines,
 )
 
 st.title("Balanced Cases — assembled full-span, free-free")
@@ -50,11 +51,29 @@ if project.flight_loads is None or project.wing_mass is None:
          "and the wing mass on **Wing Loads** first.", "flight_envelope")
     st.stop()
 
+skipped = []
 try:
-    cases = build_balanced_cases(project)
+    cases = build_balanced_cases(project, skipped)
 except (MissingInputError, ValueError) as exc:
     st.error(str(exc))
     st.stop()
+
+# The record of what did NOT assemble (review F-C7) — stated before the results
+# and before the "nothing assembled" stop below, because it is the answer to
+# "why is my condition not here?" in both situations.
+lines = skipped_condition_lines(skipped)
+with st.expander(f"Conditions not assembled into a balanced case ({len(skipped)})",
+                 expanded=not cases):
+    if lines:
+        for line in lines:
+            st.markdown(f"- {line}")
+        st.caption(
+            "Horizontal-tail, fuselage, ground and one-engine-out conditions are a "
+            "deliberate exclusion — they are covered by the per-component "
+            "analyses. The rest are gaps this project's inputs would close."
+        )
+    else:
+        st.markdown("None — every condition SELECT named was assembled.")
 
 if not cases:
     st.warning(
@@ -177,7 +196,7 @@ st.plotly_chart(fig, use_container_width=True)
 # --------------------------------------------------------------------------- #
 st.subheader("Assembled deck")
 try:
-    deck = balanced_deck(project, system=system, cases=cases)
+    deck = balanced_deck(project, system=system, cases=cases, skipped=skipped)
 except ValueError as exc:
     st.error(str(exc))
 else:

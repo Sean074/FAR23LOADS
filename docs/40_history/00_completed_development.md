@@ -10,6 +10,29 @@ Acceptance**, **Key decisions**.
 
 ---
 
+## Skipped-conditions record (0.5.0 row 1 — complete 2026-08-10, tier M)
+
+Closed review finding **F-C7**: a condition SELECT named could drop out of the
+assembled balanced deliverable — no V-n point, unknown CG case, non-derivable
+loading — with no record on the `ModuleResult`, in the deck or in the report,
+and the only guard was a test pinning the *shipped fixtures'* drop set
+(`concept_regional_jet` has been silently missing NMAA). `build_balanced_cases`
+now takes an optional `skipped` list and records a `SkippedCondition`
+(component, condition, V-n point, one of five reason codes, and a reader-facing
+reason owned by `SKIP_REASONS`) at every drop path, including the deliberate
+out-of-family exclusion. Stated on three surfaces from the one wording owner
+(`skipped_condition_lines`, grouped by reason): the module result's final
+"Assembly record" condition, the deck's `$ CONDITIONS NOT ASSEMBLED` block, and
+report §4 — always emitted, so "every condition assembled" is itself a
+statement. The gate is the property rather than the fixture:
+`test_every_condition_is_either_assembled_or_recorded` asserts assembled ∪
+recorded == SELECT's set, disjoint, with every reason a declared one, on all six
+examples. `PROGRAM_SPEC.md` (balanced-cases bullet) states the contract; the
+Imperial baseline was regenerated for the three affected channels on the two
+fixtures that assemble.
+
+---
+
 ## WING-item mass partition guard (0.5.0 row 1 — complete 2026-08-10, tier M)
 
 **Objective.** Close review finding **F-C5**: WING-tagged item mass could leave
