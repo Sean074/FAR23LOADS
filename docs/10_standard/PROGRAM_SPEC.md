@@ -528,7 +528,20 @@ return strings (with thin `write_*` file wrappers), and do no physics.
   bulk-data cards, comma free-field unit-scale form (`FORCE, SID, GID, 0, 1.0,
   Fx, Fy, Fz`, components `%.6E`), one load set (SID) per case; (3) an optional
   minimal **CBAR stick-model BDF** (GRID + CBAR chain + PBAR/MAT1 placeholder +
-  root SPC1 + the load cards + a SOL 101 subcase per case).
+  root SPC1 + the load cards + a SOL 101 subcase per case). The stick deck states
+  its **centerline clamp** in-band beside the `SPC1` (plan 10 §1.1, shipped
+  2026-08-10): the clamped node is BL 0, not the side of body, so its reaction is
+  the **half-span total applied load**, not a wing root design load — the
+  side-of-body quantity is an internal CBAR load and needs a node the deck does
+  not have (the side-of-body reporting-node item).
+- **Deck `$` comment width.** Every generated `$` sentence in the wing, body,
+  tail and control decks is emitted through `sbeam_bridge._comment`, which wraps
+  at the **72-column free-field card width** (`$ ` + 70) — a property of the
+  emitter, not of each hand-fitted sentence, because the same sentence is wider
+  in SI. Swept in both unit systems by
+  `test_deck_comments_fit_the_free_field_card_width`. A consumer parsing the
+  header should read comment *runs*, not single lines; the unit statement
+  (`$ Lengths in <unit>.`) is kept short enough to stand on its own line.
 - **Nodal loads:** the applied nodal force/torsion at each station is the
   *increment of the cumulative* NETLOADS column to the next station outboard, so
   the FORCE set sums to the root shear and the MOMENT(My) set to the root torsion

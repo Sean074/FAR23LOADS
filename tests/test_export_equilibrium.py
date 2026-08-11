@@ -632,8 +632,8 @@ def test_gid_blocks_are_disjoint(example):
 @pytest.mark.parametrize("example", EXAMPLES)
 @pytest.mark.parametrize("system", _SYSTEMS)
 def test_deck_comments_fit_the_free_field_card_width(example, system):
-    """No ``$`` line in the body / tail / control decks exceeds 72 columns, in
-    either unit system.
+    """No ``$`` line in the wing / body / tail / control decks exceeds 72
+    columns, in either unit system.
 
     Free-field bulk data is 72 columns wide, and the body deck already had a
     one-off assertion of this. It was a one-off: the tail deck's "Applied Fz set
@@ -641,17 +641,18 @@ def test_deck_comments_fit_the_free_field_card_width(example, system):
     (73 columns on ``ga6_normal``), unnoticed, because nothing swept the other
     deck families. SI makes it worse -- the same number in newtons is wider.
 
-    **Deliberately does not cover the wing decks.** They overrun too (the
-    ``$ Axes:`` line, and ``$ FORCE set sums to root Sz ... Myy ...`` at up to
-    ~100 columns in SI), which this sweep is what found -- but fixing them
-    changes exported **wing** Imperial bytes, and this step's acceptance
-    restricts the Imperial diff to the two deck families that gained ``GRID``
-    cards. ``$`` is a comment to every bulk-data parser, so the overrun is
-    cosmetic, not a parse risk. Filed as its own item in
-    ``docs/30_future/00_backlog.md``; widen this sweep to ``wing`` when it lands.
+    **Widened to the wing decks, 2026-08-10.** They overran too (the ``$ Axes:``
+    line, and ``$ FORCE set sums to root Sz ... Myy ...`` at up to ~100 columns
+    in SI); the carve-out existed only because fixing it moves exported wing
+    Imperial bytes, which the sweep's own step was not allowed to do. Both wing
+    channels are now built through ``sbeam_bridge._comment``, so the width is a
+    property of the emitter rather than of each hand-fitted sentence.
     """
-    _, body, tail, control, _, _ = _cached(example)
+    wing, body, tail, control, _, _ = _cached(example)
     decks = []
+    if wing:
+        decks.append(("wing_cards", sb.force_moment_cards(wing, system=system)))
+        decks.append(("wing_stick", sb.stick_model_bdf(wing, system=system)))
     if body:
         decks.append(("body", sb.body_force_moment_cards(body, system=system)))
     if tail:
@@ -660,7 +661,7 @@ def test_deck_comments_fit_the_free_field_card_width(example, system):
         decks.append(("control",
                       sb.control_surface_force_moment_cards(control, system=system)))
     if not decks:
-        pytest.skip(f"{example}: no body / tail / control deck (see "
+        pytest.skip(f"{example}: no wing / body / tail / control deck (see "
                     "test_every_example_has_decks)")
     for name, text in decks:
         over = [ln for ln in text.splitlines()

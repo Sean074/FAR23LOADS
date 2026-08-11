@@ -592,6 +592,39 @@ def _force_moment_lines(loads: List[NodalLoad], sid: int,
     return lines
 
 
+def _comment(text: str) -> List[str]:
+    """``text`` as ``$`` comment lines, wrapped inside the 72-column card width.
+
+    Free-field bulk data is 72 columns; ``$ `` costs two of them, so the text
+    wraps at 70. Every generated ``$`` sentence goes through here rather than
+    being hand-fitted, because the same sentence is wider in SI (the same load in
+    newtons carries more digits) -- which is exactly how the wing deck's ``$``
+    lines reached ~100 columns unnoticed. Guarded by
+    ``test_deck_comments_fit_the_free_field_card_width``.
+    """
+    return [f"$ {ln}" for ln in textwrap.wrap(text, width=70)]
+
+
+#: Stated on the wing stick deck beside its SPC, per plan 10 §1.1. The clamp sits
+#: at BL 0 because every fixture defines the wing LE polyline from the centerline
+#: (gross-area convention), so a consumer who reads its reaction as a wing root
+#: design load is reading the half-span total. Relocating the SPC would not fix
+#: it -- one clamp reacts the whole applied load wherever it sits; the
+#: side-of-body quantity is an internal load needing a node the deck lacks (the
+#: side-of-body reporting-node item).
+_CENTERLINE_CLAMP_NOTE = (
+    "CAVEAT: the clamped node is the aircraft CENTERLINE (BL 0), half a strip "
+    "inboard of station 0 -- not the side of body where the wing attaches. Its "
+    "SPC reaction is therefore the HALF-SPAN TOTAL applied load, not a wing "
+    "root design load, and the bending it reports is above what the "
+    "wing-to-fuselage joint carries (23% on the reference GA wing); the "
+    "balance is reacted by the carry-through structure and the fuselage. A "
+    "single clamp reacts the whole load wherever it sits, so the side-of-body "
+    "quantity is an internal CBAR load, not a reaction, and this deck has no "
+    "node at the side of body."
+)
+
+
 def _offset_couple_note(loads: List[NodalLoad]) -> List[str]:
     """The ``$`` note naming the offset couples, or ``[]`` when there are none.
 
@@ -611,7 +644,7 @@ def _offset_couple_note(loads: List[NodalLoad]) -> List[str]:
         "every node. Applying the FORCE cards without the MOMENT set overstates "
         "root bending (the mass reverts to the node inboard of it)."
     )
-    return [f"$ {ln}" for ln in textwrap.wrap(note, width=70)]
+    return _comment(note)
 
 
 def _case_card_block(r: WingLoadResult, sid: int, u: DeliverableUnits) -> List[str]:
@@ -621,16 +654,24 @@ def _case_card_block(r: WingLoadResult, sid: int, u: DeliverableUnits) -> List[s
     # loads carry the ULTIMATE (x sf) cumulative totals, so the comment matches the cards.
     _, _, root_sz = to_force(0.0, 0.0, loads[0].sz if loads else 0.0, u)
     _, root_myy, _ = to_moment(0.0, loads[0].myy if loads else 0.0, 0.0, u)
-    lines = [
-        f"$ SLOADS net wing load -- case {r.case} (Nz={r.nz:g}, Nx={r.nx:g}), SID {sid}",
-        f"$ Case ID: {r.case_ref.case_id}" if r.case_ref else "$ Case ID: (none)",
-        "$ Axes: SLOADS station/butt/waterline -> sbeam CID 0 (identity); "
-        f"lengths in {u.length.label}.",
-        f"$ Loads are ULTIMATE (limit x SF={_sf_str(sf)}).",
-        f"$ Torsion My/Myy about the {r.torsion_axis} (station X = that axis).",
-        f"$ FORCE set sums to root Sz = {root_sz:.1f} {u.force.label}; "
-        f"MOMENT(My) set sums to root torsion Myy = {root_myy:.1f} {u.moment.label}.",
-    ] + _offset_couple_note(loads)
+    lines = (
+        _comment(f"SLOADS net wing load -- case {r.case} "
+                 f"(Nz={r.nz:g}, Nx={r.nx:g}), SID {sid}")
+        + [f"$ Case ID: {r.case_ref.case_id}" if r.case_ref else "$ Case ID: (none)"]
+        + _comment("Axes: SLOADS station/butt/waterline -> sbeam CID 0 "
+                   "(identity).")
+        # Its own line, not a clause: wrapping can split a sentence anywhere,
+        # and the unit statement is the one part of this block a consumer (and
+        # the SI CLI test) greps for.
+        + _comment(f"Lengths in {u.length.label}.")
+        + _comment(f"Loads are ULTIMATE (limit x SF={_sf_str(sf)}).")
+        + _comment(f"Torsion My/Myy about the {r.torsion_axis} "
+                   "(station X = that axis).")
+        + _comment(f"FORCE set sums to root Sz = {root_sz:.1f} {u.force.label}; "
+                   f"MOMENT(My) set sums to root torsion Myy = {root_myy:.1f} "
+                   f"{u.moment.label}.")
+        + _offset_couple_note(loads)
+    )
     lines += _force_moment_lines(loads, sid, u)
     return lines
 
@@ -743,7 +784,8 @@ def stick_model_bdf(arg: ResultsArg, sid_base: int = 1, *,
     torsion_j = _PBAR_J * u.length.factor ** 4
     bulk += [
         "$ --------------------------------------------------------- MATERIAL",
-        "$ MAT1, MID, E, G, NU, RHO  (placeholder; reactions are stiffness-independent)",
+        "$ MAT1, MID, E, G, NU, RHO",
+        "$ Placeholder properties: the reactions are stiffness-independent.",
         f"$ E in {u.pressure.label}; A in {u.length.label}^2; I, J in {u.length.label}^4.",
         f"MAT1, 1, {_fmt(e_mod)}, , {_MAT1_NU}, 0.0",
         "$ ------------------------------------------------------- PROPERTIES",
@@ -761,6 +803,7 @@ def stick_model_bdf(arg: ResultsArg, sid_base: int = 1, *,
     bulk += [
         "$ ------------------------------------------------------- CONSTRAINTS",
         "$ SPC1, SID, C, G  (clamp the root node, all 6 DOF)",
+        *_comment(_CENTERLINE_CLAMP_NOTE),
         f"SPC1, 1, 123456, {_ROOT_GID}",
         "$ ------------------------------------------------------------ LOADS",
     ]

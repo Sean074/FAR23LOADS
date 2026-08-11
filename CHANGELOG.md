@@ -12,6 +12,40 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **The wing stick deck states its centerline clamp, and every deck `$`
+  comment now fits the card width.** 0.5.0 row 1, closing the last of the
+  release's Phase-1 deliverable items and the wing/tail decks' own digest
+  regeneration. Two parts, landed together because they move the same exported
+  wing bytes:
+  - **The clamp caveat** (plan 10 §1.1, filed 2026-08-08 and not shippable then
+    because that step's acceptance forbade any exported byte change). The wing
+    stick model's `SPC1` now carries a `$` note naming the clamped node as the
+    aircraft **centerline** (BL 0, half a strip inboard of station 0 — every
+    fixture defines the wing LE polyline from the centerline) and its reaction
+    as the **half-span total applied load**, not a wing root design load. It
+    states why relocating the SPC would not help — one clamp reacts the whole
+    applied load wherever it sits, so the side-of-body quantity is an internal
+    CBAR load, and the deck has no node at the side of body — so a consumer
+    reads the limitation off the deck instead of discovering it against a
+    23 %-high root bending. The real fix stays filed as the side-of-body
+    reporting-node item.
+  - **The 72-column sweep now covers the wing decks.** Free-field bulk data is
+    72 columns; the wing `$ Axes:` and `$ FORCE set sums to root Sz … Myy …`
+    lines overran, reaching ~100 columns in SI where the same numbers are wider
+    (cosmetic — `$` is a comment to every parser — but the carve-out was the
+    only deck family the width guard skipped). Every generated `$` sentence in
+    the bridge now goes through one `_comment()` emitter that wraps at 70, so
+    the width is a property of the emitter rather than of each hand-fitted
+    sentence, and `test_deck_comments_fit_the_free_field_card_width` sweeps
+    `wing_cards` and `wing_stick` in both unit systems alongside body/tail/
+    control. The unit statement moved to its own `$ Lengths in <unit>.` line:
+    wrapping can split a clause anywhere, and that is the one line consumers
+    grep for.
+  - **Imperial digests regenerated deliberately**, and the diff is exactly the
+    two intended channels — `sbeam/wing_cards` and `sbeam/wing_stick` on all
+    six examples, 12 lines. No calc number moved; the balanced deck, whose
+    digest regeneration was spent three times over on D-R7/D-R8, is untouched.
+
 - **The 23.427(a) unsymmetrical horizontal tail is a balanced case.** 0.5.0
   row 1 — decision **D-R8**, review finding **F-R5**, the release's one L-tier
   physics step. `build_balanced_cases` gained a third component branch, and with

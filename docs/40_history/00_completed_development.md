@@ -10,6 +10,25 @@ Acceptance**, **Key decisions**.
 
 ---
 
+## Wing deck `$` width + centerline-clamp header line (0.5.0 Phase 1 row 1 — complete 2026-08-10, tier S)
+
+The wing stick model's `SPC1` now carries the plan 10 §1.1 caveat naming the
+clamped node as the aircraft **centerline** (BL 0) and its reaction as the
+**half-span total applied load**, not a wing root design load — with why moving
+the SPC would not help (one clamp reacts the whole load wherever it sits; the
+side-of-body quantity is an internal CBAR load and the deck has no node there) —
+and every generated `$` sentence in the bridge is emitted through one
+`sbeam_bridge._comment()` wrapper at the 72-column free-field card width, so
+`test_deck_comments_fit_the_free_field_card_width` drops its wing carve-out and
+sweeps `wing_cards`/`wing_stick` in both unit systems. The unit statement became
+its own `$ Lengths in <unit>.` line (wrapping can split a clause, not a line).
+Closed the release's last Phase-1 row and spent the wing decks' digest
+regeneration: `fixtures_imperial/digests.json` moved on exactly
+`sbeam/wing_cards` + `sbeam/wing_stick` across all six examples, no calc number
+and no other deck family.
+
+---
+
 ## The 23.427(a) handed balanced h-tail family (0.5.0 Phase 1 row 1 — complete 2026-08-10, tier L)
 
 Closed review finding **F-R5**; decision of record **D-R8**; design note

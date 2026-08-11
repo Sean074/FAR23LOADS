@@ -711,21 +711,24 @@ def _card_sums(bdf: str):
     """[(stated_sz, stated_myy, summed_fz, summed_my)] per case block."""
     import re
 
-    out, stated, fz, my = [], None, 0.0, 0.0
-    for line in bdf.splitlines():
-        if line.startswith("$ SLOADS"):
-            if stated is not None:
-                out.append((stated[0], stated[1], fz, my))
-            stated, fz, my = None, 0.0, 0.0
-        elif line.startswith("$ FORCE set sums"):
-            nums = re.findall(r"=\s*(-?[\d.]+)", line)
-            stated = (float(nums[0]), float(nums[1]))
-        elif line.startswith("FORCE,"):
-            fz += float(line.split(",")[7])
-        elif line.startswith("MOMENT,"):
-            my += float(line.split(",")[6])
-    if stated is not None:
-        out.append((stated[0], stated[1], fz, my))
+    out = []
+    for block in re.split(r"^\$ SLOADS ", bdf, flags=re.M)[1:]:
+        # The deck's ``$`` sentences wrap at the 72-column free-field card
+        # width, so a stated total straddles two lines (and is wider in SI,
+        # which is why it wraps there first). Rejoin the comment runs before
+        # reading them; inside a case block no card ever follows a comment, so
+        # this cannot swallow a FORCE/MOMENT line.
+        text = block.replace("\n$ ", " ")
+        m = re.search(r"FORCE set sums to root Sz = (-?[\d.]+).+?"
+                      r"Myy = (-?[\d.]+)", text)
+        assert m, f"no closure comment in case block: {text[:200]}"
+        fz = my = 0.0
+        for line in text.splitlines():
+            if line.startswith("FORCE,"):
+                fz += float(line.split(",")[7])
+            elif line.startswith("MOMENT,"):
+                my += float(line.split(",")[6])
+        out.append((float(m.group(1)), float(m.group(2)), fz, my))
     return out
 
 
@@ -1062,7 +1065,9 @@ def test_cli_exports_an_si_sbeam_deck():
         deck = next(f for f in written if f.endswith(".bdf"))
         with open(os.path.join(d, deck)) as fh:
             text = fh.read()
-        assert "lengths in mm" in text
+        # Its own ``$`` line since the deck's comments wrap at 72 columns --
+        # a clause could be split across two lines, a line cannot.
+        assert "$ Lengths in mm." in text
         assert "N·mm" in text and "N·m." not in text, "deck must not use the human moment"
 
         span = next(f for f in written if f.endswith(".csv"))
