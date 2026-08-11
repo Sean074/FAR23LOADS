@@ -22,11 +22,13 @@ import pytest  # noqa: E402
 
 from sloads import io, registry  # noqa: E402
 from sloads.case_ids import (  # noqa: E402
+    SUBCASE_BLOCK,
     VTAIL_BAND_ONENGOUT,
     VTAIL_BAND_TAB,
     WING_BAND_EXTRA,
     WING_SLOTS,
     CaseIdAllocator,
+    balanced_subcase_id,
     subcase_id,
     wing_case_id,
 )
@@ -184,6 +186,40 @@ def test_subcase_id_is_a_stable_reversible_map():
     assert len({subcase_id(i) for i in ids}) == len(ids)
     with pytest.raises(ValueError):
         subcase_id("not-a-case")
+
+
+def test_balanced_subcase_id_gives_each_hand_its_own_block():
+    """**D-R7**: the assembled deck's subcase id is minted from the case id, and
+    a handed twin differs from its opposite only in the block it lands in.
+
+    The suffix cannot ride on the number -- a ``SUBCASE`` id is an integer -- so
+    the hand is the thousands digit and the rest is the case's own
+    :func:`subcase_id`, readable straight off a solver result.
+    """
+    assert balanced_subcase_id("W-01") == 5101
+    assert balanced_subcase_id("W-05R") == 7105
+    assert balanced_subcase_id("W-05L") == 8105
+    assert balanced_subcase_id("VT-01R") == 7301
+    assert balanced_subcase_id("VT-04L") == 8304
+    # Blocks are wide enough for every case id, and no two ids share a number.
+    ids = [f"{p}-{n:02d}{h}" for p in SUBCASE_BLOCK for n in (1, 99)
+           for h in ("", "R", "L")]
+    assert len({balanced_subcase_id(i) for i in ids}) == len(ids)
+    with pytest.raises(ValueError):
+        balanced_subcase_id("not-a-case")
+
+
+def test_balanced_subcase_ids_survive_an_edit_to_the_case_set():
+    """The instability the positional scheme had, stated as the property that
+    replaced it: drop a condition and the survivors keep their numbers.
+
+    This is what a consumer of the flagship deck relies on -- ``SUBCASE 7105``
+    is starboard ACRL in every run, not "whatever was seventh this time".
+    """
+    full = ["W-01", "W-02", "W-05R", "W-05L", "W-06", "VT-01R", "VT-01L"]
+    before = {cid: balanced_subcase_id(cid) for cid in full}
+    after = {cid: balanced_subcase_id(cid) for cid in full if cid != "W-02"}
+    assert all(after[cid] == before[cid] for cid in after)
 
 
 def test_allocator_is_a_pure_per_call_counter():

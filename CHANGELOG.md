@@ -211,6 +211,35 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- **The assembled deck's `SUBCASE` ids are minted from the case, not from its
+  position.** 0.5.0 row 1 — decision **D-R7**, review finding **m1**. The
+  flagship deliverable was the last deck family still numbering
+  `BALANCED_SID_BASE + i`, which is exactly the instability M4-2 decision 8
+  removed everywhere else: one condition dropping out of the set (a missing V-n
+  point, a payload loading that will not derive) renumbered every case after it,
+  so `SUBCASE 5007` meant nothing without the run that produced it. New
+  `case_ids.balanced_subcase_id` mints `block + subcase_id`, the block naming
+  the hand — symmetric `5000`, starboard `7000`, port `8000`, so `W-05R` is
+  `7105` and its port twin `8105` in every run of every project that assembles
+  them. `6000` is skipped deliberately: it is this same deck's own GID range.
+  Handedness is a block rather than a suffix because a `SUBCASE` id is an
+  integer and `7105L` is not one.
+  - Minting can collide where positional numbering could not, so
+    `balanced_deck.case_sids` **refuses** two cases that share one case id and
+    hand rather than letting the solver sum two load sets under one `SUBCASE`.
+  - The three blocks are registered bands (`export/bands.py`) pinned against
+    `case_ids.BALANCED_HAND_BLOCK` by `tests/test_bands.py`, and the survival
+    property is a test in its own right: drop a case from the middle of the set
+    and the deck writes every survivor under the number it had.
+  - A case carrying no `CaseRef` at all (a bare list built in a test — nothing
+    the suite assembles) still falls back to its position, in the separate
+    `5001-5100` band so it can never land on a minted id.
+  - `sbeam_bridge`'s case-index `SUBCASE` column now maps a handed id through
+    the same minting instead of printing an empty cell (no shipped bytes move:
+    no handed id reaches the index today).
+  - **Byte-changing**: the two balanced-deck digests in
+    `tests/fixtures_imperial/digests.json` are regenerated for this and no other
+    reason; every other Imperial digest is unchanged.
 - **The balanced deck's nodes moved out of the tail-span range: `4001/4201/4401`
   → `6001/6201/6401`** (the F-C1 fix). Node **numbering** only — the
   reconstructed pre-fix deck is byte-identical to the shipped one, and the two

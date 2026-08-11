@@ -45,6 +45,10 @@ The three bands are declared in :mod:`sloads.export.bands`, which owns every
 GID/EID/SID run in the suite and proves them disjoint. They were ``4001+`` and
 collided with the spanwise tail decks until 2026-08-10 (review F-C1).
 
+The ``SUBCASE``/``SID`` ids are **minted from the case id**, per hand -- see
+:func:`case_sids` and :func:`sloads.case_ids.balanced_subcase_id` (decision
+D-R7). They were positional until 2026-08-10 (review m1).
+
 The deck allocates its own nodes at each load's true ``(x, y, z)`` rather than
 reusing the body deck's ``1001+`` beam line -- see :func:`deck_nodes` for why
 flattening the waterlines silently unbalanced it.
@@ -64,6 +68,7 @@ import math
 import textwrap
 from typing import Dict, List, Optional, Sequence, Tuple
 
+from ..case_ids import balanced_subcase_id, handed_case_id, unhanded_case_id
 from ..models import BalancedCaseResult, BalancedLoad, Project
 from ..modules.balance import (SkippedCondition, build_balanced_cases,
                                carry_sources_absent, fin_load, is_lateral,
@@ -90,8 +95,11 @@ BALANCED_WING_L_BASE = _NODE_BANDS["L"].start
 #: fuselage Cm moment, and every closure point that sits on the centreline.
 BALANCED_BODY_BASE = _NODE_BANDS["C"].start
 
-#: SUBCASE / load-set ids for the assembled deck.
-BALANCED_SID_BASE = band("balanced-subcase").start
+_FALLBACK_SID_BAND = band("balanced-subcase-unmapped")
+#: The positional-fallback SUBCASE / load-set run, for a case that carries no
+#: ``CaseRef`` at all. Every case the suite assembles is **minted** instead --
+#: :func:`~sloads.case_ids.balanced_subcase_id`, see :func:`case_sids`.
+BALANCED_FALLBACK_SID_BASE = _FALLBACK_SID_BAND.start
 
 
 def _units(system: UnitSystem) -> DeliverableUnits:
@@ -148,6 +156,51 @@ def deck_nodes(cases: Sequence[BalancedCaseResult],
             except ValueError as exc:
                 raise ValueError(f"balanced deck: {exc}") from None
             counts[side] += 1
+    return out
+
+
+def case_sids(cases: Sequence[BalancedCaseResult]) -> List[int]:
+    """One ``SUBCASE`` / load-set id per case, minted from its ``CaseRef``.
+
+    Decision **D-R7** (review finding m1). The ids were positional --
+    ``BALANCED_SID_BASE + i`` -- which made them a property of the export rather
+    than of the case: one condition dropping out of the set (a missing V-n
+    point, a payload loading that will not derive) renumbered every case after
+    it, and the flagship deliverable was the last deck family still doing what
+    M4-2 decision 8 removed everywhere else. Minted, ``W-05R`` is ``7105`` in
+    every run of every project that assembles it.
+
+    Handedness is carried by the case, not read off the id: a ``CaseRef`` that
+    reached here without its suffix would otherwise mint the two twins of one
+    condition onto the same number, which is the one failure this function must
+    not have. The duplicate check below is the guard on that -- it catches a
+    repeated ``CaseRef`` too, which is a genuine build error rather than a
+    numbering one.
+
+    A case with no ``CaseRef`` (a bare case list built in a test; nothing the
+    suite assembles) falls back to its position, in the separate
+    ``balanced-subcase-unmapped`` band so it can never land on a minted id.
+    """
+    out: List[int] = []
+    for i, case in enumerate(cases):
+        if case.case_ref is None:
+            try:
+                out.append(_FALLBACK_SID_BAND.allocate(i))
+            except ValueError as exc:
+                raise ValueError(f"balanced deck: {exc}") from None
+            continue
+        case_id = case.case_ref.case_id
+        case_id = (handed_case_id(case_id, case.hand) if case.hand
+                   else unhanded_case_id(case_id))
+        out.append(balanced_subcase_id(case_id))
+    seen: Dict[int, BalancedCaseResult] = {}
+    for sid, case in zip(out, cases):
+        if sid in seen:
+            raise ValueError(
+                f"balanced deck: cases {seen[sid].label} and {case.label} both "
+                f"mint SUBCASE {sid} -- two assembled cases share one case id "
+                "and hand")
+        seen[sid] = case
     return out
 
 
@@ -321,21 +374,28 @@ def balanced_deck(project: Project, *,
     nodes = deck_nodes(cases, project)
     support = min(nodes.values())
 
+    sids = case_sids(cases)
+
     head: List[str] = ["SOL 101", "$",
                        "$ ------------------------------------------- BALANCED CASE MAP"]
-    for i, case in enumerate(cases):
+    for line in textwrap.wrap(
+            "SUBCASE ids are minted from the case id, not from its position: "
+            "5000 + subcase_id symmetric, 7000 + starboard, 8000 + port "
+            "(W-05R = 7105). They do not move when the case set changes.",
+            width=70, subsequent_indent="  "):
+        head.append(f"$ {line}")
+    for sid, case in zip(sids, cases):
         # Wrapped, not hand-broken: B8a-3's condition names ("YAW TO SIDESLIP")
         # are half again as long as the four-letter wing ones and pushed this
         # line past 72 columns on the fixtures that carry a long CG name.
-        entry = (f"SUBCASE {BALANCED_SID_BASE + i} = {case.label}"
+        entry = (f"SUBCASE {sid} = {case.label}"
                  f"{'-' + case.hand if case.hand else ''} -- V-n "
                  f"{case.vn_case} -- {case.cg} -- Nz {case.nz:g}")
         head += [f"$ {ln}" for ln in textwrap.wrap(entry, width=70,
                                                    subsequent_indent="    ")]
     head += _skipped_block(skipped)
     head.append("$")
-    for i, case in enumerate(cases):
-        sid = BALANCED_SID_BASE + i
+    for sid, case in zip(sids, cases):
         head += [
             f"SUBCASE {sid}",
             f"  LABEL = {case.case_ref.case_id if case.case_ref else case.label}",
@@ -367,8 +427,7 @@ def balanced_deck(project: Project, *,
         f"SPC1, 1, 123456, {support}",
         "$ ------------------------------------------------------------ LOADS",
     ]
-    for i, case in enumerate(cases):
-        sid = BALANCED_SID_BASE + i
+    for sid, case in zip(sids, cases):
         bulk += ["$"] + _header(case, u) + _load_lines(case, sid, nodes, u)
 
     return _stamped(header_comment, "\n".join(head + bulk + ["ENDDATA"]) + "\n")
@@ -423,7 +482,8 @@ __all__ = [
     "BALANCED_WING_R_BASE",
     "BALANCED_WING_L_BASE",
     "BALANCED_BODY_BASE",
-    "BALANCED_SID_BASE",
+    "BALANCED_FALLBACK_SID_BASE",
+    "case_sids",
     "deck_nodes",
     "balanced_deck",
     "write_balanced_deck",

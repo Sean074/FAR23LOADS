@@ -66,6 +66,11 @@ Deck subcase numbering (M4-2 decision 8)
 filtered export (``filter_by_selected_case_ids``) cannot renumber the subcases
 that survive, and the component blocks keep wing/tail/body subcases distinct in
 an assembled multi-component deck.
+
+The full-span balanced deck mints through :func:`balanced_subcase_id`, which is
+the same map moved into its own per-hand block (decision **D-R7**, 2026-08-10):
+that deck is the only family carrying handed twins, and an integer subcase id
+has nowhere to put the ``L``/``R`` suffix.
 """
 
 from __future__ import annotations
@@ -170,10 +175,11 @@ def handed_case_id(case_id: str, hand: str) -> str:
     and ``W-05L``/``W-05R`` are the two cases derived from it. Idempotent -- a
     handed id re-handed keeps one suffix, so a twin of a twin is not ``W-05RL``.
 
-    Deliberately **not** understood by :func:`subcase_id`: the assembled deck
-    numbers its own subcases positionally from ``BALANCED_SID_BASE``, and a
-    handed id reaching the per-component numbering would mean a component deck
-    had grown a hand it has no band for. That raises, loudly, which is correct.
+    Deliberately **not** understood by :func:`subcase_id`: a handed id reaching
+    the per-component numbering would mean a component deck had grown a hand it
+    has no band for. That raises, loudly, which is correct. The assembled deck,
+    which is where handed cases live, mints through
+    :func:`balanced_subcase_id` instead.
     """
     if hand not in HANDS:
         raise ValueError(f"hand must be one of {HANDS}, got {hand!r}")
@@ -201,3 +207,33 @@ def subcase_id(case_id: str) -> int:
     if prefix not in SUBCASE_BLOCK or not seq.isdigit():
         raise ValueError(f"not a case id: {case_id!r}")
     return SUBCASE_BLOCK[prefix] + int(seq)
+
+
+#: The assembled (balanced) deck's subcase block, per hand: the thousands part
+#: names the hand, the rest is the case's own :func:`subcase_id`, so ``W-05R``
+#: reads as *starboard, wing slot 5* by eye. ``6000`` is deliberately skipped --
+#: the balanced deck's own GIDs run 6001-7000, and a file whose SUBCASE ids
+#: repeat its node numbers is needlessly hard to read (``export/bands.py``).
+BALANCED_HAND_BLOCK: Dict[str, int] = {"": 5000, "R": 7000, "L": 8000}
+
+
+def balanced_subcase_id(case_id: str) -> int:
+    """The assembled deck's ``SUBCASE`` / ``SID`` integer for ``case_id`` (D-R7).
+
+    ``"W-01"`` -> ``5101``, ``"W-05R"`` -> ``7105``, ``"VT-01L"`` -> ``8301``.
+
+    The assembled deck numbered its subcases positionally (``BALANCED_SID_BASE +
+    i``) until 2026-08-10, which is exactly the renumbering instability M4-2
+    decision 8 removed from every other deck family: dropping one condition from
+    the set moved the id of every case after it, and a solver result labelled
+    ``SUBCASE 5007`` meant nothing without the run that produced it. Minted here
+    instead, from the case's own :class:`~sloads.models.CaseRef` id, the number
+    survives any edit to the case set and traces back by eye.
+
+    Handedness is a **block**, not a suffix on the number, because a ``SUBCASE``
+    id is an integer: the port twin of ``W-05`` cannot be ``7105L``. The
+    unhanded id still names the physical condition, so the two twins of one
+    condition differ only in their thousands digit.
+    """
+    hand = case_id[-1:] if case_id[-1:] in HANDS else ""
+    return BALANCED_HAND_BLOCK[hand] + subcase_id(unhanded_case_id(case_id))

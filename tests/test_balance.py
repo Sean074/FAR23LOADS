@@ -49,10 +49,10 @@ from sloads.models import BalancedLoad, MassComponent, MissingInputError  # noqa
 from sloads.modules import one_engine_out  # noqa: E402
 from sloads.rigid_body import InertiaTensor, radians_per_s2  # noqa: E402
 from sloads.export.balanced_deck import (  # noqa: E402
-    BALANCED_SID_BASE,
     BALANCED_WING_L_BASE,
     BALANCED_WING_R_BASE,
     balanced_deck,
+    case_sids,
     deck_nodes,
 )
 from sloads.export.coordinates import (  # noqa: E402
@@ -479,10 +479,10 @@ def test_the_deck_balances_from_its_own_cards(example, system):
     u = deliverable_units(system, Channel.SOLVER)
     grids, _, _, forces, moments = parse_cards(
         balanced_deck(p, system=system, cases=cases))
-    for i, case in enumerate(cases):
+    for sid, case in zip(case_sids(cases), cases):
         cg = cgs[case.cg]
         ref = (cg.xcg * u.length.factor, 0.0, cg.zcg * u.length.factor)
-        got = resultant(forces, moments, grids, BALANCED_SID_BASE + i, ref)
+        got = resultant(forces, moments, grids, sid, ref)
         n_w = case.n_w * case.safety_factor * u.force.factor
         n_w_mac = n_w * case.mac * u.length.factor
         n_w_span = n_w * case.semi_span * u.length.factor
@@ -515,7 +515,7 @@ def test_the_lateral_half_of_the_deck_gate_has_teeth():
     p = _project("ga6_normal.project.json")
     cases = build_balanced_cases(p)
     index = next(i for i, c in enumerate(cases) if is_lateral(c))
-    sid = BALANCED_SID_BASE + index
+    sid = case_sids(cases)[index]
     case = cases[index]
 
     lines, hit = [], False
@@ -597,6 +597,49 @@ def test_the_deck_states_its_residual_and_its_lumped_moment(example):
     assert "Residual BEFORE closure" in text
     assert "Lumped fuselage Cm moment" in text
     assert "FULL SPAN, free-free" in text
+
+
+@pytest.mark.parametrize("example", _with_cases())
+def test_deck_subcase_ids_are_minted_and_survive_a_dropped_case(example):
+    """**D-R7** at deck level: the ``SUBCASE`` a case is written under is its own
+    id, and dropping a condition renumbers nothing.
+
+    The positional scheme made the flagship deliverable's case identity a
+    property of the export -- one missing V-n point moved every subsequent
+    ``SUBCASE`` number, so a solver result could not be read without the run
+    that produced it. This drops a case from the middle and asserts the
+    survivors keep the numbers they had, which is the property the shipped deck
+    now offers a consumer.
+    """
+    p = _project(example)
+    cases = build_balanced_cases(p)
+    assert len(cases) > 2, f"{example}: too few cases to drop one from the middle"
+    minted = {c.case_ref.case_id: sid
+              for sid, c in zip(case_sids(cases), cases) if c.case_ref}
+    assert len(minted) == len(cases), f"{example}: a case reached the deck unidentified"
+
+    text = balanced_deck(p, cases=cases)
+    for sid, case in zip(case_sids(cases), cases):
+        assert f"SUBCASE {sid}\n" in text, \
+            f"{example}: {case.label} is not written under its minted id"
+
+    kept = [c for i, c in enumerate(cases) if i != 1]
+    after = {c.case_ref.case_id: sid for sid, c in zip(case_sids(kept), kept)}
+    assert all(after[cid] == minted[cid] for cid in after), \
+        f"{example}: dropping one case renumbered the survivors"
+
+
+def test_two_cases_with_one_identity_cannot_share_a_subcase():
+    """The one failure minting can have, refused rather than merged.
+
+    Positional ids could not collide; minted ones can, if a build hands the same
+    ``CaseRef`` and hand to two cases. Sharing a ``SUBCASE`` would silently sum
+    two load sets in the solver -- the D-19 class -- so the deck refuses.
+    """
+    p = _project("ga6_normal.project.json")
+    cases = build_balanced_cases(p)
+    with pytest.raises(ValueError, match="mint SUBCASE"):
+        balanced_deck(p, cases=list(cases) + [cases[0]])
 
 
 def test_a_project_with_no_balanced_case_refuses_a_deck():

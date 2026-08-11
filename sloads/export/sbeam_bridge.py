@@ -126,7 +126,7 @@ import textwrap
 from dataclasses import dataclass
 from typing import List, Sequence, Union
 
-from ..case_ids import subcase_id
+from ..case_ids import HANDS, balanced_subcase_id, subcase_id
 from ..constants import ULTIMATE_FACTOR
 from ..models import (
     BodyLoadResult,
@@ -1673,8 +1673,17 @@ def filter_by_selected_case_ids(results: Sequence, selected_ids) -> List:
 def _subcase_column(case_id: str) -> str:
     """The case's deck ``SUBCASE`` number for the index, or ``""`` for an id this
     module cannot map (never raise: the index is a reference table, and a row
-    without a deck number is more useful than no table)."""
+    without a deck number is more useful than no table).
+
+    A **handed** id (``W-05R``) exists only in the assembled deck, so it is
+    mapped through that deck's own minting (:func:`case_ids.balanced_subcase_id`,
+    D-R7) rather than blanked -- the per-component ``subcase_id`` deliberately
+    refuses a hand, and refusing it here would have printed an empty cell for
+    the deliverable's own cases the first time one reached the index.
+    """
     try:
+        if case_id[-1:] in HANDS:
+            return str(balanced_subcase_id(case_id))
         return str(subcase_id(case_id))
     except ValueError:
         return ""

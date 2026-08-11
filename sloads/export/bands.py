@@ -48,7 +48,10 @@ The map
            401-499  fuselage subcases
            501-599  empennage subcases
            601-699  landing-gear subcases
-          5001-5100  balanced-deck subcases
+          5001-5100  balanced-deck subcases, positional fallback (no CaseRef)
+          5101-5699  balanced-deck subcases, symmetric  (case_ids.
+          7101-7699  balanced-deck subcases, starboard   balanced_subcase_id:
+          8101-8699  balanced-deck subcases, port        block + subcase_id)
           9301-9400  MASSSET sets, one per payload case
           9401-9500  GRAV sets, one per payload case
 
@@ -59,10 +62,11 @@ traceable to one owner by inspection. Bands say so for themselves
 numbered 1..n alongside its own GRIDs since the first deck.
 
 One deliberate mirror: the per-component subcase blocks are **allocated** by
-:data:`sloads.case_ids.SUBCASE_BLOCK`, which is calc-side and must not import
-the export package. They are registered here so the disjointness question has
-one place to be asked, and ``tests/test_bands.py`` pins the two against each
-other so neither can move alone.
+:data:`sloads.case_ids.SUBCASE_BLOCK` -- and the balanced deck's per-hand blocks
+by :data:`sloads.case_ids.BALANCED_HAND_BLOCK` -- which are calc-side and must
+not import the export package. They are registered here so the disjointness
+question has one place to be asked, and ``tests/test_bands.py`` pins the two
+against each other so neither can move alone.
 """
 
 from __future__ import annotations
@@ -184,8 +188,21 @@ BANDS: Tuple[Band, ...] = (
     _band("subcase-F", IdKind.SID, 401, 99, "case_ids.subcase_id"),
     _band("subcase-EM", IdKind.SID, 501, 99, "case_ids.subcase_id"),
     _band("subcase-LG", IdKind.SID, 601, 99, "case_ids.subcase_id"),
-    _band("balanced-subcase", IdKind.SID, 5001, 100, "balanced_deck.balanced_deck",
-          "Positional today; row 9 mints these from the case id."),
+    _band("balanced-subcase-unmapped", IdKind.SID, 5001, 100,
+          "balanced_deck.case_sids",
+          "The positional fallback, for an assembled case carrying no CaseRef "
+          "at all (a bare case list built in a test). Every case the suite "
+          "assembles is minted; this band is what an unidentifiable one gets "
+          "instead of colliding with a minted id."),
+    _band("balanced-subcase", IdKind.SID, 5101, 599, "case_ids.balanced_subcase_id",
+          "Minted, symmetric hand (D-R7): 5000 + the case's own subcase_id."),
+    _band("balanced-subcase-stbd", IdKind.SID, 7101, 599,
+          "case_ids.balanced_subcase_id",
+          "Minted, starboard twin. 6000 is skipped: it is this same deck's "
+          "wing/centreline GID range, and repeating those numbers as load-set "
+          "ids in one file is a readability trap for no gain."),
+    _band("balanced-subcase-port", IdKind.SID, 8101, 599,
+          "case_ids.balanced_subcase_id", "Minted, port twin."),
     _band("massset", IdKind.SID, 9301, 100, "mass_cards.mass_check_deck"),
     _band("grav", IdKind.SID, 9401, 100, "mass_cards.inertia_only_cards"),
 )

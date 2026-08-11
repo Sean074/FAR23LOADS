@@ -60,8 +60,8 @@ from sloads import io  # noqa: E402
 from sloads.export import mass_cards as mc  # noqa: E402
 from sloads.export import sbeam_bridge as sb  # noqa: E402
 from sloads.export.balanced_deck import (  # noqa: E402
-    BALANCED_SID_BASE,
     balanced_deck,
+    case_sids,
 )
 from sloads.export.coordinates import (  # noqa: E402
     tail_force_to_airplane,
@@ -502,7 +502,7 @@ def test_assembled_deck_reacts_to_zero(sbeam, example, system):
 
     # Every case reaches the solver, and the lateral family is among them --
     # a deck that quietly stopped emitting them would otherwise pass here.
-    by_sid = {BALANCED_SID_BASE + i: c for i, c in enumerate(cases)}
+    by_sid = dict(zip(case_sids(cases), cases))
     assert set(sols) == set(by_sid), (
         f"{example}: solved {sorted(sols)} against {sorted(by_sid)}")
     assert sum(1 for c in cases if is_lateral(c)) == 8, \

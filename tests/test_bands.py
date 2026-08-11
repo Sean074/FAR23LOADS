@@ -34,7 +34,8 @@ import pkgutil  # noqa: E402
 import pytest  # noqa: E402
 
 import sloads.export as export_pkg  # noqa: E402
-from sloads.case_ids import SUBCASE_BLOCK, subcase_id  # noqa: E402
+from sloads.case_ids import (BALANCED_HAND_BLOCK, SUBCASE_BLOCK,  # noqa: E402
+                             balanced_subcase_id, subcase_id)
 from sloads.export import bands as bd  # noqa: E402
 from sloads.export import balanced_deck as bdk  # noqa: E402
 from sloads.export import mass_cards as mc  # noqa: E402
@@ -165,6 +166,28 @@ def test_the_subcase_blocks_and_the_registry_cannot_drift():
         assert band.end == base + 99 == subcase_id(f"{prefix}-99")
 
 
+#: The registry name of each balanced hand block (``case_ids`` is calc-side and
+#: does not know the registry exists; this pairing is the mirror being pinned).
+_BALANCED_BANDS = {"": "balanced-subcase",
+                   "R": "balanced-subcase-stbd",
+                   "L": "balanced-subcase-port"}
+
+
+def test_the_balanced_hand_blocks_and_the_registry_cannot_drift():
+    """Same mirror, for the assembled deck's per-hand blocks (**D-R7**).
+
+    A block spans the whole minted range -- the lowest id is a ``W-01`` at
+    ``block + 101`` and the highest an ``LG-99`` at ``block + 699`` -- so the
+    band is 599 wide, not 99: one balanced deck holds wing, tail and (from the
+    ground cases) gear subcases at once.
+    """
+    assert set(_BALANCED_BANDS) == set(BALANCED_HAND_BLOCK)
+    for hand, block in BALANCED_HAND_BLOCK.items():
+        band = bd.band(_BALANCED_BANDS[hand])
+        assert band.start == block + 101 == balanced_subcase_id(f"W-01{hand}")
+        assert band.end == block + 699 == balanced_subcase_id(f"LG-99{hand}")
+
+
 # --------------------------------------------------------------------------- #
 # The allocators agree with the bands that claim to own them
 # --------------------------------------------------------------------------- #
@@ -199,7 +222,8 @@ def test_the_public_base_constants_still_name_their_bands():
     assert bdk.BALANCED_WING_R_BASE == bd.band("balanced-wing-right").start == 6001
     assert bdk.BALANCED_WING_L_BASE == bd.band("balanced-wing-left").start == 6201
     assert bdk.BALANCED_BODY_BASE == bd.band("balanced-centreline").start == 6401
-    assert bdk.BALANCED_SID_BASE == bd.band("balanced-subcase").start == 5001
+    assert (bdk.BALANCED_FALLBACK_SID_BASE
+            == bd.band("balanced-subcase-unmapped").start == 5001)
     assert mc.MASS_EID_BASELINE == bd.band("mass-baseline").start == 9001
     assert mc.MASSSET_SID_BASE == bd.band("massset").start == 9301
     assert mc.GRAV_SID_BASE == bd.band("grav").start == 9401

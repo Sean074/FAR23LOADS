@@ -556,8 +556,9 @@ return strings (with thin `write_*` file wrappers), and do no physics.
   inertia from the mass SSOT, and the fuselage's lumped share of the trim
   pitching moment. `export/balanced_deck.py` writes it — GID bands: right wing
   `6001+`, left wing `6201+`, centreline `6401+`; one determinate six-DOF
-  support whose reaction *is* the residual; SUBCASE/SID `5001+`. **No free-body
-  cut reaction appears** (the seam rule). The residual before closure and the
+  support whose reaction *is* the residual; SUBCASE/SID minted per hand (`5101+`
+  symmetric, `7101+` starboard, `8101+` port — see "Deck case identity" below).
+  **No free-body cut reaction appears** (the seam rule). The residual before closure and the
   relief applied are stated on the result, in the UI and in the deck header.
   **Surfaces (0.5.0 row 1, D-R2):** the Balanced Cases page (stamped download),
   `cli.py --export-target balanced`, the Export page's own download row **and
@@ -842,6 +843,16 @@ return strings (with thin `write_*` file wrappers), and do no physics.
   consumer can trace a solver result back to its governing condition from the
   deck alone. `sid_base + index` survives **only** as the fallback for a result
   carrying no `CaseRef` at all (a bare result list built in a test).
+  The **assembled full-span deck** (`export/balanced_deck.case_sids`) mints the
+  same way, through `case_ids.balanced_subcase_id`: a per-**hand** block plus the
+  case's own `subcase_id` — symmetric `5000`, starboard `7000`, port `8000`
+  (`W-05R` → `7105`, `W-05L` → `8105`, `VT-01R` → `7301`). It is the only family
+  carrying handed twins, and an integer `SUBCASE` has nowhere to put the `L`/`R`
+  suffix; `6000` is skipped because that is this deck's own GID range. Positional
+  numbering here was decision **D-R7**'s subject (review **m1**) and is retired
+  except as the same no-`CaseRef` fallback, banded at `5001-5100` so it cannot
+  land on a minted id. Two cases minting one id (the same `CaseRef` and hand
+  assembled twice) is refused, not merged.
 
 ### Export-scope filter (Step D8.3)
 - **Source:** `sloads/export/sbeam_bridge.py::filter_by_selected_case_ids`.

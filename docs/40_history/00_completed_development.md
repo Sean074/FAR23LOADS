@@ -10,6 +10,21 @@ Acceptance**, **Key decisions**.
 
 ---
 
+## Minted balanced SUBCASE ids (0.5.0 Phase 1 row 1 — complete 2026-08-10, tier M)
+
+Closed review finding **m1**; decision of record **D-R7**. The assembled deck's
+`SUBCASE`/`SID` ids are minted from the case's own `CaseRef` through the new
+`case_ids.balanced_subcase_id` — a per-hand block plus `subcase_id` (symmetric
+`5000`, starboard `7000`, port `8000`: `W-05R` → `7105`) — retiring the
+positional `BALANCED_SID_BASE + i` that renumbered every later case whenever one
+condition dropped out of the set; the three blocks are registered bands pinned
+against `case_ids` by `tests/test_bands.py`, `balanced_deck.case_sids` refuses
+two cases minting one id, survival across a dropped case is a test of its own,
+and the two balanced-deck Imperial digests are regenerated for this and nothing
+else.
+
+---
+
 ## Fin chordwise deck → Fy (0.5.0 Phase 1 row 1 — complete 2026-08-10, tier M)
 
 Closed review finding **F-C3**; decision of record **D-R4**. The chordwise tail

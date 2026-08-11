@@ -296,6 +296,13 @@ conventions"** section (`SUMMARY_REPORT.md` §4.2.1), single-sourced in
   integer derived from the case id — `case_ids.subcase_id` (`W-03` → 103) — never the
   case's position in the export, so a filtered export cannot renumber what survives.
   Each deck carries a `$` subcase-map block and the case-index CSV a `SUBCASE` column.
+  The **assembled full-span deck** mints through `case_ids.balanced_subcase_id`
+  (**D-R7**, 2026-08-10): the same map inside a per-hand block — symmetric `5000`,
+  starboard `7000`, port `8000`, so `W-05R` → `7105` and its twin `W-05L` → `8105`.
+  Handedness is a block, not a suffix, because a `SUBCASE` id is an integer; the
+  unhanded id still names the physical condition. Minted ids can collide where
+  positional ones could not, so `balanced_deck.case_sids` refuses two cases sharing
+  one id and hand.
 
 ## 5. Preserved ENGLOADS conventions (verified in code)
 
