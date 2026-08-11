@@ -252,10 +252,14 @@ plain units with no `-ULT` suffix.
 - **CLI (secondary, batch/automation):** the `sloads` console script (from the
   editable install) or `python cli.py <module> <project.json> [-o out.csv]`;
   `--list` shows registered modules. Text report to stdout, or `-o` writes the
-  load-case CSV. `--export-sbeam PREFIX` writes the sbeam deck set, and
-  `--report PATH` renders the Step-G8 summary report (`.tex` always; a `.pdf`
-  path also compiles it when a TeX engine is available, `--generated` supplies
-  the title-page timestamp). Output units follow `--units imperial|si`.
+  load-case CSV. `--export-sbeam PREFIX --export-target <t>` writes the sbeam
+  deck set — **every** deliverable is reachable headless (`wing`, `body`, `tail`,
+  `htail-span`, `vtail-span`, `control`, `balanced`, `mass`; see
+  `PROGRAM_SPEC.md` §sbeam bridge) — and `--report PATH` renders the Step-G8
+  summary report (`.tex` always; a `.pdf` path also compiles it when a TeX engine
+  is available, `--generated` supplies the title-page timestamp). Output units
+  follow `--units imperial|si`. Every file written carries the G8.3 methods &
+  limitations stamp; every failure is one `error:` line on stderr with status 1.
 - **Library:** `import sloads` — `registry.get(name)(project)` over a `Project`
   you build yourself.
 

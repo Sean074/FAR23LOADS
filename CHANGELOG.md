@@ -12,6 +12,49 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **The deliverable is scriptable: every export target, stamped, with one error
+  contract.** 0.5.0 row 1 — review findings **F-D1**, **F-C2**, **F-D3**, minor
+  **m2**, decision **D-R5**, absorbing the long-open **L-8g**. The mission is a
+  *scripted* concept-loads → sbeam sizing loop, and the headless route did not
+  reach the deliverable: `--export-target` offered wing, tail, the two spanwise
+  empennage surfaces and control surfaces, so the **fuselage** deck (FORCE cards,
+  span CSV and the wing-attach fitting loads) was unwritable from the CLI and the
+  **assembled full-span balanced deck** — the mission's *primary* artifact — had
+  no headless route at all, downloadable only from a Streamlit page. It does now,
+  as does the CONM2 mass model (`--export-target mass`, the same owner and file
+  names as `--export-conm2`). `cli.EXPORT_TARGETS` is the one list, handed to
+  argparse and pinned against the CLI docstring, so a target cannot be
+  implemented without being offered or offered without being implemented.
+
+  Two things travel with it. **The CLI wing deck is now stated about the loads
+  reference axis** (decision D-R5): the CLI passed the writers a bare result
+  list, so the LRA boundary transfer never ran and a headless deck's torsion,
+  station X and lever arms were about the 25 % chord while the GUI's were about
+  the LRA — labelled in-band, so not silently wrong, but the module contract was
+  defeated on exactly the route the sizing loop scripts. The two front-ends now
+  emit the same deck, pinned by test on a project whose LRA is *not* the quarter
+  chord; on every shipped fixture `ref_axis_pct` is 0.25, so **no exported byte
+  moves and no digest regeneration was needed**. And **every headless CSV and BDF
+  now carries the Step G8.3 methods & limitations stamp** (L-8g / F-D3),
+  including `-o` module CSVs and all three `--export-conm2` artifacts: a headless
+  export stated its ULTIMATE basis, its category and its approved corrections
+  nowhere, which made it the one channel in the suite whose files were not
+  self-describing when forwarded. One stamp per run, built from the resolved unit
+  system and handed to every writer; no timestamp unless `--generated` supplies
+  one, so two runs of one project stay byte-identical and diffable.
+
+- **One CLI error contract.** Review **m2**: the `control` target caught every
+  `ValueError`, so a mistyped aileron area was indistinguishable from an airplane
+  with no aileron — the deck simply came out a case short — while an all-skipped
+  run raised through `main` as a traceback, the wing and tail targets let
+  `MissingInputError` reach the terminal raw, and only `--export-conm2` caught
+  and printed. Now, on every route: `error: <message>` on stderr, exit status 1,
+  no traceback and no partial artifact set. The one deliberate exception is that
+  an **absent** control-surface slice still skips that surface (the three are
+  independent inputs) while an **invalid** one fails the run — the
+  `MissingInputError`-vs-`ValueError` distinction the error-handling contract
+  already draws, applied at the CLI boundary.
+
 - **The balanced assembly now states what it did *not* assemble.** Review
   finding **F-C7**: a condition whose V-n point was missing, whose CG case was
   unknown, or whose payload loading the weight database cannot derive was

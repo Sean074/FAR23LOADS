@@ -72,7 +72,7 @@ from ..rigid_body import radians_per_s2
 from ..units import Channel, DeliverableUnits, UnitSystem, deliverable_units
 from .bands import band
 from .coordinates import SBEAM_CID, to_force, to_grid, to_moment
-from .sbeam_bridge import _fmt, _sf_str
+from .sbeam_bridge import _fmt, _sf_str, _stamped
 
 #: Node runs, from the band registry (:mod:`sloads.export.bands`) -- the single
 #: owner of every GID/EID/SID band in the suite. These three were 4001/4201/4401
@@ -274,6 +274,7 @@ def _skipped_block(skipped: Sequence[SkippedCondition]) -> List[str]:
 
 
 def balanced_deck(project: Project, *,
+                  header_comment: str = "",
                   system: UnitSystem = UnitSystem.IMPERIAL,
                   cases: Sequence[BalancedCaseResult] = (),
                   skipped: Optional[Sequence[SkippedCondition]] = None) -> str:
@@ -288,6 +289,13 @@ def balanced_deck(project: Project, *,
     holds. It is derived here when the caller does not supply it, so the block
     can never be silently absent; a caller that already assembled (the Balanced
     Cases page) passes its own record and saves the second pass.
+
+    ``header_comment`` is the ``$``-prefixed methods & units block
+    (:func:`~sloads.report.bdf_comment_block`), applied through the same
+    :func:`~sloads.export.sbeam_bridge._stamped` owner every other deck uses:
+    the mission's primary deliverable states its own basis when it travels
+    alone. Blank leaves the deck byte-identical (the frozen Imperial baseline
+    renders it unstamped).
     """
     u = _units(system)
     if cases:
@@ -363,13 +371,17 @@ def balanced_deck(project: Project, *,
         sid = BALANCED_SID_BASE + i
         bulk += ["$"] + _header(case, u) + _load_lines(case, sid, nodes, u)
 
-    return "\n".join(head + bulk + ["ENDDATA"]) + "\n"
+    return _stamped(header_comment, "\n".join(head + bulk + ["ENDDATA"]) + "\n")
 
 
 def write_balanced_deck(project: Project, path: str, *,
-                        system: UnitSystem = UnitSystem.IMPERIAL) -> None:
+                        header_comment: str = "",
+                        system: UnitSystem = UnitSystem.IMPERIAL,
+                        cases: Sequence[BalancedCaseResult] = (),
+                        skipped: Optional[Sequence[SkippedCondition]] = None) -> None:
     with open(path, "w", encoding="utf-8") as fh:
-        fh.write(balanced_deck(project, system=system))
+        fh.write(balanced_deck(project, header_comment=header_comment,
+                               system=system, cases=cases, skipped=skipped))
 
 
 def balanced_case_rows(cases: Sequence[BalancedCaseResult]) -> List[Dict[str, str]]:

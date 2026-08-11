@@ -70,7 +70,7 @@ from ..models import MassItem, Project
 from ..units import Channel, DeliverableUnits, UnitSystem, deliverable_units
 from .bands import band
 from .coordinates import SBEAM_CID, to_grid
-from .sbeam_bridge import _fmt, _sf_str, beam_station_gid
+from .sbeam_bridge import _fmt, _sf_str, _stamped, beam_station_gid
 
 # --------------------------------------------------------------------------- #
 # EID / SID bands -- declared in :mod:`sloads.export.bands`, the single owner of
@@ -322,12 +322,21 @@ def _header(project: Project, u: DeliverableUnits, cards: Sequence[MassCard],
 
 
 def conm2_fragment(project: Project, *,
+                   header_comment: str = "",
                    system: UnitSystem = UnitSystem.IMPERIAL) -> str:
     """``CONM2`` + ``MASSSET`` bulk-data fragment, pasteable into any model.
 
     No ``GRID`` cards and no load cards: this is the mass model alone, attaching
     to nodes the receiving deck already defines. For something that runs on its
     own, see :func:`mass_check_deck`.
+
+    ``header_comment`` is the ``$``-prefixed methods & units block
+    (:func:`~sloads.report.bdf_comment_block`), applied through the same
+    :func:`~sloads.export.sbeam_bridge._stamped` owner the load decks use, so a
+    mass model forwarded on its own states its own basis and unit set. A blank
+    value leaves the fragment byte-identical -- which is what keeps
+    :func:`mass_check_deck` (which embeds this fragment) from carrying two
+    stamps.
     """
     u = _checked_mass_units(deliverable_units(system, Channel.SOLVER))
     cards, loadings = mass_cards(project)
@@ -341,7 +350,7 @@ def conm2_fragment(project: Project, *,
     out += [_conm2_line(c, u) for c in cards if c.overlay]
     for i, loading in enumerate(loadings):
         out += ["$"] + _massset_block(cards, loading, i)
-    return "\n".join(out) + "\n"
+    return _stamped(header_comment, "\n".join(out) + "\n")
 
 
 def mass_properties(project: Project, loading: CaseLoading,
@@ -376,6 +385,7 @@ def mass_properties(project: Project, loading: CaseLoading,
 # The runnable mass-check deck (C-4) -- MASSSET + GRAV, and no load cards
 # --------------------------------------------------------------------------- #
 def mass_check_deck(project: Project, *,
+                    header_comment: str = "",
                     system: UnitSystem = UnitSystem.IMPERIAL,
                     nz: float = 1.0) -> str:
     """A self-contained deck that accelerates the mass model and nothing else.
@@ -458,7 +468,7 @@ def mass_check_deck(project: Project, *,
     for i, _ in enumerate(loadings):
         bulk.append(f"GRAV, {_GRAV_BAND.allocate(i)}, 0, {_fmt(nz * g)}, 0.0, 0.0, -1.0")
     bulk += ["$"] + conm2_fragment(project, system=system).splitlines()
-    return "\n".join(head + bulk + ["ENDDATA"]) + "\n"
+    return _stamped(header_comment, "\n".join(head + bulk + ["ENDDATA"]) + "\n")
 
 
 # --------------------------------------------------------------------------- #
@@ -492,6 +502,7 @@ def case_station_weights(project: Project,
 
 
 def inertia_only_cards(project: Project, *,
+                       header_comment: str = "",
                        system: UnitSystem = UnitSystem.IMPERIAL,
                        nz: float = 1.0,
                        sid: int = GRAV_SID_BASE,
@@ -553,20 +564,24 @@ def inertia_only_cards(project: Project, *,
         fz = -weight_lb * nz * u.force.factor
         lines.append(
             f"FORCE, {sid}, {gid}, {SBEAM_CID}, 1.0, 0.0, 0.0, {_fmt(fz)}")
-    return "\n".join(lines) + "\n"
+    return _stamped(header_comment, "\n".join(lines) + "\n")
 
 
 def write_conm2_fragment(project: Project, path: str, *,
+                         header_comment: str = "",
                          system: UnitSystem = UnitSystem.IMPERIAL) -> None:
     with open(path, "w", encoding="utf-8") as fh:
-        fh.write(conm2_fragment(project, system=system))
+        fh.write(conm2_fragment(project, header_comment=header_comment,
+                                system=system))
 
 
 def write_mass_check_deck(project: Project, path: str, *,
+                          header_comment: str = "",
                           system: UnitSystem = UnitSystem.IMPERIAL,
                           nz: float = 1.0) -> None:
     with open(path, "w", encoding="utf-8") as fh:
-        fh.write(mass_check_deck(project, system=system, nz=nz))
+        fh.write(mass_check_deck(project, header_comment=header_comment,
+                                 system=system, nz=nz))
 
 
 __all__ = [

@@ -10,6 +10,69 @@ Acceptance**, **Key decisions**.
 
 ---
 
+## CLI deliverable completion (0.5.0 Phase 1 row 1 — complete 2026-08-10, tier M)
+
+Closed review findings **F-D1**, **F-C2**, **F-D3** and minor **m2**, absorbing
+the long-open **L-8g**; decision of record **D-R5**.
+
+**Objective.** Make the 0.5.0 deliverable set *scriptable*. The mission is a
+concept-loads → sbeam sizing loop run headless, and the CLI reached only part of
+it.
+
+**Deliverables.**
+1. **The export menu is the deliverable menu** (F-D1). `--export-target` gains
+   `body` (FORCE deck + span CSV + wing-attach fitting CSV), `balanced` (the
+   assembled full-span free-free deck — the mission's *primary* artifact, until
+   now downloadable only from the Balanced Cases page) and `mass` (the
+   CONM2/MASSSET model, routed to the same owner and the same file names as
+   `--export-conm2`). `cli.EXPORT_TARGETS` is the single list, handed to argparse
+   and pinned against the CLI docstring in both directions. Three `write_body_*`
+   writers were added for symmetry with every other component family, and
+   re-exported from `sloads.export`.
+2. **The CLI wing deck is stated about the LRA** (F-C2 / D-R5). `_export_sbeam`
+   passed the writers a bare result list, so `_as_results`' `Project` branch —
+   the one calling `loads_ref_axis_results` — never ran, and headless torsion,
+   station X and lever arms were about the 25 % chord while the GUI's were about
+   the loads reference axis. Both front-ends now build the deck the same way.
+3. **The G8.3 methods stamp reaches every headless file** (F-D3 / L-8g),
+   including `-o` module CSVs and all three `--export-conm2` artifacts. Required
+   threading `header_comment` through `write_span_load_csv`,
+   `write_tail_chordwise_csv`, `write_control_surface_csv`, `conm2_fragment`,
+   `mass_check_deck`, `inertia_only_cards` and `balanced_deck` (+ their writers),
+   all applied through the existing `_stamped` owner. One stamp per run, built
+   from the resolved unit system and shared by every writer.
+4. **One error contract** (m2): `error: <message>` on stderr, exit 1, no
+   traceback and no partial artifact set, on every route.
+
+**Test / Acceptance.** New `tests/test_cli.py` (35 cases): every target writes
+its named artifacts non-empty on `ga6_normal`; the balanced deck and the
+`mass`/`--export-conm2` pair are byte-identical to the page/CLI counterpart;
+`MyyAxis` reads `LRA 40% chord` and both front-ends' wing artifacts match, on a
+constructed non-quarter-chord project; every exported file starts with its
+methods block, stays parseable (`csv.DictReader`, `export.equilibrium.parse_cards`)
+and is byte-stable across runs; and each target on an empty project returns 1
+with one `error:` line. Full suite green (1444 passed), ruff clean.
+
+**Key decisions.**
+- **D-R5 (user, 2026-08-10):** the CLI transfers to the LRA; the 25 %-chord CLI
+  behaviour is retired, not optioned.
+- **`--export-target mass` and `--export-conm2` are two spellings of one owner**,
+  the second kept only because it shipped first; pinned byte-identical so they
+  cannot drift into two copies of the mass model.
+- **No `$` analogue of `strip_comment_lines`.** A deck's `$` lines are mostly the
+  deliverable itself (subcase map, axis statement, residuals), so the stamp is
+  not separable by line prefix; tests assert a stamped deck *ends with* its
+  unstamped build instead. Stated in the function's own docstring.
+- **The stamp carries no timestamp unless `--generated` supplies one**, so two
+  headless runs of one project stay byte-identical and diffable.
+
+**Measured.** Contrary to the backlog's sequencing note, this row moved **no
+exported bytes** and forced no digest regeneration: `ref_axis_pct` is 0.25 on
+every shipped fixture, so the LRA transfer is a no-op there — which is why the
+axis gate is pinned on a constructed project rather than a fixture.
+
+---
+
 ## Skipped-conditions record (0.5.0 row 1 — complete 2026-08-10, tier M)
 
 Closed review finding **F-C7**: a condition SELECT named could drop out of the

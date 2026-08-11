@@ -990,7 +990,11 @@ def test_no_calc_module_converts_units():
 # Step 7 — the CLI, end to end
 # --------------------------------------------------------------------------- #
 def _cli_csv(*argv) -> str:
-    """Run the CLI with ``-o`` into a temp file and return what it wrote."""
+    """Run the CLI with ``-o`` into a temp file and return what it wrote.
+
+    The headless CSV carries the G8.3 methods stamp since 0.5.0 row 1 (L-8g), so
+    what comes back is stamped; :func:`_cli_csv_header` is the column row.
+    """
     import tempfile
 
     with tempfile.TemporaryDirectory() as d:
@@ -1000,6 +1004,11 @@ def _cli_csv(*argv) -> str:
         # would translate them and mask a line-ending regression.
         with open(out, newline="") as fh:
             return fh.read()
+
+
+def _cli_csv_header(text: str) -> str:
+    """The column-header row of a stamped CLI CSV -- past the ``#`` block."""
+    return strip_comment_lines(text).splitlines()[0]
 
 
 def test_cli_writes_the_requested_system():
@@ -1013,10 +1022,14 @@ def test_cli_writes_the_requested_system():
 
     assert plain == imperial, "the default run must not depend on the flag existing"
     assert si != plain
-    assert "lbs-ULT" in plain.splitlines()[0] and "N-ULT" in si.splitlines()[0]
+    # The stamp states the run's own unit set, so it moves with the flag too --
+    # a stamp that disagreed with its own numbers would be worse than none.
+    assert plain.startswith("# METHODS AND LIMITATIONS")
+    assert "lbs-ULT" in _cli_csv_header(plain)
+    assert "N-ULT" in _cli_csv_header(si)
     # The aviation carve-out survives the CLI boundary too.
     for carved in ("(kt(EAS))", "(ft)"):
-        assert plain.splitlines()[0].count(carved) == si.splitlines()[0].count(carved)
+        assert _cli_csv_header(plain).count(carved) == _cli_csv_header(si).count(carved)
 
 
 def test_cli_exports_an_si_sbeam_deck():
@@ -1043,7 +1056,7 @@ def test_cli_exports_an_si_sbeam_deck():
 
         span = next(f for f in written if f.endswith(".csv"))
         with open(os.path.join(d, span)) as fh:
-            header = fh.readline()
+            header = _cli_csv_header(fh.read())
         assert "X (mm)" in header and "Nmm-ULT" in header, header
 
 

@@ -7,17 +7,33 @@ report to stdout):
     python cli.py engine examples/ga6_normal.project.json        # text to stdout
     python cli.py --list                                         # registered modules
 
-Or export loads to sbeam (CSV + FORCE/MOMENT cards). The wing target (default)
-writes the net wing load (span-load CSV + FORCE/MOMENT cards + an optional CBAR
-stick model); ``--export-target tail`` writes the chordwise tail loads (TAILDIST);
-``--export-target htail-span``/``vtail-span`` write the **spanwise**
-empennage beam loads (plan 09 T4);
-``--export-target control`` writes the simplified control-surface loads
-(AILERON / FLAPLOAD / TABLOADS):
+Or export loads to sbeam (CSV + FORCE/MOMENT cards). ``--export-target`` is the
+whole deliverable menu -- every artifact the Export & Report page writes is
+reachable headless, because the concept-loads -> sbeam sizing loop is meant to be
+scripted:
+
+===============  ===========================================================
+target           what it writes
+===============  ===========================================================
+``wing``         the net wing load: span-load CSV + FORCE/MOMENT cards
+                 (+ an optional CBAR stick model), transferred to the wing's
+                 loads reference axis
+``body``         the fuselage net distribution: FORCE deck, span-load CSV and
+                 the wing-attach fitting-load CSV
+``tail``         the chordwise tail loads (TAILDIST)
+``htail-span``   the **spanwise** empennage beam loads (plan 09 T4)
+``vtail-span``
+``control``      the simplified control-surface loads (AILERON/FLAPLOAD/
+                 TABLOADS)
+``balanced``     the assembled full-span balanced free-free deck -- the
+                 mission's primary loads deliverable
+``mass``         the CONM2/MASSSET mass model (same artifacts, same owner and
+                 same names as ``--export-conm2``)
+===============  ===========================================================
 
     python cli.py --export-sbeam out examples/ga6_normal.project.json
-    python cli.py --export-sbeam out --export-target tail examples/ga6_normal.project.json
-    python cli.py --export-sbeam out --export-target control examples/ga6_normal.project.json
+    python cli.py --export-sbeam out --export-target body examples/ga6_normal.project.json
+    python cli.py --export-sbeam out --export-target balanced examples/ga6_normal.project.json
     python cli.py --export-conm2 out examples/ga6_normal.project.json
 
 Or render the consolidated **summary report** (Step G8) -- the controlling
@@ -31,6 +47,19 @@ Output units follow ``--units imperial|si`` (default: the project's own
 preference, else Imperial). An sbeam deck is written in the **solver** unit set,
 which in SI is N / mm / N*mm / MPa -- consistent by construction, unlike the
 N*m a report uses (M4-20 D-19).
+
+**Every file written here carries the Step G8.3 methods & limitations stamp**
+(``#`` on a CSV, ``$`` on a deck), exactly as the GUI bundle does: a headless
+export states its ULTIMATE basis, its category and its approved corrections
+in-band, so a file forwarded on its own is still self-describing (L-8g).
+
+**Error contract** (one, for every export route): an absent input slice or an
+invalid input is reported as ``error: <message>`` on stderr with exit status 1 --
+never a traceback, and never a silently empty artifact. The one deliberate
+exception is the ``control`` target, where an *absent* control-surface slice
+(``MissingInputError``) skips that surface, because the three surfaces are
+independent; an *invalid* one still fails the run, and a target where every
+surface is absent fails too.
 """
 
 from __future__ import annotations
@@ -38,9 +67,17 @@ from __future__ import annotations
 import argparse
 import sys
 
-from sloads import io, registry
+from sloads import MissingInputError, io, registry
 from sloads.report import module_text_report, text_report
 from sloads.units import UnitSystem, convert_results, unit_system_from
+
+
+#: Every headless export target, in the order the module docstring lists them.
+#: This tuple is the deliverable menu -- review F-D1 was that the menu and the
+#: deliverable set had diverged, so a test pins them together rather than a
+#: comment asking future readers to keep them in step.
+EXPORT_TARGETS = ("wing", "body", "tail", "htail-span", "vtail-span",
+                  "control", "balanced", "mass")
 
 
 def resolve_units(project, flag=None) -> UnitSystem:
@@ -55,8 +92,32 @@ def resolve_units(project, flag=None) -> UnitSystem:
     return unit_system_from(getattr(project, "unit_system", None))
 
 
+def _stamps(project, system: UnitSystem, generated: str = ""):
+    """``(csv_stamp, bdf_stamp)`` -- the Step G8.3 methods & limitations block.
+
+    The headless counterpart of the Export & Report page's one-stamp-per-bundle
+    build (L-8g / review F-D3): built once per run from the *resolved* unit
+    system, then handed to every writer, so the files of one export cannot
+    disagree with each other -- or with their own numbers -- about their basis
+    or their units.
+
+    ``scope`` is always the full case set: the Critical Loads opt-out selection
+    is a GUI session state, so a headless export has nothing to filter and
+    nothing to warn a recipient about. ``generated`` is the caller's timestamp
+    and defaults to absent, which keeps two headless runs of one project
+    byte-identical (the renderer never reads the clock -- see
+    ``report.methods``).
+    """
+    from sloads.report.methods import bdf_comment_block, csv_comment_block
+
+    kwargs = dict(tool_version=_tool_version(), scope="full case set",
+                  system=system, generated=generated or None)
+    return csv_comment_block(project, **kwargs), bdf_comment_block(project, **kwargs)
+
+
 def _export_conm2(project, prefix: str,
-                  system: UnitSystem = UnitSystem.IMPERIAL) -> int:
+                  system: UnitSystem = UnitSystem.IMPERIAL,
+                  bdf_stamp: str = "") -> int:
     """Write the CONM2/MASSSET mass model (plan 12 C-4).
 
     Three artifacts, and the split matters: the **fragment** is the mass model
@@ -66,15 +127,18 @@ def _export_conm2(project, prefix: str,
     for comparing against what sbeam recovers -- never for applying.
 
     ``system`` is resolved once and passed to every writer, so the files of one
-    export cannot disagree about their units (D-19).
+    export cannot disagree about their units (D-19), and ``bdf_stamp`` likewise
+    so all three state one basis.
+
+    A project with no weight database raises (caught by ``main``'s one error
+    contract); a project that has one but from which no payload case is
+    derivable still gets its fragment, with the two per-case artifacts reported
+    as absent by name -- an unbuildable check deck is a fact about the data, not
+    a failed run.
     """
     from sloads.export import mass_cards as mc
 
-    try:
-        fragment = mc.conm2_fragment(project, system=system)
-    except ValueError as exc:
-        print(f"error: {exc}", file=sys.stderr)
-        return 1
+    fragment = mc.conm2_fragment(project, header_comment=bdf_stamp, system=system)
 
     label = "Imperial" if system == UnitSystem.IMPERIAL else "SI"
     written = []
@@ -86,7 +150,7 @@ def _export_conm2(project, prefix: str,
     for name, build in (("mass_check", mc.mass_check_deck),
                         ("inertia_only", mc.inertia_only_cards)):
         try:
-            text = build(project, system=system)
+            text = build(project, header_comment=bdf_stamp, system=system)
         except ValueError as exc:
             print(f"note: no {name} deck -- {exc}", file=sys.stderr)
             continue
@@ -102,11 +166,17 @@ def _export_conm2(project, prefix: str,
 
 
 def _export_sbeam(project, prefix: str, target: str, stick_model: bool,
-                  system: UnitSystem = UnitSystem.IMPERIAL) -> int:
+                  system: UnitSystem = UnitSystem.IMPERIAL,
+                  csv_stamp: str = "", bdf_stamp: str = "") -> int:
     """Build the loads for ``target`` and write the sbeam export artifacts.
 
     ``system`` is resolved once here and passed to every writer, so the files of
-    one export cannot disagree with each other about their units (M4-20 D-19).
+    one export cannot disagree with each other about their units (M4-20 D-19);
+    ``csv_stamp``/``bdf_stamp`` ride along for the same reason (G8.3).
+
+    Nothing here catches an exception: an absent or invalid input reaches
+    ``main``'s single error contract. The one exception is the ``control``
+    target -- see below.
     """
     from sloads.export import sbeam_bridge as sb
 
@@ -116,8 +186,10 @@ def _export_sbeam(project, prefix: str, target: str, stick_model: bool,
         results = build_tail_chordwise(project)
         csv_path = f"{prefix}.tail_chordwise.csv"
         bdf_path = f"{prefix}.tail_loads.bdf"
-        sb.write_tail_chordwise_csv(results, csv_path, system=system)
-        sb.write_tail_force_moment_cards(results, bdf_path, system=system)
+        sb.write_tail_chordwise_csv(results, csv_path, header_comment=csv_stamp,
+                                    system=system)
+        sb.write_tail_force_moment_cards(results, bdf_path,
+                                         header_comment=bdf_stamp, system=system)
         print(f"Wrote {len(results)} tail condition(s) to: {csv_path}, {bdf_path}")
         return 0
 
@@ -127,14 +199,16 @@ def _export_sbeam(project, prefix: str, target: str, stick_model: bool,
         component = target.split("-")[0]
         results = build_tail_span(project)[component]
         if not results:
-            print(f"No spanwise {component} loads: the surface needs an area and a "
-                  "span, and a critical condition carrying an LT25/LT50 split.")
-            return 1
+            raise MissingInputError(
+                f"no spanwise {component} loads: the surface needs an area and a "
+                "span, and a critical condition carrying an LT25/LT50 split")
         csv_path = f"{prefix}.{component}_span.csv"
         bdf_path = f"{prefix}.{component}_span_loads.bdf"
         with open(csv_path, "w", encoding="utf-8", newline="") as fh:
-            fh.write(sb.tail_span_csv(results, component=component, system=system))
+            fh.write(sb.tail_span_csv(results, component=component,
+                                      header_comment=csv_stamp, system=system))
         sb.write_tail_span_force_moment_cards(results, bdf_path, component=component,
+                                              header_comment=bdf_stamp,
                                               system=system)
         print(f"Wrote {len(results)} {component} condition(s) to: "
               f"{csv_path}, {bdf_path}")
@@ -145,30 +219,86 @@ def _export_sbeam(project, prefix: str, target: str, stick_model: bool,
         from sloads.modules.flap import build_flap
         from sloads.modules.tab import build_tabs
 
+        # The three surfaces are independent inputs, so an *absent* slice skips
+        # that surface only -- but an *invalid* one is a defect and propagates,
+        # per the error-handling contract (MissingInputError is "not my turn";
+        # a plain ValueError is a bad input). Catching ValueError here made a
+        # mistyped aileron area indistinguishable from an unfitted aileron.
         results = []
         for build in (build_aileron, build_flap, build_tabs):
             try:
                 results.extend(build(project))
-            except ValueError:
-                pass  # skip a control surface whose input slice is absent
+            except MissingInputError:
+                pass
+        if not results:
+            raise MissingInputError(
+                "no control-surface loads: this project has no aileron, flap or "
+                "tab input slice to export")
         csv_path = f"{prefix}.control_surface.csv"
         bdf_path = f"{prefix}.control_surface.bdf"
-        sb.write_control_surface_csv(results, csv_path, system=system)
-        sb.write_control_surface_force_moment_cards(results, bdf_path, system=system)
+        sb.write_control_surface_csv(results, csv_path, header_comment=csv_stamp,
+                                     system=system)
+        sb.write_control_surface_force_moment_cards(
+            results, bdf_path, header_comment=bdf_stamp, system=system)
         print(f"Wrote {len(results)} control-surface condition(s) to: {csv_path}, {bdf_path}")
         return 0
 
-    from sloads.modules.net_loads import build_net_loads
+    if target == "body":
+        from sloads.modules.body_loads import build_body_loads
 
-    results = build_net_loads(project).wing_net
+        results = build_body_loads(project)
+        bdf_path = f"{prefix}.body_loads.bdf"
+        span_path = f"{prefix}.body_span_loads.csv"
+        # Reported beside the FORCE set, never in it -- the span loads already
+        # carry the carry-through reaction (M4-1), so applying the point
+        # reactions too would double them.
+        fitting_path = f"{prefix}.body_fitting_loads.csv"
+        sb.write_body_force_moment_cards(results, bdf_path,
+                                         header_comment=bdf_stamp, system=system)
+        sb.write_body_span_load_csv(results, span_path, header_comment=csv_stamp,
+                                    system=system)
+        sb.write_body_fitting_load_csv(results, fitting_path,
+                                       header_comment=csv_stamp, system=system)
+        print(f"Wrote {len(results)} fuselage condition(s) to: "
+              f"{bdf_path}, {span_path}, {fitting_path}")
+        return 0
+
+    if target == "balanced":
+        from sloads.export.balanced_deck import balanced_deck
+        from sloads.modules.balance import build_balanced_cases
+
+        # Assembled once here rather than inside the writer, so the count printed
+        # is the deck's own case set and not a second pass that might differ.
+        skipped = []
+        cases = build_balanced_cases(project, skipped)
+        bdf_path = f"{prefix}.balanced_airframe.bdf"
+        with open(bdf_path, "w", encoding="utf-8") as fh:
+            fh.write(balanced_deck(project, header_comment=bdf_stamp, system=system,
+                                   cases=cases, skipped=skipped))
+        note = f"; {len(skipped)} condition(s) not assembled" if skipped else ""
+        print(f"Wrote {len(cases)} balanced case(s) to: {bdf_path}{note}")
+        return 0
+
+    # Wing (the default). The results are transferred to the wing surface's loads
+    # reference axis first -- decision D-R5: the headless deck and the GUI's are
+    # the same deck, and the module contract ("when the export is built from a
+    # Project, the bridge first transfers the loads to the LRA") holds on the
+    # route the sizing loop actually scripts. Every exported wing torsion,
+    # station X and lever arm is therefore about the LRA, stated in-band by the
+    # span CSV's `MyyAxis` column and the deck's `$` header.
+    from sloads.modules.net_loads import build_net_loads, loads_ref_axis_results
+
+    results = loads_ref_axis_results(project, build_net_loads(project).wing_net)
     csv_path = f"{prefix}.span_loads.csv"
     bdf_path = f"{prefix}.loads.bdf"
-    sb.write_span_load_csv(results, csv_path, system=system)
-    sb.write_force_moment_cards(results, bdf_path, system=system)
+    sb.write_span_load_csv(results, csv_path, header_comment=csv_stamp, system=system)
+    sb.write_force_moment_cards(results, bdf_path, header_comment=bdf_stamp,
+                                system=system)
     written = [csv_path, bdf_path]
     if stick_model:
         stick_path = f"{prefix}.stick.bdf"
-        sb.write_stick_model_bdf(results, stick_path, system=system)
+        sb.write_stick_model_bdf(results, stick_path, header_comment=bdf_stamp,
+                                 system=system)
         written.append(stick_path)
     print(f"Wrote {len(results)} case(s) to: " + ", ".join(written))
     return 0
@@ -225,14 +355,17 @@ def main(argv=None) -> int:
     parser.add_argument("--list", action="store_true", help="list registered modules and exit")
     parser.add_argument(
         "--export-sbeam", metavar="PREFIX",
-        help="export the net wing load to sbeam files prefixed with PREFIX "
-             "(PROJECT is then the second positional argument)",
+        help="export loads to sbeam files prefixed with PREFIX; which loads is "
+             "--export-target (default: the net wing load). PROJECT is then the "
+             "second positional argument",
     )
     parser.add_argument(
         "--export-target",
-        choices=("wing", "tail", "htail-span", "vtail-span", "control"),
+        choices=EXPORT_TARGETS,
         default="wing",
-        help="with --export-sbeam, which loads to export (default: wing)",
+        help="with --export-sbeam, which deliverable to export (default: wing). "
+             "'balanced' is the assembled full-span free-free deck; 'mass' is "
+             "the CONM2/MASSSET model, identical to --export-conm2",
     )
     parser.add_argument(
         "--stick-model", action="store_true",
@@ -246,8 +379,9 @@ def main(argv=None) -> int:
     )
     parser.add_argument(
         "--generated", metavar="STAMP", default="",
-        help="with --report, the generation timestamp printed on the title page "
-             "(supplied by the caller so two renders stay byte-identical)",
+        help="the generation timestamp printed on the report title page and in "
+             "every export's methods stamp (supplied by the caller so two runs "
+             "stay byte-identical; omitted by default)",
     )
     parser.add_argument(
         "--export-conm2", metavar="PREFIX",
@@ -273,19 +407,37 @@ def main(argv=None) -> int:
         if not project_path:
             parser.error("--export-sbeam requires a project.json path")
         project = io.load_project(project_path)
-        return _export_sbeam(project, args.export_sbeam,
-                             args.export_target, args.stick_model,
-                             resolve_units(project, args.units))
+        system = resolve_units(project, args.units)
+        csv_stamp, bdf_stamp = _stamps(project, system, args.generated)
+        # One error contract for every export route (review m2): an absent or
+        # invalid input is a one-line `error:` on stderr and status 1, never a
+        # traceback. The routes themselves catch nothing.
+        try:
+            if args.export_target == "mass":
+                return _export_conm2(project, args.export_sbeam, system, bdf_stamp)
+            return _export_sbeam(project, args.export_sbeam,
+                                 args.export_target, args.stick_model,
+                                 system, csv_stamp, bdf_stamp)
+        except ValueError as exc:      # MissingInputError included -- it subclasses
+            print(f"error: {exc}", file=sys.stderr)
+            return 1
 
     # --export-conm2 follows --export-sbeam's shape: project from the first
-    # positional, no module name needed.
+    # positional, no module name needed. It is the same owner (and the same file
+    # names) as `--export-target mass`; both spellings are kept because this one
+    # shipped first.
     if args.export_conm2:
         project_path = args.module or args.project
         if not project_path:
             parser.error("--export-conm2 requires a project.json path")
         project = io.load_project(project_path)
-        return _export_conm2(project, args.export_conm2,
-                             resolve_units(project, args.units))
+        system = resolve_units(project, args.units)
+        _, bdf_stamp = _stamps(project, system, args.generated)
+        try:
+            return _export_conm2(project, args.export_conm2, system, bdf_stamp)
+        except ValueError as exc:
+            print(f"error: {exc}", file=sys.stderr)
+            return 1
 
     # --report likewise takes the project from the first positional, so no module
     # name is needed for a report-only run.
@@ -307,7 +459,11 @@ def main(argv=None) -> int:
         parser.error(str(exc))
 
     project = io.load_project(args.project)
-    result = run(project)
+    try:
+        result = run(project)
+    except ValueError as exc:          # same one contract as the export routes
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
     system = resolve_units(project, args.units)
     # The two text reports take *converted* results plus a display label; the CSV
     # writer converts internally (M4-20 step 3), so it gets the raw results and
@@ -316,7 +472,12 @@ def main(argv=None) -> int:
     label = "Imperial" if system == UnitSystem.IMPERIAL else "SI"
 
     if args.output:
-        io.write_load_cases_csv(result.conditions, args.output, system=system)
+        # A downloaded CSV leaves the tool, so it owes the same G8.3 basis
+        # statement the GUI's does -- the text report to stdout does not, being
+        # a terminal view rather than an artifact.
+        csv_stamp, _ = _stamps(project, system, args.generated)
+        io.write_load_cases_csv(result.conditions, args.output,
+                                header_comment=csv_stamp, system=system)
         print(f"Wrote {len(conditions)} condition(s) to {args.output} ({label})")
     elif args.module == "engine" and project.engine is not None:
         print(text_report(project.engine, conditions, unit_system=label))

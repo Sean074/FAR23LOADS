@@ -552,9 +552,10 @@ def span_load_csv(arg: ResultsArg, header_comment: str = "", *,
 
 
 def write_span_load_csv(arg: ResultsArg, path: str, *,
+                        header_comment: str = "",
                         system: UnitSystem = UnitSystem.IMPERIAL) -> None:
     with open(path, "w", encoding="utf-8", newline="") as fh:
-        fh.write(span_load_csv(arg, system=system))
+        fh.write(span_load_csv(arg, header_comment, system=system))
 
 
 # --------------------------------------------------------------------------- #
@@ -1035,6 +1036,29 @@ def body_fitting_load_csv(arg, header_comment: str = "", *,
     return header_comment + buf.getvalue()
 
 
+def write_body_span_load_csv(arg, path: str, *,
+                             header_comment: str = "",
+                             system: UnitSystem = UnitSystem.IMPERIAL) -> None:
+    with open(path, "w", encoding="utf-8", newline="") as fh:
+        fh.write(body_span_load_csv(arg, header_comment, system=system))
+
+
+def write_body_fitting_load_csv(arg, path: str, *,
+                                header_comment: str = "",
+                                system: UnitSystem = UnitSystem.IMPERIAL) -> None:
+    with open(path, "w", encoding="utf-8", newline="") as fh:
+        fh.write(body_fitting_load_csv(arg, header_comment, system=system))
+
+
+def write_body_force_moment_cards(arg, path: str, sid_base: int = 1, *,
+                                  header_comment: str = "",
+                                  system: UnitSystem = UnitSystem.IMPERIAL) -> None:
+    with open(path, "w", encoding="utf-8") as fh:
+        fh.write(body_force_moment_cards(arg, sid_base=sid_base,
+                                         header_comment=header_comment,
+                                         system=system))
+
+
 # --------------------------------------------------------------------------- #
 # Tail chordwise-load export (Step C7, TAILDIST)
 # --------------------------------------------------------------------------- #
@@ -1220,9 +1244,10 @@ def tail_force_moment_cards(arg, sid_base: int = 1, *,
 
 
 def write_tail_chordwise_csv(arg, path: str, *,
+                             header_comment: str = "",
                              system: UnitSystem = UnitSystem.IMPERIAL) -> None:
     with open(path, "w", encoding="utf-8", newline="") as fh:
-        fh.write(tail_chordwise_csv(arg, system=system))
+        fh.write(tail_chordwise_csv(arg, header_comment, system=system))
 
 
 def write_tail_force_moment_cards(arg, path: str, sid_base: int = 1, *,
@@ -1573,9 +1598,10 @@ def control_surface_force_moment_cards(arg, sid_base: int = 1, *,
 
 
 def write_control_surface_csv(arg, path: str, *,
+                              header_comment: str = "",
                               system: UnitSystem = UnitSystem.IMPERIAL) -> None:
     with open(path, "w", encoding="utf-8", newline="") as fh:
-        fh.write(control_surface_csv(arg, system=system))
+        fh.write(control_surface_csv(arg, header_comment, system=system))
 
 
 def write_control_surface_force_moment_cards(

@@ -79,7 +79,10 @@ fallback, which understated h-tail inertia up to 3.8×, is fixed) and the
 **SI `GRAV` fix + CONM2 round-trip CI leg** (2026-08-10, the 0.5.0 review's
 CRITICAL **C1** and **F-G2**: the SI mass-check deck's gravity was 25.4× low and
 the mass family was the one deck family the harness never solved — both closed
-together, in both unit systems). The suite is green (ruff clean, smoke test
+together, in both unit systems) and the **CLI deliverable completion**
+(2026-08-10 — every deliverable reachable headless including the balanced deck,
+the CLI wing export through the LRA transfer, the G8.3 methods stamp on every
+headless CSV/BDF, and one error contract). The suite is green (ruff clean, smoke test
 PASS), the FAR23 GA path is Appendix-A oracle-locked, and both concept fixtures
 run end-to-end.
 
@@ -93,14 +96,16 @@ balancing-method theory document
 (`docs/20_theory/balanced_cases.md`), the concentrated-mass offset couples
 (plan 14) and the **empennage mass SSOT** (2026-08-10: tail decks gain inertia,
 the fin gains its two-axis inertia, and the `n = 1.0` export fallback is fixed)
-and the **SI `GRAV` fix + CONM2 round-trip CI leg** (2026-08-10, review C1/F-G2).
+and the **SI `GRAV` fix + CONM2 round-trip CI leg** (2026-08-10, review C1/F-G2)
+and the **CLI deliverable completion** (2026-08-10, review F-D1/F-C2/F-D3 + m2,
+absorbing L-8g).
 **Decision D-R1 (2026-08-10): the next release is 0.5.0 and it is held for the
 deliverable** — the report plus wing/body/tail (and balanced/CONM2, per D-R2)
-sbeam output, i.e. priority rows 1–12 — knowingly past the cadence rule's ~5-step
+sbeam output, i.e. priority rows 1–11 — knowingly past the cadence rule's ~5-step
 threshold; the mission is to keep that window short (~5–7 sessions). Scope
 review of record: `docs/50_reviews/2026-08-10_code_review_0_5_0.md`; per
 RELEASE_PROCESS §3.2 its CRITICAL/MAJOR findings block the tag until closed
-(all are inside rows 1–12).
+(all are inside rows 1–11).
 
 Reference-authority hierarchy: (1) `.BAS` listings + Appendix A printed output,
 (2) User's Guide CFR quotes (Jan-1994), (3) Code-manual 1990 prose.
@@ -113,15 +118,18 @@ Re-cut 2026-08-10 from the 0.5.0 code review
 ([`../50_reviews/2026-08-10_code_review_0_5_0.md`](../50_reviews/2026-08-10_code_review_0_5_0.md))
 and its user-resolved decisions **D-R1…D-R8**
 ([`../40_history/03_resolved_decisions.md`](../40_history/03_resolved_decisions.md)).
-**Rows 1–12 are the 0.5.0 release scope** — per D-R1 the release is held until
+**Rows 1–11 are the 0.5.0 release scope** — per D-R1 the release is held until
 they close; per D-R3 the ground/landing case families are explicitly out and
-open 0.6.0 (rows 13+). Phase order inside the release: deliverable completion
-(1–7), the report states its own basis and limits (8–11), release mechanics
-(12). **Phase 0 (correctness & gates) closed 2026-08-10** — its last item was
-the skipped-conditions record (F-C7). Review finding IDs cited per row
+open 0.6.0 (rows 12+). Phase order inside the release: deliverable completion
+(1–6), the report states its own basis and limits (7–10), release mechanics
+(11). **Phase 0 (correctness & gates) closed 2026-08-10** — its last item was
+the skipped-conditions record (F-C7). **Phase 1's CLI row closed 2026-08-10**
+(F-D1/F-C2/F-D3, m2, L-8g: every deliverable reachable headless, the wing export
+through the LRA transfer, the G8.3 stamp on every headless file, one error
+contract). Review finding IDs cited per row
 (C1, F-C\*, F-D\*, F-G\*, F-R\*, m\*) resolve in the review document.
 The earlier ordering rules (2026-08-09: wrong cards outrank missing cards;
-[V] items ranked, not opportunistic) still govern rows 14+. Historic step
+[V] items ranked, not opportunistic) still govern rows 13+. Historic step
 numbers (steps 8–14) are kept inside item names for traceability with plans
 09/11/12/13; the **Pri** column is ordinal only.
 
@@ -133,75 +141,76 @@ numbers (steps 8–14) are kept inside item names for traceability with plans
 | Pri | Item (detail below / in its plan) | What ships | Tag | Tier / effort | Depends on |
 |---|---|---|---|---|---|
 | **0.5.0 — Phase 1: deliverable completion** ||||||
-| 1 | CLI deliverable completion (review **F-D1**/**F-C2**/**F-D3**; absorbs **L-8g**, detail below; decisions **D-R5**) | `body`, balanced-deck and mass-deck export targets; the CLI wing export through the LRA transfer (axis pinned by test); the G8.3 methods stamp on every headless CSV/BDF incl. `--export-conm2`; one error contract (review m2) | E | M / M | — |
-| 2 | Balanced deck + CONM2 first-class (**D-R2**; review **F-D2**) | Methods stamps on both artifacts; Export-bundle + manifest rows; a balanced-cases report section (per-case n, residuals, hand pairs, mass-case identity) | E | M–L / M | — |
-| 3 | Fin chordwise deck → Fy (**D-R4**; review **F-C3**) | The chordwise vtail cards routed through `coordinates.tail_force_to_airplane` like the span family; axes stated in the deck header; `test_tail_deck_resultants` re-pinned to Fy | E | M / S | — |
-| 4 | Minted balanced SUBCASE ids (**D-R7**; review m1) | `subcase_id(case_ref)` + handedness suffix replaces `BALANCED_SID_BASE + i`; ids survive case-set edits; drift guard added | E | M / S | — |
-| 5 | `concept_heavy` joins the sbeam round-trip matrix (**D-R6** remainder; the export itself was fixed 2026-08-10 by the envelope sweep — diagnosis and detail below) | The fixture's wing deck solves in the round-trip gate matrix (six of six already export, and its seven wing channels are already digested) | E | S / S | — |
-| 6 | h-tail 23.427(a) handed balanced family (**D-R8**; review **F-R5**) — **design note before code** | A third component branch in `build_balanced_cases`: the unsymmetrical h-tail case assembled with left/right twins and six-DOF closure | E | L / M | design note |
-| 7 | Wing deck `$` width + centerline-clamp header line (rides the 0.5.0 digest wave; detail below) | 72-column wrap + clamp caveat; shares the one digest regeneration forced by Pri 3/6 | V | S / S | with Pri 3, 6 |
+| 1 | Balanced deck + CONM2 first-class (**D-R2**; review **F-D2**) | Export-bundle + manifest rows; a balanced-cases report section (per-case n, residuals, hand pairs, mass-case identity). *(The methods stamps on both artifacts shipped 2026-08-10 with the CLI row.)* | E | M–L / M | — |
+| 2 | Fin chordwise deck → Fy (**D-R4**; review **F-C3**) | The chordwise vtail cards routed through `coordinates.tail_force_to_airplane` like the span family; axes stated in the deck header; `test_tail_deck_resultants` re-pinned to Fy | E | M / S | — |
+| 3 | Minted balanced SUBCASE ids (**D-R7**; review m1) | `subcase_id(case_ref)` + handedness suffix replaces `BALANCED_SID_BASE + i`; ids survive case-set edits; drift guard added | E | M / S | — |
+| 4 | `concept_heavy` joins the sbeam round-trip matrix (**D-R6** remainder; the export itself was fixed 2026-08-10 by the envelope sweep — diagnosis and detail below) | The fixture's wing deck solves in the round-trip gate matrix (six of six already export, and its seven wing channels are already digested) | E | S / S | — |
+| 5 | h-tail 23.427(a) handed balanced family (**D-R8**; review **F-R5**) — **design note before code** | A third component branch in `build_balanced_cases`: the unsymmetrical h-tail case assembled with left/right twins and six-DOF closure | E | L / M | design note |
+| 6 | Wing deck `$` width + centerline-clamp header line (rides the 0.5.0 digest wave; detail below) | 72-column wrap + clamp caveat; shares the one digest regeneration forced by Pri 2/5 | V | S / S | with Pri 2, 5 |
 | **0.5.0 — Phase 2: the report states its basis and limits** ||||||
-| 8 | Manifest § renumber + pin (review **F-R2**) | Correct companion-file cross-references after the sign-conventions §2 insertion; the § values pinned by test | E | S / S | Pri 2 |
-| 9 | Disclaimer block in `methods_statement` (review **F-R3**) | The "initial-concept loads analysis, not a certification document" statement travels in every stamped file, not the title page alone | E | S / S | — |
-| 10 | Limitations completeness (review **F-R4**; **D-R3** statement) | `_STANDING_LIMITATIONS` gains: fin-only lateral aero (L-7), assumed-rectangular tail planforms (surface the in-band ASSUMED marker), the wing-stick centreline clamp, the lumped aileron couple, and the flight-only body deck (ground cases out per D-R3) — plus a completeness guard | E | M / S–M | — |
-| 11 | Per-case SF in `governing_loads_table` (review **F-R1**; M4-8 Layer-1 pre-slice) | The governing tables honour `ConditionResult.safety_factor` per case; the flat-1.5 test asserts the contract instead of the hole | E | M / S | — |
+| 7 | Manifest § renumber + pin (review **F-R2**) | Correct companion-file cross-references after the sign-conventions §2 insertion; the § values pinned by test | E | S / S | Pri 1 |
+| 8 | Disclaimer block in `methods_statement` (review **F-R3**) | The "initial-concept loads analysis, not a certification document" statement travels in every stamped file, not the title page alone | E | S / S | — |
+| 9 | Limitations completeness (review **F-R4**; **D-R3** statement) | `_STANDING_LIMITATIONS` gains: fin-only lateral aero (L-7), assumed-rectangular tail planforms (surface the in-band ASSUMED marker), the wing-stick centreline clamp, the lumped aileron couple, and the flight-only body deck (ground cases out per D-R3) — plus a completeness guard | E | M / S–M | — |
+| 10 | Per-case SF in `governing_loads_table` (review **F-R1**; M4-8 Layer-1 pre-slice) | The governing tables honour `ConditionResult.safety_factor` per case; the flat-1.5 test asserts the contract instead of the hole | E | M / S | — |
 | **0.5.0 — Phase 3: release mechanics** ||||||
-| 12 | 0.5.0 hygiene + cut (review m14, m19–m21) | Workbook per-sheet unit statements; root cleanup (`.DS_Store` untracked+ignored, root review files → `docs/50_reviews/`, `requirements.txt` deleted or regenerated, RELEASE_PROCESS §1 pointer, classifiers); then RELEASE_PROCESS §4: version bump, changelog date (release notes state the flight-only body deck and the lateral-aero caveat), tag, archive verification | E | S / S | Pri 1–11 |
+| 11 | 0.5.0 hygiene + cut (review m14, m19–m21) | Workbook per-sheet unit statements; root cleanup (`.DS_Store` untracked+ignored, root review files → `docs/50_reviews/`, `requirements.txt` deleted or regenerated, RELEASE_PROCESS §1 pointer, classifiers); then RELEASE_PROCESS §4: version bump, changelog date (release notes state the flight-only body deck and the lateral-aero caveat), tag, archive verification | E | S / S | Pri 1–10 |
 | **Post-0.5.0 (0.6.0 candidates and ranked [V])** ||||||
-| 13 | ONENGOUT fixture data | Turboprop horsepower + an RJ `one_engine_out` slice; the 23.367 module executes on shipped fixtures | E | S / S | — (sequence-independent, ship in any gap) |
-| 14 | Wing case rows can name a flight condition their loads were not computed at *(new 2026-08-10, found by the envelope single-owner sweep)* | The case index and deck `$ SUBCASE` line state the entered case's own CL/V when it has them, while keeping SELECT's `case_id` (M4-2 decision 1) — **user decision: which of the two conventions the row states** | E | S–M / S | — (sequence-independent) |
-| 15 | Step 9 — discrete controls + T-tail transfer (plan 09 T6–T7) | Hinge/actuator tributary `FORCE` reactions and the first hinge-moment output; the T-tail fin deck carries the h-tail transfer at the tip | E | L / M–L | step 7 ✅ |
-| 16 | Step 10 — ground-case distributed loads (M4-6) | Gear reactions as applied `FORCE` cards on the body deck; pressurization case — **the 0.6.0 headline per D-R3** | E | L / L | — (design-note gated) |
-| 17 | Step 11 — balanced landing cases (plan 11 B8b) | Free-free ground cases in the assembled deck | E | L / M | steps 6 ✅, Pri 16 |
-| 18 | Step 12 — LRA beam-model export + import | Cards delivered on the consumer's own node line; standalone LRA skeleton export | E | L / M–L | step 5 ✅ |
-| 19 | Step 13 — side-of-body reporting node | SOB internal shear/bending/torsion reported as the wing root design loads | E | M / M | step 5 ✅ |
-| 20 | Step 14 — real stiffness / assembled airframe properties (L-1) | Real section properties replacing the `MAT1` placeholder | E | L / M | Pri 19 |
-| 21 | M4-8 — safety-factor policy, Layer 1 | One resolver as the sole authority for every non-1.5 factor (Pri 11 ships its report-side pre-slice) | E | M / S–M | none — sequence-independent, ship in any gap |
-| 22 | The aileron's own lift increment is not distributed | `ACRL` wing cards gain the aero half of the couple (acts ~70 % span) | V | L / M | pairs plan 09 spanwise work |
-| 23 | RJ pitch-gate exceedance diagnosis | Element-count study → R3 vs `Cm` split; plan 13 G9 inherits the ceiling | V | M / S | pairs M4-19 |
-| 24 | Payload cases the weight database can produce (sibling pair) | Four more fixtures gain balanced cases → more assembled decks in CI | V | M–L / M | user decision: loading definition vs fixture fix |
-| 25 | Wing-tank fuel separability | Ends the same pounds riding both beams on the three fuel-in-wing fixtures | V | L / M | pairs plan 12 C1 |
-| 26 | Lateral body aero `Cy_β`/`Cn_β` (L-7) | Honest lateral `n_y`/`ψ̈` (fin-only today — over-stated, conservative) | V | L / M | pairs M4-19 |
-| 27 | Empennage planform polylines (fixture data) | Real taper in the tail card distributions instead of the `assumed` rectangle | V | S / S | — |
-| 28 | h-tail attachment `fuselage_width` (fixture data) | Real attachment stations instead of the `±ds/2` fallback | V | S / S | pairs Pri 19 (SOB) |
-| 29 | Load-application axis vs elastic axis — document the torsion reference | Convention in `coordinates.py` + spec + deck `$` header | V | S / S | partially superseded by Pri 18 (LRA import) |
-| 30 | Gust spanwise-distribution decision | Study + recorded decision | V | S / S | — |
-| 31 | M4-19 — Multhopp distributed fuselage `Cm` | A distributed body pitching load for `body_loads` | V | L / M | — |
-| 32 | M4-21 — fuselage pitching load factor | d'Alembert pitch term at each body station | V | M / S | pairs M4-4 |
-| 33 | M4-4 — per-CG precise inertia in SELECT | WTONECG inertia wired into checked-maneuver `Iyy` / v-tail `IZZ` | V | M / S | — |
-| 34 | M4-3 — ONENGOUT data-flow + turboprop gate | Geometry provenance, `is_turboprop` gate, VSF decision | V | M / S | — |
-| 35 | L-8i — per-page LIMIT CSV units | Converted, unit-suffixed analysis-page downloads | V | S / S | — |
-| 36 | F25-0 — verify pass | Current CFR text for every *(verify)* row | V | S / S | precedes any F25 build step |
-| 37 | Mach-margin route for the FAR 23 categories | Category gate + per-category default | V | S / S | — |
-| 38 | Flutter-clearance Mach basis for transports | Verified reference + decision, then an opt-in variant | V | S / S | — |
-| 39 | Upset-criterion speed increase (25.335(b)(1)) | The 20 s dive integration the margin route lacks | V | M / M | — |
-| 40 | F25-1 — transport category "T" envelope pack | 25.337 floors, 25.341 U_ref schedule, VB | V | M / M | — |
-| 41 | F25-4 — ground-loads parameter variant | 10/6 fps, lift = W, LDW/MTOW pairing | V | M / M | coordinates with Pri 16 |
-| 42 | Split `40_history/00_completed_development.md` by era | Mechanical split + index file | V | S / S | after the working tree is committed |
+| 12 | ONENGOUT fixture data | Turboprop horsepower + an RJ `one_engine_out` slice; the 23.367 module executes on shipped fixtures | E | S / S | — (sequence-independent, ship in any gap) |
+| 13 | Wing case rows can name a flight condition their loads were not computed at *(new 2026-08-10, found by the envelope single-owner sweep)* | The case index and deck `$ SUBCASE` line state the entered case's own CL/V when it has them, while keeping SELECT's `case_id` (M4-2 decision 1) — **user decision: which of the two conventions the row states** | E | S–M / S | — (sequence-independent) |
+| 14 | Step 9 — discrete controls + T-tail transfer (plan 09 T6–T7) | Hinge/actuator tributary `FORCE` reactions and the first hinge-moment output; the T-tail fin deck carries the h-tail transfer at the tip | E | L / M–L | step 7 ✅ |
+| 15 | Step 10 — ground-case distributed loads (M4-6) | Gear reactions as applied `FORCE` cards on the body deck; pressurization case — **the 0.6.0 headline per D-R3** | E | L / L | — (design-note gated) |
+| 16 | Step 11 — balanced landing cases (plan 11 B8b) | Free-free ground cases in the assembled deck | E | L / M | steps 6 ✅, Pri 15 |
+| 17 | Step 12 — LRA beam-model export + import | Cards delivered on the consumer's own node line; standalone LRA skeleton export | E | L / M–L | step 5 ✅ |
+| 18 | Step 13 — side-of-body reporting node | SOB internal shear/bending/torsion reported as the wing root design loads | E | M / M | step 5 ✅ |
+| 19 | Step 14 — real stiffness / assembled airframe properties (L-1) | Real section properties replacing the `MAT1` placeholder | E | L / M | Pri 18 |
+| 20 | M4-8 — safety-factor policy, Layer 1 | One resolver as the sole authority for every non-1.5 factor (Pri 10 ships its report-side pre-slice) | E | M / S–M | none — sequence-independent, ship in any gap |
+| 21 | The aileron's own lift increment is not distributed | `ACRL` wing cards gain the aero half of the couple (acts ~70 % span) | V | L / M | pairs plan 09 spanwise work |
+| 22 | RJ pitch-gate exceedance diagnosis | Element-count study → R3 vs `Cm` split; plan 13 G9 inherits the ceiling | V | M / S | pairs M4-19 |
+| 23 | Payload cases the weight database can produce (sibling pair) | Four more fixtures gain balanced cases → more assembled decks in CI | V | M–L / M | user decision: loading definition vs fixture fix |
+| 24 | Wing-tank fuel separability | Ends the same pounds riding both beams on the three fuel-in-wing fixtures | V | L / M | pairs plan 12 C1 |
+| 25 | Lateral body aero `Cy_β`/`Cn_β` (L-7) | Honest lateral `n_y`/`ψ̈` (fin-only today — over-stated, conservative) | V | L / M | pairs M4-19 |
+| 26 | Empennage planform polylines (fixture data) | Real taper in the tail card distributions instead of the `assumed` rectangle | V | S / S | — |
+| 27 | h-tail attachment `fuselage_width` (fixture data) | Real attachment stations instead of the `±ds/2` fallback | V | S / S | pairs Pri 18 (SOB) |
+| 28 | Load-application axis vs elastic axis — document the torsion reference | Convention in `coordinates.py` + spec + deck `$` header | V | S / S | partially superseded by Pri 17 (LRA import) |
+| 29 | Gust spanwise-distribution decision | Study + recorded decision | V | S / S | — |
+| 30 | M4-19 — Multhopp distributed fuselage `Cm` | A distributed body pitching load for `body_loads` | V | L / M | — |
+| 31 | M4-21 — fuselage pitching load factor | d'Alembert pitch term at each body station | V | M / S | pairs M4-4 |
+| 32 | M4-4 — per-CG precise inertia in SELECT | WTONECG inertia wired into checked-maneuver `Iyy` / v-tail `IZZ` | V | M / S | — |
+| 33 | M4-3 — ONENGOUT data-flow + turboprop gate | Geometry provenance, `is_turboprop` gate, VSF decision | V | M / S | — |
+| 34 | L-8i — per-page LIMIT CSV units | Converted, unit-suffixed analysis-page downloads | V | S / S | — |
+| 35 | F25-0 — verify pass | Current CFR text for every *(verify)* row | V | S / S | precedes any F25 build step |
+| 36 | Mach-margin route for the FAR 23 categories | Category gate + per-category default | V | S / S | — |
+| 37 | Flutter-clearance Mach basis for transports | Verified reference + decision, then an opt-in variant | V | S / S | — |
+| 38 | Upset-criterion speed increase (25.335(b)(1)) | The 20 s dive integration the margin route lacks | V | M / M | — |
+| 39 | F25-1 — transport category "T" envelope pack | 25.337 floors, 25.341 U_ref schedule, VB | V | M / M | — |
+| 40 | F25-4 — ground-loads parameter variant | 10/6 fps, lift = W, LDW/MTOW pairing | V | M / M | coordinates with Pri 15 |
+| 41 | Split `40_history/00_completed_development.md` by era | Mechanical split + index file | V | S / S | after the working tree is committed |
 
 ---
 
 # Item detail — 0.5.0 release scope (2026-08-10 review)
 
-The finding bodies for rows 1–12 live in the review of record —
+The finding bodies for rows 1–11 live in the review of record —
 [`../50_reviews/2026-08-10_code_review_0_5_0.md`](../50_reviews/2026-08-10_code_review_0_5_0.md)
 §1–§3 (cited per row) — per the never-duplicate rule; the notes here carry only
 what the review does not. Absorbed items keep their original bodies below:
-**row 1** absorbs *L-8g*;
-**row 5** absorbs *`concept_heavy`'s wing deck is absent from the Imperial
-baseline* and the open-defect entry; **row 7** is the former wing-deck
+**row 4** absorbs *`concept_heavy`'s wing deck is absent from the Imperial
+baseline* and the open-defect entry; **row 6** is the former wing-deck
 `$`-width item unchanged. Scope decisions of record: **D-R1…D-R8** in
 [`../40_history/03_resolved_decisions.md`](../40_history/03_resolved_decisions.md).
 
 Sequencing notes:
 
-- **One digest wave.** Rows 3, 4 and 7 (and row 1's CLI wing-axis change)
-  all change exported bytes; land them adjacently so the Imperial digest set
-  regenerates once, with each change's own guard test distinguishing intent
-  from drift. The band registry (closed 2026-08-10) already spent one
-  regeneration on the **two balanced-deck digests** — a node renumber, nothing
-  else moved — so the wave ahead is the wing/tail decks only.
-- **Row 6 is the release's one L-tier physics step** (user decision D-R8,
+- **One digest wave.** Rows 2, 3 and 6 all change exported bytes; land them
+  adjacently so the Imperial digest set regenerates once, with each change's own
+  guard test distinguishing intent from drift. The band registry (closed
+  2026-08-10) already spent one regeneration on the **two balanced-deck
+  digests** — a node renumber, nothing else moved — so the wave ahead is the
+  wing/tail decks only. *(The CLI row's LRA transfer, expected to join this wave,
+  turned out to move no bytes: `ref_axis_pct` is 0.25 on every shipped fixture,
+  so the transfer is a no-op there and is pinned instead on a constructed
+  non-quarter-chord project.)*
+- **Row 5 is the release's one L-tier physics step** (user decision D-R8,
   taken against the file-and-state recommendation, accepting ~1–1.5 sessions).
   Practice 1 applies in full: design note agreed in chat before code — the
   23.427(a) load split source (SELECT's unsymmetrical condition), the assembly
@@ -210,13 +219,13 @@ Sequencing notes:
   (conventional wing/v-tail cases bit-identical; the six-DOF card-text gate
   `test_the_deck_balances_from_its_own_cards`, shipped 2026-08-10, passing on
   the new family).
-- **Row 5's diagnosis is done** (D-R6, answered 2026-08-10 by the envelope
+- **Row 4's diagnosis is done** (D-R6, answered 2026-08-10 by the envelope
   single-owner sweep): the **derived route** was the broken side, not the fixture
   data. `concept_heavy` now exports its wing deck headless
   (`--export-sbeam`/`--stick-model`) and its seven wing channels joined the
-  Imperial baseline in the sweep's own regeneration. What is left of row 5 is
+  Imperial baseline in the sweep's own regeneration. What is left of row 4 is
   membership of the sbeam round-trip gate matrix.
-- **Row 11 is a deliberate pre-slice of M4-8 Layer 1** (row 21): it fixes the
+- **Row 10 is a deliberate pre-slice of M4-8 Layer 1** (row 20): it fixes the
   report-side flat-1.5 assumption only; the resolver as sole authority still
   closes under M4-8.
 
@@ -224,7 +233,7 @@ Sequencing notes:
 
 # Item detail — mission path [E]
 
-### [E→0.5.0 row 5] `concept_heavy`'s wing deck is absent from the Imperial baseline *(new 2026-08-09, found by the concentrated-mass step)* — **resolved 2026-08-10 by the envelope single-owner sweep**
+### [E→0.5.0 row 4] `concept_heavy`'s wing deck is absent from the Imperial baseline *(new 2026-08-09, found by the concentrated-mass step)* — **resolved 2026-08-10 by the envelope single-owner sweep**
 `tests/imperial_baseline.py::artifacts` loads the project without building the
 envelope, so `build_net_loads` raised for `concept_heavy` and its
 `sbeam/wing_cards`, `wing_stick` and `wing_span` artifacts were never produced —
@@ -239,10 +248,10 @@ that names only a `case` reference could not be resolved on any path that does n
 persist the envelope — review **F-C6**, closed 2026-08-10. `artifacts` is unchanged
 and `concept_heavy` now digests all seven wing channels (`csv/net_loads`,
 `csv/wing_inertia`, `txt/*`, `sbeam/wing_cards`, `wing_span`, `wing_stick`), and
-`--export-sbeam --stick-model` writes its three files. **Row 5 keeps only** the
+`--export-sbeam --stick-model` writes its three files. **Row 4 keeps only** the
 sbeam round-trip gate-matrix membership.
 
-### [E→row 14] A wing case row can name a flight condition its loads were not computed at *(new 2026-08-10, found by the envelope single-owner sweep)*
+### [E→row 13] A wing case row can name a flight condition its loads were not computed at *(new 2026-08-10, found by the envelope single-owner sweep)*
 Surfaced by the F-C6 sweep, which made this visible headless rather than causing
 it. `wing_case_ref` implements M4-2 decision 1 — a condition SELECT already named
 keeps SELECT's `CaseRef`, *unchanged* — and that `CaseRef` carries SELECT's V-n
@@ -381,7 +390,7 @@ against element count on the RJ first — if it scales with `elements`, it is R3
 if not, it is the `Cm` split. Tier M. Effort: S to diagnose, then it becomes an
 M4-19 sub-item.
 
-### [V — 0.5.0 row 7] Wing deck `$` comments overrun the 72-column free-field width *(new 2026-08-08, found by the step-1 sweep; scheduled 2026-08-10 to ride the 0.5.0 digest wave)*
+### [V — 0.5.0 row 6] Wing deck `$` comments overrun the 72-column free-field width *(new 2026-08-08, found by the step-1 sweep; scheduled 2026-08-10 to ride the 0.5.0 digest wave)*
 Free-field bulk data is 72 columns. The wing card / stick decks overrun on two
 lines — `$ Axes: SLOADS station/butt/waterline -> sbeam CID 0 (identity);
 lengths in …` and `$ FORCE set sums to root Sz = … ; MOMENT(My) set sums to root
@@ -812,26 +821,6 @@ wing root-chord station for the `∂ε_u/∂α` curve. Update
 `reference/fuselage_pitching_moment.md` (which currently documents the Munk-only
 scope and its deliberate omissions) alongside the calc.
 
-### [E — absorbed into 0.5.0 row 1] L-8g — CLI exports carry no methods & limitations stamp
-
-> **Promoted 2026-08-10 (review findings F-D1/F-D3, decision D-R5):** ships
-> inside 0.5.0 row 1 with the CLI `body`/balanced/mass targets and the LRA
-> transfer. The review widened the scope: `--export-conm2` output is also
-> unstamped, and the byte-change question is settled by D-R5 (the CLI wing
-> deck's bytes change anyway for the LRA transfer, so the stamp rides the
-> same wave).
-`cli.py`'s `-o` load-case CSV and its `--export-sbeam` CSVs/BDFs have never
-carried the G8.3 methods block that the GUI bundle stamps into every file, so a
-headless export states its ULTIMATE basis, category and approved corrections
-nowhere. (Units *are* stated — the column headers and the decks' `$` axis
-comments carry them since M4-20 steps 3–5 — so this is a G8.3 coverage gap, not a
-units one.) The writers already take `header_comment=`; the work is deciding
-whether a headless export should change bytes, and threading
-`csv_comment_block`/`bdf_comment_block` through `_export_sbeam`. Found while
-implementing M4-20 step 5. **Note (M4-2):** every deck now carries its own `$`
-subcase-map block regardless of `header_comment`, so a headless deck already
-states its case identity — this item is now only about the methods/basis block.
-
 ### [V] L-8i — Per-page LIMIT CSVs ignore the unit toggle and state no units
 `wing_loads`, `fuselage_loads`, `tail_loads` and `loads_plots` each build a
 download CSV from their own row dicts (`csv.DictWriter` over `wing_load_rows(...)`
@@ -856,7 +845,7 @@ Mechanical (S); do after the current working tree is committed.
 ## Open defects (index)
 
 - **Review 2026-08-10 unscheduled findings [Minor/NIT].** The 0.5.0 review's
-  MINOR findings not promoted into rows 1–12 (m3–m13, m15–m18: `stick_model_bdf`
+  MINOR findings not promoted into rows 1–11 (m3–m13, m15–m18: `stick_model_bdf`
   single-case GRIDs, CONM2 card width vs classical free-field, wing-band
   capacity guard, tail-arm duplicate entry `xt25` vs `xtc`, flap-config tail
   station, zero-ballast z-check asymmetry, tail-strip chordwise inertia torsion,

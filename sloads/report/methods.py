@@ -349,6 +349,13 @@ def strip_comment_lines(csv_text: str) -> str:
     repo that parses an exported CSV must go through this (or pandas'
     ``comment="#"``) -- G8.3 made the stamp universal, and a reader that does not
     skip it silently takes the first comment line as its header row.
+
+    **CSV only, deliberately.** There is no ``$`` analogue for a bulk-data deck
+    and there must not be one: a deck's ``$`` lines are mostly the deliverable
+    itself -- the subcase map, the axis statement, the per-case residuals -- and
+    the stamp is not separable from them by line prefix. A reader that wants the
+    unstamped deck rebuilds it with ``header_comment=""``; a test that wants to
+    check the stamp asserts the deck *ends with* its unstamped form.
     """
     # keepends: ``csv.DictWriter`` emits CRLF, and rejoining on "\n" would
     # silently rewrite every line ending in the payload it is meant to leave alone.

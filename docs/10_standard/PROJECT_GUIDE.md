@@ -229,7 +229,7 @@ FAR23LOADS/
 │   │   ├── results_review.py     #   Export   — consolidated governing loads
 │   │   └── export_report.py      #   Export   — project JSON + CSVs + sbeam BDF + .xlsx workbook + summary report (.tex/.pdf) + export-scope toggle (D8, G8)
 │   └── data/reference_aircraft.csv
-├── cli.py                        # `python cli.py engine project.json -o out.csv`; `--export-sbeam`; `--report out.tex|out.pdf`
+├── cli.py                        # `python cli.py engine project.json -o out.csv`; `--export-sbeam --export-target <t>` (every deliverable, incl. `balanced`/`mass`); `--report out.tex|out.pdf`
 ├── tests/
 │   ├── test_engine.py            # current test_calc.py (renamed)
 │   ├── test_units.py, test_report.py, test_io.py

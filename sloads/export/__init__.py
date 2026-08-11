@@ -12,7 +12,8 @@ all four component families plus the case index:
   wing load (``Project.loads.wing_net``).
 - **Body / fuselage** — :func:`body_span_load_csv`, :func:`body_force_moment_cards`,
   :func:`body_fitting_load_csv` (the wing-attach fitting loads, reported beside
-  the FORCE set rather than in it), :func:`body_station_gids`.
+  the FORCE set rather than in it) — all three with ``write_*`` variants —
+  and :func:`body_station_gids`.
 - **Tail** — :func:`tail_chordwise_csv`, :func:`tail_force_moment_cards`
   (+ ``write_*`` variants).
 - **Control surfaces** — :func:`control_surface_csv`,
@@ -71,6 +72,9 @@ from .sbeam_bridge import (
     tail_force_moment_cards,
     tail_station_gid,
     wing_nodal_loads,
+    write_body_fitting_load_csv,
+    write_body_force_moment_cards,
+    write_body_span_load_csv,
     write_case_index_csv,
     write_control_surface_csv,
     write_control_surface_force_moment_cards,
@@ -100,8 +104,11 @@ __all__ = [
     "write_stick_model_bdf",
     # Body / fuselage
     "body_span_load_csv",
+    "write_body_span_load_csv",
     "body_force_moment_cards",
+    "write_body_force_moment_cards",
     "body_fitting_load_csv",
+    "write_body_fitting_load_csv",
     "body_station_gids",
     "beam_station_gid",
     # Tail

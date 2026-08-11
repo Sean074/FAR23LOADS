@@ -779,7 +779,41 @@ return strings (with thin `write_*` file wrappers), and do no physics.
   the CLI or the GUI; control-surface decks are permanently out of scope (their
   chordwise `x` is a fraction of chord, so there is no geometry to solve). The
   solver enters as a pinned optional extra, `pip install -e '.[solver]'`.
-- **CLI:** `python cli.py --export-sbeam <prefix> <project.json> [--stick-model]`.
+- **CLI — the whole deliverable menu is headless (0.5.0 row 1, review F-D1).**
+  `python cli.py --export-sbeam <prefix> <project.json> --export-target <t>
+  [--stick-model]`, where `<t>` is one of `wing` (default), `body`, `tail`,
+  `htail-span`, `vtail-span`, `control`, `balanced` (the assembled full-span
+  free-free deck — the mission's primary deliverable, previously writable only
+  from the Balanced Cases page) or `mass` (the CONM2/MASSSET model; the same
+  owner and the same file names as `--export-conm2`, which is kept because it
+  shipped first). `cli.EXPORT_TARGETS` is the single list, handed to argparse
+  and pinned against the CLI docstring by
+  `tests/test_cli.py::test_the_export_menu_is_the_deliverable_menu`.
+- **CLI wing decks are stated about the loads reference axis** (decision **D-R5**,
+  review F-C2). The headless route transfers through
+  `net_loads.loads_ref_axis_results` exactly as the GUI/report route does, so the
+  two front-ends emit the same deck and the module contract ("an export built
+  from a `Project` first transfers to the LRA") holds on the route the sizing
+  loop scripts. The axis travels in-band (span-CSV `MyyAxis`, deck `$` header) and
+  is pinned by `test_the_cli_wing_deck_is_stated_about_the_loads_reference_axis`
+  on a project whose LRA is *not* the quarter chord — on every shipped fixture
+  `ref_axis_pct` is 0.25, so the transfer is a no-op and exported bytes are
+  unchanged.
+- **Every headless CSV/BDF carries the Step G8.3 methods & limitations stamp**
+  (L-8g / review F-D3), including `-o` module CSVs and the `--export-conm2`
+  artifacts: one stamp per run, built from the resolved unit system and handed to
+  every writer, so the files of one export cannot disagree about their basis or
+  their units. Scope is always the full case set (the Critical Loads opt-out is
+  GUI session state). No timestamp unless `--generated` supplies one, so two
+  headless runs of one project are byte-identical and diffable.
+- **One CLI error contract** (review m2): an absent or invalid input is
+  `error: <message>` on stderr with exit status 1 — never a traceback, never a
+  partial artifact set, on every route (module run, sbeam export, mass export).
+  The single exception is the `control` target, where an **absent**
+  control-surface slice (`MissingInputError`) skips that surface because the
+  three are independent inputs, while an **invalid** one (plain `ValueError`)
+  fails the run; a target where every surface is absent fails too. This is the
+  `00_program_overview.md` error-handling contract applied at the CLI boundary.
 - **Deck case identity — `SUBCASE`/`SID` numbering (M4-2).** Every deck's
   `SUBCASE` and its load-set `SID` are the **same integer**, and that integer is
   the case's own id through `case_ids.subcase_id`: a per-component block of 100
