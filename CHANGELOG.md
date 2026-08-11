@@ -12,6 +12,20 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **`concept_heavy` joins the sbeam round-trip gate.** 0.5.0 row 1 — the
+  remainder of decision **D-R6**, whose diagnosis (review **F-C6**) had already
+  restored the fixture's export. Its wing deck now solves in the real solver, in
+  both unit systems, on the `WING_MATRIX` leg of
+  `tests/test_sbeam_roundtrip.py`. It is the only fixture in that matrix whose
+  wing cases name **only** a V-n case reference — no `cl`, no `v_eas_kt`, no
+  `nz` — so until now the *derived* CL/V route, the one F-C6 found broken, had
+  no solver coverage at all: the deck it produces was never handed to sbeam in
+  CI. It also carries a second, differently-shaped concentrated wing item (a
+  600 lb store per side, offset in `z` as well as `x`), so the offset-couple
+  `MOMENT` cards are now exercised on two independent geometries rather than
+  `atr42_100` alone. Wing leg only — the fixture assembles no balanced case, so
+  it has no body, tail or assembled deck to gate. No shipped bytes move.
+
 - **The assembled deck and the mass model are first-class deliverables.** 0.5.0
   row 1 — decision **D-R2**, review finding **F-D2**. The mission's *primary*
   loads output was a page-only download: `balanced_airframe.bdf` left the tool

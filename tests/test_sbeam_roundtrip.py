@@ -38,7 +38,9 @@ The strongest assertions here are the ones with two independent producers:
 
 Scope (S-2/S-3/S-4): ``ga6_normal`` + ``concept_regional_jet``, Imperial + SI,
 across the wing stick deck, test-only body/tail wrappers, and the assembled
-full-span deck. Control-surface decks are permanently out -- their chordwise
+full-span deck; the wing leg adds ``atr42_100`` and ``concept_heavy`` for the
+routes that pair cannot reach (see ``WING_MATRIX``). Control-surface decks are
+permanently out -- their chordwise
 ``x`` is a fraction of chord with no chord length on the result, so there is no
 geometry to solve (S-3).
 
@@ -101,21 +103,31 @@ _ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 #: Decision S-4. ``ga6_normal`` is the FAR23 Appendix-A oracle fixture;
 #: ``concept_regional_jet`` is the flagship concept fixture and the mission's own
-#: subject. ``concept_heavy`` is excluded until its export defect is closed (see
-#: the backlog's "cannot be exported to sbeam"); the twins add solve time without
-#: adding a deck family.
+#: subject. ``concept_heavy`` is wing-only (see ``WING_MATRIX``); the twins add
+#: solve time without adding a deck family.
 MATRIX = ("ga6_normal.project.json", "concept_regional_jet.project.json")
 
-#: The wing leg adds ``atr42_100`` -- the only fixture in the harness whose wing
-#: hangs **concentrated** masses (engines, nacelles, wing fuel), and therefore
-#: the only one whose deck carries the offset-couple ``MOMENT`` cards that
-#: restore their lever arms. Both MATRIX fixtures are mass-free, so before this
-#: the solver leg could not tell whether sbeam *honours* an ``Mx`` component or
-#: silently drops it -- and W-d, which compares element 1's end-B bending with
-#: the NETLOADS root ``Mxx``, is exactly the assertion that would catch it (it
-#: read 1.91 % high here until the couples existed). Wing-only: this fixture
-#: assembles no balanced case, so it has no business in the other legs.
-WING_MATRIX = MATRIX + ("atr42_100.project.json",)
+#: The wing leg adds two fixtures, each for a route the MATRIX pair cannot reach.
+#:
+#: ``atr42_100`` is the only fixture whose wing hangs **concentrated** masses
+#: (engines, nacelles, wing fuel), and therefore the only one whose deck carries
+#: the offset-couple ``MOMENT`` cards that restore their lever arms. Both MATRIX
+#: fixtures are mass-free, so before this the solver leg could not tell whether
+#: sbeam *honours* an ``Mx`` component or silently drops it -- and W-d, which
+#: compares element 1's end-B bending with the NETLOADS root ``Mxx``, is exactly
+#: the assertion that would catch it (it read 1.91 % high here until the couples
+#: existed).
+#:
+#: ``concept_heavy`` is the fixture whose wing case names **only** a V-n case
+#: reference (``case: 3``, no ``cl``/``v_eas_kt``), so its cards come from the
+#: *derived* CL/V route -- the route review F-C6 found broken and closed on
+#: 2026-08-10, and the one no other member of this matrix exercises. It also
+#: carries a second, differently-shaped concentrated item (a 600 lb store per
+#: side, offset in ``z`` as well as ``x``).
+#:
+#: Wing-only, both of them: neither fixture assembles a balanced case, so
+#: neither has any business in the other legs.
+WING_MATRIX = MATRIX + ("atr42_100.project.json", "concept_heavy.project.json")
 
 #: Varying the unit system is what makes a *solve* catch a
 #: ``moment.factor != force.factor x length.factor`` slip (plan 07's G2), which a

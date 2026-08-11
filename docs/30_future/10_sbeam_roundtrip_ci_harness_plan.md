@@ -460,6 +460,15 @@ a derivation gap in the derived-case route; decide which, then fix the fixture
 or the derivation. It keeps that fixture out of the S-4 matrix until closed, so
 it belongs in `00_backlog.md` under **Open defects**, not inside this step.
 
+**Closed 2026-08-10.** The **derived route** was the broken side, not the
+fixture data (decision D-R6's diagnosis): `net_loads._air_cl_v` read
+`project.envelope` directly, so a wing case naming only a `case` reference could
+not resolve on any path that does not persist the envelope — review finding
+F-C6. `concept_heavy` then joined the **wing leg** of the matrix
+(`WING_MATRIX`), which is where it belongs: it assembles no balanced case, and
+it is the only member whose cards come from that derived CL/V route. S-4's own
+two-fixture matrix is unchanged for the body, tail and assembled legs.
+
 ## 9. Effort
 
 **M (~1–1.5 sessions).** Steps 2–4 are the substance; step 2's body wrapper is

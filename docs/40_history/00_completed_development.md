@@ -10,6 +10,20 @@ Acceptance**, **Key decisions**.
 
 ---
 
+## `concept_heavy` in the sbeam round-trip gate (0.5.0 Phase 1 row 1 — complete 2026-08-10, tier S)
+
+Closed the remainder of decision **D-R6** (its diagnosis, review **F-C6**, had
+already restored the export): `concept_heavy.project.json` joins `WING_MATRIX`
+in `tests/test_sbeam_roundtrip.py`, so its wing deck solves in the real solver
+in both unit systems. It is the matrix's only fixture whose wing cases name only
+a V-n `case` reference, which puts the *derived* CL/V route — the one F-C6 fixed
+— under solver coverage for the first time, and its 600 lb-per-side store gives
+the offset-couple `MOMENT` cards a second geometry beside `atr42_100`. Wing leg
+only (the fixture assembles no balanced case); no shipped bytes move; plan 10
+§8.2's defect note is marked closed.
+
+---
+
 ## Minted balanced SUBCASE ids (0.5.0 Phase 1 row 1 — complete 2026-08-10, tier M)
 
 Closed review finding **m1**; decision of record **D-R7**. The assembled deck's
