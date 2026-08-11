@@ -559,6 +559,11 @@ return strings (with thin `write_*` file wrappers), and do no physics.
   support whose reaction *is* the residual; SUBCASE/SID `5001+`. **No free-body
   cut reaction appears** (the seam rule). The residual before closure and the
   relief applied are stated on the result, in the UI and in the deck header.
+  **Surfaces (0.5.0 row 1, D-R2):** the Balanced Cases page (stamped download),
+  `cli.py --export-target balanced`, the Export page's own download row **and
+  its bundle `.zip`**, with report §6 and the manifest as the controlling
+  document's account of it — the deck was page-only, unstamped and unnamed by
+  the report until then (review F-D2).
   **The B-2 partition has an edge-case gate** (review F-C5, 2026-08-10): WING-tagged
   items are kept out of the fuselage inertia set precisely because the wing set
   spreads them, so a loading carrying WING item mass against a wing that
@@ -571,7 +576,8 @@ return strings (with thin `write_*` file wrappers), and do no physics.
   reader-facing reason) per dropped condition, and the record is stated on three
   surfaces: the `ModuleResult` (a final "Assembly record — conditions not
   assembled" condition carrying the count and the grouped reasons), the deck's
-  own `$ CONDITIONS NOT ASSEMBLED` block, and report §4. Reason codes:
+  own `$ CONDITIONS NOT ASSEMBLED` block, and report §4 (beside the assembled
+  half of the same statement, report §6). Reason codes:
   `out-of-family` (h-tail, fuselage, ground and ONENGOUT conditions — the
   deliberate exclusion), `no-fin-loads`, `no-vn-point`, `no-cg-case`,
   `loading-not-derivable`. The record is emitted whether or not anything was
@@ -666,8 +672,16 @@ return strings (with thin `write_*` file wrappers), and do no physics.
   `MASSSET` SIDs `9301+`, `GRAV` SIDs `9401+` — disjoint from every GID band.
   A payload case is exported only when the weight database can produce it as a
   loading within the ballast-credibility gate; the rest are reported with the
-  number and the reason. Surfaces: `cli.py --export-conm2`, the Weights page's
-  **Mass Export** tab.
+  number and the reason. Surfaces: `cli.py --export-conm2` /
+  `--export-target mass`, the Weights page's **Mass Export** tab, and — since
+  0.5.0 row 1 (**D-R2**) — the Export page's bundle `.zip` and its own download
+  row, all three files stamped like every other deck.
+  **Mass-case identity has one mint (0.5.0 row 1).** `massset_identity(loading,
+  index) -> (SID, LABEL)` is the sole source of a payload case's identity in the
+  exported model; the `MASSSET` card, the report's mass-case table and the
+  bundle manifest all read it, and `mass_case_rows(project)` is the row form
+  (every case, exported or not, with the loading's own weight/CG and its ballast
+  fraction).
   **`GRAV` magnitude (2026-08-10, review finding C1).** The acceleration a deck
   carries is one standard gravity **in that deck's own length unit** —
   386.0886 in/s² Imperial, 9806.65 mm/s² SI — owned by
@@ -870,6 +884,19 @@ return strings (with thin `write_*` file wrappers), and do no physics.
   from `vn_diagram.build_vn_diagram`, `weight_envelope.loading_envelope_points`
   and `mach_limit.mach_limit_lines`. **Nothing is recomputed here** — the
   governing tables are `report.governing_loads_table`'s own rows.
+- **§6 Balanced free-free airframe cases (0.5.0 row 1, decision D-R2, review
+  F-D2).** The assembled model is the primary deliverable and now has its own
+  section: per-case `Nz`, pre-closure residuals, roll couple and closure relief
+  from `export.balanced_deck.balanced_case_rows` (the *same* rows the deck and
+  the Balanced Cases page render), the handed twin-pair statement, and the
+  mass-case identity table — which payload case is which `MASSSET`, from
+  `export.mass_cards.massset_identity`/`mass_case_rows`, with non-derivable
+  cases marked NOT EXPORTED and their reason. `content.balanced_run(project)`
+  assembles **once** per document and is shared with §4's skipped-conditions
+  table (F-C7), so the two cannot describe different runs. A project that
+  assembles nothing keeps the section and states the absence (§3.4). The
+  manifest lists `balanced_airframe.bdf` and the three mass-model files, and
+  lists them only when the bundle will actually contain them.
 - **Writes:** `.tex` (always) and, when a TeX engine is available, `.pdf`. Both
   ship in the Export page's `.zip` beside the CSV/BDF files they describe.
   All loads ULTIMATE with a per-case `SF`; the whole document renders in the

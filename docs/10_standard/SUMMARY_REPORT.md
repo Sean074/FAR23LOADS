@@ -278,6 +278,35 @@ following components SHALL each have a subsection, present or explicitly marked
 | **Landing gear** | Reaction cases per gear, and the gear geometry they act on |
 | **Engine mount** | Torque, thrust, side and gyroscopic cases including all sign combinations; sign conventions restated |
 
+### 4.5.1 Balanced free-free airframe cases (required — added 2026-08-10, decision D-R2)
+
+The assembled full-span free-free model is the **primary** loads deliverable
+(mission extension 2026-08-08); the per-component results of §4.5 are analysis
+views cut out of it. It SHALL therefore have its own section, rendered after the
+results summary, containing:
+
+- **What the model is** — full span, aero and inertia together, free-free, and
+  the statement that the deck's one determinate support exists so that its
+  recovered reaction *is* the residual ("reactions ≈ 0" is the equilibrium
+  proof, not a modelling convenience).
+- **One row per assembled case**, carrying its load factor `Nz`, its **pre-closure**
+  residuals as a fraction of `n·W` / `n·W·MAC`, the applied roll couple, and the
+  closure relief (`Δn`, `Δn_y`, the yaw and roll accelerations). These SHALL be
+  the same rows the deck and the Balanced Cases page render (§5's
+  nothing-is-recomputed rule) — i.e. `export.balanced_deck.balanced_case_rows`.
+- **The handed twin pairs** — an asymmetric case ships as a starboard/port pair
+  by reflection at the assembly; a reader shown one hand SHALL be told the other
+  exists, and a symmetric set SHALL be stated as such.
+- **The mass-case identity** — which payload case is which `MASSSET` in the
+  exported CONM2 model, with the loading's own weight and CG and its ballast
+  fraction, and every case the weight database **cannot** produce marked NOT
+  EXPORTED with its reason. SIDs and labels SHALL come from the same mint the
+  cards use (`export.mass_cards.massset_identity`).
+- **Absence is content (§3.4)** — a project that assembles no balanced case
+  keeps the section and states that the assembled deck is not part of the
+  deliverable. The complementary record — which SELECT conditions did not
+  assemble, and why — stays in §4.4 beside the case index.
+
 ### 4.6 Methods and limitations (required)
 
 The section that governs how much weight the analysis can bear. SHALL contain:
@@ -318,6 +347,13 @@ axis and load basis.
 The manifest SHALL open by stating the bundle's unit system once and asserting
 that every listed file is in it (§3.5); a per-file units column that disagrees with
 that statement is a conformance failure, not a footnote.
+
+The manifest SHALL list **every** artifact the bundle carries, the assembled
+free-free deck and the CONM2 mass model included (D-R2) — an artifact the
+controlling document does not name travels without the basis statement the
+manifest exists to give it. It SHALL NOT list a file the bundle does not
+contain: a manifest naming an artifact that was never written sends the reader
+looking for it.
 
 ### 4.8 Optional content
 

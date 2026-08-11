@@ -261,11 +261,56 @@ def _conm2_line(card: MassCard, u: DeliverableUnits) -> str:
             f"0.0, 0.0, {_fmt(card.item.izz * k)}")
 
 
+def massset_identity(loading: CaseLoading, index: int) -> Tuple[int, str]:
+    """``(SID, LABEL)`` -- the identity the exported mass model gives one loading.
+
+    Minted here and nowhere else, so the ``MASSSET`` card, the report's mass-case
+    table and the bundle manifest name one payload case the same way. ``index``
+    is the loading's position in the **derivable** list (the order
+    :func:`mass_cards` returns and :func:`conm2_fragment` writes), which is what
+    the SID band is allocated against.
+    """
+    label = "".join(ch for ch in loading.name.upper() if ch.isalnum())[:8] or f"CASE{index}"
+    return _MASSSET_BAND.allocate(index), label
+
+
+def mass_case_rows(project: Project) -> List[Dict[str, object]]:
+    """One row per payload case: what the exported mass model calls it, or why not.
+
+    Every case in ``flight_loads.cg_cases`` appears -- a case the weight database
+    cannot produce as a loading is reported with ``exported=False`` and its
+    reason, never dropped, because "absent from the mass model" is exactly the
+    fact a consumer needs (plan 12 C-1's credibility gate).
+
+    Values are raw Imperial (lb, in) as everywhere else in the calc; the report
+    converts at its own boundary.
+    """
+    loadings = derive_case_loadings(project)
+    order = {id(ld): i for i, ld in enumerate(ld for ld in loadings if ld.derivable)}
+    rows: List[Dict[str, object]] = []
+    for loading in loadings:
+        index = order.get(id(loading))
+        sid, label = (massset_identity(loading, index) if index is not None
+                      else (None, ""))
+        rows.append({
+            "case": loading.name,
+            "exported": loading.derivable,
+            "massset_sid": sid,
+            "massset_label": label,
+            "weight_lb": loading.weight_lb,
+            "cg_x": loading.cg_x,
+            "cg_z": loading.cg_z,
+            "ballast_lb": loading.ballast.weight_lb if loading.ballast else 0.0,
+            "ballast_fraction": loading.ballast_fraction,
+            "note": loading.note,
+        })
+    return rows
+
+
 def _massset_block(cards: Sequence[MassCard], loading: CaseLoading,
                    index: int) -> List[str]:
-    sid = _MASSSET_BAND.allocate(index)
+    sid, label = massset_identity(loading, index)
     eids = _overlay_eids(cards, loading, index)
-    label = "".join(ch for ch in loading.name.upper() if ch.isalnum())[:8] or f"CASE{index}"
     lines = [
         f"$ {loading.name}: {loading.weight_lb:.0f} lb at "
         f"x {loading.cg_x:.2f} in, z {loading.cg_z:.2f} in"
@@ -592,6 +637,8 @@ __all__ = [
     "GRAV_SID_BASE",
     "MassCard",
     "mass_cards",
+    "mass_case_rows",
+    "massset_identity",
     "case_station_weights",
     "unreferenced_overlay_eids",
     "mass_properties",

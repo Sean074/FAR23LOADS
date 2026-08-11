@@ -6,7 +6,10 @@ Five kinds of hand-off, all recomputed live from the project inputs:
   of truth).
 * **Load-case CSVs & text report** — per-module results for spreadsheets / records.
 * **sbeam BDF cards** — wing / fuselage / tail / control-surface ``FORCE``/``MOMENT``
-  cards (and the wing stick model) for the sbeam finite-element bridge.
+  cards (and the wing stick model) for the sbeam finite-element bridge, plus the
+  **assembled full-span free-free deck** — the mission's primary loads
+  deliverable, of which the per-component decks are analysis views — and the
+  **CONM2/MASSSET mass model** that checks its inertia half independently.
 * **Summary report (Step G8)** — the controlling document of the deliverable: a
   LaTeX ``.tex`` always, compiled to PDF when a TeX engine is available.
 * **Combined bundle** — one ``.zip`` (or one multi-sheet ``.xlsx`` workbook, Step
@@ -36,9 +39,12 @@ from components import active_system, gate
 from sloads import Project, consistency_warnings, registry
 from sloads import io as sloads_io
 from sloads import workflow as wf
+from sloads.export import mass_cards as mc
 from sloads.export import sbeam_bridge as sb
+from sloads.export.balanced_deck import balanced_deck
 from sloads.export.pdf import ENGINE_ENV_VAR, compile_pdf, find_engine
 from sloads.export.workbook import build_workbook
+from sloads.modules.balance import build_balanced_cases
 from sloads.modules.net_loads import torsion_axis_label, wing_lra
 from sloads.modules.tail_span import build_tail_span
 from sloads.report import module_text_report
@@ -253,6 +259,29 @@ if _control:
         header_comment=_bdf_stamp, system=_system) or ""
     _bdf_artifacts["control_surface_loads.csv"] = _try(
         sb.control_surface_csv, _control, header_comment=_csv_stamp,
+        system=_system) or ""
+
+# The assembled full-span deliverable and the mass model that checks its inertia
+# half (decision D-R2). Both were page-only downloads until 2026-08-10: the
+# mission's primary output travelled outside the bundle and outside the
+# controlling document that states its basis (review F-D2). They ride the same
+# `_bdf_stamp` and the same `_system` as every deck above, so a bundle still
+# states one basis and one unit system.
+_balanced_skipped: list = []
+_balanced_cases = _try(build_balanced_cases, project, _balanced_skipped) or []
+if _balanced_cases:
+    _bdf_artifacts["balanced_airframe.bdf"] = _try(
+        balanced_deck, project, header_comment=_bdf_stamp, system=_system,
+        cases=_balanced_cases, skipped=_balanced_skipped) or ""
+if project.weight is not None and project.weight.items:
+    _bdf_artifacts["mass_model.bdf"] = _try(
+        mc.conm2_fragment, project, header_comment=_bdf_stamp,
+        system=_system) or ""
+    _bdf_artifacts["mass_check.bdf"] = _try(
+        mc.mass_check_deck, project, header_comment=_bdf_stamp,
+        system=_system) or ""
+    _bdf_artifacts["inertia_only.bdf"] = _try(
+        mc.inertia_only_cards, project, header_comment=_bdf_stamp,
         system=_system) or ""
 
 # Case-index table (Step D1): ID -> full definition, from every module's own
@@ -501,6 +530,35 @@ if _body:
         )
 _bdf_row("Tail", "tail_loads.bdf", "tail_chordwise.csv")
 _bdf_row("Control surfaces", "control_surface_loads.bdf", "control_surface_loads.csv")
+_bdf_row("Assembled airframe (free-free)", "balanced_airframe.bdf")
+if _balanced_cases:
+    st.caption(
+        f"The mission's primary loads deliverable: {len(_balanced_cases)} "
+        "`SUBCASE`s, both wings, aero and inertia together on a statically "
+        "determinate support — the recovered reaction *is* the residual, so "
+        "'reactions ≈ 0' is the free-free equilibrium proof. Per-case load "
+        "factors, residuals and handed twin pairs are tabulated in the summary "
+        "report; the **Balanced Cases** page shows the same numbers live."
+        + (f" {len(_balanced_skipped)} SELECT condition(s) did not assemble — the "
+           "deck and the report both name them." if _balanced_skipped else "")
+    )
+else:
+    st.caption(
+        "No condition assembles into a balanced case yet — one needs a V-n point "
+        "**and** a payload loading the itemized weight database can produce. The "
+        "summary report states the same absence rather than omitting it."
+    )
+_bdf_row("Mass model (CONM2)", "mass_model.bdf", "mass_check.bdf",
+         "inertia_only.bdf")
+if _bdf_artifacts.get("mass_model.bdf"):
+    st.caption(
+        "**Do not apply the mass model together with the FORCE/MOMENT decks** — "
+        "those cards are the *total* applied load and already contain inertia. "
+        "`mass_model.bdf` is the fragment (CONM2 + one MASSSET per payload case), "
+        "`mass_check.bdf` the self-contained runnable deck (MASSSET + GRAV, no "
+        "load cards), `inertia_only.bdf` sloads' own inertia set for comparison "
+        "only. Which payload case is which MASSSET is tabulated in the report."
+    )
 
 # --------------------------------------------------------------------------- #
 # 5. Case-index table (Step D1)

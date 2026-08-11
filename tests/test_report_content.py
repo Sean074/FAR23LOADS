@@ -49,7 +49,8 @@ REQUIRED_SECTIONS = [
     "3. Envelope figures",
     "4. Conditions analysed and FAR coverage",
     "5. Results summary",
-    "6. Methods and limitations",
+    "6. Balanced free-free airframe cases",
+    "7. Methods and limitations",
     "Appendix A. Bundle manifest",
 ]
 
@@ -224,6 +225,122 @@ def test_the_skipped_conditions_table_states_absence_rather_than_vanishing():
     table = _skips_table(build_report(Project(name="empty")))
     assert len(table.rows) == 1
     assert "No balanced case could be assembled" in table.rows[0][0]
+
+
+# --------------------------------------------------------------------------- #
+# §6 -- the assembled deliverable is in the controlling document (D-R2, F-D2)
+# --------------------------------------------------------------------------- #
+def _balanced_section(path=_GA):
+    return _report(path).section("Balanced free-free airframe cases")
+
+
+def test_the_balanced_case_table_is_the_decks_own_row_builder():
+    """§5 forbids the report recomputing anything, and the balanced deck is the
+    primary deliverable: its per-case n, residuals and closure in the report must
+    be literally the rows the deck and the Balanced Cases page render."""
+    from sloads.export.balanced_deck import balanced_case_rows
+    from sloads.modules.balance import build_balanced_cases
+
+    project = io.load_project(_GA)
+    expected = balanced_case_rows(build_balanced_cases(project, []))
+    assert expected, "fixture no longer assembles a balanced case"
+
+    table = _balanced_section().tables[0]
+    assert table.columns == list(expected[0])
+    assert table.rows == [[r[c] for c in table.columns] for r in expected]
+    # The four D-R2 facts, by column rather than by prose.
+    for column in ("Nz", "Hand", "Residual Fz (% n*W)", "Closure dn (g)"):
+        assert column in table.columns
+
+
+def test_the_balanced_section_states_its_handed_twin_pairs():
+    """An asymmetric case ships as a left/right pair (plan 11 B-6). A reader who
+    is shown one hand and not told of the other sizes half an airplane."""
+    section = _balanced_section()
+    text = " ".join(section.body)
+    assert "twin pair" in text
+    hands = {row[section.tables[0].columns.index("Hand")]
+             for row in section.tables[0].rows}
+    assert {"L", "R"} <= hands, hands
+
+
+def test_the_balanced_section_names_the_massset_of_every_payload_case():
+    """The mass-case identity, from the same mint the CONM2 cards use: a consumer
+    selecting the wrong MASSSET sizes the airplane at the wrong weight and CG."""
+    from sloads.export.mass_cards import mass_case_rows, massset_identity
+    from sloads.mass_distribution import derive_case_loadings
+
+    project = io.load_project(_GA)
+    rows = mass_case_rows(project)
+    exported = [r for r in rows if r["exported"]]
+    assert exported, "fixture no longer exports a payload case"
+    first = next(ld for ld in derive_case_loadings(project) if ld.derivable)
+    sid, label = massset_identity(first, 0)
+    assert exported[0]["massset_sid"] == sid
+    assert exported[0]["massset_label"] == label
+
+    table = _balanced_section().tables[1]
+    assert table.columns[0] == "Payload case"
+    assert [row[0] for row in table.rows] == [r["case"] for r in rows]
+    assert f"{sid} ({label})" in table.rows[0][2]
+
+
+def test_a_payload_case_the_database_cannot_produce_is_reported_not_dropped():
+    """"Absent from the mass model" is the fact a consumer needs (plan 12 C-1)."""
+    from sloads.export.mass_cards import mass_case_rows
+
+    project = io.load_project(_CONCEPT)
+    rows = mass_case_rows(project)
+    assert any(not r["exported"] for r in rows), "fixture no longer exercises this"
+    table = _balanced_section(_CONCEPT).tables[1]
+    assert any(row[1] == "NOT EXPORTED" for row in table.rows)
+
+
+def test_the_balanced_section_states_its_absence_rather_than_vanishing():
+    """§3.4: the primary deliverable being absent is content, not silence."""
+    section = build_report(Project(name="empty")).section(
+        "Balanced free-free airframe cases")
+    assert not section.tables
+    assert "NOT part of this deliverable" in section.absent_reason
+
+
+def test_the_mass_model_is_tabulated_even_when_nothing_assembles():
+    """The mass model is a deliverable of its own, and the manifest points every
+    one of its files at §6 — so a fixture that exports mass but assembles no
+    balanced case must still find its table there."""
+    heavy = os.path.join(_EXAMPLES, "concept_heavy.project.json")
+    project = io.load_project(heavy)
+    if not (project.weight is not None and project.weight.items):
+        pytest.skip("fixture no longer carries a weight database")
+    section = _balanced_section(heavy)
+    if section.absent_reason:
+        assert len(section.tables) == 1
+        assert section.tables[0].columns[0] == "Payload case"
+    else:                                    # the fixture started assembling
+        assert len(section.tables) == 2
+
+
+def test_the_manifest_lists_the_balanced_deck_and_the_mass_model():
+    """review F-D2: an artifact the controlling document does not name travels
+    without the basis statement the manifest exists to give it."""
+    files = [row[0] for row in _report().section("Appendix A. Bundle manifest").table.rows]
+    for name in ("sbeam/<project>_balanced_airframe.bdf",
+                 "sbeam/<project>_mass_model.bdf",
+                 "sbeam/<project>_mass_check.bdf",
+                 "sbeam/<project>_inertia_only.bdf"):
+        assert name in files, files
+    # ...and every one of them points at the section that summarises it.
+    for row in _report().section("Appendix A. Bundle manifest").table.rows:
+        if "balanced_airframe" in row[0] or "mass_" in row[0] or "inertia_" in row[0]:
+            assert row[-1] == "§6", row
+
+
+def test_the_manifest_does_not_list_files_the_bundle_will_not_contain():
+    """A manifest naming an artifact that was never written is worse than none:
+    the reader goes looking for it."""
+    files = [row[0] for row in
+             build_report(Project(name="empty")).section("Appendix A. Bundle manifest").table.rows]
+    assert not any("balanced_airframe" in f or "mass_" in f for f in files), files
 
 
 def test_governing_tables_are_governing_loads_tables_output():

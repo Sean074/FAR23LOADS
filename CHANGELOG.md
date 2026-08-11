@@ -12,6 +12,54 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **The assembled deck and the mass model are first-class deliverables.** 0.5.0
+  row 1 — decision **D-R2**, review finding **F-D2**. The mission's *primary*
+  loads output was a page-only download: `balanced_airframe.bdf` left the tool
+  from the Balanced Cases page carrying no methods stamp, named by no report
+  section, no manifest row and no Export bundle, and the three CONM2/MASSSET
+  files left it the same way from the Weights page. An artifact the controlling
+  document does not name travels without a basis — which is exactly the state
+  the G8.3 stamp and the manifest exist to prevent. All of it closes together:
+
+  - **Report §6, "Balanced free-free airframe cases."** Per case: load factor
+    `Nz`, the **pre-closure** residuals against the 1 % gate, the applied roll
+    couple and the closure relief (`Δn`, `Δn_y`, yaw and roll acceleration) —
+    literally `balanced_case_rows`' own rows, the ones the deck header and the
+    Balanced Cases page render, so the report cannot describe a different
+    assembly from the deck beside it. Plus the handed twin-pair statement (an
+    asymmetric case ships as a starboard/port pair; a reader shown one hand must
+    be told of the other) and the **mass-case identity** table: which payload
+    case is which `MASSSET`, at what weight and CG, with every case the weight
+    database cannot produce marked NOT EXPORTED and its reason. A project that
+    assembles nothing keeps the section and says so.
+  - **Manifest rows** for `balanced_airframe.bdf`, `mass_model.bdf`,
+    `mass_check.bdf` and `inertia_only.bdf` — each with its units, its
+    convention and the section that summarises it — listed only when the bundle
+    will actually contain them, because a manifest naming a file that was never
+    written sends the reader looking for it.
+  - **The Export bundle** carries all four, stamped with the same `_bdf_stamp`
+    and written in the same resolved unit system as every other deck, so "one
+    bundle, one system, one basis" still holds by construction; they also get
+    their own download row on the page.
+  - **The two page-level downloads are stamped** (the routes F-D2 named): the
+    Balanced Cases deck and all three Weights-page mass files. A CONM2 set whose
+    `M` is read as weight is wrong by 386× in a file that parses cleanly, so the
+    unit statement travelling in-band is not a formality.
+  - **One mint for the mass-case identity** (CLAUDE.md practice 3):
+    `mass_cards.massset_identity(loading, index)` is now the sole source of a
+    case's `MASSSET` SID and label, read by the cards, the report and the
+    manifest; `mass_case_rows` is its row form. The balanced assembly likewise
+    runs **once** per report (`content.balanced_run`), shared by §4's
+    skipped-conditions record and §6, so the two halves of that statement cannot
+    describe different runs.
+
+  No exported byte moves: the deck writers were already stamp-capable and the
+  digests are unchanged. Guards: the Export page's stamp-and-system source
+  guards extended from 5 decks to 9 and from 11 writer calls to 14 plus the
+  balanced deck, and seven new report-content tests pin the section, the twin
+  pairs, the identity mint, the NOT EXPORTED path, the absence statement and
+  both directions of the manifest rule.
+
 - **The deliverable is scriptable: every export target, stamped, with one error
   contract.** 0.5.0 row 1 — review findings **F-D1**, **F-C2**, **F-D3**, minor
   **m2**, decision **D-R5**, absorbing the long-open **L-8g**. The mission is a

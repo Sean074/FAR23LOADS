@@ -32,6 +32,7 @@ from sloads.modules.balance import (
     is_lateral,
     skipped_condition_lines,
 )
+from sloads.report.methods import bdf_comment_block
 
 st.title("Balanced Cases — assembled full-span, free-free")
 st.caption(
@@ -195,8 +196,16 @@ st.plotly_chart(fig, use_container_width=True)
 # The deck
 # --------------------------------------------------------------------------- #
 st.subheader("Assembled deck")
+# Stamped like every other deck the suite writes (G8.3 / review F-D2): the
+# primary deliverable states its own ULTIMATE basis, category and unit system
+# in-band, because this button is a route out of the tool in its own right --
+# the file is often forwarded without the bundle that would otherwise carry the
+# statement. `scope` is the full case set: the Critical Loads opt-out never
+# reaches the balanced assembly.
+_stamp = bdf_comment_block(project, scope="full case set", system=system)
 try:
-    deck = balanced_deck(project, system=system, cases=cases, skipped=skipped)
+    deck = balanced_deck(project, header_comment=_stamp, system=system,
+                         cases=cases, skipped=skipped)
 except ValueError as exc:
     st.error(str(exc))
 else:

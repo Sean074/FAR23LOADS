@@ -263,8 +263,9 @@ def test_the_export_page_applies_the_stamp_it_builds():
         source = fh.read()
 
     assignments = [ln for ln in source.splitlines() if '.bdf"] = ' in ln]
-    # wing FORCE/MOMENT + wing stick model + fuselage + tail + control surfaces.
-    assert len(assignments) == 5, assignments
+    # wing FORCE/MOMENT + wing stick model + fuselage + tail + control surfaces,
+    # then the assembled free-free deck and the three mass-model files (D-R2).
+    assert len(assignments) == 9, assignments
     for line in assignments:
         # The call may wrap; take the whole statement up to the closing `or ""`.
         stmt = source.split(line, 1)[1].split('or ""', 1)[0]
@@ -321,11 +322,15 @@ def test_every_export_page_writer_call_takes_the_bundle_system():
     # it carries only Speed (kt) and Altitude (ft), both aviation carve-outs.
     writers = ("span_load_csv", "force_moment_cards", "stick_model_bdf",
                "body_span_load_csv", "body_fitting_load_csv", "tail_chordwise_csv",
-               "control_surface_csv", "load_cases_csv")
+               "control_surface_csv", "load_cases_csv",
+               # The mass model (D-R2): the one family whose unit set is checked
+               # for dimensional consistency, because a CONM2 M read as weight is
+               # wrong by 386x in a file that parses cleanly.
+               "conm2_fragment", "mass_check_deck", "inertia_only_cards")
     # Calls wrap across lines, so match each writer reference and read the argument
     # list that follows it, rather than slicing statements out of the source.
     checked = 0
-    for match in re.finditer(r"\b(?:sb|sloads_io)\.(\w+)", source):
+    for match in re.finditer(r"\b(?:sb|sloads_io|mc)\.(\w+)", source):
         name = match.group(1)
         # Suffix match: the body/tail/control card writers are
         # ``body_force_moment_cards`` etc., the same writer per component.
@@ -334,8 +339,14 @@ def test_every_export_page_writer_call_takes_the_bundle_system():
         window = source[match.end(): match.end() + 220]
         assert "system=_system" in window, f"{name} call defaults to Imperial:\n{window}"
         checked += 1
-    # 5 decks + 5 sbeam CSVs + the per-module load-case CSV.
-    assert checked == 11, f"{checked} writer calls found, expected 11"
+    # 5 decks + 5 sbeam CSVs + the per-module load-case CSV + 3 mass-model files.
+    assert checked == 14, f"{checked} writer calls found, expected 14"
+    # The assembled deck is imported by name rather than through a module alias,
+    # so it is matched on its own — it is the primary deliverable, and a bundle
+    # that wrote it in the wrong system would be wrong about the whole airplane.
+    balanced = source.split("balanced_deck, project", 1)
+    assert len(balanced) == 2, "the balanced deck is no longer built on this page"
+    assert "system=_system" in balanced[1][:220]
 
 
 def test_the_case_index_needs_no_system():

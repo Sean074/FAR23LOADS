@@ -50,6 +50,7 @@ from sloads.modules.weight_envelope import envelope as compute_envelope, loading
 from sloads.modules.weight_estimate import estimate, estimate_to_mass_items
 from sloads.modules.weight_onecg import build_mass, weights_and_inertia
 from sloads.report import module_text_report
+from sloads.report.methods import bdf_comment_block
 from sloads import mass_distribution
 from sloads.export import mass_cards
 from sloads.validation import wtenv_cg_limits
@@ -667,8 +668,13 @@ def _tab_mass_export(project, system, U) -> None:
         "Those cards are the *total* applied load and already contain inertia; "
         "accelerating the masses as well counts it twice.")
 
+    # Stamped like every other BDF the suite writes (G8.3 / review F-D2): a mass
+    # model forwarded on its own still states its unit system -- and a CONM2 set
+    # whose M is read as weight is wrong by 386x in a file that parses cleanly.
+    stamp = bdf_comment_block(project, scope="full case set", system=system)
     try:
-        fragment = mass_cards.conm2_fragment(project, system=system)
+        fragment = mass_cards.conm2_fragment(project, header_comment=stamp,
+                                             system=system)
     except ValueError as exc:
         st.error(str(exc))
         return
@@ -682,7 +688,7 @@ def _tab_mass_export(project, system, U) -> None:
          mass_cards.inertia_only_cards, "inertia_only.bdf", "dl_inertia_only"),
     ):
         try:
-            text = build(project, system=system)
+            text = build(project, header_comment=stamp, system=system)
         except ValueError as exc:
             st.caption(f"No {name}: {exc}")
             continue

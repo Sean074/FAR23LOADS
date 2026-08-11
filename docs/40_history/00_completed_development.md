@@ -10,6 +10,72 @@ Acceptance**, **Key decisions**.
 
 ---
 
+## Balanced deck + CONM2 first-class (0.5.0 Phase 1 row 1 — complete 2026-08-10, tier M–L)
+
+Closed review finding **F-D2**; decision of record **D-R2**.
+
+**Objective.** End the state where the mission's *primary* deliverable was
+page-only and invisible to the controlling document. `balanced_airframe.bdf`
+downloaded from the Balanced Cases page unstamped, appeared in no report
+section, no manifest row and no Export bundle; the three CONM2/MASSSET files
+left the Weights page the same way. An artifact the report does not name travels
+without a basis, which is the one thing the G8.3 stamp and the manifest exist to
+prevent.
+
+**Deliverables.**
+1. **Report §6 — "Balanced free-free airframe cases."** What the model is (full
+   span, aero + inertia, free-free, the determinate support whose reaction *is*
+   the residual), then per case: `Nz`, the **pre-closure** residuals against the
+   1 % gate, the applied roll couple, and the closure relief `Δn`/`Δn_y`/yaw and
+   roll acceleration. The rows are literally `balanced_case_rows`' — the deck's
+   and the page's own row builder — so §5's nothing-is-recomputed rule holds for
+   the primary deliverable too. Plus the handed twin-pair statement and the
+   **mass-case identity** table (payload case → `MASSSET` SID/label, the
+   loading's own weight and CG, ballast fraction, and NOT EXPORTED with its
+   reason for a case the database cannot produce). Sections renumbered: methods
+   is now §7.
+2. **Manifest rows** for the assembled deck and all three mass files, each with
+   units, convention and summarising section — and *only* when the bundle will
+   contain them.
+3. **The Export bundle and page** carry all four artifacts, stamped and in the
+   bundle's resolved unit system.
+4. **The two page-level routes are stamped** — the Balanced Cases deck and the
+   Weights page's fragment / check deck / inertia-only set.
+5. **Single owners, per practice 3.** `mass_cards.massset_identity` is the sole
+   mint of a payload case's identity in the exported model (cards, report and
+   manifest read it); `mass_cards.mass_case_rows` is its row form;
+   `content.balanced_run` assembles the balanced cases **once** per document and
+   is shared by §4's skipped-conditions record and §6.
+
+**Test / Acceptance.** Seven new `tests/test_report_content.py` cases: the §6
+table *is* `balanced_case_rows`' output column for column; the twin-pair
+statement and both hands appear; the MASSSET identity matches
+`massset_identity`'s mint and every payload case is listed; a non-derivable case
+reads NOT EXPORTED (`concept_regional_jet`); an empty project keeps §6 and
+states the absence; the manifest lists all four files pointing at §6, and lists
+none of them when the bundle would not contain them. The Export page's two
+source guards were extended in the same motion — stamp application from 5 decks
+to 9, bundle-system coverage from 11 writer calls to 14 plus the balanced deck.
+Full suite green, ruff clean. **No exported byte moved** and no digest
+regenerated: every writer was already stamp-capable and the decks themselves are
+unchanged.
+
+**Key decisions.**
+- **D-R2 (user, 2026-08-10):** the balanced deck and the CONM2 model are 0.5.0
+  deliverables, not polish — CLI targets and stamps (shipped with the CLI row),
+  bundle and manifest rows, and a balanced-cases report section.
+- **§6 is a top-level section, not a subsection of the results summary.** The
+  assembled model is the primary output and the per-component results are views
+  of it; burying it under them would state the opposite. `SUMMARY_REPORT.md`
+  §4.5.1 is its normative clause (the standard's numbering has never mapped 1:1
+  onto document section numbers).
+- **The manifest is two-sided.** Listing an artifact that was not written is a
+  worse failure than omitting one, so both directions are pinned by test.
+- **The mass table reports the loading's own weight and CG**, never the payload
+  case's nominal figures — the same rule the exported cards follow.
+
+---
+
 ## CLI deliverable completion (0.5.0 Phase 1 row 1 — complete 2026-08-10, tier M)
 
 Closed review findings **F-D1**, **F-C2**, **F-D3** and minor **m2**, absorbing
