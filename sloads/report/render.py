@@ -196,17 +196,25 @@ def _display_loads(loads: List[LoadValue], system: UnitSystem) -> List[LoadValue
 def governing_loads_table(
     conditions: List[CriticalCondition],
     system: UnitSystem = UnitSystem.IMPERIAL,
-    sf: float = ULTIMATE_FACTOR,
 ) -> List[Dict[str, object]]:
     """Rows for one component's governing (SELECT critical) loads, rendered ULTIMATE.
 
     Each :class:`CriticalCondition`'s ``loads`` are converted to ``system`` display
     units, then every *load* quantity (force/moment/pressure) is scaled to ULTIMATE
-    (= limit x ``sf``) and its column header carries the ``-ULT`` marker; dimensionless
-    and speed quantities (n, CL, V) pass through unscaled and unmarked. One row per
-    condition; a trailing ``SF`` column states the factor applied to that row's load
-    cells. Because conditions carry different label sets, cells absent from a given
-    condition render ``"—"`` (values are formatted strings, so this stays clean).
+    (= limit x **that condition's own** ``safety_factor``) and its column header
+    carries the ``-ULT`` marker; dimensionless and speed quantities (n, CL, V) pass
+    through unscaled and unmarked. One row per condition; a trailing ``SF`` column
+    states the factor applied to *that row's* load cells. Because conditions carry
+    different label sets, cells absent from a given condition render ``"—"``
+    (values are formatted strings, so this stays clean).
+
+    The factor is read per case, never assumed flat: SELECT stamps
+    ``CriticalCondition.safety_factor`` (:class:`ConditionResult`'s contract, 14 CFR
+    23.303 -> 1.5 by default, 1.0 for a case whose loads are already ultimate), and
+    the export side scales the same way (``export.sbeam_bridge._sf``), so a report
+    figure and its bulk-data card cannot state different factors for one case
+    (review F-R1; M4-8 Layer 1 report-side slice). There is deliberately no
+    caller-supplied override — the case is the single owner of its factor.
 
     Shared by the Results Review headline and the Flight Envelope Critical Loads tab
     so the two governing-loads tables cannot diverge (M2-4).
@@ -216,10 +224,12 @@ def governing_loads_table(
     seen = set()
     partial: List[Dict[str, object]] = []
     for c in conditions:
+        sf = c.safety_factor
         row: Dict[str, object] = {
             "Condition": c.label,
             "FAR": c.far_reference,
             "V-n case": _num(c.case) if c.case is not None else "—",
+            "SF": format_value(sf),
         }
         for lv in _display_loads(c.loads, system):
             u = ultimate_units(lv.units, lv.quantity)
@@ -230,13 +240,12 @@ def governing_loads_table(
             row[header] = format_value(to_ultimate(lv.value, lv.units, lv.quantity, sf))
         partial.append(row)
 
-    sf_str = format_value(sf)
     rows: List[Dict[str, object]] = []
     for row in partial:
         full: Dict[str, object] = {col: row.get(col, "—") for col in base_cols}
         for col in load_cols:
             full[col] = row.get(col, "—")
-        full["SF"] = sf_str
+        full["SF"] = row["SF"]
         rows.append(full)
     return rows
 

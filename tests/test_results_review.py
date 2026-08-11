@@ -66,8 +66,12 @@ def test_governing_loads_table_renders_ultimate_with_sf():
             assert "-ULT" not in h
     assert any("-ULT" not in h for h in nz_headers) or not nz_headers
 
-    # (c) Every row states SF = 1.5.
-    assert all(r["SF"] == format_value(ULTIMATE_FACTOR) for r in rows)
+    # (c) Every row states its own case's factor -- the contract, not a flat 1.5
+    #     (F-R1). On this GA project SELECT stamps the 23.303 default throughout,
+    #     so the two happen to coincide here; test_per_case_safety_factor_is_honoured
+    #     is what pins the per-case behavior.
+    assert all(r["SF"] == format_value(c.safety_factor) for r, c in zip(rows, conds))
+    assert all(c.safety_factor == ULTIMATE_FACTOR for c in conds)
 
     # (d) No None/NaN anywhere; sparse cells render "—".
     all_cols = set().union(*[set(r) for r in rows])
@@ -75,6 +79,33 @@ def test_governing_loads_table_renders_ultimate_with_sf():
         assert set(r) == all_cols          # every row spans the full union
         assert all(v is not None for v in r.values())
     assert any(v == "—" for r in rows for v in r.values())
+
+
+def test_per_case_safety_factor_is_honoured():
+    """A case whose loads are already ultimate (SF = 1.0) is neither re-scaled nor
+    mislabelled, and it does not change its neighbours' rows (review F-R1).
+
+    ``CriticalCondition.safety_factor`` is the case's own limit->ultimate factor
+    (models/results.py; 14 CFR 23.303 default 1.5, 1.0 = already ultimate) and the
+    render boundary must read it per case -- the same rule the export side applies
+    (``export.sbeam_bridge._sf``), so a report figure and its bulk-data card state
+    one factor for one case.
+    """
+    conds = [c for c in select.build_critical(_ga6()).conditions if c.component == "fuselage"]
+    idx = next(i for i, c in enumerate(conds) if any(lv.units == "lb" for lv in c.loads))
+    other = next(i for i in range(len(conds)) if i != idx)
+
+    before = governing_loads_table(conds, UnitSystem.IMPERIAL)
+    conds[idx].safety_factor = 1.0
+    after = governing_loads_table(conds, UnitSystem.IMPERIAL)
+
+    lv = next(lv for lv in conds[idx].loads if lv.units == "lb")
+    header = f"{lv.label} ({ultimate_units(lv.units)})"
+    assert after[idx][header] == format_value(lv.value)          # x1.0, not x1.5
+    assert after[idx]["SF"] == format_value(1.0)                 # and it says so
+    assert "-ULT" in header                                      # still an ULTIMATE column
+    assert after[other] == before[other]                         # neighbours untouched
+    assert after[other]["SF"] == format_value(ULTIMATE_FACTOR)
 
 
 def test_headline_and_critical_tab_use_the_same_helper():

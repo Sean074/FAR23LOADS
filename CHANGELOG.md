@@ -12,6 +12,24 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- **The governing-loads tables applied a flat 1.5 instead of each case's own
+  safety factor** (review **F-R1**; the report-side slice of M4-8 Layer 1).
+  `report.governing_loads_table` scaled and labelled every row with
+  `ULTIMATE_FACTOR`, ignoring `CriticalCondition.safety_factor` — the model's
+  stated contract and what the export side already reads
+  (`sbeam_bridge._sf`). No shipped number changes (SELECT stamps the 23.303
+  default on every condition today), but the first non-1.5 critical case would
+  have been silently mis-scaled and mis-labelled in report §5 and in **both**
+  GUI views (Results Review headline, Flight Envelope "Critical Loads"), which
+  read the same helper — a report figure and its bulk-data card could have
+  stated different factors for one case. Each row now scales by its own case's
+  factor and its `SF` cell states that factor; the caller-supplied `sf`
+  override is **removed**, so the case stays the single owner of its factor and
+  there is no path back to a flat one. The test that pinned the hole (every row
+  `SF == 1.5`) now asserts the contract, and a new test sets one condition to
+  `SF = 1.0` and checks that row is neither re-scaled nor mislabelled while its
+  neighbours are untouched.
+
 - **The fuselage deliverables rendered a platform-dependent negative zero, and
   CI failed on a difference that was not a difference.** Found from a CI report
   of `sbeam/body_cards` drift against the Imperial digest baseline while the

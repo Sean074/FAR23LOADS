@@ -32,6 +32,7 @@ from sloads.modules.net_loads import build_net_loads  # noqa: E402
 from sloads.registry import run_all_modules  # noqa: E402
 from sloads.report.methods import (  # noqa: E402
     APPROVED_CORRECTIONS,
+    STANDING_DISCLAIMER,
     _standing_limitations,
     bdf_comment_block,
     csv_comment_block,
@@ -60,12 +61,44 @@ def _wing_net(path):
 # The statement itself
 # --------------------------------------------------------------------------- #
 def test_statement_carries_every_required_block():
-    """The eight content blocks of plan §5, each identified by its heading."""
+    """The content blocks of plan §5 / SUMMARY_REPORT.md §4.6, each identified by
+    its heading — including the standing disclaimer (``STATUS:``, item 9)."""
     text = methods_statement(_project(_GA), tool_version="0.3.0", scope="full case set")
-    for heading in ("METHODS AND LIMITATIONS", "BASIS:", "CATEGORY:", "VERIFICATION:",
-                    "MATH:", "APPROVED CORRECTIONS", "KNOWN LIMITATIONS:",
-                    "SCOPE OF THIS EXPORT:", "PROVENANCE:"):
+    for heading in ("METHODS AND LIMITATIONS", "STATUS:", "BASIS:", "CATEGORY:",
+                    "VERIFICATION:", "MATH:", "APPROVED CORRECTIONS",
+                    "KNOWN LIMITATIONS:", "SCOPE OF THIS EXPORT:", "PROVENANCE:"):
         assert heading in text, f"missing block: {heading}"
+
+
+def test_the_standing_disclaimer_travels_in_every_channel():
+    """Review **F-R3**: the "not a certification document" statement lived on the
+    report's title page alone — the one page that does *not* travel with a
+    forwarded CSV, deck or METHODS.txt. It is a required item of the statement
+    (SUMMARY_REPORT.md §4.6 item 9), so it rides every channel the statement is
+    wrapped for, and it leads the block rather than closing it: a reader who skims
+    only the head of a stamped file must still meet it."""
+    project = _project(_GA)
+    text = methods_statement(project)
+    assert STANDING_DISCLAIMER in text
+    # Ahead of the load basis -- i.e. read before any number it qualifies.
+    assert text.index(STANDING_DISCLAIMER) < text.index("BASIS:")
+    # The statement writes one block per line, so each wrapper only prefixes it --
+    # the sentence stays intact and greppable in the forwarded file itself.
+    for wrapped in (csv_comment_block(project), bdf_comment_block(project)):
+        assert STANDING_DISCLAIMER in wrapped
+
+
+def test_the_title_page_and_the_statement_use_one_disclaimer_wording():
+    """The cover quotes the constant instead of restating it: two wordings of the
+    same disclaimer is two disclaimers, and a reader who spots the difference
+    cannot tell which is current (the rule §4.6 applies to in-band caveats)."""
+    from sloads.report.latex import render_report
+
+    tex = render_report(_project(_GA))
+    assert "Status." in tex
+    # Escaped for LaTeX, so compare on the sentence that survives escaping intact.
+    assert "not a certification document" in tex
+    assert "See the methods and limitations section" in tex
 
 
 def test_statement_states_ultimate_and_the_default_factor():

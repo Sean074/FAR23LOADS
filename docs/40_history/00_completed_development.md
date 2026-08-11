@@ -10,6 +10,27 @@ Acceptance**, **Key decisions**.
 
 ---
 
+## Per-case SF in the governing-loads tables (0.5.0 Phase 2 — complete 2026-08-11, tier M)
+
+Closed review finding **F-R1**, the report-side pre-slice of M4-8 Layer 1.
+`report.governing_loads_table` scaled and labelled every row with the flat
+`ULTIMATE_FACTOR` while the model contract puts the factor on the case
+(`CriticalCondition.safety_factor`) and the export side already read it
+(`sbeam_bridge._sf`) — so the first non-1.5 critical case would have been
+mis-scaled and mis-labelled in report §5 and in both GUI views that share the
+helper, and a report figure could have disagreed with its own bulk-data card.
+Each row now takes its own case's factor and states it in the `SF` cell. The
+**caller-supplied `sf` override is removed** rather than defaulted (practice 3:
+one owner, no second path to a flat factor); no caller passed it. No shipped
+number moves — SELECT stamps the 23.303 default throughout today — so no digest
+regenerated. `tests/test_results_review.py` stops pinning the hole (every row
+`SF == 1.5`) and asserts the contract instead, with a new test that sets one
+condition to `SF = 1.0` and checks the row is neither re-scaled nor stripped of
+its `-ULT` marker while its neighbours are unchanged. `PROGRAM_SPEC.md` (SELECT,
+M2-4) states the per-case rule.
+
+---
+
 ## Limitations completeness, and the caveat's one wording (0.5.0 Phase 2 row 2 — complete 2026-08-11, tier M)
 
 Closed review finding **F-R4**; decision **D-R3** for the ground-case statement.

@@ -55,6 +55,20 @@ TOOL_NAME = "sloads"
 _CALC_ERRORS = (ValueError, ZeroDivisionError, KeyError, IndexError, TypeError,
                 AttributeError)
 
+#: The standing disclaimer (SUMMARY_REPORT.md §4.6 item 9), and the **one**
+#: wording of it. It used to live on the report's title page alone (review
+#: **F-R3**) — a page that does not travel with a forwarded CSV, deck or
+#: METHODS.txt, which are exactly the files that reach a reader who never sees
+#: the cover. It now leads the statement, so it is in band on every channel, and
+#: ``latex.py``'s title page quotes this constant rather than restating it (the
+#: title page adds its own pointer to the methods section; the disclaimer itself
+#: is this text).
+STANDING_DISCLAIMER = (
+    "This is an initial-concept loads analysis. It is not a certification "
+    "document, not a stress report, and not a substitute for the analyst's own "
+    "judgement."
+)
+
 #: The three approved deviations from McMaster's manual, with their citations.
 #: The authoritative register is ``docs/20_theory/02_approved_corrections.md``;
 #: this is its one-line-per-entry export form. Keep the two in step -- a
@@ -296,6 +310,13 @@ def methods_statement(
     """
     L: List[str] = []
     L.append("METHODS AND LIMITATIONS")
+    L.append("")
+
+    # 0. Standing disclaimer ------------------------------------------------- #
+    # SUMMARY_REPORT.md 4.6 item 9. Stated first rather than last: it governs how
+    # much weight everything below can bear, and a reader who skims only the head
+    # of a stamped CSV or deck must still meet it (review F-R3).
+    L.append(f"STATUS: {STANDING_DISCLAIMER}")
     L.append("")
 
     # 1. Basis --------------------------------------------------------------- #

@@ -30,6 +30,7 @@ from __future__ import annotations
 from typing import List, Tuple
 
 from .content import Figure, ReportDocument, Section, Table
+from .methods import STANDING_DISCLAIMER
 from .plots_tex import escape, figure_body_tex
 
 #: Packages the ``.tex`` needs. All are in a standard TeX distribution and in the
@@ -110,10 +111,10 @@ def _title_page(doc: ReportDocument) -> str:
         r"\begin{center}\begin{minipage}{0.86\textwidth}",
         r"\textbf{Load basis.} " + escape(doc.basis) + r"\\[0.4em]",
         r"\textbf{Units.} " + escape(doc.units_note) + r"\\[0.4em]",
+        # Quoted, never restated: the disclaimer is one wording (methods.py), and
+        # the title page adds only its pointer to the section that expands it.
         r"\textbf{Status.} " + escape(
-            "This is an initial-concept loads analysis. It is not a certification "
-            "document, not a stress report, and not a substitute for the analyst's "
-            "own judgement. See the methods and limitations section."
+            f"{STANDING_DISCLAIMER} See the methods and limitations section."
         ),
         r"\end{minipage}\end{center}",
         r"\vspace{1.2em}",
