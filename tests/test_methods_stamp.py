@@ -32,6 +32,7 @@ from sloads.modules.net_loads import build_net_loads  # noqa: E402
 from sloads.registry import run_all_modules  # noqa: E402
 from sloads.report.methods import (  # noqa: E402
     APPROVED_CORRECTIONS,
+    _standing_limitations,
     bdf_comment_block,
     csv_comment_block,
     methods_statement,
@@ -79,6 +80,107 @@ def test_statement_lists_every_approved_correction():
     text = methods_statement(_project(_GA))
     for far, _ in APPROVED_CORRECTIONS:
         assert far in text, far
+
+
+# --------------------------------------------------------------------------- #
+# Limitations completeness (review F-R4)
+# --------------------------------------------------------------------------- #
+#: Every standing limitation the deliverable claims, by key. **This is the
+#: completeness contract.** F-R4's finding was not a wrong sentence but a missing
+#: one: the list was described as "every open caveat" and four were absent (the
+#: fin-only lateral aero, the lumped aileron couple, the centreline clamp and the
+#: flight-only body deck). Opening or closing a caveat now edits this set in the
+#: same commit, and an omission is a red test rather than a silent claim of
+#: completeness.
+STANDING_LIMITATION_KEYS = {
+    "control-surface-distributions",
+    "export-case-filter",
+    "flight-only-body-deck",
+    "pressurization",
+    "lateral-aero",
+    "aileron-couple",
+    "centerline-clamp",
+}
+
+
+def test_the_standing_limitations_are_exactly_the_declared_set():
+    keys = [key for key, _ in _standing_limitations()]
+    assert len(keys) == len(set(keys)), keys
+    assert set(keys) == STANDING_LIMITATION_KEYS
+
+
+def test_every_standing_limitation_reaches_the_statement():
+    """The list is only a claim until it travels: the block an analyst reads is
+    what must carry each one, in every channel it is wrapped for."""
+    text = methods_statement(_project(_GA))
+    limitations = text[text.index("KNOWN LIMITATIONS:"):]
+    for key, item in _standing_limitations():
+        assert item in limitations, key
+
+
+def test_the_in_band_caveats_and_the_report_use_one_wording():
+    """A caveat that reads one way on the deck or the case and another in the
+    controlling document is two caveats, and a reader who spots the difference
+    cannot tell which is current. Each of these is owned by the module that
+    applies it and quoted, not paraphrased, by the report."""
+    from sloads.export.sbeam_bridge import CENTERLINE_CLAMP_NOTE
+    from sloads.modules.balance import AILERON_COUPLE_NOTE, LATERAL_AERO_NOTE
+
+    text = methods_statement(_project(_GA))
+    for owner_note in (LATERAL_AERO_NOTE, AILERON_COUPLE_NOTE, CENTERLINE_CLAMP_NOTE):
+        # From the second character: the notes are written to sit mid-sentence
+        # in band, and one of them opens a report bullet, so only the case of the
+        # first letter may differ. Every other character must match.
+        assert owner_note[1:] in text, owner_note[:60]
+
+
+def test_the_assumed_tail_planform_reaches_the_statement():
+    """Review **F-R4**: ``resolve_tail_planform`` marks a derived rectangle
+    ASSUMED, and that marker reached the page, the CSV and the result and stopped
+    — so the controlling document described the distribution as if the planform
+    had been entered. No shipped fixture enters one, so this fires on the GA."""
+    text = methods_statement(_project(_GA))
+    assert "Horizontal tail planform ASSUMED" in text
+    assert "Vertical tail planform ASSUMED" in text
+    assert "not the surface's own" in text
+
+
+def test_an_entered_tail_planform_states_no_assumption():
+    """The other half of the contract: the caveat is conditional, so a project
+    that enters the planform must not carry it. Guards against a standing
+    sentence dressed up as a conditional one."""
+    from sloads.tail_geometry import resolve_tail_planform
+
+    project = _project(_GA)
+    surfaces = project.geometry.surfaces if project.geometry is not None else []
+    wing = next((s for s in surfaces if s.name == project.wing_mass.surface), None)
+    assert wing is not None, "fixture has no wing surface to copy a planform from"
+    entered = _htail_surface_from(wing, project)
+    project.geometry.surfaces.append(entered)
+    assert resolve_tail_planform(project, "htail").assumed is False
+    text = methods_statement(project)
+    assert "Horizontal tail planform ASSUMED" not in text
+    assert "Vertical tail planform ASSUMED" in text     # the fin is still derived
+
+
+def _htail_surface_from(wing, project):
+    """An 'htail' surface entry whose area and span match the entered scalars.
+
+    ``resolve_tail_planform`` validates an entered polyline against the
+    oracle-authoritative area/span (1 %), so the fixture cannot simply borrow the
+    wing's geometry -- it has to be the rectangle the derivation would produce,
+    entered explicitly.
+    """
+    import copy
+
+    ht = project.tail_loads
+    span_in, area_sqft = ht.htail_semispan_in, ht.htail_area_sqft
+    chord = area_sqft * 144.0 / (2.0 * span_in)
+    surface = copy.deepcopy(wing)
+    surface.name = "htail"
+    surface.leading_edge = [(0.0, 0.0), (0.0, span_in)]
+    surface.trailing_edge = [(chord, 0.0), (chord, span_in)]
+    return surface
 
 
 def test_verification_states_the_twin_cases_are_not_oracle_locked():

@@ -12,6 +12,30 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- **The fuselage deliverables rendered a platform-dependent negative zero, and
+  CI failed on a difference that was not a difference.** Found from a CI report
+  of `sbeam/body_cards` drift against the Imperial digest baseline while the
+  same commit passed locally. The body deck's stated `Applied Fz set sums to …`
+  and `Terminal Myy …`, and the span CSV's terminal cumulative `Sz`/`Myy`, are
+  the free-free equilibrium — exactly zero in exact arithmetic, ~1e-11 of
+  cancellation dust in floating point. The magnitude is far below any printed
+  precision, but the **sign** of that dust is not reproducible across platforms
+  (x86 and ARM reassociate the upstream arithmetic differently), so the same
+  code printed `0.00` on one machine and `-0.00` on another. New
+  `sbeam_bridge._closed()` snaps a zero-by-construction quantity to an unsigned
+  zero relative to its own column's scale — the rule the `FORCE` cards already
+  had (nothing under `_TOL` is emitted) extended to the totals that describe
+  them. Guarded by
+  `test_the_body_deliverables_never_render_a_negative_zero`, both unit systems
+  (SI is the worse case: the same dust is 175× larger in newtons). `body_cards`
+  and `body_span` digests regenerated.
+
+  *Not swept in the same change:* structural negative zeros elsewhere (~2,000
+  `-0.000000E+00` components in the balanced deck, the tail span CSV's `Fax`
+  column) come from `-1 × 0.0`, are bit-identical on every platform, and are
+  cosmetic only. Normalising them would move every deck family's digests, so it
+  is filed rather than folded in here.
+
 - **The bundle manifest pointed three companion files at the wrong report
   section, and now the numbering has an owner.** 0.5.0 row 1, review finding
   **F-R2**. The manifest's "Summarised in" column sent the case index to §3
@@ -37,6 +61,36 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
     rendered string rejects a reference past the last section.
 
 ### Added
+
+- **The report's known-limitations list is every open caveat, and says so
+  testably.** 0.5.0 row 2, review finding **F-R4**, decision **D-R3**. The list
+  claimed completeness and was missing four: the **fin-only lateral aero** (the
+  only lateral aerodynamic load the suite computes, so `n_y` and yaw
+  acceleration are over-stated), the **lumped aileron couple** (23.349 applied
+  at the wing AC because there is no aileron spanwise geometry), the **wing
+  stick model's centreline clamp** (its SPC reaction is the half-span total, not
+  a wing root design load) and the **flight-only fuselage deck** (no ground
+  case, per D-R3 — stated now as a positive claim, not as two adjacent absences).
+  - **The assumed tail planform now reaches the report.** `resolve_tail_planform`
+    derives a rectangle from the area/span scalars when `geometry.surfaces`
+    carries no entry for the surface and marks it ASSUMED; that marker reached
+    the page, the CSV and the result and stopped, so the controlling document
+    described the distribution as if the planform had been entered. It is a
+    **conditional** limitation, resolved from the project's own inputs so a
+    headless bundle states it too, and it names the surface — no shipped fixture
+    enters a tail planform, so every current bundle carries both.
+  - **One wording per caveat.** Where a caveat also travels in band, the report
+    quotes the owning module's constant verbatim rather than paraphrasing it:
+    `balance.LATERAL_AERO_NOTE`, the new `balance.AILERON_COUPLE_NOTE` (extracted
+    from the ACRL case note, unchanged text, so no deck byte moved) and
+    `sbeam_bridge.CENTERLINE_CLAMP_NOTE` (reworded once to serve both the deck
+    and the document; `wing_stick` digests regenerated).
+  - **The completeness guard:** standing limitations are declared with stable
+    keys and the key set is pinned by test, so opening or closing a caveat is a
+    visible edit in the same commit rather than a silent omission; separate tests
+    assert each one reaches the statement, that the in-band and report wordings
+    are one string, and that the conditional planform caveat is absent when a
+    planform is entered. `SUMMARY_REPORT.md` §4.6 now states the contract.
 
 - **The wing stick deck states its centerline clamp, and every deck `$`
   comment now fits the card width.** 0.5.0 row 1, closing the last of the

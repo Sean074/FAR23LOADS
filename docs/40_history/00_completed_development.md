@@ -10,6 +10,83 @@ Acceptance**, **Key decisions**.
 
 ---
 
+## Limitations completeness, and the caveat's one wording (0.5.0 Phase 2 row 2 — complete 2026-08-11, tier M)
+
+Closed review finding **F-R4**; decision **D-R3** for the ground-case statement.
+`_STANDING_LIMITATIONS` claimed to be every open caveat and was missing four —
+the fin-only lateral aero (L-7), the lumped aileron couple, the wing stick
+model's centreline clamp and the flight-only fuselage deck, the last now a
+positive claim rather than two adjacent absences. The **assumed tail planform**
+joins them as a *conditional* limitation: `resolve_tail_planform` marks a derived
+rectangle ASSUMED and that marker reached the page, the CSV and the result and
+stopped, so the controlling document described the distribution as if the
+planform had been entered. It is resolved from the project's own inputs, so a
+headless bundle states it too, and no shipped fixture enters one.
+
+**One wording per caveat.** Where a caveat also travels in band, the report
+quotes the owning module's constant rather than paraphrasing it —
+`balance.LATERAL_AERO_NOTE`, the new `balance.AILERON_COUPLE_NOTE` (extracted
+from the ACRL case note with its text unchanged, so no deck byte moved) and
+`sbeam_bridge.CENTERLINE_CLAMP_NOTE` (reworded once to serve both the deck and
+the document; `wing_stick` digests regenerated). **The completeness guard** is
+the point of the step: standing limitations carry stable keys, the key set is
+pinned by test, and separate tests assert each one reaches the statement, that
+the in-band and report wordings are one string, and that the conditional
+planform caveat disappears when a planform is entered. `SUMMARY_REPORT.md` §4.6
+states the contract.
+
+---
+
+## The fuselage deliverables rendered a platform-dependent negative zero (defect — complete 2026-08-11, tier S)
+
+Found from a CI report of `sbeam/body_cards` drift against the Imperial digest
+baseline on a commit that passed locally. The body deck's stated `Applied Fz set
+sums to …` and `Terminal Myy …`, and the span CSV's terminal cumulative
+`Sz`/`Myy`, are the free-free equilibrium: exactly zero in exact arithmetic,
+~1e-11 of cancellation dust in floating point. The magnitude is far below any
+printed precision; the **sign** is not reproducible across platforms, because
+x86 and ARM reassociate the upstream arithmetic differently — so one machine
+printed `0.00` and the other `-0.00`, and a digest baseline whose job is to
+answer "did any Imperial byte move?" answered yes for a difference that is not
+one.
+
+`sbeam_bridge._closed()` snaps a zero-by-construction quantity to an unsigned
+zero, relative to its own column's scale so it cannot mask a real residual on a
+heavy airplane — the rule the `FORCE` cards already had (nothing under `_TOL` is
+emitted) extended to the totals that describe them. Guarded by
+`test_the_body_deliverables_never_render_a_negative_zero` in both unit systems,
+SI being the worse case at 175× the dust. Structural negative zeros elsewhere
+(`-0.000000E+00` from `-1 × 0.0`, ~2,000 in a balanced deck) are bit-identical
+on every platform and cosmetic; filed as its own backlog row rather than folded
+in, because normalising them moves every deck family's digests.
+
+---
+
+## Manifest § renumber + a single owner for the report's section numbering (0.5.0 Phase 2 row 1 — complete 2026-08-10, tier M)
+
+Closed review finding **F-R2**. The bundle manifest's "Summarised in" column
+sent the case index to §3, the load-case CSVs and the text report to §4 and
+METHODS.txt to §5 — each one section short after the §2 sign-conventions
+insertion, and methods two short after the §6 balanced section moved it to §7 —
+and the tail rows named a "§4 Tails" subsection that never existed. Corrected to
+§4 / §5 / §7 and to the real `Horizontal tail / Vertical tail` headings.
+
+Fixed **structurally** rather than by re-typing (`CLAUDE.md` practice 3, second
+time this bit): `content.SECTIONS` is the ordered `(key, title)` single source,
+`section_heading(key)` builds every heading and `section_ref(key[, subsection])`
+every cross-reference — the manifest column plus the rendered prose in the
+references table, the gear note and the balanced section. A literal `§N` in
+rendered text is now a defect. Pinned four ways in `tests/test_report_content.py`,
+since the finding was precisely that nothing pinned the values: the owner's
+numbers must equal the document's own section positions; each companion file's
+target is pinned by key in `SUMMARISED_IN`, exhaustive on the GA fixture so a new
+row cannot slip in unpinned; every manifest reference must resolve to a real
+section and each suffix to a real subsection; and a document-wide sweep of every
+rendered string rejects a reference past the last section. Spec updated in
+`PROGRAM_SPEC.md` (summary-report section) and `SUMMARY_REPORT.md` §4.7.
+
+---
+
 ## Wing deck `$` width + centerline-clamp header line (0.5.0 Phase 1 row 1 — complete 2026-08-10, tier S)
 
 The wing stick model's `SPC1` now carries the plan 10 §1.1 caveat naming the

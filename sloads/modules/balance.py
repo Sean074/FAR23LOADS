@@ -291,6 +291,17 @@ HANDEDNESS_TOL = 1e-9
 #: result's ``notes``, hence in the deck header and the UI. The *direction* of
 #: the error is stated, not merely its existence -- and its magnitude is stated
 #: as unknown, because quantifying it is building the missing model.
+#: The B7 statement of record for the lumped aileron couple, carried in-band on
+#: every ``ACRL`` case (the case's ``notes``, hence the deck header and the UI)
+#: and in the report's standing limitations (review F-R4) — one wording for both,
+#: because the deck and the controlling document must not caveat the same
+#: modelling choice differently. The couple's *magnitude* is per case and is
+#: stated beside this sentence; what is standing is the modelling choice.
+AILERON_COUPLE_NOTE = (
+    "the suite has no aileron spanwise geometry, so its own lift increment is "
+    "not distributed (WINGINER carries only the inertia reaction, which IS "
+    "distributed here)")
+
 LATERAL_AERO_NOTE = (
     "the fin is the only lateral aerodynamic load this suite computes -- "
     "fuselage and wing side force in sideslip are not modelled, so n_y and the "
@@ -1031,11 +1042,8 @@ def assemble(project: Project, condition: str, vn: VnPoint,
     if unb:
         loads.append(BalancedLoad(x=fl.xw, y=0.0, z=fl.zw, mx=-unb,
                                   source="aileron-roll", side="C"))
-        notes.append(
-            f"aileron rolling moment {-unb:+.0f} lb-in applied as a lumped free "
-            "couple: the suite has no aileron spanwise geometry, so its own lift "
-            "increment is not distributed (WINGINER carries only the inertia "
-            "reaction, which IS distributed here)")
+        notes.append(f"aileron rolling moment {-unb:+.0f} lb-in applied as a "
+                     f"lumped free couple: {AILERON_COUPLE_NOTE}")
 
     if lateral:
         loads += list(lateral)
@@ -1421,6 +1429,7 @@ __all__ = [
     "BALANCED_WING_CONDITIONS",
     "BALANCED_VTAIL_CONDITIONS",
     "BALANCED_HTAIL_CONDITIONS",
+    "AILERON_COUPLE_NOTE",
     "HANDEDNESS_TOL",
     "LATERAL_AERO_NOTE",
     "RESIDUAL_GATE",

@@ -337,6 +337,18 @@ The methods statement SHALL be generated from a single source shared with the
 machine-readable exports, so the statement in the report and the statement stamped
 into the CSV and BDF files cannot diverge.
 
+**Item 6 is a completeness claim, and it SHALL be testable** (review F-R4, which
+found four open caveats missing from a list that claimed to be all of them).
+Standing limitations are declared with a stable **key** in
+`report.methods._standing_limitations()` and the key set is pinned by test, so
+opening or closing a caveat is a visible edit in the same commit. A caveat that
+also travels **in band** — on a case's notes, a deck `$` header, a page — SHALL
+be the owning module's constant quoted verbatim, never paraphrased here: one
+modelling choice, one wording, or a reader who notices the difference cannot
+tell which is current. A limitation that depends on the project's own inputs
+(an assumed planform, a fallback closure, assumed spar stations) SHALL be
+conditional, stating itself only where it applies.
+
 ### 4.7 Bundle manifest (required)
 
 Every companion file delivered with the report: its name, what it contains, its

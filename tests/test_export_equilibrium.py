@@ -32,6 +32,7 @@ beam), Ch 10 (chordwise tail distribution).
 
 import math
 import os
+import re
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -325,6 +326,31 @@ def test_body_deck_closes_in_force_and_moment(example, system):
             assert closes(value, 0.0, scale=got.force_scale), f"{where} {axis} -> 0"
         for axis, value in (("Mx", got.mx), ("Mz", got.mz)):
             assert closes(value, 0.0, scale=got.moment_scale), f"{where} {axis} -> 0"
+
+
+@pytest.mark.parametrize("example", EXAMPLES)
+@pytest.mark.parametrize("system", _SYSTEMS)
+def test_the_body_deliverables_never_render_a_negative_zero(example, system):
+    """A quantity that is zero by construction must not print its sign.
+
+    The deck's stated ``Applied Fz set sums to ...`` / ``Terminal Myy ...`` and
+    the span CSV's terminal cumulative cells are the equilibrium above: exactly
+    zero in exact arithmetic, ~1e-11 of cancellation dust in floating point. The
+    magnitude is far below any printed precision, but the **sign** of that dust
+    is not reproducible across platforms -- x86 and ARM reassociate the upstream
+    arithmetic differently -- so the same commit rendered ``0.00`` locally and
+    ``-0.00`` in CI, and the Imperial digest baseline failed on
+    ``sbeam/body_cards`` for a difference that is not a difference. ``_closed()``
+    snaps it; this keeps it snapped, in both unit systems (SI is worse: the same
+    dust is 175x larger in newtons).
+    """
+    _, body, _, _, _, _ = _cached(example)
+    _skip_if_empty(body, example, "body")
+    for name, text in (("cards", sb.body_force_moment_cards(body, system=system)),
+                       ("span CSV", sb.body_span_load_csv(body, system=system))):
+        bad = [ln for ln in text.splitlines()
+               if re.search(r"-0\.0*(?![0-9]*[1-9])(?![0-9]*E-)", ln)]
+        assert not bad, f"{example} {system.value} body {name}: {bad}"
 
 
 @pytest.mark.parametrize("example", EXAMPLES)

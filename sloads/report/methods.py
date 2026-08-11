@@ -50,6 +50,11 @@ from .render import ultimate_units
 #: CSV can be traced back to the build that produced it.
 TOOL_NAME = "sloads"
 
+#: Errors a defensive block tolerates -- the same set the report content model
+#: catches. A half-filled project must still get its methods statement.
+_CALC_ERRORS = (ValueError, ZeroDivisionError, KeyError, IndexError, TypeError,
+                AttributeError)
+
 #: The three approved deviations from McMaster's manual, with their citations.
 #: The authoritative register is ``docs/20_theory/02_approved_corrections.md``;
 #: this is its one-line-per-entry export form. Keep the two in step -- a
@@ -65,21 +70,53 @@ APPROVED_CORRECTIONS = (
                   "set, including the two conditions the printed listing omits."),
 )
 
-#: Limitations that hold for every run, regardless of project content. Each is
-#: phrased in engineering terms with no tracking identifier: the statement is read
-#: by an analyst, and SUMMARY_REPORT.md 5 excludes internal development artifacts
-#: (backlog IDs, ticket references, source paths) from the deliverable. The
-#: tracking IDs for these gaps stay in the repository's backlog.
-_STANDING_LIMITATIONS = (
-    "Control-surface distributions are the *standard simplified* forms (not a "
-    "measured or CFD chordwise distribution).",
-    "Wing and control-surface exports carry the full case set even when a "
-    "governing-set filter is applied elsewhere: their case identities are minted "
-    "separately from the governing set, so the filter cannot reach them.",
-    "No ground-case distributed fuselage loads: gear reactions are point "
-    "reactions, not a distributed ground condition.",
-    "No pressurization load cases.",
-)
+#: Limitations that hold for every run, regardless of project content, as
+#: ``(key, text)``. Each is phrased in engineering terms with no tracking
+#: identifier: the statement is read by an analyst, and SUMMARY_REPORT.md 5
+#: excludes internal development artifacts (backlog IDs, ticket references,
+#: source paths) from the deliverable. The tracking IDs for these gaps stay in
+#: the repository's backlog.
+#:
+#: **The keys are the completeness contract** (review **F-R4**, which found the
+#: list was not "every open caveat"): ``tests/test_methods_stamp.py`` pins the
+#: key set, so opening or closing a caveat is a visible edit in the same commit
+#: rather than a silent omission. Where the caveat also travels **in band** on a
+#: case or a deck, the wording is the owning module's constant, not a paraphrase
+#: — a caveat that reads differently in the deck and in the controlling document
+#: is two caveats. Project-dependent caveats are *not* here: they are the
+#: conditional blocks below (closure fallback, assumed spars, assumed tail
+#: planforms), which state themselves only when they apply.
+def _standing_limitations() -> tuple:
+    """``((key, text), ...)`` — deferred so the owning modules import lazily."""
+    from ..export.sbeam_bridge import CENTERLINE_CLAMP_NOTE
+    from ..modules.balance import AILERON_COUPLE_NOTE, LATERAL_AERO_NOTE
+
+    return (
+        ("control-surface-distributions",
+         "Control-surface distributions are the *standard simplified* forms (not "
+         "a measured or CFD chordwise distribution)."),
+        ("export-case-filter",
+         "Wing and control-surface exports carry the full case set even when a "
+         "governing-set filter is applied elsewhere: their case identities are "
+         "minted separately from the governing set, so the filter cannot reach "
+         "them."),
+        ("flight-only-body-deck",
+         "The fuselage deck is FLIGHT-ONLY. No ground-case distributed fuselage "
+         "loads: gear reactions are point reactions, not a distributed ground "
+         "condition, and no ground case is assembled into a balanced free-free "
+         "case. A ground-critical structure is not covered by this deliverable."),
+        ("pressurization",
+         "No pressurization load cases."),
+        ("lateral-aero",
+         "Lateral aerodynamics: " + LATERAL_AERO_NOTE + "."),
+        ("aileron-couple",
+         "The aileron rolling moment (23.349) is applied as a lumped free couple "
+         "at the wing aerodynamic centre: " + AILERON_COUPLE_NOTE + "."),
+        # The deck says the same sentence after a "CAVEAT:" lead-in; here it opens
+        # a bullet, so only its first letter differs.
+        ("centerline-clamp",
+         CENTERLINE_CLAMP_NOTE[0].upper() + CENTERLINE_CLAMP_NOTE[1:]),
+    )
 
 
 def _ult_markers(system: UnitSystem) -> str:
@@ -196,6 +233,44 @@ def _spar_block(project: Project) -> List[str]:
     return []
 
 
+#: Component key -> the name the deliverable calls it. The planform block below
+#: reads this rather than printing ``htail``, because the statement is read by an
+#: analyst, not by the code that produced it.
+_TAIL_LABELS = {"htail": "Horizontal tail", "vtail": "Vertical tail"}
+
+
+def _tail_planform_block(project: Project) -> List[str]:
+    """The ASSUMED-planform caveat, per surface, only where it is assumed.
+
+    ``tail_geometry.resolve_tail_planform`` derives a **rectangular** planform
+    from the area/span scalars whenever ``geometry.surfaces`` carries no entry for
+    the surface, and marks it ``assumed``. That marker reached the page, the CSV
+    and the tail-span result and stopped there, so the report — the controlling
+    document — described a distribution as if the planform had been entered
+    (review **F-R4**). Resolved from the project's own inputs rather than from a
+    persisted result, so a headless bundle states it too.
+    """
+    from ..tail_geometry import resolve_tail_planform
+
+    out: List[str] = []
+    for component, label in _TAIL_LABELS.items():
+        try:
+            planform = resolve_tail_planform(project, component)
+        except _CALC_ERRORS:
+            # A half-filled project must still produce its statement -- the
+            # methods block is how an analyst finds the gaps (SUMMARY_REPORT 3.4).
+            continue
+        if planform is not None and planform.assumed:
+            out.append(
+                f"  {label} planform ASSUMED: derived as a rectangle from the "
+                f"area and span scalars (no '{component}' entry in the geometry "
+                "surfaces). A tapered surface carries its load further inboard, "
+                "so root bending here is conservative but the station-by-station "
+                "distribution is not the surface's own."
+            )
+    return out
+
+
 def methods_statement(
     project: Project,
     *,
@@ -272,7 +347,8 @@ def methods_statement(
     L.append("KNOWN LIMITATIONS:")
     L.extend(_closure_block(project))
     L.extend(_spar_block(project))
-    L.extend(f"  {item}" for item in _STANDING_LIMITATIONS)
+    L.extend(_tail_planform_block(project))
+    L.extend(f"  {text}" for _, text in _standing_limitations())
     L.append("")
 
     # 7. Scope of this export ------------------------------------------------ #

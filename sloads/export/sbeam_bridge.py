@@ -257,6 +257,27 @@ def _fmt(val: float) -> str:
     return f"{val:.6E}"
 
 
+def _closed(value: float, scale: float) -> float:
+    """A quantity that is zero **by construction** renders as an unsigned zero.
+
+    The fuselage set closes exactly in exact arithmetic -- ``sum(Fz) == 0`` and
+    the terminal ``Myy == 0`` are the equilibrium the deck claims -- but in
+    floating point the sum lands on ~1e-11 of accumulated cancellation dust. Its
+    magnitude is irrelevant at any printed precision; its **sign is not
+    reproducible across platforms** (x86 vs ARM, different libm/FMA builds
+    reassociate the upstream arithmetic), so ``f"{total:.2f}"`` prints ``0.00``
+    on one machine and ``-0.00`` on another. That is a byte difference in a
+    deliverable, and it is what failed the Imperial digest baseline in CI
+    (``sbeam/body_cards``) while the same commit passed locally.
+
+    Cards already have this rule -- nothing under :data:`_TOL` is emitted at all.
+    This gives the *stated totals* the same one, relative to the set's own scale
+    so it cannot mask a real residual on a heavy airplane: a genuine imbalance is
+    orders above ``1e-9 x`` the largest load in the same column.
+    """
+    return 0.0 if abs(value) <= _TOL * max(abs(scale), 1.0) else value
+
+
 def station_gid(i: int) -> int:
     """GRID id of wing station ``i`` (0 = root), past the clamped root node.
 
@@ -605,22 +626,24 @@ def _comment(text: str) -> List[str]:
     return [f"$ {ln}" for ln in textwrap.wrap(text, width=70)]
 
 
-#: Stated on the wing stick deck beside its SPC, per plan 10 §1.1. The clamp sits
-#: at BL 0 because every fixture defines the wing LE polyline from the centerline
-#: (gross-area convention), so a consumer who reads its reaction as a wing root
-#: design load is reading the half-span total. Relocating the SPC would not fix
-#: it -- one clamp reacts the whole applied load wherever it sits; the
-#: side-of-body quantity is an internal load needing a node the deck lacks (the
-#: side-of-body reporting-node item).
-_CENTERLINE_CLAMP_NOTE = (
-    "CAVEAT: the clamped node is the aircraft CENTERLINE (BL 0), half a strip "
-    "inboard of station 0 -- not the side of body where the wing attaches. Its "
-    "SPC reaction is therefore the HALF-SPAN TOTAL applied load, not a wing "
-    "root design load, and the bending it reports is above what the "
+#: Stated on the wing stick deck beside its SPC (plan 10 §1.1) **and** in the
+#: report's standing limitations (review F-R4) — one wording, because a caveat
+#: that reads differently in the deck and in the controlling document is two
+#: caveats. The clamp sits at BL 0 because every fixture defines the wing LE
+#: polyline from the centerline (gross-area convention), so a consumer who reads
+#: its reaction as a wing root design load is reading the half-span total.
+#: Relocating the SPC would not fix it -- one clamp reacts the whole applied load
+#: wherever it sits; the side-of-body quantity is an internal load needing a node
+#: the deck lacks (the side-of-body reporting-node item).
+CENTERLINE_CLAMP_NOTE = (
+    "the wing stick model is clamped at the aircraft CENTERLINE (BL 0), half a "
+    "strip inboard of station 0 -- not at the side of body where the wing "
+    "attaches. Its SPC reaction is therefore the HALF-SPAN TOTAL applied load, "
+    "not a wing root design load, and the bending it reports is above what the "
     "wing-to-fuselage joint carries (23% on the reference GA wing); the "
     "balance is reacted by the carry-through structure and the fuselage. A "
     "single clamp reacts the whole load wherever it sits, so the side-of-body "
-    "quantity is an internal CBAR load, not a reaction, and this deck has no "
+    "quantity is an internal CBAR load, not a reaction, and the deck has no "
     "node at the side of body."
 )
 
@@ -803,7 +826,7 @@ def stick_model_bdf(arg: ResultsArg, sid_base: int = 1, *,
     bulk += [
         "$ ------------------------------------------------------- CONSTRAINTS",
         "$ SPC1, SID, C, G  (clamp the root node, all 6 DOF)",
-        *_comment(_CENTERLINE_CLAMP_NOTE),
+        *_comment("CAVEAT: " + CENTERLINE_CLAMP_NOTE),
         f"SPC1, 1, 123456, {_ROOT_GID}",
         "$ ------------------------------------------------------------ LOADS",
     ]
@@ -955,11 +978,17 @@ def body_span_load_csv(arg, header_comment: str = "", *,
     writer.writeheader()
     for r in results:
         sf = _sf(r)
+        # The cumulative columns close to zero at the aft end (the same
+        # equilibrium the deck states), so the terminal cells carry cancellation
+        # dust whose sign is platform-dependent -- see :func:`_closed`.
+        sz_scale = max((abs(s.sz) for s in r.stations), default=0.0) * sf
+        myy_scale = max((abs(s.myy) for s in r.stations), default=0.0) * sf
         for gid, s in zip(body_station_gids(r), r.stations):
             x, _, _ = to_grid(s.x, 0.0, 0.0, u)
             _, _, fz = to_force(0.0, 0.0, s.fz * sf, u)
             _, _, sz = to_force(0.0, 0.0, s.sz * sf, u)
             _, myy, _ = to_moment(0.0, s.myy * sf, 0.0, u)
+            sz, myy = _closed(sz, sz_scale), _closed(myy, myy_scale)
             writer.writerow({
                 "Case": r.case, "GID": gid, x_h: f"{x:.3f}",
                 fz_h: f"{fz:.1f}", sz_h: f"{sz:.1f}",
@@ -998,6 +1027,11 @@ def body_force_moment_cards(arg, sid_base: int = 1, *,
         sf = _sf(r)
         _, _, total_fz = to_force(0.0, 0.0, sum(s.fz for s in r.stations) * sf, u)
         _, terminal_myy, _ = to_moment(0.0, r.stations[-1].myy * sf, 0.0, u)
+        # Both are zero by construction -- see :func:`_closed` for why the sign of
+        # what floating point actually leaves behind must not reach the file.
+        total_fz = _closed(total_fz, max((abs(s.fz) for s in r.stations), default=0.0) * sf)
+        terminal_myy = _closed(terminal_myy,
+                               max((abs(s.myy) for s in r.stations), default=0.0) * sf)
         lines = [
             f"$ SLOADS net fuselage load -- case {r.case}, SID {sid}",
             f"$ Case ID: {r.case_ref.case_id}" if r.case_ref else "$ Case ID: (none)",
