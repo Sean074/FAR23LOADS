@@ -36,10 +36,16 @@ single half-span. Left and right are separate node runs so an antisymmetric case
 ===================  ==============
 band                 GIDs
 ===================  ==============
-right wing            ``6001+``
-left wing             ``6201+``
+right-hand side       ``6001+`` (wing strips; h-tail strips on 23.427(a))
+left-hand side        ``6201+``
 centreline            ``6401+`` (fuselage masses, tail load, lumped body Cm)
 ===================  ==============
+
+The two side runs are named for the wing in :mod:`sloads.export.bands` because
+the wing is what first needed them; what they carry is every load on that side of
+the centreline, which from D-R8 includes the distributed 23.427(a) horizontal
+tail. A case assembled at its trim tail load still carries that load lumped on
+the centreline run.
 
 The three bands are declared in :mod:`sloads.export.bands`, which owns every
 GID/EID/SID run in the suite and proves them disjoint. They were ``4001+`` and
@@ -71,8 +77,10 @@ from typing import Dict, List, Optional, Sequence, Tuple
 from ..case_ids import balanced_subcase_id, handed_case_id, unhanded_case_id
 from ..models import BalancedCaseResult, BalancedLoad, Project
 from ..modules.balance import (SkippedCondition, build_balanced_cases,
-                               carry_sources_absent, fin_load, is_lateral,
-                               skipped_condition_lines, skipped_conditions)
+                               carry_sources_absent, fin_load, htail_load,
+                               htail_side_loads, is_lateral,
+                               is_unsymmetrical_htail, skipped_condition_lines,
+                               skipped_conditions)
 from ..rigid_body import radians_per_s2
 from ..units import Channel, DeliverableUnits, UnitSystem, deliverable_units
 from .bands import band
@@ -226,7 +234,8 @@ def _header(case: BalancedCaseResult, u: DeliverableUnits) -> List[str]:
     # What the hand *is* differs between the two handed families, and naming it
     # "roll" on a rudder kick would be wrong: a lateral case's twin is the
     # opposite-sign side load, which happens to roll the airplane as well.
-    kind = "side load" if is_lateral(case) else "roll"
+    kind = ("side load" if is_lateral(case)
+            else "tail load split" if is_unsymmetrical_htail(case) else "roll")
     hand = {"R": f" -- STARBOARD {kind} (the computed case)",
             "L": f" -- PORT {kind} (mirror of the starboard case)"}.get(case.hand, "")
     # Angular accelerations are reported in deg/s^2 -- a quantity a reader can
@@ -266,6 +275,22 @@ def _header(case: BalancedCaseResult, u: DeliverableUnits) -> List[str]:
             "cancels a rudder kick -- it yaws and rolls, and the closure above "
             "is that motion. The 1 % residual gate is on the case's symmetric "
             "half, which is unchanged.")
+    if is_unsymmetrical_htail(case):
+        rh, lh = htail_side_loads(case)
+        _, _, ht_total = to_force(0.0, 0.0, htail_load(case), u)
+        _, _, ht_rh = to_force(0.0, 0.0, rh, u)
+        _, _, ht_lh = to_force(0.0, 0.0, lh, u)
+        # The *statement* of what this family is travels on the case's own notes
+        # (balance.assemble), which reach the UI and the report as well; what
+        # the deck adds here is the split in the deck's own units, and the
+        # LIMIT/ULTIMATE reading of it.
+        sentences.append(
+            f"UNSYMMETRICAL h-tail case (FAR 23.427(a)): applied tail load "
+            f"{ht_total:.1f} {u.force.label} LIMIT (like the residuals above; "
+            f"the cards below are ULTIMATE), split {ht_rh:.1f} starboard / "
+            f"{ht_lh:.1f} port and distributed over the full-span tail rather "
+            "than lumped on the centreline. See the NOTE below for what that "
+            "does to the residuals.")
     if case.unbal_moment:
         _, roll_my, _ = to_moment(0.0, case.residual_mx, 0.0, u)
         sentences.append(
@@ -452,12 +477,16 @@ def balanced_case_rows(cases: Sequence[BalancedCaseResult]) -> List[Dict[str, st
     The lateral columns (``Ny``, yaw and roll acceleration) are the whole answer
     of a rudder or gust case, and are printed for every row so the table stays
     rectangular: on a symmetric case they read ``+0.00000`` / ``0``, which is the
-    statement that the case has no lateral motion, not a missing number.
+    statement that the case has no lateral motion, not a missing number. Pitch
+    acceleration joined them at D-R8 for the same reason from the other side: it
+    is the whole answer of the 23.427(a) case, whose applied tail load is a
+    maneuver load rather than the trim one, and it is near zero on every case
+    that *is* assembled at its trim tail load -- which is worth being able to see.
     """
     rows: List[Dict[str, str]] = []
     for c in cases:
-        p_dot, _, r_dot = (_deg(v) for v in
-                           radians_per_s2((c.p_dot, c.q_dot, c.r_dot)))
+        p_dot, q_dot, r_dot = (_deg(v) for v in
+                               radians_per_s2((c.p_dot, c.q_dot, c.r_dot)))
         rows.append({
             "Case": c.label,
             "Hand": c.hand or "-",
@@ -473,6 +502,7 @@ def balanced_case_rows(cases: Sequence[BalancedCaseResult]) -> List[Dict[str, st
             "Closure dNy (g)": f"{c.delta_ny:+.5f}",
             "Yaw acc (deg/s^2)": f"{r_dot:+.4g}",
             "Roll acc (deg/s^2)": f"{p_dot:+.4g}",
+            "Pitch acc (deg/s^2)": f"{q_dot:+.4g}",
             "Basis": "LIMIT",
         })
     return rows

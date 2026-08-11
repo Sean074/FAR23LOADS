@@ -3,9 +3,10 @@
 How `sloads/modules/balance.py` assembles a **full-span, free-free airplane load
 case** — aero and inertia together, wing tip to wing tip, nose to tail — and
 closes it so the exported deck solves in sbeam with **no constraint doing any
-work**. With four worked examples on the shipped fixtures: a symmetric wing case,
-an antisymmetric (rolling) wing case, and the ±β empennage cases on a
-conventional low tail and on a T-tail.
+work**. With worked examples on the shipped fixtures: a symmetric wing case, an
+antisymmetric (rolling) wing case, the ±β empennage cases on a conventional low
+tail and on a T-tail, and the unsymmetrical horizontal-tail case of FAR
+23.427(a).
 
 - **Authority:** axes/signs/seam rule/closure charter in
   [`CONVENTIONS.md`](../10_standard/CONVENTIONS.md) §1 and §7 (this document
@@ -13,22 +14,26 @@ conventional low tail and on a T-tail.
   [`PROGRAM_SPEC.md`](../10_standard/PROGRAM_SPEC.md) "Balanced cases and the
   assembled deck". Decision records: plans
   [11](../30_future/11_balanced_airframe_cases_plan.md) (B-1…B-8) and
-  [13](../30_future/13_b8a_lateral_closure_plan.md) (L-1…L-8).
+  [13](../30_future/13_b8a_lateral_closure_plan.md) (L-1…L-8), and decision
+  **D-R8** in [`03_resolved_decisions.md`](../40_history/03_resolved_decisions.md)
+  (the 23.427(a) family, §8).
 - **Code:** `sloads/modules/balance.py` (assembly + closure),
   `sloads/rigid_body.py` (the relief field, single owner),
   `sloads/export/balanced_deck.py` (the deck),
   `sloads/export/coordinates.py` (reflection, single owner).
 - **Gates:** every number quoted here is pinned in CI —
-  `tests/test_balance.py`, `tests/test_rigid_body.py` (§8 maps figure → test).
+  `tests/test_balance.py`, `tests/test_rigid_body.py` (§9 maps figure → test).
 - **Units:** Imperial internal (lb, in, lb-in); loads in this document are
   **LIMIT** (the ×1.5 ultimate factor is applied once at the export boundary,
   per the load-output contract). Frame: `x` +aft, `y` +starboard, `z` +up;
   moments by the right-hand formulas of `balance.resultant6`.
-- **Status:** the wing symmetric cases (steps B2–B6), the antisymmetric
-  rolling cases (B7) and the six-DOF rigid-body closure (B8a-2) are **shipped
-  and gated**. The lateral empennage cases (§6–§7) are the **design of record**
-  from plan 13, decisions agreed and baseline measured; the assembly code
-  (step B8a-3) is in progress. Design-of-record figures are marked.
+- **Status:** every family in this document is **shipped and gated** — the wing
+  symmetric cases (steps B2–B6), the antisymmetric rolling cases (B7), the
+  six-DOF rigid-body closure (B8a-2), the lateral empennage cases (B8a-3) and
+  the unsymmetrical horizontal tail (D-R8, §8). Figures marked *design of
+  record* are the plan-13 baseline measurements the lateral assembly was built
+  against; where the shipped gate states a different number, the gate is
+  authoritative and says so.
 
 ---
 
@@ -68,7 +73,8 @@ One `BalancedLoad` list per case, each load tagged with its `source`:
 | `body-inertia` | Every item the assembly does not spread, × `−n_z` | each item's own `(x, y, z)` |
 | `fuselage-cm` | The fuselage's share of the trim pitching moment (lumped free moment) | wing AC, centreline |
 | `aileron-roll` | The FAR 23.349 unbalanced rolling moment `−UNB` (rolling cases only, lumped free couple) | wing AC, centreline |
-| `fin-air` *(design of record, B8a-3)* | The fin's distributed side load from `tail_span` (`fy` per strip, `mzz` torsion) | fin strip stations on the L-1 waterline |
+| `vtail-air` | The fin's distributed side load from `tail_span` (`fy` per strip, `mzz` torsion) | fin strip stations on the L-1 waterline |
+| `htail-air` | The 23.427(a) tail load from `tail_span`, distributed full span (`fz` per strip, `myy` torsion) — **replaces** `tail-air` on that case | h-tail strip stations, both halves |
 | `closure-n`, `closure-roll/pitch/yaw`, `closure-self` | The rigid-body relief (§4) | on the modelled masses |
 
 Five rules govern the set. Each was measured, not assumed — the cost of breaking
@@ -132,6 +138,12 @@ the airplane is *supposed* not to balance:
   applied aileron couple; a yawing case's `Mz` residual is the fin load's whole
   yaw moment. The airplane rolls, or yaws — the residual is the case's content,
   and the gates for it are identities and pinned values (§5, §7), not smallness.
+- **`Fz`/`My` on the 23.427(a) case** (§8). Its applied tail load is a
+  *maneuver* load and replaces the trim tail load its V-n point balances at, so
+  the airplane is genuinely out of trim: the residual is that mismatch in full
+  (49.8 % of `n·W` on the ga6) and the vertical and pitch closure is the motion
+  it causes. What is gated at 1 % is the case's **trim half** — the same case
+  with the lumped trim load restored.
 
 ## 4. The closure — one rigid-body field
 
@@ -278,13 +290,14 @@ The case is emitted as a **handed pair**: `ACRL·R` computed, `ACRL·L` =
 bit-identical; its `ṗ`, `ṙ`, `Δn_y` and couple negate; the pairwise
 load-by-load mirror is asserted, not just the totals.
 
-## 7. The lateral balance — the empennage cases *(design of record, B8a-3 in progress)*
+## 7. The lateral balance — the empennage cases
 
-> **Status.** Decisions L-1…L-8 are agreed and the baseline measured (plan 13);
-> the fin waterline (B8a-1) and the six-DOF closure (B8a-2) are shipped. The
-> case assembly itself (B8a-3) is not yet coded, so figures in this section are
-> plan 13 §3's **measured baseline**, marked *(baseline)* — the shipped values
-> will be pinned by gate G10 when B8a-3 lands. Note the baseline `ψ̈` figures
+> **Status.** Shipped and gated: decisions L-1…L-8, the fin waterline (B8a-1),
+> the six-DOF closure (B8a-2) and the case assembly itself (B8a-3, 2026-08-09).
+> Figures marked *(baseline)* below are plan 13 §3's measurements, kept because
+> they are what the design was agreed against; the **shipped** values are pinned
+> by gate G10 (`test_the_lateral_cases_are_pinned`) and win where the two
+> differ. Note the baseline `ψ̈` figures
 > were computed on the placement-only `Izz` (pre-L-3); the shipped closure
 > solves on the full tensor, so the ga6 figures will land ~13 % lower (§7.3).
 
@@ -388,7 +401,72 @@ torsion from mass at the tip). That transfer is plan 09 **T7**, deliberately
 out of B8a scope — backlog step 9 — and is the stated boundary of this
 document's T-tail treatment.
 
-## 8. Where every number is pinned
+## 8. The unsymmetrical horizontal tail — FAR 23.427(a)
+
+**Decision D-R8** (review finding F-R5). One h-tail condition has a genuine
+hand: 23.427(a) takes the largest-magnitude symmetric tail load and applies
+100 % of half of it on one side and `pc = min(100 − 10(n−1), 80)` percent on the
+other. SELECT owns that split (`select_htail_unsymmetrical`, oracle-locked with
+the approved M1-4 deviation); the assembly **distributes** it and never
+recomputes it. Every other h-tail condition is symmetric and is already in the
+deliverable, as the `tail-air` trim load of every wing case — recorded as such
+in the assembly record rather than dropped (`SKIP_REASONS["htail-symmetric"]`).
+
+**The tail load replaces the trim load.** `RH + LH` *is* the condition's whole
+tail load, so a case carrying `vn.lt` beside it would count the balancing part
+twice. The strips come from the full-span `tail_span` table (plan 09 decision
+T-8 — the topology built for exactly this), **air only**: the surface's mass
+items stay in `body-inertia` and are accelerated by the closure field, so each
+mass enters one set, as with the fin.
+
+**The residual is the maneuver.** The governing condition on both fixtures is an
+unchecked maneuver, and its V-n point is a balanced one at `n_z ≈ 1` — an abrupt
+elevator input, with the wing still at trim lift:
+
+| | ga6_normal (V-n 74, CG4) | concept_regional_jet (V-n 34) |
+|---|---|---|
+| applied tail load (RH / LH) | −700.4 / −504.3 lb (pc 72 %) | +5877.7 / +4702.2 lb (pc 80 %) |
+| trim tail load at that point | −177.7 lb | +389.3 lb |
+| pre-closure `Fz` | −1023 lb (−49.8 % `n·W`) | +10 109 lb (+30.6 %) |
+| pre-closure `My` | +205 333 lb-in (144 % `n·W·MAC`) | −4 656 513 (−139 %) |
+| pre-closure `Mx` (roll) | −7 168 lb-in (−1.73 % `n·W·b/2`) | +81 700 (+0.62 %) |
+| closure | Δn −0.496 g, q̇ +637 °/s², ṗ −33.7 °/s² | Δn +0.306 g, q̇ −71.6 °/s², ṗ +9.8 °/s² |
+| trim half (lumped `vn.lt` restored) | 0.187 % `n·W`, 0.301 % `n·W·MAC` | −0.246 %, 0.694 % |
+
+That is the standard treatment of an unbalanced pitching maneuver — the pitch
+acceleration is what 23.423/23.427 are about, and inertia relief is what sizes
+the fuselage under it. The case is a **tail and fuselage** design case: its wing
+loads carry ~0.5 g of relief and are not the wing's critical set.
+
+**Two closed forms check what is applied**, because concept mode has no printed
+oracle here (`CLAUDE.md` practice 2):
+
+```
+Σ fz over each half   =  SELECT's own RH, LH            (exact, both fixtures)
+Σ y·fz                =  (RH − LH) · ȳ                  (ratio 1.000000000)
+```
+
+with `ȳ` the chord-weighted centroid of the half planform (36.550 in on the ga6,
+69.500 in on the regional jet) — the chord-proportional distribution puts the
+same shape on both halves, so only the scale differs.
+
+**Handedness comes from the distribution.** The case carries no side force and no
+free `mx`, so `is_handed` reads the **net applied rolling moment** against
+`HANDEDNESS_TOL · n·W · b/2` (D-R8). The two populations do not overlap: a
+mirror-symmetric applied set nets 1e-17 of that scale, this case 6e-3 to 1.7e-2.
+The port twin is the starboard case reflected, which is precisely 23.427(a)'s
+"either side" — the two halves' loads swap, and both hands are in the deck.
+
+**One structural fix came with it.** The relief field is referred to the mass
+set's **own centroid**, not to the entered CG. The two coincide on nearly every
+loading (step C1 solves the ballast from the items), but ga6's `CG4` sits
+0.0024 in forward and 0.0052 in below its entered CG, and an angular acceleration
+about the wrong point leaves `−ω̇ × Σ wᵢrᵢ` of unclosed force: nothing at a
+trimmed case's ω̇, and **0.31 lb of `Fx`** at this case's 637 °/s². The reported
+residual is still stated about the CG; only the relief is solved where it is
+exact.
+
+## 9. Where every number is pinned
 
 | Figure quoted here | Gate |
 |---|---|
@@ -405,4 +483,8 @@ document's T-tail treatment.
 | yaw DOF ≡ ONENGOUT's `ψ̈ = M/Izz`, step by step | `test_the_yaw_dof_reproduces_onengout` |
 | symmetric reduction (`n_y` = 0, `q̈ = My/Iyy`) | `test_a_symmetric_case_reduces_to_three_dof` |
 | twins are load-by-load mirror images; reflection is an involution | `test_the_handed_twins_are_mirror_images`, `test_the_reflection_operator_is_an_involution` |
-| §7's lateral `n_y`/`ψ̈` *(design of record)* | plan 13 G10, written with B8a-3 |
+| §7's lateral `n_y`/`ψ̈` | `test_the_lateral_cases_are_pinned` (plan 13 G10) |
+| §8's RH/LH split = SELECT's, and the twins swap it | `test_the_unsymmetrical_case_carries_selects_own_split` |
+| §8's roll closed form `(RH − LH)·ȳ` | `test_the_unsymmetrical_roll_is_the_closed_form` |
+| §8's trim half closes inside 1 % | `test_the_trim_half_of_an_unsymmetrical_case_still_closes` |
+| §8's centroid reference for the relief field | `test_the_closure_is_solved_at_the_mass_centroid` |

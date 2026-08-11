@@ -135,6 +135,43 @@ quantifying it is building the missing model; this is the weaker of the suite's
 two honesty statements and is not dressed up as the stronger one (the lumped
 fuselage ``Cm``, whose size can be quoted).
 
+The unsymmetrical horizontal tail (D-R8)
+---------------------------------------
+Decision **D-R8** (2026-08-10), review finding **F-R5**. FAR **23.427(a)** is the
+one horizontal-tail condition with a genuine hand: SELECT takes the
+largest-magnitude symmetric tail load and puts 100 % of half of it on one side
+and ``pc = min(100 - 10(n-1), 80)`` percent on the other. Every other h-tail
+condition is symmetric and already rides the wing cases as the trim tail load
+``vn.lt``; this one has left/right content that a lumped centreline force cannot
+carry, and the full-span tail topology (plan 09 decision T-8) was built for it.
+
+**The applied tail load is SELECT's own, and it replaces the trim load** rather
+than adding to it: ``RH + LH`` *is* the condition's total tail load, and applying
+``vn.lt`` beside it would count the balancing part twice. The h-tail strips come
+from :func:`htail_sets`, the exact analogue of :func:`fin_sets` -- air only, with
+the surface's mass left in :func:`body_inertia` to ride the closure field, so
+each mass still enters exactly one set.
+
+**The pre-closure residual is the maneuver, not an error.** The 23.427(a) load is
+a *maneuver* load (the unchecked maneuver governs on both fixtures that assemble)
+and its V-n point is a balanced one at ``n_z ~ 1``, so the airplane is genuinely
+not in trim: on ``ga6_normal`` the applied tail load is -1204.7 lb against a trim
+-177.7, and the difference -- 49.8 % of ``n*W``, 144 % of ``n*W*MAC`` -- comes out
+as ``delta_n = -0.496 g`` and ``q_dot = +637 deg/s^2``. That is what an abrupt
+elevator input does, and closing it in the pitch degree of freedom is the
+standard treatment of an unbalanced pitching maneuver, not a correction applied
+to a broken balance. :data:`RESIDUAL_GATE` therefore does not apply to this
+family's ``Fz``/``My`` either -- the same standing as the lateral cases -- and the
+gate that does is that the case's **trim half**, with the 23.427(a) set replaced
+by the lumped ``vn.lt``, still closes inside it
+(``test_the_trim_half_of_an_unsymmetrical_case_still_closes``).
+
+Two independent producers check what is applied: the set's per-side sums are
+SELECT's own ``RH``/``LH`` to the last digit, and its rolling moment about the
+centreline is the closed form ``(RH - LH) * y_bar`` with ``y_bar`` the
+chord-weighted centroid of the half planform -- ratio 1.000000000 on both
+fixtures.
+
 **The twins come from reflection, not recomputation** (decisions B-6/B-7). Every
 case with antisymmetric content is emitted as a handed pair, the port case being
 the mirror image of the starboard one through
@@ -188,7 +225,7 @@ from ..rigid_body import (
     relief_force,
     relief_moment,
 )
-from ..tail_geometry import VTAIL
+from ..tail_geometry import HTAIL, VTAIL
 from .airloads import air_load_distribution
 from .select import default_critical, default_envelope
 from .tail_span import build_tail_span
@@ -221,6 +258,15 @@ BALANCED_WING_CONDITIONS = SYMMETRIC_WING_CONDITIONS + ROLLING_WING_CONDITIONS
 BALANCED_VTAIL_CONDITIONS = ("SUDDEN RUDDER", "YAW TO SIDESLIP",
                              "YAW 15 NEUTRAL", "SIDE GUST")
 
+#: The horizontal-tail conditions assembled as balanced cases (D-R8) -- the
+#: 23.427(a) unsymmetrical load and nothing else, because it is the only h-tail
+#: condition with a hand. The symmetric ones are *already* in the deliverable, as
+#: the trim tail load ``vn.lt`` of every wing case's balanced assembly; giving
+#: them a second assembled case would put the same physics in the deck twice
+#: under a different name (:data:`SKIP_REASONS` ``htail-symmetric`` says so on
+#: the record rather than dropping them silently).
+BALANCED_HTAIL_CONDITIONS = ("UNSYMMETRICAL",)
+
 #: Acceptance gate (plan 11 §6): the residual **before** closure, as a fraction
 #: of ``n*W`` for force and ``n*W*MAC`` for moment.
 #:
@@ -235,7 +281,10 @@ BALANCED_VTAIL_CONDITIONS = ("SUDDEN RUDDER", "YAW TO SIDESLIP",
 RESIDUAL_GATE = 0.01
 
 #: Applied lateral content below this fraction of ``n*W`` is summation noise, not
-#: a hand (decision L-6).
+#: a hand (decision L-6). It serves the rolling test of :func:`is_handed` too,
+#: against ``n*W*(b/2)``: the margin there is fifteen orders of magnitude -- a
+#: mirror-symmetric applied set nets 1e-17 of ``n*W*b/2`` in roll, and the
+#: 23.427(a) h-tail case 6e-3 to 1.7e-2 -- so one threshold serves both.
 HANDEDNESS_TOL = 1e-9
 
 #: The L-7 statement of record, carried in-band on every lateral case: on the
@@ -268,9 +317,17 @@ LATERAL_AERO_NOTE = (
 #: or constant names appear here.
 SKIP_REASONS = {
     "out-of-family": (
-        "not one of the balanced families this analysis assembles -- "
-        "horizontal-tail, fuselage, ground and one-engine-out conditions are "
-        "covered by the per-component analyses only"),
+        "not one of the balanced families this analysis assembles -- fuselage, "
+        "ground and one-engine-out conditions are covered by the per-component "
+        "analyses only"),
+    "htail-symmetric": (
+        "a symmetric horizontal-tail condition: it is already in every balanced "
+        "case, as the trim tail load the assembled airplane is balanced against, "
+        "so only the 23.427(a) unsymmetrical condition -- the one with a "
+        "left/right hand -- is assembled as a case of its own"),
+    "no-htail-loads": (
+        "no horizontal-tail spanwise load distribution is available for it, so "
+        "there is no unsymmetrical tail load to assemble the case around"),
     "no-fin-loads": (
         "no vertical-tail spanwise load distribution is available for it, so "
         "there is no fin side load to assemble the case around"),
@@ -521,6 +578,77 @@ def fin_sets(result: TailSpanResult) -> List[BalancedLoad]:
     return loads
 
 
+def htail_sets(result: TailSpanResult) -> List[BalancedLoad]:
+    """The horizontal tail's distributed load, in airplane axes (D-R8, F-R5).
+
+    :func:`fin_sets`' sibling, and deliberately built the same way: a pure
+    consumer of :mod:`sloads.modules.tail_span`, which is a pure consumer of
+    SELECT, so the 23.427(a) load an assembled case carries is SELECT's own
+    RH/LH split strip for strip and no oracle is at risk from assembling it.
+
+    The frame change goes through the single owner in
+    :mod:`sloads.export.coordinates`, with ``component=HTAIL``: the h-tail's span
+    is ``y``, so a station sits at its own span coordinate on both halves of the
+    full-span table (plan 09 decision T-8); its normal force is vertical, so it
+    is ``fz``; and its torsion is about the ``y`` axis, so it is a free ``my``,
+    the stored value unchanged. The strips carry the tail's waterline in ``z``,
+    which is where they are, not the trim load's reference plane.
+
+    **Air only**, exactly as the fin set is: the surface's mass items stay in
+    :func:`body_inertia` and are accelerated by the closure field, so the tail's
+    weight enters the case once. Reading the strips' net ``fz`` instead would
+    apply it twice, once as the per-condition deck's own d'Alembert term and once
+    in the relief.
+
+    The ``side`` tag is the half of the airplane the strip is on -- which is what
+    ``side`` has always meant, the wing being the only carrier of it until now --
+    so :func:`reflect_load` swaps the two halves when the port twin is minted.
+    """
+    loads: List[BalancedLoad] = []
+    for st in result.stations:
+        x, y, z = tail_station_to_airplane(st.x, st.y, HTAIL, root_z=st.z)
+        fx, fy, fz = tail_force_to_airplane(st.fz - st.f_inertia, HTAIL)
+        mx, my, mz = tail_torsion_to_airplane(st.myy_free, HTAIL)
+        loads.append(BalancedLoad(x=x, y=y, z=z, fx=fx, fy=fy, fz=fz,
+                                  mx=mx, my=my, mz=mz,
+                                  source="htail-air", side="R" if y > 0 else "L"))
+    return loads
+
+
+def is_unsymmetrical_htail(case: BalancedCaseResult) -> bool:
+    """Does this case carry the distributed 23.427(a) tail load? (D-R8)
+
+    The ``htail-air`` tag has one reader -- here -- so the deck header, the case
+    table, the report and the gates all agree on what the family *is*, the same
+    single-owner rule :func:`is_lateral` follows for the fin.
+    """
+    return any(ld.source == "htail-air" for ld in case.loads)
+
+
+def htail_load(case: BalancedCaseResult) -> float:
+    """The **net** applied horizontal-tail load; ``0.0`` when there is no set.
+
+    Equal to SELECT's ``RH + LH`` for a 23.427(a) case, which is the identity the
+    composition gate asserts. Use :func:`is_unsymmetrical_htail` to ask whether
+    the case *has* the set: a tail load that happened to sum to zero would still
+    be one, because it is the distribution that is handed.
+    """
+    return sum(ld.fz for ld in case.loads if ld.source == "htail-air")
+
+
+def htail_side_loads(case: BalancedCaseResult) -> Tuple[float, float]:
+    """``(starboard, port)`` halves of the applied h-tail load -- SELECT's own
+    ``RH``/``LH`` on the computed case, and swapped on its port twin.
+
+    Split by the strip's side of the centreline rather than by its ``side`` tag,
+    so the two agree only because the tag is right -- a reflection that failed to
+    swap the tags would show up here rather than being echoed back.
+    """
+    rh = sum(ld.fz for ld in case.loads if ld.source == "htail-air" and ld.y > 0)
+    lh = sum(ld.fz for ld in case.loads if ld.source == "htail-air" and ld.y < 0)
+    return rh, lh
+
+
 def is_lateral(case: BalancedCaseResult) -> bool:
     """Does this case carry an applied fin load? (i.e. is it one of B8a-3's.)
 
@@ -543,8 +671,23 @@ def fin_load(case: BalancedCaseResult) -> float:
     return sum(ld.fy for ld in case.loads if ld.source == "vtail-air")
 
 
-def is_handed(applied: Sequence[BalancedLoad], n_w: float) -> bool:
-    """Does this **applied** load set have a hand? (decision L-6)
+def is_handed(applied: Sequence[BalancedLoad], n_w: float,
+              ref_length: float = 0.0) -> bool:
+    """Does this **applied** load set have a hand? (decision L-6, D-R8)
+
+    Three sources of handedness, and the third is what D-R8 added: a free
+    ``mx``/``mz`` (the aileron couple), lateral force content (a fin load), and a
+    **net rolling moment made by the distribution itself** -- which is the only
+    thing the 23.427(a) h-tail case has. Its asymmetry is 100 % of half the tail
+    load on one side against 72-80 % on the other, all of it in ``fz`` at
+    opposite ``y``: no side force, no free moment, and a predicate reading only
+    the first two would mint it unhanded and emit one twin where 23.427(a)
+    requires both sides considered.
+
+    ``ref_length`` is the semi-span the rolling moment is judged against; with
+    none supplied there is no length scale to form a fraction from, so the roll
+    test is skipped rather than run against a number whose units decide the
+    answer. :func:`assemble` always supplies it.
 
     Two properties, both deliberate and both lost by the obvious alternatives:
 
@@ -566,7 +709,18 @@ def is_handed(applied: Sequence[BalancedLoad], n_w: float) -> bool:
     """
     if any(ld.mx or ld.mz for ld in applied):
         return True
-    return sum(abs(ld.fy) for ld in applied) > HANDEDNESS_TOL * n_w
+    if sum(abs(ld.fy) for ld in applied) > HANDEDNESS_TOL * n_w:
+        return True
+    # The rolling test reads the **net**, unlike the lateral one above, and for
+    # the opposite reason: a mirror-symmetric set cancels to exactly zero here
+    # (each pair contributes ``y*f + (-y)*f``), so the net is a clean signal
+    # rather than a near-cancellation of large parts. Measured, the two
+    # populations do not overlap: symmetric wing cases net 1e-17 of ``n*W*b/2``
+    # in roll and the 23.427(a) case nets 6e-3 to 1.7e-2.
+    if ref_length <= 0.0:
+        return False
+    roll = sum(ld.mx + ld.y * ld.fz - ld.z * ld.fy for ld in applied)
+    return abs(roll) > HANDEDNESS_TOL * n_w * ref_length
 
 
 def point_mass_self_inertia(loading: CaseLoading, project: Project):
@@ -657,10 +811,22 @@ def _closure(loads: List[BalancedLoad], cg: CgCase,
     :mod:`sloads.rigid_body`; this function decides *what* it is applied to and
     with which accelerations.
 
-    The three translational DOF stay decoupled ratios ``n = F/W``, because the
-    mass set's own centroid *is* the reference point (step C1 solves the ballast
-    from it), so a uniform load factor produces no moment. The three rotational
-    DOF are **one coupled 3x3 solve** on the assembled inertia tensor: the field
+    The three translational DOF stay decoupled ratios ``n = F/W`` **because the
+    field is referred to the mass set's own centroid**, where ``Sum w_i r_i`` is
+    zero by definition: a uniform load factor then produces no moment, and an
+    angular acceleration produces no net force. That reference is the loading's
+    CG to the last digit on nearly every case (step C1 solves the ballast from
+    it), and it is computed here rather than assumed to be, because "nearly"
+    is not a closure. ``ga6_normal``'s ``CG4`` loading sits 0.0024 in forward and
+    0.0052 in below its own entered CG -- nothing at all until an acceleration
+    multiplies it, and the 23.427(a) case's ``q_dot`` of 637 deg/s^2 is what
+    multiplies it: referred to the entered CG the same field leaves **0.31 lb**
+    of ``Fx`` unclosed (D-R8). The residual reported on the case is still stated
+    about the CG, which is what a reader expects; only the relief is solved
+    where it is exact.
+
+    The three rotational DOF are **one coupled 3x3 solve** on the assembled
+    inertia tensor about that same centroid: the field
     an angular acceleration applies produces the moment ``-[I]{omega_dot}``
     exactly, and ``[I]``'s off-diagonal ``Ixz`` is 8.4 % of the ga6's pitch
     inertia and larger on the regional jet (plan 13 §3.5), so roll and yaw are
@@ -712,12 +878,21 @@ def _closure(loads: List[BalancedLoad], cg: CgCase,
     if not w_total:
         return zero, zero, InertiaTensor()
 
-    points = [PointMass(w, ld.x - cg.xcg, ld.y, ld.z - cg.zcg)
-              for ld, w in masses]
+    # The centroid of the masses the model actually carries -- the one point the
+    # relief field is exact about (see the docstring).
+    cx = sum(ld.x * w for ld, w in masses) / w_total
+    cy = sum(ld.y * w for ld, w in masses) / w_total
+    cz = sum(ld.z * w for ld, w in masses) / w_total
+    points = [PointMass(w, ld.x - cx, ld.y - cy, ld.z - cz) for ld, w in masses]
     tensor = inertia_tensor(points, [si for _, si in self_inertia])
     fx, fy, fz, mx, my, mz = residual
     n = (fx / w_total, fy / w_total, fz / w_total)
-    omega_dot = tensor.solve((mx, my, mz))
+    # The residual arrives about the CG; transfer it to the centroid,
+    # ``M_c = M_ref + (ref - c) x F``, before solving for the accelerations.
+    dx, dy, dz = cg.xcg - cx, 0.0 - cy, cg.zcg - cz
+    omega_dot = tensor.solve((mx + dy * fz - dz * fy,
+                              my + dz * fx - dx * fz,
+                              mz + dx * fy - dy * fx))
 
     for (ld, w), pm in zip(masses, points):
         r = (pm.dx, pm.dy, pm.dz)
@@ -764,7 +939,8 @@ def unbalanced_rolling_moment(project: Project, condition: str) -> float:
 def assemble(project: Project, condition: str, vn: VnPoint,
              loading: CaseLoading, cg: CgCase,
              case_ref=None, unb: float = 0.0,
-             lateral: Sequence[BalancedLoad] = ()) -> BalancedCaseResult:
+             lateral: Sequence[BalancedLoad] = (),
+             htail: Sequence[BalancedLoad] = ()) -> BalancedCaseResult:
     """Assemble one balanced case and close its residual.
 
     ``unb`` is the unbalanced rolling moment (FAR 23.349) for an accelerated-roll
@@ -778,10 +954,18 @@ def assemble(project: Project, condition: str, vn: VnPoint,
     longitudinal or pitching physics changes when a side load is added beside it,
     and ``test_the_symmetric_half_still_closes`` is the guard that it did not.
 
+    ``htail`` is the distributed horizontal-tail load of the 23.427(a)
+    unsymmetrical condition (D-R8, :func:`htail_sets`). It **replaces** the
+    lumped trim tail load: SELECT's ``RH + LH`` is the condition's whole tail
+    load, and applying ``vn.lt`` beside it would carry the balancing part twice.
+    The mismatch between the two is the maneuver -- see the module docstring --
+    and the pitch degree of freedom of the closure is what reacts it.
+
     **Handedness is measured, not declared** (decision L-6): the case gets a hand
-    when its *applied* set has lateral content, whatever put it there -- the
-    aileron couple of ``ACRL`` or the fin load of a rudder kick. Before B8a-3 the
-    two would have been separate flags; :func:`is_handed` is the one predicate.
+    when its *applied* set has lateral content or a net rolling moment, whatever
+    put it there -- the aileron couple of ``ACRL``, the fin load of a rudder kick
+    or the left/right split of 23.427(a). Before B8a-3 the first two would have
+    been separate flags; :func:`is_handed` is the one predicate.
     """
     fl = project.flight_loads
     notes: List[str] = []
@@ -809,8 +993,22 @@ def assemble(project: Project, condition: str, vn: VnPoint,
     ]
 
     loads: List[BalancedLoad] = list(wing_r) + _mirror(wing_r)
-    loads.append(BalancedLoad(x=fl.xtc, y=0.0, z=fl.zw, fz=vn.lt,
-                              source="tail-air", side="C"))
+    if htail:
+        loads += list(htail)
+        applied_ht = sum(ld.fz for ld in htail)
+        notes.append(
+            f"UNSYMMETRICAL (FAR 23.427(a)): the applied tail load is SELECT's "
+            f"own left/right split, {applied_ht:+.0f} lb, and it REPLACES the "
+            f"trim tail load {vn.lt:+.0f} lb this V-n point balances at. The "
+            f"difference is the maneuver -- 23.427(a) distributes a maneuver "
+            f"tail load, and the airplane is not in trim under it -- so the "
+            f"pre-closure Fz and My are that difference in full and are NOT a "
+            f"balance error: the vertical and pitch degrees of freedom of the "
+            f"closure are the motion it causes. The 1 % residual gate is on the "
+            f"case's trim half, which is unchanged")
+    else:
+        loads.append(BalancedLoad(x=fl.xtc, y=0.0, z=fl.zw, fz=vn.lt,
+                                  source="tail-air", side="C"))
     loads += body_inertia(loading, project, vn.nz)
 
     # The fuselage's share of the trim pitching moment: what the airplane-less-tail
@@ -843,18 +1041,19 @@ def assemble(project: Project, condition: str, vn: VnPoint,
         loads += list(lateral)
         notes.append(LATERAL_AERO_NOTE)
 
+    geom = project.geometry.by_name(project.wing_mass.surface)
+    semi_span = geom.leading_edge[-1][1] if geom else 0.0
     ref = (cg.xcg, 0.0, cg.zcg)
-    handed = is_handed(loads, abs(vn.nz * cg.weight_lb))
+    handed = is_handed(loads, abs(vn.nz * cg.weight_lb), semi_span)
     residual = resultant6(loads, ref)
     fx, fy, fz, mx, my, mz = residual
     n, omega_dot, tensor = _closure(
         loads, cg, residual, point_mass_self_inertia(loading, project))
 
-    geom = project.geometry.by_name(project.wing_mass.surface)
     return BalancedCaseResult(
         label=condition, vn_case=vn.case, cg=cg.name, nz=vn.nz,
         weight_lb=cg.weight_lb, mac=fl.mac,
-        semi_span=geom.leading_edge[-1][1] if geom else 0.0, loads=loads,
+        semi_span=semi_span, loads=loads,
         residual_fz=fz, residual_fx=fx, residual_my=my,
         residual_fy=fy, residual_mx=mx, residual_mz=mz,
         delta_n=n[2], delta_nx=n[0], delta_ny=n[1],
@@ -919,6 +1118,22 @@ def handed_twin(case: BalancedCaseResult) -> BalancedCaseResult:
     )
 
 
+def _tail_distributions(project: Project, component: str, builder) -> dict:
+    """``{condition label: load set}`` for one empennage surface, or ``{}``.
+
+    Built once per project rather than per case: ``build_tail_span`` re-resolves
+    both planforms and re-runs SELECT, and the conditions of a surface share V-n
+    points. A project whose chain does not exist yields nothing here and simply
+    assembles no case of that family -- the same "the whole chain must exist"
+    rule the symmetric families follow.
+    """
+    try:
+        spans = build_tail_span(project)
+    except MissingInputError:
+        return {}
+    return {r.case: builder(r) for r in spans.get(component, ())}
+
+
 def _fin_distributions(project: Project) -> dict:
     """``{condition label: fin load set}`` for every v-tail condition, or ``{}``.
 
@@ -928,11 +1143,17 @@ def _fin_distributions(project: Project) -> dict:
     assembles no lateral case -- the same "the whole chain must exist" rule the
     symmetric families follow.
     """
-    try:
-        spans = build_tail_span(project)
-    except MissingInputError:
-        return {}
-    return {r.case: fin_sets(r) for r in spans.get(VTAIL, ())}
+    return _tail_distributions(project, VTAIL, fin_sets)
+
+
+def _htail_distributions(project: Project) -> dict:
+    """``{condition label: h-tail load set}`` for every h-tail condition (D-R8).
+
+    Only ``UNSYMMETRICAL`` is ever asked for (:data:`BALANCED_HTAIL_CONDITIONS`);
+    the whole table is built because the underlying span build produces it in one
+    pass either way.
+    """
+    return _tail_distributions(project, HTAIL, htail_sets)
 
 
 def build_balanced_cases(
@@ -942,13 +1163,16 @@ def build_balanced_cases(
     """One :class:`BalancedCaseResult` per condition SELECT picked -- **two** for
     a condition that has a hand.
 
-    Two families, assembled by the same machinery (B8a-3):
+    Three families, assembled by the same machinery (B8a-3, D-R8):
 
     * the **wing** conditions of :data:`BALANCED_WING_CONDITIONS` -- symmetric,
       plus ``ACRL``'s applied aileron couple;
     * the **vertical-tail** conditions of :data:`BALANCED_VTAIL_CONDITIONS` --
       the fin's distributed side load riding on the same symmetric case its V-n
-      point already describes.
+      point already describes;
+    * the **horizontal-tail** condition of :data:`BALANCED_HTAIL_CONDITIONS` --
+      FAR 23.427(a)'s left/right split, distributed over the full-span tail in
+      place of the lumped trim tail load every other case carries.
 
     A condition is assembled only when the whole chain exists for it: SELECT
     named it, it has a V-n point, and its CG case resolves to a **derivable**
@@ -984,6 +1208,7 @@ def build_balanced_cases(
     cgs = {c.name: c for c in project.flight_loads.cg_cases}
     loadings = {ld.name: ld for ld in derive_case_loadings(project)}
     fins = _fin_distributions(project)
+    htails = _htail_distributions(project)
 
     record: List[SkippedCondition] = skipped if skipped is not None else []
 
@@ -991,6 +1216,7 @@ def build_balanced_cases(
     for cond in critical.conditions:
         unb = 0.0
         lateral: Sequence[BalancedLoad] = ()
+        htail: Sequence[BalancedLoad] = ()
         if cond.component == "wing" and cond.label in BALANCED_WING_CONDITIONS:
             unb = (unbalanced_rolling_moment(project, cond.label)
                    if cond.label in ROLLING_WING_CONDITIONS else 0.0)
@@ -999,6 +1225,14 @@ def build_balanced_cases(
             if not lateral:
                 record.append(_skip(cond, "no-fin-loads"))
                 continue
+        elif cond.component == HTAIL and cond.label in BALANCED_HTAIL_CONDITIONS:
+            htail = htails.get(cond.label, ())
+            if not htail:
+                record.append(_skip(cond, "no-htail-loads"))
+                continue
+        elif cond.component == HTAIL:
+            record.append(_skip(cond, "htail-symmetric"))
+            continue
         else:
             record.append(_skip(cond, "out-of-family"))
             continue
@@ -1015,7 +1249,8 @@ def build_balanced_cases(
             record.append(_skip(cond, "loading-not-derivable"))
             continue
         case = assemble(project, cond.label, point, loading, cg,
-                        case_ref=cond.case_ref, unb=unb, lateral=lateral)
+                        case_ref=cond.case_ref, unb=unb, lateral=lateral,
+                        htail=htail)
         out.append(case)
         if case.hand:
             out.append(handed_twin(case))
@@ -1119,6 +1354,18 @@ def run(project: Project) -> ModuleResult:
                       100.0 * c.roll_moment_fraction, "%",
                       key="balanced_roll_moment_pct"),
         ] if c.unbal_moment else []
+        unsymmetrical = is_unsymmetrical_htail(c)
+        rh, lh = htail_side_loads(c)
+        htail_values = [
+            # The case's defining applied load and the split that gives it its
+            # hand, reported before the motion the mismatch with trim causes.
+            LoadValue("Applied horizontal-tail load", htail_load(c), "lb",
+                      key="balanced_htail_load"),
+            LoadValue("Starboard half", rh, "lb", key="balanced_htail_rh"),
+            LoadValue("Port half", lh, "lb", key="balanced_htail_lh"),
+            LoadValue("Pitch acceleration", degrees(radians_per_s2(
+                (0.0, c.q_dot, 0.0))[1]), "deg/s^2", key="balanced_q_dot"),
+        ] if unsymmetrical else []
         lateral = is_lateral(c)
         lateral_values = [
             # The case's defining applied load, reported before the motion it
@@ -1136,11 +1383,12 @@ def run(project: Project) -> ModuleResult:
         # ... 23.443(b)); the symmetric families keep the two references they
         # have always reported, so no shipped row moves.
         far = ((c.case_ref.far_reference if c.case_ref else "") or "23.321"
-               ) if lateral else ("23.349" if c.unbal_moment else "23.321")
+               ) if (lateral or unsymmetrical) else (
+            "23.349" if c.unbal_moment else "23.321")
         conditions.append(ConditionResult(
             title=f"Balanced case {c.label}{hand} (V-n {c.vn_case}, {c.cg})",
             far_reference=far,
-            values=roll_values + lateral_values + [
+            values=roll_values + htail_values + lateral_values + [
                 LoadValue("Load factor Nz", c.nz, "g", key="balanced_nz"),
                 LoadValue("Weight", c.weight_lb, "lb", quantity="mass",
                           key="balanced_weight"),
@@ -1172,6 +1420,7 @@ __all__ = [
     "ROLLING_WING_CONDITIONS",
     "BALANCED_WING_CONDITIONS",
     "BALANCED_VTAIL_CONDITIONS",
+    "BALANCED_HTAIL_CONDITIONS",
     "HANDEDNESS_TOL",
     "LATERAL_AERO_NOTE",
     "RESIDUAL_GATE",
@@ -1181,6 +1430,10 @@ __all__ = [
     "wing_sets",
     "fin_load",
     "fin_sets",
+    "htail_sets",
+    "htail_load",
+    "htail_side_loads",
+    "is_unsymmetrical_htail",
     "is_lateral",
     "is_handed",
     "body_inertia",

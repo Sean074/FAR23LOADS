@@ -144,9 +144,9 @@ and their sources (`tests/test_concept_closure.py`):
 
 ### The balanced free-free case as a closure gate (step B2–B6, 2026-08-08)
 
-Theory walk-through with worked examples (wing symmetric/antisymmetric, and the
-design-of-record low-tail / T-tail empennage cases) in
-[`balanced_cases.md`](balanced_cases.md).
+Theory walk-through with worked examples (wing symmetric/antisymmetric, the
+low-tail / T-tail lateral empennage cases, and the 23.427(a) unsymmetrical
+horizontal tail) in [`balanced_cases.md`](balanced_cases.md).
 
 The FAR 23 core validates against Appendix A; the *assembled airplane* has no
 printed oracle at all, so its gate is equilibrium itself. Plan 11's acceptance,
@@ -161,6 +161,9 @@ now in CI (`tests/test_balance.py`):
 | the same, re-derived from the deck's own card text | ~ 0 | ~1e-7 (card format) |
 | the same, re-derived by **sbeam** from the deck's own `GRID` cards | ~ 0 | export tolerance, both unit systems |
 | the symmetric half of a **lateral** case, fin load removed (B8a-3) | unchanged | exact — a fin set carries `fy`/`mz` only |
+| the **trim half** of the 23.427(a) case, lumped `vn.lt` restored (D-R8) | < 1 % force, per-fixture pitch | 0.187 / −0.246 % force, 0.301 / 0.694 % pitch |
+| the 23.427(a) applied halves against SELECT's own RH/LH (D-R8) | exact | 6.7e-16 relative |
+| the 23.427(a) applied roll against `(RH − LH)·ȳ` (D-R8) | exact | ratio 1.000000000, both fixtures |
 
 The pre-closure force and pitch rows are read **per family**: the lateral cases
 sit at V-n points the symmetric families never visit, and their pitch residual is
@@ -168,7 +171,13 @@ larger there (ga6 `SUDDEN RUDDER` 0.341 %, RJ `SIDE GUST` 1.586 %). Ceilings are
 stated per fixture *and* per family rather than merged, so the symmetric bounds
 keep their bite. `residual_mx` on a rolling case and `residual_fy`/`residual_mz`
 on a lateral one are **applied loads, not errors**, and are outside this table by
-construction (`CONVENTIONS.md` §1).
+construction (`CONVENTIONS.md` §1). The 23.427(a) case's `Fz`/`My` are outside it
+for the same reason and the strongest instance of it: its applied tail load is a
+*maneuver* load replacing the trim tail load, so the residual is that mismatch in
+full (−49.8 % of `n·W` on the ga6) and the closure is the pitching maneuver
+itself — what is gated there is the trim half, in the rows above (D-R8, decision
+of record; FAR 23.427(a) via `select_htail_unsymmetrical`, SELECT.BAS 6030-6180,
+Ref 1 Appendix C p440-441, with the approved M1-4 deviation).
 
 The measurement is deliberately taken **before** the closure: the gate is on what
 the physics achieves, not on what the correction hides. The remaining ~0.3 %

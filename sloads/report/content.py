@@ -1456,7 +1456,8 @@ def _hand_pair_sentence(cases: Sequence[Any]) -> str:
     return (
         f"{len(handed)} of the {len(cases)} cases are handed: an asymmetric "
         "condition (a rolling case under FAR 23.349, a lateral case under "
-        "23.441/23.443) ships as a starboard/port PAIR, the port case generated "
+        "23.441/23.443, the unsymmetrical horizontal-tail case under 23.427(a)) "
+        "ships as a starboard/port PAIR, the port case generated "
         "by reflecting the computed starboard one about the airplane centreline "
         f"(y -> -y, side loads negated). That is {len(handed) // 2} twin pair(s); "
         "both hands are in the deck, and both must be sized for."
@@ -1482,8 +1483,13 @@ def _balanced_cases_table(cases: Sequence[Any]) -> Table:
             "the remainder. The roll couple is different in kind -- on a rolling "
             "case it is the APPLIED aileron moment, which the airplane is not "
             "supposed to balance, and it is reacted in full by distributed roll "
-            "acceleration. Residual percentages and load factors are LIMIT "
-            "quantities; the exported cards are ULTIMATE."
+            "acceleration. The gate does not apply to the Fz/My of the "
+            "UNSYMMETRICAL rows either (FAR 23.427(a)): that case's applied tail "
+            "load is a MANEUVER load and replaces the trim tail load its V-n "
+            "point balances at, so the residual is the mismatch in full and the "
+            "vertical and pitch closure is the motion it causes -- what is gated "
+            "there is the case's trim half. Residual percentages and load "
+            "factors are LIMIT quantities; the exported cards are ULTIMATE."
         ),
     )
 

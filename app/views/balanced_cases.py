@@ -30,6 +30,7 @@ from sloads.modules.balance import (
     RESIDUAL_GATE,
     build_balanced_cases,
     is_lateral,
+    is_unsymmetrical_htail,
     skipped_condition_lines,
 )
 from sloads.report.methods import bdf_comment_block
@@ -109,8 +110,19 @@ st.caption(
     "case they read zero, which is the statement that it has no lateral motion."
 )
 
+st.caption(
+    "**Pitch acceleration** is the answer of the unsymmetrical h-tail case "
+    "(FAR 23.427(a)) in the same way: its applied tail load is a *maneuver* load "
+    "and replaces the trim tail load the V-n point balances at, so the airplane "
+    "is genuinely not in trim — the pre-closure `Fz`/`My` are that mismatch in "
+    "full, and the vertical and pitch relief are the motion. The residual gate "
+    "below is on the case's trim half, which is unchanged, so those rows are "
+    "excluded from it rather than judged by a number that does not apply to them."
+)
+
+gated = [c for c in cases if not is_unsymmetrical_htail(c)]
 worst = max(max(c.force_residual_fraction, c.moment_residual_fraction)
-            for c in cases)
+            for c in gated) if gated else 0.0
 if worst < RESIDUAL_GATE:
     st.success(
         f"Every case balances to better than {RESIDUAL_GATE:.0%} of n·W before "
@@ -131,18 +143,22 @@ labels = {
     "wing-inertia": "Wing inertia",
     "tail-air": "Balancing tail load",
     "vtail-air": "Fin side load (lateral case)",
+    "htail-air": "Horizontal-tail load, distributed (23.427(a) case)",
     "body-inertia": "Fuselage + empennage inertia",
     "fuselage-cm": "Fuselage pitching moment (lumped)",
     "aileron-roll": "Aileron rolling moment (lumped)",
     "closure-n": "Closure — vertical / longitudinal relief",
     "closure-pitch": "Closure — pitch relief",
     "closure-roll": "Roll-acceleration inertia",
+    "closure-yaw": "Yaw-acceleration inertia",
+    "closure-self": "Point-mass self-inertia (free moment)",
 }
 def _case_label(c) -> str:
     """The selector entry. **Must** carry the hand: the two twins of a rolling
     case are otherwise identical strings, and the picker would silently show the
     starboard case whichever one was chosen."""
-    kind = "side load" if is_lateral(c) else "roll"
+    kind = ("side load" if is_lateral(c)
+            else "tail load split" if is_unsymmetrical_htail(c) else "roll")
     hand = {"R": f" — starboard {kind}", "L": f" — port {kind}"}.get(c.hand, "")
     return f"{c.label}{hand} (V-n {c.vn_case}, {c.cg})"
 

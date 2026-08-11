@@ -159,7 +159,10 @@ BANDS: Tuple[Band, ...] = (
     _band("tail-span-vtail", IdKind.GID, 4501, 500, "sbeam_bridge.tail_span_gid"),
     _band("balanced-wing-right", IdKind.GID, 6001, 200, "balanced_deck.deck_nodes",
           "Left and right are separate runs so an antisymmetric case can load "
-          "them differently without renumbering (plan 11 B7)."),
+          "them differently without renumbering (plan 11 B7). The name records "
+          "what first needed the split; the run carries every load on that side "
+          "of the centreline, which from D-R8 includes the 23.427(a) h-tail "
+          "strips."),
     _band("balanced-wing-left", IdKind.GID, 6201, 200, "balanced_deck.deck_nodes"),
     _band("balanced-centreline", IdKind.GID, 6401, 600, "balanced_deck.deck_nodes",
           "Fuselage masses, the tail air load, the lumped body Cm, and every "

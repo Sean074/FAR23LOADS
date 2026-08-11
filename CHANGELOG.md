@@ -12,6 +12,68 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **The 23.427(a) unsymmetrical horizontal tail is a balanced case.** 0.5.0
+  row 1 — decision **D-R8**, review finding **F-R5**, the release's one L-tier
+  physics step. `build_balanced_cases` gained a third component branch, and with
+  it the assembled deliverable gained the one horizontal-tail condition that has
+  a **hand**: FAR 23.427(a) puts 100 % of half the governing tail load on one
+  side and `min(100 − 10(n−1), 80)` percent on the other, and until now that
+  left/right content had no assembled representation at all — the full-span tail
+  topology (plan 09 **T-8**) had been built for it and nothing used it. It ships
+  as a handed pair per fixture (`HT-09R`/`HT-09L`, SUBCASE 7209/8209 on
+  `ga6_normal` and `concept_regional_jet`), which is precisely 23.427(a)'s
+  "either side".
+
+  - **SELECT's split is distributed, never recomputed**, through the full-span
+    `tail_span` table (`balance.htail_sets`, `source="htail-air"`) — air only,
+    the surface mass riding the closure field with everything else, so each mass
+    still enters exactly one field. It **replaces** the lumped trim tail load
+    `vn.lt`: `RH + LH` *is* the condition's whole tail load, and carrying both
+    would count the balancing part twice.
+  - **The pre-closure residual is the maneuver, and is reported rather than
+    gated.** 23.427(a)'s load is a *maneuver* load and its V-n point is a
+    balanced one at `n_z ≈ 1` — an abrupt elevator input with the wing still at
+    trim lift — so the airplane is genuinely out of trim: −49.8 % of `n·W` and
+    144 % of `n·W·MAC` on `ga6_normal`, closing as Δn −0.496 g and
+    q̇ +637 deg/s². That is the standard treatment of an unbalanced pitching
+    maneuver, and it is the case that sizes the aft fuselage. What **is** gated,
+    at the usual 1 %, is the case's *trim half* — the same case with the lumped
+    load restored (0.301 % on the ga6). Said in-band on the deck header, the
+    case notes, report §6 and the Balanced Cases page, never left to be worked
+    out from a number that looks like a failure.
+  - **Two closed forms check what is applied**, standing in for the printed
+    oracle concept mode does not have: each half sums to SELECT's own `RH`/`LH`
+    exactly (6.7e-16), and the applied rolling moment is `(RH − LH)·ȳ` with `ȳ`
+    the chord-weighted half-planform centroid — ratio 1.000000000 on both
+    fixtures.
+  - **Handedness now reads the distribution's own roll.** This case carries no
+    side force and no free `mx`, so `is_handed` would have minted it *unhanded*
+    and emitted one twin; it gains a net-rolling-moment test against
+    `HANDEDNESS_TOL · n·W · b/2`, where the two populations are fifteen orders
+    apart (a mirror-symmetric set nets 1e-17 of that scale, this case 1.7e-2).
+  - **Fixed, found by building it: the closure was referred to the entered CG.**
+    The rigid-body relief field is now solved about the **mass set's own
+    centroid**. The two coincide on every loading the fixtures had before — which
+    is why a decoupled `n = F/W` solve never showed it — but `ga6_normal`'s
+    `CG4` sits 0.0024 in forward and 0.0052 in below its entered CG, and an
+    angular acceleration about the wrong point leaves `−ω̇ × Σ wᵢrᵢ` of unclosed
+    force: nothing at a trimmed case's ω̇, **0.31 lb of `Fx`** at 637 deg/s²,
+    four orders above the closure gate. The reported residual is still stated
+    about the CG; only the relief is solved where it is exact.
+  - **The assembly record stops calling the h-tail out-of-family.** Its
+    symmetric conditions are not excluded — they are *already in* every balanced
+    case as the trim tail load — so they are recorded under a new
+    `htail-symmetric` reason that says so, leaving `out-of-family` for the
+    fuselage, ground and one-engine-out conditions it actually describes.
+
+  Design note: [`docs/30_future/16_d_r8_unsymmetrical_htail_note.md`](docs/30_future/16_d_r8_unsymmetrical_htail_note.md);
+  method and worked numbers in `docs/20_theory/balanced_cases.md` §8. Gates:
+  eight in `tests/test_balance.py` plus the solver leg. **Bytes moved:** the
+  four new subcases regenerate `csv/balance`, `txt/balance` and
+  `sbeam/balanced_deck` on the two fixtures that assemble — and nothing else,
+  the closure's new reference point being a no-op everywhere the two points
+  coincide.
+
 - **`concept_heavy` joins the sbeam round-trip gate.** 0.5.0 row 1 — the
   remainder of decision **D-R6**, whose diagnosis (review **F-C6**) had already
   restored the fixture's export. Its wing deck now solves in the real solver, in

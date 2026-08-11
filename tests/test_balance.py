@@ -76,15 +76,18 @@ from sloads.modules.balance import (  # noqa: E402
     carry_sources_absent,
     fin_load,
     handed_twin,
+    htail_load,
+    htail_side_loads,
+    is_unsymmetrical_htail,
     is_handed,
     is_lateral,
     resultant6,
 )
 from sloads.modules.balance import resultant as case_resultant  # noqa: E402
-from sloads.modules.select import default_critical  # noqa: E402
-from sloads.modules.tail_span import build_tail_span  # noqa: E402
+from sloads.modules.select import default_critical, default_envelope  # noqa: E402
+from sloads.modules.tail_span import build_tail_span, strip_spans  # noqa: E402
 from sloads.modules.wing_inertia import inertia_units  # noqa: E402
-from sloads.tail_geometry import VTAIL  # noqa: E402
+from sloads.tail_geometry import HTAIL, VTAIL, resolve_tail_planform  # noqa: E402
 from sloads.units import Channel, UnitSystem, deliverable_units  # noqa: E402
 
 from imperial_baseline import EXAMPLES  # noqa: E402
@@ -118,11 +121,18 @@ _LATERAL_CASES = [
     ("SIDE GUST", "R"), ("SIDE GUST", "L"),
 ]
 
+#: The 23.427(a) family (D-R8), handed by construction: SELECT puts 100 % of half
+#: the governing tail load on one side and ``min(100 - 10(n-1), 80)`` percent on
+#: the other, so both hands must be sized for and both are emitted. It sits
+#: between the wing and lateral families because that is SELECT's own emission
+#: order -- wing, h-tail, v-tail.
+_UNSYMMETRICAL_CASES = [("UNSYMMETRICAL", "R"), ("UNSYMMETRICAL", "L")]
+
 _EXPECTED_CASES = {
     "ga6_normal.project.json": [
         ("PHAA", ""), ("PLAA", ""), ("PMAA", ""), ("NMAA", ""),
         ("ACRL", "R"), ("ACRL", "L"), ("TORS", ""),
-    ] + _LATERAL_CASES,
+    ] + _UNSYMMETRICAL_CASES + _LATERAL_CASES,
     "cessna_210.project.json": [],
     "atr42_100.project.json": [],
     "dhc8_dash8.project.json": [],
@@ -130,7 +140,7 @@ _EXPECTED_CASES = {
     "concept_regional_jet.project.json": [
         ("PHAA", ""), ("PLAA", ""), ("PMAA", ""),
         ("ACRL", "R"), ("ACRL", "L"), ("TORS", ""),
-    ] + _LATERAL_CASES,
+    ] + _UNSYMMETRICAL_CASES + _LATERAL_CASES,
 }
 
 #: The pre-closure **pitch** residual, per fixture, as a fraction of ``n*W*MAC``.
@@ -157,19 +167,31 @@ _EXPECTED_CASES = {
 #: would have let a real symmetric regression through.
 #:
 #: These are upper bounds, not targets: they bite on any regression.
+#: D-R8 adds an ``unsymmetrical`` bound, and it is a bound on a *different*
+#: quantity: the 23.427(a) case's own pre-closure pitch residual is the maneuver
+#: (144 % of ``n*W*MAC``), so what is bounded is its **trim half** -- the same
+#: case with the lumped trim tail load restored, in
+#: :func:`test_the_trim_half_of_an_unsymmetrical_case_still_closes`. It sits at
+#: its own V-n point (ga6 74/``CG4``, RJ 34), which the symmetric families never
+#: visit, and measures 0.301 % / 0.694 % there.
 _PITCH_RESIDUAL_CEILING = {
-    "ga6_normal.project.json": {"symmetric": 0.0030, "lateral": 0.0070},
-    "concept_regional_jet.project.json": {"symmetric": 0.0120, "lateral": 0.0160},
+    "ga6_normal.project.json": {"symmetric": 0.0030, "lateral": 0.0070,
+                                "unsymmetrical": 0.0035},
+    "concept_regional_jet.project.json": {"symmetric": 0.0120, "lateral": 0.0160,
+                                          "unsymmetrical": 0.0080},
 }
 
 
 def _family(case) -> str:
-    """``"lateral"`` for a case carrying an applied fin load, else ``"symmetric"``.
+    """``"lateral"``, ``"unsymmetrical"`` or ``"symmetric"`` -- which of the three
+    balanced families a case belongs to.
 
-    Named off the *applied* load set through balance's own reader, so the test
-    suite cannot drift from what the deck header calls a lateral case.
+    Named off the *applied* load set through balance's own readers, so the test
+    suite cannot drift from what the deck header calls each family.
     """
-    return "lateral" if is_lateral(case) else "symmetric"
+    if is_lateral(case):
+        return "lateral"
+    return "unsymmetrical" if is_unsymmetrical_htail(case) else "symmetric"
 
 
 def _project(example: str):
@@ -231,10 +253,15 @@ def test_the_record_names_the_condition_the_review_found_missing():
     assert len(nmaa) == 1, skipped
     assert nmaa[0].component == "wing"
     assert nmaa[0].code == "loading-not-derivable"
-    # The h-tail and fuselage families are a deliberate exclusion, and are
-    # recorded as one rather than left to be inferred from their absence.
-    assert {s.code for s in skipped if s.component in ("htail", "fuselage")} == {
+    # The fuselage family is a deliberate exclusion, and is recorded as one
+    # rather than left to be inferred from its absence. The h-tail's *symmetric*
+    # conditions are a different statement since D-R8 -- they are already in
+    # every case, as the trim tail load -- and only 23.427(a) assembles.
+    assert {s.code for s in skipped if s.component == "fuselage"} == {
         "out-of-family"}
+    assert {s.code for s in skipped if s.component == "htail"} == {
+        "htail-symmetric"}
+    assert "UNSYMMETRICAL" not in {s.label for s in skipped}
 
 
 @pytest.mark.parametrize("example", _with_cases())
@@ -325,8 +352,19 @@ def test_the_pre_closure_residual_is_within_the_gate(example):
     -- so a residual gate on those components would be a gate on nothing. See
     :func:`test_the_roll_moment_is_the_applied_couple` and
     :func:`test_the_symmetric_half_of_a_lateral_case_still_closes`.
+
+    The **23.427(a)** family is excluded from ``Fz``/``My`` for the same kind of
+    reason and it is the strongest instance of it (D-R8): its applied tail load
+    is a *maneuver* load and replaces the trim tail load its V-n point balances
+    at, so the airplane is genuinely out of trim and the residual is that
+    mismatch in full -- 49.8 % of ``n*W`` on ``ga6_normal``. Gating it here would
+    gate the maneuver. What is gated instead is the case's **trim half**, at the
+    same 1 %, in
+    :func:`test_the_trim_half_of_an_unsymmetrical_case_still_closes`.
     """
     for case in build_balanced_cases(_project(example)):
+        if _family(case) == "unsymmetrical":
+            continue
         where = f"{example} {case.label}{case.hand}"
         ceiling = _PITCH_RESIDUAL_CEILING[example][_family(case)]
         assert case.force_residual_fraction < RESIDUAL_GATE, (
@@ -339,8 +377,18 @@ def test_the_pre_closure_residual_is_within_the_gate(example):
 @pytest.mark.parametrize("example", _with_cases())
 def test_the_closure_relief_is_small(example):
     """``|dn|/n < 1 %`` (plan 11 acceptance 2) -- how much of the balance was
-    assumed rather than computed."""
+    assumed rather than computed.
+
+    Read the other way round on the 23.427(a) family, and deliberately: there the
+    relief is not a correction to a balance that nearly held, it is the airplane's
+    response to a maneuver tail load (-0.496 g on ``ga6_normal``), so it is the
+    *answer* rather than a measure of how much was assumed. It is bounded by its
+    own gate -- the trim half -- and reported per case in the table and the deck
+    header.
+    """
     for case in build_balanced_cases(_project(example)):
+        if _family(case) == "unsymmetrical":
+            continue
         assert abs(case.delta_n / case.nz) < RESIDUAL_GATE, f"{example} {case.label}"
 
 
@@ -706,6 +754,18 @@ def test_the_roll_moment_is_the_applied_couple(example):
                 f"{where}: the pre-closure roll is not the fin load's own moment")
             assert case.unbal_moment == 0.0, where
             continue
+        if is_unsymmetrical_htail(case):
+            # Same statement for the 23.427(a) family (D-R8): the whole roll of
+            # the case must be the h-tail set's own moment about the CG -- the
+            # left/right split and nothing else. A mirroring slip in the wing or
+            # a strip on the wrong side would land here, exactly as before.
+            cg = cgs[case.cg]
+            ht = [ld for ld in case.loads if ld.source == "htail-air"]
+            _, _, _, mx, _, _ = resultant6(ht, (cg.xcg, 0.0, cg.zcg))
+            assert case.residual_mx == pytest.approx(mx, rel=1e-12), (
+                f"{where}: the pre-closure roll is not the tail split's own moment")
+            assert case.unbal_moment == 0.0, where
+            continue
         assert case.residual_mx == pytest.approx(-case.unbal_moment, abs=1e-6), where
         if not case.hand:
             assert case.unbal_moment == 0.0, where
@@ -895,7 +955,10 @@ def test_the_yaw_dof_reproduces_onengout(example):
 #: share no code. Pinned as well as reconciled, because a reconciliation that
 #: drifted on both sides at once would still balance.
 _CLOSURE_IZZ = {
-    "ga6_normal.project.json": {"CG1": 2992.1, "CG2": 2933.5, "CG3": 2534.2},
+    "ga6_normal.project.json": {"CG1": 2992.1, "CG2": 2933.5, "CG3": 2534.2,
+                                # CG4 arrives with the 23.427(a) case (D-R8):
+                                # the lightest loading, hence the smallest Izz.
+                                "CG4": 2424.1},
     "concept_regional_jet.project.json": {"CG1 aft heavy": 256507.6,
                                           "CG2 fwd heavy": 331827.6},
 }
@@ -1234,6 +1297,181 @@ def test_the_symmetric_half_of_a_lateral_case_still_closes(example):
         assert case.residual_fy == pytest.approx(fin_load(case), rel=1e-12), where
 
 
+# --------------------------------------------------------------------------- #
+# The D-R8 gates: the 23.427(a) unsymmetrical h-tail family
+# --------------------------------------------------------------------------- #
+#: What SELECT gives the 23.427(a) case, per fixture: ``(RH, LH, total)`` in lb
+#: and the ``pc`` split percent. **Read from SELECT, never recomputed here** --
+#: pinned so a change in the oracle-locked search shows up as a change in the
+#: assembled deliverable rather than passing through it unremarked.
+_UNSYMMETRICAL_SPLIT = {
+    "ga6_normal.project.json": (-700.380105, -504.273676, 72.0),
+    "concept_regional_jet.project.json": (5877.725954, 4702.180763, 80.0),
+}
+
+
+def _unsymmetrical(project):
+    return [c for c in build_balanced_cases(project) if is_unsymmetrical_htail(c)]
+
+
+@pytest.mark.parametrize("example", _with_cases())
+def test_the_unsymmetrical_case_carries_selects_own_split(example):
+    """**The D-R8 composition gate.** The applied tail load *is* SELECT's.
+
+    Two producers, one answer, and that is the whole point of the branch: SELECT
+    picks the governing symmetric tail load and splits it 100 % / ``pc`` %
+    (oracle-locked, an approved deviation of record), and the assembly's job is
+    to distribute that -- not to re-derive it. So each half of the applied set
+    must sum to SELECT's own ``RH``/``LH`` to the last digit, and the port twin
+    must be the same two numbers **swapped**, which is what makes the pair the
+    "either side" of 23.427(a) rather than one case printed twice.
+    """
+    project = _project(example)
+    rh_want, lh_want, pc = _UNSYMMETRICAL_SPLIT[example]
+    cases = _unsymmetrical(project)
+    assert [c.hand for c in cases] == ["R", "L"], f"{example}: {cases}"
+    # Pinned above *and* read from SELECT here: a pin alone would drift with the
+    # search it is meant to be pinning.
+    cond = next(c for c in default_critical(project).conditions
+                if c.component == "htail" and c.label == "UNSYMMETRICAL")
+    select = {lv.key: lv.value for lv in cond.loads}
+    assert select["rh_side_load"] == pytest.approx(rh_want, rel=1e-9), example
+    assert select["lh_side_load"] == pytest.approx(lh_want, rel=1e-9), example
+    assert select["other_side_percent"] == pc, example
+    # The split percent is SELECT's rule, restated here only to show the pair
+    # really is asymmetric -- a 100/100 "split" would pass every other assertion.
+    assert lh_want == pytest.approx(pc / 100.0 * rh_want, rel=1e-6)
+
+    for case in cases:
+        where = f"{example} {case.label}{case.hand}"
+        rh, lh = htail_side_loads(case)
+        want = (rh_want, lh_want) if case.hand == "R" else (lh_want, rh_want)
+        assert rh == pytest.approx(want[0], rel=1e-9), f"{where} starboard half"
+        assert lh == pytest.approx(want[1], rel=1e-9), f"{where} port half"
+        assert htail_load(case) == pytest.approx(rh_want + lh_want, rel=1e-9), where
+        # ...and it replaces the trim tail load rather than joining it: a case
+        # carrying both would balance far better and be wrong.
+        assert not any(ld.source == "tail-air" for ld in case.loads), where
+
+
+@pytest.mark.parametrize("example", _with_cases())
+def test_the_unsymmetrical_roll_is_the_closed_form(example):
+    """**The D-R8 distribution gate**: an analytic target, not a re-run.
+
+    Concept mode has no printed oracle, so the gate is a closed form the
+    distribution must hit (``CLAUDE.md`` practice 2). The applied rolling moment
+    about the centreline is ``(RH - LH) * y_bar`` exactly, with ``y_bar`` the
+    chord-weighted centroid of the half planform -- because the chord-proportional
+    distribution puts the same shape on both halves and only the scale differs.
+    Computed here from the planform rather than from the load set, so the two
+    sides of the identity share no code: -7167.69 lb-in on ``ga6_normal``,
+    +81700.39 on the regional jet, ratio 1.000000000 on both.
+    """
+    project = _project(example)
+    planform = resolve_tail_planform(project, HTAIL)
+    strips = strip_spans(planform)
+    y_bar = (sum(planform.chord(s) * ds * s for s, ds in strips)
+             / sum(planform.chord(s) * ds for s, ds in strips))
+    rh_want, lh_want, _ = _UNSYMMETRICAL_SPLIT[example]
+
+    for case in _unsymmetrical(project):
+        where = f"{example} {case.label}{case.hand}"
+        rh, lh = htail_side_loads(case)
+        roll = sum(ld.y * ld.fz for ld in case.loads if ld.source == "htail-air")
+        assert roll == pytest.approx((rh - lh) * y_bar, rel=1e-9), where
+        # The hand is a real reversal of that moment, not a relabelling.
+        assert (roll > 0) == (rh - lh > 0), where
+        # Against the pinned split, whose constants carry six decimals -- hence
+        # the looser tolerance than the identity above, which is exact.
+        assert abs(roll) == pytest.approx(abs(rh_want - lh_want) * y_bar, rel=1e-7)
+
+
+@pytest.mark.parametrize("example", _with_cases())
+def test_the_trim_half_of_an_unsymmetrical_case_still_closes(example):
+    """**The D-R8 residual gate** -- the one that does apply to this family.
+
+    Plan 11's 1 % gate is meaningless on a 23.427(a) case for a stronger version
+    of the lateral reason: its applied tail load is a *maneuver* load and it
+    replaces the trim tail load the V-n point balances at, so the pre-closure
+    ``Fz``/``My`` are that mismatch in full (49.8 % of ``n*W`` on ``ga6_normal``)
+    and the vertical and pitch closure is the motion it causes -- an abrupt
+    elevator input, which is what 23.423 and 23.427 are about.
+
+    What must still hold is that everything *else* in the case is the shipped
+    balanced assembly: put the trim tail load back, as a lumped force at the
+    tail's own reference point, and the case closes inside the 1 % gate again.
+    That also pins the replacement itself -- if the h-tail set were being applied
+    *beside* ``vn.lt`` rather than instead of it, this restoration would double
+    the tail load and the residual would blow out.
+    """
+    project = _project(example)
+    cgs = {c.name: c for c in project.flight_loads.cg_cases}
+    vn = {p.case: p for p in default_envelope(project).vn}
+    fl = project.flight_loads
+    cases = _unsymmetrical(project)
+    assert cases, f"{example}: no 23.427(a) case"
+
+    for case in cases:
+        where = f"{example} {case.label}{case.hand}"
+        cg = cgs[case.cg]
+        point = vn[case.vn_case]
+        trim = [ld for ld in case.loads
+                if not ld.source.startswith("closure-")
+                and ld.source != "htail-air"]
+        trim.append(BalancedLoad(x=fl.xtc, y=0.0, z=fl.zw, fz=point.lt,
+                                 source="tail-air", side="C"))
+        fx, fy, fz, mx, my, mz = resultant6(trim, (cg.xcg, 0.0, cg.zcg))
+
+        n_w = case.n_w
+        assert abs(fz) < RESIDUAL_GATE * n_w, (
+            f"{where}: trim-half force residual {100 * fz / n_w:.3f} % of n*W")
+        ceiling = _PITCH_RESIDUAL_CEILING[example]["unsymmetrical"]
+        assert abs(my) < ceiling * n_w * case.mac, (
+            f"{where}: trim-half pitch residual "
+            f"{100 * my / (n_w * case.mac):.3f} % against {ceiling * 100:.2f} %")
+        # The trim half is symmetric: the whole hand of the case is the tail
+        # split, and putting the lumped load back removes it entirely.
+        assert fy == 0.0, f"{where}: trim half carries {fy} lb of Fy"
+        assert abs(mx) < 1e-9 * n_w * case.semi_span, f"{where} trim-half roll"
+        assert abs(mz) < 1e-9 * n_w * case.semi_span, f"{where} trim-half yaw"
+
+
+@pytest.mark.parametrize("example", _with_cases())
+def test_the_closure_is_solved_at_the_mass_centroid(example):
+    """The relief field is referred to the mass set's own centroid, not the
+    entered CG -- and on one shipped loading those differ (D-R8).
+
+    The two coincide on every loading the fixtures had before the 23.427(a) case
+    arrived, which is why the difference could sit unnoticed in a decoupled
+    ``n = F/W`` solve: an angular acceleration applied about the wrong point
+    leaves ``-omega_dot x Sum w_i r_i`` of unclosed force, and with the tiny
+    ``omega_dot`` of a trimmed case that is nothing. ``ga6_normal``'s ``CG4``
+    loading sits 0.0024 in forward and 0.0052 in below its own entered CG, and
+    the 23.427(a) case accelerates it at 637 deg/s^2: 0.31 lb of ``Fx``, four
+    orders above the closure gate. Asserted as a property so it cannot come back
+    on a loading nobody thought to check.
+    """
+    project = _project(example)
+    cgs = {c.name: c for c in project.flight_loads.cg_cases}
+    offsets = []
+    for case in build_balanced_cases(project):
+        cg = cgs[case.cg]
+        masses = [ld for ld in case.loads
+                  if ld.weight_lb and not ld.source.startswith("closure-")]
+        w = sum(ld.weight_lb for ld in masses)
+        offsets.append(max(
+            abs(sum(ld.weight_lb * (ld.x - cg.xcg) for ld in masses) / w),
+            abs(sum(ld.weight_lb * (ld.z - cg.zcg) for ld in masses) / w)))
+        # Closure is exact regardless (the six-DOF gate asserts the same thing
+        # case by case); what this test adds is that the property is *tested*
+        # against a loading where the two reference points really differ.
+    if example == "ga6_normal.project.json":
+        assert max(offsets) > 1e-3, (
+            "no shipped loading's mass centroid differs from its entered CG any "
+            "more -- this gate has stopped gating anything, and the closure's "
+            "reference point needs a constructed case instead")
+
+
 def test_the_handedness_predicate():
     """The **L-6 drift guard**: what makes a case handed, stated in isolation.
 
@@ -1260,6 +1498,20 @@ def test_the_handedness_predicate():
     just_under = 0.4 * HANDEDNESS_TOL * n_w
     assert not is_handed([load(fy=just_under), load(fy=just_under)], n_w)
     assert is_handed([load(fy=just_under), load(fy=just_under)], n_w / 10.0)
+
+    # D-R8: a net rolling moment made by the DISTRIBUTION itself -- 23.427(a)'s
+    # only signature, since it carries no side force and no free moment. It
+    # needs a length to be judged against, and with none supplied the roll test
+    # is skipped rather than run against a number whose units decide it.
+    span = 100.0
+    split = [BalancedLoad(x=0.0, y=+50.0, z=0.0, fz=-100.0),
+             BalancedLoad(x=0.0, y=-50.0, z=0.0, fz=-72.0)]
+    assert is_handed(split, n_w, span)
+    assert not is_handed(split, n_w)
+    # A mirror-symmetric distribution is not handed by it, at any length.
+    even = [BalancedLoad(x=0.0, y=+50.0, z=0.0, fz=-100.0),
+            BalancedLoad(x=0.0, y=-50.0, z=0.0, fz=-100.0)]
+    assert not is_handed(even, n_w, span)
 
 
 @pytest.mark.parametrize("example", _with_cases())

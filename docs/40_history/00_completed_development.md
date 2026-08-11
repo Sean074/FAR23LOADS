@@ -10,6 +10,83 @@ Acceptance**, **Key decisions**.
 
 ---
 
+## The 23.427(a) handed balanced h-tail family (0.5.0 Phase 1 row 1 — complete 2026-08-10, tier L)
+
+Closed review finding **F-R5**; decision of record **D-R8**; design note
+[`../30_future/16_d_r8_unsymmetrical_htail_note.md`](../30_future/16_d_r8_unsymmetrical_htail_note.md)
+(agreed in chat before code, `CLAUDE.md` practice 1). The release's one L-tier
+physics step.
+
+**Objective.** Give the assembled deliverable the one horizontal-tail condition
+that has a **hand**. FAR 23.427(a) applies 100 % of half the governing symmetric
+tail load on one side and `min(100 − 10(n−1), 80)` percent on the other; the
+full-span tail topology (plan 09 decision **T-8**) was built to carry exactly
+that asymmetry, and nothing assembled it — the gap was not even filed. Every
+other h-tail condition is symmetric and already rides every balanced case as its
+trim tail load, which is a statement the record should make rather than an
+absence a reader has to infer.
+
+**Deliverables.**
+1. **A third component branch in `build_balanced_cases`**, with `htail_sets` as
+   `fin_sets`' sibling: SELECT's split **distributed** over the full-span
+   `tail_span` table through the `coordinates.py` frame owner (span → `y`,
+   normal → `fz`, torsion → free `my`), tagged `htail-air`, at the tail's own
+   waterline. **Air only** — the surface's mass items stay in `body_inertia` and
+   are accelerated by the closure field, so each mass enters exactly one field
+   (the seam decision L-8 holds for the fin). The set **replaces** the lumped
+   trim tail load: `RH + LH` is the condition's whole tail load, and carrying
+   `vn.lt` beside it would count the balancing part twice.
+2. **The residual restated for the family, in-band.** 23.427(a)'s load is a
+   *maneuver* load whose V-n point is a balanced one at `n_z ≈ 1`, so the
+   airplane is genuinely out of trim: pre-closure −49.8 % of `n·W` and 144 % of
+   `n·W·MAC` on `ga6_normal`, closing as Δn −0.496 g and q̇ +637 deg/s² — an
+   abrupt elevator input, reacted by inertia relief, which is what sizes the aft
+   fuselage. Reported, never gated; the gated statement is the case's **trim
+   half** (0.301 % / 0.694 %). Said on the deck header, the case notes, report
+   §6, the case table and the Balanced Cases page.
+3. **Handedness from the distribution's own roll.** The case carries no side
+   force and no free `mx`, so `is_handed` gained a net-rolling-moment test
+   against `HANDEDNESS_TOL · n·W · b/2`; the twins come from the existing
+   reflection machinery, and `HT-09R`/`HT-09L` (SUBCASE 7209/8209) are
+   23.427(a)'s "either side" in the deck.
+4. **A defect the family exposed: the closure was referred to the entered CG.**
+   The relief field is now solved about the **mass set's own centroid**. The two
+   coincide on every loading the fixtures carried before, which is why a
+   decoupled `n = F/W` solve never showed it; `ga6_normal`'s `CG4` sits
+   0.0024 in forward / 0.0052 in below its entered CG, and an angular
+   acceleration about the wrong point leaves `−ω̇ × Σ wᵢrᵢ` unclosed — 0.31 lb of
+   `Fx` at 637 deg/s², four orders above the closure gate. Reported residuals
+   stay about the CG; only the relief moved.
+5. **The assembly record stops mis-stating the h-tail.** New reason code
+   `htail-symmetric` ("already in every balanced case, as the trim tail load"),
+   plus `no-htail-loads`; `out-of-family` narrows to the fuselage, ground and
+   one-engine-out conditions it actually describes.
+
+**Test / Acceptance.** No printed oracle exists for an assembled airplane, so
+the gates are closed forms and independent producers (`CLAUDE.md` practice 2),
+all in `tests/test_balance.py` unless noted: each applied half equals SELECT's
+own `RH`/`LH` exactly and the twins swap them; the applied roll equals
+`(RH − LH)·ȳ` from the planform (ratio 1.000000000 on both fixtures); the trim
+half closes inside 1 %; the case's whole roll is the tail split's own moment and
+nothing else; six-DOF closure in memory **and** re-derived from the deck's own
+card text; the deck reacts to zero in sbeam in both unit systems
+(`tests/test_sbeam_roundtrip.py`); the closure's centroid reference asserted as a
+property against a loading where the two points really differ; and the assembled
+set pinned per fixture. Imperial baseline regenerated for `csv/balance`,
+`txt/balance` and `sbeam/balanced_deck` on the two fixtures that assemble — and
+nothing else.
+
+**Key decisions.** **D-R8.1** the full 23.427(a) load is applied and replaces
+the trim load (rejected: the asymmetric increment alone, which keeps the case
+inside the 1 % gate but puts one sixth of the tail's design load in the
+assembled model). **D-R8.2** `Fz`/`My` reported rather than gated, with the trim
+half as the gate (rejected: widening the gate for every family). **D-R8.3** air
+only. **D-R8.4** handedness from the net applied roll. **D-R8.5** the relief
+field is referred to the mass centroid. SELECT, `tail_span` and every
+per-component deck are *read*, never recomputed — no Appendix A figure moves.
+
+---
+
 ## `concept_heavy` in the sbeam round-trip gate (0.5.0 Phase 1 row 1 — complete 2026-08-10, tier S)
 
 Closed the remainder of decision **D-R6** (its diagnosis, review **F-C6**, had

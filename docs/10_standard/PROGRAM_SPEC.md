@@ -579,8 +579,10 @@ return strings (with thin `write_*` file wrappers), and do no physics.
   assembled" condition carrying the count and the grouped reasons), the deck's
   own `$ CONDITIONS NOT ASSEMBLED` block, and report §4 (beside the assembled
   half of the same statement, report §6). Reason codes:
-  `out-of-family` (h-tail, fuselage, ground and ONENGOUT conditions — the
-  deliberate exclusion), `no-fin-loads`, `no-vn-point`, `no-cg-case`,
+  `out-of-family` (fuselage, ground and ONENGOUT conditions — the deliberate
+  exclusion), `htail-symmetric` (an h-tail condition already carried by every
+  case as its trim tail load; only 23.427(a) assembles — D-R8),
+  `no-htail-loads`, `no-fin-loads`, `no-vn-point`, `no-cg-case`,
   `loading-not-derivable`. The record is emitted whether or not anything was
   skipped: "every condition assembled" is the completeness statement, and a
   record that appears only on a lossy run cannot be told from one that was never
@@ -626,6 +628,29 @@ return strings (with thin `write_*` file wrappers), and do no physics.
   the only lateral aero the suite computes, so `n_y` and the yaw are over-stated
   by an unknown amount and the inertia they drive is conservative everywhere;
   the fin's own design load is unchanged. Filed on the backlog with M4-19.
+- **Unsymmetrical horizontal-tail balanced case (FAR 23.427(a), D-R8,
+  2026-08-10).** The one h-tail condition with a hand assembles as a **handed
+  pair** (`HT-09R`/`HT-09L`, SUBCASE `7209`/`8209`). SELECT's own RH/LH split is
+  **distributed** over the full-span `tail_span` table (`balance.htail_sets`,
+  `source="htail-air"`, air only — the surface mass rides the closure field with
+  the rest) and **replaces** the lumped trim tail load `vn.lt`, which would
+  otherwise carry the balancing part twice. Because 23.427(a)'s load is a
+  *maneuver* load on a V-n point at `n_z ≈ 1`, the airplane is genuinely out of
+  trim: the pre-closure `Fz`/`My` are that mismatch in full (−49.8 % of `n·W`,
+  144 % of `n·W·MAC` on `ga6_normal`) and the vertical and pitch closure is the
+  motion it causes (Δn −0.496 g, q̇ +637 deg/s²). Reported, never gated — the
+  gated statement is that the case's **trim half**, with the lumped load
+  restored, still closes inside 1 % (0.301 % on the ga6). Two closed forms check
+  the applied set: each half sums to SELECT's own RH/LH exactly, and the applied
+  rolling moment is `(RH − LH)·ȳ` with `ȳ` the chord-weighted half-planform
+  centroid. Handedness is decided by the **net applied rolling moment** in
+  `balance.is_handed` (this case carries no side force and no free `mx`); the
+  family is read off the `htail-air` tag by `balance.is_unsymmetrical_htail`.
+  Every other h-tail condition is symmetric and stays in the assembly record as
+  `htail-symmetric`. **Closure reference:** the relief field is solved about the
+  mass set's own centroid rather than the entered CG — they differ by
+  0.002–0.005 in on `ga6_normal`'s `CG4`, which at this case's ω̇ is 0.31 lb of
+  unclosed `Fx`.
 - **Spanwise empennage loads and decks (step T1–T5, 2026-08-08).**
   `sloads/modules/tail_span.py` distributes each critical h-tail/v-tail condition
   **along the span** in proportion to local chord (SELECT's `LT25`/`LT50` read,
