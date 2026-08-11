@@ -1647,9 +1647,11 @@ def _manifest_rows(comps: ComponentLoads, module_results, u: Units,
         rows += [
             ["sbeam/<project>_tail_chordwise.csv",
              "Chordwise tail load intensities per critical condition.", deck,
-             "leading-edge-first stations; ULTIMATE", "§4 Tails"],
+             "leading-edge-first stations; Fn is normal to the surface (Axis "
+             "column: h-tail Fz, fin Fy); ULTIMATE", "§4 Tails"],
             ["sbeam/<project>_tail_loads.bdf", "FORCE/MOMENT bulk data for the tails.",
-             deck, "ULTIMATE", "§4 Tails"],
+             deck, "loads normal to each surface — h-tail Fz, fin Fy; ULTIMATE",
+             "§4 Tails"],
         ]
     if comps.control:
         rows += [

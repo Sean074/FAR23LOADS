@@ -39,6 +39,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from sloads import io  # noqa: E402
 from sloads.export import sbeam_bridge as sb  # noqa: E402
+from sloads.export.coordinates import tail_force_to_airplane  # noqa: E402
 from sloads.modules import aileron as aileron_mod  # noqa: E402
 from sloads.modules import flap as flap_mod  # noqa: E402
 from sloads.modules import tab as tab_mod  # noqa: E402
@@ -228,12 +229,15 @@ def test_full_airframe_exports_cleanly():
         got = wf[sb._sid(1, idx, r)]
         assert closes(got.force[2], r.stations[0].sz * _SF, scale=got.force_scale)
 
-    # Tail: FORCE Fz re-sums to ULTIMATE (LT25 + LT50).
+    # Tail: the FORCE set re-sums to ULTIMATE (LT25 + LT50) on the surface's own
+    # axis -- vertical for the h-tail, lateral for the fin (D-R4).
     tf = card_totals(sb.tail_force_moment_cards(tail, sid_base=1))
     assert len(tf) == len(tail)
     for idx, r in enumerate(tail):
         got = tf[sb._sid(1, idx, r)]
-        assert closes(got.force[2], (r.lt25 + r.lt50) * _SF, scale=got.force_scale)
+        want = tail_force_to_airplane((r.lt25 + r.lt50) * _SF, r.component)
+        for axis in range(3):
+            assert closes(got.force[axis], want[axis], scale=got.force_scale)
 
     # Control surfaces: FORCE Fz re-sums to the critical surface load.
     cf = card_totals(sb.control_surface_force_moment_cards(control, sid_base=1))

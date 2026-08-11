@@ -444,7 +444,7 @@ shipped example × {Imperial, SI} × every deck family:
 |---|---|---|---|
 | Wing | Σ`FORCE`.Fz/Fx = SF × root `Sz`/`Sx` | Σ`MOMENT`.My = SF × root `Myy`; Σ`FORCE` moment about the root station = SF × root `Mxx` | Ch 14 (net loads); WINGINER quadrature |
 | Body | Σ`FORCE`.Fz = 0 | Σ`FORCE` moment about the aft-most `GRID` = 0 | **Ch 15 p103** — the fuselage beam is assembled free-free (inertia + tail air load + wing carry-through), so its equilibrium statement is `Σ = 0` |
-| Tail | Σ`FORCE`.Fz = SF × (`LT25`+`LT50`) | chordwise first moment = the profile's own (deck ↔ CSV cannot disagree) | Ch 10 |
+| Tail | Σ`FORCE` = SF × (`LT25`+`LT50`) on the surface's normal axis (h-tail `Fz`, fin `Fy`) | chordwise first moment = the profile's own (deck ↔ CSV cannot disagree), about `My` / `Mz` respectively | Ch 10 |
 | Control | Σ`FORCE`.Fz = SF × critical load | — (no geometry; chord-fraction profile) | AILERON/FLAPLOAD/TABLOADS |
 
 Two findings recorded because they are the kind that get re-proposed:

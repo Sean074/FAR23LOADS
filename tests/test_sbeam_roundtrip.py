@@ -63,7 +63,12 @@ from sloads.export.balanced_deck import (  # noqa: E402
     BALANCED_SID_BASE,
     balanced_deck,
 )
-from sloads.export.coordinates import to_force, to_grid, to_moment  # noqa: E402
+from sloads.export.coordinates import (  # noqa: E402
+    tail_force_to_airplane,
+    to_force,
+    to_grid,
+    to_moment,
+)
 from sloads.export.equilibrium import (  # noqa: E402
     closes,
     parse_cards,
@@ -366,6 +371,10 @@ def test_tail_deck_solves_and_recovers_the_total_load(sbeam, example, system):
     Both tail beams are clamped, so the reaction of a case that loads only one
     component is that component's alone -- the other contributes zero, which is
     itself a check that no card leaked across the two GID blocks.
+
+    Each surface is reacted on its **own** axis (D-R4): the h-tail's normal load is
+    vertical, the fin's lateral, so the fin's total comes back as ``Fy`` and its
+    chordwise first moment as ``Mz``.
     """
     _, _, _, tail = _components(example)
     u = _units(system)
@@ -380,13 +389,20 @@ def test_tail_deck_solves_and_recovers_the_total_load(sbeam, example, system):
         applied = resultant(forces, moments, grids, sid, ref)
         got = total_reaction(sols[sid].reactions, grids, ref=ref)
 
-        _, _, want_fz = to_force(0.0, 0.0, (r.lt25 + r.lt50) * r.safety_factor, u)
-        assert closes(got.force[2], -want_fz, scale=abs(want_fz)), f"{where} T-b"
+        total = (r.lt25 + r.lt50) * r.safety_factor
+        want_f = to_force(*tail_force_to_airplane(total, r.component), u)
+        scale = max(abs(v) for v in want_f)
+        for axis in range(3):
+            assert closes(got.force[axis], -want_f[axis], scale=scale), \
+                f"{where} T-b axis {axis}"
         # T-c: the reaction moment about the LE station is the deck's own
         # chordwise first moment -- recovered by the solver from the GRID
-        # coordinates rather than read back out of the card text.
-        assert closes(got.moment[1], -applied.my, scale=applied.moment_scale), \
-            f"{where} T-c"
+        # coordinates rather than read back out of the card text. Which moment
+        # component carries it follows the force axis: My for the h-tail, Mz for
+        # the fin.
+        for axis, want in enumerate((applied.mx, applied.my, applied.mz)):
+            assert closes(got.moment[axis], -want, scale=applied.moment_scale), \
+                f"{where} T-c axis {axis}"
 
 
 # --------------------------------------------------------------------------- #

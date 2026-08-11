@@ -1066,6 +1066,13 @@ def write_body_force_moment_cards(arg, path: str, sid_base: int = 1, *,
 # average tail chord at five chord stations. The export emits the profile as a CSV
 # and a per-station FORCE set scaled so its total equals the condition's tail load
 # (LT25 + LT50) -- a determinate, checkable load set for the tail beam in sbeam.
+#
+# The profile is a **normal** pressure on the surface, so which airplane axis the
+# cards land on is the surface's own: vertical for the h-tail, lateral for the fin.
+# That map is not written here -- it comes from ``coordinates.py``, the single
+# owner, exactly as the spanwise family below takes it (review F-C3, D-R4). It was
+# hand-rolled as ``fz`` for both components until 0.5.0, which loaded a spliced fin
+# in the one direction it is not designed for.
 _TAIL_CHORD_BANDS = {"htail": band("tail-chord-htail"),
                      "vtail": band("tail-chord-vtail")}
 _TAIL_GID_BASE = _TAIL_CHORD_BANDS["htail"].start  # 2001
@@ -1150,9 +1157,24 @@ def _trapezoid_tributary_forces(stations, total: float, what: str) -> List[float
     return [v * scale for v in raw]
 
 
+def _tail_force_axis(component: str) -> str:
+    """Which airplane force component a strip's **normal** load lands on.
+
+    Read out of :func:`tail_force_to_airplane` rather than tabled a second time
+    here, so a deck's `$` header and its cards cannot come to disagree: the label
+    is the map. Returns ``"Fz"`` for the h-tail, ``"Fy"`` for the fin.
+    """
+    vec = tail_force_to_airplane(1.0, component)
+    return ("Fx", "Fy", "Fz")[max(range(3), key=lambda i: abs(vec[i]))]
+
+
 def _tail_nodal_forces(r: TailChordResult) -> List[float]:
-    """Per-station vertical forces (lb) from the chordwise pressures, scaled so the
-    set sums to the total tail load ``LT25 + LT50`` (trapezoidal chord tributaries)."""
+    """Per-station **normal** forces (lb) from the chordwise pressures, scaled so the
+    set sums to the total tail load ``LT25 + LT50`` (trapezoidal chord tributaries).
+
+    Normal to the surface, which is vertical on the h-tail and lateral on the fin:
+    the airplane axis is applied by :func:`tail_force_to_airplane` at the card, not
+    here (the CSV states it in its own ``Axis`` column)."""
     stations = sorted(r.stations, key=lambda s: s.x)
     return _trapezoid_tributary_forces(
         stations, (r.lt25 + r.lt50) * _sf(r),
@@ -1162,18 +1184,21 @@ def _tail_nodal_forces(r: TailChordResult) -> List[float]:
 def tail_chordwise_csv(arg, header_comment: str = "", *,
                        system: UnitSystem = UnitSystem.IMPERIAL) -> str:
     """Chordwise tail-load CSV: one row per chord station per critical tail
-    condition (component, chord station X, net pressure PSI, scaled nodal Fz). Loads
-    are ULTIMATE; ``SF`` is the case's limit->ultimate factor they were scaled by."""
+    condition (component, chord station X, net pressure PSI, scaled nodal normal
+    force ``Fn``). ``Axis`` names the airplane component that force is, which is the
+    surface's own -- ``Fz`` on the h-tail, ``Fy`` on the fin -- so the CSV and the
+    ``FORCE`` cards beside it state one axis, not two (D-R4). Loads are ULTIMATE;
+    ``SF`` is the case's limit->ultimate factor they were scaled by."""
     results = _tail_results(arg)
     u = _units(system)
     x_h = f"X ({u.length.label})"
     psi_h = f"PSI ({_ult(u.pressure.label)})"
     fo = _ult(u.force.label)
-    fz_h, lt25_h, lt50_h = f"Fz ({fo})", f"LT25 ({fo})", f"LT50 ({fo})"
+    fn_h, lt25_h, lt50_h = f"Fn ({fo})", f"LT25 ({fo})", f"LT50 ({fo})"
     buf = _io.StringIO()
     writer = csv.DictWriter(
-        buf, fieldnames=["Case", "Component", "GID", x_h, psi_h, fz_h,
-                         lt25_h, lt50_h, "SF"])
+        buf, fieldnames=["Case", "Component", "GID", x_h, psi_h, fn_h,
+                         lt25_h, lt50_h, "Axis", "SF"])
     writer.writeheader()
     for r in results:
         sf = _sf(r)
@@ -1181,16 +1206,17 @@ def tail_chordwise_csv(arg, header_comment: str = "", *,
         stations = sorted(r.stations, key=lambda s: s.x)
         _, _, lt25 = to_force(0.0, 0.0, r.lt25 * sf, u)
         _, _, lt50 = to_force(0.0, 0.0, r.lt50 * sf, u)
-        for i, (s, fz) in enumerate(zip(stations, forces)):
+        axis = _tail_force_axis(r.component)
+        for i, (s, fn) in enumerate(zip(stations, forces)):
             x, _, _ = to_grid(s.x, 0.0, 0.0, u)
-            _, _, fz_out = to_force(0.0, 0.0, fz, u)
+            _, _, fn_out = to_force(0.0, 0.0, fn, u)
             writer.writerow({
                 "Case": r.case, "Component": r.component,
                 "GID": tail_station_gid(r.component, i),
                 x_h: f"{x:.3f}", psi_h: f"{to_pressure(s.psi * sf, u):.4f}",
-                fz_h: f"{fz_out:.1f}",
+                fn_h: f"{fn_out:.1f}",
                 lt25_h: f"{lt25:.2f}", lt50_h: f"{lt50:.2f}",
-                "SF": f"{_sf_str(sf)}",
+                "Axis": axis, "SF": f"{_sf_str(sf)}",
             })
     return header_comment + buf.getvalue()
 
@@ -1199,7 +1225,11 @@ def tail_force_moment_cards(arg, sid_base: int = 1, *,
                             header_comment: str = "",
                             system: UnitSystem = UnitSystem.IMPERIAL) -> str:
     """FORCE bulk-data cards for the chordwise tail loads (one SID per condition);
-    each set's applied Fz sums to the total tail load ``LT25 + LT50``.
+    each set's applied normal force sums to the total tail load ``LT25 + LT50``.
+
+    That normal force is the surface's own airplane component -- ``Fz`` for the
+    h-tail, ``Fy`` for the fin -- via :func:`tail_force_to_airplane`, the same map
+    the spanwise family uses, and each case block states which (D-R4).
 
     The deck opens with the chord-station ``GRID`` block (one sub-block per tail
     component), so the set's chordwise first moment is re-derivable from the file
@@ -1213,7 +1243,10 @@ def tail_force_moment_cards(arg, sid_base: int = 1, *,
          for i, s in enumerate(sorted(r.stations, key=lambda s: s.x))],
         u, "Tail chord",
         notes=["x is aft of the component leading edge, along its average "
-               "chord; h-tail and v-tail take separate GID blocks."],
+               "chord; h-tail and v-tail take separate GID blocks.",
+               "Each surface's load is NORMAL to it, in airplane axes: Fz on "
+               "the h-tail, Fy on the v-tail (its normal force is a side "
+               "force). Per-case blocks name their own axis."],
     )
     blocks: List[str] = ["\n".join(subcase_map_block(results)),
                          "\n".join(grid_lines)]
@@ -1221,20 +1254,22 @@ def tail_force_moment_cards(arg, sid_base: int = 1, *,
         sid = _sid(sid_base, idx, r)
         sf = _sf(r)
         forces = _tail_nodal_forces(r)
+        axis = _tail_force_axis(r.component)
         _, _, total = to_force(0.0, 0.0, sum(forces), u)
         _, _, lt_total = to_force(0.0, 0.0, (r.lt25 + r.lt50) * sf, u)
         lines = [
             f"$ SLOADS chordwise {r.component} load -- case {r.case}, SID {sid}",
             f"$ Case ID: {r.case_ref.case_id}" if r.case_ref else "$ Case ID: (none)",
             f"$ Loads are ULTIMATE (limit x SF={_sf_str(sf)}).",
+            f"$ Load is normal to the surface = {axis} in airplane axes.",
             # Split across two lines: a single line overran the 72-col
             # free-field card width once the load reached five figures.
-            f"$ Applied Fz set sums to {total:.1f} {u.force.label}",
+            f"$ Applied {axis} set sums to {total:.1f} {u.force.label}",
             f"$   = {_sf_str(sf)} x (LT25 + LT50) = {lt_total:.1f} {u.force.label}.",
         ]
-        for i, fz in enumerate(forces):
-            fx2, fy2, fz2 = to_force(0.0, 0.0, fz, u)
-            if abs(fz) > _TOL:
+        for i, fn in enumerate(forces):
+            fx2, fy2, fz2 = to_force(*tail_force_to_airplane(fn, r.component), u)
+            if abs(fn) > _TOL:
                 lines.append(
                     f"FORCE, {sid}, {tail_station_gid(r.component, i)}, "
                     f"{SBEAM_CID}, 1.0, {_fmt(fx2)}, {_fmt(fy2)}, {_fmt(fz2)}"

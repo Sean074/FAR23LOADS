@@ -43,6 +43,7 @@ from sloads.export import sbeam_bridge as sb  # noqa: E402
 from sloads.export.bands import band  # noqa: E402
 from sloads.export.coordinates import (  # noqa: E402
     bending_moment_vector,
+    tail_force_to_airplane,
     to_force,
     to_grid,
     to_moment,
@@ -373,14 +374,21 @@ def test_body_moment_check_is_not_vacuous():
 @pytest.mark.parametrize("example", EXAMPLES)
 @pytest.mark.parametrize("system", _SYSTEMS)
 def test_tail_deck_resultants(example, system):
-    """Tail: Σ``FORCE``.Fz = SF x (``LT25`` + ``LT50``), and the set's chordwise
-    first moment about the leading-edge station matches the in-memory profile.
+    """Tail: the set's applied force is SF x (``LT25`` + ``LT50``) **on the
+    surface's own axis**, and its chordwise first moment about the leading-edge
+    station matches the in-memory profile.
 
     The tail has no independent moment oracle -- the chordwise moment *is* the
     profile's own first moment -- so the assertion is that the deck and the CSV
     beside it cannot disagree about it, which is the failure mode the boundary
     owns (a card routed to the wrong GID, a truncated coordinate, a GID block
     shared between two components with different chords).
+
+    All six components are checked, the zeros included, because the axis itself is
+    what this deck got wrong (review F-C3): the fin's normal force is a **side**
+    force, so its cards are ``Fy`` and its chordwise moment is ``Mz``. Summing
+    ``v[2]`` for both components -- what this test did until D-R4 -- is exactly the
+    assertion that enshrined the defect.
     """
     _, _, tail, _, _, _ = _cached(example)
     _skip_if_empty(tail, example, "tail")
@@ -392,20 +400,26 @@ def test_tail_deck_resultants(example, system):
     for idx, r in enumerate(tail):
         got = res[sb._sid(1, idx, r)]
         where = f"{example} {system.value} tail {r.component} {r.case}"
-        _, _, want_fz = to_force(0.0, 0.0, (r.lt25 + r.lt50) * r.safety_factor, u)
-        assert closes(got.fz, want_fz, scale=got.force_scale), f"{where} Fz"
-        # My = (p - ref) x F with F purely vertical => -Σ f_i (x_i - x_ref).
-        # x_ref is the deck's own -- the first *loaded* node, which is not always
-        # chord station 0 (a station whose pressure is ~0 emits no card at all).
-        # The two moments are then about the same point by construction, which is
-        # the only way this comparison means anything.
+        total = (r.lt25 + r.lt50) * r.safety_factor
+        want_f = to_force(*tail_force_to_airplane(total, r.component), u)
+        for axis, want in zip("xyz", want_f):
+            assert closes(getattr(got, f"f{axis}"), want, scale=got.force_scale), \
+                f"{where} F{axis}"
+        # M = Σ (p_i - ref) x F_i, with the stations along x and y = z = 0. The
+        # reference is the deck's own -- the first *loaded* node, which is not
+        # always chord station 0 (a station whose pressure is ~0 emits no card at
+        # all). The two moments are then about the same point by construction,
+        # which is the only way this comparison means anything.
         stations = sorted(r.stations, key=lambda s: s.x)
-        want_my = 0.0
+        want_m = [0.0, 0.0, 0.0]
         for s, f in zip(stations, sb._tail_nodal_forces(r)):
-            x_deck = to_grid(s.x, 0.0, 0.0, u)[0]
-            _, _, f_deck = to_force(0.0, 0.0, f, u)
-            want_my -= f_deck * (x_deck - got.ref[0])
-        assert closes(got.my, want_my, scale=got.moment_scale), f"{where} My"
+            dx = to_grid(s.x, 0.0, 0.0, u)[0] - got.ref[0]
+            fx, fy, fz = to_force(*tail_force_to_airplane(f, r.component), u)
+            want_m[1] -= dx * fz     # (dx,0,0) x (fx,fy,fz)
+            want_m[2] += dx * fy
+        for axis, want in zip("xyz", want_m):
+            assert closes(getattr(got, f"m{axis}"), want, scale=got.moment_scale), \
+                f"{where} M{axis}"
 
 
 @pytest.mark.parametrize("example", EXAMPLES)

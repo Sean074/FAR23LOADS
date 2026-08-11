@@ -10,6 +10,22 @@ Acceptance**, **Key decisions**.
 
 ---
 
+## Fin chordwise deck → Fy (0.5.0 Phase 1 row 1 — complete 2026-08-10, tier M)
+
+Closed review finding **F-C3**; decision of record **D-R4**. The chordwise tail
+deck routes every station through `coordinates.tail_force_to_airplane` (the
+single owner the span family already used), so the fin's normal force leaves as
+`Fy` — a side force — instead of the hand-rolled `Fz` that `coordinates.py`
+itself names as the canonical splice trap; each case block and the `GRID` block
+state the axis in-band, and the CSV's `Fz` column becomes `Fn` plus an `Axis`
+column so the two chordwise deliverables cannot disagree.
+`test_tail_deck_resultants` and the tail round-trip leg are re-pinned to all six
+resultant components (the zeros included — summing `v[2]` for both components is
+what enshrined the defect); Imperial baseline regenerated, `sbeam/tail_cards` +
+`sbeam/tail_chordwise` only.
+
+---
+
 ## Balanced deck + CONM2 first-class (0.5.0 Phase 1 row 1 — complete 2026-08-10, tier M–L)
 
 Closed review finding **F-D2**; decision of record **D-R2**.

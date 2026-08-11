@@ -224,6 +224,32 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- **The chordwise fin deck applies a side load, not a vertical one.** Review
+  finding **F-C3**, decision of record **D-R4**. `tail_force_moment_cards` wrote
+  every component's strip force through `to_force(0, 0, fz)` — the vertical tail
+  included — which is the exact hand-rolled pattern `export/coordinates.py`
+  names as the canonical trap: the fin's normal force is a **side** force, so a
+  consumer splicing those cards into an airplane-axes model loaded the fin in the
+  one direction it is not designed for. The deck now takes its axis from
+  `coordinates.tail_force_to_airplane`, the single owner the spanwise tail family
+  already used, so the two tail deck families no longer disagree about the fin.
+  Byte-changing, and stated in-band rather than only in the code:
+
+  - Each case block carries `$ Load is normal to the surface = Fy|Fz in airplane
+    axes` and names that axis in its applied-sum line; the shared `GRID` block
+    says the same for both components. The label is read out of the map
+    (`_tail_force_axis`) rather than tabled a second time, so a header and its
+    cards cannot drift apart.
+  - `tail_chordwise.csv`'s `Fz` column becomes `Fn` (the normal force) with an
+    `Axis` column beside it — the CSV was mislabelling the fin's rows the same
+    way, and the two chordwise deliverables now state one axis between them; the
+    report's companion-file manifest states the same convention for both rows.
+  - `test_tail_deck_resultants` and the tail round-trip leg are re-pinned to all
+    six resultant components, the zeros included: summing `v[2]` for both
+    components is what enshrined the defect, and the fin's chordwise first moment
+    is `Mz`, not `My`. The Imperial baseline is regenerated — only
+    `sbeam/tail_cards` and `sbeam/tail_chordwise` moved.
+
 - **WING-tagged item mass can no longer vanish from the balanced model, and an
   empty panel weight no longer builds a sign-flipped wing.** Review finding
   **F-C5**. The two halves of the same degeneracy:
