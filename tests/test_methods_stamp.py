@@ -227,7 +227,7 @@ def test_summary_report_carries_the_same_statement(tmp_path):
     project = _project(_GA)
     doc = build_report(project)
     assert doc.methods == methods_statement(project)
-    assert "ULTIMATE" in doc.section("5. Methods and limitations").body[0]
+    assert "ULTIMATE" in doc.section("Methods and limitations").body[0]
     # And it survives the trip through the renderer (escaped, not dropped).
     assert "ULTIMATE" in render_report(project)
 

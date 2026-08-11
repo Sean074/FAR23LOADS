@@ -10,6 +10,32 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed
+
+- **The bundle manifest pointed three companion files at the wrong report
+  section, and now the numbering has an owner.** 0.5.0 row 1, review finding
+  **F-R2**. The manifest's "Summarised in" column sent the case index to §3
+  (envelope figures), the load-case CSVs and the text report to §4 (conditions
+  analysed) and METHODS.txt to §5 (results) — one short after the §2
+  sign-conventions insertion, and two short for methods after the §6 balanced
+  section moved it to §7. They now read §4, §5 and §7. The tail rows pointed at
+  a "§4 Tails" subsection that does not exist; they name the real
+  `Horizontal tail / Vertical tail` headings.
+  - **Structural, not a re-typing** (`CLAUDE.md` practice 3): `content.SECTIONS`
+    is the single ordered source of the numbering, headings come from
+    `section_heading(key)` and every cross-reference — the manifest column and
+    the rendered prose in the references table, the gear note and the balanced
+    section — from `section_ref(key[, subsection])`. Inserting a section now
+    renumbers its references with it; a literal `§N` in rendered text is a
+    defect.
+  - **Pinned four ways**, since the review's actual finding was "no test pins
+    the § values": the owner's numbers must equal the document's own section
+    positions; each companion file's target section is pinned by key in
+    `SUMMARISED_IN` (exhaustive on the GA fixture, so a new manifest row cannot
+    slip in unpinned); every manifest reference must resolve to a real section
+    and each suffix to a real subsection; and a document-wide sweep of every
+    rendered string rejects a reference past the last section.
+
 ### Added
 
 - **The wing stick deck states its centerline clamp, and every deck `$`

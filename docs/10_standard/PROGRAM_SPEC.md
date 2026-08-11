@@ -946,6 +946,17 @@ return strings (with thin `write_*` file wrappers), and do no physics.
   assembles nothing keeps the section and states the absence (§3.4). The
   manifest lists `balanced_airframe.bdf` and the three mass-model files, and
   lists them only when the bundle will actually contain them.
+- **Section numbering has one owner (review F-R2, 2026-08-10).**
+  `content.SECTIONS` is the ordered `(key, title)` list; headings come from
+  `section_heading(key)` and **every** cross-reference — rendered prose and the
+  manifest's "Summarised in" column alike — from `section_ref(key[, subsection])`.
+  A `"§4"` written as a literal is a defect: the §2 sign-conventions insertion
+  left three manifest rows pointing one section short and the §6 balanced
+  insertion moved methods to §7 without them, because each number was typed in
+  two places. Guarded in `tests/test_report_content.py` by the numbering-owner
+  agreement test, the per-file `SUMMARISED_IN` pin (exhaustive on the GA
+  fixture), the reference-resolves test (a suffix must name a real subsection —
+  "§5 Tails" named none) and a document-wide sweep for out-of-range references.
 - **Writes:** `.tex` (always) and, when a TeX engine is available, `.pdf`. Both
   ship in the Export page's `.zip` beside the CSV/BDF files they describe.
   All loads ULTIMATE with a per-case `SF`; the whole document renders in the

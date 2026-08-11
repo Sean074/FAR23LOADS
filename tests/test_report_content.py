@@ -14,6 +14,7 @@ tests pin is not formatting but the promises
 """
 
 import os
+import re
 import sys
 
 import pytest
@@ -28,9 +29,12 @@ from sloads.report import governing_loads_table  # noqa: E402
 from sloads.report.content import (  # noqa: E402
     AVIATION_UNITS_NOTE,
     BASIS_STATEMENT,
+    SECTIONS,
     ReportDocument,
     build_report,
     component_loads,
+    section_heading,
+    section_ref,
 )
 from sloads.units import UnitSystem  # noqa: E402
 import sloads.modules  # noqa: E402,F401  (module registration)
@@ -85,7 +89,7 @@ def test_every_required_section_is_present():
 
 def test_every_component_subsection_is_present():
     doc = _report()
-    results = doc.section("4. Results summary")
+    results = doc.section("Results summary")
     assert [s.title for s in results.subsections] == REQUIRED_COMPONENTS
 
 
@@ -94,13 +98,13 @@ def test_sections_degrade_rather_than_raise_on_an_empty_project():
     engineer *finds* the gaps -- with each absent section carrying a reason."""
     doc = build_report(Project(name="empty"))
     assert [s.title for s in doc.sections] == REQUIRED_SECTIONS
-    inputs = doc.section("1. Input summary")
+    inputs = doc.section("Input summary")
     for title in ("Geometry", "Weights and CG", "Design speeds", "Aerodynamic data"):
         sub = inputs.subsection(title)
         assert sub.absent_reason, f"{title} is empty with no stated reason"
         assert not sub.tables, f"{title} rendered a table with no inputs"
     for title in REQUIRED_COMPONENTS:
-        assert doc.section("4. Results summary").subsection(title).absent_reason
+        assert doc.section("Results summary").subsection(title).absent_reason
 
 
 def test_absent_figure_states_why_instead_of_drawing_an_empty_axis():
@@ -187,7 +191,7 @@ def test_wing_maxima_are_two_sided_and_name_their_station_and_axis():
 
 def test_case_index_states_a_safety_factor_for_every_case():
     doc = _report()
-    index = doc.section("3. Conditions analysed and FAR coverage").table
+    index = doc.section("Conditions analysed and FAR coverage").table
     assert index.columns[-1] == "SF"
     assert index.rows
     for row in index.rows:
@@ -332,7 +336,104 @@ def test_the_manifest_lists_the_balanced_deck_and_the_mass_model():
     # ...and every one of them points at the section that summarises it.
     for row in _report().section("Appendix A. Bundle manifest").table.rows:
         if "balanced_airframe" in row[0] or "mass_" in row[0] or "inertia_" in row[0]:
-            assert row[-1] == "§6", row
+            assert row[-1] == section_ref("balanced"), row
+
+
+# --------------------------------------------------------------------------- #
+# Section numbering and cross-references (review F-R2)
+# --------------------------------------------------------------------------- #
+#: Which section summarises each companion file, by section **key** and the
+#: subsection it names — never by number. The numbers themselves are
+#: :data:`sloads.report.content.SECTIONS`' business; what this map pins is the
+#: pointing, which is the part a reader follows and the part that was wrong:
+#: after the §2 sign-conventions insertion three rows still pointed one section
+#: short, and the §6 balanced insertion moved methods to §7 without moving the
+#: manifest with it (F-R2). Add a row to the manifest, add it here.
+SUMMARISED_IN = {
+    "<project>.json": ("inputs", ""),
+    "<project>_case_index.csv": ("conditions", ""),
+    "METHODS.txt": ("methods", ""),
+    "load_cases/<project>_<module>.csv": ("results", ""),
+    "<project>_report.txt": ("results", ""),
+    "sbeam/<project>_wing_span_loads.csv": ("results", "Wing"),
+    "sbeam/<project>_wing_loads.bdf": ("results", "Wing"),
+    "sbeam/<project>_wing_stick.bdf": ("results", "Wing"),
+    "sbeam/<project>_fuselage_span_loads.csv": ("results", "Fuselage"),
+    "sbeam/<project>_fuselage_loads.bdf": ("results", "Fuselage"),
+    "sbeam/<project>_fuselage_fitting_loads.csv": ("results", "Fuselage"),
+    "sbeam/<project>_tail_chordwise.csv": ("results", "Horizontal tail / Vertical tail"),
+    "sbeam/<project>_tail_loads.bdf": ("results", "Horizontal tail / Vertical tail"),
+    "sbeam/<project>_control_surface_loads.csv": ("results", "Control surfaces"),
+    "sbeam/<project>_control_surface_loads.bdf": ("results", "Control surfaces"),
+    "sbeam/<project>_balanced_airframe.bdf": ("balanced", ""),
+    "sbeam/<project>_mass_model.bdf": ("balanced", ""),
+    "sbeam/<project>_mass_check.bdf": ("balanced", ""),
+    "sbeam/<project>_inertia_only.bdf": ("balanced", ""),
+}
+
+
+def test_the_numbering_owner_agrees_with_the_document():
+    """``SECTIONS`` is the single source of the numbering, so its numbers must be
+    the document's own positions -- otherwise every reference built from it is
+    wrong in one move rather than right in one move."""
+    titles = [s.title for s in _report().sections]
+    for key, _ in SECTIONS:
+        assert section_heading(key) in titles, (key, titles)
+        assert section_ref(key) == f"§{titles.index(section_heading(key)) + 1}"
+
+
+def test_the_manifest_points_each_file_at_the_section_that_summarises_it():
+    """Review **F-R2**. Every companion file's "Summarised in" cell names the
+    section that actually describes it -- the reference an analyst follows from
+    the file back to its basis."""
+    rows = _report().section("Appendix A. Bundle manifest").table.rows
+    assert rows
+    for row in rows:
+        assert row[0] in SUMMARISED_IN, f"manifest row not pinned: {row[0]}"
+        assert row[-1] == section_ref(*SUMMARISED_IN[row[0]]), row
+    # The GA fixture exports every channel, so the pin is exhaustive on it: a new
+    # manifest row cannot slip in unpinned.
+    assert {row[0] for row in rows} == set(SUMMARISED_IN)
+
+
+def test_every_manifest_reference_resolves_to_a_real_section():
+    """A cross-reference is only useful if the thing it names exists. Checks the
+    number against the document's own order and each suffix against the
+    referenced section's real subsection titles ("§5 Tails" named no heading)."""
+    doc = _report()
+    manifest = doc.section("Appendix A. Bundle manifest")
+    for row in manifest.table.rows:
+        m = re.fullmatch(r"§(\d+)(?: (.+))?", row[-1])
+        assert m, row
+        number = int(m.group(1))
+        assert 1 <= number <= len(SECTIONS), row
+        section = doc.sections[number - 1]
+        assert section.title.startswith(f"{number}. "), (row, section.title)
+        for name in (m.group(2) or "").split(" / "):
+            if name:
+                assert section.subsection(name) is not None, (row, name)
+
+
+def test_no_rendered_cross_reference_points_past_the_last_section():
+    """The document-wide sweep behind the two pins above: nothing rendered
+    anywhere -- prose, table cells, notes, the methods statement -- may name a
+    section the document does not have."""
+    doc = _report()
+    numbered = len(SECTIONS)
+    strings = [doc.basis, doc.units_note, doc.methods]
+    stack = list(doc.sections)
+    while stack:
+        s = stack.pop(0)
+        strings += list(s.body) + [s.absent_reason or ""]
+        for t in s.tables:
+            strings += [t.title, t.note] + [str(c) for row in t.rows for c in row]
+        stack = list(s.subsections) + stack
+    seen = 0
+    for text in strings:
+        for ref in re.findall(r"§(\d+)", text or ""):
+            seen += 1
+            assert 1 <= int(ref) <= numbered, f"stale section reference §{ref}: {text}"
+    assert seen, "no cross-reference found -- the sweep is not looking at the text"
 
 
 def test_the_manifest_does_not_list_files_the_bundle_will_not_contain():
@@ -366,7 +467,7 @@ def test_deselected_cases_are_excluded_from_the_results_and_named_in_scope():
                        deselected_case_ids=[dropped_id])
     wing = doc.section("Wing").tables[0]
     assert dropped.label not in [row[0] for row in wing.rows]
-    scope_text = " ".join(doc.section("3. Conditions analysed and FAR coverage").body)
+    scope_text = " ".join(doc.section("Conditions analysed and FAR coverage").body)
     assert dropped_id in scope_text and "EXCLUDED" in scope_text
 
 
@@ -450,7 +551,7 @@ def test_report_methods_section_is_the_shared_statement_verbatim():
     """§4.6: the report's statement and the one stamped into the CSV/BDF exports
     come from one source, so they cannot diverge."""
     doc = _report()
-    assert doc.section("5. Methods and limitations").body[0] == doc.methods
+    assert doc.section("Methods and limitations").body[0] == doc.methods
 
 
 def test_no_internal_development_artifacts_in_the_document():

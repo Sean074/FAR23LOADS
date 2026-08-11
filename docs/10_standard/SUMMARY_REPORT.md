@@ -344,6 +344,11 @@ units, its sign and axis conventions, and which report section summarises it. A
 distribution CSV referenced by the report SHALL NOT be listed without its torsion
 axis and load basis.
 
+Section references (here and anywhere else in the document) SHALL be built from
+the numbering owner, `report.content.SECTIONS` / `section_ref()`, never written
+as a literal `§N` — a reference that does not move when a section is inserted
+above it is a reference to the wrong section (review F-R2).
+
 The manifest SHALL open by stating the bundle's unit system once and asserting
 that every listed file is in it (§3.5); a per-file units column that disagrees with
 that statement is a conformance failure, not a footnote.

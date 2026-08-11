@@ -59,6 +59,43 @@ from .render import format_value, governing_loads_table, ultimate_units
 #: traceback -- the report is how an engineer *finds* the gaps.
 _CALC_ERRORS = (ValueError, ZeroDivisionError, KeyError, IndexError, TypeError)
 
+#: The document's numbered sections, in order: ``(key, bare title)``. **This is
+#: the single source of the report's section numbering** (CLAUDE.md practice 3).
+#: Headings come from :func:`section_heading` and every cross-reference — in
+#: rendered prose and in the manifest's "Summarised in" column — from
+#: :func:`section_ref`, so inserting a section renumbers its references with it.
+#: Written after review finding **F-R2**: the §2 sign-conventions insertion left
+#: three manifest rows pointing one section short, and the §6 balanced insertion
+#: moved methods to §7 without touching them, because each number was a literal
+#: typed in two places. ``Appendix A`` is not here — an appendix is lettered and
+#: never renumbers.
+SECTIONS = (
+    ("inputs", "Input summary"),
+    ("conventions", "Axes and sign conventions"),
+    ("envelopes", "Envelope figures"),
+    ("conditions", "Conditions analysed and FAR coverage"),
+    ("results", "Results summary"),
+    ("balanced", "Balanced free-free airframe cases"),
+    ("methods", "Methods and limitations"),
+)
+_SECTION_NO = {key: i for i, (key, _) in enumerate(SECTIONS, start=1)}
+
+
+def section_heading(key: str) -> str:
+    """``"4. Conditions analysed and FAR coverage"`` — the numbered heading."""
+    return f"{_SECTION_NO[key]}. {dict(SECTIONS)[key]}"
+
+
+def section_ref(key: str, suffix: str = "") -> str:
+    """``"§4"`` — a cross-reference to a section, or ``"§5 Wing"`` with a suffix.
+
+    Never write ``"§4"`` as a literal in rendered text: a reference that does not
+    come through here is a reference that will not move when a section is
+    inserted above it (F-R2).
+    """
+    return f"§{_SECTION_NO[key]}" + (f" {suffix}" if suffix else "")
+
+
 #: The one-line load-basis statement, on the title page and in §5 (§3.1).
 BASIS_STATEMENT = (
     "All loads are ULTIMATE (= limit x SF); safety factor is stated per case; "
@@ -669,7 +706,7 @@ def _aero_section(project: Project) -> Section:
 
 def _section_inputs(project: Project, u: Units) -> Section:
     return Section(
-        "1. Input summary",
+        section_heading("inputs"),
         body=["The airplane analysed, in enough detail to confirm identity. Each row "
               "names the page that owns the value, so a wrong number is traceable to "
               "one screen."],
@@ -697,7 +734,7 @@ def _section_conventions() -> Section:
                                   CONVENTIONS_PROSE)
 
     return Section(
-        "2. Axes and sign conventions",
+        section_heading("conventions"),
         body=list(CONVENTIONS_PROSE),
         figures=[
             Figure(key="sign_axes", title="Reference frame and state signs",
@@ -920,7 +957,7 @@ def _speed_altitude_figure(project: Project) -> Tuple[Figure, Optional[Table]]:
 
 def _section_envelopes(project: Project, u: Units) -> Section:
     section = Section(
-        "3. Envelope figures",
+        section_heading("envelopes"),
         body=["Each figure is followed by its corner-point table — a plotted "
               "boundary without its numeric corners is not sufficient for sizing."],
     )
@@ -1046,7 +1083,7 @@ def _section_conditions(project: Project, module_results, comps: ComponentLoads,
     else:
         scope_text += " No computed case was excluded."
     return Section(
-        "4. Conditions analysed and FAR coverage",
+        section_heading("conditions"),
         body=[scope_text, headline],
         tables=[
             _case_index_table(module_results, comps),
@@ -1400,10 +1437,10 @@ _ENGINE_NOTE = (
     "(suffixes a-d on the engine-mount case ID)."
 )
 _GEAR_NOTE = (
-    "Ground reactions act on the landing-gear geometry reported in §1 (main and nose "
-    "axle stations and tread). Loads with respect to the ground line are the 'prime' "
-    "reactions; the inertia factors are dimensionless load factors and are never "
-    "scaled to ultimate."
+    "Ground reactions act on the landing-gear geometry reported in "
+    + section_ref("inputs") + " (main and nose axle stations and tread). Loads "
+    "with respect to the ground line are the 'prime' reactions; the inertia "
+    "factors are dimensionless load factors and are never scaled to ultimate."
 )
 
 
@@ -1411,7 +1448,7 @@ def _section_results(project: Project, module_results, comps: ComponentLoads,
                      u: Units, deselected: Sequence[str]) -> Section:
     critical = _critical_by_component(comps, deselected)
     return Section(
-        "5. Results summary",
+        section_heading("results"),
         body=["Every load below is ULTIMATE, with the safety factor applied to it "
               "stated per case. Full station-by-station distributions stay in the "
               "companion data files named in the bundle manifest."],
@@ -1435,10 +1472,11 @@ def _section_results(project: Project, module_results, comps: ComponentLoads,
 _BALANCED_ABSENT = (
     "No balanced free-free case could be assembled from these inputs, so the "
     "assembled full-span deck is NOT part of this deliverable and the "
-    "per-component decks of §5 are the whole of the load output. A condition "
-    "assembles only when it has a V-n point and a payload loading the itemized "
-    "weight database can actually produce; §4's table of conditions not "
-    "assembled names each one and why."
+    "per-component decks of " + section_ref("results") + " are the whole of "
+    "the load output. A condition assembles only when it has a V-n point and a "
+    "payload loading the itemized weight database can actually produce; "
+    + section_ref("conditions") + "'s table of conditions not assembled names "
+    "each one and why."
 )
 
 
@@ -1543,7 +1581,7 @@ def _section_balanced(run: BalancedRun, mass_rows: Sequence[Dict[str, Any]],
 
     cases = run.cases or []
     section = Section(
-        "6. Balanced free-free airframe cases",
+        section_heading("balanced"),
         body=[
             "The assembled full-span model is this deliverable's primary load "
             "output: wing tip to wing tip and nose to tail, aero and inertia "
@@ -1551,9 +1589,10 @@ def _section_balanced(run: BalancedRun, mass_rows: Sequence[Dict[str, Any]],
             "loads balance -- the deck carries one statically determinate "
             "support whose recovered reaction IS the residual tabulated below, "
             "so 'reactions ~ 0' is the equilibrium proof rather than a modelling "
-            "convenience. The per-component decks of §5 are analysis views cut "
-            "out of this model; each carries its cut reaction as an applied "
-            "load, which the assembled model must never do.",
+            "convenience. The per-component decks of "
+            + section_ref("results") + " are analysis views cut out of this "
+            "model; each carries its cut reaction as an applied load, which "
+            "the assembled model must never do.",
         ],
     )
     # The mass model is a deliverable in its own right: it is tabulated whether
@@ -1591,7 +1630,8 @@ _REFERENCES = [
                     "worked examples (Appendix A, GA single, p131; Appendix B, twin "
                     "turboprop, p251) this implementation is regression-tested against."],
     ["FAA User's Guide", "DOT/FAA/AR-96/46 — module data-flow reference (Table 2.2), "
-                         "the provenance of the FAR coverage matrix in §3."],
+                         "the provenance of the FAR coverage matrix in "
+                         + section_ref("conditions") + "."],
     ["14 CFR Part 23 Subpart C", "Flight and ground load requirements; 23.303 is the "
                                  "1.5 factor of safety applied to every case unless "
                                  "stated otherwise."],
@@ -1602,10 +1642,17 @@ _REFERENCES = [
 
 def _section_methods(methods_text: str) -> Section:
     return Section(
-        "7. Methods and limitations",
+        section_heading("methods"),
         body=[methods_text],
         tables=[Table(title="References", columns=["Source", "Use"], rows=_REFERENCES)],
     )
+
+
+#: Both tail decks are summarised by the two tail subsections of the results
+#: section, so the reference names them rather than a "Tails" heading that does
+#: not exist (the suffixes are pinned against the real subsection titles by
+#: ``test_report_content``).
+_TAILS_REF = section_ref("results", "Horizontal tail / Vertical tail")
 
 
 def _manifest_rows(comps: ComponentLoads, module_results, u: Units,
@@ -1616,57 +1663,63 @@ def _manifest_rows(comps: ComponentLoads, module_results, u: Units,
             f"{solver.pressure.label}")
     rows = [
         ["<project>.json", "The project inputs this report was produced from.",
-         "canonical Imperial (a stored project is never converted)", "—", "§1"],
+         "canonical Imperial (a stored project is never converted)", "—",
+         section_ref("inputs")],
         ["<project>_case_index.csv",
          "Every case ID produced by this run, mapped to its full definition.",
-         "—", "IDs are verbatim, never renumbered", "§3"],
+         "—", "IDs are verbatim, never renumbered", section_ref("conditions")],
         ["METHODS.txt", "The methods & limitations statement, standalone.",
-         human, "—", "§5"],
+         human, "—", section_ref("methods")],
         ["load_cases/<project>_<module>.csv",
          "One row per structural load case, per module.", human,
-         "ULTIMATE loads, SF column per case", "§4"],
+         "ULTIMATE loads, SF column per case", section_ref("results")],
     ]
     if comps.wing:
         axis = comps.wing[0].torsion_axis
         rows += [
             ["sbeam/<project>_wing_span_loads.csv",
              "Station-by-station net wing shear, bending and torsion.", deck,
-             f"torsion Myy about the {axis}; ULTIMATE", "§4 Wing"],
+             f"torsion Myy about the {axis}; ULTIMATE",
+             section_ref("results", "Wing")],
             ["sbeam/<project>_wing_loads.bdf",
              "FORCE/MOMENT bulk data for the wing.", deck,
-             f"torsion about the {axis}; ULTIMATE", "§4 Wing"],
+             f"torsion about the {axis}; ULTIMATE", section_ref("results", "Wing")],
             ["sbeam/<project>_wing_stick.bdf", "CBAR stick model of the wing beam.",
-             deck, "geometry only", "§4 Wing"],
+             deck, "geometry only", section_ref("results", "Wing")],
         ]
     if comps.body:
         rows += [
             ["sbeam/<project>_fuselage_span_loads.csv",
              "Station-by-station fuselage net shear, bending and torsion.", deck,
-             "torsion Mxx about the body X axis; ULTIMATE", "§4 Fuselage"],
+             "torsion Mxx about the body X axis; ULTIMATE",
+             section_ref("results", "Fuselage")],
             ["sbeam/<project>_fuselage_loads.bdf",
-             "FORCE/MOMENT bulk data for the fuselage.", deck, "ULTIMATE", "§4 Fuselage"],
+             "FORCE/MOMENT bulk data for the fuselage.", deck, "ULTIMATE",
+             section_ref("results", "Fuselage")],
             ["sbeam/<project>_fuselage_fitting_loads.csv",
              "Wing-attach front/rear spar fitting loads.", deck,
-             "already carried by the span loads — do not superpose", "§4 Fuselage"],
+             "already carried by the span loads — do not superpose",
+             section_ref("results", "Fuselage")],
         ]
     if comps.tail:
         rows += [
             ["sbeam/<project>_tail_chordwise.csv",
              "Chordwise tail load intensities per critical condition.", deck,
              "leading-edge-first stations; Fn is normal to the surface (Axis "
-             "column: h-tail Fz, fin Fy); ULTIMATE", "§4 Tails"],
+             "column: h-tail Fz, fin Fy); ULTIMATE", _TAILS_REF],
             ["sbeam/<project>_tail_loads.bdf", "FORCE/MOMENT bulk data for the tails.",
              deck, "loads normal to each surface — h-tail Fz, fin Fy; ULTIMATE",
-             "§4 Tails"],
+             _TAILS_REF],
         ]
     if comps.control:
         rows += [
             ["sbeam/<project>_control_surface_loads.csv",
              "Simplified chordwise control-surface distributions.", deck,
-             "standard simplified distributions; ULTIMATE", "§4 Control surfaces"],
+             "standard simplified distributions; ULTIMATE",
+             section_ref("results", "Control surfaces")],
             ["sbeam/<project>_control_surface_loads.bdf",
              "FORCE/MOMENT bulk data for the control surfaces.", deck, "ULTIMATE",
-             "§4 Control surfaces"],
+             section_ref("results", "Control surfaces")],
         ]
     # The assembled deliverable and its mass model. Listed here for the reason
     # the manifest exists at all: an artifact the controlling document does not
@@ -1677,27 +1730,30 @@ def _manifest_rows(comps: ComponentLoads, module_results, u: Units,
             "sbeam/<project>_balanced_airframe.bdf",
             "The assembled full-span free-free deck: one SUBCASE per balanced "
             "case, both wings, aero and inertia together.", deck,
-            "ULTIMATE; determinate support, its reaction is the residual", "§6"])
+            "ULTIMATE; determinate support, its reaction is the residual",
+            section_ref("balanced")])
     if project.weight is not None and project.weight.items:
         rows.append([
             "sbeam/<project>_mass_model.bdf",
             "CONM2 mass model + one MASSSET per payload case, for splicing into "
             "a model that already has nodes.", deck,
-            "mass, NOT weight; do not apply with the load decks", "§6"])
+            "mass, NOT weight; do not apply with the load decks",
+            section_ref("balanced")])
     if any(r["exported"] for r in mass_rows):
         rows += [
             ["sbeam/<project>_mass_check.bdf",
              "Self-contained runnable deck: MASSSET + GRAV, and deliberately no "
-             "load cards.", deck, "no load cards, by construction", "§6"],
+             "load cards.", deck, "no load cards, by construction",
+             section_ref("balanced")],
             ["sbeam/<project>_inertia_only.bdf",
              "sloads' own nodal inertia set, for comparison against what the "
              "solver recovers.", deck, "ULTIMATE; comparison only, never applied",
-             "§6"],
+             section_ref("balanced")],
         ]
     if module_results:
         rows.append(["<project>_report.txt",
                      "Plain-text per-module report of every condition.", human,
-                     "ULTIMATE", "§4"])
+                     "ULTIMATE", section_ref("results")])
     return rows
 
 
