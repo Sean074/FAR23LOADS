@@ -10,6 +10,37 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- **ONENGOUT runs on shipped data.** `atr42_100` and `dhc8_dash8` now enter
+  take-off and max-continuous shaft power on both engines (PW120 2000/1700 shp,
+  PW121 2150/1950 shp — converted from the certificated kW in EASA TCDS
+  IM.E.041 issue 07, 20 Dec 2023 §5). The FAR 23.367 one-engine-out module was
+  previously unrunnable on every bundled example, so its simulation path was
+  exercised only by unit tests on constructed inputs. Each airplane gains three
+  vertical-tail conditions (`VT-30`…`VT-32`). **Their VS cases do not recover**
+  — full asymmetric power at the clean stall speed is below VMC — and say so on
+  the case, as designed.
+- **New standing limitation, `engine-failure-propeller-only`:** the 23.367 model
+  is propeller-only (thrust from shaft power over true airspeed, Glauert
+  windmilling on the propeller disc), so a turbofan/turbojet multi is not
+  covered and its asymmetry would be understated. Carried in every
+  methods-and-limitations stamp; `concept_regional_jet` deliberately enters no
+  one-engine-out slice. Refusing to run on a non-propeller installation remains
+  open (backlog M4-3(b)).
+
+### Changed
+
+- **Imperial baseline regenerated — deliberate.** Entering engine horsepower
+  moves `csv/txt one_engine_out` and `case_index` on both turboprops (three new
+  conditions each), plus **`csv/txt weight_estimate` on `dhc8_dash8`**:
+  `resolve_max_continuous_hp` (M2-6) prefers the engine list and had been
+  falling back to the stored estimation total, which was 4000 hp against the
+  engines' real 2×1950, so the statistical MTOW estimate corrects 42,325 →
+  41,775 lb (empty 25,395 → 25,065 lb). `atr42_100`'s stored 3400 already
+  matched its 2×1700 and did not move. No load path, deck, oracle or other
+  example moved.
+
 ---
 
 ## [0.5.0] — 2026-08-13

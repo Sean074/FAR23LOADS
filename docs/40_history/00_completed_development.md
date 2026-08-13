@@ -105,6 +105,44 @@ fast-follow, not a gate.
 
 ---
 
+## ONENGOUT fixture data — the module executes on shipped data (post-0.5.0 Pri 1 — complete 2026-08-13, tier M)
+
+`one_engine_out` was registered, oracle-cited and **unrunnable on every shipped
+fixture**: `atr42_100`/`dhc8_dash8` entered the slice but no engine horsepower
+(`MissingInputError`), the other four entered no slice, so the 23.367 simulation
+path was exercised only on constructed inputs — the `tail_mass` gap's class.
+Both turboprops now carry take-off **and** max-continuous shaft power (PW120
+2000/1700 shp, PW121 2150/1950 shp; converted from the certificated kW in **EASA
+TCDS IM.E.041 issue 07, 20 Dec 2023, §5** at 745.7 W/shp, rounded to 10 shp), both
+fields entered rather than left to `_engine_power`'s fallback because
+`use_takeoff_power` is the user's choice of rating. Tier M, not S: HP is not
+ONENGOUT's alone — `weight_estimate.resolve_max_continuous_hp` (M2-6) prefers the
+engine list and had been falling back to the stored estimation total, so entering
+the ratings corrected `dhc8_dash8`'s statistical estimate (stored 4000 hp vs the
+engines' 2×1950 → MTOW 42,325 → 41,775 lb, empty 25,395 → 25,065 lb; `atr42_100`'s
+stored 3400 already matched 2×1700 and did not move). The Imperial baseline was
+regenerated deliberately: five channels on `dhc8_dash8`, three on `atr42_100`, and
+no load path, deck or oracle anywhere. The **RJ half was dropped** (user decision, 2026-08-13) — see the
+limitation below. `tests/test_one_engine_out.py::test_the_shipped_turboprops_execute_onengout`
+is the standing gate (both ratings present, positive thrust/drag/tail load per
+speed, VC/VD recover, VS does not — below VMC, stated in band); plan 13's G1 gate
+dropped its `_G1_SYNTHETIC_HP` injection and now reads a history built entirely
+from fixture data.
+
+**New standing limitation — `engine-failure-propeller-only`.** The 23.367 model is
+propeller-only: thrust `= HP·550·0.85/V` and Glauert windmilling `∝ DIA²`, both
+from `ONENGOUT.BAS`, and 23.367(a) is itself turbopropeller-specific (Ref 1 Ch 11
+p87). `concept_regional_jet` therefore enters **no** slice — run with a
+shaft-power surrogate it produced 41–52 klb fin loads that never recover, with
+windmill drag identically zero on a 0-in disc, which is the wrong-card-outranks-
+missing-card case. Single owner `one_engine_out.PROPELLER_ONLY_NOTE`, quoted by
+`report.methods._standing_limitations()` so it reaches every methods stamp, with
+the key set and the one-wording guard extended in `tests/test_methods_stamp.py`.
+Enforcing it (refuse/caption on a non-propeller installation) stays open as
+backlog M4-3(b).
+
+---
+
 ## Standing disclaimer in the methods statement (0.5.0 Phase 2 row 1 — complete 2026-08-11, tier S)
 
 Closed review finding **F-R3**: the "initial-concept loads analysis, not a

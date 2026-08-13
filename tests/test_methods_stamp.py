@@ -133,6 +133,7 @@ STANDING_LIMITATION_KEYS = {
     "lateral-aero",
     "aileron-couple",
     "centerline-clamp",
+    "engine-failure-propeller-only",
 }
 
 
@@ -158,9 +159,11 @@ def test_the_in_band_caveats_and_the_report_use_one_wording():
     applies it and quoted, not paraphrased, by the report."""
     from sloads.export.sbeam_bridge import CENTERLINE_CLAMP_NOTE
     from sloads.modules.balance import AILERON_COUPLE_NOTE, LATERAL_AERO_NOTE
+    from sloads.modules.one_engine_out import PROPELLER_ONLY_NOTE
 
     text = methods_statement(_project(_GA))
-    for owner_note in (LATERAL_AERO_NOTE, AILERON_COUPLE_NOTE, CENTERLINE_CLAMP_NOTE):
+    for owner_note in (LATERAL_AERO_NOTE, AILERON_COUPLE_NOTE, CENTERLINE_CLAMP_NOTE,
+                       PROPELLER_ONLY_NOTE):
         # From the second character: the notes are written to sit mid-sentence
         # in band, and one of them opens a report bullet, so only the case of the
         # first letter may differ. Every other character must match.

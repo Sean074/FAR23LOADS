@@ -16,7 +16,7 @@ import streamlit as st
 from components import active_system, gate
 
 from sloads import OneEngineOutInput, Project, UnitSystem, convert_results, to_si_scalar
-from sloads.modules.one_engine_out import run, time_history
+from sloads.modules.one_engine_out import PROPELLER_ONLY_NOTE, run, time_history
 
 
 st.title("One Engine Out — Vertical Tail Loads (ONENGOUT)")
@@ -25,6 +25,10 @@ st.caption(
     "one-engine-out yaw transient, integrated until the pilot's rudder recovery, "
     "reporting the maximum vertical-tail load at each speed."
 )
+# The coverage limitation, in the module's own wording (it also ships as the
+# `engine-failure-propeller-only` standing limitation in every methods stamp) --
+# a page that draws a fin load for a turbofan twin must say what it modelled.
+st.caption("**Limitation:** " + PROPELLER_ONLY_NOTE + ".")
 
 project: Project = st.session_state.get("project", Project(name=""))
 # D-16: ``active_system()`` is the single read of the unit selection. Reading

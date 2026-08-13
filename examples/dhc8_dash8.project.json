@@ -24,8 +24,8 @@
         -168.0,
         170.0
       ],
-      "takeoff_hp": null,
-      "max_cont_hp": null,
+      "takeoff_hp": 2150.0,
+      "max_cont_hp": 1950.0,
       "cylinders": null,
       "max_engine_torque": 9400,
       "cruise_torque": 6500,
@@ -67,8 +67,8 @@
         168.0,
         170.0
       ],
-      "takeoff_hp": null,
-      "max_cont_hp": null,
+      "takeoff_hp": 2150.0,
+      "max_cont_hp": 1950.0,
       "cylinders": null,
       "max_engine_torque": 9400,
       "cruise_torque": 6500,

@@ -857,33 +857,22 @@ def test_roll_closure_reproduces_winginer(example):
 # --------------------------------------------------------------------------- #
 # The B8a-2 gates (plan 13 §7): G1, G4, G5, G6
 # --------------------------------------------------------------------------- #
-#: Horsepower supplied to the failed engine so ONENGOUT can be *run*. Not
-#: airplane data and not presented as any: **no shipped fixture can execute
-#: ONENGOUT at all** -- ``atr42_100`` and ``dhc8_dash8`` enter the
-#: ``one_engine_out`` slice but neither enters ``max_cont_hp`` or ``takeoff_hp``
-#: on its engines, and the other four enter no slice. Filed on the backlog
-#: beside the ``tail_mass`` gap; found here.
-#:
-#: G1 is an identity about the **operator** -- ``psi_2dot = Mz / Izz`` -- and it
-#: must hold at every step of any history, so the power that sizes the moment is
-#: irrelevant to what is being asserted. Every other number in the case is the
-#: fixture's own.
-_G1_SYNTHETIC_HP = 2000.0
-
-
 def _oeo_history(project):
     """``(CaseInputs, [HistoryRow])`` of the first one-engine-out speed case.
 
-    ``None`` when the project enters no such case at all. See
-    :data:`_G1_SYNTHETIC_HP` for the one input this supplies rather than reads.
+    ``None`` when the project enters no such case at all. **Every number here is
+    now the fixture's own.** Until 2026-08-13 this supplied a synthetic 2000 hp,
+    because no shipped fixture entered engine horsepower and ONENGOUT could not
+    execute on any of them; ``atr42_100`` and ``dhc8_dash8`` carry their
+    certificated ratings since, so the injection is gone and G1 reads a history
+    built entirely from fixture data. (The identity under test never depended on
+    it -- ``psi_2dot = Mz / Izz`` is about the operator and holds at every step of
+    any history -- but a gate that feeds itself an input is one an unrelated data
+    change can quietly hollow out.)
     """
     oeo = project.one_engine_out
     if oeo is None or not project.engines:
         return None
-    project = replace(project, engines=[
-        replace(e, max_cont_hp=e.max_cont_hp or _G1_SYNTHETIC_HP,
-                takeoff_hp=e.takeoff_hp or _G1_SYNTHETIC_HP)
-        for e in project.engines])
     try:
         cases = one_engine_out._load_cases(project, oeo)
         if not cases:

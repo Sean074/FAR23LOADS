@@ -7,7 +7,14 @@ User's Guide Ch 22 gives partial inputs and no output numbers). So C9 is locked 
 (engine thrust, windmill drag, AVT lift slope, EFFECTV, EF chart, density ratio) -- plus
 **integration/physics closure** (recovery, yaw-rate peak, time-step convergence) and a
 **refactor-parity** check that the shared v-tail helpers match SELECT's. The printed twin
-oracle + an ``examples/twin_turboprop.project.json`` fixture are deferred items.
+oracle stays a deferred item.
+
+The module was unrunnable on shipped data until 2026-08-13: ``atr42_100`` and
+``dhc8_dash8`` entered the ``one_engine_out`` slice but no engine horsepower, so the whole
+simulation path was exercised only on constructed inputs (backlog "ONENGOUT fixture data";
+the ``tail_mass`` gap was the same class). Both fixtures now carry take-off and
+max-continuous shaft power, and :func:`test_the_shipped_turboprops_execute_onengout` is the
+gate that keeps the module's own deliverable path covered by CI.
 
 Reference: ONENGOUT.BAS (Appendix C pp. 492-494); Reference 1 Ch 11 pp. 87-88;
 FAA User's Guide (DOT/FAA/AR-96/46) Ch 22.
@@ -208,6 +215,49 @@ def test_missing_slice_raises():
         assert False, "expected ValueError"
     except ValueError:
         pass
+
+
+#: The shipped fixtures that can execute ONENGOUT, with the engine each carries and
+#: its EASA TCDS IM.E.041 issue 07 (20 Dec 2023) §5 sea-level ratings, converted from
+#: the certificated kW at 745.7 W/shp and rounded to the nearest 10 shp:
+#:
+#:   PW120  max take-off 1491 kW = 1999.5 shp -> 2000; max continuous 1268 kW = 1700.4 -> 1700
+#:   PW121  max take-off 1603 kW = 2149.7 shp -> 2150; max continuous 1454 kW = 1949.8 -> 1950
+#:
+#: Both fields are entered rather than left to ``_engine_power``'s fallback: which
+#: rating a case runs at is the user's choice (``use_takeoff_power``), and a fallback
+#: makes that choice silently when only one field is present.
+_TURBOPROP_FIXTURES = {
+    "atr42_100.project.json": (2000.0, 1700.0),
+    "dhc8_dash8.project.json": (2150.0, 1950.0),
+}
+
+
+def test_the_shipped_turboprops_execute_onengout():
+    """**The fixture-coverage gate.** ONENGOUT must run on shipped data, not only on
+    constructed inputs — every engine carries both ratings, every speed case produces a
+    positive tail load, and the high-speed cases recover.
+
+    The VS case is expected NOT to recover on either airplane: full asymmetric power at
+    the clean stall speed is below VMC, which is a real result and is stated in band on
+    the case (``NOT recovered ... likely below VMC``) rather than suppressed. Asserted,
+    so that a change which quietly made VS recover has to say so here."""
+    for name, (takeoff, max_cont) in _TURBOPROP_FIXTURES.items():
+        p = io.load_project(os.path.join(_EXAMPLES, name))
+        for e in p.engines:
+            assert e.takeoff_hp == takeoff, (name, e.engine_designation, e.takeoff_hp)
+            assert e.max_cont_hp == max_cont, (name, e.engine_designation, e.max_cont_hp)
+
+        result = oeo.run(p)
+        titles = [c.title for c in result.conditions]
+        assert len(titles) == 3, (name, titles)
+        for cond in result.conditions:
+            values = {v.label: v.value for v in cond.values}
+            assert values["Max tail load"] > 0.0, (name, cond.title)
+            assert values["Engine thrust"] > 0.0 and values["Windmill drag"] > 0.0, (
+                name, cond.title)
+            recovered = "NOT recovered" not in cond.note
+            assert recovered == (not cond.title.endswith("VS")), (name, cond.title)
 
 
 def test_io_roundtrip():

@@ -28,8 +28,13 @@ Validation note: Appendix B (the 10-place twin turboprop) -- the printed one-eng
 oracle -- is **absent** from the bundled reference PDFs (Reference 1 carries only the
 Appendix A GA single; the FAA User's Guide Ch 22 gives partial inputs and no output
 numbers). C9 is therefore locked at the sub-formula level (each step exact to
-ONENGOUT.BAS) plus integration/physics closure; the printed twin oracle and an
-``examples/twin_turboprop.project.json`` fixture are recorded as deferred items.
+ONENGOUT.BAS) plus integration/physics closure; the printed twin oracle stays a
+deferred item. The two shipped twin-turboprop fixtures (``atr42_100``,
+``dhc8_dash8``) execute this module end to end -- they carry take-off and
+max-continuous shaft power from EASA TCDS IM.E.041 -- and
+``tests/test_one_engine_out.py`` gates that they keep doing so.
+
+**Coverage limitation:** :data:`PROPELLER_ONLY_NOTE` -- the model is propeller-only.
 """
 
 from __future__ import annotations
@@ -61,6 +66,25 @@ from ..registry import register
 from ._vtail import large_deflection_factor, rudder_effectiveness, vtail_lift_slope
 
 MODULE_NAME = "one_engine_out"
+
+#: The 23.367 asymmetry model is **propeller-only**, and this is the single owner
+#: of that statement (report stamp, spec and UI quote it rather than paraphrase).
+#: Both terms of the yawing moment are propeller relations taken straight from
+#: ONENGOUT.BAS: the live engine's thrust is ``HP*550*0.85/V`` (shaft power over
+#: true airspeed) and the failed engine's drag is Glauert windmilling on the disc,
+#: ``~DIA^2``. Neither has a turbofan/turbojet form here -- run against a fan
+#: installation the thrust term is a shaft-power surrogate and the windmill term
+#: collapses to zero with the propeller diameter, which understates the asymmetry
+#: and mis-times it. FAR 23.367(a) is itself turbopropeller-specific (Ref 1 Ch 11
+#: p87), so this is a gap in coverage rather than in accuracy. Gating the module
+#: on engine type is a separate open item (backlog M4-3(b)).
+PROPELLER_ONLY_NOTE = (
+    "the one-engine-out yaw transient (23.367) is modelled for PROPELLER "
+    "installations only -- thrust is shaft power over true airspeed and the "
+    "failed-engine drag is Glauert windmilling on the propeller disc, so a "
+    "turbofan or turbojet installation is NOT covered and its asymmetry would be "
+    "understated"
+)
 
 _DEG = 57.3              # ONENGOUT.BAS deg/rad
 _RHO0 = 0.002378         # sea-level density, slug/ft^3

@@ -104,6 +104,7 @@ def _standing_limitations() -> tuple:
     """``((key, text), ...)`` — deferred so the owning modules import lazily."""
     from ..export.sbeam_bridge import CENTERLINE_CLAMP_NOTE
     from ..modules.balance import AILERON_COUPLE_NOTE, LATERAL_AERO_NOTE
+    from ..modules.one_engine_out import PROPELLER_ONLY_NOTE
 
     return (
         ("control-surface-distributions",
@@ -123,6 +124,9 @@ def _standing_limitations() -> tuple:
          "No pressurization load cases."),
         ("lateral-aero",
          "Lateral aerodynamics: " + LATERAL_AERO_NOTE + "."),
+        ("engine-failure-propeller-only",
+         "Engine failure: " + PROPELLER_ONLY_NOTE[0].upper() + PROPELLER_ONLY_NOTE[1:]
+         + "."),
         ("aileron-couple",
          "The aileron rolling moment (23.349) is applied as a lumped free couple "
          "at the wing aerodynamic centre: " + AILERON_COUPLE_NOTE + "."),
