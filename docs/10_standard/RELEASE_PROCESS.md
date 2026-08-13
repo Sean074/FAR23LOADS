@@ -15,8 +15,8 @@ Semantic versioning: `MAJOR.MINOR.PATCH`.
 | `PATCH` | Bug fix that does not change the public interface |
 
 The version lives in `pyproject.toml` under `version =`. The `project.json`
-schema has its own `schema_version` (in `sloads/models.py`) — bump it when the
-input schema changes, and ensure `io.py` still loads older saves.
+schema has its own `SCHEMA_VERSION` (in `sloads/models/project.py`) — bump it
+when the input schema changes, and ensure `io.py` still loads older saves.
 
 Pre-release tags: `0.2.0-beta.1` for candidates shared externally.
 
@@ -54,7 +54,7 @@ in `CLAUDE.md`, not re-audited at release time.
 
 ### 3.2 Code quality
 - [ ] No open `[CRITICAL]`/`[MAJOR]` findings from the latest review (see [`CODE_REVIEW_PROCESS.md`](CODE_REVIEW_PROCESS.md)).
-- [ ] `ruff check sloads/ cli.py` is clean.
+- [ ] `ruff check sloads/ cli.py app/` is clean.
 
 ### 3.3 Test suite
 - [ ] `pytest` passes — zero failures, zero errors.

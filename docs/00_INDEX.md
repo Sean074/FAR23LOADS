@@ -72,13 +72,17 @@ historical record.
 | [`05_phase_d_gui_workflow_plan.md`](40_history/05_phase_d_gui_workflow_plan.md) | **Phase D plan (executed; nav grouping superseded by Phase G)** — GUI workflow restructure: assessment, six-section target structure, load-case IDs, locked decisions D-1…D-7, page conventions. Still the citation target for the D-numbered GUI decisions |
 | [`06_m3-1_rename_procedure.md`](40_history/06_m3-1_rename_procedure.md) | **M3-1 execution runbook (executed 2026-07-22)** — step-by-step git + shell procedure for the `farloads` → `sloads` rename batched with the `models.py` → `models/` split |
 | [`07_m4_maintainability_sequence_plan.md`](40_history/07_m4_maintainability_sequence_plan.md) | **M4 maintainability sequence plan (executed 2026-08-03/04)** — execution order and per-step detail for M4-12 → M4-11 → G8 views → M4-10 → M4-9: measured baseline, design decisions D-12…D-18, per-step acceptance/risk, doc-sync matrix. Remainders M3-3b / M4-10b / M4-11b are carried in the backlog |
-| [`08_verification_baseline_0.4.0.md`](40_history/08_verification_baseline_0.4.0.md) | **Verification baseline (0.4.0, current)** — a *delta* baseline: the closure gates for everything 0.4.0 added (mass SSOT, CONM2/MASSSET, balanced free-free cases, distributed empennage, the sbeam round-trip), the ten pinned exceptions with their measured figures, and what measurement changed. Carries the 0.3.0 oracle tables forward unchanged |
+| [`08_verification_baseline_0.4.0.md`](40_history/08_verification_baseline_0.4.0.md) | **Verification baseline (0.4.0)** — a *delta* baseline: the closure gates for everything 0.4.0 added (mass SSOT, CONM2/MASSSET, balanced free-free cases, distributed empennage, the sbeam round-trip), the ten pinned exceptions with their measured figures, and what measurement changed. Carries the 0.3.0 oracle tables forward unchanged |
+| [`09_verification_baseline_0.5.0.md`](40_history/09_verification_baseline_0.5.0.md) | **Verification baseline (0.5.0, current)** — a *delta* baseline: the closure gates for everything 0.5.0 added (six-DOF balanced closure, handed 23.427(a) twins, the lateral three, the report's own conformance gates, per-sheet workbook units), the nine pinned exceptions with their measured figures, the four standing limitations of a 0.5.0 deliverable, and what measurement changed. Carries the 0.3.0 oracle tables forward unchanged |
 
 ## 50_reviews — Process reviews
 
 | File | Scope |
 |------|-------|
+| [`2026-08-10_code_review_0_5_0.md`](50_reviews/2026-08-10_code_review_0_5_0.md) | Pre-0.5.0 full code review: findings C1/F-\*/D-R\*/m1–m21 and the three-phase release plan they drove |
 | [`2026-08-05_development_process_review.md`](50_reviews/2026-08-05_development_process_review.md) | Full-depth development-process audit (Jun–Aug 2026): findings F1–F7, recommendations R1–R11 behind the 2026-08-05 process changes, and the sbeam cross-project comparison |
+| [`CODE_REVIEW_2026-07-21.md`](50_reviews/CODE_REVIEW_2026-07-21.md) | Point-in-time code review (moved here from the repository root at 0.5.0) |
+| [`PROJECT_REVIEW_2026-07-19.md`](50_reviews/PROJECT_REVIEW_2026-07-19.md) | Point-in-time project review (moved here from the repository root at 0.5.0) |
 
 ---
 

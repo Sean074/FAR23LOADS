@@ -249,10 +249,10 @@ FAR23LOADS/
 │   ├── 10_standard/              # PROJECT_GUIDE.md (this file), PROGRAM_SPEC.md, process guides
 │   ├── 20_theory/               # equation sources (the reference/ PDFs) + per-module citations
 │   ├── 30_future/               # 00_backlog.md — open modules / decisions
-│   └── 40_history/              # 00_completed_development.md — what shipped
-├── pyproject.toml                # build metadata, deps, ruff + pytest/coverage config
+│   ├── 40_history/              # 00_completed_development.md — what shipped
+│   └── 50_reviews/              # dated code / process reviews
+├── pyproject.toml                # build metadata, THE dependency source, ruff + pytest/coverage config
 ├── cspell.json                   # domain wordlist
-├── requirements.txt
 └── README.md
 ```
 
@@ -497,7 +497,7 @@ pip install -e '.[dev]'          # editable install + dev tools (pytest, ruff)
 streamlit run app/Home.py        # the multi-page UI
 python cli.py engine examples/ga6_normal.project.json -o engine_loads.csv
 pytest                           # the green-build gate
-ruff check sloads/ cli.py      # lint
+ruff check sloads/ cli.py app/ # lint
 ```
 
 See [`PROGRAM_SPEC.md`](PROGRAM_SPEC.md) for the per-module specification.

@@ -46,7 +46,6 @@ from sloads.export.pdf import ENGINE_ENV_VAR, compile_pdf, find_engine
 from sloads.export.workbook import build_workbook
 from sloads.modules.balance import build_balanced_cases
 from sloads.modules.net_loads import torsion_axis_label, wing_lra
-from sloads.modules.tail_span import build_tail_span
 from sloads.report import module_text_report
 from sloads.report.content import ComponentLoads, component_loads
 from sloads.report.latex import render_report
@@ -61,7 +60,6 @@ from sloads.units import (
     convert_results,
     deliverable_units,
     system_name,
-    units_statement,
 )
 
 
@@ -380,11 +378,11 @@ def _workbook_bytes() -> bytes:
         "Engineer": project.engineer or "",
         "Date": project.date or "",
         "Category": "Concept" if project.is_concept else "GA (FAR 23)",
-        # The workbook's own in-band unit statement (M4-20 step 5): the .xlsx has
-        # no comment rows to carry the CSV/BDF stamp, so the Project sheet states
-        # it. Same ``_system`` as every other artifact in the bundle.
-        "Units": units_statement(deliverable_units(_system)),
     }
+    # The workbook's in-band unit statement (M4-20 step 5) is `build_workbook`'s
+    # own, stated PER SHEET from this one `_system` (review m14): the .xlsx has
+    # no comment rows to carry the CSV/BDF stamp, and one workbook-level
+    # statement would be wrong for the solver-channel span sheets below.
     module_labels = {mr.module: _module_label(mr) for mr in module_results}
     span_csvs = {
         title: _bdf_artifacts[key]
@@ -398,7 +396,7 @@ def _workbook_bytes() -> bytes:
         if _bdf_artifacts.get(key)
     }
     return build_workbook(project_info, module_csvs, module_labels, case_index_csv,
-                          span_csvs, methods=_methods)
+                          span_csvs, methods=_methods, system=_system)
 
 
 c3.download_button(

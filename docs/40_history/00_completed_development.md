@@ -10,6 +10,114 @@ Acceptance**, **Key decisions**.
 
 ---
 
+## Release cut: **sloads 0.5.0** (the assembled free-free deliverable), tag `v0.5.0`, 2026-08-13
+
+**Objective.** Close the review of record's Phase 3 (release mechanics) and cut
+the release decision **D-R1** had held for the deliverable — the summary report
+plus wing/body/tail and balanced/CONM2 sbeam output. `[Unreleased]` had grown to
+~900 content lines across three review phases; unreleased work has no regression
+baseline.
+
+**Deliverables.**
+- **Workbook per-sheet unit statements** (review **m14**, tier M). One `.xlsx`
+  carries both unit channels — module and case-index sheets are HUMAN, span-load
+  sheets are the SOLVER channel the sbeam decks use — and in SI those sets differ
+  (`N·m`/`kPa` vs `N·mm`/`MPa`), so the single Project-sheet `Units` row
+  mis-stated every span sheet by 1000× in moment (SUMMARY_REPORT.md §3.5/§4.7:
+  "a per-file units column that disagrees ... is a conformance failure, not a
+  footnote"). `build_workbook` now **owns** the statement instead of taking a
+  pre-formatted one from the page: it resolves both channels once from the
+  `system` it is given, writes each data sheet's own set into cell `A1` above
+  that sheet's header row, and names both channels plus the unconverted KEAS/ft
+  exception on the Project sheet. The case index, carrying no load quantity,
+  states that rather than claiming either set.
+- **`app/` joined the lint gate** (review **m21**). The merge gate left the whole
+  Streamlit layer unlinted and it had drifted — an unused `build_tail_span`
+  import in `export_report.py`. Now `ruff check sloads/ cli.py app/` in CI and in
+  every document that states the gate (`CLAUDE.md`, `00_program_overview.md`,
+  `RELEASE_PROCESS.md` §3.2, `CODE_REVIEW_PROCESS.md` ×2, `PROJECT_GUIDE.md`,
+  `README.md`).
+- **Root cleanup** (review **m19**). `.DS_Store` gitignored and untracked;
+  `CODE_REVIEW_2026-07-21.md` and `PROJECT_REVIEW_2026-07-19.md` moved to
+  `docs/50_reviews/` and indexed in `00_INDEX.md` (which also gained the
+  2026-08-10 code review, previously unlisted); `requirements.txt` **deleted**
+  rather than regenerated — a second dependency source that had already drifted
+  from `pyproject.toml` (streamlit ≥1.30 vs ≥1.36, listing pytest, omitting
+  plotly and openpyxl), and one source that is right beats two that disagree.
+  `README.md` and `PROJECT_GUIDE.md` §4's tree updated.
+- **Release-doc currency** (review **m20**). `RELEASE_PROCESS.md` §1 pointed at
+  the pre-M3-1 `sloads/models.py` for the schema version — now
+  `sloads/models/project.py`, and named `SCHEMA_VERSION` as the code does.
+  pyproject classifiers list 3.9 / 3.11 / 3.12, the CI matrix, instead of 3.9
+  alone.
+- **`scripts/smoke_test.sh` fixed — the §3.5 gate failed the release it gates.**
+  It read line 1 of the CLI's CSV as the header, but since G8.3 every exported
+  CSV carries the methods & limitations statement as `#` lines above it, so the
+  script saw `# METHODS AND LIMITATIONS` and reported an unexpected header. The
+  Python readers were audited when the stamp landed (`workbook._csv_to_df` reads
+  with `comment="#"`); this shell one was not — practice 4 (generalize on first
+  find) applied late. It now skips comment lines, counts rows from the data
+  block, and **requires** the stamp to be present, so the gate proves the
+  headless deliverable states its own basis.
+- **Version** `0.4.0` → **`0.5.0`** in `pyproject.toml` (MINOR: new capability,
+  no breaking change — `SCHEMA_VERSION` 44 is reached by additive hops and
+  `io.py` loads every older save).
+- **Changelog cut** — `[Unreleased]` dated to `## [0.5.0] — 2026-08-13` with its
+  **ten headings merged to three** (Added / Fixed / Changed), verified
+  content-preserving as a line multiset before and after, and a fresh empty
+  `[Unreleased]` opened — the same consolidation the 0.3.0 and 0.4.0 cuts
+  performed. It opens with a **release-notes block** stating the four standing
+  caveats a 0.5.0 deck carries: the flight-only fuselage deck (D-R3), fin-only
+  lateral aerodynamics (L-7, over-stated and conservative), the handed
+  23.427(a) maneuver pair (D-R8), and concept mode as closure-locked rather than
+  oracle-locked (D-R6).
+- **Verification baseline** —
+  [`09_verification_baseline_0.5.0.md`](09_verification_baseline_0.5.0.md), a
+  **delta** baseline like 0.4.0's: the closure gates for everything 0.5.0 added
+  (six-DOF balanced closure, handed twins, the lateral three, the report's own
+  conformance gates, per-sheet workbook units), the nine pinned exceptions with
+  their measured figures, the four standing limitations, and what measurement
+  changed — carrying the 0.3.0 oracle tables forward unchanged on the same two
+  confirmations (register unchanged; every Imperial digest movement a new or
+  renamed channel, the wave spent four times inside the release).
+- **Backlog re-cut to post-release form** — the 0.5.0 row and its whole "Item
+  detail — 0.5.0 release scope" section removed per the removal rule, the
+  remaining 31 rows renumbered with their `Pri` cross-references followed, and
+  the release prose replaced with the cut record.
+- **Gates at cut:** `pytest` **1494 passed / 21 skipped / 0 failed** (coverage
+  93 %), `ruff check sloads/ cli.py app/` clean, `scripts/smoke_test.sh` **PASS**
+  (headless GUI render + CLI export), every skip carrying a stated reason and a
+  backlog entry, no open CRITICAL/MAJOR review findings.
+
+**Key decisions.** `build_workbook` owns the unit statement rather than
+receiving it (practice 3, single owner + drift guard): the source guard in
+`test_deliverable_units.py` that used to pin the *defect* (`"Units":
+units_statement(` present in the page) now pins the contract — the page passes
+`system=_system` and states nothing itself. `requirements.txt` deleted rather
+than regenerated, for the same reason.
+
+**Post-release.** The cadence rule (`RELEASE_PROCESS.md` §2) restarts from this
+tag. Per **D-R3** the ground/landing case families (backlog Pri 4–5) are the
+0.6.0 headline; the sequence-independent rows — ONENGOUT fixture data, the
+wing-case-condition naming decision, M4-8 Layer 1's full resolver — ship in any
+gap. `scripts/smoke_test.sh` into CI (review **m20**) remains the stated
+fast-follow, not a gate.
+
+---
+
+## Standing disclaimer in the methods statement (0.5.0 Phase 2 row 1 — complete 2026-08-11, tier S)
+
+Closed review finding **F-R3**: the "initial-concept loads analysis, not a
+certification document" statement (SUMMARY_REPORT.md §4.6 item 9) lived on the
+LaTeX title page alone and not in `methods_statement`, so it reached neither
+`METHODS.txt`, the CSV `#` headers, the deck `$` headers nor the workbook. It is
+now the `STATUS:` block leading the statement (ahead of `BASIS:`), one
+`STANDING_DISCLAIMER` constant that the title page quotes rather than restates,
+with `tests/test_methods_stamp.py` requiring the block, both wrappers and the
+single wording.
+
+---
+
 ## Per-case SF in the governing-loads tables (0.5.0 Phase 2 — complete 2026-08-11, tier M)
 
 Closed review finding **F-R1**, the report-side pre-slice of M4-8 Layer 1.

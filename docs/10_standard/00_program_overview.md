@@ -279,7 +279,7 @@ Runtime (`pyproject.toml` `[project.dependencies]`): `streamlit>=1.30`,
   against the Appendix A (6-place GA single, p131) and/or Appendix B (10-place
   twin turboprop, p251) figures within **±0.1%** (`rel_tol=1e-3`); exact equality
   only for integer/dimensionless quantities.
-- `ruff check sloads/ cli.py` clean and `pytest` passing are the merge gate; CI
+- `ruff check sloads/ cli.py app/` clean and `pytest` passing are the merge gate; CI
   runs both on Python 3.9 / 3.11 / 3.12.
 - **Coverage floor.** `pytest` emits a per-file branch-coverage table (configured
   via `addopts` in `pyproject.toml`). CI additionally enforces

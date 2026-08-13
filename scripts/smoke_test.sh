@@ -107,13 +107,23 @@ if [[ ! -s "$OUT_CSV" ]]; then
   exit 1
 fi
 
-header="$(head -n 1 "$OUT_CSV")"
+# Since G8.3 every exported CSV carries the methods & limitations statement as
+# `#` lines above the header row, so a reader that takes line 1 as the header
+# reads prose. This script is a CSV reader like any other and skips them --
+# `workbook._csv_to_df` (comment="#") is the same contract in Python.
+if ! grep -q "^# METHODS AND LIMITATIONS" "$OUT_CSV"; then
+  echo "smoke_test: FAIL — CSV carries no G8.3 methods & limitations stamp" >&2
+  exit 1
+fi
+
+data="$(grep -v '^#' "$OUT_CSV" | grep -v '^[[:space:]]*$')"
+header="$(printf '%s\n' "$data" | head -n 1)"
 if [[ "$header" != *"ID"* ]]; then
   echo "smoke_test: FAIL — unexpected CSV header: $header" >&2
   exit 1
 fi
 
-row_count="$(($(wc -l <"$OUT_CSV") - 1))"
+row_count="$(($(printf '%s\n' "$data" | wc -l) - 1))"
 if [[ "$row_count" -lt 1 ]]; then
   echo "smoke_test: FAIL — CSV has a header but no load-case rows" >&2
   exit 1

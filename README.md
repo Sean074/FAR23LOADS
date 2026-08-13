@@ -72,12 +72,14 @@ streamlit run app/Home.py                                   # the multi-page UI
 sloads engine examples/ga6_normal.project.json -o engine_loads.csv   # CLI entry point
 python cli.py engine examples/ga6_normal.project.json -o engine_loads.csv
 pytest                                                      # the green-build gate
-ruff check sloads/ cli.py                                 # lint
+ruff check sloads/ cli.py app/                            # lint
 ```
 
-`requirements.txt` is kept for the bare runtime set; `pip install -e '.[dev]'`
-is the supported developer install. CI (`.github/workflows/ci.yml`) runs ruff
-and pytest on Python 3.9 / 3.11 / 3.12.
+`pyproject.toml` is the single dependency source — `pip install -e .` for the
+runtime set, `pip install -e '.[dev]'` for the supported developer install (a
+second `requirements.txt` list was deleted at 0.5.0 because it had drifted from
+it). CI (`.github/workflows/ci.yml`) runs ruff and pytest on Python
+3.9 / 3.11 / 3.12.
 
 ## Validation & math fidelity
 

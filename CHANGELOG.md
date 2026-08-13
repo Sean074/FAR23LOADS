@@ -10,73 +10,42 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
-### Fixed
+---
 
-- **The governing-loads tables applied a flat 1.5 instead of each case's own
-  safety factor** (review **F-R1**; the report-side slice of M4-8 Layer 1).
-  `report.governing_loads_table` scaled and labelled every row with
-  `ULTIMATE_FACTOR`, ignoring `CriticalCondition.safety_factor` — the model's
-  stated contract and what the export side already reads
-  (`sbeam_bridge._sf`). No shipped number changes (SELECT stamps the 23.303
-  default on every condition today), but the first non-1.5 critical case would
-  have been silently mis-scaled and mis-labelled in report §5 and in **both**
-  GUI views (Results Review headline, Flight Envelope "Critical Loads"), which
-  read the same helper — a report figure and its bulk-data card could have
-  stated different factors for one case. Each row now scales by its own case's
-  factor and its `SF` cell states that factor; the caller-supplied `sf`
-  override is **removed**, so the case stays the single owner of its factor and
-  there is no path back to a flat one. The test that pinned the hole (every row
-  `SF == 1.5`) now asserts the contract, and a new test sets one condition to
-  `SF = 1.0` and checks that row is neither re-scaled nor mislabelled while its
-  neighbours are untouched.
+## [0.5.0] — 2026-08-13
 
-- **The fuselage deliverables rendered a platform-dependent negative zero, and
-  CI failed on a difference that was not a difference.** Found from a CI report
-  of `sbeam/body_cards` drift against the Imperial digest baseline while the
-  same commit passed locally. The body deck's stated `Applied Fz set sums to …`
-  and `Terminal Myy …`, and the span CSV's terminal cumulative `Sz`/`Myy`, are
-  the free-free equilibrium — exactly zero in exact arithmetic, ~1e-11 of
-  cancellation dust in floating point. The magnitude is far below any printed
-  precision, but the **sign** of that dust is not reproducible across platforms
-  (x86 and ARM reassociate the upstream arithmetic differently), so the same
-  code printed `0.00` on one machine and `-0.00` on another. New
-  `sbeam_bridge._closed()` snaps a zero-by-construction quantity to an unsigned
-  zero relative to its own column's scale — the rule the `FORCE` cards already
-  had (nothing under `_TOL` is emitted) extended to the totals that describe
-  them. Guarded by
-  `test_the_body_deliverables_never_render_a_negative_zero`, both unit systems
-  (SI is the worse case: the same dust is 175× larger in newtons). `body_cards`
-  and `body_span` digests regenerated.
+### Release notes — what a 0.5.0 deck does and does not carry
 
-  *Not swept in the same change:* structural negative zeros elsewhere (~2,000
-  `-0.000000E+00` components in the balanced deck, the tail span CSV's `Fax`
-  column) come from `-1 × 0.0`, are bit-identical on every platform, and are
-  cosmetic only. Normalising them would move every deck family's digests, so it
-  is filed rather than folded in here.
+0.5.0 makes the **assembled full-span free-free airplane deck** the primary
+loads deliverable: aero and inertia together, left and right hands, a CONM2
+mass model beside it, and global equilibrium proved continuously in CI. Four
+standing caveats govern how far a deck from this release can be carried. Each
+travels in band — on the deck's `$` header, the case notes and the report's
+methods & limitations section — so this list is a summary, not the source.
 
-- **The bundle manifest pointed three companion files at the wrong report
-  section, and now the numbering has an owner.** 0.5.0 row 1, review finding
-  **F-R2**. The manifest's "Summarised in" column sent the case index to §3
-  (envelope figures), the load-case CSVs and the text report to §4 (conditions
-  analysed) and METHODS.txt to §5 (results) — one short after the §2
-  sign-conventions insertion, and two short for methods after the §6 balanced
-  section moved it to §7. They now read §4, §5 and §7. The tail rows pointed at
-  a "§4 Tails" subsection that does not exist; they name the real
-  `Horizontal tail / Vertical tail` headings.
-  - **Structural, not a re-typing** (`CLAUDE.md` practice 3): `content.SECTIONS`
-    is the single ordered source of the numbering, headings come from
-    `section_heading(key)` and every cross-reference — the manifest column and
-    the rendered prose in the references table, the gear note and the balanced
-    section — from `section_ref(key[, subsection])`. Inserting a section now
-    renumbers its references with it; a literal `§N` in rendered text is a
-    defect.
-  - **Pinned four ways**, since the review's actual finding was "no test pins
-    the § values": the owner's numbers must equal the document's own section
-    positions; each companion file's target section is pinned by key in
-    `SUMMARISED_IN` (exhaustive on the GA fixture, so a new manifest row cannot
-    slip in unpinned); every manifest reference must resolve to a real section
-    and each suffix to a real subsection; and a document-wide sweep of every
-    rendered string rejects a reference past the last section.
+- **The fuselage deck is flight-only.** No ground reaction, landing or
+  pressurization case is distributed onto the body; the ground/landing families
+  are the 0.6.0 headline (decision **D-R3**). A body deck from 0.5.0 sizes
+  flight cases and nothing else.
+- **Lateral aerodynamics are fin-only (decision L-7).** The fin's own side load
+  is the only lateral aerodynamic force the suite computes — there is no
+  fuselage or nacelle `Cy_β`/`Cn_β` — so lateral load factors and yaw
+  accelerations are **over-stated and conservative**, not correct. Do not read
+  `n_y` or `ψ̈` as a lateral response of the airplane.
+- **The 23.427(a) unsymmetrical horizontal tail ships as a handed pair, and it
+  is a *maneuver* case.** An asymmetric case exists only as a starboard/port
+  twin by centreline reflection; a reader given one hand must know the other
+  exists. Its V-n point is the maneuver point, not a gust point.
+- **`concept_heavy` is closure-locked, not oracle-locked** (decision **D-R6**),
+  as is every concept-mode result above the FAR 23 calibrated band. Concept mode
+  is an unverified extrapolation with a stated physics-closure gate behind it —
+  it is not a validated analysis, and the report says so wherever the figures
+  are read.
+
+The FAR 23 replication core remains oracle-locked to Appendix A within ±0.1 %;
+concept mode reduces exactly to it on GA inputs. Verification baseline for this
+release: [`docs/40_history/09_verification_baseline_0.5.0.md`](docs/40_history/09_verification_baseline_0.5.0.md).
+
 
 ### Added
 
@@ -417,49 +386,235 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   airplane axes, aileron hand named per case. Labels only — no computed number
   changed anywhere.
 
-### Changed
 
-- **The assembled deck's `SUBCASE` ids are minted from the case, not from its
-  position.** 0.5.0 row 1 — decision **D-R7**, review finding **m1**. The
-  flagship deliverable was the last deck family still numbering
-  `BALANCED_SID_BASE + i`, which is exactly the instability M4-2 decision 8
-  removed everywhere else: one condition dropping out of the set (a missing V-n
-  point, a payload loading that will not derive) renumbered every case after it,
-  so `SUBCASE 5007` meant nothing without the run that produced it. New
-  `case_ids.balanced_subcase_id` mints `block + subcase_id`, the block naming
-  the hand — symmetric `5000`, starboard `7000`, port `8000`, so `W-05R` is
-  `7105` and its port twin `8105` in every run of every project that assembles
-  them. `6000` is skipped deliberately: it is this same deck's own GID range.
-  Handedness is a block rather than a suffix because a `SUBCASE` id is an
-  integer and `7105L` is not one.
-  - Minting can collide where positional numbering could not, so
-    `balanced_deck.case_sids` **refuses** two cases that share one case id and
-    hand rather than letting the solver sum two load sets under one `SUBCASE`.
-  - The three blocks are registered bands (`export/bands.py`) pinned against
-    `case_ids.BALANCED_HAND_BLOCK` by `tests/test_bands.py`, and the survival
-    property is a test in its own right: drop a case from the middle of the set
-    and the deck writes every survivor under the number it had.
-  - A case carrying no `CaseRef` at all (a bare list built in a test — nothing
-    the suite assembles) still falls back to its position, in the separate
-    `5001-5100` band so it can never land on a minted id.
-  - `sbeam_bridge`'s case-index `SUBCASE` column now maps a handed id through
-    the same minting instead of printing an empty cell (no shipped bytes move:
-    no handed id reaches the index today).
-  - **Byte-changing**: the two balanced-deck digests in
-    `tests/fixtures_imperial/digests.json` are regenerated for this and no other
-    reason; every other Imperial digest is unchanged.
-- **The balanced deck's nodes moved out of the tail-span range: `4001/4201/4401`
-  → `6001/6201/6401`** (the F-C1 fix). Node **numbering** only — the
-  reconstructed pre-fix deck is byte-identical to the shipped one, and the two
-  balanced-deck digests in `tests/fixtures_imperial/digests.json` are regenerated
-  for that reason and no other; every other Imperial digest is unchanged.
-- **The two chordwise writers share their tributary arithmetic** (review
-  **m6**): `_tail_nodal_forces` and `_control_nodal_forces` had the
-  trapezoid-width-times-pressure-then-rescale loop written out twice, verbatim.
-  One `_trapezoid_tributary_forces` now owns it — which is also the single place
-  backlog row 3's degenerate-profile raise will need to land.
+- **The vertical tail carries inertia on both of its axes** (user decision
+  2026-08-10, **superseding plan 13 decision L-8 for the per-condition view**).
+  A fin's normal axis is lateral, so the vertical acceleration that *bends* a
+  horizontal tail *compresses* a vertical one, and the fin needs two terms where
+  the h-tail needs one:
+  - **bending**, `−n_y·W_vt`, with `n_y = (LT25+LT50)/W_case` — the free-free
+    lateral response to the fin's own load, the only lateral aerodynamic force
+    this suite models. It relieves the surface total by **exactly** `W_vt/W_case`
+    (0.68 % on `ga6_normal`, 1.84 % on the RJ), which is what makes it
+    self-checking, and it inherits decision **L-7**'s caveat: with no fuselage or
+    wing sideslip force modelled, the real airplane's `n_y` is smaller and that
+    relief is an upper bound on itself. Stated in-band on every fin result, deck
+    header and UI row — including that it is the unconservative direction.
+  - **axial**, `−n_z·W_vt`, along the span: it compresses the fin and bends
+    nothing. New `WingStationLoad.f_span`/`.s_span` columns, mapped to airplane
+    axes by the new `coordinates.tail_axial_to_airplane`, and carried in the same
+    `FORCE` cards as the normal load.
+
+  A fin condition naming no V-n point has no case weight, so it gets **no**
+  lateral term and says so, rather than dividing by a gross-weight stand-in.
+
+- **`component` is editable on the Weights page.** The weight data base's item
+  editor exposed `kind` but never `component`, so the tag that decides which beam
+  carries each item — and which is now the *only* way to enter tail mass — could
+  not be set in the GUI at all. It is a select column with a blank (untagged,
+  inferred) option, and the Tail Span Loads page's own mass form is **gone**:
+  that page now shows the derived weight read-only, names any untagged surface,
+  reports any override, and links back to the page that owns the data.
+
+- **Tail gates**: the fin's `Σ inertia / Σ air ≡ −W_vt/W_case` identity; the axial
+  column against `−n_z·W_vt` with a proof it makes no bending; the derived weight
+  against each fixture's tagged items; a regression gate that **no shipped
+  fixture produces an air-only h-tail deck**; the override/reconciliation path;
+  the v44 migration hop; and a balance gate that the applied fin set is air only.
+
+- **`coordinates.bending_moment_vector`** — the single owner of the wing bending
+  sign map. `Mxx` maps to `+x` but `Mzz` maps to `−z` (the calc stores both as
+  positive-magnitude integrals, against a right-handed `r × F`); that asymmetry
+  now lives in one function instead of being spelled out at the card writer and
+  copied again at its gate.
+- **Wing deck gates**: bending closure now covers **both** channels on **all six**
+  fixtures with no exception (the old test asserted the *negation* on the three
+  affected ones); a new station-by-station gate asserts shear and bending at
+  *every* node, which is what separates the offset couple from the force split
+  originally proposed; and a guard pins that the couples exist at exactly the
+  nodes bracketing a concentrated mass and nowhere else.
+- **`atr42_100` joins the sbeam round-trip wing leg** (`WING_MATRIX`). The solver
+  matrix was `ga6_normal` + `concept_regional_jet`, both mass-free, so nothing
+  proved the real solver *honours* an `Mx` component rather than dropping it.
+  Assertion W-d — element 1's end-B bending against the NETLOADS root `Mxx` —
+  read 1.91 % high there until the couples existed.
+- **Span-load CSV** gains `Mx`/`Mz` columns, keeping its stated contract that the
+  applied-load columns *are* the exported `FORCE`/`MOMENT` cards.
+
+
+- **Lateral balanced airplane cases — the ±β empennage set** (mission phase 4
+  step 8, [plan 13](docs/30_future/13_b8a_lateral_closure_plan.md) step
+  **B8a-3**, decisions **L-6**/**L-7**/**L-8**). The four vertical-tail
+  conditions (`SUDDEN RUDDER`, `YAW TO SIDESLIP`, `YAW 15 NEUTRAL`, `SIDE GUST`)
+  now assemble as full-span free-free cases, each as a **handed pair** —
+  `VT-01R`/`VT-01L` … `VT-04R`/`VT-04L`, the starboard case computed and the port
+  one its mirror. Eight new cases per fixture on `ga6_normal` and
+  `concept_regional_jet` (15 and 14 balanced cases in total).
+
+  The fin's distributed side load is SELECT's, strip for strip, reaching the case
+  through `tail_span` and the existing frame map in `export/coordinates.py` (span
+  → `z`, normal force → `fy`, torsion → `mz` **negated**). Fin **inertia** rides
+  in the closure field at the case's own `n_y`/`ω̇` rather than in the
+  per-component v-tail deck, which stays air-only (decision **L-8**).
+
+  **Nothing balances a rudder kick**, and the deck says so: a lateral case's
+  pre-closure `Fy`/`Mz` *are* the fin load in full, by construction, so plan 11's
+  1 % residual gate does not apply to them — exactly the standing `ACRL`'s roll
+  residual has had since B7. What is gated is that the case's **symmetric half**,
+  with the fin set removed, still closes as it always did; it does, to the last
+  digit, because the fin set carries `fy` and `mz` only.
+
+  Reported per case, in the deck header, the balanced-case table and the module
+  result: the applied fin side load, the lateral load factor `n_y = L_v/W`, and
+  the yaw and roll accelerations it drives — for example `ga6_normal`
+  `SUDDEN RUDDER` +585.7 lb, `n_y` +0.172 g, `ψ̈` +178.0 deg/s², `ṗ` −12.0
+  deg/s²; the RJ's `YAW 15 NEUTRAL` −8042.7 lb, −0.244 g, −55.7, +68.4. All four
+  numbers are pinned per fixture in CI in both directions.
+
+  **A stated limitation, carried in-band** (decision **L-7**): the fin is the
+  only lateral aerodynamic load this suite computes — fuselage and wing side
+  force in sideslip are not modelled — so `n_y` and the yaw acceleration are
+  **over-stated by an unknown amount**, and the inertia they drive is
+  conservative on every component. The fin's own design load is SELECT's,
+  unchanged. The caveat travels as a case note into the deck `$` header and the
+  report rather than living only in documentation.
+
+  **The assembled deck carrying these cases solves in the real sbeam** with its
+  determinate support reacting zero in all six components (plan 13 **G3**, step
+  **B8a-4**) — the first time the round-trip gate exercises `fy`, `mx` and `mz`.
+  Two additions make that statement worth its zero target: every assembled case
+  must appear as a subcase and each lateral one must carry real side load into
+  the solver, and a **negative control** reverses the fin load alone and asserts
+  the support then reacts `+2·L_v·SF` in `y`, with the roll and yaw reactions
+  moving with it. Both unit systems, both fixtures, in CI.
+- **Theory document for the balancing method** —
+  [`docs/20_theory/balanced_cases.md`](docs/20_theory/balanced_cases.md): how a
+  balanced free-free case is assembled and closed, with worked examples on the
+  shipped fixtures (ga6 PHAA symmetric, ga6/RJ ACRL antisymmetric) and the
+  design-of-record lateral empennage cases on a conventional low tail (ga6) and
+  a T-tail (RJ), every shipped figure mapped to the CI gate that pins it.
+- **`VTailLoadsInput.vtail_root_waterline_z`** (schema **v43**) — the fin root
+  waterline, stated rather than derived. `0` means "derive it and mark it
+  `assumed`", which every shipped fixture still does; the derived value and the
+  branch that produced it are carried in-band on the result, the page and the
+  deck `$` header. Additive with a default, so no migration hop: a pre-v43
+  project keeps exactly the placement it would have been given.
+
 
 ### Fixed
+
+- **`scripts/smoke_test.sh` — the §3.5 release gate — read the G8.3 methods
+  stamp as the CSV header row and failed the release it was gating.** It took
+  line 1 of the CLI's output as the header, but since G8.3 every exported CSV
+  carries the methods & limitations statement as `#` lines above it, so the
+  script saw `# METHODS AND LIMITATIONS` and reported an unexpected header. The
+  in-repo *Python* readers were audited when the stamp landed
+  (`workbook._csv_to_df` reads with `comment="#"`); this shell one was not. It
+  now skips comment lines like every other reader, counts rows from the data
+  block, and additionally **requires** the stamp to be present — so the gate
+  proves the CLI's deliverable states its own basis rather than merely tolerating
+  the lines that say so.
+
+- **The `.xlsx` workbook stated one unit system for two channels** (review
+  **m14**; SUMMARY_REPORT.md §3.5/§4.7). One workbook carries both: the module
+  and case-index sheets are the HUMAN channel, the span-load sheets are the
+  SOLVER channel that feeds the sbeam decks — and in SI those sets differ
+  (`N·m`/`kPa` against `N·mm`/`MPa`). The Project sheet's single `Units` row
+  therefore mis-stated every span sheet in the workbook by a factor of 1000 in
+  moment, which is exactly the failure the in-band statement exists to prevent
+  ("a per-file units column that disagrees with that statement is a conformance
+  failure, not a footnote"). `build_workbook` now owns the statement instead of
+  taking it from the caller: it resolves both channels once from the deliverable
+  `system` it is given, writes each data sheet's own set into cell `A1` above
+  that sheet's header row, and names both channels plus the unconverted
+  KEAS/ft exception on the Project sheet. The case index, which carries no load
+  quantity at all, states that rather than claiming either set. Two new tests
+  build the workbook in **SI** — where the channels are distinguishable — and
+  require each sheet to carry its own set and neither to carry the other's, plus
+  a guard that the header row still parses one row down.
+
+- **The "not a certification document" disclaimer travelled on the report's
+  title page only** (review **F-R3**; SUMMARY_REPORT.md §4.6 item 9) — the one
+  page that does *not* travel with a forwarded file. It was absent from
+  `methods_statement`, which is what lands in `METHODS.txt`, every CSV `#`
+  header, every BDF `$` header and the workbook's *Methods* sheet, so a deck or
+  a span CSV read on its own carried ULTIMATE loads with no statement of what
+  they are not. The disclaimer is now a `STATUS:` block **leading** the
+  statement — ahead of `BASIS:`, so a reader who skims only the head of a
+  stamped file still meets it — and `latex.py`'s title page quotes the same
+  `STANDING_DISCLAIMER` constant instead of restating the sentence, adding only
+  its pointer to the methods section (two wordings of one disclaimer is two
+  disclaimers). The stamp guard, which previously enumerated only the
+  implemented blocks and so pinned the omission, now requires `STATUS:`, checks
+  the sentence survives both comment wrappers, and pins the single wording
+  across the cover and the statement.
+
+- **The governing-loads tables applied a flat 1.5 instead of each case's own
+  safety factor** (review **F-R1**; the report-side slice of M4-8 Layer 1).
+  `report.governing_loads_table` scaled and labelled every row with
+  `ULTIMATE_FACTOR`, ignoring `CriticalCondition.safety_factor` — the model's
+  stated contract and what the export side already reads
+  (`sbeam_bridge._sf`). No shipped number changes (SELECT stamps the 23.303
+  default on every condition today), but the first non-1.5 critical case would
+  have been silently mis-scaled and mis-labelled in report §5 and in **both**
+  GUI views (Results Review headline, Flight Envelope "Critical Loads"), which
+  read the same helper — a report figure and its bulk-data card could have
+  stated different factors for one case. Each row now scales by its own case's
+  factor and its `SF` cell states that factor; the caller-supplied `sf`
+  override is **removed**, so the case stays the single owner of its factor and
+  there is no path back to a flat one. The test that pinned the hole (every row
+  `SF == 1.5`) now asserts the contract, and a new test sets one condition to
+  `SF = 1.0` and checks that row is neither re-scaled nor mislabelled while its
+  neighbours are untouched.
+
+- **The fuselage deliverables rendered a platform-dependent negative zero, and
+  CI failed on a difference that was not a difference.** Found from a CI report
+  of `sbeam/body_cards` drift against the Imperial digest baseline while the
+  same commit passed locally. The body deck's stated `Applied Fz set sums to …`
+  and `Terminal Myy …`, and the span CSV's terminal cumulative `Sz`/`Myy`, are
+  the free-free equilibrium — exactly zero in exact arithmetic, ~1e-11 of
+  cancellation dust in floating point. The magnitude is far below any printed
+  precision, but the **sign** of that dust is not reproducible across platforms
+  (x86 and ARM reassociate the upstream arithmetic differently), so the same
+  code printed `0.00` on one machine and `-0.00` on another. New
+  `sbeam_bridge._closed()` snaps a zero-by-construction quantity to an unsigned
+  zero relative to its own column's scale — the rule the `FORCE` cards already
+  had (nothing under `_TOL` is emitted) extended to the totals that describe
+  them. Guarded by
+  `test_the_body_deliverables_never_render_a_negative_zero`, both unit systems
+  (SI is the worse case: the same dust is 175× larger in newtons). `body_cards`
+  and `body_span` digests regenerated.
+
+  *Not swept in the same change:* structural negative zeros elsewhere (~2,000
+  `-0.000000E+00` components in the balanced deck, the tail span CSV's `Fax`
+  column) come from `-1 × 0.0`, are bit-identical on every platform, and are
+  cosmetic only. Normalising them would move every deck family's digests, so it
+  is filed rather than folded in here.
+
+- **The bundle manifest pointed three companion files at the wrong report
+  section, and now the numbering has an owner.** 0.5.0 row 1, review finding
+  **F-R2**. The manifest's "Summarised in" column sent the case index to §3
+  (envelope figures), the load-case CSVs and the text report to §4 (conditions
+  analysed) and METHODS.txt to §5 (results) — one short after the §2
+  sign-conventions insertion, and two short for methods after the §6 balanced
+  section moved it to §7. They now read §4, §5 and §7. The tail rows pointed at
+  a "§4 Tails" subsection that does not exist; they name the real
+  `Horizontal tail / Vertical tail` headings.
+  - **Structural, not a re-typing** (`CLAUDE.md` practice 3): `content.SECTIONS`
+    is the single ordered source of the numbering, headings come from
+    `section_heading(key)` and every cross-reference — the manifest column and
+    the rendered prose in the references table, the gear note and the balanced
+    section — from `section_ref(key[, subsection])`. Inserting a section now
+    renumbers its references with it; a literal `§N` in rendered text is a
+    defect.
+  - **Pinned four ways**, since the review's actual finding was "no test pins
+    the § values": the owner's numbers must equal the document's own section
+    positions; each companion file's target section is pinned by key in
+    `SUMMARISED_IN` (exhaustive on the GA fixture, so a new manifest row cannot
+    slip in unpinned); every manifest reference must resolve to a real section
+    and each suffix to a real subsection; and a document-wide sweep of every
+    rendered string rejects a reference past the last section.
+
 
 - **The chordwise fin deck applies a side load, not a vertical one.** Review
   finding **F-C3**, decision of record **D-R4**. `tail_force_moment_cards` wrote
@@ -662,63 +817,103 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   and `concept_regional_jet` are **byte-identical** and no Appendix A oracle is
   touched (no calc file changed).
 
-### Added
 
-- **The vertical tail carries inertia on both of its axes** (user decision
-  2026-08-10, **superseding plan 13 decision L-8 for the per-condition view**).
-  A fin's normal axis is lateral, so the vertical acceleration that *bends* a
-  horizontal tail *compresses* a vertical one, and the fin needs two terms where
-  the h-tail needs one:
-  - **bending**, `−n_y·W_vt`, with `n_y = (LT25+LT50)/W_case` — the free-free
-    lateral response to the fin's own load, the only lateral aerodynamic force
-    this suite models. It relieves the surface total by **exactly** `W_vt/W_case`
-    (0.68 % on `ga6_normal`, 1.84 % on the RJ), which is what makes it
-    self-checking, and it inherits decision **L-7**'s caveat: with no fuselage or
-    wing sideslip force modelled, the real airplane's `n_y` is smaller and that
-    relief is an upper bound on itself. Stated in-band on every fin result, deck
-    header and UI row — including that it is the unconservative direction.
-  - **axial**, `−n_z·W_vt`, along the span: it compresses the fin and bends
-    nothing. New `WingStationLoad.f_span`/`.s_span` columns, mapped to airplane
-    axes by the new `coordinates.tail_axial_to_airplane`, and carried in the same
-    `FORCE` cards as the normal load.
+- **The assembled balanced deck was not in the Imperial baseline.** Found while
+  changing the closure field: the 6-DOF rewrite moved every closure card in every
+  assembled deck and no digest noticed, because `tests/imperial_baseline.py` only
+  ever rendered the per-component channels. Plan 11 acceptance #5 — *"if a digest
+  moves, something leaked"* — cannot mean anything for a deliverable that has no
+  digest, and the assembled deck is the mission's aim-2 deliverable. Now covered
+  (`sbeam/balanced_deck`, 297 channels across six fixtures). Every other Imperial
+  channel is **byte-unchanged** by B8a-2, verified before regeneration.
 
-  A fin condition naming no V-n point has no case weight, so it gets **no**
-  lateral term and says so, rather than dividing by a gross-weight stand-in.
+- **The vertical tail was modelled on the waterline datum, not on the airplane**
+  (mission phase 4 step 8, [plan 13](docs/30_future/13_b8a_lateral_closure_plan.md)
+  step **B8a-1**, decision **L-1**). `tail_span` computed the fin's root
+  waterline and then discarded it, passing `z_offset = 0` for the v-tail, so
+  every fin's `GRID` cards ran from `z = 0` to its span. On `ga6_normal` that put
+  the fin's load centroid at `z = 28.5` against a CG at 93 — **64.5 in below its
+  own centre of gravity** — and on `concept_regional_jet` within 1 in of it.
 
-- **`component` is editable on the Weights page.** The weight data base's item
-  editor exposed `kind` but never `component`, so the tag that decides which beam
-  carries each item — and which is now the *only* way to enter tail mass — could
-  not be set in the GUI at all. It is a select column with a blank (untagged,
-  inferred) option, and the Tail Span Loads page's own mass form is **gone**:
-  that page now shows the derived weight read-only, names any untagged surface,
-  reports any override, and links back to the page that owns the data.
+  Nothing shipped consumed the fin's roll arm, so no delivered number was wrong;
+  but the roll moment a side load makes about the CG is `−Fy·(z − z_cg)`, and
+  B8a's lateral balanced cases are built on it. Measured after the fix, both fins
+  sit above the CG at the arms plan 13 §5.1 predicted: `ga6_normal` **+14.0 in**,
+  `concept_regional_jet` **+86.0 in**.
 
-- **Tail gates**: the fin's `Σ inertia / Σ air ≡ −W_vt/W_case` identity; the axial
-  column against `−n_z·W_vt` with a proof it makes no bending; the derived weight
-  against each fixture's tagged items; a regression gate that **no shipped
-  fixture produces an air-only h-tail deck**; the override/reconciliation path;
-  the v44 migration hop; and a balance gate that the applied fin set is air only.
+  - **One owner, because there were already two** — `tail_geometry.fin_root_waterline`
+    resolves the fin root (explicit input → the T-tail relation → the fuselage
+    top → a zero that says so, loudly), and both the load path **and the
+    three-view** read it. `configuration.tail_planform` had its own copy of the
+    formula; on `concept_regional_jet` that drew the fin tip 18 in above the
+    horizontal tail it is supposed to carry. Registered in `CONVENTIONS.md` §7
+    with a drift guard that fails if either grows a private copy again.
+  - **The T-tail branch is not a new convention.** It is the inverse of the
+    three-view's own default, which places a T-tail's horizontal surface at the
+    fin tip; solving that relation for the root is what keeps the two in contact
+    when `h_tail_z` is entered rather than defaulted.
+  - Every fixture's fin root, and ga6's and the RJ's roll arms, are **pinned per
+    fixture** — including a sign assertion, since the sign is what was wrong.
 
-- **`coordinates.bending_moment_vector`** — the single owner of the wing bending
-  sign map. `Mxx` maps to `+x` but `Mzz` maps to `−z` (the calc stores both as
-  positive-magnitude integrals, against a right-handed `r × F`); that asymmetry
-  now lives in one function instead of being spelled out at the card writer and
-  copied again at its gate.
-- **Wing deck gates**: bending closure now covers **both** channels on **all six**
-  fixtures with no exception (the old test asserted the *negation* on the three
-  affected ones); a new station-by-station gate asserts shear and bending at
-  *every* node, which is what separates the offset couple from the force split
-  originally proposed; and a guard pins that the couples exist at exactly the
-  nodes bracketing a concentrated mass and nowhere else.
-- **`atr42_100` joins the sbeam round-trip wing leg** (`WING_MATRIX`). The solver
-  matrix was `ga6_normal` + `concept_regional_jet`, both mass-free, so nothing
-  proved the real solver *honours* an `Mx` component rather than dropping it.
-  Assertion W-d — element 1's end-B bending against the NETLOADS root `Mxx` —
-  read 1.91 % high there until the couples existed.
-- **Span-load CSV** gains `Mx`/`Mz` columns, keeping its stated contract that the
-  applied-load columns *are* the exported `FORCE`/`MOMENT` cards.
 
 ### Changed
+
+- **`app/` joined the lint gate, and the repository root was cleaned for the
+  cut** (review **m19–m21**). The merge gate was `ruff check sloads/ cli.py`,
+  which left the whole Streamlit layer unlinted — and it had drifted: an unused
+  `build_tail_span` import sat in `export_report.py`. The gate is now
+  `ruff check sloads/ cli.py app/` in CI and in every document that states it.
+  Alongside: `.DS_Store` is gitignored (and untracked at the cut);
+  `CODE_REVIEW_2026-07-21.md` and `PROJECT_REVIEW_2026-07-19.md` moved from the
+  root to `docs/50_reviews/`, which is their home, and are indexed there;
+  `requirements.txt` is **deleted** rather than regenerated — it was a second
+  dependency source that had already drifted from `pyproject.toml` (streamlit
+  ≥1.30 vs ≥1.36, listing pytest, omitting plotly and openpyxl), and one source
+  that is right beats two that disagree. `RELEASE_PROCESS.md` §1 now points at
+  `sloads/models/project.py` for `SCHEMA_VERSION` (it named the pre-M3-1
+  `sloads/models.py`), and the pyproject classifiers list 3.9 / 3.11 / 3.12 —
+  the CI matrix — instead of claiming 3.9 alone.
+
+- **The assembled deck's `SUBCASE` ids are minted from the case, not from its
+  position.** 0.5.0 row 1 — decision **D-R7**, review finding **m1**. The
+  flagship deliverable was the last deck family still numbering
+  `BALANCED_SID_BASE + i`, which is exactly the instability M4-2 decision 8
+  removed everywhere else: one condition dropping out of the set (a missing V-n
+  point, a payload loading that will not derive) renumbered every case after it,
+  so `SUBCASE 5007` meant nothing without the run that produced it. New
+  `case_ids.balanced_subcase_id` mints `block + subcase_id`, the block naming
+  the hand — symmetric `5000`, starboard `7000`, port `8000`, so `W-05R` is
+  `7105` and its port twin `8105` in every run of every project that assembles
+  them. `6000` is skipped deliberately: it is this same deck's own GID range.
+  Handedness is a block rather than a suffix because a `SUBCASE` id is an
+  integer and `7105L` is not one.
+  - Minting can collide where positional numbering could not, so
+    `balanced_deck.case_sids` **refuses** two cases that share one case id and
+    hand rather than letting the solver sum two load sets under one `SUBCASE`.
+  - The three blocks are registered bands (`export/bands.py`) pinned against
+    `case_ids.BALANCED_HAND_BLOCK` by `tests/test_bands.py`, and the survival
+    property is a test in its own right: drop a case from the middle of the set
+    and the deck writes every survivor under the number it had.
+  - A case carrying no `CaseRef` at all (a bare list built in a test — nothing
+    the suite assembles) still falls back to its position, in the separate
+    `5001-5100` band so it can never land on a minted id.
+  - `sbeam_bridge`'s case-index `SUBCASE` column now maps a handed id through
+    the same minting instead of printing an empty cell (no shipped bytes move:
+    no handed id reaches the index today).
+  - **Byte-changing**: the two balanced-deck digests in
+    `tests/fixtures_imperial/digests.json` are regenerated for this and no other
+    reason; every other Imperial digest is unchanged.
+- **The balanced deck's nodes moved out of the tail-span range: `4001/4201/4401`
+  → `6001/6201/6401`** (the F-C1 fix). Node **numbering** only — the
+  reconstructed pre-fix deck is byte-identical to the shipped one, and the two
+  balanced-deck digests in `tests/fixtures_imperial/digests.json` are regenerated
+  for that reason and no other; every other Imperial digest is unchanged.
+- **The two chordwise writers share their tributary arithmetic** (review
+  **m6**): `_tail_nodal_forces` and `_control_nodal_forces` had the
+  trapezoid-width-times-pressure-then-rescale loop written out twice, verbatim.
+  One `_trapezoid_tributary_forces` now owns it — which is also the single place
+  backlog row 3's degenerate-profile raise will need to land.
+
 
 - **A balanced case now closes in six degrees of freedom, with one rigid-body
   field** (mission phase 4 step 8, [plan 13](docs/30_future/13_b8a_lateral_closure_plan.md)
@@ -770,106 +965,6 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
     pins the magnitude ratio — the wing span's share of the roll moment,
     **0.795230** ga6 / **0.769455** RJ — which the equality could not see at all.
 
-### Fixed
-
-- **The assembled balanced deck was not in the Imperial baseline.** Found while
-  changing the closure field: the 6-DOF rewrite moved every closure card in every
-  assembled deck and no digest noticed, because `tests/imperial_baseline.py` only
-  ever rendered the per-component channels. Plan 11 acceptance #5 — *"if a digest
-  moves, something leaked"* — cannot mean anything for a deliverable that has no
-  digest, and the assembled deck is the mission's aim-2 deliverable. Now covered
-  (`sbeam/balanced_deck`, 297 channels across six fixtures). Every other Imperial
-  channel is **byte-unchanged** by B8a-2, verified before regeneration.
-
-- **The vertical tail was modelled on the waterline datum, not on the airplane**
-  (mission phase 4 step 8, [plan 13](docs/30_future/13_b8a_lateral_closure_plan.md)
-  step **B8a-1**, decision **L-1**). `tail_span` computed the fin's root
-  waterline and then discarded it, passing `z_offset = 0` for the v-tail, so
-  every fin's `GRID` cards ran from `z = 0` to its span. On `ga6_normal` that put
-  the fin's load centroid at `z = 28.5` against a CG at 93 — **64.5 in below its
-  own centre of gravity** — and on `concept_regional_jet` within 1 in of it.
-
-  Nothing shipped consumed the fin's roll arm, so no delivered number was wrong;
-  but the roll moment a side load makes about the CG is `−Fy·(z − z_cg)`, and
-  B8a's lateral balanced cases are built on it. Measured after the fix, both fins
-  sit above the CG at the arms plan 13 §5.1 predicted: `ga6_normal` **+14.0 in**,
-  `concept_regional_jet` **+86.0 in**.
-
-  - **One owner, because there were already two** — `tail_geometry.fin_root_waterline`
-    resolves the fin root (explicit input → the T-tail relation → the fuselage
-    top → a zero that says so, loudly), and both the load path **and the
-    three-view** read it. `configuration.tail_planform` had its own copy of the
-    formula; on `concept_regional_jet` that drew the fin tip 18 in above the
-    horizontal tail it is supposed to carry. Registered in `CONVENTIONS.md` §7
-    with a drift guard that fails if either grows a private copy again.
-  - **The T-tail branch is not a new convention.** It is the inverse of the
-    three-view's own default, which places a T-tail's horizontal surface at the
-    fin tip; solving that relation for the root is what keeps the two in contact
-    when `h_tail_z` is entered rather than defaulted.
-  - Every fixture's fin root, and ga6's and the RJ's roll arms, are **pinned per
-    fixture** — including a sign assertion, since the sign is what was wrong.
-
-### Added
-
-- **Lateral balanced airplane cases — the ±β empennage set** (mission phase 4
-  step 8, [plan 13](docs/30_future/13_b8a_lateral_closure_plan.md) step
-  **B8a-3**, decisions **L-6**/**L-7**/**L-8**). The four vertical-tail
-  conditions (`SUDDEN RUDDER`, `YAW TO SIDESLIP`, `YAW 15 NEUTRAL`, `SIDE GUST`)
-  now assemble as full-span free-free cases, each as a **handed pair** —
-  `VT-01R`/`VT-01L` … `VT-04R`/`VT-04L`, the starboard case computed and the port
-  one its mirror. Eight new cases per fixture on `ga6_normal` and
-  `concept_regional_jet` (15 and 14 balanced cases in total).
-
-  The fin's distributed side load is SELECT's, strip for strip, reaching the case
-  through `tail_span` and the existing frame map in `export/coordinates.py` (span
-  → `z`, normal force → `fy`, torsion → `mz` **negated**). Fin **inertia** rides
-  in the closure field at the case's own `n_y`/`ω̇` rather than in the
-  per-component v-tail deck, which stays air-only (decision **L-8**).
-
-  **Nothing balances a rudder kick**, and the deck says so: a lateral case's
-  pre-closure `Fy`/`Mz` *are* the fin load in full, by construction, so plan 11's
-  1 % residual gate does not apply to them — exactly the standing `ACRL`'s roll
-  residual has had since B7. What is gated is that the case's **symmetric half**,
-  with the fin set removed, still closes as it always did; it does, to the last
-  digit, because the fin set carries `fy` and `mz` only.
-
-  Reported per case, in the deck header, the balanced-case table and the module
-  result: the applied fin side load, the lateral load factor `n_y = L_v/W`, and
-  the yaw and roll accelerations it drives — for example `ga6_normal`
-  `SUDDEN RUDDER` +585.7 lb, `n_y` +0.172 g, `ψ̈` +178.0 deg/s², `ṗ` −12.0
-  deg/s²; the RJ's `YAW 15 NEUTRAL` −8042.7 lb, −0.244 g, −55.7, +68.4. All four
-  numbers are pinned per fixture in CI in both directions.
-
-  **A stated limitation, carried in-band** (decision **L-7**): the fin is the
-  only lateral aerodynamic load this suite computes — fuselage and wing side
-  force in sideslip are not modelled — so `n_y` and the yaw acceleration are
-  **over-stated by an unknown amount**, and the inertia they drive is
-  conservative on every component. The fin's own design load is SELECT's,
-  unchanged. The caveat travels as a case note into the deck `$` header and the
-  report rather than living only in documentation.
-
-  **The assembled deck carrying these cases solves in the real sbeam** with its
-  determinate support reacting zero in all six components (plan 13 **G3**, step
-  **B8a-4**) — the first time the round-trip gate exercises `fy`, `mx` and `mz`.
-  Two additions make that statement worth its zero target: every assembled case
-  must appear as a subcase and each lateral one must carry real side load into
-  the solver, and a **negative control** reverses the fin load alone and asserts
-  the support then reacts `+2·L_v·SF` in `y`, with the roll and yaw reactions
-  moving with it. Both unit systems, both fixtures, in CI.
-- **Theory document for the balancing method** —
-  [`docs/20_theory/balanced_cases.md`](docs/20_theory/balanced_cases.md): how a
-  balanced free-free case is assembled and closed, with worked examples on the
-  shipped fixtures (ga6 PHAA symmetric, ga6/RJ ACRL antisymmetric) and the
-  design-of-record lateral empennage cases on a conventional low tail (ga6) and
-  a T-tail (RJ), every shipped figure mapped to the CI gate that pins it.
-- **`VTailLoadsInput.vtail_root_waterline_z`** (schema **v43**) — the fin root
-  waterline, stated rather than derived. `0` means "derive it and mark it
-  `assumed`", which every shipped fixture still does; the derived value and the
-  branch that produced it are carried in-band on the result, the page and the
-  deck `$` header. Additive with a default, so no migration hop: a pre-v43
-  project keeps exactly the placement it would have been given.
-
-### Changed
 
 - The balanced-case pitch-residual ceiling is now stated **per family** as well
   as per fixture (`symmetric` / `lateral`) rather than widened. The lateral cases

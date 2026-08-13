@@ -85,7 +85,7 @@ Additional rules (2026-08-05 process review — rationale in
 
 ## Required practices (unchanged)
 
-- **Keep the build green.** `ruff check sloads/ cli.py` clean and `pytest` passing are
+- **Keep the build green.** `ruff check sloads/ cli.py app/` clean and `pytest` passing are
   the merge gate (CI: 3.9 / 3.11 / 3.12). Add new domain terms to `cspell.json`.
 - **Git is the user's to run.** ANY and ALL git usage — `commit`, `add`, `push`,
   `branch`, `merge`, `checkout`, `tag`, `rebase`, `reset`, etc. — SHALL be performed by
@@ -100,7 +100,7 @@ shims anywhere.
 ```bash
 .venv/bin/python -m pytest                   # whole suite (testpaths=tests, coverage)
 .venv/bin/python -m pytest tests/test_engine.py::test_361_a2   # one test
-.venv/bin/ruff check sloads/ cli.py          # lint gate
+.venv/bin/ruff check sloads/ cli.py app/     # lint gate
 .venv/bin/streamlit run app/Home.py          # UI
 .venv/bin/sloads engine examples/ga6_normal.project.json -o out.csv   # CLI
 .venv/bin/python cli.py --list               # registered modules

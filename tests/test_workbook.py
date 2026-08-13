@@ -15,6 +15,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import openpyxl  # noqa: E402
 
 from sloads import io, registry  # noqa: E402
+from sloads.units import Channel, UnitSystem, deliverable_units, units_statement  # noqa: E402
 from sloads.export import sbeam_bridge as sb  # noqa: E402
 from sloads.export.workbook import build_workbook  # noqa: E402
 from sloads.modules.aileron import build_aileron  # noqa: E402
@@ -40,10 +41,10 @@ def _try(fn, *args):
         return []
 
 
-def _build():
+def _build(system=UnitSystem.IMPERIAL):
     project = io.load_project(_GA)
     module_results = registry.run_all_modules(project)
-    module_csvs = {mr.module: io.load_cases_csv(mr) for mr in module_results}
+    module_csvs = {mr.module: io.load_cases_csv(mr, system=system) for mr in module_results}
     module_labels = {mr.module: mr.module for mr in module_results}
 
     net = build_net_loads(project)
@@ -54,16 +55,22 @@ def _build():
     case_index_csv = sb.case_index_csv_from(
         *(mr.conditions for mr in module_results), net.wing_net, body, tail, control,
     )
-    span_csvs = {"Wing Span Loads": sb.span_load_csv(net.wing_net),
-                 "Control Surface Loads": sb.control_surface_csv(control)}
+    span_csvs = {"Wing Span Loads": sb.span_load_csv(net.wing_net, system=system),
+                 "Control Surface Loads": sb.control_surface_csv(control, system=system)}
     if body:
-        span_csvs["Fuselage Span Loads"] = sb.body_span_load_csv(body)
+        span_csvs["Fuselage Span Loads"] = sb.body_span_load_csv(body, system=system)
     if tail:
-        span_csvs["Tail Chordwise"] = sb.tail_chordwise_csv(tail)
+        span_csvs["Tail Chordwise"] = sb.tail_chordwise_csv(tail, system=system)
     project_info = {"Name": project.name, "Engineer": project.engineer or "", "Date": project.date or ""}
 
-    xlsx_bytes = build_workbook(project_info, module_csvs, module_labels, case_index_csv, span_csvs)
+    xlsx_bytes = build_workbook(project_info, module_csvs, module_labels, case_index_csv,
+                                span_csvs, system=system)
     return project_info, module_csvs, case_index_csv, span_csvs, xlsx_bytes
+
+
+def _sheet_rows(wb, name):
+    """A data sheet's rows below its A1 unit statement -- header row first."""
+    return list(wb[name].iter_rows(values_only=True))[1:]
 
 
 def test_workbook_has_expected_sheets():
@@ -101,8 +108,51 @@ def test_workbook_module_sheet_matches_csv_row_count():
         if not csv_text.strip():
             continue
         n_csv_rows = len(csv_text.strip().splitlines()) - 1  # minus header
-        n_sheet_rows = wb[module].max_row - 1  # minus header
+        n_sheet_rows = wb[module].max_row - 2  # minus the A1 unit statement and the header
         assert n_sheet_rows == n_csv_rows, module
+
+
+def test_every_data_sheet_states_its_own_units_in_band():
+    """Review m14: one workbook carries both channels of the selected system, so
+    the unit statement is per sheet. The module sheets are the HUMAN channel and
+    the span-load sheets are the SOLVER channel -- in SI those sets differ
+    (`N·m`/`kPa` vs `N·mm`/`MPa`), and a sheet claiming the other one is a
+    SUMMARY_REPORT.md 3.5/4.7 conformance failure, not a footnote."""
+    _, module_csvs, _, span_csvs, xlsx_bytes = _build(UnitSystem.SI)
+    wb = openpyxl.load_workbook(_io.BytesIO(xlsx_bytes), read_only=True)
+    human = units_statement(deliverable_units(UnitSystem.SI, Channel.HUMAN))
+    solver = units_statement(deliverable_units(UnitSystem.SI, Channel.SOLVER))
+    assert human != solver, "the SI channels must differ or this test proves nothing"
+
+    for module, csv_text in module_csvs.items():
+        if not csv_text.strip():
+            continue
+        a1 = wb[module]["A1"].value
+        assert human in a1 and solver not in a1, module
+    for title in span_csvs:
+        a1 = wb[title]["A1"].value
+        assert solver in a1, title
+    # The case index carries no load quantity, so it claims neither set.
+    index_a1 = wb["Case Index"]["A1"].value
+    assert "no load quantities" in index_a1
+    assert human not in index_a1 and solver not in index_a1
+    # ...and the Project sheet names both channels, not one.
+    project_values = "\n".join(
+        str(v) for row in wb["Project"].iter_rows(values_only=True) for v in row if v
+    )
+    assert human in project_values and solver in project_values
+
+
+def test_workbook_header_row_sits_below_the_unit_statement():
+    """The statement is an added row 1; row 2 is still the CSV's header row, so a
+    reader (or `pd.read_excel(..., skiprows=1)`) gets the same table as before."""
+    _, module_csvs, case_index_csv, span_csvs, xlsx_bytes = _build()
+    wb = openpyxl.load_workbook(_io.BytesIO(xlsx_bytes), read_only=True)
+    for title, csv_text in list(span_csvs.items()) + [("Case Index", case_index_csv)]:
+        header = [c for c in _sheet_rows(wb, title)[0] if c is not None]
+        expected = [h for h in csv_text.strip().splitlines()
+                    if not h.startswith("#")][0].split(",")
+        assert header == expected, title
 
 
 def test_workbook_excludes_bdf_text():

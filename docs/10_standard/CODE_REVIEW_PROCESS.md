@@ -119,7 +119,7 @@ drift blocks approval but is not the same severity class as a wrong load value.
 
 ### Step 7 — Code quality
 
-- [ ] `ruff check sloads/ cli.py` is clean (single-letter structural names are allowed via the `E741` ignore — do not work around the linter with noqa for other rules without justification).
+- [ ] `ruff check sloads/ cli.py app/` is clean (single-letter structural names are allowed via the `E741` ignore — do not work around the linter with noqa for other rules without justification).
 - [ ] New domain terms (program names, variables) are added to `cspell.json`.
 - [ ] Public functions in `sloads/` have type hints and a one-line docstring.
 - [ ] No magic numbers — load factors, tolerances, and unit factors are named constants.
@@ -186,5 +186,5 @@ A change may be approved **only** when:
 
 - [ ] All `[CRITICAL]` and `[MAJOR]` items are resolved or explicitly justified.
 - [ ] `pytest` passes; the module's Appendix A/B assertions pass within ±0.1%.
-- [ ] `ruff check sloads/ cli.py` is clean.
+- [ ] `ruff check sloads/ cli.py app/` is clean.
 - [ ] The closure tier (`CLAUDE.md` S/M/L table) is complete for every item the change closes.

@@ -271,8 +271,14 @@ def test_the_export_page_applies_the_stamp_it_builds():
         stmt = source.split(line, 1)[1].split('or ""', 1)[0]
         assert "_bdf_stamp" in stmt, line
 
-    # ...and the workbook, which has no comment rows, states units in a cell.
-    assert '"Units": units_statement(' in source
+    # ...and the workbook, which has no comment rows, states units in a cell --
+    # per sheet, from the same `_system` (review m14), which means the page hands
+    # `build_workbook` the system and states nothing itself. A page that went back
+    # to passing one pre-formatted statement would re-open the defect: one
+    # workbook carries both the human and the solver channel.
+    workbook_call = source.split("return build_workbook(", 1)[1].split(")", 1)[0]
+    assert "system=_system" in workbook_call
+    assert '"Units"' not in source
 
 
 def test_the_stamp_still_round_trips_for_csv_readers():
