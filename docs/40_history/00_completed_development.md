@@ -10,6 +10,29 @@ Acceptance**, **Key decisions**.
 
 ---
 
+## Pressurization removed from scope (decision D-24 — complete 2026-08-14, tier S)
+
+User decision, taken while scoping step 10 (M4-6): **pressurization is out of
+scope for sloads, permanently.** The `pressurization` standing limitation is
+reworded from "No pressurization load cases." — which reads as pending — to an
+explicit exclusion naming 23.365/25.365, disclaiming the deliverable as a
+complete set for a pressurized fuselage (four shipped fixtures are pressurized
+airplanes), and separating it from the unrelated WTESTIMA `pressurized`
+weight-allowance flag. The key stays in the pinned `STANDING_LIMITATION_KEYS`
+set; `tests/test_methods_stamp.py` gains a guard that the sentence reads as an
+exclusion. M4-6 is re-scoped to the ground/landing distributed loads and gear
+reactions alone, and **F25-5** loses its ΔP-combination half (§1.8's 25.365 row
+becomes disposition **X**), keeping only the 23.415/25.415 ground-gust module.
+One consequence is carried forward rather than assumed: the old "for a
+pressurized airplane, ground cases cannot be down-selected against flight" rule
+leaves with the case, so the ground-case down-selection question is now open for
+step 10's design note. Docs synced: backlog row + M4-6 body,
+`03_gui_rework_plan.md` (§3 table, Phase 4, §5 item 3, §6),
+`01_far25_gap_analysis.md` (§1.8 + F25-5), `02_parked.md`,
+`05_step_g8_summary_report_plan.md` §6, `03_resolved_decisions.md` (D-24).
+
+---
+
 ## Mission step 9 — discrete control surfaces + the T-tail transfer (plan 09 T6–T8, complete, 2026-08-13)
 
 **Objective.** Close plan 09's phase 2, the two load paths its phase 1 left

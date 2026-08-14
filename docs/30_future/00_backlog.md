@@ -168,7 +168,7 @@ traceability with plans 09/11/12/13; the **Pri** column is ordinal only.
 | Pri | Item (detail below / in its plan) | What ships | Tag | Tier / effort | Depends on |
 |---|---|---|---|---|---|
 | **Post-0.5.0 (0.6.0 candidates and ranked [V])** ||||||
-| 1 | Step 10 — ground-case distributed loads (M4-6) | Gear reactions as applied `FORCE` cards on the body deck; pressurization case — **the 0.6.0 headline per D-R3** | E | L / L | — (design-note gated) |
+| 1 | Step 10 — ground-case distributed loads (M4-6) | Gear reactions as applied `FORCE` cards on the wing/body/tail export; distributed ground-case fuselage loads — **the 0.6.0 headline per D-R3** (pressurization removed from scope, **D-24**) | E | L / L | — (design-note gated) |
 | 2 | Step 11 — balanced landing cases (plan 11 B8b) | Free-free ground cases in the assembled deck | E | L / M | steps 6 ✅, Pri 1 (M4-6 ground cases) |
 | 3 | Step 12 — LRA beam-model export + import | Cards delivered on the consumer's own node line; standalone LRA skeleton export | E | L / M–L | step 5 ✅ |
 | 4 | Step 13 — side-of-body reporting node | SOB internal shear/bending/torsion reported as the wing root design loads | E | M / M | step 5 ✅ |
@@ -524,14 +524,23 @@ migrated with oracles/tests unchanged; a Layer-2 named case (e.g. MLA loss @ 1.2
 round-trips through `io.py` and renders as `lbs-ULT SF=1.25`. Touches the CLAUDE.md
 ultimate-load contract — land deliberately with tests.
 
-### [E] M4-6 — Ground-case distributed fuselage (and wing) loads + pressurization — **step 10**
+### [E] M4-6 — Ground-case distributed fuselage (and wing) loads — **step 10**
 The heaviest open calc item. Ground-case fuselage inertia/reaction distribution
 (gear reactions as applied external loads at the LGFACTOR landing load factor);
-optionally the wing distribution under ground reaction; a pressurization case
-that is never down-selected against flight. **Acceptance:** ground condition
-produces distributed fuselage shear/bending with free-free closure; pressurized
-case retained independent of the governing flight case; FAR23 flight oracles
-unchanged. Source narrative: `03_gui_rework_plan.md` §5 item (3).
+optionally the wing distribution under ground reaction. **Acceptance:** ground
+condition produces distributed fuselage shear/bending with free-free closure;
+FAR23 flight oracles unchanged. Source narrative: `03_gui_rework_plan.md` §5
+item (3).
+
+**Pressurization is not part of this item (decision D-24, 2026-08-14):** it is
+out of scope for the tool, permanently — the standing limitation says so as an
+exclusion and `F25-5`'s ΔP-combination half is closed as not-planned. One thing
+it took with it is a *rule*, not just a case: the old "for a pressurized airplane
+ground cases cannot be down-selected against flight" no longer supplies the
+answer, so **how ground cases meet the governing-set down-selection is an open
+question for this step's design note** — decide it on its own merits (they load
+different structure from the flight cases, which is an argument for a separate
+family regardless).
 **Export note (2026-08-05):** the ground cases' gear-attachment reactions should
 also reach the sbeam deck as `FORCE` cards at the gear attachment stations —
 scope the deck half here rather than as a separate item.

@@ -69,7 +69,7 @@ missing already exist. The claims were checked against the code:
 | Fuselage pitching moment not in tail balance | **Partial / misleading** | The FLTLOADS balance *does* carry wing+fuselage moment "M(W+F)" via the airplane-less-tail `CM` polynomial (`flight_envelope.py:162,428`). What is missing is a fuselage-moment *estimator from geometry* — today the user folds it into the input coefficients. |
 | Fuselage as a geometry/aero surface | **Confirmed missing** | Fuselage is only scalars on `LayoutInput` (length/width/height); not a `SurfaceInput`. Drawn as a plain rectangle. |
 | Longitudinal stability / trim plots | **Shipped (Step G5)** | The Flight Envelope page's **Trim & Stability** tab plots the balancing tail load (BAL A/C/D) swept across the CG range (`flight_envelope.trim_sweep`, re-running the balance) and a static-margin sweep from the Configuration tail-volume neutral point. |
-| Ground-case distributed fuselage loads | **Confirmed missing** | `body_loads` distributes over **flight** V-n conditions only; landing produces gear reactions only; the pressurized no-down-select rule is not modeled. |
+| Ground-case distributed fuselage loads | **Confirmed missing** | `body_loads` distributes over **flight** V-n conditions only; landing produces gear reactions only. *(The pressurized no-down-select rule listed here in 2026-07 is withdrawn: pressurization is out of scope — decision **D-24**, 2026-08-14.)* |
 
 **Takeaway.** This rework is ~90% a *re-sequencing + consolidation* of pages that
 already exist (reusing Phase D/E/F work), plus **four genuinely new capabilities**
@@ -145,10 +145,11 @@ distributed loads and reaction loads. *Consolidates:* `aileron_loads`,
 ### Phase 4 — Landing loads
 
 Loads on the landing gear (LGFACTOR + LANDLOAD). **Extension (new, §5):**
-distributed fuselage (and wing) loads from the ground/landing cases — noting that
-for **pressurized** airplanes ground cases **cannot** be down-selected against
-flight, because the pressurization load must be assessed for flight, not ground.
-*Consolidates:* `landing_loads`.
+distributed fuselage (and wing) loads from the ground/landing cases.
+*Consolidates:* `landing_loads`. *(Amended 2026-08-14, decision **D-24**: the
+pressurized no-down-select rule stated here is withdrawn with pressurization
+itself; whether ground cases are down-selected against flight is now an open
+question for step 10's design note.)*
 
 ### Phase 5 — Load-case plotting
 
@@ -185,9 +186,10 @@ These are the real capability gaps (everything else in §4 is reuse/reorder):
    (2026-07-19)** — the Flight Envelope **Trim & Stability** tab; `trim_sweep()`
    re-runs the balance across the CG range, static margin from the Configuration
    neutral point. See `docs/40_history/00_completed_development.md`.
-3. **Ground-case distributed fuselage (and wing) loads** in Phase 4, incl. the
-   pressurized no-down-select rule. **Substantial calc work** (new distribution
-   path + pressurization load cases), not just GUI.
+3. **Ground-case distributed fuselage (and wing) loads** in Phase 4.
+   **Substantial calc work** (a new distribution path), not just GUI. *(Scope
+   amended 2026-08-14, decision **D-24**: the pressurized no-down-select rule and
+   the pressurization load cases originally bundled here are out of scope.)*
 4. **Single-source empennage & control-surface geometry.** *(GUI + model.)*
    **Shipped as Step G6 (2026-07-19)**, expanded from the original narrow "direct
    elevator %-chord input": the h-/v-tail + elevator/rudder geometry is entered once
@@ -209,10 +211,11 @@ estimator (GUI + light calc), (2) longitudinal-stability / trim plots (GUI), and
 %-chord ask grew into the full single-source empennage step G6).
 
 **Split out** to its own **calc-side backlog item:** §5 item (3) ground-case
-distributed fuselage (and wing) loads + the pressurized no-down-select rule — the
-heaviest piece, orthogonal to the usability restructure. Tracked as a separate
-backlog step (see [`00_backlog.md`](00_backlog.md) → "Ground-case distributed
-fuselage loads").
+distributed fuselage (and wing) loads — the heaviest piece, orthogonal to the
+usability restructure. Tracked as a separate backlog step (see
+[`00_backlog.md`](00_backlog.md) → "Ground-case distributed fuselage loads",
+M4-6 / step 10). The pressurized no-down-select rule that was split out with it
+is **out of scope** as of 2026-08-14 (decision **D-24**).
 
 ---
 

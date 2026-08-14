@@ -66,6 +66,18 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- **Pressurization is out of scope — permanently, and the deliverable now says
+  so** (decision **D-24**). The standing limitation read "No pressurization load
+  cases.", which an analyst could reasonably take as *not yet*. It now states an
+  exclusion: no cabin differential-pressure case (14 CFR 23.365 / 25.365) is
+  computed, no pressure load is combined with any flight or ground case, and a
+  pressurized fuselage must have that assessment from another source — with the
+  unrelated WTESTIMA `pressurized` weight-allowance flag named so the two are not
+  confused. Four shipped fixtures are pressurized airplanes, so the sentence
+  travels where it matters. Scope follows the wording: **M4-6 (step 10) is the
+  ground/landing distributed loads and gear reactions alone**, and **F25-5** keeps
+  only its 23.415/25.415 ground-gust half. No calc, no output number and no deck
+  byte changes.
 - **Imperial digests regenerated, once, deliberately** — three channels on
   `concept_regional_jet` only (`sbeam/vtail_span_cards`, `csv/tail_span`,
   `txt/tail_span`), all of them the T-tail transfer arriving in the one fixture

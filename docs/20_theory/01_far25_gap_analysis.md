@@ -112,7 +112,7 @@ analysis, concept scope · **X** = out of scope (document, never silently skip).
 
 | FAR 25 | FAR 23 | What the program does | Difference | Disp. |
 |---|---|---|---|---|
-| 25.365: ΔP × 1.33 (valve tolerance), combined with flight loads, external pressure cases *(verify sub-cases)* | 23.365 | Nothing (M4-6 plans the pressure case) | Part 25's combination rules (ΔP + maneuver/gust simultaneously; ΔP alone × factor) must shape M4-6 | **P/N** — fold into M4-6's acceptance |
+| 25.365: ΔP × 1.33 (valve tolerance), combined with flight loads, external pressure cases | 23.365 | **Nothing, permanently** — pressurization is out of scope (decision **D-24**, 2026-08-14), stated as a standing exclusion on every deliverable | Part 25's combination rules (ΔP + maneuver/gust simultaneously; ΔP alone × factor) are out of scope with the case itself; M4-6 no longer carries them | **X** — out of scope (was P/N, folded into M4-6) |
 | Body distributed loads (25.301/321 general) | Ch 15 method | `body_loads` (moment closure landed, M4-1) | Same method serves; needs the ground cases (M4-6) | **A** |
 
 ### 1.9 Ground loads
@@ -196,9 +196,11 @@ lift = W, LDW/MTOW pairing; LANDLOAD combination tables retained as the
 documented static surrogate; towing/jacking as new static cases if wanted.
 Depends on M4-6 (ground distributed loads) for the distributed follow-through.
 
-**F25-5 — Pressurization & small gaps (S).** Part 25 combination rules into
-M4-6's pressurization case; the 25.415/23.415 ground-gust hinge-moment module
-(serves both parts).
+**F25-5 — Small gaps (S).** The 25.415/23.415 ground-gust hinge-moment module
+(serves both parts). *(Halved 2026-08-14, decision **D-24**: the Part 25 ΔP
+combination rules this item was to fold into M4-6's pressurization case are
+**out of scope** — there is no pressurization case to combine with. §1.8's
+25.365 row is disposition **X**.)*
 
 **Explicitly not planned** (revisit only with a real need + tooling): dynamic
 tuned-gust response, continuous turbulence PSD, 25.362 transients, rational

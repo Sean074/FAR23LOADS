@@ -211,8 +211,9 @@ per project:
 6. **Known limitations** — the fuselage closure artifact (`CLOSURE_ARTIFACT_CAVEAT`, fallback path only) and assumed spar stations; *standard
    simplified* control-surface distributions; wing and control-surface exports
    always carry the full case set regardless of the governing-set filter (M4-2
-   case-identity gap); no ground-case distributed fuselage loads; no pressurization
-   cases.
+   case-identity gap); no ground-case distributed fuselage loads; and
+   pressurization **out of scope** (decision D-24 — an exclusion the report states
+   as permanent, not a gap awaiting a release).
 7. **Scope of this export** — full set vs. governing set, and the deselected IDs.
 8. **Provenance** — tool version, `SCHEMA_VERSION`, project name/engineer/date/
    revision, and the generation timestamp.

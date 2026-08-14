@@ -60,8 +60,9 @@ leave it or migrate the whole page in one move. `radon` is in the `dev` extra
 
 - **F25-3 — Maneuver & tail surrogates (M).** Checked-maneuver 25.331(c)(2)
   static evaluation; yaw overswing case; 25.427/25.349 schedule checks.
-- **F25-5 — Pressurization & small gaps (S).** Part 25 combination rules into
-  M4-6; the 23.415/25.415 ground-gust module (serves both parts).
+- **F25-5 — Small gaps (S).** The 23.415/25.415 ground-gust module (serves both
+  parts). *(The Part 25 ΔP combination rules that were the item's other half are
+  out of scope as of 2026-08-14 — decision **D-24**, pressurization removed.)*
 
 ---
 

@@ -121,7 +121,14 @@ def _standing_limitations() -> tuple:
          "condition, and no ground case is assembled into a balanced free-free "
          "case. A ground-critical structure is not covered by this deliverable."),
         ("pressurization",
-         "No pressurization load cases."),
+         "Pressurization is OUT OF SCOPE for this tool — a permanent exclusion, "
+         "not a gap awaiting work. No cabin differential-pressure case (14 CFR "
+         "23.365 / 25.365) is computed, and no pressure load is combined with any "
+         "flight or ground case. A pressurized fuselage must have that assessment "
+         "from another source, and the loads in this deliverable must not be read "
+         "as the complete set for one. (The unrelated `pressurized` flag on the "
+         "weight estimate is a structural-weight allowance in the WTESTIMA "
+         "regression, not a load case.)"),
         ("lateral-aero",
          "Lateral aerodynamics: " + LATERAL_AERO_NOTE + "."),
         ("engine-failure-propeller-only",

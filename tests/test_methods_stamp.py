@@ -152,6 +152,22 @@ def test_every_standing_limitation_reaches_the_statement():
         assert item in limitations, key
 
 
+def test_pressurization_is_stated_as_an_exclusion_not_a_gap():
+    """Decision **D-24** (2026-08-14): pressurization is permanently out of scope,
+    so its limitation is a *scope statement*, not a pending-work note. The two read
+    identically to a tool that only checks the key is present, and completely
+    differently to the analyst deciding whether to wait for the next release — the
+    old wording ("No pressurization load cases.") invited exactly that wait. Four
+    shipped fixtures are pressurized airplanes, so the sentence has to carry its own
+    finality wherever it lands."""
+    text = dict(_standing_limitations())["pressurization"]
+    assert "OUT OF SCOPE" in text
+    assert "permanent exclusion" in text
+    assert "23.365" in text
+    # It travels, like every other standing limitation.
+    assert text in methods_statement(_project(_GA))
+
+
 def test_the_in_band_caveats_and_the_report_use_one_wording():
     """A caveat that reads one way on the deck or the case and another in the
     controlling document is two caveats, and a reader who spots the difference
