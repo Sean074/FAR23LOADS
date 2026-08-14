@@ -204,6 +204,55 @@ _table = [{
 } for st_ in case.stations]
 st.dataframe(pd.DataFrame(_table).round(3), hide_index=True, use_container_width=True)
 
+# The discrete control-surface load path (plan 09 T6). Shown beside the strip
+# table rather than folded into it, because these are different points on the
+# structure -- hinge stations are not strip midpoints -- and the hinge moment is
+# a deliverable in its own right, the first one the suite produces.
+if case.control_loads:
+    st.markdown("**Control-surface attachment loads** (discrete mode)")
+    _attach = [{
+        "Point": cp.kind,
+        f"{_span_label} ({U['length']})": to_display(cp.y, "length", system),
+        f"X on LRA ({U['length']})": to_display(cp.x, "length", system),
+        f"Normal load ({U['weight']})": to_display(cp.f_normal, "weight", system),
+        f"Torsion ({U['torque']})": to_display(cp.m_torsion, "torque", system),
+    } for cp in case.control_loads]
+    st.dataframe(pd.DataFrame(_attach).round(3), hide_index=True,
+                 use_container_width=True)
+    _hm_cols = st.columns(3)
+    _hm_cols[0].metric(f"Control-surface load ({U['weight']})",
+                       f"{to_display(case.control_surface_load_lb, 'weight', system):,.1f}")
+    _hm_cols[1].metric(f"Hinge moment ({U['torque']})",
+                       f"{to_display(case.hinge_moment_lbin, 'torque', system):,.0f}")
+    _hm_cols[2].metric(f"On an arm of ({U['length']})",
+                       f"{to_display(case.hinge_moment_arm_in, 'length', system):,.2f}")
+    st.caption(
+        "The control surface's own load is **out** of the strip table above and "
+        f"applied here instead — {case.control_load_basis}. The hinge moment is "
+        "that load on the centroid of the aft-of-hinge pressure block (a third of "
+        "the aft-of-hinge chord), reacted as a couple at the actuator; the hinges "
+        "carry the load itself, shared by tributary span. Values are **LIMIT**."
+    )
+
+if case.tip_transfer is not None:
+    _t = case.tip_transfer
+    st.markdown("**T-tail transfer at the fin tip**")
+    _tt = st.columns(3)
+    _tt[0].metric(f"Transferred Fz ({U['weight']})",
+                  f"{to_display(_t.fz, 'weight', system):,.1f}")
+    _tt[1].metric(f"Transferred Myy ({U['torque']})",
+                  f"{to_display(_t.myy, 'torque', system):,.0f}")
+    _tt[2].metric(f"of which inertia ({U['weight']})",
+                  f"{to_display(_t.inertia_lb, 'weight', system):,.1f}")
+    st.caption(
+        "On a T-tail the horizontal surface reaches the airplane **through the "
+        "fin**, so this fin case also carries the h-tail load concurrent with it: "
+        "the balancing load at this case's own V-n point plus the h-tail's own "
+        "inertia there. Roll and yaw transfer are zero — that pairing is a "
+        "balancing condition, so the horizontal tail's two halves cancel about the "
+        "centreline. Values are **LIMIT**."
+    )
+
 if case.notes:
     for _note in case.notes:
         st.caption(f"• {_note}")

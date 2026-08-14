@@ -89,20 +89,37 @@ decision, 2026-08-10). The balanced case remains the authority for a *balanced*
 lateral field; what changed is that the fin's own mass now appears in the fin's
 own deck, where before the deck was silently air-only.
 
-Phase-1 scope, stated in-band
------------------------------
-* **Control-surface load is smeared** into the parent surface (decision T-4
-  option 2): ``LT50`` *is* the control part and it is already in the
-  distribution above. T5 makes the mode explicit; T6 adds the discrete
-  hinge/actuator alternative.
+The two control-surface load paths (T-4)
+----------------------------------------
+``"smeared"`` (the default, phase 1): the control load is already in the
+distribution above -- ``LT50`` is the camber/elevator part and it is spread with
+the rest. Nothing is added or removed; the mode is a statement about what the
+numbers mean.
+
+``"discrete"`` (T6): the control surface's own load leaves the strips and enters
+the parent surface where the airplane puts it -- hinge reactions by tributary
+span, plus the hinge-moment couple at the actuator. The control load is
+**SELECT's own** (``elevator_load`` / ``load_on_rudder``, oracle-locked), and the
+hinge moment is that load on the centroid of TAILDIST's aft-of-hinge pressure
+block: the first hinge-moment output in the suite. See the section header below
+for what each of those choices is protecting against.
+
+T-tail transfer (T7)
+--------------------
+Where the layout says the horizontal tail sits on the fin, every v-tail case also
+carries the h-tail's concurrent load at the fin tip -- the balancing load at that
+case's own V-n point plus the h-tail's inertia (decision T-5). Conventional
+layouts are untouched, to the byte.
 """
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import Dict, List, Optional, Sequence, Tuple
 
 from ..models import (
     ConditionResult,
+    ControlPointLoad,
     CriticalCondition,
     CriticalLoadSet,
     LoadValue,
@@ -110,11 +127,12 @@ from ..models import (
     ModuleResult,
     Project,
     TailSpanResult,
+    TipTransfer,
     VnPoint,
     WingStationLoad,
 )
 from ..registry import register
-from ..tail_geometry import HTAIL, VTAIL, TailPlanform, resolve_tail_planform
+from ..tail_geometry import HTAIL, VTAIL, TailPlanform, is_t_tail, resolve_tail_planform
 from .select import default_critical, vn_points
 
 MODULE_NAME = "tail_span"
@@ -187,7 +205,9 @@ def distribute(planform: TailPlanform, lt25: float, lt50: float, *,
                n_case: float = 0.0, surface_weight_lb: float = 0.0,
                rh_scale: float = 1.0, lh_scale: float = 1.0,
                z_offset: float = 0.0, n_normal: Optional[float] = None,
-               n_axial: float = 0.0) -> List[WingStationLoad]:
+               n_axial: float = 0.0,
+               control_removal: Optional["ControlRemoval"] = None
+               ) -> List[WingStationLoad]:
     """The spanwise station table for one condition, in the surface's local frame.
 
     Returns stations ordered by span coordinate: port tip -> starboard tip for
@@ -208,6 +228,13 @@ def distribute(planform: TailPlanform, lt25: float, lt50: float, *,
     lands in ``f_span``. Passing ``n_case`` for a fin's normal direction would
     claim a pull-up bends the fin sideways, which is the error this signature
     exists to make unavailable.
+
+    ``control_removal`` is the ``"discrete"`` mode's other half (T6): the control
+    surface's own load, taken back **out** of these strips over the span it
+    actually occupies, so :func:`control_point_loads` can put it in at the hinges
+    instead. Its two parts leave from the chord stations they arrived at -- the
+    camber share off the 50 % line, the AoA share off the 25 % -- which is what
+    keeps the parent surface's remaining load where TAILDIST puts it.
     """
     area = planform.area
     if area <= 0:
@@ -216,15 +243,24 @@ def distribute(planform: TailPlanform, lt25: float, lt50: float, *,
     halves: List[Tuple[float, float]] = (
         [(-1.0, lh_scale), (1.0, rh_scale)] if planform.symmetric
         else [(1.0, rh_scale)])
+    shares = _removal_shares(planform, control_removal)
 
     stations: List[WingStationLoad] = []
     for sign, k_side in halves:
         half: List[WingStationLoad] = []
-        for s, ds in strip_spans(planform):
+        for j, (s, ds) in enumerate(strip_spans(planform)):
             chord = planform.chord(s)
             frac = chord * ds / area
-            w25 = k_side * lt25 * frac
-            w50 = k_side * lt50 * frac
+            if control_removal is None:
+                # Left exactly as it was written at T2, arithmetic and order: the
+                # smeared deck is bit-identical output and a re-associated
+                # multiply would move its last bit on the one case whose
+                # ``k_side`` is not 1 (23.427(a)).
+                w25 = k_side * lt25 * frac
+                w50 = k_side * lt50 * frac
+            else:
+                w25 = k_side * (lt25 * frac - shares[j] * control_removal.aoa)
+                w50 = k_side * (lt50 * frac - shares[j] * control_removal.camber)
             x_lra = planform.x_at(s, planform.ref_axis_pct)
             torsion = (w25 * (x_lra - planform.x_at(s, X25_PCT))
                        + w50 * (x_lra - planform.x_at(s, X50_PCT)))
@@ -280,6 +316,316 @@ def free_torsion_total(planform: TailPlanform, lt25: float, lt50: float, *,
             total += (k_side * lt25 * frac * (x_lra - planform.x_at(s, X25_PCT))
                       + k_side * lt50 * frac * (x_lra - planform.x_at(s, X50_PCT)))
     return total
+
+
+# --------------------------------------------------------------------------- #
+# The discrete control-surface load path (T6)
+# --------------------------------------------------------------------------- #
+# What changes in ``"discrete"`` mode is *where the control load enters the
+# structure*, not how much of it there is. The surface's total is untouched; the
+# control surface's own share stops being spread over the parent planform and is
+# handed to it the way the airplane hands it over -- normal reactions at the
+# hinges, and the hinge-moment couple at the actuator.
+#
+# Three things this path is careful about:
+#
+# 1. **The control load is SELECT's** (decision T-12), read and never recomputed:
+#    ``elevator_load`` (SELECT.BAS 5216-5218) and its rudder counterpart, split
+#    into their camber and angle-of-attack parts so each leaves the distribution
+#    from the chord station TAILDIST put it at. Plan 09 T6's own sentence said
+#    "the control part (LT50)", and that is not the same thing: ``LT50`` is the
+#    *camber* load and its chordwise trapezoid runs leading edge to trailing edge,
+#    so hanging all of it on the hinges would move stabilizer load onto the
+#    elevator while ignoring the angle-of-attack share the elevator really
+#    carries. Where a condition publishes no such value (the balancing, checked,
+#    gust and unsymmetrical h-tail conditions; the rudder-neutral fin ones) the
+#    load is **derived** from the TAILDIST aft-of-hinge block and marked, the
+#    same derive-and-mark contract the planform itself is under.
+#
+# 2. **The identity is structural, not lucky** (decision T-14). Exactly the
+#    control load leaves the strips and exactly the control load arrives at the
+#    hinges, because the removal shares are normalised to sum to one over the
+#    control surface's span. Removing it with the raw strip fractions would leave
+#    the cross-mode force identity resting on ``sum(frac) == 1``, which is exact
+#    for a derived rectangle and only 1 %-true for an entered polyline -- the T1
+#    validator's own tolerance, quietly become a load error.
+#
+# 3. **The actuator carries a couple, not a force** (decision T-15). The schema
+#    has no horn radius, so a rotary actuator is the honest model -- and it makes
+#    the chordwise bookkeeping exact: hinge torsion plus actuator couple is
+#    ``L_cs * (x_lra - x_cp)``, the control load acting at its own centre of
+#    pressure, which is the number the smeared mode would have produced had it
+#    ever placed the load there.
+
+#: Chordwise centroid of the aft-of-hinge pressure block, as a fraction of the
+#: aft-of-hinge chord (decision T-13). It is exactly a third because that block is
+#: **always** a triangle: TAILDIST's net trailing-edge pressure is identically
+#: zero (``WATT3 = WCAM3 = 0``), so the profile aft of the hinge line runs
+#: linearly from its hinge-line value to nothing at the trailing edge, whatever
+#: the case. That is what makes the suite's first hinge moment a closed form
+#: rather than a quadrature.
+HINGE_BLOCK_CENTROID = 1.0 / 3.0
+
+
+@dataclass(frozen=True)
+class ControlAttachment:
+    """Where a control surface is held: hinge stations and the actuator (T-17).
+
+    Span stations (in) measured **from the surface root along its span axis** --
+    butt lines for the elevator, heights above the fin root for the rudder --
+    the same coordinate the strips use. Entered once, for one side, on the
+    symmetric horizontal tail and mirrored, exactly as the planform is.
+    """
+
+    surface: str
+    hinges: Tuple[float, ...]
+    actuator: float
+
+    @property
+    def span_extent(self) -> Tuple[float, float]:
+        """The control surface's own span, taken as first hinge to last.
+
+        The schema carries no separate control-surface span, and this is the
+        honest reading of the geometry it does carry: the load is removed from
+        the parent surface over the span the hinges hold, not over the whole
+        surface. A control surface that overhangs its outermost hinge is
+        therefore modelled as ending there -- stated, and revisited if a
+        control-surface planform is ever entered.
+        """
+        return self.hinges[0], self.hinges[-1]
+
+
+@dataclass(frozen=True)
+class ControlRemoval:
+    """The control load taken out of the smeared strips, by part and by span.
+
+    ``camber``/``aoa`` are **per half planform**, like everything else the strip
+    loop multiplies by ``k_side``: a symmetric surface's half integrates half the
+    load, so it gives up half the control load. Built together with the hinge
+    loads in :func:`build_tail_span` from one ``per_side`` value, because the two
+    have to be the same number for the cross-mode force identity to hold.
+    """
+
+    camber: float          # the LT50-side share, off the 50 % chord line
+    aoa: float             # the LT25-side share, off the 25 % chord line
+    y_lo: float
+    y_hi: float
+
+    @property
+    def total(self) -> float:
+        return self.camber + self.aoa
+
+
+def control_attachment(project: Project, component: str,
+                       planform: TailPlanform) -> ControlAttachment:
+    """The validated hinge/actuator geometry for one surface, or raise.
+
+    Refused loudly and specifically, because every one of these is a modelling
+    statement a designer would want to hear about rather than have guessed: no
+    geometry at all, one hinge (a hinge line needs two points to be a line),
+    a station off the surface, or an actuator outside the span its own hinges
+    hold.
+    """
+    entry = next((tm for tm in project.tail_mass or []
+                  if tm.surface == component), None)
+    hinges = sorted(entry.hinges_span_in) if entry is not None else []
+    actuator = entry.actuator_span_in if entry is not None else 0.0
+    if len(hinges) < 2 or not actuator:
+        raise MissingInputError(
+            f"control_load_mode='discrete' for the {component} needs hinge and "
+            "actuator span stations: set tail_mass.hinges_span_in (at least two, "
+            "measured from the surface root along its span) and "
+            "tail_mass.actuator_span_in. Use 'smeared' to keep the control load "
+            "distributed into the surface as it has been.")
+    span = planform.span
+    off = [h for h in hinges if h < 0.0 or h > span]
+    if off:
+        raise ValueError(
+            f"{component} hinge stations {off} are off the surface, whose span is "
+            f"{span:.1f} in from the root -- hinge stations are measured along the "
+            "span from the root, not as fuselage stations")
+    if not hinges[0] <= actuator <= hinges[-1]:
+        raise ValueError(
+            f"{component} actuator station {actuator:.1f} in is outside the span "
+            f"its hinges hold ({hinges[0]:.1f} to {hinges[-1]:.1f} in). The "
+            "actuator reacts the hinge moment of the surface between the hinges; "
+            "outside them there is no control surface for it to drive")
+    return ControlAttachment(component, tuple(hinges), actuator)
+
+
+def hinge_chord_fraction(project: Project, cond: CriticalCondition) -> float:
+    """``Saft/S`` -- the aft-of-hinge chord as a fraction of the local chord.
+
+    TAILDIST's ``CEAFTHL = (Saft/S)*CAVE`` is that fraction times the *average*
+    chord; taken as a fraction it applies at every station of a tapered surface,
+    which is what a constant-percent-chord hinge line means. Read from
+    :func:`sloads.modules.taildist.surface_geom`, so the spanwise deck and the
+    chordwise pressures cannot end up with two different hinge lines.
+    """
+    from .taildist import surface_geom
+
+    geom = surface_geom(project, cond)
+    if geom is None:
+        return 0.0
+    area_sqin, aft_sqin, _span = geom
+    return aft_sqin / area_sqin if area_sqin else 0.0
+
+
+def derived_control_load(project: Project, cond: CriticalCondition) -> float:
+    """The control-surface load integrated from TAILDIST's aft-of-hinge block.
+
+    The fallback for a condition that publishes no control-surface load of its
+    own (T-12). It is the oracle-locked chordwise profile, integrated from the
+    hinge line aft over the full span::
+
+        L_cs = 0.5 * c_e * psi(hinge line) * span
+
+    -- a triangle, for the reason :data:`HINGE_BLOCK_CENTROID` gives. Derived, and
+    marked as derived on the result: it is a first-order stand-in for a number
+    SELECT publishes directly on the four conditions that have one.
+    """
+    from .taildist import chordwise_pressures, surface_geom
+
+    geom = surface_geom(project, cond)
+    if geom is None or cond.lt25 is None or cond.lt50 is None:
+        return 0.0
+    area_sqin, aft_sqin, span_in = geom
+    stations = chordwise_pressures(cond.lt25, cond.lt50, area_sqin, aft_sqin, span_in)
+    c_e, psi_hinge = stations[3].x, stations[4].psi
+    return 0.5 * c_e * psi_hinge * span_in
+
+
+def control_load_parts(project: Project, cond: CriticalCondition,
+                       component: str) -> Tuple[float, float, str]:
+    """``(camber share, AoA share, basis)`` of the control-surface load (T-12).
+
+    SELECT's own number where the condition carries one -- ``elevator_load`` for
+    the horizontal tail, the rudder load for the fin -- split into the two parts
+    it is the sum of, so each can leave the distribution from its own chord
+    station. Otherwise the TAILDIST-derived load of
+    :func:`derived_control_load`, reported entirely as the camber part, since
+    that is the part the control surface's deflection produces and there is
+    nothing in a derived scalar to split.
+    """
+    from .select import elevator_load_parts, rudder_load_parts
+
+    published = _value(cond, "elevator_load" if component == HTAIL
+                       else "load_on_rudder")
+    if published is not None:
+        if component == HTAIL and project.tail_loads is not None:
+            cam, att = elevator_load_parts(cond.lt50 or 0.0, cond.lt25 or 0.0,
+                                           project.tail_loads)
+        elif component == VTAIL and project.vtail_loads is not None:
+            cam, att = rudder_load_parts(cond.lt50 or 0.0, cond.lt25 or 0.0,
+                                         project.vtail_loads)
+        else:                                     # pragma: no cover - guarded above
+            cam, att = published, 0.0
+        return cam, att, (
+            "read from SELECT's own "
+            f"{'elevator' if component == HTAIL else 'rudder'} load "
+            "(oracle-locked, Ch 9)")
+    return derived_control_load(project, cond), 0.0, (
+        "DERIVED by integrating TAILDIST's aft-of-hinge pressure block -- this "
+        "condition publishes no control-surface load of its own")
+
+
+def _removal_shares(planform: TailPlanform,
+                    removal: Optional[ControlRemoval]) -> List[float]:
+    """Per-strip shares of the control load to remove, summing to **exactly 1**.
+
+    Chord-weighted by each strip's *overlap* with the control surface's span, not
+    by whether its midpoint happens to fall inside it: a strip that straddles the
+    inboard end of an elevator gives up the part of itself the elevator covers,
+    which is both right and immune to the station count.
+    """
+    strips = strip_spans(planform)
+    if removal is None:
+        return [0.0] * len(strips)
+    weights = []
+    for s, ds in strips:
+        overlap = max(0.0, min(s + ds / 2.0, removal.y_hi)
+                      - max(s - ds / 2.0, removal.y_lo))
+        weights.append(planform.chord(s) * overlap)
+    total = sum(weights)
+    if total <= 0:                                # pragma: no cover - validated away
+        return [0.0] * len(strips)
+    return [w / total for w in weights]
+
+
+def _hinge_tributaries(attachment: ControlAttachment,
+                       planform: TailPlanform) -> List[float]:
+    """Chord-weighted tributary shares of one hinge set, summing to exactly 1.
+
+    Midpoints between adjacent hinges, ends at the control surface's own ends --
+    the ordinary tributary rule for a line of supports, weighted by local chord
+    because the load being shared out is chord-proportional (T-2).
+    """
+    hinges = attachment.hinges
+    lo, hi = attachment.span_extent
+    weights = []
+    for i, h in enumerate(hinges):
+        left = lo if i == 0 else 0.5 * (hinges[i - 1] + h)
+        right = hi if i == len(hinges) - 1 else 0.5 * (h + hinges[i + 1])
+        weights.append(planform.chord(h) * (right - left))
+    total = sum(weights)
+    return [w / total for w in weights]
+
+
+def control_point_loads(planform: TailPlanform, attachment: ControlAttachment,
+                        control_load: float, hinge_fraction: float, *,
+                        rh_scale: float = 1.0, lh_scale: float = 1.0,
+                        z_offset: float = 0.0
+                        ) -> Tuple[List[ControlPointLoad], float]:
+    """``(attachment loads, hinge moment)`` for one condition (T6).
+
+    ``control_load`` is the whole surface's control load -- both sides for the
+    elevator, as every other tail total in this suite is -- and each half takes
+    its own ``k_side`` share of half of it, exactly as the strips do.
+
+    Each hinge lands on the LRA line at its span station, carrying its tributary
+    share of the load and the torsion that share makes about the LRA from the
+    hinge line: ``F * (x_lra - x_hinge_line)``. The actuator lands on the LRA at
+    its own station carrying ``-HM``, and the sign is what makes the pair add up:
+    hinge torsion plus actuator couple is the control load acting at its own
+    centre of pressure, a third of the aft-of-hinge chord behind the hinge line.
+    """
+    halves: List[Tuple[float, float]] = (
+        [(-1.0, lh_scale), (1.0, rh_scale)] if planform.symmetric
+        else [(1.0, rh_scale)])
+    shares = _hinge_tributaries(attachment, planform)
+    per_side = 0.5 * control_load if planform.symmetric else control_load
+
+    out: List[ControlPointLoad] = []
+    hinge_moment = 0.0
+    for sign, k_side in halves:
+        side_load = k_side * per_side
+        side_moment = 0.0
+        for h, share in zip(attachment.hinges, shares):
+            chord = planform.chord(h)
+            x_lra = planform.x_at(h, planform.ref_axis_pct)
+            x_hinge = planform.x_at(h, 1.0 - hinge_fraction)
+            force = side_load * share
+            side_moment += force * hinge_fraction * chord * HINGE_BLOCK_CENTROID
+            out.append(ControlPointLoad(
+                kind="hinge", x=x_lra, y=sign * h, z=z_offset,
+                f_normal=force, m_torsion=force * (x_lra - x_hinge)))
+        a = attachment.actuator
+        out.append(ControlPointLoad(
+            kind="actuator", x=planform.x_at(a, planform.ref_axis_pct),
+            y=sign * a, z=z_offset, f_normal=0.0, m_torsion=-side_moment))
+        hinge_moment += side_moment
+
+    out.sort(key=lambda p: (p.y, p.kind))
+    return out, hinge_moment
+
+
+def control_centre_of_pressure(planform: TailPlanform, s: float,
+                               hinge_fraction: float) -> float:
+    """Chord station of the control load at span ``s`` -- the hinge line plus a
+    third of the aft-of-hinge chord. The identity the cross-mode torsion
+    difference is stated against."""
+    return (planform.x_at(s, 1.0 - hinge_fraction)
+            + hinge_fraction * planform.chord(s) * HINGE_BLOCK_CENTROID)
 
 
 # --------------------------------------------------------------------------- #
@@ -426,13 +772,14 @@ def lateral_load_factor(project: Project, cond: CriticalCondition,
 
 
 def control_load_mode(project: Project, component: str) -> str:
-    """The control-load mode for one surface (T-4/T5), validated.
+    """The control-load mode for one surface (T-4/T5/T6), validated.
 
-    Phase 1 ships ``"smeared"`` only. ``"discrete"`` is refused rather than
-    quietly downgraded: the two modes describe *different load paths* -- one
-    spreads the control load into the surface, the other concentrates it at hinge
-    and actuator stations -- and a deck that claims the second while carrying the
-    first would be wrong in exactly the place a designer looks.
+    ``"discrete"`` is never quietly downgraded to ``"smeared"``: the two describe
+    *different load paths* -- one spreads the control load into the surface, the
+    other concentrates it at hinge and actuator stations -- and a deck that
+    claimed the second while carrying the first would be wrong in exactly the
+    place a designer looks. Selecting it without the attachment geometry it needs
+    therefore raises, from :func:`control_attachment`.
     """
     mode = DEFAULT_CONTROL_MODE
     for tm in project.tail_mass or []:
@@ -442,13 +789,101 @@ def control_load_mode(project: Project, component: str) -> str:
         raise ValueError(
             f"unknown control_load_mode {mode!r} for {component}; expected one of "
             f"{CONTROL_MODES}")
-    if mode == "discrete":
-        raise MissingInputError(
-            f"control_load_mode='discrete' for the {component} needs hinge and "
-            "actuator span stations, which the schema does not carry yet (plan 09 "
-            "T6). Use 'smeared' -- the control load is already distributed into "
-            "the surface as the LT50 part.")
     return mode
+
+
+# --------------------------------------------------------------------------- #
+# The T-tail transfer (T7)
+# --------------------------------------------------------------------------- #
+# On a T-tail the horizontal surface is not attached to the fuselage at all: it
+# sits on top of the fin, and every load it carries reaches the airplane *through*
+# the fin. Until this step ``TailType.T_TAIL`` drove only the three-view sketch --
+# a v-tail deck for a T-tail airplane was the same deck it would have been for a
+# conventional one, missing the load its own tip is holding up.
+#
+# What "concurrent" means is decision T-5: the **balancing** h-tail load at the
+# v-tail case's own V-n point, plus the h-tail's inertia at that point's load
+# factor. Rational pairing, one deck per fin case. The conservative alternative --
+# pairing every fin case with the critical h-tail load whatever condition produced
+# it -- is pre-scoped in plan §8 as a selectable policy and deliberately not the
+# default, because it pairs loads the airplane never sees together.
+
+def mid_chord_centroid(planform: TailPlanform) -> float:
+    """Area-weighted mean chord station of the surface's mid-chord line (in).
+
+    Where a uniformly-smeared surface mass acts chordwise (T-3 spreads it by
+    area, so its centroid is the planform's). Integrated over the same strips the
+    loads use, so a tapered or swept h-tail moves this station the way it moves
+    every other one.
+    """
+    area = moment = 0.0
+    for s, ds in strip_spans(planform):
+        da = planform.chord(s) * ds
+        area += da
+        moment += da * planform.x_at(s, 0.5)
+    return moment / area if area else 0.0
+
+
+def _tail_cp_station(project: Project, case: Optional[int]) -> Tuple[float, bool]:
+    """``(chordwise station of the balancing tail load, assumed?)``.
+
+    FLTLOADS publishes the CP it balanced about, per V-n point
+    (``TailBalanceLoad.tail_cp_station``), so the transferred moment's lever arm
+    is read rather than assumed. The fallback is the 25 % tail MAC -- the station
+    the load would act at with no camber -- and it is marked, because a lever arm
+    is the whole content of a transfer.
+    """
+    from .select import default_envelope
+
+    if case is not None:
+        for tb in default_envelope(project).tail_balance:
+            if tb.case == case:
+                return tb.tail_cp_station, False
+    ti = project.tail_loads
+    return (ti.xt25 if ti is not None else 0.0), True
+
+
+def ttail_transfer(project: Project, cond: CriticalCondition,
+                   htail: Optional[TailPlanform], x_tip: float,
+                   points: Sequence["VnPoint"]) -> Optional[TipTransfer]:
+    """The h-tail set this fin case carries at its tip, or ``None`` (T7).
+
+    ``None`` -- not a zero set -- when the pairing cannot be resolved: no
+    horizontal tail modelled, or a fin condition that names no V-n point and so
+    has no concurrent flight condition to read a balancing load from. The
+    difference matters: a zero transfer is a claim about the airplane, and this
+    is a statement about the data.
+
+    The moment is taken about the fin-tip node in the ``(x_ref - x_load)*F``
+    sense :func:`sloads.export.coordinates.tail_torsion_to_airplane` derives, so
+    the transferred set and the fin's own strip torsions are in one convention.
+    Roll and yaw are zero by T-16: a balancing condition is symmetric, so the
+    h-tail's halves cancel about the centreline.
+    """
+    if htail is None or cond.case is None:
+        return None
+    point = next((p for p in points if p.case == cond.case), None)
+    if point is None:
+        return None
+    weight = _surface_weight(project, HTAIL)
+    x_air, cp_assumed = _tail_cp_station(project, cond.case)
+    x_mass = mid_chord_centroid(htail)
+    air, inertia = point.lt, -point.nz * weight
+    note = (f"T-tail: the horizontal tail's concurrent load rides this fin's tip "
+            f"(T-5 pairing -- the balancing load {air:+.0f} lb at V-n case "
+            f"{cond.case}, n = {point.nz:.2f}, plus its own inertia "
+            f"{inertia:+.0f} lb at {weight:.0f} lb of surface mass)")
+    if cp_assumed:
+        note += (". Its chordwise station is ASSUMED as the 25 % tail MAC -- the "
+                 "V-n point publishes no balanced tail CP")
+    if weight <= 0.0:
+        note += (". No htail-tagged mass item, so the transferred set is air only")
+    return TipTransfer(
+        fz=air + inertia,
+        myy=(x_tip - x_air) * air + (x_tip - x_mass) * inertia,
+        air_lb=air, inertia_lb=inertia, x_air=x_air, x_mass=x_mass, x_tip=x_tip,
+        n_case=point.nz, surface_weight_lb=weight, cp_assumed=cp_assumed,
+        note=note)
 
 
 def _h_tail_waterline(project: Project) -> float:
@@ -504,10 +939,46 @@ def build_tail_span(project: Project) -> Dict[str, List[TailSpanResult]]:
         # planform, so the three-view and this deck place one fin once.
         z_offset = _h_tail_waterline(project) if component == HTAIL else planform.root_z
 
+        # The discrete control path (T6). Resolved before the notes, because what
+        # it finds -- how much control load there is and where its number came
+        # from -- is one of the things the result has to say out loud.
+        removal: Optional[ControlRemoval] = None
+        control_loads: List[ControlPointLoad] = []
+        control_load = hinge_moment = hinge_arm = 0.0
+        control_basis = ""
         notes = list(planform.notes)
-        notes.append(
-            f"control load {mode}: the LT50 camber/elevator part is distributed "
-            "into the surface with the rest, not applied at hinge stations")
+        if mode == "discrete":
+            attachment = control_attachment(project, component, planform)
+            fraction = hinge_chord_fraction(project, cond)
+            cam, att, control_basis = control_load_parts(project, cond, component)
+            control_load = cam + att
+            per_side = 0.5 if planform.symmetric else 1.0
+            lo, hi = attachment.span_extent
+            removal = ControlRemoval(camber=per_side * cam, aoa=per_side * att,
+                                     y_lo=lo, y_hi=hi)
+            control_loads, hinge_moment = control_point_loads(
+                planform, attachment, control_load, fraction,
+                rh_scale=rh_scale, lh_scale=lh_scale, z_offset=z_offset)
+            # The *applied* total, per-side scaled -- the same treatment
+            # ``air_total`` gives the surface load, so the two are comparable on
+            # the one condition (23.427(a)) whose sides differ.
+            control_load = sum(p.f_normal for p in control_loads)
+            hinge_arm = hinge_moment / control_load if control_load else 0.0
+            notes.append(
+                f"control load DISCRETE: {control_load:+.1f} lb "
+                f"({control_basis}) is OUT of the strips over the "
+                f"{lo:.1f}-{hi:.1f} in control span and applied at "
+                f"{len(attachment.hinges)} hinge stations per side, with the "
+                f"hinge moment {hinge_moment:+.0f} lb-in reacted as a couple at "
+                f"the actuator ({attachment.actuator:.1f} in)")
+            notes.append(
+                f"hinge moment arm {hinge_arm:.2f} in = a third of the "
+                f"aft-of-hinge chord ({fraction * 100:.1f} % of chord), the "
+                "centroid of TAILDIST's aft-of-hinge pressure block")
+        else:
+            notes.append(
+                f"control load {mode}: the LT50 camber/elevator part is distributed "
+                "into the surface with the rest, not applied at hinge stations")
         if not from_vn:
             notes.append(
                 f"condition names no V-n point -- load factor defaulted to "
@@ -557,7 +1028,21 @@ def build_tail_span(project: Project) -> Dict[str, List[TailSpanResult]]:
         stations = distribute(
             planform, cond.lt25, cond.lt50, n_case=n_case,
             surface_weight_lb=weight, rh_scale=rh_scale, lh_scale=lh_scale,
-            z_offset=z_offset, n_normal=n_normal, n_axial=n_axial)
+            z_offset=z_offset, n_normal=n_normal, n_axial=n_axial,
+            control_removal=removal)
+        # The T-tail transfer rides the *last* fin node, so it is resolved after
+        # the stations exist rather than from the planform: the node the deck will
+        # actually apply it at is the one whose lever arm has to be right.
+        transfer = None
+        if component == VTAIL and stations and is_t_tail(project):
+            transfer = ttail_transfer(project, cond, planforms.get(HTAIL),
+                                      stations[-1].x, vn_points)
+            notes.append(transfer.note if transfer is not None else (
+                "T-TAIL layout, but the concurrent horizontal-tail load could not "
+                "be resolved (no h-tail planform, or this condition names no V-n "
+                "point) -- this fin deck carries NO tip transfer, and on a T-tail "
+                "that is an omission in the data rather than a load path that "
+                "does not exist"))
         out[component].append(TailSpanResult(
             case=cond.label, component=component, stations=stations,
             lt25=cond.lt25, lt50=cond.lt50, n_case=n_case,
@@ -566,6 +1051,11 @@ def build_tail_span(project: Project) -> Dict[str, List[TailSpanResult]]:
             attachment_y=attachment_stations(project, planform),
             rh_scale=rh_scale, lh_scale=lh_scale,
             planform_assumed=planform.assumed, control_load_mode=mode,
+            control_loads=control_loads,
+            control_surface_load_lb=control_load,
+            control_load_basis=control_basis,
+            hinge_moment_lbin=hinge_moment, hinge_moment_arm_in=hinge_arm,
+            tip_transfer=transfer,
             inertia_modelled=inertia_modelled,
             case_ref=cond.case_ref, safety_factor=cond.safety_factor,
             torsion_axis=f"LRA {planform.ref_axis_pct * 100:.0f}% chord",
@@ -623,6 +1113,27 @@ def run(project: Project) -> ModuleResult:
     for r in results:
         stations = r.stations
         root = stations[root_index(r)] if stations else None
+        extra: List[LoadValue] = []
+        if r.control_load_mode == "discrete":
+            # The suite's first hinge-moment output (T6). Reported as a value in
+            # its own right, not only as a card in a deck: it is what a
+            # control-system designer sizes an actuator from.
+            extra += [
+                LoadValue("Control-surface load", r.control_surface_load_lb, "lb",
+                          key="control_surface_load"),
+                LoadValue("Hinge moment", r.hinge_moment_lbin, "lb-in",
+                          key="hinge_moment"),
+                LoadValue("Hinge moment arm", r.hinge_moment_arm_in, "in",
+                          key="hinge_moment_arm"),
+            ]
+        if r.tip_transfer is not None:
+            t = r.tip_transfer
+            extra += [
+                LoadValue("T-tail transfer Fz", t.fz, "lb",
+                          key="ttail_transfer_fz"),
+                LoadValue("T-tail transfer Myy (fin tip)", t.myy, "lb-in",
+                          key="ttail_transfer_myy"),
+            ]
         conditions.append(ConditionResult(
             title=f"{r.component} spanwise load -- {r.case}",
             far_reference="23.427(a)" if r.rh_scale != r.lh_scale else "23.421",
@@ -640,7 +1151,7 @@ def run(project: Project) -> ModuleResult:
                 LoadValue(f"Root torsion Myy ({r.torsion_axis})",
                           root.myy if root else 0.0, "lb-in",
                           key="tail_span_root_myy"),
-            ],
+            ] + extra,
             note="; ".join(r.notes) or None,
             safety_factor=r.safety_factor,
             case_ref=r.case_ref,
@@ -656,7 +1167,18 @@ __all__ = [
     "CONTROL_MODES",
     "DEFAULT_CONTROL_MODE",
     "DEFAULT_LOAD_FACTOR",
+    "HINGE_BLOCK_CENTROID",
+    "ControlAttachment",
+    "ControlRemoval",
+    "control_attachment",
+    "control_centre_of_pressure",
     "control_load_mode",
+    "control_load_parts",
+    "control_point_loads",
+    "derived_control_load",
+    "hinge_chord_fraction",
+    "mid_chord_centroid",
+    "ttail_transfer",
     "X25_PCT",
     "X50_PCT",
     "air_total",

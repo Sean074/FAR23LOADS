@@ -169,7 +169,16 @@ def fields_hash() -> str:
 #: ``migrations._v43_tail_mass_override``: absent is *not* the old behaviour there
 #: (an entered weight used to be the only source and is now the override), so a
 #: pre-v44 file has to be marked rather than reinterpreted.
-EXPECTED_FIELDS_HASH = "82dbc19c625c139e"
+#: plan 09 T6/T7 (v45): ``TailMassInput.hinges_span_in``/``.actuator_span_in`` --
+#: the control-surface attachment geometry ``control_load_mode = "discrete"``
+#: requires; and the results it produces, ``ControlPointLoad`` (a hinge or
+#: actuator attachment load) and ``TipTransfer`` (the h-tail set a T-tail's fin
+#: carries at its tip), reached from ``TailSpanResult``'s new ``control_loads`` /
+#: ``tip_transfer`` and its hinge-moment fields. Additive with defaults, and on
+#: the input side absent *is* the documented value -- no attachment geometry
+#: means the surface stays smeared, which is what every pre-v45 project already
+#: was -- so ``SCHEMA_VERSION`` bumps to 45 with no migration hop.
+EXPECTED_FIELDS_HASH = "9862de27201e7e6f"
 
 
 def test_persisted_dataclass_shapes_are_unchanged():

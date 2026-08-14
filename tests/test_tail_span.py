@@ -27,6 +27,7 @@ vanishes, the same property the wing's LRA transfer is pinned by.
 """
 
 import copy
+import math
 import os
 import sys
 
@@ -44,15 +45,24 @@ from sloads.modules.tail_span import (  # noqa: E402
     air_total,
     attachment_stations,
     build_tail_span,
+    control_centre_of_pressure,
+    control_load_parts,
     distribute,
     free_torsion_total,
+    hinge_chord_fraction,
     inertia_total,
     root_index,
     side_scales,
     strip_spans,
 )
 from sloads.export.coordinates import tail_station_to_airplane  # noqa: E402
-from sloads.tail_geometry import HTAIL, VTAIL, half_area_centroid, resolve_tail_planform  # noqa: E402
+from sloads.tail_geometry import (  # noqa: E402
+    HTAIL,
+    VTAIL,
+    half_area_centroid,
+    is_t_tail,
+    resolve_tail_planform,
+)
 
 _ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
@@ -88,6 +98,11 @@ def _project(example: str, weight: float = _TAIL_WEIGHT):
         ]
         _CACHE[key] = p
     return copy.deepcopy(_CACHE[key])
+
+
+def _condition(project, label: str):
+    """The critical condition a result came from, by its label."""
+    return next(c for c in project.envelope.critical.conditions if c.label == label)
 
 
 def _results(example: str, weight: float = _TAIL_WEIGHT):
@@ -612,6 +627,324 @@ def test_the_deck_states_the_mode():
     results = build_tail_span(_project("ga6_normal.project.json"))[HTAIL]
     text = sb.tail_span_force_moment_cards(results, component=HTAIL)
     assert "Control-surface load: SMEARED into this surface." in text
+
+
+# --------------------------------------------------------------------------- #
+# T6 -- the discrete hinge/actuator load path, and its closed forms
+# --------------------------------------------------------------------------- #
+# No shipped fixture carries hinge geometry, and inventing it for six aircraft
+# with no oracle is the fabrication §9.1 refused for the tail polylines
+# (decision T-17). So these gates run against a project built here: ga6's h-tail,
+# whose derived planform is a 36.39 in rectangle on a 73.1 in semispan, with
+# three hinges and an actuator stated below. Every target is hand-derivable from
+# those numbers, which is the point of choosing them over a fixture's.
+_HINGES = (10.0, 40.0, 70.0)
+_ACTUATOR = 25.0
+
+
+def _discrete(example: str = "ga6_normal.project.json", component: str = HTAIL,
+              hinges=_HINGES, actuator: float = _ACTUATOR):
+    """``(smeared results, discrete results)`` for one surface, same project."""
+    smeared = build_tail_span(_project(example))[component]
+    project = _project(example)
+    for tm in project.tail_mass:
+        if tm.surface == component:
+            tm.control_load_mode = "discrete"
+            tm.hinges_span_in = list(hinges)
+            tm.actuator_span_in = actuator
+    return smeared, build_tail_span(project)[component]
+
+
+def _applied(result):
+    """Every normal load the deck applies: strips plus attachment points."""
+    return (sum(st.fz for st in result.stations)
+            + sum(cp.f_normal for cp in result.control_loads))
+
+
+#: The fin is shorter than the h-tail's semispan (57.0 in against 73.1), so the
+#: rudder gets its own stations rather than the elevator's -- which is the
+#: validator working, the first time this test was written with one set.
+_FIN_HINGES = (8.0, 30.0, 52.0)
+
+
+@pytest.mark.parametrize("component,hinges", [(HTAIL, _HINGES),
+                                              (VTAIL, _FIN_HINGES)])
+def test_the_two_modes_apply_exactly_the_same_total_force(component, hinges):
+    """T6's first gate, and the one T-14's construction exists to make exact.
+
+    Discrete mode moves the control-surface load from the strips to the hinges;
+    it does not change how much load the surface carries. Removing it with the
+    raw strip fractions would have left this identity resting on
+    ``sum(frac) == 1`` -- exact for a derived rectangle, and only 1 %-true for an
+    entered polyline, which is the T1 validator's own tolerance quietly become a
+    load error. Normalising the removal makes it a property of the construction.
+    """
+    smeared, discrete = _discrete(component=component, hinges=hinges,
+                                  actuator=hinges[1])
+    assert len(smeared) == len(discrete)
+    for a, b in zip(smeared, discrete):
+        assert b.control_load_mode == "discrete"
+        assert b.control_loads, f"{b.case}: discrete mode applied no hinge loads"
+        want, got = sum(st.fz for st in a.stations), _applied(b)
+        scale = max(abs(want), 1.0)
+        assert abs(got - want) / scale < 1e-12, \
+            f"{component} {a.case}: {got} vs {want}"
+
+
+def test_the_hinge_set_sums_to_the_control_surface_load():
+    """T6's second gate: Σ(hinge) is the control load, and nothing is left over.
+
+    The actuator carries no force at all (decision T-15 -- with no horn radius in
+    the schema, a rotary actuator is the honest model), so the whole of it lands
+    on the hinges. Their shares are chord-weighted tributaries, which on this
+    rectangular planform reduce to the plain span tributaries: with hinges at
+    10 / 40 / 70 in the tributary widths are 15 / 30 / 15 in of the 60 in the
+    hinges hold, i.e. 25 % / 50 % / 25 % of the load per side.
+    """
+    _, discrete = _discrete()
+    for r in discrete:
+        hinges = [cp for cp in r.control_loads if cp.kind == "hinge"]
+        actuators = [cp for cp in r.control_loads if cp.kind == "actuator"]
+        assert len(hinges) == 6 and len(actuators) == 2, "three hinges per side"
+        assert all(cp.f_normal == 0.0 for cp in actuators)
+        total = sum(cp.f_normal for cp in hinges)
+        assert math.isclose(total, r.control_surface_load_lb, rel_tol=1e-12)
+        per_side = [cp.f_normal for cp in hinges if cp.y > 0]
+        shares = sorted(f / sum(per_side) for f in per_side)
+        assert [round(s, 6) for s in shares] == [0.25, 0.25, 0.5], shares
+
+
+def test_the_hinge_moment_is_a_third_of_the_aft_of_hinge_chord():
+    """The suite's **first hinge moment**, against its closed form (T-13).
+
+    ``HM = L_cs · c_e/3``. The third is not an approximation: TAILDIST's net
+    trailing-edge pressure is identically zero (``WATT3 = WCAM3 = 0``), so the
+    block aft of the hinge line is always a triangle from its hinge-line value to
+    nothing, whatever the case -- and a triangle's centroid is a third of its
+    base. On ga6: ``Saft/S = 14.792/36.944 = 0.40039`` of a 36.388 in chord is a
+    14.568 in aft-of-hinge chord, so the arm is **4.856 in** on every condition.
+    """
+    _, discrete = _discrete()
+    ti = _project("ga6_normal.project.json").tail_loads
+    planform = resolve_tail_planform(_project("ga6_normal.project.json"), HTAIL)
+    c_e = (ti.elevator_aft_hinge_sqft / ti.htail_area_sqft) * planform.chord(0.0)
+    want_arm = c_e / 3.0
+    assert math.isclose(want_arm, 4.856, rel_tol=1e-3), want_arm
+    for r in discrete:
+        assert math.isclose(r.hinge_moment_arm_in, want_arm, rel_tol=1e-12), r.case
+        assert math.isclose(r.hinge_moment_lbin,
+                            r.control_surface_load_lb * want_arm, rel_tol=1e-12)
+
+
+def test_the_hinge_and_actuator_torsion_is_the_load_at_its_own_cp():
+    """T6's third gate, stated as an **identity** rather than a tolerance.
+
+    Hinge torsion plus actuator couple is the control load acting at its own
+    centre of pressure -- the hinge line plus a third of the aft-of-hinge chord.
+    That is what makes the actuator's sign checkable: reverse it and this sum
+    comes out at the hinge *line* instead, a 4.86 in chordwise error on ga6 with
+    nothing else in the deck to notice it.
+    """
+    project = _project("ga6_normal.project.json")
+    planform = resolve_tail_planform(project, HTAIL)
+    _, discrete = _discrete()
+    for r in discrete:
+        fraction = hinge_chord_fraction(project, _condition(project, r.case))
+        got = sum(cp.m_torsion for cp in r.control_loads)
+        want = sum(
+            cp.f_normal * (planform.x_at(abs(cp.y), planform.ref_axis_pct)
+                           - control_centre_of_pressure(planform, abs(cp.y), fraction))
+            for cp in r.control_loads if cp.kind == "hinge")
+        assert math.isclose(got, want, rel_tol=1e-9, abs_tol=1e-9), r.case
+
+
+def test_the_cross_mode_torsion_difference_is_the_chordwise_relocation():
+    """What moving the control load *does*, as a closed form (plan §10.3 gate 3).
+
+    Between the two modes the surface's total force is identical and its root
+    torsion is not, and the whole of the difference is one chordwise relocation:
+    the control load leaves TAILDIST's two smeared stations (its camber share off
+    the 50 % chord, its angle-of-attack share off the 25 %) and arrives at its own
+    centre of pressure aft of the hinge line. Printed, because "within a
+    tolerance" would have hidden exactly the sign error above.
+    """
+    project = _project("ga6_normal.project.json")
+    planform = resolve_tail_planform(project, HTAIL)
+    smeared, discrete = _discrete()
+    for a, b in zip(smeared, discrete):
+        cond = _condition(project, b.case)
+        fraction = hinge_chord_fraction(project, cond)
+        cam, att, _ = control_load_parts(project, cond, HTAIL)
+        # Both sides, and per-side scaled exactly as the loads themselves are.
+        k = 0.5 * (b.rh_scale + b.lh_scale)
+        x_lra = planform.x_at(0.0, planform.ref_axis_pct)
+        x_cp = control_centre_of_pressure(planform, 0.0, fraction)
+        want = k * ((cam + att) * (x_lra - x_cp)
+                    - cam * (x_lra - planform.x_at(0.0, X50_PCT))
+                    - att * (x_lra - planform.x_at(0.0, X25_PCT)))
+        got = (sum(st.myy_free for st in b.stations)
+               + sum(cp.m_torsion for cp in b.control_loads)
+               - sum(st.myy_free for st in a.stations))
+        assert math.isclose(got, want, rel_tol=1e-9, abs_tol=1e-9), (
+            f"{b.case}: torsion moved by {got:.1f} lb-in, and the chordwise "
+            f"relocation of a {b.control_surface_load_lb:.1f} lb control load "
+            f"from its smeared stations to its own CP is {want:.1f} lb-in")
+
+
+def test_the_smeared_mode_is_untouched_when_a_surface_goes_discrete():
+    """Mode isolation, per surface. Putting the elevator on hinges must not move
+    a single strip of the fin beside it -- the two surfaces carry the mode
+    independently, which is the reason it is a per-surface field (plan §3.4)."""
+    from dataclasses import asdict
+
+    project = _project("ga6_normal.project.json")
+    plain = build_tail_span(project)[VTAIL]
+    for tm in project.tail_mass:
+        if tm.surface == HTAIL:
+            tm.control_load_mode = "discrete"
+            tm.hinges_span_in = list(_HINGES)
+            tm.actuator_span_in = _ACTUATOR
+    after = build_tail_span(project)[VTAIL]
+    for a, b in zip(plain, after):
+        assert [asdict(st) for st in a.stations] == [asdict(st) for st in b.stations]
+        assert b.control_loads == []
+
+
+def test_a_control_load_read_from_select_is_not_recomputed():
+    """The control load is SELECT's own where SELECT publishes one (T-12).
+
+    ``UNCHECKED MAN UP``/``DN`` carry an ``Elevator load`` value, computed by the
+    oracle-locked ``select.elevator_load``; the discrete path must land on that
+    number and not on a second derivation of it. The rest of the conditions have
+    no such value and take the marked TAILDIST fallback -- also asserted, because
+    "derived" silently becoming "published" would be an oracle claim the number
+    cannot support.
+    """
+    project = _project("ga6_normal.project.json")
+    _, discrete = _discrete()
+    for r in discrete:
+        cond = _condition(project, r.case)
+        published = next((lv.value for lv in cond.loads
+                          if lv.key == "elevator_load"), None)
+        if published is None:
+            assert "DERIVED" in r.control_load_basis, r.case
+            continue
+        assert "SELECT" in r.control_load_basis, r.case
+        assert math.isclose(r.control_surface_load_lb, published, rel_tol=1e-12)
+
+
+def test_discrete_mode_refuses_geometry_it_cannot_believe():
+    """Every refusal a designer would rather hear than have guessed."""
+    for hinges, actuator, match in (
+        ([40.0], 25.0, "hinge and actuator"),
+        ([10.0, 400.0], 25.0, "off the surface"),
+        ([10.0, 40.0], 60.0, "outside the span"),
+    ):
+        project = _project("ga6_normal.project.json")
+        for tm in project.tail_mass:
+            tm.control_load_mode = "discrete"
+            tm.hinges_span_in = list(hinges)
+            tm.actuator_span_in = actuator
+        with pytest.raises((MissingInputError, ValueError), match=match):
+            build_tail_span(project)
+
+
+def test_the_discrete_deck_carries_the_hinge_nodes_and_says_what_they_are():
+    """The deck's own text: the mode, the hinge moment, and the arm it is on."""
+    from sloads.export import sbeam_bridge as sb
+
+    _, discrete = _discrete()
+    text = sb.tail_span_force_moment_cards(discrete, component=HTAIL)
+    assert "Control-surface load: DISCRETE into this surface." in text
+    assert "HINGE MOMENT" in text
+    grids = {int(ln.split(",")[1]) for ln in text.splitlines()
+             if ln.startswith("GRID,")}
+    control = {sb.tail_control_gid(HTAIL, i) for i in range(len(discrete[0].control_loads))}
+    assert control <= grids, "hinge/actuator nodes must be defined in the deck"
+    over = [ln for ln in text.splitlines() if ln.startswith("$") and len(ln) > 72]
+    assert not over, over
+
+
+# --------------------------------------------------------------------------- #
+# T7 -- the T-tail transfer
+# --------------------------------------------------------------------------- #
+@pytest.mark.parametrize("example", EXAMPLES)
+def test_only_a_t_tail_carries_a_tip_transfer(example):
+    """The gate is the layout, and nothing else (T7).
+
+    ``concept_regional_jet`` is the suite's only ``t_tail`` fixture, so it is the
+    only one whose fin decks may carry the horizontal tail. Every other fixture's
+    must be untouched -- gating isolation, which is what lets the change ship
+    without re-deriving five decks that were already right.
+    """
+    project = _project(example)
+    results = build_tail_span(project)
+    assert all(r.tip_transfer is None for r in results[HTAIL]), \
+        "a horizontal tail transfers nothing to itself"
+    fins = results[VTAIL]
+    if not is_t_tail(project):
+        assert all(r.tip_transfer is None for r in fins), example
+    else:
+        assert fins and all(r.tip_transfer is not None for r in fins), example
+
+
+def test_the_transferred_set_is_the_balancing_load_plus_the_htail_inertia():
+    """Decision T-5's pairing, against the V-n matrix it is read from.
+
+    For each fin case: the balancing tail load at that case's *own* V-n point,
+    plus ``−n·W_ht`` at that point's load factor (T-9's d'Alembert sign, the same
+    one the h-tail's own strips use). Not the critical h-tail load, which would
+    pair loads the airplane never sees together -- that policy is pre-scoped in
+    plan §8 and is deliberately not this one.
+    """
+    from sloads.mass_distribution import tail_surface_weight
+    from sloads.modules.select import vn_points as vn_of
+
+    project = _project("concept_regional_jet.project.json")
+    weight = tail_surface_weight(project, HTAIL)
+    points = {p.case: p for p in vn_of(project)}
+    critical = {c.label: c for c in project.envelope.critical.conditions
+                if c.component == VTAIL}
+    for r in build_tail_span(project)[VTAIL]:
+        point = points[critical[r.case].case]
+        t = r.tip_transfer
+        assert math.isclose(t.air_lb, point.lt, rel_tol=1e-12)
+        assert math.isclose(t.inertia_lb, -point.nz * weight, rel_tol=1e-12)
+        assert math.isclose(t.fz, t.air_lb + t.inertia_lb, rel_tol=1e-12)
+
+
+def test_the_transferred_moment_is_the_two_lever_arms():
+    """``Myy = (x_tip − x_cp)·L_bal + (x_tip − x_mass)·(−n·W_ht)``.
+
+    Two loads at two different chordwise stations -- the balancing load at the CP
+    FLTLOADS balanced about, the mass at the planform's own centroid -- so a
+    single combined arm would be wrong by the distance between them (15.5 in on
+    the regional jet). The moment sign is the ``(x_ref − x_load)·F`` form the
+    axis map derives, so the transferred set and the fin's own torsions are in
+    one convention.
+    """
+    project = _project("concept_regional_jet.project.json")
+    for r in build_tail_span(project)[VTAIL]:
+        t = r.tip_transfer
+        want = (t.x_tip - t.x_air) * t.air_lb + (t.x_tip - t.x_mass) * t.inertia_lb
+        assert math.isclose(t.myy, want, rel_tol=1e-12), r.case
+        assert t.x_tip == r.stations[-1].x, "the transfer rides the fin's last node"
+        assert not t.cp_assumed, "the RJ's V-n points publish a balanced tail CP"
+
+
+def test_a_conventional_fin_deck_is_unchanged_by_the_t_tail_code():
+    """Byte-level gating isolation: flip the layout back and the deck returns."""
+    from sloads.export import sbeam_bridge as sb
+    from sloads.models import TailType
+
+    project = _project("concept_regional_jet.project.json")
+    with_t = sb.tail_span_force_moment_cards(
+        build_tail_span(project)[VTAIL], component=VTAIL)
+    project.geometry.parametric.tail_type = TailType.CONVENTIONAL
+    without = sb.tail_span_force_moment_cards(
+        build_tail_span(project)[VTAIL], component=VTAIL)
+    assert "T-TAIL TRANSFER" in with_t and "T-TAIL TRANSFER" not in without
+    assert len(with_t.splitlines()) > len(without.splitlines())
 
 
 # --------------------------------------------------------------------------- #

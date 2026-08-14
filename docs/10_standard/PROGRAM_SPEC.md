@@ -703,6 +703,34 @@ return strings (with thin `write_*` file wrappers), and do no physics.
   fallback (see the envelope-owner rule below).
   Mass is entered **only** on the Weights page's `component` column — the Tail
   Span Loads page shows the derived weight read-only and owns no mass input.
+- **Discrete control surfaces and the first hinge moment (step T6, 2026-08-13).**
+  `TailMassInput.control_load_mode = "discrete"` (per surface, with
+  `hinges_span_in` + `actuator_span_in`) takes the control surface's own load
+  **out** of the smeared strips — over the span its hinges hold, normalised so
+  exactly that load leaves — and applies it at dedicated hinge `GRID`s on the LRA
+  by chord-weighted tributary span, with the hinge-moment couple at the actuator
+  node. GID bands `5001+` (elevator) / `5301+` (rudder). The control load is
+  **SELECT's own** (`elevator_load` / `load_on_rudder`, oracle-locked, split into
+  its camber and angle-of-attack parts so each leaves the distribution at the
+  chord station TAILDIST put it at) where the condition publishes one, and is
+  **derived from TAILDIST's aft-of-hinge pressure block and marked** where it
+  does not. The **hinge moment** — the suite's first — is that load on a third of
+  the aft-of-hinge chord, the centroid of a block that is always a triangle
+  because the net trailing-edge pressure is identically zero; it is reported as a
+  `LoadValue`, shown on the page and stated in the deck `$` header. Selecting the
+  mode without attachment geometry raises. `"smeared"` remains the default and is
+  unchanged to the byte.
+- **T-tail transfer (step T7, 2026-08-13).** Gated on
+  `layout.tail_type == T_TAIL` — the enum's first load-path consumer. Each
+  v-tail case's deck carries the horizontal tail's concurrent set at the fin's
+  **last** `GRID` (no new node): the balancing tail load at that case's own V-n
+  point plus the h-tail's inertia there (`−n·W_ht`), as a vertical `FORCE` and
+  the `MOMENT` its two lever arms make — the balancing load at the tail CP
+  `envelope.tail_balance` publishes, the mass at the planform's own centroid.
+  Roll and yaw transfer are zero (the pairing is a balancing condition, so the
+  halves cancel). Mapped by `coordinates.ttail_transfer_to_airplane`, the one
+  load in a fin deck that is not in the fin's local frame. Conventional layouts
+  are bit-identical to the T4 deck.
 - **CONM2 mass export (step C1–C5, 2026-08-08).** `sloads/export/mass_cards.py`
   writes the itemized mass model as `CONM2` cards with one `MASSSET` per
   *derivable* payload case, in three artifacts: a pasteable fragment, a

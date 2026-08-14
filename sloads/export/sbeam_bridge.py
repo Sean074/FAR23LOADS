@@ -152,6 +152,7 @@ from .coordinates import (
     to_grid,
     to_moment,
     to_pressure,
+    ttail_transfer_to_airplane,
 )
 # Single-sourced from the calc that owns the limitation (public symbol, no cycle:
 # nothing under sloads/modules imports the export bridge).
@@ -1413,6 +1414,25 @@ def tail_span_gid(component: str, i: int) -> int:
     return gid_band.allocate(i)
 
 
+_TAIL_CONTROL_BANDS = {"htail": band("tail-control-htail"),
+                       "vtail": band("tail-control-vtail")}
+
+
+def tail_control_gid(component: str, i: int) -> int:
+    """GID of hinge/actuator node ``i`` of ``component``'s control surface (T6).
+
+    Its own band per surface, for the reason the registry states: a hinge station
+    is not a strip midpoint, so it is a different point, and a deck that gained
+    hinges must not renumber the strips beside them.
+    """
+    gid_band = _TAIL_CONTROL_BANDS.get(component)
+    if gid_band is None:
+        raise ValueError(
+            f"tail control export: unknown component {component!r} -- expected "
+            "'htail' or 'vtail'; it has no GID block")
+    return gid_band.allocate(i)
+
+
 def _tail_span_results(arg, component: str) -> List:
     """The spanwise results to export for one surface."""
     if isinstance(arg, Project):
@@ -1455,6 +1475,22 @@ def _tail_span_grid_block(results: Sequence, component: str,
         gx, gy, gz = to_grid(px, py, pz, u)
         lines.append(f"GRID, {tail_span_gid(component, i)}, , "
                      f"{_fmt(gx)}, {_fmt(gy)}, {_fmt(gz)}")
+    # The discrete control surface's own nodes (T6), on the same LRA line: a hinge
+    # station is not a strip midpoint, so it gets its own node rather than the
+    # nearest one -- rounding a hinge onto a strip is how a localized load path
+    # quietly becomes the smeared one it was chosen instead of.
+    control = results[0].control_loads
+    if control:
+        kinds = ", ".join(f"{tail_control_gid(component, i)} {cp.kind}"
+                          for i, cp in enumerate(control))
+        surface = "elevator" if component == "htail" else "rudder"
+        for note in (f"{surface} attachment nodes on the same LRA line: {kinds}.",):
+            lines += [f"$ {ln}" for ln in textwrap.wrap(note, width=70)]
+        for i, cp in enumerate(control):
+            px, py, pz = tail_station_to_airplane(cp.x, cp.y, component, cp.z)
+            gx, gy, gz = to_grid(px, py, pz, u)
+            lines.append(f"GRID, {tail_control_gid(component, i)}, , "
+                         f"{_fmt(gx)}, {_fmt(gy)}, {_fmt(gz)}")
     return lines
 
 
@@ -1472,6 +1508,31 @@ def _tail_span_case_block(r, component: str, sid: int,
         "$   (not differenced from a cumulative column).",
         f"$ Control-surface load: {r.control_load_mode.upper()} into this surface.",
     ]
+    if r.control_load_mode == "discrete":
+        _, _, cs = to_force(0.0, 0.0, r.control_surface_load_lb * sf, u)
+        hm, _, _ = to_moment(r.hinge_moment_lbin * sf, 0.0, 0.0, u)
+        for line in (
+            f"Control-surface load {cs:.1f} {u.force.label} is NOT in the strip "
+            f"loads: it is applied at the hinge nodes above, {r.control_load_basis}.",
+            f"HINGE MOMENT {hm:.1f} {u.moment.label}, on an arm of "
+            f"{to_grid(r.hinge_moment_arm_in, 0.0, 0.0, u)[0]:.2f} "
+            f"{u.length.label} (a third of the aft-of-hinge chord), reacted as a "
+            "couple at the actuator node.",
+        ):
+            lines += [f"$ {ln}" for ln in textwrap.wrap(line, width=70)]
+    if r.tip_transfer is not None:
+        t = r.tip_transfer
+        _, _, tfz = to_force(0.0, 0.0, t.fz * sf, u)
+        tmy, _, _ = to_moment(t.myy * sf, 0.0, 0.0, u)
+        for line in (
+            f"T-TAIL TRANSFER at the tip node: Fz {tfz:.1f} {u.force.label}, Myy "
+            f"{tmy:.1f} {u.moment.label} -- the horizontal tail's concurrent load "
+            "(T-5 pairing: the balancing load at this case's own V-n point plus "
+            "the h-tail's inertia there).",
+            "Roll and yaw transfer are zero: the pairing is a balancing "
+            "condition, so the h-tail's halves cancel about the centreline.",
+        ):
+            lines += [f"$ {ln}" for ln in textwrap.wrap(line, width=70)]
     # Every ``$`` line stays inside 72 columns (the fixed-field bulk-data comment
     # width), so the inertia basis is wrapped rather than appended.
     basis: List[str] = []
@@ -1512,6 +1573,38 @@ def _tail_span_case_block(r, component: str, sid: int,
                          f"{_fmt(fx)}, {_fmt(fy)}, {_fmt(fz)}")
         mx, my, mz = to_moment(*tail_torsion_to_airplane(st.myy_free * sf, component), u)
         if abs(st.myy_free) > _TOL:
+            lines.append(f"MOMENT, {sid}, {gid}, {SBEAM_CID}, 1.0, "
+                         f"{_fmt(mx)}, {_fmt(my)}, {_fmt(mz)}")
+
+    # The discrete control surface's attachment loads (T6). Same axis maps as the
+    # strips -- a hinge reaction is a normal force and its couple is a torsion
+    # about the surface's own span axis -- which is the point of routing them
+    # through ``coordinates`` rather than writing the fin's sign twice.
+    for i, cp in enumerate(r.control_loads):
+        gid = tail_control_gid(component, i)
+        if abs(cp.f_normal) > _TOL:
+            fx, fy, fz = to_force(
+                *tail_force_to_airplane(cp.f_normal * sf, component), u)
+            lines.append(f"FORCE, {sid}, {gid}, {SBEAM_CID}, 1.0, "
+                         f"{_fmt(fx)}, {_fmt(fy)}, {_fmt(fz)}")
+        if abs(cp.m_torsion) > _TOL:
+            mx, my, mz = to_moment(
+                *tail_torsion_to_airplane(cp.m_torsion * sf, component), u)
+            lines.append(f"MOMENT, {sid}, {gid}, {SBEAM_CID}, 1.0, "
+                         f"{_fmt(mx)}, {_fmt(my)}, {_fmt(mz)}")
+
+    # The T-tail transfer (T7), on the fin's last node -- the only load in this
+    # deck that is not in the fin's local frame, which is why it has its own map.
+    transfer = getattr(r, "tip_transfer", None)
+    if transfer is not None and r.stations:
+        gid = tail_span_gid(component, len(r.stations) - 1)
+        fvec, mvec = ttail_transfer_to_airplane(transfer.fz * sf, transfer.myy * sf)
+        if abs(transfer.fz) > _TOL:
+            fx, fy, fz = to_force(*fvec, u)
+            lines.append(f"FORCE, {sid}, {gid}, {SBEAM_CID}, 1.0, "
+                         f"{_fmt(fx)}, {_fmt(fy)}, {_fmt(fz)}")
+        if abs(transfer.myy) > _TOL:
+            mx, my, mz = to_moment(*mvec, u)
             lines.append(f"MOMENT, {sid}, {gid}, {SBEAM_CID}, 1.0, "
                          f"{_fmt(mx)}, {_fmt(my)}, {_fmt(mz)}")
     return lines

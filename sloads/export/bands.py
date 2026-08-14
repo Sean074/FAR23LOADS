@@ -31,6 +31,8 @@ The map
        3001-4000    control-surface chord stations
        4001-4500    spanwise h-tail stations
        4501-5000    spanwise v-tail stations
+       5001-5300    elevator hinge / actuator nodes
+       5301-5600    rudder hinge / actuator nodes
        6001-6200    balanced deck, right wing
        6201-6400    balanced deck, left wing
        6401-7000    balanced deck, centreline
@@ -157,6 +159,14 @@ BANDS: Tuple[Band, ...] = (
     _band("control-surface", IdKind.GID, 3001, 1000, "sbeam_bridge.control_station_gid"),
     _band("tail-span-htail", IdKind.GID, 4001, 500, "sbeam_bridge.tail_span_gid"),
     _band("tail-span-vtail", IdKind.GID, 4501, 500, "sbeam_bridge.tail_span_gid"),
+    _band("tail-control-htail", IdKind.GID, 5001, 300,
+          "sbeam_bridge.tail_control_gid",
+          "Elevator hinge and actuator nodes (plan 09 T6). Their own band rather "
+          "than a continuation of the spanwise one: a hinge station is not a "
+          "strip midpoint, so it is a different point, and adding hinges must "
+          "never renumber the strips beside them."),
+    _band("tail-control-vtail", IdKind.GID, 5301, 300,
+          "sbeam_bridge.tail_control_gid", "Rudder hinge and actuator nodes."),
     _band("balanced-wing-right", IdKind.GID, 6001, 200, "balanced_deck.deck_nodes",
           "Left and right are separate runs so an antisymmetric case can load "
           "them differently without renumbering (plan 11 B7). The name records "

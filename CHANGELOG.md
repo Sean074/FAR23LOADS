@@ -12,6 +12,41 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **Discrete control surfaces, and the suite's first hinge moment** (plan 09
+  **T6**). Setting `control_load_mode = "discrete"` on a tail surface — with
+  `hinges_span_in` and `actuator_span_in`, new per-surface schema (**v45**,
+  additive, no hop) — takes the control surface's own load **out** of the
+  smeared spanwise strips and applies it where the airplane applies it: hinge
+  reactions by chord-weighted tributary span at dedicated `GRID`s on the load
+  reference axis (bands `5001+` elevator, `5301+` rudder), with the
+  hinge-moment couple at the actuator node. The control load is **SELECT's own**
+  (`elevator_load` / `load_on_rudder`, oracle-locked, now split into its camber
+  and angle-of-attack parts so each leaves the distribution at the chord station
+  TAILDIST placed it at) where the condition publishes one, and derived from
+  TAILDIST's aft-of-hinge pressure block — and marked derived — where it does
+  not. The **hinge moment** is that load on a third of the aft-of-hinge chord,
+  which is exact rather than approximate because the net trailing-edge pressure
+  is identically zero and the block is therefore always a triangle; it is
+  reported as a load value, shown on the Tail Span Loads page and stated in the
+  deck `$` header. The two modes apply **exactly** the same total force
+  (`rel_tol 1e-12`, a property of the construction, not of the quadrature), and
+  the root-torsion difference between them is gated as a closed form — one
+  chordwise relocation of the control load to its own centre of pressure — not
+  as a tolerance. Selecting the mode without attachment geometry raises rather
+  than falling back, and `"smeared"` remains the default: **no shipped fixture
+  carries hinge geometry and no shipped deck changed by a byte.**
+- **A T-tail's fin deck carries the horizontal tail at its tip** (plan 09
+  **T7**). `TailType.T_TAIL` had driven only the three-view sketch; it is now a
+  load path. Each vertical-tail case's deck gains, at the fin's **last** node
+  (no new `GRID`), the h-tail load concurrent with that case — the balancing
+  tail load at its own V-n point plus the h-tail's inertia there — as a vertical
+  `FORCE` and the `MOMENT` its two lever arms make, the balancing load about the
+  tail CP the V-n point publishes and the mass about the planform's own
+  centroid. Roll and yaw transfer are zero and the deck says why (the pairing is
+  a balancing condition, so the h-tail's halves cancel about the centreline).
+  `concept_regional_jet` is the suite's only T-tail fixture, and its fin deck
+  was previously the deck a *conventional* airplane would have had.
+
 - **ONENGOUT runs on shipped data.** `atr42_100` and `dhc8_dash8` now enter
   take-off and max-continuous shaft power on both engines (PW120 2000/1700 shp,
   PW121 2150/1950 shp — converted from the certificated kW in EASA TCDS
@@ -31,6 +66,11 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- **Imperial digests regenerated, once, deliberately** — three channels on
+  `concept_regional_jet` only (`sbeam/vtail_span_cards`, `csv/tail_span`,
+  `txt/tail_span`), all of them the T-tail transfer arriving in the one fixture
+  whose layout has one. Its fin's own station table (`sbeam/vtail_span_csv`) did
+  **not** move, and neither did any other example's anything.
 - **Case identity is joinable in the report and the GUI.** A solver result
   labelled `SUBCASE 7105` could be traced back to its condition only through the
   case-index **CSV**; neither the summary report nor any GUI page stated the

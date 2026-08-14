@@ -202,7 +202,13 @@ from .results import EnvelopeResult, LoadsResult, MassResult
 # decision L-1). Additive with a 0.0 "derive it" default, so no migration hop is
 # needed: absent *is* the documented value, and every pre-v43 project keeps the
 # derived placement it would have had.
-SCHEMA_VERSION = 44  # tail mass from the item SSOT: TailMassInput.weight_is_override
+# plan 09 T6 (v45): ``TailMassInput.hinges_span_in`` / ``.actuator_span_in`` --
+# the control-surface attachment geometry ``control_load_mode = "discrete"``
+# requires (decision T-17). Additive with empty/zero defaults, and absent *is* the
+# documented value: no attachment geometry means the surface stays in the
+# "smeared" mode it has always been in, so every pre-v45 project keeps exactly the
+# distribution and exactly the deck it had. No migration hop.
+SCHEMA_VERSION = 45  # plan 09 T6: control-surface hinge/actuator span stations
 
 
 @dataclass

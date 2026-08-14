@@ -2,7 +2,7 @@
 
 > **Generated file — do not edit by hand.** Produced by [`docs/generate_data_dict.py`](../generate_data_dict.py) from `sloads/models.py`. Regenerate after any schema change: `.venv/bin/python docs/generate_data_dict.py`.
 
-Schema version: **44**.
+Schema version: **45**.
 
 This dictionary covers the **input** slices of `Project` (`sloads/models.py`) — the fields that make up a `project.json`. The result slices (`envelope`, `mass`, `loads`) are computed outputs and are out of scope.
 
@@ -30,8 +30,8 @@ The top-level `Project` fields. `name`/`engineer`/`date` are free-text metadata;
 | `fuselage_mass` | `?` | Fuselage Loads | `body_loads` | Fuselage mass distribution (SELECT / Ch 15) |
 | `tail_mass` | `List[TailMassInput]` | Weight & Mass Properties (component tag) | `tail_span` | Empennage surface mass override — derived from the component-tagged weight.items by default (plan 09 T-3) |
 | `select_input` | `?` | Wing Loads / Tail Loads | `select` | Critical-load selection inputs (SELECT) |
-| `tail_loads` | `TailLoadsInput` | Geometry (empennage, Step G6) | `balloads`, `body_loads`, `select`, `taildist` | Rational horizontal-tail inputs (via geometry.empennage) |
-| `vtail_loads` | `VTailLoadsInput` | Geometry (empennage, Step G6) | `one_engine_out`, `select`, `taildist` | Rational vertical-tail inputs (via geometry.empennage) |
+| `tail_loads` | `TailLoadsInput` | Geometry (empennage, Step G6) | `balloads`, `body_loads`, `select`, `tail_span`, `taildist` | Rational horizontal-tail inputs (via geometry.empennage) |
+| `vtail_loads` | `VTailLoadsInput` | Geometry (empennage, Step G6) | `one_engine_out`, `select`, `tail_span`, `taildist` | Rational vertical-tail inputs (via geometry.empennage) |
 | `aileron_loads` | `?` | Aileron Loads | `aileron` | Aileron simplified loads (AILERON) |
 | `flap_loads` | `?` | Flap Loads | `flap` | Flap simplified loads (FLAPLOAD) |
 | `tab_loads` | `?` | Tab Loads | `tab` | Tab simplified loads (TABLOADS) |

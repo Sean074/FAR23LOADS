@@ -393,3 +393,87 @@ filed alongside it.
   `control_load_mode` is plumbed and `"discrete"` **raises** rather than falling
   back, so selecting it cannot silently return a smeared deck.
 * **T8** — the Tier-L closure trail, done as part of this session.
+
+---
+
+## 10. Phase 2 design note — T6 + T7 (agreed 2026-08-13, user)
+
+Required practice 1: theory reference, `CONVENTIONS.md` citations, closure
+targets with their expected numbers, and acceptance tolerances, agreed before
+implementation. §5's T6/T7 sections stated *what* ships; this section states the
+physics, and it supersedes them where the two differ (T-12 is such a place).
+
+### 10.1 Decisions of record
+
+| # | Decision | Rationale |
+|---|---|---|
+| T-12 | **The control-surface load is SELECT's, read never recomputed.** `select.elevator_load` (SELECT.BAS 5216-5218: `(SEFWDHL + 0.5·SEAFTHL)·LT50/(ST − SEAFTHL)` + the AoA share) and the rudder equivalent already inside `select_vtail` are the producers. They are decomposed into their **(camber, AoA) parts** by part-returning helpers in `select.py` whose sum is bit-identical to today's expression, so the two smeared parts can be de-scaled at their own chord stations. Where a condition carries no such value the load is **derived** from the TAILDIST aft-of-hinge pressure block and marked | Supersedes T6's "the control part (LT50)". `LT50` is the *camber* load and its TAILDIST trapezoid runs leading edge to trailing edge — it is not the load on the control surface, and hanging all of it on the hinges would move stabilizer load onto the elevator while ignoring the AoA share the elevator really carries. SELECT's number is oracle-locked, is the load on the surface including its aerodynamic-balance area forward of the hinge, and the module contract (`CLAUDE.md`) forbids recomputing it |
+| T-13 | **The hinge moment is `HM = L_cs · c_e/3`**, `c_e = CEAFTHL` the aft-of-hinge chord — the centroid of the aft-of-hinge block, which is **always** a triangle because TAILDIST's net trailing-edge pressure is identically zero (`WATT3 = WCAM3 = 0`) | The plan's stated provenance ("hinge moment from the TAILDIST aft-of-hinge pressure block"), and the block's shape makes the arm closed-form rather than quadrature-dependent — so the suite's first hinge-moment output has a hand-checkable gate |
+| T-14 | **Exact by construction, not by quadrature.** Removal from the strips is normalised so that exactly `L_cs` leaves, and exactly `L_cs` arrives at the hinges. The removal is spread chord-proportionally over the **control surface's span extent** (first to last hinge station), each part de-scaled at its own chord station (`att` off the 25 % line, `cam` off the 50 %) | Makes the ΣF cross-mode identity a property of the construction. Distributing the removal by the raw strip fractions would leave the identity resting on `Σ frac = 1`, which is exact for a derived rectangle and only 1 %-true for an entered polyline (the T1 validator's own tolerance) |
+| T-15 | **The actuator carries a couple, not a force.** Hinges take `L_cs` by chord-weighted tributary span at the hinge-line chord station; the actuator station takes `−HM` | With no horn radius in the schema, a rotary actuator is the honest model. It also makes the chordwise identity exact: hinge torsion + actuator couple = `L_cs·(x_lra − x_cp)`, the control load acting at its own centre of pressure |
+| T-16 | **T-tail transfer set: `Fz` and `Myy` only**, at the last v-tail `GRID`; roll and yaw transfer are zero and are stated so | The concurrent pairing (T-5) is a *balancing* condition, which is symmetric, so the h-tail's two halves cancel about the centreline. A transferred `Mxx` would be a number with no producer |
+| T-17 | **Attachment geometry lives on `TailMassInput`**, beside `control_load_mode` (`hinges_span_in`, `actuator_span_in`), and **no shipped fixture gets any** | The mode and the geometry it requires belong to one per-surface slice, so "discrete without geometry raises" is a check inside one object. Inventing hinge stations for six aircraft with no oracle is the fabrication §9.1 refused for tail polylines; the discrete gates run against a project the test builds, and every shipped deck stays byte-identical in smeared mode — which *is* the mode-isolation gate |
+
+### 10.2 Physics, stated before code
+
+Per surface, per condition, with `k_side` as in §4 and the surface's own
+`L_cs` (T-12), hinge stations `y_1 … y_m` and actuator station `y_a`:
+
+```
+c_e   = CEAFTHL = (Saft/S)·CAVE          aft-of-hinge chord      (TAILDIST)
+x_hl  = x_le + (c − c_e)                 hinge line, local chord station
+e     = c_e/3                            block centroid aft of the hinge  (T-13)
+HM    = k_side · L_cs · e                hinge moment                     (T-13)
+L_cs  = att + cam                        SELECT's parts                   (T-12)
+
+strips:    w25_j −= att · g_j            g_j = chord-weighted, Σ g_j = 1 over
+           w50_j −= cam · g_j                  the control span [y_1, y_m]
+hinge i:   F_i    = k_side · L_cs · t_i  t_i = chord-weighted tributary, Σ t_i = 1
+           M_i    = F_i · (x_lra − x_hl)       torsion carried to the LRA node
+actuator:  M_a    = −HM
+```
+
+The T-tail transfer, for a v-tail condition naming V-n point `p`, gated on
+`layout.tail_type == T_TAIL`:
+
+```
+F_air = p.lt                             the balancing h-tail load at that point
+F_in  = −p.nz · W_ht                     h-tail inertia, d'Alembert (T-9)
+Fz    = F_air + F_in                     applied at the last v-tail GRID
+Myy   = (x_tip − x_cp)·F_air + (x_tip − x_m)·F_in
+```
+
+`x_cp` is the tail CP station `envelope.tail_balance` publishes for that point
+(fallback `xt25`, marked); `x_m` is the h-tail planform's area-weighted mid-chord
+line; `x_tip` is the fin-tip node's own LRA station. The moment sign is
+`(x_ref − x_load)·F`, the same `r × F` form
+`coordinates.tail_torsion_to_airplane` derives — the axis map keeps its single
+owner (`CONVENTIONS.md` §7), which gains a `ttail_transfer_to_airplane` entry
+rather than a literal at the writer.
+
+### 10.3 Gates (R10 substitutes — no printed oracle exists for either)
+
+1. **Cross-mode force identity, exact.** `Σ F(discrete) == Σ F(smeared)` to
+   `rel_tol=1e-12` on every condition of every fixture — a property of T-14's
+   construction, not of the strip quadrature.
+2. **Hinge set closure, exact.** `Σ F_i == k_side · L_cs`, and
+   `Σ M_i + M_a == k_side·L_cs·(x_lra − x_cp_control)` with
+   `x_cp_control = x_hl + c_e/3`.
+3. **The cross-mode torsion difference is closed-form, not a tolerance.** Root
+   torsion moves by exactly `att·x_25 + cam·x_50 − L_cs·x_cp_control` — the
+   chordwise relocation of the control load from TAILDIST's two smeared stations
+   to its own centre of pressure. The test asserts the identity and *prints* the
+   number as the physical explanation, which is stronger than §5's "within a
+   stated tolerance".
+4. **Mode isolation, byte-level.** With no attachment geometry entered, every
+   shipped fixture's deck and every Imperial digest is unchanged.
+5. **T-tail transfer.** The fin deck's resultant about the origin equals the
+   VT-only resultant **plus** `Fz` and `Myy` above, exactly; with `tail_type`
+   conventional the deck is bit-identical to T4 output; the equilibrium
+   invariant still closes on the combined deck. `concept_regional_jet` is the
+   only `t_tail` fixture, so it is the only Imperial digest that moves — once,
+   deliberately, with its own `CHANGELOG` line.
+6. **Bands.** Hinge/actuator `GRID`s take registered bands
+   (`tail-control-htail` 5001-5300, `tail-control-vtail` 5301-5600); the
+   registry's own disjointness guard covers them, and the emitted-GID sweep in
+   `test_export_equilibrium.py` gains the two families.

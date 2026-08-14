@@ -971,6 +971,23 @@ class TailMassInput:
     #: is old. :func:`sloads.mass_distribution.tail_reconciliation` reports the
     #: difference either way.
     weight_is_override: bool = False
+    #: Hinge span stations of this surface's control surface (in), measured along
+    #: the **surface span axis from its root** — the same coordinate the strip
+    #: stations use, so the elevator's hinges are butt lines and the rudder's are
+    #: heights above the fin root. At least two, in any order (they are sorted).
+    #:
+    #: Required by ``control_load_mode = "discrete"`` (plan 09 T6, decision T-17):
+    #: they are what the control-surface load is reacted at, and the span between
+    #: the first and the last is taken as the control surface's own span extent —
+    #: the region the load is removed from the parent surface over. For the
+    #: symmetric horizontal tail they are entered **once**, for one side, and
+    #: mirrored, exactly as the planform polylines are.
+    hinges_span_in: List[float] = field(default_factory=list)
+    #: Span station of the actuator (in), same axis as :attr:`hinges_span_in`.
+    #: The station that carries the hinge-moment couple; ``0.0`` means "not
+    #: entered", which ``"discrete"`` mode refuses rather than defaulting, since a
+    #: guessed actuator position moves a real torsion peak along the surface.
+    actuator_span_in: float = 0.0
 
 
 @dataclass

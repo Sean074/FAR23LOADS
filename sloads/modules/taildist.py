@@ -109,9 +109,15 @@ def _critical_set(project: Project) -> CriticalLoadSet:
     return default_critical(project)
 
 
-def _surface_geom(project: Project, cond: CriticalCondition) -> Optional[tuple]:
+def surface_geom(project: Project, cond: CriticalCondition) -> Optional[tuple]:
     """``(area_sqin, aft_hinge_sqin, span_in)`` for a condition's surface, or None
-    when the chordwise geometry (the span) is not configured."""
+    when the chordwise geometry (the span) is not configured.
+
+    Public because the spanwise discrete control-load path (plan 09 T6) needs the
+    *same* three numbers this chordwise view is built on: the hinge line it
+    reacts the control surface at is TAILDIST's ``CEAFTHL``, and asking for it
+    here is what keeps one hinge line in the suite instead of two.
+    """
     if cond.component == "htail":
         ti = project.tail_loads
         if ti is None or ti.htail_semispan_in <= 0 or ti.htail_area_sqft <= 0:
@@ -138,7 +144,7 @@ def build_tail_chordwise(project: Project) -> List[TailChordResult]:
             continue
         if cond.lt25 is None or cond.lt50 is None:
             continue
-        geom = _surface_geom(project, cond)
+        geom = surface_geom(project, cond)
         if geom is None:
             continue
         area_sqin, aft_sqin, span_in = geom

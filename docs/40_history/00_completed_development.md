@@ -10,6 +10,113 @@ Acceptance**, **Key decisions**.
 
 ---
 
+## Mission step 9 — discrete control surfaces + the T-tail transfer (plan 09 T6–T8, complete, 2026-08-13)
+
+**Objective.** Close plan 09's phase 2, the two load paths its phase 1 left
+unstarted: a control surface whose load reaches the parent surface through
+**hinges and an actuator** rather than smeared into it — producing the suite's
+first hinge-moment output — and a **T-tail** whose fin deck carries the
+horizontal tail it is holding up. Tier L (new physics, schema change, new result
+types), design note agreed in chat first as
+[`plan 09 §10`](../30_future/09_distributed_empennage_loads_plan.md).
+
+**Deliverables.**
+- **T6 — the discrete control-load path.** `control_load_mode = "discrete"`,
+  per surface, with new `TailMassInput.hinges_span_in` / `.actuator_span_in`
+  (`SCHEMA_VERSION` 45, additive, no hop). The control surface's own load leaves
+  the smeared strips over the span its hinges hold and re-enters at dedicated
+  `GRID`s on the load reference axis: hinge reactions by chord-weighted
+  tributary span, and the hinge-moment couple at the actuator. New GID bands
+  `tail-control-htail` 5001-5300 and `tail-control-vtail` 5301-5600, registered
+  in `export/bands.py` like every other family. New result types
+  `ControlPointLoad` and the `TailSpanResult.control_loads` /
+  `.control_surface_load_lb` / `.hinge_moment_lbin` / `.hinge_moment_arm_in`
+  fields, surfaced on the **Tail Span Loads** page, in the module's own
+  `LoadValue`s and in the deck `$` header.
+- **T7 — the T-tail transfer.** `TailType.T_TAIL`'s first load-path consumer.
+  Each v-tail case's deck carries, at the fin's **last** node, the concurrent
+  h-tail set (balancing load at that case's own V-n point plus `−n·W_ht`) as a
+  vertical `FORCE` and the `MOMENT` its two lever arms make. New `TipTransfer`
+  result and `coordinates.ttail_transfer_to_airplane` — the one load in a fin
+  deck that is not in the fin's local frame, so it gets its own named map.
+- **`select.py` gained two part-returning helpers** (`elevator_load_parts`,
+  `rudder_load_parts`) whose sums are the existing expressions in the existing
+  order, so the oracle-locked `elevator_load` / `load_on_rudder` values are
+  unchanged to the bit and the discrete path has one producer to read rather
+  than a second copy of the arithmetic. `taildist._surface_geom` became public
+  (`surface_geom`) so the hinge line has one owner across the two tail views.
+- **Closure trail:** `CONVENTIONS.md` (two SSOT-table rows + five prose bullets:
+  the two control-load paths, the hinge-moment arm, and the T-tail transfer
+  reference point), `PROGRAM_SPEC.md` (two module/deck rows),
+  `theory_sources.md` (both gate tables as the R10 oracle substitute),
+  `GUI_design.md` (v45), regenerated `DATA_DICTIONARY.md`, `cspell.json`.
+
+**Test / Acceptance.** Ten new gates in `tests/test_tail_span.py` and a rewritten
+v-tail row in `tests/test_export_equilibrium.py`. The strong ones:
+- **Cross-mode force identity, exact** (`rel_tol 1e-12`, both surfaces, every
+  condition) — a property of the construction, since exactly the control load is
+  removed and exactly it is applied. Distributing the removal by the raw strip
+  fractions would have rested the identity on `Σ frac == 1`, which is exact for a
+  derived rectangle and only 1 %-true for an entered polyline: the T1 validator's
+  own tolerance, quietly become a load error.
+- **The hinge moment against its closed form**, `HM = L_cs · c_e/3` — 4.856 in of
+  arm on ga6, hand-derived in the test from `Saft/S = 0.40039` of a 36.388 in
+  chord.
+- **Hinge torsion + actuator couple = the control load at its own CP.** Reverse
+  the actuator's sign and the sum lands on the hinge *line* instead — a 4.86 in
+  chordwise error with nothing else in the deck to catch it.
+- **The cross-mode torsion difference as an identity, not a tolerance**: exactly
+  the chordwise relocation `att·x_25 + cam·x_50 − L_cs·x_cp`, printed as the
+  physical explanation. Plan §5's T6 asked only for "within a stated tolerance".
+- **T7's free-body gate**, read from the deck's own card text: the fin deck's
+  resultant about the origin is the axial column at its own stations plus the
+  transferred set at the node it is stated to be applied at.
+- **Gating and mode isolation, byte-level**: flip `tail_type` back to
+  conventional and the deck returns exactly; no shipped fixture carries hinge
+  geometry, so every smeared deck is unchanged. Imperial digests moved on
+  **three** channels of one fixture only (`concept_regional_jet`'s
+  `sbeam/vtail_span_cards`, `csv/tail_span`, `txt/tail_span`) — the fin's own
+  station table did not.
+
+Suite green: 1523 passed, 21 skipped; `ruff check sloads/ cli.py app/` clean.
+
+**Key decisions** (recorded as T-12…T-17 in plan 09 §10.1, agreed with the user
+before implementation).
+- **T-12 — the control-surface load is SELECT's, read never recomputed.** This
+  **supersedes T6's own sentence**, which said "the control part (`LT50`)".
+  `LT50` is the *camber* load and its TAILDIST trapezoid runs leading edge to
+  trailing edge, so hanging all of it on the hinges would move stabilizer load
+  onto the elevator while ignoring the angle-of-attack share the elevator really
+  carries. `select.elevator_load` (SELECT.BAS 5216-5218) is oracle-locked, is the
+  load on the surface *including* its aerodynamic-balance area forward of the
+  hinge, and the module contract forbids recomputing it. Where a condition
+  publishes none — the balancing, checked, gust and unsymmetrical h-tail
+  conditions, and the rudder-neutral fin ones — the load is derived from
+  TAILDIST's aft-of-hinge block and **marked**, the derive-and-mark contract the
+  tail planform is already under.
+- **T-13 — the hinge-moment arm is exactly `c_e/3`**, not an approximation:
+  TAILDIST's net trailing-edge pressure is identically zero (`WATT3 = WCAM3 = 0`),
+  so the block aft of the hinge is always a triangle, whatever the condition.
+- **T-14 — the removal is normalised**, so the force identity is structural.
+- **T-15 — the actuator carries a couple, not a force.** With no horn radius in
+  the schema a rotary actuator is the honest model, and it is what makes the
+  chordwise identity exact.
+- **T-16 — the transfer set is `Fz` and `Myy` only.** The T-5 pairing is a
+  *balancing* condition, which is symmetric, so the h-tail's halves cancel about
+  the centreline; a transferred `Mxx` would be a number with no producer.
+- **T-17 — no shipped fixture gets hinge geometry.** Inventing hinge stations for
+  six aircraft with no oracle is the fabrication §9.1 refused for the tail
+  polylines. The discrete gates run against a project the test builds, and every
+  shipped deck stays byte-identical in the mode nobody changed.
+
+**Measured, and worth recording.** The fin is shorter than the h-tail's semispan
+(57.0 in against 73.1 on ga6), so the first version of the cross-mode test —
+written with one set of hinge stations for both surfaces — was refused by the
+new validator rather than silently accepted. That is the validation working on
+its author.
+
+---
+
 ## Release cut: **sloads 0.5.0** (the assembled free-free deliverable), tag `v0.5.0`, 2026-08-13
 
 **Objective.** Close the review of record's Phase 3 (release mechanics) and cut

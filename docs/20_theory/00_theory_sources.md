@@ -314,6 +314,55 @@ symmetric, non-zero for 23.427(a)) and a v-tail row (the load is `Fy` and the
 torsion `Mzz` — a force-only check in the wrong component would still "close"),
 and plan 10's harness solves both decks in the real sbeam.
 
+### The discrete control-surface path and the first hinge moment (step T6, 2026-08-13)
+
+Also without a printed oracle, and gated the same way. The control-surface load
+itself is **not** new physics — it is `select.elevator_load` (SELECT.BAS
+5216-5218) and its rudder counterpart, Appendix-A-locked and here only *read*,
+decomposed into the two parts it is the sum of so each can leave the spanwise
+distribution from the chord station TAILDIST placed it at. What is new is where
+that load enters the structure, and the moment it makes about the hinge line.
+
+    c_e   = CEAFTHL = (Saft/S)·CAVE       aft-of-hinge chord              (TAILDIST)
+    e     = c_e/3                         centroid of the aft-of-hinge block
+    HM    = L_cs·e                        the hinge moment
+    hinge i: F_i = k_side·L_cs·t_i        chord-weighted tributary, Σ t_i = 1
+             M_i = F_i·(x_lra − x_hl)
+    actuator: M_a = −HM
+
+**The third is exact, not a rule of thumb.** TAILDIST's net trailing-edge
+pressure is identically zero (`WATT3 = WCAM3 = 0`), so the pressure block aft of
+the hinge line is *always* a triangle running from its hinge-line value to
+nothing — whatever the condition, whatever the deflection — and a triangle's
+centroid is a third of its base. That is what lets the suite's first hinge-moment
+output be gated by a closed form instead of a quadrature.
+
+| Closure | Analytic target | Why it is not a tautology |
+|---|---|---|
+| **Cross-mode force** | `ΣF(discrete) == ΣF(smeared)`, `rel_tol 1e-12` | The identity is a property of the *construction* (exactly `L_cs` removed, exactly `L_cs` applied), not of the strip quadrature — which would be exact for a derived rectangle and only 1 %-true for an entered polyline |
+| **Hinge set** | `Σ F_hinge == L_cs`; the actuator carries no force at all | The load arrives from SELECT and is shared by a tributary rule the test derives independently (25 / 50 / 25 % for hinges at 10 / 40 / 70 in) |
+| **Chordwise identity** | hinge torsion + actuator couple = `L_cs·(x_lra − x_cp)`, `x_cp = x_hl + c_e/3` | Reverse the actuator's sign and the sum lands on the hinge *line* — a 4.86 in chordwise error on ga6 with nothing else in the deck to notice it |
+| **Cross-mode torsion** | moves by exactly `att·x_25 + cam·x_50 − L_cs·x_cp` | Stated as an identity rather than "within a tolerance", so the difference is *explained* (one chordwise relocation) rather than merely bounded |
+| **Mode isolation** | no attachment geometry ⇒ every shipped deck and Imperial digest unchanged | The default path is pinned byte-for-byte, so a discrete-mode defect cannot leak into the mode nobody selected |
+
+Where a condition publishes no control-surface load of its own — the balancing,
+checked, gust and unsymmetrical h-tail conditions, and the rudder-neutral fin
+ones — the load is **derived** by integrating the aft-of-hinge block
+(`0.5·c_e·ψ(x_hl)·span`) and marked as derived on the result, the page, the CSV
+and the deck header. Derive-and-mark, the same contract the tail planform is
+under.
+
+### The T-tail transfer (step T7, 2026-08-13)
+
+A rational-pairing decision (T-5) rather than a closure: for each v-tail case,
+the **balancing** horizontal-tail load at that case's own V-n point plus that
+point's h-tail inertia, carried at the fin's last node. Its gate is a free-body
+statement read from the deck's own card text — the fin deck's resultant about the
+origin equals the v-tail-only resultant plus the transferred set at its stated
+node — plus byte-level gating isolation: flip `tail_type` back to conventional
+and the deck returns exactly. `concept_regional_jet` is the suite's only T-tail
+fixture, so it is the only Imperial digest the step moves.
+
 ### The fin's two inertia axes, and its exact-ratio closure (2026-08-10)
 
 A surface's inertia is built on the acceleration along **its own normal axis**,

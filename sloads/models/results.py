@@ -360,6 +360,73 @@ class WingLoadResult:
 
 
 @dataclass
+class ControlPointLoad:
+    """One attachment load of a discretely-modelled control surface (plan 09 T6).
+
+    In ``control_load_mode = "discrete"`` the control surface's own air load stops
+    being smeared into the parent surface and is carried into it the way the
+    airplane carries it: **normal reactions at the hinges** and the **hinge-moment
+    couple at the actuator**. This is one of those points.
+
+    ``kind`` is ``"hinge"`` or ``"actuator"``. Coordinates are the surface's local
+    frame, as :class:`TailSpanResult` describes: ``y`` the span station, ``x`` the
+    chord station of the **load reference axis** — the point sits on the LRA line
+    like every other node in the deck, so a hinge's chordwise offset from the LRA
+    arrives as torsion in ``m_torsion`` rather than as a node off the beam.
+
+    ``f_normal`` is along the surface's normal axis (vertical for the horizontal
+    tail, lateral for the fin) and ``m_torsion`` is about its **span** axis, both
+    LIMIT, in the same sign convention as :attr:`WingStationLoad.myy_free`. A
+    hinge carries both; the actuator carries ``m_torsion`` alone — with no horn
+    radius in the schema a rotary actuator is the honest model, and it is what
+    makes the chordwise identity exact (plan 09 decision T-15).
+    """
+    kind: str
+    x: float
+    y: float
+    z: float
+    f_normal: float = 0.0
+    m_torsion: float = 0.0
+
+
+@dataclass
+class TipTransfer:
+    """The horizontal tail's reaction set, carried at the fin tip (plan 09 T7).
+
+    On a T-tail the horizontal surface sits on top of the fin, so every fin case
+    is also carrying whatever the h-tail is doing concurrently. Decision T-5 says
+    what "concurrently" means: the **balancing** tail load at that case's own V-n
+    point plus the h-tail's inertia at that point's load factor — a rational
+    pairing, one deck per v-tail case, rather than the conservative
+    superposed-critical-h-tail policy (§8 keeps that as an option).
+
+    ``fz``/``myy`` are the transferred set in **airplane** axes at the fin-tip
+    node, LIMIT: a vertical force (axial to the fin) and the moment its fore-aft
+    offset makes about that node. Roll and yaw are identically zero and are not
+    fields: the pairing is a *balancing* condition, which is symmetric, so the
+    h-tail's two halves cancel about the centreline (decision T-16).
+
+    Everything else here is the audit trail — the two loads separately, the
+    chordwise stations their lever arms were taken from, and the node the set was
+    applied at — because a transferred resultant with no stations behind it cannot
+    be checked by hand.
+    """
+    fz: float = 0.0
+    myy: float = 0.0
+    air_lb: float = 0.0
+    inertia_lb: float = 0.0
+    x_air: float = 0.0
+    x_mass: float = 0.0
+    x_tip: float = 0.0
+    n_case: float = 0.0
+    surface_weight_lb: float = 0.0
+    #: Whether ``x_air`` came from the V-n point's own tail-CP station or fell
+    #: back to the 25 % tail MAC — a derived value is marked, never implied.
+    cp_assumed: bool = False
+    note: str = ""
+
+
+@dataclass
 class TailSpanResult:
     """One condition's **spanwise** empennage load table (plan 09 T2).
 
@@ -424,6 +491,29 @@ class TailSpanResult:
     #: result because the two modes describe different load paths, and a deck that
     #: claimed the wrong one would be wrong where a designer looks.
     control_load_mode: str = "smeared"
+    #: The attachment loads of a ``"discrete"`` control surface (T6). Empty in
+    #: ``"smeared"`` mode, where the control load is inside ``stations`` and there
+    #: is nothing separate to carry.
+    control_loads: List[ControlPointLoad] = field(default_factory=list)
+    #: The control surface's own air load (lb) as **applied** — both sides for the
+    #: elevator, and per-side scaled, exactly the treatment :attr:`air_total`
+    #: gives the surface load, so the two are comparable on the one condition
+    #: (23.427(a)) whose sides differ. Read from SELECT (``elevator_load`` /
+    #: ``load_on_rudder``) where the condition publishes one, derived from the
+    #: TAILDIST aft-of-hinge pressure block where it does not —
+    #: ``control_load_basis`` says which, in words, on every result.
+    control_surface_load_lb: float = 0.0
+    control_load_basis: str = ""
+    #: The surface's hinge moment (lb-in) and the arm it was formed on: the
+    #: aft-of-hinge chord's third, the centroid of TAILDIST's aft-of-hinge block
+    #: (decision T-13). **The suite's first hinge-moment output.** Non-zero only in
+    #: discrete mode, which is the only mode that has a hinge line in it.
+    hinge_moment_lbin: float = 0.0
+    hinge_moment_arm_in: float = 0.0
+    #: The h-tail set this fin carries at its tip on a T-tail (T7). ``None`` for
+    #: every horizontal-tail result, and for a fin whose layout is conventional —
+    #: the load path does not exist there, so neither does the field.
+    tip_transfer: Optional[TipTransfer] = None
     case_ref: Optional[CaseRef] = None
     safety_factor: float = ULTIMATE_FACTOR
     torsion_axis: str = "25% chord"
@@ -819,6 +909,8 @@ __all__ = [
     "TailChordStation",
     "TailChordResult",
     "TailSpanResult",
+    "ControlPointLoad",
+    "TipTransfer",
     "ControlSurfaceStation",
     "ControlSurfaceLoadResult",
     "GearReactionCase",

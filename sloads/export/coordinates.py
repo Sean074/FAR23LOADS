@@ -226,6 +226,30 @@ def tail_axial_to_airplane(axial: float, component: str) -> Vec3:
     return (0.0, axial, 0.0)
 
 
+def ttail_transfer_to_airplane(fz: float, myy: float) -> Tuple[Vec3, Vec3]:
+    """Map a T-tail's transferred tip set to airplane force/moment components.
+
+    The one load on a fin deck that is **not** in the fin's local frame. Every
+    other card there is a side load or a torsion about the fin's own span axis;
+    this is the horizontal tail sitting on top of the fin, and what it hands down
+    is a *vertical* force (airplane ``z``, axial to the fin) with the pitching
+    moment ``myy`` its fore-aft offset makes about the tip node (airplane ``y``,
+    the h-tail's span axis, not the fin's).
+
+    So the map is the identity, and it is written here anyway -- as a named
+    function rather than a literal at the writer -- because the identity is the
+    claim being made. The plausible error is to route this force through
+    :func:`tail_force_to_airplane` like everything else in the deck, which would
+    emit the horizontal tail's lift as a *side* load on the fin: a deck that
+    parses, solves, and bends the fin sideways with a pull-up.
+
+    Roll and yaw are zero by construction (plan 09 decision T-16): the concurrent
+    pairing is a balancing condition, which is symmetric, so the h-tail's two
+    halves cancel about the centreline.
+    """
+    return (0.0, 0.0, fz), (0.0, myy, 0.0)
+
+
 def tail_torsion_to_airplane(torsion: float, component: str) -> Vec3:
     """Map a tail strip's torsion about its LRA to airplane moment components.
 

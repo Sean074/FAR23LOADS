@@ -344,6 +344,8 @@ export boundary, reduction-to-FAR23 identity on GA inputs. "No oracle" never mea
 | **Empennage local frame → airplane axes** (h-tail spans `y`/loads `fz`/twists `myy`; v-tail spans `z`/loads `fy`/twists **`mzz`**; a span-axis *axial* load follows the span, so `y` for the h-tail and `z` for the fin) | `export/coordinates.py` (`tail_station_to_airplane`/`tail_force_to_airplane`/`tail_torsion_to_airplane`/`tail_axial_to_airplane`) | `tests/test_export_equilibrium.py::test_vtail_span_deck_resultants` + `::test_tail_deck_resultants` (the chordwise family takes the same map — D-R4) |
 | **An empennage surface's mass, and which acceleration acts on it** (derived from the tagged items; the fin's bending factor is lateral, its axial factor vertical) | `sloads/mass_distribution.py` (`tail_surface_weight`) + `modules/tail_span.py` (`lateral_load_factor`, `distribute`'s `n_normal`/`n_axial`) | `tests/test_tail_span.py::test_the_surface_weight_is_derived_from_the_tagged_items` + `::test_the_fin_lateral_inertia_is_exactly_the_weight_ratio_of_the_air_load` + `::test_no_shipped_fixture_produces_an_air_only_htail_deck` |
 | **Empennage planform vs. the scalar area/span** (1 % agreement; scalars stay oracle-authoritative) | `sloads/tail_geometry.py` (`resolve_tail_planform`/`validate_tail_planform`) | `tests/test_tail_geometry.py` |
+| **How a control-surface load enters its parent surface** (smeared vs. discrete; the load is SELECT's where published and TAILDIST-derived-and-marked where not; the hinge moment's arm is a third of the aft-of-hinge chord and the actuator reacts `−HM`) | `modules/tail_span.py` (`control_load_mode`/`control_load_parts`/`control_point_loads`/`control_centre_of_pressure`) — `modules/select.py` owns the load itself (`elevator_load_parts`/`rudder_load_parts`) and `modules/taildist.py` the hinge line (`surface_geom`) | `tests/test_tail_span.py::test_the_two_modes_apply_exactly_the_same_total_force` + `::test_the_hinge_moment_is_a_third_of_the_aft_of_hinge_chord` + `::test_the_hinge_and_actuator_torsion_is_the_load_at_its_own_cp` + `::test_the_cross_mode_torsion_difference_is_the_chordwise_relocation` |
+| **The T-tail transfer** (gated on `tail_type`; the set is the concurrent balancing h-tail load + its inertia, applied at the fin's **last** `GRID`; `Fz`/`Myy` only, in airplane axes) | `modules/tail_span.py` (`ttail_transfer`) + `export/coordinates.py` (`ttail_transfer_to_airplane`) | `tests/test_tail_span.py::test_only_a_t_tail_carries_a_tip_transfer` + `::test_the_transferred_moment_is_the_two_lever_arms` + `tests/test_export_equilibrium.py::test_vtail_span_deck_resultants` |
 | **Vertical-tail root waterline** (where the fin sits; explicit → T-tail relation → fuselage top → a loud zero) | `sloads/tail_geometry.py` (`fin_root_waterline`) — read by both the load path and the three-view | `tests/test_tail_geometry.py::test_the_three_view_and_the_load_path_place_one_fin_once` + `::test_the_fin_root_waterline_is_pinned_per_fixture` |
 | **Rigid-body relief field and the inertia tensor** (`f = −m(a + ω̇ × r)`; products of inertia stored as sums `Σw·a·b`, negated only in `matrix()`; weight-space `1/in`) | `sloads/rigid_body.py` (`InertiaTensor`/`inertia_tensor`/`relief_force`/`relief_moment`) | `tests/test_rigid_body.py::test_the_field_produces_exactly_minus_the_inertia_times_omega_dot` |
 | **Which components the assembly spreads** (decides whose entered self-inertia joins the closure tensor — L-3) | `sloads/mass_distribution.py` (`assembly_distributes_mass`) | `tests/test_rigid_body.py::test_the_distributed_mass_predicate_is_the_wing_and_only_the_wing` |
@@ -442,6 +444,32 @@ unhanded `VT-0n` SELECT already minted.
 * **The spanwise tail deck supersedes the fuselage deck's point tail-load
   station** (GID 1001 band) in any combined-airframe sum — apply one
   representation, never both. Stated in the deck's own `$` header.
+* **A control surface's load enters its parent surface one of two ways, and the
+  deck says which** (plan 09 T6, 2026-08-13). `"smeared"`: the control load is
+  inside the spanwise distribution, because `LT50` *is* the camber/elevator load
+  and it is spread with the rest. `"discrete"`: it leaves the strips and enters
+  at the hinge stations, with the hinge-moment couple at the actuator. The load
+  itself is **SELECT's** (`elevator_load` / `load_on_rudder`, oracle-locked) where
+  the condition publishes one and derived from TAILDIST's aft-of-hinge block —
+  marked — where it does not. Selecting `"discrete"` without hinge and actuator
+  span stations **raises**: a silent fall back would report a localized load path
+  the deck does not contain.
+* **The hinge moment is on a third of the aft-of-hinge chord.** TAILDIST's net
+  trailing-edge pressure is identically zero, so the block aft of the hinge line
+  is always a triangle and its centroid is closed-form. `HM = L_cs · c_e/3` is
+  the suite's first hinge-moment output, and the actuator reacts `−HM`, which is
+  what makes hinge torsion plus actuator couple equal the control load acting at
+  its **own** centre of pressure.
+* **On a T-tail, the horizontal tail reaches the airplane through the fin, and
+  the fin deck carries it at its tip node** (plan 09 T7, 2026-08-13). The
+  transfer reference point is the **last v-tail `GRID`** — no new node — and the
+  set is the concurrent balancing h-tail load at the fin case's own V-n point
+  plus that point's h-tail inertia. It is the one load in a fin deck that is not
+  in the fin's local frame: a vertical `Fz` and a pitching `Myy`, mapped by
+  `coordinates.ttail_transfer_to_airplane`, never through the fin's side-force
+  map. Roll and yaw transfer are zero — a balancing condition is symmetric, so
+  the h-tail's halves cancel about the centreline. A conventional layout carries
+  none of this, to the byte.
 
 ## 8. Flagged inconsistencies (2026-08-05 extraction — filed on the backlog)
 

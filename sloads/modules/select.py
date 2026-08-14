@@ -53,7 +53,7 @@ CG3, 12000 ft), ACRL AC ROLL (+1.328, 116, CG2, 12000 ft), TORS ST ROL C
 from __future__ import annotations
 
 import math
-from typing import Dict, List, NamedTuple, Optional
+from typing import Dict, List, NamedTuple, Optional, Tuple
 
 from ..case_ids import CaseIdAllocator, WING_BAND_EXTRA, WING_SLOTS, wing_case_id
 from ..models import (
@@ -380,12 +380,27 @@ def _ef(defl: float, se2st: float) -> float:
     return large_deflection_factor(defl, se2st)
 
 
-def elevator_load(lt50: float, lt25: float, ti: TailLoadsInput) -> float:
-    """Load carried by the elevator: the camber-load share aft of the hinge plus the
-    angle-of-attack-load share (SELECT.BAS 5216-5218)."""
+def elevator_load_parts(lt50: float, lt25: float,
+                        ti: TailLoadsInput) -> Tuple[float, float]:
+    """``(camber share, angle-of-attack share)`` of the elevator load.
+
+    The two terms of :func:`elevator_load`, returned separately because the
+    discrete control-surface load path (plan 09 T6, decision T-12) has to take
+    each one back out of the distribution at *its own* chord station -- the
+    camber share off the 50 % line and the AoA share off the 25 %, which is where
+    TAILDIST puts them. Their sum is the same expression, in the same order, so
+    :func:`elevator_load` is unchanged to the bit.
+    """
     se, st = ti.elevator_area_sqft, ti.htail_area_sqft
     cam = (ti.elevator_fwd_hinge_sqft + 0.5 * ti.elevator_aft_hinge_sqft) * lt50 / (st - ti.elevator_aft_hinge_sqft)
     att = 0.5 * (se / (0.75 * st)) * lt25 / st * se
+    return cam, att
+
+
+def elevator_load(lt50: float, lt25: float, ti: TailLoadsInput) -> float:
+    """Load carried by the elevator: the camber-load share aft of the hinge plus the
+    angle-of-attack-load share (SELECT.BAS 5216-5218)."""
+    cam, att = elevator_load_parts(lt50, lt25, ti)
     return cam + att
 
 
@@ -646,6 +661,22 @@ def _vt_aoa_load(yaw_deg: float, p: VnPoint, vt: VTailLoadsInput) -> float:
     return yaw_deg * _avt(vt) / _DEG * p.v_eas_kt ** 2 / 295.0 * vt.vtail_area_sqft
 
 
+def rudder_load_parts(lrud: float, lyaw: float,
+                      vt: VTailLoadsInput) -> Tuple[float, float]:
+    """``(camber share, angle-of-attack share)`` of the load carried by the rudder.
+
+    The vertical tail's counterpart to :func:`elevator_load_parts`, and the same
+    two terms ``select_vtail`` has computed inline since C6 -- lifted here, in the
+    same order, so the conditions' ``load_on_rudder`` values are unchanged to the
+    bit and the discrete control-load path (plan 09 T6, decision T-12) has one
+    producer to read instead of a second copy of the arithmetic.
+    """
+    srf, sra, sv = vt.rudder_fwd_hinge_sqft, vt.rudder_aft_hinge_sqft, vt.vtail_area_sqft
+    cam = (srf + 0.5 * sra) * lrud / (sv - sra)
+    att = 0.5 * (vt.rudder_area_sqft / (0.75 * sv)) * lyaw / sv * vt.rudder_area_sqft
+    return cam, att
+
+
 def _vt_side_gust(p: VnPoint, cg: CgCase, vt: VTailLoadsInput, izz: float) -> float:
     """Lateral gust side load at VC (FAR 23.443(b), SELECT.BAS 8840-8930)."""
     av = _avt(vt)
@@ -672,7 +703,6 @@ def select_vtail(project: Project, envelope: Optional[EnvelopeResult] = None) ->
     if not bal_a or not bal_c:
         return []
 
-    srf, sra, sv = vt.rudder_fwd_hinge_sqft, vt.rudder_aft_hinge_sqft, vt.vtail_area_sqft
     gw = vt.gross_weight_lb or max(c.weight_lb for c in fl.cg_cases)
     izz = vt.izz_slugft2 or _default_izz(vt, gw)
     out: List[CriticalCondition] = []
@@ -680,7 +710,7 @@ def select_vtail(project: Project, envelope: Optional[EnvelopeResult] = None) ->
     # 1. Sudden full rudder deflection (FAR 23.441(a)(1)) -- largest rudder load.
     p1 = max(bal_a, key=lambda p: _vt_rudder_load(p, vt))
     lv = _vt_rudder_load(p1, vt)
-    on_rudder1 = (srf + 0.5 * sra) * lv / (sv - sra)
+    on_rudder1 = sum(rudder_load_parts(lv, 0.0, vt))
     out.append(CriticalCondition(
         component="vtail", label="SUDDEN RUDDER", far_reference="23.441(a)(1)", case=p1.case,
         loads=[LoadValue("Total tail load", lv, "lb", key="total_tail_load"),
@@ -693,8 +723,7 @@ def select_vtail(project: Project, envelope: Optional[EnvelopeResult] = None) ->
         return _vt_rudder_load(p, vt) + _vt_aoa_load(-19.5, p, vt)
     p2 = min(bal_a, key=total2)
     lrud, lyaw = _vt_rudder_load(p2, vt), _vt_aoa_load(-19.5, p2, vt)
-    on_rudder2 = ((srf + 0.5 * sra) * lrud / (sv - sra)
-                  + 0.5 * (vt.rudder_area_sqft / (0.75 * sv)) * lyaw / sv * vt.rudder_area_sqft)
+    on_rudder2 = sum(rudder_load_parts(lrud, lyaw, vt))
     out.append(CriticalCondition(
         component="vtail", label="YAW TO SIDESLIP", far_reference="23.441(a)(2)", case=p2.case,
         loads=[LoadValue("Total tail load", lrud + lyaw, "lb", key="total_tail_load"),
@@ -887,5 +916,7 @@ __all__ = [
     "htail_balance",
     "HtailBalance",
     "elevator_load",
+    "elevator_load_parts",
+    "rudder_load_parts",
     "flaps_by_config_name",
 ]

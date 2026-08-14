@@ -569,6 +569,14 @@ def test_vtail_span_deck_resultants(example, system):
     exists only because the fin spans in Z -- belongs in ``Fz``, alone. A deck
     that put the axial term in ``Fy`` would close in *total* force and load the
     fin sideways with its own weight.
+
+    On a **T-tail** (plan 09 T7) the fin's tip is also holding up the horizontal
+    tail, and that set arrives on the two axes the fin has nothing else on: a
+    vertical force alongside the axial column, and a pitching moment ``Myy``
+    where a conventional fin deck has exactly zero. Both are asserted here
+    against the transfer the result states, so a deck that routed the h-tail's
+    lift through the fin's *side*-force map -- the plausible copy-paste -- fails
+    on ``Fy`` and ``Fz`` at once.
     """
     _, _, _, _, _, vtail_span = _cached(example)
     _skip_if_empty(vtail_span, example, "v-tail spanwise")
@@ -580,15 +588,29 @@ def test_vtail_span_deck_resultants(example, system):
     for idx, r in enumerate(vtail_span):
         sid = sb._sid(1, idx, r)
         where = f"{example} {system.value} vtail-span {r.case}"
+        transfer = r.tip_transfer
         got = resultant(forces, moments, grids, sid, (0.0, 0.0, 0.0))
         _, _, want = to_force(
             0.0, 0.0, (r.air_total + ts_inertia(r)) * r.safety_factor, u)
         assert closes(got.fy, want, scale=got.force_scale), f"{where} Fy"
         _, _, want_axial = to_force(
-            0.0, 0.0, ts_axial(r) * r.safety_factor, u)
+            0.0, 0.0, (ts_axial(r) + (transfer.fz if transfer else 0.0))
+            * r.safety_factor, u)
         assert closes(got.fz, want_axial, scale=got.force_scale), f"{where} Fz axial"
-        # Torsion is about the fin's span axis, z -- not y.
-        assert closes(got.m0y, 0.0, scale=got.moment_scale), f"{where} Myy (must be 0)"
+        # Torsion is about the fin's span axis, z -- not y -- so the only applied
+        # ``Myy`` card a fin deck may carry is the T-tail transfer's, and a
+        # conventional fin's is exactly none.
+        want_m0y = to_moment((transfer.myy if transfer else 0.0) * r.safety_factor,
+                             0.0, 0.0, u)[0]
+        assert closes(got.m0y, want_m0y, scale=got.moment_scale), f"{where} Myy card"
+        # And the free-body statement about the origin: the axial column at its
+        # own stations plus the transferred set at the tip node. A transfer
+        # applied at the wrong node closes in force and fails right here.
+        arm = sum(st.x * st.f_span for st in r.stations)
+        if transfer is not None:
+            arm += transfer.x_tip * transfer.fz - transfer.myy
+        assert closes(got.my, -to_moment(arm * r.safety_factor, 0.0, 0.0, u)[0],
+                      scale=got.moment_scale), f"{where} Myy free body"
         assert all(g[1] == 0.0 for g in grids.values()), f"{where}: fin is on the CL"
 
 
@@ -644,6 +666,10 @@ def test_gid_blocks_are_disjoint(example):
             emitted[f"tail-span-{component}"] = {
                 sb.tail_span_gid(component, i)
                 for r in results for i in range(len(r.stations))}
+            control = {sb.tail_control_gid(component, i)
+                       for r in results for i in range(len(r.control_loads))}
+            if control:
+                emitted[f"tail-control-{component}"] = control
     assert emitted, f"{example}: no exportable component at all"
     for name, gids in emitted.items():
         stray = {g for g in gids if g not in band(name)}
