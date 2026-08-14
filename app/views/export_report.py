@@ -159,8 +159,8 @@ _wing, _body, _tail, _control = (_components.wing, _components.body,
 # rather than described only as "filtered".
 _all_case_ids = {
     r["ID"] for r in sb.case_index_rows_from(
-        *(mr.conditions for mr in module_results), _wing or [], _body or [],
-        _tail or [], _control,
+        _wing or [], _body or [], _tail or [], _control,
+        *(mr.conditions for mr in module_results),
     ) if r.get("ID")
 }
 
@@ -286,7 +286,11 @@ if project.weight is not None and project.weight.items:
 # ConditionResults (covers engine/landing/SELECT) plus the sbeam component
 # deliverables recomputed above (covers the full wing/body/tail/control sets).
 case_index_csv = sb.case_index_csv_from(
-    *(mr.conditions for mr in module_results), _wing or [], _body or [], _tail or [], _control,
+    # Deck-exported results first: first-seen defines a row's flight condition,
+    # and the row states the condition its cards were computed at (see
+    # ``case_index_rows_from``).
+    _wing or [], _body or [], _tail or [], _control,
+    *(mr.conditions for mr in module_results),
     header_comment=_csv_stamp,
     # The assembled deck's own cases fill the second deck-number column; a case
     # is quoted in a column only when it is actually in that deck (note 17).

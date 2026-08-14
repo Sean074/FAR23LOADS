@@ -1771,6 +1771,18 @@ def case_index_rows_from(*groups: Sequence, assembled: Sequence = ()) -> List[di
     e.g. a wing case in ``wing_air``, ``wing_inertia`` and ``wing_net``) is not
     repeated.
 
+    **First-seen defines the row's flight condition**, so callers pass the
+    **deck-exported load results before** SELECT's ``CriticalCondition``s (as
+    :func:`case_index_rows` does, and as the report's case index and the Imperial
+    baseline do). One ``case_id`` can be named at two conditions -- an entered
+    ``WingLoadCase`` may restate the CL/V of a condition SELECT already picked
+    (``atr42_100``'s ``PHAA``: 170 kt entered against SELECT's 185.85 kt V-n
+    point) -- and this table is what a consumer joins ``SUBCASE 103`` to, so the
+    condition it states is the one **the cards under that id were computed at**
+    (user decision 2026-08-13; the case-side half is
+    ``wing_inertia.wing_case_ref``). SELECT's own governing-loads row keeps its
+    V-n point, which is what *its* numbers were computed at.
+
     ``assembled`` is the assembled full-span deck's own cases
     (``BalancedCaseResult``), passed separately because **which** deck column a
     row fills is a property of where the case is exported, not of its id: an id

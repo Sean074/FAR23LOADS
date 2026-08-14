@@ -53,7 +53,8 @@ def _build(system=UnitSystem.IMPERIAL):
     control = build_aileron(project) + build_flap(project) + build_tabs(project)
 
     case_index_csv = sb.case_index_csv_from(
-        *(mr.conditions for mr in module_results), net.wing_net, body, tail, control,
+        net.wing_net, body, tail, control,
+        *(mr.conditions for mr in module_results),
     )
     span_csvs = {"Wing Span Loads": sb.span_load_csv(net.wing_net, system=system),
                  "Control Surface Loads": sb.control_surface_csv(control, system=system)}

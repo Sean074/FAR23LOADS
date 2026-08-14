@@ -105,6 +105,31 @@ fast-follow, not a gate.
 
 ---
 
+## A wing case row states the condition its loads were computed at (post-0.5.0 Pri 1 — complete 2026-08-13, tier M)
+
+Decision **D-23**: where a `WingLoadCase` states its own `v_eas_kt`, that speed —
+the one `net_loads._air_cl_v` builds the air load from — is what `wing_case_ref`
+puts on the `CaseRef`, even where SELECT named the same condition at a different
+V-n point. Previously SELECT's ref was returned whole, so `atr42_100`'s `PHAA`
+row read 185.85 kt beside loads computed at the entered 170 kt (and ga6's `ACRL`
+117.4 against 116 — the M4-2 derived-ACRL divergence, showing up as a label).
+SELECT's `case_id` is kept (M4-2 decision 1, which the case-index dedupe
+assumes), as are CG, altitude and the FAR reference, which the case does not
+state; SELECT's own governing-loads row keeps its V-n point, which is what its
+numbers were computed at, and the case-index note now says so. The index's
+ordering rule became explicit in the same change — deck-exported results before
+SELECT's conditions, first-seen defines a row's condition — with all four callers
+(report, Export page, workbook, Imperial baseline) put in that order. Gates:
+`test_every_wing_case_row_names_the_speed_its_loads_were_computed_at` (every
+entered case on every fixture, ref speed == `_air_cl_v` speed),
+`test_the_case_id_stays_selects_when_the_speed_is_the_cases_own`, the atr42 pin,
+and `test_the_index_row_states_the_condition_its_cards_were_computed_at` for the
+caller ordering. Imperial baseline regenerated deliberately: `csv/wing_inertia`,
+`csv/net_loads` and `case_index` on all six examples; **no deck channel moved**
+— the identity changed, the numbers did not.
+
+---
+
 ## Case identity ↔ deck LOAD id linkage (post-0.5.0 Pri 2 — complete 2026-08-13, tier M)
 
 The case id, the deck `LABEL` and the deck `LOAD`/`SUBCASE` integer are one

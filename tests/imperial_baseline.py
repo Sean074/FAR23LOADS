@@ -138,9 +138,12 @@ def artifacts(example: str) -> Dict[str, str]:
     # deck's own cases (design note 17), so the baseline builds them here too --
     # a column no channel renders is a column no digest can protect.
     balanced = _try(build_balanced_cases, project, []) or []
+    # Deck-exported results first (see ``case_index_rows_from``): first-seen
+    # defines a row's flight condition, and the row states the condition its
+    # cards were computed at.
     index = _try(sb.case_index_csv_from,
-                 *(mr.conditions for mr in module_results),
                  wing or [], body or [], tail or [], control,
+                 *(mr.conditions for mr in module_results),
                  assembled=balanced)
     if index:
         out["case_index"] = index

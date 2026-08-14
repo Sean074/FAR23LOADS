@@ -32,7 +32,7 @@ BL 23: root density 2.213 lb/ft²; case 138 Nz −2.54 Nx −0.1318 root Mxx −
 from __future__ import annotations
 
 import math
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import Dict, List, NamedTuple, Optional
 
 from ..case_ids import COMPONENT_PREFIX, WING_BAND_EXTRA, WING_SLOTS, wing_case_id
@@ -342,13 +342,29 @@ def resolve_wing_cases(project: Project, wm: WingMassInput,
             for c in _critical_wing_conditions(project, sources)]
 
 
+def _stated_speed(case: WingLoadCase, vp: Optional[VnPoint],
+                  fallback: Optional[float] = None) -> Optional[float]:
+    """The speed the case's loads are **computed at** -- the case's own
+    ``v_eas_kt`` when it states one, else its V-n point's, else ``fallback``.
+
+    Same precedence as ``net_loads._air_cl_v``, which is the point: the speed a
+    deliverable names and the speed its numbers were built from come from one
+    rule (user decision 2026-08-13, backlog priority 1).
+    """
+    if case.v_eas_kt is not None:
+        return case.v_eas_kt
+    if vp is not None:
+        return vp.v_eas_kt
+    return fallback
+
+
 def wing_case_ref(project: Project, index: int, case: WingLoadCase,
                   sources: Optional[WingCaseSources] = None) -> CaseRef:
     """The :class:`CaseRef` for wing structural case ``index`` (0-based) in the
     resolved case list (:func:`resolve_wing_cases`).
 
     **One ID per physical condition** (M4-2 decision 1): when SELECT has already
-    named this condition, its :class:`CaseRef` is returned *unchanged* -- the
+    named this condition, its :class:`CaseRef`'s ``case_id`` is kept -- the
     spanwise distribution WINGINER/NETLOADS produce is another deliverable of the
     same case, not a second case, which is exactly what
     ``sbeam_bridge.case_index_rows_from``'s dedupe-by-``case_id`` assumes. Failing
@@ -357,15 +373,29 @@ def wing_case_ref(project: Project, index: int, case: WingLoadCase,
     either way -- and a name outside the table takes the next
     ``case_ids.WING_BAND_EXTRA`` slot.
 
+    **The flight condition is the case's own** (user decision 2026-08-13): where
+    ``WingLoadCase`` states a ``v_eas_kt``, that speed is what the loads were
+    computed at (``net_loads._air_cl_v``), so it is the speed the row states --
+    even when SELECT named the same condition at a different V-n point. On
+    ``atr42_100`` the fixture enters ``PHAA`` at 170 kt while SELECT's ``PHAA``
+    point is 185.85 kt (``balance.py`` records the same divergence), and before
+    this the case-index row read 185.9 kt beside loads built at 170. CG, altitude
+    and the FAR reference stay SELECT's: the case states none of them, and they
+    are properties of the physical condition the shared ``case_id`` names.
+
     Still a **pure function** of the project and the case's position, not a
     stateful allocator, so ``wing_inertia.py`` and ``net_loads.py`` -- two
     independent modules iterating the same list -- agree on the identical
     ``CaseRef`` without sharing runtime state.
     """
     src = _sources(project, sources)
+    vp = src.vn.get(case.case) if case.case is not None else None
     for c in src.wing_conditions:
         if c.label == case.name and c.case_ref is not None:
-            return c.case_ref
+            speed = _stated_speed(case, vp, fallback=c.case_ref.speed_kt)
+            if speed == c.case_ref.speed_kt:
+                return c.case_ref
+            return replace(c.case_ref, speed_kt=speed)
     if case.name in WING_SLOTS:
         case_id = wing_case_id(case.name)
     else:
@@ -375,13 +405,12 @@ def wing_case_ref(project: Project, index: int, case: WingLoadCase,
         extras = [i for i, c in enumerate(cases) if c.name not in WING_SLOTS]
         seq = WING_BAND_EXTRA + (extras.index(index) if index in extras else index)
         case_id = f"{COMPONENT_PREFIX['wing']}-{seq:02d}"
-    vp = src.vn.get(case.case) if case.case is not None else None
     return CaseRef(
         case_id=case_id,
         component="wing",
         condition=case.name,
         cg=vp.cg if vp else "",
-        speed_kt=case.v_eas_kt if case.v_eas_kt is not None else (vp.v_eas_kt if vp else None),
+        speed_kt=_stated_speed(case, vp),
         altitude_ft=vp.altitude_ft if vp else None,
         far_reference="23.301(b)",
     )

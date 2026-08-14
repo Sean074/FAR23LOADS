@@ -36,7 +36,11 @@ from sloads.models import WingMassInput  # noqa: E402
 from sloads.modules.flight_envelope import build_envelope  # noqa: E402
 from sloads.modules.net_loads import _air_cl_v  # noqa: E402
 from sloads.modules.select import build_critical  # noqa: E402
-from sloads.modules.wing_inertia import _resolve_case, resolve_wing_cases  # noqa: E402
+from sloads.modules.wing_inertia import (  # noqa: E402
+    _resolve_case,
+    resolve_wing_cases,
+    wing_case_ref,
+)
 
 _EXAMPLES = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "examples")
 _GA = os.path.join(_EXAMPLES, "ga6_normal.project.json")
@@ -126,6 +130,82 @@ def test_the_acrl_divergence_is_the_documented_one():
     assert not math.isclose(cl, cl_want, rel_tol=1e-2), (
         "derived and hand-entered ACRL CL now agree -- close the backlog defect "
         "and turn this into an equality assertion")
+
+
+# --------------------------------------------------------------------------- #
+# The row states the condition its numbers were computed at (user decision
+# 2026-08-13, backlog priority 1)
+# --------------------------------------------------------------------------- #
+def _atr42_project():
+    """ATR-42 with a persisted envelope + critical set -- the fixture whose entered
+    wing conditions genuinely differ from SELECT's V-n picks."""
+    project = io.load_project(os.path.join(_EXAMPLES, "atr42_100.project.json"))
+    project.envelope = build_envelope(project)
+    project.envelope.critical = build_critical(project)
+    return project
+
+
+def test_every_wing_case_row_names_the_speed_its_loads_were_computed_at():
+    """The gate for the decision: for every entered case on every fixture, the
+    ``CaseRef`` speed is the speed ``net_loads`` built the air load from. Before
+    this, a case SELECT had already named kept SELECT's V-n speed instead."""
+    for name in sorted(f for f in os.listdir(_EXAMPLES) if f.endswith(".project.json")):
+        project = io.load_project(os.path.join(_EXAMPLES, name))
+        if project.wing_mass is None or not project.wing_mass.cases:
+            continue
+        if project.flight_loads is None:
+            continue
+        project.envelope = build_envelope(project)
+        project.envelope.critical = build_critical(project)
+        cases = resolve_wing_cases(project, project.wing_mass)
+        for i, case in enumerate(cases):
+            _, v = _air_cl_v(project, case)
+            ref = wing_case_ref(project, i, case)
+            assert ref.speed_kt is not None and math.isclose(ref.speed_kt, v, rel_tol=1e-12), (
+                f"{name} {case.name}: row states {ref.speed_kt} kt, loads computed at {v} kt")
+
+
+def test_the_case_id_stays_selects_when_the_speed_is_the_cases_own():
+    """The other half of the decision: only the flight-condition fields move.
+    ``case_id`` remains SELECT's (M4-2 decision 1 -- one ID per physical
+    condition, which the case-index dedupe assumes), and CG / altitude / FAR stay
+    SELECT's too, since the case states none of them."""
+    project = _atr42_project()
+    select_refs = {c.label: c.case_ref for c in project.envelope.critical.conditions
+                   if c.component == "wing" and c.case_ref is not None}
+    cases = resolve_wing_cases(project, project.wing_mass)
+    diverged = 0
+    for i, case in enumerate(cases):
+        want = select_refs.get(case.name)
+        if want is None:
+            continue
+        ref = wing_case_ref(project, i, case)
+        assert ref.case_id == want.case_id, case.name
+        assert (ref.cg, ref.altitude_ft, ref.far_reference) == (
+            want.cg, want.altitude_ft, want.far_reference), case.name
+        if want.speed_kt is not None and case.v_eas_kt is not None \
+                and not math.isclose(ref.speed_kt, want.speed_kt, rel_tol=1e-9):
+            diverged += 1
+        # SELECT's own CaseRef is never mutated -- the wing row takes a copy.
+        assert want.speed_kt == select_refs[case.name].speed_kt
+    assert diverged, (
+        "atr42_100 no longer enters a wing condition at a different speed from "
+        "SELECT's V-n pick -- this fixture is the reason the decision exists")
+
+
+def test_the_atr42_phaa_divergence_is_pinned():
+    """The measured instance behind the decision: the fixture enters PHAA at
+    170 kt, SELECT's PHAA point is 185.85 kt. The row now reads 170."""
+    project = _atr42_project()
+    cases = resolve_wing_cases(project, project.wing_mass)
+    phaa = next(((i, c) for i, c in enumerate(cases) if c.name == "PHAA"), None)
+    assert phaa is not None, "atr42_100 no longer enters a PHAA wing case"
+    i, case = phaa
+    select_ref = next(c.case_ref for c in project.envelope.critical.conditions
+                      if c.component == "wing" and c.label == "PHAA")
+    assert math.isclose(case.v_eas_kt, 170.0, rel_tol=1e-9)
+    assert math.isclose(select_ref.speed_kt, 185.85, rel_tol=1e-3), select_ref.speed_kt
+    assert math.isclose(wing_case_ref(project, i, case).speed_kt, 170.0, rel_tol=1e-9)
 
 
 if __name__ == "__main__":

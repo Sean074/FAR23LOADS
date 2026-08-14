@@ -60,6 +60,30 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   41,775 lb (empty 25,395 → 25,065 lb). `atr42_100`'s stored 3400 already
   matched its 2×1700 and did not move. No load path, deck, oracle or other
   example moved.
+- **A wing case row states the flight condition its loads were computed at**
+  (**D-23**, backlog priority 1). `wing_case_ref` kept SELECT's `CaseRef`
+  *whole* when SELECT had named the condition, so a case that restates its own
+  CL/speed shipped rows labelled with a speed its numbers were not built from —
+  `atr42_100`'s `PHAA` read 185.85 kt (SELECT's V-n point) beside loads computed
+  at the entered 170 kt, and `ga6_normal`'s `ACRL` read 117.4 kt against the
+  worked example's 116. The `CaseRef` now takes the case's own `v_eas_kt`
+  wherever it states one — the same precedence `net_loads._air_cl_v` computes
+  the air load by — so the wing CSVs, the case index and the report agree on one
+  speed per case. **SELECT's `case_id` is kept** (M4-2 decision 1: one ID per
+  physical condition, which the case-index dedupe assumes), as are CG, altitude
+  and the FAR reference, which the case does not state; SELECT's own
+  governing-loads row keeps its V-n point, which is what *its* numbers were
+  computed at. The case index's ordering rule is now explicit and stated in
+  `case_index_rows_from` — deck-exported results before SELECT's conditions,
+  first-seen defines a row's condition — with the four callers (report, Export
+  page, workbook, baseline) put in that order and a drift guard on it
+  (`tests/test_case_ids.py::test_the_index_row_states_the_condition_its_cards_were_computed_at`).
+  No load number, card, deck or oracle moved.
+- **Imperial baseline regenerated — deliberate (wing case conditions).** Three
+  channels move on all six examples: `csv/wing_inertia` and `csv/net_loads` (the
+  Speed column on the cases that restate their condition) and `case_index` (the
+  same speeds, plus the row order the caller change implies). No `sbeam/*` deck
+  channel moved — the identity changed, the numbers did not.
 - **Imperial baseline regenerated again — deliberate (case-identity linkage).**
   `case_index` moves on all six examples (two new columns) and
   `sbeam/balanced_deck` on the two that assemble (the case id added to the map

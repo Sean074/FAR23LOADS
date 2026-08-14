@@ -995,8 +995,12 @@ def _case_index_table(module_results, comps: ComponentLoads,
     """
     from ..export.sbeam_bridge import LOAD_ID_COLUMN, case_index_rows_from
 
-    groups = [mr.conditions for mr in module_results] + [
-        comps.wing, comps.body, comps.tail, comps.control]
+    # Deck-exported results first, SELECT's conditions after: first-seen defines
+    # a row's flight condition, and this table is the join from a SUBCASE to the
+    # condition its cards were computed at (user decision 2026-08-13 -- see
+    # ``case_index_rows_from``).
+    groups = [comps.wing, comps.body, comps.tail, comps.control] + [
+        mr.conditions for mr in module_results]
     rows = case_index_rows_from(*groups, assembled=assembled)
     sf_by_id: Dict[str, float] = {}
     for group in groups:
@@ -1024,7 +1028,12 @@ def _case_index_table(module_results, comps: ComponentLoads,
              "per-component deck it is analysed in, and the assembled full-span "
              "model — and a dash means the case is not in that deck at all. "
              "Every other table in this report identifies its rows by case ID "
-             "and joins to a solver result through this one.",
+             "and joins to a solver result through this one. The flight "
+             "condition stated is the one the cards under that ID were computed "
+             "at: where an entered wing case restates the CL/speed of a "
+             "condition SELECT also picked, this row carries the entered "
+             "condition and the governing-loads table carries SELECT's own V-n "
+             "point.",
     )
 
 

@@ -1056,9 +1056,19 @@ shipped); summary for anyone adding a new module:
   `case_ref`, they never re-mint.
 - **One ID per physical condition (M4-2).** Where two modules deliver the same
   case — SELECT names the governing wing point, WINGINER/NETLOADS distribute it
-  spanwise — they carry the *same* `CaseRef`: `wing_inertia.wing_case_ref`
+  spanwise — they carry the *same* `case_id`: `wing_inertia.wing_case_ref`
   returns SELECT's ref when the condition matches by name, and the case index's
-  dedupe-by-`case_id` collapses the two deliverables to one row. The wing `seq`
+  dedupe-by-`case_id` collapses the two deliverables to one row. **The flight
+  condition stated is the case's own** (user decision 2026-08-13): where
+  `WingLoadCase` states a `v_eas_kt`, that is the speed the loads were computed
+  at (`net_loads._air_cl_v`), so it is the speed the `CaseRef` — and therefore
+  the case-index row — states, even where SELECT named the same condition at a
+  different V-n point (`atr42_100` enters `PHAA` at 170 kt against SELECT's
+  185.85 kt). Only the speed moves: `case_id`, CG, altitude and the FAR
+  reference stay SELECT's, since the case states none of them and they are
+  properties of the physical condition the shared id names. Guarded by
+  `tests/test_wing_case_derivation.py::
+  test_every_wing_case_row_names_the_speed_its_loads_were_computed_at`. The wing `seq`
   is a property of the **condition**, from `case_ids.WING_SLOTS`
   (PHAA 1, PLAA 2, PMAA 3, NMAA 4, ACRL 5, TORS 6), not of its position in any
   list — so a missing pick leaves a gap instead of renumbering its neighbours,

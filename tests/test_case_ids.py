@@ -366,6 +366,37 @@ def test_the_report_case_index_states_the_same_pairs_as_the_csv():
             assert row[cols[header]] == (csv_row[LOAD_ID_COLUMN[family]] or NO_LOAD_ID)
 
 
+def test_the_index_row_states_the_condition_its_cards_were_computed_at():
+    """User decision 2026-08-13. ``atr42_100`` enters ``PHAA`` at 170 kt while
+    SELECT's ``PHAA`` V-n point is 185.85 kt, and both deliverables share one
+    ``case_id`` (M4-2 decision 1). The index is what a consumer joins
+    ``SUBCASE 101`` to, so it states the condition the **cards** were built at --
+    which is the entered case's, since that is what ``net_loads`` computed from.
+
+    The mechanism is caller ordering (deck-exported results before SELECT's
+    conditions, first-seen wins), so this also guards the ordering in
+    ``imperial_baseline``, the Export page and the report against a well-meaning
+    tidy-up that puts the module results back in front.
+    """
+    from sloads.modules.wing_inertia import resolve_wing_cases
+
+    project = io.load_project(os.path.join(_EXAMPLES, "atr42_100.project.json"))
+    entered = {c.name: c for c in resolve_wing_cases(project, project.wing_mass)}
+    rows = _index_rows(_linkage_artifacts("atr42_100.project.json"))
+
+    checked = 0
+    for name, case in entered.items():
+        if case.v_eas_kt is None:
+            continue
+        row = rows.get(wing_case_id(name))
+        if row is None:                      # a condition this project does not export
+            continue
+        assert float(row["Speed (kt)"]) == pytest.approx(case.v_eas_kt, rel=1e-9), (
+            f"{name}: index says {row['Speed (kt)']} kt, loads computed at {case.v_eas_kt}")
+        checked += 1
+    assert checked, "no entered wing case reached the index -- the gate checked nothing"
+
+
 def test_deck_load_id_never_raises_on_a_case_id_it_cannot_map():
     """A reference table with a blank cell beats a report that failed to build --
     but the family itself is a programming error and does raise."""
