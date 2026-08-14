@@ -33,6 +33,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 
+from ..case_ids import ASSEMBLED_DECK, COMPONENT_DECK, NO_LOAD_ID
 from ..constants import ULTIMATE_FACTOR
 from ..models import SCHEMA_VERSION, Project, VdBasis
 from ..units import (
@@ -981,30 +982,49 @@ _STATUS_LABEL = {
 }
 
 
-def _case_index_table(module_results, comps: ComponentLoads) -> Table:
-    """The case index, with the safety factor §4.4 requires beside each case."""
-    from ..export.sbeam_bridge import case_index_rows_from
+def _case_index_table(module_results, comps: ComponentLoads,
+                      assembled: Sequence = ()) -> Table:
+    """The case index, with the safety factor §4.4 requires beside each case.
+
+    Carries **both** deck-number columns (design note 17): the component-deck
+    ``LOAD``/``SUBCASE`` and the assembled-deck one, each filled only where the
+    case is actually in that deck. This table is the document's join between a
+    solver result and the condition that produced it, which is why every other
+    table in the report identifies its rows by case id and points here rather
+    than repeating the pair.
+    """
+    from ..export.sbeam_bridge import LOAD_ID_COLUMN, case_index_rows_from
 
     groups = [mr.conditions for mr in module_results] + [
         comps.wing, comps.body, comps.tail, comps.control]
-    rows = case_index_rows_from(*groups)
+    rows = case_index_rows_from(*groups, assembled=assembled)
     sf_by_id: Dict[str, float] = {}
     for group in groups:
         for item in group:
             ref = getattr(item, "case_ref", None)
             if ref is not None and ref.case_id not in sf_by_id:
                 sf_by_id[ref.case_id] = getattr(item, "safety_factor", ULTIMATE_FACTOR)
+    comp_col, asm_col = LOAD_ID_COLUMN[COMPONENT_DECK], LOAD_ID_COLUMN[ASSEMBLED_DECK]
     return Table(
         title="Case index",
-        columns=["ID", "Component", "Condition", "CG", "Speed (kt)", "Altitude (ft)",
-                 "FAR", "SF"],
-        rows=[[r["ID"], r["Component"], r["Condition"], r["CG"], r["Speed (kt)"],
+        columns=["ID", "LOAD (comp.)", "LOAD (asm.)", "Component", "Condition", "CG",
+                 "Speed (kt)", "Altitude (ft)", "FAR", "SF"],
+        rows=[[r["ID"], r[comp_col] or NO_LOAD_ID, r[asm_col] or NO_LOAD_ID,
+               r["Component"], r["Condition"], r["CG"], r["Speed (kt)"],
                r["Altitude (ft)"], r["FAR"],
                format_value(sf_by_id.get(r["ID"], ULTIMATE_FACTOR))] for r in rows],
         small=True,
         note="Case IDs are the same identities that appear in the companion "
              "case-index CSV and in the sbeam FORCE/MOMENT cards; they are never "
-             "re-minted or renumbered for presentation.",
+             "re-minted or renumbered for presentation. The two LOAD columns are "
+             "the deck-side identity of the same case: the integer a deck uses "
+             "for both its SUBCASE and its load-set SID (LOAD = 103 inside "
+             "SUBCASE 103), and the deck's LABEL is the case ID itself. They "
+             "differ because a case is numbered once per deck family — the "
+             "per-component deck it is analysed in, and the assembled full-span "
+             "model — and a dash means the case is not in that deck at all. "
+             "Every other table in this report identifies its rows by case ID "
+             "and joins to a solver result through this one.",
     )
 
 
@@ -1086,7 +1106,7 @@ def _section_conditions(project: Project, module_results, comps: ComponentLoads,
         section_heading("conditions"),
         body=[scope_text, headline],
         tables=[
-            _case_index_table(module_results, comps),
+            _case_index_table(module_results, comps, run.cases or []),
             coverage,
             _balanced_skips_table(run),
             Table(

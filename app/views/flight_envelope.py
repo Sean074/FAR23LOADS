@@ -40,6 +40,7 @@ from sloads import (
     to_display,
     to_imperial_scalar,
 )
+from sloads.case_ids import case_label
 from sloads.derived_geometry import wing_reference
 from sloads.modules.configuration import run as configuration_run
 from sloads.modules.flight_envelope import build_envelope, run as flt_run, trim_sweep
@@ -382,7 +383,10 @@ def _tab_select() -> None:
                 all_ids.append(cid)
                 default_checked = cid in prior_selected if prior_selected is not None else True
                 checked = st.checkbox(
-                    f"{c.label} ({cid})", value=default_checked, key=f"select_{cid}",
+                    # One shared formatter for every case label in the app
+                    # (design note 17): id, deck LOAD/SUBCASE, condition, FAR.
+                    case_label(c.case_ref, condition=c.label),
+                    value=default_checked, key=f"select_{cid}",
                 )
                 if checked:
                     checked_ids.append(cid)

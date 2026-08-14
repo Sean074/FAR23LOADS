@@ -126,7 +126,8 @@ import textwrap
 from dataclasses import dataclass
 from typing import List, Sequence, Union
 
-from ..case_ids import HANDS, balanced_subcase_id, subcase_id
+from ..case_ids import (ASSEMBLED_DECK, COMPONENT_DECK, deck_load_id,
+                        subcase_id)
 from ..constants import ULTIMATE_FACTOR
 from ..models import (
     BodyLoadResult,
@@ -1747,26 +1748,20 @@ def filter_by_selected_case_ids(results: Sequence, selected_ids) -> List:
 # --------------------------------------------------------------------------- #
 # Case-index table (ID -> component, condition, CG, speed, altitude, FAR)
 # --------------------------------------------------------------------------- #
-def _subcase_column(case_id: str) -> str:
-    """The case's deck ``SUBCASE`` number for the index, or ``""`` for an id this
-    module cannot map (never raise: the index is a reference table, and a row
-    without a deck number is more useful than no table).
-
-    A **handed** id (``W-05R``) exists only in the assembled deck, so it is
-    mapped through that deck's own minting (:func:`case_ids.balanced_subcase_id`,
-    D-R7) rather than blanked -- the per-component ``subcase_id`` deliberately
-    refuses a hand, and refusing it here would have printed an empty cell for
-    the deliverable's own cases the first time one reached the index.
-    """
-    try:
-        if case_id[-1:] in HANDS:
-            return str(balanced_subcase_id(case_id))
-        return str(subcase_id(case_id))
-    except ValueError:
-        return ""
+#: The index's deck-number column per deck family. **Two** columns, not one
+#: (design note 17, user decision 2026-08-13): one case can hold a number in
+#: both -- ``W-05`` is ``105`` in the wing component deck and ``5105`` in the
+#: assembled full-span one -- so a single unqualified column would be silently
+#: wrong for whichever family it was not quoting. Each header keeps the word
+#: ``SUBCASE`` a consumer greps for beside the ``LOAD`` the card set is selected
+#: by; they are one integer in the deck (``LOAD = 103`` inside ``SUBCASE 103``).
+LOAD_ID_COLUMN = {
+    COMPONENT_DECK: "LOAD/SUBCASE (component)",
+    ASSEMBLED_DECK: "LOAD/SUBCASE (assembled)",
+}
 
 
-def case_index_rows_from(*groups: Sequence) -> List[dict]:
+def case_index_rows_from(*groups: Sequence, assembled: Sequence = ()) -> List[dict]:
     """One row per distinct ``case_id`` across any number of case-carrying object
     groups (anything with a ``.case_ref`` -- ``WingLoadResult``, ``BodyLoadResult``,
     ``TailChordResult``, ``ControlSurfaceLoadResult``, ``CriticalCondition``,
@@ -1775,31 +1770,53 @@ def case_index_rows_from(*groups: Sequence) -> List[dict]:
     ``case_id`` seen again (the same case appearing in multiple deliverables --
     e.g. a wing case in ``wing_air``, ``wing_inertia`` and ``wing_net``) is not
     repeated.
+
+    ``assembled`` is the assembled full-span deck's own cases
+    (``BalancedCaseResult``), passed separately because **which** deck column a
+    row fills is a property of where the case is exported, not of its id: an id
+    is quoted in a column only when it is actually in that deck. A handed id
+    (``W-05R``) therefore fills the assembled column alone; a symmetric case that
+    both stands as a component deck and assembles fills both, which is the point
+    of carrying two columns (design note 17).
     """
-    seen = set()
+    by_id: dict = {}
     rows: List[dict] = []
-    for group in groups:
-        for item in group:
-            ref = getattr(item, "case_ref", None)
-            if ref is None or ref.case_id in seen:
-                continue
-            seen.add(ref.case_id)
-            rows.append({
+
+    def add(item, family: str) -> None:
+        ref = getattr(item, "case_ref", None)
+        if ref is None:
+            return
+        row = by_id.get(ref.case_id)
+        if row is None:
+            row = {
                 "ID": ref.case_id,
                 # The deck-side identity of the same case (M4-2 decision 10): the
                 # index is where a consumer joins "SUBCASE 103" to its condition.
-                "SUBCASE": _subcase_column(ref.case_id),
+                LOAD_ID_COLUMN[COMPONENT_DECK]: "",
+                LOAD_ID_COLUMN[ASSEMBLED_DECK]: "",
                 "Component": ref.component,
                 "Condition": ref.condition,
                 "CG": ref.cg,
                 "Speed (kt)": f"{ref.speed_kt:.2f}" if ref.speed_kt is not None else "",
                 "Altitude (ft)": f"{ref.altitude_ft:.0f}" if ref.altitude_ft is not None else "",
                 "FAR": ref.far_reference,
-            })
+            }
+            by_id[ref.case_id] = row
+            rows.append(row)
+        column = LOAD_ID_COLUMN[family]
+        if not row[column]:
+            row[column] = deck_load_id(ref.case_id, family)
+
+    for group in groups:
+        for item in group:
+            add(item, COMPONENT_DECK)
+    for item in assembled:
+        add(item, ASSEMBLED_DECK)
     return rows
 
 
-def case_index_rows(project: Project, extra: Sequence = ()) -> List[dict]:
+def case_index_rows(project: Project, extra: Sequence = (),
+                    assembled: Sequence = ()) -> List[dict]:
     """One row per distinct ``case_id`` across ``project``'s persisted result
     slices, plus any ``extra`` case-carrying objects (e.g. a run's engine
     ``ConditionResult``s or LANDLOAD ``GearReactionCase``s -- transient results
@@ -1809,7 +1826,9 @@ def case_index_rows(project: Project, extra: Sequence = ()) -> List[dict]:
     -> tail_chordwise -> control_surface), then ``envelope.critical`` (SELECT's
     own conditions -- since M4-2 a wing condition and the WINGINER/NETLOADS
     distribution derived from it share one ``case_id``, so the dedupe collapses
-    them to a single row), then ``extra``.
+    them to a single row), then ``extra``, then ``assembled`` (the assembled
+    full-span deck's own cases, which fill the assembled deck-number column --
+    see :func:`case_index_rows_from`).
     """
     groups: List[Sequence] = []
     if project.loads is not None:
@@ -1818,11 +1837,12 @@ def case_index_rows(project: Project, extra: Sequence = ()) -> List[dict]:
     if project.envelope is not None and project.envelope.critical is not None:
         groups.append(project.envelope.critical.conditions)
     groups.append(extra)
-    return case_index_rows_from(*groups)
+    return case_index_rows_from(*groups, assembled=assembled)
 
 
-_CASE_INDEX_FIELDS = ["ID", "SUBCASE", "Component", "Condition", "CG",
-                      "Speed (kt)", "Altitude (ft)", "FAR"]
+_CASE_INDEX_FIELDS = ["ID", LOAD_ID_COLUMN[COMPONENT_DECK],
+                      LOAD_ID_COLUMN[ASSEMBLED_DECK], "Component", "Condition",
+                      "CG", "Speed (kt)", "Altitude (ft)", "FAR"]
 
 
 def _rows_to_csv(rows: List[dict], header_comment: str = "") -> str:
@@ -1833,19 +1853,24 @@ def _rows_to_csv(rows: List[dict], header_comment: str = "") -> str:
     return header_comment + buf.getvalue()
 
 
-def case_index_csv(project: Project, extra: Sequence = (), header_comment: str = "") -> str:
+def case_index_csv(project: Project, extra: Sequence = (), header_comment: str = "",
+                   assembled: Sequence = ()) -> str:
     """The case-index table (ID -> full definition) as CSV text, from ``project``'s
     persisted result slices."""
-    return _rows_to_csv(case_index_rows(project, extra=extra), header_comment)
+    return _rows_to_csv(case_index_rows(project, extra=extra, assembled=assembled),
+                        header_comment)
 
 
-def case_index_csv_from(*groups: Sequence, header_comment: str = "") -> str:
+def case_index_csv_from(*groups: Sequence, header_comment: str = "",
+                        assembled: Sequence = ()) -> str:
     """The case-index table as CSV text, from explicit case-carrying object groups
     (for a caller -- e.g. the Export page -- that recomputes results live rather
     than reading them off ``Project``)."""
-    return _rows_to_csv(case_index_rows_from(*groups), header_comment)
+    return _rows_to_csv(case_index_rows_from(*groups, assembled=assembled),
+                        header_comment)
 
 
-def write_case_index_csv(project: Project, path: str, extra: Sequence = ()) -> None:
+def write_case_index_csv(project: Project, path: str, extra: Sequence = (),
+                         assembled: Sequence = ()) -> None:
     with open(path, "w", encoding="utf-8", newline="") as fh:
-        fh.write(case_index_csv(project, extra=extra))
+        fh.write(case_index_csv(project, extra=extra, assembled=assembled))

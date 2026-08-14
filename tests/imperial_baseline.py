@@ -64,6 +64,7 @@ def artifacts(example: str) -> Dict[str, str]:
     from sloads.export import sbeam_bridge as sb
     from sloads.export.balanced_deck import balanced_deck
     from sloads.modules.aileron import build_aileron
+    from sloads.modules.balance import build_balanced_cases
     from sloads.modules.body_loads import build_body_loads
     from sloads.modules.flap import build_flap
     from sloads.modules.net_loads import build_net_loads, loads_ref_axis_results
@@ -133,9 +134,14 @@ def artifacts(example: str) -> Dict[str, str]:
     if deck:
         out["sbeam/balanced_deck"] = deck
 
+    # The index's assembled deck-number column is filled from the assembled
+    # deck's own cases (design note 17), so the baseline builds them here too --
+    # a column no channel renders is a column no digest can protect.
+    balanced = _try(build_balanced_cases, project, []) or []
     index = _try(sb.case_index_csv_from,
                  *(mr.conditions for mr in module_results),
-                 wing or [], body or [], tail or [], control)
+                 wing or [], body or [], tail or [], control,
+                 assembled=balanced)
     if index:
         out["case_index"] = index
     return out

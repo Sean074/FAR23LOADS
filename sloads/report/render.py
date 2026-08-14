@@ -16,6 +16,7 @@ from __future__ import annotations
 import re
 from typing import Dict, List, Optional
 
+from ..case_ids import NO_LOAD_ID, deck_load_id
 from ..constants import ULTIMATE_FACTOR
 from ..load_keys import (
     FX_THRUST,
@@ -219,13 +220,21 @@ def governing_loads_table(
     Shared by the Results Review headline and the Flight Envelope Critical Loads tab
     so the two governing-loads tables cannot diverge (M2-4).
     """
-    base_cols = ["Condition", "FAR", "V-n case"]
+    base_cols = ["ID", "LOAD", "Condition", "FAR", "V-n case"]
     load_cols: List[str] = []  # ordered union of the per-load column headers
     seen = set()
     partial: List[Dict[str, object]] = []
     for c in conditions:
         sf = c.safety_factor
+        ref = getattr(c, "case_ref", None)
         row: Dict[str, object] = {
+            # Case identity beside the numbers (design note 17): the id is also
+            # the deck's LABEL, and LOAD is the integer that deck uses for both
+            # its SUBCASE and its load-set SID. These are per-component
+            # conditions, so the number quoted is the component deck's; the case
+            # index is where the full definition lives.
+            "ID": ref.case_id if ref else "—",
+            "LOAD": (deck_load_id(ref.case_id) or NO_LOAD_ID) if ref else NO_LOAD_ID,
             "Condition": c.label,
             "FAR": c.far_reference,
             "V-n case": _num(c.case) if c.case is not None else "—",

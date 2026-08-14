@@ -31,6 +31,26 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- **Case identity is joinable in the report and the GUI.** A solver result
+  labelled `SUBCASE 7105` could be traced back to its condition only through the
+  case-index **CSV**; neither the summary report nor any GUI page stated the
+  integer at all. The case index (report table and CSV) now carries **two**
+  deck-number columns — `LOAD/SUBCASE (component)` and `LOAD/SUBCASE (assembled)`
+  — because a case legitimately has one number per deck family (`W-05` is `105`
+  in the wing deck and `5105`/`7105`/`8105` in the assembled one, **D-R7**), and
+  a single unqualified column would be silently wrong for whichever family it
+  was not quoting. Each is filled only where the case is actually in that deck: a
+  handed twin fills the assembled column alone, a symmetric case that also
+  assembles fills both, and an em dash means "not in that deck". The governing
+  loads table (report §Results, the Flight Envelope Critical Loads tab, Results
+  Review) and the balanced-case table gained `ID` + `LOAD` columns, and every GUI
+  case label now comes from one formatter — `W-03 · LOAD 103 · PHAA · FAR
+  23.333(b)` — instead of four independent strings. The number's single owner is
+  the new `case_ids.deck_load_id`, drift-guarded against the decks' own text
+  (`tests/test_case_ids.py`). The assembled deck's `$` map block now leads with
+  the case id, as every other deck family's already did — it was the one deck
+  whose comment block could not be joined without reading its case control.
+  Design note: `docs/30_future/17_case_load_id_linkage_note.md`.
 - **Imperial baseline regenerated — deliberate.** Entering engine horsepower
   moves `csv/txt one_engine_out` and `case_index` on both turboprops (three new
   conditions each), plus **`csv/txt weight_estimate` on `dhc8_dash8`**:
@@ -40,6 +60,11 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   41,775 lb (empty 25,395 → 25,065 lb). `atr42_100`'s stored 3400 already
   matched its 2×1700 and did not move. No load path, deck, oracle or other
   example moved.
+- **Imperial baseline regenerated again — deliberate (case-identity linkage).**
+  `case_index` moves on all six examples (two new columns) and
+  `sbeam/balanced_deck` on the two that assemble (the case id added to the map
+  block's comment lines). No load number, card value, oracle or other channel
+  moved.
 
 ---
 

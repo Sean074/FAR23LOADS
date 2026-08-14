@@ -362,7 +362,10 @@ def test_the_case_index_needs_no_system():
     `system=`, and "this writer was forgotten" and "this writer needs nothing"
     look identical at a call site.
     """
-    dimensional = [k for k in sb._CASE_INDEX_FIELDS if "(" in k]
+    # The deck-number columns are parenthesised by deck *family*, not by unit
+    # (design note 17), so they are named out rather than caught by the "(" test.
+    deck_cols = set(sb.LOAD_ID_COLUMN.values())
+    dimensional = [k for k in sb._CASE_INDEX_FIELDS if "(" in k and k not in deck_cols]
     assert dimensional == ["Speed (kt)", "Altitude (ft)"], dimensional
 
 

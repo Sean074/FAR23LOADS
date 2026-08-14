@@ -295,7 +295,7 @@ conventions"** section (`SUMMARY_REPORT.md` §4.2.1), single-sourced in
 - **Deck-side identity (M4-2).** A solver deck's `SUBCASE` and load-set `SID` are one
   integer derived from the case id — `case_ids.subcase_id` (`W-03` → 103) — never the
   case's position in the export, so a filtered export cannot renumber what survives.
-  Each deck carries a `$` subcase-map block and the case-index CSV a `SUBCASE` column.
+  Each deck carries a `$` subcase-map block, led by the case id in every family.
   The **assembled full-span deck** mints through `case_ids.balanced_subcase_id`
   (**D-R7**, 2026-08-10): the same map inside a per-hand block — symmetric `5000`,
   starboard `7000`, port `8000`, so `W-05R` → `7105` and its twin `W-05L` → `8105`.
@@ -303,6 +303,16 @@ conventions"** section (`SUMMARY_REPORT.md` §4.2.1), single-sourced in
   unhanded id still names the physical condition. Minted ids can collide where
   positional ones could not, so `balanced_deck.case_sids` refuses two cases sharing
   one id and hand.
+- **One identity, three notations (design note 17).** The case id *is* the deck's
+  `LABEL`, and the `LOAD` selecting a card set *is* that deck's `SUBCASE` integer
+  (`LOAD = 103` inside `SUBCASE 103`). Two minters mean one case can hold two
+  numbers, so every deliverable states them **qualified by deck family** and never
+  as one unqualified column: the case index (report + CSV) carries
+  `LOAD/SUBCASE (component)` and `LOAD/SUBCASE (assembled)`, filled only where the
+  case is in that deck; the report's governing tables and every GUI case label
+  quote the one family they are showing. A case with no number in that family
+  shows an em dash — never the `sid_base + index` fallback, which is the
+  position-dependent id M4-2 decision 8 retired.
 
 ## 5. Preserved ENGLOADS conventions (verified in code)
 
@@ -328,6 +338,7 @@ export boundary, reduction-to-FAR23 identity on GA inputs. "No oracle" never mea
 |---|---|---|
 | Nav / step graph | `sloads/workflow.py` (`STEPS`, `PHASES`) | `tests/test_workflow.py::test_every_registered_module_has_a_step` |
 | Deliverable unit sets | `units.deliverable_units` | `tests/test_deliverable_units.py` (identity, consistency, channel) |
+| **Deck `LOAD`/`SUBCASE` number a deliverable quotes** (which minter, which deck family, and what a case without one in that family shows) | `case_ids.deck_load_id` (+ `case_label` for display; `export/sbeam_bridge.LOAD_ID_COLUMN` names the two columns) | `tests/test_case_ids.py::test_the_index_quotes_the_decks_own_numbers` (against the decks' own text) + `::test_a_case_in_the_index_always_carries_at_least_one_deck_number` + `::test_a_handed_case_is_numbered_in_the_assembled_deck_only` + `::test_the_report_case_index_states_the_same_pairs_as_the_csv` |
 | Export axes/scale | `export/coordinates.py` | `tests/test_sbeam_bridge.py::test_grids_match_station_geometry` + closure/SF tests |
 | **Centreline reflection** (`y -> -y`; force is a true vector, moment an axial one) | `export/coordinates.py` (`reflect_point`/`reflect_force`/`reflect_moment`/`reflect_side`) | `tests/test_balance.py::test_the_reflection_operator_is_an_involution` + `::test_the_handed_twins_are_mirror_images` |
 | **Empennage local frame → airplane axes** (h-tail spans `y`/loads `fz`/twists `myy`; v-tail spans `z`/loads `fy`/twists **`mzz`**; a span-axis *axial* load follows the span, so `y` for the h-tail and `z` for the fin) | `export/coordinates.py` (`tail_station_to_airplane`/`tail_force_to_airplane`/`tail_torsion_to_airplane`/`tail_axial_to_airplane`) | `tests/test_export_equilibrium.py::test_vtail_span_deck_resultants` + `::test_tail_deck_resultants` (the chordwise family takes the same map — D-R4) |

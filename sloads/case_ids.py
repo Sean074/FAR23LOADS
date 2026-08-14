@@ -71,6 +71,13 @@ The full-span balanced deck mints through :func:`balanced_subcase_id`, which is
 the same map moved into its own per-hand block (decision **D-R7**, 2026-08-10):
 that deck is the only family carrying handed twins, and an integer subcase id
 has nowhere to put the ``L``/``R`` suffix.
+
+Because there are two minters, one case can hold **two** deck numbers -- ``W-05``
+is ``105`` in the wing component deck and ``5105`` in the assembled one.
+:func:`deck_load_id` is the single owner of that choice for every deliverable
+(report, case index, GUI), and :func:`case_label` the single formatter that
+states id + ``LABEL`` + ``LOAD``/``SUBCASE`` together
+(``docs/30_future/17_case_load_id_linkage_note.md``).
 """
 
 from __future__ import annotations
@@ -237,3 +244,81 @@ def balanced_subcase_id(case_id: str) -> int:
     """
     hand = case_id[-1:] if case_id[-1:] in HANDS else ""
     return BALANCED_HAND_BLOCK[hand] + subcase_id(unhanded_case_id(case_id))
+
+
+# --------------------------------------------------------------------------- #
+# Deck-side identity for the deliverables (report, case index, GUI)
+# --------------------------------------------------------------------------- #
+#: The two deck families a case can be numbered in. They are **not**
+#: interchangeable and one case may have a number in both: ``W-05`` is ``105`` in
+#: the wing component deck and ``5105`` in the assembled full-span deck. Every
+#: deliverable that prints the integer states which family it is quoting, because
+#: an unqualified number is silently wrong for whichever family it is not.
+COMPONENT_DECK = "component"
+ASSEMBLED_DECK = "assembled"
+DECK_FAMILIES = (COMPONENT_DECK, ASSEMBLED_DECK)
+
+
+def deck_load_id(case_id: str, family: str = COMPONENT_DECK) -> str:
+    """The deck ``LOAD``/``SUBCASE`` integer for ``case_id`` as display text.
+
+    The single owner of "which minter applies, and what a case without a number
+    in this family shows" -- the report (``report/content``), the case index
+    (``export/sbeam_bridge``) and the GUI all read it here rather than each
+    reaching into :func:`subcase_id` / :func:`balanced_subcase_id` with their own
+    handedness rule. ``tests/test_case_ids.py`` pins the answers against the deck
+    writers' own output.
+
+    Returns ``""`` -- never raises -- when the case has no number in ``family``:
+
+    * a **handed** id (``W-05R``) in the component family: those cases exist only
+      in the assembled deck, and :func:`subcase_id` refuses a hand by design;
+    * a string that is not a case id at all.
+
+    A blank is deliberate and is never filled with the positional fallback
+    (``sid_base + index``) the deck writers keep for a result carrying no
+    ``CaseRef``: that number is the position-dependent id M4-2 decision 8
+    removed, and publishing it invites a reader to key on it.
+    """
+    if family not in DECK_FAMILIES:
+        raise ValueError(f"family must be one of {DECK_FAMILIES}, got {family!r}")
+    try:
+        if family == ASSEMBLED_DECK:
+            return str(balanced_subcase_id(case_id))
+        if case_id[-1:] in HANDS:
+            return ""
+        return str(subcase_id(case_id))
+    except ValueError:
+        return ""
+
+
+#: What a deliverable prints where a case has no number in the family it is
+#: quoting -- one em dash, so a blank cell reads as "none", not as "not filled in".
+NO_LOAD_ID = "—"
+
+
+def case_label(case_ref, family: str = COMPONENT_DECK, *, condition: str = "") -> str:
+    """One case's display identity: ``"W-03 · LOAD 103 · PHAA · FAR 23.333(b)"``.
+
+    The single formatter for every GUI case label and any prose that names a
+    case, so the id, the deck ``LABEL`` (which *is* the id) and the deck
+    ``LOAD``/``SUBCASE`` integer are stated together everywhere a human reads
+    them -- before this existed the views each built their own string and only
+    the case-index CSV carried the number at all.
+
+    ``case_ref`` is anything with ``case_id`` / ``condition`` / ``far_reference``
+    (a :class:`~sloads.models.results.CaseRef`); ``condition`` overrides the
+    ref's own text for a caller that has a better label to hand. ``family``
+    picks which deck's number is quoted -- pass :data:`ASSEMBLED_DECK` on a page
+    showing the assembled full-span cases.
+    """
+    case_id = getattr(case_ref, "case_id", "") or ""
+    load = deck_load_id(case_id, family) or NO_LOAD_ID
+    parts = [case_id or "(no case id)", f"LOAD {load}"]
+    text = condition or getattr(case_ref, "condition", "") or ""
+    if text:
+        parts.append(text)
+    far = getattr(case_ref, "far_reference", "") or ""
+    if far:
+        parts.append(f"FAR {far}")
+    return " · ".join(parts)

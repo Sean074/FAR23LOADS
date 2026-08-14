@@ -22,6 +22,10 @@ import pytest  # noqa: E402
 
 from sloads import io, registry  # noqa: E402
 from sloads.case_ids import (  # noqa: E402
+    ASSEMBLED_DECK,
+    COMPONENT_DECK,
+    HANDS,
+    NO_LOAD_ID,
     SUBCASE_BLOCK,
     VTAIL_BAND_ONENGOUT,
     VTAIL_BAND_TAB,
@@ -29,9 +33,13 @@ from sloads.case_ids import (  # noqa: E402
     WING_SLOTS,
     CaseIdAllocator,
     balanced_subcase_id,
+    case_label,
+    deck_load_id,
     subcase_id,
+    unhanded_case_id,
     wing_case_id,
 )
+from sloads.export.sbeam_bridge import LOAD_ID_COLUMN  # noqa: E402
 from sloads.modules.one_engine_out import run as run_one_engine_out  # noqa: E402
 from sloads.modules.flight_envelope import build_envelope  # noqa: E402
 from sloads.modules.select import build_critical  # noqa: E402
@@ -220,6 +228,168 @@ def test_balanced_subcase_ids_survive_an_edit_to_the_case_set():
     before = {cid: balanced_subcase_id(cid) for cid in full}
     after = {cid: balanced_subcase_id(cid) for cid in full if cid != "W-02"}
     assert all(after[cid] == before[cid] for cid in after)
+
+
+# --------------------------------------------------------------------------- #
+# The deliverables' deck-number columns (design note 17)
+# --------------------------------------------------------------------------- #
+# `deck_load_id` is the single owner of "which minter applies to this case, in
+# this deck family". These are its drift guards (CLAUDE.md rule 3): the number a
+# document prints is checked against the number the deck writers actually emit,
+# parsed from the deck text itself, so the two cannot drift apart silently.
+_LINKAGE_EXAMPLE = "ga6_normal.project.json"
+
+
+def _linkage_artifacts(example=_LINKAGE_EXAMPLE):
+    """Every deck channel plus the case index for ``example``, from one run.
+
+    ``tests/imperial_baseline.py`` already assembles exactly this set (and is the
+    digest baseline), so the gate reads the same artifacts the frozen digests
+    cover rather than building a second, possibly divergent, set.
+    """
+    import imperial_baseline as baseline
+
+    return baseline.artifacts(example)
+
+
+def _index_rows(artifacts):
+    """The case index parsed back out of its CSV text: ``{case_id: row}``."""
+    import csv as _csv
+    import io as _io
+
+    text = artifacts["case_index"]
+    body = "\n".join(ln for ln in text.splitlines() if not ln.startswith("$"))
+    return {r["ID"]: r for r in _csv.DictReader(_io.StringIO(body))}
+
+
+def _pairs_from_decks(artifacts):
+    """``{case_id: subcase_int}`` per deck family, read from the decks' own text.
+
+    Card-only channels state the pairing in their ``$`` subcase-map block
+    (``$ SUBCASE 103 = W-03 -- PHAA``); the stick and assembled decks state it as
+    a ``SUBCASE n`` / ``LABEL = id`` pair in the case control section. Both are
+    parsed, so every deck family this project writes is covered.
+    """
+    import re
+
+    component: dict = {}
+    assembled: dict = {}
+    for channel, text in artifacts.items():
+        if not channel.startswith("sbeam/"):
+            continue
+        into = assembled if channel.endswith("balanced_deck") else component
+        for sid, case_id in re.findall(r"^\$ SUBCASE (\d+) = (\S+) --", text, re.M):
+            if case_id != "(no":          # a result with no CaseRef: no identity
+                into[case_id] = int(sid)
+        sid = None
+        for line in text.splitlines():
+            m = re.match(r"^SUBCASE (\d+)\s*$", line)
+            if m:
+                sid = int(m.group(1))
+                continue
+            m = re.match(r"^\s*LABEL = (\S+)\s*$", line)
+            if m and sid is not None:
+                into[m.group(1)] = sid
+                sid = None
+    return component, assembled
+
+
+def test_the_index_quotes_the_decks_own_numbers():
+    """Each LOAD column is the integer that deck family actually emitted.
+
+    The gate the linkage rests on: a reader who joins ``SUBCASE 7105`` from a
+    solver result to the case index must land on the case that produced it. The
+    numbers are compared against the deck **text**, not against a second call to
+    the minter, so a writer that stopped using ``deck_load_id`` would fail here.
+    """
+    artifacts = _linkage_artifacts()
+    rows = _index_rows(artifacts)
+    component, assembled = _pairs_from_decks(artifacts)
+    assert component and assembled, sorted(artifacts)
+
+    for family, pairs in ((COMPONENT_DECK, component), (ASSEMBLED_DECK, assembled)):
+        column = LOAD_ID_COLUMN[family]
+        for case_id, sid in pairs.items():
+            assert case_id in rows, (family, case_id)
+            assert rows[case_id][column] == str(sid), (family, case_id, sid)
+            assert deck_load_id(case_id, family) == str(sid), (family, case_id)
+
+
+def test_a_case_in_the_index_always_carries_at_least_one_deck_number():
+    """No silent blank: a row with neither column filled would be a case the
+    deliverable names and no deck carries, which is a defect, not a display gap."""
+    for example in ("ga6_normal.project.json", "concept_regional_jet.project.json"):
+        rows = _index_rows(_linkage_artifacts(example))
+        assert rows
+        for case_id, row in rows.items():
+            filled = [row[LOAD_ID_COLUMN[f]] for f in (COMPONENT_DECK, ASSEMBLED_DECK)]
+            assert any(filled), (example, case_id, row)
+
+
+def test_a_handed_case_is_numbered_in_the_assembled_deck_only():
+    """Handed twins exist only in the assembled deck (D-R7), so the component
+    column is blank for them -- and blank *because* they are not in that deck,
+    not because the number was unavailable: their unhanded id still has one."""
+    rows = _index_rows(_linkage_artifacts())
+    handed = [cid for cid in rows if cid[-1:] in HANDS]
+    assert handed, sorted(rows)
+    for case_id in handed:
+        assert rows[case_id][LOAD_ID_COLUMN[COMPONENT_DECK]] == ""
+        assert rows[case_id][LOAD_ID_COLUMN[ASSEMBLED_DECK]] == str(
+            balanced_subcase_id(case_id))
+        assert deck_load_id(case_id, COMPONENT_DECK) == ""
+        assert deck_load_id(unhanded_case_id(case_id), COMPONENT_DECK) != ""
+
+
+def test_the_report_case_index_states_the_same_pairs_as_the_csv():
+    """One case identity, two renderings: the report's Case index table and the
+    CSV beside it must agree cell for cell on ID and both LOAD columns, or a
+    reader joining through the document lands somewhere else than one joining
+    through the file."""
+    from sloads.report.content import build_report
+
+    path = os.path.join(_EXAMPLES, _LINKAGE_EXAMPLE)
+    project = io.load_project(path)
+    doc = build_report(project)
+    tables = [t for section in doc.sections for t in section.tables
+              if t.title == "Case index"]
+    assert len(tables) == 1, [t.title for section in doc.sections for t in section.tables]
+    table = tables[0]
+
+    csv_rows = _index_rows(_linkage_artifacts())
+    cols = {name: i for i, name in enumerate(table.columns)}
+    assert [r[cols["ID"]] for r in table.rows] == list(csv_rows)
+    for row in table.rows:
+        csv_row = csv_rows[row[cols["ID"]]]
+        for header, family in (("LOAD (comp.)", COMPONENT_DECK),
+                               ("LOAD (asm.)", ASSEMBLED_DECK)):
+            assert row[cols[header]] == (csv_row[LOAD_ID_COLUMN[family]] or NO_LOAD_ID)
+
+
+def test_deck_load_id_never_raises_on_a_case_id_it_cannot_map():
+    """A reference table with a blank cell beats a report that failed to build --
+    but the family itself is a programming error and does raise."""
+    assert deck_load_id("not-a-case") == ""
+    assert deck_load_id("not-a-case", ASSEMBLED_DECK) == ""
+    assert deck_load_id("W-05R", COMPONENT_DECK) == ""
+    assert deck_load_id("W-05R", ASSEMBLED_DECK) == "7105"
+    assert deck_load_id("W-05") == "105"
+    with pytest.raises(ValueError):
+        deck_load_id("W-05", "wing_deck")
+
+
+def test_the_case_label_states_id_load_and_condition():
+    """The one formatter every GUI page uses: identity a reader can act on."""
+    from sloads.models import CaseRef
+
+    ref = CaseRef(case_id="W-03", component="wing", condition="PHAA",
+                  far_reference="23.333(b)")
+    assert case_label(ref) == "W-03 · LOAD 103 · PHAA · FAR 23.333(b)"
+    assert case_label(ref, ASSEMBLED_DECK).startswith("W-03 · LOAD 5103 ·")
+    assert "PMAA" in case_label(ref, condition="PMAA")
+    # A case with no number in the family it is quoted in says so.
+    handed = CaseRef(case_id="W-05R", component="wing", condition="ACRL")
+    assert case_label(handed) == f"W-05R · LOAD {NO_LOAD_ID} · ACRL"
 
 
 def test_allocator_is_a_pure_per_call_counter():

@@ -37,6 +37,7 @@ from plotly.subplots import make_subplots
 from components import active_system, gate
 
 from sloads import Project, UnitSystem, si_scalar_label, to_si_scalar
+from sloads.case_ids import case_label
 from sloads.modules.aileron import build_aileron
 from sloads.modules.body_loads import build_body_loads
 from sloads.modules.flap import build_flap
@@ -119,14 +120,23 @@ if project.is_concept:
 # (case_id, case_label, x, {y_field: (title, unit, [values])}) -- so the plot
 # code below is generic across wing/fuselage/tail/control-surface results.
 # --------------------------------------------------------------------------- #
-def _case_label(r) -> str:
-    return r.case_ref.case_id if r.case_ref else r.case
+def _case_label(r, condition: str = "") -> str:
+    """This page's display identity for one case -- the shared formatter.
+
+    ``case_ids.case_label`` owns the wording (id, deck LOAD/SUBCASE, condition,
+    FAR) so this page, the envelope selection, the Export page and the report
+    cannot state a case three different ways. These are per-component results,
+    so the number quoted is the component deck's (design note 17). A result with
+    no ``CaseRef`` has no deck identity at all and shows its condition alone.
+    """
+    text = condition or r.case
+    return case_label(r.case_ref, condition=text) if r.case_ref else text
 
 
 def _wing_cases(results, sys_=None):
     sys_ = system if sys_ is None else sys_
     return [
-        (r.case_ref.case_id if r.case_ref else r.case, f"{_case_label(r)} — {r.case}",
+        (r.case_ref.case_id if r.case_ref else r.case, _case_label(r),
          [to_si_scalar(s.y, "in", sys_) for s in r.stations],
          {"sz": ("Shear Sz", si_scalar_label("lbf", sys_),
                  [to_si_scalar(s.sz, "lbf", sys_) for s in r.stations]),
@@ -142,7 +152,7 @@ def _wing_cases(results, sys_=None):
 def _fuselage_cases(results, sys_=None):
     sys_ = system if sys_ is None else sys_
     return [
-        (r.case_ref.case_id if r.case_ref else r.case, f"{_case_label(r)} — {r.case}",
+        (r.case_ref.case_id if r.case_ref else r.case, _case_label(r),
          [to_si_scalar(s.x, "in", sys_) for s in r.stations],
          {"sz": ("Shear Sz", si_scalar_label("lbf", sys_),
                  [to_si_scalar(s.sz, "lbf", sys_) for s in r.stations]),
@@ -155,7 +165,7 @@ def _fuselage_cases(results, sys_=None):
 def _tail_cases(results, component):
     filtered = [r for r in results if r.component == component]
     return [
-        (r.case_ref.case_id if r.case_ref else r.case, f"{_case_label(r)} — {r.case}",
+        (r.case_ref.case_id if r.case_ref else r.case, _case_label(r),
          [to_si_scalar(s.x, "in", system) for s in sorted(r.stations, key=lambda s: s.x)],
          {"psi": ("Net pressure PSI", si_scalar_label("psi", system),
                   [to_si_scalar(s.psi, "psi", system)
@@ -168,7 +178,7 @@ def _control_surface_cases(results, surface_match):
     filtered = [r for r in results if surface_match(r.surface)]
     return [
         (r.case_ref.case_id if r.case_ref else r.case,
-         f"{_case_label(r)} — {r.surface}/{r.case}",
+         _case_label(r, f"{r.surface}/{r.case}"),
          [s.x for s in sorted(r.stations, key=lambda s: s.x)],
          {"psi": ("Pressure PSI", si_scalar_label("psi", system),
                   [to_si_scalar(s.psi, "psi", system)

@@ -105,6 +105,33 @@ fast-follow, not a gate.
 
 ---
 
+## Case identity ↔ deck LOAD id linkage (post-0.5.0 Pri 2 — complete 2026-08-13, tier M)
+
+The case id, the deck `LABEL` and the deck `LOAD`/`SUBCASE` integer are one
+identity in three notations, and until now they appeared together only in the
+case-index **CSV** — the summary report's case index printed no deck number and
+no GUI page printed one at all, so a reader holding `SUBCASE 7105` had to open a
+file to find out what it was. Both now state it, in **two** columns qualified by
+deck family (user decision, 2026-08-13): a case legitimately holds one number per
+family (`W-05` → `105` component, `5105`/`7105`/`8105` assembled, **D-R7**), so
+one unqualified column would be silently wrong for whichever family it was not
+quoting. A column is filled only where the case is in that deck — the assembled
+column is driven by the assembled deck's own case set, not by the id alone —
+which makes a handed twin's blank component cell a statement rather than a gap.
+`case_ids.deck_load_id` is the single owner (the rule previously lived in the
+private `sbeam_bridge._subcase_column`, which `report/` and `app/` could not
+import) and `case_ids.case_label` the one formatter behind every GUI case label;
+the governing-loads and balanced-case tables gained `ID` + `LOAD`, and the
+assembled deck's `$` map block now leads with the case id like every other deck
+family's. Gates in `tests/test_case_ids.py` check the printed number against the
+**decks' own text**, that no row is blank in both columns, that a handed id is
+numbered in the assembled deck only, and that the report table and the CSV agree
+cell for cell. Imperial baseline regenerated deliberately: `case_index` on all
+six examples, `sbeam/balanced_deck` on the two that assemble; no load number
+moved. Design note: [`../30_future/17_case_load_id_linkage_note.md`](../30_future/17_case_load_id_linkage_note.md).
+
+---
+
 ## ONENGOUT fixture data — the module executes on shipped data (post-0.5.0 Pri 1 — complete 2026-08-13, tier M)
 
 `one_engine_out` was registered, oracle-cited and **unrunnable on every shipped

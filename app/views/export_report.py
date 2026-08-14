@@ -288,6 +288,9 @@ if project.weight is not None and project.weight.items:
 case_index_csv = sb.case_index_csv_from(
     *(mr.conditions for mr in module_results), _wing or [], _body or [], _tail or [], _control,
     header_comment=_csv_stamp,
+    # The assembled deck's own cases fill the second deck-number column; a case
+    # is quoted in a column only when it is actually in that deck (note 17).
+    assembled=_balanced_cases,
 )
 
 # Summary report (Step G8): rendered from the *scoped* component loads and the

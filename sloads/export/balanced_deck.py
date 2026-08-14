@@ -74,7 +74,8 @@ import math
 import textwrap
 from typing import Dict, List, Optional, Sequence, Tuple
 
-from ..case_ids import balanced_subcase_id, handed_case_id, unhanded_case_id
+from ..case_ids import (ASSEMBLED_DECK, NO_LOAD_ID, balanced_subcase_id,
+                        deck_load_id, handed_case_id, unhanded_case_id)
 from ..models import BalancedCaseResult, BalancedLoad, Project
 from ..modules.balance import (SkippedCondition, build_balanced_cases,
                                carry_sources_absent, fin_load, htail_load,
@@ -413,7 +414,14 @@ def balanced_deck(project: Project, *,
         # Wrapped, not hand-broken: B8a-3's condition names ("YAW TO SIDESLIP")
         # are half again as long as the four-letter wing ones and pushed this
         # line past 72 columns on the fixtures that carry a long CG name.
-        entry = (f"SUBCASE {sid} = {case.label}"
+        # The case id leads, as it does in every other deck's map block and as
+        # the case control's own LABEL does below: the map is what a consumer
+        # joins a solver result to the case index by, and the id is the join key
+        # (design note 17). Before it was added this block named the condition
+        # only, so the assembled deck was the one family whose comment block
+        # could not be joined without reading its case control.
+        entry = (f"SUBCASE {sid} = {case.case_ref.case_id if case.case_ref else '(no case id)'}"
+                 f" -- {case.label}"
                  f"{'-' + case.hand if case.hand else ''} -- V-n "
                  f"{case.vn_case} -- {case.cg} -- Nz {case.nz:g}")
         head += [f"$ {ln}" for ln in textwrap.wrap(entry, width=70,
@@ -488,6 +496,12 @@ def balanced_case_rows(cases: Sequence[BalancedCaseResult]) -> List[Dict[str, st
         p_dot, q_dot, r_dot = (_deg(v) for v in
                                radians_per_s2((c.p_dot, c.q_dot, c.r_dot)))
         rows.append({
+            # The assembled deck's own identity for this case (design note 17):
+            # the id is the deck's LABEL, LOAD its SUBCASE/SID integer -- minted
+            # in the per-hand block, so the twins differ by their thousands digit.
+            "ID": c.case_ref.case_id if c.case_ref else "—",
+            "LOAD": ((deck_load_id(c.case_ref.case_id, ASSEMBLED_DECK) or NO_LOAD_ID)
+                     if c.case_ref else NO_LOAD_ID),
             "Case": c.label,
             "Hand": c.hand or "-",
             "V-n point": str(c.vn_case),

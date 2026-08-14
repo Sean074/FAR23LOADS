@@ -877,11 +877,26 @@ return strings (with thin `write_*` file wrappers), and do no physics.
   sets stay disjoint in an assembled multi-component deck (L-1); and
   `LOAD = 103` inside `SUBCASE 103` reads as one thing. Each deck opens with a
   `$` **subcase-map block** (`sbeam_bridge.subcase_map_block`) — one
-  `$ SUBCASE 103 = W-03 -- PHAA -- FAR 23.333(b)` line per exported case — and
-  the case-index CSV carries the same number in its `SUBCASE` column, so a deck
+  `$ SUBCASE 103 = W-03 -- PHAA -- FAR 23.333(b)` line per exported case — the
+  assembled deck's own map block leads with the case id the same way — so a deck
   consumer can trace a solver result back to its governing condition from the
   deck alone. `sid_base + index` survives **only** as the fallback for a result
   carrying no `CaseRef` at all (a bare result list built in a test).
+- **The linkage in the deliverables (design note 17, 2026-08-13).** The case id
+  is also the deck's `LABEL`, so id, `LABEL` and `LOAD`/`SUBCASE` are one
+  identity in three notations. Because there are two minters, a case can hold
+  **two** deck numbers, and every document therefore states **both, qualified by
+  deck family**: the case index (report table and CSV) carries
+  `LOAD/SUBCASE (component)` and `LOAD/SUBCASE (assembled)`, each filled only
+  where the case is actually in that deck — a handed id fills the assembled
+  column alone, a symmetric case that also assembles fills both. The number's
+  single owner is `case_ids.deck_load_id`, its display formatter (every GUI case
+  label) `case_ids.case_label`; a case with no number in the family being quoted
+  shows an em dash and **never** the positional fallback. Gates:
+  `tests/test_case_ids.py::test_the_index_quotes_the_decks_own_numbers` (checked
+  against the decks' own text), `::test_a_case_in_the_index_always_carries_at_least_one_deck_number`,
+  `::test_a_handed_case_is_numbered_in_the_assembled_deck_only`,
+  `::test_the_report_case_index_states_the_same_pairs_as_the_csv`.
   The **assembled full-span deck** (`export/balanced_deck.case_sids`) mints the
   same way, through `case_ids.balanced_subcase_id`: a per-**hand** block plus the
   case's own `subcase_id` — symmetric `5000`, starboard `7000`, port `8000`
