@@ -10,6 +10,77 @@ Acceptance**, **Key decisions**.
 
 ---
 
+**The body drag carrier — non-wing drag in the assembled model (complete
+2026-08-15, tier L)**
+
+**Objective.** Close backlog Pri 5. The assembled model carried no non-wing drag:
+the FLTLOADS trim balances the airplane-less-tail drag from the polar
+(`drag_cd(config, cl)`), while the only `fx` in `balance.assemble` was the wing
+strips' own chordwise force from `airloads`. The fuselage, nacelle and remaining
+parasite drag had no carrier, so `residual_fx` *equalled* the wing's drag and the
+couple the missing force left about the CG was the whole of the pre-closure pitch
+residual — the exceedance that had been open since B2 and had twice been
+attributed to other causes.
+
+**Deliverables.**
+- `balance.body_axial_set` — the `body-axial` load, `vn.dx − Σfx(wing-air)`,
+  spread over the fuselage outline by cross-section-area share
+  (`_body_drag_stations`) or lumped at the body masses' centroid where there is
+  no outline. Flight cases only; the ground families have no aero.
+- `derived_geometry.body_drag_waterline` — the single owner of `z_b`, the only
+  free parameter of the load, with a **two-branch** resolution order (explicit →
+  wing reference plane with a loud `assumed` note).
+- New input `LayoutInput.body_drag_waterline_z` (schema **v49**, additive, no
+  migration hop); `BalancedCaseResult` gains `body_axial` and `delta_cd`.
+- The per-fixture pitch ceiling retired: `_PITCH_RESIDUAL_CEILING` →
+  `_PITCH_RESIDUAL_RATCHET`.
+
+**Test / Acceptance.** Gates G1–G10 of the design note, in `tests/test_balance.py`:
+the applied axial resultant equals the trim's `dx` and `delta_nx` equals `dx/W`,
+both to 1e-9; ground cases carry no `body-axial` load; the `ΔC_D` band is pinned
+per fixture **and asserted negative below `α = 15°`** (the assertion with physics
+in it — the wing strips must carry strictly less axial force than the whole
+airplane while the strip model is trusted); the waterline is `assumed` with its
+note, and entering one moves every residual by exactly `(z_new − z_cg)·fx`, which
+is the drift guard that `assemble` reads the owner. Pitch residuals: ga6
+0.075/0.014/0.018 % and RJ 0.086/0.069/0.030 % (symmetric/lateral/unsym trim
+half) against a flat 1 %. Imperial baseline moved in `csv/balance`, `txt/balance`
+and `sbeam/balanced_deck` only, on the two fixtures with balanced cases; every
+per-component deck and every Appendix A oracle byte-unchanged. Suite 1705 passed.
+
+**Key decisions.**
+- **D-1, the one the step turns on.** `z_b` is *stated*, not derived, and its
+  fallback is the wing reference plane. The draft rationale — "default to `zw`
+  because it is residual-neutral" — was **withdrawn on review**: it optimises a
+  validation number rather than a load position, and is self-defeating, since
+  placing the load at any height makes `residual_fx` equal `dx` by construction.
+  The rebuilt rationale is that the suite has no body-centreline datum at all
+  (`FuselageSection` carries no `z`), so `zw` — the trim's own assumption — is
+  what a project that has not stated where its body is can honestly assert. It is
+  also the most robust point: the residual is zero there and linear either side,
+  so `zw` sits at the **centre** of the band in which every gated case passes
+  (±10.6 in on the RJ, ±8.0 in on the ga6), and a later measurement replaces it
+  without re-baselining anything.
+- **No `root_waterline_z` branch.** The obvious geometric candidate is the *wing*
+  root; deriving from it puts `ga6_normal`'s `SIDE GUST` at −1.173 %, over the
+  gate on the Appendix A fixture. It would also be a trap: that fixture carries
+  `fuselage_height = 0.0`, so a geometry-conditioned branch would flip the first
+  time a fixture gained a body — a fixture-data change silently moving a gate.
+- **Placing it at the body's mass centroid would make the residual worse**, not
+  better (RJ SIDE GUST 1.586 % → 1.881 %). The trim lumps the whole
+  airplane-less-tail force system at `(xw, zw)` and is oracle-locked to Appendix A
+  p179, so it cannot be met halfway. This is why the placement needed a decision
+  rather than an obvious answer.
+- **Negative (forward) values are reported, not clamped** (D-4). Above `α ≈ 19°`
+  on the RJ the strip model's induced drag overshoots the polar and the
+  correction comes out forward. Clamping would reopen the axial gate and hide the
+  overshoot; it is carried as a case note and filed as its own observation.
+- **`ΔC_D` is reported per case** (G10) because carrying the load necessarily
+  removes the drag cross-check from the residual. It is the measurement that
+  identified the defect and it stays visible.
+- **The load is named `body-axial`, not `body-drag`**, since at those high-`α`
+  points a card labelled "drag" would point forward.
+
 **The balanced-case residual floors are correctly attributed (complete
 2026-08-15, tier S)** — the element-count study backlog Pri 5 asked for was run:
 the pitch residual is flat in `elements` (RJ PLAA 1.041 % from 20 to 640) and an

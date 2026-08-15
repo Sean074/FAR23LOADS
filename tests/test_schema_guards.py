@@ -210,7 +210,18 @@ def fields_hash() -> str:
 #: before, recoverable by looking the loading up **by name** -- which the ground
 #: families broke, because "aft max landing" names two different targets in one
 #: run.
-EXPECTED_FIELDS_HASH = "cb0b6f89f15fa13f"
+#: body drag carrier (v49): ``LayoutInput.body_drag_waterline_z`` -- the waterline
+#: the airplane's **non-wing** drag is applied at in the assembled model (design
+#: note ``docs/30_future/20_body_drag_carrier_note.md``, decision D-1). Purely
+#: additive with a ``0.0`` default, and ``0.0`` *is* a documented value rather
+#: than a missing one: "derive it", which resolves to the wing reference plane
+#: ``zw``, marked assumed and stated in-band -- the same contract v43 gave
+#: ``vtail_root_waterline_z``. No migration hop. Two **result** fields move with
+#: it, additive and not persisted: ``BalancedCaseResult`` gains ``body_axial``
+#: (the non-wing drag, lb) and ``delta_cd`` (the wind-axis ``CD`` increment it
+#: represents -- the diagnostic that must stay visible, because carrying the load
+#: makes the applied axial resultant equal the trim's ``dx`` by construction).
+EXPECTED_FIELDS_HASH = "1207bee7b49cbe6a"
 
 
 def test_persisted_dataclass_shapes_are_unchanged():

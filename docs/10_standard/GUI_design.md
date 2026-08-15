@@ -447,7 +447,7 @@ sidebar and the JSON Editor (§10, Phase E5).
 
 The schema field list is **single-sourced in
 [`DATA_DICTIONARY.md`](DATA_DICTIONARY.md)** (generated; currently
-`SCHEMA_VERSION = 48`); the per-step migration history is recorded in
+`SCHEMA_VERSION = 49`); the per-step migration history is recorded in
 [`../40_history/00_completed_development.md`](../40_history/00_completed_development.md)
 (recent steps: v29 single-source CLmax
 stall; v30 M2-6 wing/fuselage derived geometry; v31 M2-10 operational placards;
@@ -543,7 +543,21 @@ is dropped for a GROUND target) and `LandingGearInput` gains `carrier`
 this one needs a hop: `migrations._v46_cg_case_model`, output-neutral by
 construction — every value it writes comes from the file's own, MTOW from
 `speeds.weight_lb`, which measurement showed equals the other four
-representations on every shipped fixture.
+representations on every shipped fixture; v48 step 10 piece 3
+`LandingGearInput.weight_lb`, the leg's own weight whole-leg-trunnion-down, which
+closes the gear load report's free body (G-12a) — additive with a `0.0` default,
+and absent *is* the documented value, "not stated", which the report prints as a
+blank inertia term with its reason rather than as a leg that weighs nothing;
+v49 the body drag carrier `LayoutInput.body_drag_waterline_z`, the waterline the
+airplane's **non-wing** drag is applied at in the assembled model (design note
+`../30_future/20_body_drag_carrier_note.md`, decision D-1). Additive with a `0.0`
+default meaning "derive it" — the wing reference plane `zw`, marked assumed and
+stated in-band, exactly as v43's `vtail_root_waterline_z` handles the same class
+of question — so no hop, and a pre-v49 project takes the derived value. It exists
+because that waterline is the *only* free parameter of the body-axial load (its
+fuselage station reaches no gate), and the obvious geometric candidate,
+`root_waterline_z`, is the **wing** root: deriving from it puts `ga6_normal`'s
+`SIDE GUST` pitch residual over the 1 % gate.
 This paragraph's version number is guarded by
 `tests/test_data_dictionary.py::test_gui_design_schema_line_current` — update
 it (and this list) with every `SCHEMA_VERSION` bump.

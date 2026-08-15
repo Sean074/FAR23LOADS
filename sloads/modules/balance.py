@@ -190,13 +190,13 @@ physical condition.
 from __future__ import annotations
 
 from dataclasses import dataclass, replace
-from math import cos, degrees, radians, sin
+from math import cos, degrees, pi, radians, sin
 from typing import Dict, List, Optional, Sequence, Tuple
 
 from ..case_ids import handed_case_id
 from ..cg_cases import flight_cases, ground_cases, landing_role_cases
 from ..gear_loads import GearCaseLoads, applied_wheels, gear_case_loads
-from ..derived_geometry import sync_geometry_derived
+from ..derived_geometry import body_drag_waterline, sync_geometry_derived
 from ..export.coordinates import (
     reflect_force,
     reflect_moment,
@@ -632,6 +632,124 @@ def body_inertia(loading: CaseLoading, project: Project,
         for it in loading.items
         if not assembly_distributes_mass(component_of(it, project))
     ]
+
+
+def body_axial_set(loads: Sequence[BalancedLoad], project: Project,
+                   vn: VnPoint, loading: CaseLoading,
+                   ) -> Tuple[float, float, List[BalancedLoad], List[str]]:
+    """The airplane's **non-wing** drag: ``(total, dCD, loads, notes)``.
+
+    Design note: ``docs/30_future/20_body_drag_carrier_note.md``.
+
+    The FLTLOADS trim balances the airplane-less-tail drag from the **polar**
+    (``aero_curves.drag_cd``, the ``CD(CL)`` polynomial the project enters);
+    the assembled model's only ``fx`` is the wing strips' own chordwise force
+    (``airloads``: section profile drag plus the lifting-line induced drag,
+    resolved with lift through the case ``alpha``). The difference is the
+    fuselage, the nacelles and every other non-wing parasite contribution, and
+    before this it was simply absent -- ``residual_fx`` *equalled* the wing
+    strips' sum, and the couple the missing force left about the CG was the
+    whole of the pre-closure pitch residual.
+
+    That it is genuinely parasite drag, and not a bookkeeping artefact, is
+    measurable: both the trim and the strips resolve through the same ``alpha``,
+    so the body-axis gap splits exactly into wind-axis parts,
+
+        dD = dFx*cos(a) + dFz*sin(a)        dL = dFz*cos(a) - dFx*sin(a)
+
+    and ``dL/L`` comes out <= 0.6 % everywhere while ``dD/(q*S)`` is a near
+    constant **-0.018 across all seven** ``ga6_normal`` cases -- a ``CD`` offset
+    independent of ``CL``, which is what a missing parasite term looks like and
+    what a lift-model disagreement does not.
+
+    ``dCD`` is returned as that **wind-axis** increment rather than the axial one
+    (the two differ by the negligible ``dL*sin(a)`` tilt), because the physical
+    content of the diagnostic is the drag-coefficient offset.
+
+    **Sign.** ``CONVENTIONS.md`` §1: ``x`` is +aft, so both ``vn.dx`` and the
+    strips' ``fx`` are already body-axis ``x`` forces and the correction is a
+    subtraction in one frame, needing no rotation. Positive is aft, i.e. drag.
+    Above ``alpha ~ 19 deg`` on ``concept_regional_jet`` it comes out **forward**,
+    because the strip model's induced drag overshoots the polar there; that is
+    reported as a note rather than clamped, since clamping would reopen
+    ``residual_fx`` and hide the overshoot (decision D-4).
+
+    **Placement.** The waterline is the single owner
+    :func:`~sloads.derived_geometry.body_drag_waterline` and is the only free
+    parameter here (decision D-1). The fuselage station reaches no gate -- a pure
+    axial force contributes ``my = (z-zcg)*fx`` with no ``x`` term -- so it is
+    spread over the body outline by cross-section-area share where one exists,
+    and lumped at the body masses' own centroid where it does not. Both are
+    stated; neither can move a number.
+    """
+    fl = project.flight_loads
+    wing_fx = sum(ld.fx for ld in loads if ld.source == "wing-air")
+    wing_fz = sum(ld.fz for ld in loads if ld.source == "wing-air")
+    total = vn.dx - wing_fx
+    if not total:
+        return 0.0, 0.0, [], []
+
+    # The wind-axis drag increment, for the G10 consistency diagnostic.
+    a = radians(vn.alpha_deg)
+    q_psf = vn.v_eas_kt ** 2 / 295.0
+    qs = q_psf * fl.wing_area_sqft
+    delta_cd = ((-total) * cos(a)
+                + (wing_fz - vn.lzw) * sin(a)) / qs if qs else 0.0
+
+    wl = body_drag_waterline(project)
+    notes: List[str] = []
+    if wl.note:
+        notes.append(wl.note)
+    if total < 0.0:
+        notes.append(
+            f"the non-wing axial force is FORWARD ({total:+,.0f} lb): above "
+            f"alpha ~19 deg the strip model's induced drag overshoots the "
+            f"airplane-less-tail polar, so the airplane's own drag is less than "
+            f"the wing strips carry. Reported, not clamped (D-4)")
+
+    stations = _body_drag_stations(project, loading)
+    if not stations:
+        return total, delta_cd, [], notes + [
+            "the non-wing drag has no body station to act at and is NOT applied"]
+    notes.append(
+        f"non-wing drag {total:+,.0f} lb applied at waterline {wl.z:.1f} "
+        f"({wl.basis}) over {len(stations)} body station(s); dCD = {delta_cd:+.5f}")
+    return total, delta_cd, [
+        BalancedLoad(x=x, y=0.0, z=wl.z, fx=total * frac,
+                     source="body-axial", side="C")
+        for x, frac in stations
+    ], notes
+
+
+def _body_drag_stations(project: Project,
+                        loading: CaseLoading) -> List[Tuple[float, float]]:
+    """``[(x, fraction)]`` the body-axial load is spread over; sums to 1.0.
+
+    Cross-section-area share over the fuselage outline where there is one -- each
+    interior station taking half of each adjoining trapezoidal segment, so the
+    ends are not over-weighted -- else a single station at the body masses' own
+    centroid. Neither choice can move a gate (see :func:`body_axial_set`); the
+    outline branch exists so the deck's axial load path is physical where the
+    geometry supports one.
+    """
+    outline = project.geometry.fuselage if project.geometry is not None else None
+    sections = list(outline.sections) if outline is not None else []
+    if len(sections) >= 2:
+        area = [pi / 4.0 * s.width * s.height for s in sections]
+        w = [0.0] * len(sections)
+        for i in range(len(sections) - 1):
+            seg = 0.5 * (area[i] + area[i + 1]) * (sections[i + 1].x - sections[i].x)
+            w[i] += 0.5 * seg
+            w[i + 1] += 0.5 * seg
+        total = sum(w)
+        if total > 0.0:
+            return [(s.x, wi / total) for s, wi in zip(sections, w) if wi]
+    body = [it for it in loading.items
+            if not assembly_distributes_mass(component_of(it, project))]
+    weight = sum(it.weight_lb for it in body)
+    if weight:
+        return [(sum(it.x * it.weight_lb for it in body) / weight, 1.0)]
+    return []
 
 
 def fin_sets(result: TailSpanResult) -> List[BalancedLoad]:
@@ -1174,6 +1292,12 @@ def assemble(project: Project, condition: str, vn: VnPoint,
     loads.append(BalancedLoad(x=fl.xw, y=0.0, z=fl.zw, my=fuselage_cm,
                               source="fuselage-cm", side="C"))
 
+    # The airplane's NON-WING drag (see "The body-axial load" in the docstring).
+    body_axial, delta_cd, drag_loads, drag_notes = body_axial_set(
+        loads, project, vn, loading)
+    loads += drag_loads
+    notes += drag_notes
+
     # The aileron's rolling moment (FAR 23.349), applied as a labelled free
     # couple at the wing aerodynamic centre. Sign: WINGINER's unit-roll inertia
     # set produces a rolling moment of exactly ``+UNB`` (verified: its
@@ -1211,6 +1335,7 @@ def assemble(project: Project, condition: str, vn: VnPoint,
         p_dot=omega_dot[0], q_dot=omega_dot[1], r_dot=omega_dot[2],
         closure_inertia=tensor,
         unbal_moment=unb, fuselage_cm=fuselage_cm,
+        body_axial=body_axial, delta_cd=delta_cd,
         case_ref=_handed_ref(case_ref, "R") if handed else case_ref,
         hand="R" if handed else "", notes=notes,
     )
@@ -1986,6 +2111,10 @@ def run(project: Project) -> ModuleResult:
                 LoadValue("Closure dn", c.delta_n, "g", key="balanced_delta_n"),
                 LoadValue("Lumped fuselage Cm moment", c.fuselage_cm, "lb-in",
                           key="balanced_fuselage_cm"),
+                LoadValue("Non-wing drag (body-axial)", c.body_axial, "lb",
+                          key="balanced_body_axial"),
+                LoadValue("Non-wing drag dCD", c.delta_cd, "",
+                          key="balanced_delta_cd"),
             ],
             note="; ".join(c.notes) or None,
         ))

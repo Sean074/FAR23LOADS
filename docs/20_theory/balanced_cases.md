@@ -125,6 +125,29 @@ it is part of the record:
    `ga6_normal`, −8.5 to +5.8 % on `concept_regional_jet` (an earlier "+4.3 to
    +6.3 %, destabilising" reading here covered the symmetric wing conditions
    only; corrected 2026-08-15).
+6. **The airplane's non-wing drag is carried, and where it acts is stated.**
+   The FLTLOADS trim balances the airplane-less-tail drag from the *polar*; the
+   assembled model's only `fx` is the wing strips' own chordwise force. The
+   difference is the fuselage, the nacelles and the rest of the parasite drag,
+   and until 2026-08-15 nothing carried it — `residual_fx` *equalled* the wing's
+   drag, and the couple the missing force left about the CG was the whole pitch
+   residual. It is now the `body-axial` load. Two things about it are worth
+   stating here because neither is obvious:
+
+   - **It is genuinely parasite drag.** Both models resolve through the same `α`,
+     so the body-axis gap splits exactly into wind-axis parts; `ΔL/L` comes out
+     ≤ 0.6 % while `ΔC_D` is a near-constant **−0.018 across all seven ga6
+     cases** — a `C_D` offset independent of `C_L`, which a lift-model
+     disagreement would not produce.
+   - **Where it acts is a stated input, not a derived one.** `z_b` is the only
+     free parameter (a pure axial force contributes `my = (z − z_cg)·fx`, with no
+     `x` term), and the suite has **no body-centreline datum** to derive it from —
+     `root_waterline_z` is the *wing* root. Absent an entered
+     `body_drag_waterline_z` it is the wing reference plane, marked `assumed`,
+     which is where the trim itself assumes the whole airplane's drag acts. Design
+     note [`20_body_drag_carrier_note.md`](../30_future/20_body_drag_carrier_note.md)
+     §8.1; the `ΔC_D` diagnostic is reported per case because carrying the load
+     makes the applied axial resultant equal the trim's `dx` by construction.
 
 ## 3. The residual — measured before closure, and part of the deliverable
 
@@ -146,9 +169,12 @@ Neither floor is noise, and the two have **different** causes (measured
   predicted. It is a *model* difference, not a quadrature error: it converges to
   −42.3 lb / 0.327 % on ga6 PHAA as `elements` → ∞ (the −34.6 lb seen at the
   default 20 is that floor partly cancelled by the quadrature transient).
-- **Pitch.** The pitch residual is `(zw − zcg)·(ΣFx_wing − dx)` almost in full —
-  the assembled model carries **no non-wing drag**. It is flat in `elements`
-  (RJ PLAA: 1.041 % from 20 to 640), so no refinement reaches it. Backlog Pri 5.
+- **Pitch.** The pitch residual *was* `(zw − zcg)·(ΣFx_wing − dx)` almost in full
+  — the assembled model carried **no non-wing drag** — and it was flat in
+  `elements` (RJ PLAA 1.041 % from 20 to 640), so no refinement reached it. Since
+  the `body-axial` load landed (§2 item 6) it is the lift-model floor too:
+  **0.014–0.086 % across every fixture and family**, and the per-fixture ceiling
+  the RJ's low-CL cases needed is retired.
 
 The residual and the relief applied are stated in the result, the UI and the deck
 `$` header (CONVENTIONS §1: *the residual is part of the deliverable*).

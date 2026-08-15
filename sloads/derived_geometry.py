@@ -147,6 +147,75 @@ def fuselage_summary(outline) -> Optional[tuple]:
     return length, width, height
 
 
+class BodyDragWaterline(NamedTuple):
+    """Where the assembled model applies the airplane's non-wing drag (D-1).
+
+    ``z`` is the waterline (in), ``assumed`` False only when the project entered
+    it, and ``basis`` names where it came from. ``note`` is the in-band statement
+    a derived value carries onto every deliverable -- the same provenance shape
+    :class:`CarryThrough` and ``tail_geometry.FinRoot`` use."""
+    z: float
+    assumed: bool
+    basis: str
+    note: str = ""
+
+
+#: What a derived body-drag waterline says on every deliverable it reaches.
+_BODY_DRAG_ASSUMED = (
+    "body drag waterline ASSUMED at the wing reference plane -- the suite has no "
+    "body-centreline datum, so the non-wing drag is applied where the FLTLOADS "
+    "trim itself assumes the whole airplane's drag acts. Enter "
+    "body_drag_waterline_z to state it.")
+
+
+def body_drag_waterline(project: Project) -> BodyDragWaterline:
+    """Waterline the ``body-axial`` load acts at (in) -- **the single owner** (D-1).
+
+    Design note: ``docs/30_future/20_body_drag_carrier_note.md`` §8.1.
+
+    **Why this is worth an owner at all.** The magnitude of the body-axial load is
+    fixed by definition (``vn.dx - sum(fx of the wing strips)``) and its fuselage
+    station reaches no gate -- a pure axial force contributes ``my = (z-zcg)*fx``,
+    with no ``x`` term. So this waterline is the *entire* free parameter of the
+    body drag carrier, and it moves the pre-closure pitch residual one-for-one.
+
+    Resolution order -- deliberately **two** branches::
+
+        explicit body_drag_waterline_z -> use it                  (assumed False)
+        otherwise                      -> zw, with a loud note    (assumed True)
+
+    There is no geometry branch, and its absence is the decision. The obvious
+    candidate, ``root_waterline_z``, is the datum ``tail_geometry.fin_root_waterline``
+    measures "the top of the fuselage" from -- but it is the **wing** root, and
+    using it puts ``ga6_normal``'s ``SIDE GUST`` pitch residual at -1.173 %,
+    over the 1 % gate, on the Appendix A fixture. It would also be a trap rather
+    than merely wrong: ``ga6_normal`` carries ``fuselage_height = 0.0``, so any
+    branch conditioned on body geometry would *flip* the first time a fixture
+    gained a body outline -- a fixture-data change silently moving a gate.
+
+    ``zw`` is the fallback because it is the trim's own assumption
+    (``flight_envelope._balance`` lumps the whole airplane-less-tail force system
+    at ``(xw, zw)``), so a project that has not stated where its body is asserts
+    nothing this suite cannot support. It is also the most robust point available:
+    the residual is zero there and grows linearly either side, so ``zw`` sits at
+    the **centre** of the band within which every gated case passes -- +/-10.6 in
+    on ``concept_regional_jet``, +/-8.0 in on ``ga6_normal``. A later measured
+    waterline can replace it without re-baselining anything.
+    """
+    par = project.geometry.parametric if project.geometry is not None else None
+    if par is not None and par.body_drag_waterline_z:
+        return BodyDragWaterline(par.body_drag_waterline_z, False, "entered")
+    ref = wing_reference(project)
+    if ref is not None:
+        return BodyDragWaterline(ref.zw, True, "wing-plane", _BODY_DRAG_ASSUMED)
+    fl = project.flight_loads
+    if fl is not None and fl.zw:
+        return BodyDragWaterline(fl.zw, True, "wing-plane", _BODY_DRAG_ASSUMED)
+    return BodyDragWaterline(0.0, True, "none", (
+        "body drag waterline UNKNOWN (no wing reference plane) -- the non-wing "
+        "drag is applied at waterline 0. Enter body_drag_waterline_z."))
+
+
 def sync_geometry_derived(project: Project) -> None:
     """Fill the derived geometry copies on the consuming slices from ``project.geometry``.
 

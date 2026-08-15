@@ -1418,6 +1418,16 @@ class LayoutInput:
     le_sweep_deg: float = 0.0        # leading-edge sweep
     le_root_x: float = 0.0           # fuselage station of the LE at the centreline, in
     root_waterline_z: float = 0.0    # waterline of the root chord (25% MAC reference), in
+    # Waterline the airplane's NON-WING drag is applied at in the assembled model
+    # (in). **0 -> derive it** (see ``derived_geometry.body_drag_waterline``); the
+    # derived value is the wing reference plane ``zw`` and is marked ``assumed``
+    # and stated in-band. Design note ``docs/30_future/20_body_drag_carrier_note.md``
+    # decision D-1: the height this load acts at is the *only* free parameter in
+    # the body-axial carrier, and the suite has no body-centreline datum to derive
+    # one from -- ``root_waterline_z`` is the WING root, and using it would put
+    # ``ga6_normal``'s pitch residual over the gate. So it is stated, not guessed
+    # from geometry that does not mean what it looks like.
+    body_drag_waterline_z: float = 0.0   # 0 -> derived (zw), marked assumed
     # Empennage arrangement + drawing offset only. The tail area/span/arm moved to
     # the single-source GeometryInput.empennage (Step G6); the three-view and the
     # stability estimate read the analysis-native values there (htail/vtail area,

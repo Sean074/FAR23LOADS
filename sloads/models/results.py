@@ -547,6 +547,7 @@ class BalancedLoad:
 
     ``source`` records what the load is (``"wing-air"``, ``"wing-inertia"``,
     ``"tail-air"``, ``"vtail-air"``, ``"body-inertia"``, ``"fuselage-cm"``,
+    ``"body-axial"``,
     ``"closure-n"``, ``"closure-pitch"``, ``"closure-roll"``) and ``side`` which
     half it is on (``"L"``/``"R"``/``"C"``),
     so a deck can band them and a check can attribute a residual to its source.
@@ -648,6 +649,18 @@ class BalancedCaseResult:
     #: symmetric case; sign reverses between the handed twins.
     unbal_moment: float = 0.0
     fuselage_cm: float = 0.0
+    #: The airplane's **non-wing** drag (lb, +aft): the airplane-less-tail polar's
+    #: body-axis ``x`` force less what the wing strips carry. Applied as the
+    #: ``body-axial`` load; zero on the ground families, which have no aero.
+    body_axial: float = 0.0
+    #: The wind-axis drag-coefficient increment that load represents,
+    #: ``dD/(q*S)``. Reported because carrying the load necessarily removes it
+    #: from the residual: ``residual_fx`` becomes zero by construction, so this is
+    #: the quantity a regression in the two drag models shows up in. A missing
+    #: parasite term is a ``CD`` offset independent of ``CL``, so what has physical
+    #: content is its **consistency across the cases** of one fixture, not its
+    #: value on any one of them (design note ``20_body_drag_carrier_note.md`` G10).
+    delta_cd: float = 0.0
     case_ref: Optional[CaseRef] = None
     #: ``"R"``/``"L"`` for the two twins of an antisymmetric case, ``""`` when the
     #: case is symmetric and therefore its own mirror image (B-6/B-7).

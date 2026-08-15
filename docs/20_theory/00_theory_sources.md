@@ -240,16 +240,31 @@ the physics achieves, not on what the correction hides. The remaining ~0.3 %
 **force** floor is the strip-versus-closed-form lift difference plan 11 R3
 predicted (ga6 PHAA: the spanwise integral gives 12,940 lb against the trim's
 12,969) — a model difference rather than a quadrature error, since it converges
-to −42.3 lb / 0.327 % as `elements` → ∞. The **pitch** residual has a different
-cause and no `elements` dependence at all: it is the couple left by the
-airplane's non-wing drag, which the assembled model does not carry (measured
-2026-08-15; backlog Pri 5).
+to −42.3 lb / 0.327 % as `elements` → ∞. The **pitch** residual had a different
+cause and no `elements` dependence at all — the couple left by the airplane's
+non-wing drag, which nothing in the assembled model carried (measured 2026-08-15;
+backlog Pri 5). Carrying it as the `body-axial` load brings pitch to the same
+lift-model floor: **0.014–0.086 % on every fixture and family**, and the
+per-fixture ceiling the RJ's low-CL cases needed is retired.
 
-Two terms have no distributed carrier and are stated as lumped rather than
+**The non-wing drag** (`balance.body_axial_set`) is the airplane-less-tail
+polar's body-axis `x` force less what the wing strips carry — `drag_cd(config,
+cl)` against `airloads`' section profile plus lifting-line induced drag, resolved
+through the same `α`. That it is parasite drag rather than a lift-model
+disagreement is measured: decomposing into wind axes gives `ΔL/L` ≤ 0.6 % while
+`ΔC_D` is a near-constant −0.018 across all seven ga6 cases. Above `α ≈ 19°` on
+the RJ it inverts sign (the strip induced drag overshoots the polar) and is
+reported, not clamped. **Gate:** the applied axial resultant equals the trim's
+`dx` and `delta_nx` equals `dx/W`, both to 1e-9; the `ΔC_D` band is pinned per
+fixture and asserted negative below `α = 15°`. Its waterline is the single owner
+`derived_geometry.body_drag_waterline` — the only free parameter of the load, and
+stated rather than derived because the suite has no body-centreline datum (design
+note `../30_future/20_body_drag_carrier_note.md` §8.1).
+
+One term still has no distributed carrier and is stated as lumped rather than
 omitted: the fuselage's share of the airplane-less-tail `Cm` (the Munk moment,
 until M4-19 distributes it — a sign-changing slope term, −6.6 to +4.9 % of
-n·W·MAC on ga6 and −8.5 to +5.8 % on the RJ) and the longitudinal relief that
-stands in for thrust (FAR 23's `nx`).
+n·W·MAC on ga6 and −8.5 to +5.8 % on the RJ).
 
 #### The relief field itself, and its two producers (step B8a-2, 2026-08-09)
 

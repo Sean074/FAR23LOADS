@@ -12,6 +12,48 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **The assembled model carries the airplane's non-wing drag** (backlog Pri 5,
+  design note `docs/30_future/20_body_drag_carrier_note.md`). The FLTLOADS trim
+  balances the airplane-less-tail drag from the **polar**; the assembled model's
+  only `fx` was the wing strips' own chordwise force, so the fuselage, nacelle
+  and remaining parasite drag was simply absent — `residual_fx` *equalled* the
+  wing's drag, and the couple that missing force left about the CG was the whole
+  of the pre-closure pitch residual. New `balance.body_axial_set` applies it as a
+  labelled `body-axial` load, spread over the fuselage outline by
+  cross-section-area share where there is one. **Every family on both fixtures
+  falls to the lift-model floor — 0.014–0.086 % against a 1 % gate — so the
+  per-fixture pitch ceiling is retired** (`_PITCH_RESIDUAL_CEILING` becomes
+  `_PITCH_RESIDUAL_RATCHET`, which records what each family actually reaches so
+  the flat gate cannot pass a 12× regression in silence), and plan 13's G9
+  inherits the flat gate. The longitudinal closure now reads the trim's own drag:
+  ga6 PHAA `nx` 0.661 g → **0.610 g**, exactly `dx/W`.
+
+  That the gap is genuinely parasite drag is measured, not assumed: both models
+  resolve through the same `α`, so the body-axis difference decomposes exactly
+  into wind-axis parts, and `ΔL/L` comes out ≤ 0.6 % while `ΔC_D` is a
+  near-constant **−0.018 across all seven `ga6_normal` cases** — a `C_D` offset
+  independent of `C_L`. Above `α ≈ 19°` on the regional jet it inverts sign,
+  because the strip model's induced drag overshoots the polar there; that is
+  reported as a case note rather than clamped, since clamping would hide it.
+
+  New input `LayoutInput.body_drag_waterline_z` (**schema v49**, additive, no
+  hop) with its single owner `derived_geometry.body_drag_waterline`. Its
+  resolution order is deliberately **two branches** — explicit, else the wing
+  reference plane with a loud `assumed` note. There is no geometry branch, and
+  its absence is the decision: the suite has no body-centreline datum
+  (`FuselageSection` carries no `z`), `root_waterline_z` is the *wing* root, and
+  deriving from it would put `ga6_normal`'s `SIDE GUST` residual at −1.173 %,
+  over the gate on the Appendix A fixture — as well as being a trap, since that
+  fixture's `fuselage_height` is 0.0 and any geometry-conditioned branch would
+  flip the first time a fixture gained a body. `BalancedCaseResult` gains
+  `body_axial` and `delta_cd`; the latter is reported because carrying the load
+  makes the applied axial resultant equal the trim's `dx` **by construction**, so
+  the diagnostic that found the defect would otherwise vanish with it.
+
+  Imperial baseline: only `csv/balance`, `txt/balance` and `sbeam/balanced_deck`
+  moved, and only on the two fixtures with balanced cases — every per-component
+  deck and every Appendix A oracle is byte-unchanged.
+
 - **The authoritative package tree is as-built, has one owner, and is guarded**
   (0.6.0-candidate review finding **R6-D5**). `PROJECT_GUIDE.md` §4 was still the
   *proposed* restructure layout and had drifted past three SSOT owners added in

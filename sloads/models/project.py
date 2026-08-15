@@ -234,7 +234,14 @@ from .results import EnvelopeResult, LoadsResult, MassResult
 # and every pre-v48 project keeps exactly the numbers it had -- the assembled
 # ground cases read gear mass from ``weight.items`` as they always did, and this
 # field feeds the report alone.
-SCHEMA_VERSION = 48  # step 10 piece 3: the gear leg weight (G-12a)
+# Body drag carrier (v49): ``LayoutInput.body_drag_waterline_z`` -- the waterline
+# the airplane's non-wing drag is applied at in the assembled model (design note
+# ``docs/30_future/20_body_drag_carrier_note.md``, decision D-1). Additive with a
+# ``0.0`` default, and ``0.0`` means "derive it" -- the wing reference plane
+# ``zw``, marked ``assumed`` and stated in-band, exactly as
+# ``vtail_root_waterline_z`` handles the same class of question. So no migration
+# hop, and every pre-v49 project takes the derived value.
+SCHEMA_VERSION = 49  # body drag carrier: body_drag_waterline_z (D-1)
 
 
 @dataclass

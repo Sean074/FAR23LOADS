@@ -150,6 +150,7 @@ labels = {
     "htail-air": "Horizontal-tail load, distributed (23.427(a) case)",
     "body-inertia": "Fuselage + empennage inertia",
     "fuselage-cm": "Fuselage pitching moment (lumped)",
+    "body-axial": "Non-wing drag (airplane-less-tail polar less the wing strips)",
     "aileron-roll": "Aileron rolling moment (lumped)",
     "closure-n": "Closure — vertical / longitudinal relief",
     "closure-pitch": "Closure — pitch relief",

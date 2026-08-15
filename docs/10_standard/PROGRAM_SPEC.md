@@ -694,6 +694,15 @@ regression oracle**; Appendix A/B geometry is used only as a *sanity* fixture.
   aileron's own spanwise lift increment is likewise lumped as a free couple at
   the wing aerodynamic centre — both stated wherever the case is rendered, since
   omitting them would leave a real aero load disguised as a closure correction.
+  The airplane's **non-wing drag** — the airplane-less-tail polar's body-axis `x`
+  force less what the wing strips carry — is applied as a `body-axial` load
+  (`balance.body_axial_set`), spread over the body outline where there is one.
+  Its waterline is the single owner `derived_geometry.body_drag_waterline`, and
+  it is the *only* free parameter of that load: its magnitude is fixed by
+  definition and its fuselage station contributes no pitching moment. Absent an
+  entered `body_drag_waterline_z` it is the wing reference plane, marked
+  `assumed`. The `ΔC_D` it represents is reported per case, because carrying the
+  load makes the applied axial resultant equal the trim's `dx` by construction.
   A condition whose CG the weight database cannot produce is **recorded, not
   invented**. The ground families' own method — the `n_z = 0` solve, the applied
   gear/lift set and the LANDLOAD identity — is

@@ -45,6 +45,7 @@ import pytest  # noqa: E402
 
 from sloads import io  # noqa: E402
 from sloads.constants import LBIN2_PER_SLUGFT2  # noqa: E402
+from sloads.derived_geometry import body_drag_waterline  # noqa: E402
 from sloads.gear_loads import gear_case_loads  # noqa: E402
 from sloads import mass_distribution as md  # noqa: E402
 from sloads.models import BalancedLoad, MassComponent, MissingInputError  # noqa: E402
@@ -190,42 +191,34 @@ _EXPECTED_GROUND_CASES = {
     ],
 }
 
-#: The pre-closure **pitch** residual, per fixture, as a fraction of ``n*W*MAC``.
+#: The worst pre-closure **pitch** residual any fixture reaches, as a fraction of
+#: ``n*W*MAC`` -- a *ratchet*, not a gate. The gate is plan 11's flat
+#: ``RESIDUAL_GATE`` (1 %), and it now applies to every fixture and every family.
 #:
-#: Plan 11's gate is 1 % and ``ga6_normal`` -- the Appendix A fixture -- meets it
-#: on every case with room to spare. ``concept_regional_jet`` does not, on its
-#: three high-speed low-CL cases (PLAA 1.041 %, PMAA 0.967 %, TORS 1.174 %), and
-#: that is **stated here rather than absorbed into a wider gate for everyone**:
-#: plan 11 R3 anticipated exactly this and offered "state the floor per fixture"
-#: as the remedy. The pattern is diagnostic -- the exceedance tracks cases whose
-#: lumped fuselage ``Cm`` is small or reversed, i.e. where the trim's
-#: airplane-less-tail moment and the distributed wing's own section ``Cm`` nearly
-#: cancel and the residual is a difference of large numbers. Filed on the backlog.
+#: **The per-fixture ceiling table is retired (body drag carrier, 2026-08-15).**
+#: It existed because ``concept_regional_jet``'s high-speed low-CL cases sat over
+#: 1 % (PLAA 1.041 %, TORS 1.174 %, SIDE GUST 1.586 %) and plan 11 R3's remedy was
+#: "state the floor per fixture". The cause turned out to be neither of the two
+#: things that were suspected: the assembled model carried **no non-wing drag**,
+#: and the couple that missing force left about the CG was the residual. Carrying
+#: it (``balance.body_axial_set``) drops every family on both fixtures to the
+#: lift-model floor, so there is nothing left to except:
 #:
-#: B8a-3 splits the ceiling **per family** rather than widening it, for the same
-#: reason it is stated per fixture: the lateral cases sit at V-n points the
-#: symmetric families never visit (ga6 14 and 35, RJ 14 and 95), and their pitch
-#: residual is larger there -- ga6 ``SUDDEN RUDDER`` 0.341 %, RJ ``SIDE GUST``
-#: 1.586 %. That is *not* lateral contamination: the fin set carries ``fy`` and
-#: ``mz`` only, so it contributes nothing to ``Fz``/``My``, and the symmetric half
-#: of a lateral case has the identical residual to the last digit
-#: (:func:`test_the_symmetric_half_of_a_lateral_case_still_closes`). Keeping the
-#: symmetric bounds where they were preserves their bite; a single widened number
-#: would have let a real symmetric regression through.
+#: =========================  ==========  ==========  ==============
+#: fixture                    symmetric   lateral     unsym (trim half)
+#: =========================  ==========  ==========  ==============
+#: ``ga6_normal``             0.075 %     0.014 %     0.018 %
+#: ``concept_regional_jet``   0.086 %     0.069 %     0.030 %
+#: =========================  ==========  ==========  ==============
 #:
-#: These are upper bounds, not targets: they bite on any regression.
-#: D-R8 adds an ``unsymmetrical`` bound, and it is a bound on a *different*
-#: quantity: the 23.427(a) case's own pre-closure pitch residual is the maneuver
-#: (144 % of ``n*W*MAC``), so what is bounded is its **trim half** -- the same
-#: case with the lumped trim tail load restored, in
-#: :func:`test_the_trim_half_of_an_unsymmetrical_case_still_closes`. It sits at
-#: its own V-n point (ga6 74/``CG4``, RJ 34), which the symmetric families never
-#: visit, and measures 0.301 % / 0.694 % there.
-_PITCH_RESIDUAL_CEILING = {
-    "ga6_normal.project.json": {"symmetric": 0.0030, "lateral": 0.0070,
-                                "unsymmetrical": 0.0035},
-    "concept_regional_jet.project.json": {"symmetric": 0.0120, "lateral": 0.0160,
-                                          "unsymmetrical": 0.0080},
+#: This ratchet keeps the bite the per-fixture numbers used to provide: the flat
+#: 1 % gate would now pass a **12x** regression on the RJ in silence. Raise a
+#: number here only with the measurement that justifies it.
+_PITCH_RESIDUAL_RATCHET = {
+    "ga6_normal.project.json": {"symmetric": 0.0010, "lateral": 0.0005,
+                                "unsymmetrical": 0.0005},
+    "concept_regional_jet.project.json": {"symmetric": 0.0010, "lateral": 0.0010,
+                                          "unsymmetrical": 0.0005},
 }
 
 
@@ -503,15 +496,15 @@ def _skipped_lines_of(deck_text: str):
 # --------------------------------------------------------------------------- #
 @pytest.mark.parametrize("example", _with_cases())
 def test_the_pre_closure_residual_is_within_the_gate(example):
-    """``|dFz|/(n*W) < 1 %``, and the pitch residual within its stated ceiling.
+    """``|dFz|/(n*W)`` and ``|dMy|/(n*W*MAC)`` both under plan 11's flat 1 %.
 
     The gate is on the physics, not on the correction -- which is the whole point
-    of measuring it before closure. **Force** meets plan 11's 1 % on every case of
-    every fixture (ga6 0.05-0.62 %, RJ 0.03-0.70 %). **Pitch** meets it on
-    ``ga6_normal``, the Appendix A fixture, at 0.12-0.29 %; on
-    ``concept_regional_jet`` three high-speed low-CL cases exceed it and are
-    bounded per fixture instead -- see :data:`_PITCH_RESIDUAL_CEILING` for the
-    numbers, the diagnosis and why the gate is not simply widened.
+    of measuring it before closure. **Force** meets it on every case of every
+    fixture (ga6 0.05-0.62 %, RJ 0.03-0.70 %). **Pitch** now does too, on every
+    fixture and every family, at 0.014-0.086 %: the per-fixture ceiling the RJ's
+    low-CL cases used to need was retired when the body drag carrier landed, and
+    :data:`_PITCH_RESIDUAL_RATCHET` records what each family actually reaches so
+    the flat gate cannot pass a 12x regression in silence.
 
     The **roll** and **yaw** DOF are deliberately not gated here. On a rolling
     case ``residual_mx`` is the applied aileron couple; on a lateral case
@@ -534,12 +527,15 @@ def test_the_pre_closure_residual_is_within_the_gate(example):
         if _family(case) == "unsymmetrical":
             continue
         where = f"{example} {case.label}{case.hand}"
-        ceiling = _PITCH_RESIDUAL_CEILING[example][_family(case)]
         assert case.force_residual_fraction < RESIDUAL_GATE, (
             f"{where}: force residual {case.force_residual_fraction * 100:.3f} %")
-        assert case.moment_residual_fraction < ceiling, (
-            f"{where}: pitch residual {case.moment_residual_fraction * 100:.3f} % "
-            f"against the {_family(case)} ceiling {ceiling * 100:.2f} %")
+        assert case.moment_residual_fraction < RESIDUAL_GATE, (
+            f"{where}: pitch residual {case.moment_residual_fraction * 100:.3f} %")
+        ratchet = _PITCH_RESIDUAL_RATCHET[example][_family(case)]
+        assert case.moment_residual_fraction < ratchet, (
+            f"{where}: pitch residual {case.moment_residual_fraction * 100:.4f} % "
+            f"is inside the 1 % gate but over the {_family(case)} ratchet "
+            f"{ratchet * 100:.2f} % -- see _PITCH_RESIDUAL_RATCHET")
 
 
 @pytest.mark.parametrize("example", _with_cases())
@@ -640,6 +636,174 @@ def test_no_wing_items_and_no_panel_still_weighs_the_case():
                        if ld.source in ("wing-inertia", "body-inertia"))
         assert modelled == pytest.approx(case.weight_lb, rel=1e-9), case.label
         assert not [ld for ld in case.loads if ld.source == "wing-inertia"]
+
+
+# --------------------------------------------------------------------------- #
+# The body drag carrier (design note 20_body_drag_carrier_note.md), gates G1-G10
+# --------------------------------------------------------------------------- #
+#: The wind-axis ``dCD`` the non-wing drag represents, per fixture: ``(lo, hi)``.
+#:
+#: **What has physical content is the consistency, not the value.** A missing
+#: parasite term is a ``CD`` offset independent of ``CL``, so on ``ga6_normal``
+#: this is a near-constant **-0.018 across all seven cases** -- the measurement
+#: that identified the defect as drag rather than a lift-model disagreement.
+#:
+#: ``concept_regional_jet``'s band is wide, and deliberately so: it **records a
+#: known anomaly rather than hiding it**. Its two high-``alpha`` points invert the
+#: sign (PHAA +0.0558 at 22.8 deg, ACRL +0.0139 at 19.5 deg) because the strip
+#: model's induced drag overshoots the airplane-less-tail polar there. Below
+#: 15 deg every case of both fixtures is negative, which
+#: :func:`test_the_non_wing_drag_is_a_consistent_parasite_offset` asserts
+#: separately -- that is the gate with the physics in it, and it is what a
+#: sign-flip regression at ordinary ``alpha`` would trip.
+_DELTA_CD_BAND = {
+    "ga6_normal.project.json": (-0.0210, -0.0160),
+    "concept_regional_jet.project.json": (-0.0360, +0.0560),
+}
+
+#: Above this the strip model's induced drag is not trusted against the polar.
+_TRUSTED_ALPHA_DEG = 15.0
+
+
+@pytest.mark.parametrize("example", _with_cases())
+def test_the_applied_axial_force_is_the_airplanes_drag_not_the_wings(example):
+    """G1/G5: ``sum(applied fx) == vn.dx``, exactly, on every flight case.
+
+    The gate that the body drag carrier exists to make true. Before it, the only
+    ``fx`` in the assembled model was the wing strips' own chordwise force, so
+    ``residual_fx`` *equalled* that sum and the airplane's fuselage, nacelle and
+    remaining parasite drag was simply absent.
+
+    Note what is **not** asserted: that the residual is zero. There is no thrust
+    in the model and there is not meant to be -- FAR 23's longitudinal load factor
+    ``nx`` is exactly this unbalanced axial force, and
+    :func:`test_the_longitudinal_closure_is_the_trims_own_drag` is where it is
+    accounted for. An earlier draft of this gate asked for zero and was wrong.
+    """
+    project = _project(example)
+    vn = {p.case: p for p in default_envelope(project).vn}
+    for case in _flight_cases(project):
+        applied = sum(ld.fx for ld in case.loads
+                      if not ld.source.startswith("closure-"))
+        expected = vn[case.vn_case].dx
+        assert applied == pytest.approx(expected, rel=1e-9, abs=1e-6), (
+            f"{example} {case.label}{case.hand}: applied Fx {applied:,.1f} lb "
+            f"against the trim's drag {expected:,.1f} lb")
+        assert case.residual_fx == pytest.approx(expected, rel=1e-9, abs=1e-6)
+
+
+@pytest.mark.parametrize("example", _with_cases())
+def test_the_longitudinal_closure_is_the_trims_own_drag(example):
+    """G2: ``delta_nx`` is the trim's ``dx/W``, to 1e-9.
+
+    The ``x`` degree of freedom of the closure stands in for thrust, so what it
+    reads *should* be the airplane's drag over its weight. Before the body drag
+    carrier it was the wing's drag alone -- ``ga6_normal`` PHAA closed at 0.661 g
+    against the trim's own 0.610, and the 0.05 g difference was the missing load,
+    not a modelling choice.
+    """
+    project = _project(example)
+    vn = {p.case: p for p in default_envelope(project).vn}
+    for case in _flight_cases(project):
+        expected = vn[case.vn_case].dx / case.weight_lb
+        assert case.delta_nx == pytest.approx(expected, rel=1e-9), (
+            f"{example} {case.label}{case.hand}: closure nx {case.delta_nx:.5f} "
+            f"against the trim's drag {expected:.5f}")
+
+
+@pytest.mark.parametrize("example", _with_cases())
+def test_a_ground_case_carries_no_body_drag(example):
+    """G4: the ground families have no aero, so they carry no non-wing drag.
+
+    The same rule that keeps ``fuselage_cm`` at zero there. A ground case's
+    longitudinal load is the braked-roll/side-load wheel reaction, which the gear
+    family applies itself -- adding an airborne drag term beside it would be a
+    load the airplane is not carrying.
+    """
+    for case in _ground_cases(_project(example)):
+        assert case.body_axial == 0.0, f"{case.label}: {case.body_axial} lb"
+        assert not [ld for ld in case.loads if ld.source == "body-axial"]
+
+
+@pytest.mark.parametrize("example", _with_cases())
+def test_the_non_wing_drag_is_a_consistent_parasite_offset(example):
+    """G10: the ``dCD`` diagnostic, and the physics that gives it bite.
+
+    Carrying the load makes the applied axial resultant equal the trim's ``dx``
+    **by construction** (G1), so the residual can no longer report a disagreement
+    between the two drag models. This is where that signal lives instead, and it
+    is not decoration: it is the measurement that identified the defect.
+
+    Two assertions, and the second is the one with physics in it:
+
+    * every case sits inside its fixture's recorded band
+      (:data:`_DELTA_CD_BAND`) -- a regression guard;
+    * below ``alpha`` = 15 deg every case is **negative**, i.e. the wing strips
+      carry strictly less axial force than the whole airplane. That is a real
+      statement, not a tautology: the polar covers airplane-less-tail and the
+      strips cover the wing, so the difference is other components' drag and can
+      only have one sign while the strip model is trusted.
+    """
+    project = _project(example)
+    vn = {p.case: p for p in default_envelope(project).vn}
+    lo, hi = _DELTA_CD_BAND[example]
+    trusted = []
+    for case in _flight_cases(project):
+        where = f"{example} {case.label}{case.hand}"
+        assert lo <= case.delta_cd <= hi, (
+            f"{where}: dCD {case.delta_cd:+.5f} outside the recorded band "
+            f"({lo:+.4f}, {hi:+.4f}) -- see _DELTA_CD_BAND")
+        if abs(vn[case.vn_case].alpha_deg) <= _TRUSTED_ALPHA_DEG:
+            trusted.append((where, case.delta_cd))
+    assert trusted, f"{example}: no case below {_TRUSTED_ALPHA_DEG} deg alpha"
+    for where, cd in trusted:
+        assert cd < 0.0, (
+            f"{where}: dCD {cd:+.5f} says the wing strips carry MORE axial force "
+            f"than the whole airplane less tail, below the stall-line alphas "
+            f"where the strip model is trusted")
+
+
+@pytest.mark.parametrize("example", _with_cases())
+def test_the_body_drag_waterline_is_stated_and_is_the_only_free_parameter(example):
+    """G6/G9: one owner for the waterline, and it is what moves the residual.
+
+    Two halves, and together they are the drift guard ``CLAUDE.md`` practice 3
+    asks for on a cross-cutting convention:
+
+    * **provenance** -- an underived waterline is marked ``assumed`` and says so
+      in-band, exactly as ``FinRoot`` does for the fin root (decision D-1 follows
+      that pattern deliberately);
+    * **the owner is the one that is used** -- entering
+      ``body_drag_waterline_z`` moves every case's pitch residual by exactly
+      ``(z_new - z_cg) * fx``, which is only true if ``assemble`` reads the owner
+      rather than a private copy of the same rule.
+
+    The second half also pins the design note's central finding: the residual is
+    linear in this height and zero at the wing plane, so a body drag load placed
+    at the body's own mass centroid would make the pitch residual **worse**, not
+    better. Nothing else about the load can move a gate -- its magnitude is fixed
+    by G1 and its fuselage station contributes no pitching moment at all.
+    """
+    project = _project(example)
+    resolved = body_drag_waterline(project)
+    assert resolved.assumed is True and resolved.basis == "wing-plane"
+    assert resolved.note and "ASSUMED" in resolved.note
+    assert resolved.z == pytest.approx(project.flight_loads.zw, rel=1e-12)
+
+    before = {(c.label, c.hand): c for c in _flight_cases(project)}
+    moved = replace(
+        project,
+        geometry=replace(project.geometry, parametric=replace(
+            project.geometry.parametric,
+            body_drag_waterline_z=resolved.z + 10.0)))
+    assert body_drag_waterline(moved) == (resolved.z + 10.0, False, "entered", "")
+
+    for case in _flight_cases(moved):
+        old = before[(case.label, case.hand)]
+        expected = old.residual_my + 10.0 * old.body_axial
+        assert case.residual_my == pytest.approx(expected, rel=1e-9, abs=1e-6), (
+            f"{example} {case.label}{case.hand}: moving the body drag waterline "
+            f"10 in did not move the pitch residual by 10 * {old.body_axial:,.0f} lb")
 
 
 # --------------------------------------------------------------------------- #
@@ -1590,10 +1754,14 @@ def test_the_trim_half_of_an_unsymmetrical_case_still_closes(example):
         n_w = case.n_w
         assert abs(fz) < RESIDUAL_GATE * n_w, (
             f"{where}: trim-half force residual {100 * fz / n_w:.3f} % of n*W")
-        ceiling = _PITCH_RESIDUAL_CEILING[example]["unsymmetrical"]
-        assert abs(my) < ceiling * n_w * case.mac, (
+        ratchet = _PITCH_RESIDUAL_RATCHET[example]["unsymmetrical"]
+        assert abs(my) < RESIDUAL_GATE * n_w * case.mac, (
             f"{where}: trim-half pitch residual "
-            f"{100 * my / (n_w * case.mac):.3f} % against {ceiling * 100:.2f} %")
+            f"{100 * my / (n_w * case.mac):.3f} %")
+        assert abs(my) < ratchet * n_w * case.mac, (
+            f"{where}: trim-half pitch residual "
+            f"{100 * my / (n_w * case.mac):.4f} % over the ratchet "
+            f"{ratchet * 100:.2f} % -- see _PITCH_RESIDUAL_RATCHET")
         # The trim half is symmetric: the whole hand of the case is the tail
         # split, and putting the lumped load back removes it entirely.
         assert fy == 0.0, f"{where}: trim half carries {fy} lb of Fy"
