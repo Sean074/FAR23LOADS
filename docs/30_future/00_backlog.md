@@ -195,7 +195,7 @@ traceability with plans 09/11/12/13; the **Pri** column is ordinal only.
 | 5 | RJ pitch-gate exceedance diagnosis | Element-count study → R3 vs `Cm` split; plan 13 G9 inherits the ceiling | V | M / S | pairs M4-19 |
 | 6 | Payload cases the weight database can produce (sibling pair) | Four more fixtures gain balanced cases → more assembled decks in CI | V | M–L / M | user decision: loading definition vs fixture fix |
 | 7 | Wing-tank fuel separability | Ends the same pounds riding both beams on the three fuel-in-wing fixtures | V | L / M | pairs plan 12 C1 |
-| 8 | Lateral body aero `Cy_β`/`Cn_β` (L-7) | Honest lateral `n_y`/`ψ̈` (fin-only today — over-stated, conservative) | V | L / M | pairs M4-19 |
+| 8 | Lateral body aero `Cy_β`/`Cn_β` (L-7) — design note for the lumped half in [`19_l7_lateral_body_aero_note.md`](19_l7_lateral_body_aero_note.md) (**proposed, awaiting agreement**) | Honest lateral `n_y`/`ψ̈` (fin-only today — over-stated, conservative) | V | L / M | pairs M4-19 |
 | 9 | Empennage planform polylines (fixture data) | Real taper in the tail card distributions instead of the `assumed` rectangle | V | S / S | — |
 | 10 | h-tail attachment `fuselage_width` (fixture data) | Real attachment stations instead of the `±ds/2` fallback | V | S / S | pairs Pri 2 (SOB) |
 | 11 | `concept_heavy` gear geometry + `landing` slice (fixture data) *(new 2026-08-14, from step 10 decision G-13)* | A sixth gear-report fixture, and the only concept-mode exercise of the 23.473(g) floor warning | V | S / S | — (the gear report shipped 2026-08-15) |
@@ -243,6 +243,31 @@ sideslip angle is already available in three of the four v-tail conditions
 (19.5°, 15°, and the gust case's effective β); `SUDDEN RUDDER` is rudder
 deflection at zero sideslip and has no body side force to add. Pairs with M4-19.
 Tier L (new physics, no oracle → a stated closure gate). Effort: M.
+
+**Design note (revision 2, 2026-08-15):**
+[`19_l7_lateral_body_aero_note.md`](19_l7_lateral_body_aero_note.md) — proposed,
+awaiting agreement, no code. Sourcing Digital DATCOM (USAF, public domain) made
+the **whole lumped step** deliverable in one go and overturned three conclusions
+of the first draft, which are marked as corrections in the note rather than
+quietly replaced:
+
+- The method is **DATCOM 5.2.3.1 / 5.2.1.1**, transcribed from the Digital
+  DATCOM source, whose `K_N` chart data is bundled as `DATA` statements and whose
+  `K_Rl` is closed form — so **no constant has to be invented**, and its 11
+  sample cases with printed `CYB`/`CNB` make this an **oracle** step (+-0.1 %)
+  rather than a closure-gate step.
+- **`Cn_beta,body` is 2.3x Munk, not a fraction of it** (`+0.2026` vs `+0.0876`
+  /rad on the RJ): Munk is an isolated body in ideal flow, while `K_N` correlates
+  the wing-body combination whose interference Munk omits. The "reduction factor"
+  premise of the first draft is void.
+- **`Cy_beta` is reachable lumped** (`-0.0213`/rad, mostly the wing-dihedral
+  term), so both halves of `LATERAL_AERO_NOTE` close, not just the yaw half.
+
+Case effects on `concept_regional_jet` (the only lateral fixture with body
+geometry — `ga6_normal` has none): `|psi_dd|` down 73-84 % on the two
+rudder-neutral conditions, `|n_y|` **up** 4.1-12.0 %. Net `Cn_beta` =
+`-0.257 + 0.2026 = -0.054`/rad: statically stable with 21 % margin. Two open
+items and one filed defect (below) in §9-§10.
 
 ### [V] The aileron's own lift increment is not distributed *(new 2026-08-08, from B7)*
 The assembled `ACRL` case applies the unbalanced rolling moment (FAR 23.349) as a
@@ -696,6 +721,23 @@ Mechanical (S); do after the current working tree is committed.
 
 ## Open defects (index)
 
+- **`LATERAL_AERO_NOTE` states the `n_y` error in the wrong direction [Minor,
+  found 2026-08-15 while writing the L-7 design note].** `balance.py:307` tells
+  every reader that `n_y` *and* the yaw acceleration are **over-stated** and that
+  the inertia they drive is therefore conservative. The yaw half is right; the
+  `n_y` half is backwards. At `+beta` the body and wing side force acts to port —
+  the **same** sense as the fin's restoring load — so it **adds**, and `|n_y|` is
+  **under**-stated: measured with the DATCOM derivatives, +4.1 % on the two
+  rudder-neutral conditions and +12.0 % on `YAW TO SIDESLIP`, whose fin net is a
+  near-cancellation. The lateral translational inertia is therefore **not**
+  conservative, contrary to what the deck header, the case notes, the UI and the
+  report's standing limitations all currently say. Three sites carry the sentence
+  (`balance.LATERAL_AERO_NOTE`, `report/methods.py:156`, `CONVENTIONS.md` §1's
+  L-7 bullet) plus the pin in `tests/test_methods_stamp.py:182`. Filed
+  separately because it is wrong text in a shipped deliverable whether or not
+  Pri 8 is worked, and the fix is one sentence; the magnitudes come free with
+  Pri 8. Tier M (behaviour of a stated limitation, no computed number moves).
+  Detail: [`19_l7_lateral_body_aero_note.md`](19_l7_lateral_body_aero_note.md) §1.
 - **Review 2026-08-10 unscheduled findings [Minor/NIT].** The 0.5.0 review's
   MINOR findings not promoted into the release rows (m3–m13, m15–m18: `stick_model_bdf`
   single-case GRIDs, CONM2 card width vs classical free-field, wing-band
