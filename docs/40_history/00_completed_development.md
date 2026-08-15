@@ -28,8 +28,10 @@ channel changed. **The gate then did what the note said it would**: it found
 that `LANDLOAD.BAS` resolves the ground-roll attitude at `PHIM = +BETA(2)` where
 the other two attitudes carry `−GRA`, so the 23.485 family's own `ROLLP` and
 `YAWP` are stated 9.45° apart on `ga6_normal` and cannot both be reproduced by
-one rotation. The port is faithful to the BASIC; the state is pinned per
-attitude on all five gear fixtures and the decision is backlog row 1.
+one rotation. The port is faithful to the BASIC, and the user decided the same
+day to **keep the manual's convention as a faithful replication** — recorded
+under "Considered and declined" in `20_theory/02_approved_corrections.md`, with
+the state pinned per attitude on all five gear fixtures so it cannot drift.
 
 **A ground case's source case is named as LANDLOAD's, not as a V-n point
 (complete 2026-08-15, tier M)** — 0.6.0-candidate review finding R6-C3: the

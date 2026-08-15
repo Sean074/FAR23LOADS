@@ -718,8 +718,15 @@ def test_the_ground_roll_attitude_is_resolved_against_the_other_sign(example):
     are stated 2 x GRA(2) = 9.45 deg apart. On an airplane that sits level
     (``GRA(2) = 0``: the regional jet and both twins) the two signs coincide and
     the question does not arise, which is why only ``ga6_normal`` and the Cessna
-    can see it at all. Deciding what to do about it is an oracle question and
-    carries the full deviation trail; the backlog holds the row.
+    can see it at all.
+
+    **Decision of record (user, 2026-08-15): keep the manual's convention -- this
+    is a faithful replication.** No deviation is taken, so this test asserts the
+    manual's own signs, ``+GRA`` on the ground-roll attitude included, and is the
+    thing that goes red if either ever moves. The reasoning, the exposure and the
+    conditions under which the question would resume are recorded under
+    "Considered and declined" in ``docs/20_theory/02_approved_corrections.md``,
+    which is the register the oracle-deviation policy points at.
     """
     project = _project(example)
     inp = _effective_gear_input(project, project.landing)

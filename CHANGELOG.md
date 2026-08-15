@@ -45,8 +45,12 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   family's pitch carries the same difference (0.6–3.2 %, bounded at 5 % with the
   cause named). An airplane that sits level (`GRA(2) = 0` — the regional jet and
   both twins) cannot see it at all. Pinned on all five gear fixtures by
-  `test_the_ground_roll_attitude_is_resolved_against_the_other_sign`; the
-  backlog carries the decision row.
+  `test_the_ground_roll_attitude_is_resolved_against_the_other_sign`. **Decided
+  the same day (user, 2026-08-15): keep the manual's convention — this is a
+  faithful replication.** No deviation is taken; the reasoning, the exposure and
+  the tests that hold it are recorded under "Considered and declined" in
+  `docs/20_theory/02_approved_corrections.md`, which is where the question
+  resumes should a legible printed oracle ever surface.
 
 - **Ground and landing cases, and the gear load report** (**step 10 piece 3**,
   decisions **G-1/G-6/G-7(+G-7a)/G-8/G-9/G-12(+G-12a)/G-13**, schema **v48**) —

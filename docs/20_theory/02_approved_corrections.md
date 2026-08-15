@@ -59,3 +59,55 @@ the DN unchecked maneuver governs and the unsymmetrical total moves to −1204.7
 (RH −700.4, LH −504.3, 72%). Regression-tested in
 `test_htail_gust_and_unsymmetrical_match_appendix_a` (manual's −1111.8 kept in a
 comment). Source: `reference/23_427_unsymmetrical_candidate_set.md`.
+
+---
+
+## Considered and declined
+
+An oracle question raised, examined and **answered "replicate as printed"** is
+recorded here too. The register exists so a deviation is never accidental; a
+decision *not* to deviate is worth the same protection, or the same question
+gets re-litigated by whoever next reads the source and thinks it is a bug.
+
+### LANDLOAD's ground-roll attitude resolves at `+BETA(2)` *(declined 2026-08-15 — replicate as printed)*
+
+`LANDLOAD.BAS` resolves each case's wheel resultant into airplane axes through
+`PHIM`, and the three attitudes do not carry the ground angle with the same sign:
+
+```
+L=1 TO 6, 10 TO 12: PHIM(L) = BETA(1)                  ' BETA(1) = GAMMA - GRA(1)
+L=7 TO 9:           PHIM(L) = -BETA(3)                 ' BETA(3) = GRA(3)
+L=13 TO 18:         PHIM(L) = ATN(.8)*57.3 + BETA(2)   ' BETA(2) = +GRA(2)
+L=19 TO 24:         PHIM(L) = BETA(2)
+```
+
+so the ground-line→airplane-datum rotation comes out `ρ = −GRA` in the level and
+tail-down attitudes and `ρ = +GRA` in the ground-roll one. The contact patch is
+the rolling radius below the axle **along the ground normal**, so the geometry
+implies `−GRA` throughout; where the manual differs, its own statements about one
+case differ with it. The 23.485 side family's `ROLLP = ±0.83·W·CP` is built on a
+**contact-line** arm and its `YAWP = ±0.83·W·BP` on an **axle** arm resolved
+through `BETA(2)`: on `ga6_normal` those are 2·GRA(2) = 9.45° apart and no single
+rigid rotation of the assembled case reproduces both. The braked-roll family's
+pitch carries the same difference (0.6–3.2 % of `PITCHP`).
+
+**Decision (user, 2026-08-15): keep the manual's convention — this is a faithful
+replication.** No deviation is taken, `modules/landing.py`'s `phim` block stands
+as ported, and the assembled ground cases 13–24 continue to apply their reactions
+in the frame LANDLOAD resolved them into. The reasons the bar is not met here:
+the airplane-datum `VM`/`DM` have **no legible printed oracle** in the bundled
+PDF (the p231–233 wheel-load table is OCR-garbled), so the case rests on a
+geometry argument rather than on a figure or an authoritative external reference
+of the kind AC 23-19A supplied above; the affected quantity is an intermediate,
+not a regulation being encoded wrongly; and the exposure is narrow — `GRA(2)` is
+zero on `concept_regional_jet`, `atr42_100` and `dhc8_dash8`, leaving
+`ga6_normal` and `cessna_210` as the only fixtures where the question exists.
+
+**What holds the decision in place.** The state is pinned, not assumed:
+`tests/test_gear_report.py::test_the_ground_roll_attitude_is_resolved_against_the_other_sign`
+asserts `ρ = −GRA` per attitude on all five gear fixtures **and `+GRA` on the
+ground-roll one**, so a silent change to either goes red and lands on this entry.
+G-6's rotational gate compares each moment line in the frame LANDLOAD's own arm
+is built in and says which; the braked family's pitch line is bounded at 5 % with
+this as the named cause. Should a legible Appendix A/B or a `LANDLOAD.OUT`
+surface, this entry is where the question resumes.
