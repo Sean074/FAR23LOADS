@@ -506,6 +506,21 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- **Backlog priority table re-cut, and the `CgCase` loading decision answered**
+  (decision **D-25**; docs only, no code and no output). The order now bands by
+  what it protects: wrong content in an already-shipped deliverable first (the
+  `LATERAL_AERO_NOTE` `n_y` direction defect, the `applicability` design-weight
+  re-point, the `dhc8_dash8` gear carrier tag, M4-22), then the [E] sbeam steps
+  12/13/14, then the D-25 wave. The open defects and the unscheduled 0.5.0 review
+  findings are **interleaved into the one list** by severity instead of sitting
+  only in the index, and the table is renumbered 1–36 (the old Pri 5 gap, left by
+  the non-wing-drag step above, is closed). **D-25:** `CgCase` gains an explicit
+  loading definition rather than the fixtures' CG-envelope corner points being
+  rewritten to suit their weight databases — the corner point is the real
+  engineering input; the loading is the derived quantity. It unblocks the two
+  sibling coverage findings and is the change that takes the assembled balanced
+  deck from 2 fixtures to 6 in CI.
+
 - **Pressurization is out of scope — permanently, and the deliverable now says
   so** (decision **D-24**). The standing limitation read "No pressurization load
   cases.", which an analyst could reasonably take as *not yet*. It now states an

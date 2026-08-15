@@ -208,6 +208,14 @@ review findings R6-D1/D2/D3/D4 (`docs/50_reviews/2026-08-15_review_0_6_0_candida
 changelog `[Unreleased]` headings unscrambled, backlog "shipped since the tag"
 gains step 9 + D-24, plan 09 marked closed, `00_INDEX.md` gains plans 14 and 18.
 
+**Backlog priority re-cut + decision D-25 (complete 2026-08-15, tier S)** —
+the priority table re-banded to the restated objective (ship the sbeam
+deliverable), with the open defects and the unscheduled 0.5.0 review findings
+interleaved by severity and the table renumbered 1–36; **D-25** answered the
+outstanding `CgCase` question in favour of an explicit loading definition over
+rewriting the fixtures' CG corner points, promoting it to Pri 9 and unblocking
+its two sibling coverage items.
+
 ## Step 10 piece 3 — ground/landing cases + the gear load report (complete 2026-08-15, tier L)
 
 **Objective.** The last piece of M4-6, and the one that **absorbs step 11 (plan 11
