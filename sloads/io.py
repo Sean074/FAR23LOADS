@@ -813,6 +813,11 @@ def _gear_to_dict(g: LandingGearInput) -> Dict[str, Any]:
         out.pop("carrier")
     if tuple(out.get("attach") or ()) == (0.0, 0.0, 0.0):
         out.pop("attach", None)
+    # G-12a: the same "written only when stated" rule. ``0.0`` is *not stated*,
+    # and a project that never entered a leg weight should not gain a field
+    # claiming it weighs nothing.
+    if not out.get("weight_lb"):
+        out.pop("weight_lb", None)
     return out
 
 

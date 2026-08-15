@@ -48,6 +48,7 @@ Tolerances are :mod:`sloads.export.equilibrium`'s, not this file's, so the two
 export gates can never disagree about what "equal" means.
 """
 
+import math
 import os
 import re
 import subprocess
@@ -540,6 +541,95 @@ def test_assembled_deck_reacts_to_zero(sbeam, example, system):
                 f"{where} force axis {axis}: {got.force[axis]}"
             assert closes(got.moment[axis], 0.0, scale=applied.moment_scale), \
                 f"{where} moment axis {axis}: {got.moment[axis]}"
+
+
+@pytest.mark.roundtrip
+@pytest.mark.parametrize("example", MATRIX)
+@pytest.mark.parametrize("system", SYSTEMS)
+def test_the_gear_node_carries_the_reports_reaction(sbeam, example, system):
+    """**G-13's ground-specific solver assertion.**
+
+    The inherited leg above can pass *vacuously* for the ground family:
+    "reactions ~ 0" proves the assembled set balances, but a transfer that
+    dropped its lever-arm couple **consistently** would still sum to zero at the
+    determinate support. So this closes the loop between G-12's two artifacts
+    through a **third party** -- sbeam reassembles the load from the card text
+    and its own ``GRID`` coordinates, and the resultant it finds at each gear
+    reference point must be the gear report's reference-point reaction.
+
+    A transfer error, a frame error and a dropped couple all surface here, in one
+    assertion, because all three change what the solver reconstructs about that
+    node. Finding the node is by **GID band** rather than by coordinate, which is
+    what the gear band of decision G-2 exists for.
+    """
+    from sloads.export.balanced_deck import BALANCED_GEAR_BASE, deck_nodes
+    from sloads.gear_loads import gear_case_loads
+    from sloads.modules.balance import is_ground
+
+    project, _, _, _ = _components(example)
+    cases = build_balanced_cases(project)
+    ground = [c for c in cases if is_ground(c)]
+    assert ground, f"{example}: no assembled ground case to check"
+
+    nodes = deck_nodes(cases, project)
+    gear_gids = {gid for gid in nodes.values()
+                 if BALANCED_GEAR_BASE <= gid < BALANCED_GEAR_BASE + 100}
+    assert gear_gids, f"{example}: the deck allocated no gear reference point"
+
+    text = _assembled_deck(project, system)
+    _, _, _, forces, _ = parse_cards(text)
+    u = _units(system)
+    report = {c.case: c for c in gear_case_loads(project)}
+    sids = dict(zip(case_sids(cases), cases))
+
+    checked = 0
+    for sid, case in sids.items():
+        if not is_ground(case):
+            continue
+        legs = {leg.leg: leg for leg in report[case.vn_case].legs}
+        side_total = 0.0
+        for load in case.loads:
+            if not load.source.startswith("gear-"):
+                continue
+            gid = nodes[(load.side, round(load.x, 6), round(load.y, 6),
+                         round(load.z, 6))]
+            assert gid in gear_gids, (example, gid)
+            # What the solver reconstructs at this node, from the cards alone.
+            got = [0.0, 0.0, 0.0]
+            for eid, scale, n in forces[sid]:
+                if eid == gid:
+                    for i in range(3):
+                        got[i] += scale * n[i]
+            leg = legs[load.source.split("-", 1)[1]]
+            # The report is LIMIT; the deck is ULTIMATE. Both halves of that
+            # contract are asserted by comparing across it rather than around it.
+            want = to_force(*(v * case.safety_factor for v in leg.airplane), u)
+            # **Vertical and drag are per leg and identical on both wheels**, so
+            # they are the direct comparison G-13 asks for -- and they are also
+            # where a transfer error, a frame error or a dropped couple would
+            # show, since all three change what the solver reconstructs here.
+            for i in (0, 2):
+                assert math.isclose(got[i], want[i], rel_tol=1e-6,
+                                    abs_tol=1e-6 * max(1.0, abs(want[i]))), (
+                    f"{example} {system.value} SID {sid} GID {gid} axis {i}: "
+                    f"solver {got[i]} against the gear report's {want[i]}")
+            if leg.leg == "main":
+                side_total += got[1]
+            checked += 1
+        # **Side load is the one component the report cannot state per wheel**,
+        # and that is a property of 23.485(c) rather than a gap: the side
+        # condition puts 0.5 W inboard on one wheel and 0.33 W outboard on the
+        # other, acting the same way globally, while ``GearReactionCase`` carries
+        # a single ``SMP`` per case (decision G-8's implementation note). What is
+        # well defined is their **sum**, which is what ``NS`` states -- so that is
+        # what is checked, and it closes the same loop.
+        ns_w = case.delta_ny * case.weight_lb * case.safety_factor
+        _, want_side, _ = to_force(0.0, ns_w, 0.0, u)
+        assert math.isclose(side_total, want_side, rel_tol=1e-6,
+                            abs_tol=1e-6 * max(1.0, abs(want_side))), (
+            f"{example} {system.value} SID {sid}: main-wheel side load "
+            f"{side_total} against NS*W {want_side}")
+    assert checked, f"{example}: no gear card reached the solver"
 
 
 @pytest.mark.roundtrip

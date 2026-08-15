@@ -589,6 +589,15 @@ class BalancedCaseResult:
     nz: float
     weight_lb: float
     mac: float
+    #: The point the residuals are stated about: the case's CG station and
+    #: waterline (in). Carried on the result because a residual is meaningless
+    #: without the reference it was taken about, and a consumer that wants to
+    #: re-derive one had to look the loading up by name -- which stopped working
+    #: when the ground families arrived, since those sit at design weights that
+    #: are not any *named* loading's own (23.473(a) scales cases 13-22 to the
+    #: take-off weight, so "aft max landing" names two different targets).
+    cg_x: float = 0.0
+    cg_z: float = 0.0
     #: Wing semi-span (in) -- the lever the **roll** residual is judged against,
     #: as the MAC is for pitch. Zero on a result built without geometry, which
     #: makes :attr:`roll_residual_fraction` 0 rather than dividing by nothing.
@@ -835,6 +844,16 @@ class GearReactionCase:
     description: str
     far_reference: str
     cg_name: str
+    #: The design weight this case is computed at (lb) -- ``WL`` in LANDLOAD.BAS
+    #: (lines 820-900). **Not** simply the named loading's weight: 23.473(a) lets
+    #: 23.479/481/483 be met at the design *landing* weight while 23.485/23.493
+    #: are met at the maximum take-off weight, which LANDLOAD applies as
+    #: ``WR = MTOW/MLW`` on cases 13-22 (and not on 23-24, which stay at the light
+    #: landing weight). Carried on the record because the assembled ground case
+    #: has to build its inertia set at the weight its reactions were computed at,
+    #: and recovering that by re-deriving the ``WR`` table at the consumer is the
+    #: duplication that made this a field instead.
+    weight_lb: float = 0.0
     # Ground-line ("prime") reactions
     vmp: float = 0.0    # vertical main, per wheel
     dmp: float = 0.0    # drag main

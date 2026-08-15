@@ -10,6 +10,121 @@ Acceptance**, **Key decisions**.
 
 ---
 
+## Step 10 piece 3 — ground/landing cases + the gear load report (complete 2026-08-15, tier L)
+
+**Objective.** The last piece of M4-6, and the one that **absorbs step 11 (plan 11
+B8b)**: put the FAR 23 ground conditions into the assembled free-free deck as
+balanced cases, and give the gear a deliverable of its own. Design note:
+[`../30_future/18_step10_ground_cases_plan.md`](../30_future/18_step10_ground_cases_plan.md),
+decisions **G-1, G-6, G-7 (+G-7a), G-8, G-9, G-12 (+G-12a), G-13**.
+
+**Deliverables.**
+
+- `sloads/gear_loads.py` — the gear as a **free body**, and the single owner of
+  everything geometric about it: the per-attitude contact patch
+  (`x + r·sin GRA`, `z − r·cos GRA`, compressed axle for cases 1–12 and static for
+  13–33), the strut stroke recovered from the three entered axle states, the
+  ground-line ↔ airplane-datum rotation `ρ`, the resultant-preserving transfer to
+  the reference point, and the wheel placement an assembled case needs.
+- `modules/balance.assemble_ground` + `build_ground_cases` — the ground family,
+  sharing `_closure`, `body_inertia`, `resultant6`, `point_mass_self_inertia` and
+  the new `wing_inertia_strips` / `place_wing_inertia` (factored out of
+  `wing_sets`, behaviour-neutral) with the flight families. Plus
+  `ground_lift_sets`, `gear_sets`, `is_ground`, and two new `SKIP_REASONS`
+  (`gear-design-only`, `side-twin-by-reflection`).
+- The **gear load report**: `export.gear_report_csv` / `gear_report_rows`, report
+  §8 with the strut-state table, a manifest row, the Landing Loads page's free-body
+  section, and the CLI's `--export-target gear`.
+- Schema **v48** — `LandingGearInput.weight_lb` (G-12a), additive, `0.0` = not
+  stated, no migration hop. Two result types gain fields that existed only
+  implicitly: `GearReactionCase.weight_lb` (the design weight the case is computed
+  at) and `BalancedCaseResult.cg_x`/`cg_z` (the point its residuals are stated
+  about).
+- `export/bands.py` gains the **`balanced-gear` GID band** (10001+) so a gear node
+  is findable by id rather than by coordinate; `case_ids.balanced_subcase_id` and
+  `deck_load_id` take the case's **hand explicitly** (G-8).
+- Fixture data: leg weights on five airplanes × two legs, **per leg** — half the
+  database's main-gear rows, all of its nose-gear rows.
+
+**Test / Acceptance.** `tests/test_gear_report.py` (44 tests) is the step's
+benchmark-first gate; the whole suite is green (1670 passed / 21 skipped), lint
+clean, and the **real solver** leg passes in 16.5 s with the solve count roughly
+doubled — G-13's "one cost to check rather than assume", answered.
+
+- **The closed-form gate is an exact identity** (G-6). The solved rigid-body
+  field, rotated back to the ground line, reproduces LANDLOAD's `NVP`, `NDP` and
+  `NS` on **every** case of both fixtures at `rel_tol 1e-9`. Two completely
+  different routes — a mass matrix here, lever arms and FAR percentages there —
+  one answer.
+- **The transfer preserves resultants exactly** (G-2's third guard, the one it
+  owed this piece): worst relative moment error **3.4e-16** over all 33 cases and
+  both legs, taken about a deliberately arbitrary reference rather than the CG,
+  where a dropped couple could cancel against something.
+- **Two negative controls**, per G-13: dropping the offset couple breaks the
+  transfer, and computing a level-landing case at the *static* contact patch
+  breaks the moment gate. The second is asserted on the **moment**, not on `NVP`
+  — moving the patch does not change the vertical force factor, so a control
+  watching `NVP` would have passed and proved nothing.
+- **G-13's ground-specific solver assertion**: the reaction sbeam recovers at each
+  gear GID is the gear report's reference-point reaction, in both unit systems.
+  This is what stops the inherited "reactions ≈ 0" leg passing vacuously — a
+  transfer that dropped its lever arm *consistently* would still sum to zero at
+  the support.
+- **LANDLOAD's own twins check the reflection operator** (G-8): `reflect(19)`
+  reproduces case 20's `NS`/`ROLLP`/`YAWP` sign-flipped and equal. Every other
+  reflection in the suite is guarded against itself; this is the only external
+  check it will ever get.
+- **Coverage is pinned twice and the two sets differ by design**: assembled ground
+  cases on **2** fixtures (ga6 3/3 loadings, the RJ 2/3 — the already-pinned Pri 9
+  fixture-data finding, inherited not created), the gear report on **5**.
+- The digest wave is exactly G-13's stated expectation: `sbeam/balanced_deck` +
+  `case_index` on ga6 and the RJ, a **new** `gear_report` channel on five
+  fixtures, and `csv/landing` + `txt/landing` on five from the case-labelling fix
+  below.
+
+**Key decisions.**
+
+- **G-7a — the lift acts along the ground line, not along airplane `z`.** Raised
+  by implementation, because G-7's wording and G-6's promise of an exact gate
+  could not both hold: LANDLOAD sums `lf·WL` into the *ground-line* vertical, so
+  a lift on `z` enters that sum short by `cos ρ` — 0.053 % of `NVP` on ga6, small
+  and *not* solver noise. It is also the physics: lift is perpendicular to the
+  flight path, the ground line is the flight path at touchdown, and the airplane
+  sits at `ρ` to it (152 lb of ga6's 2,154 lb lift acts forward).
+- **`ρ` is taken from LANDLOAD's own two resolutions of one reaction**,
+  `atan2(dm, vm) − atan2(DMP, VMP)`, not re-derived from `GRA`. That means this
+  step never has to adjudicate a sign inconsistency that is in LANDLOAD.BAS
+  itself — `beta` is `gamma − GRA(1)` for the level attitude and `+GRA(2)` for
+  the ground-roll one — and the rotation appears only in the **check**, never in
+  the load path.
+- **G-12a — the leg weight is an input, one number per leg.** Nothing marks a
+  `weight.items` row as gear; on every fixture they are identifiable only by name,
+  and matching on that is the `LANDING_CG_NAMES` failure mode G-3a had just
+  retired one layer up. Deliberately *not* a sprung/unsprung split: only the
+  unsprung mass sees the impact amplification that sizes an axle, and sloads does
+  not model that, so entering the split would imply a capability the tool lacks.
+- **A correction to G-12's own arithmetic.** The note read "155 lb → 491 lb, 12 %
+  of a 4,038 lb reaction", pairing the **whole main gear** with a **per-wheel**
+  reaction. `weight_lb` is therefore defined per leg (consistent with `attach`,
+  likewise one leg's node), ga6's main leg is 77.5 lb, and the real figure is
+  **6.1 %** — still far too large to leave out of a free body, which is what the
+  paragraph exists to argue.
+- **The report and the assembled deck carry different case sets, and say so.**
+  33 against 24. The 23.499 family is not merely excluded from the assembly, it
+  has a home.
+- **What the report is not travels with it**, in the CSV stamp, the report
+  section and the GUI: no gear kinematic model, so no drag-brace, side-brace,
+  trunnion or axle-bending loads. Overstating it would be the "a wrong card
+  outranks a missing card" failure in its purest form.
+
+**Two defects found on the way, both fixed here.** The per-case record labelled
+the wrong loading on five of the six 23.485 side cases (`(m-1) % 3` against a
+family that is three loadings × two drift directions) — cosmetic, so no load ever
+moved, but it is the label a reader joins on and it matters now that the assembled
+case builds its inertia set from it. And `is_handed` tested "any load carries a
+free moment" where it meant the net, which minted every symmetric level-landing
+case handed once both wheels carried a transfer couple.
+
 ## Step 10 piece 2 — the weight/CG case model + gear inputs (complete 2026-08-14, tier L)
 
 **Objective.** Land the whole schema hop decisions G-2/G-3/G-4/G-5/G-14 imply as

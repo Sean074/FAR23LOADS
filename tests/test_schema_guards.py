@@ -194,7 +194,23 @@ def fields_hash() -> str:
 #: relocation are exactly what this tripwire exists for: absent is *not* the old
 #: behaviour for any of them, so the hop ``migrations._v46_cg_case_model`` carries
 #: each value across from the file's own rather than letting a reader default it.
-EXPECTED_FIELDS_HASH = "f867ef9fdd3bf036"
+#: step 10 piece 3 (v48): ``LandingGearInput.weight_lb`` -- the leg's own weight,
+#: whole leg trunnion down, which closes the gear load report's free body
+#: (decision G-12a). Purely additive with a ``0.0`` default, and the writer emits
+#: the key only when stated, so absent *is* the documented value: "not stated",
+#: which the report prints as a blank inertia term with its reason rather than as
+#: a leg that weighs nothing. No migration hop, and no shipped number moves --
+#: the assembled ground cases take gear mass from ``weight.items`` as they always
+#: did, and this field is read by the report alone. Two **result** types move with
+#: it, both additive and neither persisted as an input: ``GearReactionCase`` gains
+#: ``weight_lb`` (the design weight the case is computed at -- ``WL``, which is
+#: *not* the named loading's own weight on cases 13-22, since 23.473(a) scales
+#: those to the take-off weight) and ``BalancedCaseResult`` gains ``cg_x``/``cg_z``
+#: (the point its residuals are stated about). Both existed only implicitly
+#: before, recoverable by looking the loading up **by name** -- which the ground
+#: families broke, because "aft max landing" names two different targets in one
+#: run.
+EXPECTED_FIELDS_HASH = "cb0b6f89f15fa13f"
 
 
 def test_persisted_dataclass_shapes_are_unchanged():

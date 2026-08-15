@@ -1230,6 +1230,31 @@ class LandingGearInput:
     # trunnion butt line.
     carrier: Optional[GearCarrier] = None   # BODY | WING -- no default (G-2)
     attach: Vec3 = (0.0, 0.0, 0.0)          # (X, Y, Z) trunnion / airframe node, in
+    #: The leg's own weight (lb): **the whole leg, trunnion down** -- wheel, tyre,
+    #: axle, oleo and back-up structure (decision G-12a). It closes the gear
+    #: report's free body: contact-patch load minus ``weight_lb * NVP`` is the
+    #: reaction delivered at :attr:`attach`, and without it the two ends of the
+    #: leg sit ~12 % apart with no explanation (ga6's 155 lb main leg is 491 lb at
+    #: NVP 3.167 against a 4,038 lb reaction).
+    #:
+    #: An **input** rather than a sum over ``weight.items``, because nothing marks
+    #: a database row as gear: on every shipped fixture they are identifiable only
+    #: by name (``Main gear wheel`` / ``Main gear structure``), and matching on
+    #: that is the ``LANDING_CG_NAMES`` failure mode G-3a retired one layer up.
+    #: Same reasoning that made ``MassItem.component`` and ``MassItem.consumable``
+    #: explicit.
+    #:
+    #: ``0.0`` means **not stated**, and is a distinct state from "weightless":
+    #: the gear report prints the inertia term blank and says why, showing the
+    #: free body open rather than closing it with a guess.
+    #:
+    #: Deliberately **one** number and not a sprung/unsprung split. Only the
+    #: unsprung mass (wheel, tyre, axle, lower oleo) sees the impact
+    #: amplification that actually sizes an axle, and sloads does not model that
+    #: -- it carries gear mass at the *airplane* load factor, which is a single
+    #: quantity. Entering the split would imply a gear-design capability the tool
+    #: does not have.
+    weight_lb: float = 0.0                  # whole leg, trunnion down (G-12a)
 
 
 @dataclass

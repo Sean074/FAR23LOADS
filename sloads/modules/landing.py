@@ -131,6 +131,40 @@ class _Geometry(NamedTuple):
     cp: List[List[float]]          # ground-roll vertical offset (attitude 1 only)
 
 
+def _ground_angle(xm: float, zm: float, xn: float, zn: float,
+                  rm: float, rn: float) -> float:
+    """The ground angle for one attitude: the slope of the axle line less the
+    slope of the wheel-contact line (LANDLOAD.BAS lines 50-720).
+
+    Module-level, and read by :func:`sloads.gear_loads.ground_angles` as well as
+    by :func:`_geometry`, because the gear load report puts the **contact patch**
+    at ``x + r*sin(GRA)`` / ``z - r*cos(GRA)`` and therefore needs the same angle
+    the reaction was computed at. A second copy of this formula beside the report
+    is exactly the drift ``CLAUDE.md`` practice 3 forbids -- and it would be a
+    quiet one, since both copies would look right and differ only in which axle
+    state they were handed.
+    """
+    return math.degrees(
+        math.atan((zm - zn) / (xm - xn))
+        - math.atan((rm - rn) / (((xm - xn) ** 2 + (zm - zn) ** 2) ** 0.5)))
+
+
+def ground_angles(inp: LandingInput) -> Tuple[float, float, float]:
+    """``GRA(1..3)`` -- the ground angle in each of LANDLOAD's three attitudes.
+
+    ``(level, ground-roll, tail-down)``, in degrees. The first two are geometry
+    (the compressed and static axle states); the third is the entered tail-down
+    bump angle. Independent of weight, CG and load factor, which is why this can
+    be asked of the input slice alone -- the gear report needs the angles without
+    re-running the reaction solve.
+    """
+    mg, ng = inp.main_gear, inp.nose_gear
+    rm, rn = mg.rolling_radius_in, ng.rolling_radius_in
+    return (_ground_angle(*mg.axle_compressed, *ng.axle_compressed, rm, rn),
+            _ground_angle(*mg.axle_static, *ng.axle_static, rm, rn),
+            inp.tail_down_angle_deg)
+
+
 def _geometry(inp: LandingInput, nlg: float, cgs: List[CgCase], mlw: float) -> _Geometry:
     """Ground angles, BETA and the AP/BP/DP/CP lever arms (LANDLOAD.BAS 50-720)."""
     nap = nlg + inp.lift_factor
@@ -145,16 +179,7 @@ def _geometry(inp: LandingInput, nlg: float, cgs: List[CgCase], mlw: float) -> _
     xn_s, zn_s = ng.axle_static
     rm, rn = mg.rolling_radius_in, ng.rolling_radius_in
 
-    # Ground angle for the 3-/2-wheel level attitude (J=1) and ground roll (J=2):
-    # the slope of the axle line less the slope of the wheel-contact line.
-    def ground_angle(xm: float, zm: float, xn: float, zn: float) -> float:
-        return math.degrees(
-            math.atan((zm - zn) / (xm - xn))
-            - math.atan((rm - rn) / (((xm - xn) ** 2 + (zm - zn) ** 2) ** 0.5)))
-
-    gra1 = ground_angle(xm_c, zm_c, xn_c, zn_c)   # level (compressed)
-    gra2 = ground_angle(xm_s, zm_s, xn_s, zn_s)   # ground roll (static)
-    gra3 = inp.tail_down_angle_deg
+    gra1, gra2, gra3 = ground_angles(inp)
     gra = (gra1, gra2, gra3)
     beta = (gamma - gra1, gra2, gra3)
 
@@ -225,6 +250,40 @@ def _family(case: int) -> Tuple[str, str]:
         if case in rng:
             return fam
     return _NOSE_FAMILY
+
+
+def _loading_index(case: int) -> int:
+    """Which of the three roled loadings case ``case`` is computed at.
+
+    The single owner of a mapping LANDLOAD.BAS states three times -- in the ``WL``
+    weight table (lines 820-900), in the ``AP``/``BP``/``CP`` lever-arm lookups and
+    in the unbalanced-moment tables -- and which is **not** a simple 3-cycle
+    throughout:
+
+    * **1-18** cycle the three loadings, so ``(m - 1) % 3``;
+    * **19-24** are three loadings x **two drift directions** (23.485's inboard/
+      outboard pair), so ``(m - 19) // 2``: cases 19/20 share the aft loading,
+      21/22 the forward one, 23/24 the light one -- exactly what ``wl[19] =
+      wl[20] = wcg[0]*wr`` and the ``((19,0),(20,0),(21,1),(22,1),(23,2),(24,2))``
+      moment tables already say;
+    * **25-33** are three loadings x three components, so ``(m - 25) // 3``.
+
+    **This corrects a mislabelling** (found 2026-08-15, building the assembled
+    ground cases). The per-case record took ``(m - 1) % 3`` for every case up to
+    24, so on the side family it named the wrong loading on **five of six cases**
+    -- case 21 is computed at the *forward max landing* loading and was reported
+    against *fwd light*, and so on. ``cg_name`` was documented as cosmetic and
+    the reactions themselves were always right, so no load ever moved; what moved
+    is the label a reader joins the case to its loading by, and the ``CG`` column
+    of the exported case index. Assembling these cases is what made it matter:
+    the balanced case has to build its inertia set at the loading its reactions
+    were computed at, and it asks here.
+    """
+    if case <= 18:
+        return (case - 1) % 3
+    if case <= 24:
+        return (case - 19) // 2
+    return (case - 25) // 3
 
 
 def landing_reactions(inp: LandingInput, lf_result: LoadFactorResult,
@@ -395,7 +454,7 @@ def landing_reactions(inp: LandingInput, lf_result: LoadFactorResult,
     cases: List[GearReactionCase] = []
     for m in range(1, 34):
         fam, far = _family(m)
-        i = (m - 1) % 3 if m <= 24 else (m - 25) // 3
+        i = _loading_index(m)
         cg_name = cgs[i].name if i < len(cgs) else ""
         case_ref = CaseRef(
             case_id=allocator.next_id("landing_gear"),
@@ -406,6 +465,13 @@ def landing_reactions(inp: LandingInput, lf_result: LoadFactorResult,
         )
         cases.append(GearReactionCase(
             case=m, description=fam, far_reference=far, cg_name=cg_name,
+            # The 23.499 family (25-33) indexes ``wcg`` directly rather than the
+            # 1..24 ``wl`` table, and applies ``wr`` to the first two loadings
+            # only -- the same rule its ``VNP`` is built with just above.
+            weight_lb=(wl[m] if m <= 24 else wcg[i] * (wr if i < 2 else 1.0)),
+            # ``cg_name`` is the loading's name and ``weight_lb`` the weight the
+            # case is computed at; both come from ``_loading_index``, so a reader
+            # cannot be shown one loading's name beside another's weight.
             vmp=vmp[m] if m <= 24 else 0.0,
             dmp=dmp[m] if m <= 24 else 0.0,
             smp=smp[m] if m <= 24 else 0.0,

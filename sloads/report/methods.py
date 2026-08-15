@@ -115,11 +115,34 @@ def _standing_limitations() -> tuple:
          "governing-set filter is applied elsewhere: their case identities are "
          "minted separately from the governing set, so the filter cannot reach "
          "them."),
+        # Reworded, not retired, at decision G-1: ground cases now exist -- in the
+        # assembled deck, which is where they are born -- so the second half of
+        # the old sentence ("no ground case is assembled into a balanced
+        # free-free case") became false and had to change. The first half stands:
+        # the PER-COMPONENT fuselage deck is still flight-only, and a consumer
+        # working from those views alone still gets no ground case.
         ("flight-only-body-deck",
-         "The fuselage deck is FLIGHT-ONLY. No ground-case distributed fuselage "
-         "loads: gear reactions are point reactions, not a distributed ground "
-         "condition, and no ground case is assembled into a balanced free-free "
-         "case. A ground-critical structure is not covered by this deliverable."),
+         "The PER-COMPONENT fuselage deck is FLIGHT-ONLY. Ground cases are "
+         "assembled -- they are balanced free-free cases in the assembled "
+         "full-span deck, with the gear reactions transferred to each leg's "
+         "reference point -- but they are not projected back onto the "
+         "per-component fuselage view, which is planar by construction while a "
+         "ground case is irreducibly three-dimensional (drag and side load at a "
+         "contact patch well below and off the fuselage beam line). A consumer "
+         "working from the per-component decks alone therefore gets no ground "
+         "case, and must take them from the assembled deck."),
+        # Decision G-9. Stated as a standing limitation rather than left to be
+        # inferred from the absence of a comparison: a reader who finds two
+        # governing tables and no envelope over them should be told that this is
+        # a decision, and why, not left to assume an oversight.
+        ("ground-flight-separate-families",
+         "Ground and flight cases are SEPARATE GOVERNING FAMILIES and no single "
+         "envelope over both is claimed. They are never compared for a maximum: "
+         "the two load different structure by different paths, and the value of "
+         "a governing table is naming WHICH case governs, which a cross-family "
+         "max() destroys. A consumer sizing structure that sees both (a fuselage "
+         "frame, a wing carry-through) must take the worst of the two families "
+         "themselves, per station, keeping each extreme's case identity."),
         ("pressurization",
          "Pressurization is OUT OF SCOPE for this tool — a permanent exclusion, "
          "not a gap awaiting work. No cabin differential-pressure case (14 CFR "

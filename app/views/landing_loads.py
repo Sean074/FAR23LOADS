@@ -35,6 +35,8 @@ from sloads.cg_cases import (
     max_takeoff_weight,
 )
 from sloads.derived_geometry import wing_reference
+from sloads.export import sbeam_bridge as sb
+from sloads.gear_loads import UNSPRUNG_NOTE, gear_case_loads
 from sloads.modules.landing import build_landing, run
 from sloads.models import MissingInputError
 from sloads.validation import (
@@ -249,3 +251,77 @@ st.caption(
     "The CSV carries **all 33 cases** — reactions, unbalanced moments and inertia "
     "factors — plus the landing load factor and the six per-family critical-reaction "
     "summaries, all ULTIMATE (M4-17e).")
+
+# --------------------------------------------------------------------------- #
+# The gear free body (decision G-12) -- both ends of the leg
+# --------------------------------------------------------------------------- #
+st.subheader("Gear interface loads (the free body)")
+st.caption(
+    "The **gear interface load definition**: where the reaction acts, at what "
+    "strut state and ground angle, and what arrives at the gear reference point. "
+    "This is the boundary condition a gear analysis starts from, and it is the "
+    "other side of the assembled ground cases — the reference-point reaction "
+    "below is the load the assembled deck applies at that node, sign-flipped."
+)
+try:
+    _gear = gear_case_loads(project)
+except MissingInputError:
+    _gear = []
+if not _gear:
+    st.info(
+        "No gear interface loads: this project has no landing-gear geometry. "
+        "The report needs the axle positions at the three strut states, the "
+        "rolling radius and the tread — it does **not** need a derivable mass "
+        "loading, which is why it reaches airplanes the assembled ground cases "
+        "do not."
+    )
+else:
+    _stroke_rows = {}
+    for _c in _gear:
+        for _leg in _c.legs:
+            _stroke_rows.setdefault(
+                (_leg.leg, _leg.strut_state, round(_leg.ground_angle_deg, 3),
+                 round(_leg.stroke_in, 3), round(_leg.stroke_fraction, 4)), []
+            ).append(_c.case)
+    st.dataframe(pd.DataFrame([{
+        "Leg": leg, "Strut state": state, "Ground angle (deg)": round(angle, 2),
+        f"Stroke from extended ({si_scalar_label('in', system)})":
+            round(to_si_scalar(stroke, "in", system), 2),
+        "% of stroke": f"{fraction * 100:.0f} %",
+        "LANDLOAD cases": f"{min(cases)}–{max(cases)}",
+    } for (leg, state, angle, stroke, fraction), cases in _stroke_rows.items()]),
+        use_container_width=True, hide_index=True)
+    st.caption(
+        "The landing families are computed near the **top** of the stroke and "
+        "the handling families near the **bottom** — impact versus sitting. "
+        "The application node does not move between attitudes: a trunnion is "
+        "fixed to the airframe, so the difference lands in the lever arm.")
+
+    _unstated = sorted({leg.leg for c in _gear for leg in c.legs
+                        if leg.leg_weight_lb is None
+                        and (any(leg.airplane) or any(leg.ground_line))})
+    if _unstated:
+        st.warning(
+            "No leg weight is entered for the "
+            + " and ".join(_unstated) + " gear, so the free body is shown "
+            "**open**: the inertia term and the net-above-trunnion column are "
+            "blank rather than closed against a guessed weight. Enter the leg "
+            "weight (the whole leg, trunnion down) on the Geometry page."
+        )
+    st.caption(":orange[Limit of the inertia term.] " + UNSPRUNG_NOTE + ".")
+    st.caption(
+        ":orange[What this is not.] sloads has no gear kinematic model, so this "
+        "does **not** state drag-brace, side-brace, trunnion or axle-bending "
+        "loads and must not be read as doing so. With the contact patch, the "
+        "components, the ground angle, the stroke and the reference-point "
+        "reaction, a gear engineer builds those.")
+    st.download_button(
+        "Download gear interface loads (CSV)",
+        sb.gear_report_csv(project, system=system),
+        file_name="gear_loads.csv", mime="text/csv")
+    st.caption(
+        "All **33 cases** × each loaded leg, ULTIMATE. Contact-patch components "
+        "are ground-line (as the manual prints them); reference-point components "
+        "are airplane-datum (as a beam model applies them). The assembled ground "
+        "cases carry 24 — the 23.499 supplementary nose-wheel family is a "
+        "gear-design case with no airplane equilibrium, and belongs here.")

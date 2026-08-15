@@ -134,6 +134,11 @@ STANDING_LIMITATION_KEYS = {
     "aileron-couple",
     "centerline-clamp",
     "engine-failure-propeller-only",
+    # Decision G-9, opened with the ground families: ground and flight are
+    # separate governing families and no envelope over both is claimed. Declared
+    # here rather than left to be inferred from the absence of a comparison --
+    # which is exactly the "silent claim of completeness" this set exists to end.
+    "ground-flight-separate-families",
 }
 
 

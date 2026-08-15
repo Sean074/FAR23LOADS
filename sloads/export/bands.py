@@ -36,6 +36,7 @@ The map
        6001-6200    balanced deck, right wing
        6201-6400    balanced deck, left wing
        6401-7000    balanced deck, centreline
+      10001-10100   balanced deck, gear reference points
 
     EID      1-1000  stick-model CBAR chain
           9001-9100  CONM2 baseline (always-aboard items)
@@ -177,6 +178,17 @@ BANDS: Tuple[Band, ...] = (
     _band("balanced-centreline", IdKind.GID, 6401, 600, "balanced_deck.deck_nodes",
           "Fuselage masses, the tail air load, the lumped body Cm, and every "
           "closure point on the centreline."),
+    _band("balanced-gear", IdKind.GID, 10001, 100, "balanced_deck.deck_nodes",
+          "The gear reference points a ground case's reactions are transferred "
+          "to (decision G-2) -- at most one node per leg per side, since a "
+          "trunnion is fixed to the airframe and does not move between "
+          "attitudes. Its own band rather than a continuation of the three "
+          "position runs so the node is identifiable BY ID: G-13's solver "
+          "assertion compares the reaction sbeam recovers at this GID against "
+          "the gear report's reference-point reaction, and a gear node sharing "
+          "a run with wing strips could only be found by matching coordinates. "
+          "Numbered clear of 6001-7000 so that range keeps its published "
+          "meaning as the balanced deck's wing and centreline nodes."),
     # ----------------------------------------------------------------- EIDs
     _band("stick-element", IdKind.EID, 1, 1000, "sbeam_bridge.stick_model_bdf",
           "The CBAR chain of the minimal stick model."),

@@ -12,6 +12,110 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **Ground and landing cases, and the gear load report** (**step 10 piece 3**,
+  decisions **G-1/G-6/G-7(+G-7a)/G-8/G-9/G-12(+G-12a)/G-13**, schema **v48**) —
+  the 0.6.0 headline, and the step that **absorbs step 11 (plan 11 B8b)**. The
+  FAR 23 ground conditions become **balanced free-free cases in the assembled
+  full-span deck**, and the gear gets a deliverable of its own.
+
+  **Ground cases are born in the assembled deck, not in a per-component view**
+  (G-1). A ground case is irreducibly three-dimensional — on `ga6_normal` braked
+  roll is 2,261 lb vertical against 1,809 lb of drag per wheel, and the side
+  family 2,261 against −1,700 lb of side load, applied at a contact patch ~41 in
+  below the fuselage beam line and ±57 in off the centreline — and those lever
+  arms *are* the load case, while the per-component fuselage deck is planar by
+  construction. LANDLOAD cases **1–24** assemble (27 cases on `ga6_normal`, 18 on
+  `concept_regional_jet`, twins included); the 23.499 supplementary nose-wheel
+  family is skipped **with a recorded reason**, because it carries nose reactions
+  only and so is not an airplane in equilibrium.
+
+  **The closure is the regulation's own sentence, and its gate is a closed form.**
+  FAR **23.471** requires the external reactions to be "placed in equilibrium with
+  the linear and angular inertia forces in a rational or conservative manner"; a
+  ground case therefore enters the shipped six-DOF rigid-body closure with **no
+  base load factor at all** — the whole field is solved (G-6). LANDLOAD's
+  `NVP`/`NDP`/`NS` are deliberately **not consumed**: they are translation only,
+  they are stated about the ground line, and consuming them would put a frame
+  rotation in the load path. They are the **independent check** instead, and the
+  agreement is exact — rotate the solved field back to the ground line and it
+  reproduces all three factors on **every case of both fixtures** to
+  floating-point noise. That is content-carrying rather than self-referential:
+  LANDLOAD reaches those factors by lever arms and FAR percentages, with no mass
+  matrix anywhere in it.
+
+  **Wing lift on the landing families only** (G-7), on the AIRLOADS Schrenk
+  spanwise shape scaled to `L × W` — only the *shape* is borrowed, so no speed,
+  CL or V-n point is involved and no aerodynamics is invented. The split is the
+  manual's and the regulation's, not a new one: 23.473(a) lets 23.479/481/483 be
+  met at the design landing weight, and 23.485/23.493 are the gross-weight ones.
+  The ground-handling families carry **no lift** — the wing is lift-free, not
+  load-free. New sub-decision **G-7a**: the lift acts along the **ground line**,
+  not the airplane `z` axis, because lift is perpendicular to the flight path and
+  the ground line is the flight path at touchdown; this is also what keeps G-6's
+  gate an identity rather than a tolerance, since LANDLOAD sums `lf·WL` into the
+  ground-line vertical.
+
+  **Handedness keeps its single owner and gains an external check** (G-8). The
+  23.483 one-wheel family has no twin in the manual, so both hands are minted
+  (`LG-10R`/`LG-10L`); the 23.485 side family ships **both** drift directions
+  already, so the odd member is assembled and the even one derived by
+  **reflection** — which makes LANDLOAD's own even-member `NS`/`ROLLP`/`YAWP` the
+  only *external* check the reflection operator will ever get. Their ids stay
+  LANDLOAD's (`LG-19` port, `LG-20` starboard, no suffix), so
+  `case_ids.balanced_subcase_id` now takes the case's **hand explicitly** instead
+  of parsing an id suffix — identical for every previously shipped case.
+
+  **The gear load report** (G-12) — a stamped companion CSV, a numbered report
+  section, a Streamlit view, a manifest row and a CLI target
+  (`--export-target gear`). It is a **free body**, not a load list: per case and
+  per leg it states the reaction at the tyre contact patch in the ground-line
+  frame the manual prints, with the strut state, ground angle and stroke it was
+  computed at, and the *same* reaction where the airframe receives it. Both ends
+  of the leg, so the two ground artifacts are provably one load seen from two
+  sides — and that identity is checked **through the real solver**, which
+  reassembles the load from the card text and its own `GRID` lever arms. It
+  carries **all 33 cases** against the assembled deck's 24, and reaches **five**
+  fixtures against the assembled cases' two, because it needs no mass model; both
+  coverage sets are pinned. Sub-decision **G-12a** adds
+  `LandingGearInput.weight_lb` (the whole leg, trunnion down) so the free body
+  closes; `0.0` means *not stated* and the report shows the free body **open**
+  rather than closing it against a guess. What the report is **not** is stated
+  in-band: sloads has no gear kinematic model, so it claims no drag-brace,
+  side-brace, trunnion or axle-bending load, and its inertia term is the leg at
+  the *airplane* load factor — unsprung-mass amplification, which is what
+  actually sizes an axle, is not modelled.
+
+  **Ground cases are a separate governing family** (G-9): never auto-compared
+  with flight cases for a maximum, because the two load different structure by
+  different paths and a cross-family `max()` destroys the one thing a governing
+  table exists to say. That is now a **standing limitation** and a paragraph in
+  the report rather than something to be inferred from the absence of a
+  comparison. They are, however, brought within reach of the engineer's opt-out
+  filter — the Critical Loads page gains a Landing gear section — so the family
+  is scopable instead of silently unreachable.
+
+### Fixed
+
+- **The loading named on LANDLOAD cases 20–24 was the wrong one.** The per-case
+  record indexed the three roled loadings as `(m - 1) % 3` for every case up to
+  24, but the 23.485 side family is three loadings × **two drift directions** —
+  which the `WL` weight table and both unbalanced-moment tables already say
+  (`wl[19] = wl[20] = wcg[0]·wr`). So five of the six side cases were reported
+  against the wrong loading: case 21 is computed at *fwd max landing* and was
+  labelled *fwd light*. `cg_name` was documented as cosmetic and the reactions
+  themselves were always right, so **no load ever moved**; what moved is the label
+  a reader joins a case to its loading by, and the `CG` column of the exported
+  case index. Found while building the assembled ground cases, which have to
+  build their inertia set at the loading their reactions were computed at.
+  `landing._loading_index` is now the single owner of that mapping.
+- **`is_handed` read "any load carries a free moment" where it meant the net.**
+  Indistinguishable while the aileron couple was the suite's only free `mx` (one
+  lumped couple at the centreline is its own net), and wrong the moment a ground
+  case transferred both main-wheel reactions to their trunnions with equal and
+  opposite lever-arm couples: every symmetric level-landing case minted handed,
+  emitting a twin that was the same load set mirrored onto itself. No shipped
+  flight case changes hand.
+
 - **The weight/CG case model and the gear inputs — one schema hop** (**step 10
   piece 2**, decisions **G-2/G-3/G-4/G-5/G-14**, schema **v47**). Three weight/CG
   case lists and six representations of MTOW collapse to **one owner each**,

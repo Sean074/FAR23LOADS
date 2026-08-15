@@ -226,7 +226,15 @@ from .results import EnvelopeResult, LoadsResult, MassResult
 # and ``attach``. Removals and a relocation, so this one **does** need a hop:
 # ``migrations._v46_cg_case_model``, which is output-neutral by construction --
 # every value it writes comes from the file's own.
-SCHEMA_VERSION = 47  # step 10 piece 2: the weight/CG case model + gear inputs
+# Step 10 piece 3 (v48): ``LandingGearInput.weight_lb`` -- the leg's own weight,
+# whole leg trunnion down, which closes the gear load report's free body
+# (decision G-12a). Additive with a ``0.0`` default, and absent *is* the
+# documented value: "not stated", which the report prints as a blank inertia term
+# with its reason rather than as a leg that weighs nothing. So no migration hop,
+# and every pre-v48 project keeps exactly the numbers it had -- the assembled
+# ground cases read gear mass from ``weight.items`` as they always did, and this
+# field feeds the report alone.
+SCHEMA_VERSION = 48  # step 10 piece 3: the gear leg weight (G-12a)
 
 
 @dataclass

@@ -39,6 +39,7 @@ band                 GIDs
 right-hand side       ``6001+`` (wing strips; h-tail strips on 23.427(a))
 left-hand side        ``6201+``
 centreline            ``6401+`` (fuselage masses, tail load, lumped body Cm)
+gear reference points ``10001+`` (a ground case's trunnions, decision G-2)
 ===================  ==============
 
 The two side runs are named for the wing in :mod:`sloads.export.bands` because
@@ -75,11 +76,11 @@ import textwrap
 from typing import Dict, List, Optional, Sequence, Tuple
 
 from ..case_ids import (ASSEMBLED_DECK, NO_LOAD_ID, balanced_subcase_id,
-                        deck_load_id, handed_case_id, unhanded_case_id)
+                        deck_load_id)
 from ..models import BalancedCaseResult, BalancedLoad, Project
 from ..modules.balance import (SkippedCondition, build_balanced_cases,
                                carry_sources_absent, fin_load, htail_load,
-                               htail_side_loads, is_lateral,
+                               htail_side_loads, is_ground, is_lateral,
                                is_unsymmetrical_htail, skipped_condition_lines,
                                skipped_conditions)
 from ..rigid_body import radians_per_s2
@@ -95,6 +96,13 @@ from .sbeam_bridge import _fmt, _sf_str, _stamped
 _NODE_BANDS = {"R": band("balanced-wing-right"),
                "L": band("balanced-wing-left"),
                "C": band("balanced-centreline")}
+#: The gear reference points (decision G-2). A separate band from the three
+#: position runs so a gear node is identifiable **by id**, which is what lets
+#: G-13's solver assertion find the reaction sbeam recovers there without
+#: matching coordinates.
+_GEAR_BAND = band("balanced-gear")
+#: Gear reference-point node run.
+BALANCED_GEAR_BASE = _GEAR_BAND.start
 #: Right-hand wing node run.
 BALANCED_WING_R_BASE = _NODE_BANDS["R"].start
 #: Left-hand wing node run -- separate so an antisymmetric case can load the two
@@ -153,11 +161,24 @@ def deck_nodes(cases: Sequence[BalancedCaseResult],
     offset, so they do not need identical node numbering.
     """
     counts = {"R": 0, "L": 0, "C": 0}
+    gear_count = 0
     out: Dict[Tuple[str, float, float, float], int] = {}
     for case in cases:
         for load in case.loads:
             key = _node_key(load)
             if key in out:
+                continue
+            # A gear reference point takes its own band, whatever side it is on
+            # (decision G-2): it is the one node in this deck a consumer needs to
+            # find by id rather than by position, because the gear report states
+            # the load delivered there and G-13 compares the two through the
+            # solver.
+            if load.source.startswith("gear-"):
+                try:
+                    out[key] = _GEAR_BAND.allocate(gear_count)
+                except ValueError as exc:
+                    raise ValueError(f"balanced deck: {exc}") from None
+                gear_count += 1
                 continue
             side = load.side if load.side in counts else "C"
             try:
@@ -198,10 +219,13 @@ def case_sids(cases: Sequence[BalancedCaseResult]) -> List[int]:
             except ValueError as exc:
                 raise ValueError(f"balanced deck: {exc}") from None
             continue
-        case_id = case.case_ref.case_id
-        case_id = (handed_case_id(case_id, case.hand) if case.hand
-                   else unhanded_case_id(case_id))
-        out.append(balanced_subcase_id(case_id))
+        # The hand is passed, not encoded into the id and re-parsed (G-8). It was
+        # ``handed_case_id(case_id, hand)`` until the ground families arrived,
+        # which worked only because every id then *could* take a suffix; the
+        # 23.485 side pair cannot, since LANDLOAD ships both hands under ids of
+        # their own (``LG-19`` port, ``LG-20`` starboard) and suffixing either
+        # would invent a second id for one physical condition.
+        out.append(balanced_subcase_id(case.case_ref.case_id, case.hand))
     seen: Dict[int, BalancedCaseResult] = {}
     for sid, case in zip(out, cases):
         if sid in seen:
@@ -232,13 +256,23 @@ def _header(case: BalancedCaseResult, u: DeliverableUnits) -> List[str]:
     _, _, res_fz = to_force(0.0, 0.0, case.residual_fz, u)
     _, res_my, _ = to_moment(0.0, case.residual_my, 0.0, u)
     _, cm_my, _ = to_moment(0.0, case.fuselage_cm, 0.0, u)
-    # What the hand *is* differs between the two handed families, and naming it
-    # "roll" on a rudder kick would be wrong: a lateral case's twin is the
-    # opposite-sign side load, which happens to roll the airplane as well.
-    kind = ("side load" if is_lateral(case)
-            else "tail load split" if is_unsymmetrical_htail(case) else "roll")
-    hand = {"R": f" -- STARBOARD {kind} (the computed case)",
-            "L": f" -- PORT {kind} (mirror of the starboard case)"}.get(case.hand, "")
+    if is_ground(case):
+        # A ground case's label already names the condition ("side load",
+        # "one-wheel landing"), so the hand adds the side and nothing else. And
+        # it makes no claim about which twin was computed: for the 23.485 family
+        # LANDLOAD ships **both** drift directions under ids of their own, and
+        # the one the suite assembles is the PORT case -- so "mirror of the
+        # starboard case" would be backwards here (decision G-8).
+        hand = {"R": " -- STARBOARD", "L": " -- PORT"}.get(case.hand, "")
+    else:
+        # What the hand *is* differs between the flight families, and naming it
+        # "roll" on a rudder kick would be wrong: a lateral case's twin is the
+        # opposite-sign side load, which happens to roll the airplane as well.
+        kind = ("side load" if is_lateral(case)
+                else "tail load split" if is_unsymmetrical_htail(case) else "roll")
+        hand = {"R": f" -- STARBOARD {kind} (the computed case)",
+                "L": f" -- PORT {kind} (mirror of the starboard case)"}.get(
+                    case.hand, "")
     # Angular accelerations are reported in deg/s^2 -- a quantity a reader can
     # judge -- while the calc carries them in the weight-space 1/in the closure
     # solves in. The conversion has one owner; see sloads.rigid_body.
@@ -259,11 +293,29 @@ def _header(case: BalancedCaseResult, u: DeliverableUnits) -> List[str]:
         f"{case.delta_ny:+.5f}, {case.delta_n:+.5f}) g, wdot = "
         f"({p_dot:+.4g}, {q_dot:+.4g}, {r_dot:+.4g}) deg/s^2, plus each "
         "point mass's own inertia as a free moment.",
-        f"Lumped fuselage Cm moment applied: {cm_my:.0f} {u.moment.label} "
-        "(the trim's airplane-less-tail Cm that the distributed wing does not "
-        "carry; it has no distributed form until the body aero moment lands).",
         "The support below is determinate: its reaction IS the residual above.",
     ]
+    if not is_ground(case):
+        # A ground case has no trim, so it has no airplane-less-tail Cm to
+        # apportion: printing "0 lb-in" beside a sentence about the trim solve
+        # would describe machinery this case does not use.
+        sentences.insert(-1, (
+            f"Lumped fuselage Cm moment applied: {cm_my:.0f} {u.moment.label} "
+            "(the trim's airplane-less-tail Cm that the distributed wing does "
+            "not carry; it has no distributed form until the body aero moment "
+            "lands)."))
+    else:
+        # The residual line above reads 100 % of n*W on a ground case, which is
+        # correct and would otherwise read as alarming. Say why, here, where the
+        # number is -- the same treatment the lateral and 23.427(a) families get.
+        sentences.insert(-1, (
+            "GROUND case (FAR 23.471-23.499): the pre-closure residual above is "
+            "the applied gear load IN FULL and is NOT a balance error. A ground "
+            "case has nothing to trim against -- no aero balances a wheel "
+            "reaction -- so the airplane accelerates, and the six-DOF closure "
+            "below IS that motion. The 1 % residual gate does not apply to this "
+            "family; the gate that does is that the solved field, rotated back "
+            "to the ground line, reproduces LANDLOAD's NVP/NDP/NS exactly."))
     if is_lateral(case):
         _, fin_fy, _ = to_force(0.0, fin_load(case), 0.0, u)
         _, _, res_mz = to_moment(0.0, 0.0, case.residual_mz, u)
@@ -447,6 +499,11 @@ def balanced_deck(project: Project, *,
         f"{BALANCED_WING_L_BASE}+, centreline {BALANCED_BODY_BASE}+ (fuselage",
         "$ masses, tail air load, lumped body Cm). Nodes are at each load's true",
         "$ position, not flattened onto a beam line.",
+        f"$ Gear reference points {BALANCED_GEAR_BASE}+: a ground case's wheel",
+        "$ reactions are transferred here from the tyre contact patch, each with",
+        "$ its lever-arm couple, so the load at the node has the identical",
+        "$ resultant it had at the patch. The trunnion does not move between",
+        "$ attitudes -- the strut state lands in the lever arm, not in the node.",
         f"$ Lengths in {u.length.label}.",
         "$ GRID, GID, CP, X1, X2, X3",
     ]
@@ -500,8 +557,8 @@ def balanced_case_rows(cases: Sequence[BalancedCaseResult]) -> List[Dict[str, st
             # the id is the deck's LABEL, LOAD its SUBCASE/SID integer -- minted
             # in the per-hand block, so the twins differ by their thousands digit.
             "ID": c.case_ref.case_id if c.case_ref else "—",
-            "LOAD": ((deck_load_id(c.case_ref.case_id, ASSEMBLED_DECK) or NO_LOAD_ID)
-                     if c.case_ref else NO_LOAD_ID),
+            "LOAD": ((deck_load_id(c.case_ref.case_id, ASSEMBLED_DECK, c.hand)
+                      or NO_LOAD_ID) if c.case_ref else NO_LOAD_ID),
             "Case": c.label,
             "Hand": c.hand or "-",
             "V-n point": str(c.vn_case),
@@ -526,6 +583,7 @@ __all__ = [
     "BALANCED_WING_R_BASE",
     "BALANCED_WING_L_BASE",
     "BALANCED_BODY_BASE",
+    "BALANCED_GEAR_BASE",
     "BALANCED_FALLBACK_SID_BASE",
     "case_sids",
     "deck_nodes",

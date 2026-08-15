@@ -183,11 +183,12 @@ physical condition.
 from __future__ import annotations
 
 from dataclasses import dataclass, replace
-from math import degrees
-from typing import List, Optional, Sequence, Tuple
+from math import cos, degrees, radians, sin
+from typing import Dict, List, Optional, Sequence, Tuple
 
 from ..case_ids import handed_case_id
-from ..cg_cases import flight_cases
+from ..cg_cases import flight_cases, ground_cases, landing_role_cases
+from ..gear_loads import GearCaseLoads, applied_wheels, gear_case_loads
 from ..derived_geometry import sync_geometry_derived
 from ..export.coordinates import (
     reflect_force,
@@ -329,9 +330,24 @@ LATERAL_AERO_NOTE = (
 #: or constant names appear here.
 SKIP_REASONS = {
     "out-of-family": (
-        "not one of the balanced families this analysis assembles -- fuselage, "
-        "ground and one-engine-out conditions are covered by the per-component "
+        "not one of the balanced families this analysis assembles -- fuselage "
+        "and one-engine-out conditions are covered by the per-component "
         "analyses only"),
+    "gear-design-only": (
+        "a supplementary nose-wheel condition (FAR 23.499): it carries nose "
+        "reactions only, with no main-gear reaction anywhere in the family, so "
+        "it is a local gear-design case rather than an airplane in equilibrium "
+        "and there is nothing for a balanced case to balance. It is not "
+        "missing from the deliverable -- the gear load report carries it, with "
+        "all thirty-three cases"),
+    "side-twin-by-reflection": (
+        "the opposite drift direction of the side-load case before it (FAR "
+        "23.485), which this analysis produces by REFLECTING that case rather "
+        "than assembling it a second time -- so it is in the deck, under its "
+        "own case id, as the twin. Assembling both would put two handedness "
+        "mechanisms in one step; deriving it instead gives the reflection "
+        "operator the one independent check it has, against the manual's own "
+        "figures for this case"),
     "htail-symmetric": (
         "a symmetric horizontal-tail condition: it is already in every balanced "
         "case, as the trim tail load the assembled airplane is balanced against, "
@@ -468,18 +484,38 @@ def wing_sets(project: Project, vn: VnPoint,
     ]
     cm_free = 2.0 * sum(ml)
 
-    # Inertia: the loading's own WING items, spread over WINGINER's shape.
-    # Inertia strips take WINGINER's **spanwise shape** at the 50 % chord (where
-    # it models the panel mass CG -- its torsion carries ``-w*(c50x - c25x)`` for
-    # exactly that reason), then are shifted bodily in x and z so the set's
-    # centroid is the WING items' own.
-    #
-    # The split of authority is decision B-2: the item database owns *where* the
-    # mass is, WINGINER owns *how it is spread along the span*. Without the shift
-    # the two disagree -- ga6's wing item sits at x 97.87 while the 50 % chord
-    # line runs 78-95 -- and the difference lands in the pitching residual as a
-    # moment the trim does not have, because the trim lumps all mass at the CG.
-    # It is worth 2.8-4.3 % of ``n*W*MAC`` on ``concept_regional_jet``.
+    inertia, panel_both = wing_inertia_strips(project, vn.nz)
+    return loads + inertia, panel_both, cm_free
+
+
+def wing_inertia_strips(project: Project,
+                        nz: float) -> Tuple[List[BalancedLoad], float]:
+    """Starboard wing inertia strips at load factor ``nz``, plus the panel mass.
+
+    Returns ``(strips, panel_weight_both_sides)``, **centred on their own
+    centroid** -- :func:`place_wing_inertia` is what moves them onto the loading's
+    WING items and scales them to it. The two halves are separate because the
+    ground families need the same shape at ``nz = 0`` (their load factor is
+    solved, not given: decision G-6), and a second copy of this construction
+    beside them is the drift ``CLAUDE.md`` practice 3 forbids.
+
+    Inertia strips take WINGINER's **spanwise shape** at the 50 % chord (where it
+    models the panel mass CG -- its torsion carries ``-w*(c50x - c25x)`` for
+    exactly that reason).
+
+    The split of authority is decision B-2: the item database owns *where* the
+    mass is, WINGINER owns *how it is spread along the span*. Without the shift
+    the two disagree -- ga6's wing item sits at x 97.87 while the 50 % chord line
+    runs 78-95 -- and the difference lands in the pitching residual as a moment
+    the trim does not have, because the trim lumps all mass at the CG. It is
+    worth 2.8-4.3 % of ``n*W*MAC`` on ``concept_regional_jet``.
+
+    A strip carries ``weight_lb`` whatever ``nz`` is, which is what lets a ground
+    case work: at ``nz = 0`` the strips apply no force and the closure field
+    accelerates them, so the wing's mass is in the model exactly once either way.
+    """
+    wm = project.wing_mass
+    geom = project.geometry.by_name(wm.surface)
     u = inertia_units(geom, wm)
     panel = sum(u.w)
     strips = [(i, w) for i, w in enumerate(u.w) if w]
@@ -488,11 +524,42 @@ def wing_sets(project: Project, vn: VnPoint,
         z_shape = sum(w * u.z[i] for i, w in strips) / panel
     else:
         x_shape = z_shape = 0.0
-    for i, w in strips:
-        loads.append(BalancedLoad(
-            x=u.c50x[i] - x_shape, y=u.ye[i], z=u.z[i] - z_shape,
-            fz=-w * vn.nz, weight_lb=w, source="wing-inertia", side="R"))
-    return loads, 2.0 * panel, cm_free
+    return ([BalancedLoad(x=u.c50x[i] - x_shape, y=u.ye[i], z=u.z[i] - z_shape,
+                          fz=-w * nz, weight_lb=w, source="wing-inertia", side="R")
+             for i, w in strips], 2.0 * panel)
+
+
+def place_wing_inertia(loads: Sequence[BalancedLoad], loading: CaseLoading,
+                       project: Project,
+                       panel_both: float) -> Tuple[List[BalancedLoad], List[str]]:
+    """Scale ``loads``' wing inertia onto the loading's WING items and place it.
+
+    The other half of :func:`wing_inertia_strips`: WINGINER supplies the spanwise
+    shape, the item database supplies the mass and where its centroid sits
+    (decision B-2), and this is where the two are married. Returns the loads with
+    every ``wing-inertia`` strip scaled and shifted, plus the notes the scale owes
+    the reader -- a scale that is not 1.0 means the two mass models disagree, and
+    the case says by how much rather than absorbing it.
+    """
+    notes: List[str] = []
+    scale = _wing_inertia_scale(loading, project, panel_both)
+    if scale == 0.0:
+        notes.append("the loading carries no WING-tagged item mass -- "
+                     "wing inertia not modelled")
+    elif abs(scale - 1.0) > 1e-6:
+        notes.append(
+            f"wing inertia scaled x{scale:.4f} onto the loading's WING items "
+            f"({scale * panel_both:.0f} lb); WINGINER's integrated panel mass is "
+            f"{panel_both:.0f} lb")
+    wing_items = [it for it in loading.items
+                  if component_of(it, project) == MassComponent.WING]
+    w_wing = sum(it.weight_lb for it in wing_items)
+    x_wing = (sum(it.weight_lb * it.x for it in wing_items) / w_wing) if w_wing else 0.0
+    z_wing = (sum(it.weight_lb * it.z for it in wing_items) / w_wing) if w_wing else 0.0
+    return ([replace(ld, fz=ld.fz * scale, weight_lb=ld.weight_lb * scale,
+                     x=ld.x + x_wing, z=ld.z + z_wing)
+             if ld.source == "wing-inertia" else ld
+             for ld in loads], notes)
 
 
 def _wing_inertia_scale(loading: CaseLoading, project: Project,
@@ -661,6 +728,25 @@ def htail_side_loads(case: BalancedCaseResult) -> Tuple[float, float]:
     return rh, lh
 
 
+def is_ground(case: BalancedCaseResult) -> bool:
+    """Does this case carry applied gear reactions? (i.e. is it a ground case.)
+
+    The ``gear-*`` tag has one reader -- here -- so the deck header, the case
+    table, the report and the gates all agree on what the ground family *is*, the
+    same single-owner rule :func:`is_lateral` follows for the fin and
+    :func:`is_unsymmetrical_htail` for the 23.427(a) tail.
+
+    It matters most to the gates. A ground case has **nothing to trim against**,
+    so :data:`RESIDUAL_GATE` -- which asks "did the aero and inertia that should
+    have cancelled actually cancel?" -- has no meaning for it: the pre-closure
+    residual is the whole applied gear load by construction, exactly as a rudder
+    kick's is the whole fin load. The gate that does apply is G-6's, and it is
+    stronger: the solved rigid-body field, rotated back to the ground line, must
+    reproduce LANDLOAD's ``NVP``/``NDP``/``NS`` -- which it does exactly.
+    """
+    return any(ld.source.startswith("gear-") for ld in case.loads)
+
+
 def is_lateral(case: BalancedCaseResult) -> bool:
     """Does this case carry an applied fin load? (i.e. is it one of B8a-3's.)
 
@@ -719,7 +805,20 @@ def is_handed(applied: Sequence[BalancedLoad], n_w: float,
     The threshold is a fraction of ``n*W`` rather than an absolute pound, so it
     means the same thing on a 3,400 lb trainer and a 33,000 lb jet.
     """
-    if any(ld.mx or ld.mz for ld in applied):
+    # The free-moment test reads the **net**, not "any load carries one". It was
+    # ``any(ld.mx or ld.mz ...)`` until the ground families arrived, which was
+    # indistinguishable while the aileron couple was the suite's only free
+    # ``mx``: one lumped couple at the centreline is its own net. A ground case
+    # transfers every wheel reaction from its contact patch to its trunnion with
+    # a lever-arm couple, so *both* main wheels carry an ``mx`` -- equal and
+    # opposite, cancelling exactly -- and an "any" test minted every symmetric
+    # level-landing case handed, emitting a twin that is the same load set
+    # mirrored onto itself. The net is the question that was always meant.
+    free = (sum(ld.mx for ld in applied), sum(ld.mz for ld in applied))
+    if ref_length <= 0.0:
+        if any(free):
+            return True
+    elif max(abs(v) for v in free) > HANDEDNESS_TOL * n_w * ref_length:
         return True
     if sum(abs(ld.fy) for ld in applied) > HANDEDNESS_TOL * n_w:
         return True
@@ -983,26 +1082,8 @@ def assemble(project: Project, condition: str, vn: VnPoint,
     notes: List[str] = []
 
     wing_r, panel_both, cm_free = wing_sets(project, vn, condition)
-    scale = _wing_inertia_scale(loading, project, panel_both)
-    if scale == 0.0:
-        notes.append("the loading carries no WING-tagged item mass -- "
-                     "wing inertia not modelled")
-    elif abs(scale - 1.0) > 1e-6:
-        notes.append(
-            f"wing inertia scaled x{scale:.4f} onto the loading's WING items "
-            f"({scale * panel_both:.0f} lb); WINGINER's integrated panel mass is "
-            f"{panel_both:.0f} lb")
-    wing_items = [it for it in loading.items
-                  if component_of(it, project) == MassComponent.WING]
-    w_wing = sum(it.weight_lb for it in wing_items)
-    x_wing = (sum(it.weight_lb * it.x for it in wing_items) / w_wing) if w_wing else 0.0
-    z_wing = (sum(it.weight_lb * it.z for it in wing_items) / w_wing) if w_wing else 0.0
-    wing_r = [
-        replace(ld, fz=ld.fz * scale, weight_lb=ld.weight_lb * scale,
-                x=ld.x + x_wing, z=ld.z + z_wing)
-        if ld.source == "wing-inertia" else ld
-        for ld in wing_r
-    ]
+    wing_r, scale_notes = place_wing_inertia(wing_r, loading, project, panel_both)
+    notes += scale_notes
 
     loads: List[BalancedLoad] = list(wing_r) + _mirror(wing_r)
     if htail:
@@ -1061,7 +1142,7 @@ def assemble(project: Project, condition: str, vn: VnPoint,
 
     return BalancedCaseResult(
         label=condition, vn_case=vn.case, cg=cg.name, nz=vn.nz,
-        weight_lb=cg.weight_lb, mac=fl.mac,
+        weight_lb=cg.weight_lb, mac=fl.mac, cg_x=cg.xcg, cg_z=cg.zcg,
         semi_span=semi_span, loads=loads,
         residual_fz=fz, residual_fx=fx, residual_my=my,
         residual_fy=fy, residual_mx=mx, residual_mz=mz,
@@ -1093,8 +1174,16 @@ def _flip(value: float) -> float:
     return -value + 0.0
 
 
-def handed_twin(case: BalancedCaseResult) -> BalancedCaseResult:
+def handed_twin(case: BalancedCaseResult, case_ref=None) -> BalancedCaseResult:
     """The opposite-hand twin of an antisymmetric case, by reflection (B-6).
+
+    ``case_ref`` overrides the twin's identity instead of deriving it by suffixing
+    the computed case's id, and exists for exactly one family: the 23.485 side
+    condition, whose twin **already has an id of its own** (``LG-20`` beside
+    ``LG-19``) because LANDLOAD supplies both drift directions. Minting
+    ``LG-19L``/``LG-19R`` beside a shipped ``LG-20`` would put two ids on one
+    physical condition, which M4-2 decision 1 forbids. Everywhere else the twin is
+    derived and this stays ``None`` (decision G-8).
 
     Derived from the computed case rather than recomputed, which is the whole
     point: the oracle-locked FAR 23 path never sees handedness. Every quantity
@@ -1112,6 +1201,8 @@ def handed_twin(case: BalancedCaseResult) -> BalancedCaseResult:
             "own mirror image, and minting a twin for it would put the same "
             "load set in the deck twice")
     ref = case.case_ref
+    twin_ref = (case_ref if case_ref is not None
+                else _handed_ref(ref, reflect_side(case.hand)))
     return replace(
         case,
         loads=[reflect_load(ld) for ld in case.loads],
@@ -1123,7 +1214,7 @@ def handed_twin(case: BalancedCaseResult) -> BalancedCaseResult:
         r_dot=_flip(case.r_dot),
         unbal_moment=-case.unbal_moment,
         hand=reflect_side(case.hand),
-        case_ref=_handed_ref(ref, reflect_side(case.hand)),
+        case_ref=twin_ref,
     )
 
 
@@ -1263,7 +1354,419 @@ def build_balanced_cases(
         out.append(case)
         if case.hand:
             out.append(handed_twin(case))
+    # The ground families join the same deck (decision G-1) -- they are balanced
+    # free-free cases like every other, and building them in a per-component view
+    # first would put the primary deliverable second. They are appended rather
+    # than interleaved so the flight families' order, and therefore every shipped
+    # deck's existing subcase sequence, is untouched.
+    out += build_ground_cases(project, record)
     return out
+
+
+# --------------------------------------------------------------------------- #
+# The ground families (step 10 piece 3 -- decisions G-1, G-6, G-7/G-7a, G-8)
+# --------------------------------------------------------------------------- #
+#: LANDLOAD cases that carry wing lift: the **landing** families (23.479 level
+#: 3-/2-wheel, 23.481 tail-down, 23.483 one-wheel). Decision G-7, and it is the
+#: manual's own split rather than a new one -- ``landing.landing_reactions``
+#: includes the ``lf*WL`` term in ``nvp`` for exactly these cases and omits it for
+#: 13-24. **The regulation draws the same line**: 23.473(a) lets 23.479/481/483
+#: be met at the design landing weight, which is why those are the families
+#: LANDLOAD scales differently, and 23.485/23.493 are the gross-weight ones. The
+#: family split, the lift split and the weight split are one split.
+GROUND_LIFT_CASES = range(1, 13)
+
+#: The 23.483 one-wheel family: a single main gear carries the whole reaction, so
+#: the case has a hand and LANDLOAD supplies **neither** twin (there is no sign
+#: flip anywhere in cases 10-12 -- they are the three loadings, one hand each).
+GROUND_ONE_WHEEL_CASES = range(10, 13)
+
+#: The 23.485 side family: three loadings x **two drift directions**, so LANDLOAD
+#: supplies **both** hands. Only the odd member of each pair is assembled and the
+#: even one becomes an independent check on the reflection operator (G-8).
+GROUND_SIDE_CASES = range(19, 25)
+
+#: The ground families the assembled deck carries: 1-24. The 23.499 supplementary
+#: nose-wheel family (25-33) is deliberately absent -- see
+#: :data:`SKIP_REASONS`'s ``gear-design-only``.
+BALANCED_GROUND_CASES = range(1, 25)
+
+#: The G-7a statement of record, carried in-band on every ground case that
+#: carries lift. The tilt is small and the reason it exists is not obvious from
+#: the cards, so it travels with them rather than sitting in a document beside.
+GROUND_LIFT_NOTE = (
+    "the wing lift is L x W on the AIRLOADS spanwise shape, and it acts along "
+    "the GROUND LINE rather than the airplane z axis: lift is perpendicular to "
+    "the flight path, and at touchdown that is the runway, so the airplane's "
+    "attitude tilts the lift vector by the ground angle. Only the SHAPE is "
+    "borrowed from AIRLOADS -- the magnitude is L x W, so no speed, CL or V-n "
+    "point is involved and no new aerodynamics is invented")
+
+#: The G-7 statement of record for the ground-handling families, which carry no
+#: lift at all. Said explicitly because "no lift" and "no load" are easy to
+#: confuse, and the wing is emphatically not load-free in a braked roll.
+GROUND_NO_LIFT_NOTE = (
+    "no wing lift in this family (FAR 23.485 / 23.493 are ground-handling "
+    "conditions): the gear loads are balanced by inertia alone. The wing still "
+    "carries its OWN inertia at the case's solved load factor, so it is "
+    "lift-free, not load-free")
+
+#: The G-6 statement of record: what closes a ground case, and what does not.
+GROUND_CLOSURE_NOTE = (
+    "closed by the six-DOF rigid-body field, not by LANDLOAD's NVP/NDP/NS. "
+    "Those are translation only -- the rotational half sits unreacted in "
+    "PITCHP/ROLLP/YAWP -- and they are stated about the ground line, so "
+    "consuming them would put a frame rotation in the load path. They are the "
+    "independent closed-form check on the solve instead (FAR 23.471: the "
+    "external reactions must be placed in equilibrium with the linear and "
+    "angular inertia forces)")
+
+
+def gear_sets(wheels: Sequence, nvp: float) -> List[BalancedLoad]:
+    """The applied gear reactions of one ground case, at their reference points.
+
+    A pure consumer of :mod:`sloads.gear_loads`, which is itself a pure consumer
+    of :mod:`sloads.modules.landing` -- so the reaction an assembled ground case
+    carries is the Appendix-A-locked one, per wheel, and no oracle is at risk from
+    assembling it. What this adds is the ``BalancedLoad`` wrapper and the
+    ``source``/``side`` tags the deck bands by.
+
+    Each wheel arrives as a force **and** the lever-arm couple that carried it
+    from the tyre contact patch to the trunnion, so the pair together has the
+    identical resultant the reaction had at the patch (G-2's third guard asserts
+    exactly that, at ``rel_tol 1e-12``). Applying the force without the couple is
+    the failure mode the guard exists for: it still sums to zero at a determinate
+    support, so the assembled residual alone would never catch it.
+
+    ``nvp`` is unused here and is the caller's business -- the leg's own mass
+    rides the closure field through its ``weight.items`` rows, exactly as the
+    empennage surfaces' does, so that each mass enters exactly one set.
+    """
+    loads: List[BalancedLoad] = []
+    for wheel in wheels:
+        fx, fy, fz = wheel.force
+        mx, my, mz = wheel.couple
+        loads.append(BalancedLoad(
+            x=wheel.node[0], y=wheel.node[1], z=wheel.node[2],
+            fx=fx, fy=fy, fz=fz, mx=mx, my=my, mz=mz,
+            source=f"gear-{wheel.leg}", side=wheel.side))
+    return loads
+
+
+def ground_lift_sets(project: Project, lift_lb: float,
+                     rotation_deg: float) -> List[BalancedLoad]:
+    """The starboard wing's share of the ground-case lift (G-7, G-7a).
+
+    ``lift_lb`` is the **whole airplane's** lift, ``L x W_case``; this returns one
+    half of it, and the caller mirrors. The shape is the AIRLOADS Schrenk
+    distribution, rescaled -- only the shape, so no speed, ``CL`` or V-n point is
+    needed and the oracle-locked spanwise integrator is reused rather than a
+    lumped force invented. That matters structurally: a lumped force gives the
+    inboard wing none of the ground-case bending relief it actually gets.
+
+    **The vector lies along the ground line** (decision G-7a), so it enters
+    airplane axes as ``(L sin rho, 0, L cos rho)``. Lift is perpendicular to the
+    flight path; at touchdown the flight path is the runway to within the descent
+    angle; and the airplane sits at ``rho`` to it. On ``ga6_normal``'s level
+    families that puts ~152 lb of the 2,154 lb lift forward, and it is what keeps
+    G-6's ``NVP``/``NDP`` gate an identity rather than a tolerance -- LANDLOAD
+    sums ``lf*WL`` into the ground-line vertical, so a lift applied along ``z``
+    would enter that sum short by ``cos rho``.
+
+    The section ``Cm`` and the induced ``fx`` of the aerodynamic distribution are
+    deliberately **not** carried: they scale with ``q*CL`` and this case has
+    neither. Borrowing them would be inventing aerodynamics the condition does
+    not define.
+    """
+    wm = project.wing_mass
+    geom = project.geometry.by_name(wm.surface)
+    aero = project.aero.by_name(wm.surface)
+    if geom is None or aero is None:
+        raise MissingInputError("a ground case needs a wing surface and aero set")
+    # Any (cl, v) gives the same *shape*: the Schrenk distribution scales with
+    # ``q*CL`` as a whole. Unit values make that explicit at the call site rather
+    # than borrowing a flight condition this case does not have.
+    shape = air_load_distribution(geom, aero, 1.0, 100.0,
+                                  wm.wrp_waterline, wm.dihedral_deg)
+    total = sum(s.fz for s in shape.stations)
+    if not total:
+        raise MissingInputError(
+            "the wing spanwise distribution integrates to zero lift, so a ground "
+            "case's lift has no shape to be distributed on")
+    k = (lift_lb / 2.0) / total
+    a = radians(rotation_deg)
+    return [BalancedLoad(x=s.x, y=s.y, z=s.z,
+                         fx=s.fz * k * sin(a), fz=s.fz * k * cos(a),
+                         source="ground-lift", side="R")
+            for s in shape.stations]
+
+
+def assemble_ground(project: Project, gear: "GearCaseLoads", wheels: Sequence,
+                    loading: CaseLoading, cg: CgCase, lift_factor: float,
+                    rotation_deg: float, *, case_ref=None,
+                    hand: str = "") -> BalancedCaseResult:
+    """Assemble one **ground** case and close it in six DOF (G-1, G-6, G-7).
+
+    The sibling of :func:`assemble`, and deliberately not a branch inside it: a
+    ground case has no V-n point, so it has no ``cl``, no ``lt`` trim tail load
+    and no ``m_wf`` -- three of the four things the flight assembly is built
+    around. What the two share is everything that matters, and they share it as
+    code: :func:`wing_inertia_strips`, :func:`place_wing_inertia`,
+    :func:`body_inertia`, :func:`resultant6`, :func:`point_mass_self_inertia` and
+    :func:`_closure`.
+
+    **Nothing is applied at a flight load factor, because there is not one.** The
+    inertia set enters at ``nz = 0`` and the closure solves the whole rigid-body
+    field, which is what G-6 asks for and what FAR **23.471** asks for: *"the
+    external reactions must be placed in equilibrium with the linear and angular
+    inertia forces in a rational or conservative manner."* The solved ``n_z``
+    rotated back to the ground line **is** ``NVP``, exactly -- that identity is
+    this step's benchmark-first gate, and it is content-carrying because LANDLOAD
+    reaches those factors by lever arms and FAR percentages rather than by a mass
+    matrix.
+
+    **The pre-closure residual is the whole applied load and is not an error.**
+    A ground case has nothing to cancel against -- there is no trim -- so
+    :data:`RESIDUAL_GATE` does not apply to it, the same standing as the lateral
+    families and the 23.427(a) h-tail case. Nothing trims the case in pitch
+    either: distributing the lift at the wing rather than netting it at the CG
+    (as LANDLOAD does, via ``NLG = N - L``) leaves a pitching moment, measured at
+    1.26-1.47 % of ``n*W*MAC`` on ``ga6_normal``, reacted by pitch acceleration
+    alone. An airplane at touchdown is an accelerating body, not a trimmed one,
+    and Ch 20 has no balancing tail load to invent.
+
+    ``hand`` is passed in rather than measured for the 23.485 family, where the
+    *manual* decides which hand a case is: ``LG-19`` is the port drift and
+    ``LG-20`` the starboard, and both ids already exist. Left blank, the hand is
+    measured by :func:`is_handed` as it is for every other family.
+    """
+    fl = project.flight_loads
+    notes: List[str] = [GROUND_CLOSURE_NOTE]
+
+    inertia, panel_both = wing_inertia_strips(project, 0.0)
+    wing_r, scale_notes = place_wing_inertia(inertia, loading, project, panel_both)
+    notes += scale_notes
+
+    lift_lb = lift_factor * gear.weight_lb if gear.case in GROUND_LIFT_CASES else 0.0
+    if lift_lb:
+        wing_r = list(wing_r) + ground_lift_sets(project, lift_lb, rotation_deg)
+        notes.append(f"applied wing lift {lift_lb:+.0f} lb (L = {lift_factor:g} x "
+                     f"{gear.weight_lb:,.0f} lb, FAR 23.473(a)): {GROUND_LIFT_NOTE}")
+    else:
+        notes.append(GROUND_NO_LIFT_NOTE)
+
+    loads: List[BalancedLoad] = list(wing_r) + _mirror(wing_r)
+    loads += gear_sets(wheels, 0.0)
+    loads += body_inertia(loading, project, 0.0)
+
+    geom = project.geometry.by_name(project.wing_mass.surface)
+    semi_span = geom.leading_edge[-1][1] if geom else 0.0
+    ref = (cg.xcg, 0.0, cg.zcg)
+    # The 23.485 family's hand is the manual's (both ids exist, so it is passed
+    # in); every other family's is measured from the applied set, exactly as the
+    # flight families' is. The one-wheel case is caught by ``is_handed``'s third
+    # source -- a net rolling moment made by the distribution itself -- which was
+    # added for the 23.427(a) h-tail and covers this without a change: all the
+    # vertical reaction sits at one ``y`` and there is no side force at all, so a
+    # lateral-content-only predicate would have minted it unhanded.
+    if not hand and is_handed(loads, abs(gear.weight_lb), semi_span):
+        # A *measured* hand suffixes the id, exactly as the flight families do:
+        # the 23.483 one-wheel condition has only ``LG-10``, so its two hands are
+        # ``LG-10L``/``LG-10R``. A hand that was **passed in** does not, because
+        # it came from the 23.485 family where LANDLOAD already supplies both
+        # drift directions under ids of their own (G-8).
+        hand = "R"
+        case_ref = _handed_ref(case_ref, hand)
+    residual = resultant6(loads, ref)
+    fx, fy, fz, mx, my, mz = residual
+    n, omega_dot, tensor = _closure(
+        loads, cg, residual, point_mass_self_inertia(loading, project))
+
+    carriers = sorted({w.carrier.value for w in wheels if w.carrier is not None})
+    if carriers:
+        notes.append(
+            "gear reactions are transferred from the tyre contact patch to each "
+            f"leg's own reference point ({', '.join(carriers)}-carried) with the "
+            "lever-arm couple, so the load at the node has the identical "
+            "resultant it had at the patch")
+
+    return BalancedCaseResult(
+        label=gear.description, vn_case=gear.case, cg=cg.name,
+        # A ground case's ``nz`` is an OUTPUT, not an input: it is solved, and
+        # ``delta_n`` carries it. Reported here as the solved value so every
+        # consumer of ``BalancedCaseResult.nz`` -- the deck header, the row
+        # table, the report -- states the load factor the case actually runs at
+        # rather than a placeholder 1.0 nobody computed.
+        nz=n[2], weight_lb=gear.weight_lb, mac=fl.mac if fl else 0.0,
+        cg_x=cg.xcg, cg_z=cg.zcg,
+        semi_span=semi_span, loads=loads,
+        residual_fz=fz, residual_fx=fx, residual_my=my,
+        residual_fy=fy, residual_mx=mx, residual_mz=mz,
+        delta_n=n[2], delta_nx=n[0], delta_ny=n[1],
+        p_dot=omega_dot[0], q_dot=omega_dot[1], r_dot=omega_dot[2],
+        closure_inertia=tensor, fuselage_cm=0.0,
+        case_ref=case_ref, hand=hand, notes=notes,
+    )
+
+
+def _ground_target(base: CgCase, weight_lb: float) -> CgCase:
+    """The weight/CG an assembled ground case sits at.
+
+    The roled loading's **CG station** at the case's **own design weight**, which
+    are not always the same weight: 23.473(a) lets 23.479/481/483 be met at the
+    design landing weight while 23.485/23.493 are met at the maximum take-off
+    weight, and LANDLOAD applies that as ``WR`` on cases 13-22. Renaming the case
+    when the weight moves keeps the two apart in the derivation record and in the
+    deck, so a reader is never shown "aft max landing" against a take-off weight.
+    """
+    if abs(weight_lb - base.weight_lb) <= 1e-6:
+        return base
+    return replace(base, name=f"{base.name} at {weight_lb:,.0f} lb",
+                   weight_lb=weight_lb)
+
+
+def _ground_loadings(project: Project,
+                     gear: Sequence[GearCaseLoads]) -> Dict[int, Tuple[CgCase, object]]:
+    """``{LANDLOAD case number: (CgCase, CaseLoading)}`` for every ground case.
+
+    Keyed by **case number** rather than by loading name, because the name alone
+    does not identify the target: cases 1-12 and 19-22 both name ``aft max
+    landing`` and sit at different design weights (23.473(a) again), so a
+    name lookup silently returns whichever was derived first -- which on
+    ``ga6_normal`` put the side family's inertia set 170 lb light and its ``n_y``
+    5 % high.
+
+    Derived through the **same** :func:`~sloads.mass_distribution.derive_case_loadings`
+    every flight case uses, with the same ``derivable`` gate: a ground case whose
+    loading the weight database cannot produce is skipped and recorded, never
+    invented (decision G-3). Ground cases *inherit* the already-pinned
+    "payload cases are not loadings the weight database can produce" limitation;
+    they do not create one and they do not wait on it.
+    """
+    base = {c.name: c for c in landing_role_cases(project)}
+    per_case: Dict[int, CgCase] = {}
+    distinct: Dict[str, CgCase] = {}
+    for g in gear:
+        anchor = base.get(g.cg_name)
+        if anchor is None:
+            continue
+        target = _ground_target(anchor, g.weight_lb)
+        per_case[g.case] = target
+        distinct[target.name] = target
+    loadings = {ld.name: ld for ld in
+                derive_case_loadings(project, list(distinct.values()))}
+    return {case: (target, loadings.get(target.name))
+            for case, target in per_case.items()}
+
+
+def build_ground_cases(
+        project: Project,
+        skipped: Optional[List[SkippedCondition]] = None,
+) -> List[BalancedCaseResult]:
+    """The ground/landing conditions as assembled balanced cases (G-1).
+
+    **Ground cases are born in the assembled free-free deck**, not in a
+    per-component body view. A ground case is irreducibly three-dimensional --
+    on ``ga6_normal`` braked roll is 2,261 lb vertical against 1,809 lb of drag
+    per wheel, and the side family 2,261 against -1,700 lb of side load, applied
+    at the contact patch ~41 in below the fuselage beam line and +-57 in off the
+    centreline. Those lever arms *are* the load case, and the per-component
+    fuselage deck is planar by construction, so building it there first and in
+    the primary deliverable second would be backwards.
+
+    Which of LANDLOAD's 33 cases assemble, and why the rest do not:
+
+    * **1-24** assemble, one balanced case each, plus a twin where the family has
+      a hand;
+    * **20, 22, 24** are the even members of the 23.485 pairs: they are LANDLOAD's
+      *own* opposite drift direction, and decision G-8 mints them by **reflecting**
+      the odd member instead, so the reflection operator keeps its single owner
+      and gains the only external check it will ever get. They are recorded as
+      derived rather than dropped;
+    * **25-33** are the 23.499 supplementary nose-wheel family, which carries nose
+      reactions only -- no main-gear reaction exists in it -- so it is a local
+      gear-design case, not an airplane in equilibrium. It is recorded, and it
+      has a home: the gear load report carries all 33.
+
+    Every skip is recorded through the same :class:`SkippedCondition` path the
+    flight families use, so "here is every condition and what became of it"
+    covers the ground family too.
+    """
+    record: List[SkippedCondition] = skipped if skipped is not None else []
+    try:
+        gear = gear_case_loads(project)
+    except MissingInputError:
+        return []
+    if not ground_cases(project):
+        return []
+
+    loadings = _ground_loadings(project, gear)
+    by_case = {g.case: g for g in gear}
+    lift_factor = project.landing.lift_factor
+
+    out: List[BalancedCaseResult] = []
+    for g in gear:
+        cond = _GroundCondition(g)
+        if g.case not in BALANCED_GROUND_CASES:
+            record.append(_skip(cond, "gear-design-only"))
+            continue
+        if g.case in GROUND_SIDE_CASES and g.case % 2 == 0:
+            record.append(_skip(cond, "side-twin-by-reflection"))
+            continue
+        entry = loadings.get(g.case)
+        if entry is None:
+            record.append(_skip(cond, "no-cg-case"))
+            continue
+        cg, loading = entry
+        if loading is None or not loading.derivable:
+            record.append(_skip(cond, "loading-not-derivable"))
+            continue
+
+        one_wheel = g.case in GROUND_ONE_WHEEL_CASES
+        partner = by_case.get(g.case + 1) if g.case in GROUND_SIDE_CASES else None
+        wheels = applied_wheels(
+            g.legs, one_wheel=one_wheel,
+            partner_side_lb=(partner.legs[0].ground_line[2] if partner else None))
+        rotation = g.legs[0].rotation_deg
+        # The 23.485 family's hand is LANDLOAD's own: ``SMP`` is negative on the
+        # odd member (0.5 W inboard to port) and positive on the even one, so the
+        # computed case is the PORT drift and its twin the starboard. Every other
+        # family lets ``is_handed`` measure it.
+        hand = ""
+        if partner is not None:
+            hand = "L" if g.legs[0].ground_line[2] < 0 else "R"
+        case = assemble_ground(project, g, wheels, loading, cg, lift_factor,
+                               rotation, case_ref=g.case_ref, hand=hand)
+        out.append(case)
+        if case.hand:
+            twin_ref = partner.case_ref if partner is not None else None
+            out.append(handed_twin(case, case_ref=twin_ref))
+    return out
+
+
+@dataclass(frozen=True)
+class _GroundCondition:
+    """A LANDLOAD case wearing the shape :func:`_skip` expects.
+
+    ``SkippedCondition`` was written around SELECT's conditions, which carry
+    ``component``/``label``/``case``. A ground case has all three under different
+    names, so this adapts rather than duplicating the record type -- the
+    deliverable's completeness statement must read as one list, not two.
+    """
+
+    gear: GearCaseLoads
+
+    @property
+    def component(self) -> str:
+        return "landing_gear"
+
+    @property
+    def label(self) -> str:
+        return self.gear.description
+
+    @property
+    def case(self) -> int:
+        return self.gear.case
 
 
 def skipped_conditions(project: Project) -> List[SkippedCondition]:

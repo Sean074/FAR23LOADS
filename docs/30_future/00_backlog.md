@@ -135,9 +135,16 @@ standing caveats, and the archive verification in
 Every row below is post-0.5.0. Per D-R3 the ground/landing case families are the
 0.6.0 headline; the cadence rule (RELEASE_PROCESS §2) restarts from this tag.
 Shipped since the tag: the ONENGOUT fixture data, the case-identity ↔ deck
-`LOAD` linkage, and the **wing case row's flight condition** (D-23, 2026-08-13 —
-a row now states the speed its loads were computed at, keeping SELECT's
-`case_id`).
+`LOAD` linkage, the **wing case row's flight condition** (D-23, 2026-08-13 — a
+row now states the speed its loads were computed at, keeping SELECT's `case_id`)
+and **step 10 entire** — the governing safety-factor table (piece 1, M4-8/G-11),
+the weight/CG case model and gear inputs (piece 2, schema v47) and the
+**ground/landing cases + gear load report** (piece 3, 2026-08-15, schema v48).
+Piece 3 is the 0.6.0 headline per D-R3 and it **closes step 11** with it: under
+G-1 the ground families are born as balanced free-free cases in the assembled
+deck, so plan 11's phase 4 (B8b) has no separate build. The FAR 23 ground
+conditions now assemble on two fixtures with their `NVP`/`NDP`/`NS` reproducing
+LANDLOAD exactly, and the gear has a free-body report of its own on five.
 
 Reference-authority hierarchy: (1) `.BAS` listings + Appendix A printed output,
 (2) User's Guide CFR quotes (Jan-1994), (3) Code-manual 1990 prose.
@@ -168,10 +175,9 @@ traceability with plans 09/11/12/13; the **Pri** column is ordinal only.
 | Pri | Item (detail below / in its plan) | What ships | Tag | Tier / effort | Depends on |
 |---|---|---|---|---|---|
 | **Post-0.5.0 (0.6.0 candidates and ranked [V])** ||||||
-| 1 | **Step 10 piece 3** — ground/landing cases + the gear load report (M4-6; **absorbs** step 11 / plan 11 B8b) | Balanced free-free ground cases in the assembled deck, gear reactions transferred to the gear reference point, and the gear free-body report (contact patch + stroke) — **the 0.6.0 headline per D-R3** | E | L / L | — (piece 2 shipped 2026-08-14) |
-| 2 | Step 12 — LRA beam-model export + import | Cards delivered on the consumer's own node line; standalone LRA skeleton export | E | L / M–L | step 5 ✅ |
-| 3 | Step 13 — side-of-body reporting node | SOB internal shear/bending/torsion reported as the wing root design loads | E | M / M | step 5 ✅ |
-| 4 | Step 14 — real stiffness / assembled airframe properties (L-1) | Real section properties replacing the `MAT1` placeholder | E | L / M | Pri 2 (LRA beam bridge) |
+| 1 | Step 12 — LRA beam-model export + import | Cards delivered on the consumer's own node line; standalone LRA skeleton export | E | L / M–L | step 5 ✅ |
+| 2 | Step 13 — side-of-body reporting node | SOB internal shear/bending/torsion reported as the wing root design loads | E | M / M | step 5 ✅ |
+| 3 | Step 14 — real stiffness / assembled airframe properties (L-1) | Real section properties replacing the `MAT1` placeholder | E | L / M | Pri 1 (LRA beam bridge) |
 | 7 | The aileron's own lift increment is not distributed | `ACRL` wing cards gain the aero half of the couple (acts ~70 % span) | V | L / M | pairs plan 09 spanwise work |
 | 8 | RJ pitch-gate exceedance diagnosis | Element-count study → R3 vs `Cm` split; plan 13 G9 inherits the ceiling | V | M / S | pairs M4-19 |
 | 9 | Payload cases the weight database can produce (sibling pair) | Four more fixtures gain balanced cases → more assembled decks in CI | V | M–L / M | user decision: loading definition vs fixture fix |
@@ -179,7 +185,7 @@ traceability with plans 09/11/12/13; the **Pri** column is ordinal only.
 | 11 | Lateral body aero `Cy_β`/`Cn_β` (L-7) | Honest lateral `n_y`/`ψ̈` (fin-only today — over-stated, conservative) | V | L / M | pairs M4-19 |
 | 12 | Empennage planform polylines (fixture data) | Real taper in the tail card distributions instead of the `assumed` rectangle | V | S / S | — |
 | 13 | h-tail attachment `fuselage_width` (fixture data) | Real attachment stations instead of the `±ds/2` fallback | V | S / S | pairs Pri 3 (SOB) |
-| 13a | `concept_heavy` gear geometry + `landing` slice (fixture data) *(new 2026-08-14, from step 10 decision G-13)* | A sixth gear-report fixture, and the only concept-mode exercise of the 23.473(g) floor warning | V | S / S | Pri 1 (the gear report must exist) |
+| 13a | `concept_heavy` gear geometry + `landing` slice (fixture data) *(new 2026-08-14, from step 10 decision G-13)* | A sixth gear-report fixture, and the only concept-mode exercise of the 23.473(g) floor warning | V | S / S | — (the gear report shipped 2026-08-15) |
 | 14 | Load-application axis vs elastic axis — document the torsion reference | Convention in `coordinates.py` + spec + deck `$` header | V | S / S | partially superseded by Pri 2 (LRA import) |
 | 15 | Gust spanwise-distribution decision | Study + recorded decision | V | S / S | — |
 | 16 | M4-19 — Multhopp distributed fuselage `Cm` | A distributed body pitching load for `body_loads` | V | L / M | — |
@@ -192,10 +198,10 @@ traceability with plans 09/11/12/13; the **Pri** column is ordinal only.
 | 23 | Flutter-clearance Mach basis for transports | Verified reference + decision, then an opt-in variant | V | S / S | — |
 | 24 | Upset-criterion speed increase (25.335(b)(1)) | The 20 s dive integration the margin route lacks | V | M / M | — |
 | 25 | F25-1 — transport category "T" envelope pack | 25.337 floors, 25.341 U_ref schedule, VB | V | M / M | — |
-| 26 | F25-4 — ground-loads parameter variant | 10/6 fps, lift = W, LDW/MTOW pairing | V | M / M | coordinates with Pri 1 (M4-6) |
+| 26 | F25-4 — ground-loads parameter variant | 10/6 fps, lift = W, LDW/MTOW pairing | V | M / M | coordinates with M4-6 (shipped 2026-08-15) |
 | 27 | Deliverables render structural negative zeros *(new 2026-08-11, from the body-deck signed-zero fix)* | `-0.000000E+00` components (~2,000 in one balanced deck) and the tail span CSV's `Fax` column normalised at the formatting boundary | V | S / S | schedule with a digest wave — cosmetic, and it moves every deck family's bytes |
 | 28 | Split `40_history/00_completed_development.md` by era | Mechanical split + index file | V | S / S | after the working tree is committed |
-| 29 | Combined flight + ground station envelope *(new 2026-08-14, from step 10 decision G-9)* | Two-sided max/min per station over both families, each extreme naming its governing case | V | M / M | Pri 1 (ground cases must exist first) |
+| 29 | Combined flight + ground station envelope *(new 2026-08-14, from step 10 decision G-9)* | Two-sided max/min per station over both families, each extreme naming its governing case | V | M / M | — (ground cases shipped 2026-08-15) |
 | 30 | `applicability`/`direct_totals` design-weight re-point *(new 2026-08-14, from step 10 decision G-14)* | The FAR 23 gate reads the MTOW SSOT instead of the database total; `direct_totals` renamed | V | S / S | — (the G-14 hop shipped 2026-08-14) |
 | 31a | M4-8 **Layer 2** — agreed named failure-case factors (25.302) *(remainder after Layer 1 shipped 2026-08-14)* | A named `25.302` failure case as its own governing row + ULTIMATE load case, and the system-reliability requirement it levies | V | M / M | coordinates with Phase F25 |
 | 30a | `dhc8_dash8` gear mass is tagged `fuselage` but the leg is wing-carried *(new 2026-08-14, from step 10 decision G-2's carrier↔mass guard)* | Re-tag the gear items `MassComponent.WING` and re-pin `mass_distribution.wing_mass_tie` | V | S / S | — (the guard that found it shipped 2026-08-14) |
@@ -357,69 +363,6 @@ Pinned in `tests/test_balance.py::test_which_conditions_assemble_is_pinned`, so
 the coverage is a recorded fact rather than a silent gap, and it goes red the day
 the fixtures are fixed. Tier M–L. Effort: M. Pairs with the sibling item above.
 
-### [E] Balanced full-airframe load cases (free-free) *(new 2026-08-08, user)* — **step 11**
-
-> **Phases 1–3 are shipped** (B1–B6 symmetric, B7 antisymmetric + handedness,
-> B8a-1…B8a-5 the lateral ±β empennage closure — 2026-08-08/09).
->
-> **Phase 4 (B8b) is absorbed into step 10's ground-cases piece (priority 2), 2026-08-14.**
-> Decision **G-1** puts ground cases in the assembled free-free deck from the
-> start, so "balanced landing cases" is no longer a separate build layered on a
-> body-deck one — it is how the ground family is built in the first place. This
-> item therefore has **no open phase of its own**; the text below is kept as its
-> original statement of record.
-
-A full airplane balanced case — wing tip to wing tip, nose to tail — that needs
-**no constraint**, because the applied aero and inertia loads balance: a wing
-case carries its corresponding tail load and the resulting inertia loads, with
-a small residual inertia relief to close. Design note, decisions B-1…B-4, the
-double-count authority table and step detail:
-[`11_balanced_airframe_cases_plan.md`](11_balanced_airframe_cases_plan.md).
-**This is the item plan 07 §9 recommended filing** ("Assembled-airframe n·W
-closure for symmetric cases") — filed here with its decisions answered and its
-baseline measured, so it should not be entered a second time.
-
-**Measured baseline (ga6, 2026-08-08):** the airplane already balances at trim
-level (`lzw + lt == nz·W` exactly), and assembling case 22 from the itemized
-mass model leaves a residual of **−41.0 lb = 0.317 % of n·W** (`Δn` = −0.012 g)
-— comfortably inside the agreed 1 % gate, with the whole residual traced to the
-AIRLOADS strip quadrature vs the FLTLOADS closed-form lift. **The physics is
-already consistent to 0.3 %; what is missing is the assembly.** Two gaps drive
-the work: the wing delivers 11,674 lb at the seam while `body_loads` closes on
-a reaction of 10,479 lb it computes for itself (**9.2 % disagreement**), and
-`weight.items` (24 items, closes to W and CG exactly) and
-`fuselage_mass.stations` (5 hand-entered lumps) differ by **427 lb** with
-nothing reconciling them.
-
-Decisions B-1…B-4: the balanced case is owned by the **flight condition**
-(component cases become views); **`weight.items` is the mass SSOT**; residual
-closed by **2-DOF mass-proportional `Δn` + `Δθ̈`** gated at 1 %; a **new
-assembled deck** solved on a determinate support with reactions gated to ≈ 0
-(sbeam SOL 101 has no inertia relief — `SUPORT` is SOL 144 only). **Answers
-plan 09 decision T-11's double-count question** via the §4 authority table:
-*a load that a free-body cut introduces is never applied in the assembled
-model.* Decisions B-5…B-8 (2026-08-08 critical review, plan 11 §2.1): the
-assembled full-span deck is the **primary deliverable**; every asymmetric
-family gets a **left/right twin by reflection at assembly** (`y → −y`, side
-loads negated; reflection operator single-owned in `export/coordinates.py`
-with a drift guard); `BalancedCase` **keys on the minted `CaseRef`** with a
-handedness suffix (`VT-03L`/`VT-03R`), not on the V-n index (derived and
-landing conditions have no V-n point); lateral cases close with the **lateral
-2-DOF analog** `Δn_y` + `Δψ̈` — a lateral load factor exists nowhere in the
-suite today, so B8a starts with its design note. *(Superseded in part
-2026-08-09: B8a-2 shipped the closure as the full six-DOF rigid-body field —
-see plan 13 and `docs/20_theory/balanced_cases.md`.)*
-
-**Effort: L (~4–5 sessions phase 1), phased.** Phase 1 (B1–B6) = symmetric
-wing cases; phase 2 (B7) = antisymmetric `ACRL`/`TORS` plus the handedness
-machinery; phase 3 (B8a) = empennage ±β (needs plan 09 T1–T4) ✅; phase 4 (B8b) =
-landing/ground (needs M4-6). Rides on both export-boundary items above.
-**Open technical question (R1), to settle before the gate is written:** where
-the wing+fuselage aero pitching moment `m_wf` goes in the distributed model —
-the wing section `Cm` is already in the strip torsion, but the fuselage Munk
-term has no distributed carrier until **M4-19**. The force residual is measured;
-the moment residual cannot be quoted until R1 is decided.
-
 ### [V] The empennage planform is derived, not entered, on every fixture *(new 2026-08-08, from T1)*
 No shipped airplane carries an `htail`/`vtail` entry in `geometry.surfaces`, so
 `tail_geometry.resolve_tail_planform` **derives a rectangular planform** from the
@@ -531,50 +474,6 @@ method, which the F25 gap analysis keeps out of scope — see
 **Acceptance:** a Layer-2 named case round-trips through `io.py` and renders as
 `lbs-ULT SF=1.25`, and the governing table states it with its basis. Coordinates
 with Phase F25. Effort: M.
-
-### [E] M4-6 — Ground-case distributed fuselage (and wing) loads — **step 10**
-
-> **Re-scoped and re-rated 2026-08-14.** The design note
-> [`18_step10_ground_cases_plan.md`](18_step10_ground_cases_plan.md) closed
-> fourteen decisions (**G-1 … G-14**) and the step came out of it as **three
-> landable pieces**, each independently claimable in `CHANGELOG.md` with its own
-> digest wave. The original single `L / L` rating predates pieces 1 and 2 and was
-> low. **Piece 1 shipped 2026-08-14** — its claim held: the table appeared and no
-> number moved.
->
-> | piece | pri | decisions | tier / effort | digest expectation |
-> |---|---|---|---|---|
-> | governing safety-factor table (M4-8) | ✅ **shipped 2026-08-14** | G-10, G-11 | L / M | table appeared; no numeric value moved |
-> | the schema hop (case model + gear inputs) | ✅ **shipped 2026-08-14** | G-2, G-3, G-4, G-5, G-14 | L / M–L | **nothing moved**; `digests.json` untouched |
-> | ground cases + gear report | 1 | G-1, G-6…G-9, G-12, G-13 | L / L | balanced deck + case index on 2 fixtures; new gear channel on 5 |
->
-> The ground-cases piece **absorbs step 11 (plan 11 B8b)**: under **G-1** ground cases are born
-> in the assembled free-free deck, so there is no separate balanced-landing build
-> on top of a body-deck one. The schema hop's "nothing moves" is a *testable* claim —
-> movement there means the migration is not output-neutral.
->
-> Two spin-offs are filed rather than absorbed: the `applicability`/`direct_totals`
-> design-weight re-point (moves output, so its own claim) and `concept_heavy`
-> gear data.
-The heaviest open calc item. Ground-case fuselage inertia/reaction distribution
-(gear reactions as applied external loads at the LGFACTOR landing load factor);
-optionally the wing distribution under ground reaction. **Acceptance:** ground
-condition produces distributed fuselage shear/bending with free-free closure;
-FAR23 flight oracles unchanged. Source narrative: `03_gui_rework_plan.md` §5
-item (3).
-
-**Pressurization is not part of this item (decision D-24, 2026-08-14):** it is
-out of scope for the tool, permanently — the standing limitation says so as an
-exclusion and `F25-5`'s ΔP-combination half is closed as not-planned. One thing
-it took with it is a *rule*, not just a case: the old "for a pressurized airplane
-ground cases cannot be down-selected against flight" no longer supplies the
-answer, so **how ground cases meet the governing-set down-selection is an open
-question for this step's design note** — decide it on its own merits (they load
-different structure from the flight cases, which is an argument for a separate
-family regardless).
-**Export note (2026-08-05):** the ground cases' gear-attachment reactions should
-also reach the sbeam deck as `FORCE` cards at the gear attachment stations —
-scope the deck half here rather than as a separate item.
 
 ### [E] L-1 — sbeam stick model: real stiffness + assembled airframe — **step 14**
 Real/parametric section properties (today `_MAT1_E = 1.0e7` placeholder) and an

@@ -121,6 +121,43 @@ file + symbol is the anchor.
   drive is conservative on every component. The fin's own design load is
   SELECT's, unchanged. The caveat travels as a case note into the deck `$` header
   and the report; it does not live only in documentation.
+- **A ground case is a balanced free-free case, and it carries no base load
+  factor** (decision **G-1**/**G-6**, step 10 piece 3). Ground conditions are born
+  in the assembled deck — a ground case is irreducibly three-dimensional (drag and
+  side load at a contact patch well below and off the fuselage beam line), so
+  building it in a planar per-component view first would put the primary
+  deliverable second. Its inertia set enters at `n_z = 0` and the **whole**
+  rigid-body field is solved, which is what FAR **23.471** asks for: *"the
+  external reactions must be placed in equilibrium with the linear and angular
+  inertia forces in a rational or conservative manner."*
+  - LANDLOAD's `NVP`/`NDP`/`NS` are **never consumed** — they are translation
+    only, and they are stated about the **ground line**, so consuming them would
+    put a frame rotation in the load path. They are the independent closed-form
+    **check**: rotate the solved field back to the ground line through the case's
+    own `ρ` and it reproduces all three, exactly. The rotation lives in the gate,
+    where an error is loud.
+  - `RESIDUAL_GATE` does **not** apply to the ground family, and that is physics
+    rather than an exemption — the same standing as the lateral and 23.427(a)
+    cases. A ground case has nothing to trim against, so its pre-closure residual
+    *is* the applied gear load by construction.
+- **The ground reaction is computed at the contact patch and transferred to the
+  gear reference point** (decision **G-2**/**G-12**). 23.485(d) places it at the
+  ground contact point, so that is where it is computed; the move to the trunnion
+  is ours and carries the lever-arm couple, which makes it a change of
+  *description* and not of load. The reference point is an **explicit input**
+  with an explicit carrier (`BODY`/`WING`): a wing-carried reaction relieves or
+  reverses inboard wing bending and reaches the fuselage only through the
+  carry-through, so applying it to the body beam over-loads the fuselage *and*
+  hides a real wing sizing case — wrong in both directions at once. `±tread/2` is
+  not the answer; that is a **wheel** dimension, and the axle butt line is not the
+  trunnion butt line.
+- **Ground and flight are separate governing families** (decision **G-9**). They
+  are never compared for a maximum and no single envelope over both is claimed:
+  the two load different structure by different paths, and the value of a
+  governing table is naming *which* case governs, which a cross-family `max()`
+  destroys. Stated as a standing limitation, not left to be inferred from the
+  absence of a comparison. The engineer's opt-out filter *does* reach `LG-` ids —
+  a family that is scopable, but never auto-enveloped.
 - **A surface's inertia is built on the acceleration along *its own* normal axis**
   (2026-08-10, superseding decision L-8 for the per-condition view). The h-tail's
   normal axis is the airplane's vertical, so one term does it: `−n_z·W_ht`,

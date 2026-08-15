@@ -224,10 +224,22 @@ def subcase_id(case_id: str) -> int:
 BALANCED_HAND_BLOCK: Dict[str, int] = {"": 5000, "R": 7000, "L": 8000}
 
 
-def balanced_subcase_id(case_id: str) -> int:
+def balanced_subcase_id(case_id: str, hand: str = "") -> int:
     """The assembled deck's ``SUBCASE`` / ``SID`` integer for ``case_id`` (D-R7).
 
     ``"W-01"`` -> ``5101``, ``"W-05R"`` -> ``7105``, ``"VT-01L"`` -> ``8301``.
+
+    ``hand`` states the case's hand **explicitly** and wins over any suffix on
+    the id (decision G-8). Every case shipped before the ground families carries
+    its hand in its id, so the two agree and no shipped number moves -- ``W-05R``
+    is still ``7105`` whether the hand is passed or parsed. What needed the
+    parameter is the 23.485 side family, where LANDLOAD supplies **both** drift
+    directions under ids of their own: ``LG-19`` is the port case and ``LG-20``
+    the starboard, with no suffix on either, because minting ``LG-19L``/``LG-19R``
+    beside a shipped ``LG-20`` would put two ids on one physical condition (M4-2
+    decision 1 forbids it). Read off the id alone, both would land in the
+    symmetric ``5000`` block and the port case would collide with nothing while
+    claiming to be unhanded.
 
     The assembled deck numbered its subcases positionally (``BALANCED_SID_BASE +
     i``) until 2026-08-10, which is exactly the renumbering instability M4-2
@@ -242,7 +254,9 @@ def balanced_subcase_id(case_id: str) -> int:
     unhanded id still names the physical condition, so the two twins of one
     condition differ only in their thousands digit.
     """
-    hand = case_id[-1:] if case_id[-1:] in HANDS else ""
+    if hand and hand not in HANDS:
+        raise ValueError(f"hand must be one of {HANDS} or blank, got {hand!r}")
+    hand = hand or (case_id[-1:] if case_id[-1:] in HANDS else "")
     return BALANCED_HAND_BLOCK[hand] + subcase_id(unhanded_case_id(case_id))
 
 
@@ -259,8 +273,13 @@ ASSEMBLED_DECK = "assembled"
 DECK_FAMILIES = (COMPONENT_DECK, ASSEMBLED_DECK)
 
 
-def deck_load_id(case_id: str, family: str = COMPONENT_DECK) -> str:
+def deck_load_id(case_id: str, family: str = COMPONENT_DECK, hand: str = "") -> str:
     """The deck ``LOAD``/``SUBCASE`` integer for ``case_id`` as display text.
+
+    ``hand`` is passed straight to :func:`balanced_subcase_id` and matters for
+    the same one family (G-8): a caller quoting the assembled deck's number for a
+    ``LG-19``/``LG-20`` side case must hand it the case's hand, or it will read
+    the unsuffixed id as symmetric and print a number the deck does not contain.
 
     The single owner of "which minter applies, and what a case without a number
     in this family shows" -- the report (``report/content``), the case index
@@ -284,8 +303,8 @@ def deck_load_id(case_id: str, family: str = COMPONENT_DECK) -> str:
         raise ValueError(f"family must be one of {DECK_FAMILIES}, got {family!r}")
     try:
         if family == ASSEMBLED_DECK:
-            return str(balanced_subcase_id(case_id))
-        if case_id[-1:] in HANDS:
+            return str(balanced_subcase_id(case_id, hand))
+        if hand or case_id[-1:] in HANDS:
             return ""
         return str(subcase_id(case_id))
     except ValueError:

@@ -344,7 +344,7 @@ approved-corrections register [`../20_theory/02_approved_corrections.md`](../20_
 - **FAR §:** 23.473–23.499 (ground loads: level, tail-down, one-wheel, side, braked, supplementary nose wheel).
 - **Source:** Ch 20, `LANDLOAD.BAS` (Appendix C p468). Module `modules/landing.py`.
 - **Reads:** the **landing-gear geometry** (main/nose axle `(X, Z)` at 3 deflection states, rolling radii, tread, strut type) from the single-source **`Project.geometry.landing_gear`** (`LandingGearGeometry`, Step G6b) — `build_landing` resolves it onto a local **effective** input copy before the reaction solve (`_effective_gear_input`, M2R-4: no write-back to `Project.landing`), so the LANDLOAD math is unchanged; the **non-geometry** LANDLOAD inputs (strut stroke, tyre OD/hub, lift factor, tail-down angle, gear-load-factor override) and the LGFACTOR result stay on `Project.landing` (**`wing_area_sqft` is derived from the geometry wing, Step M2-6, via `landing._wing_area` — not stored**); **both design weights from `Project.weight`** — `max_landing_weight_lb` (MLW, decision **G-4**) and `max_takeoff_weight_lb` (MTOW, decision **G-14**), read through `sloads.cg_cases` and passed to `landing_reactions` explicitly; and the per-CG weight & CG as the **three roled `GROUND` cases** of the one shared `weight.cg_cases` list (decision **G-3**) — **three explicit, distinct loadings are required** (aft max landing, fwd max landing, fwd light; UG fig 18.2), resolved by `cg_cases.landing_role_cases`. *(Before G6b the gear geometry was carried on `Project.landing` and duplicated by the coarse `LayoutInput` gear fields — now retired.)*
-- **Writes:** **40 `ConditionResult`s** (M4-17e) → `ModuleResult` / CSV: the LGFACTOR condition, one critical-reaction summary per FAR ground family (6), and the **full 33-case matrix**, one condition per case. Each matrix row carries VMP/DMP/SMP/RMP + VNP/DNP/SNP/RESULT (`lb` → `lbs-ULT`), the unbalanced pitch/roll/yaw moments (`lb-in` → `lb-in-ULT`) and the **dimensionless** ground-line inertia factors NVP/NDP/NS (units `""` — load *factors*, so no `-ULT` marker, never scaled, blank `SF` column). Cases 25–33 (23.499 supplementary nose) are nose-only. Summary and matrix rows for the same case share a `CaseRef.case_id` — they are the same physical case. The airplane-datum reactions (`vm/dm/vn/dn`) are computed but still unsurfaced (an M4-6 hook). Landing is a property-style table, so it routes through `report.results_to_rows`; `report._LOAD_CASE_LABELS` is deliberately **not** extended — `load_cases_to_rows`' single-point-load schema (one location, one vertical/side/thrust triple) cannot hold a *pair* of reactions at two stations plus three unbalanced moments without losing the nose reaction or fabricating locations.
+- **Writes:** **40 `ConditionResult`s** (M4-17e) → `ModuleResult` / CSV: the LGFACTOR condition, one critical-reaction summary per FAR ground family (6), and the **full 33-case matrix**, one condition per case. Each matrix row carries VMP/DMP/SMP/RMP + VNP/DNP/SNP/RESULT (`lb` → `lbs-ULT`), the unbalanced pitch/roll/yaw moments (`lb-in` → `lb-in-ULT`) and the **dimensionless** ground-line inertia factors NVP/NDP/NS (units `""` — load *factors*, so no `-ULT` marker, never scaled, blank `SF` column). Cases 25–33 (23.499 supplementary nose) are nose-only. Summary and matrix rows for the same case share a `CaseRef.case_id` — they are the same physical case. The airplane-datum reactions (`vm/dm/vn/dn`) are **surfaced from step 10 piece 3** (decision **G-12**): they are what the assembled ground cases apply at each gear reference point, and what the gear load report states as the airframe end of the leg. Each row also carries `weight_lb`, the design weight the case is computed at — **not** the named loading's own weight on cases 13–22, which 23.473(a) lets LANDLOAD scale to the take-off weight via `WR`. The loading a case is computed at is owned by `landing._loading_index`, which is *not* a plain 3-cycle: cases 19–24 are three loadings × **two drift directions** (23.485's inboard/outboard pair), which the `WL` table and both unbalanced-moment tables already say and which the per-case record mislabelled until 2026-08-15. Landing is a property-style table, so it routes through `report.results_to_rows`; `report._LOAD_CASE_LABELS` is deliberately **not** extended — `load_cases_to_rows`' single-point-load schema (one location, one vertical/side/thrust triple) cannot hold a *pair* of reactions at two stations plus three unbalanced moments without losing the nose reaction or fabricating locations.
 - **Validation:** Appendix A `LANDLOAD.OUT` p230 — the **gear-geometry intermediates oracle-locked** (K 0.324, GAMMA 17.978, ground angles, BETA, the AP/BP/DP/CP lever-arm table) ±0.1%; the printed p231–233 **wheel-load table is OCR-garbled** in the bundled PDF, so the full matrix is **closure + legible-cell spot-checked** (case 1 VMP 3144 / VNP 1787 / resultant 1879; side cases VMP 2261, SMP −1700/1122) — the ONENGOUT (C9) precedent.
 - **Notes:** **Tricycle gear only** (UG Table 2.1). LANDLOAD takes the gear load factor as a rounded design input (2.5 on p230), distinct from LGFACTOR's computed 2.428. **`cg_cases` are required, not auto-derived (M2-8):** the earlier fallback took *both* max-landing corners from the single heaviest `Project.mass` case, so the fwd/aft pair was degenerate and the nose-gear/braked-roll lever arms (`AP/BP/CP` about `xcg`) — hence those reactions — were under-predicted; `landing._cg_cases` raises when no roled `GROUND` case exists (WTENV's structural fwd/aft CG limits, `validation.wtenv_cg_limits`, are the intended source). **M2R-5:** the three loadings gained a real editor, seeded from those WTENV limits (fwd/aft stations + gross/fwd-regardless weights) — previously project-JSON only. **Step 10 piece 2 (G-3) re-homed both:** the editor is the Weight & Mass Properties page's **Payload Cases** tab, which is now the sole editor of every weight/CG case and carries the `analyses` / `role` columns; the seed is the pure calc helper `cg_cases.seed_landing_cases`, offered on that tab as a button and never written by a render; and the Landing Loads page's CG table is a **read-only** view of the three roled cases. **M4-17c — seed hardening:** the seed never emits a zero cell. The waterline comes from `Project.mass.cases[0].cg_z` (WTONECG) and is left **blank** when no mass slice exists — the former `0.0` fallback put the CG on the ground line and produced nonphysical negative nose reactions (−233…−2887 lb on GA-6) and braked-roll main loads ~2.6× the p230 oracle, silently; the forward station now comes from the new **`validation.wtenv_fwd_cg_limit_at_weight(project, weight_lb)`**, the WTENV forward limit interpolated (clamped, never extrapolated) *at* each row's weight — Appendix A p230 reads 76.12 in at the 3230 lb landing weight, where the weight-agnostic `wtenv_cg_limits` hull gives 72.64 in; and the max-landing rows are blank rather than seeded at full MTOW when the max landing weight is unset. The page blocks the reaction compute until every row has a positive weight, station **and waterline**. **M4-17d — hierarchy & sanity validation:** `validation._check_landing_hierarchy` (input-side: `gross_ge_max_landing`, `landing_light_le_max`, `landing_cg_ordering`, `landing_cg_below_axle`, `landing_cg_names`) and `validation.landing_reaction_warnings` (post-compute: `landing_negative_vertical`, `landing_zero_nose`, kept out of `consistency_warnings` so no definition page pays for a gear solve). Warn-only, silent on the Appendix-A GA fixture. The three loadings are consumed **positionally**, and that order is now an explicit `CgCase.role` (**G-3a**) rather than a name match: `cg_cases.landing_role_cases` returns exactly one case per role, in role order, and **raises** rather than reordering or padding. `gross_ge_max_landing` and `landing_cg_names` left with the fields they policed — `GW` is no longer an overridable copy but the MTOW SSOT, and the canonical-name check was the workaround for the contract the role replaced; `landing_case_weight_is_mlw` took their place, since a roled max-landing case that disagrees with MLW is an error and not a preference (**G-4**). **M4-17e — critical-case ranking:** `_critical` ranks on the full `√(V²+D²+S²)` rather than the printed two-component `RMP`/`RESULT`, which excluded the side load and made the 23.485 pick a tie-break accident; numerically inert on every bundled example. **Concept-mode 23.473(g) floor (M2-8):** in concept mode the LGFACTOR condition appends a warn-only note when `N < 2.67` or `NLG < 2.0` (the regulation's floors); the computed `N`/`NLG` are left untouched, so the Appendix-A oracle (3.0951 / 2.4281, both above the floors) is unaffected.
 
@@ -505,6 +505,55 @@ regression oracle**; Appendix A/B geometry is used only as a *sanity* fixture.
 - **Notes:** off the FLTLOADS→SELECT→component-module main span-load pipeline
   in the sense that it distributes a fuselage station-load rather than a wing
   spanwise one; still driven by SELECT's critical selection.
+
+---
+
+### gear_loads — the landing gear as a free body (Step 10 piece 3)
+- **FAR §:** none of its own — it re-presents 23.473–23.499 (LANDLOAD's own
+  conditions). 23.485(d) is what puts the reaction at the contact patch.
+- **Source:** `sloads/gear_loads.py`. Decision **G-12** of
+  [`../30_future/18_step10_ground_cases_plan.md`](../30_future/18_step10_ground_cases_plan.md).
+  **No physics of its own:** every reaction is `modules/landing.py`'s, unchanged
+  and oracle-locked. What this module adds is *where* the load acts, *in which
+  frame*, and *how it reaches the airframe*.
+- **Reads:** `Project.geometry.landing_gear` (axle states, rolling radius, tread,
+  and per leg the `carrier`/`attach`/`weight_lb` of G-2 and G-12a),
+  `Project.landing` (the strut stroke and tail-down angle) and `build_landing`'s
+  reaction table.
+- **Writes:** `GearCaseLoads` / `GearLegLoad` — per case and per leg: the contact
+  patch, the ground-line and airplane-datum component triples, the strut state,
+  ground angle and stroke, the reference point, the transfer couple, and the leg's
+  own inertia. Plus `AppliedWheel` (`applied_wheels`), the per-wheel form an
+  assembled ground case applies.
+- **The two frames are each artifact's own and neither is re-derived.** The
+  ground-line set is what the manual prints and a gear engineer reads; the
+  airplane-datum set (`vm`/`dm`/`vn`/`dn`, LANDLOAD's own `PHIM`/`PHIN`
+  resolution) is what a beam model applies. `ground_rotation_deg` measures the
+  angle between them **from the case's own two resolutions of one reaction**
+  rather than from `GRA` — which is why this module never has to adjudicate the
+  sign inconsistency in LANDLOAD.BAS's `beta` (`gamma − GRA(1)` level, `+GRA(2)`
+  ground roll). That rotation appears in the *checks* and in G-7a's lift axis;
+  never in the load path. `SMP` passes through unrotated, being normal to the
+  pitch rotation — asserted, not assumed.
+- **The transfer is exact, not approximate.** `transfer_couple` is
+  `M = (patch − node) × F`, so force-plus-couple at the reference point has the
+  identical resultant about **every** reference as the force at the patch. Gated
+  at `rel_tol 1e-12` about a deliberately arbitrary point (about the CG a dropped
+  couple could cancel), with a negative control that drops the couple.
+- **Validation:** `tests/test_gear_report.py`. Reproduces the design note's own
+  measurements: ga6's contact patches differ by 0.49 in in `x` and 3.71 in in `z`
+  between the landing and handling attitudes; the main leg sits at 24 % of its
+  7-in stroke in the landing families and 77 % in the handling ones; case 1 drag
+  is 1,020 lb ground-line against 795 lb airplane-datum.
+- **Notes:** `weight_lb` is **per leg** (consistent with `attach`, likewise one
+  leg's node with its twin got by reflection) and `0.0` means *not stated*, which
+  the report shows as an open free body rather than closing against a guess. The
+  inertia term is the leg at the **airplane** load factor: unsprung-mass
+  amplification, which is what actually sizes an axle, is **not modelled** and
+  `UNSPRUNG_NOTE` says so on every surface that renders it. **The module states a
+  gear *interface* load definition and must not be read as a gear design load
+  set** — sloads has no gear kinematic model, so no drag-brace, side-brace,
+  trunnion or axle-bending load is claimed.
 
 ---
 

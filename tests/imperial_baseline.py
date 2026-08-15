@@ -147,6 +147,12 @@ def artifacts(example: str) -> Dict[str, str]:
                  assembled=balanced)
     if index:
         out["case_index"] = index
+    # The gear load report (G-12) -- five of six fixtures produce one, and the
+    # sixth has no gear geometry at all, so its absence here is the coverage
+    # statement rather than a gap.
+    gear = _try(sb.gear_report_csv, project)
+    if gear:
+        out["gear_report"] = gear
     return out
 
 

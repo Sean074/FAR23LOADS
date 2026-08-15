@@ -262,6 +262,21 @@ def _index_rows(artifacts):
     return {r["ID"]: r for r in _csv.DictReader(_io.StringIO(body))}
 
 
+def _hands_by_case_id(example):
+    """``{case_id: hand}`` for the assembled cases of ``example``.
+
+    The assembled deck's numbering is a function of the case id **and its hand**
+    (G-8), and for the 23.485 side family the id does not carry the hand -- so a
+    gate that wants to re-derive a SUBCASE number has to be told it, exactly as
+    the deck writer is.
+    """
+    from sloads.modules.balance import build_balanced_cases
+
+    project = io.load_project(os.path.join(_EXAMPLES, example))
+    return {c.case_ref.case_id: c.hand
+            for c in build_balanced_cases(project) if c.case_ref}
+
+
 def _pairs_from_decks(artifacts):
     """``{case_id: subcase_int}`` per deck family, read from the decks' own text.
 
@@ -301,10 +316,18 @@ def test_the_index_quotes_the_decks_own_numbers():
     solver result to the case index must land on the case that produced it. The
     numbers are compared against the deck **text**, not against a second call to
     the minter, so a writer that stopped using ``deck_load_id`` would fail here.
+
+    The minter is asked with the case's **hand**, not with its id alone (decision
+    G-8). For every family but one the two are the same question, because the
+    hand is a suffix on the id; the 23.485 side pair is the exception and is the
+    reason the parameter exists -- ``LG-19`` (port) and ``LG-20`` (starboard) are
+    LANDLOAD's own ids and carry no suffix, so an id-only call reads both as
+    symmetric and returns a 5000-block number the deck does not contain.
     """
     artifacts = _linkage_artifacts()
     rows = _index_rows(artifacts)
     component, assembled = _pairs_from_decks(artifacts)
+    hands = _hands_by_case_id(_LINKAGE_EXAMPLE)
     assert component and assembled, sorted(artifacts)
 
     for family, pairs in ((COMPONENT_DECK, component), (ASSEMBLED_DECK, assembled)):
@@ -312,7 +335,8 @@ def test_the_index_quotes_the_decks_own_numbers():
         for case_id, sid in pairs.items():
             assert case_id in rows, (family, case_id)
             assert rows[case_id][column] == str(sid), (family, case_id, sid)
-            assert deck_load_id(case_id, family) == str(sid), (family, case_id)
+            assert deck_load_id(case_id, family,
+                                hands.get(case_id, "")) == str(sid), (family, case_id)
 
 
 def test_a_case_in_the_index_always_carries_at_least_one_deck_number():

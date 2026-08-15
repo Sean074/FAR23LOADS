@@ -2,7 +2,7 @@
 
 > **Generated file — do not edit by hand.** Produced by [`docs/generate_data_dict.py`](../generate_data_dict.py) from `sloads/models.py`. Regenerate after any schema change: `.venv/bin/python docs/generate_data_dict.py`.
 
-Schema version: **47**.
+Schema version: **48**.
 
 This dictionary covers the **input** slices of `Project` (`sloads/models.py`) — the fields that make up a `project.json`. The result slices (`envelope`, `mass`, `loads`) are computed outputs and are out of scope.
 
@@ -36,7 +36,7 @@ The top-level `Project` fields. `name`/`engineer`/`date` are free-text metadata;
 | `flap_loads` | `?` | Flap Loads | `flap` | Flap simplified loads (FLAPLOAD) |
 | `tab_loads` | `?` | Tab Loads | `tab` | Tab simplified loads (TABLOADS) |
 | `one_engine_out` | `?` | One Engine Out | `one_engine_out` | One-engine-out v-tail loads (ONENGOUT) |
-| `landing` | `?` | Landing Loads | `landing` | Landing loads (LANDLOAD / GEARLOAD) |
+| `landing` | `?` | Landing Loads | `balance`, `landing` | Landing loads (LANDLOAD / GEARLOAD) |
 | `include_far25` | `bool` | Engine Mount Loads | `engine` | Opt-in FAR 25 supplemental cases (flag) |
 
 ## Field tables

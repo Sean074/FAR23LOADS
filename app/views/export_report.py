@@ -302,6 +302,12 @@ case_index_csv = sb.case_index_csv_from(
 # marker can be traced without the report.
 safety_factors_csv = sb.safety_factors_csv(project, header_comment=_csv_stamp)
 
+# The gear interface load definition (G-12): the boundary condition a gear
+# analysis starts from, which no other channel in this bundle states. Absent --
+# not empty -- on a project with no gear geometry, so the bundle never carries a
+# header-only file that reads as "no gear loads".
+gear_report_csv = _try(sb.gear_report_csv, project, _csv_stamp, _system) or ""
+
 # Summary report (Step G8): rendered from the *scoped* component loads and the
 # module results already computed above, so the document describes exactly the
 # files it ships beside -- same numbers, same unit system, same case set.
@@ -366,6 +372,8 @@ def _zip_bundle() -> bytes:
         if case_index_csv.strip():
             z.writestr(f"{_stem}_case_index.csv", case_index_csv)
         z.writestr(f"{_stem}_safety_factors.csv", safety_factors_csv)
+        if gear_report_csv.strip():
+            z.writestr(f"{_stem}_gear_loads.csv", gear_report_csv)
         # The bundle's own controlling statement -- readable without opening a CSV.
         z.writestr("METHODS.txt", _methods)
         # The controlling document travels with the data it controls (Step G8):

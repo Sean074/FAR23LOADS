@@ -27,6 +27,10 @@ target           what it writes
                  TABLOADS)
 ``balanced``     the assembled full-span balanced free-free deck -- the
                  mission's primary loads deliverable
+``gear``         the landing gear interface load definition (decision G-12) --
+                 per case and per leg, the reaction at the tyre contact patch
+                 with its strut state and ground angle, and the same reaction
+                 at the gear reference point
 ``mass``         the CONM2/MASSSET mass model (same artifacts, same owner and
                  same names as ``--export-conm2``)
 ===============  ===========================================================
@@ -77,7 +81,7 @@ from sloads.units import UnitSystem, convert_results, unit_system_from
 #: deliverable set had diverged, so a test pins them together rather than a
 #: comment asking future readers to keep them in step.
 EXPORT_TARGETS = ("wing", "body", "tail", "htail-span", "vtail-span",
-                  "control", "balanced", "mass")
+                  "control", "balanced", "gear", "mass")
 
 
 def resolve_units(project, flag=None) -> UnitSystem:
@@ -263,6 +267,18 @@ def _export_sbeam(project, prefix: str, target: str, stick_model: bool,
               f"{bdf_path}, {span_path}, {fitting_path}")
         return 0
 
+    if target == "gear":
+        # The gear report needs LANDLOAD output and gear geometry and **no mass
+        # model**, so it reaches airplanes the assembled ground cases do not --
+        # which is why it is its own target rather than a file the balanced
+        # target happens to drop beside its deck.
+        csv_path = f"{prefix}.gear_loads.csv"
+        sb.write_gear_report_csv(project, csv_path, header_comment=csv_stamp,
+                                 system=system)
+        rows = sb.gear_report_rows(project)
+        print(f"Wrote {len(rows)} gear interface load row(s) to: {csv_path}")
+        return 0
+
     if target == "balanced":
         from sloads.export.balanced_deck import balanced_deck
         from sloads.modules.balance import build_balanced_cases
@@ -364,7 +380,8 @@ def main(argv=None) -> int:
         choices=EXPORT_TARGETS,
         default="wing",
         help="with --export-sbeam, which deliverable to export (default: wing). "
-             "'balanced' is the assembled full-span free-free deck; 'mass' is "
+             "'balanced' is the assembled full-span free-free deck; 'gear' is "
+             "the landing gear interface load definition; 'mass' is "
              "the CONM2/MASSSET model, identical to --export-conm2",
     )
     parser.add_argument(

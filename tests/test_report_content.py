@@ -58,7 +58,11 @@ REQUIRED_SECTIONS = [
     "5. Conditions analysed and FAR coverage",
     "6. Results summary",
     "7. Balanced free-free airframe cases",
-    "8. Methods and limitations",
+    # G-12: the gear interface load definition, placed after the assembled cases
+    # it is the other side of -- the reference-point reaction it states is the
+    # load the assembled deck applies at that node, sign-flipped.
+    "8. Landing gear interface loads",
+    "9. Methods and limitations",
     "Appendix A. Bundle manifest",
 ]
 
@@ -374,6 +378,7 @@ SUMMARISED_IN = {
     "sbeam/<project>_mass_model.bdf": ("balanced", ""),
     "sbeam/<project>_mass_check.bdf": ("balanced", ""),
     "sbeam/<project>_inertia_only.bdf": ("balanced", ""),
+    "<project>_gear_loads.csv": ("gear", ""),
 }
 
 

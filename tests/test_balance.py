@@ -37,6 +37,7 @@ import math
 import os
 import sys
 from dataclasses import replace
+from typing import NamedTuple
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -44,11 +45,13 @@ import pytest  # noqa: E402
 
 from sloads import io  # noqa: E402
 from sloads.constants import LBIN2_PER_SLUGFT2  # noqa: E402
+from sloads.gear_loads import gear_case_loads  # noqa: E402
 from sloads import mass_distribution as md  # noqa: E402
 from sloads.models import BalancedLoad, MassComponent, MissingInputError  # noqa: E402
 from sloads.modules import one_engine_out  # noqa: E402
 from sloads.rigid_body import InertiaTensor, radians_per_s2  # noqa: E402
 from sloads.export.balanced_deck import (  # noqa: E402
+    BALANCED_GEAR_BASE,
     BALANCED_WING_L_BASE,
     BALANCED_WING_R_BASE,
     balanced_deck,
@@ -79,6 +82,7 @@ from sloads.modules.balance import (  # noqa: E402
     htail_load,
     htail_side_loads,
     is_unsymmetrical_htail,
+    is_ground,
     is_handed,
     is_lateral,
     resultant6,
@@ -89,7 +93,6 @@ from sloads.modules.tail_span import build_tail_span, strip_spans  # noqa: E402
 from sloads.modules.wing_inertia import inertia_units  # noqa: E402
 from sloads.tail_geometry import HTAIL, VTAIL, resolve_tail_planform  # noqa: E402
 from sloads.units import Channel, UnitSystem, deliverable_units  # noqa: E402
-from sloads.cg_cases import flight_cases  # noqa: E402
 
 from imperial_baseline import EXAMPLES  # noqa: E402
 
@@ -144,6 +147,46 @@ _EXPECTED_CASES = {
     ] + _UNSYMMETRICAL_CASES + _LATERAL_CASES,
 }
 
+#: The **symmetric** ground families: LANDLOAD cases 1-9 (level 3-/2-wheel,
+#: tail-down) and 13-18 (braked roll), each assembled once and unhanded. Both
+#: main wheels carry the same reaction and ``ROLLP``/``YAWP`` are zero, so the
+#: case is its own mirror image (decision G-8's measured table).
+_GROUND_SYMMETRIC = [(f"LG-{n:02d}", "") for n in
+                     list(range(1, 10)) + list(range(13, 19))]
+
+#: The 23.483 one-wheel family: LANDLOAD supplies **neither** twin (cases 10-12
+#: are the three loadings, one hand each), so the suite mints both and the id
+#: takes the suffix.
+_GROUND_ONE_WHEEL = [(f"LG-{n:02d}{h}", h) for n in (10, 11, 12) for h in ("R", "L")]
+
+#: The 23.485 side family: LANDLOAD supplies **both** hands as three loadings x
+#: two drift directions, so the ids are its own and unsuffixed. The odd member is
+#: assembled and the even one is its reflection -- ``SMP`` is negative on the odd
+#: member (0.5 W inboard to port), which is why the computed case is the **port**
+#: one and its twin starboard.
+_GROUND_SIDE = [(f"LG-{n:02d}", h) for n, h in
+                ((19, "L"), (20, "R"), (21, "L"), (22, "R"), (23, "L"), (24, "R"))]
+
+#: What each fixture's assembled ground family actually is. ``concept_regional_jet``
+#: reaches 2 of its 3 roled loadings (G-3/G-5's measured table), so it loses every
+#: case that sits on the third -- 3, 6, 9, 12, 15, 18 and the 23/24 side pair.
+_EXPECTED_GROUND_CASES = {
+    "ga6_normal.project.json": (
+        _GROUND_SYMMETRIC[:9] + _GROUND_ONE_WHEEL + _GROUND_SYMMETRIC[9:]
+        + _GROUND_SIDE),
+    "cessna_210.project.json": [],
+    "atr42_100.project.json": [],
+    "dhc8_dash8.project.json": [],
+    "concept_heavy.project.json": [],
+    "concept_regional_jet.project.json": [
+        ("LG-01", ""), ("LG-02", ""), ("LG-04", ""), ("LG-05", ""),
+        ("LG-07", ""), ("LG-08", ""),
+        ("LG-10R", "R"), ("LG-10L", "L"), ("LG-11R", "R"), ("LG-11L", "L"),
+        ("LG-13", ""), ("LG-14", ""), ("LG-16", ""), ("LG-17", ""),
+        ("LG-19", "L"), ("LG-20", "R"), ("LG-21", "L"), ("LG-22", "R"),
+    ],
+}
+
 #: The pre-closure **pitch** residual, per fixture, as a fraction of ``n*W*MAC``.
 #:
 #: Plan 11's gate is 1 % and ``ga6_normal`` -- the Appendix A fixture -- meets it
@@ -183,16 +226,72 @@ _PITCH_RESIDUAL_CEILING = {
 }
 
 
+class _Ref(NamedTuple):
+    """The point a case's residual is stated about."""
+    xcg: float
+    zcg: float
+
+
+def _ref_of(case) -> _Ref:
+    """The reference point ``case`` was assembled about.
+
+    Read off the case rather than looked up by loading name. The name lookup
+    (``{c.name: c for c in flight_cases(project)}``) stopped being able to answer
+    the question when the ground families arrived: those sit at design weights
+    that are not any *named* loading's own, because 23.473(a) lets LANDLOAD scale
+    cases 13-22 to the take-off weight, so "aft max landing" names two different
+    targets in one run.
+    """
+    return _Ref(case.cg_x, case.cg_z)
+
+
 def _family(case) -> str:
-    """``"lateral"``, ``"unsymmetrical"`` or ``"symmetric"`` -- which of the three
-    balanced families a case belongs to.
+    """``"ground"``, ``"lateral"``, ``"unsymmetrical"`` or ``"symmetric"`` --
+    which of the four balanced families a case belongs to.
 
     Named off the *applied* load set through balance's own readers, so the test
     suite cannot drift from what the deck header calls each family.
+
+    ``"ground"`` is asked **first** because a ground case can also carry lateral
+    content (the 23.485 side family does, in full) and would otherwise be gated
+    as a rudder kick. It is its own family for the reason G-9 gives: ground and
+    flight cases load different structure by different paths, and the gates that
+    apply to them are different too.
     """
+    if is_ground(case):
+        return "ground"
     if is_lateral(case):
         return "lateral"
     return "unsymmetrical" if is_unsymmetrical_htail(case) else "symmetric"
+
+
+def _flight_cases(project):
+    """The balanced cases of the three **flight** families.
+
+    The gates written for those families are asked of this rather than of
+    ``build_balanced_cases`` directly: a ground case has no trim to be measured
+    against, so a residual gate on it would be a gate on nothing (its own gate,
+    G-6's closed-form one, is in :func:`test_the_ground_closure_reproduces_landload`).
+    """
+    return [c for c in build_balanced_cases(project) if not is_ground(c)]
+
+
+def _ground_cases(project):
+    """The balanced cases of the ground family alone."""
+    return [c for c in build_balanced_cases(project) if is_ground(c)]
+
+
+def _landload_conditions(project):
+    """LANDLOAD's 33 ground conditions, or none where the project has no gear.
+
+    The ground family's analogue of ``default_critical(project).conditions``: the
+    set the assembly must account for, whether by assembling it, by deriving it as
+    a twin, or by recording why not.
+    """
+    try:
+        return gear_case_loads(project)
+    except MissingInputError:
+        return []
 
 
 def _project(example: str):
@@ -208,8 +307,38 @@ def _with_cases():
 # --------------------------------------------------------------------------- #
 @pytest.mark.parametrize("example", EXAMPLES)
 def test_which_conditions_assemble_is_pinned(example):
-    got = [(c.label, c.hand) for c in build_balanced_cases(_project(example))]
+    got = [(c.label, c.hand) for c in _flight_cases(_project(example))]
     assert got == _EXPECTED_CASES[example], example
+
+
+@pytest.mark.parametrize("example", EXAMPLES)
+def test_which_ground_cases_assemble_is_pinned(example):
+    """**G-13's coverage pin for the assembled ground family.**
+
+    Pinned by **case id** rather than by label, because the ground labels repeat
+    (three loadings share "3-wheel level landing") and the id is what a consumer
+    joins on. The pin is deliberately a statement of *coverage*, not only of
+    correctness -- it goes red the day a fixture gains a derivable ground loading,
+    which is the mechanism ``test_which_conditions_assemble_is_pinned`` already
+    uses and the reason G-13 says coverage is "pinned, not chased".
+
+    Two fixtures reach the assembled ground cases and four do not, and the
+    asymmetry is the already-pinned Pri 9 fixture-data finding rather than
+    anything about this step: a ground case needs a **derivable mass loading**,
+    and ``cessna_210`` / ``atr42_100`` / ``dhc8_dash8`` produce none for the same
+    reason they produce no flight balanced case. ``concept_heavy`` has no gear
+    geometry at all. Every one of them is *recorded*, not silently absent.
+
+    Note what the ids say about G-8, which is the whole handedness decision
+    visible in one list: ``LG-10R``/``LG-10L`` are **minted** (the 23.483
+    one-wheel condition exists once, so its two hands are suffixes), while
+    ``LG-19``/``LG-20`` are **LANDLOAD's own** (the 23.485 family ships both
+    drift directions), so they carry no suffix and differ only in the ``hand``
+    field. The gear report, which needs no mass loading, reaches five fixtures --
+    a different set, pinned separately in ``test_gear_report.py``.
+    """
+    got = [(c.case_ref.case_id, c.hand) for c in _ground_cases(_project(example))]
+    assert got == _EXPECTED_GROUND_CASES[example], example
 
 
 # --------------------------------------------------------------------------- #
@@ -233,6 +362,14 @@ def test_every_condition_is_either_assembled_or_recorded(example):
 
     named = {(c.component, c.label, c.case)
              for c in default_critical(project).conditions}
+    # SELECT is no longer the only producer of conditions this assembly must
+    # account for. The ground families come from LANDLOAD's own 1..33 case
+    # numbering (decision G-1 puts them in the assembled deck), so the property
+    # is stated over both producers -- otherwise adding a family would quietly
+    # weaken the gate from "everything is accounted for" to "everything SELECT
+    # named is".
+    named |= {("landing_gear", g.description, g.case)
+              for g in _landload_conditions(project)}
     assembled = {(c.case_ref.component, c.label, c.vn_case) for c in cases}
     recorded = {(s.component, s.label, s.case) for s in skipped}
     assert assembled | recorded == named, sorted(named ^ (assembled | recorded))
@@ -363,7 +500,7 @@ def test_the_pre_closure_residual_is_within_the_gate(example):
     same 1 %, in
     :func:`test_the_trim_half_of_an_unsymmetrical_case_still_closes`.
     """
-    for case in build_balanced_cases(_project(example)):
+    for case in _flight_cases(_project(example)):
         if _family(case) == "unsymmetrical":
             continue
         where = f"{example} {case.label}{case.hand}"
@@ -387,7 +524,7 @@ def test_the_closure_relief_is_small(example):
     own gate -- the trim half -- and reported per case in the table and the deck
     header.
     """
-    for case in build_balanced_cases(_project(example)):
+    for case in _flight_cases(_project(example)):
         if _family(case) == "unsymmetrical":
             continue
         assert abs(case.delta_n / case.nz) < RESIDUAL_GATE, f"{example} {case.label}"
@@ -405,9 +542,8 @@ def test_the_case_closes_in_all_three_symmetric_dof(example):
     exactly this quantity.
     """
     p = _project(example)
-    cgs = {c.name: c for c in flight_cases(p)}
     for case in build_balanced_cases(p):
-        cg = cgs[case.cg]
+        cg = _ref_of(case)
         fx, fz, my = case_resultant(case.loads, (cg.xcg, 0.0, cg.zcg))
         scale = case.n_w
         assert abs(fx) < 1e-6 * scale, f"{example} {case.label} Fx"
@@ -523,13 +659,12 @@ def test_the_deck_balances_from_its_own_cards(example, system):
     on what "small" means for a moment.
     """
     p = _project(example)
-    cgs = {c.name: c for c in flight_cases(p)}
     cases = build_balanced_cases(p)
     u = deliverable_units(system, Channel.SOLVER)
     grids, _, _, forces, moments = parse_cards(
         balanced_deck(p, system=system, cases=cases))
     for sid, case in zip(case_sids(cases), cases):
-        cg = cgs[case.cg]
+        cg = _ref_of(case)
         ref = (cg.xcg * u.length.factor, 0.0, cg.zcg * u.length.factor)
         got = resultant(forces, moments, grids, sid, ref)
         n_w = case.n_w * case.safety_factor * u.force.factor
@@ -563,7 +698,8 @@ def test_the_lateral_half_of_the_deck_gate_has_teeth():
     """
     p = _project("ga6_normal.project.json")
     cases = build_balanced_cases(p)
-    index = next(i for i, c in enumerate(cases) if is_lateral(c))
+    index = next(i for i, c in enumerate(cases)
+                 if is_lateral(c) and not is_ground(c))
     sid = case_sids(cases)[index]
     case = cases[index]
 
@@ -576,7 +712,7 @@ def test_the_lateral_half_of_the_deck_gate_has_teeth():
         lines.append(line)
     assert hit, "no lateral FORCE card to reverse -- the deck format changed"
 
-    cg = {c.name: c for c in flight_cases(p)}[case.cg]
+    cg = _ref_of(case)
     grids, _, _, forces, moments = parse_cards("\n".join(lines) + "\n")
     got = resultant(forces, moments, grids, sid, (cg.xcg, 0.0, cg.zcg))
     n_w = case.n_w * case.safety_factor
@@ -616,13 +752,27 @@ def test_the_wing_has_two_node_bands(example):
     renumbering anything.
     """
     p = _project(example)
-    nodes = deck_nodes(build_balanced_cases(p), p)
-    right = {g for k, g in nodes.items() if k[0] == "R"}
-    left = {g for k, g in nodes.items() if k[0] == "L"}
+    cases = build_balanced_cases(p)
+    nodes = deck_nodes(cases, p)
+    # A gear reference point is on a side too, but takes its own band (G-2) so
+    # G-13's solver assertion can find it by id. Its keys are identified from the
+    # cases rather than from the node table, which carries positions only.
+    gear_keys = {(ld.side, round(ld.x, 6), round(ld.y, 6), round(ld.z, 6))
+                 for c in cases for ld in c.loads if ld.source.startswith("gear-")}
+    gear = {g for k, g in nodes.items() if k in gear_keys}
+    right = {g for k, g in nodes.items() if k[0] == "R" and k not in gear_keys}
+    left = {g for k, g in nodes.items() if k[0] == "L" and k not in gear_keys}
     assert right and left and len(right) == len(left)
     assert all(BALANCED_WING_R_BASE <= g < BALANCED_WING_R_BASE + 200 for g in right)
     assert all(BALANCED_WING_L_BASE <= g < BALANCED_WING_L_BASE + 200 for g in left)
     assert not (right & left)
+    # The gear band is disjoint from both, and every gear node is in it: a
+    # trunnion is fixed to the airframe, so there is at most one node per leg per
+    # side however many attitudes the 24 ground cases are computed in.
+    assert gear, f"{example}: no gear reference point in the assembled deck"
+    assert all(BALANCED_GEAR_BASE <= g < BALANCED_GEAR_BASE + 100 for g in gear)
+    assert not (gear & (right | left))
+    assert len(gear) == 3, sorted(gear)   # main starboard, main port, nose
 
 
 @pytest.mark.parametrize("example", _with_cases())
@@ -744,11 +894,10 @@ def test_the_roll_moment_is_the_applied_couple(example):
     about the CG, with no contribution from anything else in the assembly.
     """
     project = _project(example)
-    cgs = {c.name: c for c in flight_cases(project)}
-    for case in build_balanced_cases(project):
+    for case in _flight_cases(project):
         where = f"{example} {case.label}{case.hand}"
         if is_lateral(case):
-            cg = cgs[case.cg]
+            cg = _ref_of(case)
             fin = [ld for ld in case.loads if ld.source == "vtail-air"]
             _, _, _, mx, _, _ = resultant6(fin, (cg.xcg, 0.0, cg.zcg))
             assert case.residual_mx == pytest.approx(mx, rel=1e-12), (
@@ -760,7 +909,7 @@ def test_the_roll_moment_is_the_applied_couple(example):
             # the case must be the h-tail set's own moment about the CG -- the
             # left/right split and nothing else. A mirroring slip in the wing or
             # a strip on the wrong side would land here, exactly as before.
-            cg = cgs[case.cg]
+            cg = _ref_of(case)
             ht = [ld for ld in case.loads if ld.source == "htail-air"]
             _, _, _, mx, _, _ = resultant6(ht, (cg.xcg, 0.0, cg.zcg))
             assert case.residual_mx == pytest.approx(mx, rel=1e-12), (
@@ -966,7 +1115,7 @@ def test_the_closure_izz_is_pinned_and_reconciles(example):
     reacted its load -- so this asserts that number, and that it is reachable
     from the deliverable rather than only from a scratch script.
     """
-    for case in build_balanced_cases(_project(example)):
+    for case in _flight_cases(_project(example)):
         want = _CLOSURE_IZZ[example][case.cg]
         got = case.closure_inertia.izz / LBIN2_PER_SLUGFT2
         assert got == pytest.approx(want, rel=1e-4), (
@@ -999,12 +1148,11 @@ def test_a_symmetric_case_reduces_to_three_dof(example):
     truth.
     """
     project = _project(example)
-    cgs = {c.name: c for c in flight_cases(project)}
-    for case in build_balanced_cases(project):
+    for case in _flight_cases(project):
         if case.hand:
             continue
         where = f"{example} {case.label}"
-        cg = cgs[case.cg]
+        cg = _ref_of(case)
         masses = [ld for ld in case.loads if ld.weight_lb]
         w_total = sum(ld.weight_lb for ld in masses)
 
@@ -1082,9 +1230,8 @@ def test_the_case_closes_in_all_six_dof(example):
     carrying a whole unreacted aileron couple.
     """
     project = _project(example)
-    cgs = {c.name: c for c in flight_cases(project)}
     for case in build_balanced_cases(project):
-        cg = cgs[case.cg]
+        cg = _ref_of(case)
         fx, fy, fz, mx, my, mz = resultant6(case.loads, (cg.xcg, 0.0, cg.zcg))
         where = f"{example} {case.label}{case.hand}"
         scale = case.n_w
@@ -1121,7 +1268,7 @@ def test_the_lateral_dof_are_untouched(example):
     :func:`test_the_symmetric_half_of_a_lateral_case_still_closes` -- strip the
     fin set out and this claim holds again, to the last digit.
     """
-    for case in build_balanced_cases(_project(example)):
+    for case in _flight_cases(_project(example)):
         if is_lateral(case):
             continue
         applied = [ld for ld in case.loads if not ld.source.startswith("closure-")]
@@ -1263,11 +1410,10 @@ def test_the_symmetric_half_of_a_lateral_case_still_closes(example):
     silently.
     """
     project = _project(example)
-    cgs = {c.name: c for c in flight_cases(project)}
     lateral = [c for c in build_balanced_cases(project) if is_lateral(c)]
     assert lateral, f"{example}: no lateral case"
     for case in lateral:
-        cg = cgs[case.cg]
+        cg = _ref_of(case)
         where = f"{example} {case.label}{case.hand}"
         applied = [ld for ld in case.loads
                    if not ld.source.startswith("closure-")]
@@ -1395,7 +1541,6 @@ def test_the_trim_half_of_an_unsymmetrical_case_still_closes(example):
     the tail load and the residual would blow out.
     """
     project = _project(example)
-    cgs = {c.name: c for c in flight_cases(project)}
     vn = {p.case: p for p in default_envelope(project).vn}
     fl = project.flight_loads
     cases = _unsymmetrical(project)
@@ -1403,7 +1548,7 @@ def test_the_trim_half_of_an_unsymmetrical_case_still_closes(example):
 
     for case in cases:
         where = f"{example} {case.label}{case.hand}"
-        cg = cgs[case.cg]
+        cg = _ref_of(case)
         point = vn[case.vn_case]
         trim = [ld for ld in case.loads
                 if not ld.source.startswith("closure-")
@@ -1442,10 +1587,9 @@ def test_the_closure_is_solved_at_the_mass_centroid(example):
     on a loading nobody thought to check.
     """
     project = _project(example)
-    cgs = {c.name: c for c in flight_cases(project)}
     offsets = []
     for case in build_balanced_cases(project):
-        cg = cgs[case.cg]
+        cg = _ref_of(case)
         masses = [ld for ld in case.loads
                   if ld.weight_lb and not ld.source.startswith("closure-")]
         w = sum(ld.weight_lb for ld in masses)
@@ -1520,12 +1664,40 @@ def test_the_handed_twins_are_mirror_images(example):
     rolling family, whose applied loads are all symmetric, never exercised.
     """
     cases = build_balanced_cases(_project(example))
-    pairs = [(a, b) for a, b in zip(cases, cases[1:])
-             if a.hand == "R" and b.hand == "L" and a.label == b.label]
+    # A twin is emitted immediately after the case it was reflected from, so the
+    # pairs are consecutive and non-overlapping. Walked rather than zipped: a
+    # sliding window also matches (twin, next computed case), which on the
+    # one-wheel family -- three consecutive conditions sharing one label -- pairs
+    # ``LG-10L`` with ``LG-11R`` and compares two different conditions.
+    adjacent, i = [], 0
+    while i < len(cases) - 1:
+        a, b = cases[i], cases[i + 1]
+        if a.hand and b.hand == reflect_side(a.hand) and a.label == b.label:
+            adjacent.append((a, b))
+            i += 2
+            continue
+        i += 1
+    pairs = [(a, b) if a.hand == "R" else (b, a) for a, b in adjacent]
     assert pairs, f"{example}: no handed pair"
     for right, left in pairs:
-        assert right.case_ref.case_id.endswith("R")
-        assert left.case_ref.case_id == right.case_ref.case_id[:-1] + "L"
+        # **Identity follows decision G-8, which has two shapes.** Where the
+        # suite mints the twin itself the hand is a *suffix* on the physical
+        # condition's id (``W-05R``/``W-05L``, ``LG-10R``/``LG-10L``). Where
+        # LANDLOAD already supplies both hands -- the 23.485 side family, three
+        # loadings x two drift directions -- the twin has an id of its **own**
+        # (``LG-20`` beside ``LG-19``) and gets no suffix, because minting one
+        # would put two ids on one physical condition, which M4-2 decision 1
+        # forbids. The hand is a field either way; only the id differs.
+        rid, lid = right.case_ref.case_id, left.case_ref.case_id
+        if rid.endswith("R"):
+            assert lid == rid[:-1] + "L"
+        else:
+            assert not lid.endswith(("R", "L")), (
+                f"{example}: {rid}/{lid} is the manual's own twin pair and must "
+                "keep LANDLOAD's ids unsuffixed")
+            assert {rid, lid} == {f"LG-{n:02d}" for n in
+                                  (int(rid.split("-")[1]), int(lid.split("-")[1]))}
+            assert abs(int(rid.split("-")[1]) - int(lid.split("-")[1])) == 1
         assert left.unbal_moment == -right.unbal_moment
         # Odd under the mirror -- the lateral three, all of which B8a-2 made
         # non-trivial: roll reverses, and so do the yaw and side-force relief it

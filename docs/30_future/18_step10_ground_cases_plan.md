@@ -1,7 +1,8 @@
 # Step 10 — ground/landing cases: design note
 
-**Status: in progress — decisions being agreed in chat before any code**
-(required practice 1). Backlog: [`00_backlog.md`](00_backlog.md) priority 1
+**Status: COMPLETE — all three pieces shipped (2026-08-14, 2026-08-14,
+2026-08-15).** Kept as the design note of record; the closure trail is in
+[`../40_history/00_completed_development.md`](../40_history/00_completed_development.md). Backlog: [`00_backlog.md`](00_backlog.md) priority 1
 (M4-6, step 10) and priority 2 (plan 11 B8b, step 11). Conventions:
 [`../10_standard/CONVENTIONS.md`](../10_standard/CONVENTIONS.md). Balancing
 physics: [`../20_theory/balanced_cases.md`](../20_theory/balanced_cases.md) and
@@ -432,6 +433,53 @@ fixture and per family, as the lateral families already are
 *`L` stays a parameter, never a constant:* **F25-4** wants the `lift = W` variant
 (and 10/6 fps), so the lift fraction is read from the input on every path.
 
+#### G-7a — The lift acts along the **ground line**, not along the airplane z axis *(user, 2026-08-15)*
+
+Raised by implementation: G-7 above says "each side's half-span integral is
+`L·W_case/2`", which reads as a load along airplane `z`, while **G-6 promises its
+`NVP`/`NDP` gate as an identity at solver noise**. The two cannot both hold.
+LANDLOAD sums `lf*WL` into the **ground-line** vertical (`nvp = (2*VMP + VNP +
+lf*WL)/WL`, all ground-line quantities), so a lift applied along airplane `z`
+enters that sum short by `cos ρ` — measured on `ga6_normal`, 0.053 % of `NVP`
+(0.00167 g). Small, and *not* solver noise: it would turn G-6's identity into a
+tolerance on exactly the families the tolerance was supposed to prove.
+
+**Decision: the lift vector lies along the ground-line vertical.** Per strip,
+
+    fz = L_i · cos ρ      fx = L_i · sin ρ
+
+where `ρ` is the case's own ground rotation (below). This is also the physics
+rather than a convenience: lift is perpendicular to the flight path, the ground
+line *is* the flight path at touchdown to within the ~5° descent angle, and the
+airplane sits at attitude `ρ` to it. On `ga6_normal`'s level-landing families the
+tilt puts **152 lb** of the 2,154 lb lift forward (−x), which is the lift vector
+leaning ahead of vertical in a nose-up touchdown attitude — a real term, not a
+correction.
+
+*Consequence, stated because G-7's sentence must be read with it:* it is the
+**resultant** whose half-span integral is `L·W/2`, not the `fz` column. The deck's
+wing lift cards therefore carry an `fx` component on families 1–12, which no
+other family in the suite does, and the case note says so.
+
+**`ρ` has one definition and it is LANDLOAD's own**, not a re-derivation of the
+ground angle:
+
+    ρ = PHIM − atan2(DMP, VMP)
+
+i.e. the angle between the airplane-datum resolution the manual already computes
+and the ground-line pair it resolved. It comes out `−GRA(1)` for the level and
+one-wheel families, `−GRA(3)` tail-down and `+GRA(2)` for braked roll and side —
+including the sign inconsistency between attitudes 0 and 1 that is in
+LANDLOAD.BAS itself. Taking `ρ` from the manual's own numbers rather than from
+`GRA` means this step never has to adjudicate that inconsistency, and the same
+rotation serves the deck (nothing) and the gate (everything). Verified against
+G-12's two printed figures: ga6 case 1 drag 1,020 lb ground-line → 795 lb
+airplane-datum, and the side family's 0 lb ground-line drag → 186 lb.
+
+Both halves of G-6's translational gate are then exact:
+
+    NVP == n_z·cos ρ + n_x·sin ρ        NDP == n_x·cos ρ − n_z·sin ρ
+
 ### G-8 — Handedness: **reflection stays the single owner**, and LANDLOAD's own twins become the operator's check *(user, 2026-08-14)*
 
 **Which ground families are asymmetric** (measured in `landing.landing_reactions`):
@@ -678,13 +726,70 @@ reference-point reaction equals the airframe deck's applied load at that node,
 sign-flipped, case by case.** This promotes the plan-07 resultant invariant from
 a hidden test into a visible deliverable.
 
-**Gear inertia closes the free body, and its limit is stated.** ga6's main leg is
-155 lb (wheel 45 + structure 110); at `NVP` 3.167 that is **491 lb against a
-4,038 lb reaction — 12 %**. Contact-patch load **minus gear inertia** = the
+**Gear inertia closes the free body, and its limit is stated.** ga6's main gear
+weighs 155 lb (wheel 45 + structure 110), which is **both legs** — the weight
+database is the whole airplane — so one leg is 77.5 lb and at `NVP` 3.167 that is
+**245 lb against a 4,038 lb reaction — 6.1 %**.
+
+*(Corrected 2026-08-15, in implementation.* This paragraph first read "491 lb …
+12 %", which paired the **whole main gear's** 155 lb with a **per-wheel**
+reaction: `VMP` is per wheel — `landing.landing_reactions` says so and
+`vmp = 0.5*NLG*WL` is why — so the two sides of the ratio counted different
+numbers of legs. `LandingGearInput.weight_lb` is therefore defined **per leg**,
+consistent with `attach`, which is likewise one leg's node with its twin got by
+reflection. The term is half what the note claimed; it is still far too large to
+leave out of the free body, which is what the paragraph exists to argue.)*
+
+Contact-patch load **minus gear inertia** = the
 attachment reaction, so the report shows the term rather than leaving the two
 ends 12 % apart with no explanation. **Limitation, stated in-band:** sloads
 carries gear mass at the **airplane** load factor; unsprung-mass amplification —
 which is what actually sizes an axle — is **not modelled**.
+
+#### G-12a — The leg weight is an **input**, one number per leg *(user, 2026-08-15)*
+
+Raised by implementation: the paragraph above needs ga6's 155 lb, and **nothing
+marks a `weight.items` row as gear**. On every shipped fixture the rows are
+identifiable only by their names (`Main gear wheel`, `Main gear structure`), so
+the no-schema-change route is a name match — which is precisely the
+`LANDING_CG_NAMES` failure mode **G-3a** retired one layer up, where a renamed
+row silently changed an oracle-locked number.
+
+**Decision:** `LandingGearInput.weight_lb` — the whole leg, trunnion down (wheel,
+tyre, axle, oleo and back-up structure), beside `carrier` and `attach`. Same
+"explicit, not inferred" reasoning that made `MassItem.component` and
+`MassItem.consumable` inputs. **`0.0` means *not stated***: the report prints the
+inertia term blank and says why, and the free body is shown open rather than
+closed with a guessed number.
+
+*It is deliberately one number, not a sprung/unsprung split.* Only the **unsprung**
+mass — wheel, tyre, axle, lower oleo — sees the impact amplification that actually
+sizes an axle, and this report does not model that (stated above and unchanged).
+What the free body needs is the whole leg at the **airplane** load factor, which
+is one number; entering a split would imply a gear-design capability the tool
+does not have.
+
+*Fixture data owed:* five airplanes × two legs, **per leg**, taken as half the
+database's main-gear rows and all of its nose-gear rows:
+
+| fixture | main rows (both legs) | `main_gear.weight_lb` | `nose_gear.weight_lb` |
+|---|---|---|---|
+| `ga6_normal` | 155 (wheel 45 + structure 110) | 77.5 | 49.0 |
+| `cessna_210` | 170 (wheels 50 + structure 120) | 85.0 | 57.0 |
+| `atr42_100` | 1,050 | 525.0 | 260.0 |
+| `dhc8_dash8` | 1,200 | 600.0 | 300.0 |
+| `concept_regional_jet` | 1,150 | 575.0 | 300.0 |
+
+These stay **consistent with** `weight.items` rather than replacing it: the
+database still carries the gear mass that rides the closure field in the
+assembled case, and this field is read by the gear report alone. Two statements
+of one quantity is a drift risk, and it is held the way this project already
+holds that class — **pinned per fixture** (the
+`test_the_unmodelled_wing_mass_is_pinned_per_fixture` mechanism), so
+`2 × main + nose` against the database's gear rows is a stated number that goes
+red when either side moves. Deliberately *not* a name-matching reconciliation in
+the code: that would put the failure mode G-12a exists to avoid back into the
+calc, where the pin puts it in a test.
 
 **What the report is, and is not.** It is the **gear interface load definition**.
 sloads has no gear kinematic model, so it does not and must not claim
@@ -859,6 +964,15 @@ Filed: backlog *"CG-dependent MTOW (non-flat weight–CG envelope top edge)"*.
 | D10 | CI gate, digest wave and fixture coverage | **closed → G-13** |
 | D11 | Does **gross/take-off** weight get the same treatment as MLW (G-4)? | **closed → G-14** |
 
+**Two sub-decisions were raised by implementation and closed the same way**
+(2026-08-15, user), and both are recorded above beside the decision they qualify
+rather than as a new series:
+
+| # | Question | Status |
+|---|---|---|
+| D12 | Which axis the ground-case wing lift acts along, given G-6 promises an exact gate | **closed → G-7a** (the ground-line vertical) |
+| D13 | Where the gear report's leg inertia gets its leg weight from | **closed → G-12a** (`LandingGearInput.weight_lb`) |
+
 **Every decision in this note is closed.** What remains before code is the
 sequence in §5 and the re-rating of backlog priority 1.
 
@@ -882,11 +996,21 @@ One hop, planned once, rather than four (older files still load;
 | `LandingGearInput.carrier: GearCarrier` (`BODY` \| `WING`), no default | G-2 | export raises when unset |
 | `LandingGearInput.attach: (x, y, z)` | G-2 | airframe attachment/trunnion node |
 
-No schema change from G-6/G-7/G-8/G-10/G-11/G-12. **G-12 adds a deliverable, not
-an input** — the gear load report needs a new GID band for the gear nodes
-(`export/bands.py`) and a stamped companion CSV + manifest row, but every number
-it prints already exists in `GearReactionCase` and `landing._geometry`, including
-the strut stroke. G-8 does change one signature:
+No schema change from G-6/G-7/G-8/G-10/G-11. **One correction to that claim,
+found in implementation (2026-08-15):** G-12 was filed as "adds a deliverable, not
+an input" on the strength of every printed number already existing in
+`GearReactionCase` and `landing._geometry` — true of the contact patch, the
+components, the ground angle and the strut stroke, and **false of the leg
+inertia**, which needs a leg weight nothing in the schema carries. **G-12a** adds
+it as a second, smaller hop:
+
+| change | decision | note |
+|---|---|---|
+| `LandingGearInput.weight_lb` | G-12a | the whole leg, trunnion down; `0.0` = not stated, and the report says so rather than guessing |
+
+Everything else in G-12 stands as filed: a new GID band for the gear nodes
+(`export/bands.py`) plus a stamped companion CSV + manifest row. G-8 does change
+one signature:
 `case_ids.balanced_subcase_id` takes the case's **hand** explicitly instead of
 parsing an id suffix — behaviour identical for every existing case (`W-05R` still
 → 7105), drift-guarded, so the ground family can be handed without a suffix.
@@ -908,7 +1032,7 @@ change. Each piece is independently landable, independently claimable in
 |---|---|---|---|---|
 | **1** ✅ | **Governing safety-factor table** (M4-8) — **shipped 2026-08-14** | G-10, G-11 | Explicitly sequence-independent; shipped first so the ground family consumes an existing authority instead of becoming a third ad-hoc factor site | report/case-index channels gained the table; **no numeric value moved**, no digest changed |
 | **2** ✅ | **The schema hop** — tagged case list, roles, MLW, consumable, gear carrier + attach — **shipped 2026-08-14** | G-2, G-3, G-4, G-5, G-14 | One `SCHEMA_VERSION` bump for the whole set rather than four; every new field defaults to today's behaviour | **nothing moved** — `digests.json` untouched, and the `FLIGHT` set after migration is pinned per fixture to the pre-hop list |
-| **3** | **Ground cases + the gear report** | G-1, G-6, G-7, G-8, G-9, G-12, G-13 | The physics, once its inputs and its factor authority exist | `sbeam/balanced_deck` + `case_index` on ga6 and the RJ; a new gear-report channel on five fixtures |
+| **3** ✅ | **Ground cases + the gear report** — **shipped 2026-08-15** | G-1, G-6, G-7 (+G-7a), G-8, G-9, G-12 (+G-12a), G-13 | The physics, once its inputs and its factor authority exist | as predicted: `sbeam/balanced_deck` + `case_index` on ga6 and the RJ, a new `gear_report` channel on five fixtures, plus `csv`/`txt` landing on five from the case-labelling fix |
 
 Backlog priority 1's original **L / L** rating predated pieces 1 and 2 and was
 low; the backlog was re-rated to this sequence on 2026-08-14, and **pieces 1 and 2

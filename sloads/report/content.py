@@ -78,6 +78,7 @@ SECTIONS = (
     ("conditions", "Conditions analysed and FAR coverage"),
     ("results", "Results summary"),
     ("balanced", "Balanced free-free airframe cases"),
+    ("gear", "Landing gear interface loads"),
     ("methods", "Methods and limitations"),
 )
 _SECTION_NO = {key: i for i, (key, _) in enumerate(SECTIONS, start=1)}
@@ -1206,9 +1207,23 @@ def _section_conditions(project: Project, module_results, comps: ComponentLoads,
                        "deliverable: " + ", ".join(deselected_case_ids) + ".")
     else:
         scope_text += " No computed case was excluded."
+    # Decision G-9, stated where a reader meets the governing sets rather than
+    # left to be inferred from the absence of a comparison. It is a decision, and
+    # the reason for it is structural: reading it as an oversight would invite a
+    # consumer to take a cross-family max() for themselves without keeping the
+    # case identity that makes the answer usable.
+    families = (
+        "**Ground and flight cases are separate governing families.** They are "
+        "never compared against one another for a maximum, and no single "
+        "envelope over both is claimed: the two load different structure by "
+        "different paths, and the value of a governing table is naming WHICH "
+        "case governs -- which a cross-family max() destroys. Both families are "
+        "reported in full, each with its own case identities, so a consumer "
+        "sizing structure that sees both must take the worst of the two per "
+        "station and keep the id that produced each extreme.")
     return Section(
         section_heading("conditions"),
-        body=[scope_text, headline],
+        body=[scope_text, headline, families],
         tables=[
             _case_index_table(module_results, comps, run.cases or [], project),
             coverage,
@@ -1746,8 +1761,136 @@ def _section_balanced(run: BalancedRun, mass_rows: Sequence[Dict[str, Any]],
     return section
 
 
+#: What the gear section says when the project cannot produce one.
+_GEAR_ABSENT = (
+    "No landing-gear geometry is defined for this project, so no gear interface "
+    "loads were produced. The report needs the axle positions at the three strut "
+    "states, the rolling radius and the tread; it does NOT need a derivable mass "
+    "loading, which is why it reaches airplanes the assembled ground cases of "
+    + section_ref("balanced") + " do not.")
+
+
+def _section_gear(project: Project, u: Units) -> Section:
+    """The gear interface load definition (decision G-12).
+
+    A **free body**, not a load list: the reaction at the tyre contact patch, the
+    strut state and ground angle it was computed at, and the same reaction where
+    the airframe receives it. Both ends of the leg, so a reader can check by eye
+    that the two ground artifacts are one load seen from two sides.
+
+    Written deliberately short in the document and long in the companion CSV: the
+    per-case detail is 33 cases x 2 legs x 20 columns, which is a data file, and
+    what the controlling document owes is the *basis* -- what the numbers are,
+    what frame each is in, and what this report must not be used for.
+    """
+    from ..gear_loads import UNSPRUNG_NOTE, gear_case_loads
+    from ..models import MissingInputError
+
+    section = Section(
+        section_heading("gear"),
+        body=[
+            "This is the **gear interface load definition**: for every ground "
+            "condition and each leg, the reaction at the tyre contact patch -- "
+            "where 23.485(d) places it and where LANDLOAD computes it -- with "
+            "the strut state, ground angle and stroke it was computed at, and "
+            "the same reaction transferred to the gear reference point where "
+            "the airframe receives it. Stating both ends of the leg is what "
+            "makes it a free body: the reference-point reaction is the load the "
+            "assembled deck of " + section_ref("balanced") + " applies at that "
+            "node, sign-flipped, case by case.",
+            "The two frames are each artifact's own and neither is re-derived. "
+            "The contact-patch components are **ground-line** (vertical, drag, "
+            "side), which is how the manual prints them and how a gear engineer "
+            "reads them; the reference-point components are **airplane-datum**, "
+            "which is what a beam model applies. The difference is not cosmetic "
+            "-- the two resolutions of one reaction differ by the ground angle, "
+            "and a level-landing drag load is over 20 % smaller in the airplane "
+            "datum than on the ground line.",
+        ],
+    )
+    try:
+        cases = gear_case_loads(project)
+    except (MissingInputError, *_CALC_ERRORS):
+        cases = []
+    if not cases:
+        section.absent_reason = _GEAR_ABSENT
+        return section
+
+    legs = [leg for c in cases for leg in c.legs
+            if any(leg.airplane) or any(leg.ground_line)]
+    unstated = sorted({leg.leg for leg in legs if leg.leg_weight_lb is None})
+    section.body += [
+        f"{len(cases)} ground conditions are reported, covering every case "
+        "LANDLOAD computes -- including the 23.499 supplementary nose-wheel "
+        "family, which the assembled cases of " + section_ref("balanced") + " "
+        "deliberately exclude because it carries nose reactions only and so is "
+        "not an airplane in equilibrium. It is a gear-design case, and this is "
+        "where it belongs: **the two ground artifacts carry different case sets "
+        "by design.**",
+        "**Limit of the inertia term.** " + UNSPRUNG_NOTE + ".",
+        "**What this is not.** sloads has no gear kinematic model, so this "
+        "report does not state drag-brace, side-brace, trunnion or axle-bending "
+        "loads, and must not be read as doing so. With the contact patch, the "
+        "components, the ground angle, the stroke and the reference-point "
+        "reaction, a gear engineer builds those.",
+    ]
+    if unstated:
+        section.body.append(
+            "**The free body is shown open for the "
+            + " and ".join(unstated) + " gear**: no leg weight is entered, so "
+            "the inertia term and the net-above-trunnion column are blank rather "
+            "than closed against a guessed weight. Enter the leg weight (the "
+            "whole leg, trunnion down) to close it.")
+    section.tables.append(_gear_stroke_table(cases, u))
+    return section
+
+
+def _gear_stroke_table(cases, u: Units) -> Table:
+    """The strut state each attitude is computed at, per leg -- the one table.
+
+    Chosen over a per-case reaction table because the reactions are already in
+    the case tables of " + section_ref("results") + " and in the companion CSV,
+    while *this* is the thing no previous deliverable stated at all: the landing
+    families are computed near the top of the stroke and the handling families
+    near the bottom -- impact versus sitting -- which is exactly what a gear
+    analyst needs told.
+    """
+    seen: Dict[tuple, List[str]] = {}
+    for case in cases:
+        for leg in case.legs:
+            key = (leg.leg, leg.strut_state, round(leg.ground_angle_deg, 3),
+                   round(leg.stroke_in, 3), round(leg.stroke_fraction, 4))
+            seen.setdefault(key, []).append(str(case.case))
+    rows = []
+    for (leg, state, angle, stroke, fraction), numbers in seen.items():
+        rows.append([
+            leg, state, f"{angle:.2f}",
+            u.plain(stroke, "length"), f"{fraction * 100:.0f} %",
+            _case_range(numbers),
+        ])
+    return Table(
+        title="Strut state and ground angle, per attitude",
+        columns=["Leg", "Strut state", "Ground angle (deg)",
+                 f"Stroke from extended ({u.label('length')})", "% of stroke",
+                 "LANDLOAD cases"],
+        rows=rows,
+    )
+
+
+def _case_range(numbers: Sequence[str]) -> str:
+    """``"1-6, 10-12"`` -- consecutive case numbers collapsed to runs."""
+    ints = sorted(int(n) for n in numbers)
+    runs: List[List[int]] = []
+    for n in ints:
+        if runs and n == runs[-1][-1] + 1:
+            runs[-1].append(n)
+        else:
+            runs.append([n])
+    return ", ".join(str(r[0]) if len(r) == 1 else f"{r[0]}-{r[-1]}" for r in runs)
+
+
 # --------------------------------------------------------------------------- #
-# §7 Methods and limitations + Appendix A manifest
+# §8 Methods and limitations + Appendix A manifest
 # --------------------------------------------------------------------------- #
 _REFERENCES = [
     ["Reference 1", "H. C. McMaster, *FAR 23 LOADS* — theory manual and the printed "
@@ -1867,6 +2010,14 @@ def _manifest_rows(comps: ComponentLoads, module_results, u: Units,
             "a model that already has nodes.", deck,
             "mass, NOT weight; do not apply with the load decks",
             section_ref("balanced")])
+    if _try(_gear_cases, project):
+        rows.append([
+            "<project>_gear_loads.csv",
+            "The gear interface load definition: per case and per leg, the "
+            "reaction at the tyre contact patch with its strut state and ground "
+            "angle, and the same reaction at the gear reference point.", deck,
+            "ULTIMATE; contact patch ground-line, reference point airplane-datum",
+            section_ref("gear")])
     if any(r["exported"] for r in mass_rows):
         rows += [
             ["sbeam/<project>_mass_check.bdf",
@@ -1883,6 +2034,14 @@ def _manifest_rows(comps: ComponentLoads, module_results, u: Units,
                      "Plain-text per-module report of every condition.", human,
                      "ULTIMATE", section_ref("results")])
     return rows
+
+
+def _gear_cases(project: Project):
+    """The gear free bodies, or ``None`` -- so the manifest lists the companion
+    file only when the run actually produces one."""
+    from ..gear_loads import gear_case_loads
+
+    return gear_case_loads(project) or None
 
 
 def mass_case_data(project: Project) -> List[Dict[str, Any]]:
@@ -2014,6 +2173,7 @@ def build_report(
                                 run),
             _section_results(project, module_results, comps, u, deselected),
             _section_balanced(run, mass_rows, u),
+            _section_gear(project, u),
             _section_methods(methods),
             _section_manifest(comps, module_results, u, project, run, mass_rows),
         ],

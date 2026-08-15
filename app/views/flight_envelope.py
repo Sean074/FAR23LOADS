@@ -41,10 +41,12 @@ from sloads import (
     to_imperial_scalar,
 )
 from sloads.case_ids import case_label
+from sloads.models import MissingInputError
 from sloads.cg_cases import flight_cases
 from sloads.derived_geometry import wing_reference
 from sloads.modules.configuration import run as configuration_run
 from sloads.modules.flight_envelope import build_envelope, run as flt_run, trim_sweep
+from sloads.modules.landing import build_landing
 from sloads.modules.select import build_critical
 from sloads.modules.structural_speeds import design_speed_values
 from sloads.report import governing_loads_table, module_text_report
@@ -396,6 +398,41 @@ def _tab_select() -> None:
                     checked_ids.append(cid)
         rows = governing_loads_table(conds, system)
         st.dataframe(pd.DataFrame(rows), hide_index=True, use_container_width=True)
+
+    # Ground conditions (decision G-9). SELECT does not name them -- LANDLOAD
+    # mints its own ``LG-`` ids -- so without this section the filter would miss
+    # the family by default and silently enrol it in the ``export-case-filter``
+    # standing limitation. Up to 24 assembled ground cases plus twins is exactly
+    # the family an engineer wants to scope, so the filter is extended to reach
+    # them rather than the limitation widened to excuse not reaching them.
+    #
+    # This is the **engineer's opt-out filter** and not SELECT's physics pick:
+    # ground cases are still a separate governing family and are never compared
+    # against flight cases for a maximum (G-9), which is stated as a standing
+    # limitation in the methods block.
+    try:
+        _gear = build_landing(project)[1]
+    except (MissingInputError, ValueError, ZeroDivisionError, KeyError):
+        _gear = []
+    if _gear:
+        st.subheader(f"Landing gear (ground) — {len(_gear)} condition(s)")
+        st.caption(
+            "FAR 23.479–23.499, from LANDLOAD. A **separate governing family**: "
+            "these are never compared against the flight conditions above for a "
+            "maximum, because the two load different structure by different "
+            "paths and the point of a governing table is naming *which* case "
+            "governs. Unchecking one drops it from the summary and the exports, "
+            "exactly as above."
+        )
+        for c in _gear:
+            cid = c.case_ref.case_id if c.case_ref else None
+            if not cid:
+                continue
+            all_ids.append(cid)
+            default_checked = cid in prior_selected if prior_selected is not None else True
+            if st.checkbox(case_label(c.case_ref, condition=c.description),
+                           value=default_checked, key=f"select_{cid}"):
+                checked_ids.append(cid)
 
     # Empty list means "no filter" (every condition kept) -- only persist a real
     # subset when the engineer has actually deselected something.

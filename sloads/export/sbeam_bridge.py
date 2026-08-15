@@ -1910,7 +1910,12 @@ def case_index_rows_from(*groups: Sequence, assembled: Sequence = ()) -> List[di
             rows.append(row)
         column = LOAD_ID_COLUMN[family]
         if not row[column]:
-            row[column] = deck_load_id(ref.case_id, family)
+            # The hand is read off the case, not off its id (G-8): the 23.485
+            # side pair carries LANDLOAD's own unsuffixed ids, so parsing the id
+            # would put both twins in the symmetric block and quote a SUBCASE the
+            # assembled deck does not contain.
+            row[column] = deck_load_id(ref.case_id, family,
+                                       getattr(item, "hand", "") or "")
 
     for group in groups:
         for item in group:
@@ -2004,6 +2009,126 @@ def write_safety_factors_csv(project: Project, path: str,
                              header_comment: str = "") -> None:
     with open(path, "w", encoding="utf-8", newline="") as fh:
         fh.write(safety_factors_csv(project, header_comment))
+
+
+_GEAR_REPORT_FIELDS = [
+    "ID", "Case", "Condition", "FAR", "Loading", "Design weight", "Leg", "Carrier",
+    "Strut state", "Ground angle (deg)", "Stroke (in)", "Stroke (% )",
+    "Patch X", "Patch Y", "Patch Z",
+    "Ground-line V", "Ground-line D", "Ground-line S",
+    "Datum Fx", "Datum Fy", "Datum Fz",
+    "Ref point X", "Ref point Y", "Ref point Z",
+    "Transfer Mx", "Transfer My", "Transfer Mz",
+    "Leg weight", "Leg inertia Fz", "Net Fz above trunnion",
+]
+
+
+def gear_report_rows(project: Project, units: DeliverableUnits = None,
+                     safety_factor: float = None) -> List[dict]:
+    """The gear load report: one row per case per leg (decision G-12).
+
+    **A free body, not a load list.** Each row states the reaction where LANDLOAD
+    computes it -- the tyre contact patch, in the ground-line frame the manual
+    prints and a gear engineer reads -- together with the strut state, ground
+    angle and stroke it was computed at, and then the *same* reaction where the
+    airframe receives it: the gear reference point, in airplane axes, with the
+    lever-arm couple that carried it there. Both ends of the leg, so the two G-12
+    artifacts are provably one load seen from two sides.
+
+    **All 33 cases**, against the assembled deck's 24. The 23.499 supplementary
+    nose-wheel family has no airplane equilibrium to assemble, but it is a
+    gear-design case and this report is where it was always aimed -- the two
+    artifacts carry different case sets by design, and each says so.
+
+    ``Leg inertia Fz`` is the leg's own weight at the case's vertical ground-line
+    load factor and is what closes the free body; ``Net Fz above trunnion`` is the
+    reaction less that. Both are blank when no leg weight is entered (G-12a),
+    which shows the free body **open** rather than closing it against a guess.
+    See :data:`sloads.gear_loads.UNSPRUNG_NOTE` for the limit on what the inertia
+    term means -- it is not a gear design load.
+    """
+    from ..gear_loads import gear_case_loads
+    from ..safety_factors import table_for
+
+    u = units or deliverable_units(UnitSystem.IMPERIAL, Channel.SOLVER)
+    table = table_for(project)
+    rows: List[dict] = []
+    for case in gear_case_loads(project):
+        sf = (safety_factor if safety_factor is not None
+              else table.factor_for(case).factor)
+        for leg in case.legs:
+            if not any(leg.airplane) and not any(leg.ground_line):
+                continue          # this leg carries nothing in this case
+            px, py, pz = to_grid(*leg.patch, u)
+            nx, ny, nz = to_grid(*leg.node, u)
+            gv, gd, gs = to_force(leg.ground_line[0] * sf, leg.ground_line[1] * sf,
+                                  leg.ground_line[2] * sf, u)
+            fx, fy, fz = to_force(leg.airplane[0] * sf, leg.airplane[1] * sf,
+                                  leg.airplane[2] * sf, u)
+            mx, my, mz = to_moment(leg.couple[0] * sf, leg.couple[1] * sf,
+                                   leg.couple[2] * sf, u)
+            net = leg.net_of_inertia
+            inertia = ("" if leg.inertia_fz is None else
+                       _fmt(to_force(0.0, 0.0, leg.inertia_fz * sf, u)[2]))
+            rows.append({
+                "ID": case.case_ref.case_id if case.case_ref else "",
+                "Case": str(case.case),
+                "Condition": case.description,
+                "FAR": case.far_reference,
+                "Loading": case.cg_name,
+                "Design weight": _fmt(case.weight_lb * u.force.factor),
+                "Leg": leg.leg,
+                "Carrier": leg.carrier.value if leg.carrier is not None else "",
+                "Strut state": leg.strut_state,
+                "Ground angle (deg)": f"{leg.ground_angle_deg:.3f}",
+                "Stroke (in)": _fmt(leg.stroke_in * u.length.factor),
+                "Stroke (% )": f"{leg.stroke_fraction * 100:.1f}",
+                "Patch X": _fmt(px), "Patch Y": _fmt(py), "Patch Z": _fmt(pz),
+                "Ground-line V": _fmt(gv), "Ground-line D": _fmt(gd),
+                "Ground-line S": _fmt(gs),
+                "Datum Fx": _fmt(fx), "Datum Fy": _fmt(fy), "Datum Fz": _fmt(fz),
+                "Ref point X": _fmt(nx), "Ref point Y": _fmt(ny),
+                "Ref point Z": _fmt(nz),
+                "Transfer Mx": _fmt(mx), "Transfer My": _fmt(my),
+                "Transfer Mz": _fmt(mz),
+                "Leg weight": ("" if leg.leg_weight_lb is None else
+                               _fmt(leg.leg_weight_lb * u.force.factor)),
+                "Leg inertia Fz": inertia,
+                "Net Fz above trunnion": ("" if net is None else
+                                          _fmt(to_force(0.0, 0.0, net[2] * sf, u)[2])),
+            })
+    return rows
+
+
+def gear_report_csv(project: Project, header_comment: str = "",
+                    system: UnitSystem = UnitSystem.IMPERIAL) -> str:
+    """The gear load report as CSV text -- the G-12 companion file.
+
+    Travels in the Export bundle and the manifest, stamped like every other
+    channel, so the boundary condition a gear analysis starts from is legible
+    without the report beside it. Loads are **ULTIMATE**, per the standing
+    load-output contract, at the factor the governing table gives the case
+    (``LIMIT (14 CFR 23.471 -- ground loads are limit loads) x 1.5``).
+    """
+    u = deliverable_units(system, Channel.SOLVER)
+    rows = gear_report_rows(project, u)
+    buf = _io.StringIO()
+    writer = csv.DictWriter(buf, fieldnames=_GEAR_REPORT_FIELDS)
+    writer.writeheader()
+    writer.writerows(rows)
+    return header_comment + buf.getvalue()
+
+
+def write_gear_report_csv(project: Project, path: str, header_comment: str = "",
+                          system: UnitSystem = UnitSystem.IMPERIAL) -> None:
+    # Rendered **before** the file is opened: this is the one export channel that
+    # legitimately refuses (a project with no gear geometry produces no report),
+    # and opening first would truncate an existing file -- or leave a new empty
+    # one -- on the way to the error. The CLI's contract is that a failed export
+    # leaves no partial artifact set.
+    text = gear_report_csv(project, header_comment, system)
+    with open(path, "w", encoding="utf-8", newline="") as fh:
+        fh.write(text)
 
 
 def write_case_index_csv(project: Project, path: str, extra: Sequence = (),
