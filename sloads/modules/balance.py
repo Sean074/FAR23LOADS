@@ -1892,11 +1892,18 @@ def run(project: Project) -> ModuleResult:
                 (c.p_dot, 0.0, 0.0))[0]), "deg/s^2", key="balanced_p_dot"),
         ] if lateral else []
         # A lateral case names the rule SELECT picked it under (23.441(a)(1)
-        # ... 23.443(b)); the symmetric families keep the two references they
-        # have always reported, so no shipped row moves.
-        far = ((c.case_ref.far_reference if c.case_ref else "") or "23.321"
-               ) if (lateral or unsymmetrical) else (
-            "23.349" if c.unbal_moment else "23.321")
+        # ... 23.443(b)) and a ground case the condition LANDLOAD computed it
+        # under (23.479 ... 23.493, R6-C1 -- 23.471 is the family's general
+        # sentence, the fallback a ref-less ground case would deserve). The
+        # symmetric flight families keep their literals: their CaseRefs name
+        # the V-n envelope source (23.333), but the *balancing* of that point
+        # is 23.321's requirement, so the row keeps citing it.
+        ground = is_ground(c)
+        if lateral or unsymmetrical or ground:
+            far = (c.case_ref.far_reference if c.case_ref else "") or (
+                "23.471" if ground else "23.321")
+        else:
+            far = "23.349" if c.unbal_moment else "23.321"
         conditions.append(ConditionResult(
             title=f"Balanced case {c.label}{hand} (V-n {c.vn_case}, {c.cg})",
             far_reference=far,

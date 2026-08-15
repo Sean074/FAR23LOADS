@@ -455,6 +455,33 @@ def test_the_module_result_carries_the_record():
     assert row.values[0].units == ""
 
 
+@pytest.mark.parametrize("example",
+                         [e for e, v in _EXPECTED_GROUND_CASES.items() if v])
+def test_a_ground_row_cites_its_own_far_condition(example):
+    """**R6-C1's pin.** A ground condition row in the module result cites the
+    FAR condition LANDLOAD computed it under -- its ``CaseRef``'s own
+    ``far_reference`` (23.479(a) ... 23.493) -- never the flight balancing
+    literal 23.321, which is what every ground row rendered with before the
+    fix. The flight families are asserted unchanged in the same walk: their
+    ``CaseRef`` names the V-n envelope source (23.333), but the balancing of
+    that point is 23.321's requirement, so those rows keep their literals.
+    ``run()`` emits one row per built case in order, plus the trailing F-C7
+    record, which is what lets the walk pair them."""
+    project = _project(example)
+    cases = build_balanced_cases(project)
+    rows = balance_module.run(project).conditions
+    assert len(rows) == len(cases) + 1  # + the skipped-conditions record
+    ground = 0
+    for case, row in zip(cases, rows):
+        if is_ground(case):
+            assert row.far_reference == case.case_ref.far_reference, row.title
+            assert row.far_reference.startswith("23.4"), row.title
+            ground += 1
+        elif not (is_lateral(case) or is_unsymmetrical_htail(case)):
+            assert row.far_reference in ("23.321", "23.349"), row.title
+    assert ground == len(_EXPECTED_GROUND_CASES[example])
+
+
 def _skipped_block(skipped):
     from sloads.export.balanced_deck import _skipped_block as block
     return "\n".join(block(skipped))

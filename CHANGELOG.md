@@ -239,6 +239,21 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- **Ground condition rows cited FAR 23.321, the flight balancing reference**
+  (0.6.0-candidate review finding **R6-C1**). `balance.run()` derived every
+  non-lateral, non-unsymmetrical row's regulation from the flight literals, so
+  all up-to-27 assembled ground conditions rendered with 23.321 in the module
+  result, the load-case CSV and the Results Review page — while the case's own
+  `CaseRef` (which the deck map, case index and gear report flow through)
+  correctly said 23.479(a)/23.481/23.483/23.485/23.493. A ground row now cites
+  its `CaseRef`'s reference (fallback 23.471, the family's general sentence);
+  the symmetric flight families deliberately keep their literals, because their
+  `CaseRef`s name the V-n envelope source (23.333) while the *balancing* of
+  that point is 23.321's requirement. The safety factor never moved (flight and
+  ground families both derive 1.5, now classified under the right family row).
+  Digest wave: `txt/csv balance` on the two ground fixtures, exactly as the
+  backlog row declared. Pinned per fixture: every ground row's FAR equals its
+  `CaseRef`'s, and every flight row still reads 23.321/23.349.
 - **The loading named on LANDLOAD cases 20–24 was the wrong one.** The per-case
   record indexed the three roled loadings as `(m - 1) % 3` for every case up to
   24, but the 23.485 side family is three loadings × **two drift directions** —

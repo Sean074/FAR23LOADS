@@ -10,6 +10,12 @@ Acceptance**, **Key decisions**.
 
 ---
 
+**Ground condition rows cite their own FAR condition (complete 2026-08-15,
+tier S)** — 0.6.0-candidate review finding R6-C1: `balance.run()` ground rows
+now read the case's `CaseRef.far_reference` (23.479…23.493) instead of the
+flight-balancing literal 23.321; flight rows keep their literals by design;
+pinned per ground fixture; digest wave `txt/csv balance` as declared.
+
 **Documentation currency batch (complete 2026-08-15, tier S)** — 0.6.0-candidate
 review findings R6-D1/D2/D3/D4 (`docs/50_reviews/2026-08-15_review_0_6_0_candidate.md`):
 changelog `[Unreleased]` headings unscrambled, backlog "shipped since the tag"
