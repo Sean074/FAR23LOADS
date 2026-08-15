@@ -185,7 +185,7 @@ traceability with plans 09/11/12/13; the **Pri** column is ordinal only.
 | Pri | Item (detail below / in its plan) | What ships | Tag | Tier / effort | Depends on |
 |---|---|---|---|---|---|
 | **Pre-0.6.0 corrections (2026-08-15 review, R6-\*)** ||||||
-| 1 | G-6 rotational gate half (R6-T1, +T2) | `I·ω̇` rotated through ρ asserted against `PITCHP`/`ROLLP`/`YAWP` per family, the G-7a lift term in the pitch line, and the `NS` sign tightened | E | M / M | — (test-only; until it lands the gap is named in the test docstring) |
+| 1 | LANDLOAD's ground-roll attitude is resolved against the other sign *(new 2026-08-15, found by R6-T1's gate)* | A decision on `PHIM = +BETA(2)` for cases 13–24 — keep (faithful replication) or correct (oracle deviation, full trail) — and the assembled braked/side ground cases follow it | E | L / M | — (recorded and pinned today; nothing is silently wrong) |
 | 2 | `balance` + `tail_span` PROGRAM_SPEC sections (R6-D6) | The two registered modules with no per-module spec section get theirs — assembly from the plan docs/history, not authorship; optional registry↔spec heading guard | V | S / M | — |
 | 3 | Ground family in `balanced_cases.md` (R6-D7) | The theory doc of record gains the fourth family: no V-n point, solved field, gear reactions + ground-line lift, the ρ rotation, why `RESIDUAL_GATE` does not apply | V | S / M | — |
 | 4 | PROJECT_GUIDE §4 layout refresh (R6-D5) | The authoritative tree gains `cg_cases`/`safety_factors`/`gear_loads` (+ the older omissions), export mis-nesting fixed; consider an every-module-listed drift guard | V | S / M | — |
@@ -226,7 +226,7 @@ traceability with plans 09/11/12/13; the **Pri** column is ordinal only.
 
 # Item detail — pre-0.6.0 corrections (2026-08-15 review)
 
-Rows 1–4. **The finding bodies live in the review document of record**,
+Rows 2–4. **The finding bodies live in the review document of record**,
 [`../50_reviews/2026-08-15_review_0_6_0_candidate.md`](../50_reviews/2026-08-15_review_0_6_0_candidate.md)
 — each row cites its `R6-*` id and the evidence, failure mode and recommended
 correction are stated there, not restated here (CLAUDE.md: never duplicate,
@@ -240,11 +240,16 @@ link instead). What this section adds is only what the table cannot carry:
   label (R6-C3, whose wave was `txt/csv balance` **plus `sbeam/balanced_deck`**
   on the two fixtures that assemble ground cases — the deck header and case map
   are two of the five surfaces it corrects) all **closed 2026-08-15** and their
-  rows are gone. **Every byte-moving correction the review found has landed**;
-  row 1 is test-only and moves nothing.
-- **Row 1 is release-gating in spirit**: a design-note gate half that was
-  promised and not built, on the 0.6.0 headline deliverable. The 2026-08-09 ordering rule ("wrong cards
-  outrank missing cards") is why it sits above steps 12–14.
+  rows are gone, and so is the G-6 rotational gate half (**R6-T1/T2**, closed
+  2026-08-15, test-only). **Every correction the review itself found has now
+  landed.**
+- **Row 1 is the one thing the review did *not* find — its gate did.** Building
+  R6-T1's moment lines turned up a frame question inside LANDLOAD's own
+  bookkeeping, which is exactly what the design note said that gate was for. It
+  is a candidate defect in shipped ground-case numbers, so the 2026-08-09
+  ordering rule ("wrong cards outrank missing cards") puts it at the top; it is
+  recorded, pinned and stated in-band today, so nothing about it is silent while
+  it waits for a decision.
 - **Rows 2–4 are the documentation-coverage debt** the review found alongside
   the currency defects: two registered modules with no PROGRAM_SPEC section
   (`balance`, `tail_span`), the balancing theory doc describing three families
@@ -254,6 +259,64 @@ link instead). What this section adds is only what the table cannot carry:
 - **R6-D8 (table numbering) was discharged by this insertion itself** — the
   renumber the review recommended happened as part of adding these rows, so it
   is deliberately not a row.
+
+### Row 1 — LANDLOAD's ground-roll attitude is resolved against the other sign
+*(new 2026-08-15; found by building R6-T1's rotational gate, and it has no
+review-document body because the review did not find it)*
+
+**What it is.** `LANDLOAD.BAS` resolves each case's wheel resultant into airplane
+axes through `PHIM`, and the three attitudes do not agree on the sign of the
+ground angle they carry:
+
+```
+L=1 TO 6, 10 TO 12: PHIM(L) = BETA(1)                  ' BETA(1) = GAMMA - GRA(1)
+L=7 TO 9:           PHIM(L) = -BETA(3)                 ' BETA(3) = GRA(3)
+L=13 TO 18:         PHIM(L) = ATN(.8)*57.3 + BETA(2)   ' BETA(2) = +GRA(2)
+L=19 TO 24:         PHIM(L) = BETA(2)
+```
+
+so the rotation from the ground line to the airplane datum comes out as
+`ρ = −GRA` in the level and tail-down attitudes and `ρ = +GRA` in the ground-roll
+one. The port reproduces both faithfully (`modules/landing.py`, the `phim`
+block); this row is about the **manual's** convention, not the replication of it.
+
+**Why it matters.** The contact patch is `r` below the axle *along the ground
+normal*, and the ground line's own slope is `GRA` — so the geometry says
+`ρ = −GRA`. Where the manual disagrees, its own statements about the same case
+disagree with each other:
+
+* the 23.485 side family's `ROLLP = ±0.83·W·CP` is built on `CP`, a **contact-line**
+  arm, and its `YAWP = ±0.83·W·BP` on `BP`, an **axle** arm resolved through
+  `BETA(2)`. On `ga6_normal` those are 2·GRA(2) = **9.45° apart**, and no single
+  rigid rotation of the assembled case reproduces both (4.8 % / 9.2 % if you pick
+  one);
+* the braked-roll family's pitch carries the same difference — 0.6–3.2 % of
+  `PITCHP` on `ga6_normal`.
+
+**What it does *not* affect.** `NVP`/`NDP`/`NS` are exact either way (the gate
+rotates back through the same `ρ`, so the sign cancels), so the translational
+benchmark cannot see it. Neither can an airplane that sits level: `GRA(2) = 0` on
+`concept_regional_jet`, `atr42_100` and `dhc8_dash8`, which leaves `ga6_normal`
+and `cessna_210` as the only fixtures where the question exists at all — and only
+`ga6_normal` assembles ground cases today. **The exposure is `ga6_normal`'s
+LANDLOAD cases 13–24**, whose gear reactions enter the assembled deck rotated
+9.45° from what the contact-line geometry implies.
+
+**What closing it means.** A decision, not a patch: either the manual's
+convention is kept (and the reason is written down where the gate can cite it),
+or the ground-roll attitude is corrected — which is an **oracle deviation** and
+carries the full trail (design note, user approval,
+`20_theory/02_approved_corrections.md`, and a digest wave on every `ga6_normal`
+ground channel). The airplane-datum reactions `VM`/`DM` are LANDLOAD outputs with
+no legible printed oracle in the bundled PDF (the p231–233 table is OCR-garbled),
+so the decision rests on the geometry argument above rather than on a figure.
+
+**Today's state is stated, not silent.** `ρ` against `GRA` is pinned per attitude
+on all five gear fixtures
+(`test_the_ground_roll_attitude_is_resolved_against_the_other_sign`), the
+rotational gate compares each moment line in the frame LANDLOAD's own arm is
+built in and says so, and the braked family's pitch line is bounded at 5 % with
+this as the named cause. Tier L. Effort M.
 
 # Item detail — mission path [E]
 

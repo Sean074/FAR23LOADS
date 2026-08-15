@@ -165,6 +165,25 @@ class InertiaTensor:
             return (0.0, 0.0, 0.0)
         return _solve3(self.matrix(), moment)
 
+    def moment(self, omega_dot: Vec3) -> Vec3:
+        """``[I]{omega_dot}`` (lb-in) -- the moment that angular acceleration takes.
+
+        The forward direction of :meth:`solve`, and the quantity G-6's rotational
+        gate compares with LANDLOAD's ``PITCHP``/``ROLLP``/``YAWP`` (R6-T1). It
+        is stated here rather than written out at the check because it is the
+        same ``[I]`` -- products of inertia negated, roll and yaw coupled through
+        ``ixz`` -- and a second hand-rolled matrix multiply beside the test is the
+        drift ``CLAUDE.md`` practice 3 forbids.
+
+        **Reference-independent for a closure field**: the relief the assembler
+        applies at ``omega_dot`` is referred to the mass set's own centroid, where
+        ``Sum w_i r_i`` is zero, so the rotational half carries no net force and
+        its moment is the same about every point. That is what lets the gate
+        compare it with a moment LANDLOAD states about the CG.
+        """
+        return tuple(sum(row[j] * omega_dot[j] for j in range(3))
+                     for row in self.matrix())
+
 
 def _solve3(a: Sequence[Sequence[float]], b: Vec3) -> Vec3:
     """Gauss-Jordan with partial pivoting on a 3x3. Raises when singular.

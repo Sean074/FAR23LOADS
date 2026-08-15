@@ -12,12 +12,23 @@ the two sides are computed by genuinely different routes:
 
 * **sloads** assembles gear reactions, wing lift and the itemized mass model and
   solves a six-DOF rigid-body field on the assembled inertia tensor;
-* **LANDLOAD** reaches ``NVP``/``NDP``/``NS`` by lever arms and FAR percentages,
-  with no mass matrix anywhere in it.
+* **LANDLOAD** reaches ``NVP``/``NDP``/``NS`` and
+  ``PITCHP``/``ROLLP``/``YAWP`` by lever arms and FAR percentages, with no mass
+  matrix anywhere in it.
 
 They agree to floating-point noise on every case of every fixture. That agreement
 is content-carrying rather than self-referential, which is exactly what the
 oracle rule exists to buy where an oracle exists.
+
+The gate is in **two halves**, as G-6 wrote it. The translational half
+(``test_the_ground_closure_reproduces_landload``) compares the solved load-factor
+field with ``NVP``/``NDP``/``NS``; the rotational half
+(``test_the_ground_closure_reproduces_landloads_unbalanced_moments``, R6-T1)
+compares ``[I]{omega_dot}`` with the unbalanced moments, carrying the two
+deliberate departures -- G-7a's distributed lift and G-12's contact patch -- in
+the line rather than in the tolerance. The rotational half is also where the
+frames stop agreeing with each other: see
+``test_the_ground_roll_attitude_is_resolved_against_the_other_sign``.
 
 Run standalone:  ``python tests/test_gear_report.py``
 """
@@ -49,13 +60,22 @@ from sloads.gear_loads import (  # noqa: E402
 )
 from sloads.models import MissingInputError  # noqa: E402
 from sloads.modules.balance import (  # noqa: E402
+    GROUND_LIFT_CASES,
     GROUND_ONE_WHEEL_CASES,
     GROUND_SIDE_CASES,
     build_balanced_cases,
     is_ground,
     resultant6,
 )
-from sloads.modules.landing import build_landing  # noqa: E402
+# ``_effective_gear_input`` is the module's own resolver for the gear geometry
+# (M2R-4: nothing is written back to the project), and the rotational gate needs
+# the same axle stations the reactions were computed at. Reaching for it is the
+# alternative to keeping a second copy of that resolution beside the test.
+from sloads.modules.landing import (  # noqa: E402
+    _effective_gear_input,
+    build_landing,
+    ground_angles,
+)
 
 _ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
@@ -357,6 +377,105 @@ def test_the_entered_leg_weights_agree_with_the_item_database():
 # --------------------------------------------------------------------------- #
 # G-6: the closed-form gate -- this step's benchmark
 # --------------------------------------------------------------------------- #
+def _is_reflected(case, gear) -> bool:
+    """Is this assembled case the **reflected twin** rather than the computed one?
+
+    The two handed ground families answer it differently, and the asymmetry is
+    G-8's, not this test's: LANDLOAD supplies **both** drift directions of the
+    23.485 side condition under ids of their own, so there the computed member is
+    the one carrying LANDLOAD's own id and the twin carries the partner's. The
+    23.483 one-wheel family has a single id and no twin in the manual at all, so
+    the assembler mints the starboard case and reflects it.
+    """
+    if case.vn_case in GROUND_ONE_WHEEL_CASES:
+        return case.hand == "L"
+    return bool(gear.case_ref) and case.case_ref.case_id != gear.case_ref.case_id
+
+
+def _mass_centroid(case):
+    """The centroid of the masses the assembled case actually carries.
+
+    The point the closure field is referred to (``balance._closure``), and
+    therefore the point ``[I]{omega_dot}`` is a moment about. Recomputed here
+    rather than exposed on the result: it is one weighted mean over the case's
+    own loads, and the gate wants to state the frame transfer it is making out
+    loud rather than accept one.
+    """
+    masses = [(ld, ld.weight_lb) for ld in case.loads if ld.weight_lb]
+    total = sum(w for _, w in masses)
+    return tuple(sum(getattr(ld, axis) * w for ld, w in masses) / total
+                 for axis in "xyz")
+
+
+def _cross(r, f):
+    return (r[1] * f[2] - r[2] * f[1],
+            r[2] * f[0] - r[0] * f[2],
+            r[0] * f[1] - r[1] * f[0])
+
+
+def _solved_moment_about_cg(case):
+    """``[I]{omega_dot}``, transferred from the mass centroid to the case's CG.
+
+    Two steps, both of which the gate exists to check. ``[I]{omega_dot}`` is the
+    moment the solved angular field takes; it is a moment **about the centroid**,
+    because that is where the closure is referred and where the rotational relief
+    carries no net force. LANDLOAD states its unbalanced moments about the
+    **CG**, so the applied resultant's own transfer ``M_cg = M_c + (c - cg) x F``
+    is undone here. On ``ga6_normal`` the two points differ by thousandths of an
+    inch and the transfer is worth ~900 lb-in on a 180,000 lb-in pitching moment
+    -- a 0.5 % term that a gate written at ``rel_tol 1e-9`` cannot skip.
+    """
+    solved = case.closure_inertia.moment((case.p_dot, case.q_dot, case.r_dot))
+    cg = (case.cg_x, 0.0, case.cg_z)
+    offset = tuple(c - g for c, g in zip(_mass_centroid(case), cg))
+    force = (case.residual_fx, case.residual_fy, case.residual_fz)
+    return tuple(s + t for s, t in zip(solved, _cross(offset, force)))
+
+
+def _lift_moment_about_cg(case, gear, lift_factor):
+    """The **G-7a** departure, rebuilt in closed form: ``L x W`` along the ground line.
+
+    The one place the assembled ground case deliberately differs from LANDLOAD,
+    and G-6 asked for it in the pitch line explicitly rather than absorbed in
+    slack: LANDLOAD nets the lift at the CG (``NLG = N - L``) while this
+    distributes it on the wing, which leaves a pitching moment the manual never
+    forms.
+
+    The **magnitude and the axis are rebuilt** from the two statements that own
+    them -- ``L x W_case`` for the size (G-7) and the ground line for the
+    direction (G-7a) -- so changing either goes red here. Only the lift
+    *centroid* is read from the applied set, because the AIRLOADS spanwise shape
+    is what puts it there and re-deriving Schrenk in a test would be the second
+    copy ``CLAUDE.md`` practice 3 forbids. That the two agree exactly is asserted
+    before the term is used.
+    """
+    lift_lb = lift_factor * gear.weight_lb if gear.case in GROUND_LIFT_CASES else 0.0
+    if not lift_lb:
+        assert not [ld for ld in case.loads if ld.source == "ground-lift"], (
+            f"{case.case_ref.case_id}: lift applied to a family that carries none")
+        return (0.0, 0.0, 0.0)
+    lift = [ld for ld in case.loads if ld.source == "ground-lift"]
+    total = sum(math.hypot(ld.fx, ld.fz) for ld in lift)
+    centroid = tuple(sum(getattr(ld, axis) * math.hypot(ld.fx, ld.fz)
+                         for ld in lift) / total for axis in "xyz")
+    rho = math.radians(ground_rotation_deg(gear))
+    vector = (lift_lb * math.sin(rho), 0.0, lift_lb * math.cos(rho))
+    cg = (case.cg_x, 0.0, case.cg_z)
+    moment = _cross(tuple(c - g for c, g in zip(centroid, cg)), vector)
+    # The closed form and the applied set are the same load, stated twice.
+    applied = _resultant_of(case, {"ground-lift"}, cg)
+    for want, got, axis in zip(moment, applied, "xyz"):
+        assert math.isclose(want, got, rel_tol=1e-9, abs_tol=1e-6 * lift_lb), (
+            f"{case.case_ref.case_id}: lift moment {axis} {want} != {got}")
+    return moment
+
+
+def _resultant_of(case, sources, ref):
+    """The moment about ``ref`` of just the named load sources."""
+    picked = [ld for ld in case.loads if ld.source in sources]
+    return resultant6(picked, ref)[3:]
+
+
 @pytest.mark.parametrize("example", _WITH_GROUND_CASES)
 def test_the_ground_closure_reproduces_landload(example):
     """**The step's benchmark-first gate (G-6).**
@@ -394,12 +513,229 @@ def test_the_ground_closure_reproduces_landload(example):
         where = f"{example} {case.case_ref.case_id} (LANDLOAD case {case.vn_case})"
         assert math.isclose(nvp, gear.nvp, rel_tol=1e-9), f"{where}: NVP"
         assert math.isclose(ndp, gear.ndp, rel_tol=1e-9, abs_tol=1e-9), f"{where}: NDP"
-        # NS is lateral and normal to the rotation, so it is compared as is.
-        # The port twin of a side case carries the opposite sign, which is what
-        # its own hand says -- so compare magnitudes and let the hand test below
-        # police the sign.
-        assert math.isclose(abs(case.delta_ny), abs(gear.ns),
+        # NS is lateral and normal to the rotation, so it is compared as is --
+        # and **signed** (R6-T2). The computed member of a 23.485 pair carries
+        # LANDLOAD's own printed sign; only the reflected twin negates it, and
+        # which one is which is a fact about the case, not a free choice, so the
+        # gate states it rather than comparing magnitudes and leaving the sign to
+        # the hand pin.
+        want = -gear.ns if _is_reflected(case, gear) else gear.ns
+        assert math.isclose(case.delta_ny, want,
                             rel_tol=1e-9, abs_tol=1e-9), f"{where}: NS"
+
+
+#: The families whose ``PITCHP`` is ``mult x RMP x BP`` -- one resultant on one
+#: arm, and ``BP`` is measured to the **axle** (``landing._geometry`` builds it
+#: from ``axle_compressed``/``axle_static``). The braked-roll families 13-18 are
+#: the exception: their ``-2(VMP x BP + DMP x CP)`` puts the drag arm ``CP`` on
+#: the **ground line**, where the tyre is. The assembled case applies every
+#: reaction at the contact patch (G-2/G-12; FAR 23.485(d) says so in as many
+#: words), so the gate moves the applied set to whichever point the family's own
+#: formula used. Getting this wrong is not subtle: the level family misses by
+#: 12 % (21,000 lb-in on ``ga6_normal`` case 4).
+_PITCH_ARM_AT_THE_AXLE = frozenset(list(range(1, 13)) + list(range(19, 25)))
+
+
+@pytest.mark.parametrize("example", _WITH_GROUND_CASES)
+def test_the_ground_closure_reproduces_landloads_unbalanced_moments(example):
+    """**G-6's rotational half** -- the three lines the design note promised (R6-T1).
+
+    The translational gate above is one half of what G-6 wrote down. This is the
+    other::
+
+        Iyy.theta_ddot == PITCHP + the G-7a lift term
+        Ixx.phi_ddot   == ROLLP        Izz.psi_ddot == YAWP
+
+    and it is the half worth having, because the rotational field is where the
+    frame work happens: ``[I]{omega_dot}`` is a moment about the **mass
+    centroid** in **body axes** on the **assembled tensor**, while
+    ``PITCHP``/``ROLLP``/``YAWP`` are about the **CG** on the **ground line**
+    from lever arms and FAR percentages. Every step of that transfer is written
+    out here -- centroid to CG, patch to arm point, body axes to ground line --
+    so a frame error lands on a named line instead of hiding in a tolerance.
+
+    **The two deliberate departures are carried explicitly, not absorbed.**
+    ``_lift_moment_about_cg`` rebuilds G-7a's ``L x W`` along the ground line and
+    subtracts it, so if G-7 is ever changed without revisiting this gate the gate
+    goes red -- which is exactly what the design note asked for. The patch-to-arm
+    move is :data:`_PITCH_ARM_AT_THE_AXLE`.
+
+    **Which frame each line is compared in is LANDLOAD's choice, and they are not
+    the same choice** -- this is the gate's real finding, and it is about the
+    oracle rather than about the port:
+
+    * ``ROLLP = +-0.83 W x CP`` is built on ``CP``, the CG's height above the
+      **contact line**, so the roll line is compared in the contact-line frame
+      (``-GRA``) with the side loads left at the tyre;
+    * ``YAWP = +-0.83 W x BP`` is built on ``BP``, an **axle** arm resolved
+      through ``BETA``, so the yaw line is compared in the case's own ``rho``.
+
+    For every attitude but one those are the same frame, because ``rho == -GRA``.
+    In the ground-roll attitude they differ by ``2 x GRA(2)`` -- 9.45 deg on
+    ``ga6_normal`` -- because ``LANDLOAD.BAS`` resolves that attitude at
+    ``PHIM = +BETA(2)`` where the level and tail-down attitudes use
+    ``GAMMA - GRA(1)`` and ``-BETA(3)``. That inconsistency is McMaster's own,
+    it is faithfully ported (see
+    ``test_the_two_frames_round_trip_through_the_rotation``, which named it and
+    declined to adjudicate it), and it is pinned as its own statement in
+    :func:`test_the_ground_roll_attitude_is_resolved_against_the_other_sign`.
+
+    **Tolerances, and their causes.** The one-wheel family's ``ROLLP``/``YAWP``
+    are ``VMP x TREAD/2`` and ``-DMP x TREAD/2`` -- the tread arm is shared
+    geometry, so those lines are identities and are asserted at ``rel_tol
+    1e-9`` (measured: 4e-16). Every other line is compared against a lever arm
+    the BASIC **truncates to 3 decimals when it prints it** (``LANDLOAD.BAS``
+    780-790, ``landing._trunc3``), which is worth up to 2e-4 of the moment, so
+    those are bounded at ``1e-4 x W x MAC``. The braked-roll family's pitch
+    carries the frame difference above as well and is bounded at ``5e-2 x W x
+    MAC`` -- measured 0.6-3.2 % on ``ga6_normal`` and 1e-5 on the regional jet,
+    whose ``GRA(2)`` is zero and which therefore cannot see the inconsistency at
+    all. Every bound is one-sided and every measured value is quoted, so a drift
+    into the slack is visible rather than silent.
+    """
+    project = _project(example)
+    _, reactions = build_landing(project)
+    # The effective input, not the entered slice: the gear geometry these arms
+    # are built from is resolved onto it (M2R-4), and ``project.landing`` alone
+    # has no axle stations at all on either fixture.
+    inp = _effective_gear_input(project, project.landing)
+    gra = ground_angles(inp)
+    radius = {MAIN: inp.main_gear.rolling_radius_in,
+              NOSE: inp.nose_gear.rolling_radius_in}
+    by_case = {c.case: c for c in reactions}
+    cases = [c for c in build_balanced_cases(project) if is_ground(c)]
+    assert cases, example
+
+    for case in cases:
+        gear = by_case[case.vn_case]
+        where = f"{example} {case.case_ref.case_id} (LANDLOAD case {case.vn_case})"
+        # The case's own moment scale. Bounds are stated against it rather than
+        # against the compared value, because three of the families state a
+        # LANDLOAD moment of exactly zero and "0.1 % of nothing" is not a bound.
+        scale = case.weight_lb * case.mac
+        rho = math.radians(ground_rotation_deg(gear))
+        angle = math.radians(gra[attitude_of(case.vn_case)[1]])
+        contact_line = -angle
+        flip = -1.0 if _is_reflected(case, gear) else 1.0
+
+        # The solved field about the CG, less the G-7a departure: what is left is
+        # the moment of the gear reactions alone, which is what LANDLOAD states.
+        at_patch = tuple(
+            s - lift for s, lift in
+            zip(_solved_moment_about_cg(case),
+                _lift_moment_about_cg(case, gear, inp.lift_factor)))
+        # ... and the same load moved from the tyre to the axle. Both wheels of a
+        # leg share the offset (the patch is the rolling radius from the axle
+        # along the ground normal), so one cross product per leg is the whole
+        # move, and it lands only in pitch until a family carries a side load.
+        at_axle = at_patch
+        for leg, r in radius.items():
+            applied = [ld for ld in case.loads if ld.source == f"gear-{leg}"]
+            if not applied:
+                continue
+            force = tuple(sum(getattr(ld, c) for ld in applied)
+                          for c in ("fx", "fy", "fz"))
+            offset = (-r * math.sin(angle), 0.0, r * math.cos(angle))
+            at_axle = tuple(a + m for a, m in zip(at_axle, _cross(offset, force)))
+
+        pitch_at = (at_axle if case.vn_case in _PITCH_ARM_AT_THE_AXLE else at_patch)
+        # 13-18 also carry the ground-roll attitude's frame difference, which no
+        # rotation in the check can remove: it is in the direction the reaction
+        # is applied, not in the reference the moment is taken about.
+        pitch_tol = 1e-4 if case.vn_case in _PITCH_ARM_AT_THE_AXLE else 5e-2
+        assert abs(pitch_at[1] - gear.pitchp) <= pitch_tol * scale, (
+            f"{where}: PITCHP {pitch_at[1]:,.1f} != {gear.pitchp:,.1f}")
+
+        roll = (at_patch[0] * math.cos(contact_line)
+                - at_patch[2] * math.sin(contact_line))
+        yaw = at_axle[2] * math.cos(rho) + at_axle[0] * math.sin(rho)
+        if case.vn_case in GROUND_ONE_WHEEL_CASES:
+            # The tread arm is the assembled model's own geometry, so these two
+            # are identities rather than agreements.
+            assert math.isclose(roll, flip * gear.rollp, rel_tol=1e-9), (
+                f"{where}: ROLLP {roll:,.3f} != {flip * gear.rollp:,.3f}")
+            assert math.isclose(yaw, flip * gear.yawp, rel_tol=1e-9), (
+                f"{where}: YAWP {yaw:,.3f} != {flip * gear.yawp:,.3f}")
+        else:
+            assert abs(roll - flip * gear.rollp) <= 1e-4 * scale, (
+                f"{where}: ROLLP {roll:,.1f} != {flip * gear.rollp:,.1f}")
+            assert abs(yaw - flip * gear.yawp) <= 1e-4 * scale, (
+                f"{where}: YAWP {yaw:,.1f} != {flip * gear.yawp:,.1f}")
+
+
+def test_the_rotational_gates_two_departures_are_not_no_ops():
+    """**The rotational gate's negative control.** Both corrections carry content.
+
+    A gate whose corrections are negligible is a gate that would pass with them
+    deleted, so the two the rotational line makes are measured here on
+    ``ga6_normal`` case 4 -- the level 2-wheel condition, which carries both.
+
+    * the **arm point** (G-12): comparing at the tyre instead of the axle misses
+      ``PITCHP`` by 20,961 lb-in, **12.5 %**;
+    * the **lift term** (G-7a): 9,787 lb-in, 5.8 % -- small, and exactly the size
+      that hides inside a percentage tolerance, which is why G-6 asked for it in
+      the line rather than in the slack.
+    """
+    project = _project("ga6_normal.project.json")
+    _, reactions = build_landing(project)
+    gear = next(c for c in reactions if c.case == 4)
+    inp = _effective_gear_input(project, project.landing)
+    case = next(c for c in build_balanced_cases(project)
+                if is_ground(c) and c.vn_case == 4)
+
+    lift = _lift_moment_about_cg(case, gear, inp.lift_factor)
+    assert math.isclose(lift[1], 9786.7, rel_tol=1e-3)
+    assert abs(lift[1]) > 0.05 * abs(gear.pitchp)
+
+    angle = math.radians(ground_angles(inp)[attitude_of(4)[1]])
+    r = inp.main_gear.rolling_radius_in
+    force = tuple(sum(getattr(ld, c) for ld in case.loads
+                      if ld.source == f"gear-{MAIN}") for c in ("fx", "fy", "fz"))
+    move = _cross((-r * math.sin(angle), 0.0, r * math.cos(angle)), force)
+    assert math.isclose(move[1], 20961.0, rel_tol=1e-3)
+    assert abs(move[1]) > 0.1 * abs(gear.pitchp)
+
+
+@pytest.mark.parametrize("example", sorted(_WITH_GEAR))
+def test_the_ground_roll_attitude_is_resolved_against_the_other_sign(example):
+    """``rho == -GRA`` in every attitude but the ground-roll one, where it is ``+GRA``.
+
+    The statement of record for what G-6's rotational gate found (R6-T1), pinned
+    on every gear fixture rather than left in a docstring. ``rho`` is the angle
+    the reaction is rotated through to reach airplane axes, recovered from the
+    case's own two resolutions; ``GRA`` is the angle of the line the tyres stand
+    on. They are the same rotation seen from the two ends, so ``rho = -GRA`` --
+    and it is, in the level attitude (``PHIM = GAMMA - BETA(1)``) and the
+    tail-down one (``PHIM = -BETA(3)``), on all five fixtures. The ground-roll
+    attitude uses ``PHIM = +BETA(2)`` (``LANDLOAD.BAS``: ``L=13 TO 18:
+    PHIM(L)=ATN(.8)*57.3+BETA(2)``, ``L=19 TO 24: PHIM(L)=BETA(2)``), which is
+    the other sign.
+
+    The port is faithful to the BASIC on both, so this is not a defect in the
+    replication and nothing here is "fixed" -- it is recorded, with its
+    consequence measured: on ``ga6_normal`` the 23.485 family's own ``ROLLP`` and
+    ``YAWP`` cannot both be reproduced by any single rigid rotation, because they
+    are stated 2 x GRA(2) = 9.45 deg apart. On an airplane that sits level
+    (``GRA(2) = 0``: the regional jet and both twins) the two signs coincide and
+    the question does not arise, which is why only ``ga6_normal`` and the Cessna
+    can see it at all. Deciding what to do about it is an oracle question and
+    carries the full deviation trail; the backlog holds the row.
+    """
+    project = _project(example)
+    inp = _effective_gear_input(project, project.landing)
+    gra = ground_angles(inp)
+    _, reactions = build_landing(project)
+    seen = set()
+    for gear in reactions:
+        if gear.case > 24 or not gear.rmp:
+            continue
+        attitude = attitude_of(gear.case)[1]
+        rho = ground_rotation_deg(gear)
+        want = gra[attitude] if attitude == 1 else -gra[attitude]
+        assert math.isclose(rho, want, rel_tol=1e-9, abs_tol=1e-9), (
+            f"{example} case {gear.case}: rho {rho} against GRA {gra[attitude]}")
+        seen.add(attitude)
+    assert seen == {0, 1, 2}, (example, seen)
 
 
 @pytest.mark.parametrize("example", _WITH_GROUND_CASES)

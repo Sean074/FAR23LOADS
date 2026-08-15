@@ -133,6 +133,12 @@ def test_the_solve_inverts_the_tensor_including_its_coupling():
     ``Ixz`` is the one that matters on a real airplane -- 8.4 % of the ga6's
     pitch inertia -- and it is why the rotational closure is one 3x3 solve rather
     than three ratios.
+
+    Both directions in one place: :meth:`InertiaTensor.moment` is the forward
+    multiply G-6's rotational gate reads (R6-T1), and it is checked here against
+    the hand-written product as well as against ``solve`` -- an owner compared
+    only with a second call to itself is not a drift guard (``CLAUDE.md``
+    practice 3).
     """
     tensor = inertia_tensor(_centred(_MASSES))
     assert tensor.ixz != 0.0 and tensor.ixy != 0.0 and tensor.iyz != 0.0
@@ -141,6 +147,11 @@ def test_the_solve_inverts_the_tensor_including_its_coupling():
     matrix = tensor.matrix()
     got = [sum(matrix[i][j] * omega_dot[j] for j in range(3)) for i in range(3)]
     assert got == pytest.approx(moment, rel=1e-9)
+    assert tensor.moment(omega_dot) == pytest.approx(got, rel=1e-12)
+    # And the coupling is carried, not dropped: a pure roll takes pitch and yaw
+    # moments too, through the products of inertia.
+    assert tensor.moment((1.0, 0.0, 0.0)) == pytest.approx(
+        (tensor.ixx, -tensor.ixy, -tensor.ixz), rel=1e-12)
 
 
 def test_the_products_of_inertia_are_stored_as_sums_and_negated_in_the_matrix():

@@ -12,6 +12,42 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **G-6's rotational gate half, as the design note wrote it** (0.6.0-candidate
+  review finding **R6-T1**, with **R6-T2** folded in). The step-10 benchmark
+  shipped with its translational half only — `NVP`/`NDP`/`NS` exact at
+  `rel_tol 1e-9` — while the three moment lines the note promised
+  (`Iyy·θ̈ == PITCHP + the lift term`, `Ixx·φ̈ == ROLLP`, `Izz·ψ̈ == YAWP`) were
+  never written. They are now, in
+  `test_the_ground_closure_reproduces_landloads_unbalanced_moments`: the solved
+  `[I]{ω̇}` is transferred from the mass centroid to the CG, the **G-7a** lift
+  term is rebuilt in closed form (`L × W` along the ground line) and subtracted,
+  the applied reactions are moved from the **contact patch** to whichever arm
+  point that family's own LANDLOAD formula measures to, and the result is rotated
+  into the ground line and compared per family. The one-wheel family's
+  `ROLLP`/`YAWP` are identities (`rel_tol 1e-9`, measured 4e-16 — the tread arm
+  is shared geometry); every other line is bounded at `1e-4 · W · MAC`, the
+  cause being that the BASIC truncates its printed lever arms to 3 decimals.
+  A negative control pins both corrections as non-trivial (arm point 12.5 %,
+  lift term 5.8 % on `ga6_normal` case 4). `NS` is now compared **signed**
+  (R6-T2) instead of by magnitude. `InertiaTensor.moment()` — the forward
+  direction of `solve()` — is the new single owner of `[I]{ω̇}`, guarded in
+  `test_the_solve_inverts_the_tensor_including_its_coupling`. Test-only: no
+  shipped number moves and no digest channel changes.
+
+  **What the gate found** (recorded, not fixed — it is an oracle question):
+  `LANDLOAD.BAS` resolves the **ground-roll attitude** at `PHIM = +BETA(2)`
+  where the level and tail-down attitudes use `GAMMA − BETA(1)` and `−BETA(3)`,
+  so on that attitude `ρ = +GRA` against `ρ = −GRA` everywhere else. The port is
+  faithful to the BASIC on both. The consequence: on `ga6_normal` the 23.485
+  family's own `ROLLP` (built on `CP`, a contact-line arm) and `YAWP` (built on
+  `BP`, an axle arm resolved through `BETA`) are stated 2·GRA(2) = 9.45° apart
+  and cannot both be reproduced by any single rigid rotation; the braked-roll
+  family's pitch carries the same difference (0.6–3.2 %, bounded at 5 % with the
+  cause named). An airplane that sits level (`GRA(2) = 0` — the regional jet and
+  both twins) cannot see it at all. Pinned on all five gear fixtures by
+  `test_the_ground_roll_attitude_is_resolved_against_the_other_sign`; the
+  backlog carries the decision row.
+
 - **Ground and landing cases, and the gear load report** (**step 10 piece 3**,
   decisions **G-1/G-6/G-7(+G-7a)/G-8/G-9/G-12(+G-12a)/G-13**, schema **v48**) —
   the 0.6.0 headline, and the step that **absorbs step 11 (plan 11 B8b)**. The

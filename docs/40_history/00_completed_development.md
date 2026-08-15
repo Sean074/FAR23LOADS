@@ -10,6 +10,27 @@ Acceptance**, **Key decisions**.
 
 ---
 
+**G-6's rotational gate half, and what it found (complete 2026-08-15, tier M)**
+— 0.6.0-candidate review findings R6-T1 and R6-T2. The step-10 benchmark had
+shipped with its translational half only; the three moment lines the design note
+promised now exist in
+`test_the_ground_closure_reproduces_landloads_unbalanced_moments`, which takes
+the solved `[I]{ω̇}`, transfers it from the mass centroid to the CG, subtracts
+the G-7a lift term rebuilt in closed form, moves the applied reactions to the arm
+point each family's own LANDLOAD formula measures to, rotates into the ground
+line and compares with `PITCHP`/`ROLLP`/`YAWP` — an identity at `rel_tol 1e-9`
+on the one-wheel family's tread arms, within `1e-4·W·MAC` elsewhere (the BASIC's
+3-decimal arm truncation). `NS` is now compared signed (R6-T2).
+`InertiaTensor.moment()` is the new owner of `[I]{ω̇}`, guarded beside `solve`.
+A negative control pins both corrections as non-trivial (12.5 % and 5.8 % of
+`PITCHP` on `ga6_normal` case 4). Test-only: nothing shipped moved, no digest
+channel changed. **The gate then did what the note said it would**: it found
+that `LANDLOAD.BAS` resolves the ground-roll attitude at `PHIM = +BETA(2)` where
+the other two attitudes carry `−GRA`, so the 23.485 family's own `ROLLP` and
+`YAWP` are stated 9.45° apart on `ga6_normal` and cannot both be reproduced by
+one rotation. The port is faithful to the BASIC; the state is pinned per
+attitude on all five gear fixtures and the decision is backlog row 1.
+
 **A ground case's source case is named as LANDLOAD's, not as a V-n point
 (complete 2026-08-15, tier M)** — 0.6.0-candidate review finding R6-C3: the
 wording of `BalancedCaseResult.vn_case` gained one owner
