@@ -41,6 +41,7 @@ from sloads import (
     to_imperial_scalar,
 )
 from sloads.case_ids import case_label
+from sloads.cg_cases import flight_cases
 from sloads.derived_geometry import wing_reference
 from sloads.modules.configuration import run as configuration_run
 from sloads.modules.flight_envelope import build_envelope, run as flt_run, trim_sweep
@@ -145,15 +146,17 @@ alt_df = st.data_editor(alt_default, num_rows="dynamic", hide_index=True,
 altitudes_ft = sorted({float(v) for v in alt_df["altitude_ft"] if pd.notna(v)}) or [0.0]
 st.caption("Edit altitudes above, then **Apply geometry & altitudes** in the sidebar to save.")
 
-cg_cases = project.weight.cg_cases if project.weight else []
+cg_cases = flight_cases(project)
 if not cg_cases:
     gate(
-        "No loading scenarios found. Define them on the **Weight & Mass Properties** "
-        "page (Payload Cases tab) first — FLTLOADS balances over them.",
+        "No FLIGHT-tagged loading scenarios found. Define them on the **Weight & "
+        "Mass Properties** page (Payload Cases tab) and tag each with **FLIGHT** — "
+        "FLTLOADS balances over them.",
         "weight_mass",
     )
     st.stop()
-st.caption("Weight / CG cases read from the **Weight & Mass Properties** page (not edited here).")
+st.caption("The **FLIGHT**-tagged weight / CG cases, read from the **Weight & Mass "
+           "Properties** page (not edited here).")
 st.dataframe(pd.DataFrame([
     {"name": c.name, f"weight ({U['weight']})": round(to_display(c.weight_lb, "weight", system), 2),
      f"xcg ({U['length']})": round(to_display(c.xcg, "length", system), 2),
@@ -162,12 +165,13 @@ st.dataframe(pd.DataFrame([
 ]), hide_index=True, use_container_width=True)
 
 # The effective FLTLOADS input from the current widgets. Merge (never wholesale-
-# replace) so fields this page doesn't show survive the persist path; aero and CG
-# cases are owned by other pages (read only).
+# replace) so fields this page doesn't show survive the persist path; the aero sets
+# are owned by other pages, and the weight/CG cases left this slice entirely at
+# decision G-3b -- they are read from ``weight.cg_cases`` above, never copied here.
 fl_effective = fl.merged(
     xtc=to_imperial_scalar(xtc, "length", system),
     xtf=to_imperial_scalar(xtf, "length", system),
-    mn=mn, altitudes_ft=altitudes_ft, cg_cases=cg_cases,
+    mn=mn, altitudes_ft=altitudes_ft,
 )
 
 # Persist to the real project only on Apply. For the live diagram/SELECT/trim below,

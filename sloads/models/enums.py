@@ -128,6 +128,56 @@ class TailType(str, Enum):
     CRUCIFORM = "cruciform"
 
 
+class AnalysisKind(str, Enum):
+    """Which analysis a weight/CG case is run for (decision G-3).
+
+    One user-owned case list, each case tagged with the analyses it feeds, rather
+    than one hard-coded list per analysis. Deliberately a **set** on ``CgCase`` so
+    kinds can be added later (taxi, towing, jacking, gust-on-ground) without
+    another schema fight; an empty set is an entry error, not a state (G-3c)."""
+    FLIGHT = "flight"      # the V-n envelope, the balancing tail loads, SELECT
+    GROUND = "ground"      # the landing / ground-handling families (23.471-23.511)
+
+
+class GroundCaseRole(str, Enum):
+    """The role a ``GROUND`` case plays in LANDLOAD's three-loading contract (G-3a).
+
+    LANDLOAD indexes its three loadings **positionally** (``wl[19] = wcg[0]*wr``)
+    and is oracle-locked to Appendix A p230, so the order is a contract, not a
+    convention. Before G-3a it was recovered by matching names against
+    ``validation.LANDING_CG_NAMES`` with a fall back to entry order -- a renamed
+    case silently reordered the reaction table. The role makes it a field.
+
+    Any further ``GROUND``-tagged case (a ramp loading, a second fuel state)
+    carries no role: it is assembled and distributed but never fed to LANDLOAD, so
+    the tag is free to grow while the oracle-locked module keeps its exact three."""
+    AFT_MAX_LANDING = "aft_max_landing"
+    FWD_MAX_LANDING = "fwd_max_landing"
+    FWD_LIGHT = "fwd_light"
+
+
+#: LANDLOAD's three roles, in the order ``landing_reactions`` consumes them.
+GROUND_CASE_ROLE_ORDER = (
+    GroundCaseRole.AFT_MAX_LANDING,
+    GroundCaseRole.FWD_MAX_LANDING,
+    GroundCaseRole.FWD_LIGHT,
+)
+
+
+class GearCarrier(str, Enum):
+    """Which structure carries a landing-gear leg's reaction (decision G-2).
+
+    Body-carried and wing-carried gear are different **load paths**, not different
+    labels: a wing-carried reaction relieves or reverses inboard wing bending and
+    only reaches the fuselage through the carry-through, so applying it to the
+    body beam over-loads the fuselage *and* hides a real wing sizing case. There
+    is deliberately **no default** -- a project that exports ground cases without
+    it raises, the same refuse-rather-than-fall-back habit
+    ``control_load_mode = "discrete"`` follows without hinge geometry."""
+    BODY = "body"
+    WING = "wing"
+
+
 __all__ = [
     "EngineType",
     "EngineLayout",
@@ -138,4 +188,8 @@ __all__ = [
     "MassComponent",
     "TailType",
     "VdBasis",
+    "AnalysisKind",
+    "GroundCaseRole",
+    "GROUND_CASE_ROLE_ORDER",
+    "GearCarrier",
 ]

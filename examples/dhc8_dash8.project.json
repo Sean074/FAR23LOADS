@@ -342,7 +342,8 @@
         "iyy": 0.0,
         "izz": 0.0,
         "kind": "discretionary",
-        "component": "fuselage"
+        "component": "fuselage",
+        "consumable": true
       }
     ],
     "envelope": {
@@ -488,7 +489,13 @@
           30
         ],
         "rolling_radius_in": 17.0,
-        "strut": "O"
+        "strut": "O",
+        "carrier": "wing",
+        "attach": [
+          445.0,
+          75.0,
+          100.0
+        ]
       },
       "nose_gear": {
         "axle_compressed": [
@@ -504,7 +511,13 @@
           25
         ],
         "rolling_radius_in": 12.0,
-        "strut": "O"
+        "strut": "O",
+        "carrier": "body",
+        "attach": [
+          90.0,
+          0.0,
+          50.0
+        ]
       },
       "tread_in": 150.0
     }

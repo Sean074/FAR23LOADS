@@ -51,6 +51,7 @@ from ..models import (
     WingMassInput,
     WingStationLoad,
 )
+from ..cg_cases import flight_cases
 from ..derived_geometry import sync_geometry_derived
 from ..registry import register
 from .select import default_critical, default_envelope
@@ -417,10 +418,9 @@ def wing_case_ref(project: Project, index: int, case: WingLoadCase,
 
 
 def _case_weight(project: Project, cg_name: str) -> float:
-    if project.flight_loads is not None:
-        for cg in project.flight_loads.cg_cases:
-            if cg.name == cg_name:
-                return cg.weight_lb
+    for cg in flight_cases(project):
+        if cg.name == cg_name:
+            return cg.weight_lb
     return 0.0
 
 

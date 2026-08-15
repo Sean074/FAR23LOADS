@@ -29,6 +29,7 @@ from typing import Dict, List
 
 from ..models import (CgCase, ConditionResult, LoadValue, MissingInputError, ModuleResult,
                       Project, VnPoint)
+from ..cg_cases import flight_cases
 from ..derived_geometry import sync_geometry_derived
 from ..registry import register
 from .select import elevator_load, default_envelope, flaps_by_config_name, htail_balance
@@ -59,7 +60,7 @@ def verify_balancing(project: Project) -> List[Dict[str, float]]:
     ti, fl = project.tail_loads, project.flight_loads
     if ti is None or fl is None:
         raise MissingInputError("balloads needs Project.tail_loads and Project.flight_loads")
-    cg_map: Dict[str, CgCase] = {c.name: c for c in fl.cg_cases}
+    cg_map: Dict[str, CgCase] = {c.name: c for c in flight_cases(project)}
     flaps: Dict[str, bool] = flaps_by_config_name(project)
 
     rows: List[Dict[str, float]] = []

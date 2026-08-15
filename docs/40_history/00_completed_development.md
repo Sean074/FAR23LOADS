@@ -10,6 +10,111 @@ Acceptance**, **Key decisions**.
 
 ---
 
+## Step 10 piece 2 — the weight/CG case model + gear inputs (complete 2026-08-14, tier L)
+
+**Objective.** Land the whole schema hop decisions G-2/G-3/G-4/G-5/G-14 imply as
+**one** `SCHEMA_VERSION` bump rather than four, and prove it moves nothing. Three
+weight/CG case lists and six representations of MTOW become one owner each, so the
+ground-case physics (piece 3) has inputs to consume instead of inventing them.
+
+**Deliverables.**
+
+- `sloads/cg_cases.py` — the one resolver. `cases_for` / `flight_cases` /
+  `ground_cases` / `landing_role_cases`, `max_landing_weight` /
+  `max_takeoff_weight` / `max_landing_weight_estimate` / `database_total`, and
+  `seed_landing_cases` (the WTENV seed, moved out of the Landing Loads view into
+  the calc package where it can be tested as a function).
+- Schema **v47**. `CgCase.analyses: Set[AnalysisKind]` (`FLIGHT` | `GROUND`,
+  default `{FLIGHT}`) and `CgCase.role: Optional[GroundCaseRole]`;
+  `WeightInput.max_landing_weight_lb` / `.max_takeoff_weight_lb`;
+  `MassItem.consumable`; `LandingGearInput.carrier` (no default) / `.attach`.
+  **Removed:** `FlightLoadsInput.cg_cases`, `LandingInput.cg_cases`,
+  `LandingInput.gross_weight_lb`, `LandingInput.max_landing_weight_lb`.
+  New enums `AnalysisKind`, `GroundCaseRole` (+ `GROUND_CASE_ROLE_ORDER`),
+  `GearCarrier`.
+- `migrations._v46_cg_case_model` — tags existing `weight.cg_cases` `FLIGHT`,
+  folds `landing.cg_cases` in as `GROUND` with roles from the canonical names
+  (merging onto an existing case where name **and** `(weight_lb, xcg, zcg)`
+  match), moves MLW across, and seeds MTOW from `speeds.weight_lb`. It also
+  recovers a pre-v19 file whose cases live only on `flight_loads` and that carries
+  no `weight` dict — a case `_v19_cg_cases` gave up on.
+- `landing.py` reads the roled cases and takes `mlw`/`mtow` as explicit arguments;
+  every flight consumer (`select`, `flight_envelope`, `balance`, `balloads`,
+  `tail_span`, `wing_inertia`, `mass_distribution`) reads `flight_cases(project)`.
+- `mass_distribution.derive_case_loadings(project, cases=None)` is generalized to
+  any case list, with the **G-5 burn-down** path for `GROUND` targets
+  (`_burn_down`: one fraction applied to every `consumable` row, so a tank layout
+  survives).
+- Validation: `_check_weight_case_model` (`cg_case_no_analysis`,
+  `cg_case_role_without_ground`, `ground_role_incomplete`, `weight_order_chain`,
+  `mlw_below_landing_estimate`, `mtow_representation_drift`) and
+  `_check_gear_carrier` (`gear_carrier_unset`, `gear_carrier_mass_disagrees`,
+  `gear_attach_missing`, `gear_attach_off_the_wing`).
+  `_check_landing_hierarchy` loses `gross_ge_max_landing` and `landing_cg_names`
+  with the fields they policed and gains `landing_case_weight_is_mlw`.
+- GUI: the **Payload Cases** tab becomes the sole editor (`FLIGHT`/`GROUND`
+  checkboxes, a landing-`role` selectbox, and the WTENV seed on a button); the
+  **Weight / CG Envelope** tab owns MLW and MTOW and shows the derived MLW
+  estimate; the mass-item editor gains a `consumable` checkbox; the **Landing
+  Loads** page's CG table and both design weights become read-only.
+- Fixture data: `carrier` + `attach` on five airplanes × two legs, and the mission
+  fuel row tagged `consumable` on each.
+
+**Test / Acceptance.** `tests/test_cg_cases.py` (43 tests) is the drift guard.
+The whole suite is green (1614 passed / 21 skipped) with **`digests.json`
+unchanged** — the piece's stated expectation, "nothing moves", and if something
+had, the migration would not be output-neutral. Specifically pinned:
+
+- The `FLIGHT`-tagged set after migration equals the pre-hop
+  `flight_loads.cg_cases` **exactly, per fixture**, compared against the file on
+  disk rather than a re-derivation (G-3b's stated guard). Likewise the `GROUND`
+  set against the pre-hop `landing.cg_cases`.
+- MTOW agrees with every representation it replaced, per fixture, and is *not*
+  the heaviest landing case (3,400 against 3,230 on ga6) — the latent `WR = 1.0`
+  defect, pinned so it cannot return.
+- The role fixes the order: reversing the entry order changes nothing, renaming
+  every case changes nothing, and a missing or duplicated role **raises**.
+- G-5, reproducing the plan's measurements exactly: ga6's aft landing case burns
+  **317 lb** of fuel, needs **no ballast** and lands **0.12 in** from its target;
+  burn-down is proportional across two tanks; and marking *every* item consumable
+  leaves every flight loading unchanged on all six fixtures — the acceptance test
+  for the field, and why the Appendix-A oracles cannot move.
+- Ground-loading coverage is exactly what G-3/G-5 predicted: ga6 3/3, the RJ 2/3,
+  `cessna_210` / `atr42_100` / `dhc8_dash8` 0/3, each skipped and recorded.
+- The MLW floor fires on `concept_regional_jet` **and no other fixture**; the
+  carrier ↔ mass guard fires on `dhc8_dash8` **and no other fixture**. Both are
+  asserted as set equalities, so a second fixture drifting into either is a red
+  build rather than a longer warning list.
+
+**Key decisions.**
+
+- **The removals are the point.** A proxy field would have left a second way to
+  say the same thing, which is what G-3 exists to remove (the G6b single-source
+  precedent, deliberately not the `tail_loads` proxy precedent). That is also why
+  this hop needs a migration where v44-v46 did not: absent is *not* the old
+  behaviour for a removed or relocated field.
+- **`max_takeoff_weight` keeps a documented fallback chain** to
+  `speeds.weight_lb` → `weight.envelope.gross_weight` → the heaviest `FLIGHT`
+  case. A loaded project never reaches it (the hop seeds the SSOT); a
+  directly-constructed test project does. `mtow_representation_drift` is what
+  keeps it a compatibility path rather than a second authority.
+- **Two findings are left firing rather than fixed here**, because fixing either
+  moves output and this piece is claimed as "nothing moves": `dhc8_dash8`'s gear
+  mass tag (correcting it re-pins `mass_distribution.wing_mass_tie`) and the
+  `applicability` / `direct_totals` design-weight re-point (the FAR 23 exceedance
+  line changes 37,781 → 36,817 on atr42 and 34,800 → 33,000 on the RJ). Both are
+  in the backlog with the guard that found them.
+- **The `atr42_100` sponson and the RJ's wing-body junction are `BODY`**, stated
+  rather than guessed: a sponson is a fuselage fairing and an RJ's main-gear
+  trunnion lands on the keel beam in the wing-body fairing. `dhc8_dash8` is the
+  `WING` fixture — gear in wing-mounted nacelles — and so is the one that will
+  prove the wing load path in piece 3.
+- **G-2's third guard is deferred with its subject.** "The transfer preserves
+  resultants about the CG at `rel_tol 1e-12`" tests the transfer, which lands with
+  the ground export in piece 3; the two input-side guards ship here.
+
+---
+
 ## Step 10 piece 1 — the governing safety-factor table (M4-8, complete 2026-08-14, tier L)
 
 **Objective.** Make the factor of safety a stated authority instead of a

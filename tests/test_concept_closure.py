@@ -48,6 +48,7 @@ from sloads.modules.flight_envelope import build_envelope  # noqa: E402
 from sloads.modules.net_loads import build_net_loads  # noqa: E402
 from sloads.modules.select import build_critical  # noqa: E402
 from sloads.modules.taildist import build_tail_chordwise  # noqa: E402
+from sloads.cg_cases import flight_cases  # noqa: E402
 from sloads.export.equilibrium import (  # noqa: E402
     card_totals,
     closes,
@@ -79,7 +80,7 @@ def _concept_project():
 def test_wing_lift_equals_nW():
     """Every balanced V-n point closes vertically: ``LZW + LT == Nz*W``."""
     p = _concept_project()
-    weight = {c.name: c.weight_lb for c in p.flight_loads.cg_cases}
+    weight = {c.name: c.weight_lb for c in flight_cases(p)}
     assert p.envelope.vn
     for vp in p.envelope.vn:
         nw = vp.nz * weight[vp.cg]
@@ -109,7 +110,7 @@ def test_tail_balancing_moment_closure():
     """``LT*(Xt - Xcg)`` reacts the wing-plus-inertia pitching moment about the CG."""
     p = _concept_project()
     fl = p.flight_loads
-    cg = {c.name: c for c in fl.cg_cases}
+    cg = {c.name: c for c in flight_cases(p)}
     xt = {tb.case: tb.tail_cp_station for tb in p.envelope.tail_balance}
     for vp in p.envelope.vn:
         c = cg[vp.cg]

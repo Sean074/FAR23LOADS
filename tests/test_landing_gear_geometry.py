@@ -49,8 +49,10 @@ def test_pre_v28_top_level_landing_gear_migrates():
     assert p.geometry is not None and p.geometry.landing_gear is not None
     assert p.geometry.landing_gear.main_gear.axle_static == (96.0, 12.0)
     assert p.geometry.landing_gear.tread_in == 112.0
-    # The non-geometry LANDLOAD param stays on the landing slice.
-    assert p.landing.max_landing_weight_lb == 3000.0
+    # The max landing weight rides the v46 hop across to its single owner on
+    # WeightInput (decision G-4); the gear-only slice keeps its LGFACTOR scalars.
+    assert p.weight.max_landing_weight_lb == 3000.0
+    assert p.landing is not None
 
 
 def test_gear_stations_derives_coarse_values_from_axles():

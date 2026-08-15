@@ -21,6 +21,9 @@ import pytest
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from sloads import io  # noqa: E402
+from sloads.cg_cases import flight_cases, ground_cases  # noqa: E402
+from sloads.models import GROUND_CASE_ROLE_ORDER  # noqa: E402
+from sloads.validation import LANDING_CG_NAMES  # noqa: E402
 from sloads.migrations import (  # noqa: E402
     MIGRATIONS,
     SUPPORTED_FLOOR,
@@ -126,9 +129,54 @@ def test_the_backfill_table_is_frozen_against_todays_producer():
 
 
 def test_pre_d5_file_recovers_its_cg_cases():
+    """The v19 hop recovers the shared list; the v46 hop then tags it FLIGHT.
+
+    The **migration guard** decision G-3b owes: the FLIGHT-tagged set after
+    migration must equal the file's own ``flight_loads.cg_cases`` exactly. The
+    landing cases join the same list tagged GROUND, so the total is seven.
+    """
     project = io.load_project(os.path.join(_FIXTURES, "v18_cg_cases_on_flight_loads.json"))
     assert project.weight is not None
-    assert [c.name for c in project.weight.cg_cases] == ["CG1", "CG2", "CG3", "CG4"]
+    assert [c.name for c in flight_cases(project)] == ["CG1", "CG2", "CG3", "CG4"]
+    assert [c.name for c in ground_cases(project)] == list(LANDING_CG_NAMES)
+    assert [c.role for c in ground_cases(project)] == list(GROUND_CASE_ROLE_ORDER)
+
+
+def test_the_v46_hop_moves_both_design_weights_off_the_landing_slice():
+    """G-4 / G-14, and the latent defect that leaves with ``gross_weight_lb``.
+
+    The removed field fell back to ``max(landing cg_cases)`` -- which is MLW, not
+    MTOW -- so ``WR = 1.0`` and cases 13-24 came out ~5 % light. The hop seeds MTOW
+    from ``speeds.weight_lb`` instead, which measurement showed equals the stored
+    ``gross_weight_lb`` on every shipped fixture, so nothing moves.
+    """
+    raw = _load("v18_cg_cases_on_flight_loads.json")
+    assert raw["landing"]["gross_weight_lb"] == 3400   # fixture still exercises the hop
+    out = migrate(raw)
+    assert out["weight"]["max_landing_weight_lb"] == 3230
+    assert out["weight"]["max_takeoff_weight_lb"] == 3400
+    for key in ("gross_weight_lb", "max_landing_weight_lb", "cg_cases"):
+        assert key not in out["landing"], key
+    assert "cg_cases" not in out["flight_loads"]
+
+
+def test_a_landing_case_that_is_already_a_shared_case_merges_rather_than_duplicating():
+    """G-3b: matched on name **and** ``(weight_lb, xcg, zcg)``, the tags merge.
+
+    No shipped fixture hits this today, but the two lists are siblings -- ga6's
+    ``fwd light`` sits on ``CG3``'s station to the hundredth -- so it will happen,
+    and duplicating would put the same loading into the deck twice.
+    """
+    raw = _load("v18_cg_cases_on_flight_loads.json")
+    # v18 carries the shared list on flight_loads; the v19 hop moves it across
+    # first, so appending here is appending to what becomes the shared list.
+    raw["flight_loads"]["cg_cases"].append(
+        {"name": "fwd light", "weight_lb": 2803, "xcg": 72.64, "zcg": 92})
+    out = migrate(raw)
+    hit = [c for c in out["weight"]["cg_cases"] if c["name"] == "fwd light"]
+    assert len(hit) == 1
+    assert hit[0]["analyses"] == ["flight", "ground"]
+    assert hit[0]["role"] == "fwd_light"
 
 
 def test_pre_f25_2_file_loses_its_stale_mach_limit_mc_md():
@@ -220,7 +268,7 @@ def test_an_unknown_dive_speed_basis_is_refused():
     """Reading an unrecognised basis as 'speed_ratio' would silently reapply the
     1.25*VC floor to a project that asked for the margin route -- the F25-2 defect
     re-entering through the file path."""
-    raw = _load("v41_current.json")
+    raw = _load("v47_current.json")
     raw["speeds"]["vd_basis"] = "whatever_the_user_typed"
     with pytest.raises(ValueError):
         io.project_from_dict(raw)
@@ -237,7 +285,7 @@ def test_bare_engine_file_is_still_accepted():
 # The discriminator that replaced the 19-clause or-gate
 # --------------------------------------------------------------------------- #
 def test_project_and_engine_dicts_are_told_apart():
-    assert is_project_dict(_load("v41_current.json"))
+    assert is_project_dict(_load("v47_current.json"))
     assert not is_project_dict(_load("v0_bare_engine.json"))
 
 
@@ -273,13 +321,13 @@ def test_migrate_is_idempotent():
 
 def test_current_file_is_untouched_by_the_chain():
     """No hop may fire for a current-schema file — that is what version-gating buys."""
-    current = _load("v41_current.json")
+    current = _load("v47_current.json")
     assert migrate(current) == {**current, "schema_version": SCHEMA_VERSION}
 
 
 def test_a_newer_file_is_not_mangled_by_hops_that_do_not_apply():
     """Forward compatibility degrades to 'read what you understand'."""
-    future = _load("v41_current.json")
+    future = _load("v47_current.json")
     future["schema_version"] = SCHEMA_VERSION + 5
     out = migrate(future)
     assert out["schema_version"] == SCHEMA_VERSION + 5

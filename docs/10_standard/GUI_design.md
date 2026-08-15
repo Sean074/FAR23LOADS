@@ -447,7 +447,7 @@ sidebar and the JSON Editor (§10, Phase E5).
 
 The schema field list is **single-sourced in
 [`DATA_DICTIONARY.md`](DATA_DICTIONARY.md)** (generated; currently
-`SCHEMA_VERSION = 46`); the per-step migration history is recorded in
+`SCHEMA_VERSION = 47`); the per-step migration history is recorded in
 [`../40_history/00_completed_development.md`](../40_history/00_completed_development.md)
 (recent steps: v29 single-source CLmax
 stall; v30 M2-6 wing/fuselage derived geometry; v31 M2-10 operational placards;
@@ -523,7 +523,27 @@ are code (`sloads/safety_factors.py`), so a project file records only deviations
 from the regulation, never the regulation itself. Additive with a `None` default
 and written only when it carries an override, so absent *is* the documented value
 — the factors 14 CFR 23.303/25.303 derives — and every shipped fixture is
-byte-for-byte unchanged.
+byte-for-byte unchanged; v47 step 10 piece 2 the **weight/CG case model and the
+gear inputs**, one hop for the whole set (decisions G-2, G-3, G-4, G-5, G-14).
+`CgCase` gains `analyses` (a *set* of `FLIGHT`/`GROUND`, so one case can feed
+several analyses instead of being entered twice and drifting apart) and `role`
+(`aft_max_landing` | `fwd_max_landing` | `fwd_light`), which retires LANDLOAD's
+positional-plus-name-matched contract — a renamed case used to silently reorder
+an oracle-locked reaction table. `FlightLoadsInput.cg_cases` and
+`LandingInput.cg_cases` are **removed**: the first had been a derived copy of
+`weight.cg_cases` since v19 kept in step by a *page* rather than by the model,
+and the second never joined the SSOT at all. `WeightInput` gains
+`max_landing_weight_lb` (moved off `LandingInput`) and `max_takeoff_weight_lb`,
+and `LandingInput.gross_weight_lb` is **removed** with them — its
+`max(landing cg_cases)` fallback returned MLW, not MTOW, making `WR = 1.0` and
+understating the braked-roll/side/nose cases by ~5 % for any project that left
+it unset. `MassItem` gains `consumable` (mission fuel, burned down before payload
+is dropped for a GROUND target) and `LandingGearInput` gains `carrier`
+(`body` | `wing`, **no default**) and `attach`. Removals and a relocation, so
+this one needs a hop: `migrations._v46_cg_case_model`, output-neutral by
+construction — every value it writes comes from the file's own, MTOW from
+`speeds.weight_lb`, which measurement showed equals the other four
+representations on every shipped fixture.
 This paragraph's version number is guarded by
 `tests/test_data_dictionary.py::test_gui_design_schema_line_current` — update
 it (and this list) with every `SCHEMA_VERSION` bump.

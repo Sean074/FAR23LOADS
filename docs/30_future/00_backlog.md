@@ -168,20 +168,19 @@ traceability with plans 09/11/12/13; the **Pri** column is ordinal only.
 | Pri | Item (detail below / in its plan) | What ships | Tag | Tier / effort | Depends on |
 |---|---|---|---|---|---|
 | **Post-0.5.0 (0.6.0 candidates and ranked [V])** ||||||
-| 1 | **Step 10 piece 2** — the weight/CG case model + gear inputs (one schema hop) | Tagged `analyses` case list with LANDLOAD `role`s; MLW **and** MTOW as single inputs; `MassItem.consumable`; gear `carrier` + `attach`. **Digest expectation: nothing moves** | E | L / M–L | — (M4-8 shipped 2026-08-14) |
-| 2 | **Step 10 piece 3** — ground/landing cases + the gear load report (M4-6; **absorbs** step 11 / plan 11 B8b) | Balanced free-free ground cases in the assembled deck, gear reactions transferred to the gear reference point, and the gear free-body report (contact patch + stroke) — **the 0.6.0 headline per D-R3** | E | L / L | Pri 1 |
-| 3 | Step 12 — LRA beam-model export + import | Cards delivered on the consumer's own node line; standalone LRA skeleton export | E | L / M–L | step 5 ✅ |
-| 4 | Step 13 — side-of-body reporting node | SOB internal shear/bending/torsion reported as the wing root design loads | E | M / M | step 5 ✅ |
-| 5 | Step 14 — real stiffness / assembled airframe properties (L-1) | Real section properties replacing the `MAT1` placeholder | E | L / M | Pri 3 (LRA beam bridge) |
+| 1 | **Step 10 piece 3** — ground/landing cases + the gear load report (M4-6; **absorbs** step 11 / plan 11 B8b) | Balanced free-free ground cases in the assembled deck, gear reactions transferred to the gear reference point, and the gear free-body report (contact patch + stroke) — **the 0.6.0 headline per D-R3** | E | L / L | — (piece 2 shipped 2026-08-14) |
+| 2 | Step 12 — LRA beam-model export + import | Cards delivered on the consumer's own node line; standalone LRA skeleton export | E | L / M–L | step 5 ✅ |
+| 3 | Step 13 — side-of-body reporting node | SOB internal shear/bending/torsion reported as the wing root design loads | E | M / M | step 5 ✅ |
+| 4 | Step 14 — real stiffness / assembled airframe properties (L-1) | Real section properties replacing the `MAT1` placeholder | E | L / M | Pri 2 (LRA beam bridge) |
 | 7 | The aileron's own lift increment is not distributed | `ACRL` wing cards gain the aero half of the couple (acts ~70 % span) | V | L / M | pairs plan 09 spanwise work |
 | 8 | RJ pitch-gate exceedance diagnosis | Element-count study → R3 vs `Cm` split; plan 13 G9 inherits the ceiling | V | M / S | pairs M4-19 |
 | 9 | Payload cases the weight database can produce (sibling pair) | Four more fixtures gain balanced cases → more assembled decks in CI | V | M–L / M | user decision: loading definition vs fixture fix |
 | 10 | Wing-tank fuel separability | Ends the same pounds riding both beams on the three fuel-in-wing fixtures | V | L / M | pairs plan 12 C1 |
 | 11 | Lateral body aero `Cy_β`/`Cn_β` (L-7) | Honest lateral `n_y`/`ψ̈` (fin-only today — over-stated, conservative) | V | L / M | pairs M4-19 |
 | 12 | Empennage planform polylines (fixture data) | Real taper in the tail card distributions instead of the `assumed` rectangle | V | S / S | — |
-| 13 | h-tail attachment `fuselage_width` (fixture data) | Real attachment stations instead of the `±ds/2` fallback | V | S / S | pairs Pri 4 (SOB) |
-| 13a | `concept_heavy` gear geometry + `landing` slice (fixture data) *(new 2026-08-14, from step 10 decision G-13)* | A sixth gear-report fixture, and the only concept-mode exercise of the 23.473(g) floor warning | V | S / S | Pri 2 (the gear report must exist) |
-| 14 | Load-application axis vs elastic axis — document the torsion reference | Convention in `coordinates.py` + spec + deck `$` header | V | S / S | partially superseded by Pri 3 (LRA import) |
+| 13 | h-tail attachment `fuselage_width` (fixture data) | Real attachment stations instead of the `±ds/2` fallback | V | S / S | pairs Pri 3 (SOB) |
+| 13a | `concept_heavy` gear geometry + `landing` slice (fixture data) *(new 2026-08-14, from step 10 decision G-13)* | A sixth gear-report fixture, and the only concept-mode exercise of the 23.473(g) floor warning | V | S / S | Pri 1 (the gear report must exist) |
+| 14 | Load-application axis vs elastic axis — document the torsion reference | Convention in `coordinates.py` + spec + deck `$` header | V | S / S | partially superseded by Pri 2 (LRA import) |
 | 15 | Gust spanwise-distribution decision | Study + recorded decision | V | S / S | — |
 | 16 | M4-19 — Multhopp distributed fuselage `Cm` | A distributed body pitching load for `body_loads` | V | L / M | — |
 | 17 | M4-21 — fuselage pitching load factor | d'Alembert pitch term at each body station | V | M / S | pairs M4-4 |
@@ -193,12 +192,13 @@ traceability with plans 09/11/12/13; the **Pri** column is ordinal only.
 | 23 | Flutter-clearance Mach basis for transports | Verified reference + decision, then an opt-in variant | V | S / S | — |
 | 24 | Upset-criterion speed increase (25.335(b)(1)) | The 20 s dive integration the margin route lacks | V | M / M | — |
 | 25 | F25-1 — transport category "T" envelope pack | 25.337 floors, 25.341 U_ref schedule, VB | V | M / M | — |
-| 26 | F25-4 — ground-loads parameter variant | 10/6 fps, lift = W, LDW/MTOW pairing | V | M / M | coordinates with Pri 2 (M4-6) |
+| 26 | F25-4 — ground-loads parameter variant | 10/6 fps, lift = W, LDW/MTOW pairing | V | M / M | coordinates with Pri 1 (M4-6) |
 | 27 | Deliverables render structural negative zeros *(new 2026-08-11, from the body-deck signed-zero fix)* | `-0.000000E+00` components (~2,000 in one balanced deck) and the tail span CSV's `Fax` column normalised at the formatting boundary | V | S / S | schedule with a digest wave — cosmetic, and it moves every deck family's bytes |
 | 28 | Split `40_history/00_completed_development.md` by era | Mechanical split + index file | V | S / S | after the working tree is committed |
-| 29 | Combined flight + ground station envelope *(new 2026-08-14, from step 10 decision G-9)* | Two-sided max/min per station over both families, each extreme naming its governing case | V | M / M | Pri 2 (ground cases must exist first) |
-| 30 | `applicability`/`direct_totals` design-weight re-point *(new 2026-08-14, from step 10 decision G-14)* | The FAR 23 gate reads the MTOW SSOT instead of the database total; `direct_totals` renamed | V | S / S | the G-14 schema hop (Pri 1) |
+| 29 | Combined flight + ground station envelope *(new 2026-08-14, from step 10 decision G-9)* | Two-sided max/min per station over both families, each extreme naming its governing case | V | M / M | Pri 1 (ground cases must exist first) |
+| 30 | `applicability`/`direct_totals` design-weight re-point *(new 2026-08-14, from step 10 decision G-14)* | The FAR 23 gate reads the MTOW SSOT instead of the database total; `direct_totals` renamed | V | S / S | — (the G-14 hop shipped 2026-08-14) |
 | 31a | M4-8 **Layer 2** — agreed named failure-case factors (25.302) *(remainder after Layer 1 shipped 2026-08-14)* | A named `25.302` failure case as its own governing row + ULTIMATE load case, and the system-reliability requirement it levies | V | M / M | coordinates with Phase F25 |
+| 30a | `dhc8_dash8` gear mass is tagged `fuselage` but the leg is wing-carried *(new 2026-08-14, from step 10 decision G-2's carrier↔mass guard)* | Re-tag the gear items `MassComponent.WING` and re-pin `mass_distribution.wing_mass_tie` | V | S / S | — (the guard that found it shipped 2026-08-14) |
 | 31 | CG-dependent MTOW — non-flat weight–CG envelope top edge *(new 2026-08-14, from step 10 decision G-14)* | A permissible-weight boundary that varies with CG, as on some transports | V | M / M | — |
 
 ---
@@ -545,8 +545,8 @@ with Phase F25. Effort: M.
 > | piece | pri | decisions | tier / effort | digest expectation |
 > |---|---|---|---|---|
 > | governing safety-factor table (M4-8) | ✅ **shipped 2026-08-14** | G-10, G-11 | L / M | table appeared; no numeric value moved |
-> | the schema hop (case model + gear inputs) | 1 | G-2, G-3, G-4, G-5, G-14 | L / M–L | **nothing moves** |
-> | ground cases + gear report | 2 | G-1, G-6…G-9, G-12, G-13 | L / L | balanced deck + case index on 2 fixtures; new gear channel on 5 |
+> | the schema hop (case model + gear inputs) | ✅ **shipped 2026-08-14** | G-2, G-3, G-4, G-5, G-14 | L / M–L | **nothing moved**; `digests.json` untouched |
+> | ground cases + gear report | 1 | G-1, G-6…G-9, G-12, G-13 | L / L | balanced deck + case index on 2 fixtures; new gear channel on 5 |
 >
 > The ground-cases piece **absorbs step 11 (plan 11 B8b)**: under **G-1** ground cases are born
 > in the assembled free-free deck, so there is no separate balanced-landing build

@@ -56,6 +56,7 @@ import math
 from typing import Dict, List, NamedTuple, Optional, Tuple
 
 from ..case_ids import CaseIdAllocator, WING_BAND_EXTRA, WING_SLOTS, wing_case_id
+from ..cg_cases import flight_cases, max_takeoff_weight
 from ..models import (
     MissingInputError,
     CaseRef,
@@ -161,8 +162,7 @@ def vn_by_case(project: Project) -> Dict[int, VnPoint]:
 
 def _cg_weights(project: Project) -> Dict[str, float]:
     """Map CG-case name -> design weight (for the Nx = -DX/W inertia factor)."""
-    fl = project.flight_loads
-    return {c.name: c.weight_lb for c in fl.cg_cases} if fl is not None else {}
+    return {c.name: c.weight_lb for c in flight_cases(project)}
 
 
 def _resultant(p: VnPoint) -> float:
@@ -327,7 +327,7 @@ def select_htail_balancing(project: Project,
     fl = project.flight_loads
     if ti is None or fl is None:
         return []
-    cg_map: Dict[str, CgCase] = {c.name: c for c in fl.cg_cases}
+    cg_map: Dict[str, CgCase] = {c.name: c for c in flight_cases(project)}
     flaps: Dict[str, bool] = flaps_by_config_name(project)
 
     retracted, extended = [], []
@@ -412,7 +412,7 @@ def select_htail_maneuver(project: Project,
     ti, fl = project.tail_loads, project.flight_loads
     if ti is None or fl is None:
         return []
-    cg_map: Dict[str, CgCase] = {c.name: c for c in fl.cg_cases}
+    cg_map: Dict[str, CgCase] = {c.name: c for c in flight_cases(project)}
     np_ = design_inputs(project).n_pos
     aht = 2.0 * math.pi / (1.0 + 2.0 / ti.aspect_ratio_htail)
     se2st = ti.elevator_area_sqft / ti.htail_area_sqft if ti.htail_area_sqft else 0.0
@@ -486,7 +486,7 @@ def select_htail_gust(project: Project,
     ti, fl = project.tail_loads, project.flight_loads
     if ti is None or fl is None:
         return []
-    cg_map: Dict[str, CgCase] = {c.name: c for c in fl.cg_cases}
+    cg_map: Dict[str, CgCase] = {c.name: c for c in flight_cases(project)}
     aht = 2.0 * math.pi / (1.0 + 2.0 / ti.aspect_ratio_htail)
     aw, arw = ti.wing_lift_slope_per_rad, ti.aspect_ratio_wing
     mac_ft = fl.mac / 12.0
@@ -696,14 +696,18 @@ def select_vtail(project: Project, envelope: Optional[EnvelopeResult] = None) ->
     fl = project.flight_loads
     if vt is None or fl is None:
         return []
-    cg_map: Dict[str, CgCase] = {c.name: c for c in fl.cg_cases}
+    cg_map: Dict[str, CgCase] = {c.name: c for c in flight_cases(project)}
     vn = _resolve_envelope(project, envelope).vn
     bal_a = [p for p in vn if p.condition == "BAL A" and p.cg in cg_map]
     bal_c = [p for p in vn if p.condition == "BAL C" and p.cg in cg_map]
     if not bal_a or not bal_c:
         return []
 
-    gw = vt.gross_weight_lb or max(c.weight_lb for c in fl.cg_cases)
+    # The fin's design weight: an explicit override, else the airplane's MTOW --
+    # read from its single owner (G-14) rather than re-derived as the heaviest CG
+    # case, which is the same number on every fixture and no longer a second
+    # opinion of it.
+    gw = vt.gross_weight_lb or max_takeoff_weight(project, required=False)
     izz = vt.izz_slugft2 or _default_izz(vt, gw)
     out: List[CriticalCondition] = []
 
@@ -766,7 +770,7 @@ def select_fuselage(project: Project, envelope: Optional[EnvelopeResult] = None)
     if not vn:
         return []
     si = project.select_input
-    mtow = max((c.weight_lb for c in fl.cg_cases), default=0.0)
+    mtow = max_takeoff_weight(project, required=False)
     ww = (si.wing_weight_lb if si and si.wing_weight_lb else 0.09 * mtow)
 
     def fus_on_wing(p: VnPoint) -> float:      # fuselage load reacted at the wing

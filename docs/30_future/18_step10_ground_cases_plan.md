@@ -907,10 +907,19 @@ change. Each piece is independently landable, independently claimable in
 | # | piece | decisions | why it is separable | digest expectation |
 |---|---|---|---|---|
 | **1** ✅ | **Governing safety-factor table** (M4-8) — **shipped 2026-08-14** | G-10, G-11 | Explicitly sequence-independent; shipped first so the ground family consumes an existing authority instead of becoming a third ad-hoc factor site | report/case-index channels gained the table; **no numeric value moved**, no digest changed |
-| **2** | **The schema hop** — tagged case list, roles, MLW, consumable, gear carrier + attach | G-2, G-3, G-4, G-5 | One `SCHEMA_VERSION` bump for the whole set rather than four; every new field defaults to today's behaviour | **nothing moves** — and if something does, the migration is not output-neutral |
+| **2** ✅ | **The schema hop** — tagged case list, roles, MLW, consumable, gear carrier + attach — **shipped 2026-08-14** | G-2, G-3, G-4, G-5, G-14 | One `SCHEMA_VERSION` bump for the whole set rather than four; every new field defaults to today's behaviour | **nothing moved** — `digests.json` untouched, and the `FLIGHT` set after migration is pinned per fixture to the pre-hop list |
 | **3** | **Ground cases + the gear report** | G-1, G-6, G-7, G-8, G-9, G-12, G-13 | The physics, once its inputs and its factor authority exist | `sbeam/balanced_deck` + `case_index` on ga6 and the RJ; a new gear-report channel on five fixtures |
 
 Backlog priority 1's original **L / L** rating predated pieces 1 and 2 and was
-low; the backlog was re-rated to this sequence on 2026-08-14, and piece 1 closed
-the same day (history: "Step 10 piece 1 — the governing safety-factor table").
-Pieces 2 and 3 are backlog priorities 1 and 2.
+low; the backlog was re-rated to this sequence on 2026-08-14, and **pieces 1 and 2
+both closed the same day** (history: "Step 10 piece 1 — the governing
+safety-factor table" and "Step 10 piece 2 — the weight/CG case model + gear
+inputs"). Piece 3 is backlog priority 1.
+
+Two things piece 2 deliberately left firing rather than fixed, because either
+would have made its "nothing moves" claim untrue — both filed with the guard that
+found them: `dhc8_dash8`'s gear mass tag (backlog Pri 30a; correcting it re-pins
+`mass_distribution.wing_mass_tie`) and the `applicability` / `direct_totals`
+design-weight re-point (Pri 30). G-2's third guard — the transfer preserves
+resultants about the CG at `rel_tol 1e-12` — tests the transfer and so lands with
+piece 3.

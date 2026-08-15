@@ -89,6 +89,7 @@ from sloads.modules.tail_span import build_tail_span, strip_spans  # noqa: E402
 from sloads.modules.wing_inertia import inertia_units  # noqa: E402
 from sloads.tail_geometry import HTAIL, VTAIL, resolve_tail_planform  # noqa: E402
 from sloads.units import Channel, UnitSystem, deliverable_units  # noqa: E402
+from sloads.cg_cases import flight_cases  # noqa: E402
 
 from imperial_baseline import EXAMPLES  # noqa: E402
 
@@ -404,7 +405,7 @@ def test_the_case_closes_in_all_three_symmetric_dof(example):
     exactly this quantity.
     """
     p = _project(example)
-    cgs = {c.name: c for c in p.flight_loads.cg_cases}
+    cgs = {c.name: c for c in flight_cases(p)}
     for case in build_balanced_cases(p):
         cg = cgs[case.cg]
         fx, fz, my = case_resultant(case.loads, (cg.xcg, 0.0, cg.zcg))
@@ -522,7 +523,7 @@ def test_the_deck_balances_from_its_own_cards(example, system):
     on what "small" means for a moment.
     """
     p = _project(example)
-    cgs = {c.name: c for c in p.flight_loads.cg_cases}
+    cgs = {c.name: c for c in flight_cases(p)}
     cases = build_balanced_cases(p)
     u = deliverable_units(system, Channel.SOLVER)
     grids, _, _, forces, moments = parse_cards(
@@ -575,7 +576,7 @@ def test_the_lateral_half_of_the_deck_gate_has_teeth():
         lines.append(line)
     assert hit, "no lateral FORCE card to reverse -- the deck format changed"
 
-    cg = {c.name: c for c in p.flight_loads.cg_cases}[case.cg]
+    cg = {c.name: c for c in flight_cases(p)}[case.cg]
     grids, _, _, forces, moments = parse_cards("\n".join(lines) + "\n")
     got = resultant(forces, moments, grids, sid, (cg.xcg, 0.0, cg.zcg))
     n_w = case.n_w * case.safety_factor
@@ -743,7 +744,7 @@ def test_the_roll_moment_is_the_applied_couple(example):
     about the CG, with no contribution from anything else in the assembly.
     """
     project = _project(example)
-    cgs = {c.name: c for c in project.flight_loads.cg_cases}
+    cgs = {c.name: c for c in flight_cases(project)}
     for case in build_balanced_cases(project):
         where = f"{example} {case.label}{case.hand}"
         if is_lateral(case):
@@ -998,7 +999,7 @@ def test_a_symmetric_case_reduces_to_three_dof(example):
     truth.
     """
     project = _project(example)
-    cgs = {c.name: c for c in project.flight_loads.cg_cases}
+    cgs = {c.name: c for c in flight_cases(project)}
     for case in build_balanced_cases(project):
         if case.hand:
             continue
@@ -1081,7 +1082,7 @@ def test_the_case_closes_in_all_six_dof(example):
     carrying a whole unreacted aileron couple.
     """
     project = _project(example)
-    cgs = {c.name: c for c in project.flight_loads.cg_cases}
+    cgs = {c.name: c for c in flight_cases(project)}
     for case in build_balanced_cases(project):
         cg = cgs[case.cg]
         fx, fy, fz, mx, my, mz = resultant6(case.loads, (cg.xcg, 0.0, cg.zcg))
@@ -1262,7 +1263,7 @@ def test_the_symmetric_half_of_a_lateral_case_still_closes(example):
     silently.
     """
     project = _project(example)
-    cgs = {c.name: c for c in project.flight_loads.cg_cases}
+    cgs = {c.name: c for c in flight_cases(project)}
     lateral = [c for c in build_balanced_cases(project) if is_lateral(c)]
     assert lateral, f"{example}: no lateral case"
     for case in lateral:
@@ -1394,7 +1395,7 @@ def test_the_trim_half_of_an_unsymmetrical_case_still_closes(example):
     the tail load and the residual would blow out.
     """
     project = _project(example)
-    cgs = {c.name: c for c in project.flight_loads.cg_cases}
+    cgs = {c.name: c for c in flight_cases(project)}
     vn = {p.case: p for p in default_envelope(project).vn}
     fl = project.flight_loads
     cases = _unsymmetrical(project)
@@ -1441,7 +1442,7 @@ def test_the_closure_is_solved_at_the_mass_centroid(example):
     on a loading nobody thought to check.
     """
     project = _project(example)
-    cgs = {c.name: c for c in project.flight_loads.cg_cases}
+    cgs = {c.name: c for c in flight_cases(project)}
     offsets = []
     for case in build_balanced_cases(project):
         cg = cgs[case.cg]

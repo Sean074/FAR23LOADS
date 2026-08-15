@@ -2,7 +2,7 @@
 
 > **Generated file — do not edit by hand.** Produced by [`docs/generate_data_dict.py`](../generate_data_dict.py) from `sloads/models.py`. Regenerate after any schema change: `.venv/bin/python docs/generate_data_dict.py`.
 
-Schema version: **46**.
+Schema version: **47**.
 
 This dictionary covers the **input** slices of `Project` (`sloads/models.py`) — the fields that make up a `project.json`. The result slices (`envelope`, `mass`, `loads`) are computed outputs and are out of scope.
 
@@ -25,7 +25,7 @@ The top-level `Project` fields. `name`/`engineer`/`date` are free-text metadata;
 | `speeds` | `?` | Structural Speeds | `aileron`, `flap`, `flight_envelope`, `mach_limit`, `one_engine_out`, `structural_speeds`, `tab` | Structural design speeds & load factors (STRSPEED) |
 | `aero` | `?` | Aerodynamic Data | `airloads`, `balance`, `net_loads` | Spanwise airload inputs (AIRLOADS) |
 | `aero_coeffs` | `?` | Aerodynamic Data | `flight_envelope`, `one_engine_out`, `select`, `structural_speeds` | Airplane-less-tail aero coefficients (FLTLOADS input) |
-| `flight_loads` | `?` | Flight Envelope (V-n) | `balance`, `balloads`, `body_loads`, `flight_envelope`, `select`, `tail_span`, `wing_inertia` | Flight envelope / balancing tail loads (FLTLOADS) |
+| `flight_loads` | `?` | Flight Envelope (V-n) | `balance`, `balloads`, `body_loads`, `flight_envelope`, `select`, `tail_span` | Flight envelope / balancing tail loads (FLTLOADS) |
 | `wing_mass` | `?` | Wing Loads | `balance`, `net_loads`, `wing_inertia` | Wing-mass distribution & load cases (WINGINER) |
 | `fuselage_mass` | `?` | Fuselage Loads | `body_loads` | Fuselage mass distribution (SELECT / Ch 15) |
 | `tail_mass` | `List[TailMassInput]` | Weight & Mass Properties (component tag) | `tail_span` | Empennage surface mass override — derived from the component-tagged weight.items by default (plan 09 T-3) |
@@ -93,9 +93,12 @@ Geometry/aero inputs for SELECT's rational vertical-tail loads (Ch 9).
 
 ## Enumerations
 
+- **`AnalysisKind`** — `FLIGHT` = `'flight'`, `GROUND` = `'ground'`. Which analysis a weight/CG case is run for (decision G-3).
 - **`EngineLayout`** — `SINGLE_NOSE` = `'1N'`, `TWIN_WING` = `'2W'`, `QUAD_WING` = `'4W'`. Where the engines sit, constrained to the layouts the suite models.
 - **`EngineType`** — `RECIPROCATING` = `'R'`, `TURBOPROP` = `'T'`.
 - **`EngineWeightType`** — `RECIP_4CYCLE` = `'RF'`, `RECIP_2CYCLE` = `'RT'`, `TURBOCHARGED` = `'TC'`, `TURBOPROP` = `'TP'`, `LIQUID_COOLED` = `'LC'`. Engine family used by WTESTIMA's installed-weight correlation (WTESTIMA.BAS     lines 230-290): the two-letter codes of the original program.
+- **`GearCarrier`** — `BODY` = `'body'`, `WING` = `'wing'`. Which structure carries a landing-gear leg's reaction (decision G-2).
+- **`GroundCaseRole`** — `AFT_MAX_LANDING` = `'aft_max_landing'`, `FWD_MAX_LANDING` = `'fwd_max_landing'`, `FWD_LIGHT` = `'fwd_light'`. The role a ``GROUND`` case plays in LANDLOAD's three-loading contract (G-3a).
 - **`MassComponent`** — `WING` = `'wing'`, `FUSELAGE` = `'fuselage'`, `HTAIL` = `'htail'`, `VTAIL` = `'vtail'`. Which structural component a mass item is carried by (plan 11 B-2, step B1).
 - **`MassItemKind`** — `EMPTY` = `'empty'`, `MINIMUM` = `'minimum'`, `DISCRETIONARY` = `'discretionary'`. Where a mass item sits in the loading hierarchy of WTONECG/WTENV.
 - **`RotorDirection`** — `CLOCKWISE` = `'CW'`, `COUNTERCLOCKWISE` = `'CC'`.

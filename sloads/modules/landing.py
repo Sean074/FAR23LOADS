@@ -22,11 +22,13 @@ lift were assumed (``K = NAP/NLG * K0``); the lever arms ``AP/BP/DP/CP`` of
 Appendix C Fig C23.1 are formed for each attitude and CG, then the per-wheel
 vertical / drag / side reactions follow per FAR section.
 
-Reads the three explicit per-CG loadings from ``Project.landing.cg_cases``
-(required since M2-8 -- **not** derived from ``Project.mass``, which this module
-does not read at all, so the landing workflow step requires no ``mass`` slice:
-M4-17a), the gear strut geometry from ``Project.geometry.landing_gear`` (Step G6b)
-and the wing area from ``Project.geometry`` when not given explicitly.
+Reads the three explicit per-CG loadings as the **roled ``GROUND`` weight/CG
+cases** of the one shared list (decision G-3/G-3a; required since M2-8 -- **not**
+derived from ``Project.mass``, which this module does not read at all, so the
+landing workflow step requires no ``mass`` slice: M4-17a), both design weights
+from their single owners on ``WeightInput`` (G-4 / G-14), the gear strut geometry
+from ``Project.geometry.landing_gear`` (Step G6b) and the wing area from
+``Project.geometry`` when not given explicitly.
 **Tricycle gear only** (UG Table 2.1).
 
 ``run`` emits the LGFACTOR condition, one critical-reaction summary per FAR ground
@@ -47,6 +49,7 @@ import math
 from typing import List, NamedTuple, Optional, Tuple
 
 from ..case_ids import CaseIdAllocator
+from ..cg_cases import landing_role_cases, max_landing_weight, max_takeoff_weight
 from ..constants import G
 from ..models import (
     MissingInputError,
@@ -60,7 +63,6 @@ from ..models import (
     Project,
 )
 from ..registry import register
-from ..validation import LANDING_CG_NAMES
 
 MODULE_NAME = "landing"
 
@@ -129,10 +131,10 @@ class _Geometry(NamedTuple):
     cp: List[List[float]]          # ground-roll vertical offset (attitude 1 only)
 
 
-def _geometry(inp: LandingInput, nlg: float, cgs: List[CgCase]) -> _Geometry:
+def _geometry(inp: LandingInput, nlg: float, cgs: List[CgCase], mlw: float) -> _Geometry:
     """Ground angles, BETA and the AP/BP/DP/CP lever arms (LANDLOAD.BAS 50-720)."""
     nap = nlg + inp.lift_factor
-    k0 = _appendix_c_k0(inp.max_landing_weight_lb)
+    k0 = _appendix_c_k0(mlw)
     k = nap / nlg * k0
     gamma = math.degrees(math.atan(k))
 
@@ -226,23 +228,29 @@ def _family(case: int) -> Tuple[str, str]:
 
 
 def landing_reactions(inp: LandingInput, lf_result: LoadFactorResult,
-                      cgs: List[CgCase]) -> List[GearReactionCase]:
+                      cgs: List[CgCase], *, mlw: float,
+                      mtow: float) -> List[GearReactionCase]:
     """The 24 main-wheel + 33 nose-wheel ground-condition reactions (LANDLOAD.BAS).
 
     ``cgs`` is the ordered [aft-max-landing, fwd-max-landing, fwd-light] loading;
     LANDLOAD cycles the three through each condition family. **The order is the
     contract** -- the weight tables below index ``cgs`` positionally, and the
-    ``cg_name`` carried on each record is cosmetic. ``_cg_cases`` canonicalizes the
-    order by name when the three canonical names are present; ``validation``
-    warns (``landing_cg_names``) when they are not."""
+    ``cg_name`` carried on each record is cosmetic. The order comes from each
+    case's explicit ``role`` (decision G-3a), resolved by
+    :func:`sloads.cg_cases.landing_role_cases`.
+
+    ``mlw`` and ``mtow`` are the two design weights, passed in from their single
+    owners on ``WeightInput`` (G-4 / G-14) rather than read off this slice: ``mlw``
+    is the reduced landing weight of 23.473(b)/(c) and sets ``K0``, and the ratio
+    ``WR = mtow/mlw`` scales cases 13-22 to the take-off weight."""
     if len(cgs) != 3:
         raise ValueError("LANDLOAD needs exactly 3 CG cases (aft/fwd max landing, fwd light)")
     nlg = inp.gear_load_factor or lf_result.gear_load_factor
     lf = inp.lift_factor
-    geo = _geometry(inp, nlg, cgs)
+    geo = _geometry(inp, nlg, cgs, mlw)
     k = geo.k
     ap, bp, dp, cp = geo.ap, geo.bp, geo.dp, geo.cp
-    wr = inp.gross_weight_lb / inp.max_landing_weight_lb if inp.max_landing_weight_lb else 1.0
+    wr = mtow / mlw if mlw else 1.0
     wcg = [cg.weight_lb for cg in cgs]
 
     # Per-case weight WL (1-based index 1..24); cases 13-22 use gross (WR), 23-24 the
@@ -434,8 +442,8 @@ def _wing_area(project: Project, inp: LandingInput) -> float:
     raise MissingInputError("landing needs a wing area (landing.wing_area_sqft or a geometry wing)")
 
 
-def _cg_cases(inp: LandingInput) -> List[CgCase]:
-    """The three landing CG cases, from explicit ``landing.cg_cases``.
+def _cg_cases(project: Project) -> List[CgCase]:
+    """LANDLOAD's three loadings, in role order (decision G-3a).
 
     LANDLOAD cycles three *distinct* loadings -- aft max landing, fwd max landing
     and fwd light (UG fig 18.2); the fwd/aft distinction drives the nose-gear and
@@ -448,24 +456,15 @@ def _cg_cases(inp: LandingInput) -> List[CgCase]:
     ``validation.wtenv_cg_limits`` and, for the forward limit read *at* the landing
     weight, ``validation.wtenv_fwd_cg_limit_at_weight``).
 
-    The three are consumed **positionally** by ``landing_reactions``, so when all
-    three canonical names are present they are reordered into the canonical order
-    here (M4-17d) -- a no-op on well-formed input, and defence in depth behind the
-    view's non-editable name column. A set with other names is passed through in row
-    order exactly as before; ``validation`` warns that it did."""
-    if not inp.cg_cases:
-        raise MissingInputError(
-            "landing needs explicit landing.cg_cases: three distinct CG loadings "
-            "(aft max landing, fwd max landing, fwd light) per UG fig 18.2. "
-            "Auto-derivation from Project.mass was removed (M2-8) -- the heaviest "
-            "mass case cannot supply distinct fwd/aft CG stations.")
-    if len(inp.cg_cases) != 3:
-        raise ValueError("landing.cg_cases must have exactly 3 entries")
-    names = [c.name.strip().lower() for c in inp.cg_cases]
-    if sorted(names) == sorted(LANDING_CG_NAMES):
-        by_name = dict(zip(names, inp.cg_cases))
-        return [by_name[n] for n in LANDING_CG_NAMES]
-    return list(inp.cg_cases)
+    The three are consumed **positionally** by ``landing_reactions``. Until step 10
+    piece 2 that order was recovered by matching names against
+    ``validation.LANDING_CG_NAMES``, falling back to entry order with a warning --
+    a renamed case silently reordered an oracle-locked reaction table. It is now an
+    explicit ``CgCase.role``, resolved by :func:`sloads.cg_cases.landing_role_cases`,
+    which raises rather than reordering or padding. Any further ``GROUND``-tagged
+    case without a role is assembled and distributed but never reaches here, so the
+    tag can grow while this module keeps its exact three-loading contract."""
+    return landing_role_cases(project)
 
 
 def _effective_gear_input(project: Project, inp: LandingInput) -> LandingInput:
@@ -495,14 +494,18 @@ def build_landing(project: Project) -> Tuple[LoadFactorResult, List[GearReaction
         raise MissingInputError("landing needs the 'landing' input slice")
     inp = _effective_gear_input(project, project.landing)
     s = _wing_area(project, inp)
-    lf = landing_load_factor(s, inp.max_landing_weight_lb, inp.strut_stroke_in,
+    # Both design weights are read from their single owners on ``WeightInput``
+    # (G-4 / G-14). MLW raises when unset rather than falling back; MTOW replaces
+    # the ``max(landing cg_cases)`` fallback that used to fill ``GW``, which
+    # returned **MLW** and silently made ``WR = 1.0``, understating the braked-roll,
+    # side and supplementary-nose cases by ~5 %.
+    mlw = max_landing_weight(project)
+    mtow = max_takeoff_weight(project)
+    lf = landing_load_factor(s, mlw, inp.strut_stroke_in,
                              inp.tire_od_in, inp.hub_diameter_in, inp.lift_factor,
                              inp.main_gear.strut == "O")
-    cgs = _cg_cases(inp)
-    # Fill gross weight from the heaviest CG case when not given (on the local copy).
-    if inp.gross_weight_lb <= 0:
-        inp = dataclasses.replace(inp, gross_weight_lb=max(cg.weight_lb for cg in cgs))
-    reactions = landing_reactions(inp, lf, cgs)
+    cgs = _cg_cases(project)
+    reactions = landing_reactions(inp, lf, cgs, mlw=mlw, mtow=mtow)
     return lf, reactions
 
 

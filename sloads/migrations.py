@@ -385,6 +385,115 @@ def _v43_tail_mass_override(d: Dict[str, Any]) -> Dict[str, Any]:
     return d
 
 
+#: LANDLOAD's three canonical loading names -> the ``GroundCaseRole`` they become.
+#: Every shipped fixture carries these names, and ``validation`` has warned when
+#: they were absent since M4-17d, so the mapping is a migration of *recorded*
+#: intent rather than a guess. A landing case whose name is not one of the three
+#: is folded in by **row position**, which is exactly what LANDLOAD did with it
+#: before the hop -- keeping faith with the file rather than improving on it.
+_LANDING_ROLE_BY_NAME = {
+    "aft max landing": "aft_max_landing",
+    "fwd max landing": "fwd_max_landing",
+    "fwd light": "fwd_light",
+}
+_LANDING_ROLE_ORDER = ("aft_max_landing", "fwd_max_landing", "fwd_light")
+
+
+def _same_point(a: Dict[str, Any], b: Dict[str, Any]) -> bool:
+    """Two case dicts describe the same loading: name **and** (W, xcg, zcg)."""
+    if str(a.get("name", "")).strip().lower() != str(b.get("name", "")).strip().lower():
+        return False
+    return all(float(a.get(k, 0.0) or 0.0) == float(b.get(k, 0.0) or 0.0)
+               for k in ("weight_lb", "xcg", "zcg"))
+
+
+def _v46_cg_case_model(d: Dict[str, Any]) -> Dict[str, Any]:
+    """Three case lists and six MTOWs collapse to one each (G-3, G-3b, G-4, G-14).
+
+    The hop is deliberately **output-neutral**, and the piece it belongs to is
+    claimed as "nothing moves", so each move is from the file's own value:
+
+    * every existing ``weight.cg_cases`` entry is tagged ``FLIGHT`` -- which is
+      what it was, since ``flight_loads.cg_cases`` has been a derived copy of this
+      list since v19 and the Flight Envelope page kept them equal;
+    * ``landing.cg_cases`` folds into the shared list tagged ``GROUND``, with a
+      ``role`` from its canonical name. Where a landing case matches a shared case
+      in name *and* in ``(weight_lb, xcg, zcg)`` the tags **merge onto the one
+      case** rather than duplicating it (measured 2026-08-14: no shipped fixture
+      does, but the two lists are siblings -- ga6's ``fwd light`` sits on ``CG3``'s
+      station to the hundredth -- so it will happen);
+    * ``landing.max_landing_weight_lb`` becomes ``weight.max_landing_weight_lb``;
+    * ``weight.max_takeoff_weight_lb`` is seeded from ``speeds.weight_lb``, which
+      measurement showed equals ``landing.gross_weight_lb`` and
+      ``weight.envelope.gross_weight`` on **every** shipped fixture. The STRSPEED
+      and WTENV oracles are therefore the guard on this line.
+
+    ``flight_loads.cg_cases``, ``landing.cg_cases``, ``landing.gross_weight_lb``
+    and ``landing.max_landing_weight_lb`` are dropped -- the readers no longer
+    describe them, and leaving them would restore the "two ways to say it" this
+    decision exists to remove.
+    """
+    weight = d.get("weight")
+    if not isinstance(weight, dict):
+        weight = {}
+    fl = d.get("flight_loads") if isinstance(d.get("flight_loads"), dict) else {}
+    landing = d.get("landing") if isinstance(d.get("landing"), dict) else {}
+
+    # A pre-v19 file whose cases only ever lived on flight_loads and that carries
+    # no weight slice at all: _v19_cg_cases needs a dict to write into, so it left
+    # them alone. Recover them here rather than dropping them below.
+    shared = weight.get("cg_cases")
+    if not shared and fl.get("cg_cases"):
+        shared = copy.deepcopy(fl["cg_cases"])
+    shared = [dict(c) for c in (shared or []) if isinstance(c, dict)]
+    for case in shared:
+        case.setdefault("analyses", ["flight"])
+
+    for i, raw in enumerate(landing.get("cg_cases") or []):
+        if not isinstance(raw, dict):
+            continue
+        case = dict(raw)
+        role = _LANDING_ROLE_BY_NAME.get(str(case.get("name", "")).strip().lower())
+        if role is None and i < len(_LANDING_ROLE_ORDER):
+            role = _LANDING_ROLE_ORDER[i]
+        existing = next((c for c in shared if _same_point(c, case)), None)
+        if existing is not None:
+            tags = list(existing.get("analyses") or ["flight"])
+            if "ground" not in tags:
+                tags.append("ground")
+            existing["analyses"] = sorted(tags)
+            if role and not existing.get("role"):
+                existing["role"] = role
+            continue
+        case["analyses"] = ["ground"]
+        if role:
+            case["role"] = role
+        shared.append(case)
+
+    if shared:
+        weight["cg_cases"] = shared
+
+    mlw = landing.pop("max_landing_weight_lb", None)
+    if mlw and not weight.get("max_landing_weight_lb"):
+        weight["max_landing_weight_lb"] = mlw
+
+    gross = landing.pop("gross_weight_lb", None)
+    if not weight.get("max_takeoff_weight_lb"):
+        speeds = d.get("speeds") if isinstance(d.get("speeds"), dict) else {}
+        envelope = weight.get("envelope") if isinstance(weight.get("envelope"), dict) else {}
+        mtow = (speeds.get("weight_lb") or gross or envelope.get("gross_weight")
+                or max((float(c.get("weight_lb", 0.0) or 0.0) for c in shared
+                        if "flight" in (c.get("analyses") or [])), default=0.0))
+        if mtow:
+            weight["max_takeoff_weight_lb"] = mtow
+
+    landing.pop("cg_cases", None)
+    fl.pop("cg_cases", None)
+    if weight:
+        d["weight"] = weight
+    return d
+
+
 # --------------------------------------------------------------------------- #
 # The chain
 # --------------------------------------------------------------------------- #
@@ -402,6 +511,7 @@ MIGRATIONS: Dict[int, Callable[[Dict[str, Any]], Dict[str, Any]]] = {
     39: _v39_mach_limit_mc_md,
     40: _v40_fuselage_stations_override,
     43: _v43_tail_mass_override,
+    46: _v46_cg_case_model,
 }
 
 #: The oldest project version whose *shape* is described by a hop. Below this a

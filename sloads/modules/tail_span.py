@@ -131,6 +131,7 @@ from ..models import (
     VnPoint,
     WingStationLoad,
 )
+from ..cg_cases import flight_cases
 from ..registry import register
 from ..tail_geometry import HTAIL, VTAIL, TailPlanform, is_t_tail, resolve_tail_planform
 from .select import default_critical, vn_points
@@ -729,7 +730,7 @@ def _case_weight(project: Project, cond: CriticalCondition,
     point = next((p for p in vn_points if p.case == cond.case), None)
     if point is None:
         return 0.0
-    case = next((c for c in fl.cg_cases if c.name == point.cg), None)
+    case = next((c for c in flight_cases(project) if c.name == point.cg), None)
     return case.weight_lb if case is not None else 0.0
 
 

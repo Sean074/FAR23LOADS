@@ -12,7 +12,9 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from sloads import Project, io, registry  # noqa: E402
+from sloads.cg_cases import flight_cases, ground_cases  # noqa: E402
 from sloads.models import SCHEMA_VERSION, EngineType  # noqa: E402
+from sloads.validation import LANDING_CG_NAMES  # noqa: E402
 from fixtures import io520bb  # noqa: E402
 
 EXAMPLES = os.path.join(
@@ -191,23 +193,28 @@ def test_estimation_crew_default_on_old_file():
 
 def test_weight_cg_cases_round_trips_through_io():
     """Step D5: WeightInput.cg_cases is the shared loading-scenario list the
-    Weight/CG Grid page owns (SCHEMA_VERSION 19)."""
+    Weight/CG Grid page owns (SCHEMA_VERSION 19) -- and since decision G-3 the
+    *only* one, each case carrying the analyses it is run for."""
     project = io.load_project(GA6)
     assert project.weight.cg_cases, "the GA6 example should carry migrated cg_cases"
-    names = {c.name for c in project.weight.cg_cases}
-    assert names == {"CG1", "CG2", "CG3", "CG4"}
+    assert {c.name for c in flight_cases(project)} == {"CG1", "CG2", "CG3", "CG4"}
+    assert {c.name for c in ground_cases(project)} == set(LANDING_CG_NAMES)
 
     d = io.project_to_dict(project)
     assert d["weight"]["cg_cases"][0]["name"] == "CG1"
+    assert d["weight"]["cg_cases"][0]["analyses"] == ["flight"]
+    assert "role" not in d["weight"]["cg_cases"][0], "an unset role is not written"
     again = io.project_from_dict(d)
-    assert [c.name for c in again.weight.cg_cases] == [c.name for c in project.weight.cg_cases]
+    assert [(c.name, c.analyses, c.role) for c in again.weight.cg_cases] == \
+        [(c.name, c.analyses, c.role) for c in project.weight.cg_cases]
 
 
 def test_legacy_flight_loads_cg_cases_migrate_to_weight():
     """Pre-schema-19 files carried the loading scenarios only under
     ``flight_loads.cg_cases``; loading one must still populate
-    ``Project.weight.cg_cases`` (Step D5 migration) without disturbing the
-    calc-facing ``FlightLoadsInput.cg_cases`` the FLTLOADS/SELECT modules read.
+    ``Project.weight.cg_cases`` (Step D5 migration), tagged FLIGHT so the
+    calc-facing resolver the FLTLOADS/SELECT modules read returns exactly them
+    (decision G-3b's migration guard).
 
     M4-10: the fixture now declares ``schema_version = 18``, i.e. it really is a
     pre-v19 file. Before the migration chain the shim ran on *every* file
@@ -216,12 +223,19 @@ def test_legacy_flight_loads_cg_cases_migrate_to_weight():
     ``weight.cg_cases`` had them silently invented from ``flight_loads``. The
     chain runs the hop only for files old enough to need it."""
     legacy = io.project_to_dict(io.load_project(GA6))
+    # Reconstruct the genuine pre-v19 shape: the cases lived *only* on
+    # flight_loads. (Writing them there is no longer a round-trip of the current
+    # schema either -- decision G-3b removed that field, so this is the fixture
+    # building an old file rather than a current one being downgraded.)
+    legacy["flight_loads"]["cg_cases"] = [
+        {"name": c["name"], "weight_lb": c["weight_lb"],
+         "xcg": c["xcg"], "zcg": c["zcg"]}
+        for c in legacy["weight"]["cg_cases"] if c["analyses"] == ["flight"]]
     del legacy["weight"]["cg_cases"]
     legacy["schema_version"] = 18
 
     rebuilt = io.project_from_dict(legacy)
-    assert [c.name for c in rebuilt.weight.cg_cases] == ["CG1", "CG2", "CG3", "CG4"]
-    assert [c.name for c in rebuilt.flight_loads.cg_cases] == ["CG1", "CG2", "CG3", "CG4"]
+    assert [c.name for c in flight_cases(rebuilt)] == ["CG1", "CG2", "CG3", "CG4"]
 
 
 def test_critical_load_set_selected_case_ids_round_trip():

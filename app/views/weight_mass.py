@@ -29,7 +29,10 @@ import streamlit as st
 from components import gate, page_header, workflow_page_link
 
 from sloads import (
+    AnalysisKind,
     CgCase,
+    GROUND_CASE_ROLE_ORDER,
+    GroundCaseRole,
     EngineWeightType,
     MassItem,
     MassItemKind,
@@ -53,6 +56,7 @@ from sloads.report import module_text_report
 from sloads.report.methods import bdf_comment_block
 from sloads import mass_distribution
 from sloads.export import mass_cards
+from sloads.cg_cases import max_landing_weight_estimate, seed_landing_cases
 from sloads.validation import wtenv_cg_limits
 
 
@@ -221,6 +225,8 @@ def _tab_estimate(project: Project, system: UnitSystem, U: dict) -> None:
         project.weight = WeightInput(
             estimation=inp, items=seed_items, envelope=project.weight.envelope,
             cg_cases=project.weight.cg_cases,
+            max_landing_weight_lb=project.weight.max_landing_weight_lb,
+            max_takeoff_weight_lb=project.weight.max_takeoff_weight_lb,
         )
         st.session_state["project"] = project
         st.success(
@@ -263,13 +269,15 @@ def _tab_cg_inertia(project: Project, system: UnitSystem, U: dict) -> None:
              "x": _disp(it.x, "length"), "y": _disp(it.y, "length"), "z": _disp(it.z, "length"),
              "ixx": _disp(it.ixx, "inertia_lbin2"), "iyy": _disp(it.iyy, "inertia_lbin2"),
              "izz": _disp(it.izz, "inertia_lbin2"), "kind": it.kind.value,
-             "component": it.component.value if it.component else ""}
+             "component": it.component.value if it.component else "",
+             "consumable": it.consumable}
             for it in items
         ])
     else:
         default_df = pd.DataFrame([
             {"name": "", "weight_lb": 0.0, "x": 0.0, "y": 0.0, "z": 0.0,
-             "ixx": 0.0, "iyy": 0.0, "izz": 0.0, "kind": "empty", "component": ""}
+             "ixx": 0.0, "iyy": 0.0, "izz": 0.0, "kind": "empty", "component": "",
+             "consumable": False}
         ])
 
     st.subheader("Weight data base")
@@ -313,6 +321,14 @@ def _tab_cg_inertia(project: Project, system: UnitSystem, U: dict) -> None:
             help="Which structural component carries this weight. Drives the "
                  "fuselage beam stations, the wing panel mass and the empennage "
                  "surface weights. Blank = untagged, treated as fuselage."),
+        "consumable": st.column_config.CheckboxColumn(
+            "consumable",
+            help="Mission fuel and anything else burned or expended down to a "
+                 "partial value. Deriving a loading for a GROUND case burns these "
+                 "down proportionally before dropping any payload — a design "
+                 "landing weight is fuel burned off (14 CFR 23.473(b)/(c)), not a "
+                 "passenger left behind. Reserve fuel stays aboard, so tag it "
+                 "*minimum* and leave this clear."),
     }
     with st.form("weight_items_form"):
         edited = st.data_editor(
@@ -350,13 +366,18 @@ def _tab_cg_inertia(project: Project, system: UnitSystem, U: dict) -> None:
                 izz=_imp(float(row.get("izz", 0) or 0), "inertia_lbin2"),
                 kind=kind,
                 component=component,
+                consumable=bool(row.get("consumable", False)),
             ))
         # Merge-write: keep estimation, envelope and cg_cases owned by other tabs.
         estimation = project.weight.estimation if project.weight else None
         envelope = project.weight.envelope if project.weight else None
         cg_cases = project.weight.cg_cases if project.weight else []
-        project.weight = WeightInput(estimation=estimation, items=mass_items,
-                                     envelope=envelope, cg_cases=cg_cases)
+        project.weight = WeightInput(
+            estimation=estimation, items=mass_items, envelope=envelope,
+            cg_cases=cg_cases,
+            max_landing_weight_lb=project.weight.max_landing_weight_lb if project.weight else 0.0,
+            max_takeoff_weight_lb=project.weight.max_takeoff_weight_lb if project.weight else 0.0,
+        )
         # M4-17a: persist the derived mass-properties slice, so the weight_mass step's
         # produces="mass" finally turns ✅ and the downstream consumers have a real
         # source -- ONENGOUT's IZZ, configuration.cg_estimate's "Weight DB" branch and
@@ -433,13 +454,38 @@ def _tab_cg_inertia(project: Project, system: UnitSystem, U: dict) -> None:
 
 
 # --------------------------------------------------------------------------- #
+#: The "no landing role" selectbox entry. A blank string reads as an unset cell in
+#: ``st.data_editor``; a named option makes "this case is not one of LANDLOAD's
+#: three" an explicit choice rather than an omission.
+_NO_ROLE = "—"
+
+
+def _analyses(row) -> set:
+    """The ``analyses`` set from the two checkbox columns (decision G-3c)."""
+    out = set()
+    if bool(row.get("flight", False)):
+        out.add(AnalysisKind.FLIGHT)
+    if bool(row.get("ground", False)):
+        out.add(AnalysisKind.GROUND)
+    return out
+
+
+def _role(row):
+    """The ``GroundCaseRole`` from the selectbox column, or ``None``."""
+    raw = str(row.get("role", _NO_ROLE) or _NO_ROLE)
+    return GroundCaseRole(raw) if raw != _NO_ROLE else None
+
+
+# --------------------------------------------------------------------------- #
 # Tab 3 -- Payload Cases (shared loading scenarios, Project.weight.cg_cases)
 # --------------------------------------------------------------------------- #
 def _tab_payload_cases(project: Project, system: UnitSystem, U: dict) -> None:
     st.caption(
-        "Named weight/CG loading scenarios, defined once and shared by the Weight / "
-        "CG Envelope chart and the Flight Envelope (FLTLOADS) balance — so the two "
-        "can no longer diverge."
+        "Named weight/CG loading scenarios, defined once here and shared by every "
+        "analysis — the Weight / CG Envelope chart, the Flight Envelope (FLTLOADS) "
+        "balance and, since decision G-3, the LANDLOAD ground conditions. **This "
+        "tab is the sole editor**: tag each case with the analyses it is run for, "
+        "and give the three landing loadings their role."
     )
     if project.weight is None or not project.weight.items:
         st.warning("No weight data base found. Add component weights on the "
@@ -450,19 +496,35 @@ def _tab_payload_cases(project: Project, system: UnitSystem, U: dict) -> None:
     with st.form("payload_cases_form"):
         st.subheader("Loading scenarios")
         st.caption(
-            "One row per named CG case (e.g. forward/aft/ramp loadings): total weight "
-            "and the resultant fuselage station / waterline of the CG."
+            "One row per named CG case (e.g. forward/aft/ramp loadings): total weight, "
+            "the resultant fuselage station / waterline of the CG, the analyses it is "
+            "run for, and — for the three GROUND loadings LANDLOAD cycles — its role. "
+            "A case run for **nothing** is an entry error, not a state: it disappears "
+            "from every result while still occupying a row."
         )
         default_rows = pd.DataFrame(
-            [[c.name, to_display(c.weight_lb, "weight", system), to_display(c.xcg, "length", system),
-              to_display(c.zcg, "length", system)] for c in existing]
-            or [["CG1", 0.0, 0.0, 0.0]],
-            columns=["name", "weight_lb", "xcg", "zcg"],
+            [[c.name, to_display(c.weight_lb, "weight", system),
+              to_display(c.xcg, "length", system), to_display(c.zcg, "length", system),
+              AnalysisKind.FLIGHT in c.analyses, AnalysisKind.GROUND in c.analyses,
+              c.role.value if c.role else _NO_ROLE] for c in existing]
+            or [["CG1", 0.0, 0.0, 0.0, True, False, _NO_ROLE]],
+            columns=["name", "weight_lb", "xcg", "zcg", "flight", "ground", "role"],
         )
         payload_cols = {
             "weight_lb": st.column_config.NumberColumn(f"weight_lb ({U['weight']})"),
             "xcg": st.column_config.NumberColumn(f"xcg ({U['length']})"),
             "zcg": st.column_config.NumberColumn(f"zcg ({U['length']})"),
+            "flight": st.column_config.CheckboxColumn(
+                "FLIGHT", help="Run for the V-n envelope, the balancing tail loads "
+                               "and SELECT."),
+            "ground": st.column_config.CheckboxColumn(
+                "GROUND", help="Run for the landing / ground-handling families "
+                               "(14 CFR 23.471-23.511)."),
+            "role": st.column_config.SelectboxColumn(
+                "Landing role", options=[_NO_ROLE] + [r.value for r in GROUND_CASE_ROLE_ORDER],
+                help="LANDLOAD consumes exactly one case per role, in role order "
+                     "(UG fig 18.2). A GROUND case with no role is assembled and "
+                     "distributed but never fed to LANDLOAD."),
         }
         rows = st.data_editor(
             default_rows, column_config=payload_cols, num_rows="dynamic", hide_index=True,
@@ -474,18 +536,50 @@ def _tab_payload_cases(project: Project, system: UnitSystem, U: dict) -> None:
         cases = [
             CgCase(name=str(r["name"]), weight_lb=to_imperial_scalar(float(r["weight_lb"]), "weight", system),
                    xcg=to_imperial_scalar(float(r["xcg"]), "length", system),
-                   zcg=to_imperial_scalar(float(r["zcg"]), "length", system))
+                   zcg=to_imperial_scalar(float(r["zcg"]), "length", system),
+                   analyses=_analyses(r), role=_role(r))
             for _, r in rows.iterrows()
             if pd.notna(r["weight_lb"]) and pd.notna(r["xcg"]) and str(r["name"]).strip()
         ]
-        # This tab owns cg_cases exclusively; merge to keep estimation/items/envelope.
+        # This tab owns cg_cases exclusively; merge to keep estimation/items/envelope
+        # and the two design-weight SSOTs the Weight/CG tab owns.
         w = project.weight
         project.weight = WeightInput(
             estimation=w.estimation, items=w.items, envelope=w.envelope, cg_cases=cases,
+            max_landing_weight_lb=w.max_landing_weight_lb,
+            max_takeoff_weight_lb=w.max_takeoff_weight_lb,
         )
         st.session_state["project"] = project
         st.success(f"{len(cases)} loading scenario(s) applied.")
         existing = cases
+
+    # The three roled GROUND loadings LANDLOAD needs -- offered, never written
+    # silently, and refused outright when any cell has no real source (M4-17c).
+    if not [c for c in existing if c.role is not None]:
+        st.subheader("Landing loadings")
+        seeded, missing = seed_landing_cases(project)
+        if missing:
+            st.warning(
+                "The three LANDLOAD loadings (aft max landing / fwd max landing / "
+                "fwd light; UG fig 18.2) cannot be seeded — no source for "
+                + "; ".join(missing) + ". Enter them as GROUND-tagged rows above "
+                "with a role, or fill those sources first. A cell is never "
+                "defaulted to zero: a zero waterline puts the CG on the ground "
+                "line and inverts the nose-gear reaction.")
+        elif st.button("Seed the three landing loadings from WTENV",
+                       key="seed_landing_cases"):
+            w = project.weight
+            project.weight = WeightInput(
+                estimation=w.estimation, items=w.items, envelope=w.envelope,
+                cg_cases=list(w.cg_cases) + seeded,
+                max_landing_weight_lb=w.max_landing_weight_lb,
+                max_takeoff_weight_lb=w.max_takeoff_weight_lb,
+            )
+            st.session_state["project"] = project
+            st.success("Seeded the three landing loadings — **confirm the forward "
+                       "vs aft stations**, which WTENV cannot distinguish per "
+                       "loading.")
+            existing = project.weight.cg_cases
 
     if not existing:
         st.info("No loading scenarios defined yet — add rows above and Apply.")
@@ -496,7 +590,9 @@ def _tab_payload_cases(project: Project, system: UnitSystem, U: dict) -> None:
         pd.DataFrame([
             {"Name": c.name, f"Weight ({U['weight']})": to_display(c.weight_lb, "weight", system),
              f"Xcg ({U['length']})": to_display(c.xcg, "length", system),
-             f"Zcg ({U['length']})": to_display(c.zcg, "length", system)}
+             f"Zcg ({U['length']})": to_display(c.zcg, "length", system),
+             "Analyses": ", ".join(sorted(a.value for a in c.analyses)) or "— none —",
+             "Landing role": c.role.value if c.role else ""}
             for c in existing
         ]),
         hide_index=True, use_container_width=True,
@@ -521,9 +617,44 @@ def _tab_envelope(project: Project, system: UnitSystem, U: dict) -> None:
         return
 
     existing = project.weight.envelope
-    # Design weight: read-through from the Weight DB (the same source Structural
-    # Speeds reads), so it is not entered a third time.
-    mtow_upstream = project.weight.direct_totals()[0]
+
+    # --- The two design weights (decisions G-4 / G-14) --------------------- #
+    # Certified airplane-level limits, not properties of a loading, so they are
+    # entered once here and read everywhere else through ``sloads.cg_cases``.
+    st.subheader("Design weights")
+    st.caption(
+        "MTOW and MLW are **single inputs** and the sole owners of those two "
+        "numbers: LANDLOAD's WR = MTOW/MLW, the max-landing loadings' weight and "
+        "the FAR 23 12,500 lb applicability gate all read them from here. The "
+        "ordering chain OEW ≤ MLW ≤ MTOW ≤ Σ items is checked below."
+    )
+    dw1, dw2 = st.columns(2)
+    mtow_disp = dw1.number_input(
+        f"Max take-off weight, MTOW ({U['weight']})", min_value=0.0,
+        value=float(round(to_display(project.weight.max_takeoff_weight_lb, "weight", system), 4)),
+        help="A single scalar, assumed constant between the forward and aft CG "
+             "limits (decision G-14). The item-database total is an upper bound, "
+             "not this: a database can hold full fuel *and* full payload at once.",
+        key=f"mtow_{system.value}")
+    mtow_ssot = to_imperial_scalar(mtow_disp, "weight", system)
+    mlw_disp = dw2.number_input(
+        f"Max landing weight, MLW ({U['weight']})", min_value=0.0,
+        value=float(round(to_display(project.weight.max_landing_weight_lb, "weight", system), 4)),
+        help="Typically 0.95·MTOW (14 CFR 23.473(b)/(c)). Never derived silently — "
+             "the estimate below is offered for acceptance, not written for you.",
+        key=f"mlw_{system.value}")
+    mlw_ssot = to_imperial_scalar(mlw_disp, "weight", system)
+    _floor = max_landing_weight_estimate(project)
+    if _floor:
+        st.caption(
+            "MLW estimate from the item database — OEW + max payload + reserve fuel "
+            f"(consumable mission fuel excluded): **{to_display(_floor, 'weight', system):,.0f} "
+            f"{U['weight']}**. It is a *floor*: entering less means the airplane "
+            "cannot land at MLW with full payload and reserves.")
+
+    # Design weight for the envelope: read-through from the Weight DB (the same
+    # source Structural Speeds reads), so it is not entered a third time.
+    mtow_upstream = mtow_ssot or project.weight.direct_totals()[0]
 
     st.subheader("Structural limits")
     override_weight = st.checkbox(
@@ -563,6 +694,7 @@ def _tab_envelope(project: Project, system: UnitSystem, U: dict) -> None:
     project.weight = WeightInput(
         estimation=project.weight.estimation, items=project.weight.items, envelope=inp,
         cg_cases=project.weight.cg_cases,
+        max_landing_weight_lb=mlw_ssot, max_takeoff_weight_lb=mtow_ssot,
     )
     st.session_state["project"] = project
 

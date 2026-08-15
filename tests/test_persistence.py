@@ -122,6 +122,11 @@ def _fill(tp, counter):
         return tuple(_fill(a, counter) for a in args)
     if origin in (dict, typing.Dict):
         return {"k": _fill(args[1], counter)}
+    if origin in (set, typing.Set, frozenset, typing.FrozenSet):
+        # ``CgCase.analyses`` (decision G-3c). A *full* set is the distinct-from-
+        # default value here: the default is the single-member ``{FLIGHT}``, so
+        # filling with one member could pass while the writer dropped the tag.
+        return set(args[0]) if issubclass(args[0], enum.Enum) else {_fill(args[0], counter)}
     if isinstance(tp, type) and issubclass(tp, enum.Enum):
         return list(tp)[-1]                          # a non-default member
     if isinstance(tp, type) and dataclasses.is_dataclass(tp):

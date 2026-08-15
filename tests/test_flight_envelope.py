@@ -24,13 +24,13 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from sloads import (  # noqa: E402
     AeroCoefficientsInput,
     AeroCoeffSet,
-    CgCase,
     FlightLoadsInput,
     Project,
     io,
 )
 from sloads.modules import flight_envelope as fe  # noqa: E402
 from sloads.modules.flight_envelope import build_envelope, design_inputs  # noqa: E402
+from sloads.cg_cases import flight_cases  # noqa: E402
 
 _EXAMPLES = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "examples")
 _GA = os.path.join(_EXAMPLES, "ga6_normal.project.json")
@@ -162,7 +162,7 @@ def test_balance_zeroes_pitching_moment_about_cg():
     # By construction LT zeroes the moment sum about the CG (Ch 8 balance).
     project = io.load_project(_GA)
     fl = project.flight_loads
-    cg = fl.cg_cases[0]
+    cg = flight_cases(project)[0]
     p = next(pt for pt in build_envelope(project).vn if pt.condition == "MAN A")
     moment = (p.m_wf + p.lzw * (cg.xcg - fl.xw) - p.dx * (cg.zcg - fl.zw)
               - p.lt * (fl.xtc - cg.xcg))
@@ -204,16 +204,17 @@ def test_flight_loads_slice_round_trips_through_io():
     # +/-0.1% of the Appendix A 69.246, zw from the parametric wing reference plane).
     assert math.isclose(fl.mac, 69.246, rel_tol=1e-3)
     assert math.isclose(fl.zw, 87.734, rel_tol=1e-3)
-    assert fl.cg_cases[0].name == "CG1"
+    assert flight_cases(rebuilt)[0].name == "CG1"
 
 
 def test_flight_loads_wing_geometry_not_persisted():
     """Step M2-6: the derived wing scalars are dropped from the serialized slice
-    (single source is Project.geometry) -- only the tail-CP/Mach/altitude/CG inputs
-    survive on the flight_loads dict."""
+    (single source is Project.geometry) -- only the tail-CP/Mach/altitude inputs
+    survive on the flight_loads dict. The weight/CG cases left it too, at decision
+    G-3b: ``weight.cg_cases`` is the one list."""
     project = io.load_project(_GA)
     d = io.project_to_dict(project)["flight_loads"]
-    for k in ("mac", "wing_area_sqft", "xw", "zw"):
+    for k in ("mac", "wing_area_sqft", "xw", "zw", "cg_cases"):
         assert k not in d
 
 
@@ -318,32 +319,27 @@ def test_bal_1p4vsf_balances_at_one_g_flaps_down_stall():
     assert math.isclose(bal.cl, 0.89, abs_tol=0.02)           # manual +0.89
 
 
-def test_merged_replaces_altitudes_and_cg_cases():
-    """Step D5: the Flight Envelope page now edits the *whole* altitude list
-    (multi-altitude V-n) and reads the whole CG-case list read-only from the
-    Weight/CG Grid page (``Project.weight.cg_cases``) -- so ``merged()`` simply
-    replaces both wholesale on every Apply; there is nothing partial left to
-    preserve (Step D4.1 moved the analogous aero-coefficients guarantee to the
-    view's ``AeroCoefficientsInput`` assignment in ``app/views/flight_envelope.py``)."""
+def test_merged_replaces_the_altitude_list():
+    """Step D5 / decision G-3b: the Flight Envelope page edits the *whole* altitude
+    list (multi-altitude V-n), and the weight/CG cases are no longer on this slice
+    at all -- they left it at G-3b, since ``flight_loads.cg_cases`` had been a
+    derived copy of ``weight.cg_cases`` since v19 and a second way to say the same
+    thing is what that decision removes. ``merged()`` therefore replaces the
+    altitude list wholesale and there is nothing partial left to preserve."""
     fl = FlightLoadsInput(mac=69.246, wing_area_sqft=184.125, xw=80.953, zw=87.725,
                           xtc=253.364, xtf=261.027, mn=0.1,
-                          altitudes_ft=[0.0, 20000.0],
-                          cg_cases=[CgCase("CG1", 3400.0, 85.1, 93.0)])
+                          altitudes_ft=[0.0, 20000.0])
 
-    new_cg = [CgCase("CG1", 3400.0, 85.1, 93.0), CgCase("CG2", 2800.0, 80.0, 93.0)]
-    # Step M2-6: merged() no longer takes the wing geometry (mac/S/xw/zw are derived);
-    # the page owns only the tail-CP stations, reference Mach and altitude list.
     merged = fl.merged(xtc=253.364, xtf=261.027, mn=0.1,
-                       altitudes_ft=[10000.0, 5000.0], cg_cases=new_cg)
+                       altitudes_ft=[10000.0, 5000.0])
 
     # The derived wing scalars carry through from the source slice unchanged.
     assert merged.mac == 69.246
     assert merged.zw == 87.725
     assert merged.altitudes_ft == [10000.0, 5000.0]
-    assert len(merged.cg_cases) == 2
+    assert not hasattr(merged, "cg_cases"), "the case list is owned by WeightInput"
     # The original slice is untouched (merged() returns a new instance).
     assert fl.altitudes_ft == [0.0, 20000.0]
-    assert len(fl.cg_cases) == 1
 
 
 def test_aero_coefficients_input_preserves_flaps_down_on_cruise_edit():

@@ -184,7 +184,17 @@ def fields_hash() -> str:
 #: ``None`` default, and the writer emits the key only when an override exists, so
 #: absent *is* the documented value -- the factors 14 CFR 23.303/25.303 derives --
 #: and every shipped fixture round-trips byte-for-byte. No migration hop.
-EXPECTED_FIELDS_HASH = "085f66349f552663"
+#: step 10 piece 2 (v47): the weight/CG case model and the gear inputs (decisions
+#: G-2, G-3, G-4, G-5, G-14). ``CgCase`` gains ``analyses``/``role``;
+#: ``WeightInput`` gains ``max_landing_weight_lb``/``max_takeoff_weight_lb``;
+#: ``MassItem`` gains ``consumable``; ``LandingGearInput`` gains
+#: ``carrier``/``attach``; and ``FlightLoadsInput.cg_cases``,
+#: ``LandingInput.cg_cases``, ``LandingInput.gross_weight_lb`` and
+#: ``LandingInput.max_landing_weight_lb`` are **removed**. Removals and a
+#: relocation are exactly what this tripwire exists for: absent is *not* the old
+#: behaviour for any of them, so the hop ``migrations._v46_cg_case_model`` carries
+#: each value across from the file's own rather than letting a reader default it.
+EXPECTED_FIELDS_HASH = "f867ef9fdd3bf036"
 
 
 def test_persisted_dataclass_shapes_are_unchanged():

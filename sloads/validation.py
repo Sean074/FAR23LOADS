@@ -60,8 +60,17 @@ import math
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Dict, List, Optional
 
+from . import cg_cases
 from .constants import ULTIMATE_FACTOR
-from .models import Project
+from .modules.wing_geometry import interp_x
+from .models import (
+    GROUND_CASE_ROLE_ORDER,
+    AnalysisKind,
+    GearCarrier,
+    MassComponent,
+    MissingInputError,
+    Project,
+)
 
 if TYPE_CHECKING:  # pragma: no cover - typing only
     from .models import GearReactionCase
@@ -75,8 +84,10 @@ PAGE_EXPORT = "export_report"
 PAGE_LANDING = "landing_loads"
 PAGE_AERO_COEFFS = "aero_coefficients"
 
-# The three canonical LANDLOAD loadings, in the positional order the calc consumes
-# (UG fig 18.2). Shared with ``modules.landing._cg_cases`` and the Landing Loads view.
+# The three canonical LANDLOAD loadings, in the order LANDLOAD consumes them (UG
+# fig 18.2). Since decision G-3a the *contract* is ``CgCase.role``, not the name --
+# these survive as the display names the GUI seeds a new project with and as the
+# source the v46 migration reads a legacy file's roles from.
 LANDING_CG_NAMES = ("aft max landing", "fwd max landing", "fwd light")
 
 # Fractional tolerance for the Configuration-vs-WINGGEOM wing-area agreement check.
@@ -531,13 +542,10 @@ def _check_safety_factor_overrides(project: Project) -> List[ConsistencyWarning]
 def _check_landing_hierarchy(project: Project) -> List[ConsistencyWarning]:
     """The LANDLOAD weight/CG hierarchy (M4-17d). Warn-only -- no math changes.
 
-    LANDLOAD consumes the three loadings **positionally** (aft max landing, fwd max
-    landing, fwd light; UG fig 18.2) and derives ``WR = GW/W``, so an inconsistent
-    set computes silently and plausibly. The checks:
+    LANDLOAD consumes its three loadings **positionally** (aft max landing, fwd max
+    landing, fwd light; UG fig 18.2) and derives ``WR = MTOW/MLW``, so an
+    inconsistent set computes silently and plausibly. The checks:
 
-    * ``gross_ge_max_landing`` -- GW >= W. ``WR`` scales the braked-roll, side and
-      supplementary-nose cases; a gross override below the landing weight gives
-      WR < 1 and **under**-predicts those reactions (unconservative).
     * ``landing_light_le_max`` -- the fwd-light loading must not exceed the max
       landing weight; it is the light corner of the envelope.
     * ``landing_cg_ordering`` -- the aft loading's station must be aft of both
@@ -546,29 +554,29 @@ def _check_landing_hierarchy(project: Project) -> List[ConsistencyWarning]:
     * ``landing_cg_below_axle`` -- every ``zcg`` must be above the static main-axle
       waterline. A CG at or below the axle is geometrically impossible for a
       tricycle airplane, and is the signature of the zero-waterline seed (M4-17c).
-    * ``landing_cg_names`` -- the loadings are not the canonical triple, so the calc
-      cannot canonicalize their order and falls back to positional assignment.
+    * ``landing_case_weight_is_mlw`` -- decision G-4 made MLW the single owner of
+      the landing weight, so a roled max-landing case that disagrees with it is an
+      **error**, not a preference: it is one number, and a certified airplane-level
+      limit rather than a property of a loading.
 
-    Silent on the Appendix-A GA fixture (3400 >= 3230; 2803 <= 3230; 85.1 aft of
-    76.12/72.64; zcg 92-93 in above the 59.6 in static axle; names canonical).
+    ``gross_ge_max_landing`` and ``landing_cg_names`` are gone with the fields they
+    policed. ``GW`` is no longer an overridable copy on the landing slice but the
+    MTOW SSOT, and the ordering chain below checks ``MLW <= MTOW`` for every
+    project rather than only for one with three landing cases; the canonical-name
+    check was the workaround for the positional contract that ``CgCase.role``
+    replaced (G-3a).
+
+    Silent on the Appendix-A GA fixture (2803 <= 3230; 85.1 aft of 76.12/72.64;
+    zcg 92-93 in above the 59.6 in static axle; both max-landing cases at 3230).
     """
-    inp = project.landing
-    if inp is None or len(inp.cg_cases) != 3:
+    try:
+        cgs = cg_cases.landing_role_cases(project)
+    except (MissingInputError, ValueError):
         return []
     out: List[ConsistencyWarning] = []
-    aft, fwd_max, fwd_light = inp.cg_cases
-    w_land = inp.max_landing_weight_lb
-    gross = inp.gross_weight_lb or max(c.weight_lb for c in inp.cg_cases)
+    aft, fwd_max, fwd_light = cgs
+    w_land = cg_cases.max_landing_weight(project, required=False)
 
-    if w_land > 0 and gross > 0 and gross < w_land - 1e-6:
-        out.append(ConsistencyWarning(
-            "gross_ge_max_landing",
-            f"Gross weight {gross:,.0f} lb is below the max landing weight "
-            f"{w_land:,.0f} lb. LANDLOAD scales the braked-roll, side and "
-            f"supplementary-nose cases by WR = GW/W = {gross / w_land:.3f}; below 1.0 "
-            "those reactions are under-predicted (unconservative). Check the gross "
-            "weight override or the max landing weight (14 CFR 23.473(b)/(c)).",
-            PAGE_LANDING))
     if w_land > 0 and fwd_light.weight_lb > w_land + 1e-6:
         out.append(ConsistencyWarning(
             "landing_light_le_max",
@@ -576,6 +584,16 @@ def _check_landing_hierarchy(project: Project) -> List[ConsistencyWarning]:
             f"than the max landing weight {w_land:,.0f} lb. It is the *light* corner of "
             "the landing envelope (UG fig 18.2).",
             PAGE_LANDING))
+    if w_land > 0:
+        off = [c for c in (aft, fwd_max) if abs(c.weight_lb - w_land) > 1e-6]
+        if off:
+            out.append(ConsistencyWarning(
+                "landing_case_weight_is_mlw",
+                "The max-landing loadings must weigh exactly the max landing weight "
+                f"{w_land:,.0f} lb (weight.max_landing_weight_lb, the single owner "
+                "since decision G-4 -- only their CG station is entered): "
+                + ", ".join(f"'{c.name}' {c.weight_lb:,.0f} lb" for c in off) + ".",
+                PAGE_LANDING))
     if aft.xcg <= max(fwd_max.xcg, fwd_light.xcg):
         out.append(ConsistencyWarning(
             "landing_cg_ordering",
@@ -588,7 +606,7 @@ def _check_landing_hierarchy(project: Project) -> List[ConsistencyWarning]:
     if lg is not None:
         axle_wl = lg.main_gear.axle_static[1]
         if axle_wl > 0:
-            low = [c for c in inp.cg_cases if c.zcg <= axle_wl]
+            low = [c for c in cgs if c.zcg <= axle_wl]
             if low:
                 out.append(ConsistencyWarning(
                     "landing_cg_below_axle",
@@ -599,15 +617,6 @@ def _check_landing_hierarchy(project: Project) -> List[ConsistencyWarning]:
                     "tricycle airplane; a zero waterline puts the CG on the ground "
                     "line and inverts the nose-gear reaction (M4-17c).",
                     PAGE_LANDING))
-    if sorted(c.name.strip().lower() for c in inp.cg_cases) != sorted(LANDING_CG_NAMES):
-        out.append(ConsistencyWarning(
-            "landing_cg_names",
-            "The three landing loadings are not named "
-            + ", ".join(f"'{n}'" for n in LANDING_CG_NAMES)
-            + ", so LANDLOAD cannot canonicalize their order and assigns the "
-              "braked-roll / side weight groups **by row position** (row 1 aft max "
-              "landing, row 2 fwd max landing, row 3 fwd light). Confirm the order.",
-            PAGE_LANDING))
     return out
 
 
@@ -752,6 +761,216 @@ def _check_aero_coefficients(project: Project) -> List[ConsistencyWarning]:
     return out
 
 
+def _check_weight_case_model(project: Project) -> List[ConsistencyWarning]:
+    """The tagged case list and the design-weight ordering chain (G-3, G-4, G-14).
+
+    Required practice 3: the case model is a cross-cutting convention, so it gets a
+    code owner (:mod:`sloads.cg_cases`) **and** these guards, not a prose rule.
+
+    * ``cg_case_no_analysis`` -- an empty ``analyses`` set. A case that is run for
+      nothing is an entry error, not a state (G-3c): it silently disappears from
+      every analysis while still occupying a row on the page.
+    * ``cg_case_role_without_ground`` -- a ``role`` on a case not tagged ``GROUND``.
+      The role is LANDLOAD's ordering contract; carried by a flight-only case it
+      says the user meant one thing and the calc will do another.
+    * ``ground_role_incomplete`` -- the ``GROUND`` cases do not carry exactly one of
+      each role, so the landing module cannot run. Stated here as a page finding
+      rather than only as the exception ``landing_role_cases`` raises.
+    * ``weight_order_chain`` -- ``OEW <= MLW <= MTOW <= sum(items)``, the one place
+      four scattered checks became. The floor half is G-4's ("you must be able to
+      land with reserves") and the ceiling half G-14's ("you cannot weigh more than
+      everything you have"); violations are the fixture-data class this project
+      keeps finding by accident.
+    * ``mlw_below_landing_estimate`` -- MLW below ``OEW + max payload + reserve
+      fuel``, meaning the airplane cannot land at MLW with full payload and
+      reserves. Measured 2026-08-14 this fires on ``concept_regional_jet`` (31,000
+      against 31,360) and on no other shipped fixture, which is why the estimate is
+      a floor and not a prediction.
+    * ``mtow_representation_drift`` -- a stored ``speeds.weight_lb`` or
+      ``weight.envelope.gross_weight`` that disagrees with the MTOW SSOT. G-14 made
+      those derived reads; this is what keeps the compatibility fallback in
+      :func:`sloads.cg_cases.max_takeoff_weight` from quietly becoming a second
+      authority.
+    """
+    out: List[ConsistencyWarning] = []
+    weight = project.weight
+    cases = list(weight.cg_cases) if weight is not None else []
+
+    blank = [c.name for c in cases if not c.analyses]
+    if blank:
+        out.append(ConsistencyWarning(
+            "cg_case_no_analysis",
+            "These weight/CG cases are run for no analysis, so they are silently "
+            "absent from every result: " + ", ".join(f"'{n}'" for n in blank)
+            + ". Tag each with FLIGHT and/or GROUND.",
+            PAGE_WEIGHT_CG))
+    stray = [c.name for c in cases
+             if c.role is not None and AnalysisKind.GROUND not in c.analyses]
+    if stray:
+        out.append(ConsistencyWarning(
+            "cg_case_role_without_ground",
+            "These cases carry a landing role but are not tagged GROUND, so "
+            "LANDLOAD will never see them: " + ", ".join(f"'{n}'" for n in stray)
+            + ".", PAGE_WEIGHT_CG))
+
+    ground = [c for c in cases if AnalysisKind.GROUND in c.analyses]
+    if ground:
+        counts = {role: sum(1 for c in ground if c.role == role)
+                  for role in GROUND_CASE_ROLE_ORDER}
+        wrong = {r.value: n for r, n in counts.items() if n != 1}
+        if wrong:
+            out.append(ConsistencyWarning(
+                "ground_role_incomplete",
+                "LANDLOAD needs exactly one GROUND case per role (aft max landing, "
+                "fwd max landing, fwd light; UG fig 18.2). Found: "
+                + ", ".join(f"{role} x{n}" for role, n in sorted(wrong.items()))
+                + ". The landing conditions cannot run until this is one of each.",
+                PAGE_WEIGHT_CG))
+
+    if weight is None:
+        return out
+    mlw = cg_cases.max_landing_weight(project, required=False)
+    mtow = cg_cases.max_takeoff_weight(project, required=False)
+    total, oew, _ = weight.direct_totals()
+    chain = [("OEW", oew), ("max landing weight", mlw),
+             ("max take-off weight", mtow), ("the item database total", total)]
+    stated = [(label, value) for label, value in chain if value > 0]
+    breaks = [(stated[i], stated[i + 1]) for i in range(len(stated) - 1)
+              if stated[i][1] > stated[i + 1][1] + 1e-6]
+    for (lo_label, lo), (hi_label, hi) in breaks:
+        out.append(ConsistencyWarning(
+            "weight_order_chain",
+            f"{lo_label} {lo:,.0f} lb exceeds {hi_label} {hi:,.0f} lb. The design "
+            "weights must satisfy OEW <= MLW <= MTOW <= sum(items) -- you must be "
+            "able to land with reserves, and you cannot weigh more than everything "
+            "you have (decisions G-4 / G-14).",
+            PAGE_WEIGHT_CG))
+
+    floor = cg_cases.max_landing_weight_estimate(project)
+    if mlw > 0 and floor is not None and mlw < floor - 1e-6:
+        out.append(ConsistencyWarning(
+            "mlw_below_landing_estimate",
+            f"Max landing weight {mlw:,.0f} lb is below OEW + max payload + reserve "
+            f"fuel ({floor:,.0f} lb), so this airplane cannot land at MLW with full "
+            "payload and reserves -- some payload has to be left behind on every "
+            "flight that lands heavy. Confirm the MLW, the payload rows, or which "
+            "fuel rows are consumable mission fuel (14 CFR 23.473(b)/(c)).",
+            PAGE_WEIGHT_CG))
+
+    if mtow > 0:
+        others = []
+        if project.speeds is not None and project.speeds.weight_lb > 0:
+            others.append(("speeds.weight_lb (STRSPEED design weight)",
+                           project.speeds.weight_lb))
+        if weight.envelope is not None and weight.envelope.gross_weight > 0:
+            others.append(("weight.envelope.gross_weight (WTENV)",
+                           weight.envelope.gross_weight))
+        drift = [(label, v) for label, v in others if abs(v - mtow) > 1e-6]
+        if drift:
+            out.append(ConsistencyWarning(
+                "mtow_representation_drift",
+                f"Max take-off weight is {mtow:,.0f} lb, but "
+                + "; ".join(f"{label} says {v:,.0f} lb" for label, v in drift)
+                + ". Decision G-14 made weight.max_takeoff_weight_lb the single "
+                "owner and the others derived reads of it.",
+                PAGE_WEIGHT_CG))
+    return out
+
+
+def _check_gear_carrier(project: Project) -> List[ConsistencyWarning]:
+    """The gear's carrier and attachment node (decision G-2).
+
+    * ``gear_carrier_unset`` -- no ``carrier`` on a leg. Ground cases cannot be
+      exported without it (the export raises); body-carried and wing-carried gear
+      are different load paths, not different labels.
+    * ``gear_carrier_mass_disagrees`` -- a leg carried by the ``WING`` whose gear
+      mass items are tagged ``fuselage`` (or vice versa): the same structure
+      carrying the load but not the weight. This fires on ``dhc8_dash8`` today --
+      main gear in wing-mounted nacelles, mass tagged ``fuselage`` -- which is the
+      point of writing it; correcting that fixture moves
+      ``mass_distribution.wing_mass_tie`` and so is claimed separately from this
+      byte-neutral hop.
+    * ``gear_attach_missing`` -- ``carrier`` stated but ``attach`` left at the
+      origin. ``(0, 0, 0)`` is not a trunnion; it is the default nobody replaced.
+    * ``gear_attach_off_the_wing`` -- a ``WING``-carried leg whose ``attach`` is
+      outside the planform: at or inboard of the centreline, outboard of the tip,
+      or forward/aft of the chord at its butt line. Loud, in the style of the T1
+      planform validator, because the export transfers the contact-patch reaction
+      to this point and a point off the surface is a lever arm into thin air.
+
+    The third guard G-2 owes -- **the transfer preserves resultants about the CG**,
+    gated exactly at ``rel_tol 1e-12`` -- belongs with the transfer itself and
+    lands with the ground export, not with these input checks.
+    """
+    geom = project.geometry
+    lg = geom.landing_gear if geom is not None else None
+    if lg is None:
+        return []
+    out: List[ConsistencyWarning] = []
+    legs = (("main", lg.main_gear), ("nose", lg.nose_gear))
+    unset = [name for name, g in legs if g.carrier is None]
+    if unset:
+        out.append(ConsistencyWarning(
+            "gear_carrier_unset",
+            "No carrier stated for the " + " and ".join(unset) + " gear. Ground "
+            "cases cannot be exported without it: a wing-carried reaction relieves "
+            "or reverses inboard wing bending and reaches the fuselage only through "
+            "the carry-through, so applying it to the body beam over-loads the "
+            "fuselage and hides a real wing sizing case (decision G-2).",
+            PAGE_CONFIGURATION))
+    items = project.weight.items if project.weight is not None else []
+    gear_items = [it for it in items if "gear" in it.name.strip().lower()]
+    if gear_items:
+        tagged_wing = any(it.component == MassComponent.WING for it in gear_items)
+        tagged_body = any(it.component == MassComponent.FUSELAGE for it in gear_items)
+        for name, g in legs:
+            if g.carrier == GearCarrier.WING and tagged_body and not tagged_wing:
+                out.append(ConsistencyWarning(
+                    "gear_carrier_mass_disagrees",
+                    f"The {name} gear is carried by the WING, but its mass rows are "
+                    "tagged as fuselage mass: the same structure carries the load "
+                    "but not the weight. Re-tag the gear items "
+                    "MassComponent.WING, or correct the carrier (decision G-2).",
+                    PAGE_WEIGHT_CG))
+    wing = project.geometry.by_name("wing") if project.geometry is not None else None
+    for name, g in legs:
+        if g.carrier != GearCarrier.WING or wing is None or not wing.leading_edge:
+            continue
+        x, y, _ = g.attach
+        if (x, y) == (0.0, 0.0):
+            continue                      # the unset-attach case, reported below
+        tip_y = max(p[1] for p in wing.leading_edge)
+        why = ""
+        if abs(y) < 1e-9:
+            why = "on the centreline, where there is no wing structure to carry it"
+        elif abs(y) > tip_y + 1e-9:
+            why = f"outboard of the tip (butt line {tip_y:,.1f} in)"
+        else:
+            le = interp_x(wing.leading_edge, abs(y))
+            te = interp_x(wing.trailing_edge, abs(y))
+            if not (min(le, te) - 1e-9 <= x <= max(le, te) + 1e-9):
+                why = (f"outside the chord at butt line {abs(y):,.1f} in "
+                       f"({min(le, te):,.1f} to {max(le, te):,.1f} in)")
+        if why:
+            out.append(ConsistencyWarning(
+                "gear_attach_off_the_wing",
+                f"The {name} gear is carried by the WING but its attachment node "
+                f"({x:,.1f}, {y:,.1f}) is {why}. The export transfers the "
+                "contact-patch reaction to this point and resolves it onto the "
+                "wing loads reference axis (G-2/G-12).",
+                PAGE_CONFIGURATION))
+    for name, g in legs:
+        if g.carrier is not None and tuple(g.attach) == (0.0, 0.0, 0.0):
+            out.append(ConsistencyWarning(
+                "gear_attach_missing",
+                f"The {name} gear states a carrier but no attachment node -- "
+                "attach is still (0, 0, 0), which is the airplane's origin, not a "
+                "trunnion. The export transfers the contact-patch reaction to this "
+                "point, so the lever arm would be the whole fuselage (G-2/G-12).",
+                PAGE_CONFIGURATION))
+    return out
+
+
 def consistency_warnings(project: Project) -> List[ConsistencyWarning]:
     """All input-consistency warnings for ``project`` (each tagged with its page).
 
@@ -772,5 +991,7 @@ def consistency_warnings(project: Project) -> List[ConsistencyWarning]:
     out += _check_safety_factors(project)
     out += _check_safety_factor_overrides(project)
     out += _check_landing_hierarchy(project)
+    out += _check_weight_case_model(project)
+    out += _check_gear_carrier(project)
     out += _check_aero_coefficients(project)
     return out

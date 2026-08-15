@@ -216,7 +216,17 @@ from .results import EnvelopeResult, LoadsResult, MassResult
 # documented value: no override means the regulation's own derived factors, which
 # is exactly what every pre-v46 project already got. No migration hop, and the
 # shipped fixtures are byte-for-byte unchanged.
-SCHEMA_VERSION = 46  # M4-8: governing safety-factor table override layer
+# Step 10 piece 2 (v47): the weight/CG case model and the gear inputs, one hop for
+# the whole set (decisions G-2, G-3, G-4, G-5, G-14). ``CgCase`` gains ``analyses``
+# and ``role``; ``FlightLoadsInput.cg_cases`` and ``LandingInput.cg_cases`` are
+# **removed** in favour of the one tagged list; ``WeightInput`` gains
+# ``max_landing_weight_lb`` (moved off ``LandingInput``) and
+# ``max_takeoff_weight_lb``, and ``LandingInput.gross_weight_lb`` is removed with
+# them; ``MassItem`` gains ``consumable``; ``LandingGearInput`` gains ``carrier``
+# and ``attach``. Removals and a relocation, so this one **does** need a hop:
+# ``migrations._v46_cg_case_model``, which is output-neutral by construction --
+# every value it writes comes from the file's own.
+SCHEMA_VERSION = 47  # step 10 piece 2: the weight/CG case model + gear inputs
 
 
 @dataclass

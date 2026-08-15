@@ -26,6 +26,7 @@ from .models import (
     SCHEMA_VERSION,
     AeroCoeffSet,
     AeroCoefficientsInput,
+    AnalysisKind,
     AeroInput,
     AeroSurfaceInput,
     AileronLoadsInput,
@@ -52,7 +53,9 @@ from .models import (
     FuselageOutline,
     FuselageSection,
     FuselageStation,
+    GearCarrier,
     GeometryInput,
+    GroundCaseRole,
     LandingGearGeometry,
     LandingGearInput,
     LandingInput,
@@ -185,6 +188,34 @@ def engine_to_dict(inp: EngineInput) -> Dict[str, Any]:
 # --------------------------------------------------------------------------- #
 # Weight slice <-> dict
 # --------------------------------------------------------------------------- #
+def _cg_case_from_dict(d: Dict[str, Any]) -> CgCase:
+    """Build a :class:`CgCase`, coercing the G-3 ``analyses`` set and ``role``.
+
+    ``analyses`` is a *set* in memory and a sorted list on disk -- JSON has no set,
+    and sorting keeps a re-save byte-stable. An absent key means ``{FLIGHT}``,
+    which is what every pre-v47 case was; the v46 hop writes the tag explicitly, so
+    absence only reaches here from a hand-written dict.
+    """
+    d = dict(d)
+    raw = d.pop("analyses", None)
+    analyses = ({AnalysisKind(a) for a in raw} if raw
+                else {AnalysisKind.FLIGHT})
+    role_raw = d.pop("role", None)
+    role = GroundCaseRole(role_raw) if role_raw else None
+    return CgCase(analyses=analyses, role=role, **_filtered(CgCase, d))
+
+
+def _cg_case_to_dict(c: CgCase) -> Dict[str, Any]:
+    """Serialize a :class:`CgCase`; ``role`` is omitted when unset."""
+    out: Dict[str, Any] = {
+        "name": c.name, "weight_lb": c.weight_lb, "xcg": c.xcg, "zcg": c.zcg,
+        "analyses": sorted(a.value for a in c.analyses),
+    }
+    if c.role is not None:
+        out["role"] = c.role.value
+    return out
+
+
 def _mass_item_from_dict(d: Dict[str, Any]) -> MassItem:
     d = dict(d)
     kind = MassItemKind(d.pop("kind", "empty"))
@@ -210,8 +241,12 @@ def weight_from_dict(d: Dict[str, Any]) -> WeightInput:
     items = [_mass_item_from_dict(it) for it in d.get("items", []) or []]
     env = d.get("envelope")
     envelope = WeightEnvelopeInput(**_filtered(WeightEnvelopeInput, env)) if env else None
-    cg_cases = [CgCase(**_filtered(CgCase, c)) for c in d.get("cg_cases", []) or []]
-    return WeightInput(estimation=estimation, items=items, envelope=envelope, cg_cases=cg_cases)
+    cg_cases = [_cg_case_from_dict(c) for c in d.get("cg_cases", []) or []]
+    return WeightInput(
+        estimation=estimation, items=items, envelope=envelope, cg_cases=cg_cases,
+        max_landing_weight_lb=float(d.get("max_landing_weight_lb", 0.0) or 0.0),
+        max_takeoff_weight_lb=float(d.get("max_takeoff_weight_lb", 0.0) or 0.0),
+    )
 
 
 def weight_to_dict(inp: WeightInput) -> Dict[str, Any]:
@@ -229,7 +264,14 @@ def weight_to_dict(inp: WeightInput) -> Dict[str, Any]:
     if inp.envelope is not None:
         out["envelope"] = asdict(inp.envelope)
     if inp.cg_cases:
-        out["cg_cases"] = [asdict(c) for c in inp.cg_cases]
+        out["cg_cases"] = [_cg_case_to_dict(c) for c in inp.cg_cases]
+    # The two design-weight SSOTs (G-4 / G-14). Written only when set, so a
+    # project that predates them -- or a concept sketch that has not stated them
+    # -- keeps the same bytes it had.
+    if inp.max_landing_weight_lb:
+        out["max_landing_weight_lb"] = inp.max_landing_weight_lb
+    if inp.max_takeoff_weight_lb:
+        out["max_takeoff_weight_lb"] = inp.max_takeoff_weight_lb
     return out
 
 
@@ -374,8 +416,8 @@ def geometry_to_dict(inp: GeometryInput) -> Dict[str, Any]:
     if inp.landing_gear is not None:
         lg = inp.landing_gear
         out["landing_gear"] = {
-            "main_gear": asdict(lg.main_gear),
-            "nose_gear": asdict(lg.nose_gear),
+            "main_gear": _gear_to_dict(lg.main_gear),
+            "nose_gear": _gear_to_dict(lg.nose_gear),
             "tread_in": lg.tread_in,
         }
     return out
@@ -503,7 +545,6 @@ def flight_loads_from_dict(d: Dict[str, Any]) -> FlightLoadsInput:
         xtf=d.get("xtf", 0.0),
         mn=d.get("mn", 0.1),
         altitudes_ft=[float(a) for a in d.get("altitudes_ft", [0.0]) or [0.0]],
-        cg_cases=[CgCase(**_filtered(CgCase, c)) for c in d.get("cg_cases", []) or []],
     )
 
 
@@ -519,7 +560,6 @@ def flight_loads_to_dict(inp: FlightLoadsInput) -> Dict[str, Any]:
         "xtf": inp.xtf,
         "mn": inp.mn,
         "altitudes_ft": list(inp.altitudes_ft),
-        "cg_cases": [asdict(c) for c in inp.cg_cases],
     }
 
 
@@ -756,18 +796,35 @@ def _gear_from_dict(d: Dict[str, Any]) -> LandingGearInput:
     for axle in ("axle_compressed", "axle_static", "axle_extended"):
         if axle in kw and kw[axle] is not None:
             kw[axle] = tuple(kw[axle])
+    if kw.get("attach") is not None:
+        kw["attach"] = tuple(kw["attach"])
+    # G-2: absent stays ``None`` -- "carrier not stated" is a distinct state that
+    # the ground export refuses on, not a value to default.
+    carrier = d.get("carrier")
+    kw["carrier"] = GearCarrier(carrier) if carrier else None
     return LandingGearInput(**kw)
 
 
+def _gear_to_dict(g: LandingGearInput) -> Dict[str, Any]:
+    """Serialize one leg; ``carrier`` is written only when stated (G-2)."""
+    out = asdict(g)
+    out["carrier"] = g.carrier.value if g.carrier is not None else None
+    if out["carrier"] is None:
+        out.pop("carrier")
+    if tuple(out.get("attach") or ()) == (0.0, 0.0, 0.0):
+        out.pop("attach", None)
+    return out
+
+
 def landing_from_dict(d: Dict[str, Any]) -> LandingInput:
-    """Build a :class:`LandingInput` from a plain dict (CG cases + non-geometry
-    LANDLOAD params). Step G6b: the gear geometry (``main_gear``/``nose_gear``/
+    """Build a :class:`LandingInput` from a plain dict (the non-geometry LANDLOAD
+    params; the weight/CG cases and both design weights left this slice at
+    G-3b/G-4/G-14). Step G6b: the gear geometry (``main_gear``/``nose_gear``/
     ``tread_in``) is no longer read here -- it lives in ``geometry.landing_gear`` and
     is synced onto ``Project.landing`` by the calc; a legacy file's top-level gear is
     migrated into geometry by :func:`geometry_from_dict`."""
     kw = {k: v for k, v in _filtered(LandingInput, d).items()
-          if k not in ("main_gear", "nose_gear", "tread_in", "cg_cases")}
-    kw["cg_cases"] = [CgCase(**_filtered(CgCase, c)) for c in d.get("cg_cases", []) or []]
+          if k not in ("main_gear", "nose_gear", "tread_in")}
     return LandingInput(**kw)
 
 

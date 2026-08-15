@@ -36,12 +36,16 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from sloads import io  # noqa: E402
 from sloads.models import (  # noqa: E402
+    AnalysisKind,
     CgCase,
+    GroundCaseRole,
     LandingGearInput,
     LandingInput,
     Project,
     StructuralSpeedsInput,
+    WeightInput,
 )
+from sloads.cg_cases import landing_role_cases  # noqa: E402
 from sloads.modules.landing import (  # noqa: E402
     _geometry,
     build_landing,
@@ -49,7 +53,6 @@ from sloads.modules.landing import (  # noqa: E402
     landing_reactions,
     run,
 )
-from helpers import apply_button  # noqa: E402
 
 REL = 1e-3  # +-0.1%
 
@@ -57,17 +60,40 @@ _EXAMPLES = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file_
 _GA = os.path.join(_EXAMPLES, "ga6_normal.project.json")
 
 
+#: The Appendix A GA-6 design weights, which left ``LandingInput`` at decisions
+#: G-4 / G-14 and are now passed to ``landing_reactions`` explicitly.
+_MLW, _MTOW = 3230.0, 3400.0
+
+#: The three roled loadings, in the order LANDLOAD consumes them.
+_GA_CGS = [
+    CgCase("aft max landing", 3230, 85.1, 93,
+           {AnalysisKind.GROUND}, GroundCaseRole.AFT_MAX_LANDING),
+    CgCase("fwd max landing", 3230, 76.12, 93,
+           {AnalysisKind.GROUND}, GroundCaseRole.FWD_MAX_LANDING),
+    CgCase("fwd light", 2803, 72.64, 92,
+           {AnalysisKind.GROUND}, GroundCaseRole.FWD_LIGHT),
+]
+
+
+def _ga_weight() -> WeightInput:
+    """The weight slice the landing conditions now read: both design weights and
+    the three roled GROUND cases (decisions G-3 / G-4 / G-14)."""
+    return WeightInput(cg_cases=list(_GA_CGS),
+                       max_landing_weight_lb=_MLW, max_takeoff_weight_lb=_MTOW)
+
+
+def _ga_project(landing: LandingInput = None, **kw) -> Project:
+    return Project(landing=landing or _ga_landing(), weight=_ga_weight(), **kw)
+
+
 def _ga_landing() -> LandingInput:
     """The Appendix A GA-6 landing inputs (p230 gear geometry, p236 LGFACTOR)."""
     return LandingInput(
-        wing_area_sqft=184.125, max_landing_weight_lb=3230, gross_weight_lb=3400,
+        wing_area_sqft=184.125,
         strut_stroke_in=7, tire_od_in=19, hub_diameter_in=7, lift_factor=0.667,
         main_gear=LandingGearInput((96.3, 55.9), (96.7, 59.6), (96.2, 54.2), 8.0, "O"),
         nose_gear=LandingGearInput((1.9, 46.9), (2.4, 49.5), (1.6, 45.1), 5.7, "O"),
         tread_in=114.5, tail_down_angle_deg=15.0, gear_load_factor=2.5,
-        cg_cases=[CgCase("aft max landing", 3230, 85.1, 93),
-                  CgCase("fwd max landing", 3230, 76.12, 93),
-                  CgCase("fwd light", 2803, 72.64, 92)],
     )
 
 
@@ -101,7 +127,7 @@ def test_lgfactor_spring_vs_oleo():
 # --------------------------------------------------------------------------- #
 def test_landload_geometry_oracle():
     inp = _ga_landing()
-    g = _geometry(inp, inp.gear_load_factor, inp.cg_cases)
+    g = _geometry(inp, inp.gear_load_factor, _GA_CGS, _MLW)
     assert math.isclose(g.k, 0.324, rel_tol=3e-3), g.k
     assert math.isclose(g.gamma_deg, 17.978, rel_tol=3e-3), g.gamma_deg
     # Ground angles: 3-/2-wheel level, ground roll, tail down.
@@ -116,7 +142,7 @@ def test_landload_geometry_oracle():
 def test_landload_lever_arms_oracle():
     """The BP / DP / ground-roll AP-CP lever arms reproduce the p230 table exactly."""
     inp = _ga_landing()
-    g = _geometry(inp, inp.gear_load_factor, inp.cg_cases)
+    g = _geometry(inp, inp.gear_load_factor, _GA_CGS, _MLW)
     # Level-attitude BP for the three CG cases (p230).
     assert math.isclose(g.bp[0][0], 19.796, rel_tol=2e-3), g.bp[0]
     assert math.isclose(g.bp[0][1], 28.512, rel_tol=2e-3), g.bp[0]
@@ -137,7 +163,7 @@ def test_landload_legible_cells():
     """Spot-check the wheel-load cells that survive the p231 OCR."""
     inp = _ga_landing()
     lf = landing_load_factor(184.125, 3230, 7, 19, 7, 0.667, True)
-    rx = {c.case: c for c in landing_reactions(inp, lf, inp.cg_cases)}
+    rx = {c.case: c for c in landing_reactions(inp, lf, _GA_CGS, mlw=_MLW, mtow=_MTOW)}
     # Case 1 -- 3-wheel level, aft max landing.
     assert math.isclose(rx[1].vmp, 3144, rel_tol=3e-3), rx[1].vmp
     assert math.isclose(rx[1].vnp, 1787, rel_tol=3e-3), rx[1].vnp
@@ -152,10 +178,10 @@ def test_landload_case_formulas():
     """Closure on the FAR-section reaction formulas (LANDLOAD.BAS 910-1900)."""
     inp = _ga_landing()
     lf = landing_load_factor(184.125, 3230, 7, 19, 7, 0.667, True)
-    g = _geometry(inp, inp.gear_load_factor, inp.cg_cases)
-    rx = {c.case: c for c in landing_reactions(inp, lf, inp.cg_cases)}
+    g = _geometry(inp, inp.gear_load_factor, _GA_CGS, _MLW)
+    rx = {c.case: c for c in landing_reactions(inp, lf, _GA_CGS, mlw=_MLW, mtow=_MTOW)}
     nlg, k = inp.gear_load_factor, g.k
-    w1 = inp.cg_cases[0].weight_lb
+    w1 = _GA_CGS[0].weight_lb
     # 3-wheel level (case 1): VMP = .5*NLG*W*AP/DP, DMP = K*VMP, resultant.
     assert math.isclose(rx[1].vmp, 0.5 * nlg * w1 * g.ap[0][0] / g.dp[0][0], rel_tol=1e-9)
     assert math.isclose(rx[1].dmp, k * rx[1].vmp, rel_tol=1e-9)
@@ -167,8 +193,8 @@ def test_landload_case_formulas():
     assert rx[7].dmp == 0.0
     # Braked roll (case 13): DMP = 0.8*VMP, VNP = 1.33*W - 2*VMP.
     assert math.isclose(rx[13].dmp, 0.8 * rx[13].vmp, rel_tol=1e-9)
-    assert math.isclose(rx[13].vnp, 1.33 * inp.cg_cases[0].weight_lb
-                        * (inp.gross_weight_lb / inp.max_landing_weight_lb)
+    assert math.isclose(rx[13].vnp, 1.33 * _GA_CGS[0].weight_lb
+                        * (_MTOW / _MLW)
                         - 2 * rx[13].vmp, rel_tol=1e-9)
     # Supplementary nose (case 25): VNP = 2.25*static-load, DNP = 0.8*VNP, side = 0.7*VNP.
     assert math.isclose(rx[25].dnp, 0.8 * rx[25].vnp, rel_tol=1e-9)
@@ -191,33 +217,30 @@ def test_landload_pipeline_and_run():
 def test_render_leaves_project_unchanged():
     """M2R-4: rendering Landing Loads must not mutate the project -- build_landing/run
     are pure, so the serialized project (the exact unsaved-changes predicate) is
-    unchanged. Covers both the geometry-gear sync and the derived gross-weight path."""
-    # (a) Full GA-6 fixture: geometry gear present, gross_weight_lb set.
+    unchanged. Covers the geometry-gear sync, which is the one remaining local-copy
+    path: the derived gross-weight fallback it also used to cover left with
+    ``landing.gross_weight_lb`` at decision G-14."""
     p = io.load_project(_GA)
     before = io.project_to_dict(p)
     build_landing(p)
     run(p)
     assert io.project_to_dict(p) == before, "build_landing/run mutated the project"
 
-    # (b) gross_weight_lb == 0 -> the heaviest-CG default is resolved on a local copy,
-    #     never written back onto the input slice.
-    p2 = Project(name="gw0", landing=replace(_ga_landing(), gross_weight_lb=0.0))
-    before2 = io.project_to_dict(p2)
-    lf, _ = build_landing(p2)
-    assert p2.landing.gross_weight_lb == 0.0
-    assert lf.airplane_load_factor > 0
-    assert io.project_to_dict(p2) == before2
-
 
 def test_landing_io_roundtrip():
-    """The landing slice round-trips (CG cases + non-geometry params); the gear
+    """The landing slice round-trips (the non-geometry LGFACTOR params); the gear
     geometry (Step G6b) round-trips under geometry.landing_gear, not the landing
-    block; older files migrate."""
+    block; the weight/CG cases and both design weights round-trip under
+    ``weight`` (G-3b / G-4 / G-14); older files migrate."""
     p = io.load_project(_GA)
     d = io.project_to_dict(p)
     p2 = io.project_from_dict(d)
     assert p2.landing.gear_load_factor == 2.5
-    assert p2.landing.cg_cases[0].xcg == 85.1
+    assert landing_role_cases(p2)[0].xcg == 85.1
+    assert p2.weight.max_landing_weight_lb == 3230
+    assert p2.weight.max_takeoff_weight_lb == 3400
+    for key in ("cg_cases", "gross_weight_lb", "max_landing_weight_lb"):
+        assert key not in d["landing"], key
     # Gear geometry is the single-source geometry.landing_gear (not on the landing block).
     assert "main_gear" not in d["landing"] and "tread_in" not in d["landing"]
     lg = p2.geometry.landing_gear
@@ -236,14 +259,16 @@ def test_landing_io_roundtrip():
 # --------------------------------------------------------------------------- #
 def test_landing_requires_explicit_cg_cases():
     """No auto-derivation from Project.mass: LANDLOAD needs three distinct CG
-    loadings, so an empty ``cg_cases`` (even with a mass slice present) raises a
-    clear error rather than silently building a degenerate fwd/aft pair (M2-8)."""
-    inp = replace(_ga_landing(), cg_cases=[])
+    loadings, so a project with no roled GROUND case (even with a mass slice
+    present) raises a clear error rather than silently building a degenerate
+    fwd/aft pair (M2-8), naming where they are entered (G-3)."""
     try:
-        build_landing(Project(landing=inp))
-        raise AssertionError("expected ValueError for missing cg_cases")
+        build_landing(Project(landing=_ga_landing(),
+                              weight=WeightInput(max_landing_weight_lb=_MLW,
+                                                 max_takeoff_weight_lb=_MTOW)))
+        raise AssertionError("expected ValueError for missing GROUND cases")
     except ValueError as e:
-        assert "cg_cases" in str(e)
+        assert "GROUND" in str(e) and "role" in str(e)
 
 
 def _soft_strut_landing() -> LandingInput:
@@ -254,10 +279,10 @@ def _soft_strut_landing() -> LandingInput:
 
 def test_landing_473g_floor_warning_concept():
     """Concept mode notes the 23.473(g) floor when N < 2.67 or NLG < 2.0."""
-    lf, _ = build_landing(Project(landing=_soft_strut_landing()))
+    lf, _ = build_landing(_ga_project(_soft_strut_landing()))
     assert lf.airplane_load_factor < 2.67 and lf.gear_load_factor < 2.0
-    mod = run(Project(landing=_soft_strut_landing(),
-                      speeds=StructuralSpeedsInput(category="C")))
+    mod = run(_ga_project(_soft_strut_landing(),
+                          speeds=StructuralSpeedsInput(category="C")))
     note = mod.conditions[0].note
     assert "23.473(g)" in note and "N=" in note and "NLG=" in note
 
@@ -265,8 +290,8 @@ def test_landing_473g_floor_warning_concept():
 def test_landing_473g_floor_not_warned_in_far23():
     """The floor note is concept-gated: a FAR23 project below the floor is silent
     (the computed N/NLG are unchanged in both modes -- warn-only)."""
-    mod = run(Project(landing=_soft_strut_landing(),
-                      speeds=StructuralSpeedsInput(category="N")))
+    mod = run(_ga_project(_soft_strut_landing(),
+                          speeds=StructuralSpeedsInput(category="N")))
     assert "23.473(g)" not in mod.conditions[0].note
 
 
@@ -295,9 +320,9 @@ def test_unbalanced_moments_closure():
     original port but delivered nowhere and asserted nowhere until M4-17e."""
     inp = _ga_landing()
     lf = landing_load_factor(184.125, 3230, 7, 19, 7, 0.667, True)
-    g = _geometry(inp, inp.gear_load_factor, inp.cg_cases)
-    rx = {c.case: c for c in landing_reactions(inp, lf, inp.cg_cases)}
-    wr = inp.gross_weight_lb / inp.max_landing_weight_lb
+    g = _geometry(inp, inp.gear_load_factor, _GA_CGS, _MLW)
+    rx = {c.case: c for c in landing_reactions(inp, lf, _GA_CGS, mlw=_MLW, mtow=_MTOW)}
+    wr = _MTOW / _MLW
     # 2-wheel level (4) and tail-down (7): -2 * RMP * BP for the attitude/CG pair.
     assert math.isclose(rx[4].pitchp, -2 * rx[4].rmp * g.bp[0][0], rel_tol=1e-9)
     assert math.isclose(rx[7].pitchp, -2 * rx[7].rmp * g.bp[2][0], rel_tol=1e-9)
@@ -310,7 +335,7 @@ def test_unbalanced_moments_closure():
                         -2 * (rx[16].vmp * g.bp[1][0] + rx[16].dmp * g.cp[1][0]), rel_tol=1e-9)
     # Side load (19/20): pitch from the vertical only; roll/yaw are the 0.83 W couple,
     # signed by the drift direction (odd case = left drift).
-    w19 = inp.cg_cases[0].weight_lb * wr
+    w19 = _GA_CGS[0].weight_lb * wr
     assert math.isclose(rx[19].pitchp, -2 * rx[19].vmp * g.bp[1][0], rel_tol=1e-9)
     assert math.isclose(rx[19].rollp, -0.83 * w19 * g.cp[1][0], rel_tol=1e-9)
     assert math.isclose(rx[20].rollp, +0.83 * w19 * g.cp[1][0], rel_tol=1e-9)
@@ -325,9 +350,9 @@ def test_ground_line_inertia_factors_closure():
     """Closure on NVP/NDP/NS (LANDLOAD.BAS 1910-2000): the three lift/wheel regimes."""
     inp = _ga_landing()
     lf = landing_load_factor(184.125, 3230, 7, 19, 7, 0.667, True)
-    rx = {c.case: c for c in landing_reactions(inp, lf, inp.cg_cases)}
-    lift, wr = inp.lift_factor, inp.gross_weight_lb / inp.max_landing_weight_lb
-    w1 = inp.cg_cases[0].weight_lb
+    rx = {c.case: c for c in landing_reactions(inp, lf, _GA_CGS, mlw=_MLW, mtow=_MTOW)}
+    lift, wr = inp.lift_factor, _MTOW / _MLW
+    w1 = _GA_CGS[0].weight_lb
     # Cases 1-9: both mains + the nose, with the wing lift carried.
     assert math.isclose(rx[1].nvp, (2 * rx[1].vmp + rx[1].vnp + lift * w1) / w1, rel_tol=1e-9)
     assert math.isclose(rx[1].ndp, (2 * rx[1].dmp + rx[1].dnp) / w1, rel_tol=1e-9)
@@ -410,7 +435,7 @@ def test_critical_ranking_includes_side_load():
 
     inp = _ga_landing()
     lf = landing_load_factor(184.125, 3230, 7, 19, 7, 0.667, True)
-    rx = landing_reactions(inp, lf, inp.cg_cases)
+    rx = landing_reactions(inp, lf, _GA_CGS, mlw=_MLW, mtow=_MTOW)
     for far, case in (("23.479(a)", 4), ("23.481", 7), ("23.483", 10),
                       ("23.485", 19), ("23.493", 16), ("23.499", 28)):
         assert _critical(rx, far).case == case, (far, _critical(rx, far).case)
@@ -420,36 +445,61 @@ def test_critical_ranking_includes_side_load():
     assert _critical(boosted, "23.485").case == 22
 
 
-def test_cg_cases_reordered_by_canonical_name():
-    """M4-17d: the three canonical loadings are consumed positionally, so a shuffled
-    (but canonically named) set is reordered by the calc and gives identical
-    reactions; a non-canonical set stays in row order exactly as before."""
-    inp = _ga_landing()
-    shuffled = replace(inp, cg_cases=[inp.cg_cases[2], inp.cg_cases[0], inp.cg_cases[1]])
-    ordered = build_landing(Project(landing=inp))[1]
-    reordered = build_landing(Project(landing=shuffled))[1]
-    assert [c.vmp for c in reordered] == [c.vmp for c in ordered]
-    assert [c.cg_name for c in reordered] == [c.cg_name for c in ordered]
-    # Non-canonical names: positional, so the shuffle *does* change the answer.
-    renamed = replace(inp, cg_cases=[replace(c, name=f"loading {i}")
-                                     for i, c in enumerate(shuffled.cg_cases)])
-    assert [c.vmp for c in build_landing(Project(landing=renamed))[1]] != [c.vmp for c in ordered]
+def test_the_role_fixes_the_order_not_the_name(tmp_path):
+    """Decision G-3a: LANDLOAD's positional contract is now ``CgCase.role``.
+
+    The failure this replaces was silent. The three loadings are consumed
+    positionally (``wl[19] = wcg[0]*wr``), the order used to be recovered by
+    matching names against a canonical triple, and a *renamed* case fell back to
+    entry order with only a warning -- so renaming a row reordered an
+    oracle-locked reaction table. With the role explicit, a shuffled list gives
+    identical reactions and renaming changes nothing at all.
+    """
+    p = io.load_project(_GA)
+    ordered = build_landing(p)[1]
+
+    shuffled = io.load_project(_GA)
+    cases = shuffled.weight.cg_cases
+    ground = [c for c in cases if c.role is not None]
+    shuffled.weight.cg_cases = ([c for c in cases if c.role is None]
+                                + [ground[2], ground[0], ground[1]])
+    assert [c.vmp for c in build_landing(shuffled)[1]] == [c.vmp for c in ordered]
+
+    renamed = io.load_project(_GA)
+    renamed.weight.cg_cases = [
+        replace(c, name=f"loading {i}") if c.role is not None else c
+        for i, c in enumerate(renamed.weight.cg_cases)]
+    assert [c.vmp for c in build_landing(renamed)[1]] == [c.vmp for c in ordered]
 
 
-def test_seed_never_emits_a_zero_waterline():
-    """M4-17c: with no waterline source the Landing Loads seed leaves the cell blank
-    and the page **refuses to compute** -- it no longer defaults zcg to 0.0 and
-    silently produces nonphysical reactions.
+def test_a_missing_or_duplicated_role_raises_rather_than_padding():
+    """The role contract refuses; it never reorders or pads to three."""
+    p = io.load_project(_GA)
+    p.weight.cg_cases = [c for c in p.weight.cg_cases
+                         if c.role != GroundCaseRole.FWD_LIGHT]
+    try:
+        build_landing(p)
+        raise AssertionError("expected a ValueError for the missing role")
+    except ValueError as e:
+        assert "fwd_light" in str(e)
 
-    Driven through ``AppTest`` (the view is a page script, not an importable module;
-    same precedent as tests/test_dirty_flag.py). The paired positive case -- a real
-    waterline and the interpolated forward station -- is
-    ``test_dirty_flag.test_landing_cg_editor_seeds_and_persists_on_apply``.
+
+def test_the_page_refuses_to_compute_without_a_waterline():
+    """M4-17c, re-armed for G-3: a landing case with no waterline blocks the page.
+
+    The CG table moved to the Weight/CG page at decision G-3, so this no longer
+    tests a seed -- it tests the gate that survived it. The page must name the
+    incomplete case and refuse, rather than computing on a zero waterline, which
+    puts the CG on the ground line, inverts the nose-gear reaction and inflates
+    the braked-roll main loads ~2.6x.
+
+    Driven through ``AppTest`` (the view is a page script, not an importable
+    module; same precedent as tests/test_dirty_flag.py).
     """
     try:   # the zero-dependency __main__ runner has neither pytest nor streamlit
         from streamlit.testing.v1 import AppTest
     except ImportError:  # pragma: no cover - exercised only by the fallback runner
-        print("SKIP test_seed_never_emits_a_zero_waterline (no streamlit)")
+        print("SKIP test_the_page_refuses_to_compute_without_a_waterline (no streamlit)")
         return
 
     root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -459,20 +509,15 @@ def test_seed_never_emits_a_zero_waterline():
         sys.path.insert(0, os.path.join(root, "app"))
     view = os.path.join(root, "app", "views", "landing_loads.py")
     p = io.load_project(_GA)
-    p.landing.cg_cases = []   # force a fresh seed
-    p.mass = None             # ...with no waterline source
+    p.weight.cg_cases = [replace(c, zcg=0.0) if c.role is not None else c
+                         for c in p.weight.cg_cases]
 
     at = AppTest.from_file(view, default_timeout=60)
     at.session_state["project"] = p
     at.run()
     assert not at.exception, [e.message for e in at.exception]
-    # The missing source is named, not silently defaulted.
-    warnings = " ".join(w.value for w in at.warning)
-    assert "Zcg waterline" in warnings and "Project.mass" in warnings, warnings
-    # Apply cannot persist an incomplete row, and the reactions never compute.
-    apply_button(at, "landing_loads_form").set_value(True).run()
-    assert at.session_state["project"].landing.cg_cases == [], "saved a blank waterline"
-    assert any("not saved" in e.value for e in at.error), [e.value for e in at.error]
+    blocked = " ".join(i.value for i in at.info)
+    assert "Zcg waterline" in blocked, blocked
     assert not any("Gear reaction loads" in s.value for s in at.subheader), \
         "reactions computed without a waterline"
 

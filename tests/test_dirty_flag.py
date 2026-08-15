@@ -117,38 +117,46 @@ def test_flight_loads_persists_only_on_apply():
     assert at.session_state["project"].flight_loads is not None, "Apply did not persist"
 
 
-def test_landing_cg_editor_seeds_and_persists_on_apply():
-    """M2R-5(a): the Landing Loads CG editor seeds from WTENV (fwd/aft stations +
-    gross/fwd-regardless weights) but persists to landing.cg_cases only on Apply."""
-    from streamlit.testing.v1 import AppTest
+def test_landing_cases_are_seeded_from_wtenv_only_on_the_button():
+    """M2R-5(a), re-homed by decision G-3: the WTENV seed for LANDLOAD's three
+    loadings moved to the Weight/CG page's Payload Cases tab with the editor, and
+    is still **offered**, never written by a plain render.
 
+    The seed itself is now a pure calc helper (:func:`sloads.cg_cases.
+    seed_landing_cases`) rather than view code, so the numbers are asserted
+    directly; the page is still driven through ``AppTest`` for the half that
+    matters here -- that a plain render writes nothing.
+    """
     from sloads import io
+    from sloads.cg_cases import seed_landing_cases
+    from sloads.models import GROUND_CASE_ROLE_ORDER
 
     project = io.load_project(_GA6)
-    project.landing.cg_cases = []  # observe a fresh WTENV seed
+    before = io.project_to_dict(project)
 
-    at = AppTest.from_file(os.path.join(_VIEWS_DIR, "landing_loads.py"), default_timeout=60)
+    from streamlit.testing.v1 import AppTest
+    at = AppTest.from_file(os.path.join(_VIEWS_DIR, "weight_mass.py"), default_timeout=60)
     at.session_state["project"] = project
     at.run()
     assert not at.exception, [e.message for e in at.exception]
-    # A plain render must not persist the seed.
-    assert at.session_state["project"].landing.cg_cases == [], "render seeded cg_cases"
+    assert io.project_to_dict(at.session_state["project"]) == before, \
+        "rendering the page mutated the project"
 
-    apply_button(at, "landing_loads_form").set_value(True).run()
-    cases = at.session_state["project"].landing.cg_cases
-    assert len(cases) == 3, "Apply did not persist the 3 seeded CG cases"
-    # WTENV seed (M4-17c): the aft station is the aft-gross limit (85.11), and each
-    # forward station is the forward limit interpolated **at that row's weight** --
-    # 76.12 in at the 3230 lb max landing weight (Appendix A p230; between 72.643 in
-    # @ 2800 lb and 77.490 in @ 3400 lb) and 72.64 in at the 2800 lb light weight.
-    # It was previously 72.6 for both forward rows (the weight-agnostic hull).
-    xcgs = sorted(round(c.xcg, 1) for c in cases)
-    assert xcgs == [72.6, 76.1, 85.1], xcgs
-    # Weights: two max-landing rows at max_landing_weight, the light row at fwd-regardless.
-    assert sorted(c.weight_lb for c in cases) == [2800.0, 3230.0, 3230.0]
-    # The waterline comes from the WTONECG mass slice the example now carries (M4-17a);
+    # The seeded values themselves: WTENV stations interpolated at each row's own
+    # weight (M4-17c). The aft station is the aft-gross limit (85.11); 76.12 in at
+    # the 3230 lb max landing weight (Appendix A p230; between 72.643 in @ 2800 lb
+    # and 77.490 in @ 3400 lb) and 72.64 in at the 2800 lb light weight. It was
+    # 72.6 for both forward rows before M4-17c (the weight-agnostic hull).
+    fresh = io.load_project(_GA6)
+    fresh.weight.cg_cases = [c for c in fresh.weight.cg_cases if c.role is None]
+    seeded, missing = seed_landing_cases(fresh)
+    assert not missing, missing
+    assert sorted(round(c.xcg, 1) for c in seeded) == [72.6, 76.1, 85.1]
+    assert sorted(c.weight_lb for c in seeded) == [2800.0, 3230.0, 3230.0]
+    # The waterline comes from the WTONECG mass slice the example carries (M4-17a);
     # it is never zero-filled (M4-17c).
-    assert all(c.zcg > 0 for c in cases), [c.zcg for c in cases]
+    assert all(c.zcg > 0 for c in seeded), [c.zcg for c in seeded]
+    assert [c.role for c in seeded] == list(GROUND_CASE_ROLE_ORDER)
 
 
 def test_select_inputs_persist_only_on_apply():
@@ -186,6 +194,6 @@ if __name__ == "__main__":  # zero-dependency-ish fallback (needs streamlit)
             test_render_leaves_project_unchanged(_view, _ex)
     test_mach_limit_persists_only_on_apply()
     test_flight_loads_persists_only_on_apply()
-    test_landing_cg_editor_seeds_and_persists_on_apply()
+    test_landing_cases_are_seeded_from_wtenv_only_on_the_button()
     test_select_inputs_persist_only_on_apply()
     print("ok")

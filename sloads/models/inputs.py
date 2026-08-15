@@ -7,10 +7,13 @@ MissingInputError guard type, and the fuselage-outline default helper.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import List, Optional, Tuple
+from typing import List, Optional, Set, Tuple
 
 from ..constants import ULTIMATE_FACTOR
 from .enums import (
+    AnalysisKind,
+    GearCarrier,
+    GroundCaseRole,
     MassComponent,
     EngineType,
     EngineWeightType,
@@ -141,6 +144,18 @@ class MassItem:
     izz: float = 0.0
     kind: MassItemKind = MassItemKind.EMPTY
     component: Optional[MassComponent] = None
+    #: Mission fuel and anything else that can be **burned or expended down to a
+    #: partial value** rather than only being aboard or absent (decision G-5).
+    #: Deriving a loading for a ``GROUND`` target burns consumables down --
+    #: continuously, proportionally across them so a tank layout is preserved --
+    #: *before* dropping any discretionary payload, because a design landing
+    #: weight is fuel burned off (23.473(b)/(c)), not a passenger left behind.
+    #: Which rows are fuel is an **input**, not a name match, on the same
+    #: reasoning that made ``component`` explicit. Three consumers, one field:
+    #: this rule, wing-tank fuel separability, and G-4's max-landing-weight
+    #: estimate, which has to tell mission fuel from reserve fuel.
+    #: ``False`` is today's behaviour, so no flight case moves by a pound.
+    consumable: bool = False
 
 
 @dataclass
@@ -216,30 +231,54 @@ class WeightInput:
     definitions.
 
     ``cg_cases`` (Step D5) is the shared list of named loading scenarios --
-    weight + CG points entered once on the Weight/CG Grid & Payload Cases page,
-    overlaid on the ``weight_envelope`` chart and merged into
-    ``FlightLoadsInput.cg_cases`` by the Flight Envelope page, so the two can no
-    longer diverge (the calc modules that balance/select over CG cases keep
-    reading ``FlightLoadsInput.cg_cases`` unchanged).
+    weight + CG points entered once on the Weight/CG Grid & Payload Cases page
+    and overlaid on the ``weight_envelope`` chart. Since **step 10 piece 2**
+    (decision G-3) it is the *only* case list: each case carries the
+    ``analyses`` it is run for, ``FlightLoadsInput.cg_cases`` and
+    ``LandingInput.cg_cases`` are gone, and every consumer reads the one
+    resolver in :mod:`sloads.cg_cases` rather than filtering for itself.
+
+    ``max_landing_weight_lb`` (G-4) and ``max_takeoff_weight_lb`` (G-14) are the
+    **single owners** of those two airplane-level limits -- certified numbers,
+    not properties of a loading, so they sit beside ``items`` and ``envelope``
+    where the estimate's own inputs live (and where MZFW will go). Read them
+    through :func:`sloads.cg_cases.max_landing_weight` /
+    :func:`sloads.cg_cases.max_takeoff_weight`, never off a case list: the
+    fallback that field replaced took ``max(landing cg_cases)``, which yields
+    **MLW, not MTOW**. The ordering chain ``OEW <= MLW <= MTOW <= sum(items)``
+    is checked in one place by :mod:`sloads.validation`.
+
+    ``0`` means "not entered": the calc **refuses** rather than falling back
+    (the suite's standing habit), and only the GUI offers the derived estimate
+    for acceptance.
     """
     estimation: Optional[WeightEstimationInput] = None
     items: List[MassItem] = field(default_factory=list)
     envelope: Optional[WeightEnvelopeInput] = None
     cg_cases: List["CgCase"] = field(default_factory=list)
+    max_landing_weight_lb: float = 0.0   # MLW -- SSOT (G-4); moved off LandingInput
+    max_takeoff_weight_lb: float = 0.0   # MTOW -- SSOT (G-14); a single CG-independent
+                                         # scalar, constant between the fwd/aft CG limits
 
     def direct_totals(self) -> Tuple[float, float, float]:
-        """Take-off, empty and useful weights summed directly from ``items``.
+        """``(database total, OEW, useful)`` summed directly from ``items``.
 
         The concept-mode "direct-weight path": instead of WTESTIMA's GA-calibrated
-        statistical estimate, derive ``(MTOW, OEW, useful)`` straight from the
-        itemized data base -- MTOW is every item, OEW the empty-weight items, and
-        useful load the minimum + discretionary items. This is the source of truth
-        for weights above WTESTIMA's calibration band. Returns ``(0, 0, 0)`` for an
-        empty data base.
+        statistical estimate, derive the weights straight from the itemized data
+        base -- OEW the empty-weight items, useful load the minimum + discretionary
+        items. Returns ``(0, 0, 0)`` for an empty data base.
+
+        **The first element is not MTOW** (decision G-14). It is the sum of every
+        row, and a database can hold full fuel *and* full payload at once, which no
+        real loading can: measured 2026-08-14 it exceeds the entered design weight
+        by 964 lb on ``atr42_100`` and 1,800 lb on ``concept_regional_jet``. It is
+        an upper bound, and the ordering chain treats it as the **ceiling** of
+        ``OEW <= MLW <= MTOW <= sum(items)``. For the design take-off weight read
+        :func:`sloads.cg_cases.max_takeoff_weight`.
         """
-        mtow = sum(it.weight_lb for it in self.items)
+        database_total = sum(it.weight_lb for it in self.items)
         oew = sum(it.weight_lb for it in self.items if it.kind == MassItemKind.EMPTY)
-        return mtow, oew, mtow - oew
+        return database_total, oew, database_total - oew
 
 
 # --------------------------------------------------------------------------- #
@@ -608,11 +647,31 @@ class CgCase:
     four per configuration). ``xcg``/``zcg`` are the fuselage station and waterline
     of the CG (inches). Entered explicitly for now; a later step seeds these from
     ``Project.weight.envelope``.
+
+    **Since step 10 piece 2 this list is the only one** (decision G-3): the case
+    states which analyses it is run for, instead of being copied into a
+    per-analysis list. ``analyses`` is a *set* so one case may feed several
+    (``{FLIGHT, GROUND}``) rather than being entered twice under two names and
+    drifting apart; an empty set is rejected by validation, because a case that is
+    run for nothing is an entry error, not a state (G-3c). The default
+    ``{FLIGHT}`` is today's behaviour, so a directly-constructed test project is
+    unchanged.
+
+    ``role`` (G-3a) is how LANDLOAD is fed: it consumes the three ``GROUND`` cases
+    that carry roles, **in role order**, retiring both the positional contract and
+    the name matching against ``validation.LANDING_CG_NAMES``. A further
+    ``GROUND``-tagged case without a role (a ramp loading, a second fuel state) is
+    assembled and distributed but never fed to LANDLOAD, so the tag is free to
+    grow while the oracle-locked module keeps its exact three-loading contract.
+    A ``role`` on a case not tagged ``GROUND`` is rejected.
     """
     name: str
     weight_lb: float
     xcg: float
     zcg: float
+    analyses: Set[AnalysisKind] = field(
+        default_factory=lambda: {AnalysisKind.FLIGHT})
+    role: Optional[GroundCaseRole] = None
 
 
 @dataclass
@@ -628,7 +687,11 @@ class FlightLoadsInput:
     (MC/MD) and the limit load factor come from ``Project.speeds`` (STRSPEED);
     the airplane-less-tail coefficient sets come from ``Project.aero_coeffs``
     (Step D4.1 -- previously carried here as ``configurations``). Each set is
-    balanced over ``cg_cases`` at every altitude in ``altitudes_ft``.
+    balanced over the ``FLIGHT``-tagged weight/CG cases -- read through
+    :func:`sloads.cg_cases.flight_cases`, not stored here -- at every altitude in
+    ``altitudes_ft``. ``cg_cases`` was removed from this slice by decision G-3b:
+    it had been a derived copy of ``WeightInput.cg_cases`` since v19, and a
+    second way to say the same thing is what that decision exists to remove.
 
     **``mac``/``wing_area_sqft``/``xw``/``zw`` are derived from geometry, not stored
     (Step M2-6).** They are single-sourced from ``Project.geometry`` -- ``mac``/``S``/
@@ -649,16 +712,15 @@ class FlightLoadsInput:
     xtf: float = 0.0
     mn: float = 0.1
     altitudes_ft: List[float] = field(default_factory=lambda: [0.0])
-    cg_cases: List[CgCase] = field(default_factory=list)
 
     def merged(self, *, xtc: float, xtf: float, mn: float,
-               altitudes_ft: List[float], cg_cases: List[CgCase]) -> "FlightLoadsInput":
+               altitudes_ft: List[float]) -> "FlightLoadsInput":
         """One page-edit merged into this slice.
 
         Step D5 exposes ``altitudes_ft`` as a real, fully-editable list on the
-        Flight Envelope page (multi-altitude V-n), and ``cg_cases`` is now read
-        from the shared ``WeightInput.cg_cases`` the Weight/CG Grid page owns
-        rather than edited here. Step M2-6 makes the wing geometry (``mac``/``S``/
+        Flight Envelope page (multi-altitude V-n); the weight/CG cases left this
+        slice entirely at G-3b and are read from ``WeightInput.cg_cases``, which
+        the Weight/CG Grid page owns. Step M2-6 makes the wing geometry (``mac``/``S``/
         ``xw``/``zw``) a read-only derivation from ``Project.geometry`` -- the page
         no longer edits them -- so the only inputs this page owns are the tail-CP
         stations, the reference Mach and the altitude list.
@@ -666,7 +728,6 @@ class FlightLoadsInput:
         return FlightLoadsInput(
             mac=self.mac, wing_area_sqft=self.wing_area_sqft, xw=self.xw, zw=self.zw,
             xtc=xtc, xtf=xtf, mn=mn, altitudes_ft=list(altitudes_ft),
-            cg_cases=list(cg_cases),
         )
 
 
@@ -1154,6 +1215,21 @@ class LandingGearInput:
     axle_extended: XYPoint = (0.0, 0.0)     # (X, Z) fully extended (reference)
     rolling_radius_in: float = 0.0          # RM / RN
     strut: str = "O"                        # "O" oleo | "S" spring
+    # Decision G-2 -- where the leg's reaction goes once LANDLOAD has computed it
+    # at the tyre contact patch (23.485(d) puts it there). ``attach`` is the
+    # airframe attachment/trunnion node in airplane coordinates, and is also
+    # G-12's "gear reference point": one point, named once, serving both the
+    # airframe transfer and the gear report. The export transfers the reaction to
+    # it with the lever-arm couple; where ``carrier is WING`` the point is
+    # additionally resolved onto the wing loads reference axis, so a gear torsion
+    # is stated about the same axis as every other wing torsion.
+    #
+    # ``carrier`` has **no default**: ``None`` means "not stated", and exporting a
+    # ground case without it raises rather than guessing. ``+-tread/2`` is not the
+    # answer -- that is a *wheel* dimension, and the axle butt line is not the
+    # trunnion butt line.
+    carrier: Optional[GearCarrier] = None   # BODY | WING -- no default (G-2)
+    attach: Vec3 = (0.0, 0.0, 0.0)          # (X, Y, Z) trunnion / airframe node, in
 
 
 @dataclass
@@ -1170,24 +1246,29 @@ class LandingInput:
 
     LANDLOAD (FAR 23.473-23.499) then computes the tricycle-gear reaction loads for
     the level, tail-down, one-wheel, braked-roll, side and supplementary-nose-wheel
-    ground conditions, reading the per-CG weight & CG from the three **required**
-    ``cg_cases`` (aft/fwd max landing, fwd light; UG fig 18.2). ``Project.mass`` is
-    not read at all (M2-8 removed the auto-derivation -- a single heaviest mass case
-    cannot supply distinct fwd/aft stations), so the landing workflow step requires
-    no ``mass`` slice (M4-17a).
+    ground conditions, reading the per-CG weight & CG from the three **roled**
+    ``GROUND`` weight/CG cases (aft max landing, fwd max landing, fwd light; UG
+    fig 18.2) -- resolved by :func:`sloads.cg_cases.landing_role_cases`, since
+    decision G-3b retired this slice's own ``cg_cases`` list into the shared one.
+    ``Project.mass`` is not read at all (M2-8 removed the auto-derivation -- a
+    single heaviest mass case cannot supply distinct fwd/aft stations), so the
+    landing workflow step requires no ``mass`` slice (M4-17a).
 
     The reduced landing weight (FAR 23.473(b)/(c); typically 0.95*MTOW) applies to
     the level / tail-down / one-wheel cases; the side, braked-roll and nose
-    supplementary cases use the max take-off (gross) weight via ``WR = GW/W``.
+    supplementary cases use the max take-off weight via ``WR = GW/W``. **Both
+    weights left this slice** at G-4/G-14: MLW and MTOW are single inputs on
+    ``WeightInput``, read through :mod:`sloads.cg_cases`. That removed a latent
+    defect with the field -- ``gross_weight_lb`` fell back to
+    ``max(landing cg_cases)``, which is MLW, not MTOW, making ``WR = 1.0`` and
+    understating cases 13-24 by ~5 %. Every shipped fixture set it explicitly, so
+    it never bit; nothing now can.
     **Tricycle gear only** (UG Table 2.1)."""
     # LGFACTOR (landing load factor)
     wing_area_sqft: float = 0.0                # S -- derived from the geometry wing
                                                # (Step M2-6, via landing._wing_area); not
                                                # persisted. A directly-set value is the
                                                # fallback when no wing geometry is present.
-    max_landing_weight_lb: float = 0.0         # W (LGFACTOR + LANDLOAD reduced weight)
-    gross_weight_lb: float = 0.0               # GW (0 -> max(cg_cases[].weight_lb), on a
-                                               # local copy -- landing.build_landing)
     strut_stroke_in: float = 0.0               # SSTRUT (fully extended -> compressed)
     tire_od_in: float = 0.0                    # OD (outer diameter of tyre)
     hub_diameter_in: float = 0.0               # ID (hub diameter)
@@ -1198,11 +1279,6 @@ class LandingInput:
     tread_in: float = 0.0                      # TREAD (distance between main wheels)
     tail_down_angle_deg: float = 0.0           # GRA(3) (ground line to WL, tail-down bump)
     gear_load_factor: float = 0.0              # NLG override; 0 -> from LGFACTOR (N - L)
-    # Per-CG weight & CG -- **required**: exactly three loadings, consumed positionally
-    # as [aft max landing, fwd max landing, fwd light] (empty raises, M2-8). Each
-    # CgCase: name, weight_lb, xcg, zcg (waterline; a zero waterline is rejected by
-    # the view and flagged by validation._check_landing_hierarchy -- M4-17c).
-    cg_cases: List["CgCase"] = field(default_factory=list)
 
 
 # --------------------------------------------------------------------------- #

@@ -5,10 +5,11 @@ One page of the multi-page app; run the suite with:  streamlit run app/Home.py
 Estimates the landing load factor (LGFACTOR, FAR 23.473(d)-(g)) from the drop-test
 work-energy balance, then computes the tricycle-gear reaction loads for the level,
 tail-down, one-wheel, braked-roll, side and supplementary-nose-wheel ground
-conditions (LANDLOAD, FAR 23.473-23.499). The three landing CG loadings are entered
-here (landing.cg_cases); the waterline is seeded from Project.mass (WTONECG) when
-present and left **blank** otherwise — LANDLOAD will not run on a zero waterline
-(M4-17c). Tricycle gear only (UG Table 2.1).
+conditions (LANDLOAD, FAR 23.473-23.499). Since decision G-3 the three landing CG
+loadings are **not** entered here: they are the roled GROUND cases of the one
+shared weight/CG case list, owned by the Weight & Mass Properties page's Payload
+Cases tab and shown read-only below. Both design weights (MLW, MTOW) are likewise
+read from WeightInput (G-4 / G-14). Tricycle gear only (UG Table 2.1).
 """
 
 from __future__ import annotations
@@ -19,9 +20,7 @@ import streamlit as st
 from components import page_header, workflow_page_link
 
 from sloads import (
-    CgCase,
     LandingInput,
-    Project,
     UnitSystem,
     io,
     si_scalar_label,
@@ -29,93 +28,30 @@ from sloads import (
     to_imperial_scalar,
     to_si_scalar,
 )
+from sloads.cg_cases import (
+    landing_role_cases,
+    max_landing_weight,
+    max_landing_weight_estimate,
+    max_takeoff_weight,
+)
 from sloads.derived_geometry import wing_reference
 from sloads.modules.landing import build_landing, run
+from sloads.models import MissingInputError
 from sloads.validation import (
-    LANDING_CG_NAMES,
     consistency_warnings,
     landing_reaction_warnings,
-    wtenv_cg_limits,
-    wtenv_fwd_cg_limit_at_weight,
 )
 
 
-_CG_NAMES = LANDING_CG_NAMES
-
-
-def _row(name: str, w, x, z, system: UnitSystem) -> dict:
-    """One editor row in display units; a missing (None / non-positive) source is
-    left blank (``None``), never zero-filled -- see ``_seed_cg_rows``."""
-    def d(value, kind: str):
-        if value is None or value <= 0:
-            return None
-        return round(to_display(value, kind, system), 3)
-
-    return {"name": name, "weight_lb": d(w, "weight"),
-            "xcg": d(x, "length"), "zcg": d(z, "length")}
-
-
-def _seed_cg_rows(project: Project, inp: LandingInput, system: UnitSystem) -> list:
-    """Three display-unit CG rows for the editor (M2R-5; rewritten M4-17c).
-
-    Existing ``landing.cg_cases`` when present (edit what's there); otherwise a WTENV
-    seed in which **every cell without a real source is left blank rather than
-    zero-filled**:
-
-    * ``weight`` -- the two max-landing rows use the entered max landing weight and
-      are blank when it is unset (they previously seeded full MTOW, silently
-      analysing an over-weight landing); the light row uses the WTENV
-      fwd-regardless weight.
-    * ``xcg`` -- aft rows from ``wtenv_cg_limits``' aft-gross station; forward rows
-      from ``wtenv_fwd_cg_limit_at_weight`` **interpolated at that row's own
-      weight**. Appendix A p230 reads 76.12 in at the 3230 lb landing weight, not
-      the 72.64 in weight-agnostic hull value the old seed handed both max-landing
-      rows.
-    * ``zcg`` -- the WTONECG waterline ``project.mass.cases[0].cg_z``, blank when no
-      mass slice exists. Seeding 0.0 against a ~60 in axle waterline put the CG on
-      the ground line and produced nonphysical negative nose reactions and
-      braked-roll main loads ~2.6x the p230 oracle, with no warning.
-
-    The fwd/aft station split is a seed only: WTENV cannot distinguish it per loading."""
-    if len(inp.cg_cases) == 3:
-        return [_row(c.name, c.weight_lb, c.xcg, c.zcg, system) for c in inp.cg_cases]
-
-    env = project.weight.envelope if project.weight is not None else None
-    w_land = inp.max_landing_weight_lb or None
-    w_light = (env.fwd_regardless_weight or None) if env is not None else None
-    limits = wtenv_cg_limits(project)
-    aft = limits[1] if limits is not None else None
-    fwd_land = wtenv_fwd_cg_limit_at_weight(project, w_land) if w_land else None
-    fwd_light = wtenv_fwd_cg_limit_at_weight(project, w_light) if w_light else None
-    zbar = (project.mass.cases[0].cg_z
-            if project.mass is not None and project.mass.cases else None)
-    seeds = ((_CG_NAMES[0], w_land, aft, zbar),
-             (_CG_NAMES[1], w_land, fwd_land, zbar),
-             (_CG_NAMES[2], w_light, fwd_light, zbar))
-    return [_row(n, w, x, z, system) for n, w, x, z in seeds]
-
-
-def _seed_warnings(project: Project, inp: LandingInput) -> list:
-    """Missing-source messages for the seed, each naming the source and its effect."""
-    out = []
-    if project.mass is None or not project.mass.cases:
-        out.append(
-            "**Zcg waterline — no source.** `Project.mass` is empty, so the waterline "
-            "cells are blank. Open **Weight & Mass Properties → Weight, CG & Inertia**, "
-            "fill the itemised mass data base and press **Apply weight items**: its "
-            "ZBAR is the waterline LANDLOAD needs. A zero waterline puts the CG on the "
-            "ground line — it inverts the nose-gear reaction (negative VNP) and "
-            "inflates the braked-roll main loads ~2.6×.")
-    if not inp.max_landing_weight_lb:
-        out.append(
-            "**Max landing weight unset** — the two max-landing rows are blank. Enter "
-            "it above (typically 0.95·MTOW, FAR 23.473(b)/(c)). It is no longer seeded "
-            "at full MTOW, and the forward CG limit is interpolated *at* it.")
-    if wtenv_cg_limits(project) is None:
-        out.append(
-            "**No WTENV envelope** — the Xcg stations are blank. Fill the **Weight / CG "
-            "Envelope** tab on the Weight & Mass Properties page.")
-    return out
+def _cg_table(cases, system: UnitSystem) -> pd.DataFrame:
+    """The three roled loadings, in display units, read-only (decision G-3)."""
+    return pd.DataFrame([{
+        "role": c.role.value.replace("_", " ") if c.role else "",
+        "name": c.name,
+        "weight": round(to_display(c.weight_lb, "weight", system), 3),
+        "xcg": round(to_display(c.xcg, "length", system), 3),
+        "zcg": round(to_display(c.zcg, "length", system), 3),
+    } for c in cases])
 
 
 project, system, U = page_header("landing_loads", title="Landing Loads — LGFACTOR + LANDLOAD", banner=False)
@@ -130,19 +66,22 @@ inp = project.landing or LandingInput()
 with st.form("landing_loads_form"):
     st.subheader("Landing load factor (LGFACTOR)")
     c1, c2, c3 = st.columns(3)
-    max_landing_weight_lb = c1.number_input(
-        f"Max landing weight, W ({U['weight']})", min_value=0.0,
-        value=float(round(to_display(inp.max_landing_weight_lb, "weight", system), 4)),
-        help="Typically 0.95·MTOW (FAR 23.473(b)/(c)); not auto-derived (an engineering "
-             "judgment call, not a duplicate of another slice).",
-        key=f"max_landing_weight_{system.value}")
-    gross_weight_lb = c2.number_input(
-        f"Gross (max take-off) weight override, GW ({U['weight']})", min_value=0.0,
-        value=float(round(to_display(inp.gross_weight_lb, "weight", system), 4)),
-        help="0 → derived from the heaviest **landing CG case** below (the max of the "
-             "three weights). Must be ≥ the max landing weight: WR = GW/W scales the "
-             "braked-roll, side and supplementary-nose cases.",
-        key=f"gross_weight_{system.value}")
+    _mlw = max_landing_weight(project, required=False)
+    _mtow = max_takeoff_weight(project, required=False)
+    c1.metric(
+        f"Max landing weight, W ({U['weight']})",
+        f"{to_display(_mlw, 'weight', system):,.1f}" if _mlw else "—",
+        help="Single-sourced from **weight.max_landing_weight_lb** (decision G-4) — "
+             "a certified airplane-level limit, not a property of a loading, so it "
+             "is entered once on the Weight & Mass Properties page. Typically "
+             "0.95·MTOW (FAR 23.473(b)/(c)).")
+    c2.metric(
+        f"Max take-off weight, GW ({U['weight']})",
+        f"{to_display(_mtow, 'weight', system):,.1f}" if _mtow else "—",
+        help="Single-sourced from **weight.max_takeoff_weight_lb** (decision G-14). "
+             "WR = GW/W scales the braked-roll, side and supplementary-nose cases. "
+             "The old override fell back to the heaviest *landing* case, which is "
+             "MLW — WR = 1.0, understating those cases by ~5 %.")
     # Step M2-6: wing area is single-sourced from the geometry wing (read-only here).
     _wr = wing_reference(project, "wing")
     _wing_area_display = _wr.s_sqft if _wr is not None else inp.wing_area_sqft
@@ -174,30 +113,25 @@ with st.form("landing_loads_form"):
     st.subheader("Landing CG cases")
     st.caption(
         "The three distinct landing loadings LANDLOAD cycles (aft-max / fwd-max / "
-        "fwd-light landing; UG fig 18.2) — editable here (previously project-JSON only). "
-        "Seeded from the WTENV structural CG envelope (fwd/aft stations + gross / "
-        "fwd-regardless weights, with the forward limit interpolated **at** each row's "
-        "weight) when present; **confirm the fwd vs aft stations**, which WTENV cannot "
-        "distinguish per loading. A cell with no real source is left **blank** — it is "
-        "never defaulted to zero (M4-17c).")
-    for _msg in _seed_warnings(project, inp):
-        st.warning(_msg)
-    edited_cg = st.data_editor(
-        pd.DataFrame(_seed_cg_rows(project, inp, system)),
-        num_rows="fixed", width="stretch", key=f"landing_cg_editor_{system.value}",
-        column_config={
-            "name": st.column_config.TextColumn(
-                "Loading", disabled=True,
-                help="Fixed order: LANDLOAD assigns the braked-roll / side weight "
-                     "groups by position (aft max landing, fwd max landing, fwd "
-                     "light; UG fig 18.2)."),
-            "weight_lb": st.column_config.NumberColumn(f"Weight ({U['weight']})",
-                                                       min_value=0.0, format="%.3f"),
-            "xcg": st.column_config.NumberColumn(f"Xcg station ({U['length']})",
-                                                 format="%.3f"),
-            "zcg": st.column_config.NumberColumn(f"Zcg waterline ({U['length']})",
-                                                 format="%.3f"),
-        })
+        "fwd-light landing; UG fig 18.2) — **read-only here since decision G-3**. "
+        "They are the GROUND-tagged cases of the one shared weight/CG case list, "
+        "edited on **Weight & Mass Properties → Payload Cases**, where each case "
+        "states the analyses it is run for and its landing **role**. The role is "
+        "what fixes the order LANDLOAD consumes them in; it used to be recovered by "
+        "matching names, so a renamed case silently reordered the reaction table.")
+    try:
+        _roled = landing_role_cases(project)
+    except (MissingInputError, ValueError) as _exc:
+        _roled = []
+        st.warning(str(_exc))
+    if _roled:
+        st.dataframe(_cg_table(_roled, system), width="stretch", hide_index=True,
+                     column_config={
+                         "role": "Role", "name": "Case",
+                         "weight": f"Weight ({U['weight']})",
+                         "xcg": f"Xcg station ({U['length']})",
+                         "zcg": f"Zcg waterline ({U['length']})"})
+    workflow_page_link("weight_mass", label="→ Weight & Mass Properties (edit the cases)")
 
     st.caption(
         "The **landing-gear geometry** (axle stations, tread, rolling radius, strut) is "
@@ -206,8 +140,8 @@ with st.form("landing_loads_form"):
     applied = st.form_submit_button("Apply", type="primary")
 
 if applied:
-    inp.max_landing_weight_lb = to_imperial_scalar(max_landing_weight_lb, "weight", system)
-    inp.gross_weight_lb = to_imperial_scalar(gross_weight_lb, "weight", system)
+    # Neither design weight is written here any more (G-4 / G-14), and neither are
+    # the CG cases (G-3): this form owns the LGFACTOR strut/tyre scalars only.
     # wing_area_sqft is derived from geometry (Step M2-6) -- not written here.
     inp.strut_stroke_in = to_imperial_scalar(strut_stroke_in, "length", system)
     inp.tire_od_in = to_imperial_scalar(tire_od_in, "length", system)
@@ -215,40 +149,37 @@ if applied:
     inp.lift_factor = lift_factor
     inp.gear_load_factor = gear_load_factor
     inp.tail_down_angle_deg = tail_down_angle_deg
-    # A blank/zero cell is *not* saved: LANDLOAD on a zero waterline or a zero station
-    # computes nonphysical reactions silently (M4-17c). The names are written from the
-    # canonical tuple, never from the (read-only) cell, so a renamed row cannot
-    # mis-assign the positional weight groups.
-    _records = edited_cg.to_dict("records")
-    _incomplete_rows = [
-        _CG_NAMES[i] for i, r in enumerate(_records)
-        if any(r.get(k) is None or pd.isna(r.get(k)) or float(r[k]) <= 0.0
-               for k in ("weight_lb", "xcg", "zcg"))]
-    if _incomplete_rows:
-        st.error(
-            "Landing CG cases **not saved** — every row needs a positive weight, Xcg "
-            "station and Zcg waterline. Incomplete: " + ", ".join(_incomplete_rows)
-            + ". (A zero waterline is rejected, not defaulted.)")
-    else:
-        inp.cg_cases = [
-            CgCase(name=_CG_NAMES[i],
-                   weight_lb=to_imperial_scalar(float(r["weight_lb"]), "weight", system),
-                   xcg=to_imperial_scalar(float(r["xcg"]), "length", system),
-                   zcg=to_imperial_scalar(float(r["zcg"]), "length", system))
-            for i, r in enumerate(_records)]
     project.landing = inp
     st.session_state["project"] = project
     st.success("Landing/ground inputs applied.")
 
-_incomplete = [c.name for c in inp.cg_cases
-               if c.weight_lb <= 0 or c.xcg <= 0 or c.zcg <= 0]
-if len(inp.cg_cases) != 3 or _incomplete:
-    st.info(
-        "Enter the three landing **CG cases** above — each needs a positive weight, "
-        "Xcg station and **Zcg waterline** — then press **Apply** to compute the "
-        "ground reactions."
-        + (f" Incomplete: {', '.join(_incomplete)}." if _incomplete else ""))
-    workflow_page_link("weight_mass", label="→ Weight & Mass Properties (waterline source)")
+_blocked = []
+if not max_landing_weight(project, required=False):
+    _est = max_landing_weight_estimate(project)
+    _blocked.append(
+        "**Max landing weight unset.** Enter it on **Weight & Mass Properties** "
+        "(typically 0.95·MTOW, FAR 23.473(b)/(c))."
+        + (f" A starting estimate from the item database — OEW + max payload + "
+           f"reserve fuel — is {to_display(_est, 'weight', system):,.0f} "
+           f"{U['weight']}." if _est else ""))
+try:
+    _cases = landing_role_cases(project)
+except (MissingInputError, ValueError) as _exc:
+    _cases = []
+    _blocked.append(str(_exc))
+else:
+    _incomplete = [c.name for c in _cases
+                   if c.weight_lb <= 0 or c.xcg <= 0 or c.zcg <= 0]
+    if _incomplete:
+        _blocked.append(
+            "Each roled landing case needs a positive weight, Xcg station and "
+            "**Zcg waterline** — a zero waterline puts the CG on the ground line "
+            "and inverts the nose-gear reaction (M4-17c). Incomplete: "
+            + ", ".join(_incomplete) + ".")
+if _blocked:
+    for _msg in _blocked:
+        st.info(_msg)
+    workflow_page_link("weight_mass", label="→ Weight & Mass Properties")
     st.stop()
 
 for _w in consistency_warnings(project):

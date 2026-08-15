@@ -86,10 +86,15 @@ the wrong beam.
 
 from __future__ import annotations
 
+import dataclasses
 from dataclasses import dataclass
 from typing import Dict, List, Optional, Sequence, Tuple
 
+from .cg_cases import flight_cases
+
 from .models import (
+    AnalysisKind,
+    CgCase,
     FuselageStation,
     MassComponent,
     MassItem,
@@ -585,8 +590,16 @@ def _wx(items: Sequence[MassItem]) -> Tuple[float, float, float]:
             sum(it.weight_lb * it.z for it in items) / w)
 
 
-def derive_case_loadings(project: Project) -> List[CaseLoading]:
-    """One :class:`CaseLoading` per ``flight_loads.cg_cases`` entry.
+def derive_case_loadings(project: Project,
+                         cases: Optional[Sequence[CgCase]] = None) -> List[CaseLoading]:
+    """One :class:`CaseLoading` per weight/CG case.
+
+    ``cases`` defaults to the ``FLIGHT``-tagged cases -- what this used to read
+    off ``flight_loads.cg_cases``. Decision G-3 generalized it to *any* case list
+    so each analysis asks for the cases tagged for it; the ``derivable`` gate and
+    the ``SkippedCondition`` record are unchanged, so a ground case whose loading
+    the weight database cannot produce is skipped and recorded, never invented,
+    exactly as a flight case is.
 
     **How, and why not the way plan 12 C-1 described.** C-1 proposed deriving
     each loading from WTENV's ballast machinery -- its structural-limit points
@@ -617,9 +630,9 @@ def derive_case_loadings(project: Project) -> List[CaseLoading]:
     derived loading matches the case in all three. Its inertias are zero -- a
     point mass, which is what a ballast weight is.
     """
-    fl = project.flight_loads
+    targets = list(cases) if cases is not None else flight_cases(project)
     items = project.weight.items if project.weight is not None else []
-    if fl is None or not fl.cg_cases or not items:
+    if not targets or not items:
         return []
 
     from .modules.weight_envelope import _fuselage_extent, _item_buckets
@@ -637,10 +650,28 @@ def derive_case_loadings(project: Project) -> List[CaseLoading]:
     z_hi = max(it.z for it in items)
 
     out: List[CaseLoading] = []
-    for case in fl.cg_cases:
+    for case in targets:
+        burns = AnalysisKind.GROUND in case.analyses
         best: Optional[Tuple[float, int, List[MassItem], Optional[MassItem]]] = None
         for mask in range(1 << len(discretionary)):
             sub = [it for i, it in enumerate(discretionary) if mask >> i & 1]
+            # G-5: for a GROUND target, burn the consumables in this subset down
+            # to a continuous partial value -- proportionally, so a tank layout is
+            # preserved -- *before* considering the subset a loading. A design
+            # landing weight is fuel burned off (23.473(b)/(c)), not a passenger
+            # left behind, and on a wing-fuel airplane the difference is not
+            # cosmetic: burning fuel removes wing inertia relief and dropping a
+            # passenger does not. The candidate carries no ballast, so it wins the
+            # least-ballast rule outright over any subset that dropped payload.
+            if burns:
+                burnt = _burn_down(base + sub, case.weight_lb)
+                if burnt is not None:
+                    _, bx, bz = _wx(burnt)
+                    if abs(bx - case.xcg) <= _CG_MATCH_TOL:
+                        cand = (0.0, -len(sub), burnt, None)
+                        if best is None or cand[:2] < best[:2]:
+                            best = cand
+                        continue
             wa, xa, za = _wx(base + sub)
             wb = case.weight_lb - wa
             if wb < -_BALLAST_EPS:
@@ -689,6 +720,41 @@ def derive_case_loadings(project: Project) -> List[CaseLoading]:
     return out
 
 
+def _burn_down(items: List[MassItem], target_lb: float) -> Optional[List[MassItem]]:
+    """``items`` with their consumables scaled to reach ``target_lb`` exactly (G-5).
+
+    The scale is one fraction applied to every ``consumable`` row, so the relative
+    tank (or tank-group) split is preserved rather than one tank being drained
+    first -- a real airplane burns to a schedule, and the loading's *distribution*
+    is the whole reason this is not simply a weight subtraction.
+
+    Returns ``None`` when burn-down cannot reach the target: the loading is
+    already lighter than the case (nothing to burn *into*), or it carries no
+    consumables, or the whole consumable load is not enough. The caller then falls
+    back to the generic discretionary-subset search, which is unchanged.
+
+    A row burnt to zero is dropped rather than kept as a 0 lb card.
+    """
+    total = sum(it.weight_lb for it in items)
+    burnable = sum(it.weight_lb for it in items if it.consumable)
+    needed = total - target_lb
+    if needed < -_BALLAST_EPS or burnable <= 0.0 or needed > burnable + _BALLAST_EPS:
+        return None
+    if needed <= _BALLAST_EPS:
+        return list(items)
+    fraction = 1.0 - needed / burnable
+    out: List[MassItem] = []
+    for it in items:
+        if not it.consumable:
+            out.append(it)
+            continue
+        left = it.weight_lb * fraction
+        if left <= _BALLAST_EPS:
+            continue
+        out.append(dataclasses.replace(it, weight_lb=left))
+    return out
+
+
 #: Weight below which a residual is "no ballast needed" rather than a mass.
 _BALLAST_EPS = 1e-6
 #: How near a zero-ballast loading's CG must be to the case's to count as it.
@@ -706,7 +772,7 @@ def case_loading_checks(project: Project) -> List[MassCheck]:
     for loading in derive_case_loadings(project):
         if not loading.derivable:
             continue
-        case = next(c for c in project.flight_loads.cg_cases if c.name == loading.name)
+        case = next(c for c in flight_cases(project) if c.name == loading.name)
         for got, want, label in ((loading.weight_lb, case.weight_lb, "weight"),
                                  (loading.cg_x, case.xcg, "xcg"),
                                  (loading.cg_z, case.zcg, "zcg")):

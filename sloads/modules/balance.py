@@ -187,6 +187,7 @@ from math import degrees
 from typing import List, Optional, Sequence, Tuple
 
 from ..case_ids import handed_case_id
+from ..cg_cases import flight_cases
 from ..derived_geometry import sync_geometry_derived
 from ..export.coordinates import (
     reflect_force,
@@ -1213,7 +1214,7 @@ def build_balanced_cases(
     envelope = default_envelope(project)
     critical = default_critical(project)
     vn = {p.case: p for p in envelope.vn}
-    cgs = {c.name: c for c in project.flight_loads.cg_cases}
+    cgs = {c.name: c for c in flight_cases(project)}
     loadings = {ld.name: ld for ld in derive_case_loadings(project)}
     fins = _fin_distributions(project)
     htails = _htail_distributions(project)

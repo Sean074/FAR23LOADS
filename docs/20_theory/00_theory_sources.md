@@ -85,6 +85,29 @@ that the table resolves exactly the factor the producing module mints, and that 
 case falls through unclassified. Those two together are what make it an authority
 rather than a second opinion.
 
+### The two design weights and consumable fuel (step 10 piece 2, 2026-08-14)
+
+Decisions **G-4**, **G-14** and **G-5**. Three rules whose authority is the
+regulation, not the manual, so they are cited here rather than page-matched:
+
+| rule | citation | what it fixes |
+|---|---|---|
+| The reduced landing weight is a design limit distinct from the take-off weight; LANDLOAD's level / tail-down / one-wheel cases use it and the side / braked-roll / nose-supplementary cases use MTOW via `WR = MTOW/MLW` | **14 CFR 23.473(b)/(c)** (and the manual's Ch 20 p126-130) | `landing.gross_weight_lb` fell back to `max(landing cg_cases)` — which is **MLW**, so `WR = 1.0` and cases 13-24 came out ~5 % light. `WeightInput` now owns both weights and there is no fallback. |
+| A design landing weight is **fuel burned off**, not payload left behind, so a `GROUND` loading burns its `consumable` rows down — continuously and proportionally — before any discretionary subset is dropped | **14 CFR 23.473(b)/(c)** | Measured on ga6: the ballast-minimising subset search dropped the 6th person (x = 150) and kept all 409 lb of fuel (x = 70) — the right weight with the mass 80 in out of place, and on a wing-fuel airplane worse than misplaced, because burning fuel removes wing inertia relief and dropping a passenger does not. Burn-down reaches the case by burning **317 lb**, landing **0.12 in** from its target CG. |
+| The gear reaction is computed at the **ground contact point** and any transfer to an airframe node is the tool's, not the regulation's | **14 CFR 23.485(d)**: "The side loads … are assumed to be applied at the ground contact point and the drag loads may be assumed to be zero." | It is why `LandingGearInput.attach` is an input with a resultant-preserving transfer rather than a place to compute the reaction. |
+
+**Stated assumption (G-14):** MTOW is a **single scalar, constant between the
+forward and aft CG limits**. On some airplanes it varies with CG (the 777 among
+them) — a weight-dependent *upper* boundary of the weight-CG envelope, in
+machinery that already expresses a weight-dependent boundary in the other
+direction (`fwd_regardless_weight`). Recorded here rather than left implicit.
+
+**Why these are closure gates rather than oracles.** No printed figure covers
+them: the migration is claimed *output-neutral*, so the gate is that every
+Appendix-A oracle and every fixture digest is unchanged, and that the
+`FLIGHT`-tagged case set after migration equals the pre-hop `flight_loads.cg_cases`
+exactly, per fixture (`tests/test_cg_cases.py`).
+
 ## How to cite
 
 - **In test code:** keep the manual's printed figure *and* a page citation next

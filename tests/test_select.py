@@ -31,6 +31,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from sloads import Project, SelectInput, TailLoadsInput, VTailLoadsInput, io  # noqa: E402
 from sloads.modules import select  # noqa: E402
 from sloads.modules.flight_envelope import build_envelope  # noqa: E402
+from sloads.cg_cases import flight_cases  # noqa: E402
 
 _EXAMPLES = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "examples")
 _GA = os.path.join(_EXAMPLES, "ga6_normal.project.json")
@@ -175,7 +176,7 @@ def test_rational_balancing_tail_load_hand_calc():
     # Our envelope inherits FLTLOADS' +-0.005-NZ noise, so ~0.2% here.
     p = _ga6_three_altitudes()
     fl = p.flight_loads
-    cg1 = next(c for c in fl.cg_cases if c.name == "CG1")
+    cg1 = next(c for c in flight_cases(p) if c.name == "CG1")
     pt = next(v for v in build_envelope(p).vn
               if v.condition == "STALL +N" and v.cg == "CG1" and v.altitude_ft == 18000)
     b = select.htail_balance(pt, cg1, fl.xw, fl.zw, _TAIL)

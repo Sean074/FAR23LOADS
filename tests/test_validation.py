@@ -20,10 +20,11 @@ from sloads import (
     consistency_warnings,
 )
 from sloads import io as sloads_io
-from sloads.models import GeometryInput
+from sloads.models import AnalysisKind, GeometryInput, GroundCaseRole
 
-_GA = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-                   "examples", "ga6_normal.project.json")
+_EXAMPLES = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                         "examples")
+_GA = os.path.join(_EXAMPLES, "ga6_normal.project.json")
 
 
 def _codes(project, page=None):
@@ -215,11 +216,18 @@ def test_wtenv_fwd_cg_limit_at_weight():
 # --------------------------------------------------------------------------- #
 # M4-17d -- landing weight/CG hierarchy + post-compute reaction sanity
 # --------------------------------------------------------------------------- #
-def _ga_with_landing(**changes):
-    from dataclasses import replace
+def _ga_with_ground_cases(fn):
+    """The GA fixture with its three roled GROUND cases mapped through ``fn``.
+
+    They live on the one shared list now (decision G-3b), so a test that wants to
+    perturb a landing loading edits ``weight.cg_cases`` -- and must leave the
+    FLIGHT-tagged cases alone, or it perturbs the flight analysis too.
+    """
+    from dataclasses import replace  # noqa: F401  (used by callers' lambdas)
 
     project = sloads_io.load_project(_GA)
-    project.landing = replace(project.landing, **changes)
+    project.weight.cg_cases = [fn(c) if c.role is not None else c
+                               for c in project.weight.cg_cases]
     return project
 
 
@@ -228,20 +236,23 @@ def test_landing_hierarchy_silent_on_ga_fixture():
     assert _codes(sloads_io.load_project(_GA), page="landing_loads") == set()
 
 
-def test_landing_gross_below_max_landing_fires():
-    """GW < W deflates WR = GW/W below 1, under-predicting the braked-roll, side and
-    supplementary-nose cases while the numbers still look plausible."""
-    project = _ga_with_landing(gross_weight_lb=3000.0)   # below the 3230 lb landing weight
-    assert "gross_ge_max_landing" in _codes(project, page="landing_loads")
+def test_a_max_landing_case_that_disagrees_with_mlw_fires():
+    """G-4: MLW is one number and a certified airplane-level limit, so a roled
+    max-landing case at some other weight is an error, not a preference."""
+    from dataclasses import replace
+
+    project = _ga_with_ground_cases(
+        lambda c: replace(c, weight_lb=3100.0)
+        if c.role is not None and c.role.value.endswith("max_landing") else c)
+    assert "landing_case_weight_is_mlw" in _codes(project, page="landing_loads")
 
 
 def test_landing_light_case_over_max_landing_fires():
     from dataclasses import replace
 
-    project = sloads_io.load_project(_GA)
-    cases = list(project.landing.cg_cases)
-    cases[2] = replace(cases[2], weight_lb=4000.0)       # light corner heavier than W
-    project.landing.cg_cases = cases
+    project = _ga_with_ground_cases(
+        lambda c: replace(c, weight_lb=4000.0)      # light corner heavier than W
+        if c.role is not None and c.role.value == "fwd_light" else c)
     assert "landing_light_le_max" in _codes(project, page="landing_loads")
 
 
@@ -249,8 +260,12 @@ def test_landing_cg_ordering_fires_on_fwd_aft_swap():
     from dataclasses import replace
 
     project = sloads_io.load_project(_GA)
-    aft, fwd, light = project.landing.cg_cases
-    project.landing.cg_cases = [replace(aft, xcg=fwd.xcg), replace(fwd, xcg=aft.xcg), light]
+    roled = {c.role: c for c in project.weight.cg_cases if c.role is not None}
+    aft = roled[GroundCaseRole.AFT_MAX_LANDING]
+    fwd = roled[GroundCaseRole.FWD_MAX_LANDING]
+    swap = {aft.name: fwd.xcg, fwd.name: aft.xcg}
+    project.weight.cg_cases = [replace(c, xcg=swap[c.name]) if c.name in swap else c
+                               for c in project.weight.cg_cases]
     assert "landing_cg_ordering" in _codes(project, page="landing_loads")
 
 
@@ -259,18 +274,74 @@ def test_landing_cg_below_axle_fires_on_zero_waterline():
     main-axle waterline, which is geometrically impossible for a tricycle airplane."""
     from dataclasses import replace
 
-    project = sloads_io.load_project(_GA)
-    project.landing.cg_cases = [replace(c, zcg=0.0) for c in project.landing.cg_cases]
+    project = _ga_with_ground_cases(lambda c: replace(c, zcg=0.0))
     assert "landing_cg_below_axle" in _codes(project, page="landing_loads")
 
 
-def test_landing_cg_names_fires_on_non_canonical_names():
+def test_a_role_on_a_case_that_is_not_a_ground_case_is_rejected():
+    """G-3a: the role is LANDLOAD's ordering contract, so carried by a flight-only
+    case it says the user meant one thing and the calc will do another."""
+    from dataclasses import replace
+
+    project = _ga_with_ground_cases(lambda c: replace(c, analyses={AnalysisKind.FLIGHT}))
+    assert "cg_case_role_without_ground" in _codes(project, page="weight_cg_inertia")
+
+
+def test_a_case_run_for_no_analysis_is_rejected():
+    """G-3c: it disappears from every result while still occupying a row."""
     from dataclasses import replace
 
     project = sloads_io.load_project(_GA)
-    project.landing.cg_cases = [replace(c, name=f"case {i}")
-                                for i, c in enumerate(project.landing.cg_cases)]
-    assert "landing_cg_names" in _codes(project, page="landing_loads")
+    project.weight.cg_cases = [replace(c, analyses=set()) if i == 0 else c
+                               for i, c in enumerate(project.weight.cg_cases)]
+    assert "cg_case_no_analysis" in _codes(project, page="weight_cg_inertia")
+
+
+def test_the_design_weight_ordering_chain_fires_on_an_inverted_pair():
+    """G-14: OEW <= MLW <= MTOW <= sum(items), one check where four were scattered."""
+    project = sloads_io.load_project(_GA)
+    project.weight.max_landing_weight_lb = project.weight.max_takeoff_weight_lb + 100.0
+    assert "weight_order_chain" in _codes(project, page="weight_cg_inertia")
+
+
+def test_the_mlw_floor_fires_on_the_regional_jet_and_no_other_fixture():
+    """G-4, measured 2026-08-14: the RJ cannot land at MLW (31,000) with full
+    payload and reserve fuel (31,360). That is a real finding about that fixture,
+    and it is why the estimate is a floor rather than a prediction."""
+    import glob
+
+    fired = set()
+    for path in sorted(glob.glob(os.path.join(_EXAMPLES, "*.project.json"))):
+        if "mlw_below_landing_estimate" in _codes(sloads_io.load_project(path)):
+            fired.add(os.path.basename(path))
+    assert fired == {"concept_regional_jet.project.json"}, fired
+
+
+def test_the_gear_carrier_mass_guard_fires_on_the_dash_8_and_no_other_fixture():
+    """G-2 guard 1: the Dash 8's main gear sits in wing-mounted nacelles but its
+    mass rows are tagged fuselage -- the same structure carrying the load and not
+    the weight. Correcting that fixture moves ``mass_distribution.wing_mass_tie``,
+    so it is claimed separately from this byte-neutral hop; the guard exists to
+    make sure it is not forgotten."""
+    import glob
+
+    fired = set()
+    for path in sorted(glob.glob(os.path.join(_EXAMPLES, "*.project.json"))):
+        if "gear_carrier_mass_disagrees" in _codes(sloads_io.load_project(path)):
+            fired.add(os.path.basename(path))
+    assert fired == {"dhc8_dash8.project.json"}, fired
+
+
+def test_an_unstated_gear_carrier_is_flagged():
+    """G-2: body-carried and wing-carried gear are different load paths, so there
+    is no default to fall back to."""
+    from dataclasses import replace
+
+    project = sloads_io.load_project(_GA)
+    lg = project.geometry.landing_gear
+    project.geometry.landing_gear = replace(
+        lg, main_gear=replace(lg.main_gear, carrier=None))
+    assert "gear_carrier_unset" in _codes(project, page="configuration_layout")
 
 
 def test_landing_reaction_warnings_flag_the_zero_waterline_reactions():
@@ -285,8 +356,8 @@ def test_landing_reaction_warnings_flag_the_zero_waterline_reactions():
     _, good = build_landing(project)
     assert landing_reaction_warnings(good) == []
 
-    project.landing.cg_cases = [replace(c, zcg=0.0) for c in project.landing.cg_cases]
-    _, bad = build_landing(project)
+    bad_project = _ga_with_ground_cases(lambda c: replace(c, zcg=0.0))
+    _, bad = build_landing(bad_project)
     codes = {w.code for w in landing_reaction_warnings(bad)}
     assert "landing_negative_vertical" in codes, codes
     assert any(c.vnp < 0 for c in bad), "expected the nonphysical negative nose reactions"

@@ -70,6 +70,7 @@ from ..models import (
     VnPoint,
 )
 from ..aero_curves import clmax_curve as _clmax_curve, drag_cd, lift_cl, moment_cm
+from ..cg_cases import flight_cases
 from ..derived_geometry import sync_geometry_derived
 from ..registry import register
 from .structural_speeds import maneuver_load_factors, design_speeds
@@ -408,7 +409,8 @@ def build_envelope(project: Project) -> EnvelopeResult:
         raise MissingInputError(
             "flight_envelope needs 'aero_coeffs' (cruise and/or flaps-down coefficient sets)"
         )
-    if not fl.cg_cases:
+    cg_cases = flight_cases(project)
+    if not cg_cases:
         raise MissingInputError("flight_envelope needs at least one CG case")
 
     di = design_inputs(project)
@@ -423,7 +425,7 @@ def build_envelope(project: Project) -> EnvelopeResult:
                 continue
             xt = fl.xtf if config.flaps_down else fl.xtc
             corner = _flap_config_points if config.flaps_down else _config_points
-            for cg in fl.cg_cases:
+            for cg in cg_cases:
                 pts, case = corner(config, cg, fl, alt, di, case)
                 vn.extend(pts)
                 for p in pts:

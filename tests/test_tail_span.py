@@ -56,6 +56,7 @@ from sloads.modules.tail_span import (  # noqa: E402
     strip_spans,
 )
 from sloads.export.coordinates import tail_station_to_airplane  # noqa: E402
+from sloads.cg_cases import flight_cases  # noqa: E402
 from sloads.tail_geometry import (  # noqa: E402
     HTAIL,
     VTAIL,
@@ -440,7 +441,7 @@ def test_the_fin_sits_above_the_cg_with_the_pinned_roll_arm(example):
     want_zc, want_zcg, want_arm = _FIN_ROLL_ARM[example]
     project = _project(example, weight=0.0)
     vn = {p.case: p for p in project.envelope.vn}
-    cgs = {c.name: c for c in project.flight_loads.cg_cases}
+    cgs = {c.name: c for c in flight_cases(project)}
     conditions = {c.label: c for c in project.envelope.critical.conditions
                   if c.component == VTAIL}
 

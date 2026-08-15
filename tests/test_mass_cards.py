@@ -37,6 +37,7 @@ from sloads.export.bands import IdKind, bands_of_kind  # noqa: E402
 from sloads.export import mass_cards as mc  # noqa: E402
 from sloads.export import sbeam_bridge as sb  # noqa: E402
 from sloads.export.equilibrium import parse_cards  # noqa: E402
+from sloads.cg_cases import flight_cases  # noqa: E402
 from sloads.units import (  # noqa: E402
     G_IN_S2,
     Channel,
@@ -176,7 +177,7 @@ def test_a_derived_loading_reproduces_its_case(example):
     nominal number, so the small difference is carried rather than hidden.
     """
     p = _project(example)
-    cases = {c.name: c for c in p.flight_loads.cg_cases}
+    cases = {c.name: c for c in flight_cases(p)}
     for loading in md.derive_case_loadings(p):
         if not loading.derivable:
             continue

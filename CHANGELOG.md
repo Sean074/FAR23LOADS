@@ -12,6 +12,71 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **The weight/CG case model and the gear inputs — one schema hop** (**step 10
+  piece 2**, decisions **G-2/G-3/G-4/G-5/G-14**, schema **v47**). Three weight/CG
+  case lists and six representations of MTOW collapse to **one owner each**,
+  `sloads/cg_cases.py`. Each `CgCase` now states the `analyses` it is run for
+  (`FLIGHT` / `GROUND`, a *set*, so one case can feed several rather than being
+  entered twice under two names and drifting apart) and, where it is one of
+  LANDLOAD's three, its `role`. `FlightLoadsInput.cg_cases` and
+  `LandingInput.cg_cases` are **removed**: the first had been a derived copy of
+  `weight.cg_cases` since v19 kept in step by the *Flight Envelope page* rather
+  than by the model, so a calc-only front end could hold two different lists; the
+  second never joined the SSOT at all. `WeightInput` gains
+  `max_landing_weight_lb` (moved off `LandingInput`) and `max_takeoff_weight_lb`
+  as the single owners of those two certified limits, `MassItem` gains
+  `consumable`, and `LandingGearInput` gains `carrier` (`body` | `wing`, **no
+  default**) and `attach`, the trunnion node the ground export will transfer the
+  contact-patch reaction to.
+
+  **Three latent defects leave with the fields they lived on.**
+  `landing.gross_weight_lb` fell back to `max(landing cg_cases)` — which is
+  **MLW, not MTOW** — making `WR = 1.0` and understating the braked-roll, side and
+  supplementary-nose cases by ~5 % for any project that left it unset. LANDLOAD's
+  three loadings are indexed **positionally** and their order used to be recovered
+  by *matching names*, falling back to entry order with only a warning, so renaming
+  a row silently reordered a reaction table oracle-locked to Appendix A p230;
+  `CgCase.role` makes that a field, and `cg_cases.landing_role_cases` raises rather
+  than reordering or padding. And `direct_totals()`'s first element, documented as
+  MTOW, is the sum of every database row — an upper bound wearing the name of a
+  design limit, 964 lb high on `atr42_100` and 1,800 lb on the RJ; it is renamed to
+  the database total and becomes the **ceiling** of the ordering chain
+  `OEW ≤ MLW ≤ MTOW ≤ Σ items`, which replaces four scattered checks with one.
+
+  **Two new physical rules, both regulation-cited.** `consumable` marks mission
+  fuel, and deriving a loading for a `GROUND` target now **burns it down**
+  continuously and proportionally before dropping any payload — a design landing
+  weight is fuel burned off (14 CFR 23.473(b)/(c)), not a passenger left behind.
+  Measured on `ga6_normal`, the old subset search dropped the 6th person (x = 150,
+  aft cabin) and kept all 409 lb of fuel (x = 70); burn-down reaches the case by
+  burning **317 lb** and lands **0.12 in** from its target CG. And `carrier` is an
+  input because body-carried and wing-carried gear are different **load paths**:
+  applying a wing-carried reaction to the body beam over-loads the fuselage *and*
+  hides a real wing sizing case.
+
+  **New guards** (practice 3): the design-weight ordering chain; `MLW < OEW + max
+  payload + reserve fuel`, which fires on `concept_regional_jet` (31,000 against
+  31,360 — that airplane cannot land at MLW with full payload and reserves);
+  carrier ↔ gear-mass agreement, which fires on `dhc8_dash8` (main gear in
+  wing-mounted nacelles, mass tagged `fuselage`); `attach` plausibility against the
+  wing planform; an empty `analyses` set; a `role` on a case not tagged `GROUND`;
+  and MTOW drift between the SSOT and the representations it replaced.
+
+  **GUI:** the Weight & Mass Properties page's **Payload Cases** tab is the sole
+  editor, with `FLIGHT`/`GROUND`/`role` columns and the WTENV landing seed (now
+  the pure helper `cg_cases.seed_landing_cases`, offered on a button, never written
+  by a render); its Weight / CG Envelope tab owns MLW and MTOW and offers the
+  derived MLW estimate for acceptance; the Landing Loads page's CG table and both
+  weights are **read-only**.
+
+  **Nothing moved.** Migration `_v46_cg_case_model` is output-neutral by
+  construction — every value it writes comes from the file's own, MTOW from
+  `speeds.weight_lb`, which measurement showed equals the other four
+  representations on every shipped fixture. Every Appendix-A oracle, every fixture
+  digest and every exported deck is unchanged; the `FLIGHT`-tagged set after
+  migration is pinned, per fixture, to equal the pre-hop `flight_loads.cg_cases`
+  exactly.
+
 - **The governing safety-factor table — one authority for every case's factor**
   (**M4-8**, step 10 piece 1, decisions **G-10/G-11**). The factor of safety was
   previously decided ad hoc: a dataclass default of 1.5, one module overriding it,
