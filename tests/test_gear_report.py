@@ -623,6 +623,78 @@ def test_the_report_rows_are_ultimate_at_the_governing_factor(example):
         assert math.isclose(float(row["Ground-line V"]), want, rel_tol=1e-6), row["ID"]
 
 
+# --------------------------------------------------------------------------- #
+# R6-C2 / R6-C4: the CSV channel meets the load-output contract, in both systems
+# --------------------------------------------------------------------------- #
+def _parsed_csv(text):
+    import csv as _csv
+    import io as _io
+
+    reader = _csv.reader(_io.StringIO(text))
+    header = next(reader)
+    return header, [dict(zip(header, row)) for row in reader]
+
+
+def test_the_csv_states_its_units_its_factor_and_its_wheel():
+    """**R6-C2 + R6-C4's pin, Imperial.** The file states its own column units.
+
+    Every load column carries the ``-ULT`` marker in its header, ``SF`` is the
+    last column and states the factor per case, the weights (inputs, not
+    factored loads) carry the plain force unit -- and the ``Wheel`` column says
+    which wheel a ``main`` row describes (the starboard one of the pair; the
+    port twin is the mirror), which before R6-C4 was said only in a code
+    comment. Before R6-C2 none of this was in the file: the ULTIMATE basis
+    lived solely in the methods stamp above the table.
+    """
+    from sloads.export.sbeam_bridge import gear_report_csv
+
+    header, rows = _parsed_csv(
+        gear_report_csv(_project("ga6_normal.project.json")))
+    for label in ("Ground-line V (lbs-ULT)", "Datum Fz (lbs-ULT)",
+                  "Transfer Mx (lb-in-ULT)", "Leg inertia Fz (lbs-ULT)",
+                  "Net Fz above trunnion (lbs-ULT)", "Stroke (in)",
+                  "Patch X (in)", "Design weight (lb)", "Leg weight (lb)"):
+        assert label in header, label
+    assert header[-1] == "SF"
+    assert rows
+    # Ground loads are LIMIT by 23.471, so the governing table's factor is 1.5
+    # (23.303) -- stated in-band on every row, the F-R1 rule.
+    assert all(r["SF"] == "1.5" for r in rows)
+    assert {r["Wheel"] for r in rows if r["Leg"] == MAIN} == {"starboard"}
+    assert {r["Wheel"] for r in rows if r["Leg"] == NOSE} == {"centreline"}
+
+
+def test_the_si_channel_states_si_units_and_converted_values():
+    """**R6-C2's SI pin -- the assertion whose absence let the defect ship.**
+
+    Before it, the SI file showed ``4.325464E+01`` (a millimetre value) under a
+    hard-coded ``Stroke (in)`` header, because no test read the SI gear CSV at
+    all. Header labels plus one converted value per dimension, so the family
+    cannot regress: mm is exactly 25.4 x in, N is 4.448222 x lb, and the
+    moment column carries the solver channel's ``Nmm-ULT``.
+    """
+    from sloads.export.sbeam_bridge import gear_report_csv
+    from sloads.units import UnitSystem
+
+    project = _project("ga6_normal.project.json")
+    _, imperial = _parsed_csv(gear_report_csv(project))
+    si_header, si = _parsed_csv(
+        gear_report_csv(project, system=UnitSystem.SI))
+    for label in ("Stroke (mm)", "Ground-line V (N-ULT)",
+                  "Transfer Mx (Nmm-ULT)", "Design weight (N)"):
+        assert label in si_header, label
+    assert len(si) == len(imperial)
+    a, b = imperial[0], si[0]
+    assert math.isclose(float(b["Stroke (mm)"]),
+                        float(a["Stroke (in)"]) * 25.4, rel_tol=1e-5)
+    assert math.isclose(float(b["Ground-line V (N-ULT)"]),
+                        float(a["Ground-line V (lbs-ULT)"]) * 4.448222,
+                        rel_tol=1e-5)
+    assert math.isclose(float(b["Transfer Mx (Nmm-ULT)"]),
+                        float(a["Transfer Mx (lb-in-ULT)"]) * 4.448222 * 25.4,
+                        rel_tol=1e-5)
+
+
 if __name__ == "__main__":                                   # zero-dependency runner
     failures = 0
     for name, fn in sorted(globals().items()):

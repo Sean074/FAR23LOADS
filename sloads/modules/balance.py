@@ -1422,7 +1422,7 @@ GROUND_CLOSURE_NOTE = (
     "angular inertia forces)")
 
 
-def gear_sets(wheels: Sequence, nvp: float) -> List[BalancedLoad]:
+def gear_sets(wheels: Sequence) -> List[BalancedLoad]:
     """The applied gear reactions of one ground case, at their reference points.
 
     A pure consumer of :mod:`sloads.gear_loads`, which is itself a pure consumer
@@ -1438,9 +1438,9 @@ def gear_sets(wheels: Sequence, nvp: float) -> List[BalancedLoad]:
     the failure mode the guard exists for: it still sums to zero at a determinate
     support, so the assembled residual alone would never catch it.
 
-    ``nvp`` is unused here and is the caller's business -- the leg's own mass
-    rides the closure field through its ``weight.items`` rows, exactly as the
-    empennage surfaces' does, so that each mass enters exactly one set.
+    No load-factor argument on purpose: the leg's own mass rides the closure
+    field through its ``weight.items`` rows, exactly as the empennage surfaces'
+    does, so that each mass enters exactly one set.
     """
     loads: List[BalancedLoad] = []
     for wheel in wheels:
@@ -1556,7 +1556,7 @@ def assemble_ground(project: Project, gear: "GearCaseLoads", wheels: Sequence,
         notes.append(GROUND_NO_LIFT_NOTE)
 
     loads: List[BalancedLoad] = list(wing_r) + _mirror(wing_r)
-    loads += gear_sets(wheels, 0.0)
+    loads += gear_sets(wheels)
     loads += body_inertia(loading, project, 0.0)
 
     geom = project.geometry.by_name(project.wing_mass.surface)

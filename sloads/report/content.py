@@ -1849,7 +1849,7 @@ def _gear_stroke_table(cases, u: Units) -> Table:
     """The strut state each attitude is computed at, per leg -- the one table.
 
     Chosen over a per-case reaction table because the reactions are already in
-    the case tables of " + section_ref("results") + " and in the companion CSV,
+    the case tables of the results section and in the companion CSV,
     while *this* is the thing no previous deliverable stated at all: the landing
     families are computed near the top of the stroke and the handling families
     near the bottom -- impact versus sitting -- which is exactly what a gear

@@ -524,7 +524,15 @@ regression oracle**; Appendix A/B geometry is used only as a *sanity* fixture.
   patch, the ground-line and airplane-datum component triples, the strut state,
   ground angle and stroke, the reference point, the transfer couple, and the leg's
   own inertia. Plus `AppliedWheel` (`applied_wheels`), the per-wheel form an
-  assembled ground case applies.
+  assembled ground case applies. The companion CSV channel
+  (`export/sbeam_bridge.gear_report_csv`, the bundle's `gear_report`) meets the
+  load-output contract (R6-C2, 2026-08-15): every dimensional column header
+  states its unit from the resolved unit set — `-ULT` on load columns, the
+  plain force unit on the two weights, which are inputs and never factored —
+  `SF` is stated per row as the last column, and a `Wheel` column says which
+  wheel a `main` row describes (the starboard one of the pair; the port twin is
+  the mirror — R6-C4). The row dicts keep bare, system-independent keys; only
+  the file header carries units.
 - **The two frames are each artifact's own and neither is re-derived.** The
   ground-line set is what the manual prints and a gear engineer reads; the
   airplane-datum set (`vm`/`dm`/`vn`/`dn`, LANDLOAD's own `PHIM`/`PHIN`

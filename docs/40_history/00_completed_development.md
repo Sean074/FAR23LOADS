@@ -10,6 +10,19 @@ Acceptance**, **Key decisions**.
 
 ---
 
+**Gear report CSV meets the load-output contract (complete 2026-08-15,
+tier M)** — 0.6.0-candidate review finding R6-C2, with the R6-C4 hygiene row
+folded in by user decision: the `gear_report` channel's header row is now built
+from the resolved unit set (`-ULT` on every load column, plain force unit on
+the two weights, the SI `Stroke` header no longer hard-coded `(in)`), every row
+states its `SF` (last column), and a `Wheel` column says which wheel a `main`
+row describes (starboard of the pair; port is the mirror). Hygiene:
+`balance.gear_sets` dropped its unused `nvp` parameter; `_gear_stroke_table`
+docstring paste blemish removed. Pinned by an Imperial contract test and the
+SI-channel assertion whose absence let the defect ship; spec: the `gear_loads`
+PROGRAM_SPEC section's Writes bullet. Digest wave `gear_report` on the five
+gear fixtures, exactly as declared.
+
 **Ground condition rows cite their own FAR condition (complete 2026-08-15,
 tier S)** — 0.6.0-candidate review finding R6-C1: `balance.run()` ground rows
 now read the case's `CaseRef.far_reference` (23.479…23.493) instead of the

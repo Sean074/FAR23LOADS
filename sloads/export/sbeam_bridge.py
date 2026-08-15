@@ -2011,16 +2011,58 @@ def write_safety_factors_csv(project: Project, path: str,
         fh.write(safety_factors_csv(project, header_comment))
 
 
+# The row keys -- the stable programmatic vocabulary ``gear_report_rows``
+# returns and the tests read. The *file* header is built per unit set by
+# ``_gear_report_headers`` so the CSV states its own units (R6-C2); keeping the
+# keys bare is what lets a consumer of the rows not care which system a bundle
+# was rendered in.
 _GEAR_REPORT_FIELDS = [
-    "ID", "Case", "Condition", "FAR", "Loading", "Design weight", "Leg", "Carrier",
-    "Strut state", "Ground angle (deg)", "Stroke (in)", "Stroke (% )",
+    "ID", "Case", "Condition", "FAR", "Loading", "Design weight",
+    "Leg", "Wheel", "Carrier",
+    "Strut state", "Ground angle (deg)", "Stroke", "Stroke (%)",
     "Patch X", "Patch Y", "Patch Z",
     "Ground-line V", "Ground-line D", "Ground-line S",
     "Datum Fx", "Datum Fy", "Datum Fz",
     "Ref point X", "Ref point Y", "Ref point Z",
     "Transfer Mx", "Transfer My", "Transfer Mz",
     "Leg weight", "Leg inertia Fz", "Net Fz above trunnion",
+    "SF",
 ]
+
+
+def _gear_report_headers(u: DeliverableUnits) -> List[str]:
+    """The gear CSV's header row for unit set ``u`` (R6-C2).
+
+    Every dimensional column carries its unit and, if it is a load, its ``-ULT``
+    marker -- the same D-21 rule the span CSV follows, so this file states its
+    own units instead of leaving them to the methods stamp. The weights
+    (``Design weight``, ``Leg weight``) are inputs, not factored loads, so they
+    carry the plain force unit; ``SF`` is the last column, exactly as on every
+    sibling channel.
+    """
+    ln, fo = u.length.label, u.force.label
+    fu, mu = _ult(fo), _ult(u.moment.label)
+    labels = {
+        "Design weight": f"Design weight ({fo})",
+        "Stroke": f"Stroke ({ln})",
+        "Patch X": f"Patch X ({ln})", "Patch Y": f"Patch Y ({ln})",
+        "Patch Z": f"Patch Z ({ln})",
+        "Ground-line V": f"Ground-line V ({fu})",
+        "Ground-line D": f"Ground-line D ({fu})",
+        "Ground-line S": f"Ground-line S ({fu})",
+        "Datum Fx": f"Datum Fx ({fu})", "Datum Fy": f"Datum Fy ({fu})",
+        "Datum Fz": f"Datum Fz ({fu})",
+        "Ref point X": f"Ref point X ({ln})",
+        "Ref point Y": f"Ref point Y ({ln})",
+        "Ref point Z": f"Ref point Z ({ln})",
+        "Transfer Mx": f"Transfer Mx ({mu})",
+        "Transfer My": f"Transfer My ({mu})",
+        "Transfer Mz": f"Transfer Mz ({mu})",
+        "Leg weight": f"Leg weight ({fo})",
+        "Leg inertia Fz": f"Leg inertia Fz ({fu})",
+        "Net Fz above trunnion": f"Net Fz above trunnion ({fu})",
+    }
+    return [labels.get(f, f) for f in _GEAR_REPORT_FIELDS]
 
 
 def gear_report_rows(project: Project, units: DeliverableUnits = None,
@@ -2046,8 +2088,12 @@ def gear_report_rows(project: Project, units: DeliverableUnits = None,
     which shows the free body **open** rather than closing it against a guess.
     See :data:`sloads.gear_loads.UNSPRUNG_NOTE` for the limit on what the inertia
     term means -- it is not a gear design load.
+
+    Per the load-output contract, every row states its ``SF`` (R6-C2), and the
+    ``Wheel`` column says which wheel a ``main`` row describes: the starboard
+    one of the pair, its port twin being the mirror (R6-C4).
     """
-    from ..gear_loads import gear_case_loads
+    from ..gear_loads import MAIN, gear_case_loads
     from ..safety_factors import table_for
 
     u = units or deliverable_units(UnitSystem.IMPERIAL, Channel.SOLVER)
@@ -2078,11 +2124,15 @@ def gear_report_rows(project: Project, units: DeliverableUnits = None,
                 "Loading": case.cg_name,
                 "Design weight": _fmt(case.weight_lb * u.force.factor),
                 "Leg": leg.leg,
+                # A main row states the starboard wheel of the pair (its patch
+                # is at +tread/2); the port twin is the mirror. Said in the
+                # file rather than only in a code comment (R6-C4).
+                "Wheel": "starboard" if leg.leg == MAIN else "centreline",
                 "Carrier": leg.carrier.value if leg.carrier is not None else "",
                 "Strut state": leg.strut_state,
                 "Ground angle (deg)": f"{leg.ground_angle_deg:.3f}",
-                "Stroke (in)": _fmt(leg.stroke_in * u.length.factor),
-                "Stroke (% )": f"{leg.stroke_fraction * 100:.1f}",
+                "Stroke": _fmt(leg.stroke_in * u.length.factor),
+                "Stroke (%)": f"{leg.stroke_fraction * 100:.1f}",
                 "Patch X": _fmt(px), "Patch Y": _fmt(py), "Patch Z": _fmt(pz),
                 "Ground-line V": _fmt(gv), "Ground-line D": _fmt(gd),
                 "Ground-line S": _fmt(gs),
@@ -2096,6 +2146,7 @@ def gear_report_rows(project: Project, units: DeliverableUnits = None,
                 "Leg inertia Fz": inertia,
                 "Net Fz above trunnion": ("" if net is None else
                                           _fmt(to_force(0.0, 0.0, net[2] * sf, u)[2])),
+                "SF": _sf_str(sf),
             })
     return rows
 
@@ -2113,8 +2164,10 @@ def gear_report_csv(project: Project, header_comment: str = "",
     u = deliverable_units(system, Channel.SOLVER)
     rows = gear_report_rows(project, u)
     buf = _io.StringIO()
+    # The header states this bundle's units (R6-C2); the rows keep the bare
+    # keys so their programmatic vocabulary is system-independent.
+    csv.writer(buf).writerow(_gear_report_headers(u))
     writer = csv.DictWriter(buf, fieldnames=_GEAR_REPORT_FIELDS)
-    writer.writeheader()
     writer.writerows(rows)
     return header_comment + buf.getvalue()
 

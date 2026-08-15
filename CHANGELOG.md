@@ -239,6 +239,26 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- **The gear report CSV did not meet the load-output contract's column rules**
+  (0.6.0-candidate review finding **R6-C2**, with the **R6-C4** hygiene items
+  folded in per the backlog pairing). The G-12 companion file carried no unit
+  on any force/moment column — and therefore no `-ULT` marker anywhere in the
+  table — no per-case `SF` column, and in SI showed a millimetre value under a
+  hard-coded `Stroke (in)` header, because no test read the SI gear CSV at all.
+  The header row is now built from the resolved unit set
+  (`_gear_report_headers`): every dimensional column states its unit, load
+  columns carry `-ULT` (`lbs-ULT`/`lb-in-ULT`, `N-ULT`/`Nmm-ULT`), the two
+  weights (inputs, never factored) carry the plain force unit, and `SF` is the
+  last column on every row, per the F-R1 rule. The row dicts keep bare,
+  system-independent keys — only the file header carries units. New `Wheel`
+  column says which wheel a `main` row describes (starboard of the pair; the
+  port twin is the mirror), previously said only in a code comment (R6-C4);
+  the other two R6-C4 items landed byte-neutral (`balance.gear_sets` dropped
+  its unused `nvp` parameter; `_gear_stroke_table`'s docstring paste blemish
+  removed). Digest wave: `gear_report` on the five gear fixtures, exactly as
+  declared — nothing else moved. Pinned both ways: an Imperial header/SF/Wheel
+  contract test, and the SI-channel assertion whose absence let the defect ship
+  (header labels plus one converted value per dimension).
 - **Ground condition rows cited FAR 23.321, the flight balancing reference**
   (0.6.0-candidate review finding **R6-C1**). `balance.run()` derived every
   non-lateral, non-unsymmetrical row's regulation from the flight literals, so
