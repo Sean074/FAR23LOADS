@@ -56,6 +56,8 @@ from .models import (
     LandingGearGeometry,
     LandingGearInput,
     LandingInput,
+    SafetyFactorOverride,
+    SafetyFactorPolicyInput,
     SelectInput,
     TabLoadsInput,
     TabSpec,
@@ -781,6 +783,23 @@ def landing_to_dict(inp: LandingInput) -> Dict[str, Any]:
     return out
 
 
+def safety_factors_from_dict(d: Dict[str, Any]) -> SafetyFactorPolicyInput:
+    """Build a :class:`SafetyFactorPolicyInput` (M4-8 / G-11) from a plain dict.
+
+    Only *overrides* are persisted -- the governing table's derived rows are code
+    (:mod:`sloads.safety_factors`), so a project file records deviations, never the
+    regulation. Reading it back is therefore a no-op for every project that has
+    none, which is every shipped fixture."""
+    return SafetyFactorPolicyInput(
+        overrides=[SafetyFactorOverride(**_filtered(SafetyFactorOverride, o))
+                   for o in d.get("overrides", []) or []])
+
+
+def safety_factors_to_dict(inp: SafetyFactorPolicyInput) -> Dict[str, Any]:
+    """Serialize the safety-factor override layer."""
+    return asdict(inp)
+
+
 # --------------------------------------------------------------------------- #
 # Control-surface load input slices <-> dict (AILERON / FLAPLOAD / TABLOADS)
 # --------------------------------------------------------------------------- #
@@ -1035,6 +1054,7 @@ def project_from_dict(d: Dict[str, Any]) -> Project:
         tab_loads = d.get("tab_loads")
         one_engine_out = d.get("one_engine_out")
         landing = d.get("landing")
+        safety_factors = d.get("safety_factors")
         loads = d.get("loads")
         engines, layout = _engines_from_dict(d)
         weight_slice = weight_from_dict(weight) if weight else None
@@ -1073,6 +1093,10 @@ def project_from_dict(d: Dict[str, Any]) -> Project:
             tab_loads=tab_loads_from_dict(tab_loads) if tab_loads else None,
             one_engine_out=one_engine_out_from_dict(one_engine_out) if one_engine_out else None,
             landing=landing_from_dict(landing) if landing else None,
+            # v46: absent (every pre-v46 file, and every shipped fixture) means no
+            # override -- the governing table is the regulation's own factors.
+            safety_factors=(safety_factors_from_dict(safety_factors)
+                            if safety_factors else None),
             loads=loads_from_dict(loads) if loads else None,
             include_far25=bool(d.get("include_far25", False)),
         )
@@ -1162,6 +1186,10 @@ def project_to_dict(project: Project) -> Dict[str, Any]:
         out["one_engine_out"] = one_engine_out_to_dict(project.one_engine_out)
     if project.landing is not None:
         out["landing"] = landing_to_dict(project.landing)
+    # Written only when it carries something: an empty override layer and an
+    # absent one are the same statement, and the fixtures must stay byte-for-byte.
+    if project.safety_factors is not None and project.safety_factors.overrides:
+        out["safety_factors"] = safety_factors_to_dict(project.safety_factors)
     if project.loads is not None:
         out["loads"] = loads_to_dict(project.loads)
     if project.include_far25:

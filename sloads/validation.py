@@ -28,6 +28,14 @@ Checks (14 CFR / Reference-1 context in each predicate):
                              the factor is owned by the load-case definition).
                              Advisory companion to ``io._safety_factor``'s
                              read-time coercion (M4-14).
+- ``safety_factor_override_unknown_family`` / ``safety_factor_override_without_basis`` /
+  ``safety_factor_override_out_of_range`` / ``safety_factor_below_regulation``
+                          -- the governing safety-factor table's override layer
+                             (M4-8 / decision G-11; 14 CFR 23.303). Every row is
+                             user-editable, so an override must name a real family,
+                             state a basis, and -- when it sits below the value the
+                             regulation derives -- say so as a certification risk.
+                             See ``_check_safety_factor_overrides``.
 - ``aero_clmax_unreachable`` / ``aero_lift_slope_sign`` / ``aero_drag_negative`` /
   ``aero_drag_polar_shape`` / ``aero_clmax_neg_sign``
                           -- coefficient-entry checks on the airplane-less-tail
@@ -463,6 +471,63 @@ def _check_safety_factors(project: Project) -> List[ConsistencyWarning]:
     return out
 
 
+def _check_safety_factor_overrides(project: Project) -> List[ConsistencyWarning]:
+    """Guard the governing safety-factor table's override layer (M4-8 / G-11).
+
+    Every row of that table is user-editable, including the regulation-fixed ones.
+    That reach is safe for the oracles — the factor is applied at the render/export
+    boundary only, so no override can move a LIMIT calc value — but it is *not*
+    safe for the deliverable, which can be shipped at a non-regulatory factor.
+    Three of G-11's four mitigations are enforced here (the fourth, override
+    marking, is in ``report``/``safety_factors``):
+
+    * an unknown family key is an error, not a silently ignored row;
+    * an override without a ``basis`` is rejected — the price of editability;
+    * an override **below** the regulation's derived value raises an explicit
+      certification-risk warning (the F25-2-d precedent: a floor constrains what
+      may be *declared*, and the declaration is what must be visible).
+    """
+    from .safety_factors import FAMILIES, GoverningTable
+
+    policy = project.safety_factors
+    if policy is None or not policy.overrides:
+        return []
+    out: List[ConsistencyWarning] = []
+    keys = {f.key for f in FAMILIES}
+    for ov in policy.overrides:
+        if ov.family not in keys:
+            out.append(ConsistencyWarning(
+                "safety_factor_override_unknown_family",
+                f"Safety-factor override names family {ov.family!r}, which is not a "
+                f"row of the governing table ({', '.join(sorted(keys))}). The "
+                "override is ignored, so the deliverable is NOT carrying the factor "
+                "you intended.", PAGE_EXPORT))
+            continue
+        if not str(ov.basis).strip():
+            out.append(ConsistencyWarning(
+                "safety_factor_override_without_basis",
+                f"Safety-factor override on '{ov.family}' has no basis. Every row of "
+                "the governing table is editable, and the condition of that is that "
+                "an override states why it exists — an undeclared deviation is "
+                "invisible to the analyst reading the deliverable.", PAGE_EXPORT))
+        if not safety_factor_valid(ov.factor):
+            out.append(ConsistencyWarning(
+                "safety_factor_override_out_of_range",
+                f"Safety-factor override on '{ov.family}' is {ov.factor!r}, outside "
+                f"the legal [1.0, {ULTIMATE_FACTOR:g}] band (14 CFR 23.303).",
+                PAGE_EXPORT))
+    for row in GoverningTable.for_project(project).overrides:
+        if row.below_regulation:
+            out.append(ConsistencyWarning(
+                "safety_factor_below_regulation",
+                f"CERTIFICATION RISK: '{row.label}' ({row.far_reference}) is "
+                f"overridden to SF = {row.factor:g}, below the {row.derived_factor:g} "
+                "the regulation derives for it. Loads exported under this row are "
+                "labelled ULTIMATE but are not ultimate by 14 CFR 23.303/25.303. "
+                f"Declared basis: {row.basis or '(none)'}.", PAGE_EXPORT))
+    return out
+
+
 def _check_landing_hierarchy(project: Project) -> List[ConsistencyWarning]:
     """The LANDLOAD weight/CG hierarchy (M4-17d). Warn-only -- no math changes.
 
@@ -705,6 +770,7 @@ def consistency_warnings(project: Project) -> List[ConsistencyWarning]:
     out += _check_operational_targets(project)
     out += _check_dive_speed_basis(project)
     out += _check_safety_factors(project)
+    out += _check_safety_factor_overrides(project)
     out += _check_landing_hierarchy(project)
     out += _check_aero_coefficients(project)
     return out

@@ -50,11 +50,15 @@ _CONCEPT = os.path.join(_EXAMPLES, "concept_regional_jet.project.json")
 REQUIRED_SECTIONS = [
     "1. Input summary",
     "2. Axes and sign conventions",
-    "3. Envelope figures",
-    "4. Conditions analysed and FAR coverage",
-    "5. Results summary",
-    "6. Balanced free-free airframe cases",
-    "7. Methods and limitations",
+    # M4-8 / G-11: the governing safety-factor table is a numbered section of
+    # record, placed with the conventions it belongs beside -- the factor is a
+    # convention of the deliverable, not a result of it.
+    "3. Governing safety factors",
+    "4. Envelope figures",
+    "5. Conditions analysed and FAR coverage",
+    "6. Results summary",
+    "7. Balanced free-free airframe cases",
+    "8. Methods and limitations",
     "Appendix A. Bundle manifest",
 ]
 
@@ -352,6 +356,7 @@ def test_the_manifest_lists_the_balanced_deck_and_the_mass_model():
 SUMMARISED_IN = {
     "<project>.json": ("inputs", ""),
     "<project>_case_index.csv": ("conditions", ""),
+    "<project>_safety_factors.csv": ("factors", ""),
     "METHODS.txt": ("methods", ""),
     "load_cases/<project>_<module>.csv": ("results", ""),
     "<project>_report.txt": ("results", ""),

@@ -46,10 +46,17 @@ def run_all_modules(project: Project) -> List[ModuleResult]:
     or a genuine calc defect) is **not** caught -- it propagates so the failure is
     visible in run-all/export rather than silently vanishing (M2R-8).
     """
+    from .safety_factors import stamp
+
     results: List[ModuleResult] = []
     for name in available():
         try:
             results.append(_REGISTRY[name](project))
         except MissingInputError:
             continue
+    # Every module's conditions take their factor from the project's governing
+    # safety-factor table (M4-8 / decision G-11) -- one site, so a producer can
+    # never disagree with the deliverable about a case's SF. A no-op unless the
+    # project carries an override.
+    stamp(project, *[r.conditions for r in results])
     return results

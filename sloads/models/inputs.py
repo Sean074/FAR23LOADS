@@ -9,6 +9,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import List, Optional, Tuple
 
+from ..constants import ULTIMATE_FACTOR
 from .enums import (
     MassComponent,
     EngineType,
@@ -1234,6 +1235,43 @@ class LandingGearGeometry:
 # --------------------------------------------------------------------------- #
 # General configuration & layout (modern addition) -- GeometryInput.parametric
 # --------------------------------------------------------------------------- #
+# Governing safety-factor policy (M4-8 / decision G-11)
+# --------------------------------------------------------------------------- #
+@dataclass
+class SafetyFactorOverride:
+    """One user-supplied replacement for a governing-table row's derived factor.
+
+    ``family`` is a key of :data:`sloads.safety_factors.FAMILIES` — the condition
+    family, not a case: the table's granularity is 14 CFR Subpart C's own section
+    groupings, so a case can never be missed by omitting a row.
+
+    ``basis`` is **mandatory** (decision G-11): every row of the governing table is
+    editable, including the regulation-fixed ones, and the price of that reach is
+    that an override must say why it exists. ``validation`` rejects an override
+    without a basis and raises a certification-risk warning for one *below* the
+    regulation's derived value — the factor is applied at the render/export
+    boundary only, so no override can move an oracle, but it can absolutely ship a
+    deck at a non-regulatory factor, and that must never happen quietly.
+    """
+    family: str = ""
+    factor: float = ULTIMATE_FACTOR
+    basis: str = ""
+
+
+@dataclass
+class SafetyFactorPolicyInput:
+    """The project's safety-factor policy: the overrides laid over the derived table.
+
+    Absent (or empty) means the governing table is the regulation's own values,
+    which is what every shipped fixture carries — the byte-for-byte acceptance
+    gate for M4-8. The derived rows themselves are code, in
+    :mod:`sloads.safety_factors`; only the deviations are project data, exactly as
+    ``APPROVED_CORRECTIONS`` holds deviations rather than the oracle.
+    """
+    overrides: List[SafetyFactorOverride] = field(default_factory=list)
+
+
+# --------------------------------------------------------------------------- #
 @dataclass
 class LayoutInput:
     """General configuration & layout: the geometric source of truth.
@@ -1362,6 +1400,8 @@ __all__ = [
     "LandingGearInput",
     "LandingInput",
     "LandingGearGeometry",
+    "SafetyFactorOverride",
+    "SafetyFactorPolicyInput",
     "LayoutInput",
     "default_fuselage_outline",
 ]

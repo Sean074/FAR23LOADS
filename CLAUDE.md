@@ -135,7 +135,10 @@ oracle/closure test per module.
 **All deliverable load output is ULTIMATE**; internal calc stays LIMIT (oracles
 unaffected); the factor is applied once at the render/export boundary, to load
 quantities only. The `-ULT` marker is part of the units string; every case states its
-SF (`ULT SF=1.0` = already-ultimate). Solver decks use the consistent-unit channel
+SF (`ULT SF=1.0` = already-ultimate). **The authority for every factor is the governing
+safety-factor table, `sloads/safety_factors.py`** (M4-8 / G-11) — one row per condition
+family, each with a basis; every per-case SF is a derived view of it, and a case it
+cannot classify is flagged, never silently defaulted. Solver decks use the consistent-unit channel
 (N·mm, MPa) via `units.deliverable_units(system, channel)` resolved once per bundle.
 Per-module analysis pages may show LIMIT only when explicitly marked.
 

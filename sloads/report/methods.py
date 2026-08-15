@@ -196,6 +196,32 @@ def _units_block(system: UnitSystem) -> List[str]:
     ]
 
 
+def _safety_factor_block(project: Project) -> List[str]:
+    """The governing-table override declaration (M4-8 / G-11), or nothing.
+
+    Silent when the table is the regulation's own values — which is the shipped
+    state, and the reason this block cannot make an unmodified bundle differ by a
+    single byte. It speaks only when there is a deviation to declare.
+    """
+    from ..safety_factors import GoverningTable
+
+    table = GoverningTable.for_project(project)
+    if not table.has_overrides:
+        return []
+    out = ["SAFETY FACTOR OVERRIDES: the governing safety-factor table has been "
+           "edited for this project. The factors below are NOT the values 14 CFR "
+           "23.303/25.303 derives, and every ULTIMATE load delivered under them "
+           "reflects the override, not the regulation."]
+    for row in table.overrides:
+        risk = (" *** BELOW THE REGULATION — CERTIFICATION RISK ***"
+                if row.below_regulation else "")
+        out.append(f"  - {row.label} ({row.far_reference}): SF = {row.factor:g} "
+                   f"(regulation derives {row.derived_factor:g}).{risk} "
+                   f"Basis: {row.basis or '(none stated)'}")
+    out.append("")
+    return out
+
+
 def _category_block(project: Project) -> List[str]:
     """Category, or the concept-mode caveat with its specific exceedances."""
     speeds = project.speeds
@@ -341,6 +367,14 @@ def methods_statement(
         f"are never scaled."
     )
     L.append("")
+
+    # 1a. Safety-factor overrides -------------------------------------------- #
+    # G-11 mitigation 1: an override cannot be silent. It is stated here, in the
+    # stamp every companion file and deck carries, so a reader of ANY single
+    # stamped file learns that a factor is not the regulation's own -- the
+    # APPROVED_CORRECTIONS precedent, where an undeclared deviation is invisible
+    # to the analyst, which is the whole point of declaring it.
+    L.extend(_safety_factor_block(project))
 
     # 1b. Units -------------------------------------------------------------- #
     L.extend(_units_block(system))

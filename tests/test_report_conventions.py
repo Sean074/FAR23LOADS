@@ -52,8 +52,13 @@ def test_the_section_sits_between_inputs_and_the_envelope_figures():
     titles = [s.title for s in doc.sections]
     assert titles.index("2. Axes and sign conventions") == \
         titles.index("1. Input summary") + 1
-    assert titles.index("3. Envelope figures") == \
+    # M4-8 / G-11 inserted "3. Governing safety factors" between them: the
+    # conventions and the factor of safety are both statements of record about
+    # how the numbers below are to be read.
+    assert titles.index("3. Governing safety factors") == \
         titles.index("2. Axes and sign conventions") + 1
+    assert titles.index("4. Envelope figures") == \
+        titles.index("3. Governing safety factors") + 1
 
 
 # --------------------------------------------------------------------------- #

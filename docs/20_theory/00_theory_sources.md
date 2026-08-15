@@ -56,6 +56,35 @@ field anticipates a 14 CFR 23.302/25.302 / Appendix K probability-based factor
 A value already at ultimate (or an inherently-limit value reported as-ultimate with
 no amplification) is `ULT SF=1.0`. See `reference/14CFR_factor_of_safety.md`.
 
+### The governing safety-factor table (M4-8 / decision G-11, 2026-08-14)
+
+The factor is no longer decided at the case. `sloads/safety_factors.py` holds one
+row per **condition family**, and the family boundaries are **14 CFR Subpart C's own
+section groupings** — this is why the table's granularity needs no separate
+justification:
+
+| family | sections | class | SF | citation |
+|---|---|---|---|---|
+| General structural loads | 23.301–23.307 | LIMIT | 1.5 | "Strength requirements are specified in terms of limit and ultimate loads" — **23.301(a)** |
+| Flight loads (manoeuvre, gust, engine torque, gyroscopic) | 23.321–23.371 | LIMIT | 1.5 | flight load factors are prescribed as limit values — **23.321(a)** |
+| Sudden engine stoppage | 23.367(a)(2) | ULTIMATE | 1.0 | the case is prescribed as an **ultimate** load — **23.367(a)(2)** |
+| Control surface and system loads | 23.391–23.459 | LIMIT | 1.5 | **23.391**ff |
+| Ground and landing loads | 23.471–23.511 | LIMIT | 1.5 | "The **limit** ground loads specified in this subpart…" — **23.471**; every embedded multiplier (1.33/0.83 **23.485**, 0.8 **23.493**, 2.25 **23.499**) is a limit quantity |
+| Water loads | 23.521–23.537 | LIMIT | 1.5 | **23.521** |
+| Emergency landing conditions | 23.561–23.562 | ULTIMATE | 1.0 | **ultimate** inertia load factors — **23.561(b)** |
+| Weight/CG and configuration reference conditions | 23.21–23.29 | — | inert | not load cases; the factor is never applied to them |
+
+Parts 23 and 25 number Subpart C in parallel, so one range table serves both. The
+regulation text quoted above is in `reference/ug.txt` (verbatim CFR) and
+`reference/14CFR_factor_of_safety.md` (§ 25.303).
+
+**Why this is a closure gate rather than an oracle.** There is no printed figure to
+match — the table's correctness claim is *reproduction*:
+`tests/test_safety_factors.py` asserts, case by case on all six shipped fixtures,
+that the table resolves exactly the factor the producing module mints, and that no
+case falls through unclassified. Those two together are what make it an authority
+rather than a second opinion.
+
 ## How to cite
 
 - **In test code:** keep the manual's printed figure *and* a page citation next

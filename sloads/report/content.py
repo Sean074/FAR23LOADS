@@ -73,6 +73,7 @@ _CALC_ERRORS = (ValueError, ZeroDivisionError, KeyError, IndexError, TypeError)
 SECTIONS = (
     ("inputs", "Input summary"),
     ("conventions", "Axes and sign conventions"),
+    ("factors", "Governing safety factors"),
     ("envelopes", "Envelope figures"),
     ("conditions", "Conditions analysed and FAR coverage"),
     ("results", "Results summary"),
@@ -365,19 +366,29 @@ def component_loads(project: Project) -> ComponentLoads:
     from ..modules.tab import build_tabs
     from ..modules.taildist import build_tail_chordwise
 
+    from ..safety_factors import stamp
+
     critical = _try(build_critical, project)
     net = _try(build_net_loads, project)
     wing = loads_ref_axis_results(project, net.wing_net) if net is not None else None
     control: List[Any] = []
     for fn in (build_aileron, build_flap, build_tabs):
         control += _try(fn, project) or []
-    return ComponentLoads(
+    out = ComponentLoads(
         wing=wing or [],
         body=_try(build_body_loads, project) or [],
         tail=_try(build_tail_chordwise, project) or [],
         control=control,
         critical=list(critical.conditions) if critical is not None else [],
     )
+    # The governing safety-factor table is written onto the carrier here, at the
+    # one boundary every front-end shares (M4-8 / G-11). Without this a project
+    # override would move the report's SF column and leave the deck's SF= marker
+    # and its scaled cards behind it -- the defect class review finding F-R1
+    # closed. With no override (every shipped fixture) it is a no-op that writes
+    # back exactly the factor the producer minted.
+    stamp(project, out.wing, out.body, out.tail, out.control, out.critical)
+    return out
 
 
 @dataclass(frozen=True)
@@ -402,8 +413,11 @@ def balanced_run(project: Project) -> BalancedRun:
     """Assemble the balanced free-free cases, defensively (see :class:`BalancedRun`)."""
     from ..modules.balance import build_balanced_cases
 
+    from ..safety_factors import stamp
+
     skipped: List[Any] = []
     cases = _try(build_balanced_cases, project, skipped)
+    stamp(project, cases or [])
     return BalancedRun(cases=cases, skipped=skipped)
 
 
@@ -761,7 +775,80 @@ def _section_conventions() -> Section:
 
 
 # --------------------------------------------------------------------------- #
-# §3 Envelope figures
+# §3 Governing safety factors
+# --------------------------------------------------------------------------- #
+_FACTORS_PROSE = (
+    "Every ULTIMATE load in this report and in the exported decks is its LIMIT "
+    "value multiplied by the factor of the row below that governs its condition. "
+    "This table is the authority: the per-case SF stated in the case index "
+    "(§CASEREF), in the load-case CSVs and on each deck's SUBCASE header is a "
+    "derived view of it, so a report figure and its bulk-data card cannot state "
+    "different factors for the same case.",
+    "Rows are condition families, not cases, and the family boundaries are 14 CFR "
+    "Subpart C's own section groupings — so a case cannot be missed by omitting a "
+    "row. The factor is applied to load quantities only: load factors, speeds, "
+    "weights and geometry are never scaled and never carry the -ULT marker.",
+)
+
+_FACTORS_TABLE_NOTE = (
+    "Status 'derived' is the regulation's own value. 'override' is a project-"
+    "supplied replacement, which must state a basis and is repeated in the "
+    "methods & limitations statement so it reaches a reader who sees only one "
+    "file. 'defaulted' would mean a condition this table could not classify, "
+    "factored at the conservative 1.5 and flagged; no shipped configuration "
+    "produces one."
+)
+
+
+def _factors_section(project: Project, module_results, comps: ComponentLoads,
+                     run: "BalancedRun") -> Section:
+    """The governing safety-factor table (M4-8 / decision G-11).
+
+    The table is built from :mod:`sloads.safety_factors`, the single code owner,
+    and the *same* object is asked to classify every case the document carries —
+    so the "defaulted" line below is a live statement about this run rather than a
+    claim about the code.
+    """
+    from ..safety_factors import GoverningTable
+
+    table = GoverningTable.for_project(project)
+    for group in ([comps.wing, comps.body, comps.tail, comps.control, comps.critical]
+                  + [mr.conditions for mr in module_results] + [run.cases or []]):
+        for item in group:
+            table.factor_for(item)
+
+    body = [p.replace("§CASEREF", section_ref("conditions")) for p in _FACTORS_PROSE]
+    if table.has_overrides:
+        body.append(
+            "This project overrides " +
+            ", ".join(f"'{r.label}' to SF = {format_value(r.factor)} "
+                      f"(regulation: {format_value(r.derived_factor)})"
+                      for r in table.overrides) +
+            ". An override cannot move a calculated LIMIT value — the factor is "
+            "applied at the render/export boundary only — but it does change every "
+            "ULTIMATE number delivered under that row.")
+    if table.defaulted:
+        body.append(
+            "DEFAULTED: " + ", ".join(repr(r) for r in table.defaulted) +
+            " — condition(s) no row classified. They are factored at "
+            f"{format_value(ULTIMATE_FACTOR)} and flagged here; treat this as a "
+            "defect in the governing table, not a property of the airplane.")
+    return Section(
+        section_heading("factors"),
+        body=body,
+        tables=[Table(
+            title="Governing safety factors of record",
+            columns=["Family", "FAR", "Load class", "SF", "Status", "Basis"],
+            rows=[[r.label, r.far_reference, r.load_class, format_value(r.factor),
+                   r.status, r.basis] for r in table.rows],
+            small=True,
+            note=_FACTORS_TABLE_NOTE,
+        )],
+    )
+
+
+# --------------------------------------------------------------------------- #
+# §4 Envelope figures
 # --------------------------------------------------------------------------- #
 def _vn_figure(project: Project) -> Tuple[Figure, Optional[Table]]:
     from ..modules.structural_speeds import design_speed_values
@@ -983,7 +1070,8 @@ _STATUS_LABEL = {
 
 
 def _case_index_table(module_results, comps: ComponentLoads,
-                      assembled: Sequence = ()) -> Table:
+                      assembled: Sequence = (),
+                      project: Optional[Project] = None) -> Table:
     """The case index, with the safety factor §4.4 requires beside each case.
 
     Carries **both** deck-number columns (design note 17): the component-deck
@@ -994,6 +1082,7 @@ def _case_index_table(module_results, comps: ComponentLoads,
     than repeating the pair.
     """
     from ..export.sbeam_bridge import LOAD_ID_COLUMN, case_index_rows_from
+    from ..safety_factors import GoverningTable
 
     # Deck-exported results first, SELECT's conditions after: first-seen defines
     # a row's flight condition, and this table is the join from a SUBCASE to the
@@ -1002,12 +1091,18 @@ def _case_index_table(module_results, comps: ComponentLoads,
     groups = [comps.wing, comps.body, comps.tail, comps.control] + [
         mr.conditions for mr in module_results]
     rows = case_index_rows_from(*groups, assembled=assembled)
+    # The SF column is a **derived view of the governing table** (M4-8 / G-11),
+    # not a read of whatever the result object happens to carry: the silent
+    # ``getattr(item, "safety_factor", ULTIMATE_FACTOR)`` this replaced reported
+    # 1.5 for a factorless case with no trace at all. An unclassified case still
+    # gets 1.5 -- and is flagged, in the governing-factors section.
+    table = GoverningTable.for_project(project)
     sf_by_id: Dict[str, float] = {}
     for group in groups:
         for item in group:
             ref = getattr(item, "case_ref", None)
             if ref is not None and ref.case_id not in sf_by_id:
-                sf_by_id[ref.case_id] = getattr(item, "safety_factor", ULTIMATE_FACTOR)
+                sf_by_id[ref.case_id] = table.factor_for(item).factor
     comp_col, asm_col = LOAD_ID_COLUMN[COMPONENT_DECK], LOAD_ID_COLUMN[ASSEMBLED_DECK]
     return Table(
         title="Case index",
@@ -1115,7 +1210,7 @@ def _section_conditions(project: Project, module_results, comps: ComponentLoads,
         section_heading("conditions"),
         body=[scope_text, headline],
         tables=[
-            _case_index_table(module_results, comps, run.cases or []),
+            _case_index_table(module_results, comps, run.cases or [], project),
             coverage,
             _balanced_skips_table(run),
             Table(
@@ -1697,6 +1792,10 @@ def _manifest_rows(comps: ComponentLoads, module_results, u: Units,
         ["<project>_case_index.csv",
          "Every case ID produced by this run, mapped to its full definition.",
          "—", "IDs are verbatim, never renumbered", section_ref("conditions")],
+        ["<project>_safety_factors.csv",
+         "The governing safety-factor table: the authority every case's SF is "
+         "derived from.", "—", "factors, not loads — nothing here is scaled",
+         section_ref("factors")],
         ["METHODS.txt", "The methods & limitations statement, standalone.",
          human, "—", section_ref("methods")],
         ["load_cases/<project>_<module>.csv",
@@ -1909,6 +2008,7 @@ def build_report(
         sections=[
             _section_inputs(project, u),
             _section_conventions(),
+            _factors_section(project, module_results, comps, run),
             _section_envelopes(project, u),
             _section_conditions(project, module_results, comps, scope, deselected,
                                 run),

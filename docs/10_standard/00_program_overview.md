@@ -233,7 +233,11 @@ points to the ultimate deliverables. Today that covers `flap_loads`, `tab_loads`
 
 The `-ULT` marker is treated as **part of the units string** (like lb vs. N).
 Every load case carries its **safety factor** (the `SF` column / an `SF=` marker),
-default **1.5 per 14 CFR 23.303** (Part 25 equivalent: 25.303). A quantity already
+default **1.5 per 14 CFR 23.303** (Part 25 equivalent: 25.303). That factor is not
+decided at the case: it is read from the **governing safety-factor table**
+(`sloads/safety_factors.py`, M4-8 / G-11), one row per condition family, which the
+report states as a numbered section and the bundle ships as
+`<project>_safety_factors.csv`. A quantity already
 at ultimate — or an inherently-limit value reported as-ultimate with no
 amplification — is `ULT SF=1.0`. Non-load quantities (weights, lengths, inertias,
 areas, speeds, angles, dimensionless load factors) are **not** scaled and carry

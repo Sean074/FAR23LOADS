@@ -297,6 +297,11 @@ case_index_csv = sb.case_index_csv_from(
     assembled=_balanced_cases,
 )
 
+# The governing safety-factor table (M4-8 / G-11): the authority every SF in this
+# bundle is derived from, travelling as its own stamped channel so a deck's SF=
+# marker can be traced without the report.
+safety_factors_csv = sb.safety_factors_csv(project, header_comment=_csv_stamp)
+
 # Summary report (Step G8): rendered from the *scoped* component loads and the
 # module results already computed above, so the document describes exactly the
 # files it ships beside -- same numbers, same unit system, same case set.
@@ -360,6 +365,7 @@ def _zip_bundle() -> bytes:
                 z.writestr(f"load_cases/{_stem}_{module}.csv", csv)
         if case_index_csv.strip():
             z.writestr(f"{_stem}_case_index.csv", case_index_csv)
+        z.writestr(f"{_stem}_safety_factors.csv", safety_factors_csv)
         # The bundle's own controlling statement -- readable without opening a CSV.
         z.writestr("METHODS.txt", _methods)
         # The controlling document travels with the data it controls (Step G8):

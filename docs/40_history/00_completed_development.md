@@ -10,6 +10,72 @@ Acceptance**, **Key decisions**.
 
 ---
 
+## Step 10 piece 1 — the governing safety-factor table (M4-8, complete 2026-08-14, tier L)
+
+**Objective.** Make the factor of safety a stated authority instead of a
+distributed default. Before this, `ConditionResult.safety_factor` defaulted to
+`constants.ULTIMATE_FACTOR`, exactly one module (`one_engine_out`) overrode it, and
+`report/content.py` twice read `getattr(item, "safety_factor", ULTIMATE_FACTOR)` —
+so a factorless case was reported at 1.5 with no trace that anything had been
+assumed. Sequenced **first** of step 10's three pieces so the ground family
+consumes an existing authority rather than becoming a third ad-hoc factor site.
+
+**Deliverables.**
+- `sloads/safety_factors.py` — the single code owner. `LoadClass` +
+  `DERIVED_FACTOR` (Layer 1: `LIMIT → 1.5`, `ULTIMATE → 1.0`, 14 CFR 23.303/25.303);
+  eight `FAMILIES` rows whose boundaries are **14 CFR Subpart C's own section
+  groupings**; `classify()` mapping a case to a family from its FAR reference (with
+  the case ref as fallback, since the distributed component results carry theirs
+  only there); `GoverningTable` with `resolve` / `factor_for` / `stamp`.
+- `Project.safety_factors` (`SafetyFactorPolicyInput` / `SafetyFactorOverride`) —
+  schema **v46**, additive, written only when it carries an override, no hop.
+- Report **§3 Governing safety factors** (renumbering §3–§7 → §4–§8 through
+  `section_ref`, which is what F-R2 built it for), the case index's `SF` column
+  re-pointed to the table, an override paragraph and a live `DEFAULTED:` line.
+- `export.safety_factors_csv` / `write_safety_factors_csv`, the bundle channel
+  `<project>_safety_factors.csv`, and its manifest row.
+- `report.methods._safety_factor_block` — the override declaration, silent when
+  there is nothing to declare.
+- `validation._check_safety_factor_overrides` — unknown family, missing basis,
+  out-of-band factor, and the below-regulation **certification-risk** warning.
+- Docs: `CONVENTIONS.md` §3 (the owner named), `CLAUDE.md` load-output contract,
+  `00_program_overview.md`, `PROGRAM_SPEC.md` (SELECT notes + the export SF note),
+  `00_theory_sources.md` (the family/citation table), `GUI_design.md` v46,
+  `DATA_DICTIONARY.md` regenerated.
+
+**Test / Acceptance.** `tests/test_safety_factors.py` (37 tests). The authority
+claim is **reproduction, not assertion**: for all six shipped fixtures, case by
+case, the table resolves exactly the factor the producing module mints — including
+`one_engine_out`'s 23.367(a)(2) at 1.0 — and **no case falls through
+unclassified**. A defaulted case in any shipped fixture is a red build, which is
+what stops "flagged" from normalising. Also pinned: an exact row beats the range it
+sits inside (23.367(a)(2) is an ultimate case inside the limit flight range, and
+double-factoring it was the live risk); a multi-section reference whose families
+disagree on a factor is left unclassified rather than decided by word order; an
+override reaches the carrier, the case index, the companion CSV and the methods
+stamp together. **No shipped fixture carries an override, no digest moved, no
+number changed.** Suite: 1561 passed, 21 skipped; ruff clean.
+
+**Key decisions.**
+- **G-10** — every FAR ground case is limit × 1.5, read from the CFR text rather
+  than inherited from the default; the deliverable can now say why.
+- **G-11** — the table is the authority, at **condition-family** granularity, and
+  is **fully user-editable including the regulation rows** (user decision, taken
+  against the recommendation, with the risk stated). Safe for the oracles — the
+  factor is applied at the render/export boundary only, so no override can move an
+  Appendix-A figure — but *not* for the deliverable, so the four mitigations are
+  part of the decision: an override is never silent, must state a basis, warns when
+  below the regulation, and no shipped fixture carries one.
+- **An unresolved case defaults to 1.5 and is flagged** rather than raising (user
+  decision), with the zero-defaulted-rows test as the guard against drift.
+- The **carrier stays the carrier** (M4-8's original design): the table *writes*
+  `safety_factor` at `registry.run_all_modules`, `component_loads` and
+  `balanced_run` rather than replacing the field, so ~18 `_sf()` call sites in the
+  export bridge and every report reader needed no change — and an override cannot
+  reach the report without also reaching the cards.
+
+---
+
 ## Pressurization removed from scope (decision D-24 — complete 2026-08-14, tier S)
 
 User decision, taken while scoping step 10 (M4-6): **pressurization is out of

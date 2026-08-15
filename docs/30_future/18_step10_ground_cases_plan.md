@@ -762,7 +762,7 @@ claim unfalsifiable. Expected signatures:
 
 | piece | expected digest movement |
 |---|---|
-| **1. G-11 governing SF table** | report/case-index channels gain the table; **no numeric value moves** (1.5 is already applied) |
+| **1. G-11 governing SF table** — ✅ **shipped 2026-08-14** | report/case-index channels gained the table; **no numeric value moved** (1.5 was already applied) |
 | **2. the schema hop (G-2…G-5)** | **nothing at all.** Its acceptance is that the `FLIGHT`-tagged set after migration equals today's exactly — movement here is the migration failing to be output-neutral, i.e. a finding, not a chore |
 | **3. ground cases + gear report** | `sbeam/balanced_deck` and `case_index` on ga6 and the RJ; a **new** gear-report channel on five fixtures |
 
@@ -906,9 +906,11 @@ change. Each piece is independently landable, independently claimable in
 
 | # | piece | decisions | why it is separable | digest expectation |
 |---|---|---|---|---|
-| **1** | **Governing safety-factor table** (= backlog Pri 6, M4-8) | G-10, G-11 | Explicitly sequence-independent; ships first so the ground family consumes an existing authority instead of becoming a third ad-hoc factor site | report/case-index channels gain the table; **no numeric value moves** |
+| **1** ✅ | **Governing safety-factor table** (M4-8) — **shipped 2026-08-14** | G-10, G-11 | Explicitly sequence-independent; shipped first so the ground family consumes an existing authority instead of becoming a third ad-hoc factor site | report/case-index channels gained the table; **no numeric value moved**, no digest changed |
 | **2** | **The schema hop** — tagged case list, roles, MLW, consumable, gear carrier + attach | G-2, G-3, G-4, G-5 | One `SCHEMA_VERSION` bump for the whole set rather than four; every new field defaults to today's behaviour | **nothing moves** — and if something does, the migration is not output-neutral |
 | **3** | **Ground cases + the gear report** | G-1, G-6, G-7, G-8, G-9, G-12, G-13 | The physics, once its inputs and its factor authority exist | `sbeam/balanced_deck` + `case_index` on ga6 and the RJ; a new gear-report channel on five fixtures |
 
-Backlog priority 1's original **L / L** rating predates pieces 1 and 2 and is now
-low; re-rate it when this sequence is adopted.
+Backlog priority 1's original **L / L** rating predated pieces 1 and 2 and was
+low; the backlog was re-rated to this sequence on 2026-08-14, and piece 1 closed
+the same day (history: "Step 10 piece 1 — the governing safety-factor table").
+Pieces 2 and 3 are backlog priorities 1 and 2.

@@ -1975,6 +1975,37 @@ def case_index_csv_from(*groups: Sequence, header_comment: str = "",
                         header_comment)
 
 
+_SAFETY_FACTOR_FIELDS = ["Family", "FAR", "Load class", "SF", "Derived SF",
+                         "Status", "Basis"]
+
+
+def safety_factors_csv(project: Project, header_comment: str = "") -> str:
+    """The governing safety-factor table as CSV text (M4-8 / decision G-11).
+
+    The companion file for the report's governing-factors section: it travels in
+    the bundle and the manifest, stamped like every other channel, so the factor
+    behind an exported deck is legible without the report beside it. ``Derived SF``
+    is the regulation's own value, kept next to ``SF`` precisely so an override is
+    self-evident in the file rather than only in the prose."""
+    from ..safety_factors import GoverningTable
+
+    buf = _io.StringIO()
+    writer = csv.DictWriter(buf, fieldnames=_SAFETY_FACTOR_FIELDS)
+    writer.writeheader()
+    for r in GoverningTable.for_project(project).rows:
+        writer.writerow({"Family": r.label, "FAR": r.far_reference,
+                         "Load class": r.load_class, "SF": f"{r.factor:g}",
+                         "Derived SF": f"{r.derived_factor:g}",
+                         "Status": r.status, "Basis": r.basis})
+    return header_comment + buf.getvalue()
+
+
+def write_safety_factors_csv(project: Project, path: str,
+                             header_comment: str = "") -> None:
+    with open(path, "w", encoding="utf-8", newline="") as fh:
+        fh.write(safety_factors_csv(project, header_comment))
+
+
 def write_case_index_csv(project: Project, path: str, extra: Sequence = (),
                          assembled: Sequence = ()) -> None:
     with open(path, "w", encoding="utf-8", newline="") as fh:

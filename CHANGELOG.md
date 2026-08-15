@@ -12,6 +12,32 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **The governing safety-factor table — one authority for every case's factor**
+  (**M4-8**, step 10 piece 1, decisions **G-10/G-11**). The factor of safety was
+  previously decided ad hoc: a dataclass default of 1.5, one module overriding it,
+  and two silent `getattr(item, "safety_factor", ULTIMATE_FACTOR)` fallbacks in the
+  report that reported 1.5 for a factorless case leaving no trace. `sloads/
+  safety_factors.py` is now the single code owner: **one row per condition family**,
+  each stating its factor, its regulatory **basis** and its status (`derived` /
+  `override` / `defaulted`). The family boundaries are **14 CFR Subpart C's own
+  section groupings**, so the granularity is the regulation's, and every per-case
+  SF — the report case index's column, the load-case CSVs, a deck's `SF=` marker —
+  is a derived view of a row. `GoverningTable.factor_for()` classifies a case from
+  its FAR reference and the table **writes the carrier** at the three boundaries
+  every front-end shares, so a report figure and its bulk-data card cannot state
+  different factors for one case (review **F-R1**'s defect class, re-armed for the
+  override path). It travels as report **§3 Governing safety factors** and the
+  stamped companion `<project>_safety_factors.csv`, both named in the manifest.
+  The table is **fully user-editable including the regulation rows**
+  (`Project.safety_factors`, schema **v46**, additive, no hop) — safe for the
+  oracles, since the factor is applied at the render/export boundary only, but not
+  for the deliverable, so an override is declared in the report **and** the methods
+  stamp, must state a basis, and raises a **certification-risk** warning when it
+  sits below the value the regulation derives. An unclassifiable case takes 1.5 and
+  is **flagged**, never silently accepted. Acceptance is reproduction: the table
+  resolves exactly the factor every producer mints, case by case, on all six
+  shipped fixtures, with **zero defaulted rows and zero overrides** — **no number
+  moved and no digest changed.**
 - **Discrete control surfaces, and the suite's first hinge moment** (plan 09
   **T6**). Setting `control_load_mode = "discrete"` on a tail surface — with
   `hinges_span_in` and `actuator_span_in`, new per-surface schema (**v45**,

@@ -18,6 +18,7 @@ from .inputs import (
     GeometryInput,
     LandingInput,
     OneEngineOutInput,
+    SafetyFactorPolicyInput,
     SelectInput,
     StructuralSpeedsInput,
     TabLoadsInput,
@@ -208,7 +209,14 @@ from .results import EnvelopeResult, LoadsResult, MassResult
 # documented value: no attachment geometry means the surface stays in the
 # "smeared" mode it has always been in, so every pre-v45 project keeps exactly the
 # distribution and exactly the deck it had. No migration hop.
-SCHEMA_VERSION = 45  # plan 09 T6: control-surface hinge/actuator span stations
+# M4-8 / step 10 piece 1 (v46): ``Project.safety_factors`` -- the user's override
+# layer over the governing safety-factor table (decision G-11). The table's rows
+# themselves are code (``sloads.safety_factors``); only deviations are project
+# data. Additive with a ``None`` "no overrides" default, and absent *is* the
+# documented value: no override means the regulation's own derived factors, which
+# is exactly what every pre-v46 project already got. No migration hop, and the
+# shipped fixtures are byte-for-byte unchanged.
+SCHEMA_VERSION = 46  # M4-8: governing safety-factor table override layer
 
 
 @dataclass
@@ -275,6 +283,10 @@ class Project:
     tab_loads: Optional[TabLoadsInput] = None
     one_engine_out: Optional[OneEngineOutInput] = None
     landing: Optional[LandingInput] = None
+    #: The governing safety-factor table's **override layer** (M4-8 / G-11). The
+    #: derived rows live in :mod:`sloads.safety_factors`; ``None`` (the default,
+    #: and every shipped fixture) means the regulation's own factors apply.
+    safety_factors: Optional[SafetyFactorPolicyInput] = None
     loads: Optional[LoadsResult] = None
     # Opt-in FAR 25 superset: when True the engine module appends the optional
     # 14 CFR 25.361/25.371 cases (turbopropeller only) on top of the oracle-locked

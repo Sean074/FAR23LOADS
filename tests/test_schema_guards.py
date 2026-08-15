@@ -178,7 +178,13 @@ def fields_hash() -> str:
 #: the input side absent *is* the documented value -- no attachment geometry
 #: means the surface stays smeared, which is what every pre-v45 project already
 #: was -- so ``SCHEMA_VERSION`` bumps to 45 with no migration hop.
-EXPECTED_FIELDS_HASH = "9862de27201e7e6f"
+#: M4-8 / step 10 piece 1 (v46): ``Project.safety_factors`` -- the governing
+#: safety-factor table's **override layer** (decision G-11), carrying
+#: ``SafetyFactorPolicyInput`` and ``SafetyFactorOverride``. Additive with a
+#: ``None`` default, and the writer emits the key only when an override exists, so
+#: absent *is* the documented value -- the factors 14 CFR 23.303/25.303 derives --
+#: and every shipped fixture round-trips byte-for-byte. No migration hop.
+EXPECTED_FIELDS_HASH = "085f66349f552663"
 
 
 def test_persisted_dataclass_shapes_are_unchanged():

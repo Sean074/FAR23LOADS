@@ -267,11 +267,28 @@ conventions"** section (`SUMMARY_REPORT.md` §4.2.1), single-sourced in
 - **Loads only** — forces/moments/pressures. Never geometry, weights, inertias, areas,
   speeds, angles, or dimensionless load factors (`_is_load_unit`,
   `render.py:66-95`; `load_keys.py` marks application points "geometry, never scaled").
+- **The governing safety-factor table owns the policy** (`sloads/safety_factors.py`,
+  M4-8 / decision G-11, 2026-08-14). It is the **single authority** every factor is
+  read from: one row per condition family — the family boundaries are 14 CFR Subpart
+  C's own section groupings — each stating factor, **basis** and status (`derived` /
+  `override` / `defaulted`). `GoverningTable.factor_for(case)` classifies a case from
+  its FAR reference, so a case cannot be missed by omitting a row; an unclassified
+  case takes 1.5 and is **flagged**, never silently accepted, and
+  `tests/test_safety_factors.py` fails on a defaulted case in any shipped fixture.
+  Layer 1 is `DERIVED_FACTOR`: `LIMIT → 1.5`, `ULTIMATE → 1.0` (14 CFR 23.303/25.303).
 - `ConditionResult.safety_factor` is the **carrier** (default
   `constants.ULTIMATE_FACTOR = 1.5`); **1.0 means "already at ultimate"** — still
-  ULTIMATE output, marked `ULT SF=1.0`. The per-case field is the future
-  23.302/25.302/Appendix-K hook; the centralized **policy** resolver is backlog item
-  M4-8.
+  ULTIMATE output, marked `ULT SF=1.0`. The table **writes** the carrier at three
+  boundaries (`registry.run_all_modules`, `report.content.component_loads`,
+  `balanced_run`), so the report's SF column and a deck's `SF=` marker cannot
+  disagree about one case (the defect class review finding **F-R1** closed).
+- **The table is fully user-editable, including the regulation rows**
+  (`Project.safety_factors`, schema v46) — safe for the oracles, since the factor is
+  applied at the render/export boundary only, but *not* for the deliverable. Four
+  mitigations are part of the contract: an override is declared in the report **and**
+  the methods stamp, it must state a basis, an override **below** the derived value
+  raises a certification-risk warning (`validation._check_safety_factor_overrides`),
+  and no shipped fixture carries one.
 - Uniform per-case scaling preserves closure: `sum(dFz) == sf × root` survives the
   boundary (`sbeam_bridge.py:234`).
 - Per-module analysis pages may display LIMIT only with the explicit LIMIT marker and a
