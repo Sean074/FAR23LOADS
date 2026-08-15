@@ -94,28 +94,6 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   filter — the Critical Loads page gains a Landing gear section — so the family
   is scopable instead of silently unreachable.
 
-### Fixed
-
-- **The loading named on LANDLOAD cases 20–24 was the wrong one.** The per-case
-  record indexed the three roled loadings as `(m - 1) % 3` for every case up to
-  24, but the 23.485 side family is three loadings × **two drift directions** —
-  which the `WL` weight table and both unbalanced-moment tables already say
-  (`wl[19] = wl[20] = wcg[0]·wr`). So five of the six side cases were reported
-  against the wrong loading: case 21 is computed at *fwd max landing* and was
-  labelled *fwd light*. `cg_name` was documented as cosmetic and the reactions
-  themselves were always right, so **no load ever moved**; what moved is the label
-  a reader joins a case to its loading by, and the `CG` column of the exported
-  case index. Found while building the assembled ground cases, which have to
-  build their inertia set at the loading their reactions were computed at.
-  `landing._loading_index` is now the single owner of that mapping.
-- **`is_handed` read "any load carries a free moment" where it meant the net.**
-  Indistinguishable while the aileron couple was the suite's only free `mx` (one
-  lumped couple at the centreline is its own net), and wrong the moment a ground
-  case transferred both main-wheel reactions to their trunnions with equal and
-  opposite lever-arm couples: every symmetric level-landing case minted handed,
-  emitting a twin that was the same load set mirrored onto itself. No shipped
-  flight case changes hand.
-
 - **The weight/CG case model and the gear inputs — one schema hop** (**step 10
   piece 2**, decisions **G-2/G-3/G-4/G-5/G-14**, schema **v47**). Three weight/CG
   case lists and six representations of MTOW collapse to **one owner each**,
@@ -258,6 +236,37 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   methods-and-limitations stamp; `concept_regional_jet` deliberately enters no
   one-engine-out slice. Refusing to run on a non-propeller installation remains
   open (backlog M4-3(b)).
+
+### Fixed
+
+- **The loading named on LANDLOAD cases 20–24 was the wrong one.** The per-case
+  record indexed the three roled loadings as `(m - 1) % 3` for every case up to
+  24, but the 23.485 side family is three loadings × **two drift directions** —
+  which the `WL` weight table and both unbalanced-moment tables already say
+  (`wl[19] = wl[20] = wcg[0]·wr`). So five of the six side cases were reported
+  against the wrong loading: case 21 is computed at *fwd max landing* and was
+  labelled *fwd light*. `cg_name` was documented as cosmetic and the reactions
+  themselves were always right, so **no load ever moved**; what moved is the label
+  a reader joins a case to its loading by, and the `CG` column of the exported
+  case index. Found while building the assembled ground cases, which have to
+  build their inertia set at the loading their reactions were computed at.
+  `landing._loading_index` is now the single owner of that mapping.
+- **`is_handed` read "any load carries a free moment" where it meant the net.**
+  Indistinguishable while the aileron couple was the suite's only free `mx` (one
+  lumped couple at the centreline is its own net), and wrong the moment a ground
+  case transferred both main-wheel reactions to their trunnions with equal and
+  opposite lever-arm couples: every symmetric level-landing case minted handed,
+  emitting a twin that was the same load set mirrored onto itself. No shipped
+  flight case changes hand.
+- **Documentation currency batch** (0.6.0-candidate review findings
+  **R6-D1/D2/D3/D4**, `docs/50_reviews/2026-08-15_review_0_6_0_candidate.md`):
+  this changelog's `[Unreleased]` headings restored to Keep-a-Changelog order
+  (five `Added`-class entries had been filed under `### Fixed`); the backlog's
+  "shipped since the tag" narrative gains step 9 and D-24, which a release-notes
+  drafter working from it would otherwise have dropped; plan 09's status header
+  now says T6–T8 shipped (it read "T6–T8 remain" against the history file); and
+  `docs/00_INDEX.md` gains rows for design notes 14 and 18 (the latter is the
+  0.6.0 headline's decision record). Documentation only — no code, no digest.
 
 ### Changed
 

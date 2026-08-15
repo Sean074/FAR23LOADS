@@ -10,6 +10,11 @@ Acceptance**, **Key decisions**.
 
 ---
 
+**Documentation currency batch (complete 2026-08-15, tier S)** — 0.6.0-candidate
+review findings R6-D1/D2/D3/D4 (`docs/50_reviews/2026-08-15_review_0_6_0_candidate.md`):
+changelog `[Unreleased]` headings unscrambled, backlog "shipped since the tag"
+gains step 9 + D-24, plan 09 marked closed, `00_INDEX.md` gains plans 14 and 18.
+
 ## Step 10 piece 3 — ground/landing cases + the gear load report (complete 2026-08-15, tier L)
 
 **Objective.** The last piece of M4-6, and the one that **absorbs step 11 (plan 11

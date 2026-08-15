@@ -3,8 +3,11 @@
 **Status:** assessment + step-by-step development guide; decisions T-1…T-7 taken
 2026-08-08 (user), **T-8…T-11 taken 2026-08-08** in the development-plan review
 (they supersede the T-3 inertia wording and the §3.1/§4 half-vs-full
-bookkeeping). **PHASE 1 SHIPPED 2026-08-08** — T1–T5 complete (mission step 7);
-T6–T8 remain (see §9 for what shipped and where measurement changed the plan).
+bookkeeping). **PHASE 1 SHIPPED 2026-08-08** — T1–T5 complete (mission step 7).
+**PHASE 2 SHIPPED 2026-08-13 — T6–T8 complete (mission step 9); the plan is
+CLOSED** (see §9 for what shipped and where measurement changed the plan, §10
+for the phase-2 design record; the closure trail is in the history file and the
+`[Unreleased]` changelog).
 Decision T-11's gate was **satisfied as of 2026-08-08** -- the plan-07 equilibrium invariant (step 1) and the sbeam
 round-trip harness (step 2) have both landed, so this item is unblocked. T4 adds
 its deck family to **both** gates: two rows in the plan-07 §4 invariant table and
@@ -389,10 +392,12 @@ filed alongside it.
   and applying the airplane's normal `n` to a fin's mass is a fabricated load in
   the wrong direction. Stated on every v-tail result. Lands with plan 11 **B8a**,
   which is where a lateral load factor first has to exist.
-* **T6** (discrete hinge/actuator) and **T7** (T-tail transfer) — unstarted.
-  `control_load_mode` is plumbed and `"discrete"` **raises** rather than falling
-  back, so selecting it cannot silently return a smeared deck.
-* **T8** — the Tier-L closure trail, done as part of this session.
+* **T6** (discrete hinge/actuator) and **T7** (T-tail transfer) — shipped
+  2026-08-13 as mission step 9, to §10's design record. (This bullet originally
+  read "unstarted"; the phase-1 plumbing — `control_load_mode` with `"discrete"`
+  raising rather than falling back — is what T6 landed on.)
+* **T8** — the Tier-L closure trail: done for phase 1 in its session, and for
+  phase 2 at the 2026-08-13 step-9 closure.
 
 ---
 
