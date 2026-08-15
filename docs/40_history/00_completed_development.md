@@ -10,6 +10,25 @@ Acceptance**, **Key decisions**.
 
 ---
 
+**The package tree is as-built, single-owner and guarded (complete 2026-08-15,
+tier S)** — 0.6.0-candidate review finding R6-D5, the last of the pre-0.6.0
+block. `PROJECT_GUIDE.md` §4 stopped being the restructure-era *proposal* and
+became the shipped tree: every `sloads/` module with a one-line purpose, the
+three `export/` lines un-nested from under `mass_distribution.py`, and the cycle's
+SSOT owners (`cg_cases`, `safety_factors`, `gear_loads`) plus the older
+omissions (`case_ids`, `rigid_body`, `tail_geometry`, `aero_curves`,
+`migrations`, `load_keys`, `derived_geometry`, `equilibrium`,
+`conventions_tex`, the `models/` split, `balance`/`tail_span`/`body_loads`) all
+present. `00_program_overview.md`'s second, staler copy became a shape summary
+plus a link (user decision: one owner — two trees is one more than can be kept
+true). The guard is `tests/test_package_layout.py`: it rebuilds each path from
+the tree's own box-drawing indentation and compares with the package on disk
+both ways, so an unlisted module, a stale line and a mis-nested line each fail,
+and the deleted second tree cannot return. Verified by mutation in both
+directions. Scope is `sloads/` alone (user decision): `app/views` is already
+generated from `workflow.py` and guarded there, and `tests/`/`examples/` churn
+without telling a reader anything about where the single sources live.
+
 **The ground family is in the balancing-method document (complete 2026-08-15,
 tier S)** — 0.6.0-candidate review finding R6-D7: `20_theory/balanced_cases.md`
 described three families where four ship. It now has **§9 — the ground families

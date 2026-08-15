@@ -7,8 +7,10 @@ file** for input and **per-module CSV** load-case output.
 
 The suite is **22 GW/QBasic programs** (reference 1, Appendix C) that together
 compute the FAR Part 23 Subpart C structural loads for an airplane under 12,500
-lb. **All 22 are ported today** (through Phase-C Step C11) plus two modern modules
-(`configuration`, `body_loads`); the live backlog is deferred refinements and open
+lb. **All 22 are ported today** (through Phase-C Step C11) plus four modern
+modules (`configuration`, `body_loads`, `tail_span`, `balance` — the last two
+carrying the mission's distributed-empennage and assembled-airplane work); the
+live backlog is deferred refinements and open
 decisions, in [`../30_future/00_backlog.md`](../30_future/00_backlog.md). This
 guide covers the architecture and the dependency order that grew the original
 `engloads/` engine-mount port into the present suite. The project is being grown
@@ -110,9 +112,14 @@ relaxation that switched `PI = 3.1416` → `math.pi` is recorded in
 | `LGFACTOR` | Estimate landing load factor | ✅ done (C10) |
 | `LANDLOAD` | Landing loads | ✅ done (C10) |
 
-> **Modern modules (no `.BAS`):** `body_loads` (Ref 1 Ch 15 net fuselage
-> distribution) **done** (C6); `configuration` (the unified **Geometry** page,
-> Step G1) **done** (C5). Neither counts against the 22-program total.
+> **Modern modules (no `.BAS`):** `configuration` (the unified **Geometry**
+> page, Step G1) **done** (C5); `body_loads` (Ref 1 Ch 15 net fuselage
+> distribution) **done** (C6); `tail_span` (spanwise empennage loads incl. the
+> suite's first hinge moment, plan 09) **done** (steps 7–9); `balance` (balanced
+> free-free airplane cases, flight and ground — the mission's primary
+> deliverable, plans 11/13/18) **done** (steps B2–B8a, step 10 piece 3). None
+> counts against the 22-program total; each has its own `PROGRAM_SPEC.md`
+> section.
 
 Per-module FAR references, inputs, outputs, dependencies and validation examples
 are in [`PROGRAM_SPEC.md`](PROGRAM_SPEC.md).
@@ -159,68 +166,93 @@ times — not recomputed per module.
 
 ---
 
-## 4. Target repository structure (the engloads restructure)
+## 4. Repository structure (as built)
 
-> **As-built note.** This was the *proposed* layout at restructure time; some
-> module file names landed differently (`geometry.py` → `wing_geometry.py`,
-> `speeds.py` → `structural_speeds.py` with `mach_limit.py` separate). The
-> **authoritative as-built tree** is in
-> [`00_program_overview.md`](00_program_overview.md); the `.BAS` → module-name map
-> is in [`PROGRAM_SPEC.md`](PROGRAM_SPEC.md).
-
-`engloads` becomes one module in a shared package. Proposed layout:
+> **The authoritative package layout** (CLAUDE.md points here). Refreshed
+> 2026-08-15 from the shipped tree — review finding **R6-D5**, which found it
+> missing every single-source owner added since the restructure — and **guarded**:
+> `tests/test_package_layout.py` asserts the `sloads/` half of this tree is
+> exactly the package on disk, in both directions, so a new module cannot ship
+> unlisted and a listed file cannot vanish. The `.BAS` → module-name map is in
+> [`PROGRAM_SPEC.md`](PROGRAM_SPEC.md). This section used to hold the *proposed*
+> restructure layout instead, under which some names landed differently
+> (`geometry.py` → `wing_geometry.py`, `speeds.py` → `structural_speeds.py` +
+> `mach_limit.py`); the restructure itself is recorded in
+> [`../40_history/00_completed_development.md`](../40_history/00_completed_development.md).
 
 ```
 FAR23LOADS/
-├── sloads/                     # the shared, pure-calc package (renamed/grown engloads/engloads)
-│   ├── __init__.py
-│   ├── constants.py              # ONE home for g, pi, unit factors  (centralized — see Decision 3)
-│   ├── units.py                  # Imperial<->SI boundary conversion (already exists)
-│   ├── models.py                 # Project dataclass + per-domain sub-models
-│   ├── io.py                     # load/save project JSON; CSV writers
-│   ├── registry.py               # module registry: name -> run(project) -> results
-│   ├── spec_names.py             # registry name -> PROGRAM_SPEC heading (+ the non-module allowlist); guarded by tests/test_spec_coverage.py (R6-D6)
-│   ├── workflow.py               # ordered Start→Develop V-n→Flight loads→Other loads→Landing→Load-case plotting→Export step graph (drives GUI nav + dashboard; analysis-flow phases, Step G2)
+├── sloads/                       # the shared, pure-calc package — no I/O in calc code
+│   ├── constants.py              # ONE home for g, pi, unit factors, atmosphere (Decision 3)
+│   ├── units.py                  # Imperial<->SI boundary conversion + deliverable_units (the unit-channel SSOT)
+│   ├── models/                   # the Project schema, split from models.py at M3-1
+│   │   ├── enums.py              # schema enumerations (categories, kinds, tail types)
+│   │   ├── inputs.py             # per-module input dataclasses
+│   │   ├── project.py            # the Project aggregate root + SCHEMA_VERSION
+│   │   └── results.py            # result dataclasses (ConditionResult/LoadValue, per-module results)
+│   ├── io.py                     # the only dataclass<->JSON mapping; project.json + load-case CSV
+│   ├── migrations.py             # normalise any historical project.json to the current schema
+│   ├── registry.py               # module registry: name -> run(project) -> ModuleResult; run_all_modules
+│   ├── spec_names.py             # registry name -> PROGRAM_SPEC heading (+ the non-module allowlist), guarded (R6-D6)
+│   ├── workflow.py               # THE nav SSOT: ordered Start→Develop V-n→Flight loads→Other loads→Landing→Load-case plotting→Export step graph (GUI nav + dashboard; Step G2)
+│   ├── load_keys.py              # canonical LoadValue.key constants for the load-case schema (M4-9)
+│   ├── case_ids.py               # structured load-case / subcase / deck LOAD id allocation (D1, M4-2)
+│   ├── safety_factors.py         # THE governing safety-factor table: one row per condition family (M4-8 / G-11)
+│   ├── cg_cases.py               # the one resolver for weight/CG cases and the two design weights (step 10 piece 2)
+│   ├── mass_distribution.py      # MASS SSOT: weight.items -> per-component station inertia (B1/B-2)
+│   ├── derived_geometry.py       # single-source geometry derivations (wing/fuselage/carry-through; M2-6)
+│   ├── tail_geometry.py          # the empennage planform the spanwise strip integrator runs on (plan 09 T1)
+│   ├── aero_curves.py            # airplane-less-tail aero-coefficient curves + their closure checks (M4-5)
+│   ├── vn_diagram.py             # pure V-n diagram geometry: stall/manoeuvre/gust polylines (Phase E3)
+│   ├── fuselage_moment.py        # pure Munk slender-body fuselage dCm/dα estimator (off-by-default; Step G4)
+│   ├── rigid_body.py             # the rigid-body d'Alembert relief field — single owner of the closure (L-2)
+│   ├── gear_loads.py             # the landing gear as a free body: contact patch in, reference point out (step 10 piece 3)
+│   ├── applicability.py          # pure FAR 23 applicability detection (Exceedance list; Phase E1)
+│   ├── validation.py             # pure input-consistency predicates (ConsistencyWarning list; Phase E3)
+│   ├── fleet.py                  # pure fleet placement: nearest-N / percentile / outlier (FleetStats; Phase E4)
 │   ├── report/                   # rendering + the controlled summary document (Step G8)
 │   │   ├── render.py             # shared text/CSV tables + the limit→ultimate boundary (was report.py)
 │   │   ├── methods.py            # the ONE methods & limitations statement (+ CSV `#` / BDF `$` wrappers)
 │   │   ├── coverage.py           # FAR 23 Subpart C coverage matrix (covered / n-a / not analysed / out of scope)
 │   │   ├── content.py            # Project + module results → ReportDocument (sections/tables/figures) — no LaTeX
+│   │   ├── conventions_tex.py    # the report's "Axes and sign conventions" section, from CONVENTIONS.md's owners
 │   │   ├── latex.py              # ReportDocument → .tex (escaping, longtable, document control)
 │   │   └── plots_tex.py          # pgfplots figures: V-n, weight/CG, speed–altitude
-│   ├── applicability.py          # pure FAR 23 applicability detection (Exceedance list; Phase E1)
-│   ├── mass_distribution.py      # MASS SSOT: weight.items -> per-component station inertia (B1)
-│   │   └── export/mass_cards.py  # CONM2/MASSSET mass model for sbeam (C1-C5)
-│   │   └── export/balanced_deck.py # assembled full-span free-free deck (B5)
-│   │   └── export/roundtrip.py     # solve an exported deck in the real sbeam (step 2; test-only use)
-│   ├── validation.py             # pure input-consistency predicates (ConsistencyWarning list; Phase E3)
-│   ├── vn_diagram.py             # pure V-n diagram geometry: stall/manoeuvre/gust polylines (Phase E3)
-│   ├── fuselage_moment.py        # pure Munk slender-body fuselage dCm/dα estimator (off-by-default; Step G4)
-│   ├── fleet.py                  # pure fleet placement: nearest-N / percentile / outlier (FleetStats; Phase E4)
 │   ├── export/                   # output bridges to external tools (renderers, NOT registered modules)
 │   │   ├── bands.py              # THE GID/EID/SID band registry: one owner per id run, disjointness proved by test
-│   │   ├── coordinates.py        # SLOADS axes -> sbeam CID 0 map (single edit-point)
-│   │   ├── sbeam_bridge.py       # net wing/body/tail/control loads -> span-load CSV + FORCE/MOMENT cards + CBAR stick model + case-index + export-scope filter
+│   │   ├── coordinates.py        # SLOADS axes -> sbeam CID 0 map + the reflection operator (single edit-point)
+│   │   ├── sbeam_bridge.py       # net wing/body/tail/control/gear loads -> span-load CSV + FORCE/MOMENT cards + CBAR stick model + case index + export-scope filter
+│   │   ├── mass_cards.py         # CONM2/MASSSET mass model for sbeam (C1–C5)
+│   │   ├── balanced_deck.py      # the assembled full-span free-free deck — the primary deliverable (B5)
+│   │   ├── equilibrium.py        # deck-derived force/moment resultants: the export-boundary closure gate
 │   │   ├── workbook.py           # multi-sheet .xlsx workbook (Step D8.2): one tab per module/component + case index
+│   │   ├── roundtrip.py          # solve an exported deck in the real sbeam (step 2; test-only use)
 │   │   └── pdf.py                # ⚠ the ONE impure export helper: TeX engine discovery + subprocess compile (G8.6)
-│   └── modules/
-│       ├── __init__.py
-│       ├── configuration.py      # Geometry page (modern; no .BAS) -> Project.geometry.{parametric,empennage,landing_gear} (Step G1/G6/G6b)
+│   └── modules/                  # one file per suite program + the modern additions; each self-registers on import
+│       ├── configuration.py      # Geometry (modern; no .BAS) -> Project.geometry.{parametric,empennage,landing_gear} (G1/G6/G6b)
 │       ├── weight_estimate.py    # WTESTIMA
 │       ├── weight_envelope.py    # WTENV
 │       ├── weight_onecg.py       # WTONECG
-│       ├── geometry.py           # WINGGEOM
-│       ├── speeds.py             # STRSPEED (+ machlim.py)
-│       ├── airloads.py           # AIRLOADS / AIRLOAD4 / tau.py (TAU helper)
+│       ├── wing_geometry.py      # WINGGEOM
+│       ├── structural_speeds.py  # STRSPEED
+│       ├── mach_limit.py         # MACHLIM
+│       ├── airloads.py           # AIRLOADS / AIRLOAD4 (+ the TAU helper, folded)
 │       ├── flight_envelope.py    # FLTLOADS (V-n + balancing tail loads)
 │       ├── select.py             # SELECT
 │       ├── balloads.py           # BALLOADS (off-pipeline verification; reuses select)
 │       ├── wing_inertia.py       # WINGINER
 │       ├── net_loads.py          # NETLOADS
-│       ├── aileron.py, flap.py, tab.py, taildist.py
-│       ├── engine.py             # ENGLOADS  ← current engloads/engloads/calc.py
+│       ├── body_loads.py         # net fuselage loads — the body analogue of NETLOADS (modern; Ch 15)
+│       ├── aileron.py            # AILERON
+│       ├── flap.py               # FLAPLOAD
+│       ├── tab.py                # TABLOADS
+│       ├── taildist.py           # TAILDIST (chordwise)
+│       ├── tail_span.py          # spanwise empennage loads incl. the hinge moment (modern; plan 09)
+│       ├── _vtail.py             # shared vertical-tail aero helpers (rational v-tail loads)
+│       ├── engine.py             # ENGLOADS
 │       ├── one_engine_out.py     # ONENGOUT
-│       └── landing.py            # LGFACTOR + LANDLOAD ✅ (C10)
+│       ├── landing.py            # LGFACTOR + LANDLOAD
+│       └── balance.py            # balanced free-free airplane cases, flight + ground (modern; plans 11/13/18)
 ├── app/                          # multi-page Streamlit UI (st.navigation, 6 sections — Phase D)
 │   ├── Home.py                   # entry point: builds the section nav from sloads.workflow
 │   ├── views/                    # one view per workflow step (clean names, no prefixes)
@@ -231,17 +263,18 @@ FAR23LOADS/
 │   │   └── export_report.py      #   Export   — project JSON + CSVs + sbeam BDF + .xlsx workbook + summary report (.tex/.pdf) + export-scope toggle (D8, G8)
 │   └── data/reference_aircraft.csv
 ├── cli.py                        # `python cli.py engine project.json -o out.csv`; `--export-sbeam --export-target <t>` (every deliverable, incl. `balanced`/`mass`); `--report out.tex|out.pdf`
-├── tests/
-│   ├── test_engine.py            # current test_calc.py (renamed)
-│   ├── test_units.py, test_report.py, test_io.py
+├── tests/                        # pytest; each file also has a zero-dependency __main__ self-runner
+│   ├── test_<module>.py          # one per module — Appendix A/B oracles, else a stated closure gate
 │   ├── imperial_baseline.py      # renders every deliverable channel of every example (M4-20)
 │   ├── fixtures_imperial/        #   ...digested and frozen: the D-21 "Imperial is unchanged" guard
-│   └── test_<module>.py          # one per module, vs manual Appendix A/B
+│   └── fixtures_schema/          # frozen schema digests: a silent Project-shape change fails here
 ├── examples/
-│   ├── ga6_normal.project.json   # Appendix A — 6-place GA single (category N)
+│   ├── ga6_normal.project.json   # Appendix A — 6-place GA single (category N); the oracle fixture
 │   ├── cessna_210.project.json   # a second GA single (category N)
-│   ├── concept_heavy.project.json  # 18,000 lb concept commuter twin (concept mode, category C)
-│   └── dhc8_dash8.project.json   # Dash-8 twin turboprop (concept mode, category C)
+│   ├── atr42_100.project.json    # ATR 42-100 turboprop twin (concept mode, category C)
+│   ├── dhc8_dash8.project.json   # Dash-8 twin turboprop (concept mode, category C)
+│   ├── concept_heavy.project.json     # 18,000 lb concept commuter twin (concept mode, category C)
+│   └── concept_regional_jet.project.json  # concept regional jet — the T-tail / lateral fixture
 │   # (a dedicated Appendix B twin_turboprop.project.json is still a backlog item;
 │   #  the engine module's Appendix-B turboprop case is currently inline in
 │   #  tests/test_engine.py)

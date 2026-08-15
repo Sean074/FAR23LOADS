@@ -19,8 +19,8 @@ historical record.
 | File | Scope |
 |------|-------|
 | [`00_program_overview.md`](10_standard/00_program_overview.md) | **Start here** — program code standard & developer guide: structure, coding standards, error-handling contract, units, entry points, testing/coverage |
-| [`PROJECT_GUIDE.md`](10_standard/PROJECT_GUIDE.md) | Architecture, package layout, porting conventions, validation strategy, dependency-ordered roadmap |
-| [`PROGRAM_SPEC.md`](10_standard/PROGRAM_SPEC.md) | Per-module specification for all 22 programs (inputs, outputs, FAR conditions, `.BAS` mapping) |
+| [`PROJECT_GUIDE.md`](10_standard/PROJECT_GUIDE.md) | Architecture, **the authoritative as-built package tree** (§4, guarded by `tests/test_package_layout.py`), porting conventions, validation strategy, dependency-ordered roadmap |
+| [`PROGRAM_SPEC.md`](10_standard/PROGRAM_SPEC.md) | Per-module specification for all 22 programs plus the modern additions (inputs, outputs, FAR conditions, `.BAS` mapping); every registered module has a section, guarded by `tests/test_spec_coverage.py` |
 | [`GUI_design.md`](10_standard/GUI_design.md) | **GUI design & structure** — navigation model, global sidebar, page anatomy/conventions, unit-boundary input pattern, definition-page standards, FAR 23 applicability/concept-awareness, JSON persistence |
 | [`GUI_USER_GUIDE.md`](10_standard/GUI_USER_GUIDE.md) | **GUI user guide** — task-oriented walkthrough: workflow phases, what to enter where, the seed chain, LIMIT-vs-ULTIMATE reading rules, and an end-to-end `ga6_normal` example with hand-checkable numbers |
 | [`SUMMARY_REPORT.md`](10_standard/SUMMARY_REPORT.md) | **Summary-report document standard** (Step G8) — purpose and audience, whole-document content rules (ultimate-load marking, traceability, axes/signs/stations, absence handling, units), the required section structure, the **excluded-content** list, and the conformance checklist |

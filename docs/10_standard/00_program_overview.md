@@ -23,38 +23,24 @@ module by module.
 
 ## Project structure
 
-```
-sloads/                 # shared, pure-calc package — no I/O in calc code
-├── constants.py          # g, pi (math.pi), unit factors, atmosphere — the one home for constants
-├── models.py             # Project + per-domain input/result slices, ConditionResult/LoadValue, ModuleResult, SCHEMA_VERSION
-├── units.py              # Imperial<->SI conversion at the I/O boundary only
-├── io.py                 # the only dataclass<->JSON mapping; project.json + load-case CSV
-├── registry.py           # name -> run(project) -> ModuleResult lookup; run_all_modules
-├── load_keys.py          # canonical LoadValue.key constants for the load-case schema
-├── report.py             # shared text/CSV rendering (load_cases_to_rows, text_report)
-├── export/               # output renderers to external tools (NOT registered modules)
-│   ├── coordinates.py    # SLOADS axes -> sbeam CID 0 map (single edit-point)
-│   └── sbeam_bridge.py   # net wing/body load -> span CSV + FORCE/MOMENT cards + CBAR stick model
-└── modules/              # one file per suite program; each self-registers on import
-    ├── __init__.py       # imports every module so registration happens on import
-    ├── engine.py         # ENGLOADS                weight_estimate.py  # WTESTIMA
-    ├── weight_onecg.py   # WTONECG                 weight_envelope.py  # WTENV
-    ├── wing_geometry.py  # WINGGEOM                structural_speeds.py# STRSPEED
-    ├── mach_limit.py     # MACHLIM                 airloads.py         # AIRLOADS (+ TAU helper)
-    ├── flight_envelope.py# FLTLOADS                select.py           # SELECT
-    ├── wing_inertia.py   # WINGINER                net_loads.py        # NETLOADS
-    ├── body_loads.py     # net fuselage (Ch 15)    configuration.py    # Configuration & Layout (modern)
-app/
-├── Home.py               # st.navigation entry point: 6-section sidebar (Start→Airplane→Envelopes & Critical Conditions→Analysis→Loads Plots→Export)
-├── views/                # one view per step; named by workflow key (no numeric prefixes)
-│   ├── dashboard.py      #   Start    — load/save project + workflow completeness panel
-│   ├── results_review.py #   Export   — consolidated governing loads (recomputed live)
-│   └── export_report.py  #   Export   — project JSON + per-module CSVs + sbeam BDF cards + summary report (.tex/.pdf)
-└── data/reference_aircraft.csv
-cli.py                    # argparse front-end; `sloads` console script
-tests/                    # pytest; one manual-example test per module vs Appendix A/B
-examples/                 # ga6_normal (Appendix A), cessna_210 (normal cat), concept_heavy + dhc8_dash8 (concept) project.json
-```
+**The package tree has one owner:** [`PROJECT_GUIDE.md`](PROJECT_GUIDE.md) §4,
+guarded file-for-file by `tests/test_package_layout.py`. It used to be drawn
+here as well, and the second copy is what rotted (R6-D5, 2026-08-15) — so this
+section states the *shape* and links for the listing.
+
+- **`sloads/`** — the shared, pure-calc package: `constants.py`, `units.py`, the
+  `models/` schema, `io.py`/`migrations.py`, `registry.py`, `workflow.py` (the
+  nav SSOT), the cross-cutting single-source owners (`safety_factors.py`,
+  `cg_cases.py`, `mass_distribution.py`, `case_ids.py`, `rigid_body.py`,
+  `gear_loads.py`, …), `report/` (rendering + the summary document), `export/`
+  (bridges to external tools — renderers, **not** registered modules) and
+  `modules/` (one file per suite program plus the modern additions, each
+  self-registering on import).
+- **`app/`** — the multi-page Streamlit UI: `Home.py` builds the nav from
+  `sloads/workflow.py`; `views/` holds one view per workflow step.
+- **`cli.py`** — the argparse front-end (`sloads` console script);
+  **`tests/`** — pytest, one test file per module; **`examples/`** — the shipped
+  `project.json` fixtures.
 
 Data flow for one run: `project.json` → `io.load_project` → `Project` →
 `registry.get(name)(project)` → `ModuleResult` → `report`/`io` renders text or the

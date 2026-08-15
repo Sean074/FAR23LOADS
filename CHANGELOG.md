@@ -12,6 +12,21 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **The authoritative package tree is as-built, has one owner, and is guarded**
+  (0.6.0-candidate review finding **R6-D5**). `PROJECT_GUIDE.md` §4 was still the
+  *proposed* restructure layout and had drifted past three SSOT owners added in
+  one cycle (`cg_cases.py`, `safety_factors.py`, `gear_loads.py`) plus
+  `case_ids.py`, `rigid_body.py`, `tail_geometry.py`, `aero_curves.py`,
+  `migrations.py`, `spec_names.py`, the `models/` package split, and three
+  `export/` lines mis-nested under `mass_distribution.py`. It is now the shipped
+  tree, file for file, with a one-line purpose per module. The duplicate,
+  staler tree in `00_program_overview.md` is replaced by a shape summary and a
+  link (user decision: one owner). New `tests/test_package_layout.py` rebuilds
+  each path from the tree's own indentation and asserts the `sloads/` half
+  matches the package on disk in **both** directions — an unlisted new module,
+  a listed file that does not exist, and a mis-nested line all fail; the second
+  tree cannot come back. Docs and test only.
+
 - **The ground family is in the balancing-method theory document** (0.6.0-candidate
   review finding **R6-D7**). `docs/20_theory/balanced_cases.md` described three
   families where four ship; it gains **§9 — the ground families (FAR
