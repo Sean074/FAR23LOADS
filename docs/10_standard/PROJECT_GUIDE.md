@@ -179,6 +179,7 @@ FAR23LOADS/
 │   ├── models.py                 # Project dataclass + per-domain sub-models
 │   ├── io.py                     # load/save project JSON; CSV writers
 │   ├── registry.py               # module registry: name -> run(project) -> results
+│   ├── spec_names.py             # registry name -> PROGRAM_SPEC heading (+ the non-module allowlist); guarded by tests/test_spec_coverage.py (R6-D6)
 │   ├── workflow.py               # ordered Start→Develop V-n→Flight loads→Other loads→Landing→Load-case plotting→Export step graph (drives GUI nav + dashboard; analysis-flow phases, Step G2)
 │   ├── report/                   # rendering + the controlled summary document (Step G8)
 │   │   ├── render.py             # shared text/CSV tables + the limit→ultimate boundary (was report.py)

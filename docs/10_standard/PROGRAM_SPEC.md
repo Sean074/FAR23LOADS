@@ -508,6 +508,65 @@ regression oracle**; Appendix A/B geometry is used only as a *sanity* fixture.
 
 ---
 
+### tail_span — Spanwise empennage loads (plan 09 step T2)
+- **FAR §:** none of its own — it distributes the tail conditions SELECT has
+  already selected: 23.421 (balancing), 23.423 (checked/unchecked maneuver) and
+  23.425 (gust) on the horizontal tail, 23.441/23.443 on the fin. The one
+  condition with a hand is **23.427(a)**, the unsymmetrical horizontal tail,
+  carried as the per-side scales `rh_scale`/`lh_scale`; a `ConditionResult` cites
+  23.427(a) when the two sides differ and 23.421 otherwise.
+- **Source:** `sloads/modules/tail_span.py`; planform resolution and the
+  half/full bookkeeping in `sloads/tail_geometry.py`. Design note:
+  [`../30_future/09_distributed_empennage_loads_plan.md`](../30_future/09_distributed_empennage_loads_plan.md)
+  (decisions T-2/T-3/T-4/T-6/T-8/T-9/T-10/T-13/T-15/T-16), with plan 13's L-1/L-7
+  for the fin. **It computes no total of its own** — `LT25`/`LT50` and the v-tail
+  side loads are read from SELECT, never recomputed (T-7), so no Appendix A
+  figure moves. Frame and sign conventions:
+  [`CONVENTIONS.md`](CONVENTIONS.md).
+- **Reads:** SELECT's h-tail/v-tail critical conditions through their owner
+  (`select.default_critical`: the `LT25`/`LT50` split, the per-side scales, the
+  control-surface load) and the V-n points behind them (`select.vn_points`: the
+  case load factor, and the case weight the fin's `n_y` is formed on);
+  `Project.geometry.empennage` for the planform (entered polylines, else the
+  authoritative area/span as a rectangle); the surface weight from the
+  `htail`/`vtail`-tagged rows of `Project.weight.items` via
+  `mass_distribution.tail_surface_weight` (an entered
+  `TailMassInput.panel_weight_lb` survives as an explicit override); and
+  TAILDIST's aft-of-hinge pressure block in discrete mode.
+- **Writes:** one `TailSpanResult` per condition per surface — a station table
+  of `WingStationLoad` (**LIMIT**) that is **full span, tip to tip** for the
+  h-tail and root-supported for the fin, `attachment_y` (the fuselage
+  attachment stations the beam is reacted at, defined here in the physics),
+  `control_loads` (`ControlPointLoad`: hinge reactions by tributary span plus
+  the actuator couple) with `hinge_moment_lbin` — **the suite's first
+  hinge-moment output** — in `"discrete"` mode, and `tip_transfer` on a T-tail
+  fin. `ConditionResult`s report the air and inertia totals, root
+  `Sz`/`Mxx`/`Myy` with its stated torsion axis, and the hinge/transfer values.
+  Feeds the empennage decks and, through `balance`, the assembled airplane.
+- **Validation:** **no printed oracle.** Chordwise placement is TAILDIST's
+  unchanged (`LT25` at 25 %, `LT50` at 50 %), which makes every target
+  closed-form, and those closed forms **are** the gate (`CLAUDE.md` practice 2)
+  — `tests/test_tail_span.py`: the strips sum to SELECT's total plus the
+  inertia; root bending is the half load × the area centroid; the torsion is the
+  area-weighted closed form and vanishes for the `LT25` term at a quarter-chord
+  axis; the fin's lateral inertia relieves the surface total by exactly
+  `W_vt/W_case`; the two control-load modes apply identical total force; the
+  hinge moment is the aft-of-hinge chord's third; and the spanwise and chordwise
+  views cover the same conditions.
+- **Notes:** the inertia sign is **d'Alembert** (`−n·W_surf`), set by the case's
+  load factor alone and never "opposing the air load" — the governing GA6 h-tail
+  conditions are down-load cases, which a magnitude-opposing rule would relieve.
+  The fin carries **two** inertia terms because its normal axis is lateral
+  (`−n_y·W_vt` bending, `−n_z·W_vt` axial); its local→airplane mapping belongs to
+  `export/coordinates.py` alone. `control_load_mode` defaults to `"smeared"` and
+  is stated on the result and in the deck, because the two modes describe
+  different load paths. `n_y` inherits plan 13 decision **L-7**'s fin-only
+  over-statement caveat. A planform derived from area/span travels as
+  `planform_assumed` into every rendering and deck header (backlog: real
+  empennage polylines).
+
+---
+
 ### gear_loads — the landing gear as a free body (Step 10 piece 3)
 - **FAR §:** none of its own — it re-presents 23.473–23.499 (LANDLOAD's own
   conditions). 23.485(d) is what puts the reaction at the contact patch.
@@ -562,6 +621,79 @@ regression oracle**; Appendix A/B geometry is used only as a *sanity* fixture.
   gear *interface* load definition and must not be read as a gear design load
   set** — sloads has no gear kinematic model, so no drag-brace, side-brace,
   trunnion or axle-bending load is claimed.
+
+---
+
+### balance — Balanced free-free airplane cases (plan 11 step B2)
+- **FAR §:** none of its own — every case is an assembly of a condition another
+  module already selected, and each row cites **that condition's** regulation:
+  23.321 (the symmetric balancing conditions), 23.349 (`ACRL`'s unbalanced
+  rolling moment), **23.427(a)** (the unsymmetrical horizontal tail), 23.441–
+  23.443 (the four rational v-tail conditions), and 23.479–23.493 for the ground
+  families, with 23.471 as the family's general-sentence fallback (R6-C1).
+- **Source:** `sloads/modules/balance.py`. Theory of record:
+  [`../20_theory/balanced_cases.md`](../20_theory/balanced_cases.md). Design
+  notes: plan 11
+  ([`../30_future/11_balanced_airframe_cases_plan.md`](../30_future/11_balanced_airframe_cases_plan.md),
+  decisions B-1…B-8 — the method), plan 13
+  ([`../30_future/13_b8a_lateral_closure_plan.md`](../30_future/13_b8a_lateral_closure_plan.md),
+  L-1…L-8 — the lateral families), decision **D-R8** (23.427(a)), and plan 18
+  ([`../30_future/18_step10_ground_cases_plan.md`](../30_future/18_step10_ground_cases_plan.md),
+  G-1/G-6/G-7/G-7a/G-8 — the ground families). Axes, signs and case identity:
+  [`CONVENTIONS.md`](CONVENTIONS.md).
+- **Reads:** the whole upstream, recomputing nothing another module owns — the
+  critical set and the V-n envelope through their owners
+  (`select.default_critical` / `default_envelope`); the wing air distribution
+  **recomputed at the V-n point's own** `cl`/`v`/`nz` through AIRLOADS'
+  `air_load_distribution` (the entered
+  `wing_mass.cases` distributions are untouched and remain the FAR 23
+  deliverables); WINGINER's spanwise shape for the wing inertia; the per-case
+  loadings from the mass SSOT (`mass_distribution.derive_case_loadings`, decision
+  B-2) and their CG cases (`cg_cases.flight_cases` / `ground_cases`);
+  `tail_span`'s fin and h-tail distributions; and, for the ground families,
+  `gear_loads.gear_case_loads` / `applied_wheels`, whose reactions are LANDLOAD's
+  own, unchanged.
+- **Writes:** one `BalancedCaseResult` per assembled condition — **two** where
+  the condition has a hand, the port twin got by reflection rather than
+  recomputation (B-6/B-7) — carrying the full-span applied set of
+  `BalancedLoad` (**LIMIT**; each with its own node, force, **free** moment,
+  `source` band and `side`), the six pre-closure residuals, the closure relief
+  (`delta_n`/`delta_nx`/`delta_ny`, `p_dot`/`q_dot`/`r_dot` from one coupled 3×3
+  solve, and the `closure_inertia` it was solved on), the applied aileron couple
+  and the lumped fuselage `Cm`. The **last** `ConditionResult` is always the
+  skipped-conditions record (review F-C7): every condition SELECT or LANDLOAD
+  named and what became of it, so a consumer can always state what the assembled
+  deliverable does *not* cover. This is the mission's primary deliverable — the
+  full-span balanced free-free deck (aero + inertia, `CONM2` mass cards, handed
+  pairs) that the sbeam bridge exports.
+- **Validation:** **no printed oracle** — stated physics-closure gates in CI
+  (`CLAUDE.md` practice 2), in `tests/test_balance.py` and
+  `tests/test_gear_report.py`. `RESIDUAL_GATE` = **1 %** of `n·W` / `n·W·MAC`,
+  applied to the residual **before** closure (the physics, not the correction);
+  the roll degree of freedom reproduces WINGINER's unit-roll distribution strip
+  for strip (ratio 1.000000); the yaw degree of freedom reproduces ONENGOUT;
+  23.427(a)'s applied set is SELECT's own `RH`/`LH` with the closed-form
+  `(RH − LH)·ȳ` rolling moment; the ground families reproduce LANDLOAD's
+  reactions and its unbalanced moments and close in all six DOF; and every
+  exported deck balances from its own cards.
+- **Where the gate does not apply, and why:** the lateral, 23.427(a) and ground
+  families have no residual of the symmetric kind to gate — nothing balances a
+  rudder kick or an abrupt elevator input, and the pre-closure `Fy`/`Mz`,
+  `Fz`/`My` **are** the applied load, by construction. Each is gated instead on
+  the case's symmetric (or trim) half, with the defining set removed, still
+  closing inside 1 %. Stated in full in
+  [`../20_theory/balanced_cases.md`](../20_theory/balanced_cases.md).
+- **Notes:** the **seam rule** (plan 11 §4): a load that a free-body cut
+  introduces is never applied in the assembled model — the wing carry-through
+  reaction is excluded and `carry_sources_absent` guards it. Only `ACRL` is
+  antisymmetric, and that is measured from `UNB`, not assumed. The fuselage's
+  Munk moment is applied as a **single labelled free moment** (+4.3 to +6.3 % of
+  `n·W·MAC` across the fixtures) until backlog item M4-19 distributes it, and the
+  aileron's own spanwise lift increment is likewise lumped as a free couple at
+  the wing aerodynamic centre — both stated wherever the case is rendered, since
+  omitting them would leave a real aero load disguised as a closure correction.
+  A condition whose CG the weight database cannot produce is **recorded, not
+  invented**. The gear free body itself is `gear_loads` above.
 
 ---
 
@@ -1207,8 +1339,9 @@ shipped); summary for anyone adding a new module:
 | 4 Component loads | WINGINER, NETLOADS, AILERON, FLAPLOAD, TABLOADS, TAILDIST, ENGLOADS, ONENGOUT, LGFACTOR, LANDLOAD | 10 (all) | 0 |
 | **Total** | **22** | **22** | **0** |
 
-Counts reference 1's 22 Appendix-C programs only; the **configuration** module
-(Step C5) is a modern addition with no `.BAS` and is not counted above. The FAA
+Counts reference 1's 22 Appendix-C programs only; the modern additions with no
+`.BAS` — **configuration**, **body_loads**, **tail_span** and **balance**, each
+sectioned above — are not counted here. The FAA
 User's Guide exposes **20**
 of these as menu modules — the two it omits are:
 \* **TAU** (`TAU.EXE`/`TAU.BAS`), the lift-curve-slope helper folded into

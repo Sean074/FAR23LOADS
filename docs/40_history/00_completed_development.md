@@ -10,6 +10,21 @@ Acceptance**, **Key decisions**.
 
 ---
 
+**`balance` and `tail_span` are specified, and the spec is guarded (complete
+2026-08-15, tier M)** — 0.6.0-candidate review finding R6-D6: the two registered
+modules with no `PROGRAM_SPEC.md` section — the one carrying the mission's
+primary deliverable and the one carrying steps 7–9's physics — now have theirs,
+on the document's own template and citing the plan docs rather than restating
+them (user decision: template + link out; the ground family's narrative stays
+with R6-D7's `balanced_cases.md` work). Made structural per practice 3:
+`sloads/spec_names.py` is the single owner of the registry-name → spec-heading
+correspondence (`weight_estimate` → `WTESTIMA`) plus the allowlist of sections
+that are not calc modules, and `tests/test_spec_coverage.py` guards it in both
+directions — the guard reproduces the finding when either new section is
+removed. `WorkflowStep.bas` was considered and rejected as the map's source: it
+is per step, merged steps name several programs and folded modules own no step.
+Docs + test only; no shipped number moves and no digest channel changes.
+
 **G-6's rotational gate half, and what it found (complete 2026-08-15, tier M)**
 — 0.6.0-candidate review findings R6-T1 and R6-T2. The step-10 benchmark had
 shipped with its translational half only; the three moment lines the design note

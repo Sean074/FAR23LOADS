@@ -12,6 +12,22 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **`balance` and `tail_span` have PROGRAM_SPEC sections, and every module is
+  now guarded into having one** (0.6.0-candidate review finding **R6-D6**). The
+  two registered modules the per-module spec skipped — `balance`, which carries
+  the mission's primary deliverable and the whole ground-case assembly, and
+  `tail_span`, which carries steps 7–9's physics including the suite's first
+  hinge moment — are specified on the document's own FAR §/Source/Reads/Writes/
+  Validation/Notes template, citing plans 09/11/13/18, `CONVENTIONS.md` and
+  `balanced_cases.md` rather than restating them. New `sloads/spec_names.py`
+  owns the registry-name → spec-heading map (`weight_estimate` → `WTESTIMA`,
+  modern modules under their own name) together with the allowlist of sections
+  that are not calc modules (`TAU`, `LGFACTOR`, `payload_cases`, `gear_loads`,
+  the export bridges), and `tests/test_spec_coverage.py` guards both directions:
+  a new module with no section fails, and so does a section matching neither.
+  The status-summary note now names all four modern additions. Docs and test
+  only — no shipped number moves, no digest channel changes.
+
 - **G-6's rotational gate half, as the design note wrote it** (0.6.0-candidate
   review finding **R6-T1**, with **R6-T2** folded in). The step-10 benchmark
   shipped with its translational half only — `NVP`/`NDP`/`NS` exact at
