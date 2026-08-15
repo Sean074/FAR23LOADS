@@ -1042,8 +1042,10 @@ inputs"). Piece 3 is backlog priority 1.
 
 Two things piece 2 deliberately left firing rather than fixed, because either
 would have made its "nothing moves" claim untrue — both filed with the guard that
-found them: `dhc8_dash8`'s gear mass tag (backlog Pri 30a; correcting it re-pins
+found them: `dhc8_dash8`'s gear mass tag (backlog *"`dhc8_dash8` gear mass is
+tagged `fuselage` but the leg is wing-carried"*; correcting it re-pins
 `mass_distribution.wing_mass_tie`) and the `applicability` / `direct_totals`
-design-weight re-point (Pri 30). G-2's third guard — the transfer preserves
+design-weight re-point (its own backlog row — priorities are an order, not IDs,
+so rows are named here rather than numbered). G-2's third guard — the transfer preserves
 resultants about the CG at `rel_tol 1e-12` — tests the transfer and so lands with
 piece 3.

@@ -162,7 +162,12 @@ and its user-resolved decisions **D-R1…D-R8**
 what shipped is in [`../../CHANGELOG.md`](../../CHANGELOG.md) and
 [`../40_history/00_completed_development.md`](../40_history/00_completed_development.md).
 Review finding IDs still cited per row (C1, F-C\*, F-D\*, F-G\*, F-R\*, m\*)
-resolve in the review document. The earlier ordering rules (2026-08-09: wrong
+resolve in the review document. **Rows 1–9 added 2026-08-15** from the
+0.6.0-candidate review
+([`../50_reviews/2026-08-15_review_0_6_0_candidate.md`](../50_reviews/2026-08-15_review_0_6_0_candidate.md));
+their `R6-*` finding IDs resolve there, and the whole table was renumbered
+sequentially in the same edit (discharging that review's R6-D8 as table
+mechanics, not as a promoted item). The earlier ordering rules (2026-08-09: wrong
 cards outrank missing cards; [V] items ranked, not opportunistic) govern the
 whole table. Historic step numbers (steps 8–14) are kept inside item names for
 traceability with plans 09/11/12/13; the **Pri** column is ordinal only.
@@ -174,40 +179,78 @@ traceability with plans 09/11/12/13; the **Pri** column is ordinal only.
 
 | Pri | Item (detail below / in its plan) | What ships | Tag | Tier / effort | Depends on |
 |---|---|---|---|---|---|
+| **Pre-0.6.0 corrections (2026-08-15 review, R6-\*)** ||||||
+| 1 | Documentation currency batch (R6-D1/D2/D3/D4) | CHANGELOG `Added`/`Fixed` headings unscrambled; backlog "shipped since the tag" gains step 9 + D-24; plan 09 status marked shipped; `00_INDEX.md` gains plan 18's row | V | S / S | — (no digest movement; before anything else touches `[Unreleased]`) |
+| 2 | Ground condition rows carry FAR 23.321 (R6-C1) | `balance.run()` rows read the case's own `CaseRef.far_reference` (23.479…23.493) instead of the flight-balancing literal | E | S / S | — (moves `txt/csv balance` digests) |
+| 3 | Gear report CSV meets the load-output contract (R6-C2) | Unit-labelled headers with `-ULT` on load columns, a per-case `SF` column, the SI `Stroke (in)` header fixed, and an SI-channel assertion so the family cannot regress | E | M / S–M | — (its own digest wave: `gear_report` on five fixtures) |
+| 4 | "V-n" label on ground cases (R6-C3) | A family-aware source-case label with one owner — deck header, case map, run() titles, rows table, `SkippedCondition.name` | E | M / S | rides Pri 3's digest wave |
+| 5 | G-6 rotational gate half (R6-T1, +T2) | `I·ω̇` rotated through ρ asserted against `PITCHP`/`ROLLP`/`YAWP` per family, the G-7a lift term in the pitch line, and the `NS` sign tightened | E | M / M | — (test-only; until it lands the gap is named in the test docstring) |
+| 6 | `balance` + `tail_span` PROGRAM_SPEC sections (R6-D6) | The two registered modules with no per-module spec section get theirs — assembly from the plan docs/history, not authorship; optional registry↔spec heading guard | V | S / M | — |
+| 7 | Ground family in `balanced_cases.md` (R6-D7) | The theory doc of record gains the fourth family: no V-n point, solved field, gear reactions + ground-line lift, the ρ rotation, why `RESIDUAL_GATE` does not apply | V | S / M | — |
+| 8 | PROJECT_GUIDE §4 layout refresh (R6-D5) | The authoritative tree gains `cg_cases`/`safety_factors`/`gear_loads` (+ the older omissions), export mis-nesting fixed; consider an every-module-listed drift guard | V | S / M | — |
+| 9 | Piece-3 hygiene (R6-C4) | `gear_sets`' unused `nvp` dropped; `_gear_stroke_table` docstring blemish; the gear CSV says which wheel a `main` row describes | V | S / S | pairs Pri 3 |
 | **Post-0.5.0 (0.6.0 candidates and ranked [V])** ||||||
-| 1 | Step 12 — LRA beam-model export + import | Cards delivered on the consumer's own node line; standalone LRA skeleton export | E | L / M–L | step 5 ✅ |
-| 2 | Step 13 — side-of-body reporting node | SOB internal shear/bending/torsion reported as the wing root design loads | E | M / M | step 5 ✅ |
-| 3 | Step 14 — real stiffness / assembled airframe properties (L-1) | Real section properties replacing the `MAT1` placeholder | E | L / M | Pri 1 (LRA beam bridge) |
-| 7 | The aileron's own lift increment is not distributed | `ACRL` wing cards gain the aero half of the couple (acts ~70 % span) | V | L / M | pairs plan 09 spanwise work |
-| 8 | RJ pitch-gate exceedance diagnosis | Element-count study → R3 vs `Cm` split; plan 13 G9 inherits the ceiling | V | M / S | pairs M4-19 |
-| 9 | Payload cases the weight database can produce (sibling pair) | Four more fixtures gain balanced cases → more assembled decks in CI | V | M–L / M | user decision: loading definition vs fixture fix |
-| 10 | Wing-tank fuel separability | Ends the same pounds riding both beams on the three fuel-in-wing fixtures | V | L / M | pairs plan 12 C1 |
-| 11 | Lateral body aero `Cy_β`/`Cn_β` (L-7) | Honest lateral `n_y`/`ψ̈` (fin-only today — over-stated, conservative) | V | L / M | pairs M4-19 |
-| 12 | Empennage planform polylines (fixture data) | Real taper in the tail card distributions instead of the `assumed` rectangle | V | S / S | — |
-| 13 | h-tail attachment `fuselage_width` (fixture data) | Real attachment stations instead of the `±ds/2` fallback | V | S / S | pairs Pri 3 (SOB) |
-| 13a | `concept_heavy` gear geometry + `landing` slice (fixture data) *(new 2026-08-14, from step 10 decision G-13)* | A sixth gear-report fixture, and the only concept-mode exercise of the 23.473(g) floor warning | V | S / S | — (the gear report shipped 2026-08-15) |
-| 14 | Load-application axis vs elastic axis — document the torsion reference | Convention in `coordinates.py` + spec + deck `$` header | V | S / S | partially superseded by Pri 2 (LRA import) |
-| 15 | Gust spanwise-distribution decision | Study + recorded decision | V | S / S | — |
-| 16 | M4-19 — Multhopp distributed fuselage `Cm` | A distributed body pitching load for `body_loads` | V | L / M | — |
-| 17 | M4-21 — fuselage pitching load factor | d'Alembert pitch term at each body station | V | M / S | pairs M4-4 |
-| 18 | M4-4 — per-CG precise inertia in SELECT | WTONECG inertia wired into checked-maneuver `Iyy` / v-tail `IZZ` | V | M / S | — |
-| 19 | M4-3 — ONENGOUT data-flow + turboprop gate | Geometry provenance, `is_turboprop` gate, VSF decision | V | M / S | — |
-| 20 | L-8i — per-page LIMIT CSV units | Converted, unit-suffixed analysis-page downloads | V | S / S | — |
-| 21 | F25-0 — verify pass | Current CFR text for every *(verify)* row | V | S / S | precedes any F25 build step |
-| 22 | Mach-margin route for the FAR 23 categories | Category gate + per-category default | V | S / S | — |
-| 23 | Flutter-clearance Mach basis for transports | Verified reference + decision, then an opt-in variant | V | S / S | — |
-| 24 | Upset-criterion speed increase (25.335(b)(1)) | The 20 s dive integration the margin route lacks | V | M / M | — |
-| 25 | F25-1 — transport category "T" envelope pack | 25.337 floors, 25.341 U_ref schedule, VB | V | M / M | — |
-| 26 | F25-4 — ground-loads parameter variant | 10/6 fps, lift = W, LDW/MTOW pairing | V | M / M | coordinates with M4-6 (shipped 2026-08-15) |
-| 27 | Deliverables render structural negative zeros *(new 2026-08-11, from the body-deck signed-zero fix)* | `-0.000000E+00` components (~2,000 in one balanced deck) and the tail span CSV's `Fax` column normalised at the formatting boundary | V | S / S | schedule with a digest wave — cosmetic, and it moves every deck family's bytes |
-| 28 | Split `40_history/00_completed_development.md` by era | Mechanical split + index file | V | S / S | after the working tree is committed |
-| 29 | Combined flight + ground station envelope *(new 2026-08-14, from step 10 decision G-9)* | Two-sided max/min per station over both families, each extreme naming its governing case | V | M / M | — (ground cases shipped 2026-08-15) |
-| 30 | `applicability`/`direct_totals` design-weight re-point *(new 2026-08-14, from step 10 decision G-14)* | The FAR 23 gate reads the MTOW SSOT instead of the database total; `direct_totals` renamed | V | S / S | — (the G-14 hop shipped 2026-08-14) |
-| 31a | M4-8 **Layer 2** — agreed named failure-case factors (25.302) *(remainder after Layer 1 shipped 2026-08-14)* | A named `25.302` failure case as its own governing row + ULTIMATE load case, and the system-reliability requirement it levies | V | M / M | coordinates with Phase F25 |
-| 30a | `dhc8_dash8` gear mass is tagged `fuselage` but the leg is wing-carried *(new 2026-08-14, from step 10 decision G-2's carrier↔mass guard)* | Re-tag the gear items `MassComponent.WING` and re-pin `mass_distribution.wing_mass_tie` | V | S / S | — (the guard that found it shipped 2026-08-14) |
-| 31 | CG-dependent MTOW — non-flat weight–CG envelope top edge *(new 2026-08-14, from step 10 decision G-14)* | A permissible-weight boundary that varies with CG, as on some transports | V | M / M | — |
+| 10 | Step 12 — LRA beam-model export + import | Cards delivered on the consumer's own node line; standalone LRA skeleton export | E | L / M–L | step 5 ✅ |
+| 11 | Step 13 — side-of-body reporting node | SOB internal shear/bending/torsion reported as the wing root design loads | E | M / M | step 5 ✅ |
+| 12 | Step 14 — real stiffness / assembled airframe properties (L-1) | Real section properties replacing the `MAT1` placeholder | E | L / M | Pri 10 (LRA beam bridge) |
+| 13 | The aileron's own lift increment is not distributed | `ACRL` wing cards gain the aero half of the couple (acts ~70 % span) | V | L / M | pairs plan 09 spanwise work |
+| 14 | RJ pitch-gate exceedance diagnosis | Element-count study → R3 vs `Cm` split; plan 13 G9 inherits the ceiling | V | M / S | pairs M4-19 |
+| 15 | Payload cases the weight database can produce (sibling pair) | Four more fixtures gain balanced cases → more assembled decks in CI | V | M–L / M | user decision: loading definition vs fixture fix |
+| 16 | Wing-tank fuel separability | Ends the same pounds riding both beams on the three fuel-in-wing fixtures | V | L / M | pairs plan 12 C1 |
+| 17 | Lateral body aero `Cy_β`/`Cn_β` (L-7) | Honest lateral `n_y`/`ψ̈` (fin-only today — over-stated, conservative) | V | L / M | pairs M4-19 |
+| 18 | Empennage planform polylines (fixture data) | Real taper in the tail card distributions instead of the `assumed` rectangle | V | S / S | — |
+| 19 | h-tail attachment `fuselage_width` (fixture data) | Real attachment stations instead of the `±ds/2` fallback | V | S / S | pairs Pri 11 (SOB) |
+| 20 | `concept_heavy` gear geometry + `landing` slice (fixture data) *(new 2026-08-14, from step 10 decision G-13)* | A sixth gear-report fixture, and the only concept-mode exercise of the 23.473(g) floor warning | V | S / S | — (the gear report shipped 2026-08-15) |
+| 21 | Load-application axis vs elastic axis — document the torsion reference | Convention in `coordinates.py` + spec + deck `$` header | V | S / S | partially superseded by Pri 10 (LRA import) |
+| 22 | Gust spanwise-distribution decision | Study + recorded decision | V | S / S | — |
+| 23 | M4-19 — Multhopp distributed fuselage `Cm` | A distributed body pitching load for `body_loads` | V | L / M | — |
+| 24 | M4-21 — fuselage pitching load factor | d'Alembert pitch term at each body station | V | M / S | pairs M4-4 |
+| 25 | M4-4 — per-CG precise inertia in SELECT | WTONECG inertia wired into checked-maneuver `Iyy` / v-tail `IZZ` | V | M / S | — |
+| 26 | M4-3 — ONENGOUT data-flow + turboprop gate | Geometry provenance, `is_turboprop` gate, VSF decision | V | M / S | — |
+| 27 | L-8i — per-page LIMIT CSV units | Converted, unit-suffixed analysis-page downloads | V | S / S | — |
+| 28 | F25-0 — verify pass | Current CFR text for every *(verify)* row | V | S / S | precedes any F25 build step |
+| 29 | Mach-margin route for the FAR 23 categories | Category gate + per-category default | V | S / S | — |
+| 30 | Flutter-clearance Mach basis for transports | Verified reference + decision, then an opt-in variant | V | S / S | — |
+| 31 | Upset-criterion speed increase (25.335(b)(1)) | The 20 s dive integration the margin route lacks | V | M / M | — |
+| 32 | F25-1 — transport category "T" envelope pack | 25.337 floors, 25.341 U_ref schedule, VB | V | M / M | — |
+| 33 | F25-4 — ground-loads parameter variant | 10/6 fps, lift = W, LDW/MTOW pairing | V | M / M | coordinates with M4-6 (shipped 2026-08-15) |
+| 34 | Deliverables render structural negative zeros *(new 2026-08-11, from the body-deck signed-zero fix)* | `-0.000000E+00` components (~2,000 in one balanced deck) and the tail span CSV's `Fax` column normalised at the formatting boundary | V | S / S | schedule with a digest wave — cosmetic, and it moves every deck family's bytes; candidate: Pri 3's wave |
+| 35 | Split `40_history/00_completed_development.md` by era | Mechanical split + index file | V | S / S | after the working tree is committed |
+| 36 | Combined flight + ground station envelope *(new 2026-08-14, from step 10 decision G-9)* | Two-sided max/min per station over both families, each extreme naming its governing case | V | M / M | — (ground cases shipped 2026-08-15) |
+| 37 | `applicability`/`direct_totals` design-weight re-point *(new 2026-08-14, from step 10 decision G-14)* | The FAR 23 gate reads the MTOW SSOT instead of the database total; `direct_totals` renamed | V | S / S | — (the G-14 hop shipped 2026-08-14) |
+| 38 | M4-8 **Layer 2** — agreed named failure-case factors (25.302) *(remainder after Layer 1 shipped 2026-08-14)* | A named `25.302` failure case as its own governing row + ULTIMATE load case, and the system-reliability requirement it levies | V | M / M | coordinates with Phase F25 |
+| 39 | `dhc8_dash8` gear mass is tagged `fuselage` but the leg is wing-carried *(new 2026-08-14, from step 10 decision G-2's carrier↔mass guard)* | Re-tag the gear items `MassComponent.WING` and re-pin `mass_distribution.wing_mass_tie` | V | S / S | — (the guard that found it shipped 2026-08-14) |
+| 40 | CG-dependent MTOW — non-flat weight–CG envelope top edge *(new 2026-08-14, from step 10 decision G-14)* | A permissible-weight boundary that varies with CG, as on some transports | V | M / M | — |
 
 ---
+
+# Item detail — pre-0.6.0 corrections (2026-08-15 review)
+
+Rows 1–9. **The finding bodies live in the review document of record**,
+[`../50_reviews/2026-08-15_review_0_6_0_candidate.md`](../50_reviews/2026-08-15_review_0_6_0_candidate.md)
+— each row cites its `R6-*` id and the evidence, failure mode and recommended
+correction are stated there, not restated here (CLAUDE.md: never duplicate,
+link instead). What this section adds is only what the table cannot carry:
+
+- **Sequencing is the review's §5 order.** Row 1 (the currency batch) moves no
+  digest and should land before anything else touches `[Unreleased]`; rows 2–4
+  move deliverable bytes and are claimed as **one digest wave** (row 3's), per
+  the G-13 one-wave-per-claim rule — row 34 (structural negative zeros) is a
+  candidate passenger on the same wave; row 5 is test-only and moves nothing.
+- **Rows 2–5 are release-gating in spirit**: a wrong regulation on a deliverable
+  row, a load channel outside the `-ULT`/SF contract, a label that invites a
+  wrong join, and a design-note gate half that was promised and not built — all
+  on the 0.6.0 headline deliverable. The 2026-08-09 ordering rule ("wrong cards
+  outrank missing cards") is why they sit above steps 12–14.
+- **Rows 6–8 are the documentation-coverage debt** the review found alongside
+  the currency defects: two registered modules with no PROGRAM_SPEC section
+  (`balance`, `tail_span`), the balancing theory doc describing three families
+  where four ship, and the PROJECT_GUIDE §4 tree missing every single-source
+  owner added since it was drawn. All content-assembly from existing closure
+  trails, not new writing.
+- **R6-D8 (table numbering) was discharged by this insertion itself** — the
+  renumber the review recommended happened as part of adding these rows, so it
+  is deliberately not a row.
 
 # Item detail — mission path [E]
 

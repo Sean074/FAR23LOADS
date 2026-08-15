@@ -80,6 +80,7 @@ historical record.
 
 | File | Scope |
 |------|-------|
+| [`2026-08-15_review_0_6_0_candidate.md`](50_reviews/2026-08-15_review_0_6_0_candidate.md) | Critical review of the 0.6.0 candidate (everything since the v0.5.0 tag): findings R6-C\*/R6-T\*/R6-D\* — deliverable-contract gaps in the new gear report channel, the missing G-6 rotational gate half, and the documentation-currency defects, with the recommended pre-0.6.0 order of work |
 | [`2026-08-10_code_review_0_5_0.md`](50_reviews/2026-08-10_code_review_0_5_0.md) | Pre-0.5.0 full code review: findings C1/F-\*/D-R\*/m1–m21 and the three-phase release plan they drove |
 | [`2026-08-05_development_process_review.md`](50_reviews/2026-08-05_development_process_review.md) | Full-depth development-process audit (Jun–Aug 2026): findings F1–F7, recommendations R1–R11 behind the 2026-08-05 process changes, and the sbeam cross-project comparison |
 | [`CODE_REVIEW_2026-07-21.md`](50_reviews/CODE_REVIEW_2026-07-21.md) | Point-in-time code review (moved here from the repository root at 0.5.0) |
