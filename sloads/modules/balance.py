@@ -54,13 +54,20 @@ The fuselage pitching moment
 ----------------------------
 The trim carries ``Cm`` for the airplane **less tail** -- wing *and* fuselage --
 while the distributed wing carries only its own section ``Cm``. The difference is
-the fuselage's Munk moment: measured at **+4.3 to +6.3 %** of ``n*W*MAC`` across
-the fixtures, positive (destabilising), and with no distributed carrier until
-backlog item M4-19 lands the Multhopp/Nelson body moment. It is applied here as a
-single free moment on the fuselage (``source="fuselage-cm"``), which preserves the
-total exactly and is labelled as lumped wherever it is rendered. Omitting it
-would leave a systematic ~5 % moment residual that the closure would then absorb
-silently -- a real aero load disguised as a correction.
+the fuselage's Munk moment, and it has no distributed carrier until backlog item
+M4-19 lands the Multhopp/Nelson body moment. It is applied here as a single free
+moment on the fuselage (``source="fuselage-cm"``), which preserves the total
+exactly and is labelled as lumped wherever it is rendered. Omitting it would
+leave a moment residual of the same size for the closure to absorb silently -- a
+real aero load disguised as a correction.
+
+Its size is **not** a small positive constant. Measured across the fixtures that
+have flight cases it runs **-6.6 to +4.9 %** of ``n*W*MAC`` on ``ga6_normal`` and
+**-8.5 to +5.8 %** on ``concept_regional_jet``, and it changes sign -- with
+``alpha``, as a slope term must (``NMAA`` is the negative-``alpha`` case on the
+ga6). An earlier "+4.3 to +6.3 %, positive" reading here was taken over the
+symmetric wing conditions only and did not survive the negative-``alpha`` and
+lateral points (corrected 2026-08-15).
 
 Residual closure (B-3)
 ----------------------
@@ -1017,11 +1024,18 @@ def _closure(loads: List[BalancedLoad], cg: CgCase,
     The x degree of freedom is not optional: **nothing else in the assembled
     model reacts drag.** The suite has no distributed thrust, and FAR 23's
     longitudinal load factor ``nx`` is exactly this quantity. On ``ga6_normal``
-    PHAA the closure gives 0.661 g against the fixture's entered ``nx`` of
-    0.6065, the difference being the same strip-quadrature-versus-closed-form gap
-    that sets the vertical residual floor. Leaving it open would put 17-26 % of
-    ``n*W`` into the support reaction and make "reactions ~ 0" untrue in a file
-    that still solved.
+    PHAA the closure gives 0.661 g against the trim's own drag of 0.610. Leaving
+    it open would put 17-26 % of ``n*W`` into the support reaction and make
+    "reactions ~ 0" untrue in a file that still solved.
+
+    That 0.05 g difference is **not** quadrature (an earlier reading here called
+    it "the same strip-quadrature-versus-closed-form gap"; corrected 2026-08-15).
+    ``residual_fx`` equals the wing strips' ``Sum fx`` exactly -- nothing in the
+    assembled model carries the airplane's **non-wing** drag -- and the gap is
+    element-independent: -191.5 lb at 5 elements, -173.4 lb converged at 640. It
+    is a missing load, not an integration error, and the same missing load is the
+    whole of the pitch residual through its ``(zw - zcg)`` arm. Filed on the
+    backlog as "non-wing drag has no carrier in the assembled model".
 
     The relief is spread over **the inertia loads already in the model**, not
     over the raw item list. Those are the same masses, but at the places the

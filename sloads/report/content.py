@@ -1750,9 +1750,9 @@ def _section_balanced(run: BalancedRun, mass_rows: Sequence[Dict[str, Any]],
         f"{len(cases)} case(s) assembled. The worst pre-closure residual is "
         f"{worst:.3%} of n*W against a {RESIDUAL_GATE:.0%} gate"
         + ("." if worst < RESIDUAL_GATE else
-           " -- OVER the gate; the usual cause is the spanwise strip-quadrature "
-           "floor against the trim solve's closed-form lift, and the case is "
-           "reported rather than suppressed."),
+           " -- OVER the gate; the usual cause is that the assembled model "
+           "carries no non-wing drag, whose couple about the CG is the pitch "
+           "residual, and the case is reported rather than suppressed."),
         _hand_pair_sentence(cases),
     ]
     section.tables.append(_balanced_cases_table(cases))

@@ -10,6 +10,17 @@ Acceptance**, **Key decisions**.
 
 ---
 
+**The balanced-case residual floors are correctly attributed (complete
+2026-08-15, tier S)** — the element-count study backlog Pri 5 asked for was run:
+the pitch residual is flat in `elements` (RJ PLAA 1.041 % from 20 to 640) and an
+exact three-term identity shows it is `(zw − zcg)·(ΣFx_wing − dx)` — the
+assembled model carries no non-wing drag — refuting both plan 11 R3 and M4-19
+(a free couple cannot change a resultant), and the same missing load is the `nx`
+gap; the `Fz` floor keeps R3's identification but loses the "quadrature" name
+(converges to −42.3 lb / 0.327 % on ga6 PHAA), and the lumped fuselage `Cm` is a
+sign-changing slope term (−8.5 to +5.8 %), not "+4.3 to +6.3 %, positive".
+Pri 5 re-titled and left open; docs and docstrings only.
+
 **The package tree is as-built, single-owner and guarded (complete 2026-08-15,
 tier S)** — 0.6.0-candidate review finding R6-D5, the last of the pre-0.6.0
 block. `PROJECT_GUIDE.md` §4 stopped being the restructure-era *proposal* and

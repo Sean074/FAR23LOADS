@@ -688,8 +688,9 @@ regression oracle**; Appendix A/B geometry is used only as a *sanity* fixture.
   introduces is never applied in the assembled model — the wing carry-through
   reaction is excluded and `carry_sources_absent` guards it. Only `ACRL` is
   antisymmetric, and that is measured from `UNB`, not assumed. The fuselage's
-  Munk moment is applied as a **single labelled free moment** (+4.3 to +6.3 % of
-  `n·W·MAC` across the fixtures) until backlog item M4-19 distributes it, and the
+  Munk moment is applied as a **single labelled free moment** (a sign-changing
+  slope term: −6.6 to +4.9 % of `n·W·MAC` on `ga6_normal`, −8.5 to +5.8 % on
+  `concept_regional_jet`) until backlog item M4-19 distributes it, and the
   aileron's own spanwise lift increment is likewise lumped as a free couple at
   the wing aerodynamic centre — both stated wherever the case is rendered, since
   omitting them would leave a real aero load disguised as a closure correction.

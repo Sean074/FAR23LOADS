@@ -118,10 +118,13 @@ it is part of the record:
 5. **A real load with no distributed carrier is lumped and labelled, never
    dropped.** The trim's `Cm` covers wing *and* fuselage; the distributed wing
    carries only its own section `Cm`. The difference — the fuselage's Munk
-   moment, +4.3 to +6.3 % of `n·W·MAC`, destabilising — is applied as one free
-   moment (`fuselage-cm`) until M4-19 distributes it. Omitting it would leave a
-   systematic ~5 % moment residual for the closure to absorb silently: a real
-   aero load disguised as a correction.
+   moment — is applied as one free moment (`fuselage-cm`) until M4-19 distributes
+   it. Omitting it would leave a moment residual of the same size for the closure
+   to absorb silently: a real aero load disguised as a correction. It is a slope
+   term and **changes sign with `α`**: −6.6 to +4.9 % of `n·W·MAC` on
+   `ga6_normal`, −8.5 to +5.8 % on `concept_regional_jet` (an earlier "+4.3 to
+   +6.3 %, destabilising" reading here covered the symmetric wing conditions
+   only; corrected 2026-08-15).
 
 ## 3. The residual — measured before closure, and part of the deliverable
 
@@ -135,10 +138,20 @@ The acceptance gate (plan 11 §6) sits on it, not on the corrected result:
 |ΣMy| / (n·W·MAC)    < 1 %      (pitch; per-fixture ceiling where it bites)
 ```
 
-The ~0.3 % floor that remains on the ga6 is the strip-quadrature-versus-
-closed-form lift difference — predicted by plan 11 R3, not noise. The residual
-and the relief applied are stated in the result, the UI and the deck `$` header
-(CONVENTIONS §1: *the residual is part of the deliverable*).
+Neither floor is noise, and the two have **different** causes (measured
+2026-08-15 — the element-count study behind backlog Pri 5):
+
+- **Force.** The ~0.3 % floor on the ga6 is the strip lift distribution's
+  integral against the trim's closed-form `CL·q·S` — the difference plan 11 R3
+  predicted. It is a *model* difference, not a quadrature error: it converges to
+  −42.3 lb / 0.327 % on ga6 PHAA as `elements` → ∞ (the −34.6 lb seen at the
+  default 20 is that floor partly cancelled by the quadrature transient).
+- **Pitch.** The pitch residual is `(zw − zcg)·(ΣFx_wing − dx)` almost in full —
+  the assembled model carries **no non-wing drag**. It is flat in `elements`
+  (RJ PLAA: 1.041 % from 20 to 640), so no refinement reaches it. Backlog Pri 5.
+
+The residual and the relief applied are stated in the result, the UI and the deck
+`$` header (CONVENTIONS §1: *the residual is part of the deliverable*).
 
 **Two degrees of freedom are deliberately not gated this way**, because in them
 the airplane is *supposed* not to balance:
@@ -240,8 +253,10 @@ couples, not from a net that may cancel.
 | **residual `ΣFz`** | **−34.6** |
 
 The inertia rows sum to −12,925.9 = −n·W exactly (the mass model weighs the
-case); the air rows overshoot by 34.6 lb — **0.268 % of n·W**, the quadrature
-floor. The lumped `fuselage-cm` moment for this case is +44,095 lb-in.
+case); the air rows overshoot by 34.6 lb — **0.268 % of n·W**, the strip-lift
+floor above (which converges to −42.3 lb / 0.327 % as `elements` → ∞; the value
+at the default 20 is that floor net of the quadrature transient). The lumped
+`fuselage-cm` moment for this case is +44,095 lb-in.
 
 **The residual, about CG2:**
 

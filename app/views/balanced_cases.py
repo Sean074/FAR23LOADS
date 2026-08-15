@@ -132,9 +132,11 @@ if worst < RESIDUAL_GATE:
 else:
     st.warning(
         f"Worst pre-closure residual is {worst:.3%} of n·W, over the "
-        f"{RESIDUAL_GATE:.0%} gate. The usual cause is the strip-quadrature "
-        "floor: the spanwise integration of lift differs slightly from the "
-        "trim solve's closed form, and a coarser element count widens it.")
+        f"{RESIDUAL_GATE:.0%} gate. In pitch the usual cause is that the "
+        "assembled model carries no non-wing drag, whose couple about the CG "
+        "is the residual; in force it is the spanwise lift integral differing "
+        "from the trim solve's closed form. Neither is an element-count "
+        "effect — both are flat once the strips converge.")
 
 # --------------------------------------------------------------------------- #
 # Where the load comes from

@@ -1,4 +1,4 @@
-# Changelog
+  # Changelog
 
 All notable changes to **sloads** (the FAR 23 LOADS replication and
 initial-concept distributed-loads tool) are documented here.
@@ -325,6 +325,49 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   open (backlog M4-3(b)).
 
 ### Fixed
+
+- **The balanced cases' pitch residual was attributed to two causes that the
+  measurement refutes** (backlog Pri 5, the element-count study that item asked
+  for; documentation and diagnosis only, no calc changed). Sweeping
+  `SurfaceInput.elements` 5 → 640 shows the pitch residual converging by ~20
+  elements onto a **non-zero plateau** (RJ PLAA 1.041 %, TORS 1.174 %, SIDE GUST
+  1.586 %, flat to three decimals), which rules out the strip-quadrature lift
+  floor (plan 11 R3). An exact three-term identity — derived by subtracting
+  `flight_envelope._balance` from the assembled sum, where `wing_about_ac`
+  cancels against `fuselage_cm` and the wing/body inertia moments cancel — then
+  closes to the last printed digit on every case and shows the residual is
+  `(zw − zcg)·(ΣFx_wing − dx)` almost in full: **the assembled model carries no
+  non-wing drag**. The lift term never exceeds 0.086 % and the tail-station term
+  is exactly zero on a clean configuration. M4-19 is ruled out on structural
+  grounds as well as measured ones — `fuselage-cm` is a *free couple*, so no
+  redistribution of it can change the resultant. The same missing load is the
+  whole of the `nx` gap (ga6 PHAA closure 0.661 g against the trim's 0.610;
+  `residual_fx` equals `ΣFx_wing` exactly), also element-independent. Backlog
+  Pri 5 is re-titled "non-wing drag has no carrier in the assembled model", its
+  superseded hypothesis marked rather than deleted, and its M4-19 pairing
+  dropped. Corrected in `balance` (module and `_closure` docstrings),
+  `report/content.py`'s over-the-gate message, `PROGRAM_SPEC.md`,
+  `balanced_cases.md` and `theory_sources.md`.
+
+- **"Strip quadrature" was the wrong name for the force-residual floor too**
+  (same study; swept alongside the above per `CLAUDE.md` practice 4). The `Fz`
+  residual also converges to a non-zero plateau — ga6 PHAA **−42.3 lb / 0.327 %**
+  at 640 elements, against the −34.6 lb / 0.268 % seen at the default 20, which
+  is that floor partly cancelled by the quadrature transient. Plan 11 R3's
+  *identification* stands (strip lift integral vs the trim's closed-form
+  `CL·q·S`); only the name was wrong, and it is now stated as a model difference
+  with the converged number beside the default-element one.
+
+- **The lumped fuselage `Cm` was documented as a small positive constant**
+  (found by the same study). It is a slope term and **changes sign with `α`**:
+  measured across every fixture case, −6.6 to +4.9 % of `n·W·MAC` on
+  `ga6_normal` (the negative-`α` `NMAA` point) and −8.5 to +5.8 % on
+  `concept_regional_jet`. The shipped "+4.3 to +6.3 %, positive (destabilising)"
+  reading was taken over the symmetric wing conditions only and did not survive
+  the negative-`α` and lateral points. Corrected in the five live sources that
+  quoted it (`balance.py`, `PROGRAM_SPEC.md`, `balanced_cases.md`,
+  `theory_sources.md`); the `40_history` and plan-13 copies are left as the
+  record of what was measured at the time.
 
 - **A ground case's LANDLOAD case number was printed as a "V-n point"**
   (0.6.0-candidate review finding **R6-C3**). `BalancedCaseResult.vn_case`
