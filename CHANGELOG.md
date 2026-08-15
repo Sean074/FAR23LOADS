@@ -239,6 +239,35 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- **A ground case's LANDLOAD case number was printed as a "V-n point"**
+  (0.6.0-candidate review finding **R6-C3**). `BalancedCaseResult.vn_case`
+  carries the case's **source** case number, and the ground family's comes from
+  LANDLOAD's 1–33 table rather than FLTLOADS' V-n envelope — but every surface
+  that printed it used the flight family's wording, so "V-n point 19" on
+  LANDLOAD case 19 sent a reader to a **real and unrelated** flight point: the
+  silent-wrong-join class design note 17's case identity exists to prevent.
+  The wording now has one owner, `balance.source_case_name` (family read off
+  `is_ground`, with `case_source_name` for an assembled case), and all five
+  surfaces the review named go through it: the assembled deck's `$` case header
+  (`-- LANDLOAD case 19,`) and case map, `run()`'s condition titles, the
+  balanced-case rows table — whose column is now headed **`Source case`** with a
+  family-aware value, since the header itself claimed a table the row might not
+  belong to — and `SkippedCondition.name`, which gained a `ground` field so the
+  record states its own family rather than inferring it. Swept in the same
+  change (CLAUDE.md practice 4): the shared `no-cg-case` skip reason, which the
+  ground family also reaches, now says "its **source case** names a loading this
+  project does not define"; and the Balanced Cases page's selector, which
+  labelled a ground case's drift-direction hand a "roll". **Display wording
+  only** — no case identity, number, load or `CaseRef` changed. The new owner is
+  registered in the `CONVENTIONS.md` §7 single-source table with its guard,
+  `tests/test_balance.py::test_no_surface_calls_a_ground_case_a_v_n_point`,
+  which checks all five surfaces on every fixture that assembles ground cases
+  and pins the flight wording in the same breath. **Digest wave:**
+  `txt/balance`, `csv/balance` and `sbeam/balanced_deck` on the two fixtures
+  with ground cases (`ga6_normal`, `concept_regional_jet`) — six hashes, one
+  channel wider than the backlog row declared, because two of the five surfaces
+  are in the assembled deck; no other channel or fixture moved.
+
 - **The gear report CSV did not meet the load-output contract's column rules**
   (0.6.0-candidate review finding **R6-C2**, with the **R6-C4** hygiene items
   folded in per the backlog pairing). The G-12 companion file carried no unit

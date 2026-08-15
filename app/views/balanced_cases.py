@@ -29,6 +29,8 @@ from sloads.models import MissingInputError
 from sloads.modules.balance import (
     RESIDUAL_GATE,
     build_balanced_cases,
+    case_source_name,
+    is_ground,
     is_lateral,
     is_unsymmetrical_htail,
     skipped_condition_lines,
@@ -157,10 +159,17 @@ def _case_label(c) -> str:
     """The selector entry. **Must** carry the hand: the two twins of a rolling
     case are otherwise identical strings, and the picker would silently show the
     starboard case whichever one was chosen."""
-    kind = ("side load" if is_lateral(c)
-            else "tail load split" if is_unsymmetrical_htail(c) else "roll")
-    hand = {"R": f" — starboard {kind}", "L": f" — port {kind}"}.get(c.hand, "")
-    return f"{c.label}{hand} (V-n {c.vn_case}, {c.cg})"
+    if is_ground(c):
+        # A ground case's label already names the condition, and its hand is the
+        # drift direction rather than a roll -- the same distinction the deck
+        # header draws (decision G-8, R6-C3).
+        hand = {"R": " — starboard", "L": " — port"}.get(c.hand, "")
+    else:
+        kind = ("side load" if is_lateral(c)
+                else "tail load split" if is_unsymmetrical_htail(c) else "roll")
+        hand = {"R": f" — starboard {kind}",
+                "L": f" — port {kind}"}.get(c.hand, "")
+    return f"{c.label}{hand} ({case_source_name(c, short=True)}, {c.cg})"
 
 
 names = [_case_label(c) for c in cases]

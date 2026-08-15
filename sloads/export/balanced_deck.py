@@ -79,7 +79,8 @@ from ..case_ids import (ASSEMBLED_DECK, NO_LOAD_ID, balanced_subcase_id,
                         deck_load_id)
 from ..models import BalancedCaseResult, BalancedLoad, Project
 from ..modules.balance import (SkippedCondition, build_balanced_cases,
-                               carry_sources_absent, fin_load, htail_load,
+                               carry_sources_absent, case_source_name,
+                               fin_load, htail_load,
                                htail_side_loads, is_ground, is_lateral,
                                is_unsymmetrical_htail, skipped_condition_lines,
                                skipped_conditions)
@@ -279,7 +280,7 @@ def _header(case: BalancedCaseResult, u: DeliverableUnits) -> List[str]:
     p_dot, q_dot, r_dot = (_deg(v) for v in
                            radians_per_s2((case.p_dot, case.q_dot, case.r_dot)))
     sentences = [
-        f"Balanced case {case.label}{hand} -- V-n point {case.vn_case}, "
+        f"Balanced case {case.label}{hand} -- {case_source_name(case)}, "
         f"loading {case.cg}, Nz = {case.nz:g}",
         f"Case ID: {case.case_ref.case_id if case.case_ref else '(none)'}",
         f"Loads are ULTIMATE (limit x SF={_sf_str(case.safety_factor)}).",
@@ -474,8 +475,9 @@ def balanced_deck(project: Project, *,
         # could not be joined without reading its case control.
         entry = (f"SUBCASE {sid} = {case.case_ref.case_id if case.case_ref else '(no case id)'}"
                  f" -- {case.label}"
-                 f"{'-' + case.hand if case.hand else ''} -- V-n "
-                 f"{case.vn_case} -- {case.cg} -- Nz {case.nz:g}")
+                 f"{'-' + case.hand if case.hand else ''} -- "
+                 f"{case_source_name(case, short=True)}"
+                 f" -- {case.cg} -- Nz {case.nz:g}")
         head += [f"$ {ln}" for ln in textwrap.wrap(entry, width=70,
                                                    subsequent_indent="    ")]
     head += _skipped_block(skipped)
@@ -561,7 +563,11 @@ def balanced_case_rows(cases: Sequence[BalancedCaseResult]) -> List[Dict[str, st
                       or NO_LOAD_ID) if c.case_ref else NO_LOAD_ID),
             "Case": c.label,
             "Hand": c.hand or "-",
-            "V-n point": str(c.vn_case),
+            # Family-aware, and headed "Source case" rather than "V-n point"
+            # (R6-C3): the column carries LANDLOAD's case number on a ground
+            # row and FLTLOADS' V-n point on a flight one, so the value names
+            # its own table and the header can no longer claim otherwise.
+            "Source case": case_source_name(c),
             "Loading": c.cg,
             "Nz": f"{c.nz:.3f}",
             "Residual Fz (% n*W)": f"{c.force_residual_fraction * 100:.3f}",

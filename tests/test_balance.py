@@ -54,10 +54,12 @@ from sloads.export.balanced_deck import (  # noqa: E402
     BALANCED_GEAR_BASE,
     BALANCED_WING_L_BASE,
     BALANCED_WING_R_BASE,
+    balanced_case_rows,
     balanced_deck,
     case_sids,
     deck_nodes,
 )
+from sloads.export import balanced_deck as balanced_deck_module  # noqa: E402
 from sloads.export.coordinates import (  # noqa: E402
     reflect_force,
     reflect_moment,
@@ -76,6 +78,7 @@ from sloads.modules.balance import (  # noqa: E402
     SYMMETRIC_WING_CONDITIONS,
     build_balanced_cases,
     skipped_condition_lines,
+    source_case_name,
     carry_sources_absent,
     fin_load,
     handed_twin,
@@ -1792,6 +1795,104 @@ def test_the_rolling_deck_states_that_it_rolls(example):
     assert "STARBOARD roll" in text and "PORT roll" in text
     over = [ln for ln in text.splitlines() if ln.startswith("$") and len(ln) > 72]
     assert not over, over
+
+
+def _ground_examples():
+    return [e for e, v in _EXPECTED_GROUND_CASES.items() if v]
+
+
+@pytest.mark.parametrize("example", _ground_examples())
+def test_no_surface_calls_a_ground_case_a_v_n_point(example):
+    """**R6-C3's pin.** A ground case's number is LANDLOAD's, not the V-n table's.
+
+    ``BalancedCaseResult.vn_case`` carries the *source* case number, and the two
+    producers both number from 1: "V-n point 19" on a LANDLOAD case 19 sends a
+    reader to a real and unrelated flight point -- the silent-wrong-join class
+    design note 17's case identity exists to prevent.
+
+    Every surface that prints the number is checked here, because the defect was
+    one wording repeated at five of them: the deck ``$`` header, the deck case
+    map, ``run()``'s condition titles, the rows table and the skipped record.
+    The flight families' wording is pinned in the same breath -- the fix must
+    not have renamed a V-n point either.
+    """
+    project = _project(example)
+    # One assembly, reused by every surface below: on the RJ each rebuild is
+    # tens of seconds, and re-deriving the same cases five times would make this
+    # pin the slowest test in the file for nothing.
+    skipped = []
+    cases = build_balanced_cases(project, skipped)
+    ground = [c for c in cases if is_ground(c)]
+    assert ground, example
+
+    # 1. The deck's ``$`` header, per case. Asked of the header builder rather
+    # than of a substring of the whole deck, because the two families' case
+    # numbers COLLIDE -- V-n point 14 and LANDLOAD case 14 both exist on the RJ,
+    # which is the finding -- so only a per-case check can tell them apart.
+    u = deliverable_units(UnitSystem.IMPERIAL, Channel.SOLVER)
+    for c in cases:
+        head = " ".join(" ".join(ln.lstrip("$ ") for ln
+                                 in balanced_deck_module._header(c, u)).split())
+        want = ("LANDLOAD case" if is_ground(c) else "V-n point")
+        assert f"-- {want} {c.vn_case}, loading" in head, (example, c.label)
+        if is_ground(c):
+            # Not "no 'V-n' anywhere": the G-7 lift note legitimately says the
+            # borrowed Schrenk shape involves no V-n point at all. What must
+            # not appear is the number under a V-n wording.
+            assert f"V-n {c.vn_case}" not in head, (example, c.label)
+            assert f"V-n point {c.vn_case}" not in head, (example, c.label)
+
+    # 2. The deck's case map -- one line per case, found by its case id.
+    text = balanced_deck(project, cases=cases, skipped=skipped)
+    # Reassembled from the wrapped comment lines: a map entry runs past 70
+    # columns on the longer ground labels, so "LANDLOAD case 4" itself straddles
+    # the break.
+    block = " ".join(ln.lstrip("$ ").strip() for ln in text.splitlines()
+                     if ln.startswith("$"))
+    entries = {e.split(" = ")[1].split(" -- ")[0]: e
+               for e in ("SUBCASE " + p for p in block.split("SUBCASE ")[1:])
+               if " = " in e}
+    for c in ground:
+        entry = entries[c.case_ref.case_id]
+        assert f"LANDLOAD case {c.vn_case}" in entry, entry
+        assert "V-n" not in entry.split("Nz")[0], entry
+
+    # 3. run()'s titles.
+    titles = [cond.title for cond in balance_module.run(project).conditions]
+    for c in ground:
+        assert any(f"(LANDLOAD case {c.vn_case}," in t for t in titles), c.label
+    # 4. The rows table -- family-aware value under a family-neutral header.
+    rows = balanced_case_rows(cases)
+    assert "V-n point" not in rows[0]
+    by_id = {r["ID"]: r["Source case"] for r in rows}
+    for c in ground:
+        assert by_id[c.case_ref.case_id] == f"LANDLOAD case {c.vn_case}"
+    for c in cases:
+        if not is_ground(c):
+            assert by_id[c.case_ref.case_id] == f"V-n point {c.vn_case}"
+
+    # 5. The skipped record: a ground skip names LANDLOAD's table too.
+    ground_skips = [s for s in skipped if s.ground]
+    assert ground_skips, example
+    for s in ground_skips:
+        assert f"(LANDLOAD case {s.case})" in s.name, s.name
+    assert all("V-n" not in s.name for s in ground_skips)
+    assert all("V-n" in s.name for s in skipped
+               if not s.ground and s.case is not None)
+
+
+def test_the_source_case_label_has_one_owner():
+    """The wording is a function, not five literals (``CLAUDE.md`` practice 3)."""
+    assert source_case_name(19, True) == "LANDLOAD case 19"
+    # No short form for the ground stem: abbreviating it would invent a fourth
+    # name for the same number.
+    assert source_case_name(19, True, short=True) == "LANDLOAD case 19"
+    assert source_case_name(19, False) == "V-n point 19"
+    assert source_case_name(19, False, short=True) == "V-n 19"
+    for module in (balanced_deck_module, balance_module):
+        source = open(module.__file__, encoding="utf-8").read()
+        assert "V-n point {" not in source, module.__name__
+        assert 'f"V-n ' not in source, module.__name__
 
 
 if __name__ == "__main__":

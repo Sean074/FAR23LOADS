@@ -363,7 +363,10 @@ SKIP_REASONS = {
         "its V-n point is not in the flight envelope, so the case has no "
         "flight condition to be assembled at"),
     "no-cg-case": (
-        "its V-n point names a loading this project does not define, so the "
+        # "source case", not "V-n point": this reason is reached by the ground
+        # family too, whose case number is LANDLOAD's (R6-C3). The condition's
+        # own name, beside it in the record, says which table it numbers into.
+        "its source case names a loading this project does not define, so the "
         "case has no weight or CG"),
     "loading-not-derivable": (
         "its payload loading is not derivable from the itemized weight "
@@ -388,17 +391,25 @@ class SkippedCondition:
     case: Optional[int]
     code: str
     reason: str
+    #: Which table :attr:`case` numbers into -- LANDLOAD's for a ground
+    #: condition, FLTLOADS' V-n for a flight one (R6-C3). Carried rather than
+    #: inferred from ``component`` so the record states its own family, and
+    #: defaulted to the flight family because that is what a skip minted from a
+    #: SELECT condition is.
+    ground: bool = False
 
     @property
     def name(self) -> str:
-        """The condition, named as SELECT names it."""
-        where = f" (V-n {self.case})" if self.case is not None else ""
+        """The condition, named as the family that produced it names it."""
+        where = (f" ({source_case_name(self.case, self.ground, short=True)})"
+                 if self.case is not None else "")
         return f"{self.component} {self.label}{where}"
 
 
 def _skip(cond, code: str) -> SkippedCondition:
     return SkippedCondition(component=cond.component, label=cond.label,
-                            case=cond.case, code=code, reason=SKIP_REASONS[code])
+                            case=cond.case, code=code, reason=SKIP_REASONS[code],
+                            ground=isinstance(cond, _GroundCondition))
 
 
 # --------------------------------------------------------------------------- #
@@ -745,6 +756,42 @@ def is_ground(case: BalancedCaseResult) -> bool:
     reproduce LANDLOAD's ``NVP``/``NDP``/``NS`` -- which it does exactly.
     """
     return any(ld.source.startswith("gear-") for ld in case.loads)
+
+
+#: What the integer in :attr:`BalancedCaseResult.vn_case` actually names, by
+#: family (R6-C3). The field holds the **source case number**: FLTLOADS' V-n
+#: point for a flight case, LANDLOAD's case number for a ground one -- two
+#: different tables that both number from 1, so a label naming the wrong one
+#: sends a reader to a real and unrelated row.
+FLIGHT_SOURCE_STEM = "V-n point"
+GROUND_SOURCE_STEM = "LANDLOAD case"
+
+
+def source_case_name(case_number: int, ground: bool, *,
+                     short: bool = False) -> str:
+    """The source case, named as the family that produced it names it (R6-C3).
+
+    **The one owner of this wording.** Every surface that prints the number --
+    the assembled deck's ``$`` header and case map, :func:`run`'s condition
+    titles, the balanced-case rows table and :attr:`SkippedCondition.name` --
+    goes through here, so none of them can drift into calling a LANDLOAD case a
+    V-n point again. Display wording only: the number and the case identity are
+    untouched (the join key is the ``CaseRef`` id, not this string).
+
+    ``short`` is the compact form the case map and the parenthesised titles use.
+    The ground stem has no short form on purpose -- abbreviating it would invent
+    a fourth name for the same number, and it is the family that was being
+    mislabelled.
+    """
+    if ground:
+        return f"{GROUND_SOURCE_STEM} {case_number}"
+    stem = "V-n" if short else FLIGHT_SOURCE_STEM
+    return f"{stem} {case_number}"
+
+
+def case_source_name(case: BalancedCaseResult, *, short: bool = False) -> str:
+    """:func:`source_case_name` for an assembled case, family read off the case."""
+    return source_case_name(case.vn_case, is_ground(case), short=short)
 
 
 def is_lateral(case: BalancedCaseResult) -> bool:
@@ -1905,7 +1952,8 @@ def run(project: Project) -> ModuleResult:
         else:
             far = "23.349" if c.unbal_moment else "23.321"
         conditions.append(ConditionResult(
-            title=f"Balanced case {c.label}{hand} (V-n {c.vn_case}, {c.cg})",
+            title=(f"Balanced case {c.label}{hand} "
+                   f"({case_source_name(c, short=True)}, {c.cg})"),
             far_reference=far,
             values=roll_values + htail_values + lateral_values + [
                 LoadValue("Load factor Nz", c.nz, "g", key="balanced_nz"),
@@ -1954,7 +2002,12 @@ __all__ = [
     "htail_load",
     "htail_side_loads",
     "is_unsymmetrical_htail",
+    "is_ground",
     "is_lateral",
+    "source_case_name",
+    "case_source_name",
+    "FLIGHT_SOURCE_STEM",
+    "GROUND_SOURCE_STEM",
     "is_handed",
     "body_inertia",
     "resultant",

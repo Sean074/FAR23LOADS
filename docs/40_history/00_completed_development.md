@@ -10,6 +10,22 @@ Acceptance**, **Key decisions**.
 
 ---
 
+**A ground case's source case is named as LANDLOAD's, not as a V-n point
+(complete 2026-08-15, tier M)** — 0.6.0-candidate review finding R6-C3: the
+wording of `BalancedCaseResult.vn_case` gained one owner
+(`balance.source_case_name` / `case_source_name`, family from `is_ground`,
+registered in the `CONVENTIONS.md` §7 SSOT table), and all five surfaces the
+review named go through it — deck `$` header, deck case map, `run()` titles,
+the rows table (column re-headed `Source case`, family-aware value) and
+`SkippedCondition.name` (which gained a `ground` field). Swept alongside: the
+shared `no-cg-case` skip reason and the Balanced Cases selector's ground hand.
+Display wording only. Pinned by
+`test_no_surface_calls_a_ground_case_a_v_n_point` (all five surfaces, both
+ground fixtures, flight wording pinned too) and
+`test_the_source_case_label_has_one_owner`. Digest wave: `txt/csv balance` +
+`sbeam/balanced_deck` on the two ground fixtures — one channel wider than the
+backlog row declared, because two surfaces live in the deck.
+
 **Gear report CSV meets the load-output contract (complete 2026-08-15,
 tier M)** — 0.6.0-candidate review finding R6-C2, with the R6-C4 hygiene row
 folded in by user decision: the `gear_report` channel's header row is now built
