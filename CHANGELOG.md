@@ -12,6 +12,22 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **The ground family is in the balancing-method theory document** (0.6.0-candidate
+  review finding **R6-D7**). `docs/20_theory/balanced_cases.md` described three
+  families where four ship; it gains **§9 — the ground families (FAR
+  23.471–23.499)**: what a ground case does not have (no V-n point, no given load
+  factor, no balancing tail load, its own design weight under 23.473(a)), which
+  of LANDLOAD's 33 cases assemble and why the 23.499 family does not, the applied
+  set (`gear-main`/`gear-nose` with the exact patch→node transfer, `ground-lift`
+  along the ground line on cases 1–12 only), the `n_z = 0` solve against FAR
+  23.471 with the `NVP`/`NDP`/`NS` identity and its rotational half, `ρ` measured
+  from LANDLOAD's own two resolutions, **why `RESIDUAL_GATE` does not apply** and
+  the gates that replace it, and a worked example over three families on
+  `ga6_normal`. §2's source table and §3's not-gated list gained their ground
+  rows; the pin table is now §10, with ten ground rows. Two new tests in
+  `tests/test_gear_report.py` pin every figure the new section quotes, per the
+  document's own contract. Docs and test only — no shipped number moves.
+
 - **`balance` and `tail_span` have PROGRAM_SPEC sections, and every module is
   now guarded into having one** (0.6.0-candidate review finding **R6-D6**). The
   two registered modules the per-module spec skipped — `balance`, which carries

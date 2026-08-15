@@ -198,8 +198,10 @@ and their sources (`tests/test_concept_closure.py`):
 ### The balanced free-free case as a closure gate (step B2–B6, 2026-08-08)
 
 Theory walk-through with worked examples (wing symmetric/antisymmetric, the
-low-tail / T-tail lateral empennage cases, and the 23.427(a) unsymmetrical
-horizontal tail) in [`balanced_cases.md`](balanced_cases.md).
+low-tail / T-tail lateral empennage cases, the 23.427(a) unsymmetrical
+horizontal tail, and the ground/landing families — §9, where the load factor is
+solved rather than given and the gate is LANDLOAD's own closed form) in
+[`balanced_cases.md`](balanced_cases.md).
 
 The FAR 23 core validates against Appendix A; the *assembled airplane* has no
 printed oracle at all, so its gate is equilibrium itself. Plan 11's acceptance,

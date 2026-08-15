@@ -5,8 +5,8 @@ case** — aero and inertia together, wing tip to wing tip, nose to tail — and
 closes it so the exported deck solves in sbeam with **no constraint doing any
 work**. With worked examples on the shipped fixtures: a symmetric wing case, an
 antisymmetric (rolling) wing case, the ±β empennage cases on a conventional low
-tail and on a T-tail, and the unsymmetrical horizontal-tail case of FAR
-23.427(a).
+tail and on a T-tail, the unsymmetrical horizontal-tail case of FAR 23.427(a),
+and the ground/landing families of FAR 23.471–23.499.
 
 - **Authority:** axes/signs/seam rule/closure charter in
   [`CONVENTIONS.md`](../10_standard/CONVENTIONS.md) §1 and §7 (this document
@@ -14,23 +14,28 @@ tail and on a T-tail, and the unsymmetrical horizontal-tail case of FAR
   [`PROGRAM_SPEC.md`](../10_standard/PROGRAM_SPEC.md) "Balanced cases and the
   assembled deck". Decision records: plans
   [11](../30_future/11_balanced_airframe_cases_plan.md) (B-1…B-8) and
-  [13](../30_future/13_b8a_lateral_closure_plan.md) (L-1…L-8), and decision
+  [13](../30_future/13_b8a_lateral_closure_plan.md) (L-1…L-8) and
+  [18](../30_future/18_step10_ground_cases_plan.md) (G-1…G-13, the ground
+  families, §9), and decision
   **D-R8** in [`03_resolved_decisions.md`](../40_history/03_resolved_decisions.md)
   (the 23.427(a) family, §8).
 - **Code:** `sloads/modules/balance.py` (assembly + closure),
   `sloads/rigid_body.py` (the relief field, single owner),
+  `sloads/gear_loads.py` (the gear free body the ground families apply),
   `sloads/export/balanced_deck.py` (the deck),
   `sloads/export/coordinates.py` (reflection, single owner).
 - **Gates:** every number quoted here is pinned in CI —
-  `tests/test_balance.py`, `tests/test_rigid_body.py` (§9 maps figure → test).
+  `tests/test_balance.py`, `tests/test_rigid_body.py`,
+  `tests/test_gear_report.py` (§10 maps figure → test).
 - **Units:** Imperial internal (lb, in, lb-in); loads in this document are
   **LIMIT** (the ×1.5 ultimate factor is applied once at the export boundary,
   per the load-output contract). Frame: `x` +aft, `y` +starboard, `z` +up;
   moments by the right-hand formulas of `balance.resultant6`.
 - **Status:** every family in this document is **shipped and gated** — the wing
   symmetric cases (steps B2–B6), the antisymmetric rolling cases (B7), the
-  six-DOF rigid-body closure (B8a-2), the lateral empennage cases (B8a-3) and
-  the unsymmetrical horizontal tail (D-R8, §8). Figures marked *design of
+  six-DOF rigid-body closure (B8a-2), the lateral empennage cases (B8a-3), the
+  unsymmetrical horizontal tail (D-R8, §8) and the ground/landing families
+  (step 10 piece 3, §9). Figures marked *design of
   record* are the plan-13 baseline measurements the lateral assembly was built
   against; where the shipped gate states a different number, the gate is
   authoritative and says so.
@@ -75,7 +80,13 @@ One `BalancedLoad` list per case, each load tagged with its `source`:
 | `aileron-roll` | The FAR 23.349 unbalanced rolling moment `−UNB` (rolling cases only, lumped free couple) | wing AC, centreline |
 | `vtail-air` | The fin's distributed side load from `tail_span` (`fy` per strip, `mzz` torsion) | fin strip stations on the L-1 waterline |
 | `htail-air` | The 23.427(a) tail load from `tail_span`, distributed full span (`fz` per strip, `myy` torsion) — **replaces** `tail-air` on that case | h-tail strip stations, both halves |
+| `gear-main`, `gear-nose` | LANDLOAD's own wheel reaction + its patch→node couple (ground families only, §9) | the leg's reference point |
+| `ground-lift` | `L × W` on the AIRLOADS spanwise shape, along the ground line (ground families 1–12 only, §9) | strip stations, per side |
 | `closure-n`, `closure-roll/pitch/yaw`, `closure-self` | The rigid-body relief (§4) | on the modelled masses |
+
+The ground families are the exception to the first two rows: they have no flight
+condition, so they carry no `wing-air` and no `tail-air`, and their only aero is
+`ground-lift` (§9).
 
 Five rules govern the set. Each was measured, not assumed — the cost of breaking
 it is part of the record:
@@ -144,6 +155,11 @@ the airplane is *supposed* not to balance:
   (49.8 % of `n·W` on the ga6) and the vertical and pitch closure is the motion
   it causes. What is gated at 1 % is the case's **trim half** — the same case
   with the lumped trim load restored.
+- **Every component of a ground case** (§9). The inertia set enters at
+  `n_z = 0`, so the pre-closure resultant *is* the gear reactions plus the lift,
+  and the load factors are the answer rather than an error. The gate is
+  LANDLOAD's own closed form, `NVP`/`NDP`/`NS` from the solved field at
+  `rel_tol 1e-9`.
 
 ## 4. The closure — one rigid-body field
 
@@ -466,7 +482,202 @@ trimmed case's ω̇, and **0.31 lb of `Fx`** at this case's 637 °/s². The repo
 residual is still stated about the CG; only the relief is solved where it is
 exact.
 
-## 9. Where every number is pinned
+## 9. The ground families — FAR 23.471–23.499
+
+**Decisions G-1, G-6, G-7 (+G-7a), G-8** of plan
+[18](../30_future/18_step10_ground_cases_plan.md). The fourth family, and the
+one that breaks the shape of every section above: it has **no V-n point**. The
+LANDLOAD conditions — level and tail-down landing, one-wheel landing, braked
+roll, side load — are assembled here rather than in a per-component view because
+a ground case is irreducibly three-dimensional. On `ga6_normal`'s braked roll
+each main wheel carries 1,307 lb vertical against 1,235 lb of drag, and in the
+side family the two wheels carry 2,253 lb vertical against −1,700 and −1,122 lb
+of side load (23.485's own inboard/outboard split), all of it applied at a
+contact patch **41 in below the CG waterline and ±57.25 in off the centreline**.
+**Those lever arms are the load case**, and the per-component fuselage deck is
+planar by construction, so building it there first and in the primary deliverable
+second would be backwards.
+
+### 9.1 What a ground case does not have
+
+| | flight families (§2–§8) | ground families |
+|---|---|---|
+| case source | SELECT's condition + its V-n point | `landing.py` cases 1–24, through `gear_loads` |
+| load factor | **given** by the V-n point | **solved** — the inertia set enters at `n_z = 0` |
+| aero | the wing distribution at the point's `cl`/`V` | none, except `L × W` lift on cases 1–12 |
+| balancing tail load | `tail-air` (`vn.lt`) | none — Ch 20 has no balancing tail load to invent |
+| weight / CG | the payload case at the V-n point's CG | the roled landing loading at the **case's own design weight** (23.473(a): 23.479/481/483 at the design landing weight, 23.485/23.493 at take-off weight) |
+| acceptance | `RESIDUAL_GATE` < 1 % (§3) | the LANDLOAD closed-form identity (§9.3) |
+
+The weight split is why the loadings are keyed by **case number**, not by name:
+cases 1–12 and 19–22 both name `aft max landing` at different design weights, and
+a name lookup returned whichever was derived first — measured, when the defect
+was found, at 170 lb light and `n_y` 5 % high on the ga6's side family. A ground
+case whose loading the weight database cannot produce is skipped and
+**recorded**, never invented (G-3), through the same `SkippedCondition` path the
+flight families use.
+
+**Which cases assemble.** 1–24, one balanced case each plus a twin where the
+family has a hand. The even members of the three 23.485 pairs (20, 22, 24) are
+LANDLOAD's *own* opposite drift direction and are minted by **reflecting** the
+odd member (G-8) — so the reflection operator gains the only external check it
+will ever get, `reflect(19)` reproducing case 20's `NS`/`ROLLP`/`YAWP`
+sign-flipped and equal. Cases **25–33**, the 23.499 supplementary nose-wheel
+family, carry nose reactions only — no main-gear reaction exists in them, so they
+are gear-design cases, not an airplane in equilibrium. They are recorded as
+`gear-design-only` and they have a home: the gear load report carries all 33.
+The two deliverables therefore carry different case sets, 24 against 33, and say
+so.
+
+### 9.2 The applied set
+
+| source | What it is | Where it acts |
+|---|---|---|
+| `gear-main`, `gear-nose` | LANDLOAD's own reaction, per wheel, **unchanged** | the leg's reference point, with the patch→node lever-arm couple |
+| `ground-lift` | `L × W_case` on the AIRLOADS spanwise **shape**, both wings (cases 1–12 only) | strip stations, along the **ground line** |
+| `wing-inertia`, `body-inertia`, `closure-*` | exactly as §2/§4, entered at `n_z = 0` | unchanged |
+
+Three rules, each measured:
+
+1. **The reaction is LANDLOAD's, and the transfer is exact.** `gear_loads` is a
+   pure consumer of the oracle-locked reaction table, so assembling a ground case
+   puts no Appendix A figure at risk. Each wheel arrives as a force **and** the
+   couple `M = (patch − node) × F`, so the pair has the identical resultant the
+   reaction had at the patch — worst relative error **3.4e-16** over all 33 cases
+   and both legs, taken about a deliberately arbitrary reference (about the CG a
+   dropped couple could cancel). Applying the force without the couple still sums
+   to zero at a determinate support, which is why the guard exists and why a
+   negative control drops the couple on purpose.
+2. **Lift is on the landing families only, and it acts along the ground line**
+   (G-7, G-7a). `L = lift_factor × W_case` on cases 1–12 — the manual's own split,
+   since `landing.landing_reactions` carries the `lf·WL` term for exactly those
+   cases, and 23.473(a) draws the same line. Only the *shape* is borrowed from
+   AIRLOADS, so no speed, `CL` or V-n point is involved; the section `Cm` and the
+   induced `fx` are deliberately **not** carried, because they scale with `q·CL`
+   and this case has neither. The vector is `(L sin ρ, 0, L cos ρ)`: lift is
+   perpendicular to the flight path, at touchdown the flight path is the runway,
+   and the airplane sits at `ρ` to it. On the ga6 that puts **152 lb of the
+   2,154 lb forward**, and it is what keeps the gate below an identity rather
+   than a tolerance, since LANDLOAD sums `lf·WL` into the **ground-line**
+   vertical: a lift applied along `z` enters that sum short by `cos ρ`, measured
+   at G-7a as 0.053 % of `NVP` — small, and *not* solver noise.
+3. **The ground-handling families carry no lift at all** (23.485/23.493), and the
+   wing is emphatically not load-free there: it still carries its own inertia at
+   the case's solved load factor. `GROUND_NO_LIFT_NOTE` says exactly that, in
+   band, because "no lift" and "no load" are easy to confuse.
+
+The masses are §2 rule 3 unchanged — one model, `weight.items`, spread for the
+wing and carried at its own node for everything else. The legs' own weights ride
+that same field (`LandingGearInput.weight_lb`, per leg, `0.0` = *not stated*), so
+each mass enters exactly one set; unsprung-mass impact amplification is **not**
+modelled and says so wherever it renders.
+
+### 9.3 Nothing is given, so everything is solved
+
+The inertia set enters at `n_z = 0` and the whole rigid-body field of §4 is
+solved. That is not a convenient reuse — it is what the regulation asks for:
+
+> **FAR 23.471.** *"the external reactions must be placed in equilibrium with the
+> linear and angular inertia forces in a rational or conservative manner."*
+
+A six-DOF rigid-body closure over the itemized mass model is that sentence, and
+the solved field has an independent closed-form check, because LANDLOAD reaches
+its own inertia factors by lever arms and FAR percentages with no mass matrix
+anywhere in it. Rotate the solved translation back to the ground line:
+
+```
+NVP = n_z cos ρ − n_x sin ρ        NDP = n_x cos ρ + n_z sin ρ
+NS  = n_y                          (lateral, normal to the rotation — unrotated)
+
+Iyy·q̈ = PITCHP + the G-7a lift term       Ixx·ṗ = ROLLP       Izz·ṙ = YAWP
+```
+
+The translational three are an **exact identity** — `rel_tol 1e-9` on every case
+of both fixtures. The rotational three (R6-T1) are compared after three named
+frame moves — centroid → CG, contact patch → whichever arm point that family's
+own formula measures to, body axes → ground line — with the G-7a lift term
+rebuilt in closed form and subtracted; an identity on the one-wheel family's
+shared tread arms, bounded at `1e-4·W·MAC` elsewhere, the cause being that the
+BASIC truncates its printed lever arms to three decimals. Both corrections are
+pinned as non-trivial by a negative control (12.5 % and 5.8 % of `PITCHP` on
+`ga6_normal` case 4).
+
+**`ρ` is measured, never re-derived.** It is `atan2(dm, vm) − atan2(DMP, VMP)` —
+the angle between LANDLOAD's own two resolutions of one reaction — so this method
+never has to adjudicate a sign inconsistency that is in `LANDLOAD.BAS` itself
+(`beta` is `gamma − GRA(1)` for the level attitude and `+GRA(2)` for the
+ground-roll one, which states that family's `ROLLP` and `YAWP` 9.45° apart on the
+ga6). The port is faithful to the BASIC on both, by a decision of record —
+"Considered and declined" in
+[`02_approved_corrections.md`](02_approved_corrections.md). **`ρ` appears in the
+check and in the G-7a lift axis, and nowhere in the load path.**
+
+**Handedness** works as §4 states it, with one exception the manual owns: for the
+23.485 pairs the hand is *passed in*, because LANDLOAD supplies both drift
+directions under ids of their own (`LG-19` port, `LG-20` starboard). Every other
+family's hand is **measured** by `is_handed`, including the one-wheel family —
+caught by the net-rolling-moment source added for 23.427(a), since all the
+vertical reaction sits at one `y` and there is no side force at all, so a
+lateral-content-only predicate would have minted it unhanded. Its two hands are
+`LG-10L`/`LG-10R`.
+
+### 9.4 Why `RESIDUAL_GATE` does not apply
+
+**The pre-closure residual is the whole applied load, by construction** — the
+same standing as the lateral cases (§7) and the 23.427(a) case (§8), and for the
+same reason: there is nothing to cancel against. At `n_z = 0` the inertia sets
+contribute exactly zero force, so `ΣF` before closure *is* the gear reactions
+plus the lift, and `n = ΣF/W` is the answer rather than an error. Nothing trims
+the case in pitch either: distributing the lift on the wing, where LANDLOAD nets
+it at the CG (`NLG = N − L`), leaves a pitching moment the manual never forms —
++1.36 % of `n·W·MAC` on the ga6's level families, −2.38 % on the tail-down one —
+reacted by pitch acceleration alone. An airplane at touchdown is an accelerating
+body, not a trimmed one.
+
+The gates that **do** apply, in place of smallness:
+
+- the LANDLOAD identity above (translational `1e-9`; rotational as bounded);
+- the six-DOF closure to machine precision, as for every other family;
+- the deck re-balancing from its own exported card text, and — ground-specific —
+  the reaction sbeam recovers at each gear `GID` being the gear report's own
+  reference-point reaction, in both unit systems. That is what stops the
+  inherited "reactions ≈ 0" leg passing vacuously: a transfer that dropped its
+  lever arm *consistently* would still sum to zero at the support;
+- two negative controls: dropping the offset couple, and computing a level
+  landing at the **static** contact patch — the second asserted on the *moment*,
+  because moving the patch does not change the vertical force factor and a
+  control watching `NVP` would have passed while proving nothing.
+
+### 9.5 Worked example 5 — three ground cases (ga6_normal)
+
+`LG-04` (2-wheel level landing, nose clear — 23.479, lift), `LG-13` (braked roll
+nose-down — 23.493, no lift) and `LG-19` (side load — 23.485, handed by the
+manual). MAC 69.246 in throughout.
+
+| | LG-04 | LG-13 | LG-19 |
+|---|---|---|---|
+| design weight / CG case | 3,230 lb, `aft max landing` | 3,400 lb, `aft max landing at 3,400 lb` | 3,400 lb, same |
+| `ρ` | −4.057° | +4.724° | +4.724° |
+| applied gear (`ΣFx`, `ΣFz`) | +2,042.3, +8,240.1 lb (2 wheels) | +2,470.4, +2,613.8 main; +141.1, +1,707.8 nose | +372.4, +4,506.6 lb, `ΣFy` −2,822.0 |
+| applied lift | 2,154.4 lb (`0.667 × W`), −152.4 lb along `x` | none | none |
+| pre-closure `Fx`/`Fz` | +1,889.9 / +10,389.1 lb | +2,611.5 / +4,321.6 lb | +372.4 / +4,506.6 lb |
+| pre-closure `My` | −179,232 lb-in | −757.1 lb-in | −70,654 lb-in |
+| solved `n_z` / `n_x` / `n_y` | 3.2165 / 0.5851 / 0 | 1.2711 / 0.7681 / 0 | 1.3255 / 0.1095 / **−0.8300** |
+| rotated to the ground line | `NVP` **3.1670**, `NDP` **0.8112** | `NVP` **1.3300**, `NDP` **0.6608** | `NVP` **1.3300**, `NS` **−0.8300** |
+| LANDLOAD prints | 3.1670 / 0.8112 | 1.3300 / 0.6608 | 1.3300 / −0.8300 |
+| `q̈` (1/in) | −1.925e-2 | −8.016e-5 | −7.481e-3 |
+| G-7a lift moment | +9,787 lb-in (1.360 % `n·W·MAC`) | — | — |
+
+Three things to read off it. `n_z` is an **output** — 3.2165 in body axes,
+LANDLOAD's 3.1670 once rotated, and the case reports the solved value rather than
+a placeholder nobody computed. The braked roll's pre-closure `My` is −757 lb-in
+(0.25 % of `n·W·MAC`) against the landing case's −179,232: a ground-handling case
+carries no lift, so nothing pitches it but the drag arm. And `LG-19`'s `n_y` is
+LANDLOAD's `NS` to the last digit, with its twin `LG-20` — the reflection —
+carrying +0.8300 and the mirrored `ṗ`/`ṙ`, which is how the manual's own second
+drift direction becomes the check on the reflection operator.
+
+## 10. Where every number is pinned
 
 | Figure quoted here | Gate |
 |---|---|
@@ -488,3 +699,12 @@ exact.
 | §8's roll closed form `(RH − LH)·ȳ` | `test_the_unsymmetrical_roll_is_the_closed_form` |
 | §8's trim half closes inside 1 % | `test_the_trim_half_of_an_unsymmetrical_case_still_closes` |
 | §8's centroid reference for the relief field | `test_the_closure_is_solved_at_the_mass_centroid` |
+| §9's which ground cases assemble, and which are recorded instead | `test_which_ground_cases_assemble_is_pinned`, `test_every_condition_is_either_assembled_or_recorded` |
+| §9's `NVP`/`NDP`/`NS` identity (`rel_tol 1e-9`, every case, both fixtures) | `test_the_ground_closure_reproduces_landload` |
+| §9's rotational half + the two departures' negative control | `test_the_ground_closure_reproduces_landloads_unbalanced_moments`, `test_the_rotational_gates_two_departures_are_not_no_ops` |
+| §9's worked example (LG-04 / LG-13 / LG-19 figures, the patch, the lift moment) | `test_the_ground_worked_example_is_pinned` |
+| §9's patch→node transfer preserving the resultant, and the control that drops the couple | `test_the_transfer_to_the_reference_point_preserves_the_resultant`, `test_dropping_the_offset_couple_breaks_the_transfer` |
+| §9's static-patch negative control on the moment | `test_the_static_contact_patch_breaks_the_level_landing_gate` |
+| §9's six-DOF ground closure; the deck applying the report's own reaction | `test_the_ground_case_closes_in_all_six_dof`, `test_the_deck_applies_the_reports_reference_point_reaction` |
+| §9's reflected 23.485 twin reproducing LANDLOAD's own opposite drift | `test_the_reflected_side_case_reproduces_landloads_own_twin` |
+| §9's `ρ` measured from the two resolutions, and the ground-roll attitude finding | `test_the_two_frames_round_trip_through_the_rotation`, `test_the_ground_roll_attitude_is_resolved_against_the_other_sign` |

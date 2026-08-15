@@ -1038,6 +1038,157 @@ def test_the_si_channel_states_si_units_and_converted_values():
                         rel_tol=1e-5)
 
 
+#: The worked example of ``docs/20_theory/balanced_cases.md`` §9.5, figure for
+#: figure. Three families on ``ga6_normal``: a level landing that carries lift
+#: (23.479), a ground-handling case that carries none (23.493), and the handed
+#: side condition (23.485). Keyed by LANDLOAD case number.
+#:
+#: The document's own contract is that **every number quoted in it is pinned in
+#: CI** -- §10 maps figure to gate -- and the gates above prove *relationships*
+#: (an identity against LANDLOAD, a closure to machine precision) which hold just
+#: as well if every figure in the table moves together. This is the other kind of
+#: gate: the values a reader is shown. A physics change that moves them is not
+#: forbidden, it is required to update the document in the same session.
+_WORKED_EXAMPLE = {
+    4: dict(label="2-wheel level landing (nose clear)", weight_lb=3230.0,
+            rho=-4.057, gear_fx=2042.3, gear_fz=8240.1, lift_lb=2154.4,
+            lift_fx=-152.4, fx=1889.9, fz=10389.1, my=-179232.0,
+            nz=3.2165, nx=0.5851, ny=0.0, q_dot=-1.925e-2,
+            nvp=3.1670, ndp=0.8112, lift_my=9787.0, lift_pct=1.360),
+    13: dict(label="braked roll (nose down)", weight_lb=3400.0,
+             rho=4.724, gear_fx=2611.5, gear_fz=4321.6, lift_lb=0.0,
+             lift_fx=0.0, fx=2611.5, fz=4321.6, my=-757.1,
+             nz=1.2711, nx=0.7681, ny=0.0, q_dot=-8.016e-5,
+             nvp=1.3300, ndp=0.6608, lift_my=0.0, lift_pct=0.0),
+    19: dict(label="side load", weight_lb=3400.0,
+             rho=4.724, gear_fx=372.4, gear_fz=4506.6, lift_lb=0.0,
+             lift_fx=0.0, fx=372.4, fz=4506.6, my=-70654.5,
+             nz=1.3255, nx=0.1095, ny=-0.8300, q_dot=-7.481e-3,
+             nvp=1.3300, ndp=0.0, lift_my=0.0, lift_pct=0.0),
+}
+
+
+def test_the_ground_worked_example_is_pinned():
+    """§9.5 of the theory doc, figure for figure (R6-D7).
+
+    Also the three statements the prose makes *about* the table, asserted rather
+    than left as claims: the applied set at ``n_z = 0`` is gear + lift and
+    nothing else (so the pre-closure resultant is the whole applied load, which
+    is why ``RESIDUAL_GATE`` does not apply); the solved field rotated to the
+    ground line is LANDLOAD's own print; and the side case's twin carries the
+    mirrored ``n_y``.
+    """
+    project = _project("ga6_normal.project.json")
+    _, reactions = build_landing(project)
+    by_case = {c.case: c for c in reactions}
+    cases = {}
+    for case in build_balanced_cases(project):
+        if is_ground(case):
+            cases.setdefault(case.vn_case, []).append(case)
+
+    for number, want in _WORKED_EXAMPLE.items():
+        case = cases[number][0]
+        gear = by_case[number]
+        where = f"LANDLOAD case {number} ({case.case_ref.case_id})"
+        assert case.label == want["label"], where
+        assert math.isclose(case.weight_lb, want["weight_lb"], rel_tol=1e-9), where
+        assert math.isclose(ground_rotation_deg(gear), want["rho"],
+                            abs_tol=5e-4), f"{where}: rho"
+
+        # The applied set: gear reactions plus (on the landing families) lift,
+        # and no third contributor -- the inertia sets are at zero load factor.
+        applied = {"gear": (0.0, 0.0), "lift": (0.0, 0.0)}
+        other = 0.0
+        for load in case.loads:
+            if load.source.startswith("gear-"):
+                key = "gear"
+            elif load.source == "ground-lift":
+                key = "lift"
+            elif load.source.startswith("closure-"):
+                continue
+            else:
+                other += abs(load.fx) + abs(load.fy) + abs(load.fz)
+                continue
+            fx, fz = applied[key]
+            applied[key] = (fx + load.fx, fz + load.fz)
+        assert other == 0.0, f"{where}: inertia set carries force at n_z = 0"
+        assert math.isclose(applied["gear"][0], want["gear_fx"], abs_tol=0.05), where
+        assert math.isclose(applied["gear"][1], want["gear_fz"], abs_tol=0.05), where
+        assert math.isclose(math.hypot(*applied["lift"]), want["lift_lb"],
+                            abs_tol=0.05), f"{where}: lift"
+        assert math.isclose(applied["lift"][0], want["lift_fx"], abs_tol=0.05), where
+
+        for name, value in (("fx", case.residual_fx), ("fz", case.residual_fz),
+                            ("my", case.residual_my)):
+            assert math.isclose(value, want[name], rel_tol=5e-6, abs_tol=0.05), (
+                f"{where}: pre-closure {name} {value}")
+        for name, value in (("nz", case.delta_n), ("nx", case.delta_nx),
+                            ("ny", case.delta_ny)):
+            assert math.isclose(value, want[name], abs_tol=5e-5), (
+                f"{where}: solved {name} {value}")
+        assert math.isclose(case.q_dot, want["q_dot"], rel_tol=1e-3), where
+
+        nvp, ndp = to_ground_line(case.delta_n, case.delta_nx,
+                                  ground_rotation_deg(gear))
+        assert math.isclose(nvp, want["nvp"], abs_tol=5e-5), f"{where}: NVP"
+        assert math.isclose(ndp, want["ndp"], abs_tol=5e-5), f"{where}: NDP"
+        # ...and the quoted "LANDLOAD prints" row is LANDLOAD's, not a copy of
+        # the rotated value: read from the reaction table itself.
+        assert math.isclose(gear.nvp, want["nvp"], abs_tol=5e-5), where
+        assert math.isclose(gear.ndp, want["ndp"], abs_tol=5e-5), where
+
+        lift_my = _lift_moment_about_cg(case, gear, project.landing.lift_factor)[1]
+        assert math.isclose(lift_my, want["lift_my"], rel_tol=1e-3,
+                            abs_tol=0.5), f"{where}: G-7a lift moment"
+        if want["lift_pct"]:
+            pct = 100.0 * lift_my / (abs(case.delta_n * case.weight_lb) * case.mac)
+            assert math.isclose(pct, want["lift_pct"], abs_tol=5e-4), where
+
+    # §9.4's two lift-moment figures: the level family's and the tail-down one's,
+    # the pitching moment G-7a's distributed lift leaves where LANDLOAD nets it
+    # at the CG. The level figure rides the table above; this is its sibling.
+    tail_down = cases[3][0]
+    pct = 100.0 * _lift_moment_about_cg(
+        tail_down, by_case[3], project.landing.lift_factor)[1] / (
+            abs(tail_down.delta_n * tail_down.weight_lb) * tail_down.mac)
+    assert math.isclose(pct, -2.383, abs_tol=5e-4), pct
+
+    # The side family's twin, quoted in the prose after the table.
+    twin = cases[19][1]
+    assert math.isclose(twin.delta_ny, -_WORKED_EXAMPLE[19]["ny"], abs_tol=5e-5)
+    assert math.isclose(twin.p_dot, -cases[19][0].p_dot, rel_tol=1e-9)
+    assert math.isclose(twin.r_dot, -cases[19][0].r_dot, rel_tol=1e-9)
+
+
+def test_the_worked_examples_contact_patch_is_where_the_prose_says():
+    """§9's opening lever arms: 41 in below the CG waterline, ±57.25 in out.
+
+    The sentence exists to argue that a ground case is irreducibly
+    three-dimensional, so the two numbers carrying that argument are pinned like
+    any other quoted figure.
+    """
+    project = _project("ga6_normal.project.json")
+    gear = {c.case: c for c in gear_case_loads(project)}[13]
+    case = next(c for c in build_balanced_cases(project)
+                if is_ground(c) and c.vn_case == 13)
+    leg = next(lg for lg in gear.legs if lg.leg == MAIN)
+    assert math.isclose(leg.patch[1], 57.25, abs_tol=5e-3)
+    assert math.isclose(case.cg_z - leg.patch[2], 41.0, abs_tol=0.5)
+    # ...and the per-wheel figures the same sentence quotes, read from the
+    # **assembled** case rather than from ``applied_wheels`` directly: what the
+    # sentence is about is the load the deck carries at each patch, and the
+    # 23.485 family's side load is split across the pair by G-8's own rule.
+    main = [ld for ld in case.loads if ld.source == "gear-main"]
+    assert len(main) == 2
+    assert math.isclose(main[0].fz, 1307.0, abs_tol=0.5)
+    assert math.isclose(main[0].fx, 1235.0, abs_tol=0.5)
+    side = next(c for c in build_balanced_cases(project)
+                if is_ground(c) and c.vn_case == 19)
+    side_main = [ld for ld in side.loads if ld.source == "gear-main"]
+    assert [round(ld.fy) for ld in side_main] == [-1700, -1122]
+    assert all(math.isclose(ld.fz, 2253.0, abs_tol=0.5) for ld in side_main)
+
+
 if __name__ == "__main__":                                   # zero-dependency runner
     failures = 0
     for name, fn in sorted(globals().items()):

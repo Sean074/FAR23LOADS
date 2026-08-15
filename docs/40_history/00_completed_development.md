@@ -10,8 +10,27 @@ Acceptance**, **Key decisions**.
 
 ---
 
+**The ground family is in the balancing-method document (complete 2026-08-15,
+tier S)** — 0.6.0-candidate review finding R6-D7: `20_theory/balanced_cases.md`
+described three families where four ship. It now has **§9 — the ground families
+(FAR 23.471–23.499)**: what a ground case does not have (no V-n point, no given
+load factor, no balancing tail load, its own design weight per 23.473(a)), which
+of LANDLOAD's 33 cases assemble and why 25–33 do not, the applied set
+(`gear-main`/`gear-nose` with the exact patch→node transfer, `ground-lift` along
+the ground line on cases 1–12 only), the solve at `n_z = 0` against FAR 23.471
+with the `NVP`/`NDP`/`NS` identity and its rotational half, `ρ` measured from
+LANDLOAD's own two resolutions with the ground-roll-attitude decision of record
+linked, **why `RESIDUAL_GATE` does not apply** and the gates that replace it, and
+a worked example over three families on `ga6_normal`. §2/§3 gained the ground
+rows and the not-gated bullet; the old §9 pin table is §10 and gains ten ground
+rows. Per the document's own contract every quoted figure is pinned:
+`test_the_ground_worked_example_is_pinned` and
+`test_the_worked_examples_contact_patch_is_where_the_prose_says` (new, in
+`tests/test_gear_report.py`) hold the table, the lever arms, the two
+lift-moment percentages and the side twin's mirrored field. Docs + test only.
+
 **`balance` and `tail_span` are specified, and the spec is guarded (complete
-2026-08-15, tier M)** — 0.6.0-candidate review finding R6-D6: the two registered
+2026-08-15, tier S)** — 0.6.0-candidate review finding R6-D6: the two registered
 modules with no `PROGRAM_SPEC.md` section — the one carrying the mission's
 primary deliverable and the one carrying steps 7–9's physics — now have theirs,
 on the document's own template and citing the plan docs rather than restating

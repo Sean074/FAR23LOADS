@@ -682,7 +682,8 @@ regression oracle**; Appendix A/B geometry is used only as a *sanity* fixture.
   `Fz`/`My` **are** the applied load, by construction. Each is gated instead on
   the case's symmetric (or trim) half, with the defining set removed, still
   closing inside 1 %. Stated in full in
-  [`../20_theory/balanced_cases.md`](../20_theory/balanced_cases.md).
+  [`../20_theory/balanced_cases.md`](../20_theory/balanced_cases.md) (§3, and §9
+  for the ground families).
 - **Notes:** the **seam rule** (plan 11 §4): a load that a free-body cut
   introduces is never applied in the assembled model — the wing carry-through
   reaction is excluded and `carry_sources_absent` guards it. Only `ACRL` is
@@ -693,7 +694,10 @@ regression oracle**; Appendix A/B geometry is used only as a *sanity* fixture.
   the wing aerodynamic centre — both stated wherever the case is rendered, since
   omitting them would leave a real aero load disguised as a closure correction.
   A condition whose CG the weight database cannot produce is **recorded, not
-  invented**. The gear free body itself is `gear_loads` above.
+  invented**. The ground families' own method — the `n_z = 0` solve, the applied
+  gear/lift set and the LANDLOAD identity — is
+  [`balanced_cases.md`](../20_theory/balanced_cases.md) §9; the gear free body
+  itself is `gear_loads` above.
 
 ---
 
