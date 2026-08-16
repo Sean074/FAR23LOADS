@@ -98,7 +98,7 @@ Local venv at `.venv/`; editable install (`pip install -e '.[dev]'`) — no `sys
 shims anywhere.
 
 ```bash
-.venv/bin/python -m pytest                   # whole suite (testpaths=tests, coverage)
+.venv/bin/python -m pytest                   # whole suite (testpaths=tests, parallel; coverage is CI-only)
 .venv/bin/python -m pytest tests/test_engine.py::test_361_a2   # one test
 .venv/bin/ruff check sloads/ cli.py app/     # lint gate
 .venv/bin/streamlit run app/Home.py          # UI

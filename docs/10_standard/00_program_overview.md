@@ -259,7 +259,7 @@ plain units with no `-ULT` suffix.
 
 Runtime (`pyproject.toml` `[project.dependencies]`): `streamlit>=1.30`,
 `pandas>=2.0`. Dev extras (`[project.optional-dependencies].dev`): `pytest>=8.0`,
-`pytest-cov`, `ruff`. Install with `pip install -e '.[dev]'`.
+`pytest-cov`, `pytest-xdist`, `ruff`. Install with `pip install -e '.[dev]'`.
 
 ---
 
@@ -271,12 +271,18 @@ Runtime (`pyproject.toml` `[project.dependencies]`): `streamlit>=1.30`,
   only for integer/dimensionless quantities.
 - `ruff check sloads/ cli.py app/` clean and `pytest` passing are the merge gate; CI
   runs both on Python 3.9 / 3.11 / 3.12.
-- **Coverage floor.** `pytest` emits a per-file branch-coverage table (configured
-  via `addopts` in `pyproject.toml`). CI additionally enforces
-  `--cov-fail-under=80` so coverage cannot silently regress. This floor is a
-  **ratchet**: raise it toward 85% as `report.py` and `constants.py` gain tests,
-  and tighten to a per-module gate on `sloads/modules/` (the load math) as the
-  suite grows.
+- **Parallel by default (CH-1).** `addopts` in `pyproject.toml` carries
+  `-n auto` (`pytest-xdist`), so every `pytest` invocation — local and CI —
+  runs across all cores. To debug with `-s`/pdb, disable workers with
+  `-p no:xdist` (or `-n 0`).
+- **Coverage floor.** Coverage is **CI's concern**: the `test` job passes
+  `--cov=sloads --cov-report=term-missing --cov-fail-under=80` explicitly
+  (`.github/workflows/ci.yml`), so coverage cannot silently regress while local
+  runs skip the instrumentation cost. Opt in locally with `--cov=sloads`; the
+  `[tool.coverage.*]` tables in `pyproject.toml` still configure branch mode
+  and reporting. This floor is a **ratchet**: raise it toward 85% as
+  `report.py` and `constants.py` gain tests, and tighten to a per-module gate
+  on `sloads/modules/` (the load math) as the suite grows.
 - A zero-dependency fallback runner exists (`python tests/test_engine.py`) for
   environments without pytest.
 

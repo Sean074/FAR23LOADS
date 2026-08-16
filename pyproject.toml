@@ -36,6 +36,7 @@ dependencies = [
 dev = [
     "pytest>=8.0",
     "pytest-cov",
+    "pytest-xdist",
     "ruff",
     # Cyclomatic-complexity / maintainability-index reporting (M4-11, decision
     # D-17). A measurement tool only -- deliberately NOT a CI gate: `ruff` and
@@ -82,7 +83,11 @@ ignore = [
 testpaths = ["tests"]
 python_files = ["test_*.py"]
 python_functions = ["test_*"]
-addopts = "--cov=sloads --cov-report=term-missing"
+# Parallel by default (CH-1): the full suite is minutes instead of ~18 with the
+# solver leg. Debugging with `-s`/pdb: pass `-p no:xdist` (or `-n 0`).
+# Coverage is CI's concern -- the flags live in ci.yml, not here, so local runs
+# skip the instrumentation cost; opt in with `--cov=sloads`.
+addopts = "-n auto"
 markers = [
     # The sbeam round-trip gate. Selected by its own CI job (`pytest -m roundtrip`,
     # decision S-8) so the failure is named in the PR check list rather than

@@ -34,7 +34,9 @@ jobs:
       - name: Test (pytest)
         env:
           STREAMLIT_SERVER_HEADLESS: "true"
-        run: pytest -v --tb=short --cov-fail-under=80
+        # Coverage lives here, not in `addopts` (CH-1): CI is the enforcement
+        # point; local runs stay uninstrumented and fast.
+        run: pytest -v --tb=short --cov=sloads --cov-report=term-missing --cov-fail-under=80
 
   # The sbeam round-trip gate: the exported decks are handed to the real solver
   # and its recovered loads are compared with sloads' own (design note
@@ -72,6 +74,6 @@ jobs:
           # gate exists to end (decision S-7).
           SLOADS_REQUIRE_SBEAM: "1"
           STREAMLIT_SERVER_HEADLESS: "true"
-        # --no-cov: the --cov-fail-under=80 gate belongs to the full suite, and a
-        # marker-selected subset would trip it spuriously.
-        run: pytest -m roundtrip -v --tb=short --no-cov
+        # No coverage flags: the --cov-fail-under=80 gate belongs to the full
+        # suite, and a marker-selected subset would trip it spuriously.
+        run: pytest -m roundtrip -v --tb=short

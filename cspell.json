@@ -34,6 +34,7 @@
   "words": [
     "addcontentsline",
     "addlegendentry",
+    "addopts",
     "addplot",
     "airload",
     "airloads",
@@ -257,6 +258,7 @@
     "wtonecg",
     "xbar",
     "xcg",
+    "xdist",
     "xelatex",
     "XeTeX",
     "xle",

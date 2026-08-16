@@ -147,6 +147,18 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- **Test-suite runtime — coverage opt-in + `pytest-xdist` (CH-1, backlog Pri 1
+  closed, 2026-08-16, tier S).** `addopts` in `pyproject.toml` drops the
+  always-on coverage instrumentation (`--cov=sloads --cov-report=term-missing`)
+  and gains `-n auto`: every `pytest` run — local and CI — is parallel by
+  default, and coverage is now CI's concern, passed explicitly by the `test`
+  job together with the unchanged `--cov-fail-under=80` gate (the roundtrip
+  job's `--no-cov` guard is retired as moot). `pytest-xdist` joins the `dev`
+  extra. The ~18½-minute single-threaded full run (solver leg included) that
+  the 2026-08-16 review named the single biggest drag on same-session closure
+  runs in a fraction of that; disable workers for `-s`/pdb debugging with
+  `-p no:xdist` (or `-n 0`). No test, gate, or coverage threshold changed —
+  only where the flags live and how many cores run.
 - **Backlog re-cut from the scope and deficiency review (2026-08-16, tier S).**
   [`docs/50_reviews/2026-08-16_scope_and_deficiency_review.md`](docs/50_reviews/2026-08-16_scope_and_deficiency_review.md)
   sorted every open row and the shipped capability against the base method's
