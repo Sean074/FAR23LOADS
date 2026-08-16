@@ -33,7 +33,7 @@ from ..units import Channel, UnitSystem, deliverable_units, units_statement
 
 # Excel sheet names are capped at 31 characters and may not contain
 # ``[]:*?/\\``.
-_INVALID_SHEET_CHARS = str.maketrans({c: " " for c in "[]:*?/\\"})
+_INVALID_SHEET_CHARS = str.maketrans(dict.fromkeys("[]:*?/\\", " "))
 
 # The aviation-standard exception (SUMMARY_REPORT.md 3.5): KEAS and ft are held
 # in both systems, so every sheet that carries them says so rather than leaving

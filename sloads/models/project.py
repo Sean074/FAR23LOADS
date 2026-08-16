@@ -30,9 +30,6 @@ from .inputs import (
 )
 from .results import EnvelopeResult, LoadsResult, MassResult
 
-
-
-
 # Current project-schema version. Bump when the on-disk JSON shape changes so old
 # saves can be migrated (see io.load_project). v2 adds the concept certification
 # category ("C") and the WeightInput direct-weight path; v3 adds the aero slice

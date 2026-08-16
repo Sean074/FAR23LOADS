@@ -62,7 +62,6 @@ from typing import TYPE_CHECKING, Dict, List, Optional
 
 from . import cg_cases, mass_distribution
 from .constants import ULTIMATE_FACTOR
-from .modules.wing_geometry import interp_x
 from .models import (
     GROUND_CASE_ROLE_ORDER,
     AnalysisKind,
@@ -71,6 +70,7 @@ from .models import (
     MissingInputError,
     Project,
 )
+from .modules.wing_geometry import interp_x
 
 if TYPE_CHECKING:  # pragma: no cover - typing only
     from .models import GearReactionCase
@@ -146,14 +146,14 @@ def _check_taper(project: Project) -> List[ConsistencyWarning]:
 def _check_area(project: Project) -> List[ConsistencyWarning]:
     out: List[ConsistencyWarning] = []
     cfg = project.geometry.parametric if project.geometry is not None else None
-    if cfg is not None and cfg.wing_area_sqft is not None and cfg.wing_area_sqft <= 0.0:
-        # Only warn once a layout is being defined (non-default fuselage/aspect).
-        if cfg.aspect_ratio or cfg.taper_ratio or cfg.fuselage_length:
-            out.append(ConsistencyWarning(
-                "nonpositive_area",
-                "Wing reference area S is zero or negative. It drives the wing "
-                "loading W/S and every downstream load (14 CFR 23.335).",
-                PAGE_CONFIGURATION))
+    # Only warn once a layout is being defined (non-default fuselage/aspect).
+    if (cfg is not None and cfg.wing_area_sqft is not None and cfg.wing_area_sqft <= 0.0
+            and (cfg.aspect_ratio or cfg.taper_ratio or cfg.fuselage_length)):
+        out.append(ConsistencyWarning(
+            "nonpositive_area",
+            "Wing reference area S is zero or negative. It drives the wing "
+            "loading W/S and every downstream load (14 CFR 23.335).",
+            PAGE_CONFIGURATION))
     geo_area = _wing_geometry_area_sqft(project)
     if geo_area is not None and geo_area <= 0.0:
         out.append(ConsistencyWarning(
@@ -291,7 +291,9 @@ def wtenv_fwd_cg_limit_at_weight(project: Project, weight_lb: float) -> Optional
     reg_s = limits.get("Forward regardless station")
     if fwd_s is None or reg_s is None:
         return None
-    env = project.weight.envelope
+    env = project.weight.envelope if project.weight is not None else None
+    if env is None:  # _wtenv_stations has already returned None in this case
+        return None
     w_gross, w_reg = env.gross_weight, env.fwd_regardless_weight
     if not w_gross or not w_reg or w_gross <= 0 or w_reg <= 0:
         return None

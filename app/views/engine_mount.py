@@ -16,7 +16,6 @@ from __future__ import annotations
 
 import pandas as pd
 import streamlit as st
-
 from components import active_system
 
 from sloads import (
@@ -25,8 +24,8 @@ from sloads import (
     EngineType,
     Project,
     Rotor,
-    RotorType,
     RotorDirection,
+    RotorType,
     UnitSystem,
     convert_results,
     labels_for,
@@ -37,7 +36,6 @@ from sloads import (
 from sloads import io as sloads_io
 from sloads.modules import engine as calc
 from sloads.report import load_cases_to_rows, text_report
-
 
 st.title("Engine Mount Loads — FAR 23")
 st.caption(

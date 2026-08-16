@@ -20,16 +20,15 @@ import io as _io
 import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
-
 from components import active_system, gate, workflow_page_link
 
 from sloads import (
     Project,
     UnitSystem,
     labels_for,
+    mass_distribution,
     to_display,
 )
-from sloads import mass_distribution
 from sloads.models import MissingInputError
 from sloads.modules.tail_span import (
     air_total,
@@ -269,8 +268,8 @@ for _y in case.attachment_y:
 _fig.update_layout(
     xaxis_title=f"{_span_label} ({U['length']})",
     yaxis_title=f"Strip Fz ({U['weight']}, LIMIT)",
-    yaxis2=dict(title=f"Cumulative Sz ({U['weight']})", overlaying="y", side="right"),
-    height=420, legend=dict(orientation="h"))
+    yaxis2={"title": f"Cumulative Sz ({U['weight']})", "overlaying": "y", "side": "right"},
+    height=420, legend={"orientation": "h"})
 st.plotly_chart(_fig, use_container_width=True)
 if case.attachment_y:
     st.caption(
@@ -284,7 +283,7 @@ if case.attachment_y:
 # Download -- converted, unit-suffixed (lesson L-8i)
 # --------------------------------------------------------------------------- #
 _buf = _io.StringIO()
-_writer = csv.DictWriter(_buf, fieldnames=["Surface", "Case", "Basis"] + _fields)
+_writer = csv.DictWriter(_buf, fieldnames=["Surface", "Case", "Basis", *_fields])
 _writer.writeheader()
 for r in results:
     for st_ in r.stations:

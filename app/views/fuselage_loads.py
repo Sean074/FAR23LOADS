@@ -19,19 +19,18 @@ import io as _io
 import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
-
 from components import active_system, gate
 
 from sloads import (
     Project,
     UnitSystem,
     labels_for,
+    mass_distribution,
     si_scalar_label,
     to_display,
     to_imperial_scalar,
     to_si_scalar,
 )
-from sloads import mass_distribution
 from sloads.export import sbeam_bridge as sb
 from sloads.models import FuselageMassInput, FuselageStation
 from sloads.modules.body_loads import body_load_rows, build_body_loads
@@ -220,7 +219,7 @@ for title, attr, unit_key in [("Shear Sz", "sz", "lbf"), ("Bending Myy", "myy", 
     fig.add_trace(go.Scatter(
         x=[to_si_scalar(s.x, "in", system) for s in res.stations],
         y=[to_si_scalar(getattr(s, attr), unit_key, system) for s in res.stations],
-        mode="lines+markers", line=dict(width=3)))
+        mode="lines+markers", line={"width": 3}))
     fig.update_layout(title=f"{title} — {sel}",
                       xaxis_title=f"Fuselage station X ({si_scalar_label('in', system)})",
                       yaxis_title=f"{title} ({unit})", height=320)

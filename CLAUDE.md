@@ -91,8 +91,10 @@ Additional rules (2026-08-05 process review — rationale in
 - **Standard docs point at owners, never copy their values.** No schema number, test
   count, coverage %, or "currently N" in `README.md`/`CLAUDE.md`/`10_standard/`/`20_theory/`
   (`00_program_overview.md` §Documentation currency; guard `tests/test_doc_currency.py`).
-- **Keep the build green.** `ruff check sloads/ cli.py app/` clean and `pytest` passing are
-  the merge gate (CI: 3.9 / 3.11 / 3.12). Add new domain terms to `cspell.json`.
+- **Keep the build green.** `ruff check sloads/ cli.py app/ scripts/` clean, `mypy` clean
+  (zero errors on `sloads/`; strictness ratchets per package in `pyproject.toml`) and `pytest`
+  passing are the merge gate (CI: 3.9 / 3.11 / 3.12; mypy on 3.12). Add new domain terms to
+  `cspell.json`.
 - **Git is the user's to run.** ANY and ALL git usage — `commit`, `add`, `push`,
   `branch`, `merge`, `checkout`, `tag`, `rebase`, `reset`, etc. — SHALL be performed by
   the user, NOT by Claude, UNLESS the user explicitly requests that specific git
@@ -106,7 +108,8 @@ shims anywhere.
 ```bash
 .venv/bin/python -m pytest                   # whole suite (testpaths=tests, parallel; coverage is CI-only)
 .venv/bin/python -m pytest tests/test_engine.py::test_361_a2   # one test
-.venv/bin/ruff check sloads/ cli.py app/     # lint gate
+.venv/bin/ruff check sloads/ cli.py app/ scripts/   # lint gate
+.venv/bin/mypy                               # type gate (sloads/ only)
 .venv/bin/streamlit run app/Home.py          # UI
 .venv/bin/sloads engine examples/ga6_normal.project.json -o out.csv   # CLI
 .venv/bin/python cli.py --list               # registered modules

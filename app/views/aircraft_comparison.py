@@ -26,8 +26,7 @@ import pandas as pd
 import plotly.express as px
 import streamlit as st
 
-from sloads import FleetPoint, Project, Subject, fleet_stats, registry
-from sloads import cg_cases
+from sloads import FleetPoint, Project, Subject, cg_cases, fleet_stats, registry
 from sloads.constants import IN2_PER_FT2
 from sloads.modules.wing_geometry import surface_properties
 
@@ -139,10 +138,7 @@ def _subject_from_project(project: Project) -> Optional[Subject]:
         return None
 
     oew: Optional[float] = None
-    if direct and direct[1]:
-        oew = float(direct[1])
-    else:
-        oew = _wtestima_value(project, "empty_weight")
+    oew = float(direct[1]) if direct and direct[1] else _wtestima_value(project, "empty_weight")
 
     wing_area: Optional[float] = None
     if config and config.wing_area_sqft:
@@ -273,7 +269,7 @@ def _scatter(df: pd.DataFrame, x: str, y: str, labels: dict, *,
         hover_name="aircraft", log_x=log_x, log_y=log_y,
         color_discrete_map=_SERIES_COLOR, labels={**labels, "series": ""},
     )
-    fig.update_layout(legend=dict(orientation="h", y=1.1, x=0))
+    fig.update_layout(legend={"orientation": "h", "y": 1.1, "x": 0})
     st.plotly_chart(fig, use_container_width=True)
 
 

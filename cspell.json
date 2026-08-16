@@ -32,6 +32,13 @@
     "/0x[0-9a-fA-F]+/"
   ],
   "words": [
+    "mypy",
+    "typecheck",
+    "untyped",
+    "noqa",
+    "isort",
+    "bugbear",
+    "pyupgrade",
     "towncrier",
     "kebab",
     "addcontentsline",

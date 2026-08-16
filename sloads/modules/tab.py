@@ -24,19 +24,19 @@ from __future__ import annotations
 from typing import List, NamedTuple
 
 from ..case_ids import (
-    CaseIdAllocator,
     HTAIL_BAND_TAB,
     VTAIL_BAND_TAB,
     WING_BAND_TAB,
+    CaseIdAllocator,
 )
 from ..constants import ULTIMATE_FACTOR
 from ..models import (
-    MissingInputError,
     CaseRef,
     ConditionResult,
     ControlSurfaceLoadResult,
     ControlSurfaceStation,
     LoadValue,
+    MissingInputError,
     ModuleResult,
     Project,
     TabSpec,

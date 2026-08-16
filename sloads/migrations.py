@@ -108,6 +108,13 @@ def _rename_scaled(d: Dict[str, Any], mapping: Dict[str, Any]) -> Dict[str, Any]
     return d
 
 
+def _section(d: Dict[str, Any], key: str) -> Dict[str, Any]:
+    """``d[key]`` when it is a dict -- the **same** object, so pops mutate the
+    file -- else a fresh empty dict. The type checker sees one shape."""
+    value = d.get(key)
+    return value if isinstance(value, dict) else {}
+
+
 def _v24_units(d: Dict[str, Any]) -> Dict[str, Any]:
     """ft/in² geometry inputs -> the canonical in/ft² of one-unit-per-dimension."""
     select_input = d.get("select_input")
@@ -436,8 +443,8 @@ def _v46_cg_case_model(d: Dict[str, Any]) -> Dict[str, Any]:
     weight = d.get("weight")
     if not isinstance(weight, dict):
         weight = {}
-    fl = d.get("flight_loads") if isinstance(d.get("flight_loads"), dict) else {}
-    landing = d.get("landing") if isinstance(d.get("landing"), dict) else {}
+    fl = _section(d, "flight_loads")
+    landing = _section(d, "landing")
 
     # A pre-v19 file whose cases only ever lived on flight_loads and that carries
     # no weight slice at all: _v19_cg_cases needs a dict to write into, so it left
@@ -479,8 +486,8 @@ def _v46_cg_case_model(d: Dict[str, Any]) -> Dict[str, Any]:
 
     gross = landing.pop("gross_weight_lb", None)
     if not weight.get("max_takeoff_weight_lb"):
-        speeds = d.get("speeds") if isinstance(d.get("speeds"), dict) else {}
-        envelope = weight.get("envelope") if isinstance(weight.get("envelope"), dict) else {}
+        speeds = _section(d, "speeds")
+        envelope = _section(weight, "envelope")
         mtow = (speeds.get("weight_lb") or gross or envelope.get("gross_weight")
                 or max((float(c.get("weight_lb", 0.0) or 0.0) for c in shared
                         if "flight" in (c.get("analyses") or [])), default=0.0))

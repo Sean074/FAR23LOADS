@@ -16,7 +16,7 @@ import argparse
 import os
 import re
 import sys
-from typing import Dict, List, Tuple
+from typing import Dict, List, Optional, Tuple
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CHANGES_DIR = os.path.join(ROOT, "changes")
@@ -137,7 +137,7 @@ def load_fragments(changes_dir: str = CHANGES_DIR) -> Dict[str, str]:
     return files
 
 
-def main(argv: List[str] = None) -> int:
+def main(argv: Optional[List[str]] = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("version", nargs="?", help="X.Y.Z (required unless --dry-run)")
     ap.add_argument("--date", help="YYYY-MM-DD release date (required unless --dry-run)")

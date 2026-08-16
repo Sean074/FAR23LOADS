@@ -64,8 +64,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import List, Optional, Tuple
 
-from .derived_geometry import (FuselageCentreline, fuselage_centreline,
-                               fuselage_height_at)
+from .derived_geometry import FuselageCentreline, fuselage_centreline, fuselage_height_at
 from .models import LayoutInput, Project, SurfaceInput, TailType
 
 #: Component names, which are also the ``geometry.surfaces`` entry names (T-1).
@@ -409,7 +408,7 @@ def resolve_tail_planform(project: Project,
         te=[(x_le + chord, 0.0), (x_le + chord, span_in)],
         span=span_in,
         area=area_in2,
-        elements=_derived_elements(project, component),
+        elements=_derived_elements(project),
         ref_axis_pct=_derived_ref_axis(project),
         assumed=True,
         root_z=root.z,
@@ -419,7 +418,7 @@ def resolve_tail_planform(project: Project,
     )
 
 
-def _derived_elements(project: Project, component: str) -> int:
+def _derived_elements(project: Project) -> int:
     """Station count for a derived planform: the wing's, so one project reports
     every surface at a comparable resolution, floored at the T-6 minimum of 2."""
     geometry = project.geometry
@@ -462,11 +461,11 @@ def is_t_tail(project: Project) -> bool:
 
 
 __all__ = [
-    "FinRoot",
     "HTAIL",
-    "VTAIL",
-    "TAIL_COMPONENTS",
     "PLANFORM_TOLERANCE",
+    "TAIL_COMPONENTS",
+    "VTAIL",
+    "FinRoot",
     "TailPlanform",
     "fin_root",
     "fin_root_waterline",

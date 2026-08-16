@@ -15,7 +15,7 @@ from __future__ import annotations
 
 from dataclasses import replace
 from enum import Enum
-from typing import List, NamedTuple, Optional
+from typing import Any, Dict, List, NamedTuple, Optional, Tuple
 
 from .models import ConditionResult, EngineInput, LoadValue
 
@@ -219,37 +219,43 @@ def to_imperial(inp: EngineInput, system: UnitSystem) -> EngineInput:
     if system == UnitSystem.IMPERIAL:
         return inp
 
-    def w(v):  # weight: kg -> lb
+    def w(v: Optional[float]) -> Optional[float]:  # weight: kg -> lb (optional field)
         return None if v is None else v / SI_PER_IMPERIAL["weight"]
 
-    def ln(v):  # length: mm -> in
+    def w_(v: float) -> float:  # weight: kg -> lb (required field)
+        return v / SI_PER_IMPERIAL["weight"]
+
+    def ln(v: Optional[float]) -> Optional[float]:  # length: mm -> in (optional field)
         return None if v is None else v / SI_PER_IMPERIAL["length"]
 
-    def tq(v):  # torque: N·m -> ft-lb
+    def ln_(v: float) -> float:  # length: mm -> in (required field)
+        return v / SI_PER_IMPERIAL["length"]
+
+    def tq(v: Optional[float]) -> Optional[float]:  # torque: N·m -> ft-lb
         return None if v is None else v / SI_PER_IMPERIAL["torque"]
 
-    def p(v):  # power: kW -> hp
+    def p(v: Optional[float]) -> Optional[float]:  # power: kW -> hp
         return None if v is None else v / SI_PER_IMPERIAL["power"]
 
-    def j(v):  # inertia: kg*m^2 -> slug-ft^2
+    def j(v: Optional[float]) -> Optional[float]:  # inertia: kg*m^2 -> slug-ft^2
         return None if v is None else v / SI_PER_IMPERIAL["inertia"]
 
-    def cg(vec):  # length triple
-        return tuple(ln(c) for c in vec)
+    def cg(vec: Tuple[float, float, float]) -> Tuple[float, float, float]:  # length triple
+        return (ln_(vec[0]), ln_(vec[1]), ln_(vec[2]))
 
     rotors = [
-        replace(r, diameter_in=ln(r.diameter_in), weight_lb=w(r.weight_lb), inertia=j(r.inertia))
+        replace(r, diameter_in=ln_(r.diameter_in), weight_lb=w_(r.weight_lb), inertia=j(r.inertia))
         for r in inp.rotors
     ]
 
     return replace(
         inp,
-        engine_weight_lb=w(inp.engine_weight_lb),
-        prop_weight_lb=w(inp.prop_weight_lb),
+        engine_weight_lb=w_(inp.engine_weight_lb),
+        prop_weight_lb=w_(inp.prop_weight_lb),
         hub_weight_lb=w(inp.hub_weight_lb),
         engine_cg=cg(inp.engine_cg),
         prop_cg=cg(inp.prop_cg),
-        prop_diameter_in=ln(inp.prop_diameter_in),
+        prop_diameter_in=ln_(inp.prop_diameter_in),
         prop_inertia=j(inp.prop_inertia),
         max_engine_torque=tq(inp.max_engine_torque),
         cruise_torque=tq(inp.cruise_torque),
@@ -363,7 +369,7 @@ _PROJECT_FIELD_KIND = {
 _VEC3_LENGTH_IN_FIELDS = {"engine_cg", "prop_cg"}
 
 
-def _walk_convert(obj, system: UnitSystem):
+def _walk_convert(obj: Any, system: UnitSystem) -> Any:
     """Recursively convert every known dimensional leaf in a project JSON dict.
 
     Unknown numeric fields (not in :data:`_PROJECT_FIELD_KIND`) pass through
@@ -371,7 +377,7 @@ def _walk_convert(obj, system: UnitSystem):
     doesn't yet know about.
     """
     if isinstance(obj, dict):
-        out = {}
+        out: Dict[str, Any] = {}
         for key, value in obj.items():
             if key in _VEC3_LENGTH_IN_FIELDS and isinstance(value, list):
                 factor = _KIND_FACTORS["length_in"][0]
@@ -405,9 +411,9 @@ def project_dict_to_imperial(display_dict: dict, system: UnitSystem) -> dict:
     if system == UnitSystem.IMPERIAL:
         return display_dict
 
-    def _invert(obj):
+    def _invert(obj: Any) -> Any:
         if isinstance(obj, dict):
-            out = {}
+            out: Dict[str, Any] = {}
             for key, value in obj.items():
                 if key in _VEC3_LENGTH_IN_FIELDS and isinstance(value, list):
                     factor = _KIND_FACTORS["length_in"][0]
@@ -614,7 +620,7 @@ def deliverable_units(
     )
 
 
-def unit_system_from(value, default: UnitSystem = UnitSystem.IMPERIAL) -> UnitSystem:
+def unit_system_from(value: object, default: UnitSystem = UnitSystem.IMPERIAL) -> UnitSystem:
     """Parse a persisted/CLI unit-system string into a :class:`UnitSystem`.
 
     Anything unrecognised -- including ``None`` and ``""`` -- falls back to

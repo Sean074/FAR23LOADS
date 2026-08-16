@@ -205,9 +205,9 @@ def figure_body_tex(figure: Figure) -> str:
 
 __all__ = [
     "escape",
+    "figure_body_tex",
     "plot_tex",
+    "speed_altitude_tex",
     "vn_diagram_tex",
     "weight_cg_tex",
-    "speed_altitude_tex",
-    "figure_body_tex",
 ]

@@ -48,21 +48,21 @@ def test_schema_version_recorded():
     assert f"Schema version: **{models.SCHEMA_VERSION}**" in gen.build()
 
 
-def test_gui_design_schema_line_current():
-    """The hand-written GUI_design.md schema line matches models.SCHEMA_VERSION.
+def test_gui_design_schema_paragraph_points_at_the_owner():
+    """GUI_design.md's schema paragraph names the owner, never the number.
 
-    This line went stale three times (v31, v32 and the v33 bump — the 2026-07-21
-    review's single CRITICAL and the 2026-07-23 review's CRITICAL were the same
-    defect); this guard makes a fourth occurrence unmergeable (M4-16).
+    M4-16 guarded the *value* here (the line went stale three times: v31, v32,
+    the v33 bump) — which kept the copy current but kept the copy. The 2026-08-16
+    documentation-currency rule (`00_program_overview.md`) retires the copy: the
+    paragraph points at `SCHEMA_VERSION` in `sloads/models/project.py`, and
+    `tests/test_doc_currency.py` fails on any literal beside it. This asserts the
+    pointer is present, so the paragraph cannot silently lose it either.
     """
-    import sloads.models as models
-
     doc = os.path.join(_REPO, "docs", "10_standard", "GUI_design.md")
     with open(doc, encoding="utf-8") as fh:
         text = fh.read()
-    assert f"`SCHEMA_VERSION = {models.SCHEMA_VERSION}`" in text, (
-        f"GUI_design.md's 'currently `SCHEMA_VERSION = …`' paragraph is stale — "
-        f"update it (and its migration-history list) to {models.SCHEMA_VERSION}."
+    assert "`SCHEMA_VERSION`, whose owner is `sloads/models/project.py`" in text, (
+        "GUI_design.md's schema paragraph must point at the SCHEMA_VERSION owner (no literal value)."
     )
 
 

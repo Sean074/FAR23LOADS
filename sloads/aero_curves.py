@@ -256,7 +256,7 @@ class AeroCurves:
     closure: Optional[ClosureResult] = None
 
 
-def _alpha_band(config: AeroCoeffSet, alpha_lo: float, alpha_hi: float,
+def _alpha_band(alpha_lo: float, alpha_hi: float,
                 points: Optional[OperatingPoints]) -> Tuple[float, float]:
     """Widen the default band to hold every operating point (+2 deg of margin)."""
     lo, hi = alpha_lo, alpha_hi
@@ -280,7 +280,7 @@ def build_aero_curves(config: AeroCoeffSet, *,
     slightly off the curve, which is the honest picture and is captioned as such
     on the page.
     """
-    lo, hi = _alpha_band(config, alpha_lo, alpha_hi, points)
+    lo, hi = _alpha_band(alpha_lo, alpha_hi, points)
     n = max(2, int(samples))
     alphas = [lo + (hi - lo) * i / (n - 1) for i in range(n)]
     cls = [lift_cl(config, a, g_ratio, 1.0) for a in alphas]

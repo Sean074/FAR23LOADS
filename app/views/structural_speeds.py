@@ -22,7 +22,6 @@ from __future__ import annotations
 import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
-
 from components import (
     ALTITUDE_FT,
     page_header,
@@ -52,7 +51,6 @@ from sloads.modules.structural_speeds import (
     operational_implications,
 )
 from sloads.report import module_text_report
-
 
 project, system, U = page_header("structural_speeds", title="Structural Design Speeds — FAR 23")
 st.caption(
@@ -466,7 +464,7 @@ def _tab_design_speeds(project: Project, system: UnitSystem, U: dict) -> None:
 # --------------------------------------------------------------------------- #
 # Tab 2 -- Speed–Altitude Envelope (MACHLIM)
 # --------------------------------------------------------------------------- #
-def _tab_speed_altitude(project: Project, system: UnitSystem, U: dict) -> None:
+def _tab_speed_altitude(project: Project, system: UnitSystem, U: dict) -> None:  # noqa: ARG001  -- uniform tab signature
     existing = project.speeds.mach_limit if project.speeds and project.speeds.mach_limit else None
 
     # MC/MD/shoulder are computed by the Design Speeds tab (design_speed_values);
@@ -595,11 +593,11 @@ def _tab_speed_altitude(project: Project, system: UnitSystem, U: dict) -> None:
         xs = [convert_airspeed(mach_to_eas(mval, *standard_atmosphere(h)), h, axis_unit) for h in alts]
         ys = list(alts)
         fig.add_trace(go.Scatter(
-            x=xs, y=ys, mode="lines", line=dict(color="lightgray", width=1),
+            x=xs, y=ys, mode="lines", line={"color": "lightgray", "width": 1},
             name=f"M {mval:.2f}", showlegend=False, hoverinfo="skip",
         ))
         fig.add_annotation(x=xs[-1], y=ys[-1], text=f"{mval:.2f}", showarrow=False,
-                           font=dict(size=9, color="gray"), yshift=6)
+                           font={"size": 9, "color": "gray"}, yshift=6)
 
     # Operating boundary: design speeds (EAS below shoulder, Mach-limited above).
     _BOUNDS = [
@@ -613,13 +611,13 @@ def _tab_speed_altitude(project: Project, system: UnitSystem, U: dict) -> None:
             continue
         xs, ys = _boundary(alts, axis_unit, eas_below=eas_below, mach_above=mach_above)
         fig.add_trace(go.Scatter(x=xs, y=ys, mode="lines", name=name,
-                                 line=dict(color=color, width=3)))
+                                 line={"color": color, "width": 3}))
 
     # Mach-only lines above the shoulder: never-exceed (MNE) and flutter (MFC).
     for name, mval, color, dash in [("V(MNE)", mne, "#ff7f0e", "dot"), ("V(MFC)", mfc, "#8c564b", "dash")]:
         xs, ys = _boundary(alts, axis_unit, mach_above=mval, only_above=True)
         fig.add_trace(go.Scatter(x=xs, y=ys, mode="lines", name=name,
-                                 line=dict(color=color, width=2, dash=dash)))
+                                 line={"color": color, "width": 2, "dash": dash}))
 
     fig.add_hline(y=shoulder, line_dash="dot", line_color="gray",
                   annotation_text="shoulder", annotation_position="left")
@@ -627,8 +625,8 @@ def _tab_speed_altitude(project: Project, system: UnitSystem, U: dict) -> None:
                   annotation_text="max operating", annotation_position="left")
     fig.update_layout(
         xaxis_title=f"Speed ({axis_unit})", yaxis_title="Altitude (ft)",
-        legend=dict(orientation="h", yanchor="bottom", y=1.02),
-        height=560, margin=dict(t=40),
+        legend={"orientation": "h", "yanchor": "bottom", "y": 1.02},
+        height=560, margin={"t": 40},
     )
     st.plotly_chart(fig, width="stretch")
 

@@ -8,8 +8,6 @@ from __future__ import annotations
 from enum import Enum
 
 
-
-
 class EngineType(str, Enum):
     RECIPROCATING = "R"
     TURBOPROP = "T"
@@ -179,17 +177,17 @@ class GearCarrier(str, Enum):
 
 
 __all__ = [
-    "EngineType",
+    "GROUND_CASE_ROLE_ORDER",
+    "AnalysisKind",
     "EngineLayout",
-    "RotorType",
-    "RotorDirection",
+    "EngineType",
     "EngineWeightType",
-    "MassItemKind",
+    "GearCarrier",
+    "GroundCaseRole",
     "MassComponent",
+    "MassItemKind",
+    "RotorDirection",
+    "RotorType",
     "TailType",
     "VdBasis",
-    "AnalysisKind",
-    "GroundCaseRole",
-    "GROUND_CASE_ROLE_ORDER",
-    "GearCarrier",
 ]

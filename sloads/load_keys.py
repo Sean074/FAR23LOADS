@@ -56,7 +56,7 @@ def gyro_key(case: int, component: str) -> str:
     return f"{GYRO_KEY_PREFIX}{case}_{component.lower()}"
 
 
-def parse_gyro_key(key: str):
+def parse_gyro_key(key: str) -> "tuple[int, str] | None":
     """``(case_number, component)`` for a gyro sub-case key, else ``None``."""
     if not key.startswith(GYRO_KEY_PREFIX):
         return None

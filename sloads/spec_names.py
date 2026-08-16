@@ -80,4 +80,4 @@ NON_MODULE_SECTIONS: FrozenSet[str] = frozenset({
 })
 
 
-__all__ = ["SPEC_HEADINGS", "NON_MODULE_SECTIONS"]
+__all__ = ["NON_MODULE_SECTIONS", "SPEC_HEADINGS"]

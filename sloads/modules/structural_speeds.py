@@ -69,13 +69,13 @@ from typing import List, NamedTuple, Optional
 from ..constants import (
     cruise_speed_coefficient,
     dive_ratio_coefficient,
-    standard_atmosphere,
     stall_speed_kt,
+    standard_atmosphere,
 )
 from ..models import (
-    MissingInputError,
     ConditionResult,
     LoadValue,
+    MissingInputError,
     ModuleResult,
     Project,
     StructuralSpeedsInput,
@@ -702,19 +702,19 @@ register(MODULE_NAME, run)
 # ``app/`` must import nothing underscored from ``sloads``.
 # --------------------------------------------------------------------------- #
 __all__ = [
-    "MODULE_NAME",
-    "run",
-    "design_speeds",
-    "design_speed_values",
-    "DesignSpeeds",
-    "maneuver_load_factors",
     "MACH_MARGIN_DEFAULT",
     "MACH_MARGIN_FLOOR",
+    "MODULE_NAME",
+    "DesignSpeeds",
     "MachMargin",
-    "resolve_mach_margin",
-    "operational_placards",
     "OperationalPlacards",
-    "operational_target_checks",
     "TargetCheck",
+    "design_speed_values",
+    "design_speeds",
+    "maneuver_load_factors",
     "operational_implications",
+    "operational_placards",
+    "operational_target_checks",
+    "resolve_mach_margin",
+    "run",
 ]

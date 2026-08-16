@@ -20,7 +20,6 @@ import io as _io
 import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
-
 from components import gate, page_header
 
 from sloads import (
@@ -37,9 +36,9 @@ from sloads import (
     to_si_scalar,
 )
 from sloads import io as sloads_io
+from sloads.derived_geometry import wing_reference
 from sloads.export import sbeam_bridge as sb
 from sloads.modules.airloads import run as airloads_run
-from sloads.derived_geometry import wing_reference
 from sloads.modules.airloads import schrenk_distribution
 from sloads.modules.net_loads import build_net_loads, wing_load_rows
 from sloads.modules.wing_inertia import resolve_wing_cases
@@ -151,7 +150,7 @@ if aero_applied:
         name="wing", section_slope=section_slope, taper_ratio=taper_ratio,
         tip_ratio=tip_ratio, tau=tau_override, twist=twist, target_cl=target_cl)
     other_surfaces = [s for s in (project.aero.surfaces if project.aero else []) if s.name != "wing"]
-    project.aero = AeroInput(surfaces=other_surfaces + [aero_surf])
+    project.aero = AeroInput(surfaces=[*other_surfaces, aero_surf])
     st.session_state["project"] = project
     st.success("Wing aero inputs applied.")
     existing_aero = project.aero.by_name("wing")
@@ -181,10 +180,10 @@ fig.add_trace(go.Scatter(x=_ye_disp, y=[to_si_scalar(v, "in", system) for v in t
                          name="basic (twist)", mode="lines+markers"))
 fig.add_trace(go.Scatter(x=_ye_disp, y=[to_si_scalar(v, "in", system) for v in table.ccl_total],
                          name=f"total @ CL={table.target_cl:g}",
-                         mode="lines+markers", line=dict(width=3)))
+                         mode="lines+markers", line={"width": 3}))
 fig.update_layout(
     title="Spanwise span load c·cl", xaxis_title=f"Butt line Y ({si_scalar_label('in', system)})",
-    yaxis_title=f"c·cl ({si_scalar_label('in', system)})", legend=dict(orientation="h"), height=420)
+    yaxis_title=f"c·cl ({si_scalar_label('in', system)})", legend={"orientation": "h"}, height=420)
 st.plotly_chart(fig, use_container_width=True)
 
 st.subheader("Per-strip distribution")
@@ -386,10 +385,10 @@ for title, attr, unit_key in [("Shear Sz", "sz", "lbf"), ("Bending Mxx", "mxx", 
         fig.add_trace(go.Scatter(
             x=[to_si_scalar(s.y, "in", system) for s in r.stations],
             y=[to_si_scalar(getattr(s, attr), unit_key, system) for s in r.stations],
-            name=label, mode="lines+markers", line=dict(width=3 if label == "net" else 1)))
+            name=label, mode="lines+markers", line={"width": 3 if label == "net" else 1}))
     fig.update_layout(title=f"{title} — {sel}",
                       xaxis_title=f"Butt line Y ({si_scalar_label('in', system)})",
-                      yaxis_title=f"{title} ({unit})", legend=dict(orientation="h"), height=320)
+                      yaxis_title=f"{title} ({unit})", legend={"orientation": "h"}, height=320)
     st.plotly_chart(fig, use_container_width=True)
 
 st.subheader("Net load station table (LIMIT)")

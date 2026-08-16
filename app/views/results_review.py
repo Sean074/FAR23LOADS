@@ -13,7 +13,6 @@ from __future__ import annotations
 
 import pandas as pd
 import streamlit as st
-
 from components import active_system, gate
 
 from sloads import Project, UnitSystem, convert_results, registry

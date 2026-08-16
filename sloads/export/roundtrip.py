@@ -222,10 +222,7 @@ def _element_lines(grids: Dict[int, Vec3],
     ties: List[str] = []
     for collapsed in runs:
         nodes = [rep for rep, _ in collapsed]
-        if topology is Topology.CHAIN:
-            pairs = list(zip(nodes, nodes[1:]))
-        else:
-            pairs = [(nodes[0], gid) for gid in nodes[1:]]
+        pairs = list(zip(nodes, nodes[1:])) if topology is Topology.CHAIN else [(nodes[0], gid) for gid in nodes[1:]]
         for ga, gb in pairs:
             vx, vy, vz = _orientation(grids[ga], grids[gb])
             lines.append(f"CBAR, {eid}, 1, {ga}, {gb}, {vx}, {vy}, {vz}")
@@ -235,7 +232,7 @@ def _element_lines(grids: Dict[int, Vec3],
                 ties.append(f"RBE2, {_RBE2_BAND.allocate(len(ties))}, {rep}, 123456, "
                             + ", ".join(str(g) for g in tied))
     if ties:
-        lines += ["$ Coincident nodes, rigidly tied (see roundtrip._collapse)."] + ties
+        lines += ["$ Coincident nodes, rigidly tied (see roundtrip._collapse).", *ties]
     return lines
 
 
@@ -416,8 +413,7 @@ def wrap_as_stick_model(deck_text: str, *, support: Support,
             raise ValueError("deck has BEGIN BULK but no ENDDATA")
         return head + "\n".join(bulk) + "\nENDDATA" + tail
 
-    return "\n".join(_case_control(sids, title) + [deck_text.rstrip("\n")]
-                     + bulk + ["ENDDATA"]) + "\n"
+    return "\n".join([*_case_control(sids, title), deck_text.rstrip("\n"), *bulk, "ENDDATA"]) + "\n"
 
 
 # --------------------------------------------------------------------------- #
@@ -533,7 +529,7 @@ class Reaction:
     moment_scale: float
 
 
-def total_reaction(reactions: Dict[int, "object"], grids: Dict[int, Vec3],
+def total_reaction(reactions: Dict[int, Sequence[float]], grids: Dict[int, Vec3],
                    ref: Vec3 = (0.0, 0.0, 0.0)) -> Reaction:
     """Sum sbeam's ``{gid: (6,)}`` reaction map into one :class:`Reaction`."""
     f = [0.0, 0.0, 0.0]
@@ -591,8 +587,8 @@ __all__ = [
     "Reaction",
     "SbeamUnavailable",
     "Support",
-    "flatten_mass_case",
     "Topology",
+    "flatten_mass_case",
     "solve_deck",
     "total_reaction",
     "wrap_as_stick_model",

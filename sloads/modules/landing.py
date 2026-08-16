@@ -52,13 +52,13 @@ from ..case_ids import CaseIdAllocator
 from ..cg_cases import landing_role_cases, max_landing_weight, max_takeoff_weight
 from ..constants import G
 from ..models import (
-    MissingInputError,
     CaseRef,
     CgCase,
     ConditionResult,
     GearReactionCase,
     LandingInput,
     LoadValue,
+    MissingInputError,
     ModuleResult,
     Project,
 )

@@ -20,7 +20,6 @@ import io as _io
 import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
-
 from components import active_system, gate
 
 from sloads import Project, UnitSystem, labels_for, si_scalar_label, to_display, to_si_scalar
@@ -110,7 +109,7 @@ else:
     fig.add_trace(go.Scatter(
         x=[to_si_scalar(s.x, "in", system) for s in stations],
         y=[to_si_scalar(s.psi, "psi", system) for s in stations],
-        mode="lines+markers", line=dict(width=3), name="net PSI"))
+        mode="lines+markers", line={"width": 3}, name="net PSI"))
     fig.update_layout(title=f"Chordwise net pressure — {sel}",
                       xaxis_title=f"Chord station from LE ({_in_lbl})",
                       yaxis_title=f"Net pressure PSI ({_psi_lbl})", height=360)

@@ -50,11 +50,11 @@ from __future__ import annotations
 from typing import List, Optional
 
 from ..models import (
-    MissingInputError,
     ConditionResult,
     CriticalCondition,
     CriticalLoadSet,
     LoadValue,
+    MissingInputError,
     ModuleResult,
     Project,
     TailChordResult,

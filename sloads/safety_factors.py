@@ -41,9 +41,19 @@ from typing import Any, Dict, List, Optional, Sequence, Tuple
 from .constants import ULTIMATE_FACTOR
 
 __all__ = [
-    "LoadClass", "RowStatus", "Family", "Row", "Resolution", "GoverningTable",
-    "FAMILIES", "family", "classify", "DERIVED_FACTOR", "DEFAULT_FAMILY",
-    "table_for", "stamp",
+    "DEFAULT_FAMILY",
+    "DERIVED_FACTOR",
+    "FAMILIES",
+    "Family",
+    "GoverningTable",
+    "LoadClass",
+    "Resolution",
+    "Row",
+    "RowStatus",
+    "classify",
+    "family",
+    "stamp",
+    "table_for",
 ]
 
 
@@ -237,11 +247,12 @@ def classify(item: Any) -> Tuple[Optional[str], str]:
                 if text.strip().lower() in ("", "configuration", "geometry")
                 else None), text
     keys = [_family_of_reference(r) for r in refs]
-    if any(k is None for k in keys):
+    found = [k for k in keys if k is not None]
+    if len(found) != len(keys):
         return None, text
-    if len({_BY_KEY[k].derived_factor for k in keys}) > 1:
+    if len({_BY_KEY[k].derived_factor for k in found}) > 1:
         return None, text
-    return keys[0], text
+    return found[0], text
 
 
 # --------------------------------------------------------------------------- #

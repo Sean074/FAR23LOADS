@@ -30,15 +30,15 @@ from __future__ import annotations
 
 from typing import List, NamedTuple
 
-from ..case_ids import CaseIdAllocator, WING_BAND_AILERON
+from ..case_ids import WING_BAND_AILERON, CaseIdAllocator
 from ..constants import ULTIMATE_FACTOR
 from ..models import (
-    MissingInputError,
     CaseRef,
     ConditionResult,
     ControlSurfaceLoadResult,
     ControlSurfaceStation,
     LoadValue,
+    MissingInputError,
     ModuleResult,
     Project,
 )

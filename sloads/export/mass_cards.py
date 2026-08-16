@@ -142,7 +142,7 @@ class MassCard:
     case_index: Optional[int] = None
 
 
-def _attach_gid(item: MassItem, project: Project,
+def _attach_gid(item: MassItem,
                 stations: Sequence) -> Tuple[int, Tuple[float, float, float]]:
     """The beam node ``item`` hangs on, and the offset from it to the item's CG.
 
@@ -209,7 +209,7 @@ def mass_cards(project: Project) -> Tuple[List[MassCard], List[CaseLoading]]:
     for eid_band, group, overlay in ((_BASELINE_BAND, baseline, False),
                                      (_DISCRETIONARY_BAND, discretionary, True)):
         for i, it in enumerate(group):
-            gid, offset = _attach_gid(it, project, stations)
+            gid, offset = _attach_gid(it, stations)
             cards.append(MassCard(eid=eid_band.allocate(i), gid=gid, item=it,
                                   offset=offset, overlay=overlay))
     # A loading may carry a consumable row **part-full** -- a D-25 entered
@@ -234,7 +234,7 @@ def mass_cards(project: Project) -> Tuple[List[MassCard], List[CaseLoading]]:
                     "the MASSSET baseline, which every case shares. Expressing it "
                     "would need a REPLACE row; today only a discretionary row may "
                     "be part-full. Make the row discretionary, or carry it whole.")
-            gid, offset = _attach_gid(it, project, stations)
+            gid, offset = _attach_gid(it, stations)
             cards.append(MassCard(eid=_PART_FULL_BAND.allocate(part_full), gid=gid,
                                   item=it, offset=offset, overlay=True,
                                   case_index=i))
@@ -242,7 +242,7 @@ def mass_cards(project: Project) -> Tuple[List[MassCard], List[CaseLoading]]:
     for i, loading in enumerate(loadings):
         if loading.ballast is None:
             continue
-        gid, offset = _attach_gid(loading.ballast, project, stations)
+        gid, offset = _attach_gid(loading.ballast, stations)
         cards.append(MassCard(eid=_BALLAST_BAND.allocate(i), gid=gid,
                               item=loading.ballast, offset=offset, overlay=True,
                               case_index=i))
@@ -372,8 +372,7 @@ def _massset_block(cards: Sequence[MassCard], loading: CaseLoading,
     return lines
 
 
-def _header(project: Project, u: DeliverableUnits, cards: Sequence[MassCard],
-            loadings: Sequence[CaseLoading]) -> List[str]:
+def _header(project: Project, u: DeliverableUnits, cards: Sequence[MassCard]) -> List[str]:
     total = sum(c.item.weight_lb for c in cards if not c.overlay)
     wing = sum(c.item.weight_lb for c in cards
                if component_of(c.item, project) == MassComponent.WING)
@@ -434,7 +433,7 @@ def conm2_fragment(project: Project, *,
     if not cards:
         raise ValueError(
             "Project has no 'weight.items' database to export as CONM2 cards")
-    out = _header(project, u, cards, loadings)
+    out = _header(project, u, cards)
     out += ["$ ------------------------------------------------ BASELINE (always aboard)"]
     out += [_conm2_line(c, u) for c in cards if not c.overlay]
     out += ["$ ------------------------------------------------------- OVERLAY (per case)"]
@@ -444,7 +443,7 @@ def conm2_fragment(project: Project, *,
     return _stamped(header_comment, "\n".join(out) + "\n")
 
 
-def mass_properties(project: Project, loading: CaseLoading,
+def mass_properties(project: Project, loading: CaseLoading,  # noqa: ARG001  -- public signature (project reserved for the LRA transfer)
                     system: UnitSystem = UnitSystem.IMPERIAL) -> Dict[str, float]:
     """``{weight/mass/cg_x/cg_z/iyy}`` of one loading, in deck units.
 
@@ -497,7 +496,7 @@ def mass_check_deck(project: Project, *,
     Carries **no** ``FORCE``/``MOMENT`` cards, by construction (C-6).
     """
     u = _checked_mass_units(deliverable_units(system, Channel.SOLVER))
-    cards, loadings = mass_cards(project)
+    _, loadings = mass_cards(project)
     if not loadings:
         raise ValueError(
             "no payload case is derivable from this weight database -- nothing "
@@ -587,7 +586,7 @@ def case_station_weights(project: Project,
     order = {beam_station_gid(i): i for i in range(max(len(stations), 1))}
     totals: Dict[int, float] = {}
     for item in loading.items:
-        gid, _ = _attach_gid(item, project, stations)
+        gid, _ = _attach_gid(item, stations)
         totals[gid] = totals.get(gid, 0.0) + item.weight_lb
     return sorted(totals.items(), key=lambda pair: order.get(pair[0], 0))
 
@@ -676,21 +675,21 @@ def write_mass_check_deck(project: Project, path: str, *,
 
 
 __all__ = [
+    "GRAV_SID_BASE",
+    "MASSSET_SID_BASE",
+    "MASS_EID_BALLAST",
     "MASS_EID_BASELINE",
     "MASS_EID_DISCRETIONARY",
-    "MASS_EID_BALLAST",
-    "MASSSET_SID_BASE",
-    "GRAV_SID_BASE",
     "MassCard",
+    "case_station_weights",
+    "conm2_fragment",
+    "inertia_only_cards",
     "mass_cards",
     "mass_case_rows",
-    "massset_identity",
-    "case_station_weights",
-    "unreferenced_overlay_eids",
-    "mass_properties",
-    "conm2_fragment",
     "mass_check_deck",
-    "inertia_only_cards",
+    "mass_properties",
+    "massset_identity",
+    "unreferenced_overlay_eids",
     "write_conm2_fragment",
     "write_mass_check_deck",
 ]

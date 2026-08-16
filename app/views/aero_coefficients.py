@@ -22,9 +22,8 @@ import copy
 import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
-from plotly.subplots import make_subplots
-
 from components import gate
+from plotly.subplots import make_subplots
 
 from sloads import (
     AeroCoefficientsInput,
@@ -247,12 +246,12 @@ def _curve_figure(curves) -> go.Figure:
         subplot_titles=("Lift  CL vs α", "Drag polar  CL vs CD", "Moment  CM vs α"),
     )
     fig.add_trace(go.Scatter(x=curves.lift.x, y=curves.lift.y, mode="lines",
-                             name="CL(α)", line=dict(width=3)), row=1, col=1)
+                             name="CL(α)", line={"width": 3}), row=1, col=1)
     fig.add_trace(go.Scatter(x=curves.polar.x, y=curves.polar.y, mode="lines",
-                             name="CD(CL)", line=dict(width=3), showlegend=False),
+                             name="CD(CL)", line={"width": 3}, showlegend=False),
                   row=1, col=2)
     fig.add_trace(go.Scatter(x=curves.moment.x, y=curves.moment.y, mode="lines",
-                             name="CM(α)", line=dict(width=3), showlegend=False),
+                             name="CM(α)", line={"width": 3}, showlegend=False),
                   row=1, col=3)
     # Stall clamps: the balance never carries a CL outside these lines.
     for cl_line, label in ((curves.stall_cl, "stall CL"),
@@ -260,17 +259,17 @@ def _curve_figure(curves) -> go.Figure:
         if cl_line:
             for col in (1, 2):
                 fig.add_hline(y=cl_line, row=1, col=col,
-                              line=dict(color="rgba(200,80,80,0.7)", width=1, dash="dash"),
+                              line={"color": "rgba(200,80,80,0.7)", "width": 1, "dash": "dash"},
                               annotation_text=label if col == 1 else None,
                               annotation_position="top left")
     if curves.alpha_stall_deg is not None:
         fig.add_vline(x=curves.alpha_stall_deg, row=1, col=1,
-                      line=dict(color="rgba(120,120,120,0.6)", width=1, dash="dot"),
+                      line={"color": "rgba(120,120,120,0.6)", "width": 1, "dash": "dot"},
                       annotation_text=f"α {curves.alpha_stall_deg:.1f}°",
                       annotation_position="bottom right")
     pts = curves.points
     if pts is not None and len(pts):
-        marker = dict(symbol="circle-open", size=8, color="rgba(60,110,200,0.9)")
+        marker = {"symbol": "circle-open", "size": 8, "color": "rgba(60,110,200,0.9)"}
         fig.add_trace(go.Scatter(x=pts.alpha_deg, y=pts.cl, mode="markers",
                                  name="balanced points", marker=marker,
                                  text=pts.label, hovertemplate="%{text}<br>α %{x:.2f}° "
@@ -289,8 +288,8 @@ def _curve_figure(curves) -> go.Figure:
     fig.update_yaxes(title_text="CL", row=1, col=1)
     fig.update_yaxes(title_text="CL", row=1, col=2)
     fig.update_yaxes(title_text="CM", row=1, col=3)
-    fig.update_layout(height=380, legend=dict(orientation="h"),
-                      margin=dict(t=60, b=40, l=10, r=10))
+    fig.update_layout(height=380, legend={"orientation": "h"},
+                      margin={"t": 60, "b": 40, "l": 10, "r": 10})
     return fig
 
 

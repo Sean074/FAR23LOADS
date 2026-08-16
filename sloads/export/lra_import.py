@@ -44,8 +44,7 @@ from ..units import Channel, UnitSystem, deliverable_units
 from .balanced_deck import case_sids
 from .coordinates import SBEAM_CID, to_force, to_moment, transfer_couple
 from .equilibrium import parse_cards
-from .lra_model import (LraModel, LraNode, LraRefusal, _dist2, _member_key,
-                        build_lra_model)
+from .lra_model import LraModel, LraNode, LraRefusal, _dist2, _member_key, build_lra_model
 from .sbeam_bridge import _comment, _fmt, _sf_str, _stamped
 
 Vec3 = Tuple[float, float, float]
@@ -120,7 +119,7 @@ def read_lra_model(text: str,
         by_gid[gid] = key
     nodes = [LraNode(gid, pos,
                      by_gid.get(gid, "").split()[0] if gid in by_gid else "",
-                     (by_gid[gid].split() + [""])[1] if gid in by_gid else "")
+                     ([*by_gid[gid].split(), ""])[1] if gid in by_gid else "")
              for gid, pos in sorted(grids.items())]
     return ImportedModel(nodes=nodes, cbars=list(cbars), tags=tags)
 

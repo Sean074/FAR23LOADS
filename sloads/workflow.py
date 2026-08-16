@@ -239,10 +239,10 @@ FOLDED_MODULES: Tuple[str, ...] = (
 # --------------------------------------------------------------------------- #
 # Predicates over a Project
 # --------------------------------------------------------------------------- #
-def _resolve(project: Project, dotted: str):
+def _resolve(project: Project, dotted: str) -> object:
     """Walk a dotted attribute path; return the value or ``None`` if any segment
     is missing/None. Empty lists, tuples and strings count as *absent*."""
-    obj = project
+    obj: object = project
     for seg in dotted.split("."):
         obj = getattr(obj, seg, None)
         if obj is None:

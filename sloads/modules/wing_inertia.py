@@ -36,12 +36,14 @@ from dataclasses import dataclass, field, replace
 from typing import Dict, List, NamedTuple, Optional
 
 from ..case_ids import COMPONENT_PREFIX, WING_BAND_EXTRA, WING_SLOTS, wing_case_id
+from ..cg_cases import flight_cases
+from ..derived_geometry import sync_geometry_derived
 from ..models import (
-    MissingInputError,
     CaseRef,
     ConditionResult,
     CriticalCondition,
     LoadValue,
+    MissingInputError,
     ModuleResult,
     Project,
     SurfaceInput,
@@ -51,8 +53,6 @@ from ..models import (
     WingMassInput,
     WingStationLoad,
 )
-from ..cg_cases import flight_cases
-from ..derived_geometry import sync_geometry_derived
 from ..registry import register
 from .select import default_critical, default_envelope
 from .wing_geometry import interp_x
@@ -444,6 +444,8 @@ def build_wing_inertia(project: Project) -> List[WingLoadResult]:
             "'wing_mass.cases' or give the flight-loads inputs SELECT needs so "
             "they can be derived from the critical set")
     geom = project.geometry.by_name(wm.surface)
+    if geom is None:  # already refused above; narrows for the calls below
+        raise MissingInputError(f"wing_inertia needs a '{wm.surface}' geometry surface")
     units = inertia_units(geom, wm)
     results = []
     for i, c in enumerate(cases):

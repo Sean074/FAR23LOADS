@@ -21,11 +21,9 @@ from dataclasses import replace
 import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
+from components import active_system, gate, page_header, unit_number_input
 from plotly.subplots import make_subplots
 
-from components import active_system, gate, page_header, unit_number_input
-
-from sloads.applicability import effective_occupants
 from sloads import (
     FuselageOutline,
     FuselageSection,
@@ -48,20 +46,21 @@ from sloads import (
     to_imperial_scalar,
 )
 from sloads import io as sloads_io
+from sloads.applicability import effective_occupants
 from sloads.constants import DEFAULT_FRONT_SPAR_PCT, DEFAULT_REAR_SPAR_PCT
 from sloads.derived_geometry import fuselage_summary
 from sloads.modules.configuration import (
     cg_estimate,
     component_stations,
-    gear_stations,
     configuration_properties,
+    gear_stations,
     match_component_station,
     tail_planform,
     wing_layout_from_surface,
     wing_polylines,
     wing_surface,
 )
-from sloads.modules.wing_geometry import interp_x, geometry_properties, surface_top_outline
+from sloads.modules.wing_geometry import geometry_properties, interp_x, surface_top_outline
 from sloads.report import module_text_report
 
 _TAIL_TYPE_LABELS = {
@@ -331,7 +330,7 @@ def _three_view() -> go.Figure:
     # --- Top view: X (horizontal) vs Y (lateral). Wing planform both sides. ---
     for xs, ys in surface_top_outline(le, te, symmetric=True):
         fig.add_scatter(x=xs, y=ys, mode="lines",
-                        line=dict(color="#1f77b4"), showlegend=False, row=1, col=1)
+                        line={"color": "#1f77b4"}, showlegend=False, row=1, col=1)
     # Loads reference axis (LRA) overlay: the chordwise axis the delivered
     # torsion is stated about (SurfaceInput.ref_axis_pct — the beam-model
     # elastic axis, typically 40–50% chord), drawn per WINGGEOM surface. Falls
@@ -350,7 +349,7 @@ def _three_view() -> go.Figure:
         fig.add_scatter(
             x=(_xa[::-1] + _xa) if _mirror else _xa,
             y=([-y for y in _ys[::-1]] + _ys) if _mirror else _ys,
-            mode="lines", line=dict(color="#9467bd", dash="dashdot", width=2),
+            mode="lines", line={"color": "#9467bd", "dash": "dashdot", "width": 2},
             name=f"LRA {_s.name} ({_s.ref_axis * 100:g}% chord)",
             row=1, col=1)
     # Fuselage top-view outline: the body sections (plan-view half-widths) when a
@@ -366,14 +365,14 @@ def _three_view() -> go.Figure:
     else:
         top_x = [nose, tail, tail, nose, nose]
         top_y = [hw, hw, -hw, -hw, hw]
-    fig.add_scatter(x=top_x, y=top_y, mode="lines", line=dict(color="#888"),
+    fig.add_scatter(x=top_x, y=top_y, mode="lines", line={"color": "#888"},
                     showlegend=False, row=1, col=1)
     # CG / NP markers.
-    fig.add_scatter(x=[x_cg], y=[0], mode="markers", marker=dict(color="#d62728", size=11, symbol="x"),
+    fig.add_scatter(x=[x_cg], y=[0], mode="markers", marker={"color": "#d62728", "size": 11, "symbol": "x"},
                     name=f"CG ({cg_source})", row=1, col=1)
     if np_station is not None:
         fig.add_scatter(x=[np_station], y=[0], mode="markers",
-                        marker=dict(color="#2ca02c", size=11, symbol="circle-open"),
+                        marker={"color": "#2ca02c", "size": 11, "symbol": "circle-open"},
                         name="Neutral point", row=1, col=1)
     fig.update_yaxes(scaleanchor="x", scaleratio=1, row=1, col=1)
 
@@ -389,7 +388,7 @@ def _three_view() -> go.Figure:
         side_x = [nose, tail, tail, nose, nose]
         side_y = [z0, z0, z0 + fh, z0 + fh, z0]
     fig.add_scatter(x=side_x, y=side_y, mode="lines",
-                    line=dict(color="#888"), showlegend=False, row=1, col=2)
+                    line={"color": "#888"}, showlegend=False, row=1, col=2)
     # Landing gear (Step G6b): drawn from the single-source axle geometry -- strut
     # (static axle -> WRP) + wheel at the static axle; ground = lowest wheel contact.
     _lg = project.geometry.landing_gear if project.geometry is not None else None
@@ -397,31 +396,31 @@ def _three_view() -> go.Figure:
     ground = _gc["ground_z"] if _gc is not None else layout.root_waterline_z
     if _gc is not None:
         fig.add_scatter(x=[nose, tail], y=[ground, ground], mode="lines",
-                        line=dict(color="#aaa", dash="dot"), showlegend=False, row=1, col=2)
+                        line={"color": "#aaa", "dash": "dot"}, showlegend=False, row=1, col=2)
         for leg in (_lg.nose_gear, _lg.main_gear):
             gx, gz = leg.axle_static
             if gx:
                 fig.add_scatter(x=[gx, gx], y=[gz, layout.root_waterline_z], mode="lines",
-                                line=dict(color="#555"), showlegend=False, row=1, col=2)
+                                line={"color": "#555"}, showlegend=False, row=1, col=2)
                 fig.add_scatter(x=[gx], y=[gz], mode="markers",
-                                marker=dict(color="#555", size=9, symbol="circle"),
+                                marker={"color": "#555", "size": 9, "symbol": "circle"},
                                 showlegend=False, row=1, col=2)
     fig.add_scatter(x=[x_cg], y=[z_cg], mode="markers",
-                    marker=dict(color="#d62728", size=11, symbol="x"), showlegend=False, row=1, col=2)
+                    marker={"color": "#d62728", "size": 11, "symbol": "x"}, showlegend=False, row=1, col=2)
     fig.update_yaxes(scaleanchor="x", scaleratio=1, row=1, col=2)
 
     # --- Front view: Y (lateral) vs Z (waterline). Fuselage + dihedral + track. ---
     fig.add_scatter(x=[-hw, hw, hw, -hw, -hw],
                     y=[z0, z0, z0 + fh, z0 + fh, z0], mode="lines",
-                    line=dict(color="#888"), showlegend=False, row=1, col=3)
+                    line={"color": "#888"}, showlegend=False, row=1, col=3)
     dz = semi * math.tan(math.radians(layout.dihedral_deg))
     fig.add_scatter(x=[-semi, 0, semi],
                     y=[layout.root_waterline_z + dz, layout.root_waterline_z,
                        layout.root_waterline_z + dz], mode="lines",
-                    line=dict(color="#1f77b4"), showlegend=False, row=1, col=3)
+                    line={"color": "#1f77b4"}, showlegend=False, row=1, col=3)
     if _gc is not None and _gc["track"]:
         fig.add_scatter(x=[-_gc["track"] / 2, _gc["track"] / 2], y=[ground, ground],
-                        mode="markers", marker=dict(color="#555", size=8), showlegend=False, row=1, col=3)
+                        mode="markers", marker={"color": "#555", "size": 8}, showlegend=False, row=1, col=3)
     fig.update_yaxes(scaleanchor="x", scaleratio=1, row=1, col=3)
 
     # --- Tail panels + elevator/rudder (Step G6: from the single-source ---
@@ -433,7 +432,7 @@ def _three_view() -> go.Figure:
         fill = "toself" if ctrl else None
         for col, key in ((1, "top"), (2, "side"), (3, "front")):
             fig.add_scatter(x=[p[0] for p in panel[key]], y=[p[1] for p in panel[key]],
-                            mode="lines", line=dict(color=color), fill=fill,
+                            mode="lines", line={"color": color}, fill=fill,
                             fillcolor="rgba(214,39,40,0.25)" if ctrl else None,
                             name=name if ctrl and col == 1 else None,
                             showlegend=ctrl and col == 1, row=1, col=col)
@@ -457,7 +456,7 @@ def _three_view() -> go.Figure:
         color = _KIND_COLORS.get(kind, "#000000")
         sizes = [_marker_size(it.weight_lb) for it in items]
         names = [f"{it.name} ({it.weight_lb:.0f} lb)" for it in items]
-        marker = dict(color=color, size=sizes, opacity=0.6, symbol="circle")
+        marker = {"color": color, "size": sizes, "opacity": 0.6, "symbol": "circle"}
         fig.add_scatter(x=[it.x for it in items], y=[it.y for it in items], mode="markers",
                         marker=marker, name=f"{kind.value} items", text=names, hoverinfo="text",
                         row=1, col=1)
@@ -473,7 +472,7 @@ def _three_view() -> go.Figure:
         ey = [e.engine_cg[1] for e in engines]
         ez = [e.engine_cg[2] for e in engines]
         labels = [e.engine_designation or f"Engine {i + 1}" for i, e in enumerate(engines)]
-        eng_marker = dict(color="#9467bd", size=13, symbol="diamond")
+        eng_marker = {"color": "#9467bd", "size": 13, "symbol": "diamond"}
         fig.add_scatter(x=ex, y=ey, mode="markers", marker=eng_marker, name="Engines",
                         text=labels, hoverinfo="text", row=1, col=1)
         fig.add_scatter(x=ex, y=ez, mode="markers", marker=eng_marker,
@@ -481,8 +480,8 @@ def _three_view() -> go.Figure:
         fig.add_scatter(x=ey, y=ez, mode="markers", marker=eng_marker,
                         text=labels, hoverinfo="text", showlegend=False, row=1, col=3)
 
-    fig.update_layout(height=360, margin=dict(l=10, r=10, t=30, b=10),
-                      legend=dict(orientation="h", y=1.2, x=0))
+    fig.update_layout(height=360, margin={"l": 10, "r": 10, "t": 30, "b": 10},
+                      legend={"orientation": "h", "y": 1.2, "x": 0})
     return fig
 
 
@@ -703,9 +702,7 @@ with st.form("add_surface_form", clear_on_submit=True):
     _new_name = st.text_input("New surface name", value="",
                               placeholder="e.g. wing, htail, vtail")
     if st.form_submit_button("Add surface") and _new_name:
-        _surfaces = list(_geometry.surfaces) + [
-            SurfaceInput(name=_new_name, leading_edge=[], trailing_edge=[])
-        ]
+        _surfaces = [*list(_geometry.surfaces), SurfaceInput(name=_new_name, leading_edge=[], trailing_edge=[])]
         _set_geometry(project, surfaces=_surfaces)
         st.rerun()
 
@@ -939,7 +936,7 @@ with right:
                 if (item.x, item.y, item.z) == (0.0, 0.0, 0.0):
                     match = match_component_station(item.name, stations)
                     if match is not None:
-                        item = replace(item, x=match[0], y=match[1], z=match[2])
+                        item = replace(item, x=match[0], y=match[1], z=match[2])  # noqa: PLW2901  -- the seeded copy replaces the row
                         seeded += 1
                 new_items.append(item)
             project.weight = WeightInput(

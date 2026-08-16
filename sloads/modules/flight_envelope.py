@@ -56,24 +56,25 @@ import math
 from dataclasses import dataclass, replace
 from typing import List, Optional
 
+from ..aero_curves import clmax_curve as _clmax_curve
+from ..aero_curves import drag_cd, lift_cl, moment_cm
+from ..cg_cases import flight_cases
+from ..derived_geometry import sync_geometry_derived
 from ..models import (
-    MissingInputError,
     AeroCoeffSet,
     CgCase,
     ConditionResult,
     EnvelopeResult,
     FlightLoadsInput,
     LoadValue,
+    MissingInputError,
     ModuleResult,
     Project,
     TailBalanceLoad,
     VnPoint,
 )
-from ..aero_curves import clmax_curve as _clmax_curve, drag_cd, lift_cl, moment_cm
-from ..cg_cases import flight_cases
-from ..derived_geometry import sync_geometry_derived
 from ..registry import register
-from .structural_speeds import maneuver_load_factors, design_speeds
+from .structural_speeds import design_speeds, maneuver_load_factors
 
 # 23.345 = high-lift devices (the flaps-down envelope, n<=2 at sea level).
 _FAR = "23.333/23.337/23.341/23.345/23.421"
@@ -246,11 +247,13 @@ class _DesignInputs:
 
 def design_inputs(project: Project) -> _DesignInputs:
     """Pull VA/VC/VD/VF, MC/MD and the limit load factors from STRSPEED."""
+    sp = project.speeds
+    if sp is None:  # both callers have already refused; the same refusal for direct callers
+        raise MissingInputError("flight_envelope needs 'speeds' (STRSPEED) for the design speeds")
     vals = {}
-    for cond in design_speeds(project, project.speeds):
+    for cond in design_speeds(project, sp):
         for lv in cond.values:
             vals[lv.key] = lv.value
-    sp = project.speeds
     cat = sp.category.upper()
     n_pos, _, n_neg, _ = maneuver_load_factors(cat, sp.weight_lb, sp.chosen_n, sp.chosen_nneg)
     return _DesignInputs(
@@ -540,10 +543,10 @@ register(MODULE_NAME, run)
 # --------------------------------------------------------------------------- #
 __all__ = [
     "MODULE_NAME",
-    "run",
-    "build_envelope",
-    "design_inputs",
-    "density_ratio",
-    "trim_sweep",
     "TrimCurve",
+    "build_envelope",
+    "density_ratio",
+    "design_inputs",
+    "run",
+    "trim_sweep",
 ]

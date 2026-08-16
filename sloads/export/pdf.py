@@ -139,7 +139,7 @@ def compile_pdf(tex: str, *, engine: Optional[str] = None,
 def _run(command: Sequence[str], cwd: str, timeout: int):
     """Run one command; ``(ok, log)``. Any failure mode becomes a log line."""
     try:
-        proc = subprocess.run(
+        proc = subprocess.run(  # noqa: PLW1510  -- a non-zero exit is reported in the log, not raised
             list(command), cwd=cwd, timeout=timeout,
             stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
@@ -164,6 +164,6 @@ __all__ = [
     "ENGINE_ENV_VAR",
     "ENGINE_PREFERENCE",
     "CompileResult",
-    "find_engine",
     "compile_pdf",
+    "find_engine",
 ]

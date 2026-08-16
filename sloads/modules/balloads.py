@@ -25,14 +25,13 @@ deflection -5.39 deg, CP 6.35% tail MAC), matching SELECT's rational result.
 
 from __future__ import annotations
 
-from typing import Dict, List
+from typing import Any, Dict, List
 
-from ..models import (CgCase, ConditionResult, LoadValue, MissingInputError, ModuleResult,
-                      Project, VnPoint)
 from ..cg_cases import flight_cases
 from ..derived_geometry import sync_geometry_derived
+from ..models import CgCase, ConditionResult, LoadValue, MissingInputError, ModuleResult, Project, VnPoint
 from ..registry import register
-from .select import elevator_load, default_envelope, flaps_by_config_name, htail_balance
+from .select import default_envelope, elevator_load, flaps_by_config_name, htail_balance
 
 MODULE_NAME = "balloads"
 
@@ -45,7 +44,7 @@ def _rational_station(cp_pct: float, xt25: float, xt50: float) -> float:
     return xt25 + (cp_pct - 25.0) * (xt50 - xt25) / 25.0
 
 
-def verify_balancing(project: Project) -> List[Dict[str, float]]:
+def verify_balancing(project: Project) -> List[Dict[str, Any]]:
     """Rationally recompute the balancing tail load for every flaps-retracted V-n
     point and pair it with FLTLOADS' approximate CP station.
 
@@ -63,7 +62,7 @@ def verify_balancing(project: Project) -> List[Dict[str, float]]:
     cg_map: Dict[str, CgCase] = {c.name: c for c in flight_cases(project)}
     flaps: Dict[str, bool] = flaps_by_config_name(project)
 
-    rows: List[Dict[str, float]] = []
+    rows: List[Dict[str, Any]] = []
     for p in default_envelope(project).vn:
         if flaps.get(p.config, False):
             continue
@@ -82,7 +81,7 @@ def verify_balancing(project: Project) -> List[Dict[str, float]]:
     return rows
 
 
-def _condition(row: Dict[str, float], note: str) -> ConditionResult:
+def _condition(row: Dict[str, Any], note: str) -> ConditionResult:
     p: VnPoint = row["point"]
     return ConditionResult(
         title=f"Balanced tail load {p.condition} (case {p.case}, {p.cg}, {p.altitude_ft:.0f} ft)",

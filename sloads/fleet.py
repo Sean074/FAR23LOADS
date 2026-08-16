@@ -194,8 +194,8 @@ def percentile(population: Sequence[float], pct: float) -> Optional[float]:
     if len(pop) == 1:
         return float(pop[0])
     rank = (pct / 100.0) * (len(pop) - 1)
-    lo = int(math.floor(rank))
-    hi = int(math.ceil(rank))
+    lo = math.floor(rank)
+    hi = math.ceil(rank)
     if lo == hi:
         return float(pop[lo])
     frac = rank - lo

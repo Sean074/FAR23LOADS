@@ -32,7 +32,7 @@ Pure: no I/O, no Streamlit. See ``docs/30_future/05_step_g8_summary_report_plan.
 
 from __future__ import annotations
 
-from typing import List, Optional
+from typing import Dict, List, Optional
 
 from ..applicability import far23_applicability
 from ..constants import ULTIMATE_FACTOR
@@ -176,7 +176,7 @@ def _ult_markers(system: UnitSystem) -> str:
     Both channels contribute: in SI the solver deck adds ``Nmm-ULT``/``MPa-ULT``
     to the human channel's ``Nm-ULT``/``kPa-ULT``.
     """
-    seen = {}  # ordered set
+    seen: Dict[str, None] = {}  # ordered set
     for channel in (Channel.HUMAN, Channel.SOLVER):
         u = deliverable_units(system, channel)
         for dim in (u.force, u.torque, u.moment, u.pressure):

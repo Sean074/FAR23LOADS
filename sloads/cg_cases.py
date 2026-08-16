@@ -41,13 +41,13 @@ from .models import (
 
 __all__ = [
     "cases_for",
+    "database_total",
     "flight_cases",
     "ground_cases",
     "landing_role_cases",
     "max_landing_weight",
-    "max_takeoff_weight",
     "max_landing_weight_estimate",
-    "database_total",
+    "max_takeoff_weight",
     "seed_landing_cases",
 ]
 
@@ -218,9 +218,10 @@ def max_landing_weight_estimate(project: Project) -> Optional[float]:
         return None
     total = 0.0
     for it in w.items:
-        if it.kind == MassItemKind.DISCRETIONARY:
-            if it.consumable or it.name.strip().lower().startswith("ballast"):
-                continue
+        if it.kind == MassItemKind.DISCRETIONARY and (
+            it.consumable or it.name.strip().lower().startswith("ballast")
+        ):
+            continue
         total += it.weight_lb
     return total
 
@@ -257,6 +258,7 @@ def seed_landing_cases(project: Project) -> Tuple[List[CgCase], List[str]]:
     if not w_light:
         missing.append("the WTENV forward-regardless weight (Weight / CG Envelope tab)")
     limits = wtenv_cg_limits(project)
+    aft_limit = limits[1] if limits is not None else None
     if limits is None:
         missing.append("the WTENV CG envelope (Weight / CG Envelope tab)")
     zbar = (project.mass.cases[0].cg_z
@@ -266,7 +268,7 @@ def seed_landing_cases(project: Project) -> Tuple[List[CgCase], List[str]]:
     if missing:
         return [], missing
     seeds = (
-        (GroundCaseRole.AFT_MAX_LANDING, "aft max landing", w_land, limits[1]),
+        (GroundCaseRole.AFT_MAX_LANDING, "aft max landing", w_land, aft_limit),
         (GroundCaseRole.FWD_MAX_LANDING, "fwd max landing", w_land,
          wtenv_fwd_cg_limit_at_weight(project, w_land)),
         (GroundCaseRole.FWD_LIGHT, "fwd light", w_light,
@@ -276,4 +278,4 @@ def seed_landing_cases(project: Project) -> Tuple[List[CgCase], List[str]]:
         return [], ["a forward CG limit at one of the seeded weights"]
     return [CgCase(name=name, weight_lb=w, xcg=x, zcg=zbar,
                    analyses={AnalysisKind.GROUND}, role=role)
-            for role, name, w, x in seeds], []
+            for role, name, w, x in seeds if x is not None], []

@@ -386,6 +386,17 @@ while implementing M4-20 step 6; pairs with **L-8a** (parked).
 
 ---
 
+### [M] mypy strictness ratchet — stage 2 `export/`, stage 3 `modules/` *(new 2026-08-16, design note 27 ST-3)*
+Stage 1 (`disallow_untyped_defs`/`disallow_incomplete_defs`/`check_untyped_defs`
+on the SSOT owners) shipped with the note. Stage 2 adds `sloads.export.*` to the
+`[[tool.mypy.overrides]]` list and fixes what it finds; stage 3 adds
+`sloads.modules.*`; then `warn_return_any`/`disallow_any_generics` package by
+package toward `--strict`. Each stage is one config-list edit plus its narrowing
+fixes under ST-4 (no `ignore`, no `Any` widening, no `cast`), tier S, digest and
+oracles unchanged. Turn `UP` on in ruff when the 3.9 leg leaves the CI matrix.
+
+---
+
 ## Open defects (index)
 
 - **Review 2026-08-10 unscheduled findings [Minor/NIT].** The 0.5.0 review's

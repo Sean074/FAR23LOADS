@@ -72,7 +72,7 @@ def test_25_361_a3ii_uses_supplied_accel_torque():
     inp = replace(turboprop(), max_accel_torque=2500.0)
     r = calc.condition_25_361_a3ii(inp)
     assert math.isclose(value_of(r, "mx_mount_torque"), -2500.0, rel_tol=TOL)
-    assert r.note is None
+    assert not r.note  # ConditionResult.note is str; "" means no note
 
 
 def test_25_371_uses_a2_load_factor_not_fixed_25g():

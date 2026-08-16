@@ -59,17 +59,17 @@ from __future__ import annotations
 from typing import Dict, List, Optional, Sequence, Tuple
 
 from ..constants import CARRY_THROUGH_NODES
+from ..derived_geometry import CarryThrough, carry_through, sync_geometry_derived
+from ..mass_distribution import fuselage_beam_stations
 from ..models import (
-    MissingInputError,
     BodyLoadResult,
     BodyStationLoad,
     CriticalCondition,
+    MissingInputError,
     ModuleResult,
     Project,
     VnPoint,
 )
-from ..derived_geometry import CarryThrough, carry_through, sync_geometry_derived
-from ..mass_distribution import fuselage_beam_stations
 from ..registry import register
 from .select import _stamp_case_refs, default_envelope, select_fuselage
 
@@ -256,7 +256,7 @@ def build_body_loads(project: Project) -> List[BodyLoadResult]:
 
     results: List[BodyLoadResult] = []
     for cond in _critical_fuselage(project):
-        p = vn.get(cond.case)
+        p = vn.get(cond.case) if cond.case is not None else None
         if p is None:
             continue
         rows, info = body_distribution(stations, p.nz, p.lt, tail_x, wing_x, carry)

@@ -5,6 +5,7 @@ Importing this package imports each module so it registers itself with
 the mass-properties modules (weight estimation and one-condition CG/inertia).
 """
 
+# ruff: noqa: I001  -- one line per module: each import is a side effect (self-registration), kept explicit
 from . import aileron  # noqa: F401  (import for side effect: self-registration)
 from . import airloads  # noqa: F401
 from . import balloads  # noqa: F401

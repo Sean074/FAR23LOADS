@@ -29,16 +29,6 @@ outside, in :mod:`sloads.export.pdf`, and nothing here imports it.
 
 from __future__ import annotations
 
-from .coverage import (
-    COVERED,
-    FAR23_SUBPART_C,
-    NOT_ANALYSED,
-    NOT_APPLICABLE,
-    OUT_OF_SCOPE,
-    CoverageRow,
-    coverage_matrix,
-    coverage_summary,
-)
 from .content import (
     ComponentLoads,
     Figure,
@@ -49,6 +39,16 @@ from .content import (
     Table,
     build_report,
     component_loads,
+)
+from .coverage import (
+    COVERED,
+    FAR23_SUBPART_C,
+    NOT_ANALYSED,
+    NOT_APPLICABLE,
+    OUT_OF_SCOPE,
+    CoverageRow,
+    coverage_matrix,
+    coverage_summary,
 )
 from .latex import render_document, render_report
 from .methods import (
@@ -71,40 +71,40 @@ from .render import (
 )
 
 __all__ = [
+    "COVERED",
+    "FAR23_SUBPART_C",
+    "NOT_ANALYSED",
+    "NOT_APPLICABLE",
+    "OUT_OF_SCOPE",
+    "ComponentLoads",
+    "CoverageRow",
+    "Figure",
+    "PlotData",
+    "ReportDocument",
+    "Section",
+    "Series",
+    "Table",
+    "bdf_comment_block",
+    # --- G8.4-G8.5: the summary report document ----------------------------- #
+    "build_report",
+    "component_loads",
+    # --- G8.4: FAR 23 Subpart C coverage ----------------------------------- #
+    "coverage_matrix",
+    "coverage_summary",
+    "csv_comment_block",
     "envelope_extremes",
     "format_value",
     "governing_loads_table",
     "has_load_case_data",
     "load_cases_to_rows",
+    # --- G8.3: the methods & limitations statement ------------------------- #
+    "methods_statement",
     "module_text_report",
+    "render_document",
+    "render_report",
     "results_to_rows",
+    "strip_comment_lines",
     "text_report",
     "to_ultimate",
     "ultimate_units",
-    # --- G8.3: the methods & limitations statement ------------------------- #
-    "methods_statement",
-    "csv_comment_block",
-    "bdf_comment_block",
-    "strip_comment_lines",
-    # --- G8.4: FAR 23 Subpart C coverage ----------------------------------- #
-    "coverage_matrix",
-    "coverage_summary",
-    "CoverageRow",
-    "FAR23_SUBPART_C",
-    "COVERED",
-    "NOT_APPLICABLE",
-    "NOT_ANALYSED",
-    "OUT_OF_SCOPE",
-    # --- G8.4-G8.5: the summary report document ----------------------------- #
-    "build_report",
-    "component_loads",
-    "render_document",
-    "render_report",
-    "ReportDocument",
-    "Section",
-    "Table",
-    "Figure",
-    "PlotData",
-    "Series",
-    "ComponentLoads",
 ]

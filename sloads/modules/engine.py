@@ -12,11 +12,10 @@ RPM and stoppage torque.
 from __future__ import annotations
 
 import itertools
-from typing import List
+from typing import List, Optional, Tuple
 
 from ..case_ids import CaseIdAllocator
 from ..constants import (
-    G,
     GYRO_VERTICAL_LOAD_FACTOR,
     HP_TO_TORQUE,
     PITCH_RATE,
@@ -26,22 +25,22 @@ from ..constants import (
     TWO_PI,
     VSF,
     YAW_RATE,
+    G,
     reciprocating_torque_factor,
 )
 from ..load_keys import gyro_key
 from ..models import (
-    MissingInputError,
     CaseRef,
     ConditionResult,
     EngineInput,
     LoadValue,
+    MissingInputError,
     ModuleResult,
     Project,
     Rotor,
     Vec3,
 )
 from ..registry import register
-
 
 # --------------------------------------------------------------------------- #
 # Derived / shared quantities
@@ -70,6 +69,18 @@ def combined_cg(inp: EngineInput) -> Vec3:
     return (out[0], out[1], out[2])
 
 
+def _required(value: Optional[float], name: str) -> float:
+    """An ``EngineInput`` field this condition needs, present -- else the error
+    contract's ``ValueError`` (present-but-invalid input) instead of a ``TypeError``
+    at the arithmetic. Which fields a condition needs follows the engine type
+    (hp/cylinders for reciprocating, torques for turboprop); ``run`` selects the
+    conditions per type, so on a well-formed input this never fires.
+    """
+    if value is None:
+        raise ValueError(f"EngineInput.{name} is required for this condition")
+    return value
+
+
 def torque_from_hp(hp: float, rpm: float) -> float:
     """Engine torque (ft-lb) from horsepower and RPM: HP*33000/(2*pi*RPM)."""
     return hp * HP_TO_TORQUE / (TWO_PI * rpm)
@@ -77,18 +88,20 @@ def torque_from_hp(hp: float, rpm: float) -> float:
 
 def takeoff_torque(inp: EngineInput) -> float:
     """TOTORQ for reciprocating engines."""
-    return torque_from_hp(inp.takeoff_hp, inp.takeoff_rpm)
+    return torque_from_hp(_required(inp.takeoff_hp, "takeoff_hp"), inp.takeoff_rpm)
 
 
 def max_cont_torque(inp: EngineInput) -> float:
     """CONTTORQ for reciprocating engines."""
-    return torque_from_hp(inp.max_cont_hp, inp.max_cont_rpm)
+    return torque_from_hp(_required(inp.max_cont_hp, "max_cont_hp"), inp.max_cont_rpm)
 
 
 def torque_factor(inp: EngineInput) -> float:
     """Torque multiplication factor used in 23.361(a)(2)."""
     if inp.is_turboprop:
         return TURBOPROP_TORQUE_FACTOR
+    if inp.cylinders is None:
+        raise ValueError("EngineInput.cylinders is required for a reciprocating engine")
     return reciprocating_torque_factor(inp.cylinders)
 
 
@@ -149,7 +162,8 @@ def condition_361_a1(inp: EngineInput) -> ConditionResult:
     n75 = 0.75 * inp.limit_load_factor
     vload = n75 * ppwt
     factor = torque_factor(inp)
-    base_torque = inp.max_engine_torque if inp.is_turboprop else takeoff_torque(inp)
+    base_torque = (_required(inp.max_engine_torque, "max_engine_torque") if inp.is_turboprop
+                   else takeoff_torque(inp))
     torque = factor * base_torque
     return ConditionResult(
         title="Limit takeoff torque (factor x mean) with 75% limit maneuver vertical load factor",
@@ -179,7 +193,8 @@ def condition_361_a2(inp: EngineInput) -> ConditionResult:
     n100 = inp.limit_load_factor
     vload = n100 * ppwt
     factor = torque_factor(inp)
-    base_torque = inp.cruise_torque if inp.is_turboprop else max_cont_torque(inp)
+    base_torque = (_required(inp.cruise_torque, "cruise_torque") if inp.is_turboprop
+                   else max_cont_torque(inp))
     torque = factor * base_torque
     return ConditionResult(
         title="Factor times max continuous torque with 100% limit maneuver vertical load factor",
@@ -238,7 +253,7 @@ def condition_361_a3(inp: EngineInput) -> ConditionResult:
     ppwt = combined_weight(inp)
     cg = combined_cg(inp)
     factor = torque_factor(inp)  # 1.25 turbopropeller (23.361(c))
-    base_torque = inp.max_engine_torque  # mean takeoff torque
+    base_torque = _required(inp.max_engine_torque, "max_engine_torque")  # mean takeoff torque
     torque = TURBOPROP_MALFUNCTION_FACTOR * factor * base_torque
     vload = 1.0 * ppwt
     return ConditionResult(
@@ -268,7 +283,7 @@ def condition_361_b1(inp: EngineInput) -> ConditionResult:
     """FAR 23.361(b)(1): torque from sudden engine stoppage (turboprop only)."""
     iprop = _prop_inertia(inp)
     omega_prop = _omega(inp.takeoff_rpm)
-    dt = inp.stop_time_s
+    dt = _required(inp.stop_time_s, "stop_time_s")
     torq_prop = iprop * (omega_prop / dt)
 
     torq_rotors = 0.0
@@ -312,7 +327,7 @@ def condition_371_b(inp: EngineInput) -> ConditionResult:
 
     m_yaw = YAW_RATE * tpitch     # Myy due to 2.5 rad/s yaw
     m_pitch = PITCH_RATE * tpitch  # Mzz due to 1 rad/s pitch
-    thrust = inp.max_engine_torque * omega_prop / VSF
+    thrust = _required(inp.max_engine_torque, "max_engine_torque") * omega_prop / VSF
     vload = GYRO_VERTICAL_LOAD_FACTOR * combined_weight(inp)
 
     # Component magnitudes (the four loads to be combined).
@@ -380,7 +395,7 @@ def condition_371_b(inp: EngineInput) -> ConditionResult:
 # Appendix B turboprop case count and gyro vertical, breaking oracle-lock.
 
 
-def _stoppage_torque(inp: EngineInput):
+def _stoppage_torque(inp: EngineInput) -> Tuple[float, List[LoadValue]]:
     """Total sudden-stoppage reaction torque (ft-lb) + per-rotor inertia detail.
 
     The prop + rotor angular momentum shed over ``stop_time_s``. Shared by the
@@ -388,7 +403,7 @@ def _stoppage_torque(inp: EngineInput):
     its oracle output stays byte-identical.
     """
     iprop = _prop_inertia(inp)
-    dt = inp.stop_time_s
+    dt = _required(inp.stop_time_s, "stop_time_s")
     torq = iprop * (_omega(inp.takeoff_rpm) / dt)
     detail = [LoadValue("Ixx propeller", iprop, "slug-ft^2", key="ixx_propeller")]
     for i, rotor in enumerate(inp.rotors, start=1):
@@ -434,8 +449,9 @@ def condition_25_361_a3ii(inp: EngineInput) -> ConditionResult:
     ppwt = combined_weight(inp)
     cg = combined_cg(inp)
     defaulted = inp.max_accel_torque is None
-    accel_torque = inp.max_engine_torque if defaulted else inp.max_accel_torque
-    note = None
+    accel_torque = (_required(inp.max_engine_torque, "max_engine_torque") if inp.max_accel_torque is None
+                    else inp.max_accel_torque)
+    note = ""
     if defaulted:
         note = "Max accelerating torque defaulted to max engine torque (no separate value supplied)."
     return ConditionResult(
@@ -478,7 +494,7 @@ def condition_25_371(inp: EngineInput) -> ConditionResult:
     # under-prediction guard below; they do not change m_yaw/m_pitch.
     m_yaw = YAW_RATE * tpitch
     m_pitch = PITCH_RATE * tpitch
-    thrust = inp.max_engine_torque * omega_prop / VSF
+    thrust = _required(inp.max_engine_torque, "max_engine_torque") * omega_prop / VSF
     vload = inp.limit_load_factor * combined_weight(inp)
 
     values = [
@@ -621,7 +637,7 @@ def run(project: Project) -> ModuleResult:
             cond.case_ref = ref
             if not single:
                 tag = eng.engine_designation or f"engine {i}"
-                cond = ConditionResult(
+                cond = ConditionResult(  # noqa: PLW2901  -- the tagged copy replaces the per-engine result
                     title=f"[{tag}] {cond.title}",
                     far_reference=cond.far_reference,
                     values=cond.values,

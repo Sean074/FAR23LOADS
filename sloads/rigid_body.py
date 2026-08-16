@@ -70,11 +70,11 @@ __all__ = [
     "InertiaTensor",
     "PointMass",
     "SelfInertia",
+    "SingularInertiaError",
     "inertia_tensor",
+    "radians_per_s2",
     "relief_force",
     "relief_moment",
-    "radians_per_s2",
-    "SingularInertiaError",
 ]
 
 
@@ -181,8 +181,10 @@ class InertiaTensor:
         its moment is the same about every point. That is what lets the gate
         compare it with a moment LANDLOAD states about the CG.
         """
-        return tuple(sum(row[j] * omega_dot[j] for j in range(3))
-                     for row in self.matrix())
+        rows = self.matrix()
+        return (sum(rows[0][j] * omega_dot[j] for j in range(3)),
+                sum(rows[1][j] * omega_dot[j] for j in range(3)),
+                sum(rows[2][j] * omega_dot[j] for j in range(3)))
 
 
 def _solve3(a: Sequence[Sequence[float]], b: Vec3) -> Vec3:
@@ -193,7 +195,7 @@ def _solve3(a: Sequence[Sequence[float]], b: Vec3) -> Vec3:
     inputs', not the algorithm's: the closure residuals it produces come out at
     1e-16 of ``n*W``.
     """
-    m = [list(row) + [rhs] for row, rhs in zip(a, b)]
+    m = [[*list(row), rhs] for row, rhs in zip(a, b)]
     scale = max(abs(v) for row in a for v in row) or 1.0
     for col in range(3):
         piv = max(range(col, 3), key=lambda r: abs(m[r][col]))

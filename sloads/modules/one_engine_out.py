@@ -43,20 +43,20 @@ import math
 from dataclasses import dataclass
 from typing import List, NamedTuple, Optional, Tuple
 
+from ..case_ids import VTAIL_BAND_ONENGOUT, CaseIdAllocator
 from ..constants import (
     KT_TO_FPS_SUITE,
     LBIN2_PER_SLUGFT2,
     ULTIMATE_FACTOR,
     standard_atmosphere,
 )
-from ..case_ids import CaseIdAllocator, VTAIL_BAND_ONENGOUT
 from ..models import (
-    MissingInputError,
     CaseRef,
     ConditionResult,
     EngineInput,
     LoadValue,
     MassCase,
+    MissingInputError,
     ModuleResult,
     OneEngineOutInput,
     Project,
@@ -420,7 +420,10 @@ def time_history(project: Project, speed_label: str) -> List[HistoryRow]:
 
     ``speed_label`` matches a :class:`ConditionResult` title produced by :func:`run`
     (e.g. ``"VC (ultimate)"``)."""
-    for lc in _load_cases(project, project.one_engine_out):
+    oeo = project.one_engine_out
+    if oeo is None:
+        raise MissingInputError("one_engine_out needs the 'one_engine_out' input slice")
+    for lc in _load_cases(project, oeo):
         if lc.label == speed_label:
             rows, _ = simulate(_case_inputs(project, lc.v_hi_kt))
             return rows

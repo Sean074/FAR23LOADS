@@ -11,7 +11,6 @@ from __future__ import annotations
 
 import pandas as pd
 import streamlit as st
-
 from components import active_system, gate
 
 from sloads import (
@@ -27,7 +26,6 @@ from sloads import (
 )
 from sloads.export import sbeam_bridge as sb
 from sloads.modules.tab import build_tabs, run
-
 
 st.title("Control-Surface Tab Loads — TABLOADS")
 st.caption(

@@ -12,7 +12,6 @@ from __future__ import annotations
 
 import pandas as pd
 import streamlit as st
-
 from components import active_system, gate
 
 from sloads import (
@@ -27,7 +26,6 @@ from sloads import (
 )
 from sloads.export import sbeam_bridge as sb
 from sloads.modules.flap import build_flap, run
-
 
 st.title("Flap Loads — FLAPLOAD")
 st.caption(

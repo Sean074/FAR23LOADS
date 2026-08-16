@@ -243,7 +243,7 @@ def resultant(forces, moments, grids, sid: int, ref: Vec3) -> Resultant:
     f_abs = [0.0, 0.0, 0.0]
     m_abs = [0.0, 0.0, 0.0]
 
-    for gid, scale, (n1, n2, n3) in moments.get(sid, ()):
+    for _gid, scale, (n1, n2, n3) in moments.get(sid, ()):
         vx, vy, vz = scale * n1, scale * n2, scale * n3
         m0x += vx
         m0y += vy
@@ -290,7 +290,7 @@ def resultant(forces, moments, grids, sid: int, ref: Vec3) -> Resultant:
 # was written from. Both pickers have the ``ref_for`` signature
 # :func:`deck_resultants` calls: ``(sid, grids, force_cards) -> point``.
 
-def ref_first_loaded(sid, grids, cards) -> Vec3:
+def ref_first_loaded(sid, grids, cards) -> Vec3:  # noqa: ARG001  -- reference-point callback protocol
     """The first loaded node of the set -- the wing root station, the tail's
     leading-edge chord station."""
     if not cards:
@@ -298,7 +298,7 @@ def ref_first_loaded(sid, grids, cards) -> Vec3:
     return grids[cards[0][0]]
 
 
-def ref_aftmost_loaded(sid, grids, cards) -> Vec3:
+def ref_aftmost_loaded(sid, grids, cards) -> Vec3:  # noqa: ARG001  -- reference-point callback protocol
     """The aft-most (largest ``x``) loaded node -- the fuselage beam's tail end,
     the point its terminal cumulative ``Myy`` is stated about."""
     if not cards:

@@ -75,12 +75,12 @@ surface is absent fails too.
 from __future__ import annotations
 
 import argparse
+import contextlib
 import sys
 
 from sloads import MissingInputError, io, registry
 from sloads.report import module_text_report, text_report
 from sloads.units import UnitSystem, convert_results, unit_system_from
-
 
 #: Every headless export target, in the order the module docstring lists them.
 #: This tuple is the deliverable menu -- review F-D1 was that the menu and the
@@ -120,8 +120,8 @@ def _stamps(project, system: UnitSystem, generated: str = ""):
     """
     from sloads.report.methods import bdf_comment_block, csv_comment_block
 
-    kwargs = dict(tool_version=_tool_version(), scope="full case set",
-                  system=system, generated=generated or None)
+    kwargs = {"tool_version": _tool_version(), "scope": "full case set",
+                  "system": system, "generated": generated or None}
     return csv_comment_block(project, **kwargs), bdf_comment_block(project, **kwargs)
 
 
@@ -237,10 +237,8 @@ def _export_sbeam(project, prefix: str, target: str, stick_model: bool,
         # mistyped aileron area indistinguishable from an unfitted aileron.
         results = []
         for build in (build_aileron, build_flap, build_tabs):
-            try:
+            with contextlib.suppress(MissingInputError):
                 results.extend(build(project))
-            except MissingInputError:
-                pass
         if not results:
             raise MissingInputError(
                 "no control-surface loads: this project has no aileron, flap or "

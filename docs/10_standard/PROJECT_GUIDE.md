@@ -533,7 +533,8 @@ pip install -e '.[dev]'          # editable install + dev tools (pytest, ruff)
 streamlit run app/Home.py        # the multi-page UI
 python cli.py engine examples/ga6_normal.project.json -o engine_loads.csv
 pytest                           # the green-build gate
-ruff check sloads/ cli.py app/ # lint
+ruff check sloads/ cli.py app/ scripts/ # lint
+mypy                             # type check (sloads/)
 ```
 
 See [`PROGRAM_SPEC.md`](PROGRAM_SPEC.md) for the per-module specification.

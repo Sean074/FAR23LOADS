@@ -292,7 +292,7 @@ class Units:
     def label(self, dim: str) -> str:
         """The plain unit label for ``dim`` (``"in"``/``"mm"``, ``"lb"``/``"kg"``...)."""
         if dim in _EXTRA_DIMENSIONS:
-            factor, imperial, si = _EXTRA_DIMENSIONS[dim]
+            _, imperial, si = _EXTRA_DIMENSIONS[dim]
             return imperial if self.system == UnitSystem.IMPERIAL else si
         return getattr(self.d, dim).label
 
@@ -367,7 +367,6 @@ def component_loads(project: Project) -> ComponentLoads:
     from ..modules.select import build_critical
     from ..modules.tab import build_tabs
     from ..modules.taildist import build_tail_chordwise
-
     from ..safety_factors import stamp
 
     critical = _try(build_critical, project)
@@ -414,7 +413,6 @@ class BalancedRun:
 def balanced_run(project: Project) -> BalancedRun:
     """Assemble the balanced free-free cases, defensively (see :class:`BalancedRun`)."""
     from ..modules.balance import build_balanced_cases
-
     from ..safety_factors import stamp
 
     skipped: List[Any] = []
@@ -756,8 +754,7 @@ def _section_conventions() -> Section:
     the conventions are identical in every report, so the section can never be
     absent (§3.4 has nothing to say about it).
     """
-    from .conventions_tex import (CONVENTION_ROWS, CONVENTION_TABLE_NOTE,
-                                  CONVENTIONS_PROSE)
+    from .conventions_tex import CONVENTION_ROWS, CONVENTION_TABLE_NOTE, CONVENTIONS_PROSE
 
     return Section(
         section_heading("conventions"),
@@ -2244,19 +2241,19 @@ def build_report(
 
 
 __all__ = [
-    "BASIS_STATEMENT",
     "AVIATION_UNITS_NOTE",
-    "Table",
-    "Series",
-    "PlotData",
-    "Figure",
-    "Section",
-    "ReportDocument",
-    "Units",
-    "ComponentLoads",
-    "component_loads",
+    "BASIS_STATEMENT",
     "BalancedRun",
+    "ComponentLoads",
+    "Figure",
+    "PlotData",
+    "ReportDocument",
+    "Section",
+    "Series",
+    "Table",
+    "Units",
     "balanced_run",
-    "mass_case_data",
     "build_report",
+    "component_loads",
+    "mass_case_data",
 ]

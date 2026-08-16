@@ -80,24 +80,33 @@ import textwrap
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Sequence, Tuple
 
-from ..derived_geometry import (carry_through,
-                                fuselage_centreline, sob_station)
+from ..derived_geometry import carry_through, fuselage_centreline, sob_station
 from ..models import BalancedCaseResult, BalancedLoad, Project
 from ..models.enums import GearCarrier
 from ..modules.balance import build_balanced_cases
 from ..modules.net_loads import build_net_loads, loads_ref_axis_results
-from ..modules.tail_span import (ATTACH_STRIP_PAIR, build_tail_span,
-                                 htail_attachment)
+from ..modules.tail_span import ATTACH_STRIP_PAIR, build_tail_span, htail_attachment
 from ..tail_geometry import HTAIL, VTAIL, resolve_tail_planform
 from ..units import Channel, DeliverableUnits, UnitSystem, deliverable_units
 from .balanced_deck import case_sids
 from .bands import band
-from .coordinates import (SBEAM_CID, tail_station_to_airplane, to_force,
-                          to_grid, to_moment, to_pressure, transfer_couple)
+from .coordinates import SBEAM_CID, tail_station_to_airplane, to_force, to_grid, to_moment, to_pressure, transfer_couple
 from .roundtrip import _orientation
-from .sbeam_bridge import (_MAT1_E, _MAT1_NU, _PBAR_A, _PBAR_I, _PBAR_J,
-                           _comment, _fmt, _sf_str, _stamped, sob_gid,
-                           tail_control_gid, tail_span_gid, wing_nodal_loads)
+from .sbeam_bridge import (
+    _MAT1_E,
+    _MAT1_NU,
+    _PBAR_A,
+    _PBAR_I,
+    _PBAR_J,
+    _comment,
+    _fmt,
+    _sf_str,
+    _stamped,
+    sob_gid,
+    tail_control_gid,
+    tail_span_gid,
+    wing_nodal_loads,
+)
 
 Vec3 = Tuple[float, float, float]
 
@@ -294,8 +303,8 @@ def build_lra_model(project: Project) -> LraModel:
     fin_chain: List[LraNode] = []
     fin_tip: Optional[LraNode] = None
     vt = spans.get(VTAIL) or []
-    if vt:
-        planform_v = resolve_tail_planform(project, VTAIL)
+    planform_v = resolve_tail_planform(project, VTAIL) if vt else None
+    if vt and planform_v is not None:  # spans exist only where the planform resolved
         stations = [LraNode(tail_span_gid(VTAIL, i),
                             tail_station_to_airplane(st.x, st.y, VTAIL, st.z))
                     for i, st in enumerate(vt[0].stations)]
@@ -303,7 +312,7 @@ def build_lra_model(project: Project) -> LraModel:
         line = [(n.pos[2], n.pos) for n in stations]
         root = LraNode(_ATTACH_BAND.allocate(0), _interp_chain(line, root_z),
                        "lra-fin-root", "C")
-        fin_chain = [root] + sorted(stations, key=lambda n: n.pos[2])
+        fin_chain = [root, *sorted(stations, key=lambda n: n.pos[2])]
         fin_tip = fin_chain[-1]
         pending_body_ties.append((root.pos[0], [root.gid],
                                   "fin root -> fuselage (R-5)"))
@@ -312,8 +321,8 @@ def build_lra_model(project: Project) -> LraModel:
     htail_chain: List[LraNode] = []
     ht = spans.get(HTAIL) or []
     attach_x: Optional[float] = None
-    if ht:
-        planform_h = resolve_tail_planform(project, HTAIL)
+    planform_h = resolve_tail_planform(project, HTAIL) if ht else None
+    if ht and planform_h is not None:  # spans exist only where the planform resolved
         att = htail_attachment(project, planform_h)
         if att.basis == ATTACH_STRIP_PAIR:
             raise LraRefusal(
@@ -371,7 +380,7 @@ def build_lra_model(project: Project) -> LraModel:
                            family, side)
             control_nodes.append(node)
             span_key = node.pos[1] if comp == HTAIL else node.pos[2]
-            chain, parent = _insert_on_chain(
+            chain, parent = _insert_on_chain(  # noqa: PLW2901  -- the chain grows by the inserted node
                 chain, key_fn, span_key,
                 _ATTACH_BAND.allocate(3 + len(control_nodes)), "", "")
             model.rbe2s.append((parent.gid, "123456", [node.gid],
@@ -430,8 +439,8 @@ def build_lra_model(project: Project) -> LraModel:
     # ---------------------------------------------------------------- engines
     engine_nodes: List[LraNode] = []
     for i, eng in enumerate(project.engines or []):
-        mount_pos = tuple(eng.engine_cg)
-        hub_pos = tuple(eng.prop_cg)
+        mount_pos: Tuple[float, float, float] = (eng.engine_cg[0], eng.engine_cg[1], eng.engine_cg[2])
+        hub_pos: Tuple[float, float, float] = (eng.prop_cg[0], eng.prop_cg[1], eng.prop_cg[2])
         if not any(mount_pos) and not any(hub_pos):
             continue
         if not any(hub_pos):
@@ -475,7 +484,10 @@ def build_lra_model(project: Project) -> LraModel:
         if ct.x_f + _COINCIDENT_TOL < x < ct.x_r - _COINCIDENT_TOL:
             continue          # inside the carry-through: ties to the nearer post
         inserts.setdefault(x, "")
-    xs = sorted({round(s.x, 6) for s in geom.fuselage.sections}
+    outline = geom.fuselage
+    if outline is None:  # fuselage_centreline() above has already refused in this case
+        raise LraRefusal("no fuselage outline -- the fuselage LRA needs its sections")
+    xs = sorted({round(s.x, 6) for s in outline.sections}
                 | {round(x, 6) for x in inserts})
     fwd_xs = [x for x in xs if x < ct.x_f - _COINCIDENT_TOL] + [ct.x_f]
     aft_xs = [ct.x_r] + [x for x in xs if x > ct.x_r + _COINCIDENT_TOL]
@@ -737,7 +749,7 @@ def lra_model_bdf(project: Project, *,
         "$ ------------------------------------------------------------ LOADS",
     ]
     for sid, case in zip(sids, cases):
-        bulk += ["$"] + _case_header(case, sid)
+        bulk += ["$", *_case_header(case, sid)]
         sf = case.safety_factor
         loads = transferred_case_loads(case, model)
         for gid in sorted(loads):
@@ -770,10 +782,10 @@ def write_lra_model_bdf(project: Project, path: str, *,
 
 
 __all__ = [
+    "STIFFNESS_NOTE",
     "LraModel",
     "LraNode",
     "LraRefusal",
-    "STIFFNESS_NOTE",
     "build_lra_model",
     "lra_model_bdf",
     "transferred_case_loads",

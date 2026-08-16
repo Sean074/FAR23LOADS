@@ -25,15 +25,14 @@ from dataclasses import replace
 import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
-
 from components import gate, page_header, workflow_page_link
 
 from sloads import (
+    GROUND_CASE_ROLE_ORDER,
     AnalysisKind,
     CgCase,
-    GROUND_CASE_ROLE_ORDER,
-    GroundCaseRole,
     EngineWeightType,
+    GroundCaseRole,
     MassItem,
     MassItemKind,
     MissingInputError,
@@ -44,21 +43,21 @@ from sloads import (
     WeightInput,
     consistency_warnings,
     convert_results,
+    mass_distribution,
     to_display,
     to_imperial_scalar,
 )
-from sloads.models import MassComponent
 from sloads import io as sloads_io
-from sloads.modules.weight_envelope import envelope as compute_envelope, loading_envelope_points
+from sloads.cg_cases import max_landing_weight_estimate, seed_landing_cases
+from sloads.export import mass_cards
+from sloads.models import MassComponent
+from sloads.modules.weight_envelope import envelope as compute_envelope
+from sloads.modules.weight_envelope import loading_envelope_points
 from sloads.modules.weight_estimate import estimate, estimate_to_mass_items
 from sloads.modules.weight_onecg import build_mass, weights_and_inertia
 from sloads.report import module_text_report
 from sloads.report.methods import bdf_comment_block
-from sloads import mass_distribution
-from sloads.export import mass_cards
-from sloads.cg_cases import max_landing_weight_estimate, seed_landing_cases
 from sloads.validation import wtenv_cg_limits
-
 
 project, system, U = page_header("weight_mass", title="Weight & Mass Properties — FAR 23", banner=False)
 st.caption(
@@ -438,7 +437,7 @@ def _tab_cg_inertia(project: Project, system: UnitSystem, U: dict) -> None:
             for x_in, lbl in ((fwd, "fwd limit"), (aft, "aft limit")):
                 fig.add_vline(x=to_display(x_in, "length", system), line_dash="dot",
                               line_color="#7f7f7f", annotation_text=lbl, annotation_position="bottom")
-        fig.update_layout(barmode="overlay", height=380, legend=dict(orientation="h"),
+        fig.update_layout(barmode="overlay", height=380, legend={"orientation": "h"},
                           xaxis_title=f"Fuselage station x ({U['length']})",
                           yaxis_title=f"Item weight ({U['weight']})")
         st.plotly_chart(fig, use_container_width=True)
@@ -734,10 +733,10 @@ def _tab_envelope(project: Project, system: UnitSystem, U: dict) -> None:
             x=[c.xcg for c in project.weight.cg_cases], y=[c.weight_lb for c in project.weight.cg_cases],
             mode="markers+text", name="Loading scenarios",
             text=[c.name for c in project.weight.cg_cases], textposition="top center",
-            marker=dict(size=10, symbol="diamond"),
+            marker={"size": 10, "symbol": "diamond"},
         ))
     fig.update_layout(title="Weight / CG envelope", xaxis_title="Fuselage station (in)",
-                      yaxis_title="Weight (lb)", legend=dict(orientation="h"), height=440)
+                      yaxis_title="Weight (lb)", legend={"orientation": "h"}, height=440)
     st.plotly_chart(fig, use_container_width=True)
     if not project.weight.cg_cases:
         st.caption(

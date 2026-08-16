@@ -33,10 +33,10 @@ from __future__ import annotations
 from typing import List, Optional, Sequence, Tuple
 
 from ..models import (
-    MissingInputError,
     ConditionResult,
     GeometryInput,
     LoadValue,
+    MissingInputError,
     ModuleResult,
     Project,
     SurfaceInput,
@@ -221,9 +221,9 @@ register(MODULE_NAME, run)
 # --------------------------------------------------------------------------- #
 __all__ = [
     "MODULE_NAME",
-    "run",
     "geometry_properties",
+    "interp_x",
+    "run",
     "surface_properties",
     "surface_top_outline",
-    "interp_x",
 ]

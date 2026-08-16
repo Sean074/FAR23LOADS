@@ -269,8 +269,9 @@ Runtime (`pyproject.toml` `[project.dependencies]`): `streamlit>=1.30`,
   against the Appendix A (6-place GA single, p131) and/or Appendix B (10-place
   twin turboprop, p251) figures within **±0.1%** (`rel_tol=1e-3`); exact equality
   only for integer/dimensionless quantities.
-- `ruff check sloads/ cli.py app/` clean and `pytest` passing are the merge gate; CI
-  runs both on Python 3.9 / 3.11 / 3.12.
+- `ruff check sloads/ cli.py app/ scripts/` clean, `mypy` clean and `pytest` passing are the
+  merge gate; CI runs ruff + pytest on Python 3.9 / 3.11 / 3.12 and mypy in its own job.
+  See §Static typing & lint below for what each checks.
 - **Parallel by default (CH-1).** `addopts` in `pyproject.toml` carries
   `-n auto` (`pytest-xdist`), so every `pytest` invocation — local and CI —
   runs across all cores. To debug with `-s`/pdb, disable workers with
@@ -305,6 +306,31 @@ dated statements and are exempt. Guard: `tests/test_doc_currency.py` (both
 halves: literal patterns, and INDEX ↔ tree both ways). Rationale: R6-D1…D8
 and this file's own stale schema line found 2026-08-16 (37 versions behind) —
 prose that copies a value drifts the moment the value moves.
+
+## Static typing & lint (design note 27, 2026-08-16)
+
+**mypy** is a merge gate over `sloads/` (never `app/` or `tests/`), zero errors in
+default mode; `pyproject.toml [tool.mypy]` is the owner. Strictness **ratchets per
+package** through `[[tool.mypy.overrides]]` -- stage 1 (shipped) puts
+`disallow_untyped_defs`/`disallow_incomplete_defs`/`check_untyped_defs` on the
+single-source owners (`models/`, `safety_factors`, `units`, `case_ids`,
+`load_keys`, `constants`, `registry`); later stages add `export/` then `modules/`.
+Rules of engagement: **narrow, never silence** -- no `# type: ignore` except for
+a stub-less third-party import (with the error code and a reason), no widening
+to `Any`, `typing.cast` only with a provable invariant and a one-line reason.
+When the checker flags an `Optional` dereference that is genuinely reachable,
+the fix is the error contract above (`MissingInputError` for an absent slice,
+`ValueError` for present-but-invalid input), never a bare guard that changes a
+number. The checker is the code owner of the "no `None` reaches an attribute"
+convention (rule 3 in `CLAUDE.md`); the CI job is its drift guard.
+
+**ruff** runs `E F W B SIM PLE PLW ARG RUF I C4` (`pyproject.toml [tool.ruff.lint]`
+is the owner, with each ignore explained in place). `UP` (pyupgrade) stays off
+while 3.9 is in the matrix -- its findings are 3.10+ syntax, not defects; `N`
+stays off for the ported single-letter FAR names (`E741`); `PERF` is off as
+performance-only. A `# noqa` carries its rule and a reason (`-- ...`); an
+unused-argument `noqa` marks a *signature contract* (callback protocol, uniform
+tab signature, ported BASIC input list), never a forgotten parameter.
 
 ## Version & phase
 

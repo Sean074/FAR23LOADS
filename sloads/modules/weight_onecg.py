@@ -21,12 +21,12 @@ from typing import List
 
 from ..constants import LBIN2_PER_SLUGFT2
 from ..models import (
-    MissingInputError,
     ConditionResult,
     LoadValue,
     MassCase,
     MassItem,
     MassResult,
+    MissingInputError,
     ModuleResult,
     Project,
 )
@@ -65,10 +65,7 @@ def weights_and_inertia(items: List[MassItem]) -> ConditionResult:
 
     # Principal axes (lines 865-910): rotate in the x-z plane to null the IXZ
     # product of inertia.
-    if izz_s == ixx_s:
-        two_theta = math.pi / 2
-    else:
-        two_theta = math.atan(2 * ixz_s / (izz_s - ixx_s))
+    two_theta = math.pi / 2 if izz_s == ixx_s else math.atan(2 * ixz_s / (izz_s - ixx_s))
     theta = 0.5 * two_theta
     cos_t, sin_t = math.cos(theta), math.sin(theta)
     sin_2t = math.sin(2 * theta)

@@ -200,7 +200,6 @@ from typing import Dict, List, Optional, Sequence, Tuple
 
 from ..case_ids import handed_case_id
 from ..cg_cases import flight_cases, ground_cases, landing_role_cases
-from ..gear_loads import GearCaseLoads, applied_wheels, gear_case_loads
 from ..derived_geometry import body_drag_waterline, sync_geometry_derived
 from ..export.coordinates import (
     reflect_force,
@@ -211,6 +210,7 @@ from ..export.coordinates import (
     tail_station_to_airplane,
     tail_torsion_to_airplane,
 )
+from ..gear_loads import GearCaseLoads, applied_wheels, gear_case_loads
 from ..mass_distribution import (
     CaseLoading,
     MassComponent,
@@ -219,15 +219,20 @@ from ..mass_distribution import (
     derive_case_loadings,
 )
 from ..models import (
+    AeroInput,
     BalancedCaseResult,
     BalancedLoad,
     CgCase,
+    FlightLoadsInput,
+    GeometryInput,
+    LandingInput,
     MissingInputError,
     ModuleResult,
     Project,
     TailSpanResult,
     VnPoint,
     WingLoadResult,
+    WingMassInput,
 )
 from ..registry import register
 from ..rigid_body import (
@@ -493,17 +498,36 @@ def _mirror(loads: Sequence[BalancedLoad]) -> List[BalancedLoad]:
     return [reflect_load(ld) for ld in loads]
 
 
-def wing_sets(project: Project, vn: VnPoint,
-              condition: str) -> Tuple[List[BalancedLoad], float, float]:
+def _wing_slices(project: Project) -> Tuple[WingMassInput, GeometryInput, AeroInput]:
+    """The three slices every wing set reads, present -- or the module's refusal.
+
+    :func:`run` checks ``wing_mass`` at entry; the helpers below are also called
+    directly (ground cases, tests), so the same refusal lives here once instead
+    of an ``AttributeError`` at the first dereference.
+    """
+    wm, geometry, aero = project.wing_mass, project.geometry, project.aero
+    if wm is None or geometry is None or aero is None:
+        raise MissingInputError("balance needs 'wing_mass', 'geometry' and 'aero'")
+    return wm, geometry, aero
+
+
+def _flight_loads(project: Project) -> FlightLoadsInput:
+    fl = project.flight_loads
+    if fl is None:
+        raise MissingInputError("balance needs 'flight_loads'")
+    return fl
+
+
+def wing_sets(project: Project, vn: VnPoint) -> Tuple[List[BalancedLoad], float, float]:
     """Starboard wing air + inertia loads, at ``vn``'s own flight condition.
 
     Returns ``(loads, wing_item_weight, cm_free_total)`` where ``cm_free_total``
     is the section-``Cm`` free moment of **both** wings -- the caller needs it to
     work out the fuselage's share of the trim moment.
     """
-    wm = project.wing_mass
-    geom = project.geometry.by_name(wm.surface)
-    aero = project.aero.by_name(wm.surface)
+    wm, geometry, aero_in = _wing_slices(project)
+    geom = geometry.by_name(wm.surface)
+    aero = aero_in.by_name(wm.surface)
     base = next((c for c in resolve_wing_cases(project, wm)), None)
     if geom is None or aero is None or base is None:
         raise MissingInputError("balance needs a wing surface, aero set and load case")
@@ -548,8 +572,10 @@ def wing_inertia_strips(project: Project,
     case work: at ``nz = 0`` the strips apply no force and the closure field
     accelerates them, so the wing's mass is in the model exactly once either way.
     """
-    wm = project.wing_mass
-    geom = project.geometry.by_name(wm.surface)
+    wm, geometry, _ = _wing_slices(project)
+    geom = geometry.by_name(wm.surface)
+    if geom is None:
+        raise MissingInputError(f"balance: wing surface {wm.surface!r} is not in 'geometry'")
     u = inertia_units(geom, wm)
     panel = sum(u.w)
     strips = [(i, w) for i, w in enumerate(u.w) if w]
@@ -698,7 +724,7 @@ def body_axial_set(loads: Sequence[BalancedLoad], project: Project,
     and lumped at the body masses' own centroid where it does not. Both are
     stated; neither can move a number.
     """
-    fl = project.flight_loads
+    fl = _flight_loads(project)
     wing_fx = sum(ld.fx for ld in loads if ld.source == "wing-air")
     wing_fz = sum(ld.fz for ld in loads if ld.source == "wing-air")
     total = vn.dx - wing_fx
@@ -725,8 +751,7 @@ def body_axial_set(loads: Sequence[BalancedLoad], project: Project,
 
     stations = _body_drag_stations(project, loading)
     if not stations:
-        return total, delta_cd, [], notes + [
-            "the non-wing drag has no body station to act at and is NOT applied"]
+        return total, delta_cd, [], [*notes, "the non-wing drag has no body station to act at and is NOT applied"]
     notes.append(
         f"non-wing drag {total:+,.0f} lb applied at waterline {wl.z:.1f} "
         f"({wl.basis}) over {len(stations)} body station(s); dCD = {delta_cd:+.5f}")
@@ -1209,7 +1234,9 @@ def _closure(loads: List[BalancedLoad], cg: CgCase,
         for source, axis in _ROTATIONAL_SOURCES:
             if not omega_dot[axis]:
                 continue
-            only = tuple(omega_dot[i] if i == axis else 0.0 for i in range(3))
+            only = (omega_dot[0] if axis == 0 else 0.0,
+                    omega_dot[1] if axis == 1 else 0.0,
+                    omega_dot[2] if axis == 2 else 0.0)
             f = relief_force(w, r, zero, only)
             loads.append(BalancedLoad(x=ld.x, y=ld.y, z=ld.z,
                                       fx=f[0], fy=f[1], fz=f[2],
@@ -1273,10 +1300,10 @@ def assemble(project: Project, condition: str, vn: VnPoint,
     or the left/right split of 23.427(a). Before B8a-3 the first two would have
     been separate flags; :func:`is_handed` is the one predicate.
     """
-    fl = project.flight_loads
+    fl = _flight_loads(project)
     notes: List[str] = []
 
-    wing_r, panel_both, cm_free = wing_sets(project, vn, condition)
+    wing_r, panel_both, _cm_free = wing_sets(project, vn)
     wing_r, scale_notes = place_wing_inertia(wing_r, loading, project, panel_both)
     notes += scale_notes
 
@@ -1302,8 +1329,8 @@ def assemble(project: Project, condition: str, vn: VnPoint,
     # The fuselage's share of the trim pitching moment: what the airplane-less-tail
     # Cm carries that the distributed wing does not (see the module docstring).
     wing_about_ac = sum(
-        ld.my + (ld.z - fl.zw) * ld.fx - (ld.x - fl.xw) * ld.fz
-        for ld in loads if ld.source == "wing-air")
+        (ld.my + (ld.z - fl.zw) * ld.fx - (ld.x - fl.xw) * ld.fz
+         for ld in loads if ld.source == "wing-air"), 0.0)
     fuselage_cm = vn.m_wf - wing_about_ac
     loads.append(BalancedLoad(x=fl.xw, y=0.0, z=fl.zw, my=fuselage_cm,
                               source="fuselage-cm", side="C"))
@@ -1332,7 +1359,8 @@ def assemble(project: Project, condition: str, vn: VnPoint,
         loads += list(lateral)
         notes.append(LATERAL_AERO_NOTE)
 
-    geom = project.geometry.by_name(project.wing_mass.surface)
+    wm, geometry, _ = _wing_slices(project)
+    geom = geometry.by_name(wm.surface)
     semi_span = geom.leading_edge[-1][1] if geom else 0.0
     ref = (cg.xcg, 0.0, cg.zcg)
     handed = is_handed(loads, abs(vn.nz * cg.weight_lb), semi_span)
@@ -1538,7 +1566,7 @@ def build_balanced_cases(
         else:
             record.append(_skip(cond, "out-of-family"))
             continue
-        point = vn.get(cond.case)
+        point = vn.get(cond.case) if cond.case is not None else None
         if point is None:
             record.append(_skip(cond, "no-vn-point"))
             continue
@@ -1680,9 +1708,9 @@ def ground_lift_sets(project: Project, lift_lb: float,
     neither. Borrowing them would be inventing aerodynamics the condition does
     not define.
     """
-    wm = project.wing_mass
-    geom = project.geometry.by_name(wm.surface)
-    aero = project.aero.by_name(wm.surface)
+    wm, geometry, aero_in = _wing_slices(project)
+    geom = geometry.by_name(wm.surface)
+    aero = aero_in.by_name(wm.surface)
     if geom is None or aero is None:
         raise MissingInputError("a ground case needs a wing surface and aero set")
     # Any (cl, v) gives the same *shape*: the Schrenk distribution scales with
@@ -1761,7 +1789,8 @@ def assemble_ground(project: Project, gear: "GearCaseLoads", wheels: Sequence,
     loads += gear_sets(wheels)
     loads += body_inertia(loading, project, 0.0)
 
-    geom = project.geometry.by_name(project.wing_mass.surface)
+    wm, geometry, _ = _wing_slices(project)
+    geom = geometry.by_name(wm.surface)
     semi_span = geom.leading_edge[-1][1] if geom else 0.0
     ref = (cg.xcg, 0.0, cg.zcg)
     # The 23.485 family's hand is the manual's (both ids exist, so it is passed
@@ -1839,7 +1868,7 @@ def _ground_target(base: CgCase, weight_lb: float) -> CgCase:
 
 
 def _ground_loadings(project: Project,
-                     gear: Sequence[GearCaseLoads]) -> Dict[int, Tuple[CgCase, object]]:
+                     gear: Sequence[GearCaseLoads]) -> Dict[int, Tuple[CgCase, Optional[CaseLoading]]]:
     """``{LANDLOAD case number: (CgCase, CaseLoading)}`` for every ground case.
 
     Keyed by **case number** rather than by loading name, because the name alone
@@ -1915,7 +1944,10 @@ def build_ground_cases(
 
     loadings = _ground_loadings(project, gear)
     by_case = {g.case: g for g in gear}
-    lift_factor = project.landing.lift_factor
+    landing: Optional[LandingInput] = project.landing
+    if landing is None:
+        raise MissingInputError("ground cases need 'landing'")
+    lift_factor = landing.lift_factor
 
     out: List[BalancedCaseResult] = []
     for g in gear:
@@ -2143,7 +2175,7 @@ def run(project: Project) -> ModuleResult:
                 LoadValue("Non-wing drag dCD", c.delta_cd, "",
                           key="balanced_delta_cd"),
             ],
-            note="; ".join(c.notes) or None,
+            note="; ".join(c.notes),
         ))
     conditions.append(_skipped_record(skipped))
     return ModuleResult(module=MODULE_NAME, conditions=conditions)
@@ -2153,41 +2185,41 @@ register(MODULE_NAME, run)
 
 
 __all__ = [
-    "SYMMETRIC_WING_CONDITIONS",
-    "ROLLING_WING_CONDITIONS",
-    "BALANCED_WING_CONDITIONS",
-    "BALANCED_VTAIL_CONDITIONS",
-    "BALANCED_HTAIL_CONDITIONS",
     "AILERON_COUPLE_NOTE",
+    "BALANCED_HTAIL_CONDITIONS",
+    "BALANCED_VTAIL_CONDITIONS",
+    "BALANCED_WING_CONDITIONS",
+    "FLIGHT_SOURCE_STEM",
+    "GROUND_SOURCE_STEM",
     "HANDEDNESS_TOL",
     "LATERAL_AERO_NOTE",
     "RESIDUAL_GATE",
-    "SKIP_REASONS",
+    "ROLLING_WING_CONDITIONS",
     "SKIPPED_RECORD_TITLE",
+    "SKIP_REASONS",
+    "SYMMETRIC_WING_CONDITIONS",
     "SkippedCondition",
-    "wing_sets",
+    "assemble",
+    "body_inertia",
+    "build_balanced_cases",
+    "carry_sources_absent",
+    "case_source_name",
     "fin_load",
     "fin_sets",
-    "htail_sets",
+    "handed_twin",
     "htail_load",
+    "htail_sets",
     "htail_side_loads",
-    "is_unsymmetrical_htail",
     "is_ground",
-    "is_lateral",
-    "source_case_name",
-    "case_source_name",
-    "FLIGHT_SOURCE_STEM",
-    "GROUND_SOURCE_STEM",
     "is_handed",
-    "body_inertia",
+    "is_lateral",
+    "is_unsymmetrical_htail",
+    "reflect_load",
     "resultant",
     "resultant6",
-    "reflect_load",
-    "handed_twin",
-    "unbalanced_rolling_moment",
-    "assemble",
-    "build_balanced_cases",
-    "skipped_conditions",
     "skipped_condition_lines",
-    "carry_sources_absent",
+    "skipped_conditions",
+    "source_case_name",
+    "unbalanced_rolling_moment",
+    "wing_sets",
 ]

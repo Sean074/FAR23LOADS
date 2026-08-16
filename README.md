@@ -72,7 +72,8 @@ streamlit run app/Home.py                                   # the multi-page UI
 sloads engine examples/ga6_normal.project.json -o engine_loads.csv   # CLI entry point
 python cli.py engine examples/ga6_normal.project.json -o engine_loads.csv
 pytest                                                      # the green-build gate
-ruff check sloads/ cli.py app/                            # lint
+ruff check sloads/ cli.py app/ scripts/                   # lint
+mypy                                                        # type check (sloads/)
 ```
 
 `pyproject.toml` is the single dependency source — `pip install -e .` for the

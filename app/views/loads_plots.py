@@ -32,9 +32,8 @@ from types import SimpleNamespace
 import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
-from plotly.subplots import make_subplots
-
 from components import active_system, gate
+from plotly.subplots import make_subplots
 
 from sloads import Project, UnitSystem, si_scalar_label, to_si_scalar
 from sloads.case_ids import case_label
@@ -209,18 +208,18 @@ def _overlay_figure(title: str, x_label: str, y_label: str, x: list,
                      traces: "list[tuple[str, list]]") -> go.Figure:
     fig = go.Figure()
     for name, y in traces:
-        fig.add_trace(go.Scatter(x=x, y=y, name=name, mode="lines+markers", line=dict(width=1.5)))
+        fig.add_trace(go.Scatter(x=x, y=y, name=name, mode="lines+markers", line={"width": 1.5}))
     if len(traces) > 1:
         # Two-sided envelope: pointwise max AND min across the cases. The
         # opposite-sign extreme can govern a different part of the structure, so
         # a single max-|value| trace is not a true envelope.
         upper, lower = envelope_extremes([y for _, y in traces])
         fig.add_trace(go.Scatter(x=x, y=upper, name="envelope (max)",
-                                 mode="lines", line=dict(width=4, dash="dot")))
+                                 mode="lines", line={"width": 4, "dash": "dot"}))
         fig.add_trace(go.Scatter(x=x, y=lower, name="envelope (min)",
-                                 mode="lines", line=dict(width=4, dash="dash")))
+                                 mode="lines", line={"width": 4, "dash": "dash"}))
     fig.update_layout(title=title, xaxis_title=x_label, yaxis_title=y_label,
-                      legend=dict(orientation="h"), height=380)
+                      legend={"orientation": "h"}, height=380)
     return fig
 
 
@@ -272,7 +271,7 @@ else:
         writer = csv.DictWriter(buf, fieldnames=fieldnames)
         writer.writeheader()
         for cid, lab, x, data in shown:
-            for field, (y_title, unit, values) in data.items():
+            for _field, (y_title, unit, values) in data.items():
                 for xv, yv in zip(x, values):
                     # ", LIMIT" travels with the file, matching the plot axis
                     # labels above (defect M4-15); the torsion y_title carries
@@ -337,7 +336,7 @@ else:
     fig.update_yaxes(title_text=f"Moment ({_moment_lbl}, LIMIT)", secondary_y=True)
     fig.update_xaxes(title_text=f"Butt line Y ({_in_lbl})", row=1, col=1)
     fig.update_xaxes(title_text=f"Fuselage station X ({_in_lbl})", row=1, col=2)
-    fig.update_layout(height=420, legend=dict(orientation="h"))
+    fig.update_layout(height=420, legend={"orientation": "h"})
     st.plotly_chart(fig, use_container_width=True)
 
 # --------------------------------------------------------------------------- #
@@ -405,10 +404,10 @@ if uploaded is not None:
             for y_col in y_cols:
                 fig = go.Figure()
                 for case_name, grp in df.groupby("Case"):
-                    grp = grp.sort_values(x_col)
+                    grp = grp.sort_values(x_col)  # noqa: PLW2901  -- sorted view of the same group
                     fig.add_trace(go.Scatter(
                         x=grp[x_col], y=grp[y_col], name=f"imported: {case_name}",
-                        mode="lines+markers", line=dict(dash="dash")))
+                        mode="lines+markers", line={"dash": "dash"}))
                 if overlay_target is not None:
                     ref = next(c for c in computed if c[0] == overlay_target)
                     field = y_col.lower()
@@ -418,5 +417,5 @@ if uploaded is not None:
                             mode="lines+markers"))
                 fig.update_layout(title=f"Imported vs computed — {y_col}",
                                   xaxis_title=x_col, yaxis_title=y_col, height=360,
-                                  legend=dict(orientation="h"))
+                                  legend={"orientation": "h"})
                 st.plotly_chart(fig, use_container_width=True)

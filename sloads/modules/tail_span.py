@@ -117,6 +117,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Dict, List, NamedTuple, Optional, Sequence, Tuple
 
+from ..cg_cases import flight_cases
+from ..derived_geometry import fuselage_width_at
 from ..models import (
     ConditionResult,
     ControlPointLoad,
@@ -131,8 +133,6 @@ from ..models import (
     VnPoint,
     WingStationLoad,
 )
-from ..cg_cases import flight_cases
-from ..derived_geometry import fuselage_width_at
 from ..registry import register
 from ..tail_geometry import HTAIL, VTAIL, TailPlanform, is_t_tail, resolve_tail_planform
 from .select import default_critical, vn_points
@@ -1244,7 +1244,7 @@ def run(project: Project) -> ModuleResult:
                           root.myy if root else 0.0, "lb-in",
                           key="tail_span_root_myy"),
             ] + extra,
-            note="; ".join(r.notes) or None,
+            note="; ".join(r.notes),
             safety_factor=r.safety_factor,
             case_ref=r.case_ref,
         ))
@@ -1255,38 +1255,38 @@ register(MODULE_NAME, run)
 
 
 __all__ = [
-    "MODULE_NAME",
+    "ATTACH_FIN_TIP",
+    "ATTACH_OUTLINE",
+    "ATTACH_STRIP_PAIR",
     "CONTROL_MODES",
     "DEFAULT_CONTROL_MODE",
     "DEFAULT_LOAD_FACTOR",
     "HINGE_BLOCK_CENTROID",
-    "ATTACH_FIN_TIP",
-    "ATTACH_OUTLINE",
-    "ATTACH_STRIP_PAIR",
+    "MODULE_NAME",
+    "X25_PCT",
+    "X50_PCT",
     "ControlAttachment",
     "ControlRemoval",
     "HTailAttachment",
-    "htail_attachment",
+    "air_total",
+    "attachment_stations",
+    "axial_total",
+    "build_tail_span",
     "control_attachment",
     "control_centre_of_pressure",
     "control_load_mode",
     "control_load_parts",
     "control_point_loads",
     "derived_control_load",
-    "hinge_chord_fraction",
-    "mid_chord_centroid",
-    "ttail_transfer",
-    "X25_PCT",
-    "X50_PCT",
-    "air_total",
-    "attachment_stations",
-    "axial_total",
-    "build_tail_span",
     "distribute",
     "free_torsion_total",
+    "hinge_chord_fraction",
+    "htail_attachment",
     "inertia_total",
     "lateral_load_factor",
+    "mid_chord_centroid",
     "root_index",
     "side_scales",
     "strip_spans",
+    "ttail_transfer",
 ]

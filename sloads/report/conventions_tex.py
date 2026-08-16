@@ -267,10 +267,10 @@ __all__ = [
     "CONVENTION_ROWS",
     "CONVENTION_TABLE_NOTE",
     "ENGINE_TORQUE_SENTENCE",
-    "ROTATION_SENTENCE",
     "FRAME_FRAGMENTS",
+    "ROTATION_SENTENCE",
     "STATIC_EMITTERS",
     "sign_axes_tex",
-    "sign_controls_tex",
     "sign_beams_tex",
+    "sign_controls_tex",
 ]

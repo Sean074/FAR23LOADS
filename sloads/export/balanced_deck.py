@@ -75,15 +75,22 @@ import math
 import textwrap
 from typing import Dict, List, Optional, Sequence, Tuple
 
-from ..case_ids import (ASSEMBLED_DECK, NO_LOAD_ID, balanced_subcase_id,
-                        deck_load_id)
+from ..case_ids import ASSEMBLED_DECK, NO_LOAD_ID, balanced_subcase_id, deck_load_id
 from ..models import BalancedCaseResult, BalancedLoad, Project
-from ..modules.balance import (SkippedCondition, build_balanced_cases,
-                               carry_sources_absent, case_source_name,
-                               fin_load, htail_load,
-                               htail_side_loads, is_ground, is_lateral,
-                               is_unsymmetrical_htail, skipped_condition_lines,
-                               skipped_conditions)
+from ..modules.balance import (
+    SkippedCondition,
+    build_balanced_cases,
+    carry_sources_absent,
+    case_source_name,
+    fin_load,
+    htail_load,
+    htail_side_loads,
+    is_ground,
+    is_lateral,
+    is_unsymmetrical_htail,
+    skipped_condition_lines,
+    skipped_conditions,
+)
 from ..rigid_body import radians_per_s2
 from ..units import Channel, DeliverableUnits, UnitSystem, deliverable_units
 from .bands import band
@@ -136,7 +143,7 @@ def _node_key(load: BalancedLoad) -> Tuple[str, float, float, float]:
 
 
 def deck_nodes(cases: Sequence[BalancedCaseResult],
-               project: Project) -> Dict[Tuple[str, float, float, float], int]:
+               project: Project) -> Dict[Tuple[str, float, float, float], int]:  # noqa: ARG001  -- public signature; geometry is read from the cases
     """``{node key: GID}`` -- one node per distinct **position**, per side.
 
     Geometry is shared across the subcases (same airplane), so the table is built
@@ -520,7 +527,7 @@ def balanced_deck(project: Project, *,
         "$ ------------------------------------------------------------ LOADS",
     ]
     for sid, case in zip(sids, cases):
-        bulk += ["$"] + _header(case, u) + _load_lines(case, sid, nodes, u)
+        bulk += ["$", *_header(case, u), *_load_lines(case, sid, nodes, u)]
 
     return _stamped(header_comment, "\n".join(head + bulk + ["ENDDATA"]) + "\n")
 
@@ -586,14 +593,14 @@ def balanced_case_rows(cases: Sequence[BalancedCaseResult]) -> List[Dict[str, st
 
 
 __all__ = [
-    "BALANCED_WING_R_BASE",
-    "BALANCED_WING_L_BASE",
     "BALANCED_BODY_BASE",
-    "BALANCED_GEAR_BASE",
     "BALANCED_FALLBACK_SID_BASE",
+    "BALANCED_GEAR_BASE",
+    "BALANCED_WING_L_BASE",
+    "BALANCED_WING_R_BASE",
+    "balanced_case_rows",
+    "balanced_deck",
     "case_sids",
     "deck_nodes",
-    "balanced_deck",
     "write_balanced_deck",
-    "balanced_case_rows",
 ]

@@ -126,9 +126,9 @@ import textwrap
 from dataclasses import dataclass
 from typing import List, Optional, Sequence, Tuple, Union
 
-from ..case_ids import (ASSEMBLED_DECK, COMPONENT_DECK, deck_load_id,
-                        subcase_id)
+from ..case_ids import ASSEMBLED_DECK, COMPONENT_DECK, deck_load_id, subcase_id
 from ..constants import ULTIMATE_FACTOR
+from ..derived_geometry import SobStation, sob_station
 from ..models import (
     BodyLoadResult,
     ControlSurfaceLoadResult,
@@ -138,7 +138,12 @@ from ..models import (
     WingLoadResult,
     WingStationLoad,
 )
-from ..derived_geometry import SobStation, sob_station
+
+# Single-sourced from the calc that owns the limitation (public symbol, no cycle:
+# nothing under sloads/modules imports the export bridge).
+from ..modules import tail_span
+from ..modules.body_loads import CLOSURE_ARTIFACT_CAVEAT as _BODY_ARTIFACT_CAVEAT
+from ..modules.net_loads import loads_ref_axis_results
 from ..report import ultimate_units
 from ..units import Channel, DeliverableUnits, UnitSystem, deliverable_units
 from .bands import band
@@ -155,11 +160,6 @@ from .coordinates import (
     to_pressure,
     ttail_transfer_to_airplane,
 )
-# Single-sourced from the calc that owns the limitation (public symbol, no cycle:
-# nothing under sloads/modules imports the export bridge).
-from ..modules import tail_span
-from ..modules.body_loads import CLOSURE_ARTIFACT_CAVEAT as _BODY_ARTIFACT_CAVEAT
-from ..modules.net_loads import loads_ref_axis_results
 
 
 # --------------------------------------------------------------------------- #
@@ -757,12 +757,9 @@ _PBAR_I = 1.0        # in^4 (I1 = I2)
 _PBAR_J = 1.0        # in^4
 
 
-def _root_node(loads: List[NodalLoad]) -> tuple:
+def _root_node(loads: List[NodalLoad]) -> Tuple[float, float, float]:
     """Clamped root-node coordinates: half a strip inboard of the first station."""
-    if len(loads) >= 2:
-        dy = loads[1].y - loads[0].y
-    else:
-        dy = 0.0
+    dy = loads[1].y - loads[0].y if len(loads) >= 2 else 0.0
     n0 = loads[0]
     return (n0.x, n0.y - dy / 2.0, n0.z)
 
@@ -937,7 +934,8 @@ def stick_model_bdf(arg: ResultsArg, sid_base: int = 1, *,
     chain, sob_node_gid = _stick_chain(base_loads, sob)
     sob_index = next((i for i, (gid, _p) in enumerate(chain)
                       if gid == sob_node_gid), None)
-    rx, ry, rz = to_grid(*_root_node(base_loads), units=u)
+    root_x, root_y, root_z = _root_node(base_loads)
+    rx, ry, rz = to_grid(root_x, root_y, root_z, units=u)
 
     head: List[str] = ["SOL 101", "$"] + subcase_map_block(results) + ["$"]
     for idx, r in enumerate(results):
@@ -965,7 +963,7 @@ def stick_model_bdf(arg: ResultsArg, sid_base: int = 1, *,
         f"GRID, {_ROOT_GID}, , {_fmt(rx)}, {_fmt(ry)}, {_fmt(rz)}",
     ]
     for gid, (x, y, z) in chain[1:]:
-        if gid == sob_node_gid:
+        if gid == sob_node_gid and sob is not None:  # a SOB gid exists only when a station was resolved
             outboard = (f" The side-of-body internal load is the CBAR end "
                         f"force in element {sob_index + 1}, the first element "
                         "outboard; per-case closed-form values are the $ SOB "
@@ -1281,7 +1279,7 @@ def body_fitting_load_csv(arg, header_comment: str = "", *,
     writer = csv.DictWriter(buf, fieldnames=fields)
     writer.writeheader()
     for r in results:
-        if r.r_front is None or r.r_rear is None:
+        if r.r_front is None or r.r_rear is None or r.x_front is None or r.x_rear is None:
             continue
         sf = _sf(r)
         x_front, x_rear, _ = to_grid(r.x_front, r.x_rear, 0.0, u)
@@ -2250,8 +2248,8 @@ def _gear_report_headers(u: DeliverableUnits) -> List[str]:
     return [labels.get(f, f) for f in _GEAR_REPORT_FIELDS]
 
 
-def gear_report_rows(project: Project, units: DeliverableUnits = None,
-                     safety_factor: float = None) -> List[dict]:
+def gear_report_rows(project: Project, units: Optional[DeliverableUnits] = None,
+                     safety_factor: Optional[float] = None) -> List[dict]:
     """The gear load report: one row per case per leg (decision G-12).
 
     **A free body, not a load list.** Each row states the reaction where LANDLOAD

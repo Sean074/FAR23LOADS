@@ -91,7 +91,6 @@ from dataclasses import dataclass
 from typing import Dict, List, Optional, Sequence, Tuple
 
 from .cg_cases import flight_cases
-
 from .models import (
     AnalysisKind,
     CgCase,
@@ -128,7 +127,7 @@ TAIL_GAP_WARN_FRACTION = 0.01
 # --------------------------------------------------------------------------- #
 # Component assignment
 # --------------------------------------------------------------------------- #
-def infer_component(item: MassItem, project: Project) -> MassComponent:
+def infer_component(item: MassItem, project: Project) -> MassComponent:  # noqa: ARG001  -- deliberate refusal to guess; the signature is the contract
     """The component for an **untagged** item: always :attr:`MassComponent.FUSELAGE`.
 
     Not a stub — a deliberate refusal to guess, and the honest reading of what
@@ -655,7 +654,7 @@ def entered_loading(items: Sequence[MassItem], case: CgCase) -> CaseLoading:
     if ballast is not None:
         if ballast.kind != MassItemKind.DISCRETIONARY:
             _fail("the entered ballast row must be a discretionary item")
-        loading = loading + [ballast]
+        loading = [*loading, ballast]
 
     w, cx, cz = _wx(loading)
     note = ""
@@ -754,9 +753,9 @@ def derive_case_loadings(project: Project,
             if burns:
                 burnt = _burn_down(base + sub, case.weight_lb)
                 if burnt is not None:
-                    _, bx, bz = _wx(burnt)
+                    _, bx, _bz = _wx(burnt)
                     if abs(bx - case.xcg) <= _CG_MATCH_TOL:
-                        cand = (0.0, -len(sub), burnt, None)
+                        cand: Tuple[float, int, List[MassItem], Optional[MassItem]] = (0.0, -len(sub), burnt, None)
                         if best is None or cand[:2] < best[:2]:
                             best = cand
                         continue
@@ -792,7 +791,7 @@ def derive_case_loadings(project: Project,
             ))
             continue
 
-        wb, _, loading, ballast = best
+        wb, _, loading, best_ballast = best
         fraction = wb / case.weight_lb if case.weight_lb else 0.0
         credible = fraction <= BALLAST_CREDIBLE_FRACTION
         note = "" if credible else (
@@ -803,7 +802,7 @@ def derive_case_loadings(project: Project,
         w, cx, cz = _wx(loading)
         out.append(CaseLoading(
             name=case.name, items=loading, weight_lb=w, cg_x=cx, cg_z=cz,
-            ballast=ballast, derivable=credible, note=note,
+            ballast=best_ballast, derivable=credible, note=note,
         ))
     return out
 
@@ -932,32 +931,32 @@ def component_summary(project: Project) -> List[Dict[str, str]]:
 
 
 __all__ = [
-    "STATION_MERGE_TOL",
-    "RECONCILE_REL_TOL",
-    "FUSELAGE_GAP_WARN_FRACTION",
-    "TAIL_GAP_WARN_FRACTION",
-    "BEAM_COMPONENTS",
-    "TAIL_COMPONENTS",
-    "MassDistribution",
-    "MassCheck",
-    "infer_component",
-    "component_of",
-    "distribution",
-    "derived_fuselage_stations",
-    "fuselage_beam_stations",
-    "derived_tail_surface_weight",
-    "tail_surface_weight",
-    "tail_reconciliation",
-    "untagged_tail_surfaces",
     "BALLAST_CREDIBLE_FRACTION",
+    "BEAM_COMPONENTS",
+    "FUSELAGE_GAP_WARN_FRACTION",
+    "RECONCILE_REL_TOL",
+    "STATION_MERGE_TOL",
+    "TAIL_COMPONENTS",
+    "TAIL_GAP_WARN_FRACTION",
     "CaseLoading",
-    "entered_loading",
-    "derive_case_loadings",
-    "case_loading_checks",
-    "partition_closes",
-    "wing_mass_tie",
-    "unmodelled_wing_mass",
-    "fuselage_reconciliation",
+    "MassCheck",
+    "MassDistribution",
     "all_checks",
+    "case_loading_checks",
+    "component_of",
     "component_summary",
+    "derive_case_loadings",
+    "derived_fuselage_stations",
+    "derived_tail_surface_weight",
+    "distribution",
+    "entered_loading",
+    "fuselage_beam_stations",
+    "fuselage_reconciliation",
+    "infer_component",
+    "partition_closes",
+    "tail_reconciliation",
+    "tail_surface_weight",
+    "unmodelled_wing_mass",
+    "untagged_tail_surfaces",
+    "wing_mass_tie",
 ]

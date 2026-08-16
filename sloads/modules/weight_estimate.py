@@ -47,11 +47,11 @@ from ..constants import (
 )
 from ..load_keys import key_from_label as _key
 from ..models import (
-    MissingInputError,
     ConditionResult,
     LoadValue,
     MassItem,
     MassItemKind,
+    MissingInputError,
     ModuleResult,
     Project,
     WeightEstimationInput,
@@ -258,7 +258,9 @@ def resolve_max_continuous_hp(project: Project) -> float:
     from the per-engine Engine Mount ratings. Uses the stored estimation total only
     when ``estimation.override_max_continuous_hp`` is set, or as the fallback when no
     engine carries a max-continuous rating (older files / no engine slice)."""
-    est = project.weight.estimation
+    est = project.weight.estimation if project.weight is not None else None
+    if est is None:  # run() has already refused; the same refusal for direct callers
+        raise MissingInputError("Project has no 'weight.estimation' inputs for the weight_estimate module")
     if est.override_max_continuous_hp:
         return est.max_continuous_hp
     engine_sum = sum((e.max_cont_hp or 0.0) for e in project.engines)

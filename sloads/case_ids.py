@@ -316,7 +316,7 @@ def deck_load_id(case_id: str, family: str = COMPONENT_DECK, hand: str = "") -> 
 NO_LOAD_ID = "—"
 
 
-def case_label(case_ref, family: str = COMPONENT_DECK, *, condition: str = "") -> str:
+def case_label(case_ref: object, family: str = COMPONENT_DECK, *, condition: str = "") -> str:
     """One case's display identity: ``"W-03 · LOAD 103 · PHAA · FAR 23.333(b)"``.
 
     The single formatter for every GUI case label and any prose that names a

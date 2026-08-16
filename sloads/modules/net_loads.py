@@ -22,11 +22,13 @@ from __future__ import annotations
 
 from typing import Dict, List, Optional
 
+from ..constants import ULTIMATE_FACTOR
+from ..derived_geometry import sync_geometry_derived
 from ..models import (
-    MissingInputError,
     ConditionResult,
     LoadsResult,
     LoadValue,
+    MissingInputError,
     ModuleResult,
     Project,
     SurfaceInput,
@@ -34,8 +36,6 @@ from ..models import (
     WingLoadResult,
     WingStationLoad,
 )
-from ..constants import ULTIMATE_FACTOR
-from ..derived_geometry import sync_geometry_derived
 from ..registry import register
 from .airloads import air_load_distribution
 from .wing_geometry import interp_x
@@ -184,6 +184,8 @@ def build_net_loads(project: Project) -> LoadsResult:
 
     geom = project.geometry.by_name(wm.surface)
     aero = project.aero.by_name(wm.surface)
+    if geom is None or aero is None:  # already refused above; narrows for the calls below
+        raise MissingInputError(f"net_loads needs the '{wm.surface}' geometry and aero surfaces")
     units = inertia_units(geom, wm)
 
     air_results: List[WingLoadResult] = []
@@ -279,6 +281,13 @@ register(MODULE_NAME, run)
 
 
 # Re-export for the registry import side effect (build_wing_inertia used by callers).
-__all__ = ["build_net_loads", "wing_load_rows", "run", "build_wing_inertia",
-           "to_loads_ref_axis", "loads_ref_axis_results", "wing_lra",
-           "torsion_axis_label"]
+__all__ = [
+    "build_net_loads",
+    "build_wing_inertia",
+    "loads_ref_axis_results",
+    "run",
+    "to_loads_ref_axis",
+    "torsion_axis_label",
+    "wing_load_rows",
+    "wing_lra",
+]

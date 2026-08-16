@@ -15,7 +15,6 @@ from __future__ import annotations
 import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
-
 from components import active_system, gate
 
 from sloads import (
@@ -206,7 +205,7 @@ for note in case.notes:
 # Spanwise picture
 # --------------------------------------------------------------------------- #
 fig = go.Figure()
-for src, colour in (("wing-air", None), ("wing-inertia", None)):
+for src in ("wing-air", "wing-inertia"):
     pts = sorted(((ld.y, ld.fz) for ld in case.loads if ld.source == src))
     if pts:
         fig.add_trace(go.Scatter(

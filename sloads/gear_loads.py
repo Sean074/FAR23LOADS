@@ -85,6 +85,7 @@ from dataclasses import dataclass
 from typing import List, Optional, Sequence, Tuple
 
 from .models import (
+    CaseRef,
     GearCarrier,
     GearReactionCase,
     LandingGearInput,
@@ -95,23 +96,23 @@ from .models import (
 from .modules.landing import build_landing, ground_angles
 
 __all__ = [
-    "UNSPRUNG_NOTE",
     "LEG_WEIGHT_UNSET_NOTE",
     "MAIN",
     "NOSE",
-    "GearLegLoad",
-    "GearCaseLoads",
+    "UNSPRUNG_NOTE",
     "AppliedWheel",
+    "GearCaseLoads",
+    "GearLegLoad",
     "applied_wheels",
-    "to_airplane_datum",
-    "to_ground_line",
     "attitude_of",
     "contact_patch",
-    "ground_rotation_deg",
-    "strut_stroke",
-    "transfer_couple",
     "gear_case_loads",
+    "ground_rotation_deg",
     "leg_weight",
+    "strut_stroke",
+    "to_airplane_datum",
+    "to_ground_line",
+    "transfer_couple",
 ]
 
 #: The two legs of a tricycle gear, as this module names them. Strings rather
@@ -379,7 +380,7 @@ class GearCaseLoads:
     weight_lb: float
     #: LANDLOAD's own minted identity for the case (``LG-01`` ... ``LG-33``), so
     #: the report, the assembled deck and the case index all join on one id.
-    case_ref: Optional[object]
+    case_ref: Optional[CaseRef]
     legs: Tuple[GearLegLoad, ...]
 
 
@@ -405,7 +406,7 @@ def _leg_load(case: GearReactionCase, leg_name: str, leg: LandingGearInput,
         py = 0.0
 
     patch = (px, py, pz)
-    node = tuple(leg.attach)
+    node = (leg.attach[0], leg.attach[1], leg.attach[2])
     force = (fx, s, fz)
     weight = leg_weight(leg)
     return GearLegLoad(

@@ -22,14 +22,15 @@ from dataclasses import asdict
 from typing import Any, Dict, List, Optional, Tuple
 
 from .constants import ULTIMATE_FACTOR
+from .migrations import is_project_dict, migrate
 from .models import (
     SCHEMA_VERSION,
-    AeroCoeffSet,
     AeroCoefficientsInput,
-    AnalysisKind,
+    AeroCoeffSet,
     AeroInput,
     AeroSurfaceInput,
     AileronLoadsInput,
+    AnalysisKind,
     BodyLoadResult,
     BodyStationLoad,
     CaseRef,
@@ -59,14 +60,6 @@ from .models import (
     LandingGearGeometry,
     LandingGearInput,
     LandingInput,
-    SafetyFactorOverride,
-    SafetyFactorPolicyInput,
-    SelectInput,
-    TabLoadsInput,
-    TabSpec,
-    TailLoadsInput,
-    TailType,
-    VTailLoadsInput,
     LayoutInput,
     LoadingDefinition,
     LoadsResult,
@@ -83,15 +76,23 @@ from .models import (
     Rotor,
     RotorDirection,
     RotorType,
+    SafetyFactorOverride,
+    SafetyFactorPolicyInput,
+    SelectInput,
     StructuralSpeedsInput,
     SurfaceInput,
+    TabLoadsInput,
+    TabSpec,
     TailBalanceLoad,
     TailChordResult,
+    TailChordStation,
+    TailLoadsInput,
     TailMassInput,
     TailSpanResult,
-    TailChordStation,
+    TailType,
     VdBasis,
     VnPoint,
+    VTailLoadsInput,
     WeightEnvelopeInput,
     WeightEstimationInput,
     WeightInput,
@@ -101,7 +102,6 @@ from .models import (
     WingStationLoad,
     default_fuselage_outline,
 )
-from .migrations import is_project_dict, migrate
 from .report import has_load_case_data, load_cases_to_rows, results_to_rows
 from .units import UnitSystem, convert_results, unit_system_from
 from .validation import safety_factor_valid
@@ -381,6 +381,7 @@ def geometry_from_dict(d: Dict[str, Any]) -> GeometryInput:
     parametric = configuration_from_dict(parametric_raw) if parametric_raw else None
 
     fuselage_raw = d.get("fuselage")
+    fuselage: Optional[FuselageOutline]
     if fuselage_raw:
         fuselage = _fuselage_outline_from_dict(fuselage_raw)
     elif parametric is not None:
@@ -1414,10 +1415,7 @@ def load_cases_csv(
     ``N`` has no SI mapping, but not something to rely on).
     """
     conditions = convert_results(_as_conditions(results), system)
-    if has_load_case_data(conditions):
-        rows = load_cases_to_rows(conditions)
-    else:
-        rows = results_to_rows(conditions)
+    rows = load_cases_to_rows(conditions) if has_load_case_data(conditions) else results_to_rows(conditions)
     if not rows:
         return ""
     import io as _io

@@ -16,7 +16,6 @@ from __future__ import annotations
 
 import pandas as pd
 import streamlit as st
-
 from components import page_header, workflow_page_link
 
 from sloads import (
@@ -37,8 +36,8 @@ from sloads.cg_cases import (
 from sloads.derived_geometry import wing_reference
 from sloads.export import sbeam_bridge as sb
 from sloads.gear_loads import UNSPRUNG_NOTE, gear_case_loads
-from sloads.modules.landing import build_landing, run
 from sloads.models import MissingInputError
+from sloads.modules.landing import build_landing, run
 from sloads.validation import (
     consistency_warnings,
     landing_reaction_warnings,

@@ -25,7 +25,6 @@ from __future__ import annotations
 import json
 
 import streamlit as st
-
 from components import active_system
 
 from sloads import Project, UnitSystem

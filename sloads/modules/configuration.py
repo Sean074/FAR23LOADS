@@ -35,12 +35,12 @@ from typing import Dict, List, Optional, Tuple
 
 from ..constants import IN2_PER_FT2
 from ..models import (
-    MissingInputError,
     ConditionResult,
     EmpennageInput,
     LandingGearGeometry,
     LayoutInput,
     LoadValue,
+    MissingInputError,
     ModuleResult,
     Project,
     SurfaceInput,
@@ -211,7 +211,7 @@ def tail_planform(layout: LayoutInput,
     panels: Dict[str, Dict[str, List[Tuple[float, float]]]] = {}
 
     if layout.tail_type == TailType.V_TAIL:
-        if v_area > 0 and v_span_in > 0:
+        if vt is not None and v_area > 0 and v_span_in > 0:  # v_area > 0 already implies vt
             area_in2 = (v_area * IN2_PER_FT2) / 2.0  # per panel
             chord = area_in2 / v_span_in
             x_mac = vt.xv25
@@ -230,7 +230,7 @@ def tail_planform(layout: LayoutInput,
                 }
         return panels
 
-    if v_area > 0 and v_span_in > 0:
+    if vt is not None and v_area > 0 and v_span_in > 0:  # v_area > 0 already implies vt
         area_in2 = v_area * IN2_PER_FT2
         chord = area_in2 / v_span_in
         x_mac = vt.xv25
@@ -253,7 +253,7 @@ def tail_planform(layout: LayoutInput,
                 "front": [(0.0, fin_root_z), (0.0, z1)],
             }
 
-    if h_area > 0 and h_span_in > 0:
+    if ht is not None and h_area > 0 and h_span_in > 0:  # h_area > 0 already implies ht
         area_in2 = h_area * IN2_PER_FT2
         chord = area_in2 / h_span_in
         x_mac = ht.xt25
@@ -379,11 +379,11 @@ def component_stations(layout: LayoutInput,
         stations["h_tail"] = (ht.xt25, 0.0, layout.root_waterline_z)
     if vt is not None and vt.xv25 > 0:
         stations["v_tail"] = (vt.xv25, 0.0, layout.root_waterline_z)
-    tail_pts = [
-        (ht.htail_area_sqft if ht is not None else 0.0, stations["h_tail"]) if "h_tail" in stations else None,
-        (vt.vtail_area_sqft if vt is not None else 0.0, stations["v_tail"]) if "v_tail" in stations else None,
-    ]
-    tail_pts = [p for p in tail_pts if p is not None]
+    tail_pts: List[Tuple[float, Tuple[float, float, float]]] = []
+    if "h_tail" in stations:
+        tail_pts.append((ht.htail_area_sqft if ht is not None else 0.0, stations["h_tail"]))
+    if "v_tail" in stations:
+        tail_pts.append((vt.vtail_area_sqft if vt is not None else 0.0, stations["v_tail"]))
     if tail_pts:
         total_area = sum(a for a, _ in tail_pts) or float(len(tail_pts))
         tail_x = sum((a or 1.0) * pt[0] for a, pt in tail_pts) / total_area
@@ -395,11 +395,11 @@ def component_stations(layout: LayoutInput,
             stations["main_gear"] = (gc["main_x"], 0.0, gear_z)
         if gc["nose_x"] > 0:
             stations["nose_gear"] = (gc["nose_x"], 0.0, gear_z)
-    gear_pts = [
-        (3.0, stations["main_gear"]) if "main_gear" in stations else None,
-        (1.0, stations["nose_gear"]) if "nose_gear" in stations else None,
-    ]
-    gear_pts = [p for p in gear_pts if p is not None]
+    gear_pts: List[Tuple[float, Tuple[float, float, float]]] = []
+    if "main_gear" in stations:
+        gear_pts.append((3.0, stations["main_gear"]))
+    if "nose_gear" in stations:
+        gear_pts.append((1.0, stations["nose_gear"]))
     if gear_pts:
         total_w = sum(w for w, _ in gear_pts)
         gx = sum(w * pt[0] for w, pt in gear_pts) / total_w

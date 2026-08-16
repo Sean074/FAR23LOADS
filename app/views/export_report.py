@@ -30,10 +30,10 @@ from __future__ import annotations
 import datetime as _dt
 import io as _io
 import zipfile
-from importlib.metadata import PackageNotFoundError, version as _pkg_version
+from importlib.metadata import PackageNotFoundError
+from importlib.metadata import version as _pkg_version
 
 import streamlit as st
-
 from components import active_system, gate
 
 from sloads import Project, consistency_warnings, registry
@@ -202,9 +202,9 @@ _scope_text = "governing case set" if _deselected_ids else "full case set"
 # reads the clock (a renderer that did would make two revisions of one report
 # undiffable); the caller owns it, and this is the caller.
 _generated = _dt.datetime.now().strftime("%Y-%m-%d %H:%M")
-_stamp_kw = dict(tool_version=_tool_version, scope=_scope_text,
-                 deselected_case_ids=_deselected_ids or None, system=_system,
-                 generated=_generated)
+_stamp_kw = {"tool_version": _tool_version, "scope": _scope_text,
+                 "deselected_case_ids": _deselected_ids or None, "system": _system,
+                 "generated": _generated}
 _methods = methods_statement(project, **_stamp_kw)
 _csv_stamp = csv_comment_block(project, **_stamp_kw)
 _bdf_stamp = bdf_comment_block(project, **_stamp_kw)

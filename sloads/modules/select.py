@@ -55,10 +55,10 @@ from __future__ import annotations
 import math
 from typing import Dict, List, NamedTuple, Optional, Tuple
 
-from ..case_ids import CaseIdAllocator, WING_BAND_EXTRA, WING_SLOTS, wing_case_id
+from ..case_ids import WING_BAND_EXTRA, WING_SLOTS, CaseIdAllocator, wing_case_id
 from ..cg_cases import flight_cases, max_takeoff_weight
+from ..derived_geometry import sync_geometry_derived
 from ..models import (
-    MissingInputError,
     CaseRef,
     CgCase,
     ConditionResult,
@@ -66,16 +66,16 @@ from ..models import (
     CriticalLoadSet,
     EnvelopeResult,
     LoadValue,
+    MissingInputError,
     ModuleResult,
     Project,
     TailLoadsInput,
     VnPoint,
     VTailLoadsInput,
 )
-from ..derived_geometry import sync_geometry_derived
 from ..registry import register
 from ._vtail import large_deflection_factor, rudder_effectiveness, vtail_lift_slope
-from .flight_envelope import design_inputs, density_ratio, build_envelope
+from .flight_envelope import build_envelope, density_ratio, design_inputs
 
 MODULE_NAME = "select"
 _DEG = 57.3  # SELECT.BAS / BALLOADS use 57.3 deg/rad
@@ -330,7 +330,8 @@ def select_htail_balancing(project: Project,
     cg_map: Dict[str, CgCase] = {c.name: c for c in flight_cases(project)}
     flaps: Dict[str, bool] = flaps_by_config_name(project)
 
-    retracted, extended = [], []
+    retracted: List[Tuple[VnPoint, HtailBalance]] = []
+    extended: List[Tuple[VnPoint, HtailBalance]] = []
     for p in _resolve_envelope(project, envelope).vn:
         cg = cg_map.get(p.cg)
         if cg is None:
@@ -831,7 +832,7 @@ def _stamp_case_refs(project: Project, conditions: List[CriticalCondition],
     allocator.seed("wing", WING_BAND_EXTRA)
     vn_by_case = {p.case: p for p in _resolve_envelope(project, envelope).vn}
     for c in conditions:
-        p = vn_by_case.get(c.case)
+        p = vn_by_case.get(c.case) if c.case is not None else None
         if c.component == "wing" and c.label in WING_SLOTS:
             case_id = wing_case_id(c.label)
         else:
@@ -903,24 +904,24 @@ register(MODULE_NAME, run)
 # --------------------------------------------------------------------------- #
 __all__ = [
     "MODULE_NAME",
-    "run",
-    "build_critical",
-    "default_envelope",
-    "default_critical",
-    "vn_points",
-    "vn_by_case",
-    "select_wing",
-    "select_htail",
-    "select_htail_balancing",
-    "select_htail_maneuver",
-    "select_htail_gust",
-    "select_htail_unsymmetrical",
-    "select_vtail",
-    "select_fuselage",
-    "htail_balance",
     "HtailBalance",
+    "build_critical",
+    "default_critical",
+    "default_envelope",
     "elevator_load",
     "elevator_load_parts",
-    "rudder_load_parts",
     "flaps_by_config_name",
+    "htail_balance",
+    "rudder_load_parts",
+    "run",
+    "select_fuselage",
+    "select_htail",
+    "select_htail_balancing",
+    "select_htail_gust",
+    "select_htail_maneuver",
+    "select_htail_unsymmetrical",
+    "select_vtail",
+    "select_wing",
+    "vn_by_case",
+    "vn_points",
 ]

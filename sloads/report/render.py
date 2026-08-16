@@ -317,10 +317,10 @@ def _detect_moment_unit(results) -> str:
     return "ft-lb"
 
 
-def _result_location(r: ConditionResult):
+def _result_location(r: ConditionResult) -> Optional[tuple]:
     locs = [_find(r.values, k) for k in LOC_KEYS]
     if all(locs):
-        return tuple(v.value for v in locs)
+        return tuple(v.value for v in locs if v is not None)
     return None
 
 

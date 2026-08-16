@@ -41,15 +41,15 @@ from __future__ import annotations
 import math
 from typing import List, NamedTuple
 
+from ..case_ids import WING_BAND_FLAP, CaseIdAllocator
 from ..constants import KT_TO_FPS_SUITE, ULTIMATE_FACTOR
-from ..case_ids import CaseIdAllocator, WING_BAND_FLAP
 from ..models import (
-    MissingInputError,
     CaseRef,
     ConditionResult,
     ControlSurfaceLoadResult,
     ControlSurfaceStation,
     LoadValue,
+    MissingInputError,
     ModuleResult,
     Project,
 )
@@ -99,7 +99,7 @@ def _slipstream_velocity(vf_kt: float, maxhp: float, pdia_in: float):
     return u1, u, area
 
 
-def flap_loads(vs: float, vsf: float, vf: float, weight: float, ng: float,
+def flap_loads(vs: float, vsf: float, vf: float, weight: float, ng: float,  # noqa: ARG001  -- FLAPLOAD input list kept whole; VSF governs
                sf: float, sw: float, delta_deg: float, e: float,
                maxhp: float = 0.0, pdia_in: float = 0.0, blprop: float = 0.0,
                af_sqft: float = 0.0) -> FlapResult:
@@ -193,11 +193,14 @@ def _compute(project: Project) -> FlapResult:
 def build_flap(project: Project) -> List[ControlSurfaceLoadResult]:
     """The governing flap load (gust-combined envelope) as a result record."""
     r = _compute(project)
-    surface = project.flap_loads.surface
-    sv = design_speed_values(project, project.speeds)
+    inp, sp = project.flap_loads, project.speeds
+    if inp is None or sp is None:  # _compute has already refused; narrows for the reads below
+        raise MissingInputError("flap needs 'flap_loads' and 'speeds'")
+    surface = inp.surface
+    sv = design_speed_values(project, sp)
     load = max(r.critical_lf_lb, r.combined_gust_lb)
     case = "flap gust-combined" if r.combined_gust_lb >= r.critical_lf_lb else "flap 23.345(a)"
-    le = load / 0.75 / project.flap_loads.flap_area_one_side_sqft / _SQIN_PER_SQFT
+    le = load / 0.75 / inp.flap_area_one_side_sqft / _SQIN_PER_SQFT
     stations = [
         ControlSurfaceStation(x=0.0, psi=le),
         ControlSurfaceStation(x=1.0, psi=le / 2.0),

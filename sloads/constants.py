@@ -200,7 +200,7 @@ def installed_engine_weight(engine_type: str, hp: float, engines: int) -> float:
 TROPOPAUSE_FT = 35332.0
 
 
-def standard_atmosphere(altitude_ft: float):
+def standard_atmosphere(altitude_ft: float) -> "tuple[float, float]":
     """Speed of sound (knots) and density ratio sigma at an altitude.
 
     Mirrors the STRSPEED/MACHLIM atmosphere (Reference 1 Ch 6):

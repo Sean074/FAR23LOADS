@@ -51,10 +51,10 @@ from typing import List
 
 from ..constants import PI
 from ..models import (
-    MissingInputError,
     AeroSurfaceInput,
     ConditionResult,
     LoadValue,
+    MissingInputError,
     ModuleResult,
     Project,
     SurfaceInput,

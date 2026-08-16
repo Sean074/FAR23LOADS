@@ -36,9 +36,9 @@ import streamlit as st
 
 from sloads import Project, UnitSystem
 from sloads import io as sloads_io
-from sloads.units import unit_system_from
 from sloads import workflow as wf
 from sloads.models import SCHEMA_VERSION
+from sloads.units import unit_system_from
 
 # Must be the first Streamlit call, and the ONLY set_page_config in the app
 # (individual views must not call it again under st.navigation).

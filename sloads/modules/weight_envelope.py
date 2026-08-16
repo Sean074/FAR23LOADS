@@ -50,11 +50,11 @@ from __future__ import annotations
 from typing import List, Optional, Tuple
 
 from ..models import (
-    MissingInputError,
     ConditionResult,
     LoadValue,
     MassItem,
     MassItemKind,
+    MissingInputError,
     ModuleResult,
     Project,
     WeightEnvelopeInput,

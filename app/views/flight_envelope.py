@@ -21,11 +21,11 @@ Two tabs:
 from __future__ import annotations
 
 import copy
+from typing import Optional
 
 import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
-
 from components import active_system, gate, unit_number_input
 
 from sloads import (
@@ -41,16 +41,16 @@ from sloads import (
     to_imperial_scalar,
 )
 from sloads.case_ids import case_label
-from sloads.models import MissingInputError
 from sloads.cg_cases import flight_cases
 from sloads.derived_geometry import wing_reference
+from sloads.models import MissingInputError
 from sloads.modules.configuration import run as configuration_run
-from sloads.modules.flight_envelope import build_envelope, run as flt_run, trim_sweep
+from sloads.modules.flight_envelope import build_envelope, trim_sweep
+from sloads.modules.flight_envelope import run as flt_run
 from sloads.modules.landing import build_landing
 from sloads.modules.select import build_critical
 from sloads.modules.structural_speeds import design_speed_values
 from sloads.report import governing_loads_table, module_text_report
-
 
 st.title("Flight Envelope (V-n), Balancing Tail Loads & Critical Loads")
 st.caption(
@@ -101,7 +101,7 @@ xw = _wr.xw if _wr is not None else (fl.xw or 80.953)
 zw = _wr.zw if (_wr is not None and _has_parametric) else (fl.zw or 87.725)
 
 
-def _num(label: str, value: float, key: str, kind: str, fmt: str = "%.3f", min_value: float = None) -> float:
+def _num(label: str, value: float, key: str, kind: str, fmt: str = "%.3f", min_value: Optional[float] = None) -> float:
     display_value = float(round(to_display(value, kind, system), 4))
     kwargs = {} if min_value is None else {"min_value": min_value}
     return float(st.number_input(f"{label} ({U[kind]})", value=display_value, format=fmt,
@@ -241,8 +241,8 @@ def _tab_vn() -> None:
             fig.add_trace(go.Scatter(
                 x=tr.v, y=tr.n, name=f"LIMIT env: {tr.name}", mode="lines",
                 legendgroup="limit_env",
-                line=dict(color="rgba(140,140,140,0.7)",
-                          dash="dot" if is_gust else "solid", width=1.5)))
+                line={"color": "rgba(140,140,140,0.7)",
+                          "dash": "dot" if is_gust else "solid", "width": 1.5}))
 
     alts_to_plot = altitudes_ft if overlay_all_alt else [selected_alt]
     for alt in alts_to_plot:
@@ -256,7 +256,7 @@ def _tab_vn() -> None:
                                  name=f"gust{suffix}", mode="markers"))
     title_alt = "all altitudes" if overlay_all_alt else f"{selected_alt:.0f} ft"
     fig.update_layout(title=f"V-n diagram — {selected_cg}, {title_alt}", xaxis_title="V (KEAS)",
-                      yaxis_title="Load factor NZ", legend=dict(orientation="h"), height=440)
+                      yaxis_title="Load factor NZ", legend={"orientation": "h"}, height=440)
     st.plotly_chart(fig, use_container_width=True)
     st.caption(
         "Grey lines are the continuous **LIMIT** design envelope (stall boundary, "
@@ -309,38 +309,37 @@ def _select_inputs_form() -> None:
     defaulted silently (0 / 0 / 0.09·MTOW) with no visible knob. Form + Apply, so a
     plain render never dirties the project."""
     si = project.select_input or SelectInput()
-    with st.expander("SELECT search inputs (wing torsion & critical fuselage)"):
-        with st.form("select_inputs_form"):
-            c1, c2, c3 = st.columns(3)
-            aileron = c1.number_input(
-                "Full-down aileron deflection, DN (deg)", min_value=0.0,
-                value=float(si.full_down_aileron_deg),
-                help="Drives the FAR 23.349(b) steady-roll wing-torsion score "
-                     "(cm − 0.01·DN)·q·V²; 0 leaves the roll case out of the wing search.")
-            cm = c2.number_input(
-                "Basic airfoil Cm (no aileron)", value=float(si.basic_airfoil_cm),
-                format="%.4f",
-                help="Section pitching-moment coefficient with no aileron deflection; "
-                     "pairs with DN in the wing-torsion score.")
-            wing_weight = c3.number_input(
-                f"Wing weight, WW ({U['weight']})", min_value=0.0,
-                value=float(round(to_display(si.wing_weight_lb, "weight", system), 3)),
-                help="Wing weight reacted at the wing for the critical-fuselage search "
-                     "(load on wing = LZW − Nz·WW). 0 → default 0.09·MTOW.")
-            if st.form_submit_button("Apply", type="primary"):
-                si.full_down_aileron_deg = float(aileron)
-                si.basic_airfoil_cm = float(cm)
-                si.wing_weight_lb = to_imperial_scalar(float(wing_weight), "weight", system)
-                # M4-22: persist *only this form's* slice, and onto the session
-                # project -- writing the page's probe copy back committed the
-                # un-applied "Apply geometry & altitudes" edits it carries
-                # (fl_effective), breaking the M2-3 persist-only-on-Apply
-                # contract for that other form. ``project`` (the probe) is
-                # updated too so the rest of this render sees the new input.
-                session_project.select_input = si
-                st.session_state["project"] = session_project
-                project.select_input = si
-                st.success("SELECT search inputs applied.")
+    with st.expander("SELECT search inputs (wing torsion & critical fuselage)"), st.form("select_inputs_form"):
+        c1, c2, c3 = st.columns(3)
+        aileron = c1.number_input(
+            "Full-down aileron deflection, DN (deg)", min_value=0.0,
+            value=float(si.full_down_aileron_deg),
+            help="Drives the FAR 23.349(b) steady-roll wing-torsion score "
+                 "(cm − 0.01·DN)·q·V²; 0 leaves the roll case out of the wing search.")
+        cm = c2.number_input(
+            "Basic airfoil Cm (no aileron)", value=float(si.basic_airfoil_cm),
+            format="%.4f",
+            help="Section pitching-moment coefficient with no aileron deflection; "
+                 "pairs with DN in the wing-torsion score.")
+        wing_weight = c3.number_input(
+            f"Wing weight, WW ({U['weight']})", min_value=0.0,
+            value=float(round(to_display(si.wing_weight_lb, "weight", system), 3)),
+            help="Wing weight reacted at the wing for the critical-fuselage search "
+                 "(load on wing = LZW − Nz·WW). 0 → default 0.09·MTOW.")
+        if st.form_submit_button("Apply", type="primary"):
+            si.full_down_aileron_deg = float(aileron)
+            si.basic_airfoil_cm = float(cm)
+            si.wing_weight_lb = to_imperial_scalar(float(wing_weight), "weight", system)
+            # M4-22: persist *only this form's* slice, and onto the session
+            # project -- writing the page's probe copy back committed the
+            # un-applied "Apply geometry & altitudes" edits it carries
+            # (fl_effective), breaking the M2-3 persist-only-on-Apply
+            # contract for that other form. ``project`` (the probe) is
+            # updated too so the rest of this render sees the new input.
+            session_project.select_input = si
+            st.session_state["project"] = session_project
+            project.select_input = si
+            st.success("SELECT search inputs applied.")
 
 
 def _tab_select() -> None:
@@ -498,7 +497,7 @@ def _tab_trim() -> None:
         pad = 0.05 * (fl.mac or 1.0) * 12.0
         lo_default, hi_default = lo_default - pad, hi_default + pad
 
-    c1, c2, c3 = st.columns(3)
+    _, _, c3 = st.columns(3)
     # M4-11: these were hard-coded to inches and took raw Imperial even in SI.
     # Through ``unit_number_input`` they render in the active system and come
     # back Imperial, which is what ``trim_sweep`` expects for a station.
@@ -520,7 +519,7 @@ def _tab_trim() -> None:
         return
 
     fig = go.Figure()
-    fig.add_hline(y=0.0, line=dict(color="rgba(120,120,120,0.6)", width=1))
+    fig.add_hline(y=0.0, line={"color": "rgba(120,120,120,0.6)", "width": 1})
     for cur in curves:
         fig.add_trace(go.Scatter(x=cur.xcg_in, y=cur.lt_lb, mode="lines", name=cur.condition))
     # Overlay the real CG cases that share the reference weight -- they land on the
@@ -534,11 +533,11 @@ def _tab_trim() -> None:
             if xs:
                 fig.add_trace(go.Scatter(
                     x=xs, y=ys, mode="markers", name=f"{cond} CG cases",
-                    marker=dict(symbol="circle-open", size=11), showlegend=False))
+                    marker={"symbol": "circle-open", "size": 11}, showlegend=False))
     fig.update_layout(
         title=f"Balancing tail load vs CG — {ref.weight_lb:.0f} lb, zcg {ref.zcg:.1f} in",
         xaxis_title="CG station Xcg (in)", yaxis_title="Balancing tail load LT (lb, LIMIT)",
-        legend=dict(orientation="h"), height=430)
+        legend={"orientation": "h"}, height=430)
     st.plotly_chart(fig, use_container_width=True)
     st.caption(
         "Positive LT is up (tail lift). Open markers are the project's CG cases at this "
@@ -569,7 +568,7 @@ def _tab_trim() -> None:
     sm_pct = [np_pct - p for p in cg_pct]
 
     figs = go.Figure()
-    figs.add_hline(y=0.0, line=dict(color="rgba(200,80,80,0.7)", width=1, dash="dash"),
+    figs.add_hline(y=0.0, line={"color": "rgba(200,80,80,0.7)", "width": 1, "dash": "dash"},
                    annotation_text="neutral (NP)", annotation_position="top left")
     figs.add_trace(go.Scatter(x=[round(p, 2) for p in cg_pct], y=sm_pct, mode="lines",
                               name="static margin"))
@@ -577,12 +576,12 @@ def _tab_trim() -> None:
     if env_w is not None:
         for label, pct in (("fwd limit", env_w.fwd_gross_pct_mac), ("aft limit", env_w.aft_gross_pct_mac)):
             if pct:
-                figs.add_vline(x=pct, line=dict(color="rgba(120,120,120,0.6)", width=1, dash="dot"),
+                figs.add_vline(x=pct, line={"color": "rgba(120,120,120,0.6)", "width": 1, "dash": "dot"},
                                annotation_text=label, annotation_position="top")
     figs.update_layout(
         title=f"Static margin vs CG — neutral point {np_pct:.1f} %MAC",
         xaxis_title="CG (%MAC)", yaxis_title="Static margin (%MAC)",
-        legend=dict(orientation="h"), height=360)
+        legend={"orientation": "h"}, height=360)
     st.plotly_chart(figs, use_container_width=True)
     st.caption(
         f"Static margin = NP − CG (both %MAC); NP = {np_pct:.1f} %MAC from the tail-volume "
