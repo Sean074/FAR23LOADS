@@ -165,6 +165,201 @@ OCR-garbled — the reaction matrix stays closure-/legible-cell-locked).
 
 ---
 
+## Parked 2026-08-16 — scope and deficiency review
+
+Moved here by the 2026-08-16 review ([`../50_reviews/2026-08-16_scope_and_deficiency_review.md`](../50_reviews/2026-08-16_scope_and_deficiency_review.md) §2.2/§2.3): each item's stated effect on a delivered load is below the base method's own error bar, or the item is outside the FAR 23 mission (the Part 25 pack), or its consumer does not exist yet. Bodies are kept in full. **Power effects:** the seven-step plan of note 21 is parked; the *thrust `FORCE` at the engine hub* was carved out of it and stays ranked in the backlog. **Step 14:** the indeterminate-path half (continuous fuselage, carry-through element, redundant hinges — note 24 R-12) is parked here without a body of its own; the descoped pass-through row remains in the backlog.
+
+### [V] M4-19 — Distributed fuselage aero pitching moment (Multhopp/Nelson)
+Step G4's `sloads/fuselage_moment.py` returns a **scalar** Munk slope
+`dCm/dα = (k2-k1)*Vol/(S*mac)`, folded into `M1` for the trim solve only — the
+body's own aero moment never reaches the beam, and the Munk form is the ideal-flow
+limit (it assumes the local flow angle equals free-stream α at every station, so
+it over-predicts the destabilizing slope for a real wing-body, typically by
+10–40 %, because the aft body sits in downwash). Replace/extend with the Multhopp
+strip form (Nelson, *Flight Stability and Automatic Control* §2.3, Eqs. 2.62–2.63;
+same core as DATCOM 4.2.1.1 with its viscous cross-flow addition; primary sources
+Multhopp NACA TM-1036, Gilruth & White NACA TR-711):
+
+    Cm0,fus = (k2-k1)/(36.5*S*c̄) * ∫ w_f^2 * (α_0w + i_f) dx
+    Cmα,fus =        1/(36.5*S*c̄) * ∫ w_f^2 * (∂ε_u/∂α)  dx
+
+This buys three things Munk cannot: a **Cm0** (via body incidence `i_f`), wing
+interference realism (`∂ε_u/∂α` > 1 ahead of the wing, small and recovering aft
+of it), and a **per-station integrand** — a genuine distributed body pitching load
+for `body_loads`, which also shifts `M_ub`. Keep the G4 scalar API as the integral
+of the distribution so `flight_envelope._apply_fuselage_moment` is unchanged and
+off-by-default stays off (Appendix A/B bit-for-bit). New inputs: `i_f` and the
+wing root-chord station for the `∂ε_u/∂α` curve. Update
+`reference/fuselage_pitching_moment.md` (which currently documents the Munk-only
+scope and its deliberate omissions) alongside the calc.
+
+### [V] M4-21 — Fuselage pitching load factor (Ch 15's missing half)
+Ch 15 (Ref 1 p103) says to multiply the station weights by the **linear and
+pitching** load factors; `body_loads` applies only `NZ`. Add the d'Alembert pitch
+term at each station, `f_i += -m_i * θ̈ * (x_i - x_cg)`, for the unbalanced /
+abrupt-pitch conditions (23.423). It is self-equilibrating by construction —
+`Σ m_i (x_i - x_cg) ≡ 0` by definition of the CG, so it adds **zero net force**
+and a net moment of `-Iyy*θ̈`; i.e. the mass-weighted form of a linear
+distribution with net moment and no net shear. **Not a closure mechanism:** for
+the balanced trim points `θ̈ = 0`, so M4-1 (shipped) stands on its own. Needs `θ̈`,
+hence `Iyy` and an unbalanced pitching condition (`build_envelope` emits only
+balanced trim points today) — pairs naturally with **M4-4**.
+
+### [V] M4-4 — Per-CG precise inertia in SELECT
+Wire the persisted WTONECG per-CG inertia into SELECT's checked-maneuver `Iyy`
+and v-tail `IZZ` (currently the Ch 9 approximations, which match the oracle).
+
+### [V] M4-3 — ONENGOUT data-flow + turboprop gate
+(a) v-tail geometry provenance (`vtail_loads` slice vs `geometry`) — derive or
+document; (b) gate 23.367 on `is_turboprop` (or caption) so it can't silently
+run for a reciprocating/turbofan multi (23.367(a) is turbopropeller-specific,
+Ref 1 Ch 11 p87); (c) the Ch 11 Method allows **VSF** (flapped stall) as an
+alternative VMC substitute — the case table uses only VS (clean) today; add VSF
+or document the omission.
+
+**(b) sharpened by the fixture-data step (2026-08-13).** The turbofan case is now
+a *stated* limitation rather than an unexamined one: `PROPELLER_ONLY_NOTE` owns
+the wording and it ships as the `engine-failure-propeller-only` standing
+limitation in every methods-and-limitations stamp. `concept_regional_jet` was
+therefore **dropped** from that step and enters no `one_engine_out` slice — run
+with a shaft-power surrogate it produced ~41–52 klb fin loads that never recover
+(windmill drag identically zero on a 0-in propeller disc), i.e. exactly the
+"wrong card outranks a missing card" case. What is left for M4-3(b) is the
+*enforcement*: refuse (or caption) the run when the failed engine is not a
+propeller installation, so the limitation is a gate and not only a sentence.
+
+### [V] `concept_heavy` has no landing-gear geometry and no `landing` slice *(new 2026-08-14, from step 10 decision G-13)*
+It is the one shipped fixture with neither, so it produces no LANDLOAD output, no
+gear load report and no ground cases of any kind. Two things it would buy, both
+unavailable elsewhere: a **sixth** gear-report fixture (that artifact needs only
+LANDLOAD output and gear geometry — no derivable mass loading — so its coverage
+is 5 of 6 where the assembled ground cases reach only 2), and the only
+**concept-mode** exercise of the FAR 23.473(g) `N ≥ 2.67` / `NLG ≥ 2.0` floor
+warning, which is warn-only and has never fired on a shipped fixture. It would
+**not** buy assembled ground cases — its single CG case is not derivable from its
+weight database, the same pinned finding as the twins. Pure fixture data: gear
+axle geometry at three strut states, tread, tyre/hub, strut stroke, tail-down
+angle and three roled `GROUND` cases. Tier S. Effort: S.
+
+### [V] M4-8 Layer 2 — agreed named failure-case factors (25.302) **[architecture]**
+Layer 1 shipped 2026-08-14 as the **governing safety-factor table**
+(`sloads/safety_factors.py`; history entry "Step 10 piece 1"). What remains is
+Layer 2, which has a **different source of authority**: a `Project` slice of
+**named** system-failure factors — `(name, far_reference="25.302", agreed_sf,
+basis)`, e.g. **`25.302 — MLA Loss → SF 1.25`**. These are not code constants and
+are not computed from a probability by the tool: in practice loads and systems
+**agree** the factor per program, from the demonstrated system reliability, so it
+is an engineering **input**. Each entry (a) renders as its own ULTIMATE load case
+(`25.302 MLA Loss`, `SF=1.25`, `lbs-ULT`) and (b) records a **design requirement
+levied on the system** — a loads↔systems interface artifact the tool can later
+surface as a "system reliability requirements" list.
+
+The shipped table is already the right shape to carry them: a named failure case
+is one more row, with `status = override`'s declaration machinery (mandatory
+basis, report + methods-stamp marking) reused unchanged. What it needs is the
+input slice, the case-generation side, and `classify()` learning to route a named
+failure case to its own row rather than to the family its FAR reference implies.
+This is a *practical* 25.302, distinct from the full probabilistic **Appendix K**
+method, which the F25 gap analysis keeps out of scope — see
+[`../20_theory/01_far25_gap_analysis.md`](../20_theory/01_far25_gap_analysis.md).
+**Acceptance:** a Layer-2 named case round-trips through `io.py` and renders as
+`lbs-ULT SF=1.25`, and the governing table states it with its basis. Coordinates
+with Phase F25. Effort: M.
+
+### [V] CG-dependent MTOW — a non-flat weight–CG envelope top edge *(new 2026-08-14, from step 10 decision G-14)*
+G-14 fixes MTOW as a **single scalar, constant between the forward and aft CG
+limits** — the common case, and a stated assumption in the weights basis. On some
+airplanes (the Boeing 777 among them) the maximum take-off weight **varies with
+CG**, so the weight–CG envelope's top edge is not flat and the permissible weight
+falls off toward one or both CG limits. Closing this means a permissible-weight
+*boundary* rather than a scalar, plus the check that every entered loading sits
+under it. The machinery is not as far away as it looks: the envelope is already
+non-rectangular in the other direction — `WeightEnvelopeInput.fwd_regardless_weight`
+makes the **forward** CG limit weight-dependent (ga6: 2,800 lb against a 3,400 lb
+gross) — so this is a change to an existing boundary concept, not a new one.
+Needs a decision on the input form (breakpoint pairs vs a second gross-weight
+anchor) before code. Tier M. Effort: M.
+
+### [V] F25-0 — Verify pass (S, precedes any F25 build step)
+Pull current CFR text for every *(verify)* row into
+`reference/14CFR_Part25_loads_extracts.md`; correct the gap table; freeze
+parameters. *(Done so far: 2026-07-20 `reference/14CFR_MC_MD_speed_margin.md`; 2026-08-08 `reference/14CFR_25_335_design_airspeeds.md` — 25.335(a)/(b)/(d) verbatim, which cleared the three *(verify)* tags in gap-analysis §1.3.)*
+
+### [V] Upset-criterion speed increase (25.335(b)(1) / 23.335(b)(4)(i)) *(new 2026-08-08, from F25-2)*
+25.335(b) requires the **greater of** the Mach margin and the (b)(1) upset
+criterion: from stabilized flight at VC/MC, upset, flown 20 s along a path 7.5°
+below the initial one, then pulled up at 1.5 g (0.5 g increment) — per
+AC 25.335-1A. F25-2 shipped the Mach term only, so the margin check is
+explicitly **not a sufficiency demonstration** and every margin-route output
+says so. This closes that gap. Needs a drag/thrust model over the 20 s dive (the
+rule permits calculation "if reliable or conservative aerodynamic data is
+used"), so it is a real piece of work, not a formula. Effort: M. Reference text
+already captured: `../../reference/14CFR_25_335_design_airspeeds.md`.
+
+### [V] Mach-margin route for the FAR 23 categories *(new 2026-08-08, from F25-2)*
+23.335(b)(4) offers the margin route to normal/utility/acrobatic (0.05 M) and to
+commuter (0.07 M, rational analysis down to 0.05). F25-2 withheld it from all of
+them (decision F25-2-a) so the Appendix A oracles stayed provably untouched;
+`vd_basis = "mach_margin"` in a FAR 23 category currently raises. The machinery
+is already in place — this is a category gate plus a per-category default in
+`resolve_mach_margin`, and an oracle-unchanged test. Pairs with the dormant
+"Distinct Commuter category" item. Effort: S.
+
+### [V] Flutter-clearance Mach basis for transport concepts *(new 2026-08-08, from F25-2)*
+MACHLIM's `MFC = 1.2·MD` is GA-lineage (MACHLIM.BAS, Ref 1 Ch 6). Even with the
+RJ's dive speed corrected it gives **MFC 1.021** — transonic nonsense for a
+subsonic transport, where flutter clearance is conventionally MD + ~0.05–0.10 M
+(and 23.629/25.629 are framed as a margin, not a ratio). Noticed while
+reproducing the F25-2 dive-speed defect. Needs a verified reference and a
+recorded decision **before** any change — the 1.2 factor is oracle-locked to
+Appendix A p160 (MFC 0.4836), so a change must be an opt-in variant, not an edit
+to the GA path. Effort: S (study + decision) then S (variant).
+
+### [V] F25-1 — Transport category "T" envelope pack (M)
+25.337 floor 2.5 / negative −1.0; **VB per 25.335(d)** (F25-2 accepts VB as an
+input and checks the 25.335(a) ordering; **computing** it, and the full
+`VC ≥ VB + 1.32·U_ref` margin, both land here with the U_ref schedule — the VB
+formula is the Pratt K_g already in the gust engine, so it is cheap once U_ref
+exists); transport gust corner set —
+Pratt engine with the 25.341 U_ref schedule + F_g; MZFW design weight.
+Identity test: "T" with FAR 23 parameters reproduces the FAR 23 envelope. The
+dive-speed machinery is already built (F25-2): "T" inherits
+`structural_speeds.resolve_mach_margin` and the `vd_basis` enum unchanged — only
+the category gate widens.
+(Pattern: opt-in supplement per module, FAR 23 path untouched, "static
+surrogate — not certification" banner. Full gap table:
+[`../20_theory/01_far25_gap_analysis.md`](../20_theory/01_far25_gap_analysis.md).)
+
+### [V] F25-4 — Ground-loads parameter variant (M)
+LGFACTOR at 10/6 fps, lift = W, LDW/MTOW pairing; LANDLOAD tables documented as
+surrogate. Coordinates with M4-6.
+
+### [V] Power effects on the wing — thrust and propeller-wake loads *(new 2026-08-15, user; design note agreed)*
+Every wing case in the suite is **exactly** zero-thrust (measured: no powerplant
+`source` in any balanced case; the x-closure is the drag alone, GA-6 PHAA
+`n_x = −0.61 g`). The only power physics — FLAPLOAD's slipstream — stops at the
+flap panel, and the 23.361/23.371 mount thrust/torque/gyro stop at the mount,
+although for a wing-mounted engine the rule names "the mount **and its
+supporting structure**". Design note
+[`21_power_effects_wing_note.md`](21_power_effects_wing_note.md) — **agreed
+2026-08-15, decisions P-0…P-12** — settles: DATCOM §4.6.1–4.6.3 as the default
+estimator (Digital DATCOM ex3 case 4 vs 3 is the printed oracle) with
+field-by-field user override and the momentum-theory band as the single
+distribution rule; `N_p` included; take-off power flaps-down / max-continuous
+flaps-up; a `power_policy.py` table (the `safety_factors.py` pattern) minting a
+`-P` variant of every clean wing family + `SLIP-P` on `BAL 1.4VSF` + Kind I
+`361A1/361A2/371-k` (at VA) into the wing box; re-trim at V-n level then
+assemble (the 1 % gate applies); pair torque reacted by an aileron-trim couple;
+V-n and design speeds stay power-off; h-tail `-P` families under the same table;
+v-tail terms deferred to L-7; user-defined thrust line (hub + incidence + toe);
+`AeroCoeffSet.power_state` provenance flag. Sequencing in the note §8:
+**the `atr42_100`/`dhc8_dash8` prerequisite is discharged** (Pri 5 / D-26,
+2026-08-15, gave both their flight balanced cases; the note was written when
+neither assembled one on HEAD) and the pre-Amdt-64 CFR pull. Rule basis pre-Amdt-64
+FAR 23. Tier L. Effort: L (7 steps). Next artefact: the code implementation plan.
+
+---
+
 ## Future directions (not yet scoped — placeholders, much later)
 
 - **OpenVSP interface.** Geometry **import/export** (`.vsp3`/DegenGeom ↔

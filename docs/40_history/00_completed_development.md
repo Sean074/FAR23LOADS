@@ -10,6 +10,8 @@ Acceptance**, **Key decisions**.
 
 ---
 
+- **Backlog re-cut per the 2026-08-16 scope and deficiency review (tier S, 2026-08-16)** — `docs/50_reviews/2026-08-16_scope_and_deficiency_review.md`; band A = 0.6.0, step 14 descoped to a `PBAR`/`MAT1` pass-through, fourteen rows parked with bodies, effect-vs-error-bar rule + schema freeze added, frozen-capability list recorded.
+
 **Step 12 — the LRA beam model, export + import (complete 2026-08-16, tier L)**
 
 **Objective.** Close backlog Pri 1: ship the **third deliverable** (note 24

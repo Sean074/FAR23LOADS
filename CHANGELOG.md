@@ -147,6 +147,27 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- **Backlog re-cut from the scope and deficiency review (2026-08-16, tier S).**
+  [`docs/50_reviews/2026-08-16_scope_and_deficiency_review.md`](docs/50_reviews/2026-08-16_scope_and_deficiency_review.md)
+  sorted every open row and the shipped capability against the base method's
+  own error bar. Outcome in `docs/30_future/00_backlog.md`: band A is now the
+  whole of 0.6.0 (the fin-root datum defect, the two mis-modelled T-tails with
+  the negative-zero normalisation in the same digest wave, the `NMAA` `dCD`
+  sign, the per-page CSV units, the turboprop gate as enforcement, a hygiene
+  batch carrying the review's code-health items CH-2/3/6/7, the fuel
+  separability as the freeze's one schema hop, and the test-suite runtime fix
+  CH-1 first); **step 14 descoped** from "real stiffness" to a `PBAR`/`MAT1`
+  pass-through; **fourteen rows parked** to `02_parked.md` ("Parked
+  2026-08-16": the power-effects seven-step plan — with the thrust `FORCE` at
+  the hub carved out and kept — Multhopp `Cm`, the pitching load factor,
+  per-CG inertia, M4-3(a)/(c), `concept_heavy` gear, M4-8 Layer 2, and the
+  whole Part 25 band); two standing ordering rules added (effect-vs-error-bar;
+  schema freeze through 0.6.0); the frozen-capability list recorded under the
+  table. No code, no oracle, no deliverable moved. **Same day:** the backlog
+  header (lines 3–177 — lifecycle rules restating `CLAUDE.md` and the running
+  "current state" narrative) cut to a rules-and-pointers block; the narrative
+  archived verbatim as `docs/40_history/10_backlog_state_narrative_to_2026-08-16.md`.
+
 - **Fixture data: every wing enters `ref_axis_pct = 0.40`** (note 24 R-7a) and
   the engines enter `mounted_on` — one deliberate digest wave: the wing decks
   and span CSVs, the spanwise tail decks (the derived tail planforms inherit
