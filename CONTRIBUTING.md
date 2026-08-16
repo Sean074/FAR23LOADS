@@ -21,7 +21,12 @@ never derive a load equation from memory — cite the reference page in the test
 git clone https://github.com/Sean074/sloads.git && cd sloads
 python3.11 -m venv .venv && .venv/bin/pip install -e '.[dev]'     # 3.9–3.12 supported
 .venv/bin/pip install -e '.[solver]'    # optional: the pinned sbeam solver for the round-trip gate
+.venv/bin/pre-commit install --hook-type pre-commit --hook-type pre-push   # optional: ruff+mypy on commit, suite on push
 ```
+
+The hooks run the venv's own `ruff`/`mypy` (pinned in `pyproject.toml`, the same
+versions CI runs) so a green commit here is a green lint step there; skip once
+with `git push --no-verify`. CI is the gate either way.
 
 The gates, all local:
 

@@ -13,6 +13,14 @@ jobs:
       fail-fast: false
       matrix:
         python-version: ["3.9", "3.11", "3.12"]
+        # Coverage on ONE leg (2026-08-16, item 8 of the code-standard review):
+        # branch-coverage instrumentation was the multiplier that made every
+        # leg a ~12-minute job on a 2-core runner. The 80 % floor is one
+        # number, so it needs measuring once; the other two legs are the
+        # 3.9/3.11 *compatibility* claim and run uninstrumented.
+        include:
+          - python-version: "3.12"
+            coverage: "--cov=sloads --cov-report=term-missing --cov-fail-under=80"
 
     steps:
       - uses: actions/checkout@v4
@@ -35,8 +43,10 @@ jobs:
         env:
           STREAMLIT_SERVER_HEADLESS: "true"
         # Coverage lives here, not in `addopts` (CH-1): CI is the enforcement
-        # point; local runs stay uninstrumented and fast.
-        run: pytest -v --tb=short --cov=sloads --cov-report=term-missing --cov-fail-under=80
+        # point; local runs stay uninstrumented and fast. `matrix.coverage` is
+        # set on the 3.12 leg only (see the matrix `include` above); on the
+        # other legs it expands to nothing.
+        run: pytest -q --tb=short --durations=15 ${{ matrix.coverage }}
 
   # Static type check of the calc package (design note 27, 2026-08-16). Its own
   # job, on one interpreter: mypy 2.x targets the running Python and the code's
