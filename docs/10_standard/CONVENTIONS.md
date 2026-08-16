@@ -116,11 +116,18 @@ file + symbol is the anchor.
     visit, and one merged number would stop the symmetric bounds from biting.
 - **A lateral balanced case states what it does not model, in-band** (decision
   L-7). The fin is the only lateral aerodynamic load this suite computes —
-  fuselage and wing side force in sideslip are not modelled — so `n_y` and the
-  yaw acceleration are **over-stated by an unknown amount**, and the inertia they
-  drive is conservative on every component. The fin's own design load is
-  SELECT's, unchanged. The caveat travels as a case note into the deck `$` header
-  and the report; it does not live only in documentation.
+  fuselage and wing side force in sideslip are not modelled — and the two lateral
+  degrees of freedom err in **opposite directions** (corrected 2026-08-15; the
+  single "both over-stated" sentence shipped 2026-08-09 was wrong on `n_y`). The
+  missing body yawing couple is destabilizing and opposes the fin's, so the yaw
+  acceleration is **over-stated** and the inertia it drives is conservative. The
+  missing body-and-wing side force acts the same way as the fin's restoring load
+  at `+β` — it **adds** — so `n_y` is **under-stated** and the lateral
+  translational inertia it drives is **not** conservative on any component. Both
+  by an unknown amount: they are measurable, but no shipped code computes them
+  (backlog L-7 quantifies both halves and replaces this sentence). The fin's own
+  design load is SELECT's, unchanged. The caveat travels as a case note into the
+  deck `$` header and the report; it does not live only in documentation.
 - **A ground case is a balanced free-free case, and it carries no base load
   factor** (decision **G-1**/**G-6**, step 10 piece 3). Ground conditions are born
   in the assembled deck — a ground case is irreducibly three-dimensional (drag and

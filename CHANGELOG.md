@@ -368,6 +368,30 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- **`LATERAL_AERO_NOTE` stated the `n_y` error in the wrong direction** (defect
+  found 2026-08-15 while writing the L-7 design note; text only — no computed
+  number moves). The in-band lateral caveat shipped with B8a-3 told every reader
+  that `n_y` *and* the yaw acceleration were **over-stated** and that the inertia
+  they drive was therefore conservative. The yaw half is right — the missing body
+  yawing couple is destabilizing and opposes the fin's — but the `n_y` half was
+  backwards: at `+β` the missing body-and-wing side force acts the **same** way
+  as the fin's restoring load, so it **adds**, `|n_y|` is **under**-stated, and
+  the lateral translational inertia is **not** conservative. The sentence now
+  states a direction **per degree of freedom**; both magnitudes stay *unknown* in
+  band, because the measured figures (`docs/30_future/19_l7_lateral_body_aero_note.md`
+  §7: `|n_y|` 4.1–12.0 % low on `concept_regional_jet`) come from a scratch run
+  no shipped code reproduces, and a deck-header number must be one this tool can
+  produce — quoting them stays part of backlog L-7. Corrected at every carrier:
+  `balance.LATERAL_AERO_NOTE` (quoted verbatim by `report/methods.py`, so the
+  report, the deck `$` header, the case notes and the UI follow), the
+  `balance` module docstring, `CONVENTIONS.md` §1's L-7 bullet and
+  `PROGRAM_SPEC.md`'s two lateral bullets. New
+  `tests/test_methods_stamp.py::test_the_lateral_caveat_states_a_direction_per_degree_of_freedom`
+  pins the two directions **separately**, since one sentence covering both is
+  what got it wrong. Digest: `sbeam/balanced_deck` and `txt/balance` on the two
+  fixtures with lateral cases (`ga6_normal`, `concept_regional_jet`); Imperial
+  baseline regenerated, no numeric channel moved.
+
 - **The balanced cases' pitch residual was attributed to two causes that the
   measurement refutes** (backlog Pri 5, the element-count study that item asked
   for; documentation and diagnosis only, no calc changed). Sweeping

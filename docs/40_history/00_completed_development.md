@@ -10,6 +10,17 @@ Acceptance**, **Key decisions**.
 
 ---
 
+**`LATERAL_AERO_NOTE`'s `n_y` direction corrected (complete 2026-08-15, tier M)**
+— the in-band lateral caveat called `n_y` over-stated and its inertia
+conservative; the missing body/wing side force *adds* to the fin's at `+β`, so
+`n_y` is **under**-stated and that inertia is **not** conservative (the yaw half
+was right). The sentence now states a direction per DOF, magnitudes still unknown
+in band (quoting them is backlog L-7's job); corrected in
+`balance.LATERAL_AERO_NOTE` + docstring, `CONVENTIONS.md` §1 and
+`PROGRAM_SPEC.md`'s two lateral bullets, with a per-DOF pin in
+`tests/test_methods_stamp.py`; Imperial baseline regenerated (two text channels
+on the two lateral fixtures, no numeric channel moved).
+
 **The body drag carrier — non-wing drag in the assembled model (complete
 2026-08-15, tier L)**
 

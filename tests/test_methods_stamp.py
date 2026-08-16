@@ -191,6 +191,29 @@ def test_the_in_band_caveats_and_the_report_use_one_wording():
         assert owner_note[1:] in text, owner_note[:60]
 
 
+def test_the_lateral_caveat_states_a_direction_per_degree_of_freedom():
+    """The sentence shipped 2026-08-09 said `n_y` and the yaw acceleration were
+    both OVER-stated and the inertia they drive therefore conservative. The yaw
+    half is right; the `n_y` half is backwards -- at +beta the missing body and
+    wing side force acts the same way as the fin's restoring load, so it ADDS and
+    `|n_y|` is UNDER-stated, which makes the lateral translational inertia
+    unconservative. Pinned per degree of freedom because the two directions
+    differ and one sentence covering both is what got it wrong: a future edit
+    that collapses them again fails here."""
+    from sloads.modules.balance import LATERAL_AERO_NOTE
+
+    note = LATERAL_AERO_NOTE
+    assert "yaw acceleration is OVER-STATED" in note
+    assert "n_y is UNDER-STATED" in note
+    # ...and the consequence for the inertia, stated both ways round.
+    assert "the inertia it drives is conservative" in note
+    assert "NOT conservative" in note
+    # No magnitude is claimed in band -- no shipped code computes one (backlog L-7).
+    assert "unknown amount" in note
+    # It still travels, wording unchanged, into the controlling document.
+    assert note[1:] in methods_statement(_project(_GA))
+
+
 def test_the_assumed_tail_planform_reaches_the_statement():
     """Review **F-R4**: ``resolve_tail_planform`` marks a derived rectangle
     ASSUMED, and that marker reached the page, the CSV and the result and stopped

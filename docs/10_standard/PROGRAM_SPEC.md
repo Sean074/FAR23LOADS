@@ -842,9 +842,12 @@ return strings (with thin `write_*` file wrappers), and do no physics.
   is unchanged (`CONVENTIONS.md` §1). Whether a case is handed is decided by
   `balance.is_handed` on the applied distribution, and whether it is lateral by
   `balance.is_lateral` (§7 owners). **Limitation, stated in-band:** the fin is
-  the only lateral aero the suite computes, so `n_y` and the yaw are over-stated
-  by an unknown amount and the inertia they drive is conservative everywhere;
-  the fin's own design load is unchanged. Filed on the backlog with M4-19.
+  the only lateral aero the suite computes, and the two lateral DOF err in
+  **opposite** directions (corrected 2026-08-15) — the yaw acceleration is
+  over-stated and its inertia conservative, while `n_y` is **under**-stated
+  (the missing body/wing side force adds to the fin's) and its inertia is **not**
+  conservative — both by an unknown amount; the fin's own design load is
+  unchanged. Filed on the backlog with M4-19.
 - **Unsymmetrical horizontal-tail balanced case (FAR 23.427(a), D-R8,
   2026-08-10).** The one h-tail condition with a hand assembles as a **handed
   pair** (`HT-09R`/`HT-09L`, SUBCASE `7209`/`8209`). SELECT's own RH/LH split is
@@ -899,7 +902,8 @@ return strings (with thin `write_*` file wrappers), and do no physics.
   `−n_z·W_vt` **axial** along the span (`f_span`/`s_span`, mapped by
   `coordinates.tail_axial_to_airplane`, emitted in the same `FORCE` cards). The
   lateral term relieves the surface total by exactly `W_vt/W_case` and inherits
-  decision L-7's over-statement caveat — both stated in-band. A condition naming
+  decision L-7's lateral-aero caveat (which is an **under**-statement on `n_y`,
+  so the relief itself is under-stated) — both stated in-band. A condition naming
   no V-n point gets no lateral term. Load factors are resolved through
   `select.vn_points`, the single owner's tolerant read; reading
   `project.envelope` directly made every *exported* deck take the `n = 1.0`

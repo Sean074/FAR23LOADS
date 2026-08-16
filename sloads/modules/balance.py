@@ -134,13 +134,18 @@ the fin load removed, still closes inside 1 %.
 
 **The fin is the only lateral aero the suite computes** (decision L-7). Fuselage
 and wing side force in sideslip exist on the airplane and nowhere in these 22
-programs, so ``n_y`` and the yaw acceleration are **over-stated** -- conservative
-for the inertia they drive on every component, and not the airplane's real
-accelerations. That is said in-band, on every lateral case, through
-:data:`LATERAL_AERO_NOTE`. Its magnitude is stated as *unknown*, because
-quantifying it is building the missing model; this is the weaker of the suite's
-two honesty statements and is not dressed up as the stronger one (the lumped
-fuselage ``Cm``, whose size can be quoted).
+programs, and the two degrees of freedom they are missing from err in **opposite
+directions**. The body's yawing couple is destabilizing and opposes the fin's, so
+the yaw acceleration is **over-stated** and the inertia it drives is
+conservative. The body-and-wing side force, however, acts the *same* way as the
+fin's restoring load at ``+beta`` -- it **adds** -- so ``n_y`` is
+**under-stated** and the lateral translational inertia it drives is **not**
+conservative. Neither is the airplane's real acceleration. That is said in-band,
+on every lateral case, through :data:`LATERAL_AERO_NOTE`. Both magnitudes are
+stated as *unknown*, because quantifying them is building the missing model
+(backlog L-7); this is the weaker of the suite's two honesty statements and is
+not dressed up as the stronger one (the lumped fuselage ``Cm``, whose size can be
+quoted).
 
 The unsymmetrical horizontal tail (D-R8)
 ---------------------------------------
@@ -296,10 +301,6 @@ RESIDUAL_GATE = 0.01
 #: 23.427(a) h-tail case 6e-3 to 1.7e-2 -- so one threshold serves both.
 HANDEDNESS_TOL = 1e-9
 
-#: The L-7 statement of record, carried in-band on every lateral case: on the
-#: result's ``notes``, hence in the deck header and the UI. The *direction* of
-#: the error is stated, not merely its existence -- and its magnitude is stated
-#: as unknown, because quantifying it is building the missing model.
 #: The B7 statement of record for the lumped aileron couple, carried in-band on
 #: every ``ACRL`` case (the case's ``notes``, hence the deck header and the UI)
 #: and in the report's standing limitations (review F-R4) — one wording for both,
@@ -311,12 +312,27 @@ AILERON_COUPLE_NOTE = (
     "not distributed (WINGINER carries only the inertia reaction, which IS "
     "distributed here)")
 
+#: The L-7 statement of record, carried in-band on every lateral case: on the
+#: result's ``notes``, hence in the deck header and the UI. The *direction* of
+#: the error is stated per degree of freedom, not merely its existence, because
+#: the two directions differ (2026-08-15 defect fix): the missing body yawing
+#: couple opposes the fin's, so ``psi_dd`` is over-stated and its inertia is
+#: conservative; the missing body-and-wing side force ADDS to the fin's, so
+#: ``n_y`` is UNDER-stated and its inertia is not. Both magnitudes stay
+#: *unknown* here -- they are measurable (design note
+#: ``docs/30_future/19_l7_lateral_body_aero_note.md`` §7 puts ``|n_y|`` 4-12 %
+#: low on the one fixture with body geometry) but no shipped code computes them,
+#: and a number in a deck header must be one this tool can reproduce. Quoting
+#: them is part of backlog L-7, which replaces this sentence outright.
 LATERAL_AERO_NOTE = (
     "the fin is the only lateral aerodynamic load this suite computes -- "
-    "fuselage and wing side force in sideslip are not modelled, so n_y and the "
-    "yaw acceleration are OVER-STATED (by an unknown amount) and the inertia "
-    "they drive is conservative on every component; the fin's own design load "
-    "is SELECT's, unchanged")
+    "fuselage and wing side force in sideslip are not modelled, and the two "
+    "lateral degrees of freedom err in OPPOSITE directions: the yaw "
+    "acceleration is OVER-STATED and the inertia it drives is conservative, "
+    "while n_y is UNDER-STATED -- the missing side force adds to the fin's -- "
+    "so the lateral translational inertia it drives is NOT conservative on any "
+    "component; both by an unknown amount. The fin's own design load is "
+    "SELECT's, unchanged")
 
 
 # --------------------------------------------------------------------------- #

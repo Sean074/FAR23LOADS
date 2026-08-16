@@ -41,9 +41,14 @@ The yaw half of the sentence is correct — `ψ̈` genuinely is over-stated, bec
 the body's yawing couple is destabilizing and opposes the fin's.
 
 This is a defect in shipped text and it is independent of whether this step is
-worked: `balance.LATERAL_AERO_NOTE`, `report/methods.py:156` and
-`CONVENTIONS.md` §1's L-7 bullet all carry it. It is filed as its own backlog
-defect (practice 5), not folded silently into this step.
+worked: `balance.LATERAL_AERO_NOTE`, `report/methods.py:156` (which quotes the
+constant), `CONVENTIONS.md` §1's L-7 bullet and `PROGRAM_SPEC.md`'s two lateral
+bullets all carried it. It was filed as its own backlog defect (practice 5), not
+folded silently into this step, and **fixed 2026-08-15**: the sentence now states
+a direction per degree of freedom, with both magnitudes still *unknown* in band —
+the numbers below are measured in a scratch run, and no shipped code reproduces
+them, so quoting them stays part of this step. `tests/test_methods_stamp.py`
+pins the two directions separately so they cannot be collapsed again.
 
 ## 2. The two derivatives, and why one of them is not Munk
 
