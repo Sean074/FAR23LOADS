@@ -232,7 +232,15 @@ def fields_hash() -> str:
 #: entered side-of-body butt line, read by the wing SOB reporting node and the
 #: h-tail attachment. Additive with a ``None`` default ("not entered" -> the
 #: half-fuselage-width fallback marked assumed), so no migration hop.
-EXPECTED_FIELDS_HASH = "16ba9e76bd778ccd"
+#: Step 12 (v52, the LRA beam model): ``FuselageSection.z_centre`` (section
+#: centre waterline, R-4), ``EngineInput.mounted_on`` (BM-4),
+#: ``AileronLoadsInput``/``FlapLoadsInput`` butt-line + hinge/actuator fields
+#: (R-2/§6), and ``SurfaceInput.ref_axis_pct`` becomes Optional (R-7c: ``None``
+#: = "not entered"; every reporting consumer reads the effective 25 % through
+#: ``SurfaceInput.ref_axis``, and the io reader maps a stored 0.25 -- which the
+#: pre-v52 writer emitted unconditionally, entered or not -- back to ``None``).
+#: All additive/widening with unchanged effective defaults, so no migration hop.
+EXPECTED_FIELDS_HASH = "243f515f223e00ed"
 
 
 def test_persisted_dataclass_shapes_are_unchanged():

@@ -162,6 +162,16 @@ BM-1…BM-5 recorded, `SurfaceInput.sob_y_in` + the one-owner SOB resolver, the
 wing stick deck's tagged side-of-body reporting node (`lra-sob`, the first
 `$ SLOADS-NODE` tag), and the SOB internal loads stated two ways — closed-form
 in the deck/report, solver `CBAR` end force in round-trip CI — and gated.
+**Step 12 shipped in full 2026-08-16** (schema v52; implementation note
+[`25_lra_model_implementation_note.md`](25_lra_model_implementation_note.md)):
+the **LRA beam model** — the third deliverable — exports as `lra_model.bdf`
+(LRA node lines, split-fuselage posts, fin/h-tail/gear/engine ties, the
+balanced cases transferred onto the nodes by the one-owner `transfer_couple`
+rule) and imports (loads onto an external `GRID`/`CBAR` model under its own
+GIDs, mapped by the `$ SLOADS-NODE` contract); the plan-07 invariant, the
+free-free solver proof and the SOB/post internal-load gates run in CI, and the
+fixtures enter `ref_axis_pct = 0.40` (one digest wave). The torsion-reference
+question closed with it (R-7d).
 
 Reference-authority hierarchy: (1) `.BAS` listings + Appendix A printed output,
 (2) User's Guide CFR quotes (Jan-1994), (3) Code-manual 1990 prose.
@@ -215,44 +225,42 @@ traceability with plans 09/11/12/13; the **Pri** column is ordinal only.
 | Pri | Item (detail below / in its plan) | What ships | Tag | Tier / effort | Depends on |
 |---|---|---|---|---|---|
 | **B — the sbeam deliverable itself [E] (the 2026-08-09 priority; the target model and its decisions BM-1…BM-5 are in [`24_lra_beam_model_review_note.md`](24_lra_beam_model_review_note.md), agreed 2026-08-15 and recorded in the register 2026-08-16 with step 13)** ||||||
-| 1 | Step 12 — LRA beam-model export + import | The third deliverable (note 24 §2): LRA node lines, `CBAR` chains, rigid posts/attachments/hinges/gear/engine nodes, every load transferred onto the model; import on the same named-node contract | E | L / M–L | — (phase 0 + the SOB, step 13, shipped 2026-08-16: BM-1…BM-5 recorded, `sob_station`/`sob_collapsed_load` built, `lra-sob` band + `$ SLOADS-NODE` tag live) |
-| 2 | Step 14 — real stiffness / assembled airframe properties (L-1) | Real section properties replacing the `MAT1` placeholder; unlocks the indeterminate paths (continuous fuselage, carry-through, redundant hinges) | E | L / M | Pri 1 (LRA beam bridge) |
+| 1 | Step 14 — real stiffness / assembled airframe properties (L-1) | Real section properties replacing the `MAT1` placeholder; unlocks the indeterminate paths (continuous fuselage, carry-through, redundant hinges) | E | L / M | — (step 12, the LRA beam bridge, shipped 2026-08-16 with implementation note 25; section properties enter per LRA element family on its named-node contract) |
 | **C — mass-model follow-on** ||||||
-| 3 | Wing-tank fuel separability | Ends the same pounds riding both beams on the three fuel-in-wing fixtures | V | L / M | — (the D-25 schema shipped 2026-08-15); pairs plan 12 C1 |
-| 4 | Fixture aero-data quality — force residual and the `NMAA` `dCD` sign *(defect)* | A lift/drag model the five non-oracle fixtures close against as tightly as ga6 does | V | M / M | — (recorded per fixture in `test_balance.py`) |
-| 4a | Fin-root "fuselage-top" formula has no body-centreline datum *(defect, from T-8a)* | A fin root that is not the wing root plus half a body — note 24 R-4's `FuselageSection.z_centre`; un-pins three fin roots and twelve lateral cases | V | M / S | rides with Pri 1 (R-4 adds the field) |
+| 2 | Wing-tank fuel separability | Ends the same pounds riding both beams on the three fuel-in-wing fixtures | V | L / M | — (the D-25 schema shipped 2026-08-15); pairs plan 12 C1 |
+| 3 | Fixture aero-data quality — force residual and the `NMAA` `dCD` sign *(defect)* | A lift/drag model the five non-oracle fixtures close against as tightly as ga6 does | V | M / M | — (recorded per fixture in `test_balance.py`) |
+| 3a | Fin-root "fuselage-top" formula has no body-centreline datum *(defect, from T-8a)* | A fin root that is not the wing root plus half a body — note 24 R-4's `FuselageSection.z_centre`; un-pins three fin roots and twelve lateral cases | V | M / S | — (`z_centre` shipped v52 with step 12, so this is the formula fix alone) |
 | **D — fixture data, cheap and self-contained** ||||||
-| 5 | Empennage planform polylines (fixture data) | Real taper in the tail card distributions instead of the `assumed` rectangle | V | S / S | — |
-| 5a | `atr42_100`/`dhc8_dash8` are modelled as conventional tails and are **T-tails** *(defect, from T-8a)* | Both fin decks gain the T7 tip transfer they are missing; the h-tail attaches at the fin tip, not the tail cone | V | M / S–M | Pri 4a (they need the fin root they actually have) |
-| 6 | `concept_heavy` gear geometry + `landing` slice (fixture data) *(from step 10 decision G-13)* | A sixth gear-report fixture, and the only concept-mode exercise of the 23.473(g) floor warning | V | S / S | — (the gear report shipped 2026-08-15) |
+| 4 | Empennage planform polylines (fixture data) | Real taper in the tail card distributions instead of the `assumed` rectangle | V | S / S | — |
+| 4a | `atr42_100`/`dhc8_dash8` are modelled as conventional tails and are **T-tails** *(defect, from T-8a)* | Both fin decks gain the T7 tip transfer they are missing; the h-tail attaches at the fin tip, not the tail cone | V | M / S–M | Pri 3a (they need the fin root they actually have) |
+| 5 | `concept_heavy` gear geometry + `landing` slice (fixture data) *(from step 10 decision G-13)* | A sixth gear-report fixture, and the only concept-mode exercise of the 23.473(g) floor warning | V | S / S | — (the gear report shipped 2026-08-15) |
 | **E — physics [V]** ||||||
-| 7 | Lateral body aero `Cy_β`/`Cn_β` (L-7) — design note in [`19_l7_lateral_body_aero_note.md`](19_l7_lateral_body_aero_note.md) (**proposed, awaiting agreement**) | Honest lateral `n_y`/`ψ̈`; DATCOM 5.2.3.1/5.2.1.1 makes it an **oracle** step, not a closure-gate step | V | L / M | pairs Pri 9 (M4-19) |
-| 8 | The aileron's own lift increment is not distributed | `ACRL` wing cards gain the aero half of the couple (acts ~70 % span); the same butt lines carry the wing control-surface hinge/actuator geometry the LRA model needs (note 24 R-2) | V | L / M | pairs plan 09 spanwise work and Pri 1 |
-| 9 | M4-19 — Multhopp distributed fuselage `Cm` | A distributed body pitching load for `body_loads` | V | L / M | — |
-| 10 | M4-21 — fuselage pitching load factor | d'Alembert pitch term at each body station | V | M / S | pairs Pri 11 |
-| 11 | M4-4 — per-CG precise inertia in SELECT | WTONECG inertia wired into checked-maneuver `Iyy` / v-tail `IZZ` | V | M / S | — |
-| 12 | M4-3 — ONENGOUT data-flow + turboprop gate | Geometry provenance, `is_turboprop` gate, VSF decision | V | M / S | — |
-| 12a | Power effects on the wing — thrust + propeller wake (wing-mounted props); design note **agreed** in [`21_power_effects_wing_note.md`](21_power_effects_wing_note.md) (P-0…P-12) | `-P` balanced wing/h-tail cases + 23.361/23.371 wing-box cases; DATCOM §4.6 estimator with the ex3 printed **oracle**; `power_policy.py`; thrust line per engine | V | L / L | **unblocked 2026-08-15** — D-26 gave `atr42_100` and `dhc8_dash8` their flight balanced cases; CFR pull (§8 step 0b); pairs L-7 for the v-tail terms |
+| 6 | Lateral body aero `Cy_β`/`Cn_β` (L-7) — design note in [`19_l7_lateral_body_aero_note.md`](19_l7_lateral_body_aero_note.md) (**proposed, awaiting agreement**) | Honest lateral `n_y`/`ψ̈`; DATCOM 5.2.3.1/5.2.1.1 makes it an **oracle** step, not a closure-gate step | V | L / M | pairs Pri 8 (M4-19) |
+| 7 | The aileron's own lift increment is not distributed | `ACRL` wing cards gain the aero half of the couple (acts ~70 % span); the butt-line + hinge/actuator schema fields shipped v52 (step 12, LM-6) and wait here for their data and their consumer | V | L / M | pairs plan 09 spanwise work; unlocks the LRA model's wing control chains (note 24 R-2) |
+| 8 | M4-19 — Multhopp distributed fuselage `Cm` | A distributed body pitching load for `body_loads` | V | L / M | — |
+| 9 | M4-21 — fuselage pitching load factor | d'Alembert pitch term at each body station | V | M / S | pairs Pri 10 |
+| 10 | M4-4 — per-CG precise inertia in SELECT | WTONECG inertia wired into checked-maneuver `Iyy` / v-tail `IZZ` | V | M / S | — |
+| 11 | M4-3 — ONENGOUT data-flow + turboprop gate | Geometry provenance, `is_turboprop` gate, VSF decision | V | M / S | — |
+| 11a | Power effects on the wing — thrust + propeller wake (wing-mounted props); design note **agreed** in [`21_power_effects_wing_note.md`](21_power_effects_wing_note.md) (P-0…P-12) | `-P` balanced wing/h-tail cases + 23.361/23.371 wing-box cases; DATCOM §4.6 estimator with the ex3 printed **oracle**; `power_policy.py`; thrust line per engine | V | L / L | **unblocked 2026-08-15** — D-26 gave `atr42_100` and `dhc8_dash8` their flight balanced cases; CFR pull (§8 step 0b); pairs L-7 for the v-tail terms |
 | **F — report and deliverable polish** ||||||
-| 13 | Combined flight + ground station envelope *(from step 10 decision G-9)* | Two-sided max/min per station over both families, each extreme naming its governing case | V | M / M | — (ground cases shipped 2026-08-15) |
-| 14 | Load-application axis vs elastic axis — document the torsion reference | Convention in `coordinates.py` + spec + deck `$` header — closes with note 24 R-7d's one header sentence ("grid line = LRA = the assumed elastic axis at NN % chord") when Pri 1 lands | V | S / S | folds into Pri 1 |
-| 15 | Deliverables render structural negative zeros *(from the body-deck signed-zero fix)* | `-0.000000E+00` components (~2,000 in one balanced deck) and the tail span CSV's `Fax` column normalised at the formatting boundary | V | S / S | needs a digest wave of its own — cosmetic, and it moves every deck family's bytes |
-| 16 | L-8i — per-page LIMIT CSV units | Converted, unit-suffixed analysis-page downloads | V | S / S | — |
-| 17 | Gust spanwise-distribution decision | Study + recorded decision | V | S / S | — |
+| 12 | Combined flight + ground station envelope *(from step 10 decision G-9)* | Two-sided max/min per station over both families, each extreme naming its governing case | V | M / M | — (ground cases shipped 2026-08-15) |
+| 13 | Deliverables render structural negative zeros *(from the body-deck signed-zero fix)* | `-0.000000E+00` components (~2,000 in one balanced deck) and the tail span CSV's `Fax` column normalised at the formatting boundary | V | S / S | needs a digest wave of its own — cosmetic, and it moves every deck family's bytes |
+| 14 | L-8i — per-page LIMIT CSV units | Converted, unit-suffixed analysis-page downloads | V | S / S | — |
+| 15 | Gust spanwise-distribution decision | Study + recorded decision | V | S / S | — |
 | **G — hygiene, low defects, docs** ||||||
-| 18 | Conventions-extraction findings (a)–(d) *(defect, batch as one fix)* | The missing `test_load_keys.py` guard, the 23.303/25.303 citation split, the `coordinates.py` default comment, the three `units.py` factor maps | V | S / S | — |
-| 19 | M4-23 — `flight_envelope.density_ratio` duplicates `constants.standard_atmosphere` *(defect)* | One authority for sigma; numerically inert by construction | V | S / S | — |
-| 20 | Review 2026-08-10 unscheduled findings m3–m13, m15–m18 + NITs *(defect sweep)* | Swept opportunistically (practice 4) or promoted individually | V | S / S–M | — |
-| 21 | Split `40_history/00_completed_development.md` by era | Mechanical split + index file | V | S / S | after the working tree is committed |
+| 16 | Conventions-extraction findings (a)–(d) *(defect, batch as one fix)* | The missing `test_load_keys.py` guard, the 23.303/25.303 citation split, the `coordinates.py` default comment, the three `units.py` factor maps | V | S / S | — |
+| 17 | M4-23 — `flight_envelope.density_ratio` duplicates `constants.standard_atmosphere` *(defect)* | One authority for sigma; numerically inert by construction | V | S / S | — |
+| 18 | Review 2026-08-10 unscheduled findings m3–m13, m15–m18 + NITs *(defect sweep)* | Swept opportunistically (practice 4) or promoted individually | V | S / S–M | — |
+| 19 | Split `40_history/00_completed_development.md` by era | Mechanical split + index file | V | S / S | after the working tree is committed |
 | **H — Part 25 / F25 pack and beyond** ||||||
-| 22 | F25-0 — verify pass | Current CFR text for every *(verify)* row | V | S / S | precedes any F25 build step |
-| 23 | Mach-margin route for the FAR 23 categories | Category gate + per-category default | V | S / S | — |
-| 24 | Flutter-clearance Mach basis for transports | Verified reference + decision, then an opt-in variant | V | S / S | — |
-| 25 | Upset-criterion speed increase (25.335(b)(1)) | The 20 s dive integration the margin route lacks | V | M / M | — |
-| 26 | F25-1 — transport category "T" envelope pack | 25.337 floors, 25.341 U_ref schedule, VB | V | M / M | Pri 22 |
-| 27 | F25-4 — ground-loads parameter variant | 10/6 fps, lift = W, LDW/MTOW pairing | V | M / M | coordinates with M4-6 (shipped 2026-08-15) |
-| 28 | M4-8 **Layer 2** — agreed named failure-case factors (25.302) | A named `25.302` failure case as its own governing row + ULTIMATE load case, and the system-reliability requirement it levies | V | M / M | coordinates with Phase F25 |
-| 29 | CG-dependent MTOW — non-flat weight–CG envelope top edge *(from step 10 decision G-14)* | A permissible-weight boundary that varies with CG, as on some transports | V | M / M | — |
+| 20 | F25-0 — verify pass | Current CFR text for every *(verify)* row | V | S / S | precedes any F25 build step |
+| 21 | Mach-margin route for the FAR 23 categories | Category gate + per-category default | V | S / S | — |
+| 22 | Flutter-clearance Mach basis for transports | Verified reference + decision, then an opt-in variant | V | S / S | — |
+| 23 | Upset-criterion speed increase (25.335(b)(1)) | The 20 s dive integration the margin route lacks | V | M / M | — |
+| 24 | F25-1 — transport category "T" envelope pack | 25.337 floors, 25.341 U_ref schedule, VB | V | M / M | Pri 20 |
+| 25 | F25-4 — ground-loads parameter variant | 10/6 fps, lift = W, LDW/MTOW pairing | V | M / M | coordinates with M4-6 (shipped 2026-08-15) |
+| 26 | M4-8 **Layer 2** — agreed named failure-case factors (25.302) | A named `25.302` failure case as its own governing row + ULTIMATE load case, and the system-reliability requirement it levies | V | M / M | coordinates with Phase F25 |
+| 27 | CG-dependent MTOW — non-flat weight–CG envelope top edge *(from step 10 decision G-14)* | A permissible-weight boundary that varies with CG, as on some transports | V | M / M | — |
 
 **Not ranked — pinned by test, awaiting a decision rather than effort:** the
 derived-ACRL air-load divergence, the ATR-42 Mach-capped stall exceedance, and
@@ -455,12 +463,12 @@ pinned to the formula's output, and the pins say so.
 
 The fix is the datum the suite has never had: **note 24 R-4's
 `FuselageSection.z_centre`** (waterline per section, defaulted from
-`body_drag_waterline`/`wrp_waterline` and marked assumed) — after which the
-branch becomes `z_centre(x_fin) + height(x_fin)/2` and needs no wing quantity at
-all. Until then a project that knows its fin root should enter
-`vtail_root_waterline_z`, which wins outright. Rides with **step 12** (R-4 adds
-the field there); promote it sooner if a lateral deliverable is wanted first.
-Tier M. Effort: S once `z_centre` exists.
+`body_drag_waterline` and marked assumed) — **shipped v52 with step 12**
+(`derived_geometry.fuselage_centreline` is its owner) — after which the branch
+becomes `z_centre(x_fin) + height(x_fin)/2` and needs no wing quantity at all.
+What remains is the formula change and its pin wave. Until then a project that
+knows its fin root should enter `vtail_root_waterline_z`, which wins outright.
+Tier M. Effort: S.
 
 ### [V] `atr42_100` and `dhc8_dash8` are modelled as conventional tails, and are T-tails *(new 2026-08-15, from T-8a)*
 Both fixtures set `tail_type: conventional` with `h_tail_z: 0`, and both real
@@ -477,73 +485,6 @@ Not swept with T-8a deliberately: flipping `tail_type` switches on the T7
 transfer, moves both fin decks and their lateral cases, and needs the fin root
 those airplanes actually have (the row above) — the two are one change. Fixture
 data plus a digest wave. Tier M. Effort: S–M. Depends on the fin-root datum row.
-
-### [E] LRA beam-model export & import — geometry ↔ beam bridge *(new 2026-08-08, user; rewritten 2026-08-15 from note 24)* — **step 12**
-Two-way bridge between the defined geometry and a beam model on the load
-reference axes. **The model is a third deliverable**, not "the assembled
-deck's skeleton" (note 24 §2, R-1): the assembled balanced deck is `GRID` +
-`FORCE`/`MOMENT` + one `SPC1` with **no elements** — the stiffness-independent
-equilibrium proof, which it stays — while the LRA model is a **structural
-idealization** whose value is its *internal* loads at named nodes. Target
-features F1–F8 and decisions **BM-1…BM-5** are recorded in
-[`24_lra_beam_model_review_note.md`](24_lra_beam_model_review_note.md) (agreed
-2026-08-15).
-
-**Topology (export).** Node lines on each surface's LRA (`ref_axis_pct`,
-**required explicit** — a beam on an unstated axis is refused, BM-3; fixtures
-enter 0.40) and on the fuselage **section-centre line** `(x, 0, z_c(x))`
-(new `FuselageSection.z_centre`, defaulted marked-assumed); `CBAR` chains with
-placeholder `PBAR`/`MAT1` until step 14. Named nodes, each in its own band and
-tied by production `RBE2` (promoted from the round-trip's test-only band):
-the wing **SOB** (step 13 — the wing beam *starts* there); the two **posts**
-at the front/rear-spar stations (`derived_geometry.carry_through`) from the
-fuselage line to each SOB node, under the **split-fuselage** idealization —
-forward body → front-spar post, aft body + empennage → rear-spar post,
-statically determinate (BM-2; the continuous beam is a step-14 opt-in and the
-header says which); the **fin root** node to a fuselage node *inserted* at
-that x; the **h-tail attachments** at `±sob_y`/`±fuselage_width/2` to a
-fuselage node at the h-tail x (conventional) or the h-tail centreline node to
-the **fin tip** (T-tail; the T7 lumped transfer is then **excluded**, plan 11
-§4); **control surfaces** as their own chains on the **hinge line** with hinge
-and actuator nodes rigid to the parent (plan 09 §10 T-15/T-17 amendment); the
-**gear** `attach` node and the **engine hub + mount** nodes rigid to the
-fuselage or the wing per an explicit `mounted_on` (BM-4). Node families carry a
-`$ SLOADS-NODE <family> <side>` tag (BM-5) so an imported model can be mapped.
-
-**Loads.** Every load — strips, mass items, tail sets, gear, thrust — is
-**transferred onto a beam node** with the lever-arm couple `(p − n) × F`; the
-rule gets one owner in `export/coordinates.py` beside the axis maps plus a
-drift guard (note 24 R-11), and re-running the plan-07 invariant on the
-transferred set is the acceptance gate. Numerical choice inside that contract
-(nearest-node vs tributary interpolation) is decided in the implementation
-note. The header states which internal loads are stiffness-independent (SOB,
-fin root, post sums, gear/engine links) and which wait for step 14 (R-12).
-
-**Import.** Read an external beam model (BDF `GRID`/`CBAR` subset) and **use
-its node line as the LRA** — loads are transferred onto the imported nodes
-under the imported GIDs (the imported numbering wins; disjointness guard
-adapted). The named-node contract is how the import learns which node is the
-SOB, the posts, the fin root, the attachments, the gear and the engine —
-`$ SLOADS-NODE` tags or a sidecar map, nearest-node-per-family as the
-marked-assumed fallback. Tolerance validation between the imported axis and
-the geometry LRA fails loudly on divergence (the T1 planform validator's
-pattern). An imported beam line *is* the consumer's elastic axis, so the
-torsion reference becomes explicit — Pri 15 closes with the header sentence.
-
-**Sequence (note 24 R-13):** the attachment/SOB fallback (shipped 2026-08-15,
-T-8a) → phase 0 + step 13 (**shipped 2026-08-16**: BM-1…BM-5 recorded in the
-register; `derived_geometry.sob_station` the one SOB owner; the per-component
-wing deck's tagged SOB reporting node with the `lra-sob` band and the first
-`$ SLOADS-NODE` tag; `sob_internal_loads` gated against the solver's CBAR end
-force in round-trip CI; `sob_collapsed_load` built and pinned as this model's
-wing-beam start) → export → import → step 14. **Gate:** assembled-deck and
-per-component digests byte-identical except where fixture data (`ref_axis_pct
-= 0.40`) moves them once, each with its own `CHANGELOG`
-line. Schema (`sob_y_in` shipped v51; one further bump here):
-`FuselageSection.z_centre`,
-`LandingGearLegInput.mounted_on`, `EngineInput.mounted_on`, wing
-control-surface hinge/actuator/butt-line fields. Effort: M–L. Depends on
-step 5 and step 13 (both shipped).
 
 ### [V] M4-8 Layer 2 — agreed named failure-case factors (25.302) **[architecture]**
 Layer 1 shipped 2026-08-14 as the **governing safety-factor table**
@@ -576,8 +517,8 @@ assembled combined-airframe export. Granularity per **D-7**: load-cards-only
 default; assembled stick model opt-in behind a flag. **Note (2026-08-05):** the
 load-application-axis question below should be answered before or with this
 item. **Note (2026-08-08):** the assembled export itself now ships earlier as
-plan 11 B5 (step 5); what remains here is real section properties, best fed by
-the LRA beam-model bridge (step 12). **Note (2026-08-15, note 24 R-12):** with
+plan 11 B5 (step 5); what remains here is real section properties, fed by
+the LRA beam-model bridge (step 12, **shipped 2026-08-16**). **Note (2026-08-15, note 24 R-12):** with
 placeholder properties only the **determinate** paths of the LRA model give
 honest internal loads — SOB, fin root, the split-fuselage post sums, gear and
 engine links — and the model's header says so. What this step unlocks is the
@@ -617,25 +558,6 @@ aggregation. Natural home is the `loads_plots` VMT envelope rather than the
 governing tables. Needs ground cases to exist first (step 10). Reasoning of
 record: [`18_step10_ground_cases_plan.md`](18_step10_ground_cases_plan.md) §G-9.
 Tier M. Effort: M.
-
-### [V] Load-application axis vs elastic axis — document the torsion reference *(new 2026-08-05, R9)*
-The exported `FORCE` application points sit on the sloads load-reference line;
-`export/coordinates.py` documents frames but not the **shear-center/elastic-axis
-offset** question — what torsion a deck consumer should attribute when the sbeam
-beam axis differs from the load line (sbeam itself has no shear-center offset;
-its grid line *is* the elastic axis). Write the convention into
-`export/coordinates.py` + `PROGRAM_SPEC.md` sbeam-bridge section and stamp it in
-the deck `$` header. Doc-only (S); prevents a silent-wrong-torsion class at the
-consumer. **Note (2026-08-08):** partially superseded by the LRA beam-model
-import item (step 12) — an imported beam line is the consumer's elastic axis;
-this item remains for the geometry-derived default LRA. **Note (2026-08-15,
-note 24 R-7):** the fact behind it — `ref_axis_pct` exists (M4-18) but **no
-shipped fixture sets it**, so every wing and tail deck is on the 25 % line and
-`to_loads_ref_axis` is a no-op — is fixed as fixture data with step 12 (0.40 on
-the wing, h-tail and v-tail of all six; the schema default stays 0.25 so a bare
-project keeps the oracle reporting), and the item closes with one header
-sentence: *"grid line = LRA = the assumed elastic axis at NN % chord; torsion is
-about it."* Folds into Pri 2.
 
 ### [V] Gust spanwise-distribution decision *(new 2026-08-05, R9)*
 Gust cases currently reuse the maneuver (Schrenk-based) spanwise shape.

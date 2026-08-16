@@ -116,13 +116,27 @@ def test_project_round_trip(tmp_path=None):
 
 
 def test_surface_ref_axis_pct_round_trips():
-    """The loads reference axis (LRA) persists per surface; old files default 0.25."""
+    """The LRA persists per surface; a stored 0.25 reads back as UNSET (v52).
+
+    The pre-v52 writer emitted ``ref_axis_pct`` unconditionally, so a stored
+    0.25 carries no entered-ness information -- the reader maps it to ``None``
+    ("not entered", R-7c), whose effective value through ``ref_axis`` is the
+    same 0.25. Any non-default value was necessarily entered and survives.
+    """
     project = io.load_project(GA6)
     wing = project.geometry.by_name("wing")
-    assert wing.ref_axis_pct == 0.25  # legacy file without the field
+    assert wing.ref_axis_pct == 0.40          # entered fixture data (R-7a)
     wing.ref_axis_pct = 0.42
     again = io.project_from_dict(io.project_to_dict(project))
     assert again.geometry.by_name("wing").ref_axis_pct == 0.42
+    # The stored-default mapping, both directions:
+    wing.ref_axis_pct = 0.25
+    again = io.project_from_dict(io.project_to_dict(project))
+    assert again.geometry.by_name("wing").ref_axis_pct is None
+    assert again.geometry.by_name("wing").ref_axis == 0.25
+    wing.ref_axis_pct = None
+    again = io.project_from_dict(io.project_to_dict(project))
+    assert again.geometry.by_name("wing").ref_axis_pct is None
 
 
 def test_wing_load_result_torsion_axis_round_trips():

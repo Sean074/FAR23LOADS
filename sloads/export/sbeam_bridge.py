@@ -808,8 +808,9 @@ def sob_internal_loads(result: WingLoadResult, sob_y: float) -> SobInternalLoads
     outboard: the joint carries the loads applied *at* it.
 
     The general transfer rule this instantiates -- a load at ``p`` moved to
-    node ``n`` carries the couple ``(p - n) x F`` -- gets its single owner in
-    ``export/coordinates.py`` with the step 12 LRA exporter (note 24 R-11).
+    node ``n`` carries the couple ``(p - n) x F`` -- has its single owner in
+    :func:`sloads.export.coordinates.transfer_couple` (note 24 R-11, shipped
+    with the step 12 LRA exporter).
     """
     sz = sx = mxx = myy = mzz = 0.0
     for nl in wing_nodal_loads(result):
@@ -831,7 +832,8 @@ def sob_collapsed_load(result: WingLoadResult,
     The start of the LRA-model wing beam (note 24 R-3): that beam runs SOB ->
     tip, and the centre-box strip loads inboard of the joint -- which the
     target model calls inaccurate as *local* loads -- are carried as this
-    resultant-preserving equivalent (force plus lever-arm couples) on the SOB
+    resultant-preserving equivalent (force plus lever-arm couples,
+    :func:`sloads.export.coordinates.transfer_couple`) on the SOB
     node instead. Together with :func:`sob_internal_loads` it reproduces the
     half-span totals exactly, which is the invariant the tests pin; the
     per-component wing deck never applies it (its stations are not truncated,

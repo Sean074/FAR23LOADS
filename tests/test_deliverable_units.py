@@ -264,8 +264,9 @@ def test_the_export_page_applies_the_stamp_it_builds():
 
     assignments = [ln for ln in source.splitlines() if '.bdf"] = ' in ln]
     # wing FORCE/MOMENT + wing stick model + fuselage + tail + control surfaces,
-    # then the assembled free-free deck and the three mass-model files (D-R2).
-    assert len(assignments) == 9, assignments
+    # then the assembled free-free deck, the LRA beam model (step 12) and the
+    # three mass-model files (D-R2).
+    assert len(assignments) == 10, assignments
     for line in assignments:
         # The call may wrap; take the whole statement up to the closing `or ""`.
         stmt = source.split(line, 1)[1].split('or ""', 1)[0]

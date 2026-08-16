@@ -128,6 +128,31 @@ def to_pressure(psi: float, units: DeliverableUnits = IMPERIAL) -> float:
 
 
 # --------------------------------------------------------------------------- #
+# The load-transfer rule (note 24 R-11 / implementation note 25 LM-1)
+# --------------------------------------------------------------------------- #
+def transfer_couple(p: Vec3, n: Vec3, f: Vec3) -> Vec3:
+    """The couple a load at ``p`` carries when applied at node ``n`` instead.
+
+    **The single owner of the transfer rule** (note 24 R-11): a load ``(F, M)``
+    at ``p`` moved to ``n`` becomes ``(F, M + (p - n) x F)`` -- the exact
+    static equivalent, so any set transferred this way has the identical
+    resultant it had before, which is what the plan-07 invariant on the LRA
+    model's transferred set asserts. Every mover in the export channel is an
+    instance of this rule -- the gear patch->trunnion transfer, the
+    concentrated-mass offset couples, the step-13 ``sob_collapsed_load``, the
+    LRA model's nearest-node routing (LM-7) -- and the rule lives here, beside
+    the axis maps, for the standing reason: a lever-arm cross product
+    hand-rolled per call site is a sign error waiting for a deck that parses.
+
+    Right-handed ``r x F`` in the SLOADS/CID-0 identity frame, the same
+    product ``equilibrium.resultant`` uses to check it.
+    """
+    dx, dy, dz = p[0] - n[0], p[1] - n[1], p[2] - n[2]
+    fx, fy, fz = f
+    return (dy * fz - dz * fy, dz * fx - dx * fz, dx * fy - dy * fx)
+
+
+# --------------------------------------------------------------------------- #
 # Reflection about the airplane centreline plane (plan 11 decision B-6)
 # --------------------------------------------------------------------------- #
 # Every asymmetric load case has an opposite-hand twin -- +beta yaw implies the

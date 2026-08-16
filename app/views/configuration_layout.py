@@ -344,14 +344,14 @@ def _three_view() -> go.Figure:
             continue
         _ys = sorted({p[1] for p in _s.leading_edge} | {p[1] for p in _s.trailing_edge})
         _xa = [interp_x(_s.leading_edge, y)
-               + _s.ref_axis_pct * (interp_x(_s.trailing_edge, y) - interp_x(_s.leading_edge, y))
+               + _s.ref_axis * (interp_x(_s.trailing_edge, y) - interp_x(_s.leading_edge, y))
                for y in _ys]
         _mirror = _s.symmetric
         fig.add_scatter(
             x=(_xa[::-1] + _xa) if _mirror else _xa,
             y=([-y for y in _ys[::-1]] + _ys) if _mirror else _ys,
             mode="lines", line=dict(color="#9467bd", dash="dashdot", width=2),
-            name=f"LRA {_s.name} ({_s.ref_axis_pct * 100:g}% chord)",
+            name=f"LRA {_s.name} ({_s.ref_axis * 100:g}% chord)",
             row=1, col=1)
     # Fuselage top-view outline: the body sections (plan-view half-widths) when a
     # fuselage outline is present, else the coarse length x width rectangle.
@@ -725,15 +725,19 @@ else:
                 _elems = _c[1].number_input("Integration elements", min_value=2, max_value=100,
                                             value=int(_surf.elements), key=f"el_{_surf.name}")
                 _lra_pct = _c[2].number_input(
-                    "Loads reference axis (% chord)", min_value=0.0, max_value=100.0,
-                    value=float(_surf.ref_axis_pct * 100.0), step=1.0,
+                    "Loads reference axis (% chord, optional)", min_value=0.0,
+                    max_value=100.0,
+                    value=None if _surf.ref_axis_pct is None
+                    else float(_surf.ref_axis_pct * 100.0), step=1.0,
                     key=f"lra_{_surf.name}",
                     help="The chordwise axis the delivered torsion is stated about — "
                          "the elastic axis of the beam model the exported loads apply "
                          "to (typically 40–50% chord for a wing box). The calc stays "
                          "on the original 25% chord (oracle-locked); torsion is "
                          "transferred to this axis at the Loads-Plots/Export boundary. "
-                         "25% reproduces the original suite's reporting exactly.")
+                         "**Leave blank** for the original 25% reporting; the LRA "
+                         "beam-model export requires an entered axis (a beam on an "
+                         "unstated axis is refused, note 24 R-7c).")
                 # Spar fractions are optional: left blank they stay None, and
                 # body_loads flags the carry-through stations it assumes (M4-1).
                 _sc = st.columns(3)
@@ -794,7 +798,7 @@ else:
             _edited = [
                 SurfaceInput(
                     name=name, symmetric=sym, elements=int(elems),
-                    ref_axis_pct=float(lra_pct) / 100.0,
+                    ref_axis_pct=None if lra_pct is None else float(lra_pct) / 100.0,
                     front_spar_pct=None if fs_pct is None else float(fs_pct) / 100.0,
                     rear_spar_pct=None if rs_pct is None else float(rs_pct) / 100.0,
                     sob_y_in=None if sob is None

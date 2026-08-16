@@ -229,7 +229,8 @@
           ]
         ],
         "symmetric": true,
-        "elements": 20
+        "elements": 20,
+        "ref_axis_pct": 0.4
       }
     ],
     "parametric": {

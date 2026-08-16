@@ -332,7 +332,13 @@ def _surface_from_dict(d: Dict[str, Any]) -> SurfaceInput:
         trailing_edge=_points(d.get("trailing_edge")),
         symmetric=d.get("symmetric", True),
         elements=d.get("elements", 20),
-        ref_axis_pct=float(d.get("ref_axis_pct", 0.25)),
+        # v52: None = "not entered" (R-7c). The pre-v52 writer emitted the field
+        # unconditionally, so a stored 0.25 carries no entered-ness information
+        # -- it is read back as unset (any deliberately-entered non-default
+        # value survives; an entered 0.25 was indistinguishable from the
+        # default the day it was written, so nothing knowable is lost).
+        ref_axis_pct=(lambda v: None if v == 0.25 else v)(
+            _opt_float(d.get("ref_axis_pct"))),
         # None is meaningful (= "not entered" -> assumed default, M4-1), so an
         # absent/null key stays None rather than taking a numeric default here.
         front_spar_pct=_opt_float(d.get("front_spar_pct")),
@@ -343,7 +349,8 @@ def _surface_from_dict(d: Dict[str, Any]) -> SurfaceInput:
 
 def _fuselage_outline_from_dict(d: Dict[str, Any]) -> FuselageOutline:
     return FuselageOutline(sections=[
-        FuselageSection(x=s["x"], width=s["width"], height=s["height"])
+        FuselageSection(x=s["x"], width=s["width"], height=s["height"],
+                        z_centre=_opt_float(s.get("z_centre")))
         for s in d.get("sections", []) or []
     ])
 
@@ -442,7 +449,8 @@ def geometry_to_dict(inp: GeometryInput) -> Dict[str, Any]:
     if inp.fuselage is not None:
         out["fuselage"] = {
             "sections": [
-                {"x": s.x, "width": s.width, "height": s.height}
+                {"x": s.x, "width": s.width, "height": s.height,
+                 "z_centre": s.z_centre}
                 for s in inp.fuselage.sections
             ]
         }

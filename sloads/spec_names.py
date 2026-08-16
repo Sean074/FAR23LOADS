@@ -68,6 +68,7 @@ SPEC_HEADINGS: Dict[str, str] = {
 #: than run through the registry; the rest are export bridges / renderers, which
 #: the document says up front are not calc modules.
 NON_MODULE_SECTIONS: FrozenSet[str] = frozenset({
+    "LRA beam model",
     "TAU",
     "LGFACTOR",
     "payload_cases",

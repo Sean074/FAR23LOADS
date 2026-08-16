@@ -9,7 +9,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Set, Tuple
 
-from ..constants import ULTIMATE_FACTOR
+from ..constants import DEFAULT_REF_AXIS_PCT, ULTIMATE_FACTOR
 from .enums import (
     AnalysisKind,
     GearCarrier,
@@ -106,6 +106,13 @@ class EngineInput:
     # math). Blank -> no guard, fixed stand-in unchanged.
     design_yaw_rate_rad_s: Optional[float] = None    # concept real yaw rate (25.371)
     design_pitch_rate_rad_s: Optional[float] = None  # concept real pitch rate (25.371)
+    # What the engine mount reacts into (v52, decision BM-4 / note 24 R-9):
+    # "fuselage" or "wing". The LRA beam model ties the engine's mount + hub
+    # nodes rigidly to this parent's beam. None -> inferred from the engine CG
+    # butt line against the wing side of body, MARKED ASSUMED in the deck
+    # header -- the same explicit-with-flagged-inference shape as the gear's
+    # ``carrier`` (G-2), which is BM-4's gear half and is not duplicated here.
+    mounted_on: Optional[str] = None            # "fuselage" | "wing"
 
     @property
     def is_turboprop(self) -> bool:
@@ -309,8 +316,13 @@ class SurfaceInput:
     applied to (typically 0.40–0.50 of chord for a wing box). The calc itself
     stays on the original suite's 25% chord (AIRLOADS/WINGINER/NETLOADS,
     oracle-locked); the cumulative torsion is *transferred* to this axis at the
-    render/export boundary (``net_loads.to_loads_ref_axis``). The default 0.25
-    reduces exactly to the original quarter-chord reporting.
+    render/export boundary (``net_loads.to_loads_ref_axis``). ``None`` means
+    "not entered" (v52, note 24 R-7c): every reporting consumer reads the
+    effective value through :attr:`ref_axis`, which falls back to the original
+    quarter-chord (so a bare project keeps the oracle reporting exactly), while
+    the LRA beam-model exporter — a *structural* consumer, for which a beam on
+    an unstated axis is the silently-defaulted case — refuses ``None`` rather
+    than assuming.
 
     ``front_spar_pct``/``rear_spar_pct`` are the surface's front and rear spar
     stations as fractions of the local chord. For the wing they locate the
@@ -334,10 +346,20 @@ class SurfaceInput:
     trailing_edge: List[XYPoint]
     symmetric: bool = True
     elements: int = 20
-    ref_axis_pct: float = 0.25
+    ref_axis_pct: Optional[float] = None     # fraction of chord; None -> not entered (R-7c)
     front_spar_pct: Optional[float] = None   # fraction of chord; None -> assumed default
     rear_spar_pct: Optional[float] = None    # fraction of chord; None -> assumed default
     sob_y_in: Optional[float] = None         # side-of-body butt line, in; None -> assumed fallback (BM-1)
+
+    @property
+    def ref_axis(self) -> float:
+        """The effective LRA chord fraction: entered value, else the 25% default.
+
+        The reporting consumers' accessor — with it a bare project's torsion
+        stays about the original quarter chord, bit-identically. The LRA
+        beam-model exporter deliberately reads the raw field instead and
+        refuses ``None`` (note 24 R-7c / BM-3)."""
+        return DEFAULT_REF_AXIS_PCT if self.ref_axis_pct is None else self.ref_axis_pct
 
 
 @dataclass
@@ -349,10 +371,17 @@ class FuselageSection:
     G4 slender-body pitching-moment estimator is derived as an ellipse
     (``pi/4 * width * height``) -- the sections are the station-area table that
     both the three-view body profile and that estimator read.
+
+    ``z_centre`` (v52, note 24 R-4) is the section's centre **waterline** (in)
+    -- the fuselage LRA point at this station is ``(x, 0, z_centre)``. ``None``
+    means "not entered": the LRA beam-model exporter then defaults the whole
+    line from :func:`sloads.derived_geometry.body_drag_waterline` and marks it
+    assumed, which is the suite's standing no-body-centreline-datum fallback.
     """
     x: float
     width: float
     height: float
+    z_centre: Optional[float] = None
 
 
 @dataclass
@@ -1160,6 +1189,16 @@ class AileronLoadsInput:
     area_fwd_hinge_sqft: float = 0.0           # SAFWD
     area_aft_hinge_sqft: float = 0.0           # SAAFT
     surface: str = "aileron"
+    # Spanwise placement + attachment geometry (v52, note 24 R-2 / §6) -- the
+    # same shape T-17 put on TailMassInput, entered never invented. Consumers:
+    # the Pri 10 aileron spanwise increment (butt lines) and the LRA beam
+    # model's wing control-surface chain (hinges/actuator). All optional; the
+    # LRA exporter builds no wing control chain until they are entered AND the
+    # increment that would load it exists (implementation note 25 LM-6).
+    inboard_y_in: Optional[float] = None       # surface inboard butt line, in
+    outboard_y_in: Optional[float] = None      # surface outboard butt line, in
+    hinges_span_in: List[float] = field(default_factory=list)  # hinge butt lines, in
+    actuator_span_in: float = 0.0              # actuator butt line, in; 0 = not entered
 
 
 @dataclass
@@ -1190,6 +1229,12 @@ class FlapLoadsInput:
     nacelle_frontal_area_sqft: float = 0.0     # AF (nacelle or fuselage frontal area)
     engine_butt_line_in: float = 0.0           # BLPROP (0 -> fuselage-mounted)
     surface: str = "flap"
+    # Spanwise placement + attachment geometry (v52) -- see AileronLoadsInput;
+    # identical contract, entered never invented (T-17).
+    inboard_y_in: Optional[float] = None       # surface inboard butt line, in
+    outboard_y_in: Optional[float] = None      # surface outboard butt line, in
+    hinges_span_in: List[float] = field(default_factory=list)  # hinge butt lines, in
+    actuator_span_in: float = 0.0              # actuator butt line, in; 0 = not entered
 
 
 @dataclass

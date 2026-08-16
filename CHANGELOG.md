@@ -12,6 +12,66 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **The LRA beam model — export + import (step 12, backlog Pri 1 closed).**
+  The **third deliverable** beside the per-component decks and the assembled
+  balanced deck (note 24 R-1, agreed 2026-08-15; implementation decisions
+  LM-1…LM-7 in `docs/30_future/25_lra_model_implementation_note.md`):
+  `sloads/export/lra_model.py` writes one solvable SOL 101 deck
+  (`lra_model.bdf`) — node lines on the entered load reference axes and the
+  fuselage section-centre line, `CBAR` chains, production `RBE2` ties for the
+  centre-box hub + **front/rear-spar posts** (the split-fuselage idealization
+  BM-2, no element through the carry-through), the **fin root** (R-5), the
+  **h-tail attachment pair** or T-tail fin-tip joint (R-6; the fin deck's T7
+  lumped transfer is never applied here), the **gear** per `carrier` (BM-4 =
+  the shipped G-2 field) and the **engine hub + mount** per the new
+  `EngineInput.mounted_on` (R-9; the thrust `FORCE` waits for power effects —
+  the skeleton is complete before the load exists). The wing chains **start
+  at the side of body** (R-3). Every named node carries a
+  `$ SLOADS-NODE <family> <side>` tag (BM-5); new bands `lra-wing-left`,
+  `lra-fuselage`, `lra-centre`, `lra-engine`, `lra-attach`, `lra-cbar` and
+  the production `lra-rbe2`.
+
+  **Loads:** the assembled balanced cases' sets — same SUBCASE/SID minting,
+  same ULTIMATE boundary — each load transferred to the nearest node of the
+  member its source names with the exact lever-arm couple `(p − n) × F`.
+  The rule's single owner is the new
+  **`export/coordinates.transfer_couple`** (note 24 R-11; LM-1 decides
+  nearest-node over tributary interpolation), and the chordwise part of the
+  couple *is* the 25 %-chord → LRA torsion transfer. Gates in CI: the
+  plan-07 invariant (LRA deck resultant ≡ balanced deck resultant, per case,
+  all six components), the free-free solver proof (support reaction =
+  −applied resultant ≈ 0), and the SOB / front-post internal loads against
+  the cut-side card sums through the element frame
+  (`tests/test_lra_model.py`, `tests/test_sbeam_roundtrip.py`). One pinned
+  limitation (strict xfail): sbeam's dense-path condition heuristic refuses
+  the regional jet's SI (mm) deck — a units artifact (equilibrated cond
+  ~1.3e9; the Imperial twin solves exactly).
+
+  **Import:** `sloads/export/lra_import.py` reads an external `GRID`/`CBAR`
+  model plus its `$ SLOADS-NODE` tags (or a sidecar map) and transfers the
+  same case sets onto the imported nodes **under the imported GIDs**;
+  tagged nodes are validated against the geometry-derived positions at
+  ±2 in and divergence raises; untagged families fall back to
+  nearest-imported-node, marked assumed. An imported beam line is the
+  consumer's elastic axis, which **closes the CONVENTIONS §1
+  torsion-reference question** (R-7d) — the deck header states *grid line =
+  LRA = the assumed elastic axis; torsion is about it*.
+
+  **Schema v52** (additive/widening, no migration hop):
+  `FuselageSection.z_centre` (+ the `derived_geometry.fuselage_centreline`
+  owner, R-4 — also unblocking the fin-root datum defect row),
+  `EngineInput.mounted_on`, `AileronLoadsInput`/`FlapLoadsInput` butt-line +
+  hinge/actuator fields (LM-6/Pri 7's consumers), and
+  `SurfaceInput.ref_axis_pct` widened to Optional — `None` = "not entered";
+  reporting reads the effective 25 % through the new `SurfaceInput.ref_axis`,
+  the io reader maps a stored 0.25 (which the pre-v52 writer emitted
+  unconditionally) back to unset, and the LRA exporter **refuses** an unset
+  axis (R-7c). Refusals (`LraRefusal`) name the missing datum — unset axis,
+  no SOB, no fuselage outline, no carry-through, a strip-pair h-tail
+  attachment — so `ga6_normal`/`concept_heavy` refuse by design and the CLI
+  reports the refusal as a one-line `error:`. CLI: `--export-target lra`
+  (+ `--lra-import MODEL.bdf`); the Export page bundles `lra_model.bdf`.
+
 - **The LRA skeleton contract and its first node, the wing side-of-body**
   (backlog Pri 1 = step 12 phase 0 + step 13; note 24, agreed 2026-08-15).
   Decisions **BM-1…BM-5** are recorded in the resolved-decisions register, and
@@ -86,6 +146,18 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   BM-1's `sob_y_in` sibling).
 
 ### Changed
+
+- **Fixture data: every wing enters `ref_axis_pct = 0.40`** (note 24 R-7a) and
+  the engines enter `mounted_on` — one deliberate digest wave: the wing decks
+  and span CSVs, the spanwise tail decks (the derived tail planforms inherit
+  the wing's axis, moving the LRA stations and the outline-interpolated
+  h-tail attachment), the net-loads/tail-span report channels (which now
+  state the LRA torsion beside the oracle 25 % value) and the balanced deck
+  moved once, each with the axis stated in-band; the schema default stays
+  unset so a bare project keeps the original quarter-chord reporting
+  bit-identically, and the FAR 23 oracles are untouched (the calc never
+  moves off 25 %). `sbeam/lra_model` joins the frozen Imperial baseline on
+  the four fixtures that build it.
 
 - **Three fin roots and twelve lateral cases moved** — a consequence of the
   outlines above, not an intent of it. `tail_geometry.fin_root_waterline`'s

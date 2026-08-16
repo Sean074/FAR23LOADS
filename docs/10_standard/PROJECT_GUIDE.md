@@ -224,6 +224,8 @@ FAR23LOADS/
 │   │   ├── sbeam_bridge.py       # net wing/body/tail/control/gear loads -> span-load CSV + FORCE/MOMENT cards + CBAR stick model + case index + export-scope filter
 │   │   ├── mass_cards.py         # CONM2/MASSSET mass model for sbeam (C1–C5)
 │   │   ├── balanced_deck.py      # the assembled full-span free-free deck — the primary deliverable (B5)
+│   │   ├── lra_model.py          # the LRA beam model — the third deliverable (step 12): skeleton + transferred balanced cases
+│   │   ├── lra_import.py         # loads onto an imported GRID/CBAR beam model, mapped by the $ SLOADS-NODE contract
 │   │   ├── equilibrium.py        # deck-derived force/moment resultants: the export-boundary closure gate
 │   │   ├── workbook.py           # multi-sheet .xlsx workbook (Step D8.2): one tab per module/component + case index
 │   │   ├── roundtrip.py          # solve an exported deck in the real sbeam (step 2; test-only use)

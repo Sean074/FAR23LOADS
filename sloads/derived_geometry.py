@@ -233,6 +233,68 @@ def sob_station(project: Project, surface_name: str = "wing") -> Optional[SobSta
     return None
 
 
+class FuselageCentreline(NamedTuple):
+    """The fuselage section-centre line ``(x, 0, z_c(x))`` (note 24 R-4, v52).
+
+    The fuselage **load reference axis** of the LRA beam model: ``points`` are
+    ``(x, z_centre)`` in station order, one per outline section, each taken
+    from the section's entered ``z_centre`` or defaulted from
+    :func:`body_drag_waterline` -- ``assumed`` is True when *any* station was
+    defaulted (or the waterline default is itself assumed), and ``note`` is the
+    in-band sentence the deck header carries then. Same provenance shape as
+    :class:`CarryThrough` / :class:`SobStation`.
+    """
+    points: tuple
+    assumed: bool
+    basis: str
+    note: str = ""
+
+    def z_at(self, x: float) -> float:
+        """Centre waterline at station ``x`` -- clamped linear interpolation,
+        for the same reason :func:`fuselage_width_at` clamps."""
+        pts = self.points
+        if x <= pts[0][0]:
+            return pts[0][1]
+        for (xa, za), (xb, zb) in zip(pts, pts[1:]):
+            if x <= xb:
+                if xb == xa:
+                    return zb
+                return za + (zb - za) * (x - xa) / (xb - xa)
+        return pts[-1][1]
+
+
+CENTRELINE_ENTERED = "entered z_centre per section"
+CENTRELINE_DEFAULTED = "defaulted from the body-drag waterline -- assumed"
+
+
+def fuselage_centreline(project: Project) -> Optional[FuselageCentreline]:
+    """The section-centre line, or ``None`` when there is no fuselage outline.
+
+    **The single owner of "where is the fuselage centre here"** (decision
+    LM-2, implementation note 25). A section that entered ``z_centre`` uses
+    it; one that did not takes :func:`body_drag_waterline`'s value -- the
+    suite's standing no-body-centreline-datum fallback -- and the whole line
+    is marked assumed, because a beam axis with one guessed station is a
+    guessed axis.
+    """
+    geom = project.geometry
+    outline = geom.fuselage if geom is not None else None
+    if outline is None or not outline.sections:
+        return None
+    bdw = body_drag_waterline(project)
+    sections = sorted(outline.sections, key=lambda s: s.x)
+    defaulted = [s for s in sections if s.z_centre is None]
+    points = tuple((s.x, bdw.z if s.z_centre is None else float(s.z_centre))
+                   for s in sections)
+    if not defaulted:
+        return FuselageCentreline(points, False, CENTRELINE_ENTERED)
+    return FuselageCentreline(
+        points, True, CENTRELINE_DEFAULTED,
+        f"fuselage centre line ASSUMED at waterline {bdw.z:.2f} for "
+        f"{len(defaulted)} of {len(sections)} section(s) -- defaulted from the "
+        "body-drag waterline. Enter FuselageSection.z_centre to state it")
+
+
 class BodyDragWaterline(NamedTuple):
     """Where the assembled model applies the airplane's non-wing drag (D-1).
 

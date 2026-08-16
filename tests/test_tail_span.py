@@ -295,7 +295,9 @@ def test_the_lt25_torsion_term_vanishes_at_a_quarter_chord_axis():
     original suite's reference exactly, as the wing's LRA transfer does."""
     project = _project("ga6_normal.project.json", weight=0.0)
     planform = resolve_tail_planform(project, HTAIL)
-    assert planform.ref_axis_pct == pytest.approx(X25_PCT)
+    # The fixture enters the wing LRA at 0.40 (step 12/R-7a), which a derived
+    # tail planform inherits; the identity under test is the quarter-chord one.
+    planform.ref_axis_pct = X25_PCT
     assert free_torsion_total(planform, 1000.0, 0.0) == pytest.approx(0.0, abs=1e-9)
     # ...and LT50 alone does not vanish, so the test above is not vacuous.
     assert free_torsion_total(planform, 0.0, 1000.0) != pytest.approx(0.0, abs=1.0)
@@ -307,6 +309,7 @@ def test_an_offset_lra_moves_the_torsion_by_the_stated_lever():
     where the lever is the same at every station."""
     project = _project("ga6_normal.project.json", weight=0.0)
     planform = resolve_tail_planform(project, HTAIL)
+    planform.ref_axis_pct = X25_PCT       # the stated lever is from 25% chord
     chord = planform.chord(planform.span / 2.0)
     base = free_torsion_total(planform, 900.0, -400.0)
     planform.ref_axis_pct = X25_PCT + 0.20

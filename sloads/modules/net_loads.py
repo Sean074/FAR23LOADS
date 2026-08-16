@@ -114,7 +114,7 @@ def to_loads_ref_axis(results: List[WingLoadResult],
     returned unchanged -- the original quarter-chord reporting, so the FAR23
     oracles are unaffected.
     """
-    pct = geom.ref_axis_pct
+    pct = geom.ref_axis
     if pct == 0.25:
         return list(results)
     axis = torsion_axis_label(pct)
@@ -140,7 +140,7 @@ def wing_lra(project: Project) -> float:
     wm = project.wing_mass
     geom = (project.geometry.by_name(wm.surface)
             if wm is not None and project.geometry is not None else None)
-    return geom.ref_axis_pct if geom is not None else 0.25
+    return geom.ref_axis if geom is not None else 0.25
 
 
 def loads_ref_axis_results(project: Project,

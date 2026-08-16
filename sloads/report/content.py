@@ -503,7 +503,7 @@ def _geometry_section(project: Project, u: Units) -> Section:
     surf = geom.by_name("wing")
     if surf is not None:
         rows.append(("Wing loads reference axis (LRA)",
-                     format_value(surf.ref_axis_pct * 100.0), "% chord", "Geometry"))
+                     format_value(surf.ref_axis * 100.0), "% chord", "Geometry"))
         if surf.front_spar_pct is not None:
             rows.append(("Front spar", format_value(surf.front_spar_pct * 100.0),
                          "% chord", "Geometry"))

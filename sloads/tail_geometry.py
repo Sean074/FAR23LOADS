@@ -346,7 +346,7 @@ def resolve_tail_planform(project: Project,
             span=surf.leading_edge[-1][1] - s_root,
             area=area_in2,
             elements=surf.elements,
-            ref_axis_pct=surf.ref_axis_pct,
+            ref_axis_pct=surf.ref_axis,
             assumed=False,
             root_z=fin_root.z,
             root_z_assumed=fin_root.assumed,
@@ -398,7 +398,7 @@ def _derived_ref_axis(project: Project) -> float:
     stated its beam axis once does not have to state it again per surface."""
     geometry = project.geometry
     wing = geometry.by_name("wing") if geometry is not None else None
-    return wing.ref_axis_pct if wing is not None else 0.25
+    return wing.ref_axis if wing is not None else 0.25
 
 
 def half_area_centroid(planform: TailPlanform) -> float:

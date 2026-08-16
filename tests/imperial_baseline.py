@@ -141,6 +141,15 @@ def artifacts(example: str) -> Dict[str, str]:
     if deck:
         out["sbeam/balanced_deck"] = deck
 
+    # The LRA beam model (step 12) -- the third deliverable. Absent on the two
+    # fixtures with no fuselage data, where the exporter refuses by design
+    # (LraRefusal is a ValueError, so _try records the refusal as absence).
+    from sloads.export.lra_model import lra_model_bdf
+
+    deck = _try(lra_model_bdf, project)
+    if deck:
+        out["sbeam/lra_model"] = deck
+
     # The index's assembled deck-number column is filled from the assembled
     # deck's own cases (design note 17), so the baseline builds them here too --
     # a column no channel renders is a column no digest can protect.

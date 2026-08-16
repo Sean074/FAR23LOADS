@@ -34,7 +34,8 @@
       "rotors": [],
       "max_accel_torque": null,
       "design_yaw_rate_rad_s": null,
-      "design_pitch_rate_rad_s": null
+      "design_pitch_rate_rad_s": null,
+      "mounted_on": "fuselage"
     }
   ],
   "engine_layout": "1N",
@@ -483,7 +484,8 @@
           ]
         ],
         "symmetric": true,
-        "elements": 20
+        "elements": 20,
+        "ref_axis_pct": 0.4
       },
       {
         "name": "aileron",

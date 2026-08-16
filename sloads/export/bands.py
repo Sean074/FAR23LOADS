@@ -37,6 +37,11 @@ The map
        6201-6400    balanced deck, left wing
        6401-7000    balanced deck, centreline
        7001-7100    LRA named nodes: wing side-of-body (lra-sob, BM-5)
+       7101-7600    LRA model, left-wing chain stations (mirror)
+       7601-7800    LRA model, fuselage section-centre line
+       7801-7810    LRA model, wing centre-box hub
+       7811-7860    LRA model, engine hub + mount nodes
+       7861-7880    LRA model, attachment nodes (h-tail pair, fin root/tip)
       10001-10100   balanced deck, gear reference points
 
     EID      1-1000  stick-model CBAR chain
@@ -44,6 +49,8 @@ The map
           9101-9200  CONM2 discretionary overlay items
           9201-9300  CONM2 per-case ballast
           9501-9700  CONM2 per-case part-full consumable rows
+         11001-11999  LRA model CBAR chains
+         12001-12500  LRA model RBE2 ties (production, BM-5)
         900001-901000  round-trip harness RBE2 ties (test scaffolding)
 
     SID          1  SPC set (constraints, not loads)
@@ -184,8 +191,33 @@ BANDS: Tuple[Band, ...] = (
           "LRA named-node families (decision BM-5): the wing side-of-body "
           "reporting node, tagged '$ SLOADS-NODE lra-sob <side>' so an imported "
           "beam model can be mapped by identity rather than by coordinates. "
-          "First of the note 24 R-10 families; the posts, hinge, gear-link and "
-          "engine families of the step 12 exporter join as their own bands."),
+          "First of the note 24 R-10 families; the step 12 exporter's own "
+          "families follow at 7101+. Index 0 is the right SOB, 1 the left."),
+    _band("lra-wing-left", IdKind.GID, 7101, 500, "lra_model.left_wing_gid",
+          "The LRA model's left-wing chain stations -- the mirror of the "
+          "wing-stick 1+ stations, which that band already owns for the right "
+          "side. Separate so an antisymmetric case loads the two sides "
+          "without renumbering, exactly as the balanced deck splits 6001/6201."),
+    _band("lra-fuselage", IdKind.GID, 7601, 200, "lra_model.fuselage_gid",
+          "Fuselage section-centre-line nodes (x, 0, z_c(x)) -- note 24 R-4. "
+          "Includes the inserted special stations (posts, fin root x, h-tail "
+          "x, gear/engine x), each tagged '$ SLOADS-NODE' where it is a named "
+          "node of the BM-5 contract."),
+    _band("lra-centre", IdKind.GID, 7801, 10, "lra_model.centre_gid",
+          "The wing centre-box hub node C on the wing LRA at BL 0 -- the "
+          "independent node of the rigid centre-box/post tie (implementation "
+          "note 25 LM-3). A rigid link, deliberately not a CBAR: the "
+          "stiffness carry-through element is step 14's (R-12)."),
+    _band("lra-engine", IdKind.GID, 7811, 50, "lra_model.engine_gid",
+          "Engine hub (thrust point, P-6) and mount nodes, two per engine "
+          "(note 24 R-9). The hub FORCE is absent until the power-effects "
+          "cases ship -- the skeleton is complete before the load exists."),
+    _band("lra-attach", IdKind.GID, 7861, 20, "lra_model.attach_gid",
+          "Attachment nodes that are not stations of any chain: the h-tail "
+          "fuselage-attachment pair (or its T-tail centreline joint) and the "
+          "fin root. Their own band for the registry's standing reason -- an "
+          "attachment is a different point from a strip midpoint, and adding "
+          "one must never renumber the stations beside it."),
     _band("balanced-gear", IdKind.GID, 10001, 100, "balanced_deck.deck_nodes",
           "The gear reference points a ground case's reactions are transferred "
           "to (decision G-2) -- at most one node per leg per side, since a "
@@ -214,6 +246,17 @@ BANDS: Tuple[Band, ...] = (
           "Numbered above the MASSSET/GRAV SID runs so a spliced deck's ids stay "
           "readable by inspection, and clear of the 10001+ gear GIDs.",
           clear_of_gids=True),
+    _band("lra-cbar", IdKind.EID, 11001, 999, "lra_model.lra_model_bdf",
+          "The LRA model's CBAR chains (wing L/R, split fuselage, fin, "
+          "h-tail, control). Clear of GID space, unlike the wing stick "
+          "model's 1..n chain, because this deck splices many families and "
+          "readability-by-inspection is the registry's stated contract.",
+          clear_of_gids=True),
+    _band("lra-rbe2", IdKind.EID, 12001, 500, "lra_model.lra_model_bdf",
+          "PRODUCTION rigid ties (note 24 R-10): the centre-box/post hub, "
+          "fin root, h-tail attachments, gear links, engine mounts. Promoted "
+          "from the round-trip wrapper's test-only 900001+ band, which stays "
+          "test scaffolding.", clear_of_gids=True),
     _band("roundtrip-rbe2", IdKind.EID, 900001, 1000, "roundtrip.wrap_as_stick_model",
           "Test scaffolding: numbered well clear of the CBAR chain so a wrapped "
           "deck's ties are never mistaken for exported structure.",

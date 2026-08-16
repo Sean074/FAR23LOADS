@@ -10,6 +10,73 @@ Acceptance**, **Key decisions**.
 
 ---
 
+**Step 12 — the LRA beam model, export + import (complete 2026-08-16, tier L)**
+
+**Objective.** Close backlog Pri 1: ship the **third deliverable** (note 24
+R-1, agreed 2026-08-15) — a structural idealization on the load reference
+axes that the FORCE/MOMENT sets apply to, whose value is the internal loads
+at the named nodes (SOB, posts, fin root, h-tail attachments) that neither
+the per-component decks nor the assembled balanced deck can state — plus the
+import half: an external beam model becomes the LRA. Implementation
+decisions LM-1…LM-7 recorded in
+`docs/30_future/25_lra_model_implementation_note.md` (note 24 §7's
+delegated choices, chiefly LM-1: nearest-node transfer with the exact
+lever-arm couple, not tributary interpolation).
+
+**Deliverables.** `sloads/export/lra_model.py` (`lra_model.bdf`: wing chains
+starting at the SOB per R-3; split-fuselage cantilevers onto the front/rear
+spar posts, BM-2, no element through the carry-through; rigid centre-box
+hub; fin-root, h-tail-attachment/T-tail-joint, gear (`carrier`, BM-4) and
+engine hub+mount (`EngineInput.mounted_on`, R-9) ties; `$ SLOADS-NODE`
+tags per BM-5; refusals naming the missing datum per BM-3/LM-4);
+`sloads/export/lra_import.py` (`read_lra_model` /
+`lra_loads_on_imported_model`: the same case sets under the imported GIDs,
+tag-mapped, position-validated at ±2 in, nearest-node marked-assumed
+fallback); `export/coordinates.transfer_couple` — the one owner of the
+transfer rule (R-11); bands `lra-wing-left`/`lra-fuselage`/`lra-centre`/
+`lra-engine`/`lra-attach`/`lra-cbar`/`lra-rbe2` (production RBE2 promoted
+from the test-only 900001+); `derived_geometry.fuselage_centreline` (R-4);
+schema **v52** (`z_centre`, `mounted_on`, aileron/flap butt-line +
+hinge/actuator fields, `ref_axis_pct` Optional with the `ref_axis`
+effective accessor and the stored-0.25→unset io mapping, R-7c); CLI
+`--export-target lra` / `--lra-import`; the Export page bundles the deck;
+fixtures enter `ref_axis_pct = 0.40` (R-7a) and engine `mounted_on`.
+
+**Test / Acceptance.** `tests/test_lra_model.py` (15): the transfer-rule
+drift guard; skeleton families tagged and tied on atr42; the T-tail joint on
+the fin tip with no fuselage pair (R-6, T7 excluded); no element spans the
+carry-through; the wing chain starts at the SOB and every inboard strip
+routes onto it; refusals named; discrete-mode hinge/actuator skeleton
+(synthetic, LM-6); the **plan-07 invariant** — LRA deck resultant ≡
+balanced deck resultant per case, all six components, four fixtures;
+export→import round trip resultant-identical, divergent tags fail loudly.
+`tests/test_sbeam_roundtrip.py`: the model **solves** and the support
+reaction = −applied resultant ≈ 0 (free-free proof through real structure,
+both unit systems), and the SOB / front-post internal loads equal the
+cut-side card sums through the element frame (graph partition at the cut,
+the step-13 sign map). Pinned strict xfail: sbeam's dense-path 1e15
+condition heuristic refuses the regional jet's SI (mm) deck — a units
+artifact (equilibrated cond ≈ 1.3e9; the Imperial twin solves exactly);
+support placed beside the front post (nose-clamped conditioning measured
+1.6e15 → 2.8e14). Digest wave stated in the CHANGELOG: wing/tail/net-loads
+channels + the balanced deck moved once for the 0.40 fixture axis;
+`sbeam/lra_model` joined the baseline on the four building fixtures;
+body/chordwise/oracle channels byte-identical.
+
+**Key decisions.** LM-1 (nearest-node + exact couple; single owner);
+LM-3/BM-2 (split fuselage structural — the two cantilever sums are
+recoverable end forces; the p103 comparison is reported, not gated);
+LM-4/BM-3 (refuse: unset `ref_axis_pct`, no SOB, no outline, no
+carry-through, strip-pair attachment); LM-5 (gear's BM-4 field **is** the
+shipped G-2 `carrier`); LM-6 (hinge/actuator nodes ship as tagged skeleton
+with rigid parent ties; the hinge-line chain + torsion identity gate ride
+with Pri 7's data); LM-7 (source-routed members, nearest-in-skeleton for
+closure/relief loads); R-7d closes the CONVENTIONS §1 torsion-reference
+question (backlog Pri 14 removed with it). Specs synced: PROGRAM_SPEC "LRA
+beam model" section + R-1 three-artifact statement, CONVENTIONS §1 + two §7
+owner rows, PROJECT_GUIDE §4, theory_sources row, GUI_design v52 paragraph,
+DATA_DICTIONARY regenerated, backlog renumbered.
+
 **Step 12 phase 0 + step 13 — the LRA skeleton contract and the wing
 side-of-body node (complete 2026-08-16, tier M)** — backlog Pri 1, note 24
 (agreed 2026-08-15): decisions **BM-1…BM-5** recorded in

@@ -33,6 +33,12 @@ target           what it writes
                  at the gear reference point
 ``mass``         the CONM2/MASSSET mass model (same artifacts, same owner and
                  same names as ``--export-conm2``)
+``lra``          the LRA beam model (step 12) -- node lines on the load
+                 reference axes, CBAR chains, rigid posts/attachments/gear/
+                 engine ties, the balanced cases' load sets transferred onto
+                 the nodes. With ``--lra-import MODEL.bdf`` the loads are
+                 instead transferred onto the imported model's own nodes,
+                 under its GIDs (the named-node contract maps the families)
 ===============  ===========================================================
 
     python cli.py --export-sbeam out examples/ga6_normal.project.json
@@ -81,7 +87,7 @@ from sloads.units import UnitSystem, convert_results, unit_system_from
 #: deliverable set had diverged, so a test pins them together rather than a
 #: comment asking future readers to keep them in step.
 EXPORT_TARGETS = ("wing", "body", "tail", "htail-span", "vtail-span",
-                  "control", "balanced", "gear", "mass")
+                  "control", "balanced", "gear", "mass", "lra")
 
 
 def resolve_units(project, flag=None) -> UnitSystem:
@@ -171,7 +177,8 @@ def _export_conm2(project, prefix: str,
 
 def _export_sbeam(project, prefix: str, target: str, stick_model: bool,
                   system: UnitSystem = UnitSystem.IMPERIAL,
-                  csv_stamp: str = "", bdf_stamp: str = "") -> int:
+                  csv_stamp: str = "", bdf_stamp: str = "",
+                  lra_import: str = "") -> int:
     """Build the loads for ``target`` and write the sbeam export artifacts.
 
     ``system`` is resolved once here and passed to every writer, so the files of
@@ -279,6 +286,29 @@ def _export_sbeam(project, prefix: str, target: str, stick_model: bool,
         print(f"Wrote {len(rows)} gear interface load row(s) to: {csv_path}")
         return 0
 
+    if target == "lra":
+        # The third deliverable (note 24 R-1). A missing datum raises
+        # LraRefusal (a ValueError), which main's one error contract reports
+        # as ``error: <the datum>`` -- a refused model is a stated absence,
+        # never a traceback and never an empty file.
+        if lra_import:
+            from sloads.export.lra_import import write_lra_loads_on_imported_model
+
+            out_path = f"{prefix}.lra_loads.bdf"
+            write_lra_loads_on_imported_model(project, lra_import, out_path,
+                                              header_comment=bdf_stamp,
+                                              system=system)
+            print(f"Wrote balanced-case loads on the imported model "
+                  f"{lra_import} to: {out_path}")
+            return 0
+        from sloads.export.lra_model import write_lra_model_bdf
+
+        bdf_path = f"{prefix}.lra_model.bdf"
+        write_lra_model_bdf(project, bdf_path, header_comment=bdf_stamp,
+                            system=system)
+        print(f"Wrote the LRA beam model to: {bdf_path}")
+        return 0
+
     if target == "balanced":
         from sloads.export.balanced_deck import balanced_deck
         from sloads.modules.balance import build_balanced_cases
@@ -384,11 +414,21 @@ def main(argv=None) -> int:
         help="with --export-sbeam, which deliverable to export (default: wing). "
              "'balanced' is the assembled full-span free-free deck; 'gear' is "
              "the landing gear interface load definition; 'mass' is "
-             "the CONM2/MASSSET model, identical to --export-conm2",
+             "the CONM2/MASSSET model, identical to --export-conm2; 'lra' is "
+             "the LRA beam model (step 12)",
     )
     parser.add_argument(
         "--stick-model", action="store_true",
         help="with --export-sbeam, also write the CBAR stick-model BDF (wing target)",
+    )
+    parser.add_argument(
+        "--lra-import", metavar="MODEL_BDF", default="",
+        help="with --export-target lra: transfer the balanced-case loads onto "
+             "this external GRID/CBAR beam model instead of the "
+             "geometry-derived one -- the imported node line becomes the LRA "
+             "and the cards are written under its own GIDs (the $ SLOADS-NODE "
+             "named-node contract maps the families; nearest-node is the "
+             "marked-assumed fallback)",
     )
     parser.add_argument(
         "--report", metavar="PATH",
@@ -436,7 +476,8 @@ def main(argv=None) -> int:
                 return _export_conm2(project, args.export_sbeam, system, bdf_stamp)
             return _export_sbeam(project, args.export_sbeam,
                                  args.export_target, args.stick_model,
-                                 system, csv_stamp, bdf_stamp)
+                                 system, csv_stamp, bdf_stamp,
+                                 lra_import=args.lra_import)
         except ValueError as exc:      # MissingInputError included -- it subclasses
             print(f"error: {exc}", file=sys.stderr)
             return 1

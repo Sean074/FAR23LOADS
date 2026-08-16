@@ -50,6 +50,9 @@ from sloads.report.methods import strip_comment_lines  # noqa: E402
 
 _ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 GA6 = os.path.join(_ROOT, "examples", "ga6_normal.project.json")
+# The LRA beam model refuses ga6 (no fuselage data, BM-1/BM-3) -- its headless
+# route is exercised on a fixture that carries a body.
+ATR42 = os.path.join(_ROOT, "examples", "atr42_100.project.json")
 
 
 def _run(tmp_path, *argv) -> list:
@@ -60,7 +63,11 @@ def _run(tmp_path, *argv) -> list:
 
 def _export(tmp_path, target: str, *extra) -> list:
     prefix = os.path.join(str(tmp_path), "out")
-    return _run(tmp_path, GA6, "--export-sbeam", prefix,
+    # ga6 has no fuselage data, so the LRA beam model refuses it by design
+    # (BM-1/BM-3); that target's stamped file comes from a body-carrying
+    # fixture instead.
+    fixture = ATR42 if target == "lra" else GA6
+    return _run(tmp_path, fixture, "--export-sbeam", prefix,
                 "--export-target", target, *extra)
 
 
@@ -159,9 +166,10 @@ def _project_with_lra(tmp_path, pct: float) -> str:
     """
     project = sloads_io.load_project(GA6)
     geom = project.geometry.by_name(project.wing_mass.surface)
-    assert geom is not None and geom.ref_axis_pct == 0.25, (
-        "fixture assumption: the shipped wing LRA is the quarter chord, so a "
-        "quarter-chord deck would pin nothing")
+    assert geom is not None and geom.ref_axis_pct == 0.40, (
+        "fixture assumption: the shipped wing LRA is the entered 40% chord "
+        "(step 12/R-7a); these tests move it elsewhere so the deck pins the "
+        "transfer, not the fixture")
     geom.ref_axis_pct = pct
     path = os.path.join(str(tmp_path), "lra.project.json")
     with open(path, "w", encoding="utf-8") as fh:
@@ -176,14 +184,14 @@ def test_the_cli_wing_deck_is_stated_about_the_loads_reference_axis(tmp_path):
     in-band statement a consumer reads -- so a regression to the 25 % chord
     fails here rather than shipping a silently different torsion.
     """
-    path = _project_with_lra(tmp_path, 0.40)
+    path = _project_with_lra(tmp_path, 0.45)
     prefix = os.path.join(str(tmp_path), "w")
     assert cli.main([path, "--export-sbeam", prefix]) == 0
 
     with open(prefix + ".span_loads.csv", newline="") as fh:
         rows = list(csv.DictReader(_io.StringIO(strip_comment_lines(fh.read()))))
     assert rows
-    assert {r["MyyAxis"] for r in rows} == {"LRA 40% chord"}, "not on the LRA"
+    assert {r["MyyAxis"] for r in rows} == {"LRA 45% chord"}, "not on the LRA"
 
 
 def test_the_headless_and_gui_wing_decks_are_the_same_deck(tmp_path):
@@ -193,7 +201,7 @@ def test_the_headless_and_gui_wing_decks_are_the_same_deck(tmp_path):
     LRA; the CLI now uses the same two calls. This asserts the *outcome* rather
     than the call sequence, so a future divergence in either front-end fails.
     """
-    path = _project_with_lra(tmp_path, 0.40)
+    path = _project_with_lra(tmp_path, 0.45)
     prefix = os.path.join(str(tmp_path), "w")
     assert cli.main([path, "--export-sbeam", prefix, "--stick-model"]) == 0
 

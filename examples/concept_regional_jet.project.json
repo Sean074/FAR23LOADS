@@ -43,7 +43,8 @@
       ],
       "max_accel_torque": 5000.0,
       "design_yaw_rate_rad_s": null,
-      "design_pitch_rate_rad_s": null
+      "design_pitch_rate_rad_s": null,
+      "mounted_on": "fuselage"
     },
     {
       "engine_designation": "GENERIC TURBOFAN ~7,000 lbf",
@@ -86,7 +87,8 @@
       ],
       "max_accel_torque": 5000.0,
       "design_yaw_rate_rad_s": null,
-      "design_pitch_rate_rad_s": null
+      "design_pitch_rate_rad_s": null,
+      "mounted_on": "fuselage"
     }
   ],
   "engine_layout": "2W",
@@ -391,7 +393,8 @@
           ]
         ],
         "symmetric": true,
-        "elements": 20
+        "elements": 20,
+        "ref_axis_pct": 0.4
       },
       {
         "name": "aileron",

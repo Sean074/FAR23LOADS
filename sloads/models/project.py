@@ -241,7 +241,9 @@ from .results import EnvelopeResult, LoadsResult, MassResult
 # ``zw``, marked ``assumed`` and stated in-band, exactly as
 # ``vtail_root_waterline_z`` handles the same class of question. So no migration
 # hop, and every pre-v49 project takes the derived value.
-SCHEMA_VERSION = 51  # SurfaceInput.sob_y_in: entered side-of-body butt line (BM-1)
+SCHEMA_VERSION = 52  # LRA beam model (step 12): FuselageSection.z_centre,
+                     # EngineInput.mounted_on, aileron/flap butt-line + hinge
+                     # fields, SurfaceInput.ref_axis_pct Optional (R-7c)
 
 
 @dataclass

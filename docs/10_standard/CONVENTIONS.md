@@ -214,10 +214,15 @@ file + symbol is the anchor.
   PHAA). A deck's torsion claim is therefore about its applied `MOMENT` cards; only the
   bending claim integrates the `FORCE` lever arms. `export/equilibrium.Resultant` carries
   both sums (`m0` and `m`) so a checker cannot silently use the wrong one.
-- **Open question (filed on the backlog):** the load-application axis vs elastic-axis
-  convention for deck consumers — sbeam's grid line *is* its elastic axis; the torsion
-  a consumer should attribute when the beam axis differs from the sloads load-reference
-  line is not yet stamped in the deck header.
+- **Torsion reference = the LRA = the assumed elastic axis (closed 2026-08-16,
+  note 24 R-7d).** The formerly-open load-application-axis vs elastic-axis
+  question is closed by one sentence, stamped in the LRA model's deck header:
+  *grid line = LRA = the assumed elastic axis at the entered `ref_axis_pct`
+  chord; torsion is about it.* The fixtures enter 0.40; the schema default
+  stays unset (effective 0.25, the original reporting), and the LRA beam-model
+  exporter **refuses** an unset axis rather than assuming one (R-7c). An
+  **imported** beam line (step 12 import) is the consumer's elastic axis by
+  definition, so the question does not arise there.
 
 ### 1.1 Airplane state and control signs (verified extraction 2026-08-09; SC-1…SC-6 approved 2026-08-10)
 
@@ -417,6 +422,8 @@ export boundary, reduction-to-FAR23 identity on GA inputs. "No oracle" never mea
 | **Rigid-body relief field and the inertia tensor** (`f = −m(a + ω̇ × r)`; products of inertia stored as sums `Σw·a·b`, negated only in `matrix()`; weight-space `1/in`) | `sloads/rigid_body.py` (`InertiaTensor`/`inertia_tensor`/`relief_force`/`relief_moment`) | `tests/test_rigid_body.py::test_the_field_produces_exactly_minus_the_inertia_times_omega_dot` |
 | **Which components the assembly spreads** (decides whose entered self-inertia joins the closure tensor — L-3) | `sloads/mass_distribution.py` (`assembly_distributes_mass`) | `tests/test_rigid_body.py::test_the_distributed_mass_predicate_is_the_wing_and_only_the_wing` |
 | **Whether a load set has a hand** (reads the *applied* distribution `Σ\|fy\|`, not the resultant, and pre-closure so it cannot feed on its own relief — L-6) | `modules/balance.py` (`is_handed`) | `tests/test_balance.py::test_the_handedness_predicate` |
+| **The load-transfer rule** (a load at `p` applied at node `n` carries the exact couple `(p − n) × F` — every mover in the export channel is an instance: the gear patch→trunnion transfer, the concentrated-mass offset couples, `sob_internal_loads`/`sob_collapsed_load`, the LRA model's routing) | `export/coordinates.py` (`transfer_couple`, note 24 R-11 / note 25 LM-1) | `tests/test_lra_model.py::test_the_transfer_couple_is_the_exact_lever_arm_cross_product` + `::test_the_transferred_set_has_the_balanced_decks_resultant` (the plan-07 invariant on the whole transferred set) |
+| **The named-node identity contract** (`$ SLOADS-NODE <family> <side>` on every special GRID; families each in their own registered band; import maps by tag with nearest-node as the marked-assumed fallback and validates tagged positions at `LRA_IMPORT_TOL_IN`) | `export/lra_model.py` (tags + families, decision BM-5 / note 24 R-10) + `export/bands.py` (the bands) + `export/lra_import.py` (`read_lra_model`/`validate_imported_model`) | `tests/test_lra_model.py::test_the_skeleton_carries_every_named_node_family` + `::test_an_exported_model_reimports_with_every_family_mapped` + `::test_a_divergent_tagged_node_fails_loudly` + `tests/test_bands.py` |
 | **What a balanced case's source-case number is called** (`BalancedCaseResult.vn_case` holds FLTLOADS' V-n point on a flight case and LANDLOAD's case number on a ground one — two tables that both number from 1, so the label must name the family; short form for the case map and the parenthesised titles, none for the ground stem) | `modules/balance.py` (`source_case_name` / `case_source_name`, family from `is_ground`) | `tests/test_balance.py::test_no_surface_calls_a_ground_case_a_v_n_point` + `::test_the_source_case_label_has_one_owner` |
 | **What makes a case *lateral*, and how lateral** (the sole readers of the `vtail-air` source tag, for the deck header, the row table and the gates) | `modules/balance.py` (`is_lateral` / `fin_load`) | `tests/test_balance.py::test_the_lateral_cases_are_pinned` + `::test_the_symmetric_half_of_a_lateral_case_still_closes` |
 | **Report sign-convention statements** (the "Axes and sign conventions" section: prose, table rows, the three static TikZ figures) | `sloads/report/conventions_tex.py` | `tests/test_report_conventions.py` (frame fragments vs `export/coordinates.py`; §3.3 sentences verbatim; SC-1…SC-6 cited; figures static/greyscale/ASCII) |

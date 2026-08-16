@@ -123,8 +123,11 @@ def test_loads_ref_axis_transfer():
     loads = build_net_loads(p)
     wing = p.geometry.by_name(p.wing_mass.surface)
 
-    # Default 25% chord: bitwise no-op, oracle reporting unchanged.
-    assert wing.ref_axis_pct == 0.25
+    # Unset axis -> the effective 25% chord: bitwise no-op, oracle reporting
+    # unchanged. (The fixture enters 0.40 since step 12/R-7a, so the unset
+    # branch is exercised by clearing it.)
+    assert wing.ref_axis_pct == 0.40
+    wing.ref_axis_pct = None
     same = nl.to_loads_ref_axis(loads.wing_net, wing)
     assert same[0] is loads.wing_net[0]
     assert same[0].torsion_axis == "25% chord"
@@ -147,6 +150,7 @@ def test_loads_ref_axis_transfer():
 def test_run_labels_torsion_axis():
     """Every reported root torsion names its axis; the LRA value appears when set."""
     p = io.load_project(_GA)
+    p.geometry.by_name(p.wing_mass.surface).ref_axis_pct = None
     labels = [v.label for v in nl.run(p).conditions[0].values]
     assert "Root torsion Myy (25% chord)" in labels
     assert not any("LRA" in label for label in labels)

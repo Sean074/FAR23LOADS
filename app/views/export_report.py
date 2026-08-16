@@ -274,6 +274,17 @@ if _balanced_cases:
     _bdf_artifacts["balanced_airframe.bdf"] = _try(
         balanced_deck, project, header_comment=_bdf_stamp, system=_system,
         cases=_balanced_cases, skipped=_balanced_skipped) or ""
+# The LRA beam model (step 12, note 24 R-1) -- the third deliverable. Its
+# refusals (LraRefusal: no entered ref_axis_pct, no SOB, no outline, no
+# spars, a strip-pair h-tail attachment) are stated absences, so _try's
+# swallow-to-empty is right here: the row below simply shows no file, and the
+# CLI route is where the refusal's own sentence is surfaced.
+if _balanced_cases:
+    from sloads.export.lra_model import lra_model_bdf as _lra_model_bdf
+
+    _bdf_artifacts["lra_model.bdf"] = _try(
+        _lra_model_bdf, project, header_comment=_bdf_stamp, system=_system,
+        cases=_balanced_cases) or ""
 if project.weight is not None and project.weight.items:
     _bdf_artifacts["mass_model.bdf"] = _try(
         mc.conm2_fragment, project, header_comment=_bdf_stamp,
@@ -553,6 +564,7 @@ if _body:
 _bdf_row("Tail", "tail_loads.bdf", "tail_chordwise.csv")
 _bdf_row("Control surfaces", "control_surface_loads.bdf", "control_surface_loads.csv")
 _bdf_row("Assembled airframe (free-free)", "balanced_airframe.bdf")
+_bdf_row("LRA beam model", "lra_model.bdf")
 if _balanced_cases:
     st.caption(
         f"The mission's primary loads deliverable: {len(_balanced_cases)} "

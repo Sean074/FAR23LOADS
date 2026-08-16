@@ -1195,6 +1195,67 @@ return strings (with thin `write_*` file wrappers), and do no physics.
   land on a minted id. Two cases minting one id (the same `CaseRef` and hand
   assembled twice) is refused, not merged.
 
+### LRA beam model — export + import (step 12, 2026-08-16)
+- **Source:** `sloads/export/lra_model.py` (export) and
+  `sloads/export/lra_import.py` (import). Design notes:
+  `docs/30_future/24_lra_beam_model_review_note.md` (target F1–F8, decisions
+  BM-1…BM-5, agreed 2026-08-15) and
+  `docs/30_future/25_lra_model_implementation_note.md` (LM-1…LM-7).
+- **The three-artifact statement (note 24 R-1).** The suite ships three solver
+  artifacts with distinct contracts: the **per-component decks** (oracle-backing
+  free-body views), the **assembled balanced deck** (the equilibrium proof —
+  nodes at load positions, *no elements*, determinate support, reactions ≈ 0),
+  and the **LRA beam model** — a structural idealization whose value is the
+  *internal* loads a solver recovers at its named nodes. The balanced deck
+  stays element-free forever; the LRA model is where structure lives.
+- **Writes:** one solvable SOL 101 deck (`lra_model.bdf`): node lines on the
+  entered load reference axes (`ref_axis_pct`, **required** — refused when
+  unset, R-7c) and the fuselage section-centre line `(x, 0, z_centre)` (R-4);
+  `CBAR` chains (band `lra-cbar`) with the placeholder `PBAR`/`MAT1`;
+  production `RBE2` ties (band `lra-rbe2`) for the centre-box hub + front/rear
+  spar posts (split-fuselage idealization, BM-2 — no element spans the
+  carry-through), the fin root, the h-tail attachment pair (basis-gated,
+  BM-3: refuse `ATTACH_STRIP_PAIR`) or the T-tail fin-tip joint (the fin
+  deck's T7 lumped transfer is **never** applied here, plan 11 §4), the gear
+  per `carrier` (G-2 = BM-4's gear half) and the engine hub + mount per
+  `mounted_on` (R-9; the hub thrust FORCE is absent until power effects ship).
+  Named nodes carry `$ SLOADS-NODE <family> <side>` identity tags (BM-5).
+  The wing chains **start at the side-of-body** (R-3); the deck is free-free
+  on one clamped fuselage node whose recovered reaction is the case residual.
+- **Loads:** the assembled balanced cases' sets — same `SUBCASE`/`SID` minting,
+  same ULTIMATE boundary scaling — each load transferred to the nearest node of
+  the member its `source` names with the exact lever-arm couple `(p − n) × F`
+  (**single owner `export/coordinates.transfer_couple`**, note 24 R-11 /
+  LM-1). Wing strips inboard of the SOB land on the SOB node (the R-3
+  collapse); the chordwise part of the couple is the 25 %-chord → LRA torsion
+  transfer, so no separate axis transfer exists to drift.
+- **Gates (CI):** the plan-07 invariant — the LRA deck's per-case card
+  resultant equals the balanced deck's, all six components
+  (`tests/test_lra_model.py`); the solver reaction equals minus the applied
+  resultant ≈ 0, and the SOB / front-post internal loads equal the cut-side
+  card sums through the element frame
+  (`tests/test_sbeam_roundtrip.py::test_the_lra_*`). Known pinned limitation:
+  sbeam's dense-path condition heuristic refuses the largest airframe's SI
+  (mm) deck — a units artifact (equilibrated cond ~1e9), strict-xfailed.
+- **Refuses** (raising `LraRefusal`, the datum named): unset `ref_axis_pct`,
+  no resolvable SOB, no fuselage outline, no carry-through, a strip-pair
+  h-tail attachment. Accepted-but-assumed geometry (section centres, spar
+  fractions, SOB fallback, outline attachment, inferred gear/engine parents)
+  is listed in the deck header. `ga6_normal`/`concept_heavy` refuse by design.
+- **Import:** `read_lra_model` parses an external `GRID`/`CBAR` subset plus
+  `$ SLOADS-NODE` tags (or a sidecar map);
+  `lra_loads_on_imported_model` transfers the same case sets onto the
+  imported nodes **under the imported GIDs** — subcase map + FORCE/MOMENT
+  only, ready to splice. Tagged nodes are validated against the
+  geometry-derived positions at `LRA_IMPORT_TOL_IN` (2 in) and divergence
+  raises; untagged families fall back to nearest-imported-node, marked
+  assumed in the header. An imported beam line *is* the consumer's elastic
+  axis, closing the torsion-reference question (R-7d).
+- **CLI:** `--export-target lra` (`<prefix>.lra_model.bdf`); with
+  `--lra-import MODEL.bdf` the loads land on the imported model instead
+  (`<prefix>.lra_loads.bdf`). The Export page bundles `lra_model.bdf` when it
+  builds.
+
 ### Export-scope filter (Step D8.3)
 - **Source:** `sloads/export/sbeam_bridge.py::filter_by_selected_case_ids`.
 - Filters any case-carrying result list to `envelope.critical.selected_case_ids`

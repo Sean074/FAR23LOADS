@@ -447,7 +447,7 @@ sidebar and the JSON Editor (§10, Phase E5).
 
 The schema field list is **single-sourced in
 [`DATA_DICTIONARY.md`](DATA_DICTIONARY.md)** (generated; currently
-`SCHEMA_VERSION = 51`); the per-step migration history is recorded in
+`SCHEMA_VERSION = 52`); the per-step migration history is recorded in
 [`../40_history/00_completed_development.md`](../40_history/00_completed_development.md)
 (recent steps: v29 single-source CLmax
 stall; v30 M2-6 wing/fuselage derived geometry; v31 M2-10 operational placards;
@@ -569,7 +569,17 @@ v51 the entered side-of-body butt line `SurfaceInput.sob_y_in` (decision
 **BM-1**, note `../30_future/24_lra_beam_model_review_note.md`) — one quantity
 read by the wing SOB reporting node and the h-tail attachment. Additive and
 optional, so no hop: absent falls back to half the fuselage width, marked
-assumed.
+assumed;
+v52 the LRA beam model's inputs (step 12, implementation note
+`../30_future/25_lra_model_implementation_note.md`) — `FuselageSection.z_centre`
+(the section-centre waterline the fuselage LRA runs through, note 24 R-4),
+`EngineInput.mounted_on` ("fuselage" | "wing", decision BM-4),
+`AileronLoadsInput`/`FlapLoadsInput` butt-line + hinge/actuator fields, and
+`SurfaceInput.ref_axis_pct` widened to Optional (R-7c: `None` = "not entered";
+reporting reads the effective 25 % through `SurfaceInput.ref_axis`, and the
+reader maps a stored 0.25 — which the pre-v52 writer emitted unconditionally —
+back to unset). All additive/widening with unchanged effective defaults, so no
+hop.
 This paragraph's version number is guarded by
 `tests/test_data_dictionary.py::test_gui_design_schema_line_current` — update
 it (and this list) with every `SCHEMA_VERSION` bump.

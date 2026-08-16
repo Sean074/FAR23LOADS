@@ -61,6 +61,13 @@ TURBOPROP_TORQUE_FACTOR = 1.25
 DEFAULT_FRONT_SPAR_PCT = 0.15
 DEFAULT_REAR_SPAR_PCT = 0.65
 
+# The effective loads-reference-axis chord fraction when SurfaceInput.
+# ref_axis_pct is unset (v52, note 24 R-7c) -- the original suite's quarter
+# chord, so a bare project's reported torsion is bit-identical to the oracle
+# reporting. Reporting consumers read it through SurfaceInput.ref_axis; the
+# LRA beam-model exporter refuses an unset axis instead of assuming this.
+DEFAULT_REF_AXIS_PCT = 0.25
+
 # Point loads the carry-through line load is lumped onto (body_loads). The
 # per-segment lumping is the exact static equivalent of a linear load, so the
 # closure holds at any count >= 2; this only sets how finely the reaction is
