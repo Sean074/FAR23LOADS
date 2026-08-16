@@ -73,6 +73,7 @@ Complete before reading a single line of diff:
 Per `CLAUDE.md`, every code change updates `docs/` in the same session. Check:
 
 - [ ] `docs/10_standard/PROGRAM_SPEC.md` — the module's spec row/section reflects the actual inputs, outputs, and FAR conditions implemented.
+- [ ] No standard doc states a volatile number (schema version, test count, coverage %, "currently N") — it points at the owner (`00_program_overview.md` §Documentation currency; `tests/test_doc_currency.py` fails on the known patterns, but a reviewer catches the shape the regex does not).
 - [ ] `docs/10_standard/PROJECT_GUIDE.md` — any change to package layout, the `Project` schema, or a porting convention is reflected.
 - [ ] `docs/20_theory/00_theory_sources.md` — the module has a per-module equation-citation row.
 - [ ] `docs/30_future/00_backlog.md` — the ported module is **removed** from the backlog.

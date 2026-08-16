@@ -397,7 +397,7 @@ it is outside the certificated band — never blocking. The design:
   lets the user set their own limit load factors and, on GA inputs, reduces
   exactly to the FAR 23 result.
 
-*(Implemented — Phase E1, `SCHEMA_VERSION = 22`.)*
+*(Implemented — Phase E1, schema v22.)*
 
 ---
 
@@ -446,8 +446,8 @@ sidebar and the JSON Editor (§10, Phase E5).
 **Phase E is complete** — all steps E1–E5 have shipped.
 
 The schema field list is **single-sourced in
-[`DATA_DICTIONARY.md`](DATA_DICTIONARY.md)** (generated; currently
-`SCHEMA_VERSION = 52`); the per-step migration history is recorded in
+[`DATA_DICTIONARY.md`](DATA_DICTIONARY.md)** (generated; it prints the current
+`SCHEMA_VERSION`, whose owner is `sloads/models/project.py`); the per-step migration history is recorded in
 [`../40_history/00_completed_development.md`](../40_history/00_completed_development.md)
 (recent steps: v29 single-source CLmax
 stall; v30 M2-6 wing/fuselage derived geometry; v31 M2-10 operational placards;

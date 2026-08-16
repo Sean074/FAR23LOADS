@@ -88,6 +88,9 @@ Additional rules (2026-08-05 process review — rationale in
 
 ## Required practices (unchanged)
 
+- **Standard docs point at owners, never copy their values.** No schema number, test
+  count, coverage %, or "currently N" in `README.md`/`CLAUDE.md`/`10_standard/`/`20_theory/`
+  (`00_program_overview.md` §Documentation currency; guard `tests/test_doc_currency.py`).
 - **Keep the build green.** `ruff check sloads/ cli.py app/` clean and `pytest` passing are
   the merge gate (CI: 3.9 / 3.11 / 3.12). Add new domain terms to `cspell.json`.
 - **Git is the user's to run.** ANY and ALL git usage — `commit`, `add`, `push`,
