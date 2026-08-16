@@ -27,6 +27,7 @@ to PDF needs both and lives in :mod:`sloads.export.pdf`.
 
 from __future__ import annotations
 
+import math
 from typing import List, Tuple
 
 from .content import Figure, ReportDocument, Section, Table
@@ -194,22 +195,22 @@ def _column_widths_pt(table: Table, char_pt: float, available: float) -> List[fl
         desired.append(max(min(longest_cell, _MAX_CHARS) * char_pt + _PAD_PT,
                            required[-1]))
         natural.append(max(longest_cell * char_pt + _PAD_PT, desired[-1]))
-    excess = sum(desired) - available
+    excess = math.fsum(desired) - available
     if excess <= 0:
         # Room to spare: hand it to the columns the cap held back, so a two-column
         # table of prose fills the page instead of sitting in a narrow ribbon.
         unmet = [n - d for n, d in zip(natural, desired)]
-        total_unmet = sum(unmet)
+        total_unmet = math.fsum(unmet)
         if total_unmet <= 0:
             return desired
         spare = -excess
         share = min(1.0, spare / total_unmet)
         return [d + un * share for d, un in zip(desired, unmet)]
     slack = [d - r for d, r in zip(desired, required)]
-    total_slack = sum(slack)
+    total_slack = math.fsum(slack)
     if total_slack >= excess:
         return [d - excess * s / total_slack for d, s in zip(desired, slack)]
-    scale = available / sum(desired)
+    scale = available / math.fsum(desired)
     return [d * scale for d in desired]
 
 
@@ -233,7 +234,7 @@ def _table_size_and_spec(table: Table) -> Tuple[str, str]:
     for candidate in sizes:
         size = candidate
         widths = _column_widths_pt(table, _CHAR_PT[candidate], available)
-        if sum(widths) <= available + 0.01:
+        if math.fsum(widths) <= available + 0.01:
             break
     # Columns share out ``\sltablewidth`` -- the text block with the inter-column
     # padding already taken off (:func:`_table_tex` sets it). Subtracting the

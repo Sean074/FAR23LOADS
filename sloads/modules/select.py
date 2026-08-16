@@ -750,7 +750,7 @@ def select_vtail(project: Project, envelope: Optional[EnvelopeResult] = None) ->
     # 1. Sudden full rudder deflection (FAR 23.441(a)(1)) -- largest rudder load.
     p1 = _extreme(bal_a, lambda p: _vt_rudder_load(p, vt))
     lv = _vt_rudder_load(p1, vt)
-    on_rudder1 = sum(rudder_load_parts(lv, 0.0, vt))
+    on_rudder1 = math.fsum(rudder_load_parts(lv, 0.0, vt))
     out.append(CriticalCondition(
         component="vtail", label="SUDDEN RUDDER", far_reference="23.441(a)(1)", case=p1.case,
         loads=[LoadValue("Total tail load", lv, "lb", key="total_tail_load"),
@@ -763,7 +763,7 @@ def select_vtail(project: Project, envelope: Optional[EnvelopeResult] = None) ->
         return _vt_rudder_load(p, vt) + _vt_aoa_load(-19.5, p, vt)
     p2 = _extreme(bal_a, total2, largest=False)
     lrud, lyaw = _vt_rudder_load(p2, vt), _vt_aoa_load(-19.5, p2, vt)
-    on_rudder2 = sum(rudder_load_parts(lrud, lyaw, vt))
+    on_rudder2 = math.fsum(rudder_load_parts(lrud, lyaw, vt))
     out.append(CriticalCondition(
         component="vtail", label="YAW TO SIDESLIP", far_reference="23.441(a)(2)", case=p2.case,
         loads=[LoadValue("Total tail load", lrud + lyaw, "lb", key="total_tail_load"),

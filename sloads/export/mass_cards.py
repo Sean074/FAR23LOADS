@@ -56,6 +56,7 @@ satisfy ``force / (mass x length) == g``.
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 from typing import Dict, List, Optional, Sequence, Tuple
 
@@ -373,8 +374,8 @@ def _massset_block(cards: Sequence[MassCard], loading: CaseLoading,
 
 
 def _header(project: Project, u: DeliverableUnits, cards: Sequence[MassCard]) -> List[str]:
-    total = sum(c.item.weight_lb for c in cards if not c.overlay)
-    wing = sum(c.item.weight_lb for c in cards
+    total = math.fsum(c.item.weight_lb for c in cards if not c.overlay)
+    wing = math.fsum(c.item.weight_lb for c in cards
                if component_of(c.item, project) == MassComponent.WING)
     skipped = [ld for ld in derive_case_loadings(project) if not ld.derivable]
     lines = [
@@ -455,12 +456,12 @@ def mass_properties(project: Project, loading: CaseLoading,  # noqa: ARG001  -- 
     """
     u = _checked_mass_units(deliverable_units(system, Channel.SOLVER))
     items = loading.items
-    w = sum(it.weight_lb for it in items)
+    w = math.fsum(it.weight_lb for it in items)
     if not w:
         return {"weight": 0.0, "mass": 0.0, "cg_x": 0.0, "cg_z": 0.0, "iyy": 0.0}
-    cx = sum(it.weight_lb * it.x for it in items) / w
-    cz = sum(it.weight_lb * it.z for it in items) / w
-    iyy = sum(it.iyy + it.weight_lb * ((it.x - cx) ** 2 + (it.z - cz) ** 2)
+    cx = math.fsum(it.weight_lb * it.x for it in items) / w
+    cz = math.fsum(it.weight_lb * it.z for it in items) / w
+    iyy = math.fsum(it.iyy + it.weight_lb * ((it.x - cx) ** 2 + (it.z - cz) ** 2)
               for it in items)
     return {
         "weight": w,

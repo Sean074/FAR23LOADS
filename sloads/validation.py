@@ -876,7 +876,7 @@ def _check_weight_case_model(project: Project) -> List[ConsistencyWarning]:
         out.append(ConsistencyWarning(
             "weight_order_chain",
             f"{lo_label} {lo:,.0f} lb exceeds {hi_label} {hi:,.0f} lb. The design "
-            "weights must satisfy OEW <= MLW <= MTOW <= sum(items) -- you must be "
+            "weights must satisfy OEW <= MLW <= MTOW <= math.fsum(items) -- you must be "
             "able to land with reserves, and you cannot weigh more than everything "
             "you have (decisions G-4 / G-14).",
             PAGE_WEIGHT_CG))

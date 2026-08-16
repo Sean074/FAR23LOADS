@@ -56,6 +56,7 @@ pounds and inch-pounds.
 
 from __future__ import annotations
 
+import math
 from typing import Dict, List, Optional, Sequence, Tuple
 
 from ..constants import CARRY_THROUGH_NODES
@@ -179,7 +180,7 @@ def body_distribution(stations, nz: float, tail_load: float, tail_x: float,
     whole-body correction -- a **closure artifact**, flagged as such by the
     caller.
     """
-    w_fus = sum(w for _, w in stations)
+    w_fus = math.fsum(w for _, w in stations)
     r_total = nz * w_fus - tail_load                # vertical equilibrium
 
     # Pass 1 (p103): inertia + tail air load only. Its terminal moment about the

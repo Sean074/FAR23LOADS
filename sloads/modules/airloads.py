@@ -107,7 +107,7 @@ _TAU_FIT = {
 
 
 def _poly(coeffs, x: float) -> float:
-    return sum(c * x ** i for i, c in enumerate(coeffs))
+    return math.fsum(c * x ** i for i, c in enumerate(coeffs))
 
 
 def _tau(taper_ratio: float, tip_ratio: float) -> float:
@@ -254,8 +254,8 @@ def schrenk_distribution(geom: SurfaceInput, aero: AeroSurfaceInput) -> Spanwise
         table.ccl_total = swept
         table.cl_total = [cc / c for cc, c in zip(swept, table.chord)]
 
-    table.recovered_cl_additive = sum(ca * dy for ca in table.ccl_additive) / area_side
-    table.recovered_cl = sum(ct * dy for ct in table.ccl_total) / area_side
+    table.recovered_cl_additive = math.fsum(ca * dy for ca in table.ccl_additive) / area_side
+    table.recovered_cl = math.fsum(ct * dy for ct in table.ccl_total) / area_side
     return table
 
 
@@ -300,7 +300,7 @@ def _sweep_operating(ccl_op: List[float], ye: List[float], span: float, mac: flo
     cos_lam = math.cos(sweep_deg / 180.0 * PI)
     col19 = [cc - (1.0 - 2.0 * y / span) * 2.0 * (1.0 - cos_lam) * mac * cl_op
              for cc, y in zip(ccl_op, ye)]
-    recovered = sum(c19 * dy for c19 in col19) / area_side if area_side else 0.0
+    recovered = math.fsum(c19 * dy for c19 in col19) / area_side if area_side else 0.0
     factor = cl_op / recovered if recovered else 1.0
     return [c19 * factor for c19 in col19]
 

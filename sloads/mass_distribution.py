@@ -87,6 +87,7 @@ the wrong beam.
 from __future__ import annotations
 
 import dataclasses
+import math
 from dataclasses import dataclass
 from typing import Dict, List, Optional, Sequence, Tuple
 
@@ -221,12 +222,12 @@ class MassDistribution:
     def weight(self, *components: MassComponent) -> float:
         """Total weight of ``components`` (all of them when none is given)."""
         comps = components or tuple(MassComponent)
-        return sum(it.weight_lb for c in comps for it in self.by_component.get(c, []))
+        return math.fsum(it.weight_lb for c in comps for it in self.by_component.get(c, []))
 
     def moment(self, axis: str, *components: MassComponent) -> float:
         """``Σ w·axis`` over ``components``; ``axis`` is ``"x"``/``"y"``/``"z"``."""
         comps = components or tuple(MassComponent)
-        return sum(it.weight_lb * getattr(it, axis)
+        return math.fsum(it.weight_lb * getattr(it, axis)
                    for c in comps for it in self.by_component.get(c, []))
 
     def cg(self, axis: str, *components: MassComponent) -> float:
@@ -345,7 +346,7 @@ def partition_closes(project: Project) -> MassCheck:
     dist = distribution(project)
     total = dist.weight()
     wing = dist.weight(MassComponent.WING)
-    beam = sum(s.weight_lb for s in derived_fuselage_stations(project))
+    beam = math.fsum(s.weight_lb for s in derived_fuselage_stations(project))
     return MassCheck(
         code="mass_partition",
         ok=_close(wing + beam, total),
@@ -373,12 +374,12 @@ def wing_mass_tie(project: Project) -> Optional[MassCheck]:
     if wm is None or not (wm.panel_weight_lb or wm.concentrated):
         return None
     got = distribution(project).weight(MassComponent.WING)
-    want = 2.0 * (wm.panel_weight_lb + sum(c.weight_lb for c in wm.concentrated))
+    want = 2.0 * (wm.panel_weight_lb + math.fsum(c.weight_lb for c in wm.concentrated))
     return MassCheck(
         code="mass_wing_tie", ok=_close(got, want), got=got, want=want,
         detail=(f"items tagged wing sum to {got:.0f} lb against 2 x (panel "
                 f"{wm.panel_weight_lb:.0f} + concentrated "
-                f"{sum(c.weight_lb for c in wm.concentrated):.0f}) = {want:.0f} lb"),
+                f"{math.fsum(c.weight_lb for c in wm.concentrated):.0f}) = {want:.0f} lb"),
     )
 
 
@@ -411,7 +412,7 @@ def unmodelled_wing_mass(project: Project) -> float:
         return 0.0
     accounted = (distribution(project).weight(MassComponent.WING)
                  - 2.0 * (wm.panel_weight_lb or 0.0))
-    return 2.0 * sum(c.weight_lb for c in wm.concentrated) - accounted
+    return 2.0 * math.fsum(c.weight_lb for c in wm.concentrated) - accounted
 
 
 #: The mass component each empennage surface's distributed inertia is built from.
@@ -522,8 +523,8 @@ def fuselage_reconciliation(project: Project) -> Optional[MassCheck]:
     derived = derived_fuselage_stations(project)
     if not derived:
         return None
-    got = sum(s.weight_lb for s in fm.stations)
-    want = sum(s.weight_lb for s in derived)
+    got = math.fsum(s.weight_lb for s in fm.stations)
+    want = math.fsum(s.weight_lb for s in derived)
     return MassCheck(
         code="mass_fuselage_reconcile",
         ok=abs(got - want) <= FUSELAGE_GAP_WARN_FRACTION * abs(want),
@@ -595,12 +596,12 @@ class CaseLoading:
 
 def _wx(items: Sequence[MassItem]) -> Tuple[float, float, float]:
     """``(Σw, Σw·x/Σw, Σw·z/Σw)`` over ``items``."""
-    w = sum(it.weight_lb for it in items)
+    w = math.fsum(it.weight_lb for it in items)
     if not w:
         return 0.0, 0.0, 0.0
     return (w,
-            sum(it.weight_lb * it.x for it in items) / w,
-            sum(it.weight_lb * it.z for it in items) / w)
+            math.fsum(it.weight_lb * it.x for it in items) / w,
+            math.fsum(it.weight_lb * it.z for it in items) / w)
 
 
 def entered_loading(items: Sequence[MassItem], case: CgCase) -> CaseLoading:
@@ -822,8 +823,8 @@ def _burn_down(items: List[MassItem], target_lb: float) -> Optional[List[MassIte
 
     A row burnt to zero is dropped rather than kept as a 0 lb card.
     """
-    total = sum(it.weight_lb for it in items)
-    burnable = sum(it.weight_lb for it in items if it.consumable)
+    total = math.fsum(it.weight_lb for it in items)
+    burnable = math.fsum(it.weight_lb for it in items if it.consumable)
     needed = total - target_lb
     if needed < -_BALLAST_EPS or burnable <= 0.0 or needed > burnable + _BALLAST_EPS:
         return None

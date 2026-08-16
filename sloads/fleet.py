@@ -222,7 +222,7 @@ def _spread(values: Sequence[float]) -> float:
     spread = max(vals) - min(vals)
     if spread > 0:
         return spread
-    mean = sum(vals) / len(vals)
+    mean = math.fsum(vals) / len(vals)
     return abs(mean) if mean else 1.0
 
 

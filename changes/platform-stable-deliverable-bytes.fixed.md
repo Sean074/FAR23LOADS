@@ -14,10 +14,19 @@
   exporters) now formats through **`sbeam_bridge._fmt3`**, which snaps a
   component below `_TOL ×` its own card's scale to `0.000000E+00` (the
   per-component form of `_closed`). Digest regenerated: every one of the 23,649
-  changed lines is `-0` → `0` or dust → `0`, no load value moved. Also
+  changed lines is `-0` → `0` or dust → `0`, no load value moved. (c) With (a)
+  and (b) in, the 3.12 leg alone still failed on `concept_regional_jet`: Python
+  3.12 changed the built-in `sum()` of floats to compensated summation, so
+  `resultant6`'s `sum(ld.fz …)` landed a few ulp from 3.9/3.11 and two values
+  sat on print boundaries (an integer-valued residual `65013` vs `6.501e+04`;
+  a FORCE card's 7th digit). **Every float summation in `sloads/` — 102 sites
+  in 20 files — is now `math.fsum`**, exactly rounded and therefore identical
+  on every interpreter and platform; the digest moved by 20 lines, all
+  last-digit, and every oracle/closure pin passed unmodified. Also
   `docs/generate_data_dict.py` drops the `"An enumeration."` placeholder that
   Python ≤ 3.10's `EnumMeta` stamps into a docstring-less enum's own `__dict__`
   (the 3.9-only `DATA_DICTIONARY.md is stale` failure). New guards
-  `tests/test_select.py::test_extreme_pick_is_first_in_order_across_a_platform_ulp_tie`
-  and `tests/test_sbeam_bridge.py::test_card_components_snap_dust_and_negative_zero`
-  (both grep for bypasses); `CONVENTIONS.md` §7 gains the row.
+  `tests/test_select.py::test_extreme_pick_is_first_in_order_across_a_platform_ulp_tie`,
+  `tests/test_sbeam_bridge.py::test_card_components_snap_dust_and_negative_zero`
+  and `tests/test_platform_stability.py::test_every_float_summation_in_sloads_is_fsum`
+  (all grep for bypasses); `CONVENTIONS.md` §7 gains the row.

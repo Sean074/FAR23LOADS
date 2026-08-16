@@ -50,6 +50,7 @@ model -- so it is stated here and gated in ``tests/test_rigid_body.py``.
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 from typing import Iterable, Sequence, Tuple
 
@@ -182,9 +183,9 @@ class InertiaTensor:
         compare it with a moment LANDLOAD states about the CG.
         """
         rows = self.matrix()
-        return (sum(rows[0][j] * omega_dot[j] for j in range(3)),
-                sum(rows[1][j] * omega_dot[j] for j in range(3)),
-                sum(rows[2][j] * omega_dot[j] for j in range(3)))
+        return (math.fsum(rows[0][j] * omega_dot[j] for j in range(3)),
+                math.fsum(rows[1][j] * omega_dot[j] for j in range(3)),
+                math.fsum(rows[2][j] * omega_dot[j] for j in range(3)))
 
 
 def _solve3(a: Sequence[Sequence[float]], b: Vec3) -> Vec3:

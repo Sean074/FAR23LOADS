@@ -146,8 +146,8 @@ def inertia_units(geom: SurfaceInput, wm: WingMassInput) -> _InertiaUnits:
                       density_root=int(144 * densr * 1000) / 1000,
                       density_tip=int(144 * wm.tip_root_density_ratio * densr * 1000) / 1000)
 
-    iwxx = 2.0 * (sum(w[i] * ye[i] ** 2 for i in range(h))
-                  + sum(cw.weight_lb * cw.y ** 2 for cw in wm.concentrated)) or 1.0
+    iwxx = 2.0 * (math.fsum(w[i] * ye[i] ** 2 for i in range(h))
+                  + math.fsum(cw.weight_lb * cw.y ** 2 for cw in wm.concentrated)) or 1.0
     fz_r = [w[i] * ye[i] * 100000.0 / iwxx for i in range(h)]
     u.fz_r = fz_r
 

@@ -47,6 +47,7 @@ Reference: WTENV.BAS, Ch 3; worked example Appendix A (stations 85.1 / 77.49 /
 
 from __future__ import annotations
 
+import math
 from typing import List, Optional, Tuple
 
 from ..models import (
@@ -69,10 +70,10 @@ _IN = "in"
 
 def _weight_and_station(items: List[MassItem]) -> Tuple[float, float]:
     """Total weight and weight-averaged fuselage station of a set of items."""
-    w = sum(it.weight_lb for it in items)
+    w = math.fsum(it.weight_lb for it in items)
     if w == 0:
         return 0.0, 0.0
-    m = sum(it.weight_lb * it.x for it in items)
+    m = math.fsum(it.weight_lb * it.x for it in items)
     return w, m / w
 
 

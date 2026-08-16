@@ -385,8 +385,8 @@ def component_stations(layout: LayoutInput,
     if "v_tail" in stations:
         tail_pts.append((vt.vtail_area_sqft if vt is not None else 0.0, stations["v_tail"]))
     if tail_pts:
-        total_area = sum(a for a, _ in tail_pts) or float(len(tail_pts))
-        tail_x = sum((a or 1.0) * pt[0] for a, pt in tail_pts) / total_area
+        total_area = math.fsum(a for a, _ in tail_pts) or float(len(tail_pts))
+        tail_x = math.fsum((a or 1.0) * pt[0] for a, pt in tail_pts) / total_area
         stations["tail"] = (tail_x, 0.0, layout.root_waterline_z)
     gc = gear_stations(layout, landing_gear)
     if gc is not None and gc["gear_height"] > 0:
@@ -401,9 +401,9 @@ def component_stations(layout: LayoutInput,
     if "nose_gear" in stations:
         gear_pts.append((1.0, stations["nose_gear"]))
     if gear_pts:
-        total_w = sum(w for w, _ in gear_pts)
-        gx = sum(w * pt[0] for w, pt in gear_pts) / total_w
-        gz = sum(w * pt[2] for w, pt in gear_pts) / total_w
+        total_w = math.fsum(w for w, _ in gear_pts)
+        gx = math.fsum(w * pt[0] for w, pt in gear_pts) / total_w
+        gz = math.fsum(w * pt[2] for w, pt in gear_pts) / total_w
         stations["landing_gear"] = (gx, 0.0, gz)
     return stations
 

@@ -122,6 +122,7 @@ from __future__ import annotations
 
 import csv
 import io as _io
+import math
 import textwrap
 from dataclasses import dataclass
 from typing import List, Optional, Sequence, Tuple, Union
@@ -1231,7 +1232,7 @@ def body_force_moment_cards(arg, sid_base: int = 1, *,
     for idx, r in enumerate(results):
         sid = _sid(sid_base, idx, r)
         sf = _sf(r)
-        _, _, total_fz = to_force(0.0, 0.0, sum(s.fz for s in r.stations) * sf, u)
+        _, _, total_fz = to_force(0.0, 0.0, math.fsum(s.fz for s in r.stations) * sf, u)
         _, terminal_myy, _ = to_moment(0.0, r.stations[-1].myy * sf, 0.0, u)
         # Both are zero by construction -- see :func:`_closed` for why the sign of
         # what floating point actually leaves behind must not reach the file.
@@ -1426,7 +1427,7 @@ def _trapezoid_tributary_forces(stations, total: float, what: str) -> List[float
     widths = [((xs[i + 1] if i + 1 < n else xs[i])
                - (xs[i - 1] if i > 0 else xs[i])) / 2.0 for i in range(n)]
     raw = [s.psi * w for s, w in zip(stations, widths)]
-    total_raw = sum(raw)
+    total_raw = math.fsum(raw)
     if abs(total_raw) <= _TOL:
         if abs(total) > _TOL:
             raise ValueError(
@@ -1538,7 +1539,7 @@ def tail_force_moment_cards(arg, sid_base: int = 1, *,
         sf = _sf(r)
         forces = _tail_nodal_forces(r)
         axis = _tail_force_axis(r.component)
-        _, _, total = to_force(0.0, 0.0, sum(forces), u)
+        _, _, total = to_force(0.0, 0.0, math.fsum(forces), u)
         _, _, lt_total = to_force(0.0, 0.0, (r.lt25 + r.lt50) * sf, u)
         lines = [
             f"$ SLOADS chordwise {r.component} load -- case {r.case}, SID {sid}",
@@ -1987,7 +1988,7 @@ def control_surface_force_moment_cards(arg, sid_base: int = 1, *,
         sid = _sid(sid_base, idx, r)
         sf = _sf(r)
         forces = _control_nodal_forces(r)
-        _, _, total = to_force(0.0, 0.0, sum(forces), u)
+        _, _, total = to_force(0.0, 0.0, math.fsum(forces), u)
         _, _, critical = to_force(0.0, 0.0, r.load_lb * sf, u)
         lines = [
             f"$ SLOADS control-surface load -- {r.surface} {r.case}, SID {sid}",
