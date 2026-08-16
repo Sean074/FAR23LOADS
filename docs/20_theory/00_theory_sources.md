@@ -180,6 +180,22 @@ Every figure the report prints comes from the modules cited in the table above,
 through the same pure builders the GUI uses; the limit→ultimate boundary is
 `report/render.py`'s, unchanged.
 
+## Base-method uncertainty (the effect-vs-error-bar datum) <a id="base-method-uncertainty"></a>
+
+The suite's own fidelity ceiling, stated once so that scope decisions can be
+measured against it (`CLAUDE.md` rule 6; 2026-08-16 scope review). The base
+method is a **rigid airplane** balanced at discrete V-n points, wing airloads by
+the **Schrenk** approximation (Ch 7 — no lifting-line, no aeroelastic
+redistribution), the empennage as a **lumped balancing load** split 25/50 % chord
+(Ch 9/10), and lumped-mass inertia (Ch 15). Against a panel method or a flexible
+model that basis is good to **order 5–10 % on a distributed load** (spanwise
+shear/bending at a station; body beam moment) and better than that on the
+integrated totals the oracles pin (root shear, `n·W`, balancing tail load — those
+close to ±0.1 % by construction). A fidelity item whose stated effect on a
+delivered load is below that band buys nothing a consumer can see; one above it
+is real. The number is an order of magnitude, not a tolerance — it ranks work, it
+does not gate a test.
+
 ## Concept-mode closure validation (Step P1-2)
 
 Concept mode (`category="C"`) has **no printed oracle** above the 12,500 lb FAR23

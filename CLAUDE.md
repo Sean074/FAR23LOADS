@@ -1,9 +1,8 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this
-repository. It holds **rules and pointers only** — status, feature descriptions, and
-per-module detail live in `docs/` (budget: keep this file under ~160 lines; move prose
-out, not in).
+Guidance for Claude Code (claude.ai/code) working in this repository. It holds **rules and
+pointers only** — status, feature descriptions and per-module detail live in `docs/`
+(budget: keep this file under ~160 lines; move prose out, not in).
 
 ## What this project is
 
@@ -66,10 +65,9 @@ Never batch or defer closure.**
 
 `CHANGELOG.md` `[Unreleased]` and the top of the history file are never hand-edited:
 `scripts/build_changelog.py` assembles both at release cut (`RELEASE_PROCESS.md` §4).
-Design notes 26 and 28 (2026-08-16).
 
-Additional rules (2026-08-05 process review — rationale in
-`docs/50_reviews/2026-08-05_development_process_review.md`):
+Additional rules (2026-08-05 process review, rule 6 from the 2026-08-16 scope review —
+rationale in `docs/50_reviews/`):
 
 1. **Design note before code (physics/L steps):** theory reference,
    `CONVENTIONS.md` citations, oracle or closure target with expected numbers, and
@@ -81,24 +79,27 @@ Additional rules (2026-08-05 process review — rationale in
    as the oracle rule applies to the FAR23 core.
 3. **Make it structural:** any cross-cutting convention (units, safety factors, case
    IDs, schema, axes) gets a single-source code owner **plus a drift-guard test** the
-   first time it is needed — never a prose rule alone. (The units/SI history — three
-   rebuilds before M4-20 — is the cautionary precedent; the SSOT table lives in
-   `CONVENTIONS.md`.)
+   first time it is needed — never a prose rule alone (SSOT table: `CONVENTIONS.md` §7;
+   the units/SI history is the cautionary precedent).
 4. **Generalize on first find:** a defect fix sweeps the same defect class across the
    codebase in the same change and adds a guard test where feasible.
 5. **Review findings are filed with bodies** in the same session they are raised, and
    **no new parallel ID series** — descriptive names in the backlog, plain step
    identity at promotion.
+6. **Effect vs error bar:** a physics/fidelity item is ranked only if its stated effect
+   on a delivered load exceeds the base method's own uncertainty
+   (`theory_sources.md` §Base-method uncertainty); below that it is parked **with the
+   number that parks it**. A defect with first-order effect on shipped content outranks
+   every fidelity item regardless of mission trace.
 
 ## Required practices (unchanged)
 
 - **Standard docs point at owners, never copy their values.** No schema number, test
   count, coverage %, or "currently N" in `README.md`/`CLAUDE.md`/`10_standard/`/`20_theory/`
   (`00_program_overview.md` §Documentation currency; guard `tests/test_doc_currency.py`).
-- **Keep the build green.** `ruff check sloads/ cli.py app/ scripts/` clean, `mypy` clean
-  (zero errors on `sloads/`; strictness ratchets per package in `pyproject.toml`) and `pytest`
-  passing are the merge gate (CI: 3.9 / 3.11 / 3.12; mypy on 3.12). Add new domain terms to
-  `cspell.json`.
+- **Keep the build green.** `ruff check sloads/ cli.py app/ scripts/` clean, `mypy` clean (zero
+  errors on `sloads/`; strictness ratchets per package in `pyproject.toml`) and `pytest` passing
+  are the merge gate (CI: 3.9 / 3.11 / 3.12; mypy on 3.12). New domain terms → `cspell.json`.
 - **Git is the user's to run.** ANY and ALL git usage — `commit`, `add`, `push`,
   `branch`, `merge`, `checkout`, `tag`, `rebase`, `reset`, etc. — SHALL be performed by
   the user, NOT by Claude, UNLESS the user explicitly requests that specific git
@@ -107,8 +108,7 @@ Additional rules (2026-08-05 process review — rationale in
 
 ## Commands
 
-Local venv at `.venv/`; editable install (`pip install -e '.[dev]'`) — no `sys.path`
-shims anywhere.
+Local venv at `.venv/`; editable install (`pip install -e '.[dev]'`); no `sys.path` shims.
 
 ```bash
 .venv/bin/python -m pytest                   # whole suite (testpaths=tests, parallel; coverage is CI-only)
@@ -150,11 +150,11 @@ quantities only. The `-ULT` marker is part of the units string; every case state
 SF (`ULT SF=1.0` = already-ultimate). **The authority for every factor is the governing
 safety-factor table, `sloads/safety_factors.py`** (M4-8 / G-11) — one row per condition
 family, each with a basis; every per-case SF is a derived view of it, and a case it
-cannot classify is flagged, never silently defaulted. Solver decks use the consistent-unit channel
-(N·mm, MPa) via `units.deliverable_units(system, channel)` resolved once per bundle.
-Per-module analysis pages may show LIMIT only when explicitly marked.
+cannot classify is flagged, never silently defaulted. Solver decks use the consistent-unit
+channel (N·mm, MPa) via `units.deliverable_units(system, channel)` resolved once per
+bundle; per-module analysis pages may show LIMIT only when explicitly marked.
 
-**Math fidelity:** modernized math (`math.pi`, clean equations) — the manual's figures
-are tolerance oracles (±0.1%, `math.isclose(rel_tol=1e-3)`), printed number + page
-citation kept in the test. **Deviations from the oracle** require the owner's approval
-(recorded in the PR) + the full trail — register: `docs/20_theory/02_approved_corrections.md`.
+**Math fidelity:** modernized math (`math.pi`, clean equations) — the manual's figures are
+tolerance oracles (±0.1%, `math.isclose(rel_tol=1e-3)`), printed number + page citation kept
+in the test. **Oracle deviations** need the owner's approval (in the PR) + the full trail —
+register: `docs/20_theory/02_approved_corrections.md`.
