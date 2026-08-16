@@ -68,6 +68,7 @@ from .models import (
     TailType,
     VTailLoadsInput,
     LayoutInput,
+    LoadingDefinition,
     LoadsResult,
     LoadValue,
     MachLimitInput,
@@ -202,18 +203,54 @@ def _cg_case_from_dict(d: Dict[str, Any]) -> CgCase:
                 else {AnalysisKind.FLIGHT})
     role_raw = d.pop("role", None)
     role = GroundCaseRole(role_raw) if role_raw else None
-    return CgCase(analyses=analyses, role=role, **_filtered(CgCase, d))
+    loading_raw = d.pop("loading", None)
+    loading = _loading_from_dict(loading_raw) if loading_raw else None
+    return CgCase(analyses=analyses, role=role, loading=loading,
+                  **_filtered(CgCase, d))
+
+
+def _loading_from_dict(d: Dict[str, Any]) -> LoadingDefinition:
+    """Build a :class:`LoadingDefinition` (D-25); its ballast is a full item row."""
+    d = dict(d)
+    ballast_raw = d.pop("ballast", None)
+    ballast = _mass_item_from_dict(ballast_raw) if ballast_raw else None
+    return LoadingDefinition(ballast=ballast, **_filtered(LoadingDefinition, d))
 
 
 def _cg_case_to_dict(c: CgCase) -> Dict[str, Any]:
-    """Serialize a :class:`CgCase`; ``role`` is omitted when unset."""
+    """Serialize a :class:`CgCase`; ``role``/``loading`` are omitted when unset.
+
+    Absent ``loading`` is the pre-v50 shape *and* the live "derive it" state
+    (D-25c), so writing it only when set keeps a re-save of an older file
+    byte-identical.
+    """
     out: Dict[str, Any] = {
         "name": c.name, "weight_lb": c.weight_lb, "xcg": c.xcg, "zcg": c.zcg,
         "analyses": sorted(a.value for a in c.analyses),
     }
     if c.role is not None:
         out["role"] = c.role.value
+    if c.loading is not None:
+        out["loading"] = _loading_to_dict(c.loading)
     return out
+
+
+def _loading_to_dict(ld: LoadingDefinition) -> Dict[str, Any]:
+    """Serialize a :class:`LoadingDefinition`; empty members are omitted."""
+    out: Dict[str, Any] = {}
+    if ld.aboard:
+        out["aboard"] = list(ld.aboard)
+    if ld.fractions:
+        out["fractions"] = dict(ld.fractions)
+    if ld.ballast is not None:
+        out["ballast"] = _mass_item_to_dict(ld.ballast)
+    return out
+
+
+def _mass_item_to_dict(it: MassItem) -> Dict[str, Any]:
+    """Serialize one :class:`MassItem` row (the item list and D-25 ballast share it)."""
+    return {**asdict(it), "kind": it.kind.value,
+            "component": it.component.value if it.component else None}
 
 
 def _mass_item_from_dict(d: Dict[str, Any]) -> MassItem:
@@ -256,11 +293,7 @@ def weight_to_dict(inp: WeightInput) -> Dict[str, Any]:
         est = asdict(inp.estimation)
         est["engine_weight_type"] = inp.estimation.engine_weight_type.value
         out["estimation"] = est
-    out["items"] = [
-        {**asdict(it), "kind": it.kind.value,
-         "component": it.component.value if it.component else None}
-        for it in inp.items
-    ]
+    out["items"] = [_mass_item_to_dict(it) for it in inp.items]
     if inp.envelope is not None:
         out["envelope"] = asdict(inp.envelope)
     if inp.cg_cases:

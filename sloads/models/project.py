@@ -241,7 +241,7 @@ from .results import EnvelopeResult, LoadsResult, MassResult
 # ``zw``, marked ``assumed`` and stated in-band, exactly as
 # ``vtail_root_waterline_z`` handles the same class of question. So no migration
 # hop, and every pre-v49 project takes the derived value.
-SCHEMA_VERSION = 49  # body drag carrier: body_drag_waterline_z (D-1)
+SCHEMA_VERSION = 50  # CgCase.loading: explicit loading definition (D-25)
 
 
 @dataclass

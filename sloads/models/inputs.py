@@ -7,7 +7,7 @@ MissingInputError guard type, and the fuselage-outline default helper.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import List, Optional, Set, Tuple
+from typing import Dict, List, Optional, Set, Tuple
 
 from ..constants import ULTIMATE_FACTOR
 from .enums import (
@@ -646,6 +646,47 @@ class AeroCoefficientsInput:
 
 
 @dataclass
+class LoadingDefinition:
+    """Which useful load is aboard for one weight/CG case (decision **D-25**).
+
+    A ``CgCase`` states a weight and a CG -- a corner of the weight/CG envelope,
+    which is the real engineering input on a reference airplane. It does **not**
+    say *what loading produces it*, and on 5 of 6 shipped fixtures no combination
+    of the item data base reaches the entered point within a credible ballast
+    fraction, so those cases produce no mass model and no balanced case at all.
+    D-25 (user, 2026-08-15): the corner points stand and the **loading becomes an
+    explicit input**, because the loading is the derived quantity of the two.
+
+    The database stays the mass SSOT (plan 11 B1) -- nothing here duplicates a
+    weight:
+
+    * ``aboard`` names the **discretionary** rows of ``weight.items`` that are
+      carried. ``EMPTY`` and ``MINIMUM`` rows are *implicitly* aboard: a loading
+      is a statement about the useful load, and neither the empty weight nor the
+      minimum-flight-weight rows (pilot, reserve fuel) are optional. Naming one
+      is rejected as an entry error, on the reasoning that made G-3c reject an
+      empty ``analyses`` set.
+    * ``fractions`` scales a row tagged ``consumable`` (G-5) to a partial value --
+      a part-full tank -- keyed by item name, in ``(0, 1]``. It applies to a
+      consumable of any kind, named in ``aboard`` or implicitly aboard; the
+      station and inertias are unchanged, so the tank layout is preserved exactly
+      as the derived burn-down preserves it. ``0`` is rejected: "not aboard" is
+      said by omitting the name, not by a zero.
+    * ``ballast`` is an explicit ballast row, entered when the loading needs one.
+      Its waterline is **required, not defaulted** -- ``zcg`` is checked against
+      it. Where the data base already carries a ballast row (``ga6_normal`` has
+      one), name it in ``aboard`` instead.
+
+    The loading is **authoritative** (D-25a): the case's ``weight_lb``/``xcg``/
+    ``zcg`` become a checked echo of what this produces, not a target the loading
+    is bent to hit. See ``docs/30_future/22_d25_cgcase_loading_note.md``.
+    """
+    aboard: List[str] = field(default_factory=list)
+    fractions: Dict[str, float] = field(default_factory=dict)
+    ballast: Optional[MassItem] = None
+
+
+@dataclass
 class CgCase:
     """One weight / centre-of-gravity case balanced over the flight envelope.
 
@@ -670,6 +711,12 @@ class CgCase:
     assembled and distributed but never fed to LANDLOAD, so the tag is free to
     grow while the oracle-locked module keeps its exact three-loading contract.
     A ``role`` on a case not tagged ``GROUND`` is rejected.
+
+    ``loading`` (D-25) states the useful load behind the case explicitly. It is
+    **optional**: ``None`` keeps the derived route --
+    :func:`sloads.mass_distribution.derive_case_loadings` searches the
+    discretionary subsets for a loading that reproduces the case -- so every
+    pre-v50 file behaves bit-for-bit as it did.
     """
     name: str
     weight_lb: float
@@ -678,6 +725,7 @@ class CgCase:
     analyses: Set[AnalysisKind] = field(
         default_factory=lambda: {AnalysisKind.FLIGHT})
     role: Optional[GroundCaseRole] = None
+    loading: Optional[LoadingDefinition] = None
 
 
 @dataclass
@@ -1497,6 +1545,7 @@ __all__ = [
     "AeroCoeffSet",
     "FuselageMomentInput",
     "AeroCoefficientsInput",
+    "LoadingDefinition",
     "CgCase",
     "FlightLoadsInput",
     "ConcentratedWeight",

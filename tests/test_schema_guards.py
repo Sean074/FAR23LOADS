@@ -221,7 +221,7 @@ def fields_hash() -> str:
 #: (the non-wing drag, lb) and ``delta_cd`` (the wind-axis ``CD`` increment it
 #: represents -- the diagnostic that must stay visible, because carrying the load
 #: makes the applied axial resultant equal the trim's ``dx`` by construction).
-EXPECTED_FIELDS_HASH = "1207bee7b49cbe6a"
+EXPECTED_FIELDS_HASH = "eada0df12005f41f"
 
 
 def test_persisted_dataclass_shapes_are_unchanged():

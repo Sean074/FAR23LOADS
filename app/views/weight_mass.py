@@ -788,6 +788,7 @@ def _tab_mass_export(project, system, U) -> None:
         rows.append({
             "Payload case": ld.name,
             "Exported": "yes" if ld.derivable else "no",
+            "Loading": "entered" if ld.entered else "derived",
             f"Weight ({U['weight']})": f"{to_display(ld.weight_lb, 'weight', system):.0f}",
             f"X cg ({U['length']})": f"{to_display(ld.cg_x, 'length', system):.2f}",
             f"Ballast ({U['weight']})": (

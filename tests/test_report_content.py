@@ -228,7 +228,10 @@ def test_the_report_states_which_conditions_did_not_assemble():
 
     rows = [row[0] for row in _skips_table(build_report(project)).rows]
     assert rows == skipped_condition_lines(skipped)
-    assert any("NMAA" in row for row in rows), rows
+    # The fixture's own example moved with D-25: its flight NMAA now assembles
+    # (the case states its loading), and what the record still carries is the
+    # ground family, whose ``fwd light`` loading is not entered.
+    assert any("3-wheel level landing" in row for row in rows), rows
 
 
 def test_the_skipped_conditions_table_states_absence_rather_than_vanishing():
@@ -294,17 +297,28 @@ def test_the_balanced_section_names_the_massset_of_every_payload_case():
     table = _balanced_section().tables[1]
     assert table.columns[0] == "Payload case"
     assert [row[0] for row in table.rows] == [r["case"] for r in rows]
-    assert f"{sid} ({label})" in table.rows[0][2]
+    massset = table.columns.index("MASSSET")
+    assert f"{sid} ({label})" in table.rows[0][massset]
+    # D-25: every row states which route produced its loading.
+    provenance = table.columns.index("Loading")
+    assert {row[provenance] for row in table.rows} <= {"entered", "derived"}
 
 
 def test_a_payload_case_the_database_cannot_produce_is_reported_not_dropped():
-    """"Absent from the mass model" is the fact a consumer needs (plan 12 C-1)."""
+    """"Absent from the mass model" is the fact a consumer needs (plan 12 C-1).
+
+    Read on ``atr42_100`` since D-25: the regional jet's three cases all export
+    now that the third one states its loading, so the fixture that still carries
+    a case its database cannot produce is the twin turboprop (CGfwd/CGmid, 20 %
+    ballast, no entered loading yet -- backlog Pri 7).
+    """
     from sloads.export.mass_cards import mass_case_rows
 
-    project = io.load_project(_CONCEPT)
-    rows = mass_case_rows(project)
+    path = os.path.join(_EXAMPLES, "atr42_100.project.json")
+    rows = mass_case_rows(io.load_project(path))
     assert any(not r["exported"] for r in rows), "fixture no longer exercises this"
-    table = _balanced_section(_CONCEPT).tables[1]
+    table = next(t for t in _balanced_section(path).tables
+                 if t.title.startswith("Payload cases"))
     assert any(row[1] == "NOT EXPORTED" for row in table.rows)
 
 

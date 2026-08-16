@@ -13,7 +13,9 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from sloads import Project, io, registry  # noqa: E402
 from sloads.cg_cases import flight_cases, ground_cases  # noqa: E402
-from sloads.models import SCHEMA_VERSION, EngineType  # noqa: E402
+from sloads.models import (  # noqa: E402
+    SCHEMA_VERSION, EngineType, LoadingDefinition, MassItem, MassItemKind,
+)
 from sloads.validation import LANDING_CG_NAMES  # noqa: E402
 from fixtures import io520bb  # noqa: E402
 
@@ -741,6 +743,49 @@ def test_unknown_field_in_every_result_slice_is_ignored():
     assert {"envelope", "mass", "loads", "one_engine_out"} <= set(clean)
     loaded = io.project_from_dict(_inject_unknown(clean))  # must not raise
     assert io.project_to_dict(loaded) == clean
+
+
+# --------------------------------------------------------------------------- #
+# D-25 -- the explicit loading definition (schema v50)
+# --------------------------------------------------------------------------- #
+def test_an_entered_loading_round_trips():
+    """Every member survives the write/read/write cycle, ballast row included."""
+    project = io.load_project(os.path.join(EXAMPLES, "concept_regional_jet.project.json"))
+    case = next(c for c in project.weight.cg_cases if c.name == "CG3 fwd light")
+    case.loading = LoadingDefinition(
+        aboard=["Passengers (48)", "Mission fuel"],
+        fractions={"Mission fuel": 0.4},
+        ballast=MassItem(name="Test ballast", weight_lb=120.0, x=200.0, z=60.0,
+                         kind=MassItemKind.DISCRETIONARY),
+    )
+    once = io.project_to_dict(project)
+    twice = io.project_to_dict(io.project_from_dict(once))
+    assert once == twice
+
+    back = next(c for c in io.project_from_dict(once).weight.cg_cases
+                if c.name == "CG3 fwd light").loading
+    assert back.aboard == ["Passengers (48)", "Mission fuel"]
+    assert back.fractions == {"Mission fuel": 0.4}
+    assert back.ballast == case.loading.ballast
+
+
+def test_a_case_without_a_loading_writes_no_loading_key():
+    """D-25c: absent is the pre-v50 shape *and* the live "derive it" state, so a
+    re-saved older file keeps the bytes it had."""
+    project = io.load_project(GA6)
+    cases = io.project_to_dict(project)["weight"]["cg_cases"]
+    assert all("loading" not in c for c in cases)
+    assert all(c.loading is None for c in project.weight.cg_cases)
+
+
+def test_a_pre_v50_file_loads_with_no_loading():
+    """The migration is "nothing to do", asserted rather than assumed: an on-disk
+    case with no ``loading`` key loads, and derives its loading as it always did."""
+    from sloads import mass_distribution as md
+
+    project = io.load_project(GA6)
+    assert project.schema_version <= SCHEMA_VERSION
+    assert [ld.entered for ld in md.derive_case_loadings(project)] == [False] * 4
 
 
 if __name__ == "__main__":

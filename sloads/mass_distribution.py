@@ -565,6 +565,14 @@ class CaseLoading:
     What is *not* guaranteed at all is that the ballast is physically credible,
     and that is what ``derivable`` and ``note`` carry: a case needing 31 % of the
     airplane as ballast is reported, not exported.
+
+    **When the case carries an entered loading** (``CgCase.loading``, D-25) none
+    of the above applies: the items are the entered ones, no ballast is solved,
+    ``weight_lb``/``cg_x``/``cg_z`` are that loading's own properties, and
+    ``derivable`` is ``True`` unconditionally -- an entered ballast row is an
+    engineering statement, so its fraction is *reported* (in ``note``) and never
+    gates the case (D-25d). ``entered`` says which of the two routes produced
+    this loading.
     """
 
     name: str
@@ -575,6 +583,10 @@ class CaseLoading:
     ballast: Optional[MassItem]
     derivable: bool
     note: str
+    #: ``True`` when the loading was **entered** on the case (D-25), ``False``
+    #: when it was searched for. Consumers state which they are looking at rather
+    #: than inferring it.
+    entered: bool = False
 
     @property
     def ballast_fraction(self) -> float:
@@ -590,6 +602,69 @@ def _wx(items: Sequence[MassItem]) -> Tuple[float, float, float]:
     return (w,
             sum(it.weight_lb * it.x for it in items) / w,
             sum(it.weight_lb * it.z for it in items) / w)
+
+
+def entered_loading(items: Sequence[MassItem], case: CgCase) -> CaseLoading:
+    """Assemble the loading a case **states** (D-25), instead of searching for one.
+
+    ``EMPTY`` and ``MINIMUM`` rows are aboard by definition; ``aboard`` selects
+    from the ``DISCRETIONARY`` ones; ``fractions`` scales the ``consumable`` rows
+    to a partial value. No ballast is ever *solved* -- solving is what the derived
+    route does, and an entered loading that needs ballast says so with a ballast
+    row of its own.
+
+    Every rejection below is a :class:`ValueError` (an invalid domain input per the
+    error contract in ``docs/10_standard/00_program_overview.md``), not a silent
+    fallback to the search: a loading that names an item the data base does not
+    carry is an entry error, and quietly deriving something else instead would
+    hide it behind a plausible answer.
+    """
+    ld = case.loading
+    assert ld is not None                                    # caller-checked
+    by_name = {it.name: it for it in items}
+    kinds = {it.name: it.kind for it in items}
+
+    def _fail(msg: str) -> None:
+        raise ValueError(f"weight/CG case '{case.name}': {msg}")
+
+    for name in list(ld.aboard) + list(ld.fractions):
+        if name not in by_name:
+            _fail(f"loading names '{name}', which is not a row of weight.items")
+    for name in ld.aboard:
+        if kinds[name] != MassItemKind.DISCRETIONARY:
+            _fail(f"'{name}' is a {kinds[name].value} item, which is aboard by "
+                  "definition -- list discretionary items only")
+    if len(set(ld.aboard)) != len(ld.aboard):
+        _fail("an item is listed twice in 'aboard'")
+    for name, frac in ld.fractions.items():
+        if not by_name[name].consumable:
+            _fail(f"a fraction is given for '{name}', which is not consumable -- "
+                  "only a consumable row can be part-full")
+        if not 0.0 < frac <= 1.0:
+            _fail(f"fraction {frac} for '{name}' is outside (0, 1]; omit the item "
+                  "from 'aboard' to leave it off")
+        if kinds[name] == MassItemKind.DISCRETIONARY and name not in ld.aboard:
+            _fail(f"a fraction is given for '{name}', which is not aboard")
+
+    loading = [it for it in items
+               if it.kind != MassItemKind.DISCRETIONARY or it.name in ld.aboard]
+    loading = [dataclasses.replace(it, weight_lb=it.weight_lb * ld.fractions[it.name])
+               if it.name in ld.fractions else it
+               for it in loading]
+    ballast = ld.ballast
+    if ballast is not None:
+        if ballast.kind != MassItemKind.DISCRETIONARY:
+            _fail("the entered ballast row must be a discretionary item")
+        loading = loading + [ballast]
+
+    w, cx, cz = _wx(loading)
+    note = ""
+    if ballast is not None and w:
+        fraction = ballast.weight_lb / w
+        note = (f"entered ballast {ballast.weight_lb:.0f} lb is "
+                f"{fraction * 100:.0f} % of the loading weight")
+    return CaseLoading(name=case.name, items=loading, weight_lb=w, cg_x=cx, cg_z=cz,
+                       ballast=ballast, derivable=True, note=note, entered=True)
 
 
 def derive_case_loadings(project: Project,
@@ -631,6 +706,11 @@ def derive_case_loadings(project: Project,
     residual, station from the x-moment, waterline from the z-moment), so the
     derived loading matches the case in all three. Its inertias are zero -- a
     point mass, which is what a ballast weight is.
+
+    **All of that is the fallback since D-25.** A case carrying an explicit
+    ``loading`` is assembled by :func:`entered_loading` instead: no search, no
+    solved ballast, no credibility gate. The search stays because it is what a
+    pre-v50 file (and any case still without a loading) runs on, bit-for-bit.
     """
     targets = list(cases) if cases is not None else flight_cases(project)
     items = project.weight.items if project.weight is not None else []
@@ -653,6 +733,12 @@ def derive_case_loadings(project: Project,
 
     out: List[CaseLoading] = []
     for case in targets:
+        if case.loading is not None:
+            # D-25: the case states its loading, so there is nothing to search
+            # for. The entered set is authoritative and the case's weight/CG
+            # become a checked echo of it -- see ``case_loading_checks``.
+            out.append(entered_loading(items, case))
+            continue
         burns = AnalysisKind.GROUND in case.analyses
         best: Optional[Tuple[float, int, List[MassItem], Optional[MassItem]]] = None
         for mask in range(1 << len(discretionary)):
@@ -763,25 +849,49 @@ _BALLAST_EPS = 1e-6
 _CG_MATCH_TOL = 0.5   # in
 
 
-def case_loading_checks(project: Project) -> List[MassCheck]:
-    """Each derivable loading reproduces its case's weight and CG (plan 12 acc. 1).
+#: Echo tolerances for an **entered** loading (D-25a). The case's weight and CG
+#: are a rounded engineering statement, not a computation, so the loading is held
+#: to them within a stated band rather than to machine precision: the greater of
+#: half a pound and 0.1 % on weight, and the search's own ``_CG_MATCH_TOL`` on
+#: both CG coordinates -- whose precedent is ga6's CG4, the minimum-flight-weight
+#: loading at station 73.0924 against a case entered as 73.09.
+_ECHO_WEIGHT_ABS = 0.5    # lb
+_ECHO_WEIGHT_REL = 1e-3
 
-    Exact by construction -- the ballast is *solved* from the target -- so this
-    guards the construction, not the physics: it fails if the subset search ever
-    returns a loading that does not actually sum to what it claims.
+
+def case_loading_checks(project: Project) -> List[MassCheck]:
+    """Each loading reproduces its case's weight and CG (plan 12 acc. 1; D-25a).
+
+    Two routes, two meanings, one check:
+
+    * a **derived** loading matches exactly by construction -- the ballast is
+      *solved* from the target -- so this guards the construction, not the
+      physics: it fails if the subset search ever returns a loading that does not
+      actually sum to what it claims;
+    * an **entered** loading (D-25) is authoritative, and the case's
+      ``weight_lb``/``xcg``/``zcg`` are the *echo*. Nothing is bent to make them
+      agree; instead a disagreement beyond
+      :data:`_ECHO_WEIGHT_ABS`/:data:`_ECHO_WEIGHT_REL`/:data:`_CG_MATCH_TOL` is
+      reported loudly here, which is the whole mechanism keeping an entered
+      loading honest about the case it claims to be.
     """
     out: List[MassCheck] = []
     for loading in derive_case_loadings(project):
         if not loading.derivable:
             continue
         case = next(c for c in flight_cases(project) if c.name == loading.name)
-        for got, want, label in ((loading.weight_lb, case.weight_lb, "weight"),
-                                 (loading.cg_x, case.xcg, "xcg"),
-                                 (loading.cg_z, case.zcg, "zcg")):
+        w_tol = max(_ECHO_WEIGHT_ABS, _ECHO_WEIGHT_REL * abs(case.weight_lb))
+        for got, want, label, tol in (
+                (loading.weight_lb, case.weight_lb, "weight", w_tol),
+                (loading.cg_x, case.xcg, "xcg", _CG_MATCH_TOL),
+                (loading.cg_z, case.zcg, "zcg", _CG_MATCH_TOL)):
+            ok = (abs(got - want) <= tol if loading.entered
+                  else _close(got, want, 1e-9))
             out.append(MassCheck(
-                code=f"mass_case_{label}", ok=_close(got, want, 1e-9),
-                got=got, want=want,
-                detail=f"{loading.name} {label} {got:.4f} against {want:.4f}",
+                code=f"mass_case_{label}", ok=ok, got=got, want=want,
+                detail=(f"{loading.name} {label} {got:.4f} against {want:.4f}"
+                        + (f" (entered loading, tolerance {tol:g})"
+                           if loading.entered else "")),
             ))
     return out
 
@@ -841,6 +951,7 @@ __all__ = [
     "untagged_tail_surfaces",
     "BALLAST_CREDIBLE_FRACTION",
     "CaseLoading",
+    "entered_loading",
     "derive_case_loadings",
     "case_loading_checks",
     "partition_closes",

@@ -280,7 +280,8 @@ def mass_case_rows(project: Project) -> List[Dict[str, object]]:
     Every case in ``flight_loads.cg_cases`` appears -- a case the weight database
     cannot produce as a loading is reported with ``exported=False`` and its
     reason, never dropped, because "absent from the mass model" is exactly the
-    fact a consumer needs (plan 12 C-1's credibility gate).
+    fact a consumer needs (plan 12 C-1's credibility gate). ``entered`` says
+    whether the loading was **stated on the case** (D-25) or searched for.
 
     Values are raw Imperial (lb, in) as everywhere else in the calc; the report
     converts at its own boundary.
@@ -295,6 +296,10 @@ def mass_case_rows(project: Project) -> List[Dict[str, object]]:
         rows.append({
             "case": loading.name,
             "exported": loading.derivable,
+            # D-25: which route produced this loading. A consumer reading a mass
+            # model needs to know whether the loading was stated by the engineer
+            # or reconstructed by the search -- the two carry different authority.
+            "entered": loading.entered,
             "massset_sid": sid,
             "massset_label": label,
             "weight_lb": loading.weight_lb,

@@ -12,6 +12,30 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **`CgCase` gains an explicit loading definition** (backlog Pri 6, decision
+  **D-25** + D-25a…d; schema **v50**; design note
+  `docs/30_future/22_d25_cgcase_loading_note.md`). A payload case could state a
+  weight and a CG but not *what loading produces it*, so the mass model behind
+  every case was reconstructed by searching the discretionary subsets of
+  `weight.items` for something that reproduced the corner point within a credible
+  ballast fraction — which reached **7 of 18** shipped cases and left four
+  fixtures with no balanced case at all. `CgCase.loading` (new
+  `LoadingDefinition`: items aboard, a fraction for any `consumable` row, an
+  optional entered ballast row with its waterline) states it instead. The entered
+  loading is **authoritative** (D-25a): the case's `weight_lb`/`xcg`/`zcg` become
+  a checked echo — `max(0.5 lb, 0.1 %)` and `0.5 in` — reported by
+  `mass_distribution.case_loading_checks` and as two new Weight & CG findings
+  (`cg_case_loading_echo`, `cg_case_loading_invalid`), and no ballast is ever
+  solved for one. The credibility gate stays on *solved* ballast only (D-25d), so
+  an entered ballast exports with its fraction stated rather than being refused.
+  **Optional with the search as fallback** (D-25c): every pre-v50 file loads and
+  produces byte-identical output, and a case without a loading writes no
+  `loading` key. First user: `concept_regional_jet`'s **CG3 fwd light** (12 %
+  ballast, previously refused), which brings the fixture's `NMAA` condition into
+  the assembled deck — its flight family is now complete, and the payload-case
+  table in the report and on the page states `entered` or `derived` per case so
+  the provenance travels with the mass model.
+
 - **The assembled model carries the airplane's non-wing drag** (backlog Pri 5,
   design note `docs/30_future/20_body_drag_carrier_note.md`). The FLTLOADS trim
   balances the airplane-less-tail drag from the **polar**; the assembled model's

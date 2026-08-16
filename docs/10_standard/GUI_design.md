@@ -447,7 +447,7 @@ sidebar and the JSON Editor (§10, Phase E5).
 
 The schema field list is **single-sourced in
 [`DATA_DICTIONARY.md`](DATA_DICTIONARY.md)** (generated; currently
-`SCHEMA_VERSION = 49`); the per-step migration history is recorded in
+`SCHEMA_VERSION = 50`); the per-step migration history is recorded in
 [`../40_history/00_completed_development.md`](../40_history/00_completed_development.md)
 (recent steps: v29 single-source CLmax
 stall; v30 M2-6 wing/fuselage derived geometry; v31 M2-10 operational placards;
@@ -557,7 +557,14 @@ of question — so no hop, and a pre-v49 project takes the derived value. It exi
 because that waterline is the *only* free parameter of the body-axial load (its
 fuselage station reaches no gate), and the obvious geometric candidate,
 `root_waterline_z`, is the **wing** root: deriving from it puts `ga6_normal`'s
-`SIDE GUST` pitch residual over the 1 % gate.
+`SIDE GUST` pitch residual over the 1 % gate;
+v50 the explicit loading definition `CgCase.loading` (decision **D-25**, design
+note `../30_future/22_d25_cgcase_loading_note.md`) — which discretionary items a
+payload case carries, the fraction of any consumable row that is aboard, and an
+optional entered ballast row. Additive and **optional**, so no hop: absent is the
+documented value, "derive the loading by searching the item database", which is
+what every pre-v50 project does bit-for-bit. Where it *is* entered the loading is
+authoritative and the case's `weight_lb`/`xcg`/`zcg` become a checked echo of it.
 This paragraph's version number is guarded by
 `tests/test_data_dictionary.py::test_gui_design_schema_line_current` — update
 it (and this list) with every `SCHEMA_VERSION` bump.

@@ -1694,12 +1694,13 @@ def _mass_cases_table(mass_rows: Sequence[Dict[str, Any]], u: Units) -> Optional
         return None
     return Table(
         title="Payload cases in the exported mass model (CONM2 / MASSSET)",
-        columns=["Payload case", "In the mass model", "MASSSET",
+        columns=["Payload case", "In the mass model", "Loading", "MASSSET",
                  f"Weight ({u.label('mass')})", f"X cg ({u.label('length')})",
                  f"Ballast weight ({u.label('mass')})", "Note"],
         rows=[[
             str(r["case"]),
             "yes" if r["exported"] else "NOT EXPORTED",
+            "entered" if r.get("entered") else "derived",
             f"{r['massset_sid']} ({r['massset_label']})" if r["massset_sid"] else "—",
             u.plain(r["weight_lb"], "mass"),
             u.plain(r["cg_x"], "length"),
@@ -1713,7 +1714,11 @@ def _mass_cases_table(mass_rows: Sequence[Dict[str, Any]], u: Units) -> Optional
              "ballast is a CG point, not a loading, and exporting it would put "
              "invented mass into the model that exists to check the real one. "
              "Weights and CG stations are the loading's own, never the case's "
-             "nominal figures.",
+             "nominal figures. A loading marked *entered* is stated on the case "
+             "(D-25) and is authoritative -- the case's own weight and CG are "
+             "then a checked echo of it, and its ballast is an engineering "
+             "statement rather than a solved residual, so the credibility gate "
+             "does not apply to it.",
     )
 
 

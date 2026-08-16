@@ -26,6 +26,7 @@ from sloads.models import (
 _EXAMPLES = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
                          "examples")
 _GA = os.path.join(_EXAMPLES, "ga6_normal.project.json")
+_RJ = os.path.join(_EXAMPLES, "concept_regional_jet.project.json")
 
 
 def _codes(project, page=None):
@@ -296,6 +297,35 @@ def test_a_case_run_for_no_analysis_is_rejected():
     project.weight.cg_cases = [replace(c, analyses=set()) if i == 0 else c
                                for i, c in enumerate(project.weight.cg_cases)]
     assert "cg_case_no_analysis" in _codes(project, page="weight_cg_inertia")
+
+
+def test_an_entered_loading_that_does_not_produce_its_case_is_reported():
+    """D-25a on the page the loading is edited on.
+
+    The loading is authoritative, so the tool must never quietly bend it to the
+    case's entered weight/CG -- what it does instead is say the two disagree,
+    here as well as in the mass checks and the report.
+    """
+    project = sloads_io.load_project(_RJ)
+    case = next(c for c in project.weight.cg_cases if c.name == "CG3 fwd light")
+    assert "cg_case_loading_echo" not in _codes(project)      # as shipped
+    case.weight_lb += 500.0
+    codes = _codes(project, page="weight_cg_inertia")
+    assert "cg_case_loading_echo" in codes
+
+
+def test_a_malformed_loading_is_reported_rather_than_raised_at_the_page():
+    """An entry error in a loading is a *finding*, not a traceback, on the page
+    the user is editing -- the calc path still raises (mass_distribution)."""
+    from sloads.models import LoadingDefinition
+
+    project = sloads_io.load_project(_RJ)
+    case = next(c for c in project.weight.cg_cases if c.name == "CG3 fwd light")
+    case.loading = LoadingDefinition(aboard=["No such item"])
+    warnings = [w for w in consistency_warnings(project)
+                if w.code == "cg_case_loading_invalid"]
+    assert len(warnings) == 1
+    assert "not a row of weight.items" in warnings[0].message
 
 
 def test_the_design_weight_ordering_chain_fires_on_an_inverted_pair():

@@ -38,6 +38,7 @@ from sloads.export import mass_cards as mc  # noqa: E402
 from sloads.export import sbeam_bridge as sb  # noqa: E402
 from sloads.export.equilibrium import parse_cards  # noqa: E402
 from sloads.cg_cases import flight_cases  # noqa: E402
+from sloads.models import LoadingDefinition, MassItemKind  # noqa: E402
 from sloads.units import (  # noqa: E402
     G_IN_S2,
     Channel,
@@ -153,8 +154,14 @@ _DERIVABLE = {
     "atr42_100.project.json": ["CGaft"],
     "dhc8_dash8.project.json": [],
     "concept_heavy.project.json": [],
-    "concept_regional_jet.project.json": ["CG1 aft heavy", "CG2 fwd heavy"],
+    "concept_regional_jet.project.json": ["CG1 aft heavy", "CG2 fwd heavy",
+                                         "CG3 fwd light"],
 }
+#: Cases whose loading is **entered** on the case (D-25) rather than searched
+#: for. ``CG3 fwd light`` is the first: 12 % ballast, so the search's credibility
+#: gate refused it and the RJ produced no third payload case at all until the
+#: loading became an input.
+_ENTERED = {"concept_regional_jet.project.json": ["CG3 fwd light"]}
 
 
 @pytest.mark.parametrize("example", EXAMPLES)
@@ -179,8 +186,8 @@ def test_a_derived_loading_reproduces_its_case(example):
     p = _project(example)
     cases = {c.name: c for c in flight_cases(p)}
     for loading in md.derive_case_loadings(p):
-        if not loading.derivable:
-            continue
+        if not loading.derivable or loading.entered:
+            continue          # an entered loading is the authority, not the echo
         case = cases[loading.name]
         assert loading.weight_lb == pytest.approx(case.weight_lb, rel=1e-12)
         if loading.ballast is not None:
@@ -204,6 +211,8 @@ def test_the_credibility_gate_is_what_rejects_the_rest(example):
     (or unreachable). Pins the gate as the actual discriminator rather than an
     ornament beside some other filter."""
     for loading in md.derive_case_loadings(_project(example)):
+        if loading.entered:
+            continue          # D-25d: the gate is on solved ballast only
         if loading.derivable:
             assert loading.ballast_fraction <= md.BALLAST_CREDIBLE_FRACTION
         elif loading.items:
@@ -222,6 +231,107 @@ def test_ballast_never_floats_outside_the_airframe():
             if loading.ballast is not None:
                 assert min(zs) <= loading.ballast.z <= max(zs), \
                     f"{example} {loading.name}"
+
+
+# --------------------------------------------------------------------------- #
+# D-25 -- the entered loading
+# --------------------------------------------------------------------------- #
+@pytest.mark.parametrize("example", EXAMPLES)
+def test_which_loadings_are_entered_is_pinned(example):
+    """The two routes are distinguishable, per fixture, in the artefact itself.
+
+    A consumer reading a mass model needs to know whether the loading behind it
+    was stated by the engineer or reconstructed by a search — the two carry very
+    different authority — so ``entered`` is pinned rather than inferred.
+    """
+    got = [ld.name for ld in md.derive_case_loadings(_project(example)) if ld.entered]
+    assert got == _ENTERED.get(example, []), example
+
+
+def test_an_entered_loading_reproduces_the_derived_one_on_ga6():
+    """**The reduction gate.** Entering what the search finds must produce what
+    the search finds — item for item, pound for pound.
+
+    ga6 is the Appendix A airplane and derives all four of its cases, so it is
+    the one fixture where the two routes can be compared directly. CG2 is used
+    because it needs the largest ballast (248 lb, 7.3 %) and therefore exercises
+    the whole path: the discretionary selection *and* a ballast row.
+    """
+    p = _project("ga6_normal.project.json")
+    case = next(c for c in flight_cases(p) if c.name == "CG2")
+    derived = next(ld for ld in md.derive_case_loadings(p) if ld.name == "CG2")
+
+    case.loading = LoadingDefinition(
+        aboard=[it.name for it in derived.items
+                if it.kind == MassItemKind.DISCRETIONARY and it is not derived.ballast],
+        ballast=derived.ballast,
+    )
+    entered = md.entered_loading(p.weight.items, case)
+
+    assert entered.entered and derived.entered is False
+    assert [it.name for it in entered.items] == [it.name for it in derived.items]
+    assert entered.weight_lb == pytest.approx(derived.weight_lb, rel=1e-12)
+    assert entered.cg_x == pytest.approx(derived.cg_x, rel=1e-12)
+    assert entered.cg_z == pytest.approx(derived.cg_z, rel=1e-12)
+
+
+def test_the_echo_check_fires_when_the_case_disagrees_with_its_loading():
+    """D-25a's whole mechanism: the case's weight/CG is an echo, and a
+    disagreement is **reported**, never absorbed by bending the loading."""
+    p = _project("concept_regional_jet.project.json")
+    case = next(c for c in flight_cases(p) if c.name == "CG3 fwd light")
+    assert all(c.ok for c in md.case_loading_checks(p))     # as shipped
+
+    case.xcg += 2.0 * md._CG_MATCH_TOL
+    bad = [c for c in md.case_loading_checks(p) if not c.ok]
+    assert [c.code for c in bad] == ["mass_case_xcg"]
+    assert "entered loading" in bad[0].detail
+    # the loading itself is untouched -- it is the authority, not the echo
+    assert md.derive_case_loadings(p)[2].cg_x == pytest.approx(595.1191666, abs=1e-4)
+
+
+def test_an_entered_ballast_is_not_gated_by_the_credibility_fraction():
+    """D-25d. The RJ's third case needs 12 % ballast — over the gate that refuses
+    a *solved* one — and it exports, with the fraction stated rather than hidden."""
+    ld = next(x for x in md.derive_case_loadings(
+        _project("concept_regional_jet.project.json")) if x.name == "CG3 fwd light")
+    assert ld.derivable and ld.ballast_fraction > md.BALLAST_CREDIBLE_FRACTION
+    assert "entered ballast" in ld.note and "12 %" in ld.note
+
+
+@pytest.mark.parametrize("loading, message", [
+    (LoadingDefinition(aboard=["No such row"]), "not a row of weight.items"),
+    (LoadingDefinition(aboard=["Pilot"]), "aboard by definition"),
+    (LoadingDefinition(aboard=["Copilot", "Copilot"]), "listed twice"),
+    (LoadingDefinition(aboard=["Copilot"], fractions={"Copilot": 0.5}),
+     "not consumable"),
+    (LoadingDefinition(aboard=["Fuel to gross wt"],
+                       fractions={"Fuel to gross wt": 0.0}), "outside"),
+    (LoadingDefinition(fractions={"Fuel to gross wt": 0.5}), "not aboard"),
+])
+def test_a_malformed_loading_is_refused_loudly(loading, message):
+    """Every rejection is a ValueError — an invalid domain input — not a silent
+    fall-back to the search, which would hide an entry error behind a plausible
+    answer."""
+    p = _project("ga6_normal.project.json")
+    case = next(c for c in flight_cases(p) if c.name == "CG1")
+    case.loading = loading
+    with pytest.raises(ValueError, match=message):
+        md.derive_case_loadings(p)
+
+
+def test_a_partial_tank_keeps_its_station():
+    """A consumable scaled to a fraction moves no station — the tank layout is
+    the reason the loading is modelled at all (G-5)."""
+    p = _project("ga6_normal.project.json")
+    case = next(c for c in flight_cases(p) if c.name == "CG1")
+    case.loading = LoadingDefinition(aboard=["Fuel to gross wt"],
+                                     fractions={"Fuel to gross wt": 0.25})
+    fuel = next(it for it in md.entered_loading(p.weight.items, case).items
+                if it.name == "Fuel to gross wt")
+    full = next(it for it in p.weight.items if it.name == "Fuel to gross wt")
+    assert fuel.weight_lb == pytest.approx(0.25 * full.weight_lb)
+    assert (fuel.x, fuel.z, fuel.consumable) == (full.x, full.z, full.consumable)
 
 
 # --------------------------------------------------------------------------- #

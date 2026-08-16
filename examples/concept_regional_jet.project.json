@@ -291,7 +291,19 @@
         "name": "CG3 fwd light",
         "weight_lb": 24000.0,
         "xcg": 595.12,
-        "zcg": 70.0
+        "zcg": 70.0,
+        "loading": {
+          "aboard": [],
+          "ballast": {
+            "name": "Test ballast, fwd hold",
+            "weight_lb": 2800.0,
+            "x": 283.4,
+            "y": 0.0,
+            "z": 112.7,
+            "kind": "discretionary",
+            "component": "fuselage"
+          }
+        }
       }
     ]
   },

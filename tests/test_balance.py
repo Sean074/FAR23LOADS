@@ -145,8 +145,11 @@ _EXPECTED_CASES = {
     "atr42_100.project.json": [],
     "dhc8_dash8.project.json": [],
     "concept_heavy.project.json": [],
+    # ``NMAA`` arrives with D-25: it is flown at ``CG3 fwd light``, which had no
+    # loading the weight database could produce until the loading became an
+    # entered input, so the condition was skipped-with-a-reason until 2026-08-15.
     "concept_regional_jet.project.json": [
-        ("PHAA", ""), ("PLAA", ""), ("PMAA", ""),
+        ("PHAA", ""), ("PLAA", ""), ("PMAA", ""), ("NMAA", ""),
         ("ACRL", "R"), ("ACRL", "L"), ("TORS", ""),
     ] + _UNSYMMETRICAL_CASES + _LATERAL_CASES,
 }
@@ -376,17 +379,26 @@ def test_every_condition_is_either_assembled_or_recorded(example):
     assert all(s.reason == SKIP_REASONS[s.code] for s in skipped)
 
 
-def test_the_record_names_the_condition_the_review_found_missing():
-    """``concept_regional_jet`` loses NMAA to a non-derivable loading -- the
-    concrete case F-C7 was raised on. It is now *stated*, with its reason, rather
-    than silently absent from the primary deliverable."""
+def test_the_record_names_the_conditions_a_loading_cannot_carry():
+    """A condition dropped for want of a loading is *stated*, with its reason
+    (review F-C7), rather than silently absent from the primary deliverable.
+
+    The concrete case F-C7 was raised on was ``concept_regional_jet``'s **NMAA**,
+    flown at ``CG3 fwd light``. It assembles since D-25 (2026-08-15): the case
+    states its loading instead of the search failing to find one, so the flight
+    family is complete on this fixture and the record's flight half is empty.
+    The same fixture still exercises the mechanism through its **ground** family,
+    whose ``fwd light`` loading is not entered -- which is exactly the record
+    doing its job: the coverage moved, and the statement moved with it.
+    """
     project = _project("concept_regional_jet.project.json")
     skipped = []
     build_balanced_cases(project, skipped)
-    nmaa = [s for s in skipped if s.label == "NMAA"]
-    assert len(nmaa) == 1, skipped
-    assert nmaa[0].component == "wing"
-    assert nmaa[0].code == "loading-not-derivable"
+    not_derivable = [s for s in skipped if s.code == "loading-not-derivable"]
+    assert not_derivable, skipped
+    assert {s.component for s in not_derivable} == {"landing_gear"}
+    assert all(s.ground for s in not_derivable)
+    assert "NMAA" not in {s.label for s in skipped}     # closed by D-25
     # The fuselage family is a deliberate exclusion, and is recorded as one
     # rather than left to be inferred from its absence. The h-tail's *symmetric*
     # conditions are a different statement since D-R8 -- they are already in
@@ -443,7 +455,7 @@ def test_the_module_result_carries_the_record():
     build_balanced_cases(project, skipped)
     assert row.values[0].value == float(len(skipped))
     assert row.values[0].key == "balanced_skipped_count"
-    assert "NMAA" in row.note
+    assert "3-wheel level landing" in row.note
     # It is a statement about the run, not a load case: no case_ref, so it mints
     # no case-index row, and its one value is dimensionless so the ULTIMATE
     # boundary passes it through unscaled.
@@ -1293,7 +1305,12 @@ _CLOSURE_IZZ = {
                                 # the lightest loading, hence the smallest Izz.
                                 "CG4": 2424.1},
     "concept_regional_jet.project.json": {"CG1 aft heavy": 256507.6,
-                                          "CG2 fwd heavy": 331827.6},
+                                          "CG2 fwd heavy": 331827.6,
+                                          # CG3 arrives with D-25: the fixture's
+                                          # third payload case assembles once its
+                                          # loading is entered rather than
+                                          # searched for.
+                                          "CG3 fwd light": 291652.6},
 }
 
 
@@ -1355,9 +1372,20 @@ def test_a_symmetric_case_reduces_to_three_dof(example):
         assert case.delta_nx == pytest.approx(case.residual_fx / w_total, rel=1e-12)
         assert case.delta_ny == 0.0, where
 
-        # Pitch reacts the whole My residual, through the real Iyy...
+        # Pitch reacts the whole My residual, through the real Iyy -- about the
+        # **mass centroid**, which is where the relief field is exact. The
+        # reported residual is stated about the entered CG (D-R8), so the
+        # transfer ``M_c = M_cg + (cg - c) x F`` belongs in the identity rather
+        # than in a tolerance: it is identically zero on a loading whose ballast
+        # was solved from the CG, and non-zero (0.0008 in on the RJ's entered
+        # CG3, 0.0024 in on ga6's CG4) whenever the loading is a real one that
+        # lands near its case instead of on it.
+        cxx = sum(ld.weight_lb * ld.x for ld in masses) / w_total
+        czz = sum(ld.weight_lb * ld.z for ld in masses) / w_total
+        my_c = (case.residual_my + (cg.zcg - czz) * case.residual_fx
+                - (cg.xcg - cxx) * case.residual_fz)
         assert case.q_dot == pytest.approx(
-            case.residual_my / case.closure_inertia.iyy, rel=1e-9), where
+            my_c / case.closure_inertia.iyy, rel=1e-9), where
         # ...which is strictly larger than the Sum w*dx^2 the 3-DOF closure used.
         old_j = sum(ld.weight_lb * (ld.x - cg.xcg) ** 2 for ld in masses)
         assert case.closure_inertia.iyy > old_j, where

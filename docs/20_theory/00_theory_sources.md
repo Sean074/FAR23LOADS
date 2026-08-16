@@ -565,6 +565,33 @@ too would double it). The free-free closure the beam already satisfied
 beam and holds on the correct one, which is precisely why it could not have caught
 the missing mass.
 
+### The entered loading, and what checks it (D-25, 2026-08-15)
+
+There is **no printed oracle for a loading**: Appendix A prints weights, CGs and
+inertias, never the item set behind a CG case, and WTONECG/WTENV take the loading
+hierarchy as data. The suite's answer had been to *derive* one — search the
+discretionary subsets of `weight.items` for a set that reproduces the case's
+weight and CG with a solved ballast row inside the fuselage — which is a search,
+not a source. D-25 makes the loading an input (`CgCase.loading`), following the
+same `MassItemKind` partition WTONECG's database uses (empty → minimum flight
+weight → discretionary useful load, Ref 1 Ch 4), with fuel treated as continuously
+burnable per 23.473(b)/(c) as decision G-5 already established for the derived
+route.
+
+What replaces the missing oracle is a **checked echo** (D-25a) plus a reduction
+identity, both in CI:
+
+| Gate | What it locks |
+|---|---|
+| `Σw`, `Σwx/Σw`, `Σwz/Σw` of the entered loading vs the case's `weight_lb`/`xcg`/`zcg`, within `max(0.5 lb, 0.1 %)` and `0.5 in` | The stated loading really is the case it claims to be. The loading is authoritative, so this is *reported*, never absorbed by adjusting the loading |
+| entering the loading the search finds reproduces the searched result item-for-item (`rel=1e-12`) | The entered route is a superset of the derived one, not a second answer — the same reduction rule concept mode obeys against FAR 23 |
+
+The credibility gate (10 % ballast) stays on **solved** ballast only (D-25d): a
+number the tool invented has to be plausible, whereas a number an engineer states
+is data — and stress/flight-test ballast on a real airplane is not bounded by what
+a search finds comfortable. The fraction is stated everywhere the case appears
+rather than being silently accepted.
+
 ### The export-boundary closure gate (step 1, 2026-08-08)
 
 The identities above are evaluated on in-memory results. Because concept mode has

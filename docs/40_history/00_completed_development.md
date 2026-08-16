@@ -10,6 +10,83 @@ Acceptance**, **Key decisions**.
 
 ---
 
+**`CgCase` gains an explicit loading definition (complete 2026-08-15, tier L)**
+
+**Objective.** Close backlog Pri 6 — decision **D-25**. A `CgCase` stated a
+weight and a CG (a corner of the weight/CG envelope, the real engineering input
+on a reference airplane) but not *what loading produces it*, so the mass model
+behind every payload case was **searched for**: `derive_case_loadings` tried the
+`2^n` discretionary subsets of `weight.items` plus a ballast row solved from the
+residual, and accepted the result only under the 10 % credibility gate. That
+reached **7 of 18** shipped cases; four of six fixtures produced no balanced case
+at all, not for any failure of the assembly but because no honest inertia set
+existed behind their cases. D-25 made the loading an input rather than editing
+the fixtures' corner points to suit their item databases.
+
+**Deliverables.**
+
+* `LoadingDefinition` (`models/inputs.py`) and `CgCase.loading` —
+  `aboard` (discretionary rows carried; `EMPTY`/`MINIMUM` are implicitly aboard
+  and naming one is rejected), `fractions` (a `consumable` row scaled to a
+  part-full value in `(0, 1]`, station and inertias unchanged, so a tank layout
+  is preserved exactly as G-5's burn-down preserves it) and an optional entered
+  `ballast` row carrying its own waterline. `SCHEMA_VERSION` **49 → 50**,
+  additive and optional, so no migration hop.
+* `mass_distribution.entered_loading` — assembles what the case states. No
+  search, no solved ballast, no credibility gate; every malformed loading is a
+  `ValueError` (unknown row, a non-discretionary row named, a duplicate, a
+  fraction on a non-consumable row or outside `(0, 1]`, a fraction for an item
+  not aboard) rather than a silent fall back to the search, which would hide an
+  entry error behind a plausible answer. `CaseLoading.entered` carries the
+  provenance to every consumer.
+* `case_loading_checks` gained the **echo check** (D-25a) and `validation.py` two
+  Weight & CG findings — `cg_case_loading_echo` and `cg_case_loading_invalid` —
+  so a loading edited on the page reports there as well as at calc time.
+* `io.py` maps the slice both ways (`_loading_from_dict`/`_loading_to_dict`, with
+  `_mass_item_to_dict` extracted so the ballast row and the item list share one
+  serializer); an absent key is both the pre-v50 shape and the live "derive it"
+  state, so a re-saved older file keeps its bytes.
+* First user: `concept_regional_jet`'s **CG3 fwd light** — 24,000 lb at station
+  595.12, needing 2,800 lb (12 %) of ballast, which the solved-ballast gate
+  refused. Entered as a `Test ballast, fwd hold` row at x 283.4 / z 112.7, it
+  reproduces the case to 0.0008 in. The fixture's **NMAA** condition, the concrete
+  case review finding F-C7 was raised on, now assembles: the flight family is
+  complete on that fixture, and the record's remaining `loading-not-derivable`
+  entries are its ground family (Pri 7).
+* The provenance travels with the mass model: `mass_case_rows` carries
+  `entered`, and the report's payload-case table and the Weight & Mass page both
+  state `entered` / `derived` per case.
+
+**Test / acceptance.** Appendix A oracles untouched (no calc-math path reads
+`loading`); the Imperial baseline moved on **four channels of one fixture** — the
+RJ's `case_index`, `csv/balance`, `sbeam/balanced_deck`, `txt/balance` — and
+nowhere else. New: the **reduction gate**
+(`test_an_entered_loading_reproduces_the_derived_one_on_ga6` — entering what the
+search finds on ga6's CG2, the case needing the largest ballast, reproduces it
+item for item and to `rel=1e-12`), the echo check firing on a perturbed `xcg`,
+the entered-ballast exemption, six malformed-loading rejections, the partial-tank
+station invariant, three `io` round-trip tests and two validation tests. Pins
+re-pinned by design: `test_which_payload_cases_are_derivable_is_pinned`
+(RJ 2/3 → 3/3), `test_which_conditions_assemble_is_pinned` (NMAA), the closure
+`Izz` table, and a new `test_which_loadings_are_entered_is_pinned`.
+`test_a_symmetric_case_reduces_to_three_dof` was **strengthened rather than
+loosened**: its `q_dot = My/Iyy` identity now carries the CG→centroid transfer
+`M_c = M_cg + (cg − c) × F` explicitly, which is identically zero on a
+solved-ballast loading and non-zero (0.0008 in here, 0.0024 in on ga6's CG4)
+whenever a real loading lands *near* its case instead of on it — the relief field
+is exact about the centroid, and the residual is reported about the CG (D-R8).
+
+**Key decisions.** D-25a (the loading is authoritative, the case scalars are a
+checked echo at `max(0.5 lb, 0.1 %)` / `0.5 in`), D-25b (item references +
+`consumable` fractions + an entered ballast row; `weight.items` stays the mass
+SSOT), D-25c (optional, search retained as fallback), D-25d (the credibility gate
+is on solved ballast only). Design note:
+[`../30_future/22_d25_cgcase_loading_note.md`](../30_future/22_d25_cgcase_loading_note.md).
+**Scope boundary:** populating `cessna_210`, `atr42_100`, `dhc8_dash8` and
+`concept_heavy` — the 2 → 6 fixture CI multiplication — is backlog Pri 7, which
+consumes this schema; wing-tank fuel separability (Pri 8) rides the same wave as
+a separate `MassItem` change.
+
 **The Dash 8's wing-carried main gear is wing mass in both models (complete
 2026-08-15, tier M)** — G-2's mass half: `dhc8_dash8` states
 `main_gear.carrier = wing` (nacelle-mounted leg) while the 1,200 lb `Main gear`

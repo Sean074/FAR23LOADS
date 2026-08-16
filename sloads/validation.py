@@ -60,7 +60,7 @@ import math
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Dict, List, Optional
 
-from . import cg_cases
+from . import cg_cases, mass_distribution
 from .constants import ULTIMATE_FACTOR
 from .modules.wing_geometry import interp_x
 from .models import (
@@ -829,6 +829,39 @@ def _check_weight_case_model(project: Project) -> List[ConsistencyWarning]:
 
     if weight is None:
         return out
+
+    # D-25: an entered loading is authoritative, so the case's weight/CG are an
+    # echo of it. Both failures below are page findings *as well as* loud at calc
+    # time (``entered_loading`` raises; ``case_loading_checks`` fails), because a
+    # user editing a loading on the Weight & CG page needs to see it there.
+    if any(c.loading is not None for c in cases):
+        try:
+            loadings = {ld.name: ld for ld
+                        in mass_distribution.derive_case_loadings(project, cases)}
+        except ValueError as exc:
+            out.append(ConsistencyWarning(
+                "cg_case_loading_invalid", str(exc), PAGE_WEIGHT_CG))
+            loadings = {}
+        for ld in [ld for ld in loadings.values() if ld.entered]:
+            case = next(c for c in cases if c.name == ld.name)
+            gaps = []
+            w_tol = max(mass_distribution._ECHO_WEIGHT_ABS,
+                        mass_distribution._ECHO_WEIGHT_REL * abs(case.weight_lb))
+            if abs(ld.weight_lb - case.weight_lb) > w_tol:
+                gaps.append(f"weight {ld.weight_lb:,.1f} lb against {case.weight_lb:,.1f}")
+            for got, want, label in ((ld.cg_x, case.xcg, "xcg"),
+                                     (ld.cg_z, case.zcg, "zcg")):
+                if abs(got - want) > mass_distribution._CG_MATCH_TOL:
+                    gaps.append(f"{label} {got:.2f} in against {want:.2f}")
+            if gaps:
+                out.append(ConsistencyWarning(
+                    "cg_case_loading_echo",
+                    f"Case '{ld.name}' states a loading that does not produce the "
+                    "weight/CG entered beside it: " + "; ".join(gaps)
+                    + ". The loading is authoritative (D-25), so what is exported is "
+                    "the loading's own properties -- correct one or the other.",
+                    PAGE_WEIGHT_CG))
+
     mlw = cg_cases.max_landing_weight(project, required=False)
     mtow = cg_cases.max_takeoff_weight(project, required=False)
     total, oew, _ = weight.database_totals()
