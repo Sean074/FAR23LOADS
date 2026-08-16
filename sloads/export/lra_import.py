@@ -45,7 +45,7 @@ from .balanced_deck import case_sids
 from .coordinates import SBEAM_CID, to_force, to_moment, transfer_couple
 from .equilibrium import parse_cards
 from .lra_model import LraModel, LraNode, LraRefusal, _dist2, _member_key, build_lra_model
-from .sbeam_bridge import _comment, _fmt, _sf_str, _stamped
+from .sbeam_bridge import _comment, _fmt3, _sf_str, _stamped
 
 Vec3 = Tuple[float, float, float]
 
@@ -262,12 +262,12 @@ def lra_loads_on_imported_model(project: Project, imported: ImportedModel, *,
                                   force[2] * sf, u)
             if max(abs(v) for v in force) * sf > _TOL:
                 lines.append(f"FORCE, {sid}, {gid}, {SBEAM_CID}, 1.0, "
-                             f"{_fmt(fx)}, {_fmt(fy)}, {_fmt(fz)}")
+                             f"{_fmt3(fx, fy, fz)}")
             mx, my, mz = to_moment(moment[0] * sf, moment[1] * sf,
                                    moment[2] * sf, u)
             if max(abs(v) for v in moment) * sf > _TOL:
                 lines.append(f"MOMENT, {sid}, {gid}, {SBEAM_CID}, 1.0, "
-                             f"{_fmt(mx)}, {_fmt(my)}, {_fmt(mz)}")
+                             f"{_fmt3(mx, my, mz)}")
     return _stamped(header_comment, "\n".join(lines) + "\n")
 
 

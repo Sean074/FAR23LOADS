@@ -95,7 +95,7 @@ from ..rigid_body import radians_per_s2
 from ..units import Channel, DeliverableUnits, UnitSystem, deliverable_units
 from .bands import band
 from .coordinates import SBEAM_CID, to_force, to_grid, to_moment
-from .sbeam_bridge import _fmt, _sf_str, _stamped
+from .sbeam_bridge import _fmt3, _sf_str, _stamped
 
 #: Node runs, from the band registry (:mod:`sloads.export.bands`) -- the single
 #: owner of every GID/EID/SID band in the suite. These three were 4001/4201/4401
@@ -384,11 +384,11 @@ def _load_lines(case: BalancedCaseResult, sid: int, nodes, u: DeliverableUnits,
         fx, fy, fz = to_force(load.fx * sf, load.fy * sf, load.fz * sf, u)
         if max(abs(load.fx), abs(load.fy), abs(load.fz)) * sf > tol:
             lines.append(f"FORCE, {sid}, {gid}, {SBEAM_CID}, 1.0, "
-                         f"{_fmt(fx)}, {_fmt(fy)}, {_fmt(fz)}")
+                         f"{_fmt3(fx, fy, fz)}")
         mx, my, mz = to_moment(load.mx * sf, load.my * sf, load.mz * sf, u)
         if max(abs(load.mx), abs(load.my), abs(load.mz)) * sf > tol:
             lines.append(f"MOMENT, {sid}, {gid}, {SBEAM_CID}, 1.0, "
-                         f"{_fmt(mx)}, {_fmt(my)}, {_fmt(mz)}")
+                         f"{_fmt3(mx, my, mz)}")
     return lines
 
 
@@ -518,7 +518,7 @@ def balanced_deck(project: Project, *,
     ]
     for key, gid in sorted(nodes.items(), key=lambda kv: kv[1]):
         gx, gy, gz = to_grid(key[1], key[2], key[3], u)
-        bulk.append(f"GRID, {gid}, , {_fmt(gx)}, {_fmt(gy)}, {_fmt(gz)}")
+        bulk.append(f"GRID, {gid}, , {_fmt3(gx, gy, gz)}")
     bulk += [
         "$ ------------------------------------------------------- CONSTRAINTS",
         "$ Determinate: one node, six DOF. The recovered reaction IS the residual",

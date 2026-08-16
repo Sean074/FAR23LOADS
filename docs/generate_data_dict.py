@@ -384,7 +384,12 @@ def build():
     ]
     for et in enum_types:
         # Only the enum's *own* docstring -- getdoc() would inherit str/Enum's.
+        # Python <= 3.10's EnumMeta also stamps the placeholder "An enumeration."
+        # into a docstring-less enum's own __dict__; drop it so the output is
+        # identical on every interpreter in the CI matrix.
         doc = et.__dict__.get("__doc__") or ""
+        if doc.strip() == "An enumeration.":
+            doc = ""
         summary = doc.split("\n\n")[0].replace("\n", " ").strip()
         members = ", ".join(f"`{e.name}` = `{e.value!r}`" for e in et)
         lines.append(f"- **`{et.__name__}`** — {members}."

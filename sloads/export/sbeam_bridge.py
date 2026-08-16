@@ -270,6 +270,27 @@ def _fmt(val: float) -> str:
     return f"{val:.6E}"
 
 
+def _fmt3(x: float, y: float, z: float) -> str:
+    """The three components of one FORCE/MOMENT card, **dust snapped to zero**.
+
+    A component that is zero by construction -- ``Fy`` of a symmetric case, the
+    off-axis terms of a transferred couple -- lands on ~1e-14 of cancellation
+    residue after the coordinate transfers, and ``_fmt`` would print that residue
+    to seven significant digits: ``6.101335E-15`` on one machine,
+    ``1.987480E-14`` on another. Every digit of it is libm/FMA/reassociation
+    noise, so the byte differs across platforms and Python versions while the
+    load does not (the same failure class :func:`_closed` fixed for the stated
+    totals; this is the per-component form, found on the LRA deck's cards in CI).
+
+    The floor is the card's own scale (:data:`_TOL` relative to its largest
+    component, or absolute for an all-tiny card), so a real small component on a
+    light airplane is never masked -- and a card whose components are *all* under
+    the emitter's threshold is not emitted at all, as before.
+    """
+    scale = max(abs(x), abs(y), abs(z), 1.0)
+    return ", ".join(_fmt(_closed(v, scale)) for v in (x, y, z))
+
+
 def _closed(value: float, scale: float) -> float:
     """A quantity that is zero **by construction** renders as an unsigned zero.
 
@@ -610,7 +631,7 @@ def _force_moment_lines(loads: List[NodalLoad], sid: int,
         if abs(nl.fx) > _TOL or abs(nl.fz) > _TOL:
             lines.append(
                 f"FORCE, {sid}, {nl.gid}, {SBEAM_CID}, 1.0, "
-                f"{_fmt(fx)}, {_fmt(fy)}, {_fmt(fz)}"
+                f"{_fmt3(fx, fy, fz)}"
             )
         # Torsion about y, plus the concentrated-mass offset couples about x/z
         # (zero unless this node brackets a concentrated mass). The bending pair
@@ -621,7 +642,7 @@ def _force_moment_lines(loads: List[NodalLoad], sid: int,
         if max(abs(nl.my), abs(nl.mx), abs(nl.mz)) > _TOL:
             lines.append(
                 f"MOMENT, {sid}, {nl.gid}, {SBEAM_CID}, 1.0, "
-                f"{_fmt(bx)}, {_fmt(my)}, {_fmt(bz)}"
+                f"{_fmt3(bx, my, bz)}"
             )
     return lines
 
@@ -960,7 +981,7 @@ def stick_model_bdf(arg: ResultsArg, sid_base: int = 1, *,
         "$ ------------------------------------------------------------ NODES",
         f"$ Beam axis: the wing {results[0].torsion_axis} line.",
         "$ GRID, GID, CP, X1, X2, X3",
-        f"GRID, {_ROOT_GID}, , {_fmt(rx)}, {_fmt(ry)}, {_fmt(rz)}",
+        f"GRID, {_ROOT_GID}, , {_fmt3(rx, ry, rz)}",
     ]
     for gid, (x, y, z) in chain[1:]:
         if gid == sob_node_gid and sob is not None:  # a SOB gid exists only when a station was resolved
@@ -976,7 +997,7 @@ def stick_model_bdf(arg: ResultsArg, sid_base: int = 1, *,
                 "applied here and no station is dropped -- the FORCE/MOMENT "
                 "sets and their station-0 closure are unchanged." + outboard)
         gx, gy, gz = to_grid(x, y, z, u)
-        bulk.append(f"GRID, {gid}, , {_fmt(gx)}, {_fmt(gy)}, {_fmt(gz)}")
+        bulk.append(f"GRID, {gid}, , {_fmt3(gx, gy, gz)}")
 
     # Section properties are area / second moment, so they scale as length^2 and
     # length^4 -- derived from the one length factor, never quoted per system.
@@ -1127,7 +1148,7 @@ def _shared_grid_block(gid_x: List[tuple], u: DeliverableUnits,
     lines.append("$ GRID, GID, CP, X1, X2, X3")
     for gid, x in sorted(merged.items()):
         gx, gy, gz = to_grid(x, 0.0, 0.0, u)
-        lines.append(f"GRID, {gid}, , {_fmt(gx)}, {_fmt(gy)}, {_fmt(gz)}")
+        lines.append(f"GRID, {gid}, , {_fmt3(gx, gy, gz)}")
     return lines
 
 
@@ -1238,7 +1259,7 @@ def body_force_moment_cards(arg, sid_base: int = 1, *,
             if abs(s.fz * sf) > _TOL:
                 lines.append(
                     f"FORCE, {sid}, {gid}, {SBEAM_CID}, 1.0, "
-                    f"{_fmt(fx)}, {_fmt(fy)}, {_fmt(fz)}"
+                    f"{_fmt3(fx, fy, fz)}"
                 )
         blocks.append("\n".join(lines))
     return _stamped(header_comment, "\n".join(b for b in blocks if b) + "\n")
@@ -1534,7 +1555,7 @@ def tail_force_moment_cards(arg, sid_base: int = 1, *,
             if abs(fn) > _TOL:
                 lines.append(
                     f"FORCE, {sid}, {tail_station_gid(r.component, i)}, "
-                    f"{SBEAM_CID}, 1.0, {_fmt(fx2)}, {_fmt(fy2)}, {_fmt(fz2)}"
+                    f"{SBEAM_CID}, 1.0, {_fmt3(fx2, fy2, fz2)}"
                 )
         blocks.append("\n".join(lines))
     return _stamped(header_comment, "\n".join(b for b in blocks if b) + "\n")
@@ -1657,7 +1678,7 @@ def _tail_span_grid_block(results: Sequence, component: str,
         px, py, pz = tail_station_to_airplane(st.x, st.y, component, st.z)
         gx, gy, gz = to_grid(px, py, pz, u)
         lines.append(f"GRID, {tail_span_gid(component, i)}, , "
-                     f"{_fmt(gx)}, {_fmt(gy)}, {_fmt(gz)}")
+                     f"{_fmt3(gx, gy, gz)}")
     # The discrete control surface's own nodes (T6), on the same LRA line: a hinge
     # station is not a strip midpoint, so it gets its own node rather than the
     # nearest one -- rounding a hinge onto a strip is how a localized load path
@@ -1673,7 +1694,7 @@ def _tail_span_grid_block(results: Sequence, component: str,
             px, py, pz = tail_station_to_airplane(cp.x, cp.y, component, cp.z)
             gx, gy, gz = to_grid(px, py, pz, u)
             lines.append(f"GRID, {tail_control_gid(component, i)}, , "
-                         f"{_fmt(gx)}, {_fmt(gy)}, {_fmt(gz)}")
+                         f"{_fmt3(gx, gy, gz)}")
     return lines
 
 
@@ -1753,11 +1774,11 @@ def _tail_span_case_block(r, component: str, sid: int,
         fx, fy, fz = to_force(nx + ax, ny + ay, nz + az, u)
         if abs(st.fz) > _TOL or abs(st.f_span) > _TOL:
             lines.append(f"FORCE, {sid}, {gid}, {SBEAM_CID}, 1.0, "
-                         f"{_fmt(fx)}, {_fmt(fy)}, {_fmt(fz)}")
+                         f"{_fmt3(fx, fy, fz)}")
         mx, my, mz = to_moment(*tail_torsion_to_airplane(st.myy_free * sf, component), u)
         if abs(st.myy_free) > _TOL:
             lines.append(f"MOMENT, {sid}, {gid}, {SBEAM_CID}, 1.0, "
-                         f"{_fmt(mx)}, {_fmt(my)}, {_fmt(mz)}")
+                         f"{_fmt3(mx, my, mz)}")
 
     # The discrete control surface's attachment loads (T6). Same axis maps as the
     # strips -- a hinge reaction is a normal force and its couple is a torsion
@@ -1769,12 +1790,12 @@ def _tail_span_case_block(r, component: str, sid: int,
             fx, fy, fz = to_force(
                 *tail_force_to_airplane(cp.f_normal * sf, component), u)
             lines.append(f"FORCE, {sid}, {gid}, {SBEAM_CID}, 1.0, "
-                         f"{_fmt(fx)}, {_fmt(fy)}, {_fmt(fz)}")
+                         f"{_fmt3(fx, fy, fz)}")
         if abs(cp.m_torsion) > _TOL:
             mx, my, mz = to_moment(
                 *tail_torsion_to_airplane(cp.m_torsion * sf, component), u)
             lines.append(f"MOMENT, {sid}, {gid}, {SBEAM_CID}, 1.0, "
-                         f"{_fmt(mx)}, {_fmt(my)}, {_fmt(mz)}")
+                         f"{_fmt3(mx, my, mz)}")
 
     # The T-tail transfer (T7), on the fin's last node -- the only load in this
     # deck that is not in the fin's local frame, which is why it has its own map.
@@ -1785,11 +1806,11 @@ def _tail_span_case_block(r, component: str, sid: int,
         if abs(transfer.fz) > _TOL:
             fx, fy, fz = to_force(*fvec, u)
             lines.append(f"FORCE, {sid}, {gid}, {SBEAM_CID}, 1.0, "
-                         f"{_fmt(fx)}, {_fmt(fy)}, {_fmt(fz)}")
+                         f"{_fmt3(fx, fy, fz)}")
         if abs(transfer.myy) > _TOL:
             mx, my, mz = to_moment(*mvec, u)
             lines.append(f"MOMENT, {sid}, {gid}, {SBEAM_CID}, 1.0, "
-                         f"{_fmt(mx)}, {_fmt(my)}, {_fmt(mz)}")
+                         f"{_fmt3(mx, my, mz)}")
     return lines
 
 
@@ -1980,7 +2001,7 @@ def control_surface_force_moment_cards(arg, sid_base: int = 1, *,
             if abs(fz) > _TOL:
                 lines.append(
                     f"FORCE, {sid}, {control_station_gid(i)}, {SBEAM_CID}, 1.0, "
-                    f"{_fmt(fx2)}, {_fmt(fy2)}, {_fmt(fz2)}"
+                    f"{_fmt3(fx2, fy2, fz2)}"
                 )
         blocks.append("\n".join(lines))
     return _stamped(header_comment, "\n".join(b for b in blocks if b) + "\n")

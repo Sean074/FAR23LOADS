@@ -70,7 +70,7 @@ from ..models import MassItem, Project
 from ..units import Channel, DeliverableUnits, UnitSystem, deliverable_units
 from .bands import band
 from .coordinates import SBEAM_CID, to_grid
-from .sbeam_bridge import _fmt, _sf_str, _stamped, beam_station_gid
+from .sbeam_bridge import _fmt, _fmt3, _sf_str, _stamped, beam_station_gid
 
 # --------------------------------------------------------------------------- #
 # EID / SID bands -- declared in :mod:`sloads.export.bands`, the single owner of
@@ -297,7 +297,7 @@ def _conm2_line(card: MassCard, u: DeliverableUnits) -> str:
     # non-zero but the database has no field for it. Emitted as 0 with the
     # header's note rather than silently -- see plan 12 risk R2.
     return (f"CONM2, {card.eid}, {card.gid}, {SBEAM_CID}, {_fmt(m)}, "
-            f"{_fmt(ox)}, {_fmt(oy)}, {_fmt(oz)}, "
+            f"{_fmt3(ox, oy, oz)}, "
             f"{_fmt(card.item.ixx * k)}, 0.0, {_fmt(card.item.iyy * k)}, "
             f"0.0, 0.0, {_fmt(card.item.izz * k)}")
 
@@ -525,7 +525,7 @@ def mass_check_deck(project: Project, *,
     ]
     for i, s in enumerate(stations):
         gx, gy, gz = to_grid(s.x, 0.0, 0.0, u)
-        bulk.append(f"GRID, {beam_station_gid(i)}, , {_fmt(gx)}, {_fmt(gy)}, {_fmt(gz)}")
+        bulk.append(f"GRID, {beam_station_gid(i)}, , {_fmt3(gx, gy, gz)}")
     # A massless beam joining the stations. The deck would not assemble without
     # elements, and every property here is a placeholder -- except RHO, which is
     # 0.0 and must stay so: sbeam builds a MASSSET's baseline from "CBAR
