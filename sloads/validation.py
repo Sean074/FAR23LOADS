@@ -885,11 +885,11 @@ def _check_gear_carrier(project: Project) -> List[ConsistencyWarning]:
       are different load paths, not different labels.
     * ``gear_carrier_mass_disagrees`` -- a leg carried by the ``WING`` whose gear
       mass items are tagged ``fuselage`` (or vice versa): the same structure
-      carrying the load but not the weight. This fires on ``dhc8_dash8`` today --
-      main gear in wing-mounted nacelles, mass tagged ``fuselage`` -- which is the
-      point of writing it; correcting that fixture moves
-      ``mass_distribution.wing_mass_tie`` and so is claimed separately from this
-      byte-neutral hop.
+      carrying the load but not the weight. It was written for ``dhc8_dash8``,
+      whose main gear sits in wing-mounted nacelles with its mass tagged
+      ``fuselage``; that fixture was corrected on 2026-08-15 (item re-tagged
+      ``wing``, and the 600 lb/side leg added to WINGINER's ``concentrated``), so
+      no shipped fixture fires it now and the guard holds the line.
     * ``gear_attach_missing`` -- ``carrier`` stated but ``attach`` left at the
       origin. ``(0, 0, 0)`` is not a trunnion; it is the default nobody replaced.
     * ``gear_attach_off_the_wing`` -- a ``WING``-carried leg whose ``attach`` is

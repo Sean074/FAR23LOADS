@@ -20,7 +20,8 @@ from sloads import (
     consistency_warnings,
 )
 from sloads import io as sloads_io
-from sloads.models import AnalysisKind, GeometryInput, GroundCaseRole
+from sloads.models import (
+    AnalysisKind, GeometryInput, GroundCaseRole, MassComponent)
 
 _EXAMPLES = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
                          "examples")
@@ -317,19 +318,31 @@ def test_the_mlw_floor_fires_on_the_regional_jet_and_no_other_fixture():
     assert fired == {"concept_regional_jet.project.json"}, fired
 
 
-def test_the_gear_carrier_mass_guard_fires_on_the_dash_8_and_no_other_fixture():
-    """G-2 guard 1: the Dash 8's main gear sits in wing-mounted nacelles but its
-    mass rows are tagged fuselage -- the same structure carrying the load and not
-    the weight. Correcting that fixture moves ``mass_distribution.wing_mass_tie``,
-    so it is claimed separately from this byte-neutral hop; the guard exists to
-    make sure it is not forgotten."""
+def test_no_shipped_fixture_disagrees_about_who_carries_the_gear():
+    """G-2 guard 1, clear on every fixture since 2026-08-15.
+
+    The Dash 8 was the one that fired: its main gear sits in wing-mounted
+    nacelles, and both mass models now say so -- the item row is tagged
+    ``wing`` and WINGINER's ``concentrated`` carries the 600 lb/side leg, so
+    the same structure carries the load *and* the weight.
+    """
     import glob
 
     fired = set()
     for path in sorted(glob.glob(os.path.join(_EXAMPLES, "*.project.json"))):
         if "gear_carrier_mass_disagrees" in _codes(sloads_io.load_project(path)):
             fired.add(os.path.basename(path))
-    assert fired == {"dhc8_dash8.project.json"}, fired
+    assert fired == set(), fired
+
+
+def test_the_gear_carrier_mass_guard_still_fires_on_a_mistagged_leg():
+    """The guard is kept honest now that no fixture trips it: put the Dash 8's
+    gear mass back on the fuselage and it must be named again."""
+    project = sloads_io.load_project(os.path.join(_EXAMPLES, "dhc8_dash8.project.json"))
+    gear = next(it for it in project.weight.items if it.name == "Main gear")
+    assert gear.component is MassComponent.WING
+    gear.component = MassComponent.FUSELAGE
+    assert "gear_carrier_mass_disagrees" in _codes(project, page="weight_cg_inertia")
 
 
 def test_an_unstated_gear_carrier_is_flagged():

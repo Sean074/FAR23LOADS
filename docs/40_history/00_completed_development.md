@@ -10,6 +10,21 @@ Acceptance**, **Key decisions**.
 
 ---
 
+**The Dash 8's wing-carried main gear is wing mass in both models (complete
+2026-08-15, tier M)** — G-2's mass half: `dhc8_dash8` states
+`main_gear.carrier = wing` (nacelle-mounted leg) while the 1,200 lb `Main gear`
+item was tagged `fuselage` and WINGINER's `concentrated` omitted it, so the body
+beam held 1,200 lb it does not carry and the wing lost its own gear's inertia
+relief. Item re-tagged `wing`; a 600 lb/side `main gear` concentrated mass added
+at BL 75 (the trunnion butt line) and the item's own station — so the wing tie's
+gap stays 4,000 lb = wing-tank fuel alone rather than mixing two causes. Wing
+inertia root `Sz` −18,320 → −20,570 lb-ULT (the leg's 2,250 lb-ULT per side),
+net wing root shear −4.5 % and bending −1.3 %; ten Imperial channels re-pinned
+on that fixture. `gear_carrier_mass_disagrees` now fires on no shipped fixture,
+with a re-mistag test keeping the guard honest and a per-fixture pin on the
+offset-couple node count (the gear brackets a second strip). `CONVENTIONS.md`
+§ground states the carrier↔mass-model rule.
+
 **The FAR 23 gate reads the MTOW SSOT (complete 2026-08-15, tier M)** — G-14's
 deferred half: `applicability.design_weight_lb` fell back to the item-database
 *total* (the ceiling of `OEW ≤ MLW ≤ MTOW ≤ Σ items`, up to 1,800 lb above MTOW)

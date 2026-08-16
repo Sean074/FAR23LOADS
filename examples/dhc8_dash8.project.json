@@ -162,7 +162,7 @@
         "iyy": 0.0,
         "izz": 0.0,
         "kind": "empty",
-        "component": "fuselage"
+        "component": "wing"
       },
       {
         "name": "Nose gear",
@@ -669,6 +669,13 @@
         "x": 400,
         "y": 180,
         "z": 175
+      },
+      {
+        "name": "main gear",
+        "weight_lb": 600,
+        "x": 420,
+        "y": 75,
+        "z": 60
       }
     ],
     "cases": [

@@ -162,6 +162,16 @@ def test_wing_deck_resultants(example, system):
         assert closes(got.m0y, want_myy, scale=got.moment_scale), f"{where} Myy"
 
 
+#: Nodes carrying an offset couple, per fixture that hangs a point mass on the
+#: wing -- one per strip that holds one. See
+#: :func:`test_offset_couples_exist_only_where_a_concentrated_mass_does`.
+_COUPLE_NODES = {
+    "atr42_100.project.json": 1,      # engine + fuel, one strip
+    "dhc8_dash8.project.json": 2,     # gear (BL 75) inboard of engine + fuel
+    "concept_heavy.project.json": 1,  # engine + fuel, one strip
+}
+
+
 def _has_concentrated_wing_mass(example: str) -> bool:
     """True if the fixture hangs point masses (engine, gear, fuel, store) on the
     wing -- ``atr42_100``, ``dhc8_dash8``, ``concept_heavy`` do; the rest do not."""
@@ -266,9 +276,13 @@ def test_offset_couples_exist_only_where_a_concentrated_mass_does(example):
         where = f"{example} wing {r.case}"
         if expected:
             assert nodes, f"{where}: concentrated mass but no offset couple"
-            # One bracketing node per fixture -- all masses on the twins fall in
-            # the same strip; a second node would mean the station set moved.
-            assert len(nodes) == 1, f"{where}: couples at {nodes}, expected one"
+            # One bracketing node per strip that holds a mass. atr42 and
+            # concept_heavy put all of theirs in one strip; the Dash 8's
+            # nacelle-mounted main gear (butt line 75) sits well inboard of its
+            # engine and fuel (168 / 180), so it brackets a second node. A count
+            # that moves means the station set or the mass placement moved.
+            assert len(nodes) == _COUPLE_NODES[example], \
+                f"{where}: couples at {nodes}, expected {_COUPLE_NODES[example]}"
         else:
             assert not nodes, (
                 f"{where}: offset couples at {nodes} on a wing with no "

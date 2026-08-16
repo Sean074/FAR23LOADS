@@ -397,7 +397,9 @@ def unmodelled_wing_mass(project: Project) -> float:
       engine+nacelle half *does* reconcile exactly (``Engines (2)`` 1780 +
       ``Nacelles (2)`` 600 = 2 × 1190), so this is the fuel alone.
     * ``dhc8_dash8`` **4000 lb** — likewise, "wing fuel" 2000 lb/side
-      (``Engines (2)`` 2100 + ``Nacelles (2)`` 700 = 2 × 1400 reconciles).
+      (``Engines (2)`` 2100 + ``Nacelles (2)`` 700 = 2 × 1400 reconciles, as does
+      ``Main gear`` 1200 = 2 × 600 since the nacelle-mounted leg was re-tagged
+      onto the wing in both mass models, 2026-08-15).
     * ``concept_heavy`` **1200 lb** — ``concentrated`` "fuel" 600 lb/side.
 
     In every case the wing-tank fuel lives inside an undivided ``"Fuel to gross"``

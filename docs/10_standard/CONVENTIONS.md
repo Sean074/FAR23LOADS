@@ -157,7 +157,11 @@ file + symbol is the anchor.
   carry-through, so applying it to the body beam over-loads the fuselage *and*
   hides a real wing sizing case — wrong in both directions at once. `±tread/2` is
   not the answer; that is a **wheel** dimension, and the axle butt line is not the
-  trunnion butt line.
+  trunnion butt line. **The mass model must agree with the carrier** (guard
+  `gear_carrier_mass_disagrees`): a `WING`-carried leg's weight belongs to
+  `MassComponent.WING` *and* to WINGINER's `wing_mass.concentrated`, per side, or
+  the same structure carries the load but not the weight and the wing loses the
+  inertia relief its own gear provides. Corrected on `dhc8_dash8`, 2026-08-15.
 - **Ground and flight are separate governing families** (decision **G-9**). They
   are never compared for a maximum and no single envelope over both is claimed:
   the two load different structure by different paths, and the value of a

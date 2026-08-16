@@ -368,6 +368,30 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- **The Dash 8's wing-carried main gear was fuselage mass in both mass models**
+  (backlog Pri 1, decision **G-2**; the guard `gear_carrier_mass_disagrees`
+  shipped 2026-08-14 and this is the correction it was written to force). The
+  fixture states `main_gear.carrier = wing` — the leg sits in the wing-mounted
+  nacelle — while the 1,200 lb `Main gear` item was tagged `fuselage` and
+  WINGINER's `wing_mass.concentrated` listed only engine+nacelle and fuel: the
+  same structure carried the ground load but not the weight, so the body beam
+  carried 1,200 lb it does not hold and the wing lost the inertia relief of its
+  own gear. The item is now tagged `wing` and a 600 lb/side `main gear`
+  concentrated mass (BL 75, the trunnion butt line, at the item's own station)
+  joins the wing model, so both models describe one airplane: the wing tie's gap
+  stays **4,000 lb = wing-tank fuel alone** (up 1,200 on each side of the tie),
+  and the "each gap has one cause" reading of
+  `mass_distribution.unmodelled_wing_mass` survives. Dash 8 wing inertia moves as
+  the physics says — root `Sz` −18,320 → −20,570 lb-ULT (exactly the leg's
+  2,250 lb-ULT per side), `Mxx` −3.375e6 → −3.515e6, `Myy` 0.993e5 → 1.286e5
+  lb-in-ULT — and the relief reaches the deliverable: net wing root shear
+  50,400 → 48,150 lb-ULT (−4.5 %) and root bending 1.070e7 → 1.056e7 lb-in-ULT.
+  Ten Imperial channels re-pinned on that fixture alone (an intended digest
+  wave); the gear now brackets a second offset-couple node (BL 75 is inboard of
+  the engine and fuel at BL 168/180), pinned per fixture in
+  `test_offset_couples_exist_only_where_a_concentrated_mass_does`. No shipped
+  fixture fires the carrier/mass guard now, and a new test re-mistags the leg to
+  prove it still would.
 - **The FAR 23 applicability gate read the item-database total as the design
   weight** (decision **G-14**'s deferred half; `WeightInput.direct_totals()` is
   renamed `database_totals()`). `applicability.design_weight_lb` took
