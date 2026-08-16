@@ -1,7 +1,7 @@
 # Design note — power effects on the wing: thrust and propeller-wake loads (wing-mounted propellers)
 
-**Status: DRAFT IN PROGRESS — being developed topic by topic in chat, not agreed,
-no code written.** Written to `CLAUDE.md` required practice 1 (design note before
+**Status: AGREED 2026-08-15 (decisions P-0…P-12, §7), no code written — the next
+artefact is the code implementation plan (§8 is its skeleton).** Written to `CLAUDE.md` required practice 1 (design note before
 code, physics/L step). Follows the L-7 note's form
 ([`19_l7_lateral_body_aero_note.md`](19_l7_lateral_body_aero_note.md)): every
 option is listed, the recommendation is marked, agreed decisions will be tagged
@@ -440,7 +440,7 @@ carries the power column; the sbeam deck's case names carry the `-P` suffix
      twice: hub loads carry the thrust/`N_p` moments as point loads, strips carry
      the slipstream lift and `Δm`, `lt'` carries the tail's `q_h/q` and `Δε`.
      The re-trim uses the *same* split; the 1 % gate is what proves it.
-   - **engine-torque reaction [proposed P-9]:** in steady trimmed flight the
+   - **engine-torque reaction [DECISION P-9, 2026-08-15 — agreed]:** in steady trimmed flight the
      airframe reaction to the pair's torque is aileron trim, so a
      `aileron-trim` free couple `+ΣQ` is applied at the wing ac (the ACRL
      couple pattern, same `AILERON_COUPLE_NOTE` caveat); a counter-rotating pair
@@ -525,7 +525,7 @@ Two consequences the design must handle:
   data only), and the power-on gust `n` from the estimator's `CLα_pow`,
   both dashed and never selected as design points.
 
-**Recommendation [proposed P-10]: (a), with (c) as an optional later overlay.**
+**[DECISION P-10, 2026-08-15 — agreed]: (a), with (c) as an optional later overlay.**
 `VS`, `VA`, `VC`, `VD`, the load factors and the gust formula stay exactly the
 FAR23 replication; the design points SELECT picks are the same points; only
 the load set on those points gains the power increment. This is what keeps
@@ -569,7 +569,7 @@ permits it for the flap cases; the clean cases inherit the suite's convention).
 `AeroCoeffSet` (`CL(α)`, `CD(CL)`, `Cm(α)`, `CL_max`) is user-supplied and the
 suite has no way to know whether it was measured power-on. If a user enters
 power-on wind-tunnel curves *and* enables this step, the increments would be
-carried twice. **Proposed:** `AeroCoeffSet.power_state` provenance field
+carried twice. **[DECISION P-12, 2026-08-15 — agreed]:** `AeroCoeffSet.power_state` provenance field
 (`"off"` default, caption on the Aerodynamic Data page: "enter **power-off**
 data; power effects are added by the Power effects step") and a validation
 **warning** when `power_effects.enabled` and any coefficient set is flagged
@@ -590,15 +590,151 @@ data; power effects are added by the Power effects step") and a validation
 six wing conditions (`PHAA, PLAA, PMAA, NMAA, ACRL, TORS`) and every tail
 condition skip with `loading-not-derivable` — their SELECT CG cases do not
 resolve to a derivable weight-database loading (step C1's rule: no invented
-inertia set). Only the GA-6 (nose-mounted single, out of scope) has a full
-balanced deck. This is **already on the backlog** — "Most payload cases are not
-loadings the weight database can produce" (found 2026-08-08; **D-25, 2026-08-15:
-give `CgCase` an explicit loading definition**, Pri 7 schema step; the twins are
-`atr42_100` 1/3, `dhc8_dash8` 0/3 derivable) and "Only two fixtures can produce
-a balanced case". So the agreed demonstration fixtures have a **hard
-prerequisite: Pri 7 (D-25) must land first**, or the twins' loadings must be
-made derivable another way, before any power-on case can be minted on them.
-The power step's fixture gate depends on it; this note does not fold that work
-in (practice 5) but sequences after it (§8, to follow).
+inertia set). Only the GA-6 (nose-mounted single, out of scope) and the
+regional jet have balanced decks. **Checked 2026-08-15 against HEAD
+(`4acbb48`):** decision **D-25 is closed** — the schema shipped (`CgCase.loading`,
+v50, note [`22_d25_cgcase_loading_note.md`](22_d25_cgcase_loading_note.md)) —
+but it delivered the *mechanism*, not the twins' data: `atr42_100` (1/3
+derivable) and `dhc8_dash8` (0/3) still assemble no flight case on HEAD. What
+clears the way is the consumer item **backlog Pri 6 — "Payload cases the weight
+database can produce"**: enter a `CgCase.loading` for each twin case (the RJ
+`CG3 fwd light` is the worked example — an engineering statement of the ballast/
+discretionary items instead of the solved-ballast gate), Tier M–L, effort M, no
+schema left in it; pinned by `test_mass_cards.py::
+test_which_loadings_are_entered_is_pinned` and `test_balance.py::
+test_which_conditions_assemble_is_pinned`. So the demonstration fixtures have a
+**hard prerequisite: Pri 6 for `atr42_100` and `dhc8_dash8`** before any
+power-on case can be minted on them. The power step's fixture gate depends on
+it; this note does not fold that work in (practice 5) but sequences after it
+(§8, to follow).
 
-*(§6 to follow.)*
+---
+
+## 6. Empennage — does power (and the changed wing aerodynamics) need power-on tail cases?
+
+### 6.1 How the tail loads are computed today
+
+- **Balancing** (23.421): `select.htail_balance` (`select.py:278`) resolves the
+  V-n point's trim load into `LT25` (tail α: `AT = α + i_t − E`,
+  `E = 114.6·CL/(π·AR_w)` Perkins, `Q = V²/295` **free-stream**) and `LT50`
+  (elevator, from the moment balance) — the pre-Amdt-64 Ch 9 method.
+- **Maneuver** (23.423) unchecked/checked and **gust** (23.425) add rational
+  increments on the `BAL A/C/D` (and `BAL VF` flap-extended) points; the gust
+  increment uses `Kg`, `Ude`, `a_ht` and the downwash relief `1 − 36·a_w/AR_w`
+  (`select.py:491`).
+- **Unsymmetrical** (23.427): (b)'s "absence of more rational data" split
+  (`100 % / (100 − 10(n−1)) %`) on the worst symmetric case; the balanced deck
+  distributes it (`BALANCED_HTAIL_CONDITIONS`).
+- **Vertical tail** (23.441/23.443, `_vtail`, `BALANCED_VTAIL_CONDITIONS`):
+  fin lift slope, rudder effectiveness, sideslip — no propeller term; engine-out
+  is ONENGOUT (out of scope here).
+- In every balanced **wing** case the tail is the lumped `tail-air = vn.lt`.
+
+### 6.2 Where power reaches the tail (three routes)
+
+| Route | Physics | Where it enters | On the T-tail fixtures |
+|---|---|---|---|
+| **R1 — re-trim** | thrust-line moment, `N_p` and its arm, wing `ΔCm0`/`ΔCmα` (§1.3) move the balancing load `lt → lt'` | `retrim_with_power` (§4, single trim owner); every `-P` wing case already carries `lt'` as `tail-air` | **yes** — independent of tail height |
+| **R2 — downwash** | the wing's altered lift distribution (extra inboard lift) and the slipstream's own deflection raise `ε` and change `dε/dα` (DATCOM 4.6.1 `Δε`, `Δ(dε/dα)`) | tail α in `htail_balance` (`E + Δε`), the gust relief `(1 − dε/dα)` and the maneuver increments | **yes**, reduced with tail height (DATCOM's `Δε` decays with the tail's height above the slipstream centre-line) |
+| **R3 — tail in the slipstream** | `q_h/q > 1` on the immersed tail area (DATCOM's `Z_s = z_p + x̄_p tan α_p` vs tail height, immersed span from the contracted radius) | multiplies every tail load term (`Q → Q·q_h/q`) | **no** — ATR-42 and Dash-8 are T-tails: `q_h/q = 1` exactly by the immersion geometry (a low tail behind a wing-mounted pair may be partly immersed) |
+
+So the answer to "does the changed wing aerodynamics change the tail loads?" is
+**yes, through R1 and R2, even when R3 is zero** — and R1/R2 are already inside
+the re-trim decided in §4; the question is only whether they are *reported as
+h-tail design cases* or left inside the balanced wing cases.
+
+**Regulatory hook (pre-Amdt-64):** 23.421–23.425 name no power; 23.331(c)'s
+"mutual influence of the aerodynamic surfaces" is the hook for R2;
+23.427(a) names "slipstream effects" explicitly for the unsymmetrical case, and
+(b)'s formula is the permitted route in the absence of rational data. Same
+framing as the wing: the mount → structure path is compliance, the airloads are
+rational analysis the concept mission wants.
+
+### 6.3 Options
+
+| | Option | Gives | Cost / risk | Verdict |
+|---|---|---|---|---|
+| (i) | **Balanced-model only** — the tail sees power solely as `lt'` inside the `-P` wing cases; the h-tail SELECT families (`BAL/MAN/GUST …`) and the tail-span decks stay power-off | nothing new on the tail side | the h-tail **design** loads (23.423 maneuver = balancing + increment, 23.425 gust) are never evaluated power-on, so a low-tail airplane could have an unreported governing case; and the wing `-P` deck's `tail-air` would disagree with the h-tail report for the "same" condition | not enough |
+| **(ii)** | **h-tail families gain `-P` variants under the same policy table** — `BAL A/C/D`, `UNCHECKED/CHECKED MAN`, `GUST` at MC; the flap-extended `BAL/GUST … EXTENDED` at **TO** (P-2, and this is where the "flaps-down → take-off power" rule bites first, because these cases *exist* today unlike the flap-extended wing cases); each computed by the tail module from the re-trimmed point with the `PowerLoadSet`'s `q_h/q`, `Δε`, `Δ(dε/dα)`; `UNSYMMETRICAL` rides on the `-P` base when the policy row says so; **v-tail: no power variants** | consistent design loads; the tail-span decks and the balanced h-tail family inherit the variants from the case list with no extra machinery | + ~10 h-tail cases; the flap `BAL 1.4VSF` point gains a tail row alongside `SLIP-P` | **[DECISION P-11 — agreed]** |
+| (iii) | (ii) + v-tail power terms — propeller side force at sideslip (`CNβ_p`, destabilizing, ahead of the CG) and slipstream on the fin | complete | for wing-mounted twins the fin is outside the slipstream and `CNβ_p` is a *lateral derivative* — L-7's territory (`Cy_β`/`Cn_β`), where it belongs as one more term | **defer to L-7** as a stated seam (§9); the sideslip cases' fin load is what L-7 owns |
+
+**[DECISION P-11, 2026-08-15 — agreed]: (ii).** One policy table drives wing and h-tail
+rows alike; the h-tail `-P` balancing load *is* the balanced deck's `lt'` for
+the same condition (single trim owner, gate G6-2), so the wing deck and the tail
+report cannot disagree. Wing lift slope `a_w` in the gust relief stays the
+power-off wing slope; the power effect on the gradient enters as `Δ(dε/dα)`
+(DATCOM), stated in the methods section.
+
+### 6.4 Gates for §6
+
+| # | Gate | Kind |
+|---|---|---|
+| G6-1 | ATR-42 / Dash-8: `q_h/q == 1.0` exactly (T-tail above the slipstream by the immersion geometry) — pinned, so a geometry edit that drops the tail into the slipstream is a visible change | invariant |
+| G6-2 | for every `-P` condition, the h-tail `BAL…-P` balancing load equals the balanced wing case's `tail-air` (`lt'`) — identity | consistency / single owner |
+| G6-3 | `power_state=OFF`: every h-tail/v-tail family bit-identical to today (fixture digests) | oracle-lock |
+| G6-4 | DATCOM ex3 case 4 vs 3: `q_h/q∞`, `ε`, `dε/dα` per α reproduced ±0.1 % by the estimator (the tail terms of the printed oracle) | oracle |
+| G6-5 | `GUST…-P` uses `(1 − dε/dα)_pow` and `q_h/q` in the increment; `GUST…` (OFF) unchanged — formula test | drift-guard |
+| G6-6 | `UNSYMMETRICAL-P` split reproduces 23.427(b)'s ratios on the `-P` base load | drift-guard |
+
+---
+
+## 7. Decisions register
+
+| ID | Decision (all 2026-08-15) | Where |
+|---|---|---|
+| P-0 | Propeller normal force `N_p` is included with thrust, torque and gyro | §1.6 |
+| P-1 | Estimator = DATCOM §4.6.1–4.6.3 port (Digital DATCOM ex3 case 4 oracle); user data (C) overrides field by field; momentum-theory band (A) is the single distribution rule | §1.4 |
+| P-2 | Rating: flaps-down/gear-down → take-off power; flaps-up/gear-up → max-continuous; `T = η·P/V_TAS`, `η` per engine default 0.85 | §1.6, §2.3 |
+| P-3 | Rule basis: pre-Amendment-64 FAR 23 (23.331/23.421 era); CFR pull of that text is a precondition | §1.2 |
+| P-4 | Kind II extent (i): `-P` variant for every clean wing family + `SLIP-P` on `BAL 1.4VSF` (TO); 23.345 flap-extended power cases deferred | §2.2 |
+| P-5 | GUI placement C: inputs on their owner pages + read-only power review on Balanced Cases | §3.2 |
+| P-6 | Thrust line is user-defined: hub point + pitch incidence + toe angle (GUI also accepts a second point, converted) | §3.1 |
+| P-7 | 23.371 gyro wing-box cases at VA (mount numbers stay VSF-based, stated side by side) | §2.2 |
+| P-8 | Generation = re-trim at V-n level (`retrim_with_power`) then assemble with the power load set; the 1 % gate applies | §4.2 |
+| P-9 | Pair torque reacted by an `aileron-trim` free couple (counter-rotating → 0); gyro couples reacted by closure `q̇/ṙ` with the residual gate exempted | §4.3 |
+| P-10 | V-n diagram and design speeds stay power-off; power applies to the load cases at the same `(n, V)`; optional informational overlay later | §4.6 |
+| P-11 | h-tail families gain `-P` variants under the same policy table (flap-extended at TO); v-tail power terms deferred to L-7 | §6.3 |
+| P-12 | `AeroCoeffSet.power_state` provenance flag (`"off"` default) with a double-count warning | §5.2 |
+
+Also agreed in scope: wing-mounted propellers only; engine-out stays a
+v-tail/ONENGOUT case; fixtures ATR-42 and Dash-8.
+
+## 8. Sequencing — the skeleton of the implementation plan
+
+Tier **L** (new physics, case-identity contract, schema). Every step ships with
+its gates from §4.5 / §5.3 / §6.4 and its own closure per `CLAUDE.md`.
+
+| Step | Content | Depends on | Gates |
+|---|---|---|---|
+| **0 (prereq, separate backlog item)** | **Pri 6** for `atr42_100` and `dhc8_dash8`: enter `CgCase.loading` so the twins assemble flight balanced cases at all | D-25 ✅ | existing pins go red → green |
+| **0b (prereq)** | CFR pull: pre-Amdt-64 23.331/.333/.361/.371/.421/.423/.425/.457 (+ 23.49 for the VS/VA statement, 25.331(a)) → `reference/14CFR_23_power_effects.md`; resolve the [VERIFY] tags | — | doc only |
+| **1** | `power_effects.py` estimator: `slipstream()` helper generalized from `flap._slipstream_velocity` (flap numbers unchanged), DATCOM §4.6 port (`CNα_p`, `K_N`, `f`, upwash at disc, `Δε`, `q_h/q`, `k_q`), `PowerLoadSet`; user-override table with `T_c` interpolation; `Engine` prop-aero fields + thrust line (P-6) — **schema bump** | 0b | G4-9 / G6-4 (DATCOM ex3 ±0.1 %), flap App-A p201 unchanged, `OFF` identity |
+| **2** | `power_policy.py` (§2 table with basis) + `power_state` case attribute / `-P` IDs (note 17 linkage) + `AeroCoeffSet.power_state` (P-12) — schema | 1 | G5-1, G5-4, unclassifiable → flagged |
+| **3** | `flight_envelope.retrim_with_power` (P-8) | 1, 2 | G4-2, G5-3 |
+| **4** | `balance.assemble(..., power=)`: hub loads per engine, `wing-air-power` strips, `aileron-trim` couple (P-9), gyro reaction, `n_x` carrier; `reflect_load` rotation-fixed exclusion; Kind I `361A1/361A2/371-k` (P-7); export append + rigid-offset transfer | 3 | G4-1, G4-3…G4-8, G5-2 |
+| **5** | h-tail `-P` families (P-11) in `select` + tail-span inheritance | 3 | G6-1…G6-6 |
+| **6** | GUI (P-5): Engine Mount prop-aero + thrust line; Aerodynamic Data power form + override table + provenance; Balanced Cases power column / review / policy table; Wing Loads overlay; report methods stamp, `power_policy.csv`, deck names | 4, 5 | UI smoke; `workflow.py` drift-guard unchanged |
+| **7** | Demonstration on the twins: `PHAA-P`, `SLIP-P`, `361A2`, `371-k` decks solved in sbeam in CI; report section | 0, 4–6 | equilibrium invariant (plan 07) on every `-P` case |
+
+Closure per step: CHANGELOG + backlog removal + history full-step format;
+`PROGRAM_SPEC.md` (SELECT / balance / engine / flap / tail sections);
+`CONVENTIONS.md` (case identity `power_state`; thrust-line sign convention);
+`theory_sources.md` (DATCOM §4.6 citations, ex3 oracle);
+`DATA_DICTIONARY.md` regenerated; `cspell.json` terms.
+
+## 9. Seams (stated, not silent)
+
+- **Nose-mounted singles / pylon turbofans**: thrust-line-only treatment (no
+  wing slipstream) — reuse `PowerLoadSet` with `k_q = 0`, no `N_p` for a
+  turbofan; a later note.
+- **23.345 flap-extended airplane cases** with power (`MAN 2G VF-P`, gusts):
+  after flap-extended *wing* balanced cases exist at all; TO rating.
+- **V-tail power terms** (`CNβ_p`, fin in slipstream): the L-7 (`Cy_β`/`Cn_β`)
+  note; engine-out stays ONENGOUT.
+- **Slipstream swirl asymmetry**, power effect on `CL_max`, nacelle aero
+  (body-drag carrier, note 20), compressibility on `CNα_p`: excluded (§1.5).
+- **Nacelle stick / RBE2** for the hub loads: with the stiffness step (L-1);
+  until then rigid-offset transfer to the LRA node.
+- **Power-on V-n overlay** (P-10 (c)): optional, user `CL_max,pow` only.
+- **`VH` cap on `VC` and the 23.341 slope**: user inputs that carry power
+  implicitly; stated in methods, unchanged.

@@ -87,6 +87,21 @@ is on solved ballast only). Design note:
 consumes this schema; wing-tank fuel separability (Pri 8) rides the same wave as
 a separate `MassItem` change.
 
+**SELECT Apply no longer persists un-applied geometry edits (complete
+2026-08-15, tier M)** — backlog M4-22: the Flight Envelope page's SELECT-inputs
+form handler wrote the page's *probe* copy back to session state, and that copy
+carries `fl_effective` (the live merge of the "Apply geometry & altitudes"
+widgets), so pressing Apply inside the SELECT expander silently committed
+whatever had been typed into the other form (XTC / XTF / reference Mach /
+altitudes) — the M2-3 persist-only-on-Apply contract, violated for a different
+form's fields. The handler now writes only `select_input`, onto the session
+project. `tests/test_flight_envelope_view.py` drives the page headlessly and
+pins both halves: the SELECT Apply saves its own field and leaves
+`flight_loads.xtc` at its stored value (it fails on the old handler), and the
+geometry form's own Apply still persists. Sweep (practice 4): the probe-copy
+pattern exists on this page only — every other view writes the session project
+directly.
+
 **The Dash 8's wing-carried main gear is wing mass in both models (complete
 2026-08-15, tier M)** — G-2's mass half: `dhc8_dash8` states
 `main_gear.carrier = wing` (nacelle-mounted leg) while the 1,200 lb `Main gear`

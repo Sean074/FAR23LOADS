@@ -331,8 +331,15 @@ def _select_inputs_form() -> None:
                 si.full_down_aileron_deg = float(aileron)
                 si.basic_airfoil_cm = float(cm)
                 si.wing_weight_lb = to_imperial_scalar(float(wing_weight), "weight", system)
+                # M4-22: persist *only this form's* slice, and onto the session
+                # project -- writing the page's probe copy back committed the
+                # un-applied "Apply geometry & altitudes" edits it carries
+                # (fl_effective), breaking the M2-3 persist-only-on-Apply
+                # contract for that other form. ``project`` (the probe) is
+                # updated too so the rest of this render sees the new input.
+                session_project.select_input = si
+                st.session_state["project"] = session_project
                 project.select_input = si
-                st.session_state["project"] = project
                 st.success("SELECT search inputs applied.")
 
 

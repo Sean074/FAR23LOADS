@@ -392,6 +392,18 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- **Flight Envelope: the SELECT Apply no longer persists un-applied geometry
+  edits** (backlog **M4-22**). The "SELECT search inputs" form handler wrote the
+  page's *probe* copy of the project back to session state, and that copy carries
+  the live merge of the sidebar's "Apply geometry & altitudes" widgets — so
+  pressing **Apply** inside the SELECT expander silently committed whatever the
+  user had typed into that other form (tail CP stations XTC/XTF, the reference
+  Mach, the altitudes editor) without its own Apply ever being pressed. The
+  handler now writes only `select_input`, onto the session project, restoring the
+  M2-3 "persist only on Apply" contract for both forms. New headless
+  `AppTest` guard `tests/test_flight_envelope_view.py` pins both directions; the
+  probe-copy pattern exists on this page alone.
+
 - **The Dash 8's wing-carried main gear was fuselage mass in both mass models**
   (backlog Pri 1, decision **G-2**; the guard `gear_carrier_mass_disagrees`
   shipped 2026-08-14 and this is the correction it was written to force). The
