@@ -97,14 +97,12 @@ traceability with plans 09/11/12/13; the **Pri** column is ordinal only.
 
 - *2026-08-09:* wrong cards outrank missing cards; [V] items are ranked, not
   opportunistic.
-- *2026-08-16 — effect-vs-error-bar rule.* A [V] physics or fidelity item is
-  ranked only if its stated effect on a delivered load exceeds the base
-  method's own uncertainty for that quantity (order 5–10 % on distributed
-  loads, per the Schrenk / rigid-airplane / lumped-tail basis in
-  [`../20_theory/00_theory_sources.md`](../20_theory/00_theory_sources.md)).
-  Below that it is parked, with the number that parks it. Defects with a
-  first-order effect on shipped content rank above every [V] item regardless
-  of mission trace.
+- *2026-08-16 — effect-vs-error-bar rule* — promoted to **`CLAUDE.md` rule 6**
+  (the datum it measures against is
+  [`../20_theory/00_theory_sources.md` §Base-method uncertainty](../20_theory/00_theory_sources.md#base-method-uncertainty)):
+  a [V] item is ranked only if its stated effect exceeds that; below it, parked
+  with the number. Defects with first-order effect on shipped content outrank
+  every [V] item.
 - *2026-08-16 — schema freeze through 0.6.0.* `SCHEMA_VERSION` moves once more
   before the cut (Pri 6's one additive field); no other hop. v47 → v52 in nine
   days is the churn the freeze answers.
