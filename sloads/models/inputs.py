@@ -1622,6 +1622,5 @@ __all__ = [
     "WingLoadCase",
     "WingMassInput",
     "XYPoint",
-    "XYPoint",
     "default_fuselage_outline",
 ]
