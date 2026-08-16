@@ -12,6 +12,41 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **The LRA skeleton contract and its first node, the wing side-of-body**
+  (backlog Pri 1 = step 12 phase 0 + step 13; note 24, agreed 2026-08-15).
+  Decisions **BM-1…BM-5** are recorded in the resolved-decisions register, and
+  the SOB ships as the skeleton's first named node. `SurfaceInput` gains
+  **`sob_y_in`** (schema **v51**, additive — decision BM-1: the entered
+  side-of-body butt line, falling back to half the fuselage width **marked
+  assumed** via the new single owner `derived_geometry.sob_station`, and never
+  `wing_mass.inboard_rib_y`); the h-tail attachment reads the same quantity
+  (`ATTACH_ENTERED`, the only fuselage-side branch not marked assumed), and the
+  Configuration & Layout surface form and the WINGGEOM re-seed carry it.
+
+  The **per-component wing stick deck adds a tagged reporting node** at the
+  joint — GID band `lra-sob` (7001+), the first `$ SLOADS-NODE <family> <side>`
+  identity tag of the BM-5 contract — interpolated onto the beam line, splitting
+  one CBAR and moving **no** station and no FORCE/MOMENT card (plan 10 §1.1
+  constraint 1: the Appendix A station-0 closure is untouched). The wing root
+  design load is stated **two ways and gated**: closed-form
+  (`sbeam_bridge.sob_internal_loads`, per case in the deck `$` header and in the
+  report's new "Wing side-of-body internal loads" table, distinct from the
+  half-span maxima that overstate root bending ~23 % on the reference GA wing)
+  against the solver's CBAR end force in the first element outboard, per case in
+  both unit systems in the round-trip CI (`concept_regional_jet` +
+  `atr42_100`, whose concentrated-mass offset couples must carry their lever
+  arms across the cut). `sob_collapsed_load` — the inboard strip loads as one
+  resultant-preserving equivalent at the SOB — is built and pinned as the start
+  of the step 12 LRA-model wing beam.
+
+  **Deliverable bytes:** every `wing_stick` digest moved once, deliberately —
+  the four outline-carrying fixtures gain the SOB node and its `$` statements,
+  and all six pick up the amended one-wording `CENTERLINE_CLAMP_NOTE` (the deck
+  now says where the side-of-body load is recoverable instead of "the deck has
+  no node at the side of body"). `wing_cards`, span CSVs and every other channel
+  are byte-identical; `ga6_normal`/`concept_heavy` (no fuselage data) ship no
+  invented joint.
+
 - **The h-tail beam is reacted where the airplane reacts it** (backlog Pri 1,
   decision **T-8a**). `tail_span.htail_attachment` becomes the single owner of
   the attachment stations *and* their provenance, returning `HTailAttachment`

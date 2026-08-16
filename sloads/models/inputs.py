@@ -320,6 +320,14 @@ class SurfaceInput:
     :data:`~sloads.constants.DEFAULT_FRONT_SPAR_PCT` /
     :data:`~sloads.constants.DEFAULT_REAR_SPAR_PCT` and marks the result
     ``assumed``, so an assumed spar location is never reported as input.
+
+    ``sob_y_in`` is the surface's **side-of-body butt line** (in) -- where the
+    surface structurally attaches to the fuselage. One quantity, two consumers
+    (decision BM-1): the wing side-of-body reporting node, and the h-tail
+    fuselage attachment pair. ``None`` means "not entered": the resolver
+    (:func:`sloads.derived_geometry.sob_station`) then falls back to half the
+    fuselage width **marked assumed**, and never to ``wing_mass.inboard_rib_y``,
+    which is the WINGINER mass-panel start, not a body dimension.
     """
     name: str
     leading_edge: List[XYPoint]
@@ -329,6 +337,7 @@ class SurfaceInput:
     ref_axis_pct: float = 0.25
     front_spar_pct: Optional[float] = None   # fraction of chord; None -> assumed default
     rear_spar_pct: Optional[float] = None    # fraction of chord; None -> assumed default
+    sob_y_in: Optional[float] = None         # side-of-body butt line, in; None -> assumed fallback (BM-1)
 
 
 @dataclass

@@ -124,7 +124,7 @@ import csv
 import io as _io
 import textwrap
 from dataclasses import dataclass
-from typing import List, Sequence, Union
+from typing import List, Optional, Sequence, Tuple, Union
 
 from ..case_ids import (ASSEMBLED_DECK, COMPONENT_DECK, deck_load_id,
                         subcase_id)
@@ -138,6 +138,7 @@ from ..models import (
     WingLoadResult,
     WingStationLoad,
 )
+from ..derived_geometry import SobStation, sob_station
 from ..report import ultimate_units
 from ..units import Channel, DeliverableUnits, UnitSystem, deliverable_units
 from .bands import band
@@ -252,6 +253,16 @@ _DEFECT_REL_TOL = 1e-9
 _WING_BAND = band("wing-stick")
 _ROOT_GID = _WING_BAND.start
 _STATION_GID_BASE = _WING_BAND.start  # station i -> GID base + 1 + i (= 2, 3, ...)
+
+# The wing side-of-body reporting node (step 13) -- the first LRA named-node
+# family (decision BM-5). Its GRID carries a ``$ SLOADS-NODE lra-sob <side>``
+# tag so a consumer (or a re-import) finds it by identity, not by coordinates.
+_SOB_BAND = band("lra-sob")
+
+
+def sob_gid() -> int:
+    """GRID id of the wing side-of-body reporting node (right half-span)."""
+    return _SOB_BAND.allocate(0)
 
 
 def _fmt(val: float) -> str:
@@ -645,8 +656,10 @@ CENTERLINE_CLAMP_NOTE = (
     "wing-to-fuselage joint carries (23% on the reference GA wing); the "
     "balance is reacted by the carry-through structure and the fuselage. A "
     "single clamp reacts the whole load wherever it sits, so the side-of-body "
-    "quantity is an internal CBAR load, not a reaction, and the deck has no "
-    "node at the side of body."
+    "quantity is an internal CBAR load, not a reaction. Where the project "
+    "states or implies a side of body, the deck carries a tagged reporting "
+    "node (SLOADS-NODE lra-sob) and the side-of-body internal load is the "
+    "CBAR end force in the first element outboard of it."
 )
 
 
@@ -754,9 +767,147 @@ def _root_node(loads: List[NodalLoad]) -> tuple:
     return (n0.x, n0.y - dy / 2.0, n0.z)
 
 
+# --------------------------------------------------------------------------- #
+# Side-of-body internal loads (step 13, note 24 R-3)
+# --------------------------------------------------------------------------- #
+#: A station this close (in) to the side of body is *at* it -- the existing node
+#: becomes the SOB reporting node instead of a coincident duplicate.
+_SOB_COINCIDENT_TOL = 1e-9
+
+
+@dataclass
+class SobInternalLoads:
+    """The wing internal load at the side-of-body cut, in the calc's columns.
+
+    The **wing root design load** (step 13): shear / bending / torsion carried
+    across the wing-to-fuselage joint at butt line ``y`` -- distinct from the
+    half-span totals, which include the centre-box strip loads inboard of the
+    joint and overstate root bending by ~23 % on the reference GA wing (plan 10
+    §1.1). Columns and signs are the span CSV's cumulative set (``Sz``/``Sx``/
+    ``Mxx``/``Myy``/``Mzz``), torsion about the case's stated axis; magnitudes
+    are ULTIMATE like every deliverable load."""
+    y: float
+    sz: float
+    sx: float
+    mxx: float
+    myy: float
+    mzz: float
+
+
+def sob_internal_loads(result: WingLoadResult, sob_y: float) -> SobInternalLoads:
+    """Closed-form SOB internal load: the applied nodal loads outboard, summed.
+
+    One of the **two ways** the side-of-body load is stated (note 24 R-3), and
+    the reference the other -- the solver's CBAR end force in the first element
+    outboard of the SOB node -- is gated against in the round-trip harness.
+    Each exported nodal load at ``p`` contributes its force plus the lever-arm
+    couple about the cut (``fz*(y - sob_y)`` and the concentrated-mass offset
+    couples ``mx``/``mz``, which restore lever arms the station table cannot
+    carry), so the sum is exactly the static resultant of everything the deck
+    applies outboard of the cut. A station coincident with the cut counts as
+    outboard: the joint carries the loads applied *at* it.
+
+    The general transfer rule this instantiates -- a load at ``p`` moved to
+    node ``n`` carries the couple ``(p - n) x F`` -- gets its single owner in
+    ``export/coordinates.py`` with the step 12 LRA exporter (note 24 R-11).
+    """
+    sz = sx = mxx = myy = mzz = 0.0
+    for nl in wing_nodal_loads(result):
+        if nl.y < sob_y - _SOB_COINCIDENT_TOL:
+            continue
+        arm = nl.y - sob_y
+        sz += nl.fz
+        sx += nl.fx
+        mxx += nl.fz * arm + nl.mx
+        mzz += nl.fx * arm + nl.mz
+        myy += nl.my
+    return SobInternalLoads(sob_y, sz, sx, mxx, myy, mzz)
+
+
+def sob_collapsed_load(result: WingLoadResult,
+                       sob_xyz: Tuple[float, float, float]) -> NodalLoad:
+    """The strip loads inboard of the SOB, as one equivalent load *at* it.
+
+    The start of the LRA-model wing beam (note 24 R-3): that beam runs SOB ->
+    tip, and the centre-box strip loads inboard of the joint -- which the
+    target model calls inaccurate as *local* loads -- are carried as this
+    resultant-preserving equivalent (force plus lever-arm couples) on the SOB
+    node instead. Together with :func:`sob_internal_loads` it reproduces the
+    half-span totals exactly, which is the invariant the tests pin; the
+    per-component wing deck never applies it (its stations are not truncated,
+    plan 10 §1.1 constraint 1).
+
+    ``mx``/``mz`` are in the calc's bending sign like every :class:`NodalLoad`
+    couple; ``my`` is the summed torsion about the stated axis. The cumulative
+    columns are zero -- this is an applied load, not a station of the table.
+    """
+    x, y, z = sob_xyz
+    fx = fz = my = mx = mz = 0.0
+    for nl in wing_nodal_loads(result):
+        if nl.y >= y - _SOB_COINCIDENT_TOL:
+            continue
+        arm = nl.y - y
+        fx += nl.fx
+        fz += nl.fz
+        my += nl.my
+        mx += nl.fz * arm + nl.mx
+        mz += nl.fx * arm + nl.mz
+    return NodalLoad(gid=sob_gid(), x=x, y=y, z=z, fx=fx, fz=fz, my=my,
+                     sz=0.0, sx=0.0, mxx=0.0, myy=0.0, mzz=0.0, mx=mx, mz=mz)
+
+
+def _stick_chain(base_loads: List[NodalLoad], sob: Optional[SobStation]
+                 ) -> Tuple[List[Tuple[int, Tuple[float, float, float]]],
+                            Optional[int]]:
+    """The stick model's node run, root -> tip, with the SOB node inserted.
+
+    Returns ``(nodes, sob_node_gid)``: nodes are ``(gid, (x, y, z))`` in chain
+    order, and ``sob_node_gid`` is the GRID carrying the ``$ SLOADS-NODE``
+    tag -- an inserted :func:`sob_gid` node interpolated onto the beam line
+    between its bracketing stations, or the existing station node when the side
+    of body falls on one, or ``None`` when the project states no side of body
+    (or states one outside the beam -- inboard of the clamped root node or
+    outboard of the tip, which is a geometry statement this deck cannot carry).
+    The station set is never truncated (plan 10 §1.1 constraint 1): the node is
+    *added*, and every FORCE/MOMENT card stays where it was.
+    """
+    nodes: List[Tuple[int, Tuple[float, float, float]]] = (
+        [(_ROOT_GID, _root_node(base_loads))]
+        + [(nl.gid, (nl.x, nl.y, nl.z)) for nl in base_loads])
+    if sob is None:
+        return nodes, None
+    if sob.y <= nodes[0][1][1] + _SOB_COINCIDENT_TOL:
+        return nodes, None        # on or inboard of the clamped root node
+    for gid, (_x, y, _z) in nodes[1:]:
+        if abs(y - sob.y) <= _SOB_COINCIDENT_TOL:
+            return nodes, gid
+    for i in range(1, len(nodes)):
+        (_ga, (xa, ya, za)) = nodes[i - 1]
+        (_gb, (xb, yb, zb)) = nodes[i]
+        if ya < sob.y < yb:
+            t = (sob.y - ya) / (yb - ya)
+            pos = (xa + t * (xb - xa), sob.y, za + t * (zb - za))
+            nodes.insert(i, (sob_gid(), pos))
+            return nodes, sob_gid()
+    return nodes, None
+
+
+def _sob_case_lines(r: WingLoadResult, sob_y: float,
+                    u: DeliverableUnits) -> List[str]:
+    """The ``$`` statement of one case's closed-form SOB internal loads."""
+    si = sob_internal_loads(r, sob_y)
+    sx, _, sz = to_force(si.sx, 0.0, si.sz, u)
+    mxx, myy, mzz = to_moment(si.mxx, si.myy, si.mzz, u)
+    return _comment(
+        f"SOB internal loads, case {r.case} (closed-form, ULTIMATE): "
+        f"Sz={sz:.1f}, Sx={sx:.1f} {u.force.label}; Mxx={mxx:.0f}, "
+        f"Myy={myy:.0f}, Mzz={mzz:.0f} {u.moment.label}.")
+
+
 def stick_model_bdf(arg: ResultsArg, sid_base: int = 1, *,
                     header_comment: str = "",
-                    system: UnitSystem = UnitSystem.IMPERIAL) -> str:
+                    system: UnitSystem = UnitSystem.IMPERIAL,
+                    sob: Optional[SobStation] = None) -> str:
     """A minimal SOL 101 CBAR stick model carrying the exported wing load sets.
 
     A clamped cantilever along the wing's torsion reference axis (the station
@@ -765,11 +916,25 @@ def stick_model_bdf(arg: ResultsArg, sid_base: int = 1, *,
     a single PBAR/MAT1 (nominal placeholder properties), a CBAR chain, and one
     SUBCASE per case selecting that case's FORCE/MOMENT load set. Geometry is
     shared across cases (same wing); only the load set changes.
+
+    ``sob`` is the wing's side-of-body station (step 13): when the argument is
+    a :class:`Project` it is resolved via
+    :func:`sloads.derived_geometry.sob_station` (decision BM-1); callers passing
+    bare result lists state it themselves or ship the pre-step-13 deck. When it
+    resolves, the deck gains a tagged **reporting node** at the joint -- no load
+    moves, no station is dropped -- and states each case's closed-form SOB
+    internal loads beside the load sets, so the wing root design load is
+    readable from the file without solving it.
     """
     results = _as_results(arg)
+    if sob is None and isinstance(arg, Project):
+        sob = sob_station(arg)
     u = _units(system)
     # Station geometry is shared across cases -- take it from the first.
     base_loads = wing_nodal_loads(results[0])
+    chain, sob_node_gid = _stick_chain(base_loads, sob)
+    sob_index = next((i for i, (gid, _p) in enumerate(chain)
+                      if gid == sob_node_gid), None)
     rx, ry, rz = to_grid(*_root_node(base_loads), units=u)
 
     head: List[str] = ["SOL 101", "$"] + subcase_map_block(results) + ["$"]
@@ -797,9 +962,21 @@ def stick_model_bdf(arg: ResultsArg, sid_base: int = 1, *,
         "$ GRID, GID, CP, X1, X2, X3",
         f"GRID, {_ROOT_GID}, , {_fmt(rx)}, {_fmt(ry)}, {_fmt(rz)}",
     ]
-    for nl in base_loads:
-        gx, gy, gz = to_grid(nl.x, nl.y, nl.z, u)
-        bulk.append(f"GRID, {nl.gid}, , {_fmt(gx)}, {_fmt(gy)}, {_fmt(gz)}")
+    for gid, (x, y, z) in chain[1:]:
+        if gid == sob_node_gid:
+            outboard = (f" The side-of-body internal load is the CBAR end "
+                        f"force in element {sob_index + 1}, the first element "
+                        "outboard; per-case closed-form values are the $ SOB "
+                        "lines in the LOADS section."
+                        if sob_index is not None and sob_index + 1 < len(chain)
+                        else "")
+            bulk.append("$ SLOADS-NODE lra-sob R")
+            bulk += _comment(
+                f"{sob.note}. Reporting node only (step 13): no load is "
+                "applied here and no station is dropped -- the FORCE/MOMENT "
+                "sets and their station-0 closure are unchanged." + outboard)
+        gx, gy, gz = to_grid(x, y, z, u)
+        bulk.append(f"GRID, {gid}, , {_fmt(gx)}, {_fmt(gy)}, {_fmt(gz)}")
 
     # Section properties are area / second moment, so they scale as length^2 and
     # length^4 -- derived from the one length factor, never quoted per system.
@@ -819,11 +996,13 @@ def stick_model_bdf(arg: ResultsArg, sid_base: int = 1, *,
         "$ --------------------------------------------------------- ELEMENTS",
         "$ CBAR, EID, PID, GA, GB, X1, X2, X3  (orientation vector 0,0,1)",
     ]
-    # CBAR chain: root node -> station 0 -> station 1 -> ... -> tip.
+    # CBAR chain: root node -> station 0 -> ... -> tip, through the SOB node
+    # where one exists (the element split is what makes the SOB internal load a
+    # recoverable CBAR end force).
     prev = _ROOT_GID
-    for eid, nl in enumerate(base_loads, start=1):
-        bulk.append(f"CBAR, {eid}, 1, {prev}, {nl.gid}, 0.0, 0.0, 1.0")
-        prev = nl.gid
+    for eid, (gid, _pos) in enumerate(chain[1:], start=1):
+        bulk.append(f"CBAR, {eid}, 1, {prev}, {gid}, 0.0, 0.0, 1.0")
+        prev = gid
 
     bulk += [
         "$ ------------------------------------------------------- CONSTRAINTS",
@@ -833,6 +1012,8 @@ def stick_model_bdf(arg: ResultsArg, sid_base: int = 1, *,
         "$ ------------------------------------------------------------ LOADS",
     ]
     for idx, r in enumerate(results):
+        if sob is not None and sob_node_gid is not None:
+            bulk += _sob_case_lines(r, sob.y, u)
         bulk += _case_card_block(r, _sid(sid_base, idx, r), u)
 
     return _stamped(header_comment, "\n".join(head + bulk + ["ENDDATA"]) + "\n")
@@ -840,10 +1021,12 @@ def stick_model_bdf(arg: ResultsArg, sid_base: int = 1, *,
 
 def write_stick_model_bdf(arg: ResultsArg, path: str, sid_base: int = 1, *,
                           header_comment: str = "",
-                          system: UnitSystem = UnitSystem.IMPERIAL) -> None:
+                          system: UnitSystem = UnitSystem.IMPERIAL,
+                          sob: Optional[SobStation] = None) -> None:
     with open(path, "w", encoding="utf-8") as fh:
         fh.write(stick_model_bdf(arg, sid_base=sid_base,
-                                 header_comment=header_comment, system=system))
+                                 header_comment=header_comment, system=system,
+                                 sob=sob))
 
 
 # --------------------------------------------------------------------------- #

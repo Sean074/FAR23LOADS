@@ -337,6 +337,7 @@ def _surface_from_dict(d: Dict[str, Any]) -> SurfaceInput:
         # absent/null key stays None rather than taking a numeric default here.
         front_spar_pct=_opt_float(d.get("front_spar_pct")),
         rear_spar_pct=_opt_float(d.get("rear_spar_pct")),
+        sob_y_in=_opt_float(d.get("sob_y_in")),
     )
 
 
@@ -431,6 +432,7 @@ def geometry_to_dict(inp: GeometryInput) -> Dict[str, Any]:
                 # (the assumed-default provenance, M4-1).
                 "front_spar_pct": s.front_spar_pct,
                 "rear_spar_pct": s.rear_spar_pct,
+                "sob_y_in": s.sob_y_in,
             }
             for s in inp.surfaces
         ]

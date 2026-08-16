@@ -42,6 +42,7 @@ from sloads.modules.select import build_critical  # noqa: E402
 from sloads.modules.tail_span import (  # noqa: E402
     X25_PCT,
     X50_PCT,
+    ATTACH_ENTERED,
     ATTACH_FIN_TIP,
     ATTACH_OUTLINE,
     ATTACH_STRIP_PAIR,
@@ -580,6 +581,22 @@ def test_the_spanwise_and_chordwise_views_cover_the_same_conditions(example):
     chord_cases = {(r.component, r.case) for r in build_tail_chordwise(project)}
     span_cases = {(r.component, r.case) for r in spans[HTAIL] + spans[VTAIL]}
     assert span_cases == chord_cases, example
+
+
+def test_an_entered_attachment_butt_line_wins_over_every_derivation():
+    """BM-1: the h-tail attachment reads the surface's own ``sob_y_in``.
+
+    One quantity, two consumers — the same field the wing SOB node resolves
+    from (``derived_geometry.sob_station``). Entered data is the only branch
+    below the T-tail check that is not marked assumed.
+    """
+    project = _tapered_project()
+    project.geometry.by_name(HTAIL).sob_y_in = 8.0
+    planform = resolve_tail_planform(project, HTAIL)
+    attach = htail_attachment(project, planform)
+    assert attach.y == [-8.0, 8.0]
+    assert attach.basis == ATTACH_ENTERED
+    assert attach.assumed is False
 
 
 # --------------------------------------------------------------------------- #

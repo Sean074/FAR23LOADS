@@ -86,6 +86,7 @@ from sloads.export.roundtrip import (  # noqa: E402
     total_reaction,
     wrap_as_stick_model,
 )
+from sloads.derived_geometry import sob_station  # noqa: E402
 from sloads.mass_distribution import derive_case_loadings  # noqa: E402
 from sloads.modules.balance import (  # noqa: E402
     build_balanced_cases,
@@ -263,6 +264,103 @@ def test_wing_stick_deck_solves_and_recovers_the_root_loads(sbeam, example, syst
         assert closes(bar.shear1, want_fz, scale=abs(want_fz)), f"{where} W-d shear"
         assert closes(bar.bm2_b, want_mxx, scale=abs(want_mxx)), f"{where} W-d Mxx"
         assert closes(bar.bm1_b, -want_mzz, scale=abs(want_mzz)), f"{where} W-d Mzz"
+
+
+#: The two matrix members whose projects state a side of body (a published
+#: fuselage outline -> the BM-1 half-width fallback): the flagship concept
+#: fixture, and the one wing that hangs concentrated masses -- so the SOB gate
+#: sees both a clean wing and one whose offset couples must carry lever arms
+#: across the cut. ``ga6_normal``/``concept_heavy`` have no body data and ship
+#: no SOB node, by design.
+SOB_MATRIX = ("concept_regional_jet.project.json", "atr42_100.project.json")
+
+
+@pytest.mark.roundtrip
+@pytest.mark.parametrize("example", SOB_MATRIX)
+@pytest.mark.parametrize("system", SYSTEMS)
+def test_the_sob_internal_load_is_the_first_outboard_elements_end_force(
+        sbeam, example, system):
+    """Step 13's gate: the side-of-body load, stated two ways, agrees.
+
+    Way one is sloads' closed form (``sob_internal_loads`` -- the applied nodal
+    loads outboard of the cut, summed with their lever arms); way two is the
+    solver's CBAR end force in the first element outboard of the tagged SOB
+    node. The bridge between them is the deck's own cards: the closed form must
+    match the global card resultant about the SOB (shear, chord shear and both
+    bending components -- torsion is stated about the swept axis line, not the
+    global y, so it is gated in ``test_sbeam_bridge`` against the cumulative
+    table instead), and the solver's end-A force must be that resultant in the
+    element's local frame. The SOB element is generally *not* along ``y`` (the
+    beam line is swept), so unlike W-d the frame map is computed, not permuted:
+    ``e_x`` along A->B, ``e_y`` the projected orientation vector ``(0,0,1)``,
+    ``e_z = e_x x e_y`` -- sbeam's own construction (``transform_matrix``). End
+    A moments come back in the element-applied sign, hence ``bm1_a``/``bm2_a``
+    compare negated; the constant-along-the-element forces come back at end B
+    in the internal sign.
+    """
+    import numpy as np
+
+    p, wing, _, _ = _components(example)
+    sob = sob_station(p)
+    assert sob is not None, "the SOB matrix member must state a side of body"
+    u = _units(system)
+    text = sb.stick_model_bdf(wing, sid_base=1, system=system, sob=sob)
+    sols, grids = _solved(text)
+    _, cbars, _, forces, moments = parse_cards(text)
+
+    sg = sb.sob_gid()
+    out_eid, out_gb = next((eid, gb) for eid, ga, gb in cbars if ga == sg)
+    a = np.array(grids[sg])
+    b = np.array(grids[out_gb])
+    e_x = (b - a) / np.linalg.norm(b - a)
+    v = np.array([0.0, 0.0, 1.0])
+    v_perp = v - v.dot(e_x) * e_x
+    e_y = v_perp / np.linalg.norm(v_perp)
+    rot = np.vstack([e_x, e_y, np.cross(e_x, e_y)])
+    y_sob = a[1]                       # in deck units, exactly as printed
+
+    for idx, r in enumerate(wing):
+        sid = sb._sid(1, idx, r)
+        where = f"{example} {system.value} SOB {r.case}"
+
+        # The deck's applied cards outboard of the cut, summed about the SOB.
+        f_g = np.zeros(3)
+        m_g = np.zeros(3)
+        f_scale = m_scale = 0.0
+        for gid, scale, n in forces.get(sid, ()):
+            g = np.array(grids[gid])
+            if g[1] < y_sob - 1e-9:
+                continue
+            f = scale * np.array(n)
+            f_g += f
+            m_g += np.cross(g - a, f)
+            f_scale += float(np.abs(f).max())
+        for gid, scale, n in moments.get(sid, ()):
+            if grids[gid][1] < y_sob - 1e-9:
+                continue
+            m_g += scale * np.array(n)
+        m_scale = max(m_scale, float(np.abs(m_g).max()))
+
+        # Closed form == card resultant (Sz/Sx exactly; Mxx/Mzz in the calc's
+        # bending signs: global Mx = +Mxx, global Mz = -Mzz).
+        si = sb.sob_internal_loads(r, sob.y)
+        want_fx, _, want_fz = to_force(si.sx, 0.0, si.sz, u)
+        want_mxx, _, want_mzz = to_moment(si.mxx, 0.0, si.mzz, u)
+        assert closes(f_g[2], want_fz, scale=f_scale), f"{where} Sz"
+        assert closes(f_g[0], want_fx, scale=f_scale), f"{where} Sx"
+        assert closes(m_g[0], want_mxx, scale=m_scale), f"{where} Mxx"
+        assert closes(m_g[2], -want_mzz, scale=m_scale), f"{where} Mzz"
+
+        # Solver end force in the first element outboard == that resultant.
+        f_e = rot @ f_g
+        m_e = rot @ m_g
+        bar = sols[sid].bar_forces[out_eid]
+        assert closes(bar.axial, f_e[0], scale=f_scale), f"{where} axial"
+        assert closes(bar.shear1, f_e[1], scale=f_scale), f"{where} shear1"
+        assert closes(bar.shear2, f_e[2], scale=f_scale), f"{where} shear2"
+        assert closes(bar.torque, m_e[0], scale=m_scale), f"{where} torque"
+        assert closes(bar.bm1_a, -m_e[1], scale=m_scale), f"{where} bm1_a"
+        assert closes(bar.bm2_a, -m_e[2], scale=m_scale), f"{where} bm2_a"
 
 
 # --------------------------------------------------------------------------- #

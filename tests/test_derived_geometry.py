@@ -17,8 +17,11 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from sloads import Project, io  # noqa: E402
 from sloads.constants import DEFAULT_FRONT_SPAR_PCT, DEFAULT_REAR_SPAR_PCT  # noqa: E402
 from sloads.derived_geometry import (  # noqa: E402
+    SOB_ENTERED,
+    SOB_HALF_WIDTH,
     carry_through,
     fuselage_summary,
+    sob_station,
     sync_geometry_derived,
     wing_reference,
 )
@@ -173,6 +176,58 @@ def test_spar_fractions_round_trip_and_default_to_none():
     legacy = io.project_from_dict(d).geometry.by_name("wing")
     assert legacy.front_spar_pct is None and legacy.rear_spar_pct is None
     assert carry_through(io.project_from_dict(d)).assumed
+
+
+# --------------------------------------------------------------------------- #
+# Side-of-body station (step 13, decision BM-1)
+# --------------------------------------------------------------------------- #
+def test_sob_station_entered_wins_and_is_not_assumed():
+    p = _wing_project()
+    p.geometry.by_name("wing").sob_y_in = 40.0
+    p.geometry.fuselage = FuselageOutline(sections=[
+        FuselageSection(x=0.0, width=10.0, height=10.0),
+        FuselageSection(x=100.0, width=96.0, height=90.0),
+        FuselageSection(x=300.0, width=8.0, height=9.0)])
+    sync_geometry_derived(p)
+    sob = sob_station(p)
+    assert sob is not None and not sob.assumed
+    assert sob.y == 40.0 and sob.basis == SOB_ENTERED
+
+
+def test_sob_station_falls_back_to_half_the_width_marked_assumed():
+    p = _wing_project()
+    p.geometry.fuselage = FuselageOutline(sections=[
+        FuselageSection(x=0.0, width=10.0, height=10.0),
+        FuselageSection(x=100.0, width=96.0, height=90.0),
+        FuselageSection(x=300.0, width=8.0, height=9.0)])
+    sob = sob_station(p)          # works un-synced too (summary fallback)
+    assert sob is not None and sob.assumed
+    assert math.isclose(sob.y, 48.0)
+    assert sob.basis == SOB_HALF_WIDTH and "ASSUMED" in sob.note
+
+
+def test_sob_station_is_none_without_a_body_and_never_the_inboard_rib():
+    """BM-1's negative half: no butt line and no body -> None, and the WINGINER
+    mass-panel start must never be substituted -- ``inboard_rib_y`` is a mass
+    model quantity (BL 40 sits well inboard of the RJ's 52.5 in half-body)."""
+    p = _wing_project()
+    p.wing_mass = WingMassInput(inboard_rib_y=23.0)
+    assert sob_station(p) is None
+    assert sob_station(Project(name="bare")) is None
+    # The shipped Appendix A fixture has no fuselage data: its decks must not
+    # invent a side of body.
+    assert sob_station(io.load_project(_GA)) is None
+
+
+def test_sob_y_in_round_trips_and_defaults_to_none():
+    p = _wing_project()
+    p.geometry.by_name("wing").sob_y_in = 40.0
+    d = io.project_to_dict(p)
+    surf = d["geometry"]["surfaces"][0]
+    assert surf["sob_y_in"] == 40.0
+    assert io.project_from_dict(d).geometry.by_name("wing").sob_y_in == 40.0
+    del surf["sob_y_in"]          # pre-v51 file: the key is absent entirely
+    assert io.project_from_dict(d).geometry.by_name("wing").sob_y_in is None
 
 
 def _project_with_engines(hps, *, estimate_total, override):

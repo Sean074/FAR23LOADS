@@ -447,7 +447,7 @@ sidebar and the JSON Editor (§10, Phase E5).
 
 The schema field list is **single-sourced in
 [`DATA_DICTIONARY.md`](DATA_DICTIONARY.md)** (generated; currently
-`SCHEMA_VERSION = 50`); the per-step migration history is recorded in
+`SCHEMA_VERSION = 51`); the per-step migration history is recorded in
 [`../40_history/00_completed_development.md`](../40_history/00_completed_development.md)
 (recent steps: v29 single-source CLmax
 stall; v30 M2-6 wing/fuselage derived geometry; v31 M2-10 operational placards;
@@ -564,7 +564,12 @@ payload case carries, the fraction of any consumable row that is aboard, and an
 optional entered ballast row. Additive and **optional**, so no hop: absent is the
 documented value, "derive the loading by searching the item database", which is
 what every pre-v50 project does bit-for-bit. Where it *is* entered the loading is
-authoritative and the case's `weight_lb`/`xcg`/`zcg` become a checked echo of it.
+authoritative and the case's `weight_lb`/`xcg`/`zcg` become a checked echo of it;
+v51 the entered side-of-body butt line `SurfaceInput.sob_y_in` (decision
+**BM-1**, note `../30_future/24_lra_beam_model_review_note.md`) — one quantity
+read by the wing SOB reporting node and the h-tail attachment. Additive and
+optional, so no hop: absent falls back to half the fuselage width, marked
+assumed.
 This paragraph's version number is guarded by
 `tests/test_data_dictionary.py::test_gui_design_schema_line_current` — update
 it (and this list) with every `SCHEMA_VERSION` bump.

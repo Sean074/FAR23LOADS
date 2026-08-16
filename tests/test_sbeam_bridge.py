@@ -594,6 +594,127 @@ def test_run_copies_the_built_results_factor():
             setattr(module, attr, real)
 
 
+# --------------------------------------------------------------------------- #
+# Side-of-body node + internal loads (step 13, note 24 R-3)
+# --------------------------------------------------------------------------- #
+_RJ = os.path.join(_EXAMPLES, "concept_regional_jet.project.json")
+_ATR = os.path.join(_EXAMPLES, "atr42_100.project.json")
+
+
+def _project_and_wing(path):
+    from sloads.modules.net_loads import loads_ref_axis_results
+
+    p = io.load_project(path)
+    if p.envelope is None:
+        p.envelope = build_envelope(p)
+    return p, loads_ref_axis_results(p, build_net_loads(p).wing_net)
+
+
+def test_sob_internal_loads_match_the_cumulative_table_at_a_cut():
+    """Way one of two: the outboard sum reproduces NETLOADS' own cumulative table.
+
+    On the mass-free Appendix A wing the closed-form sum of applied nodal loads
+    outboard of a cut equals the cumulative shear/torsion at the next station
+    plus the bending carried back over the remaining arm -- computed by
+    different code (WINGINER quadrature) than the card increments being summed.
+    """
+    for r in _wing_net(_GA):
+        s, sf = r.stations, r.safety_factor
+        for k in (0, 2, len(s) - 2):
+            y_cut = 0.5 * (s[k].y + s[k + 1].y)
+            si = sb.sob_internal_loads(r, y_cut)
+            nxt = s[k + 1]
+            assert math.isclose(si.sz, nxt.sz * sf, rel_tol=1e-9, abs_tol=1e-6)
+            assert math.isclose(si.sx, nxt.sx * sf, rel_tol=1e-9, abs_tol=1e-6)
+            assert math.isclose(si.myy, nxt.myy * sf, rel_tol=1e-9, abs_tol=1e-3)
+            assert math.isclose(si.mxx, (nxt.mxx + nxt.sz * (nxt.y - y_cut)) * sf,
+                                rel_tol=1e-6, abs_tol=1.0)
+            assert math.isclose(si.mzz, (nxt.mzz + nxt.sx * (nxt.y - y_cut)) * sf,
+                                rel_tol=1e-6, abs_tol=1.0)
+
+
+def test_sob_collapse_plus_internal_preserves_the_resultant():
+    """The LRA-model wing beam starts at the SOB with nothing lost (R-3).
+
+    The collapsed inboard load (force + lever-arm couples at the SOB) plus the
+    internal load outboard must reproduce the half-span root totals exactly --
+    on ``atr42_100``, whose concentrated wing masses (engines, nacelles, fuel)
+    only balance if the offset couples carry their lever arms through both sums.
+    """
+    p = io.load_project(_ATR)
+    if p.envelope is None:
+        p.envelope = build_envelope(p)
+    from sloads.derived_geometry import sob_station
+
+    y_sob = sob_station(p).y
+    for r in build_net_loads(p).wing_net:
+        s, sf = r.stations, r.safety_factor
+        si = sb.sob_internal_loads(r, y_sob)
+        cl = sb.sob_collapsed_load(r, (0.0, y_sob, 0.0))
+        assert cl.gid == sb.sob_gid()
+        assert math.isclose(cl.fz + si.sz, s[0].sz * sf, rel_tol=1e-9, abs_tol=1e-6)
+        assert math.isclose(cl.fx + si.sx, s[0].sx * sf, rel_tol=1e-9, abs_tol=1e-6)
+        assert math.isclose(cl.my + si.myy, s[0].myy * sf, rel_tol=1e-9, abs_tol=1e-3)
+        # Moments about the SOB: root bending transferred over (y0 - y_sob).
+        assert math.isclose(cl.mx + si.mxx,
+                            (s[0].mxx + s[0].sz * (s[0].y - y_sob)) * sf,
+                            rel_tol=1e-6, abs_tol=1.0)
+        assert math.isclose(cl.mz + si.mzz,
+                            (s[0].mzz + s[0].sx * (s[0].y - y_sob)) * sf,
+                            rel_tol=1e-6, abs_tol=1.0)
+
+
+def test_the_stick_deck_gains_a_tagged_sob_node_and_keeps_its_cards():
+    """Step 13 in the per-component wing deck: the node is ADDED, the oracle kept.
+
+    Plan 10 §1.1 constraint 1: the station set cannot be truncated at the SOB.
+    So against the same results, the tagged deck must carry every GRID, FORCE
+    and MOMENT card of the plain one unchanged -- the SOB is one new GRID
+    (band ``lra-sob``, decision BM-5) splitting one CBAR, and nothing else.
+    """
+    from sloads.derived_geometry import sob_station
+
+    p, wing = _project_and_wing(_RJ)
+    sob = sob_station(p)
+    plain = sb.stick_model_bdf(wing)
+    tagged = sb.stick_model_bdf(wing, sob=sob)
+    assert "\n$ SLOADS-NODE lra-sob R\n" not in plain
+    assert "\n$ SLOADS-NODE lra-sob R\n" in tagged
+    g0, c0, _, f0, m0 = parse_cards(plain)
+    g1, c1, _, f1, m1 = parse_cards(tagged)
+    assert f1 == f0 and m1 == m0
+    assert set(g1) - set(g0) == {sb.sob_gid()}
+    assert all(g1[gid] == g0[gid] for gid in g0)
+    assert len(c1) == len(c0) + 1
+    for (_, _, gb_prev), (_, ga, _) in zip(c1, c1[1:]):
+        assert ga == gb_prev
+    # The node sits at the resolved butt line, interpolated onto the beam line.
+    assert math.isclose(g1[sb.sob_gid()][1], sob.y)
+    # Each case states its closed-form SOB internal loads in-band.
+    assert tagged.count("$ SOB internal loads, case") == len(wing)
+
+
+def test_a_project_without_a_body_ships_the_deck_it_always_did():
+    """ga6/concept_heavy state no side of body -> the deck must not invent one."""
+    results = _wing_net(_GA)
+    assert sb.stick_model_bdf(results) == sb.stick_model_bdf(results, sob=None)
+    assert "\n$ SLOADS-NODE lra-sob R\n" not in sb.stick_model_bdf(results)
+
+
+def test_a_sob_outside_the_beam_is_refused_not_bent_onto_it():
+    """A butt line outboard of the tip (or on the clamp) is a geometry statement
+    this deck cannot carry: no node, no tag, deck unchanged."""
+    from sloads.derived_geometry import SobStation
+
+    results = _wing_net(_GA)
+    tip = results[0].stations[-1].y
+    for bad_y in (tip + 10.0, 0.0):
+        text = sb.stick_model_bdf(
+            results, sob=SobStation(bad_y, True, "test", "test"))
+        assert "\n$ SLOADS-NODE lra-sob R\n" not in text
+        assert text == sb.stick_model_bdf(results)
+
+
 if __name__ == "__main__":
     import traceback
 

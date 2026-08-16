@@ -228,7 +228,11 @@ def fields_hash() -> str:
 #: purely additive with defaults, and no input dataclass changed shape: the fixture
 #: side of the same step is data (three fuselage outlines), not schema. No
 #: migration hop, and ``SCHEMA_VERSION`` is unchanged.
-EXPECTED_FIELDS_HASH = "a1137d08d77d6d42"
+#: Step 13 (v51, decision BM-1): ``SurfaceInput`` gains ``sob_y_in``, the
+#: entered side-of-body butt line, read by the wing SOB reporting node and the
+#: h-tail attachment. Additive with a ``None`` default ("not entered" -> the
+#: half-fuselage-width fallback marked assumed), so no migration hop.
+EXPECTED_FIELDS_HASH = "16ba9e76bd778ccd"
 
 
 def test_persisted_dataclass_shapes_are_unchanged():

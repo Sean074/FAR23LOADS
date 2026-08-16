@@ -195,6 +195,7 @@ class HTailAttachment(NamedTuple):
 #: dimension at all, merely two adjacent stations that happen to straddle the
 #: centreline.
 ATTACH_FIN_TIP = "t-tail fin-tip joint"
+ATTACH_ENTERED = "entered attachment butt line (sob_y_in)"
 ATTACH_OUTLINE = "fuselage outline at the h-tail LRA station"
 ATTACH_STRIP_PAIR = "innermost strip pair -- no fuselage geometry"
 
@@ -205,6 +206,7 @@ def htail_attachment(project: Project, planform: TailPlanform) -> HTailAttachmen
     Resolution order::
 
         T-tail layout        -> [0.0], the fin-tip joint          (assumed False)
+        entered sob_y_in     -> +-sob_y_in                        (assumed False)
         fuselage outline     -> +-w(x_lra)/2                      (assumed True)
         neither              -> +-ds/2, the innermost strip pair   (assumed True)
 
@@ -231,8 +233,9 @@ def htail_attachment(project: Project, planform: TailPlanform) -> HTailAttachmen
     carries a tail-end width of a *tenth* of the maximum, a shape factor nobody
     measured. The attachment half-span swings by half again on that factor alone.
     Consumers that need a station they can build structure on should gate on
-    ``basis``, and the real fix is an entered attachment butt line (note 24 BM-1's
-    ``sob_y_in`` sibling), not a better guess at the body.
+    ``basis``, and the real fix is an entered attachment butt line -- the h-tail
+    surface's ``sob_y_in`` (BM-1: one quantity, read here and by the wing SOB
+    resolver), not a better guess at the body.
 
     **The fallback is the centreline pair**: still two distinct determinate
     supports, still carrying the 23.427(a) asymmetry, but a single strip wide, so
@@ -249,6 +252,13 @@ def htail_attachment(project: Project, planform: TailPlanform) -> HTailAttachmen
             "reacts moment as well as shear. A fuselage-side pair would describe "
             "a load path this airplane does not have")
     geometry = project.geometry
+    surf = geometry.by_name(planform.component) if geometry is not None else None
+    if surf is not None and surf.sob_y_in is not None:
+        y = abs(float(surf.sob_y_in))
+        return HTailAttachment(
+            [-y, y], False, ATTACH_ENTERED,
+            f"h-tail attachment at +-{y:.1f} in -- the entered sob_y_in butt "
+            "line (BM-1)")
     width = fuselage_width_at(
         geometry.fuselage if geometry is not None else None,
         planform.x_at(0.0, planform.ref_axis_pct))

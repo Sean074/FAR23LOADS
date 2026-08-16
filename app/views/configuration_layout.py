@@ -736,7 +736,7 @@ else:
                          "25% reproduces the original suite's reporting exactly.")
                 # Spar fractions are optional: left blank they stay None, and
                 # body_loads flags the carry-through stations it assumes (M4-1).
-                _sc = st.columns(2)
+                _sc = st.columns(3)
                 _spar_help = (
                     "Chordwise position of the wing-attach spar, as a %% of the root "
                     "chord. Used to place the front/rear carry-through reactions that "
@@ -757,6 +757,18 @@ else:
                     else float(_surf.rear_spar_pct * 100.0), step=1.0,
                     key=f"rs_{_surf.name}",
                     help=_spar_help % (DEFAULT_REAR_SPAR_PCT * 100.0))
+                _sob = _sc[2].number_input(
+                    f"Side of body ({U['length']}, optional)", min_value=0.0,
+                    value=None if _surf.sob_y_in is None
+                    else to_display(float(_surf.sob_y_in), "length", system),
+                    key=f"sob_{_surf.name}_{system.value}",
+                    help="The butt line where this surface structurally attaches "
+                         "to the fuselage (decision BM-1). One quantity, two "
+                         "consumers: the wing side-of-body reporting node in the "
+                         "stick deck, and the h-tail attachment pair. **Leave "
+                         "blank** to fall back to half the fuselage width, which "
+                         "is reported as an ASSUMED joint on every deliverable "
+                         "that uses it.")
                 st.caption(f"Points entered in {U['length']}. Dash-dot line on the "
                            "three-view above = this surface's LRA.")
                 _le = [(to_display(x, "length", system), to_display(y, "length", system))
@@ -774,7 +786,7 @@ else:
                                         num_rows="dynamic", column_config=_te_cols,
                                         key=f"te_{_surf.name}_{system.value}")
                 _surface_inputs.append((_surf.name, _sym, _elems, _lra_pct,
-                                        _fs_pct, _rs_pct, _le_df, _te_df))
+                                        _fs_pct, _rs_pct, _sob, _le_df, _te_df))
         if st.form_submit_button("Apply surface geometry", type="primary"):
             def _imp_pt(row):
                 return tuple(to_imperial_scalar(v, "length", system) for v in row)
@@ -785,10 +797,12 @@ else:
                     ref_axis_pct=float(lra_pct) / 100.0,
                     front_spar_pct=None if fs_pct is None else float(fs_pct) / 100.0,
                     rear_spar_pct=None if rs_pct is None else float(rs_pct) / 100.0,
+                    sob_y_in=None if sob is None
+                    else to_imperial_scalar(float(sob), "length", system),
                     leading_edge=[_imp_pt(r) for r in le_df.dropna().to_numpy().tolist()],
                     trailing_edge=[_imp_pt(r) for r in te_df.dropna().to_numpy().tolist()],
                 )
-                for name, sym, elems, lra_pct, fs_pct, rs_pct, le_df, te_df in _surface_inputs
+                for name, sym, elems, lra_pct, fs_pct, rs_pct, sob, le_df, te_df in _surface_inputs
             ]
             _set_geometry(project, surfaces=_edited)
             st.success(f"Applied {len(_edited)} surface(s).")
@@ -884,11 +898,13 @@ with right:
         surfaces = [s for s in geom.surfaces if s.name != "wing"]
         _seeded = wing_surface(layout)
         # Re-seeding regenerates the planform, not the loads reference axis or
-        # the spar layout -- carry a user-set LRA and spar fractions over.
+        # the spar layout -- carry a user-set LRA, spar fractions and
+        # side-of-body butt line over.
         if _prev_wing is not None:
             _seeded.ref_axis_pct = _prev_wing.ref_axis_pct
             _seeded.front_spar_pct = _prev_wing.front_spar_pct
             _seeded.rear_spar_pct = _prev_wing.rear_spar_pct
+            _seeded.sob_y_in = _prev_wing.sob_y_in
         surfaces.insert(0, _seeded)
         _set_geometry(project, surfaces=surfaces)
         st.success(

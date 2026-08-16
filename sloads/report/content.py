@@ -1365,6 +1365,52 @@ def _wing_section(project: Project, comps: ComponentLoads, u: Units,
     )
     if extremes is not None:
         section.tables.append(extremes)
+
+    # The wing root design loads (step 13): the internal load at the
+    # side-of-body cut, stated separately from the half-span extremes above --
+    # which include the centre-box strip loads inboard of the joint and
+    # overstate root bending by ~23 % on the reference GA wing (plan 10 §1.1).
+    # ``sob_internal_loads`` returns ULTIMATE, so the sf passed to the
+    # formatter is 1.0 -- the case's factor is already in the number.
+    from ..derived_geometry import sob_station
+
+    sob = sob_station(project)
+    if sob is not None and comps.wing:
+        from ..export.sbeam_bridge import sob_internal_loads
+
+        sob_rows = []
+        for r in comps.wing:
+            si = sob_internal_loads(r, sob.y)
+            case = r.case_ref.case_id if r.case_ref else r.case
+            sob_rows.append([
+                case,
+                u.load(si.sz, "force", 1.0),
+                u.load(si.sx, "force", 1.0),
+                u.load(si.mxx, "moment", 1.0),
+                u.load(si.myy, "moment", 1.0),
+                u.load(si.mzz, "moment", 1.0),
+                format_value(r.safety_factor),
+            ])
+        section.tables.append(Table(
+            title=("Wing side-of-body internal loads "
+                   f"(BL {sob.y * u.d.length.factor:.1f} {u.label('length')})"),
+            columns=["Case", f"Sz ({u.ult_label('force')})",
+                     f"Sx ({u.ult_label('force')})",
+                     f"Mxx ({u.ult_label('moment')})",
+                     f"Myy ({u.ult_label('moment')})",
+                     f"Mzz ({u.ult_label('moment')})", "SF"],
+            rows=sob_rows,
+            note=("The wing root design loads: the load carried across the "
+                  "wing-to-fuselage joint, summed closed-form from the applied "
+                  "loads outboard of the side of body. Distinct from the "
+                  "half-span maxima above, which include the centre-box strip "
+                  "loads inboard of the joint. " + sob.note + ". The wing stick "
+                  "deck carries a tagged reporting node (SLOADS-NODE lra-sob); "
+                  "the same quantities are recoverable as the CBAR end force in "
+                  "the first element outboard, and the two statements are gated "
+                  "against each other in the round-trip CI."),
+        ))
+
     section.body.append(
         f"Full station-by-station distributions for all {len(comps.wing)} wing cases "
         "are in the companion file wing_span_loads.csv and the sbeam deck "

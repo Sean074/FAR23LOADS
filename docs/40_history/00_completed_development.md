@@ -10,6 +10,28 @@ Acceptance**, **Key decisions**.
 
 ---
 
+**Step 12 phase 0 + step 13 — the LRA skeleton contract and the wing
+side-of-body node (complete 2026-08-16, tier M)** — backlog Pri 1, note 24
+(agreed 2026-08-15): decisions **BM-1…BM-5** recorded in
+`03_resolved_decisions.md`; `SurfaceInput.sob_y_in` (schema **v51**, additive)
+with `derived_geometry.sob_station` as the one SOB owner (entered → half
+fuselage width marked assumed → none; never `inboard_rib_y`) and the h-tail
+attachment reading the same quantity (`ATTACH_ENTERED`); the per-component wing
+stick deck **adds** a tagged reporting node at the joint (GID band `lra-sob`
+7001+, the BM-5 `$ SLOADS-NODE` tag's first use) without moving any station or
+card, so the Appendix A station-0 closure is untouched; the wing root design
+load is stated **two ways and gated** — `sob_internal_loads` closed-form (deck
+`$` header per case + the report's "Wing side-of-body internal loads" table)
+against the solver's CBAR end force in the first element outboard
+(`test_the_sob_internal_load_is_the_first_outboard_elements_end_force`, RJ +
+atr42, both unit systems) — and `sob_collapsed_load` (the inboard strips as one
+resultant-preserving equivalent at the SOB) is built and pinned as the step 12
+LRA wing-beam start. GUI: the surface form and the WINGGEOM re-seed carry
+`sob_y_in`. Specs synced: PROGRAM_SPEC sbeam-bridge section, GUI_design schema
+line, DATA_DICTIONARY regenerated, `bands.py` map. Digest wave: `wing_stick`
+on all six (four gain the node; all six the amended one-wording
+`CENTERLINE_CLAMP_NOTE`); every other channel byte-identical.
+
 **The h-tail beam is reacted where the airplane reacts it (complete 2026-08-15, tier L)**
 
 **Objective.** Close backlog Pri 1 — decision **T-8a**. The row read "populate

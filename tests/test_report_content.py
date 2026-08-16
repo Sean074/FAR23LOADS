@@ -197,6 +197,25 @@ def test_wing_maxima_are_two_sided_and_name_their_station_and_axis():
     assert "% chord" in torsion[0], "wing torsion must name the axis it is about"
 
 
+def test_the_wing_root_design_loads_are_the_sob_cut_not_the_half_span_totals():
+    """Step 13: where a project states a side of body, the report states the
+    wing root design loads at it -- distinct from the half-span maxima -- and a
+    project without one (ga6) must not gain an invented joint."""
+    doc = _report(_CONCEPT)
+    tables = doc.section("Wing").tables
+    sob = [t for t in tables if t.title.startswith("Wing side-of-body")]
+    assert len(sob) == 1
+    table = sob[0]
+    assert "BL 52.5" in table.title
+    assert table.columns[0] == "Case" and table.columns[-1] == "SF"
+    assert all("-ULT" in c for c in table.columns[1:6])
+    assert table.rows and all(len(r) == 7 for r in table.rows)
+    assert "outboard of the side of body" in table.note
+    assert "ASSUMED" in table.note        # the half-width fallback says so
+    ga_tables = _report().section("Wing").tables
+    assert not [t for t in ga_tables if t.title.startswith("Wing side-of-body")]
+
+
 def test_case_index_states_a_safety_factor_for_every_case():
     doc = _report()
     index = doc.section("Conditions analysed and FAR coverage").table

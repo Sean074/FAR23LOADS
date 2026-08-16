@@ -92,10 +92,17 @@ def artifacts(example: str) -> Dict[str, str]:
     for build in (build_aileron, build_flap, build_tabs):
         control += (_try(build, project) or [])
 
+    from sloads.derived_geometry import sob_station
+
+    def _stick(arg):
+        # The shipped deck states the side-of-body node (step 13), so the
+        # baseline renders it the way the CLI and the Export page do.
+        return sb.stick_model_bdf(arg, sob=sob_station(project))
+
     for name, fn, arg in (
         ("wing_span", sb.span_load_csv, wing),
         ("wing_cards", sb.force_moment_cards, wing),
-        ("wing_stick", sb.stick_model_bdf, wing),
+        ("wing_stick", _stick, wing),
         ("body_span", sb.body_span_load_csv, body),
         ("body_fitting", sb.body_fitting_load_csv, body),
         ("body_cards", sb.body_force_moment_cards, body),

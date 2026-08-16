@@ -232,8 +232,11 @@ if _wing:
         sb.force_moment_cards, _wing, header_comment=_bdf_stamp, system=_system) or ""
     _bdf_artifacts["wing_span_loads.csv"] = _try(
         sb.span_load_csv, _wing, header_comment=_csv_stamp, system=_system) or ""
+    from sloads.derived_geometry import sob_station
+
     _bdf_artifacts["wing_stick.bdf"] = _try(
-        sb.stick_model_bdf, _wing, header_comment=_bdf_stamp, system=_system) or ""
+        sb.stick_model_bdf, _wing, header_comment=_bdf_stamp, system=_system,
+        sob=sob_station(project)) or ""
 if _body:
     _bdf_artifacts["fuselage_loads.bdf"] = _try(
         sb.body_force_moment_cards, _body, header_comment=_bdf_stamp,

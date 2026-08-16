@@ -312,9 +312,11 @@ def _export_sbeam(project, prefix: str, target: str, stick_model: bool,
                                 system=system)
     written = [csv_path, bdf_path]
     if stick_model:
+        from sloads.derived_geometry import sob_station
+
         stick_path = f"{prefix}.stick.bdf"
         sb.write_stick_model_bdf(results, stick_path, header_comment=bdf_stamp,
-                                 system=system)
+                                 system=system, sob=sob_station(project))
         written.append(stick_path)
     print(f"Wrote {len(results)} case(s) to: " + ", ".join(written))
     return 0

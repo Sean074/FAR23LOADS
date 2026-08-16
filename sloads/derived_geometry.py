@@ -174,6 +174,65 @@ def fuselage_width_at(outline, x: float) -> Optional[float]:
     return sections[-1].width
 
 
+class SobStation(NamedTuple):
+    """The surface's side-of-body butt line, and on whose authority (BM-1).
+
+    ``y`` is the butt line (in) the surface structurally attaches to the fuselage
+    at; ``assumed`` is False only when the project entered ``sob_y_in``;
+    ``basis`` names the branch that produced the value and ``note`` is the
+    in-band sentence a derived value owes its consumer -- the same provenance
+    shape as :class:`CarryThrough`, :class:`BodyDragWaterline` and
+    ``tail_span.HTailAttachment``."""
+    y: float
+    assumed: bool
+    basis: str
+    note: str = ""
+
+
+SOB_ENTERED = "entered sob_y_in"
+SOB_HALF_WIDTH = "half the fuselage maximum width -- assumed"
+
+
+def sob_station(project: Project, surface_name: str = "wing") -> Optional[SobStation]:
+    """The surface's side-of-body station, or ``None`` when nothing states one.
+
+    **The single owner of the SOB source** (decision BM-1, note 24 R-3)::
+
+        entered SurfaceInput.sob_y_in      -> its value        (assumed False)
+        geometry.parametric.fuselage_width -> width / 2        (assumed True)
+        neither                            -> None
+
+    The fallback is half the fuselage **maximum** width -- for the wing that is
+    ordinarily the right frame, because the wing carries through near the widest
+    section; it is still marked assumed because nobody entered the joint. It is
+    **never** ``wing_mass.inboard_rib_y``: that is the WINGINER mass-panel
+    start, a mass-model quantity that sits well inboard of a real fuselage side
+    (BL 40 on the regional jet against a 74.5 in body half-width would be a
+    different airplane). ``None`` means the project has neither an entered butt
+    line nor any fuselage width -- consumers then omit their SOB node and say
+    so, rather than inventing a body.
+    """
+    geom = project.geometry
+    if geom is None:
+        return None
+    surf = geom.by_name(surface_name)
+    if surf is not None and surf.sob_y_in is not None:
+        return SobStation(
+            float(surf.sob_y_in), False, SOB_ENTERED,
+            f"side of body at BL {float(surf.sob_y_in):.2f} (entered sob_y_in)")
+    width = geom.parametric.fuselage_width if geom.parametric is not None else 0.0
+    if not width:
+        summary = fuselage_summary(geom.fuselage)
+        width = summary[1] if summary is not None else 0.0
+    if width:
+        return SobStation(
+            0.5 * width, True, SOB_HALF_WIDTH,
+            f"side of body ASSUMED at BL {0.5 * width:.2f} -- half the fuselage "
+            f"maximum width ({width:.1f} in). Enter {surface_name} sob_y_in to "
+            "state the joint")
+    return None
+
+
 class BodyDragWaterline(NamedTuple):
     """Where the assembled model applies the airplane's non-wing drag (D-1).
 

@@ -737,8 +737,28 @@ return strings (with thin `write_*` file wrappers), and do no physics.
   its **centerline clamp** in-band beside the `SPC1` (plan 10 §1.1, shipped
   2026-08-10): the clamped node is BL 0, not the side of body, so its reaction is
   the **half-span total applied load**, not a wing root design load — the
-  side-of-body quantity is an internal CBAR load and needs a node the deck does
-  not have (the side-of-body reporting-node item).
+  side-of-body quantity is an internal CBAR load.
+- **Side-of-body reporting node (step 13, 2026-08-16).** Where the project
+  states or implies a side of body (`derived_geometry.sob_station`, decision
+  BM-1: entered `SurfaceInput.sob_y_in`, else half the fuselage width **marked
+  assumed**, never `wing_mass.inboard_rib_y`), the stick deck **adds** a GRID at
+  that butt line, interpolated onto the beam line and splitting one CBAR — no
+  station is dropped and no card moves (plan 10 §1.1 constraint 1, so the
+  Appendix A station-0 closure is untouched). The node carries the first
+  `$ SLOADS-NODE lra-sob <side>` identity tag (decision BM-5; GID band
+  `lra-sob`, 7001+), and the wing root design load is stated **two ways and
+  gated**: `sbeam_bridge.sob_internal_loads` (the closed-form sum of applied
+  nodal loads outboard of the cut, stated per case in the deck `$` header and
+  as the report's "Wing side-of-body internal loads" table) against the
+  solver's CBAR end force in the first element outboard (round-trip CI,
+  `test_the_sob_internal_load_is_the_first_outboard_elements_end_force`).
+  `sob_collapsed_load` is the other half — the inboard strip loads as one
+  resultant-preserving equivalent at the SOB — consumed by the step 12 LRA
+  beam model (whose wing beam starts at the SOB), never by this deck. A project
+  with neither an entered butt line nor a fuselage width (ga6, concept_heavy)
+  ships the deck it always did. The h-tail attachment reads the same
+  `sob_y_in` quantity (`tail_span.htail_attachment`, basis `ATTACH_ENTERED`,
+  the only non-T-tail branch not marked assumed).
 - **Deck `$` comment width.** Every generated `$` sentence in the wing, body,
   tail and control decks is emitted through `sbeam_bridge._comment`, which wraps
   at the **72-column free-field card width** (`$ ` + 70) — a property of the

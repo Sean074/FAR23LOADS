@@ -36,6 +36,7 @@ The map
        6001-6200    balanced deck, right wing
        6201-6400    balanced deck, left wing
        6401-7000    balanced deck, centreline
+       7001-7100    LRA named nodes: wing side-of-body (lra-sob, BM-5)
       10001-10100   balanced deck, gear reference points
 
     EID      1-1000  stick-model CBAR chain
@@ -179,6 +180,12 @@ BANDS: Tuple[Band, ...] = (
     _band("balanced-centreline", IdKind.GID, 6401, 600, "balanced_deck.deck_nodes",
           "Fuselage masses, the tail air load, the lumped body Cm, and every "
           "closure point on the centreline."),
+    _band("lra-sob", IdKind.GID, 7001, 100, "sbeam_bridge.sob_gid",
+          "LRA named-node families (decision BM-5): the wing side-of-body "
+          "reporting node, tagged '$ SLOADS-NODE lra-sob <side>' so an imported "
+          "beam model can be mapped by identity rather than by coordinates. "
+          "First of the note 24 R-10 families; the posts, hinge, gear-link and "
+          "engine families of the step 12 exporter join as their own bands."),
     _band("balanced-gear", IdKind.GID, 10001, 100, "balanced_deck.deck_nodes",
           "The gear reference points a ground case's reactions are transferred "
           "to (decision G-2) -- at most one node per leg per side, since a "
