@@ -512,17 +512,20 @@ unhanded `VT-0n` SELECT already minted.
   that says so — and both the load path and the three-view read that one owner.
   A fin placed on the waterline datum is not merely imprecise: on `ga6_normal` it
   sat 64.5 in *below* the CG and reversed the sign of the moment.
-  **Known limitation of the fuselage-top branch (filed 2026-08-15, T-8a).** That
-  branch is `root_waterline_z + fuselage_height/2`, which reads `root_waterline_z`
-  as the body *centreline* — and it is the **wing** root, the same substitution
-  the body-drag row of the table above refuses for D-1. It stayed invisible while
-  no fixture carried a `fuselage_height`; T-8a gave three of them a published
-  fuselage outline, and all three are **high-wing**, so their wing root already
-  sits near the body top and the branch stacks half a body height above it
-  (`atr42_100` 170 → 223.15 in, and the fin's roll arm with it — `cessna_210`'s
-  `p_dot` moved by a factor of 2.6). The fix is a real body-centre datum, note 24
-  R-4's `FuselageSection.z_centre`; it is a backlog row, and until it lands the
-  three pinned values are the formula's output, not a claim about those airplanes.
+  **The fuselage-top branch has a body datum (2026-08-16, closing the T-8a
+  finding).** With a fuselage outline present the branch is
+  `z_centre(x_fin) + height(x_fin)/2` — the section-centre line
+  (`derived_geometry.fuselage_centreline`, note 24 R-4, itself defaulted from
+  the body-drag waterline and marked assumed) plus half the **local** body
+  height, both at the fin's `xv25` — so the fin sits on the tail cone's own
+  top. The formula it replaced, `root_waterline_z + fuselage_height/2`, read
+  the **wing** root as the body centreline (the substitution the body-drag row
+  of the table above refuses for D-1) and on the three high-wing outline
+  fixtures stacked half a body above the real top (`atr42_100` 223.15 →
+  191.17 in; `cessna_210`'s lateral `p_dot` came down ~24 %). It survives
+  only as the no-outline fallback, and its note now names the substitution it
+  makes. A pointed tail cone (zero local height at `x_fin`) states no top, so
+  the outline branch declines and the fallback answers.
 * **A v-tail station stores its root in `z` and its span in `y`.** The airplane
   waterline is composed by `export/coordinates.tail_station_to_airplane`, which
   is the only place the two are added. Reading a fin station's `z` as its

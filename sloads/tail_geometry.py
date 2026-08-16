@@ -64,6 +64,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import List, Optional, Tuple
 
+from .derived_geometry import (FuselageCentreline, fuselage_centreline,
+                               fuselage_height_at)
 from .models import LayoutInput, Project, SurfaceInput, TailType
 
 #: Component names, which are also the ``geometry.surfaces`` entry names (T-1).
@@ -236,7 +238,9 @@ class FinRoot:
 
 
 def fin_root_waterline(layout: Optional["LayoutInput"], vtail_span_in: float = 0.0,
-                       explicit: float = 0.0) -> FinRoot:
+                       explicit: float = 0.0,
+                       centreline: Optional[FuselageCentreline] = None,
+                       outline=None, x_fin: float = 0.0) -> FinRoot:
     """Waterline of the vertical-tail root (in) -- **the single owner** (L-1).
 
     Design note: ``docs/30_future/13_b8a_lateral_closure_plan.md`` §5.1, decision
@@ -254,6 +258,7 @@ def fin_root_waterline(layout: Optional["LayoutInput"], vtail_span_in: float = 0
 
         explicit input           -> use it                            (assumed False)
         T-tail with h_tail_z set -> root_waterline_z + h_tail_z - span (assumed True)
+        fuselage outline present -> z_centre(x_fin) + height(x_fin)/2
         otherwise                -> root_waterline_z + fuselage_height/2
         no layout / no data      -> 0.0, with a loud note
 
@@ -264,11 +269,19 @@ def fin_root_waterline(layout: Optional["LayoutInput"], vtail_span_in: float = 0
     tip and the horizontal tail in contact; the fuselage-top formula does not
     (on ``concept_regional_jet`` it leaves them 18 in apart).
 
-    The fallback is ``fuselage_height / 2`` above the root waterline rather than
-    the full height because that is the established meaning of "the top of the
-    fuselage" in this suite -- ``configuration.tail_planform`` has drawn every fin
-    from it since Step G6, and a load path that used a different one would
-    silently disagree with the three-view beside it.
+    The outline branch is the fuselage-top formula with a real body datum
+    (backlog Pri 1, from T-8a): the section-centre line
+    (:func:`~sloads.derived_geometry.fuselage_centreline`, note 24 R-4) plus half
+    the **local** body height at the fin station, both evaluated at ``x_fin``
+    (the fin's 25 %-MAC station ``xv25``). It fires only when the local height is
+    non-zero -- a pointed tail cone at ``x_fin`` states no top to sit on.
+
+    The layout fallback is the branch the outline datum replaces, retained for a
+    project with no fuselage outline: ``fuselage_height / 2`` above
+    ``root_waterline_z``, which reads the **wing** root as the body centreline --
+    the substitution ``CONVENTIONS.md``'s body-drag row refuses for D-1, and on a
+    high-wing airplane it stacks half a body above the real top. Its note says
+    so.
     """
     if explicit:
         return FinRoot(explicit, False, "entered")
@@ -283,13 +296,26 @@ def fin_root_waterline(layout: Optional["LayoutInput"], vtail_span_in: float = 0
             f"{layout.h_tail_z:.1f} - fin span {vtail_span_in:.1f}), which puts "
             "the fin tip at the horizontal tail. Enter "
             "vtail_root_waterline_z to state it."))
+    if centreline is not None:
+        height = fuselage_height_at(outline, x_fin)
+        if height:
+            z_c = centreline.z_at(x_fin)
+            z = z_c + height / 2.0
+            note = (
+                f"vtail root waterline {z:.1f} in ASSUMED as the local fuselage "
+                f"top (z_centre {z_c:.1f} + height {height:.1f} / 2 at FS "
+                f"{x_fin:.1f}). Enter vtail_root_waterline_z to state it.")
+            if centreline.assumed and centreline.note:
+                note += " " + centreline.note
+            return FinRoot(z, True, "fuselage-top", note)
     if layout.root_waterline_z or layout.fuselage_height:
         z = layout.root_waterline_z + layout.fuselage_height / 2.0
         return FinRoot(z, True, "fuselage-top", (
             f"vtail root waterline {z:.1f} in ASSUMED as the fuselage top "
             f"(root_waterline_z {layout.root_waterline_z:.1f} + fuselage_height "
-            f"{layout.fuselage_height:.1f} / 2). Enter vtail_root_waterline_z to "
-            "state it."))
+            f"{layout.fuselage_height:.1f} / 2) -- with no fuselage outline the "
+            "WING root stands in for the body centreline. Enter "
+            "vtail_root_waterline_z or a fuselage outline to state it."))
     return FinRoot(0.0, True, "none", _FIN_ROOT_UNKNOWN)
 
 
@@ -302,14 +328,22 @@ _FIN_ROOT_UNKNOWN = (
     "Its roll arm about the CG is therefore wrong, and may be wrong in sign.")
 
 
-def _fin_root_z(project: Project) -> FinRoot:
-    """The fin root for this project, from the single owner above."""
+def fin_root(project: Project) -> FinRoot:
+    """The fin root for this project, from the single owner above.
+
+    The project-level entry point: resolves the outline datum (the section-centre
+    line and the fin station ``xv25``) once, so :func:`resolve_tail_planform` and
+    ``configuration.tail_planform`` cannot feed the owner different bodies.
+    """
     geometry = project.geometry
     vt = project.vtail_loads
     return fin_root_waterline(
         geometry.parametric if geometry is not None else None,
         vt.vtail_span_in if vt is not None else 0.0,
-        vt.vtail_root_waterline_z if vt is not None else 0.0)
+        vt.vtail_root_waterline_z if vt is not None else 0.0,
+        centreline=fuselage_centreline(project),
+        outline=geometry.fuselage if geometry is not None else None,
+        x_fin=vt.xv25 if vt is not None else 0.0)
 
 
 def resolve_tail_planform(project: Project,
@@ -333,8 +367,8 @@ def resolve_tail_planform(project: Project,
     # The fin root is a property of the *surface's placement*, not of how its
     # planform was obtained, so it is resolved once here and applies equally to an
     # entered polyline and a derived rectangle (L-1).
-    fin_root = _fin_root_z(project) if component == VTAIL else FinRoot(0.0, False, "n/a")
-    root_notes = [fin_root.note] if fin_root.note else []
+    root = fin_root(project) if component == VTAIL else FinRoot(0.0, False, "n/a")
+    root_notes = [root.note] if root.note else []
 
     if surf is not None:
         validate_tail_planform(surf, component, area_sqft, span_in)
@@ -348,9 +382,9 @@ def resolve_tail_planform(project: Project,
             elements=surf.elements,
             ref_axis_pct=surf.ref_axis,
             assumed=False,
-            root_z=fin_root.z,
-            root_z_assumed=fin_root.assumed,
-            root_z_basis=fin_root.basis,
+            root_z=root.z,
+            root_z_assumed=root.assumed,
+            root_z_basis=root.basis,
             notes=root_notes,
         )
 
@@ -378,9 +412,9 @@ def resolve_tail_planform(project: Project,
         elements=_derived_elements(project, component),
         ref_axis_pct=_derived_ref_axis(project),
         assumed=True,
-        root_z=fin_root.z,
-        root_z_assumed=fin_root.assumed,
-        root_z_basis=fin_root.basis,
+        root_z=root.z,
+        root_z_assumed=root.assumed,
+        root_z_basis=root.basis,
         notes=notes,
     )
 
@@ -434,6 +468,7 @@ __all__ = [
     "TAIL_COMPONENTS",
     "PLANFORM_TOLERANCE",
     "TailPlanform",
+    "fin_root",
     "fin_root_waterline",
     "half_area_centroid",
     "is_t_tail",

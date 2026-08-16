@@ -98,7 +98,7 @@ traceability with plans 09/11/12/13; the **Pri** column is ordinal only.
   first-order effect on shipped content rank above every [V] item regardless
   of mission trace.
 - *2026-08-16 — schema freeze through 0.6.0.* `SCHEMA_VERSION` moves once more
-  before the cut (Pri 7's one additive field); no other hop. v47 → v52 in nine
+  before the cut (Pri 6's one additive field); no other hop. v47 → v52 in nine
   days is the churn the freeze answers.
 
 > **Removal rule (hard requirement, restating the lifecycle rule).** Once a
@@ -109,29 +109,28 @@ traceability with plans 09/11/12/13; the **Pri** column is ordinal only.
 | Pri | Item (detail below / in its plan) | What ships | Tag | Tier / effort | Depends on |
 |---|---|---|---|---|---|
 | **A — 0.6.0: defects in shipped output, contract gaps, and the cost-of-change fixes (review §1, §5.1)** ||||||
-| 1 | Fin-root "fuselage-top" formula has no body-centreline datum *(defect, from T-8a)* | `z_centre(x_fin) + height(x_fin)/2` — a fin root that is not the wing root plus half a body; un-pins three fin roots and twelve lateral cases | E | M / S | — (`z_centre` shipped v52) |
-| 2 | `atr42_100`/`dhc8_dash8` are modelled as conventional tails and are **T-tails** *(defect, from T-8a)* | Both fin decks gain the T7 tip transfer; the h-tail attaches at the fin tip. **Same digest wave as Pri 1**, carrying the structural negative-zero normalisation (`-0.000000E+00`, ~2,000 per balanced deck; tail span CSV `Fax`) so cosmetics never get a wave of their own | E | M / S–M | Pri 1 |
-| 3 | Fixture aero-data quality — the `NMAA` `dCD` sign *(defect)* | A one-sided trusted-α window (clamp or flag) so no shipped balanced deck carries a positive `dCD`; **not** a re-derivation of the polars | E | M / S–M | — (recorded per fixture in `test_balance.py`) |
-| 4 | L-8i — per-page LIMIT CSV units | Converted, unit-suffixed analysis-page downloads (four pages) — Imperial-in-SI is a units defect | E | S / S | — |
-| 5 | M4-3(b) — turboprop gate as **enforcement** | Refuse (or caption) `one_engine_out` when the failed engine is not a propeller installation — `PROPELLER_ONLY_NOTE` becomes a gate, not a sentence; (a)/(c) parked | E | S / S | — |
-| 6 | Hygiene batch *(one session)*: conventions findings (a)–(d); M4-23 duplicate sigma; **`RHO_SL`** for the seven `0.002378` literals (CH-6) and the stray lb→kg factor in `report/content.py` (CH-7); the three export silent defaults (CH-2: `sbeam_bridge.py` `hand`, `tip_transfer`, empty condition); direct tests for `coordinates.py`'s three tail transforms (CH-3); verify-and-retire the 427 lb fuselage-mass pin | Guards that are claimed to exist, exist; the D-19 failure class closed in the export namespace; one authority for σ and ρ₀ | E | S / S | — |
-| 7 | Wing-tank fuel separability | Ends the same pounds riding both beams on the three fuel-in-wing fixtures — a `wing_fraction` on `MassItem` (or a second row) + the tie validator; **the freeze's one schema hop**; **not** plan 12 C1 | E | L / M | after Pri 1–6 |
-| 8 | Step 14 **descoped** — `PBAR`/`MAT1` pass-through per LRA element family (was "real stiffness", L-1) | Consumer-supplied section properties written in place of the `_MAT1_E` placeholder; no physics, no gate beyond "the deck still solves"; the indeterminate-path half is parked | E | S / S | — |
-| — | **Cut 0.6.0** when Pri 1–8 are closed (RELEASE_PROCESS §2 cadence rule; `[Unreleased]` already holds two unreleased schema hops) | | | | |
+| 1 | `atr42_100`/`dhc8_dash8` are modelled as conventional tails and are **T-tails** *(defect, from T-8a)* | Both fin decks gain the T7 tip transfer; the h-tail attaches at the fin tip. Its digest wave carries the structural negative-zero normalisation (`-0.000000E+00`, ~2,000 per balanced deck; tail span CSV `Fax`) so cosmetics never get a wave of their own | E | M / S–M | — (fin-root datum closed 2026-08-16) |
+| 2 | Fixture aero-data quality — the `NMAA` `dCD` sign *(defect)* | A one-sided trusted-α window (clamp or flag) so no shipped balanced deck carries a positive `dCD`; **not** a re-derivation of the polars | E | M / S–M | — (recorded per fixture in `test_balance.py`) |
+| 3 | L-8i — per-page LIMIT CSV units | Converted, unit-suffixed analysis-page downloads (four pages) — Imperial-in-SI is a units defect | E | S / S | — |
+| 4 | M4-3(b) — turboprop gate as **enforcement** | Refuse (or caption) `one_engine_out` when the failed engine is not a propeller installation — `PROPELLER_ONLY_NOTE` becomes a gate, not a sentence; (a)/(c) parked | E | S / S | — |
+| 5 | Hygiene batch *(one session)*: conventions findings (a)–(d); M4-23 duplicate sigma; **`RHO_SL`** for the seven `0.002378` literals (CH-6) and the stray lb→kg factor in `report/content.py` (CH-7); the three export silent defaults (CH-2: `sbeam_bridge.py` `hand`, `tip_transfer`, empty condition); direct tests for `coordinates.py`'s three tail transforms (CH-3); verify-and-retire the 427 lb fuselage-mass pin | Guards that are claimed to exist, exist; the D-19 failure class closed in the export namespace; one authority for σ and ρ₀ | E | S / S | — |
+| 6 | Wing-tank fuel separability | Ends the same pounds riding both beams on the three fuel-in-wing fixtures — a `wing_fraction` on `MassItem` (or a second row) + the tie validator; **the freeze's one schema hop**; **not** plan 12 C1 | E | L / M | after Pri 1–5 |
+| 7 | Step 14 **descoped** — `PBAR`/`MAT1` pass-through per LRA element family (was "real stiffness", L-1) | Consumer-supplied section properties written in place of the `_MAT1_E` placeholder; no physics, no gate beyond "the deck still solves"; the indeterminate-path half is parked | E | S / S | — |
+| — | **Cut 0.6.0** when Pri 1–7 are closed (RELEASE_PROCESS §2 cadence rule; `[Unreleased]` already holds two unreleased schema hops) | | | | |
 | **B — 0.7+: capability the base method is missing at first order, fixture data, and report polish (review §2.1)** ||||||
-| 9 | Lateral body aero `Cy_β`/`Cn_β` (L-7) — design note in [`19_l7_lateral_body_aero_note.md`](19_l7_lateral_body_aero_note.md) (**proposed, awaiting agreement**) | Honest lateral `n_y`/`ψ̈` (today `ψ̈` over-stated 73–84 %, `n_y` under-stated 4–12 % — a missing term of the order of the one kept, not a refinement); DATCOM 5.2.3.1/5.2.1.1 makes it an **oracle** step | V | L / M | — |
-| 10 | Fixture-data pass: empennage planform polylines **+** the WTENV envelopes entered independently of the item database (four fixtures) | Real taper in the tail card distributions instead of the `assumed` rectangle; CG limits derived from (or reconciled with) each fixture's own loading extremes | V | S / S | — |
-| 11 | Thrust `FORCE` at the engine hub *(carved out of note 21; the seven-step wake plan is parked)* | One user-entered thrust per engine as a card on the LRA hub node the skeleton already has — what a wing with a wing-mounted engine needs from a loads tool | V | S / S | — |
-| 12 | Combined flight + ground station envelope *(from step 10 decision G-9)* | Two-sided max/min per station over both families, each extreme naming its governing case | V | M / M | — |
-| 13 | Gust spanwise-distribution decision | Study + recorded decision (Schrenk shape reused) | V | S / S | — |
-| 14 | Decisions, not effort: derived-`ACRL` air-load divergence (which point `ACRL` names); ATR-42 Mach-capped stall exceedance (`_balance` reports an infeasible corner rather than an unconverged point) | Two recorded decisions; each is pinned by test today | V | S / S | — |
-| 15 | The aileron's own lift increment is not distributed | `ACRL` wing cards gain the aero half of the couple (~70 % span); the schema fields shipped v52 and wait for data and a consumer | V | L / M | only if a consumer sizes to `ACRL` |
+| 8 | Lateral body aero `Cy_β`/`Cn_β` (L-7) — design note in [`19_l7_lateral_body_aero_note.md`](19_l7_lateral_body_aero_note.md) (**proposed, awaiting agreement**) | Honest lateral `n_y`/`ψ̈` (today `ψ̈` over-stated 73–84 %, `n_y` under-stated 4–12 % — a missing term of the order of the one kept, not a refinement); DATCOM 5.2.3.1/5.2.1.1 makes it an **oracle** step | V | L / M | — |
+| 9 | Fixture-data pass: empennage planform polylines **+** the WTENV envelopes entered independently of the item database (four fixtures) | Real taper in the tail card distributions instead of the `assumed` rectangle; CG limits derived from (or reconciled with) each fixture's own loading extremes | V | S / S | — |
+| 10 | Thrust `FORCE` at the engine hub *(carved out of note 21; the seven-step wake plan is parked)* | One user-entered thrust per engine as a card on the LRA hub node the skeleton already has — what a wing with a wing-mounted engine needs from a loads tool | V | S / S | — |
+| 11 | Combined flight + ground station envelope *(from step 10 decision G-9)* | Two-sided max/min per station over both families, each extreme naming its governing case | V | M / M | — |
+| 12 | Gust spanwise-distribution decision | Study + recorded decision (Schrenk shape reused) | V | S / S | — |
+| 13 | Decisions, not effort: derived-`ACRL` air-load divergence (which point `ACRL` names); ATR-42 Mach-capped stall exceedance (`_balance` reports an infeasible corner rather than an unconverged point) | Two recorded decisions; each is pinned by test today | V | S / S | — |
+| 14 | The aileron's own lift increment is not distributed | `ACRL` wing cards gain the aero half of the couple (~70 % span); the schema fields shipped v52 and wait for data and a consumer | V | L / M | only if a consumer sizes to `ACRL` |
 | **C — maintenance and hygiene, when the module is next touched (review §5.2)** ||||||
-| 16 | Export deck-writing primitives out of `sbeam_bridge.py` (CH-4) | `_fmt`/`_sf_str`/`_stamped`/`_MAT1_*`/`_PBAR_*` in a shared module; the four private cross-imports gone | V | S / S | — |
-| 17 | Dead code (CH-5) | Delete `write_balanced_deck`, `write_conm2_fragment`, `write_mass_check_deck`, `all_checks`; demote the ~12 no-consumer public names | V | S / S | — |
-| 18 | Calc-side function size (CH-8) — `build_lra_model` (336 lines), `landing_reactions` (200) | Split when touched; **the view functions are under the GUI freeze and are not worked** | V | S / S | — |
-| 19 | Review 2026-08-10 unscheduled findings m3–m13, m15–m18 + NITs *(defect sweep)* | Swept opportunistically (practice 4) or promoted individually | V | S / S–M | — |
-| 20 | Split `40_history/00_completed_development.md` by era | Mechanical split + index file | V | S / S | after the working tree is committed |
+| 15 | Export deck-writing primitives out of `sbeam_bridge.py` (CH-4) | `_fmt`/`_sf_str`/`_stamped`/`_MAT1_*`/`_PBAR_*` in a shared module; the four private cross-imports gone | V | S / S | — |
+| 16 | Dead code (CH-5) | Delete `write_balanced_deck`, `write_conm2_fragment`, `write_mass_check_deck`, `all_checks`; demote the ~12 no-consumer public names | V | S / S | — |
+| 17 | Calc-side function size (CH-8) — `build_lra_model` (336 lines), `landing_reactions` (200) | Split when touched; **the view functions are under the GUI freeze and are not worked** | V | S / S | — |
+| 18 | Review 2026-08-10 unscheduled findings m3–m13, m15–m18 + NITs *(defect sweep)* | Swept opportunistically (practice 4) or promoted individually | V | S / S–M | — |
+| 19 | Split `40_history/00_completed_development.md` by era | Mechanical split + index file | V | S / S | after the working tree is committed |
 
 **Frozen (review §3) — no further investment; tests and gates kept; touched
 for defects only:** the FAR 23 core; the balanced assembler + handedness;
@@ -308,30 +307,6 @@ airplanes' tails (validated against the scalars to 1 %, which is already
 enforced). The code path is shipped and tested against a tapered *and* swept
 planform. Tier S per fixture. Effort: S.
 
-### [V] The fin-root "fuselage-top" formula has no body-centreline datum *(new 2026-08-15, from T-8a)*
-`tail_geometry.fin_root_waterline`'s third branch is
-`root_waterline_z + fuselage_height/2`, which reads `root_waterline_z` as the
-**body centreline**. It is the **wing** root — the same substitution
-`CONVENTIONS.md`'s body-drag row already refuses for D-1, and for the same
-reason. The error stayed invisible while no fixture carried a `fuselage_height`
-(the branch silently returned `root_waterline_z`); T-8a gave `atr42_100`,
-`dhc8_dash8` and `cessna_210` a published fuselage outline, and since all three
-are **high-wing** their wing root already sits near the body top, so the branch
-now stacks half a body height above it: `atr42_100` 170 → 223.15 in,
-`dhc8_dash8` 180 → 232.95, `cessna_210` 86 → 109.60. That is the fin's **roll
-arm**, so it is first-order: `cessna_210`'s lateral `p_dot` moved by a factor of
-2.6 (−28.99 → −74.59 deg/s²). The three fin roots and twelve lateral cases are
-pinned to the formula's output, and the pins say so.
-
-The fix is the datum the suite has never had: **note 24 R-4's
-`FuselageSection.z_centre`** (waterline per section, defaulted from
-`body_drag_waterline` and marked assumed) — **shipped v52 with step 12**
-(`derived_geometry.fuselage_centreline` is its owner) — after which the branch
-becomes `z_centre(x_fin) + height(x_fin)/2` and needs no wing quantity at all.
-What remains is the formula change and its pin wave. Until then a project that
-knows its fin root should enter `vtail_root_waterline_z`, which wins outright.
-Tier M. Effort: S.
-
 ### [V] `atr42_100` and `dhc8_dash8` are modelled as conventional tails, and are T-tails *(new 2026-08-15, from T-8a)*
 Both fixtures set `tail_type: conventional` with `h_tail_z: 0`, and both real
 types have the horizontal tail **on top of the fin** — the fixtures' own
@@ -345,8 +320,9 @@ fixture exercising either.
 
 Not swept with T-8a deliberately: flipping `tail_type` switches on the T7
 transfer, moves both fin decks and their lateral cases, and needs the fin root
-those airplanes actually have (the row above) — the two are one change. Fixture
-data plus a digest wave. Tier M. Effort: S–M. Depends on the fin-root datum row.
+those airplanes actually have — supplied by the fin-root body datum (closed
+2026-08-16: the fuselage-top branch is now `z_centre(xv25) + height(xv25)/2`).
+Fixture data plus a digest wave. Tier M. Effort: S–M.
 
 ### [E] Step 14 — **descoped 2026-08-16** to a `PBAR`/`MAT1` pass-through (was L-1 "real stiffness")
 The original item: real/parametric section properties replacing the
@@ -407,13 +383,6 @@ still leaves the tool, so it owes a unit statement. The work is per-page: conver
 the rows with the page's existing display helper and give the headers
 unit-suffixed names, the same shape M4-20 step 4 applied to the sbeam CSVs. Found
 while implementing M4-20 step 6; pairs with **L-8a** (parked).
-
-### [V] Split `40_history/00_completed_development.md` by era *(new 2026-08-05, R11)*
-6,038 lines and the third-most-churned file in the repo. Split by era/area with
-an index file (the sbeam `40_history` layout is the template); with the tiered
-closure rule, S-tier items become one-line entries. Deferred from the 2026-08-05
-process-doc session because the file carries uncommitted in-flight changes.
-Mechanical (S); do after the current working tree is committed.
 
 ---
 

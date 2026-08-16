@@ -57,9 +57,12 @@ defer closure.**
 
 | Tier | Applies to | Required closure |
 |------|-----------|------------------|
-| **S** | Small fix, hygiene, docs, display-only | `CHANGELOG.md` entry + backlog removal + a **one-line** entry in `docs/40_history/00_completed_development.md` |
-| **M** | Behavior change to an existing capability | Tier S + the affected `PROGRAM_SPEC.md` / standard-doc section(s) |
-| **L** | New module, new load case, new physics, schema/contract change | Tier S + affected standard docs + `theory_sources.md` citation + **full step format** in the history file |
+| **S** | Small fix, hygiene, docs, display-only | one `changes/<slug>.<type>.md` fragment (see `changes/README.md`) + backlog removal. **No history entry.** |
+| **M** | Behavior change to an existing capability | Tier S + the affected `PROGRAM_SPEC.md` / standard-doc section(s) + a **one-paragraph** entry in `docs/40_history/00_completed_development.md` |
+| **L** | New module, new load case, new physics, schema/contract change | Tier M + `theory_sources.md` citation + **full step format** in the history file |
+
+`CHANGELOG.md` `[Unreleased]` is never hand-edited: fragments are assembled at release cut
+by `scripts/build_changelog.py` (`RELEASE_PROCESS.md` §4). Design note 26 (2026-08-16).
 
 Additional rules (2026-08-05 process review — rationale in
 `docs/50_reviews/2026-08-05_development_process_review.md`):

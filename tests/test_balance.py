@@ -1744,29 +1744,32 @@ _LATERAL_CASE_NUMBERS = {
         'YAW 15 NEUTRAL': (-525.7482, -0.154632, -151.9110, +11.7518),
         'YAW TO SIDESLIP': (-97.7614, -0.028753, -19.4378, +3.2401),
     },
-    # The three fixtures that gained a published fuselage outline (T-8a). Their
-    # fin roots moved up by fuselage_height/2 when the "fuselage-top" branch of
-    # fin_root_waterline finally reached a body height, so the fin's roll arm
-    # (z - z_cg) grew and p_dot with it -- cessna_210 by a factor of 2.6. The fin
-    # LOAD and Ny are untouched, which is the check that this moved a lever arm
-    # and not the aerodynamics.
+    # The three fixtures with a published fuselage outline (T-8a). Backlog Pri 1
+    # gave the "fuselage-top" branch of fin_root_waterline its body datum --
+    # z_centre(xv25) + height(xv25)/2 in place of the wing root plus half the
+    # *maximum* body height -- which on these high-wing types brought the fin
+    # root back DOWN (atr42 223.15 -> 191.17 in; see test_tail_geometry's
+    # _FIN_ROOT), so the fin's roll arm (z - z_cg) shrank and p_dot with it;
+    # r_dot moves a little through the Ixz coupling. The fin LOAD and Ny are
+    # untouched, which is the check that this moved a lever arm and not the
+    # aerodynamics.
     'cessna_210.project.json': {
-        'SIDE GUST': (555.6917, +0.146235, +145.4685, -74.5896),
-        'SUDDEN RUDDER': (553.0771, +0.145547, +130.6632, -72.8190),
-        'YAW 15 NEUTRAL': (-529.0104, -0.139213, -118.1649, +70.2656),
-        'YAW TO SIDESLIP': (-134.6364, -0.035431, -22.9512, +18.5263),
+        'SIDE GUST': (555.6917, +0.146235, +146.1228, -56.4964),
+        'SUDDEN RUDDER': (553.0771, +0.145547, +131.3087, -54.9146),
+        'YAW 15 NEUTRAL': (-529.0104, -0.139213, -118.7823, +53.1403),
+        'YAW TO SIDESLIP': (-134.6364, -0.035431, -23.1083, +14.1678),
     },
     'atr42_100.project.json': {
-        'SIDE GUST': (4138.8275, +0.112416, +50.0564, -34.9083),
-        'SUDDEN RUDDER': (4287.7974, +0.122508, +62.4209, -34.5055),
-        'YAW 15 NEUTRAL': (-4877.7730, -0.139365, -67.6308, +39.3912),
-        'YAW TO SIDESLIP': (-2053.3076, -0.058666, -25.4992, +16.7030),
+        'SIDE GUST': (4138.8275, +0.112416, +50.1212, -27.3191),
+        'SUDDEN RUDDER': (4287.7974, +0.122508, +62.6132, -26.6071),
+        'YAW 15 NEUTRAL': (-4877.7730, -0.139365, -67.8496, +30.4060),
+        'YAW TO SIDESLIP': (-2053.3076, -0.058666, -25.5913, +12.9207),
     },
     'dhc8_dash8.project.json': {
-        'SIDE GUST': (4525.7434, +0.131181, +38.1390, -27.2961),
-        'SUDDEN RUDDER': (3491.2596, +0.106441, +35.7562, -20.2010),
-        'YAW 15 NEUTRAL': (-3936.8172, -0.120025, -38.2765, +22.8582),
-        'YAW TO SIDESLIP': (-1626.6027, -0.049592, -14.0033, +9.5146),
+        'SIDE GUST': (4525.7434, +0.131181, +38.1955, -22.1085),
+        'SUDDEN RUDDER': (3491.2596, +0.106441, +35.8558, -16.1868),
+        'YAW 15 NEUTRAL': (-3936.8172, -0.120025, -38.3889, +18.3316),
+        'YAW TO SIDESLIP': (-1626.6027, -0.049592, -14.0497, +7.6443),
     },
     'concept_regional_jet.project.json': {
         'SIDE GUST': (7079.6223, +0.214534, +51.7769, -65.2668),

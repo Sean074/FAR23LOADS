@@ -427,7 +427,7 @@ def _three_view() -> go.Figure:
     # --- Tail panels + elevator/rudder (Step G6: from the single-source ---
     # --- empennage; control surfaces shaded distinctly).                 ---
     _emp = project.geometry.empennage if project.geometry is not None else None
-    for name, panel in tail_planform(layout, _emp).items():
+    for name, panel in tail_planform(layout, _emp, project).items():
         ctrl = name.startswith(("elevator", "rudder"))
         color = "#d62728" if ctrl else "#ff7f0e"
         fill = "toself" if ctrl else None

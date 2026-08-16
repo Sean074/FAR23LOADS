@@ -48,7 +48,7 @@ from ..models import (
     Vec3,
 )
 from ..registry import register
-from ..tail_geometry import fin_root_waterline
+from ..tail_geometry import fin_root, fin_root_waterline
 from .wing_geometry import surface_properties
 
 _FAR = "configuration"  # modern addition; no FAR condition / no .BAS oracle
@@ -163,7 +163,8 @@ def _hinge_fraction(aft_hinge_sqft: float, area_sqft: float) -> float:
 
 
 def tail_planform(layout: LayoutInput,
-                  empennage: Optional["EmpennageInput"] = None) -> Dict[str, Dict[str, List[Tuple[float, float]]]]:
+                  empennage: Optional["EmpennageInput"] = None,
+                  project: Optional[Project] = None) -> Dict[str, Dict[str, List[Tuple[float, float]]]]:
     """Tail-surface sketch polylines for the three-view, keyed by panel name.
 
     Each panel maps to ``{"top": [(x, y), ...], "side": [(x, z), ...], "front":
@@ -180,11 +181,13 @@ def tail_planform(layout: LayoutInput,
     (``elevator``/``rudder`` panels) so the movable surfaces come from the same data
     the loads use. Returns ``{}`` when no empennage/tail geometry is present.
 
-    The vertical-tail root and (for ``T_TAIL``/``CRUCIFORM``) the implied
-    horizontal-tail height are referenced from the top of the fuselage
-    (``root_waterline_z + fuselage_height / 2``). ``layout.h_tail_z`` is a further
-    user offset; if left at ``0`` for ``T_TAIL``/``CRUCIFORM`` a sensible default
-    (top of fin / mid-fin) is used instead of the fuselage centreline.
+    The vertical-tail root comes from ``tail_geometry``'s single owner -- with
+    ``project`` given, the full resolution order including the fuselage-outline
+    datum ``z_centre(x_fin) + height(x_fin)/2`` (backlog Pri 1); layout-only,
+    the ``root_waterline_z + fuselage_height / 2`` fallback. ``layout.h_tail_z``
+    is a further user offset; if left at ``0`` for ``T_TAIL``/``CRUCIFORM`` a
+    sensible default (top of fin / mid-fin) is used instead of the fuselage
+    centreline.
     """
     ht = empennage.htail if empennage is not None else None
     vt = empennage.vtail if empennage is not None else None
@@ -196,9 +199,15 @@ def tail_planform(layout: LayoutInput,
         return {}
 
     # One owner for where the fin's root sits (plan 13 L-1): the sketch and the
-    # load deck read the same function, so they cannot place one fin twice.
-    fin_root_z = fin_root_waterline(
-        layout, v_span_in, vt.vtail_root_waterline_z if vt is not None else 0.0).z
+    # load deck read the same function, so they cannot place one fin twice. With
+    # the project in hand the project-level resolver supplies the fuselage
+    # outline datum too (backlog Pri 1); layout-only callers get the same
+    # resolution order minus the outline branch.
+    if project is not None:
+        fin_root_z = fin_root(project).z
+    else:
+        fin_root_z = fin_root_waterline(
+            layout, v_span_in, vt.vtail_root_waterline_z if vt is not None else 0.0).z
     panels: Dict[str, Dict[str, List[Tuple[float, float]]]] = {}
 
     if layout.tail_type == TailType.V_TAIL:

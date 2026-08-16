@@ -249,23 +249,26 @@ def test_every_fixture_still_loads_and_round_trips(example):
 #: every fin sat at ``z = 0``, which put ``ga6_normal``'s **below its own CG**
 #: and reversed the sign of the roll moment a side load makes.
 #:
-#: T-8a moved three of them. The "fuselage-top" branch is
-#: ``root_waterline_z + fuselage_height/2``, and until the three real types
-#: gained a published fuselage outline no fixture had a height at all -- so the
-#: branch silently degraded to the wing root waterline on every one of them. It
-#: now fires as written. **Filed limitation:** the formula reads
-#: ``root_waterline_z`` as the body *centreline*, and it is the WING root
-#: (``inputs.py`` D-1 warns against exactly this substitution); all three of
-#: these types are high-wing, so their wing root already sits near the body top
-#: and the branch stacks half a body height above it. The fix is a real body
-#: centre datum -- note 24 R-4's ``FuselageSection.z_centre`` -- and it is a
-#: filed backlog row, not a silent re-pin here.
+#: T-8a moved three of them, and backlog Pri 1 moved the same three again by
+#: giving the "fuselage-top" branch its body datum. The branch is now
+#: ``z_centre(x_fin) + height(x_fin)/2`` -- the section-centre line
+#: (``derived_geometry.fuselage_centreline``, note 24 R-4; defaulted from the
+#: body-drag waterline and marked assumed on all three, since no fixture enters
+#: ``z_centre``) plus half the **local** body height at the fin's ``xv25``.
+#: The formula it replaced, ``root_waterline_z + fuselage_height/2``, read the
+#: WING root as the body centreline (the substitution D-1 refuses), and on
+#: these three high-wing types stacked half a body above the real top:
+#: ``atr42_100`` 223.15 -> 191.17, ``dhc8_dash8`` 232.95 -> 203.45,
+#: ``cessna_210`` 109.60 -> 100.24. That formula survives only as the
+#: no-outline fallback, which is what still places ``ga6_normal`` (no fuselage
+#: outline, ``fuselage_height`` 0, so it degrades to the wing root waterline
+#: and says so).
 _FIN_ROOT = {
     "ga6_normal.project.json": (78.5, "fuselage-top"),
     "concept_regional_jet.project.json": (87.0, "t-tail"),
-    "cessna_210.project.json": (109.6, "fuselage-top"),
-    "atr42_100.project.json": (223.15, "fuselage-top"),
-    "dhc8_dash8.project.json": (232.95, "fuselage-top"),
+    "cessna_210.project.json": (100.2354943818504, "fuselage-top"),
+    "atr42_100.project.json": (191.1672210589451, "fuselage-top"),
+    "dhc8_dash8.project.json": (203.4541778899263, "fuselage-top"),
 }
 
 
@@ -303,6 +306,29 @@ def test_the_t_tail_branch_puts_the_fin_tip_at_the_horizontal_tail():
     assert fuselage_top - planform.root_z == pytest.approx(18.0)
 
 
+def test_the_outline_branch_states_its_datum_and_a_pointed_cone_falls_through():
+    """Backlog Pri 1: the fuselage-top branch is ``z_centre(xv25) + height(xv25)/2``
+    from the fuselage outline, and its note carries both the formula and the
+    defaulted-centreline provenance. Where the outline pinches to nothing at the
+    fin station (a pointed tail cone states no top to sit on) the branch declines
+    and the layout fallback answers -- naming the wing-root substitution it makes."""
+    project = _project("atr42_100.project.json")
+    planform = resolve_tail_planform(project, VTAIL)
+    note = next(n for n in planform.notes if "local fuselage top" in n)
+    assert "z_centre" in note and "fuselage centre line ASSUMED" in note
+
+    # Pinch the outline: zero height everywhere aft of the nose section.
+    for section in project.geometry.fuselage.sections[1:]:
+        section.height = 0.0
+    from sloads.derived_geometry import sync_geometry_derived
+    sync_geometry_derived(project)   # fuselage_height follows the outline
+    fallback = resolve_tail_planform(project, VTAIL)
+    layout = project.geometry.parametric
+    assert fallback.root_z == pytest.approx(
+        layout.root_waterline_z + layout.fuselage_height / 2.0)
+    assert any("WING root stands in" in n for n in fallback.notes)
+
+
 def test_a_fin_with_no_placement_at_all_says_so_loudly():
     """The floor of the resolution order. Silent zero is the defect B8a-1 fixed,
     so the zero that remains possible has to announce itself."""
@@ -325,7 +351,8 @@ def test_the_three_view_and_the_load_path_place_one_fin_once(example):
     from sloads.modules.configuration import tail_planform
 
     project = _project(example)
-    panels = tail_planform(project.geometry.parametric, project.geometry.empennage)
+    panels = tail_planform(project.geometry.parametric, project.geometry.empennage,
+                           project)
     sketch_root = min(z for _, z in panels["v_tail"]["side"])
     assert sketch_root == pytest.approx(
         resolve_tail_planform(project, VTAIL).root_z, rel=1e-9)

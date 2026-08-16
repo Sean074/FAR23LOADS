@@ -77,10 +77,10 @@ Per `CLAUDE.md`, every code change updates `docs/` in the same session. Check:
 - [ ] `docs/20_theory/00_theory_sources.md` — the module has a per-module equation-citation row.
 - [ ] `docs/30_future/00_backlog.md` — the ported module is **removed** from the backlog.
 - [ ] `docs/40_history/00_completed_development.md` — the module is **added** with its full step record.
-- [ ] `CHANGELOG.md` — an `[Unreleased]` entry exists.
+- [ ] `changes/` — a `<slug>.<type>.md` fragment exists (`CHANGELOG.md` `[Unreleased]` is never hand-edited; `changes/README.md`).
 
 The required depth follows the S/M/L closure tier in `CLAUDE.md` — a Tier-S change needs
-the changelog + backlog + one-line history entry, not the full sweep above.
+the fragment + backlog removal only (no history entry), not the full sweep above.
 **Raise as `[MAJOR]`** (blocking) if the closure tier was not completed; documentation
 drift blocks approval but is not the same severity class as a wrong load value.
 

@@ -6,12 +6,6 @@
       "runtimeExecutable": ".venv/bin/streamlit",
       "runtimeArgs": ["run", "app/Home.py", "--server.headless", "true", "--server.port", "8501", "--theme.base", "light"],
       "port": 8501
-    },
-    {
-      "name": "life-app",
-      "runtimeExecutable": "bash",
-      "runtimeArgs": ["-c", "cd /Users/seanomeara/Documents/Life && .venv/bin/uvicorn app.main:app --port 8000"],
-      "port": 8000
     }
   ]
 }

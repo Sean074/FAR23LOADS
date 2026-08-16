@@ -246,6 +246,12 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- **Documentation currency: `00_program_overview.md` §Version & phase** no longer
+  bakes in a schema number ("currently **15**"; the constant was 52) or the stale
+  `models.py` path — it points at `SCHEMA_VERSION` in `sloads/models/project.py`,
+  the same no-literal-numbers posture `README.md` already takes. Also removed an
+  unrelated project's dev-server entry (`life-app`) from `.claude/launch.json`.
+
 - **A part-full consumable row left the exported `CONM2` set entirely.** Overlay
   mass cards are matched by object identity and a fractional row is a scaled
   *copy*, so it matched no card and was silently dropped: the exported mass model

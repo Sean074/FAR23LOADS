@@ -291,8 +291,8 @@ Runtime (`pyproject.toml` `[project.dependencies]`): `streamlit>=1.30`,
 ## Version & phase
 
 Semantic versioning in `pyproject.toml`; `project.json` carries its own
-`schema_version` (`models.py`, currently **15**), bumped when the on-disk shape
-changes. **Status:** Phases 0–2 and Phase-C Steps **C0–C11** are complete — all 22
+`schema_version` (`SCHEMA_VERSION` in `sloads/models/project.py` — the constant is
+the current value; not repeated here), bumped when the on-disk shape changes. **Status:** Phases 0–2 and Phase-C Steps **C0–C11** are complete — all 22
 of Reference 1's programs are ported, plus the modern `configuration` and
 `body_loads` modules. The remaining deferred refinements and open decisions
 are in [`../30_future/00_backlog.md`](../30_future/00_backlog.md); the

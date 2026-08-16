@@ -147,31 +147,50 @@ def fuselage_summary(outline) -> Optional[tuple]:
     return length, width, height
 
 
-def fuselage_width_at(outline, x: float) -> Optional[float]:
-    """Body width (in) at fuselage station ``x``, or ``None`` without an outline.
+def _section_dim_at(outline, x: float, attr: str) -> Optional[float]:
+    """A section dimension at fuselage station ``x`` by clamped interpolation.
 
-    Linear interpolation between the bracketing sections of the same station-area
+    Linear interpolation between the bracketing sections of the same station
     table :func:`fuselage_summary` reduces to a maximum; clamped at both ends
     rather than extrapolated, for the same reason ``tail_geometry._interp`` clamps
     -- a station a rounding step outside the table must not produce a negative
     body.
+    """
+    if outline is None or len(getattr(outline, "sections", ())) < 2:
+        return None
+    sections = sorted(outline.sections, key=lambda s: s.x)
+    if x <= sections[0].x:
+        return getattr(sections[0], attr)
+    for a, b in zip(sections, sections[1:]):
+        if x <= b.x:
+            va, vb = getattr(a, attr), getattr(b, attr)
+            if b.x == a.x:
+                return vb
+            return va + (vb - va) * (x - a.x) / (b.x - a.x)
+    return getattr(sections[-1], attr)
+
+
+def fuselage_width_at(outline, x: float) -> Optional[float]:
+    """Body width (in) at fuselage station ``x``, or ``None`` without an outline.
 
     **The single owner of "how wide is the fuselage here".** ``fuselage_summary``
     answers the *maximum*, which is the right number for a three-view summary and
     the wrong one for any load path that attaches somewhere specific: the h-tail
     reacts into the tail cone, not into the widest frame (decision T-8a).
     """
-    if outline is None or len(getattr(outline, "sections", ())) < 2:
-        return None
-    sections = sorted(outline.sections, key=lambda s: s.x)
-    if x <= sections[0].x:
-        return sections[0].width
-    for a, b in zip(sections, sections[1:]):
-        if x <= b.x:
-            if b.x == a.x:
-                return b.width
-            return a.width + (b.width - a.width) * (x - a.x) / (b.x - a.x)
-    return sections[-1].width
+    return _section_dim_at(outline, x, "width")
+
+
+def fuselage_height_at(outline, x: float) -> Optional[float]:
+    """Body height (in) at fuselage station ``x``, or ``None`` without an outline.
+
+    **The single owner of "how tall is the fuselage here"** -- the height sibling
+    of :func:`fuselage_width_at`, added for the fin-root datum (backlog Pri 1,
+    from T-8a): the fin sits on the tail cone's local top,
+    ``z_centre(x_fin) + height(x_fin)/2``, not half the *maximum* body height
+    above the wing root.
+    """
+    return _section_dim_at(outline, x, "height")
 
 
 class SobStation(NamedTuple):
