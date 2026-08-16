@@ -478,9 +478,17 @@ class TailSpanResult:
     #: horizontal tail, whose inertia is the ``n_case`` (vertical) term alone.
     n_y: float = 0.0
     case_weight_lb: float = 0.0
-    #: Fuselage attachment span stations the full-span h-tail beam is reacted at
-    #: (decision T-8). Empty for the root-supported v-tail.
+    #: Attachment span stations the full-span h-tail beam is reacted at (decision
+    #: T-8): the fuselage-side pair on a conventional layout, the single fin-tip
+    #: joint on a T-tail. Empty for the root-supported v-tail.
     attachment_y: List[float] = field(default_factory=list)
+    #: Provenance of :attr:`attachment_y` (decision T-8a) — ``attachment_assumed``
+    #: False only when entered data alone fixes the stations, and
+    #: ``attachment_basis`` naming the branch that produced them. A structural
+    #: model gates on the basis: the innermost-strip-pair fallback is not a
+    #: fuselage dimension at all (note 24 BM-3).
+    attachment_assumed: bool = False
+    attachment_basis: str = ""
     rh_scale: float = 1.0
     lh_scale: float = 1.0
     planform_assumed: bool = False

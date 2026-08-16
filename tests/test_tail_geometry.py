@@ -248,12 +248,24 @@ def test_every_fixture_still_loads_and_round_trips(example):
 #: because the value is the lever arm of a first-order roll load: before B8a-1
 #: every fin sat at ``z = 0``, which put ``ga6_normal``'s **below its own CG**
 #: and reversed the sign of the roll moment a side load makes.
+#:
+#: T-8a moved three of them. The "fuselage-top" branch is
+#: ``root_waterline_z + fuselage_height/2``, and until the three real types
+#: gained a published fuselage outline no fixture had a height at all -- so the
+#: branch silently degraded to the wing root waterline on every one of them. It
+#: now fires as written. **Filed limitation:** the formula reads
+#: ``root_waterline_z`` as the body *centreline*, and it is the WING root
+#: (``inputs.py`` D-1 warns against exactly this substitution); all three of
+#: these types are high-wing, so their wing root already sits near the body top
+#: and the branch stacks half a body height above it. The fix is a real body
+#: centre datum -- note 24 R-4's ``FuselageSection.z_centre`` -- and it is a
+#: filed backlog row, not a silent re-pin here.
 _FIN_ROOT = {
     "ga6_normal.project.json": (78.5, "fuselage-top"),
     "concept_regional_jet.project.json": (87.0, "t-tail"),
-    "cessna_210.project.json": (86.0, "fuselage-top"),
-    "atr42_100.project.json": (170.0, "fuselage-top"),
-    "dhc8_dash8.project.json": (180.0, "fuselage-top"),
+    "cessna_210.project.json": (109.6, "fuselage-top"),
+    "atr42_100.project.json": (223.15, "fuselage-top"),
+    "dhc8_dash8.project.json": (232.95, "fuselage-top"),
 }
 
 

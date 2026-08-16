@@ -523,6 +523,25 @@
       "tail_type": "conventional",
       "h_tail_z": 0.0
     },
+    "fuselage": {
+      "sections": [
+        {
+          "x": 0.0,
+          "width": 0.0,
+          "height": 0.0
+        },
+        {
+          "x": 118.43999999999998,
+          "width": 47.2,
+          "height": 47.2
+        },
+        {
+          "x": 338.4,
+          "width": 4.720000000000001,
+          "height": 7.08
+        }
+      ]
+    },
     "empennage": {
       "htail": {
         "tail_incidence_deg": 1.5,

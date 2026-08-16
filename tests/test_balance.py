@@ -1744,23 +1744,29 @@ _LATERAL_CASE_NUMBERS = {
         'YAW 15 NEUTRAL': (-525.7482, -0.154632, -151.9110, +11.7518),
         'YAW TO SIDESLIP': (-97.7614, -0.028753, -19.4378, +3.2401),
     },
+    # The three fixtures that gained a published fuselage outline (T-8a). Their
+    # fin roots moved up by fuselage_height/2 when the "fuselage-top" branch of
+    # fin_root_waterline finally reached a body height, so the fin's roll arm
+    # (z - z_cg) grew and p_dot with it -- cessna_210 by a factor of 2.6. The fin
+    # LOAD and Ny are untouched, which is the check that this moved a lever arm
+    # and not the aerodynamics.
     'cessna_210.project.json': {
-        'SIDE GUST': (555.6917, +0.146235, +147.1175, -28.9918),
-        'SUDDEN RUDDER': (553.0771, +0.145547, +132.2899, -27.6971),
-        'YAW 15 NEUTRAL': (-529.0104, -0.139213, -119.7208, +27.1072),
-        'YAW TO SIDESLIP': (-134.6364, -0.035431, -23.3472, +7.5423),
+        'SIDE GUST': (555.6917, +0.146235, +145.4685, -74.5896),
+        'SUDDEN RUDDER': (553.0771, +0.145547, +130.6632, -72.8190),
+        'YAW 15 NEUTRAL': (-529.0104, -0.139213, -118.1649, +70.2656),
+        'YAW TO SIDESLIP': (-134.6364, -0.035431, -22.9512, +18.5263),
     },
     'atr42_100.project.json': {
-        'SIDE GUST': (4138.8275, +0.112416, +50.1642, -22.2963),
-        'SUDDEN RUDDER': (4287.7974, +0.122508, +62.7405, -21.3797),
-        'YAW 15 NEUTRAL': (-4877.7730, -0.139365, -67.9944, +24.4593),
-        'YAW TO SIDESLIP': (-2053.3076, -0.058666, -25.6523, +10.4174),
+        'SIDE GUST': (4138.8275, +0.112416, +50.0564, -34.9083),
+        'SUDDEN RUDDER': (4287.7974, +0.122508, +62.4209, -34.5055),
+        'YAW 15 NEUTRAL': (-4877.7730, -0.139365, -67.6308, +39.3912),
+        'YAW TO SIDESLIP': (-2053.3076, -0.058666, -25.4992, +16.7030),
     },
     'dhc8_dash8.project.json': {
-        'SIDE GUST': (4525.7434, +0.131181, +38.2405, -17.9836),
-        'SUDDEN RUDDER': (3491.2596, +0.106441, +35.9350, -12.9948),
-        'YAW 15 NEUTRAL': (-3936.8172, -0.120025, -38.4782, +14.7322),
-        'YAW TO SIDESLIP': (-1626.6027, -0.049592, -14.0866, +6.1572),
+        'SIDE GUST': (4525.7434, +0.131181, +38.1390, -27.2961),
+        'SUDDEN RUDDER': (3491.2596, +0.106441, +35.7562, -20.2010),
+        'YAW 15 NEUTRAL': (-3936.8172, -0.120025, -38.2765, +22.8582),
+        'YAW TO SIDESLIP': (-1626.6027, -0.049592, -14.0033, +9.5146),
     },
     'concept_regional_jet.project.json': {
         'SIDE GUST': (7079.6223, +0.214534, +51.7769, -65.2668),

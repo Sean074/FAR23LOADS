@@ -535,8 +535,9 @@ regression oracle**; Appendix A/B geometry is used only as a *sanity* fixture.
   TAILDIST's aft-of-hinge pressure block in discrete mode.
 - **Writes:** one `TailSpanResult` per condition per surface — a station table
   of `WingStationLoad` (**LIMIT**) that is **full span, tip to tip** for the
-  h-tail and root-supported for the fin, `attachment_y` (the fuselage
-  attachment stations the beam is reacted at, defined here in the physics),
+  h-tail and root-supported for the fin, `attachment_y` (the attachment stations
+  the beam is reacted at, defined here in the physics) with its provenance pair
+  `attachment_assumed`/`attachment_basis` (**T-8a**, below),
   `control_loads` (`ControlPointLoad`: hinge reactions by tributary span plus
   the actuator couple) with `hinge_moment_lbin` — **the suite's first
   hinge-moment output** — in `"discrete"` mode, and `tip_transfer` on a T-tail
@@ -890,6 +891,24 @@ return strings (with thin `write_*` file wrappers), and do no physics.
   tail-load station for any combined-airframe sum. Surfaces: the **Tail Span
   Loads** page, the Export page, `cli.py --export-target htail-span|vtail-span`.
   The chordwise TAILDIST path and every Appendix A figure are unchanged.
+- **Where the h-tail beam is reacted (decision T-8a, 2026-08-15).**
+  `tail_span.htail_attachment` is the single owner, returning stations *and* their
+  provenance (`HTailAttachment`, the `FinRoot`/`BodyDragWaterline` shape).
+  Resolution order: a **T-tail** layout gives **one** support, the fin-tip joint
+  at `y = 0` — a T-tail horizontal surface is not fuselage-attached at all, so a
+  fuselage-side pair would describe a load path the airplane does not have, and
+  entered `tail_type` is the whole authority (not assumed); otherwise the
+  **fuselage outline** interpolated at the h-tail *root LRA station* by
+  `derived_geometry.fuselage_width_at`, giving `±w(x_lra)/2`; failing both, the
+  innermost strip pair `±ds/2`. `parametric.fuselage_width` is the **maximum**
+  section and is deliberately **not** used — on `atr42_100` it is 106 in against
+  22 in of body at the h-tail, five times too far outboard. The outline branch is
+  marked **assumed even for an entered outline**: no shipped outline resolves the
+  tail cone, so the shape factor and not the published diameter sets the number,
+  and the attachment half-span swings by half again on it. Consumers needing a
+  station to build structure on gate on `attachment_basis`
+  (`ATTACH_STRIP_PAIR` is not a fuselage dimension at all); the real fix is an
+  entered attachment butt line, note 24 BM-1's `sob_y_in` sibling.
 - **Empennage mass and the fin's two axes (2026-08-10).** The surface weight is
   **derived from `weight.items`** — the `htail`/`vtail`-tagged rows, through
   `mass_distribution.tail_surface_weight` — with `TailMassInput.panel_weight_lb`

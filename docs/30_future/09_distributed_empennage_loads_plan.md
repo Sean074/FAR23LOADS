@@ -379,8 +379,10 @@ transfer, the same distinction plan 11 had to make for the wing, where
 the oracle-locked wing chain.
 
 **5. The h-tail attachment stations fall back to the centreline pair.**
-`geometry.parametric.fuselage_width` is `None` on every fixture, so T-8's
-"supported at the fuselage sides" has no data. The attachments become the
+**Closed 2026-08-15 by T-8a** for the three real types, which gained published
+fuselage outlines; the two synthetic fixtures still read as below. At the time:
+`geometry.parametric.fuselage_width` was `None` on every fixture, so T-8's
+"supported at the fuselage sides" had no data. The attachments become the
 innermost strip pair, stated on the result rather than chosen silently; the
 consequence (a one-strip-wide carry-through, so attachment bending is slightly
 high) is the same direction as the wing's centreline-clamp limitation and is

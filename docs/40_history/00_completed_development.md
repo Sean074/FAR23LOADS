@@ -10,6 +10,93 @@ Acceptance**, **Key decisions**.
 
 ---
 
+**The h-tail beam is reacted where the airplane reacts it (complete 2026-08-15, tier L)**
+
+**Objective.** Close backlog Pri 1 — decision **T-8a**. The row read "populate
+`fuselage_width` on the fixtures so the h-tail attachment stops taking the
+`±ds/2` fallback" (note 24 BM-1/BM-3, F5.1), Tier S, effort S.
+
+**What the measurement changed.** Three things, each found before any edit.
+
+1. **`fuselage_width` is not persisted.** It is a derived read-only *summary* of
+   `geometry.fuselage` (M2-6, `derived_geometry.py`), so "populate it" meant
+   "ship a fuselage outline" — and only `concept_regional_jet` had one.
+2. **The summary is the *maximum* section, and the h-tail attaches in the tail
+   cone.** On `atr42_100` that is 106.3 in of published diameter against ~22 in
+   of body at `xt25` — the formula as written would have put the attachments
+   **five times too far outboard**, an error in the opposite direction from the
+   fallback it was replacing and larger than it.
+3. **The function ignored `tail_type`.** `concept_regional_jet` is a declared
+   T-tail, whose horizontal surface is not fuselage-attached at all, and it was
+   getting a fuselage-side pair at ±52.5 in — the one fixture that *had* an
+   outline was the one being described wrongest. Swept in the same change
+   (practice 4).
+
+And one more that could not be swept: entering a fuselage **height** activates
+`fin_root_waterline`'s `"fuselage-top"` branch, dormant on every fixture until
+now. See **Consequence** below.
+
+**Deliverables.**
+
+* **`derived_geometry.fuselage_width_at(outline, x)`** — the single owner of
+  "how wide is the body *here*", beside `fuselage_summary`'s "how wide at most".
+  Linear interpolation between bracketing sections, clamped at both ends.
+* **`tail_span.htail_attachment` → `HTailAttachment(y, assumed, basis, note)`**,
+  the `FinRoot`/`BodyDragWaterline` provenance shape. Resolution order: T-tail
+  fin-tip joint at `y = 0` (not assumed — entered `tail_type` is the whole
+  authority) → outline width at the h-tail **root LRA station**, `±w/2` →
+  `±ds/2`. `attachment_stations` survives as the stations-only wrapper.
+* **`TailSpanResult.attachment_assumed`/`attachment_basis`** — additive result
+  fields, no `SCHEMA_VERSION` bump and no migration hop; `io` round-trips them.
+* **Three published fuselage outlines** (`atr42_100`, `dhc8_dash8`,
+  `cessna_210`): max diameter 2.70 / 2.69 / 1.20 m on the three-section default
+  shape, each source's overall length cross-checking the fixture's entered
+  `airplane_length_in` to under 0.3 in. Attachments move ±5.5 → ±10.9,
+  ±5.75 → ±10.8, ±3.6 → ±11.3 in. `ga6_normal` and `concept_heavy` are
+  synthetic and keep the flagged fallback rather than an invented outline.
+
+**Consequence, accepted and filed (this is what made the step tier L).**
+`fin_root_waterline`'s third branch is `root_waterline_z + fuselage_height/2`;
+with no fixture carrying a height it had silently degraded to
+`root_waterline_z` on all five. It now fires — `atr42_100` 170 → 223.15 in,
+`dhc8_dash8` 180 → 232.95, `cessna_210` 86 → 109.60 — and that is the fin's
+**roll arm**, so twelve lateral cases moved with it (`cessna_210`'s `p_dot`
+−28.99 → −74.59 deg/s², a factor of 2.6). Fin **loads** and `Ny` are unchanged,
+which is the check that a lever arm moved and not the aerodynamics. The user was
+shown the numbers and chose to accept and re-pin rather than gate the branch.
+
+**The formula is wrong and the pins say so.** It reads `root_waterline_z` as the
+body centreline; it is the **wing** root — the same substitution `CONVENTIONS.md`
+refuses for D-1 — and all three of these types are **high-wing**, so it stacks
+half a body height above a wing root already near the body top. Filed as backlog
+Pri 5a with note 24 R-4's `FuselageSection.z_centre` as the fix, and paired with
+Pri 6a: `atr42_100` and `dhc8_dash8` are declared `tail_type: conventional` and
+are really T-tails, so they are also missing the T7 tip transfer.
+
+**Test / Acceptance.** `tests/test_tail_span.py` gains
+`test_the_ttail_htail_is_reacted_at_the_fin_tip_not_at_the_fuselage`,
+`test_the_attachment_interpolates_the_body_at_the_htail_and_never_its_maximum`
+(which asserts the interpolated width is under a quarter of the maximum — the
+gate against ever silently reverting to `fuselage_summary`) and
+`test_the_attachment_falls_back_to_the_strip_pair_without_a_body_outline`; the
+full-span topology test now branches on `is_t_tail`. `_FIN_ROOT` and
+`_LATERAL_CASE_NUMBERS` re-pinned with the reason in-comment;
+`test_fwd_regardless_negative_station_marks_none_via_datum` rebuilt on a
+constructed loading, as its own comment has twice instructed. Imperial baseline
+regenerated (24 digests); schema-shape hash updated. Suite 1893 passed,
+`ruff check sloads/ cli.py app/` clean.
+
+**Key decisions.** **T-8a** — the attachment is a *resolution order with
+provenance*, not a number: T-tail topology first, then the body outline
+interpolated at the h-tail LRA station, then the stated strip pair; the maximum
+section is never used. The outline branch is marked **assumed even for an
+entered outline**, because no shipped outline resolves the tail cone and the
+default shape factor — not the published diameter — sets the number (the
+half-span swings by half again on it). Consumers gate on `basis`, not on
+`assumed`. Synthetic fixtures get no invented geometry (T-17 upheld).
+
+---
+
 **Every shipped fixture assembles balanced cases (complete 2026-08-15, tier L)**
 
 **Objective.** Close backlog Pri 5 — decision **D-26** (amending D-25). Give the

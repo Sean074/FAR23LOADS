@@ -128,8 +128,10 @@ load in the element just outboard of the clamp. Consequences:
    `WingMassInput` (ga6 23, cessna 24, atr42 38, dhc8 40, RJ 40) but it is the
    WINGINER *mass-panel* start (RSTA), close to but not definitionally the side
    of body — BL 40 is well inboard of a regional jet's ~59 in fuselage
-   half-width. `geometry.parametric.fuselage_width` is in the schema but is
-   `None` in all five fixtures. Choosing the SOB source is a schema decision.
+   half-width. `geometry.parametric.fuselage_width` is in the schema but was
+   `None` in all five fixtures (three gained a published outline 2026-08-15,
+   T-8a — and note it is the *maximum* section, so the SOB fallback must
+   interpolate at the wing root the way T-8a does at the h-tail). Choosing the SOB source is a schema decision.
 
 **What this step does about it:** nothing to the model, one sentence to the
 record. The harness asserts what the deck actually claims (§4), and the deck's
@@ -443,7 +445,8 @@ the whole applied load wherever it sits; the SOB quantity is an *internal* load
 and needs a node at the SOB, and the physically correct model routes the
 carry-through load into the fuselage instead of the wing root. Scope: (a) decide
 the SOB source — a new explicit `SurfaceInput` butt line, or
-`geometry.parametric.fuselage_width/2` (unpopulated in every fixture today), or
+`geometry.parametric.fuselage_width/2` (unpopulated when written; three
+fixtures gained a published outline 2026-08-15, T-8a), or
 `wing_mass.inboard_rib_y` (a proxy: it is the WINGINER mass-panel start, and BL
 40 is well inboard of the RJ's fuselage); (b) add a SOB station to the exported
 station set **without truncating** the centerline-origin stations, since

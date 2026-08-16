@@ -184,9 +184,15 @@ Format: what ships / what the docs say / gap / recommendation.
 
 ### F5 — Horizontal tail attachment
 
-- **Ships (5.1):** T-8 supports the full-span h-tail at `±fuselage_width/2`,
-  falling back to `±ds/2` on every fixture; `attachment_y` is on the result but
-  **no exporter consumes it**. **Ships (5.2):** T7 transfers a **lumped**
+- **Ships (5.1):** **superseded 2026-08-15 by T-8a** (Pri 1 closed). The
+  attachment is now `tail_span.htail_attachment`, a resolution order with
+  provenance: T-tail → the single fin-tip joint at `y = 0`; else the fuselage
+  outline interpolated at the h-tail **root LRA station** (`±w/2`, marked
+  assumed); else the stated `±ds/2` pair. The *maximum* section is never used —
+  it is five times too wide at `atr42_100`'s h-tail. `atr42_100`, `dhc8_dash8`
+  and `cessna_210` carry published outlines; `ga6_normal` and `concept_heavy` are
+  synthetic and stay on the flagged fallback. `attachment_y` and its new
+  `attachment_basis` are on the result but **no exporter consumes them yet**. **Ships (5.2):** T7 transfers a **lumped**
   `Fz`/`Myy` (balancing load + h-tail inertia at that V-n point) to the fin's
   **last** node; the h-tail has no nodes of its own in a T-tail fin deck.
 - **Gap:** in the LRA model the h-tail is a beam in its own right on both
@@ -204,6 +210,14 @@ Format: what ships / what the docs say / gap / recommendation.
   build a conventional h-tail attachment on the `±ds/2` fallback (or build it
   and mark it assumed in the header — decision BM-3; refusing is the "flag,
   never silently default" rule).
+  **Resolved 2026-08-15 (T-8a, Pri 1 closed).** The stations exist and carry
+  their own provenance, so the exporter gates on `attachment_basis`, not on a
+  guess: refuse `ATTACH_STRIP_PAIR`, accept-and-state `ATTACH_OUTLINE`, accept
+  `ATTACH_FIN_TIP` outright. Note the third branch is **new** and changes this
+  recommendation's shape — a T-tail h-tail has one centreline support, so on
+  `concept_regional_jet` there is no conventional attachment to build at all,
+  and R-6's "T-tail: centreline node ties to the fin tip" is now what the
+  physics layer already reports rather than something the exporter infers.
 
 ### F6 — LRA placement
 
@@ -295,7 +309,8 @@ split-fuselage default (BM-2) and to sequence step 14 last.
 
 **R-13 — sequencing.** The table has step 13 (SOB) before step 12 (LRA model),
 but the SOB is a *node of the skeleton*: choosing its source, its collapse rule
-and its reporting form is a step 12 topology decision. Recommend: **Pri 1 →
+and its reporting form is a step 12 topology decision. Recommend: **Pri 1
+(closed 2026-08-15, T-8a) →
 step 12 phase 0 (this note's decisions BM-1…BM-5 agreed) → step 13 built as the
 first skeleton node → step 12 export → step 12 import → step 14.** The
 per-component wing deck's SOB reporting node (constraint 1 of plan 10 §1.1)
@@ -311,9 +326,9 @@ once, each with its own `CHANGELOG` line.
 
 | # | Decision | Recommended | Alternatives |
 |---|---|---|---|
-| BM-1 | SOB source | explicit `SurfaceInput.sob_y_in`, fallback `fuselage_width/2` marked assumed; never `inboard_rib_y` | `fuselage_width/2` only (Pri 1 then blocks step 13) |
+| BM-1 | SOB source | explicit `SurfaceInput.sob_y_in`, fallback `fuselage_width/2` marked assumed; never `inboard_rib_y` | `fuselage_width/2` only. **2026-08-15:** the fallback has data on the three real types (T-8a), so it no longer blocks step 13 |
 | BM-2 | Fuselage load-path idealization | **split fuselage**: forward cantilever → front-spar post, aft cantilever + empennage → rear-spar post; continuous beam is a step-14 opt-in | continuous beam on two rigid posts (indeterminate now) |
-| BM-3 | Missing attachment data | the LRA exporter **refuses** to build on the `±ds/2` h-tail fallback and on an unset `ref_axis_pct`; header states any assumed geometry it does accept (section centre, spar fractions) | build and mark assumed |
+| BM-3 | Missing attachment data | the LRA exporter **refuses** to build on the `±ds/2` h-tail fallback and on an unset `ref_axis_pct`; header states any assumed geometry it does accept (section centre, spar fractions) | build and mark assumed. **2026-08-15 (T-8a):** the discriminator is `TailSpanResult.attachment_basis` — refuse on `ATTACH_STRIP_PAIR` (not a fuselage dimension at all), accept-and-state `ATTACH_OUTLINE`, accept `ATTACH_FIN_TIP` outright. Gate on the basis, **not** on `attachment_assumed`, which the outline branch always sets |
 | BM-4 | Gear / engine parent | explicit `mounted_on: fuselage \| wing` on the leg and engine inputs; inference by butt line vs `sob_y` as marked-assumed fallback | inference only |
 | BM-5 | Node/element identity contract | `$ SLOADS-NODE` tags + sidecar map; production `RBE2` band; one band per node family | coordinate matching only |
 

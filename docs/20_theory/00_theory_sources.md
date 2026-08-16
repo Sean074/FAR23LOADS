@@ -353,6 +353,18 @@ chord-proportional shape (decision T-2) makes it an unusually strong one, becaus
 every target is **analytic** rather than a re-run of the quadrature.
 `sloads/modules/tail_span.py`; gates in `tests/test_tail_span.py`.
 
+**Where that beam is supported has no oracle either (T-8a, 2026-08-15).** The
+attachment stations are a *geometry* statement, not a load one, so no Appendix A
+figure moves with them and none can validate them. The gate is therefore
+structural rather than numeric: `tail_span.htail_attachment` is the single owner
+and returns the stations **with their provenance**, `tests/test_tail_span.py`
+pins one test per branch (T-tail fin tip / body outline interpolated at the
+h-tail LRA station / the stated `±ds/2` pair), and the outline test asserts the
+interpolated width is under a quarter of the maximum section — the guard against
+silently reverting to `derived_geometry.fuselage_summary`, whose maximum is five
+times too wide at `atr42_100`'s h-tail. The branch a consumer may build
+structure on is named by `attachment_basis`, never inferred.
+
 Per strip `j` of the **whole** planform area `S`, with `LT25`/`LT50` read from
 SELECT and never recomputed (T-7):
 

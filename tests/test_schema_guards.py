@@ -221,7 +221,14 @@ def fields_hash() -> str:
 #: (the non-wing drag, lb) and ``delta_cd`` (the wind-axis ``CD`` increment it
 #: represents -- the diagnostic that must stay visible, because carrying the load
 #: makes the applied axial resultant equal the trim's ``dx`` by construction).
-EXPECTED_FIELDS_HASH = "eada0df12005f41f"
+#: h-tail attachment provenance (T-8a): ``TailSpanResult`` gains
+#: ``attachment_assumed`` and ``attachment_basis`` beside ``attachment_y`` -- where
+#: the beam's supports came from, so a structural model can gate on the basis
+#: instead of trusting two numbers (note 24 BM-3). Both are **result** fields,
+#: purely additive with defaults, and no input dataclass changed shape: the fixture
+#: side of the same step is data (three fuselage outlines), not schema. No
+#: migration hop, and ``SCHEMA_VERSION`` is unchanged.
+EXPECTED_FIELDS_HASH = "a1137d08d77d6d42"
 
 
 def test_persisted_dataclass_shapes_are_unchanged():

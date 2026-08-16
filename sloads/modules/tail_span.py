@@ -115,7 +115,7 @@ layouts are untouched, to the byte.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Dict, List, Optional, Sequence, Tuple
+from typing import Dict, List, NamedTuple, Optional, Sequence, Tuple
 
 from ..models import (
     ConditionResult,
@@ -132,6 +132,7 @@ from ..models import (
     WingStationLoad,
 )
 from ..cg_cases import flight_cases
+from ..derived_geometry import fuselage_width_at
 from ..registry import register
 from ..tail_geometry import HTAIL, VTAIL, TailPlanform, is_t_tail, resolve_tail_planform
 from .select import default_critical, vn_points
@@ -171,32 +172,107 @@ def strip_spans(planform: TailPlanform) -> List[Tuple[float, float]]:
     return [(ds / 2.0 + j * ds, ds) for j in range(h)]
 
 
-def attachment_stations(project: Project, planform: TailPlanform) -> List[float]:
-    """The span stations the full-span h-tail beam is reacted at (decision T-8).
+class HTailAttachment(NamedTuple):
+    """Where the full-span h-tail beam is reacted, and on whose authority (T-8a).
 
-    The horizontal tail attaches to the fuselage at its sides, so the beam is
-    supported at ``+-fuselage_width/2`` -- a genuinely determinate pair for a
-    symmetric case, and the pair whose reactions differ under 23.427(a), which is
-    the whole point of the full-span topology.
+    ``y`` are the span stations; ``assumed`` is False only when the stations are a
+    consequence of *entered* data alone; ``basis`` names the branch that produced
+    them and is the discriminator a downstream model gates on (note 24 BM-3);
+    ``note`` is the in-band sentence a derived value owes its consumer. Same
+    provenance shape as ``tail_geometry.FinRoot`` and
+    ``derived_geometry.BodyDragWaterline``.
+    """
 
-    Where the parametric fuselage width is unknown (it is ``None`` on every
-    shipped fixture) the attachments fall back to the **centreline pair** at
-    ``+-ds/2``, the innermost strip stations: still two distinct supports, still
-    determinate, and stated on the result rather than silently chosen. The
-    consequence is that the carry-through between them is a single strip wide, so
-    the recovered attachment bending is very slightly high -- the same direction
-    as the wing's centreline-clamp limitation, and filed alongside it.
+    y: List[float]
+    assumed: bool
+    basis: str
+    note: str = ""
+
+
+#: ``basis`` values :func:`htail_attachment` can return. ``STRIP_PAIR`` is the
+#: no-geometry fallback -- the one a beam model must refuse to build a
+#: conventional attachment on (note 24 BM-3), because it is not a fuselage
+#: dimension at all, merely two adjacent stations that happen to straddle the
+#: centreline.
+ATTACH_FIN_TIP = "t-tail fin-tip joint"
+ATTACH_OUTLINE = "fuselage outline at the h-tail LRA station"
+ATTACH_STRIP_PAIR = "innermost strip pair -- no fuselage geometry"
+
+
+def htail_attachment(project: Project, planform: TailPlanform) -> HTailAttachment:
+    """The stations the full-span h-tail beam is reacted at (decisions T-8/T-8a).
+
+    Resolution order::
+
+        T-tail layout        -> [0.0], the fin-tip joint          (assumed False)
+        fuselage outline     -> +-w(x_lra)/2                      (assumed True)
+        neither              -> +-ds/2, the innermost strip pair   (assumed True)
+
+    **T-tail first, because it is a different topology, not a different number**
+    (note 24 F5.1). A T-tail horizontal surface is not attached to the fuselage at
+    all -- it sits on the fin, and every load it carries reaches the airplane
+    through the fin tip. Its beam therefore has *one* support on the centreline,
+    a rigid joint that reacts moment as well as shear; reporting a pair of
+    fuselage-side supports for it would describe a load path the airplane does not
+    have. Entered ``tail_type`` is the whole authority, so nothing is assumed.
+
+    **The outline branch interpolates, and does not take the maximum.** The
+    horizontal tail attaches to the body at its own station -- in the tail cone --
+    so the width that matters is :func:`~sloads.derived_geometry.fuselage_width_at`
+    evaluated at the h-tail *root LRA* station, the same axis the beam model puts
+    the node on (F6). ``parametric.fuselage_width`` is the **maximum** section and
+    is deliberately not used: on ``atr42_100`` it is 106 in against 22 in at the
+    tail, which would put the attachments five times too far outboard.
+
+    That branch is marked **assumed even for an entered outline**, and the reason
+    is worth stating: a fuselage outline is a station-area table sized to describe
+    *volume*, and no shipped one resolves the tail cone at the empennage -- the
+    three-section default (:func:`~sloads.models.inputs.default_fuselage_outline`)
+    carries a tail-end width of a *tenth* of the maximum, a shape factor nobody
+    measured. The attachment half-span swings by half again on that factor alone.
+    Consumers that need a station they can build structure on should gate on
+    ``basis``, and the real fix is an entered attachment butt line (note 24 BM-1's
+    ``sob_y_in`` sibling), not a better guess at the body.
+
+    **The fallback is the centreline pair**: still two distinct determinate
+    supports, still carrying the 23.427(a) asymmetry, but a single strip wide, so
+    the recovered attachment bending is high -- the same direction as the wing's
+    centreline-clamp limitation, and filed alongside it.
     """
     if planform.component != HTAIL:
-        return []
+        return HTailAttachment([], False, "", "")
+    if is_t_tail(project):
+        return HTailAttachment(
+            [0.0], False, ATTACH_FIN_TIP,
+            "T-TAIL layout: the horizontal tail is not fuselage-attached, so its "
+            "beam has ONE support -- the fin-tip joint on the centreline, which "
+            "reacts moment as well as shear. A fuselage-side pair would describe "
+            "a load path this airplane does not have")
     geometry = project.geometry
-    layout = geometry.parametric if geometry is not None else None
-    width = getattr(layout, "fuselage_width", None) if layout is not None else None
+    width = fuselage_width_at(
+        geometry.fuselage if geometry is not None else None,
+        planform.x_at(0.0, planform.ref_axis_pct))
     if width:
         half = min(0.5 * width, 0.9 * planform.span)
-        return [-half, half]
+        return HTailAttachment(
+            [-half, half], True, ATTACH_OUTLINE,
+            f"h-tail attachment ASSUMED at +-{half:.1f} in -- half the fuselage "
+            f"outline's width ({width:.1f} in) interpolated at the h-tail LRA "
+            f"station {planform.x_at(0.0, planform.ref_axis_pct):.1f} in. The "
+            "outline describes body volume, not the tail-cone frames: enter the "
+            "attachment butt line to state it")
     ds = planform.span / max(2, planform.elements)
-    return [-ds / 2.0, ds / 2.0]
+    return HTailAttachment(
+        [-ds / 2.0, ds / 2.0], True, ATTACH_STRIP_PAIR,
+        f"h-tail attachment ASSUMED at the innermost strip pair (+-{ds / 2.0:.1f} "
+        "in) -- this project has no fuselage outline, so there is no body width "
+        "to sit on. The carry-through is one strip wide and the attachment "
+        "bending is correspondingly high")
+
+
+def attachment_stations(project: Project, planform: TailPlanform) -> List[float]:
+    """The attachment span stations alone -- see :func:`htail_attachment`."""
+    return htail_attachment(project, planform).y
 
 
 # --------------------------------------------------------------------------- #
@@ -948,6 +1024,9 @@ def build_tail_span(project: Project) -> Dict[str, List[TailSpanResult]]:
         control_load = hinge_moment = hinge_arm = 0.0
         control_basis = ""
         notes = list(planform.notes)
+        attach = htail_attachment(project, planform)
+        if attach.note:
+            notes.append(attach.note)
         if mode == "discrete":
             attachment = control_attachment(project, component, planform)
             fraction = hinge_chord_fraction(project, cond)
@@ -1049,7 +1128,9 @@ def build_tail_span(project: Project) -> Dict[str, List[TailSpanResult]]:
             lt25=cond.lt25, lt50=cond.lt50, n_case=n_case,
             surface_weight_lb=weight, n_y=n_normal if component == VTAIL else 0.0,
             case_weight_lb=case_weight,
-            attachment_y=attachment_stations(project, planform),
+            attachment_y=attach.y,
+            attachment_assumed=attach.assumed,
+            attachment_basis=attach.basis,
             rh_scale=rh_scale, lh_scale=lh_scale,
             planform_assumed=planform.assumed, control_load_mode=mode,
             control_loads=control_loads,
@@ -1169,8 +1250,13 @@ __all__ = [
     "DEFAULT_CONTROL_MODE",
     "DEFAULT_LOAD_FACTOR",
     "HINGE_BLOCK_CENTROID",
+    "ATTACH_FIN_TIP",
+    "ATTACH_OUTLINE",
+    "ATTACH_STRIP_PAIR",
     "ControlAttachment",
     "ControlRemoval",
+    "HTailAttachment",
+    "htail_attachment",
     "control_attachment",
     "control_centre_of_pressure",
     "control_load_mode",

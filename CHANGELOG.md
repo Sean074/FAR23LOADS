@@ -12,6 +12,64 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **The h-tail beam is reacted where the airplane reacts it** (backlog Pri 1,
+  decision **T-8a**). `tail_span.htail_attachment` becomes the single owner of
+  the attachment stations *and* their provenance, returning `HTailAttachment`
+  (the `FinRoot`/`BodyDragWaterline` shape); `TailSpanResult` gains
+  `attachment_assumed`/`attachment_basis` beside `attachment_y`, and every
+  h-tail case states the basis in band. Additive result fields only —
+  `SCHEMA_VERSION` is unchanged and no migration hop is needed.
+
+  Three things were wrong with `±fuselage_width/2` as written. It used the
+  **maximum** section for a surface that attaches in the tail cone (on
+  `atr42_100`, 106 in of published diameter against 22 in of body at the
+  h-tail — five times too far outboard); it ignored `tail_type`, so
+  `concept_regional_jet` — a T-tail, whose horizontal surface is not
+  fuselage-attached at all — reported a fuselage-side pair at ±52.5 in for a
+  load path it does not have; and no fixture had a `fuselage_width`, so every
+  one of them silently took the `±ds/2` fallback. Now: a T-tail gets **one**
+  support at the fin-tip joint (entered `tail_type` is the whole authority, so
+  nothing is assumed); otherwise the fuselage outline interpolated at the h-tail
+  **root LRA station** by the new `derived_geometry.fuselage_width_at` — the
+  single owner of "how wide is the body *here*", as `fuselage_summary` is of
+  "how wide at most"; failing both, the stated `±ds/2` pair.
+
+  `atr42_100`, `dhc8_dash8` and `cessna_210` gain a **published fuselage
+  outline** (max diameter 2.70 m / 2.69 m / 1.20 m, each source's overall length
+  cross-checking the fixture's entered `airplane_length_in` to under 0.3 in),
+  moving their attachments from ±5.5/±5.75/±3.6 in to ±10.9/±10.8/±11.3 in.
+  `ga6_normal` and `concept_heavy` are synthetic, have no published fuselage to
+  enter, and keep the flagged fallback rather than an invented one (the T-17
+  rule).
+
+  **The outline branch is marked assumed even for an entered outline**, and this
+  is the honest part of the step: no shipped outline resolves the tail cone, so
+  the three-section default's tail-width shape factor — not the published
+  diameter — sets the number, and the attachment half-span swings by half again
+  on it. Consumers needing a station to build structure on gate on
+  `attachment_basis`; the real fix is an entered attachment butt line (note 24
+  BM-1's `sob_y_in` sibling).
+
+### Changed
+
+- **Three fin roots and twelve lateral cases moved** — a consequence of the
+  outlines above, not an intent of it. `tail_geometry.fin_root_waterline`'s
+  `"fuselage-top"` branch is `root_waterline_z + fuselage_height/2`, and with no
+  fixture carrying a body height it had been silently returning
+  `root_waterline_z` on every one. It now fires: `atr42_100` 170 → 223.15 in,
+  `dhc8_dash8` 180 → 232.95, `cessna_210` 86 → 109.60. That is the fin's roll
+  arm, so it is first-order — `cessna_210`'s lateral `p_dot` moved from −28.99
+  to −74.59 deg/s². The fin **loads** and `Ny` are untouched, which is the check
+  that this moved a lever arm and not the aerodynamics.
+
+  **Filed, not fixed:** the formula reads `root_waterline_z` as the body
+  centreline and it is the *wing* root — the substitution `CONVENTIONS.md`
+  already refuses for D-1 — and all three of these types are high-wing, so the
+  branch stacks half a body height above a wing root that is already near the
+  body top. The pinned values are the formula's output, not a claim about those
+  airplanes. Fix is note 24 R-4's `FuselageSection.z_centre`; backlog Pri 5a,
+  with the `atr42_100`/`dhc8_dash8` T-tail misdeclaration it pairs with (Pri 6a).
+
 - **Every shipped fixture now assembles balanced cases** (backlog Pri 5,
   decision **D-26** + D-26a…c; design note
   `docs/30_future/23_pri5_fixture_loadings_note.md`). Balanced flight cases go

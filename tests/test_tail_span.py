@@ -42,9 +42,13 @@ from sloads.modules.select import build_critical  # noqa: E402
 from sloads.modules.tail_span import (  # noqa: E402
     X25_PCT,
     X50_PCT,
+    ATTACH_FIN_TIP,
+    ATTACH_OUTLINE,
+    ATTACH_STRIP_PAIR,
     air_total,
     attachment_stations,
     build_tail_span,
+    htail_attachment,
     control_centre_of_pressure,
     control_load_parts,
     distribute,
@@ -55,6 +59,7 @@ from sloads.modules.tail_span import (  # noqa: E402
     side_scales,
     strip_spans,
 )
+from sloads.derived_geometry import fuselage_width_at  # noqa: E402
 from sloads.export.coordinates import tail_station_to_airplane  # noqa: E402
 from sloads.cg_cases import flight_cases  # noqa: E402
 from sloads.tail_geometry import (  # noqa: E402
@@ -479,23 +484,79 @@ def test_the_htail_table_is_full_span_and_the_vtail_single_sided(example):
         planform = resolve_tail_planform(project, HTAIL)
         assert len(r.stations) == 2 * max(2, planform.elements)
         assert min(st.y for st in r.stations) < 0 < max(st.y for st in r.stations)
-        assert len(r.attachment_y) == 2 and r.attachment_y[0] < 0 < r.attachment_y[1]
+        # T-8a: a fuselage-side pair on a conventional layout, the single fin-tip
+        # joint on a T-tail -- a different topology, not a different number.
+        if is_t_tail(project):
+            assert r.attachment_y == [0.0]
+        else:
+            assert len(r.attachment_y) == 2
+            assert r.attachment_y[0] < 0 < r.attachment_y[1]
     for r in spans[VTAIL]:
         assert all(st.y > 0 for st in r.stations)
         assert r.attachment_y == []
 
 
-def test_the_attachment_stations_follow_the_fuselage_when_it_is_known():
-    """The supports are the fuselage sides where that width exists, and the
-    centreline pair — stated, not silent — where it does not."""
+def test_the_ttail_htail_is_reacted_at_the_fin_tip_not_at_the_fuselage():
+    """T-8a: a T-tail horizontal surface is not fuselage-attached at all.
+
+    ``concept_regional_jet`` is the only shipped T-tail, and it is the fixture
+    that has carried a body outline all along — so before T-8a it reported a
+    fuselage-side pair at ±52.5 in for a surface that reaches the airplane
+    through the fin tip. Entered ``tail_type`` is the whole authority here, so
+    nothing about this branch is assumed.
+    """
+    project = _project("concept_regional_jet.project.json", weight=0.0)
+    planform = resolve_tail_planform(project, HTAIL)
+    attach = htail_attachment(project, planform)
+    assert is_t_tail(project)
+    assert attach.y == [0.0]
+    assert attach.basis == ATTACH_FIN_TIP
+    assert attach.assumed is False
+
+
+def test_the_attachment_interpolates_the_body_at_the_htail_and_never_its_maximum():
+    """T-8a: the h-tail reacts into the tail cone, not into the widest frame.
+
+    ``atr42_100`` is the sharpest statement of why the maximum is the wrong
+    number: 106.3 in of published max diameter against ~22 in of body at the
+    h-tail's own station. Taking the maximum would put the attachments five times
+    too far outboard — outboard of a fifth of the semispan.
+    """
+    project = _project("atr42_100.project.json", weight=0.0)
+    planform = resolve_tail_planform(project, HTAIL)
+    attach = htail_attachment(project, planform)
+    assert attach.basis == ATTACH_OUTLINE
+    # Interpolated at the h-tail LRA station, from the shipped outline.
+    x_lra = planform.x_at(0.0, planform.ref_axis_pct)
+    width = fuselage_width_at(project.geometry.fuselage, x_lra)
+    assert attach.y == pytest.approx([-width / 2, width / 2])
+    # ...and that is emphatically not half the maximum section.
+    assert width < 0.25 * project.geometry.parametric.fuselage_width
+    # Marked assumed even though the outline is entered: no shipped outline
+    # resolves the tail cone, so the shape factor — not the published diameter —
+    # sets this number. The in-band note has to say so on every case.
+    assert attach.assumed is True
+    for r in build_tail_span(project)[HTAIL]:
+        assert r.attachment_assumed is True
+        assert r.attachment_basis == ATTACH_OUTLINE
+        assert any("ASSUMED" in n and "attachment" in n for n in r.notes)
+
+
+def test_the_attachment_falls_back_to_the_strip_pair_without_a_body_outline():
+    """The stated fallback, and the basis a beam model refuses to build on.
+
+    ``ga6_normal`` is synthetic — no published fuselage to enter — so it keeps
+    the centreline pair, and says so rather than choosing it silently.
+    """
     project = _project("ga6_normal.project.json", weight=0.0)
     planform = resolve_tail_planform(project, HTAIL)
-    assert project.geometry.parametric.fuselage_width in (None, 0, 0.0)
+    assert project.geometry.fuselage is None
     ds = planform.span / planform.elements
-    assert attachment_stations(project, planform) == pytest.approx([-ds / 2, ds / 2])
-
-    project.geometry.parametric.fuselage_width = 40.0
-    assert attachment_stations(project, planform) == pytest.approx([-20.0, 20.0])
+    attach = htail_attachment(project, planform)
+    assert attach.y == pytest.approx([-ds / 2, ds / 2])
+    assert attach.basis == ATTACH_STRIP_PAIR
+    assert attach.assumed is True
+    assert attachment_stations(project, planform) == attach.y
 
 
 @pytest.mark.parametrize("example", EXAMPLES)

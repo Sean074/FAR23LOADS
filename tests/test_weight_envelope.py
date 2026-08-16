@@ -154,7 +154,7 @@ def test_ballast_marker_rows_not_dropped():
     assert any(lbl.startswith("Forward gross ballast (none") for lbl in _labels(r))
 
 
-def _fwd_regardless_project(nose_x, tail_x):
+def _fwd_regardless_project(nose_x, tail_x, aft_x=1060):
     """Synthetic DB whose forward-loading vertices all sit just aft of the forward-
     regardless limit, so the moment-balance ballast lands at a large FORWARD station
     (~580 in). ``nose_x``/``tail_x`` set the explicit fuselage extent override that
@@ -169,7 +169,7 @@ def _fwd_regardless_project(nose_x, tail_x):
         _mi("empty", 600, 1050, MassItemKind.EMPTY),
         _mi("crew", 100, 1000, MassItemKind.MINIMUM),
         _mi("fwd", 200, 1010, MassItemKind.DISCRETIONARY),
-        _mi("aft", 200, 1060, MassItemKind.DISCRETIONARY),
+        _mi("aft", 200, aft_x, MassItemKind.DISCRETIONARY),
     ]
     env = WeightEnvelopeInput(
         gross_weight=1100, aft_gross_pct_mac=30, fwd_gross_pct_mac=10,
@@ -203,15 +203,18 @@ def test_fwd_regardless_station_outside_extent_marks_none():
 
 
 def test_fwd_regardless_negative_station_marks_none_via_datum():
-    # cessna_210 carries no fuselage outline: its forward-regardless moment balance
-    # lands at -3 in (ahead of the station-0 datum). The datum fallback flags it
-    # as nonphysical rather than emitting the negative station (M1-11).
+    # A project with NO explicit extent and NO fuselage outline degrades to the
+    # station-0 datum with an unbounded tail, and a moment balance that lands ahead
+    # of the nose is flagged rather than emitted as a negative station (M1-11).
     #
-    # Was dhc8_dash8 at -112 in until D-26 zoned that fixture's cabin and holds,
-    # which moved its forward-loading sequence and put the balance at +142 in. The
-    # path is the same one and is still reached by a shipped fixture; if it ever
-    # is not, build the loading here rather than deleting the guard.
-    p = io.load_project(os.path.join(os.path.dirname(_EXAMPLE), "cessna_210.project.json"))
+    # This was dhc8_dash8 at -112 in until D-26 zoned that fixture's cabin and
+    # holds, then cessna_210 at -3 in until T-8a gave the three real types a
+    # published fuselage outline -- which is exactly the "if a shipped fixture ever
+    # stops reaching it, build the loading here rather than deleting the guard"
+    # this comment has carried twice. Built here now: the aft discretionary item
+    # at 1300 in puts the 1100 lb vertex at cg 1083.6, so the balance against the
+    # 1150 lb / 1020 in regardless limit is (1150*1020 - 1100*1083.6)/50 = -380 in.
+    p = _fwd_regardless_project(nose_x=None, tail_x=None, aft_x=1300)
     r = calc.envelope(p, p.weight.envelope)
     labels = _labels(r)
     assert any(

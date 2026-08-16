@@ -1044,6 +1044,8 @@ def _tail_span_result_from_dict(d: Dict[str, Any]) -> TailSpanResult:
         n_case=d.get("n_case", 0.0) or 0.0,
         surface_weight_lb=d.get("surface_weight_lb", 0.0) or 0.0,
         attachment_y=[float(v) for v in d.get("attachment_y", []) or []],
+        attachment_assumed=bool(d.get("attachment_assumed", False)),
+        attachment_basis=d.get("attachment_basis", ""),
         rh_scale=d.get("rh_scale", 1.0),
         lh_scale=d.get("lh_scale", 1.0),
         planform_assumed=bool(d.get("planform_assumed", False)),
