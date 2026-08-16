@@ -42,6 +42,8 @@ equations from memory; cite the page in the test):**
   `docs/10_standard/PROJECT_GUIDE.md`
 - **Code standard (error contract, units, entry points, testing/coverage):**
   `docs/10_standard/00_program_overview.md`
+- **How work moves (branches, PRs, closure-in-the-PR, issues, design-note PRs, owners):**
+  `docs/10_standard/DEVELOPMENT_PROCESS.md`; human on-ramp `CONTRIBUTING.md`
 - **Equation/oracle citations per module:** `docs/20_theory/00_theory_sources.md`
 - **Approved oracle deviations (register of record):**
   `docs/20_theory/02_approved_corrections.md`
@@ -52,25 +54,27 @@ equations from memory; cite the page in the test):**
 ## Step Completion Requirement (tiered, 2026-08-05)
 
 **HARD REQUIREMENT — when any backlog item, defect, or step is closed, its closure tier
-must be completed in the same session. The backlog holds open items only. Never batch or
-defer closure.**
+must be completed in the same session — and, with branches, in the same PR
+(`DEVELOPMENT_PROCESS.md` §3). Open work is GitHub Issues; the backlog file is the plan.
+Never batch or defer closure.**
 
 | Tier | Applies to | Required closure |
 |------|-----------|------------------|
 | **S** | Small fix, hygiene, docs, display-only | one `changes/<slug>.<type>.md` fragment (see `changes/README.md`) + backlog removal. **No history entry.** |
-| **M** | Behavior change to an existing capability | Tier S + the affected `PROGRAM_SPEC.md` / standard-doc section(s) + a **one-paragraph** entry in `docs/40_history/00_completed_development.md` |
-| **L** | New module, new load case, new physics, schema/contract change | Tier M + `theory_sources.md` citation + **full step format** in the history file |
+| **M** | Behavior change to an existing capability | Tier S + the affected `PROGRAM_SPEC.md` / standard-doc section(s) + a **one-paragraph** `changes/<slug>.history.md` fragment |
+| **L** | New module, new load case, new physics, schema/contract change | Tier M + `theory_sources.md` citation + the history fragment in **full step format**; design note merged at AGREED first |
 
-`CHANGELOG.md` `[Unreleased]` is never hand-edited: fragments are assembled at release cut
-by `scripts/build_changelog.py` (`RELEASE_PROCESS.md` §4). Design note 26 (2026-08-16).
+`CHANGELOG.md` `[Unreleased]` and the top of the history file are never hand-edited:
+`scripts/build_changelog.py` assembles both at release cut (`RELEASE_PROCESS.md` §4).
+Design notes 26 and 28 (2026-08-16).
 
 Additional rules (2026-08-05 process review — rationale in
 `docs/50_reviews/2026-08-05_development_process_review.md`):
 
 1. **Design note before code (physics/L steps):** theory reference,
    `CONVENTIONS.md` citations, oracle or closure target with expected numbers, and
-   acceptance tolerances — agreed in chat before implementation. (This codifies the
-   existing plan-doc practice.)
+   acceptance tolerances — agreed before implementation: as a `note/NN-slug` PR merged
+   at AGREED (`DEVELOPMENT_PROCESS.md` §5); in chat only when working alone.
 2. **Benchmark-first definition of done:** an oracle test (±0.1%, page-cited) where a
    printed oracle exists; otherwise a **stated physics-closure/invariant gate in CI**,
    written with the feature — this applies to concept-mode physics with the same force
@@ -98,7 +102,8 @@ Additional rules (2026-08-05 process review — rationale in
 - **Git is the user's to run.** ANY and ALL git usage — `commit`, `add`, `push`,
   `branch`, `merge`, `checkout`, `tag`, `rebase`, `reset`, etc. — SHALL be performed by
   the user, NOT by Claude, UNLESS the user explicitly requests that specific git
-  action. Make the file changes and tell the user the exact command to run.
+  action. Make the file changes and tell the user the exact command to run. The AI never
+  pushes, opens or merges a PR; the developer is the author of record.
 
 ## Commands
 
@@ -121,17 +126,15 @@ shims anywhere.
 are interchangeable front-ends. Data flow: `project.json` → `io.load_project` →
 `Project` → `registry.get(name)(project)` → `ModuleResult` → `report`/`io` render.
 
-- `sloads/` — pure calc: `models/` (the `Project` bundle + result types +
-  `SCHEMA_VERSION`), `modules/<name>.py` (one per suite program;
-  `run(project) -> ModuleResult`, self-registers at import), `registry.py`,
-  `workflow.py` (ordered step graph — **the** nav SSOT, drift-guarded by test),
-  `io.py` (the only dataclass↔JSON mapping), `units.py` (Imperial-internal;
-  conversion at the boundary only), `report/` (rendering; limit→ultimate boundary),
-  `export/` (sbeam bridge + `coordinates.py` axes/scale map), `constants.py`.
-- `app/Home.py` + `app/views/*.py` — Streamlit UI built from `workflow.py`; only
-  `Home.py` calls `st.set_page_config`.
-- `cli.py` — argparse front-end.
-- `tests/` — pytest; each file also has a zero-dependency `__main__` self-runner.
+- `sloads/` — pure calc: `models/` (`Project` bundle, result types, `SCHEMA_VERSION`),
+  `modules/<name>.py` (one per program; `run(project) -> ModuleResult`, self-registers),
+  `registry.py`, `workflow.py` (step graph — **the** nav SSOT, drift-guarded), `io.py`
+  (the only dataclass↔JSON mapping), `units.py` (Imperial-internal; convert at the
+  boundary), `report/` (limit→ultimate boundary), `export/` (sbeam bridge +
+  `coordinates.py`), `constants.py`.
+- `app/Home.py` + `app/views/*.py` — Streamlit UI built from `workflow.py` (only
+  `Home.py` calls `st.set_page_config`); `cli.py` — argparse; `tests/` — pytest, each
+  file with a zero-dependency `__main__` self-runner.
 
 **Module contract** (all 22 suite programs ported; applies to new concept modules):
 pure calc, no I/O; read upstream values from the `Project` slice — never recompute
@@ -153,6 +156,5 @@ Per-module analysis pages may show LIMIT only when explicitly marked.
 
 **Math fidelity:** modernized math (`math.pi`, clean equations) — the manual's figures
 are tolerance oracles (±0.1%, `math.isclose(rel_tol=1e-3)`), printed number + page
-citation kept in the test. **Deviations from the oracle** require user approval + the
-full documentation trail — register of record:
-`docs/20_theory/02_approved_corrections.md`.
+citation kept in the test. **Deviations from the oracle** require the owner's approval
+(recorded in the PR) + the full trail — register: `docs/20_theory/02_approved_corrections.md`.

@@ -1,5 +1,7 @@
 # Design note — lumped lateral body aero, `Cy_β` and `Cn_β` (L-7)
 
+**Owner:** @Sean074 · **Reviewers:** — *(design note 28 MD-6: the owner of what a note touches reviews it as a PR)*
+
 **Status: PROPOSED, not agreed — no code written.** Written to `CLAUDE.md`
 required practice 1 (design note before code, physics/L step). Backlog item
 **Pri 8** ([`00_backlog.md`](00_backlog.md)), from plan 13 decision **L-7**

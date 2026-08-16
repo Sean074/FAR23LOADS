@@ -1,5 +1,7 @@
 # Sign-Convention Summary & Report Section — design note
 
+**Owner:** @Sean074 · **Reviewers:** — *(design note 28 MD-6: the owner of what a note touches reviews it as a PR)*
+
 **Status: ✅ shipped 2026-08-10.** P-1…P-6 user-approved 2026-08-10 and stamped
 into `CONVENTIONS.md` §1.1 as decisions **SC-1…SC-6**; the report section and
 figures shipped per §4 (`report/conventions_tex.py`,

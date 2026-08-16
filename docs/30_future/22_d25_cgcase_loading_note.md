@@ -1,5 +1,7 @@
 # D-25 — `CgCase` explicit loading definition (design note)
 
+**Owner:** @Sean074 · **Reviewers:** — *(design note 28 MD-6: the owner of what a note touches reviews it as a PR)*
+
 **Status: agreed and SHIPPED 2026-08-15** (schema **v50**). Practice 1 (`CLAUDE.md`) —
 this note was agreed in chat before code on an L step, and is kept as the design record.
 Decisions of record D-25 and **D-25a…d** in

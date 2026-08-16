@@ -1,0 +1,22 @@
+{
+  "atr42_100/dhc8_dash8 are modelled as conventional tails and are T-tails (defect, from T-8a)": 1,
+  "Fixture aero-data quality — the NMAA dCD sign (defect)": 2,
+  "L-8i — per-page LIMIT CSV units": 3,
+  "M4-3(b) — turboprop gate as enforcement": 4,
+  "Hygiene batch (one session): conventions findings (a)–(d); M4-23 duplicate sigma; RHO_SL for the seven 0.002378 liter…": 5,
+  "Wing-tank fuel separability": 6,
+  "Step 14 descoped — PBAR/MAT1 pass-through per LRA element family (was \"real stiffness\", L-1)": 7,
+  "Lateral body aero Cy_β/Cn_β (L-7) — design note in 19_l7_lateral_body_aero_note.md (proposed, awaiting agreement)": 8,
+  "Fixture-data pass: empennage planform polylines + the WTENV envelopes entered independently of the item database (fou…": 9,
+  "Thrust FORCE at the engine hub (carved out of note 21; the seven-step wake plan is parked)": 10,
+  "Combined flight + ground station envelope (from step 10 decision G-9)": 11,
+  "Gust spanwise-distribution decision": 12,
+  "Decisions, not effort: derived-ACRL air-load divergence (which point ACRL names); ATR-42 Mach-capped stall exceedance…": 13,
+  "The aileron's own lift increment is not distributed": 14,
+  "Export deck-writing primitives out of sbeam_bridge.py (CH-4)": 15,
+  "Dead code (CH-5)": 16,
+  "Calc-side function size (CH-8) — build_lra_model (336 lines), landing_reactions (200)": 17,
+  "Review 2026-08-10 unscheduled findings m3–m13, m15–m18 + NITs (defect sweep)": 18,
+  "mypy strictness ratchet — stage 2 export/, stage 3 modules/ (design note 27 ST-3; detail below)": 19,
+  "D-5 — Appendix B twin fixture (blocks parked L-9).": 20
+}

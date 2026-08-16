@@ -1,5 +1,7 @@
 # Design note — sbeam round-trip CI harness
 
+**Owner:** @Sean074 · **Reviewers:** — *(design note 28 MD-6: the owner of what a note touches reviews it as a PR)*
+
 **Backlog item:** `[E] sbeam round-trip CI harness` (raised 2026-08-05, process
 review R9). **Status:** **SHIPPED 2026-08-08** (mission phase 1, step 2);
 decisions S-1…S-9 below, all implemented as written except where §10 records

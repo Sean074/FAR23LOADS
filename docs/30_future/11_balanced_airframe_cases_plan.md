@@ -1,5 +1,7 @@
 # Design note — Balanced full-airframe load cases (free-free)
 
+**Owner:** @Sean074 · **Reviewers:** — *(design note 28 MD-6: the owner of what a note touches reviews it as a PR)*
+
 **Raised:** 2026-08-08 (user). **Status:** design agreed at the decision level
 (B-1…B-4 answered by the user, 2026-08-08). **Step B1 SHIPPED 2026-08-08** — see
 the history entry "The mass single source of truth" in

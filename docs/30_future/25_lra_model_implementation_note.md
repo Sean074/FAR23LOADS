@@ -1,5 +1,7 @@
 # Step 12 implementation note — the LRA beam model (export + import)
 
+**Owner:** @Sean074 · **Reviewers:** — *(design note 28 MD-6: the owner of what a note touches reviews it as a PR)*
+
 **Status: implementation decisions of record, 2026-08-16.** The governing design
 note is [`24_lra_beam_model_review_note.md`](24_lra_beam_model_review_note.md)
 (AGREED 2026-08-15): the target features F1–F8, the three-artifact statement

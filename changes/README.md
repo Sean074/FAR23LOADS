@@ -11,10 +11,15 @@ File name: `<slug>.<type>.md`
 - `slug` — short kebab-case identity of the change (`gear-csv-ult-marker`,
   `step-14-pbar-passthrough`, `r6-d5-tree-guard`). Lower-case letters, digits,
   hyphens.
-- `type` — one of `breaking`, `added`, `changed`, `fixed`, `removed`. This
-  selects the `### Breaking` / `### Added` / … subsection at build time.
+- `type` — one of `breaking`, `added`, `changed`, `fixed`, `removed` (a
+  changelog bullet; selects the `### Breaking` / `### Added` / … subsection at
+  build time) **or `history`** (design note 28 MD-4: the tier-M paragraph or
+  tier-L full-step entry for `docs/40_history/00_completed_development.md`,
+  rolled to the top of that file at release cut, newest first). A tier-M/L
+  closure therefore writes **two** fragments: `<slug>.<type>.md` and
+  `<slug>.history.md`; tier S writes one.
 
-File body: one or more Markdown bullets, **exactly** as they should appear in
+File body (changelog types): one or more Markdown bullets, **exactly** as they should appear in
 `CHANGELOG.md` — start with `- `, bold lead phrase, tier and date in the lead,
 cite the design note / backlog row / review ID as the project already does:
 
@@ -25,6 +30,10 @@ cite the design note / backlog row / review ID as the project already does:
 
 Multi-paragraph bullets are fine (indent continuation lines two spaces).
 
+File body (`history`): a tier-M paragraph starting `- **Title (…, tier M, date)** —`
+or a tier-L step starting `## Step N — …` / `**Step N — …**` in the history
+file's step format (Objective / Deliverables / Test / Key decisions).
+
 ## Building the changelog (release cut only — `RELEASE_PROCESS.md` §4)
 
 ```bash
@@ -32,10 +41,13 @@ Multi-paragraph bullets are fine (indent continuation lines two spaces).
 .venv/bin/python scripts/build_changelog.py 0.6.0 --date 2026-08-20
 ```
 
-The builder merges every fragment into the existing `[Unreleased]` body by
-subsection (fragments first, then any legacy hand-written text), renames the
-heading to `## [0.6.0] — 2026-08-20`, opens a fresh empty `[Unreleased]`, and
-deletes the consumed fragments. Nothing else in `CHANGELOG.md` is touched.
+The builder merges every changelog fragment into the existing `[Unreleased]`
+body by subsection (fragments first, then any legacy hand-written text), renames
+the heading to `## [0.6.0] — 2026-08-20`, opens a fresh empty `[Unreleased]`,
+inserts every `*.history.md` entry directly under the history file's header
+rule (the live cycle below is byte-identical), and deletes the consumed
+fragments. Nothing else in either file is touched. Until the cut, `ls changes/`
+*is* the release's history.
 
 ## Guard
 

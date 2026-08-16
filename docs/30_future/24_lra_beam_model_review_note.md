@@ -1,5 +1,7 @@
 # Design review — the LRA beam model (steps 12 / 13 / 14 against the stated target)
 
+**Owner:** @Sean074 · **Reviewers:** — *(design note 28 MD-6: the owner of what a note touches reviews it as a PR)*
+
 **Status: AGREED 2026-08-15 (user) — the §6 amendments to `00_backlog.md` (step 12/13/14 bodies, Pri 1/10/16), plan 10 §1.1/§8.1, plan 11 §4, plan 09 §10 (T-18) and note 21 (P-6a) are applied; the standard-doc, schema and `bands.py` items in §6 follow the code per the closure tiers. No code.** A review of the
 existing design documentation for band B of the priority table (backlog Pri 1–4:
 `fuselage_width` fixture data, step 13 side-of-body node, step 12 LRA beam-model

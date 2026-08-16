@@ -1,5 +1,7 @@
 # Design note 27 — static typing and lint depth
 
+**Owner:** @Sean074 · **Reviewers:** — *(design note 28 MD-6: the owner of what a note touches reviews it as a PR)*
+
 **Status:** AGREED 2026-08-16 (user: "implement mypy --strict incrementally and
 widen ruff") — ✅ **shipped 2026-08-16**, same session; kept as the plan of
 record. Tier M closure (tooling + a CI gate + a standard-doc section; no physics,

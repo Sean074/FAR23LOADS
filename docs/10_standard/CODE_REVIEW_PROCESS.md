@@ -23,6 +23,14 @@ Review depth scales with the change, matching the S/M/L closure tiers in `CLAUDE
 **Scoping rule (all tiers):** steps 2–7 apply only to areas the diff touches — do not
 walk the porting checklist for a view-layer change.
 
+**The PR is the review unit (design note 28, 2026-08-16 — `DEVELOPMENT_PROCESS.md`).**
+The reviewer is never the author; a path in `.github/CODEOWNERS` needs its owner's
+approval; one approval is the merge requirement (`self-merge-ok` tier-S docs/hygiene
+PRs excepted, on green CI). Findings are PR review comments in the format below —
+filed with bodies, in the PR, never carried to a later session — and "closure in a
+follow-up" is a `[MAJOR]` (Step 1). An oracle deviation is approved by the owner of
+`02_approved_corrections.md` **in the PR**, which is where the approval is recorded.
+
 **Cadence:** hold a scheduled light review every ~2 weeks or every ~5 closed steps,
 whichever comes first, instead of letting findings accumulate into large review waves
 (the 2026-07-21 wave spawned the entire M2R + M4 sequence at once).

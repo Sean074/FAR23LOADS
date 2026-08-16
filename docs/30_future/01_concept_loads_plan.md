@@ -1,5 +1,7 @@
 # Phase C — Initial-Concept Loads Tool (development plan)
 
+**Owner:** @Sean074 · **Reviewers:** — *(design note 28 MD-6: the owner of what a note touches reviews it as a PR)*
+
 The active development plan that grows sloads from a faithful ≤12,500 lb
 **FAR Part 23 Subpart C** replication into an **initial-concept distributed-loads
 tool**: one that can exceed the FAR23 weight and seat limits, assesses a candidate

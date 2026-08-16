@@ -32,6 +32,12 @@
     "/0x[0-9a-fA-F]+/"
   ],
   "words": [
+    "assignees",
+    "assignee",
+    "milestone",
+    "trunk",
+    "gitignore",
+    "CODEOWNERS",
     "mypy",
     "typecheck",
     "untyped",

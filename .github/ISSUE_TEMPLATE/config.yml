@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+  - name: How work moves here
+    url: https://github.com/Sean074/sloads/blob/main/docs/10_standard/DEVELOPMENT_PROCESS.md
+    about: Branches, PRs, closure-in-the-PR, issues as the record, design notes before code.

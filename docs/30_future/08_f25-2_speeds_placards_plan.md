@@ -1,5 +1,7 @@
 # Design note — F25-2: Speeds & placards, Part 25 variant (Mach-margin VD route)
 
+**Owner:** @Sean074 · **Reviewers:** — *(design note 28 MD-6: the owner of what a note touches reviews it as a PR)*
+
 **Backlog item:** `[E] F25-2 — Speeds & placards Part 25 variant (S→M)`
 **[contained a Major concept-mode defect]**. **Status: SHIPPED 2026-08-08** —
 implemented as planned; the record of what landed is in
