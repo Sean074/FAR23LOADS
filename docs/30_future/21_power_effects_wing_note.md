@@ -596,14 +596,14 @@ regional jet have balanced decks. **Checked 2026-08-15 against HEAD
 v50, note [`22_d25_cgcase_loading_note.md`](22_d25_cgcase_loading_note.md)) —
 but it delivered the *mechanism*, not the twins' data: `atr42_100` (1/3
 derivable) and `dhc8_dash8` (0/3) still assemble no flight case on HEAD. What
-clears the way is the consumer item **backlog Pri 6 — "Payload cases the weight
+clears the way is the consumer item **backlog Pri 5 — "Payload cases the weight
 database can produce"**: enter a `CgCase.loading` for each twin case (the RJ
 `CG3 fwd light` is the worked example — an engineering statement of the ballast/
 discretionary items instead of the solved-ballast gate), Tier M–L, effort M, no
 schema left in it; pinned by `test_mass_cards.py::
 test_which_loadings_are_entered_is_pinned` and `test_balance.py::
 test_which_conditions_assemble_is_pinned`. So the demonstration fixtures have a
-**hard prerequisite: Pri 6 for `atr42_100` and `dhc8_dash8`** before any
+**hard prerequisite: Pri 5 for `atr42_100` and `dhc8_dash8`** before any
 power-on case can be minted on them. The power step's fixture gate depends on
 it; this note does not fold that work in (practice 5) but sequences after it
 (§8, to follow).
@@ -706,7 +706,7 @@ its gates from §4.5 / §5.3 / §6.4 and its own closure per `CLAUDE.md`.
 
 | Step | Content | Depends on | Gates |
 |---|---|---|---|
-| **0 (prereq, separate backlog item)** | **Pri 6** for `atr42_100` and `dhc8_dash8`: enter `CgCase.loading` so the twins assemble flight balanced cases at all | D-25 ✅ | existing pins go red → green |
+| **0 (prereq, separate backlog item)** | **Pri 5** for `atr42_100` and `dhc8_dash8`: enter `CgCase.loading` so the twins assemble flight balanced cases at all | D-25 ✅ | existing pins go red → green |
 | **0b (prereq)** | CFR pull: pre-Amdt-64 23.331/.333/.361/.371/.421/.423/.425/.457 (+ 23.49 for the VS/VA statement, 25.331(a)) → `reference/14CFR_23_power_effects.md`; resolve the [VERIFY] tags | — | doc only |
 | **1** | `power_effects.py` estimator: `slipstream()` helper generalized from `flap._slipstream_velocity` (flap numbers unchanged), DATCOM §4.6 port (`CNα_p`, `K_N`, `f`, upwash at disc, `Δε`, `q_h/q`, `k_q`), `PowerLoadSet`; user-override table with `T_c` interpolation; `Engine` prop-aero fields + thrust line (P-6) — **schema bump** | 0b | G4-9 / G6-4 (DATCOM ex3 ±0.1 %), flap App-A p201 unchanged, `OFF` identity |
 | **2** | `power_policy.py` (§2 table with basis) + `power_state` case attribute / `-P` IDs (note 17 linkage) + `AeroCoeffSet.power_state` (P-12) — schema | 1 | G5-1, G5-4, unclassifiable → flagged |

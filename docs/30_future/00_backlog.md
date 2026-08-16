@@ -223,7 +223,7 @@ traceability with plans 09/11/12/13; the **Pri** column is ordinal only.
 | 12 | M4-21 — fuselage pitching load factor | d'Alembert pitch term at each body station | V | M / S | pairs Pri 13 |
 | 13 | M4-4 — per-CG precise inertia in SELECT | WTONECG inertia wired into checked-maneuver `Iyy` / v-tail `IZZ` | V | M / S | — |
 | 14 | M4-3 — ONENGOUT data-flow + turboprop gate | Geometry provenance, `is_turboprop` gate, VSF decision | V | M / S | — |
-| 14a | Power effects on the wing — thrust + propeller wake (wing-mounted props); design note **agreed** in [`21_power_effects_wing_note.md`](21_power_effects_wing_note.md) (P-0…P-12) | `-P` balanced wing/h-tail cases + 23.361/23.371 wing-box cases; DATCOM §4.6 estimator with the ex3 printed **oracle**; `power_policy.py`; thrust line per engine | V | L / L | **Pri 6 for the twins** (fixtures assemble no flight case today); CFR pull (§8 step 0b); pairs L-7 for the v-tail terms |
+| 14a | Power effects on the wing — thrust + propeller wake (wing-mounted props); design note **agreed** in [`21_power_effects_wing_note.md`](21_power_effects_wing_note.md) (P-0…P-12) | `-P` balanced wing/h-tail cases + 23.361/23.371 wing-box cases; DATCOM §4.6 estimator with the ex3 printed **oracle**; `power_policy.py`; thrust line per engine | V | L / L | **Pri 5 for the twins** (fixtures assemble no flight case today); CFR pull (§8 step 0b); pairs L-7 for the v-tail terms |
 | **F — report and deliverable polish** ||||||
 | 15 | Combined flight + ground station envelope *(from step 10 decision G-9)* | Two-sided max/min per station over both families, each extreme naming its governing case | V | M / M | — (ground cases shipped 2026-08-15) |
 | 16 | Load-application axis vs elastic axis — document the torsion reference | Convention in `coordinates.py` + spec + deck `$` header | V | S / S | partially superseded by Pri 3 (LRA import) |
@@ -649,7 +649,7 @@ assemble (the 1 % gate applies); pair torque reacted by an aileron-trim couple;
 V-n and design speeds stay power-off; h-tail `-P` families under the same table;
 v-tail terms deferred to L-7; user-defined thrust line (hub + incidence + toe);
 `AeroCoeffSet.power_state` provenance flag. Sequencing in the note §8:
-**prerequisite Pri 6 for `atr42_100`/`dhc8_dash8`** (both assemble no flight
+**prerequisite Pri 5 for `atr42_100`/`dhc8_dash8`** (both assemble no flight
 balanced case on HEAD) and the pre-Amdt-64 CFR pull. Rule basis pre-Amdt-64
 FAR 23. Tier L. Effort: L (7 steps). Next artefact: the code implementation plan.
 
