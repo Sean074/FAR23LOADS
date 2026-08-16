@@ -1,8 +1,9 @@
-"""The `changes/` fragment contract and the changelog builder (design note 26).
+"""The `changes/` fragment contract and the release-cut builder (design notes 26, 28).
 
-Closure writes a fragment, not an edit to `CHANGELOG.md`; the release cut
-assembles them. Two things can rot: a fragment that the builder cannot place
-(bad name, not a bullet) and would be discovered only at release time, and
+Closure writes a fragment, not an edit to `CHANGELOG.md` or the history file;
+the release cut assembles them (changelog subsections; history entries rolled
+to the top of `00_completed_development.md`, MD-4). Two things can rot: a
+fragment that the builder cannot place (bad name, wrong shape) and would be discovered only at release time, and
 the live history file growing back into the 9k-line record the split retired.
 The first is a failure here; the second is a warning — size is a release-roll
 trigger (`RELEASE_PROCESS.md` §4), not a defect in the change that crossed it.
@@ -107,6 +108,41 @@ def test_cut_release_touches_only_the_unreleased_block(bc):
 def test_cut_release_without_unreleased_heading_is_an_error(bc):
     with pytest.raises(ValueError, match="Unreleased"):
         bc.cut_release("# Changelog\n\n## [0.5.0] — d\n", {}, "0.6.0", "2026-08-20")
+
+
+# --- history fragments (design note 28 MD-4) ---------------------------
+
+
+def test_history_fragment_shapes():
+    bc = _builder()
+    assert bc.validate_fragment("x.history.md", "- **Tier M (tier M, 2026-08-20)** — one paragraph\n") == "history"
+    assert bc.validate_fragment("x.history.md", "## Step 14 — full step\n\n**Objective.** …\n") == "history"
+    with pytest.raises(bc.FragmentError, match="history fragment"):
+        bc.validate_fragment("x.history.md", "a plain paragraph\n")
+    with pytest.raises(bc.FragmentError, match="empty"):
+        bc.validate_fragment("x.history.md", "\n")
+
+
+def test_roll_history_inserts_after_the_header_rule_and_keeps_the_rest_byte_identical(bc):
+    history = "# Completed Development\n\nheader prose\n\n---\n\n- **Old (tier M)** — t\n\n**Step X**\n\nbody\n"
+    out = bc.roll_history(history, ["- **New A** — a\n", "**Step B**\n\n**Objective.** b\n"])
+    head, _, tail = out.partition("---\n")
+    assert head == "# Completed Development\n\nheader prose\n\n"
+    assert tail == (
+        "\n- **New A** — a\n\n**Step B**\n\n**Objective.** b\n\n"
+        "- **Old (tier M)** — t\n\n**Step X**\n\nbody\n"
+    )
+    assert bc.roll_history(history, []) == history
+
+
+def test_roll_history_without_a_rule_is_an_error(bc):
+    with pytest.raises(ValueError, match="rule"):
+        bc.roll_history("# H\n\nno rule here\n", ["- **x** — y\n"])
+
+
+def test_parse_separates_history_from_changelog_types(bc):
+    out = bc.parse_fragments({"a.fixed.md": "- **f**\n", "b.history.md": "- **h** — p\n"})
+    assert set(out) == {"fixed", "history"}
 
 
 # --- the history file size ---------------------------------------------

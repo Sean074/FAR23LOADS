@@ -114,6 +114,7 @@ layouts are untouched, to the byte.
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 from typing import Dict, List, NamedTuple, Optional, Sequence, Tuple
 
@@ -633,7 +634,7 @@ def _removal_shares(planform: TailPlanform,
         overlap = max(0.0, min(s + ds / 2.0, removal.y_hi)
                       - max(s - ds / 2.0, removal.y_lo))
         weights.append(planform.chord(s) * overlap)
-    total = sum(weights)
+    total = math.fsum(weights)
     if total <= 0:                                # pragma: no cover - validated away
         return [0.0] * len(strips)
     return [w / total for w in weights]
@@ -654,7 +655,7 @@ def _hinge_tributaries(attachment: ControlAttachment,
         left = lo if i == 0 else 0.5 * (hinges[i - 1] + h)
         right = hi if i == len(hinges) - 1 else 0.5 * (h + hinges[i + 1])
         weights.append(planform.chord(h) * (right - left))
-    total = sum(weights)
+    total = math.fsum(weights)
     return [w / total for w in weights]
 
 
@@ -1052,7 +1053,7 @@ def build_tail_span(project: Project) -> Dict[str, List[TailSpanResult]]:
             # The *applied* total, per-side scaled -- the same treatment
             # ``air_total`` gives the surface load, so the two are comparable on
             # the one condition (23.427(a)) whose sides differ.
-            control_load = sum(p.f_normal for p in control_loads)
+            control_load = math.fsum(p.f_normal for p in control_loads)
             hinge_arm = hinge_moment / control_load if control_load else 0.0
             notes.append(
                 f"control load DISCRETE: {control_load:+.1f} lb "

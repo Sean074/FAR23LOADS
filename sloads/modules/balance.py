@@ -194,6 +194,7 @@ physical condition.
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass, replace
 from math import cos, degrees, pi, radians, sin
 from typing import Dict, List, Optional, Sequence, Tuple
@@ -540,7 +541,7 @@ def wing_sets(project: Project, vn: VnPoint) -> Tuple[List[BalancedLoad], float,
                      source="wing-air", side="R")
         for i, s in enumerate(air.stations)
     ]
-    cm_free = 2.0 * sum(ml)
+    cm_free = 2.0 * math.fsum(ml)
 
     inertia, panel_both = wing_inertia_strips(project, vn.nz)
     return loads + inertia, panel_both, cm_free
@@ -577,11 +578,11 @@ def wing_inertia_strips(project: Project,
     if geom is None:
         raise MissingInputError(f"balance: wing surface {wm.surface!r} is not in 'geometry'")
     u = inertia_units(geom, wm)
-    panel = sum(u.w)
+    panel = math.fsum(u.w)
     strips = [(i, w) for i, w in enumerate(u.w) if w]
     if strips and panel:
-        x_shape = sum(w * u.c50x[i] for i, w in strips) / panel
-        z_shape = sum(w * u.z[i] for i, w in strips) / panel
+        x_shape = math.fsum(w * u.c50x[i] for i, w in strips) / panel
+        z_shape = math.fsum(w * u.z[i] for i, w in strips) / panel
     else:
         x_shape = z_shape = 0.0
     return ([BalancedLoad(x=u.c50x[i] - x_shape, y=u.ye[i], z=u.z[i] - z_shape,
@@ -613,9 +614,9 @@ def place_wing_inertia(loads: Sequence[BalancedLoad], loading: CaseLoading,
             f"{panel_both:.0f} lb")
     wing_items = [it for it in loading.items
                   if component_of(it, project) == MassComponent.WING]
-    w_wing = sum(it.weight_lb for it in wing_items)
-    x_wing = (sum(it.weight_lb * it.x for it in wing_items) / w_wing) if w_wing else 0.0
-    z_wing = (sum(it.weight_lb * it.z for it in wing_items) / w_wing) if w_wing else 0.0
+    w_wing = math.fsum(it.weight_lb for it in wing_items)
+    x_wing = (math.fsum(it.weight_lb * it.x for it in wing_items) / w_wing) if w_wing else 0.0
+    z_wing = (math.fsum(it.weight_lb * it.z for it in wing_items) / w_wing) if w_wing else 0.0
     return ([replace(ld, fz=ld.fz * scale, weight_lb=ld.weight_lb * scale,
                      x=ld.x + x_wing, z=ld.z + z_wing)
              if ld.source == "wing-inertia" else ld
@@ -640,7 +641,7 @@ def _wing_inertia_scale(loading: CaseLoading, project: Project,
     loading with **no** WING item mass scales to 0.0, and then nothing is lost
     -- :func:`assemble` notes that case.
     """
-    wing_items = sum(it.weight_lb for it in loading.items
+    wing_items = math.fsum(it.weight_lb for it in loading.items
                      if component_of(it, project) == MassComponent.WING)
     if panel_both_sides <= 0.0:
         if wing_items:
@@ -725,8 +726,8 @@ def body_axial_set(loads: Sequence[BalancedLoad], project: Project,
     stated; neither can move a number.
     """
     fl = _flight_loads(project)
-    wing_fx = sum(ld.fx for ld in loads if ld.source == "wing-air")
-    wing_fz = sum(ld.fz for ld in loads if ld.source == "wing-air")
+    wing_fx = math.fsum(ld.fx for ld in loads if ld.source == "wing-air")
+    wing_fz = math.fsum(ld.fz for ld in loads if ld.source == "wing-air")
     total = vn.dx - wing_fx
     if not total:
         return 0.0, 0.0, [], []
@@ -782,14 +783,14 @@ def _body_drag_stations(project: Project,
             seg = 0.5 * (area[i] + area[i + 1]) * (sections[i + 1].x - sections[i].x)
             w[i] += 0.5 * seg
             w[i + 1] += 0.5 * seg
-        total = sum(w)
+        total = math.fsum(w)
         if total > 0.0:
             return [(s.x, wi / total) for s, wi in zip(sections, w) if wi]
     body = [it for it in loading.items
             if not assembly_distributes_mass(component_of(it, project))]
-    weight = sum(it.weight_lb for it in body)
+    weight = math.fsum(it.weight_lb for it in body)
     if weight:
-        return [(sum(it.x * it.weight_lb for it in body) / weight, 1.0)]
+        return [(math.fsum(it.x * it.weight_lb for it in body) / weight, 1.0)]
     return []
 
 
@@ -889,7 +890,7 @@ def htail_load(case: BalancedCaseResult) -> float:
     the case *has* the set: a tail load that happened to sum to zero would still
     be one, because it is the distribution that is handed.
     """
-    return sum(ld.fz for ld in case.loads if ld.source == "htail-air")
+    return math.fsum(ld.fz for ld in case.loads if ld.source == "htail-air")
 
 
 def htail_side_loads(case: BalancedCaseResult) -> Tuple[float, float]:
@@ -900,8 +901,8 @@ def htail_side_loads(case: BalancedCaseResult) -> Tuple[float, float]:
     so the two agree only because the tag is right -- a reflection that failed to
     swap the tags would show up here rather than being echoed back.
     """
-    rh = sum(ld.fz for ld in case.loads if ld.source == "htail-air" and ld.y > 0)
-    lh = sum(ld.fz for ld in case.loads if ld.source == "htail-air" and ld.y < 0)
+    rh = math.fsum(ld.fz for ld in case.loads if ld.source == "htail-air" and ld.y > 0)
+    lh = math.fsum(ld.fz for ld in case.loads if ld.source == "htail-air" and ld.y < 0)
     return rh, lh
 
 
@@ -979,7 +980,7 @@ def fin_load(case: BalancedCaseResult) -> float:
     The number the deck reports and the gates pin. Use :func:`is_lateral` to ask
     whether the case *has* a fin set.
     """
-    return sum(ld.fy for ld in case.loads if ld.source == "vtail-air")
+    return math.fsum(ld.fy for ld in case.loads if ld.source == "vtail-air")
 
 
 def is_handed(applied: Sequence[BalancedLoad], n_w: float,
@@ -1027,13 +1028,13 @@ def is_handed(applied: Sequence[BalancedLoad], n_w: float,
     # opposite, cancelling exactly -- and an "any" test minted every symmetric
     # level-landing case handed, emitting a twin that is the same load set
     # mirrored onto itself. The net is the question that was always meant.
-    free = (sum(ld.mx for ld in applied), sum(ld.mz for ld in applied))
+    free = (math.fsum(ld.mx for ld in applied), math.fsum(ld.mz for ld in applied))
     if ref_length <= 0.0:
         if any(free):
             return True
     elif max(abs(v) for v in free) > HANDEDNESS_TOL * n_w * ref_length:
         return True
-    if sum(abs(ld.fy) for ld in applied) > HANDEDNESS_TOL * n_w:
+    if math.fsum(abs(ld.fy) for ld in applied) > HANDEDNESS_TOL * n_w:
         return True
     # The rolling test reads the **net**, unlike the lateral one above, and for
     # the opposite reason: a mirror-symmetric set cancels to exactly zero here
@@ -1043,7 +1044,7 @@ def is_handed(applied: Sequence[BalancedLoad], n_w: float,
     # in roll and the 23.427(a) case nets 6e-3 to 1.7e-2.
     if ref_length <= 0.0:
         return False
-    roll = sum(ld.mx + ld.y * ld.fz - ld.z * ld.fy for ld in applied)
+    roll = math.fsum(ld.mx + ld.y * ld.fz - ld.z * ld.fy for ld in applied)
     return abs(roll) > HANDEDNESS_TOL * n_w * ref_length
 
 
@@ -1098,14 +1099,14 @@ def resultant6(loads: Sequence[BalancedLoad],
     assumed so B8a's lateral cases inherit a resultant that already covers them,
     and so :func:`test_lateral_dof_are_untouched` can pin the fact.
     """
-    fx = sum(ld.fx for ld in loads)
-    fy = sum(ld.fy for ld in loads)
-    fz = sum(ld.fz for ld in loads)
-    mx = sum(ld.mx + (ld.y - ref[1]) * ld.fz - (ld.z - ref[2]) * ld.fy
+    fx = math.fsum(ld.fx for ld in loads)
+    fy = math.fsum(ld.fy for ld in loads)
+    fz = math.fsum(ld.fz for ld in loads)
+    mx = math.fsum(ld.mx + (ld.y - ref[1]) * ld.fz - (ld.z - ref[2]) * ld.fy
              for ld in loads)
-    my = sum(ld.my + (ld.z - ref[2]) * ld.fx - (ld.x - ref[0]) * ld.fz
+    my = math.fsum(ld.my + (ld.z - ref[2]) * ld.fx - (ld.x - ref[0]) * ld.fz
              for ld in loads)
-    mz = sum(ld.mz + (ld.x - ref[0]) * ld.fy - (ld.y - ref[1]) * ld.fx
+    mz = math.fsum(ld.mz + (ld.x - ref[0]) * ld.fy - (ld.y - ref[1]) * ld.fx
              for ld in loads)
     return fx, fy, fz, mx, my, mz
 
@@ -1205,15 +1206,15 @@ def _closure(loads: List[BalancedLoad], cg: CgCase,
     """
     zero = (0.0, 0.0, 0.0)
     masses = [(ld, ld.weight_lb) for ld in loads if ld.weight_lb]
-    w_total = sum(w for _, w in masses)
+    w_total = math.fsum(w for _, w in masses)
     if not w_total:
         return zero, zero, InertiaTensor()
 
     # The centroid of the masses the model actually carries -- the one point the
     # relief field is exact about (see the docstring).
-    cx = sum(ld.x * w for ld, w in masses) / w_total
-    cy = sum(ld.y * w for ld, w in masses) / w_total
-    cz = sum(ld.z * w for ld, w in masses) / w_total
+    cx = math.fsum(ld.x * w for ld, w in masses) / w_total
+    cy = math.fsum(ld.y * w for ld, w in masses) / w_total
+    cz = math.fsum(ld.z * w for ld, w in masses) / w_total
     points = [PointMass(w, ld.x - cx, ld.y - cy, ld.z - cz) for ld, w in masses]
     tensor = inertia_tensor(points, [si for _, si in self_inertia])
     fx, fy, fz, mx, my, mz = residual
@@ -1310,7 +1311,7 @@ def assemble(project: Project, condition: str, vn: VnPoint,
     loads: List[BalancedLoad] = list(wing_r) + _mirror(wing_r)
     if htail:
         loads += list(htail)
-        applied_ht = sum(ld.fz for ld in htail)
+        applied_ht = math.fsum(ld.fz for ld in htail)
         notes.append(
             f"UNSYMMETRICAL (FAR 23.427(a)): the applied tail load is SELECT's "
             f"own left/right split, {applied_ht:+.0f} lb, and it REPLACES the "
@@ -1328,9 +1329,9 @@ def assemble(project: Project, condition: str, vn: VnPoint,
 
     # The fuselage's share of the trim pitching moment: what the airplane-less-tail
     # Cm carries that the distributed wing does not (see the module docstring).
-    wing_about_ac = sum(
-        (ld.my + (ld.z - fl.zw) * ld.fx - (ld.x - fl.xw) * ld.fz
-         for ld in loads if ld.source == "wing-air"), 0.0)
+    wing_about_ac = math.fsum(
+        ld.my + (ld.z - fl.zw) * ld.fx - (ld.x - fl.xw) * ld.fz
+        for ld in loads if ld.source == "wing-air")
     fuselage_cm = vn.m_wf - wing_about_ac
     loads.append(BalancedLoad(x=fl.xw, y=0.0, z=fl.zw, my=fuselage_cm,
                               source="fuselage-cm", side="C"))
@@ -1718,7 +1719,7 @@ def ground_lift_sets(project: Project, lift_lb: float,
     # than borrowing a flight condition this case does not have.
     shape = air_load_distribution(geom, aero, 1.0, 100.0,
                                   wm.wrp_waterline, wm.dihedral_deg)
-    total = sum(s.fz for s in shape.stations)
+    total = math.fsum(s.fz for s in shape.stations)
     if not total:
         raise MissingInputError(
             "the wing spanwise distribution integrates to zero lift, so a ground "

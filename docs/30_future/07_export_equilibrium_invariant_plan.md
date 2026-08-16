@@ -1,5 +1,7 @@
 # Design note — Global equilibrium invariant on exported decks
 
+**Owner:** @Sean074 · **Reviewers:** — *(design note 28 MD-6: the owner of what a note touches reviews it as a PR)*
+
 **Backlog item:** `[E] Global equilibrium invariant on exported decks` (raised
 2026-08-05, process review R9). **Status: SHIPPED 2026-08-08** — see the history
 entry "Export-boundary equilibrium gate" in

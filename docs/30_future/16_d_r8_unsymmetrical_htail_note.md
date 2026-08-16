@@ -1,5 +1,7 @@
 # Design note — the 23.427(a) handed balanced h-tail family (D-R8)
 
+**Owner:** @Sean074 · **Reviewers:** — *(design note 28 MD-6: the owner of what a note touches reviews it as a PR)*
+
 **Status: shipped 2026-08-10.** Agreed in chat before code, per `CLAUDE.md`
 required practice 1. Decision of record: **D-R8**
 ([`03_resolved_decisions.md`](../40_history/03_resolved_decisions.md)), raised as

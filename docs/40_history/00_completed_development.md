@@ -13,7 +13,10 @@ release cut. Older blocks roll into frozen, do-not-edit archives at each release
 (`RELEASE_PROCESS.md` §4): everything before 0.5.0 is in
 [`11_completed_development_to_0.5.0.md`](11_completed_development_to_0.5.0.md).
 Tier S closures do not write here (a `changes/` fragment is their record); tier M
-writes one paragraph, tier L the full step format.
+writes one paragraph, tier L the full step format — **as a `changes/<slug>.history.md`
+fragment** (design note 28 MD-4), rolled to the top of this file at release cut, so
+concurrent PRs never edit the same line here. Only the release-cut block itself is
+written directly, by the release manager.
 
 ---
 

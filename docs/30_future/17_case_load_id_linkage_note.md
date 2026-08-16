@@ -1,5 +1,7 @@
 # Design note — case identity ↔ deck LOAD id linkage (report + GUI)
 
+**Owner:** @Sean074 · **Reviewers:** — *(design note 28 MD-6: the owner of what a note touches reviews it as a PR)*
+
 **Status: shipped 2026-08-13.** Written before code and agreed in chat per
 `CLAUDE.md` required practice 1; decision 1 (two LOAD columns) and decision 5
 (the `SUBCASE` word kept in the headers) are the user's calls of that date.

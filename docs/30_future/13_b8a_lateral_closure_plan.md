@@ -1,5 +1,7 @@
 # Design note — B8a lateral closure: the ±β empennage cases
 
+**Owner:** @Sean074 · **Reviewers:** — *(design note 28 MD-6: the owner of what a note touches reviews it as a PR)*
+
 **Raised:** 2026-08-08. **Status: SHIPPED 2026-08-09** — decisions L-1…L-8
 answered by the user 2026-08-08/09, and all five steps (B8a-1…B8a-5) complete
 and green with the Tier-L closure trail. Written per `CLAUDE.md` required

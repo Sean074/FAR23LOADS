@@ -1,5 +1,7 @@
 # Design note — Distributed empennage loads → sbeam FORCE/MOMENT export
 
+**Owner:** @Sean074 · **Reviewers:** — *(design note 28 MD-6: the owner of what a note touches reviews it as a PR)*
+
 **Status:** assessment + step-by-step development guide; decisions T-1…T-7 taken
 2026-08-08 (user), **T-8…T-11 taken 2026-08-08** in the development-plan review
 (they supersede the T-3 inertia wording and the §3.1/§4 half-vs-full

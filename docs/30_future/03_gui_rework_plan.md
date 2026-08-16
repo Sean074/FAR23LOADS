@@ -1,5 +1,7 @@
 # Phase G — Workflow-aligned GUI rework (design & specification)
 
+**Owner:** @Sean074 · **Reviewers:** — *(design note 28 MD-6: the owner of what a note touches reviews it as a PR)*
+
 > **Status:** design/spec complete; the §6 feature scope is **closed** and the
 > step-by-step plan lives in [`00_backlog.md`](00_backlog.md) → **Phase G**. This
 > document is the narrative, the assessment vs. the current code, and the locked

@@ -11,3 +11,8 @@ projects/
 
 _to_delete/
 _staging_tmp2/
+
+# Per-developer Claude Code settings (design note 28 MD-9): the shared allowlist
+# is .claude/settings.json (committed); local overrides never are.
+.claude/settings.local.json
+.mypy_cache/

@@ -1,13 +1,20 @@
 #!/usr/bin/env python
-"""Assemble ``changes/*.md`` fragments into a ``CHANGELOG.md`` release section.
+"""Assemble ``changes/*.md`` fragments into ``CHANGELOG.md`` and the history file.
 
-Design note ``docs/30_future/26_doc_volume_reduction_note.md`` (2026-08-16).
-Fragment contract: ``changes/README.md``. Run at release cut only
-(``RELEASE_PROCESS.md`` §4); ``--dry-run`` previews without writing.
+Design notes 26 (changelog fragments, 2026-08-16) and 28 MD-4 (history
+fragments, 2026-08-16). Fragment contract: ``changes/README.md``. Run at
+release cut only (``RELEASE_PROCESS.md`` §4); ``--dry-run`` previews without
+writing.
 
-Pure functions (``parse_fragments``, ``merge_section``, ``cut_release``) do all
-the work on strings so ``tests/test_changelog_fragments.py`` can exercise them
-without touching the repo files; ``main`` is the only I/O.
+Two destinations, one mechanism: ``<slug>.<breaking|added|changed|fixed|removed>.md``
+becomes a bullet in the release's ``CHANGELOG.md`` section; ``<slug>.history.md``
+(tier M paragraph or tier L step) is inserted, newest first, at the top of
+``docs/40_history/00_completed_development.md``.
+
+Pure functions (``parse_fragments``, ``merge_section``, ``cut_release``,
+``roll_history``) do all the work on strings so
+``tests/test_changelog_fragments.py`` can exercise them without touching the
+repo files; ``main`` is the only I/O.
 """
 
 from __future__ import annotations
@@ -21,6 +28,7 @@ from typing import Dict, List, Optional, Tuple
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CHANGES_DIR = os.path.join(ROOT, "changes")
 CHANGELOG = os.path.join(ROOT, "CHANGELOG.md")
+HISTORY = os.path.join(ROOT, "docs", "40_history", "00_completed_development.md")
 
 #: Subsection order in a release block. ``type`` in the fragment name maps to
 #: the heading; anything else is a naming error, not a new subsection.
@@ -32,6 +40,8 @@ TYPES: Tuple[Tuple[str, str], ...] = (
     ("removed", "Removed"),
 )
 TYPE_TO_HEADING = dict(TYPES)
+#: The history destination (design note 28 MD-4): not a changelog subsection.
+HISTORY_TYPE = "history"
 FRAGMENT_NAME = re.compile(r"^(?P<slug>[a-z0-9]+(?:-[a-z0-9]+)*)\.(?P<type>[a-z]+)\.md$")
 UNRELEASED = re.compile(r"^## \[Unreleased\]\s*$", re.M)
 RELEASE_HEADING = re.compile(r"^## \[", re.M)
@@ -48,20 +58,49 @@ def validate_fragment(name: str, body: str) -> str:
     if not m:
         raise FragmentError(f"{name}: not '<slug>.<type>.md' (kebab-case slug, lower-case type)")
     kind = m.group("type")
+    if kind == HISTORY_TYPE:
+        if not body.strip():
+            raise FragmentError(f"{name}: history fragment is empty")
+        if not body.lstrip().startswith(("- **", "**", "## ")):
+            raise FragmentError(
+                f"{name}: history fragment must be a tier-M paragraph ('- **' / '**') or a tier-L step ('## ')")
+        return kind
     if kind not in TYPE_TO_HEADING:
-        raise FragmentError(f"{name}: type '{kind}' not in {sorted(TYPE_TO_HEADING)}")
+        raise FragmentError(f"{name}: type '{kind}' not in {sorted(TYPE_TO_HEADING) + [HISTORY_TYPE]}")
     if not body.lstrip().startswith("- "):
         raise FragmentError(f"{name}: body must be Markdown bullet(s) starting with '- '")
     return kind
 
 
 def parse_fragments(files: Dict[str, str]) -> Dict[str, List[str]]:
-    """``{filename: body}`` → ``{type: [bullet blocks…]}`` in filename order."""
+    """``{filename: body}`` → ``{type: [blocks…]}`` in filename order.
+
+    Changelog types map to their subsection; :data:`HISTORY_TYPE` collects the
+    history entries under their own key.
+    """
     out: Dict[str, List[str]] = {}
     for name in sorted(files):
         kind = validate_fragment(name, files[name])
         out.setdefault(kind, []).append(files[name].strip("\n") + "\n")
     return out
+
+
+HISTORY_RULE = re.compile(r"^---[ \t]*$", re.M)
+
+
+def roll_history(history: str, entries: List[str]) -> str:
+    """Insert ``entries`` (newest first is the file's order; the entries keep
+    their filename order) directly after the header's first ``---`` rule.
+
+    Everything below that point -- the live cycle -- is byte-identical.
+    """
+    if not entries:
+        return history
+    m = HISTORY_RULE.search(history)
+    if not m:
+        raise ValueError("history file has no '---' rule after its header")
+    block = "\n".join(e.rstrip("\n") + "\n" for e in entries)
+    return history[: m.end()] + "\n\n" + block + "\n" + history[m.end():].lstrip("\n")
 
 
 def _split_subsections(body: str) -> Tuple[str, Dict[str, str]]:
@@ -149,9 +188,17 @@ def main(argv: Optional[List[str]] = None) -> int:
     with open(CHANGELOG, encoding="utf-8") as fh:
         changelog = fh.read()
 
+    history_entries = fragments.pop(HISTORY_TYPE, [])
+    with open(HISTORY, encoding="utf-8") as fh:
+        history = fh.read()
+
     if args.dry_run:
         sys.stdout.write(preview(changelog, fragments))
-        sys.stdout.write(f"\n[{len(files)} fragment(s), nothing written]\n")
+        if history_entries:
+            sys.stdout.write("\n---- history entries (rolled to the top of the history file) ----\n\n")
+            sys.stdout.write("\n".join(history_entries))
+        sys.stdout.write(f"\n[{len(files)} fragment(s): {len(files) - len(history_entries)} changelog, "
+                         f"{len(history_entries)} history; nothing written]\n")
         return 0
     if not args.version or not args.date:
         ap.error("version and --date are required unless --dry-run")
@@ -162,9 +209,13 @@ def main(argv: Optional[List[str]] = None) -> int:
 
     with open(CHANGELOG, "w", encoding="utf-8") as fh:
         fh.write(cut_release(changelog, fragments, args.version, args.date))
+    if history_entries:
+        with open(HISTORY, "w", encoding="utf-8") as fh:
+            fh.write(roll_history(history, history_entries))
     for name in files:
         os.remove(os.path.join(CHANGES_DIR, name))
-    print(f"CHANGELOG.md: cut [{args.version}] — {args.date}; {len(files)} fragment(s) consumed")
+    print(f"CHANGELOG.md: cut [{args.version}] — {args.date}; {len(files) - len(history_entries)} changelog "
+          f"fragment(s) consumed; {len(history_entries)} history entr(y/ies) rolled into the history file")
     return 0
 
 

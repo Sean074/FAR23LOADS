@@ -1,0 +1,40 @@
+# Code owners — design note 28 (MD-8, 2026-08-16).
+#
+# A PR touching a path below needs an approving review from its owner (GitHub
+# enforces this when "Require review from Code Owners" is on for `main`).
+# The list *is* the single-source-owner table of CLAUDE.md rule 3 with a human
+# attached: the files where a wrong merge moves a delivered load number, an
+# on-disk schema, a case identity, or the rules every developer's AI reads.
+# One owner today; add names as people take ownership of a line.
+
+# Everything else: any maintainer may review.
+*                                               @Sean074
+
+# --- calc single-source owners (CONVENTIONS.md §7) ---------------------------
+/sloads/safety_factors.py                       @Sean074
+/sloads/units.py                                @Sean074
+/sloads/case_ids.py                             @Sean074
+/sloads/load_keys.py                            @Sean074
+/sloads/constants.py                            @Sean074
+/sloads/models/                                 @Sean074
+/sloads/migrations.py                           @Sean074
+/sloads/io.py                                   @Sean074
+/sloads/export/coordinates.py                   @Sean074
+/sloads/rigid_body.py                           @Sean074
+
+# --- the oracle and its register -------------------------------------------
+/docs/20_theory/02_approved_corrections.md      @Sean074
+/docs/20_theory/00_theory_sources.md            @Sean074
+/tests/imperial_baseline.py                     @Sean074
+/tests/fixtures_imperial/                       @Sean074
+
+# --- the standard every developer (and every developer's AI) reads ---------
+/CLAUDE.md                                      @Sean074
+/CONTRIBUTING.md                                @Sean074
+/docs/10_standard/CONVENTIONS.md                @Sean074
+/docs/10_standard/PROGRAM_SPEC.md               @Sean074
+/docs/10_standard/DEVELOPMENT_PROCESS.md        @Sean074
+/docs/10_standard/CODE_REVIEW_PROCESS.md        @Sean074
+/docs/10_standard/RELEASE_PROCESS.md            @Sean074
+/.github/                                       @Sean074
+/pyproject.toml                                 @Sean074

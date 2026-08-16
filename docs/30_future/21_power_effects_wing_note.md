@@ -1,5 +1,7 @@
 # Design note — power effects on the wing: thrust and propeller-wake loads (wing-mounted propellers)
 
+**Owner:** @Sean074 · **Reviewers:** — *(design note 28 MD-6: the owner of what a note touches reviews it as a PR)*
+
 **Status: AGREED 2026-08-15 (decisions P-0…P-12, §7), no code written — the next
 artefact is the code implementation plan (§8 is its skeleton).** Written to `CLAUDE.md` required practice 1 (design note before
 code, physics/L step). Follows the L-7 note's form

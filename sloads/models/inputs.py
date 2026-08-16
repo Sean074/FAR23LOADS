@@ -6,6 +6,7 @@ MissingInputError guard type, and the fuselage-outline default helper.
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Set, Tuple
 
@@ -289,8 +290,8 @@ class WeightInput:
         ``mtow``. The name now says "the database's totals", which is what the
         ceiling is.
         """
-        database_total = sum(it.weight_lb for it in self.items)
-        oew = sum(it.weight_lb for it in self.items if it.kind == MassItemKind.EMPTY)
+        database_total = math.fsum(it.weight_lb for it in self.items)
+        oew = math.fsum(it.weight_lb for it in self.items if it.kind == MassItemKind.EMPTY)
         return database_total, oew, database_total - oew
 
 
@@ -1621,7 +1622,6 @@ __all__ = [
     "WeightInput",
     "WingLoadCase",
     "WingMassInput",
-    "XYPoint",
     "XYPoint",
     "default_fuselage_outline",
 ]

@@ -100,6 +100,7 @@ from .sbeam_bridge import (
     _PBAR_J,
     _comment,
     _fmt,
+    _fmt3,
     _sf_str,
     _stamped,
     sob_gid,
@@ -711,7 +712,7 @@ def lra_model_bdf(project: Project, *,
         if node.family:
             bulk.append(f"$ SLOADS-NODE {node.family} {node.side}")
         gx, gy, gz = to_grid(*node.pos, units=u)
-        bulk.append(f"GRID, {node.gid}, , {_fmt(gx)}, {_fmt(gy)}, {_fmt(gz)}")
+        bulk.append(f"GRID, {node.gid}, , {_fmt3(gx, gy, gz)}")
 
     e_mod = to_pressure(_MAT1_E, u)
     area = _PBAR_A * u.length.factor ** 2
@@ -758,12 +759,12 @@ def lra_model_bdf(project: Project, *,
                                   force[2] * sf, u)
             if max(abs(v) for v in force) * sf > _TOL:
                 bulk.append(f"FORCE, {sid}, {gid}, {SBEAM_CID}, 1.0, "
-                            f"{_fmt(fx)}, {_fmt(fy)}, {_fmt(fz)}")
+                            f"{_fmt3(fx, fy, fz)}")
             mx, my, mz = to_moment(moment[0] * sf, moment[1] * sf,
                                    moment[2] * sf, u)
             if max(abs(v) for v in moment) * sf > _TOL:
                 bulk.append(f"MOMENT, {sid}, {gid}, {SBEAM_CID}, 1.0, "
-                            f"{_fmt(mx)}, {_fmt(my)}, {_fmt(mz)}")
+                            f"{_fmt3(mx, my, mz)}")
 
     return _stamped(header_comment, "\n".join(head + bulk + ["ENDDATA"]) + "\n")
 

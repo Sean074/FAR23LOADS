@@ -71,8 +71,13 @@ in `CLAUDE.md`, not re-audited at release time.
 
 ## 4. Cutting the release
 
+**Who and where (design note 28 MD-11):** the **release manager** named on the
+milestone cuts the release on a `release/x.y.z` branch — steps 1–3 below are one PR,
+reviewed like any other; the tag (step 4) is made on `main` after it merges. The
+role rotates.
+
 1. **Bump the version** in `pyproject.toml`. Commit: `Bump version to X.Y.Z`.
-2. **Build the changelog** — `.venv/bin/python scripts/build_changelog.py X.Y.Z --date YYYY-MM-DD` assembles the `changes/` fragments into `## [X.Y.Z] — YYYY-MM-DD` (Breaking / Added / Changed / Fixed / Removed), opens a fresh empty `[Unreleased]`, and deletes the consumed fragments. Never hand-edit `[Unreleased]`; fix a fragment and re-run instead. Commit: `Changelog for X.Y.Z`.
+2. **Build the changelog and roll the history fragments** — `.venv/bin/python scripts/build_changelog.py X.Y.Z --date YYYY-MM-DD` assembles the `changes/` fragments into `## [X.Y.Z] — YYYY-MM-DD` (Breaking / Added / Changed / Fixed / Removed), inserts every `changes/*.history.md` entry at the top of `docs/40_history/00_completed_development.md` (design note 28 MD-4), opens a fresh empty `[Unreleased]`, and deletes the consumed fragments. Then write the release-cut block in the history file by hand (the one entry that is not a fragment). Run `scripts/backlog_issues.py check` — every priority-table row names an open issue and vice versa (MD-5). Never hand-edit `[Unreleased]`; fix a fragment and re-run instead. Commit: `Changelog for X.Y.Z`.
 3. **Roll the history (mechanical, bounded — design note 26, 2026-08-16):**
    - move every plan/design note in `docs/30_future/` whose status header reads *shipped* to `docs/40_history/` (next free number; update its `docs/00_INDEX.md` row);
    - if [`../40_history/00_completed_development.md`](../40_history/00_completed_development.md) exceeds **1,500 lines** (`tests/test_changelog_fragments.py` warns), cut it at the *previous* release's "Release cut" block and move everything below that block verbatim into a new frozen `docs/40_history/NN_completed_development_to_<prev>.md` (header text: copy `11_completed_development_to_0.5.0.md`); the live file keeps this release's cycle plus its own release-cut block; add the INDEX row and the pointer line in the live file's header.

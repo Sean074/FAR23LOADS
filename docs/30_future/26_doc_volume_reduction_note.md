@@ -1,5 +1,7 @@
 # Design note 26 — documentation volume: archive, fragments, tier S
 
+**Owner:** @Sean074 · **Reviewers:** — *(design note 28 MD-6: the owner of what a note touches reviews it as a PR)*
+
 **Status:** AGREED 2026-08-16 (user review of the three recommendations, all
 accepted) — ✅ **shipped 2026-08-16**, same session; kept as the plan of record.
 Closes backlog **R11** ("Split `40_history/00_completed_development.md` by

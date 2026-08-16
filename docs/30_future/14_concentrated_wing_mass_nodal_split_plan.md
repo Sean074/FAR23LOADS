@@ -1,5 +1,7 @@
 # Design note — concentrated wing masses smeared to the nearest node
 
+**Owner:** @Sean074 · **Reviewers:** — *(design note 28 MD-6: the owner of what a note touches reviews it as a PR)*
+
 **Status:** **shipped 2026-08-09.** D-1 decided by the user in favour of
 **Option B (offset couple)**, and the `Mzz` sweep accepted with it. What was
 built matches §3 Option B and §4 exactly; §6 records the two things measurement

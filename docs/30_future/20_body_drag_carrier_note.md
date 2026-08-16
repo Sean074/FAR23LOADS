@@ -1,5 +1,7 @@
 # Design note — a carrier for non-wing drag in the assembled model
 
+**Owner:** @Sean074 · **Reviewers:** — *(design note 28 MD-6: the owner of what a note touches reviews it as a PR)*
+
 **Status: ✅ SHIPPED 2026-08-15** (revision 2 as agreed; D-1's two-branch order,
 the `ΔC_D` gate G10 and the passing-band measurement all implemented as written).
 Kept as the plan of record. Closure: `CHANGELOG.md`, full step format in

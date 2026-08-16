@@ -1,5 +1,7 @@
 # Step 10 — ground/landing cases: design note
 
+**Owner:** @Sean074 · **Reviewers:** — *(design note 28 MD-6: the owner of what a note touches reviews it as a PR)*
+
 **Status: COMPLETE — all three pieces shipped (2026-08-14, 2026-08-14,
 2026-08-15).** Kept as the design note of record; the closure trail is in
 [`../40_history/00_completed_development.md`](../40_history/00_completed_development.md). Backlog: [`00_backlog.md`](00_backlog.md) priority 1

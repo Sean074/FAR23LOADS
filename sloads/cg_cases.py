@@ -27,6 +27,7 @@ Every consumer reads from here and none filters for itself.
 
 from __future__ import annotations
 
+import math
 from typing import List, Optional, Tuple
 
 from .models import (
@@ -196,7 +197,7 @@ def database_total(project: Project) -> float:
     top of the ordering chain ``OEW <= MLW <= MTOW <= sum(items)``.
     """
     w = _weight_slice(project)
-    return sum(it.weight_lb for it in w.items) if w is not None else 0.0
+    return math.fsum(it.weight_lb for it in w.items) if w is not None else 0.0
 
 
 def max_landing_weight_estimate(project: Project) -> Optional[float]:

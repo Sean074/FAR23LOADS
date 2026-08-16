@@ -715,6 +715,30 @@ def test_a_sob_outside_the_beam_is_refused_not_bent_onto_it():
         assert text == sb.stick_model_bdf(results)
 
 
+def test_card_components_snap_dust_and_negative_zero():
+    """One card's three components: dust below ``_TOL x`` the card's own scale
+    prints as ``0.000000E+00`` -- never as its platform-dependent residue, and
+    never as ``-0.000000E+00`` (both failed the frozen digest in CI while the
+    same commit passed locally). A real small component is untouched."""
+    assert sb._fmt3(-912.811, 6.101335e-15, 3244.192) == \
+        "-9.128110E+02, 0.000000E+00, 3.244192E+03"
+    assert sb._fmt3(-0.0, -0.0, 4384.268) == \
+        "0.000000E+00, 0.000000E+00, 4.384268E+03"
+    # relative floor: 1e-5 of a 1e3 load is above 1e-9 x scale -> kept
+    assert sb._fmt3(1000.0, 1e-5, 0.0) == "1.000000E+03, 1.000000E-05, 0.000000E+00"
+    # absolute floor for an all-tiny card: 1e-8 stays, 1e-10 goes
+    assert sb._fmt3(1e-8, 1e-10, 0.0) == "1.000000E-08, 0.000000E+00, 0.000000E+00"
+    # every FORCE/MOMENT triple in the exporters goes through it (rule 4 guard)
+    import re
+    from pathlib import Path
+    root = Path(sb.__file__).parent
+    triple = re.compile(r"\{_fmt\(\w+\)\}, \{_fmt\(\w+\)\}, \{_fmt\(\w+\)\}")
+    hits = [f"{f.name}: {ln.strip()}" for f in root.glob("*.py")
+            for ln in f.read_text().splitlines()
+            if triple.search(ln) and "PBAR" not in ln]   # PBAR's A, I1, I2 is not a vector
+    assert not hits, f"vector cards formatted component-wise, bypassing _fmt3: {hits}"
+
+
 if __name__ == "__main__":
     import traceback
 

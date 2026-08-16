@@ -46,16 +46,19 @@ def weights_and_inertia(items: List[MassItem]) -> ConditionResult:
         raise MissingInputError("WTONECG needs at least one non-zero weight item")
 
     # Weight and CG (WTONECG.BAS lines 657-750).
-    total = sum(it.weight_lb for it in loaded)
-    xbar = sum(it.weight_lb * it.x for it in loaded) / total
-    zbar = sum(it.weight_lb * it.z for it in loaded) / total
+    total = math.fsum(it.weight_lb for it in loaded)
+    xbar = math.fsum(it.weight_lb * it.x for it in loaded) / total
+    zbar = math.fsum(it.weight_lb * it.z for it in loaded) / total
 
     # Moments of inertia about airplane coordinates, lb-in^2 (lines 780-860):
     # the parallel-axis transfer of each item plus the item's own inertia.
-    ixx = sum(it.weight_lb * (it.y ** 2 + (it.z - zbar) ** 2) for it in loaded) + sum(it.ixx for it in loaded)
-    iyy = sum(it.weight_lb * ((it.x - xbar) ** 2 + (it.z - zbar) ** 2) for it in loaded) + sum(it.iyy for it in loaded)
-    izz = sum(it.weight_lb * (it.y ** 2 + (it.x - xbar) ** 2) for it in loaded) + sum(it.izz for it in loaded)
-    ixz = sum(it.weight_lb * (it.x - xbar) * (it.z - zbar) for it in loaded)
+    ixx = (math.fsum(it.weight_lb * (it.y ** 2 + (it.z - zbar) ** 2) for it in loaded)
+           + math.fsum(it.ixx for it in loaded))
+    iyy = (math.fsum(it.weight_lb * ((it.x - xbar) ** 2 + (it.z - zbar) ** 2) for it in loaded)
+           + math.fsum(it.iyy for it in loaded))
+    izz = (math.fsum(it.weight_lb * (it.y ** 2 + (it.x - xbar) ** 2) for it in loaded)
+           + math.fsum(it.izz for it in loaded))
+    ixz = math.fsum(it.weight_lb * (it.x - xbar) * (it.z - zbar) for it in loaded)
 
     # Convert lb-in^2 -> slug-ft^2.
     ixx_s = ixx / LBIN2_PER_SLUGFT2

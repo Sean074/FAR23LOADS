@@ -56,6 +56,7 @@ satisfy ``force / (mass x length) == g``.
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 from typing import Dict, List, Optional, Sequence, Tuple
 
@@ -70,7 +71,7 @@ from ..models import MassItem, Project
 from ..units import Channel, DeliverableUnits, UnitSystem, deliverable_units
 from .bands import band
 from .coordinates import SBEAM_CID, to_grid
-from .sbeam_bridge import _fmt, _sf_str, _stamped, beam_station_gid
+from .sbeam_bridge import _fmt, _fmt3, _sf_str, _stamped, beam_station_gid
 
 # --------------------------------------------------------------------------- #
 # EID / SID bands -- declared in :mod:`sloads.export.bands`, the single owner of
@@ -297,7 +298,7 @@ def _conm2_line(card: MassCard, u: DeliverableUnits) -> str:
     # non-zero but the database has no field for it. Emitted as 0 with the
     # header's note rather than silently -- see plan 12 risk R2.
     return (f"CONM2, {card.eid}, {card.gid}, {SBEAM_CID}, {_fmt(m)}, "
-            f"{_fmt(ox)}, {_fmt(oy)}, {_fmt(oz)}, "
+            f"{_fmt3(ox, oy, oz)}, "
             f"{_fmt(card.item.ixx * k)}, 0.0, {_fmt(card.item.iyy * k)}, "
             f"0.0, 0.0, {_fmt(card.item.izz * k)}")
 
@@ -373,8 +374,8 @@ def _massset_block(cards: Sequence[MassCard], loading: CaseLoading,
 
 
 def _header(project: Project, u: DeliverableUnits, cards: Sequence[MassCard]) -> List[str]:
-    total = sum(c.item.weight_lb for c in cards if not c.overlay)
-    wing = sum(c.item.weight_lb for c in cards
+    total = math.fsum(c.item.weight_lb for c in cards if not c.overlay)
+    wing = math.fsum(c.item.weight_lb for c in cards
                if component_of(c.item, project) == MassComponent.WING)
     skipped = [ld for ld in derive_case_loadings(project) if not ld.derivable]
     lines = [
@@ -455,12 +456,12 @@ def mass_properties(project: Project, loading: CaseLoading,  # noqa: ARG001  -- 
     """
     u = _checked_mass_units(deliverable_units(system, Channel.SOLVER))
     items = loading.items
-    w = sum(it.weight_lb for it in items)
+    w = math.fsum(it.weight_lb for it in items)
     if not w:
         return {"weight": 0.0, "mass": 0.0, "cg_x": 0.0, "cg_z": 0.0, "iyy": 0.0}
-    cx = sum(it.weight_lb * it.x for it in items) / w
-    cz = sum(it.weight_lb * it.z for it in items) / w
-    iyy = sum(it.iyy + it.weight_lb * ((it.x - cx) ** 2 + (it.z - cz) ** 2)
+    cx = math.fsum(it.weight_lb * it.x for it in items) / w
+    cz = math.fsum(it.weight_lb * it.z for it in items) / w
+    iyy = math.fsum(it.iyy + it.weight_lb * ((it.x - cx) ** 2 + (it.z - cz) ** 2)
               for it in items)
     return {
         "weight": w,
@@ -525,7 +526,7 @@ def mass_check_deck(project: Project, *,
     ]
     for i, s in enumerate(stations):
         gx, gy, gz = to_grid(s.x, 0.0, 0.0, u)
-        bulk.append(f"GRID, {beam_station_gid(i)}, , {_fmt(gx)}, {_fmt(gy)}, {_fmt(gz)}")
+        bulk.append(f"GRID, {beam_station_gid(i)}, , {_fmt3(gx, gy, gz)}")
     # A massless beam joining the stations. The deck would not assemble without
     # elements, and every property here is a placeholder -- except RHO, which is
     # 0.0 and must stay so: sbeam builds a MASSSET's baseline from "CBAR

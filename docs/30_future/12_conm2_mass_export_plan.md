@@ -1,5 +1,7 @@
 # Design note — CONM2 distributed-mass export per payload case
 
+**Owner:** @Sean074 · **Reviewers:** — *(design note 28 MD-6: the owner of what a note touches reviews it as a PR)*
+
 **Raised:** 2026-08-08 (user), to enable the balanced-airframe work by giving
 sbeam an **independent** mass model against which sloads' inertia loads can be
 checked. **Status: C1–C5 and C7 SHIPPED 2026-08-08** — see the history entry

@@ -16,6 +16,7 @@ Reference: WTESTIMA.BAS, Appendix C p374-376; worked example Appendix A p133.
 
 from __future__ import annotations
 
+import math
 from dataclasses import replace
 from typing import List
 
@@ -127,7 +128,7 @@ def estimate(inp: WeightEstimationInput) -> List[ConditionResult]:
     # (WTESTIMA.BAS line 870: IF OPTMISC<0 THEN WTO=1.01*WTO:GOTO 500).
     while True:
         structure = {name: frac * wto for name, frac in WT_STRUCTURE_FRACTIONS.items()}
-        total_structure = sum(structure.values())
+        total_structure = math.fsum(structure.values())
         total_systems = systems_total_frac * wto
         sum_weights = total_structure + powerplant + total_systems
         options_misc = wto - useful - sum_weights
@@ -263,7 +264,7 @@ def resolve_max_continuous_hp(project: Project) -> float:
         raise MissingInputError("Project has no 'weight.estimation' inputs for the weight_estimate module")
     if est.override_max_continuous_hp:
         return est.max_continuous_hp
-    engine_sum = sum((e.max_cont_hp or 0.0) for e in project.engines)
+    engine_sum = math.fsum((e.max_cont_hp or 0.0) for e in project.engines)
     return engine_sum or est.max_continuous_hp
 
 

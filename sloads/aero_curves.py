@@ -75,7 +75,7 @@ def clmax_curve(mach: float) -> float:
 
 def poly(coeffs: Sequence[float], x: float) -> float:
     """Evaluate ``c0 + c1*x + c2*x^2 + ...`` (the drag polar's plain form)."""
-    return sum(c * x ** i for i, c in enumerate(coeffs))
+    return math.fsum(c * x ** i for i, c in enumerate(coeffs))
 
 
 def lift_cl(config: AeroCoeffSet, alpha_deg: float,

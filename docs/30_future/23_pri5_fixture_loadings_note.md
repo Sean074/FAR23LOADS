@@ -1,5 +1,7 @@
 # Pri 5 — payload loadings for the four silent fixtures (design note)
 
+**Owner:** @Sean074 · **Reviewers:** — *(design note 28 MD-6: the owner of what a note touches reviews it as a PR)*
+
 **Status: agreed and SHIPPED 2026-08-15.** Practice 1 (`CLAUDE.md`) — this note was
 agreed in chat before code. Consumes the D-25 schema
 ([`22_d25_cgcase_loading_note.md`](22_d25_cgcase_loading_note.md), v50). Decisions of

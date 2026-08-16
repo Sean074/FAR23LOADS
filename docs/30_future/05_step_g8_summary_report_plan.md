@@ -1,5 +1,7 @@
 # Step G8 — Consolidated Summary Report (Export phase) — implementation plan
 
+**Owner:** @Sean074 · **Reviewers:** — *(design note 28 MD-6: the owner of what a note touches reviews it as a PR)*
+
 **Backlog item:** M3-3b / Step G8 — the **second** M4 item, behind **M4-20**
 (unit-system plumbing), which G8.5 onward is blocked on (§10.1). G8.4's
 `content.py` is unit-independent and may start first.
