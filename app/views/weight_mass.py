@@ -652,16 +652,26 @@ def _tab_envelope(project: Project, system: UnitSystem, U: dict) -> None:
             f"{U['weight']}**. It is a *floor*: entering less means the airplane "
             "cannot land at MLW with full payload and reserves.")
 
-    # Design weight for the envelope: read-through from the Weight DB (the same
-    # source Structural Speeds reads), so it is not entered a third time.
-    mtow_upstream = mtow_ssot or project.weight.direct_totals()[0]
+    # Design weight for the envelope: read-through from the MTOW SSOT entered
+    # above (the same source Structural Speeds reads), so it is not entered a
+    # third time. The item-database total was the fallback until 2026-08-15 --
+    # it is the ceiling of OEW <= MLW <= MTOW <= sum(items), not a design weight,
+    # and it stood 964 lb / 1,800 lb above MTOW on two shipped fixtures. With MTOW
+    # unentered the read-through simply has nothing to offer, and the override
+    # below is the way in.
+    mtow_upstream = mtow_ssot
 
     st.subheader("Structural limits")
     override_weight = st.checkbox(
         "Override gross weight", value=False,
-        help="Uncheck to use the Weight DB total (Weight, CG & Inertia tab).",
+        help="Uncheck to use the MTOW entered above (decision G-14's single owner).",
     )
-    if override_weight:
+    if not mtow_upstream and not override_weight:
+        st.info(
+            "No max take-off weight entered above, so there is nothing to read "
+            "through — tick **Override gross weight** to enter the envelope's "
+            "gross weight directly, or fill MTOW.")
+    if override_weight or not mtow_upstream:
         gross_disp = st.number_input(
             f"Gross weight ({U['weight']})", min_value=1.0,
             value=float(round(to_display(
@@ -672,7 +682,7 @@ def _tab_envelope(project: Project, system: UnitSystem, U: dict) -> None:
     else:
         gross = mtow_upstream
         st.caption(
-            f"Gross weight from the Weight DB: "
+            f"Gross weight from the MTOW entered above: "
             f"**{to_display(mtow_upstream, 'weight', system):,.0f} {U['weight']}**.")
     aft = st.number_input("Aft gross CG (% MAC)", min_value=0.0, max_value=100.0,
                           value=float(existing.aft_gross_pct_mac) if existing else 31.0)

@@ -368,6 +368,37 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- **The FAR 23 applicability gate read the item-database total as the design
+  weight** (decision **G-14**'s deferred half; `WeightInput.direct_totals()` is
+  renamed `database_totals()`). `applicability.design_weight_lb` took
+  `speeds.weight_lb` when set and otherwise the *sum of every weight-database
+  row* — an upper bound wearing the name of a design limit, since a database can
+  hold full fuel **and** full payload at once (964 lb above MTOW on `atr42_100`,
+  1,800 lb on `concept_regional_jet`). It now reads the MTOW SSOT through
+  `cg_cases.max_takeoff_weight`, so the certification gate and every other
+  consumer take the same number, and the database total — the *ceiling* of
+  `OEW ≤ MLW ≤ MTOW ≤ Σ items`, owned by `cg_cases.database_total` — is no longer
+  reachable from it.
+
+  **Correcting the record:** the backlog, plan 18 §G-14 and the 2026-08-14
+  history entry all state this moves the exceedance line 37,781 → 36,817 on
+  atr42 and 34,800 → 33,000 on the RJ. Measured 2026-08-15, **it does not**:
+  both fixtures set `speeds.weight_lb`, which won ahead of the database branch,
+  so the gate already read the right number on all six fixtures. The defect was
+  **latent** — live only for a project whose STRSPEED design weight is unset,
+  i.e. one caught mid-entry, exactly when the banner is first consulted.
+
+  Swept in the same change (practice 4), same defect class: the read-throughs on
+  Structural Speeds and Weight & Mass Properties now offer the MTOW SSOT instead
+  of the database total; Aircraft Comparison plots MTOW through its single owner
+  rather than a weight no loading can reach; and the report's weights table row
+  labelled **"Maximum takeoff weight (item sum)"** becomes two honest rows —
+  "Maximum takeoff weight (MTOW)" from the SSOT and "Item database total
+  (ceiling, not MTOW)". `test_design_weight_is_the_mtow_ssot_and_never_the_database_total`
+  pins the *fallback*, where the defect lived, not just the happy path.
+  Digest: `txt/weight_estimate` on the four concept fixtures (the concept note
+  names the renamed method); no numeric channel moved.
+
 - **`LATERAL_AERO_NOTE` stated the `n_y` error in the wrong direction** (defect
   found 2026-08-15 while writing the L-7 design note; text only — no computed
   number moves). The in-band lateral caveat shipped with B8a-3 told every reader

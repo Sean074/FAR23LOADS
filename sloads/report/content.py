@@ -33,6 +33,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 
+from .. import cg_cases
 from ..case_ids import ASSEMBLED_DECK, COMPONENT_DECK, NO_LOAD_ID
 from ..constants import ULTIMATE_FACTOR
 from ..models import SCHEMA_VERSION, Project, VdBasis
@@ -571,10 +572,19 @@ def _weights_section(project: Project, u: Units) -> Section:
         return Section("Weights and CG",
                        absent_reason="this project has no weight slice")
     rows: List[Tuple[str, str, str, str]] = []
-    mtow, oew, _ = weight.direct_totals() if weight.items else (0.0, 0.0, 0.0)
+    # The item sum is the CEILING of OEW <= MLW <= MTOW <= sum(items), not the
+    # design take-off weight (decision G-14) -- it was labelled "Maximum takeoff
+    # weight (item sum)" until 2026-08-15, which is the conflation that item
+    # closed. MTOW itself comes from its single owner and is stated beside it.
+    database_total, oew, _ = weight.database_totals() if weight.items else (0.0, 0.0, 0.0)
+    mtow = cg_cases.max_takeoff_weight(project, required=False)
     if mtow:
+        rows.append(("Maximum takeoff weight (MTOW)", u.plain(mtow, "mass"), W,
+                     "Weight & Mass Properties"))
+    if database_total:
         rows += [
-            ("Maximum takeoff weight (item sum)", u.plain(mtow, "mass"), W, "Weight & Mass Properties"),
+            ("Item database total (ceiling, not MTOW)", u.plain(database_total, "mass"), W,
+             "Weight & Mass Properties"),
             ("Empty weight (item sum)", u.plain(oew, "mass"), W, "Weight & Mass Properties"),
         ]
     env = weight.envelope

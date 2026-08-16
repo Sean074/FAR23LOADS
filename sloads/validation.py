@@ -831,7 +831,7 @@ def _check_weight_case_model(project: Project) -> List[ConsistencyWarning]:
         return out
     mlw = cg_cases.max_landing_weight(project, required=False)
     mtow = cg_cases.max_takeoff_weight(project, required=False)
-    total, oew, _ = weight.direct_totals()
+    total, oew, _ = weight.database_totals()
     chain = [("OEW", oew), ("max landing weight", mlw),
              ("max take-off weight", mtow), ("the item database total", total)]
     stated = [(label, value) for label, value in chain if value > 0]

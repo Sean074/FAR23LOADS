@@ -48,7 +48,7 @@
     "txt/tail_span": "955ee1eb3042a0ef24901b1bd024fbc18c84bd4b8de756debc89ef3c91f35459",
     "txt/taildist": "63a9285b2a11cf1dfdae62bcc7e918072523a536fc99bed95069063dcbbcda3a",
     "txt/weight_envelope": "0c41c5f93e2135937f33a0d0d9f223abb4ce2b2d2dd591d377c4bc3cdecd5142",
-    "txt/weight_estimate": "6a09c9616bd61338294f377dd681c14b9cdf5d477c891b892dcddca17c762b43",
+    "txt/weight_estimate": "36c608bc3fadb15e46b031516351f8c192f34633401513ad5711724db15a9d4b",
     "txt/weight_onecg": "ff998a9d4dd8a74002546c3cb4aac12332da264cb978369d01acb8bff5d3a70b",
     "txt/wing_geometry": "f80a93040aaafd6a85e47a7f5c82704c88ffc130eae1afe35704f917cd408282",
     "txt/wing_inertia": "e1097c20f0c69a1d0784e08584d4fdc59f22cc5d973951b88a12dd7931b52959"
@@ -139,7 +139,7 @@
     "txt/net_loads": "ae8ca5db83c265f5e2d637b2e95402c50b88a1a4dee6c134085a1778f06d285d",
     "txt/select": "1878ccf2c02af7c154192e638df9aa4bc55a9e5c56cee1d5a4c0a35f880701fa",
     "txt/structural_speeds": "dfdd22bd273e47a09dd9b7018396b8eae3ef696856ce21874bed580a9dbc29ea",
-    "txt/weight_estimate": "9d78f5f811ae3d70c28d6f92f0726c0df2e5e9cfa53f4af54940d216ffc3de75",
+    "txt/weight_estimate": "33516113c9444125d19f336a2b4f0809f88b47c1410017cad60e2b5c75329b81",
     "txt/weight_onecg": "11ee69da6129ca344e0bb80dddf75fe63c25f24ece8673e6a1a1359ac1f30da5",
     "txt/wing_geometry": "d6d9808ca534e43247f6c235e252325a9217457d6d15567ea877f777f1ecdee8",
     "txt/wing_inertia": "39ca6d996bb2e570bb3ee2d2084f3b3acb7525c288bed8b002dff472132d8fb9"
@@ -202,7 +202,7 @@
     "txt/tail_span": "7af67141a03a3a7ff3d58681532785a74392ef671239f64697307f05df194413",
     "txt/taildist": "3072612de76e87a34137b041ff3645aa2f69ef0f22dd1ad12aa91c07508791a2",
     "txt/weight_envelope": "66b9d94fed69adcbe5d0410320efd865304bf5aebde342e703674e5eab161b67",
-    "txt/weight_estimate": "3d9d2855304ee451a0742659a69f1ef844c633bd9ebc1c697f510e9b3ecea788",
+    "txt/weight_estimate": "d61725a634d35107ca208a2b9fb744dd0e0b762e021a2dc161b533fc24d1aeb7",
     "txt/weight_onecg": "e5213fb5057f26435618e00fe77a3bb493750dfde7a02dc2658559d5463502e1",
     "txt/wing_geometry": "8b98d11573a456ef409b45af734563b970d683628569a93a720ecfb6472d2f9e",
     "txt/wing_inertia": "f0331b0ca040bfacf97918a0ba3de6150c810aed6806b8854a6598ce08226c93"
@@ -256,7 +256,7 @@
     "txt/tail_span": "29624843ffc424549472266f52813b83a35cfc871c420ba6f6f452c5e71923a3",
     "txt/taildist": "386d4a8882deb2b15b8827fa85bb426bddb4315248d826e5ef488557e9e67c1f",
     "txt/weight_envelope": "f2b8dc1245159fae413636b410d82ade8dc5c5833f3a9c58c1c38146c438a56c",
-    "txt/weight_estimate": "ea78f7a5b26a21373583103ed6013a8f0cf7c0d238c2eab5d9c1ee5b4ac32970",
+    "txt/weight_estimate": "10a873effd585eada4edfaf94231df2ddaae76fc96bf69e0ae464c5dcc734bde",
     "txt/weight_onecg": "4e259c6a419ba5f0a218d022710184e7a751da606d0f15fed884dc60fc818000",
     "txt/wing_geometry": "a0ec9634786f8031422282881d71a4465bcfff0d9ce4a155795964fde2994543",
     "txt/wing_inertia": "109c056a65a50f816649f10c8c2910192362647a959535462383432c7b4f864f"

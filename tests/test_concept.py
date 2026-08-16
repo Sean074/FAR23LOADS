@@ -3,7 +3,7 @@
 Concept mode has no printed oracle (it extrapolates past the FAR23 calibration
 band), so these checks are physics/identity rather than manual figures:
 
-* ``WeightInput.direct_totals`` sums the itemized data base by kind (the
+* ``WeightInput.database_totals`` sums the itemized data base by kind (the
   direct-weight path that replaces WTESTIMA's GA regression for a heavy concept);
 * the ``examples/concept_heavy.project.json`` fixture (MTOW 18,000 lb, user n)
   runs STRSPEED and WTESTIMA end-to-end without tripping a GA cap, and WTESTIMA
@@ -42,26 +42,26 @@ _EXAMPLE = os.path.join(_EXAMPLES_DIR, "concept_heavy.project.json")
 _GA_EXAMPLE = os.path.join(_EXAMPLES_DIR, "ga6_normal.project.json")
 
 
-def test_direct_totals_sums_items_by_kind():
+def test_database_totals_sums_items_by_kind():
     w = WeightInput(items=[
         MassItem(name="structure", weight_lb=9000, kind=MassItemKind.EMPTY),
         MassItem(name="pilot", weight_lb=700, kind=MassItemKind.MINIMUM),
         MassItem(name="payload", weight_lb=8300, kind=MassItemKind.DISCRETIONARY),
     ])
-    mtow, oew, useful = w.direct_totals()
+    mtow, oew, useful = w.database_totals()
     assert mtow == 18000
     assert oew == 9000
     assert useful == 9000
 
 
-def test_direct_totals_empty_database():
-    assert WeightInput(items=[]).direct_totals() == (0, 0, 0)
+def test_database_totals_empty_database():
+    assert WeightInput(items=[]).database_totals() == (0, 0, 0)
 
 
 def test_fixture_is_concept_and_over_ga_limit():
     project = io.load_project(_EXAMPLE)
     assert project.is_concept
-    mtow, _oew, _useful = project.weight.direct_totals()
+    mtow, _oew, _useful = project.weight.database_totals()
     assert mtow > 12500  # exercises the band the GA caps were calibrated for
 
 

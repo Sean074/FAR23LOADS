@@ -27,6 +27,7 @@ import plotly.express as px
 import streamlit as st
 
 from sloads import FleetPoint, Project, Subject, fleet_stats, registry
+from sloads import cg_cases
 from sloads.constants import IN2_PER_FT2
 from sloads.modules.wing_geometry import surface_properties
 
@@ -103,8 +104,8 @@ def _subject_from_project(project: Project) -> Optional[Subject]:
     """Assemble the comparison :class:`Subject` from the best-available slices.
 
     Priority per metric (backlog F2 step 2; surface fallback added in M2-5):
-      MTOW  -- speeds.weight_lb -> weight.direct_totals()[0] -> WTESTIMA
-      OEW   -- weight.direct_totals()[1] -> WTESTIMA
+      MTOW  -- cg_cases.max_takeoff_weight (G-14 SSOT + chain) -> WTESTIMA
+      OEW   -- weight.database_totals()[1] -> WTESTIMA
       area  -- parametric.wing_area_sqft -> WINGGEOM wing surface -> speeds.wing_area_sqft
       power -- Sum engines[].max_cont_hp -> weight.estimation.max_continuous_hp
       AR    -- parametric.aspect_ratio -> WINGGEOM wing surface
@@ -124,14 +125,15 @@ def _subject_from_project(project: Project) -> Optional[Subject]:
     config = project.geometry.parametric if project.geometry is not None else None
     surf = _wing_surface_props(project)
 
-    direct = weight.direct_totals() if (weight and weight.items) else None
+    direct = weight.database_totals() if (weight and weight.items) else None
 
-    mtow: Optional[float] = None
-    if speeds and speeds.weight_lb:
-        mtow = float(speeds.weight_lb)
-    elif direct and direct[0]:
-        mtow = float(direct[0])
-    else:
+    # MTOW from its single owner (decision G-14: the SSOT field, else the
+    # documented speeds/envelope/heaviest-case fallback chain), then WTESTIMA. The
+    # item-database total sat in this chain until 2026-08-15, which plotted this
+    # airplane against the reference fleet at a weight no loading can reach --
+    # 1,800 lb high on a regional jet.
+    mtow: Optional[float] = cg_cases.max_takeoff_weight(project, required=False) or None
+    if not mtow:
         mtow = _wtestima_value(project, "max_take_off_weight")
     if not mtow:
         return None

@@ -260,7 +260,7 @@ class WeightInput:
     max_takeoff_weight_lb: float = 0.0   # MTOW -- SSOT (G-14); a single CG-independent
                                          # scalar, constant between the fwd/aft CG limits
 
-    def direct_totals(self) -> Tuple[float, float, float]:
+    def database_totals(self) -> Tuple[float, float, float]:
         """``(database total, OEW, useful)`` summed directly from ``items``.
 
         The concept-mode "direct-weight path": instead of WTESTIMA's GA-calibrated
@@ -275,6 +275,12 @@ class WeightInput:
         an upper bound, and the ordering chain treats it as the **ceiling** of
         ``OEW <= MLW <= MTOW <= sum(items)``. For the design take-off weight read
         :func:`sloads.cg_cases.max_takeoff_weight`.
+
+        Named ``direct_totals`` until 2026-08-15, when the FAR 23 gate was
+        re-pointed: that name said where the numbers come from and not what they
+        are, and every caller bound the first element to a variable called
+        ``mtow``. The name now says "the database's totals", which is what the
+        ceiling is.
         """
         database_total = sum(it.weight_lb for it in self.items)
         oew = sum(it.weight_lb for it in self.items if it.kind == MassItemKind.EMPTY)

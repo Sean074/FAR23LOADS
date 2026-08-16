@@ -13,6 +13,7 @@ the ``Project`` and compares. No Streamlit, no file access.
 from dataclasses import dataclass
 from typing import List, Optional
 
+from . import cg_cases
 from . import constants as C
 from .models import Project
 
@@ -58,17 +59,26 @@ def effective_crew(project: Project) -> int:
 
 
 def design_weight_lb(project: Project) -> float:
-    """Design gross weight (lb) used by the MTOW check.
+    """Design gross weight (lb) used by the MTOW check -- the MTOW SSOT.
 
-    ``speeds.weight_lb`` when set (> 0); otherwise the itemized Weight DB take-off
-    total (``Project.weight.direct_totals()`` MTOW). ``0.0`` when neither is
-    available.
+    :func:`sloads.cg_cases.max_takeoff_weight` (decision **G-14**): the
+    ``weight.max_takeoff_weight_lb`` field, else its documented fallback chain
+    (``speeds.weight_lb`` -> ``weight.envelope.gross_weight`` -> the heaviest
+    ``FLIGHT`` case). ``0.0`` when the airplane states no take-off weight at all,
+    which leaves the gate silent rather than guessing.
+
+    **This read the itemized database *total* until 2026-08-15**, whenever
+    ``speeds.weight_lb`` was unset -- an upper bound wearing the name of a design
+    limit, since a database can hold full fuel *and* full payload at once (964 lb
+    high on ``atr42_100``, 1,800 lb on ``concept_regional_jet``). Latent on every
+    shipped fixture, which all set ``speeds.weight_lb``, but a project caught
+    mid-entry took the certification gate off the wrong number. The database total
+    is the *ceiling* of ``OEW <= MLW <= MTOW <= sum(items)``, owned by
+    :func:`sloads.cg_cases.database_total` and checked in
+    :mod:`sloads.validation`; it is not a design weight and no longer reachable
+    from here.
     """
-    if project.speeds is not None and project.speeds.weight_lb > 0:
-        return project.speeds.weight_lb
-    if project.weight is not None:
-        return project.weight.direct_totals()[0]
-    return 0.0
+    return cg_cases.max_takeoff_weight(project, required=False)
 
 
 def far23_applicability(project: Project) -> List[Exceedance]:

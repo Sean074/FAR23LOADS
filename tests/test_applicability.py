@@ -35,6 +35,10 @@ def test_ga_appendix_a_has_no_exceedances():
 def test_beyond_far23_normal_flags_weight_and_seats():
     project = io.load_project(GA6)
     project.speeds.category = "N"
+    # The gate reads the MTOW SSOT (G-14); speeds.weight_lb is its derived read,
+    # so both move together -- a project where they disagree is what
+    # ``validation.mtow_representation_drift`` exists to catch.
+    project.weight.max_takeoff_weight_lb = 20000.0
     project.speeds.weight_lb = 20000.0
     project.speeds.occupants = 12  # crew defaults to 1 (GA6 has no crew key)
     exc = far23_applicability(project)
@@ -76,13 +80,35 @@ def test_effective_occupants_falls_back_to_seats():
     assert effective_occupants(project) == 4
 
 
-def test_design_weight_prefers_speeds_then_weight_db():
+def test_design_weight_is_the_mtow_ssot_and_never_the_database_total():
+    """The FAR 23 gate reads MTOW, not the item-database sum (decision G-14).
+
+    The database total is the *ceiling* of ``OEW <= MLW <= MTOW <= sum(items)``:
+    a database can hold full fuel *and* full payload at once, which no loading
+    can, so it stands 964 lb above MTOW on ``atr42_100`` and 1,800 lb on
+    ``concept_regional_jet``. It read that total whenever ``speeds.weight_lb``
+    was unset until 2026-08-15 -- latent on every shipped fixture, live for any
+    project caught mid-entry. Pinned as "never the total", not merely "the SSOT
+    when set", because the defect lived in the *fallback*.
+    """
     project = io.load_project(GA6)
-    project.speeds.weight_lb = 4200.0
+    project.weight.max_takeoff_weight_lb = 4200.0
+    project.speeds.weight_lb = 3400.0          # the derived read, stale on purpose
     assert design_weight_lb(project) == 4200.0
-    # With no speeds weight, fall back to the itemized Weight DB total.
+
+    # SSOT unset: the documented fallback chain, still never the database total.
+    project.weight.max_takeoff_weight_lb = 0.0
+    assert design_weight_lb(project) == 3400.0
+
+    # A database total well above every representation of MTOW is not reachable.
     project.speeds.weight_lb = 0.0
-    assert design_weight_lb(project) == project.weight.direct_totals()[0]
+    project.weight.envelope = None
+    project.weight.items.append(project.weight.items[0].__class__(
+        name="ferry fuel", weight_lb=9_000.0, x=100.0))
+    total = project.weight.database_totals()[0]
+    assert total > 12_000.0
+    assert design_weight_lb(project) != total
+    assert far23_applicability(project) == []
 
 
 if __name__ == "__main__":

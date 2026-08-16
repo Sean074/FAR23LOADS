@@ -246,7 +246,7 @@ MODULE_NAME = "weight_estimate"
 _CONCEPT_NOTE = (
     "Concept mode: WTESTIMA is a GA sanity estimate only -- it is out of its "
     "<=12,500 lb calibration band. Use the itemized/direct weight "
-    "(WeightInput.direct_totals) as the design weight."
+    "(WeightInput.database_totals) as the design weight."
 )
 
 

@@ -10,6 +10,21 @@ Acceptance**, **Key decisions**.
 
 ---
 
+**The FAR 23 gate reads the MTOW SSOT (complete 2026-08-15, tier M)** — G-14's
+deferred half: `applicability.design_weight_lb` fell back to the item-database
+*total* (the ceiling of `OEW ≤ MLW ≤ MTOW ≤ Σ items`, up to 1,800 lb above MTOW)
+whenever `speeds.weight_lb` was unset, and now reads
+`cg_cases.max_takeoff_weight`. `WeightInput.direct_totals()` →
+`database_totals()`, with the same-class read-throughs swept on Structural
+Speeds, Weight & Mass Properties, Aircraft Comparison and the report's weights
+table (one row split into MTOW + database ceiling). **The "moves output on
+atr42/RJ" claim in the 2026-08-14 entry below is wrong** — measured 2026-08-15,
+both fixtures set `speeds.weight_lb`, so the gate already read the right number;
+the defect was latent, live only for a project caught mid-entry. Guard:
+`test_design_weight_is_the_mtow_ssot_and_never_the_database_total` pins the
+fallback. Digest: `txt/weight_estimate` on the four concept fixtures (renamed
+method in the concept note); no numeric channel moved.
+
 **`LATERAL_AERO_NOTE`'s `n_y` direction corrected (complete 2026-08-15, tier M)**
 — the in-band lateral caveat called `n_y` over-stated and its inertia
 conservative; the missing body/wing side force *adds* to the fin's at `+β`, so
@@ -433,8 +448,11 @@ had, the migration would not be output-neutral. Specifically pinned:
 - **Two findings are left firing rather than fixed here**, because fixing either
   moves output and this piece is claimed as "nothing moves": `dhc8_dash8`'s gear
   mass tag (correcting it re-pins `mass_distribution.wing_mass_tie`) and the
-  `applicability` / `direct_totals` design-weight re-point (the FAR 23 exceedance
-  line changes 37,781 → 36,817 on atr42 and 34,800 → 33,000 on the RJ). Both are
+  `applicability` / `direct_totals` design-weight re-point (believed at the time
+  to change the FAR 23 exceedance line 37,781 → 36,817 on atr42 and 34,800 →
+  33,000 on the RJ — **measured 2026-08-15, it does not**: both fixtures set
+  `speeds.weight_lb`, which won ahead of the database branch, so the defect was
+  latent rather than shipped-wrong; see that item's own entry above). Both are
   in the backlog with the guard that found them.
 - **The `atr42_100` sponson and the RJ's wing-body junction are `BODY`**, stated
   rather than guessed: a sponson is a fuselage fairing and an RJ's main-gear

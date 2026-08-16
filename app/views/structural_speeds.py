@@ -130,9 +130,17 @@ def _tab_design_speeds(project: Project, system: UnitSystem, U: dict) -> None:
     )
     has_wing = project.geometry is not None and project.geometry.by_name(
         existing.wing_surface if existing else "wing") is not None
-    # Design weight: read-through from the Weight DB so it is not entered twice.
-    mtow_upstream = project.weight.direct_totals()[0] if project.weight and project.weight.items else 0.0
-    has_weight_db = mtow_upstream > 0
+    # Design weight: read-through from the MTOW SSOT (decision G-14) so it is not
+    # entered twice. It was the item-database total until 2026-08-15 -- the ceiling
+    # of OEW <= MLW <= MTOW <= sum(items), not a design weight, and 964 lb / 1,800
+    # lb above MTOW on two shipped fixtures. Read as the SSOT *field* rather than
+    # through cg_cases.max_takeoff_weight, whose compat fallback starts at
+    # speeds.weight_lb -- this page's own input, so the read-through would show the
+    # user their own number as an upstream value and hide the field behind the
+    # override checkbox.
+    mtow_upstream = (project.weight.max_takeoff_weight_lb
+                     if project.weight is not None else 0.0)
+    has_mtow = mtow_upstream > 0
 
     with st.form("structural_speeds_form"):
         st.caption(
@@ -149,12 +157,13 @@ def _tab_design_speeds(project: Project, system: UnitSystem, U: dict) -> None:
 
         # Both the DB-read and the override are always rendered (forms don't react
         # live to a checkbox) -- which one wins is decided at Apply.
-        if has_weight_db:
+        if has_mtow:
             mtow_upstream_display = to_display(mtow_upstream, "weight", system)
-            st.caption(f"Design weight from the Weight DB: **{mtow_upstream_display:,.0f} {U['weight']}**.")
+            st.caption(f"Design weight from the MTOW SSOT: **{mtow_upstream_display:,.0f} {U['weight']}**.")
             override_weight = st.checkbox(
                 "Override design weight", value=False,
-                help="Uncheck to use the Weight DB total (Weight & Mass Properties page).",
+                help="Uncheck to use the max take-off weight entered on the Weight "
+                     "& Mass Properties page (decision G-14's single owner).",
             )
             weight_default = (
                 to_display(existing.weight_lb, "weight", system) if existing and existing.weight_lb
@@ -345,7 +354,7 @@ def _tab_design_speeds(project: Project, system: UnitSystem, U: dict) -> None:
     if applied:
         is_concept_submit = _CATS[cat_label] == "C"
         weight_imperial = to_imperial_scalar(weight_override, "weight", system)
-        weight = weight_imperial if (override_weight or not has_weight_db) else mtow_upstream
+        weight = weight_imperial if (override_weight or not has_mtow) else mtow_upstream
         wing_area_imperial = to_imperial_scalar(wing_area, "area_sqft", system) if wing_area else None
         inp = StructuralSpeedsInput(
             category=_CATS[cat_label],

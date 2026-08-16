@@ -926,10 +926,18 @@ keeps finding by accident; one chain finds them in one place.
    the STRSPEED and WTENV oracles are the guard, `weight.envelope.gross_weight`
    being oracle-locked.
 2. **The `applicability` / `direct_totals` re-point is its own claim**, because
-   it *does* move output: the FAR 23 exceedance line changes 37,781 → 36,817 on
+   it was expected to move output: the FAR 23 exceedance line 37,781 → 36,817 on
    atr42 and 34,800 → 33,000 on the RJ. Small, correct and declarable — but
    bundling it into a wave advertised as "nothing moves" would make that claim
    untrue.
+
+   **[CORRECTION, 2026-08-15 — shipped]** It moved nothing. `design_weight_lb`
+   preferred `speeds.weight_lb` and only fell back to the database total, and
+   every shipped fixture sets that field, so the gate already read 36,817 and
+   33,000. The defect was **latent** — live for a project whose STRSPEED weight
+   is unset, which is exactly the state a new project is in when the
+   applicability banner is first consulted. Splitting the claim was still right;
+   the reason stated here was not what made it right.
 
 **Stated assumption — MTOW is CG-independent** *(user, 2026-08-14)*. On some
 airplanes the maximum take-off weight **varies with CG** (the Boeing 777 among
