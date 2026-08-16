@@ -751,9 +751,9 @@ def test_unknown_field_in_every_result_slice_is_ignored():
 def test_an_entered_loading_round_trips():
     """Every member survives the write/read/write cycle, ballast row included."""
     project = io.load_project(os.path.join(EXAMPLES, "concept_regional_jet.project.json"))
-    case = next(c for c in project.weight.cg_cases if c.name == "CG3 fwd light")
+    case = next(c for c in project.weight.cg_cases if c.name == "CG3 light")
     case.loading = LoadingDefinition(
-        aboard=["Passengers (48)", "Mission fuel"],
+        aboard=["Passengers, fwd cabin (24)", "Mission fuel"],
         fractions={"Mission fuel": 0.4},
         ballast=MassItem(name="Test ballast", weight_lb=120.0, x=200.0, z=60.0,
                          kind=MassItemKind.DISCRETIONARY),
@@ -763,8 +763,8 @@ def test_an_entered_loading_round_trips():
     assert once == twice
 
     back = next(c for c in io.project_from_dict(once).weight.cg_cases
-                if c.name == "CG3 fwd light").loading
-    assert back.aboard == ["Passengers (48)", "Mission fuel"]
+                if c.name == "CG3 light").loading
+    assert back.aboard == ["Passengers, fwd cabin (24)", "Mission fuel"]
     assert back.fractions == {"Mission fuel": 0.4}
     assert back.ballast == case.loading.ballast
 

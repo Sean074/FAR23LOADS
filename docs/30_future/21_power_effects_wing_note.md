@@ -689,6 +689,7 @@ power-off wing slope; the power effect on the gradient enters as `Δ(dε/dα)`
 | P-4 | Kind II extent (i): `-P` variant for every clean wing family + `SLIP-P` on `BAL 1.4VSF` (TO); 23.345 flap-extended power cases deferred | §2.2 |
 | P-5 | GUI placement C: inputs on their owner pages + read-only power review on Balanced Cases | §3.2 |
 | P-6 | Thrust line is user-defined: hub point + pitch incidence + toe angle (GUI also accepts a second point, converted) | §3.1 |
+| P-6a *(added 2026-08-15, note 24 R-9)* | In the LRA beam model (step 12) each engine has a **hub node** at `prop_cg` (the thrust point — the thrust `FORCE` along the P-6 line goes there) and a **mount node** at `engine_cg` (ENGLOADS torque/gyro `MOMENT`s, the engine `CONM2`s), hub → mount rigid, mount rigid to the wing LRA node at the engine butt line or to the fuselage node at `engine_cg.x` per an explicit `mounted_on` (BM-4). The nodes are emitted with zero thrust cards until this step ships | [`24_lra_beam_model_review_note.md`](24_lra_beam_model_review_note.md) R-9 |
 | P-7 | 23.371 gyro wing-box cases at VA (mount numbers stay VSF-based, stated side by side) | §2.2 |
 | P-8 | Generation = re-trim at V-n level (`retrim_with_power`) then assemble with the power load set; the 1 % gate applies | §4.2 |
 | P-9 | Pair torque reacted by an `aileron-trim` free couple (counter-rotating → 0); gyro couples reacted by closure `q̇/ṙ` with the residual gate exempted | §4.3 |

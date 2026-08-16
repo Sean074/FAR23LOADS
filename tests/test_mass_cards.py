@@ -38,7 +38,12 @@ from sloads.export import mass_cards as mc  # noqa: E402
 from sloads.export import sbeam_bridge as sb  # noqa: E402
 from sloads.export.equilibrium import parse_cards  # noqa: E402
 from sloads.cg_cases import flight_cases  # noqa: E402
-from sloads.models import LoadingDefinition, MassItemKind  # noqa: E402
+from sloads.models import (  # noqa: E402
+    LoadingDefinition,
+    MassComponent,
+    MassItem,
+    MassItemKind,
+)
 from sloads.units import (  # noqa: E402
     G_IN_S2,
     Channel,
@@ -144,24 +149,34 @@ def test_imperial_mass_is_deliberately_not_the_identity():
 # C1 -- the per-case derivation
 # --------------------------------------------------------------------------- #
 #: Which payload cases each fixture can actually produce as a loading, pinned.
-#: The rest are reported, not exported — a case whose CG the weight database
-#: cannot reach is a fact about the fixture, and burying it in a skip would hide
-#: exactly what the derivation is for. ga6 (the Appendix A airplane) derives all
-#: four, which is why it carries the export's oracle weight.
+#: **Every case of every fixture, since Pri 5 / D-26.** What used to make this
+#: list short was not the derivation but the fixtures: their CG cases had been
+#: entered as corner points read off a type's published envelope, independently
+#: of the item database, and 11 of 18 were loadings no combination of that
+#: database could produce. D-26 corrected the case data to the database and gave
+#: each case an entered loading; the search is what ga6 still runs on, unchanged.
 _DERIVABLE = {
     "ga6_normal.project.json": ["CG1", "CG2", "CG3", "CG4"],
-    "cessna_210.project.json": [],
-    "atr42_100.project.json": ["CGaft"],
-    "dhc8_dash8.project.json": [],
-    "concept_heavy.project.json": [],
+    "cessna_210.project.json": ["CG1", "CG2", "CG3", "CG4"],
+    "atr42_100.project.json": ["CGfwd", "CGmid", "CGaft"],
+    "dhc8_dash8.project.json": ["CGfwd", "CGmid", "CGaft"],
+    "concept_heavy.project.json": ["CGmax"],
     "concept_regional_jet.project.json": ["CG1 aft heavy", "CG2 fwd heavy",
-                                         "CG3 fwd light"],
+                                          "CG3 light"],
 }
 #: Cases whose loading is **entered** on the case (D-25) rather than searched
-#: for. ``CG3 fwd light`` is the first: 12 % ballast, so the search's credibility
-#: gate refused it and the RJ produced no third payload case at all until the
-#: loading became an input.
-_ENTERED = {"concept_regional_jet.project.json": ["CG3 fwd light"]}
+#: for. Every fixture but ga6, which stays entirely on the derived route so the
+#: Appendix A airplane's bytes are never moved by a fixture-data step — it is the
+#: standing proof that the search is still the behaviour a case without a loading
+#: gets (D-25c).
+_ENTERED = {
+    "cessna_210.project.json": ["CG1", "CG2", "CG3", "CG4"],
+    "atr42_100.project.json": ["CGfwd", "CGmid", "CGaft"],
+    "dhc8_dash8.project.json": ["CGfwd", "CGmid", "CGaft"],
+    "concept_heavy.project.json": ["CGmax"],
+    "concept_regional_jet.project.json": ["CG1 aft heavy", "CG2 fwd heavy",
+                                          "CG3 light"],
+}
 
 
 @pytest.mark.parametrize("example", EXAMPLES)
@@ -279,24 +294,40 @@ def test_the_echo_check_fires_when_the_case_disagrees_with_its_loading():
     """D-25a's whole mechanism: the case's weight/CG is an echo, and a
     disagreement is **reported**, never absorbed by bending the loading."""
     p = _project("concept_regional_jet.project.json")
-    case = next(c for c in flight_cases(p) if c.name == "CG3 fwd light")
+    case = next(c for c in flight_cases(p) if c.name == "CG1 aft heavy")
     assert all(c.ok for c in md.case_loading_checks(p))     # as shipped
+    was = next(ld for ld in md.derive_case_loadings(p) if ld.name == case.name).cg_x
 
     case.xcg += 2.0 * md._CG_MATCH_TOL
     bad = [c for c in md.case_loading_checks(p) if not c.ok]
     assert [c.code for c in bad] == ["mass_case_xcg"]
     assert "entered loading" in bad[0].detail
     # the loading itself is untouched -- it is the authority, not the echo
-    assert md.derive_case_loadings(p)[2].cg_x == pytest.approx(595.1191666, abs=1e-4)
+    got = next(ld for ld in md.derive_case_loadings(p) if ld.name == case.name)
+    assert got.cg_x == pytest.approx(was, rel=1e-12)
 
 
 def test_an_entered_ballast_is_not_gated_by_the_credibility_fraction():
-    """D-25d. The RJ's third case needs 12 % ballast — over the gate that refuses
-    a *solved* one — and it exports, with the fraction stated rather than hidden."""
-    ld = next(x for x in md.derive_case_loadings(
-        _project("concept_regional_jet.project.json")) if x.name == "CG3 fwd light")
-    assert ld.derivable and ld.ballast_fraction > md.BALLAST_CREDIBLE_FRACTION
-    assert "entered ballast" in ld.note and "12 %" in ld.note
+    """D-25d: an **entered** ballast row is an engineering statement, so it
+    exports at any fraction, with that fraction stated rather than hidden.
+
+    Built here rather than taken off a fixture. It was the RJ's third case until
+    D-26 replaced every fixture's ballast-produced corner point with a loading the
+    database can actually fly, so no shipped fixture carries entered ballast any
+    more — and a mechanism whose only test is a fixture that may legitimately
+    stop exercising it is a mechanism that silently loses its guard.
+    """
+    p = _project("ga6_normal.project.json")
+    case = next(c for c in flight_cases(p) if c.name == "CG1")
+    case.loading = LoadingDefinition(ballast=MassItem(
+        name="Test ballast, fwd hold", weight_lb=500.0, x=40.0, y=0.0, z=95.0,
+        kind=MassItemKind.DISCRETIONARY, component=MassComponent.FUSELAGE))
+    ld = md.entered_loading(p.weight.items, case)
+
+    fraction = 500.0 / ld.weight_lb
+    assert fraction > md.BALLAST_CREDIBLE_FRACTION       # a solved one would be refused
+    assert ld.derivable and ld.ballast_fraction == pytest.approx(fraction)
+    assert "entered ballast" in ld.note and f"{fraction * 100:.0f} %" in ld.note
 
 
 @pytest.mark.parametrize("loading, message", [
@@ -531,9 +562,19 @@ def test_the_check_deck_beam_is_massless():
 
 def test_a_project_with_no_derivable_case_refuses_a_check_deck():
     """No credible loading means nothing to check — say so, rather than emit a
-    deck with no subcases that a consumer would take as a clean result."""
+    deck with no subcases that a consumer would take as a clean result.
+
+    The unreachable case is built here rather than named off a fixture: since
+    D-26 every shipped fixture derives every case, and a refusal path whose only
+    test is "some fixture happens to fail" is one fixture edit away from testing
+    nothing. A CG 40 in forward of the whole airplane is unreachable by
+    construction, which is the state this guards.
+    """
+    p = _project("ga6_normal.project.json")
+    for case in flight_cases(p):
+        case.xcg = min(it.x for it in p.weight.items) - 40.0
     with pytest.raises(ValueError, match="no payload case is derivable"):
-        mc.mass_check_deck(_project("cessna_210.project.json"))
+        mc.mass_check_deck(p)
 
 
 if __name__ == "__main__":

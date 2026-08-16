@@ -112,12 +112,18 @@ load in the element just outboard of the clamp. Consequences:
 
 **Two hard constraints on any future fix.**
 
-1. **The station set cannot be truncated at the SOB.** Appendix A's printed
+1. **The station set cannot be truncated at the SOB — in the per-component
+   wing deck.** Appendix A's printed
    NETLOADS root (p222: `Sz` +5837, `Mxx` +455555) is station 0 at `y = dy/2`,
    and the closure identity in `theory_sources.md` is `ΣdFz·(y−y₀) = mxx_root`
    about **y₀ = station 0**. Dropping inboard stations breaks the oracle the
    whole FAR23 core is locked to. A SOB station must be *added* as a
-   reporting/support node, never subtracted.
+   reporting/support node, never subtracted. **Scoped 2026-08-15 (note 24
+   R-3):** this constraint binds the oracle-backing per-component deck only.
+   The **LRA beam model** (step 12, a third deliverable) *starts* its wing beam
+   at the SOB and sums the inboard strip loads to that node, resultant
+   preserved — it never claims the station-0 closure, so the oracle is
+   untouched. One SOB source serves both behaviours (backlog step 13).
 2. **There is no authoritative SOB input today.** `inboard_rib_y` exists on
    `WingMassInput` (ga6 23, cessna 24, atr42 38, dhc8 40, RJ 40) but it is the
    WINGINER *mass-panel* start (RSTA), close to but not definitionally the side
@@ -446,7 +452,13 @@ closure is stated about it; (c) report/export the SOB shear, bending and torsion
 as the wing root design loads, distinct from the half-span totals. **Pairs with
 L-1 and with plan 07 §9** — all three need the same wing/body seam accounting,
 and none should invent it separately. Effort: M. Full reasoning and the
-measured numbers: §1.1 of this plan.
+measured numbers: §1.1 of this plan. **Superseded in detail 2026-08-15** by the
+backlog's rewritten step 13 body and
+[`24_lra_beam_model_review_note.md`](24_lra_beam_model_review_note.md) R-3 /
+BM-1: source = explicit `SurfaceInput.sob_y_in` with `fuselage_width/2` as the
+marked-assumed fallback and `inboard_rib_y` excluded; (b) holds for the
+per-component deck, while the LRA model starts at the SOB (§1.1 constraint 1 as
+scoped).
 
 ### 8.2 Defect to file alongside this step
 

@@ -228,10 +228,12 @@ def test_the_report_states_which_conditions_did_not_assemble():
 
     rows = [row[0] for row in _skips_table(build_report(project)).rows]
     assert rows == skipped_condition_lines(skipped)
-    # The fixture's own example moved with D-25: its flight NMAA now assembles
-    # (the case states its loading), and what the record still carries is the
-    # ground family, whose ``fwd light`` loading is not entered.
-    assert any("3-wheel level landing" in row for row in rows), rows
+    # The fixture's own example has moved twice. D-25 brought its flight NMAA in
+    # (the case states its loading); Pri 5 / D-26 brought its whole ground family
+    # in as well, so nothing is dropped for want of a loading on any fixture any
+    # more. What the record still carries -- and always will -- are the
+    # structural exclusions: LANDLOAD conditions the assembly has no branch for.
+    assert any("supplementary nose-wheel" in row for row in rows), rows
 
 
 def test_the_skipped_conditions_table_states_absence_rather_than_vanishing():
@@ -307,17 +309,25 @@ def test_the_balanced_section_names_the_massset_of_every_payload_case():
 def test_a_payload_case_the_database_cannot_produce_is_reported_not_dropped():
     """"Absent from the mass model" is the fact a consumer needs (plan 12 C-1).
 
-    Read on ``atr42_100`` since D-25: the regional jet's three cases all export
-    now that the third one states its loading, so the fixture that still carries
-    a case its database cannot produce is the twin turboprop (CGfwd/CGmid, 20 %
-    ballast, no entered loading yet -- backlog Pri 7).
+    The unproducible case is **built** here. Since Pri 5 / D-26 every case of
+    every shipped fixture is a loading its own weight database can produce, so
+    there is no fixture left to read it off -- and a reporting path whose only
+    test is "some fixture happens to fail" stops testing anything the day the
+    fixtures are fixed, which is the day that step arrived.
     """
     from sloads.export.mass_cards import mass_case_rows
 
     path = os.path.join(_EXAMPLES, "atr42_100.project.json")
-    rows = mass_case_rows(io.load_project(path))
-    assert any(not r["exported"] for r in rows), "fixture no longer exercises this"
-    table = next(t for t in _balanced_section(path).tables
+    project = io.load_project(path)
+    assert all(r["exported"] for r in mass_case_rows(project))     # as shipped
+
+    case = next(c for c in project.weight.cg_cases if c.name == "CGfwd")
+    case.loading = None
+    case.xcg = min(it.x for it in project.weight.items) - 40.0
+    rows = mass_case_rows(project)
+    assert any(not r["exported"] for r in rows)
+    doc = build_report(project, tool_version="test")
+    table = next(t for t in doc.section("Balanced free-free airframe cases").tables
                  if t.title.startswith("Payload cases"))
     assert any(row[1] == "NOT EXPORTED" for row in table.rows)
 

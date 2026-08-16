@@ -137,18 +137,24 @@ def test_stall_clamp_closure_holds_on_the_closing_fixtures():
 def test_the_atr42_stall_exceedance_is_the_documented_mach_capped_one():
     """The ATR-42 example does *not* close -- deliberately pinned, not ignored.
 
-    Seven of its 180 balanced points (MAN A/C and AC ROLL at 25,000 ft) sit up to
-    ~0.29 CL above the stall clamp because the local Mach is pinned at MC, so the
+    Five of its 180 balanced points (MAN A/C and AC ROLL at 25,000 ft) sit up to
+    ~0.14 CL above the stall clamp because the local Mach is pinned at MC, so the
     dynamic-pressure iteration cannot raise q any further: the airplane cannot
     reach n = 2.5 at that altitude within its own Mach cap and CLmax. That is a
     property of the fixture's speeds/altitude set, not of this module. If it ever
     starts closing, delete this test and add the fixture to ``_CLOSING_FIXTURES``.
+
+    **It got roughly half way there on its own.** Pri 5 / D-26 corrected this
+    fixture's CG cases to loadings its weight database can produce, and the
+    exceedance fell from 7 points at +0.29 to 5 at +0.14 -- the cases are lighter
+    and their CGs are where the airplane's mass actually puts them, so less lift
+    is asked of the same Mach-capped q. Still not attainable, still pinned.
     """
     project, env, closures = _closures(_ATR)
     fl = project.flight_loads
     cfg = balance_configs(project.aero_coeffs)[0]
     assert len(closures) == 1
-    assert closures[0].worst_stall_excess > 0.2
+    assert 0.1 < closures[0].worst_stall_excess < 0.2
     assert "25,000 ft" in closures[0].worst_stall_label
     # The recovered-CL drift guard still holds -- the points are self-consistent,
     # they are simply not attainable.
@@ -160,7 +166,7 @@ def test_the_atr42_stall_exceedance_is_the_documented_mach_capped_one():
         pos, neg = stall_limits(cfg, p.g_corr, fl.mn)
         if max(rec - pos, neg - rec) > STALL_CLOSURE_TOL:
             exceeding.append(p)
-    assert len(exceeding) == 7
+    assert len(exceeding) == 5
     assert {p.altitude_ft for p in exceeding} == {25000.0}
 
 

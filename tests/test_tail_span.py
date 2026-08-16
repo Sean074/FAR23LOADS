@@ -421,7 +421,9 @@ def test_a_fin_case_with_no_vn_point_gets_no_lateral_inertia_and_says_so():
 #: ``-Fy*(z - z_cg)``, so the sign of this number is the sign of that moment.
 _FIN_ROLL_ARM = {
     "ga6_normal.project.json": (107.0, 93.0, +14.0),
-    "concept_regional_jet.project.json": (156.0, 70.0, +86.0),
+    # zcg 70.0 -> 63.62 with D-26: the RJ's waterline is now its
+# loading's own, not an unsourced round number.
+    "concept_regional_jet.project.json": (156.0, 63.62, +92.38),
 }
 
 

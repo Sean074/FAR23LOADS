@@ -204,7 +204,13 @@ def _cg_case_from_dict(d: Dict[str, Any]) -> CgCase:
     role_raw = d.pop("role", None)
     role = GroundCaseRole(role_raw) if role_raw else None
     loading_raw = d.pop("loading", None)
-    loading = _loading_from_dict(loading_raw) if loading_raw else None
+    # ``is not None``, not truthiness: an **empty** loading is a real and distinct
+    # statement -- "no discretionary item is aboard", i.e. the minimum flight
+    # weight, which is what ``cessna_210``'s CG4 is. It serializes to ``{}``
+    # (``_loading_to_dict`` omits empty members), and reading that back as
+    # ``None`` would silently return the case to the derived route (D-25c) with
+    # no error anywhere. Absence of the key is the only "derive it" state.
+    loading = _loading_from_dict(loading_raw) if loading_raw is not None else None
     return CgCase(analyses=analyses, role=role, loading=loading,
                   **_filtered(CgCase, d))
 

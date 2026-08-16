@@ -174,10 +174,17 @@
     ],
     "cg_cases": [
       {
-        "name": "CGfwd",
-        "weight_lb": 18000,
-        "xcg": 205.0,
-        "zcg": 100.0
+        "name": "CGmax",
+        "weight_lb": 18000.0,
+        "xcg": 264.78,
+        "zcg": 69.06,
+        "loading": {
+          "aboard": [
+            "Passengers",
+            "Baggage",
+            "Fuel to gross"
+          ]
+        }
       }
     ]
   },
@@ -330,10 +337,10 @@
     ],
     "cg_cases": [
       {
-        "name": "CGfwd",
-        "weight_lb": 18000,
-        "xcg": 205.0,
-        "zcg": 100.0
+        "name": "CGmax",
+        "weight_lb": 18000.0,
+        "xcg": 264.78,
+        "zcg": 69.06
       }
     ]
   },

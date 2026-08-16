@@ -307,7 +307,7 @@ def test_an_entered_loading_that_does_not_produce_its_case_is_reported():
     here as well as in the mass checks and the report.
     """
     project = sloads_io.load_project(_RJ)
-    case = next(c for c in project.weight.cg_cases if c.name == "CG3 fwd light")
+    case = next(c for c in project.weight.cg_cases if c.name == "CG3 light")
     assert "cg_case_loading_echo" not in _codes(project)      # as shipped
     case.weight_lb += 500.0
     codes = _codes(project, page="weight_cg_inertia")
@@ -320,7 +320,7 @@ def test_a_malformed_loading_is_reported_rather_than_raised_at_the_page():
     from sloads.models import LoadingDefinition
 
     project = sloads_io.load_project(_RJ)
-    case = next(c for c in project.weight.cg_cases if c.name == "CG3 fwd light")
+    case = next(c for c in project.weight.cg_cases if c.name == "CG3 light")
     case.loading = LoadingDefinition(aboard=["No such item"])
     warnings = [w for w in consistency_warnings(project)
                 if w.code == "cg_case_loading_invalid"]

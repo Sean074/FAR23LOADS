@@ -1820,11 +1820,22 @@ def _ground_target(base: CgCase, weight_lb: float) -> CgCase:
     weight, and LANDLOAD applies that as ``WR`` on cases 13-22. Renaming the case
     when the weight moves keeps the two apart in the derivation record and in the
     deck, so a reader is never shown "aft max landing" against a take-off weight.
+
+    **The entered loading is dropped with the weight (D-25 / D-26).** A
+    ``LoadingDefinition`` states which items are aboard, not what the airplane
+    weighs, so carrying it onto a re-weighted target would assemble the landing
+    loading's inertia set against take-off-weight gear reactions and call the
+    result balanced -- measured on ``concept_regional_jet`` 2026-08-15 as 31,000 lb
+    of modelled mass under a case declaring 33,000. Setting it to ``None`` sends
+    the re-weighted target through the subset search, which is what produced these
+    cases before any loading was entered and is the one route that solves for the
+    *weight* as well as the station. A target the search cannot reach is skipped
+    and recorded, never invented, exactly as before.
     """
     if abs(weight_lb - base.weight_lb) <= 1e-6:
         return base
     return replace(base, name=f"{base.name} at {weight_lb:,.0f} lb",
-                   weight_lb=weight_lb)
+                   weight_lb=weight_lb, loading=None)
 
 
 def _ground_loadings(project: Project,

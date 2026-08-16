@@ -203,10 +203,15 @@ def test_fwd_regardless_station_outside_extent_marks_none():
 
 
 def test_fwd_regardless_negative_station_marks_none_via_datum():
-    # dhc8_dash8 carries no fuselage outline: its forward-regardless moment balance
-    # lands at -112 in (ahead of the station-0 datum). The datum fallback flags it
+    # cessna_210 carries no fuselage outline: its forward-regardless moment balance
+    # lands at -3 in (ahead of the station-0 datum). The datum fallback flags it
     # as nonphysical rather than emitting the negative station (M1-11).
-    p = io.load_project(os.path.join(os.path.dirname(_EXAMPLE), "dhc8_dash8.project.json"))
+    #
+    # Was dhc8_dash8 at -112 in until D-26 zoned that fixture's cabin and holds,
+    # which moved its forward-loading sequence and put the balance at +142 in. The
+    # path is the same one and is still reached by a shipped fixture; if it ever
+    # is not, build the loading here rather than deleting the guard.
+    p = io.load_project(os.path.join(os.path.dirname(_EXAMPLE), "cessna_210.project.json"))
     r = calc.envelope(p, p.weight.envelope)
     labels = _labels(r)
     assert any(

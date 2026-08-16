@@ -80,6 +80,7 @@ from .sbeam_bridge import _fmt, _sf_str, _stamped, beam_station_gid
 _BASELINE_BAND = band("mass-baseline")
 _DISCRETIONARY_BAND = band("mass-discretionary")
 _BALLAST_BAND = band("mass-ballast")
+_PART_FULL_BAND = band("mass-part-full")
 _MASSSET_BAND = band("massset")
 _GRAV_BAND = band("grav")
 
@@ -89,6 +90,8 @@ MASS_EID_BASELINE = _BASELINE_BAND.start
 MASS_EID_DISCRETIONARY = _DISCRETIONARY_BAND.start
 #: Per-case ballast -- one overlay card per derived loading.
 MASS_EID_BALLAST = _BALLAST_BAND.start
+#: Per-case part-full consumable rows -- one overlay card per (case, scaled row).
+MASS_EID_PART_FULL = _PART_FULL_BAND.start
 #: MASSSET SIDs, one per payload case.
 MASSSET_SID_BASE = _MASSSET_BAND.start
 #: GRAV SIDs, one per payload case.
@@ -132,6 +135,11 @@ class MassCard:
     item: MassItem
     offset: Tuple[float, float, float]
     overlay: bool
+    #: Which loading this card belongs to, for the overlay cards that exist
+    #: **per case** rather than per database row -- the solved/entered ballast and
+    #: a consumable row carried part-full. ``None`` on a card that is shared, i.e.
+    #: one whose item is a database row at its own weight.
+    case_index: Optional[int] = None
 
 
 def _attach_gid(item: MassItem, project: Project,
@@ -192,6 +200,7 @@ def mass_cards(project: Project) -> Tuple[List[MassCard], List[CaseLoading]]:
     # card impossible to write; :func:`unreferenced_overlay_eids` is the guard
     # that keeps it that way.
     baseline = [it for it in items if it.kind != MassItemKind.DISCRETIONARY]
+    rows = {id(it) for it in items}
     carried = {id(it) for ld in loadings for it in ld.items}
     discretionary = [it for it in items
                      if it.kind == MassItemKind.DISCRETIONARY and id(it) in carried]
@@ -203,12 +212,40 @@ def mass_cards(project: Project) -> Tuple[List[MassCard], List[CaseLoading]]:
             gid, offset = _attach_gid(it, project, stations)
             cards.append(MassCard(eid=eid_band.allocate(i), gid=gid, item=it,
                                   offset=offset, overlay=overlay))
+    # A loading may carry a consumable row **part-full** -- a D-25 entered
+    # fraction, or the G-5 burn-down a GROUND target runs -- and that item is a
+    # scaled copy, not the database row. It therefore cannot share the row's
+    # overlay card: one card is one mass, and the same tank at two fuel states is
+    # two masses. Each gets its own card, named only by its own case's ADD row.
+    #
+    # Found 2026-08-15, when the Pri 5 loadings made part-full fuel the norm: the
+    # scaled copy matched no card, so the row left the deck entirely and the
+    # exported mass model weighed *less* than the loading it declared (dhc8's MLW
+    # case by 4,160 lb). It parsed, and it solved.
+    part_full = 0
+    for i, loading in enumerate(loadings):
+        for it in loading.items:
+            if id(it) in rows or it is loading.ballast:
+                continue        # a database row at its own weight, or the ballast
+            if it.kind != MassItemKind.DISCRETIONARY:
+                raise ValueError(
+                    f"weight/CG case '{loading.name}' carries '{it.name}' "
+                    f"part-full, but that row is {it.kind.value} and so sits in "
+                    "the MASSSET baseline, which every case shares. Expressing it "
+                    "would need a REPLACE row; today only a discretionary row may "
+                    "be part-full. Make the row discretionary, or carry it whole.")
+            gid, offset = _attach_gid(it, project, stations)
+            cards.append(MassCard(eid=_PART_FULL_BAND.allocate(part_full), gid=gid,
+                                  item=it, offset=offset, overlay=True,
+                                  case_index=i))
+            part_full += 1
     for i, loading in enumerate(loadings):
         if loading.ballast is None:
             continue
         gid, offset = _attach_gid(loading.ballast, project, stations)
         cards.append(MassCard(eid=_BALLAST_BAND.allocate(i), gid=gid,
-                              item=loading.ballast, offset=offset, overlay=True))
+                              item=loading.ballast, offset=offset, overlay=True,
+                              case_index=i))
     return cards, loadings
 
 
@@ -231,17 +268,21 @@ def _overlay_eids(cards: Sequence[MassCard], loading: CaseLoading,
                   index: int) -> List[int]:
     """The overlay EIDs one case's ``ADD`` row names.
 
-    Matched on object identity, not on name: two items may legitimately share a
-    name (``"3rd person"`` / ``"4th person"`` differ only by station in some
-    databases), and a MASSSET that named an EID twice is a parse error in sbeam
-    by design.
+    Two kinds of card, and the distinction is the whole correctness argument:
+    a **shared** card (``case_index is None``) is a database row at its own
+    weight, and any case carrying that row names it; a **per-case** card is one
+    this case alone owns -- its ballast, or a row it carries part-full -- and is
+    named by case index rather than by item.
+
+    Shared cards are matched on object identity, not on name: two items may
+    legitimately share a name (``"3rd person"`` / ``"4th person"`` differ only by
+    station in some databases), and a MASSSET that named an EID twice is a parse
+    error in sbeam by design.
     """
     aboard = {id(it) for it in loading.items}
-    eids = [c.eid for c in cards
-            if c.overlay and c.eid < MASS_EID_BALLAST and id(c.item) in aboard]
-    if loading.ballast is not None:
-        eids.append(MASS_EID_BALLAST + index)
-    return eids
+    return [c.eid for c in cards if c.overlay
+            and (c.case_index == index
+                 or (c.case_index is None and id(c.item) in aboard))]
 
 
 # --------------------------------------------------------------------------- #

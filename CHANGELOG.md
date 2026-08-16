@@ -12,6 +12,78 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **Every shipped fixture now assembles balanced cases** (backlog Pri 5,
+  decision **D-26** + D-26a…c; design note
+  `docs/30_future/23_pri5_fixture_loadings_note.md`). Balanced flight cases go
+  from **2 of 6 fixtures to 6 of 6**, and the complete 27-case ground family from
+  1 fixture to all **5** that carry landing-gear geometry — so the concept-loads →
+  sbeam loop is exercised in CI on six airplanes instead of two.
+
+  The row read as data entry (give each case a D-25 `loading`), and measurement
+  before any edit showed it was not enterable: on five of six fixtures the CG
+  cases had been entered as corner points read off a type's published envelope,
+  independently of the item database, and missed it by **15–60 in in station and
+  4–31 in in waterline**. On `cessna_210`, `dhc8_dash8` and `concept_heavy` the
+  heaviest case weighed *exactly* the all-up weight, so one loading produces it
+  and its CG is not a choice. Closing the row as written would have meant
+  entering **10–44 % of each airplane as ballast** at the propeller spinner or
+  the fin tip — the "wrong cards outrank missing cards" case.
+
+  D-26 corrects the case data to the database instead: `zcg` becomes a derived
+  echo of the loading (it never had an envelope behind it — WTENV's is weight
+  against *station*); the lumped `Passengers`/`Baggage` rows are **zoned** into
+  fwd/aft cabin and hold with each fixture's `Σw`/`Σwx`/`Σwz` preserved exactly,
+  so no database total moves and real CG travel exists at every weight;
+  `cessna_210`'s usable fuel is corrected to the type's 120 gal long-range figure
+  (its database had summed to *exactly* MTOW, so no two loadings weighed the
+  same) and its `CG4`, entered 174 lb below the empty-plus-pilot-plus-reserve
+  weight, is re-entered at it. Every one of the 34 cases then carries an entered
+  loading and **not one carries a pound of ballast**. `ga6_normal` is untouched —
+  it already sat on its own database to 0.10 in — and stays the standing proof
+  that the D-25c search route is unchanged; the Appendix A oracles do not move.
+
+  Two cases are renamed because the corner point they were named for is not one:
+  `concept_heavy` `CGfwd` → `CGmax`, and the RJ's `CG3 fwd light` → `CG3 light`
+  (at 24,000 lb that airplane's CG goes aft, not forward).
+
+### Fixed
+
+- **A part-full consumable row left the exported `CONM2` set entirely.** Overlay
+  mass cards are matched by object identity and a fractional row is a scaled
+  *copy*, so it matched no card and was silently dropped: the exported mass model
+  weighed less than the loading it declared — `dhc8_dash8`'s max-landing case by
+  **4,160 lb** — in a deck that parsed and solved. Each (case, part-full row) now
+  gets its own card in a new `mass-part-full` EID band (9501+), since one card is
+  one mass and the same tank at two fuel states is two masses. Found by the Pri 5
+  loadings, which made part-full fuel the norm rather than the exception.
+- **LANDLOAD's gross-weight ground conditions got the landing-weight inertia
+  set.** 23.473(a) lets 23.485/23.493 be met at MTOW while 23.479/481/483 are met
+  at MLW, and `balance._ground_target` re-weights the case for it — but a
+  `LoadingDefinition` states which items are aboard, not what the airplane
+  weighs, so carrying it onto the re-weighted target assembled 31,000 lb of mass
+  under a case declaring 33,000 (`concept_regional_jet`). The re-weighted target
+  now drops the entered loading and goes through the subset search, the one route
+  that solves for weight as well as station.
+
+### Added
+
+- **LRA beam-model design review** (backlog band B, steps 12/13/14; design note
+  `docs/30_future/24_lra_beam_model_review_note.md`, **agreed 2026-08-15**, no
+  code). The user's eight-feature target — control-surface hinge/actuator nodes,
+  wing side-of-body node with inboard loads summed to it, fuselage beam with
+  front/rear-spar posts, fin and h-tail attachments (conventional and T-tail),
+  LRA at 40 % chord / hinge line / section centre, gear and engine thrust nodes —
+  measured against the shipped export code and the written plans. Establishes
+  that the LRA model is a **third deliverable** (the assembled balanced deck is
+  `GRID`+`FORCE`/`MOMENT` with no elements and stays so), records decisions
+  **BM-1…BM-5** (SOB source, split-fuselage idealization, refuse-on-missing
+  attachment data, explicit `mounted_on`, named-node contract) and re-sequences
+  band B. Docs amended in the same session: backlog step 12/13/14 bodies and
+  Pri 1/10/16, plan 10 §1.1 (constraint 1 scoped to the per-component deck),
+  plan 11 §4 (LRA-model column, T7 transfer and engine-thrust rows), plan 09
+  §10 (**T-18**, hinge-line control chains), note 21 (**P-6a**, hub/mount
+  nodes), `docs/00_INDEX.md`. Standard docs, schema and `bands.py` follow the
+  code per the closure tiers.
 - **`CgCase` gains an explicit loading definition** (backlog Pri 6, decision
   **D-25** + D-25a…d; schema **v50**; design note
   `docs/30_future/22_d25_cgcase_loading_note.md`). A payload case could state a

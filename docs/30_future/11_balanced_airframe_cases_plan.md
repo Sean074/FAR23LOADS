@@ -220,17 +220,22 @@ In an assembled free-free model every load is either **external** (applied) or
 free-body cut and carry the cut reaction as an applied load; those reactions
 must **not** appear in the assembled deck. Stated once, as the rule:
 
-| Physical load | Per-component deck | Assembled deck |
-|---|---|---|
-| Wing air load | wing strips, centerline→tip, one side | wing strips, **both sides** — authoritative |
-| Wing inertia | inside the wing net | from `weight.items` wing item, spread by WINGINER — authoritative |
-| Wing carry-through reaction | `body_loads` `carry` source — applied | **excluded** — it is internal (the solver recovers it) |
-| Fuselage inertia | `fuselage_mass.stations` × `nz` | from `weight.items`, per §3.1 — authoritative |
-| Tail air load | `body_loads` `tail` point load **and** TAILDIST chordwise | the **distributed empennage** representation once plan 09 lands; the `body_loads` point load is **excluded**. Until then, the point load is authoritative and the chordwise deck is a per-component view |
-| Gear reactions | — | applied external loads on ground cases (M4-6) |
+| Physical load | Per-component deck | Assembled deck | LRA beam model (step 12, added 2026-08-15 — note 24 R-6) |
+|---|---|---|---|
+| Wing air load | wing strips, centerline→tip, one side | wing strips, **both sides** — authoritative | both sides, transferred onto the LRA nodes; strips **inboard of the SOB summed to the SOB node** (resultant preserved) |
+| Wing inertia | inside the wing net | from `weight.items` wing item, spread by WINGINER — authoritative | as assembled, transferred; inboard-of-SOB share summed to the SOB node |
+| Wing carry-through reaction | `body_loads` `carry` source — applied | **excluded** — it is internal (the solver recovers it) | **excluded** — carried by the **posts** (rigid links, front/rear spar → SOB); the post loads are the solver's, gated in resultant against `body_loads`' p103 split |
+| Fuselage inertia | `fuselage_mass.stations` × `nz` | from `weight.items`, per §3.1 — authoritative | as assembled, transferred onto the section-centre line |
+| Tail air load | `body_loads` `tail` point load **and** TAILDIST chordwise | the **distributed empennage** representation once plan 09 lands; the `body_loads` point load is **excluded**. Until then, the point load is authoritative and the chordwise deck is a per-component view | distributed empennage sets on the h-tail / fin LRA nodes; the `body_loads` point load **excluded** |
+| **T7 T-tail tip transfer** (h-tail `Fz`/`Myy` lumped at the fin tip) | per-component fin deck — **applied** (the h-tail has no nodes there) | n/a (the assembled deck carries the h-tail set itself) | **excluded** — the h-tail beam is attached to the fin tip node; the solver recovers the transfer |
+| Gear reactions | — | applied external loads on ground cases (M4-6) at the `attach` node | applied at the `attach` node, which is rigid-linked to its parent beam (fuselage or wing, `mounted_on`) |
+| **Engine thrust / mount loads** | ENGLOADS `LoadValue`s only | none today (zero-thrust; power-effects note 21) | thrust `FORCE` on the **hub** node along the P-6 line, ENGLOADS torque/gyro `MOMENT` on the **mount** node; both rigid to the parent beam. Zero cards, nodes present, until power effects ships |
 
 The rule in one sentence, for `CONVENTIONS.md`: **a load that a free-body cut
-introduces is never applied in the assembled model.**
+introduces is never applied in the assembled model.** For the LRA model the
+same rule reads: **a load that a rigid attachment carries is never applied
+across it** — the T7 transfer, the carry-through and the gear/engine link loads
+are all recovered by the solver, never re-applied.
 
 ## 5. Steps
 

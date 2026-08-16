@@ -10,6 +10,117 @@ Acceptance**, **Key decisions**.
 
 ---
 
+**Every shipped fixture assembles balanced cases (complete 2026-08-15, tier L)**
+
+**Objective.** Close backlog Pri 5 — decision **D-26** (amending D-25). Give the
+four silent fixtures a `CgCase.loading` each so the concept-loads → sbeam loop is
+exercised in CI on six airplanes instead of two.
+
+**What the measurement changed.** The row read as data entry. Measured before any
+edit, it was not enterable. D-25a makes a case's `weight_lb`/`xcg`/`zcg` a checked
+echo of the loading's own properties, so an entered loading must genuinely
+reproduce the case — and on five of six fixtures the entered cases miss what the
+item database can produce by **15–60 in in station and 4–31 in in waterline**. On
+`cessna_210`, `dhc8_dash8` and `concept_heavy` the heaviest case weighs *exactly*
+the all-up weight, so precisely one loading produces it and its CG is not a
+choice. The least ballast that closes the cases inside the airframe runs **10–44 %
+of each airplane**, pressed against the propeller spinner and the fin tip: the
+"wrong cards outrank missing cards" case in full. `ga6_normal` is the exception
+and the tell — the Appendix A airplane sits on its own database to 0.10 in and
+0.42 in, because it was built from it.
+
+Two further measurements set the shape of the fix. **`zcg` has no envelope behind
+it**: WTENV's weight–CG envelope is weight against *station*, and on five fixtures
+the waterline was a round figure entered independently of the item waterlines,
+6–31 in above the loading's real waterline on the flight cases and 20–27 in
+*below* it on the `atr42`/`dhc8` ground cases — inconsistent in sign, which is
+what an unsourced entry looks like. And **a database of two or three lumped
+payload rows admits exactly one loading at gross weight** (ga6's included), so a
+fwd and an aft corner case at the same weight collapse onto the same airplane.
+That second measurement is why the agreed option A was amended mid-step to A+B:
+zoning is what makes a zero-ballast answer reachable at all.
+
+**Deliverables.**
+
+* **Case data corrected to the database (D-26).** All 34 cases across
+  `cessna_210`, `atr42_100`, `dhc8_dash8`, `concept_heavy` and
+  `concept_regional_jet` re-entered as the forward-most or aft-most loading of
+  their own design weight, with `weight_lb`/`xcg`/`zcg` read off that loading.
+  **No ballast row anywhere.** `ga6_normal` untouched.
+* **Zoned payload rows (D-26b).** `Passengers (n)` and `Baggage / cargo` split
+  into fwd/aft cabin and fwd/aft hold on the three fixtures that carried them as
+  point masses, at stations chosen so each fixture's discretionary `Σw`, `Σwx` and
+  `Σwz` are preserved exactly — so the all-up weight and CG move by nothing, and
+  every full-database total and reconciliation is unchanged. The point-mass
+  inertias about the airplane CG do rise, which is the physically correct
+  consequence of a cabin no longer being a point; `mass.cases` is re-derived from
+  the items.
+* **`cessna_210` capacity and `CG4` (D-26c).** Usable fuel corrected to 720 lb
+  (120 US gal, the type's long-range option) — its database had summed to
+  *exactly* MTOW, so no two loadings of that airplane weighed the same and neither
+  the flight nor the landing fwd/aft pair could exist. `CG4`, entered at 2,300 lb
+  against an empty-plus-pilot-plus-reserve weight of 2,474 lb, re-entered at 2,474.
+* **Two renames**, because the corner point each was named for is not one:
+  `concept_heavy` `CGfwd` → `CGmax` (its only loading is the all-up one) and the
+  RJ's `CG3 fwd light` → `CG3 light` (at 24,000 lb that airplane's CG goes aft).
+* **`export/mass_cards.py` — the part-full card defect.** Overlay cards are matched
+  by object identity and a fractional row is a scaled copy, so it matched no card
+  and left the deck: the exported mass model weighed less than the loading it
+  declared — `dhc8_dash8`'s max-landing case by **4,160 lb** — in a file that
+  parsed and solved. Each (case, part-full row) now gets its own card in a new
+  `mass-part-full` EID band (9501+, registered in `bands.py`), and `MassCard`
+  gains `case_index` to say which cards are per-case rather than shared. A
+  part-full **non**-discretionary row would need a MASSSET `REPLACE` row and is
+  refused loudly rather than mis-emitted.
+* **`modules/balance.py` — the re-weighted ground target.** 23.473(a) lets
+  23.485/23.493 be met at MTOW while 23.479/481/483 are met at MLW, and
+  `_ground_target` re-weights the case for it. A `LoadingDefinition` states which
+  items are aboard, not what the airplane weighs, so carrying it onto the
+  re-weighted target assembled 31,000 lb of mass under a case declaring 33,000.
+  The re-weighted target now drops the loading and goes through the subset search
+  — the one route that solves for weight as well as station, and what produced
+  these cases before any loading was entered.
+
+**Test / Acceptance.**
+
+* **Appendix A oracles unchanged**, `ga6_normal` untouched by the step.
+* Coverage pins re-pinned and now stating completeness rather than partiality:
+  `test_which_conditions_assemble_is_pinned` 2 → **6 of 6** fixtures;
+  `test_which_ground_cases_assemble_is_pinned` the full 27-case family on all
+  **5** fixtures with gear geometry; `test_which_payload_cases_are_derivable_is_pinned`
+  and `test_which_loadings_are_entered_is_pinned` every case, every fixture;
+  `test_ground_coverage_matches_what_the_plan_measured` 3/3 everywhere.
+* `test_the_card_set_reproduces_each_loading` — Σ CONM2 mass and CG equal the
+  loading's, in deck units, on every fixture in both unit systems. This is the
+  gate the part-full defect failed.
+* `test_the_inertia_set_weighs_the_case` — Σ modelled mass equals the case weight
+  exactly, on every assembled case. The gate the ground-target defect failed.
+* Plan 07's global-equilibrium invariant closes on every assembled deck and the
+  sbeam round-trip CI leg stays green; Imperial and SI digests re-baselined.
+* Four tests whose premise was "some fixture fails to assemble" now **build** the
+  failing state instead of naming a fixture: the no-derivable-case refusals, the
+  F-C7 assembly record, and D-25d's entered-ballast-is-not-gated case. A mechanism
+  whose only test is a fixture that may legitimately stop exercising it is a
+  mechanism that silently loses its guard.
+
+**Key decisions.** **D-26** (correct the case data to the database where the case
+is not a loading the database can produce), **D-26a** (`zcg` is a derived echo,
+not an independent corner point), **D-26b** (zone the lumped payload rows,
+preserving the discretionary totals), **D-26c** (`cessna_210` fuel capacity and
+`CG4`). Design note:
+[`../30_future/23_pri5_fixture_loadings_note.md`](../30_future/23_pri5_fixture_loadings_note.md).
+
+**Filed, not fixed.** The five non-oracle fixtures reach a pre-closure force
+residual of **1.2–2.0 % of n·W** against plan 11's 1 % acceptance, and three show a
+**positive `dCD` on `NMAA`** at α ≈ −13°. ga6 is best by 2× and the concept
+configurations worst, which reads as fixture aero-data quality rather than an
+assembly defect — every case still closes exactly after correction and the pitch
+residual stays at 0.07–0.84 %. Recorded per fixture in `test_balance.py`
+(`_FORCE_RESIDUAL_RATCHET`, `_DELTA_CD_POSITIVE_AT_TRUSTED_ALPHA`) rather than
+absorbed by widening a gate, and filed as backlog Pri 6.
+
+---
+
 **`CgCase` gains an explicit loading definition (complete 2026-08-15, tier L)**
 
 **Objective.** Close backlog Pri 6 — decision **D-25**. A `CgCase` stated a

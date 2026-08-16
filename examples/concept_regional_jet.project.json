@@ -225,9 +225,9 @@
         "component": "fuselage"
       },
       {
-        "name": "Passengers (48)",
-        "weight_lb": 8160.0,
-        "x": 540.0,
+        "name": "Passengers, fwd cabin (24)",
+        "weight_lb": 4080.0,
+        "x": 480.0,
         "y": 0.0,
         "z": 70.0,
         "ixx": 0.0,
@@ -237,9 +237,33 @@
         "component": "fuselage"
       },
       {
-        "name": "Baggage",
-        "weight_lb": 2000.0,
-        "x": 820.0,
+        "name": "Passengers, aft cabin (24)",
+        "weight_lb": 4080.0,
+        "x": 600.0,
+        "y": 0.0,
+        "z": 70.0,
+        "ixx": 0.0,
+        "iyy": 0.0,
+        "izz": 0.0,
+        "kind": "discretionary",
+        "component": "fuselage"
+      },
+      {
+        "name": "Cargo, fwd hold",
+        "weight_lb": 500.0,
+        "x": 640.0,
+        "y": 0.0,
+        "z": 45.0,
+        "ixx": 0.0,
+        "iyy": 0.0,
+        "izz": 0.0,
+        "kind": "discretionary",
+        "component": "fuselage"
+      },
+      {
+        "name": "Cargo, aft hold",
+        "weight_lb": 1500.0,
+        "x": 880.0,
         "y": 0.0,
         "z": 45.0,
         "ixx": 0.0,
@@ -278,30 +302,49 @@
       {
         "name": "CG1 aft heavy",
         "weight_lb": 33000.0,
-        "xcg": 619.48,
-        "zcg": 70.0
+        "xcg": 621.16,
+        "zcg": 63.62,
+        "loading": {
+          "aboard": [
+            "Passengers, fwd cabin (24)",
+            "Passengers, aft cabin (24)",
+            "Cargo, fwd hold",
+            "Cargo, aft hold",
+            "Mission fuel"
+          ],
+          "fractions": {
+            "Mission fuel": 0.47674418604651164
+          }
+        }
       },
       {
         "name": "CG2 fwd heavy",
         "weight_lb": 33000.0,
-        "xcg": 599.18,
-        "zcg": 70.0
+        "xcg": 607.85,
+        "zcg": 63.62,
+        "loading": {
+          "aboard": [
+            "Passengers, fwd cabin (24)",
+            "Passengers, aft cabin (24)",
+            "Cargo, fwd hold",
+            "Mission fuel"
+          ],
+          "fractions": {
+            "Mission fuel": 0.9127906976744186
+          }
+        }
       },
       {
-        "name": "CG3 fwd light",
+        "name": "CG3 light",
         "weight_lb": 24000.0,
-        "xcg": 595.12,
-        "zcg": 70.0,
+        "xcg": 630.54,
+        "zcg": 62.1,
         "loading": {
-          "aboard": [],
-          "ballast": {
-            "name": "Test ballast, fwd hold",
-            "weight_lb": 2800.0,
-            "x": 283.4,
-            "y": 0.0,
-            "z": 112.7,
-            "kind": "discretionary",
-            "component": "fuselage"
+          "aboard": [
+            "Mission fuel"
+          ],
+          "fractions": {
+            "Mission fuel": 0.813953488372093
           }
         }
       }
@@ -315,9 +358,9 @@
         "cg_x": 619.3971264367816,
         "cg_y": 0.0,
         "cg_z": 62.65632183908046,
-        "ixx": 25445189.6091954,
-        "iyy": 1063681081.3218392,
-        "izz": 1038235891.7126436,
+        "ixx": 25445189.609195404,
+        "iyy": 1114657081.3218393,
+        "izz": 1089211891.7126436,
         "ixz": 61413429.6321839,
         "gear_down": true
       }
@@ -605,20 +648,20 @@
       {
         "name": "CG1 aft heavy",
         "weight_lb": 33000.0,
-        "xcg": 619.48,
-        "zcg": 70.0
+        "xcg": 621.16,
+        "zcg": 63.62
       },
       {
         "name": "CG2 fwd heavy",
         "weight_lb": 33000.0,
-        "xcg": 599.18,
-        "zcg": 70.0
+        "xcg": 607.85,
+        "zcg": 63.62
       },
       {
-        "name": "CG3 fwd light",
+        "name": "CG3 light",
         "weight_lb": 24000.0,
-        "xcg": 595.12,
-        "zcg": 70.0
+        "xcg": 630.54,
+        "zcg": 62.1
       }
     ]
   },
@@ -746,20 +789,50 @@
       {
         "name": "aft max landing",
         "weight_lb": 31000.0,
-        "xcg": 619.48,
-        "zcg": 70.0
+        "xcg": 622.51,
+        "zcg": 64.82,
+        "loading": {
+          "aboard": [
+            "Passengers, fwd cabin (24)",
+            "Passengers, aft cabin (24)",
+            "Cargo, aft hold",
+            "Mission fuel"
+          ],
+          "fractions": {
+            "Mission fuel": 0.040697674418604654
+          }
+        }
       },
       {
         "name": "fwd max landing",
         "weight_lb": 31000.0,
-        "xcg": 599.18,
-        "zcg": 70.0
+        "xcg": 608.34,
+        "zcg": 64.82,
+        "loading": {
+          "aboard": [
+            "Passengers, fwd cabin (24)",
+            "Passengers, aft cabin (24)",
+            "Mission fuel"
+          ],
+          "fractions": {
+            "Mission fuel": 0.47674418604651164
+          }
+        }
       },
       {
         "name": "fwd light",
         "weight_lb": 26000.0,
-        "xcg": 595.0,
-        "zcg": 70.0
+        "xcg": 610.4,
+        "zcg": 64.71,
+        "loading": {
+          "aboard": [
+            "Passengers, fwd cabin (24)",
+            "Mission fuel"
+          ],
+          "fractions": {
+            "Mission fuel": 0.20930232558139536
+          }
+        }
       }
     ]
   },

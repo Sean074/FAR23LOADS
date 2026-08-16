@@ -151,8 +151,12 @@ payload case and its `NMAA` condition join the assembled deck with it).
 Piece 3 is the 0.6.0 headline per D-R3 and it **closes step 11** with it: under
 G-1 the ground families are born as balanced free-free cases in the assembled
 deck, so plan 11's phase 4 (B8b) has no separate build. The FAR 23 ground
-conditions now assemble on two fixtures with their `NVP`/`NDP`/`NS` reproducing
-LANDLOAD exactly, and the gear has a free-body report of its own on five.
+conditions now assemble with their `NVP`/`NDP`/`NS` reproducing LANDLOAD exactly,
+and the gear has a free-body report of its own on five. **Since Pri 5 / D-26
+(2026-08-15) every shipped fixture assembles**: balanced flight cases on 6 of 6
+and the complete 27-case ground family on all 5 with gear geometry, against 2 and
+1 before — the fixtures' CG cases were corrected to the loadings their own weight
+databases can produce, and every case now states one, with no ballast anywhere.
 
 Reference-authority hierarchy: (1) `.BAS` listings + Appendix A printed output,
 (2) User's Guide CFR quotes (Jan-1994), (3) Code-manual 1990 prose.
@@ -205,28 +209,28 @@ traceability with plans 09/11/12/13; the **Pri** column is ordinal only.
 
 | Pri | Item (detail below / in its plan) | What ships | Tag | Tier / effort | Depends on |
 |---|---|---|---|---|---|
-| **B — the sbeam deliverable itself [E] (the 2026-08-09 priority)** ||||||
-| 1 | h-tail attachment `fuselage_width` (fixture data) | Real attachment stations instead of the `±ds/2` fallback | V | S / S | — (feeds Pri 2's SOB source decision) |
-| 2 | Step 13 — side-of-body reporting node | SOB internal shear/bending/torsion reported as the wing root design loads | E | M / M | step 5 ✅; Pri 1 supplies one candidate SOB source |
-| 3 | Step 12 — LRA beam-model export + import | Cards delivered on the consumer's own node line; standalone LRA skeleton export | E | L / M–L | step 5 ✅ |
-| 4 | Step 14 — real stiffness / assembled airframe properties (L-1) | Real section properties replacing the `MAT1` placeholder | E | L / M | Pri 3 (LRA beam bridge) |
-| **C — D-25 loading-definition wave (multiplies the loop's CI coverage 2 → 6 fixtures)** ||||||
-| 5 | Payload cases the weight database can produce (sibling pair) | Four more fixtures gain balanced cases → more assembled decks in CI | V | M–L / M | — (the D-25 schema shipped 2026-08-15) |
-| 6 | Wing-tank fuel separability | Ends the same pounds riding both beams on the three fuel-in-wing fixtures | V | L / M | — (the D-25 schema shipped 2026-08-15); pairs plan 12 C1 |
+| **B — the sbeam deliverable itself [E] (the 2026-08-09 priority; the target model and its decisions BM-1…BM-5 are in [`24_lra_beam_model_review_note.md`](24_lra_beam_model_review_note.md), agreed 2026-08-15)** ||||||
+| 1 | h-tail attachment `fuselage_width` (fixture data) | Real attachment stations instead of the `±ds/2` fallback | V | S / S | — (the marked-assumed fallback for **both** the SOB source, BM-1, and the h-tail attachment, F5.1) |
+| 2 | Step 12 phase 0 + step 13 — the LRA skeleton contract and its first node, the side-of-body | Decisions BM-1…BM-5 recorded; SOB node in the per-component wing deck (added, oracle kept) **and** as the start of the LRA-model wing beam (inboard loads summed to it); SOB internal loads reported two ways and gated | E | M / M | step 5 ✅; Pri 1 supplies the SOB fallback |
+| 3 | Step 12 — LRA beam-model export + import | The third deliverable (note 24 §2): LRA node lines, `CBAR` chains, rigid posts/attachments/hinges/gear/engine nodes, every load transferred onto the model; import on the same named-node contract | E | L / M–L | Pri 2 (the skeleton decisions and the SOB) |
+| 4 | Step 14 — real stiffness / assembled airframe properties (L-1) | Real section properties replacing the `MAT1` placeholder; unlocks the indeterminate paths (continuous fuselage, carry-through, redundant hinges) | E | L / M | Pri 3 (LRA beam bridge) |
+| **C — mass-model follow-on** ||||||
+| 5 | Wing-tank fuel separability | Ends the same pounds riding both beams on the three fuel-in-wing fixtures | V | L / M | — (the D-25 schema shipped 2026-08-15); pairs plan 12 C1 |
+| 6 | Fixture aero-data quality — force residual and the `NMAA` `dCD` sign *(defect, from Pri 5)* | A lift/drag model the five non-oracle fixtures close against as tightly as ga6 does | V | M / M | — (recorded per fixture in `test_balance.py`) |
 | **D — fixture data, cheap and self-contained** ||||||
 | 7 | Empennage planform polylines (fixture data) | Real taper in the tail card distributions instead of the `assumed` rectangle | V | S / S | — |
 | 8 | `concept_heavy` gear geometry + `landing` slice (fixture data) *(from step 10 decision G-13)* | A sixth gear-report fixture, and the only concept-mode exercise of the 23.473(g) floor warning | V | S / S | — (the gear report shipped 2026-08-15) |
 | **E — physics [V]** ||||||
 | 9 | Lateral body aero `Cy_β`/`Cn_β` (L-7) — design note in [`19_l7_lateral_body_aero_note.md`](19_l7_lateral_body_aero_note.md) (**proposed, awaiting agreement**) | Honest lateral `n_y`/`ψ̈`; DATCOM 5.2.3.1/5.2.1.1 makes it an **oracle** step, not a closure-gate step | V | L / M | pairs Pri 11 (M4-19) |
-| 10 | The aileron's own lift increment is not distributed | `ACRL` wing cards gain the aero half of the couple (acts ~70 % span) | V | L / M | pairs plan 09 spanwise work |
+| 10 | The aileron's own lift increment is not distributed | `ACRL` wing cards gain the aero half of the couple (acts ~70 % span); the same butt lines carry the wing control-surface hinge/actuator geometry the LRA model needs (note 24 R-2) | V | L / M | pairs plan 09 spanwise work and Pri 3 |
 | 11 | M4-19 — Multhopp distributed fuselage `Cm` | A distributed body pitching load for `body_loads` | V | L / M | — |
 | 12 | M4-21 — fuselage pitching load factor | d'Alembert pitch term at each body station | V | M / S | pairs Pri 13 |
 | 13 | M4-4 — per-CG precise inertia in SELECT | WTONECG inertia wired into checked-maneuver `Iyy` / v-tail `IZZ` | V | M / S | — |
 | 14 | M4-3 — ONENGOUT data-flow + turboprop gate | Geometry provenance, `is_turboprop` gate, VSF decision | V | M / S | — |
-| 14a | Power effects on the wing — thrust + propeller wake (wing-mounted props); design note **agreed** in [`21_power_effects_wing_note.md`](21_power_effects_wing_note.md) (P-0…P-12) | `-P` balanced wing/h-tail cases + 23.361/23.371 wing-box cases; DATCOM §4.6 estimator with the ex3 printed **oracle**; `power_policy.py`; thrust line per engine | V | L / L | **Pri 5 for the twins** (fixtures assemble no flight case today); CFR pull (§8 step 0b); pairs L-7 for the v-tail terms |
+| 14a | Power effects on the wing — thrust + propeller wake (wing-mounted props); design note **agreed** in [`21_power_effects_wing_note.md`](21_power_effects_wing_note.md) (P-0…P-12) | `-P` balanced wing/h-tail cases + 23.361/23.371 wing-box cases; DATCOM §4.6 estimator with the ex3 printed **oracle**; `power_policy.py`; thrust line per engine | V | L / L | **unblocked 2026-08-15** — Pri 5 / D-26 gave `atr42_100` and `dhc8_dash8` their flight balanced cases; CFR pull (§8 step 0b); pairs L-7 for the v-tail terms |
 | **F — report and deliverable polish** ||||||
 | 15 | Combined flight + ground station envelope *(from step 10 decision G-9)* | Two-sided max/min per station over both families, each extreme naming its governing case | V | M / M | — (ground cases shipped 2026-08-15) |
-| 16 | Load-application axis vs elastic axis — document the torsion reference | Convention in `coordinates.py` + spec + deck `$` header | V | S / S | partially superseded by Pri 3 (LRA import) |
+| 16 | Load-application axis vs elastic axis — document the torsion reference | Convention in `coordinates.py` + spec + deck `$` header — closes with note 24 R-7d's one header sentence ("grid line = LRA = the assumed elastic axis at NN % chord") when Pri 3 lands | V | S / S | folds into Pri 3 |
 | 17 | Deliverables render structural negative zeros *(from the body-deck signed-zero fix)* | `-0.000000E+00` components (~2,000 in one balanced deck) and the tail span CSV's `Fax` column normalised at the formatting boundary | V | S / S | needs a digest wave of its own — cosmetic, and it moves every deck family's bytes |
 | 18 | L-8i — per-page LIMIT CSV units | Converted, unit-suffixed analysis-page downloads | V | S / S | — |
 | 19 | Gust spanwise-distribution decision | Study + recorded decision | V | S / S | — |
@@ -324,8 +328,13 @@ Closing it means **new geometry input** — an inboard/outboard butt line on
 `AileronLoadsInput`, entered for six fixtures, with no printed oracle to check
 the resulting shape against — hence a step of its own: schema bump + migration,
 a spanwise shape integrating to `UNB`, and a closure gate. Pairs naturally with
-plan 09's spanwise work, which is already building strip integrators. Tier L.
-Effort: M.
+plan 09's spanwise work, which is already building strip integrators.
+**Extension (2026-08-15, note 24 R-2 / F1):** the same butt lines are what the
+LRA model needs to place the **aileron and flap as their own beams on the hinge
+line**, so the schema addition should carry the T-17 shape in one go —
+inboard/outboard butt line **plus** `hinges_span_in`/`actuator_span_in` on the
+aileron and flap inputs — entered, never invented (no fixture gets any until the
+data exists). Tier L. Effort: M.
 
 ### [V] Wing-tank fuel is not separable in the item database *(new 2026-08-08, found by the step-B1 wing tie)*
 `mass_distribution.wing_mass_tie` asserts the two models of the same physical
@@ -359,52 +368,38 @@ Pinned, not hidden: `tests/test_mass_distribution.py::
 test_the_unmodelled_wing_mass_is_pinned_per_fixture` asserts each gap to the
 pound and goes red when it changes in either direction. Tier L (schema). Effort: M.
 
-### [V] Most payload cases are not loadings the weight database can produce *(new 2026-08-08, found by plan 12 C1)*
-`flight_loads.cg_cases` and the itemized `weight.items` database are entered
-independently, and on 5 of 6 fixtures they do not correspond. Deriving each case
-as "which discretionary items are aboard + ballast" reaches **7 of 18** shipped
-cases within a credible ballast fraction:
+### [V] The five non-oracle fixtures do not close as tightly as ga6 *(new 2026-08-15, from Pri 5 / D-26)*
+Bringing four fixtures into the balanced assembly for the first time exposed two
+symptoms of one cause, both recorded per fixture in `tests/test_balance.py`
+rather than absorbed by widening a gate:
 
-| fixture | derivable | why not |
+| fixture | worst symmetric force residual | `NMAA` `dCD` at alpha ~ -13 deg |
 |---|---|---|
-| `ga6_normal` | 4 / 4 | — (the Appendix A airplane; its cases *are* WTENV's structural points) |
-| `concept_regional_jet` | 2 / 3 | CG3 needs 12 % ballast |
-| `atr42_100` | 1 / 3 | CGfwd/CGmid need 20 % |
-| `dhc8_dash8` | 0 / 3 | 11–18 %, and the solved ballast waterline lands above the fin |
-| `cessna_210` | 0 / 4 | CG1/CG2 need 12–17 %; CG3/CG4 sit forward of anything the database can load |
-| `concept_heavy` | 0 / 1 | needs 31 %; its `zcg` is above the highest item |
+| `ga6_normal` | 0.624 % | negative (correct) |
+| `cessna_210` | 1.190 % | negative (correct) |
+| `concept_regional_jet` | 1.506 % | negative (correct) |
+| `dhc8_dash8` | 1.626 % | **+0.027** |
+| `atr42_100` | 1.929 % | **+0.023** |
+| `concept_heavy` | 1.990 % | **+0.040** |
 
-This is a **fixture-data** finding, not a code one: the reference-aircraft CG
-cases were entered as CG-envelope corner points, not as loadings. **Decided
-2026-08-15 (D-25): give `CgCase` an explicit loading definition** — the fixtures'
-corner points stand — and that schema **shipped the same day** (v50,
-`CgCase.loading`, decisions D-25a…d; design note
-[`22_d25_cgcase_loading_note.md`](22_d25_cgcase_loading_note.md)). What remains
-here is the **fixture work it enables**: entering a loading for each case that
-has none, starting with the four fixtures that produce no balanced case at all.
-`concept_regional_jet`'s `CG3 fwd light` is the worked example to follow — 2,800
-lb (12 %) of entered ballast at x 283.4 / z 112.7, which the solved-ballast gate
-refused and an engineering statement does not have to. The derivation stays as
-the fallback for a case with no entered loading, so this is per-case work with no
-schema left in it. Coverage is pinned per fixture in
-`tests/test_mass_cards.py::test_which_payload_cases_are_derivable_is_pinned` (RJ
-3/3 since D-25) and `::test_which_loadings_are_entered_is_pinned`.
-Tier M–L. Effort: M.
+Plan 11's acceptance 2 is a flat **1 %** on the pre-closure force residual, and it
+was met when only `ga6_normal` and the RJ assembled. A positive `dCD` says the
+wing strips carry more axial force than the whole airplane less tail, which cannot
+be true of a real airplane; it appears on `NMAA` and only `NMAA`, the negative-g
+corner, on the three fixtures with the crudest polars.
 
-### [V] Only two fixtures can produce a balanced case *(new 2026-08-08, from plan 11 B2)*
-Balanced cases assemble on `ga6_normal` and `concept_regional_jet` only.
-`cessna_210`, `atr42_100`, `dhc8_dash8` and `concept_heavy` produce **none** —
-not for any failure of the assembly, but because none of their payload cases is a
-loading their weight database can produce (the step-4 finding: a case needing
-12–31 % of the airplane as ballast has no honest inertia set). Same root cause,
-same fix, and the mechanism now exists: **D-25** shipped `CgCase.loading`
-2026-08-15 (v50), which is what this item consumes — on the RJ it already closed
-the gap, bringing `CG3 fwd light` and its `NMAA` condition into the assembled
-deck. What is left is entering the four remaining fixtures' loadings.
+The ordering is the diagnosis: ga6 -- the one fixture whose aero and planform come
+from a printed source -- is best by 2x, and the concept configurations are worst.
+This reads as **fixture aero data**, not an assembly defect: every case still
+closes exactly after correction, the pitch residual (the DOF that would expose a
+mis-placed force) stays at 0.07-0.84 %, and the airplane-less-tail polar on the
+three is a fit that was never meant to be evaluated 13 deg below zero lift.
 
-Pinned in `tests/test_balance.py::test_which_conditions_assemble_is_pinned`, so
-the coverage is a recorded fact rather than a silent gap, and it goes red the day
-the fixtures are fixed. Tier M–L. Effort: M. Pairs with the sibling item above.
+Closing it means revisiting those fixtures' `aero_coeffs` sets against a stated
+source, and deciding whether the trusted-alpha window is one-sided. Pinned by
+`_FORCE_RESIDUAL_RATCHET` and `_DELTA_CD_POSITIVE_AT_TRUSTED_ALPHA`, both of which
+go red if the spread widens or reaches a positive alpha -- which would be a
+different and much worse thing. Tier M. Effort: M.
 
 ### [V] The empennage planform is derived, not entered, on every fixture *(new 2026-08-08, from T1)*
 No shipped airplane carries an `htail`/`vtail` entry in `geometry.surfaces`, so
@@ -448,30 +443,75 @@ one strip wide, so the recovered attachment bending is slightly high. Same
 direction and same root cause as the wing's centreline-clamp limitation (the
 side-of-body item, step 13), and best closed with it: populate
 `fuselage_width` on the fixtures, or make the attachment an explicit input.
-Tier S. Effort: S.
+**Note (2026-08-15, note 24 BM-1/BM-3):** `fuselage_width/2` is the
+marked-assumed **fallback** for both the SOB (`sob_y_in` is the explicit input)
+and this attachment; the LRA model **refuses** to build a conventional h-tail
+attachment on the `±ds/2` fallback, so this row is on step 12's critical path.
+`tail_span.attachment_y` is computed today but **no exporter consumes it** —
+step 12 does. Tier S. Effort: S.
 
-### [E] LRA beam-model export & import — geometry ↔ beam bridge *(new 2026-08-08, user)* — **step 12**
+### [E] LRA beam-model export & import — geometry ↔ beam bridge *(new 2026-08-08, user; rewritten 2026-08-15 from note 24)* — **step 12**
 Two-way bridge between the defined geometry and a beam model on the load
-reference axes. **Export:** emit a standalone **full-span LRA-based beam
-model** from the geometry (`GRID` on each surface's LRA and the fuselage axis,
-`CBAR` chains, placeholder `PBAR`/`MAT1`) — the assembled deck's skeleton as
-its own artifact, usable to seed a sizing model. **Import:** read an external
-beam model (BDF `GRID`/`CBAR` subset) and **use its node line as the LRA** —
-loads are transferred onto the imported nodes under the imported GIDs, so the
-exported `FORCE`/`MOMENT` cards drop straight into the user's own model.
-Design decisions to agree before code (practice 1): the **transfer rule**
-(nearest-node vs tributary interpolation, with lever-arm `MOMENT` corrections
-so the transfer **preserves resultants** — re-running the plan-07 invariant on
-the transferred set is the acceptance gate); tolerance validation between the
-imported axis and the geometry LRA (loud failure on divergence, like the T1
-planform validator); GID authority (the imported model's numbering wins,
-disjointness guard adapted). Partially supersedes the [V] "load-application
-axis vs elastic axis" item — an imported beam line *is* the consumer's elastic
-axis, so the torsion reference becomes explicit instead of documented. Effort:
-M–L. Depends on step 5 (the assembled full-span deck defines the export's
-geometry authority).
+reference axes. **The model is a third deliverable**, not "the assembled
+deck's skeleton" (note 24 §2, R-1): the assembled balanced deck is `GRID` +
+`FORCE`/`MOMENT` + one `SPC1` with **no elements** — the stiffness-independent
+equilibrium proof, which it stays — while the LRA model is a **structural
+idealization** whose value is its *internal* loads at named nodes. Target
+features F1–F8 and decisions **BM-1…BM-5** are recorded in
+[`24_lra_beam_model_review_note.md`](24_lra_beam_model_review_note.md) (agreed
+2026-08-15).
 
-### [E] Side-of-body station for the wing beam *(new 2026-08-08, user)* — **step 13**
+**Topology (export).** Node lines on each surface's LRA (`ref_axis_pct`,
+**required explicit** — a beam on an unstated axis is refused, BM-3; fixtures
+enter 0.40) and on the fuselage **section-centre line** `(x, 0, z_c(x))`
+(new `FuselageSection.z_centre`, defaulted marked-assumed); `CBAR` chains with
+placeholder `PBAR`/`MAT1` until step 14. Named nodes, each in its own band and
+tied by production `RBE2` (promoted from the round-trip's test-only band):
+the wing **SOB** (step 13 — the wing beam *starts* there); the two **posts**
+at the front/rear-spar stations (`derived_geometry.carry_through`) from the
+fuselage line to each SOB node, under the **split-fuselage** idealization —
+forward body → front-spar post, aft body + empennage → rear-spar post,
+statically determinate (BM-2; the continuous beam is a step-14 opt-in and the
+header says which); the **fin root** node to a fuselage node *inserted* at
+that x; the **h-tail attachments** at `±sob_y`/`±fuselage_width/2` to a
+fuselage node at the h-tail x (conventional) or the h-tail centreline node to
+the **fin tip** (T-tail; the T7 lumped transfer is then **excluded**, plan 11
+§4); **control surfaces** as their own chains on the **hinge line** with hinge
+and actuator nodes rigid to the parent (plan 09 §10 T-15/T-17 amendment); the
+**gear** `attach` node and the **engine hub + mount** nodes rigid to the
+fuselage or the wing per an explicit `mounted_on` (BM-4). Node families carry a
+`$ SLOADS-NODE <family> <side>` tag (BM-5) so an imported model can be mapped.
+
+**Loads.** Every load — strips, mass items, tail sets, gear, thrust — is
+**transferred onto a beam node** with the lever-arm couple `(p − n) × F`; the
+rule gets one owner in `export/coordinates.py` beside the axis maps plus a
+drift guard (note 24 R-11), and re-running the plan-07 invariant on the
+transferred set is the acceptance gate. Numerical choice inside that contract
+(nearest-node vs tributary interpolation) is decided in the implementation
+note. The header states which internal loads are stiffness-independent (SOB,
+fin root, post sums, gear/engine links) and which wait for step 14 (R-12).
+
+**Import.** Read an external beam model (BDF `GRID`/`CBAR` subset) and **use
+its node line as the LRA** — loads are transferred onto the imported nodes
+under the imported GIDs (the imported numbering wins; disjointness guard
+adapted). The named-node contract is how the import learns which node is the
+SOB, the posts, the fin root, the attachments, the gear and the engine —
+`$ SLOADS-NODE` tags or a sidecar map, nearest-node-per-family as the
+marked-assumed fallback. Tolerance validation between the imported axis and
+the geometry LRA fails loudly on divergence (the T1 planform validator's
+pattern). An imported beam line *is* the consumer's elastic axis, so the
+torsion reference becomes explicit — Pri 16 closes with the header sentence.
+
+**Sequence (note 24 R-13):** Pri 1 → phase 0 (BM-1…BM-5 recorded, with
+step 13) → export → import → step 14. **Gate:** assembled-deck and
+per-component digests byte-identical except where fixture data (`ref_axis_pct
+= 0.40`, `fuselage_width`) moves them once, each with its own `CHANGELOG`
+line. Schema (one bump): `SurfaceInput.sob_y_in`, `FuselageSection.z_centre`,
+`LandingGearLegInput.mounted_on`, `EngineInput.mounted_on`, wing
+control-surface hinge/actuator/butt-line fields. Effort: M–L. Depends on
+step 5 (shipped) and Pri 2.
+
+### [E] Side-of-body station for the wing beam *(new 2026-08-08, user; rewritten 2026-08-15 from note 24 R-3)* — **step 13**
 The exported wing stick model is supported at **BL 0, the aircraft centerline**,
 not at the side of body where the wing attaches — verified: `_root_node` sits
 half a strip inboard of station 0, and every fixture defines the wing LE
@@ -479,19 +519,34 @@ polyline from BL 0 (gross-area convention). For ga6 the difference is **16 % in
 root shear and 23 % in root bending** at the BL 23 inboard rib. **Relocating the
 SPC does not fix it** — a single clamp reacts the whole applied load wherever it
 sits, so the side-of-body quantity is an *internal* load needing a node at the
-SOB. Scope: (a) decide the SOB source — a new explicit `SurfaceInput` butt line,
-`geometry.parametric.fuselage_width/2` (unpopulated in every fixture), or
-`wing_mass.inboard_rib_y` (a proxy — it is the WINGINER mass-panel start, and BL
-40 is well inboard of the RJ's fuselage); (b) **add** a SOB station without
-truncating the centerline-origin stations, since Appendix A's root is station 0
-at `y = dy/2` and the `ΣdFz·(y−y₀) = mxx_root` closure is stated about it;
-(c) report the SOB shear/bending/torsion as the wing root design loads, distinct
-from the half-span totals. **The balanced-airframe item above reduces this
-substantially** — a free-free assembled model has no clamp at all, so the SOB
-becomes a reporting node on an internal load. Sequence it after phase 1, or
-fold it into B5. Full reasoning and the measured numbers:
+SOB. Full reasoning and the measured numbers:
 [`10_sbeam_roundtrip_ci_harness_plan.md`](10_sbeam_roundtrip_ci_harness_plan.md)
-§1.1. Effort: M.
+§1.1.
+
+**One SOB source, two behaviours** (note 24 R-3 — the SOB is the LRA
+skeleton's first node, so this is step 12's phase 0 built):
+
+- **Source (BM-1):** an explicit `SurfaceInput.sob_y_in` (butt line, per
+  surface — the h-tail attachment reads the same quantity), falling back to
+  `geometry.parametric.fuselage_width/2` **marked assumed** (Pri 1 populates
+  it), and **never** `wing_mass.inboard_rib_y` — that is the WINGINER
+  mass-panel start (BL 40 is well inboard of the RJ's fuselage).
+- **Per-component wing deck:** **add** a SOB reporting node without truncating
+  the centerline-origin stations — Appendix A's root is station 0 at
+  `y = dy/2` and the `ΣdFz·(y−y₀) = mxx_root` closure is stated about it, so
+  plan 10 §1.1's hard constraint 1 binds this deck (and only this deck).
+- **LRA model (step 12):** the wing beam **starts at the SOB**; the strip loads
+  inboard of it (air + inertia, both sides — the centre-box loads the target
+  calls inaccurate) are transferred to the SOB node as an equivalent
+  force + moment, resultant preserved. The oracle is untouched because the LRA
+  model never claims the station-0 closure.
+- **Report:** the SOB shear/bending/torsion as the wing root design loads,
+  distinct from the half-span totals — stated **two ways and gated against each
+  other**: sloads' closed-form sum of applied loads outboard of the SOB, and
+  the solver's `CBAR` end force in the first element outboard.
+
+The assembled balanced deck is unchanged (a free-free model has no clamp; it
+gains no SOB — note 24 §2). Effort: M.
 
 ### [V] M4-8 Layer 2 — agreed named failure-case factors (25.302) **[architecture]**
 Layer 1 shipped 2026-08-14 as the **governing safety-factor table**
@@ -525,7 +580,15 @@ default; assembled stick model opt-in behind a flag. **Note (2026-08-05):** the
 load-application-axis question below should be answered before or with this
 item. **Note (2026-08-08):** the assembled export itself now ships earlier as
 plan 11 B5 (step 5); what remains here is real section properties, best fed by
-the LRA beam-model bridge (step 12).
+the LRA beam-model bridge (step 12). **Note (2026-08-15, note 24 R-12):** with
+placeholder properties only the **determinate** paths of the LRA model give
+honest internal loads — SOB, fin root, the split-fuselage post sums, gear and
+engine links — and the model's header says so. What this step unlocks is the
+**indeterminate** paths: a continuous fuselage beam on two posts (BM-2's
+opt-in), a wing carry-through element between the two SOB nodes, redundant
+hinge sets on a control-surface beam. It is therefore sequenced **last** in
+band B, and its section properties should be entered per LRA element family
+(wing, fuselage, fin, h-tail, control surfaces) on the same named-node contract.
 
 ---
 
@@ -568,7 +631,14 @@ its grid line *is* the elastic axis). Write the convention into
 the deck `$` header. Doc-only (S); prevents a silent-wrong-torsion class at the
 consumer. **Note (2026-08-08):** partially superseded by the LRA beam-model
 import item (step 12) — an imported beam line is the consumer's elastic axis;
-this item remains for the geometry-derived default LRA.
+this item remains for the geometry-derived default LRA. **Note (2026-08-15,
+note 24 R-7):** the fact behind it — `ref_axis_pct` exists (M4-18) but **no
+shipped fixture sets it**, so every wing and tail deck is on the 25 % line and
+`to_loads_ref_axis` is a no-op — is fixed as fixture data with step 12 (0.40 on
+the wing, h-tail and v-tail of all six; the schema default stays 0.25 so a bare
+project keeps the oracle reporting), and the item closes with one header
+sentence: *"grid line = LRA = the assumed elastic axis at NN % chord; torsion is
+about it."* Folds into Pri 3.
 
 ### [V] Gust spanwise-distribution decision *(new 2026-08-05, R9)*
 Gust cases currently reuse the maneuver (Schrenk-based) spanwise shape.
@@ -649,8 +719,9 @@ assemble (the 1 % gate applies); pair torque reacted by an aileron-trim couple;
 V-n and design speeds stay power-off; h-tail `-P` families under the same table;
 v-tail terms deferred to L-7; user-defined thrust line (hub + incidence + toe);
 `AeroCoeffSet.power_state` provenance flag. Sequencing in the note §8:
-**prerequisite Pri 5 for `atr42_100`/`dhc8_dash8`** (both assemble no flight
-balanced case on HEAD) and the pre-Amdt-64 CFR pull. Rule basis pre-Amdt-64
+**the `atr42_100`/`dhc8_dash8` prerequisite is discharged** (Pri 5 / D-26,
+2026-08-15, gave both their flight balanced cases; the note was written when
+neither assembled one on HEAD) and the pre-Amdt-64 CFR pull. Rule basis pre-Amdt-64
 FAR 23. Tier L. Effort: L (7 steps). Next artefact: the code implementation plan.
 
 ### [V] M4-3 — ONENGOUT data-flow + turboprop gate
@@ -790,6 +861,20 @@ Mechanical (S); do after the current working tree is committed.
   `tests/test_aero_curves.py::test_the_atr42_stall_exceedance_is_the_documented_mach_capped_one`,
   which fails if the count or the cause changes. The GA oracle and both concept
   fixtures close cleanly.
+- **The WTENV structural CG envelope is entered independently of the item
+  database on four fixtures [Minor, restated 2026-08-15 after Pri 5 / D-26].**
+  `cg_outside_envelope` fires on `cessna_210`, `atr42_100`, `dhc8_dash8` and
+  `concept_regional_jet`: each one's **all-up itemized loading** sits 15–22 in aft
+  of its own `%MAC` aft limit (cessna 84.0 vs 69.5; atr42 417.7 vs 402.1; dhc8
+  420.4 vs 398.8; RJ 619.4 vs 593.8). Pre-existing and unchanged in set by D-26 —
+  which corrected the *cases* to the database and left the *envelope* alone — but
+  it is the third symptom of the same root cause, and now the conspicuous one:
+  the fixtures' `envelope.fwd/aft_gross_pct_mac` were entered from a type's
+  published envelope rather than derived from the loadings the database can
+  produce. Warned in CI, so nothing is silent. Closing it means either deriving
+  the fixtures' limits from their own loading extremes or accepting the entered
+  limits and saying which loadings they exclude. Pairs with the fixture aero-data
+  row (Pri 6) as fixture-input hygiene.
 - **M4-23 — `flight_envelope.density_ratio` duplicates `constants.standard_atmosphere` [Minor].**
   `density_ratio` (promoted from `_sigma` in M4-12b) reproduces the sigma computed
   by `constants.standard_atmosphere` bit-for-bit. Collapse to one authority —

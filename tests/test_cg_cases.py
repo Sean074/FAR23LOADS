@@ -263,12 +263,17 @@ def test_burn_down_cannot_touch_a_flight_case(path):
 
 
 def test_ground_coverage_matches_what_the_plan_measured():
-    """G-3/G-5, measured 2026-08-14: ga6 3/3, the RJ 2/3, the rest 0/3.
+    """G-3/G-5, and what Pri 5 / **D-26** did to it: every fixture is now 3/3.
 
-    Burn-down fixes the *weight* half only. The twins' and the Cessna's landing CG
-    targets are 9-34 in forward of anything their databases can load -- the
-    already-pinned fixture-data problem -- so they are still skipped and recorded,
-    never invented. Ground cases inherit that limitation; they do not create one.
+    Measured 2026-08-14 this was ga6 3/3, the RJ 2/3 and the rest 0/3, and the
+    reason was never burn-down -- which fixes the *weight* half only -- but the
+    landing CG targets themselves, entered 9-34 in forward of anything those
+    databases could load. D-26 corrected the case data to the database and gave
+    each ground case an entered loading, so what used to be skipped-and-recorded
+    is now assembled. The recording path is unchanged and still guarded by
+    ``test_every_condition_is_either_assembled_or_recorded``; this pin now says
+    coverage is complete rather than partial, and goes red if a fixture edit
+    quietly loses a ground loading again.
     """
     got = {}
     for path in _EXAMPLES:
@@ -281,10 +286,10 @@ def test_ground_coverage_matches_what_the_plan_measured():
             sum(1 for ld in loadings if ld.derivable), len(loadings))
     assert got == {
         "ga6_normal": (3, 3),
-        "concept_regional_jet": (2, 3),
-        "cessna_210": (0, 3),
-        "atr42_100": (0, 3),
-        "dhc8_dash8": (0, 3),
+        "concept_regional_jet": (3, 3),
+        "cessna_210": (3, 3),
+        "atr42_100": (3, 3),
+        "dhc8_dash8": (3, 3),
     }, got
 
 

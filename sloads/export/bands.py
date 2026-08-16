@@ -42,6 +42,7 @@ The map
           9001-9100  CONM2 baseline (always-aboard items)
           9101-9200  CONM2 discretionary overlay items
           9201-9300  CONM2 per-case ballast
+          9501-9700  CONM2 per-case part-full consumable rows
         900001-901000  round-trip harness RBE2 ties (test scaffolding)
 
     SID          1  SPC set (constraints, not loads)
@@ -199,6 +200,13 @@ BANDS: Tuple[Band, ...] = (
           "Overlay-only items, named by a case's ADD row.", clear_of_gids=True),
     _band("mass-ballast", IdKind.EID, 9201, 100, "mass_cards.mass_cards",
           "One per derived loading.", clear_of_gids=True),
+    _band("mass-part-full", IdKind.EID, 9501, 200, "mass_cards.mass_cards",
+          "A consumable row a case carries part-full -- a D-25 fraction or a G-5 "
+          "burn-down. The same tank at two fuel states is two different masses, "
+          "so it cannot be one shared overlay card: this band is per (case, row). "
+          "Numbered above the MASSSET/GRAV SID runs so a spliced deck's ids stay "
+          "readable by inspection, and clear of the 10001+ gear GIDs.",
+          clear_of_gids=True),
     _band("roundtrip-rbe2", IdKind.EID, 900001, 1000, "roundtrip.wrap_as_stick_model",
           "Test scaffolding: numbered well clear of the CBAR chain so a wrapped "
           "deck's ties are never mistaken for exported structure.",
