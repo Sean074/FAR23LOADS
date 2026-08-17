@@ -34,6 +34,19 @@ conflicting with the next branch) is the evidence. While solo:
 | CI shape (`ci.yml`) | **PR = fast gate, one interpreter** (3.12 with coverage, mypy, solver round-trip on 3.12; ~half the wall-clock of the full matrix). The 3.9/3.11 compatibility legs run on every push to `main` and are fixed forward. A re-push cancels the run in flight (`concurrency`). Applies in both profiles — the compatibility claim is not a per-PR question. |
 | Local gate before merge/push | `ruff` · `mypy` (the pre-commit hook, ~10 s) and the suite **once**, on the whole tree, immediately before the merge/push (the pre-push hook) — not after every edit. While iterating run the module's own test file plus `test_deliverable_units.py` (the Imperial digest is where a physics change shows first); the guard files (`test_doc_currency`, `test_changelog_fragments`, `test_schema_guards`, `test_backlog_issues`, `test_workflow`) are sub-second and worth running on every docs/closure edit. |
 
+**The loop is scripted (issue #27, 2026-08-17):** `scripts/solo_start.sh <issue>
+<type>/<slug>` opens the branch (preflight: on `main`, clean tree, `gh`
+authenticated, issue open) and `scripts/solo_close.sh <issue> "<Subject>"` runs
+the closing half in order — gate (`ruff` · `mypy` · `pytest`), one commit with
+the project-style parenthetical, `--ff-only` land + push, `gh issue close` with
+the `main` SHA, then branch delete / `backlog_issues.py check` / issue state /
+last CI run. It refuses to start until the tier's fragment(s) exist and the
+item's `(#N)` row has left the priority table, and it stops at the first
+failure with the recovery printed (`--dry-run` shows the sequence; `--help`
+the options). The step between them — the work and the closure artefacts — is
+the developer's; the scripts encode nothing that this section does not already
+say (rule 3: the sequence is structural, not a chat transcript).
+
 **Switch-over is mechanical:** the day a second collaborator is added, branch
 protection goes back to §2, `scripts/backlog_issues.py create` opens the issues
 for the rows then in the table, and this section stops applying. Nothing done
