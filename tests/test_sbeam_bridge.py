@@ -715,6 +715,43 @@ def test_a_sob_outside_the_beam_is_refused_not_bent_onto_it():
         assert text == sb.stick_model_bdf(results)
 
 
+def test_the_export_package_takes_no_silent_defaults():
+    """CH-2 (code-standard review item 9): the error contract -- "flagged,
+    never silently defaulted" -- holds in the export namespace structurally.
+
+    ``getattr(obj, name, default)`` is the shape that hides a missing attribute
+    behind a quiet fallback; every result the exporters read is a typed
+    dataclass whose ``case_ref`` / ``case`` / ``hand`` / ``tip_transfer`` are
+    declared fields, so they are read as attributes. The one dynamic lookup
+    (the ``htail``/``vtail`` span slice) is an explicit map that refuses an
+    unknown component. Two-argument ``getattr`` -- a *dynamic attribute name*
+    on a typed object, no default -- is not this class and stays allowed."""
+    import ast
+    from pathlib import Path
+
+    root = Path(sb.__file__).parent
+    hits = []
+    for path in sorted(root.glob("*.py")):
+        tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+        for node in ast.walk(tree):
+            if (isinstance(node, ast.Call) and isinstance(node.func, ast.Name)
+                    and node.func.id == "getattr" and len(node.args) >= 3):
+                hits.append(f"{path.name}:{node.lineno}")
+    assert not hits, f"getattr(..., default) in the export package: {hits}"
+
+
+def test_tail_span_export_refuses_an_unknown_component():
+    """The slice lookup is a map, so a bad component name is a stated error,
+    not an empty export (CH-2)."""
+    project = io.load_project(_GA)
+    try:
+        sb.tail_span_force_moment_cards(project, component="canard")
+    except ValueError as exc:
+        assert "unknown component" in str(exc) and "'canard'" in str(exc)
+    else:
+        raise AssertionError("an unknown component was accepted")
+
+
 def test_card_components_snap_dust_and_negative_zero():
     """One card's three components: dust below ``_TOL x`` the card's own scale
     prints as ``0.000000E+00`` -- never as its platform-dependent residue, and

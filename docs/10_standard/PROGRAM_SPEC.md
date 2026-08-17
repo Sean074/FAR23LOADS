@@ -716,7 +716,10 @@ regression oracle**; Appendix A/B geometry is used only as a *sanity* fixture.
 
 These are **output renderers**, not registered calc modules: they read a results
 slice and emit a file for an external tool. They live in `sloads/export/`,
-return strings (with thin `write_*` file wrappers), and do no physics.
+return strings (with thin `write_*` file wrappers), and do no physics. They read
+result fields as the typed attributes they are — no `getattr(..., default)`
+anywhere in the package (CH-2; guard in `tests/test_sbeam_bridge.py`), so a
+result that lacks what a deck needs is a stated error, never an empty column.
 
 ### sbeam export bridge — net wing load → sbeam (Step C4)
 - **Source:** `sloads/export/sbeam_bridge.py`; card style mirrors

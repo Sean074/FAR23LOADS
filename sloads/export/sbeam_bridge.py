@@ -487,9 +487,10 @@ def _sid(sid_base: int, case_index: int, result=None) -> int:
 
     ``sid_base + case_index`` remains the fallback for a result carrying **no**
     ``CaseRef`` at all -- a bare ``WingLoadResult`` built in a test or a caller
-    that never ran SELECT still gets a valid, contiguous deck.
+    that never ran SELECT still gets a valid, contiguous deck. ``case_ref`` is a
+    typed ``Optional`` field on every exportable result (CH-2: read, not probed).
     """
-    ref = getattr(result, "case_ref", None) if result is not None else None
+    ref = result.case_ref if result is not None else None
     if ref is not None:
         return subcase_id(ref.case_id)
     return sid_base + case_index
@@ -504,11 +505,11 @@ def subcase_map(results: Sequence) -> List[tuple]:
     """
     out: List[tuple] = []
     for idx, r in enumerate(results):
-        ref = getattr(r, "case_ref", None)
+        ref = r.case_ref
         out.append((
             _sid(1, idx, r),
             ref.case_id if ref else "",
-            ref.condition if ref else str(getattr(r, "case", "")),
+            ref.condition if ref else str(r.case),
             ref.far_reference if ref else "",
         ))
     return out
@@ -1642,7 +1643,15 @@ def _tail_span_results(arg, component: str) -> List:
     """The spanwise results to export for one surface."""
     if isinstance(arg, Project):
         loads = arg.loads
-        slice_ = getattr(loads, f"{component}_span", None) if loads else None
+        # An explicit map, not an attribute probe: an unknown component is a
+        # caller error and says so, instead of reading as "no loads" (CH-2).
+        slices = ({"htail": loads.htail_span, "vtail": loads.vtail_span}
+                  if loads else {"htail": [], "vtail": []})
+        if component not in slices:
+            raise ValueError(
+                f"tail span export: unknown component {component!r} -- expected "
+                "'htail' or 'vtail'")
+        slice_ = slices[component]
         if not slice_:
             raise ValueError(
                 f"Project has no spanwise {component} loads to export -- run the "
@@ -1800,7 +1809,7 @@ def _tail_span_case_block(r, component: str, sid: int,
 
     # The T-tail transfer (T7), on the fin's last node -- the only load in this
     # deck that is not in the fin's local frame, which is why it has its own map.
-    transfer = getattr(r, "tip_transfer", None)
+    transfer = r.tip_transfer
     if transfer is not None and r.stations:
         gid = tail_span_gid(component, len(r.stations) - 1)
         fvec, mvec = ttail_transfer_to_airplane(transfer.fz * sf, transfer.myy * sf)
@@ -2092,8 +2101,8 @@ def case_index_rows_from(*groups: Sequence, assembled: Sequence = ()) -> List[di
     by_id: dict = {}
     rows: List[dict] = []
 
-    def add(item, family: str) -> None:
-        ref = getattr(item, "case_ref", None)
+    def add(item, family: str, hand: str = "") -> None:
+        ref = item.case_ref
         if ref is None:
             return
         row = by_id.get(ref.case_id)
@@ -2119,14 +2128,17 @@ def case_index_rows_from(*groups: Sequence, assembled: Sequence = ()) -> List[di
             # side pair carries LANDLOAD's own unsuffixed ids, so parsing the id
             # would put both twins in the symmetric block and quote a SUBCASE the
             # assembled deck does not contain.
-            row[column] = deck_load_id(ref.case_id, family,
-                                       getattr(item, "hand", "") or "")
+            row[column] = deck_load_id(ref.case_id, family, hand)
 
+    # A component-deck result has no hand: the per-component decks are the
+    # symmetric analysis views (CONVENTIONS §7.1), so the column takes the bare
+    # id. Only the assembled ``BalancedCaseResult`` carries ``hand``, and it is
+    # passed, not probed for (CH-2).
     for group in groups:
         for item in group:
             add(item, COMPONENT_DECK)
     for item in assembled:
-        add(item, ASSEMBLED_DECK)
+        add(item, ASSEMBLED_DECK, hand=item.hand)
     return rows
 
 
