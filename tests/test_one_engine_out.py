@@ -233,6 +233,38 @@ _TURBOPROP_FIXTURES = {
 }
 
 
+def test_no_propeller_disc_is_refused():
+    """**M4-3(b) enforcement gate (issue #4).** The 23.367 model is propeller-only
+    (:data:`PROPELLER_ONLY_NOTE`); with a 0-in disc the Glauert windmill term is
+    identically zero and the transient never recovers, so a failed engine with no
+    propeller diameter is *refused* rather than simulated. The gate is the disc, not
+    ``engine_type`` -- ``EngineType`` has no turbofan member (the regional-jet
+    fixture is entered as ``T`` with a 0-in disc). Both ``run`` and
+    ``time_history`` share the choke point."""
+    import pytest
+
+    from sloads.models import MissingInputError
+
+    p = io.load_project(os.path.join(_EXAMPLES, "atr42_100.project.json"))
+    assert p.one_engine_out is not None
+    p.engines[p.one_engine_out.failed_engine_index] = replace(
+        p.engines[p.one_engine_out.failed_engine_index], prop_diameter_in=0.0)
+    with pytest.raises(MissingInputError, match="no propeller diameter"):
+        oeo.run(p)
+    with pytest.raises(MissingInputError, match="PROPELLER"):
+        oeo.time_history(p, "VC (ultimate)")
+    # A shipped turbofan (0-in disc, entered as ``T``) is refused on the disc even
+    # when a shaft-power surrogate is supplied -- the case that motivated the gate.
+    jet = io.load_project(os.path.join(_EXAMPLES, "concept_regional_jet.project.json"))
+    jet.engines = [replace(e, takeoff_hp=7000.0, max_cont_hp=6000.0) for e in jet.engines]
+    jet.one_engine_out = replace(p.one_engine_out, failed_engine_index=0)
+    jet.vtail_loads = jet.vtail_loads or p.vtail_loads
+    with pytest.raises(MissingInputError, match="no propeller diameter"):
+        oeo.run(jet)
+    # The enforcement is part of the single-owner statement.
+    assert "refuses to run" in oeo.PROPELLER_ONLY_NOTE
+
+
 def test_the_shipped_turboprops_execute_onengout():
     """**The fixture-coverage gate.** ONENGOUT must run on shipped data, not only on
     constructed inputs — every engine carries both ratings, every speed case produces a

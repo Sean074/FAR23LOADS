@@ -224,9 +224,9 @@ limitation in every methods-and-limitations stamp. `concept_regional_jet` was
 therefore **dropped** from that step and enters no `one_engine_out` slice — run
 with a shaft-power surrogate it produced ~41–52 klb fin loads that never recover
 (windmill drag identically zero on a 0-in propeller disc), i.e. exactly the
-"wrong card outranks a missing card" case. What is left for M4-3(b) is the
-*enforcement*: refuse (or caption) the run when the failed engine is not a
-propeller installation, so the limitation is a gate and not only a sentence.
+"wrong card outranks a missing card" case. **(b) closed 2026-08-16:** the run
+is refused when the failed engine has no propeller diameter (`_case_inputs`
+raises `MissingInputError`); (a) and (c) remain parked here.
 
 ### [V] `concept_heavy` has no landing-gear geometry and no `landing` slice *(new 2026-08-14, from step 10 decision G-13)*
 It is the one shipped fixture with neither, so it produces no LANDLOAD output, no

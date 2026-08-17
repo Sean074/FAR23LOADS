@@ -76,14 +76,21 @@ MODULE_NAME = "one_engine_out"
 #: installation the thrust term is a shaft-power surrogate and the windmill term
 #: collapses to zero with the propeller diameter, which understates the asymmetry
 #: and mis-times it. FAR 23.367(a) is itself turbopropeller-specific (Ref 1 Ch 11
-#: p87), so this is a gap in coverage rather than in accuracy. Gating the module
-#: on engine type is a separate open item (backlog M4-3(b)).
+#: p87), so this is a gap in coverage rather than in accuracy. The statement is
+#: **enforced** (M4-3(b), 2026-08-16): :func:`_case_inputs` refuses to simulate
+#: when the failed engine carries no propeller disc (``prop_diameter_in <= 0``),
+#: which is the one signal the model itself depends on -- ``EngineType`` has no
+#: turbofan member (a fan installation is entered as ``T`` with a 0-in disc), so
+#: engine type cannot be the gate. Reciprocating twins remain runnable: they are
+#: propeller installations, and the regulatory turboprop scope of 23.367(a) is
+#: carried by the coverage table (``report/coverage.py``), not by this module.
 PROPELLER_ONLY_NOTE = (
     "the one-engine-out yaw transient (23.367) is modelled for PROPELLER "
     "installations only -- thrust is shaft power over true airspeed and the "
     "failed-engine drag is Glauert windmilling on the propeller disc, so a "
     "turbofan or turbojet installation is NOT covered and its asymmetry would be "
-    "understated"
+    "understated; the module refuses to run when the failed engine has no "
+    "propeller diameter"
 )
 
 _DEG = 57.3              # ONENGOUT.BAS deg/rad
@@ -385,6 +392,11 @@ def _case_inputs(project: Project, v_kt: float) -> CaseInputs:
     if not (0 <= oeo.failed_engine_index < len(project.engines)):
         raise ValueError(f"failed_engine_index {oeo.failed_engine_index} out of range")
     eng = project.engines[oeo.failed_engine_index]
+    if not eng.prop_diameter_in or eng.prop_diameter_in <= 0:
+        raise MissingInputError(
+            f"one_engine_out: engine {oeo.failed_engine_index} "
+            f"({eng.engine_designation or 'unnamed'}) has no propeller diameter -- "
+            + PROPELLER_ONLY_NOTE)
 
     case = _heaviest_case(project)
     izz = oeo.izz_slugft2 or (case.izz / LBIN2_PER_SLUGFT2)
