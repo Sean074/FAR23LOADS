@@ -358,13 +358,23 @@ def test_the_body_deliverables_never_render_a_negative_zero(example, system):
     snaps it; this keeps it snapped, in both unit systems (SI is worse: the same
     dust is 175x larger in newtons).
     """
-    _, body, _, _, _, _ = _cached(example)
+    _, body, _, _, htail_span, vtail_span = _cached(example)
     _skip_if_empty(body, example, "body")
-    for name, text in (("cards", sb.body_force_moment_cards(body, system=system)),
-                       ("span CSV", sb.body_span_load_csv(body, system=system))):
+    texts = [("body cards", sb.body_force_moment_cards(body, system=system)),
+             ("body span CSV", sb.body_span_load_csv(body, system=system))]
+    # The tail-span decks too (backlog Pri 1 sweep, 2026-08-16): the h-tail
+    # CSV's ``Fax``/``Sax`` columns are a negated zero by construction and
+    # printed ``-0.00`` on every fixture in both unit systems.
+    for comp, spans in (("htail", htail_span), ("vtail", vtail_span)):
+        if spans:
+            texts.append((f"{comp} span CSV",
+                          sb.tail_span_csv(spans, comp, system=system)))
+            texts.append((f"{comp} cards",
+                          sb.tail_span_force_moment_cards(spans, comp, system=system)))
+    for name, text in texts:
         bad = [ln for ln in text.splitlines()
                if re.search(r"-0\.0*(?![0-9]*[1-9])(?![0-9]*E-)", ln)]
-        assert not bad, f"{example} {system.value} body {name}: {bad}"
+        assert not bad, f"{example} {system.value} {name}: {bad}"
 
 
 @pytest.mark.parametrize("example", EXAMPLES)

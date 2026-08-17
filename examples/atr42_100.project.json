@@ -480,7 +480,7 @@
       "le_sweep_deg": 2.9568649521964603,
       "le_root_x": 365,
       "root_waterline_z": 170.0,
-      "tail_type": "conventional",
+      "tail_type": "t_tail",
       "h_tail_z": 0.0
     },
     "fuselage": {

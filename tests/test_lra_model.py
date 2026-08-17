@@ -57,15 +57,16 @@ def test_the_transfer_couple_is_the_exact_lever_arm_cross_product():
 # The skeleton (LM-2..LM-6) on the shipped fixtures
 # --------------------------------------------------------------------------- #
 def test_the_skeleton_carries_every_named_node_family():
-    """Conventional layout (atr42): SOB pair, posts, fin root, h-tail
-    attachment pair, gear, engines -- each tagged, each tied (BM-5)."""
-    model = build_lra_model(_project("atr42_100.project.json"))
+    """Conventional layout (cessna_210 -- the twins are T-tails since backlog
+    Pri 1): SOB pair, posts, fin root, h-tail attachment pair, gear, engine --
+    each tagged, each tied (BM-5)."""
+    model = build_lra_model(_project("cessna_210.project.json"))
     families = {(n.family, n.side) for n in model.nodes if n.family}
     for expected in (("lra-sob", "R"), ("lra-sob", "L"), ("lra-post", "F"),
                      ("lra-post", "A"), ("lra-fin-root", "C"),
                      ("lra-attach", "R"), ("lra-attach", "L"),
-                     ("lra-centre", "C"), ("lra-engine-mount", "R"),
-                     ("lra-engine-mount", "L")):
+                     ("lra-centre", "C"), ("lra-engine-mount", "C"),
+                     ("lra-gear", "L"), ("lra-gear", "R")):
         assert expected in families, expected
     # Every tagged special node is tied into the structure: it is either a
     # chain member (attachments are inserted into the h-tail chain) or an

@@ -1871,14 +1871,17 @@ def tail_span_csv(arg, component: str = "htail", header_comment: str = "", *,
             _, _, fn = to_force(0.0, 0.0, st.fz * sf, u)
             _, _, sn = to_force(0.0, 0.0, st.sz * sf, u)
             bend, tor, _ = to_moment(st.mxx * sf, st.myy * sf, 0.0, u)
+            # The h-tail's axial column is ``-0.0`` by construction (a negated
+            # zero), and would print its sign; snapped like every card component.
+            fax = _closed(to_force(0.0, 0.0, st.f_span * sf, u)[2], abs(fn))
+            sax = _closed(to_force(0.0, 0.0, st.s_span * sf, u)[2], abs(sn))
             writer.writerow({
                 "Case": r.case, "GID": tail_span_gid(component, i),
                 span_h: f"{to_grid(st.y, 0.0, 0.0, u)[0]:.3f}",
                 x_h: f"{to_grid(st.x, 0.0, 0.0, u)[0]:.3f}",
                 f_h: f"{fn:.2f}", s_h: f"{sn:.2f}",
                 b_h: f"{bend:.0f}", t_h: f"{tor:.0f}",
-                fa_h: f"{to_force(0.0, 0.0, st.f_span * sf, u)[2]:.2f}",
-                sa_h: f"{to_force(0.0, 0.0, st.s_span * sf, u)[2]:.2f}",
+                fa_h: f"{fax:.2f}", sa_h: f"{sax:.2f}",
                 "Axis": r.torsion_axis, "SF": f"{_sf_str(sf)}",
             })
     return header_comment + buf.getvalue()
