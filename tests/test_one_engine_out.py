@@ -28,7 +28,7 @@ from dataclasses import replace
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from sloads import EngineLayout, OneEngineOutInput, io  # noqa: E402
-from sloads.constants import KT_TO_FPS_SUITE, standard_atmosphere  # noqa: E402
+from sloads.constants import FT_LB_S_PER_HP, KT_TO_FPS, RHO_SL, standard_atmosphere  # noqa: E402
 from sloads.models import MassCase, MassResult  # noqa: E402
 from sloads.modules import one_engine_out as oeo  # noqa: E402
 from sloads.modules import select as sel  # noqa: E402
@@ -69,9 +69,9 @@ def test_thrust_and_windmill_drag_formula():
     c = oeo._case_inputs(p, 150.0)
     thrust, drag, vtfps = oeo.engine_thrust_and_drag(c)
     sigma = standard_atmosphere(c.alt_ft)[1]
-    exp_vtfps = (c.v_kt / sigma ** 0.5) * KT_TO_FPS_SUITE
-    exp_thrust = c.maxhp * 550.0 * 0.85 / exp_vtfps
-    exp_drag = 0.85 * 0.232 * (0.002378 * sigma) * exp_vtfps ** 2 * c.dia_ft ** 2
+    exp_vtfps = (c.v_kt / sigma ** 0.5) * KT_TO_FPS
+    exp_thrust = c.maxhp * FT_LB_S_PER_HP * 0.85 / exp_vtfps
+    exp_drag = 0.85 * 0.232 * (RHO_SL * sigma) * exp_vtfps ** 2 * c.dia_ft ** 2
     assert math.isclose(vtfps, exp_vtfps, rel_tol=1e-12)
     assert math.isclose(thrust, exp_thrust, rel_tol=1e-12), thrust
     assert math.isclose(drag, exp_drag, rel_tol=1e-12), drag

@@ -29,7 +29,7 @@ from ..case_ids import (
     WING_BAND_TAB,
     CaseIdAllocator,
 )
-from ..constants import ULTIMATE_FACTOR
+from ..constants import IN2_PER_FT2, ULTIMATE_FACTOR, dynamic_pressure_psf
 from ..models import (
     CaseRef,
     ConditionResult,
@@ -48,7 +48,6 @@ _TAB_BAND = {"wing": WING_BAND_TAB, "htail": HTAIL_BAND_TAB, "vtail": VTAIL_BAND
 
 MODULE_NAME = "tab"
 
-_SQIN_PER_SQFT = 144.0
 
 
 class TabResult(NamedTuple):
@@ -64,10 +63,10 @@ def tab_load(vc: float, mac_in: float, area_sqin: float, airfoil_chord_in: float
     """One tab's load and chordwise pressures (TABLOADS.BAS lines 250-330)."""
     if airfoil_chord_in <= 0 or area_sqin <= 0:
         raise ValueError("tab area and host-airfoil chord must be positive")
-    q = vc ** 2 / 295.0
+    q = dynamic_pressure_psf(vc)
     e = mac_in / airfoil_chord_in
     m = 0.0446 * (1.0 - e)
-    ltab = m * deflection_deg * q * area_sqin / _SQIN_PER_SQFT
+    ltab = m * deflection_deg * q * area_sqin / IN2_PER_FT2
     w = ltab / 1.5 / area_sqin
     return TabResult(chord_ratio=e, load_lb=ltab,
                      le_pressure_psi=2.0 * w, te_pressure_psi=w)
@@ -95,7 +94,7 @@ def build_tabs(project: Project) -> List[ControlSurfaceLoadResult]:
     seeded = set()
     results: List[ControlSurfaceLoadResult] = []
     for spec in project.tab_loads.tabs:
-        r = tab_load(vc, spec.mac_in, spec.area_sqft * _SQIN_PER_SQFT, spec.airfoil_chord_in,
+        r = tab_load(vc, spec.mac_in, spec.area_sqft * IN2_PER_FT2, spec.airfoil_chord_in,
                      spec.deflection_deg)
         component = _TAB_COMPONENT.get(spec.surface, "wing")
         if component not in seeded:
@@ -131,7 +130,7 @@ def run(project: Project) -> ModuleResult:
     if project.is_concept:
         note += " Concept mode -- unverified extrapolation past the FAR23 band."
     for result, spec in zip(build_tabs(project), project.tab_loads.tabs):
-        r = tab_load(vc, spec.mac_in, spec.area_sqft * _SQIN_PER_SQFT, spec.airfoil_chord_in,
+        r = tab_load(vc, spec.mac_in, spec.area_sqft * IN2_PER_FT2, spec.airfoil_chord_in,
                      spec.deflection_deg)
         conditions.append(ConditionResult(
             title=f"{spec.surface} tab load",

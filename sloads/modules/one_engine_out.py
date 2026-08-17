@@ -45,10 +45,15 @@ from typing import List, NamedTuple, Optional, Tuple
 
 from ..case_ids import VTAIL_BAND_ONENGOUT, CaseIdAllocator
 from ..constants import (
-    KT_TO_FPS_SUITE,
+    DEG_PER_RAD,
+    FT_LB_S_PER_HP,
+    IN2_PER_FT2,
+    IN_PER_FT,
+    KT_TO_FPS,
     LBIN2_PER_SLUGFT2,
     RHO_SL,
     ULTIMATE_FACTOR,
+    dynamic_pressure_psf,
     standard_atmosphere,
 )
 from ..models import (
@@ -94,9 +99,6 @@ PROPELLER_ONLY_NOTE = (
     "propeller diameter"
 )
 
-_DEG = 57.3              # ONENGOUT.BAS deg/rad
-_Q_DIVISOR = 295.0       # Q = V^2/295
-_IN2_PER_FT2 = 144.0
 _MAX_SIM_TIME_S = 60.0   # bound the march; no recovery by here => uncontrollable (flag it)
 _CORRECTIVE_DELAY_S = 2.0  # FAR 23.367(b): not earlier than 2 s after failure
 
@@ -157,8 +159,8 @@ def engine_thrust_and_drag(c: CaseInputs) -> Tuple[float, float, float]:
     airspeed via the density ratio, then thrust ``MAXHP*550*.85/VTFPS`` and the
     windmilling-propeller drag ``.85*.232*rho*VTFPS^2*DIA^2`` (Glauert)."""
     sigma = standard_atmosphere(c.alt_ft)[1]
-    vtfps = (c.v_kt / sigma ** 0.5) * KT_TO_FPS_SUITE
-    thrust = c.maxhp * 550.0 * 0.85 / vtfps
+    vtfps = (c.v_kt / sigma ** 0.5) * KT_TO_FPS
+    thrust = c.maxhp * FT_LB_S_PER_HP * 0.85 / vtfps
     rho = RHO_SL * sigma
     drag = 0.85 * 0.232 * rho * vtfps ** 2 * c.dia_ft ** 2
     return thrust, drag, vtfps
@@ -172,10 +174,10 @@ def simulate(c: CaseInputs) -> Tuple[List[HistoryRow], CaseSummary]:
     thrust, drag, _ = engine_thrust_and_drag(c)
     mom_eng = thrust * c.bleng
     mom_windmill = drag * c.bleng
-    slope_lt25 = vtail_lift_slope(c.arvt) / _DEG          # per deg
+    slope_lt25 = vtail_lift_slope(c.arvt) / DEG_PER_RAD          # per deg
     sr_over_sv = c.sr_in2 / c.svt_in2
     effectv = rudder_effectiveness(sr_over_sv)
-    q = c.v_kt ** 2 / _Q_DIVISOR
+    q = dynamic_pressure_psf(c.v_kt)
 
     theta = theta_dot = theta_2dot = 0.0
     theta_dot_max = lt_max = 0.0
@@ -195,17 +197,17 @@ def simulate(c: CaseInputs) -> Tuple[List[HistoryRow], CaseSummary]:
                 and time < time_rud_max and time >= time_init_rud):
             defl_rud = c.defl_rud_max * (time - time_init_rud) / c.inctimerud
         ef = large_deflection_factor(defl_rud, sr_over_sv)
-        vdamp_fps = theta_dot / _DEG * (c.xt25 - c.xcg) / 12.0
-        vdamp_kt = vdamp_fps / KT_TO_FPS_SUITE
-        damp_angle = _DEG * math.atan(vdamp_kt / c.v_kt)
+        vdamp_fps = theta_dot / DEG_PER_RAD * (c.xt25 - c.xcg) / IN_PER_FT
+        vdamp_kt = vdamp_fps / KT_TO_FPS
+        damp_angle = DEG_PER_RAD * math.atan(vdamp_kt / c.v_kt)
         slope_lt50 = ef * effectv * slope_lt25
-        lt25 = (theta + damp_angle) * slope_lt25 * q * c.svt_in2 / _IN2_PER_FT2
-        lt50 = (slope_lt50 * defl_rud) * q * c.svt_in2 / _IN2_PER_FT2
+        lt25 = (theta + damp_angle) * slope_lt25 * q * c.svt_in2 / IN2_PER_FT2
+        lt50 = (slope_lt50 * defl_rud) * q * c.svt_in2 / IN2_PER_FT2
         lt = lt25 + lt50
 
         # Net yaw moment: thrust decay then windmill-drag buildup, less the tail loads.
         moment = _moment(time, c, mom_eng, mom_windmill, lt25, lt50)
-        theta_2dot = moment / 12.0 / c.izz * _DEG
+        theta_2dot = moment / IN_PER_FT / c.izz * DEG_PER_RAD
         theta_dot = theta_dot + theta_2dot * c.dt
         theta = theta + theta_dot * c.dt + 0.5 * theta_2dot * c.dt ** 2
 
@@ -408,8 +410,8 @@ def _case_inputs(project: Project, v_kt: float) -> CaseInputs:
 
     return CaseInputs(
         arvt=vt.aspect_ratio_vtail,
-        svt_in2=vt.vtail_area_sqft * _IN2_PER_FT2,
-        sr_in2=vt.rudder_area_sqft * _IN2_PER_FT2,
+        svt_in2=vt.vtail_area_sqft * IN2_PER_FT2,
+        sr_in2=vt.rudder_area_sqft * IN2_PER_FT2,
         defl_rud_max=vt.rudder_deflection_deg,
         xcg=xcg,
         xt25=vt.xv25,
@@ -419,7 +421,7 @@ def _case_inputs(project: Project, v_kt: float) -> CaseInputs:
         izz=izz,
         bleng=abs(eng.engine_cg[1]),
         maxhp=_engine_power(eng, oeo.use_takeoff_power),
-        dia_ft=eng.prop_diameter_in / 12.0,
+        dia_ft=eng.prop_diameter_in / IN_PER_FT,
         time2decay=oeo.thrust_decay_time_s,
         time2drag=oeo.windmill_drag_time_s,
         inctimerud=oeo.rudder_travel_time_s,

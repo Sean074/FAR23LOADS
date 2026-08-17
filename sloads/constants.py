@@ -1,15 +1,52 @@
-"""Physical and regulatory constants used by the engine-mount load calculations.
+"""Physical constants, FAR-mandated numbers and every suite-internal unit factor.
 
-Values follow ENGLOADS.BAS (Hal C. McMaster, v3.0); per Decision 3
-("modernize the math") pi is taken from the standard library rather than the
-program's 3.1416 literal. This is the one centralized home for these constants
-(g, pi, unit factors), so revisiting that decision is a one-file change.
+**The one owner** (CONVENTIONS.md §7, review 2026-08-17 constants-and-conversions):
+physical constants (``G``, ``RHO_SL``, the atmosphere), FAR-mandated numbers
+(``ULTIMATE_FACTOR``, the 23.341 gust constants, the 23.371 gyro rates) and every
+**Imperial<->Imperial** factor (``IN_PER_FT``, ``IN2_PER_FT2``, ``DEG_PER_RAD``,
+``KT_TO_FPS``, ``FT_LB_S_PER_HP``) live here and nowhere else; the Imperial<->SI
+boundary lives in :mod:`sloads.units` (which imports this module, never the
+reverse). ``tests/test_constants.py`` grep-guards both directions.
+
+**Value policy: exact by default.** Where a ``.BAS`` program truncated a value
+(3.1416, 57.3, 32.2, 295, 1.15*88/60) the exact value is used; a truncated value
+survives only as a named ``*_SUITE`` twin beside its exact owner, with the printed
+oracle that requires it cited (register: ``docs/20_theory/02_approved_corrections.md``).
+The manual's figures are tolerance oracles (+-0.1 %), which every such move was
+measured against before it was made.
 """
 
 import math
 
-# Acceleration of gravity used throughout the original program (slug conversion).
+# --------------------------------------------------------------------------- #
+# Physical constants
+# --------------------------------------------------------------------------- #
+# Acceleration of gravity, ft/s^2 -- the value the ported calc uses everywhere
+# (SELECT/BALLOADS/FLTLOADS/VNDIAG wrote 32.2, WTONECG 32.17; measured effect of
+# reading this one owner instead: <= 0.081 %, no printed oracle moves; register
+# 2026-08-17). ``units.G_MM_S2`` is the ISO standard gravity of the *deck* channel
+# and is deliberately a separate, exact value (see the note there).
 G = 32.174  # ft / s^2
+
+# --------------------------------------------------------------------------- #
+# Suite-internal (Imperial <-> Imperial) unit factors
+# --------------------------------------------------------------------------- #
+IN_PER_FT = 12.0
+IN2_PER_FT2 = IN_PER_FT ** 2                     # 144
+DEG_PER_RAD = 180.0 / math.pi                    # 57.29578 (the .BAS wrote 57.3)
+RAD_PER_DEG = math.pi / 180.0
+FT_LB_S_PER_HP = 550.0                           # 1 hp = 550 ft-lb/s (exact, by definition)
+# International nautical mile in feet: 1852 m / 0.3048 m/ft exactly. The SI
+# origin is *stated* here (and asserted against units.FT_TO_M in the guard test),
+# not imported, so units.py stays downstream of this module.
+FT_PER_NMI = 6076.115485564304
+KT_TO_FPS = FT_PER_NMI / 3600.0                  # 1.687810 ft/s per knot (exact)
+# ... as the suite computed it, via mph: kt * 1.15 * 88/60 = 1.68667 (-0.066 %).
+# Survives ONLY for VSF below: the ENGLOADS gyro-thrust oracle prints THRUST =
+# T*omega/101.2 (Ref 1 Appendix A; tests/test_engine.py::test_gyro_thrust_matches_manual,
+# abs_tol 1 lb, which the exact value exceeds). FLAPLOAD's p201 and ONENGOUT read
+# the exact factor (measured: their oracles hold).
+KT_TO_FPS_SUITE = 1.15 * 88.0 / 60.0
 
 # Factor of safety used to turn the calc's LIMIT loads into the ULTIMATE loads the
 # rendered output / structural-sizing export reports (14 CFR 23.303 / 25.303: ultimate =
@@ -20,23 +57,24 @@ G = 32.174  # ft / s^2
 # interpolated factor (1.0-1.5); sudden engine stoppage is held at 1.5 for now.
 ULTIMATE_FACTOR = 1.5
 
-# Decision 3 ("modernize the math"): the original ENGLOADS.BAS used the literal
-# 3.1416 for pi; we use math.pi instead. This shifts the manual's worked-example
+# pi: Decision 3 ("modernize the math") -- the .BAS programs wrote 3.1416; the
+# package uses ``math.pi`` directly everywhere (no ``PI`` alias to drift; the
+# guard test forbids the literal). This shifts the manual's worked-example
 # figures in roughly the 6th significant digit, so the regression tests compare
 # with engineering tolerance (±0.1%) rather than exact equality.
-PI = math.pi
 
 # Conversion from RPM to radians per second: omega = RPM * 2*pi / 60.
-TWO_PI = 2 * PI
-RPM_TO_RAD_S = TWO_PI / 60.0
+RPM_TO_RAD_S = 2.0 * math.pi / 60.0
 
-# Horsepower-to-torque constant: TORQUE = HP * 33000 / (2*pi*RPM)  [ft-lb].
-HP_TO_TORQUE = 33000.0
+# Horsepower-to-torque constant: TORQUE = HP * 33000 / (2*pi*RPM)  [ft-lb],
+# 33000 = 550 ft-lb/s per hp * 60 s/min.
+HP_TO_TORQUE = 60.0 * FT_LB_S_PER_HP
 
 # Stall-speed term used for gyroscopic thrust, FAR 23.371(b):
 #   VSF = 60 kt * 1.15 * (88/60)  -> 101.2 ft/s
 # (60 kt minimum stall, x1.15, converted kt->ft/s; conservative for twins.)
-VSF = 60 * 1.15 * 88 / 60  # ft/s
+# Reads the *suite* kt->ft/s on purpose: the printed oracle divides by 101.2.
+VSF = 60 * KT_TO_FPS_SUITE  # ft/s
 
 # Gyroscopic angular velocities required by FAR 23.371(b).
 YAW_RATE = 2.5   # rad/s
@@ -121,7 +159,6 @@ DEFAULT_FLIGHT_CREW = 1                   # assumed crew when no WeightEstimatio
 # report slug-ft^2 (WTONECG.BAS lines 830-860, "A = 32.17*144"). Decision 3 keeps
 # g = 32.174 here; the ~0.01% shift from the program's 32.17 stays within the
 # ±0.1% regression tolerance.
-IN2_PER_FT2 = 144
 LBIN2_PER_SLUGFT2 = IN2_PER_FT2 * G  # multiply slug-ft^2 -> lb-in^2
 
 # WTESTIMA empty/take-off weight ratio K (WTESTIMA.BAS lines 330-400; UG Table 3.1).
@@ -290,26 +327,57 @@ def convert_airspeed(eas_kt: float, altitude_ft: float, unit: str) -> float:
     raise ValueError(f"Unknown airspeed unit {unit!r} (expected KEAS/KTAS/KCAS)")
 
 
-# Knots -> ft/s as the suite computes it (via mph: kt * 1.15 * 88/60), used by
-# FLAPLOAD.BAS for the slipstream/gust velocities. Slightly different from the
-# exact 1.6878; kept to reproduce the slipstream geometry oracle.
-KT_TO_FPS_SUITE = 1.15 * 88.0 / 60.0
+# Dynamic pressure of an equivalent airspeed: q = 1/2 rho_0 V^2 with V in ft/s, so
+# Q [lb/ft^2] = V_keas^2 / DYNAMIC_PRESSURE_DIVISOR. The suite wrote the divisor as
+# 295 (its FAR-23-era engineering form); the exact value from the two owners above
+# is 295.237 (-0.08 % in q, uniformly). Measured 2026-08-17: no printed oracle
+# moves; the frozen digest and the SELECT regression pins were re-pinned
+# (register). Every q in the package is computed by ``dynamic_pressure_psf``.
+DYNAMIC_PRESSURE_DIVISOR = 1.0 / (0.5 * RHO_SL * KT_TO_FPS ** 2)
 
-# Dynamic pressure divisor: Q [lb/ft^2] = V_keas^2 / 295 (used throughout the suite).
-DYNAMIC_PRESSURE_DIVISOR = 295.0
+
+def dynamic_pressure_psf(v_eas_kt: float) -> float:
+    """``q = 1/2 rho_0 V^2`` (lb/ft^2) of an equivalent airspeed in knots.
+
+    The one owner of dynamic pressure (``V^2/295`` in the .BAS listings);
+    ``eas_from_dynamic_pressure`` is its inverse.
+    """
+    return v_eas_kt ** 2 / DYNAMIC_PRESSURE_DIVISOR
+
+
+def eas_from_dynamic_pressure(q_psf: float) -> float:
+    """Equivalent airspeed (kt) at a dynamic pressure (lb/ft^2): ``V = sqrt(295 q)``."""
+    return math.sqrt(DYNAMIC_PRESSURE_DIVISOR * q_psf)
+
+
+# --------------------------------------------------------------------------- #
+# FAR 23.341(c) gust load factor: n = 1 +- Kg*Ude*V*a / (498*W/S), Kg = 0.88*mu/(5.3+mu)
+# --------------------------------------------------------------------------- #
+# Regulatory numbers, printed in the rule -- there is no "exact" value to correct
+# them to; they are owned here so the five gust sites (VNDIAG, FLTLOADS, SELECT x3)
+# read one copy. 498 embeds the rule's own KEAS->ft/s and 2/rho_0 rounding.
+GUST_KG_NUMERATOR = 0.88
+GUST_KG_OFFSET = 5.3
+GUST_LOAD_FACTOR_DIVISOR = 498.0
+
+
+def gust_alleviation_factor(mass_ratio: float) -> float:
+    """``Kg = 0.88*mu / (5.3 + mu)`` of the airplane (or tail) mass ratio, 23.341(c)."""
+    return GUST_KG_NUMERATOR * mass_ratio / (GUST_KG_OFFSET + mass_ratio)
 
 
 def stall_speed_kt(weight_lb: float, wing_area_sqft: float, clmax: float) -> float:
     """1-g stall speed VS (KEAS) from CLmax and wing loading.
 
-    Solves lift = weight at CLmax with the suite's ``Q = V^2/295`` convention
-    (EAS folds in density): ``VS = sqrt(295*(W/S)/CLmax)``. The optional
+    Solves lift = weight at CLmax with ``q = 1/2 rho_0 V^2`` (the suite's
+    ``Q = V^2/295`` convention, exact divisor above; EAS folds in density):
+    ``VS = sqrt(DYNAMIC_PRESSURE_DIVISOR*(W/S)/CLmax)``. The optional
     CLmax -> stall-speed input path of the User's Guide (p7-5); ``clmax`` is the
     clean or flaps-down maximum lift coefficient, ``weight_lb`` the design weight.
     """
     if clmax <= 0.0 or wing_area_sqft <= 0.0:
         raise ValueError("stall_speed_kt needs a positive CLmax and wing area")
-    return math.sqrt(DYNAMIC_PRESSURE_DIVISOR * (weight_lb / wing_area_sqft) / clmax)
+    return eas_from_dynamic_pressure((weight_lb / wing_area_sqft) / clmax)
 
 
 def cruise_speed_coefficient(category: str, wing_loading: float) -> float:

@@ -31,7 +31,7 @@ from __future__ import annotations
 from typing import List, NamedTuple
 
 from ..case_ids import WING_BAND_AILERON, CaseIdAllocator
-from ..constants import ULTIMATE_FACTOR
+from ..constants import IN2_PER_FT2, ULTIMATE_FACTOR, dynamic_pressure_psf
 from ..models import (
     CaseRef,
     ConditionResult,
@@ -47,7 +47,6 @@ from .structural_speeds import design_speed_values
 
 MODULE_NAME = "aileron"
 
-_SQIN_PER_SQFT = 144.0
 
 
 class AileronResult(NamedTuple):
@@ -75,7 +74,7 @@ def aileron_loads(va: float, vc: float, vd: float, down_deg: float, up_deg: floa
     aupdeg = -abs(up_deg)
 
     def load(defl: float, v: float) -> float:
-        return 0.04 * defl * sa * v ** 2 / 295.0
+        return 0.04 * defl * sa * dynamic_pressure_psf(v)
 
     # Deflection schedule per FAR 23.455 / CAM 3.222.
     cdeg, cupdeg = (va / vc) * adeg, (va / vc) * aupdeg
@@ -92,8 +91,8 @@ def aileron_loads(va: float, vc: float, vd: float, down_deg: float, up_deg: floa
     return AileronResult(
         down_load_lb=down_load, down_speed_kt=down_v,
         up_load_lb=up_load, up_speed_kt=up_v,
-        down_pressure_psi=w_down / _SQIN_PER_SQFT,
-        up_pressure_psi=w_up / _SQIN_PER_SQFT,
+        down_pressure_psi=w_down / IN2_PER_FT2,
+        up_pressure_psi=w_up / IN2_PER_FT2,
         hinge_chord_fraction=area_fwd_hinge_sqft / sa,
     )
 

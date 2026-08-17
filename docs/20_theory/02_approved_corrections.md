@@ -60,6 +60,30 @@ the DN unchecked maneuver governs and the unsymmetrical total moves to −1204.7
 `test_htail_gust_and_unsymmetrical_match_appendix_a` (manual's −1111.8 kept in a
 comment). Source: `reference/23_427_unsymmetrical_candidate_set.md`.
 
+### Truncated `.BAS` constants go exact; the surviving `*_SUITE` twin *(approved 2026-08-17, issue #26)*
+
+The programs wrote several shared constants truncated — `57.3` (and `114.6`) for
+deg/rad, `32.2` beside `32.174` for g, `V²/295` for dynamic pressure, `1.15·88/60`
+for kt→ft/s, and FLTLOADS' private `518.688 °R` / `575 kt` speed of sound. Per the
+2026-08-17 constants-and-conversions review (`docs/50_reviews/`), every one now
+reads its exact owner in `sloads/constants.py`: `DEG_PER_RAD = 180/π`, `G = 32.174`,
+`DYNAMIC_PRESSURE_DIVISOR = 1/(½·ρ₀·KT_TO_FPS²) = 295.237` (−0.08 % in q,
+uniformly), `KT_TO_FPS = 1852 m/0.3048/3600 = 1.68781`, and the shared
+`standard_atmosphere` for `a`. **Each move was measured against the whole suite
+before it was made, singly and all together:** no page-cited oracle moves —
+Appendix A ±0.1 % holds throughout (e.g. `ga6_normal` VA 121.35 vs printed 121.3, VF
+105.54 vs 105.5); what moved were self-pins only — the frozen Imperial digest
+(`tests/fixtures_imperial/digests.json`), the SELECT unsymmetrical split
+(`test_balance._UNSYMMETRICAL_SPLIT`, ≤ 0.08 % per value: GA6 RH −700.42 vs
+−700.38), two `_DELTA_CD_BAND` lower edges by 0.0001, and the F25-2 VA/VF
+"today's numbers" pin — all re-pinned with this entry cited. **One survivor:**
+`KT_TO_FPS_SUITE = 1.68667` for `VSF` only, because the ENGLOADS gyro-thrust
+oracle prints `THRUST = T·ω/101.2` (`test_gyro_thrust_matches_manual`, `abs_tol`
+1 lb, which the exact factor exceeds by 3 lb); FLAPLOAD's p201 slipstream oracle
+and ONENGOUT hold at exact and were switched. The FAR 23.341(c) numbers (498, 0.88,
+5.3) are regulatory and were **not** changed — only given one owner. Rule of
+record: `CONVENTIONS.md` §7 (owners + demarcation + guards).
+
 ---
 
 ## Considered and declined

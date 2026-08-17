@@ -50,7 +50,7 @@ from typing import List, NamedTuple, Optional, Tuple
 
 from ..case_ids import CaseIdAllocator
 from ..cg_cases import landing_role_cases, max_landing_weight, max_takeoff_weight
-from ..constants import G
+from ..constants import IN2_PER_FT2, IN_PER_FT, G
 from ..models import (
     CaseRef,
     CgCase,
@@ -95,8 +95,8 @@ def landing_load_factor(wing_area_sqft: float, weight_lb: float, strut_stroke_in
     d_tire = (tire_od_in - hub_diameter_in) / 6.0    # flat-tyre deflection, in
     eta_strut = ETA_OLEO if main_is_oleo else ETA_SPRING
     numerator = (weight_lb * v ** 2 / (2.0 * G)
-                 + weight_lb * (1.0 - lift_factor) * (strut_stroke_in + d_tire) / 12.0)
-    denominator = weight_lb * (ETA_TIRE * d_tire + eta_strut * strut_stroke_in) / 12.0
+                 + weight_lb * (1.0 - lift_factor) * (strut_stroke_in + d_tire) / IN_PER_FT)
+    denominator = weight_lb * (ETA_TIRE * d_tire + eta_strut * strut_stroke_in) / IN_PER_FT
     if denominator <= 0:
         raise ValueError("LGFACTOR strut/tyre stroke must be positive")
     n = numerator / denominator
@@ -504,7 +504,7 @@ def _wing_area(project: Project, inp: LandingInput) -> float:
             from .wing_geometry import surface_properties
             r = surface_properties(wing)
             total_in2 = next(v.value for v in r.values if v.key == "total_area")
-            return total_in2 / 144.0
+            return total_in2 / IN2_PER_FT2
     raise MissingInputError("landing needs a wing area (landing.wing_area_sqft or a geometry wing)")
 
 

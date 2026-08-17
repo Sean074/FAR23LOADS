@@ -228,7 +228,7 @@ def _tab_design_speeds(project: Project, system: UnitSystem, U: dict) -> None:
                                   "a floor for the minimum cruise speed VC (14 CFR 23.335).")
         st.caption(
             "Stall speeds VS/VSF are **derived from the maximum lift coefficients "
-            "(CLmax)** entered on the **Aerodynamic Data** page — VS = √(295·(W/S)/CLmax) "
+            "(CLmax)** entered on the **Aerodynamic Data** page — VS = √(2·(W/S)/(ρ₀·CLmax)) "
             "at the design weight — and set VA and VF. Enter CLmax there."
         )
         # Altitude is feet in both unit systems (D-16's aviation carve-out), so it

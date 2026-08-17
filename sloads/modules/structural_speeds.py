@@ -67,6 +67,7 @@ import math
 from typing import List, NamedTuple, Optional
 
 from ..constants import (
+    IN2_PER_FT2,
     cruise_speed_coefficient,
     dive_ratio_coefficient,
     stall_speed_kt,
@@ -208,7 +209,7 @@ def _wing_area_sqft(project: Project, inp: StructuralSpeedsInput) -> float:
             from .wing_geometry import surface_properties
             r = surface_properties(surf)
             total_in2 = next(v.value for v in r.values if v.key == "total_area")
-            return total_in2 / 144.0
+            return total_in2 / IN2_PER_FT2
     if inp.wing_area_sqft:
         return inp.wing_area_sqft
     raise MissingInputError(

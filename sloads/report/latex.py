@@ -30,6 +30,7 @@ from __future__ import annotations
 import math
 from typing import List, Tuple
 
+from ..units import IN_TO_MM
 from .content import Figure, ReportDocument, Section, Table
 from .methods import STANDING_DISCLAIMER
 from .plots_tex import escape, figure_body_tex
@@ -162,7 +163,7 @@ def _paragraphs(text: str) -> str:
 # so "at least" means something, using the page geometry this module's own
 # preamble sets.
 #: A4 (210mm) less the 22mm margins in :data:`PREAMBLE`, in TeX points.
-TEXT_WIDTH_PT = (210.0 - 2 * 22.0) * 72.27 / 25.4
+TEXT_WIDTH_PT = (210.0 - 2 * 22.0) * 72.27 / IN_TO_MM
 #: LaTeX's default half-gutter, applied twice per column.
 TABCOLSEP_PT = 6.0
 #: Average glyph width, by table font size, measured generously enough to cover

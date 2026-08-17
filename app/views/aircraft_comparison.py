@@ -27,7 +27,7 @@ import plotly.express as px
 import streamlit as st
 
 from sloads import FleetPoint, Project, Subject, cg_cases, fleet_stats, registry
-from sloads.constants import IN2_PER_FT2
+from sloads.constants import IN2_PER_FT2, IN_PER_FT
 from sloads.modules.wing_geometry import surface_properties
 
 # The reference fleet (nominal published specs; never a FAR input). This page owns
@@ -164,7 +164,7 @@ def _subject_from_project(project: Project) -> Optional[Subject]:
     # Subject.span back-derives it from sqrt(AR * area).
     wingspan_ft: Optional[float] = None
     if surf.get("span"):
-        wingspan_ft = float(surf["span"]) / 12.0
+        wingspan_ft = float(surf["span"]) / IN_PER_FT
 
     seats = 0
     if speeds and speeds.occupants:

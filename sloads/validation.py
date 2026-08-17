@@ -61,7 +61,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Dict, List, Optional
 
 from . import cg_cases, mass_distribution
-from .constants import ULTIMATE_FACTOR
+from .constants import IN2_PER_FT2, ULTIMATE_FACTOR
 from .models import (
     GROUND_CASE_ROLE_ORDER,
     AnalysisKind,
@@ -119,7 +119,7 @@ def _wing_geometry_area_sqft(project: Project) -> Optional[float]:
     except (ValueError, ZeroDivisionError):
         return None
     total_in2 = next((v.value for v in r.values if v.key == "total_area"), None)
-    return total_in2 / 144.0 if total_in2 is not None else None
+    return total_in2 / IN2_PER_FT2 if total_in2 is not None else None
 
 
 def _check_taper(project: Project) -> List[ConsistencyWarning]:

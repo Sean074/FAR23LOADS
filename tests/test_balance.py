@@ -44,7 +44,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import pytest  # noqa: E402
 
 from sloads import io  # noqa: E402
-from sloads.constants import LBIN2_PER_SLUGFT2, POLAR_TRUSTED_ALPHA_DEG  # noqa: E402
+from sloads.constants import DEG_PER_RAD, LBIN2_PER_SLUGFT2, POLAR_TRUSTED_ALPHA_DEG  # noqa: E402
 from sloads.derived_geometry import body_drag_waterline  # noqa: E402
 from sloads.gear_loads import gear_case_loads  # noqa: E402
 from sloads import mass_distribution as md  # noqa: E402
@@ -875,13 +875,14 @@ def test_no_wing_items_and_no_panel_still_weighs_the_case():
 #: 15 deg every case of both fixtures is negative, which
 #: :func:`test_the_non_wing_drag_is_a_consistent_parasite_offset` asserts
 #: separately -- that is the gate with the physics in it, and it is what a
-#: sign-flip regression at ordinary ``alpha`` would trip.
+#: sign-flip regression at ordinary ``alpha`` would trip. (Two lower edges widened
+#: by 0.0001 on 2026-08-17 when q went to the exact ``V^2/295.237``, issue #26.)
 _DELTA_CD_BAND = {
     'ga6_normal.project.json': (-0.0208, -0.0164),
     'cessna_210.project.json': (-0.0903, -0.0038),
     'atr42_100.project.json': (-0.1372, +0.0230),
-    'dhc8_dash8.project.json': (-0.1042, +0.0272),
-    'concept_heavy.project.json': (-0.1383, +0.0398),
+    'dhc8_dash8.project.json': (-0.1043, +0.0272),
+    'concept_heavy.project.json': (-0.1385, +0.0398),
     'concept_regional_jet.project.json': (-0.0348, +0.0689),
 }
 
@@ -1585,9 +1586,9 @@ def test_the_yaw_dof_reproduces_onengout(example):
 
     Run against the module's **own time history** rather than a re-derived
     formula, so the comparison is with what ONENGOUT actually computes at each
-    step, at that step's own moment. ``_DEG`` is ONENGOUT's 57.3 rather than
-    ``math.degrees``' 57.29578 -- the identity under test is the physics
-    ``M/(12*Izz)``, not the manual's rounding of a radian.
+    step, at that step's own moment. Both sides read the one deg/rad owner
+    (``constants.DEG_PER_RAD``; ONENGOUT's 57.3 was retired 2026-08-17) -- the
+    identity under test is the physics ``M/(12*Izz)``, not a radian's rounding.
     """
     inputs, history = _oeo_history(_project(example))
     # ONENGOUT is a single-DOF yaw model with no products of inertia, so the
@@ -1601,7 +1602,7 @@ def test_the_yaw_dof_reproduces_onengout(example):
         if not row.moment:
             continue
         omega_dot = tensor.solve((0.0, 0.0, row.moment))
-        got = radians_per_s2(omega_dot)[2] * one_engine_out._DEG
+        got = radians_per_s2(omega_dot)[2] * DEG_PER_RAD
         assert got == pytest.approx(row.theta_2dot, rel=1e-12), (
             f"{example} t={row.time}: closure {got} vs ONENGOUT {row.theta_2dot}")
         checked += 1
@@ -2004,13 +2005,15 @@ def test_the_symmetric_half_of_a_lateral_case_still_closes(example):
 #: What SELECT gives the 23.427(a) case, per fixture: ``(RH, LH, total)`` in lb
 #: and the ``pc`` split percent. **Read from SELECT, never recomputed here** --
 #: pinned so a change in the oracle-locked search shows up as a change in the
-#: assembled deliverable rather than passing through it unremarked.
+#: assembled deliverable rather than passing through it unremarked. (Re-pinned
+#: 2026-08-17, issue #26: SELECT's 57.3 / 32.2 / 295 went to the exact owners in
+#: ``constants``; <= 0.08 % per value, register line in 02_approved_corrections.)
 _UNSYMMETRICAL_SPLIT = {
-    'ga6_normal.project.json': (-700.380105, -504.273676, 72.0),
-    'cessna_210.project.json': (1079.882939, 777.515716, 72.0),
-    'atr42_100.project.json': (4076.495953, 3261.196762, 80.0),
-    'dhc8_dash8.project.json': (4410.649619, 3528.519695, 80.0),
-    'concept_regional_jet.project.json': (5801.623765, 4641.299012, 80.0),
+    'ga6_normal.project.json': (-700.423713, -504.305073, 72.0),
+    'cessna_210.project.json': (1080.046756, 777.633664, 72.0),
+    'atr42_100.project.json': (4074.311937, 3259.449549, 80.0),
+    'dhc8_dash8.project.json': (4408.121810, 3526.497448, 80.0),
+    'concept_regional_jet.project.json': (5801.857830, 4641.486264, 80.0),
 }
 
 

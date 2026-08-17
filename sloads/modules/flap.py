@@ -42,7 +42,15 @@ import math
 from typing import List, NamedTuple
 
 from ..case_ids import WING_BAND_FLAP, CaseIdAllocator
-from ..constants import KT_TO_FPS_SUITE, RHO_SL, ULTIMATE_FACTOR
+from ..constants import (
+    FT_LB_S_PER_HP,
+    IN2_PER_FT2,
+    IN_PER_FT,
+    KT_TO_FPS,
+    RHO_SL,
+    ULTIMATE_FACTOR,
+    dynamic_pressure_psf,
+)
 from ..models import (
     CaseRef,
     ConditionResult,
@@ -58,7 +66,6 @@ from .structural_speeds import _wing_area_sqft, design_speed_values
 
 MODULE_NAME = "flap"
 
-_SQIN_PER_SQFT = 144.0
 
 
 class FlapResult(NamedTuple):
@@ -81,14 +88,14 @@ class FlapResult(NamedTuple):
 def _slipstream_velocity(vf_kt: float, maxhp: float, pdia_in: float):
     """Fully-developed slipstream velocity ``U1`` (ft/s) absorbing 0.85*MAXHP, and
     the disk velocity ``U`` (FLAPLOAD.BAS sub 500, momentum theory)."""
-    pdia_ft = pdia_in / 12.0
+    pdia_ft = pdia_in / IN_PER_FT
     area = math.pi * pdia_ft ** 2 / 4.0
-    vf_fps = vf_kt * KT_TO_FPS_SUITE
+    vf_fps = vf_kt * KT_TO_FPS
     u1 = 0.0
     # Iterate U1 upward (the BASIC steps by 0.5) until the absorbed power reaches
     # 0.85*MAXHP: HP = area*rho*(U1-Vf)*(U1+Vf)^2 / (4*550).
     while True:
-        hp_try = area * RHO_SL * (u1 - vf_fps) * (u1 + vf_fps) ** 2 / (4.0 * 550.0)
+        hp_try = area * RHO_SL * (u1 - vf_fps) * (u1 + vf_fps) ** 2 / (4.0 * FT_LB_S_PER_HP)
         if hp_try >= 0.85 * maxhp:
             break
         u1 += 0.5
@@ -115,9 +122,9 @@ def flap_loads(vs: float, vsf: float, vf: float, weight: float, ng: float,  # no
     delta_rad = math.radians(delta_deg)
 
     # Dynamic pressures and wing CLs for the four flaps-extended conditions.
-    q1 = vsf ** 2 / 295.0                       # 1G stall
-    q2 = (math.sqrt(2.0) * vsf) ** 2 / 295.0    # 2G stall
-    qvf = vf ** 2 / 295.0                        # at VF
+    q1 = dynamic_pressure_psf(vsf)                    # 1G stall
+    q2 = dynamic_pressure_psf(math.sqrt(2.0) * vsf)   # 2G stall
+    qvf = dynamic_pressure_psf(vf)                    # at VF
     clw = [
         1.0 * weight / (q1 * sw),
         2.0 * weight / (q2 * sw),
@@ -128,7 +135,7 @@ def flap_loads(vs: float, vsf: float, vf: float, weight: float, ng: float,  # no
     clf = [d1 * delta_rad + d2 * c for c in clw]
     lf = [cl * q * sf for cl, q in zip(clf, qs)]
     critical = max(lf)
-    le_psi = critical / 0.75 / sf / _SQIN_PER_SQFT
+    le_psi = critical / 0.75 / sf / IN2_PER_FT2
 
     # Slipstream (FAR 23.457(b)).
     slip_factor = slip_v_kt = bl_in = bl_out = 0.0
@@ -136,14 +143,14 @@ def flap_loads(vs: float, vsf: float, vf: float, weight: float, ng: float,  # no
         u1, u, aprop = _slipstream_velocity(vf, maxhp, pdia_in)
         a1 = aprop * u / u1 if u1 > 0 else 0.0   # contracted slipstream area at flap
         atot = a1 + af_sqft
-        rtot_in = ((4.0 * atot / math.pi) ** 0.5 / 2.0) * 12.0
+        rtot_in = ((4.0 * atot / math.pi) ** 0.5 / 2.0) * IN_PER_FT
         bl_in = blprop - rtot_in
         bl_out = blprop + rtot_in
-        slip_v_kt = u1 / KT_TO_FPS_SUITE
+        slip_v_kt = u1 / KT_TO_FPS
         slip_factor = slip_v_kt ** 2 / vf ** 2
 
     # Head-on 25 fps gust (FAR 23.345(c)(1)).
-    vf_fps = vf * KT_TO_FPS_SUITE
+    vf_fps = vf * KT_TO_FPS
     gust_factor = ((vf_fps + 25.0) / vf_fps) ** 2
     combined = gust_factor * critical
 
@@ -199,7 +206,7 @@ def build_flap(project: Project) -> List[ControlSurfaceLoadResult]:
     sv = design_speed_values(project, sp)
     load = max(r.critical_lf_lb, r.combined_gust_lb)
     case = "flap gust-combined" if r.combined_gust_lb >= r.critical_lf_lb else "flap 23.345(a)"
-    le = load / 0.75 / inp.flap_area_one_side_sqft / _SQIN_PER_SQFT
+    le = load / 0.75 / inp.flap_area_one_side_sqft / IN2_PER_FT2
     stations = [
         ControlSurfaceStation(x=0.0, psi=le),
         ControlSurfaceStation(x=1.0, psi=le / 2.0),

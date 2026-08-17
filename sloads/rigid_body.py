@@ -54,7 +54,7 @@ import math
 from dataclasses import dataclass
 from typing import Iterable, Sequence, Tuple
 
-from .constants import G
+from .constants import IN_PER_FT, G
 
 Vec3 = Tuple[float, float, float]
 
@@ -65,7 +65,7 @@ Vec3 = Tuple[float, float, float]
 #: same value, so a tensor and its slug-ft^2 report stay consistent); and
 #: ``units`` imports ``models``, so importing it here would close a cycle the
 #: moment a result type carries a tensor. The two differ by 1.5e-6 relative.
-G_IN_S2 = G * 12.0
+G_IN_S2 = G * IN_PER_FT
 
 __all__ = [
     "InertiaTensor",

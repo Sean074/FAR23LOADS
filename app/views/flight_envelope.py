@@ -42,6 +42,7 @@ from sloads import (
 )
 from sloads.case_ids import case_label
 from sloads.cg_cases import flight_cases
+from sloads.constants import IN_PER_FT
 from sloads.derived_geometry import wing_reference
 from sloads.models import MissingInputError
 from sloads.modules.configuration import run as configuration_run
@@ -229,7 +230,7 @@ def _tab_vn() -> None:
         sv = None
     if sv is not None:
         slope = aero.cruise.lift[1] if aero.cruise is not None else None
-        mac_ft = (project.flight_loads.mac / 12.0) if project.flight_loads.mac else None
+        mac_ft = (project.flight_loads.mac / IN_PER_FT) if project.flight_loads.mac else None
         gust = resolve_gust_inputs(sv.ws, selected_alt, slope, mac_ft) if not overlay_all_alt else None
         envelope = build_vn_diagram(
             vs=sv.vs, va=sv.va, vc=sv.vc, vd=sv.vd,
@@ -494,7 +495,7 @@ def _tab_trim() -> None:
     xcgs = [c.xcg for c in cg_cases]
     lo_default, hi_default = min(xcgs), max(xcgs)
     if hi_default - lo_default < 1e-6:  # a single distinct station -> widen by +-5% MAC
-        pad = 0.05 * (fl.mac or 1.0) * 12.0
+        pad = 0.05 * (fl.mac or 1.0) * IN_PER_FT
         lo_default, hi_default = lo_default - pad, hi_default + pad
 
     _, _, c3 = st.columns(3)

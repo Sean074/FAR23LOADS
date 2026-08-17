@@ -44,6 +44,7 @@ import math
 from dataclasses import dataclass
 from typing import List, Optional, Tuple
 
+from .constants import DEG_PER_RAD, IN2_PER_FT2
 from .models import FuselageOutline
 
 # Munk apparent-mass factor (k2 - k1) versus body fineness ratio l/d, for a
@@ -65,7 +66,6 @@ _K_TABLE: Tuple[Tuple[float, float], ...] = (
     (18.0, 0.985),
 )
 
-_DEG = 180.0 / math.pi  # radians -> degrees
 
 
 def munk_k2_minus_k1(fineness_ratio: float) -> float:
@@ -143,10 +143,10 @@ def estimate(
     fineness = length / d_max
     k = munk_k2_minus_k1(fineness)
     vol = fuselage_volume_in3(outline)
-    s_in2 = wing_area_sqft * 144.0
+    s_in2 = wing_area_sqft * IN2_PER_FT2
 
     dcm_dalpha_per_rad = k * vol / (s_in2 * mac_in)
-    dcm_dalpha_per_deg = dcm_dalpha_per_rad / _DEG
+    dcm_dalpha_per_deg = dcm_dalpha_per_rad / DEG_PER_RAD
     return FuselageMomentEstimate(
         d_cm_dalpha=dcm_dalpha_per_deg,
         volume_in3=vol,

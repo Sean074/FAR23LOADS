@@ -59,7 +59,18 @@ from typing import List, Optional
 from ..aero_curves import clmax_curve as _clmax_curve
 from ..aero_curves import drag_cd, lift_cl, moment_cm
 from ..cg_cases import flight_cases
-from ..constants import RHO_SL, standard_atmosphere
+from ..constants import (
+    DEG_PER_RAD,
+    GUST_LOAD_FACTOR_DIVISOR,
+    IN_PER_FT,
+    RAD_PER_DEG,
+    RHO_SL,
+    G,
+    dynamic_pressure_psf,
+    eas_from_dynamic_pressure,
+    gust_alleviation_factor,
+    standard_atmosphere,
+)
 from ..derived_geometry import sync_geometry_derived
 from ..models import (
     AeroCoeffSet,
@@ -79,27 +90,23 @@ from .structural_speeds import design_speeds, maneuver_load_factors
 
 # 23.345 = high-lift devices (the flaps-down envelope, n<=2 at sea level).
 _FAR = "23.333/23.337/23.341/23.345/23.421"
-_DEG = 57.2957795  # FLTLOADS.BAS uses 57.3; kept as a named factor for clarity
-_RAD = math.pi / 180.0
 
 
 # --------------------------------------------------------------------------- #
 # Atmosphere & compressibility (FLTLOADS.BAS subroutine 3900)
 # --------------------------------------------------------------------------- #
-# FLTLOADS uses its own speed-of-sound constant (518.688 vs the shared
-# standard_atmosphere's 518.4); the ~0.03% difference matters near the Mach cap,
-# so the program's exact form is replicated here for oracle fidelity. The density
-# ratio law is the shared one, so sigma is *read* from ``constants`` rather than
-# duplicated (M4-23): one authority for sigma, and this module keeps only the
-# speed of sound that is genuinely its own.
+# Both the density ratio (M4-23) and the speed of sound are *read* from the one
+# shared atmosphere in ``constants``. FLTLOADS.BAS carried its own speed-of-sound
+# constants (518.688 deg R at sea level, 575 kt above the tropopause, vs the shared
+# law's 518.4 / 574.94): +0.03 % in ``a``, measured 2026-08-17 to move no printed
+# oracle (only the SELECT regression pins and the frozen digest), so per the
+# exact-by-default policy the private atmosphere was retired (review C-7).
 def density_ratio(alt_ft: float) -> float:
     return standard_atmosphere(alt_ft)[1]
 
 
 def _speed_of_sound(alt_ft: float) -> float:
-    if alt_ft > 35332.0:
-        return 575.0
-    return 29.02436 * math.sqrt(518.688 - 0.003566 * alt_ft)
+    return standard_atmosphere(alt_ft)[0]
 
 
 # The coefficient polynomials and the CLmax-vs-Mach fit live in
@@ -139,17 +146,17 @@ def _balance(n: float, v_init: float, mach_cap: float, config: AeroCoeffSet,
     sig = density_ratio(altitude_ft)
     a_sound = _speed_of_sound(altitude_ft)
 
-    q = v_init ** 2 / 295.0
+    q = dynamic_pressure_psf(v_init)
     last: Optional[_Balanced] = None
     for _ in range(200):  # outer: dynamic-pressure iteration (stall line)
-        v = math.sqrt(295.0 * q)
+        v = eas_from_dynamic_pressure(q)
         vt = v / math.sqrt(sig)
         mh = vt / a_sound
         if mh > mach_cap:
             mh = mach_cap
         vt = mh * a_sound
         v = vt * math.sqrt(sig)
-        q = v ** 2 / 295.0
+        q = dynamic_pressure_psf(v)
         g = 1.0 / math.sqrt(1.0 - mh ** 2)
         stall_cl = config.stall_cl * _clmax_curve(mh) / kmn
         neg_stall_cl = config.neg_stall_cl * _clmax_curve(mh) / kmn
@@ -164,8 +171,8 @@ def _balance(n: float, v_init: float, mach_cap: float, config: AeroCoeffSet,
             ll = cl * q * s
             d = cd * q * s
             mm = cm * q * s * mac
-            lz = ll * math.cos(al * _RAD) + d * math.sin(al * _RAD)
-            dx = d * math.cos(al * _RAD) - ll * math.sin(al * _RAD)
+            lz = ll * math.cos(al * RAD_PER_DEG) + d * math.sin(al * RAD_PER_DEG)
+            dx = d * math.cos(al * RAD_PER_DEG) - ll * math.sin(al * RAD_PER_DEG)
             lt = (lz * (cg.xcg - fl.xw) - dx * (cg.zcg - fl.zw) + mm) / (xt - cg.xcg)
             nz = (lz + lt) / cg.weight_lb
             if n - 0.005 <= nz <= n + 0.005:
@@ -225,9 +232,9 @@ def _gust_load_factor(ng: int, v: float, mach_cap: float, ref: str, config: Aero
     c1 = config.lift[1] * g / gmn          # lift-curve slope per deg, Glauert-corrected
     rho = RHO_SL * sig
     ws = cg.weight_lb / fl.wing_area_sqft
-    ug = 2.0 * ws / (rho * fl.mac / 12.0 * c1 * _DEG * 32.2)
-    kg = 0.88 * ug / (5.3 + ug)
-    return 1.0 + ng * kg * ude * v * c1 * _DEG / (498.0 * ws)
+    ug = 2.0 * ws / (rho * fl.mac / IN_PER_FT * c1 * DEG_PER_RAD * G)
+    kg = gust_alleviation_factor(ug)
+    return 1.0 + ng * kg * ude * v * c1 * DEG_PER_RAD / (GUST_LOAD_FACTOR_DIVISOR * ws)
 
 
 # --------------------------------------------------------------------------- #
@@ -278,7 +285,7 @@ def _config_points(config: AeroCoeffSet, cg: CgCase, fl: FlightLoadsInput,
 
     def stall_v(n: float, clmax: float) -> float:
         # FLTLOADS.BAS: V = 0.9*sqrt(N*W*295/(CLmax*S)); N and CLmax share a sign.
-        return 0.9 * math.sqrt(n * w * 295.0 / (clmax * s))
+        return 0.9 * eas_from_dynamic_pressure(n * w / (clmax * s))
 
     def add(cond: str, n: float, v: float, cap: float) -> _Balanced:
         nonlocal case
@@ -341,7 +348,7 @@ def _flap_config_points(config: AeroCoeffSet, cg: CgCase, fl: FlightLoadsInput,
     pts: List[VnPoint] = []
 
     def stall_v(n: float) -> float:
-        return 0.9 * math.sqrt(n * w * 295.0 / (scl * s))
+        return 0.9 * eas_from_dynamic_pressure(n * w / (scl * s))
 
     def add(cond: str, n: float, v: float, cap: float) -> _Balanced:
         nonlocal case

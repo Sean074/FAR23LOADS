@@ -1,5 +1,13 @@
 # Constants and conversion factors — ownership review (2026-08-17)
 
+> **Closed 2026-08-17 as issue #26** (tier M). Every disposition below shipped as
+> written, with two measured refinements: (C-5) the divisor is *derived*
+> (`1/(½ρ₀·KT_TO_FPS²)` = 295.237) rather than chosen, and every site reads
+> `constants.dynamic_pressure_psf`; (C-6/C-7) FLAPLOAD's kt→ft/s and FLTLOADS'
+> 518.688 °R were measured to pin no printed oracle and went exact — the one
+> `*_SUITE` survivor is `KT_TO_FPS_SUITE` for `VSF` (ENGLOADS `/101.2`). Register
+> entry in `02_approved_corrections.md`; rule + guards in `CONVENTIONS.md` §7.
+
 **Charge (user, 2026-08-17, raised while closing backlog Pri 5):** several
 analysis modules define their own gravity, degrees-per-radian and in²/ft²
 factors, sometimes at a different value from `constants.py` (`_G = 32.2` beside

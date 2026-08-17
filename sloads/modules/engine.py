@@ -12,17 +12,18 @@ RPM and stoppage torque.
 from __future__ import annotations
 
 import itertools
+import math
 from typing import List, Optional, Tuple
 
 from ..case_ids import CaseIdAllocator
 from ..constants import (
     GYRO_VERTICAL_LOAD_FACTOR,
     HP_TO_TORQUE,
+    IN_PER_FT,
     PITCH_RATE,
     RPM_TO_RAD_S,
     TURBOPROP_MALFUNCTION_FACTOR,
     TURBOPROP_TORQUE_FACTOR,
-    TWO_PI,
     VSF,
     YAW_RATE,
     G,
@@ -83,7 +84,7 @@ def _required(value: Optional[float], name: str) -> float:
 
 def torque_from_hp(hp: float, rpm: float) -> float:
     """Engine torque (ft-lb) from horsepower and RPM: HP*33000/(2*pi*RPM)."""
-    return hp * HP_TO_TORQUE / (TWO_PI * rpm)
+    return hp * HP_TO_TORQUE / (2.0 * math.pi * rpm)
 
 
 def takeoff_torque(inp: EngineInput) -> float:
@@ -120,7 +121,7 @@ def _prop_inertia(inp: EngineInput) -> float:
     if inp.prop_inertia is not None:
         return inp.prop_inertia
     blade_weight = inp.prop_weight_lb - (inp.hub_weight_lb or 0.0)
-    radius_ft = inp.prop_diameter_in / 2 / 12
+    radius_ft = inp.prop_diameter_in / 2 / IN_PER_FT
     val = blade_weight / G * radius_ft ** 2 / 3
     return int(val * 1000) / 1000  # BASIC truncated to 3 decimals
 
@@ -133,7 +134,7 @@ def _rotor_inertia(rotor: Rotor) -> float:
     """
     if rotor.inertia is not None:
         return rotor.inertia
-    radius_ft = rotor.diameter_in / 2 / 12
+    radius_ft = rotor.diameter_in / 2 / IN_PER_FT
     return 0.5 * rotor.weight_lb / G * radius_ft ** 2
 
 

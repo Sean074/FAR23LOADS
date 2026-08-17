@@ -33,7 +33,7 @@ from __future__ import annotations
 import math
 from typing import Dict, List, Optional, Tuple
 
-from ..constants import IN2_PER_FT2
+from ..constants import IN2_PER_FT2, IN_PER_FT
 from ..models import (
     ConditionResult,
     EmpennageInput,
@@ -79,7 +79,7 @@ def wing_planform(layout: LayoutInput) -> Tuple[float, float, float, float]:
         raise ValueError("configuration wing needs positive area and aspect ratio")
     area_in2 = layout.wing_area_sqft * IN2_PER_FT2
     taper = layout.taper_ratio
-    span_in = math.sqrt(layout.aspect_ratio * layout.wing_area_sqft) * 12.0
+    span_in = math.sqrt(layout.aspect_ratio * layout.wing_area_sqft) * IN_PER_FT
     c_root = 2.0 * area_in2 / (span_in * (1.0 + taper))
     c_tip = taper * c_root
     return span_in, c_root, c_tip, span_in / 2.0

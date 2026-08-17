@@ -49,6 +49,7 @@ from __future__ import annotations
 
 from typing import List, Optional
 
+from ..constants import IN2_PER_FT2
 from ..models import (
     ConditionResult,
     CriticalCondition,
@@ -65,7 +66,6 @@ from .select import default_critical
 
 MODULE_NAME = "taildist"
 
-_SQIN_PER_SQFT = 144.0
 
 
 def chordwise_pressures(lt25: float, lt50: float, area_sqin: float,
@@ -122,15 +122,15 @@ def surface_geom(project: Project, cond: CriticalCondition) -> Optional[tuple]:
         ti = project.tail_loads
         if ti is None or ti.htail_semispan_in <= 0 or ti.htail_area_sqft <= 0:
             return None
-        return (ti.htail_area_sqft * _SQIN_PER_SQFT,
-                ti.elevator_aft_hinge_sqft * _SQIN_PER_SQFT,
+        return (ti.htail_area_sqft * IN2_PER_FT2,
+                ti.elevator_aft_hinge_sqft * IN2_PER_FT2,
                 2.0 * ti.htail_semispan_in)
     if cond.component == "vtail":
         vt = project.vtail_loads
         if vt is None or vt.vtail_span_in <= 0 or vt.vtail_area_sqft <= 0:
             return None
-        return (vt.vtail_area_sqft * _SQIN_PER_SQFT,
-                vt.rudder_aft_hinge_sqft * _SQIN_PER_SQFT,
+        return (vt.vtail_area_sqft * IN2_PER_FT2,
+                vt.rudder_aft_hinge_sqft * IN2_PER_FT2,
                 vt.vtail_span_in)
     return None
 

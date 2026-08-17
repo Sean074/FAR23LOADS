@@ -204,7 +204,7 @@ from typing import Dict, List, Optional, Sequence, Tuple
 
 from ..case_ids import handed_case_id
 from ..cg_cases import flight_cases, ground_cases, landing_role_cases
-from ..constants import POLAR_TRUSTED_ALPHA_DEG
+from ..constants import POLAR_TRUSTED_ALPHA_DEG, dynamic_pressure_psf
 from ..derived_geometry import body_drag_waterline, sync_geometry_derived
 from ..export.coordinates import (
     reflect_force,
@@ -759,7 +759,7 @@ def body_axial_set(loads: Sequence[BalancedLoad], project: Project,
 
     # The wind-axis drag increment, for the G10 consistency diagnostic.
     a = radians(vn.alpha_deg)
-    q_psf = vn.v_eas_kt ** 2 / 295.0
+    q_psf = dynamic_pressure_psf(vn.v_eas_kt)
     qs = q_psf * fl.wing_area_sqft
     delta_cd = ((-total) * cos(a)
                 + (wing_fz - vn.lzw) * sin(a)) / qs if qs else 0.0

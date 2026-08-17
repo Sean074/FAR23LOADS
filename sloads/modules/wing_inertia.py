@@ -37,6 +37,7 @@ from typing import Dict, List, NamedTuple, Optional
 
 from ..case_ids import COMPONENT_PREFIX, WING_BAND_EXTRA, WING_SLOTS, wing_case_id
 from ..cg_cases import flight_cases
+from ..constants import DEG_PER_RAD, IN2_PER_FT2
 from ..derived_geometry import sync_geometry_derived
 from ..models import (
     CaseRef,
@@ -56,8 +57,6 @@ from ..models import (
 from ..registry import register
 from .select import default_critical, default_envelope
 from .wing_geometry import interp_x
-
-_DEG = 57.3  # WINGINER.BAS rad<->deg factor
 
 
 @dataclass
@@ -137,14 +136,14 @@ def inertia_units(geom: SurfaceInput, wm: WingMassInput) -> _InertiaUnits:
     c25x = [interp_x(geom.leading_edge, y) + 0.25 * cc for y, cc in zip(ye, c)]
     c50x = [interp_x(geom.leading_edge, y) + 0.50 * cc for y, cc in zip(ye, c)]
     dA = [cc * dy for cc in c]
-    z = [wm.wrp_waterline + math.tan(wm.dihedral_deg / _DEG) * y for y in ye]
+    z = [wm.wrp_waterline + math.tan(wm.dihedral_deg / DEG_PER_RAD) * y for y in ye]
 
     ii = next((i for i, y in enumerate(ye) if y >= wm.inboard_rib_y), 0)
     w, densr = _root_density(dA, ye, c, dy, ytip, wm, ii)
 
     u = _InertiaUnits(ye=ye, c25x=c25x, c50x=c50x, z=z, w=w,
-                      density_root=int(144 * densr * 1000) / 1000,
-                      density_tip=int(144 * wm.tip_root_density_ratio * densr * 1000) / 1000)
+                      density_root=int(IN2_PER_FT2 * densr * 1000) / 1000,
+                      density_tip=int(IN2_PER_FT2 * wm.tip_root_density_ratio * densr * 1000) / 1000)
 
     iwxx = 2.0 * (math.fsum(w[i] * ye[i] ** 2 for i in range(h))
                   + math.fsum(cw.weight_lb * cw.y ** 2 for cw in wm.concentrated)) or 1.0

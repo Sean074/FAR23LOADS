@@ -49,7 +49,7 @@ import math
 from dataclasses import dataclass, field
 from typing import List
 
-from ..constants import PI
+from ..constants import DEG_PER_RAD, IN2_PER_FT2, dynamic_pressure_psf
 from ..models import (
     AeroSurfaceInput,
     ConditionResult,
@@ -63,8 +63,6 @@ from ..models import (
 )
 from ..registry import register
 from .wing_geometry import interp_x
-
-_DEG = 57.3  # AIRLOADS.BAS uses 57.3 for the rad<->deg factor; kept for fidelity
 
 _FAR = "23.301"  # airload distribution basis (Schrenk)
 
@@ -212,8 +210,8 @@ def schrenk_distribution(geom: SurfaceInput, aero: AeroSurfaceInput) -> Spanwise
     mo_wing = sum_mocdy / area_side                  # Mo = SUM(mo*c*dy)/(S/2)
     awo = sum_mocac / sum_mocdy if sum_mocdy else 0.0
     aspect_ratio = (2 * ytip) ** 2 / (2 * area_side) if geom.symmetric else (ytip - yroot) ** 2 / area_side
-    mo_rad = mo * 180.0 / PI                          # section slope per radian
-    m_wing = mo / (1 + mo_rad / (PI * aspect_ratio) * (1 + aero.tau if aero.tau is not None
+    mo_rad = mo * DEG_PER_RAD                          # section slope per radian
+    m_wing = mo / (1 + mo_rad / (math.pi * aspect_ratio) * (1 + aero.tau if aero.tau is not None
                                                        else 1 + _tau(aero.taper_ratio, aero.tip_ratio)))
 
     mac = sum_c2dy / area_side if area_side else 0.0   # MAC = SUM(c^2*dy)/SUM(c*dy)
@@ -226,7 +224,7 @@ def schrenk_distribution(geom: SurfaceInput, aero: AeroSurfaceInput) -> Spanwise
     )
 
     # Second pass: additive (CL=1), basic (twist), and the combined span load.
-    ell = 4 * area_total / (PI * span)               # 4S/(pi*B), elliptic peak chord
+    ell = 4 * area_total / (math.pi * span)               # 4S/(pi*B), elliptic peak chord
     sum_ccl_add = sum_ccl_tot = 0.0
     for ye, c, ac in zip(ye_list, chord, ac_list):
         ccl_add = 0.5 * (mo * c / mo_wing + ell * math.sqrt(1 - (2 * ye / span) ** 2))
@@ -297,7 +295,7 @@ def _sweep_operating(ccl_op: List[float], ye: List[float], span: float, mac: flo
     FLTLOADS' Glauert factor, so the high-Mach trigger adds no further shape change
     here. The Pope term vanishes at the tip and at Λ=0.
     """
-    cos_lam = math.cos(sweep_deg / 180.0 * PI)
+    cos_lam = math.cos(math.radians(sweep_deg))
     col19 = [cc - (1.0 - 2.0 * y / span) * 2.0 * (1.0 - cos_lam) * mac * cl_op
              for cc, y in zip(ccl_op, ye)]
     recovered = math.fsum(c19 * dy for c19 in col19) / area_side if area_side else 0.0
@@ -337,8 +335,8 @@ def air_load_distribution(geom: SurfaceInput, aero: AeroSurfaceInput, cl: float,
     mo = aero.section_slope
     alpha = cl / t.m_wing                       # ALPHA = CL/(MM/57.3), deg
     an = alpha - t.awo                           # ANRW2WL, deg
-    q = v_eas_kt ** 2 / 295.0
-    cos_an, sin_an = math.cos(an / _DEG), math.sin(an / _DEG)
+    q = dynamic_pressure_psf(v_eas_kt)
+    cos_an, sin_an = math.cos(an / DEG_PER_RAD), math.sin(an / DEG_PER_RAD)
 
     # Operating section cl per strip (unswept additive/basic scaled to this case CL).
     # On the AIRLOAD4 swept branch, redistribute + renormalize the combined operating
@@ -363,17 +361,17 @@ def air_load_distribution(geom: SurfaceInput, aero: AeroSurfaceInput, cl: float,
         kcl = kcl_list[j]                                      # operating section cl (swept if AIRLOAD4)
         refang = _twist_angle(aero.twist, ye)                  # WL to section zero-lift
         ai = (alpha - t.awo + refang) - kcl / mo              # induced angle of attack
-        cid = kcl * ai / _DEG                                  # induced drag coefficient
+        cid = kcl * ai / DEG_PER_RAD                                  # induced drag coefficient
         cd = _interp_yv(aero.profile_drag, ye) + cid           # + section profile drag
         cm = _interp_yv(aero.section_cm, ye)
-        lift = kcl * c * dy * q / 144.0
-        drag = cd * c * dy * q / 144.0
-        moment = cm * c * c * dy * q / 144.0
+        lift = kcl * c * dy * q / IN2_PER_FT2
+        drag = cd * c * dy * q / IN2_PER_FT2
+        moment = cm * c * c * dy * q / IN2_PER_FT2
         lz.append(lift * cos_an + drag * sin_an)
         dx.append(drag * cos_an - lift * sin_an)
         ml.append(moment)
         cx25.append(interp_x(geom.leading_edge, ye) + 0.25 * c)
-        zc.append(wrp_waterline + math.tan(dihedral_deg / _DEG) * ye)
+        zc.append(wrp_waterline + math.tan(dihedral_deg / DEG_PER_RAD) * ye)
 
     # Integrate tip->root: cumulative shears, bending moments and torsion.
     sz = [0.0] * h

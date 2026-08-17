@@ -32,6 +32,8 @@
     "/0x[0-9a-fA-F]+/"
   ],
   "words": [
+    "NMI",
+    "VNDIAG",
     "assignees",
     "assignee",
     "milestone",

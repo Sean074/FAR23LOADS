@@ -35,7 +35,7 @@ from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 from .. import cg_cases
 from ..case_ids import ASSEMBLED_DECK, COMPONENT_DECK, NO_LOAD_ID
-from ..constants import ULTIMATE_FACTOR
+from ..constants import IN_PER_FT, ULTIMATE_FACTOR
 from ..models import SCHEMA_VERSION, Project, VdBasis
 from ..units import (
     HUMAN_SI,
@@ -879,7 +879,7 @@ def _vn_figure(project: Project) -> Tuple[Figure, Optional[Table]]:
 
     wing = wing_reference(project)
     if wing is not None and wing.mac:
-        mac_ft = wing.mac / 12.0
+        mac_ft = wing.mac / IN_PER_FT
     altitude = 0.0
     if project.flight_loads is not None and project.flight_loads.altitudes_ft:
         altitude = project.flight_loads.altitudes_ft[0]

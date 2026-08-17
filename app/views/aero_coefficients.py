@@ -97,7 +97,7 @@ with st.form("aero_coefficients_form"):
     st.subheader("Maximum lift coefficients (CLmax)")
     st.caption(
         "The single source for stall: **VS/VSF are derived from these** "
-        "(VS = √(295·(W/S)/CLmax)) and drive the design speeds VA/VF on the "
+        "(VS = √(2·(W/S)/(ρ₀·CLmax))) and drive the design speeds VA/VF on the "
         "Structural Speeds page. FLTLOADS also caps its balancing solution with them. "
         "Flaps-down CLmax is used even without a flaps-down coefficient set below."
     )

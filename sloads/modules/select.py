@@ -57,7 +57,15 @@ from typing import Dict, List, NamedTuple, Optional, Tuple
 
 from ..case_ids import WING_BAND_EXTRA, WING_SLOTS, CaseIdAllocator, wing_case_id
 from ..cg_cases import flight_cases, max_takeoff_weight
-from ..constants import RHO_SL
+from ..constants import (
+    DEG_PER_RAD,
+    GUST_LOAD_FACTOR_DIVISOR,
+    IN_PER_FT,
+    RHO_SL,
+    G,
+    dynamic_pressure_psf,
+    gust_alleviation_factor,
+)
 from ..derived_geometry import sync_geometry_derived
 from ..models import (
     CaseRef,
@@ -79,8 +87,6 @@ from ._vtail import large_deflection_factor, rudder_effectiveness, vtail_lift_sl
 from .flight_envelope import build_envelope, density_ratio, design_inputs
 
 MODULE_NAME = "select"
-_DEG = 57.3  # SELECT.BAS / BALLOADS use 57.3 deg/rad
-_G = 32.2
 
 # V-n condition labels grouped by the wing search they belong to (SELECT.BAS
 # 2990-3340). "GUST D" covers the program's positive-D gust label.
@@ -324,13 +330,13 @@ def htail_balance(p: VnPoint, cg: CgCase, xw: float, zw: float,
     the CG and gives the camber load ``LT50``; ``LT = LT25 + LT50``. ``cp`` is the
     load centre of pressure in percent tail MAC.
     """
-    e_down = 114.6 * p.cl / (math.pi * ti.aspect_ratio_wing)
+    e_down = 2.0 * DEG_PER_RAD * p.cl / (math.pi * ti.aspect_ratio_wing)  # 114.6*CL/(pi*AR)
     at = p.alpha_deg + ti.tail_incidence_deg - e_down
     aht = 2.0 * math.pi / (1.0 + 2.0 / ti.aspect_ratio_htail)
-    q = p.v_eas_kt ** 2 / 295.0
+    q = dynamic_pressure_psf(p.v_eas_kt)
     st = ti.htail_area_sqft
-    lt25 = (at * aht / _DEG) * q * st
-    lt50_per_delta = (ti.elevator_effectiveness * aht / _DEG) * q * st
+    lt25 = (at * aht / DEG_PER_RAD) * q * st
+    lt50_per_delta = (ti.elevator_effectiveness * aht / DEG_PER_RAD) * q * st
     delta = ((p.m_wf - p.dx * (cg.zcg - zw) + p.lzw * (cg.xcg - xw)
               - lt25 * (ti.xt25 - cg.xcg)) / (lt50_per_delta * (ti.xt50 - cg.xcg)))
     lt50 = lt50_per_delta * delta
@@ -471,8 +477,8 @@ def select_htail_maneuver(project: Project,
         ):
             def total(p: VnPoint, edefl=edefl, sign=sign):
                 b = bal(p)
-                lt50 = sign * edefl * ti.elevator_effectiveness * _ef(edefl, se2st) * aht / _DEG \
-                    * p.v_eas_kt ** 2 / 295.0 * ti.htail_area_sqft
+                lt50 = sign * edefl * ti.elevator_effectiveness * _ef(edefl, se2st) * aht / DEG_PER_RAD \
+                    * dynamic_pressure_psf(p.v_eas_kt) * ti.htail_area_sqft
                 return b.lt25 + lt50, b, lt50
             p = (min if want_min else max)(bal_a, key=lambda p: total(p)[0])
             tot, b, lt50 = total(p)
@@ -487,13 +493,14 @@ def select_htail_maneuver(project: Project,
 
     # Checked: pitch-acceleration increment T = Iyy*theta_ddot/(arm) at VC/VD.
     def iyy(p: VnPoint) -> float:
-        return cg_map[p.cg].weight_lb * (ti.airplane_length_in / 12.0) ** 2 / _G / 12.0 * 0.44
+        # Slender rod I = m*L^2/12 (the 12 is geometric, not in/ft), x0.44.
+        return cg_map[p.cg].weight_lb * (ti.airplane_length_in / IN_PER_FT) ** 2 / G / 12.0 * 0.44
 
     def theta_ddot(p: VnPoint) -> float:
         return 39.0 * np_ * (np_ - 1.5) / p.v_eas_kt
 
     def increment(p: VnPoint) -> float:
-        return iyy(p) * theta_ddot(p) / ((ti.xt50 - cg_map[p.cg].xcg) / 12.0)
+        return iyy(p) * theta_ddot(p) / ((ti.xt50 - cg_map[p.cg].xcg) / IN_PER_FT)
 
     bal_cd = [p for p in vn if p.condition in ("BAL C", "BAL D") and in_cg(p)]
     man_cd = [p for p in vn if p.condition in ("MAN C", "MAN D") and in_cg(p)]
@@ -526,7 +533,7 @@ def select_htail_gust(project: Project,
     cg_map: Dict[str, CgCase] = {c.name: c for c in flight_cases(project)}
     aht = 2.0 * math.pi / (1.0 + 2.0 / ti.aspect_ratio_htail)
     aw, arw = ti.wing_lift_slope_per_rad, ti.aspect_ratio_wing
-    mac_ft = fl.mac / 12.0
+    mac_ft = fl.mac / IN_PER_FT
     vn = _resolve_envelope(project, envelope).vn
 
     def gust_increment(p: VnPoint) -> float:
@@ -535,9 +542,10 @@ def select_htail_gust(project: Project,
         if p.altitude_ft > 20000.0:
             ude *= 1.0 - 0.5 * (p.altitude_ft - 20000.0) / 30000.0
         rho = density_ratio(p.altitude_ft) * RHO_SL
-        ug = 2.0 * (w / fl.wing_area_sqft) / (rho * mac_ft * aw * _G)
-        kg = 0.88 * ug / (5.3 + ug)
-        return kg * ude * p.v_eas_kt * ti.htail_area_sqft * aht * (1.0 - 36.0 * (aw / _DEG) / arw) / 498.0
+        ug = 2.0 * (w / fl.wing_area_sqft) / (rho * mac_ft * aw * G)
+        kg = gust_alleviation_factor(ug)
+        return (kg * ude * p.v_eas_kt * ti.htail_area_sqft * aht
+                * (1.0 - 36.0 * (aw / DEG_PER_RAD) / arw) / GUST_LOAD_FACTOR_DIVISOR)
 
     bal_cd = [p for p in vn if p.condition in ("BAL C", "BAL D")
               and p.cg in cg_map and not p.config.upper().startswith("LAND")]
@@ -570,9 +578,10 @@ def select_htail_gust(project: Project,
     # sea-level density (FLTLOADS.BAS 5700-5910).
     def flap_gust_increment(p: VnPoint) -> float:
         w = cg_map[p.cg].weight_lb
-        ug = 2.0 * (w / fl.wing_area_sqft) / (RHO_SL * mac_ft * aw * _G)
-        kg = 0.88 * ug / (5.3 + ug)
-        return kg * 25.0 * p.v_eas_kt * ti.htail_area_sqft * aht * (1.0 - 36.0 * (aw / _DEG) / arw) / 498.0
+        ug = 2.0 * (w / fl.wing_area_sqft) / (RHO_SL * mac_ft * aw * G)
+        kg = gust_alleviation_factor(ug)
+        return (kg * 25.0 * p.v_eas_kt * ti.htail_area_sqft * aht
+                * (1.0 - 36.0 * (aw / DEG_PER_RAD) / arw) / GUST_LOAD_FACTOR_DIVISOR)
 
     bal_vf = [p for p in vn if p.condition == "BAL VF" and p.cg in cg_map]
     if bal_vf:
@@ -683,19 +692,20 @@ def _default_izz(vt: VTailLoadsInput, gw: float) -> float:
     """Default airplane yaw inertia IZZ (slug-ft^2): wing mass on the span and the
     rest of the empty weight on the length (SELECT.BAS 8884)."""
     w_wing = 0.09 * gw
-    return (w_wing / _G) * (vt.wing_span_in / 12.0) ** 2 / 12.0 \
-        + ((0.62 * gw - w_wing) / _G) * (vt.airplane_length_in / 12.0) ** 2 / 12.0
+    # Two slender rods, I = m*L^2/12 each (the 12 is geometric, not in/ft).
+    return ((w_wing / G) * (vt.wing_span_in / IN_PER_FT) ** 2 / 12.0
+            + ((0.62 * gw - w_wing) / G) * (vt.airplane_length_in / IN_PER_FT) ** 2 / 12.0)
 
 
 def _vt_rudder_load(p: VnPoint, vt: VTailLoadsInput) -> float:
     """Side load from full rudder deflection (camber, cp 50% chord)."""
     return (vt.rudder_deflection_deg * vt.rudder_large_deflection_factor * _effectv(vt)
-            * _avt(vt) / _DEG * p.v_eas_kt ** 2 / 295.0 * vt.vtail_area_sqft)
+            * _avt(vt) / DEG_PER_RAD * dynamic_pressure_psf(p.v_eas_kt) * vt.vtail_area_sqft)
 
 
 def _vt_aoa_load(yaw_deg: float, p: VnPoint, vt: VTailLoadsInput) -> float:
     """Side load from a yaw (angle of attack, cp 25% chord)."""
-    return yaw_deg * _avt(vt) / _DEG * p.v_eas_kt ** 2 / 295.0 * vt.vtail_area_sqft
+    return yaw_deg * _avt(vt) / DEG_PER_RAD * dynamic_pressure_psf(p.v_eas_kt) * vt.vtail_area_sqft
 
 
 def rudder_load_parts(lrud: float, lyaw: float,
@@ -717,13 +727,13 @@ def rudder_load_parts(lrud: float, lyaw: float,
 def _vt_side_gust(p: VnPoint, cg: CgCase, vt: VTailLoadsInput, izz: float) -> float:
     """Lateral gust side load at VC (FAR 23.443(b), SELECT.BAS 8840-8930)."""
     av = _avt(vt)
-    k = math.sqrt(izz / (cg.weight_lb / _G))            # radius of gyration
+    k = math.sqrt(izz / (cg.weight_lb / G))            # radius of gyration
     rho = density_ratio(p.altitude_ft) * RHO_SL
-    lxvt = (vt.xv25 - cg.xcg) / 12.0                     # tail arm, ft
+    lxvt = (vt.xv25 - cg.xcg) / IN_PER_FT                     # tail arm, ft
     ude = 50.0 if p.altitude_ft <= 20000.0 else 50.0 - (25.0 / 30000.0) * (p.altitude_ft - 20000.0)
-    ugt = 2.0 * cg.weight_lb / (rho * (vt.vtail_mac_in / 12.0) * _G * av * vt.vtail_area_sqft * (k / lxvt) ** 2)
-    kgt = 0.88 * ugt / (5.3 + ugt)
-    return kgt * ude * p.v_eas_kt * av * vt.vtail_area_sqft / 498.0
+    ugt = 2.0 * cg.weight_lb / (rho * (vt.vtail_mac_in / IN_PER_FT) * G * av * vt.vtail_area_sqft * (k / lxvt) ** 2)
+    kgt = gust_alleviation_factor(ugt)
+    return kgt * ude * p.v_eas_kt * av * vt.vtail_area_sqft / GUST_LOAD_FACTOR_DIVISOR
 
 
 def select_vtail(project: Project, envelope: Optional[EnvelopeResult] = None) -> List[CriticalCondition]:

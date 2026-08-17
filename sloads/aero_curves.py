@@ -45,9 +45,8 @@ import math
 from dataclasses import dataclass, field
 from typing import List, Optional, Sequence, Tuple
 
+from .constants import RAD_PER_DEG, dynamic_pressure_psf
 from .models import AeroCoeffSet, EnvelopeResult, VnPoint
-
-_RAD = math.pi / 180.0
 
 # Default plotted angle-of-attack band (deg). Widened automatically by
 # :func:`build_aero_curves` when an operating point or the stall alpha falls
@@ -146,8 +145,9 @@ def stall_limits(config: AeroCoeffSet, g_corr: float,
 # Recovery from a balanced V-n point (the dimensional outputs alone)
 # --------------------------------------------------------------------------- #
 def dynamic_pressure(v_eas_kt: float) -> float:
-    """``Q = V^2/295`` (psf) for equivalent airspeed in knots (FLTLOADS units)."""
-    return v_eas_kt ** 2 / 295.0
+    """Dynamic pressure (psf) of an equivalent airspeed in knots -- the owner is
+    :func:`sloads.constants.dynamic_pressure_psf` (``V^2/295`` in FLTLOADS)."""
+    return dynamic_pressure_psf(v_eas_kt)
 
 
 def recovered_coefficients(point: VnPoint, wing_area_sqft: float,
@@ -162,7 +162,7 @@ def recovered_coefficients(point: VnPoint, wing_area_sqft: float,
     q = dynamic_pressure(point.v_eas_kt)
     if q <= 0.0 or wing_area_sqft <= 0.0 or mac_in <= 0.0:
         raise ValueError("cannot recover coefficients from a degenerate point")
-    a = point.alpha_deg * _RAD
+    a = point.alpha_deg * RAD_PER_DEG
     lift = point.lzw * math.cos(a) - point.dx * math.sin(a)
     drag = point.lzw * math.sin(a) + point.dx * math.cos(a)
     return (lift / (q * wing_area_sqft), drag / (q * wing_area_sqft),
@@ -174,7 +174,7 @@ def recovered_cl(point: VnPoint, wing_area_sqft: float) -> float:
     q = dynamic_pressure(point.v_eas_kt)
     if q <= 0.0 or wing_area_sqft <= 0.0:
         raise ValueError("cannot recover CL from a degenerate point")
-    a = point.alpha_deg * _RAD
+    a = point.alpha_deg * RAD_PER_DEG
     return (point.lzw * math.cos(a) - point.dx * math.sin(a)) / (q * wing_area_sqft)
 
 

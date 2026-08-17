@@ -62,6 +62,7 @@ from __future__ import annotations
 import copy
 from typing import Any, Callable, Dict, List
 
+from .constants import IN2_PER_FT2
 from .models import SCHEMA_VERSION
 
 #: Keys that make a dict a *project* rather than a bare engine file. Derived from
@@ -147,7 +148,7 @@ def _v24_units(d: Dict[str, Any]) -> Dict[str, Any]:
     if isinstance(tabs, dict):
         for tab in tabs.get("tabs") or []:
             if isinstance(tab, dict):
-                _rename_scaled(tab, {"area_sqin": ("area_sqft", 1.0 / 144.0)})
+                _rename_scaled(tab, {"area_sqin": ("area_sqft", 1.0 / IN2_PER_FT2)})
     return d
 
 

@@ -387,19 +387,21 @@ def test_speed_ratio_route_reproduces_todays_numbers_on_every_example():
 
     Values read off the pre-F25-2 build (commit 5c7809b) and frozen here to full
     precision, so this is a real before/after comparison rather than a restatement
-    of what the code now does. VD/VC/VA/VF together cover every branch of the
+    of what the code now does. (VA/VF re-pinned 2026-08-17 when the dynamic
+    pressure went from ``V^2/295`` to the exact ``V^2/295.237`` -- issue #26,
+    register line in ``02_approved_corrections.md``; VD/VC do not depend on q.) VD/VC/VA/VF together cover every branch of the
     speed resolution -- including cessna_210, where the K_d*VCmin term governs
     (214.53) rather than the 1.25*VC floor (208.75).
     """
     import glob
 
     frozen = {                       # name: (vd, vc, va, vf)
-        "atr42_100": (300.0, 240.0, 167.689469, 161.071890),
-        "cessna_210": (214.529286, 167.0, 125.750359, 104.412313),
-        "concept_heavy": (312.5, 250.0, 189.262399, 147.026469),
-        "concept_regional_jet": (387.5, 310.0, 187.0, 169.581441),
-        "dhc8_dash8": (306.25, 245.0, 145.541218, 140.476021),
-        "ga6_normal": (212.5, 170.0, 121.303759, 105.501985),
+        "atr42_100": (300.0, 240.0, 167.756878, 161.136638),
+        "cessna_210": (214.529286, 167.0, 125.800909, 104.454285),
+        "concept_heavy": (312.5, 250.0, 189.338480, 147.085572),
+        "concept_regional_jet": (387.5, 310.0, 187.071106, 169.649611),
+        "dhc8_dash8": (306.25, 245.0, 145.599724, 140.532490),
+        "ga6_normal": (212.5, 170.0, 121.352521, 105.544396),
     }
     seen = set()
     for path in sorted(glob.glob(os.path.join(os.path.dirname(_RJ), "*.project.json"))):

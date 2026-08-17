@@ -64,6 +64,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import List, Optional, Tuple
 
+from .constants import IN2_PER_FT2
 from .derived_geometry import FuselageCentreline, fuselage_centreline, fuselage_height_at
 from .models import LayoutInput, Project, SurfaceInput, TailType
 
@@ -78,7 +79,6 @@ TAIL_COMPONENTS = (HTAIL, VTAIL)
 #: defect, and every downstream number would be quietly wrong by that much.
 PLANFORM_TOLERANCE = 0.01
 
-_SQIN_PER_SQFT = 144.0
 
 
 @dataclass
@@ -184,7 +184,7 @@ def validate_tail_planform(surf: SurfaceInput, component: str,
     if area_sqft <= 0 or span_in <= 0:
         return
     poly_area, poly_span = _polyline_area_and_span(surf)
-    want_area = area_sqft * _SQIN_PER_SQFT
+    want_area = area_sqft * IN2_PER_FT2
     got_area = 2.0 * poly_area if component == HTAIL else poly_area
     for what, got, want in (("area", got_area, want_area),
                             ("span", poly_span, span_in)):
@@ -360,7 +360,7 @@ def resolve_tail_planform(project: Project,
     if scalars is None:
         return None
     area_sqft, span_in, x25 = scalars
-    area_in2 = area_sqft * _SQIN_PER_SQFT
+    area_in2 = area_sqft * IN2_PER_FT2
     geometry = project.geometry
     surf = geometry.by_name(component) if geometry is not None else None
     # The fin root is a property of the *surface's placement*, not of how its

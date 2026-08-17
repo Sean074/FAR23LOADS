@@ -29,12 +29,15 @@ import math
 from dataclasses import dataclass, field
 from typing import List, Optional, Tuple
 
-from .constants import RHO_SL, standard_atmosphere
+from .constants import (
+    DEG_PER_RAD,
+    GUST_LOAD_FACTOR_DIVISOR,
+    RHO_SL,
+    G,
+    gust_alleviation_factor,
+    standard_atmosphere,
+)
 
-# Classic gust-formula constants (FLTLOADS gust subroutine): degrees-per-radian to
-# turn a per-degree lift-curve slope into per-radian, sea-level density, and g.
-_DEG_PER_RAD = 57.2957795
-_G = 32.2                 # ft/s^2
 _DEFAULT_LIFT_SLOPE_PER_DEG = 0.1   # textbook wing CL_alpha when no aero slice
 
 _STALL_SAMPLES = 40       # points sampled along each curved stall boundary
@@ -91,14 +94,14 @@ def gust_load_factor(v_keas: float, ref: str, gust: GustInputs, sign: float = 1.
     """
     _a_sound, sigma = standard_atmosphere(gust.altitude_ft)
     rho = RHO_SL * sigma
-    a_rad = gust.lift_slope_per_deg * _DEG_PER_RAD
+    a_rad = gust.lift_slope_per_deg * DEG_PER_RAD
     if gust.mac_ft > 0.0 and a_rad > 0.0:
-        mu = 2.0 * gust.ws / (rho * gust.mac_ft * a_rad * _G)
-        kg = 0.88 * mu / (5.3 + mu)
+        mu = 2.0 * gust.ws / (rho * gust.mac_ft * a_rad * G)
+        kg = gust_alleviation_factor(mu)
     else:
         kg = 1.0
     ude = _gust_ude(ref, gust.altitude_ft)
-    return 1.0 + sign * kg * ude * v_keas * a_rad / (498.0 * gust.ws)
+    return 1.0 + sign * kg * ude * v_keas * a_rad / (GUST_LOAD_FACTOR_DIVISOR * gust.ws)
 
 
 def _stall_curve(vs: float, v_end: float, n_sign: float,
