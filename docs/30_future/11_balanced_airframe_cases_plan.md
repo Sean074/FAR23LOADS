@@ -48,9 +48,9 @@ Residual inertia may be used, but the change in inertia load should be small.*
 
 Conventions: [`../10_standard/CONVENTIONS.md`](../10_standard/CONVENTIONS.md).
 Related, and deliberately not duplicated here:
-[`07_export_equilibrium_invariant_plan.md`](07_export_equilibrium_invariant_plan.md)
+[`07_export_equilibrium_invariant_plan.md`](../40_history/15_export_equilibrium_invariant_plan.md)
 (per-deck resultant check; §9 there is the item this plan supersedes),
-[`10_sbeam_roundtrip_ci_harness_plan.md`](10_sbeam_roundtrip_ci_harness_plan.md)
+[`10_sbeam_roundtrip_ci_harness_plan.md`](../40_history/17_sbeam_roundtrip_ci_harness_plan.md)
 (the solver gate this rides on),
 [`09_distributed_empennage_loads_plan.md`](09_distributed_empennage_loads_plan.md)
 (decision T-11's double-count question, answered here in §4).
@@ -250,7 +250,7 @@ are all recovered by the solver, never re-applied.
 | ~~**B5**~~ ✅ | Assembled deck export (**primary deliverable, B-5**) + left/right GID bands + determinate support; solves in sbeam with reactions ≈ 0 (rides on plan 10's harness, which gains an assembled-deck leg here). | L | M (~1) |
 | ~~**B6**~~ ✅ | Streamlit view: the balanced case list with its residual and `Δn` columns — the number an engineer needs to trust the case. | M | S–M (~0.5) |
 | ~~**B7**~~ ✅ | Antisymmetric wing cases: the roll DOF, the applied aileron couple, **the B-6 reflection operator in `export/coordinates.py` and the B-7 handed-pair minting** — the machinery every later ± family reuses. **SHIPPED 2026-08-08**; see §10 for what the measurement changed. **Phase 2.** | L | M–L (~1.5) |
-| **B8a** | Empennage cases (needs plan 09 T1–T4): ±β yaw pairs per B-6, lateral closure per B-8. **Its design note is written** — [`13_b8a_lateral_closure_plan.md`](13_b8a_lateral_closure_plan.md), 2026-08-08: the lateral balance stated, the `n_y`/`ψ̈` baseline measured, decisions **L-1…L-8** open, and a **replacement gate set** (plan 11 §6's "residual < 1 % before closure" is unpassable laterally — the pre-closure residual *is* the applied fin load, the same standing as §10's roll finding). **Phase 3.** | L | M–L |
+| **B8a** | Empennage cases (needs plan 09 T1–T4): ±β yaw pairs per B-6, lateral closure per B-8. **Its design note is written** — [`13_b8a_lateral_closure_plan.md`](../40_history/18_b8a_lateral_closure_plan.md), 2026-08-08: the lateral balance stated, the `n_y`/`ψ̈` baseline measured, decisions **L-1…L-8** open, and a **replacement gate set** (plan 11 §6's "residual < 1 % before closure" is unpassable laterally — the pre-closure residual *is* the applied fin load, the same standing as §10's roll finding). **Phase 3.** | L | M–L |
 | **B8b** | Landing/ground cases (needs M4-6: gear reactions as applied loads — the gear items are already in `weight.items` at x = 97 and x = 1). **Phase 4.** | L | M |
 | **B9** | Tier-L closure trail: `CONVENTIONS.md` (§4 rule + the balanced-case concept), `PROGRAM_SPEC.md`, `theory_sources.md` (the closure gate as oracle substitute), `PROJECT_GUIDE.md`, `DATA_DICTIONARY.md` regen, CHANGELOG, history. | S | S (~0.5) |
 

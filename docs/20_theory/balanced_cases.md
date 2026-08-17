@@ -14,8 +14,8 @@ and the ground/landing families of FAR 23.471–23.499.
   [`PROGRAM_SPEC.md`](../10_standard/PROGRAM_SPEC.md) "Balanced cases and the
   assembled deck". Decision records: plans
   [11](../30_future/11_balanced_airframe_cases_plan.md) (B-1…B-8) and
-  [13](../30_future/13_b8a_lateral_closure_plan.md) (L-1…L-8) and
-  [18](../30_future/18_step10_ground_cases_plan.md) (G-1…G-13, the ground
+  [13](../40_history/18_b8a_lateral_closure_plan.md) (L-1…L-8) and
+  [18](../40_history/23_step10_ground_cases_plan.md) (G-1…G-13, the ground
   families, §9), and decision
   **D-R8** in [`03_resolved_decisions.md`](../40_history/03_resolved_decisions.md)
   (the 23.427(a) family, §8).
@@ -145,7 +145,7 @@ it is part of the record:
      `root_waterline_z` is the *wing* root. Absent an entered
      `body_drag_waterline_z` it is the wing reference plane, marked `assumed`,
      which is where the trim itself assumes the whole airplane's drag acts. Design
-     note [`20_body_drag_carrier_note.md`](../30_future/20_body_drag_carrier_note.md)
+     note [`20_body_drag_carrier_note.md`](../40_history/24_body_drag_carrier_note.md)
      §8.1; the `ΔC_D` diagnostic is reported per case because carrying the load
      makes the applied axial resultant equal the trim's `dx` by construction.
 
@@ -526,7 +526,7 @@ exact.
 ## 9. The ground families — FAR 23.471–23.499
 
 **Decisions G-1, G-6, G-7 (+G-7a), G-8** of plan
-[18](../30_future/18_step10_ground_cases_plan.md). The fourth family, and the
+[18](../40_history/23_step10_ground_cases_plan.md). The fourth family, and the
 one that breaks the shape of every section above: it has **no V-n point**. The
 LANDLOAD conditions — level and tail-down landing, one-wheel landing, braked
 roll, side load — are assembled here rather than in a per-component view because

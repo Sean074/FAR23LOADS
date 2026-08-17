@@ -1,6 +1,6 @@
 """The round-trip gate: exported decks solved in the **real** sbeam.
 
-Design note: ``docs/30_future/10_sbeam_roundtrip_ci_harness_plan.md``
+Design note: ``docs/40_history/17_sbeam_roundtrip_ci_harness_plan.md``
 (decisions S-1...S-9, assertions §4). Machinery:
 :mod:`sloads.export.roundtrip`. Sibling gate, card-text only:
 ``tests/test_export_equilibrium.py``.

@@ -3,7 +3,7 @@
 The authoritative specification for the **consolidated loads summary report**
 (Step G8, Export phase): what the document is, what it **shall** contain, what it
 **shall not** contain, and how its content is marked. The implementation plan is
-[`../30_future/05_step_g8_summary_report_plan.md`](../30_future/05_step_g8_summary_report_plan.md);
+[`../40_history/13_step_g8_summary_report_plan.md`](../40_history/13_step_g8_summary_report_plan.md);
 this file is the standard the implementation is judged against and is the one to
 update when the report's content rules change.
 
@@ -472,7 +472,7 @@ Three readings this standard left open, resolved while building against it:
 
 ## 7. Related documents
 
-- [`../30_future/05_step_g8_summary_report_plan.md`](../30_future/05_step_g8_summary_report_plan.md) — the implementation plan for this standard.
+- [`../40_history/13_step_g8_summary_report_plan.md`](../40_history/13_step_g8_summary_report_plan.md) — the implementation plan for this standard.
 - [`../../CLAUDE.md`](../../CLAUDE.md) — the ultimate-load output rules this standard applies.
 - [`PROGRAM_SPEC.md`](PROGRAM_SPEC.md) — per-module inputs/outputs and FAR conditions feeding §4.4 and §4.5.
 - [`../20_theory/00_theory_sources.md`](../20_theory/00_theory_sources.md) — oracle status wording quoted by §4.6.

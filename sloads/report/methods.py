@@ -26,7 +26,7 @@ string, omitted when ``None`` -- the GUI passes one, the tests do not. Two runs
 of the same project must produce byte-identical output, or the ``.tex`` diff
 between two revisions becomes unreadable and the tests turn flaky.
 
-Pure: no I/O, no Streamlit. See ``docs/30_future/05_step_g8_summary_report_plan.md``
+Pure: no I/O, no Streamlit. See ``docs/40_history/13_step_g8_summary_report_plan.md``
 §5 for the content specification this implements.
 """
 

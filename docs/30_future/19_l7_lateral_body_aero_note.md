@@ -5,7 +5,7 @@
 **Status: PROPOSED, not agreed — no code written.** Written to `CLAUDE.md`
 required practice 1 (design note before code, physics/L step). Backlog item
 **Pri 8** ([`00_backlog.md`](00_backlog.md)), from plan 13 decision **L-7**
-([`13_b8a_lateral_closure_plan.md`](13_b8a_lateral_closure_plan.md) §5.6).
+([`13_b8a_lateral_closure_plan.md`](../40_history/18_b8a_lateral_closure_plan.md) §5.6).
 
 **Revision 2, 2026-08-15.** Revision 1 proposed a Munk-only couple with a
 reduction factor and no side force. Sourcing Digital DATCOM

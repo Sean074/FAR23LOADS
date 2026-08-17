@@ -1,7 +1,7 @@
 """The gear free body and the assembled ground cases -- step 10 piece 3.
 
 Decisions **G-2**, **G-6**, **G-7/G-7a**, **G-8**, **G-12/G-12a** and **G-13** of
-``docs/30_future/18_step10_ground_cases_plan.md``.
+``docs/40_history/23_step10_ground_cases_plan.md``.
 
 **This file holds the step's benchmark-first gate**, and it is worth saying what
 makes it one. There is no printed oracle for an assembled ground case -- Appendix

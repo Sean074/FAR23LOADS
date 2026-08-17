@@ -31,7 +31,7 @@ Authorities cited throughout:
 ULT/SF contract — unaffected here, no load quantity is redefined),
 [`../10_standard/PROGRAM_SPEC.md`](../10_standard/PROGRAM_SPEC.md) (STRSPEED /
 MACHLIM sections), [`../20_theory/00_theory_sources.md`](../20_theory/00_theory_sources.md)
-(equation citations), [`../20_theory/01_far25_gap_analysis.md`](01_far25_gap_analysis.md)
+(equation citations), [`../20_theory/01_far25_gap_analysis.md`](../20_theory/01_far25_gap_analysis.md)
 §1.3 row 2 (the gap this closes), and the verified regulation extract
 [`../../reference/14CFR_MC_MD_speed_margin.md`](../../reference/14CFR_MC_MD_speed_margin.md)
 (captured 2026-07-20).

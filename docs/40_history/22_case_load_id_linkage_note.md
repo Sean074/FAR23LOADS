@@ -111,7 +111,7 @@ the report digest once.
 
 Shipped alone; **backlog row 1 stays open** and should be taken next ("a wing case row can name a flight
 condition its loads were not computed at",
-[`00_backlog.md`](00_backlog.md)). Both change the same case-index rows, so the
+[`00_backlog.md`](../30_future/00_backlog.md)). Both change the same case-index rows, so the
 second one pays a second digest regeneration (this one already spent its own). Row 1's open decision — whether the row's CG / speed
 / altitude / FAR come from SELECT's `CaseRef` or from the case's own `cl` /
 `v_eas_kt` — is orthogonal to this note and still unresolved.

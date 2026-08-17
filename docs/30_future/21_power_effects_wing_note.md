@@ -154,7 +154,7 @@ and the tail immersion. The invariant that ties lumped to distributed:
 - Slipstream **swirl** asymmetry across the nacelle — no DATCOM method; would
   need a swirl model. Recorded as an option, off.
 - Nacelle aerodynamic lift/drag in the slipstream — belongs to the body-drag
-  carrier seam ([`20_body_drag_carrier_note.md`](20_body_drag_carrier_note.md)).
+  carrier seam ([`20_body_drag_carrier_note.md`](../40_history/24_body_drag_carrier_note.md)).
 - Power effect on `CL_max`/stall and on the flapped-wing `Cm0` beyond DATCOM's
   terms; compressibility on the propeller (`CNα_p` is low-speed).
 - Engine-out (agreed out of scope).
@@ -595,7 +595,7 @@ resolve to a derivable weight-database loading (step C1's rule: no invented
 inertia set). Only the GA-6 (nose-mounted single, out of scope) and the
 regional jet have balanced decks. **Checked 2026-08-15 against HEAD
 (`4acbb48`):** decision **D-25 is closed** — the schema shipped (`CgCase.loading`,
-v50, note [`22_d25_cgcase_loading_note.md`](22_d25_cgcase_loading_note.md)) —
+v50, note [`22_d25_cgcase_loading_note.md`](../40_history/25_d25_cgcase_loading_note.md)) —
 but it delivered the *mechanism*, not the twins' data: `atr42_100` (1/3
 derivable) and `dhc8_dash8` (0/3) still assemble no flight case on HEAD. What
 clears the way is the consumer item **backlog Pri 5 — "Payload cases the weight

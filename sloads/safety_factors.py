@@ -1,6 +1,6 @@
 """The **governing safety-factor table** — the one authority for every case's factor.
 
-Decision **G-11** (`docs/30_future/18_step10_ground_cases_plan.md`), the re-shaped
+Decision **G-11** (`docs/40_history/23_step10_ground_cases_plan.md`), the re-shaped
 form of backlog item **M4-8**. Before this module the factor was decided ad hoc:
 ``ConditionResult.safety_factor`` defaulted to ``constants.ULTIMATE_FACTOR`` and
 exactly one producer (:mod:`sloads.modules.one_engine_out`) overrode it, with two

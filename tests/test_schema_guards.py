@@ -212,7 +212,7 @@ def fields_hash() -> str:
 #: run.
 #: body drag carrier (v49): ``LayoutInput.body_drag_waterline_z`` -- the waterline
 #: the airplane's **non-wing** drag is applied at in the assembled model (design
-#: note ``docs/30_future/20_body_drag_carrier_note.md``, decision D-1). Purely
+#: note ``docs/40_history/24_body_drag_carrier_note.md``, decision D-1). Purely
 #: additive with a ``0.0`` default, and ``0.0`` *is* a documented value rather
 #: than a missing one: "derive it", which resolves to the wing reference plane
 #: ``zw``, marked assumed and stated in-band -- the same contract v43 gave

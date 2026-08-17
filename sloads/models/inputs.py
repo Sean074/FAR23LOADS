@@ -730,7 +730,7 @@ class LoadingDefinition:
 
     The loading is **authoritative** (D-25a): the case's ``weight_lb``/``xcg``/
     ``zcg`` become a checked echo of what this produces, not a target the loading
-    is bent to hit. See ``docs/30_future/22_d25_cgcase_loading_note.md``.
+    is bent to hit. See ``docs/40_history/25_d25_cgcase_loading_note.md``.
     """
     aboard: List[str] = field(default_factory=list)
     fractions: Dict[str, float] = field(default_factory=dict)
@@ -1542,7 +1542,7 @@ class LayoutInput:
     # Waterline the airplane's NON-WING drag is applied at in the assembled model
     # (in). **0 -> derive it** (see ``derived_geometry.body_drag_waterline``); the
     # derived value is the wing reference plane ``zw`` and is marked ``assumed``
-    # and stated in-band. Design note ``docs/30_future/20_body_drag_carrier_note.md``
+    # and stated in-band. Design note ``docs/40_history/24_body_drag_carrier_note.md``
     # decision D-1: the height this load acts at is the *only* free parameter in
     # the body-axial carrier, and the suite has no body-centreline datum to derive
     # one from -- ``root_waterline_z`` is the WING root, and using it would put

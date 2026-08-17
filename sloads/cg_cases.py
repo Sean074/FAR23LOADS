@@ -1,7 +1,7 @@
 """The one resolver for weight/CG cases and the two design weights (step 10 piece 2).
 
 Decisions **G-3**, **G-3a**, **G-4** and **G-14** of
-``docs/30_future/18_step10_ground_cases_plan.md`` collapsed three case lists and
+``docs/40_history/23_step10_ground_cases_plan.md`` collapsed three case lists and
 six representations of MTOW into one owner each. This module *is* that owner, and
 required practice 3 is why it is a module rather than a paragraph: a cross-cutting
 convention gets a single-source code owner **plus a drift guard**, never a prose

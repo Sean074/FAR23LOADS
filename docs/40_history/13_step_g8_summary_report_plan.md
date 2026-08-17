@@ -5,7 +5,7 @@
 **Backlog item:** M3-3b / Step G8 — the **second** M4 item, behind **M4-20**
 (unit-system plumbing), which G8.5 onward is blocked on (§10.1). G8.4's
 `content.py` is unit-independent and may start first.
-**Source spec:** [`03_gui_rework_plan.md §4 Phase 6`](03_gui_rework_plan.md) — the
+**Source spec:** [`03_gui_rework_plan.md §4 Phase 6`](../30_future/03_gui_rework_plan.md) — the
 four-section summary report.
 **Document standard:** [`../10_standard/SUMMARY_REPORT.md`](../10_standard/SUMMARY_REPORT.md)
 — the authoritative structure, required content and **excluded** content. Where

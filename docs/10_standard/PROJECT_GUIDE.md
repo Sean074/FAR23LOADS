@@ -568,4 +568,4 @@ the bump is a deliberate act with a recorded result:
 
 A red drift run is a notification that the pin needs a look — never a merge
 block. Design note:
-[`../30_future/10_sbeam_roundtrip_ci_harness_plan.md`](../30_future/10_sbeam_roundtrip_ci_harness_plan.md).
+[`../40_history/17_sbeam_roundtrip_ci_harness_plan.md`](../40_history/17_sbeam_roundtrip_ci_harness_plan.md).

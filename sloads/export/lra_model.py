@@ -2,7 +2,7 @@
 
 Design notes: ``docs/30_future/24_lra_beam_model_review_note.md`` (the agreed
 target, decisions BM-1..BM-5) and
-``docs/30_future/25_lra_model_implementation_note.md`` (the implementation
+``docs/40_history/27_lra_model_implementation_note.md`` (the implementation
 decisions LM-1..LM-7 this module encodes). Conventions:
 ``docs/10_standard/CONVENTIONS.md``.
 

@@ -4,7 +4,7 @@
 
 **Status: agreed and SHIPPED 2026-08-15.** Practice 1 (`CLAUDE.md`) — this note was
 agreed in chat before code. Consumes the D-25 schema
-([`22_d25_cgcase_loading_note.md`](22_d25_cgcase_loading_note.md), v50). Decisions of
+([`22_d25_cgcase_loading_note.md`](25_d25_cgcase_loading_note.md), v50). Decisions of
 record **D-26 / D-26a…c** in
 [`../40_history/03_resolved_decisions.md`](../40_history/03_resolved_decisions.md);
 closure trail in `CHANGELOG.md` and

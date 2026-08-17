@@ -1,6 +1,6 @@
 """Solve an exported deck in the real sbeam -- the round-trip gate's machinery.
 
-Design note: ``docs/30_future/10_sbeam_roundtrip_ci_harness_plan.md`` (decisions
+Design note: ``docs/40_history/17_sbeam_roundtrip_ci_harness_plan.md`` (decisions
 S-1...S-9). Sibling authority, which this module consumes rather than
 reimplements: :mod:`sloads.export.equilibrium`.
 

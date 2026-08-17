@@ -87,7 +87,7 @@ jobs:
 
   # The sbeam round-trip gate: the exported decks are handed to the real solver
   # and its recovered loads are compared with sloads' own (design note
-  # docs/30_future/10_sbeam_roundtrip_ci_harness_plan.md, decisions S-1/S-8).
+  # docs/40_history/17_sbeam_roundtrip_ci_harness_plan.md, decisions S-1/S-8).
   #
   # Its own job, not a fourth leg of the matrix above: that keeps `pip install
   # scipy` off the three existing legs, and names the failure ("sbeam round

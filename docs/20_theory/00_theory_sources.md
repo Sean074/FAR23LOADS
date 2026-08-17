@@ -282,7 +282,7 @@ negative inside the window; the clamped set is pinned both ways with per-case
 residual ceilings. Its waterline is the single owner
 `derived_geometry.body_drag_waterline` — the only free parameter of the load, and
 stated rather than derived because the suite has no body-centreline datum (design
-note `../30_future/20_body_drag_carrier_note.md` §8.1).
+note `../40_history/24_body_drag_carrier_note.md` §8.1).
 
 One term still has no distributed carrier and is stated as lumped rather than
 omitted: the fuselage's share of the airplane-less-tail `Cm` (the Munk moment,
@@ -672,7 +672,7 @@ is solvable at all. `sloads/export/roundtrip.py` parses and solves each deck
 through sbeam's own `parse_bdf` / `run_sol101`, and
 `tests/test_sbeam_roundtrip.py` sweeps `ga6_normal` + `concept_regional_jet` ×
 {Imperial, SI} over four deck families. Design note:
-`docs/30_future/10_sbeam_roundtrip_ci_harness_plan.md`.
+`docs/40_history/17_sbeam_roundtrip_ci_harness_plan.md`.
 
 | Deck | What the solver must reproduce | Independent of the cards? |
 |---|---|---|

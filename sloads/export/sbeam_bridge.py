@@ -81,7 +81,7 @@ machine-zero everywhere on the three without -- so this is a no-op on the
 Appendix A fixture, and the FORCE cards are unchanged for every wing. Before the
 couples existed the exported root bending read high by 1.91 % / 1.11 % / 0.44 %
 (``Mxx``) and 1.14 % / 0.67 % / 0.32 % (``Mzz``). Design note:
-``docs/30_future/14_concentrated_wing_mass_nodal_split_plan.md``.
+``docs/40_history/19_concentrated_wing_mass_nodal_split_plan.md``.
 
 Torsion reference axis
 ----------------------

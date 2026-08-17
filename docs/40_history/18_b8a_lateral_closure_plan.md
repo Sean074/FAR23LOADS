@@ -27,10 +27,10 @@ to the note as first drafted, all from measurement:
 suite), a new closure degree-of-freedom pair, a schema addition, and a change to
 what the residual of a balanced case *means*.
 
-Parent plan: [`11_balanced_airframe_cases_plan.md`](11_balanced_airframe_cases_plan.md)
+Parent plan: [`11_balanced_airframe_cases_plan.md`](../30_future/11_balanced_airframe_cases_plan.md)
 (step **B8a**, decisions B-6/B-7/B-8, and §10's B7 findings, which govern how a
 non-closing degree of freedom is reported). Sibling:
-[`09_distributed_empennage_loads_plan.md`](09_distributed_empennage_loads_plan.md)
+[`09_distributed_empennage_loads_plan.md`](../30_future/09_distributed_empennage_loads_plan.md)
 — its phase-1 scope note says *"v-tail inertia is omitted … revisit with plan 11
 B8a, which is where a lateral load factor first has to exist."* This is that.
 

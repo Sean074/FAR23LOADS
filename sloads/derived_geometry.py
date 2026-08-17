@@ -338,7 +338,7 @@ _BODY_DRAG_ASSUMED = (
 def body_drag_waterline(project: Project) -> BodyDragWaterline:
     """Waterline the ``body-axial`` load acts at (in) -- **the single owner** (D-1).
 
-    Design note: ``docs/30_future/20_body_drag_carrier_note.md`` §8.1.
+    Design note: ``docs/40_history/24_body_drag_carrier_note.md`` §8.1.
 
     **Why this is worth an owner at all.** The magnitude of the body-axial load is
     fixed by definition (``vn.dx - sum(fx of the wing strips)``) and its fuselage

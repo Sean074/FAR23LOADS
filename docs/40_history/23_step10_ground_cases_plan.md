@@ -4,11 +4,11 @@
 
 **Status: COMPLETE — all three pieces shipped (2026-08-14, 2026-08-14,
 2026-08-15).** Kept as the design note of record; the closure trail is in
-[`../40_history/00_completed_development.md`](../40_history/00_completed_development.md). Backlog: [`00_backlog.md`](00_backlog.md) priority 1
+[`../40_history/00_completed_development.md`](../40_history/00_completed_development.md). Backlog: [`00_backlog.md`](../30_future/00_backlog.md) priority 1
 (M4-6, step 10) and priority 2 (plan 11 B8b, step 11). Conventions:
 [`../10_standard/CONVENTIONS.md`](../10_standard/CONVENTIONS.md). Balancing
 physics: [`../20_theory/balanced_cases.md`](../20_theory/balanced_cases.md) and
-[`11_balanced_airframe_cases_plan.md`](11_balanced_airframe_cases_plan.md).
+[`11_balanced_airframe_cases_plan.md`](../30_future/11_balanced_airframe_cases_plan.md).
 
 **Scope note (decision D-24, 2026-08-14):** pressurization is **out of scope**
 for sloads. This step is the ground/landing distributed loads and the gear

@@ -116,7 +116,7 @@ plan; the priority table's open rows are the GitHub issues.
 
 - **Documentation currency rule + guard (tier M, 2026-08-16)** — standard docs point at owners, never copy volatile values (schema number, test count, coverage %, "currently N"); provenance stays `schema vN`. Rule in `00_program_overview.md` §Documentation currency, `CLAUDE.md`, `CODE_REVIEW_PROCESS.md` step 1; guard `tests/test_doc_currency.py` (literal patterns over the standard set + `docs/00_INDEX.md` ↔ tree both ways, the R6-D2 class). Four `SCHEMA_VERSION = N` claims in `GUI_design.md`/`PROGRAM_SPEC.md` swept to provenance/pointers.
 
-- **Doc volume: history archive, changelog fragments, tier S trimmed (backlog R11, tier M, 2026-08-16)** — design note `docs/30_future/26_doc_volume_reduction_note.md`, all three recommendations accepted at user review. (a) This file cut at the 0.5.0 release block; 7,970 pre-0.5.0 lines moved verbatim to `11_completed_development_to_0.5.0.md`. (b) `CHANGELOG.md` `[Unreleased]` is no longer hand-edited: each closure drops one `changes/<slug>.<type>.md` fragment and `scripts/build_changelog.py X.Y.Z` assembles them into the release section at cut time (`tests/test_changelog_fragments.py` guards fragment names/shape and warns when this file passes 1,500 lines). (c) Tier S = fragment + backlog removal, no history entry (`CLAUDE.md` table, `CODE_REVIEW_PROCESS.md` §0). `RELEASE_PROCESS.md` §4 gains the mechanical history-roll step: build changelog, move shipped plan notes to `40_history/`, roll the previous release block into an archive when the live file exceeds the threshold. Legacy hand-written `[Unreleased]` text is folded into 0.6.0 verbatim; fragments start now.
+- **Doc volume: history archive, changelog fragments, tier S trimmed (backlog R11, tier M, 2026-08-16)** — design note `docs/40_history/28_doc_volume_reduction_note.md`, all three recommendations accepted at user review. (a) This file cut at the 0.5.0 release block; 7,970 pre-0.5.0 lines moved verbatim to `11_completed_development_to_0.5.0.md`. (b) `CHANGELOG.md` `[Unreleased]` is no longer hand-edited: each closure drops one `changes/<slug>.<type>.md` fragment and `scripts/build_changelog.py X.Y.Z` assembles them into the release section at cut time (`tests/test_changelog_fragments.py` guards fragment names/shape and warns when this file passes 1,500 lines). (c) Tier S = fragment + backlog removal, no history entry (`CLAUDE.md` table, `CODE_REVIEW_PROCESS.md` §0). `RELEASE_PROCESS.md` §4 gains the mechanical history-roll step: build changelog, move shipped plan notes to `40_history/`, roll the previous release block into an archive when the live file exceeds the threshold. Legacy hand-written `[Unreleased]` text is folded into 0.6.0 verbatim; fragments start now.
 
 - **Doc currency: schema literal in `00_program_overview.md` (tier S, 2026-08-16)** — §Version & phase said "currently **15**" (`SCHEMA_VERSION` = 52) with a stale `models.py` path; now points at the constant in `sloads/models/project.py`, no literal number; `.claude/launch.json` dropped an unrelated `life-app` entry.
 
@@ -133,7 +133,7 @@ at the named nodes (SOB, posts, fin root, h-tail attachments) that neither
 the per-component decks nor the assembled balanced deck can state — plus the
 import half: an external beam model becomes the LRA. Implementation
 decisions LM-1…LM-7 recorded in
-`docs/30_future/25_lra_model_implementation_note.md` (note 24 §7's
+`docs/40_history/27_lra_model_implementation_note.md` (note 24 §7's
 delegated choices, chiefly LM-1: nearest-node transfer with the exact
 lever-arm couple, not tributary interpolation).
 
@@ -398,7 +398,7 @@ is not a loading the database can produce), **D-26a** (`zcg` is a derived echo,
 not an independent corner point), **D-26b** (zone the lumped payload rows,
 preserving the discretionary totals), **D-26c** (`cessna_210` fuel capacity and
 `CG4`). Design note:
-[`../30_future/23_pri5_fixture_loadings_note.md`](../30_future/23_pri5_fixture_loadings_note.md).
+[`../40_history/26_pri5_fixture_loadings_note.md`](../40_history/26_pri5_fixture_loadings_note.md).
 
 **Filed, not fixed.** The five non-oracle fixtures reach a pre-closure force
 residual of **1.2–2.0 % of n·W** against plan 11's 1 % acceptance, and three show a
@@ -482,7 +482,7 @@ checked echo at `max(0.5 lb, 0.1 %)` / `0.5 in`), D-25b (item references +
 `consumable` fractions + an entered ballast row; `weight.items` stays the mass
 SSOT), D-25c (optional, search retained as fallback), D-25d (the credibility gate
 is on solved ballast only). Design note:
-[`../30_future/22_d25_cgcase_loading_note.md`](../30_future/22_d25_cgcase_loading_note.md).
+[`../40_history/25_d25_cgcase_loading_note.md`](../40_history/25_d25_cgcase_loading_note.md).
 **Scope boundary:** populating `cessna_210`, `atr42_100`, `dhc8_dash8` and
 `concept_heavy` — the 2 → 6 fixture CI multiplication — is backlog Pri 7, which
 consumes this schema; wing-tank fuel separability (Pri 8) rides the same wave as
@@ -755,7 +755,7 @@ its two sibling coverage items.
 **Objective.** The last piece of M4-6, and the one that **absorbs step 11 (plan 11
 B8b)**: put the FAR 23 ground conditions into the assembled free-free deck as
 balanced cases, and give the gear a deliverable of its own. Design note:
-[`../30_future/18_step10_ground_cases_plan.md`](../30_future/18_step10_ground_cases_plan.md),
+[`../40_history/23_step10_ground_cases_plan.md`](../40_history/23_step10_ground_cases_plan.md),
 decisions **G-1, G-6, G-7 (+G-7a), G-8, G-9, G-12 (+G-12a), G-13**.
 
 **Deliverables.**

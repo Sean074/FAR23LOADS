@@ -27,7 +27,7 @@ ultimate-load contract holds, `workflow.py` stays the single source of navigatio
 truth.
 
 Related: [`00_backlog.md`](../30_future/00_backlog.md) (the items themselves),
-[`05_step_g8_summary_report_plan.md`](../30_future/05_step_g8_summary_report_plan.md) (G8 in
+[`05_step_g8_summary_report_plan.md`](../40_history/13_step_g8_summary_report_plan.md) (G8 in
 full — this plan only sequences its view work),
 [`../10_standard/GUI_design.md`](../10_standard/GUI_design.md) (page anatomy and
 the unit-boundary pattern M4-11 formalises).
@@ -400,7 +400,7 @@ against the Imperial-only writers would have to be retrofitted, which is exactly
 the trap this whole sequence exists to avoid. **M4-20 should be inserted before
 the G8 remainder.**
 
-Run [`05_step_g8_summary_report_plan.md`](../30_future/05_step_g8_summary_report_plan.md)
+Run [`05_step_g8_summary_report_plan.md`](../40_history/13_step_g8_summary_report_plan.md)
 as written, with two corrections from this analysis:
 
 - **Fix the G8.2 schema number first** (§3 issue 1): 35 → 36.

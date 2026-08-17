@@ -557,7 +557,7 @@ and absent *is* the documented value, "not stated", which the report prints as a
 blank inertia term with its reason rather than as a leg that weighs nothing;
 v49 the body drag carrier `LayoutInput.body_drag_waterline_z`, the waterline the
 airplane's **non-wing** drag is applied at in the assembled model (design note
-`../30_future/20_body_drag_carrier_note.md`, decision D-1). Additive with a `0.0`
+`../40_history/24_body_drag_carrier_note.md`, decision D-1). Additive with a `0.0`
 default meaning "derive it" — the wing reference plane `zw`, marked assumed and
 stated in-band, exactly as v43's `vtail_root_waterline_z` handles the same class
 of question — so no hop, and a pre-v49 project takes the derived value. It exists
@@ -566,7 +566,7 @@ fuselage station reaches no gate), and the obvious geometric candidate,
 `root_waterline_z`, is the **wing** root: deriving from it puts `ga6_normal`'s
 `SIDE GUST` pitch residual over the 1 % gate;
 v50 the explicit loading definition `CgCase.loading` (decision **D-25**, design
-note `../30_future/22_d25_cgcase_loading_note.md`) — which discretionary items a
+note `../40_history/25_d25_cgcase_loading_note.md`) — which discretionary items a
 payload case carries, the fraction of any consumable row that is aboard, and an
 optional entered ballast row. Additive and **optional**, so no hop: absent is the
 documented value, "derive the loading by searching the item database", which is
@@ -578,7 +578,7 @@ read by the wing SOB reporting node and the h-tail attachment. Additive and
 optional, so no hop: absent falls back to half the fuselage width, marked
 assumed;
 v52 the LRA beam model's inputs (step 12, implementation note
-`../30_future/25_lra_model_implementation_note.md`) — `FuselageSection.z_centre`
+`../40_history/27_lra_model_implementation_note.md`) — `FuselageSection.z_centre`
 (the section-centre waterline the fuselage LRA runs through, note 24 R-4),
 `EngineInput.mounted_on` ("fuselage" | "wing", decision BM-4),
 `AileronLoadsInput`/`FlapLoadsInput` butt-line + hinge/actuator fields, and

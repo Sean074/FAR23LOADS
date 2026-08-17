@@ -1,7 +1,7 @@
 """The LRA beam model (step 12) -- skeleton, transfer rule, refusals, import.
 
 Design notes: ``docs/30_future/24_lra_beam_model_review_note.md`` (BM-1..BM-5)
-and ``docs/30_future/25_lra_model_implementation_note.md`` (LM-1..LM-7, the
+and ``docs/40_history/27_lra_model_implementation_note.md`` (LM-1..LM-7, the
 gates this file pins). The solver half of the gates -- reactions, the SOB and
 post internal loads through sbeam -- lives in ``tests/test_sbeam_roundtrip.py``.
 """

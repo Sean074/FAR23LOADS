@@ -48,7 +48,7 @@ a new unit channel member, GUI + CLI surface, and a new CI gate.
 
 Related: [`11_balanced_airframe_cases_plan.md`](11_balanced_airframe_cases_plan.md)
 (shares the mass SSOT; step B1 there is a hard dependency),
-[`10_sbeam_roundtrip_ci_harness_plan.md`](10_sbeam_roundtrip_ci_harness_plan.md)
+[`10_sbeam_roundtrip_ci_harness_plan.md`](../40_history/17_sbeam_roundtrip_ci_harness_plan.md)
 (the solver gate this rides on). Conventions:
 [`../10_standard/CONVENTIONS.md`](../10_standard/CONVENTIONS.md).
 

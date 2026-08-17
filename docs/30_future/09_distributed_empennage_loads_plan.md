@@ -24,7 +24,7 @@ Conventions cited throughout:
 benchmark-first, §7 single-source owners). Deck contract:
 [`../10_standard/PROGRAM_SPEC.md`](../10_standard/PROGRAM_SPEC.md) sbeam-bridge
 section. Sibling design note this plan extends:
-[`07_export_equilibrium_invariant_plan.md`](07_export_equilibrium_invariant_plan.md)
+[`07_export_equilibrium_invariant_plan.md`](../40_history/15_export_equilibrium_invariant_plan.md)
 (the spanwise tail decks must satisfy the same §4 invariant table on day one).
 
 ---

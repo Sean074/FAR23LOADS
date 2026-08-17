@@ -22,7 +22,7 @@ component's own stated resultant. What it adds over what existed:
   the concept fixture only.
 
 Reference points are the per-component convention (``CONVENTIONS.md``; design
-note ``docs/30_future/07_export_equilibrium_invariant_plan.md`` §3, E-2): wing ->
+note ``docs/40_history/15_export_equilibrium_invariant_plan.md`` §3, E-2): wing ->
 its root station, body -> its aft-most station, tail -> its leading-edge chord
 station. Tolerances are :mod:`sloads.export.equilibrium`'s, not this file's.
 
@@ -202,7 +202,7 @@ def test_wing_deck_bending_closure(example, system):
     to ``-z`` and ``Mxx`` to ``+x``; that asymmetry is
     ``coordinates.bending_moment_vector``'s, not restated here.
 
-    Design note: ``docs/30_future/14_concentrated_wing_mass_nodal_split_plan.md``.
+    Design note: ``docs/40_history/19_concentrated_wing_mass_nodal_split_plan.md``.
     """
     wing, _, _, _, _, _ = _cached(example)
     _skip_if_empty(wing, example, "wing")

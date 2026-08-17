@@ -28,7 +28,7 @@ for path in (_ROOT, os.path.dirname(os.path.abspath(__file__)), _APP):
 def sbeam():
     """The solver, or a skip -- unless the environment says it must be there.
 
-    The sbeam round-trip gate (``docs/30_future/10_sbeam_roundtrip_ci_harness_plan.md``,
+    The sbeam round-trip gate (``docs/40_history/17_sbeam_roundtrip_ci_harness_plan.md``,
     decision S-7) is the one test family in the suite that needs another
     repository installed. Local development without it stays frictionless: those
     tests skip. But a bare ``importorskip`` would let a **broken CI install**

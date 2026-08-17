@@ -1,6 +1,6 @@
 """The landing gear as a **free body**: contact patch in, reference point out.
 
-Decision **G-12** (``docs/30_future/18_step10_ground_cases_plan.md``), step 10
+Decision **G-12** (``docs/40_history/23_step10_ground_cases_plan.md``), step 10
 piece 3. Conventions: ``docs/10_standard/CONVENTIONS.md``. The reactions
 themselves are :mod:`sloads.modules.landing`'s, unchanged and oracle-locked to
 Appendix A p230/p236 -- nothing here recomputes one.

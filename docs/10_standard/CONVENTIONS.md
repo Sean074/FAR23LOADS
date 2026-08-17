@@ -239,7 +239,7 @@ file + symbol is the anchor.
 ### 1.1 Airplane state and control signs (verified extraction 2026-08-09; SC-1…SC-6 approved 2026-08-10)
 
 Documented from code — clarifications of existing behavior, not changes. Full
-evidence trail: `docs/30_future/15_sign_convention_report_section.md`. The
+evidence trail: `docs/40_history/20_sign_convention_report_section.md`. The
 formerly-absent conventions are now **decisions of record** (user-approved
 2026-08-10, labels only — no computed number changed):
 

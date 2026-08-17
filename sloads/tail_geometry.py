@@ -242,7 +242,7 @@ def fin_root_waterline(layout: Optional["LayoutInput"], vtail_span_in: float = 0
                        outline=None, x_fin: float = 0.0) -> FinRoot:
     """Waterline of the vertical-tail root (in) -- **the single owner** (L-1).
 
-    Design note: ``docs/30_future/13_b8a_lateral_closure_plan.md`` §5.1, decision
+    Design note: ``docs/40_history/18_b8a_lateral_closure_plan.md`` §5.1, decision
     L-1. Read by :func:`resolve_tail_planform` for the load path and by
     ``configuration.tail_planform`` for the three-view, so the sketch and the deck
     cannot put the same fin in two places (``CONVENTIONS.md`` §7 rule 2).

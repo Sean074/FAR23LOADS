@@ -233,7 +233,7 @@ from .results import EnvelopeResult, LoadsResult, MassResult
 # field feeds the report alone.
 # Body drag carrier (v49): ``LayoutInput.body_drag_waterline_z`` -- the waterline
 # the airplane's non-wing drag is applied at in the assembled model (design note
-# ``docs/30_future/20_body_drag_carrier_note.md``, decision D-1). Additive with a
+# ``docs/40_history/24_body_drag_carrier_note.md``, decision D-1). Additive with a
 # ``0.0`` default, and ``0.0`` means "derive it" -- the wing reference plane
 # ``zw``, marked ``assumed`` and stated in-band, exactly as
 # ``vtail_root_waterline_z`` handles the same class of question. So no migration

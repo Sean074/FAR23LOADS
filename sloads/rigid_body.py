@@ -1,6 +1,6 @@
 """Rigid-body d'Alembert relief -- the single owner of the closure field.
 
-Plan 13 (``docs/30_future/13_b8a_lateral_closure_plan.md``) decisions **L-2** and
+Plan 13 (``docs/40_history/18_b8a_lateral_closure_plan.md``) decisions **L-2** and
 **L-3**, step B8a-2. Conventions: ``docs/10_standard/CONVENTIONS.md`` §1 (axes and
 signs) and §7 (single-source owners).
 

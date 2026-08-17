@@ -77,7 +77,7 @@ is ``105`` in the wing component deck and ``5105`` in the assembled one.
 :func:`deck_load_id` is the single owner of that choice for every deliverable
 (report, case index, GUI), and :func:`case_label` the single formatter that
 states id + ``LABEL`` + ``LOAD``/``SUBCASE`` together
-(``docs/30_future/17_case_load_id_linkage_note.md``).
+(``docs/40_history/22_case_load_id_linkage_note.md``).
 """
 
 from __future__ import annotations

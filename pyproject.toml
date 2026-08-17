@@ -61,7 +61,7 @@ dev = [
     "radon",
 ]
 # The sbeam round-trip gate's solver (decision S-1, design note
-# docs/30_future/10_sbeam_roundtrip_ci_harness_plan.md). Deliberately NOT in
+# docs/40_history/17_sbeam_roundtrip_ci_harness_plan.md). Deliberately NOT in
 # `dev`: `pip install -e '.[dev]'` stays scipy-free and fast for everyone not
 # working at the export boundary, and the gate skips when it is absent.
 #
