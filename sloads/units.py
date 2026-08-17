@@ -26,21 +26,6 @@ class UnitSystem(str, Enum):
 
 
 # --------------------------------------------------------------------------- #
-# Scalar conversion factors
-# --------------------------------------------------------------------------- #
-# One Imperial unit equals this many SI units (multiply Imperial -> SI; divide
-# SI -> Imperial). Exact NIST conversion factors.
-SI_PER_IMPERIAL = {
-    "weight": 0.45359237,        # lb (mass) -> kg
-    "length": 25.4,              # in -> mm
-    "torque": 1.3558179483314,   # ft-lb -> N*m
-    "power": 0.745699872,        # hp -> kW
-    "inertia": 1.3558179483314,  # slug-ft^2 -> kg*m^2
-    "area_sqft": 0.09290304,     # ft^2 -> m^2
-    "inertia_lbin2": 2.926396534292e-04,  # lb-in^2 -> kg*m^2
-}
-
-# --------------------------------------------------------------------------- #
 # Base factors for the *deliverable* dimensions (M4-20). Named, and derived from
 # each other where they are dimensionally related, so a moment factor can never
 # drift out of step with the force and length factors it is the product of --
@@ -103,19 +88,70 @@ LB_IN2_TO_TONNE_MM2 = LB_TO_TONNE * (IN_TO_MM ** 2)      # lb-in^2 -> tonne*mm^2
 # Human-channel mass: the units a weights report reads in, not a deck.
 LB_TO_KG = 0.45359237                                    # lb -> kg (exact)
 LB_IN2_TO_KG_M2 = LB_TO_KG * (IN_TO_MM / 1000.0) ** 2    # lb-in^2 -> kg*m^2
+# The remaining human-channel factors, each named once and derived from the base
+# ones where the dimension is a product of them (rule 3: one owner per factor).
+FT2_TO_M2 = FT_TO_M ** 2                                 # ft^2 -> m^2 (0.09290304)
+IN2_TO_M2 = (IN_TO_MM / 1000.0) ** 2                     # in^2 -> m^2 (6.4516e-4)
+HP_TO_KW = 0.745699872                                   # hp -> kW (exact, NIST)
+# A slug is lbf*s^2/ft, so slug*ft^2 = lbf*ft*s^2 and kg*m^2 = N*m*s^2: the
+# inertia factor *is* the torque factor (1.3558179483314), and is written so.
+SLUG_FT2_TO_KG_M2 = FT_LB_TO_N_M                         # slug-ft^2 -> kg*m^2
+
+# --------------------------------------------------------------------------- #
+# The human-channel SI table -- THE owner of every Imperial -> SI display factor
+# (conventions finding (d), 2026-08-17). One row per physical dimension:
+# ``(Imperial -> SI factor, SI label)``. Every table below that a caller reads
+# (``SI_PER_IMPERIAL``, ``UNIT_LABELS``, ``_RESULT_TO_SI``, ``_SI_BY_QUANTITY``,
+# ``_SCALAR_TO_SI``, ``_KIND_FACTORS``) is a *view* of this one, keyed the way
+# its call site needs (by input kind, by result unit string, by JSON kind).
+# A factor therefore exists in exactly one place; ``tests/test_units.py``
+# asserts the views agree with the owner.
+# --------------------------------------------------------------------------- #
+class SIDimension(NamedTuple):
+    factor: float   # multiply Imperial -> SI; divide SI -> Imperial
+    label: str      # SI unit label
+
+
+HUMAN_SI: Dict[str, SIDimension] = {
+    "mass": SIDimension(LB_TO_KG, "kg"),                     # lb (mass) -> kg
+    "force": SIDimension(LBF_TO_N, "N"),                     # lbf -> N
+    "length_in": SIDimension(IN_TO_MM, "mm"),                # in -> mm
+    "area_sqft": SIDimension(FT2_TO_M2, "m²"),               # ft^2 -> m^2
+    "area_sqin": SIDimension(IN2_TO_M2, "m²"),               # in^2 -> m^2
+    "torque": SIDimension(FT_LB_TO_N_M, "N·m"),              # ft-lb -> N·m
+    "moment_in": SIDimension(LB_IN_TO_N_M, "N·m"),           # lb-in -> N·m
+    "pressure": SIDimension(PSI_TO_KPA, "kPa"),              # lb/in^2 -> kPa
+    "power": SIDimension(HP_TO_KW, "kW"),                    # hp -> kW
+    "inertia_slugft2": SIDimension(SLUG_FT2_TO_KG_M2, "kg·m²"),  # slug-ft^2 -> kg·m^2
+    "inertia_lbin2": SIDimension(LB_IN2_TO_KG_M2, "kg·m²"),  # lb-in^2 -> kg·m^2
+}
+
+
+def _view(**alias: str) -> Dict[str, Tuple[float, str]]:
+    """A ``{key: (factor, SI label)}`` view of :data:`HUMAN_SI` under new keys."""
+    return {key: (HUMAN_SI[dim].factor, HUMAN_SI[dim].label) for key, dim in alias.items()}
+
+
+# --------------------------------------------------------------------------- #
+# Scalar conversion factors (engine-input kinds)
+# --------------------------------------------------------------------------- #
+# One Imperial unit equals this many SI units (multiply Imperial -> SI; divide
+# SI -> Imperial). ``inertia_lbin2`` is a distinct mass-basis inertia, not a
+# duplicate of ``inertia``.
+_INPUT_KIND = {
+    "weight": "mass", "length": "length_in", "torque": "torque", "power": "power",
+    "inertia": "inertia_slugft2", "area_sqft": "area_sqft", "inertia_lbin2": "inertia_lbin2",
+}
+SI_PER_IMPERIAL: Dict[str, float] = {k: HUMAN_SI[d].factor for k, d in _INPUT_KIND.items()}
 
 # Display units for each "kind", by system. One unit per physical dimension
-# (Phase G0): length -> in/mm, area -> ft²/m². ``inertia_lbin2`` is a distinct
-# mass-basis inertia, not a duplicate of ``inertia``.
+# (Phase G0): length -> in/mm, area -> ft²/m². The SI labels are the owner's.
 UNIT_LABELS = {
     UnitSystem.IMPERIAL: {
         "weight": "lb", "length": "in", "torque": "ft-lb", "power": "hp", "inertia": "slug-ft²",
         "area_sqft": "ft²", "inertia_lbin2": "lb-in²",
     },
-    UnitSystem.SI: {
-        "weight": "kg", "length": "mm", "torque": "N·m", "power": "kW", "inertia": "kg·m²",
-        "area_sqft": "m²", "inertia_lbin2": "kg·m²",
-    },
+    UnitSystem.SI: {k: HUMAN_SI[d].label for k, d in _INPUT_KIND.items()},
 }
 
 # Conversion for result quantities, keyed by the Imperial ``units`` string a
@@ -124,16 +160,16 @@ UNIT_LABELS = {
 # through. Note: a bare "lb" here is pounds-*force* (a load -> N); a *weight* in
 # pounds-*mass* must instead set ``LoadValue.quantity = "mass"`` (see below), so
 # the same "lb" label maps to kg, not N.
-_RESULT_TO_SI = {
-    "lb": (LBF_TO_N, "N"),                 # lbf -> N (force/load)
-    "in": (IN_TO_MM, "mm"),                # in -> mm (position)
-    "in^2": (6.4516e-04, "m²"),            # in^2 -> m^2 (surface area)
-    "ft-lb": (FT_LB_TO_N_M, "N·m"),        # ft-lb -> N·m (moment/torque)
-    "lb-in": (LB_IN_TO_N_M, "N·m"),        # lb-in -> N·m (root bending/torsion, pitching moment)
-    "lb/in^2": (PSI_TO_KPA, "kPa"),        # lb/in^2 -> kPa (design pressure)
-    "slug-ft^2": (1.3558179483314, "kg·m²"),  # slug-ft^2 -> kg·m^2 (inertia)
-    "lb-in^2": (2.926396534292e-04, "kg·m²"),  # lb-in^2 -> kg·m^2 (inertia, mass basis)
-}
+_RESULT_TO_SI = _view(**{
+    "lb": "force",                  # lbf -> N (force/load)
+    "in": "length_in",              # in -> mm (position)
+    "in^2": "area_sqin",            # in^2 -> m^2 (surface area)
+    "ft-lb": "torque",              # ft-lb -> N·m (moment/torque)
+    "lb-in": "moment_in",           # lb-in -> N·m (root bending/torsion, pitching moment)
+    "lb/in^2": "pressure",          # lb/in^2 -> kPa (design pressure)
+    "slug-ft^2": "inertia_slugft2",  # slug-ft^2 -> kg·m^2 (inertia)
+    "lb-in^2": "inertia_lbin2",     # lb-in^2 -> kg·m^2 (inertia, mass basis)
+})
 # Airspeed and altitude are deliberately absent: they are aviation-standard
 # (KEAS / ft) in both systems and are never converted. The calc emits them as
 # ``kt(EAS)`` and ``ft``; a ``"knot"`` row lived here until M4-20 and converted
@@ -144,9 +180,7 @@ _RESULT_TO_SI = {
 # ambiguous. Currently only "mass": a weight reported in "lb" is pounds-mass and
 # must convert to kg (a load in "lb" is pounds-force and converts to N via the
 # table above). Takes precedence over the unit-string table.
-_SI_BY_QUANTITY = {
-    "mass": (0.45359237, "kg"),            # lb (mass) -> kg
-}
+_SI_BY_QUANTITY = _view(mass="mass")            # lb (mass) -> kg
 
 
 # --------------------------------------------------------------------------- #
@@ -157,14 +191,14 @@ _SI_BY_QUANTITY = {
 # display. These always convert Imperial -> the target system (one-way; the
 # dataclass itself, which also feeds sbeam export and session-state
 # persistence, is never touched -- only a display copy).
-_SCALAR_TO_SI = {
-    "lbf": (LBF_TO_N, "N"),               # force
-    "in": (IN_TO_MM, "mm"),               # length
-    "sqft": (0.09290304, "m²"),           # area
-    "ft-lb": (FT_LB_TO_N_M, "N·m"),       # moment (large)
-    "lb-in": (LB_IN_TO_N_M, "N·m"),       # moment (small)
-    "psi": (PSI_TO_KPA, "kPa"),           # pressure (lb/in^2)
-}
+_SCALAR_TO_SI = _view(**{
+    "lbf": "force",         # force
+    "in": "length_in",      # length
+    "sqft": "area_sqft",    # area
+    "ft-lb": "torque",      # moment (large)
+    "lb-in": "moment_in",   # moment (small)
+    "psi": "pressure",      # pressure (lb/in^2)
+})
 
 
 def to_si_scalar(value: float, unit: str, system: UnitSystem) -> float:
@@ -298,21 +332,16 @@ def convert_results(
 # this); the editor page converts SI -> Imperial before writing back via
 # io.project_from_dict, so calc/tests/oracle fixtures are unaffected.
 # --------------------------------------------------------------------------- #
-# Kind -> (Imperial -> SI factor, SI label). Derived from an audit of every
-# dimensional field in sloads/models.py; update both this table and
-# _PROJECT_FIELD_KIND when a new dimensional field is added to the schema.
-_KIND_FACTORS = {
-    "mass": (0.45359237, "kg"),                  # lbm -> kg
-    "force": (LBF_TO_N, "N"),                     # lbf -> N
-    "length_in": (IN_TO_MM, "mm"),                # in -> mm
-    "area_sqft": (0.09290304, "m²"),              # sq ft -> m^2
-    "torque": (FT_LB_TO_N_M, "N·m"),              # ft-lb -> N·m
-    "moment_in": (LB_IN_TO_N_M, "N·m"),           # lb-in -> N·m
-    "inertia_slugft2": (1.3558179483314, "kg·m²"),  # slug-ft^2 -> kg·m^2
-    "inertia_lbin2": (2.926396534292e-04, "kg·m²"),  # lb-in^2 -> kg·m^2
-    "power": (0.745699872, "kW"),                 # hp -> kW
-    "pressure": (PSI_TO_KPA, "kPa"),              # lb/in^2 -> kPa
-}
+# Kind -> (Imperial -> SI factor, SI label): the owner's rows under the JSON
+# kind names, from an audit of every dimensional field in sloads/models.py;
+# update ``HUMAN_SI`` (if the dimension is new) and _PROJECT_FIELD_KIND when a
+# new dimensional field is added to the schema.
+_KIND_FACTORS = _view(**{
+    "mass": "mass", "force": "force", "length_in": "length_in",
+    "area_sqft": "area_sqft", "torque": "torque", "moment_in": "moment_in",
+    "inertia_slugft2": "inertia_slugft2", "inertia_lbin2": "inertia_lbin2",
+    "power": "power", "pressure": "pressure",
+})
 
 # JSON leaf key name -> kind. Airspeed (``_kt``) and altitude (``altitude_ft``,
 # ``altitudes_ft``, ``max_operating_altitude_ft``, ``shoulder_altitude_ft``,

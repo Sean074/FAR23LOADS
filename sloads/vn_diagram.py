@@ -29,12 +29,11 @@ import math
 from dataclasses import dataclass, field
 from typing import List, Optional, Tuple
 
-from .constants import standard_atmosphere
+from .constants import RHO_SL, standard_atmosphere
 
 # Classic gust-formula constants (FLTLOADS gust subroutine): degrees-per-radian to
 # turn a per-degree lift-curve slope into per-radian, sea-level density, and g.
 _DEG_PER_RAD = 57.2957795
-_RHO0 = 0.002378          # slug/ft^3, sea-level standard density
 _G = 32.2                 # ft/s^2
 _DEFAULT_LIFT_SLOPE_PER_DEG = 0.1   # textbook wing CL_alpha when no aero slice
 
@@ -91,7 +90,7 @@ def gust_load_factor(v_keas: float, ref: str, gust: GustInputs, sign: float = 1.
     unknown Kg falls back to 1.0 (no alleviation) -- flagged ``approximate``.
     """
     _a_sound, sigma = standard_atmosphere(gust.altitude_ft)
-    rho = _RHO0 * sigma
+    rho = RHO_SL * sigma
     a_rad = gust.lift_slope_per_deg * _DEG_PER_RAD
     if gust.mac_ft > 0.0 and a_rad > 0.0:
         mu = 2.0 * gust.ws / (rho * gust.mac_ft * a_rad * _G)

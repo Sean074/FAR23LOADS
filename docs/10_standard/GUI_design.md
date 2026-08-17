@@ -226,7 +226,8 @@ M4-20 step 6, a second authority for the same decision that made step 2's re-poi
 reach only the views going through `unit_number_input`/`page`.
 
 Unit **kinds** and their factors/labels live in `SI_PER_IMPERIAL` / `UNIT_LABELS`
-in `sloads/units.py`. The helper is pinned by `tests/test_app_components.py`
+in `sloads/units.py` (both views of the one factor owner, `HUMAN_SI` —
+`CONVENTIONS.md` §7). The helper is pinned by `tests/test_app_components.py`
 (round-trip per kind, per system, plus the carve-out and key discipline) and
 end-to-end through real views in both systems by
 `tests/test_view_unit_roundtrip.py`.

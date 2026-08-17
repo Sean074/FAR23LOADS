@@ -76,7 +76,7 @@ class ConditionResult:
     """Result of one FAR 23 load condition.
 
     ``safety_factor`` is the per-case factor the render/export layer multiplies the
-    LIMIT load quantities by to report ULTIMATE loads (14 CFR 25.303 -> 1.5). It is
+    LIMIT load quantities by to report ULTIMATE loads (14 CFR 23.303 / 25.303 -> 1.5). It is
     per-case so a future 14 CFR 25.302 / Appendix K refinement can give a failure
     case a probability-interpolated factor (1.0-1.5); the calc itself always emits
     LIMIT values, so the regression oracles are unaffected.

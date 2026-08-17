@@ -96,6 +96,7 @@ historical record.
 
 | File | Scope |
 |------|-------|
+| [`2026-08-17_constants_and_conversions_review.md`](50_reviews/2026-08-17_constants_and_conversions_review.md) | Ownership review of every hard-coded physical constant and unit factor (deg/rad, g, in/ft, in²/ft², V²/295, atmosphere, hp, π, gust 498) — one owner per quantity, exact-by-default value policy, and the `constants.py` (Imperial↔Imperial) vs `units.py` (Imperial↔SI) demarcation; feeds backlog Pri 8 |
 | [`2026-08-16_scope_and_deficiency_review.md`](50_reviews/2026-08-16_scope_and_deficiency_review.md) | Scope and deficiency review against the "fidelity above the base analysis" concern: every open backlog row and the shipped capability sorted into needed-now / future-release / park, the step-14 descope and band-E/H parking recommendations, the effect-vs-error-bar ordering rule, and the code-health findings CH-1…CH-8 |
 | [`2026-08-15_review_0_6_0_candidate.md`](50_reviews/2026-08-15_review_0_6_0_candidate.md) | Critical review of the 0.6.0 candidate (everything since the v0.5.0 tag): findings R6-C\*/R6-T\*/R6-D\* — deliverable-contract gaps in the new gear report channel, the missing G-6 rotational gate half, and the documentation-currency defects, with the recommended pre-0.6.0 order of work |
 | [`2026-08-10_code_review_0_5_0.md`](50_reviews/2026-08-10_code_review_0_5_0.md) | Pre-0.5.0 full code review: findings C1/F-\*/D-R\*/m1–m21 and the three-phase release plan they drove |

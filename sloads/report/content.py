@@ -38,6 +38,7 @@ from ..case_ids import ASSEMBLED_DECK, COMPONENT_DECK, NO_LOAD_ID
 from ..constants import ULTIMATE_FACTOR
 from ..models import SCHEMA_VERSION, Project, VdBasis
 from ..units import (
+    HUMAN_SI,
     Channel,
     DeliverableUnits,
     UnitSystem,
@@ -243,12 +244,14 @@ def _bare_title(title: str) -> str:
 # Unit helpers -- one resolved set per document (M4-20)
 # --------------------------------------------------------------------------- #
 #: Dimensions the deliverable unit set does not carry, because they are not load
-#: dimensions: (Imperial->SI factor, Imperial label, SI label).
+#: dimensions: (Imperial->SI factor, Imperial label, SI label). The factors are
+#: ``units.HUMAN_SI``'s (the one owner, CH-7); only the ASCII labels a report
+#: prints live here.
 _EXTRA_DIMENSIONS = {
-    "mass": (0.45359237, "lb", "kg"),
-    "area": (0.09290304, "ft^2", "m^2"),
-    "inertia": (1.3558179483314, "slug-ft^2", "kg*m^2"),
-    "inertia_lbin2": (2.926396534292e-04, "lb-in^2", "kg*m^2"),
+    "mass": (HUMAN_SI["mass"].factor, "lb", "kg"),
+    "area": (HUMAN_SI["area_sqft"].factor, "ft^2", "m^2"),
+    "inertia": (HUMAN_SI["inertia_slugft2"].factor, "slug-ft^2", "kg*m^2"),
+    "inertia_lbin2": (HUMAN_SI["inertia_lbin2"].factor, "lb-in^2", "kg*m^2"),
 }
 
 #: Imperial unit string -> the :class:`DeliverableUnits` dimension it scales with.

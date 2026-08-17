@@ -408,10 +408,12 @@ export boundary, reduction-to-FAR23 identity on GA inputs. "No oracle" never mea
 |---|---|---|
 | Nav / step graph | `sloads/workflow.py` (`STEPS`, `PHASES`) | `tests/test_workflow.py::test_every_registered_module_has_a_step` |
 | Deliverable unit sets | `units.deliverable_units` | `tests/test_deliverable_units.py` (identity, consistency, channel) |
+| **Human-channel Imperial→SI display factors** (one row per dimension; `SI_PER_IMPERIAL`, `UNIT_LABELS`, `_RESULT_TO_SI`, `_SI_BY_QUANTITY`, `_SCALAR_TO_SI`, `_KIND_FACTORS` and `report/content._EXTRA_DIMENSIONS` are *views* of it — finding (d)/CH-7, 2026-08-17) | `units.HUMAN_SI` (every factor a named constant, products derived: `FT2_TO_M2 = FT_TO_M**2`, `SLUG_FT2_TO_KG_M2 = FT_LB_TO_N_M`, …) | `tests/test_units.py::test_every_si_view_reads_the_one_owner` + `::test_si_factor_literals_have_one_owner` |
+| **Sea-level density ρ₀ and the density ratio σ** (`0.002378 slug/ft³`; the shared atmosphere law — FLTLOADS keeps only its own speed of sound) | `constants.RHO_SL` + `constants.standard_atmosphere` (`flight_envelope.density_ratio` delegates — CH-6/M4-23, 2026-08-17) | `tests/test_constants.py::test_sea_level_density_literal_has_one_owner` + `::test_sigma_is_read_from_the_shared_atmosphere` |
 | **Deck `LOAD`/`SUBCASE` number a deliverable quotes** (which minter, which deck family, and what a case without one in that family shows) | `case_ids.deck_load_id` (+ `case_label` for display; `export/sbeam_bridge.LOAD_ID_COLUMN` names the two columns) | `tests/test_case_ids.py::test_the_index_quotes_the_decks_own_numbers` (against the decks' own text) + `::test_a_case_in_the_index_always_carries_at_least_one_deck_number` + `::test_a_handed_case_is_numbered_in_the_assembled_deck_only` + `::test_the_report_case_index_states_the_same_pairs_as_the_csv` |
 | Export axes/scale | `export/coordinates.py` | `tests/test_sbeam_bridge.py::test_grids_match_station_geometry` + closure/SF tests |
 | **Centreline reflection** (`y -> -y`; force is a true vector, moment an axial one) | `export/coordinates.py` (`reflect_point`/`reflect_force`/`reflect_moment`/`reflect_side`) | `tests/test_balance.py::test_the_reflection_operator_is_an_involution` + `::test_the_handed_twins_are_mirror_images` |
-| **Empennage local frame → airplane axes** (h-tail spans `y`/loads `fz`/twists `myy`; v-tail spans `z`/loads `fy`/twists **`mzz`**; a span-axis *axial* load follows the span, so `y` for the h-tail and `z` for the fin) | `export/coordinates.py` (`tail_station_to_airplane`/`tail_force_to_airplane`/`tail_torsion_to_airplane`/`tail_axial_to_airplane`) | `tests/test_export_equilibrium.py::test_vtail_span_deck_resultants` + `::test_tail_deck_resultants` (the chordwise family takes the same map — D-R4) |
+| **Empennage local frame → airplane axes** (h-tail spans `y`/loads `fz`/twists `myy`; v-tail spans `z`/loads `fy`/twists **`mzz`**; a span-axis *axial* load follows the span, so `y` for the h-tail and `z` for the fin) | `export/coordinates.py` (`tail_station_to_airplane`/`tail_force_to_airplane`/`tail_torsion_to_airplane`/`tail_axial_to_airplane`) | `tests/test_tail_transforms.py` (direct: axial follows the span, torsion sign closes on `r × F`, T-tail transfer is `Fz`/`Myy`) + `tests/test_export_equilibrium.py::test_vtail_span_deck_resultants` + `::test_tail_deck_resultants` (the chordwise family takes the same map — D-R4) |
 | **An empennage surface's mass, and which acceleration acts on it** (derived from the tagged items; the fin's bending factor is lateral, its axial factor vertical) | `sloads/mass_distribution.py` (`tail_surface_weight`) + `modules/tail_span.py` (`lateral_load_factor`, `distribute`'s `n_normal`/`n_axial`) | `tests/test_tail_span.py::test_the_surface_weight_is_derived_from_the_tagged_items` + `::test_the_fin_lateral_inertia_is_exactly_the_weight_ratio_of_the_air_load` + `::test_no_shipped_fixture_produces_an_air_only_htail_deck` |
 | **Empennage planform vs. the scalar area/span** (1 % agreement; scalars stay oracle-authoritative) | `sloads/tail_geometry.py` (`resolve_tail_planform`/`validate_tail_planform`) | `tests/test_tail_geometry.py` |
 | **How a control-surface load enters its parent surface** (smeared vs. discrete; the load is SELECT's where published and TAILDIST-derived-and-marked where not; the hinge moment's arm is a third of the aft-of-hinge chord and the actuator reacts `−HM`) | `modules/tail_span.py` (`control_load_mode`/`control_load_parts`/`control_point_loads`/`control_centre_of_pressure`) — `modules/select.py` owns the load itself (`elevator_load_parts`/`rudder_load_parts`) and `modules/taildist.py` the hinge line (`surface_geom`) | `tests/test_tail_span.py::test_the_two_modes_apply_exactly_the_same_total_force` + `::test_the_hinge_moment_is_a_third_of_the_aft_of_hinge_chord` + `::test_the_hinge_and_actuator_torsion_is_the_load_at_its_own_cp` + `::test_the_cross_mode_torsion_difference_is_the_chordwise_relocation` |
@@ -562,16 +564,14 @@ unhanded `VT-0n` SELECT already minted.
   the h-tail's halves cancel about the centreline. A conventional layout carries
   none of this, to the byte.
 
-## 8. Flagged inconsistencies (2026-08-05 extraction — filed on the backlog)
+## 8. Flagged inconsistencies (2026-08-05 extraction — **all closed 2026-08-17**, backlog Pri 5)
 
-1. **`tests/test_load_keys.py` does not exist**, though `load_keys.py:11-12` cites it as
-   the uniqueness guard — the guard is missing or the docstring is stale.
-2. `constants.py:15` cites **25.303** as the SF authority; `report/methods.py:230` and
-   this project's docs say **23.303** (Part 25 equivalent). Same 1.5 — inconsistent
-   primary citation.
-3. `coordinates.py` module-level default (`IMPERIAL = deliverable_units(IMPERIAL,
-   Channel.SOLVER)`) means un-parameterised calls silently emit Imperial inches —
-   intentional back-compat, but an implicit assumption worth an explicit comment.
-4. `units.py` carries three partially-shared SI factor maps (`_RESULT_TO_SI`,
-   `_SCALAR_TO_SI`, `_KIND_FACTORS`) — derived from shared constants only in part;
-   a consolidation candidate under rule 2.
+1. ~~`tests/test_load_keys.py` does not exist~~ — written: asserts `LoadValue` key
+   uniqueness within every `ConditionResult` across every registered module on every
+   example project (the claim `load_keys.py` makes).
+2. ~~`constants.py` cites 25.303 alone~~ — `constants.py` and `models/results.py` now cite
+   "14 CFR 23.303 / 25.303", the phrasing of the SF authority `safety_factors.py`.
+3. ~~`coordinates.py` module-level default undocumented~~ — already carries the explicit
+   back-compat comment at `IMPERIAL`.
+4. ~~three partially-shared SI factor maps in `units.py`~~ — consolidated under one owner,
+   `units.HUMAN_SI` (§7 row); the six tables are views of it and drift-guarded.

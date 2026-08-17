@@ -175,6 +175,53 @@ def _to_si_input(imp):
     )
 
 
+def test_every_si_view_reads_the_one_owner():
+    """Conventions finding (d): ``HUMAN_SI`` is the only place a display factor is
+    written; the per-call-site tables are views of it and cannot drift."""
+    import sloads.units as u
+
+    views = {
+        "SI_PER_IMPERIAL": {k: (v, None) for k, v in u.SI_PER_IMPERIAL.items()},
+        "_RESULT_TO_SI": u._RESULT_TO_SI, "_SI_BY_QUANTITY": u._SI_BY_QUANTITY,
+        "_SCALAR_TO_SI": u._SCALAR_TO_SI, "_KIND_FACTORS": u._KIND_FACTORS,
+    }
+    owner = {(round(d.factor, 15), d.label) for d in u.HUMAN_SI.values()}
+    owner_factors = {round(d.factor, 15) for d in u.HUMAN_SI.values()}
+    for name, table in views.items():
+        for key, (factor, label) in table.items():
+            if label is None:
+                assert round(factor, 15) in owner_factors, (name, key)
+            else:
+                assert (round(factor, 15), label) in owner, (name, key)
+    # The SI display labels for the engine-input kinds are the owner's too.
+    for kind, label in u.UNIT_LABELS[UnitSystem.SI].items():
+        assert label in {d.label for d in u.HUMAN_SI.values()}, kind
+    # Every owner factor is a named module constant, not an inline literal, and the
+    # products hold exactly (the D-19 argument, human channel).
+    assert u.HUMAN_SI["inertia_lbin2"].factor == u.LB_TO_KG * (u.IN_TO_MM / 1000.0) ** 2
+    assert u.HUMAN_SI["area_sqft"].factor == u.FT_TO_M ** 2
+    assert u.HUMAN_SI["inertia_slugft2"].factor == u.HUMAN_SI["torque"].factor
+    assert math.isclose(u.HUMAN_SI["inertia_slugft2"].factor, 1.3558179483314, rel_tol=1e-12)
+
+
+def test_si_factor_literals_have_one_owner():
+    """No package file outside ``units.py`` re-declares an SI display factor (CH-7)."""
+    import glob
+    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    literals = ("0.45359237", "0.09290304", "1.3558179483314", "2.926396534292e-04",
+                "6.4516e-04", "0.745699872")
+    offenders = []
+    for pkg in ("sloads", "app"):
+        for path in glob.glob(os.path.join(root, pkg, "**", "*.py"), recursive=True):
+            rel = os.path.relpath(path, root)
+            if rel == os.path.join("sloads", "units.py"):
+                continue
+            with open(path, encoding="utf-8") as fh:
+                text = fh.read()
+            offenders += [(rel, lit) for lit in literals if lit in text]
+    assert not offenders, offenders
+
+
 if __name__ == "__main__":
     import traceback
 

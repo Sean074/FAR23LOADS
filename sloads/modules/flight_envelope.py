@@ -59,6 +59,7 @@ from typing import List, Optional
 from ..aero_curves import clmax_curve as _clmax_curve
 from ..aero_curves import drag_cd, lift_cl, moment_cm
 from ..cg_cases import flight_cases
+from ..constants import RHO_SL, standard_atmosphere
 from ..derived_geometry import sync_geometry_derived
 from ..models import (
     AeroCoeffSet,
@@ -88,11 +89,11 @@ _RAD = math.pi / 180.0
 # FLTLOADS uses its own speed-of-sound constant (518.688 vs the shared
 # standard_atmosphere's 518.4); the ~0.03% difference matters near the Mach cap,
 # so the program's exact form is replicated here for oracle fidelity. The density
-# ratio is identical to constants.standard_atmosphere.
+# ratio law is the shared one, so sigma is *read* from ``constants`` rather than
+# duplicated (M4-23): one authority for sigma, and this module keeps only the
+# speed of sound that is genuinely its own.
 def density_ratio(alt_ft: float) -> float:
-    if alt_ft > 35332.0:
-        return (7.2725e-04 * math.exp(-4.778e-05 * (alt_ft - 35332.0))) / 0.002378
-    return (1.0 - 6.879e-06 * alt_ft) ** 4.258
+    return standard_atmosphere(alt_ft)[1]
 
 
 def _speed_of_sound(alt_ft: float) -> float:
@@ -222,7 +223,7 @@ def _gust_load_factor(ng: int, v: float, mach_cap: float, ref: str, config: Aero
     g = 1.0 / math.sqrt(1.0 - mh ** 2)
     gmn = 1.0 / math.sqrt(1.0 - fl.mn ** 2)
     c1 = config.lift[1] * g / gmn          # lift-curve slope per deg, Glauert-corrected
-    rho = 0.002378 * sig
+    rho = RHO_SL * sig
     ws = cg.weight_lb / fl.wing_area_sqft
     ug = 2.0 * ws / (rho * fl.mac / 12.0 * c1 * _DEG * 32.2)
     kg = 0.88 * ug / (5.3 + ug)

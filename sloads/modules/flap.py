@@ -42,7 +42,7 @@ import math
 from typing import List, NamedTuple
 
 from ..case_ids import WING_BAND_FLAP, CaseIdAllocator
-from ..constants import KT_TO_FPS_SUITE, ULTIMATE_FACTOR
+from ..constants import KT_TO_FPS_SUITE, RHO_SL, ULTIMATE_FACTOR
 from ..models import (
     CaseRef,
     ConditionResult,
@@ -59,7 +59,6 @@ from .structural_speeds import _wing_area_sqft, design_speed_values
 MODULE_NAME = "flap"
 
 _SQIN_PER_SQFT = 144.0
-_RHO = 0.002378  # slug/ft^3, sea-level density (FLAPLOAD.BAS sub 500)
 
 
 class FlapResult(NamedTuple):
@@ -89,7 +88,7 @@ def _slipstream_velocity(vf_kt: float, maxhp: float, pdia_in: float):
     # Iterate U1 upward (the BASIC steps by 0.5) until the absorbed power reaches
     # 0.85*MAXHP: HP = area*rho*(U1-Vf)*(U1+Vf)^2 / (4*550).
     while True:
-        hp_try = area * _RHO * (u1 - vf_fps) * (u1 + vf_fps) ** 2 / (4.0 * 550.0)
+        hp_try = area * RHO_SL * (u1 - vf_fps) * (u1 + vf_fps) ** 2 / (4.0 * 550.0)
         if hp_try >= 0.85 * maxhp:
             break
         u1 += 0.5

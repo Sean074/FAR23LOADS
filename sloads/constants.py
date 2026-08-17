@@ -12,7 +12,7 @@ import math
 G = 32.174  # ft / s^2
 
 # Factor of safety used to turn the calc's LIMIT loads into the ULTIMATE loads the
-# rendered output / structural-sizing export reports (14 CFR 25.303: ultimate =
+# rendered output / structural-sizing export reports (14 CFR 23.303 / 25.303: ultimate =
 # 1.5 x limit unless otherwise specified). This is the DEFAULT for the per-case
 # ConditionResult.safety_factor; it is applied only at the render/export boundary
 # so the calc stays oracle-locked to McMaster's printed LIMIT figures. A future
@@ -215,6 +215,13 @@ def installed_engine_weight(engine_type: str, hp: float, engines: int) -> float:
 # speed of sound is constant and the density-ratio law changes.
 TROPOPAUSE_FT = 35332.0
 
+# Sea-level standard air density, slug/ft^3 -- the suite's rho_0 (Reference 1
+# Ch 6; every .BAS module quotes 0.002378). The one owner (CH-6): the V-n
+# builders, FLTLOADS' atmosphere, FLAPLOAD's power check and ONENGOUT's dynamic
+# pressure all read it from here; ``tests/test_constants.py`` guards that the
+# literal appears nowhere else in the package.
+RHO_SL = 0.002378
+
 
 def standard_atmosphere(altitude_ft: float) -> "tuple[float, float]":
     """Speed of sound (knots) and density ratio sigma at an altitude.
@@ -234,7 +241,7 @@ def standard_atmosphere(altitude_ft: float) -> "tuple[float, float]":
     else:
         t = 59.0 - 0.003566 * TROPOPAUSE_FT
         a = 29.02436 * (t + 459.4) ** 0.5  # constant above the tropopause
-        sigma = (0.00072725 * math.exp(-0.00004778 * (h - TROPOPAUSE_FT))) / 0.002378
+        sigma = (0.00072725 * math.exp(-0.00004778 * (h - TROPOPAUSE_FT))) / RHO_SL
     return a, sigma
 
 

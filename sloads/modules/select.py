@@ -57,6 +57,7 @@ from typing import Dict, List, NamedTuple, Optional, Tuple
 
 from ..case_ids import WING_BAND_EXTRA, WING_SLOTS, CaseIdAllocator, wing_case_id
 from ..cg_cases import flight_cases, max_takeoff_weight
+from ..constants import RHO_SL
 from ..derived_geometry import sync_geometry_derived
 from ..models import (
     CaseRef,
@@ -533,7 +534,7 @@ def select_htail_gust(project: Project,
         ude = 50.0 if p.condition == "BAL C" else 25.0
         if p.altitude_ft > 20000.0:
             ude *= 1.0 - 0.5 * (p.altitude_ft - 20000.0) / 30000.0
-        rho = density_ratio(p.altitude_ft) * 0.002378
+        rho = density_ratio(p.altitude_ft) * RHO_SL
         ug = 2.0 * (w / fl.wing_area_sqft) / (rho * mac_ft * aw * _G)
         kg = 0.88 * ug / (5.3 + ug)
         return kg * ude * p.v_eas_kt * ti.htail_area_sqft * aht * (1.0 - 36.0 * (aw / _DEG) / arw) / 498.0
@@ -569,7 +570,7 @@ def select_htail_gust(project: Project,
     # sea-level density (FLTLOADS.BAS 5700-5910).
     def flap_gust_increment(p: VnPoint) -> float:
         w = cg_map[p.cg].weight_lb
-        ug = 2.0 * (w / fl.wing_area_sqft) / (0.002378 * mac_ft * aw * _G)
+        ug = 2.0 * (w / fl.wing_area_sqft) / (RHO_SL * mac_ft * aw * _G)
         kg = 0.88 * ug / (5.3 + ug)
         return kg * 25.0 * p.v_eas_kt * ti.htail_area_sqft * aht * (1.0 - 36.0 * (aw / _DEG) / arw) / 498.0
 
@@ -717,7 +718,7 @@ def _vt_side_gust(p: VnPoint, cg: CgCase, vt: VTailLoadsInput, izz: float) -> fl
     """Lateral gust side load at VC (FAR 23.443(b), SELECT.BAS 8840-8930)."""
     av = _avt(vt)
     k = math.sqrt(izz / (cg.weight_lb / _G))            # radius of gyration
-    rho = density_ratio(p.altitude_ft) * 0.002378
+    rho = density_ratio(p.altitude_ft) * RHO_SL
     lxvt = (vt.xv25 - cg.xcg) / 12.0                     # tail arm, ft
     ude = 50.0 if p.altitude_ft <= 20000.0 else 50.0 - (25.0 / 30000.0) * (p.altitude_ft - 20000.0)
     ugt = 2.0 * cg.weight_lb / (rho * (vt.vtail_mac_in / 12.0) * _G * av * vt.vtail_area_sqft * (k / lxvt) ** 2)

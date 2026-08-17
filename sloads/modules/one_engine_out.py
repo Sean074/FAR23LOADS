@@ -47,6 +47,7 @@ from ..case_ids import VTAIL_BAND_ONENGOUT, CaseIdAllocator
 from ..constants import (
     KT_TO_FPS_SUITE,
     LBIN2_PER_SLUGFT2,
+    RHO_SL,
     ULTIMATE_FACTOR,
     standard_atmosphere,
 )
@@ -94,7 +95,6 @@ PROPELLER_ONLY_NOTE = (
 )
 
 _DEG = 57.3              # ONENGOUT.BAS deg/rad
-_RHO0 = 0.002378         # sea-level density, slug/ft^3
 _Q_DIVISOR = 295.0       # Q = V^2/295
 _IN2_PER_FT2 = 144.0
 _MAX_SIM_TIME_S = 60.0   # bound the march; no recovery by here => uncontrollable (flag it)
@@ -159,7 +159,7 @@ def engine_thrust_and_drag(c: CaseInputs) -> Tuple[float, float, float]:
     sigma = standard_atmosphere(c.alt_ft)[1]
     vtfps = (c.v_kt / sigma ** 0.5) * KT_TO_FPS_SUITE
     thrust = c.maxhp * 550.0 * 0.85 / vtfps
-    rho = _RHO0 * sigma
+    rho = RHO_SL * sigma
     drag = 0.85 * 0.232 * rho * vtfps ** 2 * c.dia_ft ** 2
     return thrust, drag, vtfps
 
