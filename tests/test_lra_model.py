@@ -260,6 +260,43 @@ def test_a_model_with_no_grids_is_refused():
         read_lra_model("$ empty\nCBAR, 1, 1, 2, 3, 0., 0., 1.\n")
 
 
+# --------------------------------------------------------------------------- #
+# Section families (backlog Pri 7 -- step 14 descoped)
+# --------------------------------------------------------------------------- #
+def test_every_cbar_references_its_family_section_and_the_four_pairs_are_identical():
+    """One ``MAT1``/``PBAR`` pair per :data:`SECTION_FAMILIES`, ``MID == PID`` in
+    family order, **identical values** (a different default per family would be
+    invented stiffness), and every ``CBAR`` carries the PID of the chain it is
+    in -- so a sizing tool overwrites one card per family and nothing else."""
+    from sloads.export.lra_model import SECTION_FAMILIES, section_id
+    project = _project("atr42_100.project.json")
+    model = build_lra_model(project)
+    assert len(model.cbar_families) == len(model.cbars)
+    assert set(model.cbar_families) == set(SECTION_FAMILIES)
+    text = lra_model_bdf(project)
+    mat1 = [l for l in text.splitlines() if l.startswith("MAT1,")]
+    pbar = [l for l in text.splitlines() if l.startswith("PBAR,")]
+    assert [l.split(",")[1].strip() for l in mat1] == ["1", "2", "3", "4"]
+    assert [l.split(",")[1].strip() for l in pbar] == ["1", "2", "3", "4"]
+    assert [l.split(",")[2].strip() for l in pbar] == ["1", "2", "3", "4"], "PID -> its own MID"
+    assert len({",".join(l.split(",")[2:]) for l in mat1}) == 1, "identical MAT1 values"
+    assert len({",".join(l.split(",")[3:]) for l in pbar}) == 1, "identical PBAR values"
+    for family in SECTION_FAMILIES:
+        assert f"$ SLOADS-SECTION {family}" in text
+    cbar_pids = [int(l.split(",")[2]) for l in text.splitlines() if l.startswith("CBAR,")]
+    assert cbar_pids == [section_id(f) for f in model.cbar_families]
+    # The families sit where they should: wing chains outboard, fin vertical.
+    positions = {n.gid: n.pos for n in model.nodes}
+    for (ga, gb), family in zip(model.cbars, model.cbar_families):
+        a, b = positions[ga], positions[gb]
+        if family == "wing":
+            assert a[1] != 0.0 or b[1] != 0.0
+        elif family == "vtail":
+            assert a[2] != b[2] and a[1] == b[1] == 0.0
+        elif family == "fuselage":
+            assert a[1] == b[1] == 0.0 and a[0] != b[0]
+
+
 if __name__ == "__main__":  # pragma: no cover - self-runner
     import subprocess
 

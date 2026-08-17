@@ -1233,7 +1233,12 @@ result that lacks what a deck needs is a stated error, never an empty column.
 - **Writes:** one solvable SOL 101 deck (`lra_model.bdf`): node lines on the
   entered load reference axes (`ref_axis_pct`, **required** — refused when
   unset, R-7c) and the fuselage section-centre line `(x, 0, z_centre)` (R-4);
-  `CBAR` chains (band `lra-cbar`) with the placeholder `PBAR`/`MAT1`;
+  `CBAR` chains (band `lra-cbar`) with **one placeholder `PBAR`/`MAT1` pair
+  per section family** (`wing` / `fuselage` / `htail` / `vtail`, `MID = PID`
+  1–4, identical values, each tagged `$ SLOADS-SECTION <family>`; every
+  `CBAR` carries its family's PID) so a sizing tool overwrites one card per
+  family — sloads takes no section input (backlog Pri 7, step 14 descoped,
+  2026-08-17);
   production `RBE2` ties (band `lra-rbe2`) for the centre-box hub + front/rear
   spar posts (split-fuselage idealization, BM-2 — no element spans the
   carry-through), the fin root, the h-tail attachment pair (basis-gated,

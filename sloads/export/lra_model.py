@@ -47,8 +47,10 @@ chain node nearest the front post -- see the support comment in
 * elevator/rudder **hinge/actuator** nodes where a surface runs discrete
   control mode, each rigid to an inserted parent-chain node (LM-6).
 
-With placeholder ``PBAR``/``MAT1`` only the **determinate** paths give honest
-internal loads -- the wing outboard of the SOB, the fin, the two fuselage
+With placeholder ``PBAR``/``MAT1`` -- one identical pair per section family,
+:data:`SECTION_FAMILIES`, so a sizing tool overwrites one card per family
+(backlog Pri 7, step 14 descoped 2026-08-16) -- only the **determinate** paths
+give honest internal loads -- the wing outboard of the SOB, the fin, the two fuselage
 cantilever sums, the gear/engine links (note 24 R-12); the h-tail span between
 its two rigid attachments is placeholder-stiffness-dependent and the header
 says so.
@@ -125,6 +127,22 @@ _ATTACH_BAND = band("lra-attach")
 _CBAR_BAND = band("lra-cbar")
 _RBE2_BAND = band("lra-rbe2")
 
+#: The four section families of the LRA deck, in ``MID``/``PID`` order 1..4
+#: (backlog Pri 7 -- step 14 descoped, 2026-08-17). Each family gets its own
+#: ``MAT1``/``PBAR`` pair so a sizing tool overwrites **one card per family**;
+#: the values are the same placeholder in all four (a different default per
+#: family would be invented stiffness and would move the indeterminate paths
+#: for no reason). The left wing shares the right's; the fwd/aft fuselage
+#: chains share one. sloads takes **no** section input: section properties are
+#: the sizing half's output (scope review 2026-08-16 §2.3), so the seam is the
+#: deck, not the schema.
+SECTION_FAMILIES: Tuple[str, ...] = ("wing", "fuselage", "htail", "vtail")
+
+
+def section_id(family: str) -> int:
+    """The ``MID`` == ``PID`` of ``family`` (1-based, in :data:`SECTION_FAMILIES` order)."""
+    return SECTION_FAMILIES.index(family) + 1
+
 
 class LraRefusal(ValueError):
     """The project lacks a datum the beam model must not guess (BM-3/LM-4)."""
@@ -150,11 +168,23 @@ class LraModel:
     """
     nodes: List[LraNode] = field(default_factory=list)
     cbars: List[Tuple[int, int]] = field(default_factory=list)
+    #: The section family of each ``cbars`` entry, index-aligned (backlog Pri 7,
+    #: descoped step 14): one of :data:`SECTION_FAMILIES`. Decides which of the
+    #: four ``PBAR``/``MAT1`` pairs the element references.
+    cbar_families: List[str] = field(default_factory=list)
     rbe2s: List[Tuple[int, str, List[int], str]] = field(default_factory=list)
     members: Dict[str, List[LraNode]] = field(default_factory=dict)
     support_gid: int = 0
     #: The header's honesty block: every assumed datum the model accepted.
     assumed_notes: List[str] = field(default_factory=list)
+
+    def add_chain(self, nodes: Sequence[LraNode], family: str) -> None:
+        """Register the ``CBAR`` chain through ``nodes`` under a section family."""
+        if family not in SECTION_FAMILIES:
+            raise ValueError(f"unknown LRA section family {family!r}")
+        pairs = list(zip((n.gid for n in nodes), (n.gid for n in nodes[1:])))
+        self.cbars += pairs
+        self.cbar_families += [family] * len(pairs)
 
     def node(self, gid: int) -> LraNode:
         for n in self.nodes:
@@ -290,8 +320,8 @@ def build_lra_model(project: Project) -> LraModel:
     hub_c = LraNode(_CENTRE_BAND.allocate(0), _interp_chain(wing_line, 0.0),
                     "lra-centre", "C")
     model.nodes += right + left + [hub_c]
-    model.cbars += list(zip((n.gid for n in right), (n.gid for n in right[1:])))
-    model.cbars += list(zip((n.gid for n in left), (n.gid for n in left[1:])))
+    model.add_chain(right, "wing")
+    model.add_chain(left, "wing")
     model.rbe2s.append((hub_c.gid, "123456", [sob_r.gid, sob_l.gid],
                         "centre box: the two SOB nodes move with the hub -- "
                         "rigid, NOT a stiffness carry-through (step 14 / R-12)"))
@@ -388,10 +418,9 @@ def build_lra_model(project: Project) -> LraModel:
                                 f"{comp} {cp.kind} node -> parent LRA (LM-6)"))
     # Chains are registered only now: a control node's parent may have been
     # inserted into them, and a chain frozen earlier would orphan it.
-    for chain in (fin_chain, htail_chain):
+    for chain, family in ((fin_chain, "vtail"), (htail_chain, "htail")):
         model.nodes += chain
-        model.cbars += list(zip((n.gid for n in chain),
-                                (n.gid for n in chain[1:])))
+        model.add_chain(chain, family)
     model.nodes += control_nodes
 
     # ------------------------------------------------------------------- gear
@@ -506,10 +535,8 @@ def build_lra_model(project: Project) -> LraModel:
                                  (x, 0.0, centreline.z_at(x)), family, side))
             n_fus += 1
     model.nodes += fus_fwd + fus_aft
-    model.cbars += list(zip((n.gid for n in fus_fwd),
-                            (n.gid for n in fus_fwd[1:])))
-    model.cbars += list(zip((n.gid for n in fus_aft),
-                            (n.gid for n in fus_aft[1:])))
+    model.add_chain(fus_fwd, "fuselage")
+    model.add_chain(fus_aft, "fuselage")
     post_f = fus_fwd[-1]
     post_a = fus_aft[0]
     model.rbe2s.append((hub_c.gid, "123456", [post_f.gid],
@@ -621,12 +648,15 @@ def _units(system: UnitSystem) -> DeliverableUnits:
 
 #: The R-12 statement every LRA deck header carries -- one wording.
 STIFFNESS_NOTE = (
-    "placeholder PBAR/MAT1: only the DETERMINATE paths give honest internal "
-    "loads -- the wing outboard of each SOB node, the fin, the two "
-    "split-fuselage cantilever sums at the posts, and the rigid gear/engine "
-    "links. The h-tail span between its two attachments (conventional "
-    "layout) is placeholder-stiffness-dependent and waits for step 14 real "
-    "sections."
+    "placeholder PBAR/MAT1, one pair per section family (wing = MID/PID 1, "
+    "fuselage 2, htail 3, vtail 4; identical values): only the DETERMINATE "
+    "paths give honest internal loads -- the wing outboard of each SOB node, "
+    "the fin, the two split-fuselage cantilever sums at the posts, and the "
+    "rigid gear/engine links. The h-tail span between its two attachments "
+    "(conventional layout) is placeholder-stiffness-dependent. sloads takes "
+    "no section input: overwrite the four cards with the sizing tool's own "
+    "sections to make the indeterminate paths its (backlog Pri 7, step 14 "
+    "descoped)."
 )
 
 
@@ -723,17 +753,25 @@ def lra_model_bdf(project: Project, *,
         *_comment(STIFFNESS_NOTE),
         f"$ E in {u.pressure.label}; A in {u.length.label}^2; "
         f"I, J in {u.length.label}^4.",
-        f"MAT1, 1, {_fmt(e_mod)}, , {_MAT1_NU}, 0.0",
-        f"PBAR, 1, 1, {_fmt(area)}, {_fmt(inertia)}, {_fmt(inertia)}, "
-        f"{_fmt(torsion_j)}",
+        "$ MAT1, MID, E, G, NU, RHO   /   PBAR, PID, MID, A, I1, I2, J",
+    ]
+    for family in SECTION_FAMILIES:
+        sid_ = section_id(family)
+        bulk += [
+            f"$ SLOADS-SECTION {family}",
+            f"MAT1, {sid_}, {_fmt(e_mod)}, , {_MAT1_NU}, 0.0",
+            f"PBAR, {sid_}, {sid_}, {_fmt(area)}, {_fmt(inertia)}, "
+            f"{_fmt(inertia)}, {_fmt(torsion_j)}",
+        ]
+    bulk += [
         "$ --------------------------------------------------------- ELEMENTS",
-        "$ CBAR, EID, PID, GA, GB, X1, X2, X3",
+        "$ CBAR, EID, PID, GA, GB, X1, X2, X3   (PID = section family)",
     ]
     positions = {n.gid: n.pos for n in model.nodes}
-    for i, (ga, gb) in enumerate(model.cbars):
+    for i, ((ga, gb), family) in enumerate(zip(model.cbars, model.cbar_families)):
         vx, vy, vz = _orientation(positions[ga], positions[gb])
-        bulk.append(f"CBAR, {_CBAR_BAND.allocate(i)}, 1, {ga}, {gb}, "
-                    f"{vx}, {vy}, {vz}")
+        bulk.append(f"CBAR, {_CBAR_BAND.allocate(i)}, {section_id(family)}, "
+                    f"{ga}, {gb}, {vx}, {vy}, {vz}")
     bulk.append("$ RBE2, EID, GN, CM, GM...  (rigid ties, production band)")
     for i, (gn, cm, gms, label) in enumerate(model.rbe2s):
         bulk += _comment(label)
@@ -783,12 +821,14 @@ def write_lra_model_bdf(project: Project, path: str, *,
 
 
 __all__ = [
+    "SECTION_FAMILIES",
     "STIFFNESS_NOTE",
     "LraModel",
     "LraNode",
     "LraRefusal",
     "build_lra_model",
     "lra_model_bdf",
+    "section_id",
     "transferred_case_loads",
     "write_lra_model_bdf",
 ]

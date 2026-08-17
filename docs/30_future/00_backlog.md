@@ -58,7 +58,8 @@ whole of 0.6.0** — the first-order defects in shipped output, the units and
 gate gaps, and the code-health items that make every later session cheaper;
 the release is cut when band A is empty and **nothing in band B holds it**;
 (2) **step 14 is descoped** from "real stiffness" to a `PBAR`/`MAT1`
-pass-through (§2.3 of the review) — the indeterminate-path half is parked;
+pass-through (§2.3 of the review; shipped 2026-08-17 as consumer-*editable*
+per-family cards, no input path) — the indeterminate-path half is parked;
 (3) **fourteen rows are parked** to
 [`02_parked.md`](02_parked.md) ("Parked 2026-08-16") — the band-E physics
 that adds fidelity above the base analysis (power effects' seven-step plan,
@@ -116,7 +117,6 @@ traceability with plans 09/11/12/13; the **Pri** column is ordinal only.
 | Pri | Item (detail below / in its plan) | What ships | Tag | Tier / effort | Depends on |
 |---|---|---|---|---|---|
 | **A — 0.6.0: defects in shipped output, contract gaps, and the cost-of-change fixes (review §1, §5.1)** ||||||
-| 7 | Step 14 **descoped** — `PBAR`/`MAT1` pass-through per LRA element family (was "real stiffness", L-1) (#7) | Consumer-supplied section properties written in place of the `_MAT1_E` placeholder; no physics, no gate beyond "the deck still solves"; the indeterminate-path half is parked | E | S / S | — |
 | 8 | **Constants and conversion factors — one owner, one value, one rule** (review [`2026-08-17_constants_and_conversions_review.md`](../50_reviews/2026-08-17_constants_and_conversions_review.md) C-1…C-12): `DEG_PER_RAD`/`IN_PER_FT`/`FT_LB_S_PER_HP`/gust 498-0.88-5.3 owners added and the six spellings of deg/rad, the two `_G = 32.2`, six `144` aliases + ~24 inline `/12.0` and 15 inline `V²/295` routed through `constants.py` (`aero_curves.dynamic_pressure` for q); `.BAS`-truncated values go **exact by default**, a survivor only as a named `*_SUITE` twin with its oracle cited (FLTLOADS 518.688 °R stays so; 295 measured before deciding); the **`constants.py` vs `units.py` demarcation** (Imperial↔Imperial vs Imperial↔SI only) written into `CONVENTIONS.md` §7 with grep drift guards both ways (#26) | One value of g, of deg/rad, of q in the whole package; measured effect ≤0.08 % (no printed oracle moves; frozen digest + `test_balance` SELECT pins re-pinned, register lines in `02_approved_corrections.md`); the CH-6 defect class closed for every shared constant, not just ρ₀ | E | M / M | after Pri 5 (done) |
 | — | **Cut 0.6.0** when band A is empty (RELEASE_PROCESS §2 cadence rule; `[Unreleased]` already holds two unreleased schema hops) | | | | |
 | **B — 0.7+: capability the base method is missing at first order, fixture data, and report polish (review §2.1)** ||||||
