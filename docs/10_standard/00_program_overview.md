@@ -279,11 +279,30 @@ Runtime (`pyproject.toml` `[project.dependencies]`): `streamlit>=1.30`,
 - **Coverage floor.** Coverage is **CI's concern**: the `test` job passes
   `--cov=sloads --cov-report=term-missing --cov-fail-under=80` explicitly
   (`.github/workflows/ci.yml`), so coverage cannot silently regress while local
-  runs skip the instrumentation cost. Opt in locally with `--cov=sloads`; the
-  `[tool.coverage.*]` tables in `pyproject.toml` still configure branch mode
-  and reporting. This floor is a **ratchet**: raise it toward 85% as
-  `report.py` and `constants.py` gain tests, and tighten to a per-module gate
-  on `sloads/modules/` (the load math) as the suite grows.
+  runs skip the instrumentation cost. **On one leg only** (the 3.12 leg, via the
+  matrix `include`; item 8, 2026-08-16): the floor is one number and needs
+  measuring once, and branch instrumentation was what made every leg a
+  ten-minute job — the 3.9/3.11 legs are the compatibility claim and run
+  uninstrumented. Opt in locally with `--cov=sloads`; the `[tool.coverage.*]`
+  tables in `pyproject.toml` still configure branch mode and reporting. This
+  floor is a **ratchet**: raise it toward 85% as `report.py` and `constants.py`
+  gain tests, and tighten to a per-module gate on `sloads/modules/` (the load
+  math) as the suite grows.
+- **Suite runtime is a measured thing, not a tier.** `--durations=15` runs on
+  every CI leg; a test that dominates the parallel critical path is fixed (the
+  2026-08-16 case: one sweep re-ran the whole pipeline once per (example,
+  module) key — 40 s of a 59 s suite — for an assertion that needs one run per
+  example). There is deliberately **no `slow` marker**: with the suite in the
+  tens of seconds and no test over ten, a fast subset would save seconds and
+  add a second thing to keep in step. Revisit if a single test passes ~30 s or
+  the parallel suite passes ~2 min locally.
+- **Git hooks (opt-in).** `.pre-commit-config.yaml` runs ruff + mypy on
+  commit and the whole suite on push, all as *local* hooks on the venv's own
+  tools, so hook and CI use the same pinned `ruff`/`mypy` versions
+  (`[project.optional-dependencies] dev` — the pin exists because a newer ruff
+  on the runner than on the desk turned a green local run into a red PR).
+  Install once per clone: `.venv/bin/pre-commit install --hook-type pre-commit
+  --hook-type pre-push`. The hook is a convenience; CI is the gate.
 - A zero-dependency fallback runner exists (`python tests/test_engine.py`) for
   environments without pytest.
 

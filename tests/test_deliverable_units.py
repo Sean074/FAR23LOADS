@@ -598,14 +598,20 @@ def test_imperial_csv_is_byte_identical_to_the_no_system_call():
     than one sample, because the writer picks between two row builders
     (``load_cases_to_rows`` / ``results_to_rows``) and both paths matter.
     """
-    for key, csv_si_off in _every_module_csv(UnitSystem.IMPERIAL).items():
-        example, module = key
-        project = io.load_project(os.path.join(
-            os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-            "examples", example))
-        default = io.load_cases_csv(
-            next(mr for mr in run_all_modules(project) if mr.module == module))
-        assert csv_si_off == default, key
+    # The no-``system`` render of every module, built once per example: this
+    # used to reload the project and re-run *all* modules once per
+    # (example, module) key -- ~130 full pipeline runs for six examples, 40 s
+    # of the suite's critical path -- for the same assertion.
+    here = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    defaults = {}
+    for path in sorted(glob.glob(os.path.join(here, "examples", "*.project.json"))):
+        project = io.load_project(path)
+        for mr in run_all_modules(project):
+            defaults[(os.path.basename(path), mr.module)] = io.load_cases_csv(mr)
+    with_system = _every_module_csv(UnitSystem.IMPERIAL)
+    assert set(with_system) == set(defaults)
+    for key, csv_si_off in with_system.items():
+        assert csv_si_off == defaults[key], key
 
 
 def test_si_csv_converts_loads_and_leaves_speed_and_altitude_alone():

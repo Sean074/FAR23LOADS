@@ -1,0 +1,45 @@
+# Git hooks (code-standard review item 8, 2026-08-16). Opt-in, once per clone:
+#
+#   .venv/bin/pre-commit install --hook-type pre-commit --hook-type pre-push
+#
+# Everything is a *local* hook running the venv's own tools, so the hook and CI
+# use byte-identical ruff/mypy versions (pinned in pyproject.toml [dev]) -- no
+# separate hook environments, no version skew, no network at hook time.
+#
+#   pre-commit : ruff + mypy -- the two gates that turned a green local run
+#                into a red PR when they were only run in CI (~10 s).
+#   pre-push   : the whole suite, uninstrumented and parallel (~40 s on 8
+#                cores). Not a "fast subset": measured 2026-08-16 the suite is
+#                36 s and no test is over 10 s, so a slow-marker tier would save
+#                seconds and cost a second thing to keep in step. CI still runs
+#                the same suite with coverage on one leg -- the hook is a
+#                convenience, CI is the gate.
+#
+# Skip once with `git push --no-verify` (or `SKIP=pytest git push`).
+
+repos:
+  - repo: local
+    hooks:
+      - id: ruff
+        name: ruff (lint gate)
+        entry: .venv/bin/ruff check sloads/ cli.py app/ scripts/
+        language: system
+        pass_filenames: false
+        types: [python]
+        stages: [pre-commit]
+
+      - id: mypy
+        name: mypy (type gate, sloads/)
+        entry: .venv/bin/mypy
+        language: system
+        pass_filenames: false
+        types: [python]
+        stages: [pre-commit]
+
+      - id: pytest
+        name: pytest (whole suite, pre-push)
+        entry: .venv/bin/python -m pytest -q -p no:cacheprovider
+        language: system
+        pass_filenames: false
+        always_run: true
+        stages: [pre-push]
