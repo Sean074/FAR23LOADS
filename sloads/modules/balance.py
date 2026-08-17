@@ -201,6 +201,7 @@ from typing import Dict, List, Optional, Sequence, Tuple
 
 from ..case_ids import handed_case_id
 from ..cg_cases import flight_cases, ground_cases, landing_role_cases
+from ..constants import POLAR_TRUSTED_ALPHA_DEG
 from ..derived_geometry import body_drag_waterline, sync_geometry_derived
 from ..export.coordinates import (
     reflect_force,
@@ -679,8 +680,8 @@ def body_inertia(loading: CaseLoading, project: Project,
 
 def body_axial_set(loads: Sequence[BalancedLoad], project: Project,
                    vn: VnPoint, loading: CaseLoading,
-                   ) -> Tuple[float, float, List[BalancedLoad], List[str]]:
-    """The airplane's **non-wing** drag: ``(total, dCD, loads, notes)``.
+                   ) -> Tuple[float, float, bool, List[BalancedLoad], List[str]]:
+    """The airplane's **non-wing** drag: ``(applied, dCD, clamped, loads, notes)``.
 
     Design note: ``docs/30_future/20_body_drag_carrier_note.md``.
 
@@ -712,10 +713,30 @@ def body_axial_set(loads: Sequence[BalancedLoad], project: Project,
     **Sign.** ``CONVENTIONS.md`` §1: ``x`` is +aft, so both ``vn.dx`` and the
     strips' ``fx`` are already body-axis ``x`` forces and the correction is a
     subtraction in one frame, needing no rotation. Positive is aft, i.e. drag.
-    Above ``alpha ~ 19 deg`` on ``concept_regional_jet`` it comes out **forward**,
-    because the strip model's induced drag overshoots the polar there; that is
-    reported as a note rather than clamped, since clamping would reopen
-    ``residual_fx`` and hide the overshoot (decision D-4).
+
+    **A forward value is a defect in one of the two drag models, not a load**
+    (D-4 as revised 2026-08-17, backlog Pri 2). Where it appears is what
+    decides the treatment, and the deciding quantity is the trim's ``alpha``
+    against the polar's trusted window :data:`~sloads.constants.POLAR_TRUSTED_ALPHA_DEG`
+    (:func:`polar_alpha_trusted`):
+
+    * **outside the window** the polar is being read where it was never fitted
+      -- above it the strip model's induced drag overshoots
+      (``concept_regional_jet``, +20/+22 deg), below it the fit is 13 deg under
+      zero lift (``NMAA`` on the three crudest-polar fixtures) -- so a forward
+      difference is **not applied**: no ``body-axial`` card, ``body_axial`` = 0,
+      ``body_axial_clamped`` set, and the raw value in the note. ``dCD`` is
+      still computed and reported from the unclamped difference, so the G10
+      diagnostic keeps its signal; ``residual_fx`` re-opens by exactly the
+      clamped amount on those cases and only those, and the G1/G5 gates read
+      the same flag. Revision 1 of D-4 refused to clamp because that would
+      "reopen ``residual_fx`` and hide the overshoot"; it hid neither once the
+      window is stated and ``dCD`` stays reported, and it put a forward
+      "drag" of 1.0-1.4 klb on three ``NMAA`` decks (backlog Pri 2).
+    * **inside the window** both models are trusted, so a forward value cannot
+      be excused: it is applied as computed **and** noted, and
+      ``tests/test_balance.py``'s G10 gate fails on it -- the fixture's aero
+      data is wrong, not the assembly.
 
     **Placement.** The waterline is the single owner
     :func:`~sloads.derived_geometry.body_drag_waterline` and is the only free
@@ -730,7 +751,7 @@ def body_axial_set(loads: Sequence[BalancedLoad], project: Project,
     wing_fz = math.fsum(ld.fz for ld in loads if ld.source == "wing-air")
     total = vn.dx - wing_fx
     if not total:
-        return 0.0, 0.0, [], []
+        return 0.0, 0.0, False, [], []
 
     # The wind-axis drag increment, for the G10 consistency diagnostic.
     a = radians(vn.alpha_deg)
@@ -744,23 +765,50 @@ def body_axial_set(loads: Sequence[BalancedLoad], project: Project,
     if wl.note:
         notes.append(wl.note)
     if total < 0.0:
+        lo, hi = POLAR_TRUSTED_ALPHA_DEG
+        if not polar_alpha_trusted(vn.alpha_deg):
+            side = "above" if vn.alpha_deg > hi else "below"
+            notes.append(
+                f"the non-wing axial force comes out FORWARD ({total:+,.0f} lb; "
+                f"dCD = {delta_cd:+.5f}) at alpha {vn.alpha_deg:+.1f} deg, "
+                f"{side} the polar's trusted window ({lo:+.0f}, {hi:+.0f}) deg, "
+                f"where the airplane-less-tail polar and the strip model are "
+                f"not both trusted: NOT applied (dCD reported unclamped; "
+                f"residual_fx re-opens by this amount) -- design note 20 D-4 "
+                f"as revised 2026-08-17")
+            return 0.0, delta_cd, True, [], notes
         notes.append(
-            f"the non-wing axial force is FORWARD ({total:+,.0f} lb): above "
-            f"alpha ~19 deg the strip model's induced drag overshoots the "
-            f"airplane-less-tail polar, so the airplane's own drag is less than "
-            f"the wing strips carry. Reported, not clamped (D-4)")
+            f"the non-wing axial force is FORWARD ({total:+,.0f} lb; dCD = "
+            f"{delta_cd:+.5f}) INSIDE the polar's trusted window "
+            f"({lo:+.0f}, {hi:+.0f}) deg -- the fixture's aero data is "
+            f"inconsistent where both drag models are trusted; applied as "
+            f"computed and flagged (D-4)")
 
     stations = _body_drag_stations(project, loading)
     if not stations:
-        return total, delta_cd, [], [*notes, "the non-wing drag has no body station to act at and is NOT applied"]
+        return total, delta_cd, False, [], [
+            *notes, "the non-wing drag has no body station to act at and is NOT applied"]
     notes.append(
         f"non-wing drag {total:+,.0f} lb applied at waterline {wl.z:.1f} "
         f"({wl.basis}) over {len(stations)} body station(s); dCD = {delta_cd:+.5f}")
-    return total, delta_cd, [
+    return total, delta_cd, False, [
         BalancedLoad(x=x, y=0.0, z=wl.z, fx=total * frac,
                      source="body-axial", side="C")
         for x, frac in stations
     ], notes
+
+
+def polar_alpha_trusted(alpha_deg: float) -> bool:
+    """Is the trim ``alpha`` inside the polar's trusted window?
+
+    The one predicate on :data:`~sloads.constants.POLAR_TRUSTED_ALPHA_DEG`,
+    read by :func:`body_axial_set` and by the G10 gate in ``tests/test_balance.py``
+    so the code and the test cannot disagree about where a forward non-wing
+    force is a defect (inside) and where it is an untrusted difference that
+    is not applied (outside).
+    """
+    lo, hi = POLAR_TRUSTED_ALPHA_DEG
+    return lo <= alpha_deg <= hi
 
 
 def _body_drag_stations(project: Project,
@@ -1337,7 +1385,7 @@ def assemble(project: Project, condition: str, vn: VnPoint,
                               source="fuselage-cm", side="C"))
 
     # The airplane's NON-WING drag (see "The body-axial load" in the docstring).
-    body_axial, delta_cd, drag_loads, drag_notes = body_axial_set(
+    body_axial, delta_cd, body_axial_clamped, drag_loads, drag_notes = body_axial_set(
         loads, project, vn, loading)
     loads += drag_loads
     notes += drag_notes
@@ -1381,6 +1429,7 @@ def assemble(project: Project, condition: str, vn: VnPoint,
         closure_inertia=tensor,
         unbal_moment=unb, fuselage_cm=fuselage_cm,
         body_axial=body_axial, delta_cd=delta_cd,
+        body_axial_clamped=body_axial_clamped,
         case_ref=_handed_ref(case_ref, "R") if handed else case_ref,
         hand="R" if handed else "", notes=notes,
     )

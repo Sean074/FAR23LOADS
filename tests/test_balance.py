@@ -44,7 +44,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import pytest  # noqa: E402
 
 from sloads import io  # noqa: E402
-from sloads.constants import LBIN2_PER_SLUGFT2  # noqa: E402
+from sloads.constants import LBIN2_PER_SLUGFT2, POLAR_TRUSTED_ALPHA_DEG  # noqa: E402
 from sloads.derived_geometry import body_drag_waterline  # noqa: E402
 from sloads.gear_loads import gear_case_loads  # noqa: E402
 from sloads import mass_distribution as md  # noqa: E402
@@ -94,6 +94,7 @@ from sloads.modules.balance import (  # noqa: E402
     is_ground,
     is_handed,
     is_lateral,
+    polar_alpha_trusted,
     resultant6,
 )
 from sloads.modules.balance import resultant as case_resultant  # noqa: E402
@@ -303,6 +304,35 @@ _FORCE_RESIDUAL_RATCHET = {
 #: 11's acceptance is 1 %; this is the level at which "a small correction to a
 #: balance that nearly held" stops being a fair description of the closure.
 FORCE_RESIDUAL_CEILING = 0.025
+
+#: Cases whose forward non-wing axial force is **not applied** (backlog Pri 2,
+#: design note 20 D-4 as revised 2026-08-17): the trim ``alpha`` is outside the
+#: polar's trusted window :data:`~sloads.constants.POLAR_TRUSTED_ALPHA_DEG` and
+#: the airplane-less-tail polar less the wing strips came out forward. On these
+#: cases -- and only these -- the assembled model is out of trim by exactly the
+#: clamped force and the couple it made about the CG at the body-drag waterline,
+#: so both pre-closure residuals re-open and are gated **per case** here as
+#: ``(force, pitch)`` ceilings instead of by the family ratchets above. Measured
+#: 2026-08-17: the three crude-polar fixtures' ``NMAA`` (alpha -12.9 to -14.3
+#: deg, forward 1.0-1.4 klb, pitch 1.5-2.1 % because the wing plane the load
+#: sat on is ~40 in from the CG on a high-wing turboprop) and the regional jet's
+#: four cases above +15 / below -10 deg. An entry here is asserted to still
+#: clamp, so it cannot outlive the condition it records; a clamp not recorded
+#: here fails :func:`test_the_pre_closure_residual_is_within_the_gate` loudly.
+_CLAMPED_BODY_AXIAL = {
+    "atr42_100.project.json": {"NMAA": (0.0030, 0.0155)},
+    "dhc8_dash8.project.json": {"NMAA": (0.0040, 0.0190)},
+    "concept_heavy.project.json": {"NMAA": (0.0060, 0.0220)},
+    "concept_regional_jet.project.json": {"PHAA": (0.0070, 0.0020),
+                                          "NMAA": (0.0160, 0.0120),
+                                          "ACRL": (0.0040, 0.0020)},
+}
+
+#: The hard stop on a clamped case's pitch residual, the pitch twin of
+#: :data:`FORCE_RESIDUAL_CEILING`. Above this the un-applied force is no longer
+#: "a difference between two drag models where one is not trusted" but a load
+#: the model is missing, and the fixture's polar needs re-entering.
+CLAMPED_PITCH_CEILING = 0.025
 
 
 class _Ref(NamedTuple):
@@ -681,10 +711,27 @@ def test_the_pre_closure_residual_is_within_the_gate(example):
     same 1 %, in
     :func:`test_the_trim_half_of_an_unsymmetrical_case_still_closes`.
     """
+    clamped_seen = set()
     for case in _flight_cases(_project(example)):
         if _family(case) == "unsymmetrical":
             continue
         where = f"{example} {case.label}{case.hand}"
+        if case.body_axial_clamped:
+            # Out of trim by the un-applied forward force and its couple; gated
+            # per case against what was measured when the clamp was decided.
+            clamped_seen.add(case.label)
+            recorded = _CLAMPED_BODY_AXIAL.get(example, {}).get(case.label)
+            assert recorded is not None, (
+                f"{where}: the non-wing force is clamped but the case is not "
+                "recorded in _CLAMPED_BODY_AXIAL")
+            f_ceiling, p_ceiling = recorded
+            assert case.force_residual_fraction < min(f_ceiling, FORCE_RESIDUAL_CEILING), (
+                f"{where}: force residual {case.force_residual_fraction * 100:.3f} % "
+                f"over the clamped-case ceiling {f_ceiling * 100:.2f} %")
+            assert case.moment_residual_fraction < min(p_ceiling, CLAMPED_PITCH_CEILING), (
+                f"{where}: pitch residual {case.moment_residual_fraction * 100:.3f} % "
+                f"over the clamped-case ceiling {p_ceiling * 100:.2f} %")
+            continue
         force_ceiling = _FORCE_RESIDUAL_RATCHET[example][_family(case)]
         assert case.force_residual_fraction < FORCE_RESIDUAL_CEILING, (
             f"{where}: force residual {case.force_residual_fraction * 100:.3f} % "
@@ -700,6 +747,11 @@ def test_the_pre_closure_residual_is_within_the_gate(example):
             f"{where}: pitch residual {case.moment_residual_fraction * 100:.4f} % "
             f"is inside the 1 % gate but over the {_family(case)} ratchet "
             f"{ratchet * 100:.2f} % -- see _PITCH_RESIDUAL_RATCHET")
+    # The record cannot outlive the condition it excuses.
+    for label in _CLAMPED_BODY_AXIAL.get(example, {}):
+        assert label in clamped_seen, (
+            f"{example} {label}: recorded in _CLAMPED_BODY_AXIAL but no longer "
+            "clamped -- remove the entry")
 
 
 @pytest.mark.parametrize("example", _with_cases())
@@ -833,33 +885,18 @@ _DELTA_CD_BAND = {
     'concept_regional_jet.project.json': (-0.0348, +0.0689),
 }
 
-#: Above this the strip model's induced drag is not trusted against the polar.
-_TRUSTED_ALPHA_DEG = 15.0
-
-#: Cases inside the trusted-alpha window whose ``dCD`` is nevertheless
-#: **positive** -- the wing strips carrying more axial force than the whole
-#: airplane less tail, which cannot be true of a real airplane.
-#:
-#: Measured across all six fixtures 2026-08-15, when Pri 5 / D-26 brought four of
-#: them into the assembly for the first time, and the pattern is narrow and
-#: consistent: it is ``NMAA`` and only ``NMAA``, the negative-g corner, at
-#: ``alpha`` = -12.9 to -14.3 deg, on the three fixtures with the crudest polars.
-#: ``ga6_normal`` (the Appendix A airplane), ``cessna_210`` and
-#: ``concept_regional_jet`` are clean at every trusted alpha.
-#:
-#: Read as a **fixture aero-data** finding, not an assembly one, and the sibling
-#: of the force-residual spread recorded in :data:`_FORCE_RESIDUAL_RATCHET`: the
-#: airplane-less-tail polar on these three is a fit that was never meant to be
-#: evaluated 13 deg below zero lift, so the two drag models cross over there. Both
-#: symptoms are filed as one backlog item. Recorded rather than excluded by
-#: widening the window, so a fourth fixture joining -- or a positive dCD appearing
-#: at a *positive* alpha, which would be a different and much worse thing -- fails
-#: here.
-_DELTA_CD_POSITIVE_AT_TRUSTED_ALPHA = {
-    "atr42_100.project.json": {"NMAA"},
-    "dhc8_dash8.project.json": {"NMAA"},
-    "concept_heavy.project.json": {"NMAA"},
-}
+#: The trusted-``alpha`` window is **read from its owner**,
+#: :data:`sloads.constants.POLAR_TRUSTED_ALPHA_DEG`, through
+#: :func:`sloads.modules.balance.polar_alpha_trusted` -- the code decides where a
+#: forward non-wing force is clamped and this file decides where one is a
+#: defect, and they must be the same window (rule 3). Until 2026-08-17 the test
+#: kept its own ``|alpha| <= 15`` and a table of three excused ``NMAA`` points
+#: (``atr42_100``, ``dhc8_dash8``, ``concept_heavy``, alpha -12.9 to -14.3 deg)
+#: whose forward force the deck nevertheless carried; the window is now
+#: one-sided (-10, +15) and those points are outside it and **not applied**
+#: (:data:`_CLAMPED_BODY_AXIAL`), so there is nothing left to excuse: inside the
+#: window every case is negative, on every fixture, or the fixture's aero data is
+#: wrong.
 
 
 @pytest.mark.parametrize("example", _with_cases())
@@ -876,6 +913,12 @@ def test_the_applied_axial_force_is_the_airplanes_drag_not_the_wings(example):
     ``nx`` is exactly this unbalanced axial force, and
     :func:`test_the_longitudinal_closure_is_the_trims_own_drag` is where it is
     accounted for. An earlier draft of this gate asked for zero and was wrong.
+
+    **The one stated exception** (:data:`_CLAMPED_BODY_AXIAL`, D-4 as revised):
+    where the non-wing difference came out forward at an ``alpha`` outside the
+    polar's trusted window it is not applied, so on that case the applied ``fx``
+    is the wing strips' own -- *more* drag than the trim's ``dx``, never less --
+    and there is no ``body-axial`` card at all.
     """
     project = _project(example)
     vn = {p.case: p for p in default_envelope(project).vn}
@@ -883,8 +926,21 @@ def test_the_applied_axial_force_is_the_airplanes_drag_not_the_wings(example):
         applied = sum(ld.fx for ld in case.loads
                       if not ld.source.startswith("closure-"))
         expected = vn[case.vn_case].dx
+        where = f"{example} {case.label}{case.hand}"
+        if case.body_axial_clamped:
+            strips = sum(ld.fx for ld in case.loads if ld.source == "wing-air")
+            assert not [ld for ld in case.loads if ld.source == "body-axial"], where
+            assert case.body_axial == 0.0, where
+            assert applied == pytest.approx(strips, rel=1e-9, abs=1e-6), (
+                f"{where}: clamped, so applied Fx {applied:,.1f} lb should be the "
+                f"strips' own {strips:,.1f} lb")
+            assert applied > expected, (
+                f"{where}: the clamped-away force must have been FORWARD "
+                f"(applied {applied:,.1f} lb vs trim dx {expected:,.1f} lb)")
+            assert case.residual_fx == pytest.approx(applied, rel=1e-9, abs=1e-6)
+            continue
         assert applied == pytest.approx(expected, rel=1e-9, abs=1e-6), (
-            f"{example} {case.label}{case.hand}: applied Fx {applied:,.1f} lb "
+            f"{where}: applied Fx {applied:,.1f} lb "
             f"against the trim's drag {expected:,.1f} lb")
         assert case.residual_fx == pytest.approx(expected, rel=1e-9, abs=1e-6)
 
@@ -898,11 +954,18 @@ def test_the_longitudinal_closure_is_the_trims_own_drag(example):
     carrier it was the wing's drag alone -- ``ga6_normal`` PHAA closed at 0.661 g
     against the trim's own 0.610, and the 0.05 g difference was the missing load,
     not a modelling choice.
+
+    On a clamped case (:data:`_CLAMPED_BODY_AXIAL`) it is the strips' own drag
+    over the weight instead -- the applied ``fx`` in either case, which is what
+    the ``x`` degree of freedom reacts.
     """
     project = _project(example)
     vn = {p.case: p for p in default_envelope(project).vn}
     for case in _flight_cases(project):
         expected = vn[case.vn_case].dx / case.weight_lb
+        if case.body_axial_clamped:
+            expected = sum(ld.fx for ld in case.loads
+                           if not ld.source.startswith("closure-")) / case.weight_lb
         assert case.delta_nx == pytest.approx(expected, rel=1e-9), (
             f"{example} {case.label}{case.hand}: closure nx {case.delta_nx:.5f} "
             f"against the trim's drag {expected:.5f}")
@@ -935,11 +998,18 @@ def test_the_non_wing_drag_is_a_consistent_parasite_offset(example):
 
     * every case sits inside its fixture's recorded band
       (:data:`_DELTA_CD_BAND`) -- a regression guard;
-    * below ``alpha`` = 15 deg every case is **negative**, i.e. the wing strips
-      carry strictly less axial force than the whole airplane. That is a real
-      statement, not a tautology: the polar covers airplane-less-tail and the
-      strips cover the wing, so the difference is other components' drag and can
-      only have one sign while the strip model is trusted.
+    * inside the polar's trusted ``alpha`` window
+      (:data:`~sloads.constants.POLAR_TRUSTED_ALPHA_DEG`, read from its owner)
+      every case is **negative**, i.e. the wing strips carry strictly less axial
+      force than the whole airplane. That is a real statement, not a tautology:
+      the polar covers airplane-less-tail and the strips cover the wing, so the
+      difference is other components' drag and can only have one sign while both
+      models are trusted. There are no excused points (there were three until
+      2026-08-17; they are outside the one-sided window now and clamped, see
+      :func:`test_a_forward_non_wing_force_outside_the_window_is_not_applied`).
+
+    ``dCD`` is the **unclamped** difference on every case, clamped or not, so
+    the band and the sign gate see the same signal they always did.
     """
     project = _project(example)
     vn = {p.case: p for p in default_envelope(project).vn}
@@ -950,24 +1020,53 @@ def test_the_non_wing_drag_is_a_consistent_parasite_offset(example):
         assert lo <= case.delta_cd <= hi, (
             f"{where}: dCD {case.delta_cd:+.5f} outside the recorded band "
             f"({lo:+.4f}, {hi:+.4f}) -- see _DELTA_CD_BAND")
-        if abs(vn[case.vn_case].alpha_deg) <= _TRUSTED_ALPHA_DEG:
-            trusted.append((where, case.delta_cd, case.label))
-    assert trusted, f"{example}: no case below {_TRUSTED_ALPHA_DEG} deg alpha"
-    recorded = _DELTA_CD_POSITIVE_AT_TRUSTED_ALPHA.get(example, set())
-    # The recorded exceptions are asserted to still *be* exceptions, so the entry
-    # cannot outlive the condition it excuses.
-    for label in recorded:
-        assert any(cd >= 0.0 for _, cd, lbl in trusted if lbl == label), (
-            f"{example} {label}: recorded in "
-            "_DELTA_CD_POSITIVE_AT_TRUSTED_ALPHA but its dCD is now negative -- "
-            "remove the entry")
-    for where, cd, label in trusted:
-        if label in recorded:
-            continue
+        if polar_alpha_trusted(vn[case.vn_case].alpha_deg):
+            trusted.append((where, case.delta_cd))
+    assert trusted, f"{example}: no case inside the trusted window {POLAR_TRUSTED_ALPHA_DEG}"
+    for where, cd in trusted:
         assert cd < 0.0, (
             f"{where}: dCD {cd:+.5f} says the wing strips carry MORE axial force "
-            f"than the whole airplane less tail, below the stall-line alphas "
-            f"where the strip model is trusted")
+            f"than the whole airplane less tail, inside the alpha window "
+            f"{POLAR_TRUSTED_ALPHA_DEG} deg where both drag models are trusted "
+            f"-- a fixture aero-data defect, not something to excuse")
+
+
+@pytest.mark.parametrize("example", _with_cases())
+def test_a_forward_non_wing_force_outside_the_window_is_not_applied(example):
+    """Backlog Pri 2 / design note 20 D-4 as revised 2026-08-17.
+
+    A forward non-wing axial force at a trim ``alpha`` **outside** the polar's
+    trusted window is a difference between two drag models where one of them is
+    being read outside its fit -- not a load. So on exactly those cases, and no
+    others: ``body_axial_clamped`` is set, ``body_axial`` is zero, no
+    ``body-axial`` card is written, the unclamped ``dCD`` is still positive and
+    reported, and the case note says so. The clamped set is the recorded one
+    (:data:`_CLAMPED_BODY_AXIAL`), both ways. A forward value *inside* the
+    window is never clamped -- it fails
+    :func:`test_the_non_wing_drag_is_a_consistent_parasite_offset` instead.
+    """
+    project = _project(example)
+    vn = {p.case: p for p in default_envelope(project).vn}
+    clamped = set()
+    for case in _flight_cases(project):
+        where = f"{example} {case.label}{case.hand}"
+        alpha = vn[case.vn_case].alpha_deg
+        if case.body_axial_clamped:
+            clamped.add(case.label)
+            assert not polar_alpha_trusted(alpha), (
+                f"{where}: clamped INSIDE the trusted window at alpha {alpha:+.1f}")
+            assert case.delta_cd > 0.0, f"{where}: clamped but dCD {case.delta_cd:+.5f}"
+            assert case.body_axial == 0.0, where
+            assert not [ld for ld in case.loads if ld.source == "body-axial"], where
+            assert any("NOT applied" in n and "trusted window" in n
+                       for n in case.notes), f"{where}: no clamp note"
+        else:
+            assert not (case.delta_cd > 0.0 and not polar_alpha_trusted(alpha)), (
+                f"{where}: forward outside the window at alpha {alpha:+.1f} "
+                f"but not clamped")
+    assert clamped == set(_CLAMPED_BODY_AXIAL.get(example, {})), (
+        f"{example}: clamped {sorted(clamped)} vs recorded "
+        f"{sorted(_CLAMPED_BODY_AXIAL.get(example, {}))}")
 
 
 @pytest.mark.parametrize("example", _with_cases())

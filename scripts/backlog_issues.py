@@ -12,10 +12,19 @@ This script does the one-off migration and the standing both-ways check:
              section / defect bullet with a one-line pointer to its issue
     check    every priority-table row names an open issue, and every open issue
              labelled ``band:*`` appears in the table (needs gh; exit 1 on drift)
+    render   regenerate the priority table's item rows from the issues: a row
+             whose issue is CLOSED is dropped, an OPEN issue's row is re-emitted
+             from its body (the ``**Item.** / **What ships.** / **Tag.** /
+             **Tier / effort.** / **Depends on.**`` block ``create`` wrote), so
+             the table is a *view* of the issues and no closing PR edits it
+             (``DEVELOPMENT_PROCESS.md`` §4). Band header rows, the cut-line row
+             and everything outside the table are kept byte-for-byte. Under the
+             solo profile (§0) the file is the record and this is not run.
 
-Pure functions (``parse_backlog``, ``issue_set``, ``rewrite_backlog``) work on
-strings so ``tests/test_backlog_issues.py`` runs them on the live file without
-``gh``; only ``create`` and ``check`` shell out. Owner-run; never from CI.
+Pure functions (``parse_backlog``, ``issue_set``, ``rewrite_backlog``,
+``render_backlog``, ``row_from_issue``) work on strings so
+``tests/test_backlog_issues.py`` runs them on the live file without ``gh``;
+only ``create``, ``check`` and ``render`` shell out. Owner-run; never from CI.
 """
 
 from __future__ import annotations
@@ -93,9 +102,7 @@ def parse_backlog(text: str) -> List[Item]:
                 labels.append("kind:defect" if "defect" in title.lower() else "kind:step")
                 if "hygiene" in title.lower() or "CH-" in title:
                     labels[-1] = "kind:hygiene"
-                body = (f"**Priority table row {pri}, band {band}** (`docs/30_future/00_backlog.md`).\n\n"
-                        f"**Item.** {title}\n\n**What ships.** {ships}\n\n**Tag.** {tag}  "
-                        f"**Tier / effort.** {tier}  **Depends on.** {depends}\n")
+                body = row_body(pri, band, title, ships, tag, tier, depends)
                 items.append(Item("row", _plain(title), body, labels, band, pri, line=i + 1))
             i += 1
             continue
@@ -244,6 +251,65 @@ def table_refs(text: str) -> List[int]:
     return [int(n) for line in text.splitlines() if ITEM_ROW.match(line) for n in ISSUE_REF.findall(line)]
 
 
+# --- render: the table as a view of the issues -------------------------------
+
+#: The row block ``parse_backlog`` writes into every row issue's body (and
+#: ``create`` posts). ``render`` reads it back; a body that does not match --
+#: hand-edited, or not a row issue -- leaves the existing table line untouched.
+ISSUE_BODY = re.compile(
+    r"\*\*Priority table row (\d+), band ([A-Z])\*\*.*?\n\n"
+    r"\*\*Item\.\*\* (.*?)\n\n\*\*What ships\.\*\* (.*?)\n\n"
+    r"\*\*Tag\.\*\* (.*?)  \*\*Tier / effort\.\*\* (.*?)  \*\*Depends on\.\*\* (.*?)\n",
+    re.S)
+
+
+def row_body(pri: int, band: str, title: str, ships: str, tag: str, tier: str, depends: str) -> str:
+    """The body ``create`` posts for a table row -- one writer, so ``render``'s
+    reader (:data:`ISSUE_BODY`) and this cannot drift."""
+    return (f"**Priority table row {pri}, band {band}** (`docs/30_future/00_backlog.md`).\n\n"
+            f"**Item.** {title}\n\n**What ships.** {ships}\n\n**Tag.** {tag}  "
+            f"**Tier / effort.** {tier}  **Depends on.** {depends}\n")
+
+
+def row_from_issue(number: int, body: str) -> Optional[str]:
+    """The priority-table line for issue ``number`` from its body, or ``None``
+    when the body does not carry the row block."""
+    m = ISSUE_BODY.search(body)
+    if not m:
+        return None
+    pri, _band, title, ships, tag, tier, depends = m.groups()
+    title = ISSUE_REF.sub("", title).rstrip()
+    return f"| {pri} | {title} (#{number}) | {ships} | {tag} | {tier} | {depends} |"
+
+
+def render_backlog(text: str, issues: Dict[int, Tuple[str, str]]) -> str:
+    """``text`` with every ``(#N)`` item row re-emitted from ``issues[N] =
+    (state, body)``: dropped when ``state`` is ``CLOSED``, rewritten from the
+    body when it carries the row block, left as it is otherwise (unknown issue,
+    hand-edited body). Nothing outside the item rows moves."""
+    out: List[str] = []
+    for line in text.splitlines():
+        emit = line
+        if ITEM_ROW.match(line):
+            refs = ISSUE_REF.findall(line)
+            if refs:
+                state, body = issues.get(int(refs[0]), ("", ""))
+                if state.upper() == "CLOSED":
+                    continue
+                rendered = row_from_issue(int(refs[0]), body) if body else None
+                if rendered is not None:
+                    emit = rendered
+        out.append(emit)
+    return "\n".join(out) + "\n"
+
+
+def fetch_issues() -> Dict[int, Tuple[str, str]]:
+    """``{number: (state, body)}`` for every issue, open or closed (needs gh)."""
+    raw = json.loads(_gh("issue", "list", "--state", "all", "--limit", "500",
+                         "--json", "number,state,body"))
+    return {int(it["number"]): (it["state"], it.get("body") or "") for it in raw}
+
+
 # --- gh ----------------------------------------------------------------------
 
 LABEL_COLOURS = {"band": "1d76db", "tier": "5319e7", "tag": "0e8a16", "kind": "d93f0b"}
@@ -297,7 +363,7 @@ def check(text: str) -> Tuple[List[int], List[Tuple[int, str]]]:
 
 def main(argv: Optional[List[str]] = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    ap.add_argument("command", choices=["plan", "create", "rewrite", "check"])
+    ap.add_argument("command", choices=["plan", "create", "rewrite", "check", "render"])
     ap.add_argument("--milestone", help="milestone for band-A issues on create (e.g. 0.6.0)")
     args = ap.parse_args(argv)
     with open(BACKLOG, encoding="utf-8") as fh:
@@ -326,6 +392,15 @@ def main(argv: Optional[List[str]] = None) -> int:
         with open(BACKLOG, "w", encoding="utf-8") as fh:
             fh.write(rewrite_backlog(text, numbers))
         print(f"rewrote {os.path.relpath(BACKLOG, ROOT)} with {len(numbers)} issue references")
+        return 0
+    if args.command == "render":
+        rendered = render_backlog(text, fetch_issues())
+        if rendered == text:
+            print("priority table already matches the issues")
+            return 0
+        with open(BACKLOG, "w", encoding="utf-8") as fh:
+            fh.write(rendered)
+        print(f"rendered {os.path.relpath(BACKLOG, ROOT)} from the issues -- review with git diff")
         return 0
     dangling, missing = check(text)
     for n in dangling:

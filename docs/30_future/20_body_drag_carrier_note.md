@@ -283,7 +283,7 @@ gate is what surfaces the unexplained high-`α` sign flip on the regional jet
 | **D-1** | **Where does the load act vertically?** | **A new stated input `body_drag_waterline_z`, with a deliberately *two-branch* resolution order ending at `zw`.** See §8.1 — this is the decision the step turns on, and the reasoning matters more than the answer |
 | **D-2** | **How is it distributed in `x`?** | Free — `x` does not enter the pitch residual (§4). Distribute over the body stations by **frontal-area share** where a `FuselageOutline` exists, else lump at the body-inertia centroid `x`, flagged. Physical where the geometry allows, harmless where it does not |
 | **D-3** | **What is it called?** | `source="body-axial"`, not `body-drag`. At the RJ's two high-`α` points the quantity is **forward** (§2), and a card labelled "drag" pointing forward is a lie in the deck. The rendered label states it as *the airplane-less-tail axial force the wing strips do not carry* |
-| **D-4** | **Clamp the negative (forward) values?** | **No.** The correction is defined as whatever closes the two drag models, and clamping would (a) reopen `residual_fx`, killing G1/G5, and (b) hide a real finding — the strip model's induced drag overshoots the polar above `α ≈ 19°`. Emit a **note** on the case instead, and file the overshoot as its own observation. Clamping trades a measurable gate for a comfortable number |
+| **D-4** | **Clamp the negative (forward) values?** | ~~**No.**~~ **Revised 2026-08-17 (§8.2): not applied outside a stated one-sided trusted-`α` window; a defect inside it.** The original answer — the correction is defined as whatever closes the two drag models, and clamping would (a) reopen `residual_fx`, killing G1/G5, and (b) hide a real finding — is superseded as set out in §8.2 |
 | **D-5** | **Does the ga6 get body geometry first?** | **Recommend yes, as a separate step before this one** — merged with what the L-7 note §10 and Pri 10 need from the same geometry. `fuselage_height = 0.0` means the ga6 cannot state a body centreline at all, so D-1's default is doing all the work there. Sequencing it first keeps this step's digest wave attributable, the same reasoning the L-7 note applied |
 
 ### 8.1 D-1 in full — the placement of the load
@@ -346,6 +346,78 @@ Harmless in the balanced deck — it is a load set with no elements
 position — but **Pri 1** (LRA beam export) and **step 14** (real stiffness) will
 care. Option 4 is the answer there, and it pairs with L-7 §10, Pri 10 and M4-19,
 all of which want body geometry the fixtures do not have.
+
+### 8.2 D-4 revised — a forward value outside the polar's fitted range is not a load
+
+**[REVISED 2026-08-17, backlog Pri 2, agreed in chat under the solo profile
+(`DEVELOPMENT_PROCESS.md` §0).]** Revision 2 answered D-4 "no clamp; note it",
+for two reasons: clamping would reopen `residual_fx` and so kill G1/G5, and it
+would hide the high-`α` overshoot (§9 item 2). Both reasons were about the two
+RJ points above `α ≈ 19°`. When Pri 5 / D-26 brought the other four fixtures
+into the assembly (2026-08-15) the same sign inversion appeared at the **other**
+end of the range — `NMAA` at `α = −12.9…−14.3°` on `atr42_100`, `dhc8_dash8`
+and `concept_heavy`, forward by **1,004 / 1,097 / 1,445 lb** — and the test
+suite recorded them as excused points inside a symmetric `|α| ≤ 15°` window
+while the balanced decks carried the forward "drag" as a `body-axial` card.
+That is 3–8 % of `W` as a forward body force on a negative-g corner: a
+first-order defect in shipped content (`CLAUDE.md` rule 6), and it is what
+overturns the recommendation.
+
+**What is wrong with the original reasoning.** The correction is "whatever
+closes the two drag models" *only where both models are trusted*. The entered
+polar is a `CD(CL)` fit over the positive-lift range; read 13° below zero lift
+(the `NMAA` points) or above the stall line (the RJ points) it is an
+extrapolation, and the difference between an extrapolated polar and the strip
+model is not a fuselage force — it is the extrapolation error, with a sign
+that says nothing about the airplane. Applying it as a load so that a
+*validation number* (`residual_fx`) comes out zero is the same mistake §8.1
+withdrew for `z_b`: choosing where a physical load goes, or whether it exists,
+to make a gate pass.
+
+**The revised answer.**
+
+- **A trusted-`α` window is a single owner**, `constants.POLAR_TRUSTED_ALPHA_DEG
+  = (−10°, +15°)`, **one-sided on purpose**: the upper bound is where the RJ's
+  strip induced drag overshoots the polar; the lower bound separates the three
+  crude-polar fixtures' cross-over (−12.9° and below) from the Appendix A
+  airplane and `cessna_210`, both still consistent at −8.4/−8.9°. The predicate
+  is `balance.polar_alpha_trusted`, read by the code and by the test (rule 3).
+- **Outside the window a forward difference is not applied.** No `body-axial`
+  card, `body_axial = 0`, `body_axial_clamped = True` on the case, the raw value
+  and the window in the case note and the deck header. **`ΔC_D` is still
+  computed and reported from the unclamped difference**, so G10 keeps the
+  signal that found the defect — this answers reason (b): nothing is hidden,
+  the window is stated and the number is printed.
+- **Inside the window a forward value is a fixture aero-data defect**, applied
+  as computed, noted, and **failed by G10** — the three excused entries are
+  gone from the test; there is nothing left to excuse.
+- **G1/G5 and G2 read the same flag.** On a clamped case the applied `fx` is
+  the strips' own (strictly more drag than the trim's `dx`, never less) and
+  `delta_nx` is that over `W`; `residual_fx` re-opens by exactly the clamped
+  force, on those cases only — this answers reason (a): the gate is not
+  killed, it states its exception and pins it per case.
+- **The pitch residual re-opens too, and that is stated rather than absorbed.**
+  The forward force sat at the body-drag waterline — the wing plane, ~40 in
+  from the CG on a high-wing turboprop — so removing it re-opens `residual_my`
+  by that couple: **1.48 % / 1.80 % / 2.09 %** of `n·W·MAC` on the three
+  `NMAA` points (RJ: 0.15–1.12 %), against plan 11's flat 1 %. That residual
+  *is* the polar/strip inconsistency at an `α` where the polar is untrusted; it
+  is reacted by the closure (`q_dot`, ≤ 0.0008 rad/s²) and gated **per case**
+  in `tests/test_balance.py::_CLAMPED_BODY_AXIAL` with `(force, pitch)`
+  ceilings measured at this revision, under a 2.5 % hard stop
+  (`CLAMPED_PITCH_CEILING`, the twin of `FORCE_RESIDUAL_CEILING`). The
+  alternative — keep the forward card so the residual reads 0.05 % — is the
+  comfortable number the original D-4 warned against, pointed the other way.
+- **Effect on delivered loads (rule 6):** the seven affected balanced decks lose
+  a 1.0–2.6 klb forward axial card on the body; the closure inertia set moves by
+  the re-opened residual. Nothing moves on `ga6_normal` or `cessna_210`, or on
+  any case inside the window. Imperial digest regenerated for the four
+  fixtures' `balance` channels and three `lra_model` channels.
+
+§9 item 2 (the overshoot itself) stays open: this revision decides what the
+model *does* with an untrusted difference, not why the strip model and the
+polar disagree there — re-entering the polars is explicitly **not** this item
+(backlog Pri 2, "not a re-derivation of the polars").
 
 ## 9. Open items
 

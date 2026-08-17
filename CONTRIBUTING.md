@@ -39,6 +39,10 @@ The gates, all local:
 
 ## 3. How work moves (the one-page version of `DEVELOPMENT_PROCESS.md`)
 
+*Working alone?* `DEVELOPMENT_PROCESS.md` §0 is the solo profile: steps 1, 6–8
+below become "one commit per closed item on `main`, backlog row out in that
+commit"; steps 2–5 (design note, tier closure, counters) apply unchanged.
+
 1. **Pick or open an issue.** Open work is GitHub Issues (labels
    `tier:*`, `tag:*`, `band:*`, `kind:*`); the priority order is the table in
    `00_backlog.md`. Assign yourself.

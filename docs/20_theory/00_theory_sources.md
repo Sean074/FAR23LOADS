@@ -269,11 +269,17 @@ polar's body-axis `x` force less what the wing strips carry — `drag_cd(config,
 cl)` against `airloads`' section profile plus lifting-line induced drag, resolved
 through the same `α`. That it is parasite drag rather than a lift-model
 disagreement is measured: decomposing into wind axes gives `ΔL/L` ≤ 0.6 % while
-`ΔC_D` is a near-constant −0.018 across all seven ga6 cases. Above `α ≈ 19°` on
-the RJ it inverts sign (the strip induced drag overshoots the polar) and is
-reported, not clamped. **Gate:** the applied axial resultant equals the trim's
-`dx` and `delta_nx` equals `dx/W`, both to 1e-9; the `ΔC_D` band is pinned per
-fixture and asserted negative below `α = 15°`. Its waterline is the single owner
+`ΔC_D` is a near-constant −0.018 across all seven ga6 cases. Outside the polar's
+one-sided trusted-`α` window `constants.POLAR_TRUSTED_ALPHA_DEG` = (−10°, +15°)
+it inverts sign (above: the RJ's strip induced drag overshoots the polar; below:
+the crude-polar fixtures' `NMAA` at −12.9…−14.3°, the fit read 13° under zero
+lift) and a forward value there is **not applied** — `ΔC_D` still reported
+unclamped, `body_axial_clamped` set (note 20 D-4 as revised 2026-08-17).
+**Gate:** the applied axial resultant equals the trim's `dx` and `delta_nx`
+equals `dx/W`, both to 1e-9, except on the recorded clamped cases where both are
+the strips' own `fx`; the `ΔC_D` band is pinned per fixture and asserted
+negative inside the window; the clamped set is pinned both ways with per-case
+residual ceilings. Its waterline is the single owner
 `derived_geometry.body_drag_waterline` — the only free parameter of the load, and
 stated rather than derived because the suite has no body-centreline datum (design
 note `../30_future/20_body_drag_carrier_note.md` §8.1).

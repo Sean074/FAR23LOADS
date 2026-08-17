@@ -704,6 +704,17 @@ regression oracle**; Appendix A/B geometry is used only as a *sanity* fixture.
   entered `body_drag_waterline_z` it is the wing reference plane, marked
   `assumed`. The `ΔC_D` it represents is reported per case, because carrying the
   load makes the applied axial resultant equal the trim's `dx` by construction.
+  **A forward (negative) non-wing force is a defect in one of the two drag
+  models, not a load** (note 20 D-4 as revised 2026-08-17): the trim `α` is
+  tested against the polar's one-sided trusted window
+  `constants.POLAR_TRUSTED_ALPHA_DEG` (`balance.polar_alpha_trusted`, the single
+  owner the G10 gate also reads). Outside it the force is **not applied** — no
+  `body-axial` card, `body_axial = 0`, `body_axial_clamped` set, the raw value
+  and the window in the case note; `ΔC_D` is still reported unclamped, and both
+  pre-closure residuals re-open on that case by the un-applied force and its
+  couple (stated, reacted by the closure, pinned per case in `test_balance.py`).
+  Inside the window a forward value is applied as computed and fails the G10
+  gate — the fixture's aero data is inconsistent where both models are trusted.
   A condition whose CG the weight database cannot produce is **recorded, not
   invented**. The ground families' own method — the `n_z = 0` solve, the applied
   gear/lift set and the LANDLOAD identity — is

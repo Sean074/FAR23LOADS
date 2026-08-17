@@ -6,13 +6,27 @@ on:
   pull_request:
     branches: [main]
 
+# A second push to the same branch cancels the run the first one started: a
+# 10-minute run of a commit nobody will merge is the single largest waste in
+# the log (2026-08-17 process review).
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   test:
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        python-version: ["3.9", "3.11", "3.12"]
+        # PR = the fast gate: ONE interpreter (3.12, with coverage). The 3.9 /
+        # 3.11 legs are the *compatibility* claim, not the correctness gate,
+        # and in this repository they have never failed where 3.12 passed --
+        # they run on every push to main (i.e. on merge) and are fixed forward
+        # if they ever differ (2026-08-17 process review; DEVELOPMENT_PROCESS
+        # §0). Required checks on `main` are therefore `test (3.12)`,
+        # `typecheck`, `sbeam-roundtrip (3.12)`.
+        python-version: ${{ github.event_name == 'pull_request' && fromJSON('["3.12"]') || fromJSON('["3.9", "3.11", "3.12"]') }}
         # Coverage on ONE leg (2026-08-16, item 8 of the code-standard review):
         # branch-coverage instrumentation was the multiplier that made every
         # leg a ~12-minute job on a 2-core runner. The 80 % floor is one
@@ -84,7 +98,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: ["3.11", "3.12"]
+        # Same split as `test`: 3.12 on every PR, 3.11 on push to main.
+        python-version: ${{ github.event_name == 'pull_request' && fromJSON('["3.12"]') || fromJSON('["3.11", "3.12"]') }}
 
     steps:
       - uses: actions/checkout@v4

@@ -667,6 +667,13 @@ class BalancedCaseResult:
     #: content is its **consistency across the cases** of one fixture, not its
     #: value on any one of them (design note ``20_body_drag_carrier_note.md`` G10).
     delta_cd: float = 0.0
+    #: ``True`` when the non-wing difference came out **forward** at a trim
+    #: ``alpha`` outside the polar's trusted window
+    #: (:data:`~sloads.constants.POLAR_TRUSTED_ALPHA_DEG`) and was therefore
+    #: **not applied**: :attr:`body_axial` is ``0``, :attr:`delta_cd` still
+    #: reports the unclamped difference, and ``residual_fx`` re-opens by exactly
+    #: that amount on this case (design note 20 D-4 as revised 2026-08-17).
+    body_axial_clamped: bool = False
     case_ref: Optional[CaseRef] = None
     #: ``"R"``/``"L"`` for the two twins of an antisymmetric case, ``""`` when the
     #: case is symmetric and therefore its own mirror image (B-6/B-7).

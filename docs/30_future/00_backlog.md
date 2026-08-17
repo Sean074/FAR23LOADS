@@ -115,13 +115,12 @@ traceability with plans 09/11/12/13; the **Pri** column is ordinal only.
 | Pri | Item (detail below / in its plan) | What ships | Tag | Tier / effort | Depends on |
 |---|---|---|---|---|---|
 | **A — 0.6.0: defects in shipped output, contract gaps, and the cost-of-change fixes (review §1, §5.1)** ||||||
-| 2 | Fixture aero-data quality — the `NMAA` `dCD` sign *(defect)* (#2) | A one-sided trusted-α window (clamp or flag) so no shipped balanced deck carries a positive `dCD`; **not** a re-derivation of the polars | E | M / S–M | — (recorded per fixture in `test_balance.py`) |
 | 3 | L-8i — per-page LIMIT CSV units (#3) | Converted, unit-suffixed analysis-page downloads (four pages) — Imperial-in-SI is a units defect | E | S / S | — |
 | 4 | M4-3(b) — turboprop gate as **enforcement** (#4) | Refuse (or caption) `one_engine_out` when the failed engine is not a propeller installation — `PROPELLER_ONLY_NOTE` becomes a gate, not a sentence; (a)/(c) parked | E | S / S | — |
 | 5 | Hygiene batch *(one session)*: conventions findings (a)–(d); M4-23 duplicate sigma; **`RHO_SL`** for the seven `0.002378` literals (CH-6) and the stray lb→kg factor in `report/content.py` (CH-7); ~~CH-2 export silent defaults~~ (closed 2026-08-16, item 9); direct tests for `coordinates.py`'s three tail transforms (CH-3); verify-and-retire the 427 lb fuselage-mass pin (#5) | Guards that are claimed to exist, exist; the D-19 failure class closed in the export namespace; one authority for σ and ρ₀ | E | S / S | — |
-| 6 | Wing-tank fuel separability (#6) | Ends the same pounds riding both beams on the three fuel-in-wing fixtures — a `wing_fraction` on `MassItem` (or a second row) + the tie validator; **the freeze's one schema hop**; **not** plan 12 C1 | E | L / M | after Pri 2–5 |
+| 6 | Wing-tank fuel separability (#6) | Ends the same pounds riding both beams on the three fuel-in-wing fixtures — a `wing_fraction` on `MassItem` (or a second row) + the tie validator; **the freeze's one schema hop**; **not** plan 12 C1 | E | L / M | after the other band-A rows |
 | 7 | Step 14 **descoped** — `PBAR`/`MAT1` pass-through per LRA element family (was "real stiffness", L-1) (#7) | Consumer-supplied section properties written in place of the `_MAT1_E` placeholder; no physics, no gate beyond "the deck still solves"; the indeterminate-path half is parked | E | S / S | — |
-| — | **Cut 0.6.0** when Pri 2–7 are closed (RELEASE_PROCESS §2 cadence rule; `[Unreleased]` already holds two unreleased schema hops) | | | | |
+| — | **Cut 0.6.0** when band A is empty (RELEASE_PROCESS §2 cadence rule; `[Unreleased]` already holds two unreleased schema hops) | | | | |
 | **B — 0.7+: capability the base method is missing at first order, fixture data, and report polish (review §2.1)** ||||||
 | 8 | Lateral body aero `Cy_β`/`Cn_β` (L-7) — design note in [`19_l7_lateral_body_aero_note.md`](19_l7_lateral_body_aero_note.md) (**proposed, awaiting agreement**) (#8) | Honest lateral `n_y`/`ψ̈` (today `ψ̈` over-stated 73–84 %, `n_y` under-stated 4–12 % — a missing term of the order of the one kept, not a refinement); DATCOM 5.2.3.1/5.2.1.1 makes it an **oracle** step | V | L / M | — |
 | 9 | Fixture-data pass: empennage planform polylines **+** the WTENV envelopes entered independently of the item database (four fixtures) (#9) | Real taper in the tail card distributions instead of the `assumed` rectangle; CG limits derived from (or reconciled with) each fixture's own loading extremes | V | S / S | — |
@@ -145,56 +144,6 @@ distributed empennage loads, control surfaces, hinge moment, T-tail transfer;
 the **LRA beam model at its determinate paths**; the summary report, PDF,
 workbook, manifest and methods stamp; the **Streamlit UI outright** (the CLI is
 the delivery path — parked M4-11b and the L-8 UX rows stay parked); F25-2.
-
----
-
-# Item detail — mission path [E]
-
-### [V] No lateral aerodynamic load exists but the fin *(new 2026-08-09, from plan 13 decision L-7)* → #8
-
-Body moved to issue #8 (design note 28 MD-5).
-
-### [V] The aileron's own lift increment is not distributed *(new 2026-08-08, from B7)* → #14
-
-Body moved to issue #14 (design note 28 MD-5).
-
-### [V] Wing-tank fuel is not separable in the item database *(new 2026-08-08, found by the step-B1 wing tie)* → #6
-
-Body moved to issue #6 (design note 28 MD-5).
-
-### [V] The five non-oracle fixtures do not close as tightly as ga6 *(new 2026-08-15, from Pri 5 / D-26)* → #13
-
-Body moved to issue #13 (design note 28 MD-5).
-
-### [V] The empennage planform is derived, not entered, on every fixture *(new 2026-08-08, from T1)* → #9
-
-Body moved to issue #9 (design note 28 MD-5).
-
-### [E] Step 14 — **descoped 2026-08-16** to a `PBAR`/`MAT1` pass-through (was L-1 "real stiffness") → #7
-
-Body moved to issue #7 (design note 28 MD-5).
-
----
-
-# Item detail — valuable [V] (ranked in the priority table above; parked bodies live in `02_parked.md`)
-
-### [V] Combined flight + ground station envelope *(new 2026-08-14, from step 10 decision G-9)* → #11
-
-Body moved to issue #11 (design note 28 MD-5).
-
-### [V] Gust spanwise-distribution decision *(new 2026-08-05, R9)* → #12
-
-Body moved to issue #12 (design note 28 MD-5).
-
-### [V] L-8i — Per-page LIMIT CSVs ignore the unit toggle and state no units → #3
-
-Body moved to issue #3 (design note 28 MD-5).
-
----
-
-### [M] mypy strictness ratchet — stage 2 `export/`, stage 3 `modules/` *(new 2026-08-16, design note 27 ST-3)* → #19
-
-Body moved to issue #19 (design note 28 MD-5).
 
 ---
 

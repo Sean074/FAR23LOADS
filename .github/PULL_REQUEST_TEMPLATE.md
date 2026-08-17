@@ -1,7 +1,13 @@
 <!-- PR title = the squash commit subject, project style:
      "Step 14: PBAR/MAT1 pass-through (tier M, 2026-08-20)"  /  "Fix: gear CSV -ULT marker (R6-C2, tier S, …)" -->
 
-**Closes** #<!-- issue -->            **Tier:** S / M / L            **AI-assisted:** yes / no
+**Closes** #___            **Tier:** S / M / L            **AI-assisted:** yes / no
+<!-- Replace ___ with the issue number — GitHub only auto-closes on a literal
+     "Closes #N"; a leftover placeholder renders as "Closes #" and closes nothing
+     (PR #25 / issue #1, 2026-08-17). Several items: "Closes #3, closes #4". -->
+
+<!-- Working alone (DEVELOPMENT_PROCESS.md §0)? Fill "Closes" only if the item
+     has an issue; the backlog row leaving in this commit is the closure. -->
 **Design note (tier L / physics):** `docs/30_future/NN_….md` — merged at AGREED? yes / n.a.
 
 ## What changed and why
@@ -24,7 +30,7 @@
 - [ ] `ruff check sloads/ cli.py app/ scripts/` · `mypy` · `pytest` green locally
 - [ ] oracle/closure test present for any new physics (benchmark-first)
 
-## For the reviewer (`CODE_REVIEW_PROCESS.md` §Approval gate)
+## For the reviewer (`CODE_REVIEW_PROCESS.md` §Approval gate — n/a under the solo profile, `DEVELOPMENT_PROCESS.md` §0)
 - [ ] review depth matches the tier (§0); reviewer ≠ author; CODEOWNERS owner for SSOT paths
 - [ ] no `[CRITICAL]`/`[MAJOR]` open; closure complete for every item this PR closes
 - [ ] digest wave (if any) confirmed as intended; no silent default introduced

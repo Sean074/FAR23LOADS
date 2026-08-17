@@ -240,7 +240,13 @@ def fields_hash() -> str:
 #: ``SurfaceInput.ref_axis``, and the io reader maps a stored 0.25 -- which the
 #: pre-v52 writer emitted unconditionally, entered or not -- back to ``None``).
 #: All additive/widening with unchanged effective defaults, so no migration hop.
-EXPECTED_FIELDS_HASH = "243f515f223e00ed"
+#: backlog Pri 2 (design note 20 D-4 as revised 2026-08-17): ``BalancedCaseResult``
+#: gains ``body_axial_clamped`` -- ``True`` on the cases whose forward non-wing
+#: axial force was **not applied** because the trim ``alpha`` is outside the
+#: polar's trusted window (``constants.POLAR_TRUSTED_ALPHA_DEG``). A **result**
+#: field, additive with a ``False`` default and not persisted; no input dataclass
+#: changed and ``SCHEMA_VERSION`` is unchanged.
+EXPECTED_FIELDS_HASH = "66b85094c21d5f45"
 
 
 def test_persisted_dataclass_shapes_are_unchanged():

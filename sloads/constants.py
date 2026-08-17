@@ -49,6 +49,22 @@ TURBOPROP_MALFUNCTION_FACTOR = 1.6
 # Torque multiplication factor for 23.361(a)(2).
 TURBOPROP_TORQUE_FACTOR = 1.25
 
+# The angle-of-attack window (deg, body ``alpha`` of the trim point) over which
+# the entered airplane-less-tail polar ``CD(CL)`` and the wing strip model are
+# both trusted, so that their difference -- the ``body-axial`` non-wing drag the
+# balanced model carries -- is a physical load (design note 20 D-4 as revised
+# 2026-08-17, backlog Pri 2). **One-sided on purpose.** The polar is a fit over
+# the positive-lift range: above the upper bound the strip model's induced drag
+# overshoots it (``concept_regional_jet``, alpha >= 19 deg), and below the lower
+# bound the fit is being read well below zero lift, where on the three
+# crudest-polar fixtures the two drag models cross over (``NMAA`` at -12.9 to
+# -14.3 deg) while the Appendix A airplane and ``cessna_210`` are still
+# consistent at -8.4 / -8.9 deg. Outside the window a FORWARD non-wing force is
+# not applied (its ``dCD`` is still reported); inside it a forward value is a
+# fixture-data defect and the G10 gate fails. Single owner: read it, never copy
+# it (``tests/test_balance.py`` reads it from here).
+POLAR_TRUSTED_ALPHA_DEG = (-10.0, 15.0)
+
 # --------------------------------------------------------------------------- #
 # Wing carry-through (Ref 1 Ch 15 p103 fuselage moment closure, M4-1)
 # --------------------------------------------------------------------------- #
