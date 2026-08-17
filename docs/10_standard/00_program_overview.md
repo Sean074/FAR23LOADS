@@ -131,6 +131,15 @@ its entry guards) rather than returning an empty result. A plain `ValueError` is
 reserved for present-but-invalid data and genuine defects, which must remain visible
 — before M2R-8 the registry swallowed *every* `ValueError`, hiding those defects.
 
+**No silent defaults at a read (CH-2, 2026-08-16).** `getattr(obj, name, default)`
+is the shape that hides a missing attribute behind a quiet fallback; a value the
+exporters read is a declared field on a typed result and is read as one, an
+optional is `Optional` and tested for `None`, and a lookup by name is an explicit
+map that refuses an unknown key. Guard:
+`tests/test_sbeam_bridge.py::test_the_export_package_takes_no_silent_defaults`
+(AST, `sloads/export/`); a two-argument `getattr` — a dynamic attribute *name*, no
+default — is not this class.
+
 ---
 
 ## Units
