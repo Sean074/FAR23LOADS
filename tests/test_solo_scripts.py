@@ -70,6 +70,20 @@ def test_close_rejects_missing_or_empty_arguments():
     assert _bash(_CLOSE, "--dry-run", "x", "Subject").returncode == 1
 
 
+def test_start_dry_run_names_the_fragment_solo_close_will_expect():
+    res = _bash(_START, "--dry-run", "28", "chore/some-slug")
+    assert "changes/some-slug.<type>.md" in res.stdout
+
+
+def test_close_honours_suffix_and_date_and_rejects_a_bad_date():
+    res = _bash(_CLOSE, "--dry-run", "--suffix", "backlog Pri 9, tier S, 2026-08-17", "28", "X")
+    assert res.returncode == 0 and 'git commit -m "X (backlog Pri 9, tier S, 2026-08-17)"' in res.stdout
+    res = _bash(_CLOSE, "--dry-run", "--date", "2026-08-17", "28", "X")
+    assert res.returncode == 0 and "2026-08-17)" in res.stdout
+    bad = _bash(_CLOSE, "--dry-run", "--date", "2026-13-40", "28", "X")
+    assert bad.returncode == 1 and "--date must be YYYY-MM-DD" in bad.stderr
+
+
 if __name__ == "__main__":  # zero-dependency self-runner
     import sys
 

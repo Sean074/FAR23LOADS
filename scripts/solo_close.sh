@@ -10,7 +10,10 @@
 #                    when the fragment names no backlog row).
 # Options:
 #   --slug <slug>    changes/ fragment slug (default: the branch name after '/')
-#   --suffix "<…>"   replace the generated parenthetical (e.g. to cite a note)
+#   --suffix "<…>"   replace the generated parenthetical (e.g. to cite a note);
+#                    a 'Pri N' and a YYYY-MM-DD inside it are honoured by the
+#                    close comment and the commit date
+#   --date <YYYY-MM-DD>  date for the parenthetical (default: today)
 #   --skip-gate      do not re-run ruff/mypy/pytest (they were just run by hand)
 #   --yes            no confirmation prompts
 #   --dry-run        print the sequence; touch nothing
@@ -36,7 +39,7 @@
 set -euo pipefail
 
 usage() {
-  sed -n '2,36p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+  sed -n '2,39p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
 }
 
 die() { printf 'solo_close: %s\n' "$*" >&2; exit 1; }
@@ -49,11 +52,12 @@ confirm() {
   [[ "$ans" == "y" || "$ans" == "Y" ]] || die "stopped at your request (nothing after this point ran)"
 }
 
-SLUG=""; SUFFIX=""; SKIP_GATE=0; YES=0; DRY_RUN=0
+SLUG=""; SUFFIX=""; DATE=""; SKIP_GATE=0; YES=0; DRY_RUN=0
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --slug) SLUG="$2"; shift 2 ;;
     --suffix) SUFFIX="$2"; shift 2 ;;
+    --date) DATE="$2"; shift 2 ;;
     --skip-gate) SKIP_GATE=1; shift ;;
     --yes) YES=1; shift ;;
     --dry-run) DRY_RUN=1; shift ;;
@@ -67,7 +71,14 @@ ISSUE="$1"; SUBJECT="$2"
 [[ "$ISSUE" =~ ^[0-9]+$ ]] || die "issue must be a number, got '$ISSUE'"
 [[ -n "$SUBJECT" ]] || die "subject must not be empty"
 
-TODAY="$(date +%Y-%m-%d)"
+TODAY="${DATE:-$(date +%Y-%m-%d)}"
+[[ "$TODAY" =~ ^[0-9]{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])$ ]] || die "--date must be YYYY-MM-DD, got '$TODAY'"
+# a date or a 'Pri N' inside --suffix is honoured (the fragment lead may omit them)
+if [[ -n "$SUFFIX" ]]; then
+  d="$(grep -o -m1 '[0-9]\{4\}-[0-9]\{2\}-[0-9]\{2\}' <<<"$SUFFIX" || true)"; [[ -n "$d" ]] && TODAY="$d"
+  SUFFIX_PRI="$(grep -o -m1 'Pri [0-9][0-9]*' <<<"$SUFFIX" | cut -d' ' -f2 || true)"
+fi
+SUFFIX_PRI="${SUFFIX_PRI:-}"
 
 if [[ $DRY_RUN -eq 1 ]]; then
   cat <<EOF
@@ -82,7 +93,7 @@ solo_close --dry-run  (issue #$ISSUE) — nothing executed
              .venv/bin/mypy
              .venv/bin/python -m pytest -q -p no:cacheprovider
   step 4:    git add -A && git status --short
-             SKIP=ruff,mypy git commit -m "$SUBJECT (backlog Pri N, tier X, $TODAY)"
+             SKIP=ruff,mypy git commit -m "$SUBJECT (${SUFFIX:-backlog Pri N, tier X, $TODAY})"
   step 5:    git checkout main && git pull --ff-only
              git merge --ff-only <branch>
              SKIP=pytest git push origin main
@@ -108,8 +119,10 @@ BRANCH="$(git rev-parse --abbrev-ref HEAD)"
 [[ -n "$SLUG" ]] || SLUG="${BRANCH#*/}"
 
 gh auth status >/dev/null 2>&1 || die "gh is not authenticated — run: gh auth login"
-STATE="$(gh issue view "$ISSUE" --json state -q .state 2>/dev/null)" \
-  || die "issue #$ISSUE not found"
+GH_ERR="$(mktemp)"
+STATE="$(gh issue view "$ISSUE" --json state -q .state 2>"$GH_ERR")" \
+  || { cat "$GH_ERR" >&2; rm -f "$GH_ERR"; die "gh could not read issue #$ISSUE (see above — wrong number, or GitHub unavailable; retry)"; }
+rm -f "$GH_ERR"
 [[ "$STATE" == "OPEN" ]] || die "issue #$ISSUE is already $STATE — wrong number, or already closed"
 
 # closure artefacts
@@ -122,6 +135,7 @@ done
 TIER="$(grep -o -m1 'tier [SML]' "$FRAG" | head -1 | cut -d' ' -f2 || true)"
 [[ -n "$TIER" ]] || die "$FRAG lead does not name the tier ('tier S|M|L' — see changes/README.md)"
 PRI="$(grep -o -m1 'Pri [0-9][0-9]*' "$FRAG" | head -1 | cut -d' ' -f2 || true)"
+[[ -n "$PRI" ]] || PRI="$SUFFIX_PRI"
 
 HIST=""
 if [[ "$TIER" != "S" ]]; then

@@ -53,7 +53,8 @@ solo_start --dry-run  (issue #$ISSUE, branch $BRANCH) — nothing executed
   step 1:    git pull --ff-only
              git checkout -b $BRANCH
              git status --short && git log --oneline -1
-  next:      do the work + the closure artefacts (CLAUDE.md tier table), then
+  next:      do the work + the closure artefacts (CLAUDE.md tier table):
+             changes/${BRANCH#*/}.<type>.md (the name solo_close.sh expects), then
              scripts/solo_close.sh $ISSUE "<Subject>"
 EOF
   exit 0
@@ -73,8 +74,10 @@ if [[ -n "$(git status --porcelain)" ]]; then
   die "working tree is not clean — commit, stash (git stash) or discard first"
 fi
 
-STATE="$(gh issue view "$ISSUE" --json state -q .state 2>/dev/null)" \
-  || die "issue #$ISSUE not found — run: gh issue list, or create it (gh issue create)"
+GH_ERR="$(mktemp)"
+STATE="$(gh issue view "$ISSUE" --json state -q .state 2>"$GH_ERR")" \
+  || { cat "$GH_ERR" >&2; rm -f "$GH_ERR"; die "gh could not read issue #$ISSUE (see above — not created yet, wrong number, or GitHub unavailable; retry)"; }
+rm -f "$GH_ERR"
 [[ "$STATE" == "OPEN" ]] || die "issue #$ISSUE is $STATE, not OPEN"
 
 if git rev-parse --verify --quiet "$BRANCH" >/dev/null; then
@@ -90,10 +93,13 @@ run git log --oneline -1
 
 cat <<EOF
 
-On $BRANCH. Now: the work + the closure artefacts for the tier
-(changes/<slug>.<type>.md with '(backlog Pri N, tier X, YYYY-MM-DD)' in the
-lead; tier M/L also <slug>.history.md; delete the item's row from the
-priority table). Then:
+On $BRANCH. Now: the work + the closure artefacts for the tier —
+  fragment   changes/${BRANCH#*/}.<added|changed|fixed|removed|breaking>.md
+             (this is the name solo_close.sh will look for; lead carries
+             '(backlog Pri N, tier X, YYYY-MM-DD)'; tier M/L also
+             changes/${BRANCH#*/}.history.md)
+  backlog    delete the item's (#$ISSUE) row from the priority table
+Then:
 
   scripts/solo_close.sh $ISSUE "<Subject in the project style>"
 EOF
