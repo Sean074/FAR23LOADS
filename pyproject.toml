@@ -46,7 +46,9 @@ dev = [
     # Static type checking of `sloads/` (design note 27, 2026-08-16). A CI gate
     # in default mode at zero errors; strictness ratchets per package through
     # the [[tool.mypy.overrides]] list below. `app/` and `tests/` are not checked.
-    "mypy==2.3.1",
+    # mypy 2.x has no 3.9 wheel; the type gate runs on 3.12 only, so the 3.9
+    # leg simply does not install it.
+    "mypy==2.3.1; python_version >= '3.10'",
     # Git hooks (item 8): `pre-commit install --hook-type pre-commit --hook-type
     # pre-push` once per clone; ruff + mypy on commit, the suite on push. Opt-in
     # convenience -- CI is the gate.
