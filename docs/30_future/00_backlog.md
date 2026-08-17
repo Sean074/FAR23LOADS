@@ -103,9 +103,10 @@ traceability with plans 09/11/12/13; the **Pri** column is ordinal only.
   a [V] item is ranked only if its stated effect exceeds that; below it, parked
   with the number. Defects with first-order effect on shipped content outrank
   every [V] item.
-- *2026-08-16 — schema freeze through 0.6.0.* `SCHEMA_VERSION` moves once more
-  before the cut (Pri 6's one additive field); no other hop. v47 → v52 in nine
-  days is the churn the freeze answers.
+- *2026-08-16 — schema freeze through 0.6.0.* `SCHEMA_VERSION` moved once more
+  before the cut (v53, wing-tank fuel separability's one additive field, shipped
+  2026-08-17); no other hop. v47 → v52 in nine days is the churn the freeze
+  answers.
 
 > **Removal rule (hard requirement, restating the lifecycle rule).** Once a
 > step is complete it **SHALL be removed** from this table and this file in the
@@ -115,7 +116,6 @@ traceability with plans 09/11/12/13; the **Pri** column is ordinal only.
 | Pri | Item (detail below / in its plan) | What ships | Tag | Tier / effort | Depends on |
 |---|---|---|---|---|---|
 | **A — 0.6.0: defects in shipped output, contract gaps, and the cost-of-change fixes (review §1, §5.1)** ||||||
-| 6 | Wing-tank fuel separability (#6) | Ends the same pounds riding both beams on the three fuel-in-wing fixtures — a `wing_fraction` on `MassItem` (or a second row) + the tie validator; **the freeze's one schema hop**; **not** plan 12 C1 | E | L / M | after the other band-A rows |
 | 7 | Step 14 **descoped** — `PBAR`/`MAT1` pass-through per LRA element family (was "real stiffness", L-1) (#7) | Consumer-supplied section properties written in place of the `_MAT1_E` placeholder; no physics, no gate beyond "the deck still solves"; the indeterminate-path half is parked | E | S / S | — |
 | 8 | **Constants and conversion factors — one owner, one value, one rule** (review [`2026-08-17_constants_and_conversions_review.md`](../50_reviews/2026-08-17_constants_and_conversions_review.md) C-1…C-12): `DEG_PER_RAD`/`IN_PER_FT`/`FT_LB_S_PER_HP`/gust 498-0.88-5.3 owners added and the six spellings of deg/rad, the two `_G = 32.2`, six `144` aliases + ~24 inline `/12.0` and 15 inline `V²/295` routed through `constants.py` (`aero_curves.dynamic_pressure` for q); `.BAS`-truncated values go **exact by default**, a survivor only as a named `*_SUITE` twin with its oracle cited (FLTLOADS 518.688 °R stays so; 295 measured before deciding); the **`constants.py` vs `units.py` demarcation** (Imperial↔Imperial vs Imperial↔SI only) written into `CONVENTIONS.md` §7 with grep drift guards both ways (#26) | One value of g, of deg/rad, of q in the whole package; measured effect ≤0.08 % (no printed oracle moves; frozen digest + `test_balance` SELECT pins re-pinned, register lines in `02_approved_corrections.md`); the CH-6 defect class closed for every shared constant, not just ρ₀ | E | M / M | after Pri 5 (done) |
 | — | **Cut 0.6.0** when band A is empty (RELEASE_PROCESS §2 cadence rule; `[Unreleased]` already holds two unreleased schema hops) | | | | |

@@ -238,9 +238,11 @@ from .results import EnvelopeResult, LoadsResult, MassResult
 # ``zw``, marked ``assumed`` and stated in-band, exactly as
 # ``vtail_root_waterline_z`` handles the same class of question. So no migration
 # hop, and every pre-v49 project takes the derived value.
-SCHEMA_VERSION = 52  # LRA beam model (step 12): FuselageSection.z_centre,
-                     # EngineInput.mounted_on, aileron/flap butt-line + hinge
-                     # fields, SurfaceInput.ref_axis_pct Optional (R-7c)
+# v52: LRA beam model (step 12): FuselageSection.z_centre, EngineInput.mounted_on,
+# aileron/flap butt-line + hinge fields, SurfaceInput.ref_axis_pct Optional (R-7c).
+# v53: MassItem.wing_fraction (design note 29, wing-tank fuel separability) --
+# additive with a 0.0 default, no migration hop; the 0.6.0 freeze's one hop.
+SCHEMA_VERSION = 53
 
 
 @dataclass

@@ -590,7 +590,7 @@ instead (`sloads/mass_distribution.py`, `tests/test_mass_distribution.py`):
 | Identity | What it locks |
 |---|---|
 | `Σ(wing items) + Σ(beam stations) == Σ(all items) == W` | The partition is complete: no item lost between the two distributions, none counted twice |
-| `Σ(items tagged wing) == 2 × (panel_weight_lb + Σ concentrated)` | The itemized wing and WINGINER's spanwise model describe one wing. Both WINGINER terms are per **side**, so the airplane carries twice their sum |
+| `Σ(items tagged wing) == 2 × (panel_weight_lb + Σ concentrated)` | The itemized wing and WINGINER's spanwise model describe one wing. Both WINGINER terms are per **side**, so the airplane carries twice their sum. **Holds on every shipped fixture since design note 29 (2026-08-17):** the wing-tank share of a fuel row is stated as `MassItem.wing_fraction` (derived from WINGINER's own `concentrated` entry — 3,800 / 4,000 / 1,200 lb on the three fuel-in-wing fixtures, no number invented) and read through `reacted_parts`; before it those pounds rode both beams — 7–15 % of the body beam, above the base-method band — and were pinned open. The tie is the invariant gate for that step (no printed oracle covers a fuel split), and it is a validator (`wing_mass_tie_open`) as well as a test |
 | entered `fuselage_mass.stations` vs the derived table | Reported, never silently taken — the two disagreed by 10–100 % of the beam on every shipped fixture |
 
 The beam carries the empennage (it hangs off the aft fuselage) and excludes the

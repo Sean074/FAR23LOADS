@@ -912,6 +912,67 @@ def _check_weight_case_model(project: Project) -> List[ConsistencyWarning]:
     return out
 
 
+def _check_wing_fraction(project: Project) -> List[ConsistencyWarning]:
+    """``MassItem.wing_fraction`` entry rules (design note 29, WF-2).
+
+    * ``wing_fraction_out_of_range`` -- outside ``[0, 1]``: a fraction of a row.
+    * ``wing_fraction_on_wing_row`` -- non-zero on a row already tagged ``WING``:
+      a wing row is wholly wing by definition; the field says how much of a row
+      carried *elsewhere* the wing also reacts. :func:`reacted_parts` treats it
+      as the whole row on the wing, which is what the tag already said, so the
+      warning is about a contradictory entry rather than a lost pound.
+    """
+    items = project.weight.items if project.weight is not None else []
+    out: List[ConsistencyWarning] = []
+    for it in items:
+        if not (0.0 <= it.wing_fraction <= 1.0):
+            out.append(ConsistencyWarning(
+                "wing_fraction_out_of_range",
+                f"Item '{it.name}': wing_fraction {it.wing_fraction:g} is outside "
+                "[0, 1]. It is the fraction of the row's weight reacted by the wing "
+                "(both sides together); the remainder is reacted by the row's "
+                "component (design note 29).",
+                PAGE_WEIGHT_CG))
+        elif it.wing_fraction > 0.0 and it.component == MassComponent.WING:
+            out.append(ConsistencyWarning(
+                "wing_fraction_on_wing_row",
+                f"Item '{it.name}' is tagged wing and also carries wing_fraction "
+                f"{it.wing_fraction:g}. A wing row is wholly wing-carried already; "
+                "set the fraction on the fuselage (or other) row that the wing "
+                "carries part of, or clear it here (design note 29).",
+                PAGE_WEIGHT_CG))
+    return out
+
+
+def _check_wing_mass_tie(project: Project) -> List[ConsistencyWarning]:
+    """The wing tie as a validator (design note 29, WF-4).
+
+    ``Σ(WING-carried item mass) == 2 x (WINGINER panel + Σ concentrated)`` -- the
+    two models of the same physical wing agreeing. Before this it was a test and
+    one caption on the fuselage page; a user's own file with the defect the three
+    twin/concept fixtures carried (wing-tank fuel inside an undivided fuel row,
+    so the same pounds rode both beams) got no signal in the CLI or the report.
+    ``wing_mass_tie_open`` states the pounds and the remedy.
+    """
+    check = mass_distribution.wing_mass_tie(project)
+    if check is None or check.ok:
+        return []
+    gap = mass_distribution.unmodelled_wing_mass(project)
+    if gap > 0.0:
+        which = (f"WINGINER hangs {gap:,.0f} lb more on the wing than the item "
+                 "database carries there -- those pounds ride the fuselage beam "
+                 "as well. Set wing_fraction on the row(s) the wing carries part "
+                 "of (a fuel row, typically), or re-tag them")
+    else:
+        which = (f"the item database carries {-gap:,.0f} lb more on the wing than "
+                 "WINGINER hangs there. Add the mass to wing_mass.concentrated "
+                 "(per side), or correct the tags/fractions")
+    return [ConsistencyWarning(
+        "wing_mass_tie_open",
+        f"Wing mass tie open: {check.detail}. {which} (design note 29).",
+        PAGE_WEIGHT_CG)]
+
+
 def _check_gear_carrier(project: Project) -> List[ConsistencyWarning]:
     """The gear's carrier and attachment node (decision G-2).
 
@@ -1028,5 +1089,7 @@ def consistency_warnings(project: Project) -> List[ConsistencyWarning]:
     out += _check_landing_hierarchy(project)
     out += _check_weight_case_model(project)
     out += _check_gear_carrier(project)
+    out += _check_wing_fraction(project)
+    out += _check_wing_mass_tie(project)
     out += _check_aero_coefficients(project)
     return out

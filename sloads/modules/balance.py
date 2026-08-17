@@ -35,8 +35,11 @@ are untouched and remain the FAR 23 deliverables -- this adds a case, it does no
 change one, and no Appendix A oracle moves.
 
 **3. The mass model is the items, not WINGINER's own.** Wing inertia comes from
-the ``WING``-tagged items of the case's derived loading (step B1/C1), spread over
-WINGINER's spanwise shape -- decision B-2 and plan 11 §4. Taking it from
+the ``WING``-tagged items of the case's derived loading (step B1/C1) -- read as
+**reacted parts** (:func:`~sloads.mass_distribution.reacted_parts`, design note
+29), so a fuel row partly carried by the wing contributes its wing share here and
+its body share to :func:`body_inertia` -- spread over WINGINER's spanwise shape --
+decision B-2 and plan 11 §4. Taking it from
 ``wing_mass.panel_weight_lb + concentrated`` instead double-counts anything that
 is in both models: on ``atr42_100`` and ``dhc8_dash8`` the wing-tank fuel is, and
 the residual runs 12-13 % rather than 1.9 %.
@@ -219,6 +222,7 @@ from ..mass_distribution import (
     assembly_distributes_mass,
     component_of,
     derive_case_loadings,
+    reacted_parts,
 )
 from ..models import (
     AeroInput,
@@ -613,7 +617,7 @@ def place_wing_inertia(loads: Sequence[BalancedLoad], loading: CaseLoading,
             f"wing inertia scaled x{scale:.4f} onto the loading's WING items "
             f"({scale * panel_both:.0f} lb); WINGINER's integrated panel mass is "
             f"{panel_both:.0f} lb")
-    wing_items = [it for it in loading.items
+    wing_items = [it for it in reacted_parts(loading.items, project)
                   if component_of(it, project) == MassComponent.WING]
     w_wing = math.fsum(it.weight_lb for it in wing_items)
     x_wing = (math.fsum(it.weight_lb * it.x for it in wing_items) / w_wing) if w_wing else 0.0
@@ -642,7 +646,7 @@ def _wing_inertia_scale(loading: CaseLoading, project: Project,
     loading with **no** WING item mass scales to 0.0, and then nothing is lost
     -- :func:`assemble` notes that case.
     """
-    wing_items = math.fsum(it.weight_lb for it in loading.items
+    wing_items = math.fsum(it.weight_lb for it in reacted_parts(loading.items, project)
                      if component_of(it, project) == MassComponent.WING)
     if panel_both_sides <= 0.0:
         if wing_items:
@@ -673,7 +677,7 @@ def body_inertia(loading: CaseLoading, project: Project,
     return [
         BalancedLoad(x=it.x, y=it.y, z=it.z, fz=-it.weight_lb * nz,
                      weight_lb=it.weight_lb, source="body-inertia", side="C")
-        for it in loading.items
+        for it in reacted_parts(loading.items, project)
         if not assembly_distributes_mass(component_of(it, project))
     ]
 
@@ -834,7 +838,7 @@ def _body_drag_stations(project: Project,
         total = math.fsum(w)
         if total > 0.0:
             return [(s.x, wi / total) for s, wi in zip(sections, w) if wi]
-    body = [it for it in loading.items
+    body = [it for it in reacted_parts(loading.items, project)
             if not assembly_distributes_mass(component_of(it, project))]
     weight = math.fsum(it.weight_lb for it in body)
     if weight:
@@ -1108,7 +1112,7 @@ def point_mass_self_inertia(loading: CaseLoading, project: Project):
     all, because that database enters no self-inertias.
     """
     out = []
-    for it in loading.items:
+    for it in reacted_parts(loading.items, project):
         if assembly_distributes_mass(component_of(it, project)):
             continue
         if it.ixx or it.iyy or it.izz:

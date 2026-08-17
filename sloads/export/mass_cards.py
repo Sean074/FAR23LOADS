@@ -66,6 +66,7 @@ from ..mass_distribution import (
     component_of,
     derive_case_loadings,
     fuselage_beam_stations,
+    reacted_parts,
 )
 from ..models import MassItem, Project
 from ..units import Channel, DeliverableUnits, UnitSystem, deliverable_units
@@ -375,8 +376,13 @@ def _massset_block(cards: Sequence[MassCard], loading: CaseLoading,
 
 def _header(project: Project, u: DeliverableUnits, cards: Sequence[MassCard]) -> List[str]:
     total = math.fsum(c.item.weight_lb for c in cards if not c.overlay)
-    wing = math.fsum(c.item.weight_lb for c in cards
-               if component_of(c.item, project) == MassComponent.WING)
+    # Cards are one per database row (a row is one mass at one position; the
+    # beam that reacts it does not move the CONM2), so the wing share of a
+    # partly-wing-carried row is read through its reacted parts (design note 29).
+    wing = math.fsum(part.weight_lb
+               for c in cards
+               for part in reacted_parts([c.item], project)
+               if component_of(part, project) == MassComponent.WING)
     skipped = [ld for ld in derive_case_loadings(project) if not ld.derivable]
     lines = [
         "$ ==================================================== SLOADS MASS MODEL",

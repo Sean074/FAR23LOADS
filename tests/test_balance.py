@@ -1617,9 +1617,12 @@ def test_the_yaw_dof_reproduces_onengout(example):
 _CLOSURE_IZZ = {
     'ga6_normal.project.json': {'CG2': 2933.5, 'CG3': 2534.2, 'CG1': 2992.1, 'CG4': 2424.1},
     'cessna_210.project.json': {'CG2': 3092.6, 'CG4': 2789.8, 'CG1': 3471.7},
-    'atr42_100.project.json': {'CGmid': 157651.9, 'CGfwd': 139099.1, 'CGaft': 154299.3},
-    'dhc8_dash8.project.json': {'CGmid': 216222.3, 'CGfwd': 191283.2},
-    'concept_heavy.project.json': {'CGmax': 25009.4},
+    # The three fuel-in-wing fixtures moved on 2026-08-17 (design note 29): the
+    # wing-tank fuel left the centreline lump for WINGINER's spanwise spread, so
+    # Izz gained its Sum w*y^2 -- +33 % / +31 % / +29 %. Physics, not drift.
+    'atr42_100.project.json': {'CGmid': 209595.3, 'CGfwd': 186188.3, 'CGaft': 189870.8},
+    'dhc8_dash8.project.json': {'CGmid': 283942.9, 'CGfwd': 251737.4},
+    'concept_heavy.project.json': {'CGmax': 32302.1},
     'concept_regional_jet.project.json': {'CG2 fwd heavy': 243728.1, 'CG1 aft heavy': 266304.2},
 }
 
@@ -1858,17 +1861,21 @@ _LATERAL_CASE_NUMBERS = {
         'YAW 15 NEUTRAL': (-529.0104, -0.139213, -118.7823, +53.1403),
         'YAW TO SIDESLIP': (-134.6364, -0.035431, -23.1083, +14.1678),
     },
+    # The twins' r_dot / p_dot fell on 2026-08-17 (design note 29): their
+    # wing-tank fuel now spreads along the span, so Izz and Ixx grew (+33 % /
+    # +31 % Izz) and the same fin load turns the airplane more slowly. Fin load
+    # and Ny are untouched -- the check that this moved inertia, not aero.
     'atr42_100.project.json': {
-        'SIDE GUST': (4138.8275, +0.112416, +50.1212, -27.3191),
-        'SUDDEN RUDDER': (4287.7974, +0.122508, +62.6132, -26.6071),
-        'YAW 15 NEUTRAL': (-4877.7730, -0.139365, -67.8496, +30.4060),
-        'YAW TO SIDESLIP': (-2053.3076, -0.058666, -25.5913, +12.9207),
+        'SIDE GUST': (4138.8275, +0.112416, +37.7652, -16.9377),
+        'SUDDEN RUDDER': (4287.7974, +0.122508, +46.9442, -17.3705),
+        'YAW 15 NEUTRAL': (-4877.7730, -0.139365, -50.8805, +19.8265),
+        'YAW TO SIDESLIP': (-2053.3076, -0.058666, -19.2004, +8.4040),
     },
     'dhc8_dash8.project.json': {
-        'SIDE GUST': (4525.7434, +0.131181, +38.1955, -22.1085),
-        'SUDDEN RUDDER': (3491.2596, +0.106441, +35.8558, -16.1868),
-        'YAW 15 NEUTRAL': (-3936.8172, -0.120025, -38.3889, +18.3316),
-        'YAW TO SIDESLIP': (-1626.6027, -0.049592, -14.0497, +7.6443),
+        'SIDE GUST': (4525.7434, +0.131181, +29.1517, -14.3736),
+        'SUDDEN RUDDER': (3491.2596, +0.106441, +27.3428, -11.0685),
+        'YAW 15 NEUTRAL': (-3936.8172, -0.120025, -29.2808, +12.5210),
+        'YAW TO SIDESLIP': (-1626.6027, -0.049592, -10.7222, +5.2089),
     },
     'concept_regional_jet.project.json': {
         'SIDE GUST': (7079.6223, +0.214534, +51.7769, -65.2668),

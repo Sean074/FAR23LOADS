@@ -246,7 +246,12 @@ def fields_hash() -> str:
 #: polar's trusted window (``constants.POLAR_TRUSTED_ALPHA_DEG``). A **result**
 #: field, additive with a ``False`` default and not persisted; no input dataclass
 #: changed and ``SCHEMA_VERSION`` is unchanged.
-EXPECTED_FIELDS_HASH = "66b85094c21d5f45"
+#: Design note 29 (v53, wing-tank fuel separability, WF-1/WF-2): ``MassItem``
+#: gains ``wing_fraction`` -- the fraction of a row (weight and own inertias)
+#: reacted by the wing, the remainder by ``component``. Additive with a ``0.0``
+#: default (today's behaviour bit-for-bit), so no migration hop; the 0.6.0
+#: freeze's one schema hop.
+EXPECTED_FIELDS_HASH = "bad1124ddce3e46b"
 
 
 def test_persisted_dataclass_shapes_are_unchanged():

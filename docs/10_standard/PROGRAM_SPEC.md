@@ -1051,7 +1051,12 @@ result that lacks what a deck needs is a stated error, never an empty column.
   now an explicit override (`stations_are_override`). The beam carries every item
   not tagged `wing`, the empennage included; the wing enters as the carry-through
   reaction. A project therefore needs no hand-entered station table to have
-  fuselage loads at all. See `CONVENTIONS.md` §1 and
+  fuselage loads at all. **Since design note 29 (2026-08-17)** the beam reads the
+  database's *reacted parts* (`mass_distribution.reacted_parts`): a row with
+  `MassItem.wing_fraction > 0` — the wing-tank share of a fuel row — leaves that
+  share to the wing (where WINGINER's `concentrated` already hangs it) and puts
+  only the remainder on the beam, so the same pounds no longer ride both beams;
+  the wing tie is a validator (`wing_mass_tie_open`). See `CONVENTIONS.md` §1 and
   `docs/20_theory/00_theory_sources.md`.
 - **`GRID` cards and the stated closure (step 1, 2026-08-08).** Every deck states
   the closure it satisfies in its `$` header and carries the geometry to verify

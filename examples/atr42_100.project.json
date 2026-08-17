@@ -357,6 +357,7 @@
         "izz": 0.0,
         "kind": "discretionary",
         "component": "fuselage",
+        "wing_fraction": 0.4142140833,
         "consumable": true
       }
     ],

@@ -61,7 +61,19 @@ file + symbol is the anchor.
   empennage surface weights follow the same rule since 2026-08-10**
   (`tail_surface_weight`, with `TailMassInput.panel_weight_lb` as the override) —
   they were the one consumer B1 left on a parallel model, and the cost was six
-  airplanes' worth of air-only h-tail decks.
+  airplanes' worth of air-only h-tail decks. **A row the wing carries part of
+  states the share (design note 29, 2026-08-17):** `MassItem.wing_fraction` is the
+  fraction of a row — weight and own inertias — reacted by the wing (both sides
+  together), the remainder by `component`; both parts sit at the row's position,
+  so WTONECG/WTENV read rows and are unchanged, and only the reaction partition
+  splits — through **one owner, `mass_distribution.reacted_parts`**, which every
+  by-component consumer (the partition, `balance`, the CONM2 header) reads.
+  `component_of` is exact only on a part. It is a fraction, not a pound figure,
+  so G-5 burn-down and a D-25 loading fraction leave the split invariant. Written
+  for the wing-tank fuel that sat inside an undivided fuel row on three fixtures
+  and so rode both beams (3,800 / 4,000 / 1,200 lb); the wing tie
+  (`wing_mass_tie`, validator `wing_mass_tie_open`) is what says whether the item
+  model and WINGINER describe one wing.
 - **The fuselage beam carries everything except the wing.** The empennage included
   — it hangs off the aft fuselage, so that beam reacts its weight. The wing is the
   one exclusion: it enters as the carry-through *reaction*, and applying it as mass
@@ -423,6 +435,7 @@ export boundary, reduction-to-FAR23 identity on GA inputs. "No oracle" never mea
 | **Body drag waterline** (where the assembled model applies the airplane's non-wing drag; explicit → the wing reference plane with a loud note. Deliberately **two** branches: the suite has no body-centreline datum, and `root_waterline_z` is the *wing* root — deriving from it puts `ga6_normal` over the 1 % pitch gate) | `sloads/derived_geometry.py` (`body_drag_waterline`) — the only free parameter of `balance.body_axial_set`, whose magnitude is fixed by definition and whose fuselage station carries no pitching moment | `tests/test_balance.py::test_the_body_drag_waterline_is_stated_and_is_the_only_free_parameter` + `::test_the_applied_axial_force_is_the_airplanes_drag_not_the_wings` + `::test_the_longitudinal_closure_is_the_trims_own_drag` |
 | **Rigid-body relief field and the inertia tensor** (`f = −m(a + ω̇ × r)`; products of inertia stored as sums `Σw·a·b`, negated only in `matrix()`; weight-space `1/in`) | `sloads/rigid_body.py` (`InertiaTensor`/`inertia_tensor`/`relief_force`/`relief_moment`) | `tests/test_rigid_body.py::test_the_field_produces_exactly_minus_the_inertia_times_omega_dot` |
 | **Which components the assembly spreads** (decides whose entered self-inertia joins the closure tensor — L-3) | `sloads/mass_distribution.py` (`assembly_distributes_mass`) | `tests/test_rigid_body.py::test_the_distributed_mass_predicate_is_the_wing_and_only_the_wing` |
+| **A database row's reacted parts** (`wing_fraction` → the wing share and the `component` share, one position, weight and own inertias in the fraction; the only place a row becomes the masses the beams react — design note 29 WF-3) | `sloads/mass_distribution.py` (`reacted_parts`) — read by `distribution()`, `modules/balance.py`, `export/mass_cards.py` | `tests/test_mass_distribution.py::test_reacted_parts_splits_a_row_by_weight_and_inertia_at_one_position` + `::test_every_consumer_agrees_with_the_owner_on_the_wing_share`; validator `wing_mass_tie_open` (`tests/test_validation.py`) |
 | **Whether a load set has a hand** (reads the *applied* distribution `Σ\|fy\|`, not the resultant, and pre-closure so it cannot feed on its own relief — L-6) | `modules/balance.py` (`is_handed`) | `tests/test_balance.py::test_the_handedness_predicate` |
 | **The load-transfer rule** (a load at `p` applied at node `n` carries the exact couple `(p − n) × F` — every mover in the export channel is an instance: the gear patch→trunnion transfer, the concentrated-mass offset couples, `sob_internal_loads`/`sob_collapsed_load`, the LRA model's routing) | `export/coordinates.py` (`transfer_couple`, note 24 R-11 / note 25 LM-1) | `tests/test_lra_model.py::test_the_transfer_couple_is_the_exact_lever_arm_cross_product` + `::test_the_transferred_set_has_the_balanced_decks_resultant` (the plan-07 invariant on the whole transferred set) |
 | **The named-node identity contract** (`$ SLOADS-NODE <family> <side>` on every special GRID; families each in their own registered band; import maps by tag with nearest-node as the marked-assumed fallback and validates tagged positions at `LRA_IMPORT_TOL_IN`) | `export/lra_model.py` (tags + families, decision BM-5 / note 24 R-10) + `export/bands.py` (the bands) + `export/lra_import.py` (`read_lra_model`/`validate_imported_model`) | `tests/test_lra_model.py::test_the_skeleton_carries_every_named_node_family` + `::test_an_exported_model_reimports_with_every_family_mapped` + `::test_a_divergent_tagged_node_fails_loudly` + `tests/test_bands.py` |

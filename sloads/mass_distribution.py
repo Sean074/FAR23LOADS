@@ -159,9 +159,54 @@ def infer_component(item: MassItem, project: Project) -> MassComponent:  # noqa:
 
 
 def component_of(item: MassItem, project: Project) -> MassComponent:
-    """The component carrying ``item``: its explicit tag, else the inference."""
+    """The component carrying ``item``: its explicit tag, else the inference.
+
+    Valid for a **part** (see :func:`reacted_parts`) or a row with
+    ``wing_fraction == 0``: a row that is partly wing-carried has *two*
+    components, and asking for one would put the whole row on one beam -- the
+    defect design note 29 closed. Sum by component through :func:`reacted_parts`.
+    """
     return item.component if item.component is not None \
         else infer_component(item, project)
+
+
+def reacted_parts(items: Sequence[MassItem], project: Project) -> List[MassItem]:
+    """``items`` with every partly-wing-carried row split into its reacted parts.
+
+    Design note 29 decision **WF-3** -- the one place a database row becomes the
+    masses the beams actually react. A row with ``0 < wing_fraction < 1`` yields
+    two parts at the row's own position: ``weight_lb`` and the own inertias
+    scaled by ``1 - f`` on the row's ``component`` (``"<name> [<component>]"``)
+    and by ``f`` tagged ``WING`` (``"<name> [wing]"``); a fraction of exactly 1
+    yields the wing part alone. Every returned part carries
+    ``wing_fraction == 0.0`` so :func:`component_of` is exact on it. Rows with
+    ``wing_fraction == 0`` -- every row on every fixture before this step -- are
+    returned **as the same objects**, so identity-keyed consumers (the CONM2
+    overlay matching) and the bit-for-bit reduction on the Appendix A airplane
+    both hold.
+
+    A fraction on a row already tagged ``WING`` is an entry error (validation
+    ``wing_fraction_on_wing_row``); here it is treated as the whole row on the
+    wing -- there is nothing else it could mean -- and returned unsplit.
+    """
+    out: List[MassItem] = []
+    for it in items:
+        f = it.wing_fraction
+        comp = component_of(it, project)
+        if f <= 0.0 or comp == MassComponent.WING:
+            out.append(it if f == 0.0 else dataclasses.replace(it, wing_fraction=0.0))
+            continue
+        f = min(f, 1.0)
+        if f < 1.0:
+            out.append(dataclasses.replace(
+                it, name=f"{it.name} [{comp.value}]", weight_lb=it.weight_lb * (1.0 - f),
+                ixx=it.ixx * (1.0 - f), iyy=it.iyy * (1.0 - f), izz=it.izz * (1.0 - f),
+                wing_fraction=0.0))
+        out.append(dataclasses.replace(
+            it, name=f"{it.name} [wing]", weight_lb=it.weight_lb * f,
+            ixx=it.ixx * f, iyy=it.iyy * f, izz=it.izz * f,
+            component=MassComponent.WING, wing_fraction=0.0))
+    return out
 
 
 #: Components whose mass an **assembled balanced case spreads out** rather than
@@ -239,14 +284,15 @@ class MassDistribution:
 def distribution(project: Project) -> MassDistribution:
     """Partition ``project.weight.items`` by carrying component.
 
-    Returns an empty distribution for a project with no weight data base -- the
+    Built from :func:`reacted_parts`, so a partly-wing-carried row lands in two
+    components at once (design note 29). Returns an empty distribution for a project with no weight data base -- the
     absence of a mass model is a caller's decision to handle (some fixtures have
     none), not an error to raise from the SSOT.
     """
     by: Dict[MassComponent, List[MassItem]] = {c: [] for c in MassComponent}
     inferred: List[str] = []
     items = project.weight.items if project.weight is not None else []
-    for it in items:
+    for it in reacted_parts(items, project):
         if it.component is None:
             inferred.append(it.name)
         by[component_of(it, project)].append(it)
@@ -402,10 +448,12 @@ def unmodelled_wing_mass(project: Project) -> float:
       onto the wing in both mass models, 2026-08-15).
     * ``concept_heavy`` **1200 lb** — ``concentrated`` "fuel" 600 lb/side.
 
-    In every case the wing-tank fuel lives inside an undivided ``"Fuel to gross"``
-    row. Closing it means **splitting item rows into wing-tank and body-tank
-    fractions**, which is new fixture data with no oracle behind it — so this is
-    reported, never guessed at. Filed on the backlog.
+    In every case the wing-tank fuel lived inside an undivided ``"Fuel to gross"``
+    row. Closed by design note 29 (``MassItem.wing_fraction``, WF-5): each row now
+    states the fraction WINGINER's own ``concentrated`` entry implies, and the tie
+    holds on every shipped fixture. Kept as the reporter behind the
+    ``wing_mass_tie_open`` validator (WF-4): positive means the item model shows
+    less wing mass than WINGINER hangs, negative more.
     """
     wm = project.wing_mass
     if wm is None or not wm.concentrated:

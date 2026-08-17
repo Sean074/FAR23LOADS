@@ -17,11 +17,13 @@ practice 3: a single owner *plus* a drift test). The invariants:
 * the derived beam is what ``body_loads`` actually integrates;
 * an untagged (pre-B1) file still loads, and its inference is conservative.
 
-The three fixtures where the wing tie does **not** hold are pinned with their
-exact gap rather than excused — see
-:func:`test_the_unmodelled_wing_mass_is_pinned_per_fixture`.
+The three fixtures where the wing tie did **not** hold (wing-tank fuel inside an
+undivided fuel row) were pinned open to the pound until design note 29 gave
+``MassItem`` a ``wing_fraction``; the pin survives as the reduction gate
+:func:`test_stripping_the_fraction_reopens_exactly_the_wing_tank_fuel`.
 """
 
+import math
 import os
 import sys
 
@@ -31,6 +33,7 @@ import pytest  # noqa: E402
 
 from sloads import io, mass_distribution as md  # noqa: E402
 from sloads.models import MassComponent  # noqa: E402
+from sloads.units import Channel, UnitSystem, deliverable_units  # noqa: E402
 from sloads.modules.body_loads import build_body_loads  # noqa: E402
 from sloads.modules.flight_envelope import build_envelope  # noqa: E402
 from sloads.modules.select import build_critical  # noqa: E402
@@ -151,54 +154,128 @@ def test_stations_at_the_same_x_merge_into_one_node():
 
 
 # --------------------------------------------------------------------------- #
-# The wing tie, and the fixtures where it does not hold
+# The wing tie -- and the row->parts split that closes it (design note 29)
 # --------------------------------------------------------------------------- #
-#: Fixtures whose ``weight.items`` cannot show all of WINGINER's concentrated
-#: wing mass, and the exact shortfall in lb. Every gap is wing-tank fuel sitting
-#: inside an undivided ``"Fuel to gross"`` row; the engine+nacelle half of the
-#: twins' concentrated model reconciles exactly (atr42 ``Engines (2)`` 1780 +
-#: ``Nacelles (2)`` 600 = 2 x 1190). Closing these means splitting item rows into
-#: wing-tank and body-tank fractions, which is new fixture data with no oracle —
-#: so it is filed on the backlog, and pinned here rather than excused.
-_UNMODELLED_WING_MASS = {
-    "atr42_100.project.json": 3800.0,     # "wing fuel" 1900 lb/side
-    "dhc8_dash8.project.json": 4000.0,    # "wing fuel" 2000 lb/side
-    "concept_heavy.project.json": 1200.0,  # "fuel" 600 lb/side
+#: The three fixtures whose wing-tank fuel sat inside an undivided ``"Fuel to
+#: gross"`` row and rode both beams until design note 29 -- and the pounds that
+#: did (WINGINER's own ``concentrated`` "wing fuel", both sides). Since WF-5 the
+#: row carries ``wing_fraction = pounds / row``, derived from that entry rather
+#: than invented, and the tie holds on every fixture. Kept as the reduction
+#: gate: strip the fraction and exactly these pounds reappear.
+_WING_TANK_FUEL = {
+    "atr42_100.project.json": 3800.0,     # "wing fuel" 1900 lb/side of 9174
+    "dhc8_dash8.project.json": 4000.0,    # "wing fuel" 2000 lb/side of 4660
+    "concept_heavy.project.json": 1200.0,  # "fuel" 600 lb/side of 5500
 }
 
 
 @pytest.mark.parametrize("example", EXAMPLES)
-def test_the_wing_tie_holds_where_the_item_model_is_complete(example):
-    """``Σ(items tagged wing) == 2 × (panel_weight_lb + Σ concentrated)``.
+def test_the_wing_tie_holds_on_every_shipped_fixture(example):
+    """``Σ(WING-carried parts) == 2 × (panel_weight_lb + Σ concentrated)``.
 
     Both of WINGINER's terms are **per side**, so the airplane carries twice
-    their sum — and that is what the item database must show if the two models
-    describe one wing. Exact on the three fixtures whose data is complete.
-    """
-    if example in _UNMODELLED_WING_MASS:
-        pytest.skip(f"{example}: see test_the_unmodelled_wing_mass_is_pinned_per_fixture")
-    check = md.wing_mass_tie(_project(example))
-    if check is None:
-        pytest.skip(f"{example}: no wing mass input")
-    assert check.ok, f"{example}: {check.detail}"
-
-
-@pytest.mark.parametrize("example", sorted(_UNMODELLED_WING_MASS))
-def test_the_unmodelled_wing_mass_is_pinned_per_fixture(example):
-    """The three fixtures the tie fails on, pinned to the pound.
-
-    Asserting the *exact* gap rather than skipping: the number is a fact about
-    the fixture, it has one identified cause each, and if it moves — in either
-    direction — the suite says so. When the item rows are eventually split into
-    wing-tank and body-tank fuel, this test goes red and is deleted.
+    their sum -- and that is what the item database must show if the two models
+    describe one wing. Exact on all six fixtures since design note 29; before it
+    the three fuel-in-wing fixtures were pinned open by 3800 / 4000 / 1200 lb.
     """
     p = _project(example)
     check = md.wing_mass_tie(p)
-    assert check is not None and not check.ok, \
-        f"{example}: the wing tie now holds — delete this pin and the skip above"
-    assert md.unmodelled_wing_mass(p) == pytest.approx(_UNMODELLED_WING_MASS[example])
-    # It is entirely wing-tank fuel: the engine/nacelle half reconciles exactly.
-    assert check.want - check.got == pytest.approx(_UNMODELLED_WING_MASS[example])
+    if check is None:
+        pytest.skip(f"{example}: no wing mass input")
+    assert check.ok, f"{example}: {check.detail}"
+    assert md.unmodelled_wing_mass(p) == pytest.approx(0.0, abs=0.01)
+
+
+@pytest.mark.parametrize("example", sorted(_WING_TANK_FUEL))
+def test_stripping_the_fraction_reopens_exactly_the_wing_tank_fuel(example):
+    """The reduction gate on WF-5: ``wing_fraction`` carries exactly the pounds
+    the pre-note pin held, no more -- and the partition closes either way."""
+    p = _project(example)
+    fuel = [it for it in p.weight.items if it.wing_fraction]
+    assert [it.name for it in fuel] == ["Fuel to gross"]
+    assert md.partition_closes(p).ok
+    for it in fuel:
+        it.wing_fraction = 0.0
+    check = md.wing_mass_tie(p)
+    assert check is not None and not check.ok
+    assert md.unmodelled_wing_mass(p) == pytest.approx(_WING_TANK_FUEL[example])
+    assert md.partition_closes(p).ok
+
+
+def test_reacted_parts_splits_a_row_by_weight_and_inertia_at_one_position():
+    """WF-2/WF-3: two parts, the row's position, weight and own inertias in the
+    fraction; every part ``wing_fraction == 0`` so ``component_of`` is exact;
+    a zero-fraction row is returned as the very same object (identity keys the
+    CONM2 overlay matching)."""
+    p = _project("atr42_100.project.json")
+    row = next(it for it in p.weight.items if it.name == "Fuel to gross")
+    row.ixx, row.iyy, row.izz = 1000.0, 2000.0, 3000.0
+    parts = md.reacted_parts([row], p)
+    assert [pt.name for pt in parts] == ["Fuel to gross [fuselage]", "Fuel to gross [wing]"]
+    body, wing = parts
+    f = row.wing_fraction
+    assert wing.component is MassComponent.WING and body.component is MassComponent.FUSELAGE
+    assert wing.weight_lb == pytest.approx(row.weight_lb * f)
+    assert body.weight_lb + wing.weight_lb == pytest.approx(row.weight_lb, rel=1e-12)
+    assert (wing.ixx, wing.iyy, wing.izz) == pytest.approx((1000 * f, 2000 * f, 3000 * f))
+    assert body.izz + wing.izz == pytest.approx(3000.0, rel=1e-12)
+    for pt in parts:
+        assert (pt.x, pt.y, pt.z) == (row.x, row.y, row.z)
+        assert pt.wing_fraction == 0.0
+        assert pt.kind is row.kind and pt.consumable is row.consumable
+    plain = next(it for it in p.weight.items if it.name == "Wing")
+    assert md.reacted_parts([plain], p)[0] is plain
+    row.wing_fraction = 1.0
+    (only,) = md.reacted_parts([row], p)
+    assert only.component is MassComponent.WING and only.weight_lb == row.weight_lb
+
+
+@pytest.mark.parametrize("example", EXAMPLES)
+def test_the_mass_properties_path_reads_rows_not_parts(example):
+    """WTONECG/WTENV read the rows: total weight and CG from ``weight.items``
+    are unchanged by the split to the last digit (both parts sit at the row's
+    position), which is what keeps every Appendix A number where it is."""
+    p = _project(example)
+    rows = p.weight.items
+    parts = md.reacted_parts(rows, p)
+    for axis in ("x", "z"):
+        assert math.fsum(pt.weight_lb * getattr(pt, axis) for pt in parts) == \
+            pytest.approx(math.fsum(it.weight_lb * getattr(it, axis) for it in rows), rel=1e-12)
+    assert math.fsum(pt.weight_lb for pt in parts) == \
+        pytest.approx(math.fsum(it.weight_lb for it in rows), rel=1e-12)
+
+
+@pytest.mark.parametrize("example", sorted(_WING_TANK_FUEL))
+def test_every_consumer_agrees_with_the_owner_on_the_wing_share(example):
+    """The WF-3 drift guard: ``balance``'s wing/body split, the CONM2 header's
+    wing total and ``distribution()`` all read the same parts. Measured on the
+    gross-weight loading, where the whole fuel row is aboard."""
+    from sloads.modules import balance
+    from sloads.export import mass_cards
+    p = _project(example)
+    loading = max(md.derive_case_loadings(p), key=lambda ld: ld.weight_lb)
+    parts = md.reacted_parts(loading.items, p)
+    w_all = math.fsum(pt.weight_lb for pt in parts)
+    w_wing = math.fsum(pt.weight_lb for pt in parts
+                       if md.component_of(pt, p) is MassComponent.WING)
+    w_rows_wing = math.fsum(it.weight_lb for it in loading.items
+                            if it.component is MassComponent.WING)
+    assert w_all == pytest.approx(loading.weight_lb, rel=1e-9)
+    assert w_wing > w_rows_wing, "the fuel's wing share is not on the wing"
+    body = balance.body_inertia(loading, p, nz=1.0)
+    assert math.fsum(ld.weight_lb for ld in body) == pytest.approx(w_all - w_wing, rel=1e-9)
+    _, panel_both = balance.wing_inertia_strips(p, 1.0)
+    scale = balance._wing_inertia_scale(loading, p, panel_both)
+    assert scale * panel_both == pytest.approx(w_wing, rel=1e-9)
+    cards, _ = mass_cards.mass_cards(p)
+    card_wing = math.fsum(pt.weight_lb for c in cards
+                          for pt in md.reacted_parts([c.item], p)
+                          if md.component_of(pt, p) is MassComponent.WING)
+    assert card_wing > math.fsum(c.item.weight_lb for c in cards
+                                 if c.item.component is MassComponent.WING)
+    u = deliverable_units(UnitSystem.IMPERIAL, Channel.SOLVER)
+    header = "\n".join(mass_cards._header(p, u, cards))
+    assert f"$ Wing items ({card_wing:.0f} lb)" in header
 
 
 # --------------------------------------------------------------------------- #
@@ -245,7 +322,14 @@ def test_the_entered_tables_are_all_short_of_the_item_model(example):
     check = md.fuselage_reconciliation(p)
     if check is None:
         pytest.skip(f"{example}: no entered station table to compare")
-    assert check.gap < 0, f"{example}: entered table now exceeds the item model"
+    if example == "dhc8_dash8.project.json":
+        # The one entered table written *with* the wing-tank fuel on the body:
+        # since design note 29 moved 4,000 lb of it onto the wing the entered
+        # 25,890 lb exceeds the 23,500 lb beam by exactly the difference between
+        # that fuel and what the table already left out. Pinned, not excused.
+        assert check.gap == pytest.approx(25890.0 - 23500.0, abs=0.01)
+    else:
+        assert check.gap < 0, f"{example}: entered table now exceeds the item model"
     assert not check.ok, f"{example}: gap closed — update this test"
 
 
@@ -281,13 +365,14 @@ def test_concept_heavy_gained_a_fuselage_it_never_had():
 
     It was the one example with no body deck, purely because the only input the
     Ch 15 module read was a table nobody had entered. 16,200 lb of airplane had
-    no fuselage loads; it does now.
+    no fuselage loads; it does now -- 15,000 lb of it since design note 29 moved
+    the 1,200 lb of wing-tank fuel onto the wing.
     """
     p = _project("concept_heavy.project.json")
     assert not (p.fuselage_mass and p.fuselage_mass.stations)
     beam = md.fuselage_beam_stations(p)
     assert beam
-    assert sum(s.weight_lb for s in beam) == pytest.approx(16200.0)
+    assert sum(s.weight_lb for s in beam) == pytest.approx(15000.0)
 
 
 # --------------------------------------------------------------------------- #

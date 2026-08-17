@@ -375,6 +375,56 @@ def test_the_gear_carrier_mass_guard_still_fires_on_a_mistagged_leg():
     assert "gear_carrier_mass_disagrees" in _codes(project, page="weight_cg_inertia")
 
 
+# --------------------------------------------------------------------------- #
+# Wing-tank fuel separability (design note 29): the tie as a validator
+# --------------------------------------------------------------------------- #
+def test_the_wing_mass_tie_is_closed_on_every_shipped_fixture():
+    """WF-4: ``wing_mass_tie_open`` fires on none of the six -- since the three
+    fuel-in-wing fixtures carry ``wing_fraction`` on their fuel row (WF-5)."""
+    import glob
+
+    fired = set()
+    for path in sorted(glob.glob(os.path.join(_EXAMPLES, "*.project.json"))):
+        if "wing_mass_tie_open" in _codes(sloads_io.load_project(path)):
+            fired.add(os.path.basename(path))
+    assert fired == set(), fired
+
+
+def test_the_wing_mass_tie_validator_names_the_pounds_and_the_remedy():
+    """Strip the ATR's fraction: 3,800 lb of wing fuel ride the fuselage beam
+    again, and the warning says so on the Weight & CG page."""
+    project = sloads_io.load_project(os.path.join(_EXAMPLES, "atr42_100.project.json"))
+    fuel = next(it for it in project.weight.items if it.name == "Fuel to gross")
+    fuel.wing_fraction = 0.0
+    warnings = [w for w in consistency_warnings(project) if w.code == "wing_mass_tie_open"]
+    assert len(warnings) == 1
+    assert warnings[0].page == "weight_cg_inertia"
+    assert "3,800 lb" in warnings[0].message
+    assert "wing_fraction" in warnings[0].message
+
+
+def test_the_wing_mass_tie_validator_reads_the_other_sign_too():
+    """The item database showing *more* wing than WINGINER hangs is the other
+    entry error, and it is named as such rather than as missing fuel."""
+    project = sloads_io.load_project(os.path.join(_EXAMPLES, "atr42_100.project.json"))
+    fuel = next(it for it in project.weight.items if it.name == "Fuel to gross")
+    fuel.wing_fraction = 1.0
+    (w,) = [w for w in consistency_warnings(project) if w.code == "wing_mass_tie_open"]
+    assert "more on the wing than WINGINER" in w.message
+
+
+def test_wing_fraction_entry_rules():
+    """WF-2: outside [0, 1] and non-zero on a WING row are both named."""
+    project = sloads_io.load_project(os.path.join(_EXAMPLES, "atr42_100.project.json"))
+    fuel = next(it for it in project.weight.items if it.name == "Fuel to gross")
+    wing = next(it for it in project.weight.items if it.name == "Wing")
+    fuel.wing_fraction = 1.2
+    wing.wing_fraction = 0.3
+    codes = _codes(project, page="weight_cg_inertia")
+    assert "wing_fraction_out_of_range" in codes
+    assert "wing_fraction_on_wing_row" in codes
+
+
 def test_an_unstated_gear_carrier_is_flagged():
     """G-2: body-carried and wing-carried gear are different load paths, so there
     is no default to fall back to."""

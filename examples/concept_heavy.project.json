@@ -169,7 +169,8 @@
         "iyy": 0.0,
         "izz": 0.0,
         "kind": "discretionary",
-        "component": "fuselage"
+        "component": "fuselage",
+        "wing_fraction": 0.2181818182
       }
     ],
     "cg_cases": [

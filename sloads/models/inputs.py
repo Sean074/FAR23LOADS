@@ -164,6 +164,18 @@ class MassItem:
     #: estimate, which has to tell mission fuel from reserve fuel.
     #: ``False`` is today's behaviour, so no flight case moves by a pound.
     consumable: bool = False
+    #: Fraction of this row -- its weight **and** its own ``ixx``/``iyy``/``izz``
+    #: -- reacted by the **wing (both sides together)**; the remainder by
+    #: ``component`` (design note 29, decision WF-2). Both parts share the row's
+    #: position, so WTONECG/WTENV weight, CG and inertia are unchanged; only the
+    #: reaction partition (:func:`sloads.mass_distribution.reacted_parts`)
+    #: splits it. It is a *fraction*, not a pound figure, so that G-5 burn-down
+    #: and a D-25 loading fraction -- which scale the row in time -- leave the
+    #: wing/body split invariant. ``0.0`` (default) is today's behaviour; a
+    #: non-zero value on a row already tagged ``WING`` is rejected by validation.
+    #: Written for the three fixtures whose wing-tank fuel sat inside an
+    #: undivided ``"Fuel to gross"`` row and so rode both beams.
+    wing_fraction: float = 0.0
 
 
 @dataclass
