@@ -4,11 +4,14 @@
 
 **Raised:** 2026-08-08 (user), to enable the balanced-airframe work by giving
 sbeam an **independent** mass model against which sloads' inertia loads can be
-checked. **Status: C1–C5 and C7 SHIPPED 2026-08-08** — see the history entry
+checked. **Status: SHIPPED — C1–C5 and C7 2026-08-08, C6 with the round-trip harness** — see the history entry
 "CONM2 distributed-mass export" in
 [`../40_history/00_completed_development.md`](../40_history/00_completed_development.md).
-**C6's solver-side gate is not shipped** (it needs the step-2 round-trip
-harness) and is filed on the backlog. **Closure tier:** L — new export artifact,
+**C6's solver-side gate shipped with the step-2 round-trip harness**
+(`tests/test_sbeam_roundtrip.py` M-a…M-c: sbeam accelerates the exported
+`CONM2` set and reproduces sloads' inertia-only set) — **status: SHIPPED,
+C1–C7 complete** (status corrected 2026-08-17, backlog review BR-12; the plan
+rolls to `40_history/` at the 0.7.0 cut). **Closure tier:** L — new export artifact,
 a new unit channel member, GUI + CLI surface, and a new CI gate.
 
 > **Corrections applied while implementing** (the plan text below is left as

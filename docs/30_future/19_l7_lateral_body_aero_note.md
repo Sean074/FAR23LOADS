@@ -4,7 +4,7 @@
 
 **Status: PROPOSED, not agreed — no code written.** Written to `CLAUDE.md`
 required practice 1 (design note before code, physics/L step). Backlog item
-**Pri 8** ([`00_backlog.md`](00_backlog.md)), from plan 13 decision **L-7**
+**Pri 2** — the 0.7.0 headline, issue #8 ([`00_backlog.md`](00_backlog.md), re-cut 2026-08-17), from plan 13 decision **L-7**
 ([`13_b8a_lateral_closure_plan.md`](../40_history/18_b8a_lateral_closure_plan.md) §5.6).
 
 **Revision 2, 2026-08-15.** Revision 1 proposed a Munk-only couple with a
@@ -346,7 +346,7 @@ G1 is the definition of done. G3 and G5 carry the physics; the rest are fences.
    fuselage_height/2` = **78.5 in** today (`tail_geometry.fin_root_waterline`,
    `assumed=True`), so entering a real body height moves the fin root by ~`H/2`
    and changes the roll arm of every fin load on the Appendix A fixture. It also
-   feeds `tail_span`'s h-tail attachment `fuselage_width` — backlog **Pri 10** —
+   feeds `tail_span`'s h-tail attachment `fuselage_width` — backlog **Pri 1**, the fixture-data pass (#9) —
    and `configuration`'s `h_tail_z`. No oracle is at risk; a digest wave is.
    **Recommended sequence:** (i) enter `vtail_root_waterline_z = 78.5`
    explicitly, a zero-movement change that pins today's assumed value as a stated
