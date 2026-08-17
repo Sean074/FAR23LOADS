@@ -13,13 +13,11 @@ react the unbalanced moment (M4-1) from the wing planform + spar fractions on th
 
 from __future__ import annotations
 
-import csv
-import io as _io
-
 import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
 from components import active_system, gate
+from limit_csv import body_limit_csv, body_limit_rows
 
 from sloads import (
     Project,
@@ -34,25 +32,6 @@ from sloads import (
 from sloads.export import sbeam_bridge as sb
 from sloads.models import FuselageMassInput, FuselageStation
 from sloads.modules.body_loads import body_load_rows, build_body_loads
-
-
-def _convert_body_rows(rows, system: UnitSystem):
-    """Display-only copy of ``body_load_rows`` output converted to ``system``.
-
-    Never mutates the source rows/objects -- CSV/export paths keep using the
-    original Imperial ``rows``/``results``.
-    """
-    return [
-        {
-            **r,
-            "X": round(to_si_scalar(float(r["X"]), "in", system), 3),
-            "Fz": round(to_si_scalar(float(r["Fz"]), "lbf", system), 2),
-            "Sz": round(to_si_scalar(float(r["Sz"]), "lbf", system), 2),
-            "Myy": round(to_si_scalar(float(r["Myy"]), "lb-in", system), 1),
-        }
-        for r in rows
-    ]
-
 
 st.title("Net Fuselage Loads — shear / bending")
 st.caption(
@@ -230,19 +209,16 @@ st.caption(
     f"Columns: X ({si_scalar_label('in', system)}), Fz/Sz ({si_scalar_label('lbf', system)}), "
     f"Myy ({si_scalar_label('lb-in', system)})."
 )
-st.dataframe(pd.DataFrame(_convert_body_rows(body_load_rows([res]), system)),
+st.dataframe(pd.DataFrame(body_limit_rows(body_load_rows([res]), system)),
              hide_index=True, use_container_width=True)
 
-buf = _io.StringIO()
-rows = body_load_rows(results)
-writer = csv.DictWriter(buf, fieldnames=list(rows[0].keys()))
-writer.writeheader()
-writer.writerows(rows)
-# Two basis-marked downloads (defect M4-15): the LIMIT file matches the
-# oracle-traceable on-page table; the ULTIMATE file is the sbeam bridge's body
-# span CSV (per-case SF column), the same content family the Export page ships.
+# Two basis-marked downloads (defect M4-15): the LIMIT file is the on-page
+# table's converted, unit-suffixed rows (L-8i -- ``limit_csv`` owns both); the
+# ULTIMATE file is the sbeam bridge's body span CSV (per-case SF column), the
+# same content family the Export page ships.
 _dl = st.columns(2)
-_dl[0].download_button("Download fuselage loads — LIMIT (CSV)", buf.getvalue(),
+_dl[0].download_button("Download fuselage loads — LIMIT (CSV)",
+                       body_limit_csv(body_load_rows(results), system),
                        file_name="net_fuselage_loads_LIMIT.csv", mime="text/csv")
 _dl[1].download_button("Download fuselage loads — ULTIMATE (CSV)",
                        sb.body_span_load_csv(results, system=system),

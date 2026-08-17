@@ -14,13 +14,11 @@ nav step.
 
 from __future__ import annotations
 
-import csv
-import io as _io
-
 import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
 from components import active_system, gate
+from limit_csv import tail_limit_csv, tail_limit_rows
 
 from sloads import Project, UnitSystem, labels_for, si_scalar_label, to_display, to_si_scalar
 from sloads.modules.balloads import verify_balancing
@@ -120,29 +118,13 @@ else:
         "Pressures shown are **LIMIT** (oracle-traceable). ULTIMATE deliverables "
         "come from the **Review/Export** pages."
     )
-    # CSV export stays Imperial (canonical units); the on-screen table gets a
-    # separate, display-only converted copy so the toggle never touches export.
-    rows = [
-        {"Component": r.component, "Condition": r.case,
-         "LT25 (lb, LIMIT)": round(r.lt25, 2), "LT50 (lb, LIMIT)": round(r.lt50, 2),
-         **{f"PSI(X{i}) (LIMIT)": round(s.psi, 4) for i, s in enumerate(r.stations, start=1)}}
-        for r in results
-    ]
-    display_rows = [
-        {"Component": r.component, "Condition": r.case,
-         f"LT25 ({_lbf_lbl}, LIMIT)": round(to_si_scalar(r.lt25, "lbf", system), 2),
-         f"LT50 ({_lbf_lbl}, LIMIT)": round(to_si_scalar(r.lt50, "lbf", system), 2),
-         **{f"PSI(X{i}) ({_psi_lbl}, LIMIT)": round(to_si_scalar(s.psi, "psi", system), 4)
-            for i, s in enumerate(r.stations, start=1)}}
-        for r in results
-    ]
-    st.dataframe(pd.DataFrame(display_rows), hide_index=True, use_container_width=True)
+    # The table and the LIMIT download are the same converted, unit-suffixed
+    # rows (L-8i -- ``limit_csv`` owns both); ``results`` themselves stay
+    # Imperial for the Loads Plots / Export pages.
+    st.dataframe(pd.DataFrame(tail_limit_rows(results, system)),
+                 hide_index=True, use_container_width=True)
 
-    buf = _io.StringIO()
-    writer = csv.DictWriter(buf, fieldnames=list(rows[0].keys()))
-    writer.writeheader()
-    writer.writerows(rows)
-    st.download_button("Download tail distributions (CSV)", buf.getvalue(),
+    st.download_button("Download tail distributions (CSV)", tail_limit_csv(results, system),
                        file_name="tail_chordwise_loads_LIMIT.csv", mime="text/csv")
 
 # --------------------------------------------------------------------------- #

@@ -198,6 +198,7 @@
     "propwr",
     "pyproject",
     "pytest",
+    "pytestmark",
     "radon",
     "raggedright",
     "realisation",

@@ -461,6 +461,8 @@ state no units at all, while the table above them on the page is converted. They
 are the LIMIT analysis-page channel (the CLAUDE.md carve-out), the row builders
 are bespoke per page, and giving them unit-suffixed headers is the same shape of
 work step 4 did for the sbeam CSVs — logged as **L-8i** rather than folded in.
+*Closed 2026-08-16* (`app/limit_csv.py`, `tests/test_limit_csv.py`); on review
+`loads_plots` was already converted and unit-labelled, so three pages changed.
 
 #### As planned
 

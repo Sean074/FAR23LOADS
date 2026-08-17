@@ -14,19 +14,16 @@ step with NETLOADS.
 
 from __future__ import annotations
 
-import csv
-import io as _io
-
 import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
 from components import gate, page_header
+from limit_csv import wing_limit_csv, wing_limit_rows
 
 from sloads import (
     AeroInput,
     AeroSurfaceInput,
     ConcentratedWeight,
-    UnitSystem,
     WingLoadCase,
     WingMassInput,
     convert_results,
@@ -43,31 +40,6 @@ from sloads.modules.airloads import schrenk_distribution
 from sloads.modules.net_loads import build_net_loads, wing_load_rows
 from sloads.modules.wing_inertia import resolve_wing_cases
 from sloads.report import module_text_report
-
-
-def _convert_wing_rows(rows, system: UnitSystem):
-    """Display-only copy of ``wing_load_rows`` output converted to ``system``.
-
-    Never mutates the source rows/objects -- CSV/export paths keep using the
-    original Imperial ``rows``/``results``. Mxx/Myy/Mzz are all "lb-in" per
-    ``net_loads.run`` (see its ``LoadValue`` entries), matching WINGINER/NETLOADS.
-    """
-    return [
-        {
-            **r,
-            "X": round(to_si_scalar(float(r["X"]), "in", system), 3),
-            "Y": round(to_si_scalar(float(r["Y"]), "in", system), 3),
-            "Z": round(to_si_scalar(float(r["Z"]), "in", system), 3),
-            "Fx": round(to_si_scalar(float(r["Fx"]), "lbf", system), 1),
-            "Fz": round(to_si_scalar(float(r["Fz"]), "lbf", system), 1),
-            "Sx": round(to_si_scalar(float(r["Sx"]), "lbf", system), 1),
-            "Sz": round(to_si_scalar(float(r["Sz"]), "lbf", system), 1),
-            "Mxx": round(to_si_scalar(float(r["Mxx"]), "lb-in", system), 0),
-            "Myy": round(to_si_scalar(float(r["Myy"]), "lb-in", system), 0),
-            "Mzz": round(to_si_scalar(float(r["Mzz"]), "lb-in", system), 0),
-        }
-        for r in rows
-    ]
 
 project, system, U = page_header("wing_loads", title="Wing Loads — AIRLOADS + WINGINER + NETLOADS", banner=False)
 st.caption(
@@ -392,19 +364,16 @@ for title, attr, unit_key in [("Shear Sz", "sz", "lbf"), ("Bending Mxx", "mxx", 
     st.plotly_chart(fig, use_container_width=True)
 
 st.subheader("Net load station table (LIMIT)")
-st.dataframe(pd.DataFrame(_convert_wing_rows(wing_load_rows([net]), system)),
+st.dataframe(pd.DataFrame(wing_limit_rows(wing_load_rows([net]), system)),
              hide_index=True, use_container_width=True)
 
-buf = _io.StringIO()
-rows = wing_load_rows(loads.wing_net)
-writer = csv.DictWriter(buf, fieldnames=list(rows[0].keys()))
-writer.writeheader()
-writer.writerows(rows)
-# Two basis-marked downloads (defect M4-15): the LIMIT file matches the
-# oracle-traceable on-page table; the ULTIMATE file is the sbeam bridge's span
-# CSV (per-case SF column), the same content family the Export page ships.
+# Two basis-marked downloads (defect M4-15): the LIMIT file is the on-page
+# table's converted, unit-suffixed rows (L-8i -- ``limit_csv`` owns both); the
+# ULTIMATE file is the sbeam bridge's span CSV (per-case SF column), the same
+# content family the Export page ships.
 _dl = st.columns(2)
-_dl[0].download_button("Download net wing loads — LIMIT (CSV)", buf.getvalue(),
+_dl[0].download_button("Download net wing loads — LIMIT (CSV)",
+                       wing_limit_csv(wing_load_rows(loads.wing_net), system),
                        file_name="net_wing_loads_LIMIT.csv", mime="text/csv")
 _dl[1].download_button("Download net wing loads — ULTIMATE (CSV)",
                        sb.span_load_csv(loads.wing_net, system=system),
