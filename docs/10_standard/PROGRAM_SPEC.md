@@ -979,7 +979,10 @@ result that lacks what a deck needs is a stated error, never an empty column.
   Roll and yaw transfer are zero (the pairing is a balancing condition, so the
   halves cancel). Mapped by `coordinates.ttail_transfer_to_airplane`, the one
   load in a fin deck that is not in the fin's local frame. Conventional layouts
-  are bit-identical to the T4 deck.
+  are bit-identical to the T4 deck. On a T-tail the h-tail's own stations sit
+  at the fin tip (`fin_root + span`, the same owner as the fin deck and the
+  three-view), not the wing root waterline (backlog Pri 1, 2026-08-16); the
+  twin fixtures `atr42_100`/`dhc8_dash8` declare `t_tail` since that date.
 - **CONM2 mass export (step C1–C5, 2026-08-08).** `sloads/export/mass_cards.py`
   writes the itemized mass model as `CONM2` cards with one `MASSSET` per
   *derivable* payload case, in three artifacts: a pasteable fragment, a

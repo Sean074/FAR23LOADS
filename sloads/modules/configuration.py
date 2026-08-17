@@ -260,12 +260,17 @@ def tail_planform(layout: LayoutInput,
         x_le, x_te = x_mac - 0.25 * chord, x_mac + 0.75 * chord
         h_half = h_span_in / 2.0
 
+        # A defaulted T-tail / cruciform h-tail sits on the *resolved* fin (the
+        # fin tip / mid-fin from the same owner the load path reads), not on
+        # ``fuselage_height/2 + span`` above the wing root -- on ``atr42_100``
+        # the two disagree by 32 in (backlog Pri 1, 2026-08-16).
         h_tail_z = layout.h_tail_z
         if h_tail_z == 0.0 and layout.tail_type == TailType.T_TAIL:
-            h_tail_z = layout.fuselage_height / 2.0 + v_span_in
+            h_z = fin_root_z + v_span_in
         elif h_tail_z == 0.0 and layout.tail_type == TailType.CRUCIFORM:
-            h_tail_z = layout.fuselage_height / 2.0 + v_span_in * 0.5
-        h_z = layout.root_waterline_z + h_tail_z
+            h_z = fin_root_z + v_span_in * 0.5
+        else:
+            h_z = layout.root_waterline_z + h_tail_z
 
         panels["h_tail"] = {
             "top": [(x_le, h_half), (x_te, h_half), (x_te, -h_half),

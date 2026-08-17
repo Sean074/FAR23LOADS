@@ -36,7 +36,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import pytest  # noqa: E402
 
 from sloads import io  # noqa: E402
-from sloads.models import MissingInputError, SurfaceInput, TailMassInput  # noqa: E402
+from sloads.models import MissingInputError, SurfaceInput, TailMassInput, TailType  # noqa: E402
 from sloads.modules.flight_envelope import build_envelope  # noqa: E402
 from sloads.modules.select import build_critical  # noqa: E402
 from sloads.modules.tail_span import (  # noqa: E402
@@ -524,9 +524,12 @@ def test_the_attachment_interpolates_the_body_at_the_htail_and_never_its_maximum
     ``atr42_100`` is the sharpest statement of why the maximum is the wrong
     number: 106.3 in of published max diameter against ~22 in of body at the
     h-tail's own station. Taking the maximum would put the attachments five times
-    too far outboard — outboard of a fifth of the semispan.
+    too far outboard — outboard of a fifth of the semispan. The fixture is a
+    T-tail since backlog Pri 1 (2026-08-16), so the conventional branch is
+    exercised on it by resetting the layout — the outline is what is under test.
     """
     project = _project("atr42_100.project.json", weight=0.0)
+    project.geometry.parametric.tail_type = TailType.CONVENTIONAL
     planform = resolve_tail_planform(project, HTAIL)
     attach = htail_attachment(project, planform)
     assert attach.basis == ATTACH_OUTLINE

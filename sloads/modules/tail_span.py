@@ -974,7 +974,21 @@ def ttail_transfer(project: Project, cond: CriticalCondition,
         note=note)
 
 
-def _h_tail_waterline(project: Project) -> float:
+def _h_tail_waterline(project: Project,
+                      fin: Optional[TailPlanform] = None) -> float:
+    """The waterline the h-tail's stations sit on.
+
+    On a **T-tail** the horizontal surface sits on the fin tip, so its waterline
+    is the fin's resolved root plus its span -- the same owner
+    (:func:`~sloads.tail_geometry.fin_root_waterline`) the fin deck and the
+    three-view read, so the surface cannot be drawn on the fin and modelled at
+    the wing root (backlog Pri 1 sweep, 2026-08-16: it was, by 146-180 in on
+    every T-tail fixture). ``z`` carries no moment for a surface that loads in
+    ``fz`` only, so this moves ``GRID``s and the LRA fin-tip joint, not a load.
+    Otherwise the wing root waterline, as before.
+    """
+    if fin is not None and is_t_tail(project) and fin.span > 0:
+        return fin.root_z + fin.span
     geometry = project.geometry
     layout = geometry.parametric if geometry is not None else None
     return layout.root_waterline_z if layout is not None else 0.0
@@ -1025,7 +1039,8 @@ def build_tail_span(project: Project) -> Dict[str, List[TailSpanResult]]:
         # the centreline gets that moment wrong and can get it wrong in *sign*.
         # Owned by ``tail_geometry.fin_root_waterline`` and carried on the
         # planform, so the three-view and this deck place one fin once.
-        z_offset = _h_tail_waterline(project) if component == HTAIL else planform.root_z
+        z_offset = (_h_tail_waterline(project, planforms.get(VTAIL))
+                    if component == HTAIL else planform.root_z)
 
         # The discrete control path (T6). Resolved before the notes, because what
         # it finds -- how much control load there is and where its number came
