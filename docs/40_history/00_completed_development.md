@@ -20,6 +20,96 @@ written directly, by the release manager.
 
 ---
 
+## Release cut: **sloads 0.6.0** (the ground family, the LRA beam model and the process that ships them), tag `v0.6.0`, 2026-08-17
+
+**Objective.** Cut the release the 0.5.0 block promised (**D-R3**: the
+ground/landing families as the 0.6.0 headline) once band A of the priority
+table was empty — it emptied with issue #26 on 2026-08-17. Four days of
+`[Unreleased]` had grown to a release-worth of work across three review
+rounds; unreleased work has no regression baseline.
+
+**Deliverables** (the `[0.6.0]` changelog section is the release note; headline
+items only):
+- **Ground and landing cases in the assembled deck** (step 10, plan 18, G-1…G-14):
+  LANDLOAD cases 1–24 as balanced free-free ground cases in the assembled
+  full-span deck with the closed-form NVP/NDP/NS closure gate, the gear
+  free-body report (contact patch + stroke), the weight/CG case model and gear
+  inputs in one schema hop, and **the governing safety-factor table**
+  (`sloads/safety_factors.py`) as the one authority for every case's factor.
+- **Discrete control surfaces and the suite's first hinge moment** (plan 09), a
+  **T-tail's fin deck carrying the h-tail at its tip**, `atr42_100`/`dhc8_dash8`
+  modelled as the T-tails they are, ONENGOUT running on shipped data.
+- **The LRA beam model** (step 12, notes 24/25, BM-1…BM-5 / LM-1…LM-7) as the
+  third deliverable, with one `PBAR`/`MAT1` pair per section family editable in
+  place (step 14 descoped, #7).
+- **The mass model made honest:** `CgCase.loading` (D-25, note 22), payload
+  loadings for the four silent fixtures (note 23, 6 of 6 assemble), the
+  non-wing drag carrier with the trusted-α window (note 20), and **wing-tank fuel
+  separability** (`MassItem.wing_fraction`, note 29, WF-1…WF-6, schema **v53**).
+- **One owner, one value:** constants and conversion factors (#26, review
+  C-1…C-12), σ/ρ₀/SI display factors (#5), no silent defaults in `export/`
+  (CH-2), platform-stable deliverable bytes (`math.fsum`, snapped zeros, keyed
+  picks), the fin-root body-centreline datum, the analysis-page LIMIT CSV units.
+- **The process that ships it:** the multi-developer process (note 28,
+  MD-1…MD-12) and its **solo profile** (`DEVELOPMENT_PROCESS.md` §0) with the
+  close loop as guarded scripts (`solo_start.sh` / `solo_close.sh`, #27);
+  static typing and lint depth (note 27, `mypy` a CI gate); documentation volume
+  (note 26 — this file's live-cycle rule, `changes/` fragments,
+  `build_changelog.py`); the documentation-currency guard; effect-vs-error-bar
+  as `CLAUDE.md` rule 6; PR-fast CI with the compatibility legs on `main`.
+- **Version** `0.5.0` → **`0.6.0`** in `pyproject.toml` (MINOR: new capability, no
+  breaking change — `SCHEMA_VERSION` **44 → 53** by additive hops, `io.py` loads
+  every older save).
+- **Changelog cut** — the first built by `scripts/build_changelog.py`
+  (`0.6.0 --date 2026-08-17`): **19 fragments** consumed into `## [0.6.0]`
+  (Added / Changed / Fixed, merged with the legacy `[Unreleased]` text
+  fragments-first), **7 history entries** rolled to the top of this file, a
+  fresh empty `[Unreleased]` opened; released sections byte-untouched.
+- **History roll** (`RELEASE_PROCESS.md` §4.3, first application): the shipped
+  design notes moved from `30_future/` to `40_history/`; the live file stayed
+  under the 1,500-line threshold, so no archive cut.
+- **Verification baseline** —
+  [`12_verification_baseline_0.6.0.md`](12_verification_baseline_0.6.0.md), a
+  **delta** baseline like 0.5.0's.
+- **Gates at cut:** `pytest` **2044 passed / 18 skipped / 1 xfailed / 0 failed**,
+  `ruff check sloads/ cli.py app/ scripts/` clean, `mypy` clean (`sloads/`),
+  `scripts/smoke_test.sh` **PASS**, `scripts/backlog_issues.py check` clean with
+  band A empty (issues #3–#7, #26, #27 closed on `main` with their SHAs), no open
+  CRITICAL/MAJOR review findings.
+
+**Key decisions.** The release was cut by the band, not the calendar: band A of
+the priority table *is* the 0.6.0 scope, and its last row leaving the table is
+the cut signal (§2's cadence rule was met three days over). Under the solo
+profile the release branch is fast-forwarded, not PR-reviewed; the tag is made
+on `main` after the merge as §4 says. Every deliverable byte moved this cycle
+moved deliberately, with its wave recorded in the changelog entry that moved it.
+
+**Post-release.** The cadence rule (`RELEASE_PROCESS.md` §2) restarts from this
+tag. Band B (steps 13+, notes 21/24 agreed, note 19 proposed) is the working
+plan; the priority table's open rows are the GitHub issues.
+
+- **Constants and conversion factors — one owner, one value, one rule (issue #26, tier M, 2026-08-17)** — Closed the CH-6 defect class for every shared constant, not just ρ₀: the 2026-08-17 review found deg/rad under six spellings, two `_G = 32.2`, six `144` aliases, ~24 inline `/12.0`, sixteen inline `V²/295` and the FAR 23.341 gust triple at five sites. `sloads/constants.py` is now the one owner of each (`DEG_PER_RAD`, `IN_PER_FT`, `IN2_PER_FT2`, `KT_TO_FPS`, `FT_LB_S_PER_HP`, `dynamic_pressure_psf`, `gust_alleviation_factor`, …), the value policy is exact-by-default with the `.BAS` truncations measured against the whole suite before being retired (no page-cited oracle moved; only self-pins re-pinned, register entry), a single `*_SUITE` survivor remains (`KT_TO_FPS_SUITE` for `VSF`, pinned by the ENGLOADS `/101.2` gyro-thrust oracle), FLTLOADS' private speed of sound was retired for the shared atmosphere, and the `constants.py` ↔ `units.py` demarcation (Imperial↔Imperial vs Imperial↔SI only; `units` imports `constants`, never the reverse) is a `CONVENTIONS.md` §7 row with grep drift guards in both directions (`tests/test_constants.py`).
+
+- **Export silent defaults closed structurally (CH-2, item 9, tier M, 2026-08-16)** — the 2026-08-16 scope review found three `getattr(..., default)` fallbacks in the export path; the sweep found seven. All are now typed attribute reads or an explicit map that refuses an unknown key, the digest did not move (no default had ever fired on a fixture), and the class cannot recur: an AST guard forbids three-argument `getattr` anywhere in `sloads/export/`. Rule stated once in `00_program_overview.md` §Error handling; the mypy stage-2 ratchet on `export/` (issue #19) now starts from a package with no `Any`-typed probes in its readers.
+
+- **Multi-developer development process (design note 28, tier M, 2026-08-16)** — the session becomes the PR: trunk-based branches, protected `main` (1 reviewer ≠ author, CODEOWNERS, squash, `self-merge-ok` for tier-S docs/hygiene), closure in the PR, history entries as `changes/*.history.md` fragments rolled at release cut (this entry is the first), GitHub Issues + Project as the record with `00_backlog.md` as the plan (`scripts/backlog_issues.py`), design-note PRs with `Owner:` lines, the three shared-counter rules, `CODEOWNERS`, `CONTRIBUTING.md`, PR/issue templates, `DEVELOPMENT_PROCESS.md`. Owner's GitHub steps outstanding: branch protection; `backlog_issues.py create` + `rewrite`.
+
+- **Forward non-wing drag not applied outside the polar's trusted-α window (backlog Pri 2, tier M, 2026-08-17)** — note 20 D-4 revised (§8.2) after the four non-oracle fixtures showed the `ΔC_D` sign inversion at the negative-α end as well as the RJ's positive end: `NMAA` on `atr42_100`/`dhc8_dash8`/`concept_heavy` carried a 1.0–1.4 klb *forward* `body-axial` card, excused in the test inside a symmetric ±15° window. Decision: a one-sided window `constants.POLAR_TRUSTED_ALPHA_DEG = (−10°, +15°)` as the single owner (`balance.polar_alpha_trusted`); outside it a forward difference is not applied (`body_axial_clamped`, `ΔC_D` still reported unclamped), inside it a forward value fails G10 with no excused points. Consequences stated, not absorbed: `residual_fx` and `residual_my` re-open on exactly the clamped cases (pitch 1.5–2.1 % on the three `NMAA` points because the load sat at the wing plane ~40 in from the CG), reacted by the closure and pinned per case with `(force, pitch)` ceilings under a 2.5 % hard stop; G1/G5/G2 read the flag. Decisions of record: clamp the *applied* load, never the diagnostic; the window is one-sided because the polar is a positive-lift fit; the polars themselves are not re-derived (Pri 2's own scope). Digest regenerated (four fixtures' `balance` channels, three `lra_model` channels); `ga6_normal`/`cessna_210` untouched.
+
+- **Platform-stable deliverable bytes (defect, tier M, 2026-08-16)** — found while getting the first protected-`main` PR green: `main`'s CI had been red on every run since the LRA model shipped, on two tests that pass on the developer's Mac. Root causes were both "the same number computed two ways lands an ulp apart on another platform": critical-case picks between exactly-tied V-n points flipped between CI and local (`select._extreme` — first-in-order inside a 1e-9 relative band — now owns every keyed pick), and zero-by-construction card components printed their cancellation residue or `-0.000000E+00` (`sbeam_bridge._fmt3` snaps them for every vector card in every exporter), and — the 3.12-only remainder — Python 3.12's compensated built-in `sum()` moving float sums a few ulp from 3.9/3.11 (`math.fsum` at all 102 summation sites in `sloads/`, exactly rounded everywhere). Plus a Python-3.9-only enum-docstring placeholder in the data-dictionary generator. Decision of record: a byte in a deliverable may not depend on libm, FMA, or the interpreter's `sum()`; the rule and its three guards are a `CONVENTIONS.md` §7 row. Digest regenerated deliberately (`-0`/dust → `0` only). Lesson for the multi-developer process: a green local suite was never the merge gate — CI on the Linux matrix is, and it had been failing unnoticed because nothing blocked on it until branch protection did.
+
+- **Twin fixtures are T-tails (backlog Pri 1, from T-8a, tier M, 2026-08-16)** — `atr42_100` and `dhc8_dash8` flipped to `tail_type: t_tail`, the fin root left on the outline datum (`h_tail_z` = 0, so the T-tail relation does not outrank the fuselage-top branch closed the same day). Both fin decks gain the T7 tip transfer on every case, the h-tail attaches at the fin tip (one joint, not a fuselage-side pair), and the LRA model ties h-tail to fin tip. Two rule-4 sweeps rode along: `tail_span._h_tail_waterline` now places a T-tail's h-tail stations at `fin_root + span` (it read the wing root waterline on every T-tail, `concept_regional_jet` included — geometry only, `fz`-only surface, no load moved), and the three-view's defaulted T-tail/cruciform h-tail is drawn on the resolved fin, not `fuselage_height/2 + span` above the wing root. Cosmetic rider (old Pri 13): the tail-span CSV `Fax`/`Sax` `-0.00` is snapped, and the negative-zero guard covers the tail decks. Decisions of record: leave `h_tail_z` = 0 on the twins so the outline datum governs; the h-tail waterline sweep is in scope because it is the same defect class and the digest was already moving. Digest regenerated (twins' tail/balanced/LRA channels; RJ h-tail/LRA channels).
+
+## Step — Wing-tank fuel separability: `MassItem.wing_fraction` (design note 29, backlog Pri 6 / #6, tier L, 2026-08-17, schema v53)
+
+**Objective.** End the same fuel pounds riding both beams on the three fuel-in-wing fixtures (3,800 / 4,000 / 1,200 lb — 7–15 % of the derived body beam, above the base-method band; scope review 2026-08-16 item 1.3) without rebuilding the mass model: one additive field, one owner for the row→parts split, the wing tie as a validator.
+
+**Deliverables.** `MassItem.wing_fraction: float = 0.0` (WF-1/WF-2 — the fraction of a row's weight and own inertias reacted by the wing, both sides together; the remainder by `component`; both parts at the row's position; a *fraction* so G-5 burn-down and D-25 loading fractions leave the split invariant); `SCHEMA_VERSION` 52 → 53, additive, no migration hop; `mass_distribution.reacted_parts` (WF-3) as the only place a row becomes parts, consumed by `distribution()`, `balance.py` (`_wing_inertia_scale`, `place_wing_inertia`, `body_inertia`, `body_axial_set` fallback, `point_mass_self_inertia`) and the `mass_cards` header (cards stay one per row — a row is one mass at one position); validators `wing_mass_tie_open` (both signs, pounds + remedy), `wing_fraction_out_of_range`, `wing_fraction_on_wing_row` (WF-4); fixture fractions derived from WINGINER's own `concentrated` entries (WF-5: 3800/9174, 4000/4660, 1200/5500), `Reserve`/`Unusable` rows untouched; the WINGINER wing deck unmoved (WF-6). Closure trail: `CONVENTIONS.md` §1 + §7 SSOT row, `PROGRAM_SPEC.md` (body loads), `theory_sources.md` (the tie as the invariant gate), `DATA_DICTIONARY.md` regenerated, schema-guard hash, digest wave.
+
+**Test.** `test_mass_distribution.py`: the tie holds on all six fixtures and `unmodelled_wing_mass == 0`; the reduction gate (strip the fraction → exactly the pinned pounds reappear; the partition closes either way); `reacted_parts` splits weight and inertia at one position and returns zero-fraction rows by identity; the mass-properties path reads rows (Σw, Σwx, Σwz to 1e-12 on all six); the consumer-agreement drift guard (balance wing/body split, CONM2 header). `test_validation.py`: no fixture fires the tie; stripping atr42's fraction names "3,800 lb" and `wing_fraction`; the other sign is named; entry rules fire. Pins re-pinned by design: `_CLOSURE_IZZ` and the twins' lateral `r_dot`/`p_dot` (fin load and `Ny` unchanged), `concept_heavy`'s beam 15,000 lb, `dhc8_dash8`'s entered table now +2,390 lb over the beam. Digest wave: `atr42_100` / `dhc8_dash8` (`csv/balance`, `sbeam/balanced_deck`, `sbeam/body_cards`, `sbeam/body_fitting`, `sbeam/body_span`, `sbeam/lra_model`, `txt/balance`) and `concept_heavy` (the same less `csv/balance` and `sbeam/lra_model`); `ga6_normal`, `cessna_210`, `concept_regional_jet` unchanged on every channel; no wing or CONM2 channel moved.
+
+**Key decisions.** WF-1 field over second row (the row is the WTENV loading-hierarchy unit; a second discretionary row doubles the `2^n` subset search and lets it fly wing-full/body-empty); WF-3 CONM2 cards stay per row (the reacting beam does not move a mass card); the twins' fuel-system truth (all-wing fuel on an ATR) is out of scope — the fixture's own `concentrated` statement is what the tie closes against. What measurement added: `Izz(closure)` +33 / +31 / +29 % and the corresponding fall in lateral accelerations — physics of the spread, recorded on the pins.
+
 - **Fin-root body datum (backlog Pri 1, defect from T-8a, tier M, 2026-08-16)** — `tail_geometry.fin_root_waterline`'s fuselage-top branch is `z_centre(xv25) + height(xv25)/2` from the fuselage outline (the v52 section-centre line + the new `derived_geometry.fuselage_height_at`), retiring the wing-root-plus-half-a-body substitution to a no-outline fallback that names itself; new project-level resolver `tail_geometry.fin_root` read by both the load path and the three-view (`configuration.tail_planform` gained an optional `project` arg). Re-pinned three fin roots (`atr42_100` 223.15 → 191.17 in, `dhc8_dash8` 232.95 → 203.45, `cessna_210` 109.60 → 100.24), the twelve lateral cases (`p_dot`/`r_dot` only — fin load and `n_y` byte-identical), and the Imperial digest baseline; docs: `CONVENTIONS.md` §7 fin-position bullet rewritten from "known limitation" to the resolved formula.
 
 - **Static typing and lint depth (design note 27, tier M, 2026-08-16)** — `mypy` is a merge gate over `sloads/` (own CI job, 3.12; zero errors in default mode; per-package strictness ratchet, stage 1 on the SSOT owners); 153 → 0 errors by narrowing only, no output byte changed (frozen digest + oracles unmodified); latent `None` dereferences on already-refused paths now raise per the error contract (`balance.py`, `engine.py`); `ruff` widened to `E F W B SIM PLE PLW ARG RUF I C4` with reasoned ignores, 243 → 0. Rules: `00_program_overview.md` §Static typing & lint. Backlog: ratchet stages 2 (`export/`) and 3 (`modules/`).
