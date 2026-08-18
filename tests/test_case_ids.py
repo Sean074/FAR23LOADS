@@ -292,7 +292,10 @@ def _pairs_from_decks(artifacts):
     for channel, text in artifacts.items():
         if not channel.startswith("sbeam/"):
             continue
-        into = assembled if channel.endswith("balanced_deck") else component
+        # The LRA beam-model deck expresses the assembled cases' load sets --
+        # same ids and numbers as the balanced deck (note 25 LM-1).
+        into = (assembled if channel.endswith(("balanced_deck", "lra_model"))
+                else component)
         for sid, case_id in re.findall(r"^\$ SUBCASE (\d+) = (\S+) --", text, re.M):
             if case_id != "(no":          # a result with no CaseRef: no identity
                 into[case_id] = int(sid)

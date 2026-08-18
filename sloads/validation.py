@@ -20,6 +20,14 @@ Checks (14 CFR / Reference-1 context in each predicate):
                              WINGGEOM planform area by more than a tolerance.
 - ``cg_outside_envelope`` -- the WTONECG centre of gravity outside the WTENV
                              structural CG envelope (14 CFR 23.23; Reference 1 Ch 3).
+- ``mass_item_outside_body`` -- a fuselage-carried weight item whose station lies
+                             ahead of the fuselage outline's nose or behind its
+                             tail (decision D-27, 2026-08-17): the three-view's
+                             claim that the mass sits inside the body, made
+                             structural. Fore/aft extent only -- wheels hang
+                             below the belly and the three-section outline has
+                             no height at a pointed nose, so ``y``/``z`` are
+                             the sketch's to show, not this check's to refuse.
 - ``operational_target_infeasible`` -- an operational placard target (VNE/VNO/VMO/
                              MMO/VFE) the chosen design speeds cannot achieve (M2-10;
                              14 CFR 23.1505/23.335(b)(4)). Advisory; no load changes.
@@ -333,6 +341,36 @@ def _check_cg_envelope(project: Project) -> List[ConsistencyWarning]:
             "envelope limits (14 CFR 23.23).",
             PAGE_WEIGHT_CG)]
     return []
+
+
+def _check_mass_items_in_body(project: Project) -> List[ConsistencyWarning]:
+    """D-27: every ``fuselage``-carried item sits within the outline's fore/aft
+    extent. Wing/tail-carried items sit on their own surfaces and are exempt;
+    without an outline there is no extent to check against and the check is
+    silent (the outline itself is what a user enters to make this claim)."""
+    weight = project.weight
+    geometry = project.geometry
+    if weight is None or geometry is None or geometry.fuselage is None:
+        return []
+    sections = geometry.fuselage.sections
+    if not sections:
+        return []
+    nose = min(sec.x for sec in sections)
+    tail = max(sec.x for sec in sections)
+    out: List[ConsistencyWarning] = []
+    for item in weight.items:
+        if item.component != MassComponent.FUSELAGE:
+            continue
+        if item.x < nose - 1e-6 or item.x > tail + 1e-6:
+            out.append(ConsistencyWarning(
+                "mass_item_outside_body",
+                f"Weight item '{item.name}' at station {item.x:,.1f} in lies "
+                f"{'ahead of the nose' if item.x < nose else 'behind the tail'} of "
+                f"the fuselage outline ({nose:,.1f}–{tail:,.1f} in). A fuselage-"
+                "carried mass belongs inside the body it is carried by: move the "
+                "item, extend the outline, or tag it to the surface that carries it.",
+                PAGE_WEIGHT_CG))
+    return out
 
 
 def _check_operational_targets(project: Project) -> List[ConsistencyWarning]:
@@ -1082,6 +1120,7 @@ def consistency_warnings(project: Project) -> List[ConsistencyWarning]:
     out += _check_le_te_ordering(project)
     out += _check_area_mismatch(project)
     out += _check_cg_envelope(project)
+    out += _check_mass_items_in_body(project)
     out += _check_operational_targets(project)
     out += _check_dive_speed_basis(project)
     out += _check_safety_factors(project)

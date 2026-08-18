@@ -258,8 +258,9 @@ def _htail_surface_from(wing, project):
     chord = area_sqft * 144.0 / (2.0 * span_in)
     surface = copy.deepcopy(wing)
     surface.name = "htail"
-    surface.leading_edge = [(0.0, 0.0), (0.0, span_in)]
-    surface.trailing_edge = [(chord, 0.0), (chord, span_in)]
+    x_le = ht.xt25 - 0.25 * chord          # on the scalar 25 %-MAC station (Pri 1)
+    surface.leading_edge = [(x_le, 0.0), (x_le, span_in)]
+    surface.trailing_edge = [(x_le + chord, 0.0), (x_le + chord, span_in)]
     return surface
 
 

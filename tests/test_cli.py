@@ -205,10 +205,15 @@ def test_the_headless_and_gui_wing_decks_are_the_same_deck(tmp_path):
     prefix = os.path.join(str(tmp_path), "w")
     assert cli.main([path, "--export-sbeam", prefix, "--stick-model"]) == 0
 
+    from sloads.derived_geometry import sob_station
+
     project = sloads_io.load_project(path)
     gui = loads_ref_axis_results(project, build_net_loads(project).wing_net)
-    for suffix, build in ((".loads.bdf", sb.force_moment_cards),
-                          (".stick.bdf", sb.stick_model_bdf)):
+    # The GUI route (app/views/export_report.py) passes the resolved SOB to the
+    # stick model, so the reference build here does too.
+    sob = sob_station(project)
+    for suffix, build in ((".loads.bdf", lambda r: sb.force_moment_cards(r)),
+                          (".stick.bdf", lambda r: sb.stick_model_bdf(r, sob=sob))):
         with open(prefix + suffix) as fh:
             assert fh.read().endswith(build(gui)), suffix
     with open(prefix + ".span_loads.csv", newline="") as fh:

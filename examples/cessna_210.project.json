@@ -92,7 +92,7 @@
       {
         "name": "Main gear wheels",
         "weight_lb": 50.0,
-        "x": 96.0,
+        "x": 76.7,
         "y": 0.0,
         "z": 60.0,
         "ixx": 0.0,
@@ -104,7 +104,7 @@
       {
         "name": "Main gear structure",
         "weight_lb": 120.0,
-        "x": 96.0,
+        "x": 76.7,
         "y": 0.0,
         "z": 72.0,
         "ixx": 0.0,
@@ -140,7 +140,7 @@
       {
         "name": "Flight controls",
         "weight_lb": 60.0,
-        "x": 120.0,
+        "x": 100.7,
         "y": 0.0,
         "z": 100.0,
         "ixx": 0.0,
@@ -176,7 +176,7 @@
       {
         "name": "Propeller",
         "weight_lb": 78.0,
-        "x": -12.0,
+        "x": 0.0,
         "y": 0.0,
         "z": 90.0,
         "ixx": 0.0,
@@ -188,7 +188,7 @@
       {
         "name": "Systems",
         "weight_lb": 95.0,
-        "x": 60.0,
+        "x": 40.7,
         "y": 0.0,
         "z": 95.0,
         "ixx": 0.0,
@@ -200,7 +200,7 @@
       {
         "name": "Avionics",
         "weight_lb": 150.0,
-        "x": 50.0,
+        "x": 30.7,
         "y": 0.0,
         "z": 100.0,
         "ixx": 0.0,
@@ -212,7 +212,7 @@
       {
         "name": "Electrical",
         "weight_lb": 90.0,
-        "x": 40.0,
+        "x": 20.7,
         "y": 0.0,
         "z": 85.0,
         "ixx": 0.0,
@@ -224,7 +224,7 @@
       {
         "name": "Furnishings",
         "weight_lb": 180.0,
-        "x": 110.0,
+        "x": 90.7,
         "y": 0.0,
         "z": 95.0,
         "ixx": 0.0,
@@ -248,7 +248,7 @@
       {
         "name": "Fuselage structure",
         "weight_lb": 360.0,
-        "x": 105.0,
+        "x": 85.7,
         "y": 0.0,
         "z": 82.0,
         "ixx": 0.0,
@@ -260,7 +260,7 @@
       {
         "name": "Pilot",
         "weight_lb": 170.0,
-        "x": 78.0,
+        "x": 48.0,
         "y": 0.0,
         "z": 100.0,
         "ixx": 28730,
@@ -284,7 +284,7 @@
       {
         "name": "Copilot",
         "weight_lb": 170.0,
-        "x": 78.0,
+        "x": 48.0,
         "y": 0.0,
         "z": 100.0,
         "ixx": 28730,
@@ -296,7 +296,7 @@
       {
         "name": "3rd person",
         "weight_lb": 170.0,
-        "x": 112.0,
+        "x": 74.0,
         "y": 0.0,
         "z": 100.0,
         "ixx": 28730,
@@ -308,7 +308,7 @@
       {
         "name": "4th person",
         "weight_lb": 170.0,
-        "x": 112.0,
+        "x": 74.0,
         "y": 0.0,
         "z": 100.0,
         "ixx": 28730,
@@ -320,7 +320,7 @@
       {
         "name": "5th person",
         "weight_lb": 170.0,
-        "x": 148.0,
+        "x": 104.0,
         "y": 0.0,
         "z": 100.0,
         "ixx": 28730,
@@ -332,7 +332,7 @@
       {
         "name": "6th person",
         "weight_lb": 170.0,
-        "x": 148.0,
+        "x": 104.0,
         "y": 0.0,
         "z": 100.0,
         "ixx": 28730,
@@ -344,7 +344,7 @@
       {
         "name": "Baggage",
         "weight_lb": 120.0,
-        "x": 175.0,
+        "x": 132.0,
         "y": 0.0,
         "z": 90.0,
         "ixx": 0.0,
@@ -381,65 +381,34 @@
     },
     "cg_cases": [
       {
-        "name": "CG1",
-        "weight_lb": 3800.0,
-        "xcg": 85.1,
-        "zcg": 92.2,
-        "loading": {
-          "aboard": [
-            "Copilot",
-            "3rd person",
-            "4th person",
-            "5th person",
-            "6th person",
-            "Baggage",
-            "Mission fuel"
-          ],
-          "fractions": {
-            "Mission fuel": 0.5393939393939394
-          }
-        }
+        "name": "aft gross",
+        "weight_lb": 3800,
+        "xcg": 69.55,
+        "zcg": 91.36
       },
       {
-        "name": "CG2",
-        "weight_lb": 3800.0,
-        "xcg": 78.3,
-        "zcg": 91.75,
-        "loading": {
-          "aboard": [
-            "Copilot",
-            "3rd person",
-            "4th person",
-            "5th person",
-            "Mission fuel"
-          ],
-          "fractions": {
-            "Mission fuel": 0.9787878787878788
-          }
-        }
+        "name": "fwd gross",
+        "weight_lb": 3800,
+        "xcg": 61.49,
+        "zcg": 91.36
       },
       {
-        "name": "CG3",
-        "weight_lb": 3000.0,
-        "xcg": 70.88,
-        "zcg": 89.95,
-        "loading": {
-          "aboard": [
-            "Mission fuel"
-          ],
-          "fractions": {
-            "Mission fuel": 0.796969696969697
-          }
-        }
+        "name": "fwd regardless",
+        "weight_lb": 3000,
+        "xcg": 58.03,
+        "zcg": 91.15
       },
       {
-        "name": "CG4",
+        "name": "min weight",
         "weight_lb": 2474.0,
-        "xcg": 71.06,
-        "zcg": 89.94,
-        "loading": {
-          "aboard": []
-        }
+        "xcg": 60.76,
+        "zcg": 89.94
+      },
+      {
+        "name": "mid gross",
+        "weight_lb": 3800,
+        "xcg": 65.52,
+        "zcg": 91.36
       }
     ]
   },
@@ -448,13 +417,13 @@
       {
         "name": "itemized loading",
         "weight_lb": 4104.0,
-        "cg_x": 83.98343079922027,
+        "cg_x": 68.47892300194931,
         "cg_y": 0.0,
         "cg_z": 92.0338693957115,
         "ixx": 5158928.292153996,
-        "iyy": 10882376.165448343,
-        "izz": 14887051.873294348,
-        "ixz": 588790.3031189084,
+        "iyy": 8161929.418993665,
+        "izz": 12166605.126839668,
+        "ixz": 405245.92970272904,
         "gear_down": true
       }
     ]
@@ -511,6 +480,58 @@
         ],
         "symmetric": false,
         "elements": 20
+      },
+      {
+        "name": "htail",
+        "leading_edge": [
+          [
+            232.2,
+            0.0
+          ],
+          [
+            242.3,
+            72.0
+          ]
+        ],
+        "trailing_edge": [
+          [
+            277.2,
+            0.0
+          ],
+          [
+            269.3,
+            72.0
+          ]
+        ],
+        "symmetric": true,
+        "elements": 10,
+        "ref_axis_pct": 0.4
+      },
+      {
+        "name": "vtail",
+        "leading_edge": [
+          [
+            224.5,
+            0.0
+          ],
+          [
+            262.3,
+            54.0
+          ]
+        ],
+        "trailing_edge": [
+          [
+            274.3,
+            0.0
+          ],
+          [
+            287.2,
+            54.0
+          ]
+        ],
+        "symmetric": true,
+        "elements": 10,
+        "ref_axis_pct": 0.4
       }
     ],
     "parametric": {
@@ -740,28 +761,34 @@
     ],
     "cg_cases": [
       {
-        "name": "CG1",
-        "weight_lb": 3800.0,
-        "xcg": 85.1,
-        "zcg": 92.2
+        "name": "aft gross",
+        "weight_lb": 3800,
+        "xcg": 69.55,
+        "zcg": 91.36
       },
       {
-        "name": "CG2",
-        "weight_lb": 3800.0,
-        "xcg": 78.3,
-        "zcg": 91.75
+        "name": "fwd gross",
+        "weight_lb": 3800,
+        "xcg": 61.49,
+        "zcg": 91.36
       },
       {
-        "name": "CG3",
-        "weight_lb": 3000.0,
-        "xcg": 70.88,
-        "zcg": 89.95
+        "name": "fwd regardless",
+        "weight_lb": 3000,
+        "xcg": 58.03,
+        "zcg": 91.15
       },
       {
-        "name": "CG4",
+        "name": "min weight",
         "weight_lb": 2474.0,
-        "xcg": 71.06,
+        "xcg": 60.76,
         "zcg": 89.94
+      },
+      {
+        "name": "mid gross",
+        "weight_lb": 3800,
+        "xcg": 65.52,
+        "zcg": 91.36
       }
     ]
   },
@@ -868,54 +895,20 @@
       {
         "name": "aft max landing",
         "weight_lb": 3800.0,
-        "xcg": 85.1,
-        "zcg": 92.2,
-        "loading": {
-          "aboard": [
-            "Copilot",
-            "3rd person",
-            "4th person",
-            "5th person",
-            "6th person",
-            "Baggage",
-            "Mission fuel"
-          ],
-          "fractions": {
-            "Mission fuel": 0.5393939393939394
-          }
-        }
+        "xcg": 69.55,
+        "zcg": 92.03
       },
       {
         "name": "fwd max landing",
         "weight_lb": 3800.0,
-        "xcg": 78.3,
-        "zcg": 91.75,
-        "loading": {
-          "aboard": [
-            "Copilot",
-            "3rd person",
-            "4th person",
-            "5th person",
-            "Mission fuel"
-          ],
-          "fractions": {
-            "Mission fuel": 0.9787878787878788
-          }
-        }
+        "xcg": 61.49,
+        "zcg": 92.03
       },
       {
         "name": "fwd light",
-        "weight_lb": 3000.0,
-        "xcg": 70.88,
-        "zcg": 89.95,
-        "loading": {
-          "aboard": [
-            "Mission fuel"
-          ],
-          "fractions": {
-            "Mission fuel": 0.796969696969697
-          }
-        }
+        "weight_lb": 3000,
+        "xcg": 58.03,
+        "zcg": 92.03
       }
     ]
   }

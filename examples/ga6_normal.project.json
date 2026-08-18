@@ -472,6 +472,25 @@
       "tail_type": "conventional",
       "h_tail_z": 0.0
     },
+    "fuselage": {
+      "sections": [
+        {
+          "x": -12.0,
+          "width": 0.0,
+          "height": 0.0
+        },
+        {
+          "x": 99.39,
+          "width": 46.0,
+          "height": 68.7
+        },
+        {
+          "x": 306.26,
+          "width": 4.6,
+          "height": 10.3
+        }
+      ]
+    },
     "empennage": {
       "htail": {
         "tail_incidence_deg": 2.0,
@@ -508,7 +527,8 @@
         "gross_weight_lb": 3400.0,
         "rudder_large_deflection_factor": 1.0,
         "izz_slugft2": 0.0,
-        "vtail_span_in": 57.0
+        "vtail_span_in": 57.0,
+        "vtail_root_waterline_z": 78.5
       }
     },
     "landing_gear": {

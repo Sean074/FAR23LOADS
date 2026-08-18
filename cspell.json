@@ -294,7 +294,9 @@
     "ycg",
     "yroot",
     "ytip",
-    "zcg"
+    "zcg",
+    "xfail",
+    "xfails"
   ],
   "flagWords": [],
   "overrides": [

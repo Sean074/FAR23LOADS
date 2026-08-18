@@ -149,12 +149,19 @@ def test_the_atr42_stall_exceedance_is_the_documented_mach_capped_one():
     exceedance fell from 7 points at +0.29 to 5 at +0.14 -- the cases are lighter
     and their CGs are where the airplane's mass actually puts them, so less lift
     is asked of the same Mach-capped q. Still not attainable, still pinned.
+
+    **And back up with D-27 (2026-08-17):** the flight cases are the WTENV
+    limit points now -- five of them, so 300 balanced points -- and 9 of them
+    exceed, the worst ``MAN A`` at ``fwd gross`` (MTOW, forward-gross limit) at
+    +0.27: three cases at full gross weight at 25,000 ft ask the most lift of
+    the same Mach-capped q. Same cause, same altitude, still a property of the
+    fixture's speeds/altitude set; the band below brackets it.
     """
     project, env, closures = _closures(_ATR)
     fl = project.flight_loads
     cfg = balance_configs(project.aero_coeffs)[0]
     assert len(closures) == 1
-    assert 0.1 < closures[0].worst_stall_excess < 0.2
+    assert 0.2 < closures[0].worst_stall_excess < 0.35
     assert "25,000 ft" in closures[0].worst_stall_label
     # The recovered-CL drift guard still holds -- the points are self-consistent,
     # they are simply not attainable.
@@ -166,7 +173,7 @@ def test_the_atr42_stall_exceedance_is_the_documented_mach_capped_one():
         pos, neg = stall_limits(cfg, p.g_corr, fl.mn)
         if max(rec - pos, neg - rec) > STALL_CLOSURE_TOL:
             exceeding.append(p)
-    assert len(exceeding) == 5
+    assert len(exceeding) == 9
     assert {p.altitude_ft for p in exceeding} == {25000.0}
 
 

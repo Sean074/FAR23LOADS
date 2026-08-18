@@ -121,7 +121,7 @@
       {
         "name": "Fuselage structure",
         "weight_lb": 5100.0,
-        "x": 440.0,
+        "x": 420.1,
         "y": 0.0,
         "z": 115.0,
         "ixx": 0.0,
@@ -169,7 +169,7 @@
       {
         "name": "Nose gear",
         "weight_lb": 260.0,
-        "x": 130.0,
+        "x": 110.1,
         "y": 0.0,
         "z": 55.0,
         "ixx": 0.0,
@@ -217,7 +217,7 @@
       {
         "name": "Systems",
         "weight_lb": 1900.0,
-        "x": 355.0,
+        "x": 335.1,
         "y": 0.0,
         "z": 115.0,
         "ixx": 0.0,
@@ -229,7 +229,7 @@
       {
         "name": "Furnishings",
         "weight_lb": 2400.0,
-        "x": 450.0,
+        "x": 430.1,
         "y": 0.0,
         "z": 115.0,
         "ixx": 0.0,
@@ -241,7 +241,7 @@
       {
         "name": "Avionics",
         "weight_lb": 550.0,
-        "x": 155.0,
+        "x": 135.1,
         "y": 0.0,
         "z": 135.0,
         "ixx": 0.0,
@@ -253,7 +253,7 @@
       {
         "name": "Air conditioning / pressurization",
         "weight_lb": 600.0,
-        "x": 305.0,
+        "x": 285.1,
         "y": 0.0,
         "z": 105.0,
         "ixx": 0.0,
@@ -277,7 +277,7 @@
       {
         "name": "Captain + First officer",
         "weight_lb": 400.0,
-        "x": 130.0,
+        "x": 110.1,
         "y": 0.0,
         "z": 125.0,
         "ixx": 0.0,
@@ -301,7 +301,7 @@
       {
         "name": "Passengers, fwd cabin (24)",
         "weight_lb": 4080.0,
-        "x": 370.0,
+        "x": 350.1,
         "y": 0.0,
         "z": 125.0,
         "ixx": 0.0,
@@ -313,7 +313,7 @@
       {
         "name": "Passengers, aft cabin (24)",
         "weight_lb": 4080.0,
-        "x": 530.0,
+        "x": 480.0,
         "y": 0.0,
         "z": 125.0,
         "ixx": 0.0,
@@ -325,7 +325,7 @@
       {
         "name": "Cargo, fwd hold",
         "weight_lb": 150.0,
-        "x": 300.0,
+        "x": 280.1,
         "y": 0.0,
         "z": 105.0,
         "ixx": 0.0,
@@ -337,7 +337,7 @@
       {
         "name": "Cargo, aft hold",
         "weight_lb": 1050.0,
-        "x": 700.0,
+        "x": 600.0,
         "y": 0.0,
         "z": 105.0,
         "ixx": 0.0,
@@ -375,55 +375,34 @@
     },
     "cg_cases": [
       {
-        "name": "CGfwd",
-        "weight_lb": 35000.0,
-        "xcg": 410.34,
-        "zcg": 135.46,
-        "loading": {
-          "aboard": [
-            "Passengers, fwd cabin (24)",
-            "Passengers, aft cabin (24)",
-            "Cargo, fwd hold",
-            "Fuel to gross"
-          ],
-          "fractions": {
-            "Fuel to gross": 0.8113145846958797
-          }
-        }
+        "name": "aft gross",
+        "weight_lb": 36817,
+        "xcg": 402.06,
+        "zcg": 137.04
       },
       {
-        "name": "CGmid",
-        "weight_lb": 36817.0,
-        "xcg": 418.28,
-        "zcg": 135.1,
-        "loading": {
-          "aboard": [
-            "Passengers, fwd cabin (24)",
-            "Passengers, aft cabin (24)",
-            "Cargo, fwd hold",
-            "Cargo, aft hold",
-            "Fuel to gross"
-          ],
-          "fractions": {
-            "Fuel to gross": 0.894920427294528
-          }
-        }
+        "name": "fwd gross",
+        "weight_lb": 36817,
+        "xcg": 387.24,
+        "zcg": 137.04
       },
       {
-        "name": "CGaft",
-        "weight_lb": 30000.0,
-        "xcg": 427.45,
-        "zcg": 134.48,
-        "loading": {
-          "aboard": [
-            "Passengers, aft cabin (24)",
-            "Cargo, aft hold",
-            "Fuel to gross"
-          ],
-          "fractions": {
-            "Fuel to gross": 0.6129278395465446
-          }
-        }
+        "name": "fwd regardless",
+        "weight_lb": 30000,
+        "xcg": 383.54,
+        "zcg": 140.12
+      },
+      {
+        "name": "min weight",
+        "weight_lb": 19247.0,
+        "xcg": 388.73,
+        "zcg": 130.65
+      },
+      {
+        "name": "mid gross",
+        "weight_lb": 36817,
+        "xcg": 394.65,
+        "zcg": 137.04
       }
     ]
   },
@@ -432,13 +411,13 @@
       {
         "name": "itemized loading",
         "weight_lb": 37781.0,
-        "cg_x": 417.6886530266536,
+        "cg_x": 401.37738545829916,
         "cg_y": 0.0,
         "cg_z": 135.74005452476112,
-        "ixx": 30457858.075487673,
-        "iyy": 405782644.70104015,
-        "izz": 375324786.62555254,
-        "ixz": 5955125.261374763,
+        "ixx": 30457858.07548768,
+        "iyy": 339006829.7136232,
+        "izz": 308548971.63813555,
+        "ixz": 17095578.302585952,
         "gear_down": true
       }
     ]
@@ -469,6 +448,58 @@
         ],
         "symmetric": true,
         "elements": 20,
+        "ref_axis_pct": 0.4
+      },
+      {
+        "name": "htail",
+        "leading_edge": [
+          [
+            805.4,
+            0.0
+          ],
+          [
+            817.0,
+            110.0
+          ]
+        ],
+        "trailing_edge": [
+          [
+            879.6,
+            0.0
+          ],
+          [
+            854.1,
+            110.0
+          ]
+        ],
+        "symmetric": true,
+        "elements": 10,
+        "ref_axis_pct": 0.4
+      },
+      {
+        "name": "vtail",
+        "leading_edge": [
+          [
+            767.0,
+            0.0
+          ],
+          [
+            839.2,
+            125.0
+          ]
+        ],
+        "trailing_edge": [
+          [
+            874.5,
+            0.0
+          ],
+          [
+            892.9,
+            125.0
+          ]
+        ],
+        "symmetric": true,
+        "elements": 10,
         "ref_axis_pct": 0.4
       }
     ],
@@ -699,22 +730,34 @@
     ],
     "cg_cases": [
       {
-        "name": "CGfwd",
-        "weight_lb": 35000.0,
-        "xcg": 410.34,
-        "zcg": 135.46
+        "name": "aft gross",
+        "weight_lb": 36817,
+        "xcg": 402.06,
+        "zcg": 137.04
       },
       {
-        "name": "CGmid",
-        "weight_lb": 36817.0,
-        "xcg": 418.28,
-        "zcg": 135.1
+        "name": "fwd gross",
+        "weight_lb": 36817,
+        "xcg": 387.24,
+        "zcg": 137.04
       },
       {
-        "name": "CGaft",
-        "weight_lb": 30000.0,
-        "xcg": 427.45,
-        "zcg": 134.48
+        "name": "fwd regardless",
+        "weight_lb": 30000,
+        "xcg": 383.54,
+        "zcg": 140.12
+      },
+      {
+        "name": "min weight",
+        "weight_lb": 19247.0,
+        "xcg": 388.73,
+        "zcg": 130.65
+      },
+      {
+        "name": "mid gross",
+        "weight_lb": 36817,
+        "xcg": 394.65,
+        "zcg": 137.04
       }
     ]
   },
@@ -819,52 +862,20 @@
       {
         "name": "aft max landing",
         "weight_lb": 35000.0,
-        "xcg": 419.9,
-        "zcg": 134.05,
-        "loading": {
-          "aboard": [
-            "Passengers, fwd cabin (24)",
-            "Passengers, aft cabin (24)",
-            "Cargo, aft hold",
-            "Fuel to gross"
-          ],
-          "fractions": {
-            "Fuel to gross": 0.7132112491824723
-          }
-        }
+        "xcg": 402.06,
+        "zcg": 135.74
       },
       {
         "name": "fwd max landing",
         "weight_lb": 35000.0,
-        "xcg": 410.34,
-        "zcg": 135.46,
-        "loading": {
-          "aboard": [
-            "Passengers, fwd cabin (24)",
-            "Passengers, aft cabin (24)",
-            "Cargo, fwd hold",
-            "Fuel to gross"
-          ],
-          "fractions": {
-            "Fuel to gross": 0.8113145846958797
-          }
-        }
+        "xcg": 386.26,
+        "zcg": 135.74
       },
       {
         "name": "fwd light",
-        "weight_lb": 30000.0,
-        "xcg": 394.54,
-        "zcg": 136.13,
-        "loading": {
-          "aboard": [
-            "Passengers, fwd cabin (24)",
-            "Cargo, fwd hold",
-            "Fuel to gross"
-          ],
-          "fractions": {
-            "Fuel to gross": 0.7110311750599521
-          }
-        }
+        "weight_lb": 30000,
+        "xcg": 383.54,
+        "zcg": 135.74
       }
     ]
   }

@@ -44,7 +44,11 @@ schema v53) — the ground/landing families, the governing SF table, discrete
 control surfaces, the LRA beam model, the `CgCase` loading, wing-tank fuel
 separability and one owner for every constant; every shipped fixture assembles
 balanced flight and ground cases and the lateral cases carry fin-only aero.
-Band A of the table below is the **0.7.0** scope (re-cut 2026-08-17,
+The fixture-data pass (#9, Pri 1) shipped in full on 2026-08-17
+(`changes/fixture-data-pass.*`, `changes/fixture-cg-datum-reconciliation.*`, D-27):
+entered tail planforms, the ga6 fin-root pin and body outline, and the fixture CG
+datum reconciled with the flight cases pinned to the WTENV limits; note 19 §10.2
+(i)–(ii) are done and L-7 no longer waits on the ga6 outline. Band A of the table below is the **0.7.0** scope (re-cut 2026-08-17,
 [`../50_reviews/2026-08-17_backlog_review_0_7_0.md`](../50_reviews/2026-08-17_backlog_review_0_7_0.md)).
 Reference-authority hierarchy: (1) `.BAS` listings + Appendix A printed output,
 (2) User's Guide CFR quotes (Jan-1994), (3) Code-manual 1990 prose.
@@ -136,8 +140,7 @@ traceability with plans 09/11/12/13; the **Pri** column is ordinal only.
 | Pri | Item (detail below / in its plan) | What ships | Tag | Tier / effort | Depends on |
 |---|---|---|---|---|---|
 | **A — 0.7.0: the lateral term the base method is missing, the fixture data it needs, the hub thrust card, the station envelope, the recorded decisions, and the GUI review (review BR-2…BR-7, BR-11)** ||||||
-| 1 | Fixture-data pass: empennage planform polylines **+** the WTENV envelopes entered independently of the item database (four fixtures) **+** the `ga6_normal` body outline for L-7 (`vtail_root_waterline_z = 78.5` pinned explicitly first — zero movement — then the outline with its own digest wave; note 19 §10.2) (#9) | Real taper in the tail card distributions instead of the `assumed` rectangle; CG limits derived from (or reconciled with) each fixture's own loading extremes; the Appendix A airplane can exercise L-7 | V | S / S | — |
-| 2 | **Lateral body aero `Cy_β`/`Cn_β` (L-7) — the 0.7.0 headline** — design note in [`19_l7_lateral_body_aero_note.md`](19_l7_lateral_body_aero_note.md) (**proposed rev. 2, to be agreed in chat before code**; the one 0.7.0 schema hop) (#8) | Honest lateral `n_y`/`ψ̈` (today `ψ̈` over-stated 73–84 %, `n_y` under-stated 4–12 % — a missing term of the order of the one kept, not a refinement); DATCOM 5.2.3.1/5.2.1.1 makes it an **oracle** step (11 printed cases, ±0.1 %) | V | L / M | Pri 1 (ga6 outline) |
+| 2 | **Lateral body aero `Cy_β`/`Cn_β` (L-7) — the 0.7.0 headline** — design note in [`19_l7_lateral_body_aero_note.md`](19_l7_lateral_body_aero_note.md) (**proposed rev. 2, to be agreed in chat before code**; the one 0.7.0 schema hop) (#8) | Honest lateral `n_y`/`ψ̈` (today `ψ̈` over-stated 73–84 %, `n_y` under-stated 4–12 % — a missing term of the order of the one kept, not a refinement); DATCOM 5.2.3.1/5.2.1.1 makes it an **oracle** step (11 printed cases, ±0.1 %) | V | L / M | — (ga6 outline shipped 2026-08-17) |
 | 3 | Thrust `FORCE` at the engine hub *(carved out of note 21; the seven-step wake plan is parked)* (#10) | One user-entered thrust per engine as a card on the LRA hub node the skeleton already has — what a wing with a wing-mounted engine needs from a loads tool; today's wing cases are exactly zero-thrust | V | S / S | — |
 | 4 | Combined flight + ground station envelope *(from step 10 decision G-9)* (#11) | Two-sided max/min per station over both families, each extreme naming its governing case | V | M / M | — |
 | 5 | Decisions, not effort: derived-`ACRL` air-load divergence (which point `ACRL` names); ATR-42 Mach-capped stall exceedance (`_balance` reports an infeasible corner rather than an unconverged point); **gust spanwise shape = Schrenk** (merged from #12: the gust-vs-manoeuvre shape difference is inside the Schrenk band by construction — recorded, not worked) (#13) | Three recorded decisions; the first two are pinned by test today | V | S / S | — |
@@ -186,7 +189,9 @@ path — parked M4-11b and the L-8 UX rows stay parked until then); F25-2.
 - **ATR-42 example: seven balanced points sit above the stall CL at 25,000 ft
   [Minor, found 2026-08-05 by M4-5's stall-clamp closure].** In
   `examples/atr42_100.project.json`, MAN A / MAN C / AC ROLL at 25,000 ft carry a
-  balanced CL up to **1.767 against a Mach-adjusted stall CL of 1.478** (+0.29).
+  balanced CL up to **1.767 against a Mach-adjusted stall CL of 1.478** (+0.29)
+  (2026-08-17, D-27 limit-point cases: 9 of 300 points, worst `MAN A` at
+  `fwd gross`, +0.27 — full gross weight at 25,000 ft; same cause).
   The local Mach is pinned exactly at MC = 0.4555, so `_balance`'s
   dynamic-pressure iteration cannot raise q any further and never brings CL back
   onto the stall line: the airplane cannot reach n = 2.5 at that altitude within
@@ -200,20 +205,6 @@ path — parked M4-11b and the L-8 UX rows stay parked until then); F25-2.
   `tests/test_aero_curves.py::test_the_atr42_stall_exceedance_is_the_documented_mach_capped_one`,
   which fails if the count or the cause changes. The GA oracle and both concept
   fixtures close cleanly.
-- **The WTENV structural CG envelope is entered independently of the item
-  database on four fixtures [Minor, restated 2026-08-15 after Pri 5 / D-26].**
-  `cg_outside_envelope` fires on `cessna_210`, `atr42_100`, `dhc8_dash8` and
-  `concept_regional_jet`: each one's **all-up itemized loading** sits 15–22 in aft
-  of its own `%MAC` aft limit (cessna 84.0 vs 69.5; atr42 417.7 vs 402.1; dhc8
-  420.4 vs 398.8; RJ 619.4 vs 593.8). Pre-existing and unchanged in set by D-26 —
-  which corrected the *cases* to the database and left the *envelope* alone — but
-  it is the third symptom of the same root cause, and now the conspicuous one:
-  the fixtures' `envelope.fwd/aft_gross_pct_mac` were entered from a type's
-  published envelope rather than derived from the loadings the database can
-  produce. Warned in CI, so nothing is silent. Closing it means either deriving
-  the fixtures' limits from their own loading extremes or accepting the entered
-  limits and saying which loadings they exclude. Pairs with the fixture aero-data
-  row (Pri 1, the fixture-data pass) as fixture-input hygiene.
 
 ---
 

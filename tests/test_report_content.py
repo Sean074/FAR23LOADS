@@ -43,6 +43,7 @@ _EXAMPLES = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file_
                          "examples")
 _GA = os.path.join(_EXAMPLES, "ga6_normal.project.json")
 _CONCEPT = os.path.join(_EXAMPLES, "concept_regional_jet.project.json")
+_HEAVY = os.path.join(_EXAMPLES, "concept_heavy.project.json")
 
 #: Every section SUMMARY_REPORT.md §4 requires, by the title the content model
 #: gives it. A renamed or dropped section fails here rather than in a reader's
@@ -200,7 +201,9 @@ def test_wing_maxima_are_two_sided_and_name_their_station_and_axis():
 def test_the_wing_root_design_loads_are_the_sob_cut_not_the_half_span_totals():
     """Step 13: where a project states a side of body, the report states the
     wing root design loads at it -- distinct from the half-span maxima -- and a
-    project without one (ga6) must not gain an invented joint."""
+    project without one must not gain an invented joint (``concept_heavy``;
+    ``ga6_normal`` carries the Appendix A body outline since the Pri 1
+    fixture-data pass and so states its assumed half-width SOB like the rest)."""
     doc = _report(_CONCEPT)
     tables = doc.section("Wing").tables
     sob = [t for t in tables if t.title.startswith("Wing side-of-body")]
@@ -213,7 +216,9 @@ def test_the_wing_root_design_loads_are_the_sob_cut_not_the_half_span_totals():
     assert "outboard of the side of body" in table.note
     assert "ASSUMED" in table.note        # the half-width fallback says so
     ga_tables = _report().section("Wing").tables
-    assert not [t for t in ga_tables if t.title.startswith("Wing side-of-body")]
+    assert len([t for t in ga_tables if t.title.startswith("Wing side-of-body")]) == 1
+    heavy_tables = _report(_HEAVY).section("Wing").tables
+    assert not [t for t in heavy_tables if t.title.startswith("Wing side-of-body")]
 
 
 def test_case_index_states_a_safety_factor_for_every_case():
@@ -340,7 +345,7 @@ def test_a_payload_case_the_database_cannot_produce_is_reported_not_dropped():
     project = io.load_project(path)
     assert all(r["exported"] for r in mass_case_rows(project))     # as shipped
 
-    case = next(c for c in project.weight.cg_cases if c.name == "CGfwd")
+    case = next(c for c in project.weight.cg_cases if c.name == "fwd gross")
     case.loading = None
     case.xcg = min(it.x for it in project.weight.items) - 40.0
     rows = mass_case_rows(project)

@@ -121,7 +121,7 @@
       {
         "name": "Fuselage structure",
         "weight_lb": 5500.0,
-        "x": 440.0,
+        "x": 407.7,
         "y": 0.0,
         "z": 120.0,
         "ixx": 0.0,
@@ -169,7 +169,7 @@
       {
         "name": "Nose gear",
         "weight_lb": 300.0,
-        "x": 120.0,
+        "x": 87.7,
         "y": 0.0,
         "z": 60.0,
         "ixx": 0.0,
@@ -217,7 +217,7 @@
       {
         "name": "Systems",
         "weight_lb": 2200.0,
-        "x": 350.0,
+        "x": 317.7,
         "y": 0.0,
         "z": 120.0,
         "ixx": 0.0,
@@ -229,7 +229,7 @@
       {
         "name": "Furnishings",
         "weight_lb": 2750.0,
-        "x": 450.0,
+        "x": 417.7,
         "y": 0.0,
         "z": 120.0,
         "ixx": 0.0,
@@ -241,7 +241,7 @@
       {
         "name": "Avionics",
         "weight_lb": 600.0,
-        "x": 150.0,
+        "x": 117.7,
         "y": 0.0,
         "z": 140.0,
         "ixx": 0.0,
@@ -253,7 +253,7 @@
       {
         "name": "APU",
         "weight_lb": 350.0,
-        "x": 820.0,
+        "x": 787.7,
         "y": 0.0,
         "z": 130.0,
         "ixx": 0.0,
@@ -265,7 +265,7 @@
       {
         "name": "Air conditioning / pressurization",
         "weight_lb": 650.0,
-        "x": 300.0,
+        "x": 267.7,
         "y": 0.0,
         "z": 110.0,
         "ixx": 0.0,
@@ -289,7 +289,7 @@
       {
         "name": "Captain + First officer",
         "weight_lb": 400.0,
-        "x": 120.0,
+        "x": 87.7,
         "y": 0.0,
         "z": 130.0,
         "ixx": 0.0,
@@ -313,7 +313,7 @@
       {
         "name": "Passengers, fwd cabin",
         "weight_lb": 3145.0,
-        "x": 390.0,
+        "x": 357.7,
         "y": 0.0,
         "z": 130.0,
         "ixx": 0.0,
@@ -325,7 +325,7 @@
       {
         "name": "Passengers, aft cabin",
         "weight_lb": 3145.0,
-        "x": 510.0,
+        "x": 477.7,
         "y": 0.0,
         "z": 130.0,
         "ixx": 0.0,
@@ -337,7 +337,7 @@
       {
         "name": "Cargo, fwd hold",
         "weight_lb": 300.0,
-        "x": 300.0,
+        "x": 267.7,
         "y": 0.0,
         "z": 110.0,
         "ixx": 0.0,
@@ -349,7 +349,7 @@
       {
         "name": "Cargo, aft hold",
         "weight_lb": 1200.0,
-        "x": 725.0,
+        "x": 600.0,
         "y": 0.0,
         "z": 110.0,
         "ixx": 0.0,
@@ -387,52 +387,34 @@
     },
     "cg_cases": [
       {
-        "name": "CGfwd",
-        "weight_lb": 32800.0,
-        "xcg": 409.71,
-        "zcg": 139.2,
-        "loading": {
-          "aboard": [
-            "Passengers, fwd cabin",
-            "Passengers, aft cabin",
-            "Cargo, fwd hold",
-            "Fuel to gross"
-          ],
-          "fractions": {
-            "Fuel to gross": 0.8927038626609443
-          }
-        }
+        "name": "aft gross",
+        "weight_lb": 34500,
+        "xcg": 398.83,
+        "zcg": 138.8
       },
       {
-        "name": "CGmid",
-        "weight_lb": 34500.0,
-        "xcg": 420.4,
-        "zcg": 138.55,
-        "loading": {
-          "aboard": [
-            "Passengers, fwd cabin",
-            "Passengers, aft cabin",
-            "Cargo, fwd hold",
-            "Cargo, aft hold",
-            "Fuel to gross"
-          ]
-        }
+        "name": "fwd gross",
+        "weight_lb": 34500,
+        "xcg": 381.72,
+        "zcg": 139.58
       },
       {
-        "name": "CGaft",
-        "weight_lb": 30000.0,
-        "xcg": 425.86,
-        "zcg": 138.81,
-        "loading": {
-          "aboard": [
-            "Passengers, aft cabin",
-            "Cargo, aft hold",
-            "Fuel to gross"
-          ],
-          "fractions": {
-            "Fuel to gross": 0.7736051502145923
-          }
-        }
+        "name": "fwd regardless",
+        "weight_lb": 28000,
+        "xcg": 377.45,
+        "zcg": 142.17
+      },
+      {
+        "name": "min weight",
+        "weight_lb": 22050.0,
+        "xcg": 384.76,
+        "zcg": 137.35
+      },
+      {
+        "name": "mid gross",
+        "weight_lb": 34500,
+        "xcg": 390.28,
+        "zcg": 139.58
       }
     ]
   },
@@ -441,13 +423,13 @@
       {
         "name": "itemized loading",
         "weight_lb": 34500.0,
-        "cg_x": 420.39565217391305,
+        "cg_x": 397.9411014492754,
         "cg_y": 0.0,
         "cg_z": 138.5536231884058,
-        "ixx": 33214325.797101453,
-        "iyy": 488249175.1449276,
-        "izz": 455034849.34782606,
-        "ixz": 6792743.043478264,
+        "ixx": 33214325.79710145,
+        "iyy": 426568756.7152464,
+        "izz": 393354430.91814494,
+        "ixz": 20892630.96231884,
         "gear_down": true
       }
     ]
@@ -478,6 +460,58 @@
         ],
         "symmetric": true,
         "elements": 20,
+        "ref_axis_pct": 0.4
+      },
+      {
+        "name": "htail",
+        "leading_edge": [
+          [
+            790.0,
+            0.0
+          ],
+          [
+            802.1,
+            115.0
+          ]
+        ],
+        "trailing_edge": [
+          [
+            865.1,
+            0.0
+          ],
+          [
+            839.7,
+            115.0
+          ]
+        ],
+        "symmetric": true,
+        "elements": 10,
+        "ref_axis_pct": 0.4
+      },
+      {
+        "name": "vtail",
+        "leading_edge": [
+          [
+            750.5,
+            0.0
+          ],
+          [
+            825.5,
+            130.0
+          ]
+        ],
+        "trailing_edge": [
+          [
+            865.0,
+            0.0
+          ],
+          [
+            877.1,
+            130.0
+          ]
+        ],
+        "symmetric": true,
+        "elements": 10,
         "ref_axis_pct": 0.4
       }
     ],
@@ -708,22 +742,34 @@
     ],
     "cg_cases": [
       {
-        "name": "CGfwd",
-        "weight_lb": 32800.0,
-        "xcg": 409.71,
-        "zcg": 139.2
+        "name": "aft gross",
+        "weight_lb": 34500,
+        "xcg": 398.83,
+        "zcg": 138.8
       },
       {
-        "name": "CGmid",
-        "weight_lb": 34500.0,
-        "xcg": 420.4,
-        "zcg": 138.55
+        "name": "fwd gross",
+        "weight_lb": 34500,
+        "xcg": 381.72,
+        "zcg": 139.58
       },
       {
-        "name": "CGaft",
-        "weight_lb": 30000.0,
-        "xcg": 425.86,
-        "zcg": 138.81
+        "name": "fwd regardless",
+        "weight_lb": 28000,
+        "xcg": 377.45,
+        "zcg": 142.17
+      },
+      {
+        "name": "min weight",
+        "weight_lb": 22050.0,
+        "xcg": 384.76,
+        "zcg": 137.35
+      },
+      {
+        "name": "mid gross",
+        "weight_lb": 34500,
+        "xcg": 390.28,
+        "zcg": 139.58
       }
     ]
   },
@@ -835,52 +881,20 @@
       {
         "name": "aft max landing",
         "weight_lb": 32800.0,
-        "xcg": 422.79,
-        "zcg": 137.69,
-        "loading": {
-          "aboard": [
-            "Passengers, fwd cabin",
-            "Passengers, aft cabin",
-            "Cargo, aft hold",
-            "Fuel to gross"
-          ],
-          "fractions": {
-            "Fuel to gross": 0.6995708154506438
-          }
-        }
+        "xcg": 398.83,
+        "zcg": 138.55
       },
       {
         "name": "fwd max landing",
         "weight_lb": 32800.0,
-        "xcg": 409.71,
-        "zcg": 139.2,
-        "loading": {
-          "aboard": [
-            "Passengers, fwd cabin",
-            "Passengers, aft cabin",
-            "Cargo, fwd hold",
-            "Fuel to gross"
-          ],
-          "fractions": {
-            "Fuel to gross": 0.8927038626609443
-          }
-        }
+        "xcg": 380.61,
+        "zcg": 138.55
       },
       {
         "name": "fwd light",
-        "weight_lb": 28000.0,
-        "xcg": 399.62,
-        "zcg": 138.7,
-        "loading": {
-          "aboard": [
-            "Passengers, fwd cabin",
-            "Cargo, fwd hold",
-            "Fuel to gross"
-          ],
-          "fractions": {
-            "Fuel to gross": 0.5375536480686696
-          }
-        }
+        "weight_lb": 28000,
+        "xcg": 377.45,
+        "zcg": 138.55
       }
     ]
   }

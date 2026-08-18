@@ -132,13 +132,36 @@ def test_aft_gross_uses_heaviest_loading_below_gross():
     assert math.isclose(value_of(r, "aft_gross_ballast_station"), 250.0, rel_tol=5e-3)
 
 
+def _degenerate_project(nose_x=None, tail_x=None):
+    """Synthetic DB for the two degenerate-reference markers (M1-7).
+
+    XLEMAC 1000 / MAC 200: aft-gross limit 1060, fwd-gross 1020. Empty + crew
+    sit at 1050; the only discretionary rows are *aft* (1150), so (a) the
+    heaviest at-or-below-gross loading already sits at/aft of the aft limit --
+    the aft-gross case needs no ballast -- and (b) no loading is forward of the
+    fwd-gross station. Until D-27 ``concept_regional_jet`` exercised both as
+    shipped; its limit-point cases now have real forward loadings, so the
+    conditions are built here rather than the guards deleted.
+    """
+    items = [
+        _mi("empty", 600, 1050, MassItemKind.EMPTY),
+        _mi("crew", 100, 1050, MassItemKind.MINIMUM),
+        _mi("aft-1", 200, 1150, MassItemKind.DISCRETIONARY),
+        _mi("aft-2", 200, 1150, MassItemKind.DISCRETIONARY),
+    ]
+    env = WeightEnvelopeInput(
+        gross_weight=1000, aft_gross_pct_mac=30, fwd_gross_pct_mac=10,
+        fwd_regardless_pct_mac=10, fwd_regardless_weight=800, xlemac=1000, mac=200,
+        fuselage_nose_x=nose_x, fuselage_tail_x=tail_x,
+    )
+    return Project(name="degenerate", weight=WeightInput(items=items, envelope=env))
+
+
 def test_aft_gross_degenerate_reference_reports_marker():
     # If the heaviest at-or-below-gross loading already sits at/aft of the aft-CG
     # limit, the aft-CG case needs no ballast: an explicit "(none ...)" marker is
-    # emitted (0 lb), not a wild negative moment-balance station. concept_regional_jet
-    # (full loading 34800 > gross 33000; reference 32800 @ 607.2, aft of the 593.8
-    # limit) exercises this.
-    p = io.load_project(os.path.join(os.path.dirname(_EXAMPLE), "concept_regional_jet.project.json"))
+    # emitted (0 lb), not a wild negative moment-balance station.
+    p = _degenerate_project()
     r = calc.envelope(p, p.weight.envelope)
     labels = _labels(r)
     assert any(lbl.startswith("Aft gross ballast (none") for lbl in labels)
@@ -147,9 +170,9 @@ def test_aft_gross_degenerate_reference_reports_marker():
 
 def test_ballast_marker_rows_not_dropped():
     # M1-7 hardening: a reference with no qualifying vertex emits an explicit marker
-    # row rather than silently vanishing. On concept_regional_jet the forward-gross
-    # candidate set is empty (no loading forward of the fwd-gross station).
-    p = io.load_project(os.path.join(os.path.dirname(_EXAMPLE), "concept_regional_jet.project.json"))
+    # row rather than silently vanishing -- here the forward-gross candidate set is
+    # empty (no loading forward of the fwd-gross station).
+    p = _degenerate_project()
     r = calc.envelope(p, p.weight.envelope)
     assert any(lbl.startswith("Forward gross ballast (none") for lbl in _labels(r))
 
@@ -225,12 +248,21 @@ def test_fwd_regardless_negative_station_marks_none_via_datum():
 
 
 def test_fwd_regardless_extent_from_geometry_outline_kept():
-    # concept_regional_jet has a G1 fuselage outline [0, 1056]; its 63.7 in ballast
-    # station is inside that extent, so the geometry-derived extent keeps it (proves
-    # the outline path, not just the explicit override, feeds the guard) -- M1-11.
-    p = io.load_project(os.path.join(os.path.dirname(_EXAMPLE), "concept_regional_jet.project.json"))
+    # The G1 fuselage outline supplies the extent when no explicit override is
+    # entered (proves the outline path, not just the override, feeds the guard --
+    # M1-11): the ~580 in ballast station of the synthetic DB is inside an
+    # outline running [500, 1200] and is kept. (Was read off
+    # ``concept_regional_jet``'s 63.7 in station until D-27 gave that fixture
+    # limit-point cases whose forward-regardless corner needs no such ballast.)
+    from sloads.models import FuselageOutline, FuselageSection, GeometryInput
+
+    p = _fwd_regardless_project(nose_x=None, tail_x=None)
+    p.geometry = GeometryInput(fuselage=FuselageOutline(sections=[
+        FuselageSection(500.0, 0.0, 0.0), FuselageSection(800.0, 60.0, 60.0),
+        FuselageSection(1200.0, 6.0, 9.0)]))
     r = calc.envelope(p, p.weight.envelope)
-    assert math.isclose(value_of(r, "forward_regardless_ballast_station"), 63.714, rel_tol=5e-3)
+    assert math.isclose(value_of(r, "forward_regardless_ballast_weight"), 50.0, rel_tol=TOL)
+    assert math.isclose(value_of(r, "forward_regardless_ballast_station"), 580.0, rel_tol=5e-3)
 
 
 def test_run_requires_envelope_inputs():

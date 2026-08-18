@@ -144,11 +144,17 @@ def test_the_wing_chain_starts_at_the_sob_and_inboard_strips_collapse_there():
 
 
 def test_missing_data_refuses_with_the_datum_named():
-    """BM-3/LM-4: ga6 (no fuselage data) refuses on the SOB; a wing with no
-    entered LRA refuses on the axis; a strip-pair h-tail attachment refuses.
-    The error is the fix's name, never a default."""
+    """BM-3/LM-4: a project with no fuselage data refuses on the SOB; a wing
+    with no entered LRA refuses on the axis; a strip-pair h-tail attachment
+    refuses. The error is the fix's name, never a default. (``ga6_normal`` was
+    the no-body fixture until the Pri 1 fixture-data pass gave it the Appendix
+    A outline; ``concept_heavy`` still has none.)"""
     with pytest.raises(LraRefusal, match="side of body"):
-        build_lra_model(_project("ga6_normal.project.json"))
+        build_lra_model(_project("concept_heavy.project.json"))
+    ga = _project("ga6_normal.project.json")
+    ga.geometry.fuselage = None
+    with pytest.raises(LraRefusal, match="no fuselage outline"):
+        build_lra_model(ga)
 
     project = _project("atr42_100.project.json")
     project.geometry.by_name("wing").ref_axis_pct = None

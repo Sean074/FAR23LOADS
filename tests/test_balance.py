@@ -244,15 +244,15 @@ _EXPECTED_GROUND_CASES = {
 _PITCH_RESIDUAL_RATCHET = {
     "ga6_normal.project.json": {"symmetric": 0.0010, "lateral": 0.0005,
                                 "unsymmetrical": 0.0005},
-    "cessna_210.project.json": {"symmetric": 0.0030, "lateral": 0.0010,
+    "cessna_210.project.json": {"symmetric": 0.0010, "lateral": 0.0005,
                                 "unsymmetrical": 0.0025},
-    "atr42_100.project.json": {"symmetric": 0.0070, "lateral": 0.0015,
+    "atr42_100.project.json": {"symmetric": 0.0025, "lateral": 0.0010,
                                "unsymmetrical": 0.0065},
-    "dhc8_dash8.project.json": {"symmetric": 0.0065, "lateral": 0.0015,
+    "dhc8_dash8.project.json": {"symmetric": 0.0020, "lateral": 0.0010,
                                 "unsymmetrical": 0.0040},
     "concept_heavy.project.json": {"symmetric": 0.0090, "lateral": 0.0010,
                                    "unsymmetrical": 0.0010},
-    "concept_regional_jet.project.json": {"symmetric": 0.0035, "lateral": 0.0010,
+    "concept_regional_jet.project.json": {"symmetric": 0.0005, "lateral": 0.0005,
                                           "unsymmetrical": 0.0010},
 }
 
@@ -285,18 +285,30 @@ _PITCH_RESIDUAL_RATCHET = {
 #: force) stays at 0.07-0.84 %. It is filed as a backlog item rather than
 #: absorbed silently, and :data:`_FORCE_RESIDUAL_CEILING` is the hard stop no
 #: fixture may cross whatever this table says.
+#:
+#: **Re-measured 2026-08-17 (D-27, the fixture CG-datum reconciliation):** the
+#: four type fixtures' flight cases are now the WTENV limit points themselves
+#: (aft/fwd gross at MTOW, fwd regardless, min weight, mid gross), so the
+#: heaviest cases sit at the aft limit at full gross weight and the worst
+#: symmetric force residual moved with them -- ``cessna_210`` 1.209 %,
+#: ``dhc8_dash8`` 1.818 %, ``atr42_100`` 2.360 % (the same fixture-lift-model
+#: reading as before, now under a heavier aft-CG case; still under the 2.5 %
+#: hard stop), while the regional jet's re-spaced cabin took its unclamped worst
+#: *down* to 0.481 % (its clamped ``PHAA`` reads 1.04 %, and the relief gate
+#: below reads this table for clamped cases too, so the RJ row covers it).
+#: Lateral residuals moved 0.32-0.61 %. Ratchets re-pinned to those.
 _FORCE_RESIDUAL_RATCHET = {
     "ga6_normal.project.json": {"symmetric": 0.0065, "lateral": 0.0030,
                                 "unsymmetrical": 0.0030},
-    "cessna_210.project.json": {"symmetric": 0.0120, "lateral": 0.0045,
+    "cessna_210.project.json": {"symmetric": 0.0125, "lateral": 0.0040,
                                 "unsymmetrical": 0.0070},
-    "atr42_100.project.json": {"symmetric": 0.0195, "lateral": 0.0055,
+    "atr42_100.project.json": {"symmetric": 0.0240, "lateral": 0.0065,
                                "unsymmetrical": 0.0140},
-    "dhc8_dash8.project.json": {"symmetric": 0.0165, "lateral": 0.0055,
+    "dhc8_dash8.project.json": {"symmetric": 0.0185, "lateral": 0.0065,
                                 "unsymmetrical": 0.0100},
     "concept_heavy.project.json": {"symmetric": 0.0200, "lateral": 0.0030,
                                    "unsymmetrical": 0.0030},
-    "concept_regional_jet.project.json": {"symmetric": 0.0155, "lateral": 0.0040,
+    "concept_regional_jet.project.json": {"symmetric": 0.0110, "lateral": 0.0035,
                                           "unsymmetrical": 0.0040},
 }
 
@@ -319,13 +331,15 @@ FORCE_RESIDUAL_CEILING = 0.025
 #: four cases above +15 / below -10 deg. An entry here is asserted to still
 #: clamp, so it cannot outlive the condition it records; a clamp not recorded
 #: here fails :func:`test_the_pre_closure_residual_is_within_the_gate` loudly.
+#: Re-measured 2026-08-17 under D-27's limit-point cases: ``dhc8_dash8``'s and
+#: the regional jet's ``NMAA`` no longer clamp (their trim alpha came back inside
+#: the trusted window at the new CG stations); the RJ's ``PHAA`` clamp grew to
+#: 1.04 % force / 0.59 % pitch at the aft-gross point.
 _CLAMPED_BODY_AXIAL = {
-    "atr42_100.project.json": {"NMAA": (0.0030, 0.0155)},
-    "dhc8_dash8.project.json": {"NMAA": (0.0040, 0.0190)},
+    "atr42_100.project.json": {"NMAA": (0.0030, 0.0165)},
     "concept_heavy.project.json": {"NMAA": (0.0060, 0.0220)},
-    "concept_regional_jet.project.json": {"PHAA": (0.0070, 0.0020),
-                                          "NMAA": (0.0160, 0.0120),
-                                          "ACRL": (0.0040, 0.0020)},
+    "concept_regional_jet.project.json": {"PHAA": (0.0110, 0.0065),
+                                          "ACRL": (0.0020, 0.0020)},
 }
 
 #: The hard stop on a clamped case's pitch residual, the pitch twin of
@@ -565,7 +579,7 @@ def test_the_record_names_the_conditions_a_loading_cannot_carry():
 
     # Put one flight case beyond what the weight database can load, and the
     # record must name every condition that sits on it, with its reason.
-    case = next(c for c in project.weight.cg_cases if c.name == "CG2 fwd heavy")
+    case = next(c for c in project.weight.cg_cases if c.name == "fwd gross")
     case.loading = None
     case.xcg = min(it.x for it in project.weight.items) - 40.0
     skipped = []
@@ -879,11 +893,11 @@ def test_no_wing_items_and_no_panel_still_weighs_the_case():
 #: by 0.0001 on 2026-08-17 when q went to the exact ``V^2/295.237``, issue #26.)
 _DELTA_CD_BAND = {
     'ga6_normal.project.json': (-0.0208, -0.0164),
-    'cessna_210.project.json': (-0.0903, -0.0038),
-    'atr42_100.project.json': (-0.1372, +0.0230),
-    'dhc8_dash8.project.json': (-0.1043, +0.0272),
+    'cessna_210.project.json': (-0.0822, -0.0030),
+    'atr42_100.project.json': (-0.1519, +0.0221),
+    'dhc8_dash8.project.json': (-0.1061, -0.0018),
     'concept_heavy.project.json': (-0.1385, +0.0398),
-    'concept_regional_jet.project.json': (-0.0348, +0.0689),
+    'concept_regional_jet.project.json': (-0.0372, +0.0726),
 }
 
 #: The trusted-``alpha`` window is **read from its owner**,
@@ -1450,7 +1464,10 @@ def test_the_roll_moment_is_the_applied_couple(example):
 #: :func:`test_roll_closure_reproduces_winginer`.
 _WING_SPAN_ROLL_SHARE = {
     "ga6_normal.project.json": 0.795230,
-    "concept_regional_jet.project.json": 0.872612,
+    # 0.872612 -> 0.871435 on 2026-08-17 (D-27): the RJ's fuselage masses moved
+    # forward and its cabin zones re-spaced, so Sum w*y^2 vs the wing's own
+    # share shifted by 0.1 %. Mass layout, not physics.
+    "concept_regional_jet.project.json": 0.871435,
 }
 
 
@@ -1617,14 +1634,14 @@ def test_the_yaw_dof_reproduces_onengout(example):
 #: drifted on both sides at once would still balance.
 _CLOSURE_IZZ = {
     'ga6_normal.project.json': {'CG2': 2933.5, 'CG3': 2534.2, 'CG1': 2992.1, 'CG4': 2424.1},
-    'cessna_210.project.json': {'CG2': 3092.6, 'CG4': 2789.8, 'CG1': 3471.7},
+    'cessna_210.project.json': {'fwd gross': 2724.5, 'min weight': 2646.9, 'aft gross': 3097.3, 'fwd regardless': 2735.7},
     # The three fuel-in-wing fixtures moved on 2026-08-17 (design note 29): the
     # wing-tank fuel left the centreline lump for WINGINER's spanwise spread, so
     # Izz gained its Sum w*y^2 -- +33 % / +31 % / +29 %. Physics, not drift.
-    'atr42_100.project.json': {'CGmid': 209595.3, 'CGfwd': 186188.3, 'CGaft': 189870.8},
-    'dhc8_dash8.project.json': {'CGmid': 283942.9, 'CGfwd': 251737.4},
+    'atr42_100.project.json': {'fwd gross': 197124.6, 'aft gross': 204234.6},
+    'dhc8_dash8.project.json': {'fwd gross': 276188.3, 'min weight': 184928.0, 'aft gross': 269576.3, 'fwd regardless': 261441.6},
     'concept_heavy.project.json': {'CGmax': 32302.1},
-    'concept_regional_jet.project.json': {'CG2 fwd heavy': 243728.1, 'CG1 aft heavy': 266304.2},
+    'concept_regional_jet.project.json': {'fwd gross': 254122.5, 'min weight': 196104.9, 'aft gross': 255937.2},
 }
 
 
@@ -1712,7 +1729,7 @@ def test_a_symmetric_case_reduces_to_three_dof(example):
 #: so the change is asserted rather than re-baselined (risk R1).
 _ACRL_LATERAL = {
     'ga6_normal.project.json': {"companion_fy_lb": 89.83, "r_dot_deg_s2": 18.930},
-    'concept_regional_jet.project.json': {"companion_fy_lb": 309.74, "r_dot_deg_s2": 5.001},
+    'concept_regional_jet.project.json': {"companion_fy_lb": 307.46, "r_dot_deg_s2": 4.394},
 }
 
 
@@ -1856,33 +1873,42 @@ _LATERAL_CASE_NUMBERS = {
     # r_dot moves a little through the Ixz coupling. The fin LOAD and Ny are
     # untouched, which is the check that this moved a lever arm and not the
     # aerodynamics.
+    # Pri 1, the fixture-data pass (2026-08-17): these four fixtures' fins are
+    # now ENTERED tapered, swept planforms (taper 0.45-0.7, LE sweep 30-35 deg,
+    # estimated from the type three-view; ga6 stays derived). The fin LOAD and
+    # Ny are bit-identical -- the strips are normalised by their own quadrature
+    # area now, so an entered polyline cannot move SELECT's total -- while
+    # p_dot fell 6-10 % (a tapered fin's load centroid sits lower, so the roll
+    # arm about the CG shrinks) and r_dot moved < 1 % (the swept fin's load
+    # centroid moves aft a little). Both are the taper doing what taper does,
+    # and the load/Ny identity is the check that only lever arms moved.
     'cessna_210.project.json': {
-        'SIDE GUST': (555.6917, +0.146235, +146.1228, -56.4964),
-        'SUDDEN RUDDER': (553.0771, +0.145547, +131.3087, -54.9146),
-        'YAW 15 NEUTRAL': (-529.0104, -0.139213, -118.7823, +53.1403),
-        'YAW TO SIDESLIP': (-134.6364, -0.035431, -23.1083, +14.1678),
+        'SIDE GUST': (555.7869, +0.146260, +183.2345, -54.8133),
+        'SUDDEN RUDDER': (553.1178, +0.145557, +161.4395, -52.9215),
+        'YAW 15 NEUTRAL': (-529.0494, -0.139224, -146.5050, +51.1365),
+        'YAW TO SIDESLIP': (-134.6463, -0.035433, -29.0171, +13.5560),
     },
     # The twins' r_dot / p_dot fell on 2026-08-17 (design note 29): their
     # wing-tank fuel now spreads along the span, so Izz and Ixx grew (+33 % /
     # +31 % Izz) and the same fin load turns the airplane more slowly. Fin load
     # and Ny are untouched -- the check that this moved inertia, not aero.
     'atr42_100.project.json': {
-        'SIDE GUST': (4138.8275, +0.112416, +37.7652, -16.9377),
-        'SUDDEN RUDDER': (4287.7974, +0.122508, +46.9442, -17.3705),
-        'YAW 15 NEUTRAL': (-4877.7730, -0.139365, -50.8805, +19.8265),
-        'YAW TO SIDESLIP': (-2053.3076, -0.058666, -19.2004, +8.4040),
+        'SIDE GUST': (4139.6916, +0.112440, +43.0761, -13.9735),
+        'SUDDEN RUDDER': (4288.1132, +0.116471, +43.6751, -14.5046),
+        'YAW 15 NEUTRAL': (-4878.1324, -0.132497, -47.3004, +16.5760),
+        'YAW TO SIDESLIP': (-2053.4588, -0.055775, -17.8155, +7.0442),
     },
     'dhc8_dash8.project.json': {
-        'SIDE GUST': (4525.7434, +0.131181, +29.1517, -14.3736),
-        'SUDDEN RUDDER': (3491.2596, +0.106441, +27.3428, -11.0685),
-        'YAW 15 NEUTRAL': (-3936.8172, -0.120025, -29.2808, +12.5210),
-        'YAW TO SIDESLIP': (-1626.6027, -0.049592, -10.7222, +5.2089),
+        'SIDE GUST': (4527.1258, +0.131221, +32.8181, -12.5184),
+        'SUDDEN RUDDER': (3491.5168, +0.101203, +26.2773, -9.9271),
+        'YAW 15 NEUTRAL': (-3937.1072, -0.114119, -28.1137, +11.2348),
+        'YAW TO SIDESLIP': (-1626.7225, -0.047151, -10.2705, +4.6782),
     },
     'concept_regional_jet.project.json': {
-        'SIDE GUST': (7079.6223, +0.214534, +51.7769, -65.2668),
-        'SUDDEN RUDDER': (6907.3247, +0.209313, +48.4002, -66.9307),
-        'YAW 15 NEUTRAL': (-8042.6960, -0.243718, -52.1417, +79.4730),
-        'YAW TO SIDESLIP': (-3548.1801, -0.107521, -19.3841, +36.3843),
+        'SIDE GUST': (7082.5342, +0.214622, +54.7696, -61.4670),
+        'SUDDEN RUDDER': (6907.5333, +0.209319, +54.1777, -59.6706),
+        'YAW 15 NEUTRAL': (-8042.9389, -0.243725, -58.6416, +71.1732),
+        'YAW TO SIDESLIP': (-3548.2873, -0.107524, -22.0564, +32.8546),
     },
 }
 
@@ -2010,10 +2036,10 @@ def test_the_symmetric_half_of_a_lateral_case_still_closes(example):
 #: ``constants``; <= 0.08 % per value, register line in 02_approved_corrections.)
 _UNSYMMETRICAL_SPLIT = {
     'ga6_normal.project.json': (-700.423713, -504.305073, 72.0),
-    'cessna_210.project.json': (1080.046756, 777.633664, 72.0),
-    'atr42_100.project.json': (4074.311937, 3259.449549, 80.0),
-    'dhc8_dash8.project.json': (4408.121810, 3526.497448, 80.0),
-    'concept_regional_jet.project.json': (5801.857830, 4641.486264, 80.0),
+    'cessna_210.project.json': (-687.302894, -494.858083, 72.0),
+    'atr42_100.project.json': (3464.295824, 2771.436659, 80.0),
+    'dhc8_dash8.project.json': (-3302.110951, -2641.688761, 80.0),
+    'concept_regional_jet.project.json': (6076.817597, 4861.454078, 80.0),
 }
 
 

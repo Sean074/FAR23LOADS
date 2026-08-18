@@ -195,13 +195,16 @@ def test_the_case_id_stays_selects_when_the_speed_is_the_cases_own():
 
 def test_the_atr42_phaa_divergence_is_pinned():
     """The measured instance behind the decision: the fixture enters PHAA at
-    170 kt, SELECT's PHAA point is 178.13 kt. The row now reads 170.
+    170 kt, SELECT's PHAA point is 185.36 kt. The row now reads 170.
 
     SELECT's pick moved from 185.85 kt with Pri 5 / D-26: PHAA is flown at
     ``CGmid``, whose station and waterline are now its loading's own rather than
     an unreachable corner point, so the balanced V-n point behind it moved with
-    them. The divergence the decision exists for is unchanged in kind and in
-    sign -- the fixture still enters a speed SELECT did not pick.
+    them. **And back to 185.36 kt with D-27 (2026-08-17):** the flight cases are
+    the WTENV limit points now, PHAA is flown at ``fwd gross`` (MTOW at the
+    forward-gross limit), and the balanced point moved with the case once more.
+    The divergence the decision exists for is unchanged in kind and in sign --
+    the fixture still enters a speed SELECT did not pick.
     """
     project = _atr42_project()
     cases = resolve_wing_cases(project, project.wing_mass)
@@ -211,7 +214,7 @@ def test_the_atr42_phaa_divergence_is_pinned():
     select_ref = next(c.case_ref for c in project.envelope.critical.conditions
                       if c.component == "wing" and c.label == "PHAA")
     assert math.isclose(case.v_eas_kt, 170.0, rel_tol=1e-9)
-    assert math.isclose(select_ref.speed_kt, 178.13, rel_tol=1e-3), select_ref.speed_kt
+    assert math.isclose(select_ref.speed_kt, 185.36, rel_tol=1e-3), select_ref.speed_kt
     assert math.isclose(wing_case_ref(project, i, case).speed_kt, 170.0, rel_tol=1e-9)
 
 

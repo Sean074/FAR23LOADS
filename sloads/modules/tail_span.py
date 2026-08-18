@@ -16,7 +16,9 @@ The distribution
 ----------------
 Chord-proportional, for both the angle-of-attack (``LT25``) and camber/control
 (``LT50``) parts (decision T-2). Per strip ``j`` of the **whole** planform area
-``S``::
+``S`` -- the strip quadrature's own ``sum(c_j*dy)`` (``TailPlanform.strip_area``),
+so the strips sum to the SELECT total exactly on an entered polyline as well as
+on the derived rectangle::
 
     w25_j = k_side * LT25 * (c_j*dy)/S
     w50_j = k_side * LT50 * (c_j*dy)/S
@@ -324,7 +326,10 @@ def distribute(planform: TailPlanform, lt25: float, lt50: float, *,
     camber share off the 50 % line, the AoA share off the 25 % -- which is what
     keeps the parent surface's remaining load where TAILDIST puts it.
     """
-    area = planform.area
+    # Normalise by the quadrature's own area so the strips sum to exactly the
+    # SELECT total on every planform (TailPlanform.strip_area); the scalar
+    # ``planform.area`` is the surface's *reported* size, not the divisor.
+    area = planform.strip_area()
     if area <= 0:
         return []
     n_bend = n_case if n_normal is None else n_normal
@@ -396,10 +401,11 @@ def free_torsion_total(planform: TailPlanform, lt25: float, lt50: float, *,
     cumulative recurrence is what makes the gate a check rather than a tautology.
     """
     total = 0.0
+    area = planform.strip_area()
     halves = [lh_scale, rh_scale] if planform.symmetric else [rh_scale]
     for k_side in halves:
         for s, ds in strip_spans(planform):
-            frac = planform.chord(s) * ds / planform.area
+            frac = planform.chord(s) * ds / area
             x_lra = planform.x_at(s, planform.ref_axis_pct)
             total += (k_side * lt25 * frac * (x_lra - planform.x_at(s, X25_PCT))
                       + k_side * lt50 * frac * (x_lra - planform.x_at(s, X50_PCT)))

@@ -126,6 +126,26 @@ class TailPlanform:
         """Chordwise station of ``pct`` of the local chord at span ``s``."""
         return self.x_le(s) + pct * self.chord(s)
 
+    def strip_area(self) -> float:
+        """The whole-surface area **as the strip quadrature sees it** (in^2):
+        ``sum(chord * ds)`` over the ``elements`` mid-strip stations, doubled for
+        the symmetric h-tail.
+
+        This -- not :attr:`area` -- is the ``S`` the spanwise distribution
+        normalises by, so that ``sum(frac) == 1`` and SELECT's total is conserved
+        end-to-end **for every planform**. For the derived rectangle the two are
+        the same number; for an entered polyline they differ by up to the
+        ``PLANFORM_TOLERANCE`` the validator allows, and normalising by the
+        scalar there put that same fraction onto the deck total (backlog Pri 1,
+        the first entered tail polylines).
+        """
+        h = max(2, self.elements)
+        ds = self.span / h
+        total = 0.0
+        for j in range(h):
+            total += self.chord(ds / 2.0 + j * ds) * ds
+        return 2.0 * total if self.symmetric else total
+
 
 def _interp(points: List[Tuple[float, float]], s: float) -> float:
     """Chordwise ``x`` at span ``s`` on a polyline of ``(x, span)`` points.
@@ -167,8 +187,34 @@ def _polyline_area_and_span(surf: SurfaceInput) -> Tuple[float, float]:
     return area, s_tip - s_root
 
 
+def _polyline_mac_and_x25(surf: SurfaceInput) -> Tuple[float, float]:
+    """``(mac_in, x_25_mac_in)`` of an entered planform -- the mean aerodynamic
+    chord and the fuselage station of its quarter-chord point.
+
+    Same strip rule as :func:`_polyline_area_and_span`: ``MAC = int c^2 ds /
+    int c ds`` and ``x25 = int (x_le + c/4) c ds / int c ds`` over ``elements``
+    strip midpoints, so a straight-tapered surface reproduces the closed forms.
+    """
+    s_root = surf.leading_edge[0][1]
+    s_tip = surf.leading_edge[-1][1]
+    h = max(1, surf.elements)
+    ds = (s_tip - s_root) / h
+    sum_c = sum_c2 = sum_xc = 0.0
+    for el in range(h):
+        s = s_root + ds / 2 + el * ds
+        x_le = _interp(surf.leading_edge, s)
+        c = _interp(surf.trailing_edge, s) - x_le
+        sum_c += c * ds
+        sum_c2 += c * c * ds
+        sum_xc += (x_le + 0.25 * c) * c * ds
+    if sum_c <= 0:
+        return 0.0, 0.0
+    return sum_c2 / sum_c, sum_xc / sum_c
+
+
 def validate_tail_planform(surf: SurfaceInput, component: str,
-                           area_sqft: float, span_in: float) -> None:
+                           area_sqft: float, span_in: float,
+                           x25_in: float = 0.0) -> None:
     """Raise if an entered planform disagrees with the authoritative scalars.
 
     ``area_sqft``/``span_in`` are the surface's scalar values: ``htail_area_sqft``
@@ -176,6 +222,14 @@ def validate_tail_planform(surf: SurfaceInput, component: str,
     The half/full bookkeeping is applied here and nowhere else (§3.1): the h-tail
     doubles its one-sided polyline area and compares span as a **semispan**; the
     v-tail compares both directly.
+
+    ``x25_in`` is the scalar 25 %-MAC fuselage station (``xt25`` / ``xv25``) --
+    the point every chordwise pressure and every SELECT tail arm is stated at.
+    When given (non-zero) the polyline's own quarter-MAC station must land on
+    it within ``PLANFORM_TOLERANCE`` of the MAC (backlog Pri 1, the fixture-data
+    pass): a planform whose strips sit fore or aft of the station its loads are
+    computed at would put the deck's tail load on a different lever arm from
+    the balance's.
 
     Loud, per T-1: silently preferring one representation would leave the whole
     tail path -- chordwise pressures from the scalars, spanwise strips from the
@@ -186,18 +240,32 @@ def validate_tail_planform(surf: SurfaceInput, component: str,
     poly_area, poly_span = _polyline_area_and_span(surf)
     want_area = area_sqft * IN2_PER_FT2
     got_area = 2.0 * poly_area if component == HTAIL else poly_area
+    scalar_names = ('htail_area_sqft/htail_semispan_in' if component == HTAIL
+                    else 'vtail_area_sqft/vtail_span_in')
     for what, got, want in (("area", got_area, want_area),
                             ("span", poly_span, span_in)):
         if want and abs(got - want) / abs(want) > PLANFORM_TOLERANCE:
             raise ValueError(
                 f"{component} planform disagrees with its scalar geometry: "
                 f"{what} {got:.1f} from the geometry.surfaces polyline against "
-                f"{want:.1f} from "
-                f"{'htail_area_sqft/htail_semispan_in' if component == HTAIL else 'vtail_area_sqft/vtail_span_in'}"
+                f"{want:.1f} from {scalar_names}"
                 f" ({abs(got - want) / abs(want) * 100:.1f} % apart, limit "
                 f"{PLANFORM_TOLERANCE * 100:.0f} %). The scalars are "
                 "oracle-authoritative; correct the polyline or the scalar, do not "
                 "leave the surface described twice, differently."
+            )
+    if x25_in:
+        mac, got_x25 = _polyline_mac_and_x25(surf)
+        if mac > 0 and abs(got_x25 - x25_in) > PLANFORM_TOLERANCE * mac:
+            raise ValueError(
+                f"{component} planform disagrees with its scalar geometry: the "
+                f"polyline's 25 %-MAC station is FS {got_x25:.1f} against "
+                f"{'xt25' if component == HTAIL else 'xv25'} = {x25_in:.1f} "
+                f"({abs(got_x25 - x25_in):.1f} in apart, limit "
+                f"{PLANFORM_TOLERANCE * 100:.0f} % of the {mac:.1f} in MAC). The "
+                "scalar station is where the balance states the tail load; move "
+                "the polyline (or correct the scalar), do not leave the load on "
+                "two lever arms."
             )
 
 
@@ -370,7 +438,7 @@ def resolve_tail_planform(project: Project,
     root_notes = [root.note] if root.note else []
 
     if surf is not None:
-        validate_tail_planform(surf, component, area_sqft, span_in)
+        validate_tail_planform(surf, component, area_sqft, span_in, x25)
         s_root = surf.leading_edge[0][1]
         return TailPlanform(
             component=component,

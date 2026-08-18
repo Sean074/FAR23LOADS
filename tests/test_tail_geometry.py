@@ -30,6 +30,7 @@ from sloads.tail_geometry import (  # noqa: E402
     HTAIL,
     PLANFORM_TOLERANCE,
     VTAIL,
+    _polyline_mac_and_x25,
     half_area_centroid,
     resolve_tail_planform,
     validate_tail_planform,
@@ -77,13 +78,67 @@ def test_the_derived_planform_reproduces_taildist_average_chord(example):
         planform = resolve_tail_planform(project, component)
         if planform is None:
             continue
-        assert planform.assumed, f"{example} {component}: fixtures carry no polylines"
+        assert planform.assumed == (example not in _ENTERED_TAILS), (
+            f"{example} {component}: the entered-polyline set is pinned")
+        if not planform.assumed:
+            continue   # the entered fixtures are checked by the test below
         full_span = 2.0 * planform.span if component == HTAIL else planform.span
         want = planform.area / full_span
         for s in (0.0, planform.span / 2.0, planform.span):
             assert planform.chord(s) == pytest.approx(want, rel=1e-12), \
                 f"{example} {component} at s={s}"
         assert span_attr in component
+
+
+#: The fixtures whose empennage is **entered** as polylines (backlog Pri 1, the
+#: fixture-data pass, 2026-08-17) -- taper and sweep estimated from the type's
+#: published three-view, area/span/25 %-MAC station tied to the scalars.
+#: ``ga6_normal`` stays derived on purpose: Appendix A prints no tail chords, and
+#: an invented taper on the oracle fixture would be reported as entered data.
+_ENTERED_TAILS = frozenset({
+    "atr42_100.project.json",
+    "cessna_210.project.json",
+    "dhc8_dash8.project.json",
+    "concept_regional_jet.project.json",
+})
+
+
+@pytest.mark.parametrize("example", sorted(_ENTERED_TAILS))
+def test_an_entered_fixture_tail_is_tapered_and_sits_on_its_scalar_station(example):
+    """The entered polylines describe the *same* surface the scalars do -- and a
+    real one: tapered (root chord > tip chord), the strip quadrature's area equal
+    to the scalar area to the validator's tolerance, and the polyline's own
+    quarter-MAC station on ``xt25``/``xv25`` -- so the deck's strips and the
+    balance's tail arm agree on where the load is."""
+    project = _project(example)
+    for component in (HTAIL, VTAIL):
+        planform = resolve_tail_planform(project, component)
+        assert planform is not None and not planform.assumed, f"{example} {component}"
+        assert planform.chord(0.0) > planform.chord(planform.span), (
+            f"{example} {component}: expected a tapered surface")
+        assert planform.strip_area() == pytest.approx(planform.area, rel=PLANFORM_TOLERANCE)
+        surf = project.geometry.by_name(component)
+        want = project.tail_loads.xt25 if component == HTAIL else project.vtail_loads.xv25
+        mac, x25 = _polyline_mac_and_x25(surf)
+        assert x25 == pytest.approx(want, abs=PLANFORM_TOLERANCE * mac), f"{example} {component}"
+
+
+def test_a_polyline_off_its_scalar_station_is_refused():
+    """The third leg of the T-1 validator (backlog Pri 1): a polyline whose
+    quarter-MAC point is not at ``xt25`` puts the deck's tail load on a lever arm
+    the balance did not use. Area and span can agree while this does not."""
+    project = _project("ga6_normal.project.json")
+    ti = project.tail_loads
+    b = ti.htail_semispan_in
+    chord = ti.htail_area_sqft * 144.0 / (2.0 * b)
+    x_le = ti.xt25 - 0.25 * chord
+    def surf(shift):
+        return SurfaceInput(name=HTAIL,
+                            leading_edge=[(x_le + shift, 0.0), (x_le + shift, b)],
+                            trailing_edge=[(x_le + shift + chord, 0.0), (x_le + shift + chord, b)])
+    validate_tail_planform(surf(0.0), HTAIL, ti.htail_area_sqft, b, ti.xt25)
+    with pytest.raises(ValueError, match="25 %-MAC station"):
+        validate_tail_planform(surf(0.05 * chord), HTAIL, ti.htail_area_sqft, b, ti.xt25)
 
 
 @pytest.mark.parametrize("example", EXAMPLES)
@@ -128,6 +183,7 @@ def test_a_tapered_planform_centroid_matches_the_closed_form():
     area_in2 = 2.0 * 0.5 * (c_r + c_t) * b
     project.tail_loads.htail_area_sqft = area_in2 / 144.0
     project.tail_loads.htail_semispan_in = b
+    project.tail_loads.xt25 = _polyline_mac_and_x25(surf)[1]   # sit on the scalar station
     project.geometry.surfaces.append(surf)
 
     planform = resolve_tail_planform(project, HTAIL)
@@ -263,8 +319,12 @@ def test_every_fixture_still_loads_and_round_trips(example):
 #: no-outline fallback, which is what still places ``ga6_normal`` (no fuselage
 #: outline, ``fuselage_height`` 0, so it degrades to the wing root waterline
 #: and says so).
+#: ``ga6_normal`` **enters** its fin root since backlog Pri 1 (2026-08-17):
+#: ``vtail_root_waterline_z = 78.5`` pins the value the fallback had been
+#: producing, as a stated one, so that the body outline (and L-7) can land with
+#: an attributable digest wave -- note 19 §10.2 (i). Zero movement, by design.
 _FIN_ROOT = {
-    "ga6_normal.project.json": (78.5, "fuselage-top"),
+    "ga6_normal.project.json": (78.5, "entered"),
     "concept_regional_jet.project.json": (87.0, "t-tail"),
     "cessna_210.project.json": (100.2354943818504, "fuselage-top"),
     "atr42_100.project.json": (191.1672210589451, "fuselage-top"),
@@ -279,7 +339,7 @@ def test_the_fin_root_waterline_is_pinned_per_fixture(example):
     assert planform is not None
     assert planform.root_z == pytest.approx(want_z, rel=1e-9)
     assert planform.root_z_basis == want_basis
-    assert planform.root_z_assumed, "no fixture enters a fin root yet"
+    assert planform.root_z_assumed == (want_basis != "entered"), example
 
 
 def test_an_entered_fin_root_wins_and_is_not_assumed():
@@ -333,6 +393,8 @@ def test_a_fin_with_no_placement_at_all_says_so_loudly():
     """The floor of the resolution order. Silent zero is the defect B8a-1 fixed,
     so the zero that remains possible has to announce itself."""
     project = _project("ga6_normal.project.json")
+    project.vtail_loads.vtail_root_waterline_z = 0.0   # un-enter the Pri 1 pin
+    project.geometry.fuselage = None                    # ...and its Pri 1 outline
     project.geometry.parametric.root_waterline_z = 0.0
     project.geometry.parametric.fuselage_height = 0.0
     planform = resolve_tail_planform(project, VTAIL)

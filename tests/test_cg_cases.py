@@ -33,6 +33,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from sloads import io  # noqa: E402
 from sloads import migrations  # noqa: E402
 from sloads.cg_cases import (  # noqa: E402
+    FLIGHT_CASE_NAMES,
     cases_for,
     database_total,
     flight_cases,
@@ -41,6 +42,8 @@ from sloads.cg_cases import (  # noqa: E402
     max_landing_weight,
     max_landing_weight_estimate,
     max_takeoff_weight,
+    seed_flight_cases,
+    seed_landing_cases,
 )
 from sloads.mass_distribution import derive_case_loadings  # noqa: E402
 from sloads.models import (  # noqa: E402
@@ -291,6 +294,104 @@ def test_ground_coverage_matches_what_the_plan_measured():
         "atr42_100": (3, 3),
         "dhc8_dash8": (3, 3),
     }, got
+
+
+# --------------------------------------------------------------------------- #
+# D-27 (2026-08-17): the flight cases ARE the WTENV limit points
+# --------------------------------------------------------------------------- #
+#: The four type fixtures whose CG cases are seeded from their WTENV envelope
+#: (D-27). ``ga6_normal`` keeps Appendix A's own four (``CG1``..``CG4``) -- but
+#: the seed reproduces them, which is the check that the seed *is* FLTLOADS'
+#: definition; ``concept_heavy`` carries no envelope and one loading.
+_SEEDED = ("cessna_210", "atr42_100", "dhc8_dash8", "concept_regional_jet")
+
+
+@pytest.mark.parametrize("name", _SEEDED)
+def test_the_fixture_flight_cases_are_the_wtenv_seed(name):
+    """D-27 drift guard: a fixture's FLIGHT cases are exactly what
+    ``seed_flight_cases`` produces from its own envelope and database -- name,
+    weight, station and waterline -- so an edit to either the envelope or the
+    items that is not followed by a re-seed goes red here."""
+    project = io.load_project(os.path.join(_ROOT, "examples", f"{name}.project.json"))
+    seeded, missing = seed_flight_cases(project)
+    assert not missing, missing
+    got = [(c.name, c.weight_lb, c.xcg, c.zcg) for c in flight_cases(project)]
+    want = [(c.name, round(c.weight_lb, 2), round(c.xcg, 2), round(c.zcg, 2)) for c in seeded]
+    assert [n for n, *_ in want] == list(FLIGHT_CASE_NAMES)
+    for g, w in zip(got, want):
+        assert g[0] == w[0]
+        assert g[1:] == pytest.approx(w[1:], abs=0.011), (name, g, w)
+
+
+@pytest.mark.parametrize("name", _SEEDED)
+def test_the_fixture_ground_cases_are_the_landing_seed(name):
+    """The GROUND half of the same guard: the three roled landing cases are
+    ``seed_landing_cases``' own (MLW and the WTENV forward limit *at* MLW)."""
+    project = io.load_project(os.path.join(_ROOT, "examples", f"{name}.project.json"))
+    seeded, missing = seed_landing_cases(project)
+    assert not missing, missing
+    got = [(c.name, c.role, c.weight_lb, c.xcg, c.zcg) for c in ground_cases(project)]
+    for g, w in zip(got, seeded):
+        assert (g[0], g[1]) == (w.name, w.role)
+        assert g[2:] == pytest.approx((w.weight_lb, w.xcg, w.zcg), abs=0.011), (name, g)
+    assert len(got) == len(seeded) == 3
+
+
+def test_the_seed_reproduces_appendix_a_s_four_points_on_ga6():
+    """The seed is FLTLOADS.BAS's own prompt set: on the Appendix A airplane it
+    lands on CG1..CG4 (Ref 1 Ch 3 p21: 3400 @ 85.1 / 77.49, 2800 @ 72.64,
+    2063 @ 73.09) to the rounding of the printed stations. ga6 keeps its
+    Appendix A names, so this is a reproduction, not a pin of the fixture."""
+    project = io.load_project(_GA)
+    seeded, missing = seed_flight_cases(project)
+    assert not missing
+    by_name = {c.name: c for c in seeded}
+    want = {"aft gross": (3400, 85.1), "fwd gross": (3400, 77.49),
+            "fwd regardless": (2800, 72.64), "min weight": (2063, 73.09)}
+    for name, (w, x) in want.items():
+        assert by_name[name].weight_lb == pytest.approx(w, rel=1e-3), name
+        assert by_name[name].xcg == pytest.approx(x, abs=0.02), name
+
+
+@pytest.mark.parametrize("path", _EXAMPLES, ids=lambda p: os.path.basename(p))
+def test_every_fixture_case_sits_inside_its_wtenv_envelope(path):
+    """D-27's aim, made structural: every CG case of every fixture with an
+    envelope lies between the WTENV forward limit *at its weight* and the aft
+    limit. ``concept_heavy`` has no envelope and is skipped, not passed."""
+    from sloads.validation import wtenv_cg_limits, wtenv_fwd_cg_limit_at_weight
+
+    project = io.load_project(path)
+    limits = wtenv_cg_limits(project)
+    if limits is None:
+        pytest.skip("no WTENV envelope on this fixture")
+    _, aft = limits
+    # 0.05 in: the echo rounding of the seeded cases, and Appendix A's own
+    # ``fwd light`` (2803 lb at the printed 72.64) sits 0.03 in ahead of the
+    # forward line interpolated at 2803 rather than 2800 lb.
+    for case in project.weight.cg_cases:
+        fwd = wtenv_fwd_cg_limit_at_weight(project, case.weight_lb)
+        assert fwd is not None
+        assert fwd - 0.05 <= case.xcg <= aft + 0.05, (
+            f"{os.path.basename(path)} {case.name}: {case.xcg} outside {fwd:.2f}..{aft:.2f}")
+
+
+@pytest.mark.parametrize("path", _EXAMPLES, ids=lambda p: os.path.basename(p))
+def test_every_fuselage_item_sits_inside_the_outline_and_the_check_has_teeth(path):
+    """The three-view's claim (D-27): a fuselage-carried mass is inside the body
+    it is carried by. Silent as shipped on every fixture with an outline, and
+    the ``mass_item_outside_body`` warning fires the moment one is not."""
+    from sloads.models import MassComponent
+    from sloads.validation import consistency_warnings
+
+    project = io.load_project(path)
+    codes = [w.code for w in consistency_warnings(project)]
+    assert "mass_item_outside_body" not in codes, os.path.basename(path)
+    assert "cg_outside_envelope" not in codes, os.path.basename(path)
+    if project.geometry is None or project.geometry.fuselage is None:
+        pytest.skip("no fuselage outline on this fixture")
+    item = next(it for it in project.weight.items if it.component == MassComponent.FUSELAGE)
+    item.x = max(sec.x for sec in project.geometry.fuselage.sections) + 50.0
+    assert "mass_item_outside_body" in [w.code for w in consistency_warnings(project)]
 
 
 if __name__ == "__main__":

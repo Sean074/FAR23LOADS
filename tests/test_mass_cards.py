@@ -155,27 +155,30 @@ def test_imperial_mass_is_deliberately_not_the_identity():
 #: of the item database, and 11 of 18 were loadings no combination of that
 #: database could produce. D-26 corrected the case data to the database and gave
 #: each case an entered loading; the search is what ga6 still runs on, unchanged.
+#:
+#: **D-27 (2026-08-17)** turned that round for the four type fixtures: their
+#: flight cases are now the WTENV limit points themselves (``cg_cases.
+#: seed_flight_cases`` -- aft/fwd gross, fwd regardless, min weight, mid gross)
+#: with **no entered loading**, so the search closes each one with solved
+#: ballast under D-25d's 10 % gate; the item stations were reconciled to the
+#: wing datum so that every limit is reachable (0-8.5 % ballast). Every case
+#: still derives -- that is the pin -- but by the search route again.
+_WTENV_FLIGHT = ["aft gross", "fwd gross", "fwd regardless", "min weight", "mid gross"]
 _DERIVABLE = {
     "ga6_normal.project.json": ["CG1", "CG2", "CG3", "CG4"],
-    "cessna_210.project.json": ["CG1", "CG2", "CG3", "CG4"],
-    "atr42_100.project.json": ["CGfwd", "CGmid", "CGaft"],
-    "dhc8_dash8.project.json": ["CGfwd", "CGmid", "CGaft"],
+    "cessna_210.project.json": _WTENV_FLIGHT,
+    "atr42_100.project.json": _WTENV_FLIGHT,
+    "dhc8_dash8.project.json": _WTENV_FLIGHT,
     "concept_heavy.project.json": ["CGmax"],
-    "concept_regional_jet.project.json": ["CG1 aft heavy", "CG2 fwd heavy",
-                                          "CG3 light"],
+    "concept_regional_jet.project.json": _WTENV_FLIGHT,
 }
 #: Cases whose loading is **entered** on the case (D-25) rather than searched
-#: for. Every fixture but ga6, which stays entirely on the derived route so the
-#: Appendix A airplane's bytes are never moved by a fixture-data step — it is the
-#: standing proof that the search is still the behaviour a case without a loading
-#: gets (D-25c).
+#: for. Since D-27 only ``concept_heavy`` (one case, one loading) enters one;
+#: ga6 stays entirely on the derived route so the Appendix A airplane's bytes
+#: are never moved by a fixture-data step, and the four type fixtures' limit
+#: points are derived by construction (see ``_DERIVABLE``).
 _ENTERED = {
-    "cessna_210.project.json": ["CG1", "CG2", "CG3", "CG4"],
-    "atr42_100.project.json": ["CGfwd", "CGmid", "CGaft"],
-    "dhc8_dash8.project.json": ["CGfwd", "CGmid", "CGaft"],
     "concept_heavy.project.json": ["CGmax"],
-    "concept_regional_jet.project.json": ["CG1 aft heavy", "CG2 fwd heavy",
-                                          "CG3 light"],
 }
 
 
@@ -293,8 +296,10 @@ def test_an_entered_loading_reproduces_the_derived_one_on_ga6():
 def test_the_echo_check_fires_when_the_case_disagrees_with_its_loading():
     """D-25a's whole mechanism: the case's weight/CG is an echo, and a
     disagreement is **reported**, never absorbed by bending the loading."""
-    p = _project("concept_regional_jet.project.json")
-    case = next(c for c in flight_cases(p) if c.name == "CG1 aft heavy")
+    # ``concept_heavy`` is the fixture with an entered loading since D-27 (the
+    # four type fixtures' limit-point cases derive theirs).
+    p = _project("concept_heavy.project.json")
+    case = next(c for c in flight_cases(p) if c.name == "CGmax")
     assert all(c.ok for c in md.case_loading_checks(p))     # as shipped
     was = next(ld for ld in md.derive_case_loadings(p) if ld.name == case.name).cg_x
 

@@ -66,6 +66,7 @@ from sloads.cg_cases import flight_cases  # noqa: E402
 from sloads.tail_geometry import (  # noqa: E402
     HTAIL,
     VTAIL,
+    _polyline_mac_and_x25,
     half_area_centroid,
     is_t_tail,
     resolve_tail_planform,
@@ -431,8 +432,15 @@ def test_a_fin_case_with_no_vn_point_gets_no_lateral_inertia_and_says_so():
 _FIN_ROLL_ARM = {
     "ga6_normal.project.json": (107.0, 93.0, +14.0),
     # zcg 70.0 -> 63.62 with D-26: the RJ's waterline is now its
-# loading's own, not an unsourced round number.
-    "concept_regional_jet.project.json": (156.0, 63.62, +92.38),
+    # loading's own, not an unsourced round number. Centroid 156.0 -> 151.97
+    # with the Pri 1 fixture-data pass (2026-08-17): the RJ fin is now an
+    # entered tapered planform (taper 0.7), so its load centroid sits below the
+    # derived rectangle's half-span -- the arm shrinks by 4.0 in and stays
+    # positive, which is the sign this test exists for. zcg 63.62 -> 64.59 with
+    # D-27 (2026-08-17): the lateral cases fly at the WTENV limit points, whose
+    # closing loading's waterline is the echo (the fuselage masses moved forward,
+    # the cabin re-spaced).
+    "concept_regional_jet.project.json": (151.9735975609756, 64.59, +87.3835975609756),
 }
 
 
@@ -552,12 +560,14 @@ def test_the_attachment_interpolates_the_body_at_the_htail_and_never_its_maximum
 def test_the_attachment_falls_back_to_the_strip_pair_without_a_body_outline():
     """The stated fallback, and the basis a beam model refuses to build on.
 
-    ``ga6_normal`` is synthetic — no published fuselage to enter — so it keeps
-    the centreline pair, and says so rather than choosing it silently.
+    ``ga6_normal`` carries the Appendix A body outline since the Pri 1
+    fixture-data pass, so the no-outline path is exercised by removing it: the
+    attachment then keeps the centreline pair, and says so rather than
+    choosing it silently.
     """
     project = _project("ga6_normal.project.json", weight=0.0)
+    project.geometry.fuselage = None
     planform = resolve_tail_planform(project, HTAIL)
-    assert project.geometry.fuselage is None
     ds = planform.span / planform.elements
     attach = htail_attachment(project, planform)
     assert attach.y == pytest.approx([-ds / 2, ds / 2])
@@ -568,11 +578,13 @@ def test_the_attachment_falls_back_to_the_strip_pair_without_a_body_outline():
 
 @pytest.mark.parametrize("example", EXAMPLES)
 def test_every_result_names_its_torsion_axis_and_its_provenance(example):
-    """Every torsion names its axis, and a derived planform says it is derived."""
+    """Every torsion names its axis, and a derived planform says it is derived
+    (an entered one -- the four Pri 1 fixtures -- says nothing of the kind)."""
     for r in _results(example):
         assert r.torsion_axis.startswith("LRA ")
-        assert r.planform_assumed
-        assert any("DERIVED" in n for n in r.notes)
+        derived = example == "ga6_normal.project.json"
+        assert r.planform_assumed == derived, example
+        assert any("DERIVED" in n for n in r.notes) == derived, example
         assert r.case_ref is not None and r.safety_factor > 0
 
 
@@ -606,28 +618,33 @@ def test_an_entered_attachment_butt_line_wins_over_every_derivation():
 
 
 # --------------------------------------------------------------------------- #
-# An entered (tapered, swept) planform -- the path the fixtures do not exercise
+# An entered (tapered, swept) planform on the oracle fixture -- ga6 keeps the
+# derived rectangle, so this is the synthetic path (the four type fixtures carry
+# their own entered planforms since Pri 1)
 # --------------------------------------------------------------------------- #
 def _tapered_project():
     project = _project("ga6_normal.project.json", weight=0.0)
     b, c_r, c_t = 73.1, 48.0, 24.0
     project.tail_loads.htail_area_sqft = 2.0 * 0.5 * (c_r + c_t) * b / 144.0
     project.tail_loads.htail_semispan_in = b
-    project.geometry.surfaces.append(SurfaceInput(
+    surf = SurfaceInput(
         name=HTAIL,
         leading_edge=[(200.0, 0.0), (215.0, b)],      # swept
         trailing_edge=[(200.0 + c_r, 0.0), (215.0 + c_t, b)],
-        elements=12, ref_axis_pct=0.40))
+        elements=12, ref_axis_pct=0.40)
+    # The validator's third leg: the polyline must sit on the scalar station.
+    project.tail_loads.xt25 = _polyline_mac_and_x25(surf)[1]
+    project.geometry.surfaces.append(surf)
     return project
 
 
 def test_a_tapered_swept_planform_still_closes():
     """The closures are not properties of the rectangle.
 
-    The shipped fixtures all take the derived rectangular planform, so without
-    this the gates would only ever have seen a constant chord and no sweep — and
-    the torsion transfer term, which is identically zero there, would go
-    unchecked.
+    Written when every fixture took the derived rectangle; kept as the
+    fixture-independent check that a constant chord and zero sweep are not what
+    the gates depend on — the torsion transfer term, identically zero on the
+    rectangle, is exercised here on a known synthetic planform.
     """
     project = _tapered_project()
     planform = resolve_tail_planform(project, HTAIL)

@@ -49,8 +49,16 @@ __all__ = [
     "max_landing_weight",
     "max_landing_weight_estimate",
     "max_takeoff_weight",
+    "seed_flight_cases",
     "seed_landing_cases",
 ]
+
+#: The FLIGHT case set a WTENV envelope defines (decision D-27, 2026-08-17): the
+#: four structural-limit points FLTLOADS.BAS prompts for, plus one mid-envelope
+#: gross-weight loading for the balanced-airplane deliverable. Names are the
+#: seed's own; :func:`seed_flight_cases` is their one writer.
+FLIGHT_CASE_NAMES = ("aft gross", "fwd gross", "fwd regardless", "min weight",
+                     "mid gross")
 
 
 # --------------------------------------------------------------------------- #
@@ -280,3 +288,80 @@ def seed_landing_cases(project: Project) -> Tuple[List[CgCase], List[str]]:
     return [CgCase(name=name, weight_lb=w, xcg=x, zcg=zbar,
                    analyses={AnalysisKind.GROUND}, role=role)
             for role, name, w, x in seeds if x is not None], []
+
+
+def seed_flight_cases(project: Project) -> Tuple[List[CgCase], List[str]]:
+    """The FLIGHT cases **pinned to the WTENV limits** (decision D-27, 2026-08-17).
+
+    The load analysis evaluates the weight/CG limits the user has defined --
+    the forward and aft `%MAC` lines of ``weight.envelope`` -- not whatever
+    corner the item database happens to reach. So a flight case is a
+    structural-limit point by construction: the four FLTLOADS.BAS prompts (aft
+    gross, fwd gross, fwd regardless, minimum weight) plus one mid-envelope
+    gross-weight loading (``mid gross``, halfway between the fwd-gross and aft
+    stations) for the balanced-airplane deliverable. ``weight_lb``/``xcg`` are
+    the limit's own; the loading that closes each case is **derived**
+    (``loading is None`` -> :func:`sloads.mass_distribution.derive_case_loadings`
+    searches the discretionary subsets and solves the ballast, and D-25d's
+    credibility gate applies), which is what keeps "the case is on the limit"
+    and "the database can fly there" as two statements checked against each
+    other rather than one bent to fit the other. Supersedes D-26's *"a case is
+    the database's own extreme"* -- the database still owns *whether* a limit
+    is reachable, the envelope owns *where* the case sits.
+
+    ``zcg`` is the closing loading's own waterline (D-26a's rule, kept): the
+    weight-averaged ``z`` of the base plus the chosen subset, so the solved
+    ballast sits on that same waterline and no third number is invented. When
+    no subset closes the case at all, the whole-database waterline stands in
+    and the case still seeds -- the derivability pin, not the seed, is what
+    reports an unreachable limit.
+
+    Returns ``(cases, missing)`` exactly as :func:`seed_landing_cases` does: an
+    empty list and the named missing sources when it cannot seed. Never
+    zero-filled.
+    """
+    from .mass_distribution import derive_case_loadings
+    from .validation import _wtenv_stations
+
+    missing = []
+    weight = project.weight
+    env = weight.envelope if weight is not None else None
+    if env is None or not env.gross_weight or not env.fwd_regardless_weight:
+        missing.append("the WTENV envelope with its gross and forward-regardless "
+                       "weights (Weight / CG Envelope tab)")
+    items = weight.items if weight is not None else []
+    if not items:
+        missing.append("the weight item database (Weight, CG & Inertia tab)")
+    stations = _wtenv_stations(project) if not missing else None
+    if stations is None and not missing:
+        missing.append("a WTENV run (wing XLEMAC/MAC and the envelope)")
+    if missing:
+        return [], missing
+    assert stations is not None and env is not None
+    aft = stations["Aft gross station"]
+    fwd_g = stations["Forward gross station"]
+    fwd_r = stations["Forward regardless station"]
+    w_min = stations["Minimum flight weight"]
+    x_min = stations["Minimum flight weight station"]
+    total = math.fsum(it.weight_lb for it in items)
+    z_all = math.fsum(it.weight_lb * it.z for it in items) / total if total else 0.0
+
+    seeds = (
+        ("aft gross", env.gross_weight, aft),
+        ("fwd gross", env.gross_weight, fwd_g),
+        ("fwd regardless", env.fwd_regardless_weight, fwd_r),
+        ("min weight", w_min, x_min),
+        ("mid gross", env.gross_weight, 0.5 * (fwd_g + aft)),
+    )
+    assert tuple(n for n, _, _ in seeds) == FLIGHT_CASE_NAMES
+    cases = [CgCase(name=name, weight_lb=round(w, 2), xcg=round(x, 2),
+                    zcg=round(z_all, 2), analyses={AnalysisKind.FLIGHT})
+             for name, w, x in seeds]
+    # The closing loading's own waterline (D-26a): re-echo zcg from the subset the
+    # search picks, ballast excluded, then the ballast is solved onto that line.
+    for case, loading in zip(cases, derive_case_loadings(project, cases)):
+        real = [it for it in loading.items if it is not loading.ballast]
+        w = math.fsum(it.weight_lb for it in real)
+        if loading.derivable and w > 0:
+            case.zcg = round(math.fsum(it.weight_lb * it.z for it in real) / w, 2)
+    return cases, []

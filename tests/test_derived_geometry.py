@@ -41,6 +41,7 @@ from sloads.modules.weight_estimate import resolve_max_continuous_hp  # noqa: E4
 
 _EXAMPLES = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "examples")
 _GA = os.path.join(_EXAMPLES, "ga6_normal.project.json")
+_HEAVY = os.path.join(_EXAMPLES, "concept_heavy.project.json")
 
 
 def test_wing_reference_derives_from_ga6_geometry():
@@ -214,9 +215,14 @@ def test_sob_station_is_none_without_a_body_and_never_the_inboard_rib():
     p.wing_mass = WingMassInput(inboard_rib_y=23.0)
     assert sob_station(p) is None
     assert sob_station(Project(name="bare")) is None
-    # The shipped Appendix A fixture has no fuselage data: its decks must not
-    # invent a side of body.
-    assert sob_station(io.load_project(_GA)) is None
+    # ``concept_heavy`` ships no fuselage data: its decks must not invent a
+    # side of body. (``ga6_normal`` carried none until the Pri 1 fixture-data
+    # pass, 2026-08-17, gave it the Appendix A body outline -- width 3.833 ft,
+    # length 26.522 ft, height from the 17.231 sq ft frontal area as an ellipse
+    # -- so it now resolves the assumed half-width like every other fixture.)
+    assert sob_station(io.load_project(_HEAVY)) is None
+    ga = sob_station(io.load_project(_GA))
+    assert ga is not None and ga.assumed and math.isclose(ga.y, 23.0)
 
 
 def test_sob_y_in_round_trips_and_defaults_to_none():

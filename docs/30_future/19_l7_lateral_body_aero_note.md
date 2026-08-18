@@ -353,6 +353,12 @@ G1 is the definition of done. G3 and G5 carry the physics; the rest are fences.
    one; (ii) add the outline merged with Pri 10, with its own digest wave;
    (iii) then implement L-7. Without (i), L-7's digest wave is un-attributable.
    The RJ is unaffected either way — its fin root comes from the T-tail branch.
+   **Status 2026-08-17: (i) and (ii) shipped** in the fixture-data pass
+   (`changes/fixture-data-pass.changed.md`): `vtail_root_waterline_z = 78.5`
+   entered (zero movement) and the Appendix A outline entered (26.522 ft ×
+   3.833 ft, height 68.7 in from the printed 17.231 sq ft frontal area as an
+   ellipse) — so §7's "other lateral fixture cannot exercise this at all" no
+   longer holds, and the step lands on **both** lateral fixtures.
 3. **`K_Rl` at the top of its chart.** `Re_l = 1.8e8` gives `K_Rl = 2.07`, at or
    just past figure 5.2.3.1-9's tabulated range. Worth confirming against
    AFFDL-TR-79-3032 Vol II, and worth using **TAS and local viscosity** for `Re`
