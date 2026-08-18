@@ -118,6 +118,44 @@ def fuselage_volume_in3(outline: FuselageOutline) -> float:
     return vol
 
 
+def munk_slope_per_rad(k2_minus_k1: float, volume_in3: float, s_ref_in2: float,
+                       length_ref_in: float) -> float:
+    """**The single owner of Munk's apparent-mass moment slope** (L-7 decision
+    L-7.7): ``(k2 - k1) Vol / (S l_ref)`` per radian -- the free couple a closed
+    slender body carries per unit angle of incidence in ideal flow, the same
+    integrand whether the angle is ``alpha`` (``l_ref = mac``, the G4 pitch
+    estimator :func:`estimate`) or ``beta`` (``l_ref = b``,
+    :func:`munk_yaw_slope_per_deg`). Positive: destabilizing about either axis."""
+    return k2_minus_k1 * volume_in3 / (s_ref_in2 * length_ref_in)
+
+
+def munk_yaw_slope_per_deg(outline: Optional[FuselageOutline], wing_area_sqft: float,
+                           span_in: float) -> Optional[float]:
+    """Munk's isolated-body ``Cn_beta`` per degree on ``S b`` (suite sign:
+    positive = destabilizing), the yaw rotation of :func:`estimate`.
+
+    **Cross-check only** (design note 19, decision L-7.2 / gate G7): DATCOM's
+    wing-body ``Cn_beta`` (:mod:`sloads.lateral_body_aero`) correlates the
+    wing-body *combination*, whose wing and interference shares are
+    destabilizing and which the isolated ideal body omits, so it sits above
+    this by the interference margin -- a Munk value *above* DATCOM's is a
+    porting error. Not applied to any case. ``None`` without a usable body.
+    """
+    if outline is None:
+        return None
+    secs: List = sorted(outline.sections, key=lambda s: s.x)
+    if len(secs) < 2 or wing_area_sqft <= 0.0 or span_in <= 0.0:
+        return None
+    length = secs[-1].x - secs[0].x
+    d_max = max(math.sqrt(s.width * s.height) for s in secs)
+    if length <= 0.0 or d_max <= 0.0:
+        return None
+    k = munk_k2_minus_k1(length / d_max)
+    per_rad = munk_slope_per_rad(k, fuselage_volume_in3(outline),
+                                 wing_area_sqft * IN2_PER_FT2, span_in)
+    return per_rad / DEG_PER_RAD
+
+
 def estimate(
     outline: Optional[FuselageOutline],
     wing_area_sqft: float,
@@ -145,7 +183,7 @@ def estimate(
     vol = fuselage_volume_in3(outline)
     s_in2 = wing_area_sqft * IN2_PER_FT2
 
-    dcm_dalpha_per_rad = k * vol / (s_in2 * mac_in)
+    dcm_dalpha_per_rad = munk_slope_per_rad(k, vol, s_in2, mac_in)
     dcm_dalpha_per_deg = dcm_dalpha_per_rad / DEG_PER_RAD
     return FuselageMomentEstimate(
         d_cm_dalpha=dcm_dalpha_per_deg,

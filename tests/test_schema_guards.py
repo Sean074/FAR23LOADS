@@ -251,7 +251,15 @@ def fields_hash() -> str:
 #: reacted by the wing, the remainder by ``component``. Additive with a ``0.0``
 #: default (today's behaviour bit-for-bit), so no migration hop; the 0.6.0
 #: freeze's one schema hop.
-EXPECTED_FIELDS_HASH = "bad1124ddce3e46b"
+#: Design note 19 rev. 3 (v54, L-7 lateral body aero -- the 0.7.0 freeze's one
+#: hop): ``AeroCoefficientsInput.lateral_body_aero`` (``LateralBodyAeroInput``:
+#: enabled / cy_beta / cn_beta, off by default) and its passenger
+#: ``EngineInput.thrust_lb`` (decision L-7.10, reserved for backlog #10); the
+#: v-tail ``CriticalCondition`` gains ``beta_deg`` / ``cy_beta_fin`` /
+#: ``cn_beta_fin`` and ``BalancedCaseResult`` gains ``body_side_force`` /
+#: ``body_yaw_moment`` / ``beta_deg`` / ``cn_beta_net`` (result fields). All
+#: additive with ``None``/``0.0`` defaults, so no migration hop.
+EXPECTED_FIELDS_HASH = "b3a36f14d534fc5b"
 
 
 def test_persisted_dataclass_shapes_are_unchanged():

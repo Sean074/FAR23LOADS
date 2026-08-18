@@ -48,7 +48,7 @@ The fixture-data pass (#9, Pri 1) shipped in full on 2026-08-17
 (`changes/fixture-data-pass.*`, `changes/fixture-cg-datum-reconciliation.*`, D-27):
 entered tail planforms, the ga6 fin-root pin and body outline, and the fixture CG
 datum reconciled with the flight cases pinned to the WTENV limits; note 19 §10.2
-(i)–(ii) are done and L-7 no longer waits on the ga6 outline. Band A of the table below is the **0.7.0** scope (re-cut 2026-08-17,
+(i)–(ii) are done. **L-7 shipped 2026-08-17** (`changes/l7-lateral-body-aero.*`): the lateral cases can carry the wing-body sideslip term, off by default, and state it either way. Band A of the table below is the **0.7.0** scope (re-cut 2026-08-17,
 [`../50_reviews/2026-08-17_backlog_review_0_7_0.md`](../50_reviews/2026-08-17_backlog_review_0_7_0.md)).
 Reference-authority hierarchy: (1) `.BAS` listings + Appendix A printed output,
 (2) User's Guide CFR quotes (Jan-1994), (3) Code-manual 1990 prose.
@@ -61,10 +61,7 @@ Reference-authority hierarchy: (1) `.BAS` listings + Appendix A printed output,
 [`../50_reviews/2026-08-17_backlog_review_0_7_0.md`](../50_reviews/2026-08-17_backlog_review_0_7_0.md),
 BR-1…BR-13).** Band A is now the **0.7.0** scope: the fixture-data pass first
 (it carries the `ga6_normal` body outline the headline needs and closes the
-WTENV-envelope defect), then **L-7 lateral body aero as the headline** — the one
-band-B item with a printed oracle (Digital DATCOM) and a measured effect far
-above the base method's band (`ψ̈` 73–84 %, `n_y` 4–12 %; note 19, to be
-agreed in chat first) — then the hub thrust card, the combined station envelope,
+WTENV-envelope defect), then **L-7 lateral body aero as the headline** (**shipped 2026-08-17**, note 19 rev. 3, schema v54; `changes/l7-lateral-body-aero.*`) — then the hub thrust card (its schema field `EngineInput.thrust_lb` shipped on L-7's v54 hop, note 19 L-7.10), the combined station envelope,
 the recorded decisions (the gust-shape study **merged** into them: reusing
 Schrenk is inside the Schrenk band by construction, so it is a decision, not
 work; #12 closed into #13), and the **GUI review** (#29) the user asked for,
@@ -140,20 +137,19 @@ traceability with plans 09/11/12/13; the **Pri** column is ordinal only.
 | Pri | Item (detail below / in its plan) | What ships | Tag | Tier / effort | Depends on |
 |---|---|---|---|---|---|
 | **A — 0.7.0: the lateral term the base method is missing, the fixture data it needs, the hub thrust card, the station envelope, the recorded decisions, and the GUI review (review BR-2…BR-7, BR-11)** ||||||
-| 2 | **Lateral body aero `Cy_β`/`Cn_β` (L-7) — the 0.7.0 headline** — design note in [`19_l7_lateral_body_aero_note.md`](19_l7_lateral_body_aero_note.md) (**proposed rev. 2, to be agreed in chat before code**; the one 0.7.0 schema hop) (#8) | Honest lateral `n_y`/`ψ̈` (today `ψ̈` over-stated 73–84 %, `n_y` under-stated 4–12 % — a missing term of the order of the one kept, not a refinement); DATCOM 5.2.3.1/5.2.1.1 makes it an **oracle** step (11 printed cases, ±0.1 %) | V | L / M | — (ga6 outline shipped 2026-08-17) |
-| 3 | Thrust `FORCE` at the engine hub *(carved out of note 21; the seven-step wake plan is parked)* (#10) | One user-entered thrust per engine as a card on the LRA hub node the skeleton already has — what a wing with a wing-mounted engine needs from a loads tool; today's wing cases are exactly zero-thrust | V | S / S | — |
-| 4 | Combined flight + ground station envelope *(from step 10 decision G-9)* (#11) | Two-sided max/min per station over both families, each extreme naming its governing case | V | M / M | — |
-| 5 | Decisions, not effort: derived-`ACRL` air-load divergence (which point `ACRL` names); ATR-42 Mach-capped stall exceedance (`_balance` reports an infeasible corner rather than an unconverged point); **gust spanwise shape = Schrenk** (merged from #12: the gust-vs-manoeuvre shape difference is inside the Schrenk band by construction — recorded, not worked) (#13) | Three recorded decisions; the first two are pinned by test today | V | S / S | — |
-| 6 | **GUI review** — the Streamlit UI against the 0.6.0 deliverables: page order vs `workflow.py`, unit toggle/labels conformance, the ground/gear and LRA-model pages, CLI-vs-UI delivery gaps, plan 03 status; body of record in `50_reviews/`, findings filed as issues (rule 5), re-cut follows (#29) | The UI freeze re-opened to the extent the findings justify — a reviewed list, not a rework | V | S (review) / M | — |
+| 2 | Thrust `FORCE` at the engine hub *(carved out of note 21; the seven-step wake plan is parked)* (#10) | One user-entered thrust per engine as a card on the LRA hub node the skeleton already has — what a wing with a wing-mounted engine needs from a loads tool; today's wing cases are exactly zero-thrust | V | S / S | — |
+| 3 | Combined flight + ground station envelope *(from step 10 decision G-9)* (#11) | Two-sided max/min per station over both families, each extreme naming its governing case | V | M / M | — |
+| 4 | Decisions, not effort: derived-`ACRL` air-load divergence (which point `ACRL` names); ATR-42 Mach-capped stall exceedance (`_balance` reports an infeasible corner rather than an unconverged point); **gust spanwise shape = Schrenk** (merged from #12: the gust-vs-manoeuvre shape difference is inside the Schrenk band by construction — recorded, not worked) (#13) | Three recorded decisions; the first two are pinned by test today | V | S / S | — |
+| 5 | **GUI review** — the Streamlit UI against the 0.6.0 deliverables: page order vs `workflow.py`, unit toggle/labels conformance, the ground/gear and LRA-model pages, CLI-vs-UI delivery gaps, plan 03 status; body of record in `50_reviews/`, findings filed as issues (rule 5), re-cut follows (#29) | The UI freeze re-opened to the extent the findings justify — a reviewed list, not a rework | V | S (review) / M | — |
 | — | **Cut 0.7.0** when band A is empty (RELEASE_PROCESS §2 cadence rule) | | | | |
 | **B — 0.8+: capability that waits for a consumer (review BR-8)** ||||||
-| 7 | The aileron's own lift increment is not distributed (#14) | `ACRL` wing cards gain the aero half of the couple (~70 % span); the schema fields shipped v52 and wait for data and a consumer | V | L / M | only if a consumer sizes to `ACRL` |
+| 6 | The aileron's own lift increment is not distributed (#14) | `ACRL` wing cards gain the aero half of the couple (~70 % span); the schema fields shipped v52 and wait for data and a consumer | V | L / M | only if a consumer sizes to `ACRL` |
 | **C — maintenance and hygiene, when the module is next touched (review 2026-08-16 §5.2; BR-9)** ||||||
-| 8 | Export deck-writing primitives out of `sbeam_bridge.py` (CH-4) (#15) | `_fmt`/`_sf_str`/`_stamped`/`_MAT1_*`/`_PBAR_*` in a shared module; the four private cross-imports gone | V | S / S | — |
-| 9 | Dead code (CH-5) (#16) | Delete `write_balanced_deck`, `write_conm2_fragment`, `write_mass_check_deck`, `all_checks`; demote the ~12 no-consumer public names | V | S / S | — |
-| 10 | Calc-side function size (CH-8) — `build_lra_model` (336 lines), `landing_reactions` (200) (#17) | Split when touched; **the view functions wait for the GUI review (#29)** | V | S / S | — |
-| 11 | Review 2026-08-10 unscheduled findings m3–m13, m15–m18 + NITs *(defect sweep)* (#18) | Swept opportunistically (practice 4) or promoted individually | V | S / S–M | — |
-| 12 | mypy strictness ratchet — stage 2 `export/`, stage 3 `modules/` *(design note 27 ST-3; detail below)* (#19) | `sloads.export.*` then `sloads.modules.*` added to the `[[tool.mypy.overrides]]` list and narrowed to zero under ST-4 (no `ignore`, no `Any` widening, no `cast`); then `warn_return_any`/`disallow_any_generics` toward `--strict`; `UP` on when 3.9 leaves the matrix | V | S / S per stage | — |
+| 7 | Export deck-writing primitives out of `sbeam_bridge.py` (CH-4) (#15) | `_fmt`/`_sf_str`/`_stamped`/`_MAT1_*`/`_PBAR_*` in a shared module; the four private cross-imports gone | V | S / S | — |
+| 8 | Dead code (CH-5) (#16) | Delete `write_balanced_deck`, `write_conm2_fragment`, `write_mass_check_deck`, `all_checks`; demote the ~12 no-consumer public names | V | S / S | — |
+| 9 | Calc-side function size (CH-8) — `build_lra_model` (336 lines), `landing_reactions` (200) (#17) | Split when touched; **the view functions wait for the GUI review (#29)** | V | S / S | — |
+| 10 | Review 2026-08-10 unscheduled findings m3–m13, m15–m18 + NITs *(defect sweep)* (#18) | Swept opportunistically (practice 4) or promoted individually | V | S / S–M | — |
+| 11 | mypy strictness ratchet — stage 2 `export/`, stage 3 `modules/` *(design note 27 ST-3; detail below)* (#19) | `sloads.export.*` then `sloads.modules.*` added to the `[[tool.mypy.overrides]]` list and narrowed to zero under ST-4 (no `ignore`, no `Any` widening, no `cast`); then `warn_return_any`/`disallow_any_generics` toward `--strict`; `UP` on when 3.9 leaves the matrix | V | S / S per stage | — |
 
 **Frozen (review §3) — no further investment; tests and gates kept; touched
 for defects only:** the FAR 23 core; the balanced assembler + handedness;

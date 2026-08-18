@@ -61,6 +61,7 @@ from ..constants import (
     DEG_PER_RAD,
     GUST_LOAD_FACTOR_DIVISOR,
     IN_PER_FT,
+    KT_TO_FPS,
     RHO_SL,
     G,
     dynamic_pressure_psf,
@@ -724,8 +725,18 @@ def rudder_load_parts(lrud: float, lyaw: float,
     return cam, att
 
 
-def _vt_side_gust(p: VnPoint, cg: CgCase, vt: VTailLoadsInput, izz: float) -> float:
-    """Lateral gust side load at VC (FAR 23.443(b), SELECT.BAS 8840-8930)."""
+def _vt_side_gust_terms(p: VnPoint, cg: CgCase, vt: VTailLoadsInput, izz: float
+                        ) -> Tuple[float, float]:
+    """``(side load, effective sideslip deg)`` of the lateral gust at VC
+    (FAR 23.443(b), SELECT.BAS 8840-8930).
+
+    The load is the .BAS's own ``Kgt*Ude*V*AVT*SV/498``; the sideslip it
+    corresponds to, ``beta = Kgt*Ude/V`` (radians, ``V`` in ft/s), is
+    **published** with it (L-7, decision L-7.6) rather than re-derived downstream
+    -- the same ``Kgt`` and ``Ude``, so it is the load's own angle and not a
+    second opinion of it. Signed for the *computed* case: the returned load is
+    ``+fy`` (starboard), which is the wind-from-port, ``-beta`` hand (SC-1).
+    """
     av = _avt(vt)
     k = math.sqrt(izz / (cg.weight_lb / G))            # radius of gyration
     rho = density_ratio(p.altitude_ft) * RHO_SL
@@ -733,7 +744,34 @@ def _vt_side_gust(p: VnPoint, cg: CgCase, vt: VTailLoadsInput, izz: float) -> fl
     ude = 50.0 if p.altitude_ft <= 20000.0 else 50.0 - (25.0 / 30000.0) * (p.altitude_ft - 20000.0)
     ugt = 2.0 * cg.weight_lb / (rho * (vt.vtail_mac_in / IN_PER_FT) * G * av * vt.vtail_area_sqft * (k / lxvt) ** 2)
     kgt = gust_alleviation_factor(ugt)
-    return kgt * ude * p.v_eas_kt * av * vt.vtail_area_sqft / GUST_LOAD_FACTOR_DIVISOR
+    load = kgt * ude * p.v_eas_kt * av * vt.vtail_area_sqft / GUST_LOAD_FACTOR_DIVISOR
+    beta_deg = -DEG_PER_RAD * kgt * ude / (p.v_eas_kt * KT_TO_FPS)
+    return load, beta_deg
+
+
+def _vt_side_gust(p: VnPoint, cg: CgCase, vt: VTailLoadsInput, izz: float) -> float:
+    """Lateral gust side load at VC (FAR 23.443(b), SELECT.BAS 8840-8930)."""
+    return _vt_side_gust_terms(p, cg, vt, izz)[0]
+
+
+def fin_sideslip_derivatives(project: Project, vt: VTailLoadsInput
+                             ) -> Tuple[Optional[float], Optional[float]]:
+    """The fin's ``(Cy_beta, Cn_beta)`` **per degree, suite sign, about ``xw``**
+    (L-7, decision L-7.11) -- built from the very ``AVT``, ``S_v`` and arm that
+    make SELECT's sideslip loads, so ``balance``'s static-stability gate (note
+    19 G3) sums the fin's and the body's derivatives from their owners.
+
+    ``Cy_beta,fin = -(AVT/57.3) S_v/S_w`` (the ``+beta`` load is ``-fy``, SC-1);
+    ``Cn_beta,fin = Cy_beta,fin (x_v25 - x_w)/b`` (``mz = (x - x_ref) fy`` in
+    the +aft/+starboard/+up frame -- negative, restoring, for an aft fin).
+    ``(None, None)`` when the wing reference (``S``, ``b``, ``xw``) is missing.
+    """
+    fl = project.flight_loads
+    if fl is None or fl.wing_area_sqft <= 0.0 or vt.wing_span_in <= 0.0:
+        return None, None
+    cy = -(_avt(vt) / DEG_PER_RAD) * vt.vtail_area_sqft / fl.wing_area_sqft
+    cn = cy * (vt.xv25 - fl.xw) / vt.wing_span_in
+    return cy, cn
 
 
 def select_vtail(project: Project, envelope: Optional[EnvelopeResult] = None) -> List[CriticalCondition]:
@@ -756,6 +794,7 @@ def select_vtail(project: Project, envelope: Optional[EnvelopeResult] = None) ->
     # opinion of it.
     gw = vt.gross_weight_lb or max_takeoff_weight(project, required=False)
     izz = vt.izz_slugft2 or _default_izz(vt, gw)
+    cy_fin, cn_fin = fin_sideslip_derivatives(project, vt)
     out: List[CriticalCondition] = []
 
     # 1. Sudden full rudder deflection (FAR 23.441(a)(1)) -- largest rudder load.
@@ -767,7 +806,8 @@ def select_vtail(project: Project, envelope: Optional[EnvelopeResult] = None) ->
         loads=[LoadValue("Total tail load", lv, "lb", key="total_tail_load"),
                LoadValue("Load on rudder", on_rudder1, "lb", key="load_on_rudder"),
                LoadValue("V (EAS)", p1.v_eas_kt, "kt(EAS)", key="v_eas")],
-        lt25=0.0, lt50=lv))
+        lt25=0.0, lt50=lv,
+        beta_deg=0.0, cy_beta_fin=cy_fin, cn_beta_fin=cn_fin))
 
     # 2. Yaw to sideslip 19.5 deg, rudder held full (FAR 23.441(a)(2)) -- largest down.
     def total2(p: VnPoint) -> float:
@@ -781,7 +821,8 @@ def select_vtail(project: Project, envelope: Optional[EnvelopeResult] = None) ->
                LoadValue("Load due to yaw 19.5deg (cp 25%)", lyaw, "lb", key="load_due_to_yaw_19_5deg_cp_25_pct"),
                LoadValue("Load due to rudder (cp 50%)", lrud, "lb", key="load_due_to_rudder_cp_50_pct"),
                LoadValue("Load on rudder", on_rudder2, "lb", key="load_on_rudder")],
-        lt25=lyaw, lt50=lrud))
+        lt25=lyaw, lt50=lrud,
+        beta_deg=19.5, cy_beta_fin=cy_fin, cn_beta_fin=cn_fin))
 
     # 3. Yaw 15 deg, rudder neutral (FAR 23.441(a)(3)) -- largest down.
     p3 = _extreme(bal_a, lambda p: _vt_aoa_load(-15.0, p, vt), largest=False)
@@ -789,16 +830,19 @@ def select_vtail(project: Project, envelope: Optional[EnvelopeResult] = None) ->
         component="vtail", label="YAW 15 NEUTRAL", far_reference="23.441(a)(3)", case=p3.case,
         loads=[LoadValue("Total tail load (cp 25%)", _vt_aoa_load(-15.0, p3, vt), "lb",
             key="total_tail_load_cp_25_pct")],
-        lt25=_vt_aoa_load(-15.0, p3, vt), lt50=0.0))
+        lt25=_vt_aoa_load(-15.0, p3, vt), lt50=0.0,
+        beta_deg=15.0, cy_beta_fin=cy_fin, cn_beta_fin=cn_fin))
 
     # 4. Lateral gust at VC (FAR 23.443(b)) -- largest.
     p4 = _extreme(bal_c, lambda p: _vt_side_gust(p, cg_map[p.cg], vt, izz))
+    gust_load, gust_beta = _vt_side_gust_terms(p4, cg_map[p4.cg], vt, izz)
     out.append(CriticalCondition(
         component="vtail", label="SIDE GUST", far_reference="23.443(b)", case=p4.case,
-        loads=[LoadValue("Total tail load (cp 25%)", _vt_side_gust(p4, cg_map[p4.cg], vt, izz), "lb",
+        loads=[LoadValue("Total tail load (cp 25%)", gust_load, "lb",
             key="total_tail_load_cp_25_pct"),
                LoadValue("Yaw inertia IZZ", izz, "slug-ft^2", key="yaw_inertia_izz")],
-        lt25=_vt_side_gust(p4, cg_map[p4.cg], vt, izz), lt50=0.0))
+        lt25=gust_load, lt50=0.0,
+        beta_deg=gust_beta, cy_beta_fin=cy_fin, cn_beta_fin=cn_fin))
     return out
 
 

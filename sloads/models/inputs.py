@@ -98,6 +98,11 @@ class EngineInput:
     # FAR 25-only (optional concept-mode superset; see Project.include_far25)
     max_accel_torque: Optional[float] = None    # FAR 25.361(a)(3)(ii) max accelerating torque, ft-lb
                                                 # (blank -> falls back to max_engine_torque)
+    # v54 (L-7 hop passenger, note 19 decision L-7.10): the engine's design
+    # thrust, lb, for the hub-node ``FORCE`` card of backlog Pri 3 (#10) --
+    # reserved on this hop so 0.7.0 keeps to one schema change; ``None`` = not
+    # entered, and no shipped module reads it yet.
+    thrust_lb: Optional[float] = None
     # Concept-mode advisory rates: the concept's real 25.371 body pitch/yaw rates,
     # if known. Used ONLY to guard condition_25_371's fixed FAR 23.371(b) stand-in
     # (2.5 rad/s yaw, 1 rad/s pitch): when either declared rate exceeds the stand-in
@@ -648,6 +653,35 @@ class FuselageMomentInput:
 
 
 @dataclass
+class LateralBodyAeroInput:
+    """Lumped wing-body lateral aero in sideslip -- ``Cy_beta`` / ``Cn_beta`` (L-7).
+
+    Off-by-default (design note 19, decision L-7.3): when ``enabled`` the
+    balanced lateral cases (23.441 / 23.443) carry the wing-body side force and
+    yawing moment in sideslip beside the fin's load (``balance``,
+    ``source="body-aero"``), which raises ``|n_y|`` and lowers the yaw
+    acceleration -- a load-increasing change on one degree of freedom and a
+    load-decreasing one on the other, hence a user's decision rather than a
+    silent default. Default ``False`` contributes nothing, so every existing
+    deck is bit-for-bit unchanged (gate G8).
+
+    ``cy_beta`` / ``cn_beta`` are **per degree of sideslip**, in the suite's
+    sign convention (``CONVENTIONS.md`` §1: ``+fy`` starboard, ``+mz`` nose to
+    port -- so a destabilizing body ``cn_beta`` is *positive*), ``cn_beta``
+    about the wing 25 %-MAC station ``xw``. ``None`` means **compute** it per
+    case from the G1 fuselage outline by DATCOM 5.2.1.1 / 5.2.3.1
+    (:mod:`sloads.lateral_body_aero`; the yaw term's ``K_Rl`` is a function of
+    the case's Reynolds number, which is why the computed default is per case
+    and not one stored number); a value overrides the computed one for every
+    case, exactly as ``FuselageMomentInput.d_cm_dalpha`` overrides the Munk
+    estimate. Same shape, same "computed default, overridable" contract.
+    """
+    enabled: bool = False
+    cy_beta: Optional[float] = None    # per degree; None -> DATCOM 5.2.1.1
+    cn_beta: Optional[float] = None    # per degree about xw; None -> DATCOM 5.2.3.1
+
+
+@dataclass
 class AeroCoefficientsInput:
     """Airplane-less-tail aerodynamic coefficient sets -- ``Project.aero_coeffs``.
 
@@ -659,11 +693,14 @@ class AeroCoefficientsInput:
     ``flaps_down`` (when present) is balanced at sea level only per FLTLOADS.BAS
     line 3000 -- see ``flight_envelope.build_envelope``. ``fuselage_moment`` is
     the optional off-by-default Munk fuselage dCm/dalpha increment (Step G4),
-    added to both configs' ``M1`` when enabled.
+    added to both configs' ``M1`` when enabled; ``lateral_body_aero`` (v54, L-7)
+    is its lateral sibling -- the off-by-default wing-body ``Cy_beta`` /
+    ``Cn_beta`` in sideslip the balanced lateral cases apply beside the fin.
     """
     cruise: Optional[AeroCoeffSet] = None
     flaps_down: Optional[AeroCoeffSet] = None
     fuselage_moment: Optional[FuselageMomentInput] = None
+    lateral_body_aero: Optional[LateralBodyAeroInput] = None   # v54, L-7
     # Maximum lift coefficients -- the single authored source for stall (M1-1b).
     # clmax_clean/clmax_clean_neg = clean (cruise) positive/negative CLmax;
     # clmax_flap = flaps-down positive CLmax. STRSPEED/flap/one_engine_out derive
@@ -1611,6 +1648,7 @@ __all__ = [
     "LandingGearGeometry",
     "LandingGearInput",
     "LandingInput",
+    "LateralBodyAeroInput",
     "LayoutInput",
     "LoadingDefinition",
     "MachLimitInput",

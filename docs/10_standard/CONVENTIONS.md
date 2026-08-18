@@ -126,20 +126,31 @@ file + symbol is the anchor.
     **per fixture and per family** (`symmetric`/`lateral`), never widened for
     everyone: the lateral cases sit at V-n points the symmetric families never
     visit, and one merged number would stop the symmetric bounds from biting.
-- **A lateral balanced case states what it does not model, in-band** (decision
-  L-7). The fin is the only lateral aerodynamic load this suite computes —
-  fuselage and wing side force in sideslip are not modelled — and the two lateral
-  degrees of freedom err in **opposite directions** (corrected 2026-08-15; the
-  single "both over-stated" sentence shipped 2026-08-09 was wrong on `n_y`). The
-  missing body yawing couple is destabilizing and opposes the fin's, so the yaw
-  acceleration is **over-stated** and the inertia it drives is conservative. The
-  missing body-and-wing side force acts the same way as the fin's restoring load
-  at `+β` — it **adds** — so `n_y` is **under-stated** and the lateral
-  translational inertia it drives is **not** conservative on any component. Both
-  by an unknown amount: they are measurable, but no shipped code computes them
-  (backlog L-7 quantifies both halves and replaces this sentence). The fin's own
-  design load is SELECT's, unchanged. The caveat travels as a case note into the
-  deck `$` header and the report; it does not live only in documentation.
+- **A lateral balanced case states its wing-body sideslip term, in-band**
+  (decision L-7; design note 19 rev. 3, shipped 2026-08-17). Beside the fin's
+  load the suite computes the **wing-body side force and yawing moment in
+  sideslip** — `Cy_β`/`Cn_β` per degree from DATCOM 5.2.1.1 / 5.2.3.1 on the
+  fuselage outline (`sloads/lateral_body_aero.py`, oracle-locked to Digital
+  DATCOM's printed sample output at ±0.1 %) — and applies them as one
+  `body-aero` load (side force at the body side-area centroid, free couple
+  closing `Cn_β` about `xw`) when `aero_coeffs.lateral_body_aero.enabled`.
+  **Off by default**, because the term is not conservative in one direction:
+  the body's yawing couple is destabilizing and **opposes** the fin's, so with
+  the term off the yaw acceleration is **over-stated** and the inertia it drives
+  conservative; the body-and-wing side force acts the same way as the fin's
+  restoring load at `+β` — it **adds** — so with the term off `n_y` is
+  **under-stated** and the lateral translational inertia it drives is **not**
+  conservative on any component. Every lateral case states which it did
+  (decision L-7.16): the *estimated* force and moment it does not carry, or the
+  applied numbers, and either way the fin + body `Cn_β` about `xw` with its
+  static-directional-stability verdict (FAR 23.177; flagged, never silently
+  emitted). Signs: DATCOM's `+Cy` = starboard matches this frame; DATCOM's
+  `+Cn` = nose starboard is **negated** into `+mz` = nose to port, so a
+  destabilizing body `Cn_β` is *positive* here. The fin's own design load is
+  SELECT's, unchanged; SELECT publishes each condition's `β` and the fin's own
+  derivatives, and the balance re-derives neither. The caveat travels as a case
+  note into the deck `$` header and the report; it does not live only in
+  documentation.
 - **A ground case is a balanced free-free case, and it carries no base load
   factor** (decision **G-1**/**G-6**, step 10 piece 3). Ground conditions are born
   in the assembled deck — a ground case is irreducibly three-dimensional (drag and
@@ -447,6 +458,9 @@ export boundary, reduction-to-FAR23 identity on GA inputs. "No oracle" never mea
 | **The V-n envelope and the critical set a module works from** ("the persisted `Project.envelope`, else built from the flight-loads inputs" — one rule, one place, because `registry.run_all_modules` never assigns `Project.envelope` and every deliverable goes down that path) | `modules/select.py` (`default_envelope`, `default_critical`, and `vn_points`/`vn_by_case` for consumers with a documented in-band fallback) — `modules/wing_inertia.py` (`wing_case_sources`) resolves both once per build and threads them | `tests/test_envelope_owner.py::test_no_calc_code_reads_project_envelope_outside_the_owners` (AST scan of `sloads/`, allowlist with stated reasons) + the per-site behaviour gates in the same file |
 | **Platform-stable deliverable bytes** (a byte in a deck or report must not depend on libm build, FMA, or the Python version's `sum()`: (a) a critical-case pick between candidates whose keys agree to `_TIE_REL` relative goes to the **first in list order** — never to whichever landed an ulp higher; (b) a FORCE/MOMENT/GRID/CONM2 component below `_TOL ×` its own card's scale prints as `0.000000E+00`, never as its residue and never as `-0.000000E+00`; (c) every float summation is `math.fsum` — exactly rounded, so identical on 3.9/3.11/3.12 — never the built-in `sum()`, which 3.12 compensates and earlier versions do not) | `modules/select.py` (`_extreme` — every keyed `max`/`min` pick) + `export/sbeam_bridge.py` (`_fmt3` for every vector card; `_closed` for stated totals) + `math.fsum` at every summation site in `sloads/` | `tests/test_select.py::test_extreme_pick_is_first_in_order_across_a_platform_ulp_tie` + `tests/test_sbeam_bridge.py::test_card_components_snap_dust_and_negative_zero` + `tests/test_platform_stability.py::test_every_float_summation_in_sloads_is_fsum` (all three grep for bypasses) + the frozen Imperial digest run on the Linux CI matrix |
 | **No silent defaults in the export namespace** (a result field is read as the typed attribute it is; a name lookup is an explicit map that refuses an unknown key; `getattr(obj, name, default)` does not occur — CH-2, 2026-08-16) | every `sloads/export/*.py` reader; `00_program_overview.md` §Error handling states the rule | `tests/test_sbeam_bridge.py::test_the_export_package_takes_no_silent_defaults` (AST walk) + `::test_tail_span_export_refuses_an_unknown_component` |
+| **The wing-body sideslip derivatives and where they act** (`Cy_β`/`Cn_β` per degree, suite sign, `Cn_β` about `xw`; the side force at the body side-area centroid, the free couple closing the moment; DATCOM's yaw sign negated into `+mz` = nose to port — L-7) | `sloads/lateral_body_aero.py` (`estimate`, `transfer_cn_beta`) + `modules/balance.py` (`lateral_aero_terms` / `body_aero_loads`, the only writer of the `body-aero` source) | `tests/test_lateral_body_aero.py` (Digital DATCOM printed oracle, G1) + `tests/test_l7_lateral_balance.py` (G2–G12) |
+| **A lateral condition's sideslip and the fin's own derivatives** (`beta_deg` in the SC-1 sense, `cy_beta_fin`/`cn_beta_fin` about `xw`, from the same `AVT`/`S_v`/arm as the load; the balance never re-derives them — L-7.6/L-7.11) | `modules/select.py` (`select_vtail`, `_vt_side_gust_terms`, `fin_sideslip_derivatives`) | `tests/test_l7_lateral_balance.py::test_select_publishes_the_sideslip_and_the_fin_derivatives`, `…::test_a_persisted_critical_set_without_beta_says_so_instead_of_guessing` |
+| **Air viscosity / Reynolds number** (Sutherland on the suite's own temperature law, TAS — L-7.13; `standard_temperature_f` is the lapse-rate owner) | `sloads/atmosphere.py` (+ `constants.standard_temperature_f`) | `tests/test_lateral_body_aero.py::test_sea_level_viscosity_and_reynolds` |
 | Case IDs | `sloads/case_ids.py` | `tests/test_case_ids.py` |
 | Load-case row keys | `sloads/load_keys.py` | **flagged — see §8** |
 | Data dictionary | `docs/generate_data_dict.py` (generated doc) | `tests/test_data_dictionary.py::test_committed_doc_matches_generator` |

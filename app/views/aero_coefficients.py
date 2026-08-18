@@ -29,6 +29,7 @@ from sloads import (
     AeroCoefficientsInput,
     AeroCoeffSet,
     FuselageMomentInput,
+    LateralBodyAeroInput,
     Project,
     build_aero_curves,
     consistency_warnings,
@@ -420,6 +421,7 @@ else:
             clmax_clean=aero.clmax_clean, clmax_clean_neg=aero.clmax_clean_neg,
             clmax_flap=aero.clmax_flap,
             fuselage_moment=FuselageMomentInput(enabled=fm_enabled, d_cm_dalpha=fm_value),
+            lateral_body_aero=aero.lateral_body_aero,   # sibling slice, not this form's
         )
         st.session_state["project"] = project
         aero = project.aero_coeffs
@@ -433,3 +435,92 @@ if aero.fuselage_moment is not None and aero.fuselage_moment.enabled:
         f"Balance includes a fuselage ΔM1 = {aero.fuselage_moment.d_cm_dalpha:+.5f} /deg "
         "(the M(W+F) pitching moment on the Flight Envelope page reflects it)."
     )
+
+
+# --------------------------------------------------------------------------- #
+# L-7: lumped wing-body lateral aero in sideslip (design note 19, rev. 3)
+# --------------------------------------------------------------------------- #
+st.divider()
+st.subheader("Lateral body aero in sideslip (Cy_β / Cn_β, DATCOM)")
+st.caption(
+    "The wing-body side force and yawing moment in sideslip, applied beside the "
+    "fin's load in the balanced 23.441 / 23.443 cases. **Off by default** — it "
+    "raises |n_y| (the side force adds to the fin's) and lowers the yaw "
+    "acceleration (the body's couple opposes the fin's), so it is your decision. "
+    "Method: DATCOM 5.2.1.1 / 5.2.3.1 from the Geometry page fuselage outline, "
+    "computed per case (the yaw term depends on the case Reynolds number); "
+    "entering a value overrides it for every case. Per degree of sideslip, "
+    "suite sign (+Cn_β = destabilizing), Cn_β about the wing 25 %-MAC station."
+)
+_existing_lb = aero.lateral_body_aero
+_lb_est = None
+if _outline is not None and _fl is not None and _fl.wing_area_sqft > 0:
+    from sloads import atmosphere as _atm
+    from sloads import lateral_body_aero as _lba
+    _vt = project.vtail_loads
+    _span = _vt.wing_span_in if _vt is not None and _vt.wing_span_in > 0 else 0.0
+    _v_ill = 150.0   # illustrative EAS, kt; VC when STRSPEED can supply it
+    try:
+        from sloads.modules.flight_envelope import design_inputs as _design_inputs
+        _v_ill = float(_design_inputs(project).vc) or _v_ill
+    except Exception:
+        pass
+    if _span > 0:
+        _lb_est = _lba.estimate(_outline, _fl.wing_area_sqft, _span, _fl.xw,
+                                _atm.reynolds_per_ft(_v_ill, 0.0))
+if _lb_est is None:
+    gate(
+        "Define the fuselage outline (**Geometry**), the wing area / 25 %-MAC "
+        "station (**Flight Envelope**) and the wing span (**Empennage**, v-tail "
+        "slice) first — the estimator needs all three.",
+        "configuration_layout", "flight_envelope", kind="info",
+    )
+else:
+    c1, c2, c3 = st.columns(3)
+    c1.metric("Cy_β (per deg)", f"{_lb_est.cy_beta:+.5f}")
+    c2.metric("Cn_β (per deg, about xw)", f"{_lb_est.cn_beta:+.5f}")
+    c3.metric("K_N · K_Rl", f"{_lb_est.k_n:.5f} · {_lb_est.k_rl:.3f}")
+    st.caption(
+        f"Illustrative estimate at sea level, {_v_ill:.0f} kt EAS (the balance "
+        f"recomputes K_Rl at each case's own speed and altitude): body length "
+        f"{_lb_est.length_in:,.0f} in, side area {_lb_est.s_bs_in2:,.0f} in², "
+        f"CL_α,B {_lb_est.cl_alpha_body:.5f}/deg, K_i {_lb_est.k_i:.3f}, "
+        f"dihedral term {_lb_est.cy_beta_dihedral:+.5f}/deg. Munk isolated-body "
+        "cross-check and the DATCOM oracle: `tests/test_lateral_body_aero.py`."
+    )
+with st.form("lateral_body_aero_form"):
+    lb_enabled = st.checkbox(
+        "Apply the wing-body Cy_β / Cn_β in the balanced lateral cases",
+        value=bool(_existing_lb and _existing_lb.enabled),
+    )
+    lb_override = st.checkbox(
+        "Override the computed derivatives with the values below",
+        value=bool(_existing_lb and (_existing_lb.cy_beta is not None
+                                     or _existing_lb.cn_beta is not None)),
+    )
+    _cy0 = (_existing_lb.cy_beta if _existing_lb and _existing_lb.cy_beta is not None
+            else (_lb_est.cy_beta if _lb_est else 0.0))
+    _cn0 = (_existing_lb.cn_beta if _existing_lb and _existing_lb.cn_beta is not None
+            else (_lb_est.cn_beta if _lb_est else 0.0))
+    lb_cy = st.number_input("Cy_β (per degree)", value=float(_cy0), format="%.5f")
+    lb_cn = st.number_input("Cn_β about xw (per degree, + = destabilizing)",
+                            value=float(_cn0), format="%.5f")
+    lb_applied = st.form_submit_button("Apply lateral body aero", type="primary")
+if lb_applied:
+    project.aero_coeffs = AeroCoefficientsInput(
+        cruise=aero.cruise, flaps_down=aero.flaps_down,
+        clmax_clean=aero.clmax_clean, clmax_clean_neg=aero.clmax_clean_neg,
+        clmax_flap=aero.clmax_flap,
+        fuselage_moment=aero.fuselage_moment,
+        lateral_body_aero=LateralBodyAeroInput(
+            enabled=lb_enabled,
+            cy_beta=lb_cy if lb_override else None,
+            cn_beta=lb_cn if lb_override else None),
+    )
+    st.session_state["project"] = project
+    aero = project.aero_coeffs
+    st.success("Lateral body aero " + ("ENABLED" if lb_enabled else "stored (disabled)")
+               + (" with entered derivatives." if lb_override else " — computed per case."))
+if aero.lateral_body_aero is not None and aero.lateral_body_aero.enabled:
+    st.info("The balanced lateral cases carry the wing-body sideslip term; each "
+            "case note states the applied numbers and the net fin+body Cn_β.")

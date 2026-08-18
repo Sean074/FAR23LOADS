@@ -370,20 +370,24 @@ emitted as a handed pair. The lateral equilibrium about the CG:
 ΣMx:  −L_v·(z_v − z_cg) = Ixx·ṗ + Ixz·ψ̈   →  ṗ  from the coupled solve
 ```
 
-**The pre-closure lateral residual is the entire fin load, by construction.**
-Unlike the symmetric case, where aero and inertia nearly cancel to a 0.3 %
-residual, there is nothing for a rudder kick to cancel against — the suite
-computes no other lateral aero (no fuselage, wing, or h-tail side force). So
-the 1 % smallness gate is meaningless laterally, and the replacement gates
-(decision L-5) are: the yaw identity against ONENGOUT's oracle-locked
-`ψ̈ = M/Izz` (G1), the symmetric half still meeting its own 1 % gate with the
-fin load removed (G9), and the lateral quantities pinned per fixture (G10).
+**The pre-closure lateral residual is the entire applied lateral aero, by
+construction.** Unlike the symmetric case, where aero and inertia nearly cancel
+to a 0.3 % residual, there is nothing for a rudder kick to cancel against — the
+lateral aero (the fin's load, plus the wing-body term of §7.4 when enabled) is
+reacted by rigid-body motion alone. So the 1 % smallness gate is meaningless
+laterally, and the replacement gates (decision L-5) are: the yaw identity
+against ONENGOUT's oracle-locked `ψ̈ = M/Izz` (G1), the symmetric half still
+meeting its own 1 % gate with the fin load (and the body term) removed (G9), and
+the lateral quantities pinned per fixture (G10).
 
-**Stated limitation (decision L-7), carried in-band wherever the case renders:**
-because the fin is the only lateral aero modelled, `n_y` and `ψ̈` are
-**over-stated**, the inertia they drive is conservative on every component, and
-the fin's own design load is SELECT's, unchanged. The magnitude of the
-overstatement is unknown and is stated as unknown.
+**Decision L-7, as shipped 2026-08-17 (design note 19 rev. 3):** the fin is no
+longer the only lateral aero the suite can apply — §7.4 — but the wing-body term
+is **off by default**, and with it off the two lateral degrees of freedom err in
+opposite directions: `ψ̈` is over-stated (the body's couple opposes the fin's;
+conservative) and `n_y` is **under**-stated (the body-and-wing side force adds
+to the fin's; not conservative). Every lateral case states which state it is in
+and the numbers (decision L-7.16); the fin's own design load is SELECT's,
+unchanged.
 
 ### 7.1 Where the fin sits — the L-1 waterline
 
@@ -457,6 +461,49 @@ and rolls the fin through its own asymmetric lift and inertia (fin bending and
 torsion from mass at the tip). That transfer is plan 09 **T7**, deliberately
 out of B8a scope — backlog step 9 — and is the stated boundary of this
 document's T-tail treatment.
+
+### 7.4 The wing-body sideslip term (L-7, 2026-08-17)
+
+Method, signs and the DATCOM oracle: `00_theory_sources.md` (`lateral_body_aero`
+row); conventions: `CONVENTIONS.md` §1 (the L-7 bullet) and §7 (owners). Here,
+what the term does to the lateral balance.
+
+With `aero_coeffs.lateral_body_aero.enabled` the applied lateral set gains one
+`body-aero` load: the wing-body side force `Y = Cy_β·q·S·β` at the body
+side-area centroid on the fuselage centreline, and a free couple such that the
+pair's yawing moment about the wing 25 %-MAC station `xw` is exactly
+`N = Cn_β·q·S·b·β` (gate G6). `β` and the fin's own derivatives come from
+SELECT's condition; the body's come from DATCOM 5.2.1.1 / 5.2.3.1 on the fuselage
+outline at the case's own Reynolds number, unless entered. About the case CG the
+pair reads `N_cg = N − (x_cg − xw)·Y` (`lateral_body_aero.transfer_cn_beta`).
+The lateral equilibrium becomes
+
+```
+ΣFy:   L_v + Y − W·n_y = 0                          →  n_y = (L_v + Y)/W
+ΣMz:   L_v·(x_v − x_cg) + N_cg + Σ mzz = Izz·ψ̈       →  ψ̈  from the coupled solve
+ΣMx:  −L_v·(z_v − z_cg) − Y·(z_b − z_cg) = Ixx·ṗ + Ixz·ψ̈
+```
+
+At `+β` `Y < 0` (port) like the fin's restoring load, so `|n_y|` rises; the
+body couple `N > 0` (nose port, destabilizing) opposes the fin's, so `|ψ̈|`
+falls — and on `YAW TO SIDESLIP` (23.441(a)(2)) reverses, which is the
+regulation's overswing under full rudder, not a failure (note 19 §4). The gate
+that does apply is static directional stability, fin + body `Cn_β` restoring
+about `xw`, stated on every case and flagged when it fails (G3). Measured on the
+shipped fixtures (term on vs off, starboard case): `concept_regional_jet`
+`Cy_β −0.00101/deg`, `Cn_β +0.00332/deg` (fin `−0.00486`; net `−0.00154`) —
+`|n_y|` +11 % / +11 % / +33 % and `|ψ̈|` −73 % / −71 % / reversed on `YAW 15
+NEUTRAL` / `SIDE GUST` / `YAW TO SIDESLIP`; `ga6_normal` `Cy_β −0.00104`,
+`Cn_β +0.00069` (fin `−0.00176`; net `−0.00107`) — `|n_y|` +27 % / +27 % / ×2.9
+and `|ψ̈|` −41 % / −40 % / reversed. `SUDDEN RUDDER` (`β = 0`) is untouched
+exactly (G2). Munk's isolated-body couple, retained as the independent producer
+(`fuselage_moment.munk_yaw_slope_per_deg`), sits below DATCOM's wing-body value
+on both fixtures (G7). The magnitude of `Cy_β` on the RJ is larger than the
+design note's scratch estimate (which took `CL_α,B` from the base area):
+DATCOM's `S_0` sits at 90 % of the body length, and on the fixture's
+three-section outline — a linear cone from the maximum section to the tail —
+that is ~10× the base area; a finer entered outline moves it, and the case note
+carries the number either way.
 
 ## 8. The unsymmetrical horizontal tail — FAR 23.427(a)
 

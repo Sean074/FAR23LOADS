@@ -242,7 +242,15 @@ from .results import EnvelopeResult, LoadsResult, MassResult
 # aileron/flap butt-line + hinge fields, SurfaceInput.ref_axis_pct Optional (R-7c).
 # v53: MassItem.wing_fraction (design note 29, wing-tank fuel separability) --
 # additive with a 0.0 default, no migration hop; the 0.6.0 freeze's one hop.
-SCHEMA_VERSION = 53
+# v54 (L-7, design note 19 rev. 3 -- the 0.7.0 freeze's one hop):
+# AeroCoefficientsInput.lateral_body_aero (LateralBodyAeroInput: off-by-default
+# wing-body Cy_beta/Cn_beta in sideslip, computed per case from the G1 outline by
+# DATCOM 5.2.1.1/5.2.3.1 unless overridden), and its passenger (decision L-7.10)
+# EngineInput.thrust_lb, reserved for the hub-node thrust card (backlog #10).
+# Both additive with None defaults, no migration hop; the v-tail
+# CriticalCondition gains beta_deg / cy_beta_fin / cn_beta_fin (result slice,
+# tolerant reader defaults them to None).
+SCHEMA_VERSION = 54
 
 
 @dataclass

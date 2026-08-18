@@ -208,10 +208,58 @@ def test_the_lateral_caveat_states_a_direction_per_degree_of_freedom():
     # ...and the consequence for the inertia, stated both ways round.
     assert "the inertia it drives is conservative" in note
     assert "NOT conservative" in note
-    # No magnitude is claimed in band -- no shipped code computes one (backlog L-7).
-    assert "unknown amount" in note
+    # L-7 (2026-08-17) closed the "unknown amount": the term is now computed and
+    # the standing sentence defers the magnitude to the case, which states it
+    # (decision L-7.16) -- so no fixed number, and no "unknown", lives here.
+    assert "unknown amount" not in note
+    assert "OFF by default" in note
+    assert "estimated amount the case states" in note
     # It still travels, wording unchanged, into the controlling document.
     assert note[1:] in methods_statement(_project(_GA))
+
+
+def test_the_statement_says_which_state_the_l7_term_is_in():
+    """The controlling document names the term's state for the project it
+    describes -- disabled on the shipped GA, enabled when the input says so."""
+    from dataclasses import replace
+
+    from sloads.models import LateralBodyAeroInput
+
+    project = _project(_GA)
+    assert "Lateral body aero (L-7) is DISABLED for this project" in methods_statement(project)
+    project.aero_coeffs = replace(project.aero_coeffs,
+                                  lateral_body_aero=LateralBodyAeroInput(enabled=True))
+    text = methods_statement(project)
+    assert "Lateral body aero (L-7) is ENABLED for this project (DATCOM" in text
+
+
+def test_every_lateral_case_carries_one_of_the_two_l7_sentences():
+    """Decision L-7.16: two stamped wordings, one per state of the term, both
+    pinned so the deck can never claim the term was applied when it was not
+    (or the reverse). The GA fixture ships with the term off, so its lateral
+    cases carry the DISABLED sentence with the *estimated* effect; enabling it
+    switches every one of them to the APPLIED sentence with the numbers."""
+    from dataclasses import replace
+
+    from sloads.models import LateralBodyAeroInput
+    from sloads.modules.balance import build_balanced_cases, is_lateral
+
+    project = _project(_GA)
+    off = [c for c in build_balanced_cases(project) if is_lateral(c)]
+    assert off
+    for c in off:
+        assert any("lateral body aero (L-7) DISABLED -- estimated for this case" in n
+                   for n in c.notes), c.label
+        assert not any("APPLIED" in n for n in c.notes), c.label
+    project.aero_coeffs = replace(project.aero_coeffs,
+                                  lateral_body_aero=LateralBodyAeroInput(enabled=True))
+    on = [c for c in build_balanced_cases(project) if is_lateral(c)]
+    for c in on:
+        if c.beta_deg == 0.0:
+            assert any("ENABLED but beta = 0" in n for n in c.notes), c.label
+        else:
+            assert any("lateral body aero (L-7) APPLIED" in n for n in c.notes), c.label
+        assert not any("DISABLED" in n for n in c.notes), c.label
 
 
 def test_the_assumed_tail_planform_reaches_the_statement():

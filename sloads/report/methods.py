@@ -313,6 +313,29 @@ def _spar_block(project: Project) -> List[str]:
 _TAIL_LABELS = {"htail": "Horizontal tail", "vtail": "Vertical tail"}
 
 
+def _lateral_body_aero_block(project: Project) -> List[str]:
+    """Which state the L-7 term is in **for this project** (decision L-7.16).
+
+    The standing limitation states what the term is and which way each lateral
+    degree of freedom errs without it; this line says whether *this* bundle
+    applied it, and on what basis, so the controlling document and the case
+    notes agree without the reader having to open a deck header."""
+    aero = project.aero_coeffs
+    inp = aero.lateral_body_aero if aero is not None else None
+    if inp is None or not inp.enabled:
+        return ["  Lateral body aero (L-7) is DISABLED for this project: the lateral "
+                "cases carry the fin's sideslip load only, and each states the "
+                "estimated wing-body side force and yawing moment it does not carry."]
+    basis = ("entered Cy_beta and Cn_beta" if inp.cy_beta is not None and inp.cn_beta is not None
+             else "DATCOM 5.2.1.1 / 5.2.3.1 from the fuselage outline, per case"
+             if inp.cy_beta is None and inp.cn_beta is None
+             else "one derivative entered, the other from DATCOM")
+    return [f"  Lateral body aero (L-7) is ENABLED for this project ({basis}): "
+            "the lateral cases carry the wing-body side force and yawing moment "
+            "in sideslip beside the fin's load, and each states the applied "
+            "numbers and the net fin+body Cn_beta."]
+
+
 def _tail_planform_block(project: Project) -> List[str]:
     """The ASSUMED-planform caveat, per surface, only where it is assumed.
 
@@ -437,6 +460,7 @@ def methods_statement(
     L.extend(_closure_block(project))
     L.extend(_spar_block(project))
     L.extend(_tail_planform_block(project))
+    L.extend(_lateral_body_aero_block(project))
     L.extend(f"  {text}" for _, text in _standing_limitations())
     L.append("")
 

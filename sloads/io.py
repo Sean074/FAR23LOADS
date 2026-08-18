@@ -60,6 +60,7 @@ from .models import (
     LandingGearGeometry,
     LandingGearInput,
     LandingInput,
+    LateralBodyAeroInput,
     LayoutInput,
     LoadingDefinition,
     LoadsResult,
@@ -619,6 +620,7 @@ def flight_loads_to_dict(inp: FlightLoadsInput) -> Dict[str, Any]:
 def aero_coefficients_from_dict(d: Dict[str, Any]) -> AeroCoefficientsInput:
     """Build an :class:`AeroCoefficientsInput` from a plain dict."""
     fm = d.get("fuselage_moment")
+    lb = d.get("lateral_body_aero")
     return AeroCoefficientsInput(
         cruise=_aero_coeff_set_from_dict(d["cruise"]) if d.get("cruise") else None,
         flaps_down=_aero_coeff_set_from_dict(d["flaps_down"]) if d.get("flaps_down") else None,
@@ -631,6 +633,14 @@ def aero_coefficients_from_dict(d: Dict[str, Any]) -> AeroCoefficientsInput:
                 d_cm_dalpha=float(fm.get("d_cm_dalpha", 0.0)),
             )
             if fm else None
+        ),
+        lateral_body_aero=(
+            LateralBodyAeroInput(
+                enabled=bool(lb.get("enabled", False)),
+                cy_beta=None if lb.get("cy_beta") is None else float(lb["cy_beta"]),
+                cn_beta=None if lb.get("cn_beta") is None else float(lb["cn_beta"]),
+            )
+            if lb else None
         ),
     )
 
@@ -652,6 +662,12 @@ def aero_coefficients_to_dict(inp: AeroCoefficientsInput) -> Dict[str, Any]:
         out["fuselage_moment"] = {
             "enabled": inp.fuselage_moment.enabled,
             "d_cm_dalpha": inp.fuselage_moment.d_cm_dalpha,
+        }
+    if inp.lateral_body_aero is not None:
+        out["lateral_body_aero"] = {
+            "enabled": inp.lateral_body_aero.enabled,
+            "cy_beta": inp.lateral_body_aero.cy_beta,
+            "cn_beta": inp.lateral_body_aero.cn_beta,
         }
     return out
 
@@ -689,6 +705,9 @@ def _critical_condition_from_dict(d: Dict[str, Any]) -> CriticalCondition:
         case_ref=_case_ref_from_dict(d.get("case_ref")),
         note=d.get("note", ""),
         safety_factor=_safety_factor(d),
+        beta_deg=d.get("beta_deg"),
+        cy_beta_fin=d.get("cy_beta_fin"),
+        cn_beta_fin=d.get("cn_beta_fin"),
     )
 
 

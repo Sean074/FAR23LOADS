@@ -239,6 +239,7 @@ approved-corrections register [`../20_theory/02_approved_corrections.md`](../20_
 - **Reads:** `Project.mass` (WTONECG inertia), `Project.geometry` (WINGGEOM), `Project.envelope.vn` (FLTLOADS); plus AIRLOADS/AIRLOAD4 spanwise airloads. Run once per component (wing, fuselage, htail, vtail).
 - **Writes:** the governing (critical) flight-load set per surface → `Project.envelope.critical`. Per Ch 9 this is **much more than selection** — SELECT *computes* the rational critical loads: wing loads (PHAA/PMAA/PLAA/NMAA, accelerated & steady roll), rational + balancing + maneuvering + up/down-gust + unsymmetrical **horizontal** tail loads, **vertical** tail loads (23.441/23.443), and **fuselage** loads (23.301/23.331/23.351/23.471; Ch 9 + Ch 15 net fuselage).
 - **Validation:** Appendix A/B — the selected critical points (`SELWGLDS/SELHTLDS/SELVTLDS/SELFSLDS`).
+- **Publishes (L-7, 2026-08-17):** every vertical-tail condition carries its sideslip `beta_deg` in the SC-1 sense (`SUDDEN RUDDER` 0, `YAW TO SIDESLIP` +19.5, `YAW 15 NEUTRAL` +15, `SIDE GUST` the load's own `−Kgt·Ude/V`) and the fin's `cy_beta_fin` / `cn_beta_fin` per degree about `xw`, built from the same `AVT`, `S_v` and arm as the load (`select.fin_sideslip_derivatives`, `_vt_side_gust_terms`) — the balance reads them and re-derives nothing (note 19 decisions L-7.6 / L-7.11). No load or oracle changes.
 - **Notes:** Central junction. Reads V-n data from FLTLOADS + geometry (WINGGEOM) + inertia (WTONECG). Per UG Table 2.2 it feeds **AIRLOADS, AIRLOAD4 (iterative — see AIRLOADS), WINGINER, TAILDIST**. NETLOADS/component modules consume `critical` indirectly via those. **Step D5:** `CriticalLoadSet.selected_case_ids` is an **opt-out GUI selection** — the Critical Loads page persists which computed conditions the engineer keeps for the deliverable (empty = no filter, every condition kept, the default and the whole behavior for older projects); `CriticalLoadSet.selected()` applies it. Only the **Results Review** page's display reads `.selected()` — every structural calc module (WINGINER/NETLOADS, `body_loads`, the sbeam export bridge) deliberately keeps reading `.conditions` unfiltered, so the selection can never silently drop load cases from a deliverable's structural sizing, only from the GUI summary. (D8.3 is expected to wire the export bundle to this same selection — not yet done.) **M2-4:** the governing-loads tables on **both** the **Results Review** headline and the Flight Envelope **Critical Loads** tab render through one shared `report.governing_loads_table(conditions, system, sf)` — load columns are ULTIMATE (scaled by SF, `-ULT` marker + `SF` column), dimensionless/speed columns (n, CL, V) unscaled and unmarked, absent cells `"—"`. **Review F-R1 (M4-8 Layer-1 report-side slice):** the factor is **per case** — each row scales by its own `CriticalCondition.safety_factor` (14 CFR 23.303 → 1.5 by default, 1.0 for a case already at ultimate) and its `SF` cell states that row's factor, matching the export side (`sbeam_bridge._sf`); the helper takes no caller-supplied `sf` override, so a report figure and its bulk-data card cannot state different factors for one case. **M4-8 / G-11 (2026-08-14):** that per-case factor is now itself a derived view — `sloads/safety_factors.py`'s governing table classifies each case by its FAR reference and writes the carrier at `registry.run_all_modules`, `report.content.component_loads` and `balanced_run`, so a project-level override reaches the report column and the bulk-data cards together or not at all.
 
 ### BALLOADS — Rational balanced-tail-load verification (utility) — Step C11
@@ -886,13 +887,25 @@ result that lacks what a deck needs is a stated error, never an empty column.
   reported, never gated — the gated statement is that the case's symmetric half
   is unchanged (`CONVENTIONS.md` §1). Whether a case is handed is decided by
   `balance.is_handed` on the applied distribution, and whether it is lateral by
-  `balance.is_lateral` (§7 owners). **Limitation, stated in-band:** the fin is
-  the only lateral aero the suite computes, and the two lateral DOF err in
-  **opposite** directions (corrected 2026-08-15) — the yaw acceleration is
-  over-stated and its inertia conservative, while `n_y` is **under**-stated
-  (the missing body/wing side force adds to the fin's) and its inertia is **not**
-  conservative — both by an unknown amount; the fin's own design load is
-  unchanged. Filed on the backlog with M4-19.
+  `balance.is_lateral` (§7 owners). **The wing-body sideslip term (L-7, design
+  note 19 rev. 3, 2026-08-17):** the wing-body side force and yawing moment in
+  sideslip — `Cy_β`/`Cn_β` per degree from DATCOM 5.2.1.1 / 5.2.3.1 on the
+  fuselage outline (`sloads.lateral_body_aero`, oracle-locked to Digital
+  DATCOM's printed sample output) — are applied beside the fin's load as **one**
+  `source="body-aero"` load (the side force at the body side-area centroid on
+  the centreline plus the free couple that closes `Cn_β` about `xw`) when
+  `aero_coeffs.lateral_body_aero.enabled`; **off by default** (L-7.3), because
+  the term raises `|n_y|` (the side force adds to the fin's at `+β`) and lowers
+  the yaw acceleration (the couple is destabilizing and opposes the fin's).
+  `β`, `Cy_β,fin` and `Cn_β,fin` are read from SELECT's condition, never
+  re-derived (L-7.6/L-7.11); the derivatives are computed **per case** (`K_Rl` is
+  a Reynolds-number function, TAS + local viscosity, `sloads.atmosphere`) unless
+  entered. Every lateral case states one of two sentences (L-7.16): the
+  *estimated* side force / yawing moment it does not carry when the term is off,
+  or the applied numbers when on — and, either way, the fin + body `Cn_β` about
+  `xw` with its static-directional-stability verdict (`cn_beta_net`; flagged
+  `NOT RESTORING`, never silently emitted). `SUDDEN RUDDER` (`β = 0`) takes
+  exactly no body load. The distributed per-station body load stays with M4-19.
 - **Unsymmetrical horizontal-tail balanced case (FAR 23.427(a), D-R8,
   2026-08-10).** The one h-tail condition with a hand assembles as a **handed
   pair** (`HT-09R`/`HT-09L`, SUBCASE `7209`/`8209`). SELECT's own RH/LH split is
@@ -965,7 +978,8 @@ result that lacks what a deck needs is a stated error, never an empty column.
   `−n_z·W_vt` **axial** along the span (`f_span`/`s_span`, mapped by
   `coordinates.tail_axial_to_airplane`, emitted in the same `FORCE` cards). The
   lateral term relieves the surface total by exactly `W_vt/W_case` and inherits
-  decision L-7's lateral-aero caveat (which is an **under**-statement on `n_y`,
+  decision L-7's lateral-aero statement (with the wing-body term off — the
+  shipped default — an **under**-statement on `n_y`,
   so the relief itself is under-stated) — both stated in-band. A condition naming
   no V-n point gets no lateral term. Load factors are resolved through
   `select.vn_points`, the single owner's tolerant read; reading

@@ -2,7 +2,27 @@
 
 **Owner:** @Sean074 · **Reviewers:** — *(design note 28 MD-6: the owner of what a note touches reviews it as a PR)*
 
-**Status: PROPOSED, not agreed — no code written.** Written to `CLAUDE.md`
+**Status: SHIPPED 2026-08-17** (revision 3 agreed in chat the same day —
+decisions L-7.8…L-7.17 below). Implementation: `sloads/lateral_body_aero.py`,
+`sloads/atmosphere.py`, `select.py` (β and fin-derivative publication),
+`balance.py` (`lateral_aero_terms` / `body_aero_loads` / the two case
+sentences), schema v54; gates `tests/test_lateral_body_aero.py` (G1) and
+`tests/test_l7_lateral_balance.py` (G2–G12). **Three things the implementation
+settled differently from the text below, recorded rather than rewritten:**
+(a) the DATCOM transcription in §3 is from `SUPLAH` (the *supersonic* h-tail
+slot); the subsonic path is `SUBLAT` (`datcom.f:29027-29052`), which differs in
+three details — `K_i` from the wing height (`2·z_w/d`, fig. 5.2.1.1-7), chart C's
+argument is `h_max/w_max` (not 1.0), and the side area is `∫(ZU−ZL)` when the
+profile is given — and is what the printed oracle reproduces (all applicable
+sample values within 0.05 %); (b) the moment reference of the computed `Cn_β`
+is the wing 25 %-MAC station `xw` (the suite's aerodynamic reference, where the
+trim's force system already acts) rather than a "reference CG" — L-7.9's linear
+transfer to each case CG is unchanged; (c) the applicable oracle set is
+`ex1` c1, `ex3` c1 (M 0.6 and 0.8), `ex4` c1, `ex5` — `ex7`/`ex8` print only the
+fin-inclusive total and drop out. §7's scratch numbers stand as the design
+baseline; the shipped values (`Cy_β` on the RJ is ~2.7× the scratch value,
+because DATCOM's `S_0` on the fixture's three-section tail cone is ~10× the base
+area the scratch used) are in `docs/20_theory/balanced_cases.md` §7.4. Written to `CLAUDE.md`
 required practice 1 (design note before code, physics/L step). Backlog item
 **Pri 2** — the 0.7.0 headline, issue #8 ([`00_backlog.md`](00_backlog.md), re-cut 2026-08-17), from plan 13 decision **L-7**
 ([`13_b8a_lateral_closure_plan.md`](../40_history/18_b8a_lateral_closure_plan.md) §5.6).
@@ -13,10 +33,21 @@ reduction factor and no side force. Sourcing Digital DATCOM
 `PROVENANCE.md`) overturned three of its conclusions;
 every one is marked **[R1 CORRECTION]** below rather than quietly replaced.
 
-**Definition of done is an oracle, not a closure gate.** Digital DATCOM ships 11
-sample cases with printed `CYB`/`CNB` output. The port is validated against those
-at ±0.1 %, exactly as the FAR23 core is validated against Appendix A. This
-replaces revision 1's "no oracle exists → stated closure gate" premise.
+**Revision 3, 2026-08-17.** Agreed in chat before code. Ten open points were
+resolved; each is marked **[R3]** where it lands and collected in §9 as
+L-7.8…L-7.17. The largest change is that **G1's oracle is rescoped** (§8):
+of Digital DATCOM's 11 sample problems only the *subsonic body-alone and
+wing-body* cases exercise the method ported here — the rest are wing-alone,
+supersonic/hypersonic, or carry experimental-data overrides — so G1 pins the
+applicable printed values (~5–6 checks over ~3 distinct geometries), enumerated
+by file/case/α-row, and says which are inapplicable and why. Revision 2's
+"11 printed cases" claim is corrected in place.
+
+**Definition of done is an oracle, not a closure gate.** Digital DATCOM ships
+sample cases with printed `CYB`/`CNB` output. The port is validated against the
+applicable ones at ±0.1 %, exactly as the FAR23 core is validated against
+Appendix A. This replaces revision 1's "no oracle exists → stated closure gate"
+premise.
 
 This note covers the **lumped** step. The distributed (per-station) body load
 still pairs with **M4-19**; §10 states the seam.
@@ -227,7 +258,9 @@ quantity — the defect class `CONVENTIONS.md` §7 exists to prevent.
 | `balance.assemble` | one applied load carrying **both** terms, beside the existing `source="fuselage-cm"` line (`:1157`) |
 | `BalancedCaseResult` | `fuselage_cy` / `fuselage_cn` fields, siblings of `fuselage_cm` |
 | `balance.LATERAL_AERO_NOTE` | replaced by a quantified statement, both halves; `report/methods.py:156` and `tests/test_methods_stamp.py:182` follow |
-| `models/inputs.py` | `LateralBodyAeroInput(enabled, cy_beta, cn_beta)` on `AeroCoefficientsInput` — the shape of the shipped `FuselageMomentInput` (computed default, overridable). Schema bump + migration |
+| `models/inputs.py` | `LateralBodyAeroInput(enabled, cy_beta, cn_beta)` on `AeroCoefficientsInput` — the shape of the shipped `FuselageMomentInput` (computed default, overridable; **per degree**, L-7.15). Schema bump v53 → **v54** + migration. **[R3] Passenger on the hop (L-7.10):** an additive per-engine thrust field on `EngineInput` (e.g. `thrust_lb: Optional[float] = None`), reserved for backlog Pri 3 (#10) so 0.7.0 keeps to its one hop |
+| new `sloads/atmosphere.py` | **[R3, L-7.13]** ISA temperature + Sutherland kinematic viscosity, one owner with a drift-guard test; `Re_l` from TAS and local `ν` |
+| `select.py` (vtail conditions) | **[R3, L-7.11]** each 23.441/23.443 condition also carries `cy_beta_fin` / `cn_beta_fin` (about that condition's CG) beside its `beta_deg` |
 
 **Application point.** The couple is free and needs no carrier — that is what let
 revision 1 propose shipping ahead of M4-19. The **side force does have a
@@ -308,9 +341,9 @@ of §9 more than cosmetic.
 
 | # | Gate | Expected |
 |---|---|---|
-| **G1** | **Oracle**: the ported `Cy_β`/`Cn_β` reproduce Digital DATCOM's printed `CYB`/`CNB` for sample cases ex1–ex11. **`reference/` is gitignored** (`.gitignore:9`), so the test carries the printed numbers **as literals with the line citation** — exactly how the Appendix A oracle tests carry theirs, and the reason CI needs nothing from `reference/` | ±0.1 %, per the FAR23 core's own standard |
+| **G1** | **Oracle [R3 rescoped]**: the ported `Cy_β`/`Cn_β` reproduce Digital DATCOM's printed `CYB`/`CNB` for every **applicable** sample case — the subsonic body-alone and wing-body rows: `ex1` cases 1–2 (body alone, M 0.6), `ex3` case 1 (`BUILD`, the **wing-body** row of the buildup, M 0.6/0.8 — *not* the total including the fin), `ex4` case 1 (M 0.6), and the shared body+wing geometry of `ex5`–`ex8` (one geometry, counted once). **Inapplicable, stated as such in the test:** `ex2` (wing alone), `ex1` cases 3–4 and `ex4` case 2 (supersonic), `ex3` cases 2–5 (experimental-data overrides — not the method), `ex9`–`ex11` (hypersonic / lifting body). Pinned at the α row nearest 0° (5.2.3.1's `Cn_β` is α-independent; this isolates any α-dependence of `Cy_β`). Informational, not gated: on `ex3` the fin share (total − WB) is reported as a cross-check of the suite's own fin derivative (L-7.11). **`reference/` is gitignored** (`.gitignore:9`), so the test carries the printed numbers and the case geometry **as literals with the line citation** — exactly how the Appendix A oracle tests carry theirs, and the reason CI needs nothing from `reference/` | ±0.1 %, per the FAR23 core's own standard; ~5–6 checks over ~3 geometries |
 | **G2** | `SUDDEN RUDDER` (β = 0) takes **exactly zero** body load | `0.0`, exact |
-| **G3** | **Static directional stability (§4)**: `Cn_β,fin + Cn_β,body` restoring on every fixture that assembles lateral cases | −0.054 /rad on the RJ; flagged, not silently emitted, if it ever goes positive |
+| **G3** | **Static directional stability (§4)**: `Cn_β,fin + Cn_β,body` restoring on every fixture that assembles lateral cases. **[R3]** `Cn_β,fin` is *published by SELECT* per vtail condition (L-7.11), the body term is transferred to the same case CG (L-7.9), and the sum is formed about each case's CG | −0.054 /rad on the RJ (ga6 value added at implementation); flagged, not silently emitted, if it ever goes positive |
 | **G4** | **Net-moment sign on the rudder-neutral conditions only** — (a)(3) and 23.443(b) keep a restoring `ψ̈` | −9.1 and +11.5 °/s² |
 | **G5** | **Direction**: `\|ψ̈\|` falls and `\|n_y\|` rises on every β ≠ 0 case — the corrected §1 statement, asserted | −73…−84 % and +4.1…+12.0 % |
 | **G6** | **Closed form**: the applied force and couple reproduce `Cy_β·q·S·β` and `Cn_β·q·S·b·β` about the CG | ratio 1.000000 |
@@ -335,6 +368,16 @@ G1 is the definition of done. G3 and G5 carry the physics; the rest are fences.
 | **L-7.5** | The side force acts at the **body side-area centroid**, with the balance of the moment as a free couple | Apply it at the CG. Rejected: exact resultants but an indefensible station, and the deck would put the whole body side load at the CG node |
 | **L-7.6** | `β_eff` for `SIDE GUST` is **published by SELECT**, not re-derived in `balance` | Re-derive `Kgt·Ude/V`. Rejected: second opinion of an oracle-locked quantity |
 | **L-7.7** | `munk_couple` becomes the single owner of the apparent-mass couple; `estimate()` is a view of it | Copy the integrand. Rejected — practice 3 |
+| **L-7.8** [R3] | **G1 rescoped** to the applicable subsonic body-alone / wing-body printed values, enumerated (§8) | Keep "11 cases" by also porting DATCOM's fin method (5.3.1.1) to match the total `CNB`. Rejected: a second method the suite does not use, ported only to make a number match. Running Digital DATCOM locally on the RJ/ga6 as extra evidence: not gating, optional |
+| **L-7.9** [R3] | **`Cn_β,body` evaluated once at the fixture's reference CG** (the `ref` `balance` already uses) and **transferred linearly** to each `CgCase`, `Cn_β,case = Cn_β,ref + Cy_β·(x_case − x_ref)/b` — automatic through the fixed force station of L-7.5. The override means "about the reference CG". The note carries the `K_N` nonlinearity over the fixture CG range as the bound | Per-case `K_N` at each CG (exact to DATCOM, more plumbing); or one value with no transfer (wrong by `Cy_β·Δx/b`, inconsistent with G6) |
+| **L-7.10** [R3] | The v54 hop **carries the Pri 3 thrust field** as a reserved additive passenger | L-7 hops alone and Pri 3 waits for 0.8, or Pri 3 goes first — both break either the one-hop rule or the agreed order |
+| **L-7.11** [R3] | **SELECT publishes `Cy_β,fin`/`Cn_β,fin`** per vtail condition, from the same `AVT`, `S_v`, arm that made the load; `balance` reads, never re-derives (same seam as L-7.6). The report states the stability margin in-band | New module derives the fin term (second producer of a SELECT quantity); or test-side fit only (no in-band margin) |
+| **L-7.12** [R3] | **Body geometry from the entered `FuselageSection`s**: linear `height(x)`, trapezoidal `S_BS`, heights at 0.25/0.75 `l_B` by interpolation — G4's treatment of the same outline. DATCOM's `ZU/ZL` cases convert as `height = ZU − ZL` in the G1 literals; the trapezoid is stated in-band | Add per-station upper/lower profile inputs on the hop. Rejected: pre-empts M4-19's design |
+| **L-7.13** [R3] | **`Re_l` from TAS and local viscosity** via a new `atmosphere.py` owner (ISA T + Sutherland); **top-of-chart `K_Rl` follows `datcom.f` literally** (closed form, whatever it does past figure 5.2.3.1-9's plotted range — deviating would break G1) | EAS + sea-level `ν` shortcut with a stated bound (a few % on `K_Rl` at 20 kft only) |
+| **L-7.14** [R3] | **Follow the Fortran wherever the scratch method and `datcom.f` differ** — `CL_α,B` in particular is whatever `datcom.f` computes for `CLAB`, settled by G1 on `ex1`, not the note's `2·S_base/S_ref` guess | Keep the slender-body value; rejected because it is a second opinion of the oracle |
+| **L-7.15** [R3] | **`cy_beta`/`cn_beta` stored per degree** — matches `FuselageMomentInput.d_cm_dalpha` and DATCOM's printout, so oracle literals enter untransformed; §7's per-radian tables are re-expressed at implementation | Per radian (matches the note's tables only) |
+| **L-7.16** [R3] | **Two stamped wordings**, both pinned in `test_methods_stamp.py`: *off* — "not applied (`enabled=False`); estimated on this fixture `Cy_β`=…, `Cn_β`=…; enabling raises `\|n_y\|` and lowers `\|ψ̈\|`"; *on* — "applied about the reference CG; net `Cn_β`=… (stable, margin …)" | One wording regardless of flag — untrue in one of the two states |
+| **L-7.17** [R3] | **One lumped side force at the body side-area centroid**, labelled in-band as lumping the wing-dihedral share (the M4-19 seam) | Split body share (body centroid) / wing share (wing AC) now. Rejected: pre-empts the distributed step without its cross-flow term |
 
 ## 10. Open items
 
@@ -360,13 +403,16 @@ G1 is the definition of done. G3 and G5 carry the physics; the rest are fences.
    ellipse) — so §7's "other lateral fixture cannot exercise this at all" no
    longer holds, and the step lands on **both** lateral fixtures.
 3. **`K_Rl` at the top of its chart.** `Re_l = 1.8e8` gives `K_Rl = 2.07`, at or
-   just past figure 5.2.3.1-9's tabulated range. Worth confirming against
-   AFFDL-TR-79-3032 Vol II, and worth using **TAS and local viscosity** for `Re`
-   rather than the EAS shortcut used in this note's scratch run (matters only for
-   the 20,000 ft gust case).
+   just past figure 5.2.3.1-9's tabulated range. **Resolved [R3]: L-7.13** —
+   TAS + local viscosity via `atmosphere.py`; follow `datcom.f` past the chart.
+   AFFDL-TR-79-3032 Vol II still worth sourcing for the citation.
 4. **`CL_α,B` for the `Cy_β` term.** Taken here as the slender-body base-area
-   value `2·S_base/S_ref`, which reproduces DATCOM's own `ex1` body-alone `CLA`
-   closely. G1 pins whether that is what Digital DATCOM actually does.
+   value `2·S_base/S_ref`. **Resolved [R3]: L-7.14** — follow the Fortran; G1
+   on `ex1` settles it.
+5. **[R3] Left for implementation, not decisions:** the ga6 numbers for §7's
+   tables and G3/G4/G5 expectations (the outline now exists); the `K_N`
+   nonlinearity bound for L-7.9; confirmation in `datcom.f` that `SBS` is the
+   trapezoid on `ZU − ZL` (L-7.12).
 
 ## 11. What moves, and closure
 

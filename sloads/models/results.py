@@ -211,7 +211,18 @@ class CriticalCondition:
     export boundary multiplies them by to report ULTIMATE (see
     :class:`ConditionResult`). Every distributed-load result derived from this
     condition copies it, so the sbeam export scales by the owning case's factor
-    rather than a flat suite-wide constant."""
+    rather than a flat suite-wide constant.
+
+    **Vertical-tail conditions publish their sideslip** (L-7, decisions L-7.6 /
+    L-7.11): ``beta_deg`` is the case's sideslip angle in the SC-1 sense
+    (``+beta`` = wind from starboard; the maneuver conditions' entered ``-19.5`` /
+    ``-15`` are ``+19.5`` / ``+15``, ``SUDDEN RUDDER`` is ``0``, and ``SIDE GUST``
+    is the effective ``-Kgt*Ude/V`` of the gust that produced its ``+fy`` load),
+    and ``cy_beta_fin`` / ``cn_beta_fin`` are the fin's own derivatives **per
+    degree, suite sign, about the wing 25 %-MAC station ``xw``**, built from the
+    same ``AVT``, ``S_v`` and arm that made the load -- so ``balance`` reads the
+    body and fin derivatives from their owners and re-derives neither.
+    ``None`` on other components and on a persisted set that predates them."""
     component: str
     label: str
     far_reference: str = ""
@@ -222,6 +233,9 @@ class CriticalCondition:
     case_ref: Optional[CaseRef] = None
     note: str = ""
     safety_factor: float = ULTIMATE_FACTOR   # limit -> ultimate factor for this case
+    beta_deg: Optional[float] = None         # v-tail: sideslip of the case (SC-1)
+    cy_beta_fin: Optional[float] = None      # v-tail: fin Cy_beta, per deg
+    cn_beta_fin: Optional[float] = None      # v-tail: fin Cn_beta about xw, per deg
 
 
 @dataclass
@@ -674,6 +688,20 @@ class BalancedCaseResult:
     #: reports the unclamped difference, and ``residual_fx`` re-opens by exactly
     #: that amount on this case (design note 20 D-4 as revised 2026-08-17).
     body_axial_clamped: bool = False
+    #: The L-7 wing-body sideslip term (design note 19), **LIMIT**: the applied
+    #: side force (lb, ``+`` starboard) and the yawing moment it and its free
+    #: couple make **about this case's CG** (lb-in, ``+`` nose to port). Zero
+    #: when the term is disabled, unavailable, or the case has ``beta = 0``;
+    #: both odd under the mirror.
+    body_side_force: float = 0.0
+    body_yaw_moment: float = 0.0
+    #: The case's sideslip (deg, SC-1) as SELECT published it, ``None`` on a
+    #: case with no lateral aero; flips with the hand.
+    beta_deg: Optional[float] = None
+    #: Fin + wing-body ``Cn_beta`` per degree about ``xw`` (suite sign: negative
+    #: = restoring) -- note 19 gate G3's number, stated on the case whether or
+    #: not the term is applied; ``None`` when either half is unknown.
+    cn_beta_net: Optional[float] = None
     case_ref: Optional[CaseRef] = None
     #: ``"R"``/``"L"`` for the two twins of an antisymmetric case, ``""`` when the
     #: case is symmetric and therefore its own mirror image (B-6/B-7).

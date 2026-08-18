@@ -200,12 +200,18 @@ from __future__ import annotations
 import math
 from dataclasses import dataclass, replace
 from math import cos, degrees, pi, radians, sin
-from typing import Dict, List, Optional, Sequence, Tuple
+from typing import Dict, List, NamedTuple, Optional, Sequence, Tuple
 
+from .. import atmosphere, lateral_body_aero
 from ..case_ids import handed_case_id
 from ..cg_cases import flight_cases, ground_cases, landing_role_cases
 from ..constants import POLAR_TRUSTED_ALPHA_DEG, dynamic_pressure_psf
-from ..derived_geometry import body_drag_waterline, sync_geometry_derived
+from ..derived_geometry import (
+    body_drag_waterline,
+    fuselage_centreline,
+    fuselage_width_at,
+    sync_geometry_derived,
+)
 from ..export.coordinates import (
     reflect_force,
     reflect_moment,
@@ -216,6 +222,7 @@ from ..export.coordinates import (
     tail_torsion_to_airplane,
 )
 from ..gear_loads import GearCaseLoads, applied_wheels, gear_case_loads
+from ..lateral_body_aero import LateralBodyAeroEstimate
 from ..mass_distribution import (
     CaseLoading,
     MassComponent,
@@ -229,6 +236,7 @@ from ..models import (
     BalancedCaseResult,
     BalancedLoad,
     CgCase,
+    CriticalCondition,
     FlightLoadsInput,
     GeometryInput,
     LandingInput,
@@ -324,26 +332,239 @@ AILERON_COUPLE_NOTE = (
     "distributed here)")
 
 #: The L-7 statement of record, carried in-band on every lateral case: on the
-#: result's ``notes``, hence in the deck header and the UI. The *direction* of
-#: the error is stated per degree of freedom, not merely its existence, because
-#: the two directions differ (2026-08-15 defect fix): the missing body yawing
-#: couple opposes the fin's, so ``psi_dd`` is over-stated and its inertia is
-#: conservative; the missing body-and-wing side force ADDS to the fin's, so
-#: ``n_y`` is UNDER-stated and its inertia is not. Both magnitudes stay
-#: *unknown* here -- they are measurable (design note
-#: ``docs/30_future/19_l7_lateral_body_aero_note.md`` §7 puts ``|n_y|`` 4-12 %
-#: low on the one fixture with body geometry) but no shipped code computes them,
-#: and a number in a deck header must be one this tool can reproduce. Quoting
-#: them is part of backlog L-7, which replaces this sentence outright.
+#: result's ``notes``, hence in the deck header and the UI. Design note 19
+#: (rev. 3, 2026-08-17) closed the "unknown amount" this sentence carried
+#: until then: the wing-body side force and yawing moment in sideslip are now
+#: computed (DATCOM 5.2.1.1 / 5.2.3.1, :mod:`sloads.lateral_body_aero`) and
+#: applied when ``aero_coeffs.lateral_body_aero.enabled`` -- **off by default**
+#: (decision L-7.3), because the term raises the load on one lateral degree of
+#: freedom and lowers it on the other. So the standing statement says what the
+#: term is and which way each degree of freedom errs when it is NOT applied,
+#: and every lateral case adds one of two per-case sentences (decision L-7.16):
+#: :func:`lateral_aero_case_note` -- the *estimated* effect on this case when
+#: the term is off, or the applied numbers and the net static-stability check
+#: when it is on. The *direction* is stated per degree of freedom because the
+#: two differ (2026-08-15 defect fix): the body's yawing couple is destabilizing
+#: and OPPOSES the fin's, so ``psi_dd`` is over-stated without it and its
+#: inertia is conservative; the body-and-wing side force ADDS to the fin's at
+#: ``+beta``, so ``n_y`` is UNDER-stated without it and its inertia is not.
 LATERAL_AERO_NOTE = (
-    "the fin is the only lateral aerodynamic load this suite computes -- "
-    "fuselage and wing side force in sideslip are not modelled, and the two "
-    "lateral degrees of freedom err in OPPOSITE directions: the yaw "
-    "acceleration is OVER-STATED and the inertia it drives is conservative, "
-    "while n_y is UNDER-STATED -- the missing side force adds to the fin's -- "
-    "so the lateral translational inertia it drives is NOT conservative on any "
-    "component; both by an unknown amount. The fin's own design load is "
-    "SELECT's, unchanged")
+    "the fin's sideslip load is SELECT's, unchanged; the wing-body side force "
+    "and yawing moment in sideslip are the L-7 term (DATCOM 5.2.1.1 / 5.2.3.1 "
+    "from the fuselage outline, aero_coeffs.lateral_body_aero, OFF by default) "
+    "-- where it is NOT applied the two lateral degrees of freedom err in "
+    "OPPOSITE directions: the yaw acceleration is OVER-STATED (the body's "
+    "couple is destabilizing and opposes the fin's) and the inertia it drives "
+    "is conservative, while n_y is UNDER-STATED (the body-and-wing side force "
+    "adds to the fin's at +beta) so the lateral translational inertia it drives "
+    "is NOT conservative on any component -- each by the estimated amount the "
+    "case states; where it IS applied the case states the derivatives, the "
+    "applied force and couple, and the net fin+body Cn_beta")
+
+#: The applied load's ``source`` tag -- routed to the fuselage member by the LRA
+#: exporter like ``fuselage-cm`` and ``body-axial``.
+BODY_AERO_SOURCE = "body-aero"
+
+
+class LateralAeroTerms(NamedTuple):
+    """One lateral case's L-7 numbers, computed whether or not the term is
+    applied so the case can *say* what it did (decision L-7.16).
+
+    Derivatives per degree, suite sign, about ``x_ref = xw`` (the wing 25 %-MAC
+    station); ``side_force`` (lb, ``+`` starboard) and ``yaw_moment_ref`` (lb-in
+    about ``x_ref``, ``+`` nose to port) are what applying them at
+    ``beta_deg`` gives at the case's dynamic pressure; ``x_force``/``z_force``
+    is the station the side force acts at (the body side-area centroid on the
+    fuselage centreline, decision L-7.5). ``cn_beta_fin`` is SELECT's, so
+    ``cn_beta_net`` is the fin + body sum about ``x_ref`` -- the static
+    directional-stability check of note 19 G3 (negative = restoring).
+    ``basis`` names where the derivatives came from (``"DATCOM"``, ``"entered"``
+    or a mix); ``estimate`` is the DATCOM estimate when one could be made."""
+    enabled: bool
+    available: bool
+    beta_deg: float
+    cy_beta: float
+    cn_beta: float
+    x_ref: float
+    x_force: float
+    z_force: float
+    side_force: float
+    yaw_moment_ref: float
+    cy_beta_fin: Optional[float]
+    cn_beta_fin: Optional[float]
+    cn_beta_net: Optional[float]
+    basis: str
+    estimate: Optional[LateralBodyAeroEstimate]
+    reason: str = ""
+
+
+def _wing_height_inputs(project: Project) -> Tuple[float, float, float]:
+    """``(z_w, d_body, dihedral)`` for DATCOM's ``K_i``: the wing root
+    quarter-chord's depth below the fuselage centreline (in, positive below),
+    the body width there, and the wing dihedral. Zeros -- ``K_i = 1``, a
+    mid-wing -- when the project has no parametric wing or no centreline; the
+    default centreline IS the wing reference plane, so that is honest rather
+    than a guess."""
+    geom = project.geometry
+    par = geom.parametric if geom is not None else None
+    if geom is None or par is None:
+        return 0.0, 0.0, 0.0
+    dihedral = par.dihedral_deg
+    surf = geom.by_name("wing")
+    if surf is None or not surf.leading_edge or not surf.trailing_edge:
+        return 0.0, 0.0, dihedral
+    root_chord = surf.trailing_edge[0][0] - surf.leading_edge[0][0]
+    x_c4 = surf.leading_edge[0][0] + 0.25 * root_chord
+    line = fuselage_centreline(project)
+    if line is None or line.assumed:
+        return 0.0, 0.0, dihedral
+    # centreline waterline at x_c4 by clamped interpolation of the entered points
+    pts = line.points
+    z_body = pts[0][1]
+    for (xa, za), (xb, zb) in zip(pts, pts[1:]):
+        if xa <= x_c4 <= xb:
+            z_body = za if xb == xa else za + (zb - za) * (x_c4 - xa) / (xb - xa)
+            break
+    else:
+        if x_c4 > pts[-1][0]:
+            z_body = pts[-1][1]
+    width = fuselage_width_at(geom.fuselage, x_c4) or 0.0
+    return z_body - par.root_waterline_z, width, dihedral
+
+
+def lateral_aero_terms(project: Project, cond: CriticalCondition,
+                       vn: VnPoint) -> LateralAeroTerms:
+    """The L-7 wing-body term for one lateral case (design note 19 §6).
+
+    Reads the sideslip and the fin derivatives **from SELECT's condition**
+    (decisions L-7.6 / L-7.11) and the body derivatives from
+    :func:`sloads.lateral_body_aero.estimate` at this case's speed and altitude
+    (``K_Rl`` is a Reynolds-number function, so the computed default is per
+    case) -- unless ``aero_coeffs.lateral_body_aero`` enters a value, which then
+    stands for every case. Nothing here is a second opinion of an oracle-locked
+    quantity: ``q`` is the V-n point's, ``S`` and ``b`` the project's.
+    """
+    fl = _flight_loads(project)
+    aero = project.aero_coeffs
+    inp = aero.lateral_body_aero if aero is not None else None
+    enabled = bool(inp is not None and inp.enabled)
+    beta = float(cond.beta_deg) if cond.beta_deg is not None else 0.0
+    x_ref = fl.xw
+    span = _wing_span_in(project)
+    unavailable = LateralAeroTerms(
+        enabled, False, beta, 0.0, 0.0, x_ref, x_ref, fl.zw, 0.0, 0.0,
+        cond.cy_beta_fin, cond.cn_beta_fin, None, "none", None, "")
+    if cond.beta_deg is None:
+        return unavailable._replace(
+            reason="the critical set does not publish the case's sideslip (it "
+                   "predates L-7) -- re-run SELECT")
+    if span <= 0.0:
+        return unavailable._replace(reason="no wing span")
+    geom = project.geometry
+    outline = geom.fuselage if geom is not None else None
+    z_w, d_body, dihedral = _wing_height_inputs(project)
+    est = lateral_body_aero.estimate(
+        outline, fl.wing_area_sqft, span, x_ref,
+        atmosphere.reynolds_per_ft(vn.v_eas_kt, vn.altitude_ft),
+        z_w_in=z_w, d_body_in=d_body, dihedral_deg=dihedral)
+    entered_cy = inp.cy_beta if inp is not None else None
+    entered_cn = inp.cn_beta if inp is not None else None
+    if est is None and (entered_cy is None or entered_cn is None):
+        return unavailable._replace(
+            reason="no fuselage outline to estimate the wing-body derivatives "
+                   "from, and none entered (aero_coeffs.lateral_body_aero)")
+    cy = entered_cy if entered_cy is not None else est.cy_beta   # type: ignore[union-attr]
+    cn = entered_cn if entered_cn is not None else est.cn_beta   # type: ignore[union-attr]
+    basis = ("entered" if entered_cy is not None and entered_cn is not None
+             else "DATCOM" if entered_cy is None and entered_cn is None
+             else "DATCOM/entered")
+    x_force = est.x_force if est is not None else x_ref
+    z_force = _centreline_z_at(project, x_force, fl.zw)
+    q_s = dynamic_pressure_psf(vn.v_eas_kt) * fl.wing_area_sqft
+    side_force = cy * q_s * beta
+    yaw_ref = cn * q_s * span * beta
+    cn_net = (cond.cn_beta_fin + cn) if cond.cn_beta_fin is not None else None
+    return LateralAeroTerms(enabled, True, beta, cy, cn, x_ref, x_force, z_force,
+                            side_force, yaw_ref, cond.cy_beta_fin, cond.cn_beta_fin,
+                            cn_net, basis, est)
+
+
+def _wing_span_in(project: Project) -> float:
+    """The wing span the lateral derivatives are referred to (``b``, in):
+    the v-tail slice's ``wing_span_in`` -- SELECT's own reference for the fin
+    -- else twice the wing surface's outermost butt line."""
+    vt = project.vtail_loads
+    if vt is not None and vt.wing_span_in > 0.0:
+        return vt.wing_span_in
+    geom = project.geometry
+    surf = geom.by_name("wing") if geom is not None else None
+    if surf is not None and surf.leading_edge:
+        return 2.0 * surf.leading_edge[-1][1]
+    return 0.0
+
+
+def _centreline_z_at(project: Project, x: float, fallback: float) -> float:
+    """Fuselage centreline waterline at station ``x`` (clamped interpolation of
+    :func:`fuselage_centreline`), else ``fallback``."""
+    line = fuselage_centreline(project)
+    if line is None or not line.points:
+        return fallback
+    pts = line.points
+    if x <= pts[0][0]:
+        return pts[0][1]
+    for (xa, za), (xb, zb) in zip(pts, pts[1:]):
+        if x <= xb:
+            return za if xb == xa else za + (zb - za) * (x - xa) / (xb - xa)
+    return pts[-1][1]
+
+
+def body_aero_loads(terms: LateralAeroTerms) -> List[BalancedLoad]:
+    """The applied L-7 set: **one** load -- the side force at the body
+    side-area centroid plus the free couple that makes the pair reproduce
+    ``(Cy_beta, Cn_beta)`` about ``x_ref`` exactly (decision L-7.5; gate G6).
+    Empty when the term is not enabled or not available, and exactly empty at
+    ``beta = 0`` (gate G2: ``SUDDEN RUDDER`` takes no body load)."""
+    if not (terms.enabled and terms.available) or terms.beta_deg == 0.0:
+        return []
+    couple = terms.yaw_moment_ref - (terms.x_force - terms.x_ref) * terms.side_force
+    return [BalancedLoad(x=terms.x_force, y=0.0, z=terms.z_force,
+                         fy=terms.side_force, mz=couple,
+                         source=BODY_AERO_SOURCE, side="C")]
+
+
+def lateral_aero_case_note(terms: LateralAeroTerms) -> str:
+    """The per-case L-7 sentence (decision L-7.16): what was applied, or what
+    would have been. Numbers are the case's own, so a deck header never quotes
+    a figure this tool did not compute for that case."""
+    stability = ""
+    if terms.cn_beta_net is not None and terms.cn_beta_fin is not None:
+        verdict = "restoring" if terms.cn_beta_net < 0.0 else "NOT RESTORING -- DIRECTIONALLY UNSTABLE (FAR 23.177)"
+        stability = (f"; static directional stability: fin {terms.cn_beta_fin:+.5f} + "
+                     f"body {terms.cn_beta:+.5f} = net Cn_beta {terms.cn_beta_net:+.5f}/deg "
+                     f"about xw, {verdict}")
+    if terms.enabled and terms.available:
+        if terms.beta_deg == 0.0:
+            return ("lateral body aero (L-7) ENABLED but beta = 0 on this case: no "
+                    "wing-body sideslip load exists and none is applied" + stability)
+        return (f"lateral body aero (L-7) APPLIED: Cy_beta {terms.cy_beta:+.5f}/deg, "
+                f"Cn_beta {terms.cn_beta:+.5f}/deg about xw ({terms.basis}); at "
+                f"beta {terms.beta_deg:+.2f} deg the wing-body side force is "
+                f"{terms.side_force:+.0f} lb at FS {terms.x_force:.1f} (side-area "
+                f"centroid) with a free couple closing the yawing moment to "
+                f"{terms.yaw_moment_ref:+.0f} lb-in about xw; versus the fin-only "
+                f"case |n_y| is raised (the side force adds to the fin's) and the "
+                f"yaw acceleration lowered (the couple opposes the fin's)"
+                + stability)
+    if not terms.available:
+        return ("lateral body aero (L-7) NOT applied and NOT estimable on this case: "
+                + terms.reason)
+    state = "DISABLED" if not terms.enabled else "NOT applied"
+    return (f"lateral body aero (L-7) {state} -- estimated for this case: "
+            f"Cy_beta {terms.cy_beta:+.5f}/deg, Cn_beta {terms.cn_beta:+.5f}/deg "
+            f"about xw ({terms.basis}), i.e. {terms.side_force:+.0f} lb side force "
+            f"and {terms.yaw_moment_ref:+.0f} lb-in yawing moment at beta "
+            f"{terms.beta_deg:+.2f} deg NOT carried; enabling it raises |n_y| and "
+            f"lowers the yaw acceleration" + stability)
 
 
 # --------------------------------------------------------------------------- #
@@ -1326,7 +1547,8 @@ def assemble(project: Project, condition: str, vn: VnPoint,
              loading: CaseLoading, cg: CgCase,
              case_ref=None, unb: float = 0.0,
              lateral: Sequence[BalancedLoad] = (),
-             htail: Sequence[BalancedLoad] = ()) -> BalancedCaseResult:
+             htail: Sequence[BalancedLoad] = (),
+             lateral_aero: Optional[LateralAeroTerms] = None) -> BalancedCaseResult:
     """Assemble one balanced case and close its residual.
 
     ``unb`` is the unbalanced rolling moment (FAR 23.349) for an accelerated-roll
@@ -1346,6 +1568,12 @@ def assemble(project: Project, condition: str, vn: VnPoint,
     load, and applying ``vn.lt`` beside it would carry the balancing part twice.
     The mismatch between the two is the maneuver -- see the module docstring --
     and the pitch degree of freedom of the closure is what reacts it.
+
+    ``lateral_aero`` is the case's L-7 wing-body term (:func:`lateral_aero_terms`):
+    when enabled and available its one applied load joins the fin's beside it,
+    and either way the case's note says what the term did or would have done
+    (decision L-7.16). A caller that passes ``lateral`` without it -- the direct
+    per-condition tests -- gets the standing statement alone.
 
     **Handedness is measured, not declared** (decision L-6): the case gets a hand
     when its *applied* set has lateral content or a net rolling moment, whatever
@@ -1408,9 +1636,21 @@ def assemble(project: Project, condition: str, vn: VnPoint,
         notes.append(f"aileron rolling moment {-unb:+.0f} lb-in applied as a "
                      f"lumped free couple: {AILERON_COUPLE_NOTE}")
 
+    body_side_force = body_yaw_moment_ref = 0.0
+    beta_deg: Optional[float] = None
+    cn_beta_net: Optional[float] = None
     if lateral:
         loads += list(lateral)
         notes.append(LATERAL_AERO_NOTE)
+        if lateral_aero is not None:
+            body_loads = body_aero_loads(lateral_aero)
+            loads += body_loads
+            notes.append(lateral_aero_case_note(lateral_aero))
+            beta_deg = lateral_aero.beta_deg
+            cn_beta_net = lateral_aero.cn_beta_net
+            if body_loads:
+                body_side_force = lateral_aero.side_force
+                body_yaw_moment_ref = lateral_aero.yaw_moment_ref
 
     wm, geometry, _ = _wing_slices(project)
     geom = geometry.by_name(wm.surface)
@@ -1434,6 +1674,11 @@ def assemble(project: Project, condition: str, vn: VnPoint,
         unbal_moment=unb, fuselage_cm=fuselage_cm,
         body_axial=body_axial, delta_cd=delta_cd,
         body_axial_clamped=body_axial_clamped,
+        body_side_force=body_side_force,
+        body_yaw_moment=(body_yaw_moment_ref
+                         - (cg.xcg - (lateral_aero.x_ref if lateral_aero else cg.xcg))
+                         * body_side_force),
+        beta_deg=beta_deg, cn_beta_net=cn_beta_net,
         case_ref=_handed_ref(case_ref, "R") if handed else case_ref,
         hand="R" if handed else "", notes=notes,
     )
@@ -1497,6 +1742,9 @@ def handed_twin(case: BalancedCaseResult, case_ref=None) -> BalancedCaseResult:
         p_dot=_flip(case.p_dot),
         r_dot=_flip(case.r_dot),
         unbal_moment=-case.unbal_moment,
+        body_side_force=_flip(case.body_side_force),
+        body_yaw_moment=-case.body_yaw_moment,
+        beta_deg=None if case.beta_deg is None else _flip(case.beta_deg),
         hand=reflect_side(case.hand),
         case_ref=twin_ref,
     )
@@ -1601,6 +1849,7 @@ def build_balanced_cases(
         unb = 0.0
         lateral: Sequence[BalancedLoad] = ()
         htail: Sequence[BalancedLoad] = ()
+        lateral_cond: Optional[CriticalCondition] = None
         if cond.component == "wing" and cond.label in BALANCED_WING_CONDITIONS:
             unb = (unbalanced_rolling_moment(project, cond.label)
                    if cond.label in ROLLING_WING_CONDITIONS else 0.0)
@@ -1609,6 +1858,7 @@ def build_balanced_cases(
             if not lateral:
                 record.append(_skip(cond, "no-fin-loads"))
                 continue
+            lateral_cond = cond
         elif cond.component == HTAIL and cond.label in BALANCED_HTAIL_CONDITIONS:
             htail = htails.get(cond.label, ())
             if not htail:
@@ -1632,9 +1882,11 @@ def build_balanced_cases(
         if not loading.derivable:
             record.append(_skip(cond, "loading-not-derivable"))
             continue
+        terms = (lateral_aero_terms(project, lateral_cond, point)
+                 if lateral_cond is not None else None)
         case = assemble(project, cond.label, point, loading, cg,
                         case_ref=cond.case_ref, unb=unb, lateral=lateral,
-                        htail=htail)
+                        htail=htail, lateral_aero=terms)
         out.append(case)
         if case.hand:
             out.append(handed_twin(case))

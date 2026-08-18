@@ -260,24 +260,34 @@ TROPOPAUSE_FT = 35332.0
 RHO_SL = 0.002378
 
 
+def standard_temperature_f(altitude_ft: float) -> float:
+    """Standard-day air temperature (deg F) of the suite's atmosphere.
+
+    The one owner of the temperature law ``T = 59 - 0.003566*H`` (Reference 1
+    Ch 6, STRSPEED/MACHLIM), isothermal above :data:`TROPOPAUSE_FT`.
+    :func:`standard_atmosphere` reads it for the speed of sound and
+    :mod:`sloads.atmosphere` for the air viscosity (L-7 decision L-7.13), so
+    the lapse rate is written once.
+    """
+    return 59.0 - 0.003566 * min(altitude_ft, TROPOPAUSE_FT)
+
+
 def standard_atmosphere(altitude_ft: float) -> "tuple[float, float]":
     """Speed of sound (knots) and density ratio sigma at an altitude.
 
     Mirrors the STRSPEED/MACHLIM atmosphere (Reference 1 Ch 6):
-        T     = 59 - 0.003566*H              (deg F)
+        T     = 59 - 0.003566*H              (deg F; :func:`standard_temperature_f`)
         a     = 29.02436*(T+459.4)**0.5      (knots)
         sigma = (1 - 0.000006879*H)**4.258
     Above the tropopause (``H > 35332 ft``) the speed of sound is constant and
     sigma follows the isothermal exponential law.
     """
     h = altitude_ft
+    t = standard_temperature_f(h)
+    a = 29.02436 * (t + 459.4) ** 0.5   # constant above the tropopause (T is)
     if h <= TROPOPAUSE_FT:
-        t = 59.0 - 0.003566 * h
-        a = 29.02436 * (t + 459.4) ** 0.5
         sigma = (1.0 - 0.000006879 * h) ** 4.258
     else:
-        t = 59.0 - 0.003566 * TROPOPAUSE_FT
-        a = 29.02436 * (t + 459.4) ** 0.5  # constant above the tropopause
         sigma = (0.00072725 * math.exp(-0.00004778 * (h - TROPOPAUSE_FT))) / RHO_SL
     return a, sigma
 
