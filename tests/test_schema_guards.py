@@ -254,7 +254,8 @@ def fields_hash() -> str:
 #: Design note 19 rev. 3 (v54, L-7 lateral body aero -- the 0.7.0 freeze's one
 #: hop): ``AeroCoefficientsInput.lateral_body_aero`` (``LateralBodyAeroInput``:
 #: enabled / cy_beta / cn_beta, off by default) and its passenger
-#: ``EngineInput.thrust_lb`` (decision L-7.10, reserved for backlog #10); the
+#: ``EngineInput.thrust_lb`` (decision L-7.10, reserved a day ahead of its
+#: reader and read from #10, 2026-08-17); the
 #: v-tail ``CriticalCondition`` gains ``beta_deg`` / ``cy_beta_fin`` /
 #: ``cn_beta_fin`` and ``BalancedCaseResult`` gains ``body_side_force`` /
 #: ``body_yaw_moment`` / ``beta_deg`` / ``cn_beta_net`` (result fields). All

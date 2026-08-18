@@ -2,8 +2,24 @@
 
 **Owner:** @Sean074 · **Reviewers:** — *(design note 28 MD-6: the owner of what a note touches reviews it as a PR)*
 
-**Status: AGREED 2026-08-15 (decisions P-0…P-12, §7), no code written — the next
-artefact is the code implementation plan (§8 is its skeleton).** Written to `CLAUDE.md` required practice 1 (design note before
+**Status: AGREED 2026-08-15 (decisions P-0…P-12, §7). PARKED except for one
+carve-out, which SHIPPED 2026-08-17 (issue #10, tier M):** the **hub thrust
+card** — one user-entered `EngineInput.thrust_lb` per engine, applied as an
+axial `FORCE` at that engine's hub in the assembled **flight** cases and on the
+LRA model's hub node, reacted by the closure's `n_x` and `q̇`. It takes from
+this note only the hub station and the sign; **everything else here stays
+parked** — the propeller normal force `N_p`, the slipstream band and its strip
+increments, the DATCOM §4.6 derivative increments, the re-trim
+(`retrim_with_power`), `power_policy.py`'s per-family thrust rating, the P-6
+thrust-line incidence/toe angles, and the `-P` case family. The carve-out
+therefore does **not** discharge §4's re-trim: a case carrying hub thrust is
+deliberately *not* re-trimmed, and the unbalance is stated in-band and carried
+by the closure (option B of §4.2, which this note rejected for the *full* step,
+is accepted for the carve-out precisely because the carve-out applies no
+slipstream and claims no trim). Shipped behaviour of record:
+[`../20_theory/balanced_cases.md`](../20_theory/balanced_cases.md) §2.1 and
+`CONVENTIONS.md` §7; gates `tests/test_hub_thrust.py`. The next artefact for the
+rest is still the code implementation plan (§8 is its skeleton).** Written to `CLAUDE.md` required practice 1 (design note before
 code, physics/L step). Follows the L-7 note's form
 ([`19_l7_lateral_body_aero_note.md`](19_l7_lateral_body_aero_note.md)): every
 option is listed, the recommendation is marked, agreed decisions will be tagged
@@ -691,7 +707,7 @@ power-off wing slope; the power effect on the gradient enters as `Δ(dε/dα)`
 | P-4 | Kind II extent (i): `-P` variant for every clean wing family + `SLIP-P` on `BAL 1.4VSF` (TO); 23.345 flap-extended power cases deferred | §2.2 |
 | P-5 | GUI placement C: inputs on their owner pages + read-only power review on Balanced Cases | §3.2 |
 | P-6 | Thrust line is user-defined: hub point + pitch incidence + toe angle (GUI also accepts a second point, converted) | §3.1 |
-| P-6a *(added 2026-08-15, note 24 R-9)* | In the LRA beam model (step 12) each engine has a **hub node** at `prop_cg` (the thrust point — the thrust `FORCE` along the P-6 line goes there) and a **mount node** at `engine_cg` (ENGLOADS torque/gyro `MOMENT`s, the engine `CONM2`s), hub → mount rigid, mount rigid to the wing LRA node at the engine butt line or to the fuselage node at `engine_cg.x` per an explicit `mounted_on` (BM-4). The nodes are emitted with zero thrust cards until this step ships | [`24_lra_beam_model_review_note.md`](24_lra_beam_model_review_note.md) R-9 |
+| P-6a *(added 2026-08-15, note 24 R-9)* | In the LRA beam model (step 12) each engine has a **hub node** at `prop_cg` (the thrust point — the thrust `FORCE` along the P-6 line goes there) and a **mount node** at `engine_cg` (ENGLOADS torque/gyro `MOMENT`s, the engine `CONM2`s), hub → mount rigid, mount rigid to the wing LRA node at the engine butt line or to the fuselage node at `engine_cg.x` per an explicit `mounted_on` (BM-4). **Half discharged 2026-08-17 (#10):** the hub node carries the entered `thrust_lb` as an **axial** `FORCE` — not along the P-6 line, which stays parked with the rest of this note — and the mount node is still emitted with no applied card, so the torque/gyro `MOMENT`s wait for this step | [`24_lra_beam_model_review_note.md`](24_lra_beam_model_review_note.md) R-9 |
 | P-7 | 23.371 gyro wing-box cases at VA (mount numbers stay VSF-based, stated side by side) | §2.2 |
 | P-8 | Generation = re-trim at V-n level (`retrim_with_power`) then assemble with the power load set; the 1 % gate applies | §4.2 |
 | P-9 | Pair torque reacted by an `aileron-trim` free couple (counter-rotating → 0); gyro couples reacted by closure `q̇/ṙ` with the residual gate exempted | §4.3 |

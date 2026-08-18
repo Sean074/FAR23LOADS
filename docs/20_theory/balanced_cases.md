@@ -80,6 +80,7 @@ One `BalancedLoad` list per case, each load tagged with its `source`:
 | `aileron-roll` | The FAR 23.349 unbalanced rolling moment `−UNB` (rolling cases only, lumped free couple) | wing AC, centreline |
 | `vtail-air` | The fin's distributed side load from `tail_span` (`fy` per strip, `mzz` torsion) | fin strip stations on the L-1 waterline |
 | `htail-air` | The 23.427(a) tail load from `tail_span`, distributed full span (`fz` per strip, `myy` torsion) — **replaces** `tail-air` on that case | h-tail strip stations, both halves |
+| `engine-thrust` | The user-entered `EngineInput.thrust_lb`, one axial force per engine, `fx = −T` (flight families only, §2.1) | that engine's hub, `prop_cg` |
 | `gear-main`, `gear-nose` | LANDLOAD's own wheel reaction + its patch→node couple (ground families only, §9) | the leg's reference point |
 | `ground-lift` | `L × W` on the AIRLOADS spanwise shape, along the ground line (ground families 1–12 only, §9) | strip stations, per side |
 | `closure-n`, `closure-roll/pitch/yaw`, `closure-self` | The rigid-body relief (§4) | on the modelled masses |
@@ -148,6 +149,63 @@ it is part of the record:
      note [`20_body_drag_carrier_note.md`](../40_history/24_body_drag_carrier_note.md)
      §8.1; the `ΔC_D` diagnostic is reported per case because carrying the load
      makes the applied axial resultant equal the trim's `dx` by construction.
+
+### 2.1 Engine thrust — the one load nothing balances (#10)
+
+Carved out of design note
+[`21_power_effects_wing_note.md`](../30_future/21_power_effects_wing_note.md),
+whose seven-step wake plan stays parked. The user enters one thrust per engine
+(`EngineInput.thrust_lb`) and it becomes a `FORCE` at that engine's hub — the
+node the LRA skeleton has carried since R-9 and, until this step, never had a
+load on. Four rules, all in the single owner `balance.hub_thrust_set`:
+
+1. **Sign and station.** `x` is +aft (`CONVENTIONS.md` §1), so thrust is
+   `fx = −T`, acting at `prop_cg`; `engine_cg` is the fallback for a project
+   that entered a mount and no propeller, and thrust with **neither** raises,
+   naming the datum, rather than being placed on a guess.
+2. **The line is axial.** The thrust-line incidence `i_T` and toe `τ` (note 21
+   decision P-6) have no fields and no estimator; inventing them would put a
+   lateral and a vertical component into every case on an assumed geometry. The
+   propeller normal force, the slipstream band and every DATCOM power derivative
+   stay with note 21.
+3. **Flight families only.** A ground case's thrust rating — take-off on a
+   ground roll, max-continuous elsewhere — is note 21's parked power-policy
+   table, and this step carries one user-entered value with no rating. The
+   ground case *states* the entered thrust and does not apply it.
+4. **Nothing balances it, and that is the physics.** The V-n point the case is
+   assembled at is thrust-free: FLTLOADS balances the airplane's drag from the
+   polar and knows nothing about power. So the applied thrust is a genuine
+   unbalance in two degrees of freedom — `Fx` in full, and its couple
+   `−T·(z_hub − z_cg)` in pitch — and the closure carries both:
+
+   ```
+   n_x = (D − ΣT) / W          (§4's longitudinal DOF, +aft)
+   ```
+
+   which is the carrier the assembled model has always lacked. A powered case is
+   therefore not in longitudinal or pitch trim by construction, and the 1 %
+   pre-closure gate does not apply to its `My` — the same standing as the
+   23.427(a) maneuver tail load (§8) and the lateral families (§7). What is
+   gated instead is stronger than a bound: the residual *is* the thrust, in
+   closed form, and `tests/test_hub_thrust.py` G-3 asserts the identity. G-4
+   asserts the one that names the physics — a case whose entered thrust equals
+   its own net drag closes at `n_x = 0`.
+
+**Asymmetric installations are stated, not handled.** A different thrust per
+engine (or one engine of a pair) yaws the airplane, and that yaw is a moment
+`is_handed` cannot see: decision L-6 measures lateral force and rolling moment,
+and a pure `fx` off the centreline makes neither. So the case is emitted
+unhanded, the closure's `ṙ` carries the moment in full, and the case note says
+both that no twin was minted from the asymmetry *and* that a twin got from
+another source (a fin load, a 23.427(a) split) mirrors the installation along
+with everything else — making that twin the mirror-image airplane's case, not
+this one's. Reflection with engine loads is note 21 §4.4's own decision and
+stays parked with it; the mirror installation is a project the user enters.
+Gate G-11.
+
+Off unless entered, which is every shipped fixture: the suite's cases were
+exactly zero-thrust before this step and are bit-for-bit unchanged after it
+(G-1).
 
 ## 3. The residual — measured before closure, and part of the deliverable
 

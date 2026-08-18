@@ -141,6 +141,11 @@ def _view(**alias: str) -> Dict[str, Tuple[float, str]]:
 _INPUT_KIND = {
     "weight": "mass", "length": "length_in", "torque": "torque", "power": "power",
     "inertia": "inertia_slugft2", "area_sqft": "area_sqft", "inertia_lbin2": "inertia_lbin2",
+    # ``force`` is an entered *load*, lbf -> N, and is deliberately not
+    # ``weight`` (lb mass -> kg): the two differ by g and conflating them is the
+    # units defect this table exists to prevent. First needed by the entered
+    # engine thrust (``EngineInput.thrust_lb``, backlog #10).
+    "force": "force",
 }
 SI_PER_IMPERIAL: Dict[str, float] = {k: HUMAN_SI[d].factor for k, d in _INPUT_KIND.items()}
 
@@ -149,7 +154,7 @@ SI_PER_IMPERIAL: Dict[str, float] = {k: HUMAN_SI[d].factor for k, d in _INPUT_KI
 UNIT_LABELS = {
     UnitSystem.IMPERIAL: {
         "weight": "lb", "length": "in", "torque": "ft-lb", "power": "hp", "inertia": "slug-ft²",
-        "area_sqft": "ft²", "inertia_lbin2": "lb-in²",
+        "area_sqft": "ft²", "inertia_lbin2": "lb-in²", "force": "lbf",
     },
     UnitSystem.SI: {k: HUMAN_SI[d].label for k, d in _INPUT_KIND.items()},
 }
@@ -271,6 +276,9 @@ def to_imperial(inp: EngineInput, system: UnitSystem) -> EngineInput:
     def p(v: Optional[float]) -> Optional[float]:  # power: kW -> hp
         return None if v is None else v / SI_PER_IMPERIAL["power"]
 
+    def f(v: Optional[float]) -> Optional[float]:  # force: N -> lbf
+        return None if v is None else v / SI_PER_IMPERIAL["force"]
+
     def j(v: Optional[float]) -> Optional[float]:  # inertia: kg*m^2 -> slug-ft^2
         return None if v is None else v / SI_PER_IMPERIAL["inertia"]
 
@@ -296,6 +304,7 @@ def to_imperial(inp: EngineInput, system: UnitSystem) -> EngineInput:
         max_accel_torque=tq(inp.max_accel_torque),
         takeoff_hp=p(inp.takeoff_hp),
         max_cont_hp=p(inp.max_cont_hp),
+        thrust_lb=f(inp.thrust_lb),
         rotors=rotors,
     )
 
@@ -348,16 +357,21 @@ _KIND_FACTORS = _view(**{
 # ``increment_ft``) are deliberately absent -- they stay aviation-standard
 # (KEAS / ft) in both systems, matching every other unit toggle in the GUI.
 # Angles (``_deg``), dimensionless ratios/coefficients and counts are also
-# absent (nothing to convert). ``load_lb``/``tail_load_lb`` are the two
-# ``_lb``-suffixed fields that are *forces*, not weights -- everything else
-# ending ``_lb`` is a pounds-mass weight.
+# absent (nothing to convert). ``load_lb``, ``tail_load_lb`` and ``thrust_lb``
+# are the ``_lb``-suffixed fields that are *forces*, not weights -- everything
+# else ending ``_lb`` is a pounds-mass weight. The two factors differ by ~9.8x,
+# so a force classified as a mass is a wrong number rather than a missing one;
+# ``tests/test_project_units.py`` enumerates every dimensional schema leaf and
+# fails on one this table does not classify, which is how ``thrust_lb`` was
+# caught (it shipped here unclassified, displaying raw lb in the SI view).
 _PROJECT_FIELD_KIND = {
     # mass (lb -> kg)
     "baggage_lb": "mass", "engine_weight_lb": "mass", "gross_weight_lb": "mass",
     "hub_weight_lb": "mass", "max_landing_weight_lb": "mass", "panel_weight_lb": "mass",
     "prop_weight_lb": "mass", "weight_lb": "mass", "wing_weight_lb": "mass",
+    "max_takeoff_weight_lb": "mass",
     # force (lb -> N)
-    "load_lb": "force", "tail_load_lb": "force",
+    "load_lb": "force", "tail_load_lb": "force", "thrust_lb": "force",
     "fx": "force", "fy": "force", "fz": "force", "sx": "force", "sy": "force", "sz": "force",
     # length, inches (in -> mm) -- includes unsuffixed station/CG coordinates,
     # all documented as inches in models.py
@@ -369,6 +383,13 @@ _PROJECT_FIELD_KIND = {
     "xcg_in": "length_in", "x": "length_in", "y": "length_in", "z": "length_in",
     "cg_x": "length_in", "cg_y": "length_in", "cg_z": "length_in",
     "xcg": "length_in", "zcg": "length_in",
+    "actuator_span_in": "length_in", "hinges_span_in": "length_in",
+    "inboard_y_in": "length_in", "outboard_y_in": "length_in",
+    "sob_y_in": "length_in",
+    # Bare ``[x, y, z]`` inch arrays rather than keyed dicts (io.py's
+    # ``engine_to_dict``/``engine_from_dict``) -- ordinary rows since the
+    # converter handles a numeric list under any classified key.
+    "engine_cg": "length_in", "prop_cg": "length_in",
     # geometry lengths formerly stored in feet, now canonical inches (Phase G0)
     "airplane_length_in": "length_in", "vtail_mac_in": "length_in", "wing_span_in": "length_in",
     "h_tail_span_in": "length_in", "v_tail_span_in": "length_in",
@@ -393,9 +414,25 @@ _PROJECT_FIELD_KIND = {
     "psi": "pressure",
 }
 
-# Fields whose JSON value is a bare ``[x, y, z]`` array of inch coordinates
-# rather than a keyed dict (see io.py's ``engine_to_dict``/``engine_from_dict``).
-_VEC3_LENGTH_IN_FIELDS = {"engine_cg", "prop_cg"}
+#: Field names deliberately **not** classified, with the reason -- read by the
+#: drift guard in ``tests/test_project_units.py`` so an unclassified dimensional
+#: leaf is a test failure unless it is listed here. A bare "it looks
+#: dimensional" name that is not a quantity belongs here, not in the table.
+_NOT_DIMENSIONAL = {
+    # A bool: "override the estimated max-continuous power?", not a horsepower.
+    "override_max_continuous_hp",
+}
+
+
+def _is_number(value: Any) -> bool:
+    """A real number to convert -- ``bool`` is an ``int`` in Python and is not."""
+    return isinstance(value, (int, float)) and not isinstance(value, bool)
+
+
+def _is_number_list(value: Any) -> bool:
+    """A non-empty list of numbers (an empty one has nothing to convert)."""
+    return (isinstance(value, list) and bool(value)
+            and all(_is_number(v) for v in value))
 
 
 def _walk_convert(obj: Any, system: UnitSystem) -> Any:
@@ -408,13 +445,18 @@ def _walk_convert(obj: Any, system: UnitSystem) -> Any:
     if isinstance(obj, dict):
         out: Dict[str, Any] = {}
         for key, value in obj.items():
-            if key in _VEC3_LENGTH_IN_FIELDS and isinstance(value, list):
-                factor = _KIND_FACTORS["length_in"][0]
-                out[key] = [v * factor if isinstance(v, (int, float)) else v for v in value]
-                continue
             kind = _PROJECT_FIELD_KIND.get(key)
-            if kind is not None and isinstance(value, (int, float)) and not isinstance(value, bool):
+            if kind is not None and _is_number(value):
                 out[key] = value * _KIND_FACTORS[kind][0]
+            elif kind is not None and _is_number_list(value):
+                # A classified key holding a list of numbers converts element by
+                # element: the ``[x, y, z]`` CG arrays and the aileron hinge
+                # station list are the same quantity repeated, not a different
+                # one. Without this the list passes through unconverted while
+                # its scalar neighbours convert -- the defect class ``thrust_lb``
+                # was found in, one level down.
+                factor = _KIND_FACTORS[kind][0]
+                out[key] = [v * factor for v in value]
             else:
                 out[key] = _walk_convert(value, system)
         return out
@@ -444,13 +486,12 @@ def project_dict_to_imperial(display_dict: dict, system: UnitSystem) -> dict:
         if isinstance(obj, dict):
             out: Dict[str, Any] = {}
             for key, value in obj.items():
-                if key in _VEC3_LENGTH_IN_FIELDS and isinstance(value, list):
-                    factor = _KIND_FACTORS["length_in"][0]
-                    out[key] = [v / factor if isinstance(v, (int, float)) else v for v in value]
-                    continue
                 kind = _PROJECT_FIELD_KIND.get(key)
-                if kind is not None and isinstance(value, (int, float)) and not isinstance(value, bool):
+                if kind is not None and _is_number(value):
                     out[key] = value / _KIND_FACTORS[kind][0]
+                elif kind is not None and _is_number_list(value):
+                    factor = _KIND_FACTORS[kind][0]
+                    out[key] = [v / factor for v in value]
                 else:
                     out[key] = _invert(value)
             return out

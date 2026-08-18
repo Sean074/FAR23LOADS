@@ -1067,6 +1067,128 @@ def _body_drag_stations(project: Project,
     return []
 
 
+#: The ``source`` tag of the per-engine hub thrust force (backlog #10). One
+#: reader -- :func:`is_powered` -- so the deck header, the case table, the report
+#: and the gates all agree on what a *powered* case is, the same single-owner
+#: rule :func:`is_ground` follows for the gear and :func:`is_lateral` for the fin.
+HUB_THRUST_SOURCE = "engine-thrust"
+
+
+def hub_thrust_set(project: Project, cg: CgCase
+                   ) -> Tuple[List[BalancedLoad], List[str]]:
+    """The user-entered engine thrust: one hub force per engine, ``(loads, notes)``.
+
+    Carved out of design note 21 (``docs/30_future/21_power_effects_wing_note.md``),
+    whose seven-step wake plan stays parked. What ships here is the one piece
+    that needs no estimator: the user enters ``EngineInput.thrust_lb`` and it
+    becomes a ``FORCE`` at that engine's hub -- the node the LRA skeleton has
+    carried since R-9 and has never had a load on
+    (:mod:`sloads.export.lra_model`).
+
+    **Sign and station.** ``CONVENTIONS.md`` §1: ``x`` is +aft, so thrust is
+    ``fx = -T``. It acts at ``prop_cg`` -- ``XPROP/YPROP/ZPROP``, the hub -- and
+    falls back to ``engine_cg`` only when no hub is entered; thrust with neither
+    raises rather than being placed on a guess, the refusal rule the LRA
+    exporter already follows for its missing datums.
+
+    **The thrust line is axial.** The P-6 incidence/toe angles (``i_T``, ``tau``)
+    have no fields and no estimator, and inventing them would put a lateral and
+    a vertical component into every case on an assumed geometry. So this is a
+    pure ``-x`` force, said in-band, and note 21 keeps the rest.
+
+    **Nothing balances it, and that is the point.** The V-n trim this case is
+    assembled at is thrust-free -- ``fltloads`` balances the airplane's drag from
+    the polar and knows nothing about power -- so the applied thrust is a genuine
+    unbalance in two degrees of freedom: ``Fx`` in full, and its couple
+    ``-T*(z_hub - z_cg)`` in pitch. Both are reacted by the closure, which is
+    exactly where they belong:
+
+        ``n_x = (D - sum T) / W``
+
+    -- the suite's ``x`` being +aft, so a thrust that exactly cancels the drag
+    gives ``n_x = 0`` and thrust in excess of it gives a forward (negative)
+    ``n_x``. That is FAR 23's longitudinal load factor, and the carrier this module's
+    docstring records the suite as lacking (**"the suite has no distributed
+    thrust"**, :func:`_closure`). ``q_dot`` reacts the couple. A powered case is
+    therefore *not* in longitudinal or pitch trim by construction, and
+    :data:`RESIDUAL_GATE` does not apply to its ``My`` -- the same standing as
+    the 23.427(a) maneuver tail load and the lateral families' ``Fy``/``Mz``.
+    The gate that does apply is the six-DOF closure itself, and the closed form
+    :func:`hub_thrust` states: a constructed case whose thrust equals its drag
+    closes at ``n_x = 0``.
+
+    **Flight only.** A ground case gets no thrust: rating it per family is note
+    21's parked ``power_policy`` table, and a landing case has no thrust rating
+    here to give. :func:`assemble_ground` says so in-band rather than dropping
+    the input in silence.
+
+    ``thrust_lb`` of ``None`` or ``0`` applies nothing at all, which is every
+    shipped fixture: today's cases are exactly zero-thrust and stay bit-for-bit
+    identical (``test_hub_thrust.py`` G-1).
+    """
+    loads: List[BalancedLoad] = []
+    applied: List[str] = []
+    for i, eng in enumerate(project.engines or []):
+        thrust = eng.thrust_lb
+        if not thrust:
+            continue
+        hub = tuple(eng.prop_cg) if any(eng.prop_cg) else tuple(eng.engine_cg)
+        if not any(hub):
+            raise MissingInputError(
+                f"engine {i + 1} enters thrust_lb = {thrust:,.0f} lb but has "
+                "neither a hub (prop_cg) nor an engine_cg to apply it at -- a "
+                "thrust force needs a station, and this suite does not guess one")
+        x, y, z = hub
+        loads.append(BalancedLoad(x=x, y=y, z=z, fx=-thrust,
+                                  source=HUB_THRUST_SOURCE,
+                                  side="R" if y > 0 else "L" if y < 0 else "C"))
+        applied.append(f"engine {i + 1} {thrust:+,.0f} lb at "
+                       f"({x:,.1f}, {y:,.1f}, {z:,.1f})")
+    if not loads:
+        return [], []
+
+    total = math.fsum(-ld.fx for ld in loads)
+    couple = math.fsum((ld.z - cg.zcg) * ld.fx for ld in loads)
+    # An asymmetric installation (different thrust per engine, or one engine of
+    # a pair) yaws the airplane -- and :func:`is_handed` cannot see it, because
+    # it measures lateral force and rolling moment and a pure axial force at
+    # ``y != 0`` makes neither. Rather than change that frozen predicate for
+    # this step, the yaw is measured and stated: the case is emitted UNHANDED,
+    # the closure's ``r_dot`` carries the moment in full, and the note names
+    # both consequences -- no twin from the asymmetry, and a twin got from
+    # anywhere else mirrors the installation with everything else (note 21
+    # section 4.4's parked decision) -- so neither is discovered from a number.
+    yaw = math.fsum(-ld.y * ld.fx for ld in loads)
+    arm = max(abs(ld.y) for ld in loads)
+    notes = []
+    if abs(yaw) > HANDEDNESS_TOL * max(abs(total) * arm, 1.0):
+        notes.append(
+            f"the entered thrust is ASYMMETRIC: it yaws the airplane "
+            f"{yaw:+,.0f} lb-in about the CG, carried in full by the closure's "
+            f"yaw acceleration. Two consequences are stated rather than "
+            f"handled, both owned by design note 21 section 4.4 (reflection "
+            f"with engine loads): the asymmetry mints NO port twin of its own "
+            f"-- is_handed measures lateral force and rolling moment (decision "
+            f"L-6) and an axial force off the centreline makes neither -- and "
+            f"where the case has a hand from something else, the twin operator "
+            f"mirrors the installation with everything else, so that twin is "
+            f"the mirror-image airplane's case, not this one's. Enter the "
+            f"mirror installation as its own project if that is the case "
+            f"wanted")
+    return loads, [
+        f"engine thrust APPLIED at the hub: {'; '.join(applied)} -- "
+        f"{total:+,.0f} lb forward in total (fx = {-total:+,.0f} lb; "
+        f"CONVENTIONS.md section 1, x is +aft), taken axial (the thrust-line "
+        f"incidence and toe angles stay parked with design note 21). The V-n "
+        f"trim this case is assembled at is thrust-free, so NOTHING balances "
+        f"it: the pre-closure Fx and its couple about the CG "
+        f"({couple:+,.0f} lb-in) are carried in full by the closure's "
+        f"longitudinal and pitch degrees of freedom -- nx = (D - sum T)/W is "
+        f"the carrier the assembled model has always lacked -- and the 1 % "
+        f"residual gate does not apply to a powered case's My, the same "
+        f"standing as the 23.427(a) maneuver tail load"] + notes
+
+
 def fin_sets(result: TailSpanResult) -> List[BalancedLoad]:
     """The fin's distributed side load, in airplane axes (decision L-6, plan 13 §2).
 
@@ -1177,6 +1299,35 @@ def htail_side_loads(case: BalancedCaseResult) -> Tuple[float, float]:
     rh = math.fsum(ld.fz for ld in case.loads if ld.source == "htail-air" and ld.y > 0)
     lh = math.fsum(ld.fz for ld in case.loads if ld.source == "htail-air" and ld.y < 0)
     return rh, lh
+
+
+def is_powered(case: BalancedCaseResult) -> bool:
+    """Does this case carry an applied engine thrust? (backlog #10)
+
+    The one reader of :data:`HUB_THRUST_SOURCE`, so the deck header, the case
+    table, the report and the gates cannot disagree about what a powered case
+    is -- the same single-owner rule :func:`is_ground` follows for the gear and
+    :func:`is_unsymmetrical_htail` for the 23.427(a) tail.
+
+    It matters most to the gates. A powered case is **not in longitudinal or
+    pitch trim by construction** (:func:`hub_thrust_set`): the V-n point it is
+    assembled at is thrust-free, so the applied thrust and its couple are the
+    pre-closure ``Fx`` and ``My`` in full, reacted by ``delta_nx`` and
+    ``q_dot``. :data:`RESIDUAL_GATE` therefore does not apply to its pitch
+    residual, exactly as it does not to a 23.427(a) case's.
+    """
+    return any(ld.source == HUB_THRUST_SOURCE for ld in case.loads)
+
+
+def hub_thrust(case: BalancedCaseResult) -> float:
+    """The net applied thrust, **lb forward**; ``0.0`` on an unpowered case.
+
+    Positive forward, i.e. the negated sum of the hub forces' ``fx`` -- read as
+    thrust rather than as the ``x`` force it is applied as, because that is the
+    number the user entered and the sense ``n_x = (D - sum T)/W`` reads in.
+    """
+    return -math.fsum(ld.fx for ld in case.loads
+                      if ld.source == HUB_THRUST_SOURCE)
 
 
 def is_ground(case: BalancedCaseResult) -> bool:
@@ -1621,6 +1772,12 @@ def assemble(project: Project, condition: str, vn: VnPoint,
         loads, project, vn, loading)
     loads += drag_loads
     notes += drag_notes
+
+    # The user-entered engine thrust (backlog #10) -- the assembled model's only
+    # forward force, and the only load here that nothing balances by design.
+    thrust_loads, thrust_notes = hub_thrust_set(project, cg)
+    loads += thrust_loads
+    notes += thrust_notes
 
     # The aileron's rolling moment (FAR 23.349), applied as a labelled free
     # couple at the wing aerodynamic centre. Sign: WINGINER's unit-roll inertia
@@ -2095,6 +2252,19 @@ def assemble_ground(project: Project, gear: "GearCaseLoads", wheels: Sequence,
     loads += gear_sets(wheels)
     loads += body_inertia(loading, project, 0.0)
 
+    # Entered thrust is a *flight* input here (backlog #10, :func:`hub_thrust_set`)
+    # and is stated rather than dropped in silence: rating thrust per case family
+    # -- take-off on a ground roll, max-continuous elsewhere -- is design note
+    # 21's parked power_policy table, and this carve-out has no rating to give.
+    entered = math.fsum(e.thrust_lb or 0.0 for e in (project.engines or []))
+    if entered:
+        notes.append(
+            f"the project enters {entered:+,.0f} lb of engine thrust; it is NOT "
+            "applied to a ground case -- a ground condition's thrust rating is "
+            "design note 21's parked power-policy table, and this step (#10) "
+            "carries one user-entered value with no per-family rating. The "
+            "flight families carry it")
+
     wm, geometry, _ = _wing_slices(project)
     geom = geometry.by_name(wm.surface)
     semi_span = geom.leading_edge[-1][1] if geom else 0.0
@@ -2429,6 +2599,14 @@ def run(project: Project) -> ModuleResult:
             LoadValue("Pitch acceleration", degrees(radians_per_s2(
                 (0.0, c.q_dot, 0.0))[1]), "deg/s^2", key="balanced_q_dot"),
         ] if unsymmetrical else []
+        # A powered case reports the thrust it carries and the longitudinal
+        # acceleration that reacts it (backlog #10) -- and only a powered case
+        # does, so an unpowered fixture's condition rows are unchanged.
+        powered_values = [
+            LoadValue("Applied engine thrust", hub_thrust(c), "lb",
+                      key="balanced_hub_thrust"),
+            LoadValue("Closure dnx", c.delta_nx, "g", key="balanced_delta_nx"),
+        ] if is_powered(c) else []
         lateral = is_lateral(c)
         lateral_values = [
             # The case's defining applied load, reported before the motion it
@@ -2459,7 +2637,8 @@ def run(project: Project) -> ModuleResult:
             title=(f"Balanced case {c.label}{hand} "
                    f"({case_source_name(c, short=True)}, {c.cg})"),
             far_reference=far,
-            values=roll_values + htail_values + lateral_values + [
+            values=roll_values + htail_values + lateral_values
+            + powered_values + [
                 LoadValue("Load factor Nz", c.nz, "g", key="balanced_nz"),
                 LoadValue("Weight", c.weight_lb, "lb", quantity="mass",
                           key="balanced_weight"),
@@ -2498,6 +2677,7 @@ __all__ = [
     "FLIGHT_SOURCE_STEM",
     "GROUND_SOURCE_STEM",
     "HANDEDNESS_TOL",
+    "HUB_THRUST_SOURCE",
     "LATERAL_AERO_NOTE",
     "RESIDUAL_GATE",
     "ROLLING_WING_CONDITIONS",
@@ -2516,9 +2696,12 @@ __all__ = [
     "htail_load",
     "htail_sets",
     "htail_side_loads",
+    "hub_thrust",
+    "hub_thrust_set",
     "is_ground",
     "is_handed",
     "is_lateral",
+    "is_powered",
     "is_unsymmetrical_htail",
     "reflect_load",
     "resultant",

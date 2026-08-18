@@ -251,7 +251,13 @@ for the same reason and the strongest instance of it: its applied tail load is a
 full (−49.8 % of `n·W` on the ga6) and the closure is the pitching maneuver
 itself — what is gated there is the trim half, in the rows above (D-R8, decision
 of record; FAR 23.427(a) via `select_htail_unsymmetrical`, SELECT.BAS 6030-6180,
-Ref 1 Appendix C p440-441, with the approved M1-4 deviation).
+Ref 1 Appendix C p440-441, with the approved M1-4 deviation). A **powered**
+case's `Fx`/`My` are outside it on the same construction and with the strongest
+gate of the set: the V-n point it is assembled at is thrust-free, so the entered
+hub thrust and its arm `−T·(z_hub − z_cg)` *are* the pre-closure residual in
+closed form, carried by `n_x = (D − ΣT)/W` and `q̇` — asserted as an identity,
+not a bound, by `tests/test_hub_thrust.py` G-3/G-4 (`balance.hub_thrust_set`,
+#10; `balanced_cases.md` §2.1).
 
 The measurement is deliberately taken **before** the closure: the gate is on what
 the physics achieves, not on what the correction hides. The remaining ~0.3 %

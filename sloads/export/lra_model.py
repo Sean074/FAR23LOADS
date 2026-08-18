@@ -42,8 +42,10 @@ chain node nearest the front post -- see the support comment in
   lumped transfer is then never applied here, plan 11 §4);
 * **gear** nodes at each leg's trunnion, rigid to the parent ``carrier``
   names (BM-4's gear half, the shipped G-2 field); **engine** hub + mount
-  nodes rigid to the parent ``mounted_on`` names (R-9) -- the hub thrust
-  ``FORCE`` is absent until the power-effects cases ship;
+  nodes rigid to the parent ``mounted_on`` names (R-9), the hub carrying the
+  entered thrust ``FORCE`` (backlog #10,
+  :func:`sloads.modules.balance.hub_thrust_set`) -- the rest of the
+  power-effects set waits for design note 21;
 * elevator/rudder **hinge/actuator** nodes where a surface runs discrete
   control mode, each rigid to an inserted parent-chain node (LM-6).
 
@@ -577,6 +579,8 @@ def build_lra_model(project: Project) -> LraModel:
         model.members["vtail"] = fin_chain
     if gear_nodes:
         model.members["gear"] = gear_nodes
+    if engine_nodes:
+        model.members["engine"] = engine_nodes
     return model
 
 
@@ -587,7 +591,13 @@ def _member_key(load: BalancedLoad, members: Dict[str, List[LraNode]]) -> str:
     """Which member a balanced load's ``source`` routes it to.
 
     ``ground-lift`` is the wing spanwise shape, so it rides with the wing
-    strips. Anything unrecognised -- the closure relief fields, the aileron
+    strips. ``engine-thrust`` routes to the engine member, where the nearest
+    node is the hub the load was built at -- so the transfer couple is exactly
+    zero and the thrust lands on the hub node as an undisturbed ``FORCE``
+    (backlog #10). It would land there anyway through the ``all`` fallback; the
+    rule is explicit so a future nacelle stick cannot silently re-route it.
+
+    Anything unrecognised -- the closure relief fields, the aileron
     couple -- goes to the nearest node in the whole skeleton: relief acts at
     each mass's own position, and nearest-node with the exact couple preserves
     the resultant wherever it lands. A member the model could not build falls
@@ -603,6 +613,8 @@ def _member_key(load: BalancedLoad, members: Dict[str, List[LraNode]]) -> str:
         key = "vtail"
     elif s.startswith("gear-"):
         key = "gear"
+    elif s.startswith("engine-"):
+        key = "engine"
     elif s.startswith("body") or s == "fuselage-cm":
         key = "fuselage"
     else:

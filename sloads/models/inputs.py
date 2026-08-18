@@ -99,9 +99,10 @@ class EngineInput:
     max_accel_torque: Optional[float] = None    # FAR 25.361(a)(3)(ii) max accelerating torque, ft-lb
                                                 # (blank -> falls back to max_engine_torque)
     # v54 (L-7 hop passenger, note 19 decision L-7.10): the engine's design
-    # thrust, lb, for the hub-node ``FORCE`` card of backlog Pri 3 (#10) --
-    # reserved on this hop so 0.7.0 keeps to one schema change; ``None`` = not
-    # entered, and no shipped module reads it yet.
+    # thrust, lb. Read by ``balance.hub_thrust_set`` (#10, shipped 2026-08-17),
+    # which applies it as an axial ``FORCE`` at this engine's hub -- ``prop_cg``,
+    # falling back to ``engine_cg`` -- in every assembled **flight** case.
+    # ``None`` or ``0`` applies nothing, which is every shipped fixture.
     thrust_lb: Optional[float] = None
     # Concept-mode advisory rates: the concept's real 25.371 body pitch/yaw rates,
     # if known. Used ONLY to guard condition_25_371's fixed FAR 23.371(b) stand-in

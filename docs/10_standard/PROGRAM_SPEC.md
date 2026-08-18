@@ -664,7 +664,9 @@ regression oracle**; Appendix A/B geometry is used only as a *sanity* fixture.
   B-2) and their CG cases (`cg_cases.flight_cases` / `ground_cases`);
   `tail_span`'s fin and h-tail distributions; and, for the ground families,
   `gear_loads.gear_case_loads` / `applied_wheels`, whose reactions are LANDLOAD's
-  own, unchanged.
+  own, unchanged. From the hub thrust card (#10) it also reads
+  `Project.engines[].thrust_lb` and each engine's hub station (`prop_cg`,
+  falling back to `engine_cg`).
 - **Writes:** one `BalancedCaseResult` per assembled condition — **two** where
   the condition has a hand, the port twin got by reflection rather than
   recomputation (B-6/B-7) — carrying the full-span applied set of
@@ -695,7 +697,11 @@ regression oracle**; Appendix A/B geometry is used only as a *sanity* fixture.
   the case's symmetric (or trim) half, with the defining set removed, still
   closing inside 1 %. Stated in full in
   [`../20_theory/balanced_cases.md`](../20_theory/balanced_cases.md) (§3, and §9
-  for the ground families).
+  for the ground families). A **powered** case (one carrying an entered engine
+  thrust) joins them for the same reason and with a stronger gate of its own:
+  the V-n point it is assembled at is thrust-free, so its pre-closure `Fx` and
+  `My` are the applied thrust and its hub arm **exactly**, in closed form, and
+  `tests/test_hub_thrust.py` G-3 asserts that identity rather than a bound.
 - **Notes:** the **seam rule** (plan 11 §4): a load that a free-body cut
   introduces is never applied in the assembled model — the wing carry-through
   reaction is excluded and `carry_sources_absent` guards it. Only `ACRL` is
@@ -726,6 +732,18 @@ regression oracle**; Appendix A/B geometry is used only as a *sanity* fixture.
   couple (stated, reacted by the closure, pinned per case in `test_balance.py`).
   Inside the window a forward value is applied as computed and fails the G10
   gate — the fixture's aero data is inconsistent where both models are trusted.
+  **Engine thrust** (#10, carved out of design note 21) is the model's only
+  forward force: one user-entered value per engine, applied as an axial `FORCE`
+  at that engine's hub — `fx = −T`, at `prop_cg` and falling back to
+  `engine_cg`, refusing when neither exists — on **flight cases only**. Nothing
+  balances it, by design: `n_x = (D − ΣT)/W` and `q̇` carry it, which is the
+  longitudinal carrier the assembled model has always lacked. A ground case
+  states the entered value and does not take it (rating thrust per case family
+  is note 21's parked power-policy table), and the thrust line is taken axial —
+  the incidence/toe angles, the propeller normal force and every slipstream term
+  stay parked with that note. Off unless entered, so every pre-#10 case is
+  bit-for-bit unchanged. Single owner `balance.hub_thrust_set`;
+  `CONVENTIONS.md` §7.
   A condition whose CG the weight database cannot produce is **recorded, not
   invented**. The ground families' own method — the `n_z = 0` solve, the applied
   gear/lift set and the LANDLOAD identity — is
@@ -1269,7 +1287,9 @@ result that lacks what a deck needs is a stated error, never an empty column.
   BM-3: refuse `ATTACH_STRIP_PAIR`) or the T-tail fin-tip joint (the fin
   deck's T7 lumped transfer is **never** applied here, plan 11 §4), the gear
   per `carrier` (G-2 = BM-4's gear half) and the engine hub + mount per
-  `mounted_on` (R-9; the hub thrust FORCE is absent until power effects ship).
+  `mounted_on` (R-9), the **hub** carrying the entered thrust `FORCE` (#10) and
+  the **mount** still carrying nothing applied — ENGLOADS' torque and gyro
+  `MOMENT`s wait for design note 21.
   Named nodes carry `$ SLOADS-NODE <family> <side>` identity tags (BM-5).
   The wing chains **start at the side-of-body** (R-3); the deck is free-free
   on one clamped fuselage node whose recovered reaction is the case residual.

@@ -246,7 +246,8 @@ from .results import EnvelopeResult, LoadsResult, MassResult
 # AeroCoefficientsInput.lateral_body_aero (LateralBodyAeroInput: off-by-default
 # wing-body Cy_beta/Cn_beta in sideslip, computed per case from the G1 outline by
 # DATCOM 5.2.1.1/5.2.3.1 unless overridden), and its passenger (decision L-7.10)
-# EngineInput.thrust_lb, reserved for the hub-node thrust card (backlog #10).
+# EngineInput.thrust_lb, the hub-node thrust card's input (#10, shipped on this
+# version -- the field was reserved a day ahead of its reader).
 # Both additive with None defaults, no migration hop; the v-tail
 # CriticalCondition gains beta_deg / cy_beta_fin / cn_beta_fin (result slice,
 # tolerant reader defaults them to None).

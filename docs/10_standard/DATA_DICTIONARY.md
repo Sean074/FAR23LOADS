@@ -18,7 +18,7 @@ The top-level `Project` fields. `name`/`engineer`/`date` are free-text metadata;
 
 | Slice | Type | Owning page | Consumed by | Role |
 | --- | --- | --- | --- | --- |
-| `engines` | `List[EngineInput]` | Engine Mount Loads | `engine`, `flap`, `one_engine_out`, `weight_estimate`, `wing_geometry` | Engine-mount inputs (one per engine) |
+| `engines` | `List[EngineInput]` | Engine Mount Loads | `balance`, `engine`, `flap`, `one_engine_out`, `weight_estimate`, `wing_geometry` | Engine-mount inputs (one per engine) |
 | `engine_layout` | `EngineLayout (enum)` | Engine Mount Loads | `wing_geometry` | Engine layout constraint (enum) |
 | `weight` | `?` | Weight & Mass Properties | `configuration`, `weight_envelope`, `weight_estimate`, `weight_onecg` | Weight database (WTESTIMA / WTONECG / WTENV) |
 | `geometry` | `?` | Geometry | `airloads`, `balance`, `configuration`, `flap`, `landing`, `net_loads`, `structural_speeds`, `tail_span`, `weight_envelope`, `wing_geometry`, `wing_inertia` | Geometry single-source (WINGGEOM + fuselage + empennage) |

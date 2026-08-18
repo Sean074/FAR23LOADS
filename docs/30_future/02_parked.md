@@ -334,13 +334,18 @@ surrogate — not certification" banner. Full gap table:
 LGFACTOR at 10/6 fps, lift = W, LDW/MTOW pairing; LANDLOAD tables documented as
 surrogate. Coordinates with M4-6.
 
-### [V] Power effects on the wing — thrust and propeller-wake loads *(new 2026-08-15, user; design note agreed)*
-Every wing case in the suite is **exactly** zero-thrust (measured: no powerplant
-`source` in any balanced case; the x-closure is the drag alone, GA-6 PHAA
-`n_x = −0.61 g`). The only power physics — FLAPLOAD's slipstream — stops at the
-flap panel, and the 23.361/23.371 mount thrust/torque/gyro stop at the mount,
-although for a wing-mounted engine the rule names "the mount **and its
-supporting structure**". Design note
+### [V] Power effects on the wing — propeller-wake loads *(new 2026-08-15, user; design note agreed; the **hub thrust card** carved out and shipped 2026-08-17, #10 — the wake stays parked)*
+Every wing case in the suite **was** exactly zero-thrust when this was parked
+(measured: no powerplant `source` in any balanced case; the x-closure is the
+drag alone, GA-6 PHAA `n_x = −0.61 g`) — and still is unless a thrust is
+entered. The **hub thrust card was carved out of this item and shipped
+2026-08-17** (#10): an entered `EngineInput.thrust_lb` puts one `engine-thrust`
+source per engine into every flight case, and the x-closure becomes
+`n_x = (D − ΣT)/W`. What stays parked is everything this item is really
+about — the wake. The only power physics the suite models is FLAPLOAD's
+slipstream, which stops at the flap panel, and ENGLOADS' 23.361/23.371
+torque/gyro stop at the mount, although for a wing-mounted engine the rule
+names "the mount **and its supporting structure**". Design note
 [`21_power_effects_wing_note.md`](21_power_effects_wing_note.md) — **agreed
 2026-08-15, decisions P-0…P-12** — settles: DATCOM §4.6.1–4.6.3 as the default
 estimator (Digital DATCOM ex3 case 4 vs 3 is the printed oracle) with

@@ -94,6 +94,7 @@ from sloads.modules.balance import (  # noqa: E402
     is_ground,
     is_handed,
     is_lateral,
+    is_powered,
     polar_alpha_trusted,
     resultant6,
 )
@@ -724,10 +725,20 @@ def test_the_pre_closure_residual_is_within_the_gate(example):
     gate the maneuver. What is gated instead is the case's **trim half**, at the
     same 1 %, in
     :func:`test_the_trim_half_of_an_unsymmetrical_case_still_closes`.
+
+    A **powered** case (backlog #10) is excluded for the same reason and is
+    stated here so the exemption cannot be discovered later from a failure: the
+    V-n point it is assembled at is thrust-free, so the entered hub thrust and
+    its couple about the CG are the pre-closure ``Fx`` and ``My`` in full, by
+    construction, and are reacted by ``delta_nx`` and ``q_dot``
+    (:func:`sloads.modules.balance.hub_thrust_set`). No shipped fixture enters
+    thrust, so this branch is never taken here; what gates the powered case is
+    ``tests/test_hub_thrust.py``, whose G-3 asserts the residual **is** the
+    thrust, to the last digit, rather than merely being small.
     """
     clamped_seen = set()
     for case in _flight_cases(_project(example)):
-        if _family(case) == "unsymmetrical":
+        if _family(case) == "unsymmetrical" or is_powered(case):
             continue
         where = f"{example} {case.label}{case.hand}"
         if case.body_axial_clamped:

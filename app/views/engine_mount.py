@@ -361,6 +361,34 @@ with st.form("engine_mount_form"):
                 )
             )
 
+    # ------------------------------------------------------------------ #
+    # Balanced-cases input, not a mount input (backlog #10): the thrust this
+    # engine puts into the airframe, applied at its hub in the assembled
+    # flight cases. Outside the type-specific blocks because it is entered the
+    # same way for both engine types.
+    # ------------------------------------------------------------------ #
+    st.markdown("**Design thrust (balanced flight cases)**")
+    st.caption(
+        "The thrust this engine delivers, applied as a `FORCE` at its hub "
+        "(propeller CG, falling back to the engine CG) in every assembled "
+        "**flight** balanced case and in the LRA beam model. Taken along the "
+        "airplane x axis; the thrust-line incidence and toe angles, the "
+        "propeller normal force and every slipstream term are not modelled. "
+        "Nothing balances it -- the case's longitudinal load factor and pitch "
+        "acceleration carry it -- and ground cases do not take it. "
+        "0 = no thrust, which is what every case did before this input existed."
+    )
+    tcol, _ = st.columns([1, 2])
+    with tcol:
+        _thrust_in = st.number_input(
+            f"Thrust per engine, {U['force']}",
+            value=dflt(cur.thrust_lb or 0.0, "force"), min_value=0.0, step=10.0,
+            key=k("thrust"),
+            help=("Applied forward at the hub. Requires a propeller CG or an "
+                  "engine CG to act at."),
+        )
+    thrust_lb = _thrust_in if _thrust_in > 0 else None
+
     applied = st.form_submit_button("Apply", type="primary")
 
 if applied:
@@ -392,6 +420,7 @@ if applied:
         max_accel_torque=max_accel_torque,
         design_yaw_rate_rad_s=design_yaw_rate,
         design_pitch_rate_rad_s=design_pitch_rate,
+        thrust_lb=thrust_lb,
     )
     engines_working[idx] = to_imperial(inp_display, system)
     project.engines = engines_working
