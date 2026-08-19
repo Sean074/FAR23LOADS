@@ -67,9 +67,13 @@ flight and ground fuselage cases are assessed with different internal-pressure
 companion cases, so no envelope over both is supportable from a tool that
 excludes pressurization — the two families stay separate deliverables and the
 ground family's own missing per-station view is filed as **#31**, band B),
-the recorded decisions (the gust-shape study **merged** into them: reusing
-Schrenk is inside the Schrenk band by construction, so it is a decision, not
-work; #12 closed into #13), and the **GUI review** (#29) the user asked for,
+the recorded decisions (**closed 2026-08-18**, decisions **D-29**/**D-30**/**D-31**,
+`changes/recorded-decisions.*`: the derived `ACRL` point names SELECT's own pick;
+the ATR-42's Mach-capped corner is ordinary stall-limited flight, with the real
+finding — coefficients evaluated past their fit on nine published rows, no
+governing load affected — filed as **#32**/**#33**; and the gust-shape study
+**merged** in, reusing Schrenk being inside the Schrenk band by construction, so
+a decision and not work; #12 closed into #13), and the **GUI review** (#29) the user asked for,
 which re-opens the UI freeze to the extent its findings justify. Nothing was
 promoted from `02_parked.md`; the aileron increment stays in band B; band C is
 unchanged. Schema: the freeze is lifted for exactly L-7's additive hop; anything
@@ -141,19 +145,20 @@ traceability with plans 09/11/12/13; the **Pri** column is ordinal only.
 
 | Pri | Item (detail below / in its plan) | What ships | Tag | Tier / effort | Depends on |
 |---|---|---|---|---|---|
-| **A — 0.7.0: the lateral term the base method is missing, the fixture data it needs, the recorded decisions, and the GUI review (review BR-2…BR-7, BR-11)** ||||||
-| 1 | Decisions, not effort: derived-`ACRL` air-load divergence (which point `ACRL` names); ATR-42 Mach-capped stall exceedance (`_balance` reports an infeasible corner rather than an unconverged point); **gust spanwise shape = Schrenk** (merged from #12: the gust-vs-manoeuvre shape difference is inside the Schrenk band by construction — recorded, not worked) (#13) | Three recorded decisions; the first two are pinned by test today | V | S / S | — |
-| 2 | **GUI review** — the Streamlit UI against the 0.6.0 deliverables: page order vs `workflow.py`, unit toggle/labels conformance, the ground/gear and LRA-model pages, CLI-vs-UI delivery gaps, plan 03 status; body of record in `50_reviews/`, findings filed as issues (rule 5), re-cut follows (#29) | The UI freeze re-opened to the extent the findings justify — a reviewed list, not a rework | V | S (review) / M | — |
+| **A — 0.7.0: the lateral term the base method is missing, the fixture data it needs, and the GUI review (review BR-2…BR-7, BR-11)** ||||||
+| 1 | **GUI review** — the Streamlit UI against the 0.6.0 deliverables: page order vs `workflow.py`, unit toggle/labels conformance, the ground/gear and LRA-model pages, CLI-vs-UI delivery gaps, plan 03 status; body of record in `50_reviews/`, findings filed as issues (rule 5), re-cut follows (#29) | The UI freeze re-opened to the extent the findings justify — a reviewed list, not a rework | V | S (review) / M | — |
 | — | **Cut 0.7.0** when band A is empty (RELEASE_PROCESS §2 cadence rule) | | | | |
 | **B — 0.8+: capability that waits for a consumer (review BR-8)** ||||||
-| 3 | The aileron's own lift increment is not distributed (#14) | `ACRL` wing cards gain the aero half of the couple (~70 % span); the schema fields shipped v52 and wait for data and a consumer | V | L / M | only if a consumer sizes to `ACRL` |
-| 4 | Ground-case fuselage station distribution — the ground family has no per-station view *(from the #11 closure, D-28)* (#31) | Per-station shear/bending/torsion for the ground family on the fuselage beam, its own envelope beside the flight one and never merged with it, each station naming its ground case | V | L / M | a frame-sizing consumer; design note first |
+| 2 | The aileron's own lift increment is not distributed (#14) | `ACRL` wing cards gain the aero half of the couple (~70 % span); the schema fields shipped v52 and wait for data and a consumer | V | L / M | only if a consumer sizes to `ACRL` |
+| 3 | Ground-case fuselage station distribution — the ground family has no per-station view *(from the #11 closure, D-28)* (#31) | Per-station shear/bending/torsion for the ground family on the fuselage beam, its own envelope beside the flight one and never merged with it, each station naming its ground case | V | L / M | a frame-sizing consumer; design note first |
+| 4 | Mach-capped balanced points are published with their coefficients extrapolated past the fitted stall alpha, and nothing says so *(from the #13 closure, D-30)* (#32) | A derived past-fit marker wherever a per-point quantity is published (BALLOADS' 300 rows first); rows stay published and marked, never withheld; no schema field — the marker is the point's own CL against its Mach-adjusted stall CL | V | M / S–M | — |
 | **C — maintenance and hygiene, when the module is next touched (review 2026-08-16 §5.2; BR-9)** ||||||
-| 5 | Export deck-writing primitives out of `sbeam_bridge.py` (CH-4) (#15) | `_fmt`/`_sf_str`/`_stamped`/`_MAT1_*`/`_PBAR_*` in a shared module; the four private cross-imports gone | V | S / S | — |
-| 6 | Dead code (CH-5) (#16) | Delete `write_balanced_deck`, `write_conm2_fragment`, `write_mass_check_deck`, `all_checks`; demote the ~12 no-consumer public names | V | S / S | — |
-| 7 | Calc-side function size (CH-8) — `build_lra_model` (336 lines), `landing_reactions` (200) (#17) | Split when touched; **the view functions wait for the GUI review (#29)** | V | S / S | — |
-| 8 | Review 2026-08-10 unscheduled findings m3–m13, m15–m18 + NITs *(defect sweep)* (#18) | Swept opportunistically (practice 4) or promoted individually | V | S / S–M | — |
-| 9 | mypy strictness ratchet — stage 2 `export/`, stage 3 `modules/` *(design note 27 ST-3; detail below)* (#19) | `sloads.export.*` then `sloads.modules.*` added to the `[[tool.mypy.overrides]]` list and narrowed to zero under ST-4 (no `ignore`, no `Any` widening, no `cast`); then `warn_return_any`/`disallow_any_generics` toward `--strict`; `UP` on when 3.9 leaves the matrix | V | S / S per stage | — |
+| 5 | `_balance` has no failure channel — both iteration loops return their last iterate with no signal *(from the #13 closure, D-30)* (#33) | A converged/exhausted state on `_Balanced` covering **both** loops (rule 4), asserted in the closure tests; internal only, no published number and no schema field | V | S / S | — |
+| 6 | Export deck-writing primitives out of `sbeam_bridge.py` (CH-4) (#15) | `_fmt`/`_sf_str`/`_stamped`/`_MAT1_*`/`_PBAR_*` in a shared module; the four private cross-imports gone | V | S / S | — |
+| 7 | Dead code (CH-5) (#16) | Delete `write_balanced_deck`, `write_conm2_fragment`, `write_mass_check_deck`, `all_checks`; demote the ~12 no-consumer public names | V | S / S | — |
+| 8 | Calc-side function size (CH-8) — `build_lra_model` (336 lines), `landing_reactions` (200) (#17) | Split when touched; **the view functions wait for the GUI review (#29)** | V | S / S | — |
+| 9 | Review 2026-08-10 unscheduled findings m3–m13, m15–m18 + NITs *(defect sweep)* (#18) | Swept opportunistically (practice 4) or promoted individually | V | S / S–M | — |
+| 10 | mypy strictness ratchet — stage 2 `export/`, stage 3 `modules/` *(design note 27 ST-3; detail below)* (#19) | `sloads.export.*` then `sloads.modules.*` added to the `[[tool.mypy.overrides]]` list and narrowed to zero under ST-4 (no `ignore`, no `Any` widening, no `cast`); then `warn_return_any`/`disallow_any_generics` toward `--strict`; `UP` on when 3.9 leaves the matrix | V | S / S per stage | — |
 
 **Frozen (review §3) — no further investment; tests and gates kept; touched
 for defects only:** the FAR 23 core; the balanced assembler + handedness;
@@ -170,41 +175,25 @@ path — parked M4-11b and the L-8 UX rows stay parked until then); F25-2.
 ## Open defects (index)
 
 - #18 — Review 2026-08-10 unscheduled findings [Minor/NIT].
-- **Derived ACRL wing case disagrees with the worked example's air load [Minor,
-  found 2026-08-05 by M4-2's decision-7 gate].** With `wing_mass.cases` left empty,
-  `wing_inertia.resolve_wing_cases` derives the wing cases from `envelope.critical`.
-  Nz/Nx then reproduce the Appendix A figures closely for every ga6 condition, but
-  the **ACRL** air-load point does not: SELECT's 23.349(a)(2) pick carries CL ≈ 1.30
-  at 117.4 kt where the worked example (Ref 1 p217-221) enters CL 1.55 at 116 kt —
-  a ~19% air-load difference for the same named condition. A derived ACRL case also
-  carries `unbal_moment = 0`, since SELECT's condition does not name the unbalanced
-  rolling moment (it comes from AILERON, Ch 13). **Only the derived route is
-  affected** — every shipped example enters its cases explicitly, and explicit
-  always wins — so no oracle or deliverable moves today. Decide which point ACRL
-  should name (and where the rolling moment comes from) before the derived route is
-  recommended for anything but a first pass. Pinned by
-  `tests/test_wing_case_derivation.py::test_the_acrl_divergence_is_the_documented_one`,
-  which fails if the two ever start agreeing — at which point close this and make
-  the assertion an equality.
-- **ATR-42 example: seven balanced points sit above the stall CL at 25,000 ft
-  [Minor, found 2026-08-05 by M4-5's stall-clamp closure].** In
-  `examples/atr42_100.project.json`, MAN A / MAN C / AC ROLL at 25,000 ft carry a
-  balanced CL up to **1.767 against a Mach-adjusted stall CL of 1.478** (+0.29)
-  (2026-08-17, D-27 limit-point cases: 9 of 300 points, worst `MAN A` at
-  `fwd gross`, +0.27 — full gross weight at 25,000 ft; same cause).
-  The local Mach is pinned exactly at MC = 0.4555, so `_balance`'s
-  dynamic-pressure iteration cannot raise q any further and never brings CL back
-  onto the stall line: the airplane cannot reach n = 2.5 at that altitude within
-  its own Mach cap and CLmax. The loads reported at those points are therefore
-  not physically attainable. Not a solver defect and not an oracle fixture — a
-  property of that example's speeds/altitude set (or of the Mach-cap handling:
-  arguably the balance should report such a corner as *infeasible* rather than
-  returning an unconverged point). Decide which, then either fix the fixture's
-  altitude list / CLmax or teach `_balance` to flag a Mach-capped non-convergence.
-  Pinned by
-  `tests/test_aero_curves.py::test_the_atr42_stall_exceedance_is_the_documented_mach_capped_one`,
-  which fails if the count or the cause changes. The GA oracle and both concept
-  fixtures close cleanly.
+
+Two long-standing entries left this list on 2026-08-18 at the issue #13 closure —
+**decided, not fixed**, which is why neither survives here under the removal
+rule. Both keep their pins; the decisions carry what the bodies used to:
+
+- The **derived `ACRL` air-load divergence** is **D-29**: SELECT's own
+  23.349(a)(2) pick is what the derived case names, the ~19 % difference against
+  the worked example is accepted and stated, and an `ACRL` case used for sizing is
+  **entered, never derived**. Pin:
+  `tests/test_wing_case_derivation.py::test_the_acrl_divergence_is_the_documented_one`.
+- The **ATR-42 Mach-capped stall exceedance** is **D-30**: nine of 300 points at
+  25,000 ft are ordinary stall/Mach-limited flight, not a defect — `nz = n` and
+  `n·W` are exact and the fixture is not edited to hide the corner. What is real
+  is that CM/CD are evaluated 0.9–3.1 deg past their fit there, moving the
+  published tail split by 3.3–44 % with **0 of the 9 SELECTed**, so no sizing load
+  moves: filed as **#32** (mark the rows, band B) and **#33** (the solver's own
+  silence, band C). Pin:
+  `tests/test_aero_curves.py::test_the_atr42_stall_exceedance_is_the_documented_mach_capped_one`.
+  The GA oracle and both concept fixtures close cleanly.
 
 ---
 

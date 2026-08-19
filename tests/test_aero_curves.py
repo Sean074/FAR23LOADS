@@ -144,6 +144,30 @@ def test_the_atr42_stall_exceedance_is_the_documented_mach_capped_one():
     property of the fixture's speeds/altitude set, not of this module. If it ever
     starts closing, delete this test and add the fixture to ``_CLOSING_FIXTURES``.
 
+    **Decided 2026-08-18 (D-30, #13): this is ordinary flight, not a defect.** An
+    airplane commonly cannot reach its manoeuvre load factor at altitude and is
+    stall-limited through the speed range, and 23.333(b) says so: the manoeuvring
+    envelope applies "except where limited by maximum (static) lift coefficients"
+    (Ref 1 p62; Ref 2 §11.2.1.2 p68), so these points lie *outside* the envelope
+    the rule defines rather than being design conditions the airplane misses. The
+    Mach cap that produces them is the regulation's own provision too -- design
+    speeds are EAS except 23.335 a.(4)'s compressibility-limited MC at altitudes
+    where an MD is established (Ref 2 §7.2.1 p45-46), which is this fixture's
+    MC = 0.4555. The point is still not re-reported at a reduced "attainable" n,
+    but on conservatism and method consistency, *not* on an obligation to design
+    to n = 2.5 there -- there is none. The earlier reading of this exceedance as "loads that are
+    not physically attainable" is retired: the alpha iteration enforces
+    ``nz = n``, so the load factor and the total ``n*W`` are exact and the whole
+    effect is on the LZW/LT split (<= 0.5 % of ``n*W``). What *is* real is that
+    the balance closes at alpha 14.1-16.3 deg against a fitted stall edge of
+    13.18 deg, so CM and CD are extrapolated 0.9-3.1 deg past their fits; frozen
+    at the fit edge instead, the published tail quantities move 3.3-44 % (LT),
+    6.5-20.4 % (LT25/LT50) and 8.5-20.8 % (elevator load). None of the nine is
+    SELECTed as a governing critical condition, so no sizing load moves anywhere
+    -- but BALLOADS publishes all 300 points, so nine published rows carry the
+    extrapolation unmarked (**#32**, band B). The solver's own silence -- both
+    iteration loops return their last iterate with no signal -- is **#33**.
+
     **It got roughly half way there on its own.** Pri 5 / D-26 corrected this
     fixture's CG cases to loadings its weight database can produce, and the
     exceedance fell from 7 points at +0.29 to 5 at +0.14 -- the cases are lighter

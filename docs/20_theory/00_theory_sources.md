@@ -197,6 +197,13 @@ delivered load is below that band buys nothing a consumer can see; one above it
 is real. The number is an order of magnitude, not a tolerance — it ranks work, it
 does not gate a test.
 
+**Worked application (D-31, 2026-08-18).** The gust cases reuse the manoeuvre
+**spanwise** shape rather than a gust-specific one, and that is a recorded
+decision, not deferred work: Schrenk *is* this method's approximation of the
+spanwise shape, so a gust-vs-manoeuvre shape difference is inside the ±5–10 %
+band above **by construction** and cannot buy a consumer anything the method can
+resolve. It re-opens only if the wing airload basis itself moves off Schrenk.
+
 ## Concept-mode closure validation (Step P1-2)
 
 Concept mode (`category="C"`) has **no printed oracle** above the 12,500 lb FAR23

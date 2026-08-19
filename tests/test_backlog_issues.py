@@ -72,7 +72,14 @@ def test_render_round_trips_the_live_table_and_drops_closed_rows(bi, backlog_tex
     """``render`` is the inverse of ``create``: a row -> its issue body ->
     ``row_from_issue`` reproduces the row byte-for-byte on the live file, so the
     table can be regenerated from the issues without moving anything but the
-    rows whose issues closed."""
+    rows whose issues closed.
+
+    A row is **owned by its first** ``(#N)`` -- the one ``row_from_issue`` emits
+    after the item title. A later ``(#N)`` in the same line is a cross-reference
+    to another row's issue ("the view functions wait for the GUI review (#29)"),
+    and closing *that* issue must not delete this row. Both halves are asserted
+    below, because the distinction is invisible while the table happens to lead
+    with an issue nothing else cites -- which is how it read until #13 closed."""
     rows = [it for it in bi.parse_backlog(backlog_text) if it.kind == "row"]
     assert rows
     issues = {}
@@ -85,8 +92,21 @@ def test_render_round_trips_the_live_table_and_drops_closed_rows(bi, backlog_tex
     first = int(bi.ISSUE_REF.findall(backlog_text.splitlines()[rows[0].line - 1])[0])
     issues[first] = ("CLOSED", issues[first][1])
     rendered = bi.render_backlog(backlog_text, issues)
-    kept = [ln for ln in backlog_text.splitlines() if f"(#{first})" not in ln or not bi.ITEM_ROW.match(ln)]
+
+    def owner(line):
+        """The issue a row line belongs to -- its first ``(#N)``, or None."""
+        refs = bi.ISSUE_REF.findall(line)
+        return int(refs[0]) if refs else None
+
+    kept = [ln for ln in backlog_text.splitlines()
+            if not bi.ITEM_ROW.match(ln) or owner(ln) != first]
     assert rendered == "\n".join(kept) + "\n"
+    # A row that only *cites* the closed issue survives, with its text intact.
+    citing = [ln for ln in backlog_text.splitlines()
+              if bi.ITEM_ROW.match(ln) and owner(ln) != first and f"(#{first})" in ln]
+    for ln in citing:
+        assert ln in rendered.splitlines(), (
+            f"row owned by #{owner(ln)} was dropped for citing #{first}")
     # A body without the row block leaves the line alone.
     issues[first] = ("OPEN", "hand-written body")
     assert bi.render_backlog(backlog_text, issues) == backlog_text

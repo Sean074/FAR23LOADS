@@ -117,10 +117,20 @@ def test_derived_air_load_matches_for_the_balanced_conditions():
 
 
 def test_the_acrl_divergence_is_the_documented_one():
-    """Pin the known divergence so it cannot drift silently while it is open: the
-    derived ACRL air load differs from the worked example's by more than the
-    balanced conditions' 1%. If this test starts failing because the two now
-    agree, the backlog defect is fixed and this test should become an equality."""
+    """Pin the divergence so it cannot drift silently: the derived ACRL air load
+    differs from the worked example's by more than the balanced conditions' 1%.
+
+    **Decided 2026-08-18 (D-29, #13):** SELECT's own 23.349(a)(2) pick is what the
+    derived case names, and the ~19 % difference against the worked example's
+    entered point (CL 1.55 at 116 kt vs CL ~1.30 at 117.4 kt) is accepted and
+    stated rather than reconciled -- there is no printed oracle for the derived
+    route, and every shipped fixture enters its cases explicitly, so no oracle or
+    deliverable is affected. The consequence this pin guards: the derived route is
+    a *first pass*, and an ACRL case used for sizing is entered, never derived
+    (a derived one also carries ``unbal_moment = 0``, AILERON Ch 13 being where
+    the rolling moment comes from). So this stays an inequality by decision. If it
+    ever starts failing because the two agree, that is new information about the
+    derived route -- reopen D-29 rather than quietly making it an equality."""
     project = _selected_project()
     hand = {c.name: c for c in project.wing_mass.cases}
     acrl = next((c for c in resolve_wing_cases(project, WingMassInput()) if c.name == "ACRL"), None)
