@@ -193,7 +193,15 @@ file + symbol is the anchor.
   governing table is naming *which* case governs, which a cross-family `max()`
   destroys. Stated as a standing limitation, not left to be inferred from the
   absence of a comparison. The engineer's opt-out filter *does* reach `LG-` ids —
-  a family that is scopable, but never auto-enveloped.
+  a family that is scopable, but never auto-enveloped. **The combined station
+  envelope G-9 filed as a follow-on is decided against permanently** (**D-28**,
+  2026-08-18, issue #11 closed as decided): on the fuselage the two families are
+  assessed with *different internal-pressure companion cases*, so their station
+  extremes belong to different total load states, and sloads — which excludes
+  pressurization permanently (**D-24**) — cannot form the correct combined state
+  from its own outputs at all. Wing and empennage carry no such companion; the
+  deliverable stays per family uniformly rather than per component. Combining is
+  the consumer's act, performed with their own pressure cases in hand.
 - **A surface's inertia is built on the acceleration along *its own* normal axis**
   (2026-08-10, superseding decision L-8 for the per-condition view). The h-tail's
   normal axis is the airplane's vertical, so one term does it: `−n_z·W_ht`,

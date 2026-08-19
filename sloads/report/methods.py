@@ -131,18 +131,31 @@ def _standing_limitations() -> tuple:
          "contact patch well below and off the fuselage beam line). A consumer "
          "working from the per-component decks alone therefore gets no ground "
          "case, and must take them from the assembled deck."),
-        # Decision G-9. Stated as a standing limitation rather than left to be
-        # inferred from the absence of a comparison: a reader who finds two
-        # governing tables and no envelope over them should be told that this is
-        # a decision, and why, not left to assume an oversight.
+        # Decisions G-9 and D-28. Stated as a standing limitation rather than
+        # left to be inferred from the absence of a comparison: a reader who
+        # finds two governing tables and no envelope over them should be told
+        # that this is a decision, and why, not left to assume an oversight.
+        # D-28 (2026-08-18) made it permanent and gave it the reason that does
+        # not depend on how the tables are read -- the pressure companion below.
+        # G-9's original safety-factor argument is deliberately absent: G-10
+        # retracted it (both families are limit x 1.5).
         ("ground-flight-separate-families",
          "Ground and flight cases are SEPARATE GOVERNING FAMILIES and no single "
-         "envelope over both is claimed. They are never compared for a maximum: "
-         "the two load different structure by different paths, and the value of "
-         "a governing table is naming WHICH case governs, which a cross-family "
-         "max() destroys. A consumer sizing structure that sees both (a fuselage "
-         "frame, a wing carry-through) must take the worst of the two families "
-         "themselves, per station, keeping each extreme's case identity."),
+         "envelope over both is claimed — a permanent decision, not work "
+         "pending. They are never compared for a maximum: the two load "
+         "different structure by different paths, and the value of a governing "
+         "table is naming WHICH case governs, which a cross-family max() "
+         "destroys. On the fuselage the families are also assessed with "
+         "DIFFERENT INTERNAL-PRESSURE COMPANION CASES, so their station "
+         "extremes belong to different total load states and are not "
+         "comparable quantities; this tool excludes pressurization permanently "
+         "(see below), so it cannot form the correct combined state from its "
+         "own outputs at all. Wing and empennage carry no such companion, but "
+         "the deliverable stays per family uniformly. A consumer sizing "
+         "structure that sees both (a fuselage frame, a wing carry-through) "
+         "must therefore take the worst of the two families themselves, per "
+         "station, with their own pressure cases in hand, keeping each "
+         "extreme's case identity."),
         ("pressurization",
          "Pressurization is OUT OF SCOPE for this tool — a permanent exclusion, "
          "not a gap awaiting work. No cabin differential-pressure case (14 CFR "

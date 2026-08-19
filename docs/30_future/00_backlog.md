@@ -61,7 +61,12 @@ Reference-authority hierarchy: (1) `.BAS` listings + Appendix A printed output,
 [`../50_reviews/2026-08-17_backlog_review_0_7_0.md`](../50_reviews/2026-08-17_backlog_review_0_7_0.md),
 BR-1…BR-13).** Band A is now the **0.7.0** scope: the fixture-data pass first
 (it carries the `ga6_normal` body outline the headline needs and closes the
-WTENV-envelope defect), then **L-7 lateral body aero as the headline** (**shipped 2026-08-17**, note 19 rev. 3, schema v54; `changes/l7-lateral-body-aero.*`) — then the hub thrust card (**shipped 2026-08-17**, issue #10, tier M; note 21's carve-out on L-7's v54 field, `changes/hub-thrust-force.*`), the combined station envelope,
+WTENV-envelope defect), then **L-7 lateral body aero as the headline** (**shipped 2026-08-17**, note 19 rev. 3, schema v54; `changes/l7-lateral-body-aero.*`) — then the hub thrust card (**shipped 2026-08-17**, issue #10, tier M; note 21's carve-out on L-7's v54 field, `changes/hub-thrust-force.*`), the combined station envelope (**closed
+2026-08-18 as decided-against**, decision **D-28**, `changes/no-combined-station-envelope.*`:
+flight and ground fuselage cases are assessed with different internal-pressure
+companion cases, so no envelope over both is supportable from a tool that
+excludes pressurization — the two families stay separate deliverables and the
+ground family's own missing per-station view is filed as **#31**, band B),
 the recorded decisions (the gust-shape study **merged** into them: reusing
 Schrenk is inside the Schrenk band by construction, so it is a decision, not
 work; #12 closed into #13), and the **GUI review** (#29) the user asked for,
@@ -136,13 +141,13 @@ traceability with plans 09/11/12/13; the **Pri** column is ordinal only.
 
 | Pri | Item (detail below / in its plan) | What ships | Tag | Tier / effort | Depends on |
 |---|---|---|---|---|---|
-| **A — 0.7.0: the lateral term the base method is missing, the fixture data it needs, the station envelope, the recorded decisions, and the GUI review (review BR-2…BR-7, BR-11)** ||||||
-| 1 | Combined flight + ground station envelope *(from step 10 decision G-9)* (#11) | Two-sided max/min per station over both families, each extreme naming its governing case | V | M / M | — |
-| 2 | Decisions, not effort: derived-`ACRL` air-load divergence (which point `ACRL` names); ATR-42 Mach-capped stall exceedance (`_balance` reports an infeasible corner rather than an unconverged point); **gust spanwise shape = Schrenk** (merged from #12: the gust-vs-manoeuvre shape difference is inside the Schrenk band by construction — recorded, not worked) (#13) | Three recorded decisions; the first two are pinned by test today | V | S / S | — |
-| 3 | **GUI review** — the Streamlit UI against the 0.6.0 deliverables: page order vs `workflow.py`, unit toggle/labels conformance, the ground/gear and LRA-model pages, CLI-vs-UI delivery gaps, plan 03 status; body of record in `50_reviews/`, findings filed as issues (rule 5), re-cut follows (#29) | The UI freeze re-opened to the extent the findings justify — a reviewed list, not a rework | V | S (review) / M | — |
+| **A — 0.7.0: the lateral term the base method is missing, the fixture data it needs, the recorded decisions, and the GUI review (review BR-2…BR-7, BR-11)** ||||||
+| 1 | Decisions, not effort: derived-`ACRL` air-load divergence (which point `ACRL` names); ATR-42 Mach-capped stall exceedance (`_balance` reports an infeasible corner rather than an unconverged point); **gust spanwise shape = Schrenk** (merged from #12: the gust-vs-manoeuvre shape difference is inside the Schrenk band by construction — recorded, not worked) (#13) | Three recorded decisions; the first two are pinned by test today | V | S / S | — |
+| 2 | **GUI review** — the Streamlit UI against the 0.6.0 deliverables: page order vs `workflow.py`, unit toggle/labels conformance, the ground/gear and LRA-model pages, CLI-vs-UI delivery gaps, plan 03 status; body of record in `50_reviews/`, findings filed as issues (rule 5), re-cut follows (#29) | The UI freeze re-opened to the extent the findings justify — a reviewed list, not a rework | V | S (review) / M | — |
 | — | **Cut 0.7.0** when band A is empty (RELEASE_PROCESS §2 cadence rule) | | | | |
 | **B — 0.8+: capability that waits for a consumer (review BR-8)** ||||||
-| 4 | The aileron's own lift increment is not distributed (#14) | `ACRL` wing cards gain the aero half of the couple (~70 % span); the schema fields shipped v52 and wait for data and a consumer | V | L / M | only if a consumer sizes to `ACRL` |
+| 3 | The aileron's own lift increment is not distributed (#14) | `ACRL` wing cards gain the aero half of the couple (~70 % span); the schema fields shipped v52 and wait for data and a consumer | V | L / M | only if a consumer sizes to `ACRL` |
+| 4 | Ground-case fuselage station distribution — the ground family has no per-station view *(from the #11 closure, D-28)* (#31) | Per-station shear/bending/torsion for the ground family on the fuselage beam, its own envelope beside the flight one and never merged with it, each station naming its ground case | V | L / M | a frame-sizing consumer; design note first |
 | **C — maintenance and hygiene, when the module is next touched (review 2026-08-16 §5.2; BR-9)** ||||||
 | 5 | Export deck-writing primitives out of `sbeam_bridge.py` (CH-4) (#15) | `_fmt`/`_sf_str`/`_stamped`/`_MAT1_*`/`_PBAR_*` in a shared module; the four private cross-imports gone | V | S / S | — |
 | 6 | Dead code (CH-5) (#16) | Delete `write_balanced_deck`, `write_conm2_fragment`, `write_mass_check_deck`, `all_checks`; demote the ~12 no-consumer public names | V | S / S | — |
