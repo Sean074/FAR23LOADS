@@ -52,6 +52,36 @@ def test_step_modules_are_registered():
             assert s.module in available, f"{s.key} names unknown module {s.module!r}"
 
 
+def test_every_folded_module_names_the_step_that_runs_it():
+    """``FOLDED_MODULES`` maps a contributor to its owning step, and both halves
+    have to be real: an unknown step key or an unregistered module would give
+    ``step_modules`` a program no page can run (design note 32, OG-E)."""
+    available = set(registry.available())
+    for name, owner in wf.FOLDED_MODULES.items():
+        assert name in available, f"folded module {name!r} is not registered"
+        assert owner in wf.BY_KEY, f"folded module {name!r} names unknown step {owner!r}"
+        assert wf.BY_KEY[owner].module != name, (
+            f"{name!r} is both step {owner!r}'s primary module and folded into it")
+
+
+def test_step_modules_accounts_for_every_registered_module_exactly_once():
+    """The partition the results renderer depends on: every shipped program runs
+    on exactly one page, so no module is shown twice and none is invisible."""
+    seen = [name for s in wf.STEPS for name in wf.step_modules(s.key)]
+    assert len(seen) == len(set(seen)), "a module runs on more than one step"
+    assert set(seen) == set(registry.available())
+
+
+def test_step_modules_puts_the_primary_first():
+    """Order is the contract: the step's own ``module`` leads, contributors follow."""
+    for s in wf.STEPS:
+        names = wf.step_modules(s.key)
+        if s.module is None:
+            assert all(wf.FOLDED_MODULES[n] == s.key for n in names)
+        else:
+            assert names[0] == s.module
+
+
 def test_produces_dotted_path_resolves():
     """A dotted ``produces`` path must be structurally valid against a Project."""
     empty = Project(name="")

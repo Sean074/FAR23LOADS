@@ -221,19 +221,33 @@ STEPS: Tuple[WorkflowStep, ...] = (
 #: Steps keyed by ``key`` for O(1) lookup.
 BY_KEY: Dict[str, WorkflowStep] = {s.key: s for s in STEPS}
 
-#: Calc modules folded into another step (contributors, not their own page).
-#: WINGINER's inertia loads are combined with NETLOADS on the Wing Loads page;
-#: AIRLOADS (Schrenk) is also combined there (Step D6). BALLOADS's balancing-load
-#: cross-check is combined with TAILDIST on the Tail Loads page (Step D6).
-#: WINGGEOM (wing_geometry) is combined onto the one Geometry page (Step G1), which
-#: names the ``configuration`` module -- so wing_geometry has no dedicated step.
-#: Step G3 folds four more: weight_estimate + weight_envelope onto the Weight & Mass
-#: Properties page (weight_onecg is its named module), mach_limit onto Structural
-#: Speeds, and select onto the Flight Envelope (V-n) page.
-FOLDED_MODULES: Tuple[str, ...] = (
-    "wing_inertia", "airloads", "balloads", "wing_geometry",
-    "weight_estimate", "weight_envelope", "mach_limit", "select",
-)
+#: Calc modules folded into another step (contributors, not their own page),
+#: mapped to the step that runs them. WINGINER's inertia loads are combined with
+#: NETLOADS on the Wing Loads page; AIRLOADS (Schrenk) is also combined there
+#: (Step D6). BALLOADS's balancing-load cross-check is combined with TAILDIST on
+#: the Tail Loads page (Step D6). WINGGEOM (wing_geometry) is combined onto the
+#: one Geometry page (Step G1), which names the ``configuration`` module -- so
+#: wing_geometry has no dedicated step. Step G3 folds four more: weight_estimate
+#: + weight_envelope onto the Weight & Mass Properties page (weight_onecg is its
+#: named module), mach_limit onto Structural Speeds, and select onto the Flight
+#: Envelope (V-n) page.
+#:
+#: The owning step was implied by the comment above and by nothing else until
+#: design note 32's OG-E, whose results renderer has to *run* a page's programs:
+#: a page whose ``bas`` says "WTESTIMA+WTONECG+WTENV" must show all three, and a
+#: flat tuple cannot say which page WTESTIMA belongs to. Membership tests
+#: (``name in FOLDED_MODULES``, ``set(FOLDED_MODULES)``) read the keys and are
+#: unaffected.
+FOLDED_MODULES: Dict[str, str] = {
+    "wing_inertia": "wing_loads",
+    "airloads": "wing_loads",
+    "balloads": "tail_loads",
+    "wing_geometry": "configuration_layout",
+    "weight_estimate": "weight_mass",
+    "weight_envelope": "weight_mass",
+    "mach_limit": "structural_speeds",
+    "select": "flight_envelope",
+}
 
 
 # --------------------------------------------------------------------------- #
@@ -270,6 +284,21 @@ def is_produced(project: Project, step: WorkflowStep) -> bool:
 def missing_requirements(project: Project, step: WorkflowStep) -> List[str]:
     """The required slices that are not yet present (empty when ready to run)."""
     return [attr for attr in step.requires if not has(project, attr)]
+
+
+def step_modules(key: str) -> Tuple[str, ...]:
+    """Every registered calc module that runs on step ``key``, primary first.
+
+    A step names one ``module``; the rest of its programs are folded in
+    (:data:`FOLDED_MODULES`). Both halves together are what the step's ``bas``
+    string claims -- Weight & Mass Properties says "WTESTIMA+WTONECG+WTENV" and
+    runs ``weight_onecg`` plus ``weight_estimate`` and ``weight_envelope``.
+    Empty for a GUI-only step and for the one input page with no program of its
+    own (Aerodynamic Data, which produces a slice rather than running a ``.BAS``).
+    """
+    step = BY_KEY[key]
+    primary = (step.module,) if step.module else ()
+    return primary + tuple(m for m, owner in FOLDED_MODULES.items() if owner == key)
 
 
 def steps_in_phase(phase: str) -> List[WorkflowStep]:

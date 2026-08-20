@@ -41,6 +41,8 @@ import pandas as pd
 import streamlit as st
 
 from app_shell.components import active_system, page_header, unit_number_input
+from oracle_app.labels import pretty
+from oracle_app.results import render_results
 from sloads import field_registry as fr
 from sloads import workflow as wf
 from sloads.models import Project
@@ -75,15 +77,6 @@ MEMBER_LABELS: Dict[str, Tuple[str, ...]] = {
     "speeds_kt": ("Speed",),
 }
 
-#: Segment spellings the plain title-case of a path segment gets wrong.
-_SPELLING = {
-    "htail": "H-tail", "vtail": "V-tail", "cg": "CG", "mac": "MAC", "le": "LE",
-    "cl": "CL", "cm": "CM", "clmax": "CLmax", "xcg": "XCG", "zcg": "ZCG",
-    "xlemac": "XLEMAC", "rpm": "RPM", "hp": "hp", "eas": "EAS", "vn": "V-n",
-    "ixx": "IXX", "iyy": "IYY", "izz": "IZZ", "wrp": "WRP", "sob": "SOB",
-    "id": "ID", "od": "OD", "far25": "FAR 25", "oei": "OEI",
-}
-
 #: Name suffixes that are a unit rather than part of the field's name, mapped to
 #: what the label should say instead. ``""`` means the widget already shows the
 #: unit itself -- :func:`~app_shell.components.unit_number_input` appends the
@@ -96,19 +89,13 @@ _UNIT_SUFFIX = {
 }
 
 
-def _pretty(name: str) -> str:
-    """A field or record segment as a human label."""
-    words = name.replace(".", " ").replace("_", " ").split()
-    return " ".join(_SPELLING.get(w.lower(), w.capitalize()) for w in words)
-
-
 def _field_label(path: str) -> str:
     leaf = _leaf(path)
     for suffix, unit in _UNIT_SUFFIX.items():
         if leaf.endswith(suffix) and len(leaf) > len(suffix):
-            stem = _pretty(leaf[: -len(suffix)])
+            stem = pretty(leaf[: -len(suffix)])
             return f"{stem} ({unit})" if unit else stem
-    return _pretty(leaf)
+    return pretty(leaf)
 
 
 def _leaf(path: str) -> str:
@@ -292,7 +279,7 @@ def render_scalar(record: Any, path: str, *, key: str, container: Any = None) ->
         current = value if value in options else options[0]
         chosen = where.selectbox(
             label, options, index=options.index(current), key=key, help=help_text,
-            format_func=lambda o: "—" if o is None else f"{o.value} · {_pretty(o.name)}",
+            format_func=lambda o: "—" if o is None else f"{o.value} · {pretty(o.name)}",
         )
         setattr(record, name, chosen)
         return
@@ -393,7 +380,7 @@ def render_enum_set(record: Any, path: str, *, key: str, container: Any = None) 
     chosen = where.multiselect(
         _field_label(path), list(enum), default=sorted(getattr(record, name) or (),
                                                        key=lambda m: m.value),
-        key=key, help=_help(path), format_func=lambda m: _pretty(m.name))
+        key=key, help=_help(path), format_func=lambda m: pretty(m.name))
     setattr(record, name, set(chosen))
 
 
@@ -458,7 +445,7 @@ def render_table(project: Project, prefix: str, paths: Sequence[str]) -> None:
         return
 
     count = st.number_input(
-        f"{_pretty(prefix.rstrip(fr.LIST_MARKER).rsplit('.', 1)[-1])} — rows",
+        f"{pretty(prefix.rstrip(fr.LIST_MARKER).rsplit('.', 1)[-1])} — rows",
         min_value=0, value=len(rows), step=1, key=f"{prefix}.count")
     while len(rows) < count:
         rows.append(blank(cls))
@@ -586,16 +573,19 @@ def render_step(key: str) -> None:
             f"{step.bas or 'it'} reads what the pages before it produced "
             f"({', '.join(step.requires) or 'nothing'})."
         )
-        return
+    else:
+        for prefix, paths in groups:
+            st.subheader(pretty(prefix.rstrip(fr.LIST_MARKER).rsplit(".", 1)[-1] or "Project"))
+            st.caption(f"`{prefix or '(project)'}`")
+            if prefix.endswith(fr.LIST_MARKER):
+                render_table(ctx.project, prefix, paths)
+            else:
+                render_record(ctx.project, prefix, paths)
+            st.divider()
 
-    for prefix, paths in groups:
-        st.subheader(_pretty(prefix.rstrip(fr.LIST_MARKER).rsplit(".", 1)[-1] or "Project"))
-        st.caption(f"`{prefix or '(project)'}`")
-        if prefix.endswith(fr.LIST_MARKER):
-            render_table(ctx.project, prefix, paths)
-        else:
-            render_record(ctx.project, prefix, paths)
-        st.divider()
+    # A page that takes no input still runs its programs -- Tail Loads reads
+    # entirely upstream and is all output (OG-E).
+    render_results(ctx.project, key, ctx.system)
 
 
 def _step_caption(step: wf.WorkflowStep) -> str:

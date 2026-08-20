@@ -272,9 +272,11 @@ FAR23LOADS/
 │   │   ├── results_review.py     #   Export   — consolidated governing loads
 │   │   └── export_report.py      #   Export   — project JSON + CSVs + sbeam BDF + .xlsx workbook + summary report (.tex/.pdf) + export-scope toggle (D8, G8)
 │   └── data/reference_aircraft.csv
-├── oracle_app/                   # the ORACLE GUI — the original suite's inputs only (note 32, OG-D)
+├── oracle_app/                   # the ORACLE GUI — the original suite only (note 32, OG-D/OG-E)
 │   ├── Oracle.py                 # entry point: its one set_page_config + nav from workflow.oracle_steps()
-│   └── form.py                   # ONE generic renderer for all 14 pages, built from sloads.field_registry
+│   ├── form.py                   # ONE generic input renderer for all 14 pages, built from sloads.field_registry
+│   ├── results.py                # ONE generic results renderer: workflow.step_modules → the report/io owners (OG-E)
+│   └── labels.py                 # the spelling table both renderers head their blocks with
 ├── cli.py                        # `python cli.py engine project.json -o out.csv`; `--export-sbeam --export-target <t>` (every deliverable, incl. `balanced`/`mass`); `--report out.tex|out.pdf`
 ├── oracle.py                     # `sloads-oracle` — launches oracle_app/Oracle.py under Streamlit (OG-11)
 ├── tests/                        # pytest; each file also has a zero-dependency __main__ self-runner

@@ -113,8 +113,10 @@ def test_the_oracle_gui_holds_no_unit_factor_of_its_own():
 
 
 def test_the_oracle_gui_writes_no_deliverable_of_its_own():
-    """Gate G1, third half: no private CSV writer. OG-E routes output through
-    ``sloads.io``/``sloads.report``; until then there is none at all."""
+    """Gate G1, third half: no private CSV writer. Every file the GUI offers is
+    rendered by ``sloads.io``/``sloads.report`` or by ``app_shell.limit_csv``
+    (OG-6 as amended) -- a ``to_csv`` here would be a fourth format nothing
+    else in the project can vouch for."""
     offenders = []
     for path in _SOURCES:
         with open(path, encoding="utf-8") as fh:
@@ -254,6 +256,152 @@ def test_the_aviation_units_agree_with_the_shell():
     from app_shell.components import ALTITUDE_FT, KEAS
 
     assert set(AVIATION_STANDARD.values()) == {KEAS, ALTITUDE_FT}
+
+
+# --------------------------------------------------------------------------- #
+# G7 -- output contract
+# --------------------------------------------------------------------------- #
+# The gate reads the *payloads*, not the source. ``test_ultimate_contract.py``
+# scans ``app/views/*.py`` for a literal ``file_name="....csv"`` and matches the
+# call that built it; pointed at a derived GUI it would find no literal and pass
+# on an empty set -- a green gate over an unchecked front-end, which is the
+# failure OG-9 exists to prevent. So the subject here is
+# ``results.page_artifacts``: the bytes a user actually downloads. Completeness
+# comes from the call-site test below -- one ``download_button`` in the package,
+# fed from the same function this gate reads.
+_STAMP = "# BASIS: All loads reported here are ULTIMATE"
+_TEXT_HEADER = "Loads are ULTIMATE (= limit x SF); load factors are limit."
+
+
+def _artifacts(key, project=None):
+    from sloads import UnitSystem
+    from oracle_app.results import page_artifacts
+
+    return page_artifacts(project if project is not None else _seeded(),
+                          key, UnitSystem.IMPERIAL)
+
+
+def test_the_gui_has_exactly_one_download_call_site():
+    """What makes the payload gate *complete*: every file the oracle GUI offers
+    is an ``Artifact`` from ``page_artifacts``, because there is nowhere else a
+    download can be created. A second call site would be an artifact G7 never
+    saw."""
+    sites = []
+    for path in _SOURCES:
+        for node in ast.walk(_parse(path)):
+            if isinstance(node, ast.Call) and getattr(node.func, "attr", "") == "download_button":
+                sites.append(f"{os.path.relpath(path, _ROOT)}:{node.lineno}")
+    assert len(sites) == 1, (
+        "the oracle GUI offers a download from somewhere other than the one "
+        "renderer -- gate G7 reads page_artifacts() and would not see it:\n"
+        + "\n".join(sites))
+    assert sites[0].startswith(os.path.join("oracle_app", "results.py"))
+
+
+@pytest.mark.parametrize("key", sorted(wf.oracle_step_keys()))
+def test_every_csv_the_oracle_gui_offers_states_its_basis(key):
+    """Gate G7, the CSV half: ULTIMATE by the stamp and an ``SF`` column, or
+    LIMIT in-band *and* in a ``*_LIMIT.csv`` filename. A load CSV with a neutral
+    name and no basis is the M4-15 defect class."""
+    for art in _artifacts(key):
+        if not art.file_name.endswith(".csv"):
+            continue
+        body = [ln for ln in art.payload.splitlines() if not ln.startswith("#")]
+        header = body[0] if body else ""
+        if art.file_name.endswith("_LIMIT.csv"):
+            assert "LIMIT" in art.payload, (
+                f"{art.file_name} is named LIMIT but never says so in-band")
+            assert _STAMP not in art.payload, (
+                f"{art.file_name} claims ULTIMATE and LIMIT at once")
+        else:
+            assert art.payload.startswith(_STAMP.split(":")[0]) or _STAMP in art.payload, (
+                f"{art.file_name} leaves the oracle GUI with no basis statement "
+                f"-- pass report.csv_comment_block(project)")
+            assert "SF" in header.split(","), (
+                f"{art.file_name} states ULTIMATE but has no per-case SF column")
+
+
+@pytest.mark.parametrize("key", sorted(wf.oracle_step_keys()))
+def test_every_text_report_says_what_the_cli_says(key):
+    """Gate G7, the text half: the same ULT marker and per-case SF statement as
+    ``cli.py``'s, which is guaranteed by being the same call -- so the assertion
+    is byte equality with the CLI's own output, title line aside."""
+    from sloads import UnitSystem, convert_results, registry
+    from sloads.report import module_text_report
+
+    project = _seeded()
+    for art in _artifacts(key, project):
+        if not art.file_name.endswith(".txt"):
+            continue
+        assert _TEXT_HEADER in art.payload, f"{art.file_name} drops the ULT statement"
+        assert "[ULTIMATE, SF=" in art.payload, f"{art.file_name} states no per-case SF"
+        module = art.file_name[: -len(".txt")]
+        result = registry.get(module)(project)
+        # cli.py: module_text_report(result.module, convert_results(...)).
+        expected = module_text_report(
+            module, convert_results(result.conditions, UnitSystem.IMPERIAL))
+        assert art.payload.splitlines()[1:] == expected.splitlines()[1:], (
+            f"{art.file_name} differs from the CLI's report for {module}")
+
+
+def test_no_page_offers_two_files_with_the_same_name():
+    """The download widget's key is the filename, so a collision is both a
+    duplicate-key crash and two different files under one name."""
+    for key in sorted(wf.oracle_step_keys()):
+        names = [a.file_name for a in _artifacts(key)]
+        assert len(names) == len(set(names)), (key, names)
+
+
+def test_the_station_tables_are_keyed_by_module_not_by_page():
+    """The one hand-declared table in the results renderer. Keyed by module
+    because which row builder a program has is a fact about the program -- and
+    keying it by page would put a step key back in the GUI (gate G2)."""
+    from sloads import registry
+    from oracle_app.results import STATION_TABLES
+
+    assert set(STATION_TABLES) <= set(registry.available())
+    assert not set(STATION_TABLES) & set(wf.BY_KEY)
+
+
+def test_every_page_runs_the_programs_its_bas_string_claims():
+    """OG-E's premise: a page headed "WTESTIMA+WTONECG+WTENV" shows all three.
+    The modules come from ``workflow.step_modules``, so this is really a check
+    that the renderer runs what the SSOT gives it and drops nothing."""
+    from oracle_app.results import step_results
+    from sloads import UnitSystem
+
+    project = _seeded()
+    for key in sorted(wf.oracle_step_keys()):
+        blocks = step_results(project, key, UnitSystem.IMPERIAL)
+        if len(blocks) == 1 and not blocks[0].module:
+            continue  # gated: upstream slices missing, which the page says
+        shown = {b.module for b in blocks}
+        assert shown == set(wf.step_modules(key)), key
+
+
+def test_a_page_with_no_program_of_its_own_shows_no_results():
+    """Aerodynamic Data is on the page set because it *produces* a slice the
+    ``.BAS`` steps require (OG-2 as amended), not because it runs one. An empty
+    Results heading would be a worse answer than none."""
+    from oracle_app.results import step_results
+    from sloads import UnitSystem
+
+    for key in sorted(wf.oracle_step_keys()):
+        if wf.step_modules(key):
+            continue
+        assert step_results(_seeded(), key, UnitSystem.IMPERIAL) == []
+
+
+@pytest.mark.parametrize("key", sorted(wf.oracle_step_keys()))
+def test_the_results_block_survives_an_empty_project(key):
+    """The blank-project path: every program is unrunnable and the page has to
+    say so rather than raise."""
+    from sloads.models import Project
+    from sloads import UnitSystem
+    from oracle_app.results import step_results
+
+    for block in step_results(Project(name=""), key, UnitSystem.IMPERIAL):
+        assert block.note or block.rows, (key, block.title)
 
 
 # --------------------------------------------------------------------------- #
