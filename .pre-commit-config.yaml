@@ -8,12 +8,25 @@
 #
 #   pre-commit : ruff + mypy -- the two gates that turned a green local run
 #                into a red PR when they were only run in CI (~10 s).
-#   pre-push   : the whole suite, uninstrumented and parallel (~40 s on 8
-#                cores). Not a "fast subset": measured 2026-08-16 the suite is
-#                36 s and no test is over 10 s, so a slow-marker tier would save
-#                seconds and cost a second thing to keep in step. CI still runs
-#                the same suite with coverage on one leg -- the hook is a
+#   pre-push   : the whole suite, uninstrumented and parallel. CI still runs the
+#                same suite with coverage on one leg -- the hook is a
 #                convenience, CI is the gate.
+#
+# Timing, re-measured 2026-08-19 (the 2026-08-16 note this replaced said "36 s,
+# no test over 10 s" and argued no fast subset could pay -- both halves are now
+# false, so the argument is recorded here rather than silently inherited):
+#
+#   whole suite, parallel   ~145-155 s   (was ~36 s three days earlier)
+#   slowest single test       ~43 s      (13 tests now exceed 10 s)
+#   the five guard files       ~3 s      (DEVELOPMENT_PROCESS.md SS0)
+#
+# Two consequences. (1) Parallelism cannot take the suite below its longest
+# single test, so ~43 s is the floor until test_deliverable_units.py's two 42 s
+# tests are split -- more cores buy nothing. (2) A docs-only change set is gated
+# by the five guard files instead of the suite (scripts/solo_close.sh decides,
+# CI on the push to main is still the gate). The growth is concentrated in
+# test_deliverable_units / test_balance / test_case_ids / test_hub_thrust, all
+# fixture-driven; a slow marker is not the fix, splitting those tests is.
 #
 # Skip once with `git push --no-verify` (or `SKIP=pytest git push`).
 

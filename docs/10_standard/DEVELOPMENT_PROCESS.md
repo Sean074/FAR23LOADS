@@ -25,27 +25,34 @@ conflicting with the next branch) is the evidence. While solo:
 
 | Mechanism | Solo profile |
 |---|---|
-| Branch / PR per item (§1, §2) | **Optional.** Work on a short-lived branch; when `ruff` · `mypy` · `pytest` are green locally, merge to `main` (fast-forward or squash — **one commit per closed item**, subject in the project style, so `git log` stays the step-per-commit record) and push. CI on the push to `main` is the record. Batching independent tier-S items on one branch is fine; each still gets its own commit and its own closure. |
+| Branch / PR per item (§1, §2) | **Optional.** Work on a short-lived branch; when `ruff` · `mypy` · `pytest` are green locally, merge to `main` (fast-forward or squash — **one commit per closed item**, subject in the project style, so `git log` stays the step-per-commit record) and push. CI on the push to `main` is the record. Batching independent tier-S items on one branch is fine; each still gets its own commit and its own closure. **A docs-only change set** — every path either `*.md` or under `docs/` or `changes/` — needs no branch at all: edit on `main` and close there (`solo_close.sh --slug <slug>`), because it cannot break the calc and its whole gate is the guard files below. Anything touching `.py`, a fixture or config takes a branch, so a failed gate has somewhere to abort to. |
 | Non-author review, CODEOWNERS (§2, §7) | **Not applicable** — unsatisfiable with one person. Review depth (`CODE_REVIEW_PROCESS.md` §0) is still owed; it is the AI's review in the session, and its findings are filed with bodies (rule 5). |
-| Issues as system of record (§4) | **Optional.** `00_backlog.md` is the record; the row leaves **in the closing commit** (no `Closes #N`, no `render`, no stale-row window). Issues may be kept for items with discussion; if kept, close them by hand with the merge SHA. |
+| Issues as system of record (§4) | **Optional, and optional in the tooling too.** `00_backlog.md` is the record; the row leaves **in the closing commit** (no `Closes #N`, no `render`, no stale-row window). Issues may be kept for items with discussion; if kept, close them by hand with the merge SHA, or pass the number to `solo_close.sh` and it does it. The issue argument to both scripts is **optional**: omit it and neither script calls `gh` at all — no auth check, no issue read, no `gh issue close`, no `backlog_issues.py check` (which is the table ↔ issues guard and means nothing without issues). Requiring an issue in the scripts made mandatory the one mechanism this row calls optional, at four network round-trips per item. |
 | Rebase before regenerating (§6) | **Unchanged**, and the priority table is a fourth shared counter — a closing commit deletes its own row and touches nothing else (no renumbering; rows never cite another row's ordinal, dependencies name the band or the `#N`). |
 | Closure tiers, fragments, design-note-before-physics, rules 1–6, release gate (§3, §5, §8, §10) | **Unchanged.** These are the quality mechanisms; none of them needs a second person. A tier-L design note is agreed in chat and merged with the work (`CLAUDE.md` rule 1); §9's "agreed in chat is retired" resumes with the second collaborator. |
 | Branch protection on `main` | Owner-applied to match: PR requirement off (or admin bypass on) while solo; the required checks are the **fast gate** — `test (3.12)`, `typecheck`, `sbeam-roundtrip (3.12)`. |
 | CI shape (`ci.yml`) | **PR = fast gate, one interpreter** (3.12 with coverage, mypy, solver round-trip on 3.12; ~half the wall-clock of the full matrix). The 3.9/3.11 compatibility legs run on every push to `main` and are fixed forward. A re-push cancels the run in flight (`concurrency`). Applies in both profiles — the compatibility claim is not a per-PR question. |
-| Local gate before merge/push | `ruff` · `mypy` (the pre-commit hook, ~10 s) and the suite **once**, on the whole tree, immediately before the merge/push (the pre-push hook) — not after every edit. While iterating run the module's own test file plus `test_deliverable_units.py` (the Imperial digest is where a physics change shows first); the guard files (`test_doc_currency`, `test_changelog_fragments`, `test_schema_guards`, `test_backlog_issues`, `test_workflow`) are sub-second and worth running on every docs/closure edit. |
+| Local gate before merge/push | `ruff` · `mypy` (the pre-commit hook, ~10 s) and the suite **once**, on the whole tree, immediately before the merge/push (the pre-push hook) — not after every edit. **The gate scales to the change set:** a docs-only change set (above) runs `ruff` · `mypy` and the five guard files — `test_doc_currency`, `test_changelog_fragments`, `test_schema_guards`, `test_backlog_issues`, `test_workflow` — in ~3 s instead of the suite's ~150 s; `solo_close.sh` decides from the paths and `--full-gate` overrides. Any other change set takes the whole suite. CI on the push to `main` is the gate either way. While iterating run **the module's own test file**, and `test_deliverable_units.py` once before closing rather than per edit — it is where a physics change shows first (the Imperial digest) *and* now the slowest file in the suite, so per-edit it costs more than the whole suite did when this row was written (timings and the ~43 s parallel floor: `.pre-commit-config.yaml`, re-measured 2026-08-19). |
 
-**The loop is scripted (issue #27, 2026-08-17):** `scripts/solo_start.sh <issue>
-<type>/<slug>` opens the branch (preflight: on `main`, clean tree, `gh`
-authenticated, issue open) and `scripts/solo_close.sh <issue> "<Subject>"` runs
-the closing half in order — gate (`ruff` · `mypy` · `pytest`), one commit with
+**The loop is scripted (issue #27, 2026-08-17; cycle-time revision 2026-08-19):**
+`scripts/solo_start.sh [<issue>] <type>/<slug>` opens the branch (preflight: on
+`main`, clean tree; with an issue: `gh` authenticated and the issue open) and
+`scripts/solo_close.sh [<issue>] "<Subject>"` runs the closing half in order —
+gate (`ruff` · `mypy` · `pytest`, scaled to the change set), one commit with
 the project-style parenthetical, `--ff-only` land + push, `gh issue close` with
 the `main` SHA, then branch delete / `backlog_issues.py check` / issue state /
-last CI run. It refuses to start until the tier's fragment(s) exist and the
-item's `(#N)` row has left the priority table, and it stops at the first
-failure with the recovery printed (`--dry-run` shows the sequence; `--help`
-the options). The step between them — the work and the closure artefacts — is
-the developer's; the scripts encode nothing that this section does not already
-say (rule 3: the sequence is structural, not a chat transcript).
+last CI run. It refuses to start until the tier's fragment(s) exist, and — when
+an issue is given — until that item's `(#N)` row has left the priority table;
+it stops at the first failure with the recovery printed (`--dry-run` shows the
+sequence; `--help` the options). **Three of those steps are conditional, matching
+the three rows above:** the issue number is optional and drops every `gh` call
+with it; a docs-only change set may be closed on `main` (`--slug` then names
+the fragment, since there is no branch to take it from) and skips the checkout,
+merge and branch delete; and the gate shrinks to the guard files for that same
+docs-only set. The step between start and close — the work and the closure
+artefacts — is the developer's; the scripts encode nothing that this section
+does not already say (rule 3: the sequence is structural, not a chat
+transcript), and `tests/test_solo_scripts.py` holds the two in step.
 
 **Switch-over is mechanical:** the day a second collaborator is added, branch
 protection goes back to §2, `scripts/backlog_issues.py create` opens the issues
