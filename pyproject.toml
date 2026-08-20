@@ -77,18 +77,25 @@ solver = [
 
 [project.scripts]
 sloads = "cli:main"
+# The oracle GUI gets its own launcher rather than a flag on the existing app
+# (design note 32, OG-11): they are peer front-ends over one calc package, and a
+# flag would make one of them a mode of the other.
+sloads-oracle = "oracle:main"
 
 [tool.setuptools.packages.find]
 where = ["."]
 # ``app_shell`` is the app-layer shell shared by every sloads GUI (design note 32,
 # OG-B). It is a real installed package, not a directory on Streamlit's implicit
 # entrypoint path, precisely so a second front-end can import it from its own
-# entrypoint without inheriting the first one's sys.path. The GUIs themselves
-# (``app/``) stay uninstalled script directories.
-include = ["sloads*", "app_shell*"]
+# entrypoint without inheriting the first one's sys.path. ``oracle_app`` is
+# installed for the same reason one level down (OG-D): its renderer is imported
+# by its own entry point and by the G1/G2 gates, and Streamlit's implicit path
+# would make it importable from neither. ``app/`` stays an uninstalled script
+# directory because nothing imports it.
+include = ["sloads*", "app_shell*", "oracle_app*"]
 
 [tool.setuptools]
-py-modules = ["cli"]
+py-modules = ["cli", "oracle"]
 
 [tool.ruff]
 line-length = 120

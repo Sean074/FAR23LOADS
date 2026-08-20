@@ -6,6 +6,12 @@
       "runtimeExecutable": ".venv/bin/streamlit",
       "runtimeArgs": ["run", "app/Home.py", "--server.headless", "true", "--server.port", "8501", "--theme.base", "light"],
       "port": 8501
+    },
+    {
+      "name": "sloads-oracle-gui",
+      "runtimeExecutable": ".venv/bin/streamlit",
+      "runtimeArgs": ["run", "oracle_app/Oracle.py", "--server.headless", "true", "--server.port", "8502", "--theme.base", "light"],
+      "port": 8502
     }
   ]
 }

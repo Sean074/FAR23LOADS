@@ -282,7 +282,7 @@ Runtime (`pyproject.toml` `[project.dependencies]`): `streamlit>=1.30`,
   against the Appendix A (6-place GA single, p131) and/or Appendix B (10-place
   twin turboprop, p251) figures within **±0.1%** (`rel_tol=1e-3`); exact equality
   only for integer/dimensionless quantities.
-- `ruff check sloads/ cli.py app/ app_shell/ scripts/` clean, `mypy` clean and `pytest` passing are the
+- `ruff check sloads/ cli.py oracle.py app/ app_shell/ oracle_app/ scripts/` clean, `mypy` clean and `pytest` passing are the
   merge gate; CI runs ruff + pytest on Python 3.9 / 3.11 / 3.12 and mypy in its own job.
   See §Static typing & lint below for what each checks.
 - **Parallel by default (CH-1).** `addopts` in `pyproject.toml` carries

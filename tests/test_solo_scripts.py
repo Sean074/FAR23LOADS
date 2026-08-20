@@ -48,7 +48,7 @@ def test_close_dry_run_lists_steps_3_to_7_in_order():
     res = _bash(_CLOSE, "--dry-run", "27", "Subject")
     assert res.returncode == 0, res.stderr
     signatures = [
-        "ruff check sloads/ cli.py app/ app_shell/ scripts/",
+        "ruff check sloads/ cli.py oracle.py app/ app_shell/ oracle_app/ scripts/",
         "mypy",
         "pytest -q -p no:cacheprovider",
         "git add -A",
@@ -102,7 +102,7 @@ def test_close_without_an_issue_still_lists_the_gate_commit_and_land_steps():
     res = _bash(_CLOSE, "--dry-run", "--slug", "some-slug", "Subject")
     assert res.returncode == 0, res.stderr
     signatures = [
-        "ruff check sloads/ cli.py app/ app_shell/ scripts/",
+        "ruff check sloads/ cli.py oracle.py app/ app_shell/ oracle_app/ scripts/",
         "mypy",
         "pytest -q -p no:cacheprovider",
         "git add -A",

@@ -51,7 +51,7 @@ jobs:
           pip install -e .[dev]
 
       - name: Lint (ruff)
-        run: ruff check sloads/ cli.py app/ app_shell/ scripts/
+        run: ruff check sloads/ cli.py oracle.py app/ app_shell/ oracle_app/ scripts/
 
       - name: Test (pytest)
         env:

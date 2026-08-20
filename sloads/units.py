@@ -147,6 +147,11 @@ _INPUT_KIND = {
     # units defect this table exists to prevent. First needed by the entered
     # engine thrust (``EngineInput.thrust_lb``, backlog #10).
     "force": "force",
+    # An entered *moment* (lb-in -> N·m). Distinct from ``torque`` (ft-lb), which
+    # is the engine channel; first needed by the entered unbalanced wing moment
+    # (``WingCase.unbal_moment``) when the oracle GUI's generic renderer had to
+    # answer "what unit is this?" for every field rather than per call site.
+    "moment": "moment_in",
 }
 SI_PER_IMPERIAL: Dict[str, float] = {k: HUMAN_SI[d].factor for k, d in _INPUT_KIND.items()}
 
@@ -155,7 +160,7 @@ SI_PER_IMPERIAL: Dict[str, float] = {k: HUMAN_SI[d].factor for k, d in _INPUT_KI
 UNIT_LABELS = {
     UnitSystem.IMPERIAL: {
         "weight": "lb", "length": "in", "torque": "ft-lb", "power": "hp", "inertia": "slug-ft²",
-        "area_sqft": "ft²", "inertia_lbin2": "lb-in²", "force": "lbf",
+        "area_sqft": "ft²", "inertia_lbin2": "lb-in²", "force": "lbf", "moment": "lb-in",
     },
     UnitSystem.SI: {k: HUMAN_SI[d].label for k, d in _INPUT_KIND.items()},
 }
@@ -585,6 +590,60 @@ def field_classification(name: str) -> Optional[str]:
     if any(re.search(pattern, name) for pattern, _reason in _DIMENSIONLESS_RULES):
         return "dimensionless"
     return None
+
+
+#: The inverse of :data:`_INPUT_KIND`: an ``HUMAN_SI`` dimension -> the kind
+#: name :func:`to_display` / ``unit_number_input`` take.
+_KIND_BY_DIMENSION: Dict[str, str] = {dim: kind for kind, dim in _INPUT_KIND.items()}
+
+
+class FieldUnit(NamedTuple):
+    """What unit a schema field carries, as a widget needs to know it.
+
+    Exactly one of the first two is set, or neither:
+
+    * ``kind`` -- a :func:`to_display` kind. The value converts with the system.
+    * ``fixed_label`` -- an aviation-standard unit, stated and never converted.
+    * both ``None`` -- dimensionless; no unit to show.
+
+    ``members`` is non-empty for an ``[[a, b], …]`` curve, holding one
+    :class:`FieldUnit` per member (the planform edges are two stations; a
+    spanwise curve is a station and a coefficient).
+    """
+
+    kind: Optional[str] = None
+    fixed_label: Optional[str] = None
+    members: Tuple["FieldUnit", ...] = ()
+
+
+def field_unit(name: str) -> FieldUnit:
+    """The unit a schema leaf ``name`` carries (:class:`FieldUnit`).
+
+    The renderer-facing view of :func:`field_classification`: that function says
+    *which of the three answers applies*, this one says *what to show*. An
+    unclassified name returns a dimensionless :class:`FieldUnit` -- which is a
+    real answer only because the drift guard in ``tests/test_project_units.py``
+    makes "unclassified" a test failure rather than a silent state.
+    """
+    dimension = _PROJECT_FIELD_KIND.get(name)
+    if dimension is not None:
+        return FieldUnit(kind=_KIND_BY_DIMENSION.get(dimension))
+    pair = _PROJECT_PAIR_KIND.get(name)
+    if pair is not None:
+        return FieldUnit(members=tuple(
+            FieldUnit() if dim is None else FieldUnit(kind=_KIND_BY_DIMENSION.get(dim))
+            for dim in pair
+        ))
+    if name in AVIATION_STANDARD:
+        return FieldUnit(fixed_label=AVIATION_STANDARD[name])
+    return FieldUnit()
+
+
+def unit_label(unit: FieldUnit, system: UnitSystem) -> str:
+    """``unit``'s display label in ``system``, or ``""`` if it carries none."""
+    if unit.kind is not None:
+        return UNIT_LABELS[system].get(unit.kind, "")
+    return unit.fixed_label or ""
 
 
 def _is_number(value: Any) -> bool:

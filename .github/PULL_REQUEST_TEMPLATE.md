@@ -27,7 +27,7 @@
 - **New case-ID band:** no / yes → <!-- band -->
 
 ## Gates
-- [ ] `ruff check sloads/ cli.py app/ scripts/` · `mypy` · `pytest` green locally
+- [ ] `ruff check sloads/ cli.py oracle.py app/ app_shell/ oracle_app/ scripts/` · `mypy` · `pytest` green locally
 - [ ] oracle/closure test present for any new physics (benchmark-first)
 
 ## For the reviewer (`CODE_REVIEW_PROCESS.md` §Approval gate — n/a under the solo profile, `DEVELOPMENT_PROCESS.md` §0)

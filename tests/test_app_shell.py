@@ -23,6 +23,7 @@ Three assertions, all live with one GUI and all sharper with two:
 
 import ast
 import os
+import re
 
 import pytest
 
@@ -92,6 +93,74 @@ def _shell_public_names():
     for path in _py_files(_SHELL_DIR):
         names |= {n for n in _top_level_names(_parse(path)) if not n.startswith("_")}
     return names
+
+
+# --------------------------------------------------------------------------- #
+# The lint gate covers every GUI, and says so identically everywhere
+# --------------------------------------------------------------------------- #
+#: Every file that *states* the merge gate's ruff command. CI is the authority;
+#: the rest are copies, and a copy that drifts is a developer running a
+#: different gate from the one that will fail their PR. Adding ``app_shell/``
+#: meant editing nine of these by hand, and ``oracle_app/`` ten -- the second
+#: time is when a convention gets a guard rather than another sweep
+#: (``CLAUDE.md`` rule 3).
+_LINT_AUTHORITY = os.path.join(".github", "workflows", "ci.yml")
+_LINT_STATEMENTS = (
+    _LINT_AUTHORITY,
+    "CLAUDE.md",
+    "README.md",
+    os.path.join(".github", "PULL_REQUEST_TEMPLATE.md"),
+    os.path.join(".pre-commit-config.yaml"),
+    os.path.join("scripts", "solo_close.sh"),
+    os.path.join("tests", "test_solo_scripts.py"),
+    os.path.join("docs", "10_standard", "00_program_overview.md"),
+    os.path.join("docs", "10_standard", "CODE_REVIEW_PROCESS.md"),
+    os.path.join("docs", "10_standard", "PROJECT_GUIDE.md"),
+    os.path.join("docs", "10_standard", "RELEASE_PROCESS.md"),
+)
+
+#: The target list ends at the end of the command: a backtick or quote closing
+#: an inline code span, a line continuation, or a trailing ``#`` comment (the
+#: README and PROJECT_GUIDE shell blocks annotate the line with ``# lint``).
+_RUFF_COMMAND = re.compile(r"ruff check (?P<targets>[^`\n\\\"'#]+)")
+
+
+def _lint_targets(relative_path):
+    """The ruff target list as stated in one file, or ``None`` if it states none."""
+    with open(os.path.join(_ROOT, relative_path), encoding="utf-8") as fh:
+        for line in fh:
+            match = _RUFF_COMMAND.search(line)
+            if match and "sloads/" in match.group("targets"):
+                return " ".join(match.group("targets").split())
+    return None
+
+
+def test_the_lint_gate_covers_every_gui():
+    """A GUI outside the lint gate is unlinted code with a green CI badge."""
+    targets = _lint_targets(_LINT_AUTHORITY)
+    assert targets, f"no ruff command found in {_LINT_AUTHORITY}"
+    for gui in _gui_dirs():
+        name = os.path.basename(gui)
+        assert f"{name}/" in targets, (
+            f"{name}/ is a GUI directory but is not in CI's lint gate "
+            f"({targets!r}) -- it would ship unlinted")
+
+
+def test_every_statement_of_the_lint_gate_says_the_same_thing():
+    """CI is the authority; every document and script that repeats the command
+    must repeat it exactly, or somebody is running a different gate."""
+    authority = _lint_targets(_LINT_AUTHORITY)
+    disagreeing = {
+        path: stated for path in _LINT_STATEMENTS
+        if (stated := _lint_targets(path)) is not None and stated != authority
+    }
+    missing = [path for path in _LINT_STATEMENTS if _lint_targets(path) is None]
+    assert not disagreeing, (
+        f"these state a different lint gate from {_LINT_AUTHORITY} "
+        f"({authority!r}): {disagreeing}")
+    assert not missing, (
+        f"these are listed as stating the lint gate but no longer do: {missing} "
+        "-- remove them from _LINT_STATEMENTS or restore the command")
 
 
 def test_the_gui_discovery_finds_a_gui():

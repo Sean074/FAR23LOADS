@@ -272,7 +272,11 @@ FAR23LOADS/
 │   │   ├── results_review.py     #   Export   — consolidated governing loads
 │   │   └── export_report.py      #   Export   — project JSON + CSVs + sbeam BDF + .xlsx workbook + summary report (.tex/.pdf) + export-scope toggle (D8, G8)
 │   └── data/reference_aircraft.csv
+├── oracle_app/                   # the ORACLE GUI — the original suite's inputs only (note 32, OG-D)
+│   ├── Oracle.py                 # entry point: its one set_page_config + nav from workflow.oracle_steps()
+│   └── form.py                   # ONE generic renderer for all 14 pages, built from sloads.field_registry
 ├── cli.py                        # `python cli.py engine project.json -o out.csv`; `--export-sbeam --export-target <t>` (every deliverable, incl. `balanced`/`mass`); `--report out.tex|out.pdf`
+├── oracle.py                     # `sloads-oracle` — launches oracle_app/Oracle.py under Streamlit (OG-11)
 ├── tests/                        # pytest; each file also has a zero-dependency __main__ self-runner
 │   ├── test_<module>.py          # one per module — Appendix A/B oracles, else a stated closure gate
 │   ├── imperial_baseline.py      # renders every deliverable channel of every example (M4-20)
@@ -544,7 +548,7 @@ pip install -e '.[dev]'          # editable install + dev tools (pytest, ruff)
 streamlit run app/Home.py        # the multi-page UI
 python cli.py engine examples/ga6_normal.project.json -o engine_loads.csv
 pytest                           # the green-build gate
-ruff check sloads/ cli.py app/ app_shell/ scripts/  # lint
+ruff check sloads/ cli.py oracle.py app/ app_shell/ oracle_app/ scripts/  # lint
 mypy                             # type check (sloads/)
 ```
 

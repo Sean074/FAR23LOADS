@@ -97,7 +97,7 @@ rationale in `docs/50_reviews/`):
 - **Standard docs point at owners, never copy their values.** No schema number, test
   count, coverage %, or "currently N" in `README.md`/`CLAUDE.md`/`10_standard/`/`20_theory/`
   (`00_program_overview.md` §Documentation currency; guard `tests/test_doc_currency.py`).
-- **Keep the build green.** `ruff check sloads/ cli.py app/ app_shell/ scripts/` clean, `mypy` clean (zero
+- **Keep the build green.** `ruff check sloads/ cli.py oracle.py app/ app_shell/ oracle_app/ scripts/` clean, `mypy` clean (zero
   errors on `sloads/`; strictness ratchets per package in `pyproject.toml`) and `pytest` passing
   are the merge gate (CI: 3.9 / 3.11 / 3.12; mypy on 3.12). New domain terms → `cspell.json`.
 - **Git is the user's to run.** ANY and ALL git usage — `commit`, `add`, `push`,
@@ -113,9 +113,10 @@ Local venv at `.venv/`; editable install (`pip install -e '.[dev]'`); no `sys.pa
 ```bash
 .venv/bin/python -m pytest                   # whole suite (testpaths=tests, parallel; coverage is CI-only)
 .venv/bin/python -m pytest tests/test_engine.py::test_361_a2   # one test
-.venv/bin/ruff check sloads/ cli.py app/ app_shell/ scripts/   # lint gate
+.venv/bin/ruff check sloads/ cli.py oracle.py app/ app_shell/ oracle_app/ scripts/   # lint gate
 .venv/bin/mypy                               # type gate (sloads/ only)
 .venv/bin/streamlit run app/Home.py          # UI
+.venv/bin/streamlit run oracle_app/Oracle.py # the oracle GUI (or: .venv/bin/sloads-oracle)
 .venv/bin/sloads engine examples/ga6_normal.project.json -o out.csv   # CLI
 .venv/bin/python cli.py --list               # registered modules
 ```

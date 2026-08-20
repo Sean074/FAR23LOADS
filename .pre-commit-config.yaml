@@ -35,7 +35,7 @@ repos:
     hooks:
       - id: ruff
         name: ruff (lint gate)
-        entry: .venv/bin/ruff check sloads/ cli.py app/ app_shell/ scripts/
+        entry: .venv/bin/ruff check sloads/ cli.py oracle.py app/ app_shell/ oracle_app/ scripts/
         language: system
         pass_filenames: false
         types: [python]

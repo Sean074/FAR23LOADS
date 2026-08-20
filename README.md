@@ -69,10 +69,11 @@ source .venv/bin/activate          # Windows: .venv\Scripts\activate
 pip install -e '.[dev]'            # runtime deps + pytest, pytest-cov, ruff
 
 streamlit run app/Home.py                                   # the multi-page UI
+streamlit run oracle_app/Oracle.py                          # the oracle GUI (or: sloads-oracle)
 sloads engine examples/ga6_normal.project.json -o engine_loads.csv   # CLI entry point
 python cli.py engine examples/ga6_normal.project.json -o engine_loads.csv
 pytest                                                      # the green-build gate
-ruff check sloads/ cli.py app/ app_shell/ scripts/                   # lint
+ruff check sloads/ cli.py oracle.py app/ app_shell/ oracle_app/ scripts/                   # lint
 mypy                                                        # type check (sloads/)
 ```
 

@@ -197,12 +197,13 @@ def slice_of(path: str) -> str:
     return path.split(".", 1)[0].split(LIST_MARKER, 1)[0]
 
 
-def field_at(path: str) -> Optional["dataclasses.Field"]:
-    """The ``dataclasses.Field`` a registry path names, or ``None``.
+def _locate(path: str) -> Optional[Tuple[type, "dataclasses.Field"]]:
+    """The owning dataclass and ``dataclasses.Field`` a registry path names.
 
-    The inverse of the walk :func:`schema_paths` does. Used to read a field's
-    *declared default* — the one property of a field that decides whether the
-    oracle GUI is able to omit it at all (:func:`structurally_required`).
+    The inverse of the walk :func:`schema_paths` does. The owner comes back with
+    the field because a field's *type* can only be resolved against the class
+    that declares it (``from __future__ import annotations`` makes
+    ``Field.type`` a string), and both callers below need one or the other.
     """
     cls: object = Project
     segments = path.split(".")
@@ -214,7 +215,7 @@ def field_at(path: str) -> Optional["dataclasses.Field"]:
         if found is None:
             return None
         if i == len(segments) - 1:
-            return found
+            return cls, found  # type: ignore[return-value]
         rest = ".".join(segments[i + 1:])
         for child in _dataclasses_in(_hints(cls).get(name, found.type)):  # type: ignore[arg-type]
             if any(f.name == rest.split(".", 1)[0].split(LIST_MARKER, 1)[0]
@@ -224,6 +225,35 @@ def field_at(path: str) -> Optional["dataclasses.Field"]:
         else:
             return None
     return None
+
+
+def field_at(path: str) -> Optional["dataclasses.Field"]:
+    """The ``dataclasses.Field`` a registry path names, or ``None``.
+
+    Used to read a field's *declared default* — the one property of a field that
+    decides whether the oracle GUI is able to omit it at all
+    (:func:`structurally_required`).
+    """
+    located = _locate(path)
+    return None if located is None else located[1]
+
+
+def field_type(path: str) -> Optional[object]:
+    """The **resolved** annotation of the field a registry path names.
+
+    ``field_at(path).type`` is a *string* under ``from __future__ import
+    annotations``, which is enough to read a default off but not enough to
+    decide what widget a field needs. This resolves it against the same
+    namespace the schema walk uses, so a caller gets ``Optional[float]`` or
+    ``List[XYPoint]`` as a type object rather than as text to parse — which is
+    what the oracle GUI's generic renderer builds every widget from (design
+    note 32, OG-D).
+    """
+    located = _locate(path)
+    if located is None:
+        return None
+    owner, field = located
+    return _hints(owner).get(field.name, field.type)
 
 
 # --------------------------------------------------------------------------- #
