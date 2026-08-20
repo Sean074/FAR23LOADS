@@ -42,6 +42,7 @@ slice-level override table.
 
 from __future__ import annotations
 
+import copy
 import dataclasses
 import typing
 from enum import Enum
@@ -196,6 +197,35 @@ def slice_of(path: str) -> str:
     return path.split(".", 1)[0].split(LIST_MARKER, 1)[0]
 
 
+def field_at(path: str) -> Optional["dataclasses.Field"]:
+    """The ``dataclasses.Field`` a registry path names, or ``None``.
+
+    The inverse of the walk :func:`schema_paths` does. Used to read a field's
+    *declared default* — the one property of a field that decides whether the
+    oracle GUI is able to omit it at all (:func:`structurally_required`).
+    """
+    cls: object = Project
+    segments = path.split(".")
+    for i, segment in enumerate(segments):
+        name = segment[: -len(LIST_MARKER)] if segment.endswith(LIST_MARKER) else segment
+        if not dataclasses.is_dataclass(cls):
+            return None
+        found = {f.name: f for f in dataclasses.fields(cls)}.get(name)
+        if found is None:
+            return None
+        if i == len(segments) - 1:
+            return found
+        rest = ".".join(segments[i + 1:])
+        for child in _dataclasses_in(_hints(cls).get(name, found.type)):  # type: ignore[arg-type]
+            if any(f.name == rest.split(".", 1)[0].split(LIST_MARKER, 1)[0]
+                   for f in dataclasses.fields(child)):
+                cls = child
+                break
+        else:
+            return None
+    return None
+
+
 # --------------------------------------------------------------------------- #
 # The registry
 # --------------------------------------------------------------------------- #
@@ -234,6 +264,14 @@ class FieldEntry:
     #: whose owner is not a single field: a list length, the weight database, a
     #: value derived from the planform. Empty means this row is the owner.
     derived_from: str = ""
+    #: ``origin`` is ``SLOADS``, but the oracle GUI **sets** it anyway, without
+    #: asking — see :data:`SUPPLIED_RULE`. ``origin`` says who *asked* for a
+    #: field; this says who *writes* it, and the two differ exactly where this
+    #: model carries as data something the original carried by position (which
+    #: surface a planform describes, which of LANDLOAD's three loadings a CG case
+    #: is). The oracle GUI's input set is therefore ``ORIGINAL | supplied``
+    #: (:func:`oracle_input_paths`), which is what gate G5 runs against.
+    supplied: bool = False
 
     @property
     def slice(self) -> str:
@@ -263,9 +301,27 @@ class FieldEntry:
 EXTERNAL = "external: "
 
 
+#: When a ``SLOADS`` field may be marked :attr:`FieldEntry.supplied` (G5).
+#:
+#: A judgement call here would quietly become "whatever made the gate pass", so
+#: the mark is **earned**, one of two ways, and the ``basis`` says which:
+#:
+#: 1. **Structurally required** — the field has no declared default, so the
+#:    record cannot be constructed without it. A ``SurfaceInput`` has no
+#:    ``name``-less form; omitting it is not "keep the default", it is "have no
+#:    surface". Guarded both ways in ``tests/test_field_registry.py``.
+#: 2. **Demonstrably load-bearing** — omitting it changes an oracle-page result
+#:    on a shipped example. That demonstration is gate G5 itself
+#:    (``tests/test_oracle_inputs.py``), so the mark is never speculative.
+#:
+#: A ``SLOADS`` field meeting neither stays plain: the oracle GUI leaves it at
+#: its default and nothing moves. That is the reduction OG-2/OG-5 promised.
+SUPPLIED_RULE = "structurally required (no default), or demonstrably load-bearing (G5)"
+
+
 def _E(path: str, page: str, origin: Origin, basis: str,
-       quantity: str = "", derived_from: str = "") -> FieldEntry:
-    return FieldEntry(path, page, origin, basis, quantity, derived_from)
+       quantity: str = "", derived_from: str = "", supplied: bool = False) -> FieldEntry:
+    return FieldEntry(path, page, origin, basis, quantity, derived_from, supplied)
 
 
 _ORIG = Origin.ORIGINAL
@@ -309,7 +365,15 @@ _LAND = "landing_loads"
 #    `speeds.wing_surface`, `aero.surfaces[].name`, `aero_coeffs.*.name`,
 #    `tail_mass[].surface` and friends exist because this model carries N
 #    surfaces where the original carried a fixed one. The oracle GUI resolves
-#    them positionally and never asks.
+#    them positionally and never asks. The ones it must still *write* to make a
+#    well-formed model carry ``supplied=True`` (see :data:`SUPPLIED_RULE`) —
+#    building G5 showed "never asks" and "never sets" are not the same claim,
+#    and the table was only making the first one.
+#    The ruling covers selectors this model **created**; it does not cover a mode
+#    the original program itself branched on. `engines[].engine_type` looks like
+#    a selector and is not one: ENGLOADS ran a reciprocating and a turbine
+#    branch, and every field of both (`ENGTORQ`, `CRUZTORQ`, `DT`, `CYL`) is
+#    already `ORIGINAL` here — so the switch that chooses between them is too.
 #  * **`origin` is about who *asked*, not who *computes*.** A field the original
 #    entered directly and sloads now derives stays `ORIGINAL` and carries
 #    ``derived_from`` (note 32, OG-7: an entered scalar wins and is marked). The
@@ -320,15 +384,25 @@ REGISTRY: Tuple[FieldEntry, ...] = (
     # ----------------------------------------------------------------- #
     # geometry -- WINGGEOM (configuration_layout)
     # ----------------------------------------------------------------- #
-    # The planform polyline model is this replication's (Step C5/G1); WINGGEOM
-    # took planform *scalars*, which is what `parametric` holds. So the oracle
-    # GUI offers `parametric` and never the polylines -- GR-GEOM-3's "planform
-    # primary" runs the other way for the second front-end, by design.
-    _E("geometry.surfaces[].name", _GEO, _SLDS, "surface selector (standing ruling)"),
-    _E("geometry.surfaces[].leading_edge", _GEO, _SLDS, "polyline planform model, Step C5/G1"),
-    _E("geometry.surfaces[].trailing_edge", _GEO, _SLDS, "polyline planform model, Step C5/G1"),
-    _E("geometry.surfaces[].elements", _GEO, _SLDS, "polyline planform model, Step C5/G1"),
-    _E("geometry.surfaces[].symmetric", _GEO, _SLDS, "polyline planform model, Step C5/G1"),
+    # Corrected building G5 (2026-08-19). This block read "the polyline planform
+    # model is this replication's, so the oracle GUI offers `parametric` and
+    # never the polylines" -- which `models/inputs.py` contradicts in its own
+    # docstring: the edge polylines are entered "exactly as the original program
+    # prompts for them" and `elements` *is* WINGGEOM.BAS's `H`. The oracle GUI
+    # offers both, as the original did; `parametric` is not a substitute for the
+    # planform, and no parametric->polyline builder is needed after all.
+    _E("geometry.surfaces[].name", _GEO, _SLDS, "surface selector (standing ruling); "
+       "structurally required -- SurfaceInput has no name-less form", supplied=True),
+    _E("geometry.surfaces[].leading_edge", _GEO, _ORIG,
+       "WINGGEOM planform, '(X, Y) points ... exactly as the original program prompts for them'"),
+    _E("geometry.surfaces[].trailing_edge", _GEO, _ORIG,
+       "WINGGEOM planform, '(X, Y) points ... exactly as the original program prompts for them'"),
+    _E("geometry.surfaces[].elements", _GEO, _ORIG,
+       "WINGGEOM.BAS H, the strip count (Appendix A wing uses 20)"),
+    _E("geometry.surfaces[].symmetric", _GEO, _SLDS,
+       "mirrored vs single-side surface; the original kept one *GEOM.INP per surface, so the "
+       "surface's identity carried this. Load-bearing (G5): omitting it doubles the ga6 aileron",
+       supplied=True),
     _E("geometry.surfaces[].front_spar_pct", _GEO, _SLDS, "spar fractions, sbeam box model (Step C4)"),
     _E("geometry.surfaces[].rear_spar_pct", _GEO, _SLDS, "spar fractions, sbeam box model (Step C4)"),
     _E("geometry.surfaces[].ref_axis_pct", _GEO, _SLDS, "loads reference axis, R-7c"),
@@ -353,9 +427,14 @@ REGISTRY: Tuple[FieldEntry, ...] = (
        "overall length; summarised from geometry.fuselage.sections[].x when entered (Step M2-6)"),
     _E("geometry.parametric.fuselage_width", _GEO, _SLDS, "derived outline summary, Step M2-6"),
     _E("geometry.parametric.fuselage_height", _GEO, _SLDS, "derived outline summary, Step M2-6"),
-    _E("geometry.fuselage.sections[].x", _GEO, _SLDS, "body outline model, Step G1"),
-    _E("geometry.fuselage.sections[].width", _GEO, _SLDS, "body outline model, Step G1"),
-    _E("geometry.fuselage.sections[].height", _GEO, _SLDS, "body outline model, Step G1"),
+    # The outline itself is sloads (Step G1), but a section cannot be constructed
+    # without all three, so a project that has one at all has these (G5 rule 1).
+    _E("geometry.fuselage.sections[].x", _GEO, _SLDS,
+       "body outline model, Step G1; structurally required", supplied=True),
+    _E("geometry.fuselage.sections[].width", _GEO, _SLDS,
+       "body outline model, Step G1; structurally required", supplied=True),
+    _E("geometry.fuselage.sections[].height", _GEO, _SLDS,
+       "body outline model, Step G1; structurally required", supplied=True),
     _E("geometry.fuselage.sections[].z_centre", _GEO, _SLDS, "body outline model, Step G1"),
 
     # geometry.empennage.htail -- SELECT's rational h-tail inputs (Ch 9)
@@ -435,16 +514,26 @@ REGISTRY: Tuple[FieldEntry, ...] = (
     _E("weight.estimation.baggage_lb", _WT, _ORIG, "WTESTIMA BAG"),
     _E("weight.estimation.cruise_hours", _WT, _ORIG, "WTESTIMA HOURS"),
     _E("weight.estimation.pressurized", _WT, _ORIG, 'WTESTIMA P$ = "P"'),
-    _E("weight.estimation.engine_weight_type", _WT, _SLDS, "engine-weight basis selector, Step D5"),
+    _E("weight.estimation.engine_weight_type", _WT, _ORIG,
+       "WTESTIMA.BAS lines 230-290 installed-weight correlation, 'the two-letter codes of the "
+       "original program' (RF/RT/TC/TP/LC) -- corrected from SLOADS building G5"),
     _E("weight.items[].name", _WT, _ORIG, "WTONECG item name"),
     _E("weight.items[].weight_lb", _WT, _ORIG, "WTONECG item weight"),
     _E("weight.items[].x", _WT, _ORIG, "WTONECG item station"),
     _E("weight.items[].y", _WT, _ORIG, "WTONECG item butt line"),
     _E("weight.items[].z", _WT, _ORIG, "WTONECG item waterline"),
-    _E("weight.items[].ixx", _WT, _SLDS, "per-item inertia; WTONECG summed point masses"),
-    _E("weight.items[].iyy", _WT, _SLDS, "per-item inertia; WTONECG summed point masses"),
-    _E("weight.items[].izz", _WT, _SLDS, "per-item inertia; WTONECG summed point masses"),
-    _E("weight.items[].kind", _WT, _SLDS, "mass-model tagging, decision D-25"),
+    # Corrected building G5: these four were SLOADS, and Appendix A p136 settles
+    # it. The item's own inertia is stored "in lb-in^2 (the units the original
+    # data base stores)" and is added to WTONECG's parallel-axis transfer --
+    # without it ga6's IXX comes out 66.7 slug-ft^2 against the printed 1201.527,
+    # so the oracle the suite already passes *depends* on these being entered.
+    _E("weight.items[].ixx", _WT, _ORIG, "WTONECG item inertia, 'the units the original data "
+       "base stores'; Appendix A p136 IXX 1201.527 needs it"),
+    _E("weight.items[].iyy", _WT, _ORIG, "WTONECG item inertia; Appendix A p136 IYY 2058.209"),
+    _E("weight.items[].izz", _WT, _ORIG, "WTONECG item inertia; Appendix A p136 IZZ 3022.766"),
+    _E("weight.items[].kind", _WT, _ORIG,
+       "'Mirrors the data-base partition of WTONECG.BAS (empty / minimum-flight / discretionary)'; "
+       "WTENV's discretionary envelope and Appendix A's 78 lb aft ballast need it"),
     _E("weight.items[].component", _WT, _SLDS, "component tag, plan 09 T-3"),
     _E("weight.items[].consumable", _WT, _SLDS, "loading model, decision D-25"),
     _E("weight.items[].wing_fraction", _WT, _SLDS, "wing/body split for CONM2 export, plan 11"),
@@ -459,12 +548,22 @@ REGISTRY: Tuple[FieldEntry, ...] = (
     _E("weight.envelope.fuselage_nose_x", _WT, _ORIG, "WTENV nose station"),
     _E("weight.envelope.fuselage_tail_x", _WT, _ORIG, "WTENV tail station"),
     _E("weight.envelope.wing_surface", _WT, _SLDS, "surface selector (standing ruling)"),
-    _E("weight.cg_cases[].name", _WT, _SLDS, "CG-case grid, Step D5 / decision D-25"),
-    _E("weight.cg_cases[].role", _WT, _SLDS, "CG-case grid, Step D5 / decision D-25"),
-    _E("weight.cg_cases[].weight_lb", _WT, _SLDS, "CG-case grid, Step D5 / decision D-25"),
-    _E("weight.cg_cases[].xcg", _WT, _SLDS, "CG-case grid, Step D5 / decision D-25"),
-    _E("weight.cg_cases[].zcg", _WT, _SLDS, "CG-case grid, Step D5 / decision D-25"),
-    _E("weight.cg_cases[].analyses", _WT, _SLDS, "which analyses use this case, Step D5"),
+    # The *grid* is Step D5's consolidation, but the cases themselves are not:
+    # "the four corners of the WTENV weight-cg envelope (FLTLOADS.BAS prompts for
+    # four per configuration)". So the numbers are ORIGINAL and only the columns
+    # carrying what the original expressed positionally are sloads' (G5).
+    _E("weight.cg_cases[].name", _WT, _SLDS,
+       "case selector, Step D5; structurally required", supplied=True),
+    _E("weight.cg_cases[].role", _WT, _SLDS,
+       "LANDLOAD's three loadings (UG fig 18.2), positional in the original, a column here (G-3a). "
+       "Load-bearing (G5): without it LANDLOAD has no GROUND cases and does not run", supplied=True),
+    _E("weight.cg_cases[].weight_lb", _WT, _ORIG, "FLTLOADS.BAS prompts for four CG cases"),
+    _E("weight.cg_cases[].xcg", _WT, _ORIG, "FLTLOADS.BAS CG station of the case"),
+    _E("weight.cg_cases[].zcg", _WT, _ORIG, "FLTLOADS.BAS CG waterline of the case"),
+    _E("weight.cg_cases[].analyses", _WT, _SLDS,
+       "which analyses use this case, Step D5 -- the original recorded it by which program's screen "
+       "the case was typed into. Load-bearing (G5): the default {FLIGHT} loses every ground case",
+       supplied=True),
     _E("weight.cg_cases[].loading.aboard", _WT, _SLDS, "loading definition, decision D-25"),
     _E("weight.cg_cases[].loading.fractions", _WT, _SLDS, "loading definition, decision D-25"),
     _E("weight.cg_cases[].loading.ballast.name", _WT, _SLDS, "ballast item, decision D-25"),
@@ -519,14 +618,16 @@ REGISTRY: Tuple[FieldEntry, ...] = (
     _E("aero_coeffs.clmax_clean", _AERO, _ORIG, "STRSPEED/FLTLOADS CLmax, UG p7-5"),
     _E("aero_coeffs.clmax_clean_neg", _AERO, _ORIG, "FLTLOADS negative stall line"),
     _E("aero_coeffs.clmax_flap", _AERO, _ORIG, "STRSPEED/FLTLOADS flapped CLmax, UG p7-5"),
-    _E("aero_coeffs.cruise.name", _AERO, _SLDS, "set selector (standing ruling)"),
+    _E("aero_coeffs.cruise.name", _AERO, _SLDS,
+       "set selector (standing ruling); structurally required", supplied=True),
     _E("aero_coeffs.cruise.lift", _AERO, _ORIG, "FLTLOADS C0..C4"),
     _E("aero_coeffs.cruise.drag", _AERO, _ORIG, "FLTLOADS D0..D4"),
     _E("aero_coeffs.cruise.moment", _AERO, _ORIG, "FLTLOADS M0..M4"),
     _E("aero_coeffs.cruise.stall_cl", _AERO, _ORIG, "FLTLOADS set stall CL"),
     _E("aero_coeffs.cruise.neg_stall_cl", _AERO, _ORIG, "FLTLOADS set negative stall CL"),
     _E("aero_coeffs.cruise.flaps_down", _AERO, _ORIG, "FLTLOADS configuration flag"),
-    _E("aero_coeffs.flaps_down.name", _AERO, _SLDS, "set selector (standing ruling)"),
+    _E("aero_coeffs.flaps_down.name", _AERO, _SLDS,
+       "set selector (standing ruling); structurally required", supplied=True),
     _E("aero_coeffs.flaps_down.lift", _AERO, _ORIG, "FLTLOADS C0..C4"),
     _E("aero_coeffs.flaps_down.drag", _AERO, _ORIG, "FLTLOADS D0..D4"),
     _E("aero_coeffs.flaps_down.moment", _AERO, _ORIG, "FLTLOADS M0..M4"),
@@ -639,7 +740,9 @@ REGISTRY: Tuple[FieldEntry, ...] = (
     # engines -- ENGLOADS (engine_mount)
     # ----------------------------------------------------------------- #
     _E("engines[].engine_designation", _ENG, _ORIG, "ENGLOADS engine designation"),
-    _E("engines[].engine_type", _ENG, _SLDS, "recip/turboprop selector, Step C9"),
+    _E("engines[].engine_type", _ENG, _ORIG,
+       "ENGLOADS reciprocating/turbine branch; every field of both branches (ENGTORQ, CRUZTORQ, "
+       "DT, CYL) is ORIGINAL here, so the switch between them is -- corrected building G5"),
     _E("engines[].mounted_on", _ENG, _SLDS, "fuselage/wing carrier, Step C5"),
     _E("engines[].engine_weight_lb", _ENG, _ORIG, "ENGLOADS ENGWT", "engine mass",
        EXTERNAL + "the weight database (decision D-25 mass SSOT; review N1 instance 5: regional jet 300 lb apart)"),
@@ -672,7 +775,10 @@ REGISTRY: Tuple[FieldEntry, ...] = (
     _E("engines[].rotors[].inertia", _ENG, _SLDS, "turbine rotor model, Step C9"),
     _E("engines[].rotors[].max_rpm", _ENG, _SLDS, "turbine rotor model, Step C9"),
     _E("engines[].rotors[].direction", _ENG, _SLDS, "turbine rotor model, Step C9"),
-    _E("engine_layout", _ENG, _SLDS, "multi-engine layout constraint, Step C5"),
+    _E("engine_layout", _ENG, _SLDS,
+       "multi-engine layout constraint, Step C5 -- the arrangement the entered engines already "
+       "describe, where the original ran one program per fixed layout. Load-bearing (G5): "
+       "omitting it moves the twins' nacelle geometry", supplied=True),
     _E("include_far25", _ENG, _SLDS, "FAR 25 supplemental-case opt-in"),
 
     # one_engine_out -- ONENGOUT (one_engine_out)
@@ -753,8 +859,99 @@ def entry(path: str) -> Optional[FieldEntry]:
 
 
 def original_paths() -> Set[str]:
-    """Field paths the oracle GUI offers — the input set gate G5 runs against."""
+    """Field paths the oracle GUI *asks* for — the original suite's own inputs."""
     return {e.path for e in REGISTRY if e.origin is Origin.ORIGINAL}
+
+
+def supplied_paths() -> Set[str]:
+    """`SLOADS` field paths the oracle GUI writes without asking (:data:`SUPPLIED_RULE`)."""
+    return {e.path for e in REGISTRY if e.supplied}
+
+
+def oracle_input_paths() -> Set[str]:
+    """Everything a project made by the oracle GUI carries — what G5 runs against."""
+    return original_paths() | supplied_paths()
+
+
+def structurally_required() -> Set[str]:
+    """Field paths whose dataclass declares no default, so the record needs them.
+
+    Not a judgement — read off ``dataclasses.fields``. Every one of these must be
+    ``ORIGINAL`` or ``supplied``, because "omit it" is not available: there is no
+    default to fall back to, only the absence of the whole record. The guard is
+    in ``tests/test_field_registry.py``; without it the rule holds today only by
+    accident, and a ``default_factory=list`` added to ``SurfaceInput`` one
+    afternoon would quietly delete the wing from the oracle GUI's input set.
+    """
+    required = set()
+    for path in schema_paths():
+        field = field_at(path)
+        if field is None:
+            continue
+        if (field.default is dataclasses.MISSING
+                and field.default_factory is dataclasses.MISSING):
+            required.add(path)
+    return required
+
+
+def record_of(path: str) -> str:
+    """The dotted prefix of the record a field sits on (``""`` at ``Project`` level)."""
+    return path.rsplit(".", 1)[0] if "." in path else ""
+
+
+def omitted_records() -> Set[str]:
+    """Record prefixes the oracle GUI never creates at all.
+
+    A ``Rotor`` row is every bit as absent as a defaulted scalar when the second
+    front-end does not offer turbine rotors: no field of the record is in its
+    input set, so no such row exists to have required fields. This is what keeps
+    :func:`structurally_required`'s guard from demanding a decision about a
+    record nobody builds — omission happens at record level as well as at field
+    level, and only the guard would confuse the two.
+    """
+    keep = oracle_input_paths()
+    rows: Dict[str, List[FieldEntry]] = {}
+    for e in REGISTRY:
+        rows.setdefault(record_of(e.path), []).append(e)
+    return {rec for rec, group in rows.items()
+            if rec and not any(r.path in keep for r in group)}
+
+
+def reduce_to_oracle_inputs(project: Project) -> Project:
+    """A deep copy of ``project`` holding only what the oracle GUI would have set.
+
+    Every field outside :func:`oracle_input_paths` is returned to the default its
+    dataclass declares — which is precisely OG-13's promise from the other side:
+    *"fields it does not expose keep their defaults."* This is gate G5's
+    mechanism (``tests/test_oracle_inputs.py``), and it is here rather than in
+    the test because it is registry knowledge: what the second front-end writes
+    is a property of the table, not of one test's convenience.
+
+    Structurally required fields (no declared default) are left as they are; the
+    guard above makes that a rule rather than an accident.
+    """
+    reduced = copy.deepcopy(project)
+    _reduce(reduced, "", oracle_input_paths())
+    return reduced
+
+
+def _reduce(obj: object, prefix: str, keep: Set[str]) -> None:
+    for field in dataclasses.fields(obj):  # type: ignore[arg-type]
+        path = prefix + field.name
+        value = getattr(obj, field.name)
+        if path in BY_PATH:
+            if path in keep or value is None:
+                continue
+            if field.default is not dataclasses.MISSING:
+                setattr(obj, field.name, copy.deepcopy(field.default))
+            elif field.default_factory is not dataclasses.MISSING:
+                setattr(obj, field.name, field.default_factory())
+            continue  # no default: structurally required, guarded above
+        if dataclasses.is_dataclass(value) and not isinstance(value, type):
+            _reduce(value, path + ".", keep)
+        elif isinstance(value, list) and value and dataclasses.is_dataclass(value[0]):
+            for item in value:
+                _reduce(item, path + LIST_MARKER + ".", keep)
 
 
 def paths_for_page(page: str) -> Set[str]:

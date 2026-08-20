@@ -12,7 +12,11 @@ settles those if it cannot quietly fall out of step with the schema, so:
 * **G5's precondition.** Every ``ORIGINAL`` field is editable from a page in the
   oracle set, so "populate only the original fields" is actually reachable in
   the second GUI. This is what caught ``aero_coeffs`` having no oracle page and
-  produced OG-2's amendment (:func:`sloads.workflow.oracle_steps`).
+  produced OG-2's amendment (:func:`sloads.workflow.oracle_steps`). G5 itself
+  lives in ``tests/test_oracle_inputs.py``; what stays here is the shape of the
+  ``supplied`` column it needed — a field the oracle GUI *writes* without asking
+  — because a mark that can be handed out freely would let any G5 failure be
+  silenced by marking the offending field.
 * **The duplicate-owner class** (the 2026-08-16 GUI review's N1, five instances;
   a sixth — the two ``shoulder_altitude_ft`` fields — fell out of writing the
   table). One owner per quantity, and every copy names the owner it syncs from.
@@ -35,12 +39,17 @@ from sloads.field_registry import (
     REGISTRY,
     SLICE_ALIASES,
     Origin,
+    field_at,
+    omitted_records,
+    oracle_input_paths,
     original_paths,
     paths_under,
     quantities,
+    record_of,
     schema_paths,
     slice_of,
     stale,
+    structurally_required,
     untagged,
 )
 from sloads.models import Project
@@ -159,6 +168,64 @@ def test_the_original_set_is_a_real_reduction():
         f"{original}/{total} fields classified ORIGINAL — the oracle GUI would "
         "ask for nearly the whole schema; re-check the classification"
     )
+
+
+# --- the `supplied` column: what the oracle GUI writes without asking -------- #
+
+
+def test_a_supplied_field_is_never_original():
+    """The two columns answer different questions and must not blur. ``ORIGINAL``
+    means the user is asked; ``supplied`` means the front-end fills it in. A row
+    claiming both is claiming the oracle GUI asks for something it also invents."""
+    both = sorted(e.path for e in REGISTRY if e.supplied and e.origin is Origin.ORIGINAL)
+    assert not both, both
+
+
+def test_the_supplied_mark_is_earned():
+    """`SUPPLIED_RULE`: structurally required, or shown to matter by G5.
+
+    Without this the mark is a wildcard — every G5 failure could be closed by
+    marking the field that caused it, which is the opposite of what the gate is
+    for. So each mark points at one of the two admissible reasons.
+    """
+    required = structurally_required()
+    unearned = sorted(
+        e.path for e in REGISTRY
+        if e.supplied and e.path not in required and "G5" not in e.basis
+    )
+    assert not unearned, (
+        "these rows are marked supplied on neither ground in SUPPLIED_RULE — "
+        "they have a declared default, and the basis does not cite the G5 "
+        f"result that shows omitting them moves a number: {unearned}"
+    )
+
+
+def test_a_structurally_required_field_is_never_omitted():
+    """A field with no declared default cannot be left out — there is nothing to
+    leave it *at*. Either the oracle GUI supplies it, or the original asked for
+    it, or the whole record is one the second front-end never builds.
+
+    Read off ``dataclasses.fields``, so it is a fact rather than a judgement:
+    the day someone gives ``SurfaceInput.leading_edge`` a ``default_factory``,
+    the wing quietly becomes omittable and this is what notices.
+    """
+    omitted = omitted_records()
+    stranded = sorted(
+        p for p in structurally_required()
+        if p not in oracle_input_paths() and record_of(p) not in omitted
+    )
+    assert not stranded, (
+        "these fields have no default, so the oracle GUI cannot omit them, yet "
+        "they are neither ORIGINAL nor supplied and their record is one it does "
+        f"build:\n  " + "\n  ".join(stranded)
+    )
+
+
+def test_the_inverse_walk_finds_every_field():
+    """:func:`field_at` is how `structurally_required` reads defaults; if it
+    silently returned ``None`` the guard above would pass on an empty set."""
+    lost = sorted(p for p in schema_paths() if field_at(p) is None)
+    assert not lost, lost
 
 
 # --- the duplicate-owner class (the review's N1) ---------------------------- #

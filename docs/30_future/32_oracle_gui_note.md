@@ -88,6 +88,16 @@ which is where the current UI's bulk sits (`weight_mass.py` 853 LOC,
 
 The estimate is an estimate. OG-5 replaces it with a classified, guarded list.
 
+**Measured, 2026-08-19 (OG-C + G5):** **219 of 323** fields are `ORIGINAL`, plus
+11 the front-end supplies — so the oracle GUI leaves **93** fields (29 %) at
+their defaults, not the ~50 % this section guessed. The estimate was low in one
+specific place and it is worth recording why: it assumed the wing planform
+polylines and the per-item inertias were sloads' and could be dropped. Both are
+inputs of a named `.BAS` program, and G5 is what showed it — Appendix A p136's
+IXX comes out 66.7 against the printed 1201.527 without the item inertias. The
+real cut is where §2 said it was (the mass-model and cg-case columns, the gear
+and body-outline additions, the FAR 25 / concept route), just smaller.
+
 ## 3. The page set is already in the SSOT
 
 `WorkflowStep` carries **`bas`** — *"the original McMaster program(s), or `None`
@@ -149,7 +159,7 @@ guard in OG-2 is what stops it recurring). **Fixed 2026-08-19** — see OG-A in 
 | **G2** | *Page set is derived.* The oracle GUI's rendered page keys `==` `{s.key for s in STEPS if s.bas is not None}`; adding a `bas` to a step adds a page with no GUI edit. |
 | **G3** | *No `"—"` sentinels.* Every `WorkflowStep.bas` is either `None` or a non-empty program name matching `[A-Z0-9+]+`. |
 | **G4** | *Origin registry is total.* Every field reachable from an oracle page carries an `original`/`sloads` tag; an untagged field fails. |
-| **G5** | *Oracle inputs suffice.* With **only** `origin=original` fields populated from `ga6_normal`, all oracle-page modules run and every Appendix A oracle test still passes at ±0.1 %. This is the gate that proves the reduced input set is real rather than asserted. |
+| **G5** | *Oracle inputs suffice.* With **only** `origin=original` fields populated from `ga6_normal`, all oracle-page modules run and every Appendix A oracle test still passes at ±0.1 %. This is the gate that proves the reduced input set is real rather than asserted. **✅ shipped 2026-08-19**, `tests/test_oracle_inputs.py`. One amendment, forced by building it: the input set is `original` **∪ `supplied`** — the fields the oracle GUI *writes* without asking, because this model carries as data what the original carried by position (which surface a planform describes; which of LANDLOAD's three loadings a CG case is). Eleven fields, each earning the mark by being structurally required or by demonstrably moving a number. `origin` is left answering only its own question. |
 | **G6** | *Round-trip.* A project saved by the oracle GUI loads in `app/` unchanged, and vice versa (byte-identical after `io` normalisation). |
 | **G7** | *Output contract.* Every CSV the oracle GUI offers passes the parametrized ultimate-contract scan; every text report carries the same ULT marker and SF statement as `cli.py`'s. |
 | **G8** | *Shell is single-owned.* No symbol in the shared shell is defined twice across the two GUI packages. |
@@ -160,7 +170,8 @@ guard in OG-2 is what stops it recurring). **Fixed 2026-08-19** — see OG-A in 
 |---|---|---|
 | **OG-A** | Fix the two `bas = "—"` rows to `None`; add gate G3. Independent of everything else. **✅ shipped 2026-08-19** — both rows are `None`, guard `tests/test_workflow.py::test_bas_is_a_program_name_or_none` asserts the shape, oracle page count is the true **13**. | S |
 | **OG-B** | Extract the shared app shell to one owner; both existing front-ends switch to it; gate G8. **Prerequisite for OG-D.** **✅ shipped 2026-08-19** — `app_shell/` (`components`, `project_state`, `sidebar`, `limit_csv`), an installed package rather than a directory on Streamlit's implicit entrypoint path, so a second entry point can import it without inheriting the first one's `sys.path`. `app/Home.py` is now only its own nav + one `set_page_config`. Gate G8 is `tests/test_app_shell.py`, with the GUI set **derived** (a directory holding a `set_page_config` entry point) so the oracle GUI activates it on arrival. | L (moves an architectural boundary; `PROJECT_GUIDE.md` §4 tree changes) |
-| **OG-C** | The **single field registry** + drift guard (OG-5 as reshaped by **OG-14**). **✅ shipped 2026-08-19** — `sloads/field_registry.py`, **six** columns not four (`quantity` and owner-or-`derived_from` were added at build time: the review's duplicate class is one quantity in two fields, which four columns cannot express). 323 fields, 207 `ORIGINAL` / 116 `SLOADS`, every row cited; 18 duplicated quantities recorded, the review's five plus a sixth. Gates G4 and the duplicate-owner class close in `tests/test_field_registry.py`; **G5 is not yet written** — the registry is what it will run against. `docs/generate_data_dict.py`'s private `PAGE_OVERRIDES` is deleted in favour of the registry. | M |
+| **OG-C** | The **single field registry** + drift guard (OG-5 as reshaped by **OG-14**). **✅ shipped 2026-08-19** — `sloads/field_registry.py`, **six** columns not four (`quantity` and owner-or-`derived_from` were added at build time: the review's duplicate class is one quantity in two fields, which four columns cannot express). 323 fields, 207 `ORIGINAL` / 116 `SLOADS`, every row cited; 18 duplicated quantities recorded, the review's five plus a sixth. Gates G4 and the duplicate-owner class close in `tests/test_field_registry.py`. `docs/generate_data_dict.py`'s private `PAGE_OVERRIDES` is deleted in favour of the registry. **G5 followed 2026-08-19** and corrected **twelve** of these rows — see below. | M |
+| **OG-C2** | **Gate G5** — run the registry rather than trust it. **✅ shipped 2026-08-19**, `tests/test_oracle_inputs.py`: the reduced project's numbers, module-by-module, against the full one on five of the six shipped examples, plus four Appendix A figures restated directly on it. Twelve rows moved `SLOADS` → `ORIGINAL` on the gate's evidence (per-item inertia, the WTONECG loading-hierarchy tag, the wing edge polylines and strip count, the three CG-case corners, WTESTIMA's engine-weight code, ENGLOADS' engine type); the `supplied` column was added for the eleven the front-end writes. Final shape: **323 fields, 219 `ORIGINAL` (68 %) + 11 supplied, 93 omitted entirely.** | M |
 | **OG-D** | The oracle GUI: entry point (OG-11), derived nav (OG-2), generic form renderer over `origin=original`; gates G1, G2, G6. | M |
 | **OG-E** | CSV + text output through the existing owners (OG-6); gate G7. | S |
 | **OG-F** | Parametrize the two `app/views/`-hardcoded guards over both GUI dirs (OG-9); `set_page_config` rule restated (OG-10). | M |
@@ -196,7 +207,12 @@ LOC of `app/views/` it does not touch. OG-B and OG-C are the real cost.
 - **OG-C is a judgement pass, not a mechanical one.** Roughly 30 of the ~295
   paths are genuinely borderline (fields the original entered under a different
   name, fields sloads split or consolidated). These are ruled on by the owner
-  and recorded in the registry, not decided by the implementer.
+  and recorded in the registry, not decided by the implementer. **Revised by G5
+  (2026-08-19):** twelve of the borderline rows turned out not to need a
+  judgement at all — the printed Appendix A figures decide them, and decided
+  them against the table as first written. The lesson for the rest of this
+  phase is the ordering: a classification that changes a delivered number is
+  settled by running it, and only what survives that is a judgement call.
 - **What this note does not do.** It does not reduce the module count — all 22
   registered modules *are* original programs. sloads added capability mostly as
   extra inputs and extra outputs on the same modules. The oracle GUI therefore
