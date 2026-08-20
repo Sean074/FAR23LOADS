@@ -163,13 +163,13 @@ STEPS: Tuple[WorkflowStep, ...] = (
     # Cases its own page rather than folding it into Wing Loads.
     WorkflowStep("tail_span_loads", "Tail Span Loads", FLIGHT_LOADS,
                  module="tail_span", requires=("flight_loads", "tail_loads"),
-                 produces=None, bas="—",
+                 produces=None, bas=None,
                  summary="Spanwise h-tail / v-tail distribution on the load "
                          "reference axis: per-station shear, bending and torsion."),
 
     WorkflowStep("balanced_cases", "Balanced Cases", FLIGHT_LOADS,
                  module="balance", requires=("flight_loads", "wing_mass"),
-                 produces=None, bas="—",
+                 produces=None, bas=None,
                  summary="Assembled full-span free-free cases: aero + inertia, "
                          "both wings, with the residual stated."),
 

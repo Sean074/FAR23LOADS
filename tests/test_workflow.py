@@ -8,6 +8,7 @@ real suite module must have a step, phases/keys must stay well-formed, and the
 """
 
 import os
+import re
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -77,3 +78,23 @@ def test_empty_project_blocks_dependent_steps():
     wing = wf.BY_KEY["wing_loads"]
     assert not wf.requirements_met(empty, wing)
     assert set(wf.missing_requirements(empty, wing)) == {"geometry"}
+
+
+def test_bas_is_a_program_name_or_none():
+    """``bas`` answers "which original McMaster program is behind this step?" --
+    so a modern page must say ``None``, not a placeholder (design note 32 OG-3).
+
+    ``tail_span_loads`` and ``balanced_cases`` both carried ``bas="—"``. An
+    em dash is truthy, so the natural "original programs only" filter
+    ``[s for s in STEPS if s.bas]`` silently claimed two sloads-only pages, and
+    the dashboard rendered a dangling " · —" beside them. Any non-program
+    sentinel reintroduces both, so the shape is asserted rather than the two
+    known values.
+    """
+    for s in wf.STEPS:
+        if s.bas is None:
+            continue
+        assert re.fullmatch(r"[A-Z][A-Z0-9]*(\+[A-Z][A-Z0-9]*)*", s.bas), (
+            f"{s.key}: bas={s.bas!r} is not a '+'-joined program name; a step "
+            f"with no original program must use bas=None"
+        )

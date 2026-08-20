@@ -2,7 +2,8 @@
 
 **Owner:** @Sean074 · **Reviewers:** — *(design note 28 MD-6: the owner of what a note touches reviews it as a PR)*
 
-**Status: PROPOSED 2026-08-19 — no code.**
+**Status: PROPOSED 2026-08-19 — no code, except OG-A (the `bas` sentinel defect,
+§3) which shipped 2026-08-19 as an independent tier-S fix.**
 
 A **second, independently launched Streamlit GUI** that exposes only the
 capability of the original McMaster **FAR 23 LOADS** suite: the original
@@ -102,7 +103,7 @@ the "original programs" set. The true oracle page count is **13**. This is a
 latent wrong-answer in the nav SSOT and is worth fixing whether or not this GUI
 is built — it is filed and fixed under OG-3 as a tier-S change, ahead of and
 independent of the rest of this note (rule 4: the fix sweeps the field, and the
-guard in OG-2 is what stops it recurring).
+guard in OG-2 is what stops it recurring). **Fixed 2026-08-19** — see OG-A in §7.
 
 ## 4. Decisions
 
@@ -152,7 +153,7 @@ guard in OG-2 is what stops it recurring).
 
 | # | Step | Tier |
 |---|---|---|
-| **OG-A** | Fix the two `bas = "—"` rows to `None`; add gate G3. Independent of everything else. | S |
+| **OG-A** | Fix the two `bas = "—"` rows to `None`; add gate G3. Independent of everything else. **✅ shipped 2026-08-19** — both rows are `None`, guard `tests/test_workflow.py::test_bas_is_a_program_name_or_none` asserts the shape, oracle page count is the true **13**. | S |
 | **OG-B** | Extract the shared app shell to one owner; both existing front-ends switch to it; gate G8. **Prerequisite for OG-D.** | L (moves an architectural boundary; `PROJECT_GUIDE.md` §4 tree changes) |
 | **OG-C** | Field-origin registry + drift guard (OG-5); gates G4, G5. The classification pass is the bulk of the intellectual work and needs the owner's ruling on the borderline rows. | M |
 | **OG-D** | The oracle GUI: entry point (OG-11), derived nav (OG-2), generic form renderer over `origin=original`; gates G1, G2, G6. | M |
