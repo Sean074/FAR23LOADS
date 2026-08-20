@@ -7,7 +7,7 @@ project_dict_to_display/project_dict_to_imperial must be lossless (so Apply on
 the editor page never silently drifts a project's numbers). Airspeed/altitude
 must never be touched, per CLAUDE.md's aviation-standard-units decision.
 
-**The completeness guard** (``test_every_dimensional_project_field_is_classified``)
+**The completeness guard** (``test_every_numeric_project_field_is_classified``)
 is the one that had been missing, and its absence is why ``EngineInput.thrust_lb``
 shipped unclassified: it displayed raw pounds in the SI view while every
 neighbour converted. A round-trip test cannot see that -- an unconverted field is
@@ -15,6 +15,14 @@ lossless in both directions -- and no fixture entered a thrust, so a
 fixture-driven check could not see it either. The guard therefore walks the
 **type graph** reachable from ``Project``, not the fixtures, so a field no
 project has ever set is still covered the day it is added.
+
+Its question was inverted on 2026-08-19. It used to ask *does this name look
+dimensional?*, from a suffix regex, which meant a quantity whose name breaks the
+suffix convention was invisible to the guard rather than reported by it --
+thirty-four lengths and weights were, ``xt25`` and ``gross_weight`` among them.
+It now asks the total question instead: **every numeric field is classified**,
+converted or aviation-standard or dimensionless-with-a-reason, and a new one
+fails here until somebody decides which.
 """
 
 import dataclasses
@@ -23,11 +31,15 @@ import os
 import re
 import typing
 
-from sloads import UnitSystem, io
+from sloads import UnitSystem, field_registry, io
 from sloads.models import Project
 from sloads.units import (
+    _DIMENSIONLESS_RULES,
     _NOT_DIMENSIONAL,
     _PROJECT_FIELD_KIND,
+    _PROJECT_PAIR_KIND,
+    AVIATION_STANDARD,
+    field_classification,
     project_dict_to_display,
     project_dict_to_imperial,
     project_field_si_label,
@@ -98,28 +110,41 @@ def test_engine_cg_vector_converts_as_length():
 # The completeness guard (CLAUDE.md rule 3: a convention gets a drift guard,
 # never a prose rule alone)
 # --------------------------------------------------------------------------- #
-#: A field name that names a physical quantity, by the schema's own suffix
-#: conventions (``models.py`` documents every one of these as dimensional).
-#: ``_kt`` / ``_ft`` / ``_deg`` are deliberately absent: airspeed and altitude
-#: stay aviation-standard in both systems and angles have nothing to convert,
-#: which is the same decision ``_PROJECT_FIELD_KIND``'s own comment records.
-_DIMENSIONAL_NAME = re.compile(
-    r"(_lb$|_in$|_sqft$|_sqin$|_hp$|torque|inertia|^psi$|_psi$)")
+#: The ``Project`` slices that hold **input** data, read from the field registry
+#: -- the schema-walk owner, whose own gate G4 already keeps it total, and whose
+#: ``NON_INPUT`` names the exclusions with reasons (result slices, the schema
+#: stamp, the units preference, document metadata: none of them airplane data a
+#: unit applies to).
+#:
+#: This used to be the slice list of one example project, which made the guard
+#: only as complete as ``ga6_normal`` happened to be: a single-engine airplane
+#: has no ``one_engine_out`` slice, so every field on it -- and on ``tail_mass``,
+#: which no shipped example sets -- was outside the guard entirely.
+def _input_slice_names():
+    return {path.split(".")[0].replace(field_registry.LIST_MARKER, "")
+            for path in field_registry.schema_paths()}
 
-#: The ``Project`` slices ``io.project_to_dict`` actually writes -- read from
-#: ``io`` itself rather than listed here, so a new persisted slice joins the
-#: guard automatically. Result slices (``loads``, ``envelope``) are reachable
-#: from ``Project`` by type but are never written to ``project.json``, so the
-#: project-field table has no business classifying their fields.
-def _persisted_slice_names():
-    return set(io.project_to_dict(
-        io.load_project(os.path.join(_EXAMPLES, "ga6_normal.project.json"))))
+
+def _is_numeric(hint):
+    """True if an annotation bottoms out in ``float``/``int`` only.
+
+    ``Optional[float]``, ``List[float]``, ``Vec3``, ``XYPoint``,
+    ``List[XYPoint]`` and the five-term coefficient tuples all qualify -- they
+    are numbers a unit could apply to. ``bool`` does not (it is an ``int`` by
+    inheritance, never by identity), nor does a ``str``, an ``Enum`` or a nested
+    dataclass.
+    """
+    args = typing.get_args(hint)
+    if args:
+        parts = [a for a in args if a is not type(None) and a is not Ellipsis]
+        return bool(parts) and all(_is_numeric(a) for a in parts)
+    return hint is float or hint is int
 
 
 def _reachable_fields():
-    """``{field name: owning class}`` for every dataclass field reachable from
-    the persisted slices of ``Project``, by type -- so an optional field that no
-    fixture sets is covered exactly like one they all set."""
+    """``{field name: (owning class, is-numeric)}`` for every dataclass field
+    reachable from the input slices of ``Project``, by type -- so an optional
+    field that no fixture sets is covered exactly like one they all set."""
     def unwrap(hint):
         args = typing.get_args(hint)
         if args:
@@ -127,6 +152,9 @@ def _reachable_fields():
         return [hint] if isinstance(hint, type) else []
 
     seen, found = set(), {}
+
+    def record(name, owner, hint):
+        found.setdefault(name, (owner, _is_numeric(hint)))
 
     def walk(cls):
         if cls in seen or not dataclasses.is_dataclass(cls):
@@ -137,54 +165,99 @@ def _reachable_fields():
         except Exception:                                    # pragma: no cover
             hints = {f.name: f.type for f in dataclasses.fields(cls)}
         for f in dataclasses.fields(cls):
-            found.setdefault(f.name, cls.__name__)
-            for sub in unwrap(hints.get(f.name, f.type)):
+            hint = hints.get(f.name, f.type)
+            record(f.name, cls.__name__, hint)
+            for sub in unwrap(hint):
                 walk(sub)
 
-    persisted = _persisted_slice_names()
+    persisted = _input_slice_names()
     hints = typing.get_type_hints(Project)
     for f in dataclasses.fields(Project):
         if f.name not in persisted:
             continue
-        found.setdefault(f.name, "Project")
-        for sub in unwrap(hints.get(f.name, f.type)):
+        hint = hints.get(f.name, f.type)
+        record(f.name, "Project", hint)
+        for sub in unwrap(hint):
             walk(sub)
     return found
 
 
-def test_every_dimensional_project_field_is_classified():
-    """Every dimensional leaf the editor can show is in the table, or is
-    explicitly exempt with a reason.
+def test_every_numeric_project_field_is_classified():
+    """Every numeric leaf the editor can show is classified, one of three ways.
 
-    The guard ``thrust_lb`` needed. An unclassified dimensional field is not a
-    crash and not a data loss -- it round-trips perfectly, because it is
-    unconverted in both directions -- it is a **wrong number on screen**, shown
-    beside converted neighbours with no unit label. This is the only check that
-    can see that, and it reads the schema rather than the fixtures.
+    The guard ``thrust_lb`` needed, run the right way round. It used to ask *does
+    this name look dimensional?* -- a suffix regex over ``_lb``/``_in``/``_sqft``
+    and friends -- and a length whose name does not follow the suffix convention
+    was therefore invisible to it. Thirty-four were: ``xt25`` sat unconverted at
+    261.0 in the SI view beside ``htail_semispan_in`` showing 1856.7 mm, on the
+    same record, and ``gross_weight`` displayed 3400 lb as 3400 kg.
+
+    So the question is inverted. Every **numeric** field must be classified --
+    converted, aviation-standard, or dimensionless with a stated reason -- and a
+    new one is a failure here until somebody decides which. That is the same
+    totality standard ``field_registry``'s gate G4 holds 323 fields to, and the
+    only kind that can see a defect nobody thought to look for: an unclassified
+    quantity is not a crash and not a data loss (it round-trips perfectly,
+    unconverted in both directions), it is a **wrong number on screen**.
     """
     unclassified = sorted(
-        (name, owner) for name, owner in _reachable_fields().items()
-        if _DIMENSIONAL_NAME.search(name)
-        and name not in _PROJECT_FIELD_KIND
-        and name not in _NOT_DIMENSIONAL)
+        (name, owner) for name, (owner, numeric) in _reachable_fields().items()
+        if numeric and field_classification(name) is None)
     assert not unclassified, (
-        "these project fields name a physical quantity but sloads.units."
-        "_PROJECT_FIELD_KIND does not classify them, so the Project JSON "
-        "Editor shows them unconverted and unlabelled in the SI view. Add a "
-        "row (or add the name to _NOT_DIMENSIONAL with the reason it is not a "
-        f"quantity): {unclassified}")
+        "these project fields hold a number that sloads.units classifies no "
+        "way at all, so the Project JSON Editor shows them unconverted and "
+        "unlabelled in the SI view. Classify each: a row in _PROJECT_FIELD_KIND "
+        "(or _PROJECT_PAIR_KIND for an [[a, b], ...] curve) if it is a quantity, "
+        "AVIATION_STANDARD if it is KEAS/ft, else _NOT_DIMENSIONAL with the "
+        f"reason it carries no unit: {unclassified}")
 
 
-def test_the_exempt_list_only_holds_fields_that_are_not_quantities():
-    """The exemption cannot become a dumping ground: every name on it must
-    still be a field that exists, and must not be classified as well."""
+def test_every_classification_is_of_a_field_that_exists():
+    """No table may name a field the schema no longer has -- the inverse of the
+    totality guard, and what keeps a stale row from looking like coverage."""
     reachable = _reachable_fields()
-    for name in _NOT_DIMENSIONAL:
-        assert name in reachable, (
-            f"{name} is exempted from the units table but is no longer a "
-            "project field -- remove the entry")
-        assert name not in _PROJECT_FIELD_KIND, (
-            f"{name} is both exempt and classified -- pick one")
+    for table, label in ((_NOT_DIMENSIONAL, "_NOT_DIMENSIONAL"),
+                         (AVIATION_STANDARD, "AVIATION_STANDARD"),
+                         (_PROJECT_PAIR_KIND, "_PROJECT_PAIR_KIND")):
+        for name in table:
+            assert name in reachable, (
+                f"{name} is listed in {label} but is no longer a project field "
+                "-- remove the entry")
+
+
+def test_no_field_is_classified_twice():
+    """The three buckets are exclusive: converted, aviation-standard, or nothing
+    to convert. A name in two of them means one of the two is a wrong answer,
+    and ``field_classification`` would silently prefer whichever it checks first.
+    """
+    for name in _PROJECT_FIELD_KIND:
+        assert name not in _NOT_DIMENSIONAL, f"{name}: converted and exempt"
+        assert name not in AVIATION_STANDARD, f"{name}: converted and aviation-standard"
+        assert name not in _PROJECT_PAIR_KIND, f"{name}: scalar kind and pair kind"
+    for name in AVIATION_STANDARD:
+        assert name not in _NOT_DIMENSIONAL, f"{name}: aviation-standard and exempt"
+    for name in list(_NOT_DIMENSIONAL) + list(AVIATION_STANDARD):
+        matched = [p for p, _r in _DIMENSIONLESS_RULES if re.search(p, name)]
+        assert not matched or name in _NOT_DIMENSIONAL, (
+            f"{name} is aviation-standard but rule {matched} calls it dimensionless")
+
+
+def test_every_exemption_states_a_reason():
+    """A reason, not a shrug. ``_NOT_DIMENSIONAL`` was a bare set of names; a
+    name alone records that somebody decided, not what they decided."""
+    for name, reason in _NOT_DIMENSIONAL.items():
+        assert reason and len(reason) > 5, f"{name}: {reason!r} is not a reason"
+    for pattern, reason in _DIMENSIONLESS_RULES:
+        assert reason and len(reason) > 5, f"{pattern}: {reason!r} is not a reason"
+
+
+def test_every_dimensionless_rule_still_covers_something():
+    """A rule that matches no field is dead weight standing in for coverage --
+    and worse, it would keep matching a *future* field by accident."""
+    names = [n for n, (_owner, numeric) in _reachable_fields().items() if numeric]
+    for pattern, _reason in _DIMENSIONLESS_RULES:
+        assert any(re.search(pattern, n) for n in names), (
+            f"no numeric project field matches {pattern!r} -- remove the rule")
 
 
 def test_a_classified_field_always_has_an_si_label():
@@ -221,9 +294,48 @@ def test_an_empty_or_mixed_list_is_left_alone():
     assert project_dict_to_display(d, UnitSystem.SI) == d
 
 
+def test_an_unsuffixed_length_converts_like_its_suffixed_neighbour():
+    """Regression for the class the suffix-driven guard could not see: two inch
+    stations on the same record, one named ``_in`` and one not, must convert
+    identically. Before 2026-08-19 ``xt25`` did not convert at all."""
+    d = {"xt25": 261.027, "htail_semispan_in": 73.1, "gross_weight": 3400.0}
+    si = project_dict_to_display(d, UnitSystem.SI)
+    assert math.isclose(si["xt25"], 261.027 * 25.4, rel_tol=1e-12)
+    assert math.isclose(si["htail_semispan_in"], 73.1 * 25.4, rel_tol=1e-12)
+    assert math.isclose(si["gross_weight"], 3400.0 * 0.45359237, rel_tol=1e-9)
+    _round_trip_close(d, project_dict_to_imperial(si, UnitSystem.SI))
+
+
+def test_a_pair_curve_converts_only_the_members_that_carry_a_unit():
+    """The planform edges are (station, station) and convert on both members; a
+    spanwise curve is (station, coefficient) and converts on the first only.
+    Converting a profile-drag coefficient by 25.4 is the failure this shape
+    exists to prevent, and one kind per field could not express it."""
+    d = {"leading_edge": [[45.0, 0.0], [72.0, 201.0]],
+         "profile_drag": [[0.0, 0.01], [201.0, 0.01]]}
+    si = project_dict_to_display(d, UnitSystem.SI)
+    assert si["leading_edge"] == [[45.0 * 25.4, 0.0], [72.0 * 25.4, 201.0 * 25.4]]
+    assert si["profile_drag"] == [[0.0, 0.01], [201.0 * 25.4, 0.01]]
+    _round_trip_close(d, project_dict_to_imperial(si, UnitSystem.SI))
+
+
+def test_a_gear_point_converts_as_a_pair_of_stations():
+    """``axle_static`` is a flat ``(X, Z)`` inch pair -- one quantity twice, so
+    an ordinary element-wise row, not a curve."""
+    d = {"axle_static": [96.7, 59.6]}
+    si = project_dict_to_display(d, UnitSystem.SI)
+    assert si["axle_static"] == [96.7 * 25.4, 59.6 * 25.4]
+
+
 if __name__ == "__main__":
-    test_every_dimensional_project_field_is_classified()
-    test_the_exempt_list_only_holds_fields_that_are_not_quantities()
+    test_every_numeric_project_field_is_classified()
+    test_every_classification_is_of_a_field_that_exists()
+    test_no_field_is_classified_twice()
+    test_every_exemption_states_a_reason()
+    test_every_dimensionless_rule_still_covers_something()
+    test_an_unsuffixed_length_converts_like_its_suffixed_neighbour()
+    test_a_pair_curve_converts_only_the_members_that_carry_a_unit()
+    test_a_gear_point_converts_as_a_pair_of_stations()
     test_a_classified_field_always_has_an_si_label()
     test_thrust_is_a_force_not_a_weight()
     test_a_classified_key_converts_a_numeric_list_elementwise()

@@ -13,6 +13,7 @@ Imperial is the canonical internal system; SI is purely a presentation choice.
 
 from __future__ import annotations
 
+import re
 from dataclasses import replace
 from enum import Enum
 from typing import Any, Dict, List, NamedTuple, Optional, Tuple
@@ -352,18 +353,17 @@ _KIND_FACTORS = _view(**{
     "power": "power", "pressure": "pressure",
 })
 
-# JSON leaf key name -> kind. Airspeed (``_kt``) and altitude (``altitude_ft``,
-# ``altitudes_ft``, ``max_operating_altitude_ft``, ``shoulder_altitude_ft``,
-# ``increment_ft``) are deliberately absent -- they stay aviation-standard
-# (KEAS / ft) in both systems, matching every other unit toggle in the GUI.
-# Angles (``_deg``), dimensionless ratios/coefficients and counts are also
-# absent (nothing to convert). ``load_lb``, ``tail_load_lb`` and ``thrust_lb``
-# are the ``_lb``-suffixed fields that are *forces*, not weights -- everything
-# else ending ``_lb`` is a pounds-mass weight. The two factors differ by ~9.8x,
-# so a force classified as a mass is a wrong number rather than a missing one;
-# ``tests/test_project_units.py`` enumerates every dimensional schema leaf and
-# fails on one this table does not classify, which is how ``thrust_lb`` was
-# caught (it shipped here unclassified, displaying raw lb in the SI view).
+# JSON leaf key name -> kind. This is the **converted** bucket of the schema's
+# three-way unit classification (:func:`field_classification`); airspeeds and
+# altitudes live in :data:`AVIATION_STANDARD` (stated, never converted) and
+# everything else must be declared dimensionless. ``load_lb``, ``tail_load_lb``
+# and ``thrust_lb`` are the ``_lb``-suffixed fields that are *forces*, not
+# weights -- everything else ending ``_lb`` is a pounds-mass weight. The two
+# factors differ by ~9.8x, so a force classified as a mass is a wrong number
+# rather than a missing one; ``tests/test_project_units.py`` enumerates every
+# numeric schema leaf and fails on one nothing classifies, which is how
+# ``thrust_lb`` was caught (it shipped here unclassified, displaying raw lb in
+# the SI view) and how the thirty-four unsuffixed lengths below were.
 _PROJECT_FIELD_KIND = {
     # mass (lb -> kg)
     "baggage_lb": "mass", "engine_weight_lb": "mass", "gross_weight_lb": "mass",
@@ -388,8 +388,31 @@ _PROJECT_FIELD_KIND = {
     "sob_y_in": "length_in",
     # Bare ``[x, y, z]`` inch arrays rather than keyed dicts (io.py's
     # ``engine_to_dict``/``engine_from_dict``) -- ordinary rows since the
-    # converter handles a numeric list under any classified key.
-    "engine_cg": "length_in", "prop_cg": "length_in",
+    # converter handles a numeric list under any classified key. ``attach`` and
+    # the three ``axle_*`` gear points are the same shape one dimension down
+    # (``Vec3``/``XYPoint``), and convert the same way.
+    "engine_cg": "length_in", "prop_cg": "length_in", "attach": "length_in",
+    "axle_static": "length_in", "axle_compressed": "length_in",
+    "axle_extended": "length_in",
+    # Inch stations and waterlines that carry **no** ``_in`` suffix (2026-08-19).
+    # These are the fields the old suffix-driven guard could not see: it decided
+    # what counted as dimensional from the name, so a length whose name does not
+    # follow the suffix convention was invisible to it and shipped unconverted
+    # beside converted neighbours -- ``htail_semispan_in`` becoming 1856.7 mm
+    # while ``xt25``, an inch station on the same record, stayed at 261.0. The
+    # guard now runs the other way (every numeric leaf is classified or exempt
+    # with a reason), which is what turned these up.
+    "xt25": "length_in", "xt50": "length_in", "xv25": "length_in", "xv50": "length_in",
+    "xtc": "length_in", "xtf": "length_in", "xw": "length_in", "zw": "length_in",
+    "mac": "length_in", "xlemac": "length_in",
+    "datum_x": "length_in", "le_root_x": "length_in", "h_tail_z": "length_in",
+    "root_waterline_z": "length_in", "vtail_root_waterline_z": "length_in",
+    "body_drag_waterline_z": "length_in", "ref_waterline": "length_in",
+    "wrp_waterline": "length_in", "inboard_rib_y": "length_in",
+    "fuselage_length": "length_in", "fuselage_width": "length_in",
+    "fuselage_height": "length_in", "fuselage_nose_x": "length_in",
+    "fuselage_tail_x": "length_in",
+    "width": "length_in", "height": "length_in", "z_centre": "length_in",
     # geometry lengths formerly stored in feet, now canonical inches (Phase G0)
     "airplane_length_in": "length_in", "vtail_mac_in": "length_in", "wing_span_in": "length_in",
     "h_tail_span_in": "length_in", "v_tail_span_in": "length_in",
@@ -405,8 +428,13 @@ _PROJECT_FIELD_KIND = {
     "max_engine_torque": "torque", "cruise_torque": "torque", "max_accel_torque": "torque",
     # moment (lb-in -> N·m)
     "mxx": "moment_in", "myy": "moment_in", "mzz": "moment_in",
+    "unbal_moment": "moment_in",
+    # weight (lb -> kg) without the ``_lb`` suffix -- the WTENV envelope's own
+    # gross and forward-regardless weights.
+    "gross_weight": "mass", "fwd_regardless_weight": "mass",
     # inertia
     "inertia": "inertia_slugft2", "prop_inertia": "inertia_slugft2",
+    "izz_slugft2": "inertia_slugft2",
     "ixx": "inertia_lbin2", "iyy": "inertia_lbin2", "izz": "inertia_lbin2", "ixz": "inertia_lbin2",
     # power (hp -> kW)
     "takeoff_hp": "power", "max_cont_hp": "power", "max_continuous_hp": "power",
@@ -414,14 +442,149 @@ _PROJECT_FIELD_KIND = {
     "psi": "pressure",
 }
 
-#: Field names deliberately **not** classified, with the reason -- read by the
-#: drift guard in ``tests/test_project_units.py`` so an unclassified dimensional
-#: leaf is a test failure unless it is listed here. A bare "it looks
-#: dimensional" name that is not a quantity belongs here, not in the table.
-_NOT_DIMENSIONAL = {
-    # A bool: "override the estimated max-continuous power?", not a horsepower.
-    "override_max_continuous_hp",
+#: JSON leaf key name -> the kind of **each member of a pair**, for the
+#: ``[[a, b], ...]`` curve fields (``XYPoint`` lists).
+#:
+#: A flat numeric list -- ``engine_cg``, ``axle_static`` -- is one quantity
+#: repeated, so a single row in :data:`_PROJECT_FIELD_KIND` describes it. These
+#: are two *different* quantities per row and cannot be: the wing planform's
+#: edges are (station, station) and convert on both members, while a spanwise
+#: curve is (station, coefficient) and converts on the first only. Element-wise
+#: conversion under one kind would multiply a profile-drag coefficient by 25.4.
+#: ``None`` in either slot means that member is dimensionless.
+_PROJECT_PAIR_KIND: Dict[str, Tuple[Optional[str], Optional[str]]] = {
+    # (X, Y) planform corner points, both fuselage/butt stations in inches.
+    "leading_edge": ("length_in", "length_in"),
+    "trailing_edge": ("length_in", "length_in"),
+    # (Y station, value) spanwise curves: the station converts, the value is a
+    # coefficient or an angle in degrees and does not.
+    "twist": ("length_in", None),
+    "profile_drag": ("length_in", None),
+    "section_cm": ("length_in", None),
 }
+
+#: Field names whose unit is **stated but never converted**: airspeed is KEAS
+#: and altitude is feet in both systems, matching every other unit toggle in the
+#: GUI (``app_shell.components.KEAS`` / ``ALTITUDE_FT`` are the display labels).
+#:
+#: Declared rather than implied by absence. Until 2026-08-19 this was a comment
+#: on :data:`_PROJECT_FIELD_KIND` saying these names were "deliberately absent",
+#: which reads identically to a name that is absent by oversight -- and the
+#: guard could not tell the two apart either. A front-end asking "what unit does
+#: this field carry?" needs the difference, because *stated in kt* and
+#: *dimensionless* are different widgets.
+AVIATION_STANDARD: Dict[str, str] = {
+    "altitude_ft": "ft", "altitudes_ft": "ft", "increment_ft": "ft",
+    "max_operating_altitude_ft": "ft", "shoulder_altitude_ft": "ft",
+    "speeds_kt": "kt (EAS)", "v_eas_kt": "kt (EAS)", "vb_kt": "kt (EAS)",
+    "vh_kt": "kt (EAS)",
+    # The design speeds and the concept speed targets: KEAS, entered and
+    # reported as such (CONVENTIONS.md, "airspeed is always KEAS").
+    "chosen_va": "kt (EAS)", "chosen_vc": "kt (EAS)", "chosen_vd": "kt (EAS)",
+    "chosen_vf": "kt (EAS)", "target_vfe": "kt (EAS)", "target_vmo": "kt (EAS)",
+    "target_vne": "kt (EAS)", "target_vno": "kt (EAS)",
+}
+
+#: Name patterns that make a numeric field dimensionless, each with its reason.
+#: A rule earns its place by covering a *family* the schema names consistently;
+#: one-off names go in :data:`_NOT_DIMENSIONAL` instead, where they are read.
+_DIMENSIONLESS_RULES: Tuple[Tuple[str, str], ...] = (
+    (r"_deg$", "an angle in degrees -- the same number in both systems"),
+    (r"_pct$|_pct_mac$", "a percentage"),
+    (r"ratio$", "a ratio of two like quantities"),
+    (r"_s$", "a time in seconds"),
+    (r"rpm$", "a rotational speed, rev/min in both systems"),
+    (r"mach", "a Mach number"),
+    (r"_rad_s$", "an angular rate, rad/s in both systems"),
+)
+
+#: Numeric field names that no rule covers and that carry no unit, each with the
+#: reason -- read by the drift guard in ``tests/test_project_units.py``, which
+#: fails on any numeric schema leaf that is neither converted, aviation-standard,
+#: covered by a rule, nor listed here. A field that *is* a quantity belongs in
+#: :data:`_PROJECT_FIELD_KIND`, not here; this list is for the ones that are not.
+_NOT_DIMENSIONAL: Dict[str, str] = {
+    # A bool: "override the estimated max-continuous power?", not a horsepower.
+    "override_max_continuous_hp": "a bool, not a horsepower",
+    # Load factors (g) and the flight condition they belong to.
+    "chosen_n": "a load factor, in g",
+    "chosen_nneg": "a load factor, in g",
+    "nx": "a load factor, in g",
+    "nz": "a load factor, in g",
+    "gear_load_factor": "a load factor, in g",
+    "gust_load_factor": "a load factor, in g",
+    "limit_load_factor": "a load factor, in g",
+    "lift_factor": "a fraction of the airplane weight carried by the wing",
+    "mn": "a Mach number",
+    "target_mmo": "a Mach number (the concept MMO target)",
+    # Aerodynamic coefficients and slopes -- dimensionless by definition, or per
+    # degree/radian, which is the same number in both systems.
+    "cl": "a lift coefficient",
+    "clmax_clean": "a lift coefficient",
+    "clmax_clean_neg": "a lift coefficient",
+    "clmax_flap": "a lift coefficient",
+    "stall_cl": "a lift coefficient",
+    "neg_stall_cl": "a lift coefficient",
+    "target_cl": "a lift coefficient",
+    "basic_airfoil_cm": "a moment coefficient",
+    "cn_beta": "a yawing-moment derivative, per degree",
+    "cy_beta": "a side-force derivative, per degree",
+    "d_cm_dalpha": "a moment-coefficient slope, per degree",
+    "section_slope": "a section lift-curve slope, per degree",
+    "wing_lift_slope_per_rad": "a lift-curve slope, per radian",
+    "elevator_effectiveness": "a fraction of the tail lift slope",
+    "rudder_large_deflection_factor": "a chart factor (EFV)",
+    "tau": "the Schrenk tip-shape factor",
+    "aspect_ratio_htail": "an aspect ratio",
+    "aspect_ratio_vtail": "an aspect ratio",
+    "aspect_ratio_wing": "an aspect ratio",
+    "lift": "the C0..C4 polynomial coefficients of CL vs alpha",
+    "drag": "the D0..D4 polynomial coefficients of CD vs CL",
+    "moment": "the M0..M4 polynomial coefficients of CM vs alpha",
+    "wing_fraction": "a fraction of the ballast carried by the wing",
+    # Counts, indices and one duration.
+    "case": "a case index",
+    "crew": "a head count",
+    "seats": "a seat count",
+    "occupants": "a head count",
+    "engines": "an engine count",
+    "cylinders": "a cylinder count",
+    "prop_blades": "a blade count",
+    "elements": "a strip count (WINGGEOM's H)",
+    "failed_engine_index": "an index into Project.engines",
+    "cruise_hours": "an endurance in hours",
+}
+
+
+def field_classification(name: str) -> Optional[str]:
+    """How the unit layer treats a schema leaf ``name``, or ``None`` if nothing does.
+
+    The one place the schema's three-way answer is given, so a front-end asking
+    *what unit does this field carry?* and the drift guard asking *is every field
+    answered?* read the same table rather than two:
+
+    * ``"converted"`` -- a quantity with a factor
+      (:data:`_PROJECT_FIELD_KIND`, :data:`_PROJECT_PAIR_KIND`).
+    * ``"aviation"`` -- a unit that is stated and never converted
+      (:data:`AVIATION_STANDARD`).
+    * ``"dimensionless"`` -- carries no unit (:data:`_DIMENSIONLESS_RULES`,
+      :data:`_NOT_DIMENSIONAL`).
+
+    ``None`` means the field is unclassified, which is the failure the guard in
+    ``tests/test_project_units.py`` reports: an unclassified quantity is not a
+    crash and not a data loss -- it round-trips perfectly, unconverted in both
+    directions -- it is a **wrong number on screen**, beside converted
+    neighbours, with no unit label.
+    """
+    if name in _PROJECT_FIELD_KIND or name in _PROJECT_PAIR_KIND:
+        return "converted"
+    if name in AVIATION_STANDARD:
+        return "aviation"
+    if name in _NOT_DIMENSIONAL:
+        return "dimensionless"
+    if any(re.search(pattern, name) for pattern, _reason in _DIMENSIONLESS_RULES):
+        return "dimensionless"
+    return None
 
 
 def _is_number(value: Any) -> bool:
@@ -435,33 +598,66 @@ def _is_number_list(value: Any) -> bool:
             and all(_is_number(v) for v in value))
 
 
-def _walk_convert(obj: Any, system: UnitSystem) -> Any:
-    """Recursively convert every known dimensional leaf in a project JSON dict.
+def _is_pair_list(value: Any) -> bool:
+    """A non-empty list of two-number rows -- the ``XYPoint`` curve shape."""
+    return (isinstance(value, list) and bool(value)
+            and all(isinstance(row, (list, tuple)) and len(row) == 2
+                    and all(_is_number(v) for v in row) for row in value))
 
-    Unknown numeric fields (not in :data:`_PROJECT_FIELD_KIND`) pass through
-    unconverted -- safer than guessing a wrong factor for a field this table
-    doesn't yet know about.
+
+def _scale(value: float, kind: str, invert: bool) -> float:
+    factor = _KIND_FACTORS[kind][0]
+    return value / factor if invert else value * factor
+
+
+#: Returned by :func:`_convert_leaf` when a key is not a classified dimensional
+#: leaf, so the caller recurses into it instead. A sentinel rather than ``None``
+#: because ``None`` is a perfectly ordinary field value here.
+_UNCONVERTED = object()
+
+
+def _convert_leaf(key: str, value: Any, invert: bool) -> Any:
+    """``value`` converted for ``key``, or :data:`_UNCONVERTED` if ``key`` names
+    no classified dimensional leaf (or holds a shape this cannot convert)."""
+    kind = _PROJECT_FIELD_KIND.get(key)
+    if kind is not None:
+        if _is_number(value):
+            return _scale(value, kind, invert)
+        if _is_number_list(value):
+            # A classified key holding a list of numbers converts element by
+            # element: the ``[x, y, z]`` CG arrays, the ``(X, Z)`` gear points
+            # and the aileron hinge station list are the same quantity repeated,
+            # not a different one. Without this the list passes through
+            # unconverted while its scalar neighbours convert -- the defect class
+            # ``thrust_lb`` was found in, one level down.
+            return [_scale(v, kind, invert) for v in value]
+        return _UNCONVERTED
+    pair = _PROJECT_PAIR_KIND.get(key)
+    if pair is not None and _is_pair_list(value):
+        return [
+            [v if pair[i] is None else _scale(v, pair[i], invert)  # type: ignore[arg-type]
+             for i, v in enumerate(row)]
+            for row in value
+        ]
+    return _UNCONVERTED
+
+
+def _walk(obj: Any, invert: bool) -> Any:
+    """Recursively convert every classified dimensional leaf in a project JSON dict.
+
+    Unclassified numeric fields pass through unconverted -- safer than guessing a
+    wrong factor for a field the tables do not yet know about, and the drift
+    guard in ``tests/test_project_units.py`` is what stops that being a silent
+    long-term state.
     """
     if isinstance(obj, dict):
         out: Dict[str, Any] = {}
         for key, value in obj.items():
-            kind = _PROJECT_FIELD_KIND.get(key)
-            if kind is not None and _is_number(value):
-                out[key] = value * _KIND_FACTORS[kind][0]
-            elif kind is not None and _is_number_list(value):
-                # A classified key holding a list of numbers converts element by
-                # element: the ``[x, y, z]`` CG arrays and the aileron hinge
-                # station list are the same quantity repeated, not a different
-                # one. Without this the list passes through unconverted while
-                # its scalar neighbours convert -- the defect class ``thrust_lb``
-                # was found in, one level down.
-                factor = _KIND_FACTORS[kind][0]
-                out[key] = [v * factor for v in value]
-            else:
-                out[key] = _walk_convert(value, system)
+            converted = _convert_leaf(key, value, invert)
+            out[key] = _walk(value, invert) if converted is _UNCONVERTED else converted
         return out
     if isinstance(obj, list):
-        return [_walk_convert(item, system) for item in obj]
+        return [_walk(item, invert) for item in obj]
     return obj
 
 
@@ -473,7 +669,7 @@ def project_dict_to_display(project_dict: dict, system: UnitSystem) -> dict:
     """
     if system == UnitSystem.IMPERIAL:
         return project_dict
-    return _walk_convert(project_dict, system)
+    return _walk(project_dict, invert=False)
 
 
 def project_dict_to_imperial(display_dict: dict, system: UnitSystem) -> dict:
@@ -481,25 +677,7 @@ def project_dict_to_imperial(display_dict: dict, system: UnitSystem) -> dict:
     Imperial, the inverse of :func:`project_dict_to_display`."""
     if system == UnitSystem.IMPERIAL:
         return display_dict
-
-    def _invert(obj: Any) -> Any:
-        if isinstance(obj, dict):
-            out: Dict[str, Any] = {}
-            for key, value in obj.items():
-                kind = _PROJECT_FIELD_KIND.get(key)
-                if kind is not None and _is_number(value):
-                    out[key] = value / _KIND_FACTORS[kind][0]
-                elif kind is not None and _is_number_list(value):
-                    factor = _KIND_FACTORS[kind][0]
-                    out[key] = [v / factor for v in value]
-                else:
-                    out[key] = _invert(value)
-            return out
-        if isinstance(obj, list):
-            return [_invert(item) for item in obj]
-        return obj
-
-    return _invert(display_dict)
+    return _walk(display_dict, invert=True)
 
 
 def project_field_si_label(key: str) -> Optional[str]:

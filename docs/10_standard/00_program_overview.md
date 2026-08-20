@@ -199,7 +199,11 @@ in the calc's internal Imperial units:
   as `lbs-ULT` / `ft-lb-ULT` / `lb-in-ULT` / `lb/in²-ULT` in Imperial. No dual
   display (one system, no parenthetical conversions).
 - **Aviation-standard exception.** Airspeed (KEAS) and altitude (ft) are held in
-  aviation units in *both* systems and are never converted.
+  aviation units in *both* systems and are never converted. Which fields those
+  are is **declared**, not implied by absence from the conversion table
+  (`units.AVIATION_STANDARD`): *stated in KEAS* and *dimensionless* are different
+  answers, and a reader — or a form renderer — needs to be able to tell them
+  apart from a field the table simply forgot.
 - **Calc and storage are unaffected.** Conversion happens once, at the
   render/export boundary. The calc stays Imperial and oracle-locked; the persisted
   unit-system field is a *preference*, never a claim about the units of the stored
