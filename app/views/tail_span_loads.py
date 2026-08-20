@@ -20,8 +20,8 @@ import io as _io
 import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
-from components import active_system, gate, workflow_page_link
 
+from app_shell.components import active_system, gate, workflow_page_link
 from sloads import (
     Project,
     UnitSystem,

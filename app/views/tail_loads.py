@@ -17,9 +17,9 @@ from __future__ import annotations
 import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
-from components import active_system, gate
-from limit_csv import tail_limit_csv, tail_limit_rows
 
+from app_shell.components import active_system, gate
+from app_shell.limit_csv import tail_limit_csv, tail_limit_rows
 from sloads import Project, UnitSystem, labels_for, si_scalar_label, to_display, to_si_scalar
 from sloads.modules.balloads import verify_balancing
 from sloads.modules.taildist import build_tail_chordwise

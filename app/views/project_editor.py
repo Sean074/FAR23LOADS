@@ -25,8 +25,8 @@ from __future__ import annotations
 import json
 
 import streamlit as st
-from components import active_system
 
+from app_shell.components import active_system
 from sloads import Project, UnitSystem
 from sloads import io as sloads_io
 from sloads.models import SCHEMA_VERSION

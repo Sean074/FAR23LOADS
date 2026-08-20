@@ -26,8 +26,8 @@ _VIEW = os.path.join(_ROOT, "app", "views", "flight_envelope.py")
 _GA6 = os.path.join(_ROOT, "examples", "ga6_normal.project.json")
 
 # Under pytest ``conftest.py`` puts these on the path; the __main__ self-runner
-# has to do it itself, or the view fails on ``import components``.
-for _p in (_ROOT, os.path.join(_ROOT, "app")):
+# has to do it itself, or the view fails on ``import app_shell``.
+for _p in (_ROOT,):
     if _p not in sys.path:
         sys.path.insert(0, _p)
 

@@ -51,7 +51,7 @@ jobs:
           pip install -e .[dev]
 
       - name: Lint (ruff)
-        run: ruff check sloads/ cli.py app/ scripts/
+        run: ruff check sloads/ cli.py app/ app_shell/ scripts/
 
       - name: Test (pytest)
         env:

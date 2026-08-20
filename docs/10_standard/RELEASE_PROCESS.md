@@ -54,7 +54,7 @@ in `CLAUDE.md`, not re-audited at release time.
 
 ### 3.2 Code quality
 - [ ] No open `[CRITICAL]`/`[MAJOR]` findings from the latest review (see [`CODE_REVIEW_PROCESS.md`](CODE_REVIEW_PROCESS.md)).
-- [ ] `ruff check sloads/ cli.py app/ scripts/` and `mypy` are clean.
+- [ ] `ruff check sloads/ cli.py app/ app_shell/ scripts/` and `mypy` are clean.
 
 ### 3.3 Test suite
 - [ ] `pytest` passes — zero failures, zero errors.

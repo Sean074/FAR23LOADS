@@ -12,8 +12,8 @@ One page of the multipage app; run the suite with:  streamlit run app/Home.py
 from __future__ import annotations
 
 import streamlit as st
-from components import render_applicability_banner, workflow_page_link
 
+from app_shell.components import render_applicability_banner, workflow_page_link
 from sloads import Project
 from sloads import workflow as wf
 

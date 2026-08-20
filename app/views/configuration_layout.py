@@ -21,9 +21,9 @@ from dataclasses import replace
 import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
-from components import active_system, gate, page_header, unit_number_input
 from plotly.subplots import make_subplots
 
+from app_shell.components import active_system, gate, page_header, unit_number_input
 from sloads import (
     FuselageOutline,
     FuselageSection,

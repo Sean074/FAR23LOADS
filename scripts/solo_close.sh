@@ -125,7 +125,7 @@ if [[ $DRY_RUN -eq 1 ]]; then
   echo "             ls changes/<slug>.history.md                   (tier M/L)"
   [[ -n "$ISSUE" ]] && echo "             grep -c \"(#$ISSUE)\" docs/30_future/00_backlog.md == 0"
   echo "             git fetch origin main; git merge-base --is-ancestor origin/main HEAD"
-  echo "  step 3:    .venv/bin/ruff check sloads/ cli.py app/ scripts/"
+  echo "  step 3:    .venv/bin/ruff check sloads/ cli.py app/ app_shell/ scripts/"
   echo "             .venv/bin/mypy"
   echo "             .venv/bin/python -m pytest -q -p no:cacheprovider"
   echo "             a docs-only change set runs only: ${GUARD_TESTS[*]}"
@@ -258,7 +258,7 @@ echo "            commit   \"$MSG\""
 # ---- step 3: gate -----------------------------------------------------------
 if [[ $SKIP_GATE -eq 0 ]]; then
   say "step 3 — gate (ruff · mypy · pytest)"
-  run "$ROOT_DIR/.venv/bin/ruff" check sloads/ cli.py app/ scripts/ \
+  run "$ROOT_DIR/.venv/bin/ruff" check sloads/ cli.py app/ app_shell/ scripts/ \
     || die "ruff failed — fix and re-run"
   run "$ROOT_DIR/.venv/bin/mypy" || die "mypy failed — fix and re-run"
   set +e

@@ -2,7 +2,7 @@
 
 Before L-8i the Wing/Fuselage/Tail Loads pages built their LIMIT download inline
 from the raw Imperial row dicts: an SI session downloaded Imperial numbers under
-unit-less headers while the table above was converted. ``app/limit_csv.py`` is
+unit-less headers while the table above was converted. ``app_shell/limit_csv.py`` is
 now the single owner per page of the column->unit map, the conversion and the
 header; the on-screen table and the download share it. This is the drift guard:
 
@@ -22,12 +22,13 @@ import os
 import sys
 
 _ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-for _p in (_ROOT, os.path.join(_ROOT, "app")):
+for _p in (_ROOT,):
     if _p not in sys.path:
         sys.path.insert(0, _p)
 
 import pytest  # noqa: E402
-from limit_csv import (  # noqa: E402
+
+from app_shell.limit_csv import (  # noqa: E402
     body_limit_csv,
     body_limit_rows,
     tail_limit_csv,
@@ -35,7 +36,6 @@ from limit_csv import (  # noqa: E402
     wing_limit_csv,
     wing_limit_rows,
 )
-
 from sloads import UnitSystem  # noqa: E402
 from sloads import io as sloads_io  # noqa: E402
 from sloads.modules.body_loads import body_load_rows, build_body_loads  # noqa: E402

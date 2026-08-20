@@ -34,8 +34,8 @@ from importlib.metadata import PackageNotFoundError
 from importlib.metadata import version as _pkg_version
 
 import streamlit as st
-from components import active_system, gate
 
+from app_shell.components import active_system, gate
 from sloads import Project, consistency_warnings, registry
 from sloads import io as sloads_io
 from sloads import workflow as wf

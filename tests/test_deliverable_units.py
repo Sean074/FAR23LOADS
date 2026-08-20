@@ -381,7 +381,7 @@ def _export_page_captions(system: UnitSystem):
 
     logging.disable(logging.CRITICAL)  # silence Streamlit's bare-mode warnings
     root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    for path in (root, os.path.join(root, "app")):
+    for path in (root,):
         if path not in sys.path:
             sys.path.insert(0, path)
 

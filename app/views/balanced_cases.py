@@ -15,8 +15,8 @@ from __future__ import annotations
 import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
-from components import active_system, gate
 
+from app_shell.components import active_system, gate
 from sloads import (
     Project,
     UnitSystem,

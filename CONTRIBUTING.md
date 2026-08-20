@@ -31,7 +31,7 @@ with `git push --no-verify`. CI is the gate either way.
 The gates, all local:
 
 ```bash
-.venv/bin/ruff check sloads/ cli.py app/ scripts/   # lint
+.venv/bin/ruff check sloads/ cli.py app/ app_shell/ scripts/   # lint
 .venv/bin/mypy                                       # types (sloads/ only)
 .venv/bin/python -m pytest                           # suite (parallel; add -n 0 to debug)
 .venv/bin/python -m pytest -m roundtrip              # solver round trip (skips without the solver extra)

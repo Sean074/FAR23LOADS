@@ -242,7 +242,7 @@ sidebar. Implemented in **M4-20 step 6**: the page resolves `active_system()`
 **once** into a local and hands that one value to every artifact call, and its
 caption is built from `deliverable_units` itself so it cannot drift from the
 files. Every other view's download buttons take their page's system the same way,
-including the per-page **LIMIT** CSVs: `app/limit_csv.py` (L-8i, 2026-08-16) is
+including the per-page **LIMIT** CSVs: `app_shell/limit_csv.py` (L-8i, 2026-08-16) is
 the one owner of each page's column→unit map, conversion and unit-suffixed
 headers, feeding both the on-screen table and the download (`wing_loads`,
 `fuselage_loads`, `tail_loads`; `loads_plots` was already converted and labels
@@ -387,7 +387,7 @@ it is outside the certificated band — never blocking. The design:
   The MTOW check reads `speeds.weight_lb`, falling back to the Weight DB total; the
   seat check compares `passenger seats = effective_occupants − effective_crew`
   against 9, where the crew is the user-set `WeightEstimationInput.crew`.
-- **A non-blocking banner** (`app/components.render_applicability_banner`) on the
+- **A non-blocking banner** (`app_shell.components.render_applicability_banner`) on the
   Dashboard and the definition pages when a non-concept airplane exceeds a limit —
   "exceeds FAR 23 applicability; results are concept-mode extrapolation" — with a
   one-click **"Switch to Concept"** action that also seeds the concept load factors

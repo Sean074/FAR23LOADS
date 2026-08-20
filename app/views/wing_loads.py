@@ -17,9 +17,9 @@ from __future__ import annotations
 import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
-from components import gate, page_header
-from limit_csv import wing_limit_csv, wing_limit_rows
 
+from app_shell.components import gate, page_header
+from app_shell.limit_csv import wing_limit_csv, wing_limit_rows
 from sloads import (
     AeroInput,
     AeroSurfaceInput,

@@ -32,9 +32,9 @@ from types import SimpleNamespace
 import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
-from components import active_system, gate
 from plotly.subplots import make_subplots
 
+from app_shell.components import active_system, gate
 from sloads import Project, UnitSystem, si_scalar_label, to_si_scalar
 from sloads.case_ids import case_label
 from sloads.modules.aileron import build_aileron

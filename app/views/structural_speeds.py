@@ -22,13 +22,13 @@ from __future__ import annotations
 import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
-from components import (
+
+from app_shell.components import (
     ALTITUDE_FT,
     page_header,
     unit_number_input,
     workflow_page_link,
 )
-
 from sloads import (
     MachLimitInput,
     Project,

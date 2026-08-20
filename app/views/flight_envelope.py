@@ -26,8 +26,8 @@ from typing import Optional
 import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
-from components import active_system, gate, unit_number_input
 
+from app_shell.components import active_system, gate, unit_number_input
 from sloads import (
     FlightLoadsInput,
     Project,

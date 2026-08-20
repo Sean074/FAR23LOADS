@@ -31,7 +31,7 @@ _VIEW = os.path.join(_ROOT, "app", "views", "aero_coefficients.py")
 _GA6 = os.path.join(_ROOT, "examples", "ga6_normal.project.json")
 _RJ = os.path.join(_ROOT, "examples", "concept_regional_jet.project.json")
 
-for _p in (_ROOT, os.path.join(_ROOT, "app")):
+for _p in (_ROOT,):
     if _p not in sys.path:
         sys.path.insert(0, _p)
 

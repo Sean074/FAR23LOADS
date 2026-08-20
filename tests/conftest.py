@@ -6,10 +6,11 @@
 helpers live in ``tests/helpers.py`` and shared input builders in
 ``tests/fixtures.py``; neither collects as a test.
 
-``app/`` is also added so the view smoke test (which runs each ``app/views/*.py``
-as its own entrypoint) can resolve shared app modules like ``components`` -- at
-real runtime Streamlit puts ``app/`` on the path via the ``app/Home.py``
-entrypoint, but ``AppTest.from_file`` on a view file does not.
+The repo root also resolves ``import app_shell`` for the view smoke test, which
+runs each ``app/views/*.py`` as its own entrypoint. ``app/`` itself is *not* on
+the path: since design note 32 step OG-B the shared shell is a real package
+(``app_shell/``) rather than bare top-level modules on Streamlit's implicit
+entrypoint path, so a view resolves it the same way anything else does.
 """
 
 import os
@@ -18,8 +19,7 @@ import sys
 import pytest
 
 _ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-_APP = os.path.join(_ROOT, "app")
-for path in (_ROOT, os.path.dirname(os.path.abspath(__file__)), _APP):
+for path in (_ROOT, os.path.dirname(os.path.abspath(__file__))):
     if path not in sys.path:
         sys.path.insert(0, path)
 

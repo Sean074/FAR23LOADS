@@ -504,9 +504,9 @@ def test_the_page_refuses_to_compute_without_a_waterline():
 
     root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     # conftest.py does this under pytest; repeat it so the __main__ runner can resolve
-    # the view's shared ``components`` import too.
-    if os.path.join(root, "app") not in sys.path:
-        sys.path.insert(0, os.path.join(root, "app"))
+    # the view's shared ``app_shell`` import too.
+    if root not in sys.path:
+        sys.path.insert(0, root)
     view = os.path.join(root, "app", "views", "landing_loads.py")
     p = io.load_project(_GA)
     p.weight.cg_cases = [replace(c, zcg=0.0) if c.role is not None else c

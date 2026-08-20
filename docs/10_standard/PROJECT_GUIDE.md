@@ -257,8 +257,13 @@ FAR23LOADS/
 │       ├── one_engine_out.py     # ONENGOUT
 │       ├── landing.py            # LGFACTOR + LANDLOAD
 │       └── balance.py            # balanced free-free airplane cases, flight + ground (modern; plans 11/13/18)
+├── app_shell/                    # the app-layer shell — ONE owner, shared by every GUI (note 32, OG-B)
+│   ├── components.py             # page scaffold, unit-input boundary, page links, applicability banner
+│   ├── project_state.py          # the project in session state + the unsaved-changes / discard guard
+│   ├── sidebar.py                # the global sidebar: units toggle, project Open/Save/upload, About
+│   └── limit_csv.py              # the analysis pages' LIMIT tables + downloads (pure, no Streamlit)
 ├── app/                          # multi-page Streamlit UI (st.navigation, 6 sections — Phase D)
-│   ├── Home.py                   # entry point: builds the section nav from sloads.workflow
+│   ├── Home.py                   # entry point: set_page_config + its own nav from sloads.workflow
 │   ├── views/                    # one view per workflow step (clean names, no prefixes)
 │   │   ├── dashboard.py          #   Start    — load/save + completeness panel
 │   │   ├── project_editor.py     #   Start    — whole project as JSON, in the sidebar's Imperial/SI units
@@ -317,7 +322,7 @@ So that every module is copy-of-the-pattern, these are fixed once:
 
   **Every deliverable carries the methods & units stamp (M4-20 step 5).** All the CSV writers *and* all five BDF writers (`force_moment_cards`, `stick_model_bdf`, and the body/tail/control-surface card sets) take `header_comment=`, which the Export page fills from `report.methods.csv_comment_block` / `bdf_comment_block`. `$` and `#` are inert to a bulk-data parser and to `strip_comment_lines`/`pandas(comment="#")` respectively, and an empty `header_comment` returns the payload byte-identical, so the stamp is free. The statement carries the bundle's `system=` and names both channels' unit sets — see `00_program_overview.md` §Units, *In-band statement*.
   **The writer owns the unit conversion, the renderer does not (M4-20 step 3).** `io.load_cases_csv(results, header_comment="", *, system=…)` calls `units.convert_results` **once** and hands the converted conditions to the unit-agnostic `load_cases_to_rows`/`results_to_rows`, which read each `LoadValue.units` string into the column header. So a new module needs no unit code to export correctly in either system — and callers pass **Imperial** results plus `system=`, never pre-converted results plus `system=` (that is a double conversion). `load_cases_csv` is the *only* `convert_results` call in `io.py`, and a test keeps it that way.
-- **Units at the boundary only.** Calc stays in one internal system; `units.py` converts JSON-in and display/CSV-out. (Already implemented.) **Deliverables render in the user-selected system** — report, load-case CSV, span CSVs and the sbeam BDF, one system per bundle, each stating it in-band; the selection is the GUI toggle, persisted in the project's unit-system field and overridable headless by CLI `--units imperial|si` (default Imperial). See `00_program_overview.md`, *Deliverable units follow the user's selection*, and `SUMMARY_REPORT.md` §3.5. The GUI's Imperial/SI choice is a single sidebar control (`app/Home.py`); it is not a per-page setting. Since **M4-20 step 2** it writes **`Project.unit_system`** (schema v38), so changing units is a project edit and shows as an unsaved change (decision D-22), and **`app/components.active_system()` is the one function in the whole app layer that reads it** (D-16) — every view follows automatically through `unit_number_input`/`page`, and `st.session_state["unit_system"]` survives only as the fallback for a render that has no project yet. The field is a **preference**: it says nothing about the units of the values stored beside it. Parse it with `units.unit_system_from`, which degrades any unrecognised value to Imperial rather than raising — a junk preference must never block the load of an otherwise-valid project. Airspeed (KEAS) and altitude (ft) are aviation-standard and are never converted by this toggle. `project.json` on disk stays Imperial-only regardless of the toggle — `units.project_dict_to_display`/`project_dict_to_imperial` convert the whole project dict for the **Project JSON Editor** page only (hand-edit in your chosen units, Apply converts back to Imperial before it re-enters the session); no unit tag is ever written to the file.
+- **Units at the boundary only.** Calc stays in one internal system; `units.py` converts JSON-in and display/CSV-out. (Already implemented.) **Deliverables render in the user-selected system** — report, load-case CSV, span CSVs and the sbeam BDF, one system per bundle, each stating it in-band; the selection is the GUI toggle, persisted in the project's unit-system field and overridable headless by CLI `--units imperial|si` (default Imperial). See `00_program_overview.md`, *Deliverable units follow the user's selection*, and `SUMMARY_REPORT.md` §3.5. The GUI's Imperial/SI choice is a single sidebar control (`app_shell/sidebar.py`, shared by every front-end); it is not a per-page setting. Since **M4-20 step 2** it writes **`Project.unit_system`** (schema v38), so changing units is a project edit and shows as an unsaved change (decision D-22), and **`app_shell.components.active_system()` is the one function in the whole app layer that reads it** (D-16) — every view follows automatically through `unit_number_input`/`page`, and `st.session_state["unit_system"]` survives only as the fallback for a render that has no project yet. The field is a **preference**: it says nothing about the units of the values stored beside it. Parse it with `units.unit_system_from`, which degrades any unrecognised value to Imperial rather than raising — a junk preference must never block the load of an otherwise-valid project. Airspeed (KEAS) and altitude (ft) are aviation-standard and are never converted by this toggle. `project.json` on disk stays Imperial-only regardless of the toggle — `units.project_dict_to_display`/`project_dict_to_imperial` convert the whole project dict for the **Project JSON Editor** page only (hand-edit in your chosen units, Apply converts back to Imperial before it re-enters the session); no unit tag is ever written to the file.
 - **Schema changes go through the migration chain** (`sloads/migrations.py`,
   M4-10). `io.project_from_dict` reads the **current** schema only; any older
   file is normalised first by a chain of pure `dict -> dict` hops, one per
@@ -376,8 +381,8 @@ So that every module is copy-of-the-pattern, these are fixed once:
   `net_loads`, `flight_envelope` ×2, `balloads`, plus `io.py` on load); it was
   convention-by-imitation until M4-12b wrote it down. It is idempotent — calling
   it twice is free, forgetting it is a silent wrong answer.
-- **Public surface is explicit; `app/` never imports an underscored name from
-  `sloads`** (M4-12b / D-14). A leading underscore means module-private, and
+- **Public surface is explicit; the app layer never imports an underscored name
+  from `sloads`** (M4-12b / D-14). A leading underscore means module-private, and
   cross-module use of one is a defect, not a shortcut — the fix is to promote the
   symbol (drop the underscore, or give it a clearer public name where a bare
   strip would read badly) and list it in that module's `__all__`. The four
@@ -466,8 +471,11 @@ Strategy:
      passes while asserting something else. Use `helpers.apply_button(at,
      "<form_key>")`, which asserts it found exactly one match. Every
      `st.form(...)` in `app/views/` therefore carries a unique string key.
-   - A view-driving self-runner must put `app/` on `sys.path` itself;
-     `conftest.py` only does that under pytest.
+   - A view-driving self-runner must put the **repo root** on `sys.path` itself
+     so the view's `app_shell` imports resolve; `conftest.py` only does that
+     under pytest. (`app/` itself is not on the path: since note 32 step OG-B
+     the shell is a real package, not bare modules on Streamlit's implicit
+     entrypoint path.)
 6. **Concept-mode identity guard.** The C-1 invariant ("concept mode reduces exactly to FAR23 on GA inputs") is asserted *through the concept branch itself* by `tests/test_concept.py::test_concept_reduces_to_far23_on_ga_inputs`: `ga6_normal` is run twice through `run_all_modules` — once as Normal, once flipped to `category="C"` with the FAR23-computed load factors — and every module's every `LoadValue` must match at `rel_tol=1e-3` (only the appended concept `note` may differ). Concept mode above the 12,500 lb oracle band has no printed figure, so it is instead validated by physics-closure checks (`test_concept_closure.py`).
 
 ---
@@ -535,7 +543,7 @@ pip install -e '.[dev]'          # editable install + dev tools (pytest, ruff)
 streamlit run app/Home.py        # the multi-page UI
 python cli.py engine examples/ga6_normal.project.json -o engine_loads.csv
 pytest                           # the green-build gate
-ruff check sloads/ cli.py app/ scripts/ # lint
+ruff check sloads/ cli.py app/ app_shell/ scripts/  # lint
 mypy                             # type check (sloads/)
 ```
 

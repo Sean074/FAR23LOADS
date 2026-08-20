@@ -22,9 +22,9 @@ import copy
 import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
-from components import gate
 from plotly.subplots import make_subplots
 
+from app_shell.components import gate
 from sloads import (
     AeroCoefficientsInput,
     AeroCoeffSet,

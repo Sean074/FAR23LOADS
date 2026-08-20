@@ -16,8 +16,8 @@ from __future__ import annotations
 
 import pandas as pd
 import streamlit as st
-from components import page_header, workflow_page_link
 
+from app_shell.components import page_header, workflow_page_link
 from sloads import (
     LandingInput,
     UnitSystem,

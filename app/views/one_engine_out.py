@@ -12,8 +12,8 @@ from __future__ import annotations
 
 import pandas as pd
 import streamlit as st
-from components import active_system, gate
 
+from app_shell.components import active_system, gate
 from sloads import OneEngineOutInput, Project, UnitSystem, convert_results, to_si_scalar
 from sloads.modules.one_engine_out import PROPELLER_ONLY_NOTE, run, time_history
 

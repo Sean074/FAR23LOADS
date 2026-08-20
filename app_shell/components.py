@@ -1,4 +1,4 @@
-"""Shared Streamlit UI components reused across the multi-page app.
+"""Shared Streamlit UI components reused across every sloads GUI.
 
 Thin presentation wrappers over the pure-calc package; they hold no load math of
 their own. The FAR 23 applicability banner is the shared component here: the
@@ -7,6 +7,13 @@ this module only renders it and wires the "switch to Concept" action.
 
 The fleet comparison used to live here too, shared by two input pages; it now has
 its own dedicated home in ``app/views/aircraft_comparison.py`` (backlog F2).
+
+Moved out of ``app/`` into :mod:`app_shell` by design note 32 step OG-B. One
+consequence to know when adding the second GUI: :func:`workflow_page_link` emits
+``views/<key>.py``, and Streamlit resolves a page path **relative to the running
+entry point** -- so the path stays correct for any GUI that keeps its pages in a
+``views/`` directory beside its entrypoint, and only that convention is shared,
+not the page set (each GUI derives its own; note 32, OG-2).
 """
 
 from __future__ import annotations

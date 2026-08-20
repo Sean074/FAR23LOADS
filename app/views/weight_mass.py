@@ -25,8 +25,8 @@ from dataclasses import replace
 import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
-from components import gate, page_header, workflow_page_link
 
+from app_shell.components import gate, page_header, workflow_page_link
 from sloads import (
     GROUND_CASE_ROLE_ORDER,
     AnalysisKind,

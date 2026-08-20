@@ -3,7 +3,7 @@
 A pure, unit-testable helper that reports whether an airplane exceeds the FAR 23
 applicability limits the replication core is calibrated to. It never blocks: the
 GUI surfaces the returned exceedances as a non-blocking banner offering a switch to
-concept mode (``app/components.py``). On Appendix-A GA inputs it yields no
+concept mode (``app_shell/components.py``). On Appendix-A GA inputs it yields no
 exceedances, so the tool reduces exactly to the oracle-locked FAR 23 behaviour.
 
 The certificated limits live in :mod:`sloads.constants`; this module only reads

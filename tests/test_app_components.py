@@ -26,7 +26,7 @@ import sys
 import pytest
 
 _ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-for _p in (_ROOT, os.path.join(_ROOT, "app")):
+for _p in (_ROOT,):
     if _p not in sys.path:
         sys.path.insert(0, _p)
 
@@ -35,8 +35,7 @@ from sloads.units import UNIT_LABELS  # noqa: E402
 
 pytest.importorskip("streamlit")
 
-import components as comp  # noqa: E402
-
+from app_shell import components as comp  # noqa: E402
 
 # Every kind the unit layer knows -- driven off UNIT_LABELS so a new kind is
 # covered automatically instead of being forgotten here.
