@@ -194,6 +194,7 @@ FAR23LOADS/
 │   ├── migrations.py             # normalise any historical project.json to the current schema
 │   ├── registry.py               # module registry: name -> run(project) -> ModuleResult; run_all_modules
 │   ├── spec_names.py             # registry name -> PROGRAM_SPEC heading (+ the non-module allowlist), guarded (R6-D6)
+│   ├── field_registry.py         # THE input-field registry: path │ slice │ editing page │ origin │ quantity │ owner (note 32, OG-14)
 │   ├── workflow.py               # THE nav SSOT: ordered Start→Develop V-n→Flight loads→Other loads→Landing→Load-case plotting→Export step graph (GUI nav + dashboard; Step G2)
 │   ├── load_keys.py              # canonical LoadValue.key constants for the load-case schema (M4-9)
 │   ├── case_ids.py               # structured load-case / subcase / deck LOAD id allocation (D1, M4-2)

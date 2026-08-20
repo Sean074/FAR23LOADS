@@ -23,7 +23,7 @@ real output is a sub-field of a slice can still report completeness precisely.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Set, Tuple
 
 from .models import Project
 
@@ -280,3 +280,31 @@ def steps_in_phase(phase: str) -> List[WorkflowStep]:
 def by_phase() -> Dict[str, List[WorkflowStep]]:
     """Ordered mapping of phase → its steps."""
     return {phase: steps_in_phase(phase) for phase in PHASES}
+
+
+def oracle_steps() -> List[WorkflowStep]:
+    """The oracle GUI's page set, derived (design note 32, OG-2 as amended).
+
+    OG-2 originally said *the steps whose ``bas`` is not None*. Building the
+    field registry (OG-C) showed that rule is not closed: ``aero_coefficients``
+    has no ``.BAS`` of its own, yet ``structural_speeds`` and ``flight_envelope``
+    both ``require`` the ``aero_coeffs`` slice it produces — so a page set of
+    exactly the ``bas``-backed steps leaves 22 fields with nowhere to be entered
+    and gate G5 unsatisfiable. The rule is therefore:
+
+        a step is an oracle page if it runs a ``.BAS`` program, **or** it
+        produces a slice that such a step requires.
+
+    Still fully derived — no hand-maintained page list, which is the part of
+    OG-2 that mattered. Amended 2026-08-19 (owner, in session).
+    """
+    bas_backed = [s for s in STEPS if s.bas is not None]
+    needed = {attr for s in bas_backed for attr in s.requires}
+    keys = {s.key for s in bas_backed}
+    keys |= {s.key for s in STEPS if s.produces in needed}
+    return [s for s in STEPS if s.key in keys]
+
+
+def oracle_step_keys() -> Set[str]:
+    """Step keys of :func:`oracle_steps`, for membership tests."""
+    return {s.key for s in oracle_steps()}

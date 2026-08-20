@@ -34,12 +34,13 @@ Re-run after any ``models.py`` change so the dictionary tracks the schema.
 from __future__ import annotations
 
 import dataclasses
-import inspect
 import enum
+import inspect
 import re
 import typing
 from pathlib import Path
 
+import sloads.field_registry as fr
 import sloads.models as m
 import sloads.workflow as w
 
@@ -75,20 +76,11 @@ INPUT_SLICES = [
     ("include_far25", "Opt-in FAR 25 supplemental cases (flag)"),
 ]
 
-# Owning page for the slices workflow.py does not attribute via `produces`.
-# (These slices are edited on a page whose step declares them as `requires`, or
-# on a shared page, so `produces` alone leaves them unowned.)
-PAGE_OVERRIDES = {
-    "engines": "Engine Mount Loads",
-    "engine_layout": "Engine Mount Loads",
-    "weight": "Weight & Mass Properties",  # step produces `mass`, not `weight`
-    "aero": "Aerodynamic Data",
-    "select_input": "Wing Loads / Tail Loads",
-    "tail_mass": "Weight & Mass Properties (component tag)",
-    "tail_loads": "Geometry (empennage, Step G6)",
-    "vtail_loads": "Geometry (empennage, Step G6)",
-    "include_far25": "Engine Mount Loads",
-}
+# Owning page comes from `sloads.field_registry` (design note 32, OG-14): the
+# registry declares an editing page **per field**, so this generator no longer
+# keeps its own slice-level override table. The two disagreed by construction --
+# the overrides were a guess at what workflow.py's `produces` could not
+# attribute, while the registry states it and is drift-guarded.
 
 # Field-name suffix -> units, used when the inline comment carries no units hint.
 SUFFIX_UNITS = [
@@ -206,12 +198,19 @@ def _md_escape(text):
 # Slice -> owning page & consuming modules, from workflow.py + module sources.
 # --------------------------------------------------------------------------- #
 def _owning_page(slice_attr):
-    if slice_attr in PAGE_OVERRIDES:
-        return PAGE_OVERRIDES[slice_attr]
-    for step in w.STEPS:
-        if step.produces == slice_attr:
-            return step.title
-    return "(unattributed)"
+    """The page(s) that edit this slice, from the field registry (OG-14).
+
+    A slice whose fields are edited on more than one page says so rather than
+    picking one -- ``geometry`` is the case that used to be flattened, and
+    hiding it is precisely the ownership question the registry exists to answer.
+    """
+    pages = {fr.BY_PATH[p].page for p in fr.paths_under(slice_attr)}
+    if not pages:
+        for step in w.STEPS:
+            if step.produces == slice_attr:
+                return step.title
+        return "(unattributed)"
+    return " / ".join(sorted(w.BY_KEY[k].title for k in pages))
 
 
 def _consuming_modules(slice_attr):
