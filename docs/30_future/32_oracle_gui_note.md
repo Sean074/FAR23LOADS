@@ -2,8 +2,12 @@
 
 **Owner:** @Sean074 · **Reviewers:** — *(design note 28 MD-6: the owner of what a note touches reviews it as a PR)*
 
-**Status: PROPOSED 2026-08-19 — no code, except OG-A (the `bas` sentinel defect,
-§3) which shipped 2026-08-19 as an independent tier-S fix.**
+**Status: AGREED 2026-08-19 (owner, in session) — the oracle GUI is the next
+development phase.** OG-A (the `bas` sentinel defect, §3) shipped 2026-08-19 as
+an independent tier-S fix; everything else is unbuilt. The GUI freeze is lifted
+for this note's work (§8). One decision was added at agreement — **OG-14**, the
+single registry — which changes what OG-5 / step OG-C build; the rest of the
+note is agreed as written.
 
 A **second, independently launched Streamlit GUI** that exposes only the
 capability of the original McMaster **FAR 23 LOADS** suite: the original
@@ -113,7 +117,7 @@ guard in OG-2 is what stops it recurring). **Fixed 2026-08-19** — see OG-A in 
 | **OG-2** | Its page set is **derived at runtime** from `sloads.workflow.STEPS` by `bas is not None`. A hand-maintained page list in the oracle GUI is prohibited; a guard test asserts the derived set equals the GUI's rendered set. |
 | **OG-3** | `tail_span_loads.bas` and `balanced_cases.bas` become `None` (they are `"—"` today). Tier S, shipped ahead of the rest. |
 | **OG-4** | **Prerequisite.** The app-layer shell shared by both GUIs — `components.py`, `limit_csv.py`, and `Home.py`'s project open/save/units/dirty-guard helpers (`_has_unsaved_changes`, `_confirm_discard`, `_load_with_guard`) — is extracted to a **single owner** before the second GUI exists. Neither GUI may hold a private copy. This is the one structural item; skipping it *is* the dual path, relocated from the calc to the shell (rule 3). |
-| **OG-5** | A **field-origin registry** classifies every input field as `original` (an input of a named `.BAS` program) or `sloads` (added capability), with a **drift-guard test** so a new field cannot be added without declaring which world it belongs to. Code-owned, not a prose list (rule 3). Scope: the fields reachable from the 13 oracle pages. Source of truth for the classification: UG §3–§22 per-module input lists + the Appendix A echo prints. |
+| **OG-5** | A **field-origin registry** classifies every input field as `original` (an input of a named `.BAS` program) or `sloads` (added capability), with a **drift-guard test** so a new field cannot be added without declaring which world it belongs to. Code-owned, not a prose list (rule 3). Scope: the fields reachable from the 13 oracle pages. Source of truth for the classification: UG §3–§22 per-module input lists + the Appendix A echo prints. **Superseded in shape by OG-14:** origin is one column of the single registry, not a registry of its own. |
 | **OG-6** | Output is **CSV and text only**, through the **existing owners** — `sloads.io.load_cases_csv` (with `report.csv_comment_block`) and `sloads.report.render.module_text_report`. No new renderer, no per-page bespoke CSV. Plots, LaTeX/PDF, sbeam decks, CONM2/LRA and the workbook are **out of scope for this GUI** and remain fully available in `app/`. |
 | **OG-7** | Fields the original entered **directly** that sloads now **derives** (`flight_loads.mac`/`wing_area_sqft`/`xw`/`zw`, `weight.estimation.max_continuous_hp`, the `geometry.parametric` consolidation) are offered for direct entry in the oracle GUI under the **existing** rule GR-GEOM-3 — *planform primary, analysis scalars derived, an entered scalar wins and is marked*. No new mechanism. |
 | **OG-8** | The gear-geometry duplication (`geometry.landing_gear.*` vs `landing.main_gear`/`nose_gear`/`tread_in`) gets **one owner** before it is put on an oracle page. This is one of the five duplicate-owner instances the 2026-08-16 GUI review already found; it is closed by that review's field-ownership registry, not by a patch here. |
@@ -122,6 +126,7 @@ guard in OG-2 is what stops it recurring). **Fixed 2026-08-19** — see OG-A in 
 | **OG-11** | The oracle GUI is launched by its **own console script** in `[project.scripts]` (today: only `sloads = "cli:main"`), plus a documented `streamlit run` path. It is not a flag on the existing app. |
 | **OG-12** | `one_engine_out` **is** an oracle page (ONENGOUT is an original program). It is inert on single-engine projects, which is the correct behaviour, not a gap. |
 | **OG-13** | **No schema hop and no new stored field.** The oracle GUI writes the same `project.json` as `app/`; fields it does not expose keep their defaults. A project is fully portable between the two GUIs in both directions. |
+| **OG-14** | **One registry, not two** *(added at agreement, 2026-08-19)*. OG-5's field-**origin** registry and the 2026-08-16 GUI review's field-**ownership** registry (GR-INPUT-2) are the same table under two names: same key (the input field path), different value columns. They are built **once**, as a single code-owned registry with one drift guard: `field path │ owning slice │ editing page │ origin`. OG-8 already conceded the overlap in one direction — the gear duplication "is closed by that review's field-ownership registry, not by a patch here" — and building the ownership half separately would leave that registry to be re-derived for OG-5. Consequences: step **OG-C** builds all four columns, not two; gates **G4** (origin total) and the review's duplicate-owner guard are two assertions over one table; and the registry becomes the mechanism that makes the GUI review's nine unswept pages a test report rather than another hand sweep, which is why it is scheduled before the review resumes. |
 
 ## 5. What the oracle GUI inherits and must not re-state
 
@@ -155,7 +160,7 @@ guard in OG-2 is what stops it recurring). **Fixed 2026-08-19** — see OG-A in 
 |---|---|---|
 | **OG-A** | Fix the two `bas = "—"` rows to `None`; add gate G3. Independent of everything else. **✅ shipped 2026-08-19** — both rows are `None`, guard `tests/test_workflow.py::test_bas_is_a_program_name_or_none` asserts the shape, oracle page count is the true **13**. | S |
 | **OG-B** | Extract the shared app shell to one owner; both existing front-ends switch to it; gate G8. **Prerequisite for OG-D.** | L (moves an architectural boundary; `PROJECT_GUIDE.md` §4 tree changes) |
-| **OG-C** | Field-origin registry + drift guard (OG-5); gates G4, G5. The classification pass is the bulk of the intellectual work and needs the owner's ruling on the borderline rows. | M |
+| **OG-C** | The **single field registry** + drift guard (OG-5 as reshaped by **OG-14**): `field path │ owning slice │ editing page │ origin`, one owner, one guard. Gates G4, G5, and the GUI review's duplicate-owner class (its N1) in the same change. The origin classification is the bulk of the intellectual work and needs the owner's ruling on the borderline rows; the ownership columns are mechanical. | M |
 | **OG-D** | The oracle GUI: entry point (OG-11), derived nav (OG-2), generic form renderer over `origin=original`; gates G1, G2, G6. | M |
 | **OG-E** | CSV + text output through the existing owners (OG-6); gate G7. | S |
 | **OG-F** | Parametrize the two `app/views/`-hardcoded guards over both GUI dirs (OG-9); `set_page_config` rule restated (OG-10). | M |
@@ -170,12 +175,24 @@ LOC of `app/views/` it does not touch. OG-B and OG-C are the real cost.
   maintenance burden is bounded by OG-2/OG-5 (both derived) and OG-4 (shared
   shell), so new sloads capability lands in `app/` and is invisible here by
   construction.
-- **The GUI freeze.** `50_reviews/2026-08-16_scope_and_deficiency_review.md`
-  §Streamlit UI froze GUI investment; the freeze was carried past the 0.6.0 cut
-  and holds pending the GUI review (#29). This note is new GUI construction and
-  therefore **requires a recorded decision to proceed**, taken with #29's
-  findings rather than around them. OG-A and OG-B are hygiene and structure, not
-  GUI investment, and are not blocked by the freeze.
+- **The GUI freeze — lifted for this note, 2026-08-19 (owner).**
+  `50_reviews/2026-08-16_scope_and_deficiency_review.md` §Streamlit UI froze GUI
+  investment; the freeze was carried past the 0.6.0 cut and held pending the GUI
+  review (#29). The decision this note asked for is **taken: the oracle GUI is
+  the next development phase, and the freeze does not block it.** Two things are
+  worth recording about *why the decision changes less than it appears to*.
+  First, the freeze was never the binding constraint on the near work — OG-A and
+  OG-B are hygiene and structure rather than GUI investment, OG-C is a registry
+  with no GUI code, and G5 is a test; the freeze binds only at OG-D/OG-E. What
+  actually blocked step one was this note's own `PROPOSED` status, OG-B being
+  tier L and `CLAUDE.md` rule 1 gating tier-L code on an AGREED note. Second,
+  the decision is still taken **with** #29's findings rather than around them:
+  OG-14 folds the review's own registry into OG-C, and OG-8 already routes the
+  gear duplication through it. What the lift defers is the review's placement
+  batch for `app/` — accepted, with the two exceptions that outrank it under
+  rule 6 because they are defects in shipped behaviour, not placement: the gear
+  reference point having no widget (so the export omits the node), and
+  `speeds.wing_area_sqft` being an input nothing reads.
 - **OG-C is a judgement pass, not a mechanical one.** Roughly 30 of the ~295
   paths are genuinely borderline (fields the original entered under a different
   name, fields sloads split or consolidated). These are ruled on by the owner
