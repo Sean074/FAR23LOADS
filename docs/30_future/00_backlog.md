@@ -48,16 +48,40 @@ The fixture-data pass (#9, Pri 1) shipped in full on 2026-08-17
 (`changes/fixture-data-pass.*`, `changes/fixture-cg-datum-reconciliation.*`, D-27):
 entered tail planforms, the ga6 fin-root pin and body outline, and the fixture CG
 datum reconciled with the flight cases pinned to the WTENV limits; note 19 §10.2
-(i)–(ii) are done. **L-7 shipped 2026-08-17** (`changes/l7-lateral-body-aero.*`): the lateral cases can carry the wing-body sideslip term, off by default, and state it either way. Band A of the table below is the **0.7.0** scope (re-cut 2026-08-17,
-[`../50_reviews/2026-08-17_backlog_review_0_7_0.md`](../50_reviews/2026-08-17_backlog_review_0_7_0.md)).
+(i)–(ii) are done. **L-7 shipped 2026-08-17** (`changes/l7-lateral-body-aero.*`): the lateral cases can carry the wing-body sideslip term, off by default, and state it either way. **The oracle GUI shipped OG-A…OG-F 2026-08-18/20** (note 32, `changes/oracle-gui-*`): a second
+Streamlit front-end over the same calc, gates G1–G8. **The 2026-08-20 four-pass
+critical review**
+([`../50_reviews/2026-08-20_critical_review.md`](../50_reviews/2026-08-20_critical_review.md))
+found no CRITICALs and ten MAJORs; band A of the table below is the **0.7.0**
+scope (re-cut 2026-08-20).
 Reference-authority hierarchy: (1) `.BAS` listings + Appendix A printed output,
 (2) User's Guide CFR quotes (Jan-1994), (3) Code-manual 1990 prose.
 
 ---
 
-# Priority table (re-cut 2026-08-17 after the 0.6.0 cut — the single order of work)
+# Priority table (re-cut 2026-08-20 after the critical review — the single order of work)
 
-**Re-cut 2026-08-17 (user, from
+**Re-cut 2026-08-20 (user, from
+[`../50_reviews/2026-08-20_critical_review.md`](../50_reviews/2026-08-20_critical_review.md)).**
+The release themes are fixed by the user: **0.7.0 — the oracle GUI fully
+functional**, plus the review's non-GUI MAJOR defect fixes (defects outrank
+capability, rule 6); **0.8.0 — the main-GUI review (#29) completed and its
+findings addressed** (#29 and every CR-D finding move wholesale out of the
+0.7.0 band); **1.0.0 — additional analysis capability** (the former band-B
+consumer-gated rows move there). Band A is ordered by fix dependency: the
+shared shell first (both GUIs inherit CR-D-1), then the oracle form's persist
+path, then one-owner-at-render (which closes the two top-ranked backlog items
+riding it), then scope/nav polish, then the six non-GUI MAJORs grouped by
+fix-site, with **#33 promoted from band C** per the review's §6 rank 2 (its
+band-C placement under-ranked its blast radius). The review's MINOR/NIT
+findings are one sweep row, worked with their modules (practice 4). **No
+schema hop is needed anywhere in band A** — every fix is widget-, test-,
+guard- or report-side; the schema freeze holds through 0.7.0. The Streamlit
+freeze splits: `oracle_app/` + `app_shell/` are **open** for exactly the band-A
+rows; `app/views/` stays frozen pending #29 (0.8.0). Cut **0.7.0 when band A
+is empty**.
+
+**Previously re-cut 2026-08-17 (user, from
 [`../50_reviews/2026-08-17_backlog_review_0_7_0.md`](../50_reviews/2026-08-17_backlog_review_0_7_0.md),
 BR-1…BR-13).** Band A is now the **0.7.0** scope: the fixture-data pass first
 (it carries the `ga6_normal` body outline the headline needs and closes the
@@ -145,20 +169,35 @@ traceability with plans 09/11/12/13; the **Pri** column is ordinal only.
 
 | Pri | Item (detail below / in its plan) | What ships | Tag | Tier / effort | Depends on |
 |---|---|---|---|---|---|
-| **A — 0.7.0: the lateral term the base method is missing, the fixture data it needs, and the GUI review (review BR-2…BR-7, BR-11)** ||||||
-| 1 | **GUI review** — the Streamlit UI against the 0.6.0 deliverables: page order vs `workflow.py`, unit toggle/labels conformance, the ground/gear and LRA-model pages, CLI-vs-UI delivery gaps, plan 03 status; body of record in `50_reviews/`, findings filed as issues (rule 5), re-cut follows (#29) | The UI freeze re-opened to the extent the findings justify — a reviewed list, not a rework | V | S (review) / M | — |
+| **A — 0.7.0: the oracle GUI fully functional + the 2026-08-20 review's MAJOR defect fixes (CR-\* keys resolve in that review)** ||||||
+| 1 | **Shared shell sidebar: edge-triggered Upload + download filename** (CR-D-1 `[MAJOR]`, CR-D-9) (#34) | The Upload path processes a file exactly once (identity in session state) — the unbounded `st.rerun()` loop and the inescapable discard dialog gone from **both** GUIs; Download writes `.project.json` so Open lists it; an AppTest pinning upload-then-idle | V | M / S | — |
+| 2 | **Oracle form persist path: pending-record clobber** (CR-A-1 `[MAJOR]`, CR-A-3, CR-A-6) (#35) | Two edits in one rerun both persist (`_PENDING` keyed on `(owner, name)`, not append-order); the Optional-falsy and dropped-curve-row behaviors decided and stated in-band; a two-edits-one-rerun AppTest per affected page shape | V | M / M | — |
+| 3 | **One owner at render: the registry reaches the widgets** (CR-A-2 `[MAJOR]`; closes the gear-fields-unreachable and dead-`speeds.wing_area_sqft` findings from #29/note 32 §8) (#36) | `render_scalar` reads `is_owner`/`derived_from`: non-owner copies render derived/disabled with the owner named, disagreement warns; the three gear fields get widgets so a GUI-built project exports gear nodes; the dead wing-area input resolved (wired or removed as a copy); drift guard: no editable non-owner widget | V | M / M | Pri 2 |
+| 4 | **Oracle GUI scope + nav polish** (CR-A-4, CR-A-5/CR-D-10, CR-A-9) (#37) | No Switch-to-Concept action in the oracle GUI (`banner=False` or warning-only); the shell's bare `except Exception` narrowed to `StreamlitAPIException`; `oracle_steps()[0]` hoisted | V | S / S | — |
+| 5 | **SELECT keyed pick through `_extreme` + AST drift guard** (CR-B-1 `[MAJOR]`) (#38) | The 23.423(a) `BAL A` pick routed through `_extreme`; the §7 guard rebuilt as an AST walk (builtin `min`/`max` with `key=`); the `landing.py:596` tie-family sibling adopts the tie rule | E | M / S | — |
+| 6 | **Concept→FAR23 reduction identity gated exactly** (CR-B-2 `[MAJOR]`) (#39) | `_assert_modules_identical` at `==` (bit-for-bit), not ±0.1 %; if any value fails exact equality, that divergence is investigated as its own finding | E | S / S | — |
+| 7 | **23.361(b)(1) stoppage torque: formula closure + truncation basis** (CR-B-3 `[MAJOR]`) (#40) | A formula-closure assertion (`I·ω/Δt` summation) on the twin fixture; `int()` vs BASIC `INT()` verified against ENGLOADS.BAS (App. C p373 ff) at both sites and recorded in CONVENTIONS §5 | E | M / S | — |
+| 8 | **Residual-gate exemption predicate: one owner** (CR-C-2 `[MAJOR]`) (#41) | `balance.residual_gate_applies(case)` owns the exemption (ground / lateral / 23.427(a)); report §6 and the Balanced Cases page compute `worst` over the gate-applicable family only, state the exempt families, drop the retired drag cause; the rendered §6 sentence pinned on a ground-assembling fixture; the stale page caption fixed | E | M / S | — |
+| 9 | **Manifest conformance: LRA row + zip↔manifest gate + basis cells** (CR-C-1 `[MAJOR]`, CR-C-3 `[MAJOR]`) (#42) | The LRA model deck (and CLI `lra_loads.bdf`) manifested; a structural gate asserting the shipped zip's `namelist()` ⊆ manifest rows (the F-D2 class closed for good); `inertia_only.bdf`'s basis cell reads LIMIT-comparison-only and is pinned by text, not filename | E | M / S | — |
+| 10 | `_balance` has no failure channel — both iteration loops return their last iterate with no signal *(promoted from band C: review 2026-08-20 §6 rank 2 — every V-n point, SELECT pick and balanced case consumes the unsignalled iterate)* (#33) | A converged/exhausted state on `_Balanced` covering **both** loops (rule 4), asserted in the closure tests; internal only, no published number and no schema field | V | S / S | — |
+| 11 | **Review 2026-08-20 MINOR/NIT sweep** (CR-B-4/B-5/B-6, CR-C-4/C-5/C-6, CR-A-7/A-8; + close stale parked L-8a as shipped) (#43) | Swept with their modules (practice 4) or opportunistically; the CG-name mismatch (CR-B-4) first — it is the one silent-zero into a load path | V | S / S–M | — |
 | — | **Cut 0.7.0** when band A is empty (RELEASE_PROCESS §2 cadence rule) | | | | |
-| **B — 0.8+: capability that waits for a consumer (review BR-8)** ||||||
-| 2 | The aileron's own lift increment is not distributed (#14) | `ACRL` wing cards gain the aero half of the couple (~70 % span); the schema fields shipped v52 and wait for data and a consumer | V | L / M | only if a consumer sizes to `ACRL` |
-| 3 | Ground-case fuselage station distribution — the ground family has no per-station view *(from the #11 closure, D-28)* (#31) | Per-station shear/bending/torsion for the ground family on the fuselage beam, its own envelope beside the flight one and never merged with it, each station naming its ground case | V | L / M | a frame-sizing consumer; design note first |
-| 4 | Mach-capped balanced points are published with their coefficients extrapolated past the fitted stall alpha, and nothing says so *(from the #13 closure, D-30)* (#32) | A derived past-fit marker wherever a per-point quantity is published (BALLOADS' 300 rows first); rows stay published and marked, never withheld; no schema field — the marker is the point's own CL against its Mach-adjusted stall CL | V | M / S–M | — |
-| **C — maintenance and hygiene, when the module is next touched (review 2026-08-16 §5.2; BR-9)** ||||||
-| 5 | `_balance` has no failure channel — both iteration loops return their last iterate with no signal *(from the #13 closure, D-30)* (#33) | A converged/exhausted state on `_Balanced` covering **both** loops (rule 4), asserted in the closure tests; internal only, no published number and no schema field | V | S / S | — |
-| 6 | Export deck-writing primitives out of `sbeam_bridge.py` (CH-4) (#15) | `_fmt`/`_sf_str`/`_stamped`/`_MAT1_*`/`_PBAR_*` in a shared module; the four private cross-imports gone | V | S / S | — |
-| 7 | Dead code (CH-5) (#16) | Delete `write_balanced_deck`, `write_conm2_fragment`, `write_mass_check_deck`, `all_checks`; demote the ~12 no-consumer public names | V | S / S | — |
-| 8 | Calc-side function size (CH-8) — `build_lra_model` (336 lines), `landing_reactions` (200) (#17) | Split when touched; **the view functions wait for the GUI review (#29)** | V | S / S | — |
-| 9 | Review 2026-08-10 unscheduled findings m3–m13, m15–m18 + NITs *(defect sweep)* (#18) | Swept opportunistically (practice 4) or promoted individually | V | S / S–M | — |
-| 10 | mypy strictness ratchet — stage 2 `export/`, stage 3 `modules/` *(design note 27 ST-3; detail below)* (#19) | `sloads.export.*` then `sloads.modules.*` added to the `[[tool.mypy.overrides]]` list and narrowed to zero under ST-4 (no `ignore`, no `Any` widening, no `cast`); then `warn_return_any`/`disallow_any_generics` toward `--strict`; `UP` on when 3.9 leaves the matrix | V | S / S per stage | — |
+| **B — 0.8.0: the main-GUI review completed and its findings addressed** ||||||
+| 12 | **GUI review resumption** — the five unswept sections (Flight, Other, Ground, Plotting, Export) against the 0.7.0 deliverables; findings filed at close (rule 5); re-cut follows (#29) | The review body completed; the UI freeze on `app/views/` re-opened to the extent the findings justify — a reviewed list, not a rework; parked **L-8c** (Results Review omits the 8 folded modules' results) promotes at this re-cut | V | S (review) / M | 0.7.0 cut |
+| 13 | **Unit-boundary rollout: `unit_number_input` everywhere** (CR-D-2 `[MAJOR]`) (#44) | The ~7 hand-paired views (and the data-editor grids) on the boundary helper; a no-op-Apply-in-SI bit-identity test per converted view; `GUI_design.md` §11's rollout claim made true; do together with parked **L-8d** (widget freshness) — the fixes interact | V | M / M | #29 findings order |
+| 14 | **`workflow.requires` vs self-entered slices** (CR-D-3) (#45) | A `WorkflowStep.edits` (or equivalent) so self-sufficient pages stop showing "blocked"; a DAG-completeness guard: every `requires` is some step's `produces` or declared self-entered | V | M / S | — |
+| 15 | **Docs/CI conformance sweep** (CR-D-4/D-5/D-6/D-7/D-8, CR-D-11) (#46) | The CI-matrix asymmetry stated where the docs claim otherwise (`DEVELOPMENT_PROCESS` §2 self-contradiction fixed); version-copy and phase-table drift fixed with the cheap guards; the one-way nav guard made two-way; the tripped runtime clause filed or re-stated; cspell gets a gate or the prose rule is dropped | V | S / S–M | — |
+| **C — 1.0.0: additional analysis capability (consumer-gated; design notes first)** ||||||
+| 16 | The aileron's own lift increment is not distributed (#14) | `ACRL` wing cards gain the aero half of the couple (~70 % span); the schema fields shipped v52 and wait for data and a consumer | V | L / M | only if a consumer sizes to `ACRL` |
+| 17 | Ground-case fuselage station distribution — the ground family has no per-station view *(from the #11 closure, D-28)* (#31) | Per-station shear/bending/torsion for the ground family on the fuselage beam, its own envelope beside the flight one and never merged with it, each station naming its ground case | V | L / M | a frame-sizing consumer; design note first |
+| 18 | Mach-capped balanced points are published with their coefficients extrapolated past the fitted stall alpha, and nothing says so *(from the #13 closure, D-30)* (#32) | A derived past-fit marker wherever a per-point quantity is published (BALLOADS' 300 rows first); rows stay published and marked, never withheld; no schema field — the marker is the point's own CL against its Mach-adjusted stall CL | V | M / S–M | — |
+| 19 | **Certification basis / case manifest** *(review 2026-08-20 §6 rank 7)* (#47) | The per-condition coverage matrix as a deliverable, so the next FAR 25 case lands against a stated basis rather than a blind matrix | V | L / M | design note first |
+| **D — maintenance and hygiene, when the module is next touched (review 2026-08-16 §5.2; BR-9)** ||||||
+| 20 | Export deck-writing primitives out of `sbeam_bridge.py` (CH-4) (#15) | `_fmt`/`_sf_str`/`_stamped`/`_MAT1_*`/`_PBAR_*` in a shared module; the four private cross-imports gone | V | S / S | — |
+| 21 | Dead code (CH-5) (#16) | Delete `write_balanced_deck`, `write_conm2_fragment`, `write_mass_check_deck`, `all_checks`; demote the ~12 no-consumer public names | V | S / S | — |
+| 22 | Calc-side function size (CH-8) — `build_lra_model` (336 lines), `landing_reactions` (200) (#17) | Split when touched; **the view functions wait for the GUI review (#29)** | V | S / S | — |
+| 23 | Review 2026-08-10 unscheduled findings m3–m13, m15–m18 + NITs *(defect sweep)* (#18) | Swept opportunistically (practice 4) or promoted individually | V | S / S–M | — |
+| 24 | mypy strictness ratchet — stage 2 `export/`, stage 3 `modules/` *(design note 27 ST-3; detail below)* (#19) | `sloads.export.*` then `sloads.modules.*` added to the `[[tool.mypy.overrides]]` list and narrowed to zero under ST-4 (no `ignore`, no `Any` widening, no `cast`); then `warn_return_any`/`disallow_any_generics` toward `--strict`; `UP` on when 3.9 leaves the matrix | V | S / S per stage | — |
 
 **Frozen (review §3) — no further investment; tests and gates kept; touched
 for defects only:** the FAR 23 core; the balanced assembler + handedness;
@@ -166,9 +205,11 @@ CONM2/MASSSET export; the sbeam round-trip harness; the ground/landing
 families + gear report; the governing safety-factor table (Layer 2 parked);
 distributed empennage loads, control surfaces, hinge moment, T-tail transfer;
 the **LRA beam model at its determinate paths**; the summary report, PDF,
-workbook, manifest and methods stamp; the **Streamlit UI — pending the 0.7.0
-GUI review (#29)**, whose findings decide what re-opens (the CLI is the delivery
-path — parked M4-11b and the L-8 UX rows stay parked until then); F25-2.
+workbook, manifest and methods stamp; the **`app/views/` UI — pending the
+0.8.0 GUI review (#29)**, whose findings decide what re-opens
+(`oracle_app/` + `app_shell/` are open for exactly the band-A rows; the CLI is
+the delivery path — parked M4-11b and the L-8 UX rows stay parked until #29
+closes, except L-8d which lands with Pri 13); F25-2.
 
 ---
 
