@@ -202,11 +202,17 @@ def _empty_value(hint: object) -> Any:
 #: Records this render pass created but has not attached to the project. A page
 #: needs somewhere for its widgets to write *before* it knows whether anything
 #: will be written, so a missing record is built detached and committed by
-#: :func:`commit_pending` only if the pass left something in it. Reset at the
-#: top of :func:`render_step`, which is the only entry point; module state
-#: rather than a threaded argument because Streamlit runs one script at a time
-#: and every reader is in this file.
-_PENDING: List[Tuple[Any, str, Any]] = []
+#: :func:`commit_pending` only if the pass left something in it. Keyed on
+#: ``(id(owner), attribute)`` so every group that walks through the same missing
+#: ancestor gets the **same** pending record (#35, CR-A-1) -- when it was a
+#: plain append, eight groups on the Geometry page each minted their own blank
+#: ``geometry`` and the last non-blank chain clobbered the earlier ones on
+#: commit, silently discarding one of two edits made in one rerun. Insertion
+#: order is creation order (parent before child), which :func:`commit_pending`
+#: relies on. Reset at the top of :func:`render_step`, which is the only entry
+#: point; module state rather than a threaded argument because Streamlit runs
+#: one script at a time and every reader is in this file.
+_PENDING: Dict[Tuple[int, str], Tuple[Any, str, Any]] = {}
 
 
 def _persist(record: Any, name: str, value: Any) -> None:
@@ -219,12 +225,29 @@ def _persist(record: Any, name: str, value: Any) -> None:
     the same number, a different file, an "Unsaved changes" flag the user
     never earned. Equality settles both (``45 == 45.0``). The second clause
     keeps an *absent* field absent: a ``None`` rendered as the type's empty
-    value is still unfilled, and only a real entry makes it real.
+    value is still unfilled, and only a real entry makes it real. It guards the
+    widgets that must show *something* for ``None`` (text, tuples, curves);
+    Optional scalars render empty instead and route typed values -- including
+    a deliberate ``0`` -- through :func:`_set_entered` (#35, CR-A-3).
     """
     current = getattr(record, name, None)
     if current == value or (current is None and not value):
         return
     setattr(record, name, value)
+
+
+def _set_entered(record: Any, name: str, value: Any) -> None:
+    """Write a value the user actually entered, even a falsy one (#35, CR-A-3).
+
+    The persist path for a widget that was **seeded empty** -- an unfilled
+    Optional scalar rendered blank, a table cell that displayed NaN. Anything
+    that came back from one is a real entry, so a deliberate ``0`` (sea level
+    into ``one_engine_out.altitude_ft``, a datum-at-nose ``fuselage_nose_x``)
+    must land where :func:`_persist`'s absent-stays-absent clause would read
+    it as the untouched seed and drop it.
+    """
+    if getattr(record, name, None) != value:
+        setattr(record, name, value)
 
 
 def _is_blank(value: Any) -> bool:
@@ -241,12 +264,13 @@ def commit_pending() -> None:
     a project with no ``geometry`` must attach both, and touching neither must
     leave the project exactly as it was found.
     """
+    entries = list(_PENDING.values())
     needed = set()
-    for owner, _, value in reversed(_PENDING):
+    for owner, _, value in reversed(entries):
         if id(value) in needed or not _is_blank(value):
             needed.add(id(value))
             needed.add(id(owner))
-    for owner, name, value in _PENDING:
+    for owner, name, value in entries:
         if id(value) in needed:
             setattr(owner, name, value)
     _PENDING.clear()
@@ -259,18 +283,25 @@ def record_at(project: Project, prefix: str) -> Any:
     one is the normal state rather than an error: an absent ``speeds`` means the
     Structural Speeds page has not been filled in yet, not that it is unavailable.
     A record created here is **detached** until :func:`commit_pending` decides
-    the page earned it -- see :data:`_PENDING`.
+    the page earned it -- see :data:`_PENDING`. A step another group of this
+    same pass already created is **reused**, never re-minted: two blanks for
+    one ``(owner, attribute)`` would race each other at commit and one group's
+    edits would win over the other's (#35, CR-A-1).
     """
     obj: Any = project
     for segment in [s for s in prefix.split(".") if s]:
         value = getattr(obj, segment, None)
         if value is None:
-            hint = fr.field_type(_path_of(obj, segment, prefix))
-            inner, _ = _unwrap_optional(hint)
-            if not (isinstance(inner, type) and dataclasses.is_dataclass(inner)):
-                return None
-            value = blank(inner)
-            _PENDING.append((obj, segment, value))
+            pending = _PENDING.get((id(obj), segment))
+            if pending is not None:
+                value = pending[2]
+            else:
+                hint = fr.field_type(_path_of(obj, segment, prefix))
+                inner, _ = _unwrap_optional(hint)
+                if not (isinstance(inner, type) and dataclasses.is_dataclass(inner)):
+                    return None
+                value = blank(inner)
+                _PENDING[(id(obj), segment)] = (obj, segment, value)
         obj = value
     return obj
 
@@ -289,8 +320,11 @@ def rows_at(project: Project, prefix: str) -> List[Any]:
         return []
     rows = getattr(owner, attr, None)
     if rows is None:
+        pending = _PENDING.get((id(owner), attr))
+        if pending is not None:
+            return pending[2]
         rows = []
-        _PENDING.append((owner, attr, rows))
+        _PENDING[(id(owner), attr)] = (owner, attr, rows)
     return rows
 
 
@@ -306,14 +340,20 @@ def row_class(prefix: str, paths: Sequence[str]) -> Optional[type]:
 # --------------------------------------------------------------------------- #
 # Scalar widgets
 # --------------------------------------------------------------------------- #
-def _number(label: str, value: float, unit: FieldUnit, key: str, **kwargs: Any) -> float:
-    """A number in display units that comes back Imperial, via the shell boundary."""
+def _number(label: str, value: Optional[float], unit: FieldUnit, key: str,
+            **kwargs: Any) -> Optional[float]:
+    """A number in display units that comes back Imperial, via the shell boundary.
+
+    ``None`` in renders the widget empty and comes back ``None`` until the user
+    enters a number (#35, CR-A-3); a float in always comes back a float.
+    """
+    seed = None if value is None else float(value)
     if unit.kind is not None:
-        return unit_number_input(label, float(value), kind=unit.kind, key=key, **kwargs)
+        return unit_number_input(label, seed, kind=unit.kind, key=key, **kwargs)
     if unit.fixed_label is not None:
         return unit_number_input(
-            label, float(value), fixed_unit=unit.fixed_label, key=key, **kwargs)
-    return unit_number_input(label, float(value), key=key, **kwargs)
+            label, seed, fixed_unit=unit.fixed_label, key=key, **kwargs)
+    return unit_number_input(label, seed, key=key, **kwargs)
 
 
 def render_scalar(record: Any, path: str, *, key: str, container: Any = None) -> None:
@@ -350,17 +390,32 @@ def render_scalar(record: Any, path: str, *, key: str, container: Any = None) ->
         _persist(record, name, where.text_input(label, value or "", key=key, help=help_text))
         return
 
+    # An unfilled Optional renders *empty*, not as a fake 0 (#35, CR-A-3): the
+    # widget returns None until the user enters a number, so anything it does
+    # return -- including 0 -- is a real entry and lands via _set_entered.
     unit = field_unit(name)
     if inner is int:
         entered = where.number_input(
             f"{label} ({_unit_label(unit, active_system())})".replace(" ()", ""),
-            value=int(value or 0), step=1, key=key, help=help_text)
-        _persist(record, name, int(entered))
+            value=None if (optional and value is None) else int(value or 0),
+            step=1, key=key, help=help_text)
+        if entered is None:
+            return
+        if optional and value is None:
+            _set_entered(record, name, int(entered))
+        else:
+            _persist(record, name, int(entered))
         return
 
-    _persist(record, name, _number(
-        label, value if value is not None else 0.0, unit, key,
-        container=where, help=help_text, format="%.4f"))
+    entered = _number(
+        label, None if (optional and value is None) else float(value or 0.0),
+        unit, key, container=where, help=help_text, format="%.4f")
+    if entered is None:
+        return
+    if optional and value is None:
+        _set_entered(record, name, float(entered))
+    else:
+        _persist(record, name, float(entered))
 
 
 # --------------------------------------------------------------------------- #
@@ -430,12 +485,20 @@ def render_curve(record: Any, path: str, *, key: str, container: Any = None) -> 
         row = rows[index]
         return row[member] if arity > 1 else row
 
+    entered = edited.values.tolist()
     kept = [
         [_to_imperial_kept(v, units[i], _stored(n, i)) for i, v in enumerate(values)]
-        for n, values in enumerate(edited.values.tolist())
+        for n, values in enumerate(entered)
         if not any(pd.isna(v) for v in values)
     ]
     _persist(record, name, [tuple(r) if arity > 1 else r[0] for r in kept])
+    # A row with an empty cell is held out of the stored curve; that used to be
+    # silent, so a half-typed corner just vanished on rerun (#35, CR-A-6). An
+    # all-empty row is a freshly added one, not a partial entry -- no nagging.
+    if any(any(pd.isna(v) for v in values) and not all(pd.isna(v) for v in values)
+           for values in entered):
+        where.caption("Rows with an empty cell are not saved — fill every "
+                      "column to keep the row.")
 
 
 def render_enum_set(record: Any, path: str, *, key: str, container: Any = None) -> None:
@@ -615,17 +678,20 @@ def _cell_in(row: Any, path: str, value: Any, unit: FieldUnit) -> None:
     if value is None or (isinstance(value, float) and pd.isna(value)):
         _persist(row, name, None if optional else getattr(row, name))
         return
+    # Past the NaN guard the cell held a concrete value, so it is a real entry
+    # even when falsy -- a typed 0 into an unfilled Optional column must land,
+    # which _persist's absent-stays-absent clause would drop (#35, CR-A-3).
     enum = _enum_of(inner)
     if enum is not None:
-        _persist(row, name, enum(value))
+        _set_entered(row, name, enum(value))
     elif inner is bool:
-        _persist(row, name, bool(value))
+        _set_entered(row, name, bool(value))
     elif inner is str:
-        _persist(row, name, str(value))
+        _set_entered(row, name, str(value))
     elif inner is int:
-        _persist(row, name, int(value))
+        _set_entered(row, name, int(value))
     else:
-        _persist(row, name, float(_to_imperial_kept(value, unit, getattr(row, name, None))))
+        _set_entered(row, name, float(_to_imperial_kept(value, unit, getattr(row, name, None))))
 
 
 # --------------------------------------------------------------------------- #
