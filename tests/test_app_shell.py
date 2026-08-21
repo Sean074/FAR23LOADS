@@ -257,6 +257,105 @@ def test_the_shell_does_not_import_a_gui():
     )
 
 
+# --- #34: the Upload path is edge-triggered ---------------------------------
+#
+# ``st.file_uploader`` returns the same file object on every rerun while it
+# sits in the widget; before #34 the sidebar re-loaded and re-adopted it each
+# run, ending in an unbounded ``st.rerun()`` loop (and, on a dirty project, a
+# discard dialog Cancel could never dismiss). ``AppTest`` cannot drive the
+# uploader widget, so the script stubs it with a fake upload of a fixed
+# ``file_id`` and counts ``load_with_guard`` calls: the real edge invariant.
+
+_UPLOAD_SCRIPT = """
+import io, streamlit as st
+
+class _FakeUpload(io.BytesIO):
+    name = "uploaded.project.json"
+    file_id = "{file_id}"
+    @property
+    def size(self):
+        return len(self.getvalue())
+
+from sloads import io as sloads_io, Project
+_payload = sloads_io.project_to_json(Project(name="from-upload")).encode()
+st.file_uploader = lambda *a, **k: _FakeUpload(_payload)
+
+import app_shell.sidebar as sb
+from app_shell.project_state import ensure_project, load_with_guard
+
+_calls = st.session_state.setdefault("_guard_calls", [])
+
+def _counting(new_project, source):
+    _calls.append(source)
+    load_with_guard(new_project, source)
+
+sb.load_with_guard = _counting
+project = ensure_project()
+if {dirty}:
+    project.name = "edited-since-save"
+sb.render_shell_sidebar(project)
+"""
+
+
+def _upload_app(*, dirty: bool, file_id: str = "upload-1"):
+    from streamlit.testing.v1 import AppTest
+
+    return AppTest.from_string(
+        _UPLOAD_SCRIPT.format(dirty=dirty, file_id=file_id), default_timeout=60
+    )
+
+
+def test_an_upload_is_processed_exactly_once_across_reruns():
+    """Clean project: the upload adopts once; reruns with the file still in the
+    widget do not re-adopt (the pre-#34 behavior re-adopted on every run —
+    an unbounded rerun loop, resetting the dirty baseline each time)."""
+    at = _upload_app(dirty=False)
+    at.run()
+    assert at.session_state["project"].name == "from-upload"
+    assert at.session_state["_guard_calls"] == ["uploaded.project.json"]
+
+    # A user edit after the upload must survive the next rerun un-clobbered.
+    at.session_state["project"].name = "edited-after-upload"
+    at.run()
+    assert at.session_state["project"].name == "edited-after-upload"
+    assert at.session_state["_guard_calls"] == ["uploaded.project.json"]
+
+
+def test_cancelling_the_discard_dialog_actually_cancels_an_upload():
+    """Dirty project: the guard fires once; the rerun a dialog Cancel issues
+    does not re-invoke it, so Cancel dismisses the dialog for good and the
+    dirty project survives (pre-#34 the dialog reopened every run)."""
+    at = _upload_app(dirty=True)
+    at.run()
+    assert at.session_state["_guard_calls"] == ["uploaded.project.json"]
+    assert at.session_state["project"].name == "edited-since-save"
+
+    at.run()  # what Cancel's st.rerun() executes
+    assert at.session_state["_guard_calls"] == ["uploaded.project.json"]
+    assert at.session_state["project"].name == "edited-since-save"
+
+
+def test_a_fresh_upload_is_processed_again():
+    """A new upload mints a new ``file_id``; the edge re-arms — the once-only
+    latch is per upload, not forever."""
+    at = _upload_app(dirty=False)
+    at.run()
+    assert at.session_state["_guard_calls"] == ["uploaded.project.json"]
+    at.session_state["_uploader_processed"] = "some-older-upload"
+    at.run()
+    assert at.session_state["_guard_calls"] == ["uploaded.project.json"] * 2
+
+
+def test_the_download_filename_matches_the_save_convention():
+    """CR-D-9: Download writes ``<name>.project.json`` — the same suffix Save
+    uses — so a downloaded file dropped into ``projects/`` is listed by Open."""
+    src = open(os.path.join(_SHELL_DIR, "sidebar.py"), encoding="utf-8").read()
+    assert 'file_name=f"{fname}.project.json"' in src, (
+        "the Download button no longer writes the .project.json suffix Open "
+        "and Save agree on (#34 / CR-D-9)"
+    )
+
+
 if __name__ == "__main__":  # zero-dependency self-runner
     import sys
 

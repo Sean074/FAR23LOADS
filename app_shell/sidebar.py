@@ -38,6 +38,10 @@ EXAMPLES_DIR = os.path.join(
     os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "examples"
 )
 
+#: Session-state key holding the identity of the last Upload already handled,
+#: so the handler fires once per upload, not once per rerun (#34).
+_UPLOAD_PROCESSED_KEY = "_uploader_processed"
+
 
 def render_shell_sidebar(project: Project, *, examples_dir: str = EXAMPLES_DIR) -> None:
     """Render the units + project-file + About sidebar for ``project``."""
@@ -100,13 +104,25 @@ def render_shell_sidebar(project: Project, *, examples_dir: str = EXAMPLES_DIR) 
                     if loaded is not None:
                         load_with_guard(loaded, example_choice)
 
+            # Edge-triggered on the upload identity (#34): ``st.file_uploader``
+            # returns the same file object on *every* rerun while it sits in the
+            # widget, so acting on ``is not None`` alone re-adopts forever
+            # (adopt -> rerun -> re-adopt) and, on a dirty project, reopens the
+            # discard dialog faster than Cancel can close it. Each new upload
+            # mints a fresh ``file_id``, so a deliberate re-upload still loads.
+            # The identity is recorded *before* the guard runs: Cancel then
+            # genuinely cancels (the file stays in the widget, ignored), and a
+            # file that fails to parse is not retried on every rerun.
             uploaded = st.file_uploader("Upload project.json", type="json", key="_uploader")
             if uploaded is not None:
-                loaded = safe_load(
-                    lambda: sloads_io.project_from_dict(json.load(uploaded)), uploaded.name
-                )
-                if loaded is not None:
-                    load_with_guard(loaded, uploaded.name)
+                ident = getattr(uploaded, "file_id", None) or (uploaded.name, uploaded.size)
+                if st.session_state.get(_UPLOAD_PROCESSED_KEY) != ident:
+                    st.session_state[_UPLOAD_PROCESSED_KEY] = ident
+                    loaded = safe_load(
+                        lambda: sloads_io.project_from_dict(json.load(uploaded)), uploaded.name
+                    )
+                    if loaded is not None:
+                        load_with_guard(loaded, uploaded.name)
 
         fname = (project.name or "project").strip().replace(" ", "_") or "project"
         if st.button("💾 Save to disk", use_container_width=True, key="_save_btn"):
@@ -117,9 +133,11 @@ def render_shell_sidebar(project: Project, *, examples_dir: str = EXAMPLES_DIR) 
             st.success(f"Saved: {save_path}")
             st.rerun()
 
+        # ``.project.json``, matching Save-to-disk, so a downloaded file dropped
+        # into ``projects/`` is listed by Open (CR-D-9).
         st.download_button(
             "Download project.json", sloads_io.project_to_json(project),
-            file_name=f"{fname}.json", mime="application/json",
+            file_name=f"{fname}.project.json", mime="application/json",
             use_container_width=True, key="_download_btn",
         )
 

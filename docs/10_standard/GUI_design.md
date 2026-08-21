@@ -100,7 +100,14 @@ superseded Phase-D six-section grouping is in
   example (`examples/*.project.json`), browser Upload, plus Save-to-disk and
   Download. An unsaved-changes guard (`_has_unsaved_changes` vs. a
   `_saved_project_snapshot`, and the `_confirm_discard` dialog) protects an edited
-  session from being clobbered by a load.
+  session from being clobbered by a load. Every load path fires **once per user
+  action**: the buttons are edge-triggered by construction, and Upload latches on
+  the upload's identity (`st.file_uploader` returns the same file on every rerun
+  while it sits in the widget — acting on presence alone re-adopts forever;
+  #34, guard in `tests/test_app_shell.py`). Cancelling the discard dialog
+  therefore genuinely cancels. Download writes `<name>.project.json` — the same
+  suffix Save uses — so a downloaded file dropped into `projects/` is listed by
+  Open.
 
 ---
 
