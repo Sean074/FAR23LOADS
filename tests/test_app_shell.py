@@ -174,6 +174,50 @@ def test_the_gui_discovery_finds_a_gui():
     assert os.path.join(_ROOT, "app") in guis
 
 
+def _page_config_calls(tree):
+    """Every ``st.set_page_config`` call in a module, at any nesting depth."""
+    return [n for n in ast.walk(tree)
+            if isinstance(n, ast.Call) and getattr(n.func, "attr", None) == "set_page_config"]
+
+
+def test_each_gui_configures_its_page_exactly_once():
+    """OG-10, restated: **exactly one ``set_page_config`` per GUI entry point,
+    and none anywhere else in that GUI.**
+
+    The rule used to read "only ``Home.py`` calls it", which names a file rather
+    than a role and says nothing about a second front-end. Streamlit raises if a
+    page calls it twice, and a view that calls it under ``st.navigation`` breaks
+    the app for the whole session -- so the failure is loud but only at runtime,
+    and only on the page that carries it.
+    """
+    for gui in _gui_dirs():
+        entry_points = []
+        for path in _py_files(gui):
+            calls = _page_config_calls(_parse(path))
+            if not calls:
+                continue
+            relative = os.path.relpath(path, _ROOT)
+            assert len(calls) == 1, (
+                f"{relative} calls st.set_page_config {len(calls)} times")
+            assert _is_entrypoint(_parse(path)), (
+                f"{relative} calls st.set_page_config but not at module level -- "
+                "a page under st.navigation must not configure the page")
+            entry_points.append(relative)
+        assert len(entry_points) == 1, (
+            f"{os.path.basename(gui)}/ has {len(entry_points)} entry points "
+            f"({entry_points}) -- exactly one per GUI (note 32, OG-10)")
+
+
+def test_the_shell_does_not_configure_the_page():
+    """The shell is imported by both entry points, so a ``set_page_config``
+    there would be the first Streamlit call of whichever GUI imported it -- and
+    would silently take the choice away from both."""
+    for path in _py_files(_SHELL_DIR):
+        assert not _page_config_calls(_parse(path)), (
+            f"{os.path.relpath(path, _ROOT)} configures the page; that belongs "
+            "to each GUI's entry point (note 32, OG-10)")
+
+
 def test_the_shell_is_not_redefined_by_any_gui():
     """Gate G8: no symbol in the shared shell is defined twice across the GUIs."""
     shell = _shell_public_names()

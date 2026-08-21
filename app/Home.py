@@ -32,6 +32,7 @@ from __future__ import annotations
 
 import streamlit as st
 
+from app_shell.nav import register_pages
 from app_shell.project_state import ensure_project
 from app_shell.sidebar import render_shell_sidebar
 from sloads import workflow as wf
@@ -68,8 +69,13 @@ def _page(step: wf.WorkflowStep) -> st.Page:
 project = ensure_project()
 render_shell_sidebar(project)
 
+_pages = {s.key: _page(s) for s in wf.STEPS}
+# The link helper resolves a step key to *this* GUI's page object rather than to
+# a path (note 32, OG-F), so the page set it links into is the one built here.
+register_pages(_pages)
+
 sections = {
-    _PHASE_LABEL[phase]: [_page(s) for s in steps]
+    _PHASE_LABEL[phase]: [_pages[s.key] for s in steps]
     for phase, steps in wf.by_phase().items()
     if steps
 }

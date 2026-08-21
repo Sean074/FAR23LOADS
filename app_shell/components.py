@@ -8,12 +8,12 @@ this module only renders it and wires the "switch to Concept" action.
 The fleet comparison used to live here too, shared by two input pages; it now has
 its own dedicated home in ``app/views/aircraft_comparison.py`` (backlog F2).
 
-Moved out of ``app/`` into :mod:`app_shell` by design note 32 step OG-B. One
-consequence to know when adding the second GUI: :func:`workflow_page_link` emits
-``views/<key>.py``, and Streamlit resolves a page path **relative to the running
-entry point** -- so the path stays correct for any GUI that keeps its pages in a
-``views/`` directory beside its entrypoint, and only that convention is shared,
-not the page set (each GUI derives its own; note 32, OG-2).
+Moved out of ``app/`` into :mod:`app_shell` by design note 32 step OG-B. The one
+front-end assumption that survived that move -- :func:`workflow_page_link`
+emitting ``views/<key>.py``, which is true of ``app/`` and of no GUI that builds
+its pages any other way -- was removed by OG-F: the target is now the running
+GUI's own page object, resolved through :mod:`app_shell.nav`. Neither the page
+set nor its shape is shared; each GUI derives its own (note 32, OG-2).
 """
 
 from __future__ import annotations
@@ -23,6 +23,7 @@ from typing import Iterator, NamedTuple, Optional
 
 import streamlit as st
 
+from app_shell.nav import page_for
 from sloads import Project, StructuralSpeedsInput, UnitSystem, far23_applicability
 from sloads import workflow as wf
 from sloads.applicability import design_weight_lb
@@ -47,23 +48,33 @@ def workflow_page_link(
 ) -> None:
     """Render an ``st.page_link`` to the workflow step ``key``.
 
-    ``key`` is a :data:`sloads.workflow.BY_KEY` step key (also the view-file
-    stem, ``app/views/<key>.py``). The label defaults to the step's canonical
-    ``title`` so renaming a page re-labels every link to it. Raises ``KeyError``
-    on an unknown key -- caught by the nav-integrity test, which is the point.
+    ``key`` is a :data:`sloads.workflow.BY_KEY` step key. The label defaults to
+    the step's canonical ``title`` so renaming a page re-labels every link to it.
+    Raises ``KeyError`` on an unknown key -- caught by the nav-integrity test,
+    which is the point.
+
+    The target is the running GUI's own page object (:mod:`app_shell.nav`),
+    never a path. Until OG-F this built ``views/<key>.py``, which is true of
+    ``app/`` and of nothing else: the oracle GUI's pages are callables, so the
+    shared shell held one front-end's directory layout and would have sent the
+    other's links into a page set it is not part of.
     """
     step = wf.BY_KEY[key]
     text = label or step.title
-    try:
-        st.page_link(
-            f"views/{key}.py", label=text, icon=icon, help=help, disabled=disabled,
-        )
-    except Exception:
-        # Standalone execution (e.g. AppTest, or a view run outside st.navigation)
-        # has no page registry, so st.page_link can't resolve the target and
-        # raises. Fall back to a non-clickable label so the row / gate hint still
-        # renders (a dashboard row must never silently vanish).
-        st.markdown(f"{icon + ' ' if icon else ''}{text}", help=help)
+    page = page_for(key)
+    if page is not None:
+        try:
+            st.page_link(
+                page, label=text, icon=icon, help=help, disabled=disabled,
+            )
+            return
+        except Exception:
+            pass
+    # No registered page: a view driven standalone (AppTest, or run outside
+    # st.navigation), or a step the running GUI does not carry. Fall back to a
+    # non-clickable label so the row / gate hint still renders -- a dashboard row
+    # must never silently vanish.
+    st.markdown(f"{icon + ' ' if icon else ''}{text}", help=help)
 
 
 def gate(message: str, *keys: str, kind: str = "warning") -> None:

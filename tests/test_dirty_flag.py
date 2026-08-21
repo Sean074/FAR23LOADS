@@ -10,6 +10,20 @@ These views now persist only on an explicit **Apply** (``st.form_submit_button``
 computing the live diagram from an in-memory copy. This test drives each view via
 ``AppTest`` with **no widget interaction** and asserts the seeded project's
 serialized form is byte-for-byte unchanged -- the regression guard for the fix.
+
+**Both GUIs owe this contract** (design note 32, OG-F). It is stated once, here,
+and asserted twice because the two front-ends are driven differently: ``app/``
+has a file per view, and the oracle GUI has one renderer bound to a step key. Its
+fourteen pages were all failing this when the guard first reached them -- the
+generic renderer attached a record to the project merely to give its widgets
+somewhere to write, and rewrote every field it rendered, turning a JSON ``45``
+into ``45.0``: the same number, a different file, and an "Unsaved changes" flag
+the user never earned. Nine of fourteen pages tripped it on the fully-populated
+oracle fixture. The fix is in ``oracle_app/form.py``: a created record stays
+detached until the pass leaves something in it, and a write that would not change
+the value does not happen. The pair of tests below is what pins it -- a render
+changes nothing, **and** an edit still lands, because "never write" would pass
+the first one on its own.
 """
 
 import glob
@@ -70,6 +84,92 @@ def test_render_leaves_project_unchanged(view, example):
 
 
 _GA6 = os.path.join(_ROOT, "examples", "ga6_normal.project.json")
+
+
+#: The oracle GUI's page body: one renderer bound to a step key, which is exactly
+#: what its ``st.Page`` callable runs. There is no view file to point ``AppTest``
+#: at, by design (note 32, G2) -- so the contract is driven through the same
+#: entry every page uses.
+_ORACLE_SCRIPT = "from oracle_app.form import render_step\nrender_step({key!r})\n"
+
+
+def _oracle_keys():
+    from sloads import workflow as wf
+
+    return sorted(wf.oracle_step_keys())
+
+
+@pytest.mark.parametrize("key", _oracle_keys())
+@pytest.mark.parametrize("example", _EXAMPLES, ids=_ids(_EXAMPLES))
+def test_an_oracle_page_render_leaves_the_project_unchanged(key, example):
+    """The same contract as above, for the second GUI -- every page, not a
+    chosen three: fourteen pages from one renderer means one mistake mutates
+    all of them."""
+    from streamlit.testing.v1 import AppTest
+
+    from sloads import io
+
+    project = io.load_project(example)
+    before = io.project_to_dict(project)
+
+    at = AppTest.from_string(_ORACLE_SCRIPT.format(key=key), default_timeout=60)
+    at.session_state["project"] = project
+    at.run()
+    assert not at.exception, [e.message for e in at.exception]
+
+    after = io.project_to_dict(at.session_state["project"])
+    assert after == before, (
+        f"the oracle GUI's {key} page mutated the project on render for "
+        f"{os.path.basename(example)} (dirty flag would trip with no user edit)"
+    )
+
+
+def _number_for(at, path):
+    """The number widget for a registry ``path``.
+
+    Not ``at.number_input(key=path)``: the shell's ``unit_number_input``
+    appends the active unit system to the key so a system switch re-seeds the
+    widget, and a test that hardcoded the suffix would pin an implementation
+    detail of another module.
+    """
+    for widget in at.number_input:
+        if widget.key == path or widget.key.startswith(f"{path}_"):
+            return widget
+    raise KeyError(f"no number input for {path!r}")
+
+
+def test_an_oracle_page_still_persists_what_the_user_types():
+    """The other half, without which "never write anything" would pass.
+
+    Two directions: a field on a record the project already has, and a field on
+    a record it does not -- where the write has to attach the record too, or the
+    oracle GUI could not build a project from scratch, which is its whole job.
+    """
+    from streamlit.testing.v1 import AppTest
+
+    from sloads import io
+    from sloads.models import Project
+
+    project = io.load_project(_GA6)
+    at = AppTest.from_string(_ORACLE_SCRIPT.format(key="structural_speeds"),
+                             default_timeout=60)
+    at.session_state["project"] = project
+    at.run()
+    _number_for(at, "speeds.weight_lb").set_value(3407.0).run()
+    assert at.session_state["project"].speeds.weight_lb == 3407.0
+
+    blank = AppTest.from_string(_ORACLE_SCRIPT.format(key="structural_speeds"),
+                                default_timeout=60)
+    blank.session_state["project"] = Project(name="")
+    blank.run()
+    assert blank.session_state["project"].speeds is None, (
+        "an untouched page attached its record anyway")
+    _number_for(blank, "speeds.weight_lb").set_value(1234.0).run()
+    speeds = blank.session_state["project"].speeds
+    assert speeds is not None and speeds.weight_lb == 1234.0, (
+        "a typed value did not attach the record it belongs to")
+
+
 
 
 # Apply buttons are selected through their **form key**, never positionally

@@ -213,5 +213,108 @@ def test_apply_without_edits_leaves_values_bit_identical(system):
     )
 
 
+# --------------------------------------------------------------------------- #
+# The same contract through the second GUI (design note 32, OG-F)
+# --------------------------------------------------------------------------- #
+# The oracle GUI puts all 230 of its fields through the same
+# ``unit_number_input`` boundary, from one generic renderer -- so the cases here
+# are per *widget kind* rather than per page: a scalar, a member of a composite,
+# and a cell of an editable table are the three paths a number can take into the
+# project, and each is written once in ``oracle_app/form.py``. A conversion bug
+# in any of them is a bug on every page at once, which is the reverse of the
+# per-view risk above and needs the reverse of a per-view test.
+_ORACLE_SCRIPT = "from oracle_app.form import render_step\nrender_step({key!r})\n"
+
+
+def _run_oracle(key: str, system: UnitSystem, project):
+    from streamlit.testing.v1 import AppTest
+
+    at = AppTest.from_string(_ORACLE_SCRIPT.format(key=key), default_timeout=90)
+    project.unit_system = system.value
+    at.session_state["project"] = project
+    at.session_state["unit_system"] = system
+    at.run()
+    assert not at.exception, [e.message for e in at.exception]
+    return at
+
+
+def _oracle_number(at, path: str):
+    """The oracle GUI's number widget for a registry ``path``.
+
+    ``unit_number_input`` appends the active system to the widget key, which is
+    the mechanism that re-seeds a field when the user switches systems -- so the
+    lookup matches the path and lets the suffix be whatever the shell chose.
+    """
+    hits = [n for n in at.number_input
+            if n.key == path or (n.key or "").startswith(f"{path}_")]
+    assert len(hits) == 1, f"expected one widget for {path!r}, got {[n.key for n in hits]}"
+    return hits[0]
+
+
+@pytest.mark.parametrize("system", _SYSTEMS, ids=[s.value for s in _SYSTEMS])
+def test_an_oracle_scalar_is_stored_imperial_from_either_system(system):
+    """A plain number: type 100 in, get 100 in; type 2540 mm, get the same 100 in."""
+    from sloads import io
+
+    project = io.load_project(_GA6)
+    at = _run_oracle("structural_speeds", system, project)
+    field = _oracle_number(at, "speeds.wing_area_sqft")
+    assert (UNIT_LABELS[system]["area_sqft"] in (field.label or "")), (
+        f"{system.value}: {field.label!r} does not state the active area unit")
+
+    typed = to_display(150.0, "area_sqft", system)
+    field.set_value(typed).run()
+    stored = at.session_state["project"].speeds.wing_area_sqft
+    assert math.isclose(stored, 150.0, rel_tol=1e-9), (
+        f"{system.value}: typed {typed} and stored {stored}, expected 150.0 sq ft")
+
+
+@pytest.mark.parametrize("system", _SYSTEMS, ids=[s.value for s in _SYSTEMS])
+def test_an_oracle_composite_member_is_stored_imperial_from_either_system(system):
+    """A member of a ``Tuple[float, float]`` -- the gear axle's (X, Z) station,
+    which has no unit suffix in its own name and gets one from the registry."""
+    from sloads import io
+
+    project = io.load_project(_GA6)
+    at = _run_oracle("landing_loads", system, project)
+    field = _oracle_number(at, "landing.main_gear.axle_static.0")
+
+    typed = to_display(120.0, "length", system)
+    field.set_value(typed).run()
+    stored = at.session_state["project"].landing.main_gear.axle_static[0]
+    assert math.isclose(stored, 120.0, rel_tol=1e-9), (
+        f"{system.value}: typed {typed} and stored {stored}, expected 120.0 in")
+
+
+def _oracle_keys():
+    from sloads import workflow as wf
+
+    return sorted(wf.oracle_step_keys())
+
+
+@pytest.mark.parametrize("key", _oracle_keys())
+def test_an_untouched_oracle_page_stores_exactly_what_it_loaded_in_si(key):
+    """The rounding trap, in the GUI that renders every field live.
+
+    ``app/`` gets one shot at this per Apply; the oracle GUI writes on every
+    rerun, so a value converted out to SI and straight back would walk the
+    project a hair at a time, on every keystroke anywhere on the page. It did:
+    ``116 in`` came back as ``115.99999999999999``, on untouched geometry, for
+    every SI user. Nothing is typed here at all.
+
+    Every page, and SI only: ``tests/test_dirty_flag.py`` runs the Imperial
+    direction over every page and example, and Imperial cannot drift -- its
+    conversion is the identity. This is the direction with a factor in it.
+    """
+    from sloads import io
+
+    project = io.load_project(_GA6)
+    project.unit_system = UnitSystem.SI.value  # the selection is itself an edit (D-22)
+    before = io.project_to_dict(project)
+    at = _run_oracle(key, UnitSystem.SI, project)
+    assert io.project_to_dict(at.session_state["project"]) == before, (
+        f"rendering {key} in SI changed the project")
+
+
 if __name__ == "__main__":  # pragma: no cover - needs pytest for parametrize
     raise SystemExit(pytest.main([__file__, "-q"]))

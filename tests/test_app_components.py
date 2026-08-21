@@ -223,6 +223,47 @@ def test_every_requirement_is_linkable_or_knowingly_not():
     )
 
 
+# --------------------------------------------------------------------------- #
+# A link names a step, not a path (design note 32, OG-F)
+# --------------------------------------------------------------------------- #
+def test_a_link_targets_the_running_guis_own_page(monkeypatch):
+    """``workflow_page_link`` hands ``st.page_link`` the registered page object.
+
+    Before OG-F it built ``views/<key>.py`` -- one front-end's directory layout,
+    inside the shell both of them import. The page a link points at now comes
+    from whichever GUI registered its own set.
+    """
+    from app_shell import nav
+
+    sentinel = object()
+    targets = []
+    monkeypatch.setattr(comp.st, "session_state", {nav.PAGES: {"wing_loads": sentinel}})
+    monkeypatch.setattr(comp.st, "page_link", lambda page, **kw: targets.append((page, kw)))
+    monkeypatch.setattr(comp.st, "markdown", lambda *a, **k: targets.append(("markdown", a)))
+
+    comp.workflow_page_link("wing_loads")
+    assert len(targets) == 1
+    page, kwargs = targets[0]
+    assert page is sentinel, "the link did not target the registered page object"
+    assert kwargs["label"] == "Wing Loads", "the label is not the step's own title"
+
+
+def test_a_link_to_a_page_this_gui_does_not_carry_degrades_to_text(monkeypatch):
+    """The oracle GUI carries fourteen of the twenty-two steps, and a view driven
+    standalone registers nothing at all. Neither may raise, and neither may emit
+    a link to a page that is not there -- a gate hint must still be readable."""
+    from app_shell import nav
+
+    calls = []
+    monkeypatch.setattr(comp.st, "session_state", {nav.PAGES: {}})
+    monkeypatch.setattr(comp.st, "page_link",
+                        lambda *a, **k: pytest.fail("linked to an unregistered page"))
+    monkeypatch.setattr(comp.st, "markdown", lambda text, **k: calls.append(text))
+
+    comp.workflow_page_link("wing_loads")
+    assert calls == ["Wing Loads"]
+
+
 def test_gate_without_a_producer_still_renders_a_message(monkeypatch):
     """A requirement with no producing step must still produce a visible gate --
     a missing link is a degraded message, never a blank page."""

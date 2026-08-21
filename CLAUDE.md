@@ -133,9 +133,11 @@ are interchangeable front-ends. Data flow: `project.json` → `io.load_project` 
   (the only dataclass↔JSON mapping), `units.py` (Imperial-internal; convert at the
   boundary), `report/` (limit→ultimate boundary), `export/` (sbeam bridge +
   `coordinates.py`), `constants.py`.
-- `app/Home.py` + `app/views/*.py` — Streamlit UI built from `workflow.py` (only
-  `Home.py` calls `st.set_page_config`); `cli.py` — argparse; `tests/` — pytest, each
-  file with a zero-dependency `__main__` self-runner.
+- `app/Home.py` + `app/views/*.py` and `oracle_app/Oracle.py` — two Streamlit
+  front-ends built from `workflow.py` over the shared `app_shell/`; **exactly one
+  `st.set_page_config` per GUI entry point, none anywhere else** (guard:
+  `tests/test_app_shell.py`). `cli.py` — argparse; `tests/` — pytest, each file
+  with a zero-dependency `__main__` self-runner.
 
 **Module contract** (all 22 suite programs ported; applies to new concept modules):
 pure calc, no I/O; read upstream values from the `Project` slice — never recompute

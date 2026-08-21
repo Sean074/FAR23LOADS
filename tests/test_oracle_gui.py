@@ -152,15 +152,53 @@ def test_there_is_no_page_list_in_the_gui():
         + "\n".join(offenders))
 
 
+def _module_assignments(tree):
+    """``{name: value node}`` for the entry point's module-level assignments."""
+    out = {}
+    for node in tree.body:
+        if isinstance(node, ast.Assign):
+            for target in node.targets:
+                if isinstance(target, ast.Name):
+                    out[target.id] = node.value
+    return out
+
+
+def _derives_from(node, assignments, wanted, _seen=None):
+    """True if ``node`` reaches a call to ``wanted``, following module names."""
+    _seen = _seen or set()
+    for inner in ast.walk(node):
+        if isinstance(inner, ast.Attribute) and inner.attr == wanted:
+            return True
+        if isinstance(inner, ast.Name) and inner.id in assignments and inner.id not in _seen:
+            _seen.add(inner.id)
+            if _derives_from(assignments[inner.id], assignments, wanted, _seen):
+                return True
+    return False
+
+
 def test_the_entry_point_navigates_the_derived_step_set():
-    """Gate G2: the navigation argument is built from ``oracle_steps()``."""
-    source = open(_ENTRYPOINT, encoding="utf-8").read()
-    calls = [n for n in ast.walk(ast.parse(source))
-             if isinstance(n, ast.Call) and getattr(n.func, "attr", None) == "navigation"]
-    assert len(calls) == 1, "expected exactly one st.navigation call"
-    names = {n.attr for n in ast.walk(calls[0]) if isinstance(n, ast.Attribute)}
-    assert "oracle_steps" in names, (
-        "st.navigation does not derive its pages from workflow.oracle_steps()")
+    """Gate G2: the navigated page set is built from ``oracle_steps()`` -- and
+    the page set the link helper resolves against is *the same one* (OG-F).
+
+    Two page sets built from the same source would still drift the day one of
+    them gains a filter; the assertion is that there is one set, derived, used
+    twice.
+    """
+    tree = ast.parse(open(_ENTRYPOINT, encoding="utf-8").read())
+    assignments = _module_assignments(tree)
+    calls = {}
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Call):
+            name = getattr(node.func, "attr", None) or getattr(node.func, "id", None)
+            if name in ("navigation", "register_pages"):
+                calls.setdefault(name, []).append(node)
+
+    assert len(calls.get("navigation", [])) == 1, "expected exactly one st.navigation call"
+    assert len(calls.get("register_pages", [])) == 1, (
+        "the oracle GUI must register its page set exactly once, for the links")
+    for name, call in ((n, c[0]) for n, c in calls.items()):
+        assert _derives_from(call.args[0], assignments, "oracle_steps"), (
+            f"{name}() is not built from workflow.oracle_steps()")
 
 
 def test_the_derived_page_set_is_the_fourteen_oracle_steps():

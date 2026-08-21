@@ -262,6 +262,7 @@ FAR23LOADS/
 │   ├── components.py             # page scaffold, unit-input boundary, page links, applicability banner
 │   ├── project_state.py          # the project in session state + the unsaved-changes / discard guard
 │   ├── sidebar.py                # the global sidebar: units toggle, project Open/Save/upload, About
+│   ├── nav.py                    # which page a step key is in the running GUI — links resolve to a page, not a path (OG-F)
 │   └── limit_csv.py              # the analysis pages' LIMIT tables + downloads (pure, no Streamlit)
 ├── app/                          # multi-page Streamlit UI (st.navigation, 6 sections — Phase D)
 │   ├── Home.py                   # entry point: set_page_config + its own nav from sloads.workflow
@@ -330,6 +331,24 @@ So that every module is copy-of-the-pattern, these are fixed once:
   **Every deliverable carries the methods & units stamp (M4-20 step 5).** All the CSV writers *and* all five BDF writers (`force_moment_cards`, `stick_model_bdf`, and the body/tail/control-surface card sets) take `header_comment=`, which the Export page fills from `report.methods.csv_comment_block` / `bdf_comment_block`. `$` and `#` are inert to a bulk-data parser and to `strip_comment_lines`/`pandas(comment="#")` respectively, and an empty `header_comment` returns the payload byte-identical, so the stamp is free. The statement carries the bundle's `system=` and names both channels' unit sets — see `00_program_overview.md` §Units, *In-band statement*.
   **The writer owns the unit conversion, the renderer does not (M4-20 step 3).** `io.load_cases_csv(results, header_comment="", *, system=…)` calls `units.convert_results` **once** and hands the converted conditions to the unit-agnostic `load_cases_to_rows`/`results_to_rows`, which read each `LoadValue.units` string into the column header. So a new module needs no unit code to export correctly in either system — and callers pass **Imperial** results plus `system=`, never pre-converted results plus `system=` (that is a double conversion). `load_cases_csv` is the *only* `convert_results` call in `io.py`, and a test keeps it that way.
 - **Units at the boundary only.** Calc stays in one internal system; `units.py` converts JSON-in and display/CSV-out. (Already implemented.) **Deliverables render in the user-selected system** — report, load-case CSV, span CSVs and the sbeam BDF, one system per bundle, each stating it in-band; the selection is the GUI toggle, persisted in the project's unit-system field and overridable headless by CLI `--units imperial|si` (default Imperial). See `00_program_overview.md`, *Deliverable units follow the user's selection*, and `SUMMARY_REPORT.md` §3.5. The GUI's Imperial/SI choice is a single sidebar control (`app_shell/sidebar.py`, shared by every front-end); it is not a per-page setting. Since **M4-20 step 2** it writes **`Project.unit_system`** (schema v38), so changing units is a project edit and shows as an unsaved change (decision D-22), and **`app_shell.components.active_system()` is the one function in the whole app layer that reads it** (D-16) — every view follows automatically through `unit_number_input`/`page`, and `st.session_state["unit_system"]` survives only as the fallback for a render that has no project yet. The field is a **preference**: it says nothing about the units of the values stored beside it. Parse it with `units.unit_system_from`, which degrades any unrecognised value to Imperial rather than raising — a junk preference must never block the load of an otherwise-valid project. Airspeed (KEAS) and altitude (ft) are aviation-standard and are never converted by this toggle. `project.json` on disk stays Imperial-only regardless of the toggle — `units.project_dict_to_display`/`project_dict_to_imperial` convert the whole project dict for the **Project JSON Editor** page only (hand-edit in your chosen units, Apply converts back to Imperial before it re-enters the session); no unit tag is ever written to the file.
+- **A GUI is an entry point plus its pages, and the shell knows neither.** There
+  are two front-ends over one calc package (`app/`, `oracle_app/`), sharing
+  `app_shell/` and nothing else. Two rules hold the boundary, both guarded in
+  `tests/test_app_shell.py`: **exactly one `st.set_page_config` per GUI entry
+  point, and none anywhere else** — not in a view, not in the shell, which is
+  imported by both (note 32, OG-10); and **a cross-page link names a step, never
+  a path** — `components.workflow_page_link` resolves the key to the running
+  GUI's own page object through `app_shell.nav`, so it cannot point at a page
+  that GUI does not carry (OG-F). A third rule has no guard because it is a
+  consequence of the first two: the shell contains no directory name of either
+  front-end.
+- **A render pass must not mutate the project** (M2-3; both GUIs since OG-F,
+  `tests/test_dirty_flag.py`). Visiting a page must leave `project_to_dict`
+  byte-identical, or the sidebar's unsaved-changes flag and its discard dialog
+  fire on a user who typed nothing. `app/`'s views persist on an explicit
+  **Apply**; the oracle GUI's generic renderer persists live but writes only
+  what changed, and attaches a record it created only if the pass put something
+  in it.
 - **Schema changes go through the migration chain** (`sloads/migrations.py`,
   M4-10). `io.project_from_dict` reads the **current** schema only; any older
   file is normalised first by a chain of pure `dict -> dict` hops, one per

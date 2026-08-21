@@ -13,6 +13,19 @@ contract can rot:
 
 The AppTest smoke suite (``test_views_smoke``) covers that the links *render*;
 this covers that they *point somewhere real*, without a Streamlit runtime.
+
+**This file is ``app/``-scoped, deliberately** (design note 32, OG-F). OG-9 had
+scheduled it to be parametrized over both GUI directories, on the sound reasoning
+that a second GUI is invisible to an ``app/views/``-hardcoded guard. It does not
+transfer: the oracle GUI has no view files at all (its pages are callables, gate
+G2), so the first test below is false there by construction, and it makes no
+``workflow_page_link`` calls, so the second would pass on an empty set and report
+it as covered. What replaced the parametrization is structural rather than
+another scan -- ``workflow_page_link`` no longer builds a path at all. It resolves
+a step key to the running GUI's own page object through ``app_shell.nav``, so a
+link cannot name a page that does not exist, in either front-end. The
+``views/<key>.py`` assumption this file pins is now ``app/``'s alone, which is
+exactly what it should be.
 """
 
 import ast

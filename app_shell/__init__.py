@@ -25,12 +25,18 @@ Layout:
   toggle, project Open/Save/upload/download, About.
 * :mod:`app_shell.limit_csv` — the analysis pages' LIMIT tables and downloads
   (pure functions, no Streamlit).
+* :mod:`app_shell.nav` — the register of *which page a step key is* in the
+  running GUI, so a cross-page link resolves to a page object rather than to one
+  front-end's directory layout (note 32, OG-F).
 
 **What is *not* shell: navigation.** Each GUI builds its own page set —
 ``app/`` from every :data:`sloads.workflow.STEPS` entry, the oracle GUI from the
 subset with a ``.bas`` program (note 32, OG-2) — so a shared nav builder would
-be the wrong shape for both. ``st.set_page_config`` likewise stays in each
-entry point, one call each (OG-10).
+be the wrong shape for both. What *is* shared is only the lookup: an entry point
+hands :func:`app_shell.nav.register_pages` the page set it just built, and a link
+asks for one back. ``st.set_page_config`` likewise stays in each entry point,
+**exactly one call per entry point, and none anywhere else** (OG-10) — guarded in
+``tests/test_app_shell.py``.
 
 Nothing here computes a load, converts a deliverable or writes an export: the
 shell is presentation over :mod:`sloads`, and the guard in

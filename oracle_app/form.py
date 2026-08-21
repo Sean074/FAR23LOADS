@@ -196,12 +196,70 @@ def _empty_value(hint: object) -> Any:
     return 0.0
 
 
+# --------------------------------------------------------------------------- #
+# Writing to the project: only what the user actually changed (OG-F)
+# --------------------------------------------------------------------------- #
+#: Records this render pass created but has not attached to the project. A page
+#: needs somewhere for its widgets to write *before* it knows whether anything
+#: will be written, so a missing record is built detached and committed by
+#: :func:`commit_pending` only if the pass left something in it. Reset at the
+#: top of :func:`render_step`, which is the only entry point; module state
+#: rather than a threaded argument because Streamlit runs one script at a time
+#: and every reader is in this file.
+_PENDING: List[Tuple[Any, str, Any]] = []
+
+
+def _persist(record: Any, name: str, value: Any) -> None:
+    """Write ``value`` only if it differs from what is already there.
+
+    A render pass must not mutate the project (``tests/test_dirty_flag.py``,
+    M2-3), and the naive ``setattr`` on every rerun broke that twice over: it
+    re-wrote every field of every visited page, and it rewrote ``45`` as
+    ``45.0`` because a widget returns a float where the JSON held an int --
+    the same number, a different file, an "Unsaved changes" flag the user
+    never earned. Equality settles both (``45 == 45.0``). The second clause
+    keeps an *absent* field absent: a ``None`` rendered as the type's empty
+    value is still unfilled, and only a real entry makes it real.
+    """
+    current = getattr(record, name, None)
+    if current == value or (current is None and not value):
+        return
+    setattr(record, name, value)
+
+
+def _is_blank(value: Any) -> bool:
+    """True if ``value`` is an untouched record (or an empty list of them)."""
+    if isinstance(value, list):
+        return not value
+    return value == blank(type(value))
+
+
+def commit_pending() -> None:
+    """Attach the records this pass created, if the pass put something in them.
+
+    A chain is attached whole or not at all: filling ``geometry.parametric`` on
+    a project with no ``geometry`` must attach both, and touching neither must
+    leave the project exactly as it was found.
+    """
+    needed = set()
+    for owner, _, value in reversed(_PENDING):
+        if id(value) in needed or not _is_blank(value):
+            needed.add(id(value))
+            needed.add(id(owner))
+    for owner, name, value in _PENDING:
+        if id(value) in needed:
+            setattr(owner, name, value)
+    _PENDING.clear()
+
+
 def record_at(project: Project, prefix: str) -> Any:
     """The record instance at ``prefix``, creating every missing step of the way.
 
     The oracle GUI's job on a fresh project is to *make* the slices, so a missing
     one is the normal state rather than an error: an absent ``speeds`` means the
     Structural Speeds page has not been filled in yet, not that it is unavailable.
+    A record created here is **detached** until :func:`commit_pending` decides
+    the page earned it -- see :data:`_PENDING`.
     """
     obj: Any = project
     for segment in [s for s in prefix.split(".") if s]:
@@ -212,7 +270,7 @@ def record_at(project: Project, prefix: str) -> Any:
             if not (isinstance(inner, type) and dataclasses.is_dataclass(inner)):
                 return None
             value = blank(inner)
-            setattr(obj, segment, value)
+            _PENDING.append((obj, segment, value))
         obj = value
     return obj
 
@@ -232,7 +290,7 @@ def rows_at(project: Project, prefix: str) -> List[Any]:
     rows = getattr(owner, attr, None)
     if rows is None:
         rows = []
-        setattr(owner, attr, rows)
+        _PENDING.append((owner, attr, rows))
     return rows
 
 
@@ -281,15 +339,15 @@ def render_scalar(record: Any, path: str, *, key: str, container: Any = None) ->
             label, options, index=options.index(current), key=key, help=help_text,
             format_func=lambda o: "—" if o is None else f"{o.value} · {pretty(o.name)}",
         )
-        setattr(record, name, chosen)
+        _persist(record, name, chosen)
         return
 
     if inner is bool:
-        setattr(record, name, where.checkbox(label, bool(value), key=key, help=help_text))
+        _persist(record, name, where.checkbox(label, bool(value), key=key, help=help_text))
         return
 
     if inner is str:
-        setattr(record, name, where.text_input(label, value or "", key=key, help=help_text))
+        _persist(record, name, where.text_input(label, value or "", key=key, help=help_text))
         return
 
     unit = field_unit(name)
@@ -297,10 +355,10 @@ def render_scalar(record: Any, path: str, *, key: str, container: Any = None) ->
         entered = where.number_input(
             f"{label} ({_unit_label(unit, active_system())})".replace(" ()", ""),
             value=int(value or 0), step=1, key=key, help=help_text)
-        setattr(record, name, int(entered))
+        _persist(record, name, int(entered))
         return
 
-    setattr(record, name, _number(
+    _persist(record, name, _number(
         label, value if value is not None else 0.0, unit, key,
         container=where, help=help_text, format="%.4f"))
 
@@ -338,7 +396,7 @@ def render_tuple(record: Any, path: str, *, key: str, container: Any = None) -> 
                 container=columns[i], format="%.4f")
         for i, member in enumerate(_members(path, arity))
     ]
-    setattr(record, name, tuple(entered))
+    _persist(record, name, tuple(entered))
 
 
 def render_curve(record: Any, path: str, *, key: str, container: Any = None) -> None:
@@ -363,12 +421,21 @@ def render_curve(record: Any, path: str, *, key: str, container: Any = None) -> 
         pd.DataFrame(display, columns=headers), num_rows="dynamic", key=key,
         width="stretch",
     )
+    # ``rows`` is what was rendered, so row ``n`` of the editor is row ``n`` of
+    # the stored curve until the user adds or removes one -- and past that point
+    # the value has genuinely changed, so reconstructing it is correct.
+    def _stored(index: int, member: int) -> Any:
+        if index >= len(rows):
+            return None
+        row = rows[index]
+        return row[member] if arity > 1 else row
+
     kept = [
-        [_to_imperial(v, units[i]) for i, v in enumerate(values)]
-        for values in edited.values.tolist()
+        [_to_imperial_kept(v, units[i], _stored(n, i)) for i, v in enumerate(values)]
+        for n, values in enumerate(edited.values.tolist())
         if not any(pd.isna(v) for v in values)
     ]
-    setattr(record, name, [tuple(r) if arity > 1 else r[0] for r in kept])
+    _persist(record, name, [tuple(r) if arity > 1 else r[0] for r in kept])
 
 
 def render_enum_set(record: Any, path: str, *, key: str, container: Any = None) -> None:
@@ -381,7 +448,7 @@ def render_enum_set(record: Any, path: str, *, key: str, container: Any = None) 
         _field_label(path), list(enum), default=sorted(getattr(record, name) or (),
                                                        key=lambda m: m.value),
         key=key, help=_help(path), format_func=lambda m: pretty(m.name))
-    setattr(record, name, set(chosen))
+    _persist(record, name, set(chosen))
 
 
 def _to_display(value: Any, unit: FieldUnit) -> Any:
@@ -394,6 +461,24 @@ def _to_imperial(value: Any, unit: FieldUnit) -> Any:
     if unit.kind is None or not isinstance(value, (int, float)):
         return value
     return to_imperial_scalar(float(value), unit.kind, active_system())
+
+
+def _to_imperial_kept(value: Any, unit: FieldUnit, stored: Any) -> Any:
+    """``value`` back in Imperial, or ``stored`` unchanged if it was untouched.
+
+    The rounding trap, in the paths that convert for themselves (the composite
+    and table widgets; ``unit_number_input`` already does this for scalars).
+    In SI, ``116 in`` goes out as ``2946.4 mm`` and comes back as
+    ``115.99999999999999`` -- so an SI user rendering a geometry page walked
+    every station a hair, on every rerun, having typed nothing. The widget hands
+    back exactly the float it was given when the user has not touched it, so
+    equality *in display space* is the test for "unchanged", and the stored
+    value is returned untouched rather than reconstructed.
+    """
+    numeric = isinstance(stored, (int, float)) and not isinstance(stored, bool)
+    if numeric and value == _to_display(stored, unit):
+        return stored
+    return _to_imperial(value, unit)
 
 
 def render_field(record: Any, path: str, *, key: str, container: Any = None) -> None:
@@ -528,19 +613,19 @@ def _cell_in(row: Any, path: str, value: Any, unit: FieldUnit) -> None:
     hint = fr.field_type(path)
     inner, optional = _unwrap_optional(hint)
     if value is None or (isinstance(value, float) and pd.isna(value)):
-        setattr(row, name, None if optional else getattr(row, name))
+        _persist(row, name, None if optional else getattr(row, name))
         return
     enum = _enum_of(inner)
     if enum is not None:
-        setattr(row, name, enum(value))
+        _persist(row, name, enum(value))
     elif inner is bool:
-        setattr(row, name, bool(value))
+        _persist(row, name, bool(value))
     elif inner is str:
-        setattr(row, name, str(value))
+        _persist(row, name, str(value))
     elif inner is int:
-        setattr(row, name, int(value))
+        _persist(row, name, int(value))
     else:
-        setattr(row, name, float(_to_imperial(value, unit)))
+        _persist(row, name, float(_to_imperial_kept(value, unit, getattr(row, name, None))))
 
 
 # --------------------------------------------------------------------------- #
@@ -563,6 +648,7 @@ def page_groups(key: str) -> List[Tuple[str, List[str]]]:
 
 def render_step(key: str) -> None:
     """Render the oracle GUI page for workflow step ``key``."""
+    _PENDING.clear()
     step = wf.BY_KEY[key]
     ctx = page_header(key, caption=_step_caption(step))
     groups = page_groups(key)
@@ -583,6 +669,10 @@ def render_step(key: str) -> None:
                 render_record(ctx.project, prefix, paths)
             st.divider()
 
+    # Records the widgets were given are attached only now, and only if the pass
+    # put something in them (OG-F): visiting a page must not dirty a project.
+    commit_pending()
+
     # A page that takes no input still runs its programs -- Tail Loads reads
     # entirely upstream and is all output (OG-E).
     render_results(ctx.project, key, ctx.system)
@@ -594,7 +684,7 @@ def _step_caption(step: wf.WorkflowStep) -> str:
 
 
 __all__ = [
-    "MEMBER_LABELS", "blank", "is_composite", "page_groups", "record_at",
+    "MEMBER_LABELS", "blank", "commit_pending", "is_composite", "page_groups", "record_at",
     "render_field", "render_record", "render_scalar", "render_step",
     "render_table", "row_class", "rows_at",
 ]

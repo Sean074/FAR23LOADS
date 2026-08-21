@@ -29,6 +29,7 @@ from __future__ import annotations
 
 import streamlit as st
 
+from app_shell.nav import register_pages
 from app_shell.project_state import ensure_project
 from app_shell.sidebar import render_shell_sidebar
 from oracle_app.form import render_step
@@ -64,5 +65,10 @@ st.sidebar.caption(
     "The full sloads app is `streamlit run app/Home.py`."
 )
 
-pg = st.navigation([_page(step) for step in wf.oracle_steps()], expanded=True)
+_pages = {step.key: _page(step) for step in wf.oracle_steps()}
+# This GUI's page set, so a cross-page link resolves to a page it actually
+# carries rather than to app/'s directory layout (note 32, OG-F).
+register_pages(_pages)
+
+pg = st.navigation(list(_pages.values()), expanded=True)
 pg.run()
