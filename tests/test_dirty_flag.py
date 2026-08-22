@@ -170,6 +170,155 @@ def test_an_oracle_page_still_persists_what_the_user_types():
         "a typed value did not attach the record it belongs to")
 
 
+def _value_at(project, path):
+    obj = project
+    for segment in path.split("."):
+        obj = getattr(obj, segment)
+    return obj
+
+
+#: One field pair per affected page shape (#35, CR-A-1): each pair sits in two
+#: different record groups under the same missing ancestor, which is exactly
+#: where the pending-record clobber lived -- every group used to mint its own
+#: blank ancestor and the last one committed won, discarding the other edit.
+#:
+#: ``landing_loads`` is the exception since note 33. It had three groups under
+#: ``landing`` only because the gear geometry was duplicated onto that slice; the
+#: consolidation removed the duplicates, so the page now has **one** group and
+#: therefore **cannot** exercise the clobber -- the renderer resolves the record
+#: once per group, so with one group there is no second walk to mint a second
+#: blank. Measured, not assumed: reintroducing CR-A-1 fails the other three cases
+#: and this one still passes. It is kept as a plain two-edits-one-rerun check on
+#: the page (worth having, and it costs nothing), and the clobber coverage rests
+#: on the three multi-group pages above.
+_TWO_EDIT_PAIRS = [
+    ("configuration_layout",
+     ("geometry.parametric.wing_area_sqft", 180.0),
+     ("geometry.empennage.htail.htail_area_sqft", 32.5)),
+    ("weight_mass",
+     ("weight.estimation.baggage_lb", 120.0),
+     ("weight.envelope.gross_weight", 2400.0)),
+    ("landing_loads",
+     ("landing.tire_od_in", 19.5),
+     ("landing.hub_diameter_in", 7.25)),
+    ("structural_speeds",
+     ("speeds.weight_lb", 1234.0),
+     ("speeds.mach_limit.shoulder_altitude_ft", 20000.0)),
+]
+
+
+@pytest.mark.parametrize("key,first,second", _TWO_EDIT_PAIRS,
+                         ids=[p[0] for p in _TWO_EDIT_PAIRS])
+def test_two_edits_in_one_rerun_both_persist(key, first, second):
+    """#35 (CR-A-1): two widget changes in one rerun -- fast typing,
+    ``data_editor`` batching -- must both land, on a blank project where their
+    shared ancestor record does not exist yet. Before the fix the two groups
+    each created their own detached blank and one edit silently vanished while
+    its widget still displayed it."""
+    from streamlit.testing.v1 import AppTest
+
+    from sloads.models import Project
+
+    at = AppTest.from_string(_ORACLE_SCRIPT.format(key=key), default_timeout=60)
+    at.session_state["project"] = Project(name="")
+    at.run()
+    _number_for(at, first[0]).set_value(first[1])
+    _number_for(at, second[0]).set_value(second[1])
+    at.run()
+    assert not at.exception, [e.message for e in at.exception]
+    project = at.session_state["project"]
+    assert _value_at(project, first[0]) == first[1], (
+        f"{first[0]} was discarded when {second[0]} was edited in the same rerun")
+    assert _value_at(project, second[0]) == second[1], (
+        f"{second[0]} was discarded when {first[0]} was edited in the same rerun")
+
+
+def test_a_typed_zero_lands_in_an_unfilled_optional_field():
+    """#35 (CR-A-3): sea level is a real answer. An unfilled Optional scalar
+    used to render as ``0.0``, making a deliberate 0 indistinguishable from the
+    seed -- it could never be persisted."""
+    from streamlit.testing.v1 import AppTest
+
+    from sloads.models import Project
+
+    at = AppTest.from_string(_ORACLE_SCRIPT.format(key="one_engine_out"),
+                             default_timeout=60)
+    at.session_state["project"] = Project(name="")
+    at.run()
+    widget = _number_for(at, "one_engine_out.altitude_ft")
+    assert widget.value is None, (
+        "an unfilled Optional field rendered a fake 0 instead of empty")
+    widget.set_value(0.0).run()
+    assert not at.exception, [e.message for e in at.exception]
+    oeo = at.session_state["project"].one_engine_out
+    assert oeo is not None and oeo.altitude_ft == 0.0, (
+        "a typed 0 into an unfilled Optional field did not persist")
+
+
+def test_an_unfilled_optional_field_renders_empty_and_stays_absent():
+    """The other half of the CR-A-3 fix: rendering an Optional as empty must
+    not turn a plain visit into an edit -- the field stays ``None`` until the
+    user actually enters a number."""
+    from streamlit.testing.v1 import AppTest
+
+    from sloads import io
+
+    project = io.load_project(_GA6)
+    project.speeds.chosen_vc = None
+    at = AppTest.from_string(_ORACLE_SCRIPT.format(key="structural_speeds"),
+                             default_timeout=60)
+    at.session_state["project"] = project
+    at.run()
+    assert _number_for(at, "speeds.chosen_vc").value is None
+    assert at.session_state["project"].speeds.chosen_vc is None, (
+        "rendering an unfilled Optional field wrote something into it")
+
+
+class _CurveStub:
+    """A container standing in for ``st``: hands ``render_curve`` a crafted
+    edited table and records what it captions. ``AppTest`` cannot drive a
+    ``data_editor``, so the persist path is exercised by direct call."""
+
+    def __init__(self, edited):
+        self._edited = edited
+        self.captions = []
+
+    def markdown(self, *args, **kwargs):
+        pass
+
+    def data_editor(self, *args, **kwargs):
+        return self._edited
+
+    def caption(self, text):
+        self.captions.append(text)
+
+
+def _rendered_curve(rows):
+    """``render_curve`` on a blank surface fed ``rows`` as the edited table."""
+    import pandas as pd
+
+    from oracle_app import form
+    from sloads.models import SurfaceInput
+
+    record = form.blank(SurfaceInput)
+    stub = _CurveStub(pd.DataFrame(rows, columns=["X", "Y"]))
+    form.render_curve(record, "geometry.surfaces[].leading_edge",
+                      key="t.leading_edge", container=stub)
+    return record, stub
+
+
+def test_an_incomplete_curve_row_is_held_out_and_said_so():
+    """#35 (CR-A-6): a row with an empty cell stays out of the stored curve --
+    that part is unchanged -- but the page now says so instead of letting the
+    half-typed row silently vanish on the next rerun."""
+    record, stub = _rendered_curve([[10.0, float("nan")], [1.0, 2.0]])
+    assert record.leading_edge == [(1.0, 2.0)], "a complete row must still persist"
+    assert stub.captions, "an incomplete row was dropped with no message"
+
+    # An all-empty row is a freshly added one, not a partial entry: no caption.
+    record, stub = _rendered_curve([[1.0, 2.0], [float("nan"), float("nan")]])
+    assert record.leading_edge == [(1.0, 2.0)]
+    assert not stub.captions, "a freshly added blank row must not nag"
 
 
 # Apply buttons are selected through their **form key**, never positionally
