@@ -253,18 +253,24 @@ def _oracle_number(at, path: str):
 
 @pytest.mark.parametrize("system", _SYSTEMS, ids=[s.value for s in _SYSTEMS])
 def test_an_oracle_scalar_is_stored_imperial_from_either_system(system):
-    """A plain number: type 100 in, get 100 in; type 2540 mm, get the same 100 in."""
+    """A plain number: type 100 in, get 100 in; type 2540 mm, get the same 100 in.
+
+    Driven on the wing area's **owner**. It used to type into
+    ``speeds.wing_area_sqft``, which #36 established is display-only — STRSPEED
+    resolves the planform and ignores that field — so it now renders disabled and
+    a test that typed into it was asserting a conversion no user can perform.
+    """
     from sloads import io
 
     project = io.load_project(_GA6)
-    at = _run_oracle("structural_speeds", system, project)
-    field = _oracle_number(at, "speeds.wing_area_sqft")
+    at = _run_oracle("configuration_layout", system, project)
+    field = _oracle_number(at, "geometry.parametric.wing_area_sqft")
     assert (UNIT_LABELS[system]["area_sqft"] in (field.label or "")), (
         f"{system.value}: {field.label!r} does not state the active area unit")
 
     typed = to_display(150.0, "area_sqft", system)
     field.set_value(typed).run()
-    stored = at.session_state["project"].speeds.wing_area_sqft
+    stored = at.session_state["project"].geometry.parametric.wing_area_sqft
     assert math.isclose(stored, 150.0, rel_tol=1e-9), (
         f"{system.value}: typed {typed} and stored {stored}, expected 150.0 sq ft")
 

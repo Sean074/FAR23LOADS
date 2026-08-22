@@ -264,6 +264,27 @@ def test_a_declared_quantity_really_is_shared():
     )
 
 
+def test_governs_is_only_claimed_by_copies():
+    """``governs`` answers "does the calc honour *this* copy" (#36), so it is
+    meaningless on an owner row — an owner always governs — and a True there
+    would read as though the owner were itself a copy of something."""
+    stray = [e.path for e in REGISTRY if e.governs and e.is_owner]
+    assert not stray, (
+        "these owner rows claim `governs`, which only a copy can: " + ", ".join(stray))
+
+
+def test_every_copy_declares_whether_it_governs():
+    """The flag is a claim about the *calc*, checked against it by hand when the
+    row is written, so this only pins that a copy carries a deliberate answer:
+    a display-only copy is disabled in the GUI and an override stays editable,
+    and defaulting silently to one of those is how the wrong one ships."""
+    for e in REGISTRY:
+        if e.is_owner or e.owner_is_external or not e.owner_path:
+            continue
+        assert isinstance(e.governs, bool), e.path
+        assert e.derived_from.strip(), e.path
+
+
 def test_every_copy_names_an_owner_that_exists():
     """A `derived_from` is either a real registry path or an explicit EXTERNAL
     declaration. Nothing else — a free-text owner is how a registry rots into

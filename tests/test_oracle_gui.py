@@ -38,7 +38,8 @@ from sloads import field_registry as fr  # noqa: E402
 from sloads import io  # noqa: E402
 from sloads import workflow as wf  # noqa: E402
 from sloads.field_registry import reduce_to_oracle_inputs  # noqa: E402
-from sloads.units import AVIATION_STANDARD  # noqa: E402
+from app_shell.components import active_system  # noqa: E402
+from sloads.units import AVIATION_STANDARD, to_display  # noqa: E402
 
 _ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 _GUI = os.path.join(_ROOT, "oracle_app")
@@ -507,6 +508,98 @@ def test_the_launcher_reports_a_missing_entry_point_instead_of_raising():
         assert "not found" in stderr.getvalue()
     finally:
         oracle.ENTRY_POINT = original
+
+
+# --------------------------------------------------------------------------- #
+# One owner at render (#36, CR-A-2)
+# --------------------------------------------------------------------------- #
+def _copies():
+    """Every non-owner copy of a shared quantity that the oracle GUI renders."""
+    oracle = fr.oracle_input_paths()
+    out = []
+    for rows in fr.quantities().values():
+        for row in rows:
+            if (not row.is_owner and not row.owner_is_external
+                    and row.owner_path and row.path in oracle):
+                out.append(row)
+    return sorted(out, key=lambda r: r.path)
+
+
+def test_the_registry_still_has_copies_to_mark():
+    """Guard the guard. The consolidation (note 33) removed most of the copies,
+    and if the rest ever go the tests below would pass by having nothing to
+    check — which is exactly how a rule quietly stops being enforced."""
+    assert _copies(), "no non-owner copies left: retire the marking, do not keep a vacuous guard"
+
+
+@pytest.mark.parametrize("path", [r.path for r in _copies()])
+def test_no_copy_of_a_shared_quantity_renders_as_a_plain_widget(path):
+    """A non-owner copy must say so on the page (#36, CR-A-2).
+
+    Before this, the registry knew which field owned each shared quantity and the
+    renderer did not read it, so wing reference area was independently editable on
+    four pages and gear tread on two, with nothing warning that the numbers
+    disagreed. Every copy now renders either **disabled** (display-only: the
+    consumer resolves the owner, so anything entered here is inert) or **marked**
+    (an override the calc honours), and each states the owner's path.
+    """
+    row = fr.entry(path)
+    at = _render(row.page)
+    assert not at.exception, [e.message for e in at.exception]
+
+    captions = " ".join(c.value or "" for c in at.caption)
+    assert row.owner_path in captions, (
+        f"{path} renders on page {row.page!r} without naming its owner "
+        f"{row.owner_path!r}; the page implies an independent input")
+
+    widget = next((w for w in at.number_input
+                   if w.key == path or (w.key or "").startswith(f"{path}_")), None)
+    if widget is not None and not row.governs:
+        assert widget.disabled, (
+            f"{path} is display-only — the analysis resolves {row.owner_path!r} "
+            "instead — but its widget is editable, so a value typed here is "
+            "silently ignored")
+
+
+def test_a_display_only_copy_shows_the_value_that_governs():
+    """The dead wing-area input (#36; #29 review, note 32 §8).
+
+    ``speeds.wing_area_sqft`` was editable on Structural Speeds while STRSPEED
+    resolved the wing planform instead — an 18 % divergence measured on atr42,
+    with the page showing the number the analysis did not use. It now renders
+    disabled at the owner's value.
+    """
+    project = io.load_project(_EXAMPLE)
+    project.speeds.wing_area_sqft = 1.0          # a value the analysis ignores
+    at = _render("structural_speeds", project)
+    assert not at.exception, [e.message for e in at.exception]
+
+    widget = next(w for w in at.number_input
+                  if (w.key or "").startswith("speeds.wing_area_sqft"))
+    assert widget.disabled
+    owner = project.geometry.parametric.wing_area_sqft
+    assert widget.value == pytest.approx(to_display(owner, "area_sqft", active_system()), rel=1e-6)
+    # ...and rendering it did not write the displayed value back over the stored
+    # one: visiting a page must leave the project alone (OG-F).
+    assert project.speeds.wing_area_sqft == 1.0
+
+
+def test_an_override_that_disagrees_with_its_owner_warns():
+    """An override may differ — that is what it is for — so this warns, it does
+    not correct. ``speeds.weight_lb`` is read verbatim by STRSPEED while
+    ``weight.max_takeoff_weight_lb`` is the MTOW owner (G-14); the two silently
+    disagreeing is the wrong-belief half of CR-A-2."""
+    project = io.load_project(_EXAMPLE)
+    project.speeds.weight_lb = project.weight.max_takeoff_weight_lb + 500.0
+    at = _render("structural_speeds", project)
+    assert not at.exception, [e.message for e in at.exception]
+    assert any("max_takeoff_weight_lb" in (w.value or "") for w in at.warning), (
+        "a design weight disagreeing with the MTOW owner drew no warning")
+
+    project.speeds.weight_lb = project.weight.max_takeoff_weight_lb
+    agreed = _render("structural_speeds", project)
+    assert not any("max_takeoff_weight_lb" in (w.value or "") for w in agreed.warning), (
+        "agreement must be quiet, or the warning is noise nobody reads")
 
 
 if __name__ == "__main__":  # zero-dependency self-runner
