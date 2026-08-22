@@ -288,7 +288,7 @@ def test_gate_without_a_producer_still_renders_a_message(monkeypatch):
         pass
 
     fake.stop = lambda: (_ for _ in ()).throw(_Stop())
-    monkeypatch.setattr(comp, "render_applicability_banner", lambda p: None)
+    monkeypatch.setattr(comp, "render_applicability_banner", lambda p, **kw: None)
     monkeypatch.setattr(comp.wf, "missing_requirements", lambda p, s: ["speeds"])
 
     with pytest.raises(_Stop):
@@ -296,6 +296,45 @@ def test_gate_without_a_producer_still_renders_a_message(monkeypatch):
             pass
     assert shown and "speeds" in shown[0][0]
     assert shown[0][1] == (), "no producer -> no link, but still a message"
+
+
+# --------------------------------------------------------------------------- #
+# 5. The applicability banner's action is optional; its warning is not (CR-A-4)
+# --------------------------------------------------------------------------- #
+def _banner_harness(monkeypatch):
+    """Render the banner against a recorder; return ``(warnings, buttons)``."""
+    from sloads import io
+
+    fake = _harness(monkeypatch, UnitSystem.IMPERIAL)
+    warnings, buttons = [], []
+    fake.warning = lambda text, **k: warnings.append(text)
+    fake.markdown = lambda text, **k: None
+    fake.button = lambda label, **k: buttons.append(label) or False
+
+    example = os.path.join(_ROOT, "examples", "ga6_normal.project.json")
+    project = io.load_project(example)
+    # Above the 12,500 lb ceiling: both members of the MTOW SSOT read (G-14).
+    project.weight.max_takeoff_weight_lb = 20000.0
+    project.speeds.weight_lb = 20000.0
+    return project, warnings, buttons
+
+
+def test_the_banner_offers_the_concept_switch_by_default(monkeypatch):
+    """The main GUI's behaviour, pinned so the shell default cannot be flipped
+    for everyone by a fix aimed at one front-end."""
+    project, warnings, buttons = _banner_harness(monkeypatch)
+    comp.render_applicability_banner(project)
+    assert warnings and "Exceeds FAR 23 applicability" in warnings[0]
+    assert buttons == ["Switch to Concept"]
+
+
+def test_the_banner_without_its_action_still_warns(monkeypatch):
+    """``switch_action=False`` drops the button and nothing else -- an
+    out-of-band airplane is still told its results are an extrapolation."""
+    project, warnings, buttons = _banner_harness(monkeypatch)
+    comp.render_applicability_banner(project, switch_action=False)
+    assert warnings and "Exceeds FAR 23 applicability" in warnings[0]
+    assert buttons == []
 
 
 if __name__ == "__main__":  # pragma: no cover - needs pytest for parametrize/monkeypatch

@@ -809,7 +809,11 @@ def render_step(key: str) -> None:
     """Render the oracle GUI page for workflow step ``key``."""
     _PENDING.clear()
     step = wf.BY_KEY[key]
-    ctx = page_header(key, caption=_step_caption(step))
+    # ``switch_action=False``: an out-of-band airplane is still told its results
+    # are an extrapolation, but concept mode is not this GUI's to enter (OG-1) --
+    # the button wrote ``speeds.category="C"`` and seeded the concept load
+    # factors from a GUI that shows neither (CR-A-4).
+    ctx = page_header(key, caption=_step_caption(step), switch_action=False)
     groups = page_groups(key)
 
     if not groups:

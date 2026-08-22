@@ -22,6 +22,7 @@ from contextlib import contextmanager
 from typing import Iterator, NamedTuple, Optional
 
 import streamlit as st
+from streamlit.errors import StreamlitAPIException
 
 from app_shell.nav import page_for
 from app_shell.widget_keys import widget_key
@@ -69,7 +70,12 @@ def workflow_page_link(
                 page, label=text, icon=icon, help=help, disabled=disabled,
             )
             return
-        except Exception:
+        except StreamlitAPIException:
+            # Streamlit's own refusal to render this link (a page object outside
+            # the running navigation, a script run without one). Narrowed from a
+            # bare ``except Exception`` by CR-A-5/CR-D-10: the intended fallback
+            # -- an unregistered step -- is the ``page is None`` branch below, so
+            # a broad catch here only hid genuine failures as silent text.
             pass
     # No registered page: a view driven standalone (AppTest, or run outside
     # st.navigation), or a step the running GUI does not carry. Fall back to a
@@ -113,7 +119,7 @@ def _switch_to_concept(project: Project) -> None:
     st.session_state["project"] = project
 
 
-def render_applicability_banner(project: Project) -> None:
+def render_applicability_banner(project: Project, *, switch_action: bool = True) -> None:
     """Non-blocking FAR 23 applicability banner with a switch-to-Concept action.
 
     Shows nothing for a GA airplane inside the FAR 23 band, or when the project is
@@ -121,6 +127,12 @@ def render_applicability_banner(project: Project) -> None:
     that case). Otherwise warns that results are a concept-mode extrapolation, lists
     each exceedance (value vs. limit), and offers a one-click switch to concept
     mode.
+
+    ``switch_action=False`` renders the warning and the exceedance list **without**
+    the switch button, for a GUI that does not carry concept mode at all (the
+    oracle GUI, note 32 OG-1; CR-A-4). The exceedances are still stated -- the
+    finding is that the *action* is out of scope there, not the warning: an
+    out-of-band airplane must still be told its results are an extrapolation.
     """
     if project.is_concept:
         return
@@ -137,6 +149,8 @@ def render_applicability_banner(project: Project) -> None:
         st.markdown(
             f"- **{exc.label}:** {exc.value:,.0f} exceeds the limit of {exc.limit:,.0f}"
         )
+    if not switch_action:
+        return
     if st.button("Switch to Concept", key="switch_to_concept"):
         _switch_to_concept(project)
         st.rerun()
@@ -294,6 +308,7 @@ def page_header(
     title: Optional[str] = None,
     caption: Optional[str] = None,
     banner: bool = True,
+    switch_action: bool = True,
 ) -> PageContext:
     """Render a view's standard opening and return its :class:`PageContext`.
 
@@ -307,6 +322,9 @@ def page_header(
     This is the plain-call form, for the top-level script views. Use
     :func:`page` -- the same thing plus an automatic upstream gate -- in new code
     and anywhere the page body already lives inside a function.
+
+    ``switch_action=False`` keeps the applicability warning but drops its
+    switch-to-Concept button, for a GUI without concept mode (CR-A-4).
     """
     step = wf.BY_KEY[key]
     st.title(title if title is not None else step.title)
@@ -315,7 +333,7 @@ def page_header(
 
     project = active_project()
     if banner:
-        render_applicability_banner(project)
+        render_applicability_banner(project, switch_action=switch_action)
 
     system = active_system()
     return PageContext(project, system, labels_for(system))
@@ -328,6 +346,7 @@ def page(
     title: Optional[str] = None,
     caption: Optional[str] = None,
     banner: bool = True,
+    switch_action: bool = True,
     gate_missing: bool = True,
 ) -> Iterator[PageContext]:
     """:func:`page_header` plus the upstream gate, as a context manager.
@@ -347,7 +366,8 @@ def page(
         with page("structural_speeds", caption="...") as (project, system, U):
             v_a = unit_number_input("VA", inp.va, fixed_unit=KEAS, key="va")
     """
-    ctx = page_header(key, title=title, caption=caption, banner=banner)
+    ctx = page_header(key, title=title, caption=caption, banner=banner,
+                      switch_action=switch_action)
 
     missing = wf.missing_requirements(ctx.project, wf.BY_KEY[key])
     if missing and gate_missing:
