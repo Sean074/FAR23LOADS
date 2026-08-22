@@ -164,8 +164,12 @@ traceability with plans 09/11/12/13; the **Pri** column is ordinal only.
 
 > **Removal rule (hard requirement, restating the lifecycle rule).** Once a
 > step is complete it **SHALL be removed** from this table and this file in the
-> same session, with its tiered closure trail. Renumber the remaining rows
-> freely — priorities are an order, not IDs.
+> same session, with its tiered closure trail. A closing change deletes **its
+> own row and touches nothing else** — no renumbering (gaps in **Pri** are
+> fine: it is the order at the last re-cut, not an ID; dense numbering returns
+> only at a re-cut, which owns the whole table) — and rows never cite another
+> row's ordinal (dependencies name the band or the `#N`), so two in-flight
+> changes cannot conflict on this table (`DEVELOPMENT_PROCESS.md` §0).
 
 | Pri | Item (detail below / in its plan) | What ships | Tag | Tier / effort | Depends on |
 |---|---|---|---|---|---|
