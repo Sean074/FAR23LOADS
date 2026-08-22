@@ -25,38 +25,54 @@ conflicting with the next branch) is the evidence. While solo:
 
 | Mechanism | Solo profile |
 |---|---|
-| Branch / PR per item (§1, §2) | **Optional.** Work on a short-lived branch; when `ruff` · `mypy` · `pytest` are green locally, merge to `main` (fast-forward or squash — **one commit per closed item**, subject in the project style, so `git log` stays the step-per-commit record) and push. CI on the push to `main` is the record. Batching independent tier-S items on one branch is fine; each still gets its own commit and its own closure. **A docs-only change set** — every path either `*.md` or under `docs/` or `changes/` — needs no branch at all: edit on `main` and close there (`solo_close.sh --slug <slug>`), because it cannot break the calc and its whole gate is the guard files below. Anything touching `.py`, a fixture or config takes a branch, so a failed gate has somewhere to abort to. **If the item is instead closed by PR** (the owner may keep §2's branch protection on while solo, for the CI-before-merge gate) the discipline is fixed: **one open PR at a time**; sync the branch on `origin/main` *before* opening it, so it is born mergeable; and **a squash-merged branch is dead** — merge with `gh pr merge --squash --delete-branch`, then `git checkout main && git pull`, then branch for the next item, and never commit to a branch after its PR merges. The squash rewrote that branch's history into one new commit on `main`, so every commit it already carries now conflicts with its own merged copy; a follow-up pushed to a merged branch produced exactly that (#53 merged, #54 from the same branch unmergeable, 2026-08-22 — resolved by cherry-picking the residual commits onto a fresh branch, never by hand-resolving the duplicate history). |
+| Branch / PR per item (§1, §2) | **Retired — one milestone branch replaces both** (2026-08-22). `scripts/solo_start.sh dev/vX.Y.Z` opens **one** branch per release off `main`; every item of that milestone is worked and committed **directly on it** — no per-item branch, no per-item PR, **one commit per closed item** with the subject in the project style, so `git log` stays the step-per-commit record. The item's issue closes and its priority-table row leaves **in its own commit**, so the backlog is a live view of what is still open mid-milestone. Each push runs the fast gate on `dev/**` (see the CI row): **advisory** — the branch is unprotected, nothing waits on it, and it runs while the next item is already being worked. When the milestone is empty the release is cut **on this branch** (`RELEASE_PROCESS.md` §4 — there is no separate `release/x.y.z`), and it reaches `main` as **one pull request, merged with a merge commit**, whose push to `main` runs the full matrix. **Why this replaced per-item PRs:** the defect class was two closing paths both claiming to close the item — #38 mixed a hand-made PR with `solo_close.sh`, and the PR body's `Closes #38` closed the issue before the script's own `gh issue close` ran; #53/#54 committed to a branch whose PR had already squash-merged (its commits then conflict with their own squashed copy on `main`, resolved by cherry-picking onto a fresh branch, never by hand-resolving the duplicate history); and the `--ff-only` push needed an admin bypass because `main` requires a PR. One path, one gate, and `main`'s protection stays fully on. |
 | Non-author review, CODEOWNERS (§2, §7) | **Not applicable** — unsatisfiable with one person. Review depth (`CODE_REVIEW_PROCESS.md` §0) is still owed; it is the AI's review in the session, and its findings are filed with bodies (rule 5). |
-| Issues as system of record (§4) | **Optional, and optional in the tooling too.** `00_backlog.md` is the record; the row leaves **in the closing commit** (no `Closes #N`, no `render`, no stale-row window). Issues may be kept for items with discussion; if kept, close them by hand with the merge SHA, or pass the number to `solo_close.sh` and it does it. The issue argument to both scripts is **optional**: omit it and neither script calls `gh` at all — no auth check, no issue read, no `gh issue close`, no `backlog_issues.py check` (which is the table ↔ issues guard and means nothing without issues). Requiring an issue in the scripts made mandatory the one mechanism this row calls optional, at four network round-trips per item. |
+| Issues as system of record (§4) | **Optional, and optional in the tooling too.** `00_backlog.md` is the record; the row leaves **in the closing commit** — on the milestone branch, at the moment the item is done, not when the milestone reaches `main`. That is the point of closing per item rather than in the milestone PR: for the whole milestone the priority table and the open issues stay a live, lock-step view of what is still open, and `backlog_issues.py check` keeps meaning something mid-flight. (No `Closes #N` in the milestone PR — it would re-close what is already closed, which is the #38 failure in a new place; no `render`, no stale-row window.) Issues may be kept for items with discussion; if kept, close them by hand with the merge SHA, or pass the number to `solo_close.sh` and it does it. The issue argument to both scripts is **optional**: omit it and neither script calls `gh` at all — no auth check, no issue read, no `gh issue close`, no `backlog_issues.py check` (which is the table ↔ issues guard and means nothing without issues). Requiring an issue in the scripts made mandatory the one mechanism this row calls optional, at four network round-trips per item. |
 | Rebase before regenerating (§6) | **Unchanged**, and the priority table is a fourth shared counter — a closing commit deletes its own row and touches nothing else (no renumbering; rows never cite another row's ordinal, dependencies name the band or the `#N`). |
 | Closure tiers, fragments, design-note-before-physics, rules 1–6, release gate (§3, §5, §8, §10) | **Unchanged.** These are the quality mechanisms; none of them needs a second person. A tier-L design note is agreed in chat and merged with the work (`CLAUDE.md` rule 1); §9's "agreed in chat is retired" resumes with the second collaborator. |
-| Branch protection on `main` | Owner-applied to match: PR requirement off (or admin bypass on) while solo; the required checks are the **fast gate** — `test (3.12)`, `typecheck`, `sbeam-roundtrip (3.12)`. |
-| CI shape (`ci.yml`) | **PR = fast gate, one interpreter** (3.12 **uninstrumented**, mypy, solver round-trip on 3.12). The 3.9/3.11 compatibility legs **and the coverage-instrumented 3.12 leg** run on every push to `main` and are fixed forward — coverage joined them 2026-08-22, when the instrumented PR leg passed 27 minutes on the 2-core runner; the 80 % floor is one number a PR almost never moves. The instrumented leg measures line coverage under `COVERAGE_CORE=sysmon` (branch measurement under `sys.monitoring` needs Python 3.14; branch figures on demand locally with `--cov-branch`). A re-push cancels the run in flight (`concurrency`). Applies in both profiles — the compatibility claim is not a per-PR question. |
-| Local gate before merge/push | `ruff` · `mypy` (the pre-commit hook, ~10 s) and the suite **once**, on the whole tree, immediately before the merge/push (the pre-push hook) — not after every edit. **The gate scales to the change set:** a docs-only change set (above) runs `ruff` · `mypy` and the five guard files — `test_doc_currency`, `test_changelog_fragments`, `test_schema_guards`, `test_backlog_issues`, `test_workflow` — in ~3 s instead of the suite's ~150 s; `solo_close.sh` decides from the paths and `--full-gate` overrides. Any other change set takes the whole suite. CI on the push to `main` is the gate either way. While iterating run **the module's own test file**, and `test_deliverable_units.py` once before closing rather than per edit — it is where a physics change shows first (the Imperial digest) *and* now the slowest file in the suite, so per-edit it costs more than the whole suite did when this row was written (timings and the ~43 s parallel floor: `.pre-commit-config.yaml`, re-measured 2026-08-19). |
+| Branch protection on `main` | **Stays fully on** (2026-08-22) — the milestone model needs no bypass, because the only thing that ever lands on `main` is the milestone PR. Owner-applied settings: PR required; required checks are the **fast gate** — `test (3.12)`, `typecheck`, `sbeam-roundtrip (3.12)`; **"Require linear history" off** and repository merge commits **allowed**, so the milestone PR merges as a merge commit and every per-item commit survives on `main`. `dev/**` is deliberately **unprotected**: its CI is advisory. |
+| CI shape (`ci.yml`) | **Fast gate everywhere except the merge to `main`.** Every PR *and* every push to a `dev/**` milestone branch runs one interpreter (3.12 **uninstrumented**, mypy, solver round-trip on 3.12) — measured 7.3 min, of which pytest is 7.2 (2026-08-22: 4 xdist workers on the public-repo runner, ~1,700 CPU-seconds of tests spread broadly — the slowest-15 are only ~13 % of it, so no slow-test split moves this number; a suite-wide fixture reduction would, and is band B). The 3.9/3.11 compatibility legs **and the coverage-instrumented 3.12 leg** run on the push to `main` — i.e. on the milestone merge — and are fixed forward; coverage joined them 2026-08-22, when the instrumented PR leg passed 27 minutes. The instrumented leg measures line coverage under `COVERAGE_CORE=sysmon` (branch measurement under `sys.monitoring` needs Python 3.14; branch figures on demand locally with `--cov-branch`). The three matrix conditionals therefore key on **push-to-`main`**, never on "is this a PR" — keyed the old way a `dev/**` push would take the other arm and run the 27-minute leg (guard: `tests/test_solo_scripts.py`). A re-push cancels the run in flight (`concurrency`), so a burst of item commits leaves only the last one verified — working one item at a time, that is the intended trade. |
+| Local gate before merge/push | `ruff` · `mypy` (the pre-commit hook, ~10 s) and the suite **once**, on the whole tree, immediately before the push (the pre-push hook) — not after every edit. **This is now the gate that actually costs you time**, since CI on `dev/**` is advisory and runs behind you. **It scales to the change set:** a docs-only change set — every path either `*.md` or under `docs/` or `changes/` — runs `ruff` · `mypy` and the five guard files — `test_doc_currency`, `test_changelog_fragments`, `test_schema_guards`, `test_backlog_issues`, `test_workflow` — in ~3 s instead of the suite's ~150 s; `solo_close.sh` decides from the paths and `--full-gate` overrides. Any other change set takes the whole suite. Since 2026-08-22 that predicate sizes the gate and **nothing else** — where an item is closed no longer depends on what it touches, because every item closes the same way on the milestone branch. While iterating run **the module's own test file**, and `test_deliverable_units.py` once before closing rather than per edit — it is where a physics change shows first (the Imperial digest) *and* now the slowest file in the suite, so per-edit it costs more than the whole suite did when this row was written (timings and the ~43 s parallel floor: `.pre-commit-config.yaml`, re-measured 2026-08-19). |
 
-**The loop is scripted (issue #27, 2026-08-17; cycle-time revision 2026-08-19):**
-`scripts/solo_start.sh [<issue>] <type>/<slug>` opens the branch (preflight: on
-`main`, clean tree; with an issue: `gh` authenticated and the issue open) and
-`scripts/solo_close.sh [<issue>] "<Subject>"` runs the closing half in order —
-gate (`ruff` · `mypy` · `pytest`, scaled to the change set), one commit with
-the project-style parenthetical, `--ff-only` land + push, `gh issue close` with
-the `main` SHA, then branch delete / `backlog_issues.py check` / issue state /
-last CI run. It refuses to start until the tier's fragment(s) exist, and — when
-an issue is given — until that item's `(#N)` row has left the priority table;
-it stops at the first failure with the recovery printed (`--dry-run` shows the
-sequence; `--help` the options). **Three of those steps are conditional, matching
-the three rows above:** the issue number is optional and drops every `gh` call
-with it; a docs-only change set may be closed on `main` (`--slug` then names
-the fragment, since there is no branch to take it from) and skips the checkout,
-merge and branch delete; and the gate shrinks to the guard files for that same
-docs-only set. The step between start and close — the work and the closure
-artefacts — is the developer's; the scripts encode nothing that this section
-does not already say (rule 3: the sequence is structural, not a chat
-transcript), and `tests/test_solo_scripts.py` holds the two in step.
+**The loop is scripted (issue #27, 2026-08-17; cycle-time revision 2026-08-19;
+milestone-branch revision 2026-08-22):**
 
-**Switch-over is mechanical:** the day a second collaborator is added, branch
-protection goes back to §2, `scripts/backlog_issues.py create` opens the issues
-for the rows then in the table, and this section stops applying. Nothing done
+*Once per release* — `scripts/solo_start.sh dev/vX.Y.Z` opens the milestone
+branch off `main` and pushes it (preflight: on `main`, clean tree, the branch
+does not exist). It never calls `gh`: the issue set is opened when the
+milestone is *scoped*, not when the branch is cut.
+
+*Once per item, on that branch* — `scripts/solo_close.sh --slug <slug>
+[<issue>] "<Subject>"` runs the closing half in order: gate (`ruff` · `mypy` ·
+`pytest`, scaled to the change set), one commit with the project-style
+parenthetical, push, `gh issue close` with the branch SHA, then
+`backlog_issues.py check` / issue state / that branch's last CI run. It refuses
+to start until the tier's fragment(s) exist, and — when an issue is given —
+until that item's `(#N)` row has left the priority table; it stops at the first
+failure with the recovery printed (`--dry-run` shows the sequence; `--help` the
+options). `--slug` is **required**: the branch names the milestone, not the
+item, so there is no branch name to take it from. Two things it no longer does,
+deliberately — it never checks out, fast-forwards or pushes `main`, and it
+never deletes a branch. **What stays conditional:** the issue number is
+optional and drops every `gh` call with it, and the gate shrinks to the guard
+files for a docs-only change set.
+
+*Once per milestone, at the end* — cut the release on the branch
+(`RELEASE_PROCESS.md` §4), open one PR into `main`, merge it with a merge
+commit, tag from `main`.
+
+The step between start and close — the work and the closure artefacts — is the
+developer's; the scripts encode nothing that this section does not already say
+(rule 3: the sequence is structural, not a chat transcript), and
+`tests/test_solo_scripts.py` holds the scripts, `ci.yml`'s triggers and this
+prose in step.
+
+**Switch-over is mechanical:** the day a second collaborator is added, any open
+milestone branch is finished and merged first (it is the one mechanism here
+that cannot simply be abandoned mid-flight), branch protection goes back to §2
+— linear history on, squash-merge only — `scripts/backlog_issues.py create`
+opens the issues for the rows then in the table, and this section stops
+applying. Nothing done
 under the solo profile has to be redone.
 
 ---
@@ -85,7 +101,10 @@ main (always releasable)  ->  release manager cuts release/x.y.z per RELEASE_PRO
 - **Trunk-based.** `main` is always releasable. Branch from `main`; rebase on
   `main` before merge; delete on merge. No long-lived integration branches. The
   only other branch kind is the hotfix branch of `RELEASE_PROCESS.md` §6 and the
-  release manager's `release/x.y.z` (§8 below).
+  release manager's `release/x.y.z` (§8 below). **§0's `dev/vX.Y.Z` milestone
+  branch is the one exception, and it belongs to the solo profile only** — it is
+  safe there precisely because nothing races it; it retires, with the rest of
+  §0, the day a second collaborator is added.
 - **Names:** `<type>/<slug>` — `step/14-pbar-passthrough`, `fix/gear-csv-ult-marker`,
   `note/28-multi-dev`, `docs/…`, `chore/…`. The slug is the fragment slug.
 - **`main` is protected** (settings, owner-applied): PRs only, the owner
@@ -93,7 +112,10 @@ main (always releasable)  ->  release manager cuts release/x.y.z per RELEASE_PRO
   `typecheck`, `sbeam-roundtrip (3.11)`, `sbeam-roundtrip (3.12)`; **one
   approving review from someone other than the author**; review from Code
   Owners required (`.github/CODEOWNERS`); stale approvals dismissed on push;
-  conversations resolved; **linear history — squash-merge only**.
+  conversations resolved; **linear history — squash-merge only**. (While §0 is
+  in force the live settings are §0's, not this bullet's: linear history is off
+  and merge commits are allowed, so the milestone PR keeps its per-item
+  commits. Restoring this bullet is part of the switch-over.)
 - **Squash-merge, PR title = commit subject** in the project's existing style
   (`Step 14: PBAR/MAT1 pass-through (tier M, 2026-08-20)`), so `git log` stays
   the step-per-commit record it is today.
@@ -128,7 +150,8 @@ its tier:
 ## 4. Issues are the record; `00_backlog.md` is the plan (MD-5)
 
 - **Every open item is a GitHub issue** with labels `tier:S|M|L`, `tag:E|V`,
-  `band:A|B|…`, `kind:defect|step|note|hygiene`, plus `physics`,
+  `band:A|B|…`, `kind:defect|step|decision|hygiene` (the live label set is the
+  authority — `gh label list`; there is no `kind:note`), plus `physics`,
   `needs-design-note`, `parked`, `self-merge-ok` as apply; a **milestone per
   release** (`0.6.0`); an assignee when someone is on it. The GitHub Project
   board is the view.

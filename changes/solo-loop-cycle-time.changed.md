@@ -18,3 +18,7 @@
   the suite is ~150 s, thirteen tests exceed 10 s, and the longest single test
   (~43 s) is a hard parallel floor no core count can beat. Guard:
   `tests/test_solo_scripts.py`.
+  *Superseded in part later in this cycle:* the optional issue number and the
+  change-set-scaled gate stand, but closing a docs-only set on `main` was
+  removed with the branch-per-item loop — every item now closes the same way on
+  the milestone branch (see the milestone-branch entry).

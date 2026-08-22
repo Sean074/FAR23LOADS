@@ -1,33 +1,35 @@
 #!/usr/bin/env bash
-# Solo close loop, step 1 — open the branch for one backlog item / issue.
-# DEVELOPMENT_PROCESS.md §0 (solo profile); the closing half is solo_close.sh.
+# Solo loop, step 1 — open the MILESTONE branch for a release.
+# DEVELOPMENT_PROCESS.md §0 (solo profile); the per-item half is solo_close.sh.
 #
-# Usage: scripts/solo_start.sh [--dry-run] [<issue-number>] <type>/<slug>
+# Usage: scripts/solo_start.sh [--dry-run] dev/v<X.Y.Z>
 #
-#   <issue-number>  OPTIONAL. The open GitHub issue the work closes. Under the
-#                   solo profile issues are optional (§0: "00_backlog.md is the
-#                   record"); omit it and the script never calls `gh`.
-#   <type>/<slug>   branch name; type in chore | feat | fix | docs | note
-#                   (chore = tier S hygiene, feat/fix = tier M/L work, note =
-#                   design-note-only branch)
+#   dev/v<X.Y.Z>   the milestone branch, opened off `main` ONCE per release.
+#                  Every item of that milestone is then worked and committed
+#                  directly on it — there is no per-item branch and no per-item
+#                  `solo_start`. The milestone lands on `main` as one pull
+#                  request with a merge commit (§0), and the release is cut on
+#                  this branch, so there is no separate `release/x.y.z` either.
 #
 # Preflight (nothing mutates until every check passes):
 #   * run from inside the repo
 #   * on `main` with a clean working tree
 #   * the branch does not already exist
-#   * with an issue number only: `gh` authenticated, and the issue is OPEN
-# Then: `git pull --ff-only`, `git checkout -b <branch>`, print status + HEAD.
 #
-# A docs-only change needs no branch at all — edit on `main` and close with
-# `scripts/solo_close.sh --slug <slug> "<Subject>"` (§0).
+# Then: `git pull --ff-only`, `git checkout -b <branch>`, `git push -u origin`,
+# and print what the milestone loop is.
 #
-# --dry-run prints the sequence and exits without touching git or gh.
+# `gh` is never called here: the issue set is opened once, by hand or by
+# `scripts/backlog_issues.py`, when the milestone is scoped — not at branch
+# time. Per item, the `gh` work belongs to solo_close.sh.
+#
+# --dry-run prints the sequence and exits without touching git.
 # Exit 0 on success; non-zero with the reason (and the recovery) on stderr.
 
 set -euo pipefail
 
 usage() {
-  sed -n '2,25p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+  sed -n '2,26p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
 }
 
 die() { printf 'solo_start: %s\n' "$*" >&2; exit 1; }
@@ -37,48 +39,39 @@ run() { printf '$ %s\n' "$*"; "$@"; }
 DRY_RUN=0
 if [[ "${1:-}" == "--dry-run" ]]; then DRY_RUN=1; shift; fi
 if [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then usage; exit 0; fi
-[[ $# -eq 1 || $# -eq 2 ]] || { usage >&2; exit 2; }
+[[ $# -eq 1 ]] || { usage >&2; exit 2; }
 
-if [[ $# -eq 2 ]]; then
-  ISSUE="$1"; BRANCH="$2"
-  [[ "$ISSUE" =~ ^[0-9]+$ ]] || die "issue must be a number, got '$ISSUE' (omit it entirely to work without an issue)"
-else
-  ISSUE=""; BRANCH="$1"
-fi
+BRANCH="$1"
 
-[[ "$BRANCH" =~ ^(chore|feat|fix|docs|note)/[a-z0-9][a-z0-9-]*$ ]] \
-  || die "branch must be <type>/<kebab-slug> with type in chore|feat|fix|docs|note, got '$BRANCH'"
+# `dev/` plus a version — dots allowed, which is why this is not the old
+# <type>/<kebab-slug> pattern. A per-item branch name is a mistake now, so the
+# refusal names the model rather than the regex.
+[[ "$BRANCH" =~ ^dev/v[0-9]+\.[0-9]+\.[0-9]+$ ]] \
+  || die "expected a milestone branch 'dev/vX.Y.Z', got '$BRANCH'. Items are no
+longer worked on their own branches — commit them directly on the milestone
+branch and close each with scripts/solo_close.sh (DEVELOPMENT_PROCESS.md §0)."
 
-SLUG="${BRANCH#*/}"
+MILESTONE="${BRANCH#dev/}"
 
 if [[ $DRY_RUN -eq 1 ]]; then
-  echo "solo_start --dry-run  (${ISSUE:+issue #$ISSUE, }branch $BRANCH) — nothing executed"
+  echo "solo_start --dry-run  (milestone branch $BRANCH) — nothing executed"
   echo "  preflight: git rev-parse --show-toplevel"
-  [[ -n "$ISSUE" ]] && echo "             gh auth status"
   echo "             git rev-parse --abbrev-ref HEAD            == main"
   echo "             git status --porcelain                     == (empty)"
-  if [[ -n "$ISSUE" ]]; then
-    echo "             gh issue view $ISSUE --json state          == OPEN"
-  else
-    echo "             (no issue number — gh is not called at all)"
-  fi
   echo "             git rev-parse --verify $BRANCH             (must NOT exist)"
   echo "  step 1:    git pull --ff-only"
   echo "             git checkout -b $BRANCH"
+  echo "             git push -u origin $BRANCH"
   echo "             git status --short && git log --oneline -1"
-  echo "  next:      do the work + the closure artefacts (CLAUDE.md tier table):"
-  echo "             changes/$SLUG.<type>.md (the name solo_close.sh expects), then"
-  echo "             scripts/solo_close.sh ${ISSUE:+$ISSUE }\"<Subject>\""
+  echo "  next:      scope the milestone (issues labelled band:*, milestone $MILESTONE),"
+  echo "             then per item: work + closure artefacts, and"
+  echo "             scripts/solo_close.sh --slug <slug> [<issue>] \"<Subject>\""
   exit 0
 fi
 
 # ---- preflight ------------------------------------------------------------
 ROOT_DIR="$(git rev-parse --show-toplevel 2>/dev/null)" || die "not inside a git repository"
 cd "$ROOT_DIR"
-
-if [[ -n "$ISSUE" ]]; then
-  gh auth status >/dev/null 2>&1 || die "gh is not authenticated — run: gh auth login (or omit the issue number)"
-fi
 
 CUR="$(git rev-parse --abbrev-ref HEAD)"
 [[ "$CUR" == "main" ]] || die "on branch '$CUR', not main — run: git checkout main"
@@ -88,34 +81,38 @@ if [[ -n "$(git status --porcelain)" ]]; then
   die "working tree is not clean — commit, stash (git stash) or discard first"
 fi
 
-if [[ -n "$ISSUE" ]]; then
-  GH_ERR="$(mktemp)"
-  STATE="$(gh issue view "$ISSUE" --json state -q .state 2>"$GH_ERR")" \
-    || { cat "$GH_ERR" >&2; rm -f "$GH_ERR"; die "gh could not read issue #$ISSUE (see above — not created yet, wrong number, or GitHub unavailable; retry)"; }
-  rm -f "$GH_ERR"
-  [[ "$STATE" == "OPEN" ]] || die "issue #$ISSUE is $STATE, not OPEN"
-fi
-
 if git rev-parse --verify --quiet "$BRANCH" >/dev/null; then
-  die "branch '$BRANCH' already exists — run: git checkout $BRANCH (or pick another slug)"
+  die "branch '$BRANCH' already exists — run: git checkout $BRANCH (the milestone branch is opened once)"
 fi
 
 # ---- step 1 ---------------------------------------------------------------
-say "step 1 — branch${ISSUE:+ for issue #$ISSUE}"
+say "step 1 — milestone branch $BRANCH"
 run git pull --ff-only
 run git checkout -b "$BRANCH"
+run git push -u origin "$BRANCH"
 run git status --short
 run git log --oneline -1
 
 cat <<EOF
 
-On $BRANCH. Now: the work + the closure artefacts for the tier —
-  fragment   changes/$SLUG.<added|changed|fixed|removed|breaking>.md
-             (this is the name solo_close.sh will look for; lead carries
-             '(backlog Pri N, tier X, YYYY-MM-DD)'; tier M/L also
-             changes/$SLUG.history.md)
-  backlog    delete the item's ${ISSUE:+(#$ISSUE) }row from the priority table
-Then:
+On $BRANCH — the milestone branch for $MILESTONE. It stays open until the
+milestone is done; every item commits straight onto it.
 
-  scripts/solo_close.sh ${ISSUE:+$ISSUE }"<Subject in the project style>"
+  scope     open the issues for this milestone (labels tier:*, tag:*, band:*,
+            kind:*; milestone $MILESTONE) and keep their rows in the priority
+            table of docs/30_future/00_backlog.md
+  per item  do the work + the closure artefacts for the tier —
+              fragment   changes/<slug>.<added|changed|fixed|removed|breaking>.md
+                         (tier M/L also changes/<slug>.history.md)
+              backlog    delete that item's row from the priority table
+            then:
+
+              scripts/solo_close.sh --slug <slug> [<issue>] "<Subject>"
+
+            Each push runs the fast gate on this branch — advisory, nothing
+            waits on it.
+  finish    when the milestone is empty, cut the release ON this branch
+            (RELEASE_PROCESS.md §4), then open ONE pull request into main and
+            merge it with a merge commit. That push to main runs the full
+            matrix; tag from main.
 EOF

@@ -2,7 +2,7 @@
 name: Design note proposal
 about: Tier L or physics — the four lines CLAUDE.md rule 1 requires, before code
 title: "Note NN — <subject>"
-labels: kind:note, needs-design-note
+labels: kind:decision, needs-design-note
 assignees: ''
 ---
 

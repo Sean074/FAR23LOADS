@@ -76,6 +76,19 @@ milestone cuts the release on a `release/x.y.z` branch — steps 1–3 below are
 reviewed like any other; the tag (step 4) is made on `main` after it merges. The
 role rotates.
 
+**Working alone (`DEVELOPMENT_PROCESS.md` §0, 2026-08-22): there is no
+`release/x.y.z` branch.** The milestone branch `dev/vX.Y.Z` *is* the release
+branch — it has carried every item of the release, so cutting on a second
+branch would only move the same commits again. Steps 1–3 below are commits on
+`dev/vX.Y.Z` (they are docs, `pyproject.toml` and generated history, so the
+gate scales accordingly); then open **one** pull request into `main` and merge
+it **with a merge commit**, so every per-item commit survives on `main` and
+`git log` stays the step-per-commit record. That push to `main` runs the full
+3.9/3.11 + coverage matrix — the gate of record for the whole milestone. Step 4
+tags `main` after the merge, unchanged. The issues of this milestone are
+already closed, each in its own commit, so the PR body carries **no**
+`Closes #N`.
+
 1. **Bump the version** in `pyproject.toml`. Commit: `Bump version to X.Y.Z`.
 2. **Build the changelog and roll the history fragments** — `.venv/bin/python scripts/build_changelog.py X.Y.Z --date YYYY-MM-DD` assembles the `changes/` fragments into `## [X.Y.Z] — YYYY-MM-DD` (Breaking / Added / Changed / Fixed / Removed), inserts every `changes/*.history.md` entry at the top of `docs/40_history/00_completed_development.md` (design note 28 MD-4), opens a fresh empty `[Unreleased]`, and deletes the consumed fragments. Then write the release-cut block in the history file by hand (the one entry that is not a fragment). Run `scripts/backlog_issues.py check` — every priority-table row names an open issue and vice versa (MD-5). Never hand-edit `[Unreleased]`; fix a fragment and re-run instead. Commit: `Changelog for X.Y.Z`.
 3. **Roll the history (mechanical, bounded — design note 26, 2026-08-16):**
@@ -103,3 +116,12 @@ A hotfix is a `PATCH` release correcting a critical defect in a released version
 3. Run the pre-release checklist (§3), focused on the affected module + any downstream readers.
 4. Bump to `X.Y.Z+1`, date the changelog, tag, release.
 5. Merge back to `main`; record the resolved defect under "Resolved defects" in the history.
+
+**With a milestone branch open (`DEVELOPMENT_PROCESS.md` §0):** this is the only
+path that puts a commit on `main` mid-milestone, so it is also the only time
+`dev/vX.Y.Z` has to take `main` back — do it immediately after step 5
+(`git checkout dev/vX.Y.Z && git merge main`), before the next item, and
+re-check the three shared counters of §6 (`SCHEMA_VERSION`, the Imperial
+digest, case-ID bands) since that merge is exactly where they can collide.
+A defect found mid-milestone in *unreleased* work is **not** a hotfix — it is
+the next item on the milestone branch.
