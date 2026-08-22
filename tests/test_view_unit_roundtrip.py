@@ -36,7 +36,7 @@ from sloads.units import UNIT_LABELS, to_display  # noqa: E402
 
 pytest.importorskip("streamlit.testing.v1")
 
-from helpers import apply_button  # noqa: E402
+from helpers import apply_button, widget_editing  # noqa: E402
 
 _VIEWS_DIR = os.path.join(_ROOT, "app", "views")
 _GA6 = os.path.join(_ROOT, "examples", "ga6_normal.project.json")
@@ -239,16 +239,8 @@ def _run_oracle(key: str, system: UnitSystem, project):
 
 
 def _oracle_number(at, path: str):
-    """The oracle GUI's number widget for a registry ``path``.
-
-    ``unit_number_input`` appends the active system to the widget key, which is
-    the mechanism that re-seeds a field when the user switches systems -- so the
-    lookup matches the path and lets the suffix be whatever the shell chose.
-    """
-    hits = [n for n in at.number_input
-            if n.key == path or (n.key or "").startswith(f"{path}_")]
-    assert len(hits) == 1, f"expected one widget for {path!r}, got {[n.key for n in hits]}"
-    return hits[0]
+    """The oracle GUI's number widget for a registry ``path`` (shared helper)."""
+    return widget_editing(at, path)
 
 
 @pytest.mark.parametrize("system", _SYSTEMS, ids=[s.value for s in _SYSTEMS])

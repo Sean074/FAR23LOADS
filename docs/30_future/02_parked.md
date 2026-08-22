@@ -128,11 +128,16 @@ underneath (cross-page Apply, programmatic load). **Not a data-loss bug** (Apply
 is required to persist, and per-page unit-suffixed keys limit the blast radius);
 audit the `key=`+`value=` widgets and re-seed on a project change, or prove it
 cannot occur. `tests/test_persistence.py` locks the data-persistence half.
-**The oracle GUI's half of this class is not parked** — it has no Apply step, so
-the stale widgets are written straight back over the loaded project (data loss).
-Filed 2026-08-21 as band-A Pri 2 in [`00_backlog.md`](00_backlog.md); the
-"not a data-loss bug" rationale above holds for `app/views/` only until that
-fix's sweep (rule 4) establishes it view by view.
+**The data-loss half of this class shipped 2026-08-21 as #51** — a *project
+generation* stamped into every project-seeded widget key
+(`app_shell/widget_keys.py`), bumped once per project replacement, swept across
+both GUIs and guarded by `tests/test_widget_freshness.py`. That sweep also
+settled the rationale above: `app/views/`' Apply step defers the overwrite to
+the user's click rather than preventing it, so those views were stamped too.
+What stays parked is the rest of the audit — a widget that goes stale while the
+project is *mutated* underneath it (a cross-page Apply, a seed chain), which no
+generation bump covers because the project was never replaced. It lands with the
+unit-boundary rollout (`00_backlog.md` Pri 10).
 
 ### L-8e — Uncovered input fields & UX nits
 Add widgets (or a documented JSON-only status) for the remaining uncovered

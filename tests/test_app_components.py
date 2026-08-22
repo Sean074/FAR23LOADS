@@ -36,6 +36,7 @@ from sloads.units import UNIT_LABELS  # noqa: E402
 pytest.importorskip("streamlit")
 
 from app_shell import components as comp  # noqa: E402
+from app_shell.widget_keys import unstamped  # noqa: E402
 
 # Every kind the unit layer knows -- driven off UNIT_LABELS so a new kind is
 # covered automatically instead of being forgotten here.
@@ -188,8 +189,16 @@ def test_converted_key_is_per_system_but_fixed_and_plain_keys_are_not(monkeypatc
     assert conv_imp != conv_si, "a converted widget must not share a key across systems"
     # Fixed / dimensionless: the number means the same thing either way, so the
     # field must survive a unit switch unchanged.
-    assert fixed_imp == fixed_si == "k"
-    assert plain_imp == plain_si == "k"
+    assert fixed_imp == fixed_si
+    assert plain_imp == plain_si
+    # Every key on this boundary also carries the project generation, which is
+    # the other half of "is this the same widget?" (#51): a unit switch keeps
+    # the field, a project *replacement* retires it. Asserted through
+    # ``unstamped`` so the stamp's format stays the shell's own business.
+    assert [unstamped(k) for k in (fixed_imp, plain_imp)] == ["k", "k"]
+    assert all(k != unstamped(k) for k in (conv_imp, fixed_imp, plain_imp)), (
+        "a widget on the unit boundary was keyed without the project-generation "
+        "stamp, so a loaded project would not reach it")
 
 
 # --------------------------------------------------------------------------- #

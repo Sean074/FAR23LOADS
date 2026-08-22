@@ -29,6 +29,7 @@ from app_shell.components import (
     unit_number_input,
     workflow_page_link,
 )
+from app_shell.widget_keys import widget_key
 from sloads import (
     MachLimitInput,
     Project,
@@ -169,7 +170,7 @@ def _tab_design_speeds(project: Project, system: UnitSystem, U: dict) -> None:
             )
             weight_override = st.number_input(
                 f"Design (gross) weight override ({U['weight']})", min_value=0.0,
-                value=float(weight_default), key=f"weight_override_{system.value}",
+                value=float(weight_default), key=widget_key(f"weight_override_{system.value}"),
                 help="Design gross (take-off) weight used for the load factors and design speeds "
                      "(14 CFR 23.335; STRSPEED, Ch 5). Used only when 'Override design weight' is ticked.",
             )
@@ -180,7 +181,7 @@ def _tab_design_speeds(project: Project, system: UnitSystem, U: dict) -> None:
             )
             weight_override = st.number_input(
                 f"Design (gross) weight ({U['weight']})", min_value=0.0,
-                value=float(weight_default), key=f"weight_{system.value}",
+                value=float(weight_default), key=widget_key(f"weight_{system.value}"),
                 help="Design gross (take-off) weight used for the load factors and design speeds "
                      "(14 CFR 23.335; STRSPEED, Ch 5).",
             )
@@ -213,7 +214,7 @@ def _tab_design_speeds(project: Project, system: UnitSystem, U: dict) -> None:
             )
             wing_area = st.number_input(
                 f"Wing area S ({U['area_sqft']})", min_value=0.0,
-                value=float(wing_area_default), key=f"wing_area_{system.value}",
+                value=float(wing_area_default), key=widget_key(f"wing_area_{system.value}"),
                 help="Reference wing area S; with weight gives the wing loading W/S that sets the stall "
                      "and maneuvering speeds. Read from Geometry when a wing surface exists.",
             )

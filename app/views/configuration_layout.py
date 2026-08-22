@@ -24,6 +24,7 @@ import streamlit as st
 from plotly.subplots import make_subplots
 
 from app_shell.components import active_system, gate, page_header, unit_number_input
+from app_shell.widget_keys import widget_key
 from sloads import (
     FuselageOutline,
     FuselageSection,
@@ -229,7 +230,7 @@ with st.sidebar:
         with st.expander("Tail arrangement"):
             tail_type_label = st.selectbox(
                 "Tail type", list(_TAIL_TYPE_LABELS.values()),
-                index=list(_TAIL_TYPE_LABELS.keys()).index(layout.tail_type), key="tail_type",
+                index=list(_TAIL_TYPE_LABELS.keys()).index(layout.tail_type), key=widget_key("tail_type"),
                 help="Empennage arrangement; T-tail/cruciform auto-place the h-tail Z when its offset is 0.",
             )
             h_tail_z = _num("H-tail Z offset from waterline (0 = auto for T-tail/cruciform)",
@@ -614,7 +615,7 @@ def _gear_leg(label: str, gear: LandingGearInput, keyp: str) -> LandingGearInput
     st.markdown(f"**{label}**")
     a = st.columns(2)
     strut = a[0].selectbox(f"{label} strut", ["O", "S"], index=0 if gear.strut == "O" else 1,
-                           key=f"{keyp}_strut", help="O = oleo, S = spring")
+                           key=widget_key(f"{keyp}_strut"), help="O = oleo, S = spring")
     rr = _u(f"{label} rolling radius", gear.rolling_radius_in, "length", f"{keyp}_rr", a[1],
             min_value=0.0)
     c = st.columns(6)
@@ -628,7 +629,7 @@ def _gear_leg(label: str, gear: LandingGearInput, keyp: str) -> LandingGearInput
     shown = _CARRIER_UNSTATED if gear.carrier is None else gear.carrier.value.upper()
     carrier_pick = d[0].selectbox(
         f"{label} carrier", _CARRIER_CHOICES, index=_CARRIER_CHOICES.index(shown),
-        key=f"{keyp}_carrier",
+        key=widget_key(f"{keyp}_carrier"),
         help="Which structure carries the leg's reaction (decision G-2). BODY and "
              "WING are different load paths, not labels; exporting a ground case "
              "without it raises rather than guessing.")
@@ -687,7 +688,7 @@ with st.expander("Fuselage outline (body sections)", expanded=True):
     with st.form("fuselage_outline_form"):
         _fuse_df = st.data_editor(
             pd.DataFrame(_fuse_rows, columns=["X", "Width", "Height"]),
-            num_rows="dynamic", column_config=_fuse_cols, key=f"fuse_sections_{system.value}",
+            num_rows="dynamic", column_config=_fuse_cols, key=widget_key(f"fuse_sections_{system.value}"),
         )
         if st.form_submit_button("Apply fuselage outline", type="primary"):
             rows = _fuse_df.dropna().to_numpy().tolist()
@@ -748,15 +749,15 @@ else:
             with st.expander(f"Surface: {_surf.name}", expanded=(_surf.name == "wing")):
                 _c = st.columns(3)
                 _sym = _c[0].checkbox("Symmetric about CL", value=_surf.symmetric,
-                                      key=f"sym_{_surf.name}")
+                                      key=widget_key(f"sym_{_surf.name}"))
                 _elems = _c[1].number_input("Integration elements", min_value=2, max_value=100,
-                                            value=int(_surf.elements), key=f"el_{_surf.name}")
+                                            value=int(_surf.elements), key=widget_key(f"el_{_surf.name}"))
                 _lra_pct = _c[2].number_input(
                     "Loads reference axis (% chord, optional)", min_value=0.0,
                     max_value=100.0,
                     value=None if _surf.ref_axis_pct is None
                     else float(_surf.ref_axis_pct * 100.0), step=1.0,
-                    key=f"lra_{_surf.name}",
+                    key=widget_key(f"lra_{_surf.name}"),
                     help="The chordwise axis the delivered torsion is stated about — "
                          "the elastic axis of the beam model the exported loads apply "
                          "to (typically 40–50% chord for a wing box). The calc stays "
@@ -780,19 +781,19 @@ else:
                     "Front spar (% chord, optional)", min_value=0.0, max_value=100.0,
                     value=None if _surf.front_spar_pct is None
                     else float(_surf.front_spar_pct * 100.0), step=1.0,
-                    key=f"fs_{_surf.name}",
+                    key=widget_key(f"fs_{_surf.name}"),
                     help=_spar_help % (DEFAULT_FRONT_SPAR_PCT * 100.0))
                 _rs_pct = _sc[1].number_input(
                     "Rear spar (% chord, optional)", min_value=0.0, max_value=100.0,
                     value=None if _surf.rear_spar_pct is None
                     else float(_surf.rear_spar_pct * 100.0), step=1.0,
-                    key=f"rs_{_surf.name}",
+                    key=widget_key(f"rs_{_surf.name}"),
                     help=_spar_help % (DEFAULT_REAR_SPAR_PCT * 100.0))
                 _sob = _sc[2].number_input(
                     f"Side of body ({U['length']}, optional)", min_value=0.0,
                     value=None if _surf.sob_y_in is None
                     else to_display(float(_surf.sob_y_in), "length", system),
-                    key=f"sob_{_surf.name}_{system.value}",
+                    key=widget_key(f"sob_{_surf.name}_{system.value}"),
                     help="The butt line where this surface structurally attaches "
                          "to the fuselage (decision BM-1). One quantity, two "
                          "consumers: the wing side-of-body reporting node in the "
@@ -812,10 +813,10 @@ else:
                             "YTE": st.column_config.NumberColumn(f"YTE ({U['length']})")}
                 _le_df = st.data_editor(pd.DataFrame(_le, columns=["XLE", "YLE"]),
                                         num_rows="dynamic", column_config=_le_cols,
-                                        key=f"le_{_surf.name}_{system.value}")
+                                        key=widget_key(f"le_{_surf.name}_{system.value}"))
                 _te_df = st.data_editor(pd.DataFrame(_te, columns=["XTE", "YTE"]),
                                         num_rows="dynamic", column_config=_te_cols,
-                                        key=f"te_{_surf.name}_{system.value}")
+                                        key=widget_key(f"te_{_surf.name}_{system.value}"))
                 _surface_inputs.append((_surf.name, _sym, _elems, _lra_pct,
                                         _fs_pct, _rs_pct, _sob, _le_df, _te_df))
         if st.form_submit_button("Apply surface geometry", type="primary"):

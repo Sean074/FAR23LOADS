@@ -25,6 +25,7 @@ import streamlit as st
 from plotly.subplots import make_subplots
 
 from app_shell.components import gate
+from app_shell.widget_keys import widget_key
 from sloads import (
     AeroCoefficientsInput,
     AeroCoeffSet,
@@ -106,17 +107,17 @@ with st.form("aero_coefficients_form"):
     m1, m2, m3 = st.columns(3)
     clmax_clean = m1.number_input(
         "Clean CLmax (flaps up)", value=float(aero.clmax_clean) if aero else 0.0,
-        format="%.4f", key="clmax_clean",
+        format="%.4f", key=widget_key("clmax_clean"),
         help="Positive maximum lift coefficient, flaps up. Sets VS and caps the positive balance.",
     )
     clmax_clean_neg = m2.number_input(
         "Clean negative CLmax", value=float(aero.clmax_clean_neg) if aero else 0.0,
-        format="%.4f", key="clmax_clean_neg",
+        format="%.4f", key=widget_key("clmax_clean_neg"),
         help="Negative maximum lift coefficient, flaps up; caps the negative balancing solution.",
     )
     clmax_flap = m3.number_input(
         "Flaps-down CLmax", value=float(aero.clmax_flap) if aero else 0.0,
-        format="%.4f", key="clmax_flap",
+        format="%.4f", key=widget_key("clmax_flap"),
         help="Positive maximum lift coefficient, flaps down (landing). Sets VSF and hence VF.",
     )
 
@@ -124,11 +125,11 @@ with st.form("aero_coefficients_form"):
     st.subheader("Cruise (flaps up)")
     cruise_name = st.text_input(
         "Configuration name", value=aero.cruise.name if aero and aero.cruise else "CRUISE",
-        key="cruise_name", help="Label for the cruise (flaps-up) coefficient set.",
+        key=widget_key("cruise_name"), help="Label for the cruise (flaps-up) coefficient set.",
     )
     cruise_df = st.data_editor(
         _coeff_table(aero.cruise if aero else None), hide_index=True,
-        use_container_width=True, disabled=["row"], key="cruise_coeff",
+        use_container_width=True, disabled=["row"], key=widget_key("cruise_coeff"),
     )
 
     st.divider()
@@ -142,11 +143,11 @@ with st.form("aero_coefficients_form"):
     st.caption("Ignored unless the checkbox above is ticked.")
     flaps_name = st.text_input(
         "Configuration name", value=aero.flaps_down.name if aero and aero.flaps_down else "LANDING",
-        key="flaps_name", help="Label for the flaps-down (landing) coefficient set.",
+        key=widget_key("flaps_name"), help="Label for the flaps-down (landing) coefficient set.",
     )
     flaps_df = st.data_editor(
         _coeff_table(aero.flaps_down if aero else None), hide_index=True,
-        use_container_width=True, disabled=["row"], key="flaps_coeff",
+        use_container_width=True, disabled=["row"], key=widget_key("flaps_coeff"),
     )
 
     applied = st.form_submit_button("Apply", type="primary")

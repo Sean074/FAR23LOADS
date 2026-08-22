@@ -14,6 +14,7 @@ import pandas as pd
 import streamlit as st
 
 from app_shell.components import active_system, gate
+from app_shell.widget_keys import widget_key
 from sloads import (
     FlapLoadsInput,
     Project,
@@ -57,18 +58,18 @@ with st.form("flap_loads_form"):
     flap_area_one_side_sqft = c1.number_input(
         f"Flap area on one side, SF ({U['area_sqft']})", min_value=0.0,
         value=float(round(to_display(inp.flap_area_one_side_sqft, "area_sqft", system), 4)),
-        step=0.1, key=f"flap_area_{system.value}")
+        step=0.1, key=widget_key(f"flap_area_{system.value}"))
     gust_load_factor = c2.number_input(
         "Flaps-extended gust load factor, NG", min_value=0.0,
         value=float(inp.gust_load_factor), step=0.1)
     nacelle_frontal_area_sqft = c1.number_input(
         f"Nacelle/fuselage frontal area, AF ({U['area_sqft']})", min_value=0.0,
         value=float(round(to_display(inp.nacelle_frontal_area_sqft, "area_sqft", system), 4)),
-        step=0.1, key=f"nacelle_area_{system.value}")
+        step=0.1, key=widget_key(f"nacelle_area_{system.value}"))
     engine_butt_line_in = c2.number_input(
         f"Engine butt line, BLPROP ({U['length']}; 0 = fuselage)",
         value=float(round(to_display(inp.engine_butt_line_in, "length", system), 4)),
-        step=1.0, key=f"engine_bl_{system.value}")
+        step=1.0, key=widget_key(f"engine_bl_{system.value}"))
     applied = st.form_submit_button("Apply", type="primary")
 
 if applied:
