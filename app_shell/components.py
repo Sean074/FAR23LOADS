@@ -179,20 +179,28 @@ def active_project() -> Project:
 
 def unit_number_input(
     label: str,
-    value: float,
+    value: Optional[float],
     *,
     kind: Optional[str] = None,
     fixed_unit: Optional[str] = None,
     key: Optional[str] = None,
     container=None,
     **kwargs,
-) -> float:
+) -> Optional[float]:
     """A ``st.number_input`` that renders in display units and **returns Imperial**.
 
     This is the whole unit boundary for GUI input, in one place. The caller holds
     canonical Imperial values on both sides -- it passes Imperial in and gets
     Imperial back -- so a view can never convert twice, convert the wrong way, or
-    forget to convert on the way home. Exactly one of these three modes applies:
+    forget to convert on the way home.
+
+    ``value=None`` renders the widget **empty** and returns ``None`` until the
+    user enters a number (#35, CR-A-3): an unfilled ``Optional`` field must not
+    display a fake ``0.0``, because then a deliberate ``0`` -- sea level, a
+    datum-at-nose station -- is indistinguishable from the seed and can never be
+    persisted. A ``float`` in always comes back a ``float``.
+
+    Exactly one of these three modes applies:
 
     * ``kind="length"`` (or any :data:`sloads.units.UNIT_LABELS` kind) --
       **converted**. The seed is shown in the active system, the label gains the
@@ -225,7 +233,8 @@ def unit_number_input(
 
     if kind is not None:
         shown = f"{label} ({labels_for(system)[kind]})"
-        seed = float(round(to_display(float(value), kind, system), 4))
+        seed = (None if value is None
+                else float(round(to_display(float(value), kind, system), 4)))
         widget_key = f"{key}_{system.value}" if key else None
         # Bounds are given in Imperial like the value, so they convert with it --
         # otherwise a non-zero limit (a 12-in minimum chord, say) would silently
@@ -233,8 +242,10 @@ def unit_number_input(
         for bound in ("min_value", "max_value"):
             if kwargs.get(bound) is not None:
                 kwargs[bound] = float(to_display(float(kwargs[bound]), kind, system))
-        entered = float(where.number_input(shown, value=seed, key=widget_key, **kwargs))
-        if entered == seed:
+        entered = where.number_input(shown, value=seed, key=widget_key, **kwargs)
+        if entered is None:
+            return None
+        if seed is not None and float(entered) == seed:
             # Untouched field: return the caller's own Imperial value rather than
             # converting the *rounded* display seed back. The seed is rounded to 4
             # display decimals for legibility (the per-view ``_num`` helpers this
@@ -242,11 +253,13 @@ def unit_number_input(
             # a hair different from the one passed in -- and an SI user's project
             # would drift by that hair on every Apply, silently, forever. Only a
             # value the user actually changed takes the conversion path.
-            return float(value)
-        return float(to_imperial_scalar(entered, kind, system))
+            return float(value)  # seed is not None implies value is not None
+        return float(to_imperial_scalar(float(entered), kind, system))
 
     shown = f"{label} ({fixed_unit})" if fixed_unit else label
-    return float(where.number_input(shown, value=float(value), key=key, **kwargs))
+    entered = where.number_input(
+        shown, value=None if value is None else float(value), key=key, **kwargs)
+    return None if entered is None else float(entered)
 
 
 # --------------------------------------------------------------------------- #

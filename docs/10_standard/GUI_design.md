@@ -219,6 +219,17 @@ An **untouched** field returns the caller's own Imperial value rather than
 converting the rounded display seed home — otherwise an SI user's project would
 drift by the rounding on every Apply, silently and forever.
 
+**Unfilled is empty, and a typed 0 is real** (#35, CR-A-3). Orthogonally to the
+three unit modes, `unit_number_input` accepts `value=None`: the widget renders
+**empty** and returns `None` until the user enters a number. An unfilled
+`Optional` field SHALL be seeded `None`, never a fake `0.0` — with a zero seed a
+deliberate 0 (sea level into `one_engine_out.altitude_ft`, a datum-at-nose
+station) is indistinguishable from "not entered" and can never be persisted. The
+oracle GUI's generic renderer follows this for every Optional scalar and table
+cell: a value that comes back from an empty-seeded widget — including 0 — is a
+real entry and lands. Guards: `tests/test_dirty_flag.py`
+(typed-zero-lands, unfilled-renders-empty-and-stays-absent).
+
 **Aviation-standard exception:** airspeed (KEAS) and altitude (ft) stay in
 aviation units in *both* systems and are never converted — do not add a unit kind
 for them; use `fixed_unit=`. Where a deliverable reports them it says so, so an
