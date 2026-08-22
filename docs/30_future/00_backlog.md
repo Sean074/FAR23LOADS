@@ -185,7 +185,8 @@ traceability with plans 09/11/12/13; the **Pri** column is ordinal only.
 | — | **Cut 0.7.0** when band A is empty (RELEASE_PROCESS §2 cadence rule) | | | | |
 | **B — 0.8.0: the main-GUI review completed and its findings addressed** ||||||
 | 9 | **GUI review resumption** — the five unswept sections (Flight, Other, Ground, Plotting, Export) against the 0.7.0 deliverables; findings filed at close (rule 5); re-cut follows (#29) | The review body completed; the UI freeze on `app/views/` re-opened to the extent the findings justify — a reviewed list, not a rework; parked **L-8c** (Results Review omits the 8 folded modules' results) promotes at this re-cut | V | S (review) / M | 0.7.0 cut |
-| 10 | **Unit-boundary rollout: `unit_number_input` everywhere** (CR-D-2 `[MAJOR]`) (#44) | The ~7 hand-paired views (and the data-editor grids) on the boundary helper; a no-op-Apply-in-SI bit-identity test per converted view; `GUI_design.md` §11's rollout claim made true; do together with what is left of parked **L-8d** (widget freshness on a cross-page Apply; its data-loss half shipped as #51) — the fixes interact | V | M / M | #29 findings order |
+| 10 | **Unit-boundary rollout: `unit_number_input` everywhere** (CR-D-2 `[MAJOR]`) (#44) | The ~7 hand-paired views (and the data-editor grids) on the boundary helper; a no-op-Apply-in-SI bit-identity test per converted view; `GUI_design.md` §11's rollout claim made true; do together with **#51's residual (row 10a)** and what is left of parked **L-8d** (the mutation case) — the fixes interact | V | M / M | #29 findings order |
+| 10a | **#51 residual: the unkeyed half of `app/views/`** (reopened 2026-08-22; scope in the issue's 2026-08-22 comment) (#51) | The 98 unkeyed project-seeded widgets keyed through `widget_key`; `test_widget_freshness.py`'s `_stamped` fails closed (a project-seeded input without `key=` is a failure, shell-owned widgets on an explicit allowlist); `_INPUT_CALLS` gains the missing input calls (`pills`, `segmented_control`, `file_uploader`, …); a behavioural guard that edits a widget *before* the load | V | M / M | rides #44 — `unit_number_input` stamps for its callers |
 | 11 | **`workflow.requires` vs self-entered slices** (CR-D-3) (#45) | A `WorkflowStep.edits` (or equivalent) so self-sufficient pages stop showing "blocked"; a DAG-completeness guard: every `requires` is some step's `produces` or declared self-entered | V | M / S | — |
 | 12 | **Docs/CI conformance sweep** (CR-D-4/D-5/D-6/D-7/D-8, CR-D-11) (#46) | The CI-matrix asymmetry stated where the docs claim otherwise (`DEVELOPMENT_PROCESS` §2 self-contradiction fixed); version-copy and phase-table drift fixed with the cheap guards; the one-way nav guard made two-way; the tripped runtime clause filed or re-stated; cspell gets a gate or the prose rule is dropped | V | S / S–M | — |
 | **C — 1.0.0: additional analysis capability (consumer-gated; design notes first)** ||||||
@@ -211,9 +212,10 @@ workbook, manifest and methods stamp; the **`app/views/` UI — pending the
 0.8.0 GUI review (#29)**, whose findings decide what re-opens
 (`oracle_app/` + `app_shell/` are open for exactly the band-A rows; the CLI is
 the delivery path — parked M4-11b and the L-8 UX rows stay parked until #29
-closes; parked **L-8d**'s data-loss half shipped 2026-08-21 as #51 —
-`app_shell/widget_keys.py` and the sweep across every view — and what is
-left of L-8d is the freshness half, which lands with Pri 10); F25-2.
+closes; parked **L-8d**'s keyed data-loss half shipped 2026-08-21 as #51 —
+`app_shell/widget_keys.py` — with #51 reopened 2026-08-22 for the unkeyed
+half of `app/views/` (row 10a), and L-8d's remaining mutation case landing
+with Pri 10); F25-2.
 
 ---
 

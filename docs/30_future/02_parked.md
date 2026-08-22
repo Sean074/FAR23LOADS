@@ -128,16 +128,23 @@ underneath (cross-page Apply, programmatic load). **Not a data-loss bug** (Apply
 is required to persist, and per-page unit-suffixed keys limit the blast radius);
 audit the `key=`+`value=` widgets and re-seed on a project change, or prove it
 cannot occur. `tests/test_persistence.py` locks the data-persistence half.
-**The data-loss half of this class shipped 2026-08-21 as #51** — a *project
+**The keyed half of the data-loss class shipped 2026-08-21 as #51** — a *project
 generation* stamped into every project-seeded widget key
-(`app_shell/widget_keys.py`), bumped once per project replacement, swept across
-both GUIs and guarded by `tests/test_widget_freshness.py`. That sweep also
-settled the rationale above: `app/views/`' Apply step defers the overwrite to
-the user's click rather than preventing it, so those views were stamped too.
-What stays parked is the rest of the audit — a widget that goes stale while the
-project is *mutated* underneath it (a cross-page Apply, a seed chain), which no
-generation bump covers because the project was never replaced. It lands with the
-unit-boundary rollout (`00_backlog.md` Pri 10).
+(`app_shell/widget_keys.py`), bumped once per project replacement (`adopt`, and
+the JSON editor's Apply) and guarded by `tests/test_widget_freshness.py`. That
+sweep also settled the rationale above: `app/views/`' Apply step defers the
+overwrite to the user's click rather than preventing it, so those views were
+stamped too. **What #51 (reopened 2026-08-22) still owes is the *unkeyed*
+half:** 98 project-seeded widgets in `app/views/` carry no `key=` at all, and an
+unkeyed widget's Streamlit identity derives from its *arguments* — stable
+whenever the seed value repeats — so a value typed before a load survives it
+when the loaded field is unset (reproduced on `structural_speeds`' VB against
+`atr42_100`); the guard's "no `key=` is per-render" premise was wrong. It rides
+the unit-boundary rollout (`00_backlog.md` band B, with #44), whose
+`unit_number_input` stamps for its callers. What stays parked *here* is the rest
+of the audit — a widget that goes stale while the project is **mutated**
+underneath it (a cross-page Apply, a seed chain), which no generation bump
+covers because the project was never replaced.
 
 ### L-8e — Uncovered input fields & UX nits
 Add widgets (or a documented JSON-only status) for the remaining uncovered
