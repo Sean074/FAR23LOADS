@@ -14,10 +14,11 @@ it: the widget has to be a **different widget**.
 
 This module is that difference. Every widget seeded from the project keys itself
 through :func:`widget_key`, which stamps the key with a counter bumped exactly
-once per *replacement* of the session's project
-(:func:`app_shell.project_state.adopt` — the only place that means "the project
-was replaced"). A mutation, an Apply, a unit switch: not a replacement, and the
-widgets keep their state.
+once per *replacement* of the session's project — by
+:func:`app_shell.project_state.adopt` (a load), and by the JSON editor's Apply
+(``app/views/project_editor.py``), which replaces the project without saving it
+and so bumps here without touching the dirty baseline. A mutation, a per-page
+Apply, a unit switch: not a replacement, and the widgets keep their state.
 
 The alternative — clearing widget state on adopt — needs a list of keys the
 shell would have to keep in step with the field registry and twenty-one view

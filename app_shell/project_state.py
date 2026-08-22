@@ -70,10 +70,12 @@ def adopt(new_project: Project) -> None:
     """Replace the session's project, reset the dirty baseline to it, and retire
     the widgets that were seeded from the project it replaces.
 
-    This is the only place in either GUI that means "the project was replaced",
-    which is why the generation bump belongs here: without it, a page visited
-    before the load re-renders from its own retained widget state and writes
-    that state back over what was just loaded
+    This and the JSON editor's Apply (``app/views/project_editor.py``, which
+    replaces the project *without* saving it, so it bumps the generation itself
+    and leaves the dirty baseline alone) are the only two places in either GUI
+    that mean "the project was replaced". The generation bump belongs at both:
+    without it, a page visited before the load re-renders from its own retained
+    widget state and writes that state back over what was just loaded
     (:mod:`app_shell.widget_keys`).
     """
     st.session_state["project"] = new_project
