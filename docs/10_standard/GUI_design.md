@@ -149,7 +149,22 @@ The contract that makes pages copy-of-the-pattern (full list in
   string key** (`st.form("empennage_form")`) — tests select its Apply button
   through that key, never by position or label (M4-12a).
 - **Apply merges** targeted fields onto the existing slice; a sole-owner page may
-  fully reconstruct its own slice.
+  fully reconstruct its own slice. **A form may never rebuild an input dataclass
+  from the widgets it happens to render** (#36): every field the form does not
+  render then reverts to its *default*, which deletes what the project stated
+  without touching a widget or showing a message. Build the new value with
+  `dataclasses.replace(existing, ...)`, or — where the result is post-processed
+  field-by-field, as the engine page's `to_imperial` pass is — carry the
+  unrendered fields across by name and say why. Measured 2026-08-21, four forms
+  had drifted: the landing-gear form dropped the G-2 carrier, the G-12 trunnion
+  node and the G-12a leg weight (so a GUI-built project exported a ground model
+  with **no gear nodes at all**), the empennage form dropped the fin root
+  waterline, the engine form dropped `mounted_on`, and the wing-aero form wiped
+  the profile-drag and section-Cm polars. The guard is one-sided and page-generic
+  — `tests/test_configuration_layout_view.py` presses every Apply on every page
+  **without touching a widget** and fails if anything the project stated has
+  become unstated. Apply may add (a seeded `occupants`, an optional sub-record
+  materialised as explicitly disabled) and may re-derive; it may not delete.
 - **No airplane-shaped widget defaults** — a blank project opens with neutral
   defaults, not Appendix-A numbers baked into `value=`.
 - **LIMIT vs. ULTIMATE marking** — deliverables (CSV, sbeam cards, Review/Export)

@@ -14,6 +14,8 @@ step with NETLOADS.
 
 from __future__ import annotations
 
+from dataclasses import replace
+
 import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
@@ -33,7 +35,7 @@ from sloads import (
     to_si_scalar,
 )
 from sloads import io as sloads_io
-from sloads.derived_geometry import wing_reference
+from sloads.derived_geometry import wing_plane
 from sloads.export import sbeam_bridge as sb
 from sloads.modules.airloads import run as airloads_run
 from sloads.modules.airloads import schrenk_distribution
@@ -118,8 +120,13 @@ if aero_applied:
     if twist == [(0.0, 0.0)]:
         twist = []
     tau_override = tau_override_raw if use_tau_override else None
-    aero_surf = AeroSurfaceInput(
-        name="wing", section_slope=section_slope, taper_ratio=taper_ratio,
+    # Built from the *existing* surface, not from scratch (#36): this form renders
+    # seven of AeroSurfaceInput's fields, and a fresh construction reset the other
+    # four to their defaults -- wiping the profile-drag and section-Cm polars, the
+    # design Mach and the sweep, none of which any widget in the GUI can restore.
+    base = existing_aero if existing_aero is not None else AeroSurfaceInput(name="wing")
+    aero_surf = replace(
+        base, name="wing", section_slope=section_slope, taper_ratio=taper_ratio,
         tip_ratio=tip_ratio, tau=tau_override, twist=twist, target_cl=target_cl)
     other_surfaces = [s for s in (project.aero.surfaces if project.aero else []) if s.name != "wing"]
     project.aero = AeroInput(surfaces=[*other_surfaces, aero_surf])
@@ -192,14 +199,12 @@ st.header("Net wing loads")
 
 wm = project.wing_mass or WingMassInput()
 
-# Step M2-6: the wing reference-plane waterline and dihedral are single-sourced from the
-# parametric wing on the Geometry page (WINGINER reads them from there); this page shows
-# them read-only. ``wing_reference`` returns the derived pair when the parametric wing is
-# present, else we fall back to whatever is on the slice.
-_wr = wing_reference(project, wm.surface or "wing")
-_has_parametric = project.geometry is not None and project.geometry.parametric is not None
-_wrp_derived = _wr.wrp_waterline if (_wr is not None and _has_parametric) else wm.wrp_waterline
-_dihedral_derived = _wr.dihedral_deg if (_wr is not None and _has_parametric) else wm.dihedral_deg
+# The wing reference-plane waterline and dihedral are single-sourced from the
+# parametric wing on the Geometry page (WINGINER reads them from there); this page
+# shows them read-only. Note 33: they are no longer fields on ``WingMassInput``, so
+# there is nothing to fall back to and nothing to write back — ``wing_plane`` is the
+# one resolver, and the display and the calc cannot disagree.
+_wrp_derived, _dihedral_derived = wing_plane(project, wm.surface or "wing")
 
 st.caption(
     "**WL of wing ref plane** and **dihedral** are single-sourced from the "
@@ -223,8 +228,7 @@ if _from_select:
     if _cols[0].button("Pull cases from SELECT", key="pull_wing_cases"):
         project.wing_mass = WingMassInput(
             panel_weight_lb=wm.panel_weight_lb, tip_root_density_ratio=wm.tip_root_density_ratio,
-            inboard_rib_y=wm.inboard_rib_y, wrp_waterline=_wrp_derived,
-            dihedral_deg=_dihedral_derived, surface=wm.surface or "wing",
+            inboard_rib_y=wm.inboard_rib_y, surface=wm.surface or "wing",
             concentrated=list(wm.concentrated), cases=_from_select)
         st.session_state["project"] = project
         st.rerun()
@@ -299,13 +303,9 @@ if mass_applied:
         for _, r in case_df.iterrows()
         if pd.notna(r["name"]) and str(r["name"]).strip()
     ]
-    # wrp_waterline / dihedral_deg are derived from geometry (Step M2-6): persist the
-    # current derived values so the in-session slice is consistent; io drops them and
-    # every WINGINER run re-syncs from the parametric wing.
     project.wing_mass = WingMassInput(
         panel_weight_lb=to_imperial_scalar(panel, "weight", system),
         tip_root_density_ratio=dr, inboard_rib_y=to_imperial_scalar(rib, "length", system),
-        wrp_waterline=_wrp_derived, dihedral_deg=_dihedral_derived,
         surface="wing", concentrated=concentrated, cases=cases)
     st.session_state["project"] = project
     st.success("Wing mass distribution applied.")
