@@ -174,7 +174,6 @@ traceability with plans 09/11/12/13; the **Pri** column is ordinal only.
 | Pri | Item (detail below / in its plan) | What ships | Tag | Tier / effort | Depends on |
 |---|---|---|---|---|---|
 | **A — 0.7.0: the oracle GUI fully functional + the 2026-08-20 review's MAJOR defect fixes (CR-\* keys resolve in that review)** ||||||
-| 1 | **Oracle GUI scope + nav polish** (CR-A-4, CR-A-5/CR-D-10, CR-A-9) (#37) | No Switch-to-Concept action in the oracle GUI (`banner=False` or warning-only); the shell's bare `except Exception` narrowed to `StreamlitAPIException`; `oracle_steps()[0]` hoisted | V | S / S | — |
 | 2 | **SELECT keyed pick through `_extreme` + AST drift guard** (CR-B-1 `[MAJOR]`) (#38) | The 23.423(a) `BAL A` pick routed through `_extreme`; the §7 guard rebuilt as an AST walk (builtin `min`/`max` with `key=`); the `landing.py:596` tie-family sibling adopts the tie rule | E | M / S | — |
 | 3 | **Concept→FAR23 reduction identity gated exactly** (CR-B-2 `[MAJOR]`) (#39) | `_assert_modules_identical` at `==` (bit-for-bit), not ±0.1 %; if any value fails exact equality, that divergence is investigated as its own finding | E | S / S | — |
 | 4 | **23.361(b)(1) stoppage torque: formula closure + truncation basis** (CR-B-3 `[MAJOR]`) (#40) | A formula-closure assertion (`I·ω/Δt` summation) on the twin fixture; `int()` vs BASIC `INT()` verified against ENGLOADS.BAS (App. C p373 ff) at both sites and recorded in CONVENTIONS §5 | E | M / S | — |

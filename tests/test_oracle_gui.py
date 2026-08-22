@@ -246,6 +246,71 @@ def test_every_oracle_page_renders_on_an_empty_project(key):
     assert not at.exception, [e.message for e in at.exception]
 
 
+# --------------------------------------------------------------------------- #
+# Scope -- concept mode is not this GUI's (OG-1; review 2026-08-20 CR-A-4)
+# --------------------------------------------------------------------------- #
+# The shared header rendered the applicability banner with its default
+# ``switch_action=True``, so an out-of-band airplane got a **Switch to Concept**
+# button on a front-end that carries no concept page and shows no concept field:
+# one click wrote ``speeds.category="C"`` and seeded ``chosen_n``/``chosen_nneg``
+# into a project the user could then only get back in ``app/``. The warning
+# itself belongs here -- it says the numbers are an extrapolation -- so the fix
+# is warning-without-action, not ``banner=False``.
+def _out_of_band():
+    """The Appendix-A GA single re-stated above the 12,500 lb FAR 23 ceiling.
+
+    Both members move together because the gate reads the MTOW SSOT (G-14) and
+    ``speeds.weight_lb`` is its derived read.
+    """
+    project = _seeded()
+    project.weight.max_takeoff_weight_lb = 20000.0
+    project.speeds.weight_lb = 20000.0
+    return project
+
+
+def test_an_out_of_band_airplane_is_warned_but_offered_no_concept_switch():
+    """The banner states the exceedance; the action that leaves this GUI's
+    scope is gone."""
+    at = _render(sorted(wf.oracle_step_keys())[0], _out_of_band())
+    assert not at.exception, [e.message for e in at.exception]
+
+    warnings = " ".join(w.value for w in at.warning)
+    assert "Exceeds FAR 23 applicability" in warnings, (
+        "the oracle GUI stopped telling an out-of-band airplane its results are "
+        "a concept-mode extrapolation")
+    labels = [b.label for b in at.button]
+    assert "Switch to Concept" not in labels, (
+        "the oracle GUI offers the switch to concept mode, which it does not "
+        "carry a single page or field for (OG-1, CR-A-4)")
+
+
+def test_no_oracle_page_can_reach_the_concept_switch():
+    """The drift guard behind the assertion above (``CLAUDE.md`` rule 3).
+
+    Every shared-header call in the GUI has to disclaim the switch action --
+    either by not rendering the banner at all or by rendering it without its
+    button. A fifteenth page added the day this file is not touched inherits the
+    shell default, and the behavioural test above only exercises one page.
+    """
+    offenders = []
+    for path in _SOURCES:
+        for node in ast.walk(_parse(path)):
+            if not isinstance(node, ast.Call):
+                continue
+            name = getattr(node.func, "attr", None) or getattr(node.func, "id", None)
+            if name not in ("page", "page_header", "render_applicability_banner"):
+                continue
+            passed = {kw.arg: kw.value for kw in node.keywords}
+            off = [k for k in ("switch_action", "banner")
+                   if isinstance(passed.get(k), ast.Constant) and passed[k].value is False]
+            if not off:
+                offenders.append(f"{os.path.relpath(path, _ROOT)}:{node.lineno}: {name}()")
+    assert not offenders, (
+        "an oracle-GUI page renders the shared header without disclaiming the "
+        "switch-to-Concept action -- pass switch_action=False (CR-A-4):\n"
+        + "\n".join(offenders))
+
+
 def test_every_page_shows_every_field_the_registry_gives_it():
     """No field in the input set is dropped on the floor: the page groups
     partition the registry's rows for that page exactly."""

@@ -41,20 +41,24 @@ from sloads import workflow as wf
 st.set_page_config(page_title="sloads — oracle", layout="wide", page_icon="📐")
 
 
-def _page(step: wf.WorkflowStep) -> st.Page:
+def _page(step: wf.WorkflowStep, *, default_key: str) -> st.Page:
     """A navigable page for an oracle step.
 
     The page *is* the generic renderer bound to this step's key. A callable
     rather than a ``views/<key>.py`` path on purpose: a file per page would be a
     hand-maintained page list wearing a different hat, and gate G2 requires that
     adding a ``bas`` to a workflow step adds a page with no GUI edit at all.
+
+    ``default_key`` is the first oracle step's key, resolved once by the caller
+    rather than per page (CR-A-9) -- the page set is still derived, the landing
+    page is still the first step, and ``oracle_steps()`` is walked once.
     """
     def render() -> None:
         render_step(step.key)
 
     render.__name__ = step.key
     return st.Page(render, title=step.title, url_path=step.key,
-                   default=(step.key == wf.oracle_steps()[0].key))
+                   default=(step.key == default_key))
 
 
 project = ensure_project()
@@ -65,7 +69,8 @@ st.sidebar.caption(
     "The full sloads app is `streamlit run app/Home.py`."
 )
 
-_pages = {step.key: _page(step) for step in wf.oracle_steps()}
+_steps = wf.oracle_steps()
+_pages = {step.key: _page(step, default_key=_steps[0].key) for step in _steps}
 # This GUI's page set, so a cross-page link resolves to a page it actually
 # carries rather than to app/'s directory layout (note 32, OG-F).
 register_pages(_pages)

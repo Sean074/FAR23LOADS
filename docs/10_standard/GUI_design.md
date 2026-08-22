@@ -470,6 +470,10 @@ it is outside the certificated band — never blocking. The design:
   "exceeds FAR 23 applicability; results are concept-mode extrapolation" — with a
   one-click **"Switch to Concept"** action that also seeds the concept load factors
   from the computed FAR 23.337 values so the flip never breaks the downstream calc.
+  The action is **`app/`-only**: `switch_action=False` (via `page_header`/`page`)
+  renders the same warning without the button for a GUI that carries no concept
+  page — the oracle GUI passes it, and `tests/test_oracle_gui.py` guards both the
+  behaviour and the drift (review 2026-08-20 CR-A-4).
 - **`occupants` is a first-class field** (`StructuralSpeedsInput.occupants`,
   co-located with `category` + `weight_lb`; seeds its default from the Weight
   Estimate seat count; echoed read-only on Configuration & Layout), driving the
