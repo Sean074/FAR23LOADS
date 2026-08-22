@@ -27,14 +27,14 @@ jobs:
         # §0). Required checks on `main` are therefore `test (3.12)`,
         # `typecheck`, `sbeam-roundtrip (3.12)`.
         python-version: ${{ github.event_name == 'pull_request' && fromJSON('["3.12"]') || fromJSON('["3.9", "3.11", "3.12"]') }}
-        # Coverage on ONE leg (2026-08-16, item 8 of the code-standard review):
-        # branch-coverage instrumentation was the multiplier that made every
-        # leg a ~12-minute job on a 2-core runner. The 80 % floor is one
-        # number, so it needs measuring once; the other two legs are the
-        # 3.9/3.11 *compatibility* claim and run uninstrumented.
-        include:
-          - python-version: "3.12"
-            coverage: "--cov=sloads --cov-report=term-missing --cov-fail-under=80"
+        # Coverage on ONE leg, and on PUSH TO MAIN only (2026-08-16 item 8;
+        # moved off the PR leg 2026-08-22): coverage instrumentation on the
+        # 2-core runner is the wall-clock multiplier — the instrumented PR leg
+        # had grown past 27 minutes against ~2.5 uninstrumented local minutes.
+        # The 80 % floor is one number a PR almost never moves; like the
+        # 3.9/3.11 compatibility legs it is measured on the merge push and
+        # fixed forward (DEVELOPMENT_PROCESS §0). PRs run 3.12 uninstrumented.
+        include: ${{ github.event_name == 'pull_request' && fromJSON('[]') || fromJSON('[{"python-version":"3.12","coverage":"--cov=sloads --cov-report=term-missing --cov-fail-under=80"}]') }}
 
     steps:
       - uses: actions/checkout@v4
@@ -56,6 +56,12 @@ jobs:
       - name: Test (pytest)
         env:
           STREAMLIT_SERVER_HEADLESS: "true"
+          # The instrumented leg measures with 3.12's `sys.monitoring` core,
+          # which is close to free — but it supports LINE coverage only on
+          # 3.12/3.13 (branch measurement under sysmon needs 3.14), which is
+          # why `[tool.coverage.run]` no longer sets `branch = true`. Inert on
+          # the uninstrumented legs and ignored below 3.12.
+          COVERAGE_CORE: "sysmon"
         # Coverage lives here, not in `addopts` (CH-1): CI is the enforcement
         # point; local runs stay uninstrumented and fast. `matrix.coverage` is
         # set on the 3.12 leg only (see the matrix `include` above); on the
