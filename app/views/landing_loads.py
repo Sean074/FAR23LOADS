@@ -18,6 +18,7 @@ import pandas as pd
 import streamlit as st
 
 from app_shell.components import page_header, workflow_page_link
+from app_shell.widget_keys import widget_key
 from sloads import (
     LandingInput,
     UnitSystem,
@@ -92,15 +93,15 @@ with st.form("landing_loads_form"):
     strut_stroke_in = c1.number_input(
         f"Strut stroke ({U['length']})", min_value=0.0,
         value=float(round(to_display(inp.strut_stroke_in, "length", system), 4)),
-        key=f"strut_stroke_{system.value}")
+        key=widget_key(f"strut_stroke_{system.value}"))
     tire_od_in = c2.number_input(
         f"Tyre OD ({U['length']})", min_value=0.0,
         value=float(round(to_display(inp.tire_od_in, "length", system), 4)),
-        key=f"tire_od_{system.value}")
+        key=widget_key(f"tire_od_{system.value}"))
     hub_diameter_in = c3.number_input(
         f"Hub diameter ({U['length']})", min_value=0.0,
         value=float(round(to_display(inp.hub_diameter_in, "length", system), 4)),
-        key=f"hub_diameter_{system.value}")
+        key=widget_key(f"hub_diameter_{system.value}"))
     lift_factor = c1.number_input(
         "Wing lift factor, L (≤ 0.667)", min_value=0.0, max_value=0.667,
         value=float(inp.lift_factor))

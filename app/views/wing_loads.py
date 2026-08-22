@@ -22,6 +22,7 @@ import streamlit as st
 
 from app_shell.components import gate, page_header
 from app_shell.limit_csv import wing_limit_csv, wing_limit_rows
+from app_shell.widget_keys import widget_key
 from sloads import (
     AeroInput,
     AeroSurfaceInput,
@@ -109,7 +110,7 @@ with st.form("wing_airloads_form"):
                  "Angle": st.column_config.NumberColumn("Angle (deg)")}
     twist_df = st.data_editor(
         pd.DataFrame(twist_display, columns=["Y", "Angle"]), column_config=twist_cols,
-        num_rows="dynamic", hide_index=True, use_container_width=True, key=f"twist_{system.value}")
+        num_rows="dynamic", hide_index=True, use_container_width=True, key=widget_key(f"twist_{system.value}"))
 
     aero_applied = st.form_submit_button("Apply", type="primary")
 
@@ -243,13 +244,13 @@ with st.form("net_wing_loads_form"):
     panel = st.number_input(
         f"Outboard panel weight, one side ({U['weight']})", min_value=0.0,
         value=float(round(to_display(wm.panel_weight_lb, "weight", system), 4)),
-        key=f"panel_{system.value}")
+        key=widget_key(f"panel_{system.value}"))
     dr = st.number_input("Tip/root area-density ratio", min_value=0.0, max_value=1.0,
                          value=float(wm.tip_root_density_ratio), format="%.3f")
     rib = st.number_input(
         f"Inboard rib butt line ({U['length']})",
         value=float(round(to_display(wm.inboard_rib_y, "length", system), 4)),
-        key=f"rib_{system.value}")
+        key=widget_key(f"rib_{system.value}"))
 
     st.subheader(f"Concentrated wing weights ({U['weight']} / {U['length']})")
     cw_display = [
@@ -266,7 +267,7 @@ with st.form("net_wing_loads_form"):
     cw_df = st.data_editor(
         pd.DataFrame(cw_display, columns=["name", "weight_lb", "x", "y", "z"]),
         column_config=cw_cols, num_rows="dynamic", hide_index=True,
-        use_container_width=True, key=f"cw_{system.value}")
+        use_container_width=True, key=widget_key(f"cw_{system.value}"))
 
     st.subheader("Critical load cases")
     st.caption("Nz / Nx are the inertia load factors (negative of the air-load factor); "

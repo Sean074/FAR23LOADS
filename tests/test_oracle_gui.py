@@ -34,6 +34,7 @@ import pytest
 
 logging.disable(logging.CRITICAL)  # silence Streamlit's bare-mode warnings
 
+from helpers import widget_editing, widgets_editing  # noqa: E402
 from sloads import field_registry as fr  # noqa: E402
 from sloads import io  # noqa: E402
 from sloads import workflow as wf  # noqa: E402
@@ -552,8 +553,8 @@ def test_no_copy_of_a_shared_quantity_renders_as_a_plain_widget(path):
         f"{path} renders on page {row.page!r} without naming its owner "
         f"{row.owner_path!r}; the page implies an independent input")
 
-    widget = next((w for w in at.number_input
-                   if w.key == path or (w.key or "").startswith(f"{path}_")), None)
+    hits = widgets_editing(at, path)
+    widget = hits[0] if hits else None
     if widget is not None and not row.governs:
         assert widget.disabled, (
             f"{path} is display-only — the analysis resolves {row.owner_path!r} "
@@ -574,8 +575,7 @@ def test_a_display_only_copy_shows_the_value_that_governs():
     at = _render("structural_speeds", project)
     assert not at.exception, [e.message for e in at.exception]
 
-    widget = next(w for w in at.number_input
-                  if (w.key or "").startswith("speeds.wing_area_sqft"))
+    widget = widget_editing(at, "speeds.wing_area_sqft")
     assert widget.disabled
     owner = project.geometry.parametric.wing_area_sqft
     assert widget.value == pytest.approx(to_display(owner, "area_sqft", active_system()), rel=1e-6)

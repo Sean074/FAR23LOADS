@@ -27,6 +27,7 @@ import plotly.graph_objects as go
 import streamlit as st
 
 from app_shell.components import gate, page_header, workflow_page_link
+from app_shell.widget_keys import widget_key
 from sloads import (
     GROUND_CASE_ROLE_ORDER,
     AnalysisKind,
@@ -128,7 +129,7 @@ def _tab_estimate(project: Project, system: UnitSystem, U: dict) -> None:
         hp = st.number_input(
             f"Max continuous power override ({U['power']}, total)", min_value=0.0,
             value=float(round(to_display(existing.max_continuous_hp, "power", system), 4))
-            if existing else 0.0, key=f"max_cont_hp_{system.value}",
+            if existing else 0.0, key=widget_key(f"max_cont_hp_{system.value}"),
             help="Combined total maximum continuous power. Applied only when the override box "
                  "is ticked (else the engine-list total is used). Separate from the per-engine "
                  "power on the Engine Mount page (engine-torque and flap-slipstream loads).")
@@ -155,7 +156,7 @@ def _tab_estimate(project: Project, system: UnitSystem, U: dict) -> None:
         baggage = st.number_input(
             f"Baggage weight ({U['weight']})", min_value=0.0,
             value=float(round(to_display(existing.baggage_lb, "weight", system), 4))
-            if existing else 0.0, key=f"baggage_{system.value}",
+            if existing else 0.0, key=widget_key(f"baggage_{system.value}"),
             help="Design baggage payload weight; part of the useful load.")
         pressurized = st.checkbox("Pressurized", value=existing.pressurized if existing else False,
                                   help="Cabin pressurization adds a structural-weight allowance in the estimate.")
@@ -332,7 +333,7 @@ def _tab_cg_inertia(project: Project, system: UnitSystem, U: dict) -> None:
     with st.form("weight_items_form"):
         edited = st.data_editor(
             default_df, num_rows="dynamic", use_container_width=True, hide_index=True,
-            column_config=_COLUMN_CONFIG, key=f"weight_items_{system.value}",
+            column_config=_COLUMN_CONFIG, key=widget_key(f"weight_items_{system.value}"),
         )
         applied = st.form_submit_button("Apply weight items", type="primary")
 
@@ -527,7 +528,7 @@ def _tab_payload_cases(project: Project, system: UnitSystem, U: dict) -> None:
         }
         rows = st.data_editor(
             default_rows, column_config=payload_cols, num_rows="dynamic", hide_index=True,
-            use_container_width=True, key=f"payload_cases_editor_{system.value}",
+            use_container_width=True, key=widget_key(f"payload_cases_editor_{system.value}"),
         )
         applied = st.form_submit_button("Apply", type="primary")
 
@@ -634,14 +635,14 @@ def _tab_envelope(project: Project, system: UnitSystem, U: dict) -> None:
         help="A single scalar, assumed constant between the forward and aft CG "
              "limits (decision G-14). The item-database total is an upper bound, "
              "not this: a database can hold full fuel *and* full payload at once.",
-        key=f"mtow_{system.value}")
+        key=widget_key(f"mtow_{system.value}"))
     mtow_ssot = to_imperial_scalar(mtow_disp, "weight", system)
     mlw_disp = dw2.number_input(
         f"Max landing weight, MLW ({U['weight']})", min_value=0.0,
         value=float(round(to_display(project.weight.max_landing_weight_lb, "weight", system), 4)),
         help="Typically 0.95·MTOW (14 CFR 23.473(b)/(c)). Never derived silently — "
              "the estimate below is offered for acceptance, not written for you.",
-        key=f"mlw_{system.value}")
+        key=widget_key(f"mlw_{system.value}"))
     mlw_ssot = to_imperial_scalar(mlw_disp, "weight", system)
     _floor = max_landing_weight_estimate(project)
     if _floor:
@@ -676,7 +677,7 @@ def _tab_envelope(project: Project, system: UnitSystem, U: dict) -> None:
             value=float(round(to_display(
                 existing.gross_weight if existing and existing.gross_weight else mtow_upstream,
                 "weight", system), 4)),
-            key=f"gross_weight_{system.value}")
+            key=widget_key(f"gross_weight_{system.value}"))
         gross = to_imperial_scalar(gross_disp, "weight", system)
     else:
         gross = mtow_upstream
@@ -693,7 +694,7 @@ def _tab_envelope(project: Project, system: UnitSystem, U: dict) -> None:
         f"Forward regardless weight ({U['weight']})", min_value=1.0,
         value=float(round(to_display(
             existing.fwd_regardless_weight if existing else 2800.0, "weight", system), 4)),
-        key=f"reg_w_{system.value}")
+        key=widget_key(f"reg_w_{system.value}"))
     reg_w = to_imperial_scalar(reg_w_disp, "weight", system)
 
     inp = WeightEnvelopeInput(

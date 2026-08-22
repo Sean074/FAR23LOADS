@@ -22,6 +22,14 @@ list: adding a ``bas`` to a workflow step adds a page with no edit to this file
 (gate G2), and adding a field to ``models/inputs.py`` adds a widget once the
 registry classifies it (gate G4).
 
+**Widget keys.** Every widget here is keyed by what it edits — the registry path,
+plus the row index where one path is N widgets — and stamped with the project
+generation through :func:`app_shell.widget_keys.widget_key`. Without the stamp
+those keys are identical across projects, and Streamlit's retained widget state
+beats the ``value=`` this renderer seeds from the project: a page visited before
+a load re-rendered its own old values and, since the renderers below persist what
+they return, wrote them back over what was just loaded (#51).
+
 **What is hand-declared, and why.** :data:`MEMBER_LABELS` names the members of
 the composite fields — an ``XYPoint`` is (X, Z) on a gear leg and (X, Y) on a
 planform, and no amount of type introspection can tell them apart. It is
@@ -41,6 +49,7 @@ import pandas as pd
 import streamlit as st
 
 from app_shell.components import active_system, page_header, unit_number_input
+from app_shell.widget_keys import widget_key
 from oracle_app.labels import pretty
 from oracle_app.results import render_results
 from sloads import field_registry as fr
@@ -449,7 +458,8 @@ def render_scalar(record: Any, path: str, *, key: str, container: Any = None,
         options: List[Any] = ([None] if optional else []) + list(enum)
         current = value if value in options else options[0]
         chosen = where.selectbox(
-            label, options, index=options.index(current), key=key, help=help_text,
+            label, options, index=options.index(current), key=widget_key(key),
+            help=help_text,
             format_func=lambda o: "—" if o is None else f"{o.value} · {pretty(o.name)}",
             disabled=disabled,
         )
@@ -458,15 +468,15 @@ def render_scalar(record: Any, path: str, *, key: str, container: Any = None,
         return
 
     if inner is bool:
-        entered_bool = where.checkbox(label, bool(value), key=key, help=help_text,
-                                      disabled=disabled)
+        entered_bool = where.checkbox(label, bool(value), key=widget_key(key),
+                                      help=help_text, disabled=disabled)
         if not disabled:
             _persist(record, name, entered_bool)
         return
 
     if inner is str:
-        entered_str = where.text_input(label, value or "", key=key, help=help_text,
-                                       disabled=disabled)
+        entered_str = where.text_input(label, value or "", key=widget_key(key),
+                                       help=help_text, disabled=disabled)
         if not disabled:
             _persist(record, name, entered_str)
         return
@@ -479,7 +489,7 @@ def render_scalar(record: Any, path: str, *, key: str, container: Any = None,
         entered = where.number_input(
             f"{label} ({_unit_label(unit, active_system())})".replace(" ()", ""),
             value=None if (optional and value is None) else int(value or 0),
-            step=1, key=key, help=help_text, disabled=disabled)
+            step=1, key=widget_key(key), help=help_text, disabled=disabled)
         if entered is None or disabled:
             return
         if optional and value is None:
@@ -554,7 +564,7 @@ def render_curve(record: Any, path: str, *, key: str, container: Any = None) -> 
     ]
     where.markdown(f"**{_field_label(path)}**", help=_help(path))
     edited = where.data_editor(
-        pd.DataFrame(display, columns=headers), num_rows="dynamic", key=key,
+        pd.DataFrame(display, columns=headers), num_rows="dynamic", key=widget_key(key),
         width="stretch",
     )
     # ``rows`` is what was rendered, so row ``n`` of the editor is row ``n`` of
@@ -591,7 +601,7 @@ def render_enum_set(record: Any, path: str, *, key: str, container: Any = None) 
     chosen = where.multiselect(
         _field_label(path), list(enum), default=sorted(getattr(record, name) or (),
                                                        key=lambda m: m.value),
-        key=key, help=_help(path), format_func=lambda m: pretty(m.name))
+        key=widget_key(key), help=_help(path), format_func=lambda m: pretty(m.name))
     _persist(record, name, set(chosen))
 
 
@@ -675,7 +685,7 @@ def render_table(project: Project, prefix: str, paths: Sequence[str]) -> None:
 
     count = st.number_input(
         f"{pretty(prefix.rstrip(fr.LIST_MARKER).rsplit('.', 1)[-1])} — rows",
-        min_value=0, value=len(rows), step=1, key=f"{prefix}.count")
+        min_value=0, value=len(rows), step=1, key=widget_key(f"{prefix}.count"))
     while len(rows) < count:
         rows.append(blank(cls))
     while len(rows) > count:
@@ -731,7 +741,7 @@ def _render_flat_table(rows: List[Any], paths: Sequence[str], prefix: str) -> No
     ], columns=[headers[p] for p in paths])
 
     edited = st.data_editor(
-        frame, key=prefix, width="stretch", column_config={
+        frame, key=widget_key(prefix), width="stretch", column_config={
             headers[p]: _column_config(p, headers[p]) for p in paths
         },
     )

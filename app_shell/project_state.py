@@ -32,6 +32,7 @@ from typing import Callable, Optional
 import streamlit as st
 
 from app_shell.components import active_project
+from app_shell.widget_keys import bump_generation
 from sloads import Project
 from sloads import io as sloads_io
 from sloads.models import SCHEMA_VERSION
@@ -66,8 +67,17 @@ def has_unsaved_changes(project: Project) -> bool:
 
 
 def adopt(new_project: Project) -> None:
-    """Replace the session's project and reset the dirty baseline to it."""
+    """Replace the session's project, reset the dirty baseline to it, and retire
+    the widgets that were seeded from the project it replaces.
+
+    This is the only place in either GUI that means "the project was replaced",
+    which is why the generation bump belongs here: without it, a page visited
+    before the load re-renders from its own retained widget state and writes
+    that state back over what was just loaded
+    (:mod:`app_shell.widget_keys`).
+    """
     st.session_state["project"] = new_project
+    bump_generation()
     mark_saved(new_project)
 
 

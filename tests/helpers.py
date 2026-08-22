@@ -77,6 +77,35 @@ def values_by_key(source) -> Dict[str, float]:
 # --------------------------------------------------------------------------- #
 # Streamlit AppTest
 # --------------------------------------------------------------------------- #
+def widgets_editing(at, path, kind="number_input"):
+    """Every ``kind`` widget in ``at`` whose key edits ``path``.
+
+    A widget key is not the thing it edits. Two shell mechanisms decorate it:
+    ``unit_number_input`` appends the active unit system, so a system switch
+    re-seeds the field, and ``app_shell.widget_keys`` prefixes the *project
+    generation*, so a project replacement retires the widget. Both are the
+    shell's business, not a test's — this matches on what the widget edits and
+    lets either decoration be whatever the shell chose. Three test modules had
+    grown their own copy of this lookup before it moved here.
+    """
+    from app_shell.widget_keys import unstamped
+
+    hits = []
+    for widget in getattr(at, kind):
+        base = unstamped(widget.key)
+        if base == path or base.startswith(f"{path}_"):
+            hits.append(widget)
+    return hits
+
+
+def widget_editing(at, path, kind="number_input"):
+    """The one ``kind`` widget editing ``path``; fails if there is not exactly one."""
+    hits = widgets_editing(at, path, kind)
+    assert len(hits) == 1, (
+        f"expected one {kind} for {path!r}, got {[w.key for w in hits]}")
+    return hits[0]
+
+
 def apply_button(at, form_key: str):
     """The submit button of the form keyed ``form_key``, or fail loudly.
 

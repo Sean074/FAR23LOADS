@@ -123,6 +123,24 @@ consistent:
   seeds its default from that data instead of showing a blank.
 - **Merge, don't wholesale-replace** a slice shared with other pages/edits — only
   the sole owner of a slice may reconstruct it in full on Apply.
+- **A widget belongs to the project it was seeded from** (#51, 2026-08-21).
+  Streamlit widget state, once registered under a key, beats the `value=`
+  argument on every later rerun — and GUI widget keys are stable across projects
+  (a registry path in the oracle form, a hand-written name in `app/views/`). So a
+  page **visited before** a load kept rendering its own retained state and, since
+  these widgets persist what they return, wrote that state back over the project
+  that had just been loaded: opening the oracle GUI on the seed project, visiting
+  Weight & Mass Properties and loading `atr42_100` showed zeros and popped all 21
+  weight items and 8 CG cases out of the loaded project — with no Apply step in
+  that GUI, on the load's own rerun. Every widget seeded from the project
+  therefore keys itself through `app_shell/widget_keys.py:widget_key`, which
+  stamps the key with a *project generation* bumped exactly once per replacement
+  (`project_state.adopt`, and the JSON editor's Apply — the only two places that
+  replace it). A mutation, an Apply or a unit switch is not a replacement and
+  keeps its widgets. Guards: `tests/test_widget_freshness.py` — render → load →
+  re-render leaves the session project equal to the loaded file, on every oracle
+  page and every shipped example, plus an AST walk that fails on any GUI widget
+  keyed without the stamp.
 - **A copy says it is a copy** (#36, CR-A-2). Where a quantity is held by more
   than one field, `sloads/field_registry.py` names the owner, and the renderer
   **reads that** rather than presenting every holder as an independent input.

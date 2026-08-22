@@ -28,6 +28,7 @@ import plotly.graph_objects as go
 import streamlit as st
 
 from app_shell.components import active_system, gate, unit_number_input
+from app_shell.widget_keys import widget_key
 from sloads import (
     FlightLoadsInput,
     Project,
@@ -106,7 +107,7 @@ def _num(label: str, value: float, key: str, kind: str, fmt: str = "%.3f", min_v
     display_value = float(round(to_display(value, kind, system), 4))
     kwargs = {} if min_value is None else {"min_value": min_value}
     return float(st.number_input(f"{label} ({U[kind]})", value=display_value, format=fmt,
-                                 key=f"{key}_{system.value}", **kwargs))
+                                 key=widget_key(f"{key}_{system.value}"), **kwargs))
 
 
 with st.sidebar:
@@ -145,7 +146,7 @@ st.caption(
 alt_default = pd.DataFrame({"altitude_ft": fl.altitudes_ft or [0.0]})
 st.subheader("Altitudes (V-n balanced at each)")
 alt_df = st.data_editor(alt_default, num_rows="dynamic", hide_index=True,
-                        use_container_width=True, key="altitudes_editor")
+                        use_container_width=True, key=widget_key("altitudes_editor"))
 altitudes_ft = sorted({float(v) for v in alt_df["altitude_ft"] if pd.notna(v)}) or [0.0]
 st.caption("Edit altitudes above, then **Apply geometry & altitudes** in the sidebar to save.")
 
@@ -399,7 +400,7 @@ def _tab_select() -> None:
                     # One shared formatter for every case label in the app
                     # (design note 17): id, deck LOAD/SUBCASE, condition, FAR.
                     case_label(c.case_ref, condition=c.label),
-                    value=default_checked, key=f"select_{cid}",
+                    value=default_checked, key=widget_key(f"select_{cid}"),
                 )
                 if checked:
                     checked_ids.append(cid)
@@ -438,7 +439,7 @@ def _tab_select() -> None:
             all_ids.append(cid)
             default_checked = cid in prior_selected if prior_selected is not None else True
             if st.checkbox(case_label(c.case_ref, condition=c.description),
-                           value=default_checked, key=f"select_{cid}"):
+                           value=default_checked, key=widget_key(f"select_{cid}")):
                 checked_ids.append(cid)
 
     # Empty list means "no filter" (every condition kept) -- only persist a real

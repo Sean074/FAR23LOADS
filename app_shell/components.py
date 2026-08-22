@@ -24,6 +24,7 @@ from typing import Iterator, NamedTuple, Optional
 import streamlit as st
 
 from app_shell.nav import page_for
+from app_shell.widget_keys import widget_key
 from sloads import Project, StructuralSpeedsInput, UnitSystem, far23_applicability
 from sloads import workflow as wf
 from sloads.applicability import design_weight_lb
@@ -206,7 +207,9 @@ def unit_number_input(
       **converted**. The seed is shown in the active system, the label gains the
       system's unit suffix, and the return value is converted back to Imperial.
       The widget key gains a per-system suffix so switching systems re-seeds the
-      field with converted defaults instead of reusing the stale number.
+      field with converted defaults instead of reusing the stale number. (Every
+      key here is also stamped with the project generation, for the same reason
+      one step up: see :mod:`app_shell.widget_keys`.)
     * ``fixed_unit=KEAS`` / ``fixed_unit=ALTITUDE_FT`` -- **not converted**. The
       unit is shown in the label and the value passes through untouched, in both
       systems. The widget key is *not* suffixed: the number is the same in either
@@ -235,14 +238,17 @@ def unit_number_input(
         shown = f"{label} ({labels_for(system)[kind]})"
         seed = (None if value is None
                 else float(round(to_display(float(value), kind, system), 4)))
-        widget_key = f"{key}_{system.value}" if key else None
+        # The unit-system suffix and the generation stamp below say the same
+        # thing in two directions: this is a different widget now.
+        system_key = f"{key}_{system.value}" if key else None
         # Bounds are given in Imperial like the value, so they convert with it --
         # otherwise a non-zero limit (a 12-in minimum chord, say) would silently
         # become a 12-*mm* minimum in SI and stop constraining anything.
         for bound in ("min_value", "max_value"):
             if kwargs.get(bound) is not None:
                 kwargs[bound] = float(to_display(float(kwargs[bound]), kind, system))
-        entered = where.number_input(shown, value=seed, key=widget_key, **kwargs)
+        entered = where.number_input(
+            shown, value=seed, key=widget_key(system_key), **kwargs)
         if entered is None:
             return None
         if seed is not None and float(entered) == seed:
@@ -258,7 +264,8 @@ def unit_number_input(
 
     shown = f"{label} ({fixed_unit})" if fixed_unit else label
     entered = where.number_input(
-        shown, value=None if value is None else float(value), key=key, **kwargs)
+        shown, value=None if value is None else float(value),
+        key=widget_key(key), **kwargs)
     return None if entered is None else float(entered)
 
 
