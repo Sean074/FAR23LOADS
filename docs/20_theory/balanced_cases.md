@@ -215,9 +215,27 @@ physics: how well the independently-computed wing, tail, and inertia sets agree.
 The acceptance gate (plan 11 §6) sits on it, not on the corrected result:
 
 ```
-|ΣFz| / (n·W)        < 1 %      (force)
-|ΣMy| / (n·W·MAC)    < 1 %      (pitch; per-fixture ceiling where it bites)
+|ΣFz| / (n·W)        < 2.5 %    (force -- `balance.FORCE_RESIDUAL_ACCEPTANCE`)
+|ΣMy| / (n·W·MAC)    < 1 %      (pitch  -- `balance.RESIDUAL_GATE`)
 ```
+
+**The two halves carry different numbers (owner, 2026-08-22, closing CR-C-2).**
+Plan 11 stated a flat 1 % for both. Pitch meets it everywhere with an order of
+magnitude to spare (0.07–0.84 % on the judged family). Force does not: the type
+fixtures reach 1.209–2.360 %, in an ordering that tracks **fixture lift-model
+quality** rather than the assembly — `ga6_normal`, the one fixture whose aero and
+planform come from a printed source, is best at 0.624 %, and the concept
+configurations are worst. None of the six is a printed oracle; the balanced
+full-span model is a mission-extension deliverable with no Appendix A/B figure
+behind it, and the FAR23 replication core stays oracle-locked independently of
+this number. So the force acceptance is stated at the value the suite already
+enforced as its hard stop, and the report judges force against the same number
+the tests do — `tests/test_balance.py`'s per-fixture, per-family
+`_FORCE_RESIDUAL_RATCHET` is unchanged beneath it and remains the regression
+guard. A **clamped** case (§ design note 20 D-4: the trim α outside the polar's
+trusted window, the forward non-wing force not applied) is out of trim by exactly
+that force and its couple, so it is gated per case instead and is split out by
+`balance.residual_gate_family`.
 
 Neither floor is noise, and the two have **different** causes (measured
 2026-08-15 — the element-count study behind backlog Pri 5):
@@ -653,7 +671,7 @@ second would be backwards.
 | aero | the wing distribution at the point's `cl`/`V` | none, except `L × W` lift on cases 1–12 |
 | balancing tail load | `tail-air` (`vn.lt`) | none — Ch 20 has no balancing tail load to invent |
 | weight / CG | the payload case at the V-n point's CG | the roled landing loading at the **case's own design weight** (23.473(a): 23.479/481/483 at the design landing weight, 23.485/23.493 at take-off weight) |
-| acceptance | `RESIDUAL_GATE` < 1 % (§3) | the LANDLOAD closed-form identity (§9.3) |
+| acceptance | force < `FORCE_RESIDUAL_ACCEPTANCE` 2.5 %, pitch < `RESIDUAL_GATE` 1 % (§3) | the LANDLOAD closed-form identity (§9.3) |
 
 The weight split is why the loadings are keyed by **case number**, not by name:
 cases 1–12 and 19–22 both name `aft max landing` at different design weights, and
@@ -779,6 +797,12 @@ it at the CG (`NLG = N − L`), leaves a pitching moment the manual never forms 
 +1.36 % of `n·W·MAC` on the ga6's level families, −2.38 % on the tail-down one —
 reacted by pitch acceleration alone. An airplane at touchdown is an accelerating
 body, not a trimmed one.
+
+The exemption itself has one code owner, `balance.residual_gate_applies`
+(CONVENTIONS §7): this section, §7 and §8 state *why* each family is exempt, and
+every surface that reports a worst residual asks that predicate which cases the
+maximum is taken over — it had been answering the question three different ways
+(CR-C-2).
 
 The gates that **do** apply, in place of smallness:
 

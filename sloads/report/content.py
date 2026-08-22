@@ -1697,6 +1697,86 @@ def _hand_pair_sentence(cases: Sequence[Any]) -> str:
     )
 
 
+def _residual_gate_sentence(cases: Sequence[Any]) -> str:
+    """§6's verdict on the residual gate -- over the family the gate applies to.
+
+    The maximum is taken through ``balance.residual_gate_applies``, the one owner
+    of the exemption (CR-C-2): maximised over *all* cases it reported the
+    23.427(a) maneuver tail load (143.885 % on ``ga6_normal``) or a ground case's
+    applied gear reaction (100.000 %) as a failure of the primary deliverable, in
+    every report shipped since 0.6.0. The exempt families are stated beside the
+    number rather than silently dropped, since a maximum over a filtered set is
+    only honest if the filter is visible.
+
+    **Force and pitch are judged against their own acceptances** -- the owners
+    :data:`~sloads.modules.balance.FORCE_RESIDUAL_ACCEPTANCE` and
+    :data:`~sloads.modules.balance.RESIDUAL_GATE` -- rather than both against the
+    flat 1 %. Reporting a single ``max(force, pitch)`` against the tighter of the
+    two declared four of the six fixtures failed on a bound the suite does not
+    itself enforce, which is the same defect in a second coat of paint.
+    """
+    from ..modules.balance import (
+        FORCE_RESIDUAL_ACCEPTANCE,
+        RESIDUAL_GATE,
+        residual_gate_exemptions,
+        residual_gate_family,
+    )
+
+    exempt = residual_gate_exemptions(cases)
+    standing = (
+        " The gate does not apply to " + "; ".join(exempt) + " -- for those the "
+        "pre-closure residual IS the applied load, by construction, and each "
+        "carries its own stronger gate instead (the ground family reproduces "
+        "LANDLOAD's NVP/NDP/NS exactly; the 23.427(a) family's trim half closes "
+        "inside the gate with the maneuver set replaced by the trim tail load). "
+        "The per-case table below reports every case, gated or not."
+    ) if exempt else ""
+
+    judged, clamped = residual_gate_family(cases)
+    clamped_standing = (
+        f" {len(clamped)} further case(s) carry a non-wing axial force that was "
+        "NOT applied (the trim alpha falls outside the polar's trusted window), "
+        "so they are out of trim by exactly that clamped force and its couple "
+        "about the CG. Their residuals are that known quantity rather than a "
+        "balance quality, and are gated per case against what was measured when "
+        "the clamp was decided."
+    ) if clamped else ""
+
+    if not judged:
+        return (
+            "{} case(s) assembled. None of them is in the family the pre-closure "
+            "residual acceptances apply to.".format(len(cases))
+            + clamped_standing + standing)
+
+    force = _worst_residual(judged, "force_residual_fraction")
+    pitch = _worst_residual(judged, "moment_residual_fraction")
+    verdict = (
+        " Both are inside their acceptance."
+        if force[0] < FORCE_RESIDUAL_ACCEPTANCE and pitch[0] < RESIDUAL_GATE else
+        " That is OVER acceptance -- reported rather than suppressed, and the "
+        "per-case table below localises it.")
+    return (
+        f"{len(cases)} case(s) assembled, {len(judged)} of them judged against "
+        f"the pre-closure residual acceptances. Across those, the worst force "
+        f"residual is {force[0]:.3%} of n*W on '{force[1]}' against a "
+        f"{FORCE_RESIDUAL_ACCEPTANCE:.1%} acceptance, and the worst pitch "
+        f"residual {pitch[0]:.3%} of n*W*MAC on '{pitch[1]}' against "
+        f"{RESIDUAL_GATE:.0%}." + verdict + clamped_standing + standing)
+
+
+def _worst_residual(cases: Sequence[Any], attribute: str) -> Tuple[float, str]:
+    """``(fraction, case label)`` of the largest ``attribute`` in ``cases``.
+
+    Through ``picks.extreme``: cases tie on a residual exactly (a handed pair
+    always does), and the sentence names the case it picked, so which one wins
+    the tie has to be stable across platforms rather than left to ``max``.
+    """
+    from ..picks import extreme
+
+    worst = extreme(cases, key=lambda c: getattr(c, attribute))
+    return getattr(worst, attribute), getattr(worst, "label", "")
+
+
 def _balanced_cases_table(cases: Sequence[Any]) -> Table:
     """The per-case honesty statement, straight from the deck's own row builder."""
     from ..export.balanced_deck import balanced_case_rows
@@ -1721,7 +1801,12 @@ def _balanced_cases_table(cases: Sequence[Any]) -> Table:
             "load is a MANEUVER load and replaces the trim tail load its V-n "
             "point balances at, so the residual is the mismatch in full and the "
             "vertical and pitch closure is the motion it causes -- what is gated "
-            "there is the case's trim half. Residual percentages and load "
+            "there is the case's trim half. The GROUND rows (FAR 23.471-23.499) "
+            "read 100.000 % for the same kind of reason and are likewise not "
+            "gated: a ground case has no trim to fail, so its pre-closure "
+            "residual is the applied gear reaction IN FULL, and the gate it does "
+            "carry is that the solved field rotated back to the ground line "
+            "reproduces LANDLOAD's NVP/NDP/NS. Residual percentages and load "
             "factors are LIMIT quantities; the exported cards are ULTIMATE."
         ),
     )
@@ -1777,8 +1862,6 @@ def _section_balanced(run: BalancedRun, mass_rows: Sequence[Dict[str, Any]],
     the report described only the per-component views of it (review F-D2,
     decision D-R2).
     """
-    from ..modules.balance import RESIDUAL_GATE
-
     cases = run.cases or []
     section = Section(
         section_heading("balanced"),
@@ -1805,17 +1888,7 @@ def _section_balanced(run: BalancedRun, mass_rows: Sequence[Dict[str, Any]],
             section.tables.append(mass_table)
         return section
 
-    worst = max(max(c.force_residual_fraction, c.moment_residual_fraction)
-                for c in cases)
-    section.body += [
-        f"{len(cases)} case(s) assembled. The worst pre-closure residual is "
-        f"{worst:.3%} of n*W against a {RESIDUAL_GATE:.0%} gate"
-        + ("." if worst < RESIDUAL_GATE else
-           " -- OVER the gate; the usual cause is that the assembled model "
-           "carries no non-wing drag, whose couple about the CG is the pitch "
-           "residual, and the case is reported rather than suppressed."),
-        _hand_pair_sentence(cases),
-    ]
+    section.body += [_residual_gate_sentence(cases), _hand_pair_sentence(cases)]
     section.tables.append(_balanced_cases_table(cases))
     if mass_table is not None:
         section.tables.append(mass_table)

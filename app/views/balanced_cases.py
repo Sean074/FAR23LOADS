@@ -26,12 +26,15 @@ from sloads import (
 from sloads.export.balanced_deck import balanced_case_rows, balanced_deck
 from sloads.models import MissingInputError
 from sloads.modules.balance import (
+    FORCE_RESIDUAL_ACCEPTANCE,
     RESIDUAL_GATE,
     build_balanced_cases,
     case_source_name,
     is_ground,
     is_lateral,
     is_unsymmetrical_htail,
+    residual_gate_exemptions,
+    residual_gate_family,
     skipped_condition_lines,
 )
 from sloads.report.methods import bdf_comment_block
@@ -70,11 +73,13 @@ with st.expander(f"Conditions not assembled into a balanced case ({len(skipped)}
     if lines:
         for line in lines:
             st.markdown(f"- {line}")
-        st.caption(
-            "Horizontal-tail, fuselage, ground and one-engine-out conditions are a "
-            "deliberate exclusion — they are covered by the per-component "
-            "analyses. The rest are gaps this project's inputs would close."
-        )
+        # No summary caption here: each line above already carries its own
+        # reason from `skipped_condition_lines`, the single owner of that
+        # wording. The caption that used to sit here restated them and had gone
+        # stale doing it — it called ground conditions "a deliberate exclusion …
+        # covered by the per-component analyses", which has been false in both
+        # halves since 0.6.0 (ground conditions assemble, and the per-component
+        # fuselage view is flight-only by D-28). CR-C-2.
     else:
         st.markdown("None — every condition SELECT named was assembled.")
 
@@ -121,21 +126,47 @@ st.caption(
     "excluded from it rather than judged by a number that does not apply to them."
 )
 
-gated = [c for c in cases if not is_unsymmetrical_htail(c)]
-worst = max(max(c.force_residual_fraction, c.moment_residual_fraction)
-            for c in gated) if gated else 0.0
-if worst < RESIDUAL_GATE:
+# The verdict is over the family the gate applies to, through the one owner of
+# that question (CR-C-2). Excluding only the 23.427(a) family, as this page used
+# to, left the ground cases in — and a ground case's pre-closure residual is the
+# applied gear load in full, so the page warned at 100.000 % on every project
+# with landing conditions while the gated family sat under 1 %.
+judged, clamped = residual_gate_family(cases)
+exempt = residual_gate_exemptions(cases)
+force = max((c.force_residual_fraction for c in judged), default=0.0)
+pitch = max((c.moment_residual_fraction for c in judged), default=0.0)
+if not judged:
+    st.info("No assembled case is judged against the pre-closure residual "
+            "acceptances.")
+elif force < FORCE_RESIDUAL_ACCEPTANCE and pitch < RESIDUAL_GATE:
     st.success(
-        f"Every case balances to better than {RESIDUAL_GATE:.0%} of n·W before "
-        f"any relief (worst {worst:.3%}).")
+        f"All {len(judged)} judged cases are inside acceptance before any "
+        f"relief: worst force residual {force:.3%} of n·W (limit "
+        f"{FORCE_RESIDUAL_ACCEPTANCE:.1%}), worst pitch residual {pitch:.3%} of "
+        f"n·W·MAC (limit {RESIDUAL_GATE:.0%}).")
 else:
     st.warning(
-        f"Worst pre-closure residual is {worst:.3%} of n·W, over the "
-        f"{RESIDUAL_GATE:.0%} gate. In pitch the usual cause is that the "
-        "assembled model carries no non-wing drag, whose couple about the CG "
-        "is the residual; in force it is the spanwise lift integral differing "
-        "from the trim solve's closed form. Neither is an element-count "
-        "effect — both are flat once the strips converge.")
+        f"Over acceptance across the {len(judged)} judged cases: worst force "
+        f"residual {force:.3%} of n·W (limit {FORCE_RESIDUAL_ACCEPTANCE:.1%}), "
+        f"worst pitch residual {pitch:.3%} of n·W·MAC (limit "
+        f"{RESIDUAL_GATE:.0%}). It is reported rather than suppressed; the table "
+        "above localises it.")
+if clamped:
+    st.caption(
+        f"A further **{len(clamped)}** case(s) carry a non-wing axial force that "
+        "was *not* applied — the trim α falls outside the polar's trusted window "
+        "— so they are out of trim by exactly that clamped force and its couple "
+        "about the CG. Their residuals are that known quantity rather than a "
+        "balance quality, and are gated per case against what was measured when "
+        "the clamp was decided."
+    )
+if exempt:
+    st.caption(
+        "The gate does not apply to " + "; ".join(exempt) + " — for those the "
+        "pre-closure residual **is** the applied load, by construction, and each "
+        "carries its own stronger gate instead. Those rows are in the table "
+        "above, reported and not judged by a number that does not fit them."
+    )
 
 # --------------------------------------------------------------------------- #
 # Where the load comes from

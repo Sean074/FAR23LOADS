@@ -294,6 +294,20 @@ results summary, containing:
   closure relief (`Δn`, `Δn_y`, the yaw and roll accelerations). These SHALL be
   the same rows the deck and the Balanced Cases page render (§5's
   nothing-is-recomputed rule) — i.e. `export.balanced_deck.balanced_case_rows`.
+- **The residual verdict, over the family the acceptances apply to** — the worst
+  pre-closure residual SHALL be maximised over the judged family only
+  (`balance.residual_gate_family`), with **force and pitch judged separately**
+  against their own owners (`FORCE_RESIDUAL_ACCEPTANCE` 2.5 % of `n·W`,
+  `RESIDUAL_GATE` 1 % of `n·W·MAC`) rather than a single `max()` against the
+  tighter of the two. The exempt families SHALL be stated beside it with their
+  count and their standing (`balance.residual_gate_exemptions`), and any clamped
+  cases SHALL be stated as gated per case rather than silently dropped.
+  A maximum over a filtered set is honest only if the filter is visible, and the
+  unfiltered maximum is not a verdict on the deliverable: a ground case's
+  pre-closure residual is the applied gear reaction in full (100 % by
+  construction) and a 23.427(a) case's is the maneuver tail load (143.885 % on
+  `ga6_normal`) — reporting either as a failed gate is the CR-C-2 defect. The
+  sentence SHALL NOT attribute a cause it has not measured.
 - **The handed twin pairs** — an asymmetric case ships as a starboard/port pair
   by reflection at the assembly; a reader shown one hand SHALL be told the other
   exists, and a symmetric set SHALL be stated as such.

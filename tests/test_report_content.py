@@ -294,6 +294,54 @@ def test_the_balanced_case_table_is_the_decks_own_row_builder():
         assert column in table.columns
 
 
+def test_the_balanced_sections_residual_verdict_is_over_the_gated_family_only():
+    """The rendered §6 sentence, on a fixture that assembles ground cases (CR-C-2).
+
+    The defect this pins was in the *claim*, not in the physics: §6 maximised the
+    pre-closure residual over every case, so on `ga6_normal` it declared the
+    primary deliverable at 143.885 % against a 1 % gate — that number being the
+    23.427(a) maneuver tail load, which the deck's own `$` header, the case-table
+    note and `balanced_cases.md` §3/§9.4 all say the gate does not apply to. The
+    gate read the case objects and nothing read the sentence, so the report
+    contradicted the deck it describes in every shipped ga6/RJ bundle since 0.6.0.
+    Asserted against `residual_gate_applies`, the owner, rather than a literal.
+    """
+    from sloads.modules.balance import (
+        FORCE_RESIDUAL_ACCEPTANCE,
+        RESIDUAL_GATE,
+        build_balanced_cases,
+        is_ground,
+        residual_gate_applies,
+        residual_gate_family,
+    )
+
+    project = io.load_project(_GA)
+    cases = build_balanced_cases(project, [])
+    judged, _clamped = residual_gate_family(cases)
+    assert any(is_ground(c) for c in cases), "fixture no longer assembles ground cases"
+    assert judged and len(judged) < len(cases), "fixture no longer exercises both sides"
+    force = max(c.force_residual_fraction for c in judged)
+    pitch = max(c.moment_residual_fraction for c in judged)
+    assert force < FORCE_RESIDUAL_ACCEPTANCE and pitch < RESIDUAL_GATE, (
+        "fixture's judged family no longer passes acceptance")
+
+    text = " ".join(_balanced_section().body)
+    # Each component against its own acceptance: reporting max(force, pitch)
+    # against the tighter of the two was the same false claim in a second coat.
+    assert f"{force:.3%}" in text and f"{pitch:.3%}" in text, text
+    assert f"{FORCE_RESIDUAL_ACCEPTANCE:.1%}" in text and f"{RESIDUAL_GATE:.0%}" in text
+    assert f"{len(judged)} of them" in text
+    # The two things the old sentence got wrong: the exempt families' standing is
+    # stated, and the retired cause is gone.
+    assert "does not apply to" in text and "ground" in text
+    assert "non-wing drag" not in text
+    # And the number that used to be reported as the deliverable's verdict is not
+    # presented as one.
+    ungated_worst = max(max(c.force_residual_fraction, c.moment_residual_fraction)
+                        for c in cases if not residual_gate_applies(c))
+    assert f"{ungated_worst:.3%}" not in text
+
+
 def test_the_balanced_section_states_its_handed_twin_pairs():
     """An asymmetric case ships as a left/right pair (plan 11 B-6). A reader who
     is shown one hand and not told of the other sizes half an airplane."""
