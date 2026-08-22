@@ -68,6 +68,7 @@ from ..models import (
     Project,
     VTailLoadsInput,
 )
+from ..picks import extreme
 from ..registry import register
 from ._vtail import large_deflection_factor, rudder_effectiveness, vtail_lift_slope
 
@@ -269,7 +270,9 @@ def _moment(time: float, c: CaseInputs, mom_eng: float, mom_windmill: float,
 def _heaviest_case(project: Project) -> MassCase:
     if project.mass is None or not project.mass.cases:
         raise MissingInputError("one_engine_out needs Project.mass (run WTONECG first)")
-    return max(project.mass.cases, key=lambda m: m.weight_lb)
+    # Two mass cases weighing the same is ordinary input, and the pick selects a
+    # published case -- so it takes the tie rule (CR-B-1; ``picks.extreme``).
+    return extreme(project.mass.cases, lambda m: m.weight_lb)
 
 
 def _engine_power(eng: EngineInput, use_takeoff: bool) -> float:

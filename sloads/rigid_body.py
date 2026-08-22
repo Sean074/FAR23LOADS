@@ -55,6 +55,7 @@ from dataclasses import dataclass
 from typing import Iterable, Sequence, Tuple
 
 from .constants import IN_PER_FT, G
+from .picks import extreme
 
 Vec3 = Tuple[float, float, float]
 
@@ -188,6 +189,17 @@ class InertiaTensor:
                 math.fsum(rows[2][j] * omega_dot[j] for j in range(3)))
 
 
+def _pivot_row(m: Sequence[Sequence[float]], col: int) -> int:
+    """The row at or below ``col`` with the largest magnitude in that column.
+
+    Through :func:`sloads.picks.extreme`, not raw ``max``: two equal pivot
+    magnitudes must not select different rows on different platforms, or the
+    eliminated matrix -- and every relief field solved from it -- would differ
+    (review 2026-08-20 CR-B-1).
+    """
+    return extreme(range(col, 3), lambda r: abs(m[r][col]))
+
+
 def _solve3(a: Sequence[Sequence[float]], b: Vec3) -> Vec3:
     """Gauss-Jordan with partial pivoting on a 3x3. Raises when singular.
 
@@ -199,7 +211,7 @@ def _solve3(a: Sequence[Sequence[float]], b: Vec3) -> Vec3:
     m = [[*list(row), rhs] for row, rhs in zip(a, b)]
     scale = max(abs(v) for row in a for v in row) or 1.0
     for col in range(3):
-        piv = max(range(col, 3), key=lambda r: abs(m[r][col]))
+        piv = _pivot_row(m, col)
         if abs(m[piv][col]) <= 1e-12 * scale:
             raise SingularInertiaError(
                 "the assembled mass model's inertia tensor is singular -- every "

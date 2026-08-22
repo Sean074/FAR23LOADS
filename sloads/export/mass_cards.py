@@ -69,6 +69,7 @@ from ..mass_distribution import (
     reacted_parts,
 )
 from ..models import MassItem, Project
+from ..picks import extreme
 from ..units import Channel, DeliverableUnits, UnitSystem, deliverable_units
 from .bands import band
 from .coordinates import SBEAM_CID, to_grid
@@ -162,8 +163,10 @@ def _attach_gid(item: MassItem,
     """
     if not stations:
         return beam_station_gid(0), (item.x, item.y, item.z)
-    index = min(range(len(stations)),
-                key=lambda i: abs(stations[i].x - item.x))
+    # Tie rule: an item exactly between two beam stations must attach to the
+    # same one on every platform, or the CONM2's offset moves (CR-B-1).
+    index = extreme(range(len(stations)),
+                    lambda i: abs(stations[i].x - item.x), largest=False)
     gid = beam_station_gid(index)
     node = stations[index]
     return gid, (item.x - node.x, item.y - 0.0, item.z - 0.0)

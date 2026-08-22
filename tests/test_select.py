@@ -384,39 +384,6 @@ def test_concept_flag_in_report():
     assert any("Concept mode" in c.note for c in result.conditions)
 
 
-def test_extreme_pick_is_first_in_order_across_a_platform_ulp_tie():
-    """The critical-case pick is stable under last-ulp noise (CI vs local).
-
-    ``BAL A`` at two altitudes carries the same VA and hence the same rudder load;
-    on the developer's Mac the two keys are bit-identical and ``max`` returns the
-    first, on the Linux CI runner one lands an ulp above the other and ``max``
-    returned the *second* -- a different V-n case in the deck for a difference
-    no printed digit shows. ``_extreme`` picks the first candidate inside a
-    ``_TIE_REL`` relative band of the extreme, so both platforms agree; a
-    genuinely larger candidate anywhere in the list still wins.
-    """
-    base = 4287.797363708473
-    up = math.nextafter(base, math.inf)
-    # bit-exact tie -> first (what max() did, so nothing moves locally)
-    assert select._extreme(["a", "b"], {"a": base, "b": base}.__getitem__) == "a"
-    # one-ulp tie either way -> still the first
-    assert select._extreme(["a", "b"], {"a": base, "b": up}.__getitem__) == "a"
-    assert select._extreme(["a", "b"], {"a": up, "b": base}.__getitem__) == "a"
-    assert select._extreme(["a", "b"], {"a": -base, "b": -up}.__getitem__,
-                           largest=False) == "a"
-    # a real difference wins wherever it sits
-    assert select._extreme(["a", "b"], {"a": base, "b": base * 1.001}.__getitem__) == "b"
-    assert select._extreme(["a", "b"], {"a": base, "b": base * 0.999}.__getitem__,
-                           largest=False) == "b"
-    # and every keyed pick in the module goes through it (the guard on rule 4)
-    import inspect
-    src = inspect.getsource(select)
-    body = src.split("def _pick(", 1)[1]
-    keyed = [ln.strip() for ln in body.splitlines()
-             if ("max(" in ln or "min(" in ln) and "key=" in ln]
-    assert not keyed, f"keyed max()/min() picks bypass _extreme: {keyed}"
-
-
 if __name__ == "__main__":
     import traceback
 

@@ -145,6 +145,7 @@ from ..models import (
 from ..modules import tail_span
 from ..modules.body_loads import CLOSURE_ARTIFACT_CAVEAT as _BODY_ARTIFACT_CAVEAT
 from ..modules.net_loads import loads_ref_axis_results
+from ..picks import extreme
 from ..report import ultimate_units
 from ..units import Channel, DeliverableUnits, UnitSystem, deliverable_units
 from .bands import band
@@ -1450,7 +1451,7 @@ def _tail_force_axis(component: str) -> str:
     is the map. Returns ``"Fz"`` for the h-tail, ``"Fy"`` for the fin.
     """
     vec = tail_force_to_airplane(1.0, component)
-    return ("Fx", "Fy", "Fz")[max(range(3), key=lambda i: abs(vec[i]))]
+    return ("Fx", "Fy", "Fz")[extreme(range(3), lambda i: abs(vec[i]))]
 
 
 def _tail_nodal_forces(r: TailChordResult) -> List[float]:

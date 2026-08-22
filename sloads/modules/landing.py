@@ -62,6 +62,7 @@ from ..models import (
     ModuleResult,
     Project,
 )
+from ..picks import extreme
 from ..registry import register
 
 MODULE_NAME = "landing"
@@ -612,7 +613,10 @@ def _critical(cases: List[GearReactionCase], far: str) -> Optional[GearReactionC
         return max((_sq(c.vmp) + _sq(c.dmp) + _sq(c.smp)) ** 0.5,
                    (_sq(c.vnp) + _sq(c.dnp) + _sq(c.snp)) ** 0.5)
 
-    return max(family, key=magnitude)
+    # The tie rule, not raw ``max``: this family is the documented tie above
+    # (cases 19-22 share a VMP), so the winner is the first in case order, on
+    # every platform (CR-B-1; ``picks.extreme``).
+    return extreme(family, magnitude)
 
 
 def _case_values(c: GearReactionCase) -> List[LoadValue]:

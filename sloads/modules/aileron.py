@@ -42,6 +42,7 @@ from ..models import (
     ModuleResult,
     Project,
 )
+from ..picks import extreme
 from ..registry import register
 from .structural_speeds import design_speed_values
 
@@ -82,8 +83,10 @@ def aileron_loads(va: float, vc: float, vd: float, down_deg: float, up_deg: floa
 
     down = [(load(adeg, va), va), (load(cdeg, vc), vc), (load(ddeg, vd), vd)]
     up = [(load(aupdeg, va), va), (load(cupdeg, vc), vc), (load(dupdeg, vd), vd)]
-    down_load, down_v = max(down, key=lambda t: t[0])      # largest down load
-    up_load, up_v = min(up, key=lambda t: t[0])            # largest (most negative) up load
+        # Tie rule, not raw max/min: the A/C/D candidates only tie on degenerate
+    # input, but the pick names a published speed (CR-B-1; ``picks.extreme``).
+    down_load, down_v = extreme(down, lambda t: t[0])                    # largest down load
+    up_load, up_v = extreme(up, lambda t: t[0], largest=False)           # largest (most negative) up load
 
     denom = area_fwd_hinge_sqft + 0.5 * area_aft_hinge_sqft
     w_down = down_load / denom

@@ -60,6 +60,7 @@ from ..models import (
     Project,
     WeightEnvelopeInput,
 )
+from ..picks import extreme
 from ..registry import register
 from .wing_geometry import surface_properties
 
@@ -282,7 +283,7 @@ def envelope(project: Project, inp: WeightEnvelopeInput) -> List[ConditionResult
     # (as on the GA6 -> 78 lb); M1-7 fixed the prior code, which used the full
     # loading unconditionally and returned 0 ballast whenever it exceeded gross.
     aft_cands = [p for p in fwd_seq if p[0] <= inp.gross_weight]
-    aft_ref = max(aft_cands, key=lambda p: p[0]) if aft_cands else None
+    aft_ref = extreme(aft_cands, lambda p: p[0]) if aft_cands else None
     aft_reason = "no loading at/below gross weight"
     if aft_ref is not None and aft_ref[1] >= aft_s:
         # The heaviest at-or-below-gross loading already sits at/aft of the aft CG
@@ -294,12 +295,12 @@ def envelope(project: Project, inp: WeightEnvelopeInput) -> List[ConditionResult
     add_ballast("Aft gross", "aft_gross", inp.gross_weight, aft_s, aft_ref, aft_reason)
     # Forward gross: heaviest forward-loading point at/forward of the fwd-gross station.
     fwd_cands = [p for p in fwd_seq if p[1] <= fwd_s]
-    fwd_ref = max(fwd_cands, key=lambda p: p[0]) if fwd_cands else None
+    fwd_ref = extreme(fwd_cands, lambda p: p[0]) if fwd_cands else None
     add_ballast("Forward gross", "forward_gross", inp.gross_weight, fwd_s, fwd_ref,
                 "no loading forward of the fwd-gross station")
     # Forward regardless: heaviest forward-loading point at/below the reduced weight.
     reg_cands = [p for p in fwd_seq if p[0] <= inp.fwd_regardless_weight]
-    reg_ref = max(reg_cands, key=lambda p: p[0]) if reg_cands else None
+    reg_ref = extreme(reg_cands, lambda p: p[0]) if reg_cands else None
     add_ballast("Forward regardless", "forward_regardless", inp.fwd_regardless_weight,
                 reg_s, reg_ref,
                 "no loading at/below the regardless weight")

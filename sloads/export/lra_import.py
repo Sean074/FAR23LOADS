@@ -44,7 +44,15 @@ from ..units import Channel, UnitSystem, deliverable_units
 from .balanced_deck import case_sids
 from .coordinates import SBEAM_CID, to_force, to_moment, transfer_couple
 from .equilibrium import parse_cards
-from .lra_model import LraModel, LraNode, LraRefusal, _dist2, _member_key, build_lra_model
+from .lra_model import (
+    LraModel,
+    LraNode,
+    LraRefusal,
+    _dist2,
+    _member_key,
+    build_lra_model,
+    nearest_node,
+)
 from .sbeam_bridge import _comment, _fmt3, _sf_str, _stamped
 
 Vec3 = Tuple[float, float, float]
@@ -246,7 +254,7 @@ def lra_loads_on_imported_model(project: Project, imported: ImportedModel, *,
         for load in case.loads:
             member = members.get(_member_key(load, members), members["all"])
             p = (load.x, load.y, load.z)
-            node = min(member, key=lambda n: _dist2(n.pos, p))
+            node = nearest_node(member, p)
             f = (load.fx, load.fy, load.fz)
             cx, cy, cz = transfer_couple(p, node.pos, f)
             force, moment = acc.setdefault(node.gid, ([0.0] * 3, [0.0] * 3))

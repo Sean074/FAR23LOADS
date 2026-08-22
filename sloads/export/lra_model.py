@@ -90,6 +90,7 @@ from ..models.enums import GearCarrier
 from ..modules.balance import build_balanced_cases
 from ..modules.net_loads import build_net_loads, loads_ref_axis_results
 from ..modules.tail_span import ATTACH_STRIP_PAIR, build_tail_span, htail_attachment
+from ..picks import extreme
 from ..tail_geometry import HTAIL, VTAIL, resolve_tail_planform
 from ..units import Channel, DeliverableUnits, UnitSystem, deliverable_units
 from .balanced_deck import case_sids
@@ -224,6 +225,22 @@ def _mirror(pos: Vec3) -> Vec3:
 
 def _dist2(a: Vec3, b: Vec3) -> float:
     return ((a[0] - b[0]) ** 2 + (a[1] - b[1]) ** 2 + (a[2] - b[2]) ** 2)
+
+
+def nearest_node(nodes: Sequence["LraNode"], p: Vec3) -> "LraNode":
+    """The node of ``nodes`` closest to point ``p``, ties to the first in order.
+
+    Equidistant nodes are the rule on a symmetric airplane, not the exception, so
+    the pick goes through :func:`sloads.picks.extreme` -- otherwise which node
+    carries a load (and therefore the deck's bytes) could depend on the platform
+    (review 2026-08-20 CR-B-1).
+    """
+    return extreme(nodes, lambda n: _dist2(n.pos, p), largest=False)
+
+
+def _nearest_station(nodes: Sequence["LraNode"], x: float) -> "LraNode":
+    """The node of ``nodes`` nearest fuselage station ``x`` (tie rule, CR-B-1)."""
+    return extreme(nodes, lambda n: abs(n.pos[0] - x), largest=False)
 
 
 def _insert_on_chain(chain: List[LraNode], key_fn, key: float, gid: int,
@@ -456,8 +473,7 @@ def build_lra_model(project: Project) -> LraModel:
                 gear_nodes.append(node)
                 if carrier is GearCarrier.WING:
                     wing_chain = right if side != "L" else left
-                    parent = min(wing_chain[1:] or wing_chain,
-                                 key=lambda n: _dist2(n.pos, pos))
+                    parent = nearest_node(wing_chain[1:] or wing_chain, pos)
                     model.rbe2s.append((parent.gid, "123456", [node.gid],
                                         f"{leg_name} gear ({side}) -> wing "
                                         "LRA (carrier WING, G-2)"))
@@ -498,8 +514,7 @@ def build_lra_model(project: Project) -> LraModel:
             engine_nodes.pop()
         if mounted == "wing":
             wing_chain = right if side != "L" else left
-            parent = min(wing_chain[1:] or wing_chain,
-                         key=lambda n: _dist2(n.pos, mount_pos))
+            parent = nearest_node(wing_chain[1:] or wing_chain, mount_pos)
             model.rbe2s.append((parent.gid, "123456", deps,
                                 f"engine {i + 1} mount+hub -> wing LRA (R-9; "
                                 "one RBE2, hub folded in -- sbeam refuses "
@@ -550,7 +565,7 @@ def build_lra_model(project: Project) -> LraModel:
                         "cantilever hangs here"))
     fus_all = fus_fwd + fus_aft
     for x, gids, label in pending_body_ties:
-        parent = min(fus_all, key=lambda n: abs(n.pos[0] - x))
+        parent = _nearest_station(fus_all, x)
         model.rbe2s.append((parent.gid, "123456", gids, label))
 
     # ------------------------------------------------------- support + members
@@ -638,7 +653,7 @@ def transferred_case_loads(case: BalancedCaseResult, model: LraModel
     for load in case.loads:
         member = model.members[_member_key(load, model.members)]
         p = (load.x, load.y, load.z)
-        node = min(member, key=lambda n: _dist2(n.pos, p))
+        node = nearest_node(member, p)
         f = (load.fx, load.fy, load.fz)
         cx, cy, cz = transfer_couple(p, node.pos, f)
         force, moment = acc.setdefault(node.gid, ([0.0] * 3, [0.0] * 3))

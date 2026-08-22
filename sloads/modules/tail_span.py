@@ -136,6 +136,7 @@ from ..models import (
     VnPoint,
     WingStationLoad,
 )
+from ..picks import extreme
 from ..registry import register
 from ..tail_geometry import HTAIL, VTAIL, TailPlanform, is_t_tail, resolve_tail_planform
 from .select import default_critical, vn_points
@@ -1210,8 +1211,10 @@ def axial_total(result: TailSpanResult) -> float:
 def root_index(result: TailSpanResult) -> int:
     """Index of the station nearest the surface root (the centreline for the
     h-tail), where the cumulative columns carry the whole half's load."""
-    return min(range(len(result.stations)),
-               key=lambda i: abs(result.stations[i].y))
+    # Tie rule (CR-B-1): the h-tail's two root stations straddle the centreline
+    # at an equal |y|, so this pick is a tie by construction.
+    return extreme(range(len(result.stations)),
+                   lambda i: abs(result.stations[i].y), largest=False)
 
 
 def run(project: Project) -> ModuleResult:

@@ -83,6 +83,7 @@ from ..models import (
     VnPoint,
     VTailLoadsInput,
 )
+from ..picks import extreme
 from ..registry import register
 from ._vtail import large_deflection_factor, rudder_effectiveness, vtail_lift_slope
 from .flight_envelope import build_envelope, density_ratio, design_inputs
@@ -178,44 +179,9 @@ def _resultant(p: VnPoint) -> float:
     return math.hypot(p.lzw, p.dx)
 
 
-#: Relative band inside which two candidate loads count as **the same** load
-#: for a critical-case pick. Far below any printed precision, far above the
-#: last-ulp reassociation noise between libm builds and Python versions.
-_TIE_REL = 1e-9
-
-
-def _extreme(items, key, largest: bool = True):
-    """``max``/``min`` by ``key`` with a **deterministic, platform-stable tie**.
-
-    Two V-n points can carry the same physical load — VA is the same EAS at
-    every altitude and CG, so ``BAL A`` at altitude 1 and altitude 2 tie
-    exactly on the rudder-load key. Exact in exact arithmetic; in floating
-    point the two are computed along different paths (a ``sqrt(sigma)``
-    round-trip, a ``sum()`` that Python 3.12 compensates and 3.11 does not)
-    and land one ulp apart, on **different sides on different platforms**.
-    ``max()`` then picks a different case in CI than on the developer's Mac
-    and the frozen Imperial digest fails for a difference no printed digit
-    shows.
-
-    So: the winner is the largest (smallest) key, and among candidates whose
-    keys agree to :data:`_TIE_REL` relative, the **first in list order** —
-    which is exactly what ``max``/``min`` return for a bit-exact tie, so no
-    pick moves on the local machine; only the platform-dependent ones become
-    stable.
-    """
-    seq = list(items)
-    keys = [key(x) for x in seq]
-    best = max(keys) if largest else min(keys)
-    band = _TIE_REL * abs(best)
-    for x, k in zip(seq, keys):
-        if (k >= best - band) if largest else (k <= best + band):
-            return x
-    return seq[0]  # unreachable: `best` is one of `keys`
-
-
 def _pick(vn: List[VnPoint], labels, key) -> Optional[VnPoint]:
     cands = [p for p in vn if p.condition in labels]
-    return _extreme(cands, key) if cands else None
+    return extreme(cands, key) if cands else None
 
 
 def _steady_roll_torsion(vn: List[VnPoint], aileron_deg: float, cm: float) -> Optional[VnPoint]:
@@ -398,11 +364,11 @@ def select_htail_balancing(project: Project,
 
     out: List[CriticalCondition] = []
     if retracted:
-        out.append(emit("BAL UP RETRACTED", _extreme(retracted, lambda pb: pb[1].lt)))
-        out.append(emit("BAL DN RETRACTED", _extreme(retracted, lambda pb: pb[1].lt, largest=False)))
+        out.append(emit("BAL UP RETRACTED", extreme(retracted, lambda pb: pb[1].lt)))
+        out.append(emit("BAL DN RETRACTED", extreme(retracted, lambda pb: pb[1].lt, largest=False)))
     if extended:
-        out.append(emit("BAL UP EXTENDED", _extreme(extended, lambda pb: pb[1].lt)))
-        out.append(emit("BAL DN EXTENDED", _extreme(extended, lambda pb: pb[1].lt, largest=False)))
+        out.append(emit("BAL UP EXTENDED", extreme(extended, lambda pb: pb[1].lt)))
+        out.append(emit("BAL DN EXTENDED", extreme(extended, lambda pb: pb[1].lt, largest=False)))
     return out
 
 
@@ -483,7 +449,7 @@ def select_htail_maneuver(project: Project,
                 lt50 = sign * edefl * ti.elevator_effectiveness * _ef(edefl, se2st) * aht / DEG_PER_RAD \
                     * dynamic_pressure_psf(p.v_eas_kt) * ti.htail_area_sqft
                 return b.lt25 + lt50, b, lt50
-            p = (min if want_min else max)(bal_a, key=lambda p: total(p)[0])
+            p = extreme(bal_a, lambda p: total(p)[0], largest=not want_min)
             tot, b, lt50 = total(p)
             out.append(_htail_condition(label, far, p, tot, [
                 LoadValue("Balanced tail load", b.lt, "lb", key="balanced_tail_load"),
@@ -508,7 +474,7 @@ def select_htail_maneuver(project: Project,
     bal_cd = [p for p in vn if p.condition in ("BAL C", "BAL D") and in_cg(p)]
     man_cd = [p for p in vn if p.condition in ("MAN C", "MAN D") and in_cg(p)]
     if bal_cd:
-        p = _extreme(bal_cd, lambda p: bal(p).lt - increment(p), largest=False)   # largest down
+        p = extreme(bal_cd, lambda p: bal(p).lt - increment(p), largest=False)   # largest down
         b = bal(p)
         out.append(_htail_condition("CHECKED MAN DN", "23.423(b)", p, b.lt - increment(p), [
             LoadValue("Balanced tail load", b.lt, "lb", key="balanced_tail_load"),
@@ -516,7 +482,7 @@ def select_htail_maneuver(project: Project,
             LoadValue("Pitch inertia Iyy", iyy(p), "slug-ft^2", key="pitch_inertia_iyy")],
             lt25=b.lt25 - increment(p), lt50=b.lt50))
     if man_cd:
-        p = _extreme(man_cd, lambda p: bal(p).lt + increment(p))   # largest up
+        p = extreme(man_cd, lambda p: bal(p).lt + increment(p))   # largest up
         b = bal(p)
         out.append(_htail_condition("CHECKED MAN UP", "23.423(b)", p, b.lt + increment(p), [
             LoadValue("Balanced tail load", b.lt, "lb", key="balanced_tail_load"),
@@ -563,14 +529,14 @@ def select_htail_gust(project: Project,
         return bal_full(p).lt
 
     out: List[CriticalCondition] = []
-    up = _extreme(bal_cd, lambda p: bal_lt(p) + gust_increment(p))
+    up = extreme(bal_cd, lambda p: bal_lt(p) + gust_increment(p))
     b = bal_full(up)
     out.append(_htail_condition("GUST UP RETRACTED", "23.425(a)(1)", up,
                                 b.lt + gust_increment(up), [
         LoadValue("Balanced tail load", b.lt, "lb", key="balanced_tail_load"),
         LoadValue("Gust increment (cp 25%)", gust_increment(up), "lb", key="gust_increment_cp_25_pct")],
         lt25=b.lt25 + gust_increment(up), lt50=b.lt50))
-    dn = _extreme(bal_cd, lambda p: bal_lt(p) - gust_increment(p), largest=False)
+    dn = extreme(bal_cd, lambda p: bal_lt(p) - gust_increment(p), largest=False)
     b = bal_full(dn)
     out.append(_htail_condition("GUST DN RETRACTED", "23.425(a)(1)", dn,
                                 b.lt - gust_increment(dn), [
@@ -589,14 +555,14 @@ def select_htail_gust(project: Project,
 
     bal_vf = [p for p in vn if p.condition == "BAL VF" and p.cg in cg_map]
     if bal_vf:
-        up = _extreme(bal_vf, lambda p: bal_lt(p) + flap_gust_increment(p))
+        up = extreme(bal_vf, lambda p: bal_lt(p) + flap_gust_increment(p))
         b = bal_full(up)
         out.append(_htail_condition("GUST UP EXTENDED", "23.425(a)(2)", up,
                                     b.lt + flap_gust_increment(up), [
             LoadValue("Balanced tail load", b.lt, "lb", key="balanced_tail_load"),
             LoadValue("Gust increment (cp 25%)", flap_gust_increment(up), "lb", key="gust_increment_cp_25_pct")],
             lt25=b.lt25 + flap_gust_increment(up), lt50=b.lt50))
-        dn = _extreme(bal_vf, lambda p: bal_lt(p) - flap_gust_increment(p), largest=False)
+        dn = extreme(bal_vf, lambda p: bal_lt(p) - flap_gust_increment(p), largest=False)
         b = bal_full(dn)
         out.append(_htail_condition("GUST DN EXTENDED", "23.425(a)(2)", dn,
                                     b.lt - flap_gust_increment(dn), [
@@ -650,7 +616,7 @@ def select_htail_unsymmetrical(htail: List[CriticalCondition], np_: float) -> Li
     if not candidates:
         return []
     pc = min(100.0 - 10.0 * (np_ - 1.0), 80.0)
-    worst = _extreme(candidates, lambda c: abs(c.loads[0].value))
+    worst = extreme(candidates, lambda c: abs(c.loads[0].value))
     total = worst.loads[0].value
     rh = 0.5 * total
     lh = (pc / 100.0) * rh
@@ -801,7 +767,7 @@ def select_vtail(project: Project, envelope: Optional[EnvelopeResult] = None) ->
     out: List[CriticalCondition] = []
 
     # 1. Sudden full rudder deflection (FAR 23.441(a)(1)) -- largest rudder load.
-    p1 = _extreme(bal_a, lambda p: _vt_rudder_load(p, vt))
+    p1 = extreme(bal_a, lambda p: _vt_rudder_load(p, vt))
     lv = _vt_rudder_load(p1, vt)
     on_rudder1 = math.fsum(rudder_load_parts(lv, 0.0, vt))
     out.append(CriticalCondition(
@@ -815,7 +781,7 @@ def select_vtail(project: Project, envelope: Optional[EnvelopeResult] = None) ->
     # 2. Yaw to sideslip 19.5 deg, rudder held full (FAR 23.441(a)(2)) -- largest down.
     def total2(p: VnPoint) -> float:
         return _vt_rudder_load(p, vt) + _vt_aoa_load(-19.5, p, vt)
-    p2 = _extreme(bal_a, total2, largest=False)
+    p2 = extreme(bal_a, total2, largest=False)
     lrud, lyaw = _vt_rudder_load(p2, vt), _vt_aoa_load(-19.5, p2, vt)
     on_rudder2 = math.fsum(rudder_load_parts(lrud, lyaw, vt))
     out.append(CriticalCondition(
@@ -828,7 +794,7 @@ def select_vtail(project: Project, envelope: Optional[EnvelopeResult] = None) ->
         beta_deg=19.5, cy_beta_fin=cy_fin, cn_beta_fin=cn_fin))
 
     # 3. Yaw 15 deg, rudder neutral (FAR 23.441(a)(3)) -- largest down.
-    p3 = _extreme(bal_a, lambda p: _vt_aoa_load(-15.0, p, vt), largest=False)
+    p3 = extreme(bal_a, lambda p: _vt_aoa_load(-15.0, p, vt), largest=False)
     out.append(CriticalCondition(
         component="vtail", label="YAW 15 NEUTRAL", far_reference="23.441(a)(3)", case=p3.case,
         loads=[LoadValue("Total tail load (cp 25%)", _vt_aoa_load(-15.0, p3, vt), "lb",
@@ -837,7 +803,7 @@ def select_vtail(project: Project, envelope: Optional[EnvelopeResult] = None) ->
         beta_deg=15.0, cy_beta_fin=cy_fin, cn_beta_fin=cn_fin))
 
     # 4. Lateral gust at VC (FAR 23.443(b)) -- largest.
-    p4 = _extreme(bal_c, lambda p: _vt_side_gust(p, cg_map[p.cg], vt, izz))
+    p4 = extreme(bal_c, lambda p: _vt_side_gust(p, cg_map[p.cg], vt, izz))
     gust_load, gust_beta = _vt_side_gust_terms(p4, cg_map[p4.cg], vt, izz)
     out.append(CriticalCondition(
         component="vtail", label="SIDE GUST", far_reference="23.443(b)", case=p4.case,
@@ -875,7 +841,7 @@ def select_fuselage(project: Project, envelope: Optional[EnvelopeResult] = None)
 
     out: List[CriticalCondition] = []
 
-    vsmax = _extreme(vn, fus_on_wing)
+    vsmax = extreme(vn, fus_on_wing)
     out.append(CriticalCondition(
         component="fuselage", label="MAX DOWN LOAD ON WING", far_reference="23.301", case=vsmax.case,
         loads=[LoadValue("Fuselage down load on wing", fus_on_wing(vsmax), "lb", key="fuselage_down_load_on_wing"),
@@ -885,21 +851,21 @@ def select_fuselage(project: Project, envelope: Optional[EnvelopeResult] = None)
     pos = [p for p in vn if p.nz > 0]
     neg = [p for p in vn if p.nz < 0]
     if pos:
-        bmmax = _extreme(pos, bending)
+        bmmax = extreme(pos, bending)
         out.append(CriticalCondition(
             component="fuselage", label="AFT DOWN BENDING", far_reference="23.331", case=bmmax.case,
             loads=[LoadValue("Fuselage down load on wing", fus_on_wing(bmmax), "lb", key="fuselage_down_load_on_wing"),
                    LoadValue("Load factor NZ", bmmax.nz, key="load_factor_nz"),
                    LoadValue("Tail load", bmmax.lt, "lb", key="tail_load")]))
     if neg:
-        bmmin = _extreme(neg, bending, largest=False)
+        bmmin = extreme(neg, bending, largest=False)
         out.append(CriticalCondition(
             component="fuselage", label="AFT UP BENDING", far_reference="23.331", case=bmmin.case,
             loads=[LoadValue("Fuselage load on wing", fus_on_wing(bmmin), "lb", key="fuselage_load_on_wing"),
                    LoadValue("Load factor NZ", bmmin.nz, key="load_factor_nz"),
                    LoadValue("Tail load", bmmin.lt, "lb", key="tail_load")]))
 
-    nzmax = _extreme(vn, lambda p: p.nz)
+    nzmax = extreme(vn, lambda p: p.nz)
     out.append(CriticalCondition(
         component="fuselage", label="GREATEST NZ", far_reference="23.301", case=nzmax.case,
         loads=[LoadValue("Load factor NZ", nzmax.nz, key="load_factor_nz"),

@@ -79,6 +79,7 @@ from .models import (
     Project,
 )
 from .modules.wing_geometry import interp_x
+from .picks import extreme
 
 if TYPE_CHECKING:  # pragma: no cover - typing only
     from .models import GearReactionCase
@@ -678,7 +679,7 @@ def landing_reaction_warnings(cases: "List[GearReactionCase]") -> List[Consisten
     out: List[ConsistencyWarning] = []
     negative = [c for c in cases if c.vmp < -1e-6 or c.vnp < -1e-6]
     if negative:
-        worst = min(negative, key=lambda c: min(c.vmp, c.vnp))
+        worst = extreme(negative, lambda c: min(c.vmp, c.vnp), largest=False)
         out.append(ConsistencyWarning(
             "landing_negative_vertical",
             f"{len(negative)} ground case(s) have a **negative vertical reaction** "

@@ -57,6 +57,8 @@ import math
 from dataclasses import dataclass
 from typing import Dict, List, Tuple
 
+from ..picks import extreme
+
 Vec3 = Tuple[float, float, float]
 
 # --------------------------------------------------------------------------- #
@@ -303,7 +305,9 @@ def ref_aftmost_loaded(sid, grids, cards) -> Vec3:  # noqa: ARG001  -- reference
     the point its terminal cumulative ``Myy`` is stated about."""
     if not cards:
         return (0.0, 0.0, 0.0)
-    return max((grids[gid] for gid, _, _ in cards), key=lambda p: p[0])
+    # Several nodes commonly share the aft-most station; the tie rule keeps the
+    # stated reference point (and the moments about it) platform-stable (CR-B-1).
+    return extreme((grids[gid] for gid, _, _ in cards), lambda p: p[0])
 
 
 def deck_resultants(deck_text: str, ref_for=ref_first_loaded) -> Dict[int, Resultant]:
