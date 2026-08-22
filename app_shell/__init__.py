@@ -21,6 +21,9 @@ Layout:
   the FAR 23 applicability banner.
 * :mod:`app_shell.project_state` — the project in ``st.session_state``, the
   saved-snapshot baseline and the dirty/discard/load guard.
+* :mod:`app_shell.widget_keys` — widget identity across a project replacement:
+  the *project generation* stamped into every key of a widget seeded from the
+  project, so a load cannot leave stale widgets to overwrite it (#51).
 * :mod:`app_shell.sidebar` — the global sidebar every page inherits: units
   toggle, project Open/Save/upload/download, About.
 * :mod:`app_shell.limit_csv` — the analysis pages' LIMIT tables and downloads

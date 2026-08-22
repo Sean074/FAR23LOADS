@@ -27,6 +27,7 @@ import json
 import streamlit as st
 
 from app_shell.components import active_system
+from app_shell.widget_keys import bump_generation, widget_key
 from sloads import Project, UnitSystem
 from sloads import io as sloads_io
 from sloads.models import SCHEMA_VERSION
@@ -57,7 +58,11 @@ if system == UnitSystem.SI:
         "Imperial value; check the field name's unit suffix if unsure."
     )
 
-_TEXT_KEY = "_project_editor_text"
+#: Stamped, like every widget seeded from the project: the text this page
+#: holds *is* the project, so it must not outlive the project it was read
+#: from (``app_shell.widget_keys``). The session-state writes below use the
+#: same stamped key, so the re-seed logic is unchanged.
+_TEXT_KEY = widget_key("_project_editor_text")
 _LOADED_SNAPSHOT_KEY = "_project_editor_loaded_for"
 
 
@@ -99,7 +104,7 @@ if c1.button("Reload", help="Discard edits below and reload from the current pro
     st.rerun()
 
 edited_text = st.text_area(
-    "project.json (selected units)", key=_TEXT_KEY, height=560,
+    "project.json (selected units)", key=widget_key(_TEXT_KEY), height=560,
     label_visibility="collapsed",
 )
 
@@ -133,6 +138,11 @@ if apply_col.button("Apply", type="primary"):
             "definition) and was reset to the conservative default 1.5."
         )
     st.session_state["project"] = new_project
+    # A hand-edit is a *replacement*, like a load: every widget on every other
+    # page was seeded from the project this one just discarded, and would write
+    # those values back on its next Apply. Not ``adopt()`` -- these edits are
+    # not saved to disk, so the dirty baseline must stay where it is.
+    bump_generation()
     st.session_state[_LOADED_SNAPSHOT_KEY] = None  # force a re-seed next render
     st.success(
         "Applied. The session project now reflects your edits (converted back "

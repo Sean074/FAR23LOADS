@@ -294,6 +294,22 @@ class FieldEntry:
     #: whose owner is not a single field: a list length, the weight database, a
     #: value derived from the planform. Empty means this row is the owner.
     derived_from: str = ""
+    #: For a copy (``derived_from`` set): does the calc **honour** this copy, or
+    #: does the owner's value govern regardless of what is stored here? (#36,
+    #: CR-A-2.) The two render differently and the difference is not cosmetic:
+    #:
+    #: * ``True`` — an **override**. Some module reads this field verbatim, so a
+    #:   value entered here takes effect and may legitimately differ from the
+    #:   owner. It stays editable and is marked with the owner and its value;
+    #:   disabling it would remove a capability, and silently substituting the
+    #:   owner's value would change results.
+    #: * ``False`` — **display-only**. The consumer resolves the owner instead
+    #:   (typically from geometry), so anything entered here is ignored. It
+    #:   renders disabled, showing the value that actually governs — which is the
+    #:   whole wrong-belief defect this flag exists to end.
+    #:
+    #: Meaningless on an owner row, and asserted so by the registry guards.
+    governs: bool = False
     #: ``origin`` is ``SLOADS``, but the oracle GUI **sets** it anyway, without
     #: asking — see :data:`SUPPLIED_RULE`. ``origin`` says who *asked* for a
     #: field; this says who *writes* it, and the two differ exactly where this
@@ -350,8 +366,13 @@ SUPPLIED_RULE = "structurally required (no default), or demonstrably load-bearin
 
 
 def _E(path: str, page: str, origin: Origin, basis: str,
-       quantity: str = "", derived_from: str = "", supplied: bool = False) -> FieldEntry:
-    return FieldEntry(path, page, origin, basis, quantity, derived_from, supplied)
+       quantity: str = "", derived_from: str = "", supplied: bool = False,
+       governs: bool = False) -> FieldEntry:
+    # Keywords, not position: ``governs`` sits before ``supplied`` on the
+    # dataclass, and a positional call here would have bound one to the other.
+    return FieldEntry(path=path, page=page, origin=origin, basis=basis,
+                      quantity=quantity, derived_from=derived_from,
+                      governs=governs, supplied=supplied)
 
 
 _ORIG = Origin.ORIGINAL
@@ -489,7 +510,8 @@ REGISTRY: Tuple[FieldEntry, ...] = (
 
     # geometry.empennage.vtail -- SELECT's rational v-tail inputs (Ch 9)
     _E("geometry.empennage.vtail.airplane_length_in", _GEO, _ORIG, "SELECT LF", "airplane length",
-       "geometry.empennage.htail.airplane_length_in (entered twice; review N1 instance 2)"),
+       "geometry.empennage.htail.airplane_length_in (entered twice; review N1 instance 2)",
+       governs=True),
     _E("geometry.empennage.vtail.aspect_ratio_vtail", _GEO, _ORIG, "SELECT ARVT"),
     _E("geometry.empennage.vtail.vtail_area_sqft", _GEO, _ORIG, "SELECT SV"),
     _E("geometry.empennage.vtail.vtail_mac_in", _GEO, _ORIG, "SELECT VMAC"),
@@ -501,7 +523,8 @@ REGISTRY: Tuple[FieldEntry, ...] = (
     _E("geometry.empennage.vtail.rudder_large_deflection_factor", _GEO, _ORIG, "SELECT EFV (subr 10000)"),
     _E("geometry.empennage.vtail.wing_span_in", _GEO, _ORIG, "SELECT B"),
     _E("geometry.empennage.vtail.gross_weight_lb", _GEO, _ORIG, "SELECT GW", "max take-off weight",
-       "weight.max_takeoff_weight_lb (MTOW SSOT G-14; review N1 instance 1)"),
+       "weight.max_takeoff_weight_lb (MTOW SSOT G-14; review N1 instance 1)",
+       governs=True),
     _E("geometry.empennage.vtail.izz_slugft2", _GEO, _ORIG, "SELECT IZZ (0 -> computed)"),
     _E("geometry.empennage.vtail.xv25", _GEO, _ORIG, "SELECT 25% v-tail MAC station"),
     _E("geometry.empennage.vtail.xv50", _GEO, _ORIG, "ONENGOUT camber-load station"),
@@ -614,9 +637,16 @@ REGISTRY: Tuple[FieldEntry, ...] = (
     _E("speeds.weight_lb", _SPD, _ORIG, "STRSPEED design weight W", "max take-off weight",
        "weight.max_takeoff_weight_lb (override, not a read-through: STRSPEED uses "
        "this value verbatim; the link back is cg_cases.max_takeoff_weight's fallback "
-       "and validation's mtow_representation_drift warning -- note 33 DS-6/2.3)"),
+       "and validation's mtow_representation_drift warning -- note 33 DS-6/2.3)",
+       governs=True),
+    # The one display-only copy (governs=False, #36): STRSPEED resolves the wing
+    # planform first and only falls back to this field when the geometry carries no
+    # wing surface -- which no project the GUI can build ever does. A value entered
+    # here was therefore ignored, measured at an 18 % divergence on atr42. It renders
+    # disabled, showing the area that actually governs.
     _E("speeds.wing_area_sqft", _SPD, _ORIG, "STRSPEED S (W/S)", "wing reference area",
-       "geometry.parametric.wing_area_sqft (note 32 §8: nothing reads this copy)"),
+       "geometry.parametric.wing_area_sqft (display-only: structural_speeds._wing_area_sqft "
+       "prefers the planform and reaches this only with no wing surface -- #36)"),
     _E("speeds.wing_surface", _SPD, _SLDS, "surface selector (standing ruling)"),
     _E("speeds.vh_kt", _SPD, _ORIG, "STRSPEED VH, max level speed"),
     _E("speeds.shoulder_altitude_ft", _SPD, _ORIG, "STRSPEED MC/MD altitude", "shoulder altitude"),
@@ -627,7 +657,9 @@ REGISTRY: Tuple[FieldEntry, ...] = (
     _E("speeds.chosen_n", _SPD, _ORIG, "STRSPEED chosen n, Appendix A p156"),
     _E("speeds.chosen_nneg", _SPD, _ORIG, "STRSPEED chosen negative n, Appendix A p156"),
     _E("speeds.mach_limit.shoulder_altitude_ft", _SPD, _ORIG, "MACHLIM shoulder altitude", "shoulder altitude",
-       "speeds.shoulder_altitude_ft (same quantity on two dataclasses)"),
+       "speeds.shoulder_altitude_ft (same quantity on two dataclasses; MACHLIM reads "
+       "this one verbatim, so it governs until #52's hop removes it)",
+       governs=True),
     _E("speeds.mach_limit.max_operating_altitude_ft", _SPD, _ORIG, "MACHLIM ceiling"),
     _E("speeds.mach_limit.increment_ft", _SPD, _ORIG, "MACHLIM altitude step"),
     _E("speeds.occupants", _SPD, _SLDS, "FAR 23 applicability check, Step E1"),

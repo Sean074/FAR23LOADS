@@ -36,7 +36,7 @@ from sloads.units import UNIT_LABELS, to_display  # noqa: E402
 
 pytest.importorskip("streamlit.testing.v1")
 
-from helpers import apply_button  # noqa: E402
+from helpers import apply_button, widget_editing  # noqa: E402
 
 _VIEWS_DIR = os.path.join(_ROOT, "app", "views")
 _GA6 = os.path.join(_ROOT, "examples", "ga6_normal.project.json")
@@ -239,32 +239,30 @@ def _run_oracle(key: str, system: UnitSystem, project):
 
 
 def _oracle_number(at, path: str):
-    """The oracle GUI's number widget for a registry ``path``.
-
-    ``unit_number_input`` appends the active system to the widget key, which is
-    the mechanism that re-seeds a field when the user switches systems -- so the
-    lookup matches the path and lets the suffix be whatever the shell chose.
-    """
-    hits = [n for n in at.number_input
-            if n.key == path or (n.key or "").startswith(f"{path}_")]
-    assert len(hits) == 1, f"expected one widget for {path!r}, got {[n.key for n in hits]}"
-    return hits[0]
+    """The oracle GUI's number widget for a registry ``path`` (shared helper)."""
+    return widget_editing(at, path)
 
 
 @pytest.mark.parametrize("system", _SYSTEMS, ids=[s.value for s in _SYSTEMS])
 def test_an_oracle_scalar_is_stored_imperial_from_either_system(system):
-    """A plain number: type 100 in, get 100 in; type 2540 mm, get the same 100 in."""
+    """A plain number: type 100 in, get 100 in; type 2540 mm, get the same 100 in.
+
+    Driven on the wing area's **owner**. It used to type into
+    ``speeds.wing_area_sqft``, which #36 established is display-only — STRSPEED
+    resolves the planform and ignores that field — so it now renders disabled and
+    a test that typed into it was asserting a conversion no user can perform.
+    """
     from sloads import io
 
     project = io.load_project(_GA6)
-    at = _run_oracle("structural_speeds", system, project)
-    field = _oracle_number(at, "speeds.wing_area_sqft")
+    at = _run_oracle("configuration_layout", system, project)
+    field = _oracle_number(at, "geometry.parametric.wing_area_sqft")
     assert (UNIT_LABELS[system]["area_sqft"] in (field.label or "")), (
         f"{system.value}: {field.label!r} does not state the active area unit")
 
     typed = to_display(150.0, "area_sqft", system)
     field.set_value(typed).run()
-    stored = at.session_state["project"].speeds.wing_area_sqft
+    stored = at.session_state["project"].geometry.parametric.wing_area_sqft
     assert math.isclose(stored, 150.0, rel_tol=1e-9), (
         f"{system.value}: typed {typed} and stored {stored}, expected 150.0 sq ft")
 

@@ -13,6 +13,7 @@ import pandas as pd
 import streamlit as st
 
 from app_shell.components import active_system, gate
+from app_shell.widget_keys import widget_key
 from sloads import (
     Project,
     TabLoadsInput,
@@ -61,7 +62,7 @@ with st.form("tab_loads_form"):
     st.subheader("Tabs")
     edited = st.data_editor(
         pd.DataFrame(existing), num_rows="dynamic", use_container_width=True,
-        key=f"tab_loads_editor_{system.value}",
+        key=widget_key(f"tab_loads_editor_{system.value}"),
         column_config={
             "surface": st.column_config.SelectboxColumn(options=["wing", "htail", "vtail"]),
             "mac_in": st.column_config.NumberColumn(f"MAC ({U['length']})"),

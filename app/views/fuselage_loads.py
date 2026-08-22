@@ -19,6 +19,7 @@ import streamlit as st
 
 from app_shell.components import active_system, gate
 from app_shell.limit_csv import body_limit_csv, body_limit_rows
+from app_shell.widget_keys import widget_key
 from sloads import (
     Project,
     UnitSystem,
@@ -103,7 +104,7 @@ with st.form("fuselage_mass_form"):
         "weight_lb": st.column_config.NumberColumn(f"weight ({U['weight']})"),
     }
     df = st.data_editor(default, column_config=station_cols, num_rows="dynamic",
-                        hide_index=True, use_container_width=True, key=f"fuselage_stations_{system.value}")
+                        hide_index=True, use_container_width=True, key=widget_key(f"fuselage_stations_{system.value}"))
     applied = st.form_submit_button("Apply", type="primary")
 
 if applied:

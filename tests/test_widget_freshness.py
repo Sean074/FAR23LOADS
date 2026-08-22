@@ -1,0 +1,263 @@
+"""A loaded project must reach the widgets, and stale widgets must not overwrite it.
+
+The defect (2026-08-21, backlog Pri 1 / issue #51 — the data-loss half of parked
+**L-8d**). Streamlit widget state, once registered under a key, wins over the
+``value=`` argument on every later rerun, and both GUIs key their widgets by
+something stable across projects: the registry path in ``oracle_app/form.py``, a
+hand-written name in ``app/views/``. ``adopt()`` replaced
+``st.session_state["project"]`` and touched no widget key — so a page **visited
+before** a load kept rendering its own retained state, and, because these
+widgets persist what they return, wrote that state back over the project that
+had just been loaded. Open the oracle GUI on the seed ``Project(name="")``,
+visit Weight & Mass Properties, load ``atr42_100``: the page showed ``0`` / ``""``
+/ 0 rows, the row-count widget held ``0``, and all 21 ``weight.items`` and all 8
+``weight.cg_cases`` were popped out of the loaded project. Save from there and the file
+on disk goes too.
+
+The fix is one stamp on the key (:mod:`app_shell.widget_keys`), bumped by the
+one function that means "the project was replaced". This module holds it to the
+two halves of the contract, per page shape, and adds the guard that keeps new
+widgets inside it:
+
+* **render → adopt → re-render** leaves the session project equal to the loaded
+  file (every oracle page, on every shipped example), and the widgets show the
+  loaded values rather than the ones they held;
+* the same for ``app/views/``, whose Apply step defers the overwrite rather
+  than preventing it — the rationale parked L-8d rested on, which is why the
+  sweep (practice 4) had to check it rather than assume it;
+* **no widget seeded from the project skips the stamp** — an AST walk over both
+  GUIs, so the next widget added is fresh by construction instead of by review.
+"""
+
+import ast
+import glob
+import logging
+import os
+import sys
+
+import pytest
+
+logging.disable(logging.CRITICAL)  # silence Streamlit's bare-mode warnings
+
+_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+for _p in (_ROOT,):
+    if _p not in sys.path:
+        sys.path.insert(0, _p)
+
+pytest.importorskip("streamlit.testing.v1")
+
+from sloads import io  # noqa: E402
+from sloads import workflow as wf  # noqa: E402
+
+_EXAMPLES = sorted(glob.glob(os.path.join(_ROOT, "examples", "*.project.json")))
+_ATR42 = os.path.join(_ROOT, "examples", "atr42_100.project.json")
+
+
+def _ids(paths):
+    return [os.path.basename(p) for p in paths]
+
+
+#: The load, driven the way the GUI drives it. ``adopt()`` runs at the top of a
+#: rerun (the sidebar's load path ends in ``st.rerun()``), so the page that
+#: re-renders below it is the page the user was already looking at.
+_SCRIPT = """
+import streamlit as st
+
+from app_shell.project_state import adopt, ensure_project
+from oracle_app.form import render_step
+from sloads import io
+
+ensure_project()
+if st.session_state.pop("_load_now", False):
+    adopt(io.load_project({path!r}))
+render_step({key!r})
+"""
+
+
+def _visited_then_loaded(key, example, timeout=60):
+    """An oracle page rendered on the seed project, then loaded into."""
+    from streamlit.testing.v1 import AppTest
+
+    at = AppTest.from_string(_SCRIPT.format(path=example, key=key), default_timeout=timeout)
+    at.run()
+    assert not at.exception, [e.message for e in at.exception]
+    at.session_state["_load_now"] = True
+    at.run()
+    assert not at.exception, [e.message for e in at.exception]
+    return at
+
+
+@pytest.mark.parametrize("key", sorted(wf.oracle_step_keys()))
+@pytest.mark.parametrize("example", _EXAMPLES, ids=_ids(_EXAMPLES))
+def test_a_loaded_project_survives_the_page_that_was_already_open(key, example):
+    """Every page, every example: the load's own rerun must not lose a field.
+
+    One renderer builds all fourteen pages, so one stale widget is fourteen
+    pages' worth of data loss; and the loss is per-field, so the assertion is
+    the whole serialized project, not a sampled value.
+    """
+    at = _visited_then_loaded(key, example)
+
+    expected = io.project_to_dict(io.load_project(example))
+    after = io.project_to_dict(at.session_state["project"])
+    assert after == expected, (
+        f"the oracle GUI's {key} page, open before the load, wrote its own stale "
+        f"widget state over {os.path.basename(example)}")
+
+
+def test_the_widgets_show_the_loaded_project_not_what_they_held():
+    """The display half — the same defect seen from the page.
+
+    Without it, "never write anything back" would pass the test above while the
+    user still stared at zeros. Weight & Mass Properties is the page the defect
+    was found on: a scalar, a text field and a table whose row count gates 21
+    rows out of existence.
+    """
+    at = _visited_then_loaded("weight_mass", _ATR42)
+    project = io.load_project(_ATR42)
+
+    from helpers import widget_editing
+
+    mtow = widget_editing(at, "weight.max_takeoff_weight_lb")
+    assert mtow.value == pytest.approx(project.weight.max_takeoff_weight_lb, rel=1e-6)
+
+    counts = [w.value for w in at.number_input if (w.label or "").endswith("rows")]
+    assert len(project.weight.items) in counts, (
+        f"the row-count widgets read {counts}; the loaded project has "
+        f"{len(project.weight.items)} weight items")
+
+    session = at.session_state["project"]
+    assert len(session.weight.items) == len(project.weight.items)
+    assert len(session.weight.cg_cases) == len(project.weight.cg_cases)
+
+
+# --------------------------------------------------------------------------- #
+# app/views: the Apply step defers the overwrite, it does not prevent it
+# --------------------------------------------------------------------------- #
+_VIEWS_DIR = os.path.join(_ROOT, "app", "views")
+
+#: The three view shapes the sweep has to cover: a form of scalars, a data
+#: editor of rows, and a view whose widgets are built per named record.
+_VIEWS = ["structural_speeds.py", "weight_mass.py", "engine_mount.py"]
+
+_VIEW_SCRIPT = """
+import streamlit as st
+
+from app_shell.project_state import adopt, ensure_project
+from sloads import io
+
+ensure_project()
+if st.session_state.pop("_load_now", False):
+    adopt(io.load_project({path!r}))
+exec(compile(open({view!r}).read(), {view!r}, "exec"))
+"""
+
+
+@pytest.mark.parametrize("view", _VIEWS)
+def test_a_view_open_before_a_load_re_seeds_from_what_was_loaded(view):
+    """``app/views/`` keys are hand-written and equally stable across projects.
+
+    Its Apply step means the stale values land on the user's click rather than
+    on the load's rerun — later, not never, and with the user believing they
+    just confirmed what they were shown. The widgets must therefore re-seed from
+    the loaded project here too.
+    """
+    from streamlit.testing.v1 import AppTest
+
+    path = os.path.join(_VIEWS_DIR, view)
+    at = AppTest.from_string(
+        _VIEW_SCRIPT.format(path=_ATR42, view=path), default_timeout=90)
+    from app_shell.widget_keys import unstamped
+
+    at.run()
+    assert not at.exception, [e.message for e in at.exception]
+    seeded = {w.key for w in at.number_input if w.key}
+
+    at.session_state["_load_now"] = True
+    at.run()
+    assert not at.exception, [e.message for e in at.exception]
+    loaded = {w.key: w.value for w in at.number_input if w.key}
+
+    assert seeded and loaded, f"{view} rendered no keyed inputs to check"
+    # The same fields (the page did not change shape) as different widgets (so
+    # none of them can still be holding the discarded project).
+    assert {unstamped(k) for k in seeded} & {unstamped(k) for k in loaded}, (
+        f"{view} rendered a different field set before and after the load; the "
+        "comparison below would be vacuous")
+    assert not (seeded & set(loaded)), (
+        f"{view} re-used widget keys across a project replacement: "
+        f"{sorted(seeded & set(loaded))[:5]} — those widgets keep the state of "
+        "the project that was discarded, and its Apply writes them back")
+    assert any(v for v in loaded.values()), (
+        f"{view} showed nothing after the load")
+
+
+# --------------------------------------------------------------------------- #
+# The guard: no widget seeded from the project skips the stamp
+# --------------------------------------------------------------------------- #
+#: Streamlit calls that carry user input back to the caller. ``st.button`` and
+#: the download buttons are excluded: they hold no value to go stale.
+_INPUT_CALLS = {
+    "number_input", "text_input", "text_area", "checkbox", "toggle", "radio",
+    "selectbox", "multiselect", "slider", "select_slider", "data_editor",
+    "date_input", "time_input", "color_picker",
+}
+
+#: Files whose widget keys are the shell's own session state, not project data:
+#: the unit-system radio, the file uploader, the saved-project pickers. These
+#: must **survive** a load — stamping them would reset the user's unit choice on
+#: every project they open.
+_SHELL_OWNED = {os.path.join("app_shell", "sidebar.py")}
+
+
+def _stamped(node):
+    """Is this ``key=`` argument stamped with the project generation?"""
+    for keyword in node.keywords:
+        if keyword.arg != "key":
+            continue
+        for sub in ast.walk(keyword.value):
+            if isinstance(sub, ast.Call) and isinstance(sub.func, ast.Name) \
+                    and sub.func.id == "widget_key":
+                return True
+        return False
+    return True  # no key= at all: Streamlit's positional identity, per-render
+
+
+def _widget_calls(path):
+    with open(path, encoding="utf-8") as handle:
+        tree = ast.parse(handle.read(), filename=path)
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Call) or not isinstance(node.func, ast.Attribute):
+            continue
+        if node.func.attr in _INPUT_CALLS:
+            yield node
+
+
+def _gui_sources():
+    for package in ("app", "app_shell", "oracle_app"):
+        for path in sorted(glob.glob(os.path.join(_ROOT, package, "**", "*.py"),
+                                     recursive=True)):
+            relative = os.path.relpath(path, _ROOT)
+            if relative not in _SHELL_OWNED:
+                yield relative, path
+
+
+@pytest.mark.parametrize("relative,path", list(_gui_sources()),
+                         ids=[r for r, _p in _gui_sources()])
+def test_every_project_widget_key_is_stamped(relative, path):
+    """The structural half (``CLAUDE.md`` rule 3): a convention with a guard.
+
+    ``unit_number_input`` stamps for its callers, so a view on the unit boundary
+    passes with no change; anything calling Streamlit directly with a ``key=``
+    has to stamp it, and this fails on the first one that does not.
+    """
+    unstamped = [f"{relative}:{node.lineno} st.{node.func.attr}"
+                 for node in _widget_calls(path) if not _stamped(node)]
+    assert not unstamped, (
+        "these widgets are seeded from the project but keyed the same across a "
+        "project replacement, so a load leaves them holding the discarded "
+        "project's values (app_shell/widget_keys.py):\n  " + "\n  ".join(unstamped))
+
+
+if __name__ == "__main__":
+    raise SystemExit(pytest.main([__file__, "-q"]))

@@ -33,7 +33,7 @@ import sys
 
 import pytest
 
-from helpers import apply_button
+from helpers import apply_button, widget_editing
 
 logging.disable(logging.CRITICAL)  # silence Streamlit's bare-mode warnings
 
@@ -125,17 +125,13 @@ def test_an_oracle_page_render_leaves_the_project_unchanged(key, example):
 
 
 def _number_for(at, path):
-    """The number widget for a registry ``path``.
+    """The number widget for a registry ``path`` (shared helper).
 
-    Not ``at.number_input(key=path)``: the shell's ``unit_number_input``
-    appends the active unit system to the key so a system switch re-seeds the
-    widget, and a test that hardcoded the suffix would pin an implementation
-    detail of another module.
+    Not ``at.number_input(key=path)``: the shell decorates the key on both sides
+    -- the active unit system, the project generation -- and a test that
+    hardcoded either would pin another module's implementation detail.
     """
-    for widget in at.number_input:
-        if widget.key == path or widget.key.startswith(f"{path}_"):
-            return widget
-    raise KeyError(f"no number input for {path!r}")
+    return widget_editing(at, path)
 
 
 def test_an_oracle_page_still_persists_what_the_user_types():

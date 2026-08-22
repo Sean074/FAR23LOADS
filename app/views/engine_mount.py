@@ -18,6 +18,7 @@ import pandas as pd
 import streamlit as st
 
 from app_shell.components import active_system
+from app_shell.widget_keys import widget_key
 from sloads import (
     EngineInput,
     EngineLayout,
@@ -140,14 +141,14 @@ with st.form("engine_mount_form"):
     st.subheader("Engine identification")
     c0a, c0b, c0c = st.columns(3)
     engine_designation = c0a.text_input(
-        "Engine manufacturer & designation", cur.engine_designation, key=k("designation", False)
+        "Engine manufacturer & designation", cur.engine_designation, key=widget_key(k("designation", False))
     )
     prop_designation = c0b.text_input(
-        "Propeller manufacturer & designation", cur.prop_designation, key=k("prop_desig", False)
+        "Propeller manufacturer & designation", cur.prop_designation, key=widget_key(k("prop_desig", False))
     )
     type_label = c0c.radio(
         "Engine type", ["Reciprocating", "Turboprop"],
-        index=1 if cur.is_turboprop else 0, key=k("type", False),
+        index=1 if cur.is_turboprop else 0, key=widget_key(k("type", False)),
     )
     engine_type = (
         EngineType.TURBOPROP if type_label == "Turboprop" else EngineType.RECIPROCATING
@@ -180,32 +181,32 @@ with st.form("engine_mount_form"):
     c1, c2, c3 = st.columns(3)
     with c1:
         limit_load_factor = st.number_input(
-            "Limit load factor, Nz", value=float(cur.limit_load_factor), step=0.1, key=k("nz", False))
+            "Limit load factor, Nz", value=float(cur.limit_load_factor), step=0.1, key=widget_key(k("nz", False)))
         engine_weight_lb = st.number_input(
             f"Engine weight, {U['weight']}", value=dflt(cur.engine_weight_lb, "weight"),
-            step=1.0, key=k("engwt"))
+            step=1.0, key=widget_key(k("engwt")))
         prop_weight_lb = st.number_input(
             f"Propeller weight, {U['weight']}", value=dflt(cur.prop_weight_lb, "weight"),
-            step=1.0, key=k("propwt"))
+            step=1.0, key=widget_key(k("propwt")))
         prop_diameter_in = st.number_input(
             f"Propeller diameter, {U['length']}", value=dflt(cur.prop_diameter_in, "length"),
-            step=1.0, key=k("propdia"))
+            step=1.0, key=widget_key(k("propdia")))
         prop_blades = st.number_input(
-            "Number of prop blades", value=cur.prop_blades, step=1, min_value=0, key=k("blades", False))
+            "Number of prop blades", value=cur.prop_blades, step=1, min_value=0, key=widget_key(k("blades", False)))
     with c2:
         st.markdown(f"**Engine CG ({U['length']})**")
-        xeng = st.number_input("X engine", value=dflt(cur.engine_cg[0], "length"), key=k("xeng"))
-        yeng = st.number_input("Y engine", value=dflt(cur.engine_cg[1], "length"), key=k("yeng"))
-        zeng = st.number_input("Z engine", value=dflt(cur.engine_cg[2], "length"), key=k("zeng"))
+        xeng = st.number_input("X engine", value=dflt(cur.engine_cg[0], "length"), key=widget_key(k("xeng")))
+        yeng = st.number_input("Y engine", value=dflt(cur.engine_cg[1], "length"), key=widget_key(k("yeng")))
+        zeng = st.number_input("Z engine", value=dflt(cur.engine_cg[2], "length"), key=widget_key(k("zeng")))
     with c3:
         st.markdown(f"**Propeller CG ({U['length']})**")
-        xprop = st.number_input("X prop", value=dflt(cur.prop_cg[0], "length"), key=k("xprop"))
-        yprop = st.number_input("Y prop", value=dflt(cur.prop_cg[1], "length"), key=k("yprop"))
-        zprop = st.number_input("Z prop", value=dflt(cur.prop_cg[2], "length"), key=k("zprop"))
+        xprop = st.number_input("X prop", value=dflt(cur.prop_cg[0], "length"), key=widget_key(k("xprop")))
+        yprop = st.number_input("Y prop", value=dflt(cur.prop_cg[1], "length"), key=widget_key(k("yprop")))
+        zprop = st.number_input("Z prop", value=dflt(cur.prop_cg[2], "length"), key=widget_key(k("zprop")))
         takeoff_rpm = st.number_input(
-            "Takeoff RPM", value=float(cur.takeoff_rpm), step=10.0, key=k("torpm", False))
+            "Takeoff RPM", value=float(cur.takeoff_rpm), step=10.0, key=widget_key(k("torpm", False)))
         max_cont_rpm = st.number_input(
-            "Max continuous RPM", value=float(cur.max_cont_rpm), step=10.0, key=k("contrpm", False))
+            "Max continuous RPM", value=float(cur.max_cont_rpm), step=10.0, key=widget_key(k("contrpm", False)))
 
     # Type-specific inputs
     takeoff_hp = max_cont_hp = cylinders = None
@@ -222,28 +223,28 @@ with st.form("engine_mount_form"):
         with r1:
             takeoff_hp = st.number_input(
                 f"Takeoff power, {U['power']}", value=dflt(cur.takeoff_hp or 0.0, "power"),
-                step=1.0, key=k("tohp"))
+                step=1.0, key=widget_key(k("tohp")))
         with r2:
             max_cont_hp = st.number_input(
                 f"Max continuous power, {U['power']}", value=dflt(cur.max_cont_hp or 0.0, "power"),
-                step=1.0, key=k("conthp"))
+                step=1.0, key=widget_key(k("conthp")))
         with r3:
             cylinders = st.number_input(
-                "Number of cylinders", value=cur.cylinders or 0, step=1, min_value=0, key=k("cyl", False))
+                "Number of cylinders", value=cur.cylinders or 0, step=1, min_value=0, key=widget_key(k("cyl", False)))
     else:
         st.subheader("Turboprop engine inputs")
         t1, t2, t3 = st.columns(3)
         with t1:
             max_engine_torque = st.number_input(
                 f"Max engine torque, {U['torque']}", value=dflt(cur.max_engine_torque or 0.0, "torque"),
-                step=10.0, key=k("engtorq"))
+                step=10.0, key=widget_key(k("engtorq")))
         with t2:
             cruise_torque = st.number_input(
                 f"Max cont (cruise) torque, {U['torque']}", value=dflt(cur.cruise_torque or 0.0, "torque"),
-                step=10.0, key=k("cruztorq"))
+                step=10.0, key=widget_key(k("cruztorq")))
         with t3:
             stop_time_s = st.number_input("Sudden-stoppage time, s", value=float(cur.stop_time_s or 0.3), step=0.05,
-                                          help="FAA usually accepts 0.3 s", key=k("dt", False))
+                                          help="FAA usually accepts 0.3 s", key=widget_key(k("dt", False)))
 
         if include_far25:
             st.markdown("**FAR 25 only**")
@@ -253,7 +254,7 @@ with st.form("engine_mount_form"):
                     f"Max accelerating torque, {U['torque']}",
                     value=dflt(cur.max_accel_torque if cur.max_accel_torque is not None
                                else (cur.max_engine_torque or 0.0), "torque"),
-                    step=10.0, key=k("accel_torq"),
+                    step=10.0, key=widget_key(k("accel_torq")),
                     help=("FAR 25.361(a)(3)(ii). Leave at the max engine torque if no "
                           "separate accelerating-torque value is available."),
                 )
@@ -269,14 +270,14 @@ with st.form("engine_mount_form"):
             with g1:
                 _yaw_in = st.number_input(
                     "Design yaw rate, rad/s", value=float(cur.design_yaw_rate_rad_s or 0.0),
-                    min_value=0.0, step=0.1, key=k("design_yaw", False),
+                    min_value=0.0, step=0.1, key=widget_key(k("design_yaw", False)),
                     help="Concept real 25.371 yaw rate. 0 = use the fixed 2.5 rad/s stand-in.",
                 )
                 design_yaw_rate = _yaw_in if _yaw_in > 0 else None
             with g2:
                 _pitch_in = st.number_input(
                     "Design pitch rate, rad/s", value=float(cur.design_pitch_rate_rad_s or 0.0),
-                    min_value=0.0, step=0.1, key=k("design_pitch", False),
+                    min_value=0.0, step=0.1, key=widget_key(k("design_pitch", False)),
                     help="Concept real 25.371 pitch rate. 0 = use the fixed 1 rad/s stand-in.",
                 )
                 design_pitch_rate = _pitch_in if _pitch_in > 0 else None
@@ -288,7 +289,7 @@ with st.form("engine_mount_form"):
                 "Source",
                 ["Approximate from weight & diameter", "Enter measured value"],
                 index=1 if cur.prop_inertia is not None else 0,
-                key=k("propinertia_mode", False),
+                key=widget_key(k("propinertia_mode", False)),
                 help=(
                     "Approximate models the blades as thin rods, I = m·L²/3, with the "
                     "hub weight removed (it sits near the axis). Enter a measured "
@@ -301,13 +302,13 @@ with st.form("engine_mount_form"):
                 prop_inertia = st.number_input(
                     f"Measured propeller polar inertia, {U['inertia']}",
                     value=dflt(cur.prop_inertia or 0.0, "inertia"), step=0.1, format="%.4f",
-                    key=k("prop_inertia"),
+                    key=widget_key(k("prop_inertia")),
                 )
             else:
                 hub_weight_lb = st.number_input(
                     f"Propeller hub weight, {U['weight']}", value=dflt(cur.hub_weight_lb or 0.0, "weight"), step=1.0,
                     help="Subtracted from propeller weight before approximating inertia.",
-                    key=k("hubwt"),
+                    key=widget_key(k("hubwt")),
                 )
 
         st.markdown("**Turbine rotor inertia by spool** (clockwise from pilot's view is positive RPM)")
@@ -344,7 +345,7 @@ with st.form("engine_mount_form"):
                 "rotor_type": st.column_config.SelectboxColumn("Type", options=["C", "T"]),
                 "direction": st.column_config.SelectboxColumn("Direction", options=["CW", "CC"]),
             },
-            key=f"rotors_e{idx}_{system.value}",
+            key=widget_key(f"rotors_e{idx}_{system.value}"),
         )
         for _, row in rotor_df.iterrows():
             if pd.isna(row["diameter_in"]) or float(row["diameter_in"]) <= 0:
@@ -383,7 +384,7 @@ with st.form("engine_mount_form"):
         _thrust_in = st.number_input(
             f"Thrust per engine, {U['force']}",
             value=dflt(cur.thrust_lb or 0.0, "force"), min_value=0.0, step=10.0,
-            key=k("thrust"),
+            key=widget_key(k("thrust")),
             help=("Applied forward at the hub. Requires a propeller CG or an "
                   "engine CG to act at."),
         )

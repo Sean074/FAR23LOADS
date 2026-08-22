@@ -13,6 +13,7 @@ import pandas as pd
 import streamlit as st
 
 from app_shell.components import active_system, gate
+from app_shell.widget_keys import widget_key
 from sloads import (
     AileronLoadsInput,
     Project,
@@ -57,11 +58,11 @@ with st.form("aileron_loads_form"):
     area_fwd_hinge_sqft = c1.number_input(
         f"Area fwd of hinge line, SAFWD ({U['area_sqft']})", min_value=0.0,
         value=float(round(to_display(inp.area_fwd_hinge_sqft, "area_sqft", system), 4)), step=0.1,
-        key=f"safwd_{system.value}")
+        key=widget_key(f"safwd_{system.value}"))
     area_aft_hinge_sqft = c2.number_input(
         f"Area aft of hinge line, SAAFT ({U['area_sqft']})", min_value=0.0,
         value=float(round(to_display(inp.area_aft_hinge_sqft, "area_sqft", system), 4)), step=0.1,
-        key=f"saaft_{system.value}")
+        key=widget_key(f"saaft_{system.value}"))
     applied = st.form_submit_button("Apply", type="primary")
 
 if applied:

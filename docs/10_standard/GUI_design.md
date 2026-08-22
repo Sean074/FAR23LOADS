@@ -123,6 +123,51 @@ consistent:
   seeds its default from that data instead of showing a blank.
 - **Merge, don't wholesale-replace** a slice shared with other pages/edits — only
   the sole owner of a slice may reconstruct it in full on Apply.
+- **A widget belongs to the project it was seeded from** (#51, 2026-08-21).
+  Streamlit widget state, once registered under a key, beats the `value=`
+  argument on every later rerun — and GUI widget keys are stable across projects
+  (a registry path in the oracle form, a hand-written name in `app/views/`). So a
+  page **visited before** a load kept rendering its own retained state and, since
+  these widgets persist what they return, wrote that state back over the project
+  that had just been loaded: opening the oracle GUI on the seed project, visiting
+  Weight & Mass Properties and loading `atr42_100` showed zeros and popped all 21
+  weight items and 8 CG cases out of the loaded project — with no Apply step in
+  that GUI, on the load's own rerun. Every widget seeded from the project
+  therefore keys itself through `app_shell/widget_keys.py:widget_key`, which
+  stamps the key with a *project generation* bumped exactly once per replacement
+  (`project_state.adopt`, and the JSON editor's Apply — the only two places that
+  replace it). A mutation, an Apply or a unit switch is not a replacement and
+  keeps its widgets. Guards: `tests/test_widget_freshness.py` — render → load →
+  re-render leaves the session project equal to the loaded file, on every oracle
+  page and every shipped example, plus an AST walk that fails on any GUI widget
+  keyed without the stamp.
+- **A copy says it is a copy** (#36, CR-A-2). Where a quantity is held by more
+  than one field, `sloads/field_registry.py` names the owner, and the renderer
+  **reads that** rather than presenting every holder as an independent input.
+  Which of two markings applies is decided by `FieldEntry.governs` — *does the
+  calc honour this copy?* — because the answer changes what the page may safely
+  do:
+  - `governs=False`, **display-only**: the consumer resolves the owner, so the
+    widget renders **disabled** at the value that actually governs, captioned
+    with the owner's path. `speeds.wing_area_sqft` is the case that named the
+    rule — STRSPEED integrates the wing planform and only falls back to this
+    field when no wing surface exists, which no GUI-built project lacks, so a
+    value typed here was silently ignored (18 % divergence measured on atr42).
+  - `governs=True`, **override**: some module reads the field verbatim, so it
+    stays **editable** and is captioned with the owner and the owner's current
+    value; a disagreement draws a warning. It warns rather than corrects,
+    because disagreeing is what an override is for. Disabling one of these would
+    remove a capability and substituting the owner's value would change results.
+
+  A display-only copy is never written back from a render — the page shows the
+  governing value while the stored copy keeps whatever it held, so visiting a
+  page still cannot dirty a project (OG-F). Guards:
+  `tests/test_oracle_gui.py` renders every copy's page and fails on one that does
+  not name its owner (and on a display-only one that is still editable);
+  `tests/test_field_registry.py` fails if an owner row claims `governs`.
+  The durable fix for a copy that need not exist at all is to remove it —
+  [note 33](../30_future/33_derived_scalar_consolidation_note.md) did that for
+  ten of them, and this marking covers the remainder.
 
 The established **seed-chain** (each seeds the next when its target is unset):
 Configuration & Layout → WINGGEOM wing surface → Weight DB component stations;

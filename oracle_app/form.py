@@ -22,6 +22,14 @@ list: adding a ``bas`` to a workflow step adds a page with no edit to this file
 (gate G2), and adding a field to ``models/inputs.py`` adds a widget once the
 registry classifies it (gate G4).
 
+**Widget keys.** Every widget here is keyed by what it edits — the registry path,
+plus the row index where one path is N widgets — and stamped with the project
+generation through :func:`app_shell.widget_keys.widget_key`. Without the stamp
+those keys are identical across projects, and Streamlit's retained widget state
+beats the ``value=`` this renderer seeds from the project: a page visited before
+a load re-rendered its own old values and, since the renderers below persist what
+they return, wrote them back over what was just loaded (#51).
+
 **What is hand-declared, and why.** :data:`MEMBER_LABELS` names the members of
 the composite fields — an ``XYPoint`` is (X, Z) on a gear leg and (X, Y) on a
 planform, and no amount of type introspection can tell them apart. It is
@@ -41,6 +49,7 @@ import pandas as pd
 import streamlit as st
 
 from app_shell.components import active_system, page_header, unit_number_input
+from app_shell.widget_keys import widget_key
 from oracle_app.labels import pretty
 from oracle_app.results import render_results
 from sloads import field_registry as fr
@@ -106,6 +115,62 @@ def _help(path: str) -> Optional[str]:
     """A field's provenance, from its registry row."""
     row = fr.entry(path)
     return f"`{path}` — {row.basis}" if row else None
+
+
+def _owner_value(project: Any, owner_path: str) -> Any:
+    """The owner field's current value, or ``None`` if any step of it is absent."""
+    obj: Any = project
+    for segment in owner_path.split("."):
+        obj = getattr(obj, segment, None)
+        if obj is None:
+            return None
+    return obj
+
+
+def _copy_note(path: str, value: Any, project: Any, where: Any) -> bool:
+    """Mark a non-owner copy; return ``True`` if it must render **disabled**.
+
+    The registry has always known which field owns each shared quantity; until
+    now nothing in the renderer read it, so a user could enter a wing area on one
+    page and a different one on another and feed both to the calc with no warning
+    (#36, CR-A-2). What the mark says depends on ``FieldEntry.governs``:
+
+    * **display-only** (``governs=False``) — the consumer resolves the owner
+      instead, so the widget is disabled and shows the governing value. Anything
+      stored here is inert, and the caption says so rather than letting the page
+      imply an input that does nothing.
+    * **override** (``governs=True``) — the calc reads this field verbatim, so it
+      stays editable; the caption names the owner and its value, and a
+      disagreement is called out. A disagreement is *legal* here — that is what
+      an override is — so this warns, it does not correct.
+    """
+    row = fr.entry(path)
+    if row is None or row.is_owner or row.owner_is_external:
+        return False
+    owner = row.owner_path
+    if not owner:
+        return False
+    owner_value = _owner_value(project, owner)
+    owner_label = f"`{owner}`"
+
+    if not row.governs:
+        where.caption(
+            f"Derived from {owner_label} — entering a value here has no effect; "
+            "the analysis reads the owner.")
+        return True
+
+    where.caption(f"Overrides {owner_label}"
+                  + (f" (currently {owner_value:,.4g})"
+                     if isinstance(owner_value, (int, float)) and not isinstance(owner_value, bool)
+                     else "")
+                  + " — a value entered here is what the analysis uses.")
+    if (isinstance(owner_value, (int, float)) and isinstance(value, (int, float))
+            and not isinstance(owner_value, bool) and not isinstance(value, bool)
+            and owner_value and value and abs(float(owner_value) - float(value)) > 1e-9):
+        where.warning(
+            f"This is {value:,.4g} but {owner_label} says {owner_value:,.4g}. "
+            "Both reach the calc, on different pages — confirm which is intended.")
+    return False
 
 
 # --------------------------------------------------------------------------- #
@@ -356,13 +421,19 @@ def _number(label: str, value: Optional[float], unit: FieldUnit, key: str,
     return unit_number_input(label, seed, key=key, **kwargs)
 
 
-def render_scalar(record: Any, path: str, *, key: str, container: Any = None) -> None:
+def render_scalar(record: Any, path: str, *, key: str, container: Any = None,
+                  project: Any = None) -> None:
     """One widget for one non-composite field, written straight back to ``record``.
 
     ``key`` is the Streamlit widget key. It is not the registry path, because a
     table row repeats every path: ``weight.items[].name`` is one registry row and
     N widgets. The caller owns uniqueness, so the field renderers never have to
     know that tables exist.
+
+    ``project`` is needed only to resolve the *owner* of a shared quantity
+    (#36) — pass it wherever one is available and the field gets its
+    derived/override marking; omit it and the widget renders unmarked, which is
+    what a detached unit test wants.
     """
     where = container if container is not None else st
     name = _leaf(path)
@@ -371,23 +442,43 @@ def render_scalar(record: Any, path: str, *, key: str, container: Any = None) ->
     label, help_text = _field_label(path), _help(path)
     value = getattr(record, name)
 
+    # A non-owner copy is marked, and a display-only one is disabled and shows the
+    # value that actually governs. It is never *persisted* from here: rendering a
+    # page must not write to the project (OG-F), so the stored copy keeps whatever
+    # it held and only the display tells the truth.
+    disabled = _copy_note(path, value, project, where) if project is not None else False
+    if disabled:
+        row = fr.entry(path)
+        governing = _owner_value(project, row.owner_path) if row is not None else None
+        if governing is not None:
+            value = governing
+
     enum = _enum_of(inner)
     if enum is not None:
         options: List[Any] = ([None] if optional else []) + list(enum)
         current = value if value in options else options[0]
         chosen = where.selectbox(
-            label, options, index=options.index(current), key=key, help=help_text,
+            label, options, index=options.index(current), key=widget_key(key),
+            help=help_text,
             format_func=lambda o: "—" if o is None else f"{o.value} · {pretty(o.name)}",
+            disabled=disabled,
         )
-        _persist(record, name, chosen)
+        if not disabled:
+            _persist(record, name, chosen)
         return
 
     if inner is bool:
-        _persist(record, name, where.checkbox(label, bool(value), key=key, help=help_text))
+        entered_bool = where.checkbox(label, bool(value), key=widget_key(key),
+                                      help=help_text, disabled=disabled)
+        if not disabled:
+            _persist(record, name, entered_bool)
         return
 
     if inner is str:
-        _persist(record, name, where.text_input(label, value or "", key=key, help=help_text))
+        entered_str = where.text_input(label, value or "", key=widget_key(key),
+                                       help=help_text, disabled=disabled)
+        if not disabled:
+            _persist(record, name, entered_str)
         return
 
     # An unfilled Optional renders *empty*, not as a fake 0 (#35, CR-A-3): the
@@ -398,8 +489,8 @@ def render_scalar(record: Any, path: str, *, key: str, container: Any = None) ->
         entered = where.number_input(
             f"{label} ({_unit_label(unit, active_system())})".replace(" ()", ""),
             value=None if (optional and value is None) else int(value or 0),
-            step=1, key=key, help=help_text)
-        if entered is None:
+            step=1, key=widget_key(key), help=help_text, disabled=disabled)
+        if entered is None or disabled:
             return
         if optional and value is None:
             _set_entered(record, name, int(entered))
@@ -409,8 +500,8 @@ def render_scalar(record: Any, path: str, *, key: str, container: Any = None) ->
 
     entered = _number(
         label, None if (optional and value is None) else float(value or 0.0),
-        unit, key, container=where, help=help_text, format="%.4f")
-    if entered is None:
+        unit, key, container=where, help=help_text, format="%.4f", disabled=disabled)
+    if entered is None or disabled:
         return
     if optional and value is None:
         _set_entered(record, name, float(entered))
@@ -473,7 +564,7 @@ def render_curve(record: Any, path: str, *, key: str, container: Any = None) -> 
     ]
     where.markdown(f"**{_field_label(path)}**", help=_help(path))
     edited = where.data_editor(
-        pd.DataFrame(display, columns=headers), num_rows="dynamic", key=key,
+        pd.DataFrame(display, columns=headers), num_rows="dynamic", key=widget_key(key),
         width="stretch",
     )
     # ``rows`` is what was rendered, so row ``n`` of the editor is row ``n`` of
@@ -510,7 +601,7 @@ def render_enum_set(record: Any, path: str, *, key: str, container: Any = None) 
     chosen = where.multiselect(
         _field_label(path), list(enum), default=sorted(getattr(record, name) or (),
                                                        key=lambda m: m.value),
-        key=key, help=_help(path), format_func=lambda m: pretty(m.name))
+        key=widget_key(key), help=_help(path), format_func=lambda m: pretty(m.name))
     _persist(record, name, set(chosen))
 
 
@@ -578,7 +669,7 @@ def render_record(project: Project, prefix: str, paths: Sequence[str]) -> None:
     for start in range(0, len(scalars), _COLUMNS):
         columns = st.columns(_COLUMNS)
         for column, path in zip(columns, scalars[start:start + _COLUMNS]):
-            render_scalar(record, path, key=path, container=column)
+            render_scalar(record, path, key=path, container=column, project=project)
     for path in composites:
         render_field(record, path, key=path)
 
@@ -594,7 +685,7 @@ def render_table(project: Project, prefix: str, paths: Sequence[str]) -> None:
 
     count = st.number_input(
         f"{pretty(prefix.rstrip(fr.LIST_MARKER).rsplit('.', 1)[-1])} — rows",
-        min_value=0, value=len(rows), step=1, key=f"{prefix}.count")
+        min_value=0, value=len(rows), step=1, key=widget_key(f"{prefix}.count"))
     while len(rows) < count:
         rows.append(blank(cls))
     while len(rows) > count:
@@ -605,13 +696,14 @@ def render_table(project: Project, prefix: str, paths: Sequence[str]) -> None:
     if any(is_composite(fr.field_type(p)) for p in paths):
         for index, row in enumerate(rows):
             with st.expander(f"{index + 1} · {_row_title(row, paths)}", expanded=index == 0):
-                render_record_row(row, paths, f"{prefix}.{index}")
+                render_record_row(row, paths, f"{prefix}.{index}", project)
         return
 
     _render_flat_table(rows, paths, prefix)
 
 
-def render_record_row(row: Any, paths: Sequence[str], key_prefix: str) -> None:
+def render_record_row(row: Any, paths: Sequence[str], key_prefix: str,
+                      project: Any = None) -> None:
     """One row of a composite-bearing table, laid out like a record block.
 
     ``key_prefix`` carries the row index into every widget key: one registry
@@ -622,7 +714,8 @@ def render_record_row(row: Any, paths: Sequence[str], key_prefix: str) -> None:
     for start in range(0, len(scalars), _COLUMNS):
         columns = st.columns(_COLUMNS)
         for column, path in zip(columns, scalars[start:start + _COLUMNS]):
-            render_scalar(row, path, key=f"{key_prefix}.{_leaf(path)}", container=column)
+            render_scalar(row, path, key=f"{key_prefix}.{_leaf(path)}", container=column,
+                          project=project)
     for path in composites:
         render_field(row, path, key=f"{key_prefix}.{_leaf(path)}")
 
@@ -648,7 +741,7 @@ def _render_flat_table(rows: List[Any], paths: Sequence[str], prefix: str) -> No
     ], columns=[headers[p] for p in paths])
 
     edited = st.data_editor(
-        frame, key=prefix, width="stretch", column_config={
+        frame, key=widget_key(prefix), width="stretch", column_config={
             headers[p]: _column_config(p, headers[p]) for p in paths
         },
     )
