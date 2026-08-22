@@ -164,7 +164,12 @@ markers = [
 ]
 
 [tool.coverage.run]
-branch = true
+# Line coverage, not branch (2026-08-22): the CI leg measures under
+# `COVERAGE_CORE=sysmon` (see ci.yml), and sys.monitoring supports branch
+# measurement only from Python 3.14 -- `branch = true` would silently fall
+# back to the slow C-tracer core. The 80 % floor is unchanged (line coverage
+# reads a few points above the old branch figure); measure branch locally
+# with `--cov=sloads --cov-branch` when the detail is wanted.
 source = ["sloads"]
 
 [tool.coverage.report]
