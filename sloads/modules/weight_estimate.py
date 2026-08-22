@@ -20,6 +20,7 @@ import math
 from dataclasses import replace
 from typing import List
 
+from ..basic import basic_int
 from ..constants import (
     SEAT_WEIGHT_LB,
     WT_ENGINE_OTHER_FRACTION,
@@ -148,13 +149,13 @@ def estimate(inp: WeightEstimationInput) -> List[ConditionResult]:
 
     def mass(label: str, value: float, key: str = "") -> LoadValue:
         # Weights are pounds-*mass* (quantity="mass" -> kg in SI, not N), and are
-        # truncated with int(...) to match the original program's printout.
+        # truncated with basic_int(...) to match the original program's printout.
         #
         # The group rows below are driven by the WT_*_FRACTIONS tables, whose
         # dict keys *are* the component names -- for those the label is data
         # rather than cosmetic text, so the key is derived from it. Rows written
         # out by hand pass their key explicitly (M4-9).
-        return LoadValue(label, int(value), "lb", quantity="mass",
+        return LoadValue(label, basic_int(value), "lb", quantity="mass",
                          key=key or _key(label))
 
     summary = ConditionResult(
@@ -166,7 +167,7 @@ def estimate(inp: WeightEstimationInput) -> List[ConditionResult]:
             mass("Empty weight", empty, "empty_weight"),
             mass("Crew (operating items)", crew_weight, "crew_operating_items"),
             mass("Operating empty weight (OEW)", oew, "operating_empty_weight"),
-            LoadValue("Empty/take-off ratio", int(100 * empty / wto) / 100, key="empty_take_off_ratio"),
+            LoadValue("Empty/take-off ratio", basic_int(100 * empty / wto) / 100, key="empty_take_off_ratio"),
             mass("Options & miscellaneous", options_misc, "options_and_miscellaneous"),
         ],
     )

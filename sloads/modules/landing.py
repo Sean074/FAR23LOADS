@@ -47,6 +47,7 @@ from __future__ import annotations
 import math
 from typing import List, NamedTuple, Optional, Tuple
 
+from ..basic import basic_trunc3
 from ..case_ids import CaseIdAllocator
 from ..cg_cases import landing_role_cases, max_landing_weight, max_takeoff_weight
 from ..constants import IN2_PER_FT2, IN_PER_FT, G
@@ -103,11 +104,6 @@ def landing_load_factor(wing_area_sqft: float, weight_lb: float, strut_stroke_in
     n = numerator / denominator
     return LoadFactorResult(sink_rate_fps=v, airplane_load_factor=n,
                             gear_load_factor=n - lift_factor)
-
-
-def _trunc3(x: float) -> float:
-    """Truncate to 3 decimals to mirror the BASIC ``INT(x*1000)/1000`` lever arms."""
-    return int(x * 1000) / 1000
 
 
 # Drag load factor K0 of FAR 23 Appendix C 23.1 (interpolated 0.25 -> 0.33).
@@ -230,7 +226,7 @@ def _geometry(inp: LandingInput, gear: LandingGearGeometry, nlg: float,
     for tbl in (ap, bp, dp, cp):
         for j in range(3):
             for i in range(n_cg):
-                tbl[j][i] = _trunc3(tbl[j][i])
+                tbl[j][i] = basic_trunc3(tbl[j][i])
     return _Geometry(k=k, gamma_deg=gamma, gra=gra, beta=beta, ap=ap, bp=bp, dp=dp, cp=cp)
 
 

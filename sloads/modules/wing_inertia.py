@@ -35,6 +35,7 @@ import math
 from dataclasses import dataclass, field, replace
 from typing import Dict, List, NamedTuple, Optional
 
+from ..basic import basic_trunc3
 from ..case_ids import COMPONENT_PREFIX, WING_BAND_EXTRA, WING_SLOTS, wing_case_id
 from ..cg_cases import flight_cases
 from ..constants import DEG_PER_RAD, IN2_PER_FT2
@@ -149,8 +150,8 @@ def inertia_units(geom: SurfaceInput, wm: WingMassInput,
     w, densr = _root_density(dA, ye, c, dy, ytip, wm, ii)
 
     u = _InertiaUnits(ye=ye, c25x=c25x, c50x=c50x, z=z, w=w,
-                      density_root=int(IN2_PER_FT2 * densr * 1000) / 1000,
-                      density_tip=int(IN2_PER_FT2 * wm.tip_root_density_ratio * densr * 1000) / 1000)
+                      density_root=basic_trunc3(IN2_PER_FT2 * densr),
+                      density_tip=basic_trunc3(IN2_PER_FT2 * wm.tip_root_density_ratio * densr))
 
     iwxx = 2.0 * (math.fsum(w[i] * ye[i] ** 2 for i in range(h))
                   + math.fsum(cw.weight_lb * cw.y ** 2 for cw in wm.concentrated)) or 1.0

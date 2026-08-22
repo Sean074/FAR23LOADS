@@ -185,6 +185,7 @@ FAR23LOADS/
 ├── sloads/                       # the shared, pure-calc package — no I/O in calc code
 │   ├── constants.py              # ONE home for g, pi, unit factors, atmosphere (Decision 3)
 │   ├── units.py                  # Imperial<->SI boundary conversion + deliverable_units (the unit-channel SSOT)
+│   ├── basic.py                  # ONE home for GW-BASIC numeric semantics: `INT()` floors where Python's `int()` truncates (CR-B-3)
 │   ├── models/                   # the Project schema, split from models.py at M3-1
 │   │   ├── enums.py              # schema enumerations (categories, kinds, tail types)
 │   │   ├── inputs.py             # per-module input dataclasses
