@@ -123,6 +123,33 @@ consistent:
   seeds its default from that data instead of showing a blank.
 - **Merge, don't wholesale-replace** a slice shared with other pages/edits — only
   the sole owner of a slice may reconstruct it in full on Apply.
+- **A copy says it is a copy** (#36, CR-A-2). Where a quantity is held by more
+  than one field, `sloads/field_registry.py` names the owner, and the renderer
+  **reads that** rather than presenting every holder as an independent input.
+  Which of two markings applies is decided by `FieldEntry.governs` — *does the
+  calc honour this copy?* — because the answer changes what the page may safely
+  do:
+  - `governs=False`, **display-only**: the consumer resolves the owner, so the
+    widget renders **disabled** at the value that actually governs, captioned
+    with the owner's path. `speeds.wing_area_sqft` is the case that named the
+    rule — STRSPEED integrates the wing planform and only falls back to this
+    field when no wing surface exists, which no GUI-built project lacks, so a
+    value typed here was silently ignored (18 % divergence measured on atr42).
+  - `governs=True`, **override**: some module reads the field verbatim, so it
+    stays **editable** and is captioned with the owner and the owner's current
+    value; a disagreement draws a warning. It warns rather than corrects,
+    because disagreeing is what an override is for. Disabling one of these would
+    remove a capability and substituting the owner's value would change results.
+
+  A display-only copy is never written back from a render — the page shows the
+  governing value while the stored copy keeps whatever it held, so visiting a
+  page still cannot dirty a project (OG-F). Guards:
+  `tests/test_oracle_gui.py` renders every copy's page and fails on one that does
+  not name its owner (and on a display-only one that is still editable);
+  `tests/test_field_registry.py` fails if an owner row claims `governs`.
+  The durable fix for a copy that need not exist at all is to remove it —
+  [note 33](../30_future/33_derived_scalar_consolidation_note.md) did that for
+  ten of them, and this marking covers the remainder.
 
 The established **seed-chain** (each seeds the next when its target is unset):
 Configuration & Layout → WINGGEOM wing surface → Weight DB component stations;
