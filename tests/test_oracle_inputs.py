@@ -168,21 +168,23 @@ def test_the_reduction_changes_nothing_about_what_runs(example):
 
 @pytest.mark.parametrize("example", EXACT)
 def test_the_reduced_project_reproduces_every_number(example):
-    """±0.1 % on every load value, which is what carries the Appendix A oracles.
+    """Every load value is *identical*, which carries the Appendix A oracles.
 
     Every ga6-based oracle test asserts against the *full* project; if the
     reduced one agrees with it everywhere, each of those oracles holds on the
     reduced set too, without this file restating a single printed figure.
+
+    Gated at exact equality, not at the note-32 ±0.1 %: dropping a field that is
+    genuinely not an input runs the identical arithmetic on the identical floats,
+    so the reduction is an identity and not an oracle comparison. Anything the
+    tolerance would have absorbed is a real dependence on a dropped field --
+    a misclassified registry row -- and the whole point of this gate is to name
+    it. ±0.1 % remains the note's floor; this exceeds it (CR-B-2, rule 4).
     """
     (_, full), (_, reduced) = _both(example)
-    off = []
-    for key in sorted(set(full) & set(reduced)):
-        a, b = full[key], reduced[key]
-        if isinstance(a, (int, float)) and isinstance(b, (int, float)):
-            if not math.isclose(a, b, rel_tol=TOL, abs_tol=1e-9):
-                off.append(f"{key}: {a!r} -> {b!r}")
-        elif a != b:
-            off.append(f"{key}: {a!r} -> {b!r}")
+    off = [f"{key}: {full[key]!r} -> {reduced[key]!r}"
+           for key in sorted(set(full) & set(reduced))
+           if full[key] != reduced[key]]
     assert not off, (
         f"{example}: {len(off)} value(s) move when the sloads-only fields are "
         "dropped, so one of them is really an input of a .BAS program:\n  "
