@@ -29,7 +29,6 @@ from __future__ import annotations
 
 import datetime as _dt
 import io as _io
-import zipfile
 from importlib.metadata import PackageNotFoundError
 from importlib.metadata import version as _pkg_version
 
@@ -47,6 +46,7 @@ from sloads.export.workbook import build_workbook
 from sloads.modules.balance import build_balanced_cases
 from sloads.modules.net_loads import torsion_axis_label, wing_lra
 from sloads.report import module_text_report
+from sloads.report.bundle import bundle_members, bundle_zip_bytes
 from sloads.report.content import ComponentLoads, component_loads
 from sloads.report.latex import render_report
 from sloads.report.methods import (
@@ -375,32 +375,30 @@ c1.download_button("💾 Save project.json", project_json,
 
 
 def _zip_bundle() -> bytes:
-    buf = _io.BytesIO()
-    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as z:
-        z.writestr(f"{_stem}.json", project_json)
-        if text_report.strip():
-            z.writestr(f"{_stem}_report.txt", text_report)
-        for module, csv in module_csvs.items():
-            if csv:
-                z.writestr(f"load_cases/{_stem}_{module}.csv", csv)
-        if case_index_csv.strip():
-            z.writestr(f"{_stem}_case_index.csv", case_index_csv)
-        z.writestr(f"{_stem}_safety_factors.csv", safety_factors_csv)
-        if gear_report_csv.strip():
-            z.writestr(f"{_stem}_gear_loads.csv", gear_report_csv)
-        # The bundle's own controlling statement -- readable without opening a CSV.
-        z.writestr("METHODS.txt", _methods)
-        # The controlling document travels with the data it controls (Step G8):
-        # the .tex always, the PDF once it has been compiled on this page.
-        if _report_tex:
-            z.writestr(f"{_stem}_summary_report.tex", _report_tex)
-            pdf = st.session_state.get("report_pdf_bytes")
-            if pdf and st.session_state.get("report_pdf_key") == _report_tex:
-                z.writestr(f"{_stem}_summary_report.pdf", pdf)
-        for name, content in _bdf_artifacts.items():
-            if content:
-                z.writestr(f"sbeam/{_stem}_{name}", content)
-    return buf.getvalue()
+    """The bundle, assembled by its one owner.
+
+    The member list is :func:`sloads.report.bundle.bundle_members` and not this
+    function: a member named here and nowhere else is a file that travels
+    without a basis, which is what CR-C-1 found three times over. That module is
+    pure, so ``tests/test_bundle_manifest.py`` reads the same namelist the user
+    downloads and holds it against Appendix A. Add a file there, with its
+    manifest row -- never here.
+    """
+    _pdf = st.session_state.get("report_pdf_bytes")
+    return bundle_zip_bytes(bundle_members(
+        _stem,
+        project_json=project_json,
+        text_report=text_report,
+        module_csvs=module_csvs,
+        case_index_csv=case_index_csv,
+        safety_factors_csv=safety_factors_csv,
+        gear_report_csv=gear_report_csv,
+        methods=_methods,
+        report_tex=_report_tex or "",
+        report_pdf=(_pdf if st.session_state.get("report_pdf_key") == _report_tex
+                    else None),
+        sbeam_artifacts=_bdf_artifacts,
+    ))
 
 
 c2.download_button("📦 Download all (.zip)", _zip_bundle(),

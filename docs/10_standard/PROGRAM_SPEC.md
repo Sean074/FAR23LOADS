@@ -1313,7 +1313,10 @@ result that lacks what a deck needs is a stated error, never an empty column.
   no resolvable SOB, no fuselage outline, no carry-through, a strip-pair
   h-tail attachment. Accepted-but-assumed geometry (section centres, spar
   fractions, SOB fallback, outline attachment, inferred gear/engine parents)
-  is listed in the deck header. `ga6_normal`/`concept_heavy` refuse by design.
+  is listed in the deck header. `concept_heavy` refuses by design (no
+  resolvable SOB); every other shipped fixture builds a model, and the bundle
+  manifest's LRA row is gated on that build, not on the project having balanced
+  cases (CR-C-1).
 - **Import:** `read_lra_model` parses an external `GRID`/`CBAR` subset plus
   `$ SLOADS-NODE` tags (or a sidecar map);
   `lra_loads_on_imported_model` transfers the same case sets onto the
@@ -1326,7 +1329,12 @@ result that lacks what a deck needs is a stated error, never an empty column.
 - **CLI:** `--export-target lra` (`<prefix>.lra_model.bdf`); with
   `--lra-import MODEL.bdf` the loads land on the imported model instead
   (`<prefix>.lra_loads.bdf`). The Export page bundles `lra_model.bdf` when it
-  builds.
+  builds, and Appendix A of the summary report names it there with its basis
+  (solver units, ULTIMATE, torsion about each surface's LRA).
+  `lra_loads.bdf` is a **CLI-only** artifact on the same basis: it never rides
+  the bundle, so it is named here and not in the bundle manifest — a manifest
+  row for a file the zip does not contain is the same conformance defect
+  pointing outward (`SUMMARY_REPORT.md` §4.7).
 
 ### Export-scope filter (Step D8.3)
 - **Source:** `sloads/export/sbeam_bridge.py::filter_by_selected_case_ids`.

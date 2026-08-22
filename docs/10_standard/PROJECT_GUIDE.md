@@ -220,6 +220,7 @@ FAR23LOADS/
 │   │   ├── methods.py            # the ONE methods & limitations statement (+ CSV `#` / BDF `$` wrappers)
 │   │   ├── coverage.py           # FAR 23 Subpart C coverage matrix (covered / n-a / not analysed / out of scope)
 │   │   ├── content.py            # Project + module results → ReportDocument (sections/tables/figures) — no LaTeX
+│   │   ├── bundle.py             # THE Export zip's member list: every file it carries, with the manifest row that names it (CR-C-1)
 │   │   ├── conventions_tex.py    # the report's "Axes and sign conventions" section, from CONVENTIONS.md's owners
 │   │   ├── latex.py              # ReportDocument → .tex (escaping, longtable, document control)
 │   │   └── plots_tex.py          # pgfplots figures: V-n, weight/CG, speed–altitude

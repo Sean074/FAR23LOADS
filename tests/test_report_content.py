@@ -444,6 +444,91 @@ def test_the_manifest_lists_the_balanced_deck_and_the_mass_model():
 
 
 # --------------------------------------------------------------------------- #
+# Manifest conformance (review CR-C-1 / CR-C-3)
+# --------------------------------------------------------------------------- #
+#: The **basis** each manifest row states, pinned by its text and not merely by
+#: the filename (review **CR-C-3**). The manifest declared ``inertia_only.bdf``
+#: ULTIMATE while the file itself writes ``LIMIT (no SF)`` in band and its
+#: writer's docstring says the unfactored comparison is the whole point: the
+#: controlling document and the artifact were out by 1.5x on the one file whose
+#: only job is to be compared against a solver's own recovery. The F-D2 test
+#: could not see it, because it read the row's name and stopped there. So every
+#: row's basis cell is pinned here, and a new row arrives with its basis stated.
+MANIFEST_BASIS = {
+    "<project>.json": "\u2014",
+    "<project>_case_index.csv": "IDs are verbatim, never renumbered",
+    "<project>_safety_factors.csv": "factors, not loads \u2014 nothing here is scaled",
+    "METHODS.txt": "\u2014",
+    "<project>_summary_report.tex": "the basis of every other file here",
+    "<project>_summary_report.pdf": "identical content to the .tex beside it",
+    "load_cases/<project>_<module>.csv": "ULTIMATE loads, SF column per case",
+    "<project>_report.txt": "ULTIMATE",
+    "<project>_gear_loads.csv":
+        "ULTIMATE; contact patch ground-line, reference point airplane-datum",
+    "sbeam/<project>_wing_stick.bdf": "geometry only",
+    "sbeam/<project>_fuselage_loads.bdf": "ULTIMATE",
+    "sbeam/<project>_fuselage_fitting_loads.csv":
+        "already carried by the span loads \u2014 do not superpose",
+    "sbeam/<project>_control_surface_loads.csv":
+        "standard simplified distributions; ULTIMATE",
+    "sbeam/<project>_control_surface_loads.bdf": "ULTIMATE",
+    "sbeam/<project>_balanced_airframe.bdf":
+        "ULTIMATE; determinate support, its reaction is the residual",
+    "sbeam/<project>_lra_model.bdf": "ULTIMATE; torsion about each surface's LRA",
+    "sbeam/<project>_mass_model.bdf":
+        "mass, NOT weight; do not apply with the load decks",
+    "sbeam/<project>_mass_check.bdf": "no load cards, by construction",
+    "sbeam/<project>_inertia_only.bdf":
+        "LIMIT (no SF) \u2014 comparison only, never applied",
+}
+
+#: Rows whose basis cell names a **live** value (the wing's loads reference axis,
+#: which the project may move) and so is pinned by substring, not by equality.
+MANIFEST_BASIS_CONTAINS = {
+    "sbeam/<project>_wing_span_loads.csv": ("torsion Myy about the", "ULTIMATE"),
+    "sbeam/<project>_wing_loads.bdf": ("torsion about the", "ULTIMATE"),
+    "sbeam/<project>_fuselage_span_loads.csv": ("torsion Mxx about the body X axis",
+                                                "ULTIMATE"),
+    "sbeam/<project>_tail_chordwise.csv": ("Fn is normal to the surface", "ULTIMATE"),
+    "sbeam/<project>_tail_loads.bdf": ("normal to each surface", "ULTIMATE"),
+}
+
+
+def test_every_manifest_row_states_the_basis_its_file_actually_carries():
+    """**CR-C-3.** The basis cell is the reason the manifest exists; pin it.
+
+    Exhaustive on the GA fixture, both ways: a row with an unpinned basis fails
+    here, and a pin with no row fails too \u2014 the pair of holes that let the
+    ``inertia_only`` mislabel sit through two reviews.
+    """
+    rows = _report().section("Appendix A. Bundle manifest").table.rows
+    for row in rows:
+        name, basis = row[0], row[3]
+        if name in MANIFEST_BASIS_CONTAINS:
+            for fragment in MANIFEST_BASIS_CONTAINS[name]:
+                assert fragment in basis, (name, fragment, basis)
+            continue
+        assert name in MANIFEST_BASIS, f"unpinned basis cell: {name} -> {basis}"
+        assert basis == MANIFEST_BASIS[name], (name, basis)
+    assert {r[0] for r in rows} == set(MANIFEST_BASIS) | set(MANIFEST_BASIS_CONTAINS)
+
+
+def test_the_inertia_check_is_declared_limit_because_that_is_what_it_is():
+    """The specific mislabel CR-C-3 found, held against the artifact itself: the
+    deck the manifest describes writes LIMIT in band, deliberately (the M-b
+    roundtrip leg compares it unfactored), so an ULTIMATE claim in the manifest
+    would be wrong by exactly the 1.5 factor."""
+    from sloads.export.mass_cards import inertia_only_cards
+
+    assert "LIMIT (no SF)" in inertia_only_cards(io.load_project(_GA))
+    row = [r for r in _report().section("Appendix A. Bundle manifest").table.rows
+           if r[0] == "sbeam/<project>_inertia_only.bdf"]
+    assert row, "the inertia check is no longer manifested"
+    assert "LIMIT (no SF)" in row[0][3]
+    assert "ULTIMATE" not in row[0][3]
+
+
+# --------------------------------------------------------------------------- #
 # Section numbering and cross-references (review F-R2)
 # --------------------------------------------------------------------------- #
 #: Which section summarises each companion file, by section **key** and the
@@ -470,7 +555,10 @@ SUMMARISED_IN = {
     "sbeam/<project>_tail_loads.bdf": ("results", "Horizontal tail / Vertical tail"),
     "sbeam/<project>_control_surface_loads.csv": ("results", "Control surfaces"),
     "sbeam/<project>_control_surface_loads.bdf": ("results", "Control surfaces"),
+    "<project>_summary_report.tex": ("inputs", ""),
+    "<project>_summary_report.pdf": ("inputs", ""),
     "sbeam/<project>_balanced_airframe.bdf": ("balanced", ""),
+    "sbeam/<project>_lra_model.bdf": ("balanced", ""),
     "sbeam/<project>_mass_model.bdf": ("balanced", ""),
     "sbeam/<project>_mass_check.bdf": ("balanced", ""),
     "sbeam/<project>_inertia_only.bdf": ("balanced", ""),

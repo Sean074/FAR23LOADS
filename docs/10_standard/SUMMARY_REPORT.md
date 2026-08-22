@@ -386,6 +386,23 @@ manifest exists to give it. It SHALL NOT list a file the bundle does not
 contain: a manifest naming an artifact that was never written sends the reader
 looking for it.
 
+Both of those SHALLs were already written here when the LRA beam model shipped
+inside the bundle with no row (review CR-C-1) — the rule was never the problem;
+nothing read the bundle. So the member list has a **single owner**,
+`sloads/report/bundle.py`, which the Export page loops over instead of deciding
+for itself, and `tests/test_bundle_manifest.py` holds the real namelist against
+the rendered manifest **in both directions** on the fixture that exports every
+channel. A row whose artifact can refuse to build (the LRA model, which refuses
+a project missing a datum it must not guess) SHALL be gated on the artifact
+building, not on its inputs existing — otherwise the second SHALL above is
+broken by the fix to the first.
+
+Each row's **basis** cell SHALL be pinned by its text, not merely by its
+filename: the manifest declared the LIMIT-by-design inertia check "ULTIMATE"
+through two reviews because the conformance test read row names and stopped
+(CR-C-3). `MANIFEST_BASIS` in `tests/test_report_content.py` is that pin, and it
+is exhaustive both ways.
+
 ### 4.8 Optional content
 
 The report **MAY** additionally contain: a revision-history table, a fleet /
