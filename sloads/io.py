@@ -588,10 +588,6 @@ def _aero_coeff_set_to_dict(c: AeroCoeffSet) -> Dict[str, Any]:
 def flight_loads_from_dict(d: Dict[str, Any]) -> FlightLoadsInput:
     """Build a :class:`FlightLoadsInput` from a plain dict."""
     return FlightLoadsInput(
-        mac=d.get("mac", 0.0),
-        wing_area_sqft=d.get("wing_area_sqft", 0.0),
-        xw=d.get("xw", 0.0),
-        zw=d.get("zw", 0.0),
         xtc=d.get("xtc", 0.0),
         xtf=d.get("xtf", 0.0),
         mn=d.get("mn", 0.1),
@@ -602,9 +598,10 @@ def flight_loads_from_dict(d: Dict[str, Any]) -> FlightLoadsInput:
 def flight_loads_to_dict(inp: FlightLoadsInput) -> Dict[str, Any]:
     """Serialize a :class:`FlightLoadsInput` to JSON-friendly primitives.
 
-    Step M2-6: ``mac``/``wing_area_sqft``/``xw``/``zw`` are derived from geometry and
-    are deliberately **not** written (see :func:`sloads.derived_geometry`); a legacy
-    file's stored copies are ignored on load and re-derived, so save->reload is a no-op.
+    Note 33 (DS-1): ``mac``/``wing_area_sqft``/``xw``/``zw`` are no longer fields —
+    they are read from the planform at their point of use. They were never written,
+    so a legacy file's stored copies are ignored exactly as they already were, and
+    save->reload stays a no-op.
     """
     return {
         "xtc": inp.xtc,
@@ -894,24 +891,21 @@ def landing_from_dict(d: Dict[str, Any]) -> LandingInput:
     """Build a :class:`LandingInput` from a plain dict (the non-geometry LANDLOAD
     params; the weight/CG cases and both design weights left this slice at
     G-3b/G-4/G-14). Step G6b: the gear geometry (``main_gear``/``nose_gear``/
-    ``tread_in``) is no longer read here -- it lives in ``geometry.landing_gear`` and
-    is synced onto ``Project.landing`` by the calc; a legacy file's top-level gear is
-    migrated into geometry by :func:`geometry_from_dict`."""
-    kw = {k: v for k, v in _filtered(LandingInput, d).items()
-          if k not in ("main_gear", "nose_gear", "tread_in")}
-    return LandingInput(**kw)
+    ``tread_in``) lives in ``geometry.landing_gear``; note 33 (DS-1) removed the
+    slice copies it used to be synced onto, so ``_filtered`` drops a legacy file's
+    keys on its own and the explicit exclusion is no longer needed. A legacy file's
+    top-level gear is migrated into geometry by :func:`geometry_from_dict`."""
+    return LandingInput(**_filtered(LandingInput, d))
 
 
 def landing_to_dict(inp: LandingInput) -> Dict[str, Any]:
     """Serialize a :class:`LandingInput` (Step G6b: the gear geometry
     ``main_gear``/``nose_gear``/``tread_in`` is written under
     ``geometry.landing_gear``, not here -- the single stored home). Step M2-6:
-    ``wing_area_sqft`` is derived from the geometry wing (``landing._wing_area``) and
-    not written -- re-derived on load."""
-    out = asdict(inp)
-    for gear_key in ("main_gear", "nose_gear", "tread_in", "wing_area_sqft"):
-        out.pop(gear_key, None)
-    return out
+    Note 33 (DS-1): the gear geometry and ``wing_area_sqft`` are not fields on this
+    slice any more — the gear lives in ``geometry.landing_gear`` and the area is read
+    off the wing planform — so there is nothing left to pop."""
+    return asdict(inp)
 
 
 def safety_factors_from_dict(d: Dict[str, Any]) -> SafetyFactorPolicyInput:
@@ -974,8 +968,6 @@ def wing_mass_from_dict(d: Dict[str, Any]) -> WingMassInput:
         panel_weight_lb=d.get("panel_weight_lb", 0.0),
         tip_root_density_ratio=d.get("tip_root_density_ratio", 1.0),
         inboard_rib_y=d.get("inboard_rib_y", 0.0),
-        wrp_waterline=d.get("wrp_waterline", 0.0),
-        dihedral_deg=d.get("dihedral_deg", 0.0),
         surface=d.get("surface", "wing"),
         concentrated=[ConcentratedWeight(**_filtered(ConcentratedWeight, c))
                       for c in d.get("concentrated", []) or []],
@@ -986,12 +978,12 @@ def wing_mass_from_dict(d: Dict[str, Any]) -> WingMassInput:
 def wing_mass_to_dict(inp: WingMassInput) -> Dict[str, Any]:
     """Serialize a :class:`WingMassInput` to JSON-friendly primitives.
 
-    Step M2-6: ``dihedral_deg``/``wrp_waterline`` are derived from the parametric wing
-    on ``Project.geometry`` and are not written (re-derived on load)."""
-    out = asdict(inp)
-    out.pop("dihedral_deg", None)
-    out.pop("wrp_waterline", None)
-    return out
+    Note 33 (DS-1): ``dihedral_deg``/``wrp_waterline`` are no longer fields at all
+    — the wing plane is resolved at its point of use from the parametric wing
+    (:func:`sloads.derived_geometry.wing_plane`). They were never written, so a
+    legacy file carrying them still loads unchanged: the keys are simply ignored,
+    as they already were."""
+    return asdict(inp)
 
 
 # --------------------------------------------------------------------------- #

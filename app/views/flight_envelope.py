@@ -91,15 +91,15 @@ fl = project.flight_loads or FlightLoadsInput()
 # Step M2-6: the wing geometry (MAC, area S, the 25%-MAC station/waterline) is
 # single-sourced from the Geometry page and shown read-only here -- it is no longer an
 # editable copy on this page. ``wing_reference`` derives MAC/S/XW from the WINGGEOM wing
-# surface and ZW from the parametric wing; when there is no wing geometry yet we fall back
-# to the stored slice values (else the Appendix A worked-example figures) so the page
-# still renders and the V-n diagram has numbers to draw.
+# surface and ZW from the parametric wing. With no wing geometry yet there is no slice
+# copy left to fall back to (note 33, DS-1), so the page falls straight through to the
+# Appendix A worked-example figures and still renders a V-n diagram with numbers on it.
 _wr = wing_reference(project, "wing")
 _has_parametric = project.geometry is not None and project.geometry.parametric is not None
-mac = _wr.mac if _wr is not None else (fl.mac or 69.246)
-s = _wr.s_sqft if _wr is not None else (fl.wing_area_sqft or 184.125)
-xw = _wr.xw if _wr is not None else (fl.xw or 80.953)
-zw = _wr.zw if (_wr is not None and _has_parametric) else (fl.zw or 87.725)
+mac = _wr.mac if _wr is not None else 69.246
+s = _wr.s_sqft if _wr is not None else 184.125
+xw = _wr.xw if _wr is not None else 80.953
+zw = _wr.zw if (_wr is not None and _has_parametric) else 87.725
 
 
 def _num(label: str, value: float, key: str, kind: str, fmt: str = "%.3f", min_value: Optional[float] = None) -> float:
@@ -230,7 +230,7 @@ def _tab_vn() -> None:
         sv = None
     if sv is not None:
         slope = aero.cruise.lift[1] if aero.cruise is not None else None
-        mac_ft = (project.flight_loads.mac / IN_PER_FT) if project.flight_loads.mac else None
+        mac_ft = mac / IN_PER_FT if mac else None
         gust = resolve_gust_inputs(sv.ws, selected_alt, slope, mac_ft) if not overlay_all_alt else None
         envelope = build_vn_diagram(
             vs=sv.vs, va=sv.va, vc=sv.vc, vd=sv.vd,
@@ -495,7 +495,7 @@ def _tab_trim() -> None:
     xcgs = [c.xcg for c in cg_cases]
     lo_default, hi_default = min(xcgs), max(xcgs)
     if hi_default - lo_default < 1e-6:  # a single distinct station -> widen by +-5% MAC
-        pad = 0.05 * (fl.mac or 1.0) * IN_PER_FT
+        pad = 0.05 * (mac or 1.0) * IN_PER_FT
         lo_default, hi_default = lo_default - pad, hi_default + pad
 
     _, _, c3 = st.columns(3)

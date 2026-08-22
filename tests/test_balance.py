@@ -45,7 +45,11 @@ import pytest  # noqa: E402
 
 from sloads import io  # noqa: E402
 from sloads.constants import DEG_PER_RAD, LBIN2_PER_SLUGFT2, POLAR_TRUSTED_ALPHA_DEG  # noqa: E402
-from sloads.derived_geometry import body_drag_waterline  # noqa: E402
+from sloads.derived_geometry import (  # noqa: E402
+    body_drag_waterline,
+    require_wing_reference,
+    wing_plane,
+)
 from sloads.gear_loads import gear_case_loads  # noqa: E402
 from sloads import mass_distribution as md  # noqa: E402
 from sloads.models import (  # noqa: E402
@@ -1120,7 +1124,7 @@ def test_the_body_drag_waterline_is_stated_and_is_the_only_free_parameter(exampl
     resolved = body_drag_waterline(project)
     assert resolved.assumed is True and resolved.basis == "wing-plane"
     assert resolved.note and "ASSUMED" in resolved.note
-    assert resolved.z == pytest.approx(project.flight_loads.zw, rel=1e-12)
+    assert resolved.z == pytest.approx(require_wing_reference(project).zw, rel=1e-12)
 
     before = {(c.label, c.hand): c for c in _flight_cases(project)}
     moved = replace(
@@ -1519,7 +1523,7 @@ def test_roll_closure_reproduces_winginer(example):
     project = _project(example)
     wm = project.wing_mass
     geom = project.geometry.by_name(wm.surface)
-    u = inertia_units(geom, wm)
+    u = inertia_units(geom, wm, *wing_plane(project, wm.surface))
     winginer = {round(y, 6): f for y, f in zip(u.ye, u.fz_r) if f}
 
     # ``hand == "R"`` no longer means "rolling": from B8a-3 the lateral family is
@@ -2151,6 +2155,7 @@ def test_the_trim_half_of_an_unsymmetrical_case_still_closes(example):
     project = _project(example)
     vn = {p.case: p for p in default_envelope(project).vn}
     fl = project.flight_loads
+    wr = require_wing_reference(project)
     cases = _unsymmetrical(project)
     assert cases, f"{example}: no 23.427(a) case"
 
@@ -2161,7 +2166,7 @@ def test_the_trim_half_of_an_unsymmetrical_case_still_closes(example):
         trim = [ld for ld in case.loads
                 if not ld.source.startswith("closure-")
                 and ld.source != "htail-air"]
-        trim.append(BalancedLoad(x=fl.xtc, y=0.0, z=fl.zw, fz=point.lt,
+        trim.append(BalancedLoad(x=fl.xtc, y=0.0, z=wr.zw, fz=point.lt,
                                  source="tail-air", side="C"))
         fx, fy, fz, mx, my, mz = resultant6(trim, (cg.xcg, 0.0, cg.zcg))
 

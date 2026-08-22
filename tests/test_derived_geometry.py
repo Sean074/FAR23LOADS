@@ -22,7 +22,9 @@ from sloads.derived_geometry import (  # noqa: E402
     carry_through,
     fuselage_summary,
     sob_station,
+    require_wing_reference,
     sync_geometry_derived,
+    wing_plane,
     wing_reference,
 )
 from sloads.models import (  # noqa: E402
@@ -57,16 +59,27 @@ def test_wing_reference_derives_from_ga6_geometry():
     assert math.isclose(wr.wrp_waterline, 78.5)
 
 
-def test_sync_fills_derived_slices_from_geometry():
+def test_every_wing_resolver_answers_from_the_one_source():
+    """Note 33 (DS-2), replacing "sync fills the derived slices".
+
+    There are no derived slice copies left to fill: the scalars that used to be
+    written onto ``flight_loads`` and ``wing_mass`` are read through the
+    resolvers instead. What is worth asserting is that the resolvers are views of
+    one computation rather than three re-derivations that could drift — which is
+    the property the copies never had.
+    """
     p = io.load_project(_GA)
     wr = wing_reference(p, "wing")
-    # The derived copies on every consuming slice match the single source.
-    assert math.isclose(p.flight_loads.mac, wr.mac)
-    assert math.isclose(p.flight_loads.wing_area_sqft, wr.s_sqft)
-    assert math.isclose(p.flight_loads.xw, wr.xw)
-    assert math.isclose(p.flight_loads.zw, wr.zw)
-    assert math.isclose(p.wing_mass.dihedral_deg, wr.dihedral_deg)
-    assert math.isclose(p.wing_mass.wrp_waterline, wr.wrp_waterline)
+    assert require_wing_reference(p, "wing") == wr
+    assert wing_plane(p, "wing") == (wr.wrp_waterline, wr.dihedral_deg)
+    # And the slices genuinely no longer carry them.
+    for name in ("mac", "wing_area_sqft", "xw", "zw"):
+        assert not hasattr(p.flight_loads, name)
+    for name in ("dihedral_deg", "wrp_waterline"):
+        assert not hasattr(p.wing_mass, name)
+    assert not hasattr(p.landing, "wing_area_sqft")
+    for name in ("main_gear", "nose_gear", "tread_in"):
+        assert not hasattr(p.landing, name)
 
 
 def test_wing_scalars_not_persisted_and_round_trip_is_noop():
@@ -75,9 +88,9 @@ def test_wing_scalars_not_persisted_and_round_trip_is_noop():
     p = io.load_project(_GA)
     d1 = io.project_to_dict(p)
     for key in ("mac", "wing_area_sqft", "xw", "zw"):
-        assert key not in d1["flight_loads"]
+        assert key not in d1["flight_loads"]   # note 33: not fields at all any more
     for key in ("dihedral_deg", "wrp_waterline"):
-        assert key not in d1["wing_mass"]
+        assert key not in d1["wing_mass"]   # note 33: not fields at all any more
     assert "wing_area_sqft" not in d1.get("landing", {})
     # Reload -> re-serialize is a no-op.
     d2 = io.project_to_dict(io.project_from_dict(d1))
@@ -89,13 +102,14 @@ def test_no_geometry_leaves_explicit_slice_values_untouched():
     keeps whatever the slice carries (sync is a no-op) -- so bare unit tests that set
     fl.xw/zw or wm.dihedral directly still work."""
     p = Project(name="bare",
-                flight_loads=FlightLoadsInput(mac=1.0, wing_area_sqft=2.0, xw=3.0, zw=4.0),
-                wing_mass=WingMassInput(dihedral_deg=5.0, wrp_waterline=6.0),
-                landing=LandingInput(wing_area_sqft=7.0))
+                flight_loads=FlightLoadsInput(),
+                wing_mass=WingMassInput(),
+                landing=LandingInput())
     sync_geometry_derived(p)
-    assert (p.flight_loads.mac, p.flight_loads.xw, p.flight_loads.zw) == (1.0, 3.0, 4.0)
-    assert (p.wing_mass.dihedral_deg, p.wing_mass.wrp_waterline) == (5.0, 6.0)
-    assert p.landing.wing_area_sqft == 7.0
+    # The wing plane has no slice copy to keep (note 33, DS-1/DS-3): with no
+    # parametric wing it degrades to the centreline plane, which is what the
+    # removed fields defaulted to -- an absent plane, not a remembered one.
+    assert wing_plane(p, "wing") == (0.0, 0.0)
 
 
 def test_fuselage_summary_derives_from_outline():
@@ -253,3 +267,57 @@ def test_power_single_sourced_from_engine_list():
     # Fallback: no engine carries a rating -> the stored total is used.
     p = _project_with_engines([None, None], estimate_total=480.0, override=False)
     assert resolve_max_continuous_hp(p) == 480.0
+
+
+# --- note 33 gate DG-3: one place resolves the wing area ---------------------- #
+
+
+def test_no_module_integrates_the_wing_planform_behind_the_resolvers_back():
+    """Gate DG-3. The defect note 33 §2.1 found had no guard, and could not have
+    one while each module wrote its own precedence.
+
+    ``landing._wing_area`` preferred its slice copy and fell back to geometry;
+    ``structural_speeds._wing_area_sqft`` preferred geometry and fell back to its
+    slice copy -- opposite orders for one quantity, invisible only because
+    ``sync_geometry_derived`` overwrote the landing copy before the module read
+    it. This asserts the shape that keeps the divergence from coming back: the
+    strip integral is performed by its owner and by the two accessors that are
+    allowed to name it, and nowhere else.
+    """
+    import ast
+
+    mods = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                        "sloads", "modules")
+    allowed = {"wing_geometry.py", "landing.py", "structural_speeds.py"}
+    offenders = []
+    for fn in sorted(os.listdir(mods)):
+        if not fn.endswith(".py") or fn in allowed:
+            continue
+        with open(os.path.join(mods, fn), encoding="utf-8") as fh:
+            tree = ast.parse(fh.read(), filename=fn)
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Constant) and node.value == "total_area":
+                offenders.append(f"{fn}:{node.lineno}")
+    assert not offenders, (
+        "a module integrates the wing planform itself rather than reading the one "
+        f"resolver -- that is how the two-precedences defect started: {offenders}"
+    )
+
+
+def test_the_landing_and_speeds_wing_areas_agree_on_every_fixture():
+    """DG-3's numeric half: the two modules that keep their own accessor return
+    the same area. Before note 33 they could not, by construction."""
+    import glob
+
+    from sloads.modules.landing import _wing_area
+    from sloads.modules.structural_speeds import _wing_area_sqft
+
+    checked = 0
+    for f in sorted(glob.glob(os.path.join(os.path.dirname(_GA), "*.json"))):
+        p = io.load_project(f)
+        if p.landing is None or p.speeds is None:
+            continue
+        assert math.isclose(_wing_area(p), _wing_area_sqft(p, p.speeds),
+                            rel_tol=1e-12), f
+        checked += 1
+    assert checked, "no fixture carried both slices -- the check proved nothing"

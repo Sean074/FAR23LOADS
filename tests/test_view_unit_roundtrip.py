@@ -272,16 +272,21 @@ def test_an_oracle_scalar_is_stored_imperial_from_either_system(system):
 @pytest.mark.parametrize("system", _SYSTEMS, ids=[s.value for s in _SYSTEMS])
 def test_an_oracle_composite_member_is_stored_imperial_from_either_system(system):
     """A member of a ``Tuple[float, float]`` -- the gear axle's (X, Z) station,
-    which has no unit suffix in its own name and gets one from the registry."""
+    which has no unit suffix in its own name and gets one from the registry.
+
+    Read on **Configuration & Layout**, not Landing Loads: note 33 (DS-1) removed
+    the ``landing.main_gear`` copy, so the axle is edited once, where it is stored.
+    """
     from sloads import io
 
     project = io.load_project(_GA6)
-    at = _run_oracle("landing_loads", system, project)
-    field = _oracle_number(at, "landing.main_gear.axle_static.0")
+    at = _run_oracle("configuration_layout", system, project)
+    field = _oracle_number(at, "geometry.landing_gear.main_gear.axle_static.0")
 
     typed = to_display(120.0, "length", system)
     field.set_value(typed).run()
-    stored = at.session_state["project"].landing.main_gear.axle_static[0]
+    stored = (at.session_state["project"]
+              .geometry.landing_gear.main_gear.axle_static[0])
     assert math.isclose(stored, 120.0, rel_tol=1e-9), (
         f"{system.value}: typed {typed} and stored {stored}, expected 120.0 in")
 

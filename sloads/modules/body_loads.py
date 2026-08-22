@@ -60,7 +60,12 @@ import math
 from typing import Dict, List, Optional, Sequence, Tuple
 
 from ..constants import CARRY_THROUGH_NODES
-from ..derived_geometry import CarryThrough, carry_through, sync_geometry_derived
+from ..derived_geometry import (
+    CarryThrough,
+    carry_through,
+    require_wing_reference,
+    sync_geometry_derived,
+)
 from ..mass_distribution import fuselage_beam_stations
 from ..models import (
     BodyLoadResult,
@@ -251,7 +256,7 @@ def build_body_loads(project: Project) -> List[BodyLoadResult]:
     # is an input error, not a deck with no cases.
     vn: Dict[int, VnPoint] = {p.case: p for p in default_envelope(project).vn}
     stations = [(s.x, s.weight_lb) for s in beam]
-    wing_x = fl.xw
+    wing_x = require_wing_reference(project).xw
     tail_x = _tail_station(project, max(s.x for s in beam))
     carry = carry_through(project)                  # None -> flagged fallback
 

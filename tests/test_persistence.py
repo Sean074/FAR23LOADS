@@ -71,16 +71,14 @@ def test_every_example_save_reload_is_a_noop():
 # (dataclass name, field) pairs that are intentionally NOT persisted -- derived from
 # the single-source geometry (Step M2-6) or relocated to their single home (G6/G6b).
 DERIVED_NOT_PERSISTED = {
-    ("FlightLoadsInput", "mac"),
-    ("FlightLoadsInput", "wing_area_sqft"),
-    ("FlightLoadsInput", "xw"),
-    ("FlightLoadsInput", "zw"),
-    ("WingMassInput", "dihedral_deg"),
-    ("WingMassInput", "wrp_waterline"),
-    ("LandingInput", "wing_area_sqft"),   # M2-6: from the geometry wing
-    ("LandingInput", "main_gear"),        # G6b: from geometry.landing_gear
-    ("LandingInput", "nose_gear"),        # G6b
-    ("LandingInput", "tread_in"),         # G6b
+    # note 33 (DS-1): WingMassInput's dihedral_deg/wrp_waterline and LandingInput's
+    # main_gear/nose_gear/tread_in are no longer fields at all. A derived *field* is
+    # a copy waiting to be edited; these are now resolved at their point of use
+    # (derived_geometry.wing_plane, landing.gear_geometry), so there is nothing left
+    # here to allow. ``LandingInput.wing_area_sqft`` and ``FlightLoadsInput``'s
+    # mac/wing_area_sqft/xw/zw went the same way: they are read from the planform
+    # at the point of use, with no slice copy to hold a second opinion. What is
+    # left is the fuselage summary, a derived *record* rather than a scalar copy.
     ("LayoutInput", "fuselage_length"),   # M2-6: derived summary of the outline
     ("LayoutInput", "fuselage_width"),
     ("LayoutInput", "fuselage_height"),

@@ -319,6 +319,58 @@ def test_slice_of_handles_list_hops():
     assert slice_of("include_far25") == "include_far25"
 
 
+
+# --- note 33: the consolidated quantities stay consolidated ------------------- #
+
+#: The quantities that still hold more than one field after note 33's
+#: consolidation, and **why each is allowed to**. Anything else appearing here is
+#: a duplicate re-entering the schema, which is what gate DG-2 exists to catch.
+#: Deliberately a literal, not a count: a count would go green if one duplicate
+#: were removed while another was added.
+STILL_DUPLICATED = {
+    # Class B (note 33 §1, DS-6) -- a genuine override of its owner.
+    "max take-off weight",
+    "wing reference area",
+    # Class C (DS-7) -- entered twice with nothing reconciling them, and both
+    # copies persisted, so removing either needs a schema hop. Filed, not fixed.
+    "airplane length",
+    "shoulder altitude",
+}
+
+
+def test_no_quantity_regains_a_second_field():
+    """Gate DG-2. Note 33 (DS-1) removed ten fields that were copies of a
+    quantity's owner: the wing scalars off ``flight_loads``, the wing plane off
+    ``wing_mass``, and the gear block plus the wing area off ``landing``. Before
+    it, ten quantities had two or more independently editable fields; after it,
+    four do, and each of those four is named above with its reason.
+    """
+    duplicated = {name for name, rows in quantities().items() if len(rows) > 1}
+    assert duplicated == STILL_DUPLICATED, (
+        "the set of multi-field quantities changed. Added means a copy came back "
+        "(resolve it where it is used, as note 33 did); removed means a row was "
+        f"consolidated and this literal should shrink. Now: {sorted(duplicated)}"
+    )
+
+
+def test_the_consolidated_quantities_have_exactly_one_field():
+    """Gate DG-5, stated positively: each consolidated quantity is entered once.
+
+    The GUI half of DG-5 follows from this without a second assertion — both
+    front-ends build their widgets from this registry, so a quantity with one
+    field cannot render a second editable copy of itself on any page.
+    """
+    for name in ("wing MAC", "wing dihedral", "wing root waterline", "gear tread",
+                 "main-gear static axle", "nose-gear static axle",
+                 "wing aerodynamic centre station", "wing drag waterline"):
+        rows = quantities().get(name, [])
+        editable = [e for e in rows if not e.owner_is_external]
+        assert len(editable) <= 1, (
+            f"{name!r} is entered in more than one place again: "
+            f"{[e.path for e in editable]}"
+        )
+
+
 if __name__ == "__main__":  # zero-dependency self-runner
     import sys
 

@@ -1,14 +1,16 @@
 # Note 33 — Derived-scalar consolidation: one owner per quantity, in the dataclasses
 
-**Status: PROPOSED** (2026-08-21). Tier **L** — a contract change to the
-`Project` slice dataclasses and to calc function signatures. Under
-[`CLAUDE.md`](../../CLAUDE.md) rule 1 the code waits for this note at **AGREED**.
+**Status: SHIPPED** (2026-08-21; PROPOSED and AGREED the same day). Tier **L** — a
+contract change to the `Project` slice dataclasses and to calc function
+signatures. [`CLAUDE.md`](../../CLAUDE.md) rule 1's gate was met before any code
+was written.
 
 **Owner's framing (2026-08-21):** *"Explain why we need non-owner duplicate
 copies. Can they be consolidated? Change to the existing tests is acceptable, and
 preferred to having redundant or potentially confusing redundant variables."*
-This note answers the first question with a measurement, and proposes the
-consolidation the second asks for.
+This note answered the first question with a measurement and proposed the
+consolidation the second asks for; **it shipped on 2026-08-21** and §7 records
+what the implementation changed about it.
 
 Conventions cited throughout: [`CONVENTIONS.md`](../10_standard/CONVENTIONS.md)
 §7 (single-source-of-truth table — every cross-cutting quantity gets a code owner
@@ -108,7 +110,7 @@ code and must be corrected whichever way this note goes.
 
 | # | Decision |
 |---|---|
-| **DS-1** | **Class A stops being input.** The nine class-A fields are removed from their input dataclasses. They are not inputs — they are a cache of `geometry`, they are never persisted, and no shipped project supplies them. This is the whole of the consolidation the owner asked for; everything below is how. |
+| **DS-1** | **Class A stops being input.** The ten class-A fields are removed from their input dataclasses. They are not inputs — they are a cache of `geometry`, they are never persisted, and no shipped project supplies them. This is the whole of the consolidation the owner asked for; everything below is how. |
 | **DS-2** | **One resolver owns the precedence.** `derived_geometry` gains the effective-value accessors (wing reference scalars; gear geometry) and becomes the **only** place the geometry-or-fallback order is written. `sync_geometry_derived`'s per-field assignments and `landing._effective_gear_input` both fold into it. `CONVENTIONS.md` §7 gains the row, with the drift guard rule 3 requires. |
 | **DS-3** | **The fallback becomes explicit, not a shadow field.** With the slice copy gone, "no geometry" is an error with a message naming the Geometry page, not a silent second input. `MissingInputError` already says this; it becomes the only path. |
 | **DS-4** | **Functions that need parametric scalars take them as parameters** (§1.3's existing pattern), rather than receiving them smuggled inside an input dataclass. `inertia_units` and its callers move to the `air_load_distribution` shape. |
@@ -121,8 +123,8 @@ code and must be corrected whichever way this note goes.
 | # | Gate |
 |---|---|
 | **DG-1** | *No behaviour change.* Every Appendix A oracle passes at ±0.1 % and every closure gate holds, before and after. This refactor moves no equation; if a number moves, that is the finding. |
-| **DG-2** | *The duplicates are gone from the registry.* `field_registry.quantities()` reports **three** multi-copy quantities (class B), not ten — asserted, so a re-introduced copy fails CI. |
-| **DG-3** | *One precedence.* A guard asserts there is exactly one code site resolving each consolidated quantity — the §2.1 divergence cannot reappear. |
+| **DG-2** | *The duplicates are gone from the registry.* **Shipped 2026-08-21: ten multi-copy quantities became four**, asserted as a named literal (`STILL_DUPLICATED` in `tests/test_field_registry.py`) rather than a count, so removing one duplicate cannot mask another being added. The four are the two class-B overrides (`max take-off weight`, `wing reference area`) and the two class-C pairs DS-7 defers (`airplane length`, `shoulder altitude`). The note first said "three"; that was written before the count was run and is corrected here to what the registry reports. |
+| **DG-3** | *One precedence.* **Shipped**, in two halves (`tests/test_derived_geometry.py`): an AST guard that no module performs the wing strip integral outside its owner and the two accessors allowed to name it, checked against a deliberate violation to confirm it fails; and a numeric check that `landing._wing_area` and `structural_speeds._wing_area_sqft` return the same area on every shipped fixture — which, before the copies were removed, they could not be relied on to do. |
 | **DG-4** | *Round-trip unchanged.* Every shipped example re-serialises byte-identically. Class A was never written, so this must hold trivially; it is the check that DS-1 really was storage-neutral. |
 | **DG-5** | *The GUIs lose the second widget.* No oracle page and no `app/views/` page renders an editable widget for a consolidated quantity anywhere but its owner. |
 
@@ -157,3 +159,41 @@ code and must be corrected whichever way this note goes.
   does not touch class C (DS-7), and does not change any equation. A reader
   expecting CR-A-2 to be closed in full by this note should read DS-6: the
   renderer still has three overrides to mark, and that work rides #36.
+
+---
+
+## 7. What implementation changed about this note
+
+Recorded because a note that shipped unamended usually means nobody checked it
+against the code.
+
+* **DS-1 said "nine" fields; it is ten** — `flight_loads` ×4, `wing_mass` ×2,
+  `landing` ×4 (the gear block plus `wing_area_sqft`). A miscount in the
+  proposal, not a scope change.
+* **DG-2's target was wrong.** It predicted three surviving multi-copy
+  quantities; the answer is **four**, because DS-7 defers two class-C pairs and
+  only two class-B overrides remain. The gate now asserts the four by name.
+* **`wing_inertia_distribution` lost two parameters, not none.** With `units`
+  made required (DS-2 removed its second, differently-resolved construction
+  path), `geom` and `wm` became unused — the signature is now
+  `(case, units)`. Ruff found this; the note had not anticipated it.
+* **Two `_effective` helpers existed, not one.** `landing._effective_gear_input`
+  had a twin in `gear_loads._effective` performing the identical substitution.
+  Both are gone; the note's §1 table had counted the duplication once.
+* **`body_drag_waterline` held a fourth reader of `flight_loads.zw`** as the
+  middle rung of a three-step fallback. Removed with the field: it was the same
+  number one edit removed from the wing plane above it.
+* **One test's subject disappeared rather than moved.**
+  `test_sync_fills_derived_slices_from_geometry` asserted that the sync filled
+  the copies; with no copies to fill it is now
+  `test_every_wing_resolver_answers_from_the_one_source`, asserting the property
+  the copies never had — that the resolvers are views of one computation.
+* **A fixture had to stop deleting the wing.**
+  `test_body_loads._no_wing_project` removed the planform to exercise the
+  carry-through fallback. Under DS-3 that no longer reaches the fallback, it
+  refuses; the fixture now makes the *spar stations* underivable (rear ahead of
+  front), which is the condition `carry_through` actually tests and what the
+  test was always about.
+* **Cost came in at the estimate.** ~40 read sites and 14 test construction
+  sites, as §5 predicted; no `SCHEMA_VERSION` bump and no migration hop, as §5
+  predicted and as the examples' on-disk keys confirmed.

@@ -39,6 +39,8 @@ from sloads.models import (  # noqa: E402
     AnalysisKind,
     CgCase,
     GroundCaseRole,
+    GeometryInput,
+    LandingGearGeometry,
     LandingGearInput,
     LandingInput,
     Project,
@@ -83,17 +85,41 @@ def _ga_weight() -> WeightInput:
 
 
 def _ga_project(landing: LandingInput = None, **kw) -> Project:
+    kw.setdefault("geometry", GeometryInput(surfaces=[_ga_wing()],
+                                           landing_gear=_ga_gear()))
     return Project(landing=landing or _ga_landing(), weight=_ga_weight(), **kw)
 
 
 def _ga_landing() -> LandingInput:
-    """The Appendix A GA-6 landing inputs (p230 gear geometry, p236 LGFACTOR)."""
+    """The Appendix A GA-6 landing inputs (p236 LGFACTOR).
+
+    The gear *geometry* is :func:`_ga_gear`, on the geometry slice where it is
+    stored (note 33, DS-1) rather than duplicated onto this one.
+    """
     return LandingInput(
-        wing_area_sqft=184.125,
         strut_stroke_in=7, tire_od_in=19, hub_diameter_in=7, lift_factor=0.667,
+        tail_down_angle_deg=15.0, gear_load_factor=2.5,
+    )
+
+
+def _ga_wing():
+    """The GA-6 wing planform, for the S LGFACTOR reads.
+
+    Note 33 (DS-1/DS-3) removed ``landing.wing_area_sqft``: the area is the
+    planform's strip integral, with no slice copy to state a second one. The
+    planform comes from the shipped fixture rather than being retyped here, and
+    integrates to 184.121 ft² against Appendix A's printed 184.125 — inside the
+    ±0.1 % oracle band, which is the whole point of reading the geometry.
+    """
+    return io.load_project(_GA).geometry.by_name("wing")
+
+
+def _ga_gear() -> LandingGearGeometry:
+    """The Appendix A GA-6 gear geometry (p230)."""
+    return LandingGearGeometry(
         main_gear=LandingGearInput((96.3, 55.9), (96.7, 59.6), (96.2, 54.2), 8.0, "O"),
         nose_gear=LandingGearInput((1.9, 46.9), (2.4, 49.5), (1.6, 45.1), 5.7, "O"),
-        tread_in=114.5, tail_down_angle_deg=15.0, gear_load_factor=2.5,
+        tread_in=114.5,
     )
 
 
@@ -127,7 +153,7 @@ def test_lgfactor_spring_vs_oleo():
 # --------------------------------------------------------------------------- #
 def test_landload_geometry_oracle():
     inp = _ga_landing()
-    g = _geometry(inp, inp.gear_load_factor, _GA_CGS, _MLW)
+    g = _geometry(inp, _ga_gear(), inp.gear_load_factor, _GA_CGS, _MLW)
     assert math.isclose(g.k, 0.324, rel_tol=3e-3), g.k
     assert math.isclose(g.gamma_deg, 17.978, rel_tol=3e-3), g.gamma_deg
     # Ground angles: 3-/2-wheel level, ground roll, tail down.
@@ -142,7 +168,7 @@ def test_landload_geometry_oracle():
 def test_landload_lever_arms_oracle():
     """The BP / DP / ground-roll AP-CP lever arms reproduce the p230 table exactly."""
     inp = _ga_landing()
-    g = _geometry(inp, inp.gear_load_factor, _GA_CGS, _MLW)
+    g = _geometry(inp, _ga_gear(), inp.gear_load_factor, _GA_CGS, _MLW)
     # Level-attitude BP for the three CG cases (p230).
     assert math.isclose(g.bp[0][0], 19.796, rel_tol=2e-3), g.bp[0]
     assert math.isclose(g.bp[0][1], 28.512, rel_tol=2e-3), g.bp[0]
@@ -163,7 +189,7 @@ def test_landload_legible_cells():
     """Spot-check the wheel-load cells that survive the p231 OCR."""
     inp = _ga_landing()
     lf = landing_load_factor(184.125, 3230, 7, 19, 7, 0.667, True)
-    rx = {c.case: c for c in landing_reactions(inp, lf, _GA_CGS, mlw=_MLW, mtow=_MTOW)}
+    rx = {c.case: c for c in landing_reactions(inp, _ga_gear(), lf, _GA_CGS, mlw=_MLW, mtow=_MTOW)}
     # Case 1 -- 3-wheel level, aft max landing.
     assert math.isclose(rx[1].vmp, 3144, rel_tol=3e-3), rx[1].vmp
     assert math.isclose(rx[1].vnp, 1787, rel_tol=3e-3), rx[1].vnp
@@ -178,8 +204,8 @@ def test_landload_case_formulas():
     """Closure on the FAR-section reaction formulas (LANDLOAD.BAS 910-1900)."""
     inp = _ga_landing()
     lf = landing_load_factor(184.125, 3230, 7, 19, 7, 0.667, True)
-    g = _geometry(inp, inp.gear_load_factor, _GA_CGS, _MLW)
-    rx = {c.case: c for c in landing_reactions(inp, lf, _GA_CGS, mlw=_MLW, mtow=_MTOW)}
+    g = _geometry(inp, _ga_gear(), inp.gear_load_factor, _GA_CGS, _MLW)
+    rx = {c.case: c for c in landing_reactions(inp, _ga_gear(), lf, _GA_CGS, mlw=_MLW, mtow=_MTOW)}
     nlg, k = inp.gear_load_factor, g.k
     w1 = _GA_CGS[0].weight_lb
     # 3-wheel level (case 1): VMP = .5*NLG*W*AP/DP, DMP = K*VMP, resultant.
@@ -264,6 +290,8 @@ def test_landing_requires_explicit_cg_cases():
     fwd/aft pair (M2-8), naming where they are entered (G-3)."""
     try:
         build_landing(Project(landing=_ga_landing(),
+                              geometry=GeometryInput(surfaces=[_ga_wing()],
+                                                     landing_gear=_ga_gear()),
                               weight=WeightInput(max_landing_weight_lb=_MLW,
                                                  max_takeoff_weight_lb=_MTOW)))
         raise AssertionError("expected ValueError for missing GROUND cases")
@@ -320,16 +348,16 @@ def test_unbalanced_moments_closure():
     original port but delivered nowhere and asserted nowhere until M4-17e."""
     inp = _ga_landing()
     lf = landing_load_factor(184.125, 3230, 7, 19, 7, 0.667, True)
-    g = _geometry(inp, inp.gear_load_factor, _GA_CGS, _MLW)
-    rx = {c.case: c for c in landing_reactions(inp, lf, _GA_CGS, mlw=_MLW, mtow=_MTOW)}
+    g = _geometry(inp, _ga_gear(), inp.gear_load_factor, _GA_CGS, _MLW)
+    rx = {c.case: c for c in landing_reactions(inp, _ga_gear(), lf, _GA_CGS, mlw=_MLW, mtow=_MTOW)}
     wr = _MTOW / _MLW
     # 2-wheel level (4) and tail-down (7): -2 * RMP * BP for the attitude/CG pair.
     assert math.isclose(rx[4].pitchp, -2 * rx[4].rmp * g.bp[0][0], rel_tol=1e-9)
     assert math.isclose(rx[7].pitchp, -2 * rx[7].rmp * g.bp[2][0], rel_tol=1e-9)
     # One-wheel (10): a single wheel, so -1 * RMP * BP, plus roll/yaw about the tread.
     assert math.isclose(rx[10].pitchp, -1 * rx[10].rmp * g.bp[0][0], rel_tol=1e-9)
-    assert math.isclose(rx[10].rollp, rx[10].vmp * inp.tread_in / 2, rel_tol=1e-9)
-    assert math.isclose(rx[10].yawp, -rx[10].dmp * inp.tread_in / 2, rel_tol=1e-9)
+    assert math.isclose(rx[10].rollp, rx[10].vmp * _ga_gear().tread_in / 2, rel_tol=1e-9)
+    assert math.isclose(rx[10].yawp, -rx[10].dmp * _ga_gear().tread_in / 2, rel_tol=1e-9)
     # Braked roll nose clear (16): the drag reaction acts at the CP vertical offset.
     assert math.isclose(rx[16].pitchp,
                         -2 * (rx[16].vmp * g.bp[1][0] + rx[16].dmp * g.cp[1][0]), rel_tol=1e-9)
@@ -350,7 +378,7 @@ def test_ground_line_inertia_factors_closure():
     """Closure on NVP/NDP/NS (LANDLOAD.BAS 1910-2000): the three lift/wheel regimes."""
     inp = _ga_landing()
     lf = landing_load_factor(184.125, 3230, 7, 19, 7, 0.667, True)
-    rx = {c.case: c for c in landing_reactions(inp, lf, _GA_CGS, mlw=_MLW, mtow=_MTOW)}
+    rx = {c.case: c for c in landing_reactions(inp, _ga_gear(), lf, _GA_CGS, mlw=_MLW, mtow=_MTOW)}
     lift, wr = inp.lift_factor, _MTOW / _MLW
     w1 = _GA_CGS[0].weight_lb
     # Cases 1-9: both mains + the nose, with the wing lift carried.
@@ -435,7 +463,7 @@ def test_critical_ranking_includes_side_load():
 
     inp = _ga_landing()
     lf = landing_load_factor(184.125, 3230, 7, 19, 7, 0.667, True)
-    rx = landing_reactions(inp, lf, _GA_CGS, mlw=_MLW, mtow=_MTOW)
+    rx = landing_reactions(inp, _ga_gear(), lf, _GA_CGS, mlw=_MLW, mtow=_MTOW)
     for far, case in (("23.479(a)", 4), ("23.481", 7), ("23.483", 10),
                       ("23.485", 19), ("23.493", 16), ("23.499", 28)):
         assert _critical(rx, far).case == case, (far, _critical(rx, far).case)

@@ -210,7 +210,10 @@ from ..derived_geometry import (
     body_drag_waterline,
     fuselage_centreline,
     fuselage_width_at,
+    require_wing_reference,
     sync_geometry_derived,
+    wing_plane,
+    wing_reference,
 )
 from ..export.coordinates import (
     reflect_force,
@@ -444,15 +447,17 @@ def lateral_aero_terms(project: Project, cond: CriticalCondition,
     stands for every case. Nothing here is a second opinion of an oracle-locked
     quantity: ``q`` is the V-n point's, ``S`` and ``b`` the project's.
     """
-    fl = _flight_loads(project)
+    # No ``flight_loads`` read left here at all (note 33): the wing area and the
+    # reference station this needs are the planform's.
+    wr = require_wing_reference(project)
     aero = project.aero_coeffs
     inp = aero.lateral_body_aero if aero is not None else None
     enabled = bool(inp is not None and inp.enabled)
     beta = float(cond.beta_deg) if cond.beta_deg is not None else 0.0
-    x_ref = fl.xw
+    x_ref = wr.xw
     span = _wing_span_in(project)
     unavailable = LateralAeroTerms(
-        enabled, False, beta, 0.0, 0.0, x_ref, x_ref, fl.zw, 0.0, 0.0,
+        enabled, False, beta, 0.0, 0.0, x_ref, x_ref, wr.zw, 0.0, 0.0,
         cond.cy_beta_fin, cond.cn_beta_fin, None, "none", None, "")
     if cond.beta_deg is None:
         return unavailable._replace(
@@ -464,7 +469,7 @@ def lateral_aero_terms(project: Project, cond: CriticalCondition,
     outline = geom.fuselage if geom is not None else None
     z_w, d_body, dihedral = _wing_height_inputs(project)
     est = lateral_body_aero.estimate(
-        outline, fl.wing_area_sqft, span, x_ref,
+        outline, wr.s_sqft, span, x_ref,
         atmosphere.reynolds_per_ft(vn.v_eas_kt, vn.altitude_ft),
         z_w_in=z_w, d_body_in=d_body, dihedral_deg=dihedral)
     entered_cy = inp.cy_beta if inp is not None else None
@@ -479,8 +484,8 @@ def lateral_aero_terms(project: Project, cond: CriticalCondition,
              else "DATCOM" if entered_cy is None and entered_cn is None
              else "DATCOM/entered")
     x_force = est.x_force if est is not None else x_ref
-    z_force = _centreline_z_at(project, x_force, fl.zw)
-    q_s = dynamic_pressure_psf(vn.v_eas_kt) * fl.wing_area_sqft
+    z_force = _centreline_z_at(project, x_force, wr.zw)
+    q_s = dynamic_pressure_psf(vn.v_eas_kt) * wr.s_sqft
     side_force = cy * q_s * beta
     yaw_ref = cn * q_s * span * beta
     cn_net = (cond.cn_beta_fin + cn) if cond.cn_beta_fin is not None else None
@@ -760,7 +765,7 @@ def wing_sets(project: Project, vn: VnPoint) -> Tuple[List[BalancedLoad], float,
         raise MissingInputError("balance needs a wing surface, aero set and load case")
 
     air = air_load_distribution(geom, aero, vn.cl, vn.v_eas_kt,
-                                wm.wrp_waterline, wm.dihedral_deg)
+                                *wing_plane(project, wm.surface))
     ml = _free_moments(air)
     loads = [
         BalancedLoad(x=s.x, y=s.y, z=s.z, fx=s.fx, fz=s.fz, my=ml[i],
@@ -803,7 +808,7 @@ def wing_inertia_strips(project: Project,
     geom = geometry.by_name(wm.surface)
     if geom is None:
         raise MissingInputError(f"balance: wing surface {wm.surface!r} is not in 'geometry'")
-    u = inertia_units(geom, wm)
+    u = inertia_units(geom, wm, *wing_plane(project, wm.surface))
     panel = math.fsum(u.w)
     strips = [(i, w) for i, w in enumerate(u.w) if w]
     if strips and panel:
@@ -971,7 +976,7 @@ def body_axial_set(loads: Sequence[BalancedLoad], project: Project,
     and lumped at the body masses' own centroid where it does not. Both are
     stated; neither can move a number.
     """
-    fl = _flight_loads(project)
+    wr = require_wing_reference(project)
     wing_fx = math.fsum(ld.fx for ld in loads if ld.source == "wing-air")
     wing_fz = math.fsum(ld.fz for ld in loads if ld.source == "wing-air")
     total = vn.dx - wing_fx
@@ -981,7 +986,7 @@ def body_axial_set(loads: Sequence[BalancedLoad], project: Project,
     # The wind-axis drag increment, for the G10 consistency diagnostic.
     a = radians(vn.alpha_deg)
     q_psf = dynamic_pressure_psf(vn.v_eas_kt)
-    qs = q_psf * fl.wing_area_sqft
+    qs = q_psf * wr.s_sqft
     delta_cd = ((-total) * cos(a)
                 + (wing_fz - vn.lzw) * sin(a)) / qs if qs else 0.0
 
@@ -1733,6 +1738,7 @@ def assemble(project: Project, condition: str, vn: VnPoint,
     been separate flags; :func:`is_handed` is the one predicate.
     """
     fl = _flight_loads(project)
+    wr = require_wing_reference(project)
     notes: List[str] = []
 
     wing_r, panel_both, _cm_free = wing_sets(project, vn)
@@ -1754,17 +1760,17 @@ def assemble(project: Project, condition: str, vn: VnPoint,
             f"closure are the motion it causes. The 1 % residual gate is on the "
             f"case's trim half, which is unchanged")
     else:
-        loads.append(BalancedLoad(x=fl.xtc, y=0.0, z=fl.zw, fz=vn.lt,
+        loads.append(BalancedLoad(x=fl.xtc, y=0.0, z=wr.zw, fz=vn.lt,
                                   source="tail-air", side="C"))
     loads += body_inertia(loading, project, vn.nz)
 
     # The fuselage's share of the trim pitching moment: what the airplane-less-tail
     # Cm carries that the distributed wing does not (see the module docstring).
     wing_about_ac = math.fsum(
-        ld.my + (ld.z - fl.zw) * ld.fx - (ld.x - fl.xw) * ld.fz
+        ld.my + (ld.z - wr.zw) * ld.fx - (ld.x - wr.xw) * ld.fz
         for ld in loads if ld.source == "wing-air")
     fuselage_cm = vn.m_wf - wing_about_ac
-    loads.append(BalancedLoad(x=fl.xw, y=0.0, z=fl.zw, my=fuselage_cm,
+    loads.append(BalancedLoad(x=wr.xw, y=0.0, z=wr.zw, my=fuselage_cm,
                               source="fuselage-cm", side="C"))
 
     # The airplane's NON-WING drag (see "The body-axial load" in the docstring).
@@ -1788,7 +1794,7 @@ def assemble(project: Project, condition: str, vn: VnPoint,
     # WINGINER's distribution strip for strip, which is the check that this sign
     # is right rather than merely consistent.
     if unb:
-        loads.append(BalancedLoad(x=fl.xw, y=0.0, z=fl.zw, mx=-unb,
+        loads.append(BalancedLoad(x=wr.xw, y=0.0, z=wr.zw, mx=-unb,
                                   source="aileron-roll", side="C"))
         notes.append(f"aileron rolling moment {-unb:+.0f} lb-in applied as a "
                      f"lumped free couple: {AILERON_COUPLE_NOTE}")
@@ -1821,7 +1827,7 @@ def assemble(project: Project, condition: str, vn: VnPoint,
 
     return BalancedCaseResult(
         label=condition, vn_case=vn.case, cg=cg.name, nz=vn.nz,
-        weight_lb=cg.weight_lb, mac=fl.mac, cg_x=cg.xcg, cg_z=cg.zcg,
+        weight_lb=cg.weight_lb, mac=wr.mac, cg_x=cg.xcg, cg_z=cg.zcg,
         semi_span=semi_span, loads=loads,
         residual_fz=fz, residual_fx=fx, residual_my=my,
         residual_fy=fy, residual_mx=mx, residual_mz=mz,
@@ -2180,7 +2186,7 @@ def ground_lift_sets(project: Project, lift_lb: float,
     # ``q*CL`` as a whole. Unit values make that explicit at the call site rather
     # than borrowing a flight condition this case does not have.
     shape = air_load_distribution(geom, aero, 1.0, 100.0,
-                                  wm.wrp_waterline, wm.dihedral_deg)
+                                  *wing_plane(project, wm.surface))
     total = math.fsum(s.fz for s in shape.stations)
     if not total:
         raise MissingInputError(
@@ -2233,7 +2239,10 @@ def assemble_ground(project: Project, gear: "GearCaseLoads", wheels: Sequence,
     ``LG-20`` the starboard, and both ids already exist. Left blank, the hand is
     measured by :func:`is_handed` as it is for every other family.
     """
-    fl = project.flight_loads
+    # Tolerant, as the ``flight_loads`` read it replaces was: a ground case that
+    # cannot name a MAC reports 0.0 rather than refusing (note 33 keeps the
+    # contract, only moves the source).
+    wr = wing_reference(project)
     notes: List[str] = [GROUND_CLOSURE_NOTE]
 
     inertia, panel_both = wing_inertia_strips(project, 0.0)
@@ -2304,7 +2313,7 @@ def assemble_ground(project: Project, gear: "GearCaseLoads", wheels: Sequence,
         # consumer of ``BalancedCaseResult.nz`` -- the deck header, the row
         # table, the report -- states the load factor the case actually runs at
         # rather than a placeholder 1.0 nobody computed.
-        nz=n[2], weight_lb=gear.weight_lb, mac=fl.mac if fl else 0.0,
+        nz=n[2], weight_lb=gear.weight_lb, mac=wr.mac if wr else 0.0,
         cg_x=cg.xcg, cg_z=cg.zcg,
         semi_span=semi_span, loads=loads,
         residual_fz=fz, residual_fx=fx, residual_my=my,

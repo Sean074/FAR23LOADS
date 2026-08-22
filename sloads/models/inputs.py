@@ -836,21 +836,18 @@ class FlightLoadsInput:
     it had been a derived copy of ``WeightInput.cg_cases`` since v19, and a
     second way to say the same thing is what that decision exists to remove.
 
-    **``mac``/``wing_area_sqft``/``xw``/``zw`` are derived from geometry, not stored
-    (Step M2-6).** They are single-sourced from ``Project.geometry`` -- ``mac``/``S``/
-    ``xw`` from the WINGGEOM wing surface (``xw = XLEMAC + 0.25*MAC``) and ``zw`` from
-    the parametric wing reference plane (``root_waterline_z + Y_MAC*tan(dihedral)``) --
-    by :func:`sloads.derived_geometry.sync_geometry_derived`, which every consuming
-    module calls before reading them. They are **not** serialized (``io.py`` drops
-    them) and the GUI shows them read-only, so there is no independently-editable copy.
-    The dataclass fields survive only as the derived cache / the fallback for a
-    directly-constructed test project that carries no wing geometry (sync is a no-op
-    then, exactly like ``landing._wing_area``).
+    **The wing scalars are not held here** (note 33, DS-1). ``mac``,
+    ``wing_area_sqft``, ``xw`` and ``zw`` were fields on this class, filled from
+    ``Project.geometry`` on every run by ``sync_geometry_derived`` and never
+    serialized -- an editable second opinion of numbers the planform owns. They
+    are read where they are used, from
+    :func:`sloads.derived_geometry.require_wing_reference` (or its tolerant
+    sibling :func:`~sloads.derived_geometry.wing_reference` where the caller
+    already degrades rather than refuses): ``mac``/``s_sqft``/``xw`` from the
+    WINGGEOM wing surface (``xw = XLEMAC + 0.25*MAC``) and ``zw`` from the
+    parametric wing reference plane
+    (``root_waterline_z + Y_MAC*tan(dihedral)``).
     """
-    mac: float = 0.0            # derived from geometry (Step M2-6); not persisted
-    wing_area_sqft: float = 0.0  # derived from geometry (Step M2-6); not persisted
-    xw: float = 0.0            # derived from geometry (Step M2-6); not persisted
-    zw: float = 0.0            # derived from geometry (Step M2-6); not persisted
     xtc: float = 0.0
     xtf: float = 0.0
     mn: float = 0.1
@@ -863,13 +860,13 @@ class FlightLoadsInput:
         Step D5 exposes ``altitudes_ft`` as a real, fully-editable list on the
         Flight Envelope page (multi-altitude V-n); the weight/CG cases left this
         slice entirely at G-3b and are read from ``WeightInput.cg_cases``, which
-        the Weight/CG Grid page owns. Step M2-6 makes the wing geometry (``mac``/``S``/
-        ``xw``/``zw``) a read-only derivation from ``Project.geometry`` -- the page
-        no longer edits them -- so the only inputs this page owns are the tail-CP
-        stations, the reference Mach and the altitude list.
+        the Weight/CG Grid page owns. The wing geometry (``mac``/``S``/``xw``/``zw``)
+        is not on this slice at all since note 33 -- it is read from the planform
+        where it is used -- so the only inputs this page owns are the tail-CP
+        stations, the reference Mach and the altitude list, and this method now
+        names every field there is.
         """
         return FlightLoadsInput(
-            mac=self.mac, wing_area_sqft=self.wing_area_sqft, xw=self.xw, zw=self.zw,
             xtc=xtc, xtf=xtf, mn=mn, altitudes_ft=list(altitudes_ft),
         )
 
@@ -919,26 +916,25 @@ class WingMassInput:
     linearly from root to tip: WINGINER iterates the root density until the
     integrated panel mass equals ``panel_weight_lb`` (WINGINER.BAS lines 690-880).
     ``tip_root_density_ratio`` (DR) is the tip/root area-density ratio;
-    ``inboard_rib_y`` (RSTA) the butt line where the panel begins; ``wrp_waterline``
-    the waterline of the wing reference plane (25% chord) at the centreline and
-    ``dihedral_deg`` its slope. ``concentrated`` carries discrete wing masses.
+    ``inboard_rib_y`` (RSTA) the butt line where the panel begins.
+    ``concentrated`` carries discrete wing masses.
     ``cases`` is the set of critical conditions to combine (vertical + drag +
     rolling inertia). The planform is read from the matching ``Project.geometry``
     surface (``surface``).
 
-    **``wrp_waterline``/``dihedral_deg`` are derived from geometry, not stored
-    (Step M2-6).** They are single-sourced from the parametric wing on
-    ``Project.geometry`` (``root_waterline_z``/``dihedral_deg``) by
-    :func:`sloads.derived_geometry.sync_geometry_derived`, which WINGINER/NETLOADS
-    call before reading them; they are not serialized and the GUI shows them
-    read-only. The dataclass fields survive as the derived cache / the fallback for
-    a directly-constructed test project with no parametric geometry (sync no-op).
+    **The wing plane is not held here** (note 33, DS-1). ``wrp_waterline`` and
+    ``dihedral_deg`` were fields on this class, filled from the parametric wing by
+    ``sync_geometry_derived`` and never serialized — a second, editable opinion of
+    a number this class does not own. They are now resolved where they are used,
+    by :func:`sloads.derived_geometry.wing_plane`, and passed to
+    :func:`sloads.modules.wing_inertia.inertia_units` /
+    :func:`sloads.modules.airloads.air_load_distribution` as arguments. A project
+    with no parametric wing degrades to the centreline plane ``(0.0, 0.0)``,
+    which is what the removed fields defaulted to.
     """
     panel_weight_lb: float = 0.0
     tip_root_density_ratio: float = 1.0
     inboard_rib_y: float = 0.0
-    wrp_waterline: float = 0.0   # derived from geometry.parametric (Step M2-6); not persisted
-    dihedral_deg: float = 0.0    # derived from geometry.parametric (Step M2-6); not persisted
     surface: str = "wing"
     concentrated: List[ConcentratedWeight] = field(default_factory=list)
     cases: List[WingLoadCase] = field(default_factory=list)
@@ -1449,18 +1445,17 @@ class LandingInput:
     it never bit; nothing now can.
     **Tricycle gear only** (UG Table 2.1)."""
     # LGFACTOR (landing load factor)
-    wing_area_sqft: float = 0.0                # S -- derived from the geometry wing
-                                               # (Step M2-6, via landing._wing_area); not
-                                               # persisted. A directly-set value is the
-                                               # fallback when no wing geometry is present.
     strut_stroke_in: float = 0.0               # SSTRUT (fully extended -> compressed)
     tire_od_in: float = 0.0                    # OD (outer diameter of tyre)
     hub_diameter_in: float = 0.0               # ID (hub diameter)
     lift_factor: float = 0.667                 # L (wing lift factor, <= 0.667)
-    # LANDLOAD (gear geometry)
-    main_gear: LandingGearInput = field(default_factory=LandingGearInput)
-    nose_gear: LandingGearInput = field(default_factory=LandingGearInput)
-    tread_in: float = 0.0                      # TREAD (distance between main wheels)
+    # LANDLOAD -- the gear *geometry* is not held here (note 33, DS-1). ``main_gear``,
+    # ``nose_gear`` and ``tread_in`` were fields on this slice, filled from
+    # ``geometry.landing_gear`` (Step G6b's single stored home) on every run and never
+    # serialized -- a second, independently editable opinion of the legs, which is the
+    # duplication decision OG-8 said had to be resolved before either copy reached a
+    # page. Consumers take the geometry as an argument, resolved once by
+    # :func:`sloads.modules.landing.gear_geometry`.
     tail_down_angle_deg: float = 0.0           # GRA(3) (ground line to WL, tail-down bump)
     gear_load_factor: float = 0.0              # NLG override; 0 -> from LGFACTOR (N - L)
 

@@ -67,13 +67,13 @@ from sloads.modules.balance import (  # noqa: E402
     is_ground,
     resultant6,
 )
-# ``_effective_gear_input`` is the module's own resolver for the gear geometry
-# (M2R-4: nothing is written back to the project), and the rotational gate needs
-# the same axle stations the reactions were computed at. Reaching for it is the
-# alternative to keeping a second copy of that resolution beside the test.
+# ``gear_geometry`` is the module's own resolver for the gear geometry (note 33,
+# DS-2), and the rotational gate needs the same axle stations the reactions were
+# computed at. Reaching for it is the alternative to keeping a second copy of that
+# resolution beside the test.
 from sloads.modules.landing import (  # noqa: E402
-    _effective_gear_input,
     build_landing,
+    gear_geometry,
     ground_angles,
 )
 
@@ -595,13 +595,12 @@ def test_the_ground_closure_reproduces_landloads_unbalanced_moments(example):
     """
     project = _project(example)
     _, reactions = build_landing(project)
-    # The effective input, not the entered slice: the gear geometry these arms
-    # are built from is resolved onto it (M2R-4), and ``project.landing`` alone
-    # has no axle stations at all on either fixture.
-    inp = _effective_gear_input(project, project.landing)
-    gra = ground_angles(inp)
-    radius = {MAIN: inp.main_gear.rolling_radius_in,
-              NOSE: inp.nose_gear.rolling_radius_in}
+    # Resolved from ``geometry.landing_gear``, its one stored home (note 33): the
+    # landing slice carries no axle stations at all, on any fixture.
+    gear_geom = gear_geometry(project)
+    gra = ground_angles(project.landing, gear_geom)
+    radius = {MAIN: gear_geom.main_gear.rolling_radius_in,
+              NOSE: gear_geom.nose_gear.rolling_radius_in}
     by_case = {c.case: c for c in reactions}
     cases = [c for c in build_balanced_cases(project) if is_ground(c)]
     assert cases, example
@@ -623,7 +622,7 @@ def test_the_ground_closure_reproduces_landloads_unbalanced_moments(example):
         at_patch = tuple(
             s - lift for s, lift in
             zip(_solved_moment_about_cg(case),
-                _lift_moment_about_cg(case, gear, inp.lift_factor)))
+                _lift_moment_about_cg(case, gear, project.landing.lift_factor)))
         # ... and the same load moved from the tyre to the axle. Both wheels of a
         # leg share the offset (the patch is the rolling radius from the axle
         # along the ground normal), so one cross product per leg is the whole
@@ -679,16 +678,17 @@ def test_the_rotational_gates_two_departures_are_not_no_ops():
     project = _project("ga6_normal.project.json")
     _, reactions = build_landing(project)
     gear = next(c for c in reactions if c.case == 4)
-    inp = _effective_gear_input(project, project.landing)
+    gear_geom = gear_geometry(project)
     case = next(c for c in build_balanced_cases(project)
                 if is_ground(c) and c.vn_case == 4)
 
-    lift = _lift_moment_about_cg(case, gear, inp.lift_factor)
+    lift = _lift_moment_about_cg(case, gear, project.landing.lift_factor)
     assert math.isclose(lift[1], 9786.7, rel_tol=1e-3)
     assert abs(lift[1]) > 0.05 * abs(gear.pitchp)
 
-    angle = math.radians(ground_angles(inp)[attitude_of(4)[1]])
-    r = inp.main_gear.rolling_radius_in
+    angle = math.radians(
+        ground_angles(project.landing, gear_geom)[attitude_of(4)[1]])
+    r = gear_geom.main_gear.rolling_radius_in
     force = tuple(sum(getattr(ld, c) for ld in case.loads
                       if ld.source == f"gear-{MAIN}") for c in ("fx", "fy", "fz"))
     move = _cross((-r * math.sin(angle), 0.0, r * math.cos(angle)), force)
@@ -729,8 +729,7 @@ def test_the_ground_roll_attitude_is_resolved_against_the_other_sign(example):
     which is the register the oracle-deviation policy points at.
     """
     project = _project(example)
-    inp = _effective_gear_input(project, project.landing)
-    gra = ground_angles(inp)
+    gra = ground_angles(project.landing, gear_geometry(project))
     _, reactions = build_landing(project)
     seen = set()
     for gear in reactions:
