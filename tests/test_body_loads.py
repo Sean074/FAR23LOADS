@@ -43,16 +43,25 @@ def _project():
     return p
 
 
-def _no_wing_project():
-    """The same fixture with the wing planform removed, so ``carry_through``
-    returns ``None`` and the moment falls back to the whole-body correction.
+def _no_spars_project():
+    """The same fixture with the spar stations made underivable, so
+    ``carry_through`` returns ``None`` and the moment falls back to the
+    whole-body correction.
 
-    The wing area has to be restored on the STRSPEED scalar slice: deleting the
-    surface also removes the area the upstream modules read off the planform.
+    The wing planform **stays**: note 33 (DS-1/DS-3) removed the
+    ``flight_loads.xw`` copy, so the 25%-MAC station is read from the planform
+    and deleting the surface no longer exercises the carry-through fallback --
+    it just refuses to run. An out-of-order spar pair (rear ahead of front) is
+    the condition ``carry_through`` actually tests for, and it is what this test
+    was always about.
     """
+    from dataclasses import replace
+
     p = _project()
-    p.speeds.wing_area_sqft = 174.0
-    p.geometry.surfaces = [s for s in p.geometry.surfaces if s.name != "wing"]
+    p.geometry.surfaces = [
+        replace(s, front_spar_pct=0.60, rear_spar_pct=0.30) if s.name == "wing" else s
+        for s in p.geometry.surfaces
+    ]
     return p
 
 
@@ -144,7 +153,7 @@ def test_fallback_closes_but_is_flagged_a_closure_artifact():
     """No derivable spar stations -> the whole-body correction. It still closes
     the beam, but it is flagged, reports no fitting loads, and carries the
     caveat onto the deliverable."""
-    results = body_loads.build_body_loads(_no_wing_project())
+    results = body_loads.build_body_loads(_no_spars_project())
     assert results
     for r in results:
         assert r.closure_artifact

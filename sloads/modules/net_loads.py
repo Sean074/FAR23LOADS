@@ -23,7 +23,7 @@ from __future__ import annotations
 from typing import Dict, List, Optional
 
 from ..constants import ULTIMATE_FACTOR
-from ..derived_geometry import sync_geometry_derived
+from ..derived_geometry import sync_geometry_derived, wing_plane
 from ..models import (
     ConditionResult,
     LoadsResult,
@@ -186,7 +186,8 @@ def build_net_loads(project: Project) -> LoadsResult:
     aero = project.aero.by_name(wm.surface)
     if geom is None or aero is None:  # already refused above; narrows for the calls below
         raise MissingInputError(f"net_loads needs the '{wm.surface}' geometry and aero surfaces")
-    units = inertia_units(geom, wm)
+    plane = wing_plane(project, wm.surface)
+    units = inertia_units(geom, wm, *plane)
 
     air_results: List[WingLoadResult] = []
     inertia_results: List[WingLoadResult] = []
@@ -199,11 +200,11 @@ def build_net_loads(project: Project) -> LoadsResult:
         # and export can never disagree (defect M4-13).
         sf = ULTIMATE_FACTOR
         cl, v = _air_cl_v(project, case, src)
-        air = air_load_distribution(geom, aero, cl, v, wm.wrp_waterline, wm.dihedral_deg)
+        air = air_load_distribution(geom, aero, cl, v, *plane)
         air.case = case.name
         air.case_ref = ref
         air.safety_factor = sf
-        inertia = wing_inertia_distribution(geom, wm, _resolve_case(project, case, src), units)
+        inertia = wing_inertia_distribution(_resolve_case(project, case, src), units)
         inertia.case_ref = ref
         inertia.safety_factor = sf
         net = WingLoadResult(case=case.name, nz=inertia.nz, nx=inertia.nx,

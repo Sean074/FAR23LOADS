@@ -22,10 +22,10 @@ read-only. So there is no independently-editable copy and a save->reload is a no
 from __future__ import annotations
 
 import math
-from typing import NamedTuple, Optional
+from typing import NamedTuple, Optional, Tuple
 
 from .constants import DEFAULT_FRONT_SPAR_PCT, DEFAULT_REAR_SPAR_PCT, IN2_PER_FT2
-from .models import Project
+from .models import MissingInputError, Project
 
 
 class CarryThrough(NamedTuple):
@@ -131,6 +131,44 @@ def wing_reference(project: Project, surface_name: str = "wing") -> Optional[Win
     zw = wrp_waterline + y_mac * math.tan(math.radians(dihedral_deg))
     return WingReference(surface_name, s_sqft, mac, xlemac, y_mac, xw, zw,
                          dihedral_deg, wrp_waterline)
+
+
+def require_wing_reference(project: Project, surface_name: str = "wing") -> WingReference:
+    """:func:`wing_reference`, or a refusal naming the page — note 33, DS-2/DS-3.
+
+    The wing scalars ``mac``/``s_sqft``/``xw``/``zw`` used to be carried on
+    ``FlightLoadsInput`` as an editable second opinion, filled from here on every
+    run. With the copies gone (DS-1) there is nothing to fall back to, so an
+    absent or degenerate wing is an error at the point of use rather than a
+    silent set of zeros propagating into a balance.
+    """
+    ref = wing_reference(project, surface_name)
+    if ref is None:
+        raise MissingInputError(
+            f"this analysis needs the {surface_name!r} wing planform: add the "
+            "surface on the Configuration & Layout page. The MAC, area, 25%-MAC "
+            "station and waterline are read from it, not entered separately.")
+    return ref
+
+
+def wing_plane(project: Project, surface_name: str = "wing") -> Tuple[float, float]:
+    """``(wrp_waterline, dihedral_deg)`` for a surface's wing plane — note 33, DS-2.
+
+    The **single** owner of these two scalars for every consumer (note 33, DS-1:
+    they used to be carried on ``WingMassInput``, where they were a second,
+    editable opinion of the parametric wing that nothing persisted). Returns
+    ``(0.0, 0.0)`` when the surface or the parametric slice is absent, which is
+    exactly what :func:`wing_reference` degrades to and what the removed fields
+    defaulted to — so this reproduces the old effective value rather than
+    changing it (gate DG-1).
+
+    Two floats rather than the ``WingReference`` itself, matching
+    :func:`sloads.modules.airloads.air_load_distribution`'s existing signature:
+    the consumers are handed a ``SurfaceInput`` and cannot look the parametric
+    wing up, which is the whole reason the copy existed (note 33 §1.3).
+    """
+    ref = wing_reference(project, surface_name)
+    return (0.0, 0.0) if ref is None else (ref.wrp_waterline, ref.dihedral_deg)
 
 
 def fuselage_summary(outline) -> Optional[tuple]:
@@ -375,9 +413,8 @@ def body_drag_waterline(project: Project) -> BodyDragWaterline:
     ref = wing_reference(project)
     if ref is not None:
         return BodyDragWaterline(ref.zw, True, "wing-plane", _BODY_DRAG_ASSUMED)
-    fl = project.flight_loads
-    if fl is not None and fl.zw:
-        return BodyDragWaterline(fl.zw, True, "wing-plane", _BODY_DRAG_ASSUMED)
+    # The ``flight_loads.zw`` copy that used to sit between the wing plane and this
+    # refusal is gone (note 33, DS-1): it was the same number, one edit removed.
     return BodyDragWaterline(0.0, True, "none", (
         "body drag waterline UNKNOWN (no wing reference plane) -- the non-wing "
         "drag is applied at waterline 0. Enter body_drag_waterline_z."))
@@ -391,31 +428,11 @@ def sync_geometry_derived(project: Project) -> None:
     no-op for any slice whose backing geometry is absent, so a directly-constructed test
     project that set the value on the slice keeps working."""
     geom = project.geometry
-    # ``mac``/``S``/``xw`` come from the wing surface alone -- always derivable when a
-    # wing surface is present. ``zw`` and the wing-mass dihedral/wrp need the parametric
-    # wing (Z data a WINGGEOM surface does not carry), so they are only synced when a
-    # parametric slice exists; a project with a wing surface but no parametric keeps its
-    # stored zw/dihedral/wrp (the STRSPEED fallback), so no value is ever zeroed.
-    has_parametric = geom is not None and geom.parametric is not None
-    wr = wing_reference(project, "wing")
-    if wr is not None:
-        fl = project.flight_loads
-        if fl is not None:
-            fl.mac = wr.mac
-            fl.wing_area_sqft = wr.s_sqft
-            fl.xw = wr.xw
-            if has_parametric:
-                fl.zw = wr.zw
-        ld = project.landing
-        if ld is not None:
-            ld.wing_area_sqft = wr.s_sqft
-    if has_parametric:
-        wm = project.wing_mass
-        if wm is not None:
-            wr_wm = wing_reference(project, wm.surface or "wing")
-            if wr_wm is not None:
-                wm.dihedral_deg = wr_wm.dihedral_deg
-                wm.wrp_waterline = wr_wm.wrp_waterline
+    # No wing scalars are written onto any slice any more (note 33, DS-1/DS-2):
+    # ``flight_loads``' mac/S/xw/zw and ``wing_mass``' dihedral/wrp were copies
+    # filled here, and their consumers now read :func:`require_wing_reference` /
+    # :func:`wing_plane` at the point of use. What is left below is the fuselage
+    # summary, which is a genuine derived *record* rather than a scalar copy.
     # Fuselage length/width/height: a derived read-only summary of the outline.
     geom = project.geometry
     if geom is not None and geom.parametric is not None:

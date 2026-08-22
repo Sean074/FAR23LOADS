@@ -128,6 +128,11 @@ underneath (cross-page Apply, programmatic load). **Not a data-loss bug** (Apply
 is required to persist, and per-page unit-suffixed keys limit the blast radius);
 audit the `key=`+`value=` widgets and re-seed on a project change, or prove it
 cannot occur. `tests/test_persistence.py` locks the data-persistence half.
+**The oracle GUI's half of this class is not parked** — it has no Apply step, so
+the stale widgets are written straight back over the loaded project (data loss).
+Filed 2026-08-21 as band-A Pri 2 in [`00_backlog.md`](00_backlog.md); the
+"not a data-loss bug" rationale above holds for `app/views/` only until that
+fix's sweep (rule 4) establishes it view by view.
 
 ### L-8e — Uncovered input fields & UX nits
 Add widgets (or a documented JSON-only status) for the remaining uncovered

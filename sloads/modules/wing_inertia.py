@@ -38,7 +38,7 @@ from typing import Dict, List, NamedTuple, Optional
 from ..case_ids import COMPONENT_PREFIX, WING_BAND_EXTRA, WING_SLOTS, wing_case_id
 from ..cg_cases import flight_cases
 from ..constants import DEG_PER_RAD, IN2_PER_FT2
-from ..derived_geometry import sync_geometry_derived
+from ..derived_geometry import sync_geometry_derived, wing_plane
 from ..models import (
     CaseRef,
     ConditionResult,
@@ -125,8 +125,15 @@ def _root_density(dA, ye, c, dy, ytip, wm: WingMassInput, ii: int):
     return w, densr
 
 
-def inertia_units(geom: SurfaceInput, wm: WingMassInput) -> _InertiaUnits:
-    """Build the wing-panel mass distribution and the three unit inertia cases."""
+def inertia_units(geom: SurfaceInput, wm: WingMassInput,
+                  wrp_waterline: float, dihedral_deg: float) -> _InertiaUnits:
+    """Build the wing-panel mass distribution and the three unit inertia cases.
+
+    ``wrp_waterline``/``dihedral_deg`` describe the wing plane and are passed in
+    (note 33, DS-4): they belong to the *parametric* wing, which ``geom`` — a
+    single ``SurfaceInput`` — does not carry. Resolve them once per run with
+    :func:`sloads.derived_geometry.wing_plane`.
+    """
     yroot = geom.leading_edge[0][1]
     ytip = geom.leading_edge[-1][1]
     h = geom.elements
@@ -136,7 +143,7 @@ def inertia_units(geom: SurfaceInput, wm: WingMassInput) -> _InertiaUnits:
     c25x = [interp_x(geom.leading_edge, y) + 0.25 * cc for y, cc in zip(ye, c)]
     c50x = [interp_x(geom.leading_edge, y) + 0.50 * cc for y, cc in zip(ye, c)]
     dA = [cc * dy for cc in c]
-    z = [wm.wrp_waterline + math.tan(wm.dihedral_deg / DEG_PER_RAD) * y for y in ye]
+    z = [wrp_waterline + math.tan(dihedral_deg / DEG_PER_RAD) * y for y in ye]
 
     ii = next((i for i, y in enumerate(ye) if y >= wm.inboard_rib_y), 0)
     w, densr = _root_density(dA, ye, c, dy, ytip, wm, ii)
@@ -200,11 +207,16 @@ def inertia_units(geom: SurfaceInput, wm: WingMassInput) -> _InertiaUnits:
     return u
 
 
-def wing_inertia_distribution(geom: SurfaceInput, wm: WingMassInput,
-                              case: WingLoadCase, units: Optional[_InertiaUnits] = None
+def wing_inertia_distribution(case: WingLoadCase, units: _InertiaUnits
                               ) -> WingLoadResult:
-    """Combine the unit inertia distributions for one condition's Nz/Nx/UNB."""
-    u = units if units is not None else inertia_units(geom, wm)
+    """Combine the unit inertia distributions for one condition's Nz/Nx/UNB.
+
+    ``units`` is required (note 33, DS-2). It used to default to ``None`` and
+    rebuild itself, which was a second construction path that read the wing plane
+    from a different place than its callers did — exactly the kind of duplicate
+    resolution this note exists to remove.
+    """
+    u = units
     nz = case.nz if case.nz is not None else 0.0
     nx = case.nx if case.nx is not None else 0.0
     ur = case.unbal_moment / 100000.0
@@ -445,10 +457,10 @@ def build_wing_inertia(project: Project) -> List[WingLoadResult]:
     geom = project.geometry.by_name(wm.surface)
     if geom is None:  # already refused above; narrows for the calls below
         raise MissingInputError(f"wing_inertia needs a '{wm.surface}' geometry surface")
-    units = inertia_units(geom, wm)
+    units = inertia_units(geom, wm, *wing_plane(project, wm.surface))
     results = []
     for i, c in enumerate(cases):
-        r = wing_inertia_distribution(geom, wm, _resolve_case(project, c, src), units)
+        r = wing_inertia_distribution(_resolve_case(project, c, src), units)
         r.case_ref = wing_case_ref(project, i, c, src)
         results.append(r)
     return results

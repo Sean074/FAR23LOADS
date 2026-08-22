@@ -440,10 +440,10 @@ REGISTRY: Tuple[FieldEntry, ...] = (
     _E("geometry.parametric.wing_area_sqft", _GEO, _ORIG, "WINGGEOM reference area S", "wing reference area"),
     _E("geometry.parametric.aspect_ratio", _GEO, _ORIG, "WINGGEOM AR = b^2/S"),
     _E("geometry.parametric.taper_ratio", _GEO, _ORIG, "WINGGEOM tip/root chord"),
-    _E("geometry.parametric.dihedral_deg", _GEO, _ORIG, "WINGGEOM geometric dihedral", "wing dihedral"),
+    _E("geometry.parametric.dihedral_deg", _GEO, _ORIG, "WINGGEOM geometric dihedral"),
     _E("geometry.parametric.le_sweep_deg", _GEO, _ORIG, "WINGGEOM/AIRLOAD4 leading-edge sweep"),
     _E("geometry.parametric.le_root_x", _GEO, _ORIG, "WINGGEOM centreline LE station"),
-    _E("geometry.parametric.root_waterline_z", _GEO, _ORIG, "WINGGEOM root-chord waterline", "wing root waterline"),
+    _E("geometry.parametric.root_waterline_z", _GEO, _ORIG, "WINGGEOM root-chord waterline"),
     _E("geometry.parametric.datum_x", _GEO, _ORIG, "WINGGEOM nose datum reference"),
     _E("geometry.parametric.h_tail_z", _GEO, _ORIG, "SELECT h-tail vertical offset (Ch 9)"),
     _E("geometry.parametric.tail_type", _GEO, _SLDS, "layout sketch only, Step G1"),
@@ -508,10 +508,9 @@ REGISTRY: Tuple[FieldEntry, ...] = (
     _E("geometry.empennage.vtail.vtail_root_waterline_z", _GEO, _SLDS, "v-tail root waterline, plan 09 (tail_span)"),
 
     # geometry.landing_gear -- the G6b single source
-    _E("geometry.landing_gear.tread_in", _GEO, _ORIG, "LANDLOAD TREAD", "gear tread"),
+    _E("geometry.landing_gear.tread_in", _GEO, _ORIG, "LANDLOAD TREAD"),
     _E("geometry.landing_gear.main_gear.attach", _GEO, _SLDS, "trunnion node, gear free body Step 10"),
-    _E("geometry.landing_gear.main_gear.axle_static", _GEO, _ORIG,
-       "LANDLOAD static axle station", "main-gear static axle"),
+    _E("geometry.landing_gear.main_gear.axle_static", _GEO, _ORIG, "LANDLOAD static axle station"),
     _E("geometry.landing_gear.main_gear.axle_compressed", _GEO, _ORIG, "LANDLOAD compressed axle station"),
     _E("geometry.landing_gear.main_gear.axle_extended", _GEO, _ORIG, "LANDLOAD extended axle reference"),
     _E("geometry.landing_gear.main_gear.rolling_radius_in", _GEO, _ORIG, "LANDLOAD RM"),
@@ -519,8 +518,7 @@ REGISTRY: Tuple[FieldEntry, ...] = (
     _E("geometry.landing_gear.main_gear.carrier", _GEO, _SLDS, "BODY|WING carrier, decision G-2"),
     _E("geometry.landing_gear.main_gear.weight_lb", _GEO, _SLDS, "leg weight, decision G-12a"),
     _E("geometry.landing_gear.nose_gear.attach", _GEO, _SLDS, "trunnion node, gear free body Step 10"),
-    _E("geometry.landing_gear.nose_gear.axle_static", _GEO, _ORIG,
-       "LANDLOAD static axle station", "nose-gear static axle"),
+    _E("geometry.landing_gear.nose_gear.axle_static", _GEO, _ORIG, "LANDLOAD static axle station"),
     _E("geometry.landing_gear.nose_gear.axle_compressed", _GEO, _ORIG, "LANDLOAD compressed axle station"),
     _E("geometry.landing_gear.nose_gear.axle_extended", _GEO, _ORIG, "LANDLOAD extended axle reference"),
     _E("geometry.landing_gear.nose_gear.rolling_radius_in", _GEO, _ORIG, "LANDLOAD RN"),
@@ -614,7 +612,9 @@ REGISTRY: Tuple[FieldEntry, ...] = (
     # ----------------------------------------------------------------- #
     _E("speeds.category", _SPD, _ORIG, "STRSPEED category, UG Table 7.1"),
     _E("speeds.weight_lb", _SPD, _ORIG, "STRSPEED design weight W", "max take-off weight",
-       "weight.max_takeoff_weight_lb (read-through, Step D4.4; override checkbox)"),
+       "weight.max_takeoff_weight_lb (override, not a read-through: STRSPEED uses "
+       "this value verbatim; the link back is cg_cases.max_takeoff_weight's fallback "
+       "and validation's mtow_representation_drift warning -- note 33 DS-6/2.3)"),
     _E("speeds.wing_area_sqft", _SPD, _ORIG, "STRSPEED S (W/S)", "wing reference area",
        "geometry.parametric.wing_area_sqft (note 32 §8: nothing reads this copy)"),
     _E("speeds.wing_surface", _SPD, _SLDS, "surface selector (standing ruling)"),
@@ -677,14 +677,6 @@ REGISTRY: Tuple[FieldEntry, ...] = (
     _E("flight_loads.mn", _VN, _ORIG, "FLTLOADS gust/manoeuvre matrix"),
     _E("flight_loads.xtc", _VN, _ORIG, "FLTLOADS tail CP, cruise"),
     _E("flight_loads.xtf", _VN, _ORIG, "FLTLOADS tail CP, flapped"),
-    _E("flight_loads.wing_area_sqft", _VN, _ORIG, "FLTLOADS S", "wing reference area",
-       "geometry.parametric.wing_area_sqft (Step M2-6; synced by derived_geometry, not persisted)"),
-    _E("flight_loads.mac", _VN, _ORIG, "FLTLOADS MAC", "wing MAC",
-       EXTERNAL + "derived_geometry.sync_geometry_derived from the planform (Step M2-6; not persisted)"),
-    _E("flight_loads.xw", _VN, _ORIG, "FLTLOADS wing CP station", "wing aerodynamic centre station",
-       EXTERNAL + "derived_geometry.sync_geometry_derived from the planform (Step M2-6; not persisted)"),
-    _E("flight_loads.zw", _VN, _ORIG, "FLTLOADS wing drag waterline", "wing drag waterline",
-       EXTERNAL + "derived_geometry.sync_geometry_derived from the planform (Step M2-6; not persisted)"),
 
     # select_input -- SELECT beyond the V-n matrix (flight_envelope)
     _E("select_input.basic_airfoil_cm", _VN, _ORIG, "SELECT basic airfoil CM, Ch 9"),
@@ -711,10 +703,6 @@ REGISTRY: Tuple[FieldEntry, ...] = (
     _E("wing_mass.panel_weight_lb", _WING, _ORIG, "WINGINER panel weight"),
     _E("wing_mass.inboard_rib_y", _WING, _ORIG, "WINGINER inboard rib station"),
     _E("wing_mass.tip_root_density_ratio", _WING, _ORIG, "WINGINER tip/root density ratio"),
-    _E("wing_mass.dihedral_deg", _WING, _ORIG, "WINGINER dihedral", "wing dihedral",
-       "geometry.parametric.dihedral_deg (Step M2-6; synced, not persisted)"),
-    _E("wing_mass.wrp_waterline", _WING, _ORIG, "WINGINER wing reference-plane waterline", "wing root waterline",
-       "geometry.parametric.root_waterline_z (Step M2-6; synced, not persisted)"),
     _E("wing_mass.concentrated[].name", _WING, _ORIG, "WINGINER concentrated item"),
     _E("wing_mass.concentrated[].weight_lb", _WING, _ORIG, "WINGINER concentrated item"),
     _E("wing_mass.concentrated[].x", _WING, _ORIG, "WINGINER concentrated item"),
@@ -824,10 +812,12 @@ REGISTRY: Tuple[FieldEntry, ...] = (
     _E("one_engine_out.xcg_in", _OEI, _ORIG, "ONENGOUT XCG (0 -> from mass)"),
 
     # ----------------------------------------------------------------- #
-    # landing -- LGFACTOR + LANDLOAD (landing_loads). The gear-geometry block
-    # duplicates geometry.landing_gear wholesale: OG-8's "one owner before it
-    # is put on an oracle page", resolved at run time onto an effective input
-    # (G6b) rather than by a second entry.
+    # landing -- LGFACTOR + LANDLOAD (landing_loads). **No gear-geometry block**:
+    # it used to duplicate geometry.landing_gear wholesale, resolved at run time
+    # onto an effective input copy. Note 33 (DS-1) removed the copies from
+    # ``LandingInput`` outright, which is what OG-8 asked for -- one owner before
+    # either copy reaches a page -- so the seventeen rows that stood here are the
+    # ``geometry.landing_gear.*`` rows and nothing else.
     # ----------------------------------------------------------------- #
     _E("landing.lift_factor", _LAND, _ORIG, "LGFACTOR L"),
     _E("landing.gear_load_factor", _LAND, _ORIG, "LGFACTOR NLG override"),
@@ -835,42 +825,6 @@ REGISTRY: Tuple[FieldEntry, ...] = (
     _E("landing.tire_od_in", _LAND, _ORIG, "LGFACTOR OD"),
     _E("landing.hub_diameter_in", _LAND, _ORIG, "LGFACTOR ID"),
     _E("landing.tail_down_angle_deg", _LAND, _ORIG, "LANDLOAD GRA(3)"),
-    _E("landing.tread_in", _LAND, _ORIG, "LANDLOAD TREAD", "gear tread",
-       "geometry.landing_gear.tread_in (G6b effective-input resolution)"),
-    _E("landing.wing_area_sqft", _LAND, _ORIG, "LANDLOAD S", "wing reference area",
-       "geometry.parametric.wing_area_sqft (Step M2-6; synced, not persisted)"),
-    _E("landing.main_gear.attach", _LAND, _SLDS, "trunnion node, gear free body Step 10",
-       "", "geometry.landing_gear.main_gear.attach (G6b effective-input resolution)"),
-    _E("landing.main_gear.axle_static", _LAND, _ORIG, "LANDLOAD static axle station", "main-gear static axle",
-       "geometry.landing_gear.main_gear.axle_static (G6b effective-input resolution)"),
-    _E("landing.main_gear.axle_compressed", _LAND, _ORIG, "LANDLOAD compressed axle station",
-       "", "geometry.landing_gear.main_gear.axle_compressed (G6b)"),
-    _E("landing.main_gear.axle_extended", _LAND, _ORIG, "LANDLOAD extended axle reference",
-       "", "geometry.landing_gear.main_gear.axle_extended (G6b)"),
-    _E("landing.main_gear.rolling_radius_in", _LAND, _ORIG, "LANDLOAD RM",
-       "", "geometry.landing_gear.main_gear.rolling_radius_in (G6b)"),
-    _E("landing.main_gear.strut", _LAND, _ORIG, "LGFACTOR oleo/spring selector",
-       "", "geometry.landing_gear.main_gear.strut (G6b)"),
-    _E("landing.main_gear.carrier", _LAND, _SLDS, "BODY|WING carrier, decision G-2",
-       "", "geometry.landing_gear.main_gear.carrier (G6b)"),
-    _E("landing.main_gear.weight_lb", _LAND, _SLDS, "leg weight, decision G-12a",
-       "", "geometry.landing_gear.main_gear.weight_lb (G6b)"),
-    _E("landing.nose_gear.attach", _LAND, _SLDS, "trunnion node, gear free body Step 10",
-       "", "geometry.landing_gear.nose_gear.attach (G6b effective-input resolution)"),
-    _E("landing.nose_gear.axle_static", _LAND, _ORIG, "LANDLOAD static axle station", "nose-gear static axle",
-       "geometry.landing_gear.nose_gear.axle_static (G6b effective-input resolution)"),
-    _E("landing.nose_gear.axle_compressed", _LAND, _ORIG, "LANDLOAD compressed axle station",
-       "", "geometry.landing_gear.nose_gear.axle_compressed (G6b)"),
-    _E("landing.nose_gear.axle_extended", _LAND, _ORIG, "LANDLOAD extended axle reference",
-       "", "geometry.landing_gear.nose_gear.axle_extended (G6b)"),
-    _E("landing.nose_gear.rolling_radius_in", _LAND, _ORIG, "LANDLOAD RN",
-       "", "geometry.landing_gear.nose_gear.rolling_radius_in (G6b)"),
-    _E("landing.nose_gear.strut", _LAND, _ORIG, "LGFACTOR oleo/spring selector",
-       "", "geometry.landing_gear.nose_gear.strut (G6b)"),
-    _E("landing.nose_gear.carrier", _LAND, _SLDS, "BODY|WING carrier, decision G-2",
-       "", "geometry.landing_gear.nose_gear.carrier (G6b)"),
-    _E("landing.nose_gear.weight_lb", _LAND, _SLDS, "leg weight, decision G-12a",
-       "", "geometry.landing_gear.nose_gear.weight_lb (G6b)"),
 
     # tail_mass -- the empennage surface-mass override (plan 09 T-3)
     _E("tail_mass[].surface", _WT, _SLDS, "surface selector (standing ruling)"),

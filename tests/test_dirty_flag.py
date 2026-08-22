@@ -181,6 +181,16 @@ def _value_at(project, path):
 #: different record groups under the same missing ancestor, which is exactly
 #: where the pending-record clobber lived -- every group used to mint its own
 #: blank ancestor and the last one committed won, discarding the other edit.
+#:
+#: ``landing_loads`` is the exception since note 33. It had three groups under
+#: ``landing`` only because the gear geometry was duplicated onto that slice; the
+#: consolidation removed the duplicates, so the page now has **one** group and
+#: therefore **cannot** exercise the clobber -- the renderer resolves the record
+#: once per group, so with one group there is no second walk to mint a second
+#: blank. Measured, not assumed: reintroducing CR-A-1 fails the other three cases
+#: and this one still passes. It is kept as a plain two-edits-one-rerun check on
+#: the page (worth having, and it costs nothing), and the clobber coverage rests
+#: on the three multi-group pages above.
 _TWO_EDIT_PAIRS = [
     ("configuration_layout",
      ("geometry.parametric.wing_area_sqft", 180.0),
@@ -189,8 +199,8 @@ _TWO_EDIT_PAIRS = [
      ("weight.estimation.baggage_lb", 120.0),
      ("weight.envelope.gross_weight", 2400.0)),
     ("landing_loads",
-     ("landing.main_gear.rolling_radius_in", 6.5),
-     ("landing.nose_gear.rolling_radius_in", 5.0)),
+     ("landing.tire_od_in", 19.5),
+     ("landing.hub_diameter_in", 7.25)),
     ("structural_speeds",
      ("speeds.weight_lb", 1234.0),
      ("speeds.mach_limit.shoulder_altitude_ft", 20000.0)),

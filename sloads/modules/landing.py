@@ -44,7 +44,6 @@ p230 (K 0.324 / GAMMA 17.978 / the AP-BP-DP-CP lever-arm table).
 
 from __future__ import annotations
 
-import dataclasses
 import math
 from typing import List, NamedTuple, Optional, Tuple
 
@@ -56,6 +55,7 @@ from ..models import (
     CgCase,
     ConditionResult,
     GearReactionCase,
+    LandingGearGeometry,
     LandingInput,
     LoadValue,
     MissingInputError,
@@ -149,7 +149,8 @@ def _ground_angle(xm: float, zm: float, xn: float, zn: float,
         - math.atan((rm - rn) / (((xm - xn) ** 2 + (zm - zn) ** 2) ** 0.5)))
 
 
-def ground_angles(inp: LandingInput) -> Tuple[float, float, float]:
+def ground_angles(inp: LandingInput, gear: LandingGearGeometry
+                  ) -> Tuple[float, float, float]:
     """``GRA(1..3)`` -- the ground angle in each of LANDLOAD's three attitudes.
 
     ``(level, ground-roll, tail-down)``, in degrees. The first two are geometry
@@ -158,28 +159,29 @@ def ground_angles(inp: LandingInput) -> Tuple[float, float, float]:
     be asked of the input slice alone -- the gear report needs the angles without
     re-running the reaction solve.
     """
-    mg, ng = inp.main_gear, inp.nose_gear
+    mg, ng = gear.main_gear, gear.nose_gear
     rm, rn = mg.rolling_radius_in, ng.rolling_radius_in
     return (_ground_angle(*mg.axle_compressed, *ng.axle_compressed, rm, rn),
             _ground_angle(*mg.axle_static, *ng.axle_static, rm, rn),
             inp.tail_down_angle_deg)
 
 
-def _geometry(inp: LandingInput, nlg: float, cgs: List[CgCase], mlw: float) -> _Geometry:
+def _geometry(inp: LandingInput, gear: LandingGearGeometry, nlg: float,
+              cgs: List[CgCase], mlw: float) -> _Geometry:
     """Ground angles, BETA and the AP/BP/DP/CP lever arms (LANDLOAD.BAS 50-720)."""
     nap = nlg + inp.lift_factor
     k0 = _appendix_c_k0(mlw)
     k = nap / nlg * k0
     gamma = math.degrees(math.atan(k))
 
-    mg, ng = inp.main_gear, inp.nose_gear
+    mg, ng = gear.main_gear, gear.nose_gear
     xm_c, zm_c = mg.axle_compressed
     xn_c, zn_c = ng.axle_compressed
     xm_s, zm_s = mg.axle_static
     xn_s, zn_s = ng.axle_static
     rm, rn = mg.rolling_radius_in, ng.rolling_radius_in
 
-    gra1, gra2, gra3 = ground_angles(inp)
+    gra1, gra2, gra3 = ground_angles(inp, gear)
     gra = (gra1, gra2, gra3)
     beta = (gamma - gra1, gra2, gra3)
 
@@ -286,7 +288,8 @@ def _loading_index(case: int) -> int:
     return (case - 25) // 3
 
 
-def landing_reactions(inp: LandingInput, lf_result: LoadFactorResult,
+def landing_reactions(inp: LandingInput, gear: LandingGearGeometry,
+                      lf_result: LoadFactorResult,
                       cgs: List[CgCase], *, mlw: float,
                       mtow: float) -> List[GearReactionCase]:
     """The 24 main-wheel + 33 nose-wheel ground-condition reactions (LANDLOAD.BAS).
@@ -306,7 +309,7 @@ def landing_reactions(inp: LandingInput, lf_result: LoadFactorResult,
         raise ValueError("LANDLOAD needs exactly 3 CG cases (aft/fwd max landing, fwd light)")
     nlg = inp.gear_load_factor or lf_result.gear_load_factor
     lf = inp.lift_factor
-    geo = _geometry(inp, nlg, cgs, mlw)
+    geo = _geometry(inp, gear, nlg, cgs, mlw)
     k = geo.k
     ap, bp, dp, cp = geo.ap, geo.bp, geo.dp, geo.cp
     wr = mtow / mlw if mlw else 1.0
@@ -409,13 +412,13 @@ def landing_reactions(inp: LandingInput, lf_result: LoadFactorResult,
         pitchp[m] = -2 * vmp[m] * bp[1][i]
     rollp = [0.0] * 25
     for m in range(10, 13):
-        rollp[m] = vmp[m] * inp.tread_in / 2
+        rollp[m] = vmp[m] * gear.tread_in / 2
     for m, i in ((19, 0), (20, 0), (21, 1), (22, 1), (23, 2), (24, 2)):
         sign = -1 if m % 2 else 1
         rollp[m] = sign * 0.83 * wl[m] * cp[1][i]
     yawp = [0.0] * 25
     for m in range(10, 13):
-        yawp[m] = -dmp[m] * inp.tread_in / 2
+        yawp[m] = -dmp[m] * gear.tread_in / 2
     for m, i in ((19, 0), (20, 0), (21, 1), (22, 1), (23, 2), (24, 2)):
         sign = -1 if m % 2 else 1
         yawp[m] = sign * 0.83 * wl[m] * bp[1][i]
@@ -495,17 +498,25 @@ def _sq(x: float) -> float:
 # --------------------------------------------------------------------------- #
 # Project glue: resolve inputs, run LGFACTOR + LANDLOAD, emit a ModuleResult.
 # --------------------------------------------------------------------------- #
-def _wing_area(project: Project, inp: LandingInput) -> float:
-    if inp.wing_area_sqft > 0:
-        return inp.wing_area_sqft
-    if project.geometry is not None:
-        wing = project.geometry.by_name("wing")
-        if wing is not None:
-            from .wing_geometry import surface_properties
-            r = surface_properties(wing)
-            total_in2 = next(v.value for v in r.values if v.key == "total_area")
-            return total_in2 / IN2_PER_FT2
-    raise MissingInputError("landing needs a wing area (landing.wing_area_sqft or a geometry wing)")
+def _wing_area(project: Project) -> float:
+    """Wing area S (ft^2) for LGFACTOR, from the geometry wing — note 33, DS-2.
+
+    **One precedence, shared with STRSPEED.** This used to prefer a
+    ``landing.wing_area_sqft`` copy and fall back to geometry, while
+    :func:`sloads.modules.structural_speeds._wing_area_sqft` preferred geometry
+    and fell back to its own slice copy — opposite orders for one quantity,
+    masked only because ``sync_geometry_derived`` overwrote the landing copy
+    before this ran. The copy is gone (DS-1) and the planform is the answer.
+    """
+    wing = project.geometry.by_name("wing") if project.geometry is not None else None
+    if wing is not None:
+        from .wing_geometry import surface_properties
+        r = surface_properties(wing)
+        total_in2 = next(v.value for v in r.values if v.key == "total_area")
+        return total_in2 / IN2_PER_FT2
+    raise MissingInputError(
+        "landing needs the wing area: add a 'wing' surface to the geometry slice "
+        "(Configuration & Layout). LGFACTOR reads the planform, not a second copy.")
 
 
 def _cg_cases(project: Project) -> List[CgCase]:
@@ -533,20 +544,27 @@ def _cg_cases(project: Project) -> List[CgCase]:
     return landing_role_cases(project)
 
 
-def _effective_gear_input(project: Project, inp: LandingInput) -> LandingInput:
-    """Step G6b (M2R-4): return a *copy* of ``inp`` with the gear geometry read from
-    the single-source ``Project.geometry.landing_gear``, so the calc consumes the one
-    authoritative copy **without mutating** the live ``Project.landing`` (rendering the
-    page must leave the project unchanged -- else it trips the unsaved-changes flag).
-    The math is unchanged -- it still reads ``inp.main_gear``/``nose_gear``/``tread_in``.
-    Returns ``inp`` unchanged when no gear geometry is present (e.g. a
-    directly-constructed test project that set them on the slice)."""
+def gear_geometry(project: Project) -> LandingGearGeometry:
+    """The one stored gear geometry (Step G6b), or a refusal — note 33, DS-2/DS-3.
+
+    ``geometry.landing_gear`` is the single home. This used to be
+    ``_effective_gear_input``, which copied the geometry onto a replacement
+    ``LandingInput`` so the calc could keep reading ``inp.main_gear``; the slice
+    carried the same three fields, so a project could state a second, unreachable
+    opinion of the gear. The fields are gone (note 33, DS-1) and the geometry is
+    passed to the functions that need it instead.
+
+    Raising here is DS-3: with no slice copy to fall back on, absent geometry is
+    an error naming the page that owns it, not a silent set of zero-length legs.
+    """
     geom = project.geometry
     lg = geom.landing_gear if geom is not None else None
     if lg is None:
-        return inp
-    return dataclasses.replace(inp, main_gear=lg.main_gear, nose_gear=lg.nose_gear,
-                               tread_in=lg.tread_in)
+        raise MissingInputError(
+            "landing needs the gear geometry: set geometry.landing_gear (the axle "
+            "positions at the three strut states, rolling radius and tread) on the "
+            "Configuration & Layout page.")
+    return lg
 
 
 def build_landing(project: Project) -> Tuple[LoadFactorResult, List[GearReactionCase]]:
@@ -558,8 +576,9 @@ def build_landing(project: Project) -> Tuple[LoadFactorResult, List[GearReaction
     ``LoadFactorResult.airplane_load_factor``, not stored)."""
     if project.landing is None:
         raise MissingInputError("landing needs the 'landing' input slice")
-    inp = _effective_gear_input(project, project.landing)
-    s = _wing_area(project, inp)
+    inp = project.landing
+    gear = gear_geometry(project)
+    s = _wing_area(project)
     # Both design weights are read from their single owners on ``WeightInput``
     # (G-4 / G-14). MLW raises when unset rather than falling back; MTOW replaces
     # the ``max(landing cg_cases)`` fallback that used to fill ``GW``, which
@@ -569,9 +588,9 @@ def build_landing(project: Project) -> Tuple[LoadFactorResult, List[GearReaction
     mtow = max_takeoff_weight(project)
     lf = landing_load_factor(s, mlw, inp.strut_stroke_in,
                              inp.tire_od_in, inp.hub_diameter_in, inp.lift_factor,
-                             inp.main_gear.strut == "O")
+                             gear.main_gear.strut == "O")
     cgs = _cg_cases(project)
-    reactions = landing_reactions(inp, lf, cgs, mlw=mlw, mtow=mtow)
+    reactions = landing_reactions(inp, gear, lf, cgs, mlw=mlw, mtow=mtow)
     return lf, reactions
 
 

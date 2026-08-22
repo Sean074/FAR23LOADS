@@ -27,6 +27,7 @@ from app_shell.components import active_system, gate, page_header, unit_number_i
 from sloads import (
     FuselageOutline,
     FuselageSection,
+    GearCarrier,
     GeometryInput,
     LandingGearGeometry,
     LandingGearInput,
@@ -544,6 +545,10 @@ with st.form("empennage_form"):
         vt_lf = _u("Airplane length LF", _vt0.airplane_length_in, "length", "en_vlf", c[1], min_value=0.0)
         vt_gw = _u("Gross weight GW (0=auto)", _vt0.gross_weight_lb, "weight", "en_gw", c[2], min_value=0.0)
         vt_izz = _u("Yaw inertia IZZ (0=auto)", _vt0.izz_slugft2, "inertia", "en_izz", c[0], min_value=0.0)
+        vt_wl = _u("Fin root waterline (0=derived)", _vt0.vtail_root_waterline_z, "length",
+                   "en_vt_wl", c[1],
+                   help="Waterline Z of the fin root chord (B8a-1). 0 places the fin on "
+                        "the airplane centreline as a marked assumption.")
         st.markdown("**Rudder**")
         r = st.columns(3)
         rd_sr = _u("Rudder area SR", _vt0.rudder_area_sqft, "area_sqft", "en_sr", r[0], min_value=0.0)
@@ -571,7 +576,7 @@ if en_applied:
         rudder_fwd_hinge_sqft=rd_fwd, rudder_aft_hinge_sqft=rd_aft, aspect_ratio_vtail=vt_arvt,
         vtail_mac_in=vt_mac, xv25=vt_xv25, xv50=vt_xv50, airplane_length_in=vt_lf,
         wing_span_in=vt_b, gross_weight_lb=vt_gw, rudder_large_deflection_factor=rd_efv,
-        izz_slugft2=vt_izz, vtail_span_in=vt_span,
+        izz_slugft2=vt_izz, vtail_span_in=vt_span, vtail_root_waterline_z=vt_wl,
     ) if en_v else None
     st.session_state["project"] = project
     st.success("Empennage geometry updated.")
@@ -586,12 +591,23 @@ st.caption(
     "Single source (Step G6b) for the tricycle-gear geometry native to LANDLOAD — "
     "axle (X, Z) at each strut state, rolling radius, strut type, and the main-wheel "
     "tread. Entered once here; drives the three-view (strut + wheels) and the ground-"
-    "load analysis. The Landing Loads page keeps only the non-geometry LANDLOAD inputs "
+    "load analysis. The **carrier**, **attach** node and **leg weight** are the export "
+    "half (decisions G-2 / G-12 / G-12a): they place the leg's reaction on the body or "
+    "wing beam and close the gear free body, and a ground case exports no gear nodes "
+    "without a stated carrier. "
+    "The Landing Loads page keeps only the non-geometry LANDLOAD inputs "
     "(weights, strut stroke, tyre OD/hub, lift factor, tail-down angle). Fields follow "
     "the sidebar's unit selection. The tip-back/overturn/clearance estimate derives the ground line "
     "from the static axle Z minus the rolling radius."
 )
 _lg0 = project.geometry.landing_gear if project.geometry is not None else None
+
+
+#: ``carrier`` has no default (decision G-2) -- ``None`` means "not stated", and
+#: the export refuses a ground case rather than guessing, so the selector needs a
+#: third option that is not one of the two enum members.
+_CARRIER_UNSTATED = "— not stated —"
+_CARRIER_CHOICES = [_CARRIER_UNSTATED] + [c.value.upper() for c in GearCarrier]
 
 
 def _gear_leg(label: str, gear: LandingGearInput, keyp: str) -> LandingGearInput:
@@ -608,8 +624,22 @@ def _gear_leg(label: str, gear: LandingGearInput, keyp: str) -> LandingGearInput
     zs = _u(f"{label} Z static", gear.axle_static[1], "length", f"{keyp}_zs", c[3])
     xe = _u(f"{label} X ext.", gear.axle_extended[0], "length", f"{keyp}_xe", c[4])
     ze = _u(f"{label} Z ext.", gear.axle_extended[1], "length", f"{keyp}_ze", c[5])
+    d = st.columns(5)
+    shown = _CARRIER_UNSTATED if gear.carrier is None else gear.carrier.value.upper()
+    carrier_pick = d[0].selectbox(
+        f"{label} carrier", _CARRIER_CHOICES, index=_CARRIER_CHOICES.index(shown),
+        key=f"{keyp}_carrier",
+        help="Which structure carries the leg's reaction (decision G-2). BODY and "
+             "WING are different load paths, not labels; exporting a ground case "
+             "without it raises rather than guessing.")
+    carrier = None if carrier_pick == _CARRIER_UNSTATED else GearCarrier(carrier_pick.lower())
+    ax = _u(f"{label} attach X", gear.attach[0], "length", f"{keyp}_ax", d[1])
+    ay = _u(f"{label} attach Y", gear.attach[1], "length", f"{keyp}_ay", d[2])
+    az = _u(f"{label} attach Z", gear.attach[2], "length", f"{keyp}_az", d[3])
+    wt = _u(f"{label} leg weight", gear.weight_lb, "weight", f"{keyp}_wt", d[4], min_value=0.0)
     return LandingGearInput(axle_compressed=(xc, zc), axle_static=(xs, zs),
-                            axle_extended=(xe, ze), rolling_radius_in=rr, strut=strut)
+                            axle_extended=(xe, ze), rolling_radius_in=rr, strut=strut,
+                            carrier=carrier, attach=(ax, ay, az), weight_lb=wt)
 
 
 with st.form("landing_gear_form"):

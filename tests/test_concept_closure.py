@@ -48,7 +48,8 @@ from sloads.modules.flight_envelope import build_envelope  # noqa: E402
 from sloads.modules.net_loads import build_net_loads  # noqa: E402
 from sloads.modules.select import build_critical  # noqa: E402
 from sloads.modules.taildist import build_tail_chordwise  # noqa: E402
-from sloads.cg_cases import flight_cases  # noqa: E402
+from sloads.cg_cases import flight_cases
+from sloads.derived_geometry import require_wing_reference  # noqa: E402
 from sloads.export.equilibrium import (  # noqa: E402
     card_totals,
     closes,
@@ -109,13 +110,13 @@ def test_wing_nodal_loads_sum_to_root():
 def test_tail_balancing_moment_closure():
     """``LT*(Xt - Xcg)`` reacts the wing-plus-inertia pitching moment about the CG."""
     p = _concept_project()
-    fl = p.flight_loads
+    wr = require_wing_reference(p)
     cg = {c.name: c for c in flight_cases(p)}
     xt = {tb.case: tb.tail_cp_station for tb in p.envelope.tail_balance}
     for vp in p.envelope.vn:
         c = cg[vp.cg]
         lhs = vp.lt * (xt[vp.case] - c.xcg)
-        rhs = vp.lzw * (c.xcg - fl.xw) - vp.dx * (c.zcg - fl.zw) + vp.m_wf
+        rhs = vp.lzw * (c.xcg - wr.xw) - vp.dx * (c.zcg - wr.zw) + vp.m_wf
         assert math.isclose(lhs, rhs, rel_tol=1e-6, abs_tol=1e-3)
 
 

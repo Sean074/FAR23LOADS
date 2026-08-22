@@ -36,6 +36,7 @@ from sloads import (
     curve_closure,
     operating_points,
 )
+from sloads.derived_geometry import wing_reference
 from sloads.fuselage_moment import estimate as estimate_fuselage_moment
 from sloads.modules.flight_envelope import balance_configs, build_envelope
 
@@ -223,7 +224,10 @@ _fm_on = aero.fuselage_moment is not None and aero.fuselage_moment.enabled
 _env = None
 _env_note = ""
 _fl_bal = project.flight_loads
-if _fl_bal is None or project.speeds is None:
+# The wing area and MAC the curves are non-dimensionalised on come from the
+# planform (note 33), not from a copy on the flight-loads slice.
+_wr_bal = wing_reference(project, "wing")
+if _fl_bal is None or _wr_bal is None or project.speeds is None:
     _env_note = ("no balanced envelope yet — the operating-point overlay needs the "
                  "**Flight Envelope (V-n)** inputs and the **Structural Speeds** "
                  "design speeds")
@@ -297,9 +301,9 @@ def _curve_figure(curves) -> go.Figure:
 for _cfg in _configs:
     _pts = _closure = None
     if _env is not None:
-        _pts = operating_points(_env, _cfg.name, wing_area_sqft=_fl_bal.wing_area_sqft,
-                                mac_in=_fl_bal.mac)
-        _closure = curve_closure(_env, _cfg, wing_area_sqft=_fl_bal.wing_area_sqft,
+        _pts = operating_points(_env, _cfg.name, wing_area_sqft=_wr_bal.s_sqft,
+                                mac_in=_wr_bal.mac)
+        _closure = curve_closure(_env, _cfg, wing_area_sqft=_wr_bal.s_sqft,
                                  mach_ref=_fl_bal.mn)
     _curves = build_aero_curves(_cfg, points=_pts, closure=_closure)
     st.markdown(f"**{'Flaps down' if _cfg.flaps_down else 'Cruise'} — {_cfg.name}**")
@@ -366,9 +370,11 @@ st.caption(
 
 _geom = project.geometry
 _outline = _geom.fuselage if _geom else None
-_fl = project.flight_loads
-_s = _fl.wing_area_sqft if _fl else 0.0
-_mac = _fl.mac if _fl else 0.0
+# Tolerant, as the flight-loads read it replaces was: with no planform the
+# estimator gets zeros and declines, rather than the page refusing to render.
+_wr = wing_reference(project, "wing")
+_s = _wr.s_sqft if _wr else 0.0
+_mac = _wr.mac if _wr else 0.0
 _est = estimate_fuselage_moment(_outline, _s, _mac)
 
 if _est is None:
@@ -454,7 +460,7 @@ st.caption(
 )
 _existing_lb = aero.lateral_body_aero
 _lb_est = None
-if _outline is not None and _fl is not None and _fl.wing_area_sqft > 0:
+if _outline is not None and _wr is not None and _wr.s_sqft > 0:
     from sloads import atmosphere as _atm
     from sloads import lateral_body_aero as _lba
     _vt = project.vtail_loads
@@ -466,7 +472,7 @@ if _outline is not None and _fl is not None and _fl.wing_area_sqft > 0:
     except Exception:
         pass
     if _span > 0:
-        _lb_est = _lba.estimate(_outline, _fl.wing_area_sqft, _span, _fl.xw,
+        _lb_est = _lba.estimate(_outline, _wr.s_sqft, _span, _wr.xw,
                                 _atm.reynolds_per_ft(_v_ill, 0.0))
 if _lb_est is None:
     gate(

@@ -28,7 +28,7 @@ from __future__ import annotations
 from typing import Any, Dict, List
 
 from ..cg_cases import flight_cases
-from ..derived_geometry import sync_geometry_derived
+from ..derived_geometry import require_wing_reference, sync_geometry_derived
 from ..models import CgCase, ConditionResult, LoadValue, MissingInputError, ModuleResult, Project, VnPoint
 from ..registry import register
 from .select import default_envelope, elevator_load, flaps_by_config_name, htail_balance
@@ -59,6 +59,7 @@ def verify_balancing(project: Project) -> List[Dict[str, Any]]:
     ti, fl = project.tail_loads, project.flight_loads
     if ti is None or fl is None:
         raise MissingInputError("balloads needs Project.tail_loads and Project.flight_loads")
+    wr = require_wing_reference(project)
     cg_map: Dict[str, CgCase] = {c.name: c for c in flight_cases(project)}
     flaps: Dict[str, bool] = flaps_by_config_name(project)
 
@@ -69,7 +70,7 @@ def verify_balancing(project: Project) -> List[Dict[str, Any]]:
         cg = cg_map.get(p.cg)
         if cg is None:
             continue
-        b = htail_balance(p, cg, fl.xw, fl.zw, ti)
+        b = htail_balance(p, cg, wr.xw, wr.zw, ti)
         xt = _rational_station(b.cp, ti.xt25, ti.xt50)
         rows.append({
             "point": p,

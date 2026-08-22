@@ -88,6 +88,7 @@ from .models import (
     CaseRef,
     GearCarrier,
     GearReactionCase,
+    LandingGearGeometry,
     LandingGearInput,
     LandingInput,
     MissingInputError,
@@ -385,7 +386,8 @@ class GearCaseLoads:
 
 
 def _leg_load(case: GearReactionCase, leg_name: str, leg: LandingGearInput,
-              inp: LandingInput, gra: Sequence[float]) -> GearLegLoad:
+              inp: LandingInput, gear: LandingGearGeometry,
+              gra: Sequence[float]) -> GearLegLoad:
     state, gra_index = attitude_of(case.case)
     angle = gra[gra_index]
     px, pz = contact_patch(leg, state, angle)
@@ -399,7 +401,7 @@ def _leg_load(case: GearReactionCase, leg_name: str, leg: LandingGearInput,
         # and its twin is the mirror. ``tread`` is a wheel dimension and is the
         # right one *here* -- it is the trunnion butt line it must never be
         # confused with (decision G-2).
-        py = inp.tread_in / 2.0
+        py = gear.tread_in / 2.0
     else:
         v, d, s = case.vnp, case.dnp, case.snp
         fz, fx = case.vn, case.dn
@@ -450,11 +452,11 @@ def gear_case_loads(project: Project) -> List[GearCaseLoads]:
     if inp is None:
         raise MissingInputError("the gear load report needs the 'landing' input slice")
     _, reactions = build_landing(project)
-    gra = ground_angles(_effective(inp, lg))
+    gra = ground_angles(inp, lg)
 
     out: List[GearCaseLoads] = []
     for case in reactions:
-        legs = tuple(_leg_load(case, name, leg, _effective(inp, lg), gra)
+        legs = tuple(_leg_load(case, name, leg, inp, lg, gra)
                      for name, leg in ((MAIN, lg.main_gear), (NOSE, lg.nose_gear)))
         out.append(GearCaseLoads(
             case=case.case, description=case.description,
@@ -525,17 +527,3 @@ def applied_wheels(legs: Sequence[GearLegLoad], *, one_wheel: bool = False,
                 leg.leg, side, node, force,
                 transfer_couple(patch, node, force), leg.carrier, patch))
     return out
-
-
-def _effective(inp: LandingInput, lg) -> LandingInput:
-    """``inp`` with the gear geometry from its single source (Step G6b).
-
-    The same substitution :func:`sloads.modules.landing._effective_gear_input`
-    makes, and for the same reason: ``geometry.landing_gear`` is the one stored
-    home, and a project whose ``landing`` slice still carries stale legs must not
-    produce a report against them.
-    """
-    import dataclasses
-
-    return dataclasses.replace(inp, main_gear=lg.main_gear, nose_gear=lg.nose_gear,
-                               tread_in=lg.tread_in)

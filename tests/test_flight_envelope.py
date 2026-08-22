@@ -28,6 +28,7 @@ from sloads import (  # noqa: E402
     Project,
     io,
 )
+from sloads.derived_geometry import require_wing_reference  # noqa: E402
 from sloads.modules import flight_envelope as fe  # noqa: E402
 from sloads.modules.flight_envelope import build_envelope, design_inputs  # noqa: E402
 from sloads.cg_cases import flight_cases  # noqa: E402
@@ -162,9 +163,10 @@ def test_balance_zeroes_pitching_moment_about_cg():
     # By construction LT zeroes the moment sum about the CG (Ch 8 balance).
     project = io.load_project(_GA)
     fl = project.flight_loads
+    wr = require_wing_reference(project)
     cg = flight_cases(project)[0]
     p = next(pt for pt in build_envelope(project).vn if pt.condition == "MAN A")
-    moment = (p.m_wf + p.lzw * (cg.xcg - fl.xw) - p.dx * (cg.zcg - fl.zw)
+    moment = (p.m_wf + p.lzw * (cg.xcg - wr.xw) - p.dx * (cg.zcg - wr.zw)
               - p.lt * (fl.xtc - cg.xcg))
     assert abs(moment) < 1.0
 
@@ -199,11 +201,13 @@ def test_flight_loads_slice_round_trips_through_io():
     rebuilt = io.project_from_dict(io.project_to_dict(project))
     fl = rebuilt.flight_loads
     assert fl is not None
-    # Step M2-6: mac/S/xw/zw are derived from geometry, not persisted; they are
-    # re-synced on load, so the round-trip reproduces the wing geometry (mac within
-    # +/-0.1% of the Appendix A 69.246, zw from the parametric wing reference plane).
-    assert math.isclose(fl.mac, 69.246, rel_tol=1e-3)
-    assert math.isclose(fl.zw, 87.734, rel_tol=1e-3)
+    # Note 33: mac/S/xw/zw are not on the slice at all -- they are read from the
+    # planform, which survives the round-trip, so the reloaded project still
+    # reproduces the wing geometry (mac within +/-0.1% of Appendix A's 69.246, zw
+    # from the parametric wing reference plane).
+    wr = require_wing_reference(rebuilt)
+    assert math.isclose(wr.mac, 69.246, rel_tol=1e-3)
+    assert math.isclose(wr.zw, 87.734, rel_tol=1e-3)
     assert flight_cases(rebuilt)[0].name == "CG1"
 
 
@@ -326,16 +330,14 @@ def test_merged_replaces_the_altitude_list():
     derived copy of ``weight.cg_cases`` since v19 and a second way to say the same
     thing is what that decision removes. ``merged()`` therefore replaces the
     altitude list wholesale and there is nothing partial left to preserve."""
-    fl = FlightLoadsInput(mac=69.246, wing_area_sqft=184.125, xw=80.953, zw=87.725,
-                          xtc=253.364, xtf=261.027, mn=0.1,
+    fl = FlightLoadsInput(xtc=253.364, xtf=261.027, mn=0.1,
                           altitudes_ft=[0.0, 20000.0])
 
     merged = fl.merged(xtc=253.364, xtf=261.027, mn=0.1,
                        altitudes_ft=[10000.0, 5000.0])
 
-    # The derived wing scalars carry through from the source slice unchanged.
-    assert merged.mac == 69.246
-    assert merged.zw == 87.725
+    # There are no derived wing scalars left to carry through (note 33).
+    assert merged.xtc == 253.364
     assert merged.altitudes_ft == [10000.0, 5000.0]
     assert not hasattr(merged, "cg_cases"), "the case list is owned by WeightInput"
     # The original slice is untouched (merged() returns a new instance).

@@ -43,6 +43,7 @@ sys.path.insert(0, _HERE)
 from sloads import io  # noqa: E402
 from sloads.export.balanced_deck import balanced_deck, case_sids  # noqa: E402
 from sloads.export.equilibrium import parse_cards, resultant  # noqa: E402
+from sloads.derived_geometry import require_wing_reference  # noqa: E402
 from sloads.fuselage_moment import munk_yaw_slope_per_deg  # noqa: E402
 from sloads.models import LateralBodyAeroInput  # noqa: E402
 from sloads.modules.balance import (  # noqa: E402
@@ -201,8 +202,8 @@ def test_g7_munk_isolated_body_couple_sits_below_datcoms_wing_body_value(example
     cond = next(c for c in default_critical(p, env).conditions
                 if c.component == "vtail" and c.label == "YAW 15 NEUTRAL")
     terms = lateral_aero_terms(p, cond, vn[cond.case])
-    fl = p.flight_loads
-    munk = munk_yaw_slope_per_deg(p.geometry.fuselage, fl.wing_area_sqft,
+    wr = require_wing_reference(p)
+    munk = munk_yaw_slope_per_deg(p.geometry.fuselage, wr.s_sqft,
                                   p.vtail_loads.wing_span_in)
     assert munk is not None and munk > 0.0
     assert munk < terms.cn_beta, (
@@ -300,10 +301,10 @@ def test_select_publishes_the_sideslip_and_the_fin_derivatives(example):
     assert conds["SIDE GUST"].beta_deg < 0.0
     for c in conds.values():
         assert c.cy_beta_fin < 0.0 and c.cn_beta_fin < 0.0     # restoring aft fin
-    fl = p.flight_loads
+    wr = require_wing_reference(p)
     vt = p.vtail_loads
     c = conds["SIDE GUST"]
-    assert c.cn_beta_fin == pytest.approx(c.cy_beta_fin * (vt.xv25 - fl.xw) / vt.wing_span_in)
+    assert c.cn_beta_fin == pytest.approx(c.cy_beta_fin * (vt.xv25 - wr.xw) / vt.wing_span_in)
 
 
 def test_a_persisted_critical_set_without_beta_says_so_instead_of_guessing():

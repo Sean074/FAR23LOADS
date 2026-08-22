@@ -15,6 +15,7 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from sloads import Project, WingLoadCase, io  # noqa: E402
+from sloads.derived_geometry import wing_plane  # noqa: E402
 from sloads.modules import wing_inertia as wi  # noqa: E402
 from sloads.modules.wing_inertia import inertia_units, wing_inertia_distribution  # noqa: E402
 
@@ -23,9 +24,20 @@ _GA = os.path.join(_EXAMPLES, "ga6_normal.project.json")
 
 
 def _units():
+    """``(surface, wing-mass slice, unit distributions)`` for the ga6 wing.
+
+    The wing plane comes from :func:`wing_plane` (note 33): it is the parametric
+    wing's, not a copy carried on the wing-mass slice, so a test cannot state one
+    plane while the calc uses another.
+    """
     p = io.load_project(_GA)
     geom = p.geometry.by_name("wing")
-    return geom, p.wing_mass, inertia_units(geom, p.wing_mass)
+    return (geom, p.wing_mass,
+            inertia_units(geom, p.wing_mass, *wing_plane(p, p.wing_mass.surface)))
+
+
+def _ga6_plane():
+    return wing_plane(io.load_project(_GA), "wing")
 
 
 def _close(a, e, rel=2e-3, abs_=2.0):
@@ -40,7 +52,7 @@ def test_root_tip_density_match_appendix_a():
 
 def test_unit_vertical_distribution_matches_appendix_a():
     geom, wm, u = _units()
-    r = wing_inertia_distribution(geom, wm, WingLoadCase("1001", nz=-1.0, nx=0.0), u)
+    r = wing_inertia_distribution(WingLoadCase("1001", nz=-1.0, nx=0.0), u)
     root = r.stations[0]
     assert _close(root.sz, -167)        # cumulative panel mass, p220
     assert _close(root.mxx, -16158)
@@ -49,7 +61,7 @@ def test_unit_vertical_distribution_matches_appendix_a():
 
 def test_unit_drag_distribution_matches_appendix_a():
     geom, wm, u = _units()
-    r = wing_inertia_distribution(geom, wm, WingLoadCase("1002", nz=0.0, nx=1.0), u)
+    r = wing_inertia_distribution(WingLoadCase("1002", nz=0.0, nx=1.0), u)
     root = r.stations[0]
     assert _close(root.sx, 167)
     assert _close(root.mzz, 16158)
@@ -58,7 +70,7 @@ def test_unit_drag_distribution_matches_appendix_a():
 
 def test_unit_roll_distribution_matches_appendix_a():
     geom, wm, u = _units()
-    r = wing_inertia_distribution(geom, wm, WingLoadCase("1003", unbal_moment=-100000), u)
+    r = wing_inertia_distribution(WingLoadCase("1003", unbal_moment=-100000), u)
     tip = r.stations[-1]
     assert _close(tip.fz, -30, abs_=1.5)   # FZ = W*Y*1e5/Iwxx, p220
     assert _close(tip.sz, -30, abs_=1.5)
@@ -68,7 +80,7 @@ def test_unit_roll_distribution_matches_appendix_a():
 def test_combined_torsion_case_matches_appendix_a():
     # Case 138 TORS: Nz -2.54, Nx -0.1318, no roll (p221).
     geom, wm, u = _units()
-    r = wing_inertia_distribution(geom, wm, WingLoadCase("138", nz=-2.54, nx=-0.1318), u)
+    r = wing_inertia_distribution(WingLoadCase("138", nz=-2.54, nx=-0.1318), u)
     root = r.stations[0]
     assert _close(root.sz, -423)
     assert _close(root.sx, -22, abs_=2.0)
@@ -88,7 +100,7 @@ def test_an_empty_panel_weight_gives_an_empty_panel():
     """
     from dataclasses import replace
     geom, wm, _ = _units()
-    u = inertia_units(geom, replace(wm, panel_weight_lb=0.0))
+    u = inertia_units(geom, replace(wm, panel_weight_lb=0.0), *_ga6_plane())
     assert u.w == [0.0] * len(u.w)
     assert u.density_root == 0.0 and u.density_tip == 0.0
 
@@ -96,7 +108,7 @@ def test_an_empty_panel_weight_gives_an_empty_panel():
 def test_inboard_strips_carry_no_panel_mass():
     # Strips inboard of the rib (BL 23) have zero panel weight (WINGINER.BAS 770).
     geom, wm, u = _units()
-    r = wing_inertia_distribution(geom, wm, WingLoadCase("v", nz=1.0), u)
+    r = wing_inertia_distribution(WingLoadCase("v", nz=1.0), u)
     assert r.stations[0].fz == 0.0     # Y = 5.025 < 23
     assert r.stations[1].fz == 0.0     # Y = 15.075 < 23
 
@@ -105,15 +117,16 @@ def test_concentrated_weight_adds_inboard_shear():
     # A concentrated weight adds its full load to the shear at every inboard station.
     from sloads import WingMassInput
     geom, _, _ = _units()
+    plane = _ga6_plane()
+    plain = WingMassInput(panel_weight_lb=165, tip_root_density_ratio=0.95, inboard_rib_y=23)
     base = wing_inertia_distribution(
-        geom, WingMassInput(panel_weight_lb=165, tip_root_density_ratio=0.95, inboard_rib_y=23,
-                            wrp_waterline=78.5, dihedral_deg=6.0), WingLoadCase("v", nz=1.0))
+        WingLoadCase("v", nz=1.0), inertia_units(geom, plain, *plane))
     from sloads import ConcentratedWeight
+    loaded = WingMassInput(
+        panel_weight_lb=165, tip_root_density_ratio=0.95, inboard_rib_y=23,
+        concentrated=[ConcentratedWeight("store", 100.0, x=83.0, y=100.0, z=87.0)])
     withcw = wing_inertia_distribution(
-        geom, WingMassInput(panel_weight_lb=165, tip_root_density_ratio=0.95, inboard_rib_y=23,
-                            wrp_waterline=78.5, dihedral_deg=6.0,
-                            concentrated=[ConcentratedWeight("store", 100.0, x=83.0, y=100.0, z=87.0)]),
-        WingLoadCase("v", nz=1.0))
+        WingLoadCase("v", nz=1.0), inertia_units(geom, loaded, *plane))
     # Root shear rises by the full 100 lb; a station outboard of the weight is unchanged.
     assert math.isclose(withcw.stations[0].sz - base.stations[0].sz, 100.0, abs_tol=1e-6)
     assert math.isclose(withcw.stations[-1].sz, base.stations[-1].sz, abs_tol=1e-6)

@@ -32,6 +32,7 @@ from sloads import Project, SelectInput, TailLoadsInput, VTailLoadsInput, io  # 
 from sloads.modules import select  # noqa: E402
 from sloads.modules.flight_envelope import build_envelope  # noqa: E402
 from sloads.cg_cases import flight_cases  # noqa: E402
+from sloads.derived_geometry import require_wing_reference  # noqa: E402
 
 _EXAMPLES = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "examples")
 _GA = os.path.join(_EXAMPLES, "ga6_normal.project.json")
@@ -175,11 +176,11 @@ def test_rational_balancing_tail_load_hand_calc():
     # -387.78, elevator deflection -5.39 deg, total LT 519.845, CP 6.35% tail MAC.
     # Our envelope inherits FLTLOADS' +-0.005-NZ noise, so ~0.2% here.
     p = _ga6_three_altitudes()
-    fl = p.flight_loads
+    wr = require_wing_reference(p)
     cg1 = next(c for c in flight_cases(p) if c.name == "CG1")
     pt = next(v for v in build_envelope(p).vn
               if v.condition == "STALL +N" and v.cg == "CG1" and v.altitude_ft == 18000)
-    b = select.htail_balance(pt, cg1, fl.xw, fl.zw, _TAIL)
+    b = select.htail_balance(pt, cg1, wr.xw, wr.zw, _TAIL)
     assert math.isclose(b.lt25, 907.62, rel_tol=3e-3), b.lt25
     assert math.isclose(b.lt50, -387.78, rel_tol=5e-3), b.lt50
     assert math.isclose(b.at, 7.747, abs_tol=0.05), b.at   # alpha carries FLTLOADS noise

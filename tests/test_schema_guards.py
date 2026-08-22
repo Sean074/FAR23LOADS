@@ -260,7 +260,23 @@ def fields_hash() -> str:
 #: ``cn_beta_fin`` and ``BalancedCaseResult`` gains ``body_side_force`` /
 #: ``body_yaw_moment`` / ``beta_deg`` / ``cn_beta_net`` (result fields). All
 #: additive with ``None``/``0.0`` defaults, so no migration hop.
-EXPECTED_FIELDS_HASH = "b3a36f14d534fc5b"
+#: Note 33 (DS-1, derived-scalar consolidation): five fields were **removed** —
+#: ``WingMassInput.dihedral_deg``/``wrp_waterline`` and ``LandingInput.main_gear``/
+#: ``nose_gear``/``tread_in``, plus ``LandingInput.wing_area_sqft`` and
+#: ``FlightLoadsInput``'s ``mac``/``wing_area_sqft``/``xw``/``zw`` — ten fields in
+#: all. A removal normally demands a hop, and this one does
+#: not, for a reason that was checked rather than assumed: **none of the five was
+#: ever written**. ``wing_mass_to_dict`` popped its two and ``landing_to_dict``
+#: popped its three, so no `project.json` this program has ever produced contains
+#: those keys — verified against all six shipped examples, whose ``landing`` and
+#: ``wing_mass`` objects carry none of them, and whose save→reload→save is a fixed
+#: point before and after. ``LandingInput.wing_area_sqft`` was popped by
+#: ``landing_to_dict`` for the same reason, ``flight_loads_to_dict`` emitted only
+#: xtc/xtf/mn/altitudes_ft, and all of it is covered by the same check. A legacy file that did carry them still loads: the
+#: readers moved from an explicit exclusion list to ``_filtered``, which drops
+#: unknown keys anyway. On-disk shape is therefore unchanged and
+#: ``SCHEMA_VERSION`` stays at 54.
+EXPECTED_FIELDS_HASH = "f47688a9acda539f"
 
 
 def test_persisted_dataclass_shapes_are_unchanged():

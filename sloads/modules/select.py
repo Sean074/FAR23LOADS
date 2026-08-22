@@ -67,7 +67,7 @@ from ..constants import (
     dynamic_pressure_psf,
     gust_alleviation_factor,
 )
-from ..derived_geometry import sync_geometry_derived
+from ..derived_geometry import sync_geometry_derived, wing_reference
 from ..models import (
     CaseRef,
     CgCase,
@@ -368,7 +368,8 @@ def select_htail_balancing(project: Project,
     extended (excluding the off-pipeline LEV LAND point)."""
     ti = project.tail_loads
     fl = project.flight_loads
-    if ti is None or fl is None:
+    wr = wing_reference(project)
+    if ti is None or fl is None or wr is None:
         return []
     cg_map: Dict[str, CgCase] = {c.name: c for c in flight_cases(project)}
     flaps: Dict[str, bool] = flaps_by_config_name(project)
@@ -382,7 +383,7 @@ def select_htail_balancing(project: Project,
         bucket = extended if flaps.get(p.config, False) else retracted
         if bucket is extended and p.condition == "LEV LAND":
             continue
-        bucket.append((p, htail_balance(p, cg, fl.xw, fl.zw, ti)))
+        bucket.append((p, htail_balance(p, cg, wr.xw, wr.zw, ti)))
 
     def emit(label: str, pick) -> CriticalCondition:
         p, b = pick
@@ -454,7 +455,8 @@ def select_htail_maneuver(project: Project,
     flaps retracted: full elevator deflection at the 1g VA points (unchecked) and a
     pitch-acceleration increment at the VC/VD points (checked)."""
     ti, fl = project.tail_loads, project.flight_loads
-    if ti is None or fl is None:
+    wr = wing_reference(project)
+    if ti is None or fl is None or wr is None:
         return []
     cg_map: Dict[str, CgCase] = {c.name: c for c in flight_cases(project)}
     np_ = design_inputs(project).n_pos
@@ -463,7 +465,7 @@ def select_htail_maneuver(project: Project,
     vn = _resolve_envelope(project, envelope).vn
 
     def bal(p: VnPoint):
-        return htail_balance(p, cg_map[p.cg], fl.xw, fl.zw, ti)
+        return htail_balance(p, cg_map[p.cg], wr.xw, wr.zw, ti)
 
     def in_cg(p: VnPoint) -> bool:
         return p.cg in cg_map and not p.config.upper().startswith("LAND")
@@ -529,12 +531,13 @@ def select_htail_gust(project: Project,
     """Up and down gust tail loads, flaps retracted (FAR 23.425(a)(1)): the initial
     balancing load plus the rational gust increment at the BAL C / BAL D points."""
     ti, fl = project.tail_loads, project.flight_loads
-    if ti is None or fl is None:
+    wr = wing_reference(project)
+    if ti is None or fl is None or wr is None:
         return []
     cg_map: Dict[str, CgCase] = {c.name: c for c in flight_cases(project)}
     aht = 2.0 * math.pi / (1.0 + 2.0 / ti.aspect_ratio_htail)
     aw, arw = ti.wing_lift_slope_per_rad, ti.aspect_ratio_wing
-    mac_ft = fl.mac / IN_PER_FT
+    mac_ft = wr.mac / IN_PER_FT
     vn = _resolve_envelope(project, envelope).vn
 
     def gust_increment(p: VnPoint) -> float:
@@ -543,7 +546,7 @@ def select_htail_gust(project: Project,
         if p.altitude_ft > 20000.0:
             ude *= 1.0 - 0.5 * (p.altitude_ft - 20000.0) / 30000.0
         rho = density_ratio(p.altitude_ft) * RHO_SL
-        ug = 2.0 * (w / fl.wing_area_sqft) / (rho * mac_ft * aw * G)
+        ug = 2.0 * (w / wr.s_sqft) / (rho * mac_ft * aw * G)
         kg = gust_alleviation_factor(ug)
         return (kg * ude * p.v_eas_kt * ti.htail_area_sqft * aht
                 * (1.0 - 36.0 * (aw / DEG_PER_RAD) / arw) / GUST_LOAD_FACTOR_DIVISOR)
@@ -554,7 +557,7 @@ def select_htail_gust(project: Project,
         return []
 
     def bal_full(p: VnPoint) -> HtailBalance:
-        return htail_balance(p, cg_map[p.cg], fl.xw, fl.zw, ti)
+        return htail_balance(p, cg_map[p.cg], wr.xw, wr.zw, ti)
 
     def bal_lt(p: VnPoint) -> float:
         return bal_full(p).lt
@@ -579,7 +582,7 @@ def select_htail_gust(project: Project,
     # sea-level density (FLTLOADS.BAS 5700-5910).
     def flap_gust_increment(p: VnPoint) -> float:
         w = cg_map[p.cg].weight_lb
-        ug = 2.0 * (w / fl.wing_area_sqft) / (RHO_SL * mac_ft * aw * G)
+        ug = 2.0 * (w / wr.s_sqft) / (RHO_SL * mac_ft * aw * G)
         kg = gust_alleviation_factor(ug)
         return (kg * 25.0 * p.v_eas_kt * ti.htail_area_sqft * aht
                 * (1.0 - 36.0 * (aw / DEG_PER_RAD) / arw) / GUST_LOAD_FACTOR_DIVISOR)
@@ -766,11 +769,11 @@ def fin_sideslip_derivatives(project: Project, vt: VTailLoadsInput
     the +aft/+starboard/+up frame -- negative, restoring, for an aft fin).
     ``(None, None)`` when the wing reference (``S``, ``b``, ``xw``) is missing.
     """
-    fl = project.flight_loads
-    if fl is None or fl.wing_area_sqft <= 0.0 or vt.wing_span_in <= 0.0:
+    wr = wing_reference(project)
+    if wr is None or wr.s_sqft <= 0.0 or vt.wing_span_in <= 0.0:
         return None, None
-    cy = -(_avt(vt) / DEG_PER_RAD) * vt.vtail_area_sqft / fl.wing_area_sqft
-    cn = cy * (vt.xv25 - fl.xw) / vt.wing_span_in
+    cy = -(_avt(vt) / DEG_PER_RAD) * vt.vtail_area_sqft / wr.s_sqft
+    cn = cy * (vt.xv25 - wr.xw) / vt.wing_span_in
     return cy, cn
 
 

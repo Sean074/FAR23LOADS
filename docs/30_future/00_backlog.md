@@ -170,8 +170,8 @@ traceability with plans 09/11/12/13; the **Pri** column is ordinal only.
 | Pri | Item (detail below / in its plan) | What ships | Tag | Tier / effort | Depends on |
 |---|---|---|---|---|---|
 | **A — 0.7.0: the oracle GUI fully functional + the 2026-08-20 review's MAJOR defect fixes (CR-\* keys resolve in that review)** ||||||
-| 1 | **Oracle form persist path: pending-record clobber** (CR-A-1 `[MAJOR]`, CR-A-3, CR-A-6) (#35) | Two edits in one rerun both persist (`_PENDING` keyed on `(owner, name)`, not append-order); the Optional-falsy and dropped-curve-row behaviors decided and stated in-band; a two-edits-one-rerun AppTest per affected page shape | V | M / M | — |
-| 2 | **One owner at render: the registry reaches the widgets** (CR-A-2 `[MAJOR]`; closes the gear-fields-unreachable and dead-`speeds.wing_area_sqft` findings from #29/note 32 §8) (#36) | `render_scalar` reads `is_owner`/`derived_from`: non-owner copies render derived/disabled with the owner named, disagreement warns; the three gear fields get widgets so a GUI-built project exports gear nodes; the dead wing-area input resolved (wired or removed as a copy); drift guard: no editable non-owner widget | V | M / M | Pri 1 |
+| 1 | **Project load does not reach the oracle form's widgets — and the stale widgets overwrite the loaded project** (found 2026-08-21; the data-loss half of parked **L-8d**, `[MAJOR]`) (#51) | `adopt()` invalidates form widget state (a project generation carried into every widget key), so a page visited before a load re-renders from the loaded project instead of from its own retained widget values — and therefore stops writing those values back over it; the same class swept across `app/views/` (rule 4); an AppTest per page shape: render → adopt a fixture → re-render, widgets **and** the session project both equal the fixture | V | M / S–M | — |
+| 2 | **One owner at render: the registry reaches the widgets** (CR-A-2 `[MAJOR]`; the dead-`speeds.wing_area_sqft` finding from #29/note 32 §8) (#36) | **Two of three halves shipped 2026-08-21.** The gear fields got widgets (plus the page-generic *Apply never deletes* guard), and [note 33](33_derived_scalar_consolidation_note.md) consolidated the duplicates rather than decorating them: ten multi-copy quantities are now **four**, so `render_scalar` has two genuine overrides to mark (`max take-off weight`, `wing reference area`) instead of ten copies to disable. What remains: mark those two, resolve the dead `speeds.wing_area_sqft` (wire it or remove it as a copy), and the drift guard that no non-owner widget is editable | V | M / S | — |
 | 3 | **Oracle GUI scope + nav polish** (CR-A-4, CR-A-5/CR-D-10, CR-A-9) (#37) | No Switch-to-Concept action in the oracle GUI (`banner=False` or warning-only); the shell's bare `except Exception` narrowed to `StreamlitAPIException`; `oracle_steps()[0]` hoisted | V | S / S | — |
 | 4 | **SELECT keyed pick through `_extreme` + AST drift guard** (CR-B-1 `[MAJOR]`) (#38) | The 23.423(a) `BAL A` pick routed through `_extreme`; the §7 guard rebuilt as an AST walk (builtin `min`/`max` with `key=`); the `landing.py:596` tie-family sibling adopts the tie rule | E | M / S | — |
 | 5 | **Concept→FAR23 reduction identity gated exactly** (CR-B-2 `[MAJOR]`) (#39) | `_assert_modules_identical` at `==` (bit-for-bit), not ±0.1 %; if any value fails exact equality, that divergence is investigated as its own finding | E | S / S | — |
@@ -192,11 +192,12 @@ traceability with plans 09/11/12/13; the **Pri** column is ordinal only.
 | 17 | Mach-capped balanced points are published with their coefficients extrapolated past the fitted stall alpha, and nothing says so *(from the #13 closure, D-30)* (#32) | A derived past-fit marker wherever a per-point quantity is published (BALLOADS' 300 rows first); rows stay published and marked, never withheld; no schema field — the marker is the point's own CL against its Mach-adjusted stall CL | V | M / S–M | — |
 | 18 | **Certification basis / case manifest** *(review 2026-08-20 §6 rank 7)* (#47) | The per-condition coverage matrix as a deliverable, so the next FAR 25 case lands against a stated basis rather than a blind matrix | V | L / M | design note first |
 | **D — maintenance and hygiene, when the module is next touched (review 2026-08-16 §5.2; BR-9)** ||||||
-| 19 | Export deck-writing primitives out of `sbeam_bridge.py` (CH-4) (#15) | `_fmt`/`_sf_str`/`_stamped`/`_MAT1_*`/`_PBAR_*` in a shared module; the four private cross-imports gone | V | S / S | — |
-| 20 | Dead code (CH-5) (#16) | Delete `write_balanced_deck`, `write_conm2_fragment`, `write_mass_check_deck`, `all_checks`; demote the ~12 no-consumer public names | V | S / S | — |
-| 21 | Calc-side function size (CH-8) — `build_lra_model` (336 lines), `landing_reactions` (200) (#17) | Split when touched; **the view functions wait for the GUI review (#29)** | V | S / S | — |
-| 22 | Review 2026-08-10 unscheduled findings m3–m13, m15–m18 + NITs *(defect sweep)* (#18) | Swept opportunistically (practice 4) or promoted individually | V | S / S–M | — |
-| 23 | mypy strictness ratchet — stage 2 `export/`, stage 3 `modules/` *(design note 27 ST-3; detail below)* (#19) | `sloads.export.*` then `sloads.modules.*` added to the `[[tool.mypy.overrides]]` list and narrowed to zero under ST-4 (no `ignore`, no `Any` widening, no `cast`); then `warn_return_any`/`disallow_any_generics` toward `--strict`; `UP` on when 3.9 leaves the matrix | V | S / S per stage | — |
+| 19 | **Two quantities are still entered twice, with nothing reconciling them** (note 33 DS-7; the class-C half of CR-A-2) (#52) | `speeds.mach_limit.shoulder_altitude_ft` vs `speeds.shoulder_altitude_ft`, and `geometry.empennage.vtail.airplane_length_in` vs the htail's: both members persisted, both read by their own consumer, so MC/MD can be computed at two different altitudes with no warning. Every shipped example happens to agree, which is why nothing has caught it. Removing either needs a **schema hop** with a migration that takes the owner's value and warns on disagreement — note 33 filed it rather than folding it in behind a no-hop change | V | **L** / S | the next schema hop (band A is hop-free by its own preamble) |
+| 20 | Export deck-writing primitives out of `sbeam_bridge.py` (CH-4) (#15) | `_fmt`/`_sf_str`/`_stamped`/`_MAT1_*`/`_PBAR_*` in a shared module; the four private cross-imports gone | V | S / S | — |
+| 21 | Dead code (CH-5) (#16) | Delete `write_balanced_deck`, `write_conm2_fragment`, `write_mass_check_deck`, `all_checks`; demote the ~12 no-consumer public names | V | S / S | — |
+| 22 | Calc-side function size (CH-8) — `build_lra_model` (336 lines), `landing_reactions` (200) (#17) | Split when touched; **the view functions wait for the GUI review (#29)** | V | S / S | — |
+| 23 | Review 2026-08-10 unscheduled findings m3–m13, m15–m18 + NITs *(defect sweep)* (#18) | Swept opportunistically (practice 4) or promoted individually | V | S / S–M | — |
+| 24 | mypy strictness ratchet — stage 2 `export/`, stage 3 `modules/` *(design note 27 ST-3; detail below)* (#19) | `sloads.export.*` then `sloads.modules.*` added to the `[[tool.mypy.overrides]]` list and narrowed to zero under ST-4 (no `ignore`, no `Any` widening, no `cast`); then `warn_return_any`/`disallow_any_generics` toward `--strict`; `UP` on when 3.9 leaves the matrix | V | S / S per stage | — |
 
 **Frozen (review §3) — no further investment; tests and gates kept; touched
 for defects only:** the FAR 23 core; the balanced assembler + handedness;
@@ -214,6 +215,29 @@ closes, except L-8d which lands with Pri 12); F25-2.
 
 ## Open defects (index)
 
+- **Oracle GUI: a loaded project does not reach the widgets, and the widgets
+  overwrite it** `[MAJOR]` (found 2026-08-21, Pri 2; issue to open). Every widget
+  in `oracle_app/form.py` is keyed by its registry path (`key=path`, and
+  `f"{prefix}.{index}"` for table rows), and those keys are stable across
+  projects; Streamlit widget state, once registered, wins over the `value=`
+  argument on later reruns. `adopt()` (`app_shell/project_state.py`) replaces
+  `st.session_state["project"]` and touches no widget key. So a page **visited
+  before** a load re-renders from its own retained state: open the oracle GUI on
+  the seed `Project(name="")`, visit Weight & Mass Properties, upload
+  `examples/atr42_100.project.json`, and the page shows `0` / `""` / 0 rows.
+  Verified with AppTest — adopt-then-render in one pass reads MTOW 36817, the
+  airplane name, 21 items and 8 CG cases; render-then-adopt reads zeros with the
+  *same* project object in session state. **It is not a display defect:**
+  `render_scalar`/`render_table` write the widget value back onto the record, so
+  the second render wrote the zeros into the loaded project — the table `count`
+  widget held 0, so all 21 `weight.items` and all 8 `cg_cases` were popped. Save
+  from that state and the file on disk goes too. The oracle GUI has no Apply
+  step, which is exactly the assumption parked **L-8d** rests its
+  "not a data-loss bug" on for `app/views/`; that rationale does not transfer,
+  and the sweep (rule 4) has to establish it view by view. Fix at the one choke
+  point — `adopt()` is the only place that means "the project was replaced" — by
+  carrying a project generation into every widget key rather than clearing a
+  list of keys the shell would have to keep in step with the registry.
 - #18 — Review 2026-08-10 unscheduled findings [Minor/NIT].
 
 Two long-standing entries left this list on 2026-08-18 at the issue #13 closure —

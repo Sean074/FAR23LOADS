@@ -421,6 +421,14 @@ if applied:
         design_yaw_rate_rad_s=design_yaw_rate,
         design_pitch_rate_rad_s=design_pitch_rate,
         thrust_lb=thrust_lb,
+        # No widget renders ``mounted_on`` (BM-4's engine parent), so it has to be
+        # carried across explicitly: rebuilding the input from the form alone reset
+        # a stated "fuselage" to None, and the deck then inferred the parent from
+        # the CG butt line and marked it assumed -- silently replacing the user's
+        # statement with a guess (#36). Carried by name rather than by
+        # ``dataclasses.replace`` because ``to_imperial`` runs over the result, and
+        # a carried *numeric* field would be converted a second time.
+        mounted_on=engines_working[idx].mounted_on,
     )
     engines_working[idx] = to_imperial(inp_display, system)
     project.engines = engines_working

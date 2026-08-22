@@ -71,7 +71,11 @@ from ..constants import (
     gust_alleviation_factor,
     standard_atmosphere,
 )
-from ..derived_geometry import sync_geometry_derived
+from ..derived_geometry import (
+    WingReference,
+    require_wing_reference,
+    sync_geometry_derived,
+)
 from ..models import (
     AeroCoeffSet,
     CgCase,
@@ -132,15 +136,16 @@ class _Balanced:
 
 
 def _balance(n: float, v_init: float, mach_cap: float, config: AeroCoeffSet,
-             cg: CgCase, fl: FlightLoadsInput, altitude_ft: float) -> _Balanced:
+             cg: CgCase, fl: FlightLoadsInput, wr: WingReference,
+             altitude_ft: float) -> _Balanced:
     """Balance one flight condition: solve AoA for load factor ``n`` (subr 3900).
 
     ``v_init`` is the equivalent airspeed (a guess for stall-line conditions,
     where the dynamic pressure is then iterated until CL hits the stall limit).
     """
     xt = fl.xtf if config.flaps_down else fl.xtc
-    s = fl.wing_area_sqft
-    mac = fl.mac
+    s = wr.s_sqft
+    mac = wr.mac
     gmn = 1.0 / math.sqrt(1.0 - fl.mn ** 2)
     kmn = _clmax_curve(fl.mn)
     sig = density_ratio(altitude_ft)
@@ -173,7 +178,7 @@ def _balance(n: float, v_init: float, mach_cap: float, config: AeroCoeffSet,
             mm = cm * q * s * mac
             lz = ll * math.cos(al * RAD_PER_DEG) + d * math.sin(al * RAD_PER_DEG)
             dx = d * math.cos(al * RAD_PER_DEG) - ll * math.sin(al * RAD_PER_DEG)
-            lt = (lz * (cg.xcg - fl.xw) - dx * (cg.zcg - fl.zw) + mm) / (xt - cg.xcg)
+            lt = (lz * (cg.xcg - wr.xw) - dx * (cg.zcg - wr.zw) + mm) / (xt - cg.xcg)
             nz = (lz + lt) / cg.weight_lb
             if n - 0.005 <= nz <= n + 0.005:
                 break
@@ -185,7 +190,7 @@ def _balance(n: float, v_init: float, mach_cap: float, config: AeroCoeffSet,
             if da < 0.005:
                 da = 0.005
         last = _Balanced(v_eas=v, nz=nz, alpha=al, g=g, cl=cl, mm=mm, lz=lz,
-                         lt=(lz * (cg.xcg - fl.xw) - dx * (cg.zcg - fl.zw) + mm) / (xt - cg.xcg),
+                         lt=(lz * (cg.xcg - wr.xw) - dx * (cg.zcg - wr.zw) + mm) / (xt - cg.xcg),
                          dx=dx)
 
         # Dynamic-pressure iteration to bring CL onto the (Mach-adjusted) stall line.
@@ -211,7 +216,8 @@ def _gust_ude(ref: str, altitude_ft: float) -> float:
 
 
 def _gust_load_factor(ng: int, v: float, mach_cap: float, ref: str, config: AeroCoeffSet,
-                      cg: CgCase, fl: FlightLoadsInput, altitude_ft: float) -> float:
+                      cg: CgCase, fl: FlightLoadsInput, wr: WingReference,
+                      altitude_ft: float) -> float:
     """Gust normal load factor (FAR 23.341, subroutine 4864).
 
     ``ref`` is the speed the gust is applied at ("C" = VC, "D" = VD, "F" = VF),
@@ -231,8 +237,8 @@ def _gust_load_factor(ng: int, v: float, mach_cap: float, ref: str, config: Aero
     gmn = 1.0 / math.sqrt(1.0 - fl.mn ** 2)
     c1 = config.lift[1] * g / gmn          # lift-curve slope per deg, Glauert-corrected
     rho = RHO_SL * sig
-    ws = cg.weight_lb / fl.wing_area_sqft
-    ug = 2.0 * ws / (rho * fl.mac / IN_PER_FT * c1 * DEG_PER_RAD * G)
+    ws = cg.weight_lb / wr.s_sqft
+    ug = 2.0 * ws / (rho * wr.mac / IN_PER_FT * c1 * DEG_PER_RAD * G)
     kg = gust_alleviation_factor(ug)
     return 1.0 + ng * kg * ude * v * c1 * DEG_PER_RAD / (GUST_LOAD_FACTOR_DIVISOR * ws)
 
@@ -276,10 +282,11 @@ def design_inputs(project: Project) -> _DesignInputs:
 # Cruise maneuver + gust corner set (FLTLOADS.BAS lines 1000-1594)
 # --------------------------------------------------------------------------- #
 def _config_points(config: AeroCoeffSet, cg: CgCase, fl: FlightLoadsInput,
-                   alt: float, di: _DesignInputs, case: int) -> "tuple[List[VnPoint], int]":
+                   wr: WingReference, alt: float, di: _DesignInputs,
+                   case: int) -> "tuple[List[VnPoint], int]":
     """The cruise maneuver+gust V-n corner points for one config / CG / altitude."""
     w = cg.weight_lb
-    s = fl.wing_area_sqft
+    s = wr.s_sqft
     pts: List[VnPoint] = []
     state = {"v9": 0.0}
 
@@ -289,7 +296,7 @@ def _config_points(config: AeroCoeffSet, cg: CgCase, fl: FlightLoadsInput,
 
     def add(cond: str, n: float, v: float, cap: float) -> _Balanced:
         nonlocal case
-        b = _balance(n, v, cap, config, cg, fl, alt)
+        b = _balance(n, v, cap, config, cg, fl, wr, alt)
         case += 1
         pts.append(VnPoint(
             case=case, condition=cond, config=config.name, cg=cg.name, altitude_ft=alt,
@@ -299,7 +306,7 @@ def _config_points(config: AeroCoeffSet, cg: CgCase, fl: FlightLoadsInput,
         return b
 
     def add_gust(cond: str, ng: int, v: float, cap: float, ref: str) -> _Balanced:
-        n = _gust_load_factor(ng, v, cap, ref, config, cg, fl, alt)
+        n = _gust_load_factor(ng, v, cap, ref, config, cg, fl, wr, alt)
         return add(cond, n, v, cap)
 
     cat = di.category
@@ -331,7 +338,8 @@ def _config_points(config: AeroCoeffSet, cg: CgCase, fl: FlightLoadsInput,
 
 
 def _flap_config_points(config: AeroCoeffSet, cg: CgCase, fl: FlightLoadsInput,
-                        alt: float, di: _DesignInputs, case: int) -> "tuple[List[VnPoint], int]":
+                        wr: WingReference, alt: float, di: _DesignInputs,
+                        case: int) -> "tuple[List[VnPoint], int]":
     """The flaps-extended (LANDING) V-n corner set at the flap speed VF
     (FLTLOADS.BAS subroutine 3000): the flap envelope is limited to n=2 (FAR 23.345)
     and investigated at sea level only. Conditions: stall at 2/3 g / 1 g / 2 g, the
@@ -343,7 +351,7 @@ def _flap_config_points(config: AeroCoeffSet, cg: CgCase, fl: FlightLoadsInput,
     condition, and Appendix A p178 case 9 prints V 83.6 kt / LT -430 lb (landing-config
     polynomials p176). (Earlier code balanced at 1.4x the STALL 2G speed, giving a
     balance speed ~1.4x too high and a tail load ~2.2x too large -- review finding T2.)"""
-    w, s = cg.weight_lb, fl.wing_area_sqft
+    w, s = cg.weight_lb, wr.s_sqft
     scl = config.stall_cl
     pts: List[VnPoint] = []
 
@@ -352,7 +360,7 @@ def _flap_config_points(config: AeroCoeffSet, cg: CgCase, fl: FlightLoadsInput,
 
     def add(cond: str, n: float, v: float, cap: float) -> _Balanced:
         nonlocal case
-        b = _balance(n, v, cap, config, cg, fl, alt)
+        b = _balance(n, v, cap, config, cg, fl, wr, alt)
         case += 1
         pts.append(VnPoint(
             case=case, condition=cond, config=config.name, cg=cg.name, altitude_ft=alt,
@@ -362,7 +370,7 @@ def _flap_config_points(config: AeroCoeffSet, cg: CgCase, fl: FlightLoadsInput,
         return b
 
     def add_gust(cond: str, ng: int, v: float, cap: float) -> _Balanced:
-        n = _gust_load_factor(ng, v, cap, "F", config, cg, fl, alt)
+        n = _gust_load_factor(ng, v, cap, "F", config, cg, fl, wr, alt)
         return add(cond, n, v, cap)
 
     add("STAL 2/3G", 2.0 / 3.0, stall_v(2.0 / 3.0), di.mc)
@@ -413,6 +421,7 @@ def build_envelope(project: Project) -> EnvelopeResult:
     fl = project.flight_loads
     if fl is None:
         raise MissingInputError("Project has no 'flight_loads' inputs for the flight_envelope module")
+    wr = require_wing_reference(project)
     if project.speeds is None:
         raise MissingInputError("flight_envelope needs 'speeds' (STRSPEED) for the design speeds")
     configs = balance_configs(project.aero_coeffs)
@@ -437,7 +446,7 @@ def build_envelope(project: Project) -> EnvelopeResult:
             xt = fl.xtf if config.flaps_down else fl.xtc
             corner = _flap_config_points if config.flaps_down else _config_points
             for cg in cg_cases:
-                pts, case = corner(config, cg, fl, alt, di, case)
+                pts, case = corner(config, cg, fl, wr, alt, di, case)
                 vn.extend(pts)
                 for p in pts:
                     tail.append(TailBalanceLoad(
@@ -483,6 +492,7 @@ def trim_sweep(project: Project, *, weight_lb: float, zcg: float,
     fl = project.flight_loads
     if fl is None:
         raise MissingInputError("trim_sweep needs 'flight_loads' inputs")
+    wr = require_wing_reference(project)
     if project.speeds is None:
         raise MissingInputError("trim_sweep needs 'speeds' (STRSPEED) for the design speeds")
     cruise = next((c for c in balance_configs(project.aero_coeffs) if not c.flaps_down), None)
@@ -498,7 +508,7 @@ def trim_sweep(project: Project, *, weight_lb: float, zcg: float,
         vs: List[float] = []
         for x in xcg_stations:
             cg = CgCase(name="sweep", weight_lb=weight_lb, xcg=x, zcg=zcg)
-            b = _balance(1.0, v, cap, cruise, cg, fl, altitude_ft)
+            b = _balance(1.0, v, cap, cruise, cg, fl, wr, altitude_ft)
             xs.append(x)
             lts.append(b.lt)
             nzs.append(b.nz)

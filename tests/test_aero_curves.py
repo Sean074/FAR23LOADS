@@ -39,6 +39,7 @@ from sloads.aero_curves import (
     reference_glauert,
     stall_limits,
 )
+from sloads.derived_geometry import require_wing_reference
 from sloads.modules.flight_envelope import balance_configs, build_envelope
 from sloads.validation import consistency_warnings
 
@@ -59,8 +60,9 @@ def _closures(path):
     project = io.load_project(path)
     env = build_envelope(project)
     fl = project.flight_loads
+    wr = require_wing_reference(project)
     return project, env, [
-        curve_closure(env, cfg, wing_area_sqft=fl.wing_area_sqft, mach_ref=fl.mn)
+        curve_closure(env, cfg, wing_area_sqft=wr.s_sqft, mach_ref=fl.mn)
         for cfg in balance_configs(project.aero_coeffs)
     ]
 
@@ -183,6 +185,7 @@ def test_the_atr42_stall_exceedance_is_the_documented_mach_capped_one():
     """
     project, env, closures = _closures(_ATR)
     fl = project.flight_loads
+    wr = require_wing_reference(project)
     cfg = balance_configs(project.aero_coeffs)[0]
     assert len(closures) == 1
     assert 0.2 < closures[0].worst_stall_excess < 0.35
@@ -193,7 +196,7 @@ def test_the_atr42_stall_exceedance_is_the_documented_mach_capped_one():
 
     exceeding = []
     for p in env.vn:
-        rec = recovered_cl(p, fl.wing_area_sqft)
+        rec = recovered_cl(p, wr.s_sqft)
         pos, neg = stall_limits(cfg, p.g_corr, fl.mn)
         if max(rec - pos, neg - rec) > STALL_CLOSURE_TOL:
             exceeding.append(p)
@@ -206,9 +209,10 @@ def test_a_perturbed_lift_polynomial_breaks_the_recovered_cl_closure():
     than the ones that produced it must fail."""
     project, env, _ = _closures(_GA6)
     fl = project.flight_loads
+    wr = require_wing_reference(project)
     cfg = balance_configs(project.aero_coeffs)[0]
     bent = replace(cfg, lift=(cfg.lift[0] + 0.05,) + tuple(cfg.lift[1:]))
-    c = curve_closure(env, bent, wing_area_sqft=fl.wing_area_sqft, mach_ref=fl.mn)
+    c = curve_closure(env, bent, wing_area_sqft=wr.s_sqft, mach_ref=fl.mn)
     assert c.worst_cl > CL_CLOSURE_TOL
     assert not c.passed
     assert c.worst_cl_label
@@ -254,10 +258,10 @@ def test_an_unreachable_stall_cl_leaves_no_stall_alpha():
 
 def test_the_alpha_band_widens_to_hold_every_operating_point():
     project, env, _ = _closures(_GA6)
-    fl = project.flight_loads
+    wr = require_wing_reference(project)
     cfg = balance_configs(project.aero_coeffs)[0]
-    pts = operating_points(env, cfg.name, wing_area_sqft=fl.wing_area_sqft,
-                           mac_in=fl.mac)
+    pts = operating_points(env, cfg.name, wing_area_sqft=wr.s_sqft,
+                           mac_in=wr.mac)
     assert len(pts) == len(pts.cl) == len(pts.cd) == len(pts.cm) == len(pts.label)
     assert len(pts) > 0
     curves = build_aero_curves(cfg, points=pts)
@@ -272,12 +276,13 @@ def test_the_overlay_points_lie_on_the_curve():
     """Recovered operating points reproduce the polynomial, Glauert included."""
     project, env, _ = _closures(_GA6)
     fl = project.flight_loads
+    wr = require_wing_reference(project)
     gmn = reference_glauert(fl.mn)
     cfg = balance_configs(project.aero_coeffs)[0]
     for p in env.vn:
         if p.config != cfg.name:
             continue
-        rec = recovered_cl(p, fl.wing_area_sqft)
+        rec = recovered_cl(p, wr.s_sqft)
         assert math.isclose(rec, lift_cl(cfg, p.alpha_deg, p.g_corr, gmn), abs_tol=1e-9)
 
 
