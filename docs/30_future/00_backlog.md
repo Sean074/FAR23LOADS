@@ -174,7 +174,6 @@ traceability with plans 09/11/12/13; the **Pri** column is ordinal only.
 | Pri | Item (detail below / in its plan) | What ships | Tag | Tier / effort | Depends on |
 |---|---|---|---|---|---|
 | **A — 0.7.0: the oracle GUI fully functional + the 2026-08-20 review's MAJOR defect fixes (CR-\* keys resolve in that review)** ||||||
-| 7 | `_balance` has no failure channel — both iteration loops return their last iterate with no signal *(promoted from band C: review 2026-08-20 §6 rank 2 — every V-n point, SELECT pick and balanced case consumes the unsignalled iterate)* (#33) | A converged/exhausted state on `_Balanced` covering **both** loops (rule 4), asserted in the closure tests; internal only, no published number and no schema field | V | S / S | — |
 | 8 | **Review 2026-08-20 MINOR/NIT sweep** (CR-B-4/B-5/B-6, CR-C-4/C-5/C-6, CR-A-7/A-8; + close stale parked L-8a as shipped) (#43) | Swept with their modules (practice 4) or opportunistically; the CG-name mismatch (CR-B-4) first — it is the one silent-zero into a load path | V | S / S–M | — |
 | — | **Cut 0.7.0** when band A is empty (RELEASE_PROCESS §2 cadence rule) | | | | |
 | **B — 0.8.0: the main-GUI review completed and its findings addressed** ||||||
@@ -186,7 +185,7 @@ traceability with plans 09/11/12/13; the **Pri** column is ordinal only.
 | **C — 1.0.0: additional analysis capability (consumer-gated; design notes first)** ||||||
 | 13 | The aileron's own lift increment is not distributed (#14) | `ACRL` wing cards gain the aero half of the couple (~70 % span); the schema fields shipped v52 and wait for data and a consumer | V | L / M | only if a consumer sizes to `ACRL` |
 | 14 | Ground-case fuselage station distribution — the ground family has no per-station view *(from the #11 closure, D-28)* (#31) | Per-station shear/bending/torsion for the ground family on the fuselage beam, its own envelope beside the flight one and never merged with it, each station naming its ground case | V | L / M | a frame-sizing consumer; design note first |
-| 15 | Mach-capped balanced points are published with their coefficients extrapolated past the fitted stall alpha, and nothing says so *(from the #13 closure, D-30)* (#32) | A derived past-fit marker wherever a per-point quantity is published (BALLOADS' 300 rows first); rows stay published and marked, never withheld; no schema field — the marker is the point's own CL against its Mach-adjusted stall CL | V | M / S–M | — |
+| 15 | Mach-capped balanced points are published with their coefficients extrapolated past the fitted stall alpha, and nothing says so *(from the #13 closure, D-30)* (#32) | A derived past-fit marker wherever a per-point quantity is published (BALLOADS' 300 rows first); rows stay published and marked, never withheld; no schema field — the marker reads `EnvelopeResult.is_clamped`, the owner #33 left (2026-08-22), rather than re-deriving the point's CL against its Mach-adjusted stall CL; the two are pinned to name the same rows | V | M / S–M | — |
 | 16 | **Certification basis / case manifest** *(review 2026-08-20 §6 rank 7)* (#47) | The per-condition coverage matrix as a deliverable, so the next FAR 25 case lands against a stated basis rather than a blind matrix | V | L / M | design note first |
 | **D — maintenance and hygiene, when the module is next touched (review 2026-08-16 §5.2; BR-9)** ||||||
 | 17 | **Two quantities are still entered twice, with nothing reconciling them** (note 33 DS-7; the class-C half of CR-A-2) (#52) | `speeds.mach_limit.shoulder_altitude_ft` vs `speeds.shoulder_altitude_ft`, and `geometry.empennage.vtail.airplane_length_in` vs the htail's: both members persisted, both read by their own consumer, so MC/MD can be computed at two different altitudes with no warning. Every shipped example happens to agree, which is why nothing has caught it. Removing either needs a **schema hop** with a migration that takes the owner's value and warns on disagreement — note 33 filed it rather than folding it in behind a no-hop change | V | **L** / S | the next schema hop (band A is hop-free by its own preamble) |
@@ -232,7 +231,8 @@ rule. Both keep their pins; the decisions carry what the bodies used to:
   is that CM/CD are evaluated 0.9–3.1 deg past their fit there, moving the
   published tail split by 3.3–44 % with **0 of the 9 SELECTed**, so no sizing load
   moves: filed as **#32** (mark the rows, band B) and **#33** (the solver's own
-  silence, band C). Pin:
+  silence — **closed 2026-08-22**: the nine are reported *clamped*, and #32's
+  marker reads that owner). Pin:
   `tests/test_aero_curves.py::test_the_atr42_stall_exceedance_is_the_documented_mach_capped_one`.
   The GA oracle and both concept fixtures close cleanly.
 

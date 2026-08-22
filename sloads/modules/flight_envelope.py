@@ -71,6 +71,7 @@ from ..constants import (
     gust_alleviation_factor,
     standard_atmosphere,
 )
+from ..convergence import SolveState, solver_failure
 from ..derived_geometry import (
     WingReference,
     require_wing_reference,
@@ -94,6 +95,13 @@ from .structural_speeds import design_speeds, maneuver_load_factors
 
 # 23.345 = high-lift devices (the flaps-down envelope, n<=2 at sea level).
 _FAR = "23.333/23.337/23.341/23.345/23.421"
+
+# Trip bounds on the balance's two iterations (FLTLOADS.BAS spun both without a
+# bound). Named because the refusals quote them: exhausting either is a defect,
+# not a tuning knob -- no shipped fixture takes more than 6 outer trips, and the
+# only solve that ever reaches the bound is a clamped one, which now breaks out.
+_OUTER_TRIPS = 200
+_INNER_TRIPS = 400
 
 
 # --------------------------------------------------------------------------- #
@@ -133,6 +141,9 @@ class _Balanced:
     lz: float
     lt: float
     dx: float
+    #: How the dynamic-pressure iteration ended (:mod:`sloads.convergence`).
+    #: Only ``CONVERGED`` or ``CLAMPED`` is ever returned -- ``FAILED`` is raised.
+    state: SolveState = SolveState.CONVERGED
 
 
 def _balance(n: float, v_init: float, mach_cap: float, config: AeroCoeffSet,
@@ -142,6 +153,19 @@ def _balance(n: float, v_init: float, mach_cap: float, config: AeroCoeffSet,
 
     ``v_init`` is the equivalent airspeed (a guess for stall-line conditions,
     where the dynamic pressure is then iterated until CL hits the stall limit).
+
+    Both loops report how they ended (#33, :mod:`sloads.convergence`). The
+    angle-of-attack loop has one acceptable end -- the load factor inside its
+    ±0.005 band -- and **raises** otherwise. The dynamic-pressure loop has two:
+    CL on the (Mach-adjusted) stall line, or a **clamped** solve, where the Mach
+    cap pins the true airspeed so ``q`` returns to the same value every trip and
+    the iteration has no lever. Clamped is a real flight state, not a defect
+    (decision **D-30**): the airplane is stall-limited at that altitude, which
+    **23.333(b)** excludes from the manoeuvring envelope rather than owing. It is
+    detected as an exact fixed point in ``q``, so breaking on it is arithmetically
+    the same as spinning out the remaining trips -- every one of them recomputes
+    the identical inner solve from the identical ``q``. Exhausting the trips with
+    ``q`` still moving is neither, and raises.
     """
     xt = fl.xtf if config.flaps_down else fl.xtc
     s = wr.s_sqft
@@ -153,7 +177,8 @@ def _balance(n: float, v_init: float, mach_cap: float, config: AeroCoeffSet,
 
     q = dynamic_pressure_psf(v_init)
     last: Optional[_Balanced] = None
-    for _ in range(200):  # outer: dynamic-pressure iteration (stall line)
+    q_prev: Optional[float] = None
+    for _ in range(_OUTER_TRIPS):  # outer: dynamic-pressure iteration (stall line)
         v = eas_from_dynamic_pressure(q)
         vt = v / math.sqrt(sig)
         mh = vt / a_sound
@@ -165,11 +190,16 @@ def _balance(n: float, v_init: float, mach_cap: float, config: AeroCoeffSet,
         g = 1.0 / math.sqrt(1.0 - mh ** 2)
         stall_cl = config.stall_cl * _clmax_curve(mh) / kmn
         neg_stall_cl = config.neg_stall_cl * _clmax_curve(mh) / kmn
+        # The Mach cap above pins ``v`` (and so ``q``) to one value; if this trip
+        # asks the inner solve the same question as the last, no further trip can
+        # answer it differently. That is the clamp, tested exactly.
+        no_lever = q == q_prev
+        q_prev = q
 
         al = -10.0 if n < 0 else 10.0
         da = 10.0
         cl = lz = dx = mm = 0.0
-        for _ in range(400):  # inner: angle-of-attack iteration
+        for _ in range(_INNER_TRIPS):  # inner: angle-of-attack iteration
             cl = lift_cl(config, al, g, gmn)
             cd = drag_cd(config, cl)
             cm = moment_cm(config, al, g, gmn)
@@ -189,6 +219,14 @@ def _balance(n: float, v_init: float, mach_cap: float, config: AeroCoeffSet,
                 al += da
             if da < 0.005:
                 da = 0.005
+        else:  # trips exhausted with NZ outside its band -- no balance exists here
+            raise solver_failure(
+                "the flight-envelope angle-of-attack iteration",
+                trips=_INNER_TRIPS,
+                detail=(f"target n={n:.4g}, reached NZ={nz:.6g} at alpha={al:.6g} deg, "
+                        f"V={v:.6g} kt(EAS), {altitude_ft:.0f} ft, CG '{cg.name}', "
+                        f"config '{config.name}'"),
+            )
         last = _Balanced(v_eas=v, nz=nz, alpha=al, g=g, cl=cl, mm=mm, lz=lz,
                          lt=(lz * (cg.xcg - wr.xw) - dx * (cg.zcg - wr.zw) + mm) / (xt - cg.xcg),
                          dx=dx)
@@ -196,11 +234,22 @@ def _balance(n: float, v_init: float, mach_cap: float, config: AeroCoeffSet,
         # Dynamic-pressure iteration to bring CL onto the (Mach-adjusted) stall line.
         if neg_stall_cl - 0.005 <= cl <= stall_cl + 0.005:
             break
+        if no_lever:  # q is a fixed point off the stall line: stall-limited (D-30)
+            last.state = SolveState.CLAMPED
+            break
         nw = n * cg.weight_lb
         if cl > stall_cl + 0.005:
             q = q + 0.75 * (-q / ((cl - stall_cl) * s * q / nw - 1.0) - q)
         elif cl < neg_stall_cl - 0.005:
             q = q + 0.75 * (-q / ((cl - neg_stall_cl) * s * q / nw - 1.0) - q)
+    else:  # trips exhausted with q still moving: neither on the stall line nor pinned
+        raise solver_failure(
+            "the flight-envelope dynamic-pressure iteration",
+            trips=_OUTER_TRIPS,
+            detail=(f"CL={cl:.6g} against a stall band [{neg_stall_cl:.6g}, "
+                    f"{stall_cl:.6g}] at n={n:.4g}, V={v:.6g} kt(EAS), "
+                    f"{altitude_ft:.0f} ft, CG '{cg.name}', config '{config.name}'"),
+        )
     assert last is not None
     return last
 
@@ -283,11 +332,16 @@ def design_inputs(project: Project) -> _DesignInputs:
 # --------------------------------------------------------------------------- #
 def _config_points(config: AeroCoeffSet, cg: CgCase, fl: FlightLoadsInput,
                    wr: WingReference, alt: float, di: _DesignInputs,
-                   case: int) -> "tuple[List[VnPoint], int]":
-    """The cruise maneuver+gust V-n corner points for one config / CG / altitude."""
+                   case: int) -> "tuple[List[VnPoint], int, List[int]]":
+    """The cruise maneuver+gust V-n corner points for one config / CG / altitude.
+
+    Returns the points, the running case counter, and the case numbers whose
+    balance came back **clamped** (#33) -- the stall-limited corners.
+    """
     w = cg.weight_lb
     s = wr.s_sqft
     pts: List[VnPoint] = []
+    clamped: List[int] = []
     state = {"v9": 0.0}
 
     def stall_v(n: float, clmax: float) -> float:
@@ -298,6 +352,8 @@ def _config_points(config: AeroCoeffSet, cg: CgCase, fl: FlightLoadsInput,
         nonlocal case
         b = _balance(n, v, cap, config, cg, fl, wr, alt)
         case += 1
+        if b.state is SolveState.CLAMPED:
+            clamped.append(case)
         pts.append(VnPoint(
             case=case, condition=cond, config=config.name, cg=cg.name, altitude_ft=alt,
             v_eas_kt=b.v_eas, nz=b.nz, alpha_deg=b.alpha, g_corr=b.g, cl=b.cl,
@@ -334,12 +390,12 @@ def _config_points(config: AeroCoeffSet, cg: CgCase, fl: FlightLoadsInput,
     add("ST ROL D", 2.0 * np_ / 3.0, di.vd, di.md)
     acc_n = 0.85 * np_ if w <= 1000.0 else np_ * (1.7 + 0.05 * (w - 1000.0) / 11500.0) / 2.0
     add("AC ROLL", acc_n, state["v9"], di.mc)
-    return pts, case
+    return pts, case, clamped
 
 
 def _flap_config_points(config: AeroCoeffSet, cg: CgCase, fl: FlightLoadsInput,
                         wr: WingReference, alt: float, di: _DesignInputs,
-                        case: int) -> "tuple[List[VnPoint], int]":
+                        case: int) -> "tuple[List[VnPoint], int, List[int]]":
     """The flaps-extended (LANDING) V-n corner set at the flap speed VF
     (FLTLOADS.BAS subroutine 3000): the flap envelope is limited to n=2 (FAR 23.345)
     and investigated at sea level only. Conditions: stall at 2/3 g / 1 g / 2 g, the
@@ -354,6 +410,7 @@ def _flap_config_points(config: AeroCoeffSet, cg: CgCase, fl: FlightLoadsInput,
     w, s = cg.weight_lb, wr.s_sqft
     scl = config.stall_cl
     pts: List[VnPoint] = []
+    clamped: List[int] = []
 
     def stall_v(n: float) -> float:
         return 0.9 * eas_from_dynamic_pressure(n * w / (scl * s))
@@ -362,6 +419,8 @@ def _flap_config_points(config: AeroCoeffSet, cg: CgCase, fl: FlightLoadsInput,
         nonlocal case
         b = _balance(n, v, cap, config, cg, fl, wr, alt)
         case += 1
+        if b.state is SolveState.CLAMPED:
+            clamped.append(case)
         pts.append(VnPoint(
             case=case, condition=cond, config=config.name, cg=cg.name, altitude_ft=alt,
             v_eas_kt=b.v_eas, nz=b.nz, alpha_deg=b.alpha, g_corr=b.g, cl=b.cl,
@@ -382,7 +441,7 @@ def _flap_config_points(config: AeroCoeffSet, cg: CgCase, fl: FlightLoadsInput,
     add_gust("GUST -VF", -1, di.vf, di.mc)
     add("BAL VF", 1.0, di.vf, di.mc)
     add("BAL 1.4VSF", 1.0, 1.4 * v_1gl, di.mc)
-    return pts, case
+    return pts, case, clamped
 
 
 # --------------------------------------------------------------------------- #
@@ -436,6 +495,7 @@ def build_envelope(project: Project) -> EnvelopeResult:
     di = design_inputs(project)
     vn: List[VnPoint] = []
     tail: List[TailBalanceLoad] = []
+    clamped: List[int] = []
     case = 0
     for alt in fl.altitudes_ft:
         for config in configs:
@@ -446,14 +506,15 @@ def build_envelope(project: Project) -> EnvelopeResult:
             xt = fl.xtf if config.flaps_down else fl.xtc
             corner = _flap_config_points if config.flaps_down else _config_points
             for cg in cg_cases:
-                pts, case = corner(config, cg, fl, wr, alt, di, case)
+                pts, case, cl_cases = corner(config, cg, fl, wr, alt, di, case)
                 vn.extend(pts)
+                clamped.extend(cl_cases)
                 for p in pts:
                     tail.append(TailBalanceLoad(
                         case=p.case, condition=p.condition, tail_load_lb=p.lt,
                         tail_cp_station=xt, flaps_down=config.flaps_down,
                     ))
-    return EnvelopeResult(vn=vn, tail_balance=tail)
+    return EnvelopeResult(vn=vn, tail_balance=tail, clamped_cases=sorted(clamped))
 
 
 # --------------------------------------------------------------------------- #

@@ -276,7 +276,15 @@ def fields_hash() -> str:
 #: readers moved from an explicit exclusion list to ``_filtered``, which drops
 #: unknown keys anyway. On-disk shape is therefore unchanged and
 #: ``SCHEMA_VERSION`` stays at 54.
-EXPECTED_FIELDS_HASH = "f47688a9acda539f"
+#: #33 (2026-08-22): ``EnvelopeResult`` gains ``clamped_cases`` — the case numbers
+#: whose balance clamped at the Mach cap. It is **not** an on-disk field:
+#: ``io.envelope_to_dict`` writes a named key set (``vn``/``tail_balance``/
+#: ``critical``) and ``envelope_from_dict`` reads the same three, so the list is
+#: never written and never read back; a loaded project carries it empty until
+#: FLTLOADS runs. This hash covers dataclass *shape*, which cannot see that
+#: distinction, so the value moves while ``SCHEMA_VERSION`` stays at 54 — the
+#: round-trip guards in this file are the ones that would catch a real leak.
+EXPECTED_FIELDS_HASH = "66ebb069d2ce10e9"
 
 
 def test_persisted_dataclass_shapes_are_unchanged():

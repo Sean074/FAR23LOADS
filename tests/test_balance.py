@@ -595,9 +595,19 @@ def test_the_record_names_the_conditions_a_loading_cannot_carry():
 
     # Put one flight case beyond what the weight database can load, and the
     # record must name every condition that sits on it, with its reason.
+    #
+    # The CG is moved 73 in forward of the case as shipped: far enough forward
+    # that no subset of the discretionary items plus a ballast row reproduces it,
+    # near enough that the airplane still trims there. The perturbation used to
+    # be ``min(item.x) - 40``, i.e. 40 in ahead of the forwardmost mass in the
+    # airplane and 484 in ahead of the design CG -- a CG no airplane flies at,
+    # where the balance cannot reach 1 g at any angle of attack. It reported one
+    # anyway (NZ 0.658 at alpha 41 deg, presented as a 1-g point) until #33 gave
+    # the iteration a failure channel; now it refuses, and this test would be
+    # exercising that refusal instead of the loading record it is about.
     case = next(c for c in project.weight.cg_cases if c.name == "fwd gross")
     case.loading = None
-    case.xcg = min(it.x for it in project.weight.items) - 40.0
+    case.xcg = 500.0
     skipped = []
     build_balanced_cases(project, skipped)
     not_derivable = [s for s in skipped if s.code == "loading-not-derivable"]

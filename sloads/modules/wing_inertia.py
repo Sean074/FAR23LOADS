@@ -39,6 +39,7 @@ from ..basic import basic_trunc3
 from ..case_ids import COMPONENT_PREFIX, WING_BAND_EXTRA, WING_SLOTS, wing_case_id
 from ..cg_cases import flight_cases
 from ..constants import DEG_PER_RAD, IN2_PER_FT2
+from ..convergence import solver_failure
 from ..derived_geometry import sync_geometry_derived, wing_plane
 from ..models import (
     CaseRef,
@@ -58,6 +59,11 @@ from ..models import (
 from ..registry import register
 from .select import default_critical, default_envelope
 from .wing_geometry import interp_x
+
+# Trip bound on the root-density iteration (WINGINER.BAS spun it unbounded). At
+# 1e-5 per trip this is a density excursion of 1.0 from a 0.02 start: exhausting
+# it is a defect, not a tuning knob.
+_DENSITY_TRIPS = 100000
 
 
 @dataclass
@@ -98,7 +104,12 @@ def _root_density(dA, ye, c, dy, ytip, wm: WingMassInput, ii: int):
     down past zero and returns *negative* strip masses (-0.108 lb on ``ga6_normal``
     with the panel weight cleared), which is not a lighter wing but a sign-flipped
     one. Reported with review F-C5, whose partition gate in :mod:`sloads.modules.balance`
-    is what turns an empty panel into an error where it is one."""
+    is what turns an empty panel into an error where it is one.
+
+    Exhausting the trips **raises** (#33, :mod:`sloads.convergence`): the density
+    would have walked 1.0 from its 0.02 start without the panel mass ever entering
+    the ±1 % band, and the last density is then a value the loop was passing
+    through, not the answer."""
     dr = wm.tip_root_density_ratio
     rsta = wm.inboard_rib_y
     target = wm.panel_weight_lb
@@ -107,7 +118,8 @@ def _root_density(dA, ye, c, dy, ytip, wm: WingMassInput, ii: int):
     span_out = ytip - rsta
     densr = 0.02
     w = [0.0] * len(ye)
-    for _ in range(100000):
+    tw = 0.0
+    for _ in range(_DENSITY_TRIPS):
         tw = 0.0
         for i in range(ii, len(ye)):
             w[i] = dA[i] * densr * (1.0 - (ye[i] - rsta) * (1.0 - dr) / span_out)
@@ -123,6 +135,13 @@ def _root_density(dA, ye, c, dy, ytip, wm: WingMassInput, ii: int):
             densr -= 0.00001
         else:
             densr += 0.00001
+    else:  # the density never brought the panel mass into the +-1% band
+        raise solver_failure(
+            "the wing panel root-density iteration",
+            trips=_DENSITY_TRIPS,
+            detail=(f"target panel weight {target:.6g} lb, reached {tw:.6g} lb at "
+                    f"root density {densr:.6g}, tip/root ratio {dr:.6g}"),
+        )
     return w, densr
 
 
