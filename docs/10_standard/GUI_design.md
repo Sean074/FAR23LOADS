@@ -208,7 +208,7 @@ consistent:
   not name its owner (and on a display-only one that is still editable);
   `tests/test_field_registry.py` fails if an owner row claims `governs`.
   The durable fix for a copy that need not exist at all is to remove it —
-  [note 33](../30_future/33_derived_scalar_consolidation_note.md) did that for
+  [note 33](../40_history/34_derived_scalar_consolidation_note.md) did that for
   ten of them, and this marking covers the remainder.
 - **A derived slice has one writer, and no Apply to miss** (#62, 2026-08-23).
   `Project.mass` is WTONECG over `weight.items` and nothing else; storing it is a

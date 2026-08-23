@@ -6,7 +6,7 @@
 sbeam an **independent** mass model against which sloads' inertia loads can be
 checked. **Status: SHIPPED — C1–C5 and C7 2026-08-08, C6 with the round-trip harness** — see the history entry
 "CONM2 distributed-mass export" in
-[`../40_history/00_completed_development.md`](../40_history/00_completed_development.md).
+[`11_completed_development_to_0.5.0.md`](11_completed_development_to_0.5.0.md).
 **C6's solver-side gate shipped with the step-2 round-trip harness**
 (`tests/test_sbeam_roundtrip.py` M-a…M-c: sbeam accelerates the exported
 `CONM2` set and reproduces sloads' inertia-only set) — **status: SHIPPED,
@@ -49,9 +49,9 @@ a new unit channel member, GUI + CLI surface, and a new CI gate.
 > generator over the exported deck: an overlay `CONM2` that no `MASSSET` names is
 > **baseline** to sbeam, so it is counted in every case. See the history entry.
 
-Related: [`11_balanced_airframe_cases_plan.md`](11_balanced_airframe_cases_plan.md)
+Related: [`11_balanced_airframe_cases_plan.md`](../30_future/11_balanced_airframe_cases_plan.md)
 (shares the mass SSOT; step B1 there is a hard dependency),
-[`10_sbeam_roundtrip_ci_harness_plan.md`](../40_history/17_sbeam_roundtrip_ci_harness_plan.md)
+[`10_sbeam_roundtrip_ci_harness_plan.md`](17_sbeam_roundtrip_ci_harness_plan.md)
 (the solver gate this rides on). Conventions:
 [`../10_standard/CONVENTIONS.md`](../10_standard/CONVENTIONS.md).
 

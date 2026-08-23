@@ -1,6 +1,6 @@
 """L-7 lateral body aero -- the DATCOM oracle (gate G1) and the closed forms.
 
-Design note ``docs/30_future/19_l7_lateral_body_aero_note.md`` §8 (rev. 3,
+Design note ``docs/40_history/33_l7_lateral_body_aero_note.md`` §8 (rev. 3,
 decision L-7.8): the ported wing-body ``Cy_beta`` / ``Cn_beta`` reproduce Digital
 DATCOM's **printed** ``CYB``/``CNB`` for every *applicable* sample case at
 +/-0.1 % -- the FAR23 core's own oracle standard. ``reference/`` is gitignored,

@@ -16,7 +16,7 @@ Conventions cited throughout: [`CONVENTIONS.md`](../10_standard/CONVENTIONS.md)
 §7 (single-source-of-truth table — every cross-cutting quantity gets a code owner
 **plus** a drift-guard test, never a prose rule); `CLAUDE.md` rule 3 (make it
 structural) and rule 4 (generalize on first find). Prior art:
-[note 32](32_oracle_gui_note.md) OG-7/OG-8/OG-14 and the field registry they
+[note 32](../30_future/32_oracle_gui_note.md) OG-7/OG-8/OG-14 and the field registry they
 built; finding **CR-A-2 `[MAJOR]`** in
 [`../50_reviews/2026-08-20_critical_review.md`](../50_reviews/2026-08-20_critical_review.md).
 

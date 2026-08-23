@@ -1,6 +1,6 @@
 """CONM2 / MASSSET mass export -- an *independent* mass model for sbeam.
 
-Plan 12 (``docs/30_future/12_conm2_mass_export_plan.md``), steps C3/C4,
+Plan 12 (``docs/40_history/32_conm2_mass_export_plan.md``), steps C3/C4,
 decisions C-2/C-3/C-6. Conventions: ``docs/10_standard/CONVENTIONS.md``.
 
 Why this exists

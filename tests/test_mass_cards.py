@@ -1,6 +1,6 @@
 """CONM2 / MASSSET mass export (step C1-C4) and the mass unit channel (C2).
 
-Plan 12 (``docs/30_future/12_conm2_mass_export_plan.md``). The point of the whole
+Plan 12 (``docs/40_history/32_conm2_mass_export_plan.md``). The point of the whole
 step is to break a circularity: the ``FORCE``/``MOMENT`` deck's inertia half is
 computed by the same code that writes it, so nothing outside sloads can
 contradict it. A ``CONM2`` set gives sbeam an *independently parsed* mass model

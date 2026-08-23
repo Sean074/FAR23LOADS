@@ -24,8 +24,8 @@ baseline; the shipped values (`Cy_β` on the RJ is ~2.7× the scratch value,
 because DATCOM's `S_0` on the fixture's three-section tail cone is ~10× the base
 area the scratch used) are in `docs/20_theory/balanced_cases.md` §7.4. Written to `CLAUDE.md`
 required practice 1 (design note before code, physics/L step). Backlog item
-**Pri 2** — the 0.7.0 headline, issue #8 ([`00_backlog.md`](00_backlog.md), re-cut 2026-08-17), from plan 13 decision **L-7**
-([`13_b8a_lateral_closure_plan.md`](../40_history/18_b8a_lateral_closure_plan.md) §5.6).
+**Pri 2** — the 0.7.0 headline, issue #8 ([`00_backlog.md`](../30_future/00_backlog.md), re-cut 2026-08-17), from plan 13 decision **L-7**
+([`13_b8a_lateral_closure_plan.md`](18_b8a_lateral_closure_plan.md) §5.6).
 
 **Revision 2, 2026-08-15.** Revision 1 proposed a Munk-only couple with a
 reduction factor and no side force. Sourcing Digital DATCOM
