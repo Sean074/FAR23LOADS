@@ -197,3 +197,45 @@ against the code.
 * **Cost came in at the estimate.** ~40 read sites and 14 test construction
   sites, as §5 predicted; no `SCHEMA_VERSION` bump and no migration hop, as §5
   predicted and as the examples' on-disk keys confirmed.
+
+---
+
+## 8. DS-7 executed — the class-C pairs retired (v55, issue #52)
+
+**Status: AGREED 2026-08-22 in chat (working alone, `CLAUDE.md` rule 1), then
+implemented the same day.** Tier **L**: a persisted-shape change with a
+migration hop. Pulled into 0.7.0 by the backlog review of 2026-08-22 (BB-5):
+both members of each pair render **side by side on one oracle page** — the
+altitudes on `structural_speeds`, the lengths on `configuration_layout` — so a
+beta user is shown two widgets for one physical quantity with nothing
+reconciling them, and MC/MD could be computed at two different altitudes with
+no warning. Every shipped example happened to agree, which is why nothing had
+caught it.
+
+### 8.1 Decisions
+
+| # | Decision |
+|---|---|
+| **DS-7.1** | **The surviving homes.** *Shoulder altitude:* `speeds.shoulder_altitude_ft` survives (the more-read home — STRSPEED's MC/MD derivation, ONENGOUT's default altitude, the report's speeds table); `MachLimitInput.shoulder_altitude_ft` is removed and `mach_limit_lines` takes the altitude as an explicit argument, exactly as it already takes MC/MD (F25-2, v40). *Airplane length:* LF is a whole-airplane quantity, so neither tail is its owner — one field `geometry.empennage.airplane_length_in` on the parent `EmpennageInput`; both SELECT readers (the 23.423(b) pitch inertia and the 23.441 default IZZ) take it from `project`. Keeping it on `htail` with a v-tail cross-read was rejected: a v-tail-only project would store its length on a surface it does not have. |
+| **DS-7.2** | **On disagreement the migration takes the value that governed the shipped output, and warns.** For the altitude that is the **MACHLIM** copy — every MNE/MFC table ever produced read it verbatim (the registry marked it `governs=True`) — so a legacy file's Mach-limit lines are unchanged by the hop. The two LF copies were each read by their own consumer, so neither governed the other; the **htail** value is taken (the surface whose load case SELECT runs first) and the warning names both numbers. A zero/absent member means "not entered" and loses silently to the non-zero one. Disagreement is *any* difference, not `isclose`: a file that was saved by this program wrote identical floats or it did not. |
+| **DS-7.3** | **Warning channel.** The hop raises `warnings.warn` — the precedent is `io.py`'s v39 stale-case-id drop. In the GUIs a Python warning only reaches the terminal, so `app_shell.project_state.safe_load` **captures** the warnings raised while the file is read and surfaces them as `st.toast` on the page that loaded it (the channel `apply_schema_check` already uses, because the adopt path ends in `st.rerun()` and an ordinary `st.warning` would not survive it — the note first said `st.warning`; implementation corrected it); the CLI sees them on stderr as before. |
+| **DS-7.4** | **The freeze.** `app/views/structural_speeds.py` wrote both altitude fields and `app/views/configuration_layout.py` rendered both LF widgets; each loses the retired widget/kwarg and nothing else. The 2026-08-22 freeze amendment lifts the freeze "for exactly this hop"; these lines are that hop. |
+
+### 8.2 Gates
+
+| # | Gate |
+|---|---|
+| **DG-6** | *No behaviour change on agreeing files.* Every Appendix A oracle at ±0.1 % and every closure gate holds; all six shipped examples, which agree on both pairs, migrate to v55 with no warning and produce identical `run_all` output. |
+| **DG-7** | *The migration keeps the governing value and says so.* A v54 fixture with disagreeing pairs migrates to the MACHLIM altitude and the htail length, raising one warning per pair that names both numbers; a fixture with one member zero migrates silently to the other. |
+| **DG-2 (shrunk)** | `STILL_DUPLICATED` in `tests/test_field_registry.py` goes from four to the two class-B overrides. |
+| **DG-5 (completed)** | Neither oracle page renders a second editable widget for either quantity — the registry loses the two rows, which is the whole of the GUI half. |
+
+### 8.3 What changed on disk
+
+`SCHEMA_VERSION` 54 → 55; hop `54: _v54_one_shoulder_altitude_one_airplane_length`.
+A v54 file's `speeds.mach_limit.shoulder_altitude_ft` is dropped (its value
+reconciled into `speeds.shoulder_altitude_ft` per DS-7.2); its
+`geometry.empennage.{htail,vtail}.airplane_length_in` are dropped (reconciled
+into `geometry.empennage.airplane_length_in`). Files older than v27 reach the
+hop after `_v27_empennage` has folded their top-level `tail_loads`/`vtail_loads`
+into `geometry.empennage`, so one hop covers every supported version.

@@ -505,6 +505,12 @@ _ht0 = (_emp.htail if _emp is not None else None) or TailLoadsInput()
 _vt0 = (_emp.vtail if _emp is not None else None) or VTailLoadsInput()
 
 with st.form("empennage_form"):
+    # LF is one whole-airplane length (v55, #52): SELECT's 23.423(b) pitch
+    # inertia and the 23.441 default IZZ both read it from geometry.empennage.
+    en_lf = _u("Airplane length LF", _emp.airplane_length_in if _emp is not None else 0.0,
+               "length", "en_lf", None, min_value=0.0,
+               help="Overall airplane length: the slender-rod length in SELECT's "
+                    "approximate pitch (Iyy) and yaw (IZZ) inertias.")
     en_h = st.checkbox("Model horizontal tail + elevator",
                        value=_emp is not None and _emp.htail is not None,
                        key=widget_key("en_model_htail"))
@@ -517,11 +523,10 @@ with st.form("empennage_form"):
         ht_xt25 = _u("25% tail-MAC station xt25", _ht0.xt25, "length", "en_xt25", c[1])
         ht_xt50 = _u("50% tail-MAC station xt50", _ht0.xt50, "length", "en_xt50", c[2])
         ht_it = _u("Tail incidence IT (deg)", _ht0.tail_incidence_deg, None, "en_it", c[0])
-        ht_lf = _u("Airplane length LF", _ht0.airplane_length_in, "length", "en_lf", c[1], min_value=0.0)
-        ht_aw = _u("Wing lift slope AW (per rad)", _ht0.wing_lift_slope_per_rad, None, "en_aw", c[2])
-        ht_iwc = _u("Wing zero-lift, cruise (deg)", _ht0.wing_zero_lift_cruise_deg, None, "en_iwc", c[0])
-        ht_iwe = _u("Wing zero-lift, enroute (deg)", _ht0.wing_zero_lift_enroute_deg, None, "en_iwe", c[1])
-        ht_iwl = _u("Wing zero-lift, landing (deg)", _ht0.wing_zero_lift_landing_deg, None, "en_iwl", c[2])
+        ht_aw = _u("Wing lift slope AW (per rad)", _ht0.wing_lift_slope_per_rad, None, "en_aw", c[1])
+        ht_iwc = _u("Wing zero-lift, cruise (deg)", _ht0.wing_zero_lift_cruise_deg, None, "en_iwc", c[2])
+        ht_iwe = _u("Wing zero-lift, enroute (deg)", _ht0.wing_zero_lift_enroute_deg, None, "en_iwe", c[0])
+        ht_iwl = _u("Wing zero-lift, landing (deg)", _ht0.wing_zero_lift_landing_deg, None, "en_iwl", c[1])
         st.markdown("**Elevator**")
         e = st.columns(3)
         el_se = _u("Elevator area SE", _ht0.elevator_area_sqft, "area_sqft", "en_se", e[0], min_value=0.0)
@@ -545,11 +550,10 @@ with st.form("empennage_form"):
         vt_xv25 = _u("25% V-tail-MAC station xv25", _vt0.xv25, "length", "en_xv25", c[1])
         vt_xv50 = _u("50% V-tail-MAC station xv50", _vt0.xv50, "length", "en_xv50", c[2])
         vt_b = _u("Wing span B", _vt0.wing_span_in, "length", "en_wspan", c[0], min_value=0.0)
-        vt_lf = _u("Airplane length LF", _vt0.airplane_length_in, "length", "en_vlf", c[1], min_value=0.0)
-        vt_gw = _u("Gross weight GW (0=auto)", _vt0.gross_weight_lb, "weight", "en_gw", c[2], min_value=0.0)
-        vt_izz = _u("Yaw inertia IZZ (0=auto)", _vt0.izz_slugft2, "inertia", "en_izz", c[0], min_value=0.0)
+        vt_gw = _u("Gross weight GW (0=auto)", _vt0.gross_weight_lb, "weight", "en_gw", c[1], min_value=0.0)
+        vt_izz = _u("Yaw inertia IZZ (0=auto)", _vt0.izz_slugft2, "inertia", "en_izz", c[2], min_value=0.0)
         vt_wl = _u("Fin root waterline (0=derived)", _vt0.vtail_root_waterline_z, "length",
-                   "en_vt_wl", c[1],
+                   "en_vt_wl", c[0],
                    help="Waterline Z of the fin root chord (B8a-1). 0 places the fin on "
                         "the airplane centreline as a marked assumption.")
         st.markdown("**Rudder**")
@@ -572,15 +576,18 @@ if en_applied:
         elevator_effectiveness=el_eff, xt25=ht_xt25, xt50=ht_xt50,
         elevator_te_up_deg=el_up, elevator_te_down_deg=el_dn, elevator_area_sqft=el_se,
         elevator_fwd_hinge_sqft=el_fwd, elevator_aft_hinge_sqft=el_aft,
-        airplane_length_in=ht_lf, wing_lift_slope_per_rad=ht_aw, htail_semispan_in=ht_semi,
+        wing_lift_slope_per_rad=ht_aw, htail_semispan_in=ht_semi,
     ) if en_h else None
     project.vtail_loads = VTailLoadsInput(
         rudder_deflection_deg=rd_rd, vtail_area_sqft=vt_area, rudder_area_sqft=rd_sr,
         rudder_fwd_hinge_sqft=rd_fwd, rudder_aft_hinge_sqft=rd_aft, aspect_ratio_vtail=vt_arvt,
-        vtail_mac_in=vt_mac, xv25=vt_xv25, xv50=vt_xv50, airplane_length_in=vt_lf,
+        vtail_mac_in=vt_mac, xv25=vt_xv25, xv50=vt_xv50,
         wing_span_in=vt_b, gross_weight_lb=vt_gw, rudder_large_deflection_factor=rd_efv,
         izz_slugft2=vt_izz, vtail_span_in=vt_span, vtail_root_waterline_z=vt_wl,
     ) if en_v else None
+    _emp_now = project.geometry.empennage if project.geometry is not None else None
+    if _emp_now is not None:
+        _emp_now.airplane_length_in = en_lf
     st.session_state["project"] = project
     st.success("Empennage geometry updated.")
     st.rerun()

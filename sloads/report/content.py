@@ -995,15 +995,17 @@ def _speed_altitude_figure(project: Project) -> Tuple[Figure, Optional[Table]]:
     from ..modules.structural_speeds import design_speed_values
     from ..vn_diagram import _gust_ude
 
-    ml = project.speeds.mach_limit if project.speeds is not None else None
-    if ml is None:
+    speeds = project.speeds
+    ml = speeds.mach_limit if speeds is not None else None
+    if speeds is None or ml is None:
         return (Figure("speed_altitude", "Speed / altitude envelope",
                        absent_reason="this airplane has no Mach-limited boundary — no "
                                      "MACHLIM inputs are defined, so the operating "
                                      "envelope is bounded by VD alone"), None)
     # MC/MD come from STRSPEED, the single producer (F25-2) -- not from ``ml``.
     ds = _try(design_speed_values, project, project.speeds)
-    results = _try(mach_limit_lines, ml, ds.mc, ds.md) if ds is not None else None
+    results = (_try(mach_limit_lines, ml, ds.mc, ds.md, speeds.shoulder_altitude_ft)
+               if ds is not None else None)
     if not results:
         return (Figure("speed_altitude", "Speed / altitude envelope",
                        absent_reason="the Mach-limit lines could not be "

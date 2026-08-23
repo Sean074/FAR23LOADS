@@ -33,7 +33,8 @@ _EXAMPLE = os.path.join(_EXAMPLES_DIR, "ga6_normal.project.json")
 def results():
     project = io.load_project(_EXAMPLE)
     ds = design_speed_values(project, project.speeds)
-    return calc.mach_limit_lines(project.speeds.mach_limit, ds.mc, ds.md)
+    return calc.mach_limit_lines(project.speeds.mach_limit, ds.mc, ds.md,
+                                 project.speeds.shoulder_altitude_ft)
 
 
 def _line_at(conditions, altitude):
@@ -130,9 +131,8 @@ def test_mach_limit_input_no_longer_carries_mc_md():
 def test_above_tropopause_uses_constant_speed_of_sound():
     # Above 35332 ft the speed of sound is constant (~575 kt); two high altitudes
     # share the same a, so V scales only with sqrt(sigma).
-    inp = MachLimitInput(shoulder_altitude_ft=36000,
-                         max_operating_altitude_ft=40000, increment_ft=2000)
-    r = calc.mach_limit_lines(inp, 0.5, 0.6)
+    inp = MachLimitInput(max_operating_altitude_ft=40000, increment_ft=2000)
+    r = calc.mach_limit_lines(inp, 0.5, 0.6, shoulder_altitude_ft=36000)
     lines = [c for c in r if c.title.startswith("Mach limit line")]
     assert len(lines) == 3  # 36000, 38000, 40000
     # V(MD) decreases monotonically with altitude (sigma falls).

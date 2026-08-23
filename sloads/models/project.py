@@ -251,7 +251,14 @@ from .results import EnvelopeResult, LoadsResult, MassResult
 # Both additive with None defaults, no migration hop; the v-tail
 # CriticalCondition gains beta_deg / cy_beta_fin / cn_beta_fin (result slice,
 # tolerant reader defaults them to None).
-SCHEMA_VERSION = 54
+# v55 (#52, note 33 DS-7 / §8 -- the 0.7.0-beta freeze's one hop): the two
+# class-C duplicate pairs retired. MachLimitInput.shoulder_altitude_ft removed
+# (speeds.shoulder_altitude_ft is the single home; mach_limit_lines takes it as
+# an argument); TailLoadsInput/VTailLoadsInput.airplane_length_in removed in
+# favour of one EmpennageInput.airplane_length_in. The v54 hop reconciles each
+# pair, keeping the value that governed the shipped output and warning on
+# disagreement.
+SCHEMA_VERSION = 55
 
 
 @dataclass

@@ -132,8 +132,8 @@ def test_edits_name_slices_a_pages_form_really_enters():
     must be a slice the field registry attributes to that very page — or one
     of the two Step-G6 proxy *properties* over ``geometry.empennage``, accepted
     only while they are still properties and the proxied slice is the page's
-    own. #52's v55 hop retires the proxies; this test then fails and the two
-    Geometry entries come out with them."""
+    own. When the proxies are retired this test fails and the two Geometry
+    entries come out with them."""
     from sloads import field_registry as fr
     from sloads.models import Project as ProjectCls
 

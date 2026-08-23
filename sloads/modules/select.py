@@ -67,7 +67,7 @@ from ..constants import (
     dynamic_pressure_psf,
     gust_alleviation_factor,
 )
-from ..derived_geometry import sync_geometry_derived, wing_reference
+from ..derived_geometry import airplane_length_in, sync_geometry_derived, wing_reference
 from ..models import (
     CaseRef,
     CgCase,
@@ -490,6 +490,7 @@ def select_htail_maneuver(project: Project,
         return []
     cg_map: Dict[str, CgCase] = {c.name: c for c in flight_cases(project)}
     np_ = design_inputs(project).n_pos
+    lf_in = airplane_length_in(project)
     aht = 2.0 * math.pi / (1.0 + 2.0 / ti.aspect_ratio_htail)
     se2st = ti.elevator_area_sqft / ti.htail_area_sqft if ti.htail_area_sqft else 0.0
     vn = _resolve_envelope(project, envelope).vn
@@ -530,7 +531,7 @@ def select_htail_maneuver(project: Project,
     # Checked: pitch-acceleration increment T = Iyy*theta_ddot/(arm) at VC/VD.
     def iyy(p: VnPoint) -> float:
         # Slender rod I = m*L^2/12 (the 12 is geometric, not in/ft), x0.44.
-        return cg_map[p.cg].weight_lb * (ti.airplane_length_in / IN_PER_FT) ** 2 / G / 12.0 * 0.44
+        return cg_map[p.cg].weight_lb * (lf_in / IN_PER_FT) ** 2 / G / 12.0 * 0.44
 
     def theta_ddot(p: VnPoint) -> float:
         return 39.0 * np_ * (np_ - 1.5) / p.v_eas_kt
@@ -725,13 +726,14 @@ def _avt(vt: VTailLoadsInput) -> float:
     return vtail_lift_slope(vt.aspect_ratio_vtail)
 
 
-def _default_izz(vt: VTailLoadsInput, gw: float) -> float:
+def _default_izz(vt: VTailLoadsInput, gw: float, lf_in: float) -> float:
     """Default airplane yaw inertia IZZ (slug-ft^2): wing mass on the span and the
-    rest of the empty weight on the length (SELECT.BAS 8884)."""
+    rest of the empty weight on the airplane length ``lf_in`` (SELECT.BAS 8884;
+    LF comes from :func:`derived_geometry.airplane_length_in`, #52)."""
     w_wing = 0.09 * gw
     # Two slender rods, I = m*L^2/12 each (the 12 is geometric, not in/ft).
     return ((w_wing / G) * (vt.wing_span_in / IN_PER_FT) ** 2 / 12.0
-            + ((0.62 * gw - w_wing) / G) * (vt.airplane_length_in / IN_PER_FT) ** 2 / 12.0)
+            + ((0.62 * gw - w_wing) / G) * (lf_in / IN_PER_FT) ** 2 / 12.0)
 
 
 def _vt_rudder_load(p: VnPoint, vt: VTailLoadsInput) -> float:
@@ -829,7 +831,7 @@ def select_vtail(project: Project, envelope: Optional[EnvelopeResult] = None) ->
     # case, which is the same number on every fixture and no longer a second
     # opinion of it.
     gw = vt.gross_weight_lb or max_takeoff_weight(project, required=False)
-    izz = vt.izz_slugft2 or _default_izz(vt, gw)
+    izz = vt.izz_slugft2 or _default_izz(vt, gw, airplane_length_in(project))
     cy_fin, cn_fin = fin_sideslip_derivatives(project, vt)
     out: List[CriticalCondition] = []
 

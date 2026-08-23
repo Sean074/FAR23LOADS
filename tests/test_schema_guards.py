@@ -284,7 +284,13 @@ def fields_hash() -> str:
 #: FLTLOADS runs. This hash covers dataclass *shape*, which cannot see that
 #: distinction, so the value moves while ``SCHEMA_VERSION`` stays at 54 — the
 #: round-trip guards in this file are the ones that would catch a real leak.
-EXPECTED_FIELDS_HASH = "66ebb069d2ce10e9"
+#: v55 (#52, note 33 §8 -- the 0.7.0-beta freeze's one hop): the two class-C
+#: duplicate pairs retired. ``MachLimitInput.shoulder_altitude_ft`` removed
+#: (``speeds.shoulder_altitude_ft`` is the one home; ``mach_limit_lines`` takes
+#: it as an argument), ``TailLoadsInput``/``VTailLoadsInput.airplane_length_in``
+#: removed for one ``EmpennageInput.airplane_length_in``. A shape change, so
+#: ``SCHEMA_VERSION`` bumps to 55 with hop ``54`` reconciling each pair.
+EXPECTED_FIELDS_HASH = "101499f1a49bb7e7"
 
 
 def test_persisted_dataclass_shapes_are_unchanged():

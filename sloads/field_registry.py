@@ -470,7 +470,7 @@ REGISTRY: Tuple[FieldEntry, ...] = (
     _E("geometry.parametric.tail_type", _GEO, _SLDS, "layout sketch only, Step G1"),
     _E("geometry.parametric.body_drag_waterline_z", _GEO, _SLDS, "body-drag line, Step G4 balance work"),
     # Candidate 19th duplicate, NOT declared: this and SELECT's LF
-    # (geometry.empennage.htail.airplane_length_in, quantity "airplane length")
+    # (geometry.empennage.airplane_length_in, one field since v55 / #52)
     # are plausibly one dimension, but nothing in the repo says so and the two
     # are not held equal on any fixture. Declaring it would assert a defect that
     # has not been demonstrated; it is raised in the OG-C closure instead.
@@ -488,8 +488,11 @@ REGISTRY: Tuple[FieldEntry, ...] = (
        "body outline model, Step G1; structurally required", supplied=True),
     _E("geometry.fuselage.sections[].z_centre", _GEO, _SLDS, "body outline model, Step G1"),
 
+    # geometry.empennage -- the whole-airplane length both tail inertias use
+    # (one home since v55, #52; each tail carried a copy before)
+    _E("geometry.empennage.airplane_length_in", _GEO, _ORIG, "SELECT LF (Iyy and default IZZ)"),
+
     # geometry.empennage.htail -- SELECT's rational h-tail inputs (Ch 9)
-    _E("geometry.empennage.htail.airplane_length_in", _GEO, _ORIG, "SELECT LF", "airplane length"),
     _E("geometry.empennage.htail.aspect_ratio_htail", _GEO, _ORIG, "SELECT ARHT"),
     _E("geometry.empennage.htail.aspect_ratio_wing", _GEO, _ORIG, "SELECT ARW (downwash)"),
     _E("geometry.empennage.htail.htail_area_sqft", _GEO, _ORIG, "SELECT ST"),
@@ -509,9 +512,6 @@ REGISTRY: Tuple[FieldEntry, ...] = (
     _E("geometry.empennage.htail.xt50", _GEO, _ORIG, "SELECT 50% tail MAC station"),
 
     # geometry.empennage.vtail -- SELECT's rational v-tail inputs (Ch 9)
-    _E("geometry.empennage.vtail.airplane_length_in", _GEO, _ORIG, "SELECT LF", "airplane length",
-       "geometry.empennage.htail.airplane_length_in (entered twice; review N1 instance 2)",
-       governs=True),
     _E("geometry.empennage.vtail.aspect_ratio_vtail", _GEO, _ORIG, "SELECT ARVT"),
     _E("geometry.empennage.vtail.vtail_area_sqft", _GEO, _ORIG, "SELECT SV"),
     _E("geometry.empennage.vtail.vtail_mac_in", _GEO, _ORIG, "SELECT VMAC"),
@@ -649,17 +649,14 @@ REGISTRY: Tuple[FieldEntry, ...] = (
        "prefers the planform and reaches this only with no wing surface -- #36)"),
     _E("speeds.wing_surface", _SPD, _SLDS, "surface selector (standing ruling)"),
     _E("speeds.vh_kt", _SPD, _ORIG, "STRSPEED VH, max level speed"),
-    _E("speeds.shoulder_altitude_ft", _SPD, _ORIG, "STRSPEED MC/MD altitude", "shoulder altitude"),
+    _E("speeds.shoulder_altitude_ft", _SPD, _ORIG,
+       "STRSPEED MC/MD altitude; MACHLIM first row (one home since v55, #52)"),
     _E("speeds.chosen_vc", _SPD, _ORIG, "STRSPEED chosen VC, Appendix A p156"),
     _E("speeds.chosen_vd", _SPD, _ORIG, "STRSPEED chosen VD, Appendix A p156"),
     _E("speeds.chosen_va", _SPD, _ORIG, "STRSPEED chosen VA, Appendix A p156"),
     _E("speeds.chosen_vf", _SPD, _ORIG, "STRSPEED chosen VF, Appendix A p156"),
     _E("speeds.chosen_n", _SPD, _ORIG, "STRSPEED chosen n, Appendix A p156"),
     _E("speeds.chosen_nneg", _SPD, _ORIG, "STRSPEED chosen negative n, Appendix A p156"),
-    _E("speeds.mach_limit.shoulder_altitude_ft", _SPD, _ORIG, "MACHLIM shoulder altitude", "shoulder altitude",
-       "speeds.shoulder_altitude_ft (same quantity on two dataclasses; MACHLIM reads "
-       "this one verbatim, so it governs until #52's hop removes it)",
-       governs=True),
     _E("speeds.mach_limit.max_operating_altitude_ft", _SPD, _ORIG, "MACHLIM ceiling"),
     _E("speeds.mach_limit.increment_ft", _SPD, _ORIG, "MACHLIM altitude step"),
     _E("speeds.occupants", _SPD, _SLDS, "FAR 23 applicability check, Step E1"),

@@ -599,10 +599,11 @@ def test_legacy_ft_sqin_keys_migrate_to_canonical():
         "tab_loads": {"tabs": [{"surface": "htail", "area_sqin": 226.0}]},
     }
     p = io.project_from_dict(d)
-    assert abs(p.tail_loads.airplane_length_in - 26.522 * 12.0) < 1e-9
+    # v54 (#52): the two rescaled LF copies agree, so they fold silently into
+    # the one empennage field.
+    assert abs(p.geometry.empennage.airplane_length_in - 26.522 * 12.0) < 1e-9
     assert abs(p.vtail_loads.wing_span_in - 33.5 * 12.0) < 1e-9
     assert abs(p.vtail_loads.vtail_mac_in - 3.367 * 12.0) < 1e-9
-    assert abs(p.vtail_loads.airplane_length_in - 26.522 * 12.0) < 1e-9
     # v27 (Step G6): legacy top-level tail_loads/vtail_loads migrate into
     # geometry.empennage; Project.tail_loads/.vtail_loads read them via the property.
     assert p.geometry.empennage is not None

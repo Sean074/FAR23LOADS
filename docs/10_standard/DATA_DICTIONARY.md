@@ -2,7 +2,7 @@
 
 > **Generated file — do not edit by hand.** Produced by [`docs/generate_data_dict.py`](../generate_data_dict.py) from `sloads/models.py`. Regenerate after any schema change: `.venv/bin/python docs/generate_data_dict.py`.
 
-Schema version: **54**.
+Schema version: **55**.
 
 This dictionary covers the **input** slices of `Project` (`sloads/models.py`) — the fields that make up a `project.json`. The result slices (`envelope`, `mass`, `loads`) are computed outputs and are out of scope.
 
@@ -64,7 +64,6 @@ Geometry/aero inputs for SELECT's rational horizontal-tail loads (Ch 9).
 | `elevator_area_sqft` | `float` | SE (total elevator area) | `0.0` |
 | `elevator_fwd_hinge_sqft` | `float` | SEFWDHL | `0.0` |
 | `elevator_aft_hinge_sqft` | `float` | SEAFTHL | `0.0` |
-| `airplane_length_in` | `float` | LF (inches; Iyy uses LF_ft = LF_in/12) | `0.0` |
 | `wing_lift_slope_per_rad` | `float` | AW (gust downwash relief 1 - 36*aw/ARW) | `0.0` |
 | `htail_semispan_in` | `float` | BLHTAIL (tail semi-span, inches) | `0.0` |
 
@@ -83,7 +82,6 @@ Geometry/aero inputs for SELECT's rational vertical-tail loads (Ch 9).
 | `vtail_mac_in` | `float` | VMAC (inches; VMAC_ft = VMAC_in/12) | `0.0` |
 | `xv25` | `float` | fuselage station of 25% vtail MAC | `0.0` |
 | `xv50` | `float` | fuselage station of 50% vtail MAC (ONENGOUT camber load) | `0.0` |
-| `airplane_length_in` | `float` | LF (inches; IZZ uses LF_ft = LF_in/12) | `0.0` |
 | `wing_span_in` | `float` | B (inches; IZZ uses B_ft = B_in/12) | `0.0` |
 | `gross_weight_lb` | `float` | GW (IZZ default; 0 -> use the heaviest CG case) | `0.0` |
 | `rudder_large_deflection_factor` | `float` | EFV (subr 10000 chart; ~1.0) | `1.0` |

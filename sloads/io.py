@@ -393,10 +393,11 @@ def geometry_from_dict(d: Dict[str, Any]) -> GeometryInput:
     emp_raw = d.get("empennage") or {}
     htail_raw, vtail_raw = emp_raw.get("htail"), emp_raw.get("vtail")
     empennage = None
-    if htail_raw is not None or vtail_raw is not None:
+    if htail_raw is not None or vtail_raw is not None or emp_raw.get("airplane_length_in"):
         empennage = EmpennageInput(
             htail=tail_loads_from_dict(htail_raw) if htail_raw else None,
             vtail=vtail_loads_from_dict(vtail_raw) if vtail_raw else None,
+            airplane_length_in=float(emp_raw.get("airplane_length_in") or 0.0),
         )
 
     # Step G6b: landing-gear geometry from d["landing_gear"] (a pre-v28 file's
@@ -462,6 +463,8 @@ def geometry_to_dict(inp: GeometryInput) -> Dict[str, Any]:
             emp["htail"] = tail_loads_to_dict(inp.empennage.htail)
         if inp.empennage.vtail is not None:
             emp["vtail"] = vtail_loads_to_dict(inp.empennage.vtail)
+        if inp.empennage.airplane_length_in:
+            emp["airplane_length_in"] = inp.empennage.airplane_length_in
         if emp:
             out["empennage"] = emp
     if inp.landing_gear is not None:

@@ -151,6 +151,18 @@ def require_wing_reference(project: Project, surface_name: str = "wing") -> Wing
     return ref
 
 
+def airplane_length_in(project: Project) -> float:
+    """SELECT's LF, the whole-airplane length (inches), from its single home
+    ``geometry.empennage.airplane_length_in`` (#52, note 33 §8); ``0.0`` when no
+    empennage is defined. Both tail inertia defaults -- the 23.423(b) pitch
+    inertia and the 23.441 default IZZ -- read it from here; until schema v55
+    each tail carried its own copy and nothing reconciled them.
+    """
+    geom = project.geometry
+    emp = geom.empennage if geom is not None else None
+    return float(emp.airplane_length_in) if emp is not None else 0.0
+
+
 def wing_plane(project: Project, surface_name: str = "wing") -> Tuple[float, float]:
     """``(wrp_waterline, dihedral_deg)`` for a surface's wing plane — note 33, DS-2.
 

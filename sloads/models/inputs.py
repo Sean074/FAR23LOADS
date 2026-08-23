@@ -527,8 +527,13 @@ class MachLimitInput:
     They used to be stored here *and* silently recomputed by the Streamlit page,
     so the CLI and the GUI produced different MNE/MFC for the same project; the
     v39 migration hop drops the stale stored values.
+
+    **The shoulder altitude is not stored here either** (#52, schema v55). It
+    lives once, on ``StructuralSpeedsInput.shoulder_altitude_ft``, and reaches
+    :func:`mach_limit_lines` as an argument beside MC/MD: a second persisted
+    copy let the Mach-limit table start at one altitude while MC/MD were derived
+    at another, with nothing reconciling the two. The v54 hop folds the copy in.
     """
-    shoulder_altitude_ft: float = 0.0
     max_operating_altitude_ft: float = 0.0
     increment_ft: float = 1000.0
 
@@ -564,7 +569,9 @@ class StructuralSpeedsInput:
     # on Project.aero_coeffs (clmax_clean/clmax_flap): VS = sqrt(295*(W/S)/CLmax)
     # at the design weight (User's Guide p7-5). CLmax is entered once, on the
     # Aerodynamic Data page; STRSPEED reads it (M1-1b). No stall-speed scalar here.
-    shoulder_altitude_ft: float = 0.0           # for the MC/MD Mach numbers
+    shoulder_altitude_ft: float = 0.0           # for the MC/MD Mach numbers AND the
+                                                # MACHLIM table's first row (single
+                                                # home since v55, #52)
     wing_surface: str = "wing"
     chosen_vc: Optional[float] = None
     chosen_vd: Optional[float] = None
@@ -1049,7 +1056,9 @@ class TailLoadsInput:
     elevator_area_sqft: float = 0.0            # SE (total elevator area)
     elevator_fwd_hinge_sqft: float = 0.0       # SEFWDHL
     elevator_aft_hinge_sqft: float = 0.0       # SEAFTHL
-    airplane_length_in: float = 0.0            # LF (inches; Iyy uses LF_ft = LF_in/12)
+    # LF (airplane length, for the approximate Iyy) is NOT here: it is a
+    # whole-airplane quantity stored once on EmpennageInput.airplane_length_in
+    # (#52, v55) and read from the Project by SELECT.
     wing_lift_slope_per_rad: float = 0.0       # AW (gust downwash relief 1 - 36*aw/ARW)
     # Chordwise distribution (TAILDIST, Ch 10) -- the horizontal-tail semi-span
     # (BLHTAIL, inches) sets the average tail chord CAVE = S/B for the chordwise
@@ -1096,7 +1105,8 @@ class VTailLoadsInput:
     vtail_mac_in: float = 0.0                  # VMAC (inches; VMAC_ft = VMAC_in/12)
     xv25: float = 0.0                          # fuselage station of 25% vtail MAC
     xv50: float = 0.0                          # fuselage station of 50% vtail MAC (ONENGOUT camber load)
-    airplane_length_in: float = 0.0            # LF (inches; IZZ uses LF_ft = LF_in/12)
+    # LF (airplane length, for the default IZZ) lives once on
+    # EmpennageInput.airplane_length_in (#52, v55); SELECT reads it from the Project.
     wing_span_in: float = 0.0                  # B (inches; IZZ uses B_ft = B_in/12)
     gross_weight_lb: float = 0.0               # GW (IZZ default; 0 -> use the heaviest CG case)
     rudder_large_deflection_factor: float = 1.0  # EFV (subr 10000 chart; ~1.0)
@@ -1210,9 +1220,15 @@ class EmpennageInput:
     read the analysis-native values here, so the empennage geometry is stored in
     exactly one place. The tail *arm* is derived where needed (25% tail MAC station
     ``xt25``/``xv25`` minus the 25% wing MAC station), not stored twice.
+
+    ``airplane_length_in`` (SELECT's LF, inches) is the one whole-airplane
+    length both tails' inertia defaults use -- the 23.423(b) pitch inertia
+    ``Iyy = W*LF^2/g/12*0.44`` and the 23.441 default ``IZZ``. Until schema v55
+    each tail carried its own copy (#52, note 33 DS-7); it is stored here, once.
     """
     htail: Optional[TailLoadsInput] = None
     vtail: Optional[VTailLoadsInput] = None
+    airplane_length_in: float = 0.0            # LF (inches; LF_ft = LF_in/12 in the inertias)
 
 
 # --------------------------------------------------------------------------- #

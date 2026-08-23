@@ -267,7 +267,7 @@ def test_the_shell_does_not_import_a_gui():
 # ``file_id`` and counts ``load_with_guard`` calls: the real edge invariant.
 
 _UPLOAD_SCRIPT = """
-import io, streamlit as st
+import io, json, streamlit as st
 
 class _FakeUpload(io.BytesIO):
     name = "uploaded.project.json"
@@ -277,7 +277,9 @@ class _FakeUpload(io.BytesIO):
         return len(self.getvalue())
 
 from sloads import io as sloads_io, Project
-_payload = sloads_io.project_to_json(Project(name="from-upload")).encode()
+_doc = json.loads(sloads_io.project_to_json(Project(name="from-upload")))
+_doc.update({extra})
+_payload = json.dumps(_doc).encode()
 st.file_uploader = lambda *a, **k: _FakeUpload(_payload)
 
 import app_shell.sidebar as sb
@@ -297,11 +299,12 @@ sb.render_shell_sidebar(project)
 """
 
 
-def _upload_app(*, dirty: bool, file_id: str = "upload-1"):
+def _upload_app(*, dirty: bool, file_id: str = "upload-1", extra: "dict | None" = None):
     from streamlit.testing.v1 import AppTest
 
     return AppTest.from_string(
-        _UPLOAD_SCRIPT.format(dirty=dirty, file_id=file_id), default_timeout=60
+        _UPLOAD_SCRIPT.format(dirty=dirty, file_id=file_id, extra=repr(extra or {})),
+        default_timeout=60,
     )
 
 
@@ -333,6 +336,25 @@ def test_cancelling_the_discard_dialog_actually_cancels_an_upload():
     at.run()  # what Cancel's st.rerun() executes
     assert at.session_state["_guard_calls"] == ["uploaded.project.json"]
     assert at.session_state["project"].name == "edited-since-save"
+
+
+def test_a_migration_warning_reaches_the_page_as_a_toast():
+    """DS-7.3 (#52): a hop that had to choose between two disagreeing copies
+    says so with ``warnings.warn``, which a Streamlit page would swallow.
+    ``safe_load`` captures it and toasts it — the same channel the schema
+    check uses, since the adopt path ends in ``st.rerun()``. The adopted
+    project carries the governing (MACHLIM) altitude."""
+    at = _upload_app(dirty=False, extra={
+        "schema_version": 54,
+        "speeds": {"shoulder_altitude_ft": 10000,
+                   "mach_limit": {"shoulder_altitude_ft": 12000,
+                                  "max_operating_altitude_ft": 18000}},
+    })
+    at.run()
+    assert not at.exception, [e.message for e in at.exception]
+    assert at.session_state["project"].speeds.shoulder_altitude_ft == 12000
+    toasts = [t.value for t in at.toast]
+    assert any("shoulder altitude" in t and "10000" in t and "12000" in t for t in toasts), toasts
 
 
 def test_a_fresh_upload_is_processed_again():

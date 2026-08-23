@@ -191,6 +191,12 @@ _TWO_EDIT_PAIRS = [
     ("configuration_layout",
      ("geometry.parametric.wing_area_sqft", 180.0),
      ("geometry.empennage.htail.htail_area_sqft", 32.5)),
+    # v55 (#52): the one airplane length sits directly on geometry.empennage,
+    # a scalar group beside the htail record group under the same missing
+    # ancestor -- the clobber shape again, and the oracle page's only LF widget.
+    ("configuration_layout",
+     ("geometry.empennage.airplane_length_in", 318.264),
+     ("geometry.empennage.htail.htail_area_sqft", 32.5)),
     ("weight_mass",
      ("weight.estimation.baggage_lb", 120.0),
      ("weight.envelope.gross_weight", 2400.0)),
@@ -199,12 +205,12 @@ _TWO_EDIT_PAIRS = [
      ("landing.hub_diameter_in", 7.25)),
     ("structural_speeds",
      ("speeds.weight_lb", 1234.0),
-     ("speeds.mach_limit.shoulder_altitude_ft", 20000.0)),
+     ("speeds.mach_limit.max_operating_altitude_ft", 20000.0)),
 ]
 
 
 @pytest.mark.parametrize("key,first,second", _TWO_EDIT_PAIRS,
-                         ids=[p[0] for p in _TWO_EDIT_PAIRS])
+                         ids=[f"{p[0]}:{p[1][0].rsplit('.', 1)[-1]}" for p in _TWO_EDIT_PAIRS])
 def test_two_edits_in_one_rerun_both_persist(key, first, second):
     """#35 (CR-A-1): two widget changes in one rerun -- fast typing,
     ``data_editor`` batching -- must both land, on a blank project where their

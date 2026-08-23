@@ -27,6 +27,7 @@ and still loads, an older one is migrated in place) — the hard contract lives 
 from __future__ import annotations
 
 import json
+import warnings
 from typing import Callable, Optional
 
 import streamlit as st
@@ -119,7 +120,18 @@ def safe_load(build: Callable[[], Project], source: str) -> Optional[Project]:
     traceback on a malformed / wrong-shape file (parity with the JSON Editor).
     Returns ``None`` on failure so the caller skips the load."""
     try:
-        return apply_schema_check(build())
+        # A migration hop that had to choose between two disagreeing copies of
+        # one quantity (v55, #52) says so with ``warnings.warn``; headless that
+        # reaches stderr, but a Streamlit page would swallow it. Captured here
+        # and shown as toasts, the same channel ``apply_schema_check`` uses,
+        # because the adopt path ends in ``st.rerun()`` and an ordinary
+        # ``st.warning`` would not survive it.
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            project = apply_schema_check(build())
+        for w in caught:
+            st.toast(f"{source}: {w.message}", icon="⚠️")
+        return project
     except (json.JSONDecodeError, OSError, TypeError, ValueError, KeyError,
             AttributeError) as exc:
         st.error(f"Couldn't load {source}: {exc}")

@@ -535,10 +535,9 @@ def _tab_speed_altitude(project: Project, system: UnitSystem, U: dict) -> None: 
              "Boundaries are computed in KEAS and converted at the altitude of each point.",
     )
 
-    inp = MachLimitInput(
-        shoulder_altitude_ft=shoulder,
-        max_operating_altitude_ft=max_alt, increment_ft=incr,
-    )
+    # The shoulder altitude is not a MACHLIM field any more (v55, #52): the
+    # table starts at the one altitude MC/MD were derived at, read above.
+    inp = MachLimitInput(max_operating_altitude_ft=max_alt, increment_ft=incr)
     # Persist into the speeds slice only on Apply (creating it if the Design Speeds
     # tab has not run). The chart below always renders live from the local `inp`.
     if applied:
@@ -548,7 +547,7 @@ def _tab_speed_altitude(project: Project, system: UnitSystem, U: dict) -> None: 
         st.session_state["project"] = project
 
     try:
-        results = mach_limit_lines(inp, mc, md)
+        results = mach_limit_lines(inp, mc, md, shoulder)
     except (ValueError, ZeroDivisionError) as exc:
         st.error(f"Could not compute the Mach-limit lines: {exc}")
         return
