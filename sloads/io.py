@@ -17,6 +17,7 @@ from __future__ import annotations
 import csv
 import json
 import os
+import re
 import warnings
 from dataclasses import asdict
 from typing import Any, Dict, List, Optional, Tuple
@@ -1358,6 +1359,28 @@ def save_project(project: Project, path: str) -> None:
         fh.write("\n")
 
 
+#: Longest filename stem :func:`project_filename` produces.
+PROJECT_STEM_MAX = 64
+
+#: Suffix every saved / downloaded project file carries (Open lists by it).
+PROJECT_SUFFIX = ".project.json"
+
+
+def project_filename(name: str) -> str:
+    """``<stem>.project.json`` for a project called ``name`` -- the one sanitiser
+    Save-to-disk and Download share (#65, PB-6).
+
+    Anything outside ``[A-Za-z0-9._-]`` becomes ``_``, runs collapse, edges are
+    trimmed, the stem is capped at :data:`PROJECT_STEM_MAX` characters, and a
+    name with nothing left is ``project``. A raw name reached the filesystem
+    before this: ``ATR 42-300 ("ATR 42-100" prototype … analog) — 2x PW120``
+    was legal on macOS, an ``OSError`` on Windows, unreadable in Open either way.
+    """
+    stem = re.sub(r"[^A-Za-z0-9._-]+", "_", name.strip())
+    stem = re.sub(r"_+", "_", stem).strip("._-")[:PROJECT_STEM_MAX].rstrip("._-")
+    return f"{stem or 'project'}{PROJECT_SUFFIX}"
+
+
 def default_projects_dir() -> str:
     """The default local-disk projects directory (Step D3, decision D-3).
 
@@ -1377,7 +1400,7 @@ def list_saved_projects(directory: str) -> List[Tuple[str, float]]:
         return []
     entries = []
     for fname in os.listdir(directory):
-        if fname.endswith(".project.json"):
+        if fname.endswith(PROJECT_SUFFIX):
             mtime = os.path.getmtime(os.path.join(directory, fname))
             entries.append((fname, mtime))
     entries.sort(key=lambda e: e[1], reverse=True)

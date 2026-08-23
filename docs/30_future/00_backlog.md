@@ -95,7 +95,7 @@ is not the project gate G5 tests (`mass` never produced, items untagged,
 rotors and station tables outside the reduction; **closed #62, 2026-08-23**), blank-seeded selector and
 code fields that silently change loads (**closed #63, 2026-08-23**), the stale project download
 (**closed #64, 2026-08-23**), no
-project name (every save overwrites the last), and an engine-layout state
+project name (every save overwrites the last; **closed #65, 2026-08-23**), and an engine-layout state
 that saves a file the loader refuses. Sixteen KNOWN-ISSUE findings go to band
 B as rows 11–18 (release notes for 0.7.0; fixed in 0.7.x/0.8.0). The cut
 signal is unchanged in form: **0.7.0 when band A is empty**.
@@ -216,7 +216,6 @@ traceability with plans 09/11/12/13; the **Pri** column is ordinal only.
 | Pri | Item (detail below / in its plan) | What ships | Tag | Tier / effort | Depends on |
 |---|---|---|---|---|---|
 | **A — 0.7.0: a beta release of the oracle GUI (re-cut 2026-08-22; BB-\* keys resolve in that review)** ||||||
-| 9 | **`project.name` has no widget in the oracle GUI** — every save is `project.project.json` over the last, unasked; names are not sanitised *(PB-6; defect)* (#65) | A name widget in the shared sidebar; overwrite confirmation on Save; one filename sanitiser shared by Save and Download | V | S / S | — |
 | 10 | **An engine layout set against the wrong engine count saves a file the loader refuses** *(PB-7; defect)* (#66) | Engine Mount validates layout against the row count and withholds results; the loader flags a mismatch instead of refusing the file; a save→reload test on the mismatched state | V | S / S | — |
 | — | **Cut 0.7.0** when band A is empty (RELEASE_PROCESS §2 cadence rule) | | | | |
 | **B — 0.8.0: the main-GUI review completed and its findings addressed** ||||||

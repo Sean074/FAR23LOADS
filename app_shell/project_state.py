@@ -27,6 +27,7 @@ and still loads, an older one is migrated in place) — the hard contract lives 
 from __future__ import annotations
 
 import json
+import os
 import warnings
 from typing import Callable, Optional
 
@@ -43,10 +44,23 @@ from sloads.models import SCHEMA_VERSION
 #: that returns a field to its saved value correctly reads as *not* dirty.
 SAVED_SNAPSHOT_KEY = "_saved_project_snapshot"
 
+#: Session-state key holding the ``projects/`` path this project was opened
+#: from or last saved to (``None`` for a fresh, example or uploaded project).
+#: Save writes there without asking; any *other* existing file is confirmed
+#: first (#65, PB-6).
+SAVED_PATH_KEY = "_saved_project_path"
 
-def mark_saved(project: Project) -> None:
-    """Snapshot ``project`` as the last loaded/saved state (the dirty baseline)."""
+
+def mark_saved(project: Project, path: Optional[str] = None) -> None:
+    """Snapshot ``project`` as the last loaded/saved state (the dirty baseline),
+    and record the on-disk file it now corresponds to (``None``: no file)."""
     st.session_state[SAVED_SNAPSHOT_KEY] = sloads_io.project_to_dict(project)
+    st.session_state[SAVED_PATH_KEY] = path
+
+
+def saved_path() -> Optional[str]:
+    """The file Save writes back to unprompted, if the project has one."""
+    return st.session_state.get(SAVED_PATH_KEY)
 
 
 def ensure_project() -> Project:
@@ -67,9 +81,10 @@ def has_unsaved_changes(project: Project) -> bool:
     return sloads_io.project_to_dict(project) != st.session_state.get(SAVED_SNAPSHOT_KEY)
 
 
-def adopt(new_project: Project) -> None:
+def adopt(new_project: Project, path: Optional[str] = None) -> None:
     """Replace the session's project, reset the dirty baseline to it, and retire
-    the widgets that were seeded from the project it replaces.
+    the widgets that were seeded from the project it replaces. ``path`` is the
+    ``projects/`` file it was opened from, if any (see :data:`SAVED_PATH_KEY`).
 
     This and the JSON editor's Apply (``app/views/project_editor.py``, which
     replaces the project *without* saving it, so it bumps the generation itself
@@ -81,11 +96,11 @@ def adopt(new_project: Project) -> None:
     """
     st.session_state["project"] = new_project
     bump_generation()
-    mark_saved(new_project)
+    mark_saved(new_project, path)
 
 
 @st.dialog("Discard unsaved changes?")
-def confirm_discard(new_project: Project, source: str) -> None:
+def confirm_discard(new_project: Project, source: str, path: Optional[str] = None) -> None:
     current = active_project()
     st.write(
         f"**{current.name or '(unnamed)'}** has unsaved changes. Loading "
@@ -94,7 +109,7 @@ def confirm_discard(new_project: Project, source: str) -> None:
     )
     c1, c2 = st.columns(2)
     if c1.button("Discard and load", type="primary", use_container_width=True):
-        adopt(new_project)
+        adopt(new_project, path)
         st.rerun()
     if c2.button("Cancel", use_container_width=True):
         st.rerun()
@@ -138,10 +153,45 @@ def safe_load(build: Callable[[], Project], source: str) -> Optional[Project]:
         return None
 
 
-def load_with_guard(new_project: Project, source: str) -> None:
-    """Adopt ``new_project``, first confirming if the current one is dirty."""
+def load_with_guard(new_project: Project, source: str, path: Optional[str] = None) -> None:
+    """Adopt ``new_project``, first confirming if the current one is dirty.
+    ``path`` is the ``projects/`` file it came from (Open), else ``None``."""
     if has_unsaved_changes(active_project()):
-        confirm_discard(new_project, source)
+        confirm_discard(new_project, source, path)
     else:
-        adopt(new_project)
+        adopt(new_project, path)
         st.rerun()
+
+
+@st.dialog("Overwrite the saved project?")
+def confirm_overwrite(project: Project, path: str) -> None:
+    """Save wants to write ``path``, which exists and is not this project's own
+    file. Until #65 a second project named like the first silently replaced
+    it on disk."""
+    st.write(f"**{os.path.basename(path)}** already exists in the projects "
+             "directory and is not the file this project was opened from. "
+             "Overwrite it?")
+    c1, c2 = st.columns(2)
+    if c1.button("Overwrite", type="primary", use_container_width=True):
+        save_to(project, path)
+        st.rerun()
+    if c2.button("Cancel", use_container_width=True):
+        st.rerun()
+
+
+def save_to(project: Project, path: str) -> None:
+    """Write ``project`` to ``path`` and make that file its saved state."""
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    sloads_io.save_project(project, path)
+    mark_saved(project, path)
+
+
+def save_with_guard(project: Project, path: str) -> bool:
+    """Save to ``path``; returns ``True`` when written now, ``False`` when an
+    overwrite of some *other* existing file was put to the user first."""
+    own = saved_path()
+    if os.path.exists(path) and (own is None or os.path.abspath(own) != os.path.abspath(path)):
+        confirm_overwrite(project, path)
+        return False
+    save_to(project, path)
+    return True

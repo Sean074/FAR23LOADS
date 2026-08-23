@@ -325,10 +325,12 @@ def test_an_upload_is_processed_exactly_once_across_reruns():
     assert at.session_state["project"].name == "from-upload"
     assert at.session_state["_guard_calls"] == ["uploaded.project.json"]
 
-    # A user edit after the upload must survive the next rerun un-clobbered.
-    at.session_state["project"].name = "edited-after-upload"
+    # A user edit after the upload must survive the next rerun un-clobbered
+    # (``engineer``: the name has a sidebar widget of its own since #65, and a
+    # widget writes back over a mutation made behind it -- by design, #51).
+    at.session_state["project"].engineer = "edited-after-upload"
     at.run()
-    assert at.session_state["project"].name == "edited-after-upload"
+    assert at.session_state["project"].engineer == "edited-after-upload"
     assert at.session_state["_guard_calls"] == ["uploaded.project.json"]
 
 
@@ -490,15 +492,123 @@ def test_no_view_calls_st_stop_directly():
     assert offenders == [], f"st.stop() discards the shell's project-file block; call stop_page(): {offenders}"
 
 
-def test_the_download_filename_matches_the_save_convention():
-    """CR-D-9: Download writes ``<name>.project.json`` — the same suffix Save
-    uses — so a downloaded file dropped into ``projects/`` is listed by Open."""
-    src = open(os.path.join(_SHELL_DIR, "sidebar.py"), encoding="utf-8").read()
-    assert 'file_name=f"{fname}.project.json"' in src, (
-        "the Download button no longer writes the .project.json suffix Open "
-        "and Save agree on (#34 / CR-D-9)"
-    )
+# --------------------------------------------------------------------------- #
+# The project is named in the sidebar; Save never overwrites unasked (#65, PB-6)
+# --------------------------------------------------------------------------- #
+_NAMED_SCRIPT = """
+import os, streamlit as st
+from sloads import io as sloads_io
+sloads_io.default_projects_dir = lambda: {projects_dir!r}
+_real_download = st.download_button
+def _recording(label, data, **kw):
+    st.session_state["_download_name"] = kw["file_name"]
+    return _real_download(label, data, **kw)
+st.download_button = _recording
+try:
+    from app_shell.project_state import ensure_project, saved_path
+    from app_shell.sidebar import render_shell_sidebar
+    project = ensure_project()
+    with render_shell_sidebar(project):
+        pass
+    st.session_state["_saved_path"] = saved_path()
+finally:
+    st.download_button = _real_download
+"""
 
+
+def _named_app(projects_dir):
+    from streamlit.testing.v1 import AppTest
+
+    at = AppTest.from_string(_NAMED_SCRIPT.format(projects_dir=str(projects_dir)),
+                             default_timeout=60)
+    at.run()
+    assert not at.exception, [e.message for e in at.exception]
+    return at
+
+
+def _name_widget(at):
+    return next(w for w in at.sidebar.text_input if w.label == "Project name")
+
+
+def _save(at):
+    next(b for b in at.sidebar.button if "Save" in b.label).click().run()
+    assert not at.exception, [e.message for e in at.exception]
+
+
+def test_project_filename_is_one_sanitiser():
+    """``[^A-Za-z0-9._-]`` → ``_``, collapsed, trimmed, capped, never empty."""
+    from sloads.io import PROJECT_STEM_MAX, project_filename
+
+    assert project_filename("") == "project.project.json"
+    assert project_filename("  ./  ") == "project.project.json"
+    assert project_filename("GA-6 Normal") == "GA-6_Normal.project.json"
+    assert project_filename("Cessna 210 Centurion — Continental IO-520-A") == \
+        "Cessna_210_Centurion_Continental_IO-520-A.project.json"
+    long = project_filename('ATR 42-300 ("ATR 42-100" prototype designation never entered '
+                            'production; -300 is the closest PW120-powered production analog)')
+    assert long.endswith(".project.json") and len(long) <= PROJECT_STEM_MAX + len(".project.json")
+    assert long.startswith("ATR_42-300_ATR_42-100_prototype")
+    assert "/" not in project_filename("a/b\\c:d") and project_filename("a/b\\c:d") == "a_b_c_d.project.json"
+
+
+def test_the_sidebar_names_the_project_and_its_file(tmp_path):
+    """The name widget is the shell's (both GUIs); Download and Save use the
+    sanitised name; the ``app/`` dashboard no longer carries a second widget."""
+    at = _named_app(tmp_path)
+    assert at.session_state["_download_name"] == "project.project.json"
+    _name_widget(at).set_value("GA-6 Normal / study").run()
+    assert at.session_state["project"].name == "GA-6 Normal / study"
+    assert at.session_state["_download_name"] == "GA-6_Normal_study.project.json"
+    assert _dirty_caption(at) == "🟠 Unsaved changes"
+
+    dashboard = open(os.path.join(_ROOT, "app", "views", "dashboard.py"), encoding="utf-8").read()
+    assert '"Project name"' not in dashboard, "two widgets for project.name flip-flop"
+
+
+def test_save_writes_a_fresh_name_and_then_its_own_file_unasked(tmp_path):
+    at = _named_app(tmp_path)
+    _name_widget(at).set_value("Study A").run()
+    _save(at)
+    path = tmp_path / "Study_A.project.json"
+    assert path.is_file()
+    assert at.session_state["_saved_path"] == str(path)
+    assert _dirty_caption(at) == "⚪ No unsaved changes"
+
+    at.session_state["project"].engineer = "me"
+    at.run()
+    _save(at)  # its own file: written again, no question asked
+    assert '"engineer": "me"' in path.read_text(encoding="utf-8")
+    assert _dirty_caption(at) == "⚪ No unsaved changes"
+
+
+def test_save_over_another_project_asks_first(tmp_path):
+    """PB-6's loss: a second project named like the first replaced it on disk.
+    Now the existing file is untouched until the overwrite is confirmed."""
+    other = tmp_path / "Study_A.project.json"
+    other.write_text('{"keep": "me"}', encoding="utf-8")
+    at = _named_app(tmp_path)
+    _name_widget(at).set_value("Study A").run()
+    _save(at)
+    assert other.read_text(encoding="utf-8") == '{"keep": "me"}'
+    assert at.session_state["_saved_path"] is None
+    assert _dirty_caption(at) == "🟠 Unsaved changes"
+
+
+def test_open_records_the_file_so_save_goes_back_to_it(tmp_path):
+    from sloads import Project
+    from sloads import io as sloads_io
+
+    src = tmp_path / "Mine.project.json"
+    sloads_io.save_project(Project(name="Mine"), str(src))
+    at = _named_app(tmp_path)
+    next(b for b in at.sidebar.button if b.label == "Open").click().run()
+    assert not at.exception, [e.message for e in at.exception]
+    assert at.session_state["project"].name == "Mine"
+    assert at.session_state["_saved_path"] == str(src)
+    at.session_state["project"].engineer = "me"
+    at.run()
+    _save(at)
+    assert '"engineer": "me"' in src.read_text(encoding="utf-8")
 
 if __name__ == "__main__":  # zero-dependency self-runner
     import sys

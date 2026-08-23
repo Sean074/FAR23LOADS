@@ -75,6 +75,11 @@ def _file_name_of(call):
         if isinstance(node, ast.JoinedStr):
             return "".join(v.value for v in node.values
                            if isinstance(v, ast.Constant) and isinstance(v.value, str))
+        # The shell names the project file through its one sanitiser (#65);
+        # the call *is* the statement that the file is ``<stem>.project.json``.
+        if isinstance(node, ast.Call) and getattr(node.func, "attr", "") == "project_filename":
+            from sloads.io import PROJECT_SUFFIX
+            return PROJECT_SUFFIX
     return None
 
 

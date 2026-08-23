@@ -33,14 +33,14 @@ render_applicability_banner(project)
 # --------------------------------------------------------------------------- #
 # Project metadata
 # --------------------------------------------------------------------------- #
-col1, col2, col3 = st.columns([2, 1, 1])
+# The project's *name* is the sidebar's (``app_shell.sidebar``, both GUIs --
+# #65): it names the saved file, and a second widget for one field would
+# write its own retained state back over the other's on every rerun.
+col1, col2 = st.columns(2)
 with col1:
-    project.name = st.text_input("Project name", value=project.name,
-                                 key=widget_key("dash_name"))
-with col2:
     project.engineer = st.text_input("Engineer", value=project.engineer,
                                      key=widget_key("dash_engineer"))
-with col3:
+with col2:
     project.date = st.text_input("Date", value=project.date, placeholder="YYYY-MM-DD",
                                  key=widget_key("dash_date"))
 

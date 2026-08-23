@@ -116,6 +116,18 @@ superseded Phase-D six-section grouping is in
   therefore genuinely cancels. Download writes `<name>.project.json` — the same
   suffix Save uses — so a downloaded file dropped into `projects/` is listed by
   Open.
+- **The project is named here, and Save never overwrites unasked** (#65,
+  review 2026-08-22 PB-6). `project.name` is document metadata, not an oracle
+  input, so no oracle page rendered it and a project built there saved as
+  `project.project.json` over the last, every time. The **Project name** widget
+  is the sidebar's — one widget, both GUIs; the `app/` dashboard's copy is gone
+  (two widgets for one field write their retained state over each other). One
+  sanitiser, `io.project_filename(name)` (`[^A-Za-z0-9._-]` → `_`, collapsed,
+  trimmed, capped at `io.PROJECT_STEM_MAX`), names both the saved and the
+  downloaded file. `project_state` remembers the `projects/` file a project was
+  opened from or last saved to (`SAVED_PATH_KEY`): Save writes *that* file
+  back unasked and confirms (`confirm_overwrite`) before replacing any other
+  existing file. Guards in `tests/test_app_shell.py`.
 - **The project-file block renders after the page** (#64, review 2026-08-22
   PB-4). The rerun that carries a widget edit runs the sidebar before the page
   that persists it, so a block rendered above `pg.run()` served the *previous*

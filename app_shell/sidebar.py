@@ -42,9 +42,10 @@ from app_shell.components import IN_SHELL_KEY, StopPage
 from app_shell.project_state import (
     has_unsaved_changes,
     load_with_guard,
-    mark_saved,
     safe_load,
+    save_with_guard,
 )
+from app_shell.widget_keys import widget_key
 from sloads import Project, UnitSystem
 from sloads import io as sloads_io
 from sloads.units import unit_system_from
@@ -118,13 +119,22 @@ def _render_units(project: Project) -> None:
 
 def _render_project_file(project: Project, examples_dir: str) -> None:
     st.header("Project file")
+    # The name is document metadata, not an oracle input, so no oracle page
+    # renders it -- and a project built there was called "" for its whole life:
+    # every Save was ``project.project.json`` over the last (#65, PB-6). One
+    # widget for both GUIs, here, beside the file it names.
+    name = st.text_input("Project name", project.name, key=widget_key("_project_name"),
+                         help="Names the saved / downloaded file: "
+                              f"`{sloads_io.project_filename(project.name)}`.")
+    if name != project.name:
+        project.name = name
     dirty = has_unsaved_changes(project)
     st.caption("🟠 Unsaved changes" if dirty else "⚪ No unsaved changes")
 
     projects_dir = sloads_io.default_projects_dir()
     saved = sloads_io.list_saved_projects(projects_dir)
     example_files = sorted(
-        f for f in os.listdir(examples_dir) if f.endswith(".project.json")
+        f for f in os.listdir(examples_dir) if f.endswith(sloads_io.PROJECT_SUFFIX)
     ) if os.path.isdir(examples_dir) else []
 
     with st.expander("📂 Open", expanded=False):
@@ -136,7 +146,7 @@ def _render_project_file(project: Project, examples_dir: str) -> None:
                 path = os.path.join(projects_dir, choice)
                 loaded = safe_load(lambda: sloads_io.load_project(path), choice)
                 if loaded is not None:
-                    load_with_guard(loaded, choice)
+                    load_with_guard(loaded, choice, path)
         else:
             st.caption(f"No saved projects yet in `{projects_dir}`.")
 
@@ -170,20 +180,20 @@ def _render_project_file(project: Project, examples_dir: str) -> None:
                 if loaded is not None:
                     load_with_guard(loaded, uploaded.name)
 
-    fname = (project.name or "project").strip().replace(" ", "_") or "project"
+    # One sanitiser for Save and Download (``io.project_filename``): the raw
+    # name reached the filesystem before #65. The file this project came from
+    # is written back unasked; any other existing file is confirmed first.
     if st.button("💾 Save to disk", use_container_width=True, key="_save_btn"):
-        os.makedirs(projects_dir, exist_ok=True)
-        save_path = os.path.join(projects_dir, f"{fname}.project.json")
-        sloads_io.save_project(project, save_path)
-        mark_saved(project)
-        st.success(f"Saved: {save_path}")
-        st.rerun()
+        save_path = os.path.join(projects_dir, sloads_io.project_filename(project.name))
+        if save_with_guard(project, save_path):
+            st.success(f"Saved: {save_path}")
+            st.rerun()
 
-    # ``.project.json``, matching Save-to-disk, so a downloaded file dropped
-    # into ``projects/`` is listed by Open (CR-D-9).
+    # The same ``.project.json`` name Save-to-disk writes, so a downloaded file
+    # dropped into ``projects/`` is listed by Open (CR-D-9).
     st.download_button(
         "Download project.json", sloads_io.project_to_json(project),
-        file_name=f"{fname}.project.json", mime="application/json",
+        file_name=sloads_io.project_filename(project.name), mime="application/json",
         use_container_width=True, key="_download_btn",
     )
 
