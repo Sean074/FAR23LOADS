@@ -10,7 +10,9 @@ Acceptance**, **Key decisions**.
 
 **Live cycle only.** This file holds the current release cycle plus the previous
 release cut. Older blocks roll into frozen, do-not-edit archives at each release
-(`RELEASE_PROCESS.md` §4): everything before 0.5.0 is in
+(`RELEASE_PROCESS.md` §4): the 0.6.0 cycle and the 0.5.0 cut are in
+[`35_completed_development_to_0.6.0.md`](35_completed_development_to_0.6.0.md),
+everything before 0.5.0 in
 [`11_completed_development_to_0.5.0.md`](11_completed_development_to_0.5.0.md).
 Tier S closures do not write here (a `changes/` fragment is their record); tier M
 writes one paragraph, tier L the full step format — **as a `changes/<slug>.history.md`
@@ -19,6 +21,1141 @@ concurrent PRs never edit the same line here. Only the release-cut block itself 
 written directly, by the release manager.
 
 ---
+
+## Release cut: **sloads 0.7.0** (the oracle GUI beta, the lateral body aero and the reviews that made it shippable), tag `v0.7.0`, 2026-08-23
+
+**Objective.** Cut the release the 2026-08-22 backlog review re-scoped as a
+**beta of the oracle GUI** — everything that supports a *usable* second
+front-end over the one analysis model — once band A of the priority table was
+empty. It emptied with issue #66 on 2026-08-23, the last of the five
+BLOCKS-CUT rows the pre-cut beta review (#61) had put in front of the cut. Six
+days of `[Unreleased]` held four review rounds' worth of work; unreleased work
+has no regression baseline.
+
+**Deliverables** (the `[0.7.0]` changelog section is the release note; headline
+items only):
+- **The oracle GUI** (design note 32, steps OG-A…OG-F, 2026-08-18/20):
+  `oracle_app/Oracle.py` / `sloads-oracle`, fourteen pages built from
+  `workflow.oracle_steps()` and **one** renderer over `sloads.field_registry`
+  — no page files — exposing exactly the 230 inputs the original programs
+  asked for, running every program a step's `bas` string claims and emitting
+  CSV and text through the same owners the CLI uses. Gates **G1–G8**; gate
+  **G5** runs the reduced input set rather than asserting it (five of six
+  examples reduce exactly).
+- **The shell with one owner** (`app_shell/`, OG-B, tier L): page scaffold,
+  the `unit_number_input` boundary, project state with the dirty guard and
+  the overwrite prompt, the project-file block rendered **after** the page
+  (`stop_page()`), widget keys as a generation-stamped single owner.
+- **The one input-field registry** (`sloads/field_registry.py`, OG-C): all
+  input fields classified `ORIGINAL` / `SLOADS` with their editing page,
+  origin and owner; totality is a gate in both directions.
+- **The pre-cut beta review made good** (#61 → #62–#66): the oracle GUI's
+  project *is* the project gate G5 tests; seeded selector names and coded
+  inputs with one owner; the download and the dirty flag describe this
+  rerun's edit; the project is named in the sidebar and Save never overwrites
+  unasked; an engine layout that disagrees with its engine count is asked,
+  never enforced at construction. Sixteen KNOWN-ISSUE findings are band B
+  rows 11–18 (#67–#74) — the beta's release notes.
+- **Lateral body aero in sideslip** (L-7, note 19 rev. 3, #8, tier L, schema
+  **v54**): DATCOM wing-body `Cy_β`/`Cn_β` oracle-locked to DATCOM's printed
+  sample output, one off-by-default `body-aero` load and the two case
+  sentences; plus **engine thrust at the hub** (#10, note 21's carve-out) —
+  the assembled model's first forward force, reacted by the closure in closed
+  form.
+- **The fixture-data pass** (#9, D-27): entered empennage planforms, the ga6
+  fin-root pin and body outline, the fixture CG datum reconciled and the
+  flight cases pinned to the WTENV limits.
+- **One owner per quantity, in the dataclasses** (note 33, DS-1…DS-7, tier
+  L): ten derived copies removed; the two class-C duplicate pairs retired by
+  the **v55** hop with a reconciling migration (#52).
+- **The 2026-08-20 critical review's ten MAJORs closed** (CR-A…CR-D):
+  `_balance` says how it ended (#33), the residual-gate exemption has one
+  owner (#41), the stoppage-torque closure, manifest conformance, the
+  MINOR/NIT sweep (#43), the sidebar Upload edge-triggered (#34), the oracle
+  form's persist path loss-free (#35), one owner at render (#36), the 98
+  unkeyed `app/views/` widgets keyed with the unit-boundary rollout (#51 +
+  #44, one pass), `workflow.requires` vs self-entered slices (#45).
+- **Decisions, not work:** no combined flight + ground station envelope
+  (**D-28**), the derived `ACRL` point, the ATR-42's Mach-capped corner and
+  the gust-shape study (**D-29…D-31**); the 0.7.0 re-cuts of 2026-08-17,
+  2026-08-20 and 2026-08-22 as the scope of record.
+- **The process that ships it:** the solo loop as **one milestone branch per
+  release** (`dev/vX.Y.Z`, merged to `main` with a merge commit), the
+  cycle-time revision of the close loop, the PR-fast CI gate, the workflow
+  command crib sheet.
+- **Version** `0.6.0` → **`0.7.0`** in `pyproject.toml` (MINOR: a new GUI
+  capability, no breaking change — `SCHEMA_VERSION` **53 → 55** by two
+  additive hops, `io.py` loads every older save with the v55 reconciling
+  migration).
+- **Changelog cut** — `scripts/build_changelog.py 0.7.0 --date 2026-08-23`:
+  **54 fragments** consumed into `## [0.7.0]` (Added / Changed / Fixed),
+  **33 history entries** rolled to the top of this file, a fresh empty
+  `[Unreleased]` opened; released sections byte-untouched.
+- **History roll** (`RELEASE_PROCESS.md` §4.3): the shipped plan 12 and
+  notes 19 and 33 moved from `30_future/` to `40_history/`; the live file
+  passed the 1,500-line threshold for the first time, so the 0.6.0 cycle and
+  the 0.5.0 block are frozen in
+  [`35_completed_development_to_0.6.0.md`](35_completed_development_to_0.6.0.md).
+- **Verification baseline** —
+  [`36_verification_baseline_0.7.0.md`](36_verification_baseline_0.7.0.md), a
+  **delta** baseline like 0.6.0's.
+- **Gates at cut:** `pytest` **2716 passed / 30 skipped / 1 xfailed / 0
+  failed**, `ruff check sloads/ cli.py oracle.py app/ app_shell/ oracle_app/
+  scripts/` clean, `mypy` clean (`sloads/`), `scripts/smoke_test.sh`
+  **PASS**, `scripts/backlog_issues.py check` clean with band A empty, no
+  open CRITICAL/MAJOR review findings (the 2026-08-20 review's ten MAJORs
+  closed; the 2026-08-22 pre-cut review's eight BLOCKS-CUT closed).
+
+**Key decisions.** The release was cut by the band, not the calendar, twice
+over: the 2026-08-20 band A emptied on 2026-08-22 and the user re-scoped the
+release as a *beta* before cutting, adding a pre-cut review as the last row
+so the cut signal included it by construction; that review found the cut
+**not ready** and its eight blockers became the last five rows. Under the
+solo profile the milestone branch `dev/v0.7.0` *is* the release branch
+(`DEVELOPMENT_PROCESS.md` §0, 2026-08-22): steps 1–3 are commits on it, one
+merge-commit PR lands it on `main`, the tag is made on `main`. Every
+deliverable byte moved this cycle moved deliberately, with its wave recorded
+in the changelog entry that moved it; no FAR 23 printed figure moved and the
+approved-deviations register took no entry.
+
+**Post-release.** The cadence rule (`RELEASE_PROCESS.md` §2) restarts from
+this tag. Band B — the main-GUI review (#29) completed and its findings
+addressed, the docs/CI conformance sweep (#46) and the beta's known issues
+(#67–#74) — is the **0.8.0** working plan; the priority table's open rows are
+the GitHub issues.
+
+- **The keyed-pick convention got a real owner and a real guard (defect, tier M,
+  2026-08-22)** — review 2026-08-20 CR-B-1 found the `CONVENTIONS.md` §7
+  platform-stability row asserting something untrue of the very line its owner's
+  docstring used as the worked example: SELECT's 23.423(a) `BAL A` pick was a raw
+  `(min if want_min else max)(…, key=…)`, and the row's guard — a substring grep
+  for `max(`/`min(` on a line with `key=` — matched neither spelling, so it passed
+  with the invariant broken. The fix took the general form rather than the
+  instance: `_extreme` moved out of `sloads/modules/select.py` into
+  `sloads/picks.py` as the public `extreme`, because a convention that governs the
+  whole package cannot be owned by a private function inside one FAR23 module; the
+  grep became an AST walk over `sloads/` matching on the *callee expression*, so
+  the conditional form, an aliased builtin and a multi-line call all read alike;
+  and rule 4 swept every sibling — fourteen sites across nine calc modules and five
+  exporters, including nearest-node picks on a symmetric airplane (ties by
+  construction), the Gaussian pivot row in `rigid_body`, and the case named in a
+  shipped validation warning. The walk immediately earned itself: four of the
+  fourteen were multi-line calls that the old grep could not have seen either.
+  Nothing numeric moved — `extreme` returns first-in-order, which is what
+  `max`/`min` already return for a bit-exact tie, so the oracles and the frozen
+  Imperial digest were untouched and the acceptance rule agreed for this item (any
+  movement stops the change and is filed as its own finding) never fired. §7's
+  wording was narrowed to exactly what the guard enforces and now says outright
+  that a pick written as an accumulation loop is beyond a static walk's reach — the
+  repo's own §4 lesson, that a gate which does not read the shipped artefact rots
+  the first time the code grows past the shape the gate assumed, applied to the
+  gate's *wording* as well as its mechanism.
+
+**Step OG-B — the app-layer shell gets one owner (`app_shell/`) (design note 32, tier L, 2026-08-19)**
+
+**Objective.** Design note 32 adds a second Streamlit front-end over the same
+analysis model. Its decision OG-4 names the prerequisite: the app-layer code both
+front-ends need — project state, the unsaved-changes guard, the units toggle, the
+project-file widget, the page scaffold, the unit-input boundary and the LIMIT CSV
+builders — must have a single owner *before* the second GUI exists, because
+skipping it is not "some duplication" but the dual-path failure the project
+rejects in the calc layer, relocated to the shell.
+
+The blocker was concrete rather than stylistic. `app/components.py` and
+`app/limit_csv.py` were bare top-level modules importable only because Streamlit
+puts the entry point's directory on `sys.path`, and the seven project-lifecycle
+helpers were private functions of `app/Home.py` — a *script*, which calls
+`st.set_page_config` at line 45, builds the sidebar at 150 and `pg.run()` at 258.
+Importing it to reach `_has_unsaved_changes` would have booted the existing app.
+A second GUI could therefore only have copied the dirty guard, and two answers to
+"are there unsaved changes?" is exactly what `CLAUDE.md` rule 3 exists to prevent.
+
+**Deliverables.**
+
+- **`app_shell/`**, a new package: `components.py` (page scaffold, unit boundary,
+  workflow page links, applicability banner — moved unchanged), `limit_csv.py`
+  (moved unchanged), `project_state.py` (`ensure_project`, `mark_saved`,
+  `has_unsaved_changes`, `adopt`, `confirm_discard`, `apply_schema_check`,
+  `safe_load`, `load_with_guard` — lifted out of `Home.py`, de-underscored, with
+  the module-global `project` they closed over replaced by `active_project()`),
+  and `sidebar.py` (`render_shell_sidebar`, the units + project-file + About
+  block, previously an inline `with st.sidebar:` in the script).
+- **`app/Home.py` reduced to what is specific to this front-end**: 258 lines to
+  81 — its phase labels, its `_page`/`st.navigation` construction, and one
+  `st.set_page_config`. Navigation is deliberately *not* shell: this GUI shows
+  every workflow step and the oracle GUI will show only the steps backed by a
+  `.BAS` program (OG-2), so the two derive their page sets from the same
+  `workflow.py` by different rules and a shared builder would fit neither.
+- **Gate G8**, `tests/test_app_shell.py` — three assertions: no GUI package
+  redefines a public shell name; the shell never imports a GUI package back
+  (without which "single owner" is nominal and the second GUI inherits the
+  first's pages); and the GUI set is non-empty, guarding the guard.
+- **Call-site sweep**: 21 view modules and 3 test modules re-pointed from
+  `from components import …` to `from app_shell.components import …`;
+  `pyproject.toml` gained `app_shell*` to `packages.find`; `PROJECT_GUIDE.md` §4
+  gained the package in the tree and lost the two prose claims the move
+  invalidated; the lint gate gained `app_shell/` in all nine places it is
+  written down.
+- **Generalised on first find (rule 4)**: `conftest.py` and eight test modules
+  carried `sys.path.insert(…, "app")` with comments explaining it as necessary
+  "or the view fails on `import components`". That reason no longer exists, so
+  the whole class went with the change rather than being left as nine copies of
+  a stale rationale.
+
+**Test.** `tests/test_app_shell.py` is the new gate; the existing suite is the
+no-behaviour-change evidence — 2,167 passed, including `test_views_smoke`'s
+entry-point and per-view AppTest runs, `test_app_components` (the unit-boundary
+round-trip, now importing through the package), `test_dirty_flag`,
+`test_limit_csv` and `test_page_links`. The entry point was additionally booted
+in a fresh interpreter from an unrelated working directory, confirming the
+sidebar renders both headers, the units radio, all three buttons and the dirty
+flag through the extracted helpers — the check an AppTest run from inside the
+repo cannot give.
+
+**Key decisions.**
+
+1. **`app_shell/` at the repo root, not `app/shell/`.** A subpackage would make
+   the existing GUI the structural parent of its sibling, which is the asymmetry
+   OG-4 exists to remove. `sloads/` was never a candidate: the pure-calc rule and
+   OG-1 both forbid Streamlit imports there.
+2. **A real installed package, not a directory on the implicit path.** This is
+   what lets a second entry point import the shell without inheriting the first
+   one's `sys.path`, and it is why the test-side path hacks could be deleted
+   rather than duplicated for the new GUI. It costs one one-time
+   `pip install -e '.[dev]'` for an existing checkout, and a restart of any
+   already-running dev server; CI installs fresh and is unaffected.
+3. **G8 derives its GUI set instead of listing it.** A hardcoded `app/` vs
+   `oracle_app/` comparison would pass vacuously today and would have to be
+   remembered later, at the exact moment the guard matters. Discovering
+   directories by their `st.set_page_config` entry point means the second GUI
+   activates the gate by existing — the same derive-don't-list rule the
+   navigation guard follows.
+4. **Behaviour frozen deliberately.** Widget keys, ordering and help text are
+   byte-identical, so the smoke and dirty-flag suites are a real regression
+   check on the move. Two improvements were noticed and *not* taken here:
+   `use_container_width` is deprecated in current Streamlit, and the lint-gate
+   invocation is written out in nine places. Both are their own items; folding
+   either in would have made this diff unreviewable as a move.
+
+- **Apply made loss-free across the main GUI (#36 part 1, tier M, 2026-08-21)** —
+  `GUI_design.md` §6 already said *Apply merges targeted fields onto the existing
+  slice*, and four forms had drifted off it by rebuilding their input dataclass
+  from the widgets they render. The backlog entry named one symptom, the three
+  unreachable landing-gear fields (`carrier`/`attach`/`weight_lb`, ranked #1 in
+  the 2026-08-20 review's "first-order defect in shipped export content" row),
+  but the measurement that opened the change found the reachability gap was the
+  *smaller* half: the form did not merely fail to offer those fields, it **reset
+  them on every Apply**, so a project that supplied them by hand lost them the
+  first time a user pressed a button on the Geometry page. The fix gives the three
+  fields widgets — the carrier as a three-way selector, because G-2 gives it no
+  default and "not stated" has to survive a round trip rather than collapse to
+  `BODY` — and, under rule 4, sweeps the class: the fin root waterline, the
+  engine's `mounted_on` and the wing's profile-drag/section-Cm polars were being
+  discarded the same way. The first guard written for it was an AST scan for
+  dataclass constructions that name too few fields; it was **withdrawn before
+  landing** because it could not separate a dangerous rebuild from a legitimate
+  fresh construction and reported twenty-odd false positives, including every
+  `Project(...)` in the codebase. What replaced it is behavioural and page-generic
+  — press every Apply on every page with no widget touched, and fail if a stated
+  value became unstated — which found the engine and wing-aero defects that the
+  AST scan's noise had buried, and which was checked against a reverted fix to
+  confirm it can actually fail (note 32 §8's lesson: a guard that cannot fail on
+  its target is worse than none). The asymmetry is deliberate: Apply is allowed to
+  seed `speeds.occupants` from the weight slice and to materialise an optional
+  sub-record as explicitly disabled, so the invariant is *never delete*, not
+  *never change*.
+
+## Derived-scalar consolidation — one owner per quantity, in the dataclasses (note 33, tier L, 2026-08-21)
+
+**Why.** The 2026-08-20 review's CR-A-2 found ten quantities with two or more
+independently editable copies and proposed the obvious remedy: teach the generic
+renderer to read the registry's `is_owner`/`derived_from` and grey the copies out.
+The owner asked the prior question instead — *why do we need the copies at all,
+and can they be consolidated?* — and stated the preference plainly: changing
+tests is acceptable and preferred to keeping confusing redundant variables. That
+turned a display fix into a contract change, which is why it took a design note
+(rule 1) rather than a patch.
+
+**What the measurement found.** Three classes, not one. Seven copies were a
+**cache of `Project.geometry`** — `io.py` already refused to write every one of
+them, so `project.json` held each quantity exactly once and the duplication lived
+only in the dataclass API, from where the field registry propagated it to both
+GUIs. Three were genuine overrides. Two were entered twice with nothing
+reconciling them at all. The remedy the review proposed would have decorated all
+ten identically; the classes need different answers, and only the first is a
+copy that can simply cease to exist.
+
+**Three defects fell out of the measurement**, each an argument for removing the
+copies rather than marking them. `landing._wing_area` preferred its slice copy and
+fell back to geometry while `structural_speeds._wing_area_sqft` preferred geometry
+and fell back to its slice — **opposite precedence for one quantity**, masked only
+because the sync overwrote the landing copy first, and with no guard because a
+guard cannot be written while two modules each own the answer. Note 32's decision
+OG-7 promised that an entered scalar "wins and is marked"; nothing implemented the
+*wins* half, so the oracle GUI was offering an entry the next run discarded — the
+note amends OG-7 rather than building the override, which would need a stored flag
+per scalar against OG-13. And the registry described `speeds.weight_lb` as a
+read-through of MTOW with an override checkbox, a mechanism the calc never had;
+its text now says what the code does.
+
+**What shipped.** The ten fields are gone from `FlightLoadsInput`, `WingMassInput`
+and `LandingInput`. Their values are resolved at the point of use through three
+accessors — `require_wing_reference`, `wing_plane`, `gear_geometry` — and the
+functions that could not look the parametric wing up because they receive a bare
+`SurfaceInput` take the scalars as parameters, which is the shape
+`air_load_distribution` had used all along. Two `_effective` helpers performing the
+identical gear substitution (`landing` and `gear_loads` each had one) collapsed
+into the single resolver. With the copies gone the fallbacks they provided become
+explicit refusals naming the page that owns the input, which is what DS-3 asked
+for: absent geometry is an error, not a silent zero propagating into a balance.
+
+**No schema hop**, and this was checked rather than asserted: the shipped examples
+carry none of the ten keys on disk, and save→reload→save is a fixed point before
+and after, so `SCHEMA_VERSION` stays at 54 — the single largest reason the two
+persisted duplicate pairs (`shoulder_altitude_ft`, `airplane_length_in`) were
+deferred to their own item instead of being folded in behind a no-hop change.
+
+**Guards, per rule 3.** DG-2 pins the surviving multi-copy quantities as a named
+literal rather than a count, so one duplicate leaving cannot mask another
+arriving. DG-3 has two halves: an AST guard that the wing strip integral happens
+only in its owner and the two accessors allowed to name it — verified against a
+deliberate violation, since a guard that cannot fail on its target is the trap
+note 32 §8 already recorded — and a numeric check that the two modules keeping
+their own area accessor return the same number on every fixture, which before
+this change they could not be relied on to do. Every Appendix A oracle passes
+unchanged; the refactor moved no equation, and DG-1 is what would have said
+otherwise.
+
+**Cost, against the estimate.** ~40 read sites across six modules and 14 test
+construction sites, as the note predicted. Three things the note did not predict
+and the implementation records in its §7: `wing_inertia_distribution` shed two
+now-unused parameters once its second construction path was removed; a fixture
+that deleted the wing planform to reach the carry-through fallback had to be
+rewritten to make the *spar stations* underivable instead, which is the condition
+that fallback actually tests; and one test's subject vanished rather than moved —
+"the sync fills the derived slices" became "every resolver answers from the one
+source", asserting the property the copies never had.
+
+- **The project-file block renders after the page (#64, review 2026-08-22
+  PB-4, tier M, 2026-08-23)** — the review's suggested fix had two shapes:
+  render the block after `pg.run()`, or make the payload lazy. The lazy
+  payload (`st.download_button(data=callable)`) arrived in Streamlit 1.52,
+  which requires Python ≥ 3.10 while the CI matrix still carries 3.9 — a floor
+  bump is not a defect fix's call, so the ordering route was taken. Its own
+  trap: `st.stop()`, which 19 `app/` views use as their missing-prerequisite
+  exit, discards every element emitted after it, so "render after the page"
+  in the plain sense lost Save/Download on exactly the gated pages (verified
+  under `AppTest`: nothing emitted in a `finally` after `st.stop()` survives).
+  The shell therefore owns the page exit — `stop_page()` raises a
+  `BaseException` the sidebar context catches, then fills the slot it reserved
+  before the page — and the 45 `st.stop()` sites were swept in one pass with a
+  guard against the next one (rule 4, generalize on first find). Closed at
+  tier M rather than the row's S because the change is a shell contract every
+  view now follows, not a reorder.
+
+## Step — The class-C duplicate pairs retired: one shoulder altitude, one airplane length (note 33 §8 / DS-7, issue #52, tier L, 2026-08-22, schema v55)
+
+**Objective.** Close the class-C half of review finding CR-A-2 that note 33 deferred (DS-7): two quantities persisted twice with nothing reconciling them — `speeds.mach_limit.shoulder_altitude_ft` vs `speeds.shoulder_altitude_ft`, and the htail's vs the vtail's `airplane_length_in`. Promoted into 0.7.0 by the 2026-08-22 backlog review (BB-5) because both members of each pair rendered side by side on one oracle page, and MC/MD could be computed at one altitude while the Mach-limit table started at another, with no warning. The 0.7.0-beta schema freeze was lifted for exactly this hop.
+
+**Deliverables.** `SCHEMA_VERSION` 54 → 55 with hop `_v54_one_shoulder_altitude_one_airplane_length` and its `_reconcile` helper (`sloads/migrations.py`): the MACHLIM altitude wins a disagreement (it governed every table ever produced, so a legacy file's lines are unchanged), the htail length wins the other (each copy fed its own inertia, so neither governed), a zero/absent copy loses silently, and a real disagreement is a `warnings.warn` naming both numbers. `MachLimitInput` loses `shoulder_altitude_ft`; `mach_limit_lines(inp, mc, md, shoulder_altitude_ft)` takes it as an argument (the F25-2 pattern for MC/MD), with `run`, the report's speed–altitude figure and the Streamlit page passing `speeds.shoulder_altitude_ft`. `TailLoadsInput`/`VTailLoadsInput` lose `airplane_length_in`; `EmpennageInput.airplane_length_in` is the one field, `derived_geometry.airplane_length_in(project)` the resolver, read by SELECT's 23.423(b) `Iyy` and `_default_izz(vt, gw, lf_in)`. Field registry: the two duplicate rows removed, one `geometry.empennage.airplane_length_in` row added (the oracle Geometry page renders it as its own group). `app_shell.project_state.safe_load` captures warnings raised while a file is read and shows them as toasts. `app/views/configuration_layout.py` renders one LF widget above the tail expanders and writes it to the empennage; `app/views/structural_speeds.py` stops copying the altitude into the MACHLIM slice. Fixture `tests/fixtures_schema/v55_current.json` minted from `v47_current` (which stays, as the hop's exercising fixture). Closure trail: note 33 §8 (decisions DS-7.1–7.4, gates DG-6/DG-7, DG-2 shrunk, DG-5 completed), `CONVENTIONS.md` §7 row, `PROGRAM_SPEC.md` (MACHLIM, SELECT), `theory_sources.md` (MACHLIM, SELECT rows), `DATA_DICTIONARY.md` regenerated, schema-guard hash, `00_INDEX.md`.
+
+**Test.** `test_migrations.py`: agreeing copies fold silently on `v47_current` (warnings as errors); disagreeing copies keep the governing value and warn once per pair with both numbers, through `migrate` and through `io.project_from_dict`; an unentered copy loses silently; a v26 file's top-level tails reach the hop after v27 folds them in. `test_mach_limit.py` Appendix A p160 unchanged through the new signature; `test_select.py`/`test_balloads.py` oracles unchanged with LF read from the examples' empennage. `test_field_registry.py`: `STILL_DUPLICATED` is the two class-B overrides; N1 instance 2 is no longer a duplicate. `test_dirty_flag.py`: the LF field and an htail field edited in one rerun on a blank project both persist (the #35 clobber shape, on the new scalar group). `test_io.py` legacy ft→in rescale lands on the one empennage field. Whole suite green; ruff and mypy clean.
+
+**Key decisions.** DS-7.1 the survivors — `speeds.` (the more-read home) and the empennage parent (LF is a whole-airplane length; keeping it on the htail would store a v-tail-only project's length on a surface it does not have). DS-7.2 governing value over "owner's value" — for the altitude they differ, and taking the surviving field's value would have changed a legacy file's Mach-limit table. DS-7.3 `st.toast`, not `st.warning` — the adopt path ends in `st.rerun()`, the same reason `apply_schema_check` already toasts. Examples stay on disk at v41: `test_cg_cases.py` reads the pre-hop lists straight from the files, and all six agree on both pairs, so the hop folds them silently at load — a migrate-only rewrite was tried and withdrawn. The #45 rot companion's docstring had named this hop as the retirement of the `tail_loads`/`vtail_loads` property proxies; it is not (they are not persisted fields), and the docstring now says so.
+
+- **The one field registry, and OG-2 amended to close its page set (design note 32 step OG-C, tier M, 2026-08-19)** —
+  OG-14 merged two planned tables into one on the argument that they share a key
+  and differ only in columns; building it confirmed that and then turned up three
+  things the note had not seen. **First**, four columns were not enough. The GUI
+  review's duplicate-owner class is not "two pages edit one field" but *one
+  physical quantity stored in two fields* — `VTailLoadsInput.gross_weight_lb`
+  against MTOW, `EngineInput.engine_weight_lb` against the weight database, 300 lb
+  apart on the regional-jet fixture — which `path │ slice │ page │ origin` cannot
+  express. Agreed in session: a `quantity` column and an owner-or-`derived_from`
+  column, guarded as one owner per quantity with every copy naming its sync. The
+  table now records **18** duplicated quantities, the review's five among them
+  plus a sixth the writing turned up (`speeds.shoulder_altitude_ft` and
+  `speeds.mach_limit.shoulder_altitude_ft` are the same altitude on two
+  dataclasses). **Second**, OG-2's page set was not closed: `aero_coeffs` is
+  `require`d by both `structural_speeds` and `flight_envelope` but produced only
+  by `aero_coefficients`, whose `bas` is `None`, so a page set of exactly the
+  `.BAS`-backed steps left 22 fields with nowhere to be entered and made gate G5
+  unsatisfiable whatever the calc did. The rule is amended — *a step is an oracle
+  page if it runs a `.BAS` program **or** produces a slice such a step requires*
+  — still fully derived, which was the part of OG-2 that mattered;
+  `workflow.oracle_steps()` owns it and the oracle set is 14 pages, not 13.
+  **Third**, the registry absorbed a page-ownership table that had been living in
+  a documentation generator: `docs/generate_data_dict.py`'s private
+  `PAGE_OVERRIDES` guessed at what `workflow.py`'s `produces` could not
+  attribute, and is deleted in favour of the registry's per-field page — so
+  `DATA_DICTIONARY.md` now names *both* pages for a slice edited on two, instead
+  of flattening it to one. The origin classification itself is the bulk of the
+  work and is sourced rather than asserted: 207 of 323 fields are `ORIGINAL`, and
+  each row cites the `.BAS` variable name carried over at porting time, the
+  `PROGRAM_SPEC.md` line restating UG Table 2.2, or the sloads step that added
+  the field. Two standing rulings cover classes rather than rows — surface and
+  set selectors are `sloads` (the model carries N surfaces where the original
+  carried a fixed one, and the second GUI resolves them positionally), and
+  `origin` is about who *asked*, not who *computes*, so a field the original
+  entered and sloads now derives stays `ORIGINAL` and carries `derived_from`,
+  which is OG-7 falling out of the table rather than needing its own mechanism.
+  The guard is `tests/test_field_registry.py`; three of its assertions failed on
+  the first run against the author's own table and were fixed there, which is the
+  argument for the guard existing.
+
+## Step — Fixture CG datum reconciliation and limit-point flight cases (D-27, fixture-data pass remainder / #9, tier L, 2026-08-17)
+
+**Objective.** Close the WTENV-envelope defect at its root — the four type fixtures' fuselage item stations sat on a datum ~20–65 in aft of the wing polyline's, so every D-26 CG case lay 15–25 in aft of the entered aft limit at 51–65 % MAC — and make the case definition structural: the load analysis evaluates the weight/CG limits the user defines, so a FLIGHT case is a WTENV limit point by construction, with the database deciding only whether it is reachable.
+
+**Deliverables.** `cg_cases.seed_flight_cases` + `FLIGHT_CASE_NAMES` (aft gross, fwd gross, fwd regardless, min weight, mid gross; `weight_lb`/`xcg` the limit's own, `zcg` the closing loading's waterline, loading derived under the D-25d gate); `validation.mass_item_outside_body` (`_check_mass_items_in_body`, fore/aft outline extent for `fuselage`-carried rows); four fixtures reconciled (D-27a shifts: C210 −19.3 in on 8 rows with the nose group held and the cabin re-spaced 48/74/104/132; ATR-42 −19.9 on 11 rows, aft cabin 480 / aft hold 600; Dash 8 −32.3 on 12 rows, aft hold 600; RJ −64.7 on 2 rows with engines 850, main gear 620, cabin 440/660, holds 340/800), cases re-seeded (5 flight + 3 ground each), `mass.cases` and legacy mirrors regenerated; ga6 outline nose at FS −12; PROGRAM_SPEC (payload cases), D-27/a/b/c in the register, digest re-baseline.
+
+**Test.** `test_cg_cases.py`: the fixture flight and ground cases equal the seeds (drift guard); every case inside its envelope (fwd limit at its weight … aft, ±0.05 in); every fuselage item inside the outline and the warning fires when one is moved out; the seed reproduces Appendix A's four points on ga6. Re-pinned by design in `test_balance.py` (`_CLOSURE_IZZ`, `_LATERAL_CASE_NUMBERS`, `_UNSYMMETRICAL_SPLIT`, `_DELTA_CD_BAND`, `_FORCE_RESIDUAL_RATCHET`/`_PITCH_RESIDUAL_RATCHET`/`_CLAMPED_BODY_AXIAL`, `_WING_SPAN_ROLL_SHARE`, `_ACRL_LATERAL`), `test_mass_cards.py` (`_DERIVABLE`/`_ENTERED`), `test_wing_case_derivation.py` (ATR PHAA 185.36 kt), `test_aero_curves.py` (ATR 25,000 ft exceedance 9 points, +0.27), `test_tail_span.py` (RJ roll arm zcg 64.59); WTENV marker tests rebuilt on synthetic databases. Every Appendix A oracle unchanged; ga6's balance CSV byte-identical.
+
+**Key decisions.** D-27 (limit points, database decides reachability; supersedes D-26's "database's own extreme"), D-27a (item stations move, wing/tail rows and the wing polyline do not; user-stated empty-CG targets), D-27b (three guards, warning + CI, no refusal), D-27c (WTENV 4 + landing 3 + mid; ga6 keeps Appendix A's names). What measurement added: the worst symmetric force residual on `atr42_100` rose to 2.36 % at the aft-gross point (same fixture-lift-model reading, heavier case, under the 2.5 % hard stop) while the RJ's fell to 0.48 %; the ATR's Mach-capped stall exceedance widened to 9 points at +0.27 (full gross weight at 25,000 ft) — both recorded on their pins and in the backlog's defect bodies.
+
+- **Fixture-data pass — entered empennage planforms, the ga6 fin-root pin and body outline, and total-conserving strips (issue #9, Pri 1, tier M, 2026-08-17)** — The four type fixtures now carry entered `htail`/`vtail` polylines (taper 0.4–0.7, LE sweep 6–30°, three-view estimates tied to the scalars), `ga6_normal` states its fin root (`vtail_root_waterline_z = 78.5`, zero movement) and carries the Appendix A body outline (26.522 ft × 3.833 ft, height 68.7 in from the printed frontal area as an ellipse), and `tail_span` normalises its strips by the quadrature area so an entered polyline cannot move SELECT's total; the planform validator gains the 25 %-MAC-station leg. Fin loads and `n_y` bit-identical on every fixture; `p_dot` −6–10 % / `r_dot` < 1 % on the four entered fins; every Appendix A oracle unchanged. `ga6_normal` keeps the derived rectangle (no printed chords), and the WTENV-envelope part of #9 stays open with a re-stated body. Note 19 §10.2 steps (i)–(ii) done; L-7 can now land on both lateral fixtures.
+
+- **Engine thrust at the hub (issue #10, note 21 carve-out, tier M, 2026-08-17)** —
+  design note 21's seven-step power-effects plan stays parked; what shipped is
+  the one piece of it that needs no estimator. A user-entered `thrust_lb` per
+  engine is applied as an axial `FORCE` at that engine's hub (`prop_cg`, else
+  `engine_cg`, else a refusal) on flight balanced cases only, and routes to the
+  LRA model's engine member so it lands on the hub node with an exactly zero
+  transfer couple. The design turned on where the unbalance goes: the trim the
+  case is assembled at is thrust-free, so rather than re-trimming (note 21 §4's
+  parked `retrim_with_power`) the thrust and its hub-arm couple are carried in
+  full by the closure's longitudinal and pitch degrees of freedom — which made
+  `n_x` the quantity `balance.py` had recorded the suite as lacking a carrier
+  for, and put a powered case outside the 1 % pre-closure gate alongside the
+  lateral, 23.427(a) and ground families. That exemption is paid for with a
+  stronger claim, not a weaker one: with no printed oracle for a number the user
+  types, `tests/test_hub_thrust.py` gates closed forms — the pre-closure
+  residual *equals* `−ΣT` and `Σ−T·(z_hub − z_cg)` to the last digit (G-3), a
+  case whose thrust equals its own net drag closes at `n_x = 0` (G-4), and the
+  transferred LRA set keeps the case's resultant with power in it (G-6). Also:
+  `units.py` gained a `force` input kind (lbf → N), kept distinct from `weight`
+  (lb mass → kg) because conflating the two is the units defect that table
+  exists to prevent. The schema field itself had shipped the day before as
+  L-7's reserved passenger (decision L-7.10), so this hop changed no schema and
+  moved no shipped number — every fixture's cases were exactly zero-thrust
+  before and remain so.
+
+## Step — Lateral body aero in sideslip: wing-body `Cy_β`/`Cn_β` (design note 19 rev. 3, backlog Pri 2 / #8, tier L, 2026-08-17, schema v54)
+
+**Objective.** End the "over/under-stated by an unknown amount" statement on every lateral balanced case: compute the wing-body side force and yawing moment in sideslip the suite had never modelled — a term of the order of the one kept (`ψ̈` 40–84 % of the fin-only value, `n_y` 11–33 % and more) — from the fuselage outline, against a **printed** oracle, and apply it beside the fin under the user's control.
+
+**Deliverables.** `sloads/lateral_body_aero.py`: DATCOM 5.2.1.1 (`Cy_β,WB = −K_i·CL_α,B − 0.0001|Γ|`), 5.2.3.1 (`Cn_β,WB = −K_N·K_Rl·S_BS·l_B/(S·b)`) and 4.2.1.1 (`CL_α,B`, `BODYRT`) transcribed from the Digital DATCOM Fortran — the *subsonic* `SUBLAT` path, chart data `X158A..Y58C`, and the `TLINEX`/`TLIN1X`/`TBFUNX` interpolators with their per-call clamp/linear/quadratic end rules (decision L-7.14: follow the Fortran, whose sample output is the oracle); `DatcomBody` in DATCOM's own terms + `datcom_body_from_outline` (ellipse area, `±height/2` profile); `estimate` per case (`K_Rl` on the case Reynolds number, TAS + Sutherland viscosity from the new `sloads/atmosphere.py`, L-7.13), suite sign (`+mz` nose port ⇒ DATCOM's `Cn` negated), per degree (L-7.15), about `xw`; `side_area_centroid` and `transfer_cn_beta` (L-7.5/L-7.9). `select`: `_vt_side_gust_terms` returns the gust's own `β = −Kgt·Ude/V`, `fin_sideslip_derivatives`, and every v-tail `CriticalCondition` publishes `beta_deg`/`cy_beta_fin`/`cn_beta_fin` (L-7.6/L-7.11). `balance`: `lateral_aero_terms` / `body_aero_loads` (one `body-aero` load) / `lateral_aero_case_note` (two wordings, L-7.16) / `LATERAL_AERO_NOTE` reworded; `BalancedCaseResult.body_side_force`/`body_yaw_moment`/`beta_deg`/`cn_beta_net`, mirrored by the twin operator; a persisted critical set without `β` says so and applies nothing. `fuselage_moment.munk_slope_per_rad` (single owner, L-7.7) + `munk_yaw_slope_per_deg` (G7 cross-check). Schema v54 (L-7.10): `LateralBodyAeroInput(enabled, cy_beta, cn_beta)` on `AeroCoefficientsInput` (`None` = computed per case), `EngineInput.thrust_lb` reserved for #10; io round-trip; `DATA_DICTIONARY.md` regenerated; schema-guard hash. `report/methods.py`: the project-conditional ENABLED/DISABLED line. Aero Coefficients page: the sibling block (and the G4 form now carries the sibling slice through). Docs: `CONVENTIONS.md` §1 L-7 bullet rewritten + three §7 SSOT rows, `PROGRAM_SPEC.md` (SELECT publishes; balance term), `theory_sources.md` (Digital DATCOM row corrected — line refs and the applicable-case list; `lateral_body_aero` module row; the two L-7 paragraphs), `balanced_cases.md` §7 + new §7.4 with the measured effects, `PROJECT_GUIDE.md` §4, note 19 marked SHIPPED with three recorded implementation deltas.
+
+**Test.** `tests/test_lateral_body_aero.py` (G1): `ex1` c1 `CLA 3.433E-03`; `ex3` c1 wing-body `CYB −1.610E-03`, `CNB −1.845E-03` (M 0.6), `CNB −1.941E-03` (M 0.8, `K_Rl` Re-dependence); `ex5` `CYB −1.612E-03` (area from the round half-width); `ex4` `CYB −3.660E-04`, `CNB −6.036E-04` (19 stations, `Re_l 1.86E8`, top-of-chart `K_Rl` 2.075) — all within 0.05 % of ±0.1 %; inapplicable cases named; `K_i` and the dihedral term (no printed case) against their closed forms; adaptor, transfer identity, centroid, interpolator end rules, viscosity/Reynolds. `tests/test_l7_lateral_balance.py` (G2–G12): zero at `β = 0`; net `Cn_β` restoring on both fixtures and flagged `NOT RESTORING` on an entered override; rudder-neutral cases keep the restoring sign; `|n_y|` up and the body couple destabilizing on every `β ≠ 0` case; the pair reproduces `(Cy_β, Cn_β)` about `xw` to 1e-12; Munk below DATCOM; off-by-default bit-for-bit; six-DOF closure in memory (1e-9) and from the deck cards in both unit systems; symmetric half inside `RESIDUAL_GATE` with fin and body removed; twins mirror; SELECT publication; stale critical set; direct `assemble` without terms. `test_methods_stamp.py`: standing sentence re-pinned (no "unknown amount", "OFF by default"), the ENABLED/DISABLED line, every lateral case carries exactly one of the two sentences. Digest wave: `sbeam/balanced_deck` + `txt/balance` on `atr42_100`, `cessna_210`, `dhc8_dash8`, `ga6_normal`, `concept_regional_jet` (note text only; the pinned lateral numbers and every SELECT oracle unchanged).
+
+**Key decisions.** L-7.1–L-7.7 (rev. 2) and L-7.8–L-7.17 (rev. 3, agreed in chat 2026-08-17): DATCOM over Munk-with-a-factor (2.3× on the RJ, wrong sign of correction); off by default; static stability (not net moment) as the hard gate; G1 rescoped to the applicable printed rows; `Cn_β` once about `xw` with linear transfer; the v54 hop carries the thrust field; SELECT publishes; sections interpolated as G4 does; TAS + local viscosity, chart top per the Fortran; follow the Fortran on `CL_α,B`; per degree; two stamped wordings; one lumped force. What implementation added: the note's §3 transcription was the supersonic `SUPLAH` slot — the subsonic `SUBLAT` (wing-height `K_i`, `h_max/w_max`, `∫(ZU−ZL)`) is what the oracle reproduces; the RJ's `Cy_β` is ~2.7× the scratch value because DATCOM's `S_0` at 90 % length on the fixture's three-section tail cone is ~10× the base area — the fixture's data, stated on the case.
+
+- **Manifest conformance: the bundle gets one owner and the gate reads the zip
+  (CR-C-1 + CR-C-3 `[MAJOR]`, #42, tier M, 2026-08-22)** — the review's third
+  theme again, and the clearest instance of its repeated lesson: a gate that
+  does not read the shipped artifact rots the first time the code grows past the
+  shape the gate assumed. Appendix A exists because of F-D2 ("an artifact the
+  controlling document does not name travels without a basis"), and its two
+  SHALLs — name every file, name no absent file — were already written when
+  three of the bundle's own files walked past them. `lra_model.bdf`, the third
+  deliverable, shipped inside every bundle from 0.6.0 with no row; the CLI's
+  `lra_loads.bdf` was named in no controlling document; and sweeping the whole
+  namelist rather than the reported file turned up two the review had not
+  reached — the summary report's own `.tex` and `.pdf`, so the manifest named
+  every file in the bundle except itself. The conformance test could not see any
+  of it, because it compared the manifest with a hand-kept set of names in the
+  test file: the two could only ever agree about what the test already believed.
+  So the member list has a single owner, `sloads/report/bundle.py`, pure and
+  Streamlit-free, which the Export page loops over instead of deciding its own
+  members, and `tests/test_bundle_manifest.py` asserts set **equality** between
+  the real namelist and the rendered manifest on the fixture that exports every
+  channel, plus a guard that the page writes no member of its own and another
+  that reads the page's `_bdf_artifacts` assignments so a new deck cannot arrive
+  unnamed. Working the LRA row settled a question the review's proposed fix
+  would have got wrong: gating it on `run.cases` names a deck `concept_heavy`
+  does not carry — that fixture assembles balanced cases and its LRA model
+  refuses for want of a side of body — so the row is gated on the model
+  *building*, the price `_gear_cases` already pays for the gear row, and §4.7's
+  second SHALL is not broken by the fix to the first. The same read found
+  `PROGRAM_SPEC.md` still claiming `ga6_normal` refuses the model; it has built
+  one since the fixture-data pass entered its reference axis, and that is the
+  sentence saying which bundles carry the new row. CR-C-3 was the same class one
+  cell to the right: the manifest declared the LIMIT-by-design inertia check
+  ULTIMATE, out by exactly 1.5 on the one artifact whose whole purpose is to be
+  compared unfactored against what a solver recovers, and it survived two
+  reviews because the conformance test read row names and stopped there. Every
+  basis cell is now pinned by its text, exhaustively and in both directions.
+  The extraction is the whole of the change to `app/views/export_report.py`, so
+  the freeze pending #29 holds and the namelist arrives at the main-GUI review
+  as a calc-side owner rather than an open question.
+
+- **Milestone branch replaces the per-item branch-and-PR loop (solo profile, tier M, 2026-08-22)** —
+  The solo profile's closing half had two paths — `solo_close.sh`'s `--ff-only`
+  land on `main`, and a hand-made branch → PR → squash-merge — and the failures
+  of the previous week were all at their seam rather than in the middle of
+  either: #38 used both at once, so the PR body's `Closes #38` closed the issue
+  and the script's own `gh issue close` then failed on an already-closed issue;
+  #53/#54 pushed a follow-up to a branch whose PR had squash-merged, whose
+  commits then conflicted with their own squashed copy; and every scripted land
+  needed an admin bypass, because `main` requires a pull request and the script
+  pushes. The revision keeps exactly one path. `dev/vX.Y.Z` is opened off `main`
+  once per release and every item is committed directly onto it; the item's
+  issue is closed and its priority-table row deleted in its own commit, which is
+  what preserves `backlog_issues.py check` as a live mid-milestone guard rather
+  than something suspended until the merge. The release is cut on that branch —
+  `RELEASE_PROCESS.md` §4 gains a solo paragraph saying so, and §6 gains the one
+  case that still puts a commit on `main` out of band (a hotfix to an
+  already-released version), with the instruction to merge `main` back into the
+  milestone branch immediately and re-check the three shared counters. The
+  milestone lands as one pull request with a **merge commit**: squashing a whole
+  release into one commit would have cost the step-per-commit `git log` that §0
+  and §2 both lean on, so "require linear history" comes off `main` while the
+  solo profile is in force and §2's bullet records that the switch-over restores
+  it. CI was re-keyed to match: the fast gate on every PR *and* every `dev/**`
+  push, the full 3.9/3.11 + coverage matrix only on the push to `main`. The
+  budget question that shaped this — a per-step CI under five minutes — was
+  answered with measurement rather than configuration: the fast gate is 7.3 min
+  of which pytest is 7.2, and at four xdist workers the suite is ~1,700
+  CPU-seconds spread broadly, the slowest fifteen tests being only ~13 % of it.
+  No leg can be dropped to buy two minutes and no slow-test split moves it; a
+  suite-wide fixture reduction would, and is filed as band B. The 7.3 min is
+  accepted instead, on the ground that an advisory signal nothing waits on does
+  not need to be fast — the gate that costs time is the local one. `rule 3` is
+  served by `tests/test_solo_scripts.py`, which now holds the two scripts,
+  `ci.yml`'s triggers and matrix conditionals, and the prose in §0 and
+  `WORKFLOW_COMMANDS.txt` in step with one another.
+
+- **No combined flight + ground station envelope (D-28, issue #11 closed as decided, tier M, 2026-08-18)** —
+  step 10's decision G-9 kept ground and flight as separate governing families
+  but filed one follow-on: a two-sided per-station envelope over both, each
+  extreme labelled with its case id, on the argument that a consumer sizing a
+  fuselage frame wants the worst of both and that labelling preserves the case
+  identity a cross-family `max()` destroys. Closed here without building it, on
+  a reason G-9 did not have. D-24 had already made pressurization a permanent
+  exclusion and recorded that the "for pressurized airplanes, ground cases
+  cannot be down-selected against flight" rule departed with it, to be re-decided
+  on its own merits; this is that decision. On the fuselage the two families are
+  assessed with different internal-pressure companion cases, so their station
+  extremes are not comparable quantities — they belong to different total load
+  states — and a tool that computes no pressure case cannot assemble the correct
+  combined state in the first place. The labelling half would not have rescued
+  it: identity survives the aggregation, but the aggregated number is still one
+  no design condition produces. Wing and empennage carry no such companion, and
+  the deliverable stays per family uniformly rather than becoming a
+  per-component rule. The change is therefore one standing-limitation string —
+  `ground-flight-separate-families` now states the pressure-companion reason and
+  points at the `pressurization` exclusion, and drops nothing except G-9's
+  safety-factor argument, which G-10 had already retracted (both families are
+  limit × 1.5) — plus the decision record and the backlog row. What the closure
+  did surface is that "delivered separately" is only honest if both halves are
+  usable: flight has a station-by-station distribution and ground has none,
+  `body_loads` and `net_loads` being flight-only, so the ground family reaches a
+  frame-sizer as reactions and assembled decks alone. That gap is filed as #31
+  in band B, scoped as a per-family view that D-28 does not re-open. No calc, no
+  oracle and no shipped load number moves.
+
+- **One owner at render — the registry reaches the widgets (#36, CR-A-2, tier M,
+  2026-08-21)** — the last third of the 0.7.0 band's one-owner item, and much the
+  smallest, because the two thirds before it changed what was left to do. CR-A-2
+  found ten quantities with two or more independently editable copies and
+  proposed that the renderer disable the non-owners; the owner's answer was to
+  ask why the copies existed at all, and
+  [note 33](34_derived_scalar_consolidation_note.md) removed
+  ten fields outright, leaving four quantities and five copies. That reframing is
+  what made the remaining work tractable, and it also changed the *shape* of the
+  fix: with the pure caches gone, the survivors are not a homogeneous set to grey
+  out. Four of the five are read verbatim by a module — `speeds.weight_lb` by
+  STRSPEED, `vtail.gross_weight_lb` and `vtail.airplane_length_in` by SELECT,
+  `mach_limit.shoulder_altitude_ft` by MACHLIM — so disabling them would have
+  removed a capability, and quietly substituting the owner's value would have
+  changed published loads. Only `speeds.wing_area_sqft` is genuinely inert, and
+  only because STRSPEED resolves the wing planform first and reaches the field
+  solely when no wing surface exists. So the renderer needed to distinguish
+  *display-only* from *override*, which no existing registry column could
+  express: `derived_from` records **where** a quantity lives, not **whether this
+  copy takes effect**. Hence `FieldEntry.governs`, checked against the calc by
+  reading each consumer rather than inferred — a distinction that had been
+  carried in prose (the registry's `speeds.weight_lb` row still described a
+  "read-through" the calc never had, corrected under note 33) and is now a field
+  with its own guards. Adding it landed one trap worth recording: the column sits
+  before `supplied` on the dataclass, and the `_E` helper built entries
+  positionally, so the two bound to each other until the helper moved to
+  keywords — a silent mis-tagging of the oracle GUI's whole input set, caught
+  only because the guards were run before the field was populated. The marking
+  guards were verified by reverting the renderer change and confirming all seven
+  fail, the same discipline note 32 §8 records.
+
+- **Oracle form persist path made loss-free (#35, review 2026-08-20
+  CR-A-1/CR-A-3/CR-A-6, tier M, 2026-08-21)** — the 0.7.0 band's Pri 1: the
+  generic renderer's detached-record machinery (`_PENDING`, note 32 OG-F)
+  appended a **fresh** blank for every record group that walked through a
+  missing ancestor, so two edits in one rerun on a blank project raced their
+  own blank chains and `commit_pending`'s last writer clobbered the earlier
+  edit — what the user typed was not what reached the calc, and a Save carried
+  the loss to disk. `_PENDING` is now a dict keyed on `(id(owner), attribute)`;
+  `record_at`/`rows_at` reuse the pending record every later group asks for,
+  preserving the whole-chain-or-nothing commit. Two riders landed with it,
+  swept across both persist sites (scalar widgets and flat-table cells): an
+  unfilled Optional scalar renders empty via `unit_number_input(value=None)` —
+  the shell boundary's new Optional mode, stated in `GUI_design.md` §7 — so a
+  deliberate 0 is no longer indistinguishable from the seed and unpersistable
+  (the review's park-with-number escape did not survive checking: sea-level
+  `one_engine_out.altitude_ft` and `fuselage_nose_x` have meaningful zeros);
+  and `render_curve` captions when a partially-filled row is held out of the
+  stored curve rather than dropping it silently. Guards in
+  `tests/test_dirty_flag.py`: a two-edits-one-rerun AppTest per affected page
+  shape (`configuration_layout`, `weight_mass`, `landing_loads`,
+  `structural_speeds`), typed-zero persistence, unfilled-stays-absent on
+  render, and the incomplete-row caption.
+
+- **Before parametrizing a guard over a second target, check that it can fail there (design note 32 step OG-F, tier M, 2026-08-20)** —
+  OG-9 was one of the better decisions in note 32. It spotted, before the second
+  GUI existed, that `tests/test_ultimate_contract.py` and
+  `tests/test_page_links.py` both hardcode `app/views/`, so a second front-end
+  would be invisible to them and could ship an unmarked LIMIT CSV or a broken
+  link with CI green. The diagnosis was right twice over. The remedy — run the
+  same guards over both directories — turned out to be wrong twice over, and for
+  the same reason each time: **both guards work by finding something in
+  `app/views/*.py`, and the oracle GUI has no views.** OG-E had already found
+  the first half: the ultimate-contract scan matches a literal
+  `file_name="….csv"`, the oracle GUI computes its filenames, so the
+  parametrized case would have found nothing, passed, and reported the second
+  GUI as covered. The page-link half fails the same way and one worse: its first
+  assertion is that `app/views/<key>.py` exists for every step key, which is
+  false by construction for a GUI whose pages are callables, and its second
+  scans for `workflow_page_link` calls the oracle GUI does not make. One wrong
+  failure, one meaningless pass. OG-9 is withdrawn in full.
+  What replaced it is not another scan. `workflow_page_link` no longer builds a
+  path: it asks `app_shell/nav.py` for the running GUI's own page object, which
+  each entry point registers as it builds its navigation. A link cannot name a
+  page that does not exist because it never names a page at all — it names a
+  workflow step, and the GUI that is running answers. That also removes the last
+  `app/`-shaped fact from the shared shell, which is what OG-B was for.
+  The sweep's real prize was somewhere else entirely, and finding it is the part
+  worth keeping. Of the seventeen test files that hardcode `app/views`, most are
+  legitimately per-view tests, and one states a **contract both GUIs owe**:
+  `test_dirty_flag.py`'s "a render pass must not mutate the project" (M2-3,
+  review G4). Its mechanism transfers, because it drives a page and compares the
+  project before and after — and it does not care how the page was built.
+  Pointed at the oracle GUI it failed at once, on nine of fourteen pages with
+  the fully-populated oracle fixture. Three defects, each a consequence of the
+  thing that makes the second GUI good: it is generic. It created a record so
+  its widgets had somewhere to write, and attached it whether or not anything
+  was written. It wrote back every field it rendered, so a JSON `45` became
+  `45.0` — the same number, a different file, an "Unsaved changes" flag nobody
+  earned. And in SI it converted each value out and straight back, so `116 in`
+  returned as `115.99999999999999`: an SI user's geometry drifted on every
+  rerun, which is the rounding trap `app/` had already paid for once and solved
+  inside `unit_number_input`, where the composite and table widgets that convert
+  for themselves never saw the fix.
+  Two lessons, and the second is the one that generalises. First: a guard that
+  reaches only one of two implementations is not a guard, it is a note about the
+  one it reaches. Second: **the value of a guard on a new target is exactly its
+  ability to fail there.** OG-9 proposed two guards that could not fail on the
+  oracle GUI and did not propose the one that could. Ranking a sweep by which
+  assertions can actually break is a better filter than ranking it by which
+  files mention the directory.
+
+- **A gate that would have passed on an empty set (design note 32 step OG-E, tier M, 2026-08-20)** —
+  OG-E was the note's smallest step: tier S, "CSV + text output through the
+  existing owners". Two things about it were wrong, and both were only visible
+  once the step was picked up rather than planned. The first is small: after
+  OG-D the oracle GUI computed *nothing* — `render_step` rendered inputs and
+  stopped — so "add downloads" meant adding a download button under a page with
+  no result on it. Running the programs and showing the tables came with the
+  step, which is what re-tiered it to M.
+  The second is the one worth recording. Gate G7 says every CSV the oracle GUI
+  offers passes the parametrized ultimate-contract scan, and OG-9 had already
+  scheduled that parametrization — `tests/test_ultimate_contract.py` hardcodes
+  `app/views/`, so a second GUI is invisible to it. But the scan works by
+  matching a **literal** `file_name="….csv"` in the source and reading the call
+  that built it, and a derived GUI has no such literal: its filenames are
+  computed from the step key. Parametrizing it over `oracle_app/` would have
+  found nothing, passed, and reported the second front-end as covered. That is
+  worse than leaving it out, because the failure is now invisible in two places
+  instead of one — and it is precisely the failure OG-9 was written to prevent,
+  reappearing inside OG-9's own remedy. The diagnosis was right; the remedy did
+  not transfer. G7 is therefore a **runtime** gate: `results.page_artifacts()`
+  hands back every file a page offers with its bytes, and the gate reads the
+  bytes — the `csv_comment_block` stamp and an `SF` column for an ULTIMATE file,
+  in-band LIMIT *and* a `*_LIMIT.csv` name for a limit one, and byte equality
+  with `cli.py`'s own text report. What makes it a gate rather than a sample is
+  the second assertion: the package holds **exactly one `st.download_button`
+  call site**, fed from that same function, so an artifact the gate has not seen
+  cannot exist. A source scan checks the code that would produce the file; this
+  checks the file.
+  The third thing OG-E turned up is an amendment rather than a defect. OG-6
+  named two output owners, which gives a page its load cases — and the load
+  cases are not what AIRLOADS, NETLOADS and TAILDIST *print*. Their printed
+  output, the thing Appendix A **is**, is the spanwise or chordwise station
+  table, and it is in no `ModuleResult`: it is built from `wing_load_rows` /
+  `body_load_rows` / `build_tail_chordwise` and rendered by
+  `app_shell/limit_csv.py`. Read strictly, OG-6 forbade the oracle GUI from
+  showing the oracle's own printout. It was written before OG-B existed, and
+  `limit_csv` is neither a new renderer nor a bespoke CSV — it is the shared
+  shell owner OG-B extracted for exactly this channel — so the amendment adds no
+  path, it names one that was already there. Those tables are LIMIT and say so
+  in-band and in the filename, which §5 had already anticipated.
+  Two smaller structural notes. `FOLDED_MODULES` became a mapping to the owning
+  step, because a page headed "WTESTIMA+WTONECG+WTENV" must run all three and a
+  flat tuple cannot say which page WTESTIMA belongs to — the information was in
+  a comment, which is the shape `CLAUDE.md` rule 3 exists to convert. And
+  `STATION_TABLES`, the renderer's one hand-declared table, is keyed by **module
+  name** rather than page key: which row builder a program has is a fact about
+  the program, and keying it by page would have put a step key back into the
+  GUI, which gate G2 forbids for good reason.
+
+- **The oracle GUI, and what "derived" had to mean to be worth claiming (design note 32 step OG-D, tier M, 2026-08-20)** —
+  Note 32's estimate for OG-D was ~600–800 LOC of new front-end. It came in near
+  the bottom of that, and the reason is the three steps before it: OG-B gave the
+  second GUI a shell to share, OG-C gave it a registry that already knew which
+  page edits every field, and G5 proved the reduced input set was real. What was
+  left was a renderer, and the interesting decisions were all about how hard to
+  push "derived". Two went further than the note asked. First, **there are no
+  page files.** The obvious shape is `oracle_app/views/<key>.py` per page,
+  fourteen three-line files, matching `app/`; but gate G2 says adding a `bas` to
+  a workflow step adds a page *with no GUI edit*, and fourteen files is a
+  hand-maintained page list wearing a different hat — it would satisfy a test
+  that checked the list was right and fail the one that matters. So a page is
+  `st.Page(callable)` bound to a step key, and the guard asserts that **no
+  workflow step key appears as a string literal anywhere in the GUI**. Second,
+  the same argument one level down: a page's *content* is not written either. It
+  is the registry rows for that step, grouped by record, with each widget's shape
+  from the resolved annotation, its unit from the schema's three-way unit
+  classification, and its help text from the row's own `basis` — which gives the
+  oracle GUI a property the full app does not have, that every field on screen
+  can name the `.BAS` program that asked for it.
+  The cost of that is one honest concession, and it is worth naming precisely
+  because the temptation is to hide it. A generic renderer cannot know that a
+  `Tuple[float, float]` is a gear axle's (X, Z) here and a planform corner's
+  (X, Y) there; the type carries no such thing. So the member labels are
+  hand-declared — presentation only, never data — and a guard fails if a
+  composite field in the input set is missing from the table, so a new one
+  cannot quietly render as "1, 2". Everything else is derived, and the line
+  between the two is a test rather than a good intention.
+  Three things fell out of building it. `field_registry.field_at` could read a
+  field's default but not its *type*, because `Field.type` is a string under
+  postponed annotations — hence `field_type`, which the renderer builds every
+  widget from. `units` needed a `moment` input kind for the one entered lb-in
+  quantity, distinct from the engine channel's ft-lb `torque`. And the browser
+  found what 2,273 green tests could not: `oracle_app` is an installed package,
+  the editable install had not been refreshed, and the entry point could not
+  import its own renderer — invisible to pytest, which puts the repo root on
+  `sys.path` anyway. The suite was right about the code and wrong about the
+  environment, which is the standing argument for opening the thing before
+  calling it shipped.
+  The lint gate was swept for the second time in two days — `app_shell/` cost
+  nine hand edits, `oracle_app/` eleven — so it is now guarded from both ends:
+  every derived GUI directory must be in CI's ruff command, and every one of the
+  eleven documents and scripts that repeats that command must repeat it exactly,
+  with CI as the authority.
+
+- **Gate G5: running the field registry, and what that cost it (design note 32 step OG-C2, tier M, 2026-08-19)** —
+  OG-C shipped a 323-row registry in which every row cited its evidence, and the
+  guards checked that the citations *existed*. G5 checks what they *claim*: build
+  the project the oracle GUI would produce, run it, and compare. The first run
+  failed on three modules, and every failure was the table rather than the gate.
+  Twelve rows called sloads capability are inputs of a named `.BAS` program, and
+  in each case the repo already said so somewhere the table's author had not
+  looked — `MassItemKind` "mirrors the data-base partition of WTONECG.BAS"; the
+  surface edge polylines are entered "exactly as the original program prompts for
+  them" and `elements` **is** WINGGEOM.BAS's `H`; a `CgCase` is one of the four
+  corners "FLTLOADS.BAS prompts for"; `EngineWeightType` holds "the two-letter
+  codes of the original program". The decisive one needed no docstring at all:
+  drop the weight database's per-item inertias and Appendix A p136's IXX comes
+  out **66.7 slug-ft²** against the printed **1201.527**, which is the
+  parallel-axis transfer of a centreline point-mass database and not what
+  WTONECG prints — so the oracle the suite has passed all along *depends* on
+  those fields being entered, and calling them a sloads addition was a claim the
+  existing test suite had already falsified without anyone reading it that way.
+  The gate also forced a column. `origin` answers *who asked*; G5 needs *what the
+  project contains*, and the two differ exactly where this model carries as data
+  what the original carried by position — which surface a planform describes,
+  which of LANDLOAD's three loadings a CG case is, whether an aileron is mirrored.
+  Folding those into `ORIGINAL` would have corrupted a historical fact to make a
+  gate pass, so they carry `supplied` instead, and the mark is **earned** rather
+  than granted: either the field has no declared default (the record cannot be
+  constructed without it — read off `dataclasses.fields`, not judged) or omitting
+  it demonstrably moves a number, which is G5 itself. Eleven fields qualify
+  against 219 asked for, and a guard keeps that ratio from drifting, because
+  `supplied` is the one mark that could silence any future G5 failure. Two
+  smaller things fell out. `structurally_required()` turns an accident into a
+  rule: the wing planform survived the first reduction only because
+  `SurfaceInput.leading_edge` happens to have no default, and a `default_factory`
+  added one afternoon would have quietly deleted the wing from the oracle GUI's
+  input set. And the reduction is exact on five of the six shipped examples —
+  the sixth, `concept_regional_jet`, is excused in the file with its reason,
+  since an airplane certified through 25.335(b)'s Mach-margin route is outside
+  the original suite's scope by construction and requiring the second front-end
+  to reproduce it would be claiming ground the first suite never had. Final
+  shape: 323 fields, 219 `ORIGINAL`, 11 supplied, **93 omitted** — a real
+  reduction, and 29 % rather than the note's estimated half.
+
+- **The oracle GUI's project is the project gate G5 tests (#62, review
+  2026-08-22 PB-1/2/3, tier M, 2026-08-23)** — G5 compared a reduced copy of
+  each example against the full one, and the reduction kept three things it
+  claimed to drop: the stored result slices, the records the oracle GUI never
+  creates, and everything the station tables show. So a stored `Project.mass`
+  carried every gate while no oracle page wrote one (a fresh twin dead-ended
+  at One Engine Out), the turbine rotors rode inside "the oracle input set"
+  (−16 % twin mount torque unseen), and the fuselage table's dependence on
+  `component`/`wing_fraction` was invisible because nothing compared it. The
+  design call was the shape of the mass slice: **derive at persist through one
+  owner** (`sloads/derived.py`) rather than derive-on-read (a stored cache
+  beside its source) or an Apply button (the one button on fourteen
+  per-keystroke pages) — chosen because it keeps the slice's schema and ✅
+  semantics, makes the `app/` Apply and the oracle persist the same call, and
+  lets the reduction re-derive what the GUI writes, which is the reduction's
+  definition. The rotors were the second call: **declared value divergence**
+  per example, not a widget for data the original never took. The gate got a
+  second leg, the typed-from-blank journey under `AppTest`, compared against
+  the reduced key so the divergence is stated once; it passed only after the
+  shell stopped rounding widget seeds to four decimals, which had made every
+  fifth-decimal input (`zcg` 90.73001) read back as a different number. Two
+  shipped examples turned out to store a mass slice one ulp off their own
+  items — the class the drift guard now holds bit-identical.
+
+- **Residual-gate exemption predicate: one owner (CR-C-2 `[MAJOR]`, #41, tier M,
+  2026-08-22)** — the review's third theme, statements about the deliverable, in
+  its sharpest form: the controlling document declared the flagship balanced
+  model *over* its own residual gate in every ga6/RJ bundle shipped since 0.6.0.
+  Three defects sat in one rendered sentence. The maximum was taken over all
+  cases, so what §6 reported as the deliverable's verdict was the 23.427(a)
+  maneuver tail load (143.885 % of n·W on `ga6_normal`) — a quantity the deck's
+  own `$` header, the case-table note and the theory doc each separately say the
+  gate does not apply to. The cause the sentence offered had been retired months
+  earlier with the `body-axial` carrier. And the Balanced Cases page reached the
+  same false warning by a different route, excluding only the 23.427(a) family
+  and so reporting a ground case's applied gear reaction (100.000 %) as a balance
+  failure. The gate read the case objects; nothing read the claim. The fix is the
+  one the repo's rule 3 asks for: `balance.residual_gate_applies` is now the
+  single owner of *which cases the gate applies to*, with
+  `residual_gate_exemptions` naming and counting the exempt families so a
+  filtered maximum always ships with its filter visible, and both surfaces plus
+  the case-table note read them. Working the predicate settled a question the
+  review had left implicit: the lateral family stays **gated**, because
+  23.441/23.443 exempts `Fy`/`Mz` and the two gated fractions contain neither —
+  they are exactly the symmetric half that the lateral family's own gate is
+  stated on, so exempting it would have deleted a live check on eight cases per
+  fixture. The powered family, which no shipped fixture exercises, was added to
+  the exemption on the strength of `is_powered`'s own docstring rather than left
+  to be discovered from a future failure. Two further sites of the class went in
+  the same change: the per-case table note, which named every exemption except
+  the ground rows sitting at 100 % inside that very table, and the page's
+  stale caption on unassembled conditions, deleted rather than re-worded since
+  `skipped_condition_lines` already owns that wording per reason. The rendered
+  §6 sentence is now pinned on a ground-assembling fixture, which is the gate the
+  whole finding turned on: a claim nothing reads is a claim nothing can keep true.
+  Correcting the family then exposed the rest of the same defect, and the owner
+  ruled on it in the same session rather than deferring it. The sentence compared
+  `max(force, pitch)` against the flat 1 %; pitch meets that everywhere with an
+  order of magnitude to spare, force does not on four of the six fixtures
+  (1.209–2.360 %), and the ordering tracks fixture lift-model quality rather than
+  the assembly — the one fixture with a printed source behind its aero is the
+  best of them. None of the six is an oracle: the balanced model is a
+  mission-extension deliverable with no printed figure behind it, and the FAR23
+  core stays oracle-locked independently. So the force half is now stated at the
+  value `tests/test_balance.py` already enforced as its hard stop
+  (`FORCE_RESIDUAL_ACCEPTANCE`, 2.5 % of `n·W`), pitch keeps `RESIDUAL_GATE`, the
+  test reads the package owner instead of re-declaring the number, and the
+  per-fixture ratchets stay beneath it as the regression guard. Splitting the two
+  components surfaced one more layer: the pitch residual passes 1 % on exactly the
+  cases whose forward non-wing axial force is clamped (D-4), which are out of trim
+  by that known un-applied force and its couple and are gated per case — so
+  `residual_gate_family` returns `(judged, clamped)` and both surfaces state the
+  clamped standing rather than reporting a modelling decision as a failure. The
+  judged family then clears both acceptances on every fixture, and what the
+  controlling document says about the primary deliverable is true again.
+
+- **The 2026-08-20 review's MINOR/NIT sweep: two silent zeros, a lossy name, and
+  three guards that had stopped guarding (#43, tier M, 2026-08-22)** — the row
+  that empties band A, and the one whose findings were individually small enough
+  that the interesting part was what measuring them changed. Three of the eight
+  did not survive contact with their own numbers. **CR-B-4** proposed raising at
+  the two sites that read a CG name; measurement said the mismatch it describes
+  can only arise from a *persisted* envelope, which means every number in that
+  matrix belongs to weights and CGs the project no longer has — so the refusal
+  went to `default_envelope`, the owner, and the two sites got a shared read that
+  refuses for a caller threading its own envelope. **CR-C-4** proposed
+  "disambiguate or raise"; no shipped fixture collides, so raising would only
+  ever have blocked a user's own naming over an eight-character field that is
+  sbeam's and a truncation that is ours — the second claimant takes a suffix, and
+  the whole derivable list is passed to the mint, because a signature that cannot
+  see the other labels cannot check uniqueness against them. **CR-B-5** guessed
+  that print granularity or the convergence band explained the widened
+  Appendix-A tolerances; measuring all of them showed the split is not where the
+  guess put it — case 21's speed is 0.22 % out against a 0.08 % print resolution,
+  and case 21's tail load never needed widening at all — so writing the review's
+  suggested one-line reason beside each would have recorded the wrong reason for
+  at least three. Each tolerance is now computed from the effect that justifies
+  it, and the angle-of-attack one falls out of the NZ band through the local
+  slope at 0.018 deg against a measured 0.020, which is the kind of agreement
+  that says the mechanism is the right one. The other half of the row is guards
+  that had rotted into always-passing, each in a different way: one waiting for
+  an event that had already happened and been decided against (D-28), one
+  exempting a whole file on a comment's say-so, one scanning half the running app
+  because the other half lives in a different directory, and one accepting a
+  stamp anywhere in a payload rather than where a reader would look. None of them
+  was wrong when written. That is the recurring lesson of this review, and the
+  reason the replacements are bounded by content rather than by location, and
+  come with companions that fail when a named exemption stops naming anything.
+  Swept in: `stamp()`'s silent `hasattr` skip, recorded like `defaulted`; the
+  oracle GUI's LIMIT caption, which described one of its three tables; and
+  `02_parked.md`'s **L-8a**, closed as shipped against the round-trip test that
+  drives the very widgets it named. CR-A-9 and CR-D-9 were found already fixed in
+  the tree and are recorded as verified.
+
+- **Selector names and coded inputs have one owner (#63, review 2026-08-22
+  PB-5/8/9, tier M, 2026-08-23)** — the replication carries as *names* what
+  the original suite carried by position, and those names are dictionary
+  keys downstream; the oracle form seeded them blank and checked nothing, so
+  the most ordinary from-scratch mistake (leave the seed) changed tail loads
+  with the page reporting success. The fix is structural rather than a
+  warning: `keyed` refuses a duplicate wherever `select.py` looks a name up,
+  the form withholds results on the same check, and a new row is named
+  before the user sees it. Name identity became one rule (`same_name`), which
+  is also what let `Wing` find the wing. The two coded `str` fields got the
+  same treatment as the safety-factor table — a code the owner cannot
+  classify is refused by name, never defaulted — with the tables moved out of
+  an `app/` view's private dictionary into the models so both GUIs offer one
+  list. `strut` stays a `str` (an enum is a schema hop; not this pass).
+
+- **Solo close loop, cycle-time revision (tier M, 2026-08-19)** — The solo
+  profile (§0, 2026-08-17) made branch-per-item and issues-as-record optional,
+  but `scripts/solo_start.sh` and `scripts/solo_close.sh`, written to implement
+  it, required an open GitHub issue and a `<type>/<slug>` branch on every
+  invocation; each closed item therefore paid an issue it did not need and four
+  `gh` round-trips (`auth status`, `issue view`, `issue close`,
+  `backlog_issues.py check`) for a system of record §0 had already handed to
+  `00_backlog.md`. Three changes bring the tooling back to what the profile
+  says. The issue number became an optional positional on both scripts, and
+  omitting it drops every `gh` call rather than degrading to a warning. A
+  docs-only change set — every path `*.md` or under `docs/` or `changes/` — may
+  now be closed on `main` without a branch, `--slug` supplying the fragment
+  name; the allowlist is deliberately narrow so that anything touching `.py`, a
+  fixture or config still takes a branch and keeps somewhere to abort to. And
+  the gate scales to that same predicate: a docs-only set runs `ruff` · `mypy`
+  and the five guard files §0 already recommends for docs edits, ~3 s against
+  the suite's ~150 s, with `--full-gate` to override and CI on the push to
+  `main` unchanged as the real gate. Measuring the gate to size it produced the
+  fourth change: `.pre-commit-config.yaml` had argued since 2026-08-16 that no
+  fast subset could pay, on the basis that the suite ran in 36 s with no test
+  over 10 s. Re-measured 2026-08-19 the suite is ~150 s, thirteen tests exceed
+  10 s, and the slowest single test (~43 s, `test_deliverable_units.py`) sets a
+  parallel floor the whole suite cannot go below — so the comment was replaced
+  with the measurements and their two consequences, and §0's advice to run
+  `test_deliverable_units.py` *while iterating* was re-timed to once before
+  closing, that file now being the slowest in the repository. The growth is
+  concentrated in four fixture-driven files and splitting them, not a slow
+  marker, is the fix; it is left as a separate item rather than folded in here.
+  `tests/test_solo_scripts.py` gained guards for the optional issue (asserting
+  each named `gh` call disappears with it), the docs-only allowlist and gate
+  set, and the two refusals that keep closing on `main` honest.
+
+- **A solve that cannot close now says so, and the one that closes on nothing is
+  named rather than refused (#33, tier M, 2026-08-22)** — the review ranked this
+  band-C item second of everything filed because of its blast radius rather than
+  its size: `_balance`'s two loops returned their last iterate on exhaustion, and
+  every V-n point, SELECT pick, balanced case and exported deck consumes that
+  return with nothing to distinguish an answer from a place the search gave up.
+  Working it turned up the shipped instance the ranking predicted — a CG the
+  airplane cannot trim at yields `NZ = 0.658` at 41 deg alpha, reported as a 1-g
+  balanced point — and, in the same sweep, two more solvers with the identical
+  shape: WINGINER returning the density it was passing through, FLAPLOAD
+  returning its own 100,000 ft/s guard value and amplifying the flap load by its
+  square. The interesting half was not the refusal but what must **not** be
+  refused. Measured before deciding: the only exhaustion on any shipped fixture
+  is nine of `atr42_100`'s 300 points, and they are exactly the nine decision
+  **D-30** had already ruled ordinary stall-limited flight — the Mach cap pins
+  the true airspeed, the dynamic-pressure iteration has no lever, and **23.333(b)**
+  excludes such a point from the manoeuvring envelope rather than owing it. A
+  plain converged/failed flag would have refused three weight cases of a shipped
+  fixture for agreeing with the regulation, so the vocabulary has three outcomes
+  and `sloads/convergence.py` owns it: **converged**, **clamped** — a fixed point
+  outside the acceptance band, returned with its state attached — and **failed**,
+  which raises. Clamped is detected as exact float equality on `q` rather than by
+  any physics test, which is what makes exiting on it free: the remaining trips
+  re-solve the identical inner problem, verified as all 600 rows bit-identical to
+  the pre-#33 code and 4.3× faster on the fixture that clamps. The state has one
+  owner (`EnvelopeResult.clamped_cases`, derived, never persisted, no schema hop),
+  and the Aerodynamic Data page's stall-clamp margin — which finds the same corner
+  from the published CL, from the outside — is pinned to name the same rows, so
+  band-B #32's marker reads the solver's own answer instead of growing a second
+  predicate beside it. The class is closed by an AST walk rather than by prose: a
+  trip-counted loop that breaks with no `else: raise` fails the build or is
+  classified with its reason, and the two classified loops are stated to be
+  something else (a time march, an unbounded inflation) rather than exempted.
+
+- **23.361(b)(1) stoppage torque: formula closure + truncation basis (CR-B-3
+  `[MAJOR]`, #40, tier M, 2026-08-22)** — the review's second guard blind spot.
+  The sudden-stoppage engine-mount torque was computed but never asserted: the
+  only numbers any test held for it were the propeller inertia and the FAR 25
+  case's equality with it, so the rotor loop, a rotor's sign and the Δt division
+  were all unguarded. Because the condition is turboprop-only and the bundled
+  Appendix B has no engine-mount page, the policy gate is closure rather than an
+  oracle (CONVENTIONS §6), and it is now stated as such: the angular-momentum
+  formula `I·ω/Δt` summed over the propeller and every rotor, re-derived in the
+  test from the fixture's own rotor list, with a counter-rotating rotor present
+  so the signed summation is what passes. Working the truncation half turned up
+  the substantive defect: ENGLOADS.BAS prints `INT(-TORQSUDSTOP)`, and GW-BASIC's
+  `INT()` floors while Python's `int()` truncates toward zero. They agree
+  wherever the argument is non-negative — which is why the port survived this
+  long — but the reported reaction torque is negative by convention, so the suite
+  had been reporting 1 ft-lb less torque than the source program, on the
+  non-conservative side (ATR-42: −24472 → −24473 ft-lb limit; no Appendix A
+  figure moves, and the frozen Imperial baseline was regenerated for that one
+  change). The class fix (rules 3 and 4) is a single owner for the BASIC numeric
+  semantics, `sloads/basic.py`, holding both `basic_int` and the 3-decimal
+  `basic_trunc3`; all seven previously open-coded truncations across `engine.py`,
+  `landing.py`, `wing_inertia.py` and `weight_estimate.py` now read it, four of
+  them carrying the same latent negative-argument exposure (a left-hand engine's
+  Y c.g., a LANDLOAD lever arm forward of the datum) that no shipped fixture had
+  yet triggered. `tests/test_basic_semantics.py` is the drift guard: it pins
+  floor-vs-truncate directly and greps the calc layer so a new `int()` there has
+  to be classified rather than defaulted to Python's semantics.
+
+- **Unit-boundary rollout completed (#44, CR-D-2, tier M, 2026-08-22)** — the
+  helper existed, the rule existed ("a view that writes `to_imperial_scalar`
+  around a `number_input` is a defect"), and seven views still did it by hand,
+  each pairing a `to_display` seed with a conversion on Apply and a
+  system-suffixed key. Landed as one pass with #51 because the fixes share
+  their call sites: `unit_number_input` stamps the project generation for its
+  callers, so moving a field onto the boundary was also the cheapest way to
+  key it. Speeds and altitudes took the aviation carve-out (`KEAS` /
+  `ALTITUDE_FT`), weights, powers, lengths and areas the converted kinds, and
+  the Apply handlers dropped their hand conversions — the helper returns
+  Imperial, which is the whole point. The `data_editor` grids remain the one
+  hand-converted surface. A no-op-Apply-in-SI bit-identity test per converted
+  view guards the rounding trap the helper's untouched-field return exists
+  for, and `GUI_design.md`'s rollout claim stopped being aspirational.
+
+- **The units table's blind spot, found by asking it a question it had never been asked (tier M, 2026-08-19)** —
+  Design note 32's step OG-D needs a **generic** form renderer: one piece of code
+  that, given any of the 230 fields in the oracle GUI's input set, produces a
+  widget. That forces a question no hand-written view ever had to ask, because
+  every existing call site answers it by hand at the call site — *what unit does
+  this field carry?* Sizing the renderer against `sloads.units` turned up
+  thirty-four fields it could not answer for, and the reason is worth recording
+  because it is a property of the guard, not of the table. `_PROJECT_FIELD_KIND`
+  is keyed by field name, and its drift guard decided **which names to demand an
+  answer for** from a suffix regex over `_lb`/`_in`/`_sqft`/`_hp`/`torque`/
+  `inertia`/`psi`. So the guard's reach was exactly the set of fields that follow
+  the naming convention, and a length called `xt25` was not *missed* by it — it
+  was outside the question. In the SI view that field sat at 261.0 next to
+  `htail_semispan_in` correctly showing 1856.7 mm, on the same record, and
+  `gross_weight` showed 3400 lb as 3400 kg. Unconverted in both directions, so
+  the round-trip test was green and the numbers on screen were wrong.
+  The fix is the inversion: **every numeric leaf is classified**, one of three
+  ways — converted, aviation-standard, or dimensionless with a stated reason —
+  and `units.field_classification` is the one place that answers. That is the
+  same totality standard gate G4 already holds the field registry's 323 rows to,
+  and the argument for it is the same: a guard that decides for itself what is
+  worth checking can only find what somebody already thought of. Two further
+  things fell out of building it. The `[[a, b], …]` curve fields needed a shape
+  the table could not express — one kind per field would have multiplied a
+  profile-drag coefficient by 25.4 — so a pair carries a kind **per member**,
+  which is what lets the wing planform polylines convert (both members are
+  stations) while `twist`, `profile_drag` and `section_cm` convert on the first
+  only. And the guard's own field set was one example project's slice list,
+  which meant a single-engine fixture's missing `one_engine_out` slice, and
+  `tail_mass` that no example sets, were not merely unclassified but unreachable
+  by the check; it now reads `field_registry.schema_paths()`, the schema-walk
+  owner. The order matters more than the count: this was found *before* the
+  renderer was written rather than by shipping it into a second GUI, which is
+  the same lesson G5 recorded a day earlier — a classification that changes a
+  delivered number is settled by running it.
+
+- **Sidebar Upload edge-triggered (#34, review 2026-08-20 CR-D-1/CR-D-9, tier
+  M, 2026-08-20)** — the first row of the 0.7.0 band: the shared shell's Upload
+  handler acted on `st.file_uploader`'s *presence* (state) as if it were an
+  *event*, so a clean load looped adopt → rerun → re-adopt unboundedly
+  (resetting the dirty baseline each pass) and a dirty load reopened the
+  discard dialog on every run — Cancel's own `st.rerun()` landed back in the
+  same branch, so the dialog could not be dismissed until the file was cleared
+  from the widget. Both GUIs inherited it via `render_shell_sidebar`. The fix
+  latches on the upload's identity (`file_id`, falling back to name+size),
+  recorded before `load_with_guard` runs, giving Upload the same
+  once-per-action semantics the button-gated Open/Load-example paths always
+  had: Cancel cancels, a parse failure is shown once not looped, and a fresh
+  upload (new `file_id`) re-arms. The CR-D-9 rider landed with it: Download
+  now writes `<name>.project.json`, the suffix Save and Open agree on.
+  AppTest guards in `tests/test_app_shell.py` stub the uploader and count
+  `load_with_guard` calls — the edge invariant itself. `GUI_design.md` §4
+  states the once-per-action rule for every load path.
+
+- **The unkeyed half of `app/views/` (#51 reopen, tier M, 2026-08-22)** — the
+  keyed half of the L-8d data-loss class shipped 2026-08-21 believing the
+  guard's own exemption: "no `key=` at all is Streamlit's positional identity,
+  per-render". It is not. An unkeyed widget's identity derives from its
+  *arguments*, `value=` included, so its retained state is exactly as stable
+  across a project load as a hand-written key whenever the loaded field
+  repeats the seed — and the seed is `Project(name="")`, so most loaded fields
+  do. Ninety-eight of the 187 project-seeded widgets in `app/views/` were
+  riding that exemption. The fix is the same stamp the keyed half got, applied
+  where there was no key to stamp; the guard inverts to fail closed, gains the
+  input calls the first cut missed, and trades the sidebar's whole-file
+  exemption for a per-key allowlist with a companion that fails when an entry
+  stops naming anything — the same lesson #43 taught about guards that had
+  rotted into always-passing, applied before this one could. A type-then-load
+  reproduction pins the behaviour the AST walk can only infer.
+
+- **Widget identity across a project replacement — the project generation
+  (#51, the data-loss half of parked L-8d, tier M, 2026-08-21)** — the 0.7.0
+  band's Pri 1, and a defect in shipped content rather than a UX nit: a project
+  loaded into either GUI did not reach the widgets of a page that was already
+  open, and those widgets then wrote their stale values back over it. The cause
+  is one property of Streamlit plus one of both front-ends: widget state, once
+  registered under a key, wins over the `value=` argument on every later rerun,
+  and every project-editing widget was keyed by something stable across
+  projects (a registry path in `oracle_app/form.py`, a hand-written name in
+  `app/views/`), while `adopt()` swapped `st.session_state["project"]` and
+  touched no key at all. Measured on the oracle GUI: seed project → visit
+  Weight & Mass Properties → load `atr42_100` rendered zeros, and because
+  `render_scalar`/`render_table` persist what they return, the render wrote
+  them back — the table's row-count widget held `0`, so all 21 `weight.items`
+  and all 8 `weight.cg_cases` were popped out of the loaded project, with a
+  Save from that state putting the emptied project on disk. Parked L-8d rested
+  its "not a data-loss bug" on `app/views/` having an Apply step; the oracle
+  GUI has none, and the sweep established that the Apply step only defers the
+  overwrite to the click the user believes is confirming what they were shown.
+  The fix is a single stamp on the widget key: `app_shell/widget_keys.py` owns
+  a *project generation* counter, `widget_key(base)` prefixes it (idempotently,
+  so a view may stamp a key it also hands to the shell's
+  `unit_number_input`), and the counter is bumped by the two places that mean
+  "the project was replaced" — `project_state.adopt` and the JSON editor's
+  Apply, which replaces without saving and therefore bumps the generation
+  without touching the dirty baseline. A replaced project therefore renders
+  into *different widgets*, which is the only thing that beats retained state;
+  the alternative — clearing widget state on adopt — needs a key list the shell
+  would have to keep in step with the field registry and 21 view modules.
+  Swept across both GUIs (practice 4): the oracle form's eight key sites, the
+  shell's unit boundary (which stamps for all its callers), and 78 direct
+  widget calls across 13 `app/views/` modules. Guards in
+  `tests/test_widget_freshness.py` (new): render → load → re-render leaves the
+  session project equal to the loaded file for every oracle page on every
+  shipped example (66 of these fail without the stamp), the same for three
+  `app/views/` page shapes, a display-half assertion on the page the defect was
+  found on, and an AST walk over `app/`, `app_shell/` and `oracle_app/` that
+  fails on any input widget keyed without the stamp — so the next widget added
+  is fresh by construction rather than by review. The three test modules that
+  had each grown a private "find the widget for this path" lookup now share
+  `helpers.widget_editing`, which matches on what the widget edits and lets the
+  shell decorate the key as it likes. `GUI_design.md` §5 states the rule.
+
+- **`workflow.requires` vs self-entered slices (#45, CR-D-3, tier M,
+  2026-08-22)** — `requires` conflated two different remedies: a slice another
+  page must produce first, and a slice the page's own form enters. Both read
+  as "blocked", so a fresh project's first two working pages — the very pages
+  a from-scratch concept starts at — told the user to run the pages before
+  them for inputs that had no other home. `WorkflowStep.edits` names the
+  self-entered slices (minimally: only where a `requires` has no producer),
+  the `missing_upstream`/`missing_self_entered` split gives each consumer the
+  honest message, and the DAG-completeness guard makes the classification
+  structural: a required slice nobody produces and nobody's form enters is now
+  a test failure, not a dead end a user discovers. The fix also removed the
+  `page()` scaffold that had promised a generic gate and accrued zero callers
+  — the pinned "unlinkable requirements" set that tested it was the prose-rule
+  form of this guard, superseded by the closed one.
 
 ## Release cut: **sloads 0.6.0** (the ground family, the LRA beam model and the process that ships them), tag `v0.6.0`, 2026-08-17
 
@@ -87,1177 +1224,3 @@ moved deliberately, with its wave recorded in the changelog entry that moved it.
 **Post-release.** The cadence rule (`RELEASE_PROCESS.md` §2) restarts from this
 tag. Band B (steps 13+, notes 21/24 agreed, note 19 proposed) is the working
 plan; the priority table's open rows are the GitHub issues.
-
-- **Constants and conversion factors — one owner, one value, one rule (issue #26, tier M, 2026-08-17)** — Closed the CH-6 defect class for every shared constant, not just ρ₀: the 2026-08-17 review found deg/rad under six spellings, two `_G = 32.2`, six `144` aliases, ~24 inline `/12.0`, sixteen inline `V²/295` and the FAR 23.341 gust triple at five sites. `sloads/constants.py` is now the one owner of each (`DEG_PER_RAD`, `IN_PER_FT`, `IN2_PER_FT2`, `KT_TO_FPS`, `FT_LB_S_PER_HP`, `dynamic_pressure_psf`, `gust_alleviation_factor`, …), the value policy is exact-by-default with the `.BAS` truncations measured against the whole suite before being retired (no page-cited oracle moved; only self-pins re-pinned, register entry), a single `*_SUITE` survivor remains (`KT_TO_FPS_SUITE` for `VSF`, pinned by the ENGLOADS `/101.2` gyro-thrust oracle), FLTLOADS' private speed of sound was retired for the shared atmosphere, and the `constants.py` ↔ `units.py` demarcation (Imperial↔Imperial vs Imperial↔SI only; `units` imports `constants`, never the reverse) is a `CONVENTIONS.md` §7 row with grep drift guards in both directions (`tests/test_constants.py`).
-
-- **Export silent defaults closed structurally (CH-2, item 9, tier M, 2026-08-16)** — the 2026-08-16 scope review found three `getattr(..., default)` fallbacks in the export path; the sweep found seven. All are now typed attribute reads or an explicit map that refuses an unknown key, the digest did not move (no default had ever fired on a fixture), and the class cannot recur: an AST guard forbids three-argument `getattr` anywhere in `sloads/export/`. Rule stated once in `00_program_overview.md` §Error handling; the mypy stage-2 ratchet on `export/` (issue #19) now starts from a package with no `Any`-typed probes in its readers.
-
-- **Multi-developer development process (design note 28, tier M, 2026-08-16)** — the session becomes the PR: trunk-based branches, protected `main` (1 reviewer ≠ author, CODEOWNERS, squash, `self-merge-ok` for tier-S docs/hygiene), closure in the PR, history entries as `changes/*.history.md` fragments rolled at release cut (this entry is the first), GitHub Issues + Project as the record with `00_backlog.md` as the plan (`scripts/backlog_issues.py`), design-note PRs with `Owner:` lines, the three shared-counter rules, `CODEOWNERS`, `CONTRIBUTING.md`, PR/issue templates, `DEVELOPMENT_PROCESS.md`. Owner's GitHub steps outstanding: branch protection; `backlog_issues.py create` + `rewrite`.
-
-- **Forward non-wing drag not applied outside the polar's trusted-α window (backlog Pri 2, tier M, 2026-08-17)** — note 20 D-4 revised (§8.2) after the four non-oracle fixtures showed the `ΔC_D` sign inversion at the negative-α end as well as the RJ's positive end: `NMAA` on `atr42_100`/`dhc8_dash8`/`concept_heavy` carried a 1.0–1.4 klb *forward* `body-axial` card, excused in the test inside a symmetric ±15° window. Decision: a one-sided window `constants.POLAR_TRUSTED_ALPHA_DEG = (−10°, +15°)` as the single owner (`balance.polar_alpha_trusted`); outside it a forward difference is not applied (`body_axial_clamped`, `ΔC_D` still reported unclamped), inside it a forward value fails G10 with no excused points. Consequences stated, not absorbed: `residual_fx` and `residual_my` re-open on exactly the clamped cases (pitch 1.5–2.1 % on the three `NMAA` points because the load sat at the wing plane ~40 in from the CG), reacted by the closure and pinned per case with `(force, pitch)` ceilings under a 2.5 % hard stop; G1/G5/G2 read the flag. Decisions of record: clamp the *applied* load, never the diagnostic; the window is one-sided because the polar is a positive-lift fit; the polars themselves are not re-derived (Pri 2's own scope). Digest regenerated (four fixtures' `balance` channels, three `lra_model` channels); `ga6_normal`/`cessna_210` untouched.
-
-- **Platform-stable deliverable bytes (defect, tier M, 2026-08-16)** — found while getting the first protected-`main` PR green: `main`'s CI had been red on every run since the LRA model shipped, on two tests that pass on the developer's Mac. Root causes were both "the same number computed two ways lands an ulp apart on another platform": critical-case picks between exactly-tied V-n points flipped between CI and local (`select._extreme` — first-in-order inside a 1e-9 relative band — now owns every keyed pick), and zero-by-construction card components printed their cancellation residue or `-0.000000E+00` (`sbeam_bridge._fmt3` snaps them for every vector card in every exporter), and — the 3.12-only remainder — Python 3.12's compensated built-in `sum()` moving float sums a few ulp from 3.9/3.11 (`math.fsum` at all 102 summation sites in `sloads/`, exactly rounded everywhere). Plus a Python-3.9-only enum-docstring placeholder in the data-dictionary generator. Decision of record: a byte in a deliverable may not depend on libm, FMA, or the interpreter's `sum()`; the rule and its three guards are a `CONVENTIONS.md` §7 row. Digest regenerated deliberately (`-0`/dust → `0` only). Lesson for the multi-developer process: a green local suite was never the merge gate — CI on the Linux matrix is, and it had been failing unnoticed because nothing blocked on it until branch protection did.
-
-- **Twin fixtures are T-tails (backlog Pri 1, from T-8a, tier M, 2026-08-16)** — `atr42_100` and `dhc8_dash8` flipped to `tail_type: t_tail`, the fin root left on the outline datum (`h_tail_z` = 0, so the T-tail relation does not outrank the fuselage-top branch closed the same day). Both fin decks gain the T7 tip transfer on every case, the h-tail attaches at the fin tip (one joint, not a fuselage-side pair), and the LRA model ties h-tail to fin tip. Two rule-4 sweeps rode along: `tail_span._h_tail_waterline` now places a T-tail's h-tail stations at `fin_root + span` (it read the wing root waterline on every T-tail, `concept_regional_jet` included — geometry only, `fz`-only surface, no load moved), and the three-view's defaulted T-tail/cruciform h-tail is drawn on the resolved fin, not `fuselage_height/2 + span` above the wing root. Cosmetic rider (old Pri 13): the tail-span CSV `Fax`/`Sax` `-0.00` is snapped, and the negative-zero guard covers the tail decks. Decisions of record: leave `h_tail_z` = 0 on the twins so the outline datum governs; the h-tail waterline sweep is in scope because it is the same defect class and the digest was already moving. Digest regenerated (twins' tail/balanced/LRA channels; RJ h-tail/LRA channels).
-
-## Step — Wing-tank fuel separability: `MassItem.wing_fraction` (design note 29, backlog Pri 6 / #6, tier L, 2026-08-17, schema v53)
-
-**Objective.** End the same fuel pounds riding both beams on the three fuel-in-wing fixtures (3,800 / 4,000 / 1,200 lb — 7–15 % of the derived body beam, above the base-method band; scope review 2026-08-16 item 1.3) without rebuilding the mass model: one additive field, one owner for the row→parts split, the wing tie as a validator.
-
-**Deliverables.** `MassItem.wing_fraction: float = 0.0` (WF-1/WF-2 — the fraction of a row's weight and own inertias reacted by the wing, both sides together; the remainder by `component`; both parts at the row's position; a *fraction* so G-5 burn-down and D-25 loading fractions leave the split invariant); `SCHEMA_VERSION` 52 → 53, additive, no migration hop; `mass_distribution.reacted_parts` (WF-3) as the only place a row becomes parts, consumed by `distribution()`, `balance.py` (`_wing_inertia_scale`, `place_wing_inertia`, `body_inertia`, `body_axial_set` fallback, `point_mass_self_inertia`) and the `mass_cards` header (cards stay one per row — a row is one mass at one position); validators `wing_mass_tie_open` (both signs, pounds + remedy), `wing_fraction_out_of_range`, `wing_fraction_on_wing_row` (WF-4); fixture fractions derived from WINGINER's own `concentrated` entries (WF-5: 3800/9174, 4000/4660, 1200/5500), `Reserve`/`Unusable` rows untouched; the WINGINER wing deck unmoved (WF-6). Closure trail: `CONVENTIONS.md` §1 + §7 SSOT row, `PROGRAM_SPEC.md` (body loads), `theory_sources.md` (the tie as the invariant gate), `DATA_DICTIONARY.md` regenerated, schema-guard hash, digest wave.
-
-**Test.** `test_mass_distribution.py`: the tie holds on all six fixtures and `unmodelled_wing_mass == 0`; the reduction gate (strip the fraction → exactly the pinned pounds reappear; the partition closes either way); `reacted_parts` splits weight and inertia at one position and returns zero-fraction rows by identity; the mass-properties path reads rows (Σw, Σwx, Σwz to 1e-12 on all six); the consumer-agreement drift guard (balance wing/body split, CONM2 header). `test_validation.py`: no fixture fires the tie; stripping atr42's fraction names "3,800 lb" and `wing_fraction`; the other sign is named; entry rules fire. Pins re-pinned by design: `_CLOSURE_IZZ` and the twins' lateral `r_dot`/`p_dot` (fin load and `Ny` unchanged), `concept_heavy`'s beam 15,000 lb, `dhc8_dash8`'s entered table now +2,390 lb over the beam. Digest wave: `atr42_100` / `dhc8_dash8` (`csv/balance`, `sbeam/balanced_deck`, `sbeam/body_cards`, `sbeam/body_fitting`, `sbeam/body_span`, `sbeam/lra_model`, `txt/balance`) and `concept_heavy` (the same less `csv/balance` and `sbeam/lra_model`); `ga6_normal`, `cessna_210`, `concept_regional_jet` unchanged on every channel; no wing or CONM2 channel moved.
-
-**Key decisions.** WF-1 field over second row (the row is the WTENV loading-hierarchy unit; a second discretionary row doubles the `2^n` subset search and lets it fly wing-full/body-empty); WF-3 CONM2 cards stay per row (the reacting beam does not move a mass card); the twins' fuel-system truth (all-wing fuel on an ATR) is out of scope — the fixture's own `concentrated` statement is what the tie closes against. What measurement added: `Izz(closure)` +33 / +31 / +29 % and the corresponding fall in lateral accelerations — physics of the spread, recorded on the pins.
-
-- **Fin-root body datum (backlog Pri 1, defect from T-8a, tier M, 2026-08-16)** — `tail_geometry.fin_root_waterline`'s fuselage-top branch is `z_centre(xv25) + height(xv25)/2` from the fuselage outline (the v52 section-centre line + the new `derived_geometry.fuselage_height_at`), retiring the wing-root-plus-half-a-body substitution to a no-outline fallback that names itself; new project-level resolver `tail_geometry.fin_root` read by both the load path and the three-view (`configuration.tail_planform` gained an optional `project` arg). Re-pinned three fin roots (`atr42_100` 223.15 → 191.17 in, `dhc8_dash8` 232.95 → 203.45, `cessna_210` 109.60 → 100.24), the twelve lateral cases (`p_dot`/`r_dot` only — fin load and `n_y` byte-identical), and the Imperial digest baseline; docs: `CONVENTIONS.md` §7 fin-position bullet rewritten from "known limitation" to the resolved formula.
-
-- **Static typing and lint depth (design note 27, tier M, 2026-08-16)** — `mypy` is a merge gate over `sloads/` (own CI job, 3.12; zero errors in default mode; per-package strictness ratchet, stage 1 on the SSOT owners); 153 → 0 errors by narrowing only, no output byte changed (frozen digest + oracles unmodified); latent `None` dereferences on already-refused paths now raise per the error contract (`balance.py`, `engine.py`); `ruff` widened to `E F W B SIM PLE PLW ARG RUF I C4` with reasoned ignores, 243 → 0. Rules: `00_program_overview.md` §Static typing & lint. Backlog: ratchet stages 2 (`export/`) and 3 (`modules/`).
-
-- **Documentation currency rule + guard (tier M, 2026-08-16)** — standard docs point at owners, never copy volatile values (schema number, test count, coverage %, "currently N"); provenance stays `schema vN`. Rule in `00_program_overview.md` §Documentation currency, `CLAUDE.md`, `CODE_REVIEW_PROCESS.md` step 1; guard `tests/test_doc_currency.py` (literal patterns over the standard set + `docs/00_INDEX.md` ↔ tree both ways, the R6-D2 class). Four `SCHEMA_VERSION = N` claims in `GUI_design.md`/`PROGRAM_SPEC.md` swept to provenance/pointers.
-
-- **Doc volume: history archive, changelog fragments, tier S trimmed (backlog R11, tier M, 2026-08-16)** — design note `docs/40_history/28_doc_volume_reduction_note.md`, all three recommendations accepted at user review. (a) This file cut at the 0.5.0 release block; 7,970 pre-0.5.0 lines moved verbatim to `11_completed_development_to_0.5.0.md`. (b) `CHANGELOG.md` `[Unreleased]` is no longer hand-edited: each closure drops one `changes/<slug>.<type>.md` fragment and `scripts/build_changelog.py X.Y.Z` assembles them into the release section at cut time (`tests/test_changelog_fragments.py` guards fragment names/shape and warns when this file passes 1,500 lines). (c) Tier S = fragment + backlog removal, no history entry (`CLAUDE.md` table, `CODE_REVIEW_PROCESS.md` §0). `RELEASE_PROCESS.md` §4 gains the mechanical history-roll step: build changelog, move shipped plan notes to `40_history/`, roll the previous release block into an archive when the live file exceeds the threshold. Legacy hand-written `[Unreleased]` text is folded into 0.6.0 verbatim; fragments start now.
-
-- **Doc currency: schema literal in `00_program_overview.md` (tier S, 2026-08-16)** — §Version & phase said "currently **15**" (`SCHEMA_VERSION` = 52) with a stale `models.py` path; now points at the constant in `sloads/models/project.py`, no literal number; `.claude/launch.json` dropped an unrelated `life-app` entry.
-
-- **CH-1 test-suite runtime (backlog Pri 1, tier S, 2026-08-16)** — coverage out of `addopts` and into the CI `test` job's explicit flags (floor unchanged at 80); `pytest-xdist -n auto` on by default (`pytest-xdist` added to `dev`); the ~18½-min single-threaded run drops to minutes; docs: `00_program_overview.md` §Testing & coverage.
-
-- **Backlog re-cut per the 2026-08-16 scope and deficiency review (tier S, 2026-08-16)** — `docs/50_reviews/2026-08-16_scope_and_deficiency_review.md`; band A = 0.6.0, step 14 descoped to a `PBAR`/`MAT1` pass-through, fourteen rows parked with bodies, effect-vs-error-bar rule + schema freeze added, frozen-capability list recorded.
-
-**Step 12 — the LRA beam model, export + import (complete 2026-08-16, tier L)**
-
-**Objective.** Close backlog Pri 1: ship the **third deliverable** (note 24
-R-1, agreed 2026-08-15) — a structural idealization on the load reference
-axes that the FORCE/MOMENT sets apply to, whose value is the internal loads
-at the named nodes (SOB, posts, fin root, h-tail attachments) that neither
-the per-component decks nor the assembled balanced deck can state — plus the
-import half: an external beam model becomes the LRA. Implementation
-decisions LM-1…LM-7 recorded in
-`docs/40_history/27_lra_model_implementation_note.md` (note 24 §7's
-delegated choices, chiefly LM-1: nearest-node transfer with the exact
-lever-arm couple, not tributary interpolation).
-
-**Deliverables.** `sloads/export/lra_model.py` (`lra_model.bdf`: wing chains
-starting at the SOB per R-3; split-fuselage cantilevers onto the front/rear
-spar posts, BM-2, no element through the carry-through; rigid centre-box
-hub; fin-root, h-tail-attachment/T-tail-joint, gear (`carrier`, BM-4) and
-engine hub+mount (`EngineInput.mounted_on`, R-9) ties; `$ SLOADS-NODE`
-tags per BM-5; refusals naming the missing datum per BM-3/LM-4);
-`sloads/export/lra_import.py` (`read_lra_model` /
-`lra_loads_on_imported_model`: the same case sets under the imported GIDs,
-tag-mapped, position-validated at ±2 in, nearest-node marked-assumed
-fallback); `export/coordinates.transfer_couple` — the one owner of the
-transfer rule (R-11); bands `lra-wing-left`/`lra-fuselage`/`lra-centre`/
-`lra-engine`/`lra-attach`/`lra-cbar`/`lra-rbe2` (production RBE2 promoted
-from the test-only 900001+); `derived_geometry.fuselage_centreline` (R-4);
-schema **v52** (`z_centre`, `mounted_on`, aileron/flap butt-line +
-hinge/actuator fields, `ref_axis_pct` Optional with the `ref_axis`
-effective accessor and the stored-0.25→unset io mapping, R-7c); CLI
-`--export-target lra` / `--lra-import`; the Export page bundles the deck;
-fixtures enter `ref_axis_pct = 0.40` (R-7a) and engine `mounted_on`.
-
-**Test / Acceptance.** `tests/test_lra_model.py` (15): the transfer-rule
-drift guard; skeleton families tagged and tied on atr42; the T-tail joint on
-the fin tip with no fuselage pair (R-6, T7 excluded); no element spans the
-carry-through; the wing chain starts at the SOB and every inboard strip
-routes onto it; refusals named; discrete-mode hinge/actuator skeleton
-(synthetic, LM-6); the **plan-07 invariant** — LRA deck resultant ≡
-balanced deck resultant per case, all six components, four fixtures;
-export→import round trip resultant-identical, divergent tags fail loudly.
-`tests/test_sbeam_roundtrip.py`: the model **solves** and the support
-reaction = −applied resultant ≈ 0 (free-free proof through real structure,
-both unit systems), and the SOB / front-post internal loads equal the
-cut-side card sums through the element frame (graph partition at the cut,
-the step-13 sign map). Pinned strict xfail: sbeam's dense-path 1e15
-condition heuristic refuses the regional jet's SI (mm) deck — a units
-artifact (equilibrated cond ≈ 1.3e9; the Imperial twin solves exactly);
-support placed beside the front post (nose-clamped conditioning measured
-1.6e15 → 2.8e14). Digest wave stated in the CHANGELOG: wing/tail/net-loads
-channels + the balanced deck moved once for the 0.40 fixture axis;
-`sbeam/lra_model` joined the baseline on the four building fixtures;
-body/chordwise/oracle channels byte-identical.
-
-**Key decisions.** LM-1 (nearest-node + exact couple; single owner);
-LM-3/BM-2 (split fuselage structural — the two cantilever sums are
-recoverable end forces; the p103 comparison is reported, not gated);
-LM-4/BM-3 (refuse: unset `ref_axis_pct`, no SOB, no outline, no
-carry-through, strip-pair attachment); LM-5 (gear's BM-4 field **is** the
-shipped G-2 `carrier`); LM-6 (hinge/actuator nodes ship as tagged skeleton
-with rigid parent ties; the hinge-line chain + torsion identity gate ride
-with Pri 7's data); LM-7 (source-routed members, nearest-in-skeleton for
-closure/relief loads); R-7d closes the CONVENTIONS §1 torsion-reference
-question (backlog Pri 14 removed with it). Specs synced: PROGRAM_SPEC "LRA
-beam model" section + R-1 three-artifact statement, CONVENTIONS §1 + two §7
-owner rows, PROJECT_GUIDE §4, theory_sources row, GUI_design v52 paragraph,
-DATA_DICTIONARY regenerated, backlog renumbered.
-
-**Step 12 phase 0 + step 13 — the LRA skeleton contract and the wing
-side-of-body node (complete 2026-08-16, tier M)** — backlog Pri 1, note 24
-(agreed 2026-08-15): decisions **BM-1…BM-5** recorded in
-`03_resolved_decisions.md`; `SurfaceInput.sob_y_in` (schema **v51**, additive)
-with `derived_geometry.sob_station` as the one SOB owner (entered → half
-fuselage width marked assumed → none; never `inboard_rib_y`) and the h-tail
-attachment reading the same quantity (`ATTACH_ENTERED`); the per-component wing
-stick deck **adds** a tagged reporting node at the joint (GID band `lra-sob`
-7001+, the BM-5 `$ SLOADS-NODE` tag's first use) without moving any station or
-card, so the Appendix A station-0 closure is untouched; the wing root design
-load is stated **two ways and gated** — `sob_internal_loads` closed-form (deck
-`$` header per case + the report's "Wing side-of-body internal loads" table)
-against the solver's CBAR end force in the first element outboard
-(`test_the_sob_internal_load_is_the_first_outboard_elements_end_force`, RJ +
-atr42, both unit systems) — and `sob_collapsed_load` (the inboard strips as one
-resultant-preserving equivalent at the SOB) is built and pinned as the step 12
-LRA wing-beam start. GUI: the surface form and the WINGGEOM re-seed carry
-`sob_y_in`. Specs synced: PROGRAM_SPEC sbeam-bridge section, GUI_design schema
-line, DATA_DICTIONARY regenerated, `bands.py` map. Digest wave: `wing_stick`
-on all six (four gain the node; all six the amended one-wording
-`CENTERLINE_CLAMP_NOTE`); every other channel byte-identical.
-
-**The h-tail beam is reacted where the airplane reacts it (complete 2026-08-15, tier L)**
-
-**Objective.** Close backlog Pri 1 — decision **T-8a**. The row read "populate
-`fuselage_width` on the fixtures so the h-tail attachment stops taking the
-`±ds/2` fallback" (note 24 BM-1/BM-3, F5.1), Tier S, effort S.
-
-**What the measurement changed.** Three things, each found before any edit.
-
-1. **`fuselage_width` is not persisted.** It is a derived read-only *summary* of
-   `geometry.fuselage` (M2-6, `derived_geometry.py`), so "populate it" meant
-   "ship a fuselage outline" — and only `concept_regional_jet` had one.
-2. **The summary is the *maximum* section, and the h-tail attaches in the tail
-   cone.** On `atr42_100` that is 106.3 in of published diameter against ~22 in
-   of body at `xt25` — the formula as written would have put the attachments
-   **five times too far outboard**, an error in the opposite direction from the
-   fallback it was replacing and larger than it.
-3. **The function ignored `tail_type`.** `concept_regional_jet` is a declared
-   T-tail, whose horizontal surface is not fuselage-attached at all, and it was
-   getting a fuselage-side pair at ±52.5 in — the one fixture that *had* an
-   outline was the one being described wrongest. Swept in the same change
-   (practice 4).
-
-And one more that could not be swept: entering a fuselage **height** activates
-`fin_root_waterline`'s `"fuselage-top"` branch, dormant on every fixture until
-now. See **Consequence** below.
-
-**Deliverables.**
-
-* **`derived_geometry.fuselage_width_at(outline, x)`** — the single owner of
-  "how wide is the body *here*", beside `fuselage_summary`'s "how wide at most".
-  Linear interpolation between bracketing sections, clamped at both ends.
-* **`tail_span.htail_attachment` → `HTailAttachment(y, assumed, basis, note)`**,
-  the `FinRoot`/`BodyDragWaterline` provenance shape. Resolution order: T-tail
-  fin-tip joint at `y = 0` (not assumed — entered `tail_type` is the whole
-  authority) → outline width at the h-tail **root LRA station**, `±w/2` →
-  `±ds/2`. `attachment_stations` survives as the stations-only wrapper.
-* **`TailSpanResult.attachment_assumed`/`attachment_basis`** — additive result
-  fields, no `SCHEMA_VERSION` bump and no migration hop; `io` round-trips them.
-* **Three published fuselage outlines** (`atr42_100`, `dhc8_dash8`,
-  `cessna_210`): max diameter 2.70 / 2.69 / 1.20 m on the three-section default
-  shape, each source's overall length cross-checking the fixture's entered
-  `airplane_length_in` to under 0.3 in. Attachments move ±5.5 → ±10.9,
-  ±5.75 → ±10.8, ±3.6 → ±11.3 in. `ga6_normal` and `concept_heavy` are
-  synthetic and keep the flagged fallback rather than an invented outline.
-
-**Consequence, accepted and filed (this is what made the step tier L).**
-`fin_root_waterline`'s third branch is `root_waterline_z + fuselage_height/2`;
-with no fixture carrying a height it had silently degraded to
-`root_waterline_z` on all five. It now fires — `atr42_100` 170 → 223.15 in,
-`dhc8_dash8` 180 → 232.95, `cessna_210` 86 → 109.60 — and that is the fin's
-**roll arm**, so twelve lateral cases moved with it (`cessna_210`'s `p_dot`
-−28.99 → −74.59 deg/s², a factor of 2.6). Fin **loads** and `Ny` are unchanged,
-which is the check that a lever arm moved and not the aerodynamics. The user was
-shown the numbers and chose to accept and re-pin rather than gate the branch.
-
-**The formula is wrong and the pins say so.** It reads `root_waterline_z` as the
-body centreline; it is the **wing** root — the same substitution `CONVENTIONS.md`
-refuses for D-1 — and all three of these types are **high-wing**, so it stacks
-half a body height above a wing root already near the body top. Filed as backlog
-Pri 5a with note 24 R-4's `FuselageSection.z_centre` as the fix, and paired with
-Pri 6a: `atr42_100` and `dhc8_dash8` are declared `tail_type: conventional` and
-are really T-tails, so they are also missing the T7 tip transfer.
-
-**Test / Acceptance.** `tests/test_tail_span.py` gains
-`test_the_ttail_htail_is_reacted_at_the_fin_tip_not_at_the_fuselage`,
-`test_the_attachment_interpolates_the_body_at_the_htail_and_never_its_maximum`
-(which asserts the interpolated width is under a quarter of the maximum — the
-gate against ever silently reverting to `fuselage_summary`) and
-`test_the_attachment_falls_back_to_the_strip_pair_without_a_body_outline`; the
-full-span topology test now branches on `is_t_tail`. `_FIN_ROOT` and
-`_LATERAL_CASE_NUMBERS` re-pinned with the reason in-comment;
-`test_fwd_regardless_negative_station_marks_none_via_datum` rebuilt on a
-constructed loading, as its own comment has twice instructed. Imperial baseline
-regenerated (24 digests); schema-shape hash updated. Suite 1893 passed,
-`ruff check sloads/ cli.py app/` clean.
-
-**Key decisions.** **T-8a** — the attachment is a *resolution order with
-provenance*, not a number: T-tail topology first, then the body outline
-interpolated at the h-tail LRA station, then the stated strip pair; the maximum
-section is never used. The outline branch is marked **assumed even for an
-entered outline**, because no shipped outline resolves the tail cone and the
-default shape factor — not the published diameter — sets the number (the
-half-span swings by half again on it). Consumers gate on `basis`, not on
-`assumed`. Synthetic fixtures get no invented geometry (T-17 upheld).
-
----
-
-**Every shipped fixture assembles balanced cases (complete 2026-08-15, tier L)**
-
-**Objective.** Close backlog Pri 5 — decision **D-26** (amending D-25). Give the
-four silent fixtures a `CgCase.loading` each so the concept-loads → sbeam loop is
-exercised in CI on six airplanes instead of two.
-
-**What the measurement changed.** The row read as data entry. Measured before any
-edit, it was not enterable. D-25a makes a case's `weight_lb`/`xcg`/`zcg` a checked
-echo of the loading's own properties, so an entered loading must genuinely
-reproduce the case — and on five of six fixtures the entered cases miss what the
-item database can produce by **15–60 in in station and 4–31 in in waterline**. On
-`cessna_210`, `dhc8_dash8` and `concept_heavy` the heaviest case weighs *exactly*
-the all-up weight, so precisely one loading produces it and its CG is not a
-choice. The least ballast that closes the cases inside the airframe runs **10–44 %
-of each airplane**, pressed against the propeller spinner and the fin tip: the
-"wrong cards outrank missing cards" case in full. `ga6_normal` is the exception
-and the tell — the Appendix A airplane sits on its own database to 0.10 in and
-0.42 in, because it was built from it.
-
-Two further measurements set the shape of the fix. **`zcg` has no envelope behind
-it**: WTENV's weight–CG envelope is weight against *station*, and on five fixtures
-the waterline was a round figure entered independently of the item waterlines,
-6–31 in above the loading's real waterline on the flight cases and 20–27 in
-*below* it on the `atr42`/`dhc8` ground cases — inconsistent in sign, which is
-what an unsourced entry looks like. And **a database of two or three lumped
-payload rows admits exactly one loading at gross weight** (ga6's included), so a
-fwd and an aft corner case at the same weight collapse onto the same airplane.
-That second measurement is why the agreed option A was amended mid-step to A+B:
-zoning is what makes a zero-ballast answer reachable at all.
-
-**Deliverables.**
-
-* **Case data corrected to the database (D-26).** All 34 cases across
-  `cessna_210`, `atr42_100`, `dhc8_dash8`, `concept_heavy` and
-  `concept_regional_jet` re-entered as the forward-most or aft-most loading of
-  their own design weight, with `weight_lb`/`xcg`/`zcg` read off that loading.
-  **No ballast row anywhere.** `ga6_normal` untouched.
-* **Zoned payload rows (D-26b).** `Passengers (n)` and `Baggage / cargo` split
-  into fwd/aft cabin and fwd/aft hold on the three fixtures that carried them as
-  point masses, at stations chosen so each fixture's discretionary `Σw`, `Σwx` and
-  `Σwz` are preserved exactly — so the all-up weight and CG move by nothing, and
-  every full-database total and reconciliation is unchanged. The point-mass
-  inertias about the airplane CG do rise, which is the physically correct
-  consequence of a cabin no longer being a point; `mass.cases` is re-derived from
-  the items.
-* **`cessna_210` capacity and `CG4` (D-26c).** Usable fuel corrected to 720 lb
-  (120 US gal, the type's long-range option) — its database had summed to
-  *exactly* MTOW, so no two loadings of that airplane weighed the same and neither
-  the flight nor the landing fwd/aft pair could exist. `CG4`, entered at 2,300 lb
-  against an empty-plus-pilot-plus-reserve weight of 2,474 lb, re-entered at 2,474.
-* **Two renames**, because the corner point each was named for is not one:
-  `concept_heavy` `CGfwd` → `CGmax` (its only loading is the all-up one) and the
-  RJ's `CG3 fwd light` → `CG3 light` (at 24,000 lb that airplane's CG goes aft).
-* **`export/mass_cards.py` — the part-full card defect.** Overlay cards are matched
-  by object identity and a fractional row is a scaled copy, so it matched no card
-  and left the deck: the exported mass model weighed less than the loading it
-  declared — `dhc8_dash8`'s max-landing case by **4,160 lb** — in a file that
-  parsed and solved. Each (case, part-full row) now gets its own card in a new
-  `mass-part-full` EID band (9501+, registered in `bands.py`), and `MassCard`
-  gains `case_index` to say which cards are per-case rather than shared. A
-  part-full **non**-discretionary row would need a MASSSET `REPLACE` row and is
-  refused loudly rather than mis-emitted.
-* **`modules/balance.py` — the re-weighted ground target.** 23.473(a) lets
-  23.485/23.493 be met at MTOW while 23.479/481/483 are met at MLW, and
-  `_ground_target` re-weights the case for it. A `LoadingDefinition` states which
-  items are aboard, not what the airplane weighs, so carrying it onto the
-  re-weighted target assembled 31,000 lb of mass under a case declaring 33,000.
-  The re-weighted target now drops the loading and goes through the subset search
-  — the one route that solves for weight as well as station, and what produced
-  these cases before any loading was entered.
-
-**Test / Acceptance.**
-
-* **Appendix A oracles unchanged**, `ga6_normal` untouched by the step.
-* Coverage pins re-pinned and now stating completeness rather than partiality:
-  `test_which_conditions_assemble_is_pinned` 2 → **6 of 6** fixtures;
-  `test_which_ground_cases_assemble_is_pinned` the full 27-case family on all
-  **5** fixtures with gear geometry; `test_which_payload_cases_are_derivable_is_pinned`
-  and `test_which_loadings_are_entered_is_pinned` every case, every fixture;
-  `test_ground_coverage_matches_what_the_plan_measured` 3/3 everywhere.
-* `test_the_card_set_reproduces_each_loading` — Σ CONM2 mass and CG equal the
-  loading's, in deck units, on every fixture in both unit systems. This is the
-  gate the part-full defect failed.
-* `test_the_inertia_set_weighs_the_case` — Σ modelled mass equals the case weight
-  exactly, on every assembled case. The gate the ground-target defect failed.
-* Plan 07's global-equilibrium invariant closes on every assembled deck and the
-  sbeam round-trip CI leg stays green; Imperial and SI digests re-baselined.
-* Four tests whose premise was "some fixture fails to assemble" now **build** the
-  failing state instead of naming a fixture: the no-derivable-case refusals, the
-  F-C7 assembly record, and D-25d's entered-ballast-is-not-gated case. A mechanism
-  whose only test is a fixture that may legitimately stop exercising it is a
-  mechanism that silently loses its guard.
-
-**Key decisions.** **D-26** (correct the case data to the database where the case
-is not a loading the database can produce), **D-26a** (`zcg` is a derived echo,
-not an independent corner point), **D-26b** (zone the lumped payload rows,
-preserving the discretionary totals), **D-26c** (`cessna_210` fuel capacity and
-`CG4`). Design note:
-[`../40_history/26_pri5_fixture_loadings_note.md`](../40_history/26_pri5_fixture_loadings_note.md).
-
-**Filed, not fixed.** The five non-oracle fixtures reach a pre-closure force
-residual of **1.2–2.0 % of n·W** against plan 11's 1 % acceptance, and three show a
-**positive `dCD` on `NMAA`** at α ≈ −13°. ga6 is best by 2× and the concept
-configurations worst, which reads as fixture aero-data quality rather than an
-assembly defect — every case still closes exactly after correction and the pitch
-residual stays at 0.07–0.84 %. Recorded per fixture in `test_balance.py`
-(`_FORCE_RESIDUAL_RATCHET`, `_DELTA_CD_POSITIVE_AT_TRUSTED_ALPHA`) rather than
-absorbed by widening a gate, and filed as backlog Pri 6.
-
----
-
-**`CgCase` gains an explicit loading definition (complete 2026-08-15, tier L)**
-
-**Objective.** Close backlog Pri 6 — decision **D-25**. A `CgCase` stated a
-weight and a CG (a corner of the weight/CG envelope, the real engineering input
-on a reference airplane) but not *what loading produces it*, so the mass model
-behind every payload case was **searched for**: `derive_case_loadings` tried the
-`2^n` discretionary subsets of `weight.items` plus a ballast row solved from the
-residual, and accepted the result only under the 10 % credibility gate. That
-reached **7 of 18** shipped cases; four of six fixtures produced no balanced case
-at all, not for any failure of the assembly but because no honest inertia set
-existed behind their cases. D-25 made the loading an input rather than editing
-the fixtures' corner points to suit their item databases.
-
-**Deliverables.**
-
-* `LoadingDefinition` (`models/inputs.py`) and `CgCase.loading` —
-  `aboard` (discretionary rows carried; `EMPTY`/`MINIMUM` are implicitly aboard
-  and naming one is rejected), `fractions` (a `consumable` row scaled to a
-  part-full value in `(0, 1]`, station and inertias unchanged, so a tank layout
-  is preserved exactly as G-5's burn-down preserves it) and an optional entered
-  `ballast` row carrying its own waterline. `SCHEMA_VERSION` **49 → 50**,
-  additive and optional, so no migration hop.
-* `mass_distribution.entered_loading` — assembles what the case states. No
-  search, no solved ballast, no credibility gate; every malformed loading is a
-  `ValueError` (unknown row, a non-discretionary row named, a duplicate, a
-  fraction on a non-consumable row or outside `(0, 1]`, a fraction for an item
-  not aboard) rather than a silent fall back to the search, which would hide an
-  entry error behind a plausible answer. `CaseLoading.entered` carries the
-  provenance to every consumer.
-* `case_loading_checks` gained the **echo check** (D-25a) and `validation.py` two
-  Weight & CG findings — `cg_case_loading_echo` and `cg_case_loading_invalid` —
-  so a loading edited on the page reports there as well as at calc time.
-* `io.py` maps the slice both ways (`_loading_from_dict`/`_loading_to_dict`, with
-  `_mass_item_to_dict` extracted so the ballast row and the item list share one
-  serializer); an absent key is both the pre-v50 shape and the live "derive it"
-  state, so a re-saved older file keeps its bytes.
-* First user: `concept_regional_jet`'s **CG3 fwd light** — 24,000 lb at station
-  595.12, needing 2,800 lb (12 %) of ballast, which the solved-ballast gate
-  refused. Entered as a `Test ballast, fwd hold` row at x 283.4 / z 112.7, it
-  reproduces the case to 0.0008 in. The fixture's **NMAA** condition, the concrete
-  case review finding F-C7 was raised on, now assembles: the flight family is
-  complete on that fixture, and the record's remaining `loading-not-derivable`
-  entries are its ground family (Pri 7).
-* The provenance travels with the mass model: `mass_case_rows` carries
-  `entered`, and the report's payload-case table and the Weight & Mass page both
-  state `entered` / `derived` per case.
-
-**Test / acceptance.** Appendix A oracles untouched (no calc-math path reads
-`loading`); the Imperial baseline moved on **four channels of one fixture** — the
-RJ's `case_index`, `csv/balance`, `sbeam/balanced_deck`, `txt/balance` — and
-nowhere else. New: the **reduction gate**
-(`test_an_entered_loading_reproduces_the_derived_one_on_ga6` — entering what the
-search finds on ga6's CG2, the case needing the largest ballast, reproduces it
-item for item and to `rel=1e-12`), the echo check firing on a perturbed `xcg`,
-the entered-ballast exemption, six malformed-loading rejections, the partial-tank
-station invariant, three `io` round-trip tests and two validation tests. Pins
-re-pinned by design: `test_which_payload_cases_are_derivable_is_pinned`
-(RJ 2/3 → 3/3), `test_which_conditions_assemble_is_pinned` (NMAA), the closure
-`Izz` table, and a new `test_which_loadings_are_entered_is_pinned`.
-`test_a_symmetric_case_reduces_to_three_dof` was **strengthened rather than
-loosened**: its `q_dot = My/Iyy` identity now carries the CG→centroid transfer
-`M_c = M_cg + (cg − c) × F` explicitly, which is identically zero on a
-solved-ballast loading and non-zero (0.0008 in here, 0.0024 in on ga6's CG4)
-whenever a real loading lands *near* its case instead of on it — the relief field
-is exact about the centroid, and the residual is reported about the CG (D-R8).
-
-**Key decisions.** D-25a (the loading is authoritative, the case scalars are a
-checked echo at `max(0.5 lb, 0.1 %)` / `0.5 in`), D-25b (item references +
-`consumable` fractions + an entered ballast row; `weight.items` stays the mass
-SSOT), D-25c (optional, search retained as fallback), D-25d (the credibility gate
-is on solved ballast only). Design note:
-[`../40_history/25_d25_cgcase_loading_note.md`](../40_history/25_d25_cgcase_loading_note.md).
-**Scope boundary:** populating `cessna_210`, `atr42_100`, `dhc8_dash8` and
-`concept_heavy` — the 2 → 6 fixture CI multiplication — is backlog Pri 7, which
-consumes this schema; wing-tank fuel separability (Pri 8) rides the same wave as
-a separate `MassItem` change.
-
-**SELECT Apply no longer persists un-applied geometry edits (complete
-2026-08-15, tier M)** — backlog M4-22: the Flight Envelope page's SELECT-inputs
-form handler wrote the page's *probe* copy back to session state, and that copy
-carries `fl_effective` (the live merge of the "Apply geometry & altitudes"
-widgets), so pressing Apply inside the SELECT expander silently committed
-whatever had been typed into the other form (XTC / XTF / reference Mach /
-altitudes) — the M2-3 persist-only-on-Apply contract, violated for a different
-form's fields. The handler now writes only `select_input`, onto the session
-project. `tests/test_flight_envelope_view.py` drives the page headlessly and
-pins both halves: the SELECT Apply saves its own field and leaves
-`flight_loads.xtc` at its stored value (it fails on the old handler), and the
-geometry form's own Apply still persists. Sweep (practice 4): the probe-copy
-pattern exists on this page only — every other view writes the session project
-directly.
-
-**The Dash 8's wing-carried main gear is wing mass in both models (complete
-2026-08-15, tier M)** — G-2's mass half: `dhc8_dash8` states
-`main_gear.carrier = wing` (nacelle-mounted leg) while the 1,200 lb `Main gear`
-item was tagged `fuselage` and WINGINER's `concentrated` omitted it, so the body
-beam held 1,200 lb it does not carry and the wing lost its own gear's inertia
-relief. Item re-tagged `wing`; a 600 lb/side `main gear` concentrated mass added
-at BL 75 (the trunnion butt line) and the item's own station — so the wing tie's
-gap stays 4,000 lb = wing-tank fuel alone rather than mixing two causes. Wing
-inertia root `Sz` −18,320 → −20,570 lb-ULT (the leg's 2,250 lb-ULT per side),
-net wing root shear −4.5 % and bending −1.3 %; ten Imperial channels re-pinned
-on that fixture. `gear_carrier_mass_disagrees` now fires on no shipped fixture,
-with a re-mistag test keeping the guard honest and a per-fixture pin on the
-offset-couple node count (the gear brackets a second strip). `CONVENTIONS.md`
-§ground states the carrier↔mass-model rule.
-
-**The FAR 23 gate reads the MTOW SSOT (complete 2026-08-15, tier M)** — G-14's
-deferred half: `applicability.design_weight_lb` fell back to the item-database
-*total* (the ceiling of `OEW ≤ MLW ≤ MTOW ≤ Σ items`, up to 1,800 lb above MTOW)
-whenever `speeds.weight_lb` was unset, and now reads
-`cg_cases.max_takeoff_weight`. `WeightInput.direct_totals()` →
-`database_totals()`, with the same-class read-throughs swept on Structural
-Speeds, Weight & Mass Properties, Aircraft Comparison and the report's weights
-table (one row split into MTOW + database ceiling). **The "moves output on
-atr42/RJ" claim in the 2026-08-14 entry below is wrong** — measured 2026-08-15,
-both fixtures set `speeds.weight_lb`, so the gate already read the right number;
-the defect was latent, live only for a project caught mid-entry. Guard:
-`test_design_weight_is_the_mtow_ssot_and_never_the_database_total` pins the
-fallback. Digest: `txt/weight_estimate` on the four concept fixtures (renamed
-method in the concept note); no numeric channel moved.
-
-**`LATERAL_AERO_NOTE`'s `n_y` direction corrected (complete 2026-08-15, tier M)**
-— the in-band lateral caveat called `n_y` over-stated and its inertia
-conservative; the missing body/wing side force *adds* to the fin's at `+β`, so
-`n_y` is **under**-stated and that inertia is **not** conservative (the yaw half
-was right). The sentence now states a direction per DOF, magnitudes still unknown
-in band (quoting them is backlog L-7's job); corrected in
-`balance.LATERAL_AERO_NOTE` + docstring, `CONVENTIONS.md` §1 and
-`PROGRAM_SPEC.md`'s two lateral bullets, with a per-DOF pin in
-`tests/test_methods_stamp.py`; Imperial baseline regenerated (two text channels
-on the two lateral fixtures, no numeric channel moved).
-
-**The body drag carrier — non-wing drag in the assembled model (complete
-2026-08-15, tier L)**
-
-**Objective.** Close backlog Pri 5. The assembled model carried no non-wing drag:
-the FLTLOADS trim balances the airplane-less-tail drag from the polar
-(`drag_cd(config, cl)`), while the only `fx` in `balance.assemble` was the wing
-strips' own chordwise force from `airloads`. The fuselage, nacelle and remaining
-parasite drag had no carrier, so `residual_fx` *equalled* the wing's drag and the
-couple the missing force left about the CG was the whole of the pre-closure pitch
-residual — the exceedance that had been open since B2 and had twice been
-attributed to other causes.
-
-**Deliverables.**
-- `balance.body_axial_set` — the `body-axial` load, `vn.dx − Σfx(wing-air)`,
-  spread over the fuselage outline by cross-section-area share
-  (`_body_drag_stations`) or lumped at the body masses' centroid where there is
-  no outline. Flight cases only; the ground families have no aero.
-- `derived_geometry.body_drag_waterline` — the single owner of `z_b`, the only
-  free parameter of the load, with a **two-branch** resolution order (explicit →
-  wing reference plane with a loud `assumed` note).
-- New input `LayoutInput.body_drag_waterline_z` (schema **v49**, additive, no
-  migration hop); `BalancedCaseResult` gains `body_axial` and `delta_cd`.
-- The per-fixture pitch ceiling retired: `_PITCH_RESIDUAL_CEILING` →
-  `_PITCH_RESIDUAL_RATCHET`.
-
-**Test / Acceptance.** Gates G1–G10 of the design note, in `tests/test_balance.py`:
-the applied axial resultant equals the trim's `dx` and `delta_nx` equals `dx/W`,
-both to 1e-9; ground cases carry no `body-axial` load; the `ΔC_D` band is pinned
-per fixture **and asserted negative below `α = 15°`** (the assertion with physics
-in it — the wing strips must carry strictly less axial force than the whole
-airplane while the strip model is trusted); the waterline is `assumed` with its
-note, and entering one moves every residual by exactly `(z_new − z_cg)·fx`, which
-is the drift guard that `assemble` reads the owner. Pitch residuals: ga6
-0.075/0.014/0.018 % and RJ 0.086/0.069/0.030 % (symmetric/lateral/unsym trim
-half) against a flat 1 %. Imperial baseline moved in `csv/balance`, `txt/balance`
-and `sbeam/balanced_deck` only, on the two fixtures with balanced cases; every
-per-component deck and every Appendix A oracle byte-unchanged. Suite 1705 passed.
-
-**Key decisions.**
-- **D-1, the one the step turns on.** `z_b` is *stated*, not derived, and its
-  fallback is the wing reference plane. The draft rationale — "default to `zw`
-  because it is residual-neutral" — was **withdrawn on review**: it optimises a
-  validation number rather than a load position, and is self-defeating, since
-  placing the load at any height makes `residual_fx` equal `dx` by construction.
-  The rebuilt rationale is that the suite has no body-centreline datum at all
-  (`FuselageSection` carries no `z`), so `zw` — the trim's own assumption — is
-  what a project that has not stated where its body is can honestly assert. It is
-  also the most robust point: the residual is zero there and linear either side,
-  so `zw` sits at the **centre** of the band in which every gated case passes
-  (±10.6 in on the RJ, ±8.0 in on the ga6), and a later measurement replaces it
-  without re-baselining anything.
-- **No `root_waterline_z` branch.** The obvious geometric candidate is the *wing*
-  root; deriving from it puts `ga6_normal`'s `SIDE GUST` at −1.173 %, over the
-  gate on the Appendix A fixture. It would also be a trap: that fixture carries
-  `fuselage_height = 0.0`, so a geometry-conditioned branch would flip the first
-  time a fixture gained a body — a fixture-data change silently moving a gate.
-- **Placing it at the body's mass centroid would make the residual worse**, not
-  better (RJ SIDE GUST 1.586 % → 1.881 %). The trim lumps the whole
-  airplane-less-tail force system at `(xw, zw)` and is oracle-locked to Appendix A
-  p179, so it cannot be met halfway. This is why the placement needed a decision
-  rather than an obvious answer.
-- **Negative (forward) values are reported, not clamped** (D-4). Above `α ≈ 19°`
-  on the RJ the strip model's induced drag overshoots the polar and the
-  correction comes out forward. Clamping would reopen the axial gate and hide the
-  overshoot; it is carried as a case note and filed as its own observation.
-- **`ΔC_D` is reported per case** (G10) because carrying the load necessarily
-  removes the drag cross-check from the residual. It is the measurement that
-  identified the defect and it stays visible.
-- **The load is named `body-axial`, not `body-drag`**, since at those high-`α`
-  points a card labelled "drag" would point forward.
-
-**The balanced-case residual floors are correctly attributed (complete
-2026-08-15, tier S)** — the element-count study backlog Pri 5 asked for was run:
-the pitch residual is flat in `elements` (RJ PLAA 1.041 % from 20 to 640) and an
-exact three-term identity shows it is `(zw − zcg)·(ΣFx_wing − dx)` — the
-assembled model carries no non-wing drag — refuting both plan 11 R3 and M4-19
-(a free couple cannot change a resultant), and the same missing load is the `nx`
-gap; the `Fz` floor keeps R3's identification but loses the "quadrature" name
-(converges to −42.3 lb / 0.327 % on ga6 PHAA), and the lumped fuselage `Cm` is a
-sign-changing slope term (−8.5 to +5.8 %), not "+4.3 to +6.3 %, positive".
-Pri 5 re-titled and left open; docs and docstrings only.
-
-**The package tree is as-built, single-owner and guarded (complete 2026-08-15,
-tier S)** — 0.6.0-candidate review finding R6-D5, the last of the pre-0.6.0
-block. `PROJECT_GUIDE.md` §4 stopped being the restructure-era *proposal* and
-became the shipped tree: every `sloads/` module with a one-line purpose, the
-three `export/` lines un-nested from under `mass_distribution.py`, and the cycle's
-SSOT owners (`cg_cases`, `safety_factors`, `gear_loads`) plus the older
-omissions (`case_ids`, `rigid_body`, `tail_geometry`, `aero_curves`,
-`migrations`, `load_keys`, `derived_geometry`, `equilibrium`,
-`conventions_tex`, the `models/` split, `balance`/`tail_span`/`body_loads`) all
-present. `00_program_overview.md`'s second, staler copy became a shape summary
-plus a link (user decision: one owner — two trees is one more than can be kept
-true). The guard is `tests/test_package_layout.py`: it rebuilds each path from
-the tree's own box-drawing indentation and compares with the package on disk
-both ways, so an unlisted module, a stale line and a mis-nested line each fail,
-and the deleted second tree cannot return. Verified by mutation in both
-directions. Scope is `sloads/` alone (user decision): `app/views` is already
-generated from `workflow.py` and guarded there, and `tests/`/`examples/` churn
-without telling a reader anything about where the single sources live.
-
-**The ground family is in the balancing-method document (complete 2026-08-15,
-tier S)** — 0.6.0-candidate review finding R6-D7: `20_theory/balanced_cases.md`
-described three families where four ship. It now has **§9 — the ground families
-(FAR 23.471–23.499)**: what a ground case does not have (no V-n point, no given
-load factor, no balancing tail load, its own design weight per 23.473(a)), which
-of LANDLOAD's 33 cases assemble and why 25–33 do not, the applied set
-(`gear-main`/`gear-nose` with the exact patch→node transfer, `ground-lift` along
-the ground line on cases 1–12 only), the solve at `n_z = 0` against FAR 23.471
-with the `NVP`/`NDP`/`NS` identity and its rotational half, `ρ` measured from
-LANDLOAD's own two resolutions with the ground-roll-attitude decision of record
-linked, **why `RESIDUAL_GATE` does not apply** and the gates that replace it, and
-a worked example over three families on `ga6_normal`. §2/§3 gained the ground
-rows and the not-gated bullet; the old §9 pin table is §10 and gains ten ground
-rows. Per the document's own contract every quoted figure is pinned:
-`test_the_ground_worked_example_is_pinned` and
-`test_the_worked_examples_contact_patch_is_where_the_prose_says` (new, in
-`tests/test_gear_report.py`) hold the table, the lever arms, the two
-lift-moment percentages and the side twin's mirrored field. Docs + test only.
-
-**`balance` and `tail_span` are specified, and the spec is guarded (complete
-2026-08-15, tier S)** — 0.6.0-candidate review finding R6-D6: the two registered
-modules with no `PROGRAM_SPEC.md` section — the one carrying the mission's
-primary deliverable and the one carrying steps 7–9's physics — now have theirs,
-on the document's own template and citing the plan docs rather than restating
-them (user decision: template + link out; the ground family's narrative stays
-with R6-D7's `balanced_cases.md` work). Made structural per practice 3:
-`sloads/spec_names.py` is the single owner of the registry-name → spec-heading
-correspondence (`weight_estimate` → `WTESTIMA`) plus the allowlist of sections
-that are not calc modules, and `tests/test_spec_coverage.py` guards it in both
-directions — the guard reproduces the finding when either new section is
-removed. `WorkflowStep.bas` was considered and rejected as the map's source: it
-is per step, merged steps name several programs and folded modules own no step.
-Docs + test only; no shipped number moves and no digest channel changes.
-
-**G-6's rotational gate half, and what it found (complete 2026-08-15, tier M)**
-— 0.6.0-candidate review findings R6-T1 and R6-T2. The step-10 benchmark had
-shipped with its translational half only; the three moment lines the design note
-promised now exist in
-`test_the_ground_closure_reproduces_landloads_unbalanced_moments`, which takes
-the solved `[I]{ω̇}`, transfers it from the mass centroid to the CG, subtracts
-the G-7a lift term rebuilt in closed form, moves the applied reactions to the arm
-point each family's own LANDLOAD formula measures to, rotates into the ground
-line and compares with `PITCHP`/`ROLLP`/`YAWP` — an identity at `rel_tol 1e-9`
-on the one-wheel family's tread arms, within `1e-4·W·MAC` elsewhere (the BASIC's
-3-decimal arm truncation). `NS` is now compared signed (R6-T2).
-`InertiaTensor.moment()` is the new owner of `[I]{ω̇}`, guarded beside `solve`.
-A negative control pins both corrections as non-trivial (12.5 % and 5.8 % of
-`PITCHP` on `ga6_normal` case 4). Test-only: nothing shipped moved, no digest
-channel changed. **The gate then did what the note said it would**: it found
-that `LANDLOAD.BAS` resolves the ground-roll attitude at `PHIM = +BETA(2)` where
-the other two attitudes carry `−GRA`, so the 23.485 family's own `ROLLP` and
-`YAWP` are stated 9.45° apart on `ga6_normal` and cannot both be reproduced by
-one rotation. The port is faithful to the BASIC, and the user decided the same
-day to **keep the manual's convention as a faithful replication** — recorded
-under "Considered and declined" in `20_theory/02_approved_corrections.md`, with
-the state pinned per attitude on all five gear fixtures so it cannot drift.
-
-**A ground case's source case is named as LANDLOAD's, not as a V-n point
-(complete 2026-08-15, tier M)** — 0.6.0-candidate review finding R6-C3: the
-wording of `BalancedCaseResult.vn_case` gained one owner
-(`balance.source_case_name` / `case_source_name`, family from `is_ground`,
-registered in the `CONVENTIONS.md` §7 SSOT table), and all five surfaces the
-review named go through it — deck `$` header, deck case map, `run()` titles,
-the rows table (column re-headed `Source case`, family-aware value) and
-`SkippedCondition.name` (which gained a `ground` field). Swept alongside: the
-shared `no-cg-case` skip reason and the Balanced Cases selector's ground hand.
-Display wording only. Pinned by
-`test_no_surface_calls_a_ground_case_a_v_n_point` (all five surfaces, both
-ground fixtures, flight wording pinned too) and
-`test_the_source_case_label_has_one_owner`. Digest wave: `txt/csv balance` +
-`sbeam/balanced_deck` on the two ground fixtures — one channel wider than the
-backlog row declared, because two surfaces live in the deck.
-
-**Gear report CSV meets the load-output contract (complete 2026-08-15,
-tier M)** — 0.6.0-candidate review finding R6-C2, with the R6-C4 hygiene row
-folded in by user decision: the `gear_report` channel's header row is now built
-from the resolved unit set (`-ULT` on every load column, plain force unit on
-the two weights, the SI `Stroke` header no longer hard-coded `(in)`), every row
-states its `SF` (last column), and a `Wheel` column says which wheel a `main`
-row describes (starboard of the pair; port is the mirror). Hygiene:
-`balance.gear_sets` dropped its unused `nvp` parameter; `_gear_stroke_table`
-docstring paste blemish removed. Pinned by an Imperial contract test and the
-SI-channel assertion whose absence let the defect ship; spec: the `gear_loads`
-PROGRAM_SPEC section's Writes bullet. Digest wave `gear_report` on the five
-gear fixtures, exactly as declared.
-
-**Ground condition rows cite their own FAR condition (complete 2026-08-15,
-tier S)** — 0.6.0-candidate review finding R6-C1: `balance.run()` ground rows
-now read the case's `CaseRef.far_reference` (23.479…23.493) instead of the
-flight-balancing literal 23.321; flight rows keep their literals by design;
-pinned per ground fixture; digest wave `txt/csv balance` as declared.
-
-**Documentation currency batch (complete 2026-08-15, tier S)** — 0.6.0-candidate
-review findings R6-D1/D2/D3/D4 (`docs/50_reviews/2026-08-15_review_0_6_0_candidate.md`):
-changelog `[Unreleased]` headings unscrambled, backlog "shipped since the tag"
-gains step 9 + D-24, plan 09 marked closed, `00_INDEX.md` gains plans 14 and 18.
-
-**Backlog priority re-cut + decision D-25 (complete 2026-08-15, tier S)** —
-the priority table re-banded to the restated objective (ship the sbeam
-deliverable), with the open defects and the unscheduled 0.5.0 review findings
-interleaved by severity and the table renumbered 1–36; **D-25** answered the
-outstanding `CgCase` question in favour of an explicit loading definition over
-rewriting the fixtures' CG corner points, promoting it to Pri 9 and unblocking
-its two sibling coverage items.
-
-## Step 10 piece 3 — ground/landing cases + the gear load report (complete 2026-08-15, tier L)
-
-**Objective.** The last piece of M4-6, and the one that **absorbs step 11 (plan 11
-B8b)**: put the FAR 23 ground conditions into the assembled free-free deck as
-balanced cases, and give the gear a deliverable of its own. Design note:
-[`../40_history/23_step10_ground_cases_plan.md`](../40_history/23_step10_ground_cases_plan.md),
-decisions **G-1, G-6, G-7 (+G-7a), G-8, G-9, G-12 (+G-12a), G-13**.
-
-**Deliverables.**
-
-- `sloads/gear_loads.py` — the gear as a **free body**, and the single owner of
-  everything geometric about it: the per-attitude contact patch
-  (`x + r·sin GRA`, `z − r·cos GRA`, compressed axle for cases 1–12 and static for
-  13–33), the strut stroke recovered from the three entered axle states, the
-  ground-line ↔ airplane-datum rotation `ρ`, the resultant-preserving transfer to
-  the reference point, and the wheel placement an assembled case needs.
-- `modules/balance.assemble_ground` + `build_ground_cases` — the ground family,
-  sharing `_closure`, `body_inertia`, `resultant6`, `point_mass_self_inertia` and
-  the new `wing_inertia_strips` / `place_wing_inertia` (factored out of
-  `wing_sets`, behaviour-neutral) with the flight families. Plus
-  `ground_lift_sets`, `gear_sets`, `is_ground`, and two new `SKIP_REASONS`
-  (`gear-design-only`, `side-twin-by-reflection`).
-- The **gear load report**: `export.gear_report_csv` / `gear_report_rows`, report
-  §8 with the strut-state table, a manifest row, the Landing Loads page's free-body
-  section, and the CLI's `--export-target gear`.
-- Schema **v48** — `LandingGearInput.weight_lb` (G-12a), additive, `0.0` = not
-  stated, no migration hop. Two result types gain fields that existed only
-  implicitly: `GearReactionCase.weight_lb` (the design weight the case is computed
-  at) and `BalancedCaseResult.cg_x`/`cg_z` (the point its residuals are stated
-  about).
-- `export/bands.py` gains the **`balanced-gear` GID band** (10001+) so a gear node
-  is findable by id rather than by coordinate; `case_ids.balanced_subcase_id` and
-  `deck_load_id` take the case's **hand explicitly** (G-8).
-- Fixture data: leg weights on five airplanes × two legs, **per leg** — half the
-  database's main-gear rows, all of its nose-gear rows.
-
-**Test / Acceptance.** `tests/test_gear_report.py` (44 tests) is the step's
-benchmark-first gate; the whole suite is green (1670 passed / 21 skipped), lint
-clean, and the **real solver** leg passes in 16.5 s with the solve count roughly
-doubled — G-13's "one cost to check rather than assume", answered.
-
-- **The closed-form gate is an exact identity** (G-6). The solved rigid-body
-  field, rotated back to the ground line, reproduces LANDLOAD's `NVP`, `NDP` and
-  `NS` on **every** case of both fixtures at `rel_tol 1e-9`. Two completely
-  different routes — a mass matrix here, lever arms and FAR percentages there —
-  one answer.
-- **The transfer preserves resultants exactly** (G-2's third guard, the one it
-  owed this piece): worst relative moment error **3.4e-16** over all 33 cases and
-  both legs, taken about a deliberately arbitrary reference rather than the CG,
-  where a dropped couple could cancel against something.
-- **Two negative controls**, per G-13: dropping the offset couple breaks the
-  transfer, and computing a level-landing case at the *static* contact patch
-  breaks the moment gate. The second is asserted on the **moment**, not on `NVP`
-  — moving the patch does not change the vertical force factor, so a control
-  watching `NVP` would have passed and proved nothing.
-- **G-13's ground-specific solver assertion**: the reaction sbeam recovers at each
-  gear GID is the gear report's reference-point reaction, in both unit systems.
-  This is what stops the inherited "reactions ≈ 0" leg passing vacuously — a
-  transfer that dropped its lever arm *consistently* would still sum to zero at
-  the support.
-- **LANDLOAD's own twins check the reflection operator** (G-8): `reflect(19)`
-  reproduces case 20's `NS`/`ROLLP`/`YAWP` sign-flipped and equal. Every other
-  reflection in the suite is guarded against itself; this is the only external
-  check it will ever get.
-- **Coverage is pinned twice and the two sets differ by design**: assembled ground
-  cases on **2** fixtures (ga6 3/3 loadings, the RJ 2/3 — the already-pinned Pri 9
-  fixture-data finding, inherited not created), the gear report on **5**.
-- The digest wave is exactly G-13's stated expectation: `sbeam/balanced_deck` +
-  `case_index` on ga6 and the RJ, a **new** `gear_report` channel on five
-  fixtures, and `csv/landing` + `txt/landing` on five from the case-labelling fix
-  below.
-
-**Key decisions.**
-
-- **G-7a — the lift acts along the ground line, not along airplane `z`.** Raised
-  by implementation, because G-7's wording and G-6's promise of an exact gate
-  could not both hold: LANDLOAD sums `lf·WL` into the *ground-line* vertical, so
-  a lift on `z` enters that sum short by `cos ρ` — 0.053 % of `NVP` on ga6, small
-  and *not* solver noise. It is also the physics: lift is perpendicular to the
-  flight path, the ground line is the flight path at touchdown, and the airplane
-  sits at `ρ` to it (152 lb of ga6's 2,154 lb lift acts forward).
-- **`ρ` is taken from LANDLOAD's own two resolutions of one reaction**,
-  `atan2(dm, vm) − atan2(DMP, VMP)`, not re-derived from `GRA`. That means this
-  step never has to adjudicate a sign inconsistency that is in LANDLOAD.BAS
-  itself — `beta` is `gamma − GRA(1)` for the level attitude and `+GRA(2)` for
-  the ground-roll one — and the rotation appears only in the **check**, never in
-  the load path.
-- **G-12a — the leg weight is an input, one number per leg.** Nothing marks a
-  `weight.items` row as gear; on every fixture they are identifiable only by name,
-  and matching on that is the `LANDING_CG_NAMES` failure mode G-3a had just
-  retired one layer up. Deliberately *not* a sprung/unsprung split: only the
-  unsprung mass sees the impact amplification that sizes an axle, and sloads does
-  not model that, so entering the split would imply a capability the tool lacks.
-- **A correction to G-12's own arithmetic.** The note read "155 lb → 491 lb, 12 %
-  of a 4,038 lb reaction", pairing the **whole main gear** with a **per-wheel**
-  reaction. `weight_lb` is therefore defined per leg (consistent with `attach`,
-  likewise one leg's node), ga6's main leg is 77.5 lb, and the real figure is
-  **6.1 %** — still far too large to leave out of a free body, which is what the
-  paragraph exists to argue.
-- **The report and the assembled deck carry different case sets, and say so.**
-  33 against 24. The 23.499 family is not merely excluded from the assembly, it
-  has a home.
-- **What the report is not travels with it**, in the CSV stamp, the report
-  section and the GUI: no gear kinematic model, so no drag-brace, side-brace,
-  trunnion or axle-bending loads. Overstating it would be the "a wrong card
-  outranks a missing card" failure in its purest form.
-
-**Two defects found on the way, both fixed here.** The per-case record labelled
-the wrong loading on five of the six 23.485 side cases (`(m-1) % 3` against a
-family that is three loadings × two drift directions) — cosmetic, so no load ever
-moved, but it is the label a reader joins on and it matters now that the assembled
-case builds its inertia set from it. And `is_handed` tested "any load carries a
-free moment" where it meant the net, which minted every symmetric level-landing
-case handed once both wheels carried a transfer couple.
-
-## Step 10 piece 2 — the weight/CG case model + gear inputs (complete 2026-08-14, tier L)
-
-**Objective.** Land the whole schema hop decisions G-2/G-3/G-4/G-5/G-14 imply as
-**one** `SCHEMA_VERSION` bump rather than four, and prove it moves nothing. Three
-weight/CG case lists and six representations of MTOW become one owner each, so the
-ground-case physics (piece 3) has inputs to consume instead of inventing them.
-
-**Deliverables.**
-
-- `sloads/cg_cases.py` — the one resolver. `cases_for` / `flight_cases` /
-  `ground_cases` / `landing_role_cases`, `max_landing_weight` /
-  `max_takeoff_weight` / `max_landing_weight_estimate` / `database_total`, and
-  `seed_landing_cases` (the WTENV seed, moved out of the Landing Loads view into
-  the calc package where it can be tested as a function).
-- Schema **v47**. `CgCase.analyses: Set[AnalysisKind]` (`FLIGHT` | `GROUND`,
-  default `{FLIGHT}`) and `CgCase.role: Optional[GroundCaseRole]`;
-  `WeightInput.max_landing_weight_lb` / `.max_takeoff_weight_lb`;
-  `MassItem.consumable`; `LandingGearInput.carrier` (no default) / `.attach`.
-  **Removed:** `FlightLoadsInput.cg_cases`, `LandingInput.cg_cases`,
-  `LandingInput.gross_weight_lb`, `LandingInput.max_landing_weight_lb`.
-  New enums `AnalysisKind`, `GroundCaseRole` (+ `GROUND_CASE_ROLE_ORDER`),
-  `GearCarrier`.
-- `migrations._v46_cg_case_model` — tags existing `weight.cg_cases` `FLIGHT`,
-  folds `landing.cg_cases` in as `GROUND` with roles from the canonical names
-  (merging onto an existing case where name **and** `(weight_lb, xcg, zcg)`
-  match), moves MLW across, and seeds MTOW from `speeds.weight_lb`. It also
-  recovers a pre-v19 file whose cases live only on `flight_loads` and that carries
-  no `weight` dict — a case `_v19_cg_cases` gave up on.
-- `landing.py` reads the roled cases and takes `mlw`/`mtow` as explicit arguments;
-  every flight consumer (`select`, `flight_envelope`, `balance`, `balloads`,
-  `tail_span`, `wing_inertia`, `mass_distribution`) reads `flight_cases(project)`.
-- `mass_distribution.derive_case_loadings(project, cases=None)` is generalized to
-  any case list, with the **G-5 burn-down** path for `GROUND` targets
-  (`_burn_down`: one fraction applied to every `consumable` row, so a tank layout
-  survives).
-- Validation: `_check_weight_case_model` (`cg_case_no_analysis`,
-  `cg_case_role_without_ground`, `ground_role_incomplete`, `weight_order_chain`,
-  `mlw_below_landing_estimate`, `mtow_representation_drift`) and
-  `_check_gear_carrier` (`gear_carrier_unset`, `gear_carrier_mass_disagrees`,
-  `gear_attach_missing`, `gear_attach_off_the_wing`).
-  `_check_landing_hierarchy` loses `gross_ge_max_landing` and `landing_cg_names`
-  with the fields they policed and gains `landing_case_weight_is_mlw`.
-- GUI: the **Payload Cases** tab becomes the sole editor (`FLIGHT`/`GROUND`
-  checkboxes, a landing-`role` selectbox, and the WTENV seed on a button); the
-  **Weight / CG Envelope** tab owns MLW and MTOW and shows the derived MLW
-  estimate; the mass-item editor gains a `consumable` checkbox; the **Landing
-  Loads** page's CG table and both design weights become read-only.
-- Fixture data: `carrier` + `attach` on five airplanes × two legs, and the mission
-  fuel row tagged `consumable` on each.
-
-**Test / Acceptance.** `tests/test_cg_cases.py` (43 tests) is the drift guard.
-The whole suite is green (1614 passed / 21 skipped) with **`digests.json`
-unchanged** — the piece's stated expectation, "nothing moves", and if something
-had, the migration would not be output-neutral. Specifically pinned:
-
-- The `FLIGHT`-tagged set after migration equals the pre-hop
-  `flight_loads.cg_cases` **exactly, per fixture**, compared against the file on
-  disk rather than a re-derivation (G-3b's stated guard). Likewise the `GROUND`
-  set against the pre-hop `landing.cg_cases`.
-- MTOW agrees with every representation it replaced, per fixture, and is *not*
-  the heaviest landing case (3,400 against 3,230 on ga6) — the latent `WR = 1.0`
-  defect, pinned so it cannot return.
-- The role fixes the order: reversing the entry order changes nothing, renaming
-  every case changes nothing, and a missing or duplicated role **raises**.
-- G-5, reproducing the plan's measurements exactly: ga6's aft landing case burns
-  **317 lb** of fuel, needs **no ballast** and lands **0.12 in** from its target;
-  burn-down is proportional across two tanks; and marking *every* item consumable
-  leaves every flight loading unchanged on all six fixtures — the acceptance test
-  for the field, and why the Appendix-A oracles cannot move.
-- Ground-loading coverage is exactly what G-3/G-5 predicted: ga6 3/3, the RJ 2/3,
-  `cessna_210` / `atr42_100` / `dhc8_dash8` 0/3, each skipped and recorded.
-- The MLW floor fires on `concept_regional_jet` **and no other fixture**; the
-  carrier ↔ mass guard fires on `dhc8_dash8` **and no other fixture**. Both are
-  asserted as set equalities, so a second fixture drifting into either is a red
-  build rather than a longer warning list.
-
-**Key decisions.**
-
-- **The removals are the point.** A proxy field would have left a second way to
-  say the same thing, which is what G-3 exists to remove (the G6b single-source
-  precedent, deliberately not the `tail_loads` proxy precedent). That is also why
-  this hop needs a migration where v44-v46 did not: absent is *not* the old
-  behaviour for a removed or relocated field.
-- **`max_takeoff_weight` keeps a documented fallback chain** to
-  `speeds.weight_lb` → `weight.envelope.gross_weight` → the heaviest `FLIGHT`
-  case. A loaded project never reaches it (the hop seeds the SSOT); a
-  directly-constructed test project does. `mtow_representation_drift` is what
-  keeps it a compatibility path rather than a second authority.
-- **Two findings are left firing rather than fixed here**, because fixing either
-  moves output and this piece is claimed as "nothing moves": `dhc8_dash8`'s gear
-  mass tag (correcting it re-pins `mass_distribution.wing_mass_tie`) and the
-  `applicability` / `direct_totals` design-weight re-point (believed at the time
-  to change the FAR 23 exceedance line 37,781 → 36,817 on atr42 and 34,800 →
-  33,000 on the RJ — **measured 2026-08-15, it does not**: both fixtures set
-  `speeds.weight_lb`, which won ahead of the database branch, so the defect was
-  latent rather than shipped-wrong; see that item's own entry above). Both are
-  in the backlog with the guard that found them.
-- **The `atr42_100` sponson and the RJ's wing-body junction are `BODY`**, stated
-  rather than guessed: a sponson is a fuselage fairing and an RJ's main-gear
-  trunnion lands on the keel beam in the wing-body fairing. `dhc8_dash8` is the
-  `WING` fixture — gear in wing-mounted nacelles — and so is the one that will
-  prove the wing load path in piece 3.
-- **G-2's third guard is deferred with its subject.** "The transfer preserves
-  resultants about the CG at `rel_tol 1e-12`" tests the transfer, which lands with
-  the ground export in piece 3; the two input-side guards ship here.
-
----
-
-## Step 10 piece 1 — the governing safety-factor table (M4-8, complete 2026-08-14, tier L)
-
-**Objective.** Make the factor of safety a stated authority instead of a
-distributed default. Before this, `ConditionResult.safety_factor` defaulted to
-`constants.ULTIMATE_FACTOR`, exactly one module (`one_engine_out`) overrode it, and
-`report/content.py` twice read `getattr(item, "safety_factor", ULTIMATE_FACTOR)` —
-so a factorless case was reported at 1.5 with no trace that anything had been
-assumed. Sequenced **first** of step 10's three pieces so the ground family
-consumes an existing authority rather than becoming a third ad-hoc factor site.
-
-**Deliverables.**
-- `sloads/safety_factors.py` — the single code owner. `LoadClass` +
-  `DERIVED_FACTOR` (Layer 1: `LIMIT → 1.5`, `ULTIMATE → 1.0`, 14 CFR 23.303/25.303);
-  eight `FAMILIES` rows whose boundaries are **14 CFR Subpart C's own section
-  groupings**; `classify()` mapping a case to a family from its FAR reference (with
-  the case ref as fallback, since the distributed component results carry theirs
-  only there); `GoverningTable` with `resolve` / `factor_for` / `stamp`.
-- `Project.safety_factors` (`SafetyFactorPolicyInput` / `SafetyFactorOverride`) —
-  schema **v46**, additive, written only when it carries an override, no hop.
-- Report **§3 Governing safety factors** (renumbering §3–§7 → §4–§8 through
-  `section_ref`, which is what F-R2 built it for), the case index's `SF` column
-  re-pointed to the table, an override paragraph and a live `DEFAULTED:` line.
-- `export.safety_factors_csv` / `write_safety_factors_csv`, the bundle channel
-  `<project>_safety_factors.csv`, and its manifest row.
-- `report.methods._safety_factor_block` — the override declaration, silent when
-  there is nothing to declare.
-- `validation._check_safety_factor_overrides` — unknown family, missing basis,
-  out-of-band factor, and the below-regulation **certification-risk** warning.
-- Docs: `CONVENTIONS.md` §3 (the owner named), `CLAUDE.md` load-output contract,
-  `00_program_overview.md`, `PROGRAM_SPEC.md` (SELECT notes + the export SF note),
-  `00_theory_sources.md` (the family/citation table), `GUI_design.md` v46,
-  `DATA_DICTIONARY.md` regenerated.
-
-**Test / Acceptance.** `tests/test_safety_factors.py` (37 tests). The authority
-claim is **reproduction, not assertion**: for all six shipped fixtures, case by
-case, the table resolves exactly the factor the producing module mints — including
-`one_engine_out`'s 23.367(a)(2) at 1.0 — and **no case falls through
-unclassified**. A defaulted case in any shipped fixture is a red build, which is
-what stops "flagged" from normalising. Also pinned: an exact row beats the range it
-sits inside (23.367(a)(2) is an ultimate case inside the limit flight range, and
-double-factoring it was the live risk); a multi-section reference whose families
-disagree on a factor is left unclassified rather than decided by word order; an
-override reaches the carrier, the case index, the companion CSV and the methods
-stamp together. **No shipped fixture carries an override, no digest moved, no
-number changed.** Suite: 1561 passed, 21 skipped; ruff clean.
-
-**Key decisions.**
-- **G-10** — every FAR ground case is limit × 1.5, read from the CFR text rather
-  than inherited from the default; the deliverable can now say why.
-- **G-11** — the table is the authority, at **condition-family** granularity, and
-  is **fully user-editable including the regulation rows** (user decision, taken
-  against the recommendation, with the risk stated). Safe for the oracles — the
-  factor is applied at the render/export boundary only, so no override can move an
-  Appendix-A figure — but *not* for the deliverable, so the four mitigations are
-  part of the decision: an override is never silent, must state a basis, warns when
-  below the regulation, and no shipped fixture carries one.
-- **An unresolved case defaults to 1.5 and is flagged** rather than raising (user
-  decision), with the zero-defaulted-rows test as the guard against drift.
-- The **carrier stays the carrier** (M4-8's original design): the table *writes*
-  `safety_factor` at `registry.run_all_modules`, `component_loads` and
-  `balanced_run` rather than replacing the field, so ~18 `_sf()` call sites in the
-  export bridge and every report reader needed no change — and an override cannot
-  reach the report without also reaching the cards.
-
----
-
-## Pressurization removed from scope (decision D-24 — complete 2026-08-14, tier S)
-
-User decision, taken while scoping step 10 (M4-6): **pressurization is out of
-scope for sloads, permanently.** The `pressurization` standing limitation is
-reworded from "No pressurization load cases." — which reads as pending — to an
-explicit exclusion naming 23.365/25.365, disclaiming the deliverable as a
-complete set for a pressurized fuselage (four shipped fixtures are pressurized
-airplanes), and separating it from the unrelated WTESTIMA `pressurized`
-weight-allowance flag. The key stays in the pinned `STANDING_LIMITATION_KEYS`
-set; `tests/test_methods_stamp.py` gains a guard that the sentence reads as an
-exclusion. M4-6 is re-scoped to the ground/landing distributed loads and gear
-reactions alone, and **F25-5** loses its ΔP-combination half (§1.8's 25.365 row
-becomes disposition **X**), keeping only the 23.415/25.415 ground-gust module.
-One consequence is carried forward rather than assumed: the old "for a
-pressurized airplane, ground cases cannot be down-selected against flight" rule
-leaves with the case, so the ground-case down-selection question is now open for
-step 10's design note. Docs synced: backlog row + M4-6 body,
-`03_gui_rework_plan.md` (§3 table, Phase 4, §5 item 3, §6),
-`01_far25_gap_analysis.md` (§1.8 + F25-5), `02_parked.md`,
-`05_step_g8_summary_report_plan.md` §6, `03_resolved_decisions.md` (D-24).
-
----
-
-## Mission step 9 — discrete control surfaces + the T-tail transfer (plan 09 T6–T8, complete, 2026-08-13)
-
-**Objective.** Close plan 09's phase 2, the two load paths its phase 1 left
-unstarted: a control surface whose load reaches the parent surface through
-**hinges and an actuator** rather than smeared into it — producing the suite's
-first hinge-moment output — and a **T-tail** whose fin deck carries the
-horizontal tail it is holding up. Tier L (new physics, schema change, new result
-types), design note agreed in chat first as
-[`plan 09 §10`](../30_future/09_distributed_empennage_loads_plan.md).
-
-**Deliverables.**
-- **T6 — the discrete control-load path.** `control_load_mode = "discrete"`,
-  per surface, with new `TailMassInput.hinges_span_in` / `.actuator_span_in`
-  (`SCHEMA_VERSION` 45, additive, no hop). The control surface's own load leaves
-  the smeared strips over the span its hinges hold and re-enters at dedicated
-  `GRID`s on the load reference axis: hinge reactions by chord-weighted
-  tributary span, and the hinge-moment couple at the actuator. New GID bands
-  `tail-control-htail` 5001-5300 and `tail-control-vtail` 5301-5600, registered
-  in `export/bands.py` like every other family. New result types
-  `ControlPointLoad` and the `TailSpanResult.control_loads` /
-  `.control_surface_load_lb` / `.hinge_moment_lbin` / `.hinge_moment_arm_in`
-  fields, surfaced on the **Tail Span Loads** page, in the module's own
-  `LoadValue`s and in the deck `$` header.
-- **T7 — the T-tail transfer.** `TailType.T_TAIL`'s first load-path consumer.
-  Each v-tail case's deck carries, at the fin's **last** node, the concurrent
-  h-tail set (balancing load at that case's own V-n point plus `−n·W_ht`) as a
-  vertical `FORCE` and the `MOMENT` its two lever arms make. New `TipTransfer`
-  result and `coordinates.ttail_transfer_to_airplane` — the one load in a fin
-  deck that is not in the fin's local frame, so it gets its own named map.
-- **`select.py` gained two part-returning helpers** (`elevator_load_parts`,
-  `rudder_load_parts`) whose sums are the existing expressions in the existing
-  order, so the oracle-locked `elevator_load` / `load_on_rudder` values are
-  unchanged to the bit and the discrete path has one producer to read rather
-  than a second copy of the arithmetic. `taildist._surface_geom` became public
-  (`surface_geom`) so the hinge line has one owner across the two tail views.
-- **Closure trail:** `CONVENTIONS.md` (two SSOT-table rows + five prose bullets:
-  the two control-load paths, the hinge-moment arm, and the T-tail transfer
-  reference point), `PROGRAM_SPEC.md` (two module/deck rows),
-  `theory_sources.md` (both gate tables as the R10 oracle substitute),
-  `GUI_design.md` (v45), regenerated `DATA_DICTIONARY.md`, `cspell.json`.
-
-**Test / Acceptance.** Ten new gates in `tests/test_tail_span.py` and a rewritten
-v-tail row in `tests/test_export_equilibrium.py`. The strong ones:
-- **Cross-mode force identity, exact** (`rel_tol 1e-12`, both surfaces, every
-  condition) — a property of the construction, since exactly the control load is
-  removed and exactly it is applied. Distributing the removal by the raw strip
-  fractions would have rested the identity on `Σ frac == 1`, which is exact for a
-  derived rectangle and only 1 %-true for an entered polyline: the T1 validator's
-  own tolerance, quietly become a load error.
-- **The hinge moment against its closed form**, `HM = L_cs · c_e/3` — 4.856 in of
-  arm on ga6, hand-derived in the test from `Saft/S = 0.40039` of a 36.388 in
-  chord.
-- **Hinge torsion + actuator couple = the control load at its own CP.** Reverse
-  the actuator's sign and the sum lands on the hinge *line* instead — a 4.86 in
-  chordwise error with nothing else in the deck to catch it.
-- **The cross-mode torsion difference as an identity, not a tolerance**: exactly
-  the chordwise relocation `att·x_25 + cam·x_50 − L_cs·x_cp`, printed as the
-  physical explanation. Plan §5's T6 asked only for "within a stated tolerance".
-- **T7's free-body gate**, read from the deck's own card text: the fin deck's
-  resultant about the origin is the axial column at its own stations plus the
-  transferred set at the node it is stated to be applied at.
-- **Gating and mode isolation, byte-level**: flip `tail_type` back to
-  conventional and the deck returns exactly; no shipped fixture carries hinge
-  geometry, so every smeared deck is unchanged. Imperial digests moved on
-  **three** channels of one fixture only (`concept_regional_jet`'s
-  `sbeam/vtail_span_cards`, `csv/tail_span`, `txt/tail_span`) — the fin's own
-  station table did not.
-
-Suite green: 1523 passed, 21 skipped; `ruff check sloads/ cli.py app/` clean.
-
-**Key decisions** (recorded as T-12…T-17 in plan 09 §10.1, agreed with the user
-before implementation).
-- **T-12 — the control-surface load is SELECT's, read never recomputed.** This
-  **supersedes T6's own sentence**, which said "the control part (`LT50`)".
-  `LT50` is the *camber* load and its TAILDIST trapezoid runs leading edge to
-  trailing edge, so hanging all of it on the hinges would move stabilizer load
-  onto the elevator while ignoring the angle-of-attack share the elevator really
-  carries. `select.elevator_load` (SELECT.BAS 5216-5218) is oracle-locked, is the
-  load on the surface *including* its aerodynamic-balance area forward of the
-  hinge, and the module contract forbids recomputing it. Where a condition
-  publishes none — the balancing, checked, gust and unsymmetrical h-tail
-  conditions, and the rudder-neutral fin ones — the load is derived from
-  TAILDIST's aft-of-hinge block and **marked**, the derive-and-mark contract the
-  tail planform is already under.
-- **T-13 — the hinge-moment arm is exactly `c_e/3`**, not an approximation:
-  TAILDIST's net trailing-edge pressure is identically zero (`WATT3 = WCAM3 = 0`),
-  so the block aft of the hinge is always a triangle, whatever the condition.
-- **T-14 — the removal is normalised**, so the force identity is structural.
-- **T-15 — the actuator carries a couple, not a force.** With no horn radius in
-  the schema a rotary actuator is the honest model, and it is what makes the
-  chordwise identity exact.
-- **T-16 — the transfer set is `Fz` and `Myy` only.** The T-5 pairing is a
-  *balancing* condition, which is symmetric, so the h-tail's halves cancel about
-  the centreline; a transferred `Mxx` would be a number with no producer.
-- **T-17 — no shipped fixture gets hinge geometry.** Inventing hinge stations for
-  six aircraft with no oracle is the fabrication §9.1 refused for the tail
-  polylines. The discrete gates run against a project the test builds, and every
-  shipped deck stays byte-identical in the mode nobody changed.
-
-**Measured, and worth recording.** The fin is shorter than the h-tail's semispan
-(57.0 in against 73.1 on ga6), so the first version of the cross-mode test —
-written with one set of hinge stations for both surfaces — was refused by the
-new validator rather than silently accepted. That is the validation working on
-its author.
-
----
-
-## Release cut: **sloads 0.5.0** (the assembled free-free deliverable), tag `v0.5.0`, 2026-08-13
-
-**Objective.** Close the review of record's Phase 3 (release mechanics) and cut
-the release decision **D-R1** had held for the deliverable — the summary report
-plus wing/body/tail and balanced/CONM2 sbeam output. `[Unreleased]` had grown to
-~900 content lines across three review phases; unreleased work has no regression
-baseline.
-
-**Deliverables.**
-- **Workbook per-sheet unit statements** (review **m14**, tier M). One `.xlsx`
-  carries both unit channels — module and case-index sheets are HUMAN, span-load
-  sheets are the SOLVER channel the sbeam decks use — and in SI those sets differ
-  (`N·m`/`kPa` vs `N·mm`/`MPa`), so the single Project-sheet `Units` row
-  mis-stated every span sheet by 1000× in moment (SUMMARY_REPORT.md §3.5/§4.7:
-  "a per-file units column that disagrees ... is a conformance failure, not a
-  footnote"). `build_workbook` now **owns** the statement instead of taking a
-  pre-formatted one from the page: it resolves both channels once from the
-  `system` it is given, writes each data sheet's own set into cell `A1` above
-  that sheet's header row, and names both channels plus the unconverted KEAS/ft
-  exception on the Project sheet. The case index, carrying no load quantity,
-  states that rather than claiming either set.
-- **`app/` joined the lint gate** (review **m21**). The merge gate left the whole
-  Streamlit layer unlinted and it had drifted — an unused `build_tail_span`
-  import in `export_report.py`. Now `ruff check sloads/ cli.py app/` in CI and in
-  every document that states the gate (`CLAUDE.md`, `00_program_overview.md`,
-  `RELEASE_PROCESS.md` §3.2, `CODE_REVIEW_PROCESS.md` ×2, `PROJECT_GUIDE.md`,
-  `README.md`).
-- **Root cleanup** (review **m19**). `.DS_Store` gitignored and untracked;
-  `CODE_REVIEW_2026-07-21.md` and `PROJECT_REVIEW_2026-07-19.md` moved to
-  `docs/50_reviews/` and indexed in `00_INDEX.md` (which also gained the
-  2026-08-10 code review, previously unlisted); `requirements.txt` **deleted**
-  rather than regenerated — a second dependency source that had already drifted
-  from `pyproject.toml` (streamlit ≥1.30 vs ≥1.36, listing pytest, omitting
-  plotly and openpyxl), and one source that is right beats two that disagree.
-  `README.md` and `PROJECT_GUIDE.md` §4's tree updated.
-- **Release-doc currency** (review **m20**). `RELEASE_PROCESS.md` §1 pointed at
-  the pre-M3-1 `sloads/models.py` for the schema version — now
-  `sloads/models/project.py`, and named `SCHEMA_VERSION` as the code does.
-  pyproject classifiers list 3.9 / 3.11 / 3.12, the CI matrix, instead of 3.9
-  alone.
-- **`scripts/smoke_test.sh` fixed — the §3.5 gate failed the release it gates.**
-  It read line 1 of the CLI's CSV as the header, but since G8.3 every exported
-  CSV carries the methods & limitations statement as `#` lines above it, so the
-  script saw `# METHODS AND LIMITATIONS` and reported an unexpected header. The
-  Python readers were audited when the stamp landed (`workbook._csv_to_df` reads
-  with `comment="#"`); this shell one was not — practice 4 (generalize on first
-  find) applied late. It now skips comment lines, counts rows from the data
-  block, and **requires** the stamp to be present, so the gate proves the
-  headless deliverable states its own basis.
-- **Version** `0.4.0` → **`0.5.0`** in `pyproject.toml` (MINOR: new capability,
-  no breaking change — `SCHEMA_VERSION` 44 is reached by additive hops and
-  `io.py` loads every older save).
-- **Changelog cut** — `[Unreleased]` dated to `## [0.5.0] — 2026-08-13` with its
-  **ten headings merged to three** (Added / Fixed / Changed), verified
-  content-preserving as a line multiset before and after, and a fresh empty
-  `[Unreleased]` opened — the same consolidation the 0.3.0 and 0.4.0 cuts
-  performed. It opens with a **release-notes block** stating the four standing
-  caveats a 0.5.0 deck carries: the flight-only fuselage deck (D-R3), fin-only
-  lateral aerodynamics (L-7, over-stated and conservative), the handed
-  23.427(a) maneuver pair (D-R8), and concept mode as closure-locked rather than
-  oracle-locked (D-R6).
-- **Verification baseline** —
-  [`09_verification_baseline_0.5.0.md`](09_verification_baseline_0.5.0.md), a
-  **delta** baseline like 0.4.0's: the closure gates for everything 0.5.0 added
-  (six-DOF balanced closure, handed twins, the lateral three, the report's own
-  conformance gates, per-sheet workbook units), the nine pinned exceptions with
-  their measured figures, the four standing limitations, and what measurement
-  changed — carrying the 0.3.0 oracle tables forward unchanged on the same two
-  confirmations (register unchanged; every Imperial digest movement a new or
-  renamed channel, the wave spent four times inside the release).
-- **Backlog re-cut to post-release form** — the 0.5.0 row and its whole "Item
-  detail — 0.5.0 release scope" section removed per the removal rule, the
-  remaining 31 rows renumbered with their `Pri` cross-references followed, and
-  the release prose replaced with the cut record.
-- **Gates at cut:** `pytest` **1494 passed / 21 skipped / 0 failed** (coverage
-  93 %), `ruff check sloads/ cli.py app/` clean, `scripts/smoke_test.sh` **PASS**
-  (headless GUI render + CLI export), every skip carrying a stated reason and a
-  backlog entry, no open CRITICAL/MAJOR review findings.
-
-**Key decisions.** `build_workbook` owns the unit statement rather than
-receiving it (practice 3, single owner + drift guard): the source guard in
-`test_deliverable_units.py` that used to pin the *defect* (`"Units":
-units_statement(` present in the page) now pins the contract — the page passes
-`system=_system` and states nothing itself. `requirements.txt` deleted rather
-than regenerated, for the same reason.
-
-**Post-release.** The cadence rule (`RELEASE_PROCESS.md` §2) restarts from this
-tag. Per **D-R3** the ground/landing case families (backlog Pri 4–5) are the
-0.6.0 headline; the sequence-independent rows — ONENGOUT fixture data, the
-wing-case-condition naming decision, M4-8 Layer 1's full resolver — ship in any
-gap. `scripts/smoke_test.sh` into CI (review **m20**) remains the stated
-fast-follow, not a gate.

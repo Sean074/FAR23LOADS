@@ -11,7 +11,7 @@ and [`../../CHANGELOG.md`](../../CHANGELOG.md); the pre-2026-08-16 running
 [`../40_history/10_backlog_state_narrative_to_2026-08-16.md`](../40_history/10_backlog_state_narrative_to_2026-08-16.md).
 Narratives and plans: [`01_concept_loads_plan.md`](01_concept_loads_plan.md)
 (concept mode), [`03_gui_rework_plan.md`](03_gui_rework_plan.md) (GUI),
-design notes per step (open ones here — 09/11/12/19/21/24; shipped ones rolled
+design notes per step (open ones here — 09/11/21/24/32; shipped ones rolled
 to [`../40_history/`](../00_INDEX.md#40_history--historic-record) at each cut); architecture
 [`../10_standard/PROJECT_GUIDE.md §7`](../10_standard/PROJECT_GUIDE.md); per-module
 spec [`PROGRAM_SPEC.md`](../10_standard/PROGRAM_SPEC.md).
@@ -39,7 +39,14 @@ closure gate in CI, benchmark-first); a page in `workflow.py`; the `Project`
 schema round-trips with `SCHEMA_VERSION` bumped and older files loading; docs
 synced per the closure tier.
 
-**Where things stand (2026-08-17):** **0.6.0 cut 2026-08-17** (`v0.6.0`,
+**Where things stand (2026-08-23):** **0.7.0 cut 2026-08-23** (`v0.7.0`,
+schema v55; release-cut block and delta baseline in
+[`../40_history/00_completed_development.md`](../40_history/00_completed_development.md) /
+[`../40_history/36_verification_baseline_0.7.0.md`](../40_history/36_verification_baseline_0.7.0.md))
+— the oracle GUI beta, L-7, the hub thrust, the fixture-data pass, the
+derived-scalar consolidation and the 2026-08-20 review's MAJORs; band B
+(the main-GUI review #29, the docs/CI sweep #46, the beta's known issues
+#67–#74) is the 0.8.0 plan, awaiting its re-cut. Before it: **0.6.0 cut 2026-08-17** (`v0.6.0`,
 schema v53) — the ground/landing families, the governing SF table, discrete
 control surfaces, the LRA beam model, the `CgCase` loading, wing-tank fuel
 separability and one owner for every constant; every shipped fixture assembles
@@ -215,8 +222,7 @@ traceability with plans 09/11/12/13; the **Pri** column is ordinal only.
 
 | Pri | Item (detail below / in its plan) | What ships | Tag | Tier / effort | Depends on |
 |---|---|---|---|---|---|
-| **A — 0.7.0: a beta release of the oracle GUI (re-cut 2026-08-22; BB-\* keys resolve in that review)** ||||||
-| — | **Cut 0.7.0** when band A is empty (RELEASE_PROCESS §2 cadence rule) | | | | |
+| **A — 0.7.0 cut 2026-08-23 (`v0.7.0`, schema v55): the oracle GUI beta shipped; band A is empty until the 0.8.0 re-cut promotes band B** ||||||
 | **B — 0.8.0: the main-GUI review completed and its findings addressed** ||||||
 | 5 | **GUI review resumption** — the five unswept sections (Flight, Other, Ground, Plotting, Export) against the 0.7.0 deliverables; findings filed at close (rule 5); re-cut follows (#29) | The review body completed; the UI freeze on `app/views/` re-opened to the extent the findings justify — a reviewed list, not a rework; parked **L-8c** (Results Review omits the 8 folded modules' results) promotes at this re-cut | V | S (review) / M | 0.7.0 cut |
 | 6 | **Docs/CI conformance sweep** (CR-D-4/D-5/D-6/D-7/D-8, CR-D-11) (#46) | The CI-matrix asymmetry stated where the docs claim otherwise (`DEVELOPMENT_PROCESS` §2 self-contradiction fixed); version-copy and phase-table drift fixed with the cheap guards; the one-way nav guard made two-way; the tripped runtime clause filed or re-stated; cspell gets a gate or the prose rule is dropped | V | S / S–M | — |
