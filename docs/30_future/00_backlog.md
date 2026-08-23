@@ -85,6 +85,20 @@ the oracle GUI's function end-to-end (the 2026-08-15 candidate-review
 pattern), last, so the cut signal includes it by construction. Cut **0.7.0
 when band A is empty**.
 
+**Pre-cut beta review 2026-08-22 (#61, from
+[`../50_reviews/2026-08-22_pre_cut_beta_review.md`](../50_reviews/2026-08-22_pre_cut_beta_review.md),
+PB-1…PB-24).** The fresh-project journey on all 14 oracle pages, the
+`oracle_app/` + `app_shell/` delta and the G1–G8 rot check found the
+mechanics sound and the cut **not ready**: eight BLOCKS-CUT findings enter
+band A as five rows (6–10, below the review row) — the oracle GUI's project
+is not the project gate G5 tests (`mass` never produced, items untagged,
+rotors and station tables outside the reduction), blank-seeded selector and
+code fields that silently change loads, the stale project download, no
+project name (every save overwrites the last), and an engine-layout state
+that saves a file the loader refuses. Sixteen KNOWN-ISSUE findings go to band
+B as rows 11–18 (release notes for 0.7.0; fixed in 0.7.x/0.8.0). The cut
+signal is unchanged in form: **0.7.0 when band A is empty**.
+
 **Previously re-cut 2026-08-20 (user, from
 [`../50_reviews/2026-08-20_critical_review.md`](../50_reviews/2026-08-20_critical_review.md)).**
 The release themes are fixed by the user: **0.7.0 — the oracle GUI fully
