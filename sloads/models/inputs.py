@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Set, Tuple
+from typing import Dict, List, Mapping, Optional, Set, Tuple
 
 from ..constants import DEFAULT_REF_AXIS_PCT, ULTIMATE_FACTOR
 from .enums import (
@@ -446,7 +446,7 @@ class GeometryInput:
 
     def by_name(self, name: str) -> Optional[SurfaceInput]:
         for s in self.surfaces:
-            if s.name == name:
+            if same_name(s.name, name):
                 return s
         return None
 
@@ -505,7 +505,7 @@ class AeroInput:
 
     def by_name(self, name: str) -> Optional[AeroSurfaceInput]:
         for s in self.surfaces:
-            if s.name == name:
+            if same_name(s.name, name):
                 return s
         return None
 
@@ -538,6 +538,47 @@ class MachLimitInput:
     increment_ft: float = 1000.0
 
 
+def same_name(a: str, b: str) -> bool:
+    """Whether two selector names pick the same thing: case and edge spaces are
+    not identity. ``Wing`` and ``wing`` are one surface (review 2026-08-22 PB-9
+    -- a fresh surface named ``Wing`` blocked eight pages); every ``by_name``
+    and every uniqueness check reads this one rule."""
+    return a.strip().casefold() == b.strip().casefold()
+
+
+#: FAR 23 certification category codes (STRSPEED, UG Table 7.1) -> what they
+#: mean. ``C`` is sloads' concept mode (decision D-1). The one table the
+#: widgets offer and :func:`normalise_code` checks against: typed free text
+#: ("Utility", "u") used to fall through every ``== "U"`` to Normal's 3.8
+#: (review 2026-08-22 PB-8).
+CATEGORIES: Dict[str, str] = {
+    "N": "Normal / commuter",
+    "U": "Utility",
+    "A": "Acrobatic",
+    "C": "Concept (no 23.337 cap; chosen load factors verbatim)",
+}
+
+#: LGFACTOR strut types -> the energy efficiency they select (landing.py).
+STRUT_TYPES: Dict[str, str] = {
+    "O": "Oleo (0.75 strut efficiency)",
+    "S": "Spring (0.50 strut efficiency)",
+}
+
+
+def normalise_code(value: str, codes: Mapping[str, str], what: str) -> str:
+    """``value`` as its canonical code, or a ``ValueError`` naming the choices.
+
+    Case and edge spaces are forgiven (``"u"`` is Utility); anything else is
+    refused rather than read as the default -- a coded field with no match is
+    a wrong airplane, not a normal one.
+    """
+    code = value.strip().upper()
+    if code not in codes:
+        choices = ", ".join(f"{k} = {v}" for k, v in codes.items())
+        raise ValueError(f"{what} {value!r} is not one of {choices}")
+    return code
+
+
 @dataclass
 class StructuralSpeedsInput:
     """Inputs for STRSPEED (design speeds & limit maneuver load factors).
@@ -557,7 +598,7 @@ class StructuralSpeedsInput:
     the field comments below); it defaults to the speed-ratio route, so an
     existing project's numbers are unchanged by F25-2.
     """
-    category: str = "N"
+    category: str = "N"                        # a CATEGORIES code; normalised in __post_init__
     weight_lb: float = 0.0
     occupants: Optional[int] = None            # total souls on board; the FAR 23 seat-limit
                                                # check counts passenger seats = occupants - crew.
@@ -610,6 +651,12 @@ class StructuralSpeedsInput:
     target_vmo: Optional[float] = None          # desired max operating VMO (KEAS, turbine)
     target_mmo: Optional[float] = None          # desired max operating MMO (Mach, turbine)
     target_vfe: Optional[float] = None          # desired flap extended VFE (KEAS)
+
+    def __post_init__(self) -> None:
+        # Case and edge spaces are not a category: ``"u"`` is Utility. An
+        # unknown code is left for the consumer to refuse by name
+        # (``normalise_code``) rather than refusing the whole file here.
+        self.category = self.category.strip().upper()
 
 
 # --------------------------------------------------------------------------- #
@@ -1385,7 +1432,7 @@ class LandingGearInput:
     axle_static: XYPoint = (0.0, 0.0)       # (X, Z) static
     axle_extended: XYPoint = (0.0, 0.0)     # (X, Z) fully extended (reference)
     rolling_radius_in: float = 0.0          # RM / RN
-    strut: str = "O"                        # "O" oleo | "S" spring
+    strut: str = "O"                        # a STRUT_TYPES code; normalised in __post_init__
     # Decision G-2 -- where the leg's reaction goes once LANDLOAD has computed it
     # at the tyre contact patch (23.485(d) puts it there). ``attach`` is the
     # airframe attachment/trunnion node in airplane coordinates, and is also
@@ -1426,6 +1473,9 @@ class LandingGearInput:
     #: quantity. Entering the split would imply a gear-design capability the tool
     #: does not have.
     weight_lb: float = 0.0                  # whole leg, trunnion down (G-12a)
+
+    def __post_init__(self) -> None:
+        self.strut = self.strut.strip().upper()  # "o" is an oleo; unknown codes refused by LGFACTOR
 
 
 @dataclass
@@ -1640,6 +1690,8 @@ def default_fuselage_outline(parametric: "LayoutInput") -> Optional[FuselageOutl
 
 
 __all__ = [
+    "CATEGORIES",
+    "STRUT_TYPES",
     "AeroCoeffSet",
     "AeroCoefficientsInput",
     "AeroInput",
@@ -1686,4 +1738,6 @@ __all__ = [
     "WingMassInput",
     "XYPoint",
     "default_fuselage_outline",
+    "normalise_code",
+    "same_name",
 ]

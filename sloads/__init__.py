@@ -24,8 +24,10 @@ from .aero_curves import (
 from .applicability import Exceedance, far23_applicability
 from .fleet import FleetPoint, FleetStats, Subject, fleet_stats
 from .models import (
+    CATEGORIES,
     GROUND_CASE_ROLE_ORDER,
     SCHEMA_VERSION,
+    STRUT_TYPES,
     AeroCoefficientsInput,
     AeroCoeffSet,
     AeroInput,
@@ -96,6 +98,8 @@ from .models import (
     WingMassInput,
     WingStationLoad,
     default_fuselage_outline,
+    normalise_code,
+    same_name,
 )
 from .modules.engine import run_all
 from .units import (
@@ -112,8 +116,10 @@ from .validation import ConsistencyWarning, consistency_warnings
 from .vn_diagram import GustInputs, VnDiagram, VnTrace, build_vn_diagram, resolve_gust_inputs
 
 __all__ = [
+    "CATEGORIES",
     "GROUND_CASE_ROLE_ORDER",
     "SCHEMA_VERSION",
+    "STRUT_TYPES",
     "AeroCoeffSet",
     "AeroCoefficientsInput",
     "AeroCurves",
@@ -206,10 +212,12 @@ __all__ = [
     "fleet_stats",
     "io",
     "labels_for",
+    "normalise_code",
     "operating_points",
     "registry",
     "resolve_gust_inputs",
     "run_all",
+    "same_name",
     "si_scalar_label",
     "to_display",
     "to_imperial",

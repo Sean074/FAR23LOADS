@@ -55,7 +55,8 @@ from oracle_app.results import render_results
 from sloads import field_registry as fr
 from sloads import workflow as wf
 from sloads.derived import refresh_derived
-from sloads.models import Project
+from sloads.models import Project, same_name
+from sloads.selectors import duplicate_selectors, seed_name
 from sloads.units import FieldUnit, field_unit, to_display, to_imperial_scalar
 from sloads.units import unit_label as _unit_label
 
@@ -316,11 +317,38 @@ def _set_entered(record: Any, name: str, value: Any) -> None:
         setattr(record, name, value)
 
 
+def seeded(cls: type, path: str, index: int = 0, taken: Sequence[str] = ()) -> Any:
+    """A :func:`blank` record whose selector name is already meaningful.
+
+    ``sloads.selectors.seed_name`` says what a new row at ``path`` is called
+    (the first surface ``wing``, CG cases ``CG1 … CGn``, ``CRUISE`` /
+    ``LANDING``), skipping any name ``taken`` already (#63, PB-5/PB-9). A
+    seeded record is still *untouched* for :func:`_is_blank`, so visiting a
+    page attaches nothing.
+    """
+    record = blank(cls)
+    if hasattr(record, "name") and not record.name:
+        name = seed_name(f"{path}.name", index)
+        i = index
+        while name and any(same_name(name, t) for t in taken):
+            i += 1
+            name = seed_name(f"{path}.name", i)
+        record.name = name
+    return record
+
+
 def _is_blank(value: Any) -> bool:
-    """True if ``value`` is an untouched record (or an empty list of them)."""
+    """True if ``value`` is an untouched record (or an empty list of them).
+
+    A seeded selector name does not count as a touch: the user did not type
+    it, so it alone must not attach the record.
+    """
     if isinstance(value, list):
         return not value
-    return value == blank(type(value))
+    untouched = blank(type(value))
+    if hasattr(value, "name") and dataclasses.is_dataclass(value):
+        return dataclasses.replace(value, name="") == untouched
+    return value == untouched
 
 
 def commit_pending() -> None:
@@ -362,11 +390,12 @@ def record_at(project: Project, prefix: str) -> Any:
             if pending is not None:
                 value = pending[2]
             else:
-                hint = fr.field_type(_path_of(obj, segment, prefix))
+                path = _path_of(obj, segment, prefix)
+                hint = fr.field_type(path)
                 inner, _ = _unwrap_optional(hint)
                 if not (isinstance(inner, type) and dataclasses.is_dataclass(inner)):
                     return None
-                value = blank(inner)
+                value = seeded(inner, path)
                 _PENDING[(id(obj), segment)] = (obj, segment, value)
         obj = value
     return obj
@@ -473,6 +502,24 @@ def render_scalar(record: Any, path: str, *, key: str, container: Any = None,
                                       help=help_text, disabled=disabled)
         if not disabled:
             _persist(record, name, entered_bool)
+        return
+
+    codes = fr.CODED_FIELDS.get(path)
+    if codes is not None:
+        # A coded field offers its codes, never free text: "Utility" and "u"
+        # both fell through every ``== "U"`` to Normal's 3.8 (#63, PB-8). A
+        # stored value outside the table is still shown, marked, so a loaded
+        # file is not silently rewritten -- STRSPEED refuses it by name.
+        options_s: List[str] = list(codes)
+        current_s = (value or "").strip().upper()
+        if current_s not in options_s:
+            options_s.append(current_s)
+        chosen_s = where.selectbox(
+            label, options_s, index=options_s.index(current_s), key=widget_key(key),
+            help=help_text, disabled=disabled,
+            format_func=lambda c: f"{c} · {codes[c]}" if c in codes else f"{c or '—'} · (not a known code)")
+        if not disabled:
+            _persist(record, name, chosen_s)
         return
 
     if inner is str:
@@ -688,7 +735,8 @@ def render_table(project: Project, prefix: str, paths: Sequence[str]) -> None:
         f"{pretty(prefix.rstrip(fr.LIST_MARKER).rsplit('.', 1)[-1])} — rows",
         min_value=0, value=len(rows), step=1, key=widget_key(f"{prefix}.count"))
     while len(rows) < count:
-        rows.append(blank(cls))
+        rows.append(seeded(cls, prefix, len(rows),
+                           taken=[getattr(r, "name", "") for r in rows]))
     while len(rows) > count:
         rows.pop()
     if not rows:
@@ -841,6 +889,17 @@ def render_step(key: str) -> None:
     # a visit still dirties nothing; this GUI has no Apply for the user to miss.
     refresh_derived(ctx.project)
 
+    # Names the calc keys on must be unique and present, or the numbers below
+    # would be the wrong airplane's (two CG cases with one name collapse to
+    # one; #63, PB-5). Said here, and the results withheld, rather than
+    # discovered in a changed TAILDIST table.
+    problems = duplicate_selectors(ctx.project)
+    if problems:
+        for problem in problems:
+            st.error(problem)
+        st.info("Results are withheld until every selector name is unique.")
+        return
+
     # A page that takes no input still runs its programs -- Tail Loads reads
     # entirely upstream and is all output (OG-E).
     render_results(ctx.project, key, ctx.system)
@@ -854,5 +913,5 @@ def _step_caption(step: wf.WorkflowStep) -> str:
 __all__ = [
     "MEMBER_LABELS", "blank", "commit_pending", "is_composite", "page_groups", "record_at",
     "render_field", "render_record", "render_scalar", "render_step",
-    "render_table", "row_class", "rows_at",
+    "render_table", "row_class", "rows_at", "seeded",
 ]

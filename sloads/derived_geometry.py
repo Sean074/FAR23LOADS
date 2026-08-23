@@ -24,6 +24,7 @@ from __future__ import annotations
 import math
 from typing import NamedTuple, Optional, Tuple
 
+from . import workflow as wf
 from .constants import DEFAULT_FRONT_SPAR_PCT, DEFAULT_REAR_SPAR_PCT, IN2_PER_FT2
 from .models import MissingInputError, Project
 
@@ -146,8 +147,8 @@ def require_wing_reference(project: Project, surface_name: str = "wing") -> Wing
     if ref is None:
         raise MissingInputError(
             f"this analysis needs the {surface_name!r} wing planform: add the "
-            "surface on the Configuration & Layout page. The MAC, area, 25%-MAC "
-            "station and waterline are read from it, not entered separately.")
+            f"surface on the {wf.BY_KEY['configuration_layout'].title} page. The MAC, "
+            "area, 25%-MAC station and waterline are read from it, not entered separately.")
     return ref
 
 

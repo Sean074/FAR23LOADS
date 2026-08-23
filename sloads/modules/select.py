@@ -85,6 +85,7 @@ from ..models import (
 )
 from ..picks import extreme
 from ..registry import register
+from ..selectors import keyed
 from ._vtail import large_deflection_factor, rudder_effectiveness, vtail_lift_slope
 from .flight_envelope import build_envelope, density_ratio, design_inputs
 
@@ -202,7 +203,7 @@ def vn_by_case(project: Project) -> Dict[int, VnPoint]:
 
 def _cg_weights(project: Project) -> Dict[str, float]:
     """Map CG-case name -> design weight (for the Nx = -DX/W inertia factor)."""
-    return {c.name: c.weight_lb for c in flight_cases(project)}
+    return {name: c.weight_lb for name, c in _cg_map(project).items()}
 
 
 def _resultant(p: VnPoint) -> float:
@@ -383,14 +384,20 @@ def flaps_by_config_name(project: Project) -> Dict[str, bool]:
     (cruise = False, flaps_down = True), for pairing against V-n points'
     ``config`` field. Empty when the slice is absent."""
     aero = project.aero_coeffs
-    flaps: Dict[str, bool] = {}
     if aero is None:
-        return flaps
-    if aero.cruise is not None:
-        flaps[aero.cruise.name] = False
-    if aero.flaps_down is not None:
-        flaps[aero.flaps_down.name] = True
-    return flaps
+        return {}
+    sets = [(cs, flapped) for cs, flapped in ((aero.cruise, False), (aero.flaps_down, True))
+            if cs is not None]
+    # Through ``keyed``: two sets with one name used to collapse to one entry
+    # and drop 14 SELECT rows with nothing said (review 2026-08-22 PB-5).
+    return {name: flapped for name, (_cs, flapped)
+            in keyed(sets, lambda t: t[0].name, "Coefficient set").items()}
+
+
+def _cg_map(project: Project) -> Dict[str, CgCase]:
+    """CG-case name -> case, for every lookup a V-n row makes; a duplicate name
+    is refused here rather than collapsed (``sloads.selectors.keyed``)."""
+    return keyed(flight_cases(project), lambda c: c.name, "CG case")
 
 
 def select_htail_balancing(project: Project,
@@ -403,7 +410,7 @@ def select_htail_balancing(project: Project,
     wr = wing_reference(project)
     if ti is None or fl is None or wr is None:
         return []
-    cg_map: Dict[str, CgCase] = {c.name: c for c in flight_cases(project)}
+    cg_map = _cg_map(project)
     flaps: Dict[str, bool] = flaps_by_config_name(project)
 
     retracted: List[Tuple[VnPoint, HtailBalance]] = []
@@ -488,7 +495,7 @@ def select_htail_maneuver(project: Project,
     wr = wing_reference(project)
     if ti is None or fl is None or wr is None:
         return []
-    cg_map: Dict[str, CgCase] = {c.name: c for c in flight_cases(project)}
+    cg_map = _cg_map(project)
     np_ = design_inputs(project).n_pos
     lf_in = airplane_length_in(project)
     aht = 2.0 * math.pi / (1.0 + 2.0 / ti.aspect_ratio_htail)
@@ -568,7 +575,7 @@ def select_htail_gust(project: Project,
     wr = wing_reference(project)
     if ti is None or fl is None or wr is None:
         return []
-    cg_map: Dict[str, CgCase] = {c.name: c for c in flight_cases(project)}
+    cg_map = _cg_map(project)
     aht = 2.0 * math.pi / (1.0 + 2.0 / ti.aspect_ratio_htail)
     aw, arw = ti.wing_lift_slope_per_rad, ti.aspect_ratio_wing
     mac_ft = wr.mac / IN_PER_FT
@@ -819,7 +826,7 @@ def select_vtail(project: Project, envelope: Optional[EnvelopeResult] = None) ->
     fl = project.flight_loads
     if vt is None or fl is None:
         return []
-    cg_map: Dict[str, CgCase] = {c.name: c for c in flight_cases(project)}
+    cg_map = _cg_map(project)
     vn = _resolve_envelope(project, envelope).vn
     bal_a = [p for p in vn if p.condition == "BAL A" and p.cg in cg_map]
     bal_c = [p for p in vn if p.condition == "BAL C" and p.cg in cg_map]

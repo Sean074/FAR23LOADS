@@ -46,7 +46,7 @@ import copy
 import dataclasses
 import typing
 from enum import Enum
-from typing import Dict, List, Optional, Set, Tuple
+from typing import Dict, List, Mapping, Optional, Set, Tuple
 
 from sloads import models as _models
 from sloads.derived import refresh_derived
@@ -92,6 +92,17 @@ NON_INPUT: Dict[str, str] = {
 
 #: Marks a list-of-dataclass hop in a path: ``engines[].engine_weight_lb``.
 LIST_MARKER = "[]"
+
+#: ``str`` fields that carry a **code**, and the table of codes each accepts
+#: (owned by ``models/inputs.py`` beside the field). The oracle form offers
+#: these as a choice rather than free text, and every consumer normalises
+#: through ``models.normalise_code`` (#63, PB-8). Guarded in
+#: ``tests/test_selectors.py``: each path is a registered ``str`` field.
+CODED_FIELDS: Dict[str, Mapping[str, str]] = {
+    "speeds.category": _models.CATEGORIES,
+    "geometry.landing_gear.main_gear.strut": _models.STRUT_TYPES,
+    "geometry.landing_gear.nose_gear.strut": _models.STRUT_TYPES,
+}
 
 #: ``Project`` attributes that are read-through **properties**, not stored
 #: slices, mapped to the path their fields actually live at. ``workflow.py``
@@ -460,7 +471,9 @@ REGISTRY: Tuple[FieldEntry, ...] = (
     # offers both, as the original did; `parametric` is not a substitute for the
     # planform, and no parametric->polyline builder is needed after all.
     _E("geometry.surfaces[].name", _GEO, _SLDS, "surface selector (standing ruling); "
-       "structurally required -- SurfaceInput has no name-less form", supplied=True),
+       "structurally required -- SurfaceInput has no name-less form. Every downstream program "
+       "reads the surface named `wing` (matched ignoring case), so the first row is seeded "
+       "`wing`; `htail` / `vtail` / `aileron` / `flap` name the others", supplied=True),
     _E("geometry.surfaces[].leading_edge", _GEO, _ORIG,
        "WINGGEOM planform, '(X, Y) points ... exactly as the original program prompts for them'"),
     _E("geometry.surfaces[].trailing_edge", _GEO, _ORIG,

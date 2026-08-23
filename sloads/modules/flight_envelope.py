@@ -78,6 +78,7 @@ from ..derived_geometry import (
     sync_geometry_derived,
 )
 from ..models import (
+    CATEGORIES,
     AeroCoeffSet,
     CgCase,
     ConditionResult,
@@ -89,6 +90,7 @@ from ..models import (
     Project,
     TailBalanceLoad,
     VnPoint,
+    normalise_code,
 )
 from ..registry import register
 from .structural_speeds import design_speeds, maneuver_load_factors
@@ -317,7 +319,7 @@ def design_inputs(project: Project) -> _DesignInputs:
     for cond in design_speeds(project, sp):
         for lv in cond.values:
             vals[lv.key] = lv.value
-    cat = sp.category.upper()
+    cat = normalise_code(sp.category, CATEGORIES, "FAR 23 category")
     n_pos, _, n_neg, _ = maneuver_load_factors(cat, sp.weight_lb, sp.chosen_n, sp.chosen_nneg)
     return _DesignInputs(
         va=vals["maneuver_speed_va"], vc=vals["cruise_speed_vc"],

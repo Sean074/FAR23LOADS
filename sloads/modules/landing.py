@@ -52,6 +52,7 @@ from ..case_ids import CaseIdAllocator
 from ..cg_cases import landing_role_cases, max_landing_weight, max_takeoff_weight
 from ..constants import IN2_PER_FT2, IN_PER_FT, G
 from ..models import (
+    STRUT_TYPES,
     CaseRef,
     CgCase,
     ConditionResult,
@@ -62,6 +63,7 @@ from ..models import (
     MissingInputError,
     ModuleResult,
     Project,
+    normalise_code,
 )
 from ..picks import extreme
 from ..registry import register
@@ -585,7 +587,7 @@ def build_landing(project: Project) -> Tuple[LoadFactorResult, List[GearReaction
     mtow = max_takeoff_weight(project)
     lf = landing_load_factor(s, mlw, inp.strut_stroke_in,
                              inp.tire_od_in, inp.hub_diameter_in, inp.lift_factor,
-                             gear.main_gear.strut == "O")
+                             normalise_code(gear.main_gear.strut, STRUT_TYPES, "main-gear strut type") == "O")
     cgs = _cg_cases(project)
     reactions = landing_reactions(inp, gear, lf, cgs, mlw=mlw, mtow=mtow)
     return lf, reactions

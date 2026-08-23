@@ -26,6 +26,7 @@ from plotly.subplots import make_subplots
 from app_shell.components import active_system, gate, page_header, unit_number_input
 from app_shell.widget_keys import widget_key
 from sloads import (
+    STRUT_TYPES,
     FuselageOutline,
     FuselageSection,
     GearCarrier,
@@ -623,8 +624,11 @@ _CARRIER_CHOICES = [_CARRIER_UNSTATED] + [c.value.upper() for c in GearCarrier]
 def _gear_leg(label: str, gear: LandingGearInput, keyp: str) -> LandingGearInput:
     st.markdown(f"**{label}**")
     a = st.columns(2)
-    strut = a[0].selectbox(f"{label} strut", ["O", "S"], index=0 if gear.strut == "O" else 1,
-                           key=widget_key(f"{keyp}_strut"), help="O = oleo, S = spring")
+    strut_codes = list(STRUT_TYPES)
+    strut = a[0].selectbox(f"{label} strut", strut_codes,
+                           index=strut_codes.index(gear.strut) if gear.strut in STRUT_TYPES else 0,
+                           key=widget_key(f"{keyp}_strut"),
+                           format_func=lambda c: f"{c} · {STRUT_TYPES[c]}")
     rr = _u(f"{label} rolling radius", gear.rolling_radius_in, "length", f"{keyp}_rr", a[1],
             min_value=0.0)
     c = st.columns(6)

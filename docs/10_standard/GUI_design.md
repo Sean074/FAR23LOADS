@@ -210,6 +210,25 @@ consistent:
   one divergence that is decided rather than discovered — the twins' turbine
   rotors, a sloads model the original ENGLOADS never had — is declared per
   example with its number (−16 % DHC-8 mount torque), not rendered.
+- **A selector name is seeded, unique, and matched ignoring case; a coded
+  field is a choice** (#63, 2026-08-23). What the original suite expressed
+  by position this model carries as a name the calc keys on — the surface,
+  the CG case, the coefficient set — and the oracle form used to seed each
+  `""` and ask nothing more: two CG cases with one name collapsed to one
+  entry and TAILDIST changed in 7 of 13 rows with every page reporting
+  success (review 2026-08-22 PB-5). `sloads/selectors.py` owns the three
+  rules: `keyed` builds the dictionaries `select.py` reads and refuses a
+  duplicate; `duplicate_selectors` is the same check in the form's words, and
+  `render_step` withholds a page's results while it speaks; `NAME_SEEDS` names
+  a new row (`wing` first — everything downstream keys on it, PB-9 — then
+  `CG1 … CGn`, `CRUISE` / `LANDING`), skipping names already taken and never
+  counting as a touch. `by_name` matches through `models.same_name` (case and
+  edge spaces forgiven), so `Wing` no longer blocks eight pages. The FAR 23
+  category and the strut type are **codes**, not text (PB-8): `models.CATEGORIES`
+  / `STRUT_TYPES` are the one table both GUIs offer (`field_registry.CODED_FIELDS`
+  says which `str` fields carry a code), the owners upper-case at construction,
+  and every consumer goes through `normalise_code`, which refuses an unknown
+  code by name rather than reading it as Normal (`"Utility"` used to give 3.8).
 
 The established **seed-chain** (each seeds the next when its target is unset):
 Configuration & Layout → WINGGEOM wing surface → Weight DB component stations;

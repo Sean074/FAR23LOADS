@@ -32,6 +32,7 @@ from app_shell.components import (
 )
 from app_shell.widget_keys import widget_key
 from sloads import (
+    CATEGORIES,
     MachLimitInput,
     Project,
     StructuralSpeedsInput,
@@ -61,8 +62,9 @@ st.caption(
 )
 
 
-_CATS = {"Normal / commuter": "N", "Utility": "U", "Acrobatic": "A", "Concept (C)": "C"}
-_CAT_LABELS = list(_CATS)
+# The category codes and their meanings have one owner, ``models.CATEGORIES``
+# (#63): this view and the oracle form offer the same table.
+_CAT_LABELS = list(CATEGORIES)
 
 # The two 25.335(b) dive-speed routes, as the radio presents them (F25-2).
 _VD_BASIS = {
@@ -147,10 +149,11 @@ def _tab_design_speeds(project: Project, system: UnitSystem, U: dict) -> None:
             "(set in the sidebar's global **Units** control). Airspeed (kt) and "
             "altitude (ft) stay aviation-standard in both systems."
         )
-        cat_default = next((k for k, v in _CATS.items() if existing and v == existing.category), "Normal / commuter")
+        cat_default = existing.category if existing and existing.category in CATEGORIES else "N"
         cat_label = st.selectbox(
             "Category", _CAT_LABELS, index=_CAT_LABELS.index(cat_default),
             key=widget_key("ss_category"),
+            format_func=lambda c: f"{c} · {CATEGORIES[c]}",
             help="Certification category (14 CFR 23.3); sets the limit maneuver load factors (23.337). "
                  "Concept (C) applies no FAR cap — you set the factors below.",
         )
@@ -365,13 +368,13 @@ def _tab_design_speeds(project: Project, system: UnitSystem, U: dict) -> None:
         applied = st.form_submit_button("Apply", type="primary")
 
     if applied:
-        is_concept_submit = _CATS[cat_label] == "C"
+        is_concept_submit = cat_label == "C"
         # unit_number_input already returned Imperial (the whole point of #44):
         # no hand conversion happens on this page any more.
         weight = weight_override if (override_weight or not has_mtow) else mtow_upstream
         wing_area_imperial = wing_area if wing_area else None
         inp = StructuralSpeedsInput(
-            category=_CATS[cat_label],
+            category=cat_label,
             weight_lb=weight,
             occupants=int(occupants_in) if occupants_in else None,
             wing_area_sqft=wing_area_imperial,
