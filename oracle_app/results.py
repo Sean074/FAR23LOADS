@@ -55,7 +55,7 @@ from app_shell.limit_csv import (
     wing_limit_rows,
 )
 from oracle_app.labels import pretty
-from sloads import UnitSystem, convert_results, registry
+from sloads import UnitSystem, convert_results, mass_distribution, registry
 from sloads import io as sloads_io
 from sloads import workflow as wf
 from sloads.models import Project
@@ -85,9 +85,15 @@ _NOT_READY = (ValueError, ZeroDivisionError)
 
 _ULT_NOTE = ("ULTIMATE loads (= limit x the case safety factor); the factor is "
              "in the SF column and the `-ULT` marker is part of the units.")
+# The basis is stated in the table itself, but *where* depends on the table: the
+# wing and fuselage station tables carry a `Basis` column, while the tail
+# chordwise table has none and marks every load header instead
+# (`app_shell/limit_csv.tail_limit_rows`). Saying only "the Basis column" was
+# wrong for a third of the tables this caption sits under (review CR-A-7).
 _LIMIT_NOTE = ("LIMIT station loads -- the oracle-traceable calc values "
-               "(CONVENTIONS.md §3). The basis travels with the table in its "
-               "`Basis` column and in the `_LIMIT.csv` filename.")
+               "(CONVENTIONS.md §3). The basis travels with the table: in its "
+               "`Basis` column, or in each load's column header where the table "
+               "has no such column, and in the `_LIMIT.csv` filename.")
 
 
 class Artifact(NamedTuple):
@@ -113,6 +119,10 @@ class ResultBlock(NamedTuple):
     rows: Tuple[Dict[str, Any], ...] = ()
     artifacts: Tuple[Artifact, ...] = ()
     note: str = ""
+    #: What the numbers rest on that the user should know before trusting them
+    #: -- an item data base that never said which beam carries the wing, a
+    #: wing-mass tie that does not close. Shown as warnings above the table.
+    warnings: Tuple[str, ...] = ()
 
 
 class StationTable(NamedTuple):
@@ -189,7 +199,44 @@ def _station_block(project: Project, name: str, system: UnitSystem) -> ResultBlo
     artifact = Artifact(f"{spec.title} (CSV, LIMIT)",
                         f"{spec.stem}_LIMIT.csv", "text/csv",
                         spec.csv(built, system))
-    return ResultBlock(name, spec.title, LIMIT, tuple(rows), (artifact,))
+    return ResultBlock(name, spec.title, LIMIT, tuple(rows), (artifact,),
+                       warnings=STATION_WARNINGS.get(name, lambda _p: ())(project))
+
+
+def fuselage_mass_warnings(project: Project) -> Tuple[str, ...]:
+    """What the fuselage beam carries that the item data base did not say.
+
+    BODYLOAD's own input was the fuselage item list, so which items it lumps was
+    never in doubt. Here that is the ``component`` tag, and an untagged item is
+    carried by the fuselage *by inference* (``mass_distribution.infer_component``
+    refuses to guess anything else) -- on the GA-6 that put the 330 lb wing panel
+    on the fuselage beam at 9 % of its peak shear with nothing on the page
+    saying so (review 2026-08-22 PB-2). The wing-mass tie, the entered-station
+    reconciliation and a tail surface with no item at all are the same
+    question from the other side, so they are stated here together.
+    """
+    out: List[str] = []
+    inferred = mass_distribution.distribution(project).inferred
+    if inferred:
+        shown = ", ".join(inferred[:6]) + (" …" if len(inferred) > 6 else "")
+        out.append(f"{len(inferred)} weight item(s) carry no component tag and are lumped "
+                   f"on the fuselage beam by inference: {shown}. Tag the wing and "
+                   "empennage items on the Weight & Mass page (`component`).")
+    for check in (mass_distribution.wing_mass_tie(project),
+                  mass_distribution.fuselage_reconciliation(project)):
+        if check is not None and not check.ok:
+            out.append(f"{check.code}: {check.detail}.")
+    untagged = mass_distribution.untagged_tail_surfaces(project)
+    if untagged and project.weight is not None and project.weight.items:
+        out.append(f"No weight item is tagged {' or '.join(f'`{c}`' for c in untagged)}: "
+                   "that surface's mass rides the fuselage beam.")
+    return tuple(out)
+
+
+#: Per station table, the pure check that says what its numbers rest on.
+STATION_WARNINGS: Dict[str, Callable[[Project], Tuple[str, ...]]] = {
+    "body_loads": fuselage_mass_warnings,
+}
 
 
 def step_results(project: Project, key: str, system: UnitSystem) -> List[ResultBlock]:
@@ -203,13 +250,21 @@ def step_results(project: Project, key: str, system: UnitSystem) -> List[ResultB
         return []
 
     step = wf.BY_KEY[key]
-    missing = wf.missing_requirements(project, step)
-    if missing:
+    upstream = wf.missing_upstream(project, step)
+    own = wf.missing_self_entered(project, step)
+    if upstream or own:
+        # Two remedies, named separately (#45, CR-D-3): an upstream slice is
+        # another page's to make; a self-entered one is this page's own form.
+        parts = []
+        if upstream:
+            parts.append(f"needs {', '.join(f'`{m}`' for m in upstream)} — "
+                         "run the pages before this one first")
+        if own:
+            parts.append(f"needs {', '.join(f'`{m}`' for m in own)} — "
+                         "entered on this very page: fill in the form above")
         return [ResultBlock(
             "", step.title,
-            note=f"{step.bas or step.title} needs "
-                 f"{', '.join(f'`{m}`' for m in missing)} — run the pages before "
-                 f"this one first.")]
+            note=f"{step.bas or step.title} {'; '.join(parts)}.")]
 
     blocks: List[ResultBlock] = []
     for name in modules:
@@ -245,6 +300,8 @@ def render_results(project: Project, key: str, system: UnitSystem) -> None:
             continue
 
         st.caption(_ULT_NOTE if block.basis == ULTIMATE else _LIMIT_NOTE)
+        for warning in block.warnings:
+            st.warning(warning)
         st.dataframe(pd.DataFrame(list(block.rows)), hide_index=True,
                      width="stretch")
         columns = st.columns(len(block.artifacts))
@@ -257,6 +314,6 @@ def render_results(project: Project, key: str, system: UnitSystem) -> None:
 
 
 __all__ = [
-    "LIMIT", "STATION_TABLES", "ULTIMATE", "Artifact", "ResultBlock",
+    "LIMIT", "STATION_TABLES", "STATION_WARNINGS", "ULTIMATE", "Artifact", "ResultBlock",
     "StationTable", "page_artifacts", "render_results", "step_results",
 ]

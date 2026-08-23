@@ -154,15 +154,19 @@ def _assert_modules_identical(far, concept):
                 assert fv.units == cv.units, (
                     f"module {name!r} condition {key!r} value {label!r}: "
                     f"units differ ({fv.units!r} vs {cv.units!r})")
-                if isinstance(fv.value, float) or isinstance(cv.value, float):
-                    assert math.isclose(fv.value, cv.value, rel_tol=1e-3,
-                                        abs_tol=1e-9), (
-                        f"module {name!r} condition {key!r} value {label!r}: "
-                        f"{fv.value} != {cv.value}")
-                else:
-                    assert fv.value == cv.value, (
-                        f"module {name!r} condition {key!r} value {label!r}: "
-                        f"{fv.value} != {cv.value}")
+                # Exact equality, deliberately: this is an identity, not an
+                # oracle comparison. Concept mode differs from FAR23 mode at
+                # exactly one place -- `maneuver_load_factors` returns the
+                # caller's (n, n-) instead of the 23.337 cap -- so feeding the
+                # FAR23 caps back in must re-run the same arithmetic on the same
+                # floats. Any difference at all, however small, means some other
+                # branch also reads the category, and that is a finding to
+                # investigate, not a rounding artefact to absorb (CR-B-2).
+                assert fv.value == cv.value, (
+                    f"module {name!r} condition {key!r} value {label!r}: "
+                    f"{fv.value} != {cv.value} -- the concept branch must "
+                    "reduce to FAR23 bit-for-bit; a non-zero difference means a "
+                    "second category-dependent branch exists")
 
 
 def test_concept_load_factors_match_far23_caps():

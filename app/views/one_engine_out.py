@@ -13,7 +13,8 @@ from __future__ import annotations
 import pandas as pd
 import streamlit as st
 
-from app_shell.components import active_system, gate
+from app_shell.components import active_system, gate, stop_page
+from app_shell.widget_keys import widget_key
 from sloads import OneEngineOutInput, Project, UnitSystem, convert_results, to_si_scalar
 from sloads.modules.one_engine_out import PROPELLER_ONLY_NOTE, run, time_history
 
@@ -37,16 +38,16 @@ system: UnitSystem = active_system()
 
 if not project.engines or len(project.engines) < 2:
     st.warning("One-engine-out needs a **multi-engine** layout (define ≥2 engines).")
-    st.stop()
+    stop_page()
 if project.vtail_loads is None:
     gate("Define the **vertical-tail geometry** (Flight Envelope (V-n) page, "
          "Critical Loads tab) first.", "flight_envelope")
-    st.stop()
+    stop_page()
 if project.mass is None or not project.mass.cases:
     gate("Fill the itemised mass data base on the **Weight & Mass Properties** page "
          "(Weight, CG & Inertia tab) and press **Apply weight items** — that persists "
          "the mass slice ONENGOUT reads IZZ from.", "weight_mass")
-    st.stop()
+    stop_page()
 
 inp = project.one_engine_out or OneEngineOutInput()
 
@@ -54,21 +55,27 @@ with st.form("one_engine_out_form"):
     st.subheader("Failure transient")
     c1, c2, c3, c4 = st.columns(4)
     thrust_decay_time_s = c1.number_input("Thrust decay time (s)",
-                                          value=float(inp.thrust_decay_time_s), min_value=0.0)
+                                          value=float(inp.thrust_decay_time_s), min_value=0.0,
+                                          key=widget_key("oeo_thrust_decay"))
     windmill_drag_time_s = c2.number_input("Windmill drag buildup (s)",
-                                           value=float(inp.windmill_drag_time_s), min_value=0.0)
+                                           value=float(inp.windmill_drag_time_s), min_value=0.0,
+                                           key=widget_key("oeo_windmill_time"))
     rudder_travel_time_s = c3.number_input("Full-rudder travel time (s)",
-                                           value=float(inp.rudder_travel_time_s), min_value=0.0)
+                                           value=float(inp.rudder_travel_time_s), min_value=0.0,
+                                           key=widget_key("oeo_rudder_time"))
     time_step_s = c4.number_input("Time step (s)", value=float(inp.time_step_s or 0.05),
-                                  min_value=0.005, step=0.005, format="%.3f")
+                                  min_value=0.005, step=0.005, format="%.3f",
+                                  key=widget_key("oeo_time_step"))
 
     c5, c6 = st.columns(2)
     failed_engine_index = int(c5.selectbox(
         "Failed engine", options=list(range(len(project.engines))),
         index=min(inp.failed_engine_index, len(project.engines) - 1),
+        key=widget_key("oeo_failed_engine"),
         format_func=lambda i: f"#{i} {project.engines[i].engine_designation or ''}".strip()))
     use_takeoff_power = c6.checkbox("Use take-off power (else max-continuous)",
-                                    value=inp.use_takeoff_power)
+                                    value=inp.use_takeoff_power,
+                                    key=widget_key("oeo_takeoff_power"))
     applied = st.form_submit_button("Apply", type="primary")
 
 if applied:
@@ -90,7 +97,7 @@ try:
     mod = run(project)
 except (ValueError, ZeroDivisionError) as exc:
     st.error(f"Could not compute one-engine-out loads: {exc}")
-    st.stop()
+    stop_page()
 
 st.subheader("Maximum tail loads by speed")
 st.caption(
@@ -119,7 +126,7 @@ for cond in mod.conditions:
 
 st.subheader("Time history")
 labels = [cond.title.replace("One engine out — ", "") for cond in mod.conditions]
-pick = st.selectbox("Speed case", options=labels)
+pick = st.selectbox("Speed case", options=labels, key=widget_key("oeo_speed_case"))
 if st.button("Run time history"):
     hist = time_history(project, pick)
     df = pd.DataFrame([{

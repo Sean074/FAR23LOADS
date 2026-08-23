@@ -2,7 +2,13 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    # `dev/**` is the milestone branch of DEVELOPMENT_PROCESS.md §0: every item
+    # of a milestone commits straight onto it, and each push runs the fast gate
+    # below as an **advisory** signal (the branch is unprotected — nothing waits
+    # on it, and it runs while the next item is already being worked). The
+    # milestone lands on `main` as one pull request, and that merge push is
+    # where the full matrix runs.
+    branches: [main, "dev/**"]
   pull_request:
     branches: [main]
 
@@ -19,22 +25,25 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # PR = the fast gate: ONE interpreter (3.12, with coverage). The 3.9 /
-        # 3.11 legs are the *compatibility* claim, not the correctness gate,
-        # and in this repository they have never failed where 3.12 passed --
-        # they run on every push to main (i.e. on merge) and are fixed forward
-        # if they ever differ (2026-08-17 process review; DEVELOPMENT_PROCESS
-        # §0). Required checks on `main` are therefore `test (3.12)`,
-        # `typecheck`, `sbeam-roundtrip (3.12)`.
-        python-version: ${{ github.event_name == 'pull_request' && fromJSON('["3.12"]') || fromJSON('["3.9", "3.11", "3.12"]') }}
+        # The full matrix runs in exactly one place: the push to `main`, which
+        # is the milestone merge. Everything else -- every PR, and every push to
+        # a `dev/**` milestone branch -- is the fast gate: ONE interpreter
+        # (3.12, uninstrumented). The 3.9 / 3.11 legs are the *compatibility*
+        # claim, not the correctness gate, and in this repository they have
+        # never failed where 3.12 passed; they are fixed forward if they ever
+        # differ (2026-08-17 process review; DEVELOPMENT_PROCESS §0). Required
+        # checks on `main` are therefore `test (3.12)`, `typecheck`,
+        # `sbeam-roundtrip (3.12)`.
+        python-version: ${{ (github.event_name == 'push' && github.ref == 'refs/heads/main') && fromJSON('["3.9", "3.11", "3.12"]') || fromJSON('["3.12"]') }}
         # Coverage on ONE leg, and on PUSH TO MAIN only (2026-08-16 item 8;
-        # moved off the PR leg 2026-08-22): coverage instrumentation on the
-        # 2-core runner is the wall-clock multiplier — the instrumented PR leg
-        # had grown past 27 minutes against ~2.5 uninstrumented local minutes.
-        # The 80 % floor is one number a PR almost never moves; like the
-        # 3.9/3.11 compatibility legs it is measured on the merge push and
-        # fixed forward (DEVELOPMENT_PROCESS §0). PRs run 3.12 uninstrumented.
-        include: ${{ github.event_name == 'pull_request' && fromJSON('[]') || fromJSON('[{"python-version":"3.12","coverage":"--cov=sloads --cov-report=term-missing --cov-fail-under=80"}]') }}
+        # moved off the PR leg 2026-08-22): coverage instrumentation was the
+        # wall-clock multiplier — the instrumented PR leg had grown past 27
+        # minutes against ~2.5 uninstrumented local minutes. The 80 % floor is
+        # one number a single item almost never moves; like the 3.9/3.11
+        # compatibility legs it is measured on the merge push and fixed forward
+        # (DEVELOPMENT_PROCESS §0). Keeping it off `dev/**` is what holds the
+        # advisory gate at its measured ~7.3 min instead of ~27.
+        include: ${{ (github.event_name == 'push' && github.ref == 'refs/heads/main') && fromJSON('[{"python-version":"3.12","coverage":"--cov=sloads --cov-report=term-missing --cov-fail-under=80"}]') || fromJSON('[]') }}
 
     steps:
       - uses: actions/checkout@v4
@@ -104,8 +113,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # Same split as `test`: 3.12 on every PR, 3.11 on push to main.
-        python-version: ${{ github.event_name == 'pull_request' && fromJSON('["3.12"]') || fromJSON('["3.11", "3.12"]') }}
+        # Same split as `test`: 3.12 everywhere, 3.11 added on the push to main.
+        python-version: ${{ (github.event_name == 'push' && github.ref == 'refs/heads/main') && fromJSON('["3.11", "3.12"]') || fromJSON('["3.12"]') }}
 
     steps:
       - uses: actions/checkout@v4

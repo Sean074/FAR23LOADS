@@ -57,6 +57,14 @@ class WorkflowStep:
     ``requires`` project-slice attribute names that must be present to run.
     ``produces`` dotted attribute path the step fills, or ``None`` for a
                  derived-only view (it shows results but persists no new slice).
+    ``edits``    slices the page's *own form* enters (#45, CR-D-3). Declared
+                 minimally: only where a ``requires`` — its own or another
+                 step's — has no producing step, so the DAG-completeness guard
+                 (``tests/test_workflow.py``) stays closed without duplicating
+                 the field registry. A required slice in the step's own
+                 ``edits`` is *self-entered*: absent it blocks the run, but the
+                 remedy is this page's form, never an upstream page — the
+                 :func:`missing_upstream` / :func:`missing_self_entered` split.
     ``bas``      the original McMaster program(s), or ``None`` for a modern page.
     ``summary``  one-line description for tooltips/help.
     """
@@ -67,6 +75,7 @@ class WorkflowStep:
     module: Optional[str] = None
     requires: Tuple[str, ...] = ()
     produces: Optional[str] = None
+    edits: Tuple[str, ...] = ()
     bas: Optional[str] = None
     summary: str = ""
 
@@ -97,17 +106,25 @@ STEPS: Tuple[WorkflowStep, ...] = (
     # 1a. Geometry -- Step G1 merged the parametric layout + WINGGEOM planform
     # pages into one Geometry page (the single geometry source of truth). The
     # wing_geometry calc module is folded in; this one step owns the geometry slice.
+    # edits: the Step-G6 tail proxy slices. ``tail_loads``/``vtail_loads`` are
+    # ``Project`` properties over ``geometry.empennage``, entered by this page's
+    # empennage form -- required downstream (Tail Loads, Tail Span Loads, One
+    # Engine Out) but nobody's ``produces``. #52's v55 hop retires the proxies;
+    # the rot companion in tests/test_workflow.py fails when it does.
     WorkflowStep("configuration_layout", "Geometry", DEVELOP_VN,
-                 module="configuration", produces="geometry", bas="WINGGEOM",
+                 module="configuration", produces="geometry",
+                 edits=("tail_loads", "vtail_loads"), bas="WINGGEOM",
                  summary="Single geometry source of truth: parametric fuselage/wing/"
                          "tail/gear, fuselage outline, and WINGGEOM surface planforms."),
     # 1b. Weight & mass properties -- Step G3 merged Weight Estimate (WTESTIMA),
     # Weight/CG/Inertia (WTONECG), Payload Cases and Weight/CG Envelope (WTENV) into
     # one tabbed page that owns all weight/mass data. weight_estimate + weight_envelope
     # are folded; weight_onecg is the primary (produces mass, the downstream gate).
+    # edits: ``weight`` is required by weight_onecg yet entered by this page's
+    # own weight-database form -- self-entered, not an upstream gate (#45).
     WorkflowStep("weight_mass", "Weight & Mass Properties", DEVELOP_VN,
                  module="weight_onecg", requires=("weight",), produces="mass",
-                 bas="WTESTIMA+WTONECG+WTENV",
+                 edits=("weight",), bas="WTESTIMA+WTONECG+WTENV",
                  summary="All weight/mass data: statistical estimate, itemised mass "
                          "properties (weight/CG/inertia), loading scenarios, and the "
                          "CG envelope."),
@@ -183,8 +200,11 @@ STEPS: Tuple[WorkflowStep, ...] = (
     WorkflowStep("tab_loads", "Tab Loads", OTHER_LOADS,
                  module="tab", requires=("speeds",), produces="tab_loads",
                  bas="TABLOADS", summary="Control-surface tab loads."),
+    # edits: ``engines`` is required by the calc yet entered by this page's own
+    # engine form -- self-entered, not an upstream gate (#45).
     WorkflowStep("engine_mount", "Engine Mount Loads", OTHER_LOADS,
-                 module="engine", requires=("engines",), produces=None, bas="ENGLOADS",
+                 module="engine", requires=("engines",), produces=None,
+                 edits=("engines",), bas="ENGLOADS",
                  summary="Engine-mount reaction loads (incl. gyroscopic)."),
     WorkflowStep("one_engine_out", "One Engine Out", OTHER_LOADS,
                  module="one_engine_out", requires=("mass", "vtail_loads"),
@@ -282,8 +302,26 @@ def is_produced(project: Project, step: WorkflowStep) -> bool:
 
 
 def missing_requirements(project: Project, step: WorkflowStep) -> List[str]:
-    """The required slices that are not yet present (empty when ready to run)."""
+    """The required slices that are not yet present (empty when ready to run).
+
+    The whole truth about whether the step's calc can run. For *guidance* use
+    the split below: a missing slice the step's own form enters points at this
+    page, not at the pages before it (#45, CR-D-3).
+    """
     return [attr for attr in step.requires if not has(project, attr)]
+
+
+def missing_upstream(project: Project, step: WorkflowStep) -> List[str]:
+    """Missing requires another page must provide first (blocked-on-upstream)."""
+    return [attr for attr in missing_requirements(project, step)
+            if attr not in step.edits]
+
+
+def missing_self_entered(project: Project, step: WorkflowStep) -> List[str]:
+    """Missing requires this page's own form enters — fill the form, don't
+    send the user upstream."""
+    return [attr for attr in missing_requirements(project, step)
+            if attr in step.edits]
 
 
 def step_modules(key: str) -> Tuple[str, ...]:

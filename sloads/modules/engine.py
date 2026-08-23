@@ -15,6 +15,7 @@ import itertools
 import math
 from typing import List, Optional, Tuple
 
+from ..basic import basic_int, basic_trunc3
 from ..case_ids import CaseIdAllocator
 from ..constants import (
     GYRO_VERTICAL_LOAD_FACTOR,
@@ -61,12 +62,10 @@ def combined_cg(inp: EngineInput) -> Vec3:
     if ppwt == 0:
         return (0.0, 0.0, 0.0)
 
-    def trunc3(v: float) -> float:
-        return int(v * 1000) / 1000
-
     out = []
     for prop_c, eng_c in zip(inp.prop_cg, inp.engine_cg):
-        out.append(trunc3((inp.prop_weight_lb * prop_c + inp.engine_weight_lb * eng_c) / ppwt))
+        out.append(basic_trunc3(
+            (inp.prop_weight_lb * prop_c + inp.engine_weight_lb * eng_c) / ppwt))
     return (out[0], out[1], out[2])
 
 
@@ -123,7 +122,7 @@ def _prop_inertia(inp: EngineInput) -> float:
     blade_weight = inp.prop_weight_lb - (inp.hub_weight_lb or 0.0)
     radius_ft = inp.prop_diameter_in / 2 / IN_PER_FT
     val = blade_weight / G * radius_ft ** 2 / 3
-    return int(val * 1000) / 1000  # BASIC truncated to 3 decimals
+    return basic_trunc3(val)  # BASIC truncated to 3 decimals
 
 
 def _rotor_inertia(rotor: Rotor) -> float:
@@ -298,7 +297,7 @@ def condition_361_b1(inp: EngineInput) -> ConditionResult:
     values = [LoadValue("Ixx propeller", iprop, "slug-ft^2", key="ixx_propeller")]
     values.extend(rotor_values)
     values.append(LoadValue("Time to stop", dt, "s", key="time_to_stop"))
-    values.append(LoadValue("Engine mount torque", int(-torq_total), "ft-lb", key="mx_mount_torque"))
+    values.append(LoadValue("Engine mount torque", basic_int(-torq_total), "ft-lb", key="mx_mount_torque"))
     return ConditionResult(
         title="Torque for sudden stoppage due to malfunction or structural failure",
         far_reference="23.361(b)(1)",
@@ -431,7 +430,7 @@ def condition_25_361_a3i(inp: EngineInput) -> ConditionResult:
         LoadValue("Applied at X", cg[0], "in", key="loc_x"),
         LoadValue("Applied at Y", cg[1], "in", key="loc_y"),
         LoadValue("Applied at Z", cg[2], "in", key="loc_z"),
-        LoadValue("Engine mount torque", int(-torq_total), "ft-lb", key="mx_mount_torque"),
+        LoadValue("Engine mount torque", basic_int(-torq_total), "ft-lb", key="mx_mount_torque"),
     ])
     return ConditionResult(
         title="Sudden engine deceleration (stoppage) torque with 1g level flight loads",

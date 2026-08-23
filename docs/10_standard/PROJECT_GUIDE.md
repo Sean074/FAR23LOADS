@@ -185,6 +185,8 @@ FAR23LOADS/
 ├── sloads/                       # the shared, pure-calc package — no I/O in calc code
 │   ├── constants.py              # ONE home for g, pi, unit factors, atmosphere (Decision 3)
 │   ├── units.py                  # Imperial<->SI boundary conversion + deliverable_units (the unit-channel SSOT)
+│   ├── basic.py                  # ONE home for GW-BASIC numeric semantics: `INT()` floors where Python's `int()` truncates (CR-B-3)
+│   ├── convergence.py            # THE iterative-solver outcome vocabulary: converged / clamped / failed, and the refusal an exhausted loop raises (#33)
 │   ├── models/                   # the Project schema, split from models.py at M3-1
 │   │   ├── enums.py              # schema enumerations (categories, kinds, tail types)
 │   │   ├── inputs.py             # per-module input dataclasses
@@ -203,6 +205,8 @@ FAR23LOADS/
 │   ├── cg_cases.py               # the one resolver for weight/CG cases and the two design weights (step 10 piece 2)
 │   ├── mass_distribution.py      # MASS SSOT: weight.items -> per-component station inertia (B1/B-2)
 │   ├── derived_geometry.py       # single-source geometry derivations (wing/fuselage/carry-through; M2-6)
+│   ├── derived.py                # derived slices (`Project.mass` from `weight.items`) and their one refresher (#62)
+│   ├── selectors.py              # selector names (surface / CG case / coefficient set): seeds, uniqueness, `keyed` lookups (#63)
 │   ├── tail_geometry.py          # the empennage planform the spanwise strip integrator runs on (plan 09 T1)
 │   ├── aero_curves.py            # airplane-less-tail aero-coefficient curves + their closure checks (M4-5)
 │   ├── vn_diagram.py             # pure V-n diagram geometry: stall/manoeuvre/gust polylines (Phase E3)
@@ -219,6 +223,7 @@ FAR23LOADS/
 │   │   ├── methods.py            # the ONE methods & limitations statement (+ CSV `#` / BDF `$` wrappers)
 │   │   ├── coverage.py           # FAR 23 Subpart C coverage matrix (covered / n-a / not analysed / out of scope)
 │   │   ├── content.py            # Project + module results → ReportDocument (sections/tables/figures) — no LaTeX
+│   │   ├── bundle.py             # THE Export zip's member list: every file it carries, with the manifest row that names it (CR-C-1)
 │   │   ├── conventions_tex.py    # the report's "Axes and sign conventions" section, from CONVENTIONS.md's owners
 │   │   ├── latex.py              # ReportDocument → .tex (escaping, longtable, document control)
 │   │   └── plots_tex.py          # pgfplots figures: V-n, weight/CG, speed–altitude

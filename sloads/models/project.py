@@ -251,7 +251,14 @@ from .results import EnvelopeResult, LoadsResult, MassResult
 # Both additive with None defaults, no migration hop; the v-tail
 # CriticalCondition gains beta_deg / cy_beta_fin / cn_beta_fin (result slice,
 # tolerant reader defaults them to None).
-SCHEMA_VERSION = 54
+# v55 (#52, note 33 DS-7 / §8 -- the 0.7.0-beta freeze's one hop): the two
+# class-C duplicate pairs retired. MachLimitInput.shoulder_altitude_ft removed
+# (speeds.shoulder_altitude_ft is the single home; mach_limit_lines takes it as
+# an argument); TailLoadsInput/VTailLoadsInput.airplane_length_in removed in
+# favour of one EmpennageInput.airplane_length_in. The v54 hop reconciles each
+# pair, keeping the value that governed the shipped output and warning on
+# disagreement.
+SCHEMA_VERSION = 55
 
 
 @dataclass
@@ -328,14 +335,24 @@ class Project:
     # FAR 23 conditions. Defaults off, so GA projects are byte-identical.
     include_far25: bool = False
 
-    def __post_init__(self) -> None:
-        if self.engine_layout is not None and self.engines:
-            expected = self.engine_layout.expected_count
-            if len(self.engines) != expected:
-                raise ValueError(
-                    f"engine_layout {self.engine_layout.value} expects {expected} "
-                    f"engine(s), got {len(self.engines)}"
-                )
+    def engine_layout_problem(self) -> Optional[str]:
+        """Why ``engine_layout`` and ``engines`` disagree, or ``None``.
+
+        The one statement of the rule (``2W`` means two engines). It is asked,
+        not enforced at construction: the constructor used to raise, so a
+        layout and a count set in either order on the Engine Mount page were
+        accepted in-session, written by Save, and refused by the loader -- a
+        file that could not be reopened (#66, PB-7). Now the loader flags it,
+        the oracle page withholds its results, and the one consumer that
+        reads the layout (WINGGEOM's engine stations) refuses by this name.
+        """
+        if self.engine_layout is None or not self.engines:
+            return None
+        expected = self.engine_layout.expected_count
+        if len(self.engines) == expected:
+            return None
+        return (f"engine_layout {self.engine_layout.value} expects {expected} "
+                f"engine(s), got {len(self.engines)}")
 
     @property
     def engine(self) -> Optional["EngineInput"]:

@@ -312,6 +312,14 @@ class GoverningTable:
 
     rows: List[Row] = field(default_factory=list)
     defaulted: List[str] = field(default_factory=list)
+    #: Type names of items :meth:`stamp` was handed that carry no
+    #: ``safety_factor`` attribute, so it could not write the factor onto them
+    #: (review CR-B-6). Recorded the way ``defaulted`` records an unclassifiable
+    #: case: an unstamped result is a result whose report figure and whose
+    #: bulk-data card can still disagree, which is the whole defect class F-R1
+    #: closed, and a silent ``hasattr`` skip is how it would come back. Empty on
+    #: every shipped path, and a test says so.
+    unstampable: List[str] = field(default_factory=list)
 
     @classmethod
     def for_project(cls, project: Any = None) -> "GoverningTable":
@@ -384,6 +392,11 @@ class GoverningTable:
         for item in items or ():
             if hasattr(item, "safety_factor"):
                 item.safety_factor = self.factor_for(item).factor
+            else:
+                # Recorded, not passed over: see ``unstampable``.
+                name = type(item).__name__
+                if name not in self.unstampable:
+                    self.unstampable.append(name)
         return self
 
 

@@ -34,7 +34,8 @@ import plotly.graph_objects as go
 import streamlit as st
 from plotly.subplots import make_subplots
 
-from app_shell.components import active_system, gate
+from app_shell.components import active_system, gate, stop_page
+from app_shell.widget_keys import widget_key
 from sloads import Project, UnitSystem, si_scalar_label, to_si_scalar
 from sloads.case_ids import case_label
 from sloads.modules.aileron import build_aileron
@@ -107,7 +108,7 @@ if not any((loads.wing_net, loads.body_net, loads.tail_chordwise, loads.control_
         "**Wing Loads**, **Fuselage Loads**, **Tail Loads**, and "
         "**Aileron/Flap/Tab Loads** pages first."
     )
-    st.stop()
+    stop_page()
 
 if project.is_concept:
     st.warning("Concept category (C): shown curves may be an **unverified "
@@ -237,14 +238,16 @@ if not available:
 else:
     comp_key = st.radio(
         "Component", list(available.keys()),
-        format_func=lambda k: available[k][0], horizontal=True)
+        format_func=lambda k: available[k][0], horizontal=True,
+        key=widget_key("plots_component"))
     title, cases_fn, x_label = available[comp_key]
     cases = cases_fn()
 
     case_ids = [c[0] for c in cases]
     labels = {c[0]: c[1] for c in cases}
     selected = st.multiselect(
-        "Case IDs", case_ids, default=case_ids, format_func=lambda cid: labels[cid])
+        "Case IDs", case_ids, default=case_ids, format_func=lambda cid: labels[cid],
+        key=widget_key("plots_case_ids"))
 
     shown = [c for c in cases if c[0] in selected]
     if not shown:
@@ -308,8 +311,10 @@ else:
     c1, c2 = st.columns(2)
     wing_labels = {c[0]: c[1] for c in wing_cases}
     body_labels = {c[0]: c[1] for c in body_cases}
-    wing_sel = c1.selectbox("Wing case", list(wing_labels), format_func=lambda k: wing_labels[k])
-    body_sel = c2.selectbox("Fuselage case", list(body_labels), format_func=lambda k: body_labels[k])
+    wing_sel = c1.selectbox("Wing case", list(wing_labels), format_func=lambda k: wing_labels[k],
+                            key=widget_key("plots_wing_case"))
+    body_sel = c2.selectbox("Fuselage case", list(body_labels), format_func=lambda k: body_labels[k],
+                            key=widget_key("plots_body_case"))
 
     w = next(c for c in wing_cases if c[0] == wing_sel)
     b = next(c for c in body_cases if c[0] == body_sel)
@@ -358,7 +363,8 @@ st.caption(
 _WING_COLS = {"Case", "GID", "X", "Y", "Z", "Fx", "Fz", "My", "Sx", "Sz", "Mxx", "Myy", "Mzz"}
 _BODY_COLS = {"Case", "GID", "X", "Fz", "Sz", "Myy"}
 
-uploaded = st.file_uploader("Span-load CSV", type=["csv"])
+uploaded = st.file_uploader("Span-load CSV", type=["csv"],
+                            key=widget_key("plots_upload_csv"))
 if uploaded is not None:
     try:
         # comment='#': an uploaded file may be one of this tool's own stamped
@@ -400,7 +406,8 @@ if uploaded is not None:
             if comp_labels:
                 overlay_target = st.selectbox(
                     f"Overlay against this computed {kind} case",
-                    list(comp_labels), format_func=lambda k: comp_labels[k])
+                    list(comp_labels), format_func=lambda k: comp_labels[k],
+                    key=widget_key("plots_overlay_target"))
             for y_col in y_cols:
                 fig = go.Figure()
                 for case_name, grp in df.groupby("Case"):

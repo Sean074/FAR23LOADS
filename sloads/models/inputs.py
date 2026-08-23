@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Set, Tuple
+from typing import Dict, List, Mapping, Optional, Set, Tuple
 
 from ..constants import DEFAULT_REF_AXIS_PCT, ULTIMATE_FACTOR
 from .enums import (
@@ -446,7 +446,7 @@ class GeometryInput:
 
     def by_name(self, name: str) -> Optional[SurfaceInput]:
         for s in self.surfaces:
-            if s.name == name:
+            if same_name(s.name, name):
                 return s
         return None
 
@@ -505,7 +505,7 @@ class AeroInput:
 
     def by_name(self, name: str) -> Optional[AeroSurfaceInput]:
         for s in self.surfaces:
-            if s.name == name:
+            if same_name(s.name, name):
                 return s
         return None
 
@@ -527,10 +527,56 @@ class MachLimitInput:
     They used to be stored here *and* silently recomputed by the Streamlit page,
     so the CLI and the GUI produced different MNE/MFC for the same project; the
     v39 migration hop drops the stale stored values.
+
+    **The shoulder altitude is not stored here either** (#52, schema v55). It
+    lives once, on ``StructuralSpeedsInput.shoulder_altitude_ft``, and reaches
+    :func:`mach_limit_lines` as an argument beside MC/MD: a second persisted
+    copy let the Mach-limit table start at one altitude while MC/MD were derived
+    at another, with nothing reconciling the two. The v54 hop folds the copy in.
     """
-    shoulder_altitude_ft: float = 0.0
     max_operating_altitude_ft: float = 0.0
     increment_ft: float = 1000.0
+
+
+def same_name(a: str, b: str) -> bool:
+    """Whether two selector names pick the same thing: case and edge spaces are
+    not identity. ``Wing`` and ``wing`` are one surface (review 2026-08-22 PB-9
+    -- a fresh surface named ``Wing`` blocked eight pages); every ``by_name``
+    and every uniqueness check reads this one rule."""
+    return a.strip().casefold() == b.strip().casefold()
+
+
+#: FAR 23 certification category codes (STRSPEED, UG Table 7.1) -> what they
+#: mean. ``C`` is sloads' concept mode (decision D-1). The one table the
+#: widgets offer and :func:`normalise_code` checks against: typed free text
+#: ("Utility", "u") used to fall through every ``== "U"`` to Normal's 3.8
+#: (review 2026-08-22 PB-8).
+CATEGORIES: Dict[str, str] = {
+    "N": "Normal / commuter",
+    "U": "Utility",
+    "A": "Acrobatic",
+    "C": "Concept (no 23.337 cap; chosen load factors verbatim)",
+}
+
+#: LGFACTOR strut types -> the energy efficiency they select (landing.py).
+STRUT_TYPES: Dict[str, str] = {
+    "O": "Oleo (0.75 strut efficiency)",
+    "S": "Spring (0.50 strut efficiency)",
+}
+
+
+def normalise_code(value: str, codes: Mapping[str, str], what: str) -> str:
+    """``value`` as its canonical code, or a ``ValueError`` naming the choices.
+
+    Case and edge spaces are forgiven (``"u"`` is Utility); anything else is
+    refused rather than read as the default -- a coded field with no match is
+    a wrong airplane, not a normal one.
+    """
+    code = value.strip().upper()
+    if code not in codes:
+        choices = ", ".join(f"{k} = {v}" for k, v in codes.items())
+        raise ValueError(f"{what} {value!r} is not one of {choices}")
+    return code
 
 
 @dataclass
@@ -552,7 +598,7 @@ class StructuralSpeedsInput:
     the field comments below); it defaults to the speed-ratio route, so an
     existing project's numbers are unchanged by F25-2.
     """
-    category: str = "N"
+    category: str = "N"                        # a CATEGORIES code; normalised in __post_init__
     weight_lb: float = 0.0
     occupants: Optional[int] = None            # total souls on board; the FAR 23 seat-limit
                                                # check counts passenger seats = occupants - crew.
@@ -564,7 +610,9 @@ class StructuralSpeedsInput:
     # on Project.aero_coeffs (clmax_clean/clmax_flap): VS = sqrt(295*(W/S)/CLmax)
     # at the design weight (User's Guide p7-5). CLmax is entered once, on the
     # Aerodynamic Data page; STRSPEED reads it (M1-1b). No stall-speed scalar here.
-    shoulder_altitude_ft: float = 0.0           # for the MC/MD Mach numbers
+    shoulder_altitude_ft: float = 0.0           # for the MC/MD Mach numbers AND the
+                                                # MACHLIM table's first row (single
+                                                # home since v55, #52)
     wing_surface: str = "wing"
     chosen_vc: Optional[float] = None
     chosen_vd: Optional[float] = None
@@ -603,6 +651,12 @@ class StructuralSpeedsInput:
     target_vmo: Optional[float] = None          # desired max operating VMO (KEAS, turbine)
     target_mmo: Optional[float] = None          # desired max operating MMO (Mach, turbine)
     target_vfe: Optional[float] = None          # desired flap extended VFE (KEAS)
+
+    def __post_init__(self) -> None:
+        # Case and edge spaces are not a category: ``"u"`` is Utility. An
+        # unknown code is left for the consumer to refuse by name
+        # (``normalise_code``) rather than refusing the whole file here.
+        self.category = self.category.strip().upper()
 
 
 # --------------------------------------------------------------------------- #
@@ -1049,7 +1103,9 @@ class TailLoadsInput:
     elevator_area_sqft: float = 0.0            # SE (total elevator area)
     elevator_fwd_hinge_sqft: float = 0.0       # SEFWDHL
     elevator_aft_hinge_sqft: float = 0.0       # SEAFTHL
-    airplane_length_in: float = 0.0            # LF (inches; Iyy uses LF_ft = LF_in/12)
+    # LF (airplane length, for the approximate Iyy) is NOT here: it is a
+    # whole-airplane quantity stored once on EmpennageInput.airplane_length_in
+    # (#52, v55) and read from the Project by SELECT.
     wing_lift_slope_per_rad: float = 0.0       # AW (gust downwash relief 1 - 36*aw/ARW)
     # Chordwise distribution (TAILDIST, Ch 10) -- the horizontal-tail semi-span
     # (BLHTAIL, inches) sets the average tail chord CAVE = S/B for the chordwise
@@ -1096,7 +1152,8 @@ class VTailLoadsInput:
     vtail_mac_in: float = 0.0                  # VMAC (inches; VMAC_ft = VMAC_in/12)
     xv25: float = 0.0                          # fuselage station of 25% vtail MAC
     xv50: float = 0.0                          # fuselage station of 50% vtail MAC (ONENGOUT camber load)
-    airplane_length_in: float = 0.0            # LF (inches; IZZ uses LF_ft = LF_in/12)
+    # LF (airplane length, for the default IZZ) lives once on
+    # EmpennageInput.airplane_length_in (#52, v55); SELECT reads it from the Project.
     wing_span_in: float = 0.0                  # B (inches; IZZ uses B_ft = B_in/12)
     gross_weight_lb: float = 0.0               # GW (IZZ default; 0 -> use the heaviest CG case)
     rudder_large_deflection_factor: float = 1.0  # EFV (subr 10000 chart; ~1.0)
@@ -1210,9 +1267,15 @@ class EmpennageInput:
     read the analysis-native values here, so the empennage geometry is stored in
     exactly one place. The tail *arm* is derived where needed (25% tail MAC station
     ``xt25``/``xv25`` minus the 25% wing MAC station), not stored twice.
+
+    ``airplane_length_in`` (SELECT's LF, inches) is the one whole-airplane
+    length both tails' inertia defaults use -- the 23.423(b) pitch inertia
+    ``Iyy = W*LF^2/g/12*0.44`` and the 23.441 default ``IZZ``. Until schema v55
+    each tail carried its own copy (#52, note 33 DS-7); it is stored here, once.
     """
     htail: Optional[TailLoadsInput] = None
     vtail: Optional[VTailLoadsInput] = None
+    airplane_length_in: float = 0.0            # LF (inches; LF_ft = LF_in/12 in the inertias)
 
 
 # --------------------------------------------------------------------------- #
@@ -1369,7 +1432,7 @@ class LandingGearInput:
     axle_static: XYPoint = (0.0, 0.0)       # (X, Z) static
     axle_extended: XYPoint = (0.0, 0.0)     # (X, Z) fully extended (reference)
     rolling_radius_in: float = 0.0          # RM / RN
-    strut: str = "O"                        # "O" oleo | "S" spring
+    strut: str = "O"                        # a STRUT_TYPES code; normalised in __post_init__
     # Decision G-2 -- where the leg's reaction goes once LANDLOAD has computed it
     # at the tyre contact patch (23.485(d) puts it there). ``attach`` is the
     # airframe attachment/trunnion node in airplane coordinates, and is also
@@ -1410,6 +1473,9 @@ class LandingGearInput:
     #: quantity. Entering the split would imply a gear-design capability the tool
     #: does not have.
     weight_lb: float = 0.0                  # whole leg, trunnion down (G-12a)
+
+    def __post_init__(self) -> None:
+        self.strut = self.strut.strip().upper()  # "o" is an oleo; unknown codes refused by LGFACTOR
 
 
 @dataclass
@@ -1624,6 +1690,8 @@ def default_fuselage_outline(parametric: "LayoutInput") -> Optional[FuselageOutl
 
 
 __all__ = [
+    "CATEGORIES",
+    "STRUT_TYPES",
     "AeroCoeffSet",
     "AeroCoefficientsInput",
     "AeroInput",
@@ -1670,4 +1738,6 @@ __all__ = [
     "WingMassInput",
     "XYPoint",
     "default_fuselage_outline",
+    "normalise_code",
+    "same_name",
 ]

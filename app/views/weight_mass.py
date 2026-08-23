@@ -15,7 +15,7 @@ downstream). Four tabs, each a formerly-separate page:
 
 Inputs are Imperial (the manual's units); results follow the sidebar Imperial/SI
 toggle (``Home.py``). Each tab is a function so a missing-prerequisite guard can
-``return`` without ``st.stop()`` killing the sibling tabs.
+``return`` without ``stop_page()`` killing the sibling tabs.
 """
 
 from __future__ import annotations
@@ -26,7 +26,7 @@ import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
 
-from app_shell.components import gate, page_header, workflow_page_link
+from app_shell.components import gate, page_header, unit_number_input, workflow_page_link
 from app_shell.widget_keys import widget_key
 from sloads import (
     GROUND_CASE_ROLE_ORDER,
@@ -36,7 +36,6 @@ from sloads import (
     GroundCaseRole,
     MassItem,
     MassItemKind,
-    MissingInputError,
     Project,
     UnitSystem,
     WeightEnvelopeInput,
@@ -55,7 +54,7 @@ from sloads.models import MassComponent
 from sloads.modules.weight_envelope import envelope as compute_envelope
 from sloads.modules.weight_envelope import loading_envelope_points
 from sloads.modules.weight_estimate import estimate, estimate_to_mass_items
-from sloads.modules.weight_onecg import build_mass, weights_and_inertia
+from sloads.modules.weight_onecg import refresh_mass, weights_and_inertia
 from sloads.report import module_text_report
 from sloads.report.methods import bdf_comment_block
 from sloads.validation import wtenv_cg_limits
@@ -106,6 +105,7 @@ def _tab_estimate(project: Project, system: UnitSystem, U: dict) -> None:
     with st.form("weight_estimate_form"):
         st.subheader("Mission inputs")
         airplane = st.text_input("Airplane", value=existing.airplane if existing else "",
+                                 key=widget_key("we_airplane"),
                                  help="Airplane name/label; used on the report and the fleet-comparison marker.")
         # No hard max_value caps: this is a concept-aware superset that must accept
         # airplanes beyond the GA band, so a loaded value can never exceed the widget's
@@ -124,25 +124,29 @@ def _tab_estimate(project: Project, system: UnitSystem, U: dict) -> None:
         override_hp = st.checkbox(
             "Override max continuous power for the weight estimate",
             value=existing.override_max_continuous_hp if existing else False,
+            key=widget_key("we_override_hp"),
             help="Off: the estimate uses the engine-list total above. On: it uses the value "
                  "you enter here instead (they can legitimately differ for a first-cut estimate).")
-        hp = st.number_input(
-            f"Max continuous power override ({U['power']}, total)", min_value=0.0,
-            value=float(round(to_display(existing.max_continuous_hp, "power", system), 4))
-            if existing else 0.0, key=widget_key(f"max_cont_hp_{system.value}"),
+        hp = unit_number_input(
+            "Max continuous power override (total)",
+            float(existing.max_continuous_hp) if existing else 0.0,
+            kind="power", key="we_max_cont_hp", min_value=0.0,
             help="Combined total maximum continuous power. Applied only when the override box "
                  "is ticked (else the engine-list total is used). Separate from the per-engine "
                  "power on the Engine Mount page (engine-torque and flap-slipstream loads).")
         engines = st.number_input("Number of engines", min_value=1,
                                   value=existing.engines if existing else 1,
+                                  key=widget_key("we_engines"),
                                   help="Engine count; the power above is the combined total, not per engine.")
         seats = st.number_input("Number of seats", min_value=1,
                                 value=existing.seats if existing else 1,
+                                key=widget_key("we_seats"),
                                 help="Total design seats (crew + passengers). Seeds the Structural Speeds "
                                      "occupant count for the FAR 23 seat-limit check.")
         crew = st.number_input(
             "Flight crew", min_value=0,
             value=existing.crew if existing else 1,
+            key=widget_key("we_crew"),
             help=(
                 "Required flight crew (170 lb each). Carried in the operating empty "
                 "weight (OEW = empty + crew×170), not the payload. The FAR 23 "
@@ -151,20 +155,22 @@ def _tab_estimate(project: Project, system: UnitSystem, U: dict) -> None:
         )
         hours = st.number_input("Endurance at cruise power (hr)", min_value=0.0,
                                 value=float(existing.cruise_hours) if existing else 0.0,
+                                key=widget_key("we_hours"),
                                 help="Mission endurance at cruise power; drives the estimated fuel weight "
                                      "(WTESTIMA, Ch 3).")
-        baggage = st.number_input(
-            f"Baggage weight ({U['weight']})", min_value=0.0,
-            value=float(round(to_display(existing.baggage_lb, "weight", system), 4))
-            if existing else 0.0, key=widget_key(f"baggage_{system.value}"),
+        baggage = unit_number_input(
+            "Baggage weight", float(existing.baggage_lb) if existing else 0.0,
+            kind="weight", key="we_baggage", min_value=0.0,
             help="Design baggage payload weight; part of the useful load.")
         pressurized = st.checkbox("Pressurized", value=existing.pressurized if existing else False,
+                                  key=widget_key("we_pressurized"),
                                   help="Cabin pressurization adds a structural-weight allowance in the estimate.")
         default_idx = _ENGINE_LABELS.index(
             next((k for k, v in _ENGINE_TYPES.items() if existing and v == existing.engine_weight_type),
                  "4-cycle reciprocating")
         )
         engine_label = st.selectbox("Engine type", _ENGINE_LABELS, index=default_idx,
+                                    key=widget_key("we_engine_type"),
                                     help="Engine class; selects the empty-weight correlation used for the "
                                          "powerplant weight (WTESTIMA, Ch 3).")
         applied = st.form_submit_button("Apply mission inputs", type="primary")
@@ -172,13 +178,13 @@ def _tab_estimate(project: Project, system: UnitSystem, U: dict) -> None:
     if applied:
         inp = WeightEstimationInput(
             airplane=airplane,
-            max_continuous_hp=to_imperial_scalar(hp, "power", system),
+            max_continuous_hp=hp,
             override_max_continuous_hp=bool(override_hp),
             engines=int(engines),
             seats=int(seats),
             crew=int(crew),
             cruise_hours=hours,
-            baggage_lb=to_imperial_scalar(baggage, "weight", system),
+            baggage_lb=baggage,
             pressurized=pressurized,
             engine_weight_type=_ENGINE_TYPES[engine_label],
         )
@@ -378,15 +384,16 @@ def _tab_cg_inertia(project: Project, system: UnitSystem, U: dict) -> None:
             max_landing_weight_lb=project.weight.max_landing_weight_lb if project.weight else 0.0,
             max_takeoff_weight_lb=project.weight.max_takeoff_weight_lb if project.weight else 0.0,
         )
-        # M4-17a: persist the derived mass-properties slice, so the weight_mass step's
-        # produces="mass" finally turns ✅ and the downstream consumers have a real
-        # source -- ONENGOUT's IZZ, configuration.cg_estimate's "Weight DB" branch and
-        # the Landing Loads waterline seed. build_mass raises on an empty/degenerate
-        # item list; leave any prior slice untouched in that case.
-        try:
-            project.mass = build_mass(project)
-        except (MissingInputError, ValueError, ZeroDivisionError, KeyError) as exc:
-            st.warning(f"Weight items applied, but the mass slice could not be built: {exc}")
+        # M4-17a: the derived mass-properties slice, so the weight_mass step's
+        # produces="mass" turns ✅ and the downstream consumers have a real source
+        # -- ONENGOUT's IZZ, configuration.cg_estimate's "Weight DB" branch and
+        # the Landing Loads waterline seed. One owner for both GUIs (#62):
+        # refresh_mass derives from the items as applied, or clears the slice
+        # when they derive nothing, rather than leaving a stale loading behind.
+        refresh_mass(project)
+        if project.mass is None:
+            st.warning("Weight items applied, but they derive no mass slice -- "
+                       "add at least one item with a non-zero weight.")
         st.session_state["project"] = project
 
     if not project.weight or not project.weight.items:
@@ -629,21 +636,17 @@ def _tab_envelope(project: Project, system: UnitSystem, U: dict) -> None:
         "ordering chain OEW ≤ MLW ≤ MTOW ≤ Σ items is checked below."
     )
     dw1, dw2 = st.columns(2)
-    mtow_disp = dw1.number_input(
-        f"Max take-off weight, MTOW ({U['weight']})", min_value=0.0,
-        value=float(round(to_display(project.weight.max_takeoff_weight_lb, "weight", system), 4)),
+    mtow_ssot = unit_number_input(
+        "Max take-off weight, MTOW", float(project.weight.max_takeoff_weight_lb),
+        kind="weight", key="wm_mtow", min_value=0.0, container=dw1,
         help="A single scalar, assumed constant between the forward and aft CG "
              "limits (decision G-14). The item-database total is an upper bound, "
-             "not this: a database can hold full fuel *and* full payload at once.",
-        key=widget_key(f"mtow_{system.value}"))
-    mtow_ssot = to_imperial_scalar(mtow_disp, "weight", system)
-    mlw_disp = dw2.number_input(
-        f"Max landing weight, MLW ({U['weight']})", min_value=0.0,
-        value=float(round(to_display(project.weight.max_landing_weight_lb, "weight", system), 4)),
+             "not this: a database can hold full fuel *and* full payload at once.")
+    mlw_ssot = unit_number_input(
+        "Max landing weight, MLW", float(project.weight.max_landing_weight_lb),
+        kind="weight", key="wm_mlw", min_value=0.0, container=dw2,
         help="Typically 0.95·MTOW (14 CFR 23.473(b)/(c)). Never derived silently — "
-             "the estimate below is offered for acceptance, not written for you.",
-        key=widget_key(f"mlw_{system.value}"))
-    mlw_ssot = to_imperial_scalar(mlw_disp, "weight", system)
+             "the estimate below is offered for acceptance, not written for you.")
     _floor = max_landing_weight_estimate(project)
     if _floor:
         st.caption(
@@ -663,7 +666,7 @@ def _tab_envelope(project: Project, system: UnitSystem, U: dict) -> None:
 
     st.subheader("Structural limits")
     override_weight = st.checkbox(
-        "Override gross weight", value=False,
+        "Override gross weight", value=False, key=widget_key("wenv_override_weight"),
         help="Uncheck to use the MTOW entered above (decision G-14's single owner).",
     )
     if not mtow_upstream and not override_weight:
@@ -672,30 +675,28 @@ def _tab_envelope(project: Project, system: UnitSystem, U: dict) -> None:
             "through — tick **Override gross weight** to enter the envelope's "
             "gross weight directly, or fill MTOW.")
     if override_weight or not mtow_upstream:
-        gross_disp = st.number_input(
-            f"Gross weight ({U['weight']})", min_value=1.0,
-            value=float(round(to_display(
-                existing.gross_weight if existing and existing.gross_weight else mtow_upstream,
-                "weight", system), 4)),
-            key=widget_key(f"gross_weight_{system.value}"))
-        gross = to_imperial_scalar(gross_disp, "weight", system)
+        gross = unit_number_input(
+            "Gross weight",
+            float(existing.gross_weight if existing and existing.gross_weight else mtow_upstream),
+            kind="weight", key="wenv_gross_weight", min_value=1.0)
     else:
         gross = mtow_upstream
         st.caption(
             f"Gross weight from the MTOW entered above: "
             f"**{to_display(mtow_upstream, 'weight', system):,.0f} {U['weight']}**.")
     aft = st.number_input("Aft gross CG (% MAC)", min_value=0.0, max_value=100.0,
-                          value=float(existing.aft_gross_pct_mac) if existing else 31.0)
+                          value=float(existing.aft_gross_pct_mac) if existing else 31.0,
+                          key=widget_key("wenv_aft_pct_mac"))
     fwd = st.number_input("Forward gross CG (% MAC)", min_value=0.0, max_value=100.0,
-                          value=float(existing.fwd_gross_pct_mac) if existing else 20.0)
+                          value=float(existing.fwd_gross_pct_mac) if existing else 20.0,
+                          key=widget_key("wenv_fwd_pct_mac"))
     reg = st.number_input("Forward regardless CG (% MAC)", min_value=0.0, max_value=100.0,
-                          value=float(existing.fwd_regardless_pct_mac) if existing else 13.0)
-    reg_w_disp = st.number_input(
-        f"Forward regardless weight ({U['weight']})", min_value=1.0,
-        value=float(round(to_display(
-            existing.fwd_regardless_weight if existing else 2800.0, "weight", system), 4)),
-        key=widget_key(f"reg_w_{system.value}"))
-    reg_w = to_imperial_scalar(reg_w_disp, "weight", system)
+                          value=float(existing.fwd_regardless_pct_mac) if existing else 13.0,
+                          key=widget_key("wenv_reg_pct_mac"))
+    reg_w = unit_number_input(
+        "Forward regardless weight",
+        float(existing.fwd_regardless_weight if existing else 2800.0),
+        kind="weight", key="wenv_reg_w", min_value=1.0)
 
     inp = WeightEnvelopeInput(
         gross_weight=gross, aft_gross_pct_mac=aft, fwd_gross_pct_mac=fwd,

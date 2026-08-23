@@ -160,6 +160,79 @@ def test_the_v46_hop_moves_both_design_weights_off_the_landing_slice():
     assert "cg_cases" not in out["flight_loads"]
 
 
+# --------------------------------------------------------------------------- #
+# v54 -> v55: the two class-C duplicate pairs fold to one field each (#52, DG-7)
+# --------------------------------------------------------------------------- #
+def test_the_v54_hop_folds_agreeing_copies_silently():
+    """The shipped case: both copies equal, so the hop moves the value and says
+    nothing. ``v47_current`` still carries both pairs, which is what makes it
+    the fixture for this hop."""
+    import warnings
+
+    raw = _load("v47_current.json")
+    assert raw["speeds"]["mach_limit"]["shoulder_altitude_ft"] == raw["speeds"]["shoulder_altitude_ft"]
+    emp = raw["geometry"]["empennage"]
+    assert emp["htail"]["airplane_length_in"] == emp["vtail"]["airplane_length_in"]
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        out = migrate(raw)
+    assert "shoulder_altitude_ft" not in out["speeds"]["mach_limit"]
+    assert out["speeds"]["shoulder_altitude_ft"] == raw["speeds"]["shoulder_altitude_ft"]
+    for surface in ("htail", "vtail"):
+        assert "airplane_length_in" not in out["geometry"]["empennage"][surface]
+    assert out["geometry"]["empennage"]["airplane_length_in"] == emp["htail"]["airplane_length_in"]
+
+
+def test_the_v54_hop_keeps_the_governing_value_and_warns_on_disagreement():
+    """DS-7.2: the MACHLIM copy governed every Mach-limit table ever produced,
+    so it wins and the legacy file's lines are unchanged; the two LF copies each
+    fed their own inertia, so the htail value is kept. Either way the warning
+    names both numbers, once per pair."""
+    raw = _load("v47_current.json")
+    raw["speeds"]["shoulder_altitude_ft"] = 10000
+    raw["speeds"]["mach_limit"]["shoulder_altitude_ft"] = 12000
+    raw["geometry"]["empennage"]["htail"]["airplane_length_in"] = 300.0
+    raw["geometry"]["empennage"]["vtail"]["airplane_length_in"] = 330.0
+    with pytest.warns(UserWarning) as record:
+        out = migrate(raw)
+    messages = [str(w.message) for w in record]
+    assert len(messages) == 2, messages
+    alt, lf = messages
+    assert "shoulder altitude" in alt and "10000" in alt and "12000" in alt and "keeping 12000" in alt
+    assert "airplane length" in lf and "300" in lf and "330" in lf and "keeping 300" in lf
+    assert out["speeds"]["shoulder_altitude_ft"] == 12000
+    assert out["geometry"]["empennage"]["airplane_length_in"] == 300.0
+    # And the warning reaches the Project reader too (the GUI captures it there).
+    with pytest.warns(UserWarning):
+        project = io.project_from_dict(raw)
+    assert project.speeds.shoulder_altitude_ft == 12000
+    assert project.geometry.empennage.airplane_length_in == 300.0
+
+
+def test_the_v54_hop_lets_an_unentered_copy_lose_silently():
+    """A zero or absent member was never entered: no disagreement, no warning."""
+    import warnings
+
+    raw = _load("v47_current.json")
+    raw["speeds"]["shoulder_altitude_ft"] = 0
+    del raw["geometry"]["empennage"]["vtail"]["airplane_length_in"]
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        out = migrate(raw)
+    assert out["speeds"]["shoulder_altitude_ft"] == 12000
+    assert out["geometry"]["empennage"]["airplane_length_in"] == \
+        _load("v47_current.json")["geometry"]["empennage"]["htail"]["airplane_length_in"]
+
+
+def test_a_pre_v27_file_reaches_the_v54_hop_after_its_tails_are_folded_in():
+    """The top-level ``tail_loads``/``vtail_loads`` of a v26 file are folded into
+    ``geometry.empennage`` by v27 first, so one hop covers every supported
+    version -- there is no second code path for the old shape."""
+    project = io.load_project(os.path.join(_FIXTURES, "v26_top_level_tail_loads.json"))
+    assert project.geometry.empennage.airplane_length_in > 0
+    assert not hasattr(project.tail_loads, "airplane_length_in")
+
+
 def test_a_landing_case_that_is_already_a_shared_case_merges_rather_than_duplicating():
     """G-3b: matched on name **and** ``(weight_lb, xcg, zcg)``, the tags merge.
 
@@ -197,7 +270,7 @@ def test_pre_f25_2_file_loses_its_stale_mach_limit_mc_md():
     project = io.load_project(os.path.join(_FIXTURES, "v39_mach_limit_mc_md.json"))
     ml = project.speeds.mach_limit
     assert ml is not None, "the MACHLIM slice itself must survive"
-    assert ml.shoulder_altitude_ft == 12000
+    assert project.speeds.shoulder_altitude_ft == 12000   # v54 folded the copy in
     assert ml.max_operating_altitude_ft == 18000
     assert ml.increment_ft == 1000
     names = {f.name for f in dc_fields(MachLimitInput)}
@@ -321,13 +394,13 @@ def test_migrate_is_idempotent():
 
 def test_current_file_is_untouched_by_the_chain():
     """No hop may fire for a current-schema file — that is what version-gating buys."""
-    current = _load("v47_current.json")
+    current = _load("v55_current.json")
     assert migrate(current) == {**current, "schema_version": SCHEMA_VERSION}
 
 
 def test_a_newer_file_is_not_mangled_by_hops_that_do_not_apply():
     """Forward compatibility degrades to 'read what you understand'."""
-    future = _load("v47_current.json")
+    future = _load("v55_current.json")
     future["schema_version"] = SCHEMA_VERSION + 5
     out = migrate(future)
     assert out["schema_version"] == SCHEMA_VERSION + 5

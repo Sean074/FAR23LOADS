@@ -1,6 +1,6 @@
 """L-7 lateral body aero in the balanced lateral cases -- gates G2 … G13.
 
-Design note ``docs/30_future/19_l7_lateral_body_aero_note.md`` §8 (rev. 3).
+Design note ``docs/40_history/33_l7_lateral_body_aero_note.md`` §8 (rev. 3).
 G1, the DATCOM oracle, is ``tests/test_lateral_body_aero.py``; this file gates
 what the term does once it is applied beside the fin in ``balance``:
 

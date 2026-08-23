@@ -1,6 +1,6 @@
 """Lumped wing-body lateral aero in sideslip: ``Cy_beta`` and ``Cn_beta`` (L-7).
 
-Design note ``docs/30_future/19_l7_lateral_body_aero_note.md`` (rev. 3, agreed
+Design note ``docs/40_history/33_l7_lateral_body_aero_note.md`` (rev. 3, agreed
 2026-08-17). The fin was the only lateral aerodynamic load the suite computed;
 this module supplies the **wing-body** side-force and yawing-moment derivatives
 in sideslip so ``balance`` can apply the missing term beside the fin's

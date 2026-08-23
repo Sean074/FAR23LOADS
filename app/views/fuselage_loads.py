@@ -17,7 +17,7 @@ import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
 
-from app_shell.components import active_system, gate
+from app_shell.components import active_system, gate, stop_page
 from app_shell.limit_csv import body_limit_csv, body_limit_rows
 from app_shell.widget_keys import widget_key
 from sloads import (
@@ -54,7 +54,7 @@ U = labels_for(system)  # {"weight","length",...} -> unit string
 if project.flight_loads is None:
     gate("Define the flight-loads inputs on the **Flight Envelope (V-n)** page first.",
          "flight_envelope")
-    st.stop()
+    stop_page()
 
 fm = project.fuselage_mass or FuselageMassInput()
 
@@ -92,6 +92,7 @@ with st.form("fuselage_mass_form"):
     override = st.checkbox(
         "Override the derived distribution with the table below",
         value=fm.stations_are_override,
+        key=widget_key("fus_override"),
         help="Leave unticked to use the weight database (the single source of "
              "truth). Tick to hand-enter the beam, e.g. to reproduce a legacy model.")
     default = pd.DataFrame(
@@ -131,11 +132,11 @@ try:
     results = build_body_loads(project)
 except (ValueError, ZeroDivisionError) as exc:
     st.error(f"Could not compute fuselage loads: {exc}")
-    st.stop()
+    stop_page()
 
 if not results:
     st.info("No critical fuselage conditions to distribute.")
-    st.stop()
+    stop_page()
 
 st.caption(
     "Loads shown are **LIMIT** (oracle-traceable). The deliverable **ULTIMATE** "
@@ -158,7 +159,8 @@ if any(r.closure_artifact for r in results):
         icon="⚠️",
     )
 
-sel = st.selectbox("Show condition", [r.case for r in results])
+sel = st.selectbox("Show condition", [r.case for r in results],
+                   key=widget_key("fus_show_condition"))
 res = next(r for r in results if r.case == sel)
 
 c1, c2, c3 = st.columns(3)

@@ -280,6 +280,24 @@ class EnvelopeResult:
     vn: List[VnPoint] = field(default_factory=list)
     tail_balance: List[TailBalanceLoad] = field(default_factory=list)
     critical: Optional[CriticalLoadSet] = None
+    #: Case numbers whose balance came back **clamped** -- the dynamic-pressure
+    #: iteration reached a fixed point off the stall line because the Mach cap
+    #: pinned the true airspeed, so the point is stall-limited flight rather than
+    #: a converged stall-line solve (#33, decision **D-30**). **Derived, never
+    #: persisted**: ``io.envelope_to_dict`` names its keys, so this field is not
+    #: a schema field and a project loaded from disk carries an empty list --
+    #: re-run FLTLOADS to repopulate it. Read it through :meth:`is_clamped`.
+    clamped_cases: List[int] = field(default_factory=list)
+
+    def is_clamped(self, point: VnPoint) -> bool:
+        """Is this V-n row's balance clamped at the Mach cap? (#33)
+
+        The **one owner** of that predicate (`CONVENTIONS.md` §7): the state comes
+        from the solver that hit it, so a consumer marking these rows (#32) reads
+        the same answer the balance reached rather than re-deriving it from the
+        published CL. Compares by case number, the row's identity within a run.
+        """
+        return point.case in self.clamped_cases
 
 
 # --------------------------------------------------------------------------- #

@@ -105,12 +105,6 @@ CL) — implement the coefficient generator or keep as a tracked scope gap
 Confirm vs WINGINER.BAS whether a THETADOT pitch-acceleration case is expected;
 surface `DMYY` if a per-strip incremental torsion column is wanted.
 
-### L-8a — SI-toggle & unit-label conformance in the GUI
-The G6/G6b empennage + landing-gear sections hardcode ft²/in labels and ignore
-the SI toggle — a `GUI_design.md §7` deviation. Make them respect the toggle
-(adopting `unit_number_input`) or record the exception in `GUI_design.md §7`.
-Pairs with **M4-20**, which fixed the same boundary on the export side.
-
 ### L-8b — `help=` tooltip rollout completion
 App-wide tooltip coverage is ~45%. Worst pages: flap loads 0/6, one-engine-out
 0/7, wing loads 2/10 (structural speeds is complete at 21/21); the G6/G6b
@@ -134,17 +128,17 @@ generation* stamped into every project-seeded widget key
 the JSON editor's Apply) and guarded by `tests/test_widget_freshness.py`. That
 sweep also settled the rationale above: `app/views/`' Apply step defers the
 overwrite to the user's click rather than preventing it, so those views were
-stamped too. **What #51 (reopened 2026-08-22) still owes is the *unkeyed*
-half:** 98 project-seeded widgets in `app/views/` carry no `key=` at all, and an
-unkeyed widget's Streamlit identity derives from its *arguments* — stable
-whenever the seed value repeats — so a value typed before a load survives it
-when the loaded field is unset (reproduced on `structural_speeds`' VB against
-`atr42_100`); the guard's "no `key=` is per-render" premise was wrong. It rides
-the unit-boundary rollout (`00_backlog.md` band B, with #44), whose
-`unit_number_input` stamps for its callers. What stays parked *here* is the rest
-of the audit — a widget that goes stale while the project is **mutated**
-underneath it (a cross-page Apply, a seed chain), which no generation bump
-covers because the project was never replaced.
+stamped too. **The unkeyed half shipped 2026-08-22, closing #51's reopen:** the
+98 `app/views/` widgets that carried no `key=` at all — whose Streamlit identity
+derived from their *arguments*, stable whenever the seed value repeats, so a
+value typed before a load survived it (reproduced on `structural_speeds`' VB
+against `atr42_100`) — now all carry stamped keys, landed as one pass with
+#44's unit-boundary rollout (`unit_number_input` stamps for its callers). The
+guard's "no `key=` is per-render" premise was inverted to fail closed, with a
+type-then-load reproduction test and a per-key shell allowlist. What stays
+parked *here* is the rest of the audit — a widget that goes stale while the
+project is **mutated** underneath it (a cross-page Apply, a seed chain), which
+no generation bump covers because the project was never replaced.
 
 ### L-8e — Uncovered input fields & UX nits
 Add widgets (or a documented JSON-only status) for the remaining uncovered

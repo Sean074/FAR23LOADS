@@ -46,9 +46,10 @@ import copy
 import dataclasses
 import typing
 from enum import Enum
-from typing import Dict, List, Optional, Set, Tuple
+from typing import Dict, List, Mapping, Optional, Set, Tuple
 
 from sloads import models as _models
+from sloads.derived import refresh_derived
 from sloads.models import Project
 
 # --------------------------------------------------------------------------- #
@@ -66,9 +67,16 @@ _HINT_NS.update({
 #: `Project` attributes that are **not** input fields, each with the reason.
 #: Result slices are computed outputs; the rest are document metadata or a
 #: preference, none of which an origin classification is meaningful for.
+#:
+#: The three result slices are what :func:`reduce_to_oracle_inputs` drops
+#: outright (review 2026-08-22 PB-3 -- before that the reduction never looked
+#: at them, so a stored ``mass`` carried every gate while the oracle GUI wrote
+#: none) and :mod:`sloads.derived` then rebuilds the ones the inputs derive.
+RESULT_SLICES: Tuple[str, ...] = ("envelope", "mass", "loads")
+
 NON_INPUT: Dict[str, str] = {
     "envelope": "result slice (WTENV output)",
-    "mass": "result slice (WTONECG output)",
+    "mass": "result slice (WTONECG output; derived from weight.items, sloads.derived)",
     "loads": "result slice (per-module load cases)",
     "schema_version": "set by io.py, never by a user",
     "unit_system": "display preference, not airplane data (D-22)",
@@ -84,6 +92,17 @@ NON_INPUT: Dict[str, str] = {
 
 #: Marks a list-of-dataclass hop in a path: ``engines[].engine_weight_lb``.
 LIST_MARKER = "[]"
+
+#: ``str`` fields that carry a **code**, and the table of codes each accepts
+#: (owned by ``models/inputs.py`` beside the field). The oracle form offers
+#: these as a choice rather than free text, and every consumer normalises
+#: through ``models.normalise_code`` (#63, PB-8). Guarded in
+#: ``tests/test_selectors.py``: each path is a registered ``str`` field.
+CODED_FIELDS: Dict[str, Mapping[str, str]] = {
+    "speeds.category": _models.CATEGORIES,
+    "geometry.landing_gear.main_gear.strut": _models.STRUT_TYPES,
+    "geometry.landing_gear.nose_gear.strut": _models.STRUT_TYPES,
+}
 
 #: ``Project`` attributes that are read-through **properties**, not stored
 #: slices, mapped to the path their fields actually live at. ``workflow.py``
@@ -338,6 +357,15 @@ class FieldEntry:
     def owner_is_external(self) -> bool:
         return self.derived_from.startswith(EXTERNAL)
 
+    @property
+    def display_only(self) -> bool:
+        """A copy the consumer never reads: it renders disabled, showing the owner.
+
+        The form's rule (``oracle_app.form._copy_note``) and the G5 journey's
+        (a field no widget can write is not compared) are the one rule, here.
+        """
+        return bool(self.owner_path) and not self.governs
+
 
 #: ``derived_from`` prefix for a quantity owned outside the input-field set.
 #: Several of the review's duplicate instances are this shape — the owner of
@@ -443,7 +471,9 @@ REGISTRY: Tuple[FieldEntry, ...] = (
     # offers both, as the original did; `parametric` is not a substitute for the
     # planform, and no parametric->polyline builder is needed after all.
     _E("geometry.surfaces[].name", _GEO, _SLDS, "surface selector (standing ruling); "
-       "structurally required -- SurfaceInput has no name-less form", supplied=True),
+       "structurally required -- SurfaceInput has no name-less form. Every downstream program "
+       "reads the surface named `wing` (matched ignoring case), so the first row is seeded "
+       "`wing`; `htail` / `vtail` / `aileron` / `flap` name the others", supplied=True),
     _E("geometry.surfaces[].leading_edge", _GEO, _ORIG,
        "WINGGEOM planform, '(X, Y) points ... exactly as the original program prompts for them'"),
     _E("geometry.surfaces[].trailing_edge", _GEO, _ORIG,
@@ -470,7 +500,7 @@ REGISTRY: Tuple[FieldEntry, ...] = (
     _E("geometry.parametric.tail_type", _GEO, _SLDS, "layout sketch only, Step G1"),
     _E("geometry.parametric.body_drag_waterline_z", _GEO, _SLDS, "body-drag line, Step G4 balance work"),
     # Candidate 19th duplicate, NOT declared: this and SELECT's LF
-    # (geometry.empennage.htail.airplane_length_in, quantity "airplane length")
+    # (geometry.empennage.airplane_length_in, one field since v55 / #52)
     # are plausibly one dimension, but nothing in the repo says so and the two
     # are not held equal on any fixture. Declaring it would assert a defect that
     # has not been demonstrated; it is raised in the OG-C closure instead.
@@ -488,8 +518,11 @@ REGISTRY: Tuple[FieldEntry, ...] = (
        "body outline model, Step G1; structurally required", supplied=True),
     _E("geometry.fuselage.sections[].z_centre", _GEO, _SLDS, "body outline model, Step G1"),
 
+    # geometry.empennage -- the whole-airplane length both tail inertias use
+    # (one home since v55, #52; each tail carried a copy before)
+    _E("geometry.empennage.airplane_length_in", _GEO, _ORIG, "SELECT LF (Iyy and default IZZ)"),
+
     # geometry.empennage.htail -- SELECT's rational h-tail inputs (Ch 9)
-    _E("geometry.empennage.htail.airplane_length_in", _GEO, _ORIG, "SELECT LF", "airplane length"),
     _E("geometry.empennage.htail.aspect_ratio_htail", _GEO, _ORIG, "SELECT ARHT"),
     _E("geometry.empennage.htail.aspect_ratio_wing", _GEO, _ORIG, "SELECT ARW (downwash)"),
     _E("geometry.empennage.htail.htail_area_sqft", _GEO, _ORIG, "SELECT ST"),
@@ -509,9 +542,6 @@ REGISTRY: Tuple[FieldEntry, ...] = (
     _E("geometry.empennage.htail.xt50", _GEO, _ORIG, "SELECT 50% tail MAC station"),
 
     # geometry.empennage.vtail -- SELECT's rational v-tail inputs (Ch 9)
-    _E("geometry.empennage.vtail.airplane_length_in", _GEO, _ORIG, "SELECT LF", "airplane length",
-       "geometry.empennage.htail.airplane_length_in (entered twice; review N1 instance 2)",
-       governs=True),
     _E("geometry.empennage.vtail.aspect_ratio_vtail", _GEO, _ORIG, "SELECT ARVT"),
     _E("geometry.empennage.vtail.vtail_area_sqft", _GEO, _ORIG, "SELECT SV"),
     _E("geometry.empennage.vtail.vtail_mac_in", _GEO, _ORIG, "SELECT VMAC"),
@@ -585,9 +615,17 @@ REGISTRY: Tuple[FieldEntry, ...] = (
     _E("weight.items[].kind", _WT, _ORIG,
        "'Mirrors the data-base partition of WTONECG.BAS (empty / minimum-flight / discretionary)'; "
        "WTENV's discretionary envelope and Appendix A's 78 lb aft ballast need it"),
-    _E("weight.items[].component", _WT, _SLDS, "component tag, plan 09 T-3"),
+    _E("weight.items[].component", _WT, _SLDS,
+       "component tag, plan 09 T-3. The original carried this by position -- BODYLOAD "
+       "took its own fuselage item list -- so the tag is how the same question is asked "
+       "here. Load-bearing (G5, review 2026-08-22 PB-2): untagged, the wing panel sits "
+       "on the fuselage beam at 9 % of peak BODYLOAD shear", supplied=True),
     _E("weight.items[].consumable", _WT, _SLDS, "loading model, decision D-25"),
-    _E("weight.items[].wing_fraction", _WT, _SLDS, "wing/body split for CONM2 export, plan 11"),
+    _E("weight.items[].wing_fraction", _WT, _SLDS,
+       "wing/body split of one row (plan 11, note 29 WF-2): `component` at finer grain, the "
+       "same which-beam question BODYLOAD asked by position. Load-bearing (G5, #62): the "
+       "DHC-8 fuel row is 86 % wing, and dropped it rides the fuselage beam whole",
+       supplied=True),
     _E("weight.envelope.gross_weight", _WT, _ORIG, "WTENV gross weight"),
     _E("weight.envelope.mac", _WT, _ORIG, "WTENV MAC", "wing MAC",
        EXTERNAL + "derived_geometry from the planform (Optional override here)"),
@@ -649,17 +687,14 @@ REGISTRY: Tuple[FieldEntry, ...] = (
        "prefers the planform and reaches this only with no wing surface -- #36)"),
     _E("speeds.wing_surface", _SPD, _SLDS, "surface selector (standing ruling)"),
     _E("speeds.vh_kt", _SPD, _ORIG, "STRSPEED VH, max level speed"),
-    _E("speeds.shoulder_altitude_ft", _SPD, _ORIG, "STRSPEED MC/MD altitude", "shoulder altitude"),
+    _E("speeds.shoulder_altitude_ft", _SPD, _ORIG,
+       "STRSPEED MC/MD altitude; MACHLIM first row (one home since v55, #52)"),
     _E("speeds.chosen_vc", _SPD, _ORIG, "STRSPEED chosen VC, Appendix A p156"),
     _E("speeds.chosen_vd", _SPD, _ORIG, "STRSPEED chosen VD, Appendix A p156"),
     _E("speeds.chosen_va", _SPD, _ORIG, "STRSPEED chosen VA, Appendix A p156"),
     _E("speeds.chosen_vf", _SPD, _ORIG, "STRSPEED chosen VF, Appendix A p156"),
     _E("speeds.chosen_n", _SPD, _ORIG, "STRSPEED chosen n, Appendix A p156"),
     _E("speeds.chosen_nneg", _SPD, _ORIG, "STRSPEED chosen negative n, Appendix A p156"),
-    _E("speeds.mach_limit.shoulder_altitude_ft", _SPD, _ORIG, "MACHLIM shoulder altitude", "shoulder altitude",
-       "speeds.shoulder_altitude_ft (same quantity on two dataclasses; MACHLIM reads "
-       "this one verbatim, so it governs until #52's hop removes it)",
-       governs=True),
     _E("speeds.mach_limit.max_operating_altitude_ft", _SPD, _ORIG, "MACHLIM ceiling"),
     _E("speeds.mach_limit.increment_ft", _SPD, _ORIG, "MACHLIM altitude step"),
     _E("speeds.occupants", _SPD, _SLDS, "FAR 23 applicability check, Step E1"),
@@ -884,6 +919,11 @@ def supplied_paths() -> Set[str]:
     return {e.path for e in REGISTRY if e.supplied}
 
 
+def display_only_paths() -> Set[str]:
+    """Field paths that render disabled in the oracle GUI (:attr:`FieldEntry.display_only`)."""
+    return {e.path for e in REGISTRY if e.display_only}
+
+
 def oracle_input_paths() -> Set[str]:
     """Everything a project made by the oracle GUI carries — what G5 runs against."""
     return original_paths() | supplied_paths()
@@ -945,29 +985,51 @@ def reduce_to_oracle_inputs(project: Project) -> Project:
 
     Structurally required fields (no declared default) are left as they are; the
     guard above makes that a rule rather than an accident.
+
+    Three things go, not one (review 2026-08-22 PB-3): every field outside the
+    input set, every **record** the GUI never creates (:func:`omitted_records`
+    -- a turbine-rotor row with its required fields intact is not "reduced"),
+    and the stored :data:`RESULT_SLICES`. What the GUI *would* have written on
+    its own is then put back by :func:`sloads.derived.refresh_derived`, the
+    same call the form makes after a persist, so the reduced project carries a
+    ``mass`` slice exactly when a typed one would.
     """
     reduced = copy.deepcopy(project)
-    _reduce(reduced, "", oracle_input_paths())
+    _reduce(reduced, "", oracle_input_paths(), omitted_records())
+    for name in RESULT_SLICES:
+        _reset(reduced, next(f for f in dataclasses.fields(reduced) if f.name == name))
+    refresh_derived(reduced)
     return reduced
 
 
-def _reduce(obj: object, prefix: str, keep: Set[str]) -> None:
+def _reset(obj: object, field: "dataclasses.Field[object]") -> None:
+    """``obj.<field>`` back to its declared default, if it declares one."""
+    if field.default is not dataclasses.MISSING:
+        setattr(obj, field.name, copy.deepcopy(field.default))
+    elif field.default_factory is not dataclasses.MISSING:
+        setattr(obj, field.name, field.default_factory())
+    # no default: structurally required, guarded above
+
+
+def _reduce(obj: object, prefix: str, keep: Set[str], omitted: Set[str]) -> None:
     for field in dataclasses.fields(obj):  # type: ignore[arg-type]
         path = prefix + field.name
         value = getattr(obj, field.name)
         if path in BY_PATH:
-            if path in keep or value is None:
-                continue
-            if field.default is not dataclasses.MISSING:
-                setattr(obj, field.name, copy.deepcopy(field.default))
-            elif field.default_factory is not dataclasses.MISSING:
-                setattr(obj, field.name, field.default_factory())
-            continue  # no default: structurally required, guarded above
+            if path not in keep and value is not None:
+                _reset(obj, field)
+            continue
         if dataclasses.is_dataclass(value) and not isinstance(value, type):
-            _reduce(value, path + ".", keep)
+            if path in omitted:
+                _reset(obj, field)
+            else:
+                _reduce(value, path + ".", keep, omitted)
         elif isinstance(value, list) and value and dataclasses.is_dataclass(value[0]):
-            for item in value:
-                _reduce(item, path + LIST_MARKER + ".", keep)
+            if path + LIST_MARKER in omitted:
+                _reset(obj, field)
+            else:
+                for item in value:
+                    _reduce(item, path + LIST_MARKER + ".", keep, omitted)
 
 
 def paths_for_page(page: str) -> Set[str]:

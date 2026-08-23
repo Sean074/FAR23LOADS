@@ -24,6 +24,7 @@ from __future__ import annotations
 import math
 from typing import NamedTuple, Optional, Tuple
 
+from . import workflow as wf
 from .constants import DEFAULT_FRONT_SPAR_PCT, DEFAULT_REAR_SPAR_PCT, IN2_PER_FT2
 from .models import MissingInputError, Project
 
@@ -146,9 +147,21 @@ def require_wing_reference(project: Project, surface_name: str = "wing") -> Wing
     if ref is None:
         raise MissingInputError(
             f"this analysis needs the {surface_name!r} wing planform: add the "
-            "surface on the Configuration & Layout page. The MAC, area, 25%-MAC "
-            "station and waterline are read from it, not entered separately.")
+            f"surface on the {wf.BY_KEY['configuration_layout'].title} page. The MAC, "
+            "area, 25%-MAC station and waterline are read from it, not entered separately.")
     return ref
+
+
+def airplane_length_in(project: Project) -> float:
+    """SELECT's LF, the whole-airplane length (inches), from its single home
+    ``geometry.empennage.airplane_length_in`` (#52, note 33 §8); ``0.0`` when no
+    empennage is defined. Both tail inertia defaults -- the 23.423(b) pitch
+    inertia and the 23.441 default IZZ -- read it from here; until schema v55
+    each tail carried its own copy and nothing reconciled them.
+    """
+    geom = project.geometry
+    emp = geom.empennage if geom is not None else None
+    return float(emp.airplane_length_in) if emp is not None else 0.0
 
 
 def wing_plane(project: Project, surface_name: str = "wing") -> Tuple[float, float]:

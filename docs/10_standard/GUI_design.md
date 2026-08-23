@@ -66,7 +66,15 @@ above the six numbered analysis-flow phases:
 
 Each `WorkflowStep` names its `key` (= the view file stem), `title`, `phase`, the
 calc `module` behind it, and the project slices it `requires`/`produces` — the
-seed of a dependency DAG that also drives the Dashboard completeness panel. A page
+seed of a dependency DAG that also drives the Dashboard completeness panel.
+A step whose *own form* enters a required slice declares it in `edits` (#45,
+CR-D-3, declared minimally — only where a `requires` has no producing step):
+`workflow.missing_upstream` / `missing_self_entered` split the missing slices by
+remedy, so a self-sufficient page (Weight & Mass Properties, Engine Mount Loads)
+is never reported "blocked" on a fresh project — its guidance points at its own
+form. A DAG-completeness guard (`tests/test_workflow.py`) holds every `requires`
+to *some step's `produces` or some step's `edits`*, with a field-registry rot
+companion on the `edits` declarations. A page
 is exactly `app/views/<step.key>.py`. Since Step G3 the **Develop V-n diagram**
 section — the definition pages this doc is chiefly about — is five consolidated
 pages, several using `st.tabs` to gather formerly-separate pages: **Geometry**;
@@ -86,8 +94,8 @@ superseded Phase-D six-section grouping is in
 
 ## 4. Global sidebar (`Home.py`)
 
-`Home.py` owns the two controls that appear on every page, built once above
-`pg.run()`:
+`Home.py` owns the two controls that appear on every page, built once *around*
+`pg.run()` (`with render_shell_sidebar(project): pg.run()` — both GUIs):
 
 - **Unit-system toggle** — an Imperial/SI radio writing
   `st.session_state["unit_system"]` (a `UnitSystem` enum). It changes how inputs
@@ -108,6 +116,31 @@ superseded Phase-D six-section grouping is in
   therefore genuinely cancels. Download writes `<name>.project.json` — the same
   suffix Save uses — so a downloaded file dropped into `projects/` is listed by
   Open.
+- **The project is named here, and Save never overwrites unasked** (#65,
+  review 2026-08-22 PB-6). `project.name` is document metadata, not an oracle
+  input, so no oracle page rendered it and a project built there saved as
+  `project.project.json` over the last, every time. The **Project name** widget
+  is the sidebar's — one widget, both GUIs; the `app/` dashboard's copy is gone
+  (two widgets for one field write their retained state over each other). One
+  sanitiser, `io.project_filename(name)` (`[^A-Za-z0-9._-]` → `_`, collapsed,
+  trimmed, capped at `io.PROJECT_STEM_MAX`), names both the saved and the
+  downloaded file. `project_state` remembers the `projects/` file a project was
+  opened from or last saved to (`SAVED_PATH_KEY`): Save writes *that* file
+  back unasked and confirms (`confirm_overwrite`) before replacing any other
+  existing file. Guards in `tests/test_app_shell.py`.
+- **The project-file block renders after the page** (#64, review 2026-08-22
+  PB-4). The rerun that carries a widget edit runs the sidebar before the page
+  that persists it, so a block rendered above `pg.run()` served the *previous*
+  interaction's project as the download and called it clean — in the oracle GUI
+  (no Apply) every last edit, in `app/` the Apply's own merge. The units block
+  stays first (`active_system()` reads it); the sidebar reserves the block's
+  slot, wraps the page, and fills the slot on exit. A page therefore never calls
+  `st.stop()` — Streamlit discards everything emitted after it, the slot
+  included — but `app_shell.components.stop_page()`, which the sidebar catches
+  (standalone it *is* `st.stop()`). Guards in `tests/test_app_shell.py`: one
+  edit, then payload, caption and expander title read in the same run on the
+  real oracle entry point; a stopping page keeps Save/Download; no view calls
+  `st.stop()`.
 
 ---
 
@@ -137,10 +170,19 @@ consistent:
   stamps the key with a *project generation* bumped exactly once per replacement
   (`project_state.adopt`, and the JSON editor's Apply — the only two places that
   replace it). A mutation, an Apply or a unit switch is not a replacement and
-  keeps its widgets. Guards: `tests/test_widget_freshness.py` — render → load →
-  re-render leaves the session project equal to the loaded file, on every oracle
-  page and every shipped example, plus an AST walk that fails on any GUI widget
-  keyed without the stamp.
+  keeps its widgets. **No key at all is the same defect** (#51's reopen,
+  closed 2026-08-22): an unkeyed widget derives its Streamlit identity from its
+  *arguments* — `value=` included — so its retained state survives a load
+  whenever the loaded field repeats the seed, which `Project(name="")` makes
+  the common case. Every input widget therefore carries a stamped `key=`;
+  the only exemptions are the shell's own session-state widgets (the unit
+  radio, the load-path pickers), named **per key** on an explicit allowlist
+  with a companion test that fails when an entry stops naming a real widget.
+  Guards: `tests/test_widget_freshness.py` — render → load → re-render leaves
+  the session project equal to the loaded file, on every oracle page and every
+  shipped example; a type-then-load reproduction that asserts the typed value
+  does not survive; and an AST walk that fails on any GUI input widget without
+  a stamped key.
 - **A copy says it is a copy** (#36, CR-A-2). Where a quantity is held by more
   than one field, `sloads/field_registry.py` names the owner, and the renderer
   **reads that** rather than presenting every holder as an independent input.
@@ -166,8 +208,63 @@ consistent:
   not name its owner (and on a display-only one that is still editable);
   `tests/test_field_registry.py` fails if an owner row claims `governs`.
   The durable fix for a copy that need not exist at all is to remove it —
-  [note 33](../30_future/33_derived_scalar_consolidation_note.md) did that for
+  [note 33](../40_history/34_derived_scalar_consolidation_note.md) did that for
   ten of them, and this marking covers the remainder.
+- **A derived slice has one writer, and no Apply to miss** (#62, 2026-08-23).
+  `Project.mass` is WTONECG over `weight.items` and nothing else; storing it is a
+  convenience for its readers (One Engine Out, Configuration's tip-back CG, the
+  CG-case waterline) and the workflow ✅. The only thing that writes it is
+  `sloads/derived.py:refresh_derived` — called by the `app/` Weight page on
+  Apply and by the oracle form after every persist, and by gate G5's reduction
+  after it drops the stored slice. Before this the oracle GUI wrote it nowhere:
+  a fresh twin could never reach One Engine Out and Configuration fell back to
+  a 25 %-MAC estimate while the page said nothing (review 2026-08-22 PB-1).
+  Each refresher is idempotent by value, so a visit still dirties nothing.
+- **The oracle GUI's project is what gate G5 tests** (#62, 2026-08-23). The
+  registry reduction drops every field outside the input set, every *record*
+  the GUI never creates (a turbine rotor row), and the stored result slices —
+  then re-derives what the GUI would have written. Its second leg,
+  `tests/test_oracle_journey.py`, types the GA-6 and the DHC-8 from a blank
+  project through the pages' own widgets and requires the result to *be* the
+  reduced key: document, every page's downloads byte-for-byte, save → reload a
+  fixed point. What that made visible is on the page rather than in the gate:
+  `weight.items[].component` and `wing_fraction` are rendered (the same
+  which-beam question BODYLOAD asked by position), and the Fuselage Loads table
+  states what it rests on — untagged items lumped on the fuselage by inference,
+  a wing-mass tie that does not close, a tail surface with no item at all. The
+  one divergence that is decided rather than discovered — the twins' turbine
+  rotors, a sloads model the original ENGLOADS never had — is declared per
+  example with its number (−16 % DHC-8 mount torque), not rendered.
+- **A selector name is seeded, unique, and matched ignoring case; a coded
+  field is a choice** (#63, 2026-08-23). What the original suite expressed
+  by position this model carries as a name the calc keys on — the surface,
+  the CG case, the coefficient set — and the oracle form used to seed each
+  `""` and ask nothing more: two CG cases with one name collapsed to one
+  entry and TAILDIST changed in 7 of 13 rows with every page reporting
+  success (review 2026-08-22 PB-5). `sloads/selectors.py` owns the three
+  rules: `keyed` builds the dictionaries `select.py` reads and refuses a
+  duplicate; `duplicate_selectors` is the same check in the form's words, and
+  `render_step` withholds a page's results while it speaks; `NAME_SEEDS` names
+  a new row (`wing` first — everything downstream keys on it, PB-9 — then
+  `CG1 … CGn`, `CRUISE` / `LANDING`), skipping names already taken and never
+  counting as a touch. `by_name` matches through `models.same_name` (case and
+  edge spaces forgiven), so `Wing` no longer blocks eight pages. The FAR 23
+  category and the strut type are **codes**, not text (PB-8): `models.CATEGORIES`
+  / `STRUT_TYPES` are the one table both GUIs offer (`field_registry.CODED_FIELDS`
+  says which `str` fields carry a code), the owners upper-case at construction,
+  and every consumer goes through `normalise_code`, which refuses an unknown
+  code by name rather than reading it as Normal (`"Utility"` used to give 3.8).
+- **A cross-field rule is asked, never enforced at construction** (#66,
+  review 2026-08-22 PB-7). `Project.__post_init__` used to raise when
+  `engine_layout` disagreed with `len(engines)` — two widgets on one page,
+  set in either order — so the in-session project accepted the state, Save
+  wrote it, and the loader refused the file. The rule is now
+  `Project.engine_layout_problem()` with three readers: the loader warns
+  (surfaced as a toast by `safe_load`, the file loads), the oracle form
+  withholds the page's results (the same block as the selector check), and
+  the one consumer of the layout (WINGGEOM's engine stations) refuses by
+  name. `app/`'s Engine Mount derives the count from the layout, so it cannot
+  disagree. Guard: `tests/test_engine_layout_consistency.py`.
 
 The established **seed-chain** (each seeds the next when its target is unset):
 Configuration & Layout → WINGGEOM wing surface → Weight DB component stations;
@@ -185,17 +282,15 @@ never entered twice.)
 The contract that makes pages copy-of-the-pattern (full list in
 [`05_phase_d_gui_workflow_plan.md §5`](../40_history/05_phase_d_gui_workflow_plan.md)):
 
-- **A page opens with `components.page_header(key)`** (or `page(key)`, the
-  context-manager form that also gates on upstream slices) — M4-11. It renders
+- **A page opens with `components.page_header(key)`** — M4-11. It renders
   the title, the optional caption and the FAR 23 applicability banner, and
   returns the `PageContext` (`project`, `system`, `U`) every view needs. `key` is
   the `workflow.BY_KEY` step key — the view's own filename stem — so **the title
-  and the required upstream slices come from `workflow.py`**, the single source
-  of navigation truth, instead of being restated per page. `page()`'s gate links
-  to whichever step *produces* the missing slice, so re-sequencing the workflow
-  re-points every gate without a view being edited. A page with something more
-  specific to say about being blocked keeps its own `gate()` call and passes
-  `gate_missing=False` — the generic message is a floor, not a replacement.
+  comes from `workflow.py`**, the single source of navigation truth, instead of
+  being restated per page. Upstream gating is each page's own `gate()` call with
+  page-specific wording; the `page()` context manager that once promised a
+  generic automatic gate accrued zero callers and was removed (#45) — the
+  hand-written gates are the pattern of record.
 - **Inputs live in an `st.form`** with a single **Apply/Compute** submit — the
   page does not recompute on every keystroke. **Every form carries a unique
   string key** (`st.form("empennage_form")`) — tests select its Apply button
@@ -246,7 +341,10 @@ gets canonical Imperial back, so a page cannot convert twice, convert the wrong
 way, or forget to convert on the way home. **A view that writes
 `to_imperial_scalar` around a `number_input` is a defect** — that hand-paired
 idiom is what the helper replaces, and doing both double-converts (a 184 ft²
-wing stored as 1982 ft², silently, in SI only).
+wing stored as 1982 ft², silently, in SI only). The rollout completed
+2026-08-22 (#44, one pass with #51): every scalar `number_input` in
+`app/views/` now goes through the helper — the `data_editor` grids remain the
+one hand-converted surface, converted per column at Apply.
 
 ```python
 from components import ALTITUDE_FT, KEAS, page_header, unit_number_input
@@ -520,7 +618,8 @@ reruns); the editor surfaces it inline.
 phases since Step G2; the Phase-D six-section grouping it re-sequenced), the global unit toggle and
 project-file widget, the shared-`Project` data flow and seed-chain, the
 form+Apply/merge page conventions, the unit-boundary input pattern across all
-definition pages (§7), the Configuration & Layout three-view, the
+definition pages (§7; the last seven hand-paired views moved onto the helper
+2026-08-22, #44), the Configuration & Layout three-view, the
 FAR 23 applicability banner + `occupants`/`crew` fields and OEW line (§9,
 Phase E1), the per-widget `help=` tooltips + parameter-guide expanders across
 the six Airplane pages (§8.1, Phase E2), and the V-n diagram +

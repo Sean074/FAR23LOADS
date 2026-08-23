@@ -18,8 +18,7 @@ set nor its shape is shared; each GUI derives its own (note 32, OG-2).
 
 from __future__ import annotations
 
-from contextlib import contextmanager
-from typing import Iterator, NamedTuple, Optional
+from typing import NamedTuple, NoReturn, Optional
 
 import streamlit as st
 from streamlit.errors import StreamlitAPIException
@@ -82,6 +81,35 @@ def workflow_page_link(
     # non-clickable label so the row / gate hint still renders -- a dashboard row
     # must never silently vanish.
     st.markdown(f"{icon + ' ' if icon else ''}{text}", help=help)
+
+
+class StopPage(BaseException):
+    """:func:`stop_page` inside the shell: the page is over, the shell is not.
+
+    A ``BaseException`` like Streamlit's own ``StopException``, so a view's
+    ``except Exception`` cannot swallow it.
+    """
+
+
+#: Session-state flag the shell sidebar raises while it wraps the page, so
+#: :func:`stop_page` knows there is a shell to hand the exit to.
+IN_SHELL_KEY = "_shell_wraps_page"
+
+
+def stop_page() -> NoReturn:
+    """End the page here -- the shell's ``st.stop()``.
+
+    Inside ``with render_shell_sidebar(project): pg.run()`` this raises
+    :class:`StopPage`, which the sidebar catches so its project-file block still
+    renders *after* the page: ``st.stop()`` discards every element emitted after
+    it, so a sidebar rendered behind the page would have lost Save / Download on
+    exactly the pages that gate (#64, PB-4). Driven standalone (a view under
+    ``AppTest``, a script with no shell) it is ``st.stop()``. Guarded:
+    ``app/views`` call this and never ``st.stop()`` directly.
+    """
+    if st.session_state.get(IN_SHELL_KEY):
+        raise StopPage()
+    st.stop()
 
 
 def gate(message: str, *keys: str, kind: str = "warning") -> None:
@@ -175,7 +203,7 @@ def active_system() -> UnitSystem:
     **The single read of the unit selection in the whole app layer** (D-16), which
     is why M4-20 step 2 re-pointed this one function at ``Project.unit_system``
     without touching a single call site that goes through
-    :func:`unit_number_input` or :func:`page`.
+    :func:`unit_number_input`.
 
     The project field is the authority; the session key is the fallback for a
     render that has no project yet (the very first paint, before Home.py has put
@@ -250,8 +278,11 @@ def unit_number_input(
 
     if kind is not None:
         shown = f"{label} ({labels_for(system)[kind]})"
-        seed = (None if value is None
-                else float(round(to_display(float(value), kind, system), 4)))
+        # The seed is the converted value *exactly*: ``format`` owns how many
+        # decimals the widget shows, and a seed rounded here on top of it read
+        # back as a different number to anything that reads the widget (the G5
+        # journey, #62) while the project held the full value.
+        seed = None if value is None else float(to_display(float(value), kind, system))
         # The unit-system suffix and the generation stamp below say the same
         # thing in two directions: this is a different widget now.
         system_key = f"{key}_{system.value}" if key else None
@@ -267,12 +298,10 @@ def unit_number_input(
             return None
         if seed is not None and float(entered) == seed:
             # Untouched field: return the caller's own Imperial value rather than
-            # converting the *rounded* display seed back. The seed is rounded to 4
-            # display decimals for legibility (the per-view ``_num`` helpers this
-            # replaces did the same), so converting it home would return a number
-            # a hair different from the one passed in -- and an SI user's project
-            # would drift by that hair on every Apply, silently, forever. Only a
-            # value the user actually changed takes the conversion path.
+            # converting the display seed back -- a converted value does not
+            # always round-trip to the same float, and an SI user's project would
+            # drift by that hair on every Apply, silently, forever. Only a value
+            # the user actually changed takes the conversion path.
             return float(value)  # seed is not None implies value is not None
         return float(to_imperial_scalar(float(entered), kind, system))
 
@@ -286,11 +315,6 @@ def unit_number_input(
 # --------------------------------------------------------------------------- #
 # Page scaffold (M4-11)
 # --------------------------------------------------------------------------- #
-#: Project slice -> the workflow step that produces it, derived from
-#: ``workflow.STEPS`` so a re-sequenced workflow re-points every gate link.
-_PRODUCER = {s.produces: s.key for s in wf.STEPS if s.produces}
-
-
 class PageContext(NamedTuple):
     """What every view needs off the top: the project and its display units.
 
@@ -319,10 +343,6 @@ def page_header(
     per page; pass ``title=`` only where a page wants a different heading from
     its navigation label.
 
-    This is the plain-call form, for the top-level script views. Use
-    :func:`page` -- the same thing plus an automatic upstream gate -- in new code
-    and anywhere the page body already lives inside a function.
-
     ``switch_action=False`` keeps the applicability warning but drops its
     switch-to-Concept button, for a GUI without concept mode (CR-A-4).
     """
@@ -339,45 +359,3 @@ def page_header(
     return PageContext(project, system, labels_for(system))
 
 
-@contextmanager
-def page(
-    key: str,
-    *,
-    title: Optional[str] = None,
-    caption: Optional[str] = None,
-    banner: bool = True,
-    switch_action: bool = True,
-    gate_missing: bool = True,
-) -> Iterator[PageContext]:
-    """:func:`page_header` plus the upstream gate, as a context manager.
-
-    The *required* slices come from the same ``workflow.py`` step as the title,
-    and each gate's jump link is looked up from the step that **produces** the
-    missing slice -- so a re-sequenced workflow re-points every gate without a
-    view being touched. With ``gate_missing`` (the default) the page body is
-    skipped entirely (``st.stop()``) when a requirement is absent.
-
-    A page with a more specific thing to say about *why* it is blocked should
-    keep its own :func:`gate` call and pass ``gate_missing=False``: the generic
-    message here is a floor, not a replacement for page-specific guidance.
-
-    Usage::
-
-        with page("structural_speeds", caption="...") as (project, system, U):
-            v_a = unit_number_input("VA", inp.va, fixed_unit=KEAS, key="va")
-    """
-    ctx = page_header(key, title=title, caption=caption, banner=banner,
-                      switch_action=switch_action)
-
-    missing = wf.missing_requirements(ctx.project, wf.BY_KEY[key])
-    if missing and gate_missing:
-        for slice_name in missing:
-            producer = _PRODUCER.get(slice_name)
-            target = wf.BY_KEY[producer].title if producer else slice_name
-            gate(
-                f"This page needs **{target}** first — it has no `{slice_name}` yet.",
-                *([producer] if producer else []),
-            )
-        st.stop()
-
-    yield ctx

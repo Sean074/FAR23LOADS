@@ -995,15 +995,17 @@ def _speed_altitude_figure(project: Project) -> Tuple[Figure, Optional[Table]]:
     from ..modules.structural_speeds import design_speed_values
     from ..vn_diagram import _gust_ude
 
-    ml = project.speeds.mach_limit if project.speeds is not None else None
-    if ml is None:
+    speeds = project.speeds
+    ml = speeds.mach_limit if speeds is not None else None
+    if speeds is None or ml is None:
         return (Figure("speed_altitude", "Speed / altitude envelope",
                        absent_reason="this airplane has no Mach-limited boundary — no "
                                      "MACHLIM inputs are defined, so the operating "
                                      "envelope is bounded by VD alone"), None)
     # MC/MD come from STRSPEED, the single producer (F25-2) -- not from ``ml``.
     ds = _try(design_speed_values, project, project.speeds)
-    results = _try(mach_limit_lines, ml, ds.mc, ds.md) if ds is not None else None
+    results = (_try(mach_limit_lines, ml, ds.mc, ds.md, speeds.shoulder_altitude_ft)
+               if ds is not None else None)
     if not results:
         return (Figure("speed_altitude", "Speed / altitude envelope",
                        absent_reason="the Mach-limit lines could not be "
@@ -1697,6 +1699,86 @@ def _hand_pair_sentence(cases: Sequence[Any]) -> str:
     )
 
 
+def _residual_gate_sentence(cases: Sequence[Any]) -> str:
+    """§6's verdict on the residual gate -- over the family the gate applies to.
+
+    The maximum is taken through ``balance.residual_gate_applies``, the one owner
+    of the exemption (CR-C-2): maximised over *all* cases it reported the
+    23.427(a) maneuver tail load (143.885 % on ``ga6_normal``) or a ground case's
+    applied gear reaction (100.000 %) as a failure of the primary deliverable, in
+    every report shipped since 0.6.0. The exempt families are stated beside the
+    number rather than silently dropped, since a maximum over a filtered set is
+    only honest if the filter is visible.
+
+    **Force and pitch are judged against their own acceptances** -- the owners
+    :data:`~sloads.modules.balance.FORCE_RESIDUAL_ACCEPTANCE` and
+    :data:`~sloads.modules.balance.RESIDUAL_GATE` -- rather than both against the
+    flat 1 %. Reporting a single ``max(force, pitch)`` against the tighter of the
+    two declared four of the six fixtures failed on a bound the suite does not
+    itself enforce, which is the same defect in a second coat of paint.
+    """
+    from ..modules.balance import (
+        FORCE_RESIDUAL_ACCEPTANCE,
+        RESIDUAL_GATE,
+        residual_gate_exemptions,
+        residual_gate_family,
+    )
+
+    exempt = residual_gate_exemptions(cases)
+    standing = (
+        " The gate does not apply to " + "; ".join(exempt) + " -- for those the "
+        "pre-closure residual IS the applied load, by construction, and each "
+        "carries its own stronger gate instead (the ground family reproduces "
+        "LANDLOAD's NVP/NDP/NS exactly; the 23.427(a) family's trim half closes "
+        "inside the gate with the maneuver set replaced by the trim tail load). "
+        "The per-case table below reports every case, gated or not."
+    ) if exempt else ""
+
+    judged, clamped = residual_gate_family(cases)
+    clamped_standing = (
+        f" {len(clamped)} further case(s) carry a non-wing axial force that was "
+        "NOT applied (the trim alpha falls outside the polar's trusted window), "
+        "so they are out of trim by exactly that clamped force and its couple "
+        "about the CG. Their residuals are that known quantity rather than a "
+        "balance quality, and are gated per case against what was measured when "
+        "the clamp was decided."
+    ) if clamped else ""
+
+    if not judged:
+        return (
+            "{} case(s) assembled. None of them is in the family the pre-closure "
+            "residual acceptances apply to.".format(len(cases))
+            + clamped_standing + standing)
+
+    force = _worst_residual(judged, "force_residual_fraction")
+    pitch = _worst_residual(judged, "moment_residual_fraction")
+    verdict = (
+        " Both are inside their acceptance."
+        if force[0] < FORCE_RESIDUAL_ACCEPTANCE and pitch[0] < RESIDUAL_GATE else
+        " That is OVER acceptance -- reported rather than suppressed, and the "
+        "per-case table below localises it.")
+    return (
+        f"{len(cases)} case(s) assembled, {len(judged)} of them judged against "
+        f"the pre-closure residual acceptances. Across those, the worst force "
+        f"residual is {force[0]:.3%} of n*W on '{force[1]}' against a "
+        f"{FORCE_RESIDUAL_ACCEPTANCE:.1%} acceptance, and the worst pitch "
+        f"residual {pitch[0]:.3%} of n*W*MAC on '{pitch[1]}' against "
+        f"{RESIDUAL_GATE:.0%}." + verdict + clamped_standing + standing)
+
+
+def _worst_residual(cases: Sequence[Any], attribute: str) -> Tuple[float, str]:
+    """``(fraction, case label)`` of the largest ``attribute`` in ``cases``.
+
+    Through ``picks.extreme``: cases tie on a residual exactly (a handed pair
+    always does), and the sentence names the case it picked, so which one wins
+    the tie has to be stable across platforms rather than left to ``max``.
+    """
+    from ..picks import extreme
+
+    worst = extreme(cases, key=lambda c: getattr(c, attribute))
+    return getattr(worst, attribute), getattr(worst, "label", "")
+
+
 def _balanced_cases_table(cases: Sequence[Any]) -> Table:
     """The per-case honesty statement, straight from the deck's own row builder."""
     from ..export.balanced_deck import balanced_case_rows
@@ -1721,7 +1803,12 @@ def _balanced_cases_table(cases: Sequence[Any]) -> Table:
             "load is a MANEUVER load and replaces the trim tail load its V-n "
             "point balances at, so the residual is the mismatch in full and the "
             "vertical and pitch closure is the motion it causes -- what is gated "
-            "there is the case's trim half. Residual percentages and load "
+            "there is the case's trim half. The GROUND rows (FAR 23.471-23.499) "
+            "read 100.000 % for the same kind of reason and are likewise not "
+            "gated: a ground case has no trim to fail, so its pre-closure "
+            "residual is the applied gear reaction IN FULL, and the gate it does "
+            "carry is that the solved field rotated back to the ground line "
+            "reproduces LANDLOAD's NVP/NDP/NS. Residual percentages and load "
             "factors are LIMIT quantities; the exported cards are ULTIMATE."
         ),
     )
@@ -1777,8 +1864,6 @@ def _section_balanced(run: BalancedRun, mass_rows: Sequence[Dict[str, Any]],
     the report described only the per-component views of it (review F-D2,
     decision D-R2).
     """
-    from ..modules.balance import RESIDUAL_GATE
-
     cases = run.cases or []
     section = Section(
         section_heading("balanced"),
@@ -1805,17 +1890,7 @@ def _section_balanced(run: BalancedRun, mass_rows: Sequence[Dict[str, Any]],
             section.tables.append(mass_table)
         return section
 
-    worst = max(max(c.force_residual_fraction, c.moment_residual_fraction)
-                for c in cases)
-    section.body += [
-        f"{len(cases)} case(s) assembled. The worst pre-closure residual is "
-        f"{worst:.3%} of n*W against a {RESIDUAL_GATE:.0%} gate"
-        + ("." if worst < RESIDUAL_GATE else
-           " -- OVER the gate; the usual cause is that the assembled model "
-           "carries no non-wing drag, whose couple about the CG is the pitch "
-           "residual, and the case is reported rather than suppressed."),
-        _hand_pair_sentence(cases),
-    ]
+    section.body += [_residual_gate_sentence(cases), _hand_pair_sentence(cases)]
     section.tables.append(_balanced_cases_table(cases))
     if mass_table is not None:
         section.tables.append(mass_table)
@@ -2002,6 +2077,18 @@ def _manifest_rows(comps: ComponentLoads, module_results, u: Units,
          section_ref("factors")],
         ["METHODS.txt", "The methods & limitations statement, standalone.",
          human, "—", section_ref("methods")],
+        # The bundle carries this document too, and until 2026-08-22 the
+        # manifest named every file except itself (CR-C-1's class, one site the
+        # review's sweep did not reach). A controlling document that does not
+        # name itself is the same defect as one that does not name a deck.
+        ["<project>_summary_report.tex",
+         "This document, as LaTeX source — the controlling statement of the "
+         "whole bundle.", human, "the basis of every other file here",
+         section_ref("inputs")],
+        ["<project>_summary_report.pdf",
+         "This document, compiled — present only when a TeX engine ran on the "
+         "Export page.", human, "identical content to the .tex beside it",
+         section_ref("inputs")],
         ["load_cases/<project>_<module>.csv",
          "One row per structural load case, per module.", human,
          "ULTIMATE loads, SF column per case", section_ref("results")],
@@ -2064,6 +2151,23 @@ def _manifest_rows(comps: ComponentLoads, module_results, u: Units,
             "case, both wings, aero and inertia together.", deck,
             "ULTIMATE; determinate support, its reaction is the residual",
             section_ref("balanced")])
+    # The LRA beam model (step 12, note 24 R-1) -- the third deliverable, and
+    # the one the F-D2 class re-opened on (CR-C-1): it shipped in the bundle from
+    # 0.6.0 with no row here. Gated on the model *building*, not merely on cases
+    # existing: ``lra_model_bdf`` refuses a project missing a datum it must not
+    # guess (no SOB, no ref axis, no outline, no spars, a strip-pair h-tail
+    # attachment), and ``concept_heavy`` is such a project -- it assembles
+    # balanced cases and produces no LRA deck. A row gated on ``run.cases``
+    # would name a file that bundle does not carry, which is this same defect
+    # pointing the other way. The cost is one model build per document, the
+    # price ``_gear_cases`` already pays for the gear row.
+    if run.cases and _lra_model(project, run) is not None:
+        rows.append([
+            "sbeam/<project>_lra_model.bdf",
+            "The loads-reference-axis beam model: CBAR wing/body/tail beams, "
+            "RBE2 attachments, and the balanced-case loads applied to them.",
+            deck, "ULTIMATE; torsion about each surface's LRA",
+            section_ref("balanced")])
     if project.weight is not None and project.weight.items:
         rows.append([
             "sbeam/<project>_mass_model.bdf",
@@ -2087,7 +2191,13 @@ def _manifest_rows(comps: ComponentLoads, module_results, u: Units,
              section_ref("balanced")],
             ["sbeam/<project>_inertia_only.bdf",
              "sloads' own nodal inertia set, for comparison against what the "
-             "solver recovers.", deck, "ULTIMATE; comparison only, never applied",
+             "solver recovers.", deck,
+             # CR-C-3: the cell said ULTIMATE and the file says LIMIT, in band,
+             # by design -- ``inertia_only_cards``' own docstring: factoring one
+             # side of a comparison and not the other is how you make a check
+             # pass while meaning nothing. The manifest was out by 1.5x on the
+             # one artifact whose whole purpose is to be compared.
+             "LIMIT (no SF) — comparison only, never applied",
              section_ref("balanced")],
         ]
     if module_results:
@@ -2095,6 +2205,19 @@ def _manifest_rows(comps: ComponentLoads, module_results, u: Units,
                      "Plain-text per-module report of every condition.", human,
                      "ULTIMATE", section_ref("results")])
     return rows
+
+
+def _lra_model(project: Project, run: BalancedRun) -> Optional[str]:
+    """The LRA beam deck, or ``None`` when the model refuses -- so the manifest
+    lists it only when the bundle actually carries one (CR-C-1).
+
+    ``LraRefusal`` is a ``ValueError``, so :func:`_try` catches it: a refused
+    model is a stated absence (the CLI route prints the missing datum), and here
+    that absence is simply one fewer manifest row.
+    """
+    from ..export.lra_model import lra_model_bdf
+
+    return _try(lra_model_bdf, project, cases=run.cases)
 
 
 def _gear_cases(project: Project):

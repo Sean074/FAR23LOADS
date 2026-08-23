@@ -67,7 +67,7 @@ from ..constants import (
     dynamic_pressure_psf,
     gust_alleviation_factor,
 )
-from ..derived_geometry import sync_geometry_derived, wing_reference
+from ..derived_geometry import airplane_length_in, sync_geometry_derived, wing_reference
 from ..models import (
     CaseRef,
     CgCase,
@@ -85,6 +85,7 @@ from ..models import (
 )
 from ..picks import extreme
 from ..registry import register
+from ..selectors import keyed
 from ._vtail import large_deflection_factor, rudder_effectiveness, vtail_lift_slope
 from .flight_envelope import build_envelope, density_ratio, design_inputs
 
@@ -100,6 +101,26 @@ _ACRL = ("AC ROLL", "ACC ROLL")
 _STROLL = ("ST ROL A", "ST ROL C", "ST ROL D")
 
 
+def _check_envelope_cg_cases(project: Project, env: EnvelopeResult) -> None:
+    """Refuse a persisted V-n matrix that names a CG case the project has lost.
+
+    The rule is one-way on purpose: an *extra* flight case the envelope does not
+    mention is an ordinary edit (the case is simply not in the matrix yet), while
+    a **missing** one means the matrix was balanced against data that is gone.
+    """
+    known = {c.name for c in flight_cases(project)}
+    if not known:
+        return          # no weight slice to check against; the reads refuse on their own
+    missing = sorted({p.cg for p in env.vn if p.cg not in known})
+    if missing:
+        raise ValueError(
+            "the persisted V-n matrix was balanced at CG case(s) this project no "
+            f"longer carries: {', '.join(missing)}. Its loads belong to weights "
+            f"and CGs that are gone (the project now has: {', '.join(sorted(known))}). "
+            "Re-run the flight envelope (FLTLOADS) to rebuild it."
+        )
+
+
 def default_envelope(project: Project) -> EnvelopeResult:
     """The V-n matrix to search: the persisted ``Project.envelope`` if present, else
     freshly built from the flight-loads inputs (FLTLOADS).
@@ -109,8 +130,19 @@ def default_envelope(project: Project) -> EnvelopeResult:
     instead of each rebuilding the whole envelope (up to 7x when nothing is
     persisted). Raises :class:`MissingInputError` when no V-n matrix can be
     obtained -- ``build_envelope`` itself raises it when the flight-loads inputs are
-    absent, and an empty result is caught here."""
+    absent, and an empty result is caught here.
+
+    A persisted envelope is also **checked against the CG cases it names**
+    (review CR-B-4): every row of a V-n matrix was balanced at one weight and CG,
+    so a row naming a case the project no longer carries is a stale-persistence
+    defect, not a case with no weight. It used to be read as the latter -- the
+    inertia-drag factor went to ``nx = 0.0`` and into WINGINER, and the 23.421
+    h-tail search dropped the candidate with a ``continue`` -- so a renamed CG
+    case quietly changed the loads. Refused here rather than at each read, because
+    the mismatch invalidates every number the envelope carries, not the two that
+    happened to look for a weight."""
     if project.envelope is not None and project.envelope.vn:
+        _check_envelope_cg_cases(project, project.envelope)
         return project.envelope
     env = build_envelope(project)
     if not env.vn:
@@ -171,7 +203,7 @@ def vn_by_case(project: Project) -> Dict[int, VnPoint]:
 
 def _cg_weights(project: Project) -> Dict[str, float]:
     """Map CG-case name -> design weight (for the Nx = -DX/W inertia factor)."""
-    return {c.name: c.weight_lb for c in flight_cases(project)}
+    return {name: c.weight_lb for name, c in _cg_map(project).items()}
 
 
 def _resultant(p: VnPoint) -> float:
@@ -218,10 +250,45 @@ def _steady_roll_torsion(vn: List[VnPoint], aileron_deg: float, cm: float) -> Op
     return best
 
 
+def _cg_weight(weights: Dict[str, float], p: VnPoint) -> float:
+    """The weight a V-n row was balanced at, or a refusal (review CR-B-4).
+
+    Every row of the matrix names the CG case it was balanced at, so a name with
+    no case behind it -- or a case at zero weight -- is a defect in what was
+    persisted, never a load factor of zero. The reads used to spell it
+    ``weights.get(p.cg, 0.0)``, which turned it into ``nx = 0.0`` in a WINGINER
+    load case. :func:`default_envelope` refuses such a matrix up front; this is
+    the same refusal for a caller that threads an ``envelope=`` of its own.
+    """
+    w = weights.get(p.cg)
+    if not w:
+        raise ValueError(
+            f"V-n case {p.case} ({p.condition}) was balanced at CG case "
+            f"{p.cg!r}, which this project "
+            + ("carries at zero weight" if p.cg in weights else "does not carry")
+            + ". Re-run the flight envelope (FLTLOADS) to rebuild the matrix.")
+    return w
+
+
+def _cg_case(cg_map: Dict[str, CgCase], p: VnPoint) -> CgCase:
+    """The weight/CG case a V-n row was balanced at, or a refusal (CR-B-4).
+
+    The h-tail searches used to ``continue`` past an unmatched name, dropping the
+    candidate from the 23.421 balancing set with nothing said -- a quieter form of
+    the same defect, since a missing candidate cannot be seen in the result.
+    """
+    cg = cg_map.get(p.cg)
+    if cg is None:
+        raise ValueError(
+            f"V-n case {p.case} ({p.condition}) was balanced at CG case "
+            f"{p.cg!r}, which this project does not carry. Re-run the flight "
+            "envelope (FLTLOADS) to rebuild the matrix.")
+    return cg
+
+
 def _condition(component: str, label: str, far: str, p: VnPoint, weights: Dict[str, float]) -> CriticalCondition:
     """Wrap a selected :class:`VnPoint` as a :class:`CriticalCondition`."""
-    w = weights.get(p.cg, 0.0)
-    nx = (-p.dx / w) if w else 0.0
+    nx = -p.dx / _cg_weight(weights, p)
     return CriticalCondition(
         component=component, label=label, far_reference=far, case=p.case,
         loads=[
@@ -317,14 +384,20 @@ def flaps_by_config_name(project: Project) -> Dict[str, bool]:
     (cruise = False, flaps_down = True), for pairing against V-n points'
     ``config`` field. Empty when the slice is absent."""
     aero = project.aero_coeffs
-    flaps: Dict[str, bool] = {}
     if aero is None:
-        return flaps
-    if aero.cruise is not None:
-        flaps[aero.cruise.name] = False
-    if aero.flaps_down is not None:
-        flaps[aero.flaps_down.name] = True
-    return flaps
+        return {}
+    sets = [(cs, flapped) for cs, flapped in ((aero.cruise, False), (aero.flaps_down, True))
+            if cs is not None]
+    # Through ``keyed``: two sets with one name used to collapse to one entry
+    # and drop 14 SELECT rows with nothing said (review 2026-08-22 PB-5).
+    return {name: flapped for name, (_cs, flapped)
+            in keyed(sets, lambda t: t[0].name, "Coefficient set").items()}
+
+
+def _cg_map(project: Project) -> Dict[str, CgCase]:
+    """CG-case name -> case, for every lookup a V-n row makes; a duplicate name
+    is refused here rather than collapsed (``sloads.selectors.keyed``)."""
+    return keyed(flight_cases(project), lambda c: c.name, "CG case")
 
 
 def select_htail_balancing(project: Project,
@@ -337,15 +410,13 @@ def select_htail_balancing(project: Project,
     wr = wing_reference(project)
     if ti is None or fl is None or wr is None:
         return []
-    cg_map: Dict[str, CgCase] = {c.name: c for c in flight_cases(project)}
+    cg_map = _cg_map(project)
     flaps: Dict[str, bool] = flaps_by_config_name(project)
 
     retracted: List[Tuple[VnPoint, HtailBalance]] = []
     extended: List[Tuple[VnPoint, HtailBalance]] = []
     for p in _resolve_envelope(project, envelope).vn:
-        cg = cg_map.get(p.cg)
-        if cg is None:
-            continue
+        cg = _cg_case(cg_map, p)
         bucket = extended if flaps.get(p.config, False) else retracted
         if bucket is extended and p.condition == "LEV LAND":
             continue
@@ -424,17 +495,21 @@ def select_htail_maneuver(project: Project,
     wr = wing_reference(project)
     if ti is None or fl is None or wr is None:
         return []
-    cg_map: Dict[str, CgCase] = {c.name: c for c in flight_cases(project)}
+    cg_map = _cg_map(project)
     np_ = design_inputs(project).n_pos
+    lf_in = airplane_length_in(project)
     aht = 2.0 * math.pi / (1.0 + 2.0 / ti.aspect_ratio_htail)
     se2st = ti.elevator_area_sqft / ti.htail_area_sqft if ti.htail_area_sqft else 0.0
     vn = _resolve_envelope(project, envelope).vn
 
     def bal(p: VnPoint):
-        return htail_balance(p, cg_map[p.cg], wr.xw, wr.zw, ti)
+        return htail_balance(p, _cg_case(cg_map, p), wr.xw, wr.zw, ti)
 
     def in_cg(p: VnPoint) -> bool:
-        return p.cg in cg_map and not p.config.upper().startswith("LAND")
+        # Flaps-down rows are out of this search by condition; a row whose CG
+        # case is missing is not filtered out here -- it refuses (CR-B-4).
+        _cg_case(cg_map, p)
+        return not p.config.upper().startswith("LAND")
 
     out: List[CriticalCondition] = []
     bal_a = [p for p in vn if p.condition == "BAL A" and in_cg(p)]
@@ -463,7 +538,7 @@ def select_htail_maneuver(project: Project,
     # Checked: pitch-acceleration increment T = Iyy*theta_ddot/(arm) at VC/VD.
     def iyy(p: VnPoint) -> float:
         # Slender rod I = m*L^2/12 (the 12 is geometric, not in/ft), x0.44.
-        return cg_map[p.cg].weight_lb * (ti.airplane_length_in / IN_PER_FT) ** 2 / G / 12.0 * 0.44
+        return cg_map[p.cg].weight_lb * (lf_in / IN_PER_FT) ** 2 / G / 12.0 * 0.44
 
     def theta_ddot(p: VnPoint) -> float:
         return 39.0 * np_ * (np_ - 1.5) / p.v_eas_kt
@@ -500,7 +575,7 @@ def select_htail_gust(project: Project,
     wr = wing_reference(project)
     if ti is None or fl is None or wr is None:
         return []
-    cg_map: Dict[str, CgCase] = {c.name: c for c in flight_cases(project)}
+    cg_map = _cg_map(project)
     aht = 2.0 * math.pi / (1.0 + 2.0 / ti.aspect_ratio_htail)
     aw, arw = ti.wing_lift_slope_per_rad, ti.aspect_ratio_wing
     mac_ft = wr.mac / IN_PER_FT
@@ -658,13 +733,14 @@ def _avt(vt: VTailLoadsInput) -> float:
     return vtail_lift_slope(vt.aspect_ratio_vtail)
 
 
-def _default_izz(vt: VTailLoadsInput, gw: float) -> float:
+def _default_izz(vt: VTailLoadsInput, gw: float, lf_in: float) -> float:
     """Default airplane yaw inertia IZZ (slug-ft^2): wing mass on the span and the
-    rest of the empty weight on the length (SELECT.BAS 8884)."""
+    rest of the empty weight on the airplane length ``lf_in`` (SELECT.BAS 8884;
+    LF comes from :func:`derived_geometry.airplane_length_in`, #52)."""
     w_wing = 0.09 * gw
     # Two slender rods, I = m*L^2/12 each (the 12 is geometric, not in/ft).
     return ((w_wing / G) * (vt.wing_span_in / IN_PER_FT) ** 2 / 12.0
-            + ((0.62 * gw - w_wing) / G) * (vt.airplane_length_in / IN_PER_FT) ** 2 / 12.0)
+            + ((0.62 * gw - w_wing) / G) * (lf_in / IN_PER_FT) ** 2 / 12.0)
 
 
 def _vt_rudder_load(p: VnPoint, vt: VTailLoadsInput) -> float:
@@ -750,7 +826,7 @@ def select_vtail(project: Project, envelope: Optional[EnvelopeResult] = None) ->
     fl = project.flight_loads
     if vt is None or fl is None:
         return []
-    cg_map: Dict[str, CgCase] = {c.name: c for c in flight_cases(project)}
+    cg_map = _cg_map(project)
     vn = _resolve_envelope(project, envelope).vn
     bal_a = [p for p in vn if p.condition == "BAL A" and p.cg in cg_map]
     bal_c = [p for p in vn if p.condition == "BAL C" and p.cg in cg_map]
@@ -762,7 +838,7 @@ def select_vtail(project: Project, envelope: Optional[EnvelopeResult] = None) ->
     # case, which is the same number on every fixture and no longer a second
     # opinion of it.
     gw = vt.gross_weight_lb or max_takeoff_weight(project, required=False)
-    izz = vt.izz_slugft2 or _default_izz(vt, gw)
+    izz = vt.izz_slugft2 or _default_izz(vt, gw, airplane_length_in(project))
     cy_fin, cn_fin = fin_sideslip_derivatives(project, vt)
     out: List[CriticalCondition] = []
 

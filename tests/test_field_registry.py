@@ -312,10 +312,12 @@ def test_a_quantity_column_without_an_owner_is_rejected():
 
 def test_the_reviews_duplicate_instances_are_all_recorded():
     """The five instances the 2026-08-16 GUI review found by hand are the
-    regression fixture for the registry that replaced that hand sweep."""
+    regression fixture for the registry that replaced that hand sweep.
+    N1 instance 2 (the v-tail's ``airplane_length_in``) is no longer a
+    duplicate at all: v55 (#52) left the quantity one field, which
+    :func:`test_no_quantity_regains_a_second_field` holds."""
     for path in (
         "geometry.empennage.vtail.gross_weight_lb",     # N1 instance 1
-        "geometry.empennage.vtail.airplane_length_in",  # N1 instance 2
         "weight.estimation.engines",                    # N1 instance 3
         "engines[].limit_load_factor",                  # N1 instance 4
         "engines[].engine_weight_lb",                   # N1 instance 5
@@ -352,10 +354,8 @@ STILL_DUPLICATED = {
     # Class B (note 33 §1, DS-6) -- a genuine override of its owner.
     "max take-off weight",
     "wing reference area",
-    # Class C (DS-7) -- entered twice with nothing reconciling them, and both
-    # copies persisted, so removing either needs a schema hop. Filed, not fixed.
-    "airplane length",
-    "shoulder altitude",
+    # Class C (DS-7) -- "airplane length" and "shoulder altitude" were here
+    # until the v55 hop (#52, note 33 §8) left each one field. DG-2 shrunk.
 }
 
 

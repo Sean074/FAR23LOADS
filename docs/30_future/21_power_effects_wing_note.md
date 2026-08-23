@@ -21,7 +21,7 @@ slipstream and claims no trim). Shipped behaviour of record:
 `CONVENTIONS.md` §7; gates `tests/test_hub_thrust.py`. The next artefact for the
 rest is still the code implementation plan (§8 is its skeleton).** Written to `CLAUDE.md` required practice 1 (design note before
 code, physics/L step). Follows the L-7 note's form
-([`19_l7_lateral_body_aero_note.md`](19_l7_lateral_body_aero_note.md)): every
+([`../40_history/33_l7_lateral_body_aero_note.md`](../40_history/33_l7_lateral_body_aero_note.md)): every
 option is listed, the recommendation is marked, agreed decisions will be tagged
 **[DECISION P-n]** as they are taken.
 

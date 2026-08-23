@@ -23,9 +23,10 @@ import plotly.graph_objects as go
 import streamlit as st
 from plotly.subplots import make_subplots
 
-from app_shell.components import active_system, gate, page_header, unit_number_input
+from app_shell.components import active_system, gate, page_header, stop_page, unit_number_input
 from app_shell.widget_keys import widget_key
 from sloads import (
+    STRUT_TYPES,
     FuselageOutline,
     FuselageSection,
     GearCarrier,
@@ -136,7 +137,7 @@ def _layout_errors(layout: LayoutInput) -> list[str]:
     ``configuration.wing_planform`` requires a positive area and aspect ratio (and a
     positive taper λ for a real trapezoid -- it divides by ``1 + λ``). Persisting an
     invalid layout used to be stored, then crash ``configuration_properties`` below and
-    ``st.stop()`` -- blanking the unrelated empennage / landing-gear / outline forms
+    ``stop_page()`` -- blanking the unrelated empennage / landing-gear / outline forms
     further down the page. Validate before persisting so the Apply is rejected with a
     targeted message and the last valid layout (hence the rest of the page) survives."""
     errs: list[str] = []
@@ -302,7 +303,7 @@ if _parametric is None:
         "No geometry defined yet -- fill in at least the wing area and aspect "
         "ratio in the sidebar and Apply geometry."
     )
-    st.stop()
+    stop_page()
 layout = _parametric
 
 # --------------------------------------------------------------------------- #
@@ -312,7 +313,7 @@ try:
     results = configuration_properties(project)
 except (ValueError, ZeroDivisionError) as exc:
     st.error(f"Could not derive configuration: {exc}")
-    st.stop()
+    stop_page()
 
 derived = {v.key: v.value for r in results for v in r.values}
 mac = derived["mac"]
@@ -505,8 +506,15 @@ _ht0 = (_emp.htail if _emp is not None else None) or TailLoadsInput()
 _vt0 = (_emp.vtail if _emp is not None else None) or VTailLoadsInput()
 
 with st.form("empennage_form"):
+    # LF is one whole-airplane length (v55, #52): SELECT's 23.423(b) pitch
+    # inertia and the 23.441 default IZZ both read it from geometry.empennage.
+    en_lf = _u("Airplane length LF", _emp.airplane_length_in if _emp is not None else 0.0,
+               "length", "en_lf", None, min_value=0.0,
+               help="Overall airplane length: the slender-rod length in SELECT's "
+                    "approximate pitch (Iyy) and yaw (IZZ) inertias.")
     en_h = st.checkbox("Model horizontal tail + elevator",
-                       value=_emp is not None and _emp.htail is not None)
+                       value=_emp is not None and _emp.htail is not None,
+                       key=widget_key("en_model_htail"))
     with st.expander("Horizontal tail & elevator", expanded=True):
         c = st.columns(3)
         ht_area = _u("H-tail area ST", _ht0.htail_area_sqft, "area_sqft", "en_ht_area", c[0], min_value=0.0)
@@ -516,11 +524,10 @@ with st.form("empennage_form"):
         ht_xt25 = _u("25% tail-MAC station xt25", _ht0.xt25, "length", "en_xt25", c[1])
         ht_xt50 = _u("50% tail-MAC station xt50", _ht0.xt50, "length", "en_xt50", c[2])
         ht_it = _u("Tail incidence IT (deg)", _ht0.tail_incidence_deg, None, "en_it", c[0])
-        ht_lf = _u("Airplane length LF", _ht0.airplane_length_in, "length", "en_lf", c[1], min_value=0.0)
-        ht_aw = _u("Wing lift slope AW (per rad)", _ht0.wing_lift_slope_per_rad, None, "en_aw", c[2])
-        ht_iwc = _u("Wing zero-lift, cruise (deg)", _ht0.wing_zero_lift_cruise_deg, None, "en_iwc", c[0])
-        ht_iwe = _u("Wing zero-lift, enroute (deg)", _ht0.wing_zero_lift_enroute_deg, None, "en_iwe", c[1])
-        ht_iwl = _u("Wing zero-lift, landing (deg)", _ht0.wing_zero_lift_landing_deg, None, "en_iwl", c[2])
+        ht_aw = _u("Wing lift slope AW (per rad)", _ht0.wing_lift_slope_per_rad, None, "en_aw", c[1])
+        ht_iwc = _u("Wing zero-lift, cruise (deg)", _ht0.wing_zero_lift_cruise_deg, None, "en_iwc", c[2])
+        ht_iwe = _u("Wing zero-lift, enroute (deg)", _ht0.wing_zero_lift_enroute_deg, None, "en_iwe", c[0])
+        ht_iwl = _u("Wing zero-lift, landing (deg)", _ht0.wing_zero_lift_landing_deg, None, "en_iwl", c[1])
         st.markdown("**Elevator**")
         e = st.columns(3)
         el_se = _u("Elevator area SE", _ht0.elevator_area_sqft, "area_sqft", "en_se", e[0], min_value=0.0)
@@ -533,7 +540,8 @@ with st.form("empennage_form"):
         el_eff = _u("Elevator effectiveness", _ht0.elevator_effectiveness, None, "en_eeff", e[2], min_value=0.0)
 
     en_v = st.checkbox("Model vertical tail + rudder",
-                       value=_emp is not None and _emp.vtail is not None)
+                       value=_emp is not None and _emp.vtail is not None,
+                       key=widget_key("en_model_vtail"))
     with st.expander("Vertical tail & rudder", expanded=True):
         c = st.columns(3)
         vt_area = _u("V-tail area SV", _vt0.vtail_area_sqft, "area_sqft", "en_vt_area", c[0], min_value=0.0)
@@ -543,11 +551,10 @@ with st.form("empennage_form"):
         vt_xv25 = _u("25% V-tail-MAC station xv25", _vt0.xv25, "length", "en_xv25", c[1])
         vt_xv50 = _u("50% V-tail-MAC station xv50", _vt0.xv50, "length", "en_xv50", c[2])
         vt_b = _u("Wing span B", _vt0.wing_span_in, "length", "en_wspan", c[0], min_value=0.0)
-        vt_lf = _u("Airplane length LF", _vt0.airplane_length_in, "length", "en_vlf", c[1], min_value=0.0)
-        vt_gw = _u("Gross weight GW (0=auto)", _vt0.gross_weight_lb, "weight", "en_gw", c[2], min_value=0.0)
-        vt_izz = _u("Yaw inertia IZZ (0=auto)", _vt0.izz_slugft2, "inertia", "en_izz", c[0], min_value=0.0)
+        vt_gw = _u("Gross weight GW (0=auto)", _vt0.gross_weight_lb, "weight", "en_gw", c[1], min_value=0.0)
+        vt_izz = _u("Yaw inertia IZZ (0=auto)", _vt0.izz_slugft2, "inertia", "en_izz", c[2], min_value=0.0)
         vt_wl = _u("Fin root waterline (0=derived)", _vt0.vtail_root_waterline_z, "length",
-                   "en_vt_wl", c[1],
+                   "en_vt_wl", c[0],
                    help="Waterline Z of the fin root chord (B8a-1). 0 places the fin on "
                         "the airplane centreline as a marked assumption.")
         st.markdown("**Rudder**")
@@ -570,15 +577,18 @@ if en_applied:
         elevator_effectiveness=el_eff, xt25=ht_xt25, xt50=ht_xt50,
         elevator_te_up_deg=el_up, elevator_te_down_deg=el_dn, elevator_area_sqft=el_se,
         elevator_fwd_hinge_sqft=el_fwd, elevator_aft_hinge_sqft=el_aft,
-        airplane_length_in=ht_lf, wing_lift_slope_per_rad=ht_aw, htail_semispan_in=ht_semi,
+        wing_lift_slope_per_rad=ht_aw, htail_semispan_in=ht_semi,
     ) if en_h else None
     project.vtail_loads = VTailLoadsInput(
         rudder_deflection_deg=rd_rd, vtail_area_sqft=vt_area, rudder_area_sqft=rd_sr,
         rudder_fwd_hinge_sqft=rd_fwd, rudder_aft_hinge_sqft=rd_aft, aspect_ratio_vtail=vt_arvt,
-        vtail_mac_in=vt_mac, xv25=vt_xv25, xv50=vt_xv50, airplane_length_in=vt_lf,
+        vtail_mac_in=vt_mac, xv25=vt_xv25, xv50=vt_xv50,
         wing_span_in=vt_b, gross_weight_lb=vt_gw, rudder_large_deflection_factor=rd_efv,
         izz_slugft2=vt_izz, vtail_span_in=vt_span, vtail_root_waterline_z=vt_wl,
     ) if en_v else None
+    _emp_now = project.geometry.empennage if project.geometry is not None else None
+    if _emp_now is not None:
+        _emp_now.airplane_length_in = en_lf
     st.session_state["project"] = project
     st.success("Empennage geometry updated.")
     st.rerun()
@@ -614,8 +624,11 @@ _CARRIER_CHOICES = [_CARRIER_UNSTATED] + [c.value.upper() for c in GearCarrier]
 def _gear_leg(label: str, gear: LandingGearInput, keyp: str) -> LandingGearInput:
     st.markdown(f"**{label}**")
     a = st.columns(2)
-    strut = a[0].selectbox(f"{label} strut", ["O", "S"], index=0 if gear.strut == "O" else 1,
-                           key=widget_key(f"{keyp}_strut"), help="O = oleo, S = spring")
+    strut_codes = list(STRUT_TYPES)
+    strut = a[0].selectbox(f"{label} strut", strut_codes,
+                           index=strut_codes.index(gear.strut) if gear.strut in STRUT_TYPES else 0,
+                           key=widget_key(f"{keyp}_strut"),
+                           format_func=lambda c: f"{c} · {STRUT_TYPES[c]}")
     rr = _u(f"{label} rolling radius", gear.rolling_radius_in, "length", f"{keyp}_rr", a[1],
             min_value=0.0)
     c = st.columns(6)
@@ -731,7 +744,8 @@ _geometry = project.geometry or GeometryInput()
 
 with st.form("add_surface_form", clear_on_submit=True):
     _new_name = st.text_input("New surface name", value="",
-                              placeholder="e.g. wing, htail, vtail")
+                              placeholder="e.g. wing, htail, vtail",
+                              key=widget_key("geo_new_surface_name"))
     if st.form_submit_button("Add surface") and _new_name:
         _surfaces = [*list(_geometry.surfaces), SurfaceInput(name=_new_name, leading_edge=[], trailing_edge=[])]
         _set_geometry(project, surfaces=_surfaces)

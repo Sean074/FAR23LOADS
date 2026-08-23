@@ -168,7 +168,10 @@ def test_the_atr42_stall_exceedance_is_the_documented_mach_capped_one():
     SELECTed as a governing critical condition, so no sizing load moves anywhere
     -- but BALLOADS publishes all 300 points, so nine published rows carry the
     extrapolation unmarked (**#32**, band B). The solver's own silence -- both
-    iteration loops return their last iterate with no signal -- is **#33**.
+    iteration loops returning their last iterate with no signal -- was **#33**,
+    closed 2026-08-22: the balance now reports these nine as **clamped**, and
+    ``tests/test_convergence.py::test_the_clamped_set_is_the_rows_the_published_numbers_also_flag``
+    pins that its set is the same set this test recovers from the published CL.
 
     **It got roughly half way there on its own.** Pri 5 / D-26 corrected this
     fixture's CG cases to loadings its weight database can produce, and the

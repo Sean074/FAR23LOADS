@@ -316,6 +316,31 @@ BALANCED_HTAIL_CONDITIONS = ("UNSYMMETRICAL",)
 #: with the fin load removed (``test_the_symmetric_half_still_closes``).
 RESIDUAL_GATE = 0.01
 
+#: The **force** half of the acceptance, as a fraction of ``n*W`` (owner's
+#: decision, 2026-08-22, closing CR-C-2).
+#:
+#: Plan 11 stated one flat 1 % for both components, and the pitch residual meets
+#: it everywhere with an order of magnitude to spare (0.014-0.086 %). Force does
+#: not: the four type fixtures reach 1.209-2.360 %, an ordering that tracks
+#: **fixture lift-model quality** rather than the assembly -- ``ga6_normal``, the
+#: one fixture whose aero and planform come from a printed source, is best at
+#: 0.624 %, and the concept configurations are worst. Every case still closes
+#: exactly after correction, and the DOF that would expose a mis-placed force --
+#: pitch -- stays at a tenth of its own gate.
+#:
+#: None of these six is a printed oracle: the balanced full-span model is a
+#: mission-extension deliverable with no Appendix A/B figure behind it (the
+#: FAR23 replication core is oracle-locked separately and is untouched by this
+#: number). So the acceptance is set where the suite already enforced it -- this
+#: was ``tests/test_balance.py``'s hard stop, the level at which "a small
+#: correction to a balance that nearly held" stops being a fair description --
+#: and the controlling document now judges force against the same value the
+#: tests do, instead of reporting a failure against an acceptance nothing
+#: enforced. The per-fixture, per-family ``_FORCE_RESIDUAL_RATCHET`` in that test
+#: is unchanged and remains the regression guard: a fixture drifting from
+#: 2.360 % toward this bound still fails loudly, well before it arrives.
+FORCE_RESIDUAL_ACCEPTANCE = 0.025
+
 #: Applied lateral content below this fraction of ``n*W`` is summation noise, not
 #: a hand (decision L-6). It serves the rolling test of :func:`is_handed` too,
 #: against ``n*W*(b/2)``: the margin there is fifteen orders of magnitude -- a
@@ -1352,6 +1377,95 @@ def is_ground(case: BalancedCaseResult) -> bool:
     reproduce LANDLOAD's ``NVP``/``NDP``/``NS`` -- which it does exactly.
     """
     return any(ld.source.startswith("gear-") for ld in case.loads)
+
+
+def residual_gate_applies(case: BalancedCaseResult) -> bool:
+    """Is this case's pre-closure ``Fz``/``My`` residual a **gate-comparable**
+    trim statement? (CR-C-2, #41.)
+
+    THE owner of the :data:`RESIDUAL_GATE` exemption. The families above each
+    state their own exemption in prose -- the deck ``$`` header, the case-table
+    note, the report and the GUI all repeated it -- and every surface that
+    summarises a *worst* residual has to agree on which cases that maximum is
+    taken over. It did not: §6 maximised over all cases (143.885 % on
+    ``ga6_normal``, which is the 23.427(a) maneuver), the Balanced Cases page
+    excluded only the 23.427(a) family (100.000 %, which is a ground case's
+    applied gear load), and the gate-applicable family sat at 0.624 %.
+
+    Exempt, because their pre-closure ``Fz``/``My`` **is an applied load in
+    full** and no arithmetic makes it comparable to 1 %:
+
+    * :func:`is_ground` -- the gear reaction; nothing trims against a wheel.
+    * :func:`is_unsymmetrical_htail` -- the 23.427(a) maneuver tail load, which
+      replaces the trim load rather than adding to it.
+    * :func:`is_powered` -- the thrust couple about the CG, applied at a
+      thrust-free V-n point.
+
+    **A lateral case is not exempt, and that is deliberate.** What 23.441/23.443
+    exempts is the ``Fy``/``Mz`` pair -- and neither appears in
+    :attr:`~BalancedCaseResult.force_residual_fraction` (``|Fz|/n*W``) or
+    :attr:`~BalancedCaseResult.moment_residual_fraction` (``|My|/(n*W*MAC)``).
+    Those two measure precisely the *symmetric half* that :func:`is_lateral`'s
+    own docstring names as the gate that does apply, so excluding the family here
+    would delete a live gate rather than correct one. It passes on every shipped
+    fixture (worst 0.614 %), which is the check working, not an argument for
+    turning it off.
+    """
+    return not (is_ground(case) or is_unsymmetrical_htail(case) or is_powered(case))
+
+
+#: The exempt families in the order :func:`residual_gate_exemptions` states them,
+#: as ``(predicate, phrase)``. One row per exemption, so a surface never spells a
+#: family name itself and a new exemption reaches all of them at once.
+_GATE_EXEMPTIONS = (
+    (is_ground, "ground (FAR 23.471-23.499; the applied gear load in full)"),
+    (is_unsymmetrical_htail,
+     "unsymmetrical h-tail (FAR 23.427(a); the maneuver tail load in full)"),
+    (is_powered, "powered (the applied thrust couple in full)"),
+)
+
+
+def residual_gate_family(
+    cases: Sequence[BalancedCaseResult],
+) -> Tuple[List[BalancedCaseResult], List[BalancedCaseResult]]:
+    """``(judged, clamped)`` -- the gated cases split by whether the **flat**
+    acceptances (:data:`FORCE_RESIDUAL_ACCEPTANCE`, :data:`RESIDUAL_GATE`) are
+    the right thing to judge them against.
+
+    A case whose forward non-wing axial force was **not applied** (design note 20
+    D-4: the trim ``alpha`` is outside :data:`POLAR_TRUSTED_ALPHA_DEG` and the
+    airplane-less-tail polar less the wing strips came out forward) is out of trim
+    by exactly that clamped force and the couple it made about the CG. Its
+    residuals are therefore a *known, measured* quantity, not a balance quality:
+    they are gated per case, against what was measured when the clamp was decided
+    (``tests/test_balance.py::_CLAMPED_BODY_AXIAL``). Judging them against the
+    flat acceptance instead reports a modelling decision as a failure -- the
+    CR-C-2 defect again, one layer down. Split here rather than at each surface so
+    the report and the GUI cannot draw the line differently.
+
+    ``judged``: pitch 0.07-0.84 % and force 0.48-2.36 % across the six fixtures.
+    ``clamped``: at most three cases on a fixture, none on ``ga6_normal``.
+    """
+    gated = [c for c in cases if residual_gate_applies(c)]
+    return ([c for c in gated if not c.body_axial_clamped],
+            [c for c in gated if c.body_axial_clamped])
+
+
+def residual_gate_exemptions(cases: Sequence[BalancedCaseResult]) -> List[str]:
+    """``["27 ground (…)", "2 unsymmetrical h-tail (…)"]`` -- the exempt families
+    actually present in ``cases``, counted, for a surface to state beside the
+    worst gated residual.
+
+    Stating the standing beside the number is the point: a reader who is shown
+    "0.624 % over 7 cases" and not told that 27 ground cases sit at 100 % by
+    construction has been given a true number and a false impression.
+    """
+    out = []
+    for predicate, phrase in _GATE_EXEMPTIONS:
+        n = sum(1 for c in cases if predicate(c))
+        if n:
+            out.append(f"{n} {phrase}")
+    return out
 
 
 #: What the integer in :attr:`BalancedCaseResult.vn_case` actually names, by
@@ -2684,6 +2798,7 @@ __all__ = [
     "BALANCED_VTAIL_CONDITIONS",
     "BALANCED_WING_CONDITIONS",
     "FLIGHT_SOURCE_STEM",
+    "FORCE_RESIDUAL_ACCEPTANCE",
     "GROUND_SOURCE_STEM",
     "HANDEDNESS_TOL",
     "HUB_THRUST_SOURCE",
@@ -2713,6 +2828,9 @@ __all__ = [
     "is_powered",
     "is_unsymmetrical_htail",
     "reflect_load",
+    "residual_gate_applies",
+    "residual_gate_exemptions",
+    "residual_gate_family",
     "resultant",
     "resultant6",
     "skipped_condition_lines",

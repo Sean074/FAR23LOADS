@@ -333,9 +333,17 @@ def test_body_deck_closes_in_force_and_moment(example, system):
         # F-G1, required practice 4). They are zero **by construction** rather
         # than by closure: the flight-only body deck is planar -- vertical cards
         # on nodes at y = z = 0 -- so a non-zero one is a card in a DOF this deck
-        # has no business carrying, which is worth a line to catch. The day the
-        # ground cases land (gear reactions carry side and drag loads) this goes
-        # red, and the new claim gets stated rather than assumed.
+        # has no business carrying, which is worth a line to catch.
+        #
+        # This used to say "the day the ground cases land this goes red". They
+        # landed in 0.6.0 -- in the *assembled* deck -- and did not, because
+        # decision **D-28** made the per-component body deck flight-only
+        # permanently: flight and ground fuselage cases are assessed against
+        # different internal-pressure companion cases, so there is no honest
+        # envelope over both and the two stay separate deliverables (the ground
+        # family's own per-station view is #31). So the planarity above is not a
+        # waiting-to-break assumption; it is what D-28 decided this deck is
+        # (review CR-C-5).
         for axis, value in (("Fx", got.fx), ("Fy", got.fy)):
             assert closes(value, 0.0, scale=got.force_scale), f"{where} {axis} -> 0"
         for axis, value in (("Mx", got.mx), ("Mz", got.mz)):

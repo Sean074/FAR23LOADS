@@ -17,7 +17,7 @@ from __future__ import annotations
 import pandas as pd
 import streamlit as st
 
-from app_shell.components import active_system
+from app_shell.components import active_system, stop_page
 from app_shell.widget_keys import widget_key
 from sloads import (
     EngineInput,
@@ -84,7 +84,8 @@ with st.sidebar:
         list(_LAYOUTS.values()).index(project.engine_layout)
         if project.engine_layout in _LAYOUTS.values() else 0
     )
-    layout = _LAYOUTS[st.radio("Engines & arrangement", _LAYOUT_LABELS, index=default_layout_idx)]
+    layout = _LAYOUTS[st.radio("Engines & arrangement", _LAYOUT_LABELS, index=default_layout_idx,
+                               key=widget_key("em_layout"))]
     n_engines = layout.expected_count
 
     # Working copy for widget-seeding only; not written to project.engines until
@@ -101,6 +102,7 @@ with st.sidebar:
             "Engine being assessed",
             options=range(n_engines),
             index=prev,
+            key=widget_key("em_engine_sel"),
             format_func=lambda i: f"{i + 1} — {engines_working[i].engine_designation or 'engine'}",
         )
         st.session_state["engine_sel"] = idx
@@ -159,6 +161,7 @@ with st.form("engine_mount_form"):
     include_far25 = st.checkbox(
         "Add supplemental FAR 25 cases (optional)",
         value=project.include_far25,
+        key=widget_key("em_include_far25"),
         help=(
             "Keeps every FAR 23 case and appends the three 14 CFR 25.361 / 25.371 "
             "cases that are *not* already covered by the corrected FAR 23 set "
@@ -446,13 +449,14 @@ st.subheader("Results")
 
 if not project.engines:
     st.info("No engine defined yet — fill in the form above and Apply.")
-    st.stop()
+    stop_page()
 
 result_idx = min(idx, len(project.engines) - 1)
 inp = project.engines[result_idx]
 
 show_all = st.checkbox(
     "Show all engines", value=False, disabled=(len(project.engines) == 1),
+    key=widget_key("em_show_all"),
     help="Off: results for the selected engine only. On: every engine, each "
          "condition prefixed with the engine designation.",
 )
@@ -464,7 +468,7 @@ try:
         conditions = run_all(inp, include_far25=project.include_far25)
 except Exception as exc:  # surface, don't crash
     st.error(f"Could not compute loads: {exc}")
-    st.stop()
+    stop_page()
 
 # Results are computed in Imperial; convert to the selected system for display.
 conditions = convert_results(conditions, system)
@@ -507,7 +511,7 @@ except Exception as exc:
         f"Could not build the all-engine export bundle yet: {exc}. Fill in and "
         "Apply every engine in the current layout first."
     )
-    st.stop()
+    stop_page()
 d1, d2, d3 = st.columns(3)
 
 with d1:

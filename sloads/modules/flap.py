@@ -51,6 +51,7 @@ from ..constants import (
     ULTIMATE_FACTOR,
     dynamic_pressure_psf,
 )
+from ..convergence import solver_failure
 from ..models import (
     CaseRef,
     ConditionResult,
@@ -63,6 +64,12 @@ from ..models import (
 )
 from ..registry import register
 from .structural_speeds import _wing_area_sqft, design_speed_values
+
+# Upper bound on the slipstream-velocity search, and the trip count it implies at
+# the BAS's 0.5 ft/s step. Never reached for realistic inputs -- reaching it means
+# the disk cannot absorb the power at any speed, which is a refusal, not a result.
+_U1_MAX_FPS = 1.0e5
+_U1_TRIPS = 200000
 
 MODULE_NAME = "flap"
 
@@ -87,20 +94,31 @@ class FlapResult(NamedTuple):
 
 def _slipstream_velocity(vf_kt: float, maxhp: float, pdia_in: float):
     """Fully-developed slipstream velocity ``U1`` (ft/s) absorbing 0.85*MAXHP, and
-    the disk velocity ``U`` (FLAPLOAD.BAS sub 500, momentum theory)."""
+    the disk velocity ``U`` (FLAPLOAD.BAS sub 500, momentum theory).
+
+    The upper bound on ``U1`` **raises** rather than breaking (#33,
+    :mod:`sloads.convergence`). It used to fall out of the loop and return the
+    bound itself as the slipstream velocity -- a 100,000 ft/s slipstream, and the
+    flap load computed from it, delivered as if the search had succeeded.
+    """
     pdia_ft = pdia_in / IN_PER_FT
     area = math.pi * pdia_ft ** 2 / 4.0
     vf_fps = vf_kt * KT_TO_FPS
     u1 = 0.0
     # Iterate U1 upward (the BASIC steps by 0.5) until the absorbed power reaches
     # 0.85*MAXHP: HP = area*rho*(U1-Vf)*(U1+Vf)^2 / (4*550).
-    while True:
+    while u1 <= _U1_MAX_FPS:
         hp_try = area * RHO_SL * (u1 - vf_fps) * (u1 + vf_fps) ** 2 / (4.0 * FT_LB_S_PER_HP)
         if hp_try >= 0.85 * maxhp:
             break
         u1 += 0.5
-        if u1 > 1.0e5:  # guard (never reached for realistic inputs)
-            break
+    else:
+        raise solver_failure(
+            "the flap slipstream-velocity search",
+            trips=_U1_TRIPS,
+            detail=(f"no U1 below {_U1_MAX_FPS:.6g} ft/s absorbs 0.85 x {maxhp:.6g} hp "
+                    f"through a {pdia_in:.6g} in disk at VF {vf_kt:.6g} kt"),
+        )
     u = (vf_fps + u1) / 2.0
     return u1, u, area
 

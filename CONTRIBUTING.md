@@ -39,9 +39,15 @@ The gates, all local:
 
 ## 3. How work moves (the one-page version of `DEVELOPMENT_PROCESS.md`)
 
-*Working alone?* `DEVELOPMENT_PROCESS.md` §0 is the solo profile: steps 1, 6–8
-below become "one commit per closed item on `main`, backlog row out in that
-commit"; steps 2–5 (design note, tier closure, counters) apply unchanged.
+*Working alone?* `DEVELOPMENT_PROCESS.md` §0 is the solo profile, and since
+2026-08-22 it is **milestone-branch shaped**: one `dev/vX.Y.Z` branch per
+release, every item committed directly onto it (one commit per closed item,
+issue closed and backlog row out in that same commit), and `main` reached by
+that milestone's single pull request, merged with a merge commit. So steps 3
+and 6–8 below collapse into `scripts/solo_start.sh` once per release and
+`scripts/solo_close.sh` once per item — the copy-paste sequences are
+[`WORKFLOW_COMMANDS.txt`](docs/10_standard/WORKFLOW_COMMANDS.txt). Steps 1–2
+and 4–5 (issue, design note, tier closure, counters) apply unchanged.
 
 1. **Pick or open an issue.** Open work is GitHub Issues (labels
    `tier:*`, `tag:*`, `band:*`, `kind:*`); the priority order is the table in

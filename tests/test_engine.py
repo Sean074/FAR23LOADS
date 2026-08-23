@@ -14,6 +14,7 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from sloads import run_all
+from sloads.basic import basic_int
 from sloads.modules import engine as calc
 from fixtures import io520bb, turboprop
 from helpers import value_of
@@ -68,6 +69,53 @@ def test_prop_inertia_matches_manual():
     # Manual hand calc: IProp = 50/32.174*(50.5/12)^2/3 = 9.174 slug-ft^2
     inp = turboprop()
     assert math.isclose(calc._prop_inertia(inp), 9.174, abs_tol=1e-2)
+
+
+# --------------------------------------------------------------------------- #
+# 23.361(b)(1) sudden stoppage -- formula-closure gate (CR-B-3).
+#
+# Twin-only condition: Appendix B is not bundled, so there is no printed figure
+# to lock (CONVENTIONS.md §6 -- "no oracle" never means "no gate"). The gate is
+# the formula ENGLOADS.BAS lines 850-926 evaluate, restated here from the
+# rotor-by-rotor inputs rather than from the module's own summation, so a
+# regression in the loop, in a rotor's sign, or in the Delta-t division fails.
+# --------------------------------------------------------------------------- #
+
+def test_361_b1_closes_on_the_angular_momentum_formula():
+    """torque == I_prop*omega_prop/dt + SUM_i I_rotor(i)*omega_rotor(i)/dt.
+
+    Independently re-derived from the fixture's own numbers (ENGLOADS.BAS 853-926,
+    reference/FAR23Loads_Code.pdf p466). Rotor 1 spins counter-clockwise
+    (max_rpm < 0), so its contribution *subtracts*: this pins the signed summation,
+    not just its magnitude.
+    """
+    inp = turboprop()
+    dt = inp.stop_time_s
+    expected = calc._prop_inertia(inp) * calc._omega(inp.takeoff_rpm) / dt
+    contributions = [calc._rotor_inertia(r) * calc._omega(r.max_rpm) / dt for r in inp.rotors]
+    expected += sum(contributions)
+    assert min(contributions) < 0 < max(contributions)  # the counter-rotating pair
+
+    r = calc.condition_361_b1(inp)
+    assert value_of(r, "time_to_stop") == dt
+    assert math.isclose(value_of(r, "ixx_propeller"), calc._prop_inertia(inp), abs_tol=1e-9)
+    # Reported torque is the negated total, floored (see the truncation test below).
+    assert math.isclose(value_of(r, "mx_mount_torque"), -expected, abs_tol=1.0)
+    assert math.isclose(expected, 6824.62, rel_tol=TOL)  # today's value, pinned
+
+
+def test_361_b1_torque_is_floored_as_basic_int_did():
+    """``INT(-TORQSUDSTOP)`` floors; Python's ``int()`` truncates toward zero.
+
+    ENGLOADS.BAS line 944 prints ``INT(-TORQSUDSTOP)`` and the argument is negative
+    by construction (reaction torque is reported negative, CONVENTIONS.md §5), so
+    the two differ by exactly 1 ft-lb -- and ``int()`` was the non-conservative
+    one. -6824.624... floors to -6825, truncates to -6824.
+    """
+    r = calc.condition_361_b1(turboprop())
+    assert value_of(r, "mx_mount_torque") == -6825.0
+    assert value_of(r, "mx_mount_torque") == basic_int(-6824.624095864674)
+    assert int(-6824.624095864674) == -6824  # what the port used to report
 
 
 def test_measured_prop_inertia_overrides_geometry():
@@ -139,15 +187,13 @@ def test_twin_wing_loops_over_each_engine():
     assert mr.conditions[3].title.startswith("[RIGHT]")
 
 
-def test_engine_layout_count_is_validated():
+def test_engine_layout_count_is_asked_not_enforced():
+    """TWIN_WING with one engine constructs (a saved file must reopen, #66) and
+    says what is wrong through the rule's one owner."""
     from sloads import EngineLayout, Project
 
-    raised = False
-    try:
-        Project(name="bad", engines=[io520bb()], engine_layout=EngineLayout.TWIN_WING)
-    except ValueError:
-        raised = True
-    assert raised  # TWIN_WING needs 2 engines, got 1
+    project = Project(name="bad", engines=[io520bb()], engine_layout=EngineLayout.TWIN_WING)
+    assert project.engine_layout_problem() == "engine_layout 2W expects 2 engine(s), got 1"
 
 
 if __name__ == "__main__":

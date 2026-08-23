@@ -1,116 +1,125 @@
 sloads — standard workflow commands (solo profile)
 ===================================================
 
-Copy-paste command sequences for closing an issue / backlog item. This is a
-crib sheet, not the rule: the authority is DEVELOPMENT_PROCESS.md (§0 solo
-profile; §1-§9 with a second collaborator) and the closure tiers in CLAUDE.md.
-If this sheet and those pages disagree, those pages win.
+Copy-paste command sequences for a release. This is a crib sheet, not the rule:
+the authority is DEVELOPMENT_PROCESS.md (§0 solo profile; §1-§9 with a second
+collaborator) and the closure tiers in CLAUDE.md. If this sheet and those pages
+disagree, those pages win.
 
-Two paths. Pick by what the change touches:
+ONE branch per release, not one per item (2026-08-22). `dev/vX.Y.Z` is opened
+off main once, every item of the milestone is committed directly onto it, and
+main receives exactly one pull request at the end. There is no per-item branch,
+no per-item PR, and no separate release/x.y.z branch.
 
-  PATH A  -- anything touching .py, a fixture, or config: branch -> PR ->
-             squash-merge. CI runs before merge.
-  PATH B  -- docs-only (every path *.md, docs/, or changes/): edit on main,
-             close with solo_close.sh. No branch, guard-file gate only (~3 s).
-
-Placeholders:  <N> issue number   <slug> kebab-case item name
-               <type> fix|feat|note|docs   <Subject> commit subject in project
-               style, e.g. "Short description (#N, tier M, YYYY-MM-DD)"
+Placeholders:  <X.Y.Z> release, e.g. 0.7.0    <N> issue number
+               <slug> kebab-case item name    <Subject> commit subject in
+               project style, e.g. "Short description"
 
 
 ---------------------------------------------------------------------------
-PATH A — code / behavior change (branch + PR)
+A — ONCE PER RELEASE: open the milestone branch
 ---------------------------------------------------------------------------
 
-# 0. Start clean, from an up-to-date main. Never branch off an old tip.
-git checkout main
-git pull
+# 1. Scope the milestone first: the issues that will be worked in it exist,
+#    labelled (tier:* tag:* band:* kind:*) and on the milestone vX.Y.Z, and
+#    their rows are in the priority table of docs/30_future/00_backlog.md.
 
-# 1. Open the branch (preflight: clean tree, on main; checks the issue is
-#    open when <N> is given). Or plain: git checkout -b <type>/<N>-<slug>
-scripts/solo_start.sh <N> <type>/<N>-<slug>
+# 2. Open and push the branch (preflight: on main, clean tree, branch is new).
+scripts/solo_start.sh dev/v<X.Y.Z>
 
-# 2. Do the work, AND land the closure artefacts on the same branch:
-#      tier S: changes/<slug>.<type>.md fragment + delete the backlog row
-#              (your own row only — no renumbering)
+# One-time owner settings this model assumes on main (see DEVELOPMENT_PROCESS
+# §0, "Branch protection"): PR required, required checks = the fast gate,
+# "Require linear history" OFF, merge commits ALLOWED. No admin bypass is
+# needed any more — nothing pushes to main directly.
+
+
+---------------------------------------------------------------------------
+B — PER ITEM, on the milestone branch (repeat until the milestone is empty)
+---------------------------------------------------------------------------
+
+# 1. Confirm where you are. Every item is worked here; never branch off it.
+git status -sb                     # ## dev/v<X.Y.Z>...origin/dev/v<X.Y.Z>
+
+# 2. Do the work, AND the closure artefacts, before closing:
+#      tier S: changes/<slug>.<type>.md fragment + delete the item's backlog
+#              row (your own row only — no renumbering)
 #      tier M: tier S + the affected PROGRAM_SPEC.md / standard-doc section
 #              + a one-paragraph changes/<slug>.history.md fragment
 #      tier L: tier M + theory_sources.md citation + full-format history
-#              fragment; design note merged at AGREED before code
-#    Closure travels in the PR — never in a follow-up.
+#              fragment; design note agreed before code (in chat while solo)
+#    The issue closes and the row leaves in THIS item's commit — that is what
+#    keeps the backlog a live view of what is still open mid-milestone.
 
-# 3. Local gate, once, immediately before pushing (not after every edit).
-#    While iterating, run only the module's own test file.
-.venv/bin/ruff check sloads/ cli.py oracle.py app/ app_shell/ oracle_app/ scripts/
-.venv/bin/mypy
-.venv/bin/python -m pytest
+# 3. While iterating, run only the module's own test file. The full local gate
+#    runs once, in step 4 (or by hand here if you prefer).
+.venv/bin/python -m pytest tests/test_<module>.py
 
-# 4. Commit (one commit per closed item, project-style subject) and push.
-git add -A
-git commit -m "<Subject>"
-git push -u origin <type>/<N>-<slug>
-
-# 5. Open the PR. "Closes #N" in the body closes the issue on merge.
-#    One open PR at a time.
-gh pr create --fill --body "Closes #<N>"
-
-# 6. Wait for the fast gate (test 3.12 uninstrumented, typecheck,
-#    sbeam-roundtrip), then squash-merge. Auto-merge is not enabled on this
-#    repo, so watch-then-merge:
-gh pr checks --watch
-gh pr merge --squash --delete-branch
-
-# 7. Resync BEFORE starting anything else. A squash-merged branch is dead:
-#    never commit to it again (its commits now conflict with their own
-#    squashed copy on main — see DEVELOPMENT_PROCESS.md §0, #53/#54).
-git checkout main
-git pull
-
-# 8. Post-merge check: the push to main runs the full matrix (3.9/3.11 +
-#    coverage-instrumented 3.12). It is fixed forward — if it goes red,
-#    the fix is the next item, not a revert.
-gh run list --limit 3
-
-
----------------------------------------------------------------------------
-PATH B — docs-only change (on main, no branch)
----------------------------------------------------------------------------
-
-# Applies only when EVERY changed path is *.md, under docs/, or under
-# changes/. Anything touching .py, a fixture, or config -> PATH A.
-
-# 0. Up-to-date main, then edit in place.
-git checkout main
-git pull
-
-# 1. Write the change + the tier-S fragment (changes/<slug>.<type>.md) and,
-#    if closing a backlog row, delete that row.
-
-# 2. Close. Gate scales to the guard files (~3 s), commits, lands --ff-only,
-#    pushes; with <N> it also closes the issue with the main SHA.
-#    --dry-run first shows the sequence without doing it.
-scripts/solo_close.sh --slug <slug> "<Subject>"          # no issue
+# 4. Close the item: gate (scaled to the change set), one commit, push, close
+#    the issue with the branch SHA, then verify. --dry-run first shows the
+#    sequence without doing it; --slug is REQUIRED (the branch names the
+#    milestone, not the item).
 scripts/solo_close.sh --slug <slug> <N> "<Subject>"      # closing issue #N
+scripts/solo_close.sh --slug <slug> "<Subject>"          # no issue
 
-# NOTE: solo_close.sh lands by pushing --ff-only to main. If branch
-# protection currently requires a PR, that push is rejected — use PATH A
-# even for docs, or lift the requirement first.
+# 5. The push runs the fast gate on dev/** — ADVISORY. Nothing waits on it and
+#    it runs while you start the next item; just do not start the next item on
+#    a red one. A re-push cancels the run in flight, so a burst of commits
+#    leaves only the last one verified.
+gh run list --branch dev/v<X.Y.Z> --limit 3
+
+# 6. Next item: back to B1. No checkout, no pull, no branch churn.
+
+
+---------------------------------------------------------------------------
+C — ONCE PER RELEASE: cut it and land the milestone on main
+---------------------------------------------------------------------------
+
+# 1. The milestone is empty (band A has no rows left). Cut the release ON this
+#    branch — RELEASE_PROCESS.md §4 steps 1-3: version bump, changelog build
+#    (which rolls the history fragments), history roll. There is no
+#    release/x.y.z branch.
+.venv/bin/python scripts/build_changelog.py <X.Y.Z> --date $(date +%F)
+.venv/bin/python scripts/backlog_issues.py check
+
+# 2. One pull request into main, for the whole milestone. Its issues are
+#    already closed, one per commit — so NO "Closes #N" in the body.
+gh pr create --base main --head dev/v<X.Y.Z> --title "Release <X.Y.Z>" --body "…"
+
+# 3. Wait for the fast gate, then merge WITH A MERGE COMMIT (never squash —
+#    squashing would collapse the whole release into one commit and lose the
+#    step-per-commit record).
+gh pr checks --watch
+gh pr merge --merge
+
+# 4. The merge push to main runs the full matrix (3.9/3.11 + coverage-
+#    instrumented 3.12). This is the gate of record for the milestone; it is
+#    fixed forward — red means the fix is the next item, not a revert.
+git checkout main && git pull
+gh run list --branch main --limit 3
+
+# 5. Tag from main (RELEASE_PROCESS.md §4 step 4), then open the next
+#    milestone branch: back to A.
+git tag -a v<X.Y.Z> -m "Release v<X.Y.Z>" && git push origin v<X.Y.Z>
 
 
 ---------------------------------------------------------------------------
 Recoveries
 ---------------------------------------------------------------------------
 
-# Committed to a branch after its PR squash-merged (branch shows CONFLICTING):
-# never hand-resolve — cherry-pick the residual commits onto a fresh branch.
-git checkout main && git pull
-git checkout -b <type>/<N>-<slug>-residual
-git cherry-pick <sha1> <sha2>            # only the commits made post-merge
-git diff <old-branch>                    # empty = tree identical, safe
-# then PATH A from step 3; close the dead PR with: gh pr close <old-PR>
-
 # solo_close.sh stops mid-sequence: it prints the recovery for the step it
 # failed on — follow that, don't re-run blind.
 
-# Gate failed on the branch: fix forward on the branch; the branch is the
-# abort point (that is why code changes take one).
+# Gate failed: fix forward on the milestone branch. The gate runs BEFORE the
+# commit, so a red gate has committed nothing — there is nothing to abort.
+
+# The remote moved under you (a hotfix, or another machine):
+git pull --rebase --autostash
+
+# A critical defect in an ALREADY-RELEASED version, mid-milestone: that is the
+# only thing that lands on main out of band (RELEASE_PROCESS.md §6). Afterwards
+# the milestone branch must take main back, before the next item:
+git checkout dev/v<X.Y.Z> && git merge main
+# then re-check the three shared counters (SCHEMA_VERSION, Imperial digest,
+# case-ID bands) — that merge is where they collide.
+# A defect in UNRELEASED work is not a hotfix: it is the next item on the
+# milestone branch.

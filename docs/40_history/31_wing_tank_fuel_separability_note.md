@@ -26,7 +26,7 @@ invariants** (rule 2): the wing tie and the partition, both already in code.
 Related and not duplicated here:
 [`11_balanced_airframe_cases_plan.md`](../30_future/11_balanced_airframe_cases_plan.md) (B-2, the
 mass SSOT; §4 the double-count authority table),
-[`12_conm2_mass_export_plan.md`](../30_future/12_conm2_mass_export_plan.md) (C1 — the per-case
+[`12_conm2_mass_export_plan.md`](32_conm2_mass_export_plan.md) (C1 — the per-case
 itemization this note explicitly does **not** rebuild),
 [`22_d25_cgcase_loading_note.md`](25_d25_cgcase_loading_note.md) §6 (D-25's
 `fractions` scale a row *in time*; this field splits it *in space* — complementary,

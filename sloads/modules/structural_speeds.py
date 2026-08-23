@@ -74,6 +74,7 @@ from ..constants import (
     standard_atmosphere,
 )
 from ..models import (
+    CATEGORIES,
     ConditionResult,
     LoadValue,
     MissingInputError,
@@ -81,6 +82,7 @@ from ..models import (
     Project,
     StructuralSpeedsInput,
     VdBasis,
+    normalise_code,
 )
 from ..registry import register
 
@@ -177,6 +179,7 @@ def maneuver_load_factors(category: str, weight: float, chosen_n: Optional[float
     to a meaningless GA limit. The reported "minimum required" figures echo the
     chosen values, since there is no binding FAR floor in concept mode.
     """
+    category = normalise_code(category, CATEGORIES, "FAR 23 category")
     if category == "C":
         if chosen_n is None or chosen_nneg is None:
             raise MissingInputError(
@@ -341,7 +344,7 @@ def design_speed_values(project: Project, inp: StructuralSpeedsInput) -> DesignS
         raise ValueError("STRSPEED needs a positive design weight")
     s = _wing_area_sqft(project, inp)
     ws = w / s
-    cat = inp.category.upper()
+    cat = normalise_code(inp.category, CATEGORIES, "FAR 23 category")
 
     n, n_min, nneg, nneg_min = maneuver_load_factors(cat, w, inp.chosen_n, inp.chosen_nneg)
 
@@ -432,7 +435,7 @@ def _margin_route_note(inp: StructuralSpeedsInput, sv: DesignSpeeds) -> str:
 def design_speeds(project: Project, inp: StructuralSpeedsInput) -> List[ConditionResult]:
     """Compute the design speeds, maneuver load factors and cruise/dive Mach."""
     sv = design_speed_values(project, inp)
-    cat = inp.category.upper()
+    cat = normalise_code(inp.category, CATEGORIES, "FAR 23 category")
     va, vc, vd, vf = sv.va, sv.vc, sv.vd, sv.vf
     vc_min, va_min, vf_min, vd_min = sv.vc_min, sv.va_min, sv.vf_min, sv.vd_min
     n, n_min, nneg, nneg_min = sv.n, sv.n_min, sv.nneg, sv.nneg_min

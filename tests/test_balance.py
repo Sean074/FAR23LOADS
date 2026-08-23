@@ -79,6 +79,7 @@ from sloads.export.coordinates import (  # noqa: E402
 from sloads.export.equilibrium import parse_cards, resultant  # noqa: E402
 from sloads.modules import balance as balance_module  # noqa: E402
 from sloads.modules.balance import (  # noqa: E402
+    FORCE_RESIDUAL_ACCEPTANCE,
     BALANCED_VTAIL_CONDITIONS,
     HANDEDNESS_TOL,
     RESIDUAL_GATE,
@@ -100,6 +101,9 @@ from sloads.modules.balance import (  # noqa: E402
     is_lateral,
     is_powered,
     polar_alpha_trusted,
+    residual_gate_applies,
+    residual_gate_exemptions,
+    residual_gate_family,
     resultant6,
 )
 from sloads.modules.balance import resultant as case_resultant  # noqa: E402
@@ -287,9 +291,11 @@ _PITCH_RESIDUAL_RATCHET = {
 #: configurations are worst. This reads as **fixture data quality in the lift
 #: model**, not a defect in the assembly: every case still closes exactly after
 #: correction, and the *pitch* residual (the DOF that would expose a mis-placed
-#: force) stays at 0.07-0.84 %. It is filed as a backlog item rather than
-#: absorbed silently, and :data:`_FORCE_RESIDUAL_CEILING` is the hard stop no
-#: fixture may cross whatever this table says.
+#: force) stays at 0.07-0.84 %. The spread is accepted rather than
+#: absorbed silently (owner, 2026-08-22): the balanced full-span model has no
+#: printed oracle behind it, so :data:`FORCE_RESIDUAL_ACCEPTANCE` -- the hard stop
+#: no fixture may cross whatever this table says -- is the stated acceptance, and
+#: this per-fixture table stays as the regression guard beneath it.
 #:
 #: **Re-measured 2026-08-17 (D-27, the fixture CG-datum reconciliation):** the
 #: four type fixtures' flight cases are now the WTENV limit points themselves
@@ -317,10 +323,15 @@ _FORCE_RESIDUAL_RATCHET = {
                                           "unsymmetrical": 0.0040},
 }
 
-#: The hard stop on the force residual, whatever the ratchet above records. Plan
-#: 11's acceptance is 1 %; this is the level at which "a small correction to a
-#: balance that nearly held" stops being a fair description of the closure.
-FORCE_RESIDUAL_CEILING = 0.025
+#: The hard stop on the force residual, whatever the ratchet above records: the
+#: level at which "a small correction to a balance that nearly held" stops being a
+#: fair description of the closure. Plan 11 stated a flat 1 % for both components;
+#: the owner accepted this value as the **force** half on 2026-08-22 (none of these
+#: six fixtures is a printed oracle, unlike the FAR23 core) and it moved into the
+#: package so the report judges force against the same number the tests do. Read
+#: from the owner here rather than re-declared -- a second copy is how the report
+#: and the suite came to disagree in the first place (CR-C-2).
+FORCE_RESIDUAL_CEILING = FORCE_RESIDUAL_ACCEPTANCE
 
 #: Cases whose forward non-wing axial force is **not applied** (backlog Pri 2,
 #: design note 20 D-4 as revised 2026-08-17): the trim ``alpha`` is outside the
@@ -584,9 +595,19 @@ def test_the_record_names_the_conditions_a_loading_cannot_carry():
 
     # Put one flight case beyond what the weight database can load, and the
     # record must name every condition that sits on it, with its reason.
+    #
+    # The CG is moved 73 in forward of the case as shipped: far enough forward
+    # that no subset of the discretionary items plus a ballast row reproduces it,
+    # near enough that the airplane still trims there. The perturbation used to
+    # be ``min(item.x) - 40``, i.e. 40 in ahead of the forwardmost mass in the
+    # airplane and 484 in ahead of the design CG -- a CG no airplane flies at,
+    # where the balance cannot reach 1 g at any angle of attack. It reported one
+    # anyway (NZ 0.658 at alpha 41 deg, presented as a 1-g point) until #33 gave
+    # the iteration a failure channel; now it refuses, and this test would be
+    # exercising that refusal instead of the loading record it is about.
     case = next(c for c in project.weight.cg_cases if c.name == "fwd gross")
     case.loading = None
-    case.xcg = min(it.x for it in project.weight.items) - 40.0
+    case.xcg = 500.0
     skipped = []
     build_balanced_cases(project, skipped)
     not_derivable = [s for s in skipped if s.code == "loading-not-derivable"]
@@ -701,6 +722,69 @@ def _skipped_lines_of(deck_text: str):
 # --------------------------------------------------------------------------- #
 # The gate: the residual BEFORE closure (plan 11 acceptance 1)
 # --------------------------------------------------------------------------- #
+@pytest.mark.parametrize("example", _with_cases())
+def test_the_residual_gate_family_is_the_predicates(example):
+    """``residual_gate_applies`` IS the exemption, and it keeps lateral in (CR-C-2).
+
+    The three surfaces that summarise a worst residual each used to decide the
+    family for themselves and each decided differently. This pins what the one
+    owner answers, on every fixture: exempt exactly where an applied load is the
+    whole pre-closure ``Fz``/``My``, and **not** exempt for the lateral family --
+    those two fractions are precisely the symmetric half that :func:`is_lateral`
+    names as the gate that does apply to it, so dropping the family would delete
+    a live gate rather than fix a false one. It passes, which is the point.
+    """
+    cases = build_balanced_cases(_project(example), [])
+    for case in cases:
+        expected = not (is_ground(case) or is_unsymmetrical_htail(case)
+                        or is_powered(case))
+        assert residual_gate_applies(case) is expected, f"{example} {case.label}"
+
+    lateral = [c for c in cases if is_lateral(c)]
+    if lateral:
+        assert all(residual_gate_applies(c) for c in lateral)
+        worst = max(max(c.force_residual_fraction, c.moment_residual_fraction)
+                    for c in lateral)
+        assert worst < RESIDUAL_GATE, (
+            f"{example}: lateral symmetric half at {worst:.3%} -- the gate this "
+            "family IS held to has started failing")
+
+    # And the exemptions a surface states are the families actually present.
+    stated = " ".join(residual_gate_exemptions(cases))
+    assert ("ground" in stated) == any(is_ground(c) for c in cases)
+    assert ("h-tail" in stated) == any(is_unsymmetrical_htail(c) for c in cases)
+
+
+@pytest.mark.parametrize("example", _with_cases())
+def test_the_judged_family_excludes_the_clamped_cases(example):
+    """``residual_gate_family`` splits off the cases the flat acceptances do not fit.
+
+    A clamped case is out of trim by exactly the non-wing axial force that was not
+    applied and the couple it made (design note 20 D-4), so its residual is a known
+    measured quantity gated per case in :data:`_CLAMPED_BODY_AXIAL` -- judging it
+    against the flat acceptance instead reports a modelling decision as a failure.
+    Pinned here because the split is what keeps the report's §6 sentence true: the
+    judged family clears both acceptances on every fixture, and the clamped one
+    does not have to.
+    """
+    cases = build_balanced_cases(_project(example), [])
+    judged, clamped = residual_gate_family(cases)
+    assert all(residual_gate_applies(c) for c in judged + clamped)
+    assert not any(c.body_axial_clamped for c in judged)
+    assert all(c.body_axial_clamped for c in clamped)
+    assert {id(c) for c in judged + clamped} == {
+        id(c) for c in cases if residual_gate_applies(c)}
+
+    assert max(c.force_residual_fraction for c in judged) < FORCE_RESIDUAL_ACCEPTANCE
+    assert max(c.moment_residual_fraction for c in judged) < RESIDUAL_GATE
+    # The clamped record is per case and lives with the gate that uses it, so the
+    # split cannot quietly become a way of not measuring them.
+    for case in clamped:
+        assert case.label in _CLAMPED_BODY_AXIAL.get(example, {}), (
+            f"{example} {case.label}: clamped but not recorded")
+
+
+
 @pytest.mark.parametrize("example", _with_cases())
 def test_the_pre_closure_residual_is_within_the_gate(example):
     """``|dFz|/(n*W)`` and ``|dMy|/(n*W*MAC)`` both under plan 11's flat 1 %.

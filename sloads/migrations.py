@@ -38,6 +38,9 @@ v27    top-level ``tail_loads``/``vtail_loads`` -> ``geometry``      ``legacy_ta
 v28    top-level ``landing`` gear -> ``geometry.landing_gear``       ``legacy_landing=``
 v36    persisted ``LoadValue`` s gain ``key`` (M4-9)                 nothing — new in v37
 v39    ``speeds.mach_limit.mc``/``.md`` removed (F25-2)              nothing — new in v40
+v54    the two class-C duplicate pairs folded to one field each   nothing — new in v55
+       (``speeds.mach_limit.shoulder_altitude_ft``; the tails'
+       ``airplane_length_in`` -> ``geometry.empennage``) (#52)
 ===== ============================================================ =================================
 
 Versions 1–17, 20–23, 26, 29–35 and **37** are **additive only** — a new optional
@@ -60,6 +63,7 @@ Pure: dicts in, dicts out, no I/O.
 from __future__ import annotations
 
 import copy
+import warnings
 from typing import Any, Callable, Dict, List
 
 from .constants import IN2_PER_FT2
@@ -502,6 +506,72 @@ def _v46_cg_case_model(d: Dict[str, Any]) -> Dict[str, Any]:
     return d
 
 
+def _reconcile(values: Dict[str, Any], keep: str, quantity: str) -> Any:
+    """Fold a duplicated quantity's copies into one value (#52, note 33 §8).
+
+    ``values`` maps each copy's dotted path to what the file holds (``None`` for
+    absent). A zero or absent copy was never entered and loses silently. When
+    two entered copies differ, the ``keep`` copy wins -- it is the one whose
+    value governed the shipped output -- and a warning names both numbers, so
+    the disagreement a v54 file could carry silently is at least said once.
+    """
+    entered = {k: v for k, v in values.items() if isinstance(v, (int, float)) and v}
+    if not entered:
+        return None
+    chosen = entered[keep] if keep in entered else next(iter(entered.values()))
+    others = {k: v for k, v in entered.items() if v != chosen}
+    if others:
+        warnings.warn(
+            f"schema v55: {quantity} was entered twice and the copies disagree -- "
+            + ", ".join(f"{k}={v:g}" for k, v in values.items() if v is not None)
+            + f"; keeping {chosen:g} (the value that governed the computed loads). "
+            "Check it on the page that now holds the single field.",
+            stacklevel=4,
+        )
+    return chosen
+
+
+def _v54_one_shoulder_altitude_one_airplane_length(d: Dict[str, Any]) -> Dict[str, Any]:
+    """Retire the two class-C duplicate pairs (#52, note 33 DS-7 / §8).
+
+    ``speeds.mach_limit.shoulder_altitude_ft`` folds into
+    ``speeds.shoulder_altitude_ft`` -- the MACHLIM copy wins a disagreement,
+    because every Mach-limit table ever produced read it verbatim while MC/MD
+    were derived at the other, so keeping it leaves a legacy file's lines
+    unchanged. ``geometry.empennage.{htail,vtail}.airplane_length_in`` fold into
+    one ``geometry.empennage.airplane_length_in`` -- each copy fed its own
+    inertia, so neither governed; the htail value wins and the warning names
+    both. Files older than v27 arrive here after ``_v27_empennage`` has folded
+    their top-level tail slices in, so this one hop covers every supported
+    version.
+    """
+    speeds = d.get("speeds")
+    if isinstance(speeds, dict):
+        ml = speeds.get("mach_limit")
+        if isinstance(ml, dict) and "shoulder_altitude_ft" in ml:
+            chosen = _reconcile(
+                {"speeds.mach_limit.shoulder_altitude_ft": ml.pop("shoulder_altitude_ft"),
+                 "speeds.shoulder_altitude_ft": speeds.get("shoulder_altitude_ft")},
+                keep="speeds.mach_limit.shoulder_altitude_ft", quantity="the shoulder altitude")
+            if chosen is not None:
+                speeds["shoulder_altitude_ft"] = chosen
+
+    geometry = d.get("geometry")
+    emp = geometry.get("empennage") if isinstance(geometry, dict) else None
+    if isinstance(emp, dict):
+        copies: Dict[str, Any] = {}
+        for surface in ("htail", "vtail"):
+            tail = emp.get(surface)
+            if isinstance(tail, dict) and "airplane_length_in" in tail:
+                copies[f"geometry.empennage.{surface}.airplane_length_in"] = tail.pop("airplane_length_in")
+        if copies:
+            chosen = _reconcile(copies, keep="geometry.empennage.htail.airplane_length_in",
+                                quantity="the airplane length LF")
+            if chosen is not None:
+                emp["airplane_length_in"] = chosen
+    return d
+
+
 # --------------------------------------------------------------------------- #
 # The chain
 # --------------------------------------------------------------------------- #
@@ -520,6 +590,7 @@ MIGRATIONS: Dict[int, Callable[[Dict[str, Any]], Dict[str, Any]]] = {
     40: _v40_fuselage_stations_override,
     43: _v43_tail_mass_override,
     46: _v46_cg_case_model,
+    54: _v54_one_shoulder_altitude_one_airplane_length,
 }
 
 #: The oldest project version whose *shape* is described by a hop. Below this a

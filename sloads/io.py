@@ -17,6 +17,7 @@ from __future__ import annotations
 import csv
 import json
 import os
+import re
 import warnings
 from dataclasses import asdict
 from typing import Any, Dict, List, Optional, Tuple
@@ -393,10 +394,11 @@ def geometry_from_dict(d: Dict[str, Any]) -> GeometryInput:
     emp_raw = d.get("empennage") or {}
     htail_raw, vtail_raw = emp_raw.get("htail"), emp_raw.get("vtail")
     empennage = None
-    if htail_raw is not None or vtail_raw is not None:
+    if htail_raw is not None or vtail_raw is not None or emp_raw.get("airplane_length_in"):
         empennage = EmpennageInput(
             htail=tail_loads_from_dict(htail_raw) if htail_raw else None,
             vtail=vtail_loads_from_dict(vtail_raw) if vtail_raw else None,
+            airplane_length_in=float(emp_raw.get("airplane_length_in") or 0.0),
         )
 
     # Step G6b: landing-gear geometry from d["landing_gear"] (a pre-v28 file's
@@ -462,6 +464,8 @@ def geometry_to_dict(inp: GeometryInput) -> Dict[str, Any]:
             emp["htail"] = tail_loads_to_dict(inp.empennage.htail)
         if inp.empennage.vtail is not None:
             emp["vtail"] = vtail_loads_to_dict(inp.empennage.vtail)
+        if inp.empennage.airplane_length_in:
+            emp["airplane_length_in"] = inp.empennage.airplane_length_in
         if emp:
             out["empennage"] = emp
     if inp.landing_gear is not None:
@@ -1231,6 +1235,13 @@ def project_from_dict(d: Dict[str, Any]) -> Project:
         # them correctly before any module runs (each module re-syncs defensively).
         from .derived_geometry import sync_geometry_derived
         sync_geometry_derived(project)
+        # A layout/count disagreement is flagged, not refused: the file still
+        # loads so the page it came from can fix it (#66, PB-7). The GUI's load
+        # path shows the warning as a toast.
+        problem = project.engine_layout_problem()
+        if problem:
+            warnings.warn(f"{problem}; fix the engine layout on the Engine Mount page",
+                          stacklevel=2)
         return project
 
 
@@ -1355,6 +1366,28 @@ def save_project(project: Project, path: str) -> None:
         fh.write("\n")
 
 
+#: Longest filename stem :func:`project_filename` produces.
+PROJECT_STEM_MAX = 64
+
+#: Suffix every saved / downloaded project file carries (Open lists by it).
+PROJECT_SUFFIX = ".project.json"
+
+
+def project_filename(name: str) -> str:
+    """``<stem>.project.json`` for a project called ``name`` -- the one sanitiser
+    Save-to-disk and Download share (#65, PB-6).
+
+    Anything outside ``[A-Za-z0-9._-]`` becomes ``_``, runs collapse, edges are
+    trimmed, the stem is capped at :data:`PROJECT_STEM_MAX` characters, and a
+    name with nothing left is ``project``. A raw name reached the filesystem
+    before this: ``ATR 42-300 ("ATR 42-100" prototype … analog) — 2x PW120``
+    was legal on macOS, an ``OSError`` on Windows, unreadable in Open either way.
+    """
+    stem = re.sub(r"[^A-Za-z0-9._-]+", "_", name.strip())
+    stem = re.sub(r"_+", "_", stem).strip("._-")[:PROJECT_STEM_MAX].rstrip("._-")
+    return f"{stem or 'project'}{PROJECT_SUFFIX}"
+
+
 def default_projects_dir() -> str:
     """The default local-disk projects directory (Step D3, decision D-3).
 
@@ -1374,7 +1407,7 @@ def list_saved_projects(directory: str) -> List[Tuple[str, float]]:
         return []
     entries = []
     for fname in os.listdir(directory):
-        if fname.endswith(".project.json"):
+        if fname.endswith(PROJECT_SUFFIX):
             mtime = os.path.getmtime(os.path.join(directory, fname))
             entries.append((fname, mtime))
     entries.sort(key=lambda e: e[1], reverse=True)

@@ -18,7 +18,8 @@ a ~0.01% difference absorbed by the ±0.1% regression tolerance, per Decision 3.
 
 MC and MD are **not** MACHLIM inputs (F25-2, schema v40): they are produced by
 ``structural_speeds.design_speed_values`` from VC/VD at the shoulder altitude and
-passed to :func:`mach_limit_lines`. Storing them here as well used to let the CLI
+passed to :func:`mach_limit_lines` -- as is the shoulder altitude itself since
+schema v55 (#52): ``speeds.shoulder_altitude_ft`` is its one home. Storing them here as well used to let the CLI
 and the GUI disagree about the same project's MNE/MFC -- the GUI recomputed and
 the CLI did not.
 
@@ -46,7 +47,7 @@ _FAR = "23.335(b)"
 _KT = "kt(EAS)"
 
 
-def _altitudes(inp: MachLimitInput) -> List[float]:
+def _altitudes(inp: MachLimitInput, shoulder_altitude_ft: float) -> List[float]:
     """Shoulder altitude up to max operating altitude in ``increment_ft`` steps.
 
     The final altitude is clamped to the max operating altitude (MACHLIM.BAS
@@ -54,10 +55,10 @@ def _altitudes(inp: MachLimitInput) -> List[float]:
     """
     if inp.increment_ft <= 0:
         raise ValueError("MACHLIM altitude increment must be positive")
-    if inp.max_operating_altitude_ft < inp.shoulder_altitude_ft:
+    if inp.max_operating_altitude_ft < shoulder_altitude_ft:
         raise ValueError("MACHLIM max operating altitude must be >= shoulder altitude")
     out = []
-    h = inp.shoulder_altitude_ft
+    h = shoulder_altitude_ft
     while h < inp.max_operating_altitude_ft:
         out.append(h)
         h += inp.increment_ft
@@ -65,7 +66,8 @@ def _altitudes(inp: MachLimitInput) -> List[float]:
     return out
 
 
-def mach_limit_lines(inp: MachLimitInput, mc: float, md: float) -> List[ConditionResult]:
+def mach_limit_lines(inp: MachLimitInput, mc: float, md: float,
+                     shoulder_altitude_ft: float) -> List[ConditionResult]:
     """The MNE/MFC Mach numbers and the per-altitude Mach-limited EAS table.
 
     ``mc``/``md`` are passed in rather than stored on ``inp`` (F25-2, schema v40).
@@ -74,6 +76,11 @@ def mach_limit_lines(inp: MachLimitInput, mc: float, md: float) -> List[Conditio
     same project reported one MNE from the CLI and a different one from the GUI.
     :func:`sloads.modules.structural_speeds.design_speed_values` is now the only
     producer, and every front-end passes what it produced.
+
+    ``shoulder_altitude_ft`` is passed the same way (#52, schema v55): it is
+    ``speeds.shoulder_altitude_ft``, the altitude MC/MD were derived at, so the
+    table's first row and the Mach numbers on it can no longer come from two
+    different altitudes.
     """
     if mc <= 0 or md <= 0:
         raise ValueError("MACHLIM needs positive MC and MD")
@@ -89,14 +96,14 @@ def mach_limit_lines(inp: MachLimitInput, mc: float, md: float) -> List[Conditio
             LoadValue("Dive Mach MD", md, key="dive_mach_md"),
             LoadValue("Never-exceed Mach MNE", mne, key="never_exceed_mach_mne"),
             LoadValue("Flutter-clearance Mach MFC", mfc, key="flutter_clearance_mach_mfc"),
-            LoadValue("Shoulder altitude", inp.shoulder_altitude_ft, "ft", key="shoulder_altitude"),
+            LoadValue("Shoulder altitude", shoulder_altitude_ft, "ft", key="shoulder_altitude"),
             LoadValue("Max operating altitude", inp.max_operating_altitude_ft, "ft", key="max_operating_altitude"),
         ],
         note="MNE = 0.9*MD; MFC = 1.2*MD (never-exceed and flutter-clearance Mach).",
     )
 
     results = [summary]
-    for h in _altitudes(inp):
+    for h in _altitudes(inp, shoulder_altitude_ft):
         a, sigma = standard_atmosphere(h)
         rs = math.sqrt(sigma)
         results.append(ConditionResult(
@@ -134,7 +141,8 @@ def run(project: Project) -> ModuleResult:
     ds = design_speed_values(project, project.speeds)
     return ModuleResult(
         module=MODULE_NAME,
-        conditions=mach_limit_lines(project.speeds.mach_limit, ds.mc, ds.md),
+        conditions=mach_limit_lines(project.speeds.mach_limit, ds.mc, ds.md,
+                                    project.speeds.shoulder_altitude_ft),
     )
 
 
