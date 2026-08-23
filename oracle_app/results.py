@@ -85,9 +85,15 @@ _NOT_READY = (ValueError, ZeroDivisionError)
 
 _ULT_NOTE = ("ULTIMATE loads (= limit x the case safety factor); the factor is "
              "in the SF column and the `-ULT` marker is part of the units.")
+# The basis is stated in the table itself, but *where* depends on the table: the
+# wing and fuselage station tables carry a `Basis` column, while the tail
+# chordwise table has none and marks every load header instead
+# (`app_shell/limit_csv.tail_limit_rows`). Saying only "the Basis column" was
+# wrong for a third of the tables this caption sits under (review CR-A-7).
 _LIMIT_NOTE = ("LIMIT station loads -- the oracle-traceable calc values "
-               "(CONVENTIONS.md §3). The basis travels with the table in its "
-               "`Basis` column and in the `_LIMIT.csv` filename.")
+               "(CONVENTIONS.md §3). The basis travels with the table: in its "
+               "`Basis` column, or in each load's column header where the table "
+               "has no such column, and in the `_LIMIT.csv` filename.")
 
 
 class Artifact(NamedTuple):

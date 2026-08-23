@@ -241,6 +241,7 @@ approved-corrections register [`../20_theory/02_approved_corrections.md`](../20_
 - **Writes:** the governing (critical) flight-load set per surface → `Project.envelope.critical`. Per Ch 9 this is **much more than selection** — SELECT *computes* the rational critical loads: wing loads (PHAA/PMAA/PLAA/NMAA, accelerated & steady roll), rational + balancing + maneuvering + up/down-gust + unsymmetrical **horizontal** tail loads, **vertical** tail loads (23.441/23.443), and **fuselage** loads (23.301/23.331/23.351/23.471; Ch 9 + Ch 15 net fuselage).
 - **Validation:** Appendix A/B — the selected critical points (`SELWGLDS/SELHTLDS/SELVTLDS/SELFSLDS`).
 - **Publishes (L-7, 2026-08-17):** every vertical-tail condition carries its sideslip `beta_deg` in the SC-1 sense (`SUDDEN RUDDER` 0, `YAW TO SIDESLIP` +19.5, `YAW 15 NEUTRAL` +15, `SIDE GUST` the load's own `−Kgt·Ude/V`) and the fin's `cy_beta_fin` / `cn_beta_fin` per degree about `xw`, built from the same `AVT`, `S_v` and arm as the load (`select.fin_sideslip_derivatives`, `_vt_side_gust_terms`) — the balance reads them and re-derives nothing (note 19 decisions L-7.6 / L-7.11). No load or oracle changes.
+- **Stale-envelope refusal (CR-B-4, 2026-08-22):** `default_envelope` checks a **persisted** `Project.envelope` against the CG cases the project still carries and **refuses** (`ValueError`) when the matrix names one that is gone — every V-n row was balanced at one weight and CG, so a name with nothing behind it means the matrix belongs to data the project no longer has. It used to be read as a case with no weight: the wing search wrote `nx = 0.0` into a WINGINER load case and the 23.421 h-tail search dropped the candidate with a `continue`, so renaming a CG case after running FLTLOADS quietly changed the loads. Both reads now go through `_cg_weight`/`_cg_case`, which refuse for a caller that threads its own envelope. The check is one-way: an **extra** flight case the matrix does not mention is an ordinary edit, not yet balanced.
 - **Notes:** Central junction. Reads V-n data from FLTLOADS + geometry (WINGGEOM) + inertia (WTONECG). Per UG Table 2.2 it feeds **AIRLOADS, AIRLOAD4 (iterative — see AIRLOADS), WINGINER, TAILDIST**. NETLOADS/component modules consume `critical` indirectly via those. **Step D5:** `CriticalLoadSet.selected_case_ids` is an **opt-out GUI selection** — the Critical Loads page persists which computed conditions the engineer keeps for the deliverable (empty = no filter, every condition kept, the default and the whole behavior for older projects); `CriticalLoadSet.selected()` applies it. Only the **Results Review** page's display reads `.selected()` — every structural calc module (WINGINER/NETLOADS, `body_loads`, the sbeam export bridge) deliberately keeps reading `.conditions` unfiltered, so the selection can never silently drop load cases from a deliverable's structural sizing, only from the GUI summary. (D8.3 is expected to wire the export bundle to this same selection — not yet done.) **M2-4:** the governing-loads tables on **both** the **Results Review** headline and the Flight Envelope **Critical Loads** tab render through one shared `report.governing_loads_table(conditions, system, sf)` — load columns are ULTIMATE (scaled by SF, `-ULT` marker + `SF` column), dimensionless/speed columns (n, CL, V) unscaled and unmarked, absent cells `"—"`. **Review F-R1 (M4-8 Layer-1 report-side slice):** the factor is **per case** — each row scales by its own `CriticalCondition.safety_factor` (14 CFR 23.303 → 1.5 by default, 1.0 for a case already at ultimate) and its `SF` cell states that row's factor, matching the export side (`sbeam_bridge._sf`); the helper takes no caller-supplied `sf` override, so a report figure and its bulk-data card cannot state different factors for one case. **M4-8 / G-11 (2026-08-14):** that per-case factor is now itself a derived view — `sloads/safety_factors.py`'s governing table classifies each case by its FAR reference and writes the carrier at `registry.run_all_modules`, `report.content.component_loads` and `balanced_run`, so a project-level override reaches the report column and the bulk-data cards together or not at all.
 
 ### BALLOADS — Rational balanced-tail-load verification (utility) — Step C11
@@ -1062,12 +1063,19 @@ result that lacks what a deck needs is a stated error, never an empty column.
   `--export-target mass`, the Weights page's **Mass Export** tab, and — since
   0.5.0 row 1 (**D-R2**) — the Export page's bundle `.zip` and its own download
   row, all three files stamped like every other deck.
-  **Mass-case identity has one mint (0.5.0 row 1).** `massset_identity(loading,
+  **Mass-case identity has one mint (0.5.0 row 1).** `massset_identity(loadings,
   index) -> (SID, LABEL)` is the sole source of a payload case's identity in the
   exported model; the `MASSSET` card, the report's mass-case table and the
   bundle manifest all read it, and `mass_case_rows(project)` is the row form
   (every case, exported or not, with the loading's own weight/CG and its ballast
-  fraction).
+  fraction). The **label is unique across the list** (review CR-C-4, #43): it is
+  the case name upper-cased, stripped to alphanumerics and cut to sbeam's eight
+  characters, which is lossy — "Max take-off forward CG" and "Max take-off aft
+  CG" both reach `MAXTAKEO` — so `massset_labels` gives the second and later
+  claimants a numeric suffix in list order. Disambiguated rather than refused:
+  the truncation is ours, not the user's. The whole list is passed rather than
+  one loading because uniqueness is a property of the set. No shipped fixture
+  collides, so no deck bytes moved.
   **`GRAV` magnitude (2026-08-10, review finding C1).** The acceleration a deck
   carries is one standard gravity **in that deck's own length unit** —
   386.0886 in/s² Imperial, 9806.65 mm/s² SI — owned by

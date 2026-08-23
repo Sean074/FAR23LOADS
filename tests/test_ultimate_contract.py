@@ -38,9 +38,24 @@ _NON_LOAD = {
     "weight_envelope.csv",
 }
 
-# The consolidation page: every artifact is ULTIMATE by construction (its content
-# comes from the bridge / report channels; locked by the M4-7/M4-13 suites).
-_SKIP_FILES = {"export_report.py"}
+# The consolidation page used to be skipped **wholesale**, on the strength of a
+# comment saying every artifact it offers is ULTIMATE by construction (review
+# CR-C-6): an exemption that grows silently with the file, since a new CSV added
+# there would never be scanned. It is scanned like every other view now, and the
+# two CSV downloads it carries are named here instead. Both take content built by
+# the report/bridge channels earlier in the page, too far above the call for the
+# context window below to see -- which is what the wholesale skip was standing in
+# for. Add a CSV to that page and it fails here until it is named or marked.
+_SKIP_FILES: set = set()
+
+#: (view, csv name) pairs whose ULTIMATE channel is out of the context window,
+#: with the owner that makes them ULTIMATE.
+_ULT_BY_CONSTRUCTION = {
+    # `module_csvs` is built by `report.load_cases_csv` at the top of the page.
+    ("export_report.py", "{_stem}_{mr.module}.csv"): "report.load_cases_csv",
+    # `case_index_csv` is the bridge's own case index, built once per run.
+    ("export_report.py", "{_stem}_case_index.csv"): "case_ids/case_index_csv",
+}
 
 _FILE_NAME = re.compile(r'file_name=f?"(?P<name>[^"]+\.csv)"')
 
@@ -60,6 +75,8 @@ def test_csv_downloads_state_their_basis():
             checked += 1
             if name.endswith("_LIMIT.csv") or name.endswith("_ULT.csv"):
                 continue
+            if (fn, name) in _ULT_BY_CONSTRUCTION:
+                continue
             # Unmarked filename: the content must come from an ULTIMATE channel.
             # Look at the download_button call and the few lines building its
             # content argument.
@@ -73,6 +90,22 @@ def test_csv_downloads_state_their_basis():
             )
     # The scan must actually be seeing the app layer (guards against a moved dir).
     assert checked >= 10, f"only {checked} CSV downloads found under app/views"
+
+
+def test_every_named_exemption_still_names_a_download():
+    """An allowlist that outlives its entries is the wholesale skip again.
+
+    Each `_ULT_BY_CONSTRUCTION` key has to match a `file_name=` this view still
+    writes; a renamed or deleted artifact takes its exemption with it.
+    """
+    for (fn, name), owner in sorted(_ULT_BY_CONSTRUCTION.items()):
+        path = os.path.join(_VIEWS, fn)
+        assert os.path.exists(path), f"{fn} is gone; drop its exemption"
+        with open(path, encoding="utf-8") as fh:
+            found = {m.group("name") for m in _FILE_NAME.finditer(fh.read())}
+        assert name in found, (
+            f"{fn} no longer offers '{name}' (exempted as ULTIMATE via {owner}) "
+            "-- remove the entry")
 
 
 if __name__ == "__main__":

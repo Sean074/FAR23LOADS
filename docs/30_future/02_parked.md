@@ -105,12 +105,6 @@ CL) — implement the coefficient generator or keep as a tracked scope gap
 Confirm vs WINGINER.BAS whether a THETADOT pitch-acceleration case is expected;
 surface `DMYY` if a per-strip incremental torsion column is wanted.
 
-### L-8a — SI-toggle & unit-label conformance in the GUI
-The G6/G6b empennage + landing-gear sections hardcode ft²/in labels and ignore
-the SI toggle — a `GUI_design.md §7` deviation. Make them respect the toggle
-(adopting `unit_number_input`) or record the exception in `GUI_design.md §7`.
-Pairs with **M4-20**, which fixed the same boundary on the export side.
-
 ### L-8b — `help=` tooltip rollout completion
 App-wide tooltip coverage is ~45%. Worst pages: flap loads 0/6, one-engine-out
 0/7, wing loads 2/10 (structural speeds is complete at 21/21); the G6/G6b

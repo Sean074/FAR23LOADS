@@ -307,17 +307,56 @@ def _conm2_line(card: MassCard, u: DeliverableUnits) -> str:
             f"0.0, 0.0, {_fmt(card.item.izz * k)}")
 
 
-def massset_identity(loading: CaseLoading, index: int) -> Tuple[int, str]:
+#: An 8-character alphanumeric field, which is sbeam's, not ours to widen.
+_MASSSET_LABEL_LEN = 8
+
+
+def massset_labels(loadings: Sequence[CaseLoading]) -> List[str]:
+    """The ``MASSSET`` label of every loading in the derivable list, made unique.
+
+    The label is the case name upper-cased, stripped to alphanumerics and cut to
+    eight characters, which is a **lossy** map: "Max take-off forward CG" and
+    "Max take-off aft CG" both reach ``MAXTAKEO`` (review CR-C-4). The SIDs stay
+    distinct, so a solver is unaffected -- but the deck's comment block, the
+    report's mass-case table and any label-reading consumer then show two payload
+    cases, at two weights and two CGs, under one name.
+
+    A collision is disambiguated rather than refused: the truncation is ours and
+    the eight characters are sbeam's, so a project is not blocked over a display
+    label it did not choose. The second and later claimants take a numeric suffix
+    in list order (``MAXTAKEO``, ``MAXTAKE2``, ``MAXTAKE3``), so the labels are a
+    function of the derivable list alone and two runs of the same project agree.
+    """
+    out: List[str] = []
+    taken: set = set()
+    for index, loading in enumerate(loadings):
+        base = "".join(ch for ch in loading.name.upper()
+                       if ch.isalnum())[:_MASSSET_LABEL_LEN] or f"CASE{index}"
+        label = base
+        n = 2
+        while label in taken:
+            suffix = str(n)
+            label = base[:_MASSSET_LABEL_LEN - len(suffix)] + suffix
+            n += 1
+        taken.add(label)
+        out.append(label)
+    return out
+
+
+def massset_identity(loadings: Sequence[CaseLoading], index: int) -> Tuple[int, str]:
     """``(SID, LABEL)`` -- the identity the exported mass model gives one loading.
 
     Minted here and nowhere else, so the ``MASSSET`` card, the report's mass-case
     table and the bundle manifest name one payload case the same way. ``index``
-    is the loading's position in the **derivable** list (the order
+    is the loading's position in ``loadings``, the **derivable** list (the order
     :func:`mass_cards` returns and :func:`conm2_fragment` writes), which is what
     the SID band is allocated against.
+
+    The whole list is taken rather than the one loading because uniqueness is a
+    property of the set: a label cannot be checked against the others it has to
+    differ from without them (:func:`massset_labels`).
     """
-    label = "".join(ch for ch in loading.name.upper() if ch.isalnum())[:8] or f"CASE{index}"
-    return _MASSSET_BAND.allocate(index), label
+    return _MASSSET_BAND.allocate(index), massset_labels(loadings)[index]
 
 
 def mass_case_rows(project: Project) -> List[Dict[str, object]]:
@@ -333,11 +372,12 @@ def mass_case_rows(project: Project) -> List[Dict[str, object]]:
     converts at its own boundary.
     """
     loadings = derive_case_loadings(project)
-    order = {id(ld): i for i, ld in enumerate(ld for ld in loadings if ld.derivable)}
+    derivable = [ld for ld in loadings if ld.derivable]
+    order = {id(ld): i for i, ld in enumerate(derivable)}
     rows: List[Dict[str, object]] = []
     for loading in loadings:
         index = order.get(id(loading))
-        sid, label = (massset_identity(loading, index) if index is not None
+        sid, label = (massset_identity(derivable, index) if index is not None
                       else (None, ""))
         rows.append({
             "case": loading.name,
@@ -358,9 +398,10 @@ def mass_case_rows(project: Project) -> List[Dict[str, object]]:
     return rows
 
 
-def _massset_block(cards: Sequence[MassCard], loading: CaseLoading,
+def _massset_block(cards: Sequence[MassCard], loadings: Sequence[CaseLoading],
                    index: int) -> List[str]:
-    sid, label = massset_identity(loading, index)
+    loading = loadings[index]
+    sid, label = massset_identity(loadings, index)
     eids = _overlay_eids(cards, loading, index)
     lines = [
         f"$ {loading.name}: {loading.weight_lb:.0f} lb at "
@@ -448,8 +489,8 @@ def conm2_fragment(project: Project, *,
     out += [_conm2_line(c, u) for c in cards if not c.overlay]
     out += ["$ ------------------------------------------------------- OVERLAY (per case)"]
     out += [_conm2_line(c, u) for c in cards if c.overlay]
-    for i, loading in enumerate(loadings):
-        out += ["$"] + _massset_block(cards, loading, i)
+    for i in range(len(loadings)):
+        out += ["$"] + _massset_block(cards, loadings, i)
     return _stamped(header_comment, "\n".join(out) + "\n")
 
 
@@ -699,6 +740,7 @@ __all__ = [
     "mass_check_deck",
     "mass_properties",
     "massset_identity",
+    "massset_labels",
     "unreferenced_overlay_eids",
     "write_conm2_fragment",
     "write_mass_check_deck",

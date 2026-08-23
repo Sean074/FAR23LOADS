@@ -5,8 +5,14 @@ The FAR23 path is oracle-locked against the Appendix A "V-n Data" worked example
 LZW, LT, DX) for each CG case. The balance iterates the angle of attack to the
 required load factor only to within +-0.005 NZ (FLTLOADS.BAS line 4130), so the
 manual's printed figures carry that convergence noise (~0.5% on low-load-factor
-quantities); the regression tolerances below reflect it. The headline balancing
-tail load LT and the corner speeds/load factors match tightly.
+quantities). The headline balancing tail load LT and the corner speeds/load
+factors match tightly.
+
+**Every tolerance here is derived from a stated effect** (review CR-B-5): the
+printed figure's own resolution, the NZ band, the CL band, or -- for the flapped
+LANDING case alone -- a measured allowance with its number and date beside it.
+The helpers below are that statement; a bare widened `rel_tol` is not to come
+back, because an unexplained tolerance is exactly where a drift hides.
 
 Concept mode has no printed oracle and is checked by physics closure: the balance
 attains the user-chosen load factor (no GA cap) and the wing-plus-tail normal
@@ -38,25 +44,104 @@ _GA = os.path.join(_EXAMPLES, "ga6_normal.project.json")
 _CONCEPT = os.path.join(_EXAMPLES, "concept_heavy.project.json")
 
 
+#: The GA fixture's CG1/CG2 gross weight -- the ``W`` in the NZ band's ``0.005*W``.
+_CG1_WEIGHT_LB = 3400.0
+_CG2_WEIGHT_LB = 3400.0
+
+
 def _by_case(env):
     return {p.case: p for p in env.vn}
 
 
-def _close(actual, expected, rel=3e-3, abs_=2.0):
-    """True within a relative tolerance or an absolute floor (for small numbers)."""
-    return math.isclose(actual, expected, rel_tol=rel, abs_tol=abs_)
+# --------------------------------------------------------------------------- #
+# Oracle tolerances -- each one derived from a stated reason (review CR-B-5)
+# --------------------------------------------------------------------------- #
+# The finding: several assertions here were looser than the ±0.1 % contract with
+# no reason beside them, which is where a 0.3 % drift would hide. Measuring them
+# (2026-08-22) showed the review's two candidate reasons do not divide the way it
+# guessed -- case 21's speed is 0.22 % out against a print resolution of 0.08 %,
+# so print granularity does not explain it, while case 21's tail load is inside
+# the print resolution and needs no widening at all. So each tolerance is now
+# *computed* from the effect that justifies it, and a call that widens beyond
+# them has to say why in the assertion itself.
+#
+#: The oracle contract (`CLAUDE.md`): ±0.1 % against the printed figure.
+_CONTRACT_REL = 1e-3
+#: The AoA iteration accepts NZ within ±0.005 of the target (FLTLOADS.BAS 4130).
+_NZ_BAND = 0.005
+#: The q iteration accepts CL within ±0.005 of the Mach-adjusted stall CL.
+_CL_BAND = 0.005
+
+
+def _print_res(decimals):
+    """Half the last digit the manual prints: below this, nothing is comparable."""
+    return 0.5 * 10.0 ** -decimals
+
+
+def _tol(expected, decimals, allow=0.0):
+    """The gate for one printed figure: the wider of the contract and the print's
+    own resolution, plus any stated allowance."""
+    return max(abs(expected) * _CONTRACT_REL, _print_res(decimals)) + allow
+
+
+def _oracle(actual, expected, decimals, allow=0.0, why=""):
+    """Assert ``actual`` against a printed Appendix-A ``expected``.
+
+    ``allow`` is an extra absolute allowance and never appears without ``why``.
+    """
+    tol = _tol(expected, decimals, allow)
+    assert abs(actual - expected) <= tol, (actual, expected, tol, why)
+
+
+def _nz_tol():
+    """A load factor is converged to ±0.005 and printed to 2 dp: 0.005 + 0.005."""
+    return _NZ_BAND + _print_res(2)
+
+
+def _alpha_allow(alpha, nz):
+    """The angle of attack inherits the NZ band through the local slope.
+
+    The iteration stops when NZ is inside ±0.005, so alpha is pinned only to
+    ``0.005 / (dNZ/dalpha)``; taking the secant ``NZ/alpha`` for that slope gives
+    ``0.005 * alpha / NZ`` -- 0.018 deg at the worst printed point (case 20,
+    measured 0.020 against a 0.023 gate).
+    """
+    return _NZ_BAND * abs(alpha / nz)
+
+
+def _stall_speed_allow(v, cl):
+    """A stall-line speed inherits the q iteration's ±0.005 CL band.
+
+    ``V ~ sqrt(nW / (CL·k))`` at fixed n and W, so ``dV/V = 0.5·dCL/CL``.
+    """
+    return 0.5 * (_CL_BAND / abs(cl)) * abs(v)
+
+
+def _load_allow(weight_lb):
+    """A balanced load inherits the NZ band directly: ``dL = 0.005·W``.
+
+    Bounding rather than tight -- 17 lb at the GA fixture's 3400 lb. The measured
+    worst on this oracle set is 2.0 lb (case 10's LT, 0.56 %), and byte-level
+    drift is caught by the frozen digest; what this gate is for is conformance to
+    a printed figure, and the honest statement of that is the print resolution
+    plus the band the solver stops in.
+    """
+    return _NZ_BAND * weight_lb
 
 
 def test_design_speeds_match_appendix_a():
     di = design_inputs(io.load_project(_GA))
-    assert math.isclose(di.va, 121.3, rel_tol=1e-3)     # Appendix A p179
-    assert math.isclose(di.vc, 170.0, rel_tol=1e-3)
-    assert math.isclose(di.vd, 212.5, rel_tol=1e-3)
-    assert math.isclose(di.vf, 105.5, rel_tol=1e-3)
-    assert math.isclose(di.mc, 0.323, rel_tol=2e-3)
-    assert math.isclose(di.md, 0.403, rel_tol=2e-3)
-    assert math.isclose(di.n_pos, 3.8, rel_tol=1e-3)
-    assert math.isclose(di.n_neg, -1.52, rel_tol=1e-3)
+    _oracle(di.va, 121.3, 1)     # Appendix A p179
+    _oracle(di.vc, 170.0, 1)
+    _oracle(di.vd, 212.5, 1)
+    _oracle(di.vf, 105.5, 1)
+    # The Mach numbers are printed to 3 dp, so half a digit (0.0005) is a wider
+    # gate than 0.1 % of 0.323 -- and it is the gate, not a widening: measured
+    # 0.00036 and 0.00030, both inside the manual's own last digit.
+    _oracle(di.mc, 0.323, 3)
+    _oracle(di.md, 0.403, 3)
+    _oracle(di.n_pos, 3.8, 2)
+    _oracle(di.n_neg, -1.52, 2)
 
 
 def test_cg1_corner_speeds_and_load_factors():
@@ -70,45 +155,55 @@ def test_cg1_corner_speeds_and_load_factors():
         (20, 115.0, 3.25, 11.96),   # AC ROLL
     ]:
         p = pts[case]
-        assert math.isclose(p.v_eas_kt, v, rel_tol=2e-3), (case, p.v_eas_kt, v)
-        assert math.isclose(p.nz, nz, abs_tol=0.01), (case, p.nz, nz)
-        assert math.isclose(p.alpha_deg, alpha, abs_tol=0.05), (case, p.alpha_deg, alpha)
+        _oracle(p.v_eas_kt, v, 1, why=f"case {case} V")
+        assert abs(p.nz - nz) <= _nz_tol(), (case, p.nz, nz)
+        _oracle(p.alpha_deg, alpha, 2, allow=_alpha_allow(alpha, nz),
+                why=f"case {case} alpha: the NZ band through the local slope")
 
 
 def test_cg1_balancing_tail_loads():
     pts = _by_case(build_envelope(io.load_project(_GA)))
     # Balancing tail load LT, Appendix A p179 CG1.
     for case, lt in [(1, 132), (3, 493), (5, 169), (7, -465), (10, 352), (20, 412)]:
-        assert _close(pts[case].lt, lt, rel=5e-3, abs_=3.0), (case, pts[case].lt, lt)
+        _oracle(pts[case].lt, lt, 0, allow=_load_allow(_CG1_WEIGHT_LB),
+                why=f"case {case} LT: the NZ band on a 3400 lb airplane")
 
 
 def test_cg1_wing_lift_and_pitching_moment():
     pts = _by_case(build_envelope(io.load_project(_GA)))
     # LZW (lift less tail) + M(W+F), Appendix A p179 CG1 -- larger-magnitude points.
-    assert _close(pts[3].lzw, 12419)         # MAN A
-    assert _close(pts[10].lzw, 13120)        # GUST +C
-    assert _close(pts[20].lzw, 10637)        # AC ROLL
-    assert _close(pts[3].m_wf, 22864, rel=5e-3)
-    assert _close(pts[7].m_wf, -58797, rel=5e-3)
+    for case, lzw in [(3, 12419), (10, 13120), (20, 10637)]:
+        _oracle(pts[case].lzw, lzw, 0, allow=_load_allow(_CG1_WEIGHT_LB),
+                why=f"case {case} LZW: the NZ band on a 3400 lb airplane")
+    # M(W+F) is a moment, so the NZ band reaches it through the same lift times
+    # the 25 %-MAC arm; measured 0.01 % and 0.08 %, both inside the contract.
+    _oracle(pts[3].m_wf, 22864, 0)
+    _oracle(pts[7].m_wf, -58797, 0)
 
 
 def test_cg2_balancing_tail_loads():
     pts = _by_case(build_envelope(io.load_project(_GA)))
     # CG2 (cases 21-40), Appendix A p179.
     # Stall-line speeds carry the most balance-convergence noise (Q iteration).
-    assert math.isclose(pts[21].v_eas_kt, 62.6, rel_tol=5e-3)   # STALL 1G
-    assert _close(pts[21].lt, -16, abs_=3.0)
-    assert math.isclose(pts[23].nz, 3.80, abs_tol=0.01)         # MAN A
-    assert _close(pts[23].lzw, 12970)
-    assert _close(pts[23].lt, -59, abs_=4.0)
+    # A stall-line speed, so the q iteration's CL band reaches it (measured
+    # 0.138 kt against a 0.163 kt gate; print resolution alone would be 0.05).
+    _oracle(pts[21].v_eas_kt, 62.6, 1,
+            allow=_stall_speed_allow(62.6, pts[21].cl),
+            why="STALL 1G: the CL band on a stall-line speed")
+    # -16 lb: the print's own half-pound is the gate here, not a widening.
+    _oracle(pts[21].lt, -16, 0)
+    assert abs(pts[23].nz - 3.80) <= _nz_tol()                  # MAN A
+    _oracle(pts[23].lzw, 12970, 0, allow=_load_allow(_CG2_WEIGHT_LB),
+            why="case 23 LZW: the NZ band on a 3400 lb airplane")
+    _oracle(pts[23].lt, -59, 0)
 
 
 def test_gust_load_factors_match_appendix_a():
     pts = _by_case(build_envelope(io.load_project(_GA)))
-    assert math.isclose(pts[10].nz, 3.96, abs_tol=0.01)   # GUST +C, p179
-    assert math.isclose(pts[13].nz, -1.96, abs_tol=0.01)  # GUST -C
-    assert math.isclose(pts[11].nz, 2.88, abs_tol=0.01)   # GUST +D
-    assert math.isclose(pts[12].nz, -0.88, abs_tol=0.01)  # GUST -D
+    assert abs(pts[10].nz - 3.96) <= _nz_tol()    # GUST +C, p179
+    assert abs(pts[13].nz - -1.96) <= _nz_tol()   # GUST -C
+    assert abs(pts[11].nz - 2.88) <= _nz_tol()    # GUST +D
+    assert abs(pts[12].nz - -0.88) <= _nz_tol()   # GUST -D
 
 
 def test_tail_balance_parallels_vn():
@@ -154,9 +249,9 @@ def test_concept_attains_chosen_load_factor_no_cap():
     env = build_envelope(project)
     man_a = next(p for p in env.vn if p.condition == "MAN A")
     # The balance attains the user load factor (chosen_n = 4.0; no FAR 23.337 cap).
-    assert math.isclose(man_a.nz, 4.0, abs_tol=0.01)
+    assert abs(man_a.nz - 4.0) <= _nz_tol()
     # Physics closure: wing-plus-tail normal load == NZ * W.
-    assert math.isclose((man_a.lzw + man_a.lt) / 18000.0, man_a.nz, abs_tol=0.01)
+    assert abs((man_a.lzw + man_a.lt) / 18000.0 - man_a.nz) <= _nz_tol()
 
 
 def test_balance_zeroes_pitching_moment_about_cg():
@@ -290,10 +385,10 @@ def test_flapped_envelope_corner_set_and_closure():
     assert {"STAL 2/3G", "STALL 2G", "MAN 2G VF", "GUST VF", "BAL VF", "BAL 1.4VSF"} <= conds
     # The maneuver points achieve their target NZ (2/3, 1, 2) and sit at VF.
     man2 = next(v for v in flap if v.condition == "MAN 2G VF")
-    assert math.isclose(man2.nz, 2.0, abs_tol=0.01)
-    assert math.isclose(man2.v_eas_kt, 105.5, rel_tol=5e-3)   # VF
+    assert abs(man2.nz - 2.0) <= _nz_tol()
+    _oracle(man2.v_eas_kt, 105.5, 1)                         # VF
     stal = next(v for v in flap if v.condition == "STAL 2/3G")
-    assert math.isclose(stal.nz, 2.0 / 3.0, abs_tol=0.01)
+    assert abs(stal.nz - 2.0 / 3.0) <= _nz_tol()
 
 
 def test_bal_1p4vsf_balances_at_one_g_flaps_down_stall():
@@ -316,11 +411,21 @@ def test_bal_1p4vsf_balances_at_one_g_flaps_down_stall():
     # and NOT 1.4x the 2-g stall (the T2 defect, which produced ~116 kt / -957 lb).
     assert not math.isclose(bal.v_eas_kt, 1.4 * stall_2g.v_eas_kt, rel_tol=1e-2)
 
-    # Appendix A p181 case 89 -- reproduced within print precision.
-    assert math.isclose(bal.v_eas_kt, 83.6, rel_tol=5e-3)     # manual 83.6 kt
-    assert math.isclose(bal.lt, -430.0, rel_tol=1.5e-2)       # manual -430 lb
-    assert math.isclose(bal.alpha_deg, -2.54, abs_tol=0.12)   # manual -2.54 deg
-    assert math.isclose(bal.cl, 0.89, abs_tol=0.02)           # manual +0.89
+    # Appendix A p181 case 89. These four are the one place in this file where a
+    # measured allowance stands in for a derived one, and the reason is the
+    # fixture rather than the solver: the LANDING configuration's aero
+    # polynomials are themselves read off a printed page (p176/179) to 3-4
+    # figures, so the *input* carries print error that the cruise sets do not.
+    # Measured 2026-08-22: V 0.31 kt, LT 3.6 lb, alpha 0.083 deg, CL 0.012 --
+    # gated at roughly twice each, so a real drift still fails.
+    _oracle(bal.v_eas_kt, 83.6, 1, allow=0.6,
+            why="landing polynomials read from a printed page (measured 0.31 kt)")
+    _oracle(bal.lt, -430.0, 0, allow=7.5,
+            why="landing polynomials read from a printed page (measured 3.6 lb)")
+    _oracle(bal.alpha_deg, -2.54, 2, allow=0.17,
+            why="landing polynomials read from a printed page (measured 0.083 deg)")
+    _oracle(bal.cl, 0.89, 2, allow=0.024,
+            why="landing polynomials read from a printed page (measured 0.012)")
 
 
 def test_merged_replaces_the_altitude_list():

@@ -100,6 +100,26 @@ _ACRL = ("AC ROLL", "ACC ROLL")
 _STROLL = ("ST ROL A", "ST ROL C", "ST ROL D")
 
 
+def _check_envelope_cg_cases(project: Project, env: EnvelopeResult) -> None:
+    """Refuse a persisted V-n matrix that names a CG case the project has lost.
+
+    The rule is one-way on purpose: an *extra* flight case the envelope does not
+    mention is an ordinary edit (the case is simply not in the matrix yet), while
+    a **missing** one means the matrix was balanced against data that is gone.
+    """
+    known = {c.name for c in flight_cases(project)}
+    if not known:
+        return          # no weight slice to check against; the reads refuse on their own
+    missing = sorted({p.cg for p in env.vn if p.cg not in known})
+    if missing:
+        raise ValueError(
+            "the persisted V-n matrix was balanced at CG case(s) this project no "
+            f"longer carries: {', '.join(missing)}. Its loads belong to weights "
+            f"and CGs that are gone (the project now has: {', '.join(sorted(known))}). "
+            "Re-run the flight envelope (FLTLOADS) to rebuild it."
+        )
+
+
 def default_envelope(project: Project) -> EnvelopeResult:
     """The V-n matrix to search: the persisted ``Project.envelope`` if present, else
     freshly built from the flight-loads inputs (FLTLOADS).
@@ -109,8 +129,19 @@ def default_envelope(project: Project) -> EnvelopeResult:
     instead of each rebuilding the whole envelope (up to 7x when nothing is
     persisted). Raises :class:`MissingInputError` when no V-n matrix can be
     obtained -- ``build_envelope`` itself raises it when the flight-loads inputs are
-    absent, and an empty result is caught here."""
+    absent, and an empty result is caught here.
+
+    A persisted envelope is also **checked against the CG cases it names**
+    (review CR-B-4): every row of a V-n matrix was balanced at one weight and CG,
+    so a row naming a case the project no longer carries is a stale-persistence
+    defect, not a case with no weight. It used to be read as the latter -- the
+    inertia-drag factor went to ``nx = 0.0`` and into WINGINER, and the 23.421
+    h-tail search dropped the candidate with a ``continue`` -- so a renamed CG
+    case quietly changed the loads. Refused here rather than at each read, because
+    the mismatch invalidates every number the envelope carries, not the two that
+    happened to look for a weight."""
     if project.envelope is not None and project.envelope.vn:
+        _check_envelope_cg_cases(project, project.envelope)
         return project.envelope
     env = build_envelope(project)
     if not env.vn:
@@ -218,10 +249,45 @@ def _steady_roll_torsion(vn: List[VnPoint], aileron_deg: float, cm: float) -> Op
     return best
 
 
+def _cg_weight(weights: Dict[str, float], p: VnPoint) -> float:
+    """The weight a V-n row was balanced at, or a refusal (review CR-B-4).
+
+    Every row of the matrix names the CG case it was balanced at, so a name with
+    no case behind it -- or a case at zero weight -- is a defect in what was
+    persisted, never a load factor of zero. The reads used to spell it
+    ``weights.get(p.cg, 0.0)``, which turned it into ``nx = 0.0`` in a WINGINER
+    load case. :func:`default_envelope` refuses such a matrix up front; this is
+    the same refusal for a caller that threads an ``envelope=`` of its own.
+    """
+    w = weights.get(p.cg)
+    if not w:
+        raise ValueError(
+            f"V-n case {p.case} ({p.condition}) was balanced at CG case "
+            f"{p.cg!r}, which this project "
+            + ("carries at zero weight" if p.cg in weights else "does not carry")
+            + ". Re-run the flight envelope (FLTLOADS) to rebuild the matrix.")
+    return w
+
+
+def _cg_case(cg_map: Dict[str, CgCase], p: VnPoint) -> CgCase:
+    """The weight/CG case a V-n row was balanced at, or a refusal (CR-B-4).
+
+    The h-tail searches used to ``continue`` past an unmatched name, dropping the
+    candidate from the 23.421 balancing set with nothing said -- a quieter form of
+    the same defect, since a missing candidate cannot be seen in the result.
+    """
+    cg = cg_map.get(p.cg)
+    if cg is None:
+        raise ValueError(
+            f"V-n case {p.case} ({p.condition}) was balanced at CG case "
+            f"{p.cg!r}, which this project does not carry. Re-run the flight "
+            "envelope (FLTLOADS) to rebuild the matrix.")
+    return cg
+
+
 def _condition(component: str, label: str, far: str, p: VnPoint, weights: Dict[str, float]) -> CriticalCondition:
     """Wrap a selected :class:`VnPoint` as a :class:`CriticalCondition`."""
-    w = weights.get(p.cg, 0.0)
-    nx = (-p.dx / w) if w else 0.0
+    nx = -p.dx / _cg_weight(weights, p)
     return CriticalCondition(
         component=component, label=label, far_reference=far, case=p.case,
         loads=[
@@ -343,9 +409,7 @@ def select_htail_balancing(project: Project,
     retracted: List[Tuple[VnPoint, HtailBalance]] = []
     extended: List[Tuple[VnPoint, HtailBalance]] = []
     for p in _resolve_envelope(project, envelope).vn:
-        cg = cg_map.get(p.cg)
-        if cg is None:
-            continue
+        cg = _cg_case(cg_map, p)
         bucket = extended if flaps.get(p.config, False) else retracted
         if bucket is extended and p.condition == "LEV LAND":
             continue
@@ -431,10 +495,13 @@ def select_htail_maneuver(project: Project,
     vn = _resolve_envelope(project, envelope).vn
 
     def bal(p: VnPoint):
-        return htail_balance(p, cg_map[p.cg], wr.xw, wr.zw, ti)
+        return htail_balance(p, _cg_case(cg_map, p), wr.xw, wr.zw, ti)
 
     def in_cg(p: VnPoint) -> bool:
-        return p.cg in cg_map and not p.config.upper().startswith("LAND")
+        # Flaps-down rows are out of this search by condition; a row whose CG
+        # case is missing is not filtered out here -- it refuses (CR-B-4).
+        _cg_case(cg_map, p)
+        return not p.config.upper().startswith("LAND")
 
     out: List[CriticalCondition] = []
     bal_a = [p for p in vn if p.condition == "BAL A" and in_cg(p)]

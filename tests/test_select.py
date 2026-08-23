@@ -25,6 +25,7 @@ loads report "Critical Wing Loads".
 import math
 import os
 import sys
+from dataclasses import replace
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -382,6 +383,69 @@ def test_concept_flag_in_report():
     p.speeds.chosen_nneg = -2.0
     result = select.run(p)
     assert any("Concept mode" in c.note for c in result.conditions)
+
+
+# --------------------------------------------------------------------------- #
+# Stale persisted envelope (review CR-B-4)
+# --------------------------------------------------------------------------- #
+def _persisted(project):
+    """The project with its V-n matrix persisted, as a saved file carries it."""
+    project.envelope = build_envelope(project)
+    return project
+
+
+def test_a_persisted_envelope_naming_a_lost_cg_case_is_refused():
+    """Renaming a CG case after running FLTLOADS used to change the loads quietly.
+
+    Every V-n row names the case it was balanced at. When the name stops
+    resolving, the wing search read the weight as ``0.0`` and published
+    ``nx = 0.0`` into a WINGINER load case; the 23.421 h-tail search dropped the
+    candidate with a ``continue``. Both are stale persistence, not a case with no
+    weight, so the owner refuses before any of it -- naming what is missing and
+    what the project now carries, because the fix is the user's to make.
+    """
+    import pytest
+
+    project = _persisted(io.load_project(_GA))
+    renamed = flight_cases(project)[0]
+    was = renamed.name
+    renamed.name = "CG1 forward"
+
+    with pytest.raises(ValueError) as excinfo:
+        select.default_envelope(project)
+    message = str(excinfo.value)
+    assert was in message                    # the name the matrix still uses
+    assert "CG1 forward" in message          # and what the project has instead
+    assert "FLTLOADS" in message
+
+
+def test_an_extra_flight_case_the_matrix_has_not_seen_is_not_an_error():
+    """One-way on purpose: a case added since the last run is simply not in the
+    matrix yet, which is an ordinary edit and not a reason to refuse."""
+    project = _persisted(io.load_project(_GA))
+    cases = flight_cases(project)
+    extra = replace(cases[0], name="CG5 new")
+    project.weight.cg_cases.append(extra)
+
+    assert select.default_envelope(project) is project.envelope
+
+
+def test_a_threaded_envelope_refuses_at_the_read_instead_of_zeroing():
+    """The owner cannot see an envelope a caller builds and passes in, so the two
+    reads that resolve a CG name refuse for themselves as well."""
+    import pytest
+
+    project = io.load_project(_GA)
+    envelope = build_envelope(project)
+    for case in flight_cases(project):
+        case.name = f"{case.name} (renamed)"
+
+    with pytest.raises(ValueError) as excinfo:
+        select.select_wing(project, envelope=envelope)
+    assert "does not carry" in str(excinfo.value)
+
+    with pytest.raises(ValueError):
+        select.select_htail_balancing(project, envelope=envelope)
 
 
 if __name__ == "__main__":

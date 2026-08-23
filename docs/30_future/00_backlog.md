@@ -174,7 +174,6 @@ traceability with plans 09/11/12/13; the **Pri** column is ordinal only.
 | Pri | Item (detail below / in its plan) | What ships | Tag | Tier / effort | Depends on |
 |---|---|---|---|---|---|
 | **A — 0.7.0: the oracle GUI fully functional + the 2026-08-20 review's MAJOR defect fixes (CR-\* keys resolve in that review)** ||||||
-| 8 | **Review 2026-08-20 MINOR/NIT sweep** (CR-B-4/B-5/B-6, CR-C-4/C-5/C-6, CR-A-7/A-8; + close stale parked L-8a as shipped) (#43) | Swept with their modules (practice 4) or opportunistically; the CG-name mismatch (CR-B-4) first — it is the one silent-zero into a load path | V | S / S–M | — |
 | — | **Cut 0.7.0** when band A is empty (RELEASE_PROCESS §2 cadence rule) | | | | |
 | **B — 0.8.0: the main-GUI review completed and its findings addressed** ||||||
 | 9 | **GUI review resumption** — the five unswept sections (Flight, Other, Ground, Plotting, Export) against the 0.7.0 deliverables; findings filed at close (rule 5); re-cut follows (#29) | The review body completed; the UI freeze on `app/views/` re-opened to the extent the findings justify — a reviewed list, not a rework; parked **L-8c** (Results Review omits the 8 folded modules' results) promotes at this re-cut | V | S (review) / M | 0.7.0 cut |

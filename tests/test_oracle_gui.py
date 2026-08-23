@@ -29,6 +29,7 @@ import json
 import logging
 import os
 import re
+from itertools import takewhile
 
 import pytest
 
@@ -48,8 +49,33 @@ _ENTRYPOINT = os.path.join(_GUI, "Oracle.py")
 _EXAMPLES = os.path.join(_ROOT, "examples")
 _EXAMPLE = os.path.join(_EXAMPLES, "ga6_normal.project.json")
 _SOURCES = sorted(glob.glob(os.path.join(_GUI, "*.py")))
+#: The shared shell renders *inside* this GUI, so a download it offers is a
+#: download the oracle GUI offers. Scanning only ``oracle_app/`` made G7's
+#: completeness argument true of half the running app (review CR-A-8).
+_SHELL = os.path.join(_ROOT, "app_shell")
+_DOWNLOAD_SOURCES = _SOURCES + sorted(glob.glob(os.path.join(_SHELL, "*.py")))
 
 pytest.importorskip("streamlit.testing.v1")
+
+
+def _file_name_of(call):
+    """The ``file_name=`` a ``download_button`` call writes, as a literal.
+
+    An f-string is flattened to its literal parts (``f"{fname}.project.json"``
+    -> ``".project.json"``), which is all this gate needs: the extension is what
+    says whether the file is a load deliverable. ``None`` when the argument is
+    not a string literal at all -- which fails the check rather than passing it.
+    """
+    for kw in call.keywords:
+        if kw.arg != "file_name":
+            continue
+        node = kw.value
+        if isinstance(node, ast.Constant) and isinstance(node.value, str):
+            return node.value
+        if isinstance(node, ast.JoinedStr):
+            return "".join(v.value for v in node.values
+                           if isinstance(v, ast.Constant) and isinstance(v.value, str))
+    return None
 
 
 def _parse(path):
@@ -392,15 +418,29 @@ def test_the_gui_has_exactly_one_download_call_site():
     download can be created. A second call site would be an artifact G7 never
     saw."""
     sites = []
-    for path in _SOURCES:
+    for path in _DOWNLOAD_SOURCES:
         for node in ast.walk(_parse(path)):
             if isinstance(node, ast.Call) and getattr(node.func, "attr", "") == "download_button":
-                sites.append(f"{os.path.relpath(path, _ROOT)}:{node.lineno}")
-    assert len(sites) == 1, (
-        "the oracle GUI offers a download from somewhere other than the one "
+                sites.append((os.path.relpath(path, _ROOT), node.lineno,
+                              _file_name_of(node)))
+
+    renderer = [s for s in sites if s[0] == os.path.join("oracle_app", "results.py")]
+    assert len(renderer) == 1, (
+        "the oracle GUI offers a load download from somewhere other than the one "
         "renderer -- gate G7 reads page_artifacts() and would not see it:\n"
-        + "\n".join(sites))
-    assert sites[0].startswith(os.path.join("oracle_app", "results.py"))
+        + "\n".join(f"{f}:{n}" for f, n, _ in renderer))
+
+    # The shell's own downloads are allowed, and bounded: the project file is an
+    # input, not a load deliverable, so it is outside G7 by content rather than
+    # by which directory it lives in. Anything else the shell offers is a file a
+    # user gets from this GUI that page_artifacts() never saw.
+    others = [s for s in sites if s not in renderer]
+    offenders = [f"{f}:{n} -> {name}" for f, n, name in others
+                 if name is None or not name.endswith(".project.json")]
+    assert not offenders, (
+        "the shared shell offers a download the oracle GUI's output gate cannot "
+        "see -- route it through results.page_artifacts() or state why it is not "
+        "a load deliverable:\n" + "\n".join(offenders))
 
 
 @pytest.mark.parametrize("key", sorted(wf.oracle_step_keys()))
@@ -419,9 +459,15 @@ def test_every_csv_the_oracle_gui_offers_states_its_basis(key):
             assert _STAMP not in art.payload, (
                 f"{art.file_name} claims ULTIMATE and LIMIT at once")
         else:
-            assert art.payload.startswith(_STAMP.split(":")[0]) or _STAMP in art.payload, (
+            # In the **comment block**, not merely somewhere in the payload
+            # (review CR-A-8): a stamp that only has to appear anywhere is
+            # satisfied by a data row that happens to contain the words, and a
+            # consumer reads the head of the file, not a grep of it.
+            head = list(takewhile(lambda ln: ln.startswith("#"),
+                                  art.payload.splitlines()))
+            assert any(ln.startswith(_STAMP) for ln in head), (
                 f"{art.file_name} leaves the oracle GUI with no basis statement "
-                f"-- pass report.csv_comment_block(project)")
+                f"in its comment block -- pass report.csv_comment_block(project)")
             assert "SF" in header.split(","), (
                 f"{art.file_name} states ULTIMATE but has no per-case SF column")
 

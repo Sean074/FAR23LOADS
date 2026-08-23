@@ -167,6 +167,35 @@ def test_no_shipped_fixture_produces_a_defaulted_case(path):
 
 
 @pytest.mark.parametrize("path", _EXAMPLES, ids=lambda p: os.path.basename(p))
+def test_every_result_the_table_is_handed_can_be_stamped(path):
+    """The other silent skip in the same owner (review CR-B-6).
+
+    ``stamp()`` writes the factor onto each result's ``safety_factor`` carrier,
+    and used to pass over an item without one on a bare ``hasattr`` gate. An
+    unstamped result is precisely a result whose report figure and whose
+    bulk-data card can state different factors — the F-R1 defect class — so the
+    skip is recorded like an unclassifiable case, and it is empty here.
+    """
+    project = io.load_project(path)
+    cases = list(_all_cases(project))
+    table = GoverningTable.for_project(project).stamp(cases)
+    assert table.unstampable == [], (
+        f"{path}: stamp() was handed {table.unstampable}, which carry no "
+        "safety_factor — every result the governing table stamps must have the "
+        "carrier, or the report and the deck can disagree about one case")
+
+
+def test_an_item_without_the_carrier_is_recorded_not_passed_over():
+    """The guard above only means something if the recording works."""
+
+    class _NoCarrier:
+        far_reference = "23.337"
+
+    table = GoverningTable.for_project(None).stamp([_NoCarrier()])
+    assert table.unstampable == ["_NoCarrier"]
+
+
+@pytest.mark.parametrize("path", _EXAMPLES, ids=lambda p: os.path.basename(p))
 def test_no_shipped_fixture_overrides_the_regulation(path):
     """Mitigation 4: the default table is the regulation's, so the fixtures'
     exported bytes are unchanged by this feature existing."""

@@ -363,8 +363,8 @@ def test_the_balanced_section_names_the_massset_of_every_payload_case():
     rows = mass_case_rows(project)
     exported = [r for r in rows if r["exported"]]
     assert exported, "fixture no longer exports a payload case"
-    first = next(ld for ld in derive_case_loadings(project) if ld.derivable)
-    sid, label = massset_identity(first, 0)
+    derivable = [ld for ld in derive_case_loadings(project) if ld.derivable]
+    sid, label = massset_identity(derivable, 0)
     assert exported[0]["massset_sid"] == sid
     assert exported[0]["massset_label"] == label
 
