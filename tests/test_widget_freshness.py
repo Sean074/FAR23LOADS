@@ -25,8 +25,14 @@ widgets inside it:
 * the same for ``app/views/``, whose Apply step defers the overwrite rather
   than preventing it — the rationale parked L-8d rested on, which is why the
   sweep (practice 4) had to check it rather than assume it;
-* **no widget seeded from the project skips the stamp** — an AST walk over both
-  GUIs, so the next widget added is fresh by construction instead of by review.
+* **no input widget skips the stamp** — an AST walk over both GUIs, so the next
+  widget added is fresh by construction instead of by review. Since #51's
+  reopen (2026-08-22) that includes widgets with **no key at all**: an unkeyed
+  widget's identity derives from its arguments, so its retained state survives
+  a load whenever the loaded field repeats the seed — the common case, because
+  the seed is ``Project(name="")``. The only exemptions are the shell's own
+  session-state widgets, named per key with a companion that fails when an
+  entry stops naming anything.
 """
 
 import ast
@@ -192,6 +198,50 @@ def test_a_view_open_before_a_load_re_seeds_from_what_was_loaded(view):
         f"{view} showed nothing after the load")
 
 
+def test_a_value_typed_before_the_load_does_not_survive_it():
+    """The reproduction from #51's reopen comment: type first, then load.
+
+    Before every input widget carried a stamped key, an unkeyed widget derived
+    its Streamlit identity from its arguments -- ``value=`` included -- so a
+    number typed into it was retained across the load whenever the loaded field
+    repeated the seed (the common case: the seed is ``Project(name="")``),
+    entered the project on the user's Apply, and reached disk. The stamp
+    retires the edited widget by renaming it, so after the load the field must
+    be a *new* widget showing the loaded value, not the typed one.
+    """
+    from streamlit.testing.v1 import AppTest
+
+    from app_shell.widget_keys import unstamped
+
+    path = os.path.join(_VIEWS_DIR, "structural_speeds.py")
+    at = AppTest.from_string(
+        _VIEW_SCRIPT.format(path=_ATR42, view=path), default_timeout=90)
+    at.run()
+    assert not at.exception, [e.message for e in at.exception]
+
+    sentinel = 123.25  # matches nothing in atr42_100 (vh_kt is 265)
+    vh = next(w for w in at.number_input if unstamped(w.key or "") == "ss_vh")
+    vh.set_value(sentinel).run()
+    assert not at.exception, [e.message for e in at.exception]
+    key_before = vh.key
+
+    at.session_state["_load_now"] = True
+    at.run()
+    assert not at.exception, [e.message for e in at.exception]
+
+    vh_after = next(w for w in at.number_input if unstamped(w.key or "") == "ss_vh")
+    assert vh_after.key != key_before, (
+        "the load did not retire the edited widget: it kept its key, so it "
+        "still holds the value typed against the discarded project")
+    expected = io.load_project(_ATR42).speeds.vh_kt
+    assert vh_after.value == pytest.approx(expected), (
+        f"VH shows {vh_after.value} after the load; the typed {sentinel} should "
+        f"have been replaced by the loaded {expected}")
+    after = io.project_to_dict(at.session_state["project"])
+    assert after == io.project_to_dict(io.load_project(_ATR42)), (
+        "the load's own rerun changed the loaded project")
+
+
 # --------------------------------------------------------------------------- #
 # The guard: no widget seeded from the project skips the stamp
 # --------------------------------------------------------------------------- #
@@ -201,26 +251,44 @@ _INPUT_CALLS = {
     "number_input", "text_input", "text_area", "checkbox", "toggle", "radio",
     "selectbox", "multiselect", "slider", "select_slider", "data_editor",
     "date_input", "time_input", "color_picker",
+    # Missed by the first cut (#51's reopen): equally stateful, equally stale.
+    "pills", "segmented_control", "file_uploader", "camera_input",
+    "audio_input", "chat_input",
 }
 
-#: Files whose widget keys are the shell's own session state, not project data:
-#: the unit-system radio, the file uploader, the saved-project pickers. These
-#: must **survive** a load — stamping them would reset the user's unit choice on
-#: every project they open.
-_SHELL_OWNED = {os.path.join("app_shell", "sidebar.py")}
+#: Widgets whose keys are the shell's own session state, not project data: the
+#: unit-system radio, the load-path pickers and the file uploader. These must
+#: **survive** a load — stamping them would reset the user's unit choice on
+#: every project they open. Named **per key**, not per file (#43's lesson:
+#: a whole-file exemption keeps exempting whatever the file grows), and the
+#: companion test below fails when an entry stops naming a real widget.
+_SHELL_OWNED_KEYS = {
+    "_unit_system_radio", "_open_saved_choice", "_open_example_choice",
+    "_uploader",
+}
 
 
 def _stamped(node):
-    """Is this ``key=`` argument stamped with the project generation?"""
+    """Is this widget's key stamped with the project generation?
+
+    A widget with no ``key=`` fails too (issue #51's reopen): an unkeyed
+    widget's Streamlit identity derives from its *arguments* -- ``value=``
+    included -- so its retained state survives a project load whenever the
+    loaded field repeats the seed. The seed is ``Project(name="")``, which most
+    loaded fields repeat, so "no key" is the defect, not an exemption.
+    """
     for keyword in node.keywords:
         if keyword.arg != "key":
             continue
+        if isinstance(keyword.value, ast.Constant) \
+                and keyword.value.value in _SHELL_OWNED_KEYS:
+            return True  # shell session state by name; must survive a load
         for sub in ast.walk(keyword.value):
             if isinstance(sub, ast.Call) and isinstance(sub.func, ast.Name) \
                     and sub.func.id == "widget_key":
                 return True
         return False
-    return True  # no key= at all: Streamlit's positional identity, per-render
+    return False  # no key= at all: argument-derived identity, equally stale
 
 
 def _widget_calls(path):
@@ -237,9 +305,7 @@ def _gui_sources():
     for package in ("app", "app_shell", "oracle_app"):
         for path in sorted(glob.glob(os.path.join(_ROOT, package, "**", "*.py"),
                                      recursive=True)):
-            relative = os.path.relpath(path, _ROOT)
-            if relative not in _SHELL_OWNED:
-                yield relative, path
+            yield os.path.relpath(path, _ROOT), path
 
 
 @pytest.mark.parametrize("relative,path", list(_gui_sources()),
@@ -248,8 +314,10 @@ def test_every_project_widget_key_is_stamped(relative, path):
     """The structural half (``CLAUDE.md`` rule 3): a convention with a guard.
 
     ``unit_number_input`` stamps for its callers, so a view on the unit boundary
-    passes with no change; anything calling Streamlit directly with a ``key=``
-    has to stamp it, and this fails on the first one that does not.
+    passes with no change; anything calling Streamlit directly has to pass a
+    stamped ``key=``, and this fails on the first one that does not -- including
+    a widget with no key at all (#51: argument-derived identity retains state
+    across a load just the same).
     """
     unstamped = [f"{relative}:{node.lineno} st.{node.func.attr}"
                  for node in _widget_calls(path) if not _stamped(node)]
@@ -257,6 +325,22 @@ def test_every_project_widget_key_is_stamped(relative, path):
         "these widgets are seeded from the project but keyed the same across a "
         "project replacement, so a load leaves them holding the discarded "
         "project's values (app_shell/widget_keys.py):\n  " + "\n  ".join(unstamped))
+
+
+def test_every_shell_owned_key_still_names_a_widget():
+    """The companion (#43's lesson): an exemption that names nothing exempts
+    everything it might one day match. Each allowlisted key must appear as the
+    literal ``key=`` of some input widget in the GUI sources."""
+    found = set()
+    for _relative, path in _gui_sources():
+        for node in _widget_calls(path):
+            for keyword in node.keywords:
+                if keyword.arg == "key" and isinstance(keyword.value, ast.Constant):
+                    found.add(keyword.value.value)
+    missing = _SHELL_OWNED_KEYS - found
+    assert not missing, (
+        f"_SHELL_OWNED_KEYS entries no longer name any widget: {sorted(missing)} "
+        "— remove them (or re-point them) so the allowlist stays exact")
 
 
 if __name__ == "__main__":

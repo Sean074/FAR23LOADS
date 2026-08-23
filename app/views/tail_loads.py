@@ -20,6 +20,7 @@ import streamlit as st
 
 from app_shell.components import active_system, gate
 from app_shell.limit_csv import tail_limit_csv, tail_limit_rows
+from app_shell.widget_keys import widget_key
 from sloads import Project, UnitSystem, labels_for, si_scalar_label, to_display, to_si_scalar
 from sloads.modules.balloads import verify_balancing
 from sloads.modules.taildist import build_tail_chordwise
@@ -86,7 +87,7 @@ if not results:
             "ensure the Critical Loads tab (Flight Envelope (V-n) page) produced tail loads.")
 else:
     labels = [f"{r.component}: {r.case}" for r in results]
-    sel = st.selectbox("Show condition", labels)
+    sel = st.selectbox("Show condition", labels, key=widget_key("tail_show_condition"))
     res = results[labels.index(sel)]
 
     _lbf_lbl = si_scalar_label("lbf", system)

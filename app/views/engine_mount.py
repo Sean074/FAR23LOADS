@@ -84,7 +84,8 @@ with st.sidebar:
         list(_LAYOUTS.values()).index(project.engine_layout)
         if project.engine_layout in _LAYOUTS.values() else 0
     )
-    layout = _LAYOUTS[st.radio("Engines & arrangement", _LAYOUT_LABELS, index=default_layout_idx)]
+    layout = _LAYOUTS[st.radio("Engines & arrangement", _LAYOUT_LABELS, index=default_layout_idx,
+                               key=widget_key("em_layout"))]
     n_engines = layout.expected_count
 
     # Working copy for widget-seeding only; not written to project.engines until
@@ -101,6 +102,7 @@ with st.sidebar:
             "Engine being assessed",
             options=range(n_engines),
             index=prev,
+            key=widget_key("em_engine_sel"),
             format_func=lambda i: f"{i + 1} — {engines_working[i].engine_designation or 'engine'}",
         )
         st.session_state["engine_sel"] = idx
@@ -159,6 +161,7 @@ with st.form("engine_mount_form"):
     include_far25 = st.checkbox(
         "Add supplemental FAR 25 cases (optional)",
         value=project.include_far25,
+        key=widget_key("em_include_far25"),
         help=(
             "Keeps every FAR 23 case and appends the three 14 CFR 25.361 / 25.371 "
             "cases that are *not* already covered by the corrected FAR 23 set "
@@ -453,6 +456,7 @@ inp = project.engines[result_idx]
 
 show_all = st.checkbox(
     "Show all engines", value=False, disabled=(len(project.engines) == 1),
+    key=widget_key("em_show_all"),
     help="Off: results for the selected engine only. On: every engine, each "
          "condition prefixed with the engine designation.",
 )

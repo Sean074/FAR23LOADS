@@ -35,6 +35,7 @@ from importlib.metadata import version as _pkg_version
 import streamlit as st
 
 from app_shell.components import active_system, gate
+from app_shell.widget_keys import widget_key
 from sloads import Project, consistency_warnings, registry
 from sloads import io as sloads_io
 from sloads import workflow as wf
@@ -174,6 +175,7 @@ _scope = st.radio(
     "Scope for the fuselage/tail sbeam artifacts and the case index",
     ["Full set", "Governing set (Critical Loads selection)"],
     horizontal=True,
+    key=widget_key("export_scope"),
     disabled=not _has_selection,
     help="Filters to the conditions kept checked on the Flight Envelope (V-n) "
          "page's Critical Loads tab. Wing and control-surface exports are "

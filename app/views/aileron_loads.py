@@ -12,7 +12,7 @@ from __future__ import annotations
 import pandas as pd
 import streamlit as st
 
-from app_shell.components import active_system, gate
+from app_shell.components import active_system, gate, unit_number_input
 from app_shell.widget_keys import widget_key
 from sloads import (
     AileronLoadsInput,
@@ -20,8 +20,6 @@ from sloads import (
     UnitSystem,
     convert_results,
     labels_for,
-    to_display,
-    to_imperial_scalar,
     to_si_scalar,
 )
 from sloads.export import sbeam_bridge as sb
@@ -51,25 +49,25 @@ with st.form("aileron_loads_form"):
     st.subheader(f"Aileron geometry & deflection ({U['area_sqft']})")
     c1, c2 = st.columns(2)
     down_deflection_deg = c1.number_input(
-        "Max down deflection (deg)", min_value=0.0, value=float(inp.down_deflection_deg), step=1.0)
+        "Max down deflection (deg)", min_value=0.0, value=float(inp.down_deflection_deg), step=1.0,
+        key=widget_key("ail_down_defl"))
     up_deflection_deg = c2.number_input(
         "Max up deflection (deg)", min_value=0.0, value=float(inp.up_deflection_deg), step=1.0,
+        key=widget_key("ail_up_defl"),
         help="Magnitude; applied as a negative (trailing-edge-up) throw.")
-    area_fwd_hinge_sqft = c1.number_input(
-        f"Area fwd of hinge line, SAFWD ({U['area_sqft']})", min_value=0.0,
-        value=float(round(to_display(inp.area_fwd_hinge_sqft, "area_sqft", system), 4)), step=0.1,
-        key=widget_key(f"safwd_{system.value}"))
-    area_aft_hinge_sqft = c2.number_input(
-        f"Area aft of hinge line, SAAFT ({U['area_sqft']})", min_value=0.0,
-        value=float(round(to_display(inp.area_aft_hinge_sqft, "area_sqft", system), 4)), step=0.1,
-        key=widget_key(f"saaft_{system.value}"))
+    area_fwd_hinge_sqft = unit_number_input(
+        "Area fwd of hinge line, SAFWD", float(inp.area_fwd_hinge_sqft),
+        kind="area_sqft", key="ail_safwd", min_value=0.0, step=0.1, container=c1)
+    area_aft_hinge_sqft = unit_number_input(
+        "Area aft of hinge line, SAAFT", float(inp.area_aft_hinge_sqft),
+        kind="area_sqft", key="ail_saaft", min_value=0.0, step=0.1, container=c2)
     applied = st.form_submit_button("Apply", type="primary")
 
 if applied:
     inp.down_deflection_deg = down_deflection_deg
     inp.up_deflection_deg = up_deflection_deg
-    inp.area_fwd_hinge_sqft = to_imperial_scalar(area_fwd_hinge_sqft, "area_sqft", system)
-    inp.area_aft_hinge_sqft = to_imperial_scalar(area_aft_hinge_sqft, "area_sqft", system)
+    inp.area_fwd_hinge_sqft = area_fwd_hinge_sqft
+    inp.area_aft_hinge_sqft = area_aft_hinge_sqft
     project.aileron_loads = inp
     st.session_state["project"] = project
     st.success("Aileron geometry applied.")

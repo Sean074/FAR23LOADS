@@ -128,20 +128,17 @@ generation* stamped into every project-seeded widget key
 the JSON editor's Apply) and guarded by `tests/test_widget_freshness.py`. That
 sweep also settled the rationale above: `app/views/`' Apply step defers the
 overwrite to the user's click rather than preventing it, so those views were
-stamped too. **What #51 (reopened 2026-08-22) still owes is the *unkeyed*
-half:** 98 project-seeded widgets in `app/views/` carry no `key=` at all, and an
-unkeyed widget's Streamlit identity derives from its *arguments* — stable
-whenever the seed value repeats — so a value typed before a load survives it
-when the loaded field is unset (reproduced on `structural_speeds`' VB against
-`atr42_100`); the guard's "no `key=` is per-render" premise was wrong. It rides
-the unit-boundary rollout (`00_backlog.md` **band A** since the 2026-08-22
-beta re-cut, one pass with #44), whose `unit_number_input` stamps for its
-callers. What stays parked *here* is the rest of the audit — a widget that
-goes stale while the project is **mutated** underneath it (a cross-page Apply,
-a seed chain), which no generation bump covers because the project was never
-replaced. (Until #51's unkeyed half lands, the *replacement* case is also
-incompletely covered — the reopen comment corrects the earlier claim that the
-mutation case was the only residual.)
+stamped too. **The unkeyed half shipped 2026-08-22, closing #51's reopen:** the
+98 `app/views/` widgets that carried no `key=` at all — whose Streamlit identity
+derived from their *arguments*, stable whenever the seed value repeats, so a
+value typed before a load survived it (reproduced on `structural_speeds`' VB
+against `atr42_100`) — now all carry stamped keys, landed as one pass with
+#44's unit-boundary rollout (`unit_number_input` stamps for its callers). The
+guard's "no `key=` is per-render" premise was inverted to fail closed, with a
+type-then-load reproduction test and a per-key shell allowlist. What stays
+parked *here* is the rest of the audit — a widget that goes stale while the
+project is **mutated** underneath it (a cross-page Apply, a seed chain), which
+no generation bump covers because the project was never replaced.
 
 ### L-8e — Uncovered input fields & UX nits
 Add widgets (or a documented JSON-only status) for the remaining uncovered

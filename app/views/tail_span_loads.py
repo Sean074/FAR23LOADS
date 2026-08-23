@@ -22,6 +22,7 @@ import plotly.graph_objects as go
 import streamlit as st
 
 from app_shell.components import active_system, gate, workflow_page_link
+from app_shell.widget_keys import widget_key
 from sloads import (
     Project,
     UnitSystem,
@@ -185,7 +186,7 @@ st.caption(
 # --------------------------------------------------------------------------- #
 st.subheader("Station table")
 _names = [f"{r.component} — {r.case}" for r in results]
-_pick = st.selectbox("Case", _names)
+_pick = st.selectbox("Case", _names, key=widget_key("tspan_case"))
 case = results[_names.index(_pick)]
 planform = resolve_tail_planform(project, case.component)
 

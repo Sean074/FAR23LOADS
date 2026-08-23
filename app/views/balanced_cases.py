@@ -17,6 +17,7 @@ import plotly.graph_objects as go
 import streamlit as st
 
 from app_shell.components import active_system, gate
+from app_shell.widget_keys import widget_key
 from sloads import (
     Project,
     UnitSystem,
@@ -206,7 +207,7 @@ def _case_label(c) -> str:
 
 
 names = [_case_label(c) for c in cases]
-pick = st.selectbox("Case", names)
+pick = st.selectbox("Case", names, key=widget_key("bal_case"))
 case = cases[names.index(pick)]
 
 totals = {}

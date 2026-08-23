@@ -17,7 +17,7 @@ from __future__ import annotations
 import pandas as pd
 import streamlit as st
 
-from app_shell.components import page_header, workflow_page_link
+from app_shell.components import page_header, unit_number_input, workflow_page_link
 from app_shell.widget_keys import widget_key
 from sloads import (
     LandingInput,
@@ -25,7 +25,6 @@ from sloads import (
     io,
     si_scalar_label,
     to_display,
-    to_imperial_scalar,
     to_si_scalar,
 )
 from sloads.cg_cases import (
@@ -90,27 +89,26 @@ with st.form("landing_loads_form"):
     c3.metric(f"Wing area S ({U['area_sqft']})",
               f"{to_display(_wing_area_display, 'area_sqft', system):.3f}",
               help="Single-sourced from the wing planform on the Geometry page (Step M2-6).")
-    strut_stroke_in = c1.number_input(
-        f"Strut stroke ({U['length']})", min_value=0.0,
-        value=float(round(to_display(inp.strut_stroke_in, "length", system), 4)),
-        key=widget_key(f"strut_stroke_{system.value}"))
-    tire_od_in = c2.number_input(
-        f"Tyre OD ({U['length']})", min_value=0.0,
-        value=float(round(to_display(inp.tire_od_in, "length", system), 4)),
-        key=widget_key(f"tire_od_{system.value}"))
-    hub_diameter_in = c3.number_input(
-        f"Hub diameter ({U['length']})", min_value=0.0,
-        value=float(round(to_display(inp.hub_diameter_in, "length", system), 4)),
-        key=widget_key(f"hub_diameter_{system.value}"))
+    strut_stroke_in = unit_number_input(
+        "Strut stroke", float(inp.strut_stroke_in),
+        kind="length", key="land_strut_stroke", min_value=0.0, container=c1)
+    tire_od_in = unit_number_input(
+        "Tyre OD", float(inp.tire_od_in),
+        kind="length", key="land_tire_od", min_value=0.0, container=c2)
+    hub_diameter_in = unit_number_input(
+        "Hub diameter", float(inp.hub_diameter_in),
+        kind="length", key="land_hub_diameter", min_value=0.0, container=c3)
     lift_factor = c1.number_input(
         "Wing lift factor, L (≤ 0.667)", min_value=0.0, max_value=0.667,
-        value=float(inp.lift_factor))
+        value=float(inp.lift_factor), key=widget_key("land_lift_factor"))
     gear_load_factor = c2.number_input(
         "Gear load factor override, NLG", min_value=0.0, value=float(inp.gear_load_factor),
+        key=widget_key("land_nlg_override"),
         help="0 → use LGFACTOR's computed N − L. LANDLOAD usually rounds it up.")
 
     tail_down_angle_deg = st.number_input("Tail-down ground angle (deg)", min_value=0.0,
-                                          value=float(inp.tail_down_angle_deg))
+                                          value=float(inp.tail_down_angle_deg),
+                                          key=widget_key("land_tail_down_angle"))
 
     st.subheader("Landing CG cases")
     st.caption(
@@ -145,9 +143,9 @@ if applied:
     # Neither design weight is written here any more (G-4 / G-14), and neither are
     # the CG cases (G-3): this form owns the LGFACTOR strut/tyre scalars only.
     # wing_area_sqft is derived from geometry (Step M2-6) -- not written here.
-    inp.strut_stroke_in = to_imperial_scalar(strut_stroke_in, "length", system)
-    inp.tire_od_in = to_imperial_scalar(tire_od_in, "length", system)
-    inp.hub_diameter_in = to_imperial_scalar(hub_diameter_in, "length", system)
+    inp.strut_stroke_in = strut_stroke_in
+    inp.tire_od_in = tire_od_in
+    inp.hub_diameter_in = hub_diameter_in
     inp.lift_factor = lift_factor
     inp.gear_load_factor = gear_load_factor
     inp.tail_down_angle_deg = tail_down_angle_deg

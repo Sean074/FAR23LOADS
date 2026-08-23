@@ -92,6 +92,7 @@ with st.form("fuselage_mass_form"):
     override = st.checkbox(
         "Override the derived distribution with the table below",
         value=fm.stations_are_override,
+        key=widget_key("fus_override"),
         help="Leave unticked to use the weight database (the single source of "
              "truth). Tick to hand-enter the beam, e.g. to reproduce a legacy model.")
     default = pd.DataFrame(
@@ -158,7 +159,8 @@ if any(r.closure_artifact for r in results):
         icon="⚠️",
     )
 
-sel = st.selectbox("Show condition", [r.case for r in results])
+sel = st.selectbox("Show condition", [r.case for r in results],
+                   key=widget_key("fus_show_condition"))
 res = next(r for r in results if r.case == sel)
 
 c1, c2, c3 = st.columns(3)

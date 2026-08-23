@@ -25,6 +25,7 @@ import streamlit as st
 
 from app_shell.components import (
     ALTITUDE_FT,
+    KEAS,
     page_header,
     unit_number_input,
     workflow_page_link,
@@ -39,7 +40,6 @@ from sloads import (
     consistency_warnings,
     convert_results,
     to_display,
-    to_imperial_scalar,
 )
 from sloads import io as sloads_io
 from sloads.constants import convert_airspeed, mach_to_eas, standard_atmosphere
@@ -150,6 +150,7 @@ def _tab_design_speeds(project: Project, system: UnitSystem, U: dict) -> None:
         cat_default = next((k for k, v in _CATS.items() if existing and v == existing.category), "Normal / commuter")
         cat_label = st.selectbox(
             "Category", _CAT_LABELS, index=_CAT_LABELS.index(cat_default),
+            key=widget_key("ss_category"),
             help="Certification category (14 CFR 23.3); sets the limit maneuver load factors (23.337). "
                  "Concept (C) applies no FAR cap — you set the factors below.",
         )
@@ -160,28 +161,27 @@ def _tab_design_speeds(project: Project, system: UnitSystem, U: dict) -> None:
             mtow_upstream_display = to_display(mtow_upstream, "weight", system)
             st.caption(f"Design weight from the MTOW SSOT: **{mtow_upstream_display:,.0f} {U['weight']}**.")
             override_weight = st.checkbox(
-                "Override design weight", value=False,
+                "Override design weight", value=False, key=widget_key("ss_override_weight"),
                 help="Uncheck to use the max take-off weight entered on the Weight "
                      "& Mass Properties page (decision G-14's single owner).",
             )
             weight_default = (
-                to_display(existing.weight_lb, "weight", system) if existing and existing.weight_lb
-                else mtow_upstream_display
+                existing.weight_lb if existing and existing.weight_lb else mtow_upstream
             )
-            weight_override = st.number_input(
-                f"Design (gross) weight override ({U['weight']})", min_value=0.0,
-                value=float(weight_default), key=widget_key(f"weight_override_{system.value}"),
+            weight_override = unit_number_input(
+                "Design (gross) weight override", float(weight_default),
+                kind="weight", key="ss_weight_override", min_value=0.0,
                 help="Design gross (take-off) weight used for the load factors and design speeds "
                      "(14 CFR 23.335; STRSPEED, Ch 5). Used only when 'Override design weight' is ticked.",
             )
         else:
             override_weight = True
             weight_default = (
-                to_display(existing.weight_lb, "weight", system) if existing and existing.weight_lb else 0.0
+                existing.weight_lb if existing and existing.weight_lb else 0.0
             )
-            weight_override = st.number_input(
-                f"Design (gross) weight ({U['weight']})", min_value=0.0,
-                value=float(weight_default), key=widget_key(f"weight_{system.value}"),
+            weight_override = unit_number_input(
+                "Design (gross) weight", float(weight_default),
+                kind="weight", key="ss_weight", min_value=0.0,
                 help="Design gross (take-off) weight used for the load factors and design speeds "
                      "(14 CFR 23.335; STRSPEED, Ch 5).",
             )
@@ -196,6 +196,7 @@ def _tab_design_speeds(project: Project, system: UnitSystem, U: dict) -> None:
         )
         occupants_in = st.number_input(
             "Occupants (total souls)", min_value=0, step=1, value=int(occ_default),
+            key=widget_key("ss_occupants"),
             help=(
                 "Total people on board (crew + passengers). The FAR 23 applicability "
                 "check counts passenger seats = occupants − 2 pilot stations against "
@@ -209,12 +210,11 @@ def _tab_design_speeds(project: Project, system: UnitSystem, U: dict) -> None:
             wing_area = None
         else:
             wing_area_default = (
-                to_display(existing.wing_area_sqft, "area_sqft", system) if existing and existing.wing_area_sqft
-                else 0.0
+                existing.wing_area_sqft if existing and existing.wing_area_sqft else 0.0
             )
-            wing_area = st.number_input(
-                f"Wing area S ({U['area_sqft']})", min_value=0.0,
-                value=float(wing_area_default), key=widget_key(f"wing_area_{system.value}"),
+            wing_area = unit_number_input(
+                "Wing area S", float(wing_area_default),
+                kind="area_sqft", key="ss_wing_area", min_value=0.0,
                 help="Reference wing area S; with weight gives the wing loading W/S that sets the stall "
                      "and maneuvering speeds. Read from Geometry when a wing surface exists.",
             )
@@ -223,10 +223,11 @@ def _tab_design_speeds(project: Project, system: UnitSystem, U: dict) -> None:
                 "or enter the wing area directly above."
             )
             workflow_page_link("configuration_layout", label="→ Geometry")
-        vh = st.number_input("Max sea-level speed VH (kt)", min_value=0.0,
-                             value=float(existing.vh_kt) if existing else 0.0,
-                             help="Maximum speed in level flight at max continuous power, sea level (KEAS); "
-                                  "a floor for the minimum cruise speed VC (14 CFR 23.335).")
+        vh = unit_number_input(
+            "Max sea-level speed VH", float(existing.vh_kt) if existing else 0.0,
+            fixed_unit=KEAS, key="ss_vh", min_value=0.0,
+            help="Maximum speed in level flight at max continuous power, sea level (KEAS); "
+                 "a floor for the minimum cruise speed VC (14 CFR 23.335).")
         st.caption(
             "Stall speeds VS/VSF are **derived from the maximum lift coefficients "
             "(CLmax)** entered on the **Aerodynamic Data** page — VS = √(2·(W/S)/(ρ₀·CLmax)) "
@@ -240,12 +241,14 @@ def _tab_design_speeds(project: Project, system: UnitSystem, U: dict) -> None:
             help="Altitude at the 'shoulder' of the flight envelope where VC/VD are evaluated "
                  "for the cruise/dive Mach limit (MACHLIM, Ch 5).")
         st.subheader("Chosen speeds (blank = use minimum)")
-        vc = st.number_input("Chosen cruise VC (kt)", min_value=0.0,
-                             value=float(existing.chosen_vc) if existing and existing.chosen_vc else 0.0,
-                             help="Design cruising speed VC (KEAS); leave 0 to use the FAR 23.335(a) minimum.")
-        vd = st.number_input("Chosen dive VD (kt)", min_value=0.0,
-                             value=float(existing.chosen_vd) if existing and existing.chosen_vd else 0.0,
-                             help="Design dive speed VD (KEAS); leave 0 to use the FAR 23.335(b) minimum.")
+        vc = unit_number_input(
+            "Chosen cruise VC", float(existing.chosen_vc) if existing and existing.chosen_vc else 0.0,
+            fixed_unit=KEAS, key="ss_vc", min_value=0.0,
+            help="Design cruising speed VC (KEAS); leave 0 to use the FAR 23.335(a) minimum.")
+        vd = unit_number_input(
+            "Chosen dive VD", float(existing.chosen_vd) if existing and existing.chosen_vd else 0.0,
+            fixed_unit=KEAS, key="ss_vd", min_value=0.0,
+            help="Design dive speed VD (KEAS); leave 0 to use the FAR 23.335(b) minimum.")
 
         # --- Dive-speed basis (F25-2). Concept category only (decision D-1); the
         # widgets always render because a form cannot react live to the category
@@ -262,13 +265,14 @@ def _tab_design_speeds(project: Project, system: UnitSystem, U: dict) -> None:
         basis_label = st.radio(
             "Dive-speed basis", _VD_BASIS_LABELS,
             index=_VD_BASIS_LABELS.index(basis_default), horizontal=True,
+            key=widget_key("ss_vd_basis"),
             help="Speed ratio: today's behaviour, VD is raised to at least 1.25·VC. "
                  "Mach margin: your chosen VD is honoured as long as MD clears "
                  "MC + the margin below, and raised to meet it if not.",
         )
         margin_min = st.number_input(
             "Minimum MC→MD Mach margin", min_value=float(MACH_MARGIN_FLOOR),
-            max_value=0.30, step=0.005, format="%.3f",
+            max_value=0.30, step=0.005, format="%.3f", key=widget_key("ss_mach_margin_min"),
             value=float(existing.mach_margin_min) if existing and existing.mach_margin_min
             else float(MACH_MARGIN_DEFAULT),
             help=f"Default {MACH_MARGIN_DEFAULT} M — the 14 CFR 25.335(b)(2) rule "
@@ -278,6 +282,7 @@ def _tab_design_speeds(project: Project, system: UnitSystem, U: dict) -> None:
         margin_basis = st.text_input(
             "Rational-analysis basis (required below 0.07 M)",
             value=(existing.mach_margin_basis or "") if existing else "",
+            key=widget_key("ss_mach_margin_basis"),
             placeholder="e.g. high-speed protection function credited per 25.335(b)(2)",
             help="Free text, recorded with the results. 25.335(b)(2) permits a margin "
                  "below 0.07 M only when it is 'determined using a rational analysis "
@@ -294,9 +299,10 @@ def _tab_design_speeds(project: Project, system: UnitSystem, U: dict) -> None:
                 f"{MACH_MARGIN_FLOOR} M is an absolute floor. See "
                 "`reference/14CFR_MC_MD_speed_margin.md` §2–3."
             )
-        vb = st.number_input(
-            "Rough-air speed VB (kt, optional)", min_value=0.0,
-            value=float(existing.vb_kt) if existing and existing.vb_kt else 0.0,
+        vb = unit_number_input(
+            "Rough-air speed VB (optional)",
+            float(existing.vb_kt) if existing and existing.vb_kt else 0.0,
+            fixed_unit=KEAS, key="ss_vb", min_value=0.0,
             help="Design speed for maximum gust intensity, 14 CFR 25.335(d). Input "
                  "only — it is checked against VC for ordering and never changes a "
                  "design speed or a load. The full VC ≥ VB + 1.32·U_ref margin needs "
@@ -307,10 +313,12 @@ def _tab_design_speeds(project: Project, system: UnitSystem, U: dict) -> None:
         st.caption("No FAR 23.337 cap is applied to the Concept category — you set the limit maneuver factors.")
         chosen_n = st.number_input("Limit positive load factor n", min_value=0.0,
                                    value=float(existing.chosen_n) if existing and existing.chosen_n else 0.0,
+                                   key=widget_key("ss_chosen_n"),
                                    help="Concept-category limit positive maneuvering load factor (replaces the "
                                         "FAR 23.337 formula; used only when Category = Concept).")
         chosen_nneg = st.number_input("Limit negative load factor n_neg", max_value=0.0,
                                       value=float(existing.chosen_nneg) if existing and existing.chosen_nneg else 0.0,
+                                      key=widget_key("ss_chosen_nneg"),
                                       help="Concept-category limit negative load factor (≤ 0; used only when "
                                            "Category = Concept).")
 
@@ -324,37 +332,44 @@ def _tab_design_speeds(project: Project, system: UnitSystem, U: dict) -> None:
         no_yellow_arc = st.checkbox(
             "Turbine / no yellow arc (VMO/MMO govern)",
             value=bool(existing.no_yellow_arc) if existing else False,
+            key=widget_key("ss_no_yellow_arc"),
             help="Turbine airplanes (and any airplane with VD set by the 23.335(b)(4) "
                  "Mach-margin route) have no VNE yellow arc; VMO/MMO ≤ VC/MC govern (Ref 1 p47).",
         )
         _oc1, _oc2, _oc3 = st.columns(3)
         with _oc1:
-            target_vne = st.number_input("Target VNE (kt)", min_value=0.0,
-                                         value=float(existing.target_vne) if existing and existing.target_vne else 0.0,
-                                         help="Desired never-exceed speed; requires VD ≥ VNE/0.9 (23.1505(a)).")
-            target_vfe = st.number_input("Target VFE (kt)", min_value=0.0,
-                                         value=float(existing.target_vfe) if existing and existing.target_vfe else 0.0,
-                                         help="Desired flap extended speed; requires VF ≥ VFE (23.1511).")
+            target_vne = unit_number_input(
+                "Target VNE", float(existing.target_vne) if existing and existing.target_vne else 0.0,
+                fixed_unit=KEAS, key="ss_target_vne", min_value=0.0,
+                help="Desired never-exceed speed; requires VD ≥ VNE/0.9 (23.1505(a)).")
+            target_vfe = unit_number_input(
+                "Target VFE", float(existing.target_vfe) if existing and existing.target_vfe else 0.0,
+                fixed_unit=KEAS, key="ss_target_vfe", min_value=0.0,
+                help="Desired flap extended speed; requires VF ≥ VFE (23.1511).")
         with _oc2:
-            target_vno = st.number_input("Target VNO (kt)", min_value=0.0,
-                                         value=float(existing.target_vno) if existing and existing.target_vno else 0.0,
-                                         help="Desired max structural cruising speed; requires VC ≥ VNO and "
-                                              "VNE ≥ VNO/0.89 (23.1505(b)).")
-            target_vmo = st.number_input("Target VMO (kt)", min_value=0.0,
-                                         value=float(existing.target_vmo) if existing and existing.target_vmo else 0.0,
-                                         help="Turbine max operating speed; requires VC ≥ VMO (Ref 1 p47).")
+            target_vno = unit_number_input(
+                "Target VNO", float(existing.target_vno) if existing and existing.target_vno else 0.0,
+                fixed_unit=KEAS, key="ss_target_vno", min_value=0.0,
+                help="Desired max structural cruising speed; requires VC ≥ VNO and "
+                     "VNE ≥ VNO/0.89 (23.1505(b)).")
+            target_vmo = unit_number_input(
+                "Target VMO", float(existing.target_vmo) if existing and existing.target_vmo else 0.0,
+                fixed_unit=KEAS, key="ss_target_vmo", min_value=0.0,
+                help="Turbine max operating speed; requires VC ≥ VMO (Ref 1 p47).")
         with _oc3:
             target_mmo = st.number_input("Target MMO (Mach)", min_value=0.0, format="%.3f",
                                          value=float(existing.target_mmo) if existing and existing.target_mmo else 0.0,
+                                         key=widget_key("ss_target_mmo"),
                                          help="Turbine max operating Mach; requires MD ≥ MMO + 0.05 (23.335(b)(4)).")
 
         applied = st.form_submit_button("Apply", type="primary")
 
     if applied:
         is_concept_submit = _CATS[cat_label] == "C"
-        weight_imperial = to_imperial_scalar(weight_override, "weight", system)
-        weight = weight_imperial if (override_weight or not has_mtow) else mtow_upstream
-        wing_area_imperial = to_imperial_scalar(wing_area, "area_sqft", system) if wing_area else None
+        # unit_number_input already returned Imperial (the whole point of #44):
+        # no hand conversion happens on this page any more.
+        weight = weight_override if (override_weight or not has_mtow) else mtow_upstream
+        wing_area_imperial = wing_area if wing_area else None
         inp = StructuralSpeedsInput(
             category=_CATS[cat_label],
             weight_lb=weight,
@@ -497,21 +512,24 @@ def _tab_speed_altitude(project: Project, system: UnitSystem, U: dict) -> None: 
     # Form + Apply (M2-3): the MACHLIM inputs persist only on submit, so merely
     # visiting this tab no longer mutates the project and trips the dirty flag.
     with st.form("mach_limit_form"):
-        max_alt = st.number_input(
-            "Max operating altitude (ft)", min_value=0.0,
-            value=float(existing.max_operating_altitude_ft) if existing else 18000.0,
+        max_alt = unit_number_input(
+            "Max operating altitude",
+            float(existing.max_operating_altitude_ft) if existing else 18000.0,
+            fixed_unit=ALTITUDE_FT, key="ml_max_alt", min_value=0.0,
             help="Ceiling of the flight-limits diagram; the Mach-limited table runs from "
                  "the shoulder altitude up to here (MACHLIM, Ch 6).",
         )
-        incr = st.number_input(
-            "Altitude increment (ft)", min_value=1.0,
-            value=float(existing.increment_ft) if existing else 1000.0,
+        incr = unit_number_input(
+            "Altitude increment",
+            float(existing.increment_ft) if existing else 1000.0,
+            fixed_unit=ALTITUDE_FT, key="ml_incr", min_value=1.0,
             help="Tabulation / plotting step for the Mach-limited airspeeds.",
         )
         applied = st.form_submit_button("Apply", type="primary")
 
     axis_unit = st.radio(
         "Chart speed axis", ["KEAS", "KCAS", "KTAS"], horizontal=True,
+        key=widget_key("ml_axis_unit"),
         help="Equivalent (native calc unit), calibrated (compressibility-corrected, "
              "the placard convention) or true airspeed for the diagram's x-axis. "
              "Boundaries are computed in KEAS and converted at the altitude of each point.",

@@ -20,7 +20,7 @@ import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
 
-from app_shell.components import gate, page_header
+from app_shell.components import gate, page_header, unit_number_input
 from app_shell.limit_csv import wing_limit_csv, wing_limit_rows
 from app_shell.widget_keys import widget_key
 from sloads import (
@@ -86,20 +86,25 @@ with st.form("wing_airloads_form"):
     st.subheader("Wing aero inputs")
     section_slope = st.number_input(
         "Section lift-curve slope m₀ (per deg)", min_value=0.0,
-        value=float(existing_aero.section_slope) if existing_aero else 0.0, format="%.4f")
+        value=float(existing_aero.section_slope) if existing_aero else 0.0, format="%.4f",
+        key=widget_key("wing_section_slope"))
     taper_ratio = st.number_input(
         "Taper ratio (tip chord / root chord)", min_value=0.0, max_value=1.0,
-        value=float(existing_aero.taper_ratio) if existing_aero else 0.0, format="%.4f")
+        value=float(existing_aero.taper_ratio) if existing_aero else 0.0, format="%.4f",
+        key=widget_key("wing_taper_ratio"))
     tip_ratio = st.number_input(
         "Tip ratio (rounded-tip width / semi-span)", min_value=0.0, max_value=1.0,
-        value=float(existing_aero.tip_ratio) if existing_aero else 0.0, format="%.3f")
+        value=float(existing_aero.tip_ratio) if existing_aero else 0.0, format="%.3f",
+        key=widget_key("wing_tip_ratio"))
     use_tau_override = st.checkbox(
-        "Override TAU", value=existing_aero.tau is not None if existing_aero else False)
+        "Override TAU", value=existing_aero.tau is not None if existing_aero else False,
+        key=widget_key("wing_use_tau"))
     tau_override_raw = st.number_input(
-        "TAU", value=float(existing_aero.tau) if existing_aero and existing_aero.tau is not None else 0.0)
+        "TAU", value=float(existing_aero.tau) if existing_aero and existing_aero.tau is not None else 0.0,
+        key=widget_key("wing_tau"))
     target_cl = st.number_input(
         "Target wing CL", value=float(existing_aero.target_cl) if existing_aero else 0.0,
-        format="%.3f")
+        format="%.3f", key=widget_key("wing_target_cl"))
 
     st.subheader("Spanwise twist")
     st.caption(f"Zero-lift angle (deg) at each butt line Y ({U['length']}, inboard → outboard). "
@@ -241,16 +246,15 @@ if _from_select:
 
 with st.form("net_wing_loads_form"):
     st.subheader(f"Wing mass distribution ({U['weight']} / {U['length']})")
-    panel = st.number_input(
-        f"Outboard panel weight, one side ({U['weight']})", min_value=0.0,
-        value=float(round(to_display(wm.panel_weight_lb, "weight", system), 4)),
-        key=widget_key(f"panel_{system.value}"))
+    panel = unit_number_input(
+        "Outboard panel weight, one side", float(wm.panel_weight_lb),
+        kind="weight", key="wing_panel_weight", min_value=0.0)
     dr = st.number_input("Tip/root area-density ratio", min_value=0.0, max_value=1.0,
-                         value=float(wm.tip_root_density_ratio), format="%.3f")
-    rib = st.number_input(
-        f"Inboard rib butt line ({U['length']})",
-        value=float(round(to_display(wm.inboard_rib_y, "length", system), 4)),
-        key=widget_key(f"rib_{system.value}"))
+                         value=float(wm.tip_root_density_ratio), format="%.3f",
+                         key=widget_key("wing_density_ratio"))
+    rib = unit_number_input(
+        "Inboard rib butt line", float(wm.inboard_rib_y),
+        kind="length", key="wing_inboard_rib")
 
     st.subheader(f"Concentrated wing weights ({U['weight']} / {U['length']})")
     cw_display = [
@@ -277,7 +281,8 @@ with st.form("net_wing_loads_form"):
         or [["", None, 0.0, 0.0, 0.0, 0.0, 0.0]],
         columns=["name", "vn_case", "nz", "nx", "unbal_moment", "cl", "v_eas_kt"],
     )
-    case_df = st.data_editor(case_default, num_rows="dynamic", hide_index=True, use_container_width=True)
+    case_df = st.data_editor(case_default, num_rows="dynamic", hide_index=True, use_container_width=True,
+                             key=widget_key("wing_case_editor"))
 
     mass_applied = st.form_submit_button("Apply", type="primary")
 
@@ -305,8 +310,8 @@ if mass_applied:
         if pd.notna(r["name"]) and str(r["name"]).strip()
     ]
     project.wing_mass = WingMassInput(
-        panel_weight_lb=to_imperial_scalar(panel, "weight", system),
-        tip_root_density_ratio=dr, inboard_rib_y=to_imperial_scalar(rib, "length", system),
+        panel_weight_lb=panel,
+        tip_root_density_ratio=dr, inboard_rib_y=rib,
         surface="wing", concentrated=concentrated, cases=cases)
     st.session_state["project"] = project
     st.success("Wing mass distribution applied.")
@@ -337,7 +342,7 @@ st.caption(
 )
 
 case_names = [r.case for r in loads.wing_net]
-sel = st.selectbox("Show case", case_names)
+sel = st.selectbox("Show case", case_names, key=widget_key("wing_show_case"))
 air = next(r for r in loads.wing_air if r.case == sel)
 inertia = next(r for r in loads.wing_inertia if r.case == sel)
 net = next(r for r in loads.wing_net if r.case == sel)

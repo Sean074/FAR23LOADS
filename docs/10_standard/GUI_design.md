@@ -137,10 +137,19 @@ consistent:
   stamps the key with a *project generation* bumped exactly once per replacement
   (`project_state.adopt`, and the JSON editor's Apply — the only two places that
   replace it). A mutation, an Apply or a unit switch is not a replacement and
-  keeps its widgets. Guards: `tests/test_widget_freshness.py` — render → load →
-  re-render leaves the session project equal to the loaded file, on every oracle
-  page and every shipped example, plus an AST walk that fails on any GUI widget
-  keyed without the stamp.
+  keeps its widgets. **No key at all is the same defect** (#51's reopen,
+  closed 2026-08-22): an unkeyed widget derives its Streamlit identity from its
+  *arguments* — `value=` included — so its retained state survives a load
+  whenever the loaded field repeats the seed, which `Project(name="")` makes
+  the common case. Every input widget therefore carries a stamped `key=`;
+  the only exemptions are the shell's own session-state widgets (the unit
+  radio, the load-path pickers), named **per key** on an explicit allowlist
+  with a companion test that fails when an entry stops naming a real widget.
+  Guards: `tests/test_widget_freshness.py` — render → load → re-render leaves
+  the session project equal to the loaded file, on every oracle page and every
+  shipped example; a type-then-load reproduction that asserts the typed value
+  does not survive; and an AST walk that fails on any GUI input widget without
+  a stamped key.
 - **A copy says it is a copy** (#36, CR-A-2). Where a quantity is held by more
   than one field, `sloads/field_registry.py` names the owner, and the renderer
   **reads that** rather than presenting every holder as an independent input.
@@ -246,7 +255,10 @@ gets canonical Imperial back, so a page cannot convert twice, convert the wrong
 way, or forget to convert on the way home. **A view that writes
 `to_imperial_scalar` around a `number_input` is a defect** — that hand-paired
 idiom is what the helper replaces, and doing both double-converts (a 184 ft²
-wing stored as 1982 ft², silently, in SI only).
+wing stored as 1982 ft², silently, in SI only). The rollout completed
+2026-08-22 (#44, one pass with #51): every scalar `number_input` in
+`app/views/` now goes through the helper — the `data_editor` grids remain the
+one hand-converted surface, converted per column at Apply.
 
 ```python
 from components import ALTITUDE_FT, KEAS, page_header, unit_number_input
@@ -520,7 +532,8 @@ reruns); the editor surfaces it inline.
 phases since Step G2; the Phase-D six-section grouping it re-sequenced), the global unit toggle and
 project-file widget, the shared-`Project` data flow and seed-chain, the
 form+Apply/merge page conventions, the unit-boundary input pattern across all
-definition pages (§7), the Configuration & Layout three-view, the
+definition pages (§7; the last seven hand-paired views moved onto the helper
+2026-08-22, #44), the Configuration & Layout three-view, the
 FAR 23 applicability banner + `occupants`/`crew` fields and OEW line (§9,
 Phase E1), the per-widget `help=` tooltips + parameter-guide expanders across
 the six Airplane pages (§8.1, Phase E2), and the V-n diagram +

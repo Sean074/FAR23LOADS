@@ -506,7 +506,8 @@ _vt0 = (_emp.vtail if _emp is not None else None) or VTailLoadsInput()
 
 with st.form("empennage_form"):
     en_h = st.checkbox("Model horizontal tail + elevator",
-                       value=_emp is not None and _emp.htail is not None)
+                       value=_emp is not None and _emp.htail is not None,
+                       key=widget_key("en_model_htail"))
     with st.expander("Horizontal tail & elevator", expanded=True):
         c = st.columns(3)
         ht_area = _u("H-tail area ST", _ht0.htail_area_sqft, "area_sqft", "en_ht_area", c[0], min_value=0.0)
@@ -533,7 +534,8 @@ with st.form("empennage_form"):
         el_eff = _u("Elevator effectiveness", _ht0.elevator_effectiveness, None, "en_eeff", e[2], min_value=0.0)
 
     en_v = st.checkbox("Model vertical tail + rudder",
-                       value=_emp is not None and _emp.vtail is not None)
+                       value=_emp is not None and _emp.vtail is not None,
+                       key=widget_key("en_model_vtail"))
     with st.expander("Vertical tail & rudder", expanded=True):
         c = st.columns(3)
         vt_area = _u("V-tail area SV", _vt0.vtail_area_sqft, "area_sqft", "en_vt_area", c[0], min_value=0.0)
@@ -731,7 +733,8 @@ _geometry = project.geometry or GeometryInput()
 
 with st.form("add_surface_form", clear_on_submit=True):
     _new_name = st.text_input("New surface name", value="",
-                              placeholder="e.g. wing, htail, vtail")
+                              placeholder="e.g. wing, htail, vtail",
+                              key=widget_key("geo_new_surface_name"))
     if st.form_submit_button("Add surface") and _new_name:
         _surfaces = [*list(_geometry.surfaces), SurfaceInput(name=_new_name, leading_edge=[], trailing_edge=[])]
         _set_geometry(project, surfaces=_surfaces)

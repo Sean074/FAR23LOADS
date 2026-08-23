@@ -14,6 +14,7 @@ from __future__ import annotations
 import streamlit as st
 
 from app_shell.components import render_applicability_banner, workflow_page_link
+from app_shell.widget_keys import widget_key
 from sloads import Project
 from sloads import workflow as wf
 
@@ -34,14 +35,18 @@ render_applicability_banner(project)
 # --------------------------------------------------------------------------- #
 col1, col2, col3 = st.columns([2, 1, 1])
 with col1:
-    project.name = st.text_input("Project name", value=project.name)
+    project.name = st.text_input("Project name", value=project.name,
+                                 key=widget_key("dash_name"))
 with col2:
-    project.engineer = st.text_input("Engineer", value=project.engineer)
+    project.engineer = st.text_input("Engineer", value=project.engineer,
+                                     key=widget_key("dash_engineer"))
 with col3:
-    project.date = st.text_input("Date", value=project.date, placeholder="YYYY-MM-DD")
+    project.date = st.text_input("Date", value=project.date, placeholder="YYYY-MM-DD",
+                                 key=widget_key("dash_date"))
 
 project.description = st.text_input(
     "Description", value=project.description,
+    key=widget_key("dash_description"),
     placeholder="e.g. six-place single, normal category",
     help="One line describing the airplane; appears under the title on the summary report.")
 
@@ -58,11 +63,14 @@ with st.expander("Document control (summary report title page)"):
     d1, d2, d3 = st.columns(3)
     with d1:
         project.revision = st.text_input("Revision", value=project.revision,
-                                         placeholder="e.g. A, B, IR")
+                                         placeholder="e.g. A, B, IR",
+                                         key=widget_key("dash_revision"))
     with d2:
-        project.checked_by = st.text_input("Checked by", value=project.checked_by)
+        project.checked_by = st.text_input("Checked by", value=project.checked_by,
+                                           key=widget_key("dash_checked_by"))
     with d3:
-        project.approved_by = st.text_input("Approved by", value=project.approved_by)
+        project.approved_by = st.text_input("Approved by", value=project.approved_by,
+                                            key=widget_key("dash_approved_by"))
 
 st.session_state["project"] = project
 

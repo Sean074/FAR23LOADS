@@ -135,7 +135,8 @@ with st.sidebar:
         xtc = _num("Tail CP X, flaps up XTC", fl.xtc or 253.364, "xtc", "length")
         xtf = _num("Tail CP X, flaps down XTF", fl.xtf or 261.027, "xtf", "length")
         mn = st.number_input("Reference Mach (coeffs obtained at)", min_value=0.01,
-                             value=float(fl.mn) or 0.1, format="%.3f")
+                             value=float(fl.mn) or 0.1, format="%.3f",
+                             key=widget_key("fl_ref_mach"))
         applied = st.form_submit_button("Apply geometry & altitudes", type="primary")
 
 st.caption(
@@ -210,12 +211,15 @@ except (ValueError, ZeroDivisionError) as exc:
 def _tab_vn() -> None:
     cg_names = [c.name for c in cg_cases]
     c1, c2 = st.columns([2, 1])
-    selected_cg = c1.selectbox("Show CG case", cg_names) if cg_names else None
-    overlay_all_alt = c2.checkbox("Overlay all altitudes", value=False)
+    selected_cg = c1.selectbox("Show CG case", cg_names,
+                               key=widget_key("vn_show_cg")) if cg_names else None
+    overlay_all_alt = c2.checkbox("Overlay all altitudes", value=False,
+                                  key=widget_key("vn_overlay_alt"))
     if overlay_all_alt:
         selected_alt = None
     else:
-        selected_alt = c1.selectbox("Show altitude (ft)", altitudes_ft) if len(altitudes_ft) > 1 else altitudes_ft[0]
+        selected_alt = (c1.selectbox("Show altitude (ft)", altitudes_ft, key=widget_key("vn_show_alt"))
+                        if len(altitudes_ft) > 1 else altitudes_ft[0])
 
     pts = [p for p in env.vn if p.cg == selected_cg
            and (overlay_all_alt or p.altitude_ft == selected_alt)]
@@ -316,22 +320,24 @@ def _select_inputs_form() -> None:
         aileron = c1.number_input(
             "Full-down aileron deflection, DN (deg)", min_value=0.0,
             value=float(si.full_down_aileron_deg),
+            key=widget_key("sel_aileron_dn"),
             help="Drives the FAR 23.349(b) steady-roll wing-torsion score "
                  "(cm − 0.01·DN)·q·V²; 0 leaves the roll case out of the wing search.")
         cm = c2.number_input(
             "Basic airfoil Cm (no aileron)", value=float(si.basic_airfoil_cm),
             format="%.4f",
+            key=widget_key("sel_basic_cm"),
             help="Section pitching-moment coefficient with no aileron deflection; "
                  "pairs with DN in the wing-torsion score.")
-        wing_weight = c3.number_input(
-            f"Wing weight, WW ({U['weight']})", min_value=0.0,
-            value=float(round(to_display(si.wing_weight_lb, "weight", system), 3)),
+        wing_weight = unit_number_input(
+            "Wing weight, WW", float(si.wing_weight_lb),
+            kind="weight", key="sel_wing_weight", min_value=0.0, container=c3,
             help="Wing weight reacted at the wing for the critical-fuselage search "
                  "(load on wing = LZW − Nz·WW). 0 → default 0.09·MTOW.")
         if st.form_submit_button("Apply", type="primary"):
             si.full_down_aileron_deg = float(aileron)
             si.basic_airfoil_cm = float(cm)
-            si.wing_weight_lb = to_imperial_scalar(float(wing_weight), "weight", system)
+            si.wing_weight_lb = float(wing_weight)
             # M4-22: persist *only this form's* slice, and onto the session
             # project -- writing the page's probe copy back committed the
             # un-applied "Apply geometry & altitudes" edits it carries
@@ -489,6 +495,7 @@ def _tab_trim() -> None:
     ref_names = [c.name for c in cg_cases]
     ref_name = st.selectbox(
         "Reference loading (sets the swept weight & waterline)", ref_names,
+        key=widget_key("trim_ref_loading"),
         help="The sweep holds this case's weight and waterline (zcg) fixed and varies "
              "only the CG station. Cases at this same weight land exactly on the curve.")
     ref = next(c for c in cg_cases if c.name == ref_name)
@@ -507,7 +514,8 @@ def _tab_trim() -> None:
                              key="trim_x_lo", format="%.2f")
     x_hi = unit_number_input("CG station max", round(hi_default, 2), kind="length",
                              key="trim_x_hi", format="%.2f")
-    n_stations = int(c3.slider("Stations", min_value=5, max_value=41, value=15, step=2))
+    n_stations = int(c3.slider("Stations", min_value=5, max_value=41, value=15, step=2,
+                               key=widget_key("trim_n_stations")))
     if x_hi <= x_lo:
         st.warning("CG station max must exceed min.")
         return

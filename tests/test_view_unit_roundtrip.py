@@ -214,6 +214,57 @@ def test_apply_without_edits_leaves_values_bit_identical(system):
 
 
 # --------------------------------------------------------------------------- #
+# The rounding trap, once per view converted by the #44 rollout (2026-08-22).
+# Each case names a view moved onto ``unit_number_input`` in that pass, the form
+# whose Apply persists its converted fields, and the fields themselves. SI only:
+# Imperial's conversion is the identity and cannot drift.
+# --------------------------------------------------------------------------- #
+_NOOP_APPLY_CASES = [
+    ("structural_speeds.py", "structural_speeds_form", lambda p: (
+        p.speeds.weight_lb, p.speeds.shoulder_altitude_ft, p.speeds.vh_kt,
+        p.speeds.chosen_vc, p.speeds.chosen_vd)),
+    ("weight_mass.py", "weight_estimate_form", lambda p: (
+        p.weight.estimation.max_continuous_hp, p.weight.estimation.baggage_lb)),
+    ("aileron_loads.py", "aileron_loads_form", lambda p: (
+        p.aileron_loads.area_fwd_hinge_sqft, p.aileron_loads.area_aft_hinge_sqft)),
+    ("flap_loads.py", "flap_loads_form", lambda p: (
+        p.flap_loads.flap_area_one_side_sqft,
+        p.flap_loads.nacelle_frontal_area_sqft, p.flap_loads.engine_butt_line_in)),
+    ("landing_loads.py", "landing_loads_form", lambda p: (
+        p.landing.strut_stroke_in, p.landing.tire_od_in, p.landing.hub_diameter_in)),
+    ("wing_loads.py", "net_wing_loads_form", lambda p: (
+        p.wing_mass.panel_weight_lb, p.wing_mass.inboard_rib_y)),
+    ("flight_envelope.py", "select_inputs_form", lambda p: (
+        p.select_input.wing_weight_lb if p.select_input is not None else 0.0,)),
+]
+
+
+@pytest.mark.parametrize("view,form_key,fields", _NOOP_APPLY_CASES,
+                         ids=[c[0] for c in _NOOP_APPLY_CASES])
+def test_noop_apply_in_si_leaves_converted_fields_bit_identical(view, form_key, fields):
+    """Apply in SI with nothing typed must store exactly what was loaded.
+
+    The display seed is rounded to 4 decimals, so a view that converted the seed
+    home instead of returning the caller's Imperial would walk an SI user's
+    project by that rounding on every Apply — silently, forever. One case per
+    view the #44 rollout moved onto ``unit_number_input``.
+    """
+    from sloads import io
+
+    project = io.load_project(_GA6)
+    before = fields(project)
+
+    at = _run(view, UnitSystem.SI, project)
+    apply_button(at, form_key).set_value(True).run()
+    assert not at.exception, [e.message for e in at.exception]
+
+    after = fields(at.session_state["project"])
+    assert after == before, (
+        f"{view}: no-op Apply in SI drifted the converted fields "
+        f"{before} -> {after}")
+
+
+# --------------------------------------------------------------------------- #
 # The same contract through the second GUI (design note 32, OG-F)
 # --------------------------------------------------------------------------- #
 # The oracle GUI puts all 230 of its fields through the same

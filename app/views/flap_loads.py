@@ -13,7 +13,7 @@ from __future__ import annotations
 import pandas as pd
 import streamlit as st
 
-from app_shell.components import active_system, gate
+from app_shell.components import active_system, gate, unit_number_input
 from app_shell.widget_keys import widget_key
 from sloads import (
     FlapLoadsInput,
@@ -21,8 +21,6 @@ from sloads import (
     UnitSystem,
     convert_results,
     labels_for,
-    to_display,
-    to_imperial_scalar,
     to_si_scalar,
 )
 from sloads.export import sbeam_bridge as sb
@@ -52,33 +50,33 @@ with st.form("flap_loads_form"):
     st.subheader("Flap geometry & deflection")
     c1, c2 = st.columns(2)
     flap_deflection_deg = c1.number_input(
-        "Max flap deflection (deg)", min_value=0.0, value=float(inp.flap_deflection_deg), step=1.0)
+        "Max flap deflection (deg)", min_value=0.0, value=float(inp.flap_deflection_deg), step=1.0,
+        key=widget_key("flap_deflection"))
     flap_chord_ratio = c2.number_input(
-        "Flap chord / wing chord, E", min_value=0.0, value=float(inp.flap_chord_ratio), step=0.01)
-    flap_area_one_side_sqft = c1.number_input(
-        f"Flap area on one side, SF ({U['area_sqft']})", min_value=0.0,
-        value=float(round(to_display(inp.flap_area_one_side_sqft, "area_sqft", system), 4)),
-        step=0.1, key=widget_key(f"flap_area_{system.value}"))
+        "Flap chord / wing chord, E", min_value=0.0, value=float(inp.flap_chord_ratio), step=0.01,
+        key=widget_key("flap_chord_ratio"))
+    flap_area_one_side_sqft = unit_number_input(
+        "Flap area on one side, SF", float(inp.flap_area_one_side_sqft),
+        kind="area_sqft", key="flap_area", min_value=0.0, step=0.1, container=c1)
     gust_load_factor = c2.number_input(
         "Flaps-extended gust load factor, NG", min_value=0.0,
-        value=float(inp.gust_load_factor), step=0.1)
-    nacelle_frontal_area_sqft = c1.number_input(
-        f"Nacelle/fuselage frontal area, AF ({U['area_sqft']})", min_value=0.0,
-        value=float(round(to_display(inp.nacelle_frontal_area_sqft, "area_sqft", system), 4)),
-        step=0.1, key=widget_key(f"nacelle_area_{system.value}"))
-    engine_butt_line_in = c2.number_input(
-        f"Engine butt line, BLPROP ({U['length']}; 0 = fuselage)",
-        value=float(round(to_display(inp.engine_butt_line_in, "length", system), 4)),
-        step=1.0, key=widget_key(f"engine_bl_{system.value}"))
+        value=float(inp.gust_load_factor), step=0.1,
+        key=widget_key("flap_gust_ng"))
+    nacelle_frontal_area_sqft = unit_number_input(
+        "Nacelle/fuselage frontal area, AF", float(inp.nacelle_frontal_area_sqft),
+        kind="area_sqft", key="flap_nacelle_area", min_value=0.0, step=0.1, container=c1)
+    engine_butt_line_in = unit_number_input(
+        "Engine butt line, BLPROP (0 = fuselage)", float(inp.engine_butt_line_in),
+        kind="length", key="flap_engine_bl", step=1.0, container=c2)
     applied = st.form_submit_button("Apply", type="primary")
 
 if applied:
     inp.flap_deflection_deg = flap_deflection_deg
     inp.flap_chord_ratio = flap_chord_ratio
-    inp.flap_area_one_side_sqft = to_imperial_scalar(flap_area_one_side_sqft, "area_sqft", system)
+    inp.flap_area_one_side_sqft = flap_area_one_side_sqft
     inp.gust_load_factor = gust_load_factor
-    inp.nacelle_frontal_area_sqft = to_imperial_scalar(nacelle_frontal_area_sqft, "area_sqft", system)
-    inp.engine_butt_line_in = to_imperial_scalar(engine_butt_line_in, "length", system)
+    inp.nacelle_frontal_area_sqft = nacelle_frontal_area_sqft
+    inp.engine_butt_line_in = engine_butt_line_in
     project.flap_loads = inp
     st.session_state["project"] = project
     st.success("Flap geometry applied.")

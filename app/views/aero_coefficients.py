@@ -136,6 +136,7 @@ with st.form("aero_coefficients_form"):
     include_flaps_down = st.checkbox(
         "Include a flaps-down (landing) configuration",
         value=bool(aero and aero.flaps_down is not None),
+        key=widget_key("aero_include_flaps"),
         help="Add a second coefficient set for the landing configuration, balanced at sea level only "
              "(FLTLOADS.BAS line 3000).",
     )
@@ -401,6 +402,7 @@ else:
         fm_enabled = st.checkbox(
             "Add this fuselage dCm/dα to M1 (both configurations)",
             value=bool(_existing_fm and _existing_fm.enabled),
+            key=widget_key("aero_fm_enabled"),
             help="When ticked, the Flight Envelope balance adds the value below to "
                  "each configuration's M1. Leave off for coefficients that already "
                  "include the fuselage (the FAR23 oracles).",
@@ -411,6 +413,7 @@ else:
         )
         fm_value = st.number_input(
             "ΔM1 = dCm/dα (per degree)", value=float(_default_val), format="%.5f",
+            key=widget_key("aero_fm_value"),
             help=f"Munk estimate is {_est.d_cm_dalpha:+.5f} /deg; overridable. "
                  "Positive is destabilizing (nose-up with α).",
         )
@@ -499,19 +502,23 @@ with st.form("lateral_body_aero_form"):
     lb_enabled = st.checkbox(
         "Apply the wing-body Cy_β / Cn_β in the balanced lateral cases",
         value=bool(_existing_lb and _existing_lb.enabled),
+        key=widget_key("aero_lb_enabled"),
     )
     lb_override = st.checkbox(
         "Override the computed derivatives with the values below",
         value=bool(_existing_lb and (_existing_lb.cy_beta is not None
                                      or _existing_lb.cn_beta is not None)),
+        key=widget_key("aero_lb_override"),
     )
     _cy0 = (_existing_lb.cy_beta if _existing_lb and _existing_lb.cy_beta is not None
             else (_lb_est.cy_beta if _lb_est else 0.0))
     _cn0 = (_existing_lb.cn_beta if _existing_lb and _existing_lb.cn_beta is not None
             else (_lb_est.cn_beta if _lb_est else 0.0))
-    lb_cy = st.number_input("Cy_β (per degree)", value=float(_cy0), format="%.5f")
+    lb_cy = st.number_input("Cy_β (per degree)", value=float(_cy0), format="%.5f",
+                            key=widget_key("aero_lb_cy"))
     lb_cn = st.number_input("Cn_β about xw (per degree, + = destabilizing)",
-                            value=float(_cn0), format="%.5f")
+                            value=float(_cn0), format="%.5f",
+                            key=widget_key("aero_lb_cn"))
     lb_applied = st.form_submit_button("Apply lateral body aero", type="primary")
 if lb_applied:
     project.aero_coeffs = AeroCoefficientsInput(
