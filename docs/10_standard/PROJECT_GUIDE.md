@@ -205,6 +205,7 @@ FAR23LOADS/
 │   ├── cg_cases.py               # the one resolver for weight/CG cases and the two design weights (step 10 piece 2)
 │   ├── mass_distribution.py      # MASS SSOT: weight.items -> per-component station inertia (B1/B-2)
 │   ├── derived_geometry.py       # single-source geometry derivations (wing/fuselage/carry-through; M2-6)
+│   ├── derived.py                # derived slices (`Project.mass` from `weight.items`) and their one refresher (#62)
 │   ├── tail_geometry.py          # the empennage planform the spanwise strip integrator runs on (plan 09 T1)
 │   ├── aero_curves.py            # airplane-less-tail aero-coefficient curves + their closure checks (M4-5)
 │   ├── vn_diagram.py             # pure V-n diagram geometry: stall/manoeuvre/gust polylines (Phase E3)

@@ -249,8 +249,11 @@ def unit_number_input(
 
     if kind is not None:
         shown = f"{label} ({labels_for(system)[kind]})"
-        seed = (None if value is None
-                else float(round(to_display(float(value), kind, system), 4)))
+        # The seed is the converted value *exactly*: ``format`` owns how many
+        # decimals the widget shows, and a seed rounded here on top of it read
+        # back as a different number to anything that reads the widget (the G5
+        # journey, #62) while the project held the full value.
+        seed = None if value is None else float(to_display(float(value), kind, system))
         # The unit-system suffix and the generation stamp below say the same
         # thing in two directions: this is a different widget now.
         system_key = f"{key}_{system.value}" if key else None
@@ -266,12 +269,10 @@ def unit_number_input(
             return None
         if seed is not None and float(entered) == seed:
             # Untouched field: return the caller's own Imperial value rather than
-            # converting the *rounded* display seed back. The seed is rounded to 4
-            # display decimals for legibility (the per-view ``_num`` helpers this
-            # replaces did the same), so converting it home would return a number
-            # a hair different from the one passed in -- and an SI user's project
-            # would drift by that hair on every Apply, silently, forever. Only a
-            # value the user actually changed takes the conversion path.
+            # converting the display seed back -- a converted value does not
+            # always round-trip to the same float, and an SI user's project would
+            # drift by that hair on every Apply, silently, forever. Only a value
+            # the user actually changed takes the conversion path.
             return float(value)  # seed is not None implies value is not None
         return float(to_imperial_scalar(float(entered), kind, system))
 

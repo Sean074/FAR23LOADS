@@ -36,7 +36,6 @@ from sloads import (
     GroundCaseRole,
     MassItem,
     MassItemKind,
-    MissingInputError,
     Project,
     UnitSystem,
     WeightEnvelopeInput,
@@ -55,7 +54,7 @@ from sloads.models import MassComponent
 from sloads.modules.weight_envelope import envelope as compute_envelope
 from sloads.modules.weight_envelope import loading_envelope_points
 from sloads.modules.weight_estimate import estimate, estimate_to_mass_items
-from sloads.modules.weight_onecg import build_mass, weights_and_inertia
+from sloads.modules.weight_onecg import refresh_mass, weights_and_inertia
 from sloads.report import module_text_report
 from sloads.report.methods import bdf_comment_block
 from sloads.validation import wtenv_cg_limits
@@ -385,15 +384,16 @@ def _tab_cg_inertia(project: Project, system: UnitSystem, U: dict) -> None:
             max_landing_weight_lb=project.weight.max_landing_weight_lb if project.weight else 0.0,
             max_takeoff_weight_lb=project.weight.max_takeoff_weight_lb if project.weight else 0.0,
         )
-        # M4-17a: persist the derived mass-properties slice, so the weight_mass step's
-        # produces="mass" finally turns ✅ and the downstream consumers have a real
-        # source -- ONENGOUT's IZZ, configuration.cg_estimate's "Weight DB" branch and
-        # the Landing Loads waterline seed. build_mass raises on an empty/degenerate
-        # item list; leave any prior slice untouched in that case.
-        try:
-            project.mass = build_mass(project)
-        except (MissingInputError, ValueError, ZeroDivisionError, KeyError) as exc:
-            st.warning(f"Weight items applied, but the mass slice could not be built: {exc}")
+        # M4-17a: the derived mass-properties slice, so the weight_mass step's
+        # produces="mass" turns ✅ and the downstream consumers have a real source
+        # -- ONENGOUT's IZZ, configuration.cg_estimate's "Weight DB" branch and
+        # the Landing Loads waterline seed. One owner for both GUIs (#62):
+        # refresh_mass derives from the items as applied, or clears the slice
+        # when they derive nothing, rather than leaving a stale loading behind.
+        refresh_mass(project)
+        if project.mass is None:
+            st.warning("Weight items applied, but they derive no mass slice -- "
+                       "add at least one item with a non-zero weight.")
         st.session_state["project"] = project
 
     if not project.weight or not project.weight.items:

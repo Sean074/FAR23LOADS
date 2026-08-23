@@ -497,6 +497,7 @@ export boundary, reduction-to-FAR23 identity on GA inputs. "No oracle" never mea
 | Load-case row keys | `sloads/load_keys.py` | **flagged — see §8** |
 | Data dictionary | `docs/generate_data_dict.py` (generated doc) | `tests/test_data_dictionary.py::test_committed_doc_matches_generator` |
 | ULT unit mapping | `report/render.py` `_ULT_UNITS` | render/SF tests in `tests/test_report_render.py` |
+| **The mass slice a project carries** (`Project.mass` is WTONECG over `weight.items`, rebuilt by one refresher after every write of the items — the `app/` Weight page's Apply, the oracle form's persist, gate G5's reduction — and `None` when the items derive nothing; never a second fact an ulp off its source) | `sloads/derived.py` (`DERIVED_SLICES`, `refresh_derived`) + `modules/weight_onecg.py::refresh_mass` | `tests/test_derived.py::test_every_example_stores_the_mass_it_derives` (bit-identical on every shipped example) + `tests/test_oracle_inputs.py::test_the_reduction_drops_the_stored_slices_and_rederives_the_mass` + `tests/test_oracle_journey.py` (a typed-from-blank twin reaches One Engine Out) |
 
 When a new sign/unit/ID-sensitive quantity appears, create its owner + guard test first
 and add the row here.

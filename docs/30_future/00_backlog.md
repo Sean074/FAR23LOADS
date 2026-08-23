@@ -90,9 +90,9 @@ when band A is empty**.
 PB-1…PB-24).** The fresh-project journey on all 14 oracle pages, the
 `oracle_app/` + `app_shell/` delta and the G1–G8 rot check found the
 mechanics sound and the cut **not ready**: eight BLOCKS-CUT findings enter
-band A as five rows (6–10, below the review row) — the oracle GUI's project
+band A as five rows — the oracle GUI's project
 is not the project gate G5 tests (`mass` never produced, items untagged,
-rotors and station tables outside the reduction), blank-seeded selector and
+rotors and station tables outside the reduction; **closed #62, 2026-08-23**), blank-seeded selector and
 code fields that silently change loads, the stale project download, no
 project name (every save overwrites the last), and an engine-layout state
 that saves a file the loader refuses. Sixteen KNOWN-ISSUE findings go to band
@@ -215,7 +215,6 @@ traceability with plans 09/11/12/13; the **Pri** column is ordinal only.
 | Pri | Item (detail below / in its plan) | What ships | Tag | Tier / effort | Depends on |
 |---|---|---|---|---|---|
 | **A — 0.7.0: a beta release of the oracle GUI (re-cut 2026-08-22; BB-\* keys resolve in that review)** ||||||
-| 6 | **The oracle GUI's project is not the project gate G5 tests** — `mass` never produced, weight items untagged, rotors and station tables outside the reduction *(review 2026-08-22 PB-1, PB-2, PB-3; defect)* (#62) | `reduce_to_oracle_inputs` drops the result slices and empties omitted records, `_outcomes` compares the station tables, the typed-from-blank journey becomes the gate's second leg; `Project.mass` gets a single derive-on-read owner (or an explicit Run — user's call) so One Engine Out runs from a fresh twin; `weight.items[].component` becomes `supplied` and the Fuselage Loads page shows the wing-tie reconciliation; rotors decided (`supplied` or a declared drop) | V | M / M | #52 landed; design call on PB-1's shape before code |
 | 7 | **Selector and code fields on the oracle form are blank-seeded free text** — duplicate CG-case names flip TAILDIST loads, `category` falls through to Normal, the wing must be named exactly `wing` *(PB-5, PB-8, PB-9; defect)* (#63) | Rows seeded with distinct names and uniqueness validated on the page (`select.py` raises on a duplicate key); `category` and `strut` enum-backed widgets; the first surface seeded `wing`, matched case-insensitively | V | S–M / S–M | — |
 | 8 | **"Download project.json" is one edit stale** — the shell sidebar serialises before the page persists *(PB-4; defect)* (#64) | The project-file block renders after `pg.run()` or the payload is lazy; dirty caption and expander titles stop lagging; one owner, both GUIs; a guard that edits then reads the payload in one run | V | S / S | — |
 | 9 | **`project.name` has no widget in the oracle GUI** — every save is `project.project.json` over the last, unasked; names are not sanitised *(PB-6; defect)* (#65) | A name widget in the shared sidebar; overwrite confirmation on Save; one filename sanitiser shared by Save and Download | V | S / S | — |

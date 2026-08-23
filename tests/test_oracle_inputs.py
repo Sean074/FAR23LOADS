@@ -39,6 +39,20 @@ selectors, LANDLOAD's three loading roles — gained
 :attr:`~sloads.field_registry.FieldEntry.supplied` rather than being quietly
 folded into ``origin``, which answers a different question (who asked, not who
 writes).
+
+**What the 2026-08-22 review found (PB-3, #62).** The reduction never touched
+the stored result slices or the records the GUI never creates, and part 2
+compared only ``ModuleResult.conditions`` -- so a stored ``Project.mass``
+carried every gate while the oracle GUI wrote none, the twins' turbine rotors
+(a sloads model) sat inside "the oracle input set", and the three printed
+station tables were never compared at all. Now the reduction drops all three
+(:func:`~sloads.field_registry.reduce_to_oracle_inputs`) and re-derives what
+the GUI would have written (:mod:`sloads.derived`), the station tables are
+part of every comparison, and the one divergence that is *decided* rather
+than discovered -- the rotor model -- is declared per example in
+:data:`DECLARED_DIVERGENCES` and checked to be really exercised. The second
+leg of the gate, a project **typed from blank through the GUI's own widgets**,
+is ``tests/test_oracle_journey.py``.
 """
 
 from __future__ import annotations
@@ -46,11 +60,12 @@ from __future__ import annotations
 import glob
 import math
 import os
-from typing import Dict, Tuple
+from typing import Dict, NamedTuple, Tuple
 
 import pytest
 
-from sloads import io, registry
+from oracle_app.results import STATION_TABLES
+from sloads import UnitSystem, io, registry
 from sloads import workflow as wf
 from sloads.field_registry import (
     oracle_input_paths,
@@ -59,6 +74,7 @@ from sloads.field_registry import (
     schema_paths,
     supplied_paths,
 )
+from sloads.models.inputs import LoadingDefinition
 
 _ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 _EXAMPLES = os.path.join(_ROOT, "examples")
@@ -98,7 +114,48 @@ DECLARED_DROPS: Dict[str, str] = {
         "no concept of; unset, every consumer reports about the original "
         "quarter-chord instead and this key is simply not emitted -- which is "
         "the refusal-to-assume the field was added for.",
+    "ixx_rotor_1": "per-rotor inertia detail of the Step C9 turbine-rotor model "
+                   "(engines[].rotors[]), a record the oracle GUI never creates; "
+                   "see DECLARED_DIVERGENCES for the values it moves.",
+    "ixx_rotor_2": "as ixx_rotor_1.",
 }
+
+
+class Divergence(NamedTuple):
+    """Values the reduced project is *allowed* to move, and why."""
+
+    module: str
+    key_prefixes: Tuple[str, ...]
+    reason: str
+
+
+#: The Step C9 turbine-rotor model: ENGLOADS.BAS is propeller-centric (sudden
+#: stoppage and 23.371 gyroscopics from the prop alone, ``engine.py`` §FAR 25
+#: note), and ``engines[].rotors[]`` is sloads' addition for the turbine
+#: spool. The oracle GUI replicates the original, so it never asks for rotors
+#: and a twin turboprop typed through it gets the original's prop-only answer
+#: -- about 16 % less mount torque on the DHC-8. Declared rather than rendered
+#: (review 2026-08-22 PB-3, #62): a widget for data the original never took
+#: would widen the oracle GUI past its scope to make a gate pass.
+ROTOR_MODEL = Divergence(
+    "engine",
+    ("mx_mount_torque", "gyro_case", "myy_due_to", "mzz_due_to"),
+    "sloads turbine-rotor model (Step C9) on top of the original's prop-only "
+    "sudden-stoppage and gyroscopic loads; the oracle GUI never creates a rotor row",
+)
+
+#: Example -> the divergences it is allowed. Every entry must be exercised (the
+#: reduction really moves a value it names) or the declaration is stale.
+DECLARED_DIVERGENCES: Dict[str, Tuple[Divergence, ...]] = {
+    "atr42_100.project.json": (ROTOR_MODEL,),
+    "dhc8_dash8.project.json": (ROTOR_MODEL,),
+}
+
+
+def _allowed(example: str, key: Tuple[str, str, str]) -> bool:
+    module, _case, value_key = key
+    return any(module == d.module and value_key.startswith(d.key_prefixes)
+               for d in DECLARED_DIVERGENCES.get(example, ()))
 
 
 def _oracle_modules() -> Tuple[str, ...]:
@@ -115,19 +172,37 @@ def _oracle_modules() -> Tuple[str, ...]:
 
 
 def _outcomes(project) -> Tuple[Dict[str, str], Dict[Tuple[str, str, str], object]]:
-    """``({module: "ok" | exception name}, {(module, case, key): value})``."""
+    """``({module: "ok" | exception name}, {(module, case, key): value})``.
+
+    The three printed station tables (``oracle_app.results.STATION_TABLES``:
+    wing, fuselage, chordwise tail) are folded in as ``(module, "station table
+    <stem>", "<row>:<column>")`` -- they are what the oracle pages download,
+    and the 2026-08-22 review found a −16 % twin mount torque this function
+    could not see while it compared load cases alone (PB-3).
+    """
     ran: Dict[str, str] = {}
     values: Dict[Tuple[str, str, str], object] = {}
     for name in _oracle_modules():
         try:
             result = registry.get(name)(project)
-        except Exception as exc:  # noqa: BLE001 - the type is the assertion
+        except Exception as exc:
             ran[name] = type(exc).__name__
             continue
         ran[name] = "ok"
         for condition in result.conditions:
             for value in condition.values:
                 values.setdefault((name, condition.title, value.key), value.value)
+        if name in STATION_TABLES:
+            spec = STATION_TABLES[name]
+            try:
+                rows = spec.rows(spec.build(project), UnitSystem.IMPERIAL)
+            except Exception as exc:
+                ran[f"{name} stations"] = type(exc).__name__
+                continue
+            ran[f"{name} stations"] = "ok"
+            for i, row in enumerate(rows):
+                for column, cell in row.items():
+                    values[(name, f"station table {spec.stem}", f"{i}:{column}")] = cell
     return ran, values
 
 
@@ -182,14 +257,20 @@ def test_the_reduced_project_reproduces_every_number(example):
     it. ±0.1 % remains the note's floor; this exceeds it (CR-B-2, rule 4).
     """
     (_, full), (_, reduced) = _both(example)
+    moved = [key for key in sorted(set(full) & set(reduced)) if full[key] != reduced[key]]
     off = [f"{key}: {full[key]!r} -> {reduced[key]!r}"
-           for key in sorted(set(full) & set(reduced))
-           if full[key] != reduced[key]]
+           for key in moved if not _allowed(example, key)]
     assert not off, (
         f"{example}: {len(off)} value(s) move when the sloads-only fields are "
         "dropped, so one of them is really an input of a .BAS program:\n  "
         + "\n  ".join(off[:20])
     )
+    for divergence in DECLARED_DIVERGENCES.get(example, ()):
+        assert any(k[0] == divergence.module and k[2].startswith(divergence.key_prefixes)
+                   for k in moved), (
+            f"{example}: {divergence.module} declares a divergence the reduction no "
+            "longer produces -- retire the declaration"
+        )
 
 
 @pytest.mark.parametrize("example", EXACT)
@@ -301,7 +382,23 @@ def test_every_excused_example_states_a_reason():
     for example, reason in RUNS_ONLY.items():
         assert len(reason) > 40, f"{example}: excused with no real reason"
     for key, reason in DECLARED_DROPS.items():
-        assert len(reason) > 40, f"{key}: dropped with no real reason"
+        assert len(reason) > 40 or reason.startswith("as "), f"{key}: dropped with no real reason"
+    for example, divergences in DECLARED_DIVERGENCES.items():
+        assert example in EXACT, f"{example}: a divergence is declared on an excused example"
+        for d in divergences:
+            assert len(d.reason) > 40, f"{example}/{d.module}: diverges with no real reason"
+
+
+def test_the_reduction_drops_the_stored_slices_and_rederives_the_mass():
+    """PB-3's mechanism: ``mass`` goes and comes back from the items; a rotor
+    row goes and stays gone; the CG-case ``loading`` records go (omitted)."""
+    full = _load("dhc8_dash8.project.json")
+    full.weight.cg_cases[0].loading = LoadingDefinition(aboard=["Crew"])  # no example carries one
+    reduced = reduce_to_oracle_inputs(full)
+    assert reduced.envelope is None and reduced.loads == type(full.loads)()
+    assert reduced.mass is not None and reduced.mass == full.mass
+    assert any(e.rotors for e in full.engines) and not any(e.rotors for e in reduced.engines)
+    assert reduced.weight.cg_cases[0].loading is None
 
 
 if __name__ == "__main__":  # zero-dependency self-runner

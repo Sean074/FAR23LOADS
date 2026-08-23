@@ -49,6 +49,7 @@ from enum import Enum
 from typing import Dict, List, Optional, Set, Tuple
 
 from sloads import models as _models
+from sloads.derived import refresh_derived
 from sloads.models import Project
 
 # --------------------------------------------------------------------------- #
@@ -66,9 +67,16 @@ _HINT_NS.update({
 #: `Project` attributes that are **not** input fields, each with the reason.
 #: Result slices are computed outputs; the rest are document metadata or a
 #: preference, none of which an origin classification is meaningful for.
+#:
+#: The three result slices are what :func:`reduce_to_oracle_inputs` drops
+#: outright (review 2026-08-22 PB-3 -- before that the reduction never looked
+#: at them, so a stored ``mass`` carried every gate while the oracle GUI wrote
+#: none) and :mod:`sloads.derived` then rebuilds the ones the inputs derive.
+RESULT_SLICES: Tuple[str, ...] = ("envelope", "mass", "loads")
+
 NON_INPUT: Dict[str, str] = {
     "envelope": "result slice (WTENV output)",
-    "mass": "result slice (WTONECG output)",
+    "mass": "result slice (WTONECG output; derived from weight.items, sloads.derived)",
     "loads": "result slice (per-module load cases)",
     "schema_version": "set by io.py, never by a user",
     "unit_system": "display preference, not airplane data (D-22)",
@@ -338,6 +346,15 @@ class FieldEntry:
     def owner_is_external(self) -> bool:
         return self.derived_from.startswith(EXTERNAL)
 
+    @property
+    def display_only(self) -> bool:
+        """A copy the consumer never reads: it renders disabled, showing the owner.
+
+        The form's rule (``oracle_app.form._copy_note``) and the G5 journey's
+        (a field no widget can write is not compared) are the one rule, here.
+        """
+        return bool(self.owner_path) and not self.governs
+
 
 #: ``derived_from`` prefix for a quantity owned outside the input-field set.
 #: Several of the review's duplicate instances are this shape — the owner of
@@ -585,9 +602,17 @@ REGISTRY: Tuple[FieldEntry, ...] = (
     _E("weight.items[].kind", _WT, _ORIG,
        "'Mirrors the data-base partition of WTONECG.BAS (empty / minimum-flight / discretionary)'; "
        "WTENV's discretionary envelope and Appendix A's 78 lb aft ballast need it"),
-    _E("weight.items[].component", _WT, _SLDS, "component tag, plan 09 T-3"),
+    _E("weight.items[].component", _WT, _SLDS,
+       "component tag, plan 09 T-3. The original carried this by position -- BODYLOAD "
+       "took its own fuselage item list -- so the tag is how the same question is asked "
+       "here. Load-bearing (G5, review 2026-08-22 PB-2): untagged, the wing panel sits "
+       "on the fuselage beam at 9 % of peak BODYLOAD shear", supplied=True),
     _E("weight.items[].consumable", _WT, _SLDS, "loading model, decision D-25"),
-    _E("weight.items[].wing_fraction", _WT, _SLDS, "wing/body split for CONM2 export, plan 11"),
+    _E("weight.items[].wing_fraction", _WT, _SLDS,
+       "wing/body split of one row (plan 11, note 29 WF-2): `component` at finer grain, the "
+       "same which-beam question BODYLOAD asked by position. Load-bearing (G5, #62): the "
+       "DHC-8 fuel row is 86 % wing, and dropped it rides the fuselage beam whole",
+       supplied=True),
     _E("weight.envelope.gross_weight", _WT, _ORIG, "WTENV gross weight"),
     _E("weight.envelope.mac", _WT, _ORIG, "WTENV MAC", "wing MAC",
        EXTERNAL + "derived_geometry from the planform (Optional override here)"),
@@ -881,6 +906,11 @@ def supplied_paths() -> Set[str]:
     return {e.path for e in REGISTRY if e.supplied}
 
 
+def display_only_paths() -> Set[str]:
+    """Field paths that render disabled in the oracle GUI (:attr:`FieldEntry.display_only`)."""
+    return {e.path for e in REGISTRY if e.display_only}
+
+
 def oracle_input_paths() -> Set[str]:
     """Everything a project made by the oracle GUI carries — what G5 runs against."""
     return original_paths() | supplied_paths()
@@ -942,29 +972,51 @@ def reduce_to_oracle_inputs(project: Project) -> Project:
 
     Structurally required fields (no declared default) are left as they are; the
     guard above makes that a rule rather than an accident.
+
+    Three things go, not one (review 2026-08-22 PB-3): every field outside the
+    input set, every **record** the GUI never creates (:func:`omitted_records`
+    -- a turbine-rotor row with its required fields intact is not "reduced"),
+    and the stored :data:`RESULT_SLICES`. What the GUI *would* have written on
+    its own is then put back by :func:`sloads.derived.refresh_derived`, the
+    same call the form makes after a persist, so the reduced project carries a
+    ``mass`` slice exactly when a typed one would.
     """
     reduced = copy.deepcopy(project)
-    _reduce(reduced, "", oracle_input_paths())
+    _reduce(reduced, "", oracle_input_paths(), omitted_records())
+    for name in RESULT_SLICES:
+        _reset(reduced, next(f for f in dataclasses.fields(reduced) if f.name == name))
+    refresh_derived(reduced)
     return reduced
 
 
-def _reduce(obj: object, prefix: str, keep: Set[str]) -> None:
+def _reset(obj: object, field: "dataclasses.Field[object]") -> None:
+    """``obj.<field>`` back to its declared default, if it declares one."""
+    if field.default is not dataclasses.MISSING:
+        setattr(obj, field.name, copy.deepcopy(field.default))
+    elif field.default_factory is not dataclasses.MISSING:
+        setattr(obj, field.name, field.default_factory())
+    # no default: structurally required, guarded above
+
+
+def _reduce(obj: object, prefix: str, keep: Set[str], omitted: Set[str]) -> None:
     for field in dataclasses.fields(obj):  # type: ignore[arg-type]
         path = prefix + field.name
         value = getattr(obj, field.name)
         if path in BY_PATH:
-            if path in keep or value is None:
-                continue
-            if field.default is not dataclasses.MISSING:
-                setattr(obj, field.name, copy.deepcopy(field.default))
-            elif field.default_factory is not dataclasses.MISSING:
-                setattr(obj, field.name, field.default_factory())
-            continue  # no default: structurally required, guarded above
+            if path not in keep and value is not None:
+                _reset(obj, field)
+            continue
         if dataclasses.is_dataclass(value) and not isinstance(value, type):
-            _reduce(value, path + ".", keep)
+            if path in omitted:
+                _reset(obj, field)
+            else:
+                _reduce(value, path + ".", keep, omitted)
         elif isinstance(value, list) and value and dataclasses.is_dataclass(value[0]):
-            for item in value:
-                _reduce(item, path + LIST_MARKER + ".", keep)
+            if path + LIST_MARKER in omitted:
+                _reset(obj, field)
+            else:
+                for item in value:
+                    _reduce(item, path + LIST_MARKER + ".", keep, omitted)
 
 
 def paths_for_page(page: str) -> Set[str]:

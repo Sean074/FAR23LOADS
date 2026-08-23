@@ -54,6 +54,7 @@ from oracle_app.labels import pretty
 from oracle_app.results import render_results
 from sloads import field_registry as fr
 from sloads import workflow as wf
+from sloads.derived import refresh_derived
 from sloads.models import Project
 from sloads.units import FieldUnit, field_unit, to_display, to_imperial_scalar
 from sloads.units import unit_label as _unit_label
@@ -153,7 +154,7 @@ def _copy_note(path: str, value: Any, project: Any, where: Any) -> bool:
     owner_value = _owner_value(project, owner)
     owner_label = f"`{owner}`"
 
-    if not row.governs:
+    if row.display_only:
         where.caption(
             f"Derived from {owner_label} — entering a value here has no effect; "
             "the analysis reads the owner.")
@@ -835,6 +836,10 @@ def render_step(key: str) -> None:
     # Records the widgets were given are attached only now, and only if the pass
     # put something in them (OG-F): visiting a page must not dirty a project.
     commit_pending()
+    # ...and the slices the inputs derive (``Project.mass`` from the items) are
+    # brought up to date by their one owner (#62, PB-1). Idempotent by value, so
+    # a visit still dirties nothing; this GUI has no Apply for the user to miss.
+    refresh_derived(ctx.project)
 
     # A page that takes no input still runs its programs -- Tail Loads reads
     # entirely upstream and is all output (OG-E).

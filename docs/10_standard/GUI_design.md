@@ -185,6 +185,31 @@ consistent:
   The durable fix for a copy that need not exist at all is to remove it —
   [note 33](../30_future/33_derived_scalar_consolidation_note.md) did that for
   ten of them, and this marking covers the remainder.
+- **A derived slice has one writer, and no Apply to miss** (#62, 2026-08-23).
+  `Project.mass` is WTONECG over `weight.items` and nothing else; storing it is a
+  convenience for its readers (One Engine Out, Configuration's tip-back CG, the
+  CG-case waterline) and the workflow ✅. The only thing that writes it is
+  `sloads/derived.py:refresh_derived` — called by the `app/` Weight page on
+  Apply and by the oracle form after every persist, and by gate G5's reduction
+  after it drops the stored slice. Before this the oracle GUI wrote it nowhere:
+  a fresh twin could never reach One Engine Out and Configuration fell back to
+  a 25 %-MAC estimate while the page said nothing (review 2026-08-22 PB-1).
+  Each refresher is idempotent by value, so a visit still dirties nothing.
+- **The oracle GUI's project is what gate G5 tests** (#62, 2026-08-23). The
+  registry reduction drops every field outside the input set, every *record*
+  the GUI never creates (a turbine rotor row), and the stored result slices —
+  then re-derives what the GUI would have written. Its second leg,
+  `tests/test_oracle_journey.py`, types the GA-6 and the DHC-8 from a blank
+  project through the pages' own widgets and requires the result to *be* the
+  reduced key: document, every page's downloads byte-for-byte, save → reload a
+  fixed point. What that made visible is on the page rather than in the gate:
+  `weight.items[].component` and `wing_fraction` are rendered (the same
+  which-beam question BODYLOAD asked by position), and the Fuselage Loads table
+  states what it rests on — untagged items lumped on the fuselage by inference,
+  a wing-mass tie that does not close, a tail surface with no item at all. The
+  one divergence that is decided rather than discovered — the twins' turbine
+  rotors, a sloads model the original ENGLOADS never had — is declared per
+  example with its number (−16 % DHC-8 mount torque), not rendered.
 
 The established **seed-chain** (each seeds the next when its target is unset):
 Configuration & Layout → WINGGEOM wing surface → Weight DB component stations;

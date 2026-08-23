@@ -17,7 +17,7 @@ Reference: WTONECG.BAS, Appendix C p377-381; worked example Appendix A p136.
 from __future__ import annotations
 
 import math
-from typing import List
+from typing import List, Optional
 
 from ..constants import LBIN2_PER_SLUGFT2
 from ..models import (
@@ -115,6 +115,30 @@ def build_mass(project: Project, name: str = "itemized loading", gear_down: bool
         name=name, weight_lb=v["Weight"], cg_x=v["XBAR (fus station)"], cg_y=0.0,
         cg_z=v["ZBAR (waterline)"], ixx=v["IXX (lb-in^2)"], iyy=v["IYY (lb-in^2)"],
         izz=v["IZZ (lb-in^2)"], ixz=v["IXZ (lb-in^2)"], gear_down=gear_down)])
+
+
+def refresh_mass(project: Project) -> bool:
+    """Make ``project.mass`` the slice ``weight.items`` derives; say whether it moved.
+
+    The one writer of ``Project.mass`` (#62, PB-1). Both GUIs call it whenever
+    the item data base is persisted, and gate G5's reduction calls it after
+    dropping the stored slice, so "the mass slice" has exactly one meaning:
+    :func:`build_mass` over the items as they stand. No items, or none with a
+    weight, derive nothing and the slice is ``None`` -- the ``weight_mass``
+    step's ✅ goes out with them rather than lingering on a loading that no
+    longer exists. Idempotent by value: a project whose stored slice already
+    equals the derivation is left untouched, which is what lets a render pass
+    call this without dirtying the project (``tests/test_dirty_flag.py``).
+    """
+    fresh: Optional[MassResult]
+    try:
+        fresh = build_mass(project)
+    except MissingInputError:
+        fresh = None
+    if fresh == project.mass:
+        return False
+    project.mass = fresh
+    return True
 
 
 # --------------------------------------------------------------------------- #
