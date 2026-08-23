@@ -47,9 +47,12 @@ duplicate fields, with the reconciling migration.
 | 2 | Unit-boundary rollout `unit_number_input` everywhere — one pass with #51 | #44 | M / M |
 | 3 | `workflow.requires` vs self-entered slices — `WorkflowStep.edits` + DAG guard (wrong first-run guidance on 2 of 14 oracle pages) | #45 | M / S |
 | 4 | Retire the two duplicate entries — one v55 hop, both pairs, reconciling migration | #52 | L / S |
+| 5 | Pre-cut beta review — the oracle GUI's function end-to-end (delta since `4b1ddcc` + the fresh-project journey + gate-rot re-check); after rows 1–4 | #61 | S (review) / S–M |
 
-**Cut 0.7.0 when band A is empty** — four rows: two M-effort (one shared
-pass), one S, one S-effort schema hop. Band B = #29, #46; band C and D
+**Cut 0.7.0 when band A is empty** — five rows: two M-effort (one shared
+pass), one S, one S-effort schema hop, and the pre-cut review last (added by
+the user after this review's §1, on the 2026-08-15 candidate-review pattern —
+the cut signal includes it by construction). Band B = #29, #46; band C and D
 unchanged.
 
 ## 3. What this review did not do

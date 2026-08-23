@@ -79,8 +79,11 @@ boundary helper; layout/behaviour stays frozen pending #29), and the schema
 freeze is lifted **for exactly one hop** — #52's v55 duplicate retirement with
 its reconciling migration (ordering rule below). #50 closed as a duplicate of
 #51. Nothing promoted from `02_parked.md` (BB-9: the L-8 GUI rows are
-`app/views/`-only or below the criterion, with the numbers). Cut **0.7.0 when
-band A is empty**.
+`app/views/`-only or below the criterion, with the numbers). A fifth row was
+added at the user's direction after the review: a **pre-cut beta review** of
+the oracle GUI's function end-to-end (the 2026-08-15 candidate-review
+pattern), last, so the cut signal includes it by construction. Cut **0.7.0
+when band A is empty**.
 
 **Previously re-cut 2026-08-20 (user, from
 [`../50_reviews/2026-08-20_critical_review.md`](../50_reviews/2026-08-20_critical_review.md)).**
@@ -202,6 +205,7 @@ traceability with plans 09/11/12/13; the **Pri** column is ordinal only.
 | 2 | **Unit-boundary rollout: `unit_number_input` everywhere** (CR-D-2 `[MAJOR]`; pulled forward BB-3) (#44) | The ~7 hand-paired views (and the data-editor grids) on the boundary helper; a no-op-Apply-in-SI bit-identity test per converted view; `GUI_design.md` §11's rollout claim made true; lands as **one pass with #51** — the fixes share their call sites, and the `app/views/` freeze lifts for exactly those call sites (`key=` + the helper; layout/behaviour stays frozen pending #29) | V | M / M | with #51 |
 | 3 | **`workflow.requires` vs self-entered slices** (CR-D-3; promoted BB-4 — measured: 2 of 14 oracle pages give a fresh project wrong "run the pages before this one first" guidance for a slice their own form enters: `weight_mass`/`weight`, `engine_mount`/`engines`) (#45) | A `WorkflowStep.edits` (or equivalent) so self-sufficient pages stop showing "blocked"; a DAG-completeness guard: every `requires` is some step's `produces` or declared self-entered | V | M / S | — |
 | 4 | **Two quantities are still entered twice, with nothing reconciling them** (note 33 DS-7; the class-C half of CR-A-2; pulled forward BB-5 — both pairs render side by side on one oracle page each: the altitudes on `structural_speeds`, the lengths on `configuration_layout`) (#52) | `speeds.mach_limit.shoulder_altitude_ft` vs `speeds.shoulder_altitude_ft`, and `geometry.empennage.vtail.airplane_length_in` vs the htail's: both members persisted, both read by their own consumer, so MC/MD can be computed at two different altitudes with no warning. Every shipped example happens to agree, which is why nothing has caught it. One **v55 schema hop** retires both duplicates, with a migration that takes the owner's value and warns on disagreement (the freeze is lifted for exactly this hop, ordering rule above) | V | **L** / S | — |
+| 5 | **Pre-cut beta review — the oracle GUI's function end-to-end** (user, 2026-08-22; the 2026-08-15 candidate-review pattern) (#61) | A delta review of `oracle_app/` + `app_shell/` since `4b1ddcc` (the code landed after the 2026-08-20 review: the ten MAJOR fixes, #33, #40–#43); the fresh-project journey behavioural pass — enter a concept page by page, run, download, save/reload/re-run bit-identity; gates G1–G8 re-checked for rot against the shipped artifacts (the #43 lesson); findings filed with bodies at close (rule 5) and either gate the cut or file as known-issues in the release notes | V | S (review) / S–M | #44, #45, #51, #52 landed — it reviews the beta candidate, not code about to change |
 | — | **Cut 0.7.0** when band A is empty (RELEASE_PROCESS §2 cadence rule) | | | | |
 | **B — 0.8.0: the main-GUI review completed and its findings addressed** ||||||
 | 5 | **GUI review resumption** — the five unswept sections (Flight, Other, Ground, Plotting, Export) against the 0.7.0 deliverables; findings filed at close (rule 5); re-cut follows (#29) | The review body completed; the UI freeze on `app/views/` re-opened to the extent the findings justify — a reviewed list, not a rework; parked **L-8c** (Results Review omits the 8 folded modules' results) promotes at this re-cut | V | S (review) / M | 0.7.0 cut |
