@@ -67,8 +67,6 @@ def _page(step: wf.WorkflowStep) -> st.Page:
 
 
 project = ensure_project()
-render_shell_sidebar(project)
-
 _pages = {s.key: _page(s) for s in wf.STEPS}
 # The link helper resolves a step key to *this* GUI's page object rather than to
 # a path (note 32, OG-F), so the page set it links into is the one built here.
@@ -84,4 +82,8 @@ sections = {
 # Load-case plotting / Export) open in the sidebar rather than collapsing the tail
 # behind a "View N more" expander on first run (review G3, M2-2).
 pg = st.navigation(sections, expanded=True)
-pg.run()
+# The sidebar wraps the page: its project-file block renders *after* the page
+# (an Apply's merge included), so the download and the dirty flag are never
+# one interaction stale (#64, PB-4).
+with render_shell_sidebar(project):
+    pg.run()

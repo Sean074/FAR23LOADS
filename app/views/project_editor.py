@@ -26,7 +26,7 @@ import json
 
 import streamlit as st
 
-from app_shell.components import active_system
+from app_shell.components import active_system, stop_page
 from app_shell.widget_keys import bump_generation, widget_key
 from sloads import Project, UnitSystem
 from sloads import io as sloads_io
@@ -114,13 +114,13 @@ if apply_col.button("Apply", type="primary"):
         edited_display = json.loads(edited_text)
     except json.JSONDecodeError as exc:
         st.error(f"Invalid JSON: {exc}")
-        st.stop()
+        stop_page()
     try:
         imperial_dict = project_dict_to_imperial(edited_display, system)
         new_project = sloads_io.project_from_dict(imperial_dict)
     except (TypeError, ValueError, KeyError, AttributeError) as exc:
         st.error(f"Could not build a project from this JSON: {exc}")
-        st.stop()
+        stop_page()
     status, message = sloads_io.schema_status(new_project.schema_version)
     if status == "newer":
         st.warning(message)

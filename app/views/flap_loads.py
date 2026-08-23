@@ -13,7 +13,7 @@ from __future__ import annotations
 import pandas as pd
 import streamlit as st
 
-from app_shell.components import active_system, gate, unit_number_input
+from app_shell.components import active_system, gate, stop_page, unit_number_input
 from app_shell.widget_keys import widget_key
 from sloads import (
     FlapLoadsInput,
@@ -43,7 +43,7 @@ U = labels_for(system)  # {"area_sqft","length",...} -> unit string
 
 if project.speeds is None:
     gate("Define the **Structural Speeds** (VS/VSF/VF, weight) first.", "structural_speeds")
-    st.stop()
+    stop_page()
 
 inp = project.flap_loads or FlapLoadsInput()
 with st.form("flap_loads_form"):
@@ -90,7 +90,7 @@ try:
     results = build_flap(project)
 except (ValueError, ZeroDivisionError) as exc:
     st.error(f"Could not compute flap loads: {exc}")
-    st.stop()
+    stop_page()
 
 display_conditions = convert_results(mod.conditions, system)
 vals = {v.key: v.value for v in display_conditions[0].values}

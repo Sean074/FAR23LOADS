@@ -23,7 +23,7 @@ import plotly.graph_objects as go
 import streamlit as st
 from plotly.subplots import make_subplots
 
-from app_shell.components import active_system, gate, page_header, unit_number_input
+from app_shell.components import active_system, gate, page_header, stop_page, unit_number_input
 from app_shell.widget_keys import widget_key
 from sloads import (
     STRUT_TYPES,
@@ -137,7 +137,7 @@ def _layout_errors(layout: LayoutInput) -> list[str]:
     ``configuration.wing_planform`` requires a positive area and aspect ratio (and a
     positive taper λ for a real trapezoid -- it divides by ``1 + λ``). Persisting an
     invalid layout used to be stored, then crash ``configuration_properties`` below and
-    ``st.stop()`` -- blanking the unrelated empennage / landing-gear / outline forms
+    ``stop_page()`` -- blanking the unrelated empennage / landing-gear / outline forms
     further down the page. Validate before persisting so the Apply is rejected with a
     targeted message and the last valid layout (hence the rest of the page) survives."""
     errs: list[str] = []
@@ -303,7 +303,7 @@ if _parametric is None:
         "No geometry defined yet -- fill in at least the wing area and aspect "
         "ratio in the sidebar and Apply geometry."
     )
-    st.stop()
+    stop_page()
 layout = _parametric
 
 # --------------------------------------------------------------------------- #
@@ -313,7 +313,7 @@ try:
     results = configuration_properties(project)
 except (ValueError, ZeroDivisionError) as exc:
     st.error(f"Could not derive configuration: {exc}")
-    st.stop()
+    stop_page()
 
 derived = {v.key: v.value for r in results for v in r.values}
 mac = derived["mac"]

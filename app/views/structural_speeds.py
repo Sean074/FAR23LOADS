@@ -13,7 +13,7 @@ The category, design weight, stall speeds and chosen speeds are owned here; the
 speed–altitude tab only adds the ceiling and tabulation increment. Wing area and
 design weight are read from the Geometry / Weight pages when present. All speeds
 are knots equivalent airspeed (KEAS); altitudes are feet. Each tab is a function
-so a missing-prerequisite guard can ``return`` without ``st.stop()`` killing the
+so a missing-prerequisite guard can ``return`` without ``stop_page()`` killing the
 sibling tab.
 """
 

@@ -26,6 +26,7 @@ import pandas as pd
 import plotly.express as px
 import streamlit as st
 
+from app_shell.components import stop_page
 from sloads import FleetPoint, Project, Subject, cg_cases, fleet_stats, registry
 from sloads.constants import IN2_PER_FT2, IN_PER_FT
 from sloads.modules.wing_geometry import surface_properties
@@ -290,7 +291,7 @@ try:
     fleet = pd.read_csv(_REFERENCE_CSV, comment="#")
 except FileNotFoundError:
     st.info(f"Reference aircraft data file not found at {_REFERENCE_CSV}.")
-    st.stop()
+    stop_page()
 
 points = _fleet_points(fleet)
 subject = _subject_from_project(project)

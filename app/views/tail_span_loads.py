@@ -21,7 +21,7 @@ import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
 
-from app_shell.components import active_system, gate, workflow_page_link
+from app_shell.components import active_system, gate, stop_page, workflow_page_link
 from app_shell.widget_keys import widget_key
 from sloads import (
     Project,
@@ -56,7 +56,7 @@ U = labels_for(system)
 if project.flight_loads is None or project.tail_loads is None:
     gate("Define the flight-loads inputs on the **Flight Envelope (V-n)** page and "
          "the empennage geometry on the **Geometry** page first.", "flight_envelope")
-    st.stop()
+    stop_page()
 
 # --------------------------------------------------------------------------- #
 # Surface mass -- derived, not entered here (the mass SSOT)
@@ -108,7 +108,7 @@ try:
     spans = build_tail_span(project)
 except (MissingInputError, ValueError) as exc:
     st.error(str(exc))
-    st.stop()
+    stop_page()
 
 results = spans[HTAIL] + spans[VTAIL]
 if not results:
@@ -116,7 +116,7 @@ if not results:
         "No empennage surface has both a planform (area + span, on the **Geometry** "
         "page) and a critical condition carrying an LT25/LT50 split."
     )
-    st.stop()
+    stop_page()
 
 _assumed = [r for r in results if r.planform_assumed]
 if _assumed:

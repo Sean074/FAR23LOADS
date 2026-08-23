@@ -17,7 +17,7 @@ from __future__ import annotations
 import pandas as pd
 import streamlit as st
 
-from app_shell.components import active_system
+from app_shell.components import active_system, stop_page
 from app_shell.widget_keys import widget_key
 from sloads import (
     EngineInput,
@@ -449,7 +449,7 @@ st.subheader("Results")
 
 if not project.engines:
     st.info("No engine defined yet — fill in the form above and Apply.")
-    st.stop()
+    stop_page()
 
 result_idx = min(idx, len(project.engines) - 1)
 inp = project.engines[result_idx]
@@ -468,7 +468,7 @@ try:
         conditions = run_all(inp, include_far25=project.include_far25)
 except Exception as exc:  # surface, don't crash
     st.error(f"Could not compute loads: {exc}")
-    st.stop()
+    stop_page()
 
 # Results are computed in Imperial; convert to the selected system for display.
 conditions = convert_results(conditions, system)
@@ -511,7 +511,7 @@ except Exception as exc:
         f"Could not build the all-engine export bundle yet: {exc}. Fill in and "
         "Apply every engine in the current layout first."
     )
-    st.stop()
+    stop_page()
 d1, d2, d3 = st.columns(3)
 
 with d1:

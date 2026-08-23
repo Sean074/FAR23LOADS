@@ -13,7 +13,7 @@ from __future__ import annotations
 import pandas as pd
 import streamlit as st
 
-from app_shell.components import active_system, gate
+from app_shell.components import active_system, gate, stop_page
 from app_shell.widget_keys import widget_key
 from sloads import OneEngineOutInput, Project, UnitSystem, convert_results, to_si_scalar
 from sloads.modules.one_engine_out import PROPELLER_ONLY_NOTE, run, time_history
@@ -38,16 +38,16 @@ system: UnitSystem = active_system()
 
 if not project.engines or len(project.engines) < 2:
     st.warning("One-engine-out needs a **multi-engine** layout (define ≥2 engines).")
-    st.stop()
+    stop_page()
 if project.vtail_loads is None:
     gate("Define the **vertical-tail geometry** (Flight Envelope (V-n) page, "
          "Critical Loads tab) first.", "flight_envelope")
-    st.stop()
+    stop_page()
 if project.mass is None or not project.mass.cases:
     gate("Fill the itemised mass data base on the **Weight & Mass Properties** page "
          "(Weight, CG & Inertia tab) and press **Apply weight items** — that persists "
          "the mass slice ONENGOUT reads IZZ from.", "weight_mass")
-    st.stop()
+    stop_page()
 
 inp = project.one_engine_out or OneEngineOutInput()
 
@@ -97,7 +97,7 @@ try:
     mod = run(project)
 except (ValueError, ZeroDivisionError) as exc:
     st.error(f"Could not compute one-engine-out loads: {exc}")
-    st.stop()
+    stop_page()
 
 st.subheader("Maximum tail loads by speed")
 st.caption(

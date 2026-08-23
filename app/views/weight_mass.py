@@ -15,7 +15,7 @@ downstream). Four tabs, each a formerly-separate page:
 
 Inputs are Imperial (the manual's units); results follow the sidebar Imperial/SI
 toggle (``Home.py``). Each tab is a function so a missing-prerequisite guard can
-``return`` without ``st.stop()`` killing the sibling tabs.
+``return`` without ``stop_page()`` killing the sibling tabs.
 """
 
 from __future__ import annotations

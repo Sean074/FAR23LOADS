@@ -280,7 +280,6 @@ from sloads import io as sloads_io, Project
 _doc = json.loads(sloads_io.project_to_json(Project(name="from-upload")))
 _doc.update({extra})
 _payload = json.dumps(_doc).encode()
-st.file_uploader = lambda *a, **k: _FakeUpload(_payload)
 
 import app_shell.sidebar as sb
 from app_shell.project_state import ensure_project, load_with_guard
@@ -291,11 +290,20 @@ def _counting(new_project, source):
     _calls.append(source)
     load_with_guard(new_project, source)
 
-sb.load_with_guard = _counting
 project = ensure_project()
 if {dirty}:
     project.name = "edited-since-save"
-sb.render_shell_sidebar(project)
+# AppTest runs in-process: the stubs are module globals every later test would
+# inherit, so they are restored on every exit -- including the adopt path's
+# ``st.rerun()``.
+_real_uploader, _real_guard = st.file_uploader, sb.load_with_guard
+st.file_uploader = lambda *a, **k: _FakeUpload(_payload)
+sb.load_with_guard = _counting
+try:
+    with sb.render_shell_sidebar(project):
+        pass
+finally:
+    st.file_uploader, sb.load_with_guard = _real_uploader, _real_guard
 """
 
 
@@ -366,6 +374,120 @@ def test_a_fresh_upload_is_processed_again():
     at.session_state["_uploader_processed"] = "some-older-upload"
     at.run()
     assert at.session_state["_guard_calls"] == ["uploaded.project.json"] * 2
+
+
+# --------------------------------------------------------------------------- #
+# The project-file block renders after the page (#64, review 2026-08-22 PB-4)
+# --------------------------------------------------------------------------- #
+_ORACLE_ENTRY = '''
+import runpy, streamlit as st
+_real = st.download_button
+def _recording(label, data, **kw):
+    st.session_state["_payload"] = data
+    return _real(label, data, **kw)
+st.download_button = _recording  # in-process stub: restored below
+try:
+    runpy.run_path("{entry}", run_name="__main__")
+finally:
+    st.download_button = _real
+'''
+
+
+def _oracle_entry_point():
+    from streamlit.testing.v1 import AppTest
+
+    from sloads import io as sloads_io
+    from sloads.field_registry import reduce_to_oracle_inputs
+
+    at = AppTest.from_string(
+        _ORACLE_ENTRY.format(entry=os.path.join(_ROOT, "oracle_app", "Oracle.py")),
+        default_timeout=60)
+    at.session_state["project"] = reduce_to_oracle_inputs(
+        sloads_io.load_project(os.path.join(_ROOT, "examples", "ga6_normal.project.json")))
+    at.run()
+    assert not at.exception, [e.message for e in at.exception]
+    return at
+
+
+def _dirty_caption(at):
+    return next(c.value for c in at.sidebar.caption if "nsaved changes" in c.value)
+
+
+def test_the_download_and_the_dirty_flag_describe_this_reruns_edit():
+    """PB-4's reproduction on the real oracle entry point: one edit, then the
+    payload, the caption and the row-expander title read in the *same* run.
+    Before #64 all three were one rerun behind (the sidebar serialised before
+    the page persisted) while the oracle GUI -- no Apply -- had no second
+    rerun to catch up on."""
+    import json
+
+    at = _oracle_entry_point()
+    assert _dirty_caption(at) == "⚪ No unsaved changes"
+    ar = next(w for w in at.number_input if w.key.endswith("geometry.parametric.aspect_ratio"))
+    ar.set_value(ar.value + 1).run()
+    assert not at.exception, [e.message for e in at.exception]
+
+    project = at.session_state["project"]
+    assert json.loads(at.session_state["_payload"])["geometry"]["parametric"]["aspect_ratio"] \
+        == project.geometry.parametric.aspect_ratio
+    assert _dirty_caption(at) == "🟠 Unsaved changes"
+
+    name = next(w for w in at.text_input if w.key.endswith("geometry.surfaces[].0.name"))
+    name.set_value("mainplane").run()
+    assert [e.label for e in at.expander if e.label.startswith("1 · ")] == ["1 · mainplane"]
+
+
+_STOPPING_PAGE = '''
+import streamlit as st
+from app_shell.components import stop_page
+from app_shell.project_state import ensure_project
+from app_shell.sidebar import render_shell_sidebar
+project = ensure_project()
+project.name = "edited"
+if {wrapped}:
+    with render_shell_sidebar(project):
+        st.error("no speeds yet")
+        stop_page()
+        st.session_state["_after_stop"] = True
+else:
+    stop_page()
+    st.session_state["_after_stop"] = True
+'''
+
+
+def test_the_project_file_block_survives_a_page_that_stops():
+    """The ``app/`` views leave early when a prerequisite is missing; the block
+    reserved above the page is still filled, and with *this* run's state --
+    ``st.stop()`` discards everything emitted after it, so rendering behind
+    the page in the plain sense lost Save/Download on exactly those pages."""
+    from streamlit.testing.v1 import AppTest
+
+    at = AppTest.from_string(_STOPPING_PAGE.format(wrapped=True), default_timeout=60)
+    at.run()
+    assert not at.exception, [e.message for e in at.exception]
+    assert "_after_stop" not in at.session_state
+    assert [e.value for e in at.error] == ["no speeds yet"]
+    assert _dirty_caption(at) == "🟠 Unsaved changes"
+    assert [b.label for b in at.sidebar.button if "Save" in b.label] == ["💾 Save to disk"]
+    assert [h.value for h in at.sidebar.header] == ["Units", "Project file"]
+
+
+def test_stop_page_is_st_stop_outside_the_shell():
+    """A view driven standalone (no sidebar around it) still just stops."""
+    from streamlit.testing.v1 import AppTest
+
+    at = AppTest.from_string(_STOPPING_PAGE.format(wrapped=False), default_timeout=60)
+    at.run()
+    assert not at.exception, [e.message for e in at.exception]
+    assert "_after_stop" not in at.session_state
+
+
+def test_no_view_calls_st_stop_directly():
+    """Drift guard for the sweep: the page exit is the shell's ``stop_page``."""
+    views = os.path.join(_ROOT, "app", "views")
+    offenders = [f for f in sorted(os.listdir(views)) if f.endswith(".py")
+                 and re.search(r"^\s*st\.stop\(\)", open(os.path.join(views, f), encoding="utf-8").read(), re.M)]
+    assert offenders == [], f"st.stop() discards the shell's project-file block; call stop_page(): {offenders}"
 
 
 def test_the_download_filename_matches_the_save_convention():

@@ -12,7 +12,7 @@ from __future__ import annotations
 import pandas as pd
 import streamlit as st
 
-from app_shell.components import active_system, gate
+from app_shell.components import active_system, gate, stop_page
 from app_shell.widget_keys import widget_key
 from sloads import (
     Project,
@@ -45,7 +45,7 @@ U = labels_for(system)  # {"length": ..., "area_sqft": ...} -> unit string
 
 if project.speeds is None:
     gate("Define the **Structural Speeds** (VC) first.", "structural_speeds")
-    st.stop()
+    stop_page()
 
 inp = project.tab_loads or TabLoadsInput()
 existing = [
@@ -96,14 +96,14 @@ if project.is_concept:
 
 if not inp.tabs:
     st.info("Add at least one tab (positive area) above.")
-    st.stop()
+    stop_page()
 
 try:
     mod = run(project)
     results = build_tabs(project)
 except (ValueError, ZeroDivisionError) as exc:
     st.error(f"Could not compute tab loads: {exc}")
-    st.stop()
+    stop_page()
 
 st.subheader("Tab loads")
 st.caption(

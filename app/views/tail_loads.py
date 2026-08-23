@@ -18,7 +18,7 @@ import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
 
-from app_shell.components import active_system, gate
+from app_shell.components import active_system, gate, stop_page
 from app_shell.limit_csv import tail_limit_csv, tail_limit_rows
 from app_shell.widget_keys import widget_key
 from sloads import Project, UnitSystem, labels_for, si_scalar_label, to_display, to_si_scalar
@@ -48,7 +48,7 @@ if project.tail_loads is None and project.vtail_loads is None:
     gate("Define the tail geometry on the **Geometry** page (Empennage & "
          "control surfaces section) first (horizontal and/or vertical tail).",
          "configuration_layout")
-    st.stop()
+    stop_page()
 
 if project.is_concept:
     st.warning("Concept category (C): an **unverified extrapolation** above the "

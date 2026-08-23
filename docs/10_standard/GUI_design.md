@@ -94,8 +94,8 @@ superseded Phase-D six-section grouping is in
 
 ## 4. Global sidebar (`Home.py`)
 
-`Home.py` owns the two controls that appear on every page, built once above
-`pg.run()`:
+`Home.py` owns the two controls that appear on every page, built once *around*
+`pg.run()` (`with render_shell_sidebar(project): pg.run()` — both GUIs):
 
 - **Unit-system toggle** — an Imperial/SI radio writing
   `st.session_state["unit_system"]` (a `UnitSystem` enum). It changes how inputs
@@ -116,6 +116,19 @@ superseded Phase-D six-section grouping is in
   therefore genuinely cancels. Download writes `<name>.project.json` — the same
   suffix Save uses — so a downloaded file dropped into `projects/` is listed by
   Open.
+- **The project-file block renders after the page** (#64, review 2026-08-22
+  PB-4). The rerun that carries a widget edit runs the sidebar before the page
+  that persists it, so a block rendered above `pg.run()` served the *previous*
+  interaction's project as the download and called it clean — in the oracle GUI
+  (no Apply) every last edit, in `app/` the Apply's own merge. The units block
+  stays first (`active_system()` reads it); the sidebar reserves the block's
+  slot, wraps the page, and fills the slot on exit. A page therefore never calls
+  `st.stop()` — Streamlit discards everything emitted after it, the slot
+  included — but `app_shell.components.stop_page()`, which the sidebar catches
+  (standalone it *is* `st.stop()`). Guards in `tests/test_app_shell.py`: one
+  edit, then payload, caption and expander title read in the same run on the
+  real oracle entry point; a stopping page keeps Save/Download; no view calls
+  `st.stop()`.
 
 ---
 

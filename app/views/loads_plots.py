@@ -34,7 +34,7 @@ import plotly.graph_objects as go
 import streamlit as st
 from plotly.subplots import make_subplots
 
-from app_shell.components import active_system, gate
+from app_shell.components import active_system, gate, stop_page
 from app_shell.widget_keys import widget_key
 from sloads import Project, UnitSystem, si_scalar_label, to_si_scalar
 from sloads.case_ids import case_label
@@ -108,7 +108,7 @@ if not any((loads.wing_net, loads.body_net, loads.tail_chordwise, loads.control_
         "**Wing Loads**, **Fuselage Loads**, **Tail Loads**, and "
         "**Aileron/Flap/Tab Loads** pages first."
     )
-    st.stop()
+    stop_page()
 
 if project.is_concept:
     st.warning("Concept category (C): shown curves may be an **unverified "

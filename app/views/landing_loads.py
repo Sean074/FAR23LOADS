@@ -17,7 +17,7 @@ from __future__ import annotations
 import pandas as pd
 import streamlit as st
 
-from app_shell.components import page_header, unit_number_input, workflow_page_link
+from app_shell.components import page_header, stop_page, unit_number_input, workflow_page_link
 from app_shell.widget_keys import widget_key
 from sloads import (
     LandingInput,
@@ -180,7 +180,7 @@ if _blocked:
     for _msg in _blocked:
         st.info(_msg)
     workflow_page_link("weight_mass", label="→ Weight & Mass Properties")
-    st.stop()
+    stop_page()
 
 for _w in consistency_warnings(project):
     if _w.page == "landing_loads":
@@ -195,7 +195,7 @@ try:
     mod = run(project)
 except (ValueError, ZeroDivisionError) as exc:
     st.error(f"Could not compute landing loads: {exc}")
-    st.stop()
+    stop_page()
 
 st.subheader("Landing load factor")
 m1, m2, m3 = st.columns(3)

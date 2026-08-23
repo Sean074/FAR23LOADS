@@ -18,7 +18,7 @@ set nor its shape is shared; each GUI derives its own (note 32, OG-2).
 
 from __future__ import annotations
 
-from typing import NamedTuple, Optional
+from typing import NamedTuple, NoReturn, Optional
 
 import streamlit as st
 from streamlit.errors import StreamlitAPIException
@@ -81,6 +81,35 @@ def workflow_page_link(
     # non-clickable label so the row / gate hint still renders -- a dashboard row
     # must never silently vanish.
     st.markdown(f"{icon + ' ' if icon else ''}{text}", help=help)
+
+
+class StopPage(BaseException):
+    """:func:`stop_page` inside the shell: the page is over, the shell is not.
+
+    A ``BaseException`` like Streamlit's own ``StopException``, so a view's
+    ``except Exception`` cannot swallow it.
+    """
+
+
+#: Session-state flag the shell sidebar raises while it wraps the page, so
+#: :func:`stop_page` knows there is a shell to hand the exit to.
+IN_SHELL_KEY = "_shell_wraps_page"
+
+
+def stop_page() -> NoReturn:
+    """End the page here -- the shell's ``st.stop()``.
+
+    Inside ``with render_shell_sidebar(project): pg.run()`` this raises
+    :class:`StopPage`, which the sidebar catches so its project-file block still
+    renders *after* the page: ``st.stop()`` discards every element emitted after
+    it, so a sidebar rendered behind the page would have lost Save / Download on
+    exactly the pages that gate (#64, PB-4). Driven standalone (a view under
+    ``AppTest``, a script with no shell) it is ``st.stop()``. Guarded:
+    ``app/views`` call this and never ``st.stop()`` directly.
+    """
+    if st.session_state.get(IN_SHELL_KEY):
+        raise StopPage()
+    st.stop()
 
 
 def gate(message: str, *keys: str, kind: str = "warning") -> None:

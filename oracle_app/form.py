@@ -744,7 +744,8 @@ def render_table(project: Project, prefix: str, paths: Sequence[str]) -> None:
 
     if any(is_composite(fr.field_type(p)) for p in paths):
         for index, row in enumerate(rows):
-            with st.expander(f"{index + 1} · {_row_title(row, paths)}", expanded=index == 0):
+            title = _row_title(row, paths, f"{prefix}.{index}")
+            with st.expander(f"{index + 1} · {title}", expanded=index == 0):
                 render_record_row(row, paths, f"{prefix}.{index}", project)
         return
 
@@ -769,10 +770,19 @@ def render_record_row(row: Any, paths: Sequence[str], key_prefix: str,
         render_field(row, path, key=f"{key_prefix}.{_leaf(path)}")
 
 
-def _row_title(row: Any, paths: Sequence[str]) -> str:
+def _row_title(row: Any, paths: Sequence[str], key_prefix: str) -> str:
+    """The row's name for its expander title, read from the widget state first.
+
+    The title is emitted before the name widget inside the expander runs, but on
+    the rerun that carries the edit Streamlit already holds the typed value
+    under the widget's key -- so the title says what the user just typed
+    instead of lagging one keystroke behind (#64, PB-4).
+    """
     for path in paths:
         if _leaf(path) == "name":
-            return str(getattr(row, "name", "") or "(unnamed)")
+            typed = st.session_state.get(widget_key(f"{key_prefix}.name"))
+            name = typed if isinstance(typed, str) else getattr(row, "name", "")
+            return str(name or "(unnamed)")
     return type(row).__name__
 
 

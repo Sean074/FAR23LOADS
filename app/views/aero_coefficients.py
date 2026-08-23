@@ -24,7 +24,7 @@ import plotly.graph_objects as go
 import streamlit as st
 from plotly.subplots import make_subplots
 
-from app_shell.components import gate
+from app_shell.components import gate, stop_page
 from app_shell.widget_keys import widget_key
 from sloads import (
     AeroCoefficientsInput,
@@ -182,7 +182,7 @@ if applied:
 
 if aero is None or (aero.cruise is None and aero.flaps_down is None):
     st.info("No aero coefficients defined yet — fill in the cruise set above and Apply.")
-    st.stop()
+    stop_page()
 
 st.subheader("Current coefficients")
 

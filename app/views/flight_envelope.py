@@ -27,7 +27,7 @@ import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
 
-from app_shell.components import active_system, gate, unit_number_input
+from app_shell.components import active_system, gate, stop_page, unit_number_input
 from app_shell.widget_keys import widget_key
 from sloads import (
     FlightLoadsInput,
@@ -75,7 +75,7 @@ if project.speeds is None:
         "page first — FLTLOADS reads VA/VC/VD/VF, MC/MD and the limit load factor from it.",
         "structural_speeds",
     )
-    st.stop()
+    stop_page()
 
 aero = project.aero_coeffs
 if aero is None or (aero.cruise is None and aero.flaps_down is None):
@@ -85,7 +85,7 @@ if aero is None or (aero.cruise is None and aero.flaps_down is None):
         "the airplane-less-tail CL/CD/CM polynomials from it.",
         "aero_coefficients",
     )
-    st.stop()
+    stop_page()
 
 fl = project.flight_loads or FlightLoadsInput()
 
@@ -159,7 +159,7 @@ if not cg_cases:
         "FLTLOADS balances over them.",
         "weight_mass",
     )
-    st.stop()
+    stop_page()
 st.caption("The **FLIGHT**-tagged weight / CG cases, read from the **Weight & Mass "
            "Properties** page (not edited here).")
 st.dataframe(pd.DataFrame([
@@ -202,7 +202,7 @@ try:
     results = convert_results(flt_run(project).conditions, system)
 except (ValueError, ZeroDivisionError) as exc:
     st.error(f"Could not compute the flight envelope: {exc}")
-    st.stop()
+    stop_page()
 
 
 # --------------------------------------------------------------------------- #

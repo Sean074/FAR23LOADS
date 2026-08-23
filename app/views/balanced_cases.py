@@ -16,7 +16,7 @@ import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
 
-from app_shell.components import active_system, gate
+from app_shell.components import active_system, gate, stop_page
 from app_shell.widget_keys import widget_key
 from sloads import (
     Project,
@@ -56,14 +56,14 @@ U = labels_for(system)
 if project.flight_loads is None or project.wing_mass is None:
     gate("Define the flight-loads inputs on the **Flight Envelope (V-n)** page "
          "and the wing mass on **Wing Loads** first.", "flight_envelope")
-    st.stop()
+    stop_page()
 
 skipped = []
 try:
     cases = build_balanced_cases(project, skipped)
 except (MissingInputError, ValueError) as exc:
     st.error(str(exc))
-    st.stop()
+    stop_page()
 
 # The record of what did NOT assemble (review F-C7) — stated before the results
 # and before the "nothing assembled" stop below, because it is the answer to
@@ -93,7 +93,7 @@ if not cases:
         "very balance the case exists to demonstrate. See the **Weights → Mass "
         "Export** tab for which loadings are derivable and why."
     )
-    st.stop()
+    stop_page()
 
 # --------------------------------------------------------------------------- #
 # The residual table -- the case's own honesty statement

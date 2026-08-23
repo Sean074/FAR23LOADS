@@ -20,7 +20,7 @@ import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
 
-from app_shell.components import gate, page_header, unit_number_input
+from app_shell.components import gate, page_header, stop_page, unit_number_input
 from app_shell.limit_csv import wing_limit_csv, wing_limit_rows
 from app_shell.widget_keys import widget_key
 from sloads import (
@@ -60,7 +60,7 @@ if wing_geom is None:
         "page first — AIRLOADS reads the planform (chord polylines) from it.",
         "configuration_layout",
     )
-    st.stop()
+    stop_page()
 
 if project.is_concept:
     st.warning(
@@ -142,14 +142,14 @@ if aero_applied:
 
 if existing_aero is None:
     st.info("No wing aero inputs defined yet — fill in the form above and Apply.")
-    st.stop()
+    stop_page()
 
 try:
     table = schrenk_distribution(wing_geom, existing_aero)
     air_results = airloads_run(project).conditions
 except (ValueError, ZeroDivisionError) as exc:
     st.error(f"Could not compute airloads: {exc}")
-    st.stop()
+    stop_page()
 
 col1, col2, col3, col4 = st.columns(4)
 col1.metric("Wing CLα slope M", f"{table.m_wing:.4f}", help="incl. AR & TAU (per deg)")
@@ -320,13 +320,13 @@ if mass_applied:
 if not resolve_wing_cases(project, wm):
     st.info("No wing load cases defined yet — fill in the form above and Apply, "
             "or run SELECT and pull its critical conditions.")
-    st.stop()
+    stop_page()
 
 try:
     loads = build_net_loads(project)
 except (ValueError, ZeroDivisionError) as exc:
     st.error(f"Could not compute net wing loads: {exc}")
-    st.stop()
+    stop_page()
 
 if project.is_concept:
     st.warning("Concept category (C): net loads are an **unverified extrapolation** "

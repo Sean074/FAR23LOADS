@@ -62,13 +62,6 @@ def _page(step: wf.WorkflowStep, *, default_key: str) -> st.Page:
 
 
 project = ensure_project()
-render_shell_sidebar(project)
-
-st.sidebar.caption(
-    "**Oracle interface** — the original suite's inputs only. "
-    "The full sloads app is `streamlit run app/Home.py`."
-)
-
 _steps = wf.oracle_steps()
 _pages = {step.key: _page(step, default_key=_steps[0].key) for step in _steps}
 # This GUI's page set, so a cross-page link resolves to a page it actually
@@ -76,4 +69,12 @@ _pages = {step.key: _page(step, default_key=_steps[0].key) for step in _steps}
 register_pages(_pages)
 
 pg = st.navigation(list(_pages.values()), expanded=True)
-pg.run()
+# The sidebar wraps the page: its project-file block renders *after* the page
+# has persisted this rerun's edit, so the download and the dirty flag are
+# never one keystroke stale (#64, PB-4).
+with render_shell_sidebar(project):
+    st.sidebar.caption(
+        "**Oracle interface** — the original suite's inputs only. "
+        "The full sloads app is `streamlit run app/Home.py`."
+    )
+    pg.run()
