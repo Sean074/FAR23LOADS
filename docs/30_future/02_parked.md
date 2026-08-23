@@ -134,11 +134,14 @@ unkeyed widget's Streamlit identity derives from its *arguments* — stable
 whenever the seed value repeats — so a value typed before a load survives it
 when the loaded field is unset (reproduced on `structural_speeds`' VB against
 `atr42_100`); the guard's "no `key=` is per-render" premise was wrong. It rides
-the unit-boundary rollout (`00_backlog.md` band B, with #44), whose
-`unit_number_input` stamps for its callers. What stays parked *here* is the rest
-of the audit — a widget that goes stale while the project is **mutated**
-underneath it (a cross-page Apply, a seed chain), which no generation bump
-covers because the project was never replaced.
+the unit-boundary rollout (`00_backlog.md` **band A** since the 2026-08-22
+beta re-cut, one pass with #44), whose `unit_number_input` stamps for its
+callers. What stays parked *here* is the rest of the audit — a widget that
+goes stale while the project is **mutated** underneath it (a cross-page Apply,
+a seed chain), which no generation bump covers because the project was never
+replaced. (Until #51's unkeyed half lands, the *replacement* case is also
+incompletely covered — the reopen comment corrects the earlier claim that the
+mutation case was the only residual.)
 
 ### L-8e — Uncovered input fields & UX nits
 Add widgets (or a documented JSON-only status) for the remaining uncovered
