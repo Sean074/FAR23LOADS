@@ -284,11 +284,13 @@ class _CurveStub:
     def __init__(self, edited):
         self._edited = edited
         self.captions = []
+        self.frames = []
 
     def markdown(self, *args, **kwargs):
         pass
 
-    def data_editor(self, *args, **kwargs):
+    def data_editor(self, frame, *_args, **_kwargs):
+        self.frames.append(frame)
         return self._edited
 
     def caption(self, text):
@@ -321,6 +323,28 @@ def test_an_incomplete_curve_row_is_held_out_and_said_so():
     record, stub = _rendered_curve([[1.0, 2.0], [float("nan"), float("nan")]])
     assert record.leading_edge == [(1.0, 2.0)]
     assert not stub.captions, "a freshly added blank row must not nag"
+
+
+def test_a_curve_typed_from_blank_is_numeric():
+    """C210-7 (Cessna 210 build review, 2026-08-23): the polyline grid of a blank
+    surface is an *empty* frame, and an empty frame's columns are object-typed,
+    which the grid renders as text -- so every corner typed from blank came back
+    as strings, was stored as string tuples and crashed WINGGEOM on
+    ``ytip - yroot``. Two guards: the frame handed to the grid is numeric even
+    with no rows, and a cell that still arrives as text is parsed, never stored."""
+    import numpy as np
+
+    record, stub = _rendered_curve([])
+    assert record.leading_edge == []
+    (frame,) = stub.frames
+    assert frame.empty
+    assert all(np.issubdtype(dt, np.number) for dt in frame.dtypes), (
+        f"an empty curve frame must be numeric so the grid takes numbers: {dict(frame.dtypes)}")
+
+    record, _ = _rendered_curve([["28", "0"], ["28", "220.5"]])
+    assert record.leading_edge == [(28.0, 0.0), (28.0, 220.5)]
+    assert all(isinstance(v, float) for pt in record.leading_edge for v in pt), (
+        "a text cell reached the model unparsed")
 
 
 # Apply buttons are selected through their **form key**, never positionally

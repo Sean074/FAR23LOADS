@@ -611,9 +611,14 @@ def render_curve(record: Any, path: str, *, key: str, container: Any = None) -> 
         for row in rows
     ]
     where.markdown(f"**{_field_label(path)}**", help=_help(path))
+    # ``dtype=float`` even when ``display`` is empty: a frame built from no rows
+    # has object-typed columns, which the grid renders as *text* -- so every
+    # polyline typed from blank came back as strings ('28', '0'), was stored as
+    # string tuples and crashed WINGGEOM on ``ytip - yroot`` (C210-7, the
+    # Cessna 210 build review 2026-08-23). A curve's members are all numeric.
     edited = where.data_editor(
-        pd.DataFrame(display, columns=headers), num_rows="dynamic", key=widget_key(key),
-        width="stretch",
+        pd.DataFrame(display, columns=headers, dtype=float), num_rows="dynamic",
+        key=widget_key(key), width="stretch",
     )
     # ``rows`` is what was rendered, so row ``n`` of the editor is row ``n`` of
     # the stored curve until the user adds or removes one -- and past that point
@@ -626,7 +631,7 @@ def render_curve(record: Any, path: str, *, key: str, container: Any = None) -> 
 
     entered = edited.values.tolist()
     kept = [
-        [_to_imperial_kept(v, units[i], _stored(n, i)) for i, v in enumerate(values)]
+        [_numeric(_to_imperial_kept(v, units[i], _stored(n, i))) for i, v in enumerate(values)]
         for n, values in enumerate(entered)
         if not any(pd.isna(v) for v in values)
     ]
@@ -663,6 +668,16 @@ def _to_imperial(value: Any, unit: FieldUnit) -> Any:
     if unit.kind is None or not isinstance(value, (int, float)):
         return value
     return to_imperial_scalar(float(value), unit.kind, active_system())
+
+
+def _numeric(value: Any) -> Any:
+    """``value`` as a number: a grid cell that came back as text is parsed, a
+    number is returned as it is (an ``int`` stays an ``int``, so an untouched
+    stored value is still equal to itself). A curve member is always numeric
+    (C210-7); a cell that cannot be parsed raises, which the page shows."""
+    if isinstance(value, (int, float)) and not isinstance(value, bool):
+        return value
+    return float(value)
 
 
 def _to_imperial_kept(value: Any, unit: FieldUnit, stored: Any) -> Any:
