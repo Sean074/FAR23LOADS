@@ -335,14 +335,24 @@ class Project:
     # FAR 23 conditions. Defaults off, so GA projects are byte-identical.
     include_far25: bool = False
 
-    def __post_init__(self) -> None:
-        if self.engine_layout is not None and self.engines:
-            expected = self.engine_layout.expected_count
-            if len(self.engines) != expected:
-                raise ValueError(
-                    f"engine_layout {self.engine_layout.value} expects {expected} "
-                    f"engine(s), got {len(self.engines)}"
-                )
+    def engine_layout_problem(self) -> Optional[str]:
+        """Why ``engine_layout`` and ``engines`` disagree, or ``None``.
+
+        The one statement of the rule (``2W`` means two engines). It is asked,
+        not enforced at construction: the constructor used to raise, so a
+        layout and a count set in either order on the Engine Mount page were
+        accepted in-session, written by Save, and refused by the loader -- a
+        file that could not be reopened (#66, PB-7). Now the loader flags it,
+        the oracle page withholds its results, and the one consumer that
+        reads the layout (WINGGEOM's engine stations) refuses by this name.
+        """
+        if self.engine_layout is None or not self.engines:
+            return None
+        expected = self.engine_layout.expected_count
+        if len(self.engines) == expected:
+            return None
+        return (f"engine_layout {self.engine_layout.value} expects {expected} "
+                f"engine(s), got {len(self.engines)}")
 
     @property
     def engine(self) -> Optional["EngineInput"]:

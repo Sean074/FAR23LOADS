@@ -187,15 +187,13 @@ def test_twin_wing_loops_over_each_engine():
     assert mr.conditions[3].title.startswith("[RIGHT]")
 
 
-def test_engine_layout_count_is_validated():
+def test_engine_layout_count_is_asked_not_enforced():
+    """TWIN_WING with one engine constructs (a saved file must reopen, #66) and
+    says what is wrong through the rule's one owner."""
     from sloads import EngineLayout, Project
 
-    raised = False
-    try:
-        Project(name="bad", engines=[io520bb()], engine_layout=EngineLayout.TWIN_WING)
-    except ValueError:
-        raised = True
-    assert raised  # TWIN_WING needs 2 engines, got 1
+    project = Project(name="bad", engines=[io520bb()], engine_layout=EngineLayout.TWIN_WING)
+    assert project.engine_layout_problem() == "engine_layout 2W expects 2 engine(s), got 1"
 
 
 if __name__ == "__main__":

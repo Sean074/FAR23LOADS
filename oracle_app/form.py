@@ -904,10 +904,19 @@ def render_step(key: str) -> None:
     # one; #63, PB-5). Said here, and the results withheld, rather than
     # discovered in a changed TAILDIST table.
     problems = duplicate_selectors(ctx.project)
+    # Likewise an engine layout that disagrees with the engine count: accepted
+    # in-session (two widgets, either order), it used to save a file the loader
+    # refused (#66, PB-7). The rule is the model's; it is said on every page
+    # because the file it would write is every page's.
+    layout_problem = ctx.project.engine_layout_problem()
+    if layout_problem:
+        page = wf.BY_KEY[fr.entry("engine_layout").page].title
+        problems.append(f"{layout_problem} -- set the engine layout and the engine "
+                        f"rows to agree on the {page} page.")
     if problems:
         for problem in problems:
             st.error(problem)
-        st.info("Results are withheld until every selector name is unique.")
+        st.info("Results are withheld until the inputs above agree.")
         return
 
     # A page that takes no input still runs its programs -- Tail Loads reads

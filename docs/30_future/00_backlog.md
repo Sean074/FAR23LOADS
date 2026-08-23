@@ -96,7 +96,7 @@ rotors and station tables outside the reduction; **closed #62, 2026-08-23**), bl
 code fields that silently change loads (**closed #63, 2026-08-23**), the stale project download
 (**closed #64, 2026-08-23**), no
 project name (every save overwrites the last; **closed #65, 2026-08-23**), and an engine-layout state
-that saves a file the loader refuses. Sixteen KNOWN-ISSUE findings go to band
+that saves a file the loader refuses (**closed #66, 2026-08-23**; band A empty — cut 0.7.0). Sixteen KNOWN-ISSUE findings go to band
 B as rows 11–18 (release notes for 0.7.0; fixed in 0.7.x/0.8.0). The cut
 signal is unchanged in form: **0.7.0 when band A is empty**.
 
@@ -216,7 +216,6 @@ traceability with plans 09/11/12/13; the **Pri** column is ordinal only.
 | Pri | Item (detail below / in its plan) | What ships | Tag | Tier / effort | Depends on |
 |---|---|---|---|---|---|
 | **A — 0.7.0: a beta release of the oracle GUI (re-cut 2026-08-22; BB-\* keys resolve in that review)** ||||||
-| 10 | **An engine layout set against the wrong engine count saves a file the loader refuses** *(PB-7; defect)* (#66) | Engine Mount validates layout against the row count and withholds results; the loader flags a mismatch instead of refusing the file; a save→reload test on the mismatched state | V | S / S | — |
 | — | **Cut 0.7.0** when band A is empty (RELEASE_PROCESS §2 cadence rule) | | | | |
 | **B — 0.8.0: the main-GUI review completed and its findings addressed** ||||||
 | 5 | **GUI review resumption** — the five unswept sections (Flight, Other, Ground, Plotting, Export) against the 0.7.0 deliverables; findings filed at close (rule 5); re-cut follows (#29) | The review body completed; the UI freeze on `app/views/` re-opened to the extent the findings justify — a reviewed list, not a rework; parked **L-8c** (Results Review omits the 8 folded modules' results) promotes at this re-cut | V | S (review) / M | 0.7.0 cut |

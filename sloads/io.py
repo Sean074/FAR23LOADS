@@ -1235,6 +1235,13 @@ def project_from_dict(d: Dict[str, Any]) -> Project:
         # them correctly before any module runs (each module re-syncs defensively).
         from .derived_geometry import sync_geometry_derived
         sync_geometry_derived(project)
+        # A layout/count disagreement is flagged, not refused: the file still
+        # loads so the page it came from can fix it (#66, PB-7). The GUI's load
+        # path shows the warning as a toast.
+        problem = project.engine_layout_problem()
+        if problem:
+            warnings.warn(f"{problem}; fix the engine layout on the Engine Mount page",
+                          stacklevel=2)
         return project
 
 

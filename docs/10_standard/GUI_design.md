@@ -254,6 +254,17 @@ consistent:
   says which `str` fields carry a code), the owners upper-case at construction,
   and every consumer goes through `normalise_code`, which refuses an unknown
   code by name rather than reading it as Normal (`"Utility"` used to give 3.8).
+- **A cross-field rule is asked, never enforced at construction** (#66,
+  review 2026-08-22 PB-7). `Project.__post_init__` used to raise when
+  `engine_layout` disagreed with `len(engines)` — two widgets on one page,
+  set in either order — so the in-session project accepted the state, Save
+  wrote it, and the loader refused the file. The rule is now
+  `Project.engine_layout_problem()` with three readers: the loader warns
+  (surfaced as a toast by `safe_load`, the file loads), the oracle form
+  withholds the page's results (the same block as the selector check), and
+  the one consumer of the layout (WINGGEOM's engine stations) refuses by
+  name. `app/`'s Engine Mount derives the count from the layout, so it cannot
+  disagree. Guard: `tests/test_engine_layout_consistency.py`.
 
 The established **seed-chain** (each seeds the next when its target is unset):
 Configuration & Layout → WINGGEOM wing surface → Weight DB component stations;

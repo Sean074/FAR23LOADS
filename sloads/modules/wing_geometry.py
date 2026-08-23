@@ -168,6 +168,9 @@ def _engine_stations(project: Project, geometry: GeometryInput) -> Optional[Cond
     wing = geometry.by_name("wing")
     if wing is None or not project.engines:
         return None
+    problem = project.engine_layout_problem()
+    if problem:
+        raise ValueError(problem)
 
     values: List[LoadValue] = []
     for i, eng in enumerate(project.engines, start=1):
