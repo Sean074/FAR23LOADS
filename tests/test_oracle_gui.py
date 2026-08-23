@@ -555,6 +555,26 @@ def test_the_results_block_survives_an_empty_project(key):
         assert block.note or block.rows, (key, block.title)
 
 
+def test_a_self_sufficient_page_is_not_sent_upstream():
+    """#45 (CR-D-3), measured BB-4: on a fresh project ``weight_mass`` and
+    ``engine_mount`` are missing only slices *their own form enters*, so the
+    blocked note must point at the form above — "run the pages before this one
+    first" was wrong guidance on the beta's first-run path. A genuinely
+    dependent page keeps the upstream wording."""
+    from sloads.models import Project
+    from sloads import UnitSystem
+    from oracle_app.results import step_results
+
+    fresh = Project(name="")
+    for key in ("weight_mass", "engine_mount"):
+        (block,) = step_results(fresh, key, UnitSystem.IMPERIAL)
+        assert "fill in the form above" in (block.note or ""), (key, block.note)
+        assert "run the pages before" not in (block.note or ""), (key, block.note)
+    (block,) = step_results(fresh, "structural_speeds", UnitSystem.IMPERIAL)
+    assert "run the pages before this one first" in (block.note or "")
+    assert "`aero_coeffs`" in block.note
+
+
 # --------------------------------------------------------------------------- #
 # G6 -- round-trip
 # --------------------------------------------------------------------------- #

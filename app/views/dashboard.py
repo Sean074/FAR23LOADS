@@ -82,9 +82,13 @@ st.header("Workflow progress")
 
 def _status(step: wf.WorkflowStep):
     """(icon, label, help) for a step against the current project."""
-    if not wf.requirements_met(project, step):
-        missing = ", ".join(wf.missing_requirements(project, step))
-        return "⛔", "blocked", f"Needs: {missing}"
+    upstream = wf.missing_upstream(project, step)
+    if upstream:
+        return "⛔", "blocked", f"Needs: {', '.join(upstream)}"
+    self_entered = wf.missing_self_entered(project, step)
+    if self_entered:
+        # Missing, but the page's own form enters it (#45) -- open, don't wait.
+        return "🟡", "ready", f"Open to enter {', '.join(self_entered)} and compute"
     if step.produces is None:
         return "▫️", "view", "Ready — derived view (persists no slice)"
     if wf.is_produced(project, step):
@@ -95,7 +99,7 @@ def _status(step: wf.WorkflowStep):
 # Headline metric: how much of the producible work is done.
 producible = [s for s in wf.STEPS if s.produces is not None]
 done = [s for s in producible if wf.is_produced(project, s)]
-blocked = [s for s in wf.STEPS if s.module and not wf.requirements_met(project, s)]
+blocked = [s for s in wf.STEPS if s.module and wf.missing_upstream(project, s)]
 
 m1, m2, m3 = st.columns(3)
 m1.metric("Slices produced", f"{len(done)} / {len(producible)}")

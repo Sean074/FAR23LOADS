@@ -209,13 +209,21 @@ def step_results(project: Project, key: str, system: UnitSystem) -> List[ResultB
         return []
 
     step = wf.BY_KEY[key]
-    missing = wf.missing_requirements(project, step)
-    if missing:
+    upstream = wf.missing_upstream(project, step)
+    own = wf.missing_self_entered(project, step)
+    if upstream or own:
+        # Two remedies, named separately (#45, CR-D-3): an upstream slice is
+        # another page's to make; a self-entered one is this page's own form.
+        parts = []
+        if upstream:
+            parts.append(f"needs {', '.join(f'`{m}`' for m in upstream)} — "
+                         "run the pages before this one first")
+        if own:
+            parts.append(f"needs {', '.join(f'`{m}`' for m in own)} — "
+                         "entered on this very page: fill in the form above")
         return [ResultBlock(
             "", step.title,
-            note=f"{step.bas or step.title} needs "
-                 f"{', '.join(f'`{m}`' for m in missing)} — run the pages before "
-                 f"this one first.")]
+            note=f"{step.bas or step.title} {'; '.join(parts)}.")]
 
     blocks: List[ResultBlock] = []
     for name in modules:

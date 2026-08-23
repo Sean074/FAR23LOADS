@@ -110,6 +110,71 @@ def test_empty_project_blocks_dependent_steps():
     assert set(wf.missing_requirements(empty, wing)) == {"geometry"}
 
 
+# --------------------------------------------------------------------------- #
+# The requires DAG is closed and the self-entered split reads it (#45, CR-D-3)
+# --------------------------------------------------------------------------- #
+def test_every_requires_is_produced_or_self_entered():
+    """DAG-completeness: every ``requires`` is some step's ``produces`` or in
+    some step's ``edits`` — a required slice nobody makes and nobody's form
+    enters is a step no fresh project can ever unblock, and it is exactly how
+    two oracle pages came to send the user upstream for their own inputs."""
+    made = {s.produces for s in wf.STEPS if s.produces}
+    entered = {e for s in wf.STEPS for e in s.edits}
+    for s in wf.STEPS:
+        for r in s.requires:
+            assert r in made or r in entered, (
+                f"{s.key} requires {r!r}, which no step produces and no "
+                f"step's own form is declared to enter (WorkflowStep.edits)")
+
+
+def test_edits_name_slices_a_pages_form_really_enters():
+    """The rot companion (the #43/#51 allowlist lesson): each declared edit
+    must be a slice the field registry attributes to that very page — or one
+    of the two Step-G6 proxy *properties* over ``geometry.empennage``, accepted
+    only while they are still properties and the proxied slice is the page's
+    own. #52's v55 hop retires the proxies; this test then fails and the two
+    Geometry entries come out with them."""
+    from sloads import field_registry as fr
+    from sloads.models import Project as ProjectCls
+
+    by_page: dict = {}
+    for row in fr.REGISTRY:
+        by_page.setdefault(row.page, set()).add(fr.slice_of(row.path))
+
+    proxies = {"tail_loads": "geometry", "vtail_loads": "geometry"}
+    for s in wf.STEPS:
+        for e in s.edits:
+            if e in by_page.get(s.key, set()):
+                continue
+            assert e in proxies, (
+                f"{s.key}.edits declares {e!r}, but the field registry puts "
+                f"no {e!r} field on that page")
+            assert isinstance(getattr(ProjectCls, e, None), property), (
+                f"{e!r} is no longer a Project property proxy — drop it from "
+                f"{s.key}.edits (its real slice is {proxies[e]!r})")
+            assert proxies[e] in by_page.get(s.key, set()), (
+                f"{s.key} does not enter {proxies[e]!r}, so the {e!r} proxy "
+                f"cannot be self-entered there")
+
+
+def test_self_entered_split_on_a_fresh_project():
+    """The measured #45 defect, at the predicate level: on a fresh project the
+    two self-sufficient pages are missing only slices their own form enters —
+    nothing upstream — while a genuinely dependent page still blocks."""
+    fresh = Project(name="")
+    for key, own in (("weight_mass", ["weight"]), ("engine_mount", ["engines"])):
+        step = wf.BY_KEY[key]
+        assert wf.missing_upstream(fresh, step) == [], key
+        assert wf.missing_self_entered(fresh, step) == own, key
+    speeds = wf.BY_KEY["structural_speeds"]
+    assert wf.missing_upstream(fresh, speeds) == ["aero_coeffs"]
+    assert wf.missing_self_entered(fresh, speeds) == []
+    # The split partitions missing_requirements exactly, for every step.
+    for s in wf.STEPS:
+        assert sorted(wf.missing_upstream(fresh, s) + wf.missing_self_entered(fresh, s)) \
+            == sorted(wf.missing_requirements(fresh, s)), s.key
+
+
 def test_bas_is_a_program_name_or_none():
     """``bas`` answers "which original McMaster program is behind this step?" --
     so a modern page must say ``None``, not a placeholder (design note 32 OG-3).

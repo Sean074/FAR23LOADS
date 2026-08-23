@@ -211,28 +211,6 @@ def test_kind_and_fixed_unit_together_raise(monkeypatch):
 
 
 # --------------------------------------------------------------------------- #
-# 5. The page scaffold derives its gate from workflow.py
-# --------------------------------------------------------------------------- #
-#: Requirements that no workflow step declares as its ``produces``. ``page()``
-#: still gates on them, with a message and no jump link -- these are slices a
-#: page's *own* form fills, or (tail/vtail) the Step-G6 property proxies over
-#: ``geometry.empennage``. Pinned here so a *new* unlinked requirement shows up
-#: as a failure and gets either a producer or a deliberate entry.
-_NO_PRODUCING_STEP = {"engines", "weight", "tail_loads", "vtail_loads"}
-
-
-def test_every_requirement_is_linkable_or_knowingly_not():
-    from sloads import workflow as wf
-
-    required = {r for s in wf.STEPS for r in s.requires}
-    unlinkable = required - set(comp._PRODUCER)
-    assert unlinkable == _NO_PRODUCING_STEP, (
-        "a workflow requirement changed its producer status; page()'s gate would "
-        f"silently lose (or gain) a jump link. Unlinkable now: {sorted(unlinkable)}"
-    )
-
-
-# --------------------------------------------------------------------------- #
 # A link names a step, not a path (design note 32, OG-F)
 # --------------------------------------------------------------------------- #
 def test_a_link_targets_the_running_guis_own_page(monkeypatch):
@@ -271,31 +249,6 @@ def test_a_link_to_a_page_this_gui_does_not_carry_degrades_to_text(monkeypatch):
 
     comp.workflow_page_link("wing_loads")
     assert calls == ["Wing Loads"]
-
-
-def test_gate_without_a_producer_still_renders_a_message(monkeypatch):
-    """A requirement with no producing step must still produce a visible gate --
-    a missing link is a degraded message, never a blank page."""
-    shown = []
-    monkeypatch.setattr(comp, "gate", lambda msg, *keys, **kw: shown.append((msg, keys)))
-    monkeypatch.setattr(comp, "_PRODUCER", {})
-    fake = _harness(monkeypatch, UnitSystem.IMPERIAL)
-    fake.title = lambda *a, **k: None
-    fake.caption = lambda *a, **k: None
-    fake.session_state = {}
-
-    class _Stop(Exception):
-        pass
-
-    fake.stop = lambda: (_ for _ in ()).throw(_Stop())
-    monkeypatch.setattr(comp, "render_applicability_banner", lambda p, **kw: None)
-    monkeypatch.setattr(comp.wf, "missing_requirements", lambda p, s: ["speeds"])
-
-    with pytest.raises(_Stop):
-        with comp.page("flight_envelope"):
-            pass
-    assert shown and "speeds" in shown[0][0]
-    assert shown[0][1] == (), "no producer -> no link, but still a message"
 
 
 # --------------------------------------------------------------------------- #

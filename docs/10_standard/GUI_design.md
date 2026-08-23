@@ -66,7 +66,15 @@ above the six numbered analysis-flow phases:
 
 Each `WorkflowStep` names its `key` (= the view file stem), `title`, `phase`, the
 calc `module` behind it, and the project slices it `requires`/`produces` — the
-seed of a dependency DAG that also drives the Dashboard completeness panel. A page
+seed of a dependency DAG that also drives the Dashboard completeness panel.
+A step whose *own form* enters a required slice declares it in `edits` (#45,
+CR-D-3, declared minimally — only where a `requires` has no producing step):
+`workflow.missing_upstream` / `missing_self_entered` split the missing slices by
+remedy, so a self-sufficient page (Weight & Mass Properties, Engine Mount Loads)
+is never reported "blocked" on a fresh project — its guidance points at its own
+form. A DAG-completeness guard (`tests/test_workflow.py`) holds every `requires`
+to *some step's `produces` or some step's `edits`*, with a field-registry rot
+companion on the `edits` declarations. A page
 is exactly `app/views/<step.key>.py`. Since Step G3 the **Develop V-n diagram**
 section — the definition pages this doc is chiefly about — is five consolidated
 pages, several using `st.tabs` to gather formerly-separate pages: **Geometry**;
@@ -194,17 +202,15 @@ never entered twice.)
 The contract that makes pages copy-of-the-pattern (full list in
 [`05_phase_d_gui_workflow_plan.md §5`](../40_history/05_phase_d_gui_workflow_plan.md)):
 
-- **A page opens with `components.page_header(key)`** (or `page(key)`, the
-  context-manager form that also gates on upstream slices) — M4-11. It renders
+- **A page opens with `components.page_header(key)`** — M4-11. It renders
   the title, the optional caption and the FAR 23 applicability banner, and
   returns the `PageContext` (`project`, `system`, `U`) every view needs. `key` is
   the `workflow.BY_KEY` step key — the view's own filename stem — so **the title
-  and the required upstream slices come from `workflow.py`**, the single source
-  of navigation truth, instead of being restated per page. `page()`'s gate links
-  to whichever step *produces* the missing slice, so re-sequencing the workflow
-  re-points every gate without a view being edited. A page with something more
-  specific to say about being blocked keeps its own `gate()` call and passes
-  `gate_missing=False` — the generic message is a floor, not a replacement.
+  comes from `workflow.py`**, the single source of navigation truth, instead of
+  being restated per page. Upstream gating is each page's own `gate()` call with
+  page-specific wording; the `page()` context manager that once promised a
+  generic automatic gate accrued zero callers and was removed (#45) — the
+  hand-written gates are the pattern of record.
 - **Inputs live in an `st.form`** with a single **Apply/Compute** submit — the
   page does not recompute on every keystroke. **Every form carries a unique
   string key** (`st.form("empennage_form")`) — tests select its Apply button

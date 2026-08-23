@@ -18,8 +18,7 @@ set nor its shape is shared; each GUI derives its own (note 32, OG-2).
 
 from __future__ import annotations
 
-from contextlib import contextmanager
-from typing import Iterator, NamedTuple, Optional
+from typing import NamedTuple, Optional
 
 import streamlit as st
 from streamlit.errors import StreamlitAPIException
@@ -175,7 +174,7 @@ def active_system() -> UnitSystem:
     **The single read of the unit selection in the whole app layer** (D-16), which
     is why M4-20 step 2 re-pointed this one function at ``Project.unit_system``
     without touching a single call site that goes through
-    :func:`unit_number_input` or :func:`page`.
+    :func:`unit_number_input`.
 
     The project field is the authority; the session key is the fallback for a
     render that has no project yet (the very first paint, before Home.py has put
@@ -286,11 +285,6 @@ def unit_number_input(
 # --------------------------------------------------------------------------- #
 # Page scaffold (M4-11)
 # --------------------------------------------------------------------------- #
-#: Project slice -> the workflow step that produces it, derived from
-#: ``workflow.STEPS`` so a re-sequenced workflow re-points every gate link.
-_PRODUCER = {s.produces: s.key for s in wf.STEPS if s.produces}
-
-
 class PageContext(NamedTuple):
     """What every view needs off the top: the project and its display units.
 
@@ -319,10 +313,6 @@ def page_header(
     per page; pass ``title=`` only where a page wants a different heading from
     its navigation label.
 
-    This is the plain-call form, for the top-level script views. Use
-    :func:`page` -- the same thing plus an automatic upstream gate -- in new code
-    and anywhere the page body already lives inside a function.
-
     ``switch_action=False`` keeps the applicability warning but drops its
     switch-to-Concept button, for a GUI without concept mode (CR-A-4).
     """
@@ -339,45 +329,3 @@ def page_header(
     return PageContext(project, system, labels_for(system))
 
 
-@contextmanager
-def page(
-    key: str,
-    *,
-    title: Optional[str] = None,
-    caption: Optional[str] = None,
-    banner: bool = True,
-    switch_action: bool = True,
-    gate_missing: bool = True,
-) -> Iterator[PageContext]:
-    """:func:`page_header` plus the upstream gate, as a context manager.
-
-    The *required* slices come from the same ``workflow.py`` step as the title,
-    and each gate's jump link is looked up from the step that **produces** the
-    missing slice -- so a re-sequenced workflow re-points every gate without a
-    view being touched. With ``gate_missing`` (the default) the page body is
-    skipped entirely (``st.stop()``) when a requirement is absent.
-
-    A page with a more specific thing to say about *why* it is blocked should
-    keep its own :func:`gate` call and pass ``gate_missing=False``: the generic
-    message here is a floor, not a replacement for page-specific guidance.
-
-    Usage::
-
-        with page("structural_speeds", caption="...") as (project, system, U):
-            v_a = unit_number_input("VA", inp.va, fixed_unit=KEAS, key="va")
-    """
-    ctx = page_header(key, title=title, caption=caption, banner=banner,
-                      switch_action=switch_action)
-
-    missing = wf.missing_requirements(ctx.project, wf.BY_KEY[key])
-    if missing and gate_missing:
-        for slice_name in missing:
-            producer = _PRODUCER.get(slice_name)
-            target = wf.BY_KEY[producer].title if producer else slice_name
-            gate(
-                f"This page needs **{target}** first — it has no `{slice_name}` yet.",
-                *([producer] if producer else []),
-            )
-        st.stop()
-
-    yield ctx
