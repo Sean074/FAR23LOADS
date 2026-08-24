@@ -80,6 +80,13 @@ def _file_name_of(call):
         if isinstance(node, ast.Call) and getattr(node.func, "attr", "") == "project_filename":
             from sloads.io import PROJECT_SUFFIX
             return PROJECT_SUFFIX
+        # Likewise the results zip's one naming owner (C210-45): the call *is*
+        # the statement that the file is ``<stem>_results.zip``
+        # (``test_results_zip.py`` asserts the suffix on the real name).
+        if isinstance(node, ast.Call) and (
+                getattr(node.func, "id", "") or getattr(node.func, "attr", "")
+        ) in ("results_zip_name", "_results_zip_name"):
+            return "_results.zip"
     return None
 
 
@@ -439,9 +446,16 @@ def test_the_gui_has_exactly_one_download_call_site():
     # input, not a load deliverable, so it is outside G7 by content rather than
     # by which directory it lives in. Anything else the shell offers is a file a
     # user gets from this GUI that page_artifacts() never saw.
+    # The results zip (C210-45) *is* a load deliverable, and its payload gate is
+    # ``tests/test_results_zip.py``, which reads the artifact bytes the way this
+    # file's G7 reads ``page_artifacts()``: the zip's members come from the same
+    # two owners the per-page artifacts do (``module_text_report`` and
+    # ``io.load_cases_csv`` + ``csv_comment_block``), so the ULT marker and the
+    # basis statement are asserted on the bytes a user receives, not assumed.
     others = [s for s in sites if s not in renderer]
     offenders = [f"{f}:{n} -> {name}" for f, n, name in others
-                 if name is None or not name.endswith(".project.json")]
+                 if name is None or not name.endswith((".project.json",
+                                                       "_results.zip"))]
     assert not offenders, (
         "the shared shell offers a download the oracle GUI's output gate cannot "
         "see -- route it through results.page_artifacts() or state why it is not "
@@ -742,3 +756,18 @@ if __name__ == "__main__":  # zero-dependency self-runner
     import sys
 
     sys.exit(pytest.main([__file__, "-p", "no:xdist", "-q"]))
+
+
+def test_grid_pages_carry_the_commit_hint():
+    """C210 review 2026-08-23: a part-filled grid row is held out of the project,
+    which is invisible until it vanishes on a rerun — so every page that renders
+    a ``st.data_editor`` says so once, and a page with no grid does not nag.
+    (The hint's original Enter warning was the C210-4 remount race, fixed by
+    ``_stable_frame``.)"""
+    hint = "fill every column to keep the row"
+    at = _render("configuration_layout")   # surfaces/sections grids
+    assert any(hint in c.value for c in at.caption), (
+        "a grid page must carry the incomplete-row hint")
+    at = _render("structural_speeds")      # scalars only
+    assert not any(hint in c.value for c in at.caption), (
+        "a page with no grid must not carry the hint")
