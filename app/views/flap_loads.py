@@ -93,7 +93,12 @@ except (ValueError, ZeroDivisionError) as exc:
     stop_page()
 
 display_conditions = convert_results(mod.conditions, system)
-vals = {v.key: v.value for v in display_conditions[0].values}
+# Flattened across **every** condition: since #85 the slipstream is its own
+# delivered case and so its own ConditionResult, and this dict is keyed by
+# ``LoadValue.key`` -- reading only ``[0]`` (and then testing membership with the
+# *label* "Slipstream factor") is what kept the slipstream block below dark on
+# this page since it was written.
+vals = {v.key: v.value for c in display_conditions for v in c.values}
 force_u = "N" if system == UnitSystem.SI else "lb"
 pressure_u = "kPa" if system == UnitSystem.SI else "lb/in²"
 st.caption(
@@ -119,7 +124,7 @@ st.write(pd.DataFrame([
     for heading, suffix in conditions
 ]))
 
-if "Slipstream factor" in vals:
+if "slipstream_factor" in vals:
     st.subheader("Slipstream (FAR 23.457(b))")
     s1, s2, s3 = st.columns(3)
     s1.metric("Slipstream factor", f"{vals['slipstream_factor']:.3f}")
@@ -127,6 +132,16 @@ if "Slipstream factor" in vals:
     length_u = "mm" if system == UnitSystem.SI else "in"
     s3.metric(f"Slipstream BL band ({length_u})",
               f"{vals['slipstream_inboard_bl']:.1f} … {vals['slipstream_outboard_bl']:.1f}")
+    st.metric(f"Flap load in slipstream ({force_u}, LIMIT)",
+              f"{vals['flap_load_in_slipstream']:,.0f}")
+    st.caption(
+        "Delivered as a **case beside** the gust-combined one (not multiplied "
+        "with it): the head-on gust and full takeoff power at VF are independent "
+        "worst cases, and the governing flap load is the larger of the two. The "
+        "factor is applied over the whole flap — the exported case carries chord "
+        "fractions and no span, so a partial-span distribution has nowhere to "
+        "live; that is conservative for the flap and its attachments."
+    )
 
 st.download_button("Download flap loads (CSV)", sb.control_surface_csv(results, system=system),
                    file_name="flap_loads.csv", mime="text/csv")

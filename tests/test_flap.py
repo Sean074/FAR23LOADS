@@ -20,7 +20,7 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from sloads import io  # noqa: E402
-from sloads.modules.flap import build_flap, flap_loads, run  # noqa: E402
+from sloads.modules.flap import _compute, build_flap, flap_loads, run  # noqa: E402
 
 REL = 1e-3  # ±0.1%
 
@@ -62,15 +62,82 @@ def test_flap_slipstream_and_gust_oracle():
     assert math.isclose(r.combined_gust_lb, 819.0, rel_tol=2e-3), r.combined_gust_lb
 
 
+def test_flap_slipstream_load_is_the_vf_condition_raised():
+    """The slipstream load is ``factor x`` the **VF-governed** condition.
+
+    No printed oracle exists for this number -- Appendix A prints the factor and
+    the gust-combined 819 lb, never a slipstream-applied load -- so the gate is
+    the stated closure (rule 2): the factor is (Vss/VF)^2, a ratio of dynamic
+    pressures at VF, so it may only scale a load computed at VF. On the manual's
+    own airplane the critical condition *is* 2G at VF, so this equals
+    ``factor x critical`` there: 1.407 x 629 = 885 lb.
+    """
+    r = _oracle()
+    assert math.isclose(r.slipstream_load_lb, r.slipstream_factor * max(r.lf[2], r.lf[3]),
+                        rel_tol=1e-12), r.slipstream_load_lb
+    assert math.isclose(r.slipstream_load_lb, 885.0, rel_tol=2e-3), r.slipstream_load_lb
+    # ...and it is not the two factors multiplied together: the head-on gust and
+    # full takeoff power at VF are independent worst cases, enveloped rather than
+    # stacked (#85, owner ruling 2026-08-24).
+    assert not math.isclose(r.slipstream_load_lb,
+                            r.slipstream_factor * r.combined_gust_lb, rel_tol=1e-6)
+
+
 def test_flap_pipeline():
     """The GA6 example runs FLAPLOAD end-to-end (its engine differs from the manual's
     so the slipstream geometry differs; this checks physics closure + plumbing)."""
     p = io.load_project(_GA)
     mod = run(p)
-    assert mod.module == "flap" and len(mod.conditions) == 1
+    assert mod.module == "flap"
     res = build_flap(p)[0]
     assert res.load_lb > 0 and len(res.stations) == 2
     assert math.isclose(res.stations[1].psi, res.stations[0].psi / 2.0, rel_tol=1e-9)
+
+
+def test_flap_delivers_the_slipstream_as_its_own_case():
+    """A propeller airplane exports the slipstream case beside the gust-combined
+    one, with its own case id and its own reported condition (#85).
+
+    Before this the factor was computed, printed and then dropped: the deck
+    shipped ``max(critical, gust-combined)`` uniformly, understating the flap
+    load inside the band by the whole factor.
+    """
+    p = io.load_project(_GA)
+    cases = build_flap(p)
+    assert [c.case for c in cases] == ["flap gust-combined", "flap slipstream 23.457(b)"]
+    ids = [c.case_ref.case_id for c in cases]
+    assert len(set(ids)) == 2 and all(i.startswith("W-") for i in ids)
+    r = _compute(p)
+    assert math.isclose(cases[1].load_lb, r.slipstream_load_lb, rel_tol=1e-12)
+    assert cases[1].load_lb > cases[0].load_lb   # the slipstream governs on the GA6
+    # The chordwise taper is the Ch 17 one on both cases, and the LE pressure
+    # tracks its own case's load -- not the other's.
+    for c in cases:
+        assert math.isclose(c.stations[1].psi, c.stations[0].psi / 2.0, rel_tol=1e-9)
+    assert math.isclose(cases[1].stations[0].psi / cases[0].stations[0].psi,
+                        cases[1].load_lb / cases[0].load_lb, rel_tol=1e-12)
+    # Both cases carry the same FAR reference, so the governing safety-factor
+    # table classifies them identically (M4-8 / G-11).
+    assert len({c.safety_factor for c in cases}) == 1
+
+    # The reported conditions pair one-to-one with the exported cases (M4-13).
+    mod = run(p)
+    assert [c.case_ref.case_id for c in mod.conditions] == ids
+
+
+def test_flap_without_propeller_power_is_unchanged():
+    """No engine power -> no slipstream case, no slipstream condition.
+
+    The regression lock for every jet/engine-less project: #85 must add a case
+    where a slipstream exists and change nothing at all where it does not.
+    """
+    p = io.load_project(_GA)
+    p.engines = []
+    cases = build_flap(p)
+    assert len(cases) == 1 and cases[0].case == "flap gust-combined"
+    mod = run(p)
+    assert len(mod.conditions) == 1
+    assert not any(v.key.startswith("slipstream") for v in mod.conditions[0].values)
 
 
 def test_flap_io_roundtrip():
