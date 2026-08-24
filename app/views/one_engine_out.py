@@ -16,6 +16,7 @@ import streamlit as st
 from app_shell.components import active_system, gate, stop_page
 from app_shell.widget_keys import widget_key
 from sloads import OneEngineOutInput, Project, UnitSystem, convert_results, to_si_scalar
+from sloads.applicability import engine_failure_not_applicable
 from sloads.modules.one_engine_out import PROPELLER_ONLY_NOTE, run, time_history
 
 st.title("One Engine Out — Vertical Tail Loads (ONENGOUT)")
@@ -36,8 +37,19 @@ project: Project = st.session_state.get("project", Project(name=""))
 # session key is only the no-project-yet fallback inside ``active_system()``.
 system: UnitSystem = active_system()
 
-if not project.engines or len(project.engines) < 2:
-    st.warning("One-engine-out needs a **multi-engine** layout (define ≥2 engines).")
+if not project.engines:
+    # Not an applicability statement: an empty engine list is an unfinished
+    # project, and the form below indexes into it (the failed-engine selector).
+    gate("Define the **engines** first — the failed engine's power, propeller and "
+         "butt line are what this page marches.", "engine_mount")
+    stop_page()
+# Was a hand-written ``len(project.engines) < 2`` here, which caught the single but
+# not the twin whose *failed* engine sits at BL 0 -- also a zero yaw moment, also a
+# simulation of nothing. The shared predicate is what the module refuses on and what
+# the oracle GUI withholds its form on, so the three cannot disagree (#84, C210-43).
+_not_applicable = engine_failure_not_applicable(project)
+if _not_applicable:
+    st.info(_not_applicable)
     stop_page()
 if project.vtail_loads is None:
     gate("Define the **vertical-tail geometry** (Flight Envelope (V-n) page, "

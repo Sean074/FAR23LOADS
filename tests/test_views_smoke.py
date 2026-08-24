@@ -108,6 +108,16 @@ def test_flap_page_shows_the_slipstream_it_computes():
     assert not any("slipstream effect included" in w.value for w in at.warning)
 
 
+def test_one_engine_out_page_states_the_condition_does_not_apply():
+    """#84: the GA6 single must be told 23.367 does not apply to it, in the shared
+    predicate's words -- the page's own ``len(engines) < 2`` test said something
+    close, but missed the centreline twin and did not match what the module said."""
+    at = _run(os.path.join(_ROOT, "app", "views", "one_engine_out.py"))
+    assert not at.exception, [e.message for e in at.exception]
+    said = " ".join(i.value for i in at.info)
+    assert "FAR 23.367 does not apply" in said, said
+
+
 def test_flap_page_says_when_the_slipstream_is_skipped():
     """#83: with the band entered but no engine record, the page must say the
     23.457(b) case is absent -- in *this* GUI too, not only in the oracle GUI.

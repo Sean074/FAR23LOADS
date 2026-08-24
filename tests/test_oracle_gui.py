@@ -385,6 +385,22 @@ def test_the_flap_page_says_when_the_slipstream_case_is_skipped():
     assert "Engine Mount Loads" in shown, shown
 
 
+def test_the_one_engine_out_page_withholds_its_form_on_a_single(monkeypatch):
+    """#84 (C210-43): the page for a condition the airplane cannot have takes no
+    input at all -- it says why and stops, instead of collecting a simulation's
+    worth of transient inputs for a run that prints zeros under a false
+    "uncontrollable" verdict."""
+    project = _seeded()
+    assert len(project.engines) == 1, "the GA6 fixture is the single this is about"
+    at = _render("one_engine_out", project)
+    assert not at.exception, [e.message for e in at.exception]
+    said = " ".join(i.value for i in at.info)
+    assert "FAR 23.367 does not apply" in said, said
+    # No form, and no results table underneath it.
+    assert not at.number_input, [w.label for w in at.number_input]
+    assert not at.subheader, [s.value for s in at.subheader]
+
+
 def test_no_oracle_page_can_reach_the_concept_switch():
     """The drift guard behind the assertion above (``CLAUDE.md`` rule 3).
 

@@ -292,6 +292,91 @@ def test_the_shipped_turboprops_execute_onengout():
             assert recovered == (not cond.title.endswith("VS")), (name, cond.title)
 
 
+# --------------------------------------------------------------------------- #
+# Applicability (#84, C210-43): the condition has to exist before it is simulated
+# --------------------------------------------------------------------------- #
+def _single(bl=0.0):
+    """The GA6 single with a one_engine_out slice -- the C210's shape: one engine,
+    on the centreline, with the transient inputs filled in."""
+    p = _twin()
+    e = p.engines[0]
+    p.engines = [replace(e, engine_designation="ONLY", engine_cg=(22.0, bl, -10.0))]
+    p.engine_layout = EngineLayout.SINGLE_NOSE
+    return p
+
+
+def test_a_single_engine_airplane_is_refused_not_simulated():
+    """The C210-43 defect: with one engine the yaw forcing is ``thrust * 0``, so the
+    march reported zero tail load, zero yaw rate and "NOT recovered ...
+    uncontrollable" -- a false verdict about a condition the airplane cannot have."""
+    import pytest
+
+    from sloads.applicability import ENGINE_FAILURE_NA_LEAD, engine_failure_not_applicable
+    from sloads.models import MissingInputError
+
+    p = _single()
+    reason = engine_failure_not_applicable(p)
+    assert reason and reason.startswith(ENGINE_FAILURE_NA_LEAD), reason
+    with pytest.raises(MissingInputError, match="does not apply"):
+        oeo.run(p)
+    with pytest.raises(MissingInputError, match="does not apply"):
+        oeo.time_history(p, "VC (ultimate)")
+
+
+def test_a_twin_whose_failed_engine_is_on_the_centreline_is_refused_too():
+    """The half a ``len(engines) < 2`` test misses: two engines, but the *failed* one
+    at BL 0 has no moment arm either, so the transient has no forcing in it."""
+    import pytest
+
+    from sloads.applicability import engine_failure_not_applicable
+    from sloads.models import MissingInputError
+
+    p = _twin()
+    p.engines[0] = replace(p.engines[0], engine_cg=(22.0, 0.0, -10.0))
+    p.one_engine_out = replace(p.one_engine_out, failed_engine_index=0)
+    assert "BL 0" in (engine_failure_not_applicable(p) or "")
+    with pytest.raises(MissingInputError, match="does not apply"):
+        oeo.run(p)
+
+    # ...and failing the *other* engine is a real condition again.
+    p.one_engine_out = replace(p.one_engine_out, failed_engine_index=1)
+    assert engine_failure_not_applicable(p) is None
+    assert len(oeo.run(p).conditions) == 3
+
+
+def test_applicability_does_not_speak_for_an_unfinished_project():
+    """No engines and no layout is a project that is not done, not an airplane
+    without the condition -- the module's own "needs Project.engines" refusal says
+    that better, so the predicate stays silent and lets it."""
+    from sloads.applicability import engine_failure_not_applicable
+
+    p = _twin()
+    p.engines = []
+    p.engine_layout = None
+    assert engine_failure_not_applicable(p) is None
+    # With the layout stating a single, the answer is settled without engine rows.
+    p.engine_layout = EngineLayout.SINGLE_NOSE
+    assert "does not apply" in (engine_failure_not_applicable(p) or "")
+
+
+def test_the_coverage_table_and_the_module_cannot_disagree():
+    """Rule-3 tie: 23.367's coverage row reads the same predicate the module refuses
+    on, so the report can never mark the condition analysable while the module
+    declines it. (Coverage adds its own turbopropeller clause on top -- the
+    regulation's scope, where this is the model's; ``PROPELLER_ONLY_NOTE``.)"""
+    from sloads.applicability import engine_failure_not_applicable
+    from sloads.report import coverage
+
+    row = next(r for r in coverage.FAR23_SUBPART_C if r.far == "23.367")
+    assert row.na_when is not None
+    for name in ("atr42_100.project.json", "dhc8_dash8.project.json"):
+        p = io.load_project(os.path.join(_EXAMPLES, name))
+        assert engine_failure_not_applicable(p) is None, name
+    for project in (_single(), _twin()):
+        if engine_failure_not_applicable(project):
+            assert row.na_when(project), "coverage must agree the condition is absent"
+
+
 def test_io_roundtrip():
     """The one_engine_out slice (and VTailLoadsInput.xv50) round-trip; an older file
     without the slice still loads (None)."""

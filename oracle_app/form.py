@@ -54,6 +54,7 @@ from oracle_app.labels import pretty
 from oracle_app.results import render_results
 from sloads import field_registry as fr
 from sloads import workflow as wf
+from sloads.applicability import step_not_applicable
 from sloads.derived import refresh_derived
 from sloads.models import Project, same_name
 from sloads.selectors import duplicate_selectors, seed_name
@@ -963,6 +964,19 @@ def render_step(key: str) -> None:
     # the button wrote ``speeds.category="C"`` and seeded the concept load
     # factors from a GUI that shows neither (CR-A-4).
     ctx = page_header(key, caption=_step_caption(step), switch_action=False)
+
+    # A page for a condition this airplane cannot have collects nothing. 23.367 on
+    # a single or centreline engine has no yaw forcing at all, and the page used to
+    # take a full simulation's inputs and then print zero tail load, zero yaw rate
+    # and "NOT recovered ... uncontrollable" -- a verdict about an airplane that has
+    # no engine-out case (#84, C210-43). Said and withheld here, one step earlier
+    # than the #66/PB-7 results withhold: there is no input to take, not merely
+    # nothing to show. Keyed by a table so the next such condition is data.
+    reason = step_not_applicable(key, ctx.project)
+    if reason:
+        st.info(reason)
+        return
+
     groups = page_groups(key)
 
     if not groups:
