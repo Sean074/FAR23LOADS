@@ -457,6 +457,72 @@ def test_landing_reaction_warnings_flag_the_zero_waterline_reactions():
     assert any(c.vnp < 0 for c in bad), "expected the nonphysical negative nose reactions"
 
 
+def test_flap_slipstream_warns_when_the_band_is_entered_with_no_engine():
+    """#83 (C210-40): AF/BLPROP entered, no engine record -> the 23.457(b) case is
+    skipped and the flap is sized on the gust-combined load alone. Since #85 that
+    is a missing *delivered* case, not just an unprinted factor."""
+    project = sloads_io.load_project(_GA)
+    assert project.flap_loads.nacelle_frontal_area_sqft > 0, "fixture must enter AF"
+    assert "flap_slipstream_skipped" not in _codes(project), "engine present -> silent"
+
+    project.engines = []
+    codes = _codes(project, page="flap_loads")
+    assert "flap_slipstream_skipped" in codes, codes
+    message = next(w.message for w in consistency_warnings(project)
+                   if w.code == "flap_slipstream_skipped")
+    assert "Engine Mount Loads" in message, "the warning must name where to fix it"
+
+
+def test_flap_slipstream_warning_fires_exactly_when_the_module_skips_the_term():
+    """The predicate and ``flap.slipstream_is_available`` are the same condition.
+
+    A second copy of ``maxhp > 0 and pdia_in > 0`` in ``validation`` could drift
+    from the one in ``flap_loads`` and warn about a term that was computed (or stay
+    silent about one that was not). This ties them together over the partial
+    records -- power without a propeller, and a propeller without power -- which
+    are the cases a hand-written copy gets wrong."""
+    from dataclasses import replace as _replace
+
+    from sloads.modules.flap import _compute, slipstream_is_available
+
+    base = sloads_io.load_project(_GA)
+    eng = base.engines[0]
+    variants = {
+        "complete": [eng],
+        "no engine record": [],
+        "power, no propeller": [_replace(eng, prop_diameter_in=0.0)],
+        "propeller, no power": [_replace(eng, takeoff_hp=None, max_cont_hp=None)],
+    }
+    for name, engines in variants.items():
+        project = sloads_io.load_project(_GA)
+        project.engines = list(engines)
+        available = slipstream_is_available(project)
+        computed = _compute(project).slipstream_factor > 0
+        warned = "flap_slipstream_skipped" in _codes(project)
+        assert available == computed, f"{name}: predicate disagrees with the module"
+        assert warned != computed, f"{name}: warned={warned} but computed={computed}"
+
+
+def test_flap_slipstream_is_silent_when_the_band_was_never_entered():
+    """A jet leaves AF/BLPROP at zero and must stay silent.
+
+    ``EngineType`` has no jet member, so ``concept_regional_jet``'s turbofans are
+    stored as TURBOPROP with a zero propeller diameter -- indistinguishable from an
+    unentered piston record by type alone. The entered band geometry is what
+    separates them, and it is why this check keys on AF/BLPROP rather than on the
+    engine list (#83)."""
+    jet = sloads_io.load_project(os.path.join(_EXAMPLES, "concept_regional_jet.project.json"))
+    assert jet.flap_loads is not None and jet.flap_loads.flap_area_one_side_sqft > 0
+    assert jet.flap_loads.nacelle_frontal_area_sqft == 0
+    assert "flap_slipstream_skipped" not in _codes(jet)
+
+    stripped = sloads_io.load_project(_GA)
+    stripped.engines = []
+    stripped.flap_loads.nacelle_frontal_area_sqft = 0.0
+    stripped.flap_loads.engine_butt_line_in = 0.0
+    assert "flap_slipstream_skipped" not in _codes(stripped)
+
+
 def test_every_warning_targets_a_real_page():
     """Rule-3 drift guard: every ``page`` tag is a ``workflow.STEPS`` key (#82).
 

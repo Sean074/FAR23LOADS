@@ -367,6 +367,24 @@ def test_an_entry_error_is_not_shown_on_a_page_that_does_not_own_it():
     assert "wing_fraction" not in shown, shown
 
 
+def test_the_flap_page_says_when_the_slipstream_case_is_skipped():
+    """#83 (C210-40) on the GUI the C210 was built in.
+
+    The build entered the slipstream band (AF 15.2, BLPROP 0) with no engine
+    record yet, and the page printed a critical flap load with the 23.457(b)
+    amplification silently absent -- since #85, a delivered case that does not
+    exist. The warning rides #82's channel, so the oracle GUI gets it with no
+    per-page wiring at all.
+    """
+    project = _seeded()
+    project.engines = []
+    at = _render("flap_loads", project)
+    assert not at.exception, [e.message for e in at.exception]
+    shown = " ".join(w.value for w in at.warning)
+    assert "slipstream effect included" in shown, [w.value for w in at.warning]
+    assert "Engine Mount Loads" in shown, shown
+
+
 def test_no_oracle_page_can_reach_the_concept_switch():
     """The drift guard behind the assertion above (``CLAUDE.md`` rule 3).
 

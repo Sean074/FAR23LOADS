@@ -211,6 +211,20 @@ def _engine_power(project: Project):
     return hp or 0.0, eng.prop_diameter_in or 0.0
 
 
+def slipstream_is_available(project: Project) -> bool:
+    """True when the airplane record supplies what FAR 23.457(b) needs.
+
+    The 23.457(b) term needs both a power to absorb and a disk to absorb it
+    through, which is exactly the condition :func:`flap_loads` computes it under
+    (``maxhp > 0 and pdia_in > 0``). Stated once here so
+    :mod:`sloads.validation` can warn on the *same* condition the module skips on
+    rather than a second copy of it that can drift; the two are tied together by
+    a test (#83).
+    """
+    hp, dia = _engine_power(project)
+    return hp > 0 and dia > 0
+
+
 def _compute(project: Project) -> FlapResult:
     if project.flap_loads is None:
         raise MissingInputError("flap needs the 'flap_loads' input slice")
