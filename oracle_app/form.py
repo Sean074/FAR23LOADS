@@ -43,7 +43,7 @@ from __future__ import annotations
 import dataclasses
 import typing
 from enum import Enum
-from typing import Any, Dict, List, Optional, Sequence, Tuple
+from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple
 
 import pandas as pd
 import streamlit as st
@@ -616,9 +616,15 @@ def render_curve(record: Any, path: str, *, key: str, container: Any = None) -> 
     # polyline typed from blank came back as strings ('28', '0'), was stored as
     # string tuples and crashed WINGGEOM on ``ytip - yroot`` (C210-7, the
     # Cessna 210 build review 2026-08-23). A curve's members are all numeric.
+    # The base frame is *stable per page visit* (C210-4, _FRAME_CACHE_KEY):
+    # added/edited/deleted rows live in the widget's own state, so the row
+    # count must NOT be in the cache key -- the editor itself grows the model.
+    frame = _stable_frame(
+        f"{widget_key(key)}|{system.value}",
+        lambda: pd.DataFrame(display, columns=headers, dtype=float),
+    )
     edited = where.data_editor(
-        pd.DataFrame(display, columns=headers, dtype=float), num_rows="dynamic",
-        key=widget_key(key), width="stretch",
+        frame, num_rows="dynamic", key=widget_key(key), width="stretch",
     )
     # ``rows`` is what was rendered, so row ``n`` of the editor is row ``n`` of
     # the stored curve until the user adds or removes one -- and past that point
@@ -668,6 +674,47 @@ def _to_imperial(value: Any, unit: FieldUnit) -> Any:
     if unit.kind is None or not isinstance(value, (int, float)):
         return value
     return to_imperial_scalar(float(value), unit.kind, active_system())
+
+
+#: Session-state key of the per-page grid frame cache (C210-4, build review
+#: 2026-08-23). ``st.data_editor``'s widget identity includes the data bytes,
+#: so a grid whose input frame is rebuilt from the model on every rerun gets a
+#: **new identity after every committed cell** -- the frontend remounts it, and
+#: any keystroke in flight when the remount lands is silently discarded (the
+#: classic write-back anti-pattern: cells lost at normal typing pace, a typed
+#: minus sign swallowed). The base frame is therefore built **once per page
+#: visit** and reused byte-identically; every edit lives in the widget's own
+#: state and is persisted to the model each run (idempotently -- `_persist` /
+#: `_set_entered` are equality-guarded). The cache is keyed by widget key +
+#: unit system (+ row count for count-driven tables) and reset on page change,
+#: so a project load (generation bump), a unit toggle, a row-count change or
+#: navigating away all rebuild from the model.
+_FRAME_CACHE_KEY = "_grid_frame_cache"
+
+
+def _reset_frame_cache(step_key: str) -> None:
+    """Drop cached grid frames when the page changes (see _FRAME_CACHE_KEY)."""
+    try:
+        cache = st.session_state.get(_FRAME_CACHE_KEY)
+        if not isinstance(cache, dict) or cache.get("__step") != step_key:
+            st.session_state[_FRAME_CACHE_KEY] = {"__step": step_key}
+    except Exception:  # bare mode: no session state, no cache
+        pass
+
+
+def _stable_frame(ckey: str, build: "Callable[[], pd.DataFrame]") -> pd.DataFrame:
+    """The grid's base frame: cached per page visit, else freshly built."""
+    try:
+        cache = st.session_state.get(_FRAME_CACHE_KEY)
+    except Exception:
+        cache = None
+    if not isinstance(cache, dict):
+        return build()
+    frame = cache.get(ckey)
+    if frame is None:
+        frame = build()
+        cache[ckey] = frame
+    return frame
 
 
 def _numeric(value: Any) -> Any:
@@ -809,11 +856,17 @@ def _render_flat_table(rows: List[Any], paths: Sequence[str], prefix: str) -> No
         p: f"{_field_label(p)} ({_unit_label(units[p], system)})".replace(" ()", "")
         for p in paths
     }
-    frame = pd.DataFrame([
-        {headers[p]: _cell_out(getattr(row, _leaf(p)), units[p]) for p in paths}
-        for row in rows
-    ], columns=[headers[p] for p in paths])
-
+    # Stable per page visit (C210-4, _FRAME_CACHE_KEY). Row count IS in the
+    # cache key here: these tables are sized by the count widget outside the
+    # grid, so a count change must rebuild the frame (from the model, which
+    # holds every persisted edit) while cell edits must not.
+    frame = _stable_frame(
+        f"{widget_key(prefix)}|{system.value}|{len(rows)}",
+        lambda: pd.DataFrame([
+            {headers[p]: _cell_out(getattr(row, _leaf(p)), units[p]) for p in paths}
+            for row in rows
+        ], columns=[headers[p] for p in paths]),
+    )
     edited = st.data_editor(
         frame, key=widget_key(prefix), width="stretch", column_config={
             headers[p]: _column_config(p, headers[p]) for p in paths
@@ -829,6 +882,12 @@ def _column_config(path: str, header: str) -> Any:
     if enum is not None:
         return st.column_config.SelectboxColumn(
             header, options=[m.value for m in enum], help=_help(path))
+    inner, _ = _unwrap_optional(fr.field_type(path))
+    if inner in (float, int):
+        # An explicit NumberColumn, not the inferred generic cell: the generic
+        # number editor refused a typed minus sign (C210 build review
+        # 2026-08-23 -- "-25" landed as "25", silently, on a station column).
+        return st.column_config.NumberColumn(header, help=_help(path))
     return st.column_config.Column(header, help=_help(path))
 
 
@@ -879,9 +938,25 @@ def page_groups(key: str) -> List[Tuple[str, List[str]]]:
     return list(groups.items())
 
 
+def _page_has_grid(groups: Sequence[Tuple[str, Sequence[str]]]) -> bool:
+    """True when any group renders a ``st.data_editor`` grid: a list record
+    (flat table or expander rows, which may hold curve grids) or a curve field
+    on a plain record."""
+    for prefix, paths in groups:
+        if prefix.endswith(fr.LIST_MARKER):
+            return True
+        for p in paths:
+            element = _list_element(fr.field_type(p))
+            if element is not None and not (
+                    isinstance(element, type) and issubclass(element, Enum)):
+                return True
+    return False
+
+
 def render_step(key: str) -> None:
     """Render the oracle GUI page for workflow step ``key``."""
     _PENDING.clear()
+    _reset_frame_cache(key)
     step = wf.BY_KEY[key]
     # ``switch_action=False``: an out-of-band airplane is still told its results
     # are an extrapolation, but concept mode is not this GUI's to enter (OG-1) --
@@ -897,6 +972,17 @@ def render_step(key: str) -> None:
             f"({', '.join(step.requires) or 'nothing'})."
         )
     else:
+        if _page_has_grid(groups):
+            # Asked for by the owner mid-build (C210 review 2026-08-23): a
+            # part-filled row is deliberately held out of the project, which is
+            # invisible until it vanishes on a rerun. Said once, above the
+            # first grid. (The original wording also warned that Enter could
+            # drop an entry — that was the C210-4 remount race, fixed by
+            # _stable_frame, so the warning came back out.)
+            st.caption(
+                "Table rows with an empty cell are not saved — fill every "
+                "column to keep the row."
+            )
         for prefix, paths in groups:
             st.subheader(pretty(prefix.rstrip(fr.LIST_MARKER).rsplit(".", 1)[-1] or "Project"))
             st.caption(f"`{prefix or '(project)'}`")
