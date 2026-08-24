@@ -18,14 +18,20 @@ set nor its shape is shared; each GUI derives its own (note 32, OG-2).
 
 from __future__ import annotations
 
-from typing import NamedTuple, NoReturn, Optional
+from typing import Container, NamedTuple, NoReturn, Optional
 
 import streamlit as st
 from streamlit.errors import StreamlitAPIException
 
 from app_shell.nav import page_for
 from app_shell.widget_keys import widget_key
-from sloads import Project, StructuralSpeedsInput, UnitSystem, far23_applicability
+from sloads import (
+    Project,
+    StructuralSpeedsInput,
+    UnitSystem,
+    consistency_warnings,
+    far23_applicability,
+)
 from sloads import workflow as wf
 from sloads.applicability import design_weight_lb
 from sloads.modules.structural_speeds import maneuver_load_factors
@@ -326,6 +332,35 @@ class PageContext(NamedTuple):
     U: dict
 
 
+def render_consistency_warnings(
+    project: Project,
+    key: str,
+    *,
+    only_codes: Optional[Container[str]] = None,
+) -> None:
+    """Render the input-consistency warnings tagged for workflow step ``key``.
+
+    The **one** consumer of :func:`sloads.consistency_warnings` in either GUI
+    (practice 3: one source, so the two front-ends cannot diverge). Until #82 the
+    main GUI open-coded this loop in six views -- two of them against page names
+    that no longer existed -- and ``oracle_app``/``app_shell`` had no consumer of
+    ``ConsistencyWarning`` at all: a page-targeted entry-error channel that is
+    part of the analysis contract was dark exactly where entries are made. A
+    detected contradictory ``wing_fraction`` entry survived a whole build review
+    unshown that way (C210-35).
+
+    ``only_codes`` narrows to a named subset, for a page that re-states one
+    warning next to the result it bears on (the Design Speeds page's operational
+    limitations tab).
+    """
+    for w in consistency_warnings(project):
+        if w.page != key:
+            continue
+        if only_codes is not None and w.code not in only_codes:
+            continue
+        st.warning(w.message)
+
+
 def page_header(
     key: str,
     *,
@@ -354,6 +389,12 @@ def page_header(
     project = active_project()
     if banner:
         render_applicability_banner(project, switch_action=switch_action)
+    # Every page that opens with this header gets the entry-error warnings tagged
+    # for it -- both GUIs, all fourteen oracle pages included, with nothing to
+    # remember per page (#82). It sits with the applicability banner because it is
+    # the same kind of thing: a page-targeted finding about the inputs, rendered
+    # from the step key the header already has.
+    render_consistency_warnings(project, key)
 
     system = active_system()
     return PageContext(project, system, labels_for(system))

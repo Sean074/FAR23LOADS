@@ -27,6 +27,7 @@ from app_shell.components import (
     ALTITUDE_FT,
     KEAS,
     page_header,
+    render_consistency_warnings,
     unit_number_input,
     workflow_page_link,
 )
@@ -38,7 +39,6 @@ from sloads import (
     StructuralSpeedsInput,
     UnitSystem,
     VdBasis,
-    consistency_warnings,
     convert_results,
     to_display,
 )
@@ -79,10 +79,7 @@ _VD_BASIS_LABEL = {v: k for k, v in _VD_BASIS.items()}
 # Tab 1 -- Design Speeds (STRSPEED)
 # --------------------------------------------------------------------------- #
 def _tab_design_speeds(project: Project, system: UnitSystem, U: dict) -> None:
-    for _w in consistency_warnings(project):
-        if _w.page == "structural_speeds":
-            st.warning(_w.message)
-
+    # This page's warnings are rendered once, above the tabs, by ``page_header``.
     with st.expander("ℹ️ Parameter guide", expanded=False):
         st.markdown(
             "Design speeds and load factors per 14 CFR 23.335/23.337 (STRSPEED/MACHLIM, Ch 5). All speeds are "
@@ -460,9 +457,10 @@ def _tab_design_speeds(project: Project, system: UnitSystem, U: dict) -> None:
             st.dataframe(pd.DataFrame(rows), hide_index=True, use_container_width=True)
             if r.note:
                 st.caption(r.note)
-    for _w in consistency_warnings(project):
-        if _w.page == "structural_speeds" and _w.code == "operational_target_infeasible":
-            st.warning(_w.message)
+    # Deliberately re-stated here beside the placards it bears on, as well as at
+    # the top of the page: this is the one warning whose subject *is* this tab.
+    render_consistency_warnings(project, "structural_speeds",
+                                only_codes={"operational_target_infeasible"})
 
     st.divider()
     st.caption(

@@ -322,6 +322,51 @@ def test_an_out_of_band_airplane_is_warned_but_offered_no_concept_switch():
         "carry a single page or field for (OG-1, CR-A-4)")
 
 
+# --------------------------------------------------------------------------- #
+# The entry-error channel (#82, C210-35)
+# --------------------------------------------------------------------------- #
+def _contradictory_wing_row():
+    """The C210-35 entry: a wing-tagged mass row also carrying ``wing_fraction``.
+
+    ``wing_fraction`` is the wing-reacted fraction of a row tagged to *another*
+    component, so 1 on a wing row is a contradiction the checks name. This is the
+    exact entry that survived a whole build review unshown.
+    """
+    from sloads.models import MassComponent
+
+    project = _seeded()
+    item = next(i for i in project.weight.items
+                if i.component == MassComponent.WING)
+    item.wing_fraction = 1.0
+    return project
+
+
+def test_an_entry_error_is_shown_on_the_page_that_owns_it():
+    """The oracle GUI renders the ``consistency_warnings`` channel (#82).
+
+    Until this, ``oracle_app``/``app_shell`` had no consumer of
+    ``ConsistencyWarning`` at all: a page-targeted entry-error channel that is
+    part of the analysis contract (C210-15) was dark exactly where entries are
+    made. Read from the rendered warnings, not from the source.
+    """
+    at = _render("weight_mass", _contradictory_wing_row())
+    assert not at.exception, [e.message for e in at.exception]
+    shown = " ".join(w.value for w in at.warning)
+    assert "wing_fraction" in shown, (
+        "the oracle GUI's weights page does not show the entry-error warning "
+        "its own validator raises")
+
+
+def test_an_entry_error_is_not_shown_on_a_page_that_does_not_own_it():
+    """The ``page`` tag is honoured, not ignored: the same project's warning
+    must not appear on an unrelated page, or every page becomes a wall of text
+    and the targeting the channel is built on means nothing."""
+    at = _render("flap_loads", _contradictory_wing_row())
+    assert not at.exception, [e.message for e in at.exception]
+    shown = " ".join(w.value for w in at.warning)
+    assert "wing_fraction" not in shown, shown
+
+
 def test_no_oracle_page_can_reach_the_concept_switch():
     """The drift guard behind the assertion above (``CLAUDE.md`` rule 3).
 
