@@ -85,10 +85,19 @@ if TYPE_CHECKING:  # pragma: no cover - typing only
     from .models import GearReactionCase
 
 # Pages that render consistency warnings (the ``page`` tag on each warning).
+#
+# Every value here is a **workflow step key** -- ``sloads.workflow`` is the nav
+# SSOT, so a tag naming anything else names a page no GUI has. Two did until #82:
+# ``weight_cg_inertia`` (the weights page has been ``weight_mass`` since Step G3)
+# and ``wing_geometry`` (merged into ``configuration_layout`` at Step G1). They
+# survived because two views in ``app/`` compared against the old strings by
+# hand, so 19 checks -- 14 of them the weights ones, the largest group in this
+# module -- were reachable only through a hardcoded literal, and were dark
+# everywhere else. ``tests/test_validation.py`` now asserts the whole set against
+# ``workflow.STEPS``.
 PAGE_CONFIGURATION = "configuration_layout"
-PAGE_WING_GEOMETRY = "wing_geometry"
 PAGE_STRUCTURAL_SPEEDS = "structural_speeds"
-PAGE_WEIGHT_CG = "weight_cg_inertia"
+PAGE_WEIGHT_CG = "weight_mass"
 PAGE_EXPORT = "export_report"
 PAGE_LANDING = "landing_loads"
 PAGE_AERO_COEFFS = "aero_coefficients"
@@ -108,7 +117,9 @@ class ConsistencyWarning:
     """One input-consistency finding.
 
     ``code`` is a stable slug (for tests); ``message`` is the human-readable
-    ``st.warning`` text; ``page`` is the view-key that should render it.
+    ``st.warning`` text; ``page`` is the **workflow step key** of the page that
+    should render it -- a key from ``sloads.workflow.STEPS``, nothing else, so
+    both GUIs resolve it against the same nav SSOT (#82).
     """
     code: str
     message: str
@@ -148,7 +159,7 @@ def _check_taper(project: Project) -> List[ConsistencyWarning]:
                     "taper_gt_1",
                     f"Aero surface '{s.name}' taper ratio {s.taper_ratio:.3f} is "
                     "greater than 1 (tip chord exceeds root chord).",
-                    PAGE_WING_GEOMETRY))
+                    PAGE_CONFIGURATION))
     return out
 
 
@@ -169,7 +180,7 @@ def _check_area(project: Project) -> List[ConsistencyWarning]:
             "nonpositive_area",
             "WINGGEOM planform area is zero or negative -- check the wing "
             "leading-/trailing-edge points.",
-            PAGE_WING_GEOMETRY))
+            PAGE_CONFIGURATION))
     return out
 
 
@@ -193,13 +204,13 @@ def _check_le_te_ordering(project: Project) -> List[ConsistencyWarning]:
                 "le_te_ordering",
                 f"Surface '{surf.name}': a leading-edge station is not forward of "
                 "the trailing edge (LE fuselage station X must be less than TE).",
-                PAGE_WING_GEOMETRY))
+                PAGE_CONFIGURATION))
         if bad_order:
             out.append(ConsistencyWarning(
                 "le_te_ordering",
                 f"Surface '{surf.name}': edge points are not ordered inboard→outboard "
                 "(butt line |Y| should increase).",
-                PAGE_WING_GEOMETRY))
+                PAGE_CONFIGURATION))
     return out
 
 
@@ -217,7 +228,7 @@ def _check_area_mismatch(project: Project) -> List[ConsistencyWarning]:
             f"{cfg.wing_area_sqft:,.1f} ft² but the WINGGEOM planform is "
             f"{geo_area:,.1f} ft² ({rel * 100:.0f}% apart). They should agree.")
         return [ConsistencyWarning("area_mismatch", msg, PAGE_CONFIGURATION),
-                ConsistencyWarning("area_mismatch", msg, PAGE_WING_GEOMETRY)]
+                ConsistencyWarning("area_mismatch", msg, PAGE_CONFIGURATION)]
     return []
 
 

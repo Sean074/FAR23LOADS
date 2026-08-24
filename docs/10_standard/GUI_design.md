@@ -495,6 +495,30 @@ checks are pure predicates in `sloads/validation.py`
 (`consistency_warnings(project)`), each tagged with the page that renders it; the
 CG-envelope check compares the WTONECG CG against the WTENV structural envelope and
 is silently skipped when that envelope (or the wing geometry it needs) is absent.
+
+**One renderer, both GUIs, and the tag is a workflow key (#82, 2026-08-24).**
+`app_shell.components.render_consistency_warnings(project, key)` is the **only**
+consumer of `consistency_warnings` in either front-end, and `page_header` calls
+it from the step key it already holds — so every page that opens with the shared
+header shows the warnings tagged for it, in `app/` and in `oracle_app/` alike,
+with no per-page call to forget. Two things were wrong before it, and they
+compounded: the main GUI open-coded the loop in six views, and
+`oracle_app`/`app_shell` had **no consumer of `ConsistencyWarning` at all** — so
+a page-targeted entry-error channel that is part of the analysis contract
+(C210-15) was dark exactly where entries are made, and a detected contradictory
+`wing_fraction` entry survived a whole build review unshown (C210-35). Worse,
+two `page` tags named pages that no longer existed — `weight_cg_inertia` (the
+weights page has been `weight_mass` since Step G3) and `wing_geometry` (merged
+into `configuration_layout` at Step G1) — covering 19 checks, 14 of them the
+weights group, reachable only because two views compared against the old strings
+by hand. **Every `page` tag is now a `sloads.workflow.STEPS` key**, the nav SSOT,
+guarded by `tests/test_validation.py::test_every_warning_targets_a_real_page`
+over both the `PAGE_*` constants and the tags the live checks actually emit
+(rule 3). A page may re-state one warning next to the result it bears on via
+`only_codes=` — the Design Speeds page's operational-limitations tab is the one
+instance. Warnings tagged `export_report` stay main-GUI-only: the oracle GUI has
+no export page and no way to set a safety-factor override, so the guard permits a
+tag that is a workflow key without being an oracle step (OG-2 scope).
 The Project JSON Editor additionally scans the **raw** edited dict at Apply for
 invalid `safety_factor` values (via the public `validation.safety_factor_valid`)
 and warns that they were reset — `io.py`'s readers coerce any invalid persisted

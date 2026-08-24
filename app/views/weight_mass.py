@@ -41,7 +41,6 @@ from sloads import (
     WeightEnvelopeInput,
     WeightEstimationInput,
     WeightInput,
-    consistency_warnings,
     convert_results,
     mass_distribution,
     to_display,
@@ -405,11 +404,6 @@ def _tab_cg_inertia(project: Project, system: UnitSystem, U: dict) -> None:
     except ValueError as exc:
         st.warning(f"Add at least one non-zero weight item: {exc}")
         return
-
-    # Input-consistency check (Step E3): CG vs the WTENV structural envelope.
-    for _w in consistency_warnings(project):
-        if _w.page == "weight_cg_inertia":
-            st.warning(_w.message)
 
     result = convert_results([raw_result], system)[0]
     st.subheader(f"FAR {result.far_reference} — {result.title}")

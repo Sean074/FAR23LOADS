@@ -24,7 +24,7 @@ import plotly.graph_objects as go
 import streamlit as st
 from plotly.subplots import make_subplots
 
-from app_shell.components import gate, stop_page
+from app_shell.components import gate, page_header, stop_page
 from app_shell.widget_keys import widget_key
 from sloads import (
     AeroCoefficientsInput,
@@ -33,7 +33,6 @@ from sloads import (
     LateralBodyAeroInput,
     Project,
     build_aero_curves,
-    consistency_warnings,
     curve_closure,
     operating_points,
 )
@@ -41,14 +40,21 @@ from sloads.derived_geometry import wing_reference
 from sloads.fuselage_moment import estimate as estimate_fuselage_moment
 from sloads.modules.flight_envelope import balance_configs, build_envelope
 
-st.title("Aerodynamic Data")
-st.caption(
-    "Airplane-less-tail aerodynamic coefficient sets (Ch 7 aero-coefficients "
-    "program output) that the Flight Envelope page (FLTLOADS) balances against: "
-    "CL = C0 + C1·α + C2·α² + C3·α³ + C4·α⁴ (α in deg); CD = D0 + D1·CL + … ; "
-    "CM = M0 + M1·α + … . Cruise is balanced at every altitude in the flight "
-    "envelope; flaps-down is balanced at sea level only (FLTLOADS.BAS line 3000)."
-)
+# ``banner=False`` keeps this page exactly as it was apart from the warnings
+# (#82) -- it has never carried the applicability banner, and adding one is not
+# this item's to decide. The title is the workflow step's, which is the same
+# "Aerodynamic Data" it stated by hand.
+project: Project = page_header(
+    "aero_coefficients",
+    caption=(
+        "Airplane-less-tail aerodynamic coefficient sets (Ch 7 aero-coefficients "
+        "program output) that the Flight Envelope page (FLTLOADS) balances against: "
+        "CL = C0 + C1·α + C2·α² + C3·α³ + C4·α⁴ (α in deg); CD = D0 + D1·CL + … ; "
+        "CM = M0 + M1·α + … . Cruise is balanced at every altitude in the flight "
+        "envelope; flaps-down is balanced at sea level only (FLTLOADS.BAS line 3000)."
+    ),
+    banner=False,
+).project
 st.caption(
     "This page holds the airplane-less-tail balance coefficients. Each lifting "
     "surface's spanwise (Schrenk) aero -- lift-curve slope, twist, target CL, "
@@ -56,7 +62,6 @@ st.caption(
     "phase), next to the load distribution it drives."
 )
 
-project: Project = st.session_state.get("project", Project(name=""))
 aero = project.aero_coeffs
 
 with st.expander("ℹ️ Parameter guide", expanded=False):
@@ -213,10 +218,6 @@ st.caption(
     "quantities are **dimensionless**; α is in **degrees** — nothing here changes "
     "with the unit-system toggle."
 )
-
-for _w in consistency_warnings(project):
-    if _w.page == "aero_coefficients":
-        st.warning(_w.message)
 
 # The balance's own view of the coefficients (Step G4 folds an enabled fuselage
 # dCm/dalpha into M1 on a copy), so the curve is the one FLTLOADS actually flies.

@@ -39,7 +39,6 @@ from sloads.gear_loads import UNSPRUNG_NOTE, gear_case_loads
 from sloads.models import MissingInputError
 from sloads.modules.landing import build_landing, run
 from sloads.validation import (
-    consistency_warnings,
     landing_reaction_warnings,
 )
 
@@ -181,10 +180,6 @@ if _blocked:
         st.info(_msg)
     workflow_page_link("weight_mass", label="→ Weight & Mass Properties")
     stop_page()
-
-for _w in consistency_warnings(project):
-    if _w.page == "landing_loads":
-        st.warning(_w.message)
 
 if project.is_concept:
     st.warning("Concept category (C): an **unverified extrapolation** above the "

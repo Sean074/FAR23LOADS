@@ -42,7 +42,6 @@ from sloads import (
     UnitSystem,
     VTailLoadsInput,
     WeightInput,
-    consistency_warnings,
     convert_results,
     labels_for,
     to_display,
@@ -83,11 +82,10 @@ st.caption(
     "no original program and no regression oracle; figures are first-order estimates."
 )
 
-for _w in consistency_warnings(project):
-    # The Geometry page is the merged home of the old Configuration & Layout and
-    # Wing Geometry pages (Step G1), so it surfaces both warning categories.
-    if _w.page in ("configuration_layout", "wing_geometry"):
-        st.warning(_w.message)
+# The warnings this page owns are rendered by ``page_header`` (#82). The old
+# ``wing_geometry`` tag this loop also matched by hand is gone: the Step G1 merge
+# made this page their home, so they carry the merged page's key like everything
+# else.
 # D-16: ``active_system()`` is the single read of the unit selection. Reading
 # ``session_state["unit_system"]`` here was a second authority for the same
 # decision -- since M4-20 step 2 the project field is the source, and the

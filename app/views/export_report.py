@@ -34,9 +34,9 @@ from importlib.metadata import version as _pkg_version
 
 import streamlit as st
 
-from app_shell.components import active_system, gate
+from app_shell.components import active_system, gate, page_header
 from app_shell.widget_keys import widget_key
-from sloads import Project, consistency_warnings, registry
+from sloads import Project, registry
 from sloads import io as sloads_io
 from sloads import workflow as wf
 from sloads.export import mass_cards as mc
@@ -71,20 +71,19 @@ def _version(name: str) -> str:
     except PackageNotFoundError:  # pragma: no cover - source checkout without install
         return ""
 
-st.title("Export & Report")
-st.caption(
-    "Project JSON, per-module load CSVs, and sbeam BDF cards — all recomputed from "
-    "the current inputs, so exports are never stale."
-)
-
-project: Project = st.session_state.get("project", Project(name=""))
+# The header renders this page's consistency warnings (M4-14: an out-of-range
+# per-case safety_factor would make the exported ULTIMATE loads unconservative).
+# ``banner=False``: this page has never carried the applicability banner, and
+# #82 changes what is *rendered here*, not what this page is.
+project: Project = page_header(
+    "export_report",
+    caption=(
+        "Project JSON, per-module load CSVs, and sbeam BDF cards — all recomputed "
+        "from the current inputs, so exports are never stale."
+    ),
+    banner=False,
+).project
 _stem = (project.name or "project").strip().replace(" ", "_") or "project"
-
-# Consistency warnings tagged for this page (M4-14: an out-of-range per-case
-# safety_factor would make the exported ULTIMATE loads unconservative).
-for _w in consistency_warnings(project):
-    if _w.page == "export_report":
-        st.warning(_w.message)
 
 _CALC_ERRORS = (ValueError, ZeroDivisionError, KeyError, IndexError)
 

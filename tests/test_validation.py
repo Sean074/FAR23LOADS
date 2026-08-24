@@ -65,7 +65,7 @@ def test_le_te_ordering_fires_when_le_behind_te():
         leading_edge=[(100.0, 0.0), (110.0, 100.0)],
         trailing_edge=[(90.0, 0.0), (95.0, 100.0)])
     project = Project(name="t", geometry=GeometryInput(surfaces=[surf]))
-    assert "le_te_ordering" in _codes(project, page="wing_geometry")
+    assert "le_te_ordering" in _codes(project, page="configuration_layout")
 
 
 def test_le_te_ordering_silent_when_well_formed():
@@ -115,7 +115,7 @@ def test_cg_outside_envelope_fires():
     project.weight.items.append(MassItem(
         name="ballast", weight_lb=5000.0, x=100000.0, y=0.0, z=0.0,
         ixx=0.0, iyy=0.0, izz=0.0, kind=MassItemKind.DISCRETIONARY))
-    assert "cg_outside_envelope" in _codes(project, page="weight_cg_inertia")
+    assert "cg_outside_envelope" in _codes(project, page="weight_mass")
 
 
 def test_cg_check_skipped_without_envelope():
@@ -287,7 +287,7 @@ def test_a_role_on_a_case_that_is_not_a_ground_case_is_rejected():
     from dataclasses import replace
 
     project = _ga_with_ground_cases(lambda c: replace(c, analyses={AnalysisKind.FLIGHT}))
-    assert "cg_case_role_without_ground" in _codes(project, page="weight_cg_inertia")
+    assert "cg_case_role_without_ground" in _codes(project, page="weight_mass")
 
 
 def test_a_case_run_for_no_analysis_is_rejected():
@@ -297,7 +297,7 @@ def test_a_case_run_for_no_analysis_is_rejected():
     project = sloads_io.load_project(_GA)
     project.weight.cg_cases = [replace(c, analyses=set()) if i == 0 else c
                                for i, c in enumerate(project.weight.cg_cases)]
-    assert "cg_case_no_analysis" in _codes(project, page="weight_cg_inertia")
+    assert "cg_case_no_analysis" in _codes(project, page="weight_mass")
 
 
 def test_an_entered_loading_that_does_not_produce_its_case_is_reported():
@@ -311,7 +311,7 @@ def test_an_entered_loading_that_does_not_produce_its_case_is_reported():
     case = next(c for c in project.weight.cg_cases if c.name == "CGmax")
     assert "cg_case_loading_echo" not in _codes(project)      # as shipped
     case.weight_lb += 500.0
-    codes = _codes(project, page="weight_cg_inertia")
+    codes = _codes(project, page="weight_mass")
     assert "cg_case_loading_echo" in codes
 
 
@@ -333,7 +333,7 @@ def test_the_design_weight_ordering_chain_fires_on_an_inverted_pair():
     """G-14: OEW <= MLW <= MTOW <= sum(items), one check where four were scattered."""
     project = sloads_io.load_project(_GA)
     project.weight.max_landing_weight_lb = project.weight.max_takeoff_weight_lb + 100.0
-    assert "weight_order_chain" in _codes(project, page="weight_cg_inertia")
+    assert "weight_order_chain" in _codes(project, page="weight_mass")
 
 
 def test_the_mlw_floor_fires_on_the_regional_jet_and_no_other_fixture():
@@ -373,7 +373,7 @@ def test_the_gear_carrier_mass_guard_still_fires_on_a_mistagged_leg():
     gear = next(it for it in project.weight.items if it.name == "Main gear")
     assert gear.component is MassComponent.WING
     gear.component = MassComponent.FUSELAGE
-    assert "gear_carrier_mass_disagrees" in _codes(project, page="weight_cg_inertia")
+    assert "gear_carrier_mass_disagrees" in _codes(project, page="weight_mass")
 
 
 # --------------------------------------------------------------------------- #
@@ -399,7 +399,7 @@ def test_the_wing_mass_tie_validator_names_the_pounds_and_the_remedy():
     fuel.wing_fraction = 0.0
     warnings = [w for w in consistency_warnings(project) if w.code == "wing_mass_tie_open"]
     assert len(warnings) == 1
-    assert warnings[0].page == "weight_cg_inertia"
+    assert warnings[0].page == "weight_mass"
     assert "3,800 lb" in warnings[0].message
     assert "wing_fraction" in warnings[0].message
 
@@ -421,7 +421,7 @@ def test_wing_fraction_entry_rules():
     wing = next(it for it in project.weight.items if it.name == "Wing")
     fuel.wing_fraction = 1.2
     wing.wing_fraction = 0.3
-    codes = _codes(project, page="weight_cg_inertia")
+    codes = _codes(project, page="weight_mass")
     assert "wing_fraction_out_of_range" in codes
     assert "wing_fraction_on_wing_row" in codes
 
@@ -455,6 +455,40 @@ def test_landing_reaction_warnings_flag_the_zero_waterline_reactions():
     codes = {w.code for w in landing_reaction_warnings(bad)}
     assert "landing_negative_vertical" in codes, codes
     assert any(c.vnp < 0 for c in bad), "expected the nonphysical negative nose reactions"
+
+
+def test_every_warning_targets_a_real_page():
+    """Rule-3 drift guard: every ``page`` tag is a ``workflow.STEPS`` key (#82).
+
+    ``workflow.py`` is the nav SSOT, so a tag naming anything else names a page
+    no GUI has, and the warning is dark wherever it is not propped up by a
+    hand-typed literal. Two tags were exactly that until #82 --
+    ``weight_cg_inertia`` (the weights page has been ``weight_mass`` since Step
+    G3) and ``wing_geometry`` (merged into ``configuration_layout`` at Step G1)
+    -- covering 19 checks, 14 of them the weights group. This asserts against
+    *every* tag the module can emit, not the ones one fixture happens to trip,
+    so a new check with a typo'd page fails here rather than rendering nowhere.
+    """
+    from sloads import validation
+    from sloads import workflow as wf
+
+    keys = {s.key for s in wf.STEPS}
+    tagged = {name: value for name, value in vars(validation).items()
+              if name.startswith("PAGE_") and isinstance(value, str)}
+    assert tagged, "no PAGE_* tags found -- has the constant naming changed?"
+    bad = {n: v for n, v in tagged.items() if v not in keys}
+    assert not bad, f"page tags that are not workflow step keys: {bad}"
+
+    # ...and the tags the live checks actually emit, across every fixture, so a
+    # page string written inline instead of through a PAGE_* constant is caught
+    # too.
+    emitted = set()
+    for name in ("ga6_normal", "concept_regional_jet", "concept_heavy",
+                 "atr42_100"):
+        project = sloads_io.load_project(
+            os.path.join(_EXAMPLES, f"{name}.project.json"))
+        emitted |= {w.page for w in consistency_warnings(project)}
+    assert emitted <= keys, f"emitted page tags outside workflow: {emitted - keys}"
 
 
 if __name__ == "__main__":
