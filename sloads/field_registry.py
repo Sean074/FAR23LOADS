@@ -808,8 +808,14 @@ REGISTRY: Tuple[FieldEntry, ...] = (
     _E("flap_loads.flap_chord_ratio", _FLAP, _ORIG, "FLAPLOAD E"),
     _E("flap_loads.flap_deflection_deg", _FLAP, _ORIG, "FLAPLOAD DELTA"),
     _E("flap_loads.gust_load_factor", _FLAP, _ORIG, "FLAPLOAD NG"),
-    _E("flap_loads.nacelle_frontal_area_sqft", _FLAP, _ORIG, "FLAPLOAD AF"),
-    _E("flap_loads.engine_butt_line_in", _FLAP, _ORIG, "FLAPLOAD BLPROP"),
+    # Both place the 23.457(b) slipstream band; the term that uses the band is
+    # driven by the engine record, so the basis says so where it is entered (#83).
+    _E("flap_loads.nacelle_frontal_area_sqft", _FLAP, _ORIG,
+       "FLAPLOAD AF (slipstream band; the slipstream needs an engine record's "
+       "power + propeller diameter, entered on Engine Mount Loads)"),
+    _E("flap_loads.engine_butt_line_in", _FLAP, _ORIG,
+       "FLAPLOAD BLPROP (slipstream band; the slipstream needs an engine record's "
+       "power + propeller diameter, entered on Engine Mount Loads)"),
     _E("flap_loads.inboard_y_in", _FLAP, _SLDS, "sbeam control-surface bridge station"),
     _E("flap_loads.outboard_y_in", _FLAP, _SLDS, "sbeam control-surface bridge station"),
     _E("flap_loads.hinges_span_in", _FLAP, _SLDS, "sbeam control-surface bridge station"),

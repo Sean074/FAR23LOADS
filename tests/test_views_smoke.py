@@ -35,10 +35,13 @@ def _seeded_project(path=_EXAMPLE):
     return io.load_project(path)
 
 
-def _run(path, project_path=_EXAMPLE):
+def _run(path, project_path=_EXAMPLE, project=None):
+    """Render one view. ``project=`` seeds a mutated project directly, for the
+    cases whose point is an input state no example file holds."""
     from streamlit.testing.v1 import AppTest
     at = AppTest.from_file(path, default_timeout=60)
-    at.session_state["project"] = _seeded_project(project_path)
+    at.session_state["project"] = (project if project is not None
+                                   else _seeded_project(project_path))
     at.run()
     return at
 
@@ -101,6 +104,28 @@ def test_flap_page_shows_the_slipstream_it_computes():
     # VF-governed condition, ~1.47 x 630 on this airplane.
     assert float(shown["Slipstream factor"]) > 1.0
     assert int(shown["Flap load in slipstream (lb, LIMIT)"].replace(",", "")) > 0
+    # ... and says nothing about a skip it did not make.
+    assert not any("slipstream effect included" in w.value for w in at.warning)
+
+
+def test_flap_page_says_when_the_slipstream_is_skipped():
+    """#83: with the band entered but no engine record, the page must say the
+    23.457(b) case is absent -- in *this* GUI too, not only in the oracle GUI.
+
+    The flap view opened with a bare ``st.title`` until #83, so the #82 renderer
+    (which hangs off ``page_header``) never reached it and the warning would have
+    been oracle-GUI-only -- the exact divergence #82 was written to end.
+    """
+    project = _seeded_project()
+    project.engines = []
+    at = _run(_FLAP, project=project)
+    assert not at.exception, [e.message for e in at.exception]
+    shown = " ".join(w.value for w in at.warning)
+    assert "slipstream effect included" in shown, [w.value for w in at.warning]
+    assert "Engine Mount Loads" in shown
+    # The page still computes and shows the load it *can* justify.
+    assert not any("Slipstream" in s.value for s in at.subheader), \
+        [s.value for s in at.subheader]
 
 
 def test_no_view_tests_a_display_label_against_a_key_dict():

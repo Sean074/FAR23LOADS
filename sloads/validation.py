@@ -49,6 +49,11 @@ Checks (14 CFR / Reference-1 context in each predicate):
                           -- coefficient-entry checks on the airplane-less-tail
                              polynomials (M4-5; Ref 1 Ch 7/Ch 8). See
                              ``_check_aero_coefficients``.
+- ``flap_slipstream_skipped`` -- the FAR 23.457(b) slipstream band geometry
+                             entered on the Flap Loads page with no engine record
+                             to drive the term, so the slipstream case is skipped
+                             and the flap is sized on the gust-combined load alone
+                             (#83; Ref 1 Ch 17). See ``_check_flap_slipstream``.
 - ``gross_ge_max_landing`` / ``landing_light_le_max`` / ``landing_cg_ordering`` /
   ``landing_cg_below_axle`` / ``landing_cg_names`` -- the LANDLOAD weight/CG
                              hierarchy (M4-17d; 14 CFR 23.473-23.499). See
@@ -101,6 +106,7 @@ PAGE_WEIGHT_CG = "weight_mass"
 PAGE_EXPORT = "export_report"
 PAGE_LANDING = "landing_loads"
 PAGE_AERO_COEFFS = "aero_coefficients"
+PAGE_FLAP = "flap_loads"
 
 # The three canonical LANDLOAD loadings, in the order LANDLOAD consumes them (UG
 # fig 18.2). Since decision G-3a the *contract* is ``CgCase.role``, not the name --
@@ -1117,14 +1123,71 @@ def _check_gear_carrier(project: Project) -> List[ConsistencyWarning]:
     return out
 
 
+def _check_flap_slipstream(project: Project) -> List[ConsistencyWarning]:
+    """The 23.457(b) slipstream geometry entered with nothing to drive it (#83).
+
+    ``flap_slipstream_skipped`` -- the Flap Loads page collects the slipstream
+    band's geometry (AF, the nacelle/fuselage frontal area; BLPROP, the engine
+    butt line) but the slipstream term itself needs the engine record's takeoff
+    power and propeller diameter. With no such record the term is skipped: since
+    #85 that is not merely a factor left unprinted but a **delivered case that
+    does not exist**, so the flap and its attachments are sized on the
+    gust-combined load alone. The manual's own example prints x1.407 (Ref 1
+    Appendix A p201), so the omission is first-order.
+
+    The predicate fires only when the geometry *was* entered, which is the
+    evidence that a slipstream was intended. That is deliberate, and it is what
+    keeps the check silent on airplanes with no propeller: ``EngineType`` has no
+    jet member today, so ``concept_regional_jet``'s turbofans are recorded as
+    TURBOPROP with a zero propeller diameter and are indistinguishable from an
+    unentered piston record by engine type alone. A turbofan airplane leaves AF
+    and BLPROP at zero and stays silent here; the schema gap is filed
+    separately. The cost of that choice is stated plainly: an airplane that
+    enters neither AF nor BLPROP and has no engine record still gets the
+    understated load without a warning.
+
+    The condition is read from :func:`sloads.modules.flap.slipstream_is_available`
+    -- the module's own skip condition -- so this check cannot drift away from
+    the behaviour it describes.
+    """
+    inp = project.flap_loads
+    if inp is None:
+        return []
+    if inp.nacelle_frontal_area_sqft <= 0 and inp.engine_butt_line_in == 0:
+        return []
+    from .modules.flap import slipstream_is_available
+    if slipstream_is_available(project):
+        return []
+    eng = project.engine
+    if eng is None:
+        missing = "no engine has been entered at all"
+    else:
+        gaps = []
+        if not (eng.takeoff_hp or eng.max_cont_hp):
+            gaps.append("takeoff (or max-continuous) power")
+        if not eng.prop_diameter_in:
+            gaps.append("propeller diameter")
+        missing = "the engine record states no " + " and no ".join(gaps)
+    return [ConsistencyWarning(
+        "flap_slipstream_skipped",
+        "No slipstream effect included as engine location not set — see page "
+        "Engine Mount Loads. The FAR 23.457(b) propeller-slipstream case is "
+        f"skipped because {missing}, so the flap is sized on the gust-combined "
+        "load alone. The slipstream band geometry entered here (AF, BLPROP) is "
+        "read for nothing until then. On the manual's own example the slipstream "
+        "raises the flap load by x1.407 (Ref 1 Appendix A p201), so this is a "
+        "first-order omission, not a rounding one.",
+        PAGE_FLAP)]
+
+
 def consistency_warnings(project: Project) -> List[ConsistencyWarning]:
     """All input-consistency warnings for ``project`` (each tagged with its page).
 
-    A view renders the subset whose ``page`` matches it, e.g.::
-
-        for w in consistency_warnings(project):
-            if w.page == "weight_cg_inertia":
-                st.warning(w.message)
+    Views do **not** filter this themselves: ``app_shell.components.page_header``
+    is the only consumer in either GUI and renders the subset tagged for the step
+    key it already holds (#82). The ``page`` tag is a ``sloads.workflow.STEPS``
+    key -- ``weight_mass``, ``flap_loads`` -- guarded by
+    ``tests/test_validation.py::test_every_warning_targets_a_real_page``.
     """
     out: List[ConsistencyWarning] = []
     out += _check_taper(project)
@@ -1143,4 +1206,5 @@ def consistency_warnings(project: Project) -> List[ConsistencyWarning]:
     out += _check_wing_fraction(project)
     out += _check_wing_mass_tie(project)
     out += _check_aero_coefficients(project)
+    out += _check_flap_slipstream(project)
     return out

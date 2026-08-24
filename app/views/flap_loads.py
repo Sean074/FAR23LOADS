@@ -13,33 +13,35 @@ from __future__ import annotations
 import pandas as pd
 import streamlit as st
 
-from app_shell.components import active_system, gate, stop_page, unit_number_input
+from app_shell.components import gate, page_header, stop_page, unit_number_input
 from app_shell.widget_keys import widget_key
 from sloads import (
     FlapLoadsInput,
     Project,
     UnitSystem,
     convert_results,
-    labels_for,
     to_si_scalar,
 )
 from sloads.export import sbeam_bridge as sb
 from sloads.modules.flap import build_flap, run
 
-st.title("Flap Loads — FLAPLOAD")
-st.caption(
-    "Python/Streamlit port of FLAPLOAD.BAS (Reference 1 Ch 17): the critical "
-    "flaps-extended load (Abbott & von Doenhoff Fig 98 flap-lift build-up), with "
-    "the propeller-slipstream and head-on-gust amplifications."
+# The shared header, so this page shows the entry errors tagged for it in both
+# GUIs (#82 renderer, #83 slipstream warning) rather than only in the oracle GUI,
+# which reaches every page through it. ``banner=False`` keeps the page's own
+# concept notice below as the one applicability statement -- nothing else about
+# the opening changes. It also carries D-16: ``active_system()`` inside the
+# header is the single read of the unit selection.
+ctx = page_header(
+    "flap_loads",
+    title="Flap Loads — FLAPLOAD",
+    caption=("Python/Streamlit port of FLAPLOAD.BAS (Reference 1 Ch 17): the critical "
+             "flaps-extended load (Abbott & von Doenhoff Fig 98 flap-lift build-up), with "
+             "the propeller-slipstream and head-on-gust amplifications."),
+    banner=False,
 )
-
-project: Project = st.session_state.get("project", Project(name=""))
-# D-16: ``active_system()`` is the single read of the unit selection. Reading
-# ``session_state["unit_system"]`` here was a second authority for the same
-# decision -- since M4-20 step 2 the project field is the source, and the
-# session key is only the no-project-yet fallback inside ``active_system()``.
-system: UnitSystem = active_system()
-U = labels_for(system)  # {"area_sqft","length",...} -> unit string
+project: Project = ctx.project
+system: UnitSystem = ctx.system
+U = ctx.U  # {"area_sqft","length",...} -> unit string
 
 if project.speeds is None:
     gate("Define the **Structural Speeds** (VS/VSF/VF, weight) first.", "structural_speeds")
@@ -62,12 +64,22 @@ with st.form("flap_loads_form"):
         "Flaps-extended gust load factor, NG", min_value=0.0,
         value=float(inp.gust_load_factor), step=0.1,
         key=widget_key("flap_gust_ng"))
+    # Both feed the 23.457(b) slipstream band only, and the term itself needs the
+    # engine record's power and propeller diameter -- so say where the rest of the
+    # slipstream comes from, right where these two are entered (#83).
+    _SLIP_HELP = ("Slipstream band geometry (FAR 23.457(b)). The band is placed by "
+                  "these two, but the slipstream itself is driven by the **engine "
+                  "record** — takeoff power and propeller diameter, entered on the "
+                  "Engine Mount Loads page. With no such engine the term is skipped "
+                  "and these are read for nothing.")
     nacelle_frontal_area_sqft = unit_number_input(
         "Nacelle/fuselage frontal area, AF", float(inp.nacelle_frontal_area_sqft),
-        kind="area_sqft", key="flap_nacelle_area", min_value=0.0, step=0.1, container=c1)
+        kind="area_sqft", key="flap_nacelle_area", min_value=0.0, step=0.1, container=c1,
+        help=_SLIP_HELP)
     engine_butt_line_in = unit_number_input(
         "Engine butt line, BLPROP (0 = fuselage)", float(inp.engine_butt_line_in),
-        kind="length", key="flap_engine_bl", step=1.0, container=c2)
+        kind="length", key="flap_engine_bl", step=1.0, container=c2,
+        help=_SLIP_HELP)
     applied = st.form_submit_button("Apply", type="primary")
 
 if applied:
