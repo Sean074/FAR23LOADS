@@ -16,7 +16,8 @@ evaluated for four conditions and the largest taken:
 The chordwise distribution tapers from the leading edge to half that pressure at
 the trailing edge, so ``LE psi = LF / 0.75 / SF / 144``.
 
-Two amplifications are reported alongside the critical load:
+Two amplifications ride on the critical load, and both are **delivered as cases**,
+not merely printed (#85):
 
 * **Slipstream** (FAR 23.457(b)) -- a momentum-theory subroutine (FLAPLOAD.BAS
   sub 500) finds the fully-developed slipstream velocity ``U1`` that absorbs
@@ -25,6 +26,13 @@ Two amplifications are reported alongside the critical load:
   the slipstream is raised by ``(V_ss/VF)^2``.
 * **Head-on 25 fps gust** (FAR 23.345(c)(1)) -- the load is raised by
   ``((VF_fps + 25)/VF_fps)^2``.
+
+The two are **independent** worst cases (a head-on gust; full takeoff power at
+VF), so they are enveloped, never multiplied: ``build_flap`` emits the
+gust-combined case and, when the airplane has propeller power, the slipstream
+case beside it. FLAPLOAD.BAS itself printed both factors and left the
+application to the designer -- defensible for a printed report, not for a solver
+deck, which was shipping the understated case.
 
 VS/VSF/VF and the design weight come from ``Project.speeds`` (STRSPEED); the wing
 area from the ``Project.geometry`` wing surface; the propeller MAXHP/diameter from
@@ -87,6 +95,7 @@ class FlapResult(NamedTuple):
     slipstream_velocity_kt: float
     slipstream_bl_inboard: float
     slipstream_bl_outboard: float
+    slipstream_load_lb: float   # factor x the VF-governed condition; 0 with no slipstream
     # Head-on gust (FAR 23.345(c)(1)).
     gust_factor: float
     combined_gust_lb: float
@@ -156,7 +165,7 @@ def flap_loads(vs: float, vsf: float, vf: float, weight: float, ng: float,  # no
     le_psi = critical / 0.75 / sf / IN2_PER_FT2
 
     # Slipstream (FAR 23.457(b)).
-    slip_factor = slip_v_kt = bl_in = bl_out = 0.0
+    slip_factor = slip_v_kt = bl_in = bl_out = slip_load = 0.0
     if maxhp > 0 and pdia_in > 0:
         u1, u, aprop = _slipstream_velocity(vf, maxhp, pdia_in)
         a1 = aprop * u / u1 if u1 > 0 else 0.0   # contracted slipstream area at flap
@@ -166,6 +175,12 @@ def flap_loads(vs: float, vsf: float, vf: float, weight: float, ng: float,  # no
         bl_out = blprop + rtot_in
         slip_v_kt = u1 / KT_TO_FPS
         slip_factor = slip_v_kt ** 2 / vf ** 2
+        # The factor is (Vss/VF)^2 -- a ratio of dynamic pressures *at VF* -- so it
+        # scales the VF-based conditions, not the stall-speed ones evaluated at
+        # VSF: applying it to a load computed at VSF would multiply a q it has no
+        # relation to. On the manual's own example the critical condition is 2G at
+        # VF, so this is exactly ``factor x critical`` there (#85).
+        slip_load = slip_factor * max(lf[2], lf[3])
 
     # Head-on 25 fps gust (FAR 23.345(c)(1)).
     vf_fps = vf * KT_TO_FPS
@@ -176,6 +191,7 @@ def flap_loads(vs: float, vsf: float, vf: float, weight: float, ng: float,  # no
         clf=clf, clw=clw, lf=lf, critical_lf_lb=critical, le_pressure_psi=le_psi,
         slipstream_factor=slip_factor, slipstream_velocity_kt=slip_v_kt,
         slipstream_bl_inboard=bl_in, slipstream_bl_outboard=bl_out,
+        slipstream_load_lb=slip_load,
         gust_factor=gust_factor, combined_gust_lb=combined,
     )
 
@@ -215,7 +231,22 @@ def _compute(project: Project) -> FlapResult:
 
 
 def build_flap(project: Project) -> List[ControlSurfaceLoadResult]:
-    """The governing flap load (gust-combined envelope) as a result record."""
+    """The delivered flap cases: the gust-combined envelope, plus the FAR 23.457(b)
+    slipstream case whenever the airplane carries propeller power.
+
+    The slipstream case is a **second case beside** the gust-combined one, not a
+    product with it: the two are independent worst cases (a 25 fps head-on gust
+    and full takeoff power at VF), and the manual prints their factors
+    separately. The governing flap load is the larger of the two -- on the C210 it
+    is the slipstream case, 19 % above what shipped before #85.
+
+    The factored load is stated over the **whole** flap, not over the band alone:
+    :class:`~sloads.models.ControlSurfaceLoadResult` carries chord fractions and no
+    spanwise dimension (see ``control_surface_force_moment_cards``), so there is
+    nowhere to put a partial-span distribution. The band's butt lines are reported
+    beside the case; applying the factor over the full surface is conservative for
+    the flap and its attachments, and is stated rather than implied.
+    """
     r = _compute(project)
     inp, sp = project.flap_loads, project.speeds
     if inp is None or sp is None:  # _compute has already refused; narrows for the reads below
@@ -224,21 +255,28 @@ def build_flap(project: Project) -> List[ControlSurfaceLoadResult]:
     sv = design_speed_values(project, sp)
     load = max(r.critical_lf_lb, r.combined_gust_lb)
     case = "flap gust-combined" if r.combined_gust_lb >= r.critical_lf_lb else "flap 23.345(a)"
-    le = load / 0.75 / inp.flap_area_one_side_sqft / IN2_PER_FT2
-    stations = [
-        ControlSurfaceStation(x=0.0, psi=le),
-        ControlSurfaceStation(x=1.0, psi=le / 2.0),
-    ]
-    # W- id from the FLAPLOAD band (case_ids.WING_BAND_FLAP..69).
+    # W- ids from the FLAPLOAD band (case_ids.WING_BAND_FLAP..69).
     allocator = CaseIdAllocator()
     allocator.seed("wing", WING_BAND_FLAP)
-    ref = CaseRef(case_id=allocator.next_id("wing"), component="wing",
-                  condition=case, far_reference="23.345/23.457")
-    # Minted here (flap owns its condition); run() copies it onto the rendered
-    # ConditionResult so report and export can never disagree (defect M4-13).
-    return [ControlSurfaceLoadResult(
-        surface=surface, case=case, load_lb=load, v_kt=sv.vf, stations=stations,
-        case_ref=ref, safety_factor=ULTIMATE_FACTOR)]
+
+    def _case(name: str, lb: float) -> ControlSurfaceLoadResult:
+        """One flap case with the Ch 17 chordwise taper (LE -> half at TE)."""
+        le = lb / 0.75 / inp.flap_area_one_side_sqft / IN2_PER_FT2
+        ref = CaseRef(case_id=allocator.next_id("wing"), component="wing",
+                      condition=name, far_reference="23.345/23.457")
+        # Minted here (flap owns its conditions); run() copies each onto its
+        # rendered ConditionResult so report and export can never disagree
+        # (defect M4-13).
+        return ControlSurfaceLoadResult(
+            surface=surface, case=name, load_lb=lb, v_kt=sv.vf,
+            stations=[ControlSurfaceStation(x=0.0, psi=le),
+                      ControlSurfaceStation(x=1.0, psi=le / 2.0)],
+            case_ref=ref, safety_factor=ULTIMATE_FACTOR)
+
+    cases = [_case(case, load)]
+    if r.slipstream_load_lb > 0:
+        cases.append(_case("flap slipstream 23.457(b)", r.slipstream_load_lb))
+    return cases
 
 
 def run(project: Project) -> ModuleResult:
@@ -260,24 +298,43 @@ def run(project: Project) -> ModuleResult:
         LoadValue("Head-on gust factor", r.gust_factor, key="head_on_gust_factor"),
         LoadValue("Flap load combined w/ gust", r.combined_gust_lb, "lb", key="flap_load_combined_w_gust"),
     ]
-    if r.slipstream_factor > 0:
-        values.extend([
-            LoadValue("Slipstream factor", r.slipstream_factor, key="slipstream_factor"),
-            LoadValue("Slipstream velocity at flap", r.slipstream_velocity_kt, "kt(EAS)",
-                key="slipstream_velocity_at_flap"),
-            LoadValue("Slipstream inboard BL", r.slipstream_bl_inboard, "in", key="slipstream_inboard_bl"),
-            LoadValue("Slipstream outboard BL", r.slipstream_bl_outboard, "in", key="slipstream_outboard_bl"),
-        ])
     note = ("Critical flaps-extended load (Abbott & von Doenhoff Fig 98); chordwise "
             "taper LE -> half at TE. Slipstream FAR 23.457(b), gust FAR 23.345(c)(1).")
     if project.is_concept:
         note += " Concept mode -- unverified extrapolation past the FAR23 band."
-    built = build_flap(project)[0]
-    return ModuleResult(module=MODULE_NAME, conditions=[ConditionResult(
+    built = build_flap(project)
+    conditions = [ConditionResult(
         title="Critical flap loads", far_reference="23.345", values=values, note=note,
         # Same per-case factor the sbeam export scales by, so the rendered and
         # exported ULTIMATE loads can never disagree (defect M4-13).
-        case_ref=built.case_ref, safety_factor=built.safety_factor)])
+        case_ref=built[0].case_ref, safety_factor=built[0].safety_factor)]
+    # The slipstream is its own delivered case, so it is its own reported
+    # condition: one ConditionResult per exported case keeps the M4-13 pairing
+    # exact, and prints the governing number instead of leaving the factor as an
+    # exercise for the reader (#85).
+    if r.slipstream_factor > 0:
+        conditions.append(ConditionResult(
+            title="Flap loads in the propeller slipstream",
+            far_reference="23.457(b)",
+            values=[
+                LoadValue("Slipstream factor", r.slipstream_factor, key="slipstream_factor"),
+                LoadValue("Slipstream velocity at flap", r.slipstream_velocity_kt, "kt(EAS)",
+                    key="slipstream_velocity_at_flap"),
+                LoadValue("Slipstream inboard BL", r.slipstream_bl_inboard, "in",
+                    key="slipstream_inboard_bl"),
+                LoadValue("Slipstream outboard BL", r.slipstream_bl_outboard, "in",
+                    key="slipstream_outboard_bl"),
+                LoadValue("Flap load in slipstream", r.slipstream_load_lb, "lb",
+                    key="flap_load_in_slipstream"),
+            ],
+            note=("FAR 23.457(b): the flap load inside the slipstream band is the "
+                  "VF-governed condition raised by (Vss/VF)^2. Delivered as a case "
+                  "beside the gust-combined one, not multiplied with it -- the two "
+                  "are independent worst cases. The factored load is stated over "
+                  "the whole flap (the case carries chord fractions, no span), "
+                  "which is conservative for the flap and its attachments."),
+            case_ref=built[-1].case_ref, safety_factor=built[-1].safety_factor))
+    return ModuleResult(module=MODULE_NAME, conditions=conditions)
 
 
 register(MODULE_NAME, run)
