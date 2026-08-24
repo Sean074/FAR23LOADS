@@ -48,6 +48,8 @@ from app_shell.project_state import (
 from app_shell.widget_keys import widget_key
 from sloads import Project, UnitSystem
 from sloads import io as sloads_io
+from sloads.report.results_zip import results_zip_bytes
+from sloads.report.results_zip import results_zip_name as _results_zip_name
 from sloads.units import unit_system_from
 
 #: Bundled example projects (``<repo>/examples``), offered as New-from-example.
@@ -196,6 +198,42 @@ def _render_project_file(project: Project, examples_dir: str) -> None:
         file_name=sloads_io.project_filename(project.name), mime="application/json",
         use_container_width=True, key="_download_btn",
     )
+
+    # The whole-project results zip (C210-45, backlog 19c): every registered
+    # module run against the current project, rendered by the same owners the
+    # CLI uses, with a skip-and-manifest for pages that refuse. Two-step
+    # (build, then download) because the build runs all 22 modules -- doing
+    # that on every sidebar rerun would tax every page for a button nobody
+    # pressed. The built bytes are keyed to the project's serialized identity,
+    # so an edit after Build invalidates the stale zip instead of serving it.
+    if st.button("📦 Build results zip", use_container_width=True,
+                 key="_results_zip_build"):
+        ident = sloads_io.project_to_json(project)  # identity of what was built
+        try:
+            data, manifest = results_zip_bytes(
+                project, system=unit_system_from(project.unit_system))
+        except Exception as exc:  # a genuine defect: show it, don't swallow it
+            st.error(f"{type(exc).__name__}: {exc}")
+        else:
+            st.session_state["_results_zip"] = (ident, data, manifest)
+    _built = st.session_state.get("_results_zip")
+    if _built is not None:
+        _ident, _data, _manifest = _built
+        if _ident != sloads_io.project_to_json(project):
+            st.session_state.pop("_results_zip", None)
+            st.caption("Project changed since the zip was built — build again.")
+        else:
+            _ran = sum(1 for line in _manifest if line.endswith(": OK"))
+            st.download_button(
+                "⬇️ Download results (zip)", _data,
+                file_name=_results_zip_name(project),
+                mime="application/zip", use_container_width=True,
+                key="_results_zip_dl",
+            )
+            st.caption(
+                f"{_ran} of {len(_manifest)} modules ran — see MANIFEST.txt "
+                "inside; your browser chooses the location."
+            )
 
 
 def _render_about() -> None:

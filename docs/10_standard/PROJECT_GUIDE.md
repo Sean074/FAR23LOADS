@@ -224,6 +224,7 @@ FAR23LOADS/
 │   │   ├── coverage.py           # FAR 23 Subpart C coverage matrix (covered / n-a / not analysed / out of scope)
 │   │   ├── content.py            # Project + module results → ReportDocument (sections/tables/figures) — no LaTeX
 │   │   ├── bundle.py             # THE Export zip's member list: every file it carries, with the manifest row that names it (CR-C-1)
+│   │   ├── results_zip.py        # the sidebar's whole-project results zip: every module run, skip-and-manifest (C210-45)
 │   │   ├── conventions_tex.py    # the report's "Axes and sign conventions" section, from CONVENTIONS.md's owners
 │   │   ├── latex.py              # ReportDocument → .tex (escaping, longtable, document control)
 │   │   └── plots_tex.py          # pgfplots figures: V-n, weight/CG, speed–altitude

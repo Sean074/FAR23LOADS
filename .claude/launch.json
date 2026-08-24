@@ -12,6 +12,18 @@
       "runtimeExecutable": ".venv/bin/streamlit",
       "runtimeArgs": ["run", "oracle_app/Oracle.py", "--server.headless", "true", "--server.port", "8502", "--theme.base", "light"],
       "port": 8502
+    },
+    {
+      "name": "sloads-oracle-gui-review",
+      "runtimeExecutable": ".venv/bin/streamlit",
+      "runtimeArgs": ["run", "oracle_app/Oracle.py", "--server.headless", "true", "--server.port", "8503", "--theme.base", "light"],
+      "port": 8503
+    },
+    {
+      "name": "repro-editor",
+      "runtimeExecutable": ".venv/bin/streamlit",
+      "runtimeArgs": ["run", "/private/tmp/claude-501/-Users-seanomeara-Documents-Loads-Programs-sloads/979b329e-b831-4299-a0c2-808adeae223f/scratchpad/repro_editor.py", "--server.headless", "true", "--server.port", "8504", "--theme.base", "light"],
+      "port": 8504
     }
   ]
 }
